@@ -132,6 +132,17 @@ function stripLeadingZeros(value: string): string {
   return trimmed.length === 0 ? '0' : trimmed
 }
 
+/**
+ * A tela abre no perfil já cadastrado — o ativo primeiro — e não num rascunho vazio: quem entra para
+ * ajustar um perfil encontra os parâmetros como foram gravados, e não um formulário em branco que o
+ * Salvar recusa por falta de regra. Sem nenhum perfil, não há o que carregar.
+ */
+export function pickInitialNfseProfile<TProfile extends { readonly status: string }>(
+  profiles: readonly TProfile[],
+): TProfile | undefined {
+  return profiles.find((profile) => profile.status === 'active') ?? profiles[0]
+}
+
 export function toNfseProfileDraft(profile: unknown): NfseProfileDraft {
   if (!isRecord(profile)) return EMPTY_NFSE_PROFILE_DRAFT
 
