@@ -98,4 +98,39 @@ describe('GET /trips/:id answers documents[].volumeCount (spec 233 T2.3)', () =>
 
     expect(portalDeliveryCarriesVolumeCount).toBe(false)
   })
+
+  test('answers the weight of each note and where it came from, without trip.financials', async () => {
+    const documents = [
+      { ...TRIP_DOCUMENT_DETAIL, cargoGrossWeight: '108.6700', cargoWeightSource: 'xml' },
+      {
+        ...TRIP_DOCUMENT_DETAIL,
+        cargoGrossWeight: '12.0000',
+        cargoWeightSource: 'estimated',
+        id: '00000000-0000-4000-8000-000000000799',
+      },
+      {
+        ...TRIP_DOCUMENT_DETAIL,
+        cargoGrossWeight: null,
+        cargoWeightSource: null,
+        id: '00000000-0000-4000-8000-000000000798',
+      },
+    ]
+    const fixture = await createTripHttpFixture({
+      getTripResult: { ...TRIP_DETAIL, documents },
+      permissions: READ_ONLY_PERMISSIONS,
+    })
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: tripDetailPath() }))
+    const data = (await responseData(response)) as unknown as { documents: DocumentBody[] }
+
+    expect(data.documents.map((document) => document.cargoGrossWeight)).toEqual([
+      '108.6700',
+      '12.0000',
+      null,
+    ])
+    expect(data.documents.map((document) => document.cargoWeightSource)).toEqual([
+      'xml',
+      'estimated',
+      null,
+    ])
+  })
 })

@@ -109,11 +109,16 @@ export function mapTripDocumentDetail(input: {
   readonly proofPending?: boolean
   /** Spec 233 T2.3: derivado fora daqui (`trip-document-volume.query.ts`) — padrão `null`. */
   readonly volumeCount?: null | number
+  /** Derivado fora daqui (`loadTripCargoWeight`) — padrão `null`, nunca `0`. */
+  readonly cargoGrossWeight?: null | string
+  readonly cargoWeightSource?: 'estimated' | 'xml' | null
 }): TripDocumentDetail {
   const fiscalStatus = input.nfeDocumentStatus ?? input.freightCalculationStatus
   if (fiscalStatus === null) throw new Error('TRIP_DOCUMENT_FISCAL_STATUS_MISSING')
   return {
     ...mapTripDocument(input.document),
+    cargoGrossWeight: input.cargoGrossWeight ?? null,
+    cargoWeightSource: input.cargoWeightSource ?? null,
     contact: input.contact ?? null,
     cteAuthorized: input.cteAuthorized,
     deliveryDeadline: input.deliveryDeadline ?? null,

@@ -1506,6 +1506,16 @@ async function readTripDetail(
     ),
   })
   /**
+   * O peso da carga, uma vez só: por nota (cada linha do resumo) e o total da viagem saem da mesma
+   * leitura, então a soma das notas nunca diverge do total. Em série, como as demais.
+   */
+  const cargoWeights = await loadTripCargoWeight(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds: documentRecords.flatMap((row) =>
+      row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
+    ),
+  })
+  /**
    * O rótulo é **derivado**, não servido do gravado: `trip_stops.label` é escrito uma vez, na
    * criação da parada, e ficou congelado quando o rótulo passou a levar o número do endereço.
    * Recalcular por migration em SQL seria a quarta grafia de endereço nesta base — e a terceira já
@@ -1537,6 +1547,14 @@ async function readTripDetail(
   const documents = documentRecords.map((row) =>
     mapTripDocumentDetail({
       ...row,
+      cargoGrossWeight:
+        row.document.nfeDocumentId === null
+          ? null
+          : (cargoWeights.weights.get(row.document.nfeDocumentId)?.grossWeightKilograms ?? null),
+      cargoWeightSource:
+        row.document.nfeDocumentId === null
+          ? null
+          : (cargoWeights.weights.get(row.document.nfeDocumentId)?.source ?? null),
       deliveryDeadline: deliveryDeadlines.get(row.document.id) ?? null,
       contact:
         row.document.nfeDocumentId === null
@@ -1607,10 +1625,7 @@ async function readTripDetail(
     trailerVehicleId: record.trailerVehicleId,
     vehicleId: record.vehicleId,
   })
-  const cargoWeight = await loadTripCargoWeight(queryable, {
-    companyId: input.companyId,
-    nfeDocumentIds,
-  }).then((weight) => weight.view)
+  const cargoWeight = cargoWeights.view
   const trailer = await readTripTrailer(queryable, {
     companyId: input.companyId,
     trailerVehicleId: record.trailerVehicleId,
