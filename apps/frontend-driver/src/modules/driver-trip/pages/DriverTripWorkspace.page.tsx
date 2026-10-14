@@ -975,6 +975,7 @@ export function DriverTripWorkspacePage() {
                     onToggle={() => stopExpansion.toggle(stop.id)}
                     onQueuedDocumentOccurrence={(input) => void reportDocumentOccurrence(input)}
                     onStopOccurrence={(input) => void reportStopOccurrence(input)}
+                    notDeliveredKeyByDocumentId={notDeliveredKeyByDocumentId}
                     notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
                     onNotDelivered={(input) => void reportNotDelivered(input)}
                   />

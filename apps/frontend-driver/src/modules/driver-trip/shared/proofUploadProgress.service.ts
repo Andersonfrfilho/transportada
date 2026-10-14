@@ -44,6 +44,11 @@ export function proofProgressKey(input: { documentId: string; kind: string }): s
   return `${input.documentId}:${input.kind}`
 }
 
+/** A chave da barra de uma ocorrência de nota: a mesma que o toque gerou, sem colidir com a de um anexo. */
+export function occurrenceProgressKey(idempotencyKey: string): string {
+  return `occurrence:${idempotencyKey}`
+}
+
 const EMPTY: Readonly<Record<string, ProofUploadProgressEntry>> = {}
 
 export function createProofUploadProgressStore() {

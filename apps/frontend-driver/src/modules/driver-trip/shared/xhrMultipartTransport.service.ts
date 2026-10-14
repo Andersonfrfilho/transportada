@@ -5,7 +5,8 @@ export type UploadProgress = Readonly<{ loaded: number; total: number }>
 
 type XhrTransportInput = Readonly<{
   createXhr: () => XMLHttpRequest
-  form: FormData
+  /** O multipart do comprovante, ou o `Blob` do PUT da foto da ocorrência: o `xhr.send` aceita os dois. */
+  form: XMLHttpRequestBodyInit
   headers: Readonly<Record<string, string>>
   method: string
   onProgress: (progress: UploadProgress) => void
