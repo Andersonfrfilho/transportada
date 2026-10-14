@@ -144,6 +144,9 @@ export const CANHOTO_PHOTO_ACCESS_KEY = '352409123456780001995500100001234518765
 
 const PAPER_BASE_LEVEL = 228
 const PAPER_GRAIN_LEVELS = 12
+const NOISY_PAPER_BASE_LEVEL = 40
+const NOISY_PAPER_GRAIN_LEVELS = 200
+const BARCODE_BAND_MARGIN_PIXELS = 120
 const BAR_LEVEL = 28
 const BAR_HEIGHT_PIXELS = 260
 const BAR_TOP_PIXELS = 400
@@ -156,6 +159,8 @@ export type BuildCanhotoPhotoParams = Readonly<{
   hasBarcode: boolean
   heightPixels: number
   moduleWidthPixels: number
+  /** Spec 265: papel mais granulado (e mais escuro) para o JPEG passar de 1 MiB, como a foto da câmera. */
+  noisyPaper?: boolean
   widthPixels: number
 }>
 
@@ -171,7 +176,15 @@ export async function buildCanhotoPhoto(params: BuildCanhotoPhotoParams): Promis
   const { heightPixels, widthPixels } = params
   const rgba = new Uint8ClampedArray(widthPixels * heightPixels * 4)
   for (let pixel = 0; pixel < widthPixels * heightPixels; pixel += 1) {
-    const level = PAPER_BASE_LEVEL + Math.floor(Math.random() * PAPER_GRAIN_LEVELS)
+    // O ruído forte fica fora da faixa do código: a câmera real também foca onde está o código.
+    const row = Math.floor(pixel / widthPixels)
+    const isBarcodeBand =
+      row >= BAR_TOP_PIXELS - BARCODE_BAND_MARGIN_PIXELS &&
+      row < BAR_TOP_PIXELS + BAR_HEIGHT_PIXELS + BARCODE_BAND_MARGIN_PIXELS
+    const noisy = params.noisyPaper === true && !isBarcodeBand
+    const level =
+      (noisy ? NOISY_PAPER_BASE_LEVEL : PAPER_BASE_LEVEL) +
+      Math.floor(Math.random() * (noisy ? NOISY_PAPER_GRAIN_LEVELS : PAPER_GRAIN_LEVELS))
     rgba.fill(level, pixel * 4, pixel * 4 + 3)
     rgba[pixel * 4 + 3] = 255
   }

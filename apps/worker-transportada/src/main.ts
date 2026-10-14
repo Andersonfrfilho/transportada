@@ -142,6 +142,16 @@ import { createDocumentExtractionGateway } from './aggregate-attachment/infrastr
 import { createThreadedAttachmentExtractionGateway } from './aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
 import { startAggregateAttachmentConsumer } from './runtime/aggregate-attachment-consumer.service.js'
 import { startCargoPreviewConsumer } from './runtime/cargo-preview-consumer.service.js'
+import { startDeliveryProofProcessingConsumer } from './runtime/delivery-proof-processing-consumer.service.js'
+import { buildDeliveryProofProcessingRabbitMqTopology } from './messaging/delivery-proof-processing-rabbitmq-topology.js'
+import {
+  DeliveryProofOutboxPublisherService,
+  DeliveryProofOutboxRelayService,
+} from './delivery-proof-processing/application/delivery-proof-outbox-relay.service.js'
+import { DrizzleDeliveryProofOutboxRepository } from './delivery-proof-processing/infrastructure/drizzle-delivery-proof-outbox.repository.js'
+import { createDrizzleDeliveryProofProcessingRepository } from './delivery-proof-processing/infrastructure/drizzle-delivery-proof-processing.repository.js'
+import { createStorageDeliveryProofObjectGateway } from './delivery-proof-processing/infrastructure/storage-delivery-proof-object.gateway.js'
+import { createThreadedDeliveryProofImageProcessor } from './delivery-proof-processing/infrastructure/threaded-delivery-proof-image.processor.js'
 import { buildCargoPreviewRabbitMqTopology } from './messaging/cargo-preview-rabbitmq-topology.js'
 import {
   CargoPreviewOutboxRelayService,
@@ -470,6 +480,9 @@ type WorkerRuntimeDependencies = {
   readonly startCargoPreviewConsumer?: (
     input: Parameters<typeof startCargoPreviewConsumer>[0],
   ) => Promise<RuntimeConsumer | undefined>
+  readonly startDeliveryProofProcessingConsumer?: (
+    input: Parameters<typeof startDeliveryProofProcessingConsumer>[0],
+  ) => Promise<RuntimeConsumer | undefined>
   readonly startContractorMailOutboundConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly dependencies: SendContractorMailOutboundMessageDependencies
@@ -555,6 +568,8 @@ export async function startWorkerRuntime(
   const contractorMailOutboundStarter =
     dependencies.startContractorMailOutboundConsumer ?? startContractorMailOutboundConsumer
   const cargoPreviewStarter = dependencies.startCargoPreviewConsumer ?? startCargoPreviewConsumer
+  const deliveryProofProcessingStarter =
+    dependencies.startDeliveryProofProcessingConsumer ?? startDeliveryProofProcessingConsumer
   const contractorMailInboundStarter =
     dependencies.startContractorMailInboundConsumer ?? startContractorMailInboundConsumer
   const cargoLayoutStarter = dependencies.startCargoLayoutConsumer ?? startCargoLayoutConsumer
@@ -638,6 +653,9 @@ export async function startWorkerRuntime(
   const cargoPreviewTopology = buildCargoPreviewRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const deliveryProofProcessingTopology = buildDeliveryProofProcessingRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   const contractorMailOutboundTopology = buildContractorMailOutboundRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
@@ -682,6 +700,9 @@ export async function startWorkerRuntime(
   let cargoPreviewConsumer: RuntimeConsumer | undefined
   let cargoPreviewPublisher: RabbitMqProvider | undefined
   let cargoPreviewRelayLoop: OutboxRelayLoop | undefined
+  let deliveryProofProcessingConsumer: RuntimeConsumer | undefined
+  let deliveryProofProcessingPublisher: RabbitMqProvider | undefined
+  let deliveryProofProcessingRelayLoop: OutboxRelayLoop | undefined
   let contractorMailOutboundConsumer: RuntimeConsumer | undefined
   let contractorMailOutboundPublisher: RabbitMqProvider | undefined
   let contractorMailOutboundRelayLoop: OutboxRelayLoop | undefined
@@ -742,6 +763,10 @@ export async function startWorkerRuntime(
     cargoPreviewPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: cargoPreviewTopology,
+    })
+    deliveryProofProcessingPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: deliveryProofProcessingTopology,
     })
     contractorMailInboundPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
@@ -1089,6 +1114,36 @@ export async function startWorkerRuntime(
       logger,
       maxRetries: cargoPreviewTopology.retry?.maxRetries ?? 0,
       provider: cargoPreviewPublisher,
+    })
+    deliveryProofProcessingConsumer = await deliveryProofProcessingStarter({
+      dependencies: {
+        /**
+         * Spec 265 RF5: a leitura do código de barras sobre o original reporta pela rota do robô da 222 —
+         * a mesma credencial da rotina `trip.canhoto.read`. Sem o crachá declarado, o trilho reduz e
+         * fecha `ready` sem ler (a rotina também não está registrada nesse caso).
+         */
+        ...(config.mdfeAutoIssue === undefined
+          ? {}
+          : {
+              barcode: {
+                queue: createDrizzleCanhotoReadQueue(
+                  database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                ),
+                reviewApi: createCanhotoReviewApiGateway({ configuration: config.mdfeAutoIssue }),
+              },
+            }),
+        image: createThreadedDeliveryProofImageProcessor(),
+        logger,
+        newObjectId: () => crypto.randomUUID(),
+        now: () => new Date(),
+        objects: createStorageDeliveryProofObjectGateway({ storage: storageGateway }),
+        repository: createDrizzleDeliveryProofProcessingRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+      },
+      logger,
+      maxRetries: deliveryProofProcessingTopology.retry?.maxRetries ?? 0,
+      provider: deliveryProofProcessingPublisher,
     })
     contractorMailOutboundConsumer = await contractorMailOutboundStarter({
       config,
@@ -1804,6 +1859,29 @@ export async function startWorkerRuntime(
       }),
     })
     cargoPreviewRelayLoop.start()
+    deliveryProofProcessingRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.delivery-proof-processing.relay.${crypto.randomUUID()}`,
+      failureMessage: 'delivery_proof_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new DeliveryProofOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new DeliveryProofOutboxPublisherService(deliveryProofProcessingPublisher),
+        repository: new DrizzleDeliveryProofOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error
+              ? error
+              : new Error('delivery proof outbox relay publish failed')
+          },
+        },
+      }),
+    })
+    deliveryProofProcessingRelayLoop.start()
     contractorMailOutboundRelayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.contractor-mail-outbound.relay.${crypto.randomUUID()}`,
       failureMessage: 'contractor_mail_outbound_outbox_relay_failed',
@@ -1936,6 +2014,7 @@ export async function startWorkerRuntime(
         nfseRelayLoop,
         aggregateAttachmentRelayLoop,
         cargoPreviewRelayLoop,
+        deliveryProofProcessingRelayLoop,
         contractorMailOutboundRelayLoop,
         contractorMailInboundRelayLoop,
         cargoLayoutRelayLoop,
@@ -1963,6 +2042,7 @@ export async function startWorkerRuntime(
         passwordResetDeliveryConsumer,
         aggregateAttachmentConsumer,
         cargoPreviewConsumer,
+        deliveryProofProcessingConsumer,
         contractorMailOutboundConsumer,
         contractorMailInboundConsumer,
         cargoLayoutConsumer,
@@ -1992,6 +2072,7 @@ export async function startWorkerRuntime(
          */
         aggregateAttachmentPublisher,
         cargoPreviewPublisher,
+        deliveryProofProcessingPublisher,
         contractorMailOutboundPublisher,
         contractorMailInboundPublisher,
         cargoLayoutPublisher,
@@ -2036,6 +2117,8 @@ export async function startWorkerRuntime(
     await aggregateAttachmentRelayLoop?.close().catch(() => undefined)
     await cargoPreviewConsumer?.cancel().catch(() => undefined)
     await cargoPreviewRelayLoop?.close().catch(() => undefined)
+    await deliveryProofProcessingConsumer?.cancel().catch(() => undefined)
+    await deliveryProofProcessingRelayLoop?.close().catch(() => undefined)
     await cargoLayoutRelayLoop?.close().catch(() => undefined)
     await healthServer?.stop().catch(() => undefined)
     await storageGateway.close().catch(() => undefined)
@@ -2048,6 +2131,7 @@ export async function startWorkerRuntime(
     await passwordResetDeliveryPublisher?.close().catch(() => undefined)
     await aggregateAttachmentPublisher?.close().catch(() => undefined)
     await cargoPreviewPublisher?.close().catch(() => undefined)
+    await deliveryProofProcessingPublisher?.close().catch(() => undefined)
     await contractorMailOutboundPublisher?.close().catch(() => undefined)
     await contractorMailInboundPublisher?.close().catch(() => undefined)
     await cargoLayoutPublisher?.close().catch(() => undefined)
