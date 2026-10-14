@@ -55,6 +55,18 @@ function text(row: Row | undefined, key: string): string | null {
   return typeof value === 'string' ? value : null
 }
 
+/** Mesma regra de `resolveCompanyDisplayName` da API, repetida porque este arquivo vive idêntico nas duas apps. */
+function chosenCarrierName(input: {
+  displayNameMode: null | string
+  legalName: string
+  tradeName: string
+}): string {
+  const legalName = input.legalName.trim()
+  const tradeName = input.tradeName.trim()
+  if (input.displayNameMode === 'legal_name') return legalName === '' ? tradeName : legalName
+  return tradeName === '' ? legalName : tradeName
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -211,12 +223,15 @@ async function queue(
 
   const [carrier] = await rowsOf(
     runner,
-    sql`select trade_name, legal_name from company_fiscal_profiles where company_id = ${companyId}::uuid`,
+    sql`select trade_name, legal_name, display_name_mode from company_fiscal_profiles where company_id = ${companyId}::uuid`,
   )
-  const tradeName = text(carrier, 'trade_name') ?? ''
   const mail = buildMail({
     body: texts.body,
-    carrierName: tradeName.trim() === '' ? (text(carrier, 'legal_name') ?? '') : tradeName,
+    carrierName: chosenCarrierName({
+      displayNameMode: text(carrier, 'display_name_mode'),
+      legalName: text(carrier, 'legal_name') ?? '',
+      tradeName: text(carrier, 'trade_name') ?? '',
+    }),
     subject: texts.subject,
   })
   const [message] = await rowsOf(

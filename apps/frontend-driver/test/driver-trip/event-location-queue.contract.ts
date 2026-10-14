@@ -163,6 +163,7 @@ describe('o item nasce sem ponto e a posição o completa pela chave (196 T5.1)'
         occurrenceTypeId: 'type-1',
         photo: { blob: new Blob(['x'], { type: 'image/jpeg' }), fileName: 'a.jpg' },
         reason: 'recipient_refused',
+        returnToWarehouse: false,
       },
       occurrenceTypes: { status: 'loaded', types: [{ id: 'type-1', name: 'Recusa' }] },
     })

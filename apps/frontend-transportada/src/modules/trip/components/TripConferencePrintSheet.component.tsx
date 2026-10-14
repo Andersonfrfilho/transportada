@@ -71,7 +71,7 @@ export function TripConferencePrintSheet({ brand, labels, sheet }: TripConferenc
                   className={
                     index === 3 || index === 4
                       ? styles.printSheetClient
-                      : index === 8
+                      : index === 8 || index === 9
                         ? styles.printSheetMoney
                         : undefined
                   }
@@ -90,6 +90,7 @@ export function TripConferencePrintSheet({ brand, labels, sheet }: TripConferenc
             </th>
             <td>{sheet.totalsRow[1]}</td>
             <td className={styles.printSheetMoney}>{sheet.totalsRow[2]}</td>
+            <td className={styles.printSheetMoney}>{sheet.totalsRow[3]}</td>
           </tr>
         </tfoot>
       </table>

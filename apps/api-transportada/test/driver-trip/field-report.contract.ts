@@ -307,6 +307,29 @@ describe('entreguei e não entreguei', () => {
     expect(world.state.calls).toContain('recordEvent:returned:no-gps')
   })
 
+  /** Spec 260 NC1: "Não entregue, voltou ao barracão" solta a nota para outra viagem. */
+  it('a não-entrega que volta ao barracão pede a liberação da nota', async () => {
+    const world = buildDocumentWorld()
+
+    await reportDocumentReturn({
+      ...deliveryInput(world, 'chave-1'),
+      reason: 'recipient_absent',
+      returnToWarehouse: true,
+    })
+
+    expect(world.state.calls).toContain(
+      `markDocumentReturned:${DOCUMENT_ID}:recipient_absent:released`,
+    )
+  })
+
+  it('sem o pedido, a não-entrega não solta a nota', async () => {
+    const world = buildDocumentWorld()
+
+    await reportDocumentReturn({ ...deliveryInput(world, 'chave-1'), reason: 'recipient_absent' })
+
+    expect(world.state.calls).toContain(`markDocumentReturned:${DOCUMENT_ID}:recipient_absent`)
+  })
+
   /**
    * O caso que a spec nomeia: a confirmação estava na fila e o escritório desvinculou a nota. A tela
    * mostra o conflito — sumir com o toque do motorista é pior do que recusá-lo com o motivo.

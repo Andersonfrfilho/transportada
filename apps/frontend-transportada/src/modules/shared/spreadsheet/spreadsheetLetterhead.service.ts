@@ -58,7 +58,11 @@ export async function readLetterheadCompany(
     const cnpj = readText(own.cnpj)
     return {
       address: composeAddress(own),
-      name: readText(data?.brandName) || readText(own.tradeName) || input.fallbackName,
+      name:
+        readText(own.displayName) ||
+        readText(data?.brandName) ||
+        readText(own.tradeName) ||
+        input.fallbackName,
       phone: readText(own.phone),
       taxId: cnpj === '' ? '' : formatCnpj(cnpj),
     }

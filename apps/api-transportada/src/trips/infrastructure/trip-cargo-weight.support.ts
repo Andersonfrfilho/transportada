@@ -91,23 +91,36 @@ export async function loadDocumentCargoWeights(
 export async function loadTripCargoWeight(
   queryable: TripQueryable,
   input: {
+    /**
+     * As notas que **somam** no total da viagem. Ausente, são todas as de `nfeDocumentIds`; a nota
+     * solta (`released_at`) continua com o peso próprio na linha, mas fora da soma (spec 187).
+     */
+    readonly countedNfeDocumentIds?: readonly string[]
     readonly companyId: string
     readonly nfeDocumentIds: readonly string[]
   },
 ): Promise<{
   readonly view: null | TripCargoWeightView
+  /** O peso e a origem de cada nota, os mesmos que somam `view` — o detalhe da viagem os serve por nota. */
+  readonly weights: ReadonlyMap<string, DocumentCargoWeight>
   /** Spec 085 G006: o peso por nota, para o alerta de concentração somar por parada. */
   readonly weightByDocument: ReadonlyMap<string, string | null>
 }> {
-  if (input.nfeDocumentIds.length === 0) return { view: null, weightByDocument: new Map() }
+  if (input.nfeDocumentIds.length === 0) {
+    return { view: null, weightByDocument: new Map(), weights: new Map() }
+  }
 
   const weights = await loadDocumentCargoWeights(queryable, input)
   const documents = input.nfeDocumentIds.map(
     (documentId) => weights.get(documentId) ?? NO_DOCUMENT_CARGO_WEIGHT,
   )
+  const counted = (input.countedNfeDocumentIds ?? input.nfeDocumentIds).map(
+    (documentId) => weights.get(documentId) ?? NO_DOCUMENT_CARGO_WEIGHT,
+  )
 
   return {
-    view: resolveTripCargoWeight({ documents }),
+    view: counted.length === 0 ? null : resolveTripCargoWeight({ documents: counted }),
+    weights,
     weightByDocument: new Map(
       input.nfeDocumentIds.map((documentId, index) => [
         documentId,
