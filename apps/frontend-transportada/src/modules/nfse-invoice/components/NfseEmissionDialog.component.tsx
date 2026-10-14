@@ -111,7 +111,21 @@ export function NfseEmissionDialog({ dialog }: NfseEmissionDialogProps) {
               placeholder={t('emission.profilePlaceholder')}
               value={dialog.profileId ?? ''}
             />
+            {dialog.profileTaxation.status === 'complete' && (
+              <span className={styles.emissionHint}>
+                {t('emission.profileTaxation', {
+                  code: dialog.profileTaxation.code,
+                  rate: dialog.profileTaxation.rate,
+                })}
+              </span>
+            )}
           </div>
+          {dialog.profileTaxation.status === 'missing' && (
+            <p className={styles.emissionProfileWarning} role="alert">
+              <Icon name="alert" />
+              {t('emission.profileTaxationMissing')}
+            </p>
+          )}
           <label className={styles.emissionField}>
             <span>{t('emission.period')}</span>
             <input

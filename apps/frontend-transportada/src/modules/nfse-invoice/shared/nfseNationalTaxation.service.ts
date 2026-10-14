@@ -72,3 +72,25 @@ export function selectNfseReissueFailureKey(errorCode: null | string): string {
   const feedbackKey = NFSE_INVOICE_FEEDBACK_KEY_BY_ERROR[errorCode]
   return feedbackKey === undefined ? REISSUE_FAILED_KEY : `feedback.${feedbackKey}`
 }
+
+export type NfseProfileTaxationSummary = Readonly<{
+  code: string
+  rate: string
+  status: 'complete' | 'missing' | 'unknown'
+}>
+
+/**
+ * O diálogo de emissão mostra o par do perfil escolhido. Campo ausente na resposta é "a API ainda não
+ * manda": não vira aviso de falta, que o operador não saberia resolver. `null` é falta de verdade.
+ */
+export function describeNfseProfileTaxation(
+  profile: Readonly<{ nationalTaxationCode?: null | string; simplesNationalRate?: null | string }>,
+): NfseProfileTaxationSummary {
+  if (profile.nationalTaxationCode === undefined && profile.simplesNationalRate === undefined) {
+    return { code: '', rate: '', status: 'unknown' }
+  }
+
+  const code = profile.nationalTaxationCode ?? ''
+  const rate = formatSimplesNationalRate(profile.simplesNationalRate ?? '')
+  return { code, rate, status: code.length > 0 && rate.length > 0 ? 'complete' : 'missing' }
+}
