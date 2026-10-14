@@ -33,6 +33,8 @@ export type NotDeliveredDraft = Readonly<{
   occurrenceTypeId: string | undefined
   photo: DriverOccurrencePhoto | undefined
   reason: DriverReturnReason | undefined
+  /** Spec 260 NC1: a carga volta ao barracão e a nota fica livre para outra viagem. */
+  returnToWarehouse: boolean
 }>
 
 export function isOccurrencePhotoWithinLimit(blob: Blob): boolean {
@@ -138,6 +140,7 @@ export function buildNotDeliveredReports(input: {
     ...(input.lateRegistration === undefined ? {} : { lateRegistration: input.lateRegistration }),
     location: null,
     reason: draft.reason,
+    ...(draft.returnToWarehouse ? { returnToWarehouse: true } : {}),
   }
   const types = listAvailableOccurrenceTypes(input.occurrenceTypes)
   const selected = types === undefined ? undefined : findSelectedType({ draft, types })

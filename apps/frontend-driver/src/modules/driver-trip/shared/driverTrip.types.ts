@@ -364,6 +364,8 @@ export type DriverFieldReport =
       lateRegistration?: boolean
       location: DriverReportedLocation | null
       reason: DriverReturnReason
+      /** Spec 260 NC1: solta a nota para outra viagem. Ausente é o "Não entreguei" de sempre. */
+      returnToWarehouse?: boolean
     }>
   | (Readonly<{
       description: string

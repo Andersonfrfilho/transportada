@@ -225,7 +225,9 @@ export function createFieldReportUnitOfWork(
       state.calls.push(`markDocumentDelivered:${input.documentId}`)
     },
     markDocumentReturned: async (input) => {
-      state.calls.push(`markDocumentReturned:${input.documentId}:${input.reason}`)
+      state.calls.push(
+        `markDocumentReturned:${input.documentId}:${input.reason}${input.releaseToWarehouse === true ? ':released' : ''}`,
+      )
     },
     completeStopIfSettled: async () => state.stopCompletes,
     completeTripIfSettled: async () => state.tripCompletes,

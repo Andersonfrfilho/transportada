@@ -146,6 +146,25 @@ describe('os três corpos aceitam lateRegistration (spec 205 RF1-RF3)', () => {
     ).rejects.toBeInstanceOf(ApiError)
   })
 
+  it('/return: returnToWarehouse true passa, ausente é false, tipo errado é 400', async () => {
+    expect(
+      (
+        await parseDocumentReturnRequest(
+          jsonRequest({ reason: 'recipient_absent', returnToWarehouse: true }),
+        )
+      ).returnToWarehouse,
+    ).toBe(true)
+    expect(
+      (await parseDocumentReturnRequest(jsonRequest({ reason: 'recipient_absent' })))
+        .returnToWarehouse,
+    ).toBe(false)
+    await expect(
+      parseDocumentReturnRequest(
+        jsonRequest({ reason: 'recipient_absent', returnToWarehouse: 'sim' }),
+      ),
+    ).rejects.toBeInstanceOf(ApiError)
+  })
+
   function proofRequest(lateRegistration: string | undefined): Request {
     const form = new FormData()
     form.set('file', new File([new Uint8Array([1, 2, 3])], 'canhoto.jpg', { type: 'image/jpeg' }))

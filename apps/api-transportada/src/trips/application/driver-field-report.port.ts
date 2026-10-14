@@ -203,6 +203,8 @@ export type DriverFieldReportTransactionPort = {
     readonly companyId: string
     readonly documentId: string
     readonly reason: string
+    /** Spec 260 NC1: solta a nota (`released_at = at`) na mesma escrita da devolução. */
+    readonly releaseToWarehouse?: boolean
   }): Promise<void>
   /**
    * Fecha a parada quando nenhuma nota dela está mais pendente. Devolve se fechou. `completed_at` é

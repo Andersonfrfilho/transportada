@@ -476,6 +476,9 @@
     "missingLead": "Para confirmar, falta: {{fields}}."
   },
   "notDelivered": {
+    "returnToWarehouse": "Não entregue — volta ao barracão",
+    "returnToWarehouseConfirm": "Confirmar: a nota sai da sua viagem e volta ao barracão para outra entrega. O local deste toque fica registrado.",
+    "returnToWarehouseHint": "Libera a nota para o escritório colocar em outra viagem.",
     "occurrenceTypeLegend": "Qual ocorrência registrar?",
     "photoLabel": "Foto da ocorrência",
     "galleryHint": "Se a câmera não abrir ou o acesso foi negado, use Anexar e escolha a foto da galeria.",
