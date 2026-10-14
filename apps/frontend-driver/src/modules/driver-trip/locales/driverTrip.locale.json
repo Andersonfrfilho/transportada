@@ -296,7 +296,8 @@
     "complete": "Concluir",
     "completedAt": "Comprovante concluído às {{time}}",
     "edit": "Editar",
-    "completeMissing": "Faltam: {{fields}}. Concluir assim mesmo?",
+    "completeBlockedTitle": "Ainda não dá para concluir",
+    "completeBlocked": "Falta: {{fields}}. Complete e toque em Concluir de novo.",
     "missing": {
       "photo": "a foto",
       "signature": "a assinatura",

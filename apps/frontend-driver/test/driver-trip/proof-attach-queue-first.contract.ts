@@ -59,11 +59,13 @@ describe('o attach nunca descarta a foto (spec 203)', () => {
     expect(body).toInclude('blockedByFields(next)')
   })
 
-  it('o aviso de campo pendente é role="status" (nunca "alert"), com texto do locale', () => {
+  it('o aviso de campo pendente é role="status" — o único "alert" da seção é o bloqueio do Concluir', () => {
     const start = CARD.indexOf('export function DeliveryProofSection(')
     const end = CARD.indexOf('type OccurrenceFormProps')
     const section = CARD.slice(start, end)
-    expect(section.match(/role="alert"/gu)).toBeNull()
+    /* Aviso de campo não bloqueia o anexo (spec 203); só "Concluir" com pendência usa `alert`. */
+    expect(section.match(/role="alert"/gu)).toHaveLength(1)
+    expect(section).toInclude('className={styles.completeBlocked} role="alert"')
     expect(section.match(/role="status"/gu)?.length).toBeGreaterThanOrEqual(3)
     expect(section).toInclude("t('proofFields.pendingField')")
   })
