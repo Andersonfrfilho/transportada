@@ -649,6 +649,11 @@
     "products": "O que vai na nota",
     "productsToggle": "{{count}} produto na nota",
     "productsToggle_other": "{{count}} produtos na nota",
+    "processing": {
+      "failed": "Sem versão leve (original guardado)",
+      "processing": "Processando a foto…",
+      "waitingReview": "Aguarde o processamento da foto para conferir o canhoto."
+    },
     "punctuality": {
       "on_time": "No horário",
       "late": "Atrasada",
