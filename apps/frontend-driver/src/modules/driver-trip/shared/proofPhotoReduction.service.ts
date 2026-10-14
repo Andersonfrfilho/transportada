@@ -9,6 +9,12 @@ import type { QueuedAttachment } from './offlineAttachments.service'
 export const PROOF_PHOTO_MAX_SIDE = 2000
 export const PROOF_PHOTO_TARGET_BYTES = 900 * 1024
 /**
+ * Pedido do usuário (14/10): redução mais rápida. Cada degrau de qualidade é um `toBlob` do lado
+ * inteiro, caro em aparelho fraco; começar em 0,7 (e não 0,85) costuma caber já no primeiro, e o
+ * canhoto segue legível.
+ */
+export const PROOF_PHOTO_START_QUALITY = 0.7
+/**
  * Teto duro, cópia de `OFFICE_PROOF_MAX_BYTES` da API (960 KiB): o corpo inteiro da requisição para
  * em 1 MiB (413 antes da rota), e acima de 960 KiB o arquivo volta 422 `TOO_LARGE`.
  */
@@ -99,7 +105,12 @@ export async function reduceProofPhotoToJpeg(file: File): Promise<ReducedProofPh
   const image = await loadImageFromFile(file)
   const blob = await fitProofPhotoWithinCap({
     encode: (maxSide) =>
-      encodeImageToJpeg({ image, maxSide, targetBytes: PROOF_PHOTO_TARGET_BYTES }),
+      encodeImageToJpeg({
+        image,
+        maxSide,
+        startQuality: PROOF_PHOTO_START_QUALITY,
+        targetBytes: PROOF_PHOTO_TARGET_BYTES,
+      }),
   })
   const { original, thumbnail } = await buildProofPhotoWithThumbnail({
     encodeThumbnail: (maxSide) =>
