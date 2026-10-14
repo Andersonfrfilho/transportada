@@ -120,3 +120,42 @@ describe('a moldura única do anexo: mesma caixa em todo estado', () => {
     expect(STYLES).not.toInclude('min-height: var(--space-16)')
   })
 })
+
+const OCCURRENCE_PHOTO = readSource(
+  'src/modules/driver-trip/components/OccurrencePhotoField.component.tsx',
+)
+const OCCURRENCE_SIGNATURE = readSource(
+  'src/modules/driver-trip/components/OccurrenceSignatureField.component.tsx',
+)
+const NOT_DELIVERED = readSource(
+  'src/modules/driver-trip/components/DriverNotDeliveredForm.component.tsx',
+)
+
+/** Pedido do usuário (14/10): os comprovantes das ocorrências seguem a mesma moldura do canhoto. */
+describe('a moldura única também vale nas ocorrências', () => {
+  it('a foto da ocorrência (nota e parada, 1 a 5 fotos) mostra a prévia na moldura 16:9', () => {
+    expect(OCCURRENCE_PHOTO).toInclude('<div className={styles.proofFrame}>')
+    expect(OCCURRENCE_PHOTO).toInclude('className={styles.proofFrameImage}')
+    expect(OCCURRENCE_PHOTO).not.toInclude('proofCaptureThumbnail')
+  })
+
+  it('a assinatura da ocorrência usa a variante 2:1', () => {
+    expect(OCCURRENCE_SIGNATURE).toInclude('`${styles.proofFrame} ${styles.proofFrameSignature}`')
+    expect(OCCURRENCE_SIGNATURE).toInclude('className={styles.proofFrameImage}')
+    expect(OCCURRENCE_SIGNATURE).not.toInclude('proofCaptureThumbnail')
+  })
+
+  it('a foto do "Não entreguei" mostra a prévia na moldura 16:9', () => {
+    expect(NOT_DELIVERED).toInclude('<div className={styles.proofFrame}>')
+    expect(NOT_DELIVERED).toInclude('className={styles.proofFrameImage}')
+    expect(NOT_DELIVERED).not.toInclude('proofCaptureThumbnail')
+  })
+
+  it('nenhuma miniatura de altura automática sobrou no CSS', () => {
+    expect(STYLES).not.toInclude('.proofCaptureThumbnail')
+  })
+
+  it('a miniatura clicável da moldura mantém o anel de foco do teclado', () => {
+    expect(cssBlock('.proofFrameButton:focus-visible')).toInclude('outline: 2px solid')
+  })
+})

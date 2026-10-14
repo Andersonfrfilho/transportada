@@ -1377,22 +1377,6 @@
   width: 100%;
 }
 
-/* Pedido do usuário (25/09, spec 207): a miniatura é o próprio gatilho de "Ver" — sem moldura de
-   botão nenhuma, só o cursor de ponteiro e o realce no foco/hover, que já vêm do Button ao lado. */
-.proofCaptureThumbnailButton {
-  background: none;
-  border: 0;
-  cursor: pointer;
-  display: block;
-  padding: 0;
-  width: 100%;
-}
-
-.proofCaptureThumbnailButton:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
-  outline-offset: 2px;
-}
-
 /* "Ver imagem" (spec 207): tela cheia, fundo escuro, imagem contida — nunca cortada. */
 .imageLightboxBackdrop {
   align-items: center;
@@ -1653,14 +1637,6 @@
   gap: var(--space-3);
 }
 
-.proofCaptureThumbnail {
-  border: 1px solid var(--color-slate);
-  display: block;
-  height: auto;
-  object-fit: contain;
-  width: 100%;
-}
-
 .proofCaptureAttachedText {
   align-items: center;
   color: var(--color-ready);
@@ -1708,6 +1684,11 @@
   cursor: pointer;
   display: block;
   padding: 0;
+}
+
+.proofFrameButton:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
 }
 
 .proofFrameImage {

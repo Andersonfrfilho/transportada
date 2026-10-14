@@ -125,11 +125,13 @@ export function DriverNotDeliveredForm({
             <p className={styles.proofCaptureTitle}>{`${t('notDelivered.photoLabel')} *`}</p>
             {form.photoPreviewUrl === undefined ? null : (
               <div className={styles.proofCaptureAttached} role="status">
-                <img
-                  alt={t('notDelivered.photoPreview')}
-                  className={styles.proofCaptureThumbnail}
-                  src={form.photoPreviewUrl}
-                />
+                <div className={styles.proofFrame}>
+                  <img
+                    alt={t('notDelivered.photoPreview')}
+                    className={styles.proofFrameImage}
+                    src={form.photoPreviewUrl}
+                  />
+                </div>
                 <span className={styles.proofCaptureAttachedText}>
                   <Icon name="check" />
                   {t('notDelivered.photoAttached')}

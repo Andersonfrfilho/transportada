@@ -61,11 +61,13 @@ export function OccurrencePhotoField({
       <p className={styles.proofCaptureTitle}>{t('occurrencePhoto')}</p>
       {previewUrl === undefined || photoCount === 0 ? null : (
         <div className={styles.proofCaptureAttached} role="status">
-          <img
-            alt={t('notDelivered.photoPreview')}
-            className={styles.proofCaptureThumbnail}
-            src={previewUrl}
-          />
+          <div className={styles.proofFrame}>
+            <img
+              alt={t('notDelivered.photoPreview')}
+              className={styles.proofFrameImage}
+              src={previewUrl}
+            />
+          </div>
           <span className={styles.proofCaptureAttachedText}>
             <Icon name="check" />
             {limit > 1

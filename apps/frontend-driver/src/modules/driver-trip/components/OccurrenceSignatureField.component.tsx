@@ -44,11 +44,13 @@ export function OccurrenceSignatureField({
       </p>
       {hasSignature && previewUrl !== undefined ? (
         <div className={styles.proofCaptureAttached} role="status">
-          <img
-            alt={t('signature.thumbnail')}
-            className={styles.proofCaptureThumbnail}
-            src={previewUrl}
-          />
+          <div className={`${styles.proofFrame} ${styles.proofFrameSignature}`}>
+            <img
+              alt={t('signature.thumbnail')}
+              className={styles.proofFrameImage}
+              src={previewUrl}
+            />
+          </div>
           <span className={styles.proofCaptureAttachedText}>
             <Icon name="check" />
             {t('signature.attached')}
