@@ -68,6 +68,7 @@ export async function reportDocumentReturn(
         companyId: input.companyId,
         documentId,
         reason: input.reason,
+        ...(input.returnToWarehouse === true ? { releaseToWarehouse: true } : {}),
       }),
   })
 }

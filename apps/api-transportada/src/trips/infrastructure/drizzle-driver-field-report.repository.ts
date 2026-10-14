@@ -574,12 +574,15 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     readonly companyId: string
     readonly documentId: string
     readonly reason: string
+    readonly releaseToWarehouse?: boolean
   }): Promise<void> {
     await this.transaction
       .update(tripDocuments)
       .set({
         returnReason: input.reason,
         returnedAt: input.at,
+        /** Spec 260 NC1: só `released_at` — o histórico da devolução fica na mesma linha (D1). */
+        ...(input.releaseToWarehouse === true ? { releasedAt: input.at } : {}),
         separationStatus: 'returned',
         updatedAt: input.at,
       })

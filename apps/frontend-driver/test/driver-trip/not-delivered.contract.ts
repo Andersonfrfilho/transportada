@@ -34,6 +34,7 @@ function draft(overrides: Partial<NotDeliveredDraft> = {}): NotDeliveredDraft {
     occurrenceTypeId: 'type-absent',
     photo: PHOTO,
     reason: 'recipient_absent' satisfies DriverReturnReason,
+    returnToWarehouse: false,
     ...overrides,
   }
 }
@@ -87,7 +88,13 @@ describe('o que falta para confirmar "Não entreguei" (spec 179 T301, CA04)', ()
 
   it('nada escolhido: motivo, tipo e foto, na ordem da tela', () => {
     const missing = listMissingNotDeliveredFields({
-      draft: { note: '', occurrenceTypeId: undefined, photo: undefined, reason: undefined },
+      draft: {
+        note: '',
+        occurrenceTypeId: undefined,
+        photo: undefined,
+        reason: undefined,
+        returnToWarehouse: false,
+      },
       occurrenceTypes: TYPES,
     })
     expect(missing).toEqual(['reason', 'occurrenceType', 'photo'])
@@ -121,7 +128,13 @@ describe('o que falta para confirmar "Não entreguei" (spec 179 T301, CA04)', ()
     ]) {
       expect(
         listMissingNotDeliveredFields({
-          draft: { note: '', occurrenceTypeId: undefined, photo: undefined, reason: undefined },
+          draft: {
+            note: '',
+            occurrenceTypeId: undefined,
+            photo: undefined,
+            reason: undefined,
+            returnToWarehouse: false,
+          },
           occurrenceTypes,
         }),
       ).toEqual(['reason'])
@@ -193,11 +206,47 @@ describe('os itens de fila de "Não entreguei"', () => {
     const reports = buildNotDeliveredReports({
       createIdempotencyKey: createKey,
       documentId: 'document-1',
-      draft: { note: '', occurrenceTypeId: undefined, photo: undefined, reason: 'damaged_goods' },
+      draft: {
+        note: '',
+        occurrenceTypeId: undefined,
+        photo: undefined,
+        reason: 'damaged_goods',
+        returnToWarehouse: false,
+      },
       occurrenceTypes: { status: 'failed' },
     })
 
     expect(reports.map((report) => report.kind)).toEqual(['return'])
+  })
+
+  /** Spec 260 NC1: o botão "volta ao barracão" marca só a devolução. */
+  it('volta ao barracão marca a devolução, e só ela', () => {
+    const reports = buildNotDeliveredReports({
+      createIdempotencyKey: createKey,
+      documentId: 'document-1',
+      draft: draft({ returnToWarehouse: true }),
+      occurrenceTypes: TYPES,
+    })
+
+    expect(reports.find((report) => report.kind === 'return')).toMatchObject({
+      returnToWarehouse: true,
+    })
+    expect(reports.find((report) => report.kind === 'documentOccurrence')).not.toHaveProperty(
+      'returnToWarehouse',
+    )
+  })
+
+  it('sem o botão, a devolução não leva a chave', () => {
+    const reports = buildNotDeliveredReports({
+      createIdempotencyKey: createKey,
+      documentId: 'document-1',
+      draft: draft({}),
+      occurrenceTypes: TYPES,
+    })
+
+    expect(reports.find((report) => report.kind === 'return')).not.toHaveProperty(
+      'returnToWarehouse',
+    )
   })
 
   it('rascunho incompleto não vira item nenhum', () => {
@@ -233,7 +282,13 @@ describe('os itens de fila de "Não entreguei"', () => {
     const [returned] = buildNotDeliveredReports({
       createIdempotencyKey: createKey,
       documentId: 'document-1',
-      draft: { note: '', occurrenceTypeId: undefined, photo: undefined, reason: 'damaged_goods' },
+      draft: {
+        note: '',
+        occurrenceTypeId: undefined,
+        photo: undefined,
+        reason: 'damaged_goods',
+        returnToWarehouse: false,
+      },
       occurrenceTypes: { status: 'failed' },
     })
 

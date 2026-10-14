@@ -2485,6 +2485,8 @@ function serializeTripDocument(document: TripDocument): SerializedTripDocument {
 
 type SerializedTripDocumentDetail = SerializedTripDocument &
   Readonly<{
+    cargoGrossWeight: TripDocumentDetail['cargoGrossWeight']
+    cargoWeightSource: TripDocumentDetail['cargoWeightSource']
     contact: TripDocumentDetail['contact']
     cteAuthorized: TripDocumentDetail['cteAuthorized']
     deliveryDeadline: TripDocumentDetail['deliveryDeadline']
@@ -2509,6 +2511,8 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
  * typecheck` reprova antes de qualquer teste rodar.
  */
 const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
+  cargoGrossWeight: 'safe',
+  cargoWeightSource: 'safe',
   contact: 'safe',
   createdAt: 'safe',
   cteAuthorized: 'safe',
@@ -2549,6 +2553,8 @@ function serializeTripDocumentDetail(input: {
   const document = input.document
   const serialized: SerializedTripDocumentDetail = {
     ...serializeTripDocument(document),
+    cargoGrossWeight: document.cargoGrossWeight,
+    cargoWeightSource: document.cargoWeightSource,
     contact: document.contact === null ? null : { ...document.contact },
     cteAuthorized: document.cteAuthorized,
     /** Spec 236: só no detalhe — o `TripDocument` do painel tem chaves exatas. */

@@ -135,6 +135,8 @@ const documentDetail = (overrides: Partial<TripDocument> = {}): TripDocumentDeta
   openOccurrenceCase: false,
   proofPending: false,
   volumeCount: null,
+  cargoGrossWeight: null,
+  cargoWeightSource: null,
 })
 
 type FixtureParams = {

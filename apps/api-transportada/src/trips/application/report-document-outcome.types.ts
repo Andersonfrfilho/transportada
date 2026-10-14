@@ -70,6 +70,11 @@ export type ReportDocumentDeliveryInput = ReportDocumentOutcomeInput & {
 
 export type ReportDocumentReturnInput = ReportDocumentOutcomeInput & {
   readonly reason: DriverReturnReason
+  /**
+   * Spec 260 NC1: a carga volta ao barracão — a nota é solta (`released_at`) junto da devolução e
+   * pode entrar em outra viagem. `returned_at`, `return_reason` e o status ficam como histórico.
+   */
+  readonly returnToWarehouse?: boolean
 }
 
 export type ReportDocumentOutcomeResult = {

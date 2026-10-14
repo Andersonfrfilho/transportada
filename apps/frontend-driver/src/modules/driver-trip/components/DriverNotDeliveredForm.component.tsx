@@ -70,6 +70,20 @@ export function DriverNotDeliveredForm({
         ))}
       </div>
 
+      <div className={styles.proofField}>
+        <Button
+          aria-checked={form.draft.returnToWarehouse}
+          className={styles.occurrenceChip}
+          onClick={form.handleReturnToWarehouseToggle}
+          role="switch"
+          type="button"
+          variant={form.draft.returnToWarehouse ? 'default' : 'ghost'}
+        >
+          {t('notDelivered.returnToWarehouse')}
+        </Button>
+        <p className={styles.stopMeta}>{t('notDelivered.returnToWarehouseHint')}</p>
+      </div>
+
       <p className={styles.notDeliveredLegend}>{t('notDelivered.occurrenceTypeLegend')}</p>
       {occurrenceTypes.status === 'loading' ? (
         <SkeletonGroup
@@ -197,7 +211,16 @@ export function DriverNotDeliveredForm({
         <Button
           aria-describedby={form.canConfirm ? undefined : missingId}
           disabled={!form.canConfirm}
-          onClick={() => onConfirm(form.draft)}
+          onClick={() => {
+            /* Spec 260 NC1: soltar a nota é decisão que tira a entrega da viagem — pede confirmação. */
+            if (
+              form.draft.returnToWarehouse &&
+              !window.confirm(t('notDelivered.returnToWarehouseConfirm'))
+            ) {
+              return
+            }
+            onConfirm(form.draft)
+          }}
           type="button"
         >
           <Icon name="check" />

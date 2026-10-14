@@ -157,6 +157,13 @@ export type TripDocumentDetail = TripDocument & {
    */
   readonly volumeCount: null | number
   /**
+   * O peso da nota e a origem dele (a mesma conta do total da viagem, `resolveDocumentCargoWeight`).
+   * `null` quando a nota não tem peso conhecido — desconhecido, nunca `0`. Os dois andam juntos:
+   * `estimated` é `qVol × peso padrão` e a tela é obrigada a marcá-lo.
+   */
+  readonly cargoGrossWeight: null | string
+  readonly cargoWeightSource: 'estimated' | 'xml' | null
+  /**
    * Spec 079 T017: como a nota se chama na tela. `null` quando o vínculo é só cálculo de frete, ou
    * quando a nota sumiu da junção — a queda para o identificador continua existindo, mas deixou de
    * ser o caminho normal.
