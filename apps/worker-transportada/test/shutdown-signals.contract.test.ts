@@ -103,6 +103,9 @@ const noopRuntimeDependencies = {
     cancel: async (): Promise<void> => undefined,
   }),
   startCargoPreviewConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
+  startDeliveryProofProcessingConsumer: async () => ({
+    cancel: async (): Promise<void> => undefined,
+  }),
   startContractorMailOutboundConsumer: async () => ({
     cancel: async (): Promise<void> => undefined,
   }),
