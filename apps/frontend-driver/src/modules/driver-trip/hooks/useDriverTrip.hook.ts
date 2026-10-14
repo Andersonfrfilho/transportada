@@ -288,8 +288,18 @@ export function useDriverTrip(
   /** O `sync` do temporizador (`onQueueSync`): a fila que ganha pendência liga o relógio na hora. */
   const syncDrainTimerRef = useRef<() => void>(() => undefined)
 
+  /**
+   * Defeito de 14/10 (staging): duas leituras da fila em voo (o duplo `deliver`, a drenagem e a
+   * redução pedem a releitura quase juntas) podiam terminar fora de ordem — a mais antiga, ainda com
+   * o anexo na fila, gravava por último e a tela ficava em "enviando" com a fila já vazia. Só o
+   * resultado da leitura mais recente vale.
+   */
+  const queueViewReadRef = useRef(0)
   const refreshQueueView = useCallback(async (): Promise<void> => {
+    queueViewReadRef.current += 1
+    const readId = queueViewReadRef.current
     const [queued, attachments] = await Promise.all([store.read(), attachmentStore.readAll()])
+    if (readId !== queueViewReadRef.current) return
     /** ADR-0075 §8: a fila da tela é a do dono da sessão; o resto é "pendência de outra conta". */
     const pending = partitionPendingByOwner({
       attachments,

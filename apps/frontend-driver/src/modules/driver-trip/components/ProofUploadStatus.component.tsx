@@ -3,15 +3,14 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
-import { Skeleton } from '@/components/ui/skeleton'
 
 import { ProofReducingMallet } from './ProofReducingMallet.component'
+import { ProofSendingThrower } from './ProofSendingThrower.component'
 import { formatActivityTime } from '../shared/documentActivity.service'
 import {
   PROOF_PHOTO_REDUCTION_TIMEOUT_MS,
   resolveProofReductionPercent,
 } from '../shared/proofPhotoReduction.service'
-import { PROOF_SENDING_BAR_HEIGHT, PROOF_SENDING_BAR_WIDTH } from '../shared/proofUpload.constant'
 import type { ProofUploadView } from '../hooks/useProofUploadStatus.hook'
 import styles from '../styles/driverTrip.module.css'
 
@@ -32,12 +31,15 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
     return (
       <div className={styles.proofUploadSending} role="status">
         <span className={styles.proofUploadSendingLine}>
-          <Skeleton
-            height={PROOF_SENDING_BAR_HEIGHT}
-            variant="text"
-            width={PROOF_SENDING_BAR_WIDTH}
-          />
+          <ProofSendingThrower />
           {t('proofCapture.upload.sending')}
+          <span
+            aria-label={t('proofCapture.upload.queuedIcon')}
+            className={styles.proofQueuedIcon}
+            role="img"
+          >
+            <Icon aria-hidden="true" name="clock" size="sm" />
+          </span>
         </span>
         <span className={styles.stopMeta}>{t('proofCapture.upload.savedOnDevice')}</span>
       </div>

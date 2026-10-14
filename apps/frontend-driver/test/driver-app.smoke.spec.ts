@@ -809,9 +809,9 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
   await cameraChooser.setFiles(SMOKE_PHOTO)
   await page.getByRole('button', { name: 'Usar sem recorte' }).click()
 
-  // A foto anexada deixou de dizer "anexada" e passou a dizer em que pé está o envio: "Enviando"
+  // A foto anexada deixou de dizer "anexada" e passou a dizer em que pé está o envio: "Enviado" com o ícone de na fila
   // enquanto a fila não drenou, com a tranquilidade de que ela já está guardada no aparelho.
-  await expect(item.getByText('Enviando', { exact: true })).toBeVisible()
+  await expect(item.getByText('Enviado', { exact: true })).toBeVisible()
   await expect(
     item.getByText('A foto está guardada no aparelho e segue mesmo sem sinal.'),
   ).toBeVisible()
