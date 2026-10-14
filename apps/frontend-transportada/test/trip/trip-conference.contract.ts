@@ -208,7 +208,7 @@ describe('buildTripConferenceSheet', () => {
       'MARIA SOUZA',
     )
     expect(sheet.rows).toHaveLength(1)
-    expect(sheet.totalsRow[2]).toContain('10,00')
+    expect(sheet.totalsRow[3]).toContain('10,00')
   })
 
   it('autor ainda desconhecido não vira campo vazio', () => {
@@ -460,6 +460,64 @@ describe('peso na folha que o motorista assina', () => {
     expect(sheet.fields.find((field) => field.label === 'conference.sheetNotes')?.value).toBe(
       '1 · 3 conference.sheetvolumes · 80,00 kg',
     )
+  })
+})
+
+describe('peso de cada nota e o total embaixo', () => {
+  const labels = buildTripConferenceSheetLabels((key) => key)
+  const build = (documents: TripDocumentDetail[], cargoWeight: TripCargoWeight | null = null) =>
+    buildTripConferenceSheet({
+      cargoWeight,
+      conference: buildTripConference({ documents, stops: [] }),
+      creatorName: null,
+      drivers: [],
+      labels,
+      printedOn: new Date('2026-10-08T18:00:00Z'),
+      tripCode: 'x',
+      vehiclePlate: null,
+    })
+
+  it('põe a coluna Peso ao lado dos volumes e o peso de cada nota na linha', () => {
+    const sheet = build([
+      document({ id: 'a', nfeNumber: '1', cargoGrossWeight: '108.6700', cargoWeightSource: 'xml' }),
+      document({ id: 'b', nfeNumber: '2', cargoGrossWeight: '12', cargoWeightSource: 'estimated' }),
+      document({ id: 'c', nfeNumber: '3', cargoGrossWeight: null, cargoWeightSource: null }),
+    ])
+
+    expect(sheet.columns.indexOf('conference.weight')).toBe(
+      sheet.columns.indexOf('conference.sheetVolumes') + 1,
+    )
+    const column = sheet.columns.indexOf('conference.weight')
+    expect(sheet.rows.map((row) => row[column])).toEqual([
+      '108,67',
+      '12,00 (conference.sheetWeightEstimated)',
+      '',
+    ])
+  })
+
+  it('soma embaixo só o que tem peso — nota sem peso não vira zero', () => {
+    const sheet = build([
+      document({ id: 'a', nfeNumber: '1', cargoGrossWeight: '108.6700', cargoWeightSource: 'xml' }),
+      document({ id: 'b', nfeNumber: '2', cargoGrossWeight: '0.3300', cargoWeightSource: 'xml' }),
+      document({ id: 'c', nfeNumber: '3', cargoGrossWeight: null }),
+    ])
+
+    expect(sheet.totalsRow[2]).toBe('109,00')
+    expect(sheet.totalsRow).toHaveLength(sheet.columns.length - 6)
+  })
+
+  it('API anterior, sem peso por nota, cai no total da viagem; sem nada, fica vazio', () => {
+    const doc = document({ id: 'a', nfeNumber: '1' })
+    const cargoWeight: TripCargoWeight = {
+      documentsWithoutWeight: 0,
+      grossWeightKilograms: '80',
+      maxPayloadKg: null,
+      payloadRatio: null,
+      source: 'declared',
+    }
+
+    expect(build([doc], cargoWeight).totalsRow[2]).toBe('80,00')
+    expect(build([doc]).totalsRow[2]).toBe('')
   })
 })
 

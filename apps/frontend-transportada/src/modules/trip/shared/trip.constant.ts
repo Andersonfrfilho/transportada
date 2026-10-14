@@ -300,6 +300,9 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
   'nfeTotalValue',
   /** Spec 233 D5: ausente é API anterior ao campo; presente é inteiro ou `null`. */
   'volumeCount',
+  /** Peso por nota na folha de conferência: ausente é API anterior; `null` é nota sem peso (nunca 0). */
+  'cargoGrossWeight',
+  'cargoWeightSource',
   /** Spec 176: mesmo motivo — API vai à frente do bundle, e ausente é API anterior à feature. */
   'freightAmount',
   'freightRuleName',
