@@ -44,7 +44,11 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
       <div className={styles.proofQueueCard} role="status">
         <span className={styles.proofQueueTitle}>
           <Icon aria-hidden="true" name="clock" size="sm" />
-          {t('proofCapture.upload.queuedTitle')}
+          {t(
+            upload.waitingFor === 'confirm'
+              ? 'proofCapture.upload.waitingConfirmTitle'
+              : 'proofCapture.upload.waitingDeliveryTitle',
+          )}
         </span>
         <span>
           {t(
