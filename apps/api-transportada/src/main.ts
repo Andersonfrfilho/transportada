@@ -634,6 +634,7 @@ import { createSuggestionValuationAdapter } from './routing/infrastructure/sugge
 import { createTripComposer } from './routing/infrastructure/trip-composer.adapter'
 import { listTripStops } from './trips/application/list-trip-stops.use-case'
 import { createRouteSuggestionUseCase } from './routing/application/route-suggestion.use-case'
+import { createTripStopPointResolver } from './trips/application/resolve-trip-stop-points.use-case.js'
 import { createRefineAddressUseCase } from './routing/application/refine-address.use-case.js'
 import { createDrizzleAddressComponentsSource } from './routing/infrastructure/drizzle-address-components.repository.js'
 import {
@@ -2004,6 +2005,9 @@ type CreateApplicationRoutesParams = {
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
 }
 
+/** Endereços sem ponto que um planejamento resolve no provedor pago, no máximo. */
+const TRIP_STOP_POINTS_PER_PLAN = 10
+
 const TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE = 'trip_route_geometry_stops_gap'
 
 /**
@@ -2432,6 +2436,32 @@ function createApplicationRoutes({
     logger,
     routeFreezeLogger: logger,
     routeRepository: tripRouteRepository,
+    /**
+     * ADR-0104: parada sem ponto é resolvida no provedor (Google) ao planejar a rota, sob o teto da
+     * ADR-0062. Sem `GOOGLE_MAPS_API_KEY` não há resolvedor e o planejamento segue como antes.
+     */
+    ...(googleMapsApiKey === undefined
+      ? {}
+      : {
+          stopPointResolver: createTripStopPointResolver({
+            listAddressKeysWithoutLocation: (resolverInput) =>
+              tripRouteRepository.listAddressKeysWithoutLocation(resolverInput),
+            logger,
+            maxPerPlan: TRIP_STOP_POINTS_PER_PLAN,
+            quota: {
+              countInWindow: (quotaInput) =>
+                createDrizzleGeocodingRefinementRepository(database).countInWindow(quotaInput),
+              limit: GEOCODING_REFINEMENT_WINDOW_LIMIT,
+            },
+            refine: (refineInput) =>
+              createRefineAddressUseCase({
+                components: createDrizzleAddressComponentsSource(database),
+                geocoding: createGoogleGeocodingGateway({ apiKey: googleMapsApiKey }),
+                repository: createDrizzleGeocodedAddressRepository(database),
+                trail: createDrizzleGeocodingRefinementRepository(database),
+              }).refine(refineInput),
+          }),
+        }),
     stopRepository: tripStopLookupRepository,
     suggestCharges: suggestDeliveryCharges,
     tollFreezer: tripRouteTollFreezer,

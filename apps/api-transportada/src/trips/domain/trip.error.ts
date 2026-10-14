@@ -398,6 +398,22 @@ export class TripRouteUnavailableError extends ApiError {
   }
 }
 
+/**
+ * A rota não saiu porque há parada viva sem ponto no mapa. Diferente de `TRIP_ROUTE_UNAVAILABLE`,
+ * diz **quais** endereços faltam em `details` — sem isso a pessoa não sabe o que corrigir.
+ */
+export class TripRouteStopsWithoutLocationError extends ApiError {
+  public constructor(labels: readonly string[]) {
+    super({
+      code: 'TRIP_ROUTE_STOPS_WITHOUT_LOCATION',
+      details: labels.map((label) => ({ field: 'stops', message: label })),
+      message:
+        'Some stops have no location on the map; fix their points before planning the route.',
+      status: 422,
+    })
+  }
+}
+
 /** O ator da transição precisa ser membro desta empresa — mesma regra de `audit_logs`. */
 export class TripActorNotAMemberError extends ApiError {
   public constructor() {

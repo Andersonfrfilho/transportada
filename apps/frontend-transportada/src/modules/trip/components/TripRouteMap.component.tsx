@@ -12,6 +12,8 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
 import { stopColorOf } from '../shared/stopColor.service'
+import { normalizeStopPointCoordinate } from '../shared/stopPointCoordinates.service'
+import { searchStopPoint } from '../shared/stopPointSearch.service'
 import type { TripStopDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 import { RouteTollSummary } from './RouteTollSummary.component'
@@ -44,7 +46,9 @@ type TripRouteMapProps = Readonly<{
   isGeometryPending: boolean
   /** Regravação (spec 153 T405/RF13) em voo — o switch espera antes de aceitar outra troca. */
   isRouteChoicePending: boolean
-  onCorrect: (input: Readonly<{ addressKey: string; latitude: string; longitude: string }>) => void
+  onCorrect: (
+    input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
+  ) => Promise<void>
   /** Quem chama regrava via `plan-route`, com `frozen_at` novo (RF13) — este componente não regrava sozinho. */
   onRouteChoiceSelect: (routeChoice: RouteChoice) => void
   onRetryGeometry: () => void
@@ -209,11 +213,19 @@ function TripStopPointCorrection({
   stops,
 }: Readonly<{
   isCorrecting: boolean
-  onCorrect: (input: Readonly<{ addressKey: string; latitude: string; longitude: string }>) => void
+  onCorrect: (
+    input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
+  ) => Promise<void>
   stops: readonly TripStopDetail[]
 }>) {
   const { t } = useTranslation('trip')
-  const [addressKey, setAddressKey] = useState(stops[0]?.addressKey ?? '')
+  /** Abre vazio de propósito: o primeiro endereço pré-marcado levava a salvar o ponto na parada errada. */
+  const [addressKey, setAddressKey] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const [feedback, setFeedback] = useState<null | Readonly<{
+    kind: 'error' | 'saved'
+    text: string
+  }>>(null)
   const [latitude, setLatitude] = useState('')
   const [longitude, setLongitude] = useState('')
   const [isOpen, setIsOpen] = useState(false)
@@ -222,11 +234,99 @@ function TripStopPointCorrection({
 
   if (!isOpen) {
     return (
-      <Button onClick={() => setIsOpen(true)} size="sm" type="button" variant="ghost">
-        <Icon name="edit" />
-        {t('routeMap.correct')}
-      </Button>
+      <>
+        {feedback?.kind === 'saved' ? (
+          <p className={styles.hint} role="status">
+            {feedback.text}
+          </p>
+        ) : null}
+        <Button
+          onClick={() => {
+            setFeedback(null)
+            setIsOpen(true)
+          }}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name="edit" />
+          {t('routeMap.correct')}
+        </Button>
+      </>
     )
+  }
+
+  async function handleSearch(): Promise<void> {
+    const selected = stops.find((stop) => stop.addressKey === addressKey)
+    if (selected === undefined) {
+      setFeedback({ kind: 'error', text: t('routeMap.pointInvalid.address') })
+      return
+    }
+    setIsSearching(true)
+    setFeedback(null)
+    try {
+      const found = await searchStopPoint({
+        fetch: globalThis.fetch.bind(globalThis),
+        label: selected.label,
+        signal: new AbortController().signal,
+      })
+      if (found === null || found.latitude === null || found.longitude === null) {
+        setFeedback({ kind: 'error', text: t('routeMap.searchNotFound') })
+      } else {
+        setLatitude(found.latitude)
+        setLongitude(found.longitude)
+        setFeedback({ kind: 'error', text: t('routeMap.searchFound', { address: found.label }) })
+      }
+    } catch {
+      setFeedback({ kind: 'error', text: t('routeMap.searchNotFound') })
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  async function handleSave(): Promise<void> {
+    const selected = stops.find((stop) => stop.addressKey === addressKey)
+    if (selected === undefined) {
+      setFeedback({ kind: 'error', text: t('routeMap.pointInvalid.address') })
+      return
+    }
+    const normalizedLatitude = normalizeStopPointCoordinate({ axis: 'latitude', value: latitude })
+    if (!normalizedLatitude.ok) {
+      setFeedback({
+        kind: 'error',
+        text: t(`routeMap.pointInvalid.${normalizedLatitude.reason}`, {
+          axis: t('routeMap.latitude'),
+        }),
+      })
+      return
+    }
+    const normalizedLongitude = normalizeStopPointCoordinate({
+      axis: 'longitude',
+      value: longitude,
+    })
+    if (!normalizedLongitude.ok) {
+      setFeedback({
+        kind: 'error',
+        text: t(`routeMap.pointInvalid.${normalizedLongitude.reason}`, {
+          axis: t('routeMap.longitude'),
+        }),
+      })
+      return
+    }
+    try {
+      await onCorrect({
+        addressKey,
+        latitude: normalizedLatitude.value,
+        longitude: normalizedLongitude.value,
+      })
+      setFeedback({ kind: 'saved', text: t('routeMap.pointSaved', { address: selected.label }) })
+      setAddressKey('')
+      setLatitude('')
+      setLongitude('')
+      setIsOpen(false)
+    } catch {
+      setFeedback({ kind: 'error', text: t('routeMap.pointSaveFailed') })
+    }
   }
 
   return (
@@ -236,8 +336,19 @@ function TripStopPointCorrection({
         ariaLabel={t('routeMap.correct')}
         onChange={setAddressKey}
         options={stops.map((stop) => ({ label: stop.label, value: stop.addressKey }))}
+        placeholder={t('routeMap.pickAddress')}
         value={addressKey}
       />
+      <Button
+        disabled={isSearching || addressKey === ''}
+        onClick={() => void handleSearch()}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon name="search" />
+        {t('routeMap.search')}
+      </Button>
       <input
         aria-label={t('routeMap.latitude')}
         onChange={(event) => setLatitude(event.target.value)}
@@ -252,19 +363,24 @@ function TripStopPointCorrection({
         type="text"
         value={longitude}
       />
+      {feedback?.kind === 'error' ? (
+        <p className={styles.hint} role="alert">
+          {feedback.text}
+        </p>
+      ) : null}
+      <Button disabled={isCorrecting} onClick={() => void handleSave()} size="sm" type="button">
+        <Icon name="save" />
+        {t('routeMap.save')}
+      </Button>
       <Button
-        disabled={isCorrecting}
         onClick={() => {
-          onCorrect({ addressKey, latitude, longitude })
+          setFeedback(null)
           setIsOpen(false)
         }}
         size="sm"
         type="button"
+        variant="ghost"
       >
-        <Icon name="save" />
-        {t('routeMap.save')}
-      </Button>
-      <Button onClick={() => setIsOpen(false)} size="sm" type="button" variant="ghost">
         <Icon name="close" />
         {t('routeMap.cancel')}
       </Button>
