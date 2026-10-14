@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { LandingSettings } from '@/modules/shared/landingSettings.service'
+import {
+  type LandingSettings,
+  resolveLandingBrandName,
+} from '@/modules/shared/landingSettings.service'
 import legalLocale from '../locales/legal.locale.json'
 
 /**
@@ -90,7 +93,7 @@ function resolveContactLine(brandName: string, contactEmail: string | undefined)
 export function resolveLegalDocument(
   input: Readonly<{ documentKey: LegalDocumentKey; settings: LandingSettings }>,
 ): LegalDocument {
-  const brandName = input.settings.brandName ?? DEFAULT_BRAND_NAME
+  const brandName = resolveLandingBrandName(input.settings) ?? DEFAULT_BRAND_NAME
   const locale = legalLocale[input.documentKey]
   const sections = input.settings.sections
 

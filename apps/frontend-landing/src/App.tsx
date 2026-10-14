@@ -6,6 +6,7 @@ import { Footer } from '@/modules/foundation/components/Footer.component'
 import { Header } from '@/modules/foundation/components/Header.component'
 import { resolveLegalDocumentKey } from '@/modules/legal/shared/legalDocuments.service'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
+import { resolveLandingBrandName } from '@/modules/shared/landingSettings.service'
 import { useLandingSettings } from '@/modules/shared/useLandingSettings.query'
 import { ApplicationPage } from './pages/ApplicationPage'
 import { HomePage } from './pages/HomePage'
@@ -34,7 +35,7 @@ export function App(): ReactNode {
     window.scrollTo({ top: 0 })
   }
 
-  const brandName = settings.brandName ?? 'TransportAdA'
+  const brandName = resolveLandingBrandName(settings) ?? 'TransportAdA'
   const isApplicationRoute = pathname === APPLICATION_PATH
   const isPortalRoute = pathname === PORTAL_PATH
   const legalDocumentKey = resolveLegalDocumentKey(pathname)

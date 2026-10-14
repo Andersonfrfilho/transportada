@@ -2,7 +2,11 @@
 import type { ReactNode } from 'react'
 
 import { Icon, type IconName } from '@/modules/shared/components/Icon.component'
-import type { LandingGroupUnit, LandingSettings } from '@/modules/shared/landingSettings.service'
+import {
+  type LandingGroupUnit,
+  type LandingSettings,
+  resolveLandingBrandName,
+} from '@/modules/shared/landingSettings.service'
 import landingLocale from '../locales/landing.locale.json'
 import { resolveSectionList, resolveSectionText } from '../shared/landingSections.service'
 import styles from './LandingSections.module.css'
@@ -12,7 +16,7 @@ const LOCALE = landingLocale.landing
 type SectionProps = Readonly<{ settings: LandingSettings }>
 
 export function HeroSection({ settings }: SectionProps): ReactNode {
-  const title = settings.brandName ?? LOCALE.hero.title
+  const title = resolveLandingBrandName(settings) ?? LOCALE.hero.title
   const subtitle = resolveSectionText(settings.sections, 'hero', 'subtitle', LOCALE.hero.subtitle)
 
   return (
