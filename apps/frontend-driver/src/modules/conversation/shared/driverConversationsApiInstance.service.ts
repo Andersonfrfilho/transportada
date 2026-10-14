@@ -28,7 +28,8 @@ export function getDriverConversationOwner(): string | undefined {
 
 function createBrowserHttp() {
   return createDriverConversationHttp({
-    baseUrl: `${getDriverEnvironment().apiBaseUrl}/v1`,
+    /** As rotas `/me/trips/current/conversations` da API não têm prefixo `/v1` (só as de notificação têm). */
+    baseUrl: getDriverEnvironment().apiBaseUrl,
     fetch: (request) => fetch(request),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
   })
