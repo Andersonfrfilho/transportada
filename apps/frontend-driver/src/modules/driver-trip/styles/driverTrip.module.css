@@ -1688,6 +1688,38 @@
 }
 
 /*
+ * Moldura única do anexo (pedido do usuário, 14/10): vazia, carregando, em fila e já enviada têm a
+ * mesma caixa — largura inteira do card, proporção fixa por tipo (`--proof-frame-ratio`) — e o card
+ * não muda de altura na troca de estado. Tipo novo é uma variante que só declara a proporção.
+ */
+.proofFrame {
+  aspect-ratio: var(--proof-frame-ratio, 16 / 9);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.proofFrameSignature {
+  --proof-frame-ratio: 2 / 1;
+}
+
+.proofFrameButton {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: block;
+  padding: 0;
+}
+
+.proofFrameImage {
+  border: 1px solid var(--color-slate);
+  box-sizing: border-box;
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+/*
  * Pedido do usuário (01/10): as duas molduras do canhoto — a sem foto e a que o servidor já tem —
  * ocupam a largura inteira do card, como a miniatura e os botões. O quadrado de `--space-16`
  * partia a frase ao meio e a deixava vazar por cima da borda.
@@ -1701,10 +1733,8 @@
   display: grid;
   gap: var(--space-1);
   justify-items: center;
-  min-height: var(--space-16);
   padding: var(--space-3);
   text-align: center;
-  width: 100%;
 }
 
 /*
@@ -1718,9 +1748,8 @@
   color: var(--color-ready);
   display: flex;
   gap: var(--space-3);
-  min-height: var(--space-16);
+  overflow: hidden;
   padding: var(--space-3);
-  width: 100%;
 }
 
 .proofConfirmedThumbnailButton {
@@ -1729,6 +1758,8 @@
   cursor: pointer;
   display: block;
   flex: none;
+  height: 100%;
+  max-width: 60%;
   padding: 0;
 }
 
@@ -1740,9 +1771,10 @@
 .proofConfirmedThumbnail {
   border: 1px solid var(--color-slate);
   display: block;
-  height: var(--space-16);
-  object-fit: cover;
-  width: var(--space-16);
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  width: auto;
 }
 
 .proofConfirmedText {

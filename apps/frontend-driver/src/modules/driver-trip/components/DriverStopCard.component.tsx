@@ -37,7 +37,6 @@ import {
   type DocumentReturnActivityView,
   type TappedStopReport,
 } from '../shared/documentActivity.service'
-import { PROOF_FRAME_SIZE } from '../shared/proofUpload.constant'
 import {
   isProofConfirmedByServer,
   resolveProofUploadObservation,
@@ -1130,6 +1129,11 @@ export type DeliveryProofSectionProps = Readonly<{
   serverProof?: Readonly<{ isDelivered: boolean; proofPending: boolean }>
 }>
 
+/** A proporção da moldura é do tipo do anexo; tipo novo ganha a variante dele no CSS, aqui e só aqui. */
+function frameVariantClass(kind: 'photo' | 'signature'): string {
+  return kind === 'signature' ? (styles.proofFrameSignature ?? '') : ''
+}
+
 /**
  * Spec 082 T053: o formulário do comprovante é o que a configuração manda — `off` não renderiza,
  * `required` bloqueia o anexo com mensagem **no campo** (todos de uma vez), e o documento do
@@ -1501,7 +1505,7 @@ function ProofCaptureFields({
   function renderEmptyFrame(): ReactNode {
     return (
       <div className={styles.proofCaptureAttached}>
-        <div className={styles.proofEmptyFrame}>
+        <div className={`${styles.proofFrame} ${styles.proofEmptyFrame}`}>
           <Icon name="camera" />
           <span>{t('proofCapture.upload.empty')}</span>
         </div>
@@ -1519,7 +1523,7 @@ function ProofCaptureFields({
   function renderConfirmedFrame(): ReactNode {
     return (
       <div className={styles.proofCaptureAttached}>
-        <div className={styles.proofConfirmedFrame}>
+        <div className={`${styles.proofFrame} ${styles.proofConfirmedFrame}`}>
           {storedThumbnailUrl === undefined ? null : (
             <button
               aria-label={t('proofCapture.view')}
@@ -1550,7 +1554,9 @@ function ProofCaptureFields({
         className={styles.proofCaptureAttached}
         label={t(`proofCapture.upload.loading.${kind}`)}
       >
-        <Skeleton height={PROOF_FRAME_SIZE} width={PROOF_FRAME_SIZE} />
+        <div className={`${styles.proofFrame} ${frameVariantClass(kind)}`}>
+          <Skeleton height="100%" width="100%" />
+        </div>
       </SkeletonGroup>
     )
   }
@@ -1568,13 +1574,13 @@ function ProofCaptureFields({
       <div className={styles.proofCaptureAttached}>
         <button
           aria-label={t('proofCapture.view')}
-          className={styles.proofCaptureThumbnailButton}
+          className={`${styles.proofFrame} ${styles.proofFrameButton} ${frameVariantClass(kind)}`}
           onClick={() => setOpenImageKind(kind)}
           type="button"
         >
           <img
             alt={kind === 'signature' ? t('signature.thumbnail') : t('proofCapture.thumbnail')}
-            className={styles.proofCaptureThumbnail}
+            className={styles.proofFrameImage}
             src={preview.previewUrl}
           />
         </button>

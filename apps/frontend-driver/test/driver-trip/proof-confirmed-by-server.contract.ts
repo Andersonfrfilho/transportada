@@ -88,14 +88,15 @@ describe('o comprovante que o servidor já tem, sem cópia neste aparelho', () =
   it('a moldura confirmada ocupa a largura inteira do card, com a foto em miniatura', () => {
     const rule = STYLES.slice(STYLES.indexOf('.proofConfirmedFrame {'))
     const block = rule.slice(0, rule.indexOf('}'))
-    expect(block).toInclude('width: 100%')
-    expect(block).toInclude('min-height: var(--space-16)')
     expect(block).not.toInclude('width: var(--space-16)')
+    expect(CARD).toInclude('${styles.proofFrame} ${styles.proofConfirmedFrame}')
+    const frameRule = STYLES.slice(STYLES.indexOf('.proofFrame {'))
+    expect(frameRule.slice(0, frameRule.indexOf('}'))).toInclude('width: 100%')
 
     const thumbnailRule = STYLES.slice(STYLES.indexOf('.proofConfirmedThumbnail {'))
     const thumbnail = thumbnailRule.slice(0, thumbnailRule.indexOf('}'))
-    expect(thumbnail).toInclude('width: var(--space-16)')
-    expect(thumbnail).toInclude('height: var(--space-16)')
+    expect(thumbnail).toInclude('height: 100%')
+    expect(thumbnail).toInclude('object-fit: contain')
   })
 
   it('o texto existe em pt-BR e en, sem hora', () => {

@@ -5,7 +5,6 @@ import { describe, expect, it } from 'bun:test'
 
 import driverTripEn from '../../src/modules/driver-trip/locales/driverTrip.en.locale.json'
 import driverTrip from '../../src/modules/driver-trip/locales/driverTrip.locale.json'
-import { PROOF_FRAME_SIZE } from '../../src/modules/driver-trip/shared/proofUpload.constant'
 
 function readSource(path: string): string {
   return readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
@@ -51,10 +50,10 @@ describe('a moldura sem foto é um marcador estático', () => {
     const rule = STYLES.slice(STYLES.indexOf('.proofEmptyFrame {'))
     const block = rule.slice(0, rule.indexOf('}'))
     expect(block).toInclude('dashed')
-    expect(block).toInclude('width: 100%')
-    expect(block).toInclude(`min-height: ${PROOF_FRAME_SIZE}`)
-    expect(block).not.toInclude(`width: ${PROOF_FRAME_SIZE}`)
     expect(block).not.toInclude('animation')
+    expect(empty()).toInclude('styles.proofFrame')
+    const frame = STYLES.slice(STYLES.indexOf('.proofFrame {'))
+    expect(frame.slice(0, frame.indexOf('}'))).toInclude('width: 100%')
   })
 
   it('o texto existe em pt-BR e en', () => {
