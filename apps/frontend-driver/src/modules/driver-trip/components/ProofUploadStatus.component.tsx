@@ -20,6 +20,22 @@ type ProofUploadStatusProps = Readonly<{
 export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
   const { t } = useTranslation('driverTrip')
 
+  if (upload.status === 'reducing') {
+    return (
+      <div className={styles.proofUploadSending} role="status">
+        <span className={styles.proofUploadSendingLine}>
+          <Skeleton
+            height={PROOF_SENDING_BAR_HEIGHT}
+            variant="text"
+            width={PROOF_SENDING_BAR_WIDTH}
+          />
+          {t('proofCapture.upload.reducing')}
+        </span>
+        <span className={styles.stopMeta}>{t('proofCapture.upload.reducingHint')}</span>
+      </div>
+    )
+  }
+
   if (upload.status === 'uploading') {
     return (
       <div className={styles.proofUploadSending} role="status">

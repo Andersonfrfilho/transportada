@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { EventQueueItemView } from './eventQueueView.service'
 
-export type ProofUploadStatus = 'empty' | 'failed' | 'sent' | 'uploading'
+export type ProofUploadStatus = 'empty' | 'failed' | 'reducing' | 'sent' | 'uploading'
 
 /** O que a fila diz, neste render, sobre o anexo de um kind da nota. */
 export type ProofUploadObservation = Readonly<{
@@ -13,6 +13,8 @@ export type ProofUploadObservation = Readonly<{
    */
   isConfirmedByServer?: boolean
   isQueued: boolean
+  /** A foto na fila ainda espera a versão leve (redução em andamento no aparelho). */
+  isReducing?: boolean
   isRejected: boolean
 }>
 
@@ -31,7 +33,7 @@ export function resolveProofUploadObservation(input: {
   readonly documentId: string
   readonly kind: 'photo' | 'signature'
   readonly queueView: readonly EventQueueItemView[]
-}): Omit<ProofUploadObservation, 'isAttached'> {
+}): Omit<ProofUploadObservation, 'isAttached' | 'isConfirmedByServer'> {
   const holders = input.queueView.filter((item) =>
     (item.proofAttachments ?? []).some(
       (attachment) => attachment.documentId === input.documentId && attachment.kind === input.kind,
@@ -40,7 +42,15 @@ export function resolveProofUploadObservation(input: {
   const isRejected = holders.some(
     (item) => item.status.state === 'rejected' || item.attachmentRejectionCause !== undefined,
   )
-  return { isQueued: holders.length > 0, isRejected }
+  const isReducing = holders.some((item) =>
+    (item.proofAttachments ?? []).some(
+      (attachment) =>
+        attachment.documentId === input.documentId &&
+        attachment.kind === input.kind &&
+        attachment.isReducing === true,
+    ),
+  )
+  return { isQueued: holders.length > 0, isReducing, isRejected }
 }
 
 /**
@@ -75,6 +85,7 @@ export function resolveProofUploadStatus(input: {
   const { observation, tracker } = input
   if (!observation.isAttached) return 'empty'
   if (observation.isRejected) return 'failed'
+  if (observation.isReducing === true && observation.isQueued) return 'reducing'
   if (observation.isQueued) return 'uploading'
   if (tracker.sentAt !== undefined) return 'sent'
   return observation.isConfirmedByServer === true ? 'sent' : 'uploading'
