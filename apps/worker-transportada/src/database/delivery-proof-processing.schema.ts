@@ -31,7 +31,7 @@ export const deliveryProofProcessingProofs = pgTable('trip_delivery_proofs', {
   canhotoReadSource: varchar('canhoto_read_source', { length: 16 }),
   canhotoReadAttemptedAt: timestamp('canhoto_read_attempted_at', { withTimezone: true }),
   processingState: varchar('processing_state', {
-    length: 16,
+    length: 32,
   }).$type<DeliveryProofProcessingState>(),
   originalObjectId: uuid('original_object_id'),
   processingError: varchar('processing_error', { length: 64 }),
