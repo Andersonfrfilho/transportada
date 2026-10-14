@@ -37,7 +37,7 @@ import {
   type DocumentReturnActivityView,
   type TappedStopReport,
 } from '../shared/documentActivity.service'
-import { PROOF_FRAME_SIZE } from '../shared/proofUpload.constant'
+import { PROOF_PHOTO_AREA_HEIGHT } from '../shared/proofUpload.constant'
 import {
   isProofConfirmedByServer,
   resolveProofUploadObservation,
@@ -1619,7 +1619,7 @@ function ProofCaptureFields({
         className={styles.proofCaptureAttached}
         label={t(`proofCapture.upload.loading.${kind}`)}
       >
-        <Skeleton height={PROOF_FRAME_SIZE} width={PROOF_FRAME_SIZE} />
+        <Skeleton height={PROOF_PHOTO_AREA_HEIGHT} width="100%" />
       </SkeletonGroup>
     )
   }
