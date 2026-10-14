@@ -24,7 +24,9 @@ import {
   DRIVER_FIELD_MOMENTS,
   type FieldOccurrenceType,
 } from '../application/list-field-occurrence-types.use-case.js'
+import type { TripDeliveryProofProcessingState } from '../../database/trip.schema.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
+import { resolveDeliveryProofProcessingState } from '../domain/delivery-proof.policy.js'
 import type { DriverOccurrenceItemInput } from '../application/register-driver-occurrence.types.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
@@ -250,10 +252,17 @@ export type MeTripDependencies = {
   }) => Promise<{ readonly tripStatus: string }>
   readonly attachProof: (
     input: DriverContextInput & {
+      /** Spec 265 RF13: a correlação da requisição, para o log e o pedido ao worker. */
+      readonly correlationId?: string
       readonly documentId: string
       readonly upload: DeliveryProofUpload
     },
-  ) => Promise<{ readonly id: string; readonly punctuality: ProofPunctuality }>
+  ) => Promise<{
+    readonly id: string
+    /** Spec 265 RF6: ausente (dublê antigo) é `ready`. */
+    readonly processingState?: TripDeliveryProofProcessingState
+    readonly punctuality: ProofPunctuality
+  }>
   /** Pedido do usuário (01/10): rever o canhoto já enviado, pela nota da viagem dele. */
   readonly readDeliveryProofs: (input: {
     readonly companyId: string
@@ -598,25 +607,37 @@ export function createMeTripRoutes(
      * O comprovante anexa a uma entrega **que já aconteceu** — ele não é passo dela. Em 3G ruim,
      * esperar o arquivo para confirmar a entrega é perder a entrega, e a spec pede o contrário.
      */
-    defineRoute<{ readonly documentId: string; readonly upload: DeliveryProofUpload }>({
+    defineRoute<{
+      readonly correlationId: string
+      readonly documentId: string
+      readonly upload: DeliveryProofUpload
+    }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const proof = await dependencies.attachProof({
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
+          correlationId: input.correlationId,
           documentId: input.documentId,
           driverId,
           upload: input.upload,
         })
 
         return jsonResponse({
-          body: { data: { id: proof.id, punctuality: proof.punctuality } },
+          body: {
+            data: {
+              id: proof.id,
+              processingState: resolveDeliveryProofProcessingState(proof.processingState),
+              punctuality: proof.punctuality,
+            },
+          },
           status: 201,
         })
       },
       method: 'POST',
-      async parse({ pathParameters, request }) {
+      async parse({ correlationId, pathParameters, request }) {
         return {
+          correlationId,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           upload: await parseDeliveryProofUpload(request),
         }

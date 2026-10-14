@@ -129,6 +129,8 @@ describe('o motorista relê o canhoto da própria nota', () => {
       'expiresAt',
       'id',
       'kind',
+      // Spec 265 RF6: o estado do tratamento é a única chave nova — nada de quem recebeu.
+      'processingState',
       'thumbnailUrl',
     ])
   })

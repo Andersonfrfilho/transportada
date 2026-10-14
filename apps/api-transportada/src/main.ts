@@ -4039,6 +4039,8 @@ function createApplicationRoutes({
       attachProof: (input) =>
         attachDeliveryProof({
           ...input,
+          /** Spec 265 RF13: o `delivery_proof_processing` sai do caso de uso, por `proofId`. */
+          logger,
           newObjectId: () => crypto.randomUUID(),
           newProofId: () => crypto.randomUUID(),
           now: new Date(),

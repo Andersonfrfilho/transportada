@@ -310,7 +310,9 @@ describe('as rotas /me repassam lateRegistration (spec 205 RF1-RF3)', () => {
     })
 
     expect(response.status).toBe(201)
-    expect(await response.json()).toEqual({ data: { id: 'proof-1', punctuality: 'late' } })
+    expect(await response.json()).toEqual({
+      data: { id: 'proof-1', processingState: 'ready', punctuality: 'late' },
+    })
     expect(received).toEqual([{ lateRegistration: true, route: 'proof' }])
   })
 })
@@ -428,7 +430,11 @@ describe('o comprovante do registro tardio (spec 205 RF4/RF5, D5)', () => {
 
     const proof = await attach({ attachmentKey: 'chave-1', lateRegistration: true, world })
 
-    expect(proof).toEqual({ id: 'proof-existing', punctuality: 'on_time' })
+    expect(proof).toEqual({
+      id: 'proof-existing',
+      processingState: 'ready',
+      punctuality: 'on_time',
+    })
     expect(world.saved).toHaveLength(0)
   })
 })

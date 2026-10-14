@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 212: a foto do canhoto pela rota HTTP inteira — `createRequestHandler` com o teto do corpo
- * (`APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES`, 1 MiB) e o caso de uso de verdade. O teto do arquivo
+ * (`APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES`, 1 MiB — a rota do comprovante passou a aceitar mais na spec 265) e o caso de uso de verdade. O teto do arquivo
  * era 2 MB e nunca era alcançado: o 413 do corpo chegava antes, e a tela não sabia explicar.
  */
 import { describe, expect, it } from 'bun:test'
@@ -132,13 +132,16 @@ describe('a foto do canhoto pela rota HTTP (spec 212)', () => {
     expect(DELIVERY_PROOF_MAX_BYTES).toBe(960 * 1024)
   })
 
-  it('o multipart de 1,1 MB volta 413 antes da rota, sem tocar no bucket', async () => {
+  it('o multipart de 1,1 MB sem variant (reduced) passa o corpo e volta 422 TOO_LARGE, sem tocar no bucket', async () => {
+    // Spec 265 RF1: a rota do comprovante aceita corpo até 12 MiB + folga. O 1 MiB de antes deixou de
+    // ser 413: o arquivo reduzido segue com o teto de 960 KiB, e a recusa agora chega com o código que
+    // a tela sabe explicar (o 413 da rota está em `proof-original-body-limit.contract.ts`).
     const { handle, stored } = buildHandler()
 
     const response = await handle(await proofRequest(1_100_000))
 
-    expect(response.status).toBe(413)
-    expect((await responseApiError(response)).code).toBe('PAYLOAD_TOO_LARGE')
+    expect(response.status).toBe(422)
+    expect((await responseApiError(response)).code).toBe('TRIP_DELIVERY_PROOF_TOO_LARGE')
     expect(stored).toEqual([])
   })
 

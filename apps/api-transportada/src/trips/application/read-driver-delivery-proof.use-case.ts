@@ -11,7 +11,11 @@
  * `trip.read` é permissão da empresa inteira: sem esse recorte, qualquer motorista leria o canhoto
  * de qualquer nota da transportadora (OWASP API1/BOLA).
  */
-import type { TripDeliveryProofKind } from '../../database/trip.schema.js'
+import type {
+  TripDeliveryProofKind,
+  TripDeliveryProofProcessingState,
+} from '../../database/trip.schema.js'
+import { resolveDeliveryProofProcessingState } from '../domain/delivery-proof.policy.js'
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { FIELD_TRIP_TARGET_KIND } from './field-trip-target.types.js'
 import type { ReachableDocumentPort } from './request-occurrence-upload.use-case.js'
@@ -31,6 +35,11 @@ export type DriverDeliveryProofView = {
   readonly expiresAt: string
   readonly id: string
   readonly kind: TripDeliveryProofKind
+  /**
+   * Spec 265 RF6/RF10: sempre presente. `received`/`processing` é o "enviado, processando" do cartão;
+   * `processing_failed` mantém o original à vista; o histórico é `ready`.
+   */
+  readonly processingState: TripDeliveryProofProcessingState
   /** Ausente (nunca `null`) quando não há miniatura — a tela cai no original. */
   readonly thumbnailUrl?: string
 }
@@ -88,6 +97,7 @@ export async function readDriverDeliveryProofs(
         expiresAt: download.expiresAt,
         id: record.id,
         kind: record.kind,
+        processingState: resolveDeliveryProofProcessingState(record.processingState),
         ...(thumbnailDownload ? { thumbnailUrl: thumbnailDownload.url } : {}),
       }
     }),
