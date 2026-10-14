@@ -25,6 +25,39 @@ describe('o cartão da foto não muda de altura ao anexar nem ao confirmar (pedi
     expect(ruleBody('.proofCaptureAttached')).toContain('--proof-photo-area:')
   })
 
+  it('toda moldura da foto (vazia, carregando, anexada e confirmada) usa a mesma área e a miniatura segue clicável', () => {
+    const card = readFileSync(`${root}/components/DriverStopCard.component.tsx`, 'utf8')
+    for (const frame of ['renderEmptyFrame', 'renderConfirmedFrame', 'renderLoadingFrame']) {
+      const start = card.indexOf(`function ${frame}(`)
+      expect(start).toBeGreaterThanOrEqual(0)
+      expect(card.slice(start, start + 900)).toContain('styles.proofCaptureAttached')
+    }
+    expect(card).toContain('<Skeleton height={PROOF_PHOTO_AREA_HEIGHT} width="100%" />')
+    expect(card).toContain('styles.proofCaptureThumbnailButton')
+    expect(card).toContain('styles.proofConfirmedThumbnailButton')
+    expect(card).toContain("setOpenImageKind('photo')")
+    expect(card).toContain('setOpenImageKind(kind)')
+  })
+
+  it('a assinatura usa a mesma moldura da foto, uma abaixo da outra', () => {
+    const card = readFileSync(`${root}/components/DriverStopCard.component.tsx`, 'utf8')
+    expect(card.indexOf("{renderAttachedThumbnail('photo')}")).toBeLessThan(
+      card.indexOf("{renderAttachedThumbnail('signature')}"),
+    )
+  })
+
+  it('os outros cartões que reusam .proofCaptureAttached têm a miniatura dentro dela, para herdar a mesma área', () => {
+    for (const file of [
+      'OccurrencePhotoField',
+      'OccurrenceSignatureField',
+      'DriverNotDeliveredForm',
+    ]) {
+      const source = readFileSync(`${root}/components/${file}.component.tsx`, 'utf8')
+      expect(source).toContain('styles.proofCaptureAttached')
+      expect(source).toContain('styles.proofCaptureThumbnail')
+    }
+  })
+
   it('o foco do nome do recebedor não rola a tela', () => {
     const card = readFileSync(`${root}/components/DriverStopCard.component.tsx`, 'utf8')
     expect(card).toContain('focus({ preventScroll: true })')
