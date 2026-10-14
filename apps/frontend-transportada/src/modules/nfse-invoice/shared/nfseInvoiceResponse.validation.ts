@@ -317,12 +317,21 @@ function isDocumentDownload(value: unknown): value is NfseDocumentDownload {
  * Estrito nos dois sentidos: campo de menos é resposta quebrada, campo de mais é parâmetro fiscal
  * vindo da listagem de configurações — nenhum dos dois é a rota de opções.
  */
+function isOptionalNullableString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string'
+}
+
 function isEmissionProfileOption(value: unknown): value is NfseEmissionProfileOption {
   return (
-    hasExactKeys(value, NFSE_EMISSION_PROFILE_OPTION_KEYS) &&
+    hasKeys(value, {
+      allowed: [...NFSE_EMISSION_PROFILE_OPTION_KEYS, ...NFSE_NATIONAL_TAXATION_KEYS],
+      required: NFSE_EMISSION_PROFILE_OPTION_KEYS,
+    }) &&
     isString(value.descriptionTemplate) &&
     isString(value.id) &&
-    isString(value.name)
+    isString(value.name) &&
+    isOptionalNullableString(value.nationalTaxationCode) &&
+    isOptionalNullableString(value.simplesNationalRate)
   )
 }
 

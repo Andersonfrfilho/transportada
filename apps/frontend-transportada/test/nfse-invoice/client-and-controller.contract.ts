@@ -179,6 +179,29 @@ describe('nfse invoice client contract', () => {
     })
   })
 
+  /** Regressão: o corpo é montado campo a campo e `period` ficava de fora, então `{{periodo}}` saía vazio. */
+  test('sends the typed service period on preview and create, and omits it when blank', async () => {
+    const requests: Request[] = []
+    const client = await createRecordingClient(requests)
+
+    await client.previewInvoices({ ...SELECTION_BODY, period: '05/10/2026 a 09/10/2026' })
+    await client.createInvoices({
+      ...SELECTION_BODY,
+      idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
+      period: '05/10/2026 a 09/10/2026',
+    })
+    await client.previewInvoices(SELECTION_BODY)
+
+    const [preview, create, blank] = requests
+    if (preview === undefined || create === undefined || blank === undefined) {
+      throw new Error('NFSE_CONTRACT_REQUEST_MISSING')
+    }
+
+    expect(await preview.json()).toMatchObject({ period: '05/10/2026 a 09/10/2026' })
+    expect(await create.json()).toMatchObject({ period: '05/10/2026 a 09/10/2026' })
+    expect(await blank.json()).not.toHaveProperty('period')
+  })
+
   /** O documento fiscal sai por URL assinada: a resposta é o link, nunca os bytes do XML. */
   test('asks for the signed xml and pdf links instead of the fiscal bytes', async () => {
     const requests: Request[] = []
@@ -479,6 +502,53 @@ describe('nfse emission profile options contract', () => {
     ).toThrow('NFSE_INVOICE_RESPONSE_INVALID')
   })
 
+  test('accepts the profile tax pair on an option, and an option that does not carry it yet', async () => {
+    const { createNfseInvoiceResponseAdapters } =
+      await loadFutureModule<AdaptersModule>(ADAPTERS_MODULE)
+    const adapters = createNfseInvoiceResponseAdapters()
+    const withPair = {
+      ...EMISSION_PROFILE_OPTION,
+      nationalTaxationCode: '160201',
+      simplesNationalRate: '4.500000',
+    }
+    const withoutPair = {
+      ...EMISSION_PROFILE_OPTION,
+      nationalTaxationCode: null,
+      simplesNationalRate: null,
+    }
+
+    expect(adapters.emissionProfilesFromApi({ data: [withPair, withoutPair] })).toEqual([
+      withPair,
+      withoutPair,
+    ])
+    expect(() =>
+      adapters.emissionProfilesFromApi({
+        data: [{ ...EMISSION_PROFILE_OPTION, nationalTaxationCode: 160201 }],
+      }),
+    ).toThrow('NFSE_INVOICE_RESPONSE_INVALID')
+  })
+
+  test('summarizes what the chosen profile carries, and warns only when the pair is known to be missing', async () => {
+    const { describeNfseProfileTaxation } = await loadFutureModule<TaxationModule>(
+      '../../src/modules/nfse-invoice/shared/nfseNationalTaxation.service',
+    )
+
+    expect(
+      describeNfseProfileTaxation({
+        nationalTaxationCode: '160201',
+        simplesNationalRate: '4.500000',
+      }),
+    ).toEqual({ code: '160201', rate: '4,5', status: 'complete' })
+    expect(
+      describeNfseProfileTaxation({ nationalTaxationCode: '160201', simplesNationalRate: null }),
+    ).toEqual({ code: '160201', rate: '', status: 'missing' })
+    expect(
+      describeNfseProfileTaxation({ nationalTaxationCode: null, simplesNationalRate: null }).status,
+    ).toBe('missing')
+    // A API ainda não manda o par: sem a informação, a tela não acusa falta que ela não conhece.
+    expect(describeNfseProfileTaxation({}).status).toBe('unknown')
+  })
+
   /** O gate do diálogo é a permissão de emitir, não a de administrar a empresa. */
   test('gates the profile query on nfse.issue', async () => {
     const hook = await Bun.file(
@@ -580,6 +650,7 @@ function createStubClient(calls: string[]): InvoiceClient {
 type SelectionInput = Readonly<{
   descriptionTemplate?: string
   documentIds: readonly string[]
+  period?: string
   profileId: string
 }>
 
@@ -645,4 +716,11 @@ type ControllerModule = {
     readonly canIssueInvoices: boolean
     readonly canReadInvoices: boolean
   }
+}
+
+type TaxationModule = {
+  readonly describeNfseProfileTaxation: (profile: {
+    readonly nationalTaxationCode?: null | string
+    readonly simplesNationalRate?: null | string
+  }) => { readonly code: string; readonly rate: string; readonly status: string }
 }

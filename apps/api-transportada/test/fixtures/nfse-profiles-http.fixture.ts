@@ -67,13 +67,16 @@ export const PROFILES_PAGE = {
 } as const
 
 /**
- * A opção leva só o que o diálogo de emissão precisa escolher e escrever. Alíquota, CNAE, item da
- * lista e tomador ficam de fora: quem emite não administra parâmetro fiscal.
+ * A opção leva o que o diálogo de emissão precisa escolher e escrever, mais o par de tributação
+ * nacional (código e Simples) para o operador ver e ser avisado antes de confirmar. Alíquota do ISS,
+ * CNAE, item da lista e tomador ficam de fora: quem emite não administra parâmetro fiscal.
  */
 export const PROFILE_OPTION = {
   descriptionTemplate: PROFILE_SETTINGS.descriptionTemplate,
   id: PROFILE_ID,
   name: PROFILE_SETTINGS.name,
+  nationalTaxationCode: PROFILE_SETTINGS.nationalTaxationCode,
+  simplesNationalRate: PROFILE_SETTINGS.simplesNationalRate,
 } as const
 
 export const CREDENTIAL_SUMMARY = {

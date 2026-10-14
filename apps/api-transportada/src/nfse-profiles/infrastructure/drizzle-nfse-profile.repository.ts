@@ -164,6 +164,8 @@ class DrizzleNfseProfileTransaction implements NfseProfileTransactionPort {
         descriptionTemplate: nfseEmissionProfiles.descriptionTemplate,
         id: nfseEmissionProfiles.id,
         name: nfseEmissionProfiles.name,
+        nationalTaxationCode: nfseEmissionProfiles.nationalTaxationCode,
+        simplesNationalRate: nfseEmissionProfiles.simplesNationalRate,
       })
       .from(nfseEmissionProfiles)
       .where(and(...buildNfseEmissionProfileOptionFilters({ companyId: input.companyId })))

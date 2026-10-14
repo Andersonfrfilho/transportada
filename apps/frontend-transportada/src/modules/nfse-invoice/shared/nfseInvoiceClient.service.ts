@@ -147,6 +147,7 @@ function buildSelectionBody(input: NfseInvoiceSelection): string {
   if (input.descriptionTemplate !== undefined) {
     body['descriptionTemplate'] = input.descriptionTemplate
   }
+  if (input.period !== undefined) body['period'] = input.period
   return JSON.stringify(body)
 }
 

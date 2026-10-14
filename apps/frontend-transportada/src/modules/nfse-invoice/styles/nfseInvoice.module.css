@@ -301,6 +301,19 @@
   background: color-mix(in srgb, var(--color-alert) 8%, var(--color-asphalt) 92%);
 }
 
+/* Aviso do perfil, antes de confirmar: mesma cor da recusa, mas não é a recusa do botão. */
+.emissionProfileWarning {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-alert);
+  color: var(--color-alert);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--color-alert) 8%, var(--color-asphalt) 92%);
+}
+
 .emissionFooter {
   display: flex;
   flex-wrap: wrap;

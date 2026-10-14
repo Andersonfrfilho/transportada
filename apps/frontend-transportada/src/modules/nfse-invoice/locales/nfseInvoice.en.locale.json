@@ -287,6 +287,8 @@
     "subtitle": "{{count}} notes selected, grouped by taker.",
     "close": "Close",
     "profile": "Emission profile",
+    "profileTaxation": "National taxation {{code}} · Simples {{rate}}%",
+    "profileTaxationMissing": "The chosen profile has no national taxation code or Simples rate. Fill both in NFS-e → Settings → Emission profile before issuing.",
     "profilePlaceholder": "Pick the profile",
     "profileUnavailable": "Your access cannot list emission profiles, and the profile is required to issue.",
     "forbidden": "Your access shows the preview but does not issue the service invoice.",
