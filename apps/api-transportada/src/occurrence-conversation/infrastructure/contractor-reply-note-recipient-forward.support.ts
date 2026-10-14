@@ -16,7 +16,6 @@ import { createHash } from 'node:crypto'
 import { sql, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 
-import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import { CONVERSATION_ATTACHMENT_LIMITS } from '../domain/conversation-attachment.policy.js'
 
 export type ContractorReplyNoteRecipientRunner = {
@@ -54,6 +53,18 @@ async function rowsOf(
 function text(row: Row | undefined, key: string): string | null {
   const value = row?.[key]
   return typeof value === 'string' ? value : null
+}
+
+/** Mesma regra de `resolveCompanyDisplayName` da API, repetida porque este arquivo vive idêntico nas duas apps. */
+function chosenCarrierName(input: {
+  displayNameMode: null | string
+  legalName: string
+  tradeName: string
+}): string {
+  const legalName = input.legalName.trim()
+  const tradeName = input.tradeName.trim()
+  if (input.displayNameMode === 'legal_name') return legalName === '' ? tradeName : legalName
+  return tradeName === '' ? legalName : tradeName
 }
 
 function escapeHtml(value: string): string {
@@ -214,11 +225,10 @@ async function queue(
     runner,
     sql`select trade_name, legal_name, display_name_mode from company_fiscal_profiles where company_id = ${companyId}::uuid`,
   )
-  const displayNameMode = text(carrier, 'display_name_mode')
   const mail = buildMail({
     body: texts.body,
-    carrierName: resolveCompanyDisplayName({
-      displayNameMode: displayNameMode === 'legal_name' ? 'legal_name' : 'trade_name',
+    carrierName: chosenCarrierName({
+      displayNameMode: text(carrier, 'display_name_mode'),
       legalName: text(carrier, 'legal_name') ?? '',
       tradeName: text(carrier, 'trade_name') ?? '',
     }),
