@@ -790,10 +790,12 @@
         "opensChat": "Abre a conversa",
         "opensDetail": "Abre o detalhe",
         "share": "Compartilhar documentos de {{type}}",
-        "unread": "{{count}} novas"
+        "unread_one": "{{count}} nova",
+        "unread_other": "{{count}} novas"
       }
     },
-    "more": "Ver mais {{count}} ocorrências de {{label}}",
+    "more_one": "Ver mais {{count}} ocorrência de {{label}}",
+    "more_other": "Ver mais {{count}} ocorrências de {{label}}",
     "noteLabel": "NF {{number}}",
     "phrase": {
       "case_cancelled": "Tratativa cancelada pelo escritório",

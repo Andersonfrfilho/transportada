@@ -772,10 +772,12 @@
         "opensChat": "Opens the conversation",
         "opensDetail": "Opens the detail",
         "share": "Share documents of {{type}}",
-        "unread": "{{count}} new"
+        "unread_one": "{{count}} new",
+        "unread_other": "{{count}} new"
       }
     },
-    "more": "See {{count}} more occurrences for {{label}}",
+    "more_one": "See {{count}} more occurrence for {{label}}",
+    "more_other": "See {{count}} more occurrences for {{label}}",
     "noteLabel": "Invoice {{number}}",
     "phrase": {
       "case_cancelled": "Case cancelled by the office",
