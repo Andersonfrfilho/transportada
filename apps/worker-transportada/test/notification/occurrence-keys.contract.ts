@@ -29,9 +29,12 @@ const API_CATALOG_SOURCE = readFileSync(
 )
 
 function apiOccurrenceKeys(): readonly string[] {
-  // `contractor-reply` é o alerta de atraso da operação (spec 248), não motivo de parada do motorista.
+  // `contractor-reply` é o alerta de atraso da operação (spec 248) e `resolved`/`reopened` são o andamento da
+  // ocorrência (spec 266): nenhum é motivo de parada do motorista.
   const matches = [
-    ...API_CATALOG_SOURCE.matchAll(/'(trip\.occurrence-(?!contractor-reply)[a-z-]+)'/gu),
+    ...API_CATALOG_SOURCE.matchAll(
+      /'(trip\.occurrence-(?!contractor-reply)(?!(?:resolved|reopened)')[a-z-]+)'/gu,
+    ),
   ]
   return [...new Set(matches.map(([, key]) => key as string))].toSorted()
 }
