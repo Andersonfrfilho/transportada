@@ -8,12 +8,14 @@
 import { describe, expect } from 'bun:test'
 import { eq } from 'drizzle-orm'
 
+import { tripOccurrenceCaseEvents } from '../../src/database/trip.schema.js'
 import { tripOccurrenceResolutionEvents } from '../../src/database/occurrence-conversation.schema.js'
 import {
   companyOccurrenceTypes,
   tripDocumentOccurrences,
   tripStopOccurrences,
 } from '../../src/database/trip.schema.js'
+import type { OccurrenceCaseTransitionInput } from '../../src/trips/application/occurrence-case.port.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
 import { createResolveOccurrenceUseCase } from '../../src/trips/application/resolve-occurrence.use-case.js'
@@ -21,6 +23,7 @@ import {
   DrizzleOccurrenceResolutionUnitOfWork,
   listLatestResolutionEventsByOccurrence,
 } from '../../src/trips/infrastructure/drizzle-occurrence-resolution.repository.js'
+import { DrizzleOccurrenceCaseRepository } from '../../src/trips/infrastructure/drizzle-occurrence-case.repository.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
 import { TRIP_OCCURRENCE_STAGE } from '../../src/shared/trip-occurrence.constant.js'
 import {
@@ -285,6 +288,111 @@ describe('o escritório resolve a ocorrência contra Postgres (spec 266 T2.3)', 
         occurrenceKind: 'stop',
       })
       expect(foreign.size).toBe(0)
+    })
+  })
+})
+
+type CaseAction = OccurrenceCaseTransitionInput['action']
+
+async function applyCaseActions(
+  database: TestDatabase,
+  company: Company,
+  occurrenceId: string,
+  actions: readonly CaseAction[],
+): Promise<void> {
+  const cases = new DrizzleOccurrenceCaseRepository(database.db)
+  const caseId = await cases.findIdByOccurrenceId({ companyId: company.companyId, occurrenceId })
+  if (caseId === null) throw new Error('EXPECTED_CASE')
+  for (const action of actions) {
+    const isDecision = action === 'decide'
+    await cases.transition({
+      action,
+      actorKind: isDecision ? 'contractor' : 'internal',
+      actorUserId: company.userId,
+      caseId,
+      companyId: company.companyId,
+      ...(isDecision ? { decisionKind: 'redelivery_authorized' as const } : {}),
+      note: action === 'cancel' || action === 'warehouse_return' ? 'motivo registrado' : '',
+    })
+  }
+}
+
+describe('a tratativa terminal resolve a ocorrência pelo sistema (spec 266 T2.4)', () => {
+  const TERMINAL_PATHS = [
+    { actions: ['review', 'contractor_submission', 'decide', 'closure'], status: 'closed' },
+    { actions: ['review', 'warehouse_return'], status: 'returned_to_warehouse' },
+    { actions: ['cancel'], status: 'cancelled' },
+  ] as const
+
+  for (const path of TERMINAL_PATHS) {
+    testWithPostgres(
+      `${path.status} grava exatamente um evento system ligado ao evento da tratativa`,
+      async () => {
+        await withDisposableDatabase(async (database) => {
+          const company = await seedCompany(database)
+          const trip = await seedTrip(database, company, 'in_transit')
+          const occurrenceId = await registerDocumentOccurrence(database, company, trip)
+
+          await applyCaseActions(database, company, occurrenceId, path.actions)
+
+          const events = await listEvents(database, occurrenceId)
+          expect(events).toHaveLength(1)
+          expect(events[0]).toMatchObject({
+            actorKind: 'system',
+            actorUserId: null,
+            kind: 'resolved',
+            note: null,
+          })
+          const [caseEvent] = await database.db
+            .select({
+              id: tripOccurrenceCaseEvents.id,
+              toStatus: tripOccurrenceCaseEvents.toStatus,
+            })
+            .from(tripOccurrenceCaseEvents)
+            .where(eq(tripOccurrenceCaseEvents.id, events[0]?.caseEventId ?? ''))
+          expect(caseEvent?.toStatus).toBe(path.status)
+        })
+      },
+    )
+  }
+
+  testWithPostgres('decided não é terminal e não cria evento', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+      const occurrenceId = await registerDocumentOccurrence(database, company, trip)
+
+      await applyCaseActions(database, company, occurrenceId, [
+        'review',
+        'contractor_submission',
+        'decide',
+      ])
+
+      expect(await listEvents(database, occurrenceId)).toHaveLength(0)
+    })
+  })
+
+  testWithPostgres('já resolvida à mão: o terminal não duplica o evento', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+      const occurrenceId = await registerDocumentOccurrence(database, company, trip)
+      await applyCaseActions(database, company, occurrenceId, ['review'])
+      await buildUseCase(database).execute({
+        context: contextOf(company),
+        note: 'resolvido antes de devolver',
+        occurrenceId,
+        occurrenceKind: 'document',
+      })
+
+      await applyCaseActions(database, company, occurrenceId, ['warehouse_return'])
+
+      const events = await listEvents(database, occurrenceId)
+      expect(events).toHaveLength(1)
+      expect(events[0]).toMatchObject({
+        actorKind: 'internal',
+        note: 'resolvido antes de devolver',
+      })
     })
   })
 })

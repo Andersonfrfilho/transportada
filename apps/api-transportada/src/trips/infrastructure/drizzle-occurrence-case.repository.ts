@@ -20,6 +20,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
+import { tripOccurrenceResolutionEvents } from '../../database/occurrence-conversation.schema.js'
 import {
   tripDocumentOccurrences,
   tripOccurrenceCaseEvents,
@@ -42,6 +43,7 @@ import type {
   OccurrenceCaseTransitionRefusalCode,
 } from '../domain/occurrence-case-state.policy.js'
 import { resolveOccurrenceCaseOpening } from '../domain/occurrence-case.policy.js'
+import { resolveOccurrenceResolutionState } from '../domain/occurrence-resolution.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
 import { listOccurrenceProductCodes } from './drizzle-occurrence-product.repository.js'
 import {
@@ -51,6 +53,10 @@ import {
   OccurrenceCaseSettlementWithoutItemsError,
   OccurrenceCaseTransitionNotAllowedError,
 } from '../domain/trip.error.js'
+import {
+  listLatestResolutionEventsByOccurrence,
+  lockOccurrenceRow,
+} from './drizzle-occurrence-resolution.repository.js'
 import type { TripQueryable, TripTransaction } from './trip-queryable.type.js'
 import type { OccurrenceCaseRepositoryPort } from '../application/occurrence-case.port.js'
 
@@ -247,17 +253,70 @@ async function applyTransition(
   /** Corrida perdida entre o lock e o CAS: outra transação já mudou o status. Nunca 404, nunca silêncio. */
   if (updated.length === 0) throw new OccurrenceCaseTransitionNotAllowedError()
 
-  await transaction.insert(tripOccurrenceCaseEvents).values({
-    actorKind: input.actorKind,
-    actorUserId: input.actorUserId,
-    caseId: input.caseId,
-    companyId: input.companyId,
-    fromStatus: locked.status,
-    note: input.note,
-    toStatus: transition.to,
-  })
+  const [caseEvent] = await transaction
+    .insert(tripOccurrenceCaseEvents)
+    .values({
+      actorKind: input.actorKind,
+      actorUserId: input.actorUserId,
+      caseId: input.caseId,
+      companyId: input.companyId,
+      fromStatus: locked.status,
+      note: input.note,
+      toStatus: transition.to,
+    })
+    .returning({ id: tripOccurrenceCaseEvents.id })
+  if (caseEvent === undefined) throw new Error('OCCURRENCE_CASE_EVENT_INSERT_RETURNED_NO_ROW')
+
+  if (resolvesNow) {
+    await resolveOccurrenceBySystem(transaction, {
+      caseEventId: caseEvent.id,
+      companyId: input.companyId,
+      occurrenceId: locked.occurrenceId,
+    })
+  }
 
   return { kind: 'changed', status: transition.to }
+}
+
+/**
+ * Spec 266 / ADR-0105: a tratativa terminal resolve a ocorrência para o motorista. A ordem de lock é
+ * sempre tratativa → ocorrência (a tratativa já está travada acima); o estado é lido **depois** do
+ * lock da ocorrência, e uma resolução manual anterior não ganha duplicata.
+ */
+async function resolveOccurrenceBySystem(
+  transaction: TripTransaction,
+  input: {
+    readonly caseEventId: string
+    readonly companyId: string
+    readonly occurrenceId: string
+  },
+): Promise<void> {
+  const target = {
+    companyId: input.companyId,
+    occurrenceId: input.occurrenceId,
+    occurrenceKind: 'document',
+  } as const
+  const lockedOccurrence = await lockOccurrenceRow(transaction, target)
+  if (lockedOccurrence === undefined) return
+
+  const events = await listLatestResolutionEventsByOccurrence(transaction, {
+    companyId: input.companyId,
+    occurrenceIds: [input.occurrenceId],
+    occurrenceKind: 'document',
+  })
+  const current = resolveOccurrenceResolutionState({
+    cancelledAt: lockedOccurrence.cancelledAt,
+    events: events.get(input.occurrenceId) ?? [],
+  })
+  if (current.state !== 'open') return
+
+  await transaction.insert(tripOccurrenceResolutionEvents).values({
+    actorKind: 'system',
+    caseEventId: input.caseEventId,
+    companyId: input.companyId,
+    documentOccurrenceId: input.occurrenceId,
+    kind: 'resolved',
+  })
 }
 
 /**
