@@ -14,7 +14,7 @@ import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.compo
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { ARRIVED_HIGHLIGHT_MS, resolveStopPlace } from '../shared/stopPlace.service'
-import { focusFinishButton, revealPanel, revealStopStart } from '../shared/stopFocus.service'
+import { focusFinishButton, revealPanel } from '../shared/stopFocus.service'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
 import { ProofCargoField } from './ProofCargoField.component'
@@ -299,9 +299,9 @@ export function DriverStopCard({
   const [isConfirmingLateRegistration, setIsConfirmingLateRegistration] = useState(false)
   const isCompleted = stop.completedAt !== null
   /**
-   * Pedido do usuário (14/10): quando esta parada vira a atual (a anterior foi concluída ou devolvida),
-   * a tela leva o topo dela à vista — o motorista não precisa rolar para iniciar a próxima. Nunca na
-   * montagem: abrir o app não pode sair rolando.
+   * Quando esta parada vira a atual (a anterior foi concluída ou devolvida) ela só pisca o destaque.
+   * Rolagem e foco automáticos pós-Concluir foram retirados (staging 15/10: "quebrou a tela"): duas
+   * rolagens suaves disputavam a posição enquanto o cartão concluído encolhia. Nunca na montagem.
    */
   const cardRef = useRef<HTMLLIElement>(null)
   const wasCurrentRef = useRef(isCurrent)
@@ -313,7 +313,6 @@ export function DriverStopCard({
       return undefined
     }
     wasCurrentRef.current = isCurrent
-    revealStopStart(cardRef.current)
     setJustArrived(true)
     const timer = setTimeout(() => setJustArrived(false), ARRIVED_HIGHLIGHT_MS)
     return () => clearTimeout(timer)
@@ -1018,8 +1017,6 @@ function DocumentRow({
                 })
                 onAnnounce(t('activity.toast.returned'))
                 setOpenReturn(false)
-                /* Pedido do usuário (14/10): devolvida, o topo do cartão volta à vista — sem rolar para achar a próxima. */
-                requestAnimationFrame(() => revealStopStart(rowRef.current))
               }}
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
             />
@@ -1262,8 +1259,6 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
     }
     setShowMissing(false)
     setConcludedAt(new Date().toISOString())
-    /* Pedido do usuário (14/10): concluído, o topo do cartão volta à vista — a próxima ação começa dali. */
-    revealStopStart(capture.finishActionsRef.current)
   }
 
   return (
