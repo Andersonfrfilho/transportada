@@ -85,9 +85,9 @@
 
 - [x] **T4.1** `haiku` — Ícones `share`, `paperclip` e `arrow-left` em `components/ui/icon.tsx`, com o traço do
       painel, e `icon-catalog` atualizado.
-- [ ] **T4.2** `sonnet` — Tipos, validação, cliente e query das duas rotas de leitura. Retrato no IndexedDB (store
+- [x] **T4.2** `sonnet` — Tipos, validação, cliente e query das duas rotas de leitura. Retrato no IndexedDB (store
       `trip-occurrences`, versão 5, com migração do v4) e leitura offline. Testes de validação e do retrato.
-- [ ] **T4.3** `sonnet` — Teste antes de `routeOccurrenceView.service.ts` (pura): junta o servidor com a fila
+- [x] **T4.3** `sonnet` — Teste antes de `routeOccurrenceView.service.ts` (pura): junta o servidor com a fila
       (`queued`/`rejected`, sem duplicar quando a ocorrência já subiu), contagem do alerta, grupos, filtros e
       ocorrências por parada **agrupadas por nota** (N por nota, mesmo tipo repetido, ocorrência de parada sem nota,
       corte "+N" acima de 4). Depois, a implementação.

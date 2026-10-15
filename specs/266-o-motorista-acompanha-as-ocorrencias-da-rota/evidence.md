@@ -156,3 +156,20 @@ _(cada task registra aqui comando, saída resumida e commit)_
   1370 pass), build ok. PR https://github.com/Andersonfrfilho/adatechnology-packages/pull/141, CI verde, **merge
   autorizado pelo dono** ("pode fazer o merge") em `79af4c1`; a pipeline publica a 0.11.0. O lado do app (flag
   `reopen` no adaptador e na fila) fica na T4.8.
+
+### T4.2 — Dados das ocorrências da rota com retrato offline (`77360376c`)
+
+- Tipos, validação, cliente (`listRouteOccurrences`, `readRouteOccurrence`, `readRouteOccurrenceFileUrl`), queries e
+  store `trip-occurrences` (IndexedDB v4 → v5, só cria o que falta). "Sair" limpa o store.
+- `bun run typecheck` ok; `bun run test`: 1914 pass, 2 falhas de **tempo** conhecidas em `shared.contract.test.ts`.
+- Sem `fake-indexeddb` no repositório: o retrato é testado com store em memória e o upgrade v5 por leitura do fonte
+  (molde existente). Os smokes Playwright tocados não rodaram aqui.
+
+### T4.3 — Visão que junta servidor e fila (`9e20580ff`)
+
+- `routeOccurrenceView.service.ts`: alerta, grupos, filtros, por parada **e por nota** (N por nota, mesmo tipo
+  repetido, "+N" acima de 4), irmãs (mesma nota primeiro). `test/driver-trip.contract.test.ts`: 1568 pass, 0 fail
+  (35 da 266).
+- Ambiguidades do contrato fechadas no `plan.md` (2026-10-15): `phraseKey` na resolução `system`; 404 com códigos
+  distintos (viagem não ativa × ocorrência × objeto); `reportKey` para casar a fila sem heurística. **Ajuste pendente no
+  app** (vai junto com a T4.6): ler `phraseKey` e distinguir os dois 404.

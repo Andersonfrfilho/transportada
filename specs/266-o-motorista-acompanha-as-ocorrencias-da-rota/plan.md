@@ -103,7 +103,14 @@ A linha do tempo ganha dois `kind`:
     recordedAt: string
     recordedByMe: boolean
     state: 'open' | 'resolved' | 'cancelled'
-    resolution: { at: string; note: string; actorKind: 'internal' | 'system' } | null
+    // internal: note = observação do operador, phraseKey null. system: note null, phraseKey = frase fixa (o app traduz)
+    resolution: {
+      at: string
+      actorKind: 'internal' | 'system'
+      note: string | null
+      phraseKey: 'case_closed' | 'case_returned_to_warehouse' | 'case_cancelled' | null
+    } | null
+    reportKey: string | null // chave de idempotência do registro feito pelo app, quando o servidor a guarda
     reopenedAt: string | null
     conversation: { exists: boolean } // o não lido continua vindo de conversationDigests
     documentCount: number
@@ -118,6 +125,18 @@ Os links assinados (5 min) vêm em `GET /me/trips/current/route-occurrences/:kin
 demanda; o retrato offline guarda só metadado. O prefixo é `route-occurrences` porque o roteador usa o primeiro match
 dinâmico (`router.service.ts:708-727`) e `/me/trips/current/occurrences/:id/messages` já existe. Lista, detalhe e links
 valem só com a viagem **não finalizada**; depois, 404.
+
+Códigos de erro distintos (o app mostra mensagens diferentes):
+
+| Situação                                                    | Status | Código                                                                                   |
+| ----------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------- |
+| Sem viagem atual / viagem finalizada                        | 404    | `DRIVER_TRIP_NOT_ACTIVE` (reusar o código que `GET /me/trips/current` já usa, se houver) |
+| Ocorrência inexistente, de outra viagem ou de outra empresa | 404    | `TRIP_OCCURRENCE_NOT_FOUND`                                                              |
+| Objeto que não pertence à ocorrência                        | 404    | `TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND`                                                   |
+
+`reportKey`: a T2.5 confere se o registro do motorista guarda a chave de idempotência da fila (`field-reports`). Se
+guardar, a lista devolve; o app casa a fila com o servidor por ela e só cai na heurística (mesma nota/parada, tipo,
+±5 min, `recordedByMe`) quando vier `null`.
 
 Estado exibido: `cancelled_at` preenchido (só ocorrência de nota; a de parada não cancela) → `cancelled`; sem evento →
 `open`; último `resolved` → `resolved`; último `reopened` → `open` com `reopenedAt`. A tratativa cancelada pela própria
