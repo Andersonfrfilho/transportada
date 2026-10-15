@@ -556,7 +556,7 @@
   },
   "activity": {
     "delivered": "Delivered at {{time}}",
-    "deliveredQueued": "Delivered at {{time}} · waiting to send",
+    "deliveredQueued": "Delivered at {{time}} · syncing",
     "deliveredRejected": "The office refused the delivery recorded at {{time}}. See pending events.",
     "occurrenceMarker": "Has an occurrence",
     "occurrenceQueued": "Occurrence recorded at {{time}} · queued",

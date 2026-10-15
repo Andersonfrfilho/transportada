@@ -243,7 +243,7 @@ describe('a entrega confirmada vale na hora, com selo de envio (15/10)', () => {
     expect(readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')).toContain(
       'applyLocalDeliveries(',
     )
-    expect(driverTrip.activity.deliveredQueued).toInclude('aguardando envio')
+    expect(driverTrip.activity.deliveredQueued).toInclude('sincronizando')
   })
 })
 
