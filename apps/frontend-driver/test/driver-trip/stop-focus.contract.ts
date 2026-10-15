@@ -139,7 +139,11 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
   it('concluir ou devolver leva o topo do cartão da parada à vista e o foco ao cabeçalho', () => {
     stubWindow(true)
     const calls: Calls = []
-    const header = { focus: (options: unknown) => calls.push(`header ${JSON.stringify(options)}`) }
+    const header = {
+      addEventListener: () => undefined,
+      dataset: {} as Record<string, string>,
+      focus: (options: unknown) => calls.push(`header ${JSON.stringify(options)}`),
+    }
     const card = {
       querySelector: () => header,
       scrollIntoView: (options: unknown) => calls.push(`card ${JSON.stringify(options)}`),
@@ -149,7 +153,7 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     revealStopStart(null)
     expect(calls).toEqual([
       'card {"behavior":"auto","block":"start"}',
-      'header {"preventScroll":true}',
+      'header {"focusVisible":true,"preventScroll":true}',
     ])
   })
 
@@ -159,8 +163,10 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     expect(card).toContain('data-stop-header=""')
     // foto aceita → foco no fim do formulário
     expect(card).toMatch(/setFocusFinishNextRender\(true\)/u)
-    // Concluir, Devolver e a parada nova atual NÃO rolam nem focam sozinhos (staging 15/10: "quebrou a tela")
-    expect(card).not.toContain('revealStopStart')
+    // Concluir e Devolver NÃO rolam nem focam sozinhos (staging 15/10: "quebrou a tela"); só a última nota
+    // confirmada leva o foco, 1 s depois, ao começo da próxima parada (pedido do usuário, 15/10)
+    expect(card.match(/revealStopStart\(/gu)).toHaveLength(1)
+    expect(card).toMatch(/consumeStopAdvanceFocus\(\)\)\s*return undefined/u)
     // a parada que vira atual (e só depois da montagem) só pisca o destaque
     expect(card).toMatch(
       /!isCurrent \|\| wasCurrentRef\.current[\s\S]{0,200}setJustArrived\(true\)/u,

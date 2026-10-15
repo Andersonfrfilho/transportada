@@ -19,9 +19,11 @@ import {
   NEXT_STEP_FOCUS_DELAY_MS,
   armNextStepFocus,
   consumeNextStepFocus,
+  consumeStopAdvanceFocus,
   SIGNATURE_FOCUS_TARGET,
   focusFirstRequiredPhoto,
   focusNextProofStep,
+  revealStopStart,
   revealPanel,
 } from '../shared/stopFocus.service'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
@@ -326,6 +328,21 @@ export function DriverStopCard({
     const timer = setTimeout(() => setJustArrived(false), ARRIVED_HIGHLIGHT_MS)
     return () => clearTimeout(timer)
   }, [isCurrent])
+  /**
+   * Pedido do usuário (15/10): a última nota da parada foi confirmada e o cartão recolheu — não há
+   * "Concluir" para focar, então o foco, 1 s depois, vai ao começo da próxima parada.
+   */
+  const wasCompletedRef = useRef(isCompleted)
+  useEffect(() => {
+    const wasCompleted = wasCompletedRef.current
+    wasCompletedRef.current = isCompleted
+    if (wasCompleted || !isCompleted || !consumeStopAdvanceFocus()) return undefined
+    const timer = setTimeout(
+      () => revealStopStart(cardRef.current?.nextElementSibling ?? null),
+      NEXT_STEP_FOCUS_DELAY_MS,
+    )
+    return () => clearTimeout(timer)
+  }, [isCompleted])
   const areFieldActionsHidden = isFieldWorkBlocked || isReadOnly
   /** Spec 206 D9: `enRouteTappedAt` (hora do toque) é a âncora; `enRouteSince` é a reserva. */
   const enRouteAnchor = stop.enRouteTappedAt ?? stop.enRouteSince ?? undefined

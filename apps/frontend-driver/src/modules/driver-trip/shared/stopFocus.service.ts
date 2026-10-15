@@ -46,7 +46,7 @@ export function revealStopStart(from: Element | null): void {
   if (card === null) return
   const header = card.querySelector<HTMLElement>(STOP_HEADER_SELECTOR)
   card.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'start' })
-  header?.focus({ preventScroll: true })
+  if (header !== null) focusWithRing(header)
 }
 
 /** Um aviso ou formulário que acabou de abrir: foco nele e à vista, sem arrastar a tela além do necessário. */
@@ -98,6 +98,7 @@ export function focusNextProofStep(actions: HTMLElement | null): void {
 
 const ARMED_FOCUS_WINDOW_MS = 15_000
 let armedAt: number | undefined
+let armedStopAdvanceAt: number | undefined
 
 /**
  * O "Confirmar entrega" troca a tela do comprovante por outra (um componente novo, já com o canhoto
@@ -105,10 +106,19 @@ let armedAt: number | undefined
  */
 export function armNextStepFocus(): void {
   armedAt = Date.now()
+  armedStopAdvanceAt = Date.now()
 }
 
 export function consumeNextStepFocus(): boolean {
   const isArmed = armedAt !== undefined && Date.now() - armedAt < ARMED_FOCUS_WINDOW_MS
   armedAt = undefined
+  return isArmed
+}
+
+/** A parada que se conclui por esse mesmo toque leva o foco ao começo da próxima; um aviso próprio, para a outra tela não gastá-lo. */
+export function consumeStopAdvanceFocus(): boolean {
+  const isArmed =
+    armedStopAdvanceAt !== undefined && Date.now() - armedStopAdvanceAt < ARMED_FOCUS_WINDOW_MS
+  armedStopAdvanceAt = undefined
   return isArmed
 }
