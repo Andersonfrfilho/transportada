@@ -123,3 +123,27 @@ describe('o formulário abre logo abaixo do botão (pedido do usuário, 15/10)',
     expect(notDelivered).toBeLessThan(proofGate)
   })
 })
+
+describe('"Não entreguei" não espera o "Cheguei" (pedido do usuário, 15/10)', () => {
+  const card = readFileSync(
+    new URL(
+      '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  it('o botão e o formulário ficam fora do bloco que só abre depois da chegada', () => {
+    const actions = card.indexOf(
+      '<div className={styles.actions}>',
+      card.indexOf('const occurrenceForm'),
+    )
+    const deliverGate = card.indexOf('{canActOnDocuments ? (', actions)
+    const returnButton = card.indexOf('setOpenReturn((open) => !open)', actions)
+    const returnForm = card.indexOf('<DriverNotDeliveredForm', actions + 1)
+    const arrivalBlock = card.indexOf('{canActOnDocuments ? (', returnForm)
+    expect(returnButton).toBeGreaterThan(deliverGate)
+    expect(card.slice(deliverGate, returnButton)).toInclude(') : null}')
+    expect(returnForm).toBeLessThan(arrivalBlock)
+  })
+})
