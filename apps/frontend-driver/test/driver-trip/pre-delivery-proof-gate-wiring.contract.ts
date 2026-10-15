@@ -425,3 +425,68 @@ describe('ajustes do teste local do #250 (15/10)', () => {
     }
   })
 })
+
+/** Segundo teste local do #250 (15/10). */
+describe('falha visível no topo, foto que falha, histórico e horas independentes de locale (15/10)', () => {
+  it('foto órfã com tentativa registrada vira "failed" e a nota diz que está esperando sinal', async () => {
+    const { buildEventQueueView, resolveProofSyncState } = await import(
+      '../../src/modules/driver-trip/shared/eventQueueView.service'
+    )
+    const attachment = (attempts: number) =>
+      ({
+        attachmentKey: 'a1',
+        attempts,
+        blob: new Blob(['x']),
+        capturedAt: '2026-10-15T10:00:00Z',
+        documentId: 'd1',
+        fileName: 'f.jpg',
+        kind: 'photo',
+      }) as never
+    const viewOf = (attempts: number) =>
+      buildEventQueueView({ attachments: [['k1', [attachment(attempts)]]], queued: [] })
+    expect(resolveProofSyncState(viewOf(0), 'd1')).toBe('syncing')
+    expect(resolveProofSyncState(viewOf(2), 'd1')).toBe('retrying')
+  })
+
+  it('o topo mostra a falha com "Enviar agora" mesmo com o cartão recolhido', () => {
+    const banner = readSource(
+      'src/modules/driver-trip/components/DriverTripSyncBanner.component.tsx',
+    )
+    expect(banner).toContain("item.status.state === 'failed'")
+    expect(banner).toContain("t('tripSync.failed')")
+    expect(banner).toContain("t('deliveryGate.sendNow')")
+    expect(readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')).toContain(
+      'onSendNow={driverTrip.sendAllNow}',
+    )
+  })
+
+  it('o histórico mostra segundos, descreve a regra no vazio e guarda o comprovante', async () => {
+    const { toProofSentHistoryEntry } = await import(
+      '../../src/modules/driver-trip/shared/sentHistory.service'
+    )
+    expect(
+      toProofSentHistoryEntry({
+        at: '2026-10-15T10:05:00Z',
+        attachment: { attachmentKey: 'a1', capturedAt: '2026-10-15T10:00:00Z', documentId: 'd1' },
+      }),
+    ).toEqual({
+      at: '2026-10-15T10:05:00Z',
+      documentId: 'd1',
+      key: 'a1',
+      kind: 'proof',
+      result: 'sent',
+      tappedAt: '2026-10-15T10:00:00Z',
+    })
+    expect(readSource('src/modules/driver-trip/pages/DriverEventQueue.page.tsx')).toContain(
+      "second: '2-digit'",
+    )
+    expect(driverTrip.eventQueue.history.empty).toBe('Nada enviado nesta viagem.')
+    expect(HOOK).toContain('toProofSentHistoryEntry(')
+  })
+
+  it('a hora do cartão não depende do locale do aparelho (golden igual no Windows e no Linux)', () => {
+    expect(readSource('src/modules/driver-trip/shared/documentActivity.service.ts')).toContain(
+      "toLocaleTimeString('pt-BR'",
+    )
+  })
+})

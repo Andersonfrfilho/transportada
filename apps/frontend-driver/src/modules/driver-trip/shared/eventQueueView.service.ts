@@ -97,6 +97,11 @@ function toStatus(item: QueuedReport): EventQueueItemStatus {
   return { state: 'queued' }
 }
 
+/** Teste local (15/10): foto que falhou sozinha conta tentativa no anexo; o grupo órfão passa a dizer "failed". */
+function maxAttachmentAttempts(group: readonly QueuedAttachment[]): number {
+  return Math.max(0, ...group.map((attachment) => attachment.attempts ?? 0))
+}
+
 export function buildEventQueueView(input: {
   readonly attachments: AttachmentGroupEntries
   readonly queued: readonly QueuedReport[]
@@ -152,7 +157,9 @@ export function buildEventQueueView(input: {
             ? { cause, state: 'rejected' }
             : group.some((attachment) => attachment.isUnverified === true)
               ? { state: 'unverified' }
-              : { state: 'queued' },
+              : maxAttachmentAttempts(group) > 0
+                ? { attempts: maxAttachmentAttempts(group), state: 'failed' }
+                : { state: 'queued' },
       }
     })
 

@@ -783,6 +783,7 @@ export function DriverTripWorkspacePage() {
         {trip === undefined ? null : (
           <DriverTripSyncBanner
             onOpen={() => navigateToDriverSection('queue')}
+            onSendNow={driverTrip.sendAllNow}
             queueView={driverTrip.queueView}
           />
         )}

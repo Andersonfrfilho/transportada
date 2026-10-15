@@ -17,8 +17,13 @@ export const TRIP_SYNCED_VISIBLE_MS = 8000
  */
 export function DriverTripSyncBanner({
   onOpen,
+  onSendNow,
   queueView,
-}: Readonly<{ onOpen: () => void; queueView: readonly EventQueueItemView[] }>) {
+}: Readonly<{
+  onOpen: () => void
+  onSendNow?: () => void
+  queueView: readonly EventQueueItemView[]
+}>) {
   const { t } = useTranslation('driverTrip')
   const [justSynced, setJustSynced] = useState(false)
   const wasSyncing = useRef(false)
@@ -38,6 +43,8 @@ export function DriverTripSyncBanner({
   }, [syncingCount])
 
   const state = resolveTripSyncBanner({ justSynced, queueView })
+  /** Teste local (15/10): a falha aparece no topo mesmo com o cartão da parada recolhido. */
+  const hasFailure = queueView.some((item) => item.status.state === 'failed')
   if (state.kind === 'idle') return null
 
   return (
@@ -52,6 +59,17 @@ export function DriverTripSyncBanner({
         <span>
           <Icon aria-hidden="true" name="clock" size="sm" />
           {t('tripSync.rejected', { count: state.rejected })}
+        </span>
+      ) : null}
+      {hasFailure ? (
+        <span role="alert">
+          <Icon aria-hidden="true" name="clock" size="sm" />
+          {t('tripSync.failed')}
+          {onSendNow === undefined ? null : (
+            <button className={styles.tripSyncOpen} onClick={onSendNow} type="button">
+              {t('deliveryGate.sendNow')}
+            </button>
+          )}
         </span>
       ) : null}
       {state.kind === 'synced' ? (

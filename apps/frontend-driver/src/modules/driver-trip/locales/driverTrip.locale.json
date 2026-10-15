@@ -75,7 +75,7 @@
       "discarded": "Descartado às {{time}}",
       "note": "Nota {{number}}",
       "stop": "Parada {{sequence}}",
-      "empty": "Nada enviado nos últimos dias.",
+      "empty": "Nada enviado nesta viagem.",
       "rejected": "Recusado às {{time}}",
       "sent": "Enviado às {{time}}",
       "tapped": "Toque às {{time}}"
@@ -422,6 +422,7 @@
   "tripSync": {
     "rejected_one": "O escritório recusou {{count}} evento. Veja em eventos pendentes.",
     "rejected_other": "O escritório recusou {{count}} eventos. Veja em eventos pendentes.",
+    "failed": "O envio falhou (sinal fraco). O app tenta de novo sozinho.",
     "open": "Ver histórico",
     "synced": "Sincronizado",
     "syncing_one": "Sincronizando evento…",

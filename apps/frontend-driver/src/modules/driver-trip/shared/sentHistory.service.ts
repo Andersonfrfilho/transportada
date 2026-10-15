@@ -105,3 +105,18 @@ export function purgeTripSentHistory(input: {
       ),
   )
 }
+
+/** Foto/assinatura do canhoto que subiu: o histórico guarda também o comprovante, com a hora da captura. */
+export function toProofSentHistoryEntry(input: {
+  readonly at: string
+  readonly attachment: Readonly<{ attachmentKey: string; capturedAt: string; documentId: string }>
+}): SentHistoryEntry {
+  return {
+    at: input.at,
+    documentId: input.attachment.documentId,
+    key: input.attachment.attachmentKey,
+    kind: 'proof',
+    result: 'sent',
+    tappedAt: input.attachment.capturedAt,
+  }
+}

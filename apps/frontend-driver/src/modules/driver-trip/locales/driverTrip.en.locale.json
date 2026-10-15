@@ -88,7 +88,7 @@
       "discarded": "Discarded at {{time}}",
       "note": "Note {{number}}",
       "stop": "Stop {{sequence}}",
-      "empty": "Nothing sent in the last days.",
+      "empty": "Nothing sent on this trip.",
       "rejected": "Refused at {{time}}",
       "sent": "Sent at {{time}}",
       "tapped": "Tapped at {{time}}"
@@ -388,6 +388,7 @@
   "tripSync": {
     "rejected_one": "The office refused {{count}} event. See pending events.",
     "rejected_other": "The office refused {{count}} events. See pending events.",
+    "failed": "Sending failed (weak signal). The app retries on its own.",
     "open": "See history",
     "synced": "Synced",
     "syncing_one": "Syncing event…",

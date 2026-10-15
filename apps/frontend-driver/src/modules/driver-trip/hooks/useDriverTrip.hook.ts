@@ -80,6 +80,7 @@ import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
 import {
   appendSentHistory,
   purgeTripSentHistory,
+  toProofSentHistoryEntry,
   toSentHistoryEntry,
   type SentHistoryEntry,
 } from '../shared/sentHistory.service'
@@ -516,6 +517,9 @@ export function useDriverTrip(
                 subHash: session.subHash,
               }).catch(() => undefined)
             }
+            historyAdditions.push(
+              toProofSentHistoryEntry({ at: new Date().toISOString(), attachment }),
+            )
             proofUploadProgress.accepted(progressKey, result.processingState)
             return { kind: 'sent', punctuality: result.punctuality }
           } catch (error) {

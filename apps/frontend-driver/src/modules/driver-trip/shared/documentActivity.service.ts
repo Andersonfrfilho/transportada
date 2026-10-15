@@ -114,7 +114,7 @@ export function withSentTappedReports(input: {
 
 /** Cheguei, entreguei, devolvi, registrei, enviei — sempre HH:MM local, nunca com segundos. */
 export function formatActivityTime(at: string): string {
-  return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return new Date(at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 /**
