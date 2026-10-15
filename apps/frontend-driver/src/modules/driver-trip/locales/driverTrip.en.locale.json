@@ -219,6 +219,8 @@
     "close": "Close",
     "remove": "Remove",
     "confirmRemove": "Remove the receipt photo?",
+    "confirmRemoveYes": "Remove",
+    "confirmRemoveBack": "Back",
     "replaceHint": "A photo that was already sent can only be replaced.",
     "refused": {
       "photo": "The queue is full: the photo could not be saved right now. Send what is pending and take it again.",
@@ -488,6 +490,8 @@
   "notDelivered": {
     "returnToWarehouse": "Not delivered — back to the warehouse",
     "returnToWarehouseConfirm": "Confirm: the invoice leaves your trip and goes back to the warehouse for another delivery. The location of this tap is recorded.",
+    "returnToWarehouseConfirmYes": "Confirm",
+    "returnToWarehouseConfirmBack": "Back",
     "returnToWarehouseHint": "Frees the invoice so the office can put it on another trip.",
     "occurrenceTypeLegend": "Which occurrence to record?",
     "photoLabel": "Occurrence photo",

@@ -85,3 +85,20 @@ export function focusNextProofStep(actions: HTMLElement | null): void {
   }
   focusFinishButton(actions)
 }
+
+const ARMED_FOCUS_WINDOW_MS = 15_000
+let armedAt: number | undefined
+
+/**
+ * O "Confirmar entrega" troca a tela do comprovante por outra (um componente novo, já com o canhoto
+ * enviado): o novo não sabe que o toque acabou de acontecer. O toque arma, o novo consome uma vez.
+ */
+export function armNextStepFocus(): void {
+  armedAt = Date.now()
+}
+
+export function consumeNextStepFocus(): boolean {
+  const isArmed = armedAt !== undefined && Date.now() - armedAt < ARMED_FOCUS_WINDOW_MS
+  armedAt = undefined
+  return isArmed
+}

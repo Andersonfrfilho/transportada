@@ -8,6 +8,8 @@ import {
   PHOTO_FOCUS_TARGET,
   focusFinishButton,
   NEXT_STEP_FOCUS_DELAY_MS,
+  armNextStepFocus,
+  consumeNextStepFocus,
   focusFirstRequiredPhoto,
   focusNextProofStep,
   resolveScrollBehavior,
@@ -105,6 +107,13 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     focusNextProofStep(actions(false))
     expect(finish).toHaveLength(2)
     focusNextProofStep(null)
+  })
+
+  it('o toque em "Confirmar entrega" arma o foco uma vez só para a tela seguinte', () => {
+    expect(consumeNextStepFocus()).toBe(false)
+    armNextStepFocus()
+    expect(consumeNextStepFocus()).toBe(true)
+    expect(consumeNextStepFocus()).toBe(false)
   })
 
   it('botão ainda bloqueado ou inexistente não recebe foco', () => {

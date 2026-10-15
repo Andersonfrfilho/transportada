@@ -17,6 +17,8 @@ import { ARRIVED_HIGHLIGHT_MS, resolveStopPlace } from '../shared/stopPlace.serv
 import {
   PHOTO_FOCUS_TARGET,
   NEXT_STEP_FOCUS_DELAY_MS,
+  armNextStepFocus,
+  consumeNextStepFocus,
   SIGNATURE_FOCUS_TARGET,
   focusFirstRequiredPhoto,
   focusNextProofStep,
@@ -1135,6 +1137,7 @@ function PreDeliveryProofGate({
                   disabled={missingFields.length > 0 || isConfirming}
                   onClick={() => {
                     capture.pushLateFieldUpdate()
+                    armNextStepFocus()
                     onConfirm()
                   }}
                   type="button"
@@ -1446,6 +1449,7 @@ function ProofCaptureFields({
       ? undefined
       : (previewByKind[openImageKind].previewUrl ??
         (openImageKind === 'photo' ? storedThumbnailUrl : undefined))
+  const [removingKind, setRemovingKind] = useState<'photo' | 'signature' | undefined>(undefined)
   const nameInputRef = useRef<HTMLInputElement>(null)
   /**
    * Pedido do usuário (14/10): a foto entrou — o foco vai ao "Concluir"/"Confirmar", que é o passo
@@ -1453,6 +1457,17 @@ function ProofCaptureFields({
    */
   const finishActionsRef = useRef<HTMLDivElement>(null)
   const [focusFinishNextRender, setFocusFinishNextRender] = useState(false)
+  /** Pedido do usuário (15/10): o canhoto subiu (o servidor o tem) — o foco segue ao passo seguinte. */
+  const wasPhotoConfirmedRef = useRef(isPhotoConfirmedByServer)
+  useEffect(() => {
+    const wasConfirmed = wasPhotoConfirmedRef.current
+    wasPhotoConfirmedRef.current = isPhotoConfirmedByServer
+    if (!wasConfirmed && isPhotoConfirmedByServer) setFocusFinishNextRender(true)
+  }, [isPhotoConfirmedByServer])
+  /** A tela do "Concluir" nasce já com o canhoto enviado: quem arma é o toque no "Confirmar entrega". */
+  useEffect(() => {
+    if (isPhotoConfirmedByServer && consumeNextStepFocus()) setFocusFinishNextRender(true)
+  }, [])
   useEffect(() => {
     if (!focusFinishNextRender) return undefined
     const timer = setTimeout(() => {
@@ -1601,7 +1616,7 @@ function ProofCaptureFields({
    * continua intacto, com a própria miniatura e a própria chave.
    */
   function handleRemove(kind: 'photo' | 'signature'): void {
-    if (!window.confirm(t('proofCapture.confirmRemove'))) return
+    setRemovingKind(undefined)
     const key = attachedKey[kind]
     if (key !== undefined) onRemoveProof?.(key)
     setAttached((current) => ({ ...current, [kind]: false }))
@@ -1778,13 +1793,27 @@ function ProofCaptureFields({
               <Icon name="eye" />
               {t('proofCapture.view')}
             </Button>
-            {isProofQueued ? (
-              <Button onClick={() => handleRemove(kind)} type="button" variant="ghost">
+            {isProofQueued && removingKind !== kind ? (
+              <Button onClick={() => setRemovingKind(kind)} type="button" variant="ghost">
                 <Icon name="trash" />
                 {t('proofCapture.remove')}
               </Button>
             ) : null}
           </div>
+          {isProofQueued && removingKind === kind ? (
+            <div className={styles.inlineConfirm} role="alertdialog">
+              <p>{t('proofCapture.confirmRemove')}</p>
+              <div className={styles.actions}>
+                <Button onClick={() => handleRemove(kind)} type="button">
+                  <Icon name="trash" />
+                  {t('proofCapture.confirmRemoveYes')}
+                </Button>
+                <Button onClick={() => setRemovingKind(undefined)} type="button" variant="ghost">
+                  {t('proofCapture.confirmRemoveBack')}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     )
@@ -1813,7 +1842,9 @@ function ProofCaptureFields({
                       capture="environment"
                       className={styles.proofCaptureAction}
                       focusTarget={
-                        plan.fields.photo === 'required' && !attached.photo
+                        plan.fields.photo === 'required' &&
+                        !attached.photo &&
+                        !isPhotoConfirmedByServer
                           ? PHOTO_FOCUS_TARGET
                           : undefined
                       }
