@@ -18,6 +18,7 @@ import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
 import { DriverLocationSharingIndicator } from '../components/DriverLocationSharingIndicator.component'
 import { DriverManifestCard } from '../components/DriverManifestCard.component'
 import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice.component'
+import { useRouteOccurrenceEntries } from '../hooks/useRouteOccurrenceEntries.hook'
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
 import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNotice.component'
@@ -105,7 +106,7 @@ import styles from '../styles/driverTrip.module.css'
 export function DriverTripWorkspacePage() {
   const { t } = useTranslation('driverTrip')
   const driverTrip = useDriverTrip()
-  const { subHash } = useDriverSession()
+  const { canSync, subHash } = useDriverSession()
   /**
    * RF5 (plan D4): a navegação interna do módulo deixou de ser estado local isolado — ela deriva da
    * mesma leitura de caminho/`popstate` que a casca usa para decidir entre a viagem e as
@@ -242,6 +243,12 @@ export function DriverTripWorkspacePage() {
    * `stopId`, e as paradas somem/reaparecem quando o motorista troca de viagem.
    */
   const stopHeaderRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
+  /** Spec 266: servidor, fila e mensagens novas juntos — a fonte do alerta, da barra e dos ícones. */
+  const routeOccurrences = useRouteOccurrenceEntries({
+    canSync,
+    queuedReports: driverTrip.queuedReports,
+    trip,
+  })
 
   function registerStopHeaderRef(stopId: string, element: HTMLButtonElement | null): void {
     if (element === null) stopHeaderRefs.current.delete(stopId)
@@ -665,7 +672,10 @@ export function DriverTripWorkspacePage() {
 
   return (
     <div className={styles.moduleShell}>
-      <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
+      <DriverShellHeader
+        openOccurrenceCount={routeOccurrences.openCount}
+        pendingCount={driverTrip.pendingTotal}
+      />
       <main className={styles.shell}>
         <header className={styles.header}>
           <h1>{t('title')}</h1>
@@ -745,7 +755,12 @@ export function DriverTripWorkspacePage() {
 
         {trip === undefined || canReportOnTrip(trip) ? null : <DriverHelperNotice />}
 
-        {trip === undefined ? null : <DriverTripProgress trip={trip} />}
+        {trip === undefined ? null : (
+          <DriverTripProgress
+            stopIdsWithOpenOccurrence={routeOccurrences.stopIdsWithOpenOccurrence}
+            trip={trip}
+          />
+        )}
         {trip !== undefined && isTripFullySettled(trip) ? (
           <div className={styles.tripAllDone} role="status">
             <strong className={styles.tripAllDoneTitle}>
@@ -988,6 +1003,7 @@ export function DriverTripWorkspacePage() {
                     isOpen={stopExpansion.isOpen(stop.id)}
                     isReadOnly={!canReportOnTrip(trip)}
                     key={stop.id}
+                    occurrenceGroup={routeOccurrences.stopGroupById.get(stop.id)}
                     lastKnownLocation={lastKnownLocation}
                     queueView={driverTrip.queueView}
                     sentReportKeys={driverTrip.sentReportKeys}

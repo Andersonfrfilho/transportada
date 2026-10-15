@@ -37,6 +37,7 @@ export type IconName =
   | 'refresh'
   | 'save'
   | 'search'
+  | 'send'
   | 'share'
   | 'sun'
   | 'moon'
@@ -105,7 +106,9 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   /** Só deste app: o painel não tem caixa, e volumes/peso da nota pedem uma. */
   package: ['M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z', 'M3 7.5l9 4.5 9-4.5', 'M12 12v9'],
   /** Clipe de papel: anexar um arquivo, não confirmar nada. */
-  paperclip: ['M19 11.5l-6.8 6.8a4.2 4.2 0 0 1-5.9-5.9l7.1-7.1a2.8 2.8 0 0 1 4 4l-7 7a1.4 1.4 0 0 1-2-2l6.4-6.4'],
+  paperclip: [
+    'M19 11.5l-6.8 6.8a4.2 4.2 0 0 1-5.9-5.9l7.1-7.1a2.8 2.8 0 0 1 4 4l-7 7a1.4 1.4 0 0 1-2-2l6.4-6.4',
+  ],
   /** Caneta com o traço embaixo: colher a assinatura de quem recebeu — não é "salvar". */
   pen: ['M4 20h16', 'M15.5 4.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z'],
   /** A impressora: papel entrando por cima, corpo no meio, folha saindo por baixo. */
@@ -114,6 +117,7 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   save: ['M5 4h11l3 3v13H5z', 'M8 4v5h7', 'M8 14h8v6H8z'],
   /** Só deste app: o painel de "Quem recebeu" (Select) usa a busca da lista. */
   /** Três nós ligados: compartilhar o registro com outra pessoa. */
+  send: ['M3 11l18-8-8 18-2-8z'],
   share: [
     'M18 2.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z',
     'M6 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z',

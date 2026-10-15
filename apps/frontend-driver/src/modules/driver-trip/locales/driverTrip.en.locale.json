@@ -571,7 +571,7 @@
     "changeType": "Change type",
     "declaredAmount": {
       "defaultLabel": "Amount paid",
-      "limit": "Field limit: the amount cannot exceed R$\u00a09,999,999,999.99.",
+      "limit": "Field limit: the amount cannot exceed R$ 9,999,999,999.99.",
       "optional": "{{label}} · optional",
       "placeholder": "0.00",
       "required": "{{label}} · required"
@@ -584,12 +584,12 @@
     "items": {
       "amountOptional": "{{label}} · if different",
       "amountRequired": "{{label}} · required",
-      "calculation": "{{quantity}} {{unit}} × R$\u00a0{{unitValue}} =",
+      "calculation": "{{quantity}} {{unit}} × R$ {{unitValue}} =",
       "fillTotal": "Full note quantity",
       "fillTotalAria": "Return all: {{quantity}} {{unit}}",
-      "money": "R$\u00a0{{value}}",
-      "onNote": "On the invoice: {{quantity}} {{unit}} × R$\u00a0{{unitValue}}",
-      "paid": "· paid R$\u00a0{{value}}",
+      "money": "R$ {{value}}",
+      "onNote": "On the invoice: {{quantity}} {{unit}} × R$ {{unitValue}}",
+      "paid": "· paid R$ {{value}}",
       "quantityAboveNote": "The invoice has only {{quantity}} {{unit}}.",
       "quantityLabel": "Quantity returned ({{unit}})",
       "quantityMissing": "Enter the quantity, greater than zero.",
@@ -655,10 +655,33 @@
     "title": "Report an occurrence"
   },
   "routeOccurrence": {
+    "alert": {
+      "label_one": "{{count}} open occurrence",
+      "label_other": "{{count}} open occurrences"
+    },
+    "badge": {
+      "at": "at {{time}}",
+      "documents_one": "{{count}} document",
+      "documents_other": "{{count}} documents",
+      "hasDocument": "with document",
+      "unknownType": "Occurrence",
+      "unread_one": "{{count}} new message",
+      "unread_other": "{{count}} new messages"
+    },
+    "more": "See {{count}} more occurrences for {{label}}",
+    "noteLabel": "Invoice {{number}}",
     "phrase": {
       "case_cancelled": "Case cancelled by the office",
       "case_closed": "Closed by the office",
       "case_returned_to_warehouse": "Goods returned to the warehouse"
-    }
+    },
+    "state": {
+      "cancelled": "Cancelled",
+      "open": "Sent",
+      "queued": "Queued",
+      "rejected": "Rejected",
+      "resolved": "Resolved"
+    },
+    "stopLevel": "Stop"
   }
 }

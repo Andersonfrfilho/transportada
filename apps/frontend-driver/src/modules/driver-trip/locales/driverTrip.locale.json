@@ -589,7 +589,7 @@
     "changeType": "Trocar tipo",
     "declaredAmount": {
       "defaultLabel": "Valor pago",
-      "limit": "Limite do campo: o valor não pode passar de R$\u00a09.999.999.999,99.",
+      "limit": "Limite do campo: o valor não pode passar de R$ 9.999.999.999,99.",
       "optional": "{{label}} · opcional",
       "placeholder": "0,00",
       "required": "{{label}} · obrigatório"
@@ -602,12 +602,12 @@
     "items": {
       "amountOptional": "{{label}} · se diferente",
       "amountRequired": "{{label}} · obrigatório",
-      "calculation": "{{quantity}} {{unit}} × R$\u00a0{{unitValue}} =",
+      "calculation": "{{quantity}} {{unit}} × R$ {{unitValue}} =",
       "fillTotal": "Total da nota",
       "fillTotalAria": "Devolver tudo: {{quantity}} {{unit}}",
-      "money": "R$\u00a0{{value}}",
-      "onNote": "Na nota: {{quantity}} {{unit}} × R$\u00a0{{unitValue}}",
-      "paid": "· pago R$\u00a0{{value}}",
+      "money": "R$ {{value}}",
+      "onNote": "Na nota: {{quantity}} {{unit}} × R$ {{unitValue}}",
+      "paid": "· pago R$ {{value}}",
       "quantityAboveNote": "A nota tem só {{quantity}} {{unit}}.",
       "quantityLabel": "Quantidade devolvida ({{unit}})",
       "quantityMissing": "Informe a quantidade, maior que zero.",
@@ -673,10 +673,33 @@
     "title": "Registrar ocorrência"
   },
   "routeOccurrence": {
+    "alert": {
+      "label_one": "{{count}} ocorrência em aberto",
+      "label_other": "{{count}} ocorrências em aberto"
+    },
+    "badge": {
+      "at": "às {{time}}",
+      "documents_one": "{{count}} documento",
+      "documents_other": "{{count}} documentos",
+      "hasDocument": "com documento",
+      "unknownType": "Ocorrência",
+      "unread_one": "{{count}} mensagem nova",
+      "unread_other": "{{count}} mensagens novas"
+    },
+    "more": "Ver mais {{count}} ocorrências de {{label}}",
+    "noteLabel": "NF {{number}}",
     "phrase": {
       "case_cancelled": "Tratativa cancelada pelo escritório",
       "case_closed": "Encerrada pelo escritório",
       "case_returned_to_warehouse": "Mercadoria devolvida ao armazém"
-    }
+    },
+    "state": {
+      "cancelled": "Cancelada",
+      "open": "Enviada",
+      "queued": "Na fila",
+      "rejected": "Recusada",
+      "resolved": "Resolvida"
+    },
+    "stopLevel": "Parada"
   }
 }
