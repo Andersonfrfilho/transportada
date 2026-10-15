@@ -18,6 +18,7 @@ import {
   tripDrivers,
   tripOccurrenceCaseEvents,
   tripOccurrenceCases,
+  tripOccurrenceResolutionEvents,
   tripStopEvents,
   tripStops,
   trips,
@@ -55,6 +56,8 @@ const TRIP_TABLES = [
   /** Spec 164 T1/T4: a tratativa da ocorrência e sua trilha append-only. */
   { name: 'trip_occurrence_cases', table: tripOccurrenceCases },
   { name: 'trip_occurrence_case_events', table: tripOccurrenceCaseEvents },
+  /** Spec 266 T2.1: o andamento da ocorrência com o motorista, só inserção. */
+  { name: 'trip_occurrence_resolution_events', table: tripOccurrenceResolutionEvents },
   /** Spec 246 T1b.1: os momentos do tipo — quem registra o quê sai daqui, nunca de outra empresa. */
   { name: 'company_occurrence_type_moments', table: companyOccurrenceTypeMoments },
 ] as const
