@@ -262,3 +262,14 @@ _(cada task registra aqui comando, saída resumida e commit)_
 - Incidente: a CLI do Railway 5.68 escreve o JSON de `variables --json` na saída de erro, e a senha do Postgres de
   staging apareceu no terminal da sessão. O dono decidiu não rotacionar ("deixa isso para lá"). Lição: capturar
   `2>&1` numa variável e nunca imprimir; preferir `railway ssh` com a variável do próprio contêiner.
+
+### T3.1 / T3.3 — Painel resolve e descreve os eventos (`1f42bfd41`, `6a7e9ba71`)
+
+- `OccurrenceResolutionPanel` no detalhe e na linha expandida, para nota **e** parada (`occurrences.resolve`),
+  observação obrigatória com "O motorista vai ler esta observação.", `maxLength` 2000. 409 já resolvida → aviso e
+  atualização; 409 cancelada → aviso. Mutation invalida feed (cobre detalhe e linha do tempo) e conversas.
+- Linha do tempo: `resolution.resolved` (operador com nota; sistema com frase) e `resolution.reopened` (motorista).
+- `bun run typecheck` ok; `test/trip.contract.test.ts --timeout 60000`: 2989 pass, 0 fail; eslint nos arquivos ok.
+  Suíte completa e lint da app ficam para a T5.3.
+- Acerto de formato: o painel lê o envelope **existente** da linha do tempo (`occurredAt`, `actor.kind/name`); a T2.9
+  da API foi orientada a emitir esse mesmo envelope (não o rascunho `at/actorKind` do plano).

@@ -71,12 +71,12 @@
 
 > 🤖 Modelo: `sonnet` (T3.2 e T3.3 → `haiku`)
 
-- [ ] **T3.1** `sonnet` — `OccurrenceResolutionPanel` no detalhe e na linha expandida da tabela, para nota **e**
+- [x] **T3.1** `sonnet` — `OccurrenceResolutionPanel` no detalhe e na linha expandida da tabela, para nota **e**
       parada. "Resolver com observação" com nota obrigatória, permissão `occurrences.resolve` e o aviso no formulário
       "o motorista vai ler esta observação". A mutation invalida
       feed, linha do tempo e conversas. Teste de renderização e do 409.
 - [ ] **T3.2** `haiku` — Selo "Reaberta pelo motorista" e "Resolvida" no feed, filtro por andamento, locales pt-BR/en.
-- [ ] **T3.3** `haiku` — `describeOccurrenceTimelineEvent` para `resolution.resolved` e `resolution.reopened`, com
+- [x] **T3.3** `haiku` — `describeOccurrenceTimelineEvent` para `resolution.resolved` e `resolution.reopened`, com
       teste.
 
 ## Fase 4 — App do motorista
