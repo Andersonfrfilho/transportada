@@ -172,3 +172,77 @@ describe('Confirmar entrega fica travado enquanto o deliver da nota está na fil
     }
   })
 })
+
+/** Pedido do usuário (15/10): confirmar a entrega não trava — a nota vale como entregue e a fila envia. */
+describe('a entrega confirmada vale na hora, com selo de envio (15/10)', () => {
+  const stop = (id: string, documentIds: readonly string[], completedAt: string | null = null) =>
+    ({
+      completedAt,
+      documents: documentIds.map((documentId) => ({ id: documentId, separationStatus: 'pending' })),
+      id,
+    }) as never
+
+  it('a parada com toda nota entregue na fila vira concluída; com nota faltando, segue aberta', async () => {
+    const { applyLocalDeliveries } = await import(
+      '../../src/modules/driver-trip/shared/driverTripView.service'
+    )
+    const trip = { id: 't', stops: [stop('s1', ['a', 'b']), stop('s2', ['c'])] } as never
+    const partial = applyLocalDeliveries({
+      deliveredAtByDocumentId: new Map([['a', '2026-10-15T10:00:00Z']]),
+      trip,
+    }) as unknown as {
+      stops: { completedAt: string | null; documents: { separationStatus: string }[] }[]
+    }
+    expect(partial.stops[0]?.documents[0]?.separationStatus).toBe('delivered')
+    expect(partial.stops[0]?.completedAt).toBeNull()
+    const full = applyLocalDeliveries({
+      deliveredAtByDocumentId: new Map([
+        ['a', '2026-10-15T10:00:00Z'],
+        ['b', '2026-10-15T10:05:00Z'],
+      ]),
+      trip,
+    }) as unknown as typeof partial
+    expect(full.stops[0]?.completedAt).toBe('2026-10-15T10:05:00Z')
+    expect(full.stops[1]?.completedAt).toBeNull()
+  })
+
+  it('a entrega recusada não conta como entregue; a na fila e a já enviada contam', async () => {
+    const { collectLocallyDelivered } = await import(
+      '../../src/modules/driver-trip/shared/documentActivity.service'
+    )
+    const queueView = [
+      { documentId: 'q', idempotencyKey: 'kq', kind: 'deliver', status: { state: 'queued' } },
+      {
+        documentId: 'f',
+        idempotencyKey: 'kf',
+        kind: 'deliver',
+        status: { attempts: 2, state: 'failed' },
+      },
+      {
+        documentId: 'r',
+        idempotencyKey: 'kr',
+        kind: 'deliver',
+        status: { cause: 'x', state: 'rejected' },
+      },
+    ] as never
+    const result = collectLocallyDelivered({
+      deliverKeyByDocumentId: new Map([['s', { at: '2026-10-15T09:00:00Z', key: 'ks' }]]),
+      nowIso: '2026-10-15T11:00:00Z',
+      queueView,
+      sentReportKeys: new Set(['ks']),
+    })
+    expect([...result.keys()].sort()).toEqual(['f', 'q', 's'])
+    expect(result.get('s')).toBe('2026-10-15T09:00:00Z')
+  })
+
+  it('o cartão concluído mostra o selo, o aviso de falha e "Enviar agora"; o texto diz "aguardando envio"', () => {
+    const settled = CARD.slice(CARD.indexOf('if (isDocumentSettled(document)) {\n    return ('))
+    expect(settled).toContain('deliverActivity === undefined')
+    expect(settled).toContain("'activity.deliveredQueued'")
+    expect(settled).toContain("t('deliveryGate.sendNow')")
+    expect(readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')).toContain(
+      'applyLocalDeliveries(',
+    )
+    expect(driverTrip.activity.deliveredQueued).toInclude('aguardando envio')
+  })
+})

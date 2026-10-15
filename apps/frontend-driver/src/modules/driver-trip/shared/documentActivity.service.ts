@@ -116,3 +116,32 @@ export function withSentTappedReports(input: {
 export function formatActivityTime(at: string): string {
   return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
+
+/**
+ * Pedido do usuário (15/10): confirmar a entrega não trava no botão — a nota vale como entregue na
+ * hora. Quais notas o aparelho já deu como entregues: a que tem entrega na fila (menos a recusada,
+ * que volta a pendente com o aviso) e a que já saiu mas o snapshot ainda não trouxe. O valor é a hora
+ * do toque (ou a do relógio, se a página recarregou e perdeu a chave).
+ */
+export function collectLocallyDelivered(input: {
+  readonly deliverKeyByDocumentId: ReadonlyMap<string, DocumentActivityRecord>
+  readonly nowIso?: string
+  readonly queueView: readonly EventQueueItemView[]
+  readonly sentReportKeys: ReadonlySet<string>
+}): ReadonlyMap<string, string> {
+  const delivered = new Map<string, string>()
+  const fallbackAt = input.nowIso ?? new Date().toISOString()
+  for (const item of input.queueView) {
+    if (item.kind !== 'deliver' || item.documentId === undefined) continue
+    if (item.status.state === 'rejected') continue
+    delivered.set(
+      item.documentId,
+      input.deliverKeyByDocumentId.get(item.documentId)?.at ?? fallbackAt,
+    )
+  }
+  for (const [documentId, record] of input.deliverKeyByDocumentId) {
+    if (delivered.has(documentId)) continue
+    if (input.sentReportKeys.has(record.key)) delivered.set(documentId, record.at)
+  }
+  return delivered
+}

@@ -916,6 +916,37 @@ function DocumentRow({
         <DocumentDetails document={document} />
         <DocumentSettledState document={document} />
         <DriverNotDeliveredStatus occurrenceKey={notDeliveredKey} status={notDeliveredStatus} />
+        {/*
+         * Pedido do usuário (15/10): confirmar não trava — a nota vale como entregue na hora e o
+         * selo diz "aguardando envio" até a fila entregar ("enviada" depois). Falha de envio ganha o
+         * aviso e o "Enviar agora" aqui, no cartão que o motorista vê, não no formulário já fechado.
+         */}
+        {deliverActivity === undefined ? null : (
+          <ActivityStatusLine
+            status={deliverActivity.status}
+            text={t(
+              deliverActivity.status === 'sent'
+                ? 'activity.delivered'
+                : deliverActivity.status === 'rejected'
+                  ? 'activity.deliveredRejected'
+                  : 'activity.deliveredQueued',
+              { time: formatActivityTime(deliverActivity.at) },
+            )}
+          />
+        )}
+        {resolveQueuedDeliverState(queueView, document.id) === 'retrying' ? (
+          <p className={styles.stopMeta} role="status">
+            {t('deliveryGate.retrying')}
+          </p>
+        ) : null}
+        {resolveQueuedDeliverState(queueView, document.id) !== 'none' &&
+        onSendAllNow !== undefined ? (
+          <div className={styles.actions}>
+            <Button onClick={onSendAllNow} type="button" variant="ghost">
+              {t('deliveryGate.sendNow')}
+            </Button>
+          </div>
+        ) : null}
         <div className={styles.actions}>
           <DocumentOccurrenceButton
             isOpen={openOccurrence}

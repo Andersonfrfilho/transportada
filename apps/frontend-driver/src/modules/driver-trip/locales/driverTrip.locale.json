@@ -567,7 +567,7 @@
   },
   "activity": {
     "delivered": "Entregue às {{time}}",
-    "deliveredQueued": "Entregue às {{time}} · na fila",
+    "deliveredQueued": "Entregue às {{time}} · aguardando envio",
     "deliveredRejected": "O escritório recusou o registro da entrega às {{time}}. Veja em eventos pendentes.",
     "occurrenceMarker": "Com ocorrência",
     "occurrenceQueued": "Ocorrência registrada às {{time}} · na fila",
