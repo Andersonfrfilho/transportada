@@ -1175,8 +1175,8 @@ function PreDeliveryProofGate({
                   }}
                   type="button"
                 >
-                  <Icon name="check" />
-                  {t('deliveryGate.confirm')}
+                  <Icon name={isConfirming ? 'clock' : 'check'} />
+                  {t(isConfirming ? 'deliveryGate.sending' : 'deliveryGate.confirm')}
                 </Button>
                 <Button disabled={isConfirming} onClick={onCancel} type="button" variant="ghost">
                   {t('deliveryGate.cancel')}

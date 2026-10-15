@@ -46,7 +46,7 @@ describe('o gate de antes da entrega no cartão da parada (spec 218)', () => {
     const gate = gateSource()
     expect(gate).toInclude('listMissingProofFields({')
     expect(gate).toInclude('disabled={missingFields.length > 0 || isConfirming}')
-    expect(gate).toInclude("t('deliveryGate.confirm')")
+    expect(gate).toInclude("'deliveryGate.confirm'")
     /* Aviso, não erro — o mesmo tom do resto do comprovante (spec 203). */
     expect(gate).not.toInclude('role="alert"')
   })
@@ -148,6 +148,9 @@ describe('Confirmar entrega fica travado enquanto o deliver da nota está na fil
       'isConfirming={isConfirming || hasQueuedDeliver(queueView, document.id)}',
     )
     expect(CARD).toContain("t('deliveryGate.confirming')")
+    expect(CARD).toContain("'deliveryGate.sending'")
+    expect(driverTrip.deliveryGate.sending).toContain('Enviando')
+    expect(driverTripEn.deliveryGate.sending).toContain('Sending')
     expect(driverTrip.deliveryGate.confirming).toContain('Entrega registrada')
     expect(driverTripEn.deliveryGate.confirming).toContain('Delivery recorded')
   })
