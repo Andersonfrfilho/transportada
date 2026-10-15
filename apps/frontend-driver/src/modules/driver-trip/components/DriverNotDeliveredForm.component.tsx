@@ -7,6 +7,7 @@ import { FilePickerButton } from '@/components/ui/file-picker-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { SmoothHeight } from './SmoothHeight.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { useNotDeliveredForm } from '../hooks/useNotDeliveredForm.hook'
 import { DRIVER_RETURN_REASONS, type DriverOccurrenceTypesState } from '../shared/driverTrip.types'
@@ -135,7 +136,7 @@ export function DriverNotDeliveredForm({
       {form.availableTypes === undefined ? null : (
         <>
           {/* O mesmo par do canhoto: "Tirar foto" abre a câmera, "Anexar" a galeria e os arquivos. */}
-          <div className={styles.proofCapture}>
+          <SmoothHeight className={styles.proofCapture}>
             <p className={styles.proofCaptureTitle}>{`${t('notDelivered.photoLabel')} *`}</p>
             {form.photoPreviewUrl === undefined ? null : (
               <div className={styles.proofCaptureAttached} role="status">
@@ -182,7 +183,7 @@ export function DriverNotDeliveredForm({
                 {t(photoErrorKey)}
               </p>
             )}
-          </div>
+          </SmoothHeight>
 
           <div className={styles.proofField}>
             <label htmlFor={noteId}>

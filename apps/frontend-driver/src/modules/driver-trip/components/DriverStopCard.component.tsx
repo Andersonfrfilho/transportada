@@ -19,6 +19,7 @@ import { ProofCargoField } from './ProofCargoField.component'
 import { ProofCrop } from './ProofCrop.component'
 import { ProofImageLightbox } from './ProofImageLightbox.component'
 import { SignaturePad } from './SignaturePad.component'
+import { SmoothHeight } from './SmoothHeight.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
 import { usePhotoPreviewUrl } from '../hooks/usePhotoPreviewUrl.hook'
@@ -1689,7 +1690,7 @@ function ProofCaptureFields({
            * numa linha, e a foto (que é a prova da nota) vem primeiro.
            */}
           {rendersPhotoCapture || canSign ? (
-            <div className={styles.proofCapture}>
+            <SmoothHeight className={styles.proofCapture}>
               <p className={styles.proofCaptureTitle}>{t('proofCapture.title')}</p>
               {renderAttachedThumbnail('photo')}
               {renderAttachedThumbnail('signature')}
@@ -1749,7 +1750,7 @@ function ProofCaptureFields({
                   {t(`proofCapture.refused.${refusedKind}`)}
                 </span>
               )}
-            </div>
+            </SmoothHeight>
           ) : null}
 
           {plan.rendersCargo ? (

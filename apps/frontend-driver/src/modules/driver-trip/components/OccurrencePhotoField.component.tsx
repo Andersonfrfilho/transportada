@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { FilePickerButton } from '@/components/ui/file-picker-button'
 import { Icon } from '@/components/ui/icon'
 
+import { SmoothHeight } from './SmoothHeight.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import type { OccurrencePhotoState } from '../hooks/useOccurrenceRegistrationForm.hook'
 import styles from '../styles/driverTrip.module.css'
@@ -57,7 +58,7 @@ export function OccurrencePhotoField({
     photoState === 'failed' || photoState === 'too-large' ? PHOTO_ERROR_KEYS[photoState] : undefined
 
   return (
-    <div className={styles.proofCapture}>
+    <SmoothHeight className={styles.proofCapture}>
       <p className={styles.proofCaptureTitle}>{t('occurrencePhoto')}</p>
       {previewUrl === undefined || photoCount === 0 ? null : (
         <div className={styles.proofCaptureAttached} role="status">
@@ -117,6 +118,6 @@ export function OccurrencePhotoField({
           {t(photoErrorKey)}
         </p>
       )}
-    </div>
+    </SmoothHeight>
   )
 }

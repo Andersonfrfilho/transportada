@@ -1,0 +1,12 @@
+/* A altura medida do miolo; sem medição (ou sem ResizeObserver) vale `auto`. */
+.smoothHeight {
+  height: var(--smooth-height, auto);
+  overflow: clip;
+  overflow-clip-margin: 0.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .smoothHeight {
+    transition: height 200ms ease-out;
+  }
+}

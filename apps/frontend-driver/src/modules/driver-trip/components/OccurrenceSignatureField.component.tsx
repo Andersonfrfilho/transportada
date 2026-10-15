@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
 import { SignaturePad } from './SignaturePad.component'
+import { SmoothHeight } from './SmoothHeight.component'
 import styles from '../styles/driverTrip.module.css'
 
 type OccurrenceSignatureFieldProps = Readonly<{
@@ -34,7 +35,7 @@ export function OccurrenceSignatureField({
   const { t } = useTranslation('driverTrip')
 
   return (
-    <div className={styles.proofCapture}>
+    <SmoothHeight className={styles.proofCapture}>
       <p className={styles.proofCaptureTitle}>
         {t(
           isRequired
@@ -65,6 +66,6 @@ export function OccurrenceSignatureField({
         {hasSignature ? t('occurrenceRegistration.signature.redo') : t('signature.open')}
       </Button>
       {isOpen ? <SignaturePad onCancel={onCancel} onConfirm={onConfirm} /> : null}
-    </div>
+    </SmoothHeight>
   )
 }
