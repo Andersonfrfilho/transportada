@@ -150,3 +150,43 @@ Pare e pergunte antes de: qualquer deploy ou merge em staging/main (T1.3 e T5.4 
 ANTES da API), backfill de tratativas antigas (T2.4), publicar versão do pacote conversations-ui (T4.8), e qualquer
 [NEEDS CLARIFICATION] que surgir.
 ```
+
+## Prompt de execução — fechamento (2026-10-15)
+
+```text
+/oh-my-claudecode:autopilot Feche a spec specs/266-o-motorista-acompanha-as-ocorrencias-da-rota/ na árvore
+../transportada-wt/spec-266 (branch work/spec-266); nada fora dela. Leia tasks.md, evidence.md e a ADR
+docs/adr/0105-a-ocorrencia-tem-um-andamento-com-o-motorista.md. Fases 0–4 estão feitas (ver [x] e evidence.md); a
+Fase 1 já está em produção (#247/#248).
+Faltam, nesta ordem:
+1. T3.2 (selo e filtro de andamento no painel): confira `git log` — se o commit "(266 T3.2)" existir, só registre a
+   evidência e marque [x]; senão execute (executor model=haiku). Marque também T2.10 (commit a07adce50).
+2. Polimento T4.8 (executor model=sonnet): manter o composer destravado enquanto o envio que reabre está em curso
+   (não travar de novo até a lista de ocorrências atualizar). Teste antes.
+3. T5.3 primeiro como diagnóstico (executor model=sonnet): gates completos das três apps — `bun run typecheck`,
+   `bun run lint` e o script `test` de apps/api-transportada, apps/frontend-transportada e apps/frontend-driver;
+   contrato da API `bun --env-file=../../.env.test test --timeout 120000`; integração
+   `bun --env-file=../../.env.test run test:integration` (sem nenhum skip); reconferir a falha do muro CA03
+   (type-name-wall) agora que o app está commitado; auditoria §15 (N+1, Promise.all × allSettled, PII em log).
+   Corrija o que falhar, uma correção por commit.
+4. T5.1 (executor model=sonnet): smoke Playwright do frontend-driver (lista, detalhe, reabrir) e prints da spec no
+   evidence.md; abrir as telas novas do painel e do app no navegador local e conferir por texto (read_page), um
+   screenshot só no fim.
+5. T5.2: code-reviewer model=sonnet e security-reviewer model=sonnet em paralelo sobre o diff de origin/staging...HEAD
+   (BOLA nas rotas /me/trips/current/route-occurrences, link assinado, reabrir, PII em log). Corrigir os achados
+   (executor model=sonnet) e reverificar.
+6. T5.4 publicação em etapas, CADA UMA com aprovação humana: rebase em origin/staging, `bun install
+   --frozen-lockfile`, gates, prettier nos .md, conferir numeração de migration/ADR/spec contra origin/staging; PR para
+   staging com API + painel + app (o painel tolerante já está em produção, então API e telas podem ir juntas);
+   conferir deploy de staging; depois PR staging → main. Atualizar o CLAUDE.md da raiz (contexto de I.A.).
+Ambiente (WSL): `docker` não está no PATH — use docker.exe ou o atalho
+/tmp/claude-1000/-mnt-c-Users-ander-Documentos-personal-transportada/6255d7a5-11b3-481f-ba70-daf2c0201938/scratchpad/bin;
+o Bun local é 1.4.3 e o Makefile fixa 1.3.14, então alvos `make` com checagem de versão falham — rode os comandos por
+baixo; o bun.lock foi regenerado com 1.4.3 e precisa ser reconferido com 1.3.14 antes de publicar. Infra de teste:
+Postgres 127.0.0.1:65432 e RabbitMQ 61672 (projeto compose transportada-test, .env.test na raiz). Testes lentos no
+/mnt/c: sempre --timeout alto. Commits com `git commit --only <paths>`.
+Escalada: gate falhou 2x → sobe um nível e registra em evidence.md. Cada correção fecha com typecheck + testes +
+commit isolado + evidência.
+Pare e pergunte antes de: qualquer merge em staging ou main, qualquer mudança em dados de staging/produção, e
+qualquer [NEEDS CLARIFICATION]. Produção NÃO tem o tipo "Prorrogação do boleto" (decisão do dono: não mexer).
+```
