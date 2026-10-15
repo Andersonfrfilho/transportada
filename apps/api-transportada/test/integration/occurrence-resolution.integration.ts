@@ -26,6 +26,10 @@ import {
 import { DrizzleOccurrenceCaseRepository } from '../../src/trips/infrastructure/drizzle-occurrence-case.repository.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
 import { TRIP_OCCURRENCE_STAGE } from '../../src/shared/trip-occurrence.constant.js'
+import { buildOccurrenceTimeline } from '../../src/trips/domain/occurrence-timeline.policy.js'
+import type { FeedResolutionStateFilter } from '../../src/trips/domain/occurrence-resolution.types.js'
+import { listTripOccurrenceFeed } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
+import { findTripOccurrenceTimelineSources } from '../../src/trips/infrastructure/trip-occurrence-timeline.query.js'
 import { createOccurrenceResolutionNotifier } from '../../src/trips/infrastructure/occurrence-resolution-notifier.gateway.js'
 import { trips } from '../../src/database/trip.schema.js'
 import {
@@ -65,13 +69,14 @@ async function registerDocumentOccurrence(
   database: TestDatabase,
   company: Company,
   trip: SeededTrip,
+  typeName = 'Caixa violada',
 ): Promise<string> {
   const occurrenceTypeId = crypto.randomUUID()
   await database.db.insert(companyOccurrenceTypes).values({
     active: true,
     companyId: company.companyId,
     id: occurrenceTypeId,
-    name: 'Caixa violada',
+    name: typeName,
     notifies: false,
     redeliveryPolicy: 'allowed',
     stage: 'separation',
@@ -91,7 +96,7 @@ async function registerDocumentOccurrence(
       redeliveryPolicy: 'allowed',
       stage: TRIP_OCCURRENCE_STAGE.separation,
       tripId: trip.tripId,
-      typeName: 'Caixa violada',
+      typeName,
     },
     newObjectId: () => crypto.randomUUID(),
     now: () => new Date('2026-09-22T12:00:00.000Z'),
@@ -576,6 +581,74 @@ describe('os avisos do andamento da ocorrência (spec 266 T2.8)', () => {
         expect(world.logs.at(-1)).toMatchObject({
           event: 'occurrence.resolution.reopened_notice_skipped',
         })
+      })
+    },
+  )
+})
+
+describe('o andamento na linha do tempo e no feed do painel (spec 266 T2.9)', () => {
+  testWithPostgres(
+    'resolução do sistema: frase fixa, sem nota; filtro e item do feed; parada resolvida à mão',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const caseOccurrenceId = await registerDocumentOccurrence(database, company, trip)
+        const stopOccurrenceId = await registerStopOccurrence(database, company, trip)
+        const openOccurrenceId = await registerDocumentOccurrence(
+          database,
+          company,
+          trip,
+          'Item avariado',
+        )
+        await applyCaseActions(database, company, caseOccurrenceId, ['cancel'])
+        await buildUseCase(database).execute({
+          context: contextOf(company),
+          note: 'Resolvido por telefone',
+          occurrenceId: stopOccurrenceId,
+          occurrenceKind: 'stop',
+        })
+
+        const sources = await findTripOccurrenceTimelineSources(database.db, {
+          companyId: company.companyId,
+          occurrenceId: caseOccurrenceId,
+        })
+        const [systemEvent] = buildOccurrenceTimeline({ sources: sources ?? [] }).events.filter(
+          (event) => event.kind === 'resolution.resolved',
+        )
+        expect(systemEvent).toMatchObject({
+          actor: { kind: 'system', name: null },
+          note: null,
+          phraseKey: 'case_cancelled',
+        })
+
+        const feed = (states: readonly FeedResolutionStateFilter[]) =>
+          listTripOccurrenceFeed(database.db, {
+            companyId: company.companyId,
+            cursor: null,
+            filters: { resolutionStateIn: states },
+            limit: 50,
+            order: 'desc',
+          })
+        const idsOf = async (states: readonly FeedResolutionStateFilter[]) =>
+          (await feed(states)).items.map((item) => item.id).toSorted()
+        expect(await idsOf(['resolved'])).toEqual([caseOccurrenceId, stopOccurrenceId].toSorted())
+        expect(await idsOf(['open'])).toEqual([openOccurrenceId])
+        expect(await idsOf(['reopened', 'cancelled'])).toEqual([])
+
+        const all = await listTripOccurrenceFeed(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 50,
+          order: 'desc',
+        })
+        const byId = new Map(all.items.map((item) => [item.id, item.resolution]))
+        expect(byId.get(openOccurrenceId)).toBeNull()
+        expect(byId.get(stopOccurrenceId)).toMatchObject({
+          actorKind: 'internal',
+          state: 'resolved',
+        })
+        expect(byId.get(caseOccurrenceId)).toMatchObject({ actorKind: 'system', state: 'resolved' })
       })
     },
   )

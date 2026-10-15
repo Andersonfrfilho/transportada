@@ -16,6 +16,9 @@ import { tripOccurrenceResolutionEvents } from '../../src/database/occurrence-co
 import { tripDocumentOccurrences } from '../../src/database/trip.schema.js'
 import { createReplyMyOccurrenceConversationUseCase } from '../../src/occurrence-conversation/application/driver-conversation.use-case.js'
 import { createDrizzleDriverConversationUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
+import { buildOccurrenceTimeline } from '../../src/trips/domain/occurrence-timeline.policy.js'
+import { listTripOccurrenceFeed } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
+import { findTripOccurrenceTimelineSources } from '../../src/trips/infrastructure/trip-occurrence-timeline.query.js'
 import { createResolveOccurrenceUseCase } from '../../src/trips/application/resolve-occurrence.use-case.js'
 import { DrizzleOccurrenceResolutionUnitOfWork } from '../../src/trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { UNUSED_ATTACHMENT_STORAGE } from '../fixtures/conversation-attachment.fixture.js'
@@ -97,6 +100,49 @@ async function setup(database: Parameters<Parameters<typeof withConversationData
   }
 }
 
+async function expectOfficeViews(
+  t: Awaited<ReturnType<typeof setup>>,
+  messageId: string,
+): Promise<void> {
+  const { companyId } = t.mine
+  const occurrenceId = t.seeded.occurrenceId
+  const sources = await findTripOccurrenceTimelineSources(t.database.db, {
+    companyId,
+    occurrenceId,
+  })
+  const timeline = buildOccurrenceTimeline({ sources: sources ?? [] })
+  const resolution = timeline.events.filter((event) => event.kind.startsWith('resolution.'))
+  expect(resolution.map((event) => event.kind)).toEqual([
+    'resolution.resolved',
+    'resolution.reopened',
+  ])
+  expect(resolution[0]).toMatchObject({
+    actor: { kind: 'operation' },
+    isKey: true,
+    note: 'Tudo certo',
+    phraseKey: null,
+  })
+  expect(resolution[1]).toMatchObject({ actor: { kind: 'driver' }, messageId })
+
+  const feed = (states?: readonly ('open' | 'resolved' | 'reopened' | 'cancelled')[]) =>
+    listTripOccurrenceFeed(t.database.db, {
+      companyId,
+      cursor: null,
+      ...(states === undefined ? {} : { filters: { resolutionStateIn: states } }),
+      limit: 20,
+      order: 'desc',
+    })
+  const unfiltered = await feed()
+  expect(unfiltered.items.find((item) => item.id === occurrenceId)?.resolution).toMatchObject({
+    actorKind: 'driver',
+    state: 'reopened',
+  })
+  const idsOf = async (states: readonly ('open' | 'resolved' | 'reopened' | 'cancelled')[]) =>
+    (await feed(states)).items.map((item) => item.id)
+  expect(await idsOf(['reopened'])).toContain(occurrenceId)
+  expect(await idsOf(['open', 'resolved', 'cancelled'])).not.toContain(occurrenceId)
+}
+
 describe('o motorista reabre a ocorrência respondendo (spec 266 T2.7)', () => {
   testWithPostgres(
     'resolvida + reopen: evento e mensagem juntos; a mesma chave repete',
@@ -124,6 +170,7 @@ describe('o motorista reabre a ocorrência respondendo (spec 266 T2.7)', () => {
             occurrenceId: t.seeded.occurrenceId,
           },
         ])
+        await expectOfficeViews(t, first.messageId)
         const reopened = (await t.events()).filter((event) => event.kind === 'reopened')
         expect(reopened).toHaveLength(1)
         expect(reopened[0]).toMatchObject({

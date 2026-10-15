@@ -17,6 +17,7 @@ import type {
   TripOccurrenceFeedFilters,
   TripOccurrenceFeedStage,
 } from '../application/trip-occurrence-feed.use-case.js'
+import type { FeedResolutionStateFilter } from '../domain/occurrence-resolution.types.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
 
 /** RF11: os estados reais da tratativa, mais `'none'` — "sem tratativa aberta". */
@@ -31,6 +32,13 @@ const MULTI_VALUE_SEPARATOR = ','
 
 const CONTRACTOR_REPLY_STATUS_VALUES = new Set<string>(CONTRACTOR_REPLY_STATUSES)
 
+const RESOLUTION_STATE_FILTER_VALUES = new Set<string>([
+  'open',
+  'resolved',
+  'reopened',
+  'cancelled',
+])
+
 const ALLOWED_KEYS = new Set([
   'caseStatusIn',
   'contractorReplyStatusIn',
@@ -40,6 +48,7 @@ const ALLOWED_KEYS = new Set([
   'order',
   'perPage',
   'plateIn',
+  'resolutionStateIn',
   'stageIn',
   'typeIn',
 ])
@@ -105,6 +114,15 @@ function parseContractorReplyStatusIn(
   return parts as readonly ContractorReplyStatus[]
 }
 
+function parseResolutionStateIn(
+  value: null | string,
+): readonly FeedResolutionStateFilter[] | undefined {
+  const parts = parseMultiValue(value)
+  if (parts === undefined) return undefined
+  if (parts.some((part) => !RESOLUTION_STATE_FILTER_VALUES.has(part))) throw invalidRequest()
+  return parts as readonly FeedResolutionStateFilter[]
+}
+
 function parsePerPage(value: null | string): number {
   if (value === null) return DEFAULT_PER_PAGE
   const parsed = Number(value)
@@ -143,12 +161,15 @@ export function parseTripOccurrenceFeedList(url: URL): {
     url.searchParams.get('contractorReplyStatusIn'),
   )
 
+  const resolutionStateIn = parseResolutionStateIn(url.searchParams.get('resolutionStateIn'))
+
   const filters: TripOccurrenceFeedFilters = {
     ...(caseStatusIn === undefined ? {} : { caseStatusIn }),
     ...(contractorReplyStatusIn === undefined ? {} : { contractorReplyStatusIn }),
     ...(createdFrom === undefined ? {} : { createdFrom }),
     ...(createdUntil === undefined ? {} : { createdUntil }),
     ...(plateIn === undefined ? {} : { plateIn }),
+    ...(resolutionStateIn === undefined ? {} : { resolutionStateIn }),
     ...(stageIn === undefined ? {} : { stageIn }),
     ...(typeIn === undefined ? {} : { typeIn }),
   }

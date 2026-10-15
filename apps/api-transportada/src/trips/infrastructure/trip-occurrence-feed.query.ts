@@ -44,6 +44,10 @@ import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-memb
 import type { ApiLogger } from '../../shared/api.types.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type { KeysetCursor } from '../../shared/keyset-cursor.support.js'
+import {
+  listFeedResolutionViews,
+  resolutionStateCondition,
+} from './trip-occurrence-feed-resolution.query.js'
 import { mergeOccurrenceFeed } from '../domain/occurrence-feed.policy.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
 import type {
@@ -88,6 +92,7 @@ type FeedRow = Omit<
   | 'conversation'
   | 'createdAt'
   | 'document'
+  | 'resolution'
   | 'typeAllowsMultipleItems'
   | 'typeItemsMode'
 > & {
@@ -250,6 +255,8 @@ async function listDocumentOccurrenceRows(
   if (caseCondition !== null) conditions.push(caseCondition)
   const contractorReplyCondition = contractorReplyStatusCondition(query.filters)
   if (contractorReplyCondition !== null) conditions.push(contractorReplyCondition)
+  const resolutionCondition = resolutionStateCondition(query.filters, 'document')
+  if (resolutionCondition !== null) conditions.push(resolutionCondition)
 
   const rows = await queryable
     .select({
@@ -482,6 +489,8 @@ async function listStopOccurrenceRows(
   if (query.filters?.plateIn !== undefined && query.filters.plateIn.length > 0) {
     conditions.push(inArray(fleetVehicles.plate, query.filters.plateIn))
   }
+  const resolutionCondition = resolutionStateCondition(query.filters, 'stop')
+  if (resolutionCondition !== null) conditions.push(resolutionCondition)
 
   const rows = await queryable
     .select({
@@ -680,6 +689,16 @@ async function toFeedItems(
     }),
   ])
 
+  /** Spec 266: o andamento da página inteira, em lote. */
+  const resolutions = await listFeedResolutionViews(queryable, {
+    companyId,
+    targets: rows.map((row) => ({
+      cancelledAt: cancellations.get(row.id)?.cancelledAt,
+      id: row.id,
+      source: row.source,
+    })),
+  })
+
   return rows.map(({ nfeDocumentId, totalValue, tripDocumentId, ...row }) => {
     const destination = nfeDocumentId === null ? undefined : destinations.get(nfeDocumentId)
     const { typeAllowsMultipleItems, typeItemsMode } = buildOccurrenceTypeItemsView({
@@ -693,6 +712,7 @@ async function toFeedItems(
       cancellation: row.source === 'document' ? (cancellations.get(row.id) ?? null) : null,
       contractorReply: row.source === 'document' ? (contractorReplies.get(row.id) ?? null) : null,
       conversation: conversations.get(`${row.source}:${row.id}`) ?? EMPTY_CONVERSATION_SUMMARY,
+      resolution: resolutions.get(row.id) ?? null,
       createdAt: row.createdAt.toISOString(),
       document:
         nfeDocumentId === null || totalValue === null || tripDocumentId === null

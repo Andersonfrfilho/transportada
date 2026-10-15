@@ -14,6 +14,10 @@ import type {
   TripOccurrenceCaseStatus,
 } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type {
+  FeedResolutionStateFilter,
+  FeedResolutionView,
+} from '../domain/occurrence-resolution.types.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { DeliveryProofDownloadPort } from './read-delivery-proof.use-case.js'
@@ -88,6 +92,8 @@ export type TripOccurrenceFeedDocument = {
   readonly tripDocumentId: string
 }
 
+export type TripOccurrenceFeedResolutionView = FeedResolutionView
+
 export type TripOccurrenceFeedItem = {
   /** Spec 156 T9 (D3): nome de quem clicou, `null` sem vínculo ativo na empresa. */
   readonly actorName: string | null
@@ -125,6 +131,11 @@ export type TripOccurrenceFeedItem = {
    * três na parada (sem tipo cadastrado) e em tipo que a leitura não achou na empresa.
    */
   readonly occurrenceTypeId: null | string
+  /**
+   * Spec 266: `null` enquanto nunca foi resolvida nem reaberta (em aberto); senão o último estado, com a
+   * hora e o ator. `reopened` é "em aberto de novo, a pedido do motorista".
+   */
+  readonly resolution: TripOccurrenceFeedResolutionView | null
   /** Spec 156 T9 (D3): só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
   readonly onBehalfOfDriverName: string | null
   readonly source: 'document' | 'stop'
@@ -153,6 +164,8 @@ export type TripOccurrenceFeedFilters = {
   readonly createdFrom?: string
   readonly createdUntil?: string
   readonly plateIn?: readonly string[]
+  /** Spec 266: o andamento com o motorista. `open` é sem evento; `reopened` é o último evento `reopened`. */
+  readonly resolutionStateIn?: readonly FeedResolutionStateFilter[]
   readonly stageIn?: readonly TripOccurrenceFeedStage[]
   readonly typeIn?: readonly string[]
 }

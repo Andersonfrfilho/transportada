@@ -8,6 +8,7 @@ import type { TripOccurrenceCaseStatus } from '../../database/database.schema.js
 import type {
   OccurrenceResolutionEventFact,
   ResolveOccurrenceResolutionStateParams,
+  FeedResolutionView,
   ResolveOccurrenceResolutionStateResult,
   SystemResolutionPhraseKey,
 } from './occurrence-resolution.types.js'
@@ -62,5 +63,21 @@ export function resolveOccurrenceResolutionState(
     reopenedAt: lastEvent?.createdAt ?? null,
     resolvedAt: null,
     state: 'open',
+  }
+}
+
+/** O andamento no feed do painel: `null` é "em aberto, sem nada a dizer" (nunca resolvida nem reaberta). */
+export function buildFeedResolutionView(
+  params: ResolveOccurrenceResolutionStateParams,
+): FeedResolutionView | null {
+  if (params.cancelledAt !== undefined) {
+    return { actorKind: 'internal', at: params.cancelledAt, state: 'cancelled' }
+  }
+  const lastEvent = [...params.events].sort(compareByCreation).at(-1)
+  if (lastEvent === undefined) return null
+  return {
+    actorKind: lastEvent.actorKind,
+    at: lastEvent.createdAt,
+    state: lastEvent.kind === 'resolved' ? 'resolved' : 'reopened',
   }
 }

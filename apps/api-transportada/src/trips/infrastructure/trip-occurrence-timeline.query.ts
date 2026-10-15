@@ -15,6 +15,7 @@ import {
   contractorMailMessages,
   contractorMailThreads,
 } from '../../database/contractor-mail.schema.js'
+import { tripOccurrenceResolutionEvents } from '../../database/occurrence-conversation.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import {
   tripDocumentOccurrenceAttachments,
@@ -25,6 +26,7 @@ import type {
   OccurrenceTimelineActor,
   OccurrenceTimelineSource,
 } from '../domain/occurrence-timeline.policy.js'
+import { resolveSystemResolutionPhraseKey } from '../domain/occurrence-resolution.policy.js'
 import type { TripOccurrenceFeedItem } from '../application/trip-occurrence-feed.use-case.js'
 import { findTripOccurrenceFeedItem } from './trip-occurrence-feed.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -141,6 +143,77 @@ async function listCaseSources(
 }
 
 /**
+ * Spec 266 / ADR-0105: o andamento com o motorista. Uma leitura só, o histórico inteiro; o evento
+ * `system` leva a frase fixa do status terminal da tratativa e nunca a nota dela.
+ */
+async function listResolutionSources(
+  queryable: TripQueryable,
+  scope: Scope,
+  item: TripOccurrenceFeedItem,
+): Promise<readonly OccurrenceTimelineSource[]> {
+  const ownerColumn =
+    item.source === 'document'
+      ? tripOccurrenceResolutionEvents.documentOccurrenceId
+      : tripOccurrenceResolutionEvents.stopOccurrenceId
+  const rows = await queryable
+    .select({
+      actorKind: tripOccurrenceResolutionEvents.actorKind,
+      actorName: identityUserProfiles.name,
+      caseStatus: tripOccurrenceCaseEvents.toStatus,
+      createdAt: tripOccurrenceResolutionEvents.createdAt,
+      id: tripOccurrenceResolutionEvents.id,
+      kind: tripOccurrenceResolutionEvents.kind,
+      messageId: tripOccurrenceResolutionEvents.conversationMessageId,
+      note: tripOccurrenceResolutionEvents.note,
+    })
+    .from(tripOccurrenceResolutionEvents)
+    .leftJoin(
+      identityUserProfiles,
+      eq(identityUserProfiles.userId, tripOccurrenceResolutionEvents.actorUserId),
+    )
+    .leftJoin(
+      tripOccurrenceCaseEvents,
+      and(
+        eq(tripOccurrenceCaseEvents.companyId, tripOccurrenceResolutionEvents.companyId),
+        eq(tripOccurrenceCaseEvents.id, tripOccurrenceResolutionEvents.caseEventId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripOccurrenceResolutionEvents.companyId, scope.companyId),
+        eq(ownerColumn, scope.occurrenceId),
+      ),
+    )
+
+  return rows.map((row): OccurrenceTimelineSource => {
+    const occurredAt = row.createdAt.toISOString()
+    if (row.kind === 'reopened') {
+      return {
+        actor: { kind: 'driver', name: row.actorName ?? null },
+        id: row.id,
+        kind: 'resolution.reopened',
+        messageId: row.messageId ?? '',
+        occurredAt,
+      }
+    }
+    const isSystem = row.actorKind === 'system'
+    return {
+      actor: isSystem
+        ? { kind: 'system', name: null }
+        : { kind: 'operation', name: row.actorName ?? null },
+      id: row.id,
+      kind: 'resolution.resolved',
+      note: isSystem ? null : (row.note ?? null),
+      occurredAt,
+      phraseKey:
+        isSystem && row.caseStatus !== null
+          ? (resolveSystemResolutionPhraseKey(row.caseStatus) ?? null)
+          : null,
+    }
+  })
+}
+
+/**
  * E-mails da conversa desta ocorrência (spec 143). O envio sem autor é o aviso automático do tipo
  * que notifica — ator `system`. A resposta é da contratante; o nome de quem respondeu chega com a
  * T405, pelo cadastro de contatos.
@@ -204,10 +277,11 @@ export async function findTripOccurrenceTimelineSources(
 ): Promise<readonly OccurrenceTimelineSource[] | null> {
   const item = await findTripOccurrenceFeedItem(queryable, scope)
   if (item === null) return null
-  const [photos, caseEvents, mails] = await Promise.all([
+  const [photos, caseEvents, mails, resolutions] = await Promise.all([
     listPhotoSources(queryable, scope, item),
     listCaseSources(queryable, scope),
     listMailSources(queryable, scope, item),
+    listResolutionSources(queryable, scope, item),
   ])
   const recorded: OccurrenceTimelineSource = {
     actor: recordingActor(item),
@@ -227,5 +301,5 @@ export async function findTripOccurrenceTimelineSources(
             reason: item.cancellation.reason,
           },
         ]
-  return [recorded, ...photos, ...caseEvents, ...mails, ...cancelled]
+  return [recorded, ...photos, ...caseEvents, ...mails, ...cancelled, ...resolutions]
 }

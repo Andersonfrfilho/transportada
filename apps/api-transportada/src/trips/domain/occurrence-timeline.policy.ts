@@ -7,6 +7,8 @@
  * **Leitura pura**: nada aqui decide a tratativa (spec 183 D4).
  */
 
+import type { SystemResolutionPhraseKey } from './occurrence-resolution.types.js'
+
 /** Os quatro atores, os mesmos dos balões das conversas — a cor é do ator, não do evento. */
 export type OccurrenceTimelineActorKind = 'contractor' | 'driver' | 'operation' | 'system'
 
@@ -36,6 +38,14 @@ export type OccurrenceTimelineSource =
       readonly interpretation: null | string
       readonly kind: 'contractor.mail.received' | 'contractor.mail.sent'
     })
+  /** Spec 266 / ADR-0105: o escritório (ou a tratativa, como sistema) resolveu; `note` nulo no sistema. */
+  | (SourceBase & {
+      readonly kind: 'resolution.resolved'
+      readonly note: null | string
+      readonly phraseKey: null | SystemResolutionPhraseKey
+    })
+  /** Spec 266 / ADR-0105: o motorista reabriu respondendo; `messageId` é a mensagem que reabriu. */
+  | (SourceBase & { readonly kind: 'resolution.reopened'; readonly messageId: string })
 
 export type OccurrenceTimelineEvent = OccurrenceTimelineSource & {
   readonly isKey: boolean
@@ -69,6 +79,8 @@ const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> 
   'occurrence.cancelled': 5,
   'occurrence.photo': 1,
   'occurrence.recorded': 0,
+  'resolution.reopened': 7,
+  'resolution.resolved': 6,
 }
 
 /** Terminais da spec 164: a tratativa não sai mais deles. */
@@ -121,6 +133,7 @@ function mergePhotos(
 
 function isKeyEvent(source: OccurrenceTimelineSource): boolean {
   if (source.kind === 'occurrence.recorded') return true
+  if (source.kind === 'resolution.resolved' || source.kind === 'resolution.reopened') return true
   return source.kind === 'case.transition' && source.toStatus === 'decided'
 }
 
