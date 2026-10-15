@@ -69,7 +69,7 @@ async function downloadFile(input: {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
+  return error instanceof DOMException && error.code === DOMException.ABORT_ERR
 }
 
 /**
