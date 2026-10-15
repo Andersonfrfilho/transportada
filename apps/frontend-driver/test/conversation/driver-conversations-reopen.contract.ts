@@ -3,6 +3,10 @@ import { describe, expect, it } from 'bun:test'
 
 import { createComposerLockRenderer } from '../../src/modules/conversation/components/DriverComposerLock.component'
 import { classifyDeliveryFailure } from '../../src/modules/conversation/shared/conversationOutboxFailure.service'
+import {
+  buildOccurrenceStateMap,
+  resolveConversationTripId,
+} from '../../src/modules/conversation/shared/occurrenceStateMap.service'
 import { createConversationOutbox } from '../../src/modules/conversation/shared/conversationOutbox.service'
 import { createDriverConversationsApi } from '../../src/modules/conversation/shared/driverConversationsApi.service'
 import type { DriverReopenEvent } from '../../src/modules/conversation/shared/driverConversationReopen.service'
@@ -286,7 +290,7 @@ describe('a reabertura a caminho não trava o campo de novo (spec 266 T4.8)', ()
     await harness.api.sendMessage(send('m1'))
     harness.setMode('bad-request')
     await harness.api.flushOutbox('immediate')
-    await harness.api.reopen.syncQueued(await harness.api.outbox.listReopenSubjects())
+    harness.api.reopen.syncQueued(await harness.api.outbox.listReopenSubjects())
 
     expect(harness.api.reopen.isReopening(SUBJECT)).toBe(false)
   })
@@ -356,5 +360,37 @@ describe('trava do campo de texto (spec 266 RF9)', () => {
     const element = lock(conversation) as { props: { onReopen: () => void } }
     element.props.onReopen()
     expect(opened).toEqual([SUBJECT])
+  })
+})
+
+describe('o estado das ocorrências vem da lista da rota, inclusive do retrato offline (spec 266 F3/F4)', () => {
+  const occurrence = (id: string, state: 'cancelled' | 'open' | 'resolved') => ({ id, state })
+
+  it('lista fresca ou retrato offline: o mapa tem o estado de cada ocorrência', () => {
+    for (const isFromSnapshot of [false, true]) {
+      const states = buildOccurrenceStateMap({
+        isFromSnapshot,
+        occurrences: [occurrence('a', 'resolved'), occurrence('b', 'open')],
+        savedAt: undefined,
+        status: 'loaded',
+      } as never)
+      expect(states.get('a')).toBe('resolved')
+      expect(states.get('b')).toBe('open')
+    }
+  })
+
+  it('sem leitura ou viagem encerrada: mapa vazio (estado desconhecido)', () => {
+    expect(buildOccurrenceStateMap(undefined).size).toBe(0)
+    expect(buildOccurrenceStateMap({ status: 'tripFinished' }).size).toBe(0)
+  })
+
+  it('a viagem da lista é a escolhida na sessão, senão a padrão do retrato', () => {
+    const trips = [
+      { id: 'trip-1', status: 'in_transit' },
+      { id: 'trip-2', status: 'in_transit' },
+    ] as never
+    expect(resolveConversationTripId({ selectedTripId: 'trip-2', trips })).toBe('trip-2')
+    expect(resolveConversationTripId({ selectedTripId: undefined, trips })).toBe('trip-1')
+    expect(resolveConversationTripId({ selectedTripId: undefined, trips: [] })).toBeUndefined()
   })
 })

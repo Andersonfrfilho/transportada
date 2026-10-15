@@ -100,7 +100,7 @@ const DRAIN_TRIGGER_TARGET = {
   setInterval: (handler: () => void, timeout: number) => window.setInterval(handler, timeout),
 }
 
-const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
+export const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 
 /** A viagem muda pelas mãos do escritório também — cancelamento chega no próximo poll, não por push. */
 const CURRENT_TRIP_REFETCH_MS = 30_000

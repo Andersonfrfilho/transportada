@@ -110,7 +110,8 @@
     "refused": {
       "alreadyOpen": "The occurrence had already been reopened.",
       "cancelled": "Occurrence cancelled."
-    }
+    },
+    "stateUnknown": "Could not confirm whether the occurrence is resolved"
   },
   "subjectFallback": "Occurrence",
   "title": "Conversations"

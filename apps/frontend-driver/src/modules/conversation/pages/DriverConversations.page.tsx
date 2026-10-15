@@ -26,7 +26,10 @@ import { useConversationPathname } from '../hooks/useConversationPathname.hook'
 import { useDriverConversationReopen } from '../hooks/useDriverConversationReopen.hook'
 import { useDriverQuickReplies } from '../hooks/useDriverQuickReplies.hook'
 import { useRouteOccurrenceStates } from '../hooks/useRouteOccurrenceStates.hook'
-import { UNREAD_CONVERSATIONS_QUERY_KEY } from '../shared/driverConversation.constant'
+import {
+  DRIVER_CONVERSATION_SUBJECT_TYPE,
+  UNREAD_CONVERSATIONS_QUERY_KEY,
+} from '../shared/driverConversation.constant'
 import { driverAudioRecordingOptions } from '../shared/driverAudioRecording.service'
 import { getDriverConversationsApi } from '../shared/driverConversationsApiInstance.service'
 import { buildDriverSubjectGroups } from '../shared/driverSubjectGroups.constant'
@@ -47,7 +50,12 @@ export function DriverConversationsPage() {
   const quickReplies = useDriverQuickReplies()
   const selected = parseDriverConversationSubject(useConversationPathname())
   const { canSync } = useDriverSession()
-  const stateByOccurrenceId = useRouteOccurrenceStates(canSync)
+  const { isSettled, stateByOccurrenceId } = useRouteOccurrenceStates(canSync)
+  const isStateUnknown =
+    selected !== undefined &&
+    selected.subjectType === DRIVER_CONVERSATION_SUBJECT_TYPE &&
+    isSettled &&
+    !stateByOccurrenceId.has(selected.subjectId)
   const { refusal } = useDriverConversationReopen({
     api,
     stateByOccurrenceId,
@@ -79,6 +87,11 @@ export function DriverConversationsPage() {
       {isOutboxFull ? (
         <p role="alert" className={styles.outboxNotice}>
           {t('outboxFull')}
+        </p>
+      ) : null}
+      {isStateUnknown ? (
+        <p role="status" className={styles.outboxNotice}>
+          {t('reopen.stateUnknown')}
         </p>
       ) : null}
       {refusal === undefined ? null : (

@@ -110,7 +110,8 @@
     "refused": {
       "alreadyOpen": "A ocorrência já tinha sido reaberta.",
       "cancelled": "Ocorrência cancelada."
-    }
+    },
+    "stateUnknown": "Não foi possível confirmar se a ocorrência está resolvida"
   },
   "subjectFallback": "Ocorrência",
   "title": "Conversas"
