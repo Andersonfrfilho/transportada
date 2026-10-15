@@ -122,3 +122,37 @@ Veredito do `architect` (opus): **aprovado com mudanças**. Todas aplicadas na A
 ## Tasks
 
 _(cada task registra aqui comando, saída resumida e commit)_
+
+### T2.1 — Tabela `trip_occurrence_resolution_events` (`f824d7bab`)
+
+- Migration `apps/api-transportada/drizzle/20261015151849_trip_occurrence_resolution_events/` (aditiva, rollback manual
+  que recusa rodar com evento gravado). `db:generate` de novo: `no_changes`. A tabela mora em
+  `occurrence-conversation.schema.ts` (FK para a mensagem; o inverso criaria ciclo de import).
+- Contratos da API: 11762 pass, 34 skip; a falha da lista de migrations esperadas foi corrigida (454 pass em
+  `database-migration`, `migration-chain`, `trip-schema`).
+- **Ambiente:** o WSL não tem `docker` (integração do Docker Desktop desligada) e o Bun local é 1.4.3 (o `Makefile` fixa
+  1.3.14), então `make migration-test` não roda daqui. O `db:test` rodou direto contra o Postgres local: 185 pass e 4
+  falhas, todas de **tempo** em testes antigos (fiscal, backfill de viagem, pre-deploy) que fixam o próprio timeout;
+  disco `/mnt/c` lento.
+- **Prova direta da migration** num banco descartável (`spec266_check`): cadeia inteira aplicada em 13 s; rollback ok
+  (tabela e linha do journal removidas); reaplicada; seis inserções inválidas recusadas, cada uma pelo CHECK esperado:
+  `owner_check` (duas identidades e nenhuma), `kind_check`, `internal_note_check` (nota em branco), `reopen_check`
+  (reaberta sem mensagem), `system_case_event_check`. Banco descartado no fim.
+
+### T2.2 — Política pura do andamento (`4e8b2f92c`)
+
+- `resolveOccurrenceResolutionState` e `resolveSystemResolutionPhraseKey` (`case_closed`, `case_returned_to_warehouse`,
+  `case_cancelled`). Teste vermelho antes (módulo ausente), verde depois. `tsc --noEmit` limpo.
+
+### T4.1 — Ícones `share`, `paperclip`, `arrow-left` (`2361af55b`)
+
+- Desenhados (o painel não tem os três). Teste de renderização vermelho antes, verde depois. `bun run typecheck` ok;
+  `bun run test`: 1898 pass, 2 falhas de **tempo** em `test/shared.contract.test.ts` (varredura de arquivos lenta no
+  WSL), que passa 85/85 sozinho com `--timeout 60000`.
+
+### T4.8 (parte do pacote) — `renderComposerLock` no `conversations-ui`
+
+- O pacote 0.10.0 só trava o composer por `closed`. Prop nova `renderComposerLock` (minor), testes primeiro (4 novos;
+  1370 pass), build ok. PR https://github.com/Andersonfrfilho/adatechnology-packages/pull/141, CI verde, **merge
+  autorizado pelo dono** ("pode fazer o merge") em `79af4c1`; a pipeline publica a 0.11.0. O lado do app (flag
+  `reopen` no adaptador e na fila) fica na T4.8.

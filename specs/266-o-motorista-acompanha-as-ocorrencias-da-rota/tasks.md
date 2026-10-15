@@ -33,9 +33,9 @@
 
 > 🤖 Modelo: `sonnet` (T2.10 → `haiku`)
 
-- [ ] **T2.1** `sonnet` — Migration da tabela `trip_occurrence_resolution_events` (plan § Dados), schema Drizzle e
+- [x] **T2.1** `sonnet` — Migration da tabela `trip_occurrence_resolution_events` (plan § Dados), schema Drizzle e
       códigos de erro. Aceite: `make migration-test` e `db:generate` com `no_changes` depois.
-- [ ] **T2.2** `sonnet` — Teste antes da política pura `occurrence-resolution.policy.ts` (4 casos do plano), depois
+- [x] **T2.2** `sonnet` — Teste antes da política pura `occurrence-resolution.policy.ts` (4 casos do plano), depois
       a implementação.
 - [ ] **T2.3** `sonnet` — Repositório (inserir; último evento em lote, sem N+1) + `resolve-occurrence.use-case.ts` +
       `POST /trip-occurrences/:kind/:id/resolution`. Contratos: 201, 404 de outra empresa, 409 já resolvida e 409
@@ -83,7 +83,7 @@
 
 > 🤖 Modelo: `sonnet` (T4.1, T4.9 e T4.10 → `haiku`; T4.8 é 🧠)
 
-- [ ] **T4.1** `haiku` — Ícones `share`, `paperclip` e `arrow-left` em `components/ui/icon.tsx`, com o traço do
+- [x] **T4.1** `haiku` — Ícones `share`, `paperclip` e `arrow-left` em `components/ui/icon.tsx`, com o traço do
       painel, e `icon-catalog` atualizado.
 - [ ] **T4.2** `sonnet` — Tipos, validação, cliente e query das duas rotas de leitura. Retrato no IndexedDB (store
       `trip-occurrences`, versão 5, com migração do v4) e leitura offline. Testes de validação e do retrato.
