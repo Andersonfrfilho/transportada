@@ -118,6 +118,21 @@ export function DriverEventQueuePage({
     return t(KIND_LABEL_KEYS[item.kind])
   }
 
+  /** O nome da nota ou o número da parada, quando o snapshot ainda os tem. */
+  function historySubject(entry: SentHistoryEntry): string | undefined {
+    if (entry.documentId !== undefined) {
+      const number = stops
+        .flatMap((stop) => stop.documents)
+        .find((document) => document.id === entry.documentId)?.number
+      if (number !== undefined) return t('eventQueue.history.note', { number })
+    }
+    if (entry.stopId !== undefined) {
+      const sequence = stops.find((stop) => stop.id === entry.stopId)?.sequence
+      if (sequence !== undefined) return t('eventQueue.history.stop', { sequence })
+    }
+    return undefined
+  }
+
   function statusLabel(item: EventQueueItemView): string {
     if (item.status.state === 'rejected') {
       return t('eventQueue.status.rejected', {
@@ -321,7 +336,12 @@ export function DriverEventQueuePage({
             {history.map((entry) => (
               <li className={styles.eventQueueItem} key={`${entry.key}-${entry.result}`}>
                 <div className={styles.eventQueueItemBody}>
-                  <p className={styles.eventQueueItemTitle}>{t(KIND_LABEL_KEYS[entry.kind])}</p>
+                  <p className={styles.eventQueueItemTitle}>
+                    {t(KIND_LABEL_KEYS[entry.kind])}
+                    {historySubject(entry) === undefined ? null : (
+                      <span className={styles.eventQueueItemTime}>{historySubject(entry)}</span>
+                    )}
+                  </p>
                   <p
                     className={
                       entry.result === 'sent' ? styles.profileMeta : styles.eventQueueStatusRejected

@@ -86,6 +86,8 @@
     "history": {
       "title": "Recently sent",
       "discarded": "Discarded at {{time}}",
+      "note": "Note {{number}}",
+      "stop": "Stop {{sequence}}",
       "empty": "Nothing sent in the last days.",
       "rejected": "Refused at {{time}}",
       "sent": "Sent at {{time}}",

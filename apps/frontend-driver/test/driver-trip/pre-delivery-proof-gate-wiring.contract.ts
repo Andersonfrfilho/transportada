@@ -296,7 +296,7 @@ describe('o histórico de enviados (15/10)', () => {
       current: [
         entry('a', '2026-10-15T09:00:00Z', 'rejected'),
         entry('b', '2026-10-15T10:00:00Z'),
-        entry('velho', '2026-10-01T10:00:00Z'),
+        entry('velho', '2026-09-01T10:00:00Z'),
       ],
       nowMs,
     }) as unknown as { key: string; result: string }[]

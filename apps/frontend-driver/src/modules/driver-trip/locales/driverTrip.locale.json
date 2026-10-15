@@ -73,6 +73,8 @@
     "history": {
       "title": "Enviados recentemente",
       "discarded": "Descartado às {{time}}",
+      "note": "Nota {{number}}",
+      "stop": "Parada {{sequence}}",
       "empty": "Nada enviado nos últimos dias.",
       "rejected": "Recusado às {{time}}",
       "sent": "Enviado às {{time}}",

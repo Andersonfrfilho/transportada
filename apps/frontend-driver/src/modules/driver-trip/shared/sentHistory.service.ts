@@ -31,8 +31,8 @@ export type SentHistoryStore = Readonly<{
 }>
 
 /** O histórico vale até a viagem concluir (`purgeTripSentHistory`); prazo e teto são só a rede de segurança. */
-export const SENT_HISTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
-export const SENT_HISTORY_MAX_ENTRIES = 200
+export const SENT_HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+export const SENT_HISTORY_MAX_ENTRIES = 500
 
 export function toSentHistoryEntry(input: {
   readonly at: string
