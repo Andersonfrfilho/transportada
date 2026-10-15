@@ -55,6 +55,8 @@ export const replySchema = z
   .object({
     attachmentIds: conversationAttachmentIdsSchema,
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body),
+    /** Spec 266 (ADR-0105 §3): literal, nunca `false`; só vale em ocorrência. */
+    reopen: z.literal(true).optional(),
   })
   .strict()
 
@@ -173,10 +175,12 @@ export function createMeOccurrenceConversationRoutes(dependencies: {
       readonly bodyText: string
       readonly idempotencyKey: string
       readonly occurrenceId: string
+      readonly reopen?: true
     }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const data = await dependencies.reply.reply({
+          ...(input.reopen === undefined ? {} : { reopen: input.reopen }),
           attachmentIds: input.attachmentIds,
           bodyText: input.bodyText,
           companyId: context.scope.companyId,
@@ -197,6 +201,7 @@ export function createMeOccurrenceConversationRoutes(dependencies: {
           bodyText: body.body,
           idempotencyKey,
           occurrenceId,
+          ...(body.reopen === undefined ? {} : { reopen: body.reopen }),
         }
       },
       pathname: MESSAGES_PATH,

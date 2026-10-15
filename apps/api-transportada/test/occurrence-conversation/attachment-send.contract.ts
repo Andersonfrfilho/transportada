@@ -93,6 +93,8 @@ function driverTransaction(attachments: ConversationAttachmentTransactionPort) {
   return {
     ...idempotency(),
     applyDriverStatus: async () => undefined,
+    insertDriverReopenedEvent: async () => undefined,
+    lockOccurrenceResolution: async () => undefined,
     attachments,
     findDriverTarget: async () => ({
       driverUserId: DRIVER_USER_ID,

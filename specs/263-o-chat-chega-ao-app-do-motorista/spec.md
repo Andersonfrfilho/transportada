@@ -101,6 +101,10 @@ O escritório abre de qualquer assunto (a partir da nota, da ocorrência ou da v
 viagem — nunca cria conversa de ocorrência (ela nasce do registro). Com balde de rate limit próprio.
 Conversa de nota/viagem só existe para viagem em que ele está na tripulação (`findMyOccurrence` análogo).
 
+> **Emenda (spec 266, ADR-0105 §3):** o motorista só cria conversa de ocorrência **respondendo** (o caminho
+> `findOrCreateDriverConversation` já existe), e a resposta pode levar `reopen: true`, que reabre o andamento da
+> ocorrência resolvida. Nota e viagem seguem sem `reopen` (400).
+
 ### D5 — Offline: a mensagem espera na fila, com a mesma chave
 
 Enviar sem rede grava a mensagem na fila local (a do app já existe — `offlineQueue.service.ts`) com a

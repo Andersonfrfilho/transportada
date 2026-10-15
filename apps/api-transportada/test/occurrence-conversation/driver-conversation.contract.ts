@@ -65,6 +65,8 @@ function createFake(
   const transaction: DriverConversationTransactionPort = {
     attachments: NO_ATTACHMENTS,
     listAttachments: listNoAttachments,
+    insertDriverReopenedEvent: async () => undefined,
+    lockOccurrenceResolution: async () => undefined,
     async applyDriverStatus(input) {
       state.statusCalls.push(input)
     },

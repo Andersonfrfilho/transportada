@@ -9,6 +9,7 @@ import type {
   ConversationAttachmentRecord,
   ConversationAttachmentTransactionPort,
 } from './conversation-attachment.port.js'
+import type { OccurrenceResolutionEventFact } from '../../trips/domain/occurrence-resolution.types.js'
 import type { OccurrenceConversationSubjectType } from '../../shared/occurrence-conversation-subject.constant.js'
 import type {
   OccurrenceConversationKind,
@@ -36,6 +37,18 @@ export type DriverConversationSummaryRecord = {
   readonly occurrenceLabel: string
   /** Mensagens da operação que o motorista ainda não abriu. */
   readonly unreadCount: number
+}
+
+/** Spec 266 / ADR-0105 §3: o que o `reopen` da resposta lê da ocorrência depois de travar a linha. */
+export type DriverOccurrenceReopenTarget = {
+  readonly companyId: string
+  readonly occurrenceId: string
+  readonly occurrenceKind: OccurrenceConversationKind
+}
+
+export type DriverOccurrenceResolutionSnapshot = {
+  readonly cancelledAt: string | undefined
+  readonly events: readonly OccurrenceResolutionEventFact[]
 }
 
 export type DriverConversationTransactionPort = {
@@ -78,6 +91,20 @@ export type DriverConversationTransactionPort = {
     readonly driverId: string
     readonly occurrenceId: string
   }): Promise<null | { readonly occurrenceKind: OccurrenceConversationKind }>
+  /**
+   * Spec 266 (ADR-0105 §3): trava a linha da ocorrência (`FOR NO KEY UPDATE`) e lê o andamento depois do
+   * lock; `undefined` quando a ocorrência não existe na empresa.
+   */
+  lockOccurrenceResolution(
+    input: DriverOccurrenceReopenTarget,
+  ): Promise<DriverOccurrenceResolutionSnapshot | undefined>
+  /** Spec 266: grava o `reopened` do motorista, ligado à mensagem que o motivou. */
+  insertDriverReopenedEvent(
+    input: DriverOccurrenceReopenTarget & {
+      readonly conversationMessageId: string
+      readonly driverUserId: string
+    },
+  ): Promise<void>
   /** Com trava consultiva pela operação e pela chave, como no e-mail (T403). */
   findIdempotency(input: {
     readonly companyId: string

@@ -27,3 +27,15 @@ export class OccurrenceNotResolvedError extends ApiError {
     })
   }
 }
+
+/** `reopen` só existe na conversa de ocorrência; nota e viagem não têm andamento (ADR-0105 §3). */
+export class ReopenNotSupportedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'REOPEN_NOT_SUPPORTED_FOR_SUBJECT',
+      details: [{ field: 'reopen', message: 'Only an occurrence conversation can be reopened' }],
+      message: 'Only an occurrence conversation can be reopened.',
+      status: 400,
+    })
+  }
+}

@@ -15,6 +15,11 @@ import {
   OccurrenceConversationDriverUnknownError,
   OccurrenceConversationIdempotencyKeyReusedError,
 } from '../domain/occurrence-conversation.error.js'
+import type { ApiLogger } from '../../shared/api.types.js'
+import {
+  assertOccurrenceReopenable,
+  recordOccurrenceReopened,
+} from './driver-occurrence-reopen.service.js'
 import type {
   ConversationAttachmentStoragePort,
   ConversationUploadRepositoryPort,
@@ -265,6 +270,7 @@ export function createMarkMyConversationReadUseCase(dependencies: {
 export function createReplyMyOccurrenceConversationUseCase(dependencies: {
   readonly clock: () => Date
   readonly fingerprintService: IdempotencyFingerprintPort
+  readonly logger?: ApiLogger
   readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: DriverConversationUnitOfWorkPort
 }) {
@@ -275,6 +281,8 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
         readonly attachmentIds?: readonly string[]
         readonly bodyText: string
         readonly idempotencyKey: string
+        /** Spec 266 (ADR-0105 §3): reabre o andamento da ocorrência resolvida, na mesma transação. */
+        readonly reopen?: true
       },
     ): Promise<{ readonly conversationId: string; readonly messageId: string }> {
       const attachmentIds = input.attachmentIds ?? []
@@ -296,11 +304,23 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
             input.driverUserId,
             bodyText,
             attachmentIds.join(','),
+            ...(input.reopen === true ? ['reopen'] : []),
           ],
           fingerprintService: dependencies.fingerprintService,
           idempotencyKey: input.idempotencyKey,
           operation: REPLY_DRIVER_APP_MESSAGE_OPERATION,
           run: async () => {
+            const reopenTarget =
+              input.reopen === true
+                ? {
+                    companyId: input.companyId,
+                    occurrenceId: input.occurrenceId,
+                    occurrenceKind: occurrence.occurrenceKind,
+                  }
+                : undefined
+            if (reopenTarget !== undefined) {
+              await assertOccurrenceReopenable(transaction, reopenTarget)
+            }
             const conversation = await transaction.findOrCreateDriverConversation({
               companyId: input.companyId,
               driverUserId: input.driverUserId,
@@ -338,6 +358,18 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
               transaction: transaction.attachments,
               uploadIds: attachmentIds,
             })
+            if (reopenTarget !== undefined) {
+              await recordOccurrenceReopened(transaction, {
+                ...reopenTarget,
+                conversationMessageId: message.id,
+                driverUserId: input.driverUserId,
+              })
+              dependencies.logger?.info('occurrence.resolution.reopened', {
+                actorKind: 'driver',
+                occurrenceId: input.occurrenceId,
+                occurrenceKind: reopenTarget.occurrenceKind,
+              })
+            }
             return { conversationId: conversation.id, messageId: message.id }
           },
           transaction,

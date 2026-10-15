@@ -3560,6 +3560,7 @@ function createApplicationRoutes({
       reply: createReplyMyOccurrenceConversationUseCase({
         clock: () => new Date(),
         fingerprintService,
+        logger,
         storage: storageGateway,
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
@@ -3598,6 +3599,7 @@ function createApplicationRoutes({
       reply: createReplyMySubjectConversationUseCase({
         clock: () => new Date(),
         fingerprintService,
+        logger,
         storage: storageGateway,
         unitOfWork: createDrizzleDriverSubjectWriteUnitOfWork(database),
       }),

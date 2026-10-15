@@ -135,6 +135,8 @@ function createWorld(state: {
   const writePort: DriverSubjectWriteTransactionPort = {
     ...shared,
     ...NO_TRANSCRIPTIONS,
+    insertDriverReopenedEvent: async () => undefined,
+    lockOccurrenceResolution: async () => undefined,
     applySubjectStatus: async () => undefined,
     attachments,
     findMySubject: async (input) => {
@@ -169,6 +171,8 @@ function createWorld(state: {
   const oldPort: DriverConversationTransactionPort = {
     ...shared,
     applyDriverStatus: async () => undefined,
+    insertDriverReopenedEvent: async () => undefined,
+    lockOccurrenceResolution: async () => undefined,
     attachments: NO_ATTACHMENTS,
     findDriverTarget: async () => ({
       driverUserId: DRIVER_USER_ID,
