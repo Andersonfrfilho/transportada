@@ -45,14 +45,18 @@ describe('fica claro qual é a próxima parada e que a última fecha a viagem (p
     expect(card).toContain("t('stopState.currentNext'")
     expect(card).toContain("stopPlace === 'last'")
     expect(card).toContain("t('stopFinalHint')")
-    expect(card).toContain('styles.stopArrived')
+    expect(card).toContain('styles.stopJustArrived')
+    // `.stopArrived` já é o "Cheguei às…" (inline-flex, verde): no <li> da parada ele quebrava o layout
+    expect(card).not.toMatch(/\$\{styles\.stopArrived\}`/u)
     expect(card).toContain('ARRIVED_HIGHLIGHT_MS')
     expect(ARRIVED_HIGHLIGHT_MS).toBeGreaterThan(0)
   })
 
   it('o destaque de chegada só anima com movimento permitido, e o painel avisa a viagem toda resolvida', () => {
     const css = readFileSync(`${root}/styles/driverTrip.module.css`, 'utf8')
-    const motion = css.indexOf('@media (prefers-reduced-motion: no-preference) {\n  .stopArrived')
+    const motion = css.indexOf(
+      '@media (prefers-reduced-motion: no-preference) {\n  .stopJustArrived',
+    )
     expect(motion).toBeGreaterThanOrEqual(0)
     const page = readFileSync(`${root}/pages/DriverTripWorkspace.page.tsx`, 'utf8')
     expect(page).toContain('isTripFullySettled(trip)')

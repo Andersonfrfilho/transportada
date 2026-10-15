@@ -381,7 +381,7 @@ export function DriverStopCard({
 
   return (
     <li
-      className={`${styles.stop} ${isCurrent ? styles.stopCurrent : ''} ${isCompleted ? styles.stopDone : ''}${justArrived ? ` ${styles.stopArrived}` : ''}`}
+      className={`${styles.stop} ${isCurrent ? styles.stopCurrent : ''} ${isCompleted ? styles.stopDone : ''}${justArrived ? ` ${styles.stopJustArrived}` : ''}`}
       data-stop-card=""
       ref={cardRef}
     >
