@@ -78,6 +78,8 @@ export type RouteOccurrencesReadResult<TData> =
 export type StoredRouteOccurrences = Readonly<{
   occurrences: readonly DriverRouteOccurrence[]
   savedAt: string
+  /** O dono (`SHA-256(sub)`); registro antigo não tem e vale como de outro. */
+  subHash?: string
   tripId: string
 }>
 

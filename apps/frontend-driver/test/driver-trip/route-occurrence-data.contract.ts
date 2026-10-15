@@ -206,12 +206,13 @@ describe('validação do detalhe (spec 266 T4.2)', () => {
 describe('o retrato offline das ocorrências (spec 266 T4.2)', () => {
   it('lista fresca é guardada e só a viagem dela permanece', async () => {
     const store = createMemorySnapshotStore([
-      { occurrences: [], savedAt: NOW.toISOString(), tripId: 'trip-old' },
+      { occurrences: [], savedAt: NOW.toISOString(), subHash: 'sub-1', tripId: 'trip-old' },
     ])
     const result = await loadRouteOccurrences({
       now: NOW,
       readList: () => Promise.resolve({ data: [occurrence()], status: 'loaded' }),
       store,
+      subHash: 'sub-1',
       tripId: 'trip-1',
     })
     expect(result).toEqual({
@@ -228,6 +229,7 @@ describe('o retrato offline das ocorrências (spec 266 T4.2)', () => {
     const saved = {
       occurrences: [occurrence()],
       savedAt: '2026-10-15T09:00:00.000Z',
+      subHash: 'sub-1',
       tripId: 'trip-1',
     }
     const result = await loadRouteOccurrences({
@@ -235,6 +237,7 @@ describe('o retrato offline das ocorrências (spec 266 T4.2)', () => {
       readList: () =>
         Promise.reject(new DriverTripRequestError({ code: 'OFFLINE', isOffline: true })),
       store: createMemorySnapshotStore([saved]),
+      subHash: 'sub-1',
       tripId: 'trip-1',
     })
     expect(result).toEqual({
@@ -253,6 +256,7 @@ describe('o retrato offline das ocorrências (spec 266 T4.2)', () => {
           now: NOW,
           readList: () => Promise.reject(offline),
           store: createMemorySnapshotStore(),
+          subHash: 'sub-1',
           tripId: 'trip-1',
         }),
       ),
@@ -261,13 +265,19 @@ describe('o retrato offline das ocorrências (spec 266 T4.2)', () => {
 
   it('recusa 4xx não cai no retrato: é resposta, não queda', async () => {
     const refused = new DriverTripRequestError({ code: 'FORBIDDEN', isOffline: false, status: 403 })
-    const saved = { occurrences: [occurrence()], savedAt: NOW.toISOString(), tripId: 'trip-1' }
+    const saved = {
+      occurrences: [occurrence()],
+      savedAt: NOW.toISOString(),
+      subHash: 'sub-1',
+      tripId: 'trip-1',
+    }
     expect(
       await rejectionOf(
         loadRouteOccurrences({
           now: NOW,
           readList: () => Promise.reject(refused),
           store: createMemorySnapshotStore([saved]),
+          subHash: 'sub-1',
           tripId: 'trip-1',
         }),
       ),
@@ -276,12 +286,18 @@ describe('o retrato offline das ocorrências (spec 266 T4.2)', () => {
 
   it('viagem finalizada devolve o estado e apaga o retrato', async () => {
     const store = createMemorySnapshotStore([
-      { occurrences: [occurrence()], savedAt: NOW.toISOString(), tripId: 'trip-1' },
+      {
+        occurrences: [occurrence()],
+        savedAt: NOW.toISOString(),
+        subHash: 'sub-1',
+        tripId: 'trip-1',
+      },
     ])
     const result = await loadRouteOccurrences({
       now: NOW,
       readList: () => Promise.resolve({ status: 'tripFinished' }),
       store,
+      subHash: 'sub-1',
       tripId: 'trip-1',
     })
     expect(result).toEqual({ status: 'tripFinished' })
@@ -390,6 +406,63 @@ describe('o store trip-occurrences no IndexedDB (spec 266 T4.2)', () => {
     }
     expect(upgrade).toInclude('objectStoreNames.contains(name)')
     expect(upgrade).not.toInclude('deleteObjectStore')
+  })
+})
+
+describe('o retrato das ocorrências tem dono (spec 266 F6)', () => {
+  const read = (store: RouteOccurrenceSnapshotStore, subHash: string) =>
+    loadRouteOccurrences({
+      now: NOW,
+      readList: () =>
+        Promise.reject(new DriverTripRequestError({ code: 'OFFLINE', isOffline: true })),
+      store,
+      subHash,
+      tripId: 'trip-1',
+    })
+
+  it('o dono lê o próprio retrato', async () => {
+    const store = createMemorySnapshotStore([
+      {
+        occurrences: [occurrence()],
+        savedAt: NOW.toISOString(),
+        subHash: 'sub-1',
+        tripId: 'trip-1',
+      },
+    ])
+    expect((await read(store, 'sub-1')).status).toBe('loaded')
+  })
+
+  it('outro dono: o retrato é apagado e o erro sobe', async () => {
+    const store = createMemorySnapshotStore([
+      {
+        occurrences: [occurrence()],
+        savedAt: NOW.toISOString(),
+        subHash: 'sub-1',
+        tripId: 'trip-1',
+      },
+    ])
+    expect(await rejectionOf(read(store, 'sub-2'))).toBeInstanceOf(DriverTripRequestError)
+    expect(store.keys()).toEqual([])
+  })
+
+  it('registro antigo, sem dono, é tratado como de outro e apagado', async () => {
+    const store = createMemorySnapshotStore([
+      { occurrences: [occurrence()], savedAt: NOW.toISOString(), tripId: 'trip-1' },
+    ])
+    expect(await rejectionOf(read(store, 'sub-1'))).toBeInstanceOf(DriverTripRequestError)
+    expect(store.keys()).toEqual([])
+  })
+
+  it('o registro gravado leva o dono', async () => {
+    const store = createMemorySnapshotStore()
+    await loadRouteOccurrences({
+      now: NOW,
+      readList: () => Promise.resolve({ data: [occurrence()], status: 'loaded' }),
+      store,
+      subHash: 'sub-1',
+      tripId: 'trip-1',
+    })
+    expect((await store.read('trip-1'))?.subHash).toBe('sub-1')
   })
 })
 

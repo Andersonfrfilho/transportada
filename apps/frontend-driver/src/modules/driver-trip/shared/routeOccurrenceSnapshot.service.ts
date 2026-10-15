@@ -16,13 +16,14 @@ export async function loadRouteOccurrences(input: {
   readonly now: Date
   readonly readList: () => Promise<RouteOccurrencesReadResult<readonly DriverRouteOccurrence[]>>
   readonly store: RouteOccurrenceSnapshotStore
+  readonly subHash: string
   readonly tripId: string
 }): Promise<RouteOccurrencesQueryData> {
   let result: RouteOccurrencesReadResult<readonly DriverRouteOccurrence[]>
   try {
     result = await input.readList()
   } catch (error) {
-    const stored = await input.store.read(input.tripId).catch(() => undefined)
+    const stored = await readOwnedSnapshot(input)
     if (stored === undefined || !isServiceUnavailable(error)) throw error
     return {
       isFromSnapshot: true,
@@ -40,6 +41,7 @@ export async function loadRouteOccurrences(input: {
   const record: StoredRouteOccurrences = {
     occurrences: result.data,
     savedAt: input.now.toISOString(),
+    subHash: input.subHash,
     tripId: input.tripId,
   }
   /** Falhar ao guardar não derruba a tela: só o próximo boot sem rede abre algo mais velho. */
@@ -55,4 +57,16 @@ function isServiceUnavailable(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false
   const { isOffline, status } = error as { isOffline?: unknown; status?: unknown }
   return isOffline === true || (typeof status === 'number' && status >= SERVER_ERROR_MIN_STATUS)
+}
+
+/** O retrato de outra conta (ou sem dono, de antes) nunca abre: é apagado na leitura. */
+async function readOwnedSnapshot(input: {
+  readonly store: RouteOccurrenceSnapshotStore
+  readonly subHash: string
+  readonly tripId: string
+}): Promise<StoredRouteOccurrences | undefined> {
+  const stored = await input.store.read(input.tripId).catch(() => undefined)
+  if (stored === undefined || stored.subHash === input.subHash) return stored
+  await input.store.remove(input.tripId).catch(() => undefined)
+  return undefined
 }

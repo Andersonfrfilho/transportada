@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useQuery } from '@tanstack/react-query'
 
+import { useDriverSession } from '../hooks/useDriverSession.hook'
 import type {
   RouteOccurrenceKind,
   RouteOccurrencesQueryData,
@@ -24,6 +25,7 @@ export function useDriverRouteOccurrences(input: {
   readonly tripId: string | undefined
 }) {
   const { tripId } = input
+  const { subHash } = useDriverSession()
   return useQuery<RouteOccurrencesQueryData>({
     enabled: input.canSync && tripId !== undefined,
     // A leitura cai sozinha no retrato guardado quando a rede falha; pausar a consulta offline o esconderia.
@@ -33,6 +35,7 @@ export function useDriverRouteOccurrences(input: {
         now: new Date(),
         readList: () => getDriverTripClient().listRouteOccurrences(),
         store: SNAPSHOT_STORE,
+        subHash,
         tripId: tripId ?? '',
       }),
     queryKey: [...ROUTE_OCCURRENCES_QUERY_KEY, tripId],

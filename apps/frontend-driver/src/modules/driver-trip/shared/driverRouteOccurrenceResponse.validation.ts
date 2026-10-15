@@ -174,6 +174,7 @@ export function toRouteOccurrenceFileUrl(payload: unknown): string {
 export function isStoredRouteOccurrences(value: unknown): value is StoredRouteOccurrences {
   if (!isRecord(value)) return false
   if (typeof value.savedAt !== 'string' || typeof value.tripId !== 'string') return false
+  if (value.subHash !== undefined && typeof value.subHash !== 'string') return false
   if (!Array.isArray(value.occurrences)) return false
   try {
     value.occurrences.forEach(toDriverRouteOccurrence)
