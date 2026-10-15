@@ -18,6 +18,7 @@ import {
   PHOTO_FOCUS_TARGET,
   NEXT_STEP_FOCUS_DELAY_MS,
   armNextStepFocus,
+  armStopAdvanceFocus,
   consumeAutoConclude,
   consumeNextStepFocus,
   consumeStopAdvanceFocus,
@@ -1285,6 +1286,17 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
 
   /** Pedido do usuário (14/10): tocou em "Concluir" com pendência, o aviso fica na tela até resolver. */
   const [showMissing, setShowMissing] = useState(false)
+  /** Depois do "Concluir" (mais de um comprovante), 1 s depois o foco vai ao próximo obrigatório da parada. */
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const [focusAfterConclude, setFocusAfterConclude] = useState(false)
+  useEffect(() => {
+    if (!focusAfterConclude) return undefined
+    const timer = setTimeout(() => {
+      focusNextPhotoAfter(sectionRef.current)
+      setFocusAfterConclude(false)
+    }, NEXT_STEP_FOCUS_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [focusAfterConclude])
   /** Cada toque em "Concluir" bloqueado leva o foco ao aviso — fora da tela, o motorista acharia que nada aconteceu. */
   const blockedRef = useRef<HTMLDivElement>(null)
   const [blockedAttempts, setBlockedAttempts] = useState(0)
@@ -1319,11 +1331,14 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
     }
     setShowMissing(false)
     setConcludedAt(new Date().toISOString())
+    armStopAdvanceFocus()
+    setFocusAfterConclude(true)
   }
 
   return (
     <ProofCaptureFields
       {...props}
+      sectionRef={sectionRef}
       renderFooter={(capture) => {
         const missingText = showMissing ? describeMissing(capture) : ''
         return (
@@ -1378,6 +1393,8 @@ type ProofCaptureFieldsProps = DeliveryProofSectionProps &
     renderFooter: (capture: ProofCaptureState) => ReactNode
     /** Presente, ocupa o lugar dos campos — o estado da captura continua montado por baixo. */
     summary?: ReactNode
+    /** A seção no DOM, para o foco entre notas (o pai pode precisar achá-la depois do "Concluir"). */
+    sectionRef?: RefObject<HTMLDivElement | null>
   }>
 
 /**
@@ -1396,6 +1413,7 @@ function ProofCaptureFields({
   recipientDisplayName,
   recipientIsCompany,
   renderFooter,
+  sectionRef: externalSectionRef,
   serverProof,
   summary,
 }: ProofCaptureFieldsProps) {
@@ -1512,7 +1530,8 @@ function ProofCaptureFields({
    * seguinte, em vez de a tela ficar onde estava. Só se o botão já está liberado e ninguém está digitando.
    */
   const finishActionsRef = useRef<HTMLDivElement>(null)
-  const sectionRef = useRef<HTMLDivElement>(null)
+  const ownSectionRef = useRef<HTMLDivElement>(null)
+  const sectionRef = externalSectionRef ?? ownSectionRef
   const [focusFinishNextRender, setFocusFinishNextRender] = useState(false)
   /** Pedido do usuário (15/10): o canhoto subiu (o servidor o tem) — o foco segue ao passo seguinte. */
   const wasPhotoConfirmedRef = useRef(isPhotoConfirmedByServer)
@@ -1652,6 +1671,7 @@ function ProofCaptureFields({
       }
       setCargoKeys((current) => [...current, attachmentKey])
       blockedByFields({ ...attached, cargoCount: cargoKeys.length + 1 })
+      setFocusFinishNextRender(true)
     })
   }
 
@@ -1964,6 +1984,7 @@ function ProofCaptureFields({
           {plan.rendersCargo ? (
             <ProofCargoField
               attachedCount={cargoKeys.length}
+              isPending={countMissingCargoPhotos({ plan, values: currentValues }) > 0}
               isRefused={isCargoRefused}
               isRequired={plan.fields.cargo === 'required'}
               missingCount={

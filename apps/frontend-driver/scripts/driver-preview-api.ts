@@ -211,10 +211,10 @@ const PHOTO_ONLY_DELIVERY_PROOF =
         receiverName: 'off',
         signature: 'off',
       }
-/** `DRIVER_PREVIEW_PROOF=extra`: a parada 3 pede também "Quem recebeu" e o nome — para testar o "Concluir" e os focos. */
+/** `DRIVER_PREVIEW_PROOF=extra`: a parada 3 pede a foto e o nome — para testar o "Concluir" e os focos. */
 const EXTRA_DELIVERY_PROOF = {
   photo: 'required',
-  receivedBy: 'required',
+  receivedBy: 'off',
   receiverDocument: 'off',
   receiverName: 'required',
   signature: 'off',

@@ -8,6 +8,8 @@ import {
   focusFinishButton,
   NEXT_STEP_FOCUS_DELAY_MS,
   armNextStepFocus,
+  armStopAdvanceFocus,
+  consumeStopAdvanceFocus,
   consumeAutoConclude,
   markFocusTarget,
   consumeNextStepFocus,
@@ -134,6 +136,14 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     markFocusTarget(element, undefined)
     expect(element.dataset.focusTarget).toBeUndefined()
     markFocusTarget(null, 'x')
+  })
+
+  it('o "Concluir" arma o avanço de parada, uma vez só', () => {
+    consumeStopAdvanceFocus()
+    expect(consumeStopAdvanceFocus()).toBe(false)
+    armStopAdvanceFocus()
+    expect(consumeStopAdvanceFocus()).toBe(true)
+    expect(consumeStopAdvanceFocus()).toBe(false)
   })
 
   it('botão ainda bloqueado ou inexistente não recebe foco', () => {

@@ -58,6 +58,7 @@ export function revealPanel(panel: HTMLElement | null): void {
 
 export const PHOTO_FOCUS_TARGET = 'proof-photo'
 export const SIGNATURE_FOCUS_TARGET = 'proof-signature'
+export const CARGO_FOCUS_TARGET = 'proof-cargo'
 const ANY_FOCUS_TARGET_SELECTOR = '[data-focus-target]'
 const PROOF_SECTION_SELECTOR = '[class*="proofSection"]'
 /** Pausa entre a foto confirmada e o foco no passo seguinte: o motorista vê a miniatura entrar. */
@@ -103,6 +104,11 @@ let armedAutoConcludeAt: number | undefined
  * O "Confirmar entrega" troca a tela do comprovante por outra (um componente novo, já com o canhoto
  * enviado): o novo não sabe que o toque acabou de acontecer. O toque arma, o novo consome uma vez.
  */
+/** "Concluir" com mais de um comprovante: a parada que se conclui por esse toque leva o foco ao começo da próxima. */
+export function armStopAdvanceFocus(): void {
+  armedStopAdvanceAt = Date.now()
+}
+
 export function armNextStepFocus(): void {
   armedAt = Date.now()
   armedStopAdvanceAt = Date.now()
