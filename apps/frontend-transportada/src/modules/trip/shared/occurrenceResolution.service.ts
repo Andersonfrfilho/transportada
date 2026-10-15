@@ -1,9 +1,18 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
+import type { TripOccurrenceResolution } from './tripOccurrenceFeed.service'
+
 export type OccurrenceResolutionKind = 'document' | 'stop'
 
-/** Andamento que a tela sabe mostrar; o feed ainda não o entrega por item (spec 266 T2.9). */
+/** Andamento que a tela sabe mostrar. */
 export type OccurrenceResolutionViewState = 'cancelled' | 'open' | 'reopened' | 'resolved'
+
+/** Spec 266 T3.2: sem andamento no item (ou `null`) é em aberto. */
+export function resolveOccurrenceViewState(
+  resolution: null | TripOccurrenceResolution | undefined,
+): OccurrenceResolutionViewState {
+  return resolution?.state ?? 'open'
+}
 
 export type OccurrenceResolutionResult = Readonly<{
   note: string

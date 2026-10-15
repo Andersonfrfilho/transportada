@@ -1506,6 +1506,11 @@
       "removeCaseStatus": "Remove case status",
       "caseStatusSearch": "Search status",
       "caseStatusSummary": "{{count}} selected",
+      "resolution": "Progress",
+      "resolutionEmpty": "No progress found",
+      "removeResolution": "Remove progress",
+      "resolutionSearch": "Search progress",
+      "resolutionSummary": "{{count}} selected",
       "contractorReply": "Contractor reply",
       "contractorReplyOverdue": "Overdue only",
       "contractorReplyOverdueHint": "Shows the occurrences whose contractor reply deadline has passed."

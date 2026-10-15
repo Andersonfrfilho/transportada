@@ -13,6 +13,8 @@ import {
   OCCURRENCE_SETTLEMENT_PAYER_KINDS,
   TRIP_OCCURRENCE_CASE_DECISION_KINDS,
   TRIP_OCCURRENCE_CASE_STATUSES,
+  TRIP_OCCURRENCE_RESOLUTION_ACTOR_KINDS,
+  TRIP_OCCURRENCE_RESOLUTION_STATES,
   TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS,
   type OccurrenceContractorConversationState,
   type OccurrenceSettlementItem,
@@ -34,6 +36,7 @@ import {
   type TripOccurrenceFeedItem,
   type TripOccurrenceFeedOrder,
   type TripOccurrenceFeedPage,
+  type TripOccurrenceResolution,
 } from './tripOccurrenceFeed.service'
 import { serializeTripOccurrenceQuery } from './tripOccurrenceFeed.service'
 import type { OccurrenceTimeline } from './tripOccurrenceTimeline.service'
@@ -187,14 +190,29 @@ function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
 
 type RawFeedItem = Omit<
   TripOccurrenceFeedItem,
-  'case' | 'contractorReply' | 'conversation' | 'document'
+  'case' | 'contractorReply' | 'conversation' | 'document' | 'resolution'
 > &
   Readonly<{
     case?: unknown
     contractorReply?: unknown
     conversation?: unknown
     document?: unknown
+    resolution?: unknown
   }>
+
+/**
+ * Spec 266 T3.2: ausente, nulo ou com `at` malformado é em aberto. Estado desconhecido também vira
+ * `null` (a API mais nova pode ter outro andamento); ator desconhecido zera só o ator.
+ */
+function toResolution(value: unknown): null | TripOccurrenceResolution {
+  if (!isRecord(value) || !isString(value.at)) return null
+  const state = TRIP_OCCURRENCE_RESOLUTION_STATES.find((known) => known === value.state)
+  if (state === undefined) return null
+  const actorKind = TRIP_OCCURRENCE_RESOLUTION_ACTOR_KINDS.find(
+    (known) => known === value.actorKind,
+  )
+  return { actorKind: actorKind ?? null, at: value.at, state }
+}
 
 /** Spec 183 RF4: ausente ou malformado é "sem conversa" — o campo nunca reprova o item. */
 function toConversationSummary(value: unknown): TripOccurrenceConversationSummary {
@@ -249,7 +267,15 @@ function isFeedItem(value: unknown): value is RawFeedItem {
 }
 
 function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
-  const { cancellation, case: rawCase, contractorReply, conversation, document, ...rest } = raw
+  const {
+    cancellation,
+    case: rawCase,
+    contractorReply,
+    conversation,
+    document,
+    resolution,
+    ...rest
+  } = raw
   const replySummary = toContractorReplySummary(contractorReply)
   return {
     ...rest,
@@ -258,6 +284,7 @@ function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
     case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null,
     conversation: toConversationSummary(conversation),
     document: isOccurrenceDocument(document) ? document : null,
+    resolution: toResolution(resolution),
   }
 }
 

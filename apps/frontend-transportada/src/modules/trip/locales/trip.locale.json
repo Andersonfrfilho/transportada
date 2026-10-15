@@ -1506,6 +1506,11 @@
       "removeCaseStatus": "Remover estado de tratativa",
       "caseStatusSearch": "Buscar estado",
       "caseStatusSummary": "{{count}} selecionados",
+      "resolution": "Andamento",
+      "resolutionEmpty": "Nenhum andamento encontrado",
+      "removeResolution": "Remover andamento",
+      "resolutionSearch": "Buscar andamento",
+      "resolutionSummary": "{{count}} selecionados",
       "contractorReply": "Retorno da contratante",
       "contractorReplyOverdue": "Só as atrasadas",
       "contractorReplyOverdueHint": "Mostra as ocorrências cujo prazo de resposta da contratante já passou."
