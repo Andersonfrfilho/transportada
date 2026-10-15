@@ -48,7 +48,7 @@ function compareByRecordedAt(left: RouteOccurrenceEntry, right: RouteOccurrenceE
   return toTime(left.recordedAt) - toTime(right.recordedAt)
 }
 
-function toServerEntry(input: {
+export function toServerEntry(input: {
   readonly occurrence: DriverRouteOccurrence
   readonly unreadByOccurrenceId: ReadonlyMap<string, number>
 }): RouteOccurrenceEntry {

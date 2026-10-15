@@ -39,6 +39,7 @@ import { DriverProfilePage } from './DriverProfile.page'
 import { DriverRouteOccurrencesRoute } from './DriverRouteOccurrencesRoute.page'
 import {
   navigateToDriverSection,
+  parseDriverStopHash,
   resolveDriverRouteSection,
   subscribeDriverRoute,
 } from '@/modules/shared/driverRoute.service'
@@ -269,6 +270,15 @@ export function DriverTripWorkspacePage() {
       element.focus({ preventScroll: true })
     })
   }
+
+  /** Spec 266 RF5: "Ver a nota na parada" chega aqui com `#stop-<id>`; a parada abre, rola e recebe o foco. */
+  const stopToFocus =
+    routeSection === 'trip' ? parseDriverStopHash(window.location.hash) : undefined
+  useEffect(() => {
+    if (stopToFocus === undefined || trip === undefined) return
+    focusStop(stopToFocus)
+    window.history.replaceState({}, '', window.location.pathname)
+  }, [stopToFocus, trip?.id])
 
   if (driverTrip.status === 'loading') {
     return (

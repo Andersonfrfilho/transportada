@@ -686,6 +686,77 @@
       "unread_one": "{{count}} mensagem nova",
       "unread_other": "{{count}} mensagens novas"
     },
+    "detail": {
+      "back": "Voltar",
+      "loading": "Carregando a ocorrência...",
+      "notFound": "Ocorrência não encontrada",
+      "notFoundHint": "Ela pode ter sido removida ou o link está antigo.",
+      "tripFinished": "Viagem encerrada",
+      "tripFinishedHint": "As ocorrências de uma viagem encerrada não ficam mais disponíveis no app.",
+      "subtitleNote": "NF {{number}} · Parada {{sequence}}",
+      "subtitleStop": "Parada {{sequence}}",
+      "stateLine": "{{state}} · {{time}}",
+      "resolved": {
+        "title": "Resolvida pelo escritório às {{time}}",
+        "titleNoTime": "Resolvida pelo escritório",
+        "cancelled": "Cancelada pelo escritório"
+      },
+      "refused": {
+        "title": "Recusada pelo escritório",
+        "noCause": "O escritório não deu o motivo.",
+        "fix": "Corrigir e reenviar",
+        "fixHint": "Abre a parada para você registrar de novo."
+      },
+      "chat": {
+        "open": "Abrir conversa",
+        "openUnread_one": "Abrir conversa · {{count}} nova",
+        "openUnread_other": "Abrir conversa · {{count}} novas",
+        "view": "Ver conversa",
+        "viewUnread_one": "Ver conversa · {{count}} nova",
+        "viewUnread_other": "Ver conversa · {{count}} novas"
+      },
+      "documents": {
+        "offline": "Sem sinal: os documentos abrem quando o sinal voltar.",
+        "origin": {
+          "photo": "foto",
+          "signature": "assinatura",
+          "attachment": "anexo do chat"
+        },
+        "share": "Compartilhar {{name}}",
+        "shareAll": "Compartilhar os {{count}}",
+        "title": "Documentos · {{count}}",
+        "titleEmpty": "Documentos",
+        "view": "Ver {{name}}",
+        "viewFailed": "Não foi possível abrir o documento. Confira o sinal e tente de novo."
+      },
+      "registered": {
+        "title": "O que você registrou",
+        "note": "Nota",
+        "stop": "Parada",
+        "observation": "Observação",
+        "photos_one": "{{count}} foto",
+        "photos_other": "{{count}} fotos",
+        "noObservation": "Sem observação."
+      },
+      "timeline": {
+        "title": "Andamento",
+        "recorded": "Você registrou",
+        "photo": "Foto anexada",
+        "cancelled": "Cancelada",
+        "resolution": {
+          "resolved": "Resolvida pelo escritório",
+          "reopened": "Reaberta"
+        },
+        "waiting": "Aguardando sinal para enviar",
+        "rejected": "Recusada pelo escritório"
+      },
+      "siblings": {
+        "sameNote": "Outras desta nota · NF {{number}}",
+        "sameStop": "Outras desta parada"
+      },
+      "seeStop": "Ver a nota na parada {{sequence}}",
+      "seeStopOnly": "Ver a parada {{sequence}}"
+    },
     "list": {
       "back": "Voltar",
       "title": "Ocorrências da rota",

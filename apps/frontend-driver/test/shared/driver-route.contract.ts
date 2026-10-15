@@ -5,13 +5,16 @@ import {
   buildDriverOccurrenceListPath,
   buildDriverOccurrencePath,
   buildDriverRoutePath,
+  buildDriverStopPath,
   DRIVER_ROUTE_PATH,
   navigateToDriverConversation,
   navigateToDriverOccurrence,
   navigateToDriverOccurrenceList,
+  navigateToDriverStop,
   parseDriverConversationSubject,
   parseDriverOccurrenceListFilter,
   parseDriverOccurrenceRoute,
+  parseDriverStopHash,
   resolveDriverRouteSection,
   subscribeDriverRoute,
   type DriverRouteSection,
@@ -182,5 +185,16 @@ describe('rotas das ocorrências da rota (spec 266 T4.4)', () => {
     const fake = createFakeTarget('/ocorrencias')
     navigateToDriverOccurrenceList({ documentId: 'd1' }, fake.target)
     expect(fake.pushed).toEqual(['/ocorrencias?nota=d1'])
+  })
+
+  it('a parada em destaque vive no hash da viagem e sempre empurra', () => {
+    const fake = createFakeTarget('/ocorrencias/document/o1')
+    navigateToDriverStop('stop 1', fake.target)
+    expect(fake.pushed).toEqual(['/#stop-stop%201'])
+    expect(buildDriverStopPath('s1')).toBe('/#stop-s1')
+    expect(parseDriverStopHash('#stop-stop%201')).toBe('stop 1')
+    expect(parseDriverStopHash('#stop-')).toBeUndefined()
+    expect(parseDriverStopHash('#outra')).toBeUndefined()
+    expect(parseDriverStopHash('#stop-%E0%A4%A')).toBeUndefined()
   })
 })

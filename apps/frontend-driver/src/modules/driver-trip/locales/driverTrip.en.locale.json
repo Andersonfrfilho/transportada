@@ -668,6 +668,77 @@
       "unread_one": "{{count}} new message",
       "unread_other": "{{count}} new messages"
     },
+    "detail": {
+      "back": "Back",
+      "loading": "Loading the occurrence...",
+      "notFound": "Occurrence not found",
+      "notFoundHint": "It may have been removed or the link is old.",
+      "tripFinished": "Trip finished",
+      "tripFinishedHint": "Occurrences of a finished trip are no longer available in the app.",
+      "subtitleNote": "Invoice {{number}} · Stop {{sequence}}",
+      "subtitleStop": "Stop {{sequence}}",
+      "stateLine": "{{state}} · {{time}}",
+      "resolved": {
+        "title": "Resolved by the office at {{time}}",
+        "titleNoTime": "Resolved by the office",
+        "cancelled": "Cancelled by the office"
+      },
+      "refused": {
+        "title": "Rejected by the office",
+        "noCause": "The office gave no reason.",
+        "fix": "Fix and resend",
+        "fixHint": "Opens the stop so you can register it again."
+      },
+      "chat": {
+        "open": "Open conversation",
+        "openUnread_one": "Open conversation · {{count}} new",
+        "openUnread_other": "Open conversation · {{count}} new",
+        "view": "View conversation",
+        "viewUnread_one": "View conversation · {{count}} new",
+        "viewUnread_other": "View conversation · {{count}} new"
+      },
+      "documents": {
+        "offline": "No signal: documents open when the signal is back.",
+        "origin": {
+          "photo": "photo",
+          "signature": "signature",
+          "attachment": "chat attachment"
+        },
+        "share": "Share {{name}}",
+        "shareAll": "Share all {{count}}",
+        "title": "Documents · {{count}}",
+        "titleEmpty": "Documents",
+        "view": "View {{name}}",
+        "viewFailed": "Could not open the document. Check your signal and try again."
+      },
+      "registered": {
+        "title": "What you registered",
+        "note": "Invoice",
+        "stop": "Stop",
+        "observation": "Observation",
+        "photos_one": "{{count}} photo",
+        "photos_other": "{{count}} photos",
+        "noObservation": "No observation."
+      },
+      "timeline": {
+        "title": "Progress",
+        "recorded": "You registered it",
+        "photo": "Photo attached",
+        "cancelled": "Cancelled",
+        "resolution": {
+          "resolved": "Resolved by the office",
+          "reopened": "Reopened"
+        },
+        "waiting": "Waiting for signal to send",
+        "rejected": "Rejected by the office"
+      },
+      "siblings": {
+        "sameNote": "Others on this invoice · {{number}}",
+        "sameStop": "Others on this stop"
+      },
+      "seeStop": "See the invoice on stop {{sequence}}",
+      "seeStopOnly": "See stop {{sequence}}"
+    },
     "list": {
       "back": "Back",
       "title": "Route occurrences",

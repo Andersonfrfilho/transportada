@@ -170,3 +170,30 @@ export function navigateToDriverOccurrenceList(
   target.history.pushState({}, '', buildDriverOccurrenceListPath(filter))
   target.dispatchEvent(new PopStateEvent('popstate'))
 }
+
+const STOP_HASH_PREFIX = '#stop-'
+
+/** `/#stop-<id>`: a rota com a parada em destaque; quem abre a viagem rola até ela e põe o foco. */
+export function buildDriverStopPath(stopId: string): string {
+  return `${DRIVER_ROUTE_PATH.trip}${STOP_HASH_PREFIX}${encodeURIComponent(stopId)}`
+}
+
+export function parseDriverStopHash(hash: string): string | undefined {
+  if (!hash.startsWith(STOP_HASH_PREFIX)) return undefined
+  const encoded = hash.slice(STOP_HASH_PREFIX.length)
+  if (encoded === '') return undefined
+  try {
+    return decodeURIComponent(encoded)
+  } catch {
+    return undefined
+  }
+}
+
+/** Sempre empurra: o destaque mora no hash, que o `pathname` do alvo não enxerga. */
+export function navigateToDriverStop(
+  stopId: string,
+  target: DriverNavigationTarget = window,
+): void {
+  target.history.pushState({}, '', buildDriverStopPath(stopId))
+  target.dispatchEvent(new PopStateEvent('popstate'))
+}
