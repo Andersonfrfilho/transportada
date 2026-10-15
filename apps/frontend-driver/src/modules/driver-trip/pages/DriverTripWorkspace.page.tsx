@@ -1000,6 +1000,7 @@ export function DriverTripWorkspacePage() {
                     onDeliver={deliverDocument}
                     onDepart={departStop}
                     onDiscardProofAwaitingDelivery={handleDiscardProofAwaitingDelivery}
+                    onSendAllNow={driverTrip.sendAllNow}
                     onFocusStop={focusStop}
                     onHeaderRef={registerStopHeaderRef}
                     onProof={handleProof}

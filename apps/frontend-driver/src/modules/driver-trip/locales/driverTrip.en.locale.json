@@ -486,6 +486,8 @@
     "confirm": "Confirm delivery",
     "cancel": "Cancel",
     "sending": "Sending delivery…",
+    "retrying": "The last send failed (weak signal). The app retries on its own; tap Send now to try right away.",
+    "sendNow": "Send now",
     "confirming": "Delivery recorded. It goes to the server as soon as there is signal, and the photo follows. No need to tap again.",
     "missingLead": "To confirm, add: {{fields}}."
   },

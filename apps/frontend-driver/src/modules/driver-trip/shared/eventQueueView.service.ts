@@ -304,13 +304,22 @@ export function resolveEventQueueDepartBlock(input: {
 }
 
 /**
- * O toque em "Confirmar entrega" já está na fila desta nota (esperando sinal ou o GPS): a trava de
- * 10 s do cartão solta sozinha, mas a entrega continua pendente — o botão segue desabilitado e a tela
- * diz o porquê, em vez de aceitar um segundo `deliver` (defeito de 14/10) e de parecer travada.
+ * O toque em "Confirmar entrega" já está na fila desta nota: `waiting` (ainda não tentou ou espera o
+ * GPS/sinal) ou `retrying` (a última tentativa falhou e o app tenta de novo sozinho, com espaçamento).
+ * A trava de 10 s do cartão solta sozinha, mas a entrega continua pendente — o botão segue
+ * desabilitado e a tela diz o porquê, em vez de aceitar um segundo `deliver` (defeito de 14/10).
+ * Entrega recusada pelo servidor NÃO conta: ela não volta sozinha, e o motorista precisa poder agir.
  */
-export function hasQueuedDeliver(
+export type QueuedDeliverState = 'none' | 'retrying' | 'waiting'
+
+export function resolveQueuedDeliverState(
   queueView: readonly EventQueueItemView[],
   documentId: string,
-): boolean {
-  return queueView.some((item) => item.kind === 'deliver' && item.documentId === documentId)
+): QueuedDeliverState {
+  const items = queueView.filter(
+    (item) =>
+      item.kind === 'deliver' && item.documentId === documentId && item.status.state !== 'rejected',
+  )
+  if (items.length === 0) return 'none'
+  return items.some((item) => item.status.state === 'failed') ? 'retrying' : 'waiting'
 }

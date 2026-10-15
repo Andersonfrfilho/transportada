@@ -77,7 +77,8 @@ import {
 } from '../shared/driverTripView.service'
 import type { StartRouteBlock } from '../shared/enRouteStop.service'
 import {
-  hasQueuedDeliver,
+  resolveQueuedDeliverState,
+  type QueuedDeliverState,
   resolveQueuedProofAttachments,
   type EventQueueItemView,
 } from '../shared/eventQueueView.service'
@@ -234,6 +235,7 @@ type DriverStopCardProps = Readonly<{
   onRemoveProof?: (documentId: string) => void
   /** Spec 218: "Cancelar" o gate — o canhoto colhido para aquela nota não espera mais a entrega. */
   onDiscardProofAwaitingDelivery: (documentId: string) => void
+  onSendAllNow?: () => void
   /** Spec 209 + 218 D2: a ocorrência de parada, com o tipo do catálogo e a foto dela. */
   onStopOccurrence: OccurrenceRegistrationHandlers['reportStopOccurrence']
   /** Spec 179: "Não entreguei" — ocorrência com foto e devolução, no mesmo toque. */
@@ -284,6 +286,7 @@ export function DriverStopCard({
   onDeliver,
   onDepart,
   onDiscardProofAwaitingDelivery,
+  onSendAllNow,
   onFocusStop,
   onHeaderRef,
   occurrenceTypes,
@@ -703,6 +706,7 @@ export function DriverStopCard({
               onAnnounce={(message) => announce(document.id, message)}
               onDeliver={onDeliver}
               onDiscardProofAwaitingDelivery={onDiscardProofAwaitingDelivery}
+              {...(onSendAllNow === undefined ? {} : { onSendAllNow })}
               occurrenceHandlers={occurrenceHandlers}
               occurrenceTypes={occurrenceTypes}
               onNotDelivered={onNotDelivered}
@@ -778,6 +782,7 @@ type DocumentRowProps = Readonly<{
   onDeliver: (input: { documentId: string; lateRegistration: boolean }) => void
   /** Spec 218: "Cancelar" o gate — o canhoto colhido para esta nota não espera mais a entrega. */
   onDiscardProofAwaitingDelivery: (documentId: string) => void
+  onSendAllNow?: () => void
   /** Spec 218 (RF-A5): as três rotas do botão único de ocorrência — o `flow` do tipo escolhe. */
   occurrenceHandlers: OccurrenceRegistrationHandlers
   occurrenceTypes: DriverOccurrenceTypesState
@@ -831,6 +836,7 @@ function DocumentRow({
   onAnnounce,
   onDeliver,
   onDiscardProofAwaitingDelivery,
+  onSendAllNow,
   onNotDelivered,
   onProof,
   onProofFieldsUpdate,
@@ -1072,8 +1078,12 @@ function DocumentRow({
                 recipientDisplayName: document.recipientDisplayName,
                 recipientIsCompany: document.recipientIsCompany,
               }}
-              isConfirming={isConfirming || hasQueuedDeliver(queueView, document.id)}
+              deliverQueueState={resolveQueuedDeliverState(queueView, document.id)}
+              isConfirming={
+                isConfirming || resolveQueuedDeliverState(queueView, document.id) !== 'none'
+              }
               onCancel={() => onDiscardProofAwaitingDelivery(document.id)}
+              {...(onSendAllNow === undefined ? {} : { onSendNow: onSendAllNow })}
               onConfirm={confirmDelivery}
             />
           ) : null}
@@ -1109,9 +1119,11 @@ function DocumentOccurrenceButton({ isOpen, onToggle }: DocumentOccurrenceButton
 
 type PreDeliveryProofGateProps = Readonly<{
   captureProps: DeliveryProofSectionProps
+  deliverQueueState: QueuedDeliverState
   isConfirming: boolean
   onCancel: () => void
   onConfirm: () => void
+  onSendNow?: () => void
 }>
 
 /**
@@ -1121,9 +1133,11 @@ type PreDeliveryProofGateProps = Readonly<{
  */
 function PreDeliveryProofGate({
   captureProps,
+  deliverQueueState,
   isConfirming,
   onCancel,
   onConfirm,
+  onSendNow,
 }: PreDeliveryProofGateProps) {
   const { t } = useTranslation('driverTrip')
   const titleId = useId()
@@ -1161,7 +1175,11 @@ function PreDeliveryProofGate({
               ) : null}
               {isConfirming ? (
                 <p className={styles.stopMeta} role="status">
-                  {t('deliveryGate.confirming')}
+                  {t(
+                    deliverQueueState === 'retrying'
+                      ? 'deliveryGate.retrying'
+                      : 'deliveryGate.confirming',
+                  )}
                 </p>
               ) : null}
               <div className={styles.actions} ref={capture.finishActionsRef}>
@@ -1181,6 +1199,11 @@ function PreDeliveryProofGate({
                 <Button disabled={isConfirming} onClick={onCancel} type="button" variant="ghost">
                   {t('deliveryGate.cancel')}
                 </Button>
+                {deliverQueueState !== 'none' && onSendNow !== undefined ? (
+                  <Button onClick={onSendNow} type="button" variant="ghost">
+                    {t('deliveryGate.sendNow')}
+                  </Button>
+                ) : null}
               </div>
             </>
           )

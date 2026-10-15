@@ -131,27 +131,44 @@ describe('o app só lê o comprovante resolvido (spec 218 T19)', () => {
  * um segundo `deliver` com o primeiro ainda pendente.
  */
 describe('Confirmar entrega fica travado enquanto o deliver da nota está na fila', () => {
-  it('só um deliver desta nota na fila trava; foto/outra nota/outro tipo não', async () => {
-    const { hasQueuedDeliver } = await import(
+  const item = (kind: string, documentId: string, status: unknown) =>
+    ({ attachmentCount: 0, documentId, idempotencyKey: 'k', kind, queuedAt: 't', status }) as never
+
+  it('deliver desta nota na fila trava; recusado, foto, outra nota ou fila vazia não', async () => {
+    const { resolveQueuedDeliverState } = await import(
       '../../src/modules/driver-trip/shared/eventQueueView.service'
     )
-    const item = (kind: string, documentId: string) =>
-      ({ attachmentCount: 0, documentId, idempotencyKey: 'k', kind, queuedAt: 't' }) as never
-    expect(hasQueuedDeliver([item('deliver', 'd1')], 'd1')).toBe(true)
-    expect(hasQueuedDeliver([item('deliver', 'd2')], 'd1')).toBe(false)
-    expect(hasQueuedDeliver([item('proof', 'd1')], 'd1')).toBe(false)
-    expect(hasQueuedDeliver([], 'd1')).toBe(false)
+    expect(resolveQueuedDeliverState([item('deliver', 'd1', { state: 'queued' })], 'd1')).toBe(
+      'waiting',
+    )
+    expect(
+      resolveQueuedDeliverState([item('deliver', 'd1', { attempts: 2, state: 'failed' })], 'd1'),
+    ).toBe('retrying')
+    // recusa do servidor não volta sozinha: o botão não pode ficar preso para sempre
+    expect(
+      resolveQueuedDeliverState([item('deliver', 'd1', { cause: 'x', state: 'rejected' })], 'd1'),
+    ).toBe('none')
+    expect(resolveQueuedDeliverState([item('deliver', 'd2', { state: 'queued' })], 'd1')).toBe(
+      'none',
+    )
+    expect(resolveQueuedDeliverState([item('proof', 'd1', { state: 'queued' })], 'd1')).toBe('none')
+    expect(resolveQueuedDeliverState([], 'd1')).toBe('none')
   })
 
-  it('o cartão trava o botão pela fila e diz o porquê, nos dois idiomas', () => {
-    expect(CARD).toContain(
-      'isConfirming={isConfirming || hasQueuedDeliver(queueView, document.id)}',
-    )
-    expect(CARD).toContain("t('deliveryGate.confirming')")
+  it('o cartão trava o botão pela fila, diz o porquê e oferece "Enviar agora" — nos dois idiomas', () => {
+    expect(CARD).toContain("resolveQueuedDeliverState(queueView, document.id) !== 'none'")
+    expect(CARD).toContain("'deliveryGate.confirming'")
+    expect(CARD).toContain("'deliveryGate.retrying'")
     expect(CARD).toContain("'deliveryGate.sending'")
-    expect(driverTrip.deliveryGate.sending).toContain('Enviando')
-    expect(driverTripEn.deliveryGate.sending).toContain('Sending')
-    expect(driverTrip.deliveryGate.confirming).toContain('Entrega registrada')
-    expect(driverTripEn.deliveryGate.confirming).toContain('Delivery recorded')
+    expect(CARD).toContain("t('deliveryGate.sendNow')")
+    expect(readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')).toContain(
+      'onSendAllNow={driverTrip.sendAllNow}',
+    )
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.deliveryGate.confirming.length).toBeGreaterThan(0)
+      expect(locale.deliveryGate.retrying.length).toBeGreaterThan(0)
+      expect(locale.deliveryGate.sendNow.length).toBeGreaterThan(0)
+      expect(locale.deliveryGate.sending.length).toBeGreaterThan(0)
+    }
   })
 })

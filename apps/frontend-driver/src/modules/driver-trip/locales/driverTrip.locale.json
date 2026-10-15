@@ -504,6 +504,8 @@
     "confirm": "Confirmar entrega",
     "cancel": "Cancelar",
     "sending": "Enviando entrega…",
+    "retrying": "O último envio falhou (sinal fraco). O app tenta de novo sozinho; toque em Enviar agora para tentar já.",
+    "sendNow": "Enviar agora",
     "confirming": "Entrega registrada. Ela segue para o servidor assim que houver sinal, e a foto sobe logo depois. Não precisa tocar de novo.",
     "missingLead": "Para confirmar, falta: {{fields}}."
   },
