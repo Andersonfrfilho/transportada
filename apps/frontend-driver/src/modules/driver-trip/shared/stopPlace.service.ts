@@ -32,3 +32,27 @@ export function resolveStopPlace(input: {
 export function isTripFullySettled(trip: DriverTrip): boolean {
   return trip.stops.length > 0 && trip.stops.every(isStopResolved)
 }
+
+/**
+ * Duração da viagem para a faixa final: da primeira chegada à última conclusão, em minutos.
+ * `undefined` quando falta algum dos dois instantes ou o intervalo é inválido (nunca inventa tempo).
+ */
+export function tripElapsedMinutes(trip: DriverTrip): number | undefined {
+  const arrivals = trip.stops.flatMap((stop) =>
+    stop.arrivedAt === null ? [] : [Date.parse(stop.arrivedAt)],
+  )
+  const completions = trip.stops.flatMap((stop) =>
+    stop.completedAt === null ? [] : [Date.parse(stop.completedAt)],
+  )
+  if (arrivals.length === 0 || completions.length === 0) return undefined
+  const minutes = Math.round((Math.max(...completions) - Math.min(...arrivals)) / 60_000)
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : undefined
+}
+
+/** `252` → "4 h 12 min"; menos de uma hora → "35 min". */
+export function formatElapsedMinutes(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (hours === 0) return `${rest} min`
+  return `${hours} h ${String(rest).padStart(2, '0')} min`
+}

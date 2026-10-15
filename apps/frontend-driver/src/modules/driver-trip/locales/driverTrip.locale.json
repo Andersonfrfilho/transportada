@@ -386,7 +386,10 @@
     "pending": "Pendente"
   },
   "stopFinalHint": "Esta é a última parada. Quando as notas daqui forem entregues ou devolvidas, a viagem se encerra sozinha.",
-  "tripAllDone": "Última entrega concluída. A viagem se encerra sozinha: não precisa fazer mais nada.",
+  "tripAllDone": "Parabéns! Viagem concluída com sucesso!",
+  "tripAllDoneBody": "Ótimo trabalho hoje! Não precisa fazer mais nada: a viagem se encerra sozinha. Boa volta!",
+  "tripAllDoneStops": "{{total}} de {{total}} paradas entregues",
+  "tripAllDoneTime": "{{duration}} de primeira a última parada",
   "stopTitle": "Parada {{sequence}}",
   "stalePending": {
     "notice_one": "{{count}} registro seu está parado desde {{date}} e ainda não chegou ao escritório. Abra o app com sinal para enviar.",

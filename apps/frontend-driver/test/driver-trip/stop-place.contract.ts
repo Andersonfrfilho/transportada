@@ -6,8 +6,10 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   ARRIVED_HIGHLIGHT_MS,
+  formatElapsedMinutes,
   isTripFullySettled,
   resolveStopPlace,
+  tripElapsedMinutes,
 } from '@/modules/driver-trip/shared/stopPlace.service'
 import type { DriverTrip } from '@/modules/driver-trip/shared/driverTrip.types'
 
@@ -39,6 +41,30 @@ describe('fica claro qual é a próxima parada e que a última fecha a viagem (p
     expect(isTripFullySettled(trip([]))).toBe(false)
   })
 
+  it('o tempo da faixa final vai da primeira chegada à última conclusão e nunca é inventado', () => {
+    const trip = (stops: readonly unknown[]) => ({ stops }) as unknown as DriverTrip
+    const stop = (arrivedAt: string | null, completedAt: string | null) => ({
+      arrivedAt,
+      completedAt,
+    })
+    expect(
+      tripElapsedMinutes(
+        trip([
+          stop('2026-10-15T08:00:00Z', '2026-10-15T09:00:00Z'),
+          stop('2026-10-15T10:00:00Z', '2026-10-15T12:12:00Z'),
+        ]),
+      ),
+    ).toBe(252)
+    expect(tripElapsedMinutes(trip([stop(null, null)]))).toBeUndefined()
+    expect(tripElapsedMinutes(trip([]))).toBeUndefined()
+    expect(
+      tripElapsedMinutes(trip([stop('2026-10-15T10:00:00Z', '2026-10-15T09:00:00Z')])),
+    ).toBeUndefined()
+    expect(formatElapsedMinutes(252)).toBe('4 h 12 min')
+    expect(formatElapsedMinutes(60)).toBe('1 h 00 min')
+    expect(formatElapsedMinutes(35)).toBe('35 min')
+  })
+
   it('o card mostra "Próxima/Última parada · N de M", o aviso da última e o destaque ao chegar', () => {
     const card = readFileSync(`${root}/components/DriverStopCard.component.tsx`, 'utf8')
     expect(card).toContain("t('stopState.currentLast'")
@@ -60,9 +86,11 @@ describe('fica claro qual é a próxima parada e que a última fecha a viagem (p
     const locale = JSON.parse(readFileSync(`${root}/locales/driverTrip.locale.json`, 'utf8')) as {
       stopState: { currentLast: string; currentNext: string }
       tripAllDone: string
+      tripAllDoneBody: string
     }
     expect(locale.stopState.currentNext).toContain('{{index}} de {{total}}')
     expect(locale.stopState.currentLast).toContain('{{index}} de {{total}}')
-    expect(locale.tripAllDone).toContain('se encerra sozinha')
+    expect(locale.tripAllDone).toContain('Parabéns')
+    expect(locale.tripAllDoneBody).toContain('se encerra sozinha')
   })
 })
