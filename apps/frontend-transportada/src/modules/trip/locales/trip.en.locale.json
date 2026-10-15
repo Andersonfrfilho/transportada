@@ -2594,7 +2594,10 @@
       "mailSent": "E-mailed the contracting party",
       "mailSentAutomatic": "Automatic notice sent to the contracting party",
       "mailReceived": "The contracting party replied by e-mail",
-      "cancelled": "Occurrence cancelled"
+      "cancelled": "Occurrence cancelled",
+      "resolvedInternal": "Resolved by {{name}}: {{note}}",
+      "resolvedAutomatic": "Resolved automatically when the case was closed",
+      "reopened": "Reopened by the driver {{name}}"
     }
   },
   "occurrenceCancellation": {

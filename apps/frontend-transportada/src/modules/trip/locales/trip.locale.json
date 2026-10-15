@@ -2594,7 +2594,10 @@
       "mailSent": "Enviou e-mail à contratante",
       "mailSentAutomatic": "Aviso automático enviado à contratante",
       "mailReceived": "A contratante respondeu por e-mail",
-      "cancelled": "Ocorrência cancelada"
+      "cancelled": "Ocorrência cancelada",
+      "resolvedInternal": "Resolvida por {{name}}: {{note}}",
+      "resolvedAutomatic": "Resolvida automaticamente ao encerrar a tratativa",
+      "reopened": "Reaberta pelo motorista {{name}}"
     }
   },
   "occurrenceCancellation": {
