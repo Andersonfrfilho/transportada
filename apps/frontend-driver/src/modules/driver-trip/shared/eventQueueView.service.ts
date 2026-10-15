@@ -302,3 +302,15 @@ export function resolveEventQueueDepartBlock(input: {
 
   return { blockingStopId: blockingStop.id, blockingStopSequence: blockingStop.sequence }
 }
+
+/**
+ * O toque em "Confirmar entrega" já está na fila desta nota (esperando sinal ou o GPS): a trava de
+ * 10 s do cartão solta sozinha, mas a entrega continua pendente — o botão segue desabilitado e a tela
+ * diz o porquê, em vez de aceitar um segundo `deliver` (defeito de 14/10) e de parecer travada.
+ */
+export function hasQueuedDeliver(
+  queueView: readonly EventQueueItemView[],
+  documentId: string,
+): boolean {
+  return queueView.some((item) => item.kind === 'deliver' && item.documentId === documentId)
+}

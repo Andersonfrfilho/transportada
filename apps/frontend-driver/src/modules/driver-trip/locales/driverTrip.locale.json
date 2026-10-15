@@ -503,6 +503,7 @@
     "lead": "Esta entrega pede comprovante. Preencha o que tem * e confirme.",
     "confirm": "Confirmar entrega",
     "cancel": "Cancelar",
+    "confirming": "Entrega registrada. Ela segue para o servidor assim que houver sinal, e a foto sobe logo depois. Não precisa tocar de novo.",
     "missingLead": "Para confirmar, falta: {{fields}}."
   },
   "notDelivered": {

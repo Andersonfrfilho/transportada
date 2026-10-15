@@ -124,3 +124,31 @@ describe('o app só lê o comprovante resolvido (spec 218 T19)', () => {
     expect(offenders).toEqual([])
   })
 })
+
+/**
+ * Relato de 15/10 (staging, celular): foto salva "sobe com a entrega" e "Confirmar entrega" esmaecido,
+ * sem dizer o porquê. O toque já estava na fila; a trava de 10 s soltava e o botão voltava a aceitar
+ * um segundo `deliver` com o primeiro ainda pendente.
+ */
+describe('Confirmar entrega fica travado enquanto o deliver da nota está na fila', () => {
+  it('só um deliver desta nota na fila trava; foto/outra nota/outro tipo não', async () => {
+    const { hasQueuedDeliver } = await import(
+      '../../src/modules/driver-trip/shared/eventQueueView.service'
+    )
+    const item = (kind: string, documentId: string) =>
+      ({ attachmentCount: 0, documentId, idempotencyKey: 'k', kind, queuedAt: 't' }) as never
+    expect(hasQueuedDeliver([item('deliver', 'd1')], 'd1')).toBe(true)
+    expect(hasQueuedDeliver([item('deliver', 'd2')], 'd1')).toBe(false)
+    expect(hasQueuedDeliver([item('proof', 'd1')], 'd1')).toBe(false)
+    expect(hasQueuedDeliver([], 'd1')).toBe(false)
+  })
+
+  it('o cartão trava o botão pela fila e diz o porquê, nos dois idiomas', () => {
+    expect(CARD).toContain(
+      'isConfirming={isConfirming || hasQueuedDeliver(queueView, document.id)}',
+    )
+    expect(CARD).toContain("t('deliveryGate.confirming')")
+    expect(driverTrip.deliveryGate.confirming).toContain('Entrega registrada')
+    expect(driverTripEn.deliveryGate.confirming).toContain('Delivery recorded')
+  })
+})

@@ -77,6 +77,7 @@ import {
 } from '../shared/driverTripView.service'
 import type { StartRouteBlock } from '../shared/enRouteStop.service'
 import {
+  hasQueuedDeliver,
   resolveQueuedProofAttachments,
   type EventQueueItemView,
 } from '../shared/eventQueueView.service'
@@ -1071,7 +1072,7 @@ function DocumentRow({
                 recipientDisplayName: document.recipientDisplayName,
                 recipientIsCompany: document.recipientIsCompany,
               }}
-              isConfirming={isConfirming}
+              isConfirming={isConfirming || hasQueuedDeliver(queueView, document.id)}
               onCancel={() => onDiscardProofAwaitingDelivery(document.id)}
               onConfirm={confirmDelivery}
             />
@@ -1158,6 +1159,11 @@ function PreDeliveryProofGate({
                   {t('deliveryGate.missingLead', { fields: fieldsText })}
                 </p>
               ) : null}
+              {isConfirming ? (
+                <p className={styles.stopMeta} role="status">
+                  {t('deliveryGate.confirming')}
+                </p>
+              ) : null}
               <div className={styles.actions} ref={capture.finishActionsRef}>
                 <Button
                   aria-describedby={missingFields.length > 0 ? missingId : undefined}
@@ -1172,7 +1178,7 @@ function PreDeliveryProofGate({
                   <Icon name="check" />
                   {t('deliveryGate.confirm')}
                 </Button>
-                <Button onClick={onCancel} type="button" variant="ghost">
+                <Button disabled={isConfirming} onClick={onCancel} type="button" variant="ghost">
                   {t('deliveryGate.cancel')}
                 </Button>
               </div>

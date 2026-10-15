@@ -485,6 +485,7 @@
     "lead": "This delivery needs proof. Fill in what has * and confirm.",
     "confirm": "Confirm delivery",
     "cancel": "Cancel",
+    "confirming": "Delivery recorded. It goes to the server as soon as there is signal, and the photo follows. No need to tap again.",
     "missingLead": "To confirm, add: {{fields}}."
   },
   "notDelivered": {
