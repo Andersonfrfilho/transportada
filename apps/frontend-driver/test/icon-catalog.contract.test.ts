@@ -7,6 +7,10 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+
+import { Icon } from '@/components/ui/icon'
 
 const API_CATALOG_SOURCE = new URL(
   '../../api-transportada/src/shared/trip-occurrence.constant.ts',
@@ -35,5 +39,13 @@ describe('catálogo de ícones do tipo de ocorrência no motorista', () => {
     const missing = names.filter((name) => readGlyphPaths(source, name) === undefined)
     expect(names.length).toBeGreaterThan(0)
     expect(missing).toEqual([])
+  })
+})
+
+describe('ícones de compartilhar, clipe e voltar', () => {
+  it.each(['share', 'paperclip', 'arrow-left'] as const)('%s renderiza um svg com traçado', (name) => {
+    const markup = renderToStaticMarkup(createElement(Icon, { name }))
+    expect(markup).toStartWith('<svg')
+    expect(markup).toInclude('<path d="M')
   })
 })
