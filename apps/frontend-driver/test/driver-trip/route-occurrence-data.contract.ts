@@ -13,6 +13,7 @@ import {
   isStoredRouteOccurrences,
   toDriverRouteOccurrenceDetail,
   toDriverRouteOccurrenceList,
+  toRouteOccurrenceFileUrl,
 } from '@/modules/driver-trip/shared/driverRouteOccurrenceResponse.validation'
 import {
   createDriverTripClient,
@@ -389,5 +390,24 @@ describe('o store trip-occurrences no IndexedDB (spec 266 T4.2)', () => {
     }
     expect(upgrade).toInclude('objectStoreNames.contains(name)')
     expect(upgrade).not.toInclude('deleteObjectStore')
+  })
+})
+
+describe('o link assinado do arquivo só abre por http(s) (spec 266 F4)', () => {
+  const payload = (url: string) => ({ data: { url } })
+
+  it.each(['https://files.test/a?sig=1', 'http://localhost:59000/a'])('aceita %s', (url) => {
+    expect(toRouteOccurrenceFileUrl(payload(url))).toBe(url)
+  })
+
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,x',
+    'file:///etc/passwd',
+    'blob:x',
+    '//x.test/a',
+    'nao é url',
+  ])('recusa %s', (url) => {
+    expect(() => toRouteOccurrenceFileUrl(payload(url))).toThrow(DriverRouteOccurrenceResponseError)
   })
 })

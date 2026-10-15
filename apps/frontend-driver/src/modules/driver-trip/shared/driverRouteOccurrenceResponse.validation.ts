@@ -159,8 +159,15 @@ export function toDriverRouteOccurrenceDetail(payload: unknown): DriverRouteOccu
   }
 }
 
+const FILE_URL_PROTOCOLS: readonly string[] = ['https:', 'http:']
+
+/** O link vai para `fetch`/`window.open`: só http(s) (o http é do MinIO local) — `javascript:` e afins são recusados. */
 export function toRouteOccurrenceFileUrl(payload: unknown): string {
-  return readString(readRecord(readRecord(payload).data).url)
+  const url = readString(readRecord(readRecord(payload).data).url)
+  if (!URL.canParse(url) || !FILE_URL_PROTOCOLS.includes(new URL(url).protocol)) {
+    throw new DriverRouteOccurrenceResponseError()
+  }
+  return url
 }
 
 /** O IndexedDB devolve `unknown`: registro sem a forma do retrato não abre a tela. */
