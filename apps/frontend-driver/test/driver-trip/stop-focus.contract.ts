@@ -100,16 +100,11 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     expect(card).toContain('data-stop-header=""')
     // foto aceita → foco no fim do formulário
     expect(card).toMatch(/setFocusFinishNextRender\(true\)/u)
-    // Concluir e Devolver → topo do cartão
+    // Concluir, Devolver e a parada nova atual NÃO rolam nem focam sozinhos (staging 15/10: "quebrou a tela")
+    expect(card).not.toContain('revealStopStart')
+    // a parada que vira atual (e só depois da montagem) só pisca o destaque
     expect(card).toMatch(
-      /setConcludedAt\(new Date\(\)\.toISOString\(\)\)\s*[^\n]*\n\s*\/\*[^*]*\*\/\s*\n?\s*revealStopStart\(/u,
-    )
-    expect(card).toMatch(
-      /activity\.toast\.returned[\s\S]{0,400}revealStopStart\(rowRef\.current\)/u,
-    )
-    // a parada que vira atual (e só depois da montagem) vem à vista
-    expect(card).toMatch(
-      /!isCurrent \|\| wasCurrentRef\.current[\s\S]{0,200}revealStopStart\(cardRef\.current\)/u,
+      /!isCurrent \|\| wasCurrentRef\.current[\s\S]{0,200}setJustArrived\(true\)/u,
     )
     // os dois formulários (antes e depois da entrega) expõem a faixa de ações
     expect(card.match(/ref=\{capture\.finishActionsRef\}/gu)?.length).toBe(2)

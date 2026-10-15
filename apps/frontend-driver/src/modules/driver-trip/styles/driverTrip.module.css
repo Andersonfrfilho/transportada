@@ -246,7 +246,7 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .stopArrived {
+  .stopJustArrived {
     animation: stop-arrived 1.8s ease-out;
   }
 }
