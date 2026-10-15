@@ -586,6 +586,7 @@
       "required": "Foto obrigatória"
     },
     "cancel": "Cancelar",
+    "changeType": "Trocar tipo",
     "declaredAmount": {
       "defaultLabel": "Valor pago",
       "limit": "Limite do campo: o valor não pode passar de R$\u00a09.999.999.999,99.",

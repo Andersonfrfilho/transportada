@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
+import { readFileSync } from 'node:fs'
 
 import type { DriverOccurrenceType } from '../../src/modules/driver-trip/shared/driverTrip.types'
 import {
@@ -83,5 +84,22 @@ describe('lista de tipos de ocorrência do motorista', () => {
     expect(readOccurrenceTypeUsage(memoryStorage('{"a":"x","b":-1,"c":3}'))).toEqual({ c: 3 })
     expect(readOccurrenceTypeUsage(memoryStorage('nope'))).toEqual({})
     expect(readOccurrenceTypeUsage(null)).toEqual({})
+  })
+})
+
+describe('a lista recolhe depois da escolha', () => {
+  const picker = readFileSync(
+    new URL(
+      '../../src/modules/driver-trip/components/OccurrenceTypePicker.component.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  it('escolher recolhe e "Trocar tipo" reabre a lista inteira, sem a busca antiga', () => {
+    expect(picker).toInclude('setIsCollapsed(true)')
+    expect(picker).toInclude('setIsCollapsed(false)')
+    expect(picker).toInclude("setQuery('')")
+    expect(picker).toInclude("t('occurrenceRegistration.changeType')")
   })
 })

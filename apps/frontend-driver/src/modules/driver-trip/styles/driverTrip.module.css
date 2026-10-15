@@ -585,8 +585,8 @@
 .occurrenceGroup {
   --occurrence-group-color: var(--color-slate);
   display: grid;
-  gap: var(--space-2);
-  margin-block-end: var(--space-3);
+  gap: var(--space-1);
+  margin-block-end: var(--space-2);
 }
 
 .occurrenceGroup[data-group='stop'] {

@@ -33,12 +33,26 @@ export function OccurrenceTypePicker({
 }: OccurrenceTypePickerProps) {
   const { t } = useTranslation('driverTrip')
   const [query, setQuery] = useState('')
+  /** Escolhido o tipo, a lista recolhe: a foto e o "Registrar" ficam à vista, sem rolar a lista inteira. */
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [usage] = useState(() => readOccurrenceTypeUsage(resolveOccurrenceTypeUsageStorage()))
   const list = useMemo(
     () => buildOccurrenceTypeList({ query, types, usage }),
     [query, types, usage],
   )
   const hasSearch = types.length >= OCCURRENCE_TYPE_SEARCH_MIN_TYPES
+
+  function handleSelect(typeId: string): void {
+    onSelect(typeId)
+    setIsCollapsed(true)
+  }
+
+  function handleChange(): void {
+    setQuery('')
+    setIsCollapsed(false)
+  }
+
+  const selectedType = types.find((type) => type.id === selectedTypeId)
 
   function renderChip(type: DriverOccurrenceType, keyPrefix: string) {
     const isSelected = type.id === selectedTypeId
@@ -47,7 +61,7 @@ export function OccurrenceTypePicker({
         aria-checked={isSelected}
         className={styles.occurrenceChip}
         key={`${keyPrefix}:${type.id}`}
-        onClick={() => onSelect(type.id)}
+        onClick={() => handleSelect(type.id)}
         role="radio"
         type="button"
         variant={isSelected ? 'default' : 'ghost'}
@@ -60,6 +74,23 @@ export function OccurrenceTypePicker({
           </span>
         </span>
       </Button>
+    )
+  }
+
+  if (isCollapsed && selectedType !== undefined) {
+    return (
+      <div className={styles.occurrencePicker}>
+        <div
+          aria-label={t('occurrenceRegistration.legend')}
+          className={styles.occurrenceChips}
+          role="radiogroup"
+        >
+          {renderChip(selectedType, 'selected')}
+        </div>
+        <Button onClick={handleChange} type="button" variant="ghost">
+          {t('occurrenceRegistration.changeType')}
+        </Button>
+      </div>
     )
   }
 

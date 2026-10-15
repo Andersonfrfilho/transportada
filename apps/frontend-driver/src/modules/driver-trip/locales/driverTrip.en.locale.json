@@ -568,6 +568,7 @@
       "required": "Photo required"
     },
     "cancel": "Cancel",
+    "changeType": "Change type",
     "declaredAmount": {
       "defaultLabel": "Amount paid",
       "limit": "Field limit: the amount cannot exceed R$\u00a09,999,999,999.99.",
