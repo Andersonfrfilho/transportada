@@ -161,7 +161,7 @@ describe('aviso quando a lista de tipos falha (spec 157 RF5)', () => {
 
   /** O botão some ao tocar (vira carregando): o foco volta ao painel, não cai no `body`. */
   it('tentar de novo devolve o foco ao painel da ocorrência', () => {
-    expect(cardSource).toInclude('panelRef.current?.focus()')
+    expect(cardSource).toInclude('panelRef.current?.focus({ preventScroll: true })')
   })
 
   it('o painel mostra o texto de lista vazia quando não há tipo cadastrado', () => {
