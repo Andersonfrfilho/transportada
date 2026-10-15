@@ -213,3 +213,26 @@ _(cada task registra aqui comando, saída resumida e commit)_
   reentrega só trava a tratativa; o único caminho com os dois locks é o novo, na ordem tratativa → ocorrência.
 - **Backfill: não se aplica** (dono, 2026-10-15): "não temos tratativas antes, estamos validando ainda e ajustando o que
   é necessário em staging". Não há tratativa real encerrada antes do deploy; T2.4 fechada sem backfill.
+
+### T1.3 — Painel tolerante em produção
+
+- PR #247 (`promote/266-painel-tolerante`, só T1.1 + T1.2) → `staging` (`8e10047df`); deploy de staging
+  `38773239220` verde (quality, integração API 1–8, smoke painel e apps; deploy API e painel).
+- PR #248 `staging` → `main`, **autorizado pelo dono**, merge `0e7bae488`; deploy de produção `38776599914`.
+
+### T4.2b / T4.4 — Contrato refinado, alerta e ícones por nota (`df4c6bdf9`, `fbc3c164a`)
+
+- `phraseKey`, `reportKey` (casamento exato da fila), 404 `tripFinished` × `notFound`. Alerta no cabeçalho (zero não
+  renderiza), ícones com selos agrupados por NF e grupo "Parada", "+N" acima de 4, barra em alerta. Ícone novo `send`.
+- `bun run typecheck`, `bun run lint` ok; `bun run test` 1968 pass, 0 fail. Golden da parada atualizado de propósito.
+
+### T4.7 / T4.5 / T4.6 — Compartilhar, lista e detalhe (`7b685aa4b`, `eab394a3f`, `5ae1ff9f0`)
+
+- `shareDriverFiles` (`navigator.share` com arquivos; sem suporte, baixa; cancelar não é erro). Lista com grupos,
+  filtros por ícone, filtro por nota/parada, linha → chat ou detalhe, compartilhar. Detalhe com resolução (nota ou frase
+  fixa), recusa, documentos, andamento, irmãs (nota e parada), "Ver a nota na parada" (`#stop-<id>`).
+- Gates: typecheck e lint ok; `bun run test` 2007 pass, 0 fail. Só markup estático em teste; **não aberto em navegador**
+  (fica para a T5.1).
+- Desvios da prévia: "Corrigir e reenviar" leva à parada (o app não tem tela de correção); fotos como documentos, sem
+  miniatura; destino da linha é o endereço da parada; compartilhar dentro da mensagem do chat não entrou.
+- Riscos: "Ver" abre aba depois de buscar a URL (o iOS pode bloquear o pop-up); compartilhar exige CORS de GET no bucket.

@@ -96,6 +96,11 @@ respondendo. Tudo fica registrado em evento e aparece no painel.
 - **RF11 — Offline.** A lista e o detalhe usam o último retrato salvo no IndexedDB quando não há rede. A resposta que
   reabre entra na fila com chave de idempotência e só reabre no servidor quando sobe.
 
+- **Tipo inativo (dono, 2026-10-15: "flag em cada ocorrência de ativada para irmos habilitando aos poucos").** A
+  liberação gradual usa o `active` que o tipo de ocorrência **já tem** (`company_occurrence_types.active`, aba Tipos de
+  `/ocorrencias`): tipo inativo não aparece para registrar, no app nem no painel. Ocorrência **já registrada** de um tipo
+  depois desativado continua na rota, na lista, no detalhe e no chat — ela existe e pode ter conversa em andamento.
+
 ## Requisitos não funcionais
 
 - **Isolamento:** o motorista lê só ocorrências da **sua viagem atual** e da sua empresa (contrato negativo para BOLA).

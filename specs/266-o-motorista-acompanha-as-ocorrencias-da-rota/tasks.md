@@ -26,7 +26,7 @@
 - [x] **T1.2** `haiku` — Teste antes: a linha do tempo com `kind: 'resolution.resolved'` desconhecido carrega os
       demais eventos. Depois, `tripOccurrenceTimeline.validation.ts` descarta o item desconhecido em vez de reprovar
       a resposta.
-- [ ] **T1.3** `sonnet` — Publicar a Fase 1 (PR → staging → main) **com aprovação humana**. Registrar o commit em
+- [x] **T1.3** `sonnet` — Publicar a Fase 1 (PR → staging → main) **com aprovação humana**. Registrar o commit em
       produção no `evidence.md`. **A Fase 2 não vai a `main` antes disto.**
 
 ## Fase 2 — API
@@ -95,12 +95,12 @@
       `DriverOccurrenceBadgeIcon` e a fileira na `DriverStopCard`: ícone de estado da entrega e barra de progresso em
       alerta. Ícones agrupados por nota (NF + ícones) e grupo das de parada. Atualizar o golden. Testes com 0, 1, N
       na mesma nota (inclusive do mesmo tipo) e o "+N".
-- [ ] **T4.5** `sonnet` — Rotas `/ocorrencias` e `/ocorrencias/:kind/:id` (`driverRoute.service.ts` + contrato) e
+- [x] **T4.5** `sonnet` — Rotas `/ocorrencias` e `/ocorrencias/:kind/:id` (`driverRoute.service.ts` + contrato) e
       a página da lista: grupos, filtros por ícone com contagem, linha → chat ou detalhe, botão de compartilhar.
-- [ ] **T4.6** `sonnet` — Página de detalhe: estado, quadro de resolução ou recusa, botão do chat, documentos (ver e
+- [x] **T4.6** `sonnet` — Página de detalhe: estado, quadro de resolução ou recusa, botão do chat, documentos (ver e
       compartilhar, "Compartilhar os N"), linha do tempo, outras da mesma nota e depois da parada, "Ver a nota na
       parada".
-- [ ] **T4.7** `sonnet` — `driverFileShare.service.ts`: busca pelo link assinado, `navigator.canShare({ files })` →
+- [x] **T4.7** `sonnet` — `driverFileShare.service.ts`: busca pelo link assinado, `navigator.canShare({ files })` →
       `share`, senão `saveDriverFile`; o PDF abre em aba nova (CSP `frame-src 'none'`). Teste com e sem suporte.
 - [ ] **T4.8** 🧠 `opus` → `sonnet` — Composer travado na ocorrência resolvida, botão "Reabrir" e a primeira
       mensagem com `reopen: true` pelo envio do `@adatechnology/conversations-ui/participant`. Conferir se o pacote
