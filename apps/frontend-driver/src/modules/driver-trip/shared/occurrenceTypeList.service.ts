@@ -11,9 +11,6 @@ const OCCURRENCE_TYPE_USAGE_STORAGE_KEY = 'transportada.driver.occurrence-type-u
 /** Quantos tipos entram em "Mais usados"; só aparece quando há mais tipos do que isso. */
 export const FREQUENT_OCCURRENCE_TYPE_LIMIT = 3
 
-/** A busca só aparece a partir deste número de tipos: com poucos, a lista inteira já cabe na tela. */
-export const OCCURRENCE_TYPE_SEARCH_MIN_TYPES = 6
-
 export type OccurrenceTypeUsage = Readonly<Record<string, number>>
 
 export type OccurrenceTypeUsageStorage = Pick<Storage, 'getItem' | 'setItem'>

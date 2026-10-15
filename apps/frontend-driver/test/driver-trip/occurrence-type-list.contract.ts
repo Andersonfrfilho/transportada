@@ -120,5 +120,6 @@ describe('o formulário abre logo abaixo do botão (pedido do usuário, 15/10)',
     expect(card.match(/\{occurrenceForm\}/gu)?.length).toBe(2)
     expect(form).toBeLessThan(proofGate)
     expect(form).toBeLessThan(notDelivered)
+    expect(notDelivered).toBeLessThan(proofGate)
   })
 })

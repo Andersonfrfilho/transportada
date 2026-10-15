@@ -8,18 +8,11 @@ import type { DriverOccurrenceType } from '../shared/driverTrip.types'
 import { resolveOccurrenceAttachmentMode } from '../shared/occurrenceRegistration.service'
 import {
   buildOccurrenceTypeList,
-  OCCURRENCE_TYPE_SEARCH_MIN_TYPES,
   readOccurrenceTypeUsage,
   resolveOccurrenceTypeUsageStorage,
 } from '../shared/occurrenceTypeList.service'
 import styles from '../styles/driverTrip.module.css'
 import { OccurrenceTypeIcon } from './OccurrenceTypeIcon.component'
-
-/**
- * Tipo sem ícone escolhido na aba Tipos usa o do grupo, para nenhum chip da lista ficar sem ícone.
- * O ícone escolhido pela empresa sempre vence.
- */
-const DEFAULT_ICON_BY_FLOW = { document: 'document', stop: 'alert' } as const
 
 type OccurrenceTypePickerProps = Readonly<{
   onSelect: (typeId: string) => void
@@ -28,8 +21,7 @@ type OccurrenceTypePickerProps = Readonly<{
 }>
 
 /**
- * A lista de tipos do registro: campo de busca (a partir de {@link OCCURRENCE_TYPE_SEARCH_MIN_TYPES}
- * tipos), "Mais usados" deste aparelho e um grupo por onde a ocorrência acontece (parada ou nota).
+ * A lista de tipos do registro: campo de busca, "Mais usados" deste aparelho e um grupo por onde a ocorrência acontece (parada ou nota).
  * Cor e ícone ajudam a achar; o nome e a exigência de foto continuam em todo chip.
  */
 export function OccurrenceTypePicker({
@@ -46,7 +38,6 @@ export function OccurrenceTypePicker({
     () => buildOccurrenceTypeList({ query, types, usage }),
     [query, types, usage],
   )
-  const hasSearch = types.length >= OCCURRENCE_TYPE_SEARCH_MIN_TYPES
 
   function handleSelect(typeId: string): void {
     onSelect(typeId)
@@ -72,9 +63,7 @@ export function OccurrenceTypePicker({
         type="button"
         variant={isSelected ? 'default' : 'ghost'}
       >
-        <OccurrenceTypeIcon
-          iconName={type.iconName ?? DEFAULT_ICON_BY_FLOW[type.flow ?? 'document']}
-        />
+        <OccurrenceTypeIcon iconName={type.iconName} />
         <span className={styles.occurrenceChipLabel}>
           <span>{type.name}</span>
           <span className={styles.occurrenceChipMode}>
@@ -104,19 +93,15 @@ export function OccurrenceTypePicker({
 
   return (
     <div className={styles.occurrencePicker}>
-      {hasSearch ? (
-        <>
-          <input
-            aria-label={t('occurrenceRegistration.search.label')}
-            autoComplete="off"
-            className={styles.occurrenceSearch}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('occurrenceRegistration.search.placeholder')}
-            type="search"
-            value={query}
-          />
-        </>
-      ) : null}
+      <input
+        aria-label={t('occurrenceRegistration.search.label')}
+        autoComplete="off"
+        className={styles.occurrenceSearch}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={t('occurrenceRegistration.search.placeholder')}
+        type="search"
+        value={query}
+      />
       <div aria-label={t('occurrenceRegistration.legend')} role="radiogroup">
         {list.frequent.length > 0 ? (
           <section className={styles.occurrenceGroup} data-group="frequent">

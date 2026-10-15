@@ -1032,24 +1032,6 @@ function DocumentRow({
       {occurrenceForm}
       {canActOnDocuments ? (
         <>
-          {requiresProof ? (
-            <PreDeliveryProofGate
-              captureProps={{
-                documentId: document.id,
-                ...(isLateRegistration ? { lateRegistration: true } : {}),
-                onProof,
-                ...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate }),
-                ...(onRemoveProof === undefined ? {} : { onRemoveProof }),
-                proofSettings,
-                queueView,
-                recipientDisplayName: document.recipientDisplayName,
-                recipientIsCompany: document.recipientIsCompany,
-              }}
-              isConfirming={isConfirming}
-              onCancel={() => onDiscardProofAwaitingDelivery(document.id)}
-              onConfirm={confirmDelivery}
-            />
-          ) : null}
           {/*
            * Spec 179, ajuste do usuário de 25/09: "Não entreguei" é a ocorrência com foto **e** a
            * devolução — a devolução fecha a nota, a ocorrência é a prova
@@ -1069,6 +1051,24 @@ function DocumentRow({
                 setOpenReturn(false)
               }}
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
+            />
+          ) : null}
+          {requiresProof ? (
+            <PreDeliveryProofGate
+              captureProps={{
+                documentId: document.id,
+                ...(isLateRegistration ? { lateRegistration: true } : {}),
+                onProof,
+                ...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate }),
+                ...(onRemoveProof === undefined ? {} : { onRemoveProof }),
+                proofSettings,
+                queueView,
+                recipientDisplayName: document.recipientDisplayName,
+                recipientIsCompany: document.recipientIsCompany,
+              }}
+              isConfirming={isConfirming}
+              onCancel={() => onDiscardProofAwaitingDelivery(document.id)}
+              onConfirm={confirmDelivery}
             />
           ) : null}
         </>
