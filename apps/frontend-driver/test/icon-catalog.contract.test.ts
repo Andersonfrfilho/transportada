@@ -43,9 +43,12 @@ describe('catálogo de ícones do tipo de ocorrência no motorista', () => {
 })
 
 describe('ícones de compartilhar, clipe e voltar', () => {
-  it.each(['share', 'paperclip', 'arrow-left'] as const)('%s renderiza um svg com traçado', (name) => {
-    const markup = renderToStaticMarkup(createElement(Icon, { name }))
-    expect(markup).toStartWith('<svg')
-    expect(markup).toInclude('<path d="M')
-  })
+  it.each(['share', 'paperclip', 'arrow-left'] as const)(
+    '%s renderiza um svg com traçado',
+    (name) => {
+      const markup = renderToStaticMarkup(createElement(Icon, { name }))
+      expect(markup).toStartWith('<svg')
+      expect(markup).toInclude('<path d="M')
+    },
+  )
 })

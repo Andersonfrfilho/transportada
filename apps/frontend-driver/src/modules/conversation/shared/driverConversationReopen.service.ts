@@ -118,7 +118,10 @@ export function createDriverConversationReopen(): DriverConversationReopen {
       if (hasChanged && pending.delete(key)) changed()
     },
     publish(event) {
-      if (event.type === 'reopen-refused' && pending.delete(conversationSubjectKey(event.subject))) {
+      if (
+        event.type === 'reopen-refused' &&
+        pending.delete(conversationSubjectKey(event.subject))
+      ) {
         changed()
       }
       for (const listener of eventListeners) listener(event)
