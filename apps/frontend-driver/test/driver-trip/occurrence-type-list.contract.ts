@@ -103,3 +103,22 @@ describe('a lista recolhe depois da escolha', () => {
     expect(picker).toInclude("t('occurrenceRegistration.changeType')")
   })
 })
+
+describe('o formulário abre logo abaixo do botão (pedido do usuário, 15/10)', () => {
+  const card = readFileSync(
+    new URL(
+      '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  it('na nota em aberto, o formulário vem antes da captura do canhoto e de "Não entreguei"', () => {
+    const form = card.lastIndexOf('{occurrenceForm}')
+    const proofGate = card.indexOf('<PreDeliveryProofGate')
+    const notDelivered = card.indexOf('<DriverNotDeliveredForm')
+    expect(card.match(/\{occurrenceForm\}/gu)?.length).toBe(2)
+    expect(form).toBeLessThan(proofGate)
+    expect(form).toBeLessThan(notDelivered)
+  })
+})

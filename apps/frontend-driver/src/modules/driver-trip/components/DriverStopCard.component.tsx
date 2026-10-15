@@ -1028,6 +1028,8 @@ function DocumentRow({
           onToggle={() => setOpenOccurrence((open) => !open)}
         />
       </div>
+      {/* O formulário abre logo abaixo do botão, não no fim do cartão (pedido do usuário, 15/10). */}
+      {occurrenceForm}
       {canActOnDocuments ? (
         <>
           {requiresProof ? (
@@ -1073,7 +1075,6 @@ function DocumentRow({
       ) : (
         <p className={styles.stopMeta}>{t('arrivalRequired')}</p>
       )}
-      {occurrenceForm}
     </li>
   )
 }

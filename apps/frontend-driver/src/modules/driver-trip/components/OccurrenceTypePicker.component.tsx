@@ -15,6 +15,12 @@ import {
 import styles from '../styles/driverTrip.module.css'
 import { OccurrenceTypeIcon } from './OccurrenceTypeIcon.component'
 
+/**
+ * Tipo sem ícone escolhido na aba Tipos usa o do grupo, para nenhum chip da lista ficar sem ícone.
+ * O ícone escolhido pela empresa sempre vence.
+ */
+const DEFAULT_ICON_BY_FLOW = { document: 'document', stop: 'alert' } as const
+
 type OccurrenceTypePickerProps = Readonly<{
   onSelect: (typeId: string) => void
   selectedTypeId: string | undefined
@@ -66,7 +72,9 @@ export function OccurrenceTypePicker({
         type="button"
         variant={isSelected ? 'default' : 'ghost'}
       >
-        <OccurrenceTypeIcon iconName={type.iconName} />
+        <OccurrenceTypeIcon
+          iconName={type.iconName ?? DEFAULT_ICON_BY_FLOW[type.flow ?? 'document']}
+        />
         <span className={styles.occurrenceChipLabel}>
           <span>{type.name}</span>
           <span className={styles.occurrenceChipMode}>

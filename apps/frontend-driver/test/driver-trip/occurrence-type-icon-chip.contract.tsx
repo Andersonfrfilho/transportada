@@ -48,7 +48,7 @@ describe('ícone do chip do tipo de ocorrência (spec 255 T3.3)', () => {
     const chipStart = form.indexOf('key={`${keyPrefix}:${type.id}`}')
     const chip = form.slice(chipStart, form.indexOf('</Button>', chipStart))
 
-    expect(chip).toContain('<OccurrenceTypeIcon iconName={type.iconName} />')
+    expect(chip).toContain('iconName={type.iconName ?? DEFAULT_ICON_BY_FLOW')
     expect(chip.indexOf('<OccurrenceTypeIcon')).toBeLessThan(chip.indexOf('{type.name}'))
     expect(chip).not.toContain('aria-label')
   })
