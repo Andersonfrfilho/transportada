@@ -71,10 +71,11 @@ export function createResolveOccurrenceUseCase(
 
       dependencies.logger.info('occurrence.resolution.resolved', {
         actorKind: 'internal',
+        actorUserId: input.context.userId,
         occurrenceId: input.occurrenceId,
         occurrenceKind: input.occurrenceKind,
       })
-      await dependencies.notifier?.notifyResolved({
+      void dependencies.notifier?.notifyResolved({
         companyId: target.companyId,
         dedupeKey: `${input.occurrenceId}:${inserted.createdAt}`,
         occurrenceId: input.occurrenceId,

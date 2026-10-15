@@ -381,7 +381,7 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
         return executed
       })
       if (input.reopen === true && !executed.replayed) {
-        await dependencies.reopenNotifier?.notifyReopened({
+        void dependencies.reopenNotifier?.notifyReopened({
           companyId: input.companyId,
           messageId: executed.result.messageId,
           occurrenceId: input.occurrenceId,

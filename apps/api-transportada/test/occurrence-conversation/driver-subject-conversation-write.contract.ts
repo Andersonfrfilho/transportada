@@ -7,6 +7,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { OccurrenceResolutionNotifierPort } from '../../src/trips/application/occurrence-resolution-notifier.port.js'
 import type { TripStatus } from '../../src/database/trip.schema.js'
 import type { DriverConversationTransactionPort } from '../../src/occurrence-conversation/application/driver-conversation.port.js'
 import type {
@@ -68,6 +69,7 @@ type Call = { input: unknown; name: string }
 function createWorld(state: {
   readonly conversationDriverUserId?: string
   readonly oldTripStatus?: TripStatus
+  readonly reopenNotifier?: OccurrenceResolutionNotifierPort
   readonly resolved?: true
   readonly subject?: MyConversationSubject | null
 }) {
@@ -230,7 +232,12 @@ function createWorld(state: {
       return `${operation}|${decoded.join('|')}`
     },
   }
-  const dependencies = { clock: () => NOW, fingerprintService, storage: UNUSED_ATTACHMENT_STORAGE }
+  const dependencies = {
+    clock: () => NOW,
+    fingerprintService,
+    ...(state.reopenNotifier === undefined ? {} : { reopenNotifier: state.reopenNotifier }),
+    storage: UNUSED_ATTACHMENT_STORAGE,
+  }
   return {
     calls,
     fingerprintFields,
@@ -581,6 +588,48 @@ describe('a ocorrência pela rota nova usa a idempotência da antiga (spec 263 T
       subject: occurrenceSubject({ tripStatus: 'completed' }),
     })
     expect((await replyOccurrence(finished)).replayed).toBe(false)
+  })
+
+  test('o aviso da reabertura não segura a resposta: notificador que nunca responde não atrasa o resultado', async () => {
+    const neverAnswers = {
+      notifyReopened: () => new Promise<void>(() => undefined),
+      notifyResolved: () => new Promise<void>(() => undefined),
+    }
+    const timeout = () =>
+      new Promise<'timeout'>((resolveTimeout) => setTimeout(() => resolveTimeout('timeout'), 500))
+    const subjectWorld = createWorld({
+      reopenNotifier: neverAnswers,
+      resolved: true,
+      subject: occurrenceSubject(),
+    })
+    const oldWorld = createWorld({ reopenNotifier: neverAnswers, resolved: true })
+
+    const viaSubject = await Promise.race([
+      subjectWorld.reply.reply({
+        ...IDENTITY,
+        bodyText: 'Não acabou',
+        idempotencyKey: KEY,
+        reopen: true,
+        subjectId: OCCURRENCE_ID,
+        subjectType: 'occurrence',
+      }),
+      timeout(),
+    ])
+    const viaOld = await Promise.race([
+      oldWorld.oldReply.reply({
+        bodyText: 'Não acabou',
+        companyId: COMPANY_ID,
+        driverId: DRIVER_ID,
+        driverUserId: DRIVER_USER_ID,
+        idempotencyKey: KEY,
+        occurrenceId: OCCURRENCE_ID,
+        reopen: true,
+      }),
+      timeout(),
+    ])
+
+    expect(viaSubject).not.toBe('timeout')
+    expect(viaOld).not.toBe('timeout')
   })
 
   test('reopen numa ocorrência sem tipo definido é 400 REOPEN_NOT_SUPPORTED_FOR_SUBJECT', async () => {

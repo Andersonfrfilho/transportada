@@ -220,7 +220,7 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
         }
       })
       if (input.reopen === true && !outcome.replayed) {
-        await dependencies.reopenNotifier?.notifyReopened({
+        void dependencies.reopenNotifier?.notifyReopened({
           companyId: input.companyId,
           messageId: outcome.message.id,
           occurrenceId: input.subjectId,

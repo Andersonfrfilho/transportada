@@ -138,7 +138,7 @@ export class DrizzleOccurrenceCaseRepository implements OccurrenceCaseRepository
       applyTransition(transaction, input),
     )
     if (applied.resolution !== undefined) {
-      await this.notifier?.notifyResolved({
+      void this.notifier?.notifyResolved({
         companyId: input.companyId,
         dedupeKey: applied.resolution.caseEventId,
         occurrenceId: applied.resolution.occurrenceId,

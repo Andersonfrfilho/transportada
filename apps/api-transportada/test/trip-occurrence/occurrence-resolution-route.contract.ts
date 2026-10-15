@@ -16,6 +16,7 @@ import type {
   OccurrenceTarget,
 } from '../../src/trips/application/occurrence-resolution.port.js'
 import { createResolveOccurrenceUseCase } from '../../src/trips/application/resolve-occurrence.use-case.js'
+import type { OccurrenceResolutionNotifierPort } from '../../src/trips/application/occurrence-resolution-notifier.port.js'
 import type { OccurrenceResolutionEventFact } from '../../src/trips/domain/occurrence-resolution.types.js'
 import { createOccurrenceResolutionRoutes } from '../../src/trips/presentation/occurrence-resolution.routes.js'
 
@@ -30,6 +31,7 @@ type FakeState = {
   readonly events: OccurrenceResolutionEventFact[]
   readonly inserted: { actorUserId: string; note: string; occurrenceKind: string }[]
   readonly logs: { message: string; metadata: Record<string, unknown> | undefined }[]
+  readonly notifier?: OccurrenceResolutionNotifierPort
 }
 
 function context(companyId = COMPANY_ID): AuthenticatedContext<CompanyContext> {
@@ -68,6 +70,7 @@ function buildRoute(state: FakeState) {
       info: (message, metadata) => state.logs.push({ message, metadata }),
       warn: () => undefined,
     },
+    ...(state.notifier === undefined ? {} : { notifier: state.notifier }),
     unitOfWork: { execute: (operation) => operation(transaction) },
   })
   const route = createOccurrenceResolutionRoutes({ resolveOccurrence }).find(
@@ -140,11 +143,29 @@ describe('POST /trip-occurrences/:kind/:id/resolution (spec 266 T2.3)', () => {
         message: 'occurrence.resolution.resolved',
         metadata: {
           actorKind: 'internal',
+          actorUserId: USER_ID,
           occurrenceId: OCCURRENCE_ID,
           occurrenceKind: 'document',
         },
       },
     ])
+  })
+
+  it('o aviso roda depois do commit sem segurar a resposta: notificador que nunca responde não atrasa o 201', async () => {
+    const state = freshState({
+      notifier: {
+        notifyReopened: () => new Promise<void>(() => undefined),
+        notifyResolved: () => new Promise<void>(() => undefined),
+      },
+    })
+
+    const response = await Promise.race([
+      call(state),
+      new Promise<'timeout'>((resolveTimeout) => setTimeout(() => resolveTimeout('timeout'), 500)),
+    ])
+
+    expect(response).not.toBe('timeout')
+    expect((response as Response).status).toBe(201)
   })
 
   it('reabrida (último evento reopened) volta a poder ser resolvida', async () => {

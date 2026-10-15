@@ -15,6 +15,7 @@ import {
   tripDocumentOccurrences,
   tripStopOccurrences,
 } from '../../src/database/trip.schema.js'
+import type { OccurrenceResolutionNotifierPort } from '../../src/trips/application/occurrence-resolution-notifier.port.js'
 import type { OccurrenceCaseTransitionInput } from '../../src/trips/application/occurrence-case.port.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
@@ -475,7 +476,22 @@ function buildNoticeWorld(database: TestDatabase, canResolve: () => boolean = ()
     queryable: database.db,
     send: async (params) => void sent.push(params as SentNotice),
   })
-  return { logs, notifier, sent }
+  const pending: Promise<void>[] = []
+  const tracked: OccurrenceResolutionNotifierPort = {
+    notifyReopened: (params) => {
+      const notice = notifier.notifyReopened(params)
+      pending.push(notice)
+      return notice
+    },
+    notifyResolved: (params) => {
+      const notice = notifier.notifyResolved(params)
+      pending.push(notice)
+      return notice
+    },
+  }
+  /** O aviso roda depois do commit, sem segurar a resposta: o teste espera os avisos disparados. */
+  const settled = async () => void (await Promise.all(pending))
+  return { logs, notifier: tracked, sent, settled }
 }
 
 describe('os avisos do andamento da ocorrência (spec 266 T2.8)', () => {
@@ -501,6 +517,7 @@ describe('os avisos do andamento da ocorrência (spec 266 T2.8)', () => {
           occurrenceId,
           occurrenceKind: 'document',
         })
+        await world.settled()
 
         expect(world.sent.map((notice) => notice.recipientUserId).toSorted()).toEqual(
           [driverUserId, helperUserId].toSorted(),
@@ -528,6 +545,7 @@ describe('os avisos do andamento da ocorrência (spec 266 T2.8)', () => {
           occurrenceId: stopId,
           occurrenceKind: 'stop',
         })
+        await world.settled()
         expect(world.sent).toHaveLength(before)
       })
     },
@@ -566,6 +584,7 @@ describe('os avisos do andamento da ocorrência (spec 266 T2.8)', () => {
           companyId: company.companyId,
           note: 'NOTA-INTERNA-DA-TRATATIVA',
         })
+        await world.settled()
 
         expect(world.sent).toHaveLength(1)
         expect(world.sent[0]).toMatchObject({
@@ -573,6 +592,42 @@ describe('os avisos do andamento da ocorrência (spec 266 T2.8)', () => {
           templateKey: 'trip.occurrence-resolved',
         })
         expect(JSON.stringify(world.sent)).not.toContain('NOTA-INTERNA')
+      })
+    },
+  )
+
+  testWithPostgres(
+    'a transição terminal não espera o aviso: notificador que nunca responde não segura o resultado',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const occurrenceId = await registerDocumentOccurrence(database, company, trip)
+        const cases = new DrizzleOccurrenceCaseRepository(database.db, {
+          notifyReopened: () => new Promise<void>(() => undefined),
+          notifyResolved: () => new Promise<void>(() => undefined),
+        })
+        const caseId = await cases.findIdByOccurrenceId({
+          companyId: company.companyId,
+          occurrenceId,
+        })
+        if (caseId === null) throw new Error('EXPECTED_CASE')
+
+        const outcome = await Promise.race([
+          cases.transition({
+            action: 'cancel',
+            actorKind: 'internal',
+            actorUserId: company.userId,
+            caseId,
+            companyId: company.companyId,
+            note: 'motivo registrado',
+          }),
+          new Promise<'timeout'>((resolveTimeout) =>
+            setTimeout(() => resolveTimeout('timeout'), 5000),
+          ),
+        ])
+
+        expect(outcome).not.toBe('timeout')
       })
     },
   )
