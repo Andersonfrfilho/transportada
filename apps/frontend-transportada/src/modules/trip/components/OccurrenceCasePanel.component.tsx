@@ -12,6 +12,7 @@ import { useOccurrenceCaseActions } from '../hooks/useOccurrenceCaseActions.hook
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import {
   TRIP_OCCURRENCE_CASE_DECISION_KINDS,
+  TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS,
   type TripOccurrenceCaseDecisionKind,
   type TripOccurrenceCaseView,
 } from '../shared/tripOccurrenceFeed.service'
@@ -145,7 +146,11 @@ export function OccurrenceCasePanel({
       <OccurrenceCaseTakenBy occurrenceCase={occurrenceCase} variant="block" />
       <p className={styles.hint}>
         {t('occurrenceCase.statusLabel')}:{' '}
-        <strong>{t(`occurrenceFeed.caseStatus.${status}`)}</strong>
+        <strong>
+          {status === TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS
+            ? '—'
+            : t(`occurrenceFeed.caseStatus.${status}`)}
+        </strong>
       </p>
       {isCaseOpen ? (
         <p className={styles.hint}>

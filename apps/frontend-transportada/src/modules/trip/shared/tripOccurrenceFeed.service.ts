@@ -43,7 +43,11 @@ export const TRIP_OCCURRENCE_CASE_STATUSES = [
   'closed',
   'cancelled',
 ] as const
-export type TripOccurrenceCaseStatus = (typeof TRIP_OCCURRENCE_CASE_STATUSES)[number]
+/** Spec 266 T1.1: estado que este bundle não conhece (API mais nova) — degrada, nunca reprova o feed. */
+export const TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS = 'unknown'
+export type TripOccurrenceCaseStatus =
+  | (typeof TRIP_OCCURRENCE_CASE_STATUSES)[number]
+  | typeof TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS
 
 /** `none` é "sem tratativa aberta" — RF11 exige o filtro incluir esta opção. */
 export const TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES = [
