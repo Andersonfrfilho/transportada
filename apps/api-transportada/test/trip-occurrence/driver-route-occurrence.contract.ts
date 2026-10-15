@@ -13,6 +13,7 @@ import type {
 } from '../../src/identity/domain/tenant-context.js'
 import type { DriverRouteOccurrenceReaderPort } from '../../src/trips/application/driver-route-occurrence.port.js'
 import { createFindDriverRouteOccurrenceUseCase } from '../../src/trips/application/find-driver-route-occurrence.use-case.js'
+import { createSignDriverRouteOccurrenceFileUseCase } from '../../src/trips/application/sign-driver-route-occurrence-file.use-case.js'
 import { createListDriverRouteOccurrencesUseCase } from '../../src/trips/application/list-driver-route-occurrences.use-case.js'
 import type { DriverRouteOccurrenceFacts } from '../../src/trips/domain/driver-route-occurrence.types.js'
 import type { OccurrenceResolutionEventFact } from '../../src/trips/domain/occurrence-resolution.types.js'
@@ -25,10 +26,13 @@ const TRIP_ID = '00000000-0000-4000-8000-000000000004'
 const OCCURRENCE_ID = '00000000-0000-4000-8000-0000000000a1'
 const LIST_PATH = '/me/trips/current/route-occurrences'
 const DETAIL_PATH = '/me/trips/current/route-occurrences/:kind/:id'
+const FILE_URL_PATH = '/me/trips/current/route-occurrences/:kind/:id/attachments/:objectId/url'
+const NOW = new Date('2026-10-15T12:00:00.000Z')
 
 type FakeState = {
   driverId: string | null
   facts: DriverRouteOccurrenceFacts[]
+  signed: { bucket: string; filename: string; key: string; expiresInSeconds: number }[]
   tripId: string | null
 }
 
@@ -111,11 +115,26 @@ function routes(state: FakeState) {
     findOccurrence: createFindDriverRouteOccurrenceUseCase({ reader }),
     listOccurrences: createListDriverRouteOccurrencesUseCase({ reader }),
     resolveDriverId: async () => state.driverId,
+    signFile: createSignDriverRouteOccurrenceFileUseCase({
+      clock: () => NOW,
+      reader,
+      storage: {
+        createSignedDownload: async (input) => {
+          state.signed.push({
+            bucket: input.bucket,
+            expiresInSeconds: input.expiresInSeconds,
+            filename: input.filename,
+            key: input.key,
+          })
+          return new URL(`https://storage.example.test/${input.key}?signature=secret`)
+        },
+      },
+    }),
   })
 }
 
 function fresh(overrides: Partial<FakeState> = {}): FakeState {
-  return { driverId: DRIVER_ID, facts: [facts()], tripId: TRIP_ID, ...overrides }
+  return { driverId: DRIVER_ID, facts: [facts()], signed: [], tripId: TRIP_ID, ...overrides }
 }
 
 async function list(state: FakeState): Promise<Response> {
@@ -396,5 +415,113 @@ describe('GET /me/trips/current/route-occurrences/:kind/:id (spec 266 T2.5)', ()
   it('400 para kind inválido e id que não é uuid', async () => {
     await expect(detail(fresh(), { kind: 'trip' })).rejects.toMatchObject({ status: 400 })
     await expect(detail(fresh(), { id: 'not-a-uuid' })).rejects.toMatchObject({ status: 400 })
+  })
+})
+
+async function signUrl(
+  state: FakeState,
+  input: { id?: string; kind?: string; objectId?: string } = {},
+): Promise<Response> {
+  const route = routes(state).find((item) => item.pathname === FILE_URL_PATH)
+  if (route === undefined) throw new Error('ROUTE_NOT_FOUND')
+  const kind = input.kind ?? 'document'
+  const id = input.id ?? OCCURRENCE_ID
+  const objectId = input.objectId ?? PHOTO_OBJECT_ID
+  return route.execute({
+    context: context(),
+    correlationId: 'correlation-1',
+    pathParameters: { id, kind, objectId },
+    request: new Request(`http://localhost${LIST_PATH}/${kind}/${id}/attachments/${objectId}/url`),
+  })
+}
+
+const PHOTO_OBJECT_ID = '00000000-0000-4000-8000-0000000000f1'
+const SIGNATURE_OBJECT_ID = '00000000-0000-4000-8000-0000000000f2'
+const CHAT_OBJECT_ID = '00000000-0000-4000-8000-0000000000f3'
+const FOREIGN_OBJECT_ID = '00000000-0000-4000-8000-0000000000f9'
+
+function withFiles(partial: Partial<DriverRouteOccurrenceFacts> = {}): FakeState {
+  return fresh({
+    facts: [
+      facts({
+        chatAttachments: [
+          { ...file(CHAT_OBJECT_ID, '2026-10-15T09:30:00.000Z', 'boleto.pdf'), messageId: 'm1' },
+        ],
+        photos: [file(PHOTO_OBJECT_ID, '2026-10-15T09:01:00.000Z')],
+        signature: file(SIGNATURE_OBJECT_ID, '2026-10-15T09:02:00.000Z'),
+        ...partial,
+      }),
+    ],
+  })
+}
+
+describe('GET /me/trips/current/route-occurrences/:kind/:id/attachments/:objectId/url (spec 266 T2.6)', () => {
+  it('200 com a URL de 5 minutos para a foto, a assinatura e o anexo do chat, com o nome do anexo', async () => {
+    for (const [objectId, filename] of [
+      [PHOTO_OBJECT_ID, 'ocorrencia'],
+      [SIGNATURE_OBJECT_ID, 'ocorrencia'],
+      [CHAT_OBJECT_ID, 'boleto.pdf'],
+    ] as const) {
+      const state = withFiles()
+      const response = await signUrl(state, { objectId })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('cache-control')).toBe('no-store')
+      expect(await response.json()).toEqual({
+        data: {
+          expiresAt: '2026-10-15T12:05:00.000Z',
+          url: `https://storage.example.test/key/${objectId}?signature=secret`,
+        },
+      })
+      expect(state.signed).toEqual([
+        { bucket: 'bucket', expiresInSeconds: 300, filename, key: `key/${objectId}` },
+      ])
+    }
+  })
+
+  it('404 TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND para objeto de outra ocorrência, sem assinar nada', async () => {
+    const state = withFiles()
+
+    await expect(signUrl(state, { objectId: FOREIGN_OBJECT_ID })).rejects.toMatchObject({
+      code: 'TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND',
+      status: 404,
+    })
+    expect(state.signed).toEqual([])
+  })
+
+  it('404 TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND quando a retenção do objeto já venceu', async () => {
+    const state = withFiles({
+      photos: [
+        {
+          ...file(PHOTO_OBJECT_ID, '2026-10-15T09:01:00.000Z'),
+          retentionUntil: '2026-10-14T00:00:00.000Z',
+        },
+      ],
+    })
+
+    await expect(signUrl(state)).rejects.toMatchObject({
+      code: 'TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND',
+    })
+    expect(state.signed).toEqual([])
+  })
+
+  it('404 distintos para viagem finalizada e ocorrência desconhecida', async () => {
+    await expect(
+      signUrl(withFiles(), { id: '00000000-0000-4000-8000-0000000000ff' }),
+    ).rejects.toMatchObject({
+      code: 'TRIP_OCCURRENCE_NOT_FOUND',
+    })
+    await expect(signUrl({ ...withFiles(), tripId: null })).rejects.toMatchObject({
+      code: 'DRIVER_TRIP_NOT_ACTIVE',
+    })
+  })
+
+  it('400 para objectId que não é uuid e para kind inválido; exige trip.read', async () => {
+    await expect(signUrl(withFiles(), { objectId: 'not-a-uuid' })).rejects.toMatchObject({
+      status: 400,
+    })
+    await expect(signUrl(withFiles(), { kind: 'trip' })).rejects.toMatchObject({ status: 400 })
+    const route = routes(fresh()).find((item) => item.pathname === FILE_URL_PATH)
+    expect(route?.policy).toEqual({ permission: 'trip.read', scope: 'company' })
   })
 })

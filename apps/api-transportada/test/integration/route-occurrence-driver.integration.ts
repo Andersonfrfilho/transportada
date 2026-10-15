@@ -13,6 +13,7 @@ import {
   occurrenceConversations,
   tripOccurrenceResolutionEvents,
 } from '../../src/database/occurrence-conversation.schema.js'
+import { storedObjects } from '../../src/database/storage.schema.js'
 import {
   companyOccurrenceTypes,
   fleetDrivers,
@@ -25,6 +26,7 @@ import {
 import type { DriverRouteOccurrenceDetail } from '../../src/trips/domain/driver-route-occurrence.types.js'
 import { createFindDriverRouteOccurrenceUseCase } from '../../src/trips/application/find-driver-route-occurrence.use-case.js'
 import { createListDriverRouteOccurrencesUseCase } from '../../src/trips/application/list-driver-route-occurrences.use-case.js'
+import { createSignDriverRouteOccurrenceFileUseCase } from '../../src/trips/application/sign-driver-route-occurrence-file.use-case.js'
 import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import { createDrizzleDriverRouteOccurrenceReader } from '../../src/trips/infrastructure/drizzle-driver-route-occurrence.repository.js'
@@ -58,6 +60,7 @@ import type {
 const AT = (minutes: number) => new Date(Date.UTC(2026, 9, 15, 9, minutes))
 const NOT_ACTIVE = { code: 'DRIVER_TRIP_NOT_ACTIVE', status: 404 }
 const NOT_FOUND = { code: 'TRIP_OCCURRENCE_NOT_FOUND', status: 404 }
+const ATTACHMENT_NOT_FOUND = { code: 'TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND', status: 404 }
 
 type Scenario = {
   readonly company: Company
@@ -72,9 +75,25 @@ function harness(database: TestDatabase) {
     currentTrips: new DrizzleCurrentDriverTripRepository(database.db),
     database: database.db,
   })
+  const signed: { filename: string; key: string; expiresInSeconds: number }[] = []
   return {
     find: createFindDriverRouteOccurrenceUseCase({ reader }),
     list: createListDriverRouteOccurrencesUseCase({ reader }),
+    sign: createSignDriverRouteOccurrenceFileUseCase({
+      clock: () => new Date(),
+      reader,
+      storage: {
+        createSignedDownload: async (input) => {
+          signed.push({
+            expiresInSeconds: input.expiresInSeconds,
+            filename: input.filename,
+            key: input.key,
+          })
+          return new URL(`https://storage.example.test/${input.key}`)
+        },
+      },
+    }),
+    signed,
   }
 }
 
@@ -597,6 +616,155 @@ describe('o motorista lê as ocorrências da rota contra Postgres (spec 266 T2.5
             }),
           ),
         ).toMatchObject(NOT_ACTIVE)
+      })
+    },
+    90_000,
+  )
+
+  testWithPostgres(
+    'assina o link da foto, da assinatura e do anexo do chat, e só deles',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const scenario = await seedScenario(database)
+        const fixture = await seedOccurrences(database, scenario)
+        const { sign, signed } = harness(database)
+        const driver = actorOf(scenario)
+
+        const signedPhoto = await sign.execute({
+          ...driver,
+          objectId: fixture.photoObjectId,
+          occurrenceId: fixture.openDocumentId,
+          occurrenceKind: 'document',
+        })
+        expect(signedPhoto.url).toContain(fixture.photoObjectId)
+        expect(Date.parse(signedPhoto.expiresAt) - Date.now()).toBeGreaterThan(290_000)
+        await sign.execute({
+          ...driver,
+          objectId: fixture.signatureObjectId,
+          occurrenceId: fixture.stopMineId,
+          occurrenceKind: 'stop',
+        })
+        await sign.execute({
+          ...driver,
+          objectId: fixture.chatObjectId,
+          occurrenceId: fixture.reopenedId,
+          occurrenceKind: 'stop',
+        })
+        expect(signed.map((item) => item.filename)).toEqual([
+          'ocorrencia',
+          'ocorrencia',
+          'boleto.jpg',
+        ])
+        expect(signed.every((item) => item.expiresInSeconds === 300)).toBe(true)
+
+        const refused = [
+          {
+            objectId: fixture.photoObjectId,
+            occurrenceId: fixture.stopMineId,
+            occurrenceKind: 'stop' as const,
+          },
+          {
+            objectId: fixture.chatObjectId,
+            occurrenceId: fixture.stopMineId,
+            occurrenceKind: 'stop' as const,
+          },
+          {
+            objectId: fixture.signatureObjectId,
+            occurrenceId: fixture.reopenedId,
+            occurrenceKind: 'stop' as const,
+          },
+          {
+            objectId: crypto.randomUUID(),
+            occurrenceId: fixture.openDocumentId,
+            occurrenceKind: 'document' as const,
+          },
+        ]
+        for (const target of refused) {
+          expect(await rejection(() => sign.execute({ ...driver, ...target }))).toMatchObject(
+            ATTACHMENT_NOT_FOUND,
+          )
+        }
+        expect(signed).toHaveLength(3)
+
+        expect(
+          await rejection(() =>
+            sign.execute({
+              ...driver,
+              objectId: fixture.photoObjectId,
+              occurrenceId: crypto.randomUUID(),
+              occurrenceKind: 'document',
+            }),
+          ),
+        ).toMatchObject(NOT_FOUND)
+      })
+    },
+    90_000,
+  )
+
+  testWithPostgres(
+    'objeto de outra empresa, anexo do chat de outro usuário, retenção vencida e viagem finalizada não assinam',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const scenario = await seedScenario(database)
+        const fixture = await seedOccurrences(database, scenario)
+        const { sign, signed } = harness(database)
+        const foreign = await seedCompany(database)
+        const foreignObjectId = await seedPhotoObject(database, {
+          company: foreign,
+          purpose: 'trip_occurrence_attachment',
+        })
+
+        expect(
+          await rejection(() =>
+            sign.execute({
+              ...actorOf(scenario),
+              objectId: foreignObjectId,
+              occurrenceId: fixture.openDocumentId,
+              occurrenceKind: 'document',
+            }),
+          ),
+        ).toMatchObject(ATTACHMENT_NOT_FOUND)
+        expect(
+          await rejection(() =>
+            sign.execute({
+              ...actorOf(scenario, 'helper'),
+              objectId: fixture.chatObjectId,
+              occurrenceId: fixture.reopenedId,
+              occurrenceKind: 'stop',
+            }),
+          ),
+        ).toMatchObject(ATTACHMENT_NOT_FOUND)
+
+        await database.db
+          .update(storedObjects)
+          .set({ retentionUntil: new Date('2026-01-01T00:00:00.000Z') })
+          .where(eq(storedObjects.id, fixture.photoObjectId))
+        expect(
+          await rejection(() =>
+            sign.execute({
+              ...actorOf(scenario),
+              objectId: fixture.photoObjectId,
+              occurrenceId: fixture.openDocumentId,
+              occurrenceKind: 'document',
+            }),
+          ),
+        ).toMatchObject(ATTACHMENT_NOT_FOUND)
+
+        await database.db
+          .update(trips)
+          .set({ status: 'completed' })
+          .where(eq(trips.id, scenario.trip.tripId))
+        expect(
+          await rejection(() =>
+            sign.execute({
+              ...actorOf(scenario),
+              objectId: fixture.signatureObjectId,
+              occurrenceId: fixture.stopMineId,
+              occurrenceKind: 'stop',
+            }),
+          ),
+        ).toMatchObject(NOT_ACTIVE)
+        expect(signed).toEqual([])
       })
     },
     90_000,

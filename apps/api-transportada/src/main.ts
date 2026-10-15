@@ -467,6 +467,7 @@ import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occu
 import { createOccurrenceResolutionRoutes } from './trips/presentation/occurrence-resolution.routes.js'
 import { createMeRouteOccurrenceRoutes } from './trips/presentation/me-route-occurrence.routes.js'
 import { createFindDriverRouteOccurrenceUseCase } from './trips/application/find-driver-route-occurrence.use-case.js'
+import { createSignDriverRouteOccurrenceFileUseCase } from './trips/application/sign-driver-route-occurrence-file.use-case.js'
 import { createListDriverRouteOccurrencesUseCase } from './trips/application/list-driver-route-occurrences.use-case.js'
 import { createDrizzleDriverRouteOccurrenceReader } from './trips/infrastructure/drizzle-driver-route-occurrence.repository.js'
 import { createResolveOccurrenceUseCase } from './trips/application/resolve-occurrence.use-case.js'
@@ -3468,6 +3469,11 @@ function createApplicationRoutes({
         reader: driverRouteOccurrenceReader,
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      signFile: createSignDriverRouteOccurrenceFileUseCase({
+        clock: () => new Date(),
+        reader: driverRouteOccurrenceReader,
+        storage: storageGateway,
+      }),
     }),
     /**
      * Spec 183 T404: a conversa da ocorrência. Ler é `fleet.read`; escrever à contratante é

@@ -11,16 +11,19 @@ import { defineRoute } from '../../http/router.service.js'
 import { API_ME_CURRENT_TRIP_PATH } from '../../shared/api.constant.js'
 import { DriverNotRegisteredError } from '../domain/trip.error.js'
 import type { FindDriverRouteOccurrenceUseCase } from '../application/find-driver-route-occurrence.use-case.js'
+import type { SignDriverRouteOccurrenceFileUseCase } from '../application/sign-driver-route-occurrence-file.use-case.js'
 import type { ListDriverRouteOccurrencesUseCase } from '../application/list-driver-route-occurrences.use-case.js'
 import type { OccurrenceKind } from '../application/occurrence-resolution.port.js'
 
 const ROUTE_OCCURRENCES_PATH = `${API_ME_CURRENT_TRIP_PATH}/route-occurrences`
 const ROUTE_OCCURRENCE_PATH = `${ROUTE_OCCURRENCES_PATH}/:kind/:id`
+const ROUTE_OCCURRENCE_FILE_URL_PATH = `${ROUTE_OCCURRENCE_PATH}/attachments/:objectId/url`
 const DRIVER_READ_POLICY = { permission: 'trip.read', scope: 'company' } as const
 
 export type MeRouteOccurrenceRoutesDependencies = {
   readonly findOccurrence: FindDriverRouteOccurrenceUseCase
   readonly listOccurrences: ListDriverRouteOccurrencesUseCase
+  readonly signFile: SignDriverRouteOccurrenceFileUseCase
   readonly resolveDriverId: (context: {
     readonly companyId: string
     readonly membershipId: string
@@ -89,6 +92,26 @@ export function createMeRouteOccurrenceRoutes(
         occurrenceKind: parseOccurrenceKind(pathParameters.kind),
       }),
       pathname: ROUTE_OCCURRENCE_PATH,
+      policy: DRIVER_READ_POLICY,
+    }),
+    defineRoute<RouteOccurrenceTarget & { readonly objectId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const data = await dependencies.signFile.execute({
+          ...input,
+          companyId: context.scope.companyId,
+          driverId,
+          driverUserId: context.scope.userId,
+        })
+        return jsonResponse({ data })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        objectId: parseUuidPathIdentifier(pathParameters.objectId ?? ''),
+        occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        occurrenceKind: parseOccurrenceKind(pathParameters.kind),
+      }),
+      pathname: ROUTE_OCCURRENCE_FILE_URL_PATH,
       policy: DRIVER_READ_POLICY,
     }),
   ]

@@ -1055,3 +1055,6 @@ Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/eviden
   (ou linha extra de um lote do app) volta `null`.
 - `documentCount` = fotos + assinatura + anexos do chat. Objeto sem `status = 'deleted'`; foto da tabela 161, senão a coluna antiga.
 - Timeline do motorista: `recorded`, `photo`, `cancelled`, `resolution.*`. **Nunca `case.transition`** (ADR-0045 §6).
+- **Link assinado sob demanda** (`.../:kind/:id/attachments/:objectId/url`, 5 min, `inline`): o `objectId` só assina se for foto, assinatura ou anexo do
+  chat **da própria ocorrência** (vem do mesmo leitor do detalhe) e a `retention_until` não tiver vencido; senão 404
+  `TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND`. O link nunca vai a log nem entra no retrato offline do app (só metadado).
