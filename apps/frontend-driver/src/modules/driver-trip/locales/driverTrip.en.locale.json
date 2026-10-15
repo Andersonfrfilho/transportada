@@ -292,7 +292,7 @@
     "pendingReceivedBy": "Who received it is still missing. The proof is already saved.",
     "pendingReceivedByDetail": "Say more about who received it. The proof is already saved.",
     "complete": "Complete",
-    "completedAt": "Proof completed at {{time}}",
+    "completedAt": "Well done! Proof completed at {{time}}",
     "edit": "Edit",
     "completeBlockedTitle": "Cannot complete yet",
     "completeBlocked": "Missing: {{fields}}. Fill it in and tap Complete again.",
@@ -350,7 +350,7 @@
     "attached": "Signature collected",
     "thumbnail": "Signature thumbnail"
   },
-  "stopCompleted": "Stop completed",
+  "stopCompleted": "Stop completed. Well done!",
   "stopState": {
     "completed": "Completed",
     "current": "In progress",
