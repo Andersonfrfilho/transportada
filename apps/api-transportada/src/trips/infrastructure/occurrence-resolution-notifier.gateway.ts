@@ -34,7 +34,7 @@ type SendNotification = (input: {
   readonly category: string
   readonly companyId: string
   readonly dedupeKey: string
-  readonly payload: object
+  readonly payload: Readonly<Record<string, unknown>>
   readonly recipientUserId: string
   readonly templateKey: string
 }) => Promise<unknown>

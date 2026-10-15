@@ -2422,7 +2422,7 @@ function createApplicationRoutes({
       notifications.useCases.sendNotification.execute({
         ...params,
         locale: NOTIFICATION_DEFAULT_LOCALE,
-      } as never),
+      }),
   })
   const occurrenceCaseRepository = new DrizzleOccurrenceCaseRepository(
     database,
