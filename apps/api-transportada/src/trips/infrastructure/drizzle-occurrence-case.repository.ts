@@ -59,6 +59,7 @@ import {
 } from './drizzle-occurrence-resolution.repository.js'
 import type { TripQueryable, TripTransaction } from './trip-queryable.type.js'
 import type { OccurrenceCaseRepositoryPort } from '../application/occurrence-case.port.js'
+import type { OccurrenceResolutionNotifierPort } from '../application/occurrence-resolution-notifier.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -124,12 +125,26 @@ export type OccurrenceCaseTransitionResult = {
  * decisão do contratante (T9/T10). Nenhuma outra camada faz `update` em `trip_occurrence_cases`.
  */
 export class DrizzleOccurrenceCaseRepository implements OccurrenceCaseRepositoryPort {
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    /** Spec 266 RF9: o aviso "resolvida" depois do commit, só quando a transição resolveu a ocorrência. */
+    private readonly notifier?: OccurrenceResolutionNotifierPort,
+  ) {}
 
   public async transition(
     input: OccurrenceCaseTransitionInput,
   ): Promise<OccurrenceCaseTransitionResult> {
-    return this.database.transaction((transaction) => applyTransition(transaction, input))
+    const applied = await this.database.transaction((transaction) =>
+      applyTransition(transaction, input),
+    )
+    if (applied.resolution !== undefined) {
+      await this.notifier?.notifyResolved({
+        companyId: input.companyId,
+        dedupeKey: applied.resolution.caseEventId,
+        occurrenceId: applied.resolution.occurrenceId,
+      })
+    }
+    return applied.result
   }
 
   /**
@@ -155,10 +170,16 @@ export class DrizzleOccurrenceCaseRepository implements OccurrenceCaseRepository
   }
 }
 
+type AppliedTransition = {
+  readonly result: OccurrenceCaseTransitionResult
+  /** Preenchido só quando esta transição gravou o `resolved` do sistema. */
+  readonly resolution?: { readonly caseEventId: string; readonly occurrenceId: string }
+}
+
 async function applyTransition(
   transaction: TripTransaction,
   input: OccurrenceCaseTransitionInput,
-): Promise<OccurrenceCaseTransitionResult> {
+): Promise<AppliedTransition> {
   const [locked] = await transaction
     .select({
       decisionKind: tripOccurrenceCases.decisionKind,
@@ -220,7 +241,7 @@ async function applyTransition(
     ) {
       throw new OccurrenceCaseDecisionConflictError()
     }
-    return { kind: 'unchanged', status: transition.to }
+    return { result: { kind: 'unchanged', status: transition.to } }
   }
 
   const isDecide = input.action === 'decide'
@@ -267,15 +288,16 @@ async function applyTransition(
     .returning({ id: tripOccurrenceCaseEvents.id })
   if (caseEvent === undefined) throw new Error('OCCURRENCE_CASE_EVENT_INSERT_RETURNED_NO_ROW')
 
-  if (resolvesNow) {
-    await resolveOccurrenceBySystem(transaction, {
-      caseEventId: caseEvent.id,
-      companyId: input.companyId,
-      occurrenceId: locked.occurrenceId,
-    })
-  }
-
-  return { kind: 'changed', status: transition.to }
+  const result = { kind: 'changed', status: transition.to } as const
+  if (!resolvesNow) return { result }
+  const isResolved = await resolveOccurrenceBySystem(transaction, {
+    caseEventId: caseEvent.id,
+    companyId: input.companyId,
+    occurrenceId: locked.occurrenceId,
+  })
+  return isResolved
+    ? { result, resolution: { caseEventId: caseEvent.id, occurrenceId: locked.occurrenceId } }
+    : { result }
 }
 
 /**
@@ -290,14 +312,14 @@ async function resolveOccurrenceBySystem(
     readonly companyId: string
     readonly occurrenceId: string
   },
-): Promise<void> {
+): Promise<boolean> {
   const target = {
     companyId: input.companyId,
     occurrenceId: input.occurrenceId,
     occurrenceKind: 'document',
   } as const
   const lockedOccurrence = await lockOccurrenceRow(transaction, target)
-  if (lockedOccurrence === undefined) return
+  if (lockedOccurrence === undefined) return false
 
   const events = await listLatestResolutionEventsByOccurrence(transaction, {
     companyId: input.companyId,
@@ -308,7 +330,7 @@ async function resolveOccurrenceBySystem(
     cancelledAt: lockedOccurrence.cancelledAt,
     events: events.get(input.occurrenceId) ?? [],
   })
-  if (current.state !== 'open') return
+  if (current.state !== 'open') return false
 
   await transaction.insert(tripOccurrenceResolutionEvents).values({
     actorKind: 'system',
@@ -317,6 +339,7 @@ async function resolveOccurrenceBySystem(
     documentOccurrenceId: input.occurrenceId,
     kind: 'resolved',
   })
+  return true
 }
 
 /**

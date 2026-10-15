@@ -15,6 +15,7 @@ import {
   OccurrenceConversationDriverUnknownError,
   OccurrenceConversationIdempotencyKeyReusedError,
 } from '../domain/occurrence-conversation.error.js'
+import type { OccurrenceResolutionNotifierPort } from '../../trips/application/occurrence-resolution-notifier.port.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import {
   assertOccurrenceReopenable,
@@ -271,6 +272,7 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
   readonly clock: () => Date
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly logger?: ApiLogger
+  readonly reopenNotifier?: OccurrenceResolutionNotifierPort
   readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: DriverConversationUnitOfWorkPort
 }) {
@@ -288,7 +290,7 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
       const attachmentIds = input.attachmentIds ?? []
       const bodyText = normalizeConversationMessageBody(input.bodyText, attachmentIds)
       const now = dependencies.clock()
-      return dependencies.unitOfWork.execute(async (transaction) => {
+      const executed = await dependencies.unitOfWork.execute(async (transaction) => {
         const occurrence = await transaction.findMyOccurrence(input)
         if (occurrence === null) throw new TripOccurrenceNotFoundError()
         /**
@@ -374,8 +376,16 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
           },
           transaction,
         })
-        return executed.result
+        return executed
       })
+      if (input.reopen === true && !executed.replayed) {
+        await dependencies.reopenNotifier?.notifyReopened({
+          companyId: input.companyId,
+          messageId: executed.result.messageId,
+          occurrenceId: input.occurrenceId,
+        })
+      }
+      return executed.result
     },
   }
 }

@@ -110,7 +110,7 @@ import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
  *
  * O resto vem importado, nunca redigitado: é a lição das cinco cópias que divergiram.
  */
-const CURRENT_DRIVER_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
+export const CURRENT_DRIVER_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
 
 /**
  * Spec 225: por quanto tempo a viagem concluída ainda chega a `GET /me/trips/current`, contada de

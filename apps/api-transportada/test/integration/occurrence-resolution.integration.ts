@@ -26,9 +26,12 @@ import {
 import { DrizzleOccurrenceCaseRepository } from '../../src/trips/infrastructure/drizzle-occurrence-case.repository.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
 import { TRIP_OCCURRENCE_STAGE } from '../../src/shared/trip-occurrence.constant.js'
+import { createOccurrenceResolutionNotifier } from '../../src/trips/infrastructure/occurrence-resolution-notifier.gateway.js'
+import { trips } from '../../src/database/trip.schema.js'
 import {
   fakeAttachmentStorage,
   JPEG_BYTES,
+  linkDriverMembership,
   seedCompany,
   seedTrip,
   testWithPostgres,
@@ -395,4 +398,185 @@ describe('a tratativa terminal resolve a ocorrência pelo sistema (spec 266 T2.4
       })
     })
   })
+})
+
+type SentNotice = {
+  readonly dedupeKey: string
+  readonly payload: Record<string, unknown>
+  readonly recipientUserId: string
+  readonly templateKey: string
+}
+
+function buildNoticeWorld(database: TestDatabase, canResolve: () => boolean = () => true) {
+  const sent: SentNotice[] = []
+  const logs: { event: string; meta: unknown }[] = []
+  const notifier = createOccurrenceResolutionNotifier({
+    canUserResolveOccurrences: async () => canResolve(),
+    logger: {
+      info: (event, meta) => void logs.push({ event, meta }),
+      warn: (event, meta) => void logs.push({ event, meta }),
+    },
+    queryable: database.db,
+    send: async (params) => void sent.push(params as SentNotice),
+  })
+  return { logs, notifier, sent }
+}
+
+describe('os avisos do andamento da ocorrência (spec 266 T2.8)', () => {
+  testWithPostgres(
+    'resolvida: a tripulação inteira recebe, sem a nota; viagem terminada não envia',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const occurrenceId = await registerDocumentOccurrence(database, company, trip)
+        const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
+        const helperUserId = await linkDriverMembership(database, company, company.secondDriverId)
+        const world = buildNoticeWorld(database)
+        const useCase = createResolveOccurrenceUseCase({
+          logger: { error: () => undefined, info: () => undefined, warn: () => undefined },
+          notifier: world.notifier,
+          unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database.db),
+        })
+
+        await useCase.execute({
+          context: contextOf(company),
+          note: 'SEGREDO-DA-OBSERVACAO',
+          occurrenceId,
+          occurrenceKind: 'document',
+        })
+
+        expect(world.sent.map((notice) => notice.recipientUserId).toSorted()).toEqual(
+          [driverUserId, helperUserId].toSorted(),
+        )
+        for (const notice of world.sent) {
+          expect(notice.templateKey).toBe('trip.occurrence-resolved')
+          expect(notice.payload).toEqual({
+            occurrenceKind: 'document',
+            subjectId: occurrenceId,
+            subjectType: 'occurrence',
+            typeName: 'Caixa violada',
+          })
+          expect(JSON.stringify(notice)).not.toContain('SEGREDO')
+        }
+
+        await database.db
+          .update(trips)
+          .set({ status: 'completed' })
+          .where(eq(trips.id, trip.tripId))
+        const stopId = await registerStopOccurrence(database, company, trip)
+        const before = world.sent.length
+        await useCase.execute({
+          context: contextOf(company),
+          note: 'viagem acabou',
+          occurrenceId: stopId,
+          occurrenceKind: 'stop',
+        })
+        expect(world.sent).toHaveLength(before)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'a tratativa terminal avisa a tripulação uma vez, ligada ao evento da tratativa',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const occurrenceId = await registerDocumentOccurrence(database, company, trip)
+        const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
+        const world = buildNoticeWorld(database)
+        const cases = new DrizzleOccurrenceCaseRepository(database.db, world.notifier)
+        const caseId = await cases.findIdByOccurrenceId({
+          companyId: company.companyId,
+          occurrenceId,
+        })
+        if (caseId === null) throw new Error('EXPECTED_CASE')
+
+        await cases.transition({
+          action: 'review',
+          actorKind: 'internal',
+          actorUserId: company.userId,
+          caseId,
+          companyId: company.companyId,
+          note: '',
+        })
+        expect(world.sent).toHaveLength(0)
+        await cases.transition({
+          action: 'warehouse_return',
+          actorKind: 'internal',
+          actorUserId: company.userId,
+          caseId,
+          companyId: company.companyId,
+          note: 'NOTA-INTERNA-DA-TRATATIVA',
+        })
+
+        expect(world.sent).toHaveLength(1)
+        expect(world.sent[0]).toMatchObject({
+          recipientUserId: driverUserId,
+          templateKey: 'trip.occurrence-resolved',
+        })
+        expect(JSON.stringify(world.sent)).not.toContain('NOTA-INTERNA')
+      })
+    },
+  )
+
+  testWithPostgres(
+    'reaberta: avisa quem resolveu (ou quem moveu a tratativa), sem texto; perdeu a permissão, não avisa',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const manualId = await registerStopOccurrence(database, company, trip)
+        const caseOccurrenceId = await registerDocumentOccurrence(database, company, trip)
+        let canResolve = true
+        const world = buildNoticeWorld(database, () => canResolve)
+        const resolve = createResolveOccurrenceUseCase({
+          logger: { error: () => undefined, info: () => undefined, warn: () => undefined },
+          unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database.db),
+        })
+        await resolve.execute({
+          context: contextOf(company),
+          note: 'ok',
+          occurrenceId: manualId,
+          occurrenceKind: 'stop',
+        })
+        await applyCaseActions(database, company, caseOccurrenceId, ['cancel'])
+        const messageId = crypto.randomUUID()
+
+        await world.notifier.notifyReopened({
+          companyId: company.companyId,
+          messageId,
+          occurrenceId: manualId,
+        })
+        await world.notifier.notifyReopened({
+          companyId: company.companyId,
+          messageId,
+          occurrenceId: caseOccurrenceId,
+        })
+        expect(world.sent).toHaveLength(2)
+        for (const notice of world.sent) {
+          expect(notice.recipientUserId).toBe(company.userId)
+          expect(notice.templateKey).toBe('trip.occurrence-reopened')
+          expect(Object.keys(notice.payload).toSorted()).toEqual([
+            'occurrenceId',
+            'occurrenceKind',
+            'tripId',
+            'typeName',
+          ])
+        }
+
+        canResolve = false
+        await world.notifier.notifyReopened({
+          companyId: company.companyId,
+          messageId: crypto.randomUUID(),
+          occurrenceId: manualId,
+        })
+        expect(world.sent).toHaveLength(2)
+        expect(world.logs.at(-1)).toMatchObject({
+          event: 'occurrence.resolution.reopened_notice_skipped',
+        })
+      })
+    },
+  )
 })

@@ -10,6 +10,7 @@ import type { ApiLogger } from '../../shared/api.types.js'
 import { resolveOccurrenceResolutionState } from '../domain/occurrence-resolution.policy.js'
 import { OccurrenceAlreadyResolvedError } from '../domain/occurrence-resolution.error.js'
 import { OccurrenceCancelledError, TripOccurrenceNotFoundError } from '../domain/trip.error.js'
+import type { OccurrenceResolutionNotifierPort } from './occurrence-resolution-notifier.port.js'
 import type {
   OccurrenceKind,
   OccurrenceResolutionUnitOfWork,
@@ -36,6 +37,7 @@ export type ResolveOccurrenceUseCase = {
 
 export type ResolveOccurrenceDependencies = {
   readonly logger: ApiLogger
+  readonly notifier?: OccurrenceResolutionNotifierPort
   readonly unitOfWork: OccurrenceResolutionUnitOfWork
 }
 
@@ -71,6 +73,11 @@ export function createResolveOccurrenceUseCase(
         actorKind: 'internal',
         occurrenceId: input.occurrenceId,
         occurrenceKind: input.occurrenceKind,
+      })
+      await dependencies.notifier?.notifyResolved({
+        companyId: target.companyId,
+        dedupeKey: `${input.occurrenceId}:${inserted.createdAt}`,
+        occurrenceId: input.occurrenceId,
       })
       return {
         note: input.note,

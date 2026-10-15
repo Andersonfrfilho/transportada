@@ -18,6 +18,7 @@ import {
   ConversationNotFoundError,
   OccurrenceConversationDriverChangedError,
 } from '../domain/occurrence-conversation.error.js'
+import type { OccurrenceResolutionNotifierPort } from '../../trips/application/occurrence-resolution-notifier.port.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import {
   assertOccurrenceReopenable,
@@ -105,6 +106,7 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
   readonly clock: () => Date
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly logger?: ApiLogger
+  readonly reopenNotifier?: OccurrenceResolutionNotifierPort
   readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: DriverSubjectWriteUnitOfWorkPort
 }) {
@@ -192,7 +194,7 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
   return {
     async reply(input: ReplyMySubjectInput): Promise<ReplyMySubjectResult> {
       const bodyText = normalizeConversationMessageBody(input.bodyText, input.attachmentIds ?? [])
-      return dependencies.unitOfWork.execute(async (transaction) => {
+      const outcome = await dependencies.unitOfWork.execute(async (transaction) => {
         const subject = await findMySubjectOrFail(transaction, input)
         const executed = await replayOrRun<StoredReply>({
           companyId: input.companyId,
@@ -210,6 +212,14 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
           replayed: executed.replayed,
         }
       })
+      if (input.reopen === true && !outcome.replayed) {
+        await dependencies.reopenNotifier?.notifyReopened({
+          companyId: input.companyId,
+          messageId: outcome.message.id,
+          occurrenceId: input.subjectId,
+        })
+      }
+      return outcome
     },
   }
 }

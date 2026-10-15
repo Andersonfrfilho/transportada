@@ -40,10 +40,15 @@ async function setup(database: Parameters<Parameters<typeof withConversationData
   const { companyId, firstDriverId, userId } = seeded.company
   const driverUserId = await linkDriverMembership(database, seeded.company, firstDriverId)
   const unitOfWork = createDrizzleDriverConversationUnitOfWork(database.db)
+  const reopenedNotices: { companyId: string; messageId: string; occurrenceId: string }[] = []
   const infoLogs: { message: string; context: unknown }[] = []
   const reply = createReplyMyOccurrenceConversationUseCase({
     clock: () => NOW,
     fingerprintService,
+    reopenNotifier: {
+      notifyReopened: async (input) => void reopenedNotices.push(input),
+      notifyResolved: async () => undefined,
+    },
     logger: { ...logger, info: (message, context) => void infoLogs.push({ context, message }) },
     storage: UNUSED_ATTACHMENT_STORAGE,
     unitOfWork,
@@ -78,7 +83,18 @@ async function setup(database: Parameters<Parameters<typeof withConversationData
       .from(tripOccurrenceResolutionEvents)
       .where(eq(tripOccurrenceResolutionEvents.documentOccurrenceId, seeded.occurrenceId))
   const messages = () => database.db.select().from(occurrenceConversationMessages)
-  return { database, driverUserId, events, infoLogs, messages, mine, reply, resolveNow, seeded }
+  return {
+    database,
+    driverUserId,
+    events,
+    infoLogs,
+    reopenedNotices,
+    messages,
+    mine,
+    reply,
+    resolveNow,
+    seeded,
+  }
 }
 
 describe('o motorista reabre a ocorrência respondendo (spec 266 T2.7)', () => {
@@ -101,6 +117,13 @@ describe('o motorista reabre a ocorrência respondendo (spec 266 T2.7)', () => {
           reopen: true,
         })
         expect(replay).toEqual(first)
+        expect(t.reopenedNotices).toEqual([
+          {
+            companyId: t.mine.companyId,
+            messageId: first.messageId,
+            occurrenceId: t.seeded.occurrenceId,
+          },
+        ])
         const reopened = (await t.events()).filter((event) => event.kind === 'reopened')
         expect(reopened).toHaveLength(1)
         expect(reopened[0]).toMatchObject({
@@ -177,6 +200,7 @@ describe('o motorista reabre a ocorrência respondendo (spec 266 T2.7)', () => {
       })
       expect(await t.messages()).toHaveLength(1)
       expect((await t.events()).map((event) => event.kind)).toEqual(['resolved'])
+      expect(t.reopenedNotices).toEqual([])
     })
   })
 

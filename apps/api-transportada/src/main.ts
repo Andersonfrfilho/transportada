@@ -556,6 +556,8 @@ import {
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
 import { createContractorReplyDeliveryNotifier } from './occurrence-conversation/infrastructure/contractor-reply-delivery-notifier.adapter.js'
+import { resolveCompanyPermissions } from './identity/domain/authorization.policy.js'
+import { createOccurrenceResolutionNotifier } from './trips/infrastructure/occurrence-resolution-notifier.gateway.js'
 import { createDriverConversationNotifier } from './occurrence-conversation/infrastructure/driver-conversation-notifier.gateway.js'
 import { createDrizzleDriverConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
 import { createDrizzleOccurrenceMailStatusRepository } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
@@ -2400,7 +2402,32 @@ function createApplicationRoutes({
     logger,
   )
   /** Spec 164 T5/T7: as ações internas da tratativa da ocorrência. */
-  const occurrenceCaseRepository = new DrizzleOccurrenceCaseRepository(database)
+  /** Spec 266 RF9 / ADR-0105: os avisos "resolvida" (tripulação) e "reaberta" (quem resolveu), depois do commit. */
+  const occurrenceResolutionMemberships = new DrizzleMembershipRepository(database)
+  const occurrenceResolutionNotifier = createOccurrenceResolutionNotifier({
+    canUserResolveOccurrences: async ({ companyId, userId }) => {
+      const membership = await occurrenceResolutionMemberships.findActiveByUserAndCompany({
+        companyId,
+        userId,
+      })
+      if (membership === null) return false
+      return resolveCompanyPermissions({
+        granted: membership.grantedPermissions,
+        roles: membership.roles,
+      }).has('occurrences.resolve')
+    },
+    logger,
+    queryable: database,
+    send: (params) =>
+      notifications.useCases.sendNotification.execute({
+        ...params,
+        locale: NOTIFICATION_DEFAULT_LOCALE,
+      } as never),
+  })
+  const occurrenceCaseRepository = new DrizzleOccurrenceCaseRepository(
+    database,
+    occurrenceResolutionNotifier,
+  )
   const occurrenceCaseUseCase = createOccurrenceCaseUseCase({
     repository: occurrenceCaseRepository,
   })
@@ -3457,6 +3484,7 @@ function createApplicationRoutes({
     ...createOccurrenceResolutionRoutes({
       resolveOccurrence: createResolveOccurrenceUseCase({
         logger,
+        notifier: occurrenceResolutionNotifier,
         unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
       }),
     }),
@@ -3561,6 +3589,7 @@ function createApplicationRoutes({
         clock: () => new Date(),
         fingerprintService,
         logger,
+        reopenNotifier: occurrenceResolutionNotifier,
         storage: storageGateway,
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
@@ -3600,6 +3629,7 @@ function createApplicationRoutes({
         clock: () => new Date(),
         fingerprintService,
         logger,
+        reopenNotifier: occurrenceResolutionNotifier,
         storage: storageGateway,
         unitOfWork: createDrizzleDriverSubjectWriteUnitOfWork(database),
       }),
