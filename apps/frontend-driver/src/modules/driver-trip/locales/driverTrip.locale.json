@@ -686,12 +686,53 @@
       "unread_one": "{{count}} mensagem nova",
       "unread_other": "{{count}} mensagens novas"
     },
+    "list": {
+      "back": "Voltar",
+      "title": "Ocorrências da rota",
+      "loading": "Carregando as ocorrências...",
+      "open": "Em aberto",
+      "closed": "Resolvidas e canceladas",
+      "empty": "Nenhuma ocorrência neste filtro.",
+      "emptyTrip": "Nenhuma ocorrência nesta viagem.",
+      "tripFinished": "Viagem encerrada",
+      "tripFinishedHint": "As ocorrências de uma viagem encerrada não ficam mais disponíveis no app.",
+      "offline": "Sem sinal: mostrando o que o aparelho guardou às {{time}}.",
+      "offlineEmpty": "Sem sinal e sem nada guardado no aparelho ainda.",
+      "scope": {
+        "note": "NF {{number}}",
+        "stop": "Parada {{sequence}} · só as da parada",
+        "clear": "Ver todas"
+      },
+      "filter": {
+        "group": "Filtrar",
+        "all": "Todas",
+        "unread": "Com mensagem nova",
+        "documents": "Com documento",
+        "refused": "Recusadas",
+        "queued": "Na fila",
+        "count": "{{label}}: {{count}}"
+      },
+      "row": {
+        "note": "NF {{number}} · P{{sequence}} · {{label}}",
+        "stop": "P{{sequence}} · {{label}}",
+        "opensChat": "Abre a conversa",
+        "opensDetail": "Abre o detalhe",
+        "share": "Compartilhar documentos de {{type}}",
+        "unread": "{{count}} novas"
+      }
+    },
     "more": "Ver mais {{count}} ocorrências de {{label}}",
     "noteLabel": "NF {{number}}",
     "phrase": {
       "case_cancelled": "Tratativa cancelada pelo escritório",
       "case_closed": "Encerrada pelo escritório",
       "case_returned_to_warehouse": "Mercadoria devolvida ao armazém"
+    },
+    "share": {
+      "sharing": "Preparando os documentos...",
+      "failed": "Não foi possível compartilhar. Confira o sinal e tente de novo.",
+      "unavailable": "Os documentos não estão mais disponíveis.",
+      "downloaded": "Este aparelho não compartilha arquivos: os documentos foram baixados."
     },
     "state": {
       "cancelled": "Cancelada",

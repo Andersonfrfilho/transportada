@@ -668,12 +668,53 @@
       "unread_one": "{{count}} new message",
       "unread_other": "{{count}} new messages"
     },
+    "list": {
+      "back": "Back",
+      "title": "Route occurrences",
+      "loading": "Loading occurrences...",
+      "open": "Open",
+      "closed": "Resolved and cancelled",
+      "empty": "No occurrences in this filter.",
+      "emptyTrip": "No occurrences on this trip.",
+      "tripFinished": "Trip finished",
+      "tripFinishedHint": "Occurrences of a finished trip are no longer available in the app.",
+      "offline": "No signal: showing what the device saved at {{time}}.",
+      "offlineEmpty": "No signal and nothing saved on the device yet.",
+      "scope": {
+        "note": "Invoice {{number}}",
+        "stop": "Stop {{sequence}} · stop-level only",
+        "clear": "See all"
+      },
+      "filter": {
+        "group": "Filter",
+        "all": "All",
+        "unread": "With new message",
+        "documents": "With document",
+        "refused": "Rejected",
+        "queued": "Queued",
+        "count": "{{label}}: {{count}}"
+      },
+      "row": {
+        "note": "Invoice {{number}} · S{{sequence}} · {{label}}",
+        "stop": "S{{sequence}} · {{label}}",
+        "opensChat": "Opens the conversation",
+        "opensDetail": "Opens the detail",
+        "share": "Share documents of {{type}}",
+        "unread": "{{count}} new"
+      }
+    },
     "more": "See {{count}} more occurrences for {{label}}",
     "noteLabel": "Invoice {{number}}",
     "phrase": {
       "case_cancelled": "Case cancelled by the office",
       "case_closed": "Closed by the office",
       "case_returned_to_warehouse": "Goods returned to the warehouse"
+    },
+    "share": {
+      "sharing": "Preparing the documents...",
+      "failed": "Could not share. Check your signal and try again.",
+      "unavailable": "The documents are no longer available.",
+      "downloaded": "This device cannot share files: the documents were downloaded."
     },
     "state": {
       "cancelled": "Cancelled",

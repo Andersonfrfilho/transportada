@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { DriverOccurrenceListFilter } from '@/modules/shared/driverRoute.service'
+
 import type {
   DriverRouteOccurrence,
   RouteOccurrenceKind,
@@ -95,3 +97,12 @@ export type RouteOccurrenceSiblings = Readonly<{
   /** Depois: as demais da mesma parada. */
   sameStop: readonly RouteOccurrenceEntry[]
 }>
+
+export type ScopeRouteOccurrencesParams = Readonly<{
+  entries: readonly RouteOccurrenceEntry[]
+  scope: DriverOccurrenceListFilter
+}>
+
+export type RouteOccurrenceTarget =
+  | Readonly<{ kind: 'conversation'; subjectId: string; subjectType: 'occurrence' }>
+  | Readonly<{ id: string; kind: 'detail'; occurrenceKind: RouteOccurrenceKind }>

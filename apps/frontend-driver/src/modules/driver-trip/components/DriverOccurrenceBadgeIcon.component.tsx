@@ -21,10 +21,17 @@ const STATE_ICON: Readonly<Record<RouteOccurrenceEntryState, IconName>> = {
   resolved: 'check',
 }
 
-type DriverOccurrenceBadgeIconProps = Readonly<{ entry: RouteOccurrenceEntry }>
+type DriverOccurrenceBadgeIconProps = Readonly<{
+  entry: RouteOccurrenceEntry
+  /** `false` desenha só a figura (dentro de uma linha que já é um botão); o padrão abre o detalhe. */
+  isInteractive?: boolean
+}>
 
 /** Spec 266 RF3: o ícone do tipo com os selos de estado, mensagens novas e documento; o toque abre o detalhe. */
-export function DriverOccurrenceBadgeIcon({ entry }: DriverOccurrenceBadgeIconProps) {
+export function DriverOccurrenceBadgeIcon({
+  entry,
+  isInteractive = true,
+}: DriverOccurrenceBadgeIconProps) {
   const { t } = useTranslation('driverTrip')
   const typeIcon: IconName = isOccurrenceTypeIconName(entry.iconName) ? entry.iconName : 'alert'
   const parts = [
@@ -38,16 +45,8 @@ export function DriverOccurrenceBadgeIcon({ entry }: DriverOccurrenceBadgeIconPr
   ]
   const label = parts.join(' · ')
 
-  return (
-    <button
-      aria-label={label}
-      className={styles.occurrenceIcon}
-      data-occurrence-icon=""
-      data-state={entry.state}
-      title={label}
-      type="button"
-      onClick={() => navigateToDriverOccurrence({ id: entry.id, kind: entry.kind })}
-    >
+  const badges = (
+    <>
       <Icon name={typeIcon} />
       <span aria-hidden="true" className={styles.occurrenceStateBadge}>
         <Icon name={STATE_ICON[entry.state]} size="sm" />
@@ -62,6 +61,35 @@ export function DriverOccurrenceBadgeIcon({ entry }: DriverOccurrenceBadgeIconPr
           <Icon name="paperclip" size="sm" />
         </span>
       ) : null}
+    </>
+  )
+
+  if (!isInteractive) {
+    return (
+      <span
+        aria-label={label}
+        className={styles.occurrenceIcon}
+        data-occurrence-icon=""
+        data-state={entry.state}
+        role="img"
+        title={label}
+      >
+        {badges}
+      </span>
+    )
+  }
+
+  return (
+    <button
+      aria-label={label}
+      className={styles.occurrenceIcon}
+      data-occurrence-icon=""
+      data-state={entry.state}
+      title={label}
+      type="button"
+      onClick={() => navigateToDriverOccurrence({ id: entry.id, kind: entry.kind })}
+    >
+      {badges}
     </button>
   )
 }

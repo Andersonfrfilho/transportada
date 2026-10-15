@@ -14,6 +14,8 @@ import type {
   RouteOccurrenceStopGroup,
   RouteOccurrenceStopLevelGroup,
   RouteOccurrenceStopReference,
+  RouteOccurrenceTarget,
+  ScopeRouteOccurrencesParams,
 } from './routeOccurrenceView.types'
 
 /** Spec 266 RF3: com mais de 4 ocorrências numa nota a fileira mostra 3 e um "+N". */
@@ -302,4 +304,24 @@ export function listSiblingRouteOccurrences(
     sameNote: others.filter(isSameNote),
     sameStop: others.filter((entry) => !isSameNote(entry)),
   }
+}
+
+/** A nota filtra pelas ocorrências dela; a parada, só pelas de parada (sem nota), como o "+N" do grupo da parada. */
+export function scopeRouteOccurrences(
+  params: ScopeRouteOccurrencesParams,
+): readonly RouteOccurrenceEntry[] {
+  const { entries, scope } = params
+  if (scope.documentId !== undefined)
+    return entries.filter((entry) => entry.documentId === scope.documentId)
+  if (scope.stopId !== undefined)
+    return entries.filter((entry) => entry.stopId === scope.stopId && entry.documentId === null)
+  return entries
+}
+
+/** Spec 266 RF4: a linha leva ao chat quando ele existe; senão ao detalhe. Na fila ainda não há conversa. */
+export function resolveRouteOccurrenceTarget(entry: RouteOccurrenceEntry): RouteOccurrenceTarget {
+  if (entry.source === 'server' && entry.hasConversation) {
+    return { kind: 'conversation', subjectId: entry.id, subjectType: 'occurrence' }
+  }
+  return { id: entry.id, kind: 'detail', occurrenceKind: entry.kind }
 }

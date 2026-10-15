@@ -36,6 +36,7 @@ import { useStopExpansion } from '../hooks/useStopExpansion.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
 import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
+import { DriverRouteOccurrencesRoute } from './DriverRouteOccurrencesRoute.page'
 import {
   navigateToDriverSection,
   resolveDriverRouteSection,
@@ -292,6 +293,23 @@ export function DriverTripWorkspacePage() {
         <main className={styles.shell}>
           <p role="alert">{t('error')}</p>
         </main>
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
+      </div>
+    )
+  }
+
+  if (routeSection === 'occurrences') {
+    return (
+      <div className={styles.moduleShell}>
+        <DriverShellHeader
+          openOccurrenceCount={routeOccurrences.openCount}
+          pendingCount={driverTrip.pendingTotal}
+        />
+        <DriverRouteOccurrencesRoute
+          isOffline={driverTrip.isOfflineBoot}
+          stops={trip?.stops ?? []}
+          view={routeOccurrences}
+        />
         <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
