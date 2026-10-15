@@ -14,7 +14,12 @@ import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.compo
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { ARRIVED_HIGHLIGHT_MS, resolveStopPlace } from '../shared/stopPlace.service'
-import { focusFinishButton, revealPanel } from '../shared/stopFocus.service'
+import {
+  PHOTO_FOCUS_TARGET,
+  focusFinishButton,
+  focusFirstRequiredPhoto,
+  revealPanel,
+} from '../shared/stopFocus.service'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
 import { ProofCargoField } from './ProofCargoField.component'
@@ -357,6 +362,15 @@ export function DriverStopCard({
     tappedReports,
   })
   const canActOnDocuments = isArrivalRecorded || isLateRegistration
+  /** Pedido do usuário (15/10): depois do "Cheguei", o foco vai ao primeiro item obrigatório — a foto. */
+  const wasArrivalRecordedRef = useRef(isArrivalRecorded)
+  useEffect(() => {
+    const wasRecorded = wasArrivalRecordedRef.current
+    wasArrivalRecordedRef.current = isArrivalRecorded
+    if (wasRecorded || !isArrivalRecorded) return undefined
+    focusFirstRequiredPhoto(cardRef.current)
+    return undefined
+  }, [isArrivalRecorded])
   const offersLateRegistration = canOfferLateRegistration({ canActOnDocuments, stop })
 
   function handleConfirmLateRegistration(): void {
@@ -1659,6 +1673,22 @@ function ProofCaptureFields({
     )
   }
 
+  /** O recorte abre no lugar da moldura da foto: o resto do cartão não desce nem pula. */
+  function renderCropFrame(source: File): ReactNode {
+    return (
+      <div className={styles.proofCaptureAttached}>
+        <ProofCrop
+          file={source}
+          onCancel={() => setCropFile(null)}
+          onConfirm={(file) => {
+            setCropFile(null)
+            attach('photo', file)
+          }}
+        />
+      </div>
+    )
+  }
+
   /**
    * O servidor já tem a foto: sem hora (o snapshot não manda) e sem convite à primeira captura.
    *
@@ -1711,6 +1741,7 @@ function ProofCaptureFields({
    */
   function renderAttachedThumbnail(kind: 'photo' | 'signature'): ReactNode {
     const preview = previewByKind[kind]
+    if (kind === 'photo' && cropFile !== null) return renderCropFrame(cropFile)
     if (kind === 'photo' && isPhotoConfirmedByServer) return renderConfirmedFrame()
     if (!attached[kind]) return kind === 'photo' && rendersPhotoCapture ? renderEmptyFrame() : null
     if (preview.previewUrl === undefined) return renderLoadingFrame(kind)
@@ -1769,13 +1800,18 @@ function ProofCaptureFields({
               <p className={styles.proofCaptureTitle}>{t('proofCapture.title')}</p>
               {renderAttachedThumbnail('photo')}
               {renderAttachedThumbnail('signature')}
-              <div className={styles.proofCaptureGrid}>
+              <div className={styles.proofCaptureGrid} hidden={cropFile !== null}>
                 {rendersPhotoCapture ? (
                   <>
                     <FilePickerButton
                       accept="image/*"
                       capture="environment"
                       className={styles.proofCaptureAction}
+                      focusTarget={
+                        plan.fields.photo === 'required' && !attached.photo
+                          ? PHOTO_FOCUS_TARGET
+                          : undefined
+                      }
                       inputRef={cameraFieldRef}
                       onSelect={setCropFile}
                     >
@@ -1961,12 +1997,14 @@ function ProofCaptureFields({
             </label>
           ) : null}
 
-          {renderFooter({
-            finishActionsRef,
-            plan,
-            pushLateFieldUpdate: () => pushLateFieldUpdate(),
-            values: currentValues,
-          })}
+          <div inert={cropFile !== null}>
+            {renderFooter({
+              finishActionsRef,
+              plan,
+              pushLateFieldUpdate: () => pushLateFieldUpdate(),
+              values: currentValues,
+            })}
+          </div>
         </>
       ) : (
         summary
@@ -1991,17 +2029,6 @@ function ProofCaptureFields({
           }}
         />
       ) : null}
-
-      {cropFile === null ? null : (
-        <ProofCrop
-          file={cropFile}
-          onCancel={() => setCropFile(null)}
-          onConfirm={(file) => {
-            setCropFile(null)
-            attach('photo', file)
-          }}
-        />
-      )}
     </SmoothHeight>
   )
 }

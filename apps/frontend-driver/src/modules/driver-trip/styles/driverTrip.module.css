@@ -1707,7 +1707,13 @@
   grid-template-columns: 1fr;
 }
 
+.proofCaptureGrid[hidden] {
+  display: none;
+}
+
+/* A barra de abas fixa cobre o rodapé: a rolagem "nearest" deixa o botão acima dela. */
 .proofCaptureAction {
+  scroll-margin-bottom: 6rem;
   min-height: 2.75rem;
   min-width: 0;
   width: 100%;

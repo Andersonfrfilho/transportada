@@ -5,7 +5,9 @@ import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'bun:test'
 
 import {
+  PHOTO_FOCUS_TARGET,
   focusFinishButton,
+  focusFirstRequiredPhoto,
   resolveScrollBehavior,
   revealPanel,
   revealStopStart,
@@ -57,6 +59,31 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
       'focus {"preventScroll":true}',
       'scroll {"behavior":"smooth","block":"nearest"}',
     ])
+  })
+
+  it('depois do "Cheguei", o foco vai à foto obrigatória, com rolagem curta e sem roubar o cursor', () => {
+    stubWindow(false)
+    globals.document = { activeElement: null }
+    const calls: Calls = []
+    let selector = ''
+    const card = {
+      querySelector: (value: string) => {
+        selector = value
+        return fakeButton(calls)
+      },
+    } as unknown as Element
+    focusFirstRequiredPhoto(card)
+    expect(selector).toBe(`[data-focus-target="${PHOTO_FOCUS_TARGET}"]`)
+    expect(calls).toEqual([
+      'focus {"preventScroll":true}',
+      'scroll {"behavior":"smooth","block":"nearest"}',
+    ])
+
+    const typing: Calls = []
+    globals.document = { activeElement: new (globals.HTMLInputElement as new () => object)() }
+    focusFirstRequiredPhoto({ querySelector: () => fakeButton(typing) } as unknown as Element)
+    expect(typing).toEqual([])
+    focusFirstRequiredPhoto(null)
   })
 
   it('botão ainda bloqueado ou inexistente não recebe foco', () => {

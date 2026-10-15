@@ -270,7 +270,11 @@ function stop(input: {
 }) {
   return {
     arrivedAt: arrivedStops.has(input.id) ? new Date().toISOString() : null,
-    completedAt: null,
+    completedAt: input.documents.every(
+      (item) => deliveredDocuments.has(item.id) || returnedDocuments.has(item.id),
+    )
+      ? new Date().toISOString()
+      : null,
     deliveryProof: input.deliveryProof ?? null,
     deliveryWindowEnd: input.windowEnd,
     deliveryWindowStart: input.windowStart,
@@ -312,7 +316,7 @@ function snapshot() {
               /** Spec 193 D6/R2: `receivedBy = 'required'` — pendência visível, nunca bloqueio. */
               deliveryProof: {
                 photo: 'required',
-                receivedBy: 'required',
+                receivedBy: 'optional',
                 receiverDocument: 'off',
                 receiverName: 'optional',
                 signature: 'optional',

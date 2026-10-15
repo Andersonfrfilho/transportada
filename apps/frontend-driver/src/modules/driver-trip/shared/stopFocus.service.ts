@@ -45,3 +45,22 @@ export function revealPanel(panel: HTMLElement | null): void {
   panel.focus({ preventScroll: true })
   panel.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'nearest' })
 }
+
+export const PHOTO_FOCUS_TARGET = 'proof-photo'
+
+/** O "Tirar foto" obrigatório da primeira nota aberta: foco e rolagem curta, sem tirar o cursor de quem digita. */
+export function focusFirstRequiredPhoto(card: Element | null): void {
+  const button =
+    card?.querySelector<HTMLButtonElement>(`[data-focus-target="${PHOTO_FOCUS_TARGET}"]`) ?? null
+  if (button === null || button.disabled) return
+  const active = document.activeElement
+  if (
+    active instanceof HTMLInputElement ||
+    active instanceof HTMLTextAreaElement ||
+    active instanceof HTMLSelectElement
+  ) {
+    return
+  }
+  button.focus({ preventScroll: true })
+  button.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'nearest' })
+}

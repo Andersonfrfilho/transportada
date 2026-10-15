@@ -10,6 +10,8 @@ export type FilePickerButtonProps = Readonly<{
   capture?: 'environment' | 'user'
   children: ReactNode
   className?: string | undefined
+  /** Marca o botão como alvo de foco programático (`data-focus-target`). */
+  focusTarget?: string | undefined
   /** O registro da captura (`useCameraCaptureFieldRef`) liga no input, não no botão. */
   inputRef?: RefCallback<HTMLInputElement>
   onSelect: (file: File) => void
@@ -27,6 +29,7 @@ export function FilePickerButton({
   capture,
   children,
   className,
+  focusTarget,
   inputRef,
   onSelect,
   variant = 'ghost',
@@ -56,6 +59,7 @@ export function FilePickerButton({
     <>
       <Button
         className={className}
+        {...(focusTarget === undefined ? {} : { 'data-focus-target': focusTarget })}
         onClick={() => localInputRef.current?.click()}
         type="button"
         variant={variant}
