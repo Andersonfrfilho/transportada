@@ -30,6 +30,11 @@ preenchida, e o operador pode **tirar** alguém naquele envio, nunca digitar end
 
 ## Requisitos funcionais
 
+> **Duas conversas por ocorrência (183 D1), e a cópia só toca uma.** A mesma ocorrência tem a conversa com o
+> **motorista** e a conversa com a **contratante**, separadas. A cópia, as respostas dos atendentes por e-mail e a nota
+> interna "só para a equipe" vivem **só na conversa da contratante**. Nada desta spec aparece na conversa do motorista
+> nem no app do motorista.
+
 - **RF1 — Lista da empresa.** Aba "Responsáveis por ocorrências" em `/company-settings`. Seleção múltipla de usuários da
   empresa com vínculo ativo **e** permissão `occurrences.resolve`. Editar exige `settings.manage`. Usuário sem endereço
   de e-mail aparece marcado "sem e-mail" e não recebe cópia.
