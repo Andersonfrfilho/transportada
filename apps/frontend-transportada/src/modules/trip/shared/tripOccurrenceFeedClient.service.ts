@@ -37,6 +37,10 @@ import {
 } from './tripOccurrenceFeed.service'
 import { serializeTripOccurrenceQuery } from './tripOccurrenceFeed.service'
 import type { OccurrenceTimeline } from './tripOccurrenceTimeline.service'
+import type {
+  OccurrenceResolutionKind,
+  OccurrenceResolutionResult,
+} from './occurrenceResolution.service'
 import { parseOccurrenceTimeline } from './tripOccurrenceTimeline.validation'
 
 const TRIP_OCCURRENCES_PATH = '/trip-occurrences'
@@ -75,6 +79,10 @@ export type TripOccurrenceFeedClient = Readonly<{
   readOccurrenceTimeline: (input: Readonly<{ occurrenceId: string }>) => Promise<OccurrenceTimeline>
   /** Spec 164 T7/RF8b: motivo obrigatório — ocorrência aberta por engano, só de `recorded`/`under_review`. */
   cancelOccurrenceCase: (input: CaseActionWithNoteInput) => Promise<CaseActionResult>
+  /** Spec 266 RF7: `POST /trip-occurrences/:kind/:id/resolution` — nota obrigatória, 409 se já resolvida ou cancelada. */
+  resolveTripOccurrence: (
+    input: Readonly<{ kind: OccurrenceResolutionKind; note: string; occurrenceId: string }>,
+  ) => Promise<OccurrenceResolutionResult>
   /** RF8: só sai de `decided`. */
   closeOccurrenceCase: (input: CaseActionInput) => Promise<CaseActionResult>
   /** RF7: recusa 422 quando `blocked` sem item para acertar. */
@@ -458,6 +466,21 @@ function readAttachments(payload: unknown): readonly TripOccurrenceAttachment[] 
   return payload.data
 }
 
+function readResolutionResult(payload: unknown): OccurrenceResolutionResult {
+  if (!isRecord(payload) || !isRecord(payload.data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  const { note, occurrenceId, occurrenceKind, resolvedAt, state } = payload.data
+  if (
+    !isString(note) ||
+    !isString(occurrenceId) ||
+    (occurrenceKind !== 'document' && occurrenceKind !== 'stop') ||
+    !isString(resolvedAt) ||
+    !isString(state)
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return { note, occurrenceId, occurrenceKind, resolvedAt, state }
+}
+
 function readErrorCode(payload: unknown): string {
   if (isRecord(payload) && isRecord(payload.error) && isString(payload.error.code)) {
     return payload.error.code
@@ -561,6 +584,14 @@ export function createTripOccurrenceFeedClient(
         { method: 'POST' },
       )
       return readCaseActionResult(payload)
+    },
+    async resolveTripOccurrence(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.kind}/${encodeURIComponent(input.occurrenceId)}/resolution`,
+        { body: { note: input.note }, method: 'POST' },
+      )
+      return readResolutionResult(payload)
     },
     async cancelOccurrenceCase(input) {
       const payload = await requestJson(

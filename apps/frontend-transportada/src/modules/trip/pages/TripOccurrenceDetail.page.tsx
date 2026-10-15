@@ -19,6 +19,7 @@ import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { OccurrenceCancellationMark } from '../components/OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
+import { OccurrenceResolutionPanel } from '../components/OccurrenceResolutionPanel.component'
 import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
@@ -433,12 +434,17 @@ function OccurrenceDetailSections({
   const tripDocumentId = occurrence.document?.tripDocumentId ?? null
 
   const sections: Record<OccurrenceDetailSection, () => ReactNode> = {
-    case: () =>
-      occurrence.source === 'document' ? (
-        <section aria-labelledby="occurrence-case-title" className={styles.panel}>
-          <div className={styles.panelHead}>
-            <h2 id="occurrence-case-title">{t('occurrenceDetail.case.title')}</h2>
-          </div>
+    case: () => (
+      <section aria-labelledby="occurrence-case-title" className={styles.panel}>
+        <div className={styles.panelHead}>
+          <h2 id="occurrence-case-title">{t('occurrenceDetail.case.title')}</h2>
+        </div>
+        <OccurrenceResolutionPanel
+          canResolve={canResolveOccurrenceCases}
+          occurrenceId={occurrence.id}
+          occurrenceKind={occurrence.source}
+        />
+        {occurrence.source === 'document' ? (
           <OccurrenceCasePanel
             canResolve={canResolveOccurrenceCases}
             occurrenceCase={occurrence.case}
@@ -460,8 +466,9 @@ function OccurrenceDetailSections({
                   },
                 })}
           />
-        </section>
-      ) : null,
+        ) : null}
+      </section>
+    ),
     contractorConversation: () => conversations('contractor'),
     conversations: () => conversations(),
     document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,

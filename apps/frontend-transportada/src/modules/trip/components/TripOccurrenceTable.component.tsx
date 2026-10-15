@@ -23,6 +23,7 @@ import {
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from './OccurrenceCasePanel.component'
+import { OccurrenceResolutionPanel } from './OccurrenceResolutionPanel.component'
 import { OccurrenceCaseTakenBy } from './OccurrenceCaseTakenBy.component'
 import {
   buildTripOccurrenceRoute,
@@ -204,6 +205,11 @@ function OccurrenceDetailRow({
         </p>
         <OccurrenceCancellationMark cancellation={item.cancellation} variant="notice" />
         <OccurrenceAttachments item={item} />
+        <OccurrenceResolutionPanel
+          canResolve={canResolveOccurrenceCases}
+          occurrenceId={item.id}
+          occurrenceKind={item.source}
+        />
         {item.source === 'document' ? (
           <OccurrenceCasePanel
             canResolve={canResolveOccurrenceCases}

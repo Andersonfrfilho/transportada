@@ -2322,6 +2322,25 @@
     },
     "closeBlockedByDraft": "Save the settlement before closing — there is a typed item that has not been saved."
   },
+  "occurrenceResolution": {
+    "action": "Resolve with a note",
+    "noteLabel": "Resolution note",
+    "noteHelp": "The driver will read this note.",
+    "confirm": "Resolve",
+    "dismiss": "Cancel",
+    "stateLabel": "Progress",
+    "state": {
+      "open": "Open",
+      "reopened": "Reopened by the driver",
+      "resolved": "Resolved",
+      "cancelled": "Cancelled"
+    },
+    "feedback": {
+      "alreadyResolved": "It was already resolved. The screen was refreshed.",
+      "cancelled": "This occurrence was cancelled and cannot be resolved.",
+      "generic": "Could not resolve the occurrence. Try again."
+    }
+  },
   "occurrenceSettlement": {
     "title": "Goods settlement",
     "productCode": "Product code",
