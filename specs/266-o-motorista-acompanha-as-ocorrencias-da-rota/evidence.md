@@ -273,3 +273,16 @@ _(cada task registra aqui comando, saída resumida e commit)_
   Suíte completa e lint da app ficam para a T5.3.
 - Acerto de formato: o painel lê o envelope **existente** da linha do tempo (`occurredAt`, `actor.kind/name`); a T2.9
   da API foi orientada a emitir esse mesmo envelope (não o rascunho `at/actorKind` do plano).
+
+### T4.8 / T4.9 / T4.10 — Reabrir pelo chat, aviso e textos (`7022b38`, `76fed72`, `fb230d8be`)
+
+- `@adatechnology/conversations-ui` **0.11.0** (pin exato, como as outras apps). `renderComposerLock`: resolvida →
+  aviso + "Reabrir"; cancelada → aviso sem botão. O sinal `reopen` fica preso à mensagem (`clientMessageId`), vai na
+  fila offline e sai com a mesma `Idempotency-Key`; a fila é FIFO por assunto (teste). 409 `OCCURRENCE_NOT_RESOLVED` /
+  `OCCURRENCE_CANCELLED` é permanente, com aviso na tela. Sem conversa: "Reabrir e responder".
+- `trip.occurrence-resolved` abre `/ocorrencias/:kind/:id`. Plurais corrigidos ("1 ocorrências", "1 novas").
+- Gates: typecheck, lint ok; `bun run test` 2033 pass, 0 fail. Smokes Playwright não rodaram (T5.1).
+- `bun.lock`: regenerado com Bun 1.4.3 (o repositório fixa 1.3.14); entradas `lightningcss*` removidas por ele foram
+  restauradas à mão; `bun install --frozen-lockfile` passa. **Reconferir com Bun 1.3.14 antes de publicar.**
+- Pendência de polimento (T5): o campo pode travar de novo por um instante depois do envio que reabre, até a lista
+  atualizar; manter destravado enquanto o envio está em curso.

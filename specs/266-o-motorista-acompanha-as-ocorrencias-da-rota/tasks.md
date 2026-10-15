@@ -102,15 +102,15 @@
       parada".
 - [x] **T4.7** `sonnet` — `driverFileShare.service.ts`: busca pelo link assinado, `navigator.canShare({ files })` →
       `share`, senão `saveDriverFile`; o PDF abre em aba nova (CSP `frame-src 'none'`). Teste com e sem suporte.
-- [ ] **T4.8** 🧠 `opus` → `sonnet` — Composer travado na ocorrência resolvida, botão "Reabrir" e a primeira
+- [x] **T4.8** 🧠 `opus` → `sonnet` — Composer travado na ocorrência resolvida, botão "Reabrir" e a primeira
       mensagem com `reopen: true` pelo envio do `@adatechnology/conversations-ui/participant`. Conferir se o pacote
       suporta travar o composer e passar o flag no envio. **Se não suportar**, a mudança vai no pacote
       (`adatechnology-packages`, worktree e changeset próprios), nunca por cópia no app. Depois, `sonnet` implementa o
       fluxo, o botão sem conversa no detalhe (cria a conversa ao enviar; tocar em Reabrir e não enviar não grava nada) e
       a fila offline com idempotência. Viagem finalizada: "Viagem encerrada" no link antigo.
-- [ ] **T4.9** `haiku` — `notificationDestination.service.ts`: `trip.occurrence-resolved` → detalhe. Teste em
+- [x] **T4.9** `haiku` — `notificationDestination.service.ts`: `trip.occurrence-resolved` → detalhe. Teste em
       `notification-destination.contract.ts`.
-- [ ] **T4.10** `haiku` — Locales pt-BR/en (`driverTrip`) de todas as telas novas. Os rótulos acessíveis dos ícones
+- [x] **T4.10** `haiku` — Locales pt-BR/en (`driverTrip`) de todas as telas novas. Os rótulos acessíveis dos ícones
       vêm do locale.
 
 ## Fase 5 — Fechamento
