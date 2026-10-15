@@ -69,7 +69,7 @@ export function DriverOccurrenceRegistrationForm({
 
   function handleRetry(): void {
     onRetryOccurrenceTypes()
-    panelRef.current?.focus()
+    panelRef.current?.focus({ preventScroll: true })
   }
 
   /** Rascunho a que falta campo obrigatório não fecha o formulário: o que foi digitado fica. */

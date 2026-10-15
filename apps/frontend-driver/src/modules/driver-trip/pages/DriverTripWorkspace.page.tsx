@@ -51,6 +51,7 @@ import {
   type TappedStopReport,
 } from '../shared/documentActivity.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
+import { resolveScrollBehavior } from '../shared/scrollBehavior.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
   DriverOccurrenceTypesState,
@@ -250,8 +251,8 @@ export function DriverTripWorkspacePage() {
     requestAnimationFrame(() => {
       const element = stopHeaderRefs.current.get(stopId)
       if (element === null || element === undefined) return
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      element.focus()
+      element.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'center' })
+      element.focus({ preventScroll: true })
     })
   }
 
