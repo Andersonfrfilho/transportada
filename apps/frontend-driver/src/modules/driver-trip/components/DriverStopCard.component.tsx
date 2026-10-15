@@ -14,7 +14,21 @@ import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.compo
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { ARRIVED_HIGHLIGHT_MS, resolveStopPlace } from '../shared/stopPlace.service'
-import { focusFinishButton, revealPanel } from '../shared/stopFocus.service'
+import { resolveProofFocusTargets } from '../shared/proofFocusTargets.service'
+import {
+  NEXT_STEP_FOCUS_DELAY_MS,
+  armNextStepFocus,
+  armStopAdvanceFocus,
+  consumeAutoConclude,
+  consumeNextStepFocus,
+  consumeStopAdvanceFocus,
+  focusFirstRequiredProof,
+  focusNextPhotoAfter,
+  markFocusTarget,
+  focusNextProofStep,
+  revealStopStart,
+  revealPanel,
+} from '../shared/stopFocus.service'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
 import { ProofCargoField } from './ProofCargoField.component'
@@ -77,6 +91,7 @@ import {
   listMissingProofFields,
   listPendingReceiverFields,
   maskReceiverDocument,
+  isSingleProofPlan,
   requiresProofBeforeDelivery,
   resolveProofFormPlan,
   type ProofFieldKey,
@@ -317,6 +332,21 @@ export function DriverStopCard({
     const timer = setTimeout(() => setJustArrived(false), ARRIVED_HIGHLIGHT_MS)
     return () => clearTimeout(timer)
   }, [isCurrent])
+  /**
+   * Pedido do usuário (15/10): a última nota da parada foi confirmada e o cartão recolheu — não há
+   * "Concluir" para focar, então o foco, 1 s depois, vai ao começo da próxima parada.
+   */
+  const wasCompletedRef = useRef(isCompleted)
+  useEffect(() => {
+    const wasCompleted = wasCompletedRef.current
+    wasCompletedRef.current = isCompleted
+    if (wasCompleted || !isCompleted || !consumeStopAdvanceFocus()) return undefined
+    const timer = setTimeout(
+      () => revealStopStart(cardRef.current?.nextElementSibling ?? null),
+      NEXT_STEP_FOCUS_DELAY_MS,
+    )
+    return () => clearTimeout(timer)
+  }, [isCompleted])
   const areFieldActionsHidden = isFieldWorkBlocked || isReadOnly
   /** Spec 206 D9: `enRouteTappedAt` (hora do toque) é a âncora; `enRouteSince` é a reserva. */
   const enRouteAnchor = stop.enRouteTappedAt ?? stop.enRouteSince ?? undefined
@@ -357,6 +387,15 @@ export function DriverStopCard({
     tappedReports,
   })
   const canActOnDocuments = isArrivalRecorded || isLateRegistration
+  /** Pedido do usuário (15/10): depois do "Cheguei", o foco vai ao primeiro item obrigatório — a foto. */
+  const wasArrivalRecordedRef = useRef(isArrivalRecorded)
+  useEffect(() => {
+    const wasRecorded = wasArrivalRecordedRef.current
+    wasArrivalRecordedRef.current = isArrivalRecorded
+    if (wasRecorded || !isArrivalRecorded) return undefined
+    focusFirstRequiredProof(cardRef.current)
+    return undefined
+  }, [isArrivalRecorded])
   const offersLateRegistration = canOfferLateRegistration({ canActOnDocuments, stop })
 
   function handleConfirmLateRegistration(): void {
@@ -1119,6 +1158,7 @@ function PreDeliveryProofGate({
                   disabled={missingFields.length > 0 || isConfirming}
                   onClick={() => {
                     capture.pushLateFieldUpdate()
+                    armNextStepFocus()
                     onConfirm()
                   }}
                   type="button"
@@ -1231,9 +1271,31 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
   /** Spec 207: "Concluir" — estado só da tela, por nota; nunca `localStorage` (derivado seria melhor,
    * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
   const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
+  /**
+   * Pedido do usuário (15/10): com um único comprovante (hoje o canhoto), "Confirmar entrega" já conclui —
+   * "Concluir" só existe quando há mais o que preencher depois do envio. Quem arma é o toque no gate.
+   */
+  const isSingleProof = isSingleProofPlan(resolveProofFormPlan(props.proofSettings))
+  const isDelivered = props.serverProof?.isDelivered === true
+  useEffect(() => {
+    if (isSingleProof && isDelivered && consumeAutoConclude()) {
+      setConcludedAt(new Date().toISOString())
+    }
+  }, [])
 
   /** Pedido do usuário (14/10): tocou em "Concluir" com pendência, o aviso fica na tela até resolver. */
   const [showMissing, setShowMissing] = useState(false)
+  /** Depois do "Concluir" (mais de um comprovante), 1 s depois o foco vai ao próximo obrigatório da parada. */
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const [focusAfterConclude, setFocusAfterConclude] = useState(false)
+  useEffect(() => {
+    if (!focusAfterConclude) return undefined
+    const timer = setTimeout(() => {
+      focusNextPhotoAfter(sectionRef.current)
+      setFocusAfterConclude(false)
+    }, NEXT_STEP_FOCUS_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [focusAfterConclude])
   /** Cada toque em "Concluir" bloqueado leva o foco ao aviso — fora da tela, o motorista acharia que nada aconteceu. */
   const blockedRef = useRef<HTMLDivElement>(null)
   const [blockedAttempts, setBlockedAttempts] = useState(0)
@@ -1268,11 +1330,14 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
     }
     setShowMissing(false)
     setConcludedAt(new Date().toISOString())
+    armStopAdvanceFocus()
+    setFocusAfterConclude(true)
   }
 
   return (
     <ProofCaptureFields
       {...props}
+      sectionRef={sectionRef}
       renderFooter={(capture) => {
         const missingText = showMissing ? describeMissing(capture) : ''
         return (
@@ -1327,6 +1392,8 @@ type ProofCaptureFieldsProps = DeliveryProofSectionProps &
     renderFooter: (capture: ProofCaptureState) => ReactNode
     /** Presente, ocupa o lugar dos campos — o estado da captura continua montado por baixo. */
     summary?: ReactNode
+    /** A seção no DOM, para o foco entre notas (o pai pode precisar achá-la depois do "Concluir"). */
+    sectionRef?: RefObject<HTMLDivElement | null>
   }>
 
 /**
@@ -1345,6 +1412,7 @@ function ProofCaptureFields({
   recipientDisplayName,
   recipientIsCompany,
   renderFooter,
+  sectionRef: externalSectionRef,
   serverProof,
   summary,
 }: ProofCaptureFieldsProps) {
@@ -1430,17 +1498,57 @@ function ProofCaptureFields({
       ? undefined
       : (previewByKind[openImageKind].previewUrl ??
         (openImageKind === 'photo' ? storedThumbnailUrl : undefined))
+  const [removingKind, setRemovingKind] = useState<'photo' | 'signature' | undefined>(undefined)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  const documentInputRef = useRef<HTMLInputElement>(null)
+  /** Os obrigatórios ainda vazios são alvos de foco: depois da foto, o foco vai ao primeiro que faltar. */
+  const focusTargets = resolveProofFocusTargets({
+    plan,
+    state: {
+      cargoCount: cargoKeys.length,
+      hasPhoto: attached.photo || isPhotoConfirmedByServer,
+      hasSignature: attached.signature,
+      receivedBy,
+      receiverDocument,
+      receiverName,
+    },
+  })
+  const receivedByLabel = t('proofFields.receivedBy')
+  useEffect(() => {
+    const trigger = sectionRef.current?.querySelector<HTMLElement>(
+      `button[aria-label="${CSS.escape(receivedByLabel)}"]`,
+    )
+    markFocusTarget(trigger, focusTargets.receivedBy)
+    markFocusTarget(nameInputRef.current, focusTargets.receiverName)
+    markFocusTarget(documentInputRef.current, focusTargets.receiverDocument)
+  })
   /**
    * Pedido do usuário (14/10): a foto entrou — o foco vai ao "Concluir"/"Confirmar", que é o passo
    * seguinte, em vez de a tela ficar onde estava. Só se o botão já está liberado e ninguém está digitando.
    */
   const finishActionsRef = useRef<HTMLDivElement>(null)
+  const ownSectionRef = useRef<HTMLDivElement>(null)
+  const sectionRef = externalSectionRef ?? ownSectionRef
   const [focusFinishNextRender, setFocusFinishNextRender] = useState(false)
+  /** Pedido do usuário (15/10): o canhoto subiu (o servidor o tem) — o foco segue ao passo seguinte. */
+  const wasPhotoConfirmedRef = useRef(isPhotoConfirmedByServer)
   useEffect(() => {
-    if (!focusFinishNextRender) return
-    focusFinishButton(finishActionsRef.current)
-    setFocusFinishNextRender(false)
+    const wasConfirmed = wasPhotoConfirmedRef.current
+    wasPhotoConfirmedRef.current = isPhotoConfirmedByServer
+    if (!wasConfirmed && isPhotoConfirmedByServer) setFocusFinishNextRender(true)
+  }, [isPhotoConfirmedByServer])
+  /** A tela do "Concluir" nasce já com a entrega confirmada: quem arma é o toque no "Confirmar entrega". */
+  useEffect(() => {
+    if (serverProof?.isDelivered === true && consumeNextStepFocus()) setFocusFinishNextRender(true)
+  }, [])
+  useEffect(() => {
+    if (!focusFinishNextRender) return undefined
+    const timer = setTimeout(() => {
+      if (finishActionsRef.current === null) focusNextPhotoAfter(sectionRef.current)
+      else focusNextProofStep(finishActionsRef.current)
+      setFocusFinishNextRender(false)
+    }, NEXT_STEP_FOCUS_DELAY_MS)
+    return () => clearTimeout(timer)
   }, [focusFinishNextRender])
   /** Spec 193 D14: PJ recebe o nome selecionado, com foco — o motorista digita por cima. */
   const [selectNameOnNextRender, setSelectNameOnNextRender] = useState(false)
@@ -1560,6 +1668,7 @@ function ProofCaptureFields({
       }
       setCargoKeys((current) => [...current, attachmentKey])
       blockedByFields({ ...attached, cargoCount: cargoKeys.length + 1 })
+      setFocusFinishNextRender(true)
     })
   }
 
@@ -1582,7 +1691,7 @@ function ProofCaptureFields({
    * continua intacto, com a própria miniatura e a própria chave.
    */
   function handleRemove(kind: 'photo' | 'signature'): void {
-    if (!window.confirm(t('proofCapture.confirmRemove'))) return
+    setRemovingKind(undefined)
     const key = attachedKey[kind]
     if (key !== undefined) onRemoveProof?.(key)
     setAttached((current) => ({ ...current, [kind]: false }))
@@ -1659,6 +1768,22 @@ function ProofCaptureFields({
     )
   }
 
+  /** O recorte abre no lugar da moldura da foto: o resto do cartão não desce nem pula. */
+  function renderCropFrame(source: File): ReactNode {
+    return (
+      <div className={styles.proofCaptureAttached}>
+        <ProofCrop
+          file={source}
+          onCancel={() => setCropFile(null)}
+          onConfirm={(file) => {
+            setCropFile(null)
+            attach('photo', file)
+          }}
+        />
+      </div>
+    )
+  }
+
   /**
    * O servidor já tem a foto: sem hora (o snapshot não manda) e sem convite à primeira captura.
    *
@@ -1711,6 +1836,7 @@ function ProofCaptureFields({
    */
   function renderAttachedThumbnail(kind: 'photo' | 'signature'): ReactNode {
     const preview = previewByKind[kind]
+    if (kind === 'photo' && cropFile !== null) return renderCropFrame(cropFile)
     if (kind === 'photo' && isPhotoConfirmedByServer) return renderConfirmedFrame()
     if (!attached[kind]) return kind === 'photo' && rendersPhotoCapture ? renderEmptyFrame() : null
     if (preview.previewUrl === undefined) return renderLoadingFrame(kind)
@@ -1742,20 +1868,34 @@ function ProofCaptureFields({
               <Icon name="eye" />
               {t('proofCapture.view')}
             </Button>
-            {isProofQueued ? (
-              <Button onClick={() => handleRemove(kind)} type="button" variant="ghost">
+            {isProofQueued && removingKind !== kind ? (
+              <Button onClick={() => setRemovingKind(kind)} type="button" variant="ghost">
                 <Icon name="trash" />
                 {t('proofCapture.remove')}
               </Button>
             ) : null}
           </div>
+          {isProofQueued && removingKind === kind ? (
+            <div className={styles.inlineConfirm} role="alertdialog">
+              <p>{t('proofCapture.confirmRemove')}</p>
+              <div className={styles.actions}>
+                <Button onClick={() => handleRemove(kind)} type="button">
+                  <Icon name="trash" />
+                  {t('proofCapture.confirmRemoveYes')}
+                </Button>
+                <Button onClick={() => setRemovingKind(undefined)} type="button" variant="ghost">
+                  {t('proofCapture.confirmRemoveBack')}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     )
   }
 
   return (
-    <SmoothHeight className={styles.proofSection}>
+    <SmoothHeight className={styles.proofSection} contentRef={sectionRef}>
       {summary === undefined ? (
         <>
           {/*
@@ -1769,13 +1909,14 @@ function ProofCaptureFields({
               <p className={styles.proofCaptureTitle}>{t('proofCapture.title')}</p>
               {renderAttachedThumbnail('photo')}
               {renderAttachedThumbnail('signature')}
-              <div className={styles.proofCaptureGrid}>
+              <div className={styles.proofCaptureGrid} hidden={cropFile !== null}>
                 {rendersPhotoCapture ? (
                   <>
                     <FilePickerButton
                       accept="image/*"
                       capture="environment"
                       className={styles.proofCaptureAction}
+                      focusTarget={focusTargets.photo}
                       inputRef={cameraFieldRef}
                       onSelect={setCropFile}
                     >
@@ -1801,6 +1942,9 @@ function ProofCaptureFields({
                 {canSign ? (
                   <Button
                     className={`${styles.proofCaptureAction} ${styles.proofCaptureWide}`}
+                    {...(focusTargets.signature === undefined
+                      ? {}
+                      : { 'data-focus-target': focusTargets.signature })}
                     onClick={() => setOpenSignature((open) => !open)}
                     type="button"
                     variant="ghost"
@@ -1831,6 +1975,7 @@ function ProofCaptureFields({
           {plan.rendersCargo ? (
             <ProofCargoField
               attachedCount={cargoKeys.length}
+              isPending={focusTargets.cargo !== undefined}
               isRefused={isCargoRefused}
               isRequired={plan.fields.cargo === 'required'}
               missingCount={
@@ -1945,6 +2090,7 @@ function ProofCaptureFields({
                 aria-invalid={missing.includes('receiverDocument')}
                 autoCapitalize="characters"
                 maxLength={18}
+                ref={documentInputRef}
                 type="text"
                 value={receiverDocument}
                 onBlur={() => pushLateFieldUpdate()}
@@ -1961,12 +2107,14 @@ function ProofCaptureFields({
             </label>
           ) : null}
 
-          {renderFooter({
-            finishActionsRef,
-            plan,
-            pushLateFieldUpdate: () => pushLateFieldUpdate(),
-            values: currentValues,
-          })}
+          <div inert={cropFile !== null}>
+            {renderFooter({
+              finishActionsRef,
+              plan,
+              pushLateFieldUpdate: () => pushLateFieldUpdate(),
+              values: currentValues,
+            })}
+          </div>
         </>
       ) : (
         summary
@@ -1991,17 +2139,6 @@ function ProofCaptureFields({
           }}
         />
       ) : null}
-
-      {cropFile === null ? null : (
-        <ProofCrop
-          file={cropFile}
-          onCancel={() => setCropFile(null)}
-          onConfirm={(file) => {
-            setCropFile(null)
-            attach('photo', file)
-          }}
-        />
-      )}
     </SmoothHeight>
   )
 }

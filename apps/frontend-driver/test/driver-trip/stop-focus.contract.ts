@@ -6,6 +6,15 @@ import { afterEach, describe, expect, it } from 'bun:test'
 
 import {
   focusFinishButton,
+  NEXT_STEP_FOCUS_DELAY_MS,
+  armNextStepFocus,
+  armStopAdvanceFocus,
+  consumeStopAdvanceFocus,
+  consumeAutoConclude,
+  markFocusTarget,
+  consumeNextStepFocus,
+  focusFirstRequiredProof,
+  focusNextProofStep,
   resolveScrollBehavior,
   revealPanel,
   revealStopStart,
@@ -33,6 +42,8 @@ type Calls = string[]
 
 function fakeButton(calls: Calls, disabled = false) {
   return {
+    addEventListener: () => undefined,
+    dataset: {} as Record<string, string>,
     disabled,
     focus: (options: unknown) => calls.push(`focus ${JSON.stringify(options)}`),
     scrollIntoView: (options: unknown) => calls.push(`scroll ${JSON.stringify(options)}`),
@@ -54,9 +65,85 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     const button = fakeButton(calls)
     focusFinishButton({ querySelector: () => button } as unknown as HTMLElement)
     expect(calls).toEqual([
-      'focus {"preventScroll":true}',
+      'focus {"focusVisible":true,"preventScroll":true}',
       'scroll {"behavior":"smooth","block":"nearest"}',
     ])
+  })
+
+  it('depois do "Cheguei", o foco vai à foto obrigatória, com rolagem curta e sem roubar o cursor', () => {
+    stubWindow(false)
+    globals.document = { activeElement: null }
+    const calls: Calls = []
+    let selector = ''
+    const card = {
+      querySelector: (value: string) => {
+        selector = value
+        return fakeButton(calls)
+      },
+    } as unknown as Element
+    focusFirstRequiredProof(card)
+    expect(selector).toBe('[data-focus-target]')
+    expect(calls).toEqual([
+      'focus {"focusVisible":true,"preventScroll":true}',
+      'scroll {"behavior":"smooth","block":"nearest"}',
+    ])
+
+    const typing: Calls = []
+    globals.document = { activeElement: new (globals.HTMLInputElement as new () => object)() }
+    focusFirstRequiredProof({ querySelector: () => fakeButton(typing) } as unknown as Element)
+    expect(typing).toEqual([])
+    focusFirstRequiredProof(null)
+  })
+
+  it('depois da foto, o foco espera 1 s e vai ao próximo obrigatório ou, sem ele, ao botão de concluir', () => {
+    expect(NEXT_STEP_FOCUS_DELAY_MS).toBe(1000)
+    stubWindow(false)
+    globals.document = { activeElement: null }
+    const required: Calls = []
+    const finish: Calls = []
+    const actions = (pending: boolean) =>
+      ({
+        closest: () => ({ querySelector: () => (pending ? fakeButton(required) : null) }),
+        querySelector: () => fakeButton(finish),
+      }) as unknown as HTMLElement
+    focusNextProofStep(actions(true))
+    expect(required).toHaveLength(2)
+    expect(finish).toEqual([])
+    focusNextProofStep(actions(false))
+    expect(finish).toHaveLength(2)
+    focusNextProofStep(null)
+  })
+
+  it('o toque em "Confirmar entrega" arma o foco uma vez só para a tela seguinte', () => {
+    expect(consumeNextStepFocus()).toBe(false)
+    armNextStepFocus()
+    expect(consumeNextStepFocus()).toBe(true)
+    expect(consumeNextStepFocus()).toBe(false)
+  })
+
+  it('com o canhoto como único comprovante, o toque arma a conclusão automática, uma vez só', () => {
+    consumeAutoConclude() // esvazia o que outro teste armou
+    expect(consumeAutoConclude()).toBe(false)
+    armNextStepFocus()
+    expect(consumeAutoConclude()).toBe(true)
+    expect(consumeAutoConclude()).toBe(false)
+  })
+
+  it('campo obrigatório vazio vira alvo de foco, e deixa de ser quando preenchido', () => {
+    const element = { dataset: {} as Record<string, string> } as unknown as HTMLElement
+    markFocusTarget(element, 'proof-received-by')
+    expect(element.dataset.focusTarget).toBe('proof-received-by')
+    markFocusTarget(element, undefined)
+    expect(element.dataset.focusTarget).toBeUndefined()
+    markFocusTarget(null, 'x')
+  })
+
+  it('o "Concluir" arma o avanço de parada, uma vez só', () => {
+    consumeStopAdvanceFocus()
+    expect(consumeStopAdvanceFocus()).toBe(false)
+    armStopAdvanceFocus()
+    expect(consumeStopAdvanceFocus()).toBe(true)
+    expect(consumeStopAdvanceFocus()).toBe(false)
   })
 
   it('botão ainda bloqueado ou inexistente não recebe foco', () => {
@@ -80,7 +167,11 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
   it('concluir ou devolver leva o topo do cartão da parada à vista e o foco ao cabeçalho', () => {
     stubWindow(true)
     const calls: Calls = []
-    const header = { focus: (options: unknown) => calls.push(`header ${JSON.stringify(options)}`) }
+    const header = {
+      addEventListener: () => undefined,
+      dataset: {} as Record<string, string>,
+      focus: (options: unknown) => calls.push(`header ${JSON.stringify(options)}`),
+    }
     const card = {
       querySelector: () => header,
       scrollIntoView: (options: unknown) => calls.push(`card ${JSON.stringify(options)}`),
@@ -90,7 +181,7 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     revealStopStart(null)
     expect(calls).toEqual([
       'card {"behavior":"auto","block":"start"}',
-      'header {"preventScroll":true}',
+      'header {"focusVisible":true,"preventScroll":true}',
     ])
   })
 
@@ -100,8 +191,10 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     expect(card).toContain('data-stop-header=""')
     // foto aceita → foco no fim do formulário
     expect(card).toMatch(/setFocusFinishNextRender\(true\)/u)
-    // Concluir, Devolver e a parada nova atual NÃO rolam nem focam sozinhos (staging 15/10: "quebrou a tela")
-    expect(card).not.toContain('revealStopStart')
+    // Concluir e Devolver NÃO rolam nem focam sozinhos (staging 15/10: "quebrou a tela"); só a última nota
+    // confirmada leva o foco, 1 s depois, ao começo da próxima parada (pedido do usuário, 15/10)
+    expect(card.match(/revealStopStart\(/gu)).toHaveLength(1)
+    expect(card).toMatch(/consumeStopAdvanceFocus\(\)\)\s*return undefined/u)
     // a parada que vira atual (e só depois da montagem) só pisca o destaque
     expect(card).toMatch(
       /!isCurrent \|\| wasCurrentRef\.current[\s\S]{0,200}setJustArrived\(true\)/u,

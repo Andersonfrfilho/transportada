@@ -530,6 +530,7 @@
 
 .actions > * {
   min-height: 2.75rem;
+  scroll-margin-bottom: 6rem;
 }
 
 .occurrenceForm {
@@ -1377,6 +1378,14 @@
   padding: var(--space-3);
 }
 
+.inlineConfirm {
+  border-left: var(--space-1) solid var(--color-alert);
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
 .proofSection {
   display: grid;
   gap: var(--space-2);
@@ -1707,7 +1716,13 @@
   grid-template-columns: 1fr;
 }
 
+.proofCaptureGrid[hidden] {
+  display: none;
+}
+
+/* A barra de abas fixa cobre o rodapé: a rolagem "nearest" deixa o botão acima dela. */
 .proofCaptureAction {
+  scroll-margin-bottom: 6rem;
   min-height: 2.75rem;
   min-width: 0;
   width: 100%;
