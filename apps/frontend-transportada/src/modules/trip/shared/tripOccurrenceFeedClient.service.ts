@@ -37,7 +37,7 @@ import {
 } from './tripOccurrenceFeed.service'
 import { serializeTripOccurrenceQuery } from './tripOccurrenceFeed.service'
 import type { OccurrenceTimeline } from './tripOccurrenceTimeline.service'
-import { isOccurrenceTimeline } from './tripOccurrenceTimeline.validation'
+import { parseOccurrenceTimeline } from './tripOccurrenceTimeline.validation'
 
 const TRIP_OCCURRENCES_PATH = '/trip-occurrences'
 
@@ -521,10 +521,9 @@ export function createTripOccurrenceFeedClient(
         dependencies,
         `${TRIP_OCCURRENCES_PATH}/${encodeURIComponent(input.occurrenceId)}/timeline`,
       )
-      if (!isRecord(payload) || !isOccurrenceTimeline(payload.data)) {
-        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      }
-      return payload.data
+      const timeline = isRecord(payload) ? parseOccurrenceTimeline(payload.data) : null
+      if (timeline === null) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return timeline
     },
     async listOccurrences(input) {
       const search = serializeTripOccurrenceQuery(input)
