@@ -67,7 +67,7 @@ describe('um botão só, por nota e sempre visível (D4)', () => {
 
 describe('o formulário único', () => {
   it('lista os tipos como escolha única, cada um com o que pede de foto', () => {
-    const form = source(FORM_PATH)
+    const form = source(FORM_PATH) + source('components/OccurrenceTypePicker.component.tsx')
     expect(form).toInclude('role="radiogroup"')
     expect(form).toInclude('occurrenceRegistration.attachment.')
     for (const mode of ['off', 'optional', 'required'] as const) {

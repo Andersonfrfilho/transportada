@@ -30,6 +30,10 @@ const OCCURRENCE_FORM = new URL(
   '../../src/modules/driver-trip/components/DriverOccurrenceRegistrationForm.component.tsx',
   import.meta.url,
 )
+const OCCURRENCE_PICKER = new URL(
+  '../../src/modules/driver-trip/components/OccurrenceTypePicker.component.tsx',
+  import.meta.url,
+)
 const CLIENT = new URL(
   '../../src/modules/driver-trip/shared/driverTripClient.service.ts',
   import.meta.url,
@@ -79,7 +83,7 @@ describe('ocorrência de nota na tela do motorista (spec 079)', () => {
   it('a nota tem como registrar a ocorrência', () => {
     expect(source).toInclude('onQueuedDocumentOccurrence')
     expect(source).not.toInclude('onDocumentOccurrence(')
-    expect(readFileSync(OCCURRENCE_FORM, 'utf8')).toInclude('form.types.map(')
+    expect(readFileSync(OCCURRENCE_PICKER, 'utf8')).toInclude('group.types.map(')
   })
 
   /**

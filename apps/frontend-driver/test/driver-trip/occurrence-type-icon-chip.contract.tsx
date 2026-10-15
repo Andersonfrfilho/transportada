@@ -44,8 +44,8 @@ describe('ícone do chip do tipo de ocorrência (spec 255 T3.3)', () => {
   })
 
   test('o chip põe o ícone antes do nome e não muda o nome acessível', () => {
-    const form = source('components/DriverOccurrenceRegistrationForm.component.tsx')
-    const chipStart = form.indexOf('key={type.id}')
+    const form = source('components/OccurrenceTypePicker.component.tsx')
+    const chipStart = form.indexOf('key={`${keyPrefix}:${type.id}`}')
     const chip = form.slice(chipStart, form.indexOf('</Button>', chipStart))
 
     expect(chip).toContain('<OccurrenceTypeIcon iconName={type.iconName} />')

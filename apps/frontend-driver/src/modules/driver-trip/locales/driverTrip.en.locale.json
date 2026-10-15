@@ -575,6 +575,11 @@
       "placeholder": "0.00",
       "required": "{{label}} · required"
     },
+    "groups": {
+      "document": "Note problem",
+      "frequent": "Most used",
+      "stop": "Stop problem"
+    },
     "items": {
       "amountOptional": "{{label}} · if different",
       "amountRequired": "{{label}} · required",
@@ -635,6 +640,11 @@
       "optional": "{{label}} · optional",
       "invalid": "Use only letters, digits, space, dot, slash and hyphen, up to {{max}} characters. Nothing was cut: fix the text.",
       "required": "{{label}} · required"
+    },
+    "search": {
+      "empty": "No type found.",
+      "label": "Search occurrence type",
+      "placeholder": "Search type"
     },
     "signature": {
       "redo": "Collect the signature again",

@@ -175,9 +175,19 @@ describe('a tela de ocorrência da parada', () => {
   const source = readFileSync(FORM_PATH, 'utf8')
 
   it('o motivo é escolha por chips, um selecionado por vez', () => {
-    expect(source).toInclude('occurrenceChips')
-    expect(source).toInclude('role="radiogroup"')
-    expect(source).toInclude('aria-checked={type.id === selectedType?.id}')
+    const picker = readFileSync(
+      fileURLToPath(
+        new URL(
+          '../../src/modules/driver-trip/components/OccurrenceTypePicker.component.tsx',
+          import.meta.url,
+        ),
+      ),
+      'utf8',
+    )
+    expect(picker).toInclude('occurrenceChips')
+    expect(picker).toInclude('role="radiogroup"')
+    expect(picker).toInclude('aria-checked={isSelected}')
+    expect(picker).not.toInclude("from '@/components/ui/select'")
     expect(source).not.toInclude("from '@/components/ui/select'")
   })
 
