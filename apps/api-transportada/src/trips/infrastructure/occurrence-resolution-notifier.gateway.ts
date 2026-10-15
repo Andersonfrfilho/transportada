@@ -118,10 +118,7 @@ async function findLastResolverUserId(
         eq(tripOccurrenceResolutionEvents.kind, 'resolved'),
       ),
     )
-    .orderBy(
-      desc(tripOccurrenceResolutionEvents.createdAt),
-      desc(tripOccurrenceResolutionEvents.id),
-    )
+    .orderBy(desc(tripOccurrenceResolutionEvents.sequence))
     .limit(1)
   if (row === undefined) return undefined
   return (row.actorKind === 'internal' ? row.actorUserId : row.caseActorUserId) ?? undefined
