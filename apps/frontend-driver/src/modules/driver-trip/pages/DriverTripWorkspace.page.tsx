@@ -285,6 +285,17 @@ export function DriverTripWorkspacePage() {
     })
   }
 
+  /**
+   * Pedido do usuário (15/10): o histórico de envios vale até a viagem ser concluída. Viagem toda
+   * resolvida e fila vazia (sem pendente nem recusado): apaga os registros dela.
+   */
+  const isTripHistoryDone =
+    trip !== undefined && isTripFullySettled(trip) && driverTrip.queueView.length === 0
+  const purgeTripHistory = driverTrip.purgeSentHistoryOfTrip
+  useEffect(() => {
+    if (isTripHistoryDone && trip !== undefined) void purgeTripHistory(trip)
+  }, [isTripHistoryDone])
+
   if (driverTrip.status === 'loading') {
     return (
       <div className={styles.moduleShell}>

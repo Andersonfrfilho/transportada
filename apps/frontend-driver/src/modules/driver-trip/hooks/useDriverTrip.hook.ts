@@ -79,6 +79,7 @@ import {
 import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
 import {
   appendSentHistory,
+  purgeTripSentHistory,
   toSentHistoryEntry,
   type SentHistoryEntry,
 } from '../shared/sentHistory.service'
@@ -250,6 +251,9 @@ export type DriverTripController = Readonly<{
   sendNow: (idempotencyKey: string) => void
   /** Spec 179 RF5: as chaves que o servidor aceitou nesta sessão — o "enviado" da tela. */
   sentReportKeys: ReadonlySet<string>
+  purgeSentHistoryOfTrip: (
+    trip: Parameters<typeof purgeTripSentHistory>[0]['trip'],
+  ) => Promise<void>
   /** 15/10: o histórico leve de itens enviados, recusados e descartados (mais recente primeiro). */
   sentHistory: readonly SentHistoryEntry[]
   snapshot: DriverTripSnapshot | undefined
@@ -973,6 +977,14 @@ export function useDriverTrip(
   }
 
   /** Spec 227: o recusado de negócio e o dado dele (blob, posição) saem do aparelho. */
+  /** Viagem concluída com a fila vazia: o histórico dela já cumpriu o papel (pedido de 15/10). */
+  async function purgeSentHistoryOfTrip(trip: Parameters<typeof purgeTripSentHistory>[0]['trip']) {
+    await sentHistoryStore
+      .update((entries) => purgeTripSentHistory({ entries, trip }))
+      .then(setSentHistory)
+      .catch(() => undefined)
+  }
+
   async function discardRejected(idempotencyKey: string): Promise<void> {
     const discarded = (await store.read()).find(
       (item) => item.report.idempotencyKey === idempotencyKey,
@@ -1033,6 +1045,7 @@ export function useDriverTrip(
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,
     discardRejected,
+    purgeSentHistoryOfTrip,
     discardUnverifiedPending: discardUnverified,
     dismissReassignedTripNotice,
     foreignPendingCount,

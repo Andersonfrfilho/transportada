@@ -30,7 +30,7 @@ export type SentHistoryStore = Readonly<{
   ) => Promise<readonly SentHistoryEntry[]>
 }>
 
-/** Alguns dias bastam para esclarecer "não enviou"; o teto de tamanho vale mesmo dentro do prazo. */
+/** O histórico vale até a viagem concluir (`purgeTripSentHistory`); prazo e teto são só a rede de segurança. */
 export const SENT_HISTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 export const SENT_HISTORY_MAX_ENTRIES = 200
 
@@ -80,4 +80,28 @@ export function appendSentHistory(input: {
     })
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
     .slice(0, SENT_HISTORY_MAX_ENTRIES)
+}
+
+/**
+ * Pedido do usuário (15/10): o histórico vale "até a viagem ser concluída". Concluída a viagem e vazia
+ * a fila (nada pendente nem recusado), saem os registros das paradas e notas dela. Registro sem nota
+ * nem parada (ex.: despacho) fica até o prazo de segurança de `appendSentHistory`.
+ */
+export function purgeTripSentHistory(input: {
+  readonly entries: readonly SentHistoryEntry[]
+  readonly trip: Readonly<{
+    stops: readonly Readonly<{ documents: readonly Readonly<{ id: string }>[]; id: string }>[]
+  }>
+}): readonly SentHistoryEntry[] {
+  const stopIds = new Set(input.trip.stops.map((stop) => stop.id))
+  const documentIds = new Set(
+    input.trip.stops.flatMap((stop) => stop.documents.map((document) => document.id)),
+  )
+  return input.entries.filter(
+    (entry) =>
+      !(
+        (entry.stopId !== undefined && stopIds.has(entry.stopId)) ||
+        (entry.documentId !== undefined && documentIds.has(entry.documentId))
+      ),
+  )
 }

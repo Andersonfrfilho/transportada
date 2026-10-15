@@ -351,3 +351,36 @@ describe('o histórico de enviados (15/10)', () => {
     }
   })
 })
+
+describe('o histórico vale até a viagem ser concluída (15/10)', () => {
+  it('concluída a viagem, saem os registros das notas e paradas dela; os de outra viagem ficam', async () => {
+    const { purgeTripSentHistory } = await import(
+      '../../src/modules/driver-trip/shared/sentHistory.service'
+    )
+    const make = (key: string, ids: { documentId?: string; stopId?: string }) =>
+      ({
+        at: '2026-10-15T10:00:00Z',
+        key,
+        kind: 'deliver',
+        result: 'sent',
+        tappedAt: 'x',
+        ...ids,
+      }) as never
+    const kept = purgeTripSentHistory({
+      entries: [
+        make('a', { documentId: 'd1' }),
+        make('b', { stopId: 's1' }),
+        make('c', { documentId: 'outra' }),
+        make('d', {}),
+      ],
+      trip: { stops: [{ documents: [{ id: 'd1' }], id: 's1' }] },
+    }) as unknown as { key: string }[]
+    expect(kept.map((entry) => entry.key)).toEqual(['c', 'd'])
+  })
+
+  it('a página só apaga com a viagem toda resolvida e a fila vazia (nem pendente nem recusado)', () => {
+    const page = readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')
+    expect(page).toContain('isTripFullySettled(trip) && driverTrip.queueView.length === 0')
+    expect(page).toContain('purgeTripHistory(trip)')
+  })
+})
