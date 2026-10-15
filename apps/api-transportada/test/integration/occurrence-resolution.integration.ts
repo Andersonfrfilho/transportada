@@ -799,4 +799,48 @@ describe('o andamento na linha do tempo e no feed do painel (spec 266 T2.9)', ()
       })
     },
   )
+
+  testWithPostgres(
+    'a ocorrência de parada nunca é cancelled no feed, nem no estado nem no filtro',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const cancelledDocumentId = await registerDocumentOccurrence(database, company, trip)
+        const openStopId = await registerStopOccurrence(database, company, trip)
+        const resolvedStopId = await registerStopOccurrence(database, company, trip)
+        await database.db
+          .update(tripDocumentOccurrences)
+          .set({
+            cancellationReason: 'aberta por engano',
+            cancelledAt: new Date(),
+            cancelledByUserId: company.userId,
+          })
+          .where(eq(tripDocumentOccurrences.id, cancelledDocumentId))
+        await buildUseCase(database).execute({
+          context: contextOf(company),
+          note: 'resolvida',
+          occurrenceId: resolvedStopId,
+          occurrenceKind: 'stop',
+        })
+        const feed = (states?: readonly FeedResolutionStateFilter[]) =>
+          listTripOccurrenceFeed(database.db, {
+            companyId: company.companyId,
+            cursor: null,
+            ...(states === undefined ? {} : { filters: { resolutionStateIn: states } }),
+            limit: 50,
+            order: 'desc',
+          })
+
+        const onlyCancelled = await feed(['cancelled'])
+        const all = await feed()
+        const byId = new Map(all.items.map((item) => [item.id, item.resolution]))
+
+        expect(onlyCancelled.items.map((item) => item.id)).toEqual([cancelledDocumentId])
+        expect(byId.get(cancelledDocumentId)).toMatchObject({ state: 'cancelled' })
+        expect(byId.get(openStopId)).toBeNull()
+        expect(byId.get(resolvedStopId)).toMatchObject({ state: 'resolved' })
+      })
+    },
+  )
 })
