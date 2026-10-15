@@ -188,11 +188,13 @@ async function listResolutionSources(
   return rows.map((row): OccurrenceTimelineSource => {
     const occurredAt = row.createdAt.toISOString()
     if (row.kind === 'reopened') {
+      /** O CHECK `reopen_check` da tabela garante a mensagem em todo `reopened`. */
+      if (row.messageId === null) throw new Error('OCCURRENCE_REOPENED_EVENT_WITHOUT_MESSAGE')
       return {
         actor: { kind: 'driver', name: row.actorName ?? null },
         id: row.id,
         kind: 'resolution.reopened',
-        messageId: row.messageId ?? '',
+        messageId: row.messageId,
         occurredAt,
       }
     }
