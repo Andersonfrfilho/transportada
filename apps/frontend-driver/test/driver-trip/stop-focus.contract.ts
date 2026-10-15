@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import {
   focusFinishButton,
   resolveScrollBehavior,
+  revealPanel,
   revealStopStart,
 } from '@/modules/driver-trip/shared/stopFocus.service'
 
@@ -110,5 +111,25 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     expect(card).toMatch(/isCurrent && !wasCurrentRef\.current\) revealStopStart/u)
     // os dois formulários (antes e depois da entrega) expõem a faixa de ações
     expect(card.match(/ref=\{capture\.finishActionsRef\}/gu)?.length).toBe(2)
+  })
+
+  it('o aviso do Concluir bloqueado e o formulário "Não entreguei" recebem o foco e ficam à vista', () => {
+    stubWindow(false)
+    const calls: Calls = []
+    revealPanel({
+      focus: (options: unknown) => calls.push(`focus ${JSON.stringify(options)}`),
+      scrollIntoView: (options: unknown) => calls.push(`scroll ${JSON.stringify(options)}`),
+    } as unknown as HTMLElement)
+    revealPanel(null)
+    expect(calls).toEqual([
+      'focus {"preventScroll":true}',
+      'scroll {"behavior":"smooth","block":"nearest"}',
+    ])
+    const card = readFileSync(`${root}/components/DriverStopCard.component.tsx`, 'utf8')
+    expect(card).toMatch(/setBlockedAttempts\(/u)
+    expect(card).toMatch(/ref=\{blockedRef\} role="alert" tabIndex=\{-1\}/u)
+    const form = readFileSync(`${root}/components/DriverNotDeliveredForm.component.tsx`, 'utf8')
+    expect(form).toMatch(/revealPanel\(panelRef\.current\)/u)
+    expect(form).toMatch(/ref=\{panelRef\} tabIndex=\{-1\}/u)
   })
 })

@@ -13,7 +13,7 @@ import { DocumentConversationSlot } from '@/modules/conversation/components/Docu
 import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.component'
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
-import { focusFinishButton, revealStopStart } from '../shared/stopFocus.service'
+import { focusFinishButton, revealPanel, revealStopStart } from '../shared/stopFocus.service'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
 import { ProofCargoField } from './ProofCargoField.component'
@@ -1197,6 +1197,12 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
 
   /** Pedido do usuário (14/10): tocou em "Concluir" com pendência, o aviso fica na tela até resolver. */
   const [showMissing, setShowMissing] = useState(false)
+  /** Cada toque em "Concluir" bloqueado leva o foco ao aviso — fora da tela, o motorista acharia que nada aconteceu. */
+  const blockedRef = useRef<HTMLDivElement>(null)
+  const [blockedAttempts, setBlockedAttempts] = useState(0)
+  useEffect(() => {
+    if (blockedAttempts > 0) revealPanel(blockedRef.current)
+  }, [blockedAttempts])
 
   /** O que ainda falta, dito em palavras — vazio quando o comprovante está completo. */
   function describeMissing(capture: ProofCaptureState): string {
@@ -1220,6 +1226,7 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
     capture.pushLateFieldUpdate()
     if (describeMissing(capture) !== '') {
       setShowMissing(true)
+      setBlockedAttempts((attempts) => attempts + 1)
       return
     }
     setShowMissing(false)
@@ -1236,7 +1243,7 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
         return (
           <div className={styles.actions} ref={capture.finishActionsRef}>
             {missingText === '' ? null : (
-              <div className={styles.completeBlocked} role="alert">
+              <div className={styles.completeBlocked} ref={blockedRef} role="alert" tabIndex={-1}>
                 <Icon name="alert" />
                 <div>
                   <strong>{t('proofFields.completeBlockedTitle')}</strong>

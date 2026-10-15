@@ -34,7 +34,7 @@ describe('o botão "Concluir" do comprovante (spec 207)', () => {
     )
     expect(card).toContain('listAllPendingFields')
     expect(card).toContain("t('proofFields.completeBlocked'")
-    expect(card).toContain('className={styles.completeBlocked} role="alert"')
+    expect(card).toContain('className={styles.completeBlocked}')
     expect(complete).toContain('return')
     expect(complete.indexOf('setShowMissing(true)')).toBeLessThan(
       complete.indexOf('setConcludedAt('),

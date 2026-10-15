@@ -38,3 +38,10 @@ export function revealStopStart(from: Element | null): void {
   card.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'start' })
   header?.focus({ preventScroll: true })
 }
+
+/** Um aviso ou formulário que acabou de abrir: foco nele e à vista, sem arrastar a tela além do necessário. */
+export function revealPanel(panel: HTMLElement | null): void {
+  if (panel === null) return
+  panel.focus({ preventScroll: true })
+  panel.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'nearest' })
+}
