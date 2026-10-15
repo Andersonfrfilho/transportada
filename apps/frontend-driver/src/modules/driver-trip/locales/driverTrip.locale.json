@@ -409,6 +409,13 @@
     "syncing_one": "Enviando {{count}} pendência…",
     "syncing_other": "Enviando {{count}} pendências…"
   },
+  "tripSync": {
+    "rejected_one": "O escritório recusou {{count}} evento. Veja em eventos pendentes.",
+    "rejected_other": "O escritório recusou {{count}} eventos. Veja em eventos pendentes.",
+    "synced": "Sincronizado",
+    "syncing_one": "Sincronizando evento…",
+    "syncing_other": "Sincronizando {{count}} eventos…"
+  },
   "theme": {
     "title": "Aparência",
     "useDark": "Usar tema escuro",

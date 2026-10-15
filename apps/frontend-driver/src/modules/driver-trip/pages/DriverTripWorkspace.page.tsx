@@ -21,6 +21,7 @@ import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
 import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNotice.component'
+import { DriverTripSyncBanner } from '../components/DriverTripSyncBanner.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
@@ -767,6 +768,7 @@ export function DriverTripWorkspacePage() {
 
         {trip === undefined || canReportOnTrip(trip) ? null : <DriverHelperNotice />}
 
+        {trip === undefined ? null : <DriverTripSyncBanner queueView={driverTrip.queueView} />}
         {trip === undefined ? null : <DriverTripProgress trip={trip} />}
         {trip !== undefined && isTripFullySettled(trip) ? (
           <div className={styles.tripAllDone} role="status">

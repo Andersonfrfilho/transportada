@@ -375,6 +375,13 @@
     "syncing_one": "Sending {{count}} pending item…",
     "syncing_other": "Sending {{count}} pending items…"
   },
+  "tripSync": {
+    "rejected_one": "The office refused {{count}} event. See pending events.",
+    "rejected_other": "The office refused {{count}} events. See pending events.",
+    "synced": "Synced",
+    "syncing_one": "Syncing event…",
+    "syncing_other": "Syncing {{count}} events…"
+  },
   "theme": {
     "title": "Appearance",
     "useDark": "Use dark theme",

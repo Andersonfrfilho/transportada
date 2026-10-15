@@ -246,3 +246,37 @@ describe('a entrega confirmada vale na hora, com selo de envio (15/10)', () => {
     expect(driverTrip.activity.deliveredQueued).toInclude('aguardando envio')
   })
 })
+
+/** Pedido do usuário (15/10): faixa "Sincronizando eventos" / "Sincronizado" no topo da viagem. */
+describe('a faixa de sincronização da viagem (15/10)', () => {
+  const item = (state: string, kind = 'deliver') =>
+    ({ idempotencyKey: `${kind}-${state}`, kind, status: { state } }) as never
+
+  it('em curso conta fila e falha; recusa fica à parte e nunca vira "Sincronizado"', async () => {
+    const { resolveTripSyncBanner } = await import(
+      '../../src/modules/driver-trip/shared/tripSyncBanner.service'
+    )
+    expect(resolveTripSyncBanner({ justSynced: false, queueView: [] })).toEqual({ kind: 'idle' })
+    expect(resolveTripSyncBanner({ justSynced: true, queueView: [] })).toEqual({ kind: 'synced' })
+    expect(
+      resolveTripSyncBanner({
+        justSynced: false,
+        queueView: [item('queued'), item('failed', 'proof'), item('unverified')],
+      }),
+    ).toEqual({ kind: 'syncing', syncing: 2 })
+    expect(
+      resolveTripSyncBanner({ justSynced: true, queueView: [item('rejected'), item('queued')] }),
+    ).toEqual({ kind: 'rejected', rejected: 1, syncing: 1 })
+  })
+
+  it('a viagem monta a faixa no topo e os dois idiomas têm os textos', () => {
+    expect(readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')).toContain(
+      '<DriverTripSyncBanner queueView={driverTrip.queueView} />',
+    )
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.tripSync.synced.length).toBeGreaterThan(0)
+      expect(locale.tripSync.syncing_other.length).toBeGreaterThan(0)
+      expect(locale.tripSync.rejected_one.length).toBeGreaterThan(0)
+    }
+  })
+})
