@@ -194,6 +194,59 @@ describe('reabrir a ocorrência pelo chat (spec 266 T4.8)', () => {
   )
 })
 
+describe('a reabertura a caminho não trava o campo de novo (spec 266 T4.8)', () => {
+  it('enviada e antes da lista atualizar: segue destravado; ao mostrar aberta, assenta', async () => {
+    const harness = createHarness()
+    harness.api.reopen.arm(SUBJECT)
+    await harness.api.sendMessage(send('m1'))
+
+    expect(harness.api.reopen.isArmed(SUBJECT)).toBe(false)
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(true)
+    expect(harness.api.reopen.isReopening(OTHER)).toBe(false)
+
+    harness.api.reopen.settle(SUBJECT)
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(false)
+  })
+
+  it('sem rede, a mensagem na fila mantém destravado', async () => {
+    const harness = createHarness()
+    harness.api.reopen.arm(SUBJECT)
+    harness.setOnline(false)
+    await harness.api.sendMessage(send('m1'))
+
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(true)
+  })
+
+  it('recusa 409 trava de novo', async () => {
+    const harness = createHarness('already-open')
+    harness.api.reopen.arm(SUBJECT)
+    await harness.api.sendMessage(send('m1')).catch(() => undefined)
+
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(false)
+  })
+
+  it('recusa vinda da fila trava de novo', async () => {
+    const harness = createHarness()
+    harness.api.reopen.arm(SUBJECT)
+    harness.setOnline(false)
+    await harness.api.sendMessage(send('m1'))
+    harness.setMode('cancelled')
+    await harness.api.flushOutbox('immediate')
+
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(false)
+  })
+
+  it('keepOnly e clear (saída da tela) não apagam a reabertura a caminho', async () => {
+    const harness = createHarness()
+    harness.api.reopen.arm(SUBJECT)
+    await harness.api.sendMessage(send('m1'))
+    harness.api.reopen.keepOnly(undefined)
+    harness.api.reopen.clear()
+
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(true)
+  })
+})
+
 describe('trava do campo de texto (spec 266 RF9)', () => {
   const conversation = { subjectId: 'occurrence-1', subjectType: 'occurrence' } as never
   const render = (state: 'cancelled' | 'open' | 'resolved' | undefined, isArmed = false) =>

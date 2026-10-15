@@ -2,6 +2,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
+import type { RouteOccurrenceServerState } from '@/modules/driver-trip/shared/driverRouteOccurrence.types'
 import { ROUTE_OCCURRENCES_QUERY_KEY } from '@/modules/driver-trip/shared/useDriverRouteOccurrences.query'
 
 import { UNREAD_CONVERSATIONS_QUERY_KEY } from '../shared/driverConversation.constant'
@@ -20,8 +21,9 @@ export type DriverConversationReopenView = Readonly<{
 export function useDriverConversationReopen(input: {
   readonly api: DriverConversationsApi
   readonly selectedKey: string | undefined
+  readonly stateByOccurrenceId: ReadonlyMap<string, RouteOccurrenceServerState>
 }): DriverConversationReopenView {
-  const { api, selectedKey } = input
+  const { api, selectedKey, stateByOccurrenceId } = input
   const queryClient = useQueryClient()
   const [refused, setRefused] = useState<
     Readonly<{ key: string; reason: ReopenRefusalReason }> | undefined
@@ -40,6 +42,12 @@ export function useDriverConversationReopen(input: {
       void queryClient.invalidateQueries({ queryKey: UNREAD_CONVERSATIONS_QUERY_KEY })
     })
   }, [api, queryClient])
+
+  useEffect(() => {
+    for (const [subjectId, state] of stateByOccurrenceId) {
+      if (state === 'open') api.reopen.settle({ subjectId, subjectType: 'occurrence' })
+    }
+  }, [api, stateByOccurrenceId])
 
   const isMounted = useRef(false)
   useEffect(() => {

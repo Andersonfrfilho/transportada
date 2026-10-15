@@ -32,9 +32,13 @@ export type DriverConversationReopen = Readonly<{
     input: Readonly<{ clientMessageId: string; subject: ParticipantSubjectRef }>,
   ) => boolean
   isArmed: (subject: ParticipantSubjectRef) => boolean
+  /** Armado ou com a reabertura a caminho (enviando, na fila ou esperando a lista mostrar "aberta"): o campo não trava. */
+  isReopening: (subject: ParticipantSubjectRef) => boolean
   isBound: (clientMessageId: string) => boolean
   publish: (event: DriverReopenEvent) => void
   release: (clientMessageId: string) => void
+  /** A lista de ocorrências já mostra o assunto aberto: a reabertura a caminho acabou. */
+  settle: (subject: ParticipantSubjectRef) => void
   /** O mesmo contrato de `useSyncExternalStore`: avisa quando um assunto arma ou desarma. */
   subscribe: (listener: () => void) => () => void
   subscribeEvents: (listener: (event: DriverReopenEvent) => void) => () => void
@@ -44,6 +48,7 @@ export type DriverConversationReopen = Readonly<{
 
 export function createDriverConversationReopen(): DriverConversationReopen {
   const armed = new Set<string>()
+  const pending = new Set<string>()
   const boundMessages = new Set<string>()
   const listeners = new Set<() => void>()
   const eventListeners = new Set<(event: DriverReopenEvent) => void>()
@@ -65,6 +70,7 @@ export function createDriverConversationReopen(): DriverConversationReopen {
       if (!armed.has(key)) return false
       boundMessages.add(clientMessageId)
       armed.delete(key)
+      pending.add(key)
       changed()
       return true
     },
@@ -84,11 +90,21 @@ export function createDriverConversationReopen(): DriverConversationReopen {
     },
     isArmed: (subject) => armed.has(conversationSubjectKey(subject)),
     isBound: (clientMessageId) => boundMessages.has(clientMessageId),
+    isReopening: (subject) => {
+      const key = conversationSubjectKey(subject)
+      return armed.has(key) || pending.has(key)
+    },
     publish(event) {
+      if (event.type === 'reopen-refused' && pending.delete(conversationSubjectKey(event.subject))) {
+        changed()
+      }
       for (const listener of eventListeners) listener(event)
     },
     release: (clientMessageId) => {
       boundMessages.delete(clientMessageId)
+    },
+    settle(subject) {
+      if (pending.delete(conversationSubjectKey(subject))) changed()
     },
     subscribe(listener) {
       listeners.add(listener)

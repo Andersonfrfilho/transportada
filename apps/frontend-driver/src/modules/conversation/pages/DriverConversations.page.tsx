@@ -47,14 +47,16 @@ export function DriverConversationsPage() {
   const quickReplies = useDriverQuickReplies()
   const selected = parseDriverConversationSubject(useConversationPathname())
   const { canSync } = useDriverSession()
+  const stateByOccurrenceId = useRouteOccurrenceStates(canSync)
   const { refusal } = useDriverConversationReopen({
     api,
+    stateByOccurrenceId,
     selectedKey: selected === undefined ? undefined : conversationSubjectKey(selected),
   })
   const renderComposerLock = createComposerLockRenderer({
-    isArmed: api.reopen.isArmed,
+    isArmed: api.reopen.isReopening,
     onReopen: api.reopen.arm,
-    stateByOccurrenceId: useRouteOccurrenceStates(canSync),
+    stateByOccurrenceId,
   })
   const labels = t('labels', { returnObjects: true }) as Partial<ParticipantConversationsLabels>
   const subjectGroups = buildDriverSubjectGroups({
