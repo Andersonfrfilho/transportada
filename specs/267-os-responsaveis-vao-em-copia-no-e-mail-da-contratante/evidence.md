@@ -99,3 +99,18 @@ _(pendente)_
 ## Tasks
 
 _(cada task registra aqui comando, saída resumida e commit)_
+
+## Respostas do dono (chat, 2026-10-15)
+
+As quatro perguntas foram respondidas; nenhuma fica aberta.
+
+1. **Lista vazia da contratante herda a da empresa: sim.** Esclarecido no chat: os contatos da contratante (cadastro do
+   cliente de entrega, tipo "recebe ocorrências") já existem e são o **Para**; a cópia é só para os **nossos
+   atendentes**. A lista por contratante é "atendente fixo daquele cliente"; sem atendente fixo, vale a lista padrão da
+   empresa.
+2. **Resposta do atendente só ao sistema vira nota interna: sim**, com o aviso "só para a equipe — a contratante não
+   recebeu". Exemplo usado: a Ana, em cópia, clica em "Responder" (não "Responder a todos") e escreve "Já falei com o
+   motorista, amanhã resolvo"; o sistema guarda na conversa da ocorrência e nunca repassa à contratante.
+3. **Envio automático acima de 50 destinatários: corta a cópia e registra `warn`.** Os contatos da contratante sempre
+   vão.
+4. **Elegível: quem tem `occurrences.resolve`**, para o e-mail de ocorrência e para o de correção de endereço.
