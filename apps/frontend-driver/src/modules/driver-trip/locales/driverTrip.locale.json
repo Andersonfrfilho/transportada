@@ -306,7 +306,7 @@
     "pendingReceivedBy": "Falta dizer quem recebeu. O comprovante já está guardado.",
     "pendingReceivedByDetail": "Diga mais sobre quem recebeu. O comprovante já está guardado.",
     "complete": "Concluir",
-    "completedAt": "Comprovante concluído às {{time}}",
+    "completedAt": "Parabéns! Comprovante concluído às {{time}}",
     "edit": "Editar",
     "completeBlockedTitle": "Ainda não dá para concluir",
     "completeBlocked": "Falta: {{fields}}. Complete e toque em Concluir de novo.",
@@ -377,7 +377,7 @@
     "at": "Hora marcada: {{time}}",
     "protocol": "Protocolo {{protocol}}"
   },
-  "stopCompleted": "Parada concluída",
+  "stopCompleted": "Parada concluída. Parabéns!",
   "stopState": {
     "completed": "Concluída",
     "current": "Em andamento",
@@ -386,7 +386,10 @@
     "pending": "Pendente"
   },
   "stopFinalHint": "Esta é a última parada. Quando as notas daqui forem entregues ou devolvidas, a viagem se encerra sozinha.",
-  "tripAllDone": "Última entrega concluída. A viagem se encerra sozinha: não precisa fazer mais nada.",
+  "tripAllDone": "Parabéns! Viagem concluída com sucesso!",
+  "tripAllDoneBody": "Ótimo trabalho hoje! Não precisa fazer mais nada: a viagem se encerra sozinha. Boa volta!",
+  "tripAllDoneStops": "{{total}} de {{total}} paradas entregues",
+  "tripAllDoneTime": "{{duration}} de primeira a última parada",
   "stopTitle": "Parada {{sequence}}",
   "stalePending": {
     "notice_one": "{{count}} registro seu está parado desde {{date}} e ainda não chegou ao escritório. Abra o app com sinal para enviar.",

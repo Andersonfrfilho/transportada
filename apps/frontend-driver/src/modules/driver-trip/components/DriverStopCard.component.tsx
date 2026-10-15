@@ -470,10 +470,19 @@ export function DriverStopCard({
               {t(DELIVERY_WINDOW_KEYS[deliveryWindow.kind], deliveryWindow)}
             </span>
           )}
-          <span className={styles.stopMeta}>
-            {isCompleted
-              ? t('stopCompleted')
-              : t('documentsPending', { count: countPendingDocuments(stop) })}
+          <span
+            className={
+              isCompleted ? `${styles.stopMeta} ${styles.stopMetaCompleted}` : styles.stopMeta
+            }
+          >
+            {isCompleted ? (
+              <>
+                <Icon aria-hidden="true" name="check" size="sm" />
+                {t('stopCompleted')}
+              </>
+            ) : (
+              t('documentsPending', { count: countPendingDocuments(stop) })
+            )}
           </span>
           {/* Spec 206: o selo "A caminho" — na hora, mesmo enquanto o toque ainda está na fila. */}
           {isEnRoute && !isArrivalRecorded ? (

@@ -44,7 +44,11 @@ import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { canReportOnTrip } from '../shared/tripCrewRole.service'
 import { resolveStalePending } from '../shared/stalePending.service'
 import { resolveScrollBehavior } from '../shared/stopFocus.service'
-import { isTripFullySettled } from '../shared/stopPlace.service'
+import {
+  formatElapsedMinutes,
+  isTripFullySettled,
+  tripElapsedMinutes,
+} from '../shared/stopPlace.service'
 import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
 import {
   resolveDocumentActivityStatus,
@@ -743,10 +747,28 @@ export function DriverTripWorkspacePage() {
 
         {trip === undefined ? null : <DriverTripProgress trip={trip} />}
         {trip !== undefined && isTripFullySettled(trip) ? (
-          <p className={styles.tripAllDone} role="status">
-            <Icon aria-hidden="true" name="check" size="sm" />
-            {t('tripAllDone')}
-          </p>
+          <div className={styles.tripAllDone} role="status">
+            <strong className={styles.tripAllDoneTitle}>
+              <Icon aria-hidden="true" name="check" size="sm" />
+              {t('tripAllDone')}
+            </strong>
+            <span className={styles.tripAllDoneLine}>
+              <Icon aria-hidden="true" name="package" size="sm" />
+              {t('tripAllDoneStops', { total: trip.stops.length })}
+            </span>
+            {tripElapsedMinutes(trip) === undefined ? null : (
+              <span className={styles.tripAllDoneLine}>
+                <Icon aria-hidden="true" name="clock" size="sm" />
+                {t('tripAllDoneTime', {
+                  duration: formatElapsedMinutes(tripElapsedMinutes(trip) ?? 0),
+                })}
+              </span>
+            )}
+            <span className={styles.tripAllDoneLine}>
+              <Icon aria-hidden="true" name="truck" size="sm" />
+              {t('tripAllDoneBody')}
+            </span>
+          </div>
         ) : null}
 
         {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}

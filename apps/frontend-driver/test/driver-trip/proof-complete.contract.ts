@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
+import driverTripEn from '../../src/modules/driver-trip/locales/driverTrip.en.locale.json'
+import driverTrip from '../../src/modules/driver-trip/locales/driverTrip.locale.json'
+
 function readComponentSource(): string {
   return readFileSync(
     new URL(
@@ -63,5 +66,28 @@ describe('o botão "Concluir" do comprovante (spec 207)', () => {
       card.indexOf('function handleComplete(') + 800,
     )
     expect(complete).toContain('pushLateFieldUpdate(')
+  })
+})
+
+describe('a parada concluída reconhece com ícone, não com emoji (web.md §9)', () => {
+  it('mostra o check na cor de pronto ao lado do texto', () => {
+    const card = readComponentSource()
+    expect(card).toContain('styles.stopMetaCompleted')
+    expect(card).toMatch(
+      /<Icon aria-hidden="true" name="check" size="sm" \/>\s*\{t\('stopCompleted'\)\}/,
+    )
+    const css = readFileSync(
+      new URL('../../src/modules/driver-trip/styles/driverTrip.module.css', import.meta.url),
+      'utf8',
+    )
+    const rule = css.slice(css.indexOf('.stopMetaCompleted {'))
+    expect(rule.slice(0, rule.indexOf('}'))).toContain('color: var(--color-ready)')
+  })
+
+  it('o texto positivo não leva emoji em nenhum locale', () => {
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.stopCompleted).not.toMatch(/\p{Extended_Pictographic}/u)
+      expect(locale.proofFields.completedAt).not.toMatch(/\p{Extended_Pictographic}/u)
+    }
   })
 })

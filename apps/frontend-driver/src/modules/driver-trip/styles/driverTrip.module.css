@@ -222,14 +222,27 @@
 }
 
 .tripAllDone {
-  align-items: center;
   border: 1px solid var(--color-ready);
   color: var(--color-ready);
-  display: flex;
-  font-weight: 700;
+  display: grid;
   gap: var(--space-2);
   margin: 0;
   padding: var(--space-3);
+}
+
+.tripAllDoneTitle,
+.tripAllDoneLine {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.tripAllDoneTitle {
+  font-size: 1.05rem;
+}
+
+.tripAllDoneLine {
+  font-size: 0.9rem;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1725,6 +1738,14 @@
   height: var(--proof-photo-area);
   object-fit: contain;
   width: 100%;
+}
+
+/* Parada concluída: o reconhecimento é o ícone de check na cor de pronto, não emoji (web.md §9). */
+.stopMetaCompleted {
+  align-items: center;
+  color: var(--color-ready);
+  display: inline-flex;
+  gap: var(--space-2);
 }
 
 .proofCaptureAttachedText {
