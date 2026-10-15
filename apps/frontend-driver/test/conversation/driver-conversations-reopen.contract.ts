@@ -15,7 +15,7 @@ import { createMemoryOutboxStore } from '../fixtures/memory-conversation-outbox-
 const SUBJECT: ParticipantSubjectRef = { subjectId: 'occurrence-1', subjectType: 'occurrence' }
 const OTHER: ParticipantSubjectRef = { subjectId: 'occurrence-2', subjectType: 'occurrence' }
 
-type Mode = 'already-open' | 'cancelled' | 'network-down' | 'ok'
+type Mode = 'already-open' | 'bad-request' | 'cancelled' | 'network-down' | 'ok'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
@@ -33,6 +33,7 @@ function createHarness(initialMode: Mode = 'ok') {
       if (mode === 'network-down') throw new TypeError('Failed to fetch')
       const key = request.headers.get('idempotency-key') ?? ''
       posts.push({ body: JSON.parse(await request.text()) as Record<string, unknown>, key })
+      if (mode === 'bad-request') return json({ error: { code: 'VALIDATION_FAILED' } }, 400)
       if (mode === 'already-open') return json({ error: { code: 'OCCURRENCE_NOT_RESOLVED' } }, 409)
       if (mode === 'cancelled') return json({ error: { code: 'OCCURRENCE_CANCELLED' } }, 409)
       return json({ data: { id: `server-${posts.length}` } }, 201)
@@ -244,6 +245,67 @@ describe('a reabertura a caminho não trava o campo de novo (spec 266 T4.8)', ()
     harness.api.reopen.clear()
 
     expect(harness.api.reopen.isReopening(SUBJECT)).toBe(true)
+  })
+
+  it('qualquer mudança de estado observada depois do envio assenta; igual ao de antes, não', async () => {
+    const harness = createHarness()
+    harness.api.reopen.observe(SUBJECT, 'resolved')
+    harness.api.reopen.arm(SUBJECT)
+    await harness.api.sendMessage(send('m1'))
+
+    harness.api.reopen.observe(SUBJECT, 'resolved')
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(true)
+
+    harness.api.reopen.observe(SUBJECT, 'cancelled')
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(false)
+  })
+
+  it('aberta e resolvida de novo: a trava volta', async () => {
+    const harness = createHarness()
+    harness.api.reopen.observe(SUBJECT, 'resolved')
+    harness.api.reopen.arm(SUBJECT)
+    await harness.api.sendMessage(send('m1'))
+    harness.api.reopen.observe(SUBJECT, 'open')
+    harness.api.reopen.observe(SUBJECT, 'resolved')
+
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(false)
+  })
+
+  it('falha permanente que não é 409 (direto) trava de novo', async () => {
+    const harness = createHarness('bad-request')
+    harness.api.reopen.arm(SUBJECT)
+    await harness.api.sendMessage(send('m1')).catch(() => undefined)
+
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(false)
+  })
+
+  it('falha permanente que não é 409 (vinda da fila) trava de novo', async () => {
+    const harness = createHarness()
+    harness.api.reopen.arm(SUBJECT)
+    harness.setOnline(false)
+    await harness.api.sendMessage(send('m1'))
+    harness.setMode('bad-request')
+    await harness.api.flushOutbox('immediate')
+    await harness.api.reopen.syncQueued(await harness.api.outbox.listReopenSubjects())
+
+    expect(harness.api.reopen.isReopening(SUBJECT)).toBe(false)
+  })
+
+  it('depois de recarregar, a mensagem de reabertura ainda na fila mantém destravado', async () => {
+    const harness = createHarness()
+    harness.api.reopen.arm(SUBJECT)
+    harness.setOnline(false)
+    await harness.api.sendMessage(send('m1'))
+    await harness.api.sendMessage(send('m2', OTHER))
+
+    const reopened = await harness.api.outbox.listReopenSubjects()
+    expect(reopened).toEqual([SUBJECT])
+
+    const afterReload = createHarness()
+    expect(afterReload.api.reopen.isReopening(SUBJECT)).toBe(false)
+    afterReload.api.reopen.syncQueued(reopened)
+    expect(afterReload.api.reopen.isReopening(SUBJECT)).toBe(true)
+    expect(afterReload.api.reopen.isReopening(OTHER)).toBe(false)
   })
 })
 

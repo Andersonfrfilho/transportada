@@ -45,9 +45,20 @@ export function useDriverConversationReopen(input: {
 
   useEffect(() => {
     for (const [subjectId, state] of stateByOccurrenceId) {
-      if (state === 'open') api.reopen.settle({ subjectId, subjectType: 'occurrence' })
+      api.reopen.observe({ subjectId, subjectType: 'occurrence' }, state)
     }
   }, [api, stateByOccurrenceId])
+
+  useEffect(() => {
+    const refresh = (): void => {
+      void api.outbox
+        .listReopenSubjects()
+        .then(api.reopen.syncQueued)
+        .catch(() => undefined)
+    }
+    refresh()
+    return api.outbox.subscribe(refresh)
+  }, [api])
 
   const isMounted = useRef(false)
   useEffect(() => {

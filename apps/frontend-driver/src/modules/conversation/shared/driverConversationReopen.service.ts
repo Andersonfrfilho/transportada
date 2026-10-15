@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { ParticipantSubjectRef } from '@adatechnology/conversation-contracts'
 
+import type { RouteOccurrenceServerState } from '@/modules/driver-trip/shared/driverRouteOccurrence.types'
+
 import { conversationSubjectKey } from './conversationSnapshot.service'
 import { REOPEN_REFUSAL_CODE } from './driverConversation.constant'
 import { DriverConversationRequestError } from './driverConversationsHttp.service'
@@ -35,8 +37,14 @@ export type DriverConversationReopen = Readonly<{
   /** Armado ou com a reabertura a caminho (enviando, na fila ou esperando a lista mostrar "aberta"): o campo não trava. */
   isReopening: (subject: ParticipantSubjectRef) => boolean
   isBound: (clientMessageId: string) => boolean
+  /** O envio da reabertura começou (ou recomeçou no reenvio): a trava só volta quando algo a assentar. */
+  markPending: (subject: ParticipantSubjectRef) => void
+  /** O estado que a lista mostra agora: aberta, ou qualquer mudança desde a leitura anterior, assenta a reabertura a caminho. */
+  observe: (subject: ParticipantSubjectRef, state: RouteOccurrenceServerState) => void
   publish: (event: DriverReopenEvent) => void
   release: (clientMessageId: string) => void
+  /** Substitui o conjunto de assuntos com mensagem de reabertura ainda na fila (vale também depois de recarregar a página). */
+  syncQueued: (subjects: readonly ParticipantSubjectRef[]) => void
   /** A lista de ocorrências já mostra o assunto aberto: a reabertura a caminho acabou. */
   settle: (subject: ParticipantSubjectRef) => void
   /** O mesmo contrato de `useSyncExternalStore`: avisa quando um assunto arma ou desarma. */
@@ -49,6 +57,8 @@ export type DriverConversationReopen = Readonly<{
 export function createDriverConversationReopen(): DriverConversationReopen {
   const armed = new Set<string>()
   const pending = new Set<string>()
+  const queued = new Set<string>()
+  const lastObserved = new Map<string, RouteOccurrenceServerState>()
   const boundMessages = new Set<string>()
   const listeners = new Set<() => void>()
   const eventListeners = new Set<(event: DriverReopenEvent) => void>()
@@ -92,7 +102,20 @@ export function createDriverConversationReopen(): DriverConversationReopen {
     isBound: (clientMessageId) => boundMessages.has(clientMessageId),
     isReopening: (subject) => {
       const key = conversationSubjectKey(subject)
-      return armed.has(key) || pending.has(key)
+      return armed.has(key) || pending.has(key) || queued.has(key)
+    },
+    markPending(subject) {
+      const key = conversationSubjectKey(subject)
+      if (pending.has(key)) return
+      pending.add(key)
+      changed()
+    },
+    observe(subject, state) {
+      const key = conversationSubjectKey(subject)
+      const previous = lastObserved.get(key)
+      lastObserved.set(key, state)
+      const hasChanged = state === 'open' || (previous !== undefined && previous !== state)
+      if (hasChanged && pending.delete(key)) changed()
     },
     publish(event) {
       if (event.type === 'reopen-refused' && pending.delete(conversationSubjectKey(event.subject))) {
@@ -105,6 +128,14 @@ export function createDriverConversationReopen(): DriverConversationReopen {
     },
     settle(subject) {
       if (pending.delete(conversationSubjectKey(subject))) changed()
+    },
+    syncQueued(subjects) {
+      const next = new Set(subjects.map(conversationSubjectKey))
+      const isSame = next.size === queued.size && [...next].every((key) => queued.has(key))
+      if (isSame) return
+      queued.clear()
+      for (const key of next) queued.add(key)
+      changed()
     },
     subscribe(listener) {
       listeners.add(listener)

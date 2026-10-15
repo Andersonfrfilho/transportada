@@ -80,6 +80,7 @@ export function createDriverConversationSender(
 
   /** A recusa do reabrir vira aviso tipado para a tela; o erro segue para a classificação de sempre. */
   async function postReopening(input: PostMessageInput): Promise<string> {
+    if (input.reopen === true) reopen.markPending(input.subject)
     try {
       const id = await postMessage(input)
       if (input.reopen === true) reopen.publish({ subject: input.subject, type: 'reopen-sent' })
@@ -88,6 +89,8 @@ export function createDriverConversationSender(
       const reason = readReopenRefusal(error)
       if (reason !== undefined) {
         reopen.publish({ reason, subject: input.subject, type: 'reopen-refused' })
+      } else if (input.reopen === true && classifyDeliveryFailure(error) === 'permanent') {
+        reopen.settle(input.subject)
       }
       throw error
     }
