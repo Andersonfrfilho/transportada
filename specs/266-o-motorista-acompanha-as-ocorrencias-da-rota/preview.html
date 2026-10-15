@@ -204,6 +204,10 @@ dl.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
 .share-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .share-grid button { background: none; border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent); padding: 10px 4px; font-size: 0.72rem; display: grid; justify-items: center; gap: 6px; }
 .phone { position: relative; }
+.note-group { display: grid; gap: 6px; border-top: 1px dashed color-mix(in srgb, var(--color-slate) 40%, transparent); padding-top: 8px; }
+.note-label { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-utility); font-size: 0.72rem; color: var(--color-slate); }
+.note-count { min-width: 18px; height: 18px; padding: 0 5px; border: 1px solid var(--color-slate); display: grid; place-items: center; font-size: 0.66rem; }
+.more-chip { width: 40px; height: 40px; background: none; border: 1px dashed var(--color-slate); color: var(--color-fog); font-family: var(--font-utility); font-size: 0.8rem; }
 .header-actions { display: flex; gap: 8px; }
 .header-icon { position: relative; background: none; border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent); width: var(--touch-target); height: var(--touch-target); display: grid; place-items: center; padding: 0; }
 .header-icon.alert { border-color: var(--color-alert); color: var(--color-alert); }
@@ -296,6 +300,7 @@ dl.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
       <button class="ui-button ghost small" id="sim-resolve">Escritório resolve uma</button>
       <button class="ui-button ghost small" id="reset-demo">Voltar ao exemplo</button>
     </div>
+    <p class="note"><strong>Várias na mesma nota:</strong> a NF 48.207 tem duas Avarias (uma resolvida, outra em aberto) e a NF 48.213 tem a Prorrogação do boleto e uma Avaria. Na parada, os ícones ficam agrupados por NF; no detalhe aparecem primeiro “Outras desta nota”.</p>
     <p class="note">Toque “Escritório resolve uma” várias vezes: o número do alerta cai, a parada fica verde e, na última, o alerta sai do cabeçalho. Cada mudança chega como notificação.</p>
     <p class="toast" id="toast" role="status" aria-live="polite"></p>
   </section>
@@ -409,6 +414,15 @@ function createOccurrences() {
         { who: 'them', text: 'Segue a nota de devolução para entregar junto com os fardos no CD. Os 4 voltam no caminhão até o fim da rota?', time: '13:02', attach: 0 },
       ],
       timeline: [['11:12', 'Você registrou'], ['11:13', 'Chegou ao escritório'], ['13:02', 'Escritório mandou a nota de devolução']] },
+    { id: 'o6', icon: 'damage', type: 'Avaria', invoice: 'NF 48.207', stop: 2, recipient: 'Distribuidora Leme', time: '11:20', state: 'sent',
+      observation: 'Na conferência apareceu mais 1 caixa molhada, separada das 2 amassadas.', photos: 1,
+      chat: undefined, documents: [{ name: 'avaria-48207-caixa-molhada.jpg', kind: 'JPG', size: '980 KB', from: 'foto que você tirou' }],
+      timeline: [['11:20', 'Você registrou'], ['11:21', 'Chegou ao escritório']] },
+    { id: 'o7', icon: 'damage', type: 'Avaria', invoice: 'NF 48.213', stop: 3, recipient: 'Mercado São Jorge', time: '14:40', state: 'sent',
+      observation: '1 fardo rasgado. Cliente recebeu o restante.', photos: 2,
+      chat: { unread: 0, office: 'Ana · escritório' }, documents: [],
+      messages: [{ who: 'system', text: 'Conversa aberta pela ocorrência às 14:40' }, { who: 'them', text: 'Recebido, vou incluir junto com a prorrogação.', time: '14:55' }],
+      timeline: [['14:40', 'Você registrou'], ['14:41', 'Chegou ao escritório']] },
     { id: 'o3', icon: 'refuse', type: 'Recusa', invoice: 'NF 48.219', stop: 4, recipient: 'Padaria Bom Grão', time: '15:48', state: 'queued',
       observation: 'Pedido não confere com o que foi comprado. Cliente recusou a nota inteira.', photos: 2,
       chat: { unread: 0, office: 'Escritório' }, documents: [],
@@ -516,8 +530,17 @@ function renderTrip() {
 function renderStop(stop) {
   const stopOccurrences = occurrencesOfStop(stop.seq);
   const status = STOP_STATUS[stop.status];
-  const icons = stopOccurrences.map((occurrence) => occurrenceIcon(occurrence, 'button')).join('');
-  const row = stopOccurrences.length > 0 ? `<div class="stop-occurrences">${icons}</div>` : '';
+  const groups = new Map();
+  stopOccurrences.forEach((occurrence) => {
+    const key = occurrence.invoice ?? 'Parada';
+    groups.set(key, [...(groups.get(key) ?? []), occurrence]);
+  });
+  const row = [...groups].map(([invoice, items]) => {
+    const visibleItems = items.length > 4 ? items.slice(0, 3) : items;
+    const more = items.length > 4 ? `<button class="more-chip" data-note-list="${escape(invoice)}" aria-label="Mais ${items.length - 3} ocorrências da ${escape(invoice)}">+${items.length - 3}</button>` : '';
+    const count = items.length > 1 ? `<span class="note-count">${items.length}</span>` : '';
+    return `<div class="note-group"><span class="note-label">${escape(invoice)}${count}</span><div class="stop-occurrences">${visibleItems.map((occurrence) => occurrenceIcon(occurrence, 'button')).join('')}${more}</div></div>`;
+  }).join('');
   const classes = ['stop', stop.status === 'current' ? 'current' : '', stop.status === 'done' ? 'done' : '', view.flashStop === stop.seq ? 'flash' : ''].join(' ');
   return `<article class="${classes}" id="stop-${stop.seq}">
     <div class="stop-top"><span>Parada ${stop.seq}</span><span>${stop.invoices}</span></div>
@@ -534,7 +557,7 @@ const FILTERS = [
 ];
 
 function renderList() {
-  const scoped = occurrences.filter((occurrence) => !view.stopFilter || occurrence.stop === view.stopFilter);
+  const scoped = occurrences.filter((occurrence) => (!view.stopFilter || occurrence.stop === view.stopFilter) && (!view.noteFilter || occurrence.invoice === view.noteFilter));
   const activeFilter = FILTERS.find((filter) => filter.key === view.filter);
   const visible = scoped.filter(activeFilter.test);
   const open = visible.filter(isOpen);
@@ -545,8 +568,9 @@ function renderList() {
     return `<button data-filter="${filter.key}" aria-pressed="${view.filter === filter.key}" aria-label="${filter.label}" title="${filter.label}">${face}<span>${count}</span></button>`;
   }).join('');
   const stopName = view.stopFilter ? STOPS.find((stop) => stop.seq === view.stopFilter).name : '';
-  const stopFilter = view.stopFilter
-    ? `<div class="stop-filter"><span>Parada ${view.stopFilter} · ${escape(stopName)}</span><button class="ui-button ghost small" data-clear-stop>Ver todas</button></div>`
+  const filterLabel = view.noteFilter ? escape(view.noteFilter) : `Parada ${view.stopFilter} · ${escape(stopName)}`;
+  const stopFilter = view.stopFilter || view.noteFilter
+    ? `<div class="stop-filter"><span>${filterLabel}</span><button class="ui-button ghost small" data-clear-stop>Ver todas</button></div>`
     : '';
   const openGroup = open.length > 0 ? `<p class="group-title"><span>${ICONS.alert}Em aberto</span><span>${open.length}</span></p>${open.map(renderRow).join('')}` : '';
   const resolvedGroup = resolved.length > 0 ? `<p class="group-title"><span>${ICONS.check}Resolvidas</span><span>${resolved.length}</span></p>${resolved.map(renderRow).join('')}` : '';
@@ -605,8 +629,12 @@ function renderDetail() {
   const count = occurrence.documents.length;
   const shareAll = count > 1 ? `<button class="ui-button primary block" data-share-occurrence="${occurrence.id}">${ICONS.share}Compartilhar os ${count}</button>` : '';
   const documents = count > 0 ? `<div class="panel"><h3>${ICONS.clip}Documentos · ${count}</h3>${occurrence.documents.map(renderDocument).join('')}${shareAll}</div>` : '';
-  const siblings = occurrencesOfStop(occurrence.stop).filter((sibling) => sibling.id !== occurrence.id);
-  const siblingsPanel = siblings.length > 0 ? `<div class="panel"><h3>Outras ocorrências desta parada</h3>${siblings.map(renderRow).join('')}</div>` : '';
+  const others = occurrencesOfStop(occurrence.stop).filter((sibling) => sibling.id !== occurrence.id);
+  const sameNote = others.filter((sibling) => sibling.invoice === occurrence.invoice);
+  const sameStop = others.filter((sibling) => sibling.invoice !== occurrence.invoice);
+  const sameNotePanel = sameNote.length > 0 ? `<div class="panel"><h3>${ICONS.note}Outras desta nota · ${occurrence.invoice}</h3>${sameNote.map(renderRow).join('')}</div>` : '';
+  const sameStopPanel = sameStop.length > 0 ? `<div class="panel"><h3>Outras desta parada</h3>${sameStop.map(renderRow).join('')}</div>` : '';
+  const siblingsPanel = sameNotePanel + sameStopPanel;
   const timeline = occurrence.timeline.map(([time, text]) => `<li><time>${time}</time><span>${escape(text)}</span></li>`).join('');
   return `
     <div class="detail-head">${occurrenceIcon(occurrence, 'span')}<div><h2>${escape(occurrence.type)}</h2><p class="state-line ${occurrence.state}">${ICONS[state.icon]}${state.label} · ${occurrence.time}</p></div></div>
@@ -741,7 +769,7 @@ function simulateResolve() {
 function resetDemo() {
   occurrences = createOccurrences();
   notifications = createNotifications();
-  Object.assign(view, { name: 'trip', occurrenceId: 'o1', filter: 'all', stopFilter: undefined });
+  Object.assign(view, { name: 'trip', occurrenceId: 'o1', filter: 'all', stopFilter: undefined, noteFilter: undefined });
   navigationStack.length = 0;
   document.getElementById('banner').hidden = true;
   say('');
@@ -786,8 +814,10 @@ document.addEventListener('click', (event) => {
   const action = CLICK_ACTIONS.find(([id]) => id === target.id);
   if (action) return action[1]();
   if (target.hasAttribute('data-back')) { view.name = navigationStack.pop() ?? 'trip'; return render(); }
+  if (target.dataset.noteList) { view.noteFilter = target.dataset.noteList; view.stopFilter = undefined; view.filter = 'all'; return go('list'); }
   if (target.hasAttribute('data-clear-stop')) {
     view.stopFilter = undefined;
+    view.noteFilter = undefined;
     if (!target.dataset.go) return render();
   }
   if (target.dataset.stop) {

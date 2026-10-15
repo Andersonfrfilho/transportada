@@ -89,14 +89,17 @@
       `trip-occurrences`, versão 5, com migração do v4) e leitura offline. Testes de validação e do retrato.
 - [ ] **T4.3** `sonnet` — Teste antes de `routeOccurrenceView.service.ts` (pura): junta o servidor com a fila
       (`queued`/`rejected`, sem duplicar quando a ocorrência já subiu), contagem do alerta, grupos, filtros e
-      ocorrências por parada. Depois, a implementação.
+      ocorrências por parada **agrupadas por nota** (N por nota, mesmo tipo repetido, ocorrência de parada sem nota,
+      corte "+N" acima de 4). Depois, a implementação.
 - [ ] **T4.4** `sonnet` — `DriverOccurrenceAlertButton` no `DriverShellHeader` (zero → não renderiza),
       `DriverOccurrenceBadgeIcon` e a fileira na `DriverStopCard`: ícone de estado da entrega e barra de progresso em
-      alerta. Atualizar o golden. Testes com 0, 1 e N.
+      alerta. Ícones agrupados por nota (NF + ícones) e grupo das de parada. Atualizar o golden. Testes com 0, 1, N
+      na mesma nota (inclusive do mesmo tipo) e o "+N".
 - [ ] **T4.5** `sonnet` — Rotas `/ocorrencias` e `/ocorrencias/:kind/:id` (`driverRoute.service.ts` + contrato) e
       a página da lista: grupos, filtros por ícone com contagem, linha → chat ou detalhe, botão de compartilhar.
 - [ ] **T4.6** `sonnet` — Página de detalhe: estado, quadro de resolução ou recusa, botão do chat, documentos (ver e
-      compartilhar, "Compartilhar os N"), linha do tempo, outras da parada, "Ver a nota na parada".
+      compartilhar, "Compartilhar os N"), linha do tempo, outras da mesma nota e depois da parada, "Ver a nota na
+      parada".
 - [ ] **T4.7** `sonnet` — `driverFileShare.service.ts`: busca pelo link assinado, `navigator.canShare({ files })` →
       `share`, senão `saveDriverFile`; o PDF abre em aba nova (CSP `frame-src 'none'`). Teste com e sem suporte.
 - [ ] **T4.8** 🧠 `opus` → `sonnet` — Composer travado na ocorrência resolvida, botão "Reabrir" e a primeira

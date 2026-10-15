@@ -49,8 +49,16 @@ respondendo. Tudo fica registrado em evento e aparece no painel.
 
   Tocar no ícone abre o detalhe. O segmento da barra de progresso da parada com ocorrência em aberto fica em tom de alerta.
 
+  **Uma nota pode ter várias ocorrências** (ex.: avaria e devolução parcial na mesma NF; ou uma recusada e registrada de
+  novo). Os ícones ficam **agrupados por nota** dentro da parada: cada nota mostra o número (NF) e os ícones das suas
+  ocorrências, em ordem de registro; as ocorrências de parada (sem nota) vêm num grupo próprio. Nada é fundido: duas
+  ocorrências do mesmo tipo na mesma nota são dois ícones. Com mais de 4 ícones numa nota, mostra 3 e um "+N" que abre a
+  lista filtrada por aquela nota.
+
 - **RF4 — Lista "Ocorrências da rota".** Mostra as em aberto primeiro e as resolvidas e canceladas embaixo. Filtros por
-  ícone, com contagem: todas, com mensagem nova, com documento, recusadas, na fila. A linha leva ao chat quando ele
+  ícone, com contagem: todas, com mensagem nova, com documento, recusadas, na fila; e filtro por parada ou por nota (vindo
+  do "+N" ou do detalhe). Cada linha mostra a NF, então duas ocorrências da mesma nota aparecem como duas linhas
+  distinguíveis pelo tipo e pela hora. A linha leva ao chat quando ele
   existe, senão ao detalhe. A linha com documento tem o botão compartilhar.
 - **RF5 — Detalhe.** Mostra:
   - tipo, estado e hora;
@@ -59,7 +67,7 @@ respondendo. Tudo fica registrado em evento e aparece no painel.
   - documentos;
   - o que foi registrado: nota, parada, observação, fotos;
   - andamento (linha do tempo);
-  - outras ocorrências da mesma parada;
+  - outras ocorrências da **mesma nota** (primeiro) e as demais da mesma parada;
   - "Ver a nota na parada", que volta à rota com a parada em destaque.
 - **RF6 — Documentos e compartilhar.** Entram os anexos do chat da ocorrência (escritório e contratante) e as fotos e a
   assinatura do motorista. Cada documento tem os botões ver e compartilhar; com mais de um, também "Compartilhar os N".
@@ -110,6 +118,8 @@ respondendo. Tudo fica registrado em evento e aparece no painel.
 1. Viagem com três ocorrências em aberto: o cabeçalho mostra 3. O escritório resolve uma e o número vira 2 sem
    recarregar a página (no próximo refetch da viagem). Resolvidas as três, o ícone some.
 2. A parada com duas ocorrências mostra dois ícones com selos distintos. Tocar em cada um abre o detalhe certo.
+   2b. Uma nota com duas ocorrências (inclusive do mesmo tipo) mostra dois ícones sob a mesma NF, cada um com o próprio
+   estado, chat e documentos; resolver uma não muda a outra, e o alerta conta as duas separadamente.
 3. O motorista responde no chat de uma ocorrência resolvida. O painel mostra "Reaberta pelo motorista" e o evento na
    linha do tempo, e o alerta do motorista volta a contar a ocorrência.
 4. O motorista de outra viagem recebe 404 ao ler ou reabrir a ocorrência (contrato negativo).
