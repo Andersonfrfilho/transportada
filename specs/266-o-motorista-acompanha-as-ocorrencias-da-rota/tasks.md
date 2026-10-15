@@ -10,7 +10,7 @@
 
 > 🤖 Modelo: `sonnet` (T0.2 é 🧠)
 
-- [ ] **T0.1** `sonnet` — Conferir contra `origin/staging` os números de linha citados em `plan.md` § Contexto e o
+- [x] **T0.1** `sonnet` — Conferir contra `origin/staging` os números de linha citados em `plan.md` § Contexto e o
       levantamento de `evidence.md`. Divergência vira nota no `evidence.md` antes de seguir.
 - [ ] **T0.2** 🧠 `opus` — Validar com `architect` a ADR-0105 e os contratos de `plan.md`. Pontos a validar:
       tabela, CHECKs, regra de quem recebe `trip.occurrence-reopened`, tradução de `case.transition` para o motorista
