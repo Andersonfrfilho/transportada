@@ -10,7 +10,7 @@ import { useOccurrenceRegistrationForm } from '../hooks/useOccurrenceRegistratio
 import { OccurrencePhotoField } from './OccurrencePhotoField.component'
 import { OccurrenceRegisterAction } from './OccurrenceRegisterAction.component'
 import { OccurrenceSignatureField } from './OccurrenceSignatureField.component'
-import { OccurrenceTypeIcon } from './OccurrenceTypeIcon.component'
+import { OccurrenceTypePicker } from './OccurrenceTypePicker.component'
 import { OccurrenceValuesSection } from './OccurrenceValuesSection.component'
 import type {
   DriverOccurrenceTypesState,
@@ -19,7 +19,6 @@ import type {
 } from '../shared/driverTrip.types'
 import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
 import { hasRequiredOccurrenceField } from '../shared/occurrenceRequiredFields.service'
-import { resolveOccurrenceAttachmentMode } from '../shared/occurrenceRegistration.service'
 import {
   resolveOccurrenceRequirements,
   resolveRequiredItemsCount,
@@ -110,31 +109,11 @@ export function DriverOccurrenceRegistrationForm({
       ) : form.types.length === 0 ? (
         <p className={styles.stopMeta}>{t('documentOccurrenceTypesEmpty')}</p>
       ) : (
-        <div
-          aria-label={t('occurrenceRegistration.legend')}
-          className={styles.occurrenceChips}
-          role="radiogroup"
-        >
-          {form.types.map((type) => (
-            <Button
-              aria-checked={type.id === selectedType?.id}
-              className={styles.occurrenceChip}
-              key={type.id}
-              onClick={() => form.handleTypeSelect(type.id)}
-              role="radio"
-              type="button"
-              variant={type.id === selectedType?.id ? 'default' : 'ghost'}
-            >
-              <OccurrenceTypeIcon iconName={type.iconName} />
-              <span className={styles.occurrenceChipLabel}>
-                <span>{type.name}</span>
-                <span className={styles.occurrenceChipMode}>
-                  {t(`occurrenceRegistration.attachment.${resolveOccurrenceAttachmentMode(type)}`)}
-                </span>
-              </span>
-            </Button>
-          ))}
-        </div>
+        <OccurrenceTypePicker
+          onSelect={form.handleTypeSelect}
+          selectedTypeId={selectedType?.id}
+          types={form.types}
+        />
       )}
 
       {selectedType === undefined || requirements === undefined ? null : (

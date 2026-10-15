@@ -1017,17 +1017,45 @@ function DocumentRow({
                 {t('deliver')}
               </Button>
             ) : null}
-            <Button onClick={() => setOpenReturn((open) => !open)} type="button" variant="ghost">
-              <Icon name="close" />
-              {t('return')}
-            </Button>
           </>
         ) : null}
+        {/*
+         * Pedido do usuário (15/10): "Não entreguei" (com a volta ao barracão) fica disponível desde que
+         * a viagem sai, sem esperar o "Cheguei". A API só exige viagem despachada para a devolução
+         * (`checkTripAcceptsDocumentWork`), e a parada fecha com a chegada que ninguém tocou.
+         */}
+        <Button onClick={() => setOpenReturn((open) => !open)} type="button" variant="ghost">
+          <Icon name="close" />
+          {t('return')}
+        </Button>
         <DocumentOccurrenceButton
           isOpen={openOccurrence}
           onToggle={() => setOpenOccurrence((open) => !open)}
         />
       </div>
+      {/* O formulário abre logo abaixo do botão, não no fim do cartão (pedido do usuário, 15/10). */}
+      {occurrenceForm}
+      {/*
+       * Spec 179, ajuste do usuário de 25/09: "Não entreguei" é a ocorrência com foto **e** a
+       * devolução — a devolução fecha a nota, a ocorrência é a prova
+       * (`notDelivered.service.ts`).
+       */}
+      {openReturn ? (
+        <DriverNotDeliveredForm
+          occurrenceTypes={occurrenceTypes}
+          onCancel={() => setOpenReturn(false)}
+          onConfirm={(draft) => {
+            onNotDelivered({
+              documentId: document.id,
+              draft,
+              lateRegistration: isLateRegistration,
+            })
+            onAnnounce(t('activity.toast.returned'))
+            setOpenReturn(false)
+          }}
+          onRetryOccurrenceTypes={onRetryOccurrenceTypes}
+        />
+      ) : null}
       {canActOnDocuments ? (
         <>
           {requiresProof ? (
@@ -1048,32 +1076,10 @@ function DocumentRow({
               onConfirm={confirmDelivery}
             />
           ) : null}
-          {/*
-           * Spec 179, ajuste do usuário de 25/09: "Não entreguei" é a ocorrência com foto **e** a
-           * devolução — a devolução fecha a nota, a ocorrência é a prova
-           * (`notDelivered.service.ts`).
-           */}
-          {openReturn ? (
-            <DriverNotDeliveredForm
-              occurrenceTypes={occurrenceTypes}
-              onCancel={() => setOpenReturn(false)}
-              onConfirm={(draft) => {
-                onNotDelivered({
-                  documentId: document.id,
-                  draft,
-                  lateRegistration: isLateRegistration,
-                })
-                onAnnounce(t('activity.toast.returned'))
-                setOpenReturn(false)
-              }}
-              onRetryOccurrenceTypes={onRetryOccurrenceTypes}
-            />
-          ) : null}
         </>
       ) : (
         <p className={styles.stopMeta}>{t('arrivalRequired')}</p>
       )}
-      {occurrenceForm}
     </li>
   )
 }

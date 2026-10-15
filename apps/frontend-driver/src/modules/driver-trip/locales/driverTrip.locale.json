@@ -586,12 +586,18 @@
       "required": "Foto obrigatória"
     },
     "cancel": "Cancelar",
+    "changeType": "Trocar tipo",
     "declaredAmount": {
       "defaultLabel": "Valor pago",
       "limit": "Limite do campo: o valor não pode passar de R$\u00a09.999.999.999,99.",
       "optional": "{{label}} · opcional",
       "placeholder": "0,00",
       "required": "{{label}} · obrigatório"
+    },
+    "groups": {
+      "document": "Problema na nota",
+      "frequent": "Mais usados",
+      "stop": "Problema na parada"
     },
     "items": {
       "amountOptional": "{{label}} · se diferente",
@@ -653,6 +659,11 @@
       "optional": "{{label}} · opcional",
       "invalid": "Use só letras, números, espaço, ponto, barra e hífen, até {{max}} caracteres. Nada foi cortado: corrija o texto.",
       "required": "{{label}} · obrigatório"
+    },
+    "search": {
+      "empty": "Nenhum tipo encontrado.",
+      "label": "Buscar tipo de ocorrência",
+      "placeholder": "Buscar tipo"
     },
     "signature": {
       "redo": "Colher a assinatura de novo",

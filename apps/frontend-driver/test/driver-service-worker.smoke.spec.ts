@@ -48,7 +48,7 @@ test('CA05(a): recarregar sem rede de verdade mostra a viagem salva e drena quan
   await expect(page.getByText(/Sem conexão — dados de \d/)).toBeVisible()
   // Pedido do usuário (25/09): "Entreguei" só existe depois de "Cheguei" — a chegada libera a nota.
   await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+  await page.getByRole('button', { exact: true, name: 'Entreguei' }).first().click()
   await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
   expect(api.reports()).toEqual([])
 
