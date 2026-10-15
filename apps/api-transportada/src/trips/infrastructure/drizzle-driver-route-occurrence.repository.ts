@@ -87,7 +87,12 @@ export function createDrizzleDriverRouteOccurrenceReader(dependencies: {
           rows,
         }),
         readRouteOccurrenceFiles(database, { companyId: input.companyId, rows }),
-        listReportKeysByOccurrence(database, { companyId: input.companyId, occurrenceIds }),
+        listReportKeysByOccurrence(database, {
+          companyId: input.companyId,
+          occurrenceIds: rows
+            .filter((row) => row.actorUserId === input.driverUserId)
+            .map((row) => row.id),
+        }),
         readDriverOccurrenceChat(database, {
           companyId: input.companyId,
           driverUserId: input.driverUserId,

@@ -59,7 +59,7 @@ export function buildDriverRouteOccurrenceItem(
     recordedAt: facts.recordedAt,
     recordedByMe: facts.recordedByMe,
     reopenedAt: state.reopenedAt,
-    reportKey: facts.reportKey,
+    reportKey: facts.recordedByMe ? facts.reportKey : null,
     resolution: toResolutionView(state),
     state: state.state,
     stopId: facts.stopId,

@@ -174,6 +174,14 @@ async function listed(state: FakeState) {
 }
 
 describe('GET /me/trips/current/route-occurrences (spec 266 T2.5)', () => {
+  it('a chave de idempotência só vai para quem registrou: de outro motorista, reportKey é null', async () => {
+    const item = await listed(
+      fresh({ facts: [facts({ recordedByMe: false, reportKey: 'chave-do-outro' })] }),
+    )
+
+    expect(item.reportKey).toBeNull()
+  })
+
   it('200 com o envelope e o item do contrato; sem evento a ocorrência está em aberto', async () => {
     const response = await list(fresh())
 
