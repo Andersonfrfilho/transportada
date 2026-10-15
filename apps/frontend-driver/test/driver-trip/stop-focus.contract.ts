@@ -108,7 +108,9 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
       /activity\.toast\.returned[\s\S]{0,400}revealStopStart\(rowRef\.current\)/u,
     )
     // a parada que vira atual (e só depois da montagem) vem à vista
-    expect(card).toMatch(/isCurrent && !wasCurrentRef\.current\) revealStopStart/u)
+    expect(card).toMatch(
+      /!isCurrent \|\| wasCurrentRef\.current[\s\S]{0,200}revealStopStart\(cardRef\.current\)/u,
+    )
     // os dois formulários (antes e depois da entrega) expõem a faixa de ações
     expect(card.match(/ref=\{capture\.finishActionsRef\}/gu)?.length).toBe(2)
   })

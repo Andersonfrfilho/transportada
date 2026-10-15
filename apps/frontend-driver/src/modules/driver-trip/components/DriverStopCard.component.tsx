@@ -13,6 +13,7 @@ import { DocumentConversationSlot } from '@/modules/conversation/components/Docu
 import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.component'
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
+import { ARRIVED_HIGHLIGHT_MS, resolveStopPlace } from '../shared/stopPlace.service'
 import { focusFinishButton, revealPanel, revealStopStart } from '../shared/stopFocus.service'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
@@ -173,6 +174,8 @@ type DriverStopCardProps = Readonly<{
   /** Spec 206 D6: "Cheguei" só aparece aqui — parada a caminho, ou qualquer uma na API antiga (D17). */
   canReportArrival: boolean
   isCurrent: boolean
+  /** Pedido do usuário (14/10): a posição da parada na viagem — deixa claro qual é a próxima e qual é a última. */
+  stopPosition?: Readonly<{ index: number; total: number }>
   /** Spec 206 D9: esta é a parada com o "Iniciar rota" ativo — mostra o selo e "Cancelar rota". */
   isEnRoute: boolean
   /**
@@ -251,6 +254,7 @@ export function DriverStopCard({
   canStartRoute,
   deliverActivityByDocumentId,
   isCurrent,
+  stopPosition,
   isEnRoute,
   isFieldWorkBlocked,
   isLocationDenied,
@@ -301,9 +305,18 @@ export function DriverStopCard({
    */
   const cardRef = useRef<HTMLLIElement>(null)
   const wasCurrentRef = useRef(isCurrent)
+  /** O card que acabou de virar o atual pisca o destaque uma vez, para o olho achar onde a rota continua. */
+  const [justArrived, setJustArrived] = useState(false)
   useEffect(() => {
-    if (isCurrent && !wasCurrentRef.current) revealStopStart(cardRef.current)
+    if (!isCurrent || wasCurrentRef.current) {
+      wasCurrentRef.current = isCurrent
+      return undefined
+    }
     wasCurrentRef.current = isCurrent
+    revealStopStart(cardRef.current)
+    setJustArrived(true)
+    const timer = setTimeout(() => setJustArrived(false), ARRIVED_HIGHLIGHT_MS)
+    return () => clearTimeout(timer)
   }, [isCurrent])
   const areFieldActionsHidden = isFieldWorkBlocked || isReadOnly
   /** Spec 206 D9: `enRouteTappedAt` (hora do toque) é a âncora; `enRouteSince` é a reserva. */
@@ -315,6 +328,17 @@ export function DriverStopCard({
   })
   const bodyId = useId()
   const stopChipView = isCompleted ? 'completed' : isCurrent ? 'current' : 'pending'
+  /** Primeira parada: "Em andamento". Depois dela, a atual é a "Próxima parada" — e a última se diz última. */
+  const stopPlace = resolveStopPlace({
+    isCurrent: stopChipView === 'current',
+    position: stopPosition,
+  })
+  const stopChipLabel =
+    stopPlace === 'last'
+      ? t('stopState.currentLast', { ...stopPosition })
+      : stopPlace === 'next'
+        ? t('stopState.currentNext', { ...stopPosition })
+        : t(`stopState.${stopChipView}`)
   const documentIdsWithOccurrence = new Set(
     stop.documents
       .filter((document) => notDeliveredStatusByDocumentId.get(document.id) !== undefined)
@@ -358,7 +382,7 @@ export function DriverStopCard({
 
   return (
     <li
-      className={`${styles.stop} ${isCurrent ? styles.stopCurrent : ''} ${isCompleted ? styles.stopDone : ''}`}
+      className={`${styles.stop} ${isCurrent ? styles.stopCurrent : ''} ${isCompleted ? styles.stopDone : ''}${justArrived ? ` ${styles.stopArrived}` : ''}`}
       data-stop-card=""
       ref={cardRef}
     >
@@ -414,7 +438,7 @@ export function DriverStopCard({
               {stopChipView === 'completed' ? (
                 <Icon aria-hidden="true" name="check" size="sm" />
               ) : null}
-              {t(`stopState.${stopChipView}`)}
+              {stopChipLabel}
             </span>
             {hasOccurrenceMarker ? (
               <span className={`${styles.stopChip} ${styles.stopChipOccurrence}`}>
@@ -483,6 +507,12 @@ export function DriverStopCard({
           )}
         </button>
       </h2>
+      {stopPlace === 'last' ? (
+        <p className={styles.stopFinalHint} role="status">
+          <Icon aria-hidden="true" name="truck" size="sm" />
+          {t('stopFinalHint')}
+        </p>
+      ) : null}
 
       {/* Spec 252 T5.4: fora do botão e do corpo recolhido — aparece com o cartão fechado e nunca decide ação. */}
       <DriverHolidayNotice nowMs={readCorrectedNowMs()} warnings={stop.holidayWarnings} />

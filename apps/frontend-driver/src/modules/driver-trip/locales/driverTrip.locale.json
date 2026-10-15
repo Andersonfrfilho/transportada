@@ -381,8 +381,12 @@
   "stopState": {
     "completed": "Concluída",
     "current": "Em andamento",
+    "currentLast": "Última parada · {{index}} de {{total}}",
+    "currentNext": "Próxima parada · {{index}} de {{total}}",
     "pending": "Pendente"
   },
+  "stopFinalHint": "Esta é a última parada. Quando as notas daqui forem entregues ou devolvidas, a viagem se encerra sozinha.",
+  "tripAllDone": "Última entrega concluída. A viagem se encerra sozinha: não precisa fazer mais nada.",
   "stopTitle": "Parada {{sequence}}",
   "stalePending": {
     "notice_one": "{{count}} registro seu está parado desde {{date}} e ainda não chegou ao escritório. Abra o app com sinal para enviar.",

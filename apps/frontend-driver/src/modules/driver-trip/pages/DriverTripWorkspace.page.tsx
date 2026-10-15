@@ -44,6 +44,7 @@ import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { canReportOnTrip } from '../shared/tripCrewRole.service'
 import { resolveStalePending } from '../shared/stalePending.service'
 import { resolveScrollBehavior } from '../shared/stopFocus.service'
+import { isTripFullySettled } from '../shared/stopPlace.service'
 import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
 import {
   resolveDocumentActivityStatus,
@@ -741,6 +742,12 @@ export function DriverTripWorkspacePage() {
         {trip === undefined || canReportOnTrip(trip) ? null : <DriverHelperNotice />}
 
         {trip === undefined ? null : <DriverTripProgress trip={trip} />}
+        {trip !== undefined && isTripFullySettled(trip) ? (
+          <p className={styles.tripAllDone} role="status">
+            <Icon aria-hidden="true" name="check" size="sm" />
+            {t('tripAllDone')}
+          </p>
+        ) : null}
 
         {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
         {dispatchState?.canDispatch === true && trip !== undefined ? (
@@ -949,6 +956,10 @@ export function DriverTripWorkspacePage() {
                     canStartRoute={startRouteBlock}
                     deliverActivityByDocumentId={deliverActivityByDocumentId}
                     isCurrent={stop.id === currentStopId}
+                    stopPosition={{
+                      index: trip.stops.findIndex((candidate) => candidate.id === stop.id) + 1,
+                      total: trip.stops.length,
+                    }}
                     isEnRoute={stop.id === enRouteStopId}
                     isFieldWorkBlocked={isTripAwaitingDispatch}
                     isLocationDenied={isLocationDenied}
