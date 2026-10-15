@@ -90,7 +90,7 @@ function createFake(
     },
     async findMyOccurrence({ driverId }) {
       if (!exists || overrides.driverOnTrip === false || !state.crew.has(driverId)) return null
-      return { occurrenceKind: 'document' }
+      return { occurrenceKind: 'document', tripStatus: 'in_transit' }
     },
     async findIdempotency({ idempotencyKey, operation }) {
       return (state.idempotency.get(`${operation}:${idempotencyKey}`) as never) ?? null

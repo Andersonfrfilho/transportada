@@ -20,8 +20,10 @@ import {
 } from '../domain/occurrence-conversation.error.js'
 import type { OccurrenceResolutionNotifierPort } from '../../trips/application/occurrence-resolution-notifier.port.js'
 import type { ApiLogger } from '../../shared/api.types.js'
+import { ReopenNotSupportedError } from '../../trips/domain/occurrence-resolution.error.js'
 import {
   assertOccurrenceReopenable,
+  assertTripIsCurrent,
   recordOccurrenceReopened,
 } from './driver-occurrence-reopen.service.js'
 import { enrichAudioAttachments } from './conversation-audio-enrichment.service.js'
@@ -117,6 +119,8 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
     subject: MyConversationSubject,
   ): Promise<StoredReply> {
     const now = dependencies.clock()
+    if (input.reopen === true && subject.occurrenceKind === null)
+      throw new ReopenNotSupportedError()
     const reopenTarget =
       input.reopen === true && subject.occurrenceKind !== null
         ? {
@@ -125,7 +129,10 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
             occurrenceKind: subject.occurrenceKind,
           }
         : undefined
-    if (reopenTarget !== undefined) await assertOccurrenceReopenable(transaction, reopenTarget)
+    if (reopenTarget !== undefined) {
+      assertTripIsCurrent(subject.tripStatus)
+      await assertOccurrenceReopenable(transaction, reopenTarget)
+    }
     const conversationId = await resolveConversationId(transaction, input, subject)
     const message = await transaction.insertMessage({
       authorUserId: null,

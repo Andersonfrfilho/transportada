@@ -19,6 +19,7 @@ import type { OccurrenceResolutionNotifierPort } from '../../trips/application/o
 import type { ApiLogger } from '../../shared/api.types.js'
 import {
   assertOccurrenceReopenable,
+  assertTripIsCurrent,
   recordOccurrenceReopened,
 } from './driver-occurrence-reopen.service.js'
 import type {
@@ -321,6 +322,7 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
                   }
                 : undefined
             if (reopenTarget !== undefined) {
+              assertTripIsCurrent(occurrence.tripStatus)
               await assertOccurrenceReopenable(transaction, reopenTarget)
             }
             const conversation = await transaction.findOrCreateDriverConversation({

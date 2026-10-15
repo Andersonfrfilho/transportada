@@ -147,6 +147,23 @@ export const TRIP_ON_ROAD_STATUSES = [
   'on_delivery_route',
 ] as const satisfies readonly TripStatus[]
 
+/**
+ * As fases em que a viagem aparece na tela do motorista.
+ *
+ * ⚠️ **Não é `TRIP_ON_ROAD_STATUSES`, e a diferença é `route_planned`.** A rua começa em
+ * `dispatched`; a **tela do motorista** começa um passo antes, porque é ele quem despacha pelo app
+ * (ADR-0058) — sem ver a viagem planejada, ele não teria o que despachar. Trocar esta lista pela da
+ * rua deixaria a rota de despacho inalcançável, e o defeito seria "a viagem não aparece", longe da
+ * linha que o causou.
+ *
+ * O resto vem importado, nunca redigitado: é a lição das cinco cópias que divergiram.
+ */
+export const CURRENT_DRIVER_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
+
+export function isCurrentDriverTripStatus(status: TripStatus): boolean {
+  return (CURRENT_DRIVER_TRIP_STATUSES as readonly TripStatus[]).includes(status)
+}
+
 export function isTripDispatched(status: TripStatus): boolean {
   return (TRIP_DISPATCHED_STATUSES as readonly TripStatus[]).includes(status)
 }

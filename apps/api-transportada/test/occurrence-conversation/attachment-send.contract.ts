@@ -101,7 +101,10 @@ function driverTransaction(attachments: ConversationAttachmentTransactionPort) {
       occurrenceKind: 'document' as const,
       occurrenceLabel: 'NF 4512/1',
     }),
-    findMyOccurrence: async () => ({ occurrenceKind: 'document' as const }),
+    findMyOccurrence: async () => ({
+      occurrenceKind: 'document' as const,
+      tripStatus: 'in_transit' as const,
+    }),
     findOrCreateDriverConversation: async ({ driverUserId }: { driverUserId: string }) => ({
       driverUserId,
       id: 'conversation-driver',

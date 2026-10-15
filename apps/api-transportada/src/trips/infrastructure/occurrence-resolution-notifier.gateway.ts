@@ -21,7 +21,7 @@ import {
   NOTIFICATION_TEMPLATE_KEY,
 } from '../../notification/domain/notification-catalog.constant.js'
 import type { OccurrenceResolutionNotifierPort } from '../application/occurrence-resolution-notifier.port.js'
-import { CURRENT_DRIVER_TRIP_STATUSES } from './drizzle-current-driver-trip.repository.js'
+import { CURRENT_DRIVER_TRIP_STATUSES } from '../domain/trip-state.policy.js'
 import { findTripOccurrenceFeedItem } from './trip-occurrence-feed.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 

@@ -5,8 +5,10 @@
  * da ocorrência. A linha é travada antes de ler o estado, dentro da transação da mensagem: resolver × reabrir
  * serializa, e a reabertura sem o que reabrir é 409 sem gravar nada.
  */
+import type { TripStatus } from '../../database/trip.schema.js'
 import { OccurrenceNotResolvedError } from '../../trips/domain/occurrence-resolution.error.js'
 import { resolveOccurrenceResolutionState } from '../../trips/domain/occurrence-resolution.policy.js'
+import { isCurrentDriverTripStatus } from '../../trips/domain/trip-state.policy.js'
 import {
   OccurrenceCancelledError,
   TripOccurrenceNotFoundError,
@@ -20,6 +22,13 @@ type ReopenPorts = Pick<
   DriverConversationTransactionPort,
   'insertDriverReopenedEvent' | 'lockOccurrenceResolution'
 >
+
+/** Reabrir é do motorista da viagem atual; a viagem finalizada (ou sem status) não existe para ele (ADR-0105 §3). */
+export function assertTripIsCurrent(tripStatus: TripStatus | null): void {
+  if (tripStatus === null || !isCurrentDriverTripStatus(tripStatus)) {
+    throw new TripOccurrenceNotFoundError()
+  }
+}
 
 /** Antes da mensagem: trava e confere que há o que reabrir. */
 export async function assertOccurrenceReopenable(

@@ -16,6 +16,7 @@ import {
   occurrenceConversationMessages,
   occurrenceConversations,
   tripDrivers,
+  trips,
   userCompanyMemberships,
 } from '../../database/database.schema.js'
 import { tripOccurrenceResolutionEvents } from '../../database/occurrence-conversation.schema.js'
@@ -209,7 +210,13 @@ export function createTransactionPort(transaction: Transaction): DriverConversat
           ),
         )
         .limit(1)
-      return crew === undefined ? null : { occurrenceKind: item.source }
+      if (crew === undefined) return null
+      const [trip] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, companyId), eq(trips.id, item.tripId)))
+        .limit(1)
+      return trip === undefined ? null : { occurrenceKind: item.source, tripStatus: trip.status }
     },
 
     async findIdempotency({ companyId, idempotencyKey, operation }) {

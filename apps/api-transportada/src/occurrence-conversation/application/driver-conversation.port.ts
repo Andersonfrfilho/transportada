@@ -9,6 +9,7 @@ import type {
   ConversationAttachmentRecord,
   ConversationAttachmentTransactionPort,
 } from './conversation-attachment.port.js'
+import type { TripStatus } from '../../database/trip.schema.js'
 import type { OccurrenceResolutionEventFact } from '../../trips/domain/occurrence-resolution.types.js'
 import type { OccurrenceConversationSubjectType } from '../../shared/occurrence-conversation-subject.constant.js'
 import type {
@@ -90,7 +91,10 @@ export type DriverConversationTransactionPort = {
     readonly companyId: string
     readonly driverId: string
     readonly occurrenceId: string
-  }): Promise<null | { readonly occurrenceKind: OccurrenceConversationKind }>
+  }): Promise<null | {
+    readonly occurrenceKind: OccurrenceConversationKind
+    readonly tripStatus: TripStatus
+  }>
   /**
    * Spec 266 (ADR-0105 §3): trava a linha da ocorrência (`FOR NO KEY UPDATE`) e lê o andamento depois do
    * lock; `undefined` quando a ocorrência não existe na empresa.
