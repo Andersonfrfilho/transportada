@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import './trip-occurrence/occurrence-resolution-policy.contract'
 import './trip-occurrence/attachment-errors.contract'
 import './trip-occurrence/attachment-pdf.contract'
 import './trip-occurrence/attachment-policy.contract'
