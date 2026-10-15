@@ -464,6 +464,9 @@ import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.r
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
+import { createOccurrenceResolutionRoutes } from './trips/presentation/occurrence-resolution.routes.js'
+import { createResolveOccurrenceUseCase } from './trips/application/resolve-occurrence.use-case.js'
+import { DrizzleOccurrenceResolutionUnitOfWork } from './trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
@@ -3439,6 +3442,13 @@ function createApplicationRoutes({
       }),
       readTripOccurrenceTimeline: createReadTripOccurrenceTimelineUseCase({
         reader: { findSources: (input) => findTripOccurrenceTimelineSources(database, input) },
+      }),
+    }),
+    /** Spec 266 / ADR-0105: o escritório resolve a ocorrência (nota ou parada) com observação. */
+    ...createOccurrenceResolutionRoutes({
+      resolveOccurrence: createResolveOccurrenceUseCase({
+        logger,
+        unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
       }),
     }),
     /**
