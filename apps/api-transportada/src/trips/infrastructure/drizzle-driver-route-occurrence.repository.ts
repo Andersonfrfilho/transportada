@@ -59,6 +59,7 @@ async function readEvents(
 export function createDrizzleDriverRouteOccurrenceReader(dependencies: {
   readonly currentTrips: CurrentTripReader
   readonly database: TripQueryable
+  readonly logger?: { warn(event: string, meta?: Record<string, unknown>): void }
 }): DriverRouteOccurrenceReaderPort {
   const { database } = dependencies
   return {
@@ -87,11 +88,18 @@ export function createDrizzleDriverRouteOccurrenceReader(dependencies: {
           rows,
         }),
         readRouteOccurrenceFiles(database, { companyId: input.companyId, rows }),
+        /** A chave de relato é refinamento: sem ela a lista segue, e o app só perde o reenvio da própria ocorrência. */
         listReportKeysByOccurrence(database, {
           companyId: input.companyId,
           occurrenceIds: rows
             .filter((row) => row.actorUserId === input.driverUserId)
             .map((row) => row.id),
+        }).catch((error: unknown) => {
+          dependencies.logger?.warn('route_occurrence_report_keys_failed', {
+            companyId: input.companyId,
+            errorName: error instanceof Error ? error.name : typeof error,
+          })
+          return new Map<string, string>()
         }),
         readDriverOccurrenceChat(database, {
           companyId: input.companyId,

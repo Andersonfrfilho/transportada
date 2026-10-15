@@ -6,7 +6,7 @@
  * tripulação inteira vê, e outra viagem, outra empresa e viagem finalizada são 404.
  */
 import { describe, expect } from 'bun:test'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 import {
   occurrenceConversationAttachments,
@@ -70,10 +70,14 @@ type Scenario = {
   readonly typeId: string
 }
 
-function harness(database: TestDatabase) {
+function harness(
+  database: TestDatabase,
+  logger?: { warn(event: string, meta?: Record<string, unknown>): void },
+) {
   const reader = createDrizzleDriverRouteOccurrenceReader({
     currentTrips: new DrizzleCurrentDriverTripRepository(database.db),
     database: database.db,
+    ...(logger === undefined ? {} : { logger }),
   })
   const signed: { filename: string; key: string; expiresInSeconds: number }[] = []
   return {
@@ -418,6 +422,31 @@ describe('o motorista lê as ocorrências da rota contra Postgres (spec 266 T2.5
           resolution: null,
           state: 'open',
         })
+      })
+    },
+    90_000,
+  )
+
+  testWithPostgres(
+    'a leitura das chaves de relato falhar não derruba a lista: reportKey vira null e avisa',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const scenario = await seedScenario(database)
+        const fixture = await seedOccurrences(database, scenario)
+        await database.db.execute(
+          sql`alter table trip_field_reports rename to trip_field_reports_gone`,
+        )
+        const warnings: { event: string; meta: unknown }[] = []
+
+        const items = await harness(database, {
+          warn: (event, meta) => void warnings.push({ event, meta }),
+        }).list.execute(actorOf(scenario))
+
+        expect(items).toHaveLength(6)
+        expect(items.find((item) => item.id === fixture.stopMineId)?.reportKey).toBeNull()
+        expect(warnings.map((warning) => warning.event)).toEqual([
+          'route_occurrence_report_keys_failed',
+        ])
       })
     },
     90_000,

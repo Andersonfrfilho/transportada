@@ -2283,6 +2283,7 @@ function createApplicationRoutes({
   const driverRouteOccurrenceReader = createDrizzleDriverRouteOccurrenceReader({
     currentTrips: currentDriverTripRepository,
     database,
+    logger,
   })
   /** Spec 252 T4.3 (D12): o aviso de feriado nas paradas de `GET /me/trips/current` — só a rota do app o recebe. */
   const driverHolidayWarnings = {

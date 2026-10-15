@@ -154,7 +154,7 @@ export function createOccurrenceResolutionNotifier(input: {
         if (!(await isTripInProgress(queryable, { companyId, tripId: item.tripId }))) return
         const templateKey = NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_RESOLVED
         const recipients = await listCrewUserIds(queryable, { companyId, tripId: item.tripId })
-        await Promise.all(
+        const outcomes = await Promise.allSettled(
           recipients.map((recipientUserId) =>
             input.send({
               category: NOTIFICATION_CATEGORY.TRIP,
@@ -171,6 +171,10 @@ export function createOccurrenceResolutionNotifier(input: {
             }),
           ),
         )
+        const failedCount = outcomes.filter((outcome) => outcome.status === 'rejected').length
+        if (failedCount > 0) {
+          input.logger.warn(OCCURRENCE_RESOLUTION_NOTIFIER_LOG.failed, { companyId, failedCount })
+        }
       }),
 
     notifyReopened: ({ companyId, messageId, occurrenceId }) =>

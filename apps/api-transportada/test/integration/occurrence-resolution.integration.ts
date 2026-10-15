@@ -597,6 +597,47 @@ describe('os avisos do andamento da ocorrência (spec 266 T2.8)', () => {
   )
 
   testWithPostgres(
+    'resolvida: o envio que falha para um da tripulação não impede o aviso dos outros',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const occurrenceId = await registerDocumentOccurrence(database, company, trip)
+        const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
+        const helperUserId = await linkDriverMembership(database, company, company.secondDriverId)
+        const sent: string[] = []
+        const warnings: { event: string; meta: unknown }[] = []
+        const notifier = createOccurrenceResolutionNotifier({
+          canUserResolveOccurrences: async () => true,
+          logger: {
+            info: () => undefined,
+            warn: (event, meta) => void warnings.push({ event, meta }),
+          },
+          queryable: database.db,
+          send: async (params) => {
+            if (params.recipientUserId === driverUserId) throw new Error('SEND_FAILED')
+            sent.push(params.recipientUserId)
+          },
+        })
+
+        await notifier.notifyResolved({
+          companyId: company.companyId,
+          dedupeKey: 'falha-parcial',
+          occurrenceId,
+        })
+
+        expect(sent).toEqual([helperUserId])
+        expect(warnings).toEqual([
+          {
+            event: 'occurrence_resolution_notice_failed',
+            meta: { companyId: company.companyId, failedCount: 1 },
+          },
+        ])
+      })
+    },
+  )
+
+  testWithPostgres(
     'a transição terminal não espera o aviso: notificador que nunca responde não segura o resultado',
     async () => {
       await withDisposableDatabase(async (database) => {
