@@ -567,6 +567,8 @@
     "delivered": "Delivered at {{time}}",
     "deliveredQueued": "Delivered at {{time}} · syncing",
     "deliveredRejected": "The office refused the delivery recorded at {{time}}. See pending events.",
+    "photoRetrying": "Photo waiting for signal; the app retries on its own.",
+    "photoSyncing": "Photo syncing…",
     "occurrenceMarker": "Has an occurrence",
     "occurrenceQueued": "Occurrence recorded at {{time}} · queued",
     "occurrenceRejected": "The office refused the occurrence recorded at {{time}}. See pending events.",

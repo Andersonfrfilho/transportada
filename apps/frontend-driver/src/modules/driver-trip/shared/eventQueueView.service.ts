@@ -323,3 +323,23 @@ export function resolveQueuedDeliverState(
   if (items.length === 0) return 'none'
   return items.some((item) => item.status.state === 'failed') ? 'retrying' : 'waiting'
 }
+
+/**
+ * Teste local do #250 (15/10): a foto da nota que ainda não subiu — o grupo de anexos órfão (`proof`)
+ * ou a foto que viaja junto da entrega na fila. A recusada não conta: tem o aviso próprio.
+ */
+export type ProofSyncState = 'none' | 'retrying' | 'syncing'
+
+export function resolveProofSyncState(
+  queueView: readonly EventQueueItemView[],
+  documentId: string,
+): ProofSyncState {
+  const items = queueView.filter(
+    (item) =>
+      item.documentId === documentId &&
+      item.status.state !== 'rejected' &&
+      (item.kind === 'proof' || (item.kind === 'deliver' && item.attachmentCount > 0)),
+  )
+  if (items.length === 0) return 'none'
+  return items.some((item) => item.status.state === 'failed') ? 'retrying' : 'syncing'
+}

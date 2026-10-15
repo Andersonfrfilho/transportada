@@ -586,6 +586,8 @@
     "deliveredQueued": "Entregue às {{time}} · sincronizando",
     "deliveredRejected": "O escritório recusou o registro da entrega às {{time}}. Veja em eventos pendentes.",
     "occurrenceMarker": "Com ocorrência",
+    "photoRetrying": "Foto aguardando sinal; o app tenta de novo sozinho.",
+    "photoSyncing": "Foto sincronizando…",
     "occurrenceQueued": "Ocorrência registrada às {{time}} · na fila",
     "occurrenceRejected": "O escritório recusou a ocorrência registrada às {{time}}. Veja em eventos pendentes.",
     "occurrenceSent": "Ocorrência registrada às {{time}} · enviada",

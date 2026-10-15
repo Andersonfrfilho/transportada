@@ -384,3 +384,44 @@ describe('o histórico vale até a viagem ser concluída (15/10)', () => {
     expect(page).toContain('purgeTripHistory(trip)')
   })
 })
+/** Teste local do #250 (15/10): "Enviar agora" só após falha/espera, aviso persistente, foto na nota. */
+describe('ajustes do teste local do #250 (15/10)', () => {
+  const view = (kind: string, state: string, extra: object = {}) =>
+    ({
+      attachmentCount: 0,
+      documentId: 'd1',
+      idempotencyKey: `${kind}-${state}`,
+      kind,
+      queuedAt: '2026-10-15T10:00:00Z',
+      status: { state },
+      ...extra,
+    }) as never
+
+  it('a foto pendente da nota aparece: grupo órfão ou foto que viaja com a entrega; recusada não', async () => {
+    const { resolveProofSyncState } = await import(
+      '../../src/modules/driver-trip/shared/eventQueueView.service'
+    )
+    expect(resolveProofSyncState([], 'd1')).toBe('none')
+    expect(resolveProofSyncState([view('proof', 'queued')], 'd1')).toBe('syncing')
+    expect(resolveProofSyncState([view('deliver', 'queued', { attachmentCount: 1 })], 'd1')).toBe(
+      'syncing',
+    )
+    expect(resolveProofSyncState([view('deliver', 'queued')], 'd1')).toBe('none')
+    expect(resolveProofSyncState([view('proof', 'failed')], 'd1')).toBe('retrying')
+    expect(resolveProofSyncState([view('proof', 'rejected')], 'd1')).toBe('none')
+  })
+
+  it('o cartão usa o aviso persistente e mostra a foto sincronizando; os textos existem', () => {
+    const notice = readSource(
+      'src/modules/driver-trip/components/DriverDeliverSyncNotice.component.tsx',
+    )
+    expect(notice).toContain('SEND_NOW_DELAY_MS')
+    expect(notice).toContain('setHasFailed(true)')
+    expect(CARD).toContain('<DriverDeliverSyncNotice')
+    expect(CARD).toContain("'activity.photoSyncing'")
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.activity.photoSyncing.length).toBeGreaterThan(0)
+      expect(locale.activity.photoRetrying.length).toBeGreaterThan(0)
+    }
+  })
+})

@@ -29,6 +29,7 @@ import {
   revealStopStart,
   revealPanel,
 } from '../shared/stopFocus.service'
+import { DriverDeliverSyncNotice } from './DriverDeliverSyncNotice.component'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
 import { ProofCargoField } from './ProofCargoField.component'
@@ -77,6 +78,7 @@ import {
 } from '../shared/driverTripView.service'
 import type { StartRouteBlock } from '../shared/enRouteStop.service'
 import {
+  resolveProofSyncState,
   resolveQueuedDeliverState,
   type QueuedDeliverState,
   resolveQueuedProofAttachments,
@@ -934,19 +936,21 @@ function DocumentRow({
             )}
           />
         )}
-        {resolveQueuedDeliverState(queueView, document.id) === 'retrying' ? (
+        <DriverDeliverSyncNotice
+          documentId={document.id}
+          onSendNow={onSendAllNow}
+          queueView={queueView}
+        />
+        {/* Teste local do #250 (15/10): a foto que ainda sobe aparece na nota, não só no contador do cabeçalho. */}
+        {resolveProofSyncState(queueView, document.id) === 'none' ? null : (
           <p className={styles.stopMeta} role="status">
-            {t('deliveryGate.retrying')}
+            {t(
+              resolveProofSyncState(queueView, document.id) === 'retrying'
+                ? 'activity.photoRetrying'
+                : 'activity.photoSyncing',
+            )}
           </p>
-        ) : null}
-        {resolveQueuedDeliverState(queueView, document.id) !== 'none' &&
-        onSendAllNow !== undefined ? (
-          <div className={styles.actions}>
-            <Button onClick={onSendAllNow} type="button" variant="ghost">
-              {t('deliveryGate.sendNow')}
-            </Button>
-          </div>
-        ) : null}
+        )}
         <div className={styles.actions}>
           <DocumentOccurrenceButton
             isOpen={openOccurrence}
