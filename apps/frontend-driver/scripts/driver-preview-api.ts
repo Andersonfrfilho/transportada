@@ -202,6 +202,15 @@ const PHOTO_ONLY_DELIVERY_PROOF = {
   receiverName: 'off',
   signature: 'off',
 }
+/** `DRIVER_PREVIEW_PROOF=extra`: a parada 3 pede também "Quem recebeu" e o nome — para testar o "Concluir" e os focos. */
+const EXTRA_DELIVERY_PROOF = {
+  photo: 'required',
+  receivedBy: 'required',
+  receiverDocument: 'off',
+  receiverName: 'required',
+  signature: 'off',
+}
+const HAS_EXTRA_PROOF = process.env.DRIVER_PREVIEW_PROOF === 'extra'
 let firstTripStatus = 'dispatched'
 /**
  * Spec 206 D9: só uma parada por vez fica "a caminho" — a demonstração guarda a ÚNICA parada e as
@@ -375,6 +384,7 @@ function snapshot() {
               windowStart: '2026-09-26T14:00:00.000Z',
             }),
             stop({
+              ...(HAS_EXTRA_PROOF ? { deliveryProof: EXTRA_DELIVERY_PROOF } : {}),
               documents: [
                 previewDocument({
                   recipientName: 'Supermercado Bom Preço',

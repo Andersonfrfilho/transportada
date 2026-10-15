@@ -9,6 +9,8 @@ import {
   focusFinishButton,
   NEXT_STEP_FOCUS_DELAY_MS,
   armNextStepFocus,
+  consumeAutoConclude,
+  markFocusTarget,
   consumeNextStepFocus,
   focusFirstRequiredPhoto,
   focusNextProofStep,
@@ -116,6 +118,23 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     armNextStepFocus()
     expect(consumeNextStepFocus()).toBe(true)
     expect(consumeNextStepFocus()).toBe(false)
+  })
+
+  it('com o canhoto como único comprovante, o toque arma a conclusão automática, uma vez só', () => {
+    consumeAutoConclude() // esvazia o que outro teste armou
+    expect(consumeAutoConclude()).toBe(false)
+    armNextStepFocus()
+    expect(consumeAutoConclude()).toBe(true)
+    expect(consumeAutoConclude()).toBe(false)
+  })
+
+  it('campo obrigatório vazio vira alvo de foco, e deixa de ser quando preenchido', () => {
+    const element = { dataset: {} as Record<string, string> } as unknown as HTMLElement
+    markFocusTarget(element, 'proof-received-by')
+    expect(element.dataset.focusTarget).toBe('proof-received-by')
+    markFocusTarget(element, undefined)
+    expect(element.dataset.focusTarget).toBeUndefined()
+    markFocusTarget(null, 'x')
   })
 
   it('botão ainda bloqueado ou inexistente não recebe foco', () => {

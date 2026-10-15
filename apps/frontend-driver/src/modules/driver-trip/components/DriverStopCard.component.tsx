@@ -18,10 +18,13 @@ import {
   PHOTO_FOCUS_TARGET,
   NEXT_STEP_FOCUS_DELAY_MS,
   armNextStepFocus,
+  consumeAutoConclude,
   consumeNextStepFocus,
   consumeStopAdvanceFocus,
   SIGNATURE_FOCUS_TARGET,
   focusFirstRequiredPhoto,
+  focusNextPhotoAfter,
+  markFocusTarget,
   focusNextProofStep,
   revealStopStart,
   revealPanel,
@@ -88,6 +91,7 @@ import {
   listMissingProofFields,
   listPendingReceiverFields,
   maskReceiverDocument,
+  isPhotoOnlyPlan,
   requiresProofBeforeDelivery,
   resolveProofFormPlan,
   type ProofFieldKey,
@@ -1267,6 +1271,17 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
   /** Spec 207: "Concluir" — estado só da tela, por nota; nunca `localStorage` (derivado seria melhor,
    * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
   const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
+  /**
+   * Pedido do usuário (15/10): com o canhoto como único comprovante, "Confirmar entrega" já conclui —
+   * "Concluir" só existe quando há mais o que preencher depois do envio. Quem arma é o toque no gate.
+   */
+  const isPhotoOnly = isPhotoOnlyPlan(resolveProofFormPlan(props.proofSettings))
+  const isProofSent = props.serverProof?.isDelivered === true && !props.serverProof.proofPending
+  useEffect(() => {
+    if (isPhotoOnly && isProofSent && consumeAutoConclude()) {
+      setConcludedAt(new Date().toISOString())
+    }
+  }, [])
 
   /** Pedido do usuário (14/10): tocou em "Concluir" com pendência, o aviso fica na tela até resolver. */
   const [showMissing, setShowMissing] = useState(false)
@@ -1468,11 +1483,29 @@ function ProofCaptureFields({
         (openImageKind === 'photo' ? storedThumbnailUrl : undefined))
   const [removingKind, setRemovingKind] = useState<'photo' | 'signature' | undefined>(undefined)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  /** Os obrigatórios ainda vazios são alvos de foco: depois da foto, o foco vai ao primeiro que faltar. */
+  const receivedByLabel = t('proofFields.receivedBy')
+  useEffect(() => {
+    const trigger = sectionRef.current?.querySelector<HTMLElement>(
+      `button[aria-label="${CSS.escape(receivedByLabel)}"]`,
+    )
+    markFocusTarget(
+      trigger,
+      plan.fields.receivedBy === 'required' && receivedBy === '' ? 'proof-received-by' : undefined,
+    )
+    markFocusTarget(
+      nameInputRef.current,
+      plan.fields.receiverName === 'required' && receiverName.trim() === ''
+        ? 'proof-receiver-name'
+        : undefined,
+    )
+  })
   /**
    * Pedido do usuário (14/10): a foto entrou — o foco vai ao "Concluir"/"Confirmar", que é o passo
    * seguinte, em vez de a tela ficar onde estava. Só se o botão já está liberado e ninguém está digitando.
    */
   const finishActionsRef = useRef<HTMLDivElement>(null)
+  const sectionRef = useRef<HTMLDivElement>(null)
   const [focusFinishNextRender, setFocusFinishNextRender] = useState(false)
   /** Pedido do usuário (15/10): o canhoto subiu (o servidor o tem) — o foco segue ao passo seguinte. */
   const wasPhotoConfirmedRef = useRef(isPhotoConfirmedByServer)
@@ -1488,7 +1521,8 @@ function ProofCaptureFields({
   useEffect(() => {
     if (!focusFinishNextRender) return undefined
     const timer = setTimeout(() => {
-      focusNextProofStep(finishActionsRef.current)
+      if (finishActionsRef.current === null) focusNextPhotoAfter(sectionRef.current)
+      else focusNextProofStep(finishActionsRef.current)
       setFocusFinishNextRender(false)
     }, NEXT_STEP_FOCUS_DELAY_MS)
     return () => clearTimeout(timer)
@@ -1837,7 +1871,7 @@ function ProofCaptureFields({
   }
 
   return (
-    <SmoothHeight className={styles.proofSection}>
+    <SmoothHeight className={styles.proofSection} contentRef={sectionRef}>
       {summary === undefined ? (
         <>
           {/*

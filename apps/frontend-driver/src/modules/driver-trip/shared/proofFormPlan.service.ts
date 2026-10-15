@@ -58,6 +58,18 @@ export function resolveProofFormPlan(settings: DriverDeliveryProofSettings | nul
   }
 }
 
+/** Só o canhoto é pedido: nada mais para preencher depois do envio, então "Concluir" não decide nada. */
+export function isPhotoOnlyPlan(plan: ProofFormPlan): boolean {
+  return (
+    plan.rendersPhoto &&
+    !plan.rendersCargo &&
+    !plan.rendersReceivedBy &&
+    !plan.rendersReceiverDocument &&
+    !plan.rendersReceiverName &&
+    !plan.rendersSignature
+  )
+}
+
 export type ProofFormValues = Readonly<{
   cargoCount: number
   hasPhoto: boolean

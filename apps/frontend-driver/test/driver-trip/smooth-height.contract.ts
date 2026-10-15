@@ -93,7 +93,7 @@ describe('a altura do cartão do comprovante muda com transição (pedido do usu
 
   it('o miolo do comprovante usa a caixa que anima a altura', () => {
     const card = readFileSync(`${root}/components/DriverStopCard.component.tsx`, 'utf8')
-    expect(card).toContain('<SmoothHeight className={styles.proofSection}>')
+    expect(card).toContain('<SmoothHeight className={styles.proofSection} contentRef={sectionRef}>')
     expect(card).toContain('</SmoothHeight>')
   })
 })

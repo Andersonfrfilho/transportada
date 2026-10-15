@@ -63,8 +63,8 @@ const PROOF_SECTION_SELECTOR = '[class*="proofSection"]'
 /** Pausa entre a foto confirmada e o foco no passo seguinte: o motorista vê a miniatura entrar. */
 export const NEXT_STEP_FOCUS_DELAY_MS = 1000
 
-function focusTarget(button: HTMLButtonElement | null): void {
-  if (button === null || button.disabled) return
+function focusTarget(element: HTMLElement | null): void {
+  if (element === null || (element as { disabled?: boolean }).disabled === true) return
   const active = document.activeElement
   if (
     active instanceof HTMLInputElement ||
@@ -73,8 +73,8 @@ function focusTarget(button: HTMLButtonElement | null): void {
   ) {
     return
   }
-  focusWithRing(button)
-  button.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'nearest' })
+  focusWithRing(element)
+  element.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'nearest' })
 }
 
 /** O "Tirar foto" obrigatório da primeira nota aberta: foco e rolagem curta, sem tirar o cursor de quem digita. */
@@ -88,7 +88,7 @@ export function focusFirstRequiredPhoto(card: Element | null): void {
 export function focusNextProofStep(actions: HTMLElement | null): void {
   if (actions === null) return
   const scope = actions.closest(PROOF_SECTION_SELECTOR)
-  const pending = scope?.querySelector<HTMLButtonElement>(ANY_FOCUS_TARGET_SELECTOR) ?? null
+  const pending = scope?.querySelector<HTMLElement>(ANY_FOCUS_TARGET_SELECTOR) ?? null
   if (pending !== null) {
     focusTarget(pending)
     return
@@ -99,6 +99,7 @@ export function focusNextProofStep(actions: HTMLElement | null): void {
 const ARMED_FOCUS_WINDOW_MS = 15_000
 let armedAt: number | undefined
 let armedStopAdvanceAt: number | undefined
+let armedAutoConcludeAt: number | undefined
 
 /**
  * O "Confirmar entrega" troca a tela do comprovante por outra (um componente novo, já com o canhoto
@@ -107,6 +108,7 @@ let armedStopAdvanceAt: number | undefined
 export function armNextStepFocus(): void {
   armedAt = Date.now()
   armedStopAdvanceAt = Date.now()
+  armedAutoConcludeAt = Date.now()
 }
 
 export function consumeNextStepFocus(): boolean {
@@ -121,4 +123,33 @@ export function consumeStopAdvanceFocus(): boolean {
     armedStopAdvanceAt !== undefined && Date.now() - armedStopAdvanceAt < ARMED_FOCUS_WINDOW_MS
   armedStopAdvanceAt = undefined
   return isArmed
+}
+
+/** Canhoto único enviado: o comprovante se conclui sozinho, uma vez, na tela que nasce depois do toque. */
+export function consumeAutoConclude(): boolean {
+  const isArmed =
+    armedAutoConcludeAt !== undefined && Date.now() - armedAutoConcludeAt < ARMED_FOCUS_WINDOW_MS
+  armedAutoConcludeAt = undefined
+  return isArmed
+}
+
+/** Sem "Concluir" para focar (o comprovante já se concluiu): a foto obrigatória da próxima nota da parada. */
+export function focusNextPhotoAfter(section: Element | null): void {
+  const card = section?.closest(STOP_CARD_SELECTOR) ?? null
+  if (section === null || card === null) return
+  const next = [...card.querySelectorAll<HTMLElement>(ANY_FOCUS_TARGET_SELECTOR)].find(
+    (candidate) =>
+      (section.compareDocumentPosition(candidate) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+  )
+  focusTarget(next ?? null)
+}
+
+/** Liga ou desliga o alvo de foco de um campo, conforme ele ainda seja obrigatório e vazio. */
+export function markFocusTarget(
+  element: HTMLElement | null | undefined,
+  target: string | undefined,
+): void {
+  if (element === null || element === undefined) return
+  if (target === undefined) delete element.dataset.focusTarget
+  else element.dataset.focusTarget = target
 }
