@@ -20,6 +20,7 @@ import { ProofCargoField } from './ProofCargoField.component'
 import { ProofCrop } from './ProofCrop.component'
 import { ProofImageLightbox } from './ProofImageLightbox.component'
 import { SignaturePad } from './SignaturePad.component'
+import { SmoothHeight } from './SmoothHeight.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
 import { usePhotoPreviewUrl } from '../hooks/usePhotoPreviewUrl.hook'
@@ -1720,7 +1721,7 @@ function ProofCaptureFields({
   }
 
   return (
-    <div className={styles.proofSection}>
+    <SmoothHeight className={styles.proofSection}>
       {summary === undefined ? (
         <>
           {/*
@@ -1967,6 +1968,6 @@ function ProofCaptureFields({
           }}
         />
       )}
-    </div>
+    </SmoothHeight>
   )
 }
