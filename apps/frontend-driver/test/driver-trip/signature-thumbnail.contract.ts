@@ -36,7 +36,7 @@ describe('a assinatura colhida mostra miniatura, texto e Refazer (correção)', 
     expect(card).toContain("t('proofCapture.retake')")
     const signatureButton = card.slice(
       card.indexOf('{canSign ? ('),
-      card.indexOf('{canSign ? (') + 400,
+      card.indexOf('{canSign ? (') + 700,
     )
     expect(signatureButton).toContain('attached.signature')
   })

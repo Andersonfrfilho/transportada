@@ -14,15 +14,14 @@ import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.compo
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { ARRIVED_HIGHLIGHT_MS, resolveStopPlace } from '../shared/stopPlace.service'
+import { resolveProofFocusTargets } from '../shared/proofFocusTargets.service'
 import {
-  PHOTO_FOCUS_TARGET,
   NEXT_STEP_FOCUS_DELAY_MS,
   armNextStepFocus,
   armStopAdvanceFocus,
   consumeAutoConclude,
   consumeNextStepFocus,
   consumeStopAdvanceFocus,
-  SIGNATURE_FOCUS_TARGET,
   focusFirstRequiredProof,
   focusNextPhotoAfter,
   markFocusTarget,
@@ -1503,27 +1502,25 @@ function ProofCaptureFields({
   const nameInputRef = useRef<HTMLInputElement>(null)
   const documentInputRef = useRef<HTMLInputElement>(null)
   /** Os obrigatórios ainda vazios são alvos de foco: depois da foto, o foco vai ao primeiro que faltar. */
+  const focusTargets = resolveProofFocusTargets({
+    plan,
+    state: {
+      cargoCount: cargoKeys.length,
+      hasPhoto: attached.photo || isPhotoConfirmedByServer,
+      hasSignature: attached.signature,
+      receivedBy,
+      receiverDocument,
+      receiverName,
+    },
+  })
   const receivedByLabel = t('proofFields.receivedBy')
   useEffect(() => {
     const trigger = sectionRef.current?.querySelector<HTMLElement>(
       `button[aria-label="${CSS.escape(receivedByLabel)}"]`,
     )
-    markFocusTarget(
-      trigger,
-      plan.fields.receivedBy === 'required' && receivedBy === '' ? 'proof-received-by' : undefined,
-    )
-    markFocusTarget(
-      nameInputRef.current,
-      plan.fields.receiverName === 'required' && receiverName.trim() === ''
-        ? 'proof-receiver-name'
-        : undefined,
-    )
-    markFocusTarget(
-      documentInputRef.current,
-      plan.fields.receiverDocument === 'required' && receiverDocument === ''
-        ? 'proof-receiver-document'
-        : undefined,
-    )
+    markFocusTarget(trigger, focusTargets.receivedBy)
+    markFocusTarget(nameInputRef.current, focusTargets.receiverName)
+    markFocusTarget(documentInputRef.current, focusTargets.receiverDocument)
   })
   /**
    * Pedido do usuário (14/10): a foto entrou — o foco vai ao "Concluir"/"Confirmar", que é o passo
@@ -1919,13 +1916,7 @@ function ProofCaptureFields({
                       accept="image/*"
                       capture="environment"
                       className={styles.proofCaptureAction}
-                      focusTarget={
-                        plan.fields.photo === 'required' &&
-                        !attached.photo &&
-                        !isPhotoConfirmedByServer
-                          ? PHOTO_FOCUS_TARGET
-                          : undefined
-                      }
+                      focusTarget={focusTargets.photo}
                       inputRef={cameraFieldRef}
                       onSelect={setCropFile}
                     >
@@ -1951,9 +1942,9 @@ function ProofCaptureFields({
                 {canSign ? (
                   <Button
                     className={`${styles.proofCaptureAction} ${styles.proofCaptureWide}`}
-                    {...(plan.fields.signature === 'required' && !attached.signature
-                      ? { 'data-focus-target': SIGNATURE_FOCUS_TARGET }
-                      : {})}
+                    {...(focusTargets.signature === undefined
+                      ? {}
+                      : { 'data-focus-target': focusTargets.signature })}
                     onClick={() => setOpenSignature((open) => !open)}
                     type="button"
                     variant="ghost"
@@ -1984,7 +1975,7 @@ function ProofCaptureFields({
           {plan.rendersCargo ? (
             <ProofCargoField
               attachedCount={cargoKeys.length}
-              isPending={countMissingCargoPhotos({ plan, values: currentValues }) > 0}
+              isPending={focusTargets.cargo !== undefined}
               isRefused={isCargoRefused}
               isRequired={plan.fields.cargo === 'required'}
               missingCount={
