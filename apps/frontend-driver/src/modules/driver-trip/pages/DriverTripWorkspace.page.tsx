@@ -43,6 +43,7 @@ import {
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { canReportOnTrip } from '../shared/tripCrewRole.service'
 import { resolveStalePending } from '../shared/stalePending.service'
+import { resolveScrollBehavior } from '../shared/stopFocus.service'
 import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
 import {
   resolveDocumentActivityStatus,
@@ -51,7 +52,6 @@ import {
   type TappedStopReport,
 } from '../shared/documentActivity.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
-import { resolveScrollBehavior } from '../shared/stopFocus.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
   DriverOccurrenceTypesState,
@@ -251,6 +251,7 @@ export function DriverTripWorkspacePage() {
     requestAnimationFrame(() => {
       const element = stopHeaderRefs.current.get(stopId)
       if (element === null || element === undefined) return
+      /* `preventScroll`: o foco sozinho saltaria e atropelaria a rolagem suave logo acima. */
       element.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'center' })
       element.focus({ preventScroll: true })
     })

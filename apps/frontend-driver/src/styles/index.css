@@ -97,22 +97,29 @@ body {
   min-height: 100vh;
 }
 
-/*
- * Foco suave (pedido do usuário, 14/10): o anel nasce transparente e só ganha cor no foco por
- * teclado, em vez de aparecer seco. Quem pediu movimento reduzido recebe a cor direto, sem fade.
+/**
+ * Pedido do usuário (14/10): o anel de foco aparece e some com suavidade. Todo controle nasce com o
+ * contorno transparente e só ganha a cor de cobre em `:focus-visible` (teclado) — o fade de 160 ms
+ * fica de fora para quem pediu movimento reduzido. Módulos que definem o próprio foco continuam valendo.
  */
-:where(a[href], button, input, select, textarea, summary, [tabindex]) {
+a[href],
+button,
+input,
+select,
+summary,
+textarea,
+[tabindex] {
   outline: 2px solid transparent;
   outline-offset: 2px;
 }
 
-:where(a[href], button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline-color: color-mix(in srgb, var(--color-copper) 70%, transparent);
+:is(a[href], button, input, select, summary, textarea, [tabindex]):focus-visible {
+  outline-color: var(--color-copper);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  :where(a[href], button, input, select, textarea, summary, [tabindex]) {
-    transition: outline-color 160ms ease-out;
+  :is(a[href], button, input, select, summary, textarea, [tabindex]) {
+    transition: outline-color 160ms ease;
   }
 }
 
@@ -136,7 +143,7 @@ button:has(svg) {
     border-color 150ms ease,
     background-color 150ms ease,
     color 150ms ease,
-    outline-color 160ms ease-out,
+    outline-color 160ms ease,
     transform 150ms ease;
 }
 
