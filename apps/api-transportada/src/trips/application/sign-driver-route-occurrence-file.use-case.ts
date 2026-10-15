@@ -22,6 +22,15 @@ export const DRIVER_ROUTE_OCCURRENCE_FILE_URL_SECONDS = 300
 
 const DEFAULT_FILE_NAME = 'ocorrencia'
 
+/** Só o que o navegador exibe sem executar nada: html e svg do anexo do chat nunca abrem na origem da API. */
+const INLINE_CONTENT_TYPES: ReadonlySet<string> = new Set([
+  'application/pdf',
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+])
+
 export type SignDriverRouteOccurrenceFileInput = {
   readonly companyId: string
   readonly driverId: string
@@ -71,7 +80,7 @@ export function createSignDriverRouteOccurrenceFileUseCase(dependencies: {
 
       const url = await dependencies.storage.createSignedDownload({
         bucket: file.bucket,
-        disposition: 'inline',
+        disposition: INLINE_CONTENT_TYPES.has(file.contentType) ? 'inline' : 'attachment',
         expiresInSeconds: DRIVER_ROUTE_OCCURRENCE_FILE_URL_SECONDS,
         filename: file.fileName ?? DEFAULT_FILE_NAME,
         key: file.objectKey,

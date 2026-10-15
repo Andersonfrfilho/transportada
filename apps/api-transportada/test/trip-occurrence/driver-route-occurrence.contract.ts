@@ -32,7 +32,13 @@ const NOW = new Date('2026-10-15T12:00:00.000Z')
 type FakeState = {
   driverId: string | null
   facts: DriverRouteOccurrenceFacts[]
-  signed: { bucket: string; filename: string; key: string; expiresInSeconds: number }[]
+  signed: {
+    bucket: string
+    disposition: string
+    filename: string
+    key: string
+    expiresInSeconds: number
+  }[]
   tripId: string | null
 }
 
@@ -124,6 +130,7 @@ function routes(state: FakeState) {
         createSignedDownload: async (input) => {
           state.signed.push({
             bucket: input.bucket,
+            disposition: input.disposition,
             expiresInSeconds: input.expiresInSeconds,
             filename: input.filename,
             key: input.key,
@@ -484,8 +491,42 @@ describe('GET /me/trips/current/route-occurrences/:kind/:id/attachments/:objectI
         },
       })
       expect(state.signed).toEqual([
-        { bucket: 'bucket', expiresInSeconds: 300, filename, key: `key/${objectId}` },
+        {
+          bucket: 'bucket',
+          disposition: 'inline',
+          expiresInSeconds: 300,
+          filename,
+          key: `key/${objectId}`,
+        },
       ])
+    }
+  })
+
+  it('só imagem e PDF abrem inline; qualquer outro tipo (html, svg, desconhecido) baixa como anexo', async () => {
+    const expected = [
+      ['image/jpeg', 'inline'],
+      ['image/png', 'inline'],
+      ['image/webp', 'inline'],
+      ['image/gif', 'inline'],
+      ['application/pdf', 'inline'],
+      ['text/html', 'attachment'],
+      ['image/svg+xml', 'attachment'],
+      ['application/octet-stream', 'attachment'],
+    ] as const
+    for (const [contentType, disposition] of expected) {
+      const state = withFiles({
+        chatAttachments: [
+          {
+            ...file(CHAT_OBJECT_ID, '2026-10-15T09:30:00.000Z', 'arquivo'),
+            contentType,
+            messageId: 'm1',
+          },
+        ],
+      })
+
+      await signUrl(state, { objectId: CHAT_OBJECT_ID })
+
+      expect(state.signed.map((entry) => entry.disposition)).toEqual([disposition])
     }
   })
 

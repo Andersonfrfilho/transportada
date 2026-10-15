@@ -28,7 +28,7 @@ export type DriverRouteOccurrenceReaderPort = {
 export type DriverRouteOccurrenceSignedDownloadPort = {
   createSignedDownload(input: {
     readonly bucket: string
-    readonly disposition: 'inline'
+    readonly disposition: 'attachment' | 'inline'
     readonly expiresInSeconds: number
     readonly filename: string
     readonly key: string
