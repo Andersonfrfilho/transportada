@@ -286,3 +286,19 @@ _(cada task registra aqui comando, saída resumida e commit)_
   restauradas à mão; `bun install --frozen-lockfile` passa. **Reconferir com Bun 1.3.14 antes de publicar.**
 - Pendência de polimento (T5): o campo pode travar de novo por um instante depois do envio que reabre, até a lista
   atualizar; manter destravado enquanto o envio está em curso.
+
+### T2.7 / T2.8 / T2.9 — Reabrir, avisos, linha do tempo e feed (`d3e14c0e3`, `97727888d`, `68a0dc77a`)
+
+- `reopen: true` no `replySchema` das duas rotas de resposta (ainda `.strict()`); só assunto `occurrence`
+  (`REOPEN_NOT_SUPPORTED_FOR_SUBJECT` 400 nos outros). Lock + estado + evento `reopened` com a mensagem na mesma
+  transação; `reopen` entra no fingerprint de idempotência. Emendas registradas na 183 D4 e na 263 D4.
+  Decisão do executor: sem `reopen`, a resposta a uma ocorrência cancelada segue como antes (aceita).
+- Avisos `trip.occurrence-resolved` (toda a equipe, só com viagem visível ao motorista, sem nota) e
+  `trip.occurrence-reopened` (quem resolveu; sistema → ator do evento da tratativa; sem `occurrences.resolve` → não
+  envia). Depois do commit, sem desfazer em falha; nunca no replay idempotente.
+- Linha do tempo no envelope existente (`occurredAt`, `actor {kind,name}`, `note`, `phraseKey` / `messageId`), conferido
+  contra o guarda do painel por teste espelho. Feed: `resolution {state, at, actorKind} | null` e
+  `resolutionStateIn` em SQL (estados disjuntos; "em aberto" = `open,reopened`).
+- Gates: `tsc --noEmit`, eslint ok. Contratos: 11809 pass, 25 skip, 1 falha do muro CA03 lendo arquivos não commitados
+  do app (reconferir na T5.3). Integração: `occurrence-reopen` 5 pass, `occurrence-resolution` 14 pass, suítes de
+  conversa/linha do tempo/feed/detalhe tocadas 28 pass; 0 skip.

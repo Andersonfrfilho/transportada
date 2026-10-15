@@ -53,16 +53,16 @@
       `GET /me/trips/current/route-occurrences/:kind/:id/attachments/:objectId/url` (5 min), que confere o dono e a
       viagem não finalizada antes de assinar. Contrato negativo do objeto
       de outra ocorrência.
-- [ ] **T2.7** `sonnet` — Flag `reopen?: true` na resposta **existente** do motorista (os dois use cases:
+- [x] **T2.7** `sonnet` — Flag `reopen?: true` na resposta **existente** do motorista (os dois use cases:
       `reply-my-subject-conversation` e `driver-conversation`). Dentro de `replayOrRun.run`: trava a ocorrência;
       cancelada → 409 `OCCURRENCE_CANCELLED`; `reopen` e resolvida → evento `reopened` com a mensagem; `reopen` e não
       resolvida → 409 `OCCURRENCE_NOT_RESOLVED`; `reopen` entra na impressão digital da idempotência. Sem rota nova.
       Integração: corrida, repetição, cancelada, resposta sem `reopen` não reabre. Registrar as emendas nas specs 183
       (D4) e 263 (D4: "só cria conversa respondendo") com link para a ADR-0105.
-- [ ] **T2.8** `sonnet` — Notificações `trip.occurrence-resolved` (equipe inteira; **não** se a viagem terminou) e
+- [x] **T2.8** `sonnet` — Notificações `trip.occurrence-resolved` (equipe inteira; **não** se a viagem terminou) e
       `trip.occurrence-reopened` (regra do destinatário do plan; sem `occurrences.resolve` não notifica e loga `info`
       sem texto). Catálogo, seed e disparo. Teste: o payload não tem nota nem texto.
-- [ ] **T2.9** `sonnet` — Linha do tempo (`resolution.*`) e feed (`resolution` + filtro `resolutionStateIn`).
+- [x] **T2.9** `sonnet` — Linha do tempo (`resolution.*`) e feed (`resolution` + filtro `resolutionStateIn`).
       Contrato do feed e da linha do tempo.
 - [ ] **T2.10** `haiku` — Documentação viva: OpenAPI das rotas novas, `apps/api-transportada/CLAUDE.md` (núcleo) e
       `docs/ai-context/api-transportada.md`.
