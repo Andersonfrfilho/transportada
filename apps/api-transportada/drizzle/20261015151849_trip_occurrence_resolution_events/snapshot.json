@@ -39197,6 +39197,28 @@
       "table": "trip_occurrence_resolution_events"
     },
     {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "trip_occurrence_resolution_events_seq_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "seq",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_occurrence_resolution_events"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -39318,7 +39340,7 @@
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
-      "default": "now()",
+      "default": "clock_timestamp()",
       "generated": null,
       "identity": null,
       "name": "created_at",

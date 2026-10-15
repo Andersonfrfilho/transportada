@@ -106,6 +106,7 @@ const RESOLVED_EVENT: OccurrenceResolutionEventFact = {
   id: '00000000-0000-4000-8000-0000000000e1',
   kind: 'resolved',
   note: 'antes',
+  sequence: 1,
 }
 
 describe('POST /trip-occurrences/:kind/:id/resolution (spec 266 T2.3)', () => {
@@ -154,6 +155,7 @@ describe('POST /trip-occurrences/:kind/:id/resolution (spec 266 T2.3)', () => {
       id: '00000000-0000-4000-8000-0000000000e2',
       kind: 'reopened',
       note: undefined,
+      sequence: 2,
     }
     const state = freshState({ events: [RESOLVED_EVENT, reopened] })
 

@@ -403,6 +403,57 @@ describe('a tratativa terminal resolve a ocorrência pelo sistema (spec 266 T2.4
       })
     })
   })
+
+  testWithPostgres(
+    'corrida terminal × resolução manual: um único evento resolved, qualquer que seja o vencedor',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const occurrenceId = await registerDocumentOccurrence(database, company, trip)
+        await applyCaseActions(database, company, occurrenceId, ['review'])
+
+        const outcomes = await Promise.allSettled([
+          buildUseCase(database).execute({
+            context: contextOf(company),
+            note: 'resolvido à mão',
+            occurrenceId,
+            occurrenceKind: 'document',
+          }),
+          applyCaseActions(database, company, occurrenceId, ['warehouse_return']),
+        ])
+
+        const rejected = outcomes.filter((outcome) => outcome.status === 'rejected')
+        expect(rejected.length).toBeLessThanOrEqual(1)
+        if (rejected[0] !== undefined) {
+          expect(rejected[0].reason).toMatchObject({ code: 'OCCURRENCE_ALREADY_RESOLVED' })
+        }
+        const events = await listEvents(database, occurrenceId)
+        expect(events.filter((event) => event.kind === 'resolved')).toHaveLength(1)
+      })
+    },
+  )
+
+  testWithPostgres('duas resoluções simultâneas da ocorrência de nota: uma grava', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+      const occurrenceId = await registerDocumentOccurrence(database, company, trip)
+      const useCase = buildUseCase(database)
+      const attempt = () =>
+        useCase.execute({
+          context: contextOf(company),
+          note: 'corrida',
+          occurrenceId,
+          occurrenceKind: 'document',
+        })
+
+      const outcomes = await Promise.allSettled([attempt(), attempt()])
+
+      expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+      expect(await listEvents(database, occurrenceId)).toHaveLength(1)
+    })
+  })
 })
 
 type SentNotice = {

@@ -20,6 +20,7 @@ function event(
     caseEventStatus: undefined,
     kind: 'resolved',
     note: 'Assunto encerrado com a contratante.',
+    sequence: Date.parse(overrides.createdAt),
     ...overrides,
   }
 }
@@ -76,7 +77,12 @@ describe('occurrence resolution state', () => {
     const result = resolveOccurrenceResolutionState({
       cancelledAt: undefined,
       events: [
-        event({ actorKind: 'driver', createdAt: '2026-10-15T11:00:00.000Z', id: 'b', kind: 'reopened' }),
+        event({
+          actorKind: 'driver',
+          createdAt: '2026-10-15T11:00:00.000Z',
+          id: 'b',
+          kind: 'reopened',
+        }),
         event({ createdAt: '2026-10-15T10:00:00.000Z', id: 'a' }),
       ],
     })
@@ -84,20 +90,31 @@ describe('occurrence resolution state', () => {
     expect(result.state).toBe('open')
   })
 
-  test('breaks a tie on the creation date by the larger id', () => {
-    const createdAt = '2026-10-15T10:00:00.000Z'
+  test('orders by the commit sequence even when the creation date is inverted', () => {
     const reopenedLast = resolveOccurrenceResolutionState({
       cancelledAt: undefined,
       events: [
-        event({ actorKind: 'driver', createdAt, id: 'b', kind: 'reopened' }),
-        event({ createdAt, id: 'a' }),
+        event({
+          actorKind: 'driver',
+          createdAt: '2026-10-15T09:00:00.000Z',
+          id: 'a',
+          kind: 'reopened',
+          sequence: 2,
+        }),
+        event({ createdAt: '2026-10-15T10:00:00.000Z', id: 'b', sequence: 1 }),
       ],
     })
     const resolvedLast = resolveOccurrenceResolutionState({
       cancelledAt: undefined,
       events: [
-        event({ createdAt, id: 'b' }),
-        event({ actorKind: 'driver', createdAt, id: 'a', kind: 'reopened' }),
+        event({ createdAt: '2026-10-15T09:00:00.000Z', id: 'a', sequence: 2 }),
+        event({
+          actorKind: 'driver',
+          createdAt: '2026-10-15T10:00:00.000Z',
+          id: 'b',
+          kind: 'reopened',
+          sequence: 1,
+        }),
       ],
     })
 

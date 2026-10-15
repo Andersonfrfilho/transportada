@@ -28,19 +28,17 @@ export function resolveSystemResolutionPhraseKey(
   return SYSTEM_RESOLUTION_PHRASE_KEYS[status]
 }
 
-function compareByCreation(
+function compareBySequence(
   first: OccurrenceResolutionEventFact,
   second: OccurrenceResolutionEventFact,
 ): number {
-  if (first.createdAt !== second.createdAt) return first.createdAt < second.createdAt ? -1 : 1
-  if (first.id === second.id) return 0
-  return first.id < second.id ? -1 : 1
+  return first.sequence - second.sequence
 }
 
 export function resolveOccurrenceResolutionState(
   params: ResolveOccurrenceResolutionStateParams,
 ): ResolveOccurrenceResolutionStateResult {
-  const ordered = [...params.events].sort(compareByCreation)
+  const ordered = [...params.events].sort(compareBySequence)
   const lastEvent = ordered.at(-1)
   const lastResolved = ordered.findLast((fact) => fact.kind === 'resolved')
   const lastResolution = lastResolved
@@ -73,7 +71,7 @@ export function buildFeedResolutionView(
   if (params.cancelledAt !== undefined) {
     return { actorKind: 'internal', at: params.cancelledAt, state: 'cancelled' }
   }
-  const lastEvent = [...params.events].sort(compareByCreation).at(-1)
+  const lastEvent = [...params.events].sort(compareBySequence).at(-1)
   if (lastEvent === undefined) return null
   return {
     actorKind: lastEvent.actorKind,

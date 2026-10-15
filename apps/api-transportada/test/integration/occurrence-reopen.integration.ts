@@ -6,7 +6,7 @@
  * da mesma chave devolve o gravado; resolver × reabrir serializa.
  */
 import { describe, expect } from 'bun:test'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 import {
   occurrenceConversationMessages,
@@ -278,4 +278,77 @@ describe('o motorista reabre a ocorrência respondendo (spec 266 T2.7)', () => {
       expect((await t.events()).map((event) => event.kind)).toEqual(['resolved', 'reopened'])
     })
   })
+
+  testWithPostgres(
+    'a resolução que começou antes da reabertura mas travou depois dela é o último evento',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const t = await setup(database)
+        await t.resolveNow()
+        let releaseGate: () => void = () => undefined
+        const gate = new Promise<void>((resolveGate) => void (releaseGate = resolveGate))
+        let markStarted: () => void = () => undefined
+        const started = new Promise<void>((resolveStarted) => void (markStarted = resolveStarted))
+        const gatedDatabase = {
+          transaction: (operation: (transaction: never) => Promise<unknown>) =>
+            database.db.transaction(async (transaction) => {
+              await transaction.execute(sql`select now()`)
+              markStarted()
+              await gate
+              return operation(transaction as never)
+            }),
+        }
+        const lateResolve = createResolveOccurrenceUseCase({
+          logger,
+          unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(gatedDatabase as never),
+        })
+        const pending = lateResolve.execute({
+          context: {
+            companyId: t.mine.companyId,
+            kind: 'company',
+            membershipId: crypto.randomUUID(),
+            permissions: new Set(['occurrences.resolve'] as never),
+            roles: [],
+            userId: t.seeded.company.userId,
+          },
+          note: 'resolvida de novo',
+          occurrenceId: t.seeded.occurrenceId,
+          occurrenceKind: 'document',
+        })
+        await started
+        await t.reply.reply({
+          ...t.mine,
+          bodyText: 'Não acabou',
+          idempotencyKey: 'reopen-integration-order-0001',
+          reopen: true,
+        })
+        releaseGate()
+        await pending
+
+        const events = [...(await t.events())].sort(
+          (first, second) => first.sequence - second.sequence,
+        )
+        expect(events.map((event) => event.kind)).toEqual(['resolved', 'reopened', 'resolved'])
+        const feed = await listTripOccurrenceFeed(database.db, {
+          companyId: t.mine.companyId,
+          cursor: null,
+          limit: 20,
+          order: 'desc',
+        })
+        expect(
+          feed.items.find((item) => item.id === t.seeded.occurrenceId)?.resolution,
+        ).toMatchObject({
+          state: 'resolved',
+        })
+        const resolvedOnly = await listTripOccurrenceFeed(database.db, {
+          companyId: t.mine.companyId,
+          cursor: null,
+          filters: { resolutionStateIn: ['resolved'] },
+          limit: 20,
+          order: 'desc',
+        })
+        expect(resolvedOnly.items.map((item) => item.id)).toContain(t.seeded.occurrenceId)
+      })
+    },
+  )
 })

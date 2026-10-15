@@ -39,12 +39,14 @@ type FakeState = {
 function event(
   partial: Partial<OccurrenceResolutionEventFact> & Pick<OccurrenceResolutionEventFact, 'kind'>,
 ): OccurrenceResolutionEventFact {
+  const createdAt = partial.createdAt ?? '2026-10-15T10:00:00.000Z'
   return {
     actorKind: 'internal',
     caseEventStatus: undefined,
-    createdAt: '2026-10-15T10:00:00.000Z',
+    createdAt,
     id: crypto.randomUUID(),
     note: undefined,
+    sequence: Date.parse(createdAt),
     ...partial,
   }
 }

@@ -1,9 +1,11 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 --
 -- Spec 266 / ADR-0105: andamento da ocorrência (resolvida/reaberta), só inserção. Aditiva: tabela nova, nenhuma
--- tabela existente muda.
+-- tabela existente muda. `seq` (identity) é a ordem de gravação: `created_at` nasce no `clock_timestamp()` mas só `seq`
+-- decide o último evento sem inverter sob espera de lock.
 CREATE TABLE "trip_occurrence_resolution_events" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"seq" bigint GENERATED ALWAYS AS IDENTITY (sequence name "trip_occurrence_resolution_events_seq_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"company_id" uuid NOT NULL,
 	"document_occurrence_id" uuid,
 	"stop_occurrence_id" uuid,
@@ -13,7 +15,7 @@ CREATE TABLE "trip_occurrence_resolution_events" (
 	"case_event_id" uuid,
 	"note" text,
 	"conversation_message_id" uuid,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
 	CONSTRAINT "trip_occurrence_resolution_events_kind_check" CHECK ("kind" in ('resolved', 'reopened')),
 	CONSTRAINT "trip_occurrence_resolution_events_actor_kind_check" CHECK ("actor_kind" in ('internal', 'driver', 'system')),
 	CONSTRAINT "trip_occurrence_resolution_events_owner_check" CHECK (num_nonnulls("document_occurrence_id", "stop_occurrence_id") = 1),

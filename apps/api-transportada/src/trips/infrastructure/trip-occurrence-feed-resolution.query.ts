@@ -33,7 +33,7 @@ function latestEventStateSql(
     from ${tripOccurrenceResolutionEvents}
     where ${tripOccurrenceResolutionEvents.companyId} = ${companyId}
       and ${ownerColumn} = ${occurrenceId}
-    order by ${tripOccurrenceResolutionEvents.createdAt} desc, ${tripOccurrenceResolutionEvents.id} desc
+    order by ${tripOccurrenceResolutionEvents.sequence} desc
     limit 1
   ), 'open')`
 }

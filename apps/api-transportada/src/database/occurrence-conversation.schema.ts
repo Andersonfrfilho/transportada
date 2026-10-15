@@ -10,6 +10,7 @@
  */
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   check,
   foreignKey,
@@ -720,6 +721,8 @@ export const tripOccurrenceResolutionEvents = pgTable(
   'trip_occurrence_resolution_events',
   {
     id: uuid().defaultRandom().primaryKey(),
+    /** Ordem de gravação: `created_at` não serve (é lido antes do lock), a sequência é atribuída no insert. */
+    sequence: bigint('seq', { mode: 'number' }).notNull().generatedAlwaysAsIdentity(),
     companyId: uuid('company_id').notNull(),
     documentOccurrenceId: uuid('document_occurrence_id'),
     stopOccurrenceId: uuid('stop_occurrence_id'),
@@ -730,7 +733,9 @@ export const tripOccurrenceResolutionEvents = pgTable(
     caseEventId: uuid('case_event_id'),
     note: text(),
     conversationMessageId: uuid('conversation_message_id'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
   },
   (table) => [
     foreignKey({
@@ -763,10 +768,7 @@ export const tripOccurrenceResolutionEvents = pgTable(
       .onUpdate('cascade'),
     foreignKey({
       columns: [table.companyId, table.conversationMessageId],
-      foreignColumns: [
-        occurrenceConversationMessages.companyId,
-        occurrenceConversationMessages.id,
-      ],
+      foreignColumns: [occurrenceConversationMessages.companyId, occurrenceConversationMessages.id],
       name: 'trip_occurrence_resolution_events_company_message_fk',
     })
       .onDelete('restrict')

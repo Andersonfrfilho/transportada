@@ -149,6 +149,7 @@ export async function listLatestResolutionEventsByOccurrence(
       kind: tripOccurrenceResolutionEvents.kind,
       note: tripOccurrenceResolutionEvents.note,
       occurrenceId: ownerColumn,
+      sequence: tripOccurrenceResolutionEvents.sequence,
     })
     .from(tripOccurrenceResolutionEvents)
     .leftJoin(
@@ -167,8 +168,7 @@ export async function listLatestResolutionEventsByOccurrence(
     .orderBy(
       ownerColumn,
       tripOccurrenceResolutionEvents.kind,
-      desc(tripOccurrenceResolutionEvents.createdAt),
-      desc(tripOccurrenceResolutionEvents.id),
+      desc(tripOccurrenceResolutionEvents.sequence),
     )
 
   for (const row of rows) {
@@ -181,6 +181,7 @@ export async function listLatestResolutionEventsByOccurrence(
       id: row.id,
       kind: row.kind,
       note: row.note ?? undefined,
+      sequence: row.sequence,
     })
     result.set(row.occurrenceId, facts)
   }
@@ -208,6 +209,7 @@ export async function listAllResolutionEventsByOccurrence(
       kind: tripOccurrenceResolutionEvents.kind,
       note: tripOccurrenceResolutionEvents.note,
       occurrenceId: ownerColumn,
+      sequence: tripOccurrenceResolutionEvents.sequence,
     })
     .from(tripOccurrenceResolutionEvents)
     .leftJoin(
@@ -223,7 +225,7 @@ export async function listAllResolutionEventsByOccurrence(
         inArray(ownerColumn, [...input.occurrenceIds]),
       ),
     )
-    .orderBy(tripOccurrenceResolutionEvents.createdAt, tripOccurrenceResolutionEvents.id)
+    .orderBy(tripOccurrenceResolutionEvents.sequence)
 
   for (const row of rows) {
     if (row.occurrenceId === null) continue
@@ -235,6 +237,7 @@ export async function listAllResolutionEventsByOccurrence(
       id: row.id,
       kind: row.kind,
       note: row.note ?? undefined,
+      sequence: row.sequence,
     })
     result.set(row.occurrenceId, facts)
   }

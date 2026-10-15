@@ -9,11 +9,12 @@ import type {
 
 export type OccurrenceResolutionState = 'open' | 'resolved' | 'cancelled'
 
-/** Um evento já lido do banco; `createdAt` em ISO 8601 UTC, que ordena como texto. */
+/** Um evento já lido do banco; `sequence` é a ordem de gravação (identity) e decide qual é o último. */
 export type OccurrenceResolutionEventFact = {
   readonly id: string
   readonly kind: OccurrenceResolutionEventKind
   readonly actorKind: OccurrenceResolutionActorKind
+  readonly sequence: number
   readonly createdAt: string
   readonly note: string | undefined
   /** Status terminal da tratativa que causou o evento `system`. */
