@@ -40,7 +40,7 @@
 - [x] **T2.3** `sonnet` — Repositório (inserir; último evento em lote, sem N+1) + `resolve-occurrence.use-case.ts` +
       `POST /trip-occurrences/:kind/:id/resolution`. Contratos: 201, 404 de outra empresa, 409 já resolvida e 409
       cancelada. Integração na mesma task.
-- [ ] **T2.4** `sonnet` — Em `applyTransition` (`drizzle-occurrence-case.repository.ts`), a transição terminal
+- [x] **T2.4** `sonnet` — Em `applyTransition` (`drizzle-occurrence-case.repository.ts`), a transição terminal
       (`closed`, `returned_to_warehouse`, `cancelled`; `decided` não) trava a ocorrência, não duplica se já resolvida e
       grava `resolved` (`system`, frase fixa, `case_event_id`) na mesma transação. **Auditar o caminho do cancelamento
       da 167** contra a ordem de lock tratativa → ocorrência. Teste de integração dos três terminais. **Medir em staging** quantas

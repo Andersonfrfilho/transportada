@@ -211,5 +211,5 @@ _(cada task registra aqui comando, saída resumida e commit)_
   duplicata, `decided` sem evento; arquivos de tratativa existentes: 12 pass, 0 skip.
 - **Auditoria de lock:** sem inversão. O cancelamento da 167 só trava a ocorrência e lê a tratativa sem lock; a
   reentrega só trava a tratativa; o único caminho com os dois locks é o novo, na ordem tratativa → ocorrência.
-- **Pendente (dono):** medir em staging quantas tratativas já encerradas aparecerão "em aberto" ao motorista e decidir
-  o backfill. A T2.4 só fecha depois disso.
+- **Backfill: não se aplica** (dono, 2026-10-15): "não temos tratativas antes, estamos validando ainda e ajustando o que
+  é necessário em staging". Não há tratativa real encerrada antes do deploy; T2.4 fechada sem backfill.
