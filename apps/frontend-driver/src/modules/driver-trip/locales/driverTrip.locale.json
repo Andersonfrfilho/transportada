@@ -233,6 +233,8 @@
     "close": "Fechar",
     "remove": "Remover",
     "confirmRemove": "Remover a foto do canhoto?",
+    "confirmRemoveYes": "Remover",
+    "confirmRemoveBack": "Voltar",
     "replaceHint": "A foto enviada só pode ser substituída.",
     "refused": {
       "photo": "Fila cheia: não deu para salvar a foto agora. Envie as pendências e tire de novo.",
@@ -306,7 +308,7 @@
     "pendingReceivedBy": "Falta dizer quem recebeu. O comprovante já está guardado.",
     "pendingReceivedByDetail": "Diga mais sobre quem recebeu. O comprovante já está guardado.",
     "complete": "Concluir",
-    "completedAt": "Comprovante concluído às {{time}}",
+    "completedAt": "Parabéns! Comprovante concluído às {{time}}",
     "edit": "Editar",
     "completeBlockedTitle": "Ainda não dá para concluir",
     "completeBlocked": "Falta: {{fields}}. Complete e toque em Concluir de novo.",
@@ -377,12 +379,19 @@
     "at": "Hora marcada: {{time}}",
     "protocol": "Protocolo {{protocol}}"
   },
-  "stopCompleted": "Parada concluída",
+  "stopCompleted": "Parada concluída. Parabéns!",
   "stopState": {
     "completed": "Concluída",
     "current": "Em andamento",
+    "currentLast": "Última parada · {{index}} de {{total}}",
+    "currentNext": "Próxima parada · {{index}} de {{total}}",
     "pending": "Pendente"
   },
+  "stopFinalHint": "Esta é a última parada. Quando as notas daqui forem entregues ou devolvidas, a viagem se encerra sozinha.",
+  "tripAllDone": "Parabéns! Viagem concluída com sucesso!",
+  "tripAllDoneBody": "Ótimo trabalho hoje! Não precisa fazer mais nada: a viagem se encerra sozinha. Boa volta!",
+  "tripAllDoneStops": "{{total}} de {{total}} paradas entregues",
+  "tripAllDoneTime": "{{duration}} de primeira a última parada",
   "stopTitle": "Parada {{sequence}}",
   "stalePending": {
     "notice_one": "{{count}} registro seu está parado desde {{date}} e ainda não chegou ao escritório. Abra o app com sinal para enviar.",
@@ -499,6 +508,8 @@
   "notDelivered": {
     "returnToWarehouse": "Não entregue — volta ao barracão",
     "returnToWarehouseConfirm": "Confirmar: a nota sai da sua viagem e volta ao barracão para outra entrega. O local deste toque fica registrado.",
+    "returnToWarehouseConfirmYes": "Confirmar",
+    "returnToWarehouseConfirmBack": "Voltar",
     "returnToWarehouseHint": "Libera a nota para o escritório colocar em outra viagem.",
     "occurrenceTypeLegend": "Qual ocorrência registrar?",
     "photoLabel": "Foto da ocorrência",

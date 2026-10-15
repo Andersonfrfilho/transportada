@@ -6,11 +6,14 @@ import { Icon } from '@/components/ui/icon'
 
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { PROOF_CARGO_PHOTO_LIMIT } from '../shared/proofCargo.constant'
+import { CARGO_FOCUS_TARGET } from '../shared/proofFocusTargets.service'
 import styles from '../styles/driverTrip.module.css'
 
 type ProofCargoFieldProps = Readonly<{
   attachedCount: number
   isRefused: boolean
+  /** Faltam fotos para o mínimo (mesmo antes de o motorista tentar confirmar): é o alvo do foco. */
+  isPending: boolean
   isRequired: boolean
   /** Quantas ainda faltam para o mínimo — só é mostrado quando o motorista já tentou confirmar. */
   missingCount: number
@@ -20,6 +23,7 @@ type ProofCargoFieldProps = Readonly<{
 export function ProofCargoField({
   attachedCount,
   isRefused,
+  isPending,
   isRequired,
   missingCount,
   onSelect,
@@ -41,6 +45,7 @@ export function ProofCargoField({
             accept="image/*"
             capture="environment"
             className={styles.proofCaptureAction}
+            focusTarget={isPending ? CARGO_FOCUS_TARGET : undefined}
             inputRef={cameraFieldRef}
             onSelect={onSelect}
           >

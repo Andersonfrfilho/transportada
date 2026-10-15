@@ -1,10 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test } from 'bun:test'
 
 const CONFIGURATION = readFileSync(
-  new URL('../../playwright.config.ts', import.meta.url).pathname,
+  fileURLToPath(new URL('../../playwright.config.ts', import.meta.url)),
   'utf8',
 )
 

@@ -52,7 +52,12 @@ import {
   resolveProofUploadVariant,
   type ProofUploadVariant,
 } from './proofPhotoReduction.service'
-import { readProofProcessingState, type ProofProcessingState } from './proofUploadProgress.service'
+import {
+  occurrenceProgressKey,
+  proofUploadProgress,
+  readProofProcessingState,
+  type ProofProcessingState,
+} from './proofUploadProgress.service'
 import type { ProofUploadFailure } from './proofUploadProgress.service'
 import { sendFormWithUploadProgress, type UploadProgress } from './xhrMultipartTransport.service'
 import { withLegacyLocation, type DriverTripErrorDetail } from './offlineQueue.service'
@@ -191,6 +196,14 @@ export function describeAttachmentFailure(error: unknown): ProofUploadFailure | 
   return { kind: 'session' }
 }
 
+/** O que a tela sabe do envio de uma ocorrência: começou, quantos bytes saíram, terminou, ou parou por quê. */
+export type OccurrenceUploadObserver = Readonly<{
+  done: (key: string) => void
+  fail: (key: string, failure: ProofUploadFailure) => void
+  progress: (key: string, progress: UploadProgress) => void
+  start: (key: string) => void
+}>
+
 type ClientDependencies = Readonly<{
   apiUrl: string
   /** Spec 234 D1: onde cada resposta bem-sucedida deixa o desvio do relógio; ausente, não se mede. */
@@ -200,6 +213,11 @@ type ClientDependencies = Readonly<{
   /** Spec 265 RF12: fábrica do `XMLHttpRequest` do envio com progresso; ausente, o comprovante sobe por `fetch`. */
   createXhr?: () => XMLHttpRequest
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+  /**
+   * Acompanhamento do envio da ocorrência de nota (foto e assinatura sobem antes do registro): só observa —
+   * nunca muda o resultado. `key` é a chave de idempotência do toque.
+   */
+  occurrenceUpload?: OccurrenceUploadObserver
   getAccessToken: () => Promise<string>
   /** Só o teste passa, para fixar a hora do aparelho; em produção vale o `Date.now`. */
   now?: () => number
@@ -642,13 +660,54 @@ async function sendDocumentOccurrence(input: {
   readonly report: DocumentOccurrenceReport
 }): Promise<void> {
   const { dependencies, diagnostics, report } = input
+  const observer = dependencies.occurrenceUpload
+  const key = report.idempotencyKey
+  const photos = listDocumentOccurrencePhotos(report)
+  const blobs = [
+    ...photos.map((photo) => photo.blob),
+    ...(report.signature ? [report.signature.blob] : []),
+  ]
+  const totalBytes = blobs.reduce((sum, blob) => sum + blob.size, 0)
+  /** Bytes já enviados por arquivo: a barra é a soma de todos, não a do último que reportou. */
+  const loadedByIndex = new Map<number, number>()
+  function reportProgress(index: number, progress: UploadProgress): void {
+    loadedByIndex.set(index, Math.min(progress.loaded, blobs[index]?.size ?? progress.loaded))
+    let loaded = 0
+    for (const value of loadedByIndex.values()) loaded += value
+    observer?.progress(key, { loaded, total: totalBytes })
+  }
+  observer?.start(key)
+  try {
+    await sendDocumentOccurrenceBody({ dependencies, diagnostics, report, reportProgress })
+    observer?.done(key)
+  } catch (error) {
+    const failure = describeAttachmentFailure(error)
+    if (failure !== undefined) observer?.fail(key, failure)
+    else observer?.done(key)
+    throw error
+  }
+}
+
+async function sendDocumentOccurrenceBody(input: {
+  readonly dependencies: ClientDependencies
+  readonly diagnostics: StepContext
+  readonly report: DocumentOccurrenceReport
+  readonly reportProgress: (index: number, progress: UploadProgress) => void
+}): Promise<void> {
+  const { dependencies, diagnostics, report, reportProgress } = input
   const uploadsPath = `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`
   const photos = listDocumentOccurrencePhotos(report)
   /** Spec 246: fotos e assinatura sobem pelo mesmo par de upload, em paralelo — a ordem das fotos é a da lista. */
   const [attachmentObjectIds, signatureObjectId] = await Promise.all([
     Promise.all(
-      photos.map((photo) =>
-        uploadOccurrencePhoto({ dependencies, diagnostics, photo: photo.blob, uploadsPath }),
+      photos.map((photo, index) =>
+        uploadOccurrencePhoto({
+          dependencies,
+          diagnostics,
+          onProgress: (progress) => reportProgress(index, progress),
+          photo: photo.blob,
+          uploadsPath,
+        }),
       ),
     ),
     report.signature === undefined
@@ -656,6 +715,7 @@ async function sendDocumentOccurrence(input: {
       : uploadOccurrencePhoto({
           dependencies,
           diagnostics,
+          onProgress: (progress) => reportProgress(photos.length, progress),
           photo: report.signature.blob,
           uploadsPath,
         }),
@@ -716,6 +776,7 @@ async function sendStopOccurrencePhoto(input: {
   const attachmentObjectId = await uploadOccurrencePhoto({
     dependencies,
     diagnostics,
+    onProgress: () => undefined,
     photo: report.photo.blob,
     uploadsPath: `${stopPath}/occurrence-uploads`,
   })
@@ -742,6 +803,7 @@ async function sendStopOccurrencePhoto(input: {
 async function uploadOccurrencePhoto(input: {
   readonly dependencies: ClientDependencies
   readonly diagnostics: StepContext
+  readonly onProgress: (progress: UploadProgress) => void
   readonly photo: Blob
   readonly uploadsPath: string
 }): Promise<string> {
@@ -766,7 +828,12 @@ async function uploadOccurrencePhoto(input: {
     context,
     dependencies,
     run: () =>
-      putOccurrencePhoto({ dependencies, photo: input.photo, uploadUrl: upload.uploadUrl }),
+      putOccurrencePhoto({
+        dependencies,
+        onProgress: input.onProgress,
+        photo: input.photo,
+        uploadUrl: upload.uploadUrl,
+      }),
     step: STEP_UPLOAD_PUT,
   })
 
@@ -786,21 +853,35 @@ async function uploadOccurrencePhoto(input: {
 
 async function putOccurrencePhoto(input: {
   readonly dependencies: ClientDependencies
+  readonly onProgress: (progress: UploadProgress) => void
   readonly photo: Blob
   readonly uploadUrl: string
 }): Promise<void> {
   let response: Response
   try {
+    const signal = abortSignalWithDeadline({ milliseconds: UPLOAD_TIMEOUT_MILLISECONDS })
+    const { createXhr, occurrenceUpload } = input.dependencies
     // Sem `authorization`: o token da API não vai ao storage — a assinatura da URL é a credencial.
-    response = await input.dependencies.fetch(
-      new Request(input.uploadUrl, {
-        body: input.photo,
-        cache: 'no-store',
-        headers: { 'content-type': input.photo.type },
-        method: 'PUT',
-        signal: abortSignalWithDeadline({ milliseconds: UPLOAD_TIMEOUT_MILLISECONDS }),
-      }),
-    )
+    response =
+      createXhr !== undefined && occurrenceUpload !== undefined
+        ? await sendFormWithUploadProgress({
+            createXhr,
+            form: input.photo,
+            headers: { 'content-type': input.photo.type },
+            method: 'PUT',
+            onProgress: input.onProgress,
+            signal,
+            url: input.uploadUrl,
+          })
+        : await input.dependencies.fetch(
+            new Request(input.uploadUrl, {
+              body: input.photo,
+              cache: 'no-store',
+              headers: { 'content-type': input.photo.type },
+              method: 'PUT',
+              signal,
+            }),
+          )
   } catch (error) {
     throw offline({ isTimeout: isDeadlineError(error) })
   }
@@ -975,6 +1056,12 @@ function buildBaseDependencies(): ClientDependencies {
     ...(typeof XMLHttpRequest === 'undefined' ? {} : { createXhr: () => new XMLHttpRequest() }),
     fetch: (input, init) => fetch(input, init),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
+    occurrenceUpload: {
+      done: (key) => proofUploadProgress.clear(occurrenceProgressKey(key)),
+      fail: (key, failure) => proofUploadProgress.fail(occurrenceProgressKey(key), failure),
+      progress: (key, progress) => proofUploadProgress.report(occurrenceProgressKey(key), progress),
+      start: (key) => proofUploadProgress.begin(occurrenceProgressKey(key)),
+    },
   }
 }
 

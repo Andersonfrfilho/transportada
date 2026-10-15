@@ -43,6 +43,12 @@ import {
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { canReportOnTrip } from '../shared/tripCrewRole.service'
 import { resolveStalePending } from '../shared/stalePending.service'
+import { resolveScrollBehavior } from '../shared/stopFocus.service'
+import {
+  formatElapsedMinutes,
+  isTripFullySettled,
+  tripElapsedMinutes,
+} from '../shared/stopPlace.service'
 import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
 import {
   resolveDocumentActivityStatus,
@@ -250,8 +256,9 @@ export function DriverTripWorkspacePage() {
     requestAnimationFrame(() => {
       const element = stopHeaderRefs.current.get(stopId)
       if (element === null || element === undefined) return
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      element.focus()
+      /* `preventScroll`: o foco sozinho saltaria e atropelaria a rolagem suave logo acima. */
+      element.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'center' })
+      element.focus({ preventScroll: true })
     })
   }
 
@@ -739,6 +746,30 @@ export function DriverTripWorkspacePage() {
         {trip === undefined || canReportOnTrip(trip) ? null : <DriverHelperNotice />}
 
         {trip === undefined ? null : <DriverTripProgress trip={trip} />}
+        {trip !== undefined && isTripFullySettled(trip) ? (
+          <div className={styles.tripAllDone} role="status">
+            <strong className={styles.tripAllDoneTitle}>
+              <Icon aria-hidden="true" name="check" size="sm" />
+              {t('tripAllDone')}
+            </strong>
+            <span className={styles.tripAllDoneLine}>
+              <Icon aria-hidden="true" name="package" size="sm" />
+              {t('tripAllDoneStops', { total: trip.stops.length })}
+            </span>
+            {tripElapsedMinutes(trip) === undefined ? null : (
+              <span className={styles.tripAllDoneLine}>
+                <Icon aria-hidden="true" name="clock" size="sm" />
+                {t('tripAllDoneTime', {
+                  duration: formatElapsedMinutes(tripElapsedMinutes(trip) ?? 0),
+                })}
+              </span>
+            )}
+            <span className={styles.tripAllDoneLine}>
+              <Icon aria-hidden="true" name="truck" size="sm" />
+              {t('tripAllDoneBody')}
+            </span>
+          </div>
+        ) : null}
 
         {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
         {dispatchState?.canDispatch === true && trip !== undefined ? (
@@ -947,6 +978,10 @@ export function DriverTripWorkspacePage() {
                     canStartRoute={startRouteBlock}
                     deliverActivityByDocumentId={deliverActivityByDocumentId}
                     isCurrent={stop.id === currentStopId}
+                    stopPosition={{
+                      index: trip.stops.findIndex((candidate) => candidate.id === stop.id) + 1,
+                      total: trip.stops.length,
+                    }}
                     isEnRoute={stop.id === enRouteStopId}
                     isFieldWorkBlocked={isTripAwaitingDispatch}
                     isLocationDenied={isLocationDenied}
@@ -975,6 +1010,7 @@ export function DriverTripWorkspacePage() {
                     onToggle={() => stopExpansion.toggle(stop.id)}
                     onQueuedDocumentOccurrence={(input) => void reportDocumentOccurrence(input)}
                     onStopOccurrence={(input) => void reportStopOccurrence(input)}
+                    notDeliveredKeyByDocumentId={notDeliveredKeyByDocumentId}
                     notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
                     onNotDelivered={(input) => void reportNotDelivered(input)}
                   />

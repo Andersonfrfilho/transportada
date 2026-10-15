@@ -5,7 +5,7 @@ import { describe, expect, it } from 'bun:test'
 
 import driverTripEn from '../../src/modules/driver-trip/locales/driverTrip.en.locale.json'
 import driverTrip from '../../src/modules/driver-trip/locales/driverTrip.locale.json'
-import { PROOF_FRAME_SIZE } from '../../src/modules/driver-trip/shared/proofUpload.constant'
+import { PROOF_PHOTO_AREA_HEIGHT } from '../../src/modules/driver-trip/shared/proofUpload.constant'
 
 function readSource(path: string): string {
   return readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
@@ -52,8 +52,7 @@ describe('a moldura sem foto é um marcador estático', () => {
     const block = rule.slice(0, rule.indexOf('}'))
     expect(block).toInclude('dashed')
     expect(block).toInclude('width: 100%')
-    expect(block).toInclude(`min-height: ${PROOF_FRAME_SIZE}`)
-    expect(block).not.toInclude(`width: ${PROOF_FRAME_SIZE}`)
+    expect(block).toInclude(`min-height: ${PROOF_PHOTO_AREA_HEIGHT}`)
     expect(block).not.toInclude('animation')
   })
 

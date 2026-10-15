@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import {
   EXTERNAL_CONNECT_ORIGIN,
@@ -9,7 +10,7 @@ import {
   buildContentSecurityPolicy,
 } from '../../src/modules/shared/contentSecurityPolicy.service'
 
-const SOURCE_DIRECTORY = new URL('../../src', import.meta.url).pathname
+const SOURCE_DIRECTORY = fileURLToPath(new URL('../../src', import.meta.url))
 const ORIGINS = {
   apiBaseUrl: 'https://api.exemplo.test/v1',
   keycloakUrl: 'https://auth.exemplo.test',

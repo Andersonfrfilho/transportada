@@ -801,6 +801,11 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
   await attach.click()
   expect(await (await galleryChooser).element().getAttribute('capture')).toBeNull()
 
+  // A área da foto é largura inteira e altura fixa em todo estado (pedido do usuário, 14/10): medida vazia aqui,
+  // e igual à miniatura logo depois de anexar — o cartão não cresce nem encolhe com a imagem.
+  const emptyFrame = item.getByText('Ainda sem foto', { exact: true }).locator('xpath=..')
+  const emptyBox = await emptyFrame.boundingBox()
+
   // "Tirar foto" abre a câmera traseira na hora.
   const cameraChooserPromise = page.waitForEvent('filechooser')
   await takePhoto.click()
@@ -808,6 +813,12 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
   expect(await cameraChooser.element().getAttribute('capture')).toBe('environment')
   await cameraChooser.setFiles(SMOKE_PHOTO)
   await page.getByRole('button', { name: 'Usar sem recorte' }).click()
+
+  const thumbnailImage = item.getByRole('img', { name: 'Miniatura da foto do canhoto' })
+  await expect(thumbnailImage).toBeVisible()
+  const thumbnailBox = await thumbnailImage.boundingBox()
+  expect(Math.abs((thumbnailBox?.height ?? 0) - (emptyBox?.height ?? -100))).toBeLessThanOrEqual(2)
+  expect(Math.abs((thumbnailBox?.width ?? 0) - (emptyBox?.width ?? -100))).toBeLessThanOrEqual(2)
 
   // A foto tirada no portão antes da entrega não sobe sozinha: o cartão diz que falta confirmar a entrega (o relógio
   // de "Na fila" só aparece depois do botão), e a foto continua guardada no aparelho.

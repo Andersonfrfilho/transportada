@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useId } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook
 import { useNotDeliveredForm } from '../hooks/useNotDeliveredForm.hook'
 import { DRIVER_RETURN_REASONS, type DriverOccurrenceTypesState } from '../shared/driverTrip.types'
 import type { NotDeliveredDraft } from '../shared/notDelivered.service'
+import { revealPanel } from '../shared/stopFocus.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverNotDeliveredFormProps = Readonly<{
@@ -38,9 +39,15 @@ export function DriverNotDeliveredForm({
   onRetryOccurrenceTypes,
 }: DriverNotDeliveredFormProps) {
   const { t } = useTranslation('driverTrip')
+  /* Pedido do usuário (14/10): o formulário abre com foco e à vista, sem o motorista rolar para achá-lo. */
+  const panelRef = useRef<HTMLFieldSetElement>(null)
+  useEffect(() => {
+    revealPanel(panelRef.current)
+  }, [])
   const form = useNotDeliveredForm(occurrenceTypes)
   const cameraFieldRef = useCameraCaptureFieldRef()
   const galleryFieldRef = useCameraCaptureFieldRef()
+  const [isConfirmingWarehouse, setIsConfirmingWarehouse] = useState(false)
   const missingId = useId()
   const noteId = useId()
   const photoErrorKey =
@@ -50,7 +57,7 @@ export function DriverNotDeliveredForm({
   const missingText = form.missing.map((field) => t(`notDelivered.missing.${field}`)).join(', ')
 
   return (
-    <fieldset className={styles.occurrenceForm}>
+    <fieldset className={styles.occurrenceForm} ref={panelRef} tabIndex={-1}>
       <legend>{t('return')}</legend>
 
       <p className={styles.notDeliveredLegend}>{t('returnTitle')}</p>
@@ -213,10 +220,8 @@ export function DriverNotDeliveredForm({
           disabled={!form.canConfirm}
           onClick={() => {
             /* Spec 260 NC1: soltar a nota é decisão que tira a entrega da viagem — pede confirmação. */
-            if (
-              form.draft.returnToWarehouse &&
-              !window.confirm(t('notDelivered.returnToWarehouseConfirm'))
-            ) {
+            if (form.draft.returnToWarehouse) {
+              setIsConfirmingWarehouse(true)
               return
             }
             onConfirm(form.draft)
@@ -230,6 +235,20 @@ export function DriverNotDeliveredForm({
           {t('notDelivered.cancel')}
         </Button>
       </div>
+      {isConfirmingWarehouse ? (
+        <div className={styles.inlineConfirm} role="alertdialog">
+          <p>{t('notDelivered.returnToWarehouseConfirm')}</p>
+          <div className={styles.actions}>
+            <Button onClick={() => onConfirm(form.draft)} type="button">
+              <Icon name="check" />
+              {t('notDelivered.returnToWarehouseConfirmYes')}
+            </Button>
+            <Button onClick={() => setIsConfirmingWarehouse(false)} type="button" variant="ghost">
+              {t('notDelivered.returnToWarehouseConfirmBack')}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </fieldset>
   )
 }

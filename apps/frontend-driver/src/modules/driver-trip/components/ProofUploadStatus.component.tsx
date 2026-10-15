@@ -122,7 +122,7 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
 }
 
 /** O motivo da última tentativa, na língua do motorista — sem código nem texto do servidor. */
-function describeFailureKey(failure: ProofUploadFailure): string {
+export function describeFailureKey(failure: ProofUploadFailure): string {
   return `proofCapture.upload.failure.${failure.kind}`
 }
 
@@ -130,7 +130,7 @@ function describeFailureKey(failure: ProofUploadFailure): string {
  * Spec 265 RF12: porcentagem REAL de subida (bytes enviados / total, do `XMLHttpRequest`) e a barra
  * proporcional a ela — diferente da redução abaixo, que é estimativa por tempo.
  */
-function ProofUploadProgressBar({ percent }: Readonly<{ percent: number }>) {
+export function ProofUploadProgressBar({ percent }: Readonly<{ percent: number }>) {
   const { t } = useTranslation('driverTrip')
   return (
     <>

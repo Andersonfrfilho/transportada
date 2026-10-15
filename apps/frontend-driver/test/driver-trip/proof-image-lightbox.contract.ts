@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'bun:test'
 
@@ -122,6 +123,22 @@ describe('miniatura: "Ver" abre em tela cheia; "Remover" só com o anexo ainda n
   it('remover pede confirmação — nunca descarta sem o toque explícito', () => {
     const card = readSource('src/modules/driver-trip/components/DriverStopCard.component.tsx')
     expect(card).toContain("t('proofCapture.confirmRemove')")
-    expect(card).toContain('window.confirm(')
+    /* Pedido do usuário (15/10): confirmação é o painel da própria tela (role="alertdialog"), nunca o diálogo nativo do navegador. */
+    expect(card).toContain('role="alertdialog"')
+    expect(card).toContain('setRemovingKind(kind)')
+    expect(card).not.toContain('window.confirm(')
+  })
+
+  it('nenhum diálogo nativo (confirm, alert, prompt) em src/', () => {
+    const files = readdirSync(resolve(import.meta.dir, '../../src'), {
+      recursive: true,
+      withFileTypes: true,
+    })
+      .filter((entry) => entry.isFile() && /\.(ts|tsx)$/u.test(entry.name))
+      .map((entry) => resolve(entry.parentPath, entry.name))
+    const offenders = files.filter((file) =>
+      /\bwindow\.(confirm|alert|prompt)\(/u.test(readFileSync(file, 'utf8')),
+    )
+    expect(offenders).toEqual([])
   })
 })

@@ -194,6 +194,32 @@ const returnedDocuments = new Map<string, string>()
 const storedPhotos = new Map<string, number>()
 let consentAcceptedAt: string | null = null
 /** A primeira viagem começa despachada (carga fechada): o motorista vê "Iniciar rota". */
+/** Hoje o único comprovante exigido é o canhoto: foto obrigatória, o resto desligado. */
+const PHOTO_ONLY_DELIVERY_PROOF =
+  process.env.DRIVER_PREVIEW_PROOF === 'name'
+    ? {
+        photo: 'off',
+        receivedBy: 'off',
+        receiverDocument: 'off',
+        receiverName: 'required',
+        signature: 'off',
+      }
+    : {
+        photo: 'required',
+        receivedBy: 'off',
+        receiverDocument: 'off',
+        receiverName: 'off',
+        signature: 'off',
+      }
+/** `DRIVER_PREVIEW_PROOF=extra`: a parada 3 pede a foto e o nome — para testar o "Concluir" e os focos. */
+const EXTRA_DELIVERY_PROOF = {
+  photo: 'required',
+  receivedBy: 'off',
+  receiverDocument: 'off',
+  receiverName: 'required',
+  signature: 'off',
+}
+const HAS_EXTRA_PROOF = process.env.DRIVER_PREVIEW_PROOF === 'extra'
 let firstTripStatus = 'dispatched'
 /**
  * Spec 206 D9: só uma parada por vez fica "a caminho" — a demonstração guarda a ÚNICA parada e as
@@ -270,8 +296,12 @@ function stop(input: {
 }) {
   return {
     arrivedAt: arrivedStops.has(input.id) ? new Date().toISOString() : null,
-    completedAt: null,
-    deliveryProof: input.deliveryProof ?? null,
+    completedAt: input.documents.every(
+      (item) => deliveredDocuments.has(item.id) || returnedDocuments.has(item.id),
+    )
+      ? new Date().toISOString()
+      : null,
+    deliveryProof: input.deliveryProof ?? PHOTO_ONLY_DELIVERY_PROOF,
     deliveryWindowEnd: input.windowEnd,
     deliveryWindowStart: input.windowStart,
     documents: input.documents.map((item) =>
@@ -312,10 +342,10 @@ function snapshot() {
               /** Spec 193 D6/R2: `receivedBy = 'required'` — pendência visível, nunca bloqueio. */
               deliveryProof: {
                 photo: 'required',
-                receivedBy: 'required',
+                receivedBy: 'off',
                 receiverDocument: 'off',
-                receiverName: 'optional',
-                signature: 'optional',
+                receiverName: 'off',
+                signature: 'off',
               },
               documents: [
                 previewDocument({
@@ -363,6 +393,7 @@ function snapshot() {
               windowStart: '2026-09-26T14:00:00.000Z',
             }),
             stop({
+              ...(HAS_EXTRA_PROOF ? { deliveryProof: EXTRA_DELIVERY_PROOF } : {}),
               documents: [
                 previewDocument({
                   recipientName: 'Supermercado Bom Preço',
