@@ -1,20 +1,18 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'bun:test'
 
-const PAD = new URL(
-  '../../src/modules/driver-trip/components/SignaturePad.component.tsx',
-  import.meta.url,
-).pathname
-const CAPTURE = new URL(
-  '../../src/modules/driver-trip/shared/signatureCapture.service.ts',
-  import.meta.url,
-).pathname
-const CARD = new URL(
-  '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
-  import.meta.url,
-).pathname
+const PAD = fileURLToPath(
+  new URL('../../src/modules/driver-trip/components/SignaturePad.component.tsx', import.meta.url),
+)
+const CAPTURE = fileURLToPath(
+  new URL('../../src/modules/driver-trip/shared/signatureCapture.service.ts', import.meta.url),
+)
+const CARD = fileURLToPath(
+  new URL('../../src/modules/driver-trip/components/DriverStopCard.component.tsx', import.meta.url),
+)
 
 const pad = readFileSync(PAD, 'utf8')
 const capture = readFileSync(CAPTURE, 'utf8')
@@ -47,8 +45,9 @@ describe('a assinatura em canvas (D3/T051)', () => {
     expect(capture).toContain('isLandscapeLocked: false')
     expect(pad).toContain('signaturePadRotated')
     const css = readFileSync(
-      new URL('../../src/modules/driver-trip/styles/driverTrip.module.css', import.meta.url)
-        .pathname,
+      fileURLToPath(
+        new URL('../../src/modules/driver-trip/styles/driverTrip.module.css', import.meta.url),
+      ),
       'utf8',
     )
     expect(css).toContain('rotate(90deg)')
@@ -81,8 +80,9 @@ describe('a assinatura em canvas (D3/T051)', () => {
   it('acessibilidade: canvas com aria-label e botões com o alvo de toque de 44px', () => {
     expect(pad).toContain('aria-label')
     const css = readFileSync(
-      new URL('../../src/modules/driver-trip/styles/driverTrip.module.css', import.meta.url)
-        .pathname,
+      fileURLToPath(
+        new URL('../../src/modules/driver-trip/styles/driverTrip.module.css', import.meta.url),
+      ),
       'utf8',
     )
     expect(css).toMatch(/\.signaturePad button \{[^}]*min-height: 2\.75rem/u)

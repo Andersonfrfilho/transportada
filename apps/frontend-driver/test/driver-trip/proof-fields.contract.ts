@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'bun:test'
 
@@ -189,10 +190,12 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
 
   it('o formulário lê a configuração do documento, com a parada como reserva', () => {
     const card = readFileSync(
-      new URL(
-        '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
-        import.meta.url,
-      ).pathname,
+      fileURLToPath(
+        new URL(
+          '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+          import.meta.url,
+        ),
+      ),
       'utf8',
     )
     expect(card).toInclude('document.deliveryProof ?? stopProofSettings')
@@ -202,10 +205,12 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
   /** Revisão 082 (item 2): o veredito do serviço manda — assinatura e foto obrigatórias bloqueiam. */
   it('nenhum filtro descarta signature/photo do veredito, e o erro é pintado por campo', () => {
     const card = readFileSync(
-      new URL(
-        '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
-        import.meta.url,
-      ).pathname,
+      fileURLToPath(
+        new URL(
+          '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+          import.meta.url,
+        ),
+      ),
       'utf8',
     )
     expect(card).not.toInclude(
@@ -217,10 +222,12 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
 
   it('o campo do documento nunca leva inputMode numeric — CNPJ tem letra (regra do repo)', () => {
     const card = readFileSync(
-      new URL(
-        '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
-        import.meta.url,
-      ).pathname,
+      fileURLToPath(
+        new URL(
+          '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+          import.meta.url,
+        ),
+      ),
       'utf8',
     )
     expect(card).not.toContain('inputMode="numeric"')
