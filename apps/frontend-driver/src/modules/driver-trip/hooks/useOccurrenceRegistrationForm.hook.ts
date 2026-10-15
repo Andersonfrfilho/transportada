@@ -15,6 +15,10 @@ import type { DriverOccurrencePhoto } from '../shared/driverTrip.types'
 import { isOccurrencePhotoWithinLimit } from '../shared/notDelivered.service'
 import { dispatchOccurrenceRegistration } from '../shared/occurrenceDispatch.service'
 import {
+  recordOccurrenceTypeUse,
+  resolveOccurrenceTypeUsageStorage,
+} from '../shared/occurrenceTypeList.service'
+import {
   canRegisterOccurrence,
   listMissingOccurrenceFields,
   resolveOccurrenceTypesForDocument,
@@ -124,6 +128,12 @@ export function useOccurrenceRegistrationForm(
       stopId: params.stop.id,
       type: selectedType,
     })
+    if (route !== 'blocked') {
+      recordOccurrenceTypeUse({
+        storage: resolveOccurrenceTypeUsageStorage(),
+        typeId: selectedType.id,
+      })
+    }
     return route !== 'blocked'
   }
 

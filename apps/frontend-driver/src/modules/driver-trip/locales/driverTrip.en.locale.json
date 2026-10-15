@@ -568,12 +568,18 @@
       "required": "Photo required"
     },
     "cancel": "Cancel",
+    "changeType": "Change type",
     "declaredAmount": {
       "defaultLabel": "Amount paid",
       "limit": "Field limit: the amount cannot exceed R$\u00a09,999,999,999.99.",
       "optional": "{{label}} · optional",
       "placeholder": "0.00",
       "required": "{{label}} · required"
+    },
+    "groups": {
+      "document": "Note problem",
+      "frequent": "Most used",
+      "stop": "Stop problem"
     },
     "items": {
       "amountOptional": "{{label}} · if different",
@@ -635,6 +641,11 @@
       "optional": "{{label}} · optional",
       "invalid": "Use only letters, digits, space, dot, slash and hyphen, up to {{max}} characters. Nothing was cut: fix the text.",
       "required": "{{label}} · required"
+    },
+    "search": {
+      "empty": "No type found.",
+      "label": "Search occurrence type",
+      "placeholder": "Search type"
     },
     "signature": {
       "redo": "Collect the signature again",
