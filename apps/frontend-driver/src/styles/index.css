@@ -97,6 +97,32 @@ body {
   min-height: 100vh;
 }
 
+/**
+ * Pedido do usuário (14/10): o anel de foco aparece e some com suavidade. Todo controle nasce com o
+ * contorno transparente e só ganha a cor de cobre em `:focus-visible` (teclado) — o fade de 160 ms
+ * fica de fora para quem pediu movimento reduzido. Módulos que definem o próprio foco continuam valendo.
+ */
+a[href],
+button,
+input,
+select,
+summary,
+textarea,
+[tabindex] {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+:is(a[href], button, input, select, summary, textarea, [tabindex]):focus-visible {
+  outline-color: var(--color-copper);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(a[href], button, input, select, summary, textarea, [tabindex]) {
+    transition: outline-color 160ms ease;
+  }
+}
+
 /* Ícone e rótulo no mesmo eixo, separados pelo token — cópia por valor do painel (`web.md` §9). */
 button:has(svg) {
   display: inline-flex;
@@ -117,6 +143,7 @@ button:has(svg) {
     border-color 150ms ease,
     background-color 150ms ease,
     color 150ms ease,
+    outline-color 160ms ease,
     transform 150ms ease;
 }
 

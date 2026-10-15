@@ -132,4 +132,26 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     expect(form).toMatch(/revealPanel\(panelRef\.current\)/u)
     expect(form).toMatch(/ref=\{panelRef\} tabIndex=\{-1\}/u)
   })
+
+  it('o foco da parada e do painel de ocorrência não salta sobre a rolagem suave', () => {
+    const page = readFileSync(`${root}/pages/DriverTripWorkspace.page.tsx`, 'utf8')
+    expect(page).toContain("behavior: resolveScrollBehavior(), block: 'center'")
+    expect(page).toContain('element.focus({ preventScroll: true })')
+    const form = readFileSync(
+      `${root}/components/DriverOccurrenceRegistrationForm.component.tsx`,
+      'utf8',
+    )
+    expect(form).toContain('panelRef.current?.focus({ preventScroll: true })')
+  })
+
+  it('o anel de foco aparece com fade curto e some com movimento reduzido', () => {
+    const css = readFileSync(resolve(root, '../../styles/index.css'), 'utf8')
+    expect(css).toMatch(/outline: 2px solid transparent;/u)
+    expect(css).toMatch(/:focus-visible \{\s*outline-color: var\(--color-copper\);/u)
+    const motion = css.slice(
+      css.indexOf('@media (prefers-reduced-motion: no-preference) {\n  :is('),
+    )
+    expect(motion).toContain('transition: outline-color 160ms ease;')
+    expect(css).toContain('outline-color 160ms ease,')
+  })
 })
