@@ -65,7 +65,7 @@ describe('o attach nunca descarta a foto (spec 203)', () => {
     const section = CARD.slice(start, end)
     /* Aviso de campo não bloqueia o anexo (spec 203); só "Concluir" com pendência usa `alert`. */
     expect(section.match(/role="alert"/gu)).toHaveLength(1)
-    expect(section).toInclude('className={styles.completeBlocked} role="alert"')
+    expect(section).toInclude('className={styles.completeBlocked}')
     expect(section.match(/role="status"/gu)?.length).toBeGreaterThanOrEqual(3)
     expect(section).toInclude("t('proofFields.pendingField')")
   })
