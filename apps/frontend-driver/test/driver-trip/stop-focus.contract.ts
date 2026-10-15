@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import {
   PHOTO_FOCUS_TARGET,
   focusFinishButton,
+  NEXT_STEP_FOCUS_DELAY_MS,
   focusFirstRequiredPhoto,
+  focusNextProofStep,
   resolveScrollBehavior,
   revealPanel,
   revealStopStart,
@@ -84,6 +86,25 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     focusFirstRequiredPhoto({ querySelector: () => fakeButton(typing) } as unknown as Element)
     expect(typing).toEqual([])
     focusFirstRequiredPhoto(null)
+  })
+
+  it('depois da foto, o foco espera 1 s e vai ao próximo obrigatório ou, sem ele, ao botão de concluir', () => {
+    expect(NEXT_STEP_FOCUS_DELAY_MS).toBe(1000)
+    stubWindow(false)
+    globals.document = { activeElement: null }
+    const required: Calls = []
+    const finish: Calls = []
+    const actions = (pending: boolean) =>
+      ({
+        closest: () => ({ querySelector: () => (pending ? fakeButton(required) : null) }),
+        querySelector: () => fakeButton(finish),
+      }) as unknown as HTMLElement
+    focusNextProofStep(actions(true))
+    expect(required).toHaveLength(2)
+    expect(finish).toEqual([])
+    focusNextProofStep(actions(false))
+    expect(finish).toHaveLength(2)
+    focusNextProofStep(null)
   })
 
   it('botão ainda bloqueado ou inexistente não recebe foco', () => {

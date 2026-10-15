@@ -194,6 +194,14 @@ const returnedDocuments = new Map<string, string>()
 const storedPhotos = new Map<string, number>()
 let consentAcceptedAt: string | null = null
 /** A primeira viagem começa despachada (carga fechada): o motorista vê "Iniciar rota". */
+/** Hoje o único comprovante exigido é o canhoto: foto obrigatória, o resto desligado. */
+const PHOTO_ONLY_DELIVERY_PROOF = {
+  photo: 'required',
+  receivedBy: 'off',
+  receiverDocument: 'off',
+  receiverName: 'off',
+  signature: 'off',
+}
 let firstTripStatus = 'dispatched'
 /**
  * Spec 206 D9: só uma parada por vez fica "a caminho" — a demonstração guarda a ÚNICA parada e as
@@ -275,7 +283,7 @@ function stop(input: {
     )
       ? new Date().toISOString()
       : null,
-    deliveryProof: input.deliveryProof ?? null,
+    deliveryProof: input.deliveryProof ?? PHOTO_ONLY_DELIVERY_PROOF,
     deliveryWindowEnd: input.windowEnd,
     deliveryWindowStart: input.windowStart,
     documents: input.documents.map((item) =>
@@ -316,10 +324,10 @@ function snapshot() {
               /** Spec 193 D6/R2: `receivedBy = 'required'` — pendência visível, nunca bloqueio. */
               deliveryProof: {
                 photo: 'required',
-                receivedBy: 'optional',
+                receivedBy: 'off',
                 receiverDocument: 'off',
-                receiverName: 'optional',
-                signature: 'optional',
+                receiverName: 'off',
+                signature: 'off',
               },
               documents: [
                 previewDocument({

@@ -47,11 +47,13 @@ export function revealPanel(panel: HTMLElement | null): void {
 }
 
 export const PHOTO_FOCUS_TARGET = 'proof-photo'
+export const SIGNATURE_FOCUS_TARGET = 'proof-signature'
+const ANY_FOCUS_TARGET_SELECTOR = '[data-focus-target]'
+const PROOF_SECTION_SELECTOR = '[class*="proofSection"]'
+/** Pausa entre a foto confirmada e o foco no passo seguinte: o motorista vê a miniatura entrar. */
+export const NEXT_STEP_FOCUS_DELAY_MS = 1000
 
-/** O "Tirar foto" obrigatório da primeira nota aberta: foco e rolagem curta, sem tirar o cursor de quem digita. */
-export function focusFirstRequiredPhoto(card: Element | null): void {
-  const button =
-    card?.querySelector<HTMLButtonElement>(`[data-focus-target="${PHOTO_FOCUS_TARGET}"]`) ?? null
+function focusTarget(button: HTMLButtonElement | null): void {
   if (button === null || button.disabled) return
   const active = document.activeElement
   if (
@@ -63,4 +65,23 @@ export function focusFirstRequiredPhoto(card: Element | null): void {
   }
   button.focus({ preventScroll: true })
   button.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'nearest' })
+}
+
+/** O "Tirar foto" obrigatório da primeira nota aberta: foco e rolagem curta, sem tirar o cursor de quem digita. */
+export function focusFirstRequiredPhoto(card: Element | null): void {
+  focusTarget(
+    card?.querySelector<HTMLButtonElement>(`[data-focus-target="${PHOTO_FOCUS_TARGET}"]`) ?? null,
+  )
+}
+
+/** Depois da foto: o próximo item obrigatório que falta na mesma nota; sem nenhum, o botão de concluir. */
+export function focusNextProofStep(actions: HTMLElement | null): void {
+  if (actions === null) return
+  const scope = actions.closest(PROOF_SECTION_SELECTOR)
+  const pending = scope?.querySelector<HTMLButtonElement>(ANY_FOCUS_TARGET_SELECTOR) ?? null
+  if (pending !== null) {
+    focusTarget(pending)
+    return
+  }
+  focusFinishButton(actions)
 }

@@ -16,8 +16,10 @@ import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { ARRIVED_HIGHLIGHT_MS, resolveStopPlace } from '../shared/stopPlace.service'
 import {
   PHOTO_FOCUS_TARGET,
-  focusFinishButton,
+  NEXT_STEP_FOCUS_DELAY_MS,
+  SIGNATURE_FOCUS_TARGET,
   focusFirstRequiredPhoto,
+  focusNextProofStep,
   revealPanel,
 } from '../shared/stopFocus.service'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
@@ -1452,9 +1454,12 @@ function ProofCaptureFields({
   const finishActionsRef = useRef<HTMLDivElement>(null)
   const [focusFinishNextRender, setFocusFinishNextRender] = useState(false)
   useEffect(() => {
-    if (!focusFinishNextRender) return
-    focusFinishButton(finishActionsRef.current)
-    setFocusFinishNextRender(false)
+    if (!focusFinishNextRender) return undefined
+    const timer = setTimeout(() => {
+      focusNextProofStep(finishActionsRef.current)
+      setFocusFinishNextRender(false)
+    }, NEXT_STEP_FOCUS_DELAY_MS)
+    return () => clearTimeout(timer)
   }, [focusFinishNextRender])
   /** Spec 193 D14: PJ recebe o nome selecionado, com foco — o motorista digita por cima. */
   const [selectNameOnNextRender, setSelectNameOnNextRender] = useState(false)
@@ -1837,6 +1842,9 @@ function ProofCaptureFields({
                 {canSign ? (
                   <Button
                     className={`${styles.proofCaptureAction} ${styles.proofCaptureWide}`}
+                    {...(plan.fields.signature === 'required' && !attached.signature
+                      ? { 'data-focus-target': SIGNATURE_FOCUS_TARGET }
+                      : {})}
                     onClick={() => setOpenSignature((open) => !open)}
                     type="button"
                     variant="ghost"
