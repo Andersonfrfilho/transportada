@@ -16,8 +16,9 @@ export const TRIP_SYNCED_VISIBLE_MS = 8000
  * "Sincronizado" quando ela esvazia. Recusa do escritório aparece à parte e nunca diz "Sincronizado".
  */
 export function DriverTripSyncBanner({
+  onOpen,
   queueView,
-}: Readonly<{ queueView: readonly EventQueueItemView[] }>) {
+}: Readonly<{ onOpen: () => void; queueView: readonly EventQueueItemView[] }>) {
   const { t } = useTranslation('driverTrip')
   const [justSynced, setJustSynced] = useState(false)
   const wasSyncing = useRef(false)
@@ -59,6 +60,9 @@ export function DriverTripSyncBanner({
           {t('tripSync.synced')}
         </span>
       ) : null}
+      <button className={styles.tripSyncOpen} onClick={onOpen} type="button">
+        {t('tripSync.open')}
+      </button>
     </div>
   )
 }

@@ -319,6 +319,7 @@ export function DriverTripWorkspacePage() {
         <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverEventQueuePage
           {...(enRouteStopId === undefined ? {} : { enRouteStopId })}
+          history={driverTrip.sentHistory}
           isLoading={driverTrip.isQueueLoading}
           isSyncing={driverTrip.isSyncing}
           items={driverTrip.queueView}
@@ -768,7 +769,12 @@ export function DriverTripWorkspacePage() {
 
         {trip === undefined || canReportOnTrip(trip) ? null : <DriverHelperNotice />}
 
-        {trip === undefined ? null : <DriverTripSyncBanner queueView={driverTrip.queueView} />}
+        {trip === undefined ? null : (
+          <DriverTripSyncBanner
+            onOpen={() => navigateToDriverSection('queue')}
+            queueView={driverTrip.queueView}
+          />
+        )}
         {trip === undefined ? null : <DriverTripProgress trip={trip} />}
         {trip !== undefined && isTripFullySettled(trip) ? (
           <div className={styles.tripAllDone} role="status">

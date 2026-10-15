@@ -30,6 +30,7 @@ import {
   createIndexedDbAttachmentStore,
   createIndexedDbProofThumbnailStore,
   createIndexedDbQueueStore,
+  createIndexedDbSentHistoryStore,
   createIndexedDbTripSnapshotStore,
 } from '../shared/indexedDbQueue.service'
 import {
@@ -76,6 +77,11 @@ import {
   partitionPendingByOwner,
 } from '../shared/queueOwner.service'
 import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
+import {
+  appendSentHistory,
+  toSentHistoryEntry,
+  type SentHistoryEntry,
+} from '../shared/sentHistory.service'
 import { fitStopOccurrenceReports, withoutPhotos } from '../shared/stopOccurrencePhoto.service'
 import { resolveTripDataSavedAt, resolveTripViewStatus } from '../shared/tripQueryStatus.service'
 import { hasReassignedTrip } from '../shared/tripReassignment.service'
@@ -244,6 +250,8 @@ export type DriverTripController = Readonly<{
   sendNow: (idempotencyKey: string) => void
   /** Spec 179 RF5: as chaves que o servidor aceitou nesta sessão — o "enviado" da tela. */
   sentReportKeys: ReadonlySet<string>
+  /** 15/10: o histórico leve de itens enviados, recusados e descartados (mais recente primeiro). */
+  sentHistory: readonly SentHistoryEntry[]
   snapshot: DriverTripSnapshot | undefined
   status: 'error' | 'loading' | 'ready'
   /** O que o dono fez sem rede e ainda não confirmou — só com sessão viva. */
@@ -265,8 +273,11 @@ export function useDriverTrip(
    */
   const [defaultStores] = useState(() => ({
     attachmentStore: createIndexedDbAttachmentStore(),
+    sentHistoryStore: createIndexedDbSentHistoryStore(),
     store: createIndexedDbQueueStore(),
   }))
+  const { sentHistoryStore } = defaultStores
+  const [sentHistory, setSentHistory] = useState<readonly SentHistoryEntry[]>([])
   const store = providedStore ?? defaultStores.store
   const attachmentStore = providedAttachmentStore ?? defaultStores.attachmentStore
   const queryClient = useQueryClient()
@@ -302,6 +313,11 @@ export function useDriverTrip(
     const readId = queueViewReadRef.current
     const [queued, attachments] = await Promise.all([store.read(), attachmentStore.readAll()])
     if (readId !== queueViewReadRef.current) return
+    /** O histórico é auxiliar: sem IndexedDB (ou com erro) a fila segue sem ele. */
+    void sentHistoryStore
+      .read()
+      .then(setSentHistory)
+      .catch(() => undefined)
     /** ADR-0075 §8: a fila da tela é a do dono da sessão; o resto é "pendência de outra conta". */
     const pending = partitionPendingByOwner({
       attachments,
@@ -326,7 +342,7 @@ export function useDriverTrip(
       selectPendingTotal({ attachments, now, ownerSubHash: session.subHash, reports: queued }),
     )
     syncDrainTimerRef.current()
-  }, [attachmentStore, session.subHash, store])
+  }, [attachmentStore, sentHistoryStore, session.subHash, store])
 
   /**
    * Plan D5: a viagem abre do snapshot guardado (`initialData`, com a hora dele) e a leitura da API
@@ -405,6 +421,18 @@ export function useDriverTrip(
       const client = getDriverTripClient()
       /** O que o servidor aceitou nesta drenagem, chave a chave — é isso que a tela chama de enviado. */
       const sentKeys: string[] = []
+      /** 15/10: o histórico guarda o toque e o desfecho de cada item, para a tela "Enviados". */
+      const queuedBefore = new Map(
+        (await store.read()).map((item) => [item.report.idempotencyKey, item] as const),
+      )
+      const historyAdditions: SentHistoryEntry[] = []
+      const remember = (key: string, result: 'rejected' | 'sent', cause?: string): void => {
+        const item = queuedBefore.get(key)
+        if (item === undefined) return
+        historyAdditions.push(
+          toSentHistoryEntry({ at: new Date().toISOString(), cause, item, result }),
+        )
+      }
       const result = await drainQueueWithAttachments({
         attachmentStore,
         ...(request.only === undefined ? {} : { only: request.only }),
@@ -414,9 +442,14 @@ export function useDriverTrip(
           try {
             await client.send(stamped, options)
             sentKeys.push(stamped.report.idempotencyKey)
+            remember(stamped.report.idempotencyKey, 'sent')
             return { kind: 'sent' }
           } catch (error) {
-            return toAttachmentSendOutcome(error)
+            const outcome = toAttachmentSendOutcome(error)
+            if (outcome.kind === 'rejected') {
+              remember(stamped.report.idempotencyKey, 'rejected', outcome.cause)
+            }
+            return outcome
           }
         },
         sendAttachment: async (attachment: QueuedAttachment): Promise<AttachmentSendOutcome> => {
@@ -491,6 +524,14 @@ export function useDriverTrip(
         store,
       })
       void getDriverDiagnostics().flush()
+      if (historyAdditions.length > 0) {
+        await sentHistoryStore
+          .update((current) =>
+            appendSentHistory({ additions: historyAdditions, current, nowMs: Date.now() }),
+          )
+          .then(setSentHistory)
+          .catch(() => undefined)
+      }
       return { ...result, sentKeys }
     },
     onSuccess: (result) => {
@@ -933,6 +974,28 @@ export function useDriverTrip(
 
   /** Spec 227: o recusado de negócio e o dado dele (blob, posição) saem do aparelho. */
   async function discardRejected(idempotencyKey: string): Promise<void> {
+    const discarded = (await store.read()).find(
+      (item) => item.report.idempotencyKey === idempotencyKey,
+    )
+    if (discarded !== undefined) {
+      await sentHistoryStore
+        .update((current) =>
+          appendSentHistory({
+            additions: [
+              toSentHistoryEntry({
+                at: new Date().toISOString(),
+                cause: discarded.rejectionCause,
+                item: discarded,
+                result: 'discarded',
+              }),
+            ],
+            current,
+            nowMs: Date.now(),
+          }),
+        )
+        .then(setSentHistory)
+        .catch(() => undefined)
+    }
     await discardRejectedQueueItem({ attachmentStore, idempotencyKey, store })
     await refreshQueueView()
   }
@@ -998,6 +1061,7 @@ export function useDriverTrip(
     reportWithLocation,
     sendAllNow: () => requestDrain(undefined, 'immediate'),
     sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey, 'immediate'),
+    sentHistory,
     sentReportKeys,
     snapshot: currentTrip.data,
     /** Sem sessão não há quem confirme: a faixa só aparece depois de entrar. */

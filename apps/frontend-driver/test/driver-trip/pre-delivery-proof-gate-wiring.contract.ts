@@ -271,12 +271,83 @@ describe('a faixa de sincronização da viagem (15/10)', () => {
 
   it('a viagem monta a faixa no topo e os dois idiomas têm os textos', () => {
     expect(readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')).toContain(
-      '<DriverTripSyncBanner queueView={driverTrip.queueView} />',
+      'queueView={driverTrip.queueView}',
     )
     for (const locale of [driverTrip, driverTripEn]) {
       expect(locale.tripSync.synced.length).toBeGreaterThan(0)
       expect(locale.tripSync.syncing_other.length).toBeGreaterThan(0)
       expect(locale.tripSync.rejected_one.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+/** Pedido do usuário (15/10): histórico de itens enviados, com a hora do toque e a do envio. */
+describe('o histórico de enviados (15/10)', () => {
+  const entry = (key: string, at: string, result: 'discarded' | 'rejected' | 'sent' = 'sent') =>
+    ({ at, key, kind: 'deliver', result, tappedAt: at }) as never
+
+  it('guarda o mais recente primeiro, troca o desfecho do mesmo item e respeita prazo e teto', async () => {
+    const { SENT_HISTORY_MAX_ENTRIES, appendSentHistory } = await import(
+      '../../src/modules/driver-trip/shared/sentHistory.service'
+    )
+    const nowMs = Date.parse('2026-10-15T12:00:00Z')
+    const result = appendSentHistory({
+      additions: [entry('a', '2026-10-15T11:00:00Z', 'sent')],
+      current: [
+        entry('a', '2026-10-15T09:00:00Z', 'rejected'),
+        entry('b', '2026-10-15T10:00:00Z'),
+        entry('velho', '2026-10-01T10:00:00Z'),
+      ],
+      nowMs,
+    }) as unknown as { key: string; result: string }[]
+    expect(result.map((item) => `${item.key}:${item.result}`)).toEqual(['a:sent', 'b:sent'])
+    const many = appendSentHistory({
+      additions: Array.from({ length: SENT_HISTORY_MAX_ENTRIES + 20 }, (_, index) =>
+        entry(`k${index}`, '2026-10-15T11:00:00Z'),
+      ),
+      current: [],
+      nowMs,
+    })
+    expect(many.length).toBe(SENT_HISTORY_MAX_ENTRIES)
+  })
+
+  it('o registro leva o toque, o tipo e a nota ou a parada — e nada do corpo do evento', async () => {
+    const { toSentHistoryEntry } = await import(
+      '../../src/modules/driver-trip/shared/sentHistory.service'
+    )
+    const entryOut = toSentHistoryEntry({
+      at: '2026-10-15T14:40:00Z',
+      item: {
+        attempts: 0,
+        createdAt: '2026-10-15T14:32:00Z',
+        report: { documentId: 'd1', idempotencyKey: 'k1', kind: 'deliver', location: null },
+      } as never,
+      result: 'sent',
+    })
+    expect(entryOut).toEqual({
+      at: '2026-10-15T14:40:00Z',
+      documentId: 'd1',
+      key: 'k1',
+      kind: 'deliver',
+      result: 'sent',
+      tappedAt: '2026-10-15T14:32:00Z',
+    })
+  })
+
+  it('a tela de pendências lista o histórico e o hook grava o desfecho no IndexedDB', () => {
+    const page = readSource('src/modules/driver-trip/pages/DriverEventQueue.page.tsx')
+    expect(page).toContain("t('eventQueue.history.title')")
+    expect(page).toContain('history.map(')
+    expect(HOOK).toContain("remember(stamped.report.idempotencyKey, 'sent')")
+    expect(HOOK).toContain("result: 'discarded'")
+    expect(readSource('src/modules/driver-trip/shared/indexedDbQueue.service.ts')).toContain(
+      "'sent-history'",
+    )
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.eventQueue.history.sent.length).toBeGreaterThan(0)
+      expect(locale.eventQueue.history.rejected.length).toBeGreaterThan(0)
+      expect(locale.eventQueue.history.discarded.length).toBeGreaterThan(0)
+      expect(locale.tripSync.open.length).toBeGreaterThan(0)
     }
   })
 })

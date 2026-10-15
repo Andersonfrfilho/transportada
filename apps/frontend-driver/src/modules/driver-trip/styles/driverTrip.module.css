@@ -2204,3 +2204,26 @@
   color: var(--color-copper);
   font-weight: 600;
 }
+
+/* 15/10: o histórico de enviados na tela de pendências. */
+.sentHistory {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.sentHistoryTitle {
+  font-size: var(--font-size-md);
+  margin: 0;
+}
+
+.tripSyncOpen {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  text-decoration: underline;
+}

@@ -6,6 +6,7 @@ import type {
   QueuedAttachment,
 } from './offlineAttachments.service'
 import type { OfflineQueueStore, QueuedReport } from './offlineQueue.service'
+import type { SentHistoryEntry, SentHistoryStore } from './sentHistory.service'
 import {
   isStoredProofThumbnail,
   type ProofThumbnailStore,
@@ -40,9 +41,12 @@ const QUEUE_KEY = 'queue'
  * miniatura do canhoto que o servidor já aceitou (pedido do usuário, 01/10). As duas só criam store
  * novo: o `onupgradeneeded` abaixo nada migra, e aparelho na 3 sobe sem perder fila nem snapshot.
  */
-const DATABASE_VERSION = 4
+const DATABASE_VERSION = 5
 const TRIP_SNAPSHOT_STORE_NAME = 'trip-snapshot'
 const PROOF_THUMBNAIL_STORE_NAME = 'proof-thumbnails'
+/** Versão 5: o histórico leve de itens enviados (15/10) — só cria a store, nada migra. */
+const SENT_HISTORY_STORE_NAME = 'sent-history'
+const SENT_HISTORY_KEY = 'history'
 /** Ponteiro para o `subHash` de quem usou por último — é o snapshot que o boot sem rede abre. */
 const LAST_OWNER_KEY = 'last'
 
@@ -55,6 +59,7 @@ function openDatabase(): Promise<IDBDatabase> {
         ATTACHMENT_STORE_NAME,
         TRIP_SNAPSHOT_STORE_NAME,
         PROOF_THUMBNAIL_STORE_NAME,
+        SENT_HISTORY_STORE_NAME,
       ]) {
         if (!request.result.objectStoreNames.contains(name)) {
           request.result.createObjectStore(name)
@@ -306,5 +311,24 @@ export function createIndexedDbProofThumbnailStore(): ProofThumbnailStore {
       writeProofThumbnailStore((store) => {
         store.put(input.record, input.documentId)
       }),
+  }
+}
+
+export function createIndexedDbSentHistoryStore(): SentHistoryStore {
+  return {
+    async read() {
+      const stored = await readValue({ key: SENT_HISTORY_KEY, storeName: SENT_HISTORY_STORE_NAME })
+      return Array.isArray(stored) ? (stored as readonly SentHistoryEntry[]) : []
+    },
+    async update(mutate) {
+      const next = await readModifyWrite({
+        deleteWhenEmpty: false,
+        key: SENT_HISTORY_KEY,
+        mutate: (stored) =>
+          mutate(Array.isArray(stored) ? (stored as readonly SentHistoryEntry[]) : []),
+        storeName: SENT_HISTORY_STORE_NAME,
+      })
+      return next as readonly SentHistoryEntry[]
+    },
   }
 }

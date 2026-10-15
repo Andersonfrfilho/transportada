@@ -222,7 +222,7 @@ describe('o store trip-snapshot no IndexedDB (plan D5)', () => {
   const source = readFileSync(INDEXED_DB, 'utf8')
 
   it('o store do snapshot e o ponteiro last vivem na base da fila', () => {
-    expect(source).toInclude('const DATABASE_VERSION = 4')
+    expect(source).toInclude('const DATABASE_VERSION = 5')
     expect(source).toInclude("const TRIP_SNAPSHOT_STORE_NAME = 'trip-snapshot'")
     expect(source).toInclude("const LAST_OWNER_KEY = 'last'")
     expect(source).toInclude('export function createIndexedDbTripSnapshotStore()')

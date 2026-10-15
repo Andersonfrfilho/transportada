@@ -19,11 +19,14 @@ import {
 import type { DriverTripErrorDetail } from '../shared/offlineQueue.service'
 import { resolveRejectionCauseLabelKey } from '../shared/rejectionCauseLabel.service'
 import { formatQueuedAt } from '../shared/stalePending.service'
+import type { SentHistoryEntry } from '../shared/sentHistory.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverEventQueuePageProps = Readonly<{
   /** Spec 206 D9: a parada a caminho AGORA — é ela que o motivo/atalho de bloqueio apontam (RF8b). */
   enRouteStopId?: string
+  /** 15/10: o que já saiu (ou foi recusado/descartado), com a hora do toque e a do desfecho. */
+  history: readonly SentHistoryEntry[]
   isLoading: boolean
   isSyncing: boolean
   items: readonly EventQueueItemView[]
@@ -39,6 +42,16 @@ type DriverEventQueuePageProps = Readonly<{
   /** Spec 206 RF8: dá o número da parada do item ("Iniciar rota — parada N"). */
   stops: readonly DriverTripStop[]
 }>
+
+/** Dia e hora: o histórico guarda dias, e só "14:32" não diz de qual. */
+function formatHistoryTime(at: string): string {
+  return new Date(at).toLocaleString('pt-BR', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+  })
+}
 
 const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   arrive: 'eventQueue.kind.arrive',
@@ -68,6 +81,7 @@ const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
  */
 export function DriverEventQueuePage({
   enRouteStopId,
+  history,
   isLoading,
   isSyncing,
   items,
@@ -295,6 +309,45 @@ export function DriverEventQueuePage({
           </ul>
         </>
       )}
+      {/* 15/10: o rastro do que já saiu — fila vazia não quer dizer que nada foi enviado. */}
+      <section aria-labelledby="sent-history-title" className={styles.sentHistory}>
+        <h2 className={styles.sentHistoryTitle} id="sent-history-title">
+          {t('eventQueue.history.title')}
+        </h2>
+        {history.length === 0 ? (
+          <p className={styles.profileMeta}>{t('eventQueue.history.empty')}</p>
+        ) : (
+          <ul className={styles.eventQueueList}>
+            {history.map((entry) => (
+              <li className={styles.eventQueueItem} key={`${entry.key}-${entry.result}`}>
+                <div className={styles.eventQueueItemBody}>
+                  <p className={styles.eventQueueItemTitle}>{t(KIND_LABEL_KEYS[entry.kind])}</p>
+                  <p
+                    className={
+                      entry.result === 'sent' ? styles.profileMeta : styles.eventQueueStatusRejected
+                    }
+                  >
+                    <Icon
+                      aria-hidden="true"
+                      name={entry.result === 'sent' ? 'check' : 'clock'}
+                      size="sm"
+                    />
+                    {t(`eventQueue.history.${entry.result}`, {
+                      time: formatHistoryTime(entry.at),
+                    })}
+                  </p>
+                  <p className={styles.profileMeta}>
+                    {t('eventQueue.history.tapped', { time: formatHistoryTime(entry.tappedAt) })}
+                  </p>
+                  {entry.cause === undefined ? null : (
+                    <p className={styles.profileMeta}>{causeLabel({ cause: entry.cause })}</p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </main>
   )
 }
