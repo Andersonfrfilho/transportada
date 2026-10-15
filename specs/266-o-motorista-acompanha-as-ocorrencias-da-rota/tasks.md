@@ -21,9 +21,9 @@
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T1.1** `haiku` — Teste antes: o feed com `case.status: 'resolved_xyz'` carrega a página e o item mostra
+- [x] **T1.1** `haiku` — Teste antes: o feed com `case.status: 'resolved_xyz'` carrega a página e o item mostra
       "—". Depois, o guarda de `tripOccurrenceFeedClient.service.ts` aceita status desconhecido como `unknown`.
-- [ ] **T1.2** `haiku` — Teste antes: a linha do tempo com `kind: 'resolution.resolved'` desconhecido carrega os
+- [x] **T1.2** `haiku` — Teste antes: a linha do tempo com `kind: 'resolution.resolved'` desconhecido carrega os
       demais eventos. Depois, `tripOccurrenceTimeline.validation.ts` descarta o item desconhecido em vez de reprovar
       a resposta.
 - [ ] **T1.3** `sonnet` — Publicar a Fase 1 (PR → staging → main) **com aprovação humana**. Registrar o commit em
@@ -37,7 +37,7 @@
       códigos de erro. Aceite: `make migration-test` e `db:generate` com `no_changes` depois.
 - [x] **T2.2** `sonnet` — Teste antes da política pura `occurrence-resolution.policy.ts` (4 casos do plano), depois
       a implementação.
-- [ ] **T2.3** `sonnet` — Repositório (inserir; último evento em lote, sem N+1) + `resolve-occurrence.use-case.ts` +
+- [x] **T2.3** `sonnet` — Repositório (inserir; último evento em lote, sem N+1) + `resolve-occurrence.use-case.ts` +
       `POST /trip-occurrences/:kind/:id/resolution`. Contratos: 201, 404 de outra empresa, 409 já resolvida e 409
       cancelada. Integração na mesma task.
 - [ ] **T2.4** `sonnet` — Em `applyTransition` (`drizzle-occurrence-case.repository.ts`), a transição terminal

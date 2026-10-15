@@ -193,3 +193,23 @@ _(cada task registra aqui comando, saída resumida e commit)_
 - `bun run typecheck`: exit 0. `eslint` nos arquivos tocados: limpo.
 - `bun run test`: 8210 testes, 31 timeout de 5 s (mesma família do T1.1). Com `--timeout 60000`: **8208 pass, 0 fail**.
 - `bun run test:hooks`: 1367 pass, 0 fail.
+
+### T2.3 — O escritório resolve com observação (`109a0c2e5`)
+
+- `POST /trip-occurrences/:kind/:id/resolution` (`occurrences.resolve`): lock da linha da ocorrência
+  `FOR NO KEY UPDATE`, leitura do último evento em lote (`DISTINCT ON`, sem N+1). Log sem a nota. Limite de taxa
+  60/300 s (escopo `trip-occurrence-resolution`), acrescentado pelo executor.
+- Contrato da rota: 9 pass. Contrato completo da API: 11781 pass, 25 skip, 0 fail.
+- `occurrence-resolution.integration.ts`: 10 pass, 0 skip (nota e parada, 409 duplo, corrida — um vence e o outro 409 —,
+  cancelada 409, isolamento de empresa, leitura em lote).
+- Teste novo de colisão de rotas (`occurrence-resolution-route-collision.contract.ts`): nenhuma colisão.
+
+### T2.4 — A tratativa encerrada resolve o andamento (`726489713`) — **código feito, medição pendente**
+
+- `applyTransition` devolve o id do evento da tratativa; transição terminal grava `resolved` `system` na mesma
+  transação, sem duplicar quando já resolvida ou cancelada; `decided` não grava. Integração: 3 terminais, sem
+  duplicata, `decided` sem evento; arquivos de tratativa existentes: 12 pass, 0 skip.
+- **Auditoria de lock:** sem inversão. O cancelamento da 167 só trava a ocorrência e lê a tratativa sem lock; a
+  reentrega só trava a tratativa; o único caminho com os dois locks é o novo, na ordem tratativa → ocorrência.
+- **Pendente (dono):** medir em staging quantas tratativas já encerradas aparecerão "em aberto" ao motorista e decidir
+  o backfill. A T2.4 só fecha depois disso.
