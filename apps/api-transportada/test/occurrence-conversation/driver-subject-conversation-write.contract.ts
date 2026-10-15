@@ -7,6 +7,8 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { OccurrenceResolutionNotifierPort } from '../../src/trips/application/occurrence-resolution-notifier.port.js'
+import type { TripStatus } from '../../src/database/trip.schema.js'
 import type { DriverConversationTransactionPort } from '../../src/occurrence-conversation/application/driver-conversation.port.js'
 import type {
   MyConversationSubject,
@@ -66,6 +68,9 @@ type Call = { input: unknown; name: string }
 /** O mundo compartilhado pelas duas rotas: a mesma idempotência e as mesmas mensagens, como no banco. */
 function createWorld(state: {
   readonly conversationDriverUserId?: string
+  readonly oldTripStatus?: TripStatus
+  readonly reopenNotifier?: OccurrenceResolutionNotifierPort
+  readonly resolved?: true
   readonly subject?: MyConversationSubject | null
 }) {
   const calls: Call[] = []
@@ -135,6 +140,24 @@ function createWorld(state: {
   const writePort: DriverSubjectWriteTransactionPort = {
     ...shared,
     ...NO_TRANSCRIPTIONS,
+    insertDriverReopenedEvent: async () => undefined,
+    lockOccurrenceResolution: async () =>
+      state.resolved === true
+        ? {
+            cancelledAt: undefined,
+            events: [
+              {
+                actorKind: 'internal' as const,
+                caseEventStatus: undefined,
+                createdAt: NOW.toISOString(),
+                id: OCCURRENCE_ID,
+                kind: 'resolved' as const,
+                note: 'ok',
+                sequence: 1,
+              },
+            ],
+          }
+        : undefined,
     applySubjectStatus: async () => undefined,
     attachments,
     findMySubject: async (input) => {
@@ -169,13 +192,34 @@ function createWorld(state: {
   const oldPort: DriverConversationTransactionPort = {
     ...shared,
     applyDriverStatus: async () => undefined,
+    insertDriverReopenedEvent: async () => undefined,
+    lockOccurrenceResolution: async () =>
+      state.resolved === true
+        ? {
+            cancelledAt: undefined,
+            events: [
+              {
+                actorKind: 'internal' as const,
+                caseEventStatus: undefined,
+                createdAt: NOW.toISOString(),
+                id: OCCURRENCE_ID,
+                kind: 'resolved' as const,
+                note: 'ok',
+                sequence: 1,
+              },
+            ],
+          }
+        : undefined,
     attachments: NO_ATTACHMENTS,
     findDriverTarget: async () => ({
       driverUserId: DRIVER_USER_ID,
       occurrenceKind: 'document',
       occurrenceLabel: 'NF 1',
     }),
-    findMyOccurrence: async () => ({ occurrenceKind: 'document' }),
+    findMyOccurrence: async () => ({
+      occurrenceKind: 'document' as const,
+      tripStatus: state.oldTripStatus ?? 'in_transit',
+    }),
     listAttachments: listNoAttachments,
     listDriverMessages: async () => [],
     listMyConversations: async () => [],
@@ -188,7 +232,12 @@ function createWorld(state: {
       return `${operation}|${decoded.join('|')}`
     },
   }
-  const dependencies = { clock: () => NOW, fingerprintService, storage: UNUSED_ATTACHMENT_STORAGE }
+  const dependencies = {
+    clock: () => NOW,
+    fingerprintService,
+    ...(state.reopenNotifier === undefined ? {} : { reopenNotifier: state.reopenNotifier }),
+    storage: UNUSED_ATTACHMENT_STORAGE,
+  }
   return {
     calls,
     fingerprintFields,
@@ -483,6 +532,124 @@ describe('a ocorrência pela rota nova usa a idempotência da antiga (spec 263 T
       code: 'OCCURRENCE_CONVERSATION_DRIVER_CHANGED',
     })
     expect(other.messages).toEqual([])
+  })
+
+  test('reopen só vale na viagem atual do motorista: viagem finalizada é TRIP_OCCURRENCE_NOT_FOUND e nada grava', async () => {
+    for (const tripStatus of ['completed', 'cancelled'] as const) {
+      const world = createWorld({
+        resolved: true,
+        subject: occurrenceSubject({ tripStatus }),
+      })
+      expect(
+        await failure(() =>
+          world.reply.reply({
+            ...IDENTITY,
+            bodyText: 'Não acabou',
+            idempotencyKey: KEY,
+            reopen: true,
+            subjectId: OCCURRENCE_ID,
+            subjectType: 'occurrence',
+          }),
+        ),
+      ).toMatchObject({ code: 'TRIP_OCCURRENCE_NOT_FOUND' })
+      expect(world.messages).toEqual([])
+    }
+    const old = createWorld({ oldTripStatus: 'completed', resolved: true })
+    expect(
+      await failure(() =>
+        old.oldReply.reply({
+          companyId: COMPANY_ID,
+          driverId: DRIVER_ID,
+          driverUserId: DRIVER_USER_ID,
+          bodyText: 'Não acabou',
+          idempotencyKey: KEY,
+          occurrenceId: OCCURRENCE_ID,
+          reopen: true,
+        }),
+      ),
+    ).toMatchObject({ code: 'TRIP_OCCURRENCE_NOT_FOUND' })
+    expect(old.messages).toEqual([])
+  })
+
+  test('reopen na viagem atual segue; sem reopen a viagem finalizada continua respondendo', async () => {
+    const current = createWorld({ resolved: true, subject: occurrenceSubject() })
+    const reopened = await current.reply.reply({
+      ...IDENTITY,
+      bodyText: 'Não acabou',
+      idempotencyKey: KEY,
+      reopen: true,
+      subjectId: OCCURRENCE_ID,
+      subjectType: 'occurrence',
+    })
+    expect(reopened.replayed).toBe(false)
+
+    const finished = createWorld({
+      resolved: true,
+      subject: occurrenceSubject({ tripStatus: 'completed' }),
+    })
+    expect((await replyOccurrence(finished)).replayed).toBe(false)
+  })
+
+  test('o aviso da reabertura não segura a resposta: notificador que nunca responde não atrasa o resultado', async () => {
+    const neverAnswers = {
+      notifyReopened: () => new Promise<void>(() => undefined),
+      notifyResolved: () => new Promise<void>(() => undefined),
+    }
+    const timeout = () =>
+      new Promise<'timeout'>((resolveTimeout) => setTimeout(() => resolveTimeout('timeout'), 500))
+    const subjectWorld = createWorld({
+      reopenNotifier: neverAnswers,
+      resolved: true,
+      subject: occurrenceSubject(),
+    })
+    const oldWorld = createWorld({ reopenNotifier: neverAnswers, resolved: true })
+
+    const viaSubject = await Promise.race([
+      subjectWorld.reply.reply({
+        ...IDENTITY,
+        bodyText: 'Não acabou',
+        idempotencyKey: KEY,
+        reopen: true,
+        subjectId: OCCURRENCE_ID,
+        subjectType: 'occurrence',
+      }),
+      timeout(),
+    ])
+    const viaOld = await Promise.race([
+      oldWorld.oldReply.reply({
+        bodyText: 'Não acabou',
+        companyId: COMPANY_ID,
+        driverId: DRIVER_ID,
+        driverUserId: DRIVER_USER_ID,
+        idempotencyKey: KEY,
+        occurrenceId: OCCURRENCE_ID,
+        reopen: true,
+      }),
+      timeout(),
+    ])
+
+    expect(viaSubject).not.toBe('timeout')
+    expect(viaOld).not.toBe('timeout')
+  })
+
+  test('reopen numa ocorrência sem tipo definido é 400 REOPEN_NOT_SUPPORTED_FOR_SUBJECT', async () => {
+    const world = createWorld({
+      resolved: true,
+      subject: occurrenceSubject({ occurrenceKind: null }),
+    })
+    expect(
+      await failure(() =>
+        world.reply.reply({
+          ...IDENTITY,
+          bodyText: 'Não acabou',
+          idempotencyKey: KEY,
+          reopen: true,
+          subjectId: OCCURRENCE_ID,
+          subjectType: 'occurrence',
+        }),
+      ),
+    ).toMatchObject({ code: 'REOPEN_NOT_SUPPORTED_FOR_SUBJECT', status: 400 })
+    expect(world.messages).toEqual([])
   })
 
   test('ocorrência inalcançável é o mesmo CONVERSATION_NOT_FOUND das notas', async () => {

@@ -144,7 +144,7 @@ test('print: a foto vem do servidor quando o aparelho não a tem (375 dark)', as
   await page.evaluate(
     () =>
       new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open('transportada.driver-trip', 4)
+        const request = indexedDB.open('transportada.driver-trip')
         request.onsuccess = () => {
           const transaction = request.result.transaction('proof-thumbnails', 'readwrite')
           transaction.objectStore('proof-thumbnails').clear()

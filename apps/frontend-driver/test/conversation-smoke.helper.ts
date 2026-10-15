@@ -10,7 +10,7 @@ import type { Page, Route } from '@playwright/test'
 
 export const DEMO_PORT = Number(process.env.PLAYWRIGHT_DRIVER_DEMO_PORT ?? '53912')
 export const DEMO_ORIGIN = `http://localhost:${DEMO_PORT}`
-const SMOKE_ORIGIN = 'http://localhost:53112'
+const SMOKE_ORIGIN = `http://localhost:${process.env.PLAYWRIGHT_DRIVER_PORT ?? '53112'}`
 const ME_PATH = /^(?:\/v1)?\/me\//u
 const DEMO_BOOT_TIMEOUT_MS = 20_000
 const DEMO_POLL_INTERVAL_MS = 200

@@ -79,3 +79,27 @@
 .conversationTheme :global(.cv-p-protocol__copy) {
   min-height: 2.75rem;
 }
+
+.composerLock {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.composerLockNotice {
+  color: var(--color-fog);
+  flex: 1;
+  margin: 0;
+}
+
+.composerLockButton {
+  background: var(--color-copper);
+  border: 0;
+  color: var(--color-ink-on-accent);
+  cursor: pointer;
+  font: inherit;
+  min-height: var(--space-12);
+  padding: var(--space-2) var(--space-4);
+}

@@ -13,6 +13,7 @@ import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
 import {
   TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
+  TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES,
   TRIP_OCCURRENCE_STAGES,
 } from '../shared/tripOccurrenceFeed.service'
 import {
@@ -112,6 +113,28 @@ export function TripOccurrenceFilters({ table }: TripOccurrenceFiltersProps) {
             searchPlaceholder={t('occurrenceFeed.filters.caseStatusSearch')}
             summaryLabel={(count) => t('occurrenceFeed.filters.caseStatusSummary', { count })}
             values={table.filters.caseStatuses}
+          />
+        </label>
+        <label>
+          {t('occurrenceFeed.filters.resolution')}
+          <MultiSelect
+            ariaLabel={t('occurrenceFeed.filters.resolution')}
+            clearAllLabel={t('filters.clear')}
+            emptyLabel={t('occurrenceFeed.filters.resolutionEmpty')}
+            onChange={(values) =>
+              table.setResolutionStates(
+                TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES.filter((value) => values.includes(value)),
+              )
+            }
+            options={TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES.map((value) => ({
+              label: t(`occurrenceResolution.state.${value}`),
+              value,
+            }))}
+            placeholder={t('filters.all')}
+            removeLabel={t('occurrenceFeed.filters.removeResolution')}
+            searchPlaceholder={t('occurrenceFeed.filters.resolutionSearch')}
+            summaryLabel={(count) => t('occurrenceFeed.filters.resolutionSummary', { count })}
+            values={table.filters.resolutionStates}
           />
         </label>
         <label>

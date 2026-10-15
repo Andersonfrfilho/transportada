@@ -32,7 +32,7 @@ const VIEWPORTS = {
 } as const
 
 const DRIVER_DATABASE_NAME = 'transportada.driver-trip'
-const DRIVER_DATABASE_VERSION = 4
+const DRIVER_DATABASE_VERSION = 5
 
 async function assertNoHorizontalOverflow(page: Page): Promise<void> {
   await expect

@@ -6,6 +6,9 @@ export const LEGACY_CONVERSATION_MESSAGE_TEMPLATE_KEY = 'trip.conversation-messa
 /** Aviso de conversa de nota e de viagem (ADR-0101 §9); o app precisa aceitá-lo antes de a API emitir. */
 export const SUBJECT_CONVERSATION_MESSAGE_TEMPLATE_KEY = 'trip.subject-conversation-message'
 
+/** O escritório resolveu a ocorrência (spec 266): o aviso abre o detalhe dela. */
+export const OCCURRENCE_RESOLVED_TEMPLATE_KEY = 'trip.occurrence-resolved'
+
 /** Mesmo padrão do `subjectType` que a API valida; o que não casa não vira rota. */
 export const SUBJECT_TYPE_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/
 

@@ -49,10 +49,12 @@ const INBOX_GOLDEN =
 function createTransaction(): DriverConversationTransactionPort {
   return {
     applyDriverStatus: async () => undefined,
+    insertDriverReopenedEvent: async () => undefined,
+    lockOccurrenceResolution: async () => undefined,
     attachments: NO_ATTACHMENTS,
     findDriverTarget: async () => null,
     findIdempotency: async () => null,
-    findMyOccurrence: async () => ({ occurrenceKind: 'document' }),
+    findMyOccurrence: async () => ({ occurrenceKind: 'document', tripStatus: 'in_transit' }),
     findOrCreateDriverConversation: async () => ({
       driverUserId: COMPANY_CONTEXT.userId,
       id: 'conversation-1',

@@ -37,10 +37,11 @@ function readApiOccurrenceTemplates(): Readonly<Record<string, ApiTemplate>> {
     ]),
   )
 
-  // O alerta de retorno vencido da contratante (spec 248) é da operação, não motivo de parada.
+  // Só os avisos de motivo de parada: o retorno vencido da contratante (spec 248) é da operação e o andamento
+  // resolvida/reaberta (spec 266) fala da ocorrência, não da parada: nenhum dos dois tem prévia no card.
   const entries = [
     ...source.matchAll(
-      /placeholders: \[([^\]]*)\],\s*templateKey: NOTIFICATION_TEMPLATE_KEY\.(TRIP_OCCURRENCE_(?!CONTRACTOR_REPLY)\w+),[\s\S]*?inbox: \{\s*body: '([^']*)'/gu,
+      /placeholders: \[([^\]]*)\],\s*templateKey: NOTIFICATION_TEMPLATE_KEY\.(TRIP_OCCURRENCE_(?!CONTRACTOR_REPLY|RESOLVED|REOPENED)\w+),[\s\S]*?inbox: \{\s*body: '([^']*)'/gu,
     ),
   ]
 
@@ -59,7 +60,7 @@ function readApiOccurrenceTemplates(): Readonly<Record<string, ApiTemplate>> {
 describe('a prévia do aviso de ocorrência (spec 082 D8 / G003)', () => {
   const apiTemplates = readApiOccurrenceTemplates()
 
-  it('o catálogo da API declara os quatro templates de ocorrência', () => {
+  it('o catálogo da API declara os quatro templates de aviso de parada', () => {
     expect(Object.keys(apiTemplates).sort()).toEqual([
       'trip.occurrence-appointment-required',
       'trip.occurrence-dock-closed',

@@ -53,6 +53,7 @@ import {
   listLocatedReportKeys,
   sumReportPhotoBytes,
   type OfflineQueueStore,
+  type QueuedReport,
 } from '../shared/offlineQueue.service'
 import {
   countPending,
@@ -99,7 +100,7 @@ const DRAIN_TRIGGER_TARGET = {
   setInterval: (handler: () => void, timeout: number) => window.setInterval(handler, timeout),
 }
 
-const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
+export const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 
 /** A viagem muda pelas mãos do escritório também — cancelamento chega no próximo poll, não por push. */
 const CURRENT_TRIP_REFETCH_MS = 30_000
@@ -219,6 +220,8 @@ export type DriverTripController = Readonly<{
   proofOutcomeByDocumentId: ReadonlyMap<string, ProofPunctuality>
   /** Spec 082 D7: a fila como a tela de pendentes imprime — tipo, hora, anexos e estado. */
   queueView: readonly EventQueueItemView[]
+  /** Spec 266: os itens crus da fila do dono, para juntar com as ocorrências do servidor. */
+  queuedReports: readonly QueuedReport[]
   /** Quantos toques ainda não subiram. É o que a tela mostra como "aguardando envio". */
   queuedCount: number
   refetchTrip: () => void
@@ -276,6 +279,7 @@ export function useDriverTrip(
     undefined,
   )
   const [queueView, setQueueView] = useState<readonly EventQueueItemView[] | undefined>(undefined)
+  const [queuedReports, setQueuedReports] = useState<readonly QueuedReport[]>([])
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
@@ -312,6 +316,7 @@ export function useDriverTrip(
     setUnverifiedPending(
       summarizeUnverifiedPending({ attachments, ownerSubHash: session.subHash, reports: queued }),
     )
+    setQueuedReports(pending.ownReports)
     setQueueView(
       buildEventQueueView({ attachments: pending.ownAttachments, queued: pending.ownReports }),
     )
@@ -988,6 +993,7 @@ export function useDriverTrip(
     pendingTotal,
     proofOutcomeByDocumentId,
     queueView: loadedView,
+    queuedReports,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,
     refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,

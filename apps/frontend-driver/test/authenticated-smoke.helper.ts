@@ -19,8 +19,8 @@ import { registerNotificationMocks } from './notification-smoke.helper'
  * a porta com o processo real — `53112` é a origem extra do realm local para isto
  * (`realm/transportada-local-realm.json`, `test/keycloak-realm.contract.test.ts`).
  */
-const FRONTEND_ORIGIN = 'http://localhost:53112'
-const KEYCLOAK_ORIGIN = 'http://localhost:58080'
+const FRONTEND_ORIGIN = `http://localhost:${process.env.PLAYWRIGHT_DRIVER_PORT ?? '53112'}`
+const KEYCLOAK_ORIGIN = process.env.PLAYWRIGHT_KEYCLOAK_ORIGIN ?? 'http://localhost:58080'
 const KEYCLOAK_REALM = 'transportada-local'
 const KEYCLOAK_CLIENT_ID = 'transportada-spa'
 /** Identificador digitado na tela de entrada — evidence.md T2.3: resolve para o `local-user` real. */

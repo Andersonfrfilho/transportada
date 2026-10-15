@@ -90,7 +90,10 @@ import {
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripDatabase } from './trip-queryable.type.js'
-import { TRIP_DISPATCHED_STATUSES, TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
+import {
+  CURRENT_DRIVER_TRIP_STATUSES,
+  TRIP_DISPATCHED_STATUSES,
+} from '../domain/trip-state.policy.js'
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
@@ -98,19 +101,6 @@ import type { TripFieldOfficeAuditInput } from '../application/trip-field-office
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
-
-/**
- * As fases em que a viagem aparece na tela do motorista.
- *
- * ⚠️ **Não é `TRIP_ON_ROAD_STATUSES`, e a diferença é `route_planned`.** A rua começa em
- * `dispatched`; a **tela do motorista** começa um passo antes, porque é ele quem despacha pelo app
- * (ADR-0058) — sem ver a viagem planejada, ele não teria o que despachar. Trocar esta lista pela da
- * rua deixaria a rota de despacho inalcançável, e o defeito seria "a viagem não aparece", longe da
- * linha que o causou.
- *
- * O resto vem importado, nunca redigitado: é a lição das cinco cópias que divergiram.
- */
-const CURRENT_DRIVER_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
 
 /**
  * Spec 225: por quanto tempo a viagem concluída ainda chega a `GET /me/trips/current`, contada de

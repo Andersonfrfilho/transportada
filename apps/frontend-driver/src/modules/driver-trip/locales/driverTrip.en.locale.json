@@ -571,7 +571,7 @@
     "changeType": "Change type",
     "declaredAmount": {
       "defaultLabel": "Amount paid",
-      "limit": "Field limit: the amount cannot exceed R$\u00a09,999,999,999.99.",
+      "limit": "Field limit: the amount cannot exceed R$ 9,999,999,999.99.",
       "optional": "{{label}} · optional",
       "placeholder": "0.00",
       "required": "{{label}} · required"
@@ -584,12 +584,12 @@
     "items": {
       "amountOptional": "{{label}} · if different",
       "amountRequired": "{{label}} · required",
-      "calculation": "{{quantity}} {{unit}} × R$\u00a0{{unitValue}} =",
+      "calculation": "{{quantity}} {{unit}} × R$ {{unitValue}} =",
       "fillTotal": "Full note quantity",
       "fillTotalAria": "Return all: {{quantity}} {{unit}}",
-      "money": "R$\u00a0{{value}}",
-      "onNote": "On the invoice: {{quantity}} {{unit}} × R$\u00a0{{unitValue}}",
-      "paid": "· paid R$\u00a0{{value}}",
+      "money": "R$ {{value}}",
+      "onNote": "On the invoice: {{quantity}} {{unit}} × R$ {{unitValue}}",
+      "paid": "· paid R$ {{value}}",
       "quantityAboveNote": "The invoice has only {{quantity}} {{unit}}.",
       "quantityLabel": "Quantity returned ({{unit}})",
       "quantityMissing": "Enter the quantity, greater than zero.",
@@ -653,5 +653,150 @@
       "titleRequired": "Signature (required)"
     },
     "title": "Report an occurrence"
+  },
+  "routeOccurrence": {
+    "alert": {
+      "label_one": "{{count}} open occurrence",
+      "label_other": "{{count}} open occurrences"
+    },
+    "badge": {
+      "at": "at {{time}}",
+      "documents_one": "{{count}} document",
+      "documents_other": "{{count}} documents",
+      "hasDocument": "with document",
+      "unknownType": "Occurrence",
+      "unread_one": "{{count}} new message",
+      "unread_other": "{{count}} new messages"
+    },
+    "detail": {
+      "back": "Back",
+      "loading": "Loading the occurrence...",
+      "notFound": "Occurrence not found",
+      "notFoundHint": "It may have been removed or the link is old.",
+      "tripFinished": "Trip finished",
+      "tripFinishedHint": "Occurrences of a finished trip are no longer available in the app.",
+      "subtitleNote": "Invoice {{number}} · Stop {{sequence}}",
+      "subtitleStop": "Stop {{sequence}}",
+      "stateLine": "{{state}} · {{time}}",
+      "resolved": {
+        "title": "Resolved by the office at {{time}}",
+        "titleNoTime": "Resolved by the office",
+        "cancelled": "Cancelled by the office"
+      },
+      "refused": {
+        "title": "Rejected by the office",
+        "noCause": "The office gave no reason.",
+        "fix": "Fix and resend",
+        "fixHint": "Opens the stop so you can register it again."
+      },
+      "chat": {
+        "open": "Open conversation",
+        "openUnread_one": "Open conversation · {{count}} new",
+        "openUnread_other": "Open conversation · {{count}} new",
+        "reopenAndReply": "Reopen and reply",
+        "view": "View conversation",
+        "viewUnread_one": "View conversation · {{count}} new",
+        "viewUnread_other": "View conversation · {{count}} new"
+      },
+      "documents": {
+        "offline": "No signal: documents open when the signal is back.",
+        "origin": {
+          "photo": "photo",
+          "signature": "signature",
+          "attachment": "chat attachment"
+        },
+        "share": "Share {{name}}",
+        "shareAll": "Share all {{count}}",
+        "title": "Documents · {{count}}",
+        "titleEmpty": "Documents",
+        "view": "View {{name}}",
+        "viewFailed": "Could not open the document. Check your signal and try again."
+      },
+      "registered": {
+        "title": "What you registered",
+        "note": "Invoice",
+        "stop": "Stop",
+        "observation": "Observation",
+        "photos_one": "{{count}} photo",
+        "photos_other": "{{count}} photos",
+        "noObservation": "No observation."
+      },
+      "timeline": {
+        "title": "Progress",
+        "recorded": "You registered it",
+        "photo": "Photo attached",
+        "cancelled": "Cancelled",
+        "resolution": {
+          "resolved": "Resolved by the office",
+          "reopened": "Reopened"
+        },
+        "waiting": "Waiting for signal to send",
+        "rejected": "Rejected by the office"
+      },
+      "siblings": {
+        "sameNote": "Others on this invoice · {{number}}",
+        "sameStop": "Others on this stop"
+      },
+      "seeStop": "See the invoice on stop {{sequence}}",
+      "seeStopOnly": "See stop {{sequence}}"
+    },
+    "list": {
+      "back": "Back",
+      "title": "Route occurrences",
+      "loading": "Loading occurrences...",
+      "open": "Open",
+      "closed": "Resolved and cancelled",
+      "empty": "No occurrences in this filter.",
+      "emptyTrip": "No occurrences on this trip.",
+      "tripFinished": "Trip finished",
+      "tripFinishedHint": "Occurrences of a finished trip are no longer available in the app.",
+      "offline": "No signal: showing what the device saved at {{time}}.",
+      "offlineEmpty": "No signal and nothing saved on the device yet.",
+      "scope": {
+        "note": "Invoice {{number}}",
+        "stop": "Stop {{sequence}} · stop-level only",
+        "clear": "See all"
+      },
+      "filter": {
+        "group": "Filter",
+        "all": "All",
+        "unread": "With new message",
+        "documents": "With document",
+        "refused": "Rejected",
+        "queued": "Queued",
+        "count": "{{label}}: {{count}}"
+      },
+      "row": {
+        "note": "Invoice {{number}} · S{{sequence}} · {{label}}",
+        "stop": "S{{sequence}} · {{label}}",
+        "opensChat": "Opens the conversation",
+        "opensDetail": "Opens the detail",
+        "share": "Share documents of {{type}}",
+        "unread_one": "{{count}} new",
+        "unread_other": "{{count}} new"
+      }
+    },
+    "more_one": "See {{count}} more occurrence for {{label}}",
+    "more_other": "See {{count}} more occurrences for {{label}}",
+    "noteLabel": "Invoice {{number}}",
+    "phrase": {
+      "case_cancelled": "Case cancelled by the office",
+      "case_closed": "Closed by the office",
+      "case_returned_to_warehouse": "Goods returned to the warehouse"
+    },
+    "share": {
+      "sharing": "Preparing the documents...",
+      "failed": "Could not share. Check your signal and try again.",
+      "unavailable": "The documents are no longer available.",
+      "downloaded": "This device cannot share files: the documents were downloaded."
+    },
+    "state": {
+      "cancelled": "Cancelled",
+      "open": "Sent",
+      "queued": "Queued",
+      "rejected": "Rejected",
+      "resolved": "Resolved"
+    },
+    "stopLevel": "Stop"
   }
 }

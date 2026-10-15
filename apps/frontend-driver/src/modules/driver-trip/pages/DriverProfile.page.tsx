@@ -22,6 +22,7 @@ import type { DriverTrip, DriverTripSnapshot } from '../shared/driverTrip.types'
 import { listProofPendingDocuments } from '../shared/driverTripView.service'
 import {
   createIndexedDbProofThumbnailStore,
+  createIndexedDbRouteOccurrenceSnapshotStore,
   createIndexedDbTripSnapshotStore,
 } from '../shared/indexedDbQueue.service'
 import { discardProofThumbnails } from '../shared/proofThumbnailArchive.service'
@@ -87,6 +88,7 @@ export function DriverProfilePage({
         /** LGPD (spec 263 T1b.7): texto e foto de mensagem não enviada saem antes do logout. */
         await discardCurrentConversationOutbox()
         await discardTripSnapshots({ store: createIndexedDbTripSnapshotStore() })
+        await createIndexedDbRouteOccurrenceSnapshotStore().clear()
         /** A miniatura do canhoto é foto de entrega de terceiro: sai no mesmo toque. */
         await discardProofThumbnails({ store: createIndexedDbProofThumbnailStore() })
       },

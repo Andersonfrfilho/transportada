@@ -41,6 +41,8 @@ export type OccurrenceTimelineEvent =
         interpretation: null | string
         kind: 'contractor.mail.received' | 'contractor.mail.sent'
       }>)
+  | (EventBase & Readonly<{ kind: 'resolution.resolved'; note: null | string }>)
+  | (EventBase & Readonly<{ kind: 'resolution.reopened' }>)
 
 export type OccurrenceTimelineTimings = Readonly<{
   contractorAskedAt: null | string
@@ -136,6 +138,19 @@ export function describeOccurrenceTimelineEvent(
       }
     case 'contractor.mail.received':
       return { key: 'occurrenceTimeline.event.mailReceived', values: {} }
+    case 'resolution.resolved':
+      if (event.actor.kind === 'system') {
+        return { key: 'occurrenceTimeline.event.resolvedAutomatic', values: {} }
+      }
+      return {
+        key: 'occurrenceTimeline.event.resolvedInternal',
+        values: { name: event.actor.name ?? '', note: event.note ?? '' },
+      }
+    case 'resolution.reopened':
+      return {
+        key: 'occurrenceTimeline.event.reopened',
+        values: { name: event.actor.name ?? '' },
+      }
   }
 }
 

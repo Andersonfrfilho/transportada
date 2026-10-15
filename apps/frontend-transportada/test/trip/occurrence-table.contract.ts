@@ -102,6 +102,7 @@ describe('listagem de ocorrências — pílulas de filtro', () => {
         createdFrom: '2026-09-01',
         createdUntil: '2026-09-02',
         platesQuery: 'ABC1D23',
+        resolutionStates: ['resolved'],
         stages: ['stop'],
         typesQuery: 'long_wait',
       },
@@ -125,6 +126,7 @@ describe('listagem de ocorrências — pílulas de filtro', () => {
       createdFrom: '2026-09-01',
       createdUntil: '2026-09-02',
       platesQuery: '',
+      resolutionStates: EMPTY_TRIP_OCCURRENCE_FILTERS.resolutionStates,
       stages: ['stop'] as const,
       typesQuery: '',
     }

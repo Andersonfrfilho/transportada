@@ -14,6 +14,8 @@ import type { ConversationOutbox } from './conversationOutbox.service'
 import type { OutboxMessage } from './conversationOutbox.types'
 import { classifyDeliveryFailure } from './conversationOutboxFailure.service'
 import { DRIVER_CONVERSATION_ERROR } from './driverConversation.constant'
+import type { DriverConversationReopen } from './driverConversationReopen.service'
+import { readReopenRefusal } from './driverConversationReopen.service'
 import type { DriverConversationRoutes } from './driverConversationRoutes.service'
 import { DriverConversationRequestError } from './driverConversationsHttp.service'
 import { assertSupportedSubject } from './driverConversationSubject.service'
@@ -23,6 +25,7 @@ export type DriverConversationSenderDependencies = Readonly<{
   isOnline: () => boolean
   now: () => Date
   outbox: ConversationOutbox
+  reopen: DriverConversationReopen
   routes: DriverConversationRoutes
   uploader: DriverConversationUploader
 }>
@@ -36,6 +39,7 @@ export type DriverConversationSender = Readonly<{
 type PostMessageInput = Readonly<{
   attachments: readonly ParticipantAttachment[]
   clientMessageId: string
+  reopen?: true | undefined
   subject: ParticipantSendInput['subject']
   text: string
 }>
@@ -58,16 +62,38 @@ function toFile(file: OutboxMessage['files'][number]): File {
 export function createDriverConversationSender(
   dependencies: DriverConversationSenderDependencies,
 ): DriverConversationSender {
-  const { outbox, routes, uploader } = dependencies
+  const { outbox, reopen, routes, uploader } = dependencies
 
   /** A `Idempotency-Key` é o `clientMessageId` em toda tentativa: o servidor devolve a resposta salva. */
   async function postMessage(input: PostMessageInput): Promise<string> {
     const attachmentIds = input.attachments.map((attachment) => attachment.id)
     const payload = await routes.postMessage(input.subject, {
-      body: { body: input.text, ...(attachmentIds.length === 0 ? {} : { attachmentIds }) },
+      body: {
+        body: input.text,
+        ...(attachmentIds.length === 0 ? {} : { attachmentIds }),
+        ...(input.reopen === true ? { reopen: true } : {}),
+      },
       headers: { 'idempotency-key': input.clientMessageId },
     })
     return readMessageId(payload)
+  }
+
+  /** A recusa do reabrir vira aviso tipado para a tela; o erro segue para a classificação de sempre. */
+  async function postReopening(input: PostMessageInput): Promise<string> {
+    if (input.reopen === true) reopen.markPending(input.subject)
+    try {
+      const id = await postMessage(input)
+      if (input.reopen === true) reopen.publish({ subject: input.subject, type: 'reopen-sent' })
+      return id
+    } catch (error) {
+      const reason = readReopenRefusal(error)
+      if (reason !== undefined) {
+        reopen.publish({ reason, subject: input.subject, type: 'reopen-refused' })
+      } else if (input.reopen === true && classifyDeliveryFailure(error) === 'permanent') {
+        reopen.settle(input.subject)
+      }
+      throw error
+    }
   }
 
   async function deliverQueued(message: OutboxMessage): Promise<void> {
@@ -80,14 +106,20 @@ export function createDriverConversationSender(
     if (message.attachments === undefined && attachments.length > 0) {
       await outbox.rememberAttachments({ attachments, clientMessageId: message.clientMessageId })
     }
-    await postMessage({ ...message, attachments })
+    await postReopening({ ...message, attachments })
   }
 
   async function sendUploaded(
     input: ParticipantSendInput,
     attachments: readonly ParticipantAttachment[],
+    isReopen: boolean,
   ): Promise<ParticipantSendResult> {
-    const id = await postMessage({ ...input, attachments, text: input.text ?? '' })
+    const id = await postReopening({
+      ...input,
+      attachments,
+      ...(isReopen ? { reopen: true as const } : {}),
+      text: input.text ?? '',
+    })
     const message = participantMessageSchema.parse({
       attachments,
       clientMessageId: input.clientMessageId,
@@ -101,16 +133,27 @@ export function createDriverConversationSender(
 
   async function enqueue(
     input: ParticipantSendInput,
-    attachments?: readonly ParticipantAttachment[],
+    attachments: readonly ParticipantAttachment[] | undefined,
+    isReopen: boolean,
   ): Promise<ParticipantSendResult> {
     await outbox.enqueue({
       attachments,
       clientMessageId: input.clientMessageId,
       files: input.files ?? [],
+      ...(isReopen ? { reopen: true as const } : {}),
       subject: input.subject,
       text: input.text ?? '',
     })
     return { outcome: 'queued' }
+  }
+
+  /** Enviada ou gravada na fila (com o flag), a marca em memória não faz mais falta; falha permanente a mantém para o reenvio. */
+  function settleReopen(
+    input: ParticipantSendInput,
+    result: ParticipantSendResult,
+  ): ParticipantSendResult {
+    reopen.release(input.clientMessageId)
+    return result
   }
 
   return {
@@ -121,14 +164,16 @@ export function createDriverConversationSender(
     },
     async sendMessage(input) {
       assertSupportedSubject(input.subject)
-      if (!dependencies.isOnline()) return enqueue(input)
+      const isReopen = reopen.bindMessage(input)
+      if (!dependencies.isOnline())
+        return settleReopen(input, await enqueue(input, undefined, isReopen))
       let uploaded: readonly ParticipantAttachment[] | undefined
       try {
         uploaded = await uploader.upload({ files: input.files ?? [], subject: input.subject })
-        return await sendUploaded(input, uploaded)
+        return settleReopen(input, await sendUploaded(input, uploaded, isReopen))
       } catch (error) {
         if (classifyDeliveryFailure(error) === 'permanent') throw error
-        return enqueue(input, uploaded)
+        return settleReopen(input, await enqueue(input, uploaded, isReopen))
       }
     },
   }

@@ -7,10 +7,14 @@ import { computeTripNoteProgress } from '../shared/driverTripNoteProgress.servic
 import { computeTripProgress } from '../shared/driverTripProgress.service'
 import styles from '../styles/driverTrip.module.css'
 
-type DriverTripProgressProps = Readonly<{ trip: DriverTrip }>
+type DriverTripProgressProps = Readonly<{
+  /** Spec 266 RF2: as paradas com ocorrência em aberto ganham o segmento em alerta. */
+  stopIdsWithOpenOccurrence?: ReadonlySet<string>
+  trip: DriverTrip
+}>
 
 /** Um segmento por parada: verde resolvida, cobre a corrente (pulsando), cinza pendente. */
-export function DriverTripProgress({ trip }: DriverTripProgressProps) {
+export function DriverTripProgress({ stopIdsWithOpenOccurrence, trip }: DriverTripProgressProps) {
   const { t } = useTranslation('driverTrip')
   const progress = computeTripProgress(trip)
   const noteProgress = computeTripNoteProgress(trip)
@@ -34,6 +38,9 @@ export function DriverTripProgress({ trip }: DriverTripProgressProps) {
           <span
             className={styles.progressSegment}
             data-state={segment.state}
+            {...(stopIdsWithOpenOccurrence?.has(segment.stopId) === true
+              ? { 'data-has-occurrence': 'true' }
+              : {})}
             key={segment.stopId}
           />
         ))}

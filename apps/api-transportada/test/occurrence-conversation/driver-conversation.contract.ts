@@ -65,6 +65,8 @@ function createFake(
   const transaction: DriverConversationTransactionPort = {
     attachments: NO_ATTACHMENTS,
     listAttachments: listNoAttachments,
+    insertDriverReopenedEvent: async () => undefined,
+    lockOccurrenceResolution: async () => undefined,
     async applyDriverStatus(input) {
       state.statusCalls.push(input)
     },
@@ -88,7 +90,7 @@ function createFake(
     },
     async findMyOccurrence({ driverId }) {
       if (!exists || overrides.driverOnTrip === false || !state.crew.has(driverId)) return null
-      return { occurrenceKind: 'document' }
+      return { occurrenceKind: 'document', tripStatus: 'in_transit' }
     },
     async findIdempotency({ idempotencyKey, operation }) {
       return (state.idempotency.get(`${operation}:${idempotencyKey}`) as never) ?? null

@@ -103,6 +103,10 @@ isso: a conversa é para combinar, e quem decide usa a tratativa, que fica na me
 por e-mail que a 143 previa (T019–T022) fica fora desta spec e precisa ser revista contra a 164 à
 parte.
 
+> **Emenda (spec 266, ADR-0105 §3):** a mensagem do motorista no app, enviada com `reopen: true` numa ocorrência
+> resolvida, reabre o **andamento** da ocorrência (evento `reopened`). Ela continua sem decidir a tratativa, a taxa
+> ou o acerto; resposta sem `reopen` (app antigo, WhatsApp, e-mail) é gravada e não reabre.
+
 ### D5 — A janela de 24 horas manda no WhatsApp
 
 Fora da janela de atendimento de 24h aberta pela última mensagem do contato, a Meta só aceita
