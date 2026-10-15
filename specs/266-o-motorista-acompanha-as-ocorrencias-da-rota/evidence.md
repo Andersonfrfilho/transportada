@@ -302,3 +302,14 @@ _(cada task registra aqui comando, saída resumida e commit)_
 - Gates: `tsc --noEmit`, eslint ok. Contratos: 11809 pass, 25 skip, 1 falha do muro CA03 lendo arquivos não commitados
   do app (reconferir na T5.3). Integração: `occurrence-reopen` 5 pass, `occurrence-resolution` 14 pass, suítes de
   conversa/linha do tempo/feed/detalhe tocadas 28 pass; 0 skip.
+
+### T2.10 — Documentação viva da API (`a07adce50`)
+
+- `apps/api-transportada/CLAUDE.md` § "Andamento da ocorrência (ADR-0105)" e `docs/ai-context/api-transportada.md`
+  § Spec 266. A API não tem OpenAPI ("Sem OpenAPI nesta API").
+
+### T3.2 — Selo e filtro de andamento no painel (`80f858c05`)
+
+- `resolution` lido de forma tolerante; selos "Resolvida" e "Reaberta pelo motorista"; estado passado ao
+  `OccurrenceResolutionPanel`; filtro "Andamento" (`resolutionStateIn`, "Em aberto" = `open,reopened`).
+- `bun run typecheck` ok; `test/trip.contract.test.ts --timeout 60000`: 3002 pass, 0 fail (20 novos); eslint ok.

@@ -64,7 +64,7 @@
       sem texto). Catálogo, seed e disparo. Teste: o payload não tem nota nem texto.
 - [x] **T2.9** `sonnet` — Linha do tempo (`resolution.*`) e feed (`resolution` + filtro `resolutionStateIn`).
       Contrato do feed e da linha do tempo.
-- [ ] **T2.10** `haiku` — Documentação viva: OpenAPI das rotas novas, `apps/api-transportada/CLAUDE.md` (núcleo) e
+- [x] **T2.10** `haiku` — Documentação viva: OpenAPI das rotas novas, `apps/api-transportada/CLAUDE.md` (núcleo) e
       `docs/ai-context/api-transportada.md`.
 
 ## Fase 3 — Painel resolve e mostra a reabertura
@@ -75,7 +75,7 @@
       parada. "Resolver com observação" com nota obrigatória, permissão `occurrences.resolve` e o aviso no formulário
       "o motorista vai ler esta observação". A mutation invalida
       feed, linha do tempo e conversas. Teste de renderização e do 409.
-- [ ] **T3.2** `haiku` — Selo "Reaberta pelo motorista" e "Resolvida" no feed, filtro por andamento, locales pt-BR/en.
+- [x] **T3.2** `haiku` — Selo "Reaberta pelo motorista" e "Resolvida" no feed, filtro por andamento, locales pt-BR/en.
 - [x] **T3.3** `haiku` — `describeOccurrenceTimelineEvent` para `resolution.resolved` e `resolution.reopened`, com
       teste.
 
