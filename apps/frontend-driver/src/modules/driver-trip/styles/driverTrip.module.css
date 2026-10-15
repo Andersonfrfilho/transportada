@@ -211,6 +211,51 @@
   box-shadow: 0 0 0 1px var(--color-copper);
 }
 
+.stopFinalHint {
+  align-items: center;
+  color: var(--color-copper);
+  display: flex;
+  font-size: 0.85rem;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+.tripAllDone {
+  align-items: center;
+  border: 1px solid var(--color-ready);
+  color: var(--color-ready);
+  display: flex;
+  font-weight: 700;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stopArrived {
+    animation: stop-arrived 1.8s ease-out;
+  }
+}
+
+@keyframes stop-arrived {
+  0% {
+    box-shadow:
+      0 0 0 1px var(--color-copper),
+      0 0 0 0 color-mix(in srgb, var(--color-copper) 55%, transparent);
+  }
+  60% {
+    box-shadow:
+      0 0 0 1px var(--color-copper),
+      0 0 0 10px color-mix(in srgb, var(--color-copper) 0%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 1px var(--color-copper),
+      0 0 0 0 transparent;
+  }
+}
+
 .stopDone {
   opacity: 0.65;
 }
