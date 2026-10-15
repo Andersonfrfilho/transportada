@@ -173,3 +173,23 @@ _(cada task registra aqui comando, saída resumida e commit)_
 - Ambiguidades do contrato fechadas no `plan.md` (2026-10-15): `phraseKey` na resolução `system`; 404 com códigos
   distintos (viagem não ativa × ocorrência × objeto); `reportKey` para casar a fila sem heurística. **Ajuste pendente no
   app** (vai junto com a T4.6): ler `phraseKey` e distinguir os dois 404.
+
+### T1.1 — Feed aceita estado de tratativa desconhecido (`a32481c8b`)
+
+- Teste vermelho antes (export `TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS` ausente), verde depois:
+  `test/trip/occurrence-case-status-tolerance.contract.ts`, 4 pass. Estado futuro vira `unknown`, campo extra
+  (`resolution`) não reprova o item, estado conhecido segue igual, status que não é texto continua reprovando.
+- `bun run typecheck`: exit 0. `eslint` nos arquivos tocados: limpo. `bun run lint` da app: os 2 erros eram do teste
+  novo e foram corrigidos; os 16 avisos restantes são de outros arquivos.
+- `bun run test`: 8205 testes, 8169 pass, 34 fail. Todas as 34 são timeout de 5 s em varreduras de arquivo do WSL
+  (contratos de design system). Mesma lista do script com `--timeout 60000`: **8203 pass, 0 fail**.
+
+### T1.2 — Linha do tempo ignora evento desconhecido (`50e382656`)
+
+- Teste vermelho antes (3 falhas: evento `resolution.*` derrubava a linha), verde depois:
+  `test/trip/occurrence-timeline-unknown-kind.contract.ts`, 5 pass. `resolution.resolved` e `resolution.reopened`
+  saem, a ordem dos conhecidos fica. Evento desconhecido malformado também sai. `events` que não é lista e evento
+  conhecido malformado (`actor` fora dos quatro) continuam reprovando.
+- `bun run typecheck`: exit 0. `eslint` nos arquivos tocados: limpo.
+- `bun run test`: 8210 testes, 31 timeout de 5 s (mesma família do T1.1). Com `--timeout 60000`: **8208 pass, 0 fail**.
+- `bun run test:hooks`: 1367 pass, 0 fail.
