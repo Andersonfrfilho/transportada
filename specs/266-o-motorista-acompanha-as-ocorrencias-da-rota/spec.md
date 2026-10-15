@@ -5,16 +5,16 @@
 
 ## Specs do mesmo assunto (lidas contra o código em `origin/staging`, 2026-10-15)
 
-| Spec      | O que já decidiu e esta spec **usa sem refazer**                                                                                                                                                                |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 034       | Sino do produto: inbox + e-mail, `sendNotification` via RabbitMQ. Sem push do sistema operacional.                                                                                                              |
-| 164 / 183 | Tratativa (`trip_occurrence_cases`) só abre com política de reentrega `allowed`/`blocked`. Uma conversa por (ocorrência, participante). **D4: a conversa não decide** — emendada num ponto só pela ADR-0105 §3. |
-| 167 / 240 | Correção e cancelamento da ocorrência pelo escritório. **Reabrir tratativa fica fora** — e continua fora: esta spec reabre o **andamento**, não a tratativa.                                                    |
-| 173       | Marcador de ocorrência aberta na viagem do **escritório**. O motorista não tinha nada parecido.                                                                                                                 |
-| 246       | Exigência (foto, assinatura, observação) cobrada pelo servidor. A recusa do registro do motorista é rejeição da fila offline (`rejectionCause`), não um estado do servidor.                                     |
-| 248       | `registeredOccurrences[].contractorReply` na resposta da viagem; o boleto chega pelo chat.                                                                                                                      |
-| 255       | Ícone por tipo de ocorrência (`OCCURRENCE_TYPE_ICON_NAMES`, 10 nomes).                                                                                                                                          |
-| 263 / 264 | Aba Conversas do motorista, conversa por assunto, selo de não lidas (`conversationDigests`), sino abre a conversa. **D4: o motorista não cria conversa de ocorrência** — emendada pela ADR-0105 §3.             |
+| Spec      | O que já decidiu e esta spec **usa sem refazer**                                                                                                                                                                         |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 034       | Sino do produto: inbox + e-mail, `sendNotification` via RabbitMQ. Sem push do sistema operacional.                                                                                                                       |
+| 164 / 183 | Tratativa (`trip_occurrence_cases`) só abre com política de reentrega `allowed`/`blocked`. Uma conversa por (ocorrência, participante). **D4: a conversa não decide** — emendada num ponto só pela ADR-0105 §3.          |
+| 167 / 240 | Correção e cancelamento da ocorrência pelo escritório. **Reabrir tratativa fica fora** — e continua fora: esta spec reabre o **andamento**, não a tratativa.                                                             |
+| 173       | Marcador de ocorrência aberta na viagem do **escritório**. O motorista não tinha nada parecido.                                                                                                                          |
+| 246       | Exigência (foto, assinatura, observação) cobrada pelo servidor. A recusa do registro do motorista é rejeição da fila offline (`rejectionCause`), não um estado do servidor.                                              |
+| 248       | `registeredOccurrences[].contractorReply` na resposta da viagem; o boleto chega pelo chat.                                                                                                                               |
+| 255       | Ícone por tipo de ocorrência (`OCCURRENCE_TYPE_ICON_NAMES`, 10 nomes).                                                                                                                                                   |
+| 263 / 264 | Aba Conversas do motorista, conversa por assunto, selo de não lidas (`conversationDigests`), sino abre a conversa. **D4: o motorista não cria conversa de ocorrência** — emendada pela ADR-0105 §3: só cria respondendo. |
 
 ## Problema e resultado
 
@@ -54,7 +54,7 @@ respondendo. Tudo fica registrado em evento e aparece no painel.
   existe, senão ao detalhe. A linha com documento tem o botão compartilhar.
 - **RF5 — Detalhe.** Mostra:
   - tipo, estado e hora;
-  - quadro de resolução (quem e quando, observação) ou de recusa (motivo e "Corrigir e reenviar");
+  - quadro de resolução (quem e quando; observação do escritório, ou a frase fixa quando a tratativa encerrou) ou de recusa (motivo e "Corrigir e reenviar");
   - botão do chat com contagem;
   - documentos;
   - o que foi registrado: nota, parada, observação, fotos;
@@ -65,16 +65,22 @@ respondendo. Tudo fica registrado em evento e aparece no painel.
   assinatura do motorista. Cada documento tem os botões ver e compartilhar; com mais de um, também "Compartilhar os N".
   Compartilhar usa a folha nativa do celular (`navigator.share` com arquivos). Sem suporte no aparelho, baixa o arquivo.
 - **RF7 — Escritório resolve.** No painel, toda ocorrência (nota e parada) ganha "Resolver com observação", com
-  observação obrigatória e permissão `occurrences.resolve`. Encerrar a tratativa (fechar, devolver ao armazém, cancelar)
+  observação obrigatória (o formulário avisa "o motorista vai ler esta observação") e permissão `occurrences.resolve`. Encerrar a tratativa (fechar, devolver ao armazém, cancelar)
   resolve o andamento automaticamente (ADR-0105 §2).
-- **RF8 — Motorista reabre.** No chat de uma ocorrência resolvida, o campo de resposta avisa "Responder reabre a
-  ocorrência". Enviar grava o evento `reopened` e a mensagem juntos. Sem conversa, o detalhe oferece "Reabrir e
-  responder", que cria a conversa. Ocorrência cancelada não reabre.
+- **RF8 — Motorista reabre.** A reabertura é explícita. Na ocorrência resolvida o campo de resposta fica **travado** e
+  mostra "Reabrir". O motorista toca em "Reabrir" e só então pode escrever; a primeira mensagem vai com `reopen: true` e
+  grava o evento `reopened` e a mensagem juntos. Se tocar em "Reabrir" e não enviar nada, nada é gravado. Sem conversa, o
+  mesmo botão no detalhe cria a conversa ao enviar. Resposta sem `reopen` numa ocorrência resolvida (app antigo,
+  WhatsApp) é gravada e **não** reabre. Ocorrência cancelada não reabre.
 - **RF9 — Notificações.**
-  - O motorista recebe no sino "<tipo> resolvida" (`trip.occurrence-resolved`), que abre o detalhe. A mensagem nova já
-    chega pelo aviso de conversa (263) e abre o chat.
+  - A **equipe inteira** da viagem (motorista e ajudantes) recebe no sino "<tipo> resolvida"
+    (`trip.occurrence-resolved`), que abre o detalhe. Não é enviada se a viagem já terminou, e o payload não leva nota. A
+    mensagem nova já chega pelo aviso de conversa (263) e abre o chat.
   - O escritório recebe "<tipo> reaberta pelo motorista" (`trip.occurrence-reopened`). Quem recebe é quem gravou o último
-    `resolved`; se foi o sistema, quem encerrou a tratativa.
+    `resolved`; se foi o sistema, quem gravou o evento da tratativa ligado. Se essa pessoa já não tem
+    `occurrences.resolve` na empresa, ninguém é notificado (o feed cobre).
+- **RF9b — O motorista vê enquanto a viagem não termina.** Lista, detalhe e links assinados valem só para viagem **não
+  finalizada**. Depois disso o detalhe responde 404 e o app mostra "Viagem encerrada" num link antigo.
 - **RF10 — Tudo vira evento.** Os eventos `resolved` e `reopened`, com ator, nota e mensagem de origem, aparecem:
   - na linha do tempo do painel (`resolution.resolved`, `resolution.reopened`);
   - no detalhe do motorista;
@@ -107,8 +113,12 @@ respondendo. Tudo fica registrado em evento e aparece no painel.
 3. O motorista responde no chat de uma ocorrência resolvida. O painel mostra "Reaberta pelo motorista" e o evento na
    linha do tempo, e o alerta do motorista volta a contar a ocorrência.
 4. O motorista de outra viagem recebe 404 ao ler ou reabrir a ocorrência (contrato negativo).
-5. A tratativa fechada no painel marca a ocorrência como resolvida para o motorista, com a nota da transição.
+5. A tratativa fechada no painel marca a ocorrência como resolvida para o motorista, com uma **frase fixa** por status
+   (encerrada → "Encerrada pelo escritório", devolvida ao armazém → "Mercadoria devolvida ao armazém", cancelada →
+   "Tratativa cancelada pelo escritório"), nunca a nota interna da tratativa. A resolução manual mostra a observação do
+   operador, e o formulário do painel avisa "o motorista vai ler esta observação".
 6. O painel publicado antes da API continua carregando lista, detalhe e linha do tempo quando a API passa a mandar os
    eventos novos.
+   6b. Finalizada a viagem, a lista e o detalhe somem para o motorista (404) e o sino de "resolvida" não é enviado.
 7. O boleto que chegou no chat aparece em Documentos e abre a folha de compartilhar do celular. No desktop sem suporte,
    baixa o arquivo.

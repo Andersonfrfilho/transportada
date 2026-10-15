@@ -7,6 +7,20 @@
 - Reabrir: "ele pode reabrir e responder e tudo registrado em evento".
 - Documentos: anexos do chat + fotos do motorista.
 
+### Decisões do dono (chat, 2026-10-15, após a revisão de arquitetura)
+
+- **A. Reabrir é explícito.** Na ocorrência resolvida o composer do chat fica travado; o motorista toca em "Reabrir" e só
+  então envia, com a primeira mensagem indo com `reopen: true`. Tocou em Reabrir e não enviou: nada é gravado. Resposta
+  sem `reopen` (app antigo, WhatsApp) é gravada sem reabrir.
+- **B. Resolução automática mostra frase fixa.** Por status terminal da tratativa: `closed` → "Encerrada pelo escritório",
+  `returned_to_warehouse` → "Mercadoria devolvida ao armazém", `cancelled` → "Tratativa cancelada pelo escritório". Nunca a
+  nota interna. O critério de aceite 5 mudou. A resolução manual mostra a observação do operador, e o formulário do painel
+  avisa "o motorista vai ler esta observação".
+- **C. Só enquanto a viagem não termina.** Lista, detalhe e links assinados do motorista valem para viagem não finalizada.
+  Depois: 404 no detalhe e "Viagem encerrada" no app num link antigo. `trip.occurrence-resolved` não é enviada se a viagem
+  já terminou.
+- **D. `trip.occurrence-resolved` vai à equipe inteira** (motorista e ajudantes).
+
 ## Levantamento contra `origin/staging` (d6459e4cd, 2026-10-15)
 
 Feito por três buscas paralelas, só de leitura. A T0.1 confere as linhas antes de qualquer código.
@@ -86,6 +100,24 @@ Conferido no worktree `spec-266` (base `origin/staging` d6459e4cd, 2026-10-15). 
   (banco `transportada.driver-trip`). O plano pede v5 para o store `trip-occurrences`: confere.
 - **FK de `companies`:** a tabela é `companies` (`src/database/identity.schema.ts:106`, `id uuid`). Outros schemas
   usam `.references(() => companies.id, ...)`; o `REFERENCES companies(id)` do plano está certo.
+
+## T0.2 — Revisão de arquitetura
+
+Veredito do `architect` (opus): **aprovado com mudanças**. Todas aplicadas na ADR-0105 (agora "aceita"), no `spec.md`, no
+`plan.md` e no `tasks.md`. As decisões do dono acima entraram junto.
+
+| #   | Mudança                                                                                                                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Identidade sem polimorfismo: `document_occurrence_id` e `stop_occurrence_id` com FK composta `ON DELETE CASCADE`, `CHECK (num_nonnulls(...) = 1)` e dois índices parciais. A API mantém `kind` + `id`.                    |
+| 2   | Ator: `case_event_id` com FK e único parcial; `CHECK ((actor_kind='system') = (case_event_id IS NOT NULL))`; CHECK da nota do `resolved` interno; sai `client_message_id`; único `(company_id, conversation_message_id)`. |
+| 3   | Lock: sai o `FOR UPDATE` no último evento. Resolver, reabrir e resolver automático travam a linha da ocorrência `FOR NO KEY UPDATE`; estado lido depois; ordem tratativa → ocorrência; T2.4 audita a 167.                 |
+| 4   | Resolução automática em `applyTransition` (único escritor do status), em transição terminal (`decided` não é); não duplica; o insert do evento da tratativa devolve o id.                                                 |
+| 5   | Reabrir sem rota nova: `reopen?: true` na resposta existente do motorista (dois use cases), dentro de `replayOrRun.run`; 409 `OCCURRENCE_CANCELLED` / `OCCURRENCE_NOT_RESOLVED`; emenda da 263 D4 reescrita.              |
+| 6   | Prefixo `/me/trips/current/route-occurrences` (o roteador pega o primeiro match dinâmico); contrato de rotas na T2.5 contra colisão.                                                                                      |
+| 7   | Estado do motorista: `cancelled_at` (só nota) → cancelada; sem evento → aberta; último `resolved` → resolvida; `reopened` → aberta com `reopenedAt`. `cancel` da tratativa não cancela a ocorrência.                      |
+| 8   | `case.transition` fora da linha do tempo do motorista (ADR-0045 §6); `trip.occurrence-resolved` sem nota.                                                                                                                 |
+| 9   | Destinatário de `trip.occurrence-reopened`: último `resolved` interno → seu ator; `system` → ator do evento da tratativa ligado; sem `occurrences.resolve` → ninguém, com log `info` sem texto.                           |
+| 10  | `occurrences.resolve` já existe (`authorization.policy.ts:115`): reusa, sem seed.                                                                                                                                         |
 
 ## Tasks
 

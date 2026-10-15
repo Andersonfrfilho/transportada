@@ -12,7 +12,7 @@
 
 - [x] **T0.1** `sonnet` — Conferir contra `origin/staging` os números de linha citados em `plan.md` § Contexto e o
       levantamento de `evidence.md`. Divergência vira nota no `evidence.md` antes de seguir.
-- [ ] **T0.2** 🧠 `opus` — Validar com `architect` a ADR-0105 e os contratos de `plan.md`. Pontos a validar:
+- [x] **T0.2** 🧠 `opus` — Validar com `architect` a ADR-0105 e os contratos de `plan.md`. Pontos a validar:
       tabela, CHECKs, regra de quem recebe `trip.occurrence-reopened`, tradução de `case.transition` para o motorista
       e lock da corrida. Ajuste aprovado entra no `plan.md`, e a ADR passa a "aceita". **Outras tasks herdam este
       contrato.**
@@ -40,19 +40,28 @@
 - [ ] **T2.3** `sonnet` — Repositório (inserir; último evento em lote, sem N+1) + `resolve-occurrence.use-case.ts` +
       `POST /trip-occurrences/:kind/:id/resolution`. Contratos: 201, 404 de outra empresa, 409 já resolvida e 409
       cancelada. Integração na mesma task.
-- [ ] **T2.4** `sonnet` — A tratativa terminal grava `resolved` (`system`) na mesma transação de
-      `drizzle-occurrence-case.repository.ts`. Teste de integração dos três terminais. **Medir em staging** quantas
+- [ ] **T2.4** `sonnet` — Em `applyTransition` (`drizzle-occurrence-case.repository.ts`), a transição terminal
+      (`closed`, `returned_to_warehouse`, `cancelled`; `decided` não) trava a ocorrência, não duplica se já resolvida e
+      grava `resolved` (`system`, frase fixa, `case_event_id`) na mesma transação. **Auditar o caminho do cancelamento
+      da 167** contra a ordem de lock tratativa → ocorrência. Teste de integração dos três terminais. **Medir em staging** quantas
       tratativas já encerradas ficariam "em aberto" e registrar no `evidence.md` para a decisão de backfill.
-- [ ] **T2.5** `sonnet` — `GET /me/trips/current/occurrences` e `GET .../:kind/:id` (sem links assinados). Contrato
-      negativo: outro motorista e outra empresa dão 404. Integração com nota, parada, cancelada, resolvida e reaberta.
+- [ ] **T2.5** `sonnet` — `GET /me/trips/current/route-occurrences` e `GET .../:kind/:id` (sem links assinados), só com
+      viagem não finalizada (finalizada → 404). Contrato negativo: outro motorista e outra empresa dão 404. Contrato de
+      rotas: nenhum par com o mesmo método casa o mesmo caminho. Integração com nota, parada, cancelada, resolvida e
+      reaberta.
 - [ ] **T2.6** `sonnet` — Documentos do detalhe: fotos e assinatura do motorista, anexos da conversa da ocorrência e
-      `GET .../attachments/:objectId/url` (5 min), que confere o dono antes de assinar. Contrato negativo do objeto
+      `GET /me/trips/current/route-occurrences/:kind/:id/attachments/:objectId/url` (5 min), que confere o dono e a
+      viagem não finalizada antes de assinar. Contrato negativo do objeto
       de outra ocorrência.
-- [ ] **T2.7** `sonnet` — `POST .../reopening`: lock, evento `reopened` + mensagem na mesma transação, criação da
-      conversa quando ela não existe e idempotência por `clientMessageId`. Integração: corrida, repetição e cancelada.
-      Registrar as emendas nas specs 183 (D4) e 263 (D4) com link para a ADR-0105.
-- [ ] **T2.8** `sonnet` — Notificações `trip.occurrence-resolved` e `trip.occurrence-reopened` (catálogo, seed,
-      disparo nos dois use cases, regra do destinatário). Teste: o payload não tem nota nem texto.
+- [ ] **T2.7** `sonnet` — Flag `reopen?: true` na resposta **existente** do motorista (os dois use cases:
+      `reply-my-subject-conversation` e `driver-conversation`). Dentro de `replayOrRun.run`: trava a ocorrência;
+      cancelada → 409 `OCCURRENCE_CANCELLED`; `reopen` e resolvida → evento `reopened` com a mensagem; `reopen` e não
+      resolvida → 409 `OCCURRENCE_NOT_RESOLVED`; `reopen` entra na impressão digital da idempotência. Sem rota nova.
+      Integração: corrida, repetição, cancelada, resposta sem `reopen` não reabre. Registrar as emendas nas specs 183
+      (D4) e 263 (D4: "só cria conversa respondendo") com link para a ADR-0105.
+- [ ] **T2.8** `sonnet` — Notificações `trip.occurrence-resolved` (equipe inteira; **não** se a viagem terminou) e
+      `trip.occurrence-reopened` (regra do destinatário do plan; sem `occurrences.resolve` não notifica e loga `info`
+      sem texto). Catálogo, seed e disparo. Teste: o payload não tem nota nem texto.
 - [ ] **T2.9** `sonnet` — Linha do tempo (`resolution.*`) e feed (`resolution` + filtro `resolutionStateIn`).
       Contrato do feed e da linha do tempo.
 - [ ] **T2.10** `haiku` — Documentação viva: OpenAPI das rotas novas, `apps/api-transportada/CLAUDE.md` (núcleo) e
@@ -63,7 +72,8 @@
 > 🤖 Modelo: `sonnet` (T3.2 e T3.3 → `haiku`)
 
 - [ ] **T3.1** `sonnet` — `OccurrenceResolutionPanel` no detalhe e na linha expandida da tabela, para nota **e**
-      parada. "Resolver com observação" com nota obrigatória e permissão `occurrences.resolve`. A mutation invalida
+      parada. "Resolver com observação" com nota obrigatória, permissão `occurrences.resolve` e o aviso no formulário
+      "o motorista vai ler esta observação". A mutation invalida
       feed, linha do tempo e conversas. Teste de renderização e do 409.
 - [ ] **T3.2** `haiku` — Selo "Reaberta pelo motorista" e "Resolvida" no feed, filtro por andamento, locales pt-BR/en.
 - [ ] **T3.3** `haiku` — `describeOccurrenceTimelineEvent` para `resolution.resolved` e `resolution.reopened`, com
@@ -89,11 +99,12 @@
       compartilhar, "Compartilhar os N"), linha do tempo, outras da parada, "Ver a nota na parada".
 - [ ] **T4.7** `sonnet` — `driverFileShare.service.ts`: busca pelo link assinado, `navigator.canShare({ files })` →
       `share`, senão `saveDriverFile`; o PDF abre em aba nova (CSP `frame-src 'none'`). Teste com e sem suporte.
-- [ ] **T4.8** 🧠 `opus` → `sonnet` — Conferir se `@adatechnology/conversations-ui/participant` permite substituir o
-      envio, para que o composer de uma ocorrência resolvida chame `.../reopening`. **Se não permitir**, a mudança vai
-      no pacote (`adatechnology-packages`, worktree e changeset próprios), nunca por cópia no app. Depois, `sonnet`
-      implementa o composer "Responder reabre a ocorrência", o botão "Reabrir e responder" sem conversa e a fila
-      offline com idempotência.
+- [ ] **T4.8** 🧠 `opus` → `sonnet` — Composer travado na ocorrência resolvida, botão "Reabrir" e a primeira
+      mensagem com `reopen: true` pelo envio do `@adatechnology/conversations-ui/participant`. Conferir se o pacote
+      suporta travar o composer e passar o flag no envio. **Se não suportar**, a mudança vai no pacote
+      (`adatechnology-packages`, worktree e changeset próprios), nunca por cópia no app. Depois, `sonnet` implementa o
+      fluxo, o botão sem conversa no detalhe (cria a conversa ao enviar; tocar em Reabrir e não enviar não grava nada) e
+      a fila offline com idempotência. Viagem finalizada: "Viagem encerrada" no link antigo.
 - [ ] **T4.9** `haiku` — `notificationDestination.service.ts`: `trip.occurrence-resolved` → detalhe. Teste em
       `notification-destination.contract.ts`.
 - [ ] **T4.10** `haiku` — Locales pt-BR/en (`driverTrip`) de todas as telas novas. Os rótulos acessíveis dos ícones

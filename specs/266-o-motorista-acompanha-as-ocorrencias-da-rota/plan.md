@@ -21,18 +21,18 @@ moldam o plano:
 
 ### API (`apps/api-transportada`)
 
-| Camada         | Arquivo (novo ou alterado)                                                                                                                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Schema         | `src/database/trip.schema.ts`: tabela `trip_occurrence_resolution_events` + migration Drizzle                                                                                                        |
-| Domínio        | `src/trips/domain/occurrence-resolution.policy.ts` (pura): estado do andamento a partir de (cancelada?, eventos)                                                                                     |
-| Domínio        | `src/trips/domain/occurrence-resolution.error.ts`: `OccurrenceAlreadyResolvedError` (409), `OccurrenceNotResolvedError` (409), `OccurrenceCancelledError` (409); códigos em `shared/errors/codes.ts` |
-| Infra          | `src/trips/infrastructure/drizzle-occurrence-resolution.repository.ts`: inserir evento, último evento por ocorrência (em lote)                                                                       |
-| Infra          | `drizzle-occurrence-case.repository.ts`: transição para estado terminal grava `resolved` (`system`) na mesma transação                                                                               |
-| Aplicação      | `resolve-occurrence.use-case.ts` (escritório), `reopen-occurrence.use-case.ts` (motorista, evento + mensagem), `list-driver-trip-occurrences.use-case.ts`, `find-driver-trip-occurrence.use-case.ts` |
-| Apresentação   | `occurrence-resolution.routes.ts` (escritório), `me-trip-occurrence.routes.ts` (motorista)                                                                                                           |
-| Linha do tempo | `occurrence-timeline.policy.ts`: fontes `resolution.resolved` e `resolution.reopened`                                                                                                                |
-| Feed           | o item do feed ganha `resolution: { state, at, actorKind } \| null` e o filtro `resolutionState`                                                                                                     |
-| Notificação    | `notification-catalog.constant.ts`: `trip.occurrence-resolved` (motorista) e `trip.occurrence-reopened` (escritório)                                                                                 |
+| Camada         | Arquivo (novo ou alterado)                                                                                                                                                                                                                                       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schema         | `src/database/trip.schema.ts`: tabela `trip_occurrence_resolution_events` + migration Drizzle                                                                                                                                                                    |
+| Domínio        | `src/trips/domain/occurrence-resolution.policy.ts` (pura): estado do andamento a partir de (cancelada?, eventos)                                                                                                                                                 |
+| Domínio        | `src/trips/domain/occurrence-resolution.error.ts`: `OccurrenceAlreadyResolvedError` (409), `OccurrenceNotResolvedError` (409), `OccurrenceCancelledError` (409); códigos em `shared/errors/codes.ts`                                                             |
+| Infra          | `src/trips/infrastructure/drizzle-occurrence-resolution.repository.ts`: inserir evento, último evento por ocorrência (em lote)                                                                                                                                   |
+| Infra          | `drizzle-occurrence-case.repository.ts` (`applyTransition`, :152-258): o insert do evento da tratativa devolve o id; transição terminal grava `resolved` (`system`) na mesma transação                                                                           |
+| Aplicação      | `resolve-occurrence.use-case.ts` (escritório), `list-driver-trip-occurrences.use-case.ts`, `find-driver-trip-occurrence.use-case.ts`; a reabertura entra na resposta existente (`reply-my-subject-conversation.use-case.ts` e `driver-conversation.use-case.ts`) |
+| Apresentação   | `occurrence-resolution.routes.ts` (escritório), `me-trip-occurrence.routes.ts` (motorista, prefixo `route-occurrences`)                                                                                                                                          |
+| Linha do tempo | `occurrence-timeline.policy.ts`: fontes `resolution.resolved` e `resolution.reopened`                                                                                                                                                                            |
+| Feed           | o item do feed ganha `resolution: { state, at, actorKind } \| null` e o filtro `resolutionState`                                                                                                                                                                 |
+| Notificação    | `notification-catalog.constant.ts`: `trip.occurrence-resolved` (motorista) e `trip.occurrence-reopened` (escritório)                                                                                                                                             |
 
 ### Painel (`apps/frontend-transportada`)
 
@@ -55,9 +55,10 @@ moldam o plano:
   fileira na `DriverStopCard` (atualiza o golden), páginas `DriverRouteOccurrences.page.tsx` e
   `DriverOccurrenceDetail.page.tsx`.
 - `shared/driverFileShare.service.ts`: `navigator.canShare({ files })` → `navigator.share`; senão `saveDriverFile`.
-- Conversa: a linha leva a `/conversas/occurrence/:id` quando a conversa existe. Ocorrência resolvida → composer de
-  reabertura (T4.8 confere se o `conversations-ui` aceita interceptar o envio; se não aceitar, a mudança vai **no
-  pacote**, com changeset, nunca por cópia).
+- Conversa: a linha leva a `/conversas/occurrence/:id` quando a conversa existe. Ocorrência resolvida → composer
+  travado, botão "Reabrir" e o primeiro envio com `reopen: true` (T4.8 confere se o `conversations-ui` deixa passar o
+  flag no envio; se não deixar, a mudança vai **no pacote**, com changeset, nunca por cópia).
+- Viagem finalizada: o detalhe responde 404 e o app mostra "Viagem encerrada".
 - `notificationDestination.service.ts`: `trip.occurrence-resolved` → detalhe.
 - Ícones `share`, `paperclip`, `arrow-left` em `components/ui/icon.tsx`.
 
@@ -87,7 +88,7 @@ A linha do tempo ganha dois `kind`:
 
 ### Motorista (`trip.read`; reabrir pede `trip.report`; só a viagem atual do token)
 
-`GET /me/trips/current/occurrences`
+`GET /me/trips/current/route-occurrences`
 
 ```ts
 {
@@ -110,26 +111,48 @@ A linha do tempo ganha dois `kind`:
 }
 ```
 
-`GET /me/trips/current/occurrences/:kind/:id`: o item acima mais `note` (observação registrada), `photos[]`,
+`GET /me/trips/current/route-occurrences/:kind/:id`: o item acima mais `note` (observação registrada), `photos[]`,
 `signature`, `attachments[]` (anexos do chat com `messageId`, nome, tipo e tamanho) e `timeline[]`, com os eventos
-`recorded`, `photo`, `cancelled`, `resolution.*` e `case.transition` traduzido para frase do motorista. Os links
-assinados (5 min) vêm em `GET .../attachments/:objectId/url` sob demanda; o retrato offline guarda só metadado.
+`recorded`, `photo`, `cancelled` e `resolution.*`. **`case.transition` não entra** (informação comercial, ADR-0045 §6).
+Os links assinados (5 min) vêm em `GET /me/trips/current/route-occurrences/:kind/:id/attachments/:objectId/url` sob
+demanda; o retrato offline guarda só metadado. O prefixo é `route-occurrences` porque o roteador usa o primeiro match
+dinâmico (`router.service.ts:708-727`) e `/me/trips/current/occurrences/:id/messages` já existe. Lista, detalhe e links
+valem só com a viagem **não finalizada**; depois, 404.
 
-`POST /me/trips/current/occurrences/:kind/:id/reopening`
+Estado exibido: `cancelled_at` preenchido (só ocorrência de nota; a de parada não cancela) → `cancelled`; sem evento →
+`open`; último `resolved` → `resolved`; último `reopened` → `open` com `reopenedAt`. A tratativa cancelada pela própria
+ação `cancel` resolve a ocorrência como `system`, mas a ocorrência **não** fica cancelada.
+
+`resolution.note` para `actorKind = 'system'` é uma **frase fixa** por status terminal da tratativa (`closed` →
+"Encerrada pelo escritório", `returned_to_warehouse` → "Mercadoria devolvida ao armazém", `cancelled` → "Tratativa
+cancelada pelo escritório"), nunca a nota interna. Para `internal` é a observação do operador.
+
+Reabrir **não tem rota própria**. A resposta existente do motorista na conversa da ocorrência
+(`POST /me/trips/current/occurrences/:id/messages`) ganha `reopen?: true` no corpo:
 
 ```ts
-{ clientMessageId: string /* uuid */; text: string /* 1..4000 */; attachmentIds?: string[] }
-// 201 { data: { state: 'open', reopenedAt, conversationId, messageId } }
-// 200 quando o clientMessageId já foi processado (idempotência; mesma resposta)
-// 409 OCCURRENCE_NOT_RESOLVED · 409 OCCURRENCE_CANCELLED · 404 fora da viagem atual
+{ /* corpo atual da resposta */ reopen?: true }
+// Dentro de replayOrRun.run, na mesma transação: trava a ocorrência (FOR NO KEY UPDATE) e lê o estado.
+// cancelada → 409 OCCURRENCE_CANCELLED
+// reopen e resolvida → insere `reopened` com conversation_message_id
+// reopen e não resolvida → 409 OCCURRENCE_NOT_RESOLVED
+// sem reopen → grava a mensagem como hoje, sem evento
 ```
+
+`reopen` entra na impressão digital da idempotência. Criação da conversa (`findOrCreateDriverConversation`),
+`Idempotency-Key` e regras de ajudante são herdadas. Vale nos dois use cases (`reply-my-subject-conversation` e
+`driver-conversation`).
 
 ### Notificações
 
-| Template                   | Para quem                                                                                 | Payload (sem corpo de mensagem)                                      |
-| -------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `trip.occurrence-resolved` | motorista da viagem (e ajudante, se houver)                                               | `{ subjectType: 'occurrence', occurrenceKind, subjectId, typeName }` |
-| `trip.occurrence-reopened` | quem gravou o último `resolved`; se foi `system`, o ator interno que encerrou a tratativa | `{ occurrenceKind, occurrenceId, tripId, typeName }`                 |
+| Template                   | Para quem                                                                                                           | Payload (sem corpo de mensagem)                                      |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `trip.occurrence-resolved` | a equipe inteira da viagem (motorista e ajudantes); **não** se a viagem já terminou                                 | `{ subjectType: 'occurrence', occurrenceKind, subjectId, typeName }` |
+| `trip.occurrence-reopened` | quem gravou o último `resolved` (`actor_user_id`); se foi `system`, o `actor_user_id` do evento da tratativa ligado | `{ occurrenceKind, occurrenceId, tripId, typeName }`                 |
+
+Sem `note` em nenhum payload. Se o destinatário já não tem `occurrences.resolve` na empresa, não há notificação (o filtro
+do feed cobre) e fica um log `info` sem texto. A permissão `occurrences.resolve` já existe
+(`authorization.policy.ts:115`): reusa, sem seed.
 
 ## Dados, migration e rollback
 
@@ -137,29 +160,42 @@ assinados (5 min) vêm em `GET .../attachments/:objectId/url` sob demanda; o ret
 CREATE TABLE trip_occurrence_resolution_events (
   id uuid PRIMARY KEY,                       -- v7
   company_id uuid NOT NULL REFERENCES companies(id),
-  occurrence_kind varchar(16) NOT NULL CHECK (occurrence_kind IN ('document','stop')),
-  occurrence_id uuid NOT NULL,
+  document_occurrence_id uuid NULL,          -- FK (company_id, x) -> trip_document_occurrences (company_id, id) ON DELETE CASCADE
+  stop_occurrence_id uuid NULL,              -- FK (company_id, x) -> trip_stop_occurrences (company_id, id) ON DELETE CASCADE
   kind varchar(16) NOT NULL CHECK (kind IN ('resolved','reopened')),
   actor_kind varchar(16) NOT NULL CHECK (actor_kind IN ('internal','driver','system')),
   actor_user_id uuid NULL,                   -- NULL só para system
-  note text NULL,
+  case_event_id uuid NULL,                   -- FK (company_id, id) -> trip_occurrence_case_events; só para system
+  note text NULL,                            -- resolved: observação do operador ou frase fixa do status
   conversation_message_id uuid NULL,         -- obrigatório para reopened
-  client_message_id uuid NULL,               -- idempotência da reabertura
   created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (num_nonnulls(document_occurrence_id, stop_occurrence_id) = 1),
   CHECK ((actor_kind = 'system') = (actor_user_id IS NULL)),
+  CHECK ((actor_kind = 'system') = (case_event_id IS NOT NULL)),
   CHECK (kind <> 'resolved' OR note IS NOT NULL),
+  CHECK (kind <> 'resolved' OR actor_kind <> 'internal' OR length(btrim(note)) > 0),
   CHECK (kind <> 'reopened' OR (actor_kind = 'driver' AND conversation_message_id IS NOT NULL))
 );
-CREATE INDEX ... ON trip_occurrence_resolution_events (company_id, occurrence_kind, occurrence_id, created_at DESC);
-CREATE UNIQUE INDEX ... ON trip_occurrence_resolution_events (company_id, client_message_id) WHERE client_message_id IS NOT NULL;
+CREATE INDEX ... ON trip_occurrence_resolution_events (company_id, document_occurrence_id, created_at DESC, id) WHERE document_occurrence_id IS NOT NULL;
+CREATE INDEX ... ON trip_occurrence_resolution_events (company_id, stop_occurrence_id, created_at DESC, id) WHERE stop_occurrence_id IS NOT NULL;
+CREATE UNIQUE INDEX ... ON trip_occurrence_resolution_events (company_id, case_event_id) WHERE case_event_id IS NOT NULL;
+CREATE UNIQUE INDEX ... ON trip_occurrence_resolution_events (company_id, conversation_message_id) WHERE conversation_message_id IS NOT NULL;
 ```
 
 A migration é **aditiva** (tabela nova). Rollback: `DROP TABLE`, sem perda de dado de outra feature. O backfill não é
 feito: tratativa já encerrada antes do deploy aparece como "em aberto" para o motorista. A T2.4 mede quantas são em
 staging e decide, com o dono, entre aceitar ou fazer um backfill `system` (task separada, aprovação humana).
 
-A corrida entre duas reaberturas, ou entre resolver e reabrir, é tratada com `SELECT ... FOR UPDATE` no último evento
-da ocorrência dentro da transação. O estado é validado depois do lock.
+A corrida entre reabrir, resolver e a resolução automática é tratada travando a **linha da ocorrência** com
+`FOR NO KEY UPDATE` dentro da transação (mesmo molde do cancelamento da 167,
+`drizzle-occurrence-correction.repository.ts:92-117`). Não há `FOR UPDATE` no último evento: com zero evento não haveria
+o que travar. O estado, inclusive `cancelled_at`, é lido **depois** do lock. A ordem é sempre tratativa → ocorrência. A
+T2.4 audita o caminho do cancelamento da 167 contra essa ordem.
+
+**Resolução automática.** Em `applyTransition` (`drizzle-occurrence-case.repository.ts:152-258`), depois de inserir o
+evento da tratativa (que devolve o id), se a transição é terminal (`closed`, `returned_to_warehouse`, `cancelled`;
+`decided` **não** é terminal): trava a ocorrência; se já está resolvida, não faz nada; senão insere `resolved` com
+`actor_kind = 'system'`, a frase fixa do status e `case_event_id`.
 
 ## Segurança e tenant
 
@@ -171,7 +207,8 @@ da ocorrência dentro da transação. O estado é validado depois do lock.
 
 ## Idempotência e concorrência
 
-- Reabrir é idempotente por `client_message_id`, com índice único. A segunda chamada devolve a mesma resposta com 200.
+- Reabrir é idempotente pela **mesma** `Idempotency-Key` da resposta existente (`replayOrRun`), com `reopen` na impressão
+  digital. O índice único `(company_id, conversation_message_id)` fecha a duplicata.
 - A fila offline do app reenvia com a mesma chave (molde da 263).
 - Resolver duas vezes dá 409. O app do painel trata como "já resolvida" e atualiza o feed.
 
@@ -186,7 +223,7 @@ da ocorrência dentro da transação. O estado é validado depois do lock.
 | Camada        | Teste                                                                                                                                                                                                               |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Política pura | `occurrence-resolution.policy.contract.ts`: sem evento → open; último resolved → resolved; reopened depois de resolved → open + `reopenedAt`; cancelada vence tudo                                                  |
-| Rotas         | contrato das três rotas novas (corpo, 404 de outra empresa ou motorista, 409, idempotência)                                                                                                                         |
+| Rotas         | contrato das rotas novas e do `reopen` na resposta (corpo, 404 de outra empresa, motorista ou viagem finalizada, 409, idempotência); **nenhum par de rotas com o mesmo método casa o mesmo caminho**                |
 | Integração    | `occurrence-resolution.integration.ts`: tratativa fechada grava `system`; corrida resolver × reabrir; reabrir cria a conversa; índice único                                                                         |
 | Painel        | guardas tolerantes (Fase 1); painel de resolução; descrição dos eventos                                                                                                                                             |
 | App           | `route-occurrence-view.contract.ts` (junção servidor + fila, contagem do alerta); renderização do cabeçalho com 0 e com N; golden da parada; destino da notificação; serviço de compartilhar (com e sem `canShare`) |
@@ -196,10 +233,10 @@ Integração roda com `bun --env-file=../../.env.test run test:integration`. A m
 
 ## Riscos
 
-| Risco                                              | Mitigação                                                                         |
-| -------------------------------------------------- | --------------------------------------------------------------------------------- |
-| O painel antigo quebra com o `kind` novo           | Fase 1 publicada antes, com aceite 6 do spec                                      |
-| O `conversations-ui` não deixa interceptar o envio | T4.8 confere primeiro; a mudança vai no pacote com changeset                      |
-| Tratativas antigas encerradas aparecem "em aberto" | T2.4 mede; o backfill é decisão do dono                                           |
-| `navigator.share` com arquivo falha no iOS antigo  | Cai em download (`saveDriverFile`)                                                |
-| Lista longa em viagem de 30 paradas                | Uma consulta em lote para o último evento por ocorrência; sem N+1 (auditoria §15) |
+| Risco                                                   | Mitigação                                                                         |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| O painel antigo quebra com o `kind` novo                | Fase 1 publicada antes, com aceite 6 do spec                                      |
+| O `conversations-ui` não deixa passar `reopen` no envio | T4.8 confere primeiro; a mudança vai no pacote com changeset                      |
+| Tratativas antigas encerradas aparecem "em aberto"      | T2.4 mede; o backfill é decisão do dono                                           |
+| `navigator.share` com arquivo falha no iOS antigo       | Cai em download (`saveDriverFile`)                                                |
+| Lista longa em viagem de 30 paradas                     | Uma consulta em lote para o último evento por ocorrência; sem N+1 (auditoria §15) |
