@@ -653,5 +653,12 @@
       "titleRequired": "Signature (required)"
     },
     "title": "Report an occurrence"
+  },
+  "routeOccurrence": {
+    "phrase": {
+      "case_cancelled": "Case cancelled by the office",
+      "case_closed": "Closed by the office",
+      "case_returned_to_warehouse": "Goods returned to the warehouse"
+    }
   }
 }

@@ -36,11 +36,22 @@ const WIRE_ITEM = {
   recordedAt: '2026-10-15T10:00:00.000Z',
   recordedByMe: true,
   reopenedAt: null,
+  reportKey: 'key-9',
   resolution: null,
   state: 'open',
   stopId: 'stop-1',
   stopSequence: 2,
   type: { iconName: 'camera', id: 'type-1', name: 'Avaria' },
+}
+
+/** O erro com que a promessa rejeitou; `undefined` se ela resolveu. */
+async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise
+  } catch (error) {
+    return error
+  }
+  return undefined
 }
 
 function occurrence(): DriverRouteOccurrence {
@@ -86,6 +97,7 @@ describe('validação da lista de ocorrências da rota (spec 266 T4.2)', () => {
       recordedAt: '2026-10-15T10:00:00.000Z',
       recordedByMe: true,
       reopenedAt: null,
+      reportKey: 'key-9',
       resolution: null,
       state: 'open',
       stopId: 'stop-1',
@@ -99,13 +111,45 @@ describe('validação da lista de ocorrências da rota (spec 266 T4.2)', () => {
       data: [
         {
           ...WIRE_ITEM,
-          resolution: { actorKind: 'robot', at: '2026-10-15T11:00:00.000Z', note: 'Ok' },
+          resolution: {
+            actorKind: 'robot',
+            at: '2026-10-15T11:00:00.000Z',
+            note: 'Ok',
+            phraseKey: 'case_unknown',
+          },
           state: 'archived',
         },
       ],
     })
     expect(item?.state).toBe('open')
     expect(item?.resolution?.actorKind).toBe('system')
+    expect(item?.resolution?.phraseKey).toBeNull()
+  })
+
+  it('resolução: nota nula e frase fixa conhecida; reportKey ausente vira null', () => {
+    const withoutReportKey: Record<string, unknown> = { ...WIRE_ITEM }
+    delete withoutReportKey.reportKey
+    const [item] = toDriverRouteOccurrenceList({
+      data: [
+        {
+          ...withoutReportKey,
+          resolution: {
+            actorKind: 'system',
+            at: '2026-10-15T11:00:00.000Z',
+            note: null,
+            phraseKey: 'case_returned_to_warehouse',
+          },
+          state: 'resolved',
+        },
+      ],
+    })
+    expect(item?.reportKey).toBeNull()
+    expect(item?.resolution).toEqual({
+      actorKind: 'system',
+      at: '2026-10-15T11:00:00.000Z',
+      note: null,
+      phraseKey: 'case_returned_to_warehouse',
+    })
   })
 
   it('recusa item malformado', () => {
@@ -202,27 +246,31 @@ describe('o retrato offline das ocorrências (spec 266 T4.2)', () => {
 
   it('sem rede e sem retrato, o erro sobe', async () => {
     const offline = new DriverTripRequestError({ code: 'OFFLINE', isOffline: true })
-    await expect(
-      loadRouteOccurrences({
-        now: NOW,
-        readList: () => Promise.reject(offline),
-        store: createMemorySnapshotStore(),
-        tripId: 'trip-1',
-      }),
-    ).rejects.toBe(offline)
+    expect(
+      await rejectionOf(
+        loadRouteOccurrences({
+          now: NOW,
+          readList: () => Promise.reject(offline),
+          store: createMemorySnapshotStore(),
+          tripId: 'trip-1',
+        }),
+      ),
+    ).toBe(offline)
   })
 
   it('recusa 4xx não cai no retrato: é resposta, não queda', async () => {
     const refused = new DriverTripRequestError({ code: 'FORBIDDEN', isOffline: false, status: 403 })
     const saved = { occurrences: [occurrence()], savedAt: NOW.toISOString(), tripId: 'trip-1' }
-    await expect(
-      loadRouteOccurrences({
-        now: NOW,
-        readList: () => Promise.reject(refused),
-        store: createMemorySnapshotStore([saved]),
-        tripId: 'trip-1',
-      }),
-    ).rejects.toBe(refused)
+    expect(
+      await rejectionOf(
+        loadRouteOccurrences({
+          now: NOW,
+          readList: () => Promise.reject(refused),
+          store: createMemorySnapshotStore([saved]),
+          tripId: 'trip-1',
+        }),
+      ),
+    ).toBe(refused)
   })
 
   it('viagem finalizada devolve o estado e apaga o retrato', async () => {
@@ -258,14 +306,29 @@ describe('o cliente das rotas de leitura (spec 266 T4.2)', () => {
     })
   }
 
-  it('404 é viagem finalizada, não exceção', async () => {
+  it('404 DRIVER_TRIP_NOT_ACTIVE é viagem finalizada, não exceção', async () => {
     const client = clientRespondingWith(
-      () => new Response('{"error":{"code":"TRIP_NOT_FOUND"}}', { status: 404 }),
+      () => new Response('{"error":{"code":"DRIVER_TRIP_NOT_ACTIVE"}}', { status: 404 }),
     )
     expect(await client.listRouteOccurrences()).toEqual({ status: 'tripFinished' })
     expect(await client.readRouteOccurrence({ id: 'o', kind: 'stop' })).toEqual({
       status: 'tripFinished',
     })
+  })
+
+  it('404 de ocorrência, de anexo ou de código desconhecido é notFound', async () => {
+    for (const code of [
+      'TRIP_OCCURRENCE_NOT_FOUND',
+      'TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND',
+      'SOMETHING_ELSE',
+    ]) {
+      const client = clientRespondingWith(
+        () => new Response(JSON.stringify({ error: { code } }), { status: 404 }),
+      )
+      expect(await client.readRouteOccurrence({ id: 'o', kind: 'stop' })).toEqual({
+        status: 'notFound',
+      })
+    }
   })
 
   it('200 devolve a lista validada', async () => {
@@ -276,12 +339,32 @@ describe('o cliente das rotas de leitura (spec 266 T4.2)', () => {
 
   it('corpo fora do contrato vira RESPONSE_INVALID', async () => {
     const client = clientRespondingWith(() => new Response('{"data":[{"id":1}]}'))
-    await expect(client.listRouteOccurrences()).rejects.toMatchObject({ code: 'RESPONSE_INVALID' })
+    expect(await rejectionOf(client.listRouteOccurrences())).toMatchObject({
+      code: 'RESPONSE_INVALID',
+    })
   })
 
   it('500 sobe como erro com status', async () => {
     const client = clientRespondingWith(() => new Response('{}', { status: 500 }))
-    await expect(client.listRouteOccurrences()).rejects.toMatchObject({ status: 500 })
+    expect(await rejectionOf(client.listRouteOccurrences())).toMatchObject({ status: 500 })
+  })
+})
+
+describe('as frases fixas da tratativa no locale (spec 266 T4.2b)', () => {
+  it('as três existem em pt-BR e en', () => {
+    for (const file of ['driverTrip.locale.json', 'driverTrip.en.locale.json']) {
+      const locale = JSON.parse(
+        readFileSync(
+          new URL(`../../src/modules/driver-trip/locales/${file}`, import.meta.url),
+          'utf8',
+        ),
+      ) as { routeOccurrence: { phrase: Record<string, string> } }
+      expect(Object.keys(locale.routeOccurrence.phrase).sort()).toEqual([
+        'case_cancelled',
+        'case_closed',
+        'case_returned_to_warehouse',
+      ])
+    }
   })
 })
 

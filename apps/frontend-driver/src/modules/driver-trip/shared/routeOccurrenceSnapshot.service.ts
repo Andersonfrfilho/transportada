@@ -32,9 +32,9 @@ export async function loadRouteOccurrences(input: {
     }
   }
 
-  if (result.status === 'tripFinished') {
+  if (result.status !== 'loaded') {
     await input.store.remove(input.tripId).catch(() => undefined)
-    return { status: 'tripFinished' }
+    return { status: result.status }
   }
 
   const record: StoredRouteOccurrences = {

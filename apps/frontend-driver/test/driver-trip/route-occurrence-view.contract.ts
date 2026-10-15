@@ -44,6 +44,7 @@ function serverOccurrence(overrides: Partial<DriverRouteOccurrence> = {}): Drive
     recordedAt: at(0),
     recordedByMe: true,
     reopenedAt: null,
+    reportKey: null,
     resolution: null,
     state: 'open',
     stopId: 'stop-1',
@@ -206,7 +207,7 @@ describe('junção do servidor com a fila (spec 266 T4.3)', () => {
           conversationExists: true,
           documentCount: 1,
           reopenedAt: at(5),
-          resolution: { actorKind: 'internal', at: at(4), note: 'Resolvido' },
+          resolution: { actorKind: 'internal', at: at(4), note: 'Resolvido', phraseKey: null },
           state: 'resolved',
         }),
       ],
@@ -217,9 +218,49 @@ describe('junção do servidor com a fila (spec 266 T4.3)', () => {
       hasDocument: true,
       isReopened: true,
       resolutionNote: 'Resolvido',
+      resolutionPhraseKey: undefined,
       state: 'resolved',
       unreadCount: 3,
     })
+  })
+
+  it('resolução do sistema carrega a frase fixa, sem nota', () => {
+    const [entry] = build({
+      server: [
+        serverOccurrence({
+          resolution: { actorKind: 'system', at: at(4), note: null, phraseKey: 'case_cancelled' },
+          state: 'cancelled',
+        }),
+      ],
+    })
+    expect(entry).toMatchObject({
+      resolutionNote: undefined,
+      resolutionPhraseKey: 'case_cancelled',
+    })
+  })
+
+  it('reportKey presente casa a fila por chave exata, mesmo com hora e tipo longe', () => {
+    const entries = build({
+      queued: [queuedDocumentOccurrence({ key: 'exact', minutes: 120, typeId: 'other' })],
+      server: [serverOccurrence({ recordedAt: at(0), reportKey: 'exact' })],
+    })
+    expect(entries.map((entry) => entry.source)).toEqual(['server'])
+  })
+
+  it('reportKey presente que não está na fila não aciona a heurística', () => {
+    const entries = build({
+      queued: [queuedDocumentOccurrence({ key: 'k-queue', minutes: 1 })],
+      server: [serverOccurrence({ recordedAt: at(0), reportKey: 'another' })],
+    })
+    expect(entries.map((entry) => entry.source)).toEqual(['server', 'queue'])
+  })
+
+  it('reportKey exato absorve também de ocorrência que não é minha', () => {
+    const entries = build({
+      queued: [queuedDocumentOccurrence({ key: 'exact' })],
+      server: [serverOccurrence({ recordedByMe: false, reportKey: 'exact' })],
+    })
+    expect(entries.map((entry) => entry.source)).toEqual(['server'])
   })
 })
 

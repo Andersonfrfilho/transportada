@@ -671,5 +671,12 @@
       "titleRequired": "Assinatura (obrigatória)"
     },
     "title": "Registrar ocorrência"
+  },
+  "routeOccurrence": {
+    "phrase": {
+      "case_cancelled": "Tratativa cancelada pelo escritório",
+      "case_closed": "Encerrada pelo escritório",
+      "case_returned_to_warehouse": "Mercadoria devolvida ao armazém"
+    }
   }
 }

@@ -62,7 +62,8 @@ function toServerEntry(input: {
     kind: occurrence.kind,
     recordedAt: occurrence.recordedAt,
     rejectionCause: undefined,
-    resolutionNote: occurrence.resolution?.note,
+    resolutionNote: occurrence.resolution?.note ?? undefined,
+    resolutionPhraseKey: occurrence.resolution?.phraseKey ?? undefined,
     source: 'server',
     state: occurrence.state,
     stopId: occurrence.stopId,
@@ -99,6 +100,7 @@ function toQueuedEntry(input: {
     recordedAt: item.createdAt,
     rejectionCause: item.rejectionCause,
     resolutionNote: undefined,
+    resolutionPhraseKey: undefined,
     source: 'queue',
     state: item.rejectionCause === undefined ? 'queued' : 'rejected',
     stopId: report.kind === 'occurrence' ? report.stopId : (stop?.id ?? ''),
@@ -115,12 +117,20 @@ function isSameSubjectAndType(server: RouteOccurrenceEntry, queued: RouteOccurre
   return queued.typeId === null || queued.typeId === server.typeId
 }
 
-/** Casa cada item da fila (não recusado) com a ocorrência do servidor mais próxima no tempo, um a um. */
+/**
+ * Com `reportKey` o elo é exato (a chave de idempotência do item da fila). Só a ocorrência sem
+ * `reportKey` cai na heurística; casa cada item da fila (não recusado) com a mais próxima no tempo, um a um.
+ */
 function findAbsorbedQueueIds(input: {
   readonly queued: readonly RouteOccurrenceEntry[]
   readonly server: readonly RouteOccurrenceEntry[]
+  readonly reportKeys: ReadonlyMap<string, string>
 }): ReadonlySet<string> {
   const absorbed = new Set<string>()
+  const queuedIds = new Set(input.queued.map(({ id }) => id))
+  for (const reportKey of input.reportKeys.values()) {
+    if (queuedIds.has(reportKey)) absorbed.add(reportKey)
+  }
   for (const serverEntry of input.server) {
     const candidate = input.queued
       .filter(
@@ -149,8 +159,15 @@ export function buildRouteOccurrenceEntries(
     toServerEntry({ occurrence, unreadByOccurrenceId: params.unreadByOccurrenceId }),
   )
   /** Só o que eu registrei pode ter vindo da minha fila. */
-  const ownIds = new Set(
-    params.serverOccurrences.filter((occurrence) => occurrence.recordedByMe).map(({ id }) => id),
+  const ownWithoutReportKeyIds = new Set(
+    params.serverOccurrences
+      .filter((occurrence) => occurrence.recordedByMe && occurrence.reportKey === null)
+      .map(({ id }) => id),
+  )
+  const reportKeys = new Map(
+    params.serverOccurrences.flatMap((occurrence): [string, string][] =>
+      occurrence.reportKey === null ? [] : [[occurrence.id, occurrence.reportKey]],
+    ),
   )
   const queued = params.queuedReports.flatMap((item) =>
     isQueuedOccurrenceReport(item.report)
@@ -159,7 +176,8 @@ export function buildRouteOccurrenceEntries(
   )
   const absorbed = findAbsorbedQueueIds({
     queued,
-    server: serverEntries.filter((entry) => ownIds.has(entry.id)),
+    reportKeys,
+    server: serverEntries.filter((entry) => ownWithoutReportKeyIds.has(entry.id)),
   })
   return [...serverEntries, ...queued.filter((entry) => !absorbed.has(entry.id))]
 }

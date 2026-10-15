@@ -12,6 +12,7 @@ import type {
 } from './driverRouteOccurrence.types'
 import {
   ROUTE_OCCURRENCE_KINDS,
+  ROUTE_OCCURRENCE_PHRASE_KEYS,
   ROUTE_OCCURRENCE_SERVER_STATES,
 } from './driverRouteOccurrence.types'
 
@@ -73,7 +74,9 @@ function readResolution(value: unknown): RouteOccurrenceResolution | null {
     /** Ator desconhecido não nomeia ninguém: cai em `system`. */
     actorKind: record.actorKind === 'internal' ? 'internal' : 'system',
     at: readString(record.at),
-    note: readString(record.note),
+    note: readNullableString(record.note),
+    /** Frase desconhecida (API mais nova) não inventa texto: o quadro cai na nota ou fica sem frase. */
+    phraseKey: ROUTE_OCCURRENCE_PHRASE_KEYS.find((key) => key === record.phraseKey) ?? null,
   }
 }
 
@@ -106,6 +109,7 @@ export function toDriverRouteOccurrence(value: unknown): DriverRouteOccurrence {
     recordedAt: readString(record.recordedAt),
     recordedByMe: record.recordedByMe === true,
     reopenedAt: readNullableString(record.reopenedAt),
+    reportKey: readNullableString(record.reportKey),
     resolution: readResolution(record.resolution),
     state: readState(record.state),
     stopId: readString(record.stopId),

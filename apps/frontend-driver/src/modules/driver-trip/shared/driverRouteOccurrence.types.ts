@@ -9,11 +9,20 @@ export type RouteOccurrenceServerState = (typeof ROUTE_OCCURRENCE_SERVER_STATES)
 
 export type RouteOccurrenceResolutionActorKind = 'internal' | 'system'
 
+/** A frase fixa do status da tratativa; o texto vem do locale, não do servidor. */
+export const ROUTE_OCCURRENCE_PHRASE_KEYS = [
+  'case_closed',
+  'case_returned_to_warehouse',
+  'case_cancelled',
+] as const
+export type RouteOccurrencePhraseKey = (typeof ROUTE_OCCURRENCE_PHRASE_KEYS)[number]
+
 export type RouteOccurrenceResolution = Readonly<{
   actorKind: RouteOccurrenceResolutionActorKind
   at: string
-  /** `internal`: a observação do operador; `system`: a frase fixa do status da tratativa. */
-  note: string
+  /** `internal`: a observação do operador; `system`: sem nota, vale `phraseKey`. */
+  note: string | null
+  phraseKey: RouteOccurrencePhraseKey | null
 }>
 
 export type DriverRouteOccurrence = Readonly<{
@@ -26,6 +35,8 @@ export type DriverRouteOccurrence = Readonly<{
   recordedAt: string
   recordedByMe: boolean
   reopenedAt: string | null
+  /** A chave de idempotência do toque que criou a ocorrência; `null` quando veio do escritório. */
+  reportKey: string | null
   resolution: RouteOccurrenceResolution | null
   state: RouteOccurrenceServerState
   stopId: string
@@ -57,9 +68,10 @@ export type DriverRouteOccurrenceDetail = DriverRouteOccurrence &
     timeline: readonly RouteOccurrenceTimelineEvent[]
   }>
 
-/** Decisão C: com a viagem finalizada a API responde 404 e a tela diz "Viagem encerrada". */
+/** `DRIVER_TRIP_NOT_ACTIVE` é viagem encerrada; qualquer outro 404 (ocorrência ou anexo) é `notFound`. */
 export type RouteOccurrencesReadResult<TData> =
   | Readonly<{ data: TData; status: 'loaded' }>
+  | Readonly<{ status: 'notFound' }>
   | Readonly<{ status: 'tripFinished' }>
 
 /** O retrato offline da lista: só metadado, por viagem. */
@@ -86,4 +98,5 @@ export type RouteOccurrencesQueryData =
       savedAt: string | undefined
       status: 'loaded'
     }>
+  | Readonly<{ status: 'notFound' }>
   | Readonly<{ status: 'tripFinished' }>

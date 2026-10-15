@@ -1,5 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { DriverRouteOccurrence, RouteOccurrenceKind } from './driverRouteOccurrence.types'
+import type {
+  DriverRouteOccurrence,
+  RouteOccurrenceKind,
+  RouteOccurrencePhraseKey,
+} from './driverRouteOccurrence.types'
 import type { QueuedReport } from './offlineQueue.service'
 
 /** `queued` e `rejected` são da fila local; os outros vêm do servidor (spec 266 RF1). */
@@ -28,6 +32,7 @@ export type RouteOccurrenceEntry = Readonly<{
   /** Só `rejected`: a causa que a fila guardou. */
   rejectionCause: string | undefined
   resolutionNote: string | undefined
+  resolutionPhraseKey: RouteOccurrencePhraseKey | undefined
   source: 'queue' | 'server'
   state: RouteOccurrenceEntryState
   stopId: string

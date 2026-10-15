@@ -1392,7 +1392,9 @@ async function request(
   return payload
 }
 
-/** Spec 266 decisão C: `404` das rotas de leitura é viagem finalizada; corpo fora do contrato é recusa explícita. */
+const DRIVER_TRIP_NOT_ACTIVE_CODE = 'DRIVER_TRIP_NOT_ACTIVE'
+
+/** Spec 266: `404 DRIVER_TRIP_NOT_ACTIVE` é viagem finalizada; os demais 404 são `notFound`; corpo fora do contrato é recusa explícita. */
 async function readRouteOccurrencesOrFinished<TData>(
   input: Readonly<{ parse: (payload: unknown) => TData; send: () => Promise<unknown> }>,
 ): Promise<RouteOccurrencesReadResult<TData>> {
@@ -1401,7 +1403,9 @@ async function readRouteOccurrencesOrFinished<TData>(
     payload = await input.send()
   } catch (error) {
     if (error instanceof DriverTripRequestError && error.status === 404) {
-      return { status: 'tripFinished' }
+      return error.code === DRIVER_TRIP_NOT_ACTIVE_CODE
+        ? { status: 'tripFinished' }
+        : { status: 'notFound' }
     }
     throw error
   }
