@@ -58,16 +58,22 @@ export function resolveProofFormPlan(settings: DriverDeliveryProofSettings | nul
   }
 }
 
-/** Só o canhoto é pedido: nada mais para preencher depois do envio, então "Concluir" não decide nada. */
-export function isPhotoOnlyPlan(plan: ProofFormPlan): boolean {
-  return (
-    plan.rendersPhoto &&
-    !plan.rendersCargo &&
-    !plan.rendersReceivedBy &&
-    !plan.rendersReceiverDocument &&
-    !plan.rendersReceiverName &&
-    !plan.rendersSignature
-  )
+/**
+ * Um único comprovante pedido, e ele é daqueles que seguram o "Entreguei" (foto, assinatura, nome,
+ * documento ou fotos da mercadoria): feito o "Confirmar entrega", não sobra nada a preencher, então o
+ * "Concluir" não decide nada e o comprovante se conclui sozinho. Qualquer segundo campo — obrigatório
+ * ou opcional — devolve o "Concluir". Vale para qualquer empresa, não só para quem só pede o canhoto.
+ */
+export function isSingleProofPlan(plan: ProofFormPlan): boolean {
+  const renderedCount = [
+    plan.rendersCargo,
+    plan.rendersPhoto,
+    plan.rendersReceivedBy,
+    plan.rendersReceiverDocument,
+    plan.rendersReceiverName,
+    plan.rendersSignature,
+  ].filter(Boolean).length
+  return renderedCount === 1 && requiresProofBeforeDelivery(plan)
 }
 
 export type ProofFormValues = Readonly<{

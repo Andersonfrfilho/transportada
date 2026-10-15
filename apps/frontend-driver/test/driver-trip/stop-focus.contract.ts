@@ -5,14 +5,13 @@ import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'bun:test'
 
 import {
-  PHOTO_FOCUS_TARGET,
   focusFinishButton,
   NEXT_STEP_FOCUS_DELAY_MS,
   armNextStepFocus,
   consumeAutoConclude,
   markFocusTarget,
   consumeNextStepFocus,
-  focusFirstRequiredPhoto,
+  focusFirstRequiredProof,
   focusNextProofStep,
   resolveScrollBehavior,
   revealPanel,
@@ -80,8 +79,8 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
         return fakeButton(calls)
       },
     } as unknown as Element
-    focusFirstRequiredPhoto(card)
-    expect(selector).toBe(`[data-focus-target="${PHOTO_FOCUS_TARGET}"]`)
+    focusFirstRequiredProof(card)
+    expect(selector).toBe('[data-focus-target]')
     expect(calls).toEqual([
       'focus {"focusVisible":true,"preventScroll":true}',
       'scroll {"behavior":"smooth","block":"nearest"}',
@@ -89,9 +88,9 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
 
     const typing: Calls = []
     globals.document = { activeElement: new (globals.HTMLInputElement as new () => object)() }
-    focusFirstRequiredPhoto({ querySelector: () => fakeButton(typing) } as unknown as Element)
+    focusFirstRequiredProof({ querySelector: () => fakeButton(typing) } as unknown as Element)
     expect(typing).toEqual([])
-    focusFirstRequiredPhoto(null)
+    focusFirstRequiredProof(null)
   })
 
   it('depois da foto, o foco espera 1 s e vai ao próximo obrigatório ou, sem ele, ao botão de concluir', () => {

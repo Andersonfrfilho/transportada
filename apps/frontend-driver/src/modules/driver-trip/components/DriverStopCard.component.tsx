@@ -22,7 +22,7 @@ import {
   consumeNextStepFocus,
   consumeStopAdvanceFocus,
   SIGNATURE_FOCUS_TARGET,
-  focusFirstRequiredPhoto,
+  focusFirstRequiredProof,
   focusNextPhotoAfter,
   markFocusTarget,
   focusNextProofStep,
@@ -91,7 +91,7 @@ import {
   listMissingProofFields,
   listPendingReceiverFields,
   maskReceiverDocument,
-  isPhotoOnlyPlan,
+  isSingleProofPlan,
   requiresProofBeforeDelivery,
   resolveProofFormPlan,
   type ProofFieldKey,
@@ -393,7 +393,7 @@ export function DriverStopCard({
     const wasRecorded = wasArrivalRecordedRef.current
     wasArrivalRecordedRef.current = isArrivalRecorded
     if (wasRecorded || !isArrivalRecorded) return undefined
-    focusFirstRequiredPhoto(cardRef.current)
+    focusFirstRequiredProof(cardRef.current)
     return undefined
   }, [isArrivalRecorded])
   const offersLateRegistration = canOfferLateRegistration({ canActOnDocuments, stop })
@@ -1272,13 +1272,13 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
    * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
   const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
   /**
-   * Pedido do usuário (15/10): com o canhoto como único comprovante, "Confirmar entrega" já conclui —
+   * Pedido do usuário (15/10): com um único comprovante (hoje o canhoto), "Confirmar entrega" já conclui —
    * "Concluir" só existe quando há mais o que preencher depois do envio. Quem arma é o toque no gate.
    */
-  const isPhotoOnly = isPhotoOnlyPlan(resolveProofFormPlan(props.proofSettings))
-  const isProofSent = props.serverProof?.isDelivered === true && !props.serverProof.proofPending
+  const isSingleProof = isSingleProofPlan(resolveProofFormPlan(props.proofSettings))
+  const isDelivered = props.serverProof?.isDelivered === true
   useEffect(() => {
-    if (isPhotoOnly && isProofSent && consumeAutoConclude()) {
+    if (isSingleProof && isDelivered && consumeAutoConclude()) {
       setConcludedAt(new Date().toISOString())
     }
   }, [])
@@ -1483,6 +1483,7 @@ function ProofCaptureFields({
         (openImageKind === 'photo' ? storedThumbnailUrl : undefined))
   const [removingKind, setRemovingKind] = useState<'photo' | 'signature' | undefined>(undefined)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  const documentInputRef = useRef<HTMLInputElement>(null)
   /** Os obrigatórios ainda vazios são alvos de foco: depois da foto, o foco vai ao primeiro que faltar. */
   const receivedByLabel = t('proofFields.receivedBy')
   useEffect(() => {
@@ -1497,6 +1498,12 @@ function ProofCaptureFields({
       nameInputRef.current,
       plan.fields.receiverName === 'required' && receiverName.trim() === ''
         ? 'proof-receiver-name'
+        : undefined,
+    )
+    markFocusTarget(
+      documentInputRef.current,
+      plan.fields.receiverDocument === 'required' && receiverDocument === ''
+        ? 'proof-receiver-document'
         : undefined,
     )
   })
@@ -1514,9 +1521,9 @@ function ProofCaptureFields({
     wasPhotoConfirmedRef.current = isPhotoConfirmedByServer
     if (!wasConfirmed && isPhotoConfirmedByServer) setFocusFinishNextRender(true)
   }, [isPhotoConfirmedByServer])
-  /** A tela do "Concluir" nasce já com o canhoto enviado: quem arma é o toque no "Confirmar entrega". */
+  /** A tela do "Concluir" nasce já com a entrega confirmada: quem arma é o toque no "Confirmar entrega". */
   useEffect(() => {
-    if (isPhotoConfirmedByServer && consumeNextStepFocus()) setFocusFinishNextRender(true)
+    if (serverProof?.isDelivered === true && consumeNextStepFocus()) setFocusFinishNextRender(true)
   }, [])
   useEffect(() => {
     if (!focusFinishNextRender) return undefined
@@ -2071,6 +2078,7 @@ function ProofCaptureFields({
                 aria-invalid={missing.includes('receiverDocument')}
                 autoCapitalize="characters"
                 maxLength={18}
+                ref={documentInputRef}
                 type="text"
                 value={receiverDocument}
                 onBlur={() => pushLateFieldUpdate()}

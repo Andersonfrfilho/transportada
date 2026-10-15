@@ -77,11 +77,9 @@ function focusTarget(element: HTMLElement | null): void {
   element.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'nearest' })
 }
 
-/** O "Tirar foto" obrigatório da primeira nota aberta: foco e rolagem curta, sem tirar o cursor de quem digita. */
-export function focusFirstRequiredPhoto(card: Element | null): void {
-  focusTarget(
-    card?.querySelector<HTMLButtonElement>(`[data-focus-target="${PHOTO_FOCUS_TARGET}"]`) ?? null,
-  )
+/** O primeiro comprovante obrigatório que falta na parada (foto, assinatura, nome…): foco e rolagem curta, sem tirar o cursor de quem digita. */
+export function focusFirstRequiredProof(card: Element | null): void {
+  focusTarget(card?.querySelector<HTMLElement>(ANY_FOCUS_TARGET_SELECTOR) ?? null)
 }
 
 /** Depois da foto: o próximo item obrigatório que falta na mesma nota; sem nenhum, o botão de concluir. */

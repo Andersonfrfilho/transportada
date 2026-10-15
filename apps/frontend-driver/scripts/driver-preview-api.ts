@@ -195,13 +195,22 @@ const storedPhotos = new Map<string, number>()
 let consentAcceptedAt: string | null = null
 /** A primeira viagem começa despachada (carga fechada): o motorista vê "Iniciar rota". */
 /** Hoje o único comprovante exigido é o canhoto: foto obrigatória, o resto desligado. */
-const PHOTO_ONLY_DELIVERY_PROOF = {
-  photo: 'required',
-  receivedBy: 'off',
-  receiverDocument: 'off',
-  receiverName: 'off',
-  signature: 'off',
-}
+const PHOTO_ONLY_DELIVERY_PROOF =
+  process.env.DRIVER_PREVIEW_PROOF === 'name'
+    ? {
+        photo: 'off',
+        receivedBy: 'off',
+        receiverDocument: 'off',
+        receiverName: 'required',
+        signature: 'off',
+      }
+    : {
+        photo: 'required',
+        receivedBy: 'off',
+        receiverDocument: 'off',
+        receiverName: 'off',
+        signature: 'off',
+      }
 /** `DRIVER_PREVIEW_PROOF=extra`: a parada 3 pede também "Quem recebeu" e o nome — para testar o "Concluir" e os focos. */
 const EXTRA_DELIVERY_PROOF = {
   photo: 'required',
