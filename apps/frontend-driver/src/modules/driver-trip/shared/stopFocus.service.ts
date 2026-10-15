@@ -10,6 +10,16 @@ export function resolveScrollBehavior(): ScrollBehavior {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
 }
 
+/**
+ * Foco por código não mostra o anel depois de um toque (`:focus-visible` só liga com teclado), e o motorista
+ * não via para onde o foco foi. `data-guided-focus` (ver `index.css`) pinta o anel até o foco sair do botão.
+ */
+function focusWithRing(element: HTMLElement): void {
+  element.dataset.guidedFocus = ''
+  element.addEventListener('blur', () => delete element.dataset.guidedFocus, { once: true })
+  element.focus({ focusVisible: true, preventScroll: true } as FocusOptions)
+}
+
 /** O botão do fim do formulário (Concluir/Confirmar) à vista e focado, sem arrastar a tela para longe. */
 export function focusFinishButton(actions: HTMLElement | null): void {
   const button = actions?.querySelector<HTMLButtonElement>('button') ?? null
@@ -23,7 +33,7 @@ export function focusFinishButton(actions: HTMLElement | null): void {
   ) {
     return
   }
-  button.focus({ preventScroll: true })
+  focusWithRing(button)
   button.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'nearest' })
 }
 
@@ -63,7 +73,7 @@ function focusTarget(button: HTMLButtonElement | null): void {
   ) {
     return
   }
-  button.focus({ preventScroll: true })
+  focusWithRing(button)
   button.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'nearest' })
 }
 

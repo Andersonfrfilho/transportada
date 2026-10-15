@@ -39,6 +39,8 @@ type Calls = string[]
 
 function fakeButton(calls: Calls, disabled = false) {
   return {
+    addEventListener: () => undefined,
+    dataset: {} as Record<string, string>,
     disabled,
     focus: (options: unknown) => calls.push(`focus ${JSON.stringify(options)}`),
     scrollIntoView: (options: unknown) => calls.push(`scroll ${JSON.stringify(options)}`),
@@ -60,7 +62,7 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     const button = fakeButton(calls)
     focusFinishButton({ querySelector: () => button } as unknown as HTMLElement)
     expect(calls).toEqual([
-      'focus {"preventScroll":true}',
+      'focus {"focusVisible":true,"preventScroll":true}',
       'scroll {"behavior":"smooth","block":"nearest"}',
     ])
   })
@@ -79,7 +81,7 @@ describe('foco e rolagem ao fim de cada ação (pedido do usuário, 14/10)', () 
     focusFirstRequiredPhoto(card)
     expect(selector).toBe(`[data-focus-target="${PHOTO_FOCUS_TARGET}"]`)
     expect(calls).toEqual([
-      'focus {"preventScroll":true}',
+      'focus {"focusVisible":true,"preventScroll":true}',
       'scroll {"behavior":"smooth","block":"nearest"}',
     ])
 
