@@ -71,13 +71,17 @@ function readApiOccurrenceTemplates(): Readonly<Record<string, ApiTemplate>> {
 describe('a prévia do aviso de ocorrência (spec 082 D8 / G003)', () => {
   const apiTemplates = readApiOccurrenceTemplates()
 
-  it('o catálogo da API declara os quatro templates de ocorrência', () => {
-    expect(Object.keys(apiTemplates).sort()).toEqual([
-      'trip.occurrence-appointment-required',
-      'trip.occurrence-dock-closed',
-      'trip.occurrence-long-wait',
-      'trip.occurrence-unexpected-charge',
-    ])
+  it('o catálogo da API declara os quatro templates de ocorrência da parada', () => {
+    // Templates novos do catálogo (ex.: andamento da ocorrência, spec 266) não são cópia da prévia: só os quatro importam aqui.
+    expect(Object.keys(apiTemplates)).toEqual(
+      expect.arrayContaining([
+        'trip.occurrence-appointment-required',
+        'trip.occurrence-dock-closed',
+        'trip.occurrence-long-wait',
+        'trip.occurrence-unexpected-charge',
+      ]),
+    )
+    expect(Object.keys(OCCURRENCE_NOTICE_TEMPLATES).length).toBe(4)
   })
 
   it('cada texto copiado é idêntico ao corpo inbox do catálogo', () => {
