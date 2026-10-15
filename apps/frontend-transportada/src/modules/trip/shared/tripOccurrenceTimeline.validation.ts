@@ -3,6 +3,7 @@
  *
  * Spec 183 RF19: o guard da linha do tempo é **estrito** — a rota nasceu com a 183, então campo
  * ausente ou ator fora dos quatro é resposta inválida, não API antiga.
+ * Spec 266 T1.2: tipo de evento desconhecido sai da linha; o resto da resposta segue valendo.
  */
 import { isRecord, isString } from './tripGuards.validation'
 import {
@@ -21,6 +22,19 @@ function isActor(value: unknown): boolean {
     OCCURRENCE_TIMELINE_ACTOR_KINDS.some((kind) => kind === value.kind) &&
     isNullableString(value.name)
   )
+}
+
+const KNOWN_EVENT_KINDS: readonly OccurrenceTimelineEvent['kind'][] = [
+  'occurrence.recorded',
+  'occurrence.photo',
+  'occurrence.cancelled',
+  'case.transition',
+  'contractor.mail.received',
+  'contractor.mail.sent',
+]
+
+function isKnownEventKind(value: unknown): boolean {
+  return isRecord(value) && KNOWN_EVENT_KINDS.some((kind) => kind === value.kind)
 }
 
 function isEvent(value: unknown): value is OccurrenceTimelineEvent {
@@ -51,7 +65,7 @@ function isEvent(value: unknown): value is OccurrenceTimelineEvent {
   }
 }
 
-export function isOccurrenceTimeline(value: unknown): value is OccurrenceTimeline {
+function isOccurrenceTimeline(value: unknown): value is OccurrenceTimeline {
   if (!isRecord(value) || !Array.isArray(value.events) || !isRecord(value.timings)) return false
   const { timings } = value
   return (
@@ -62,4 +76,11 @@ export function isOccurrenceTimeline(value: unknown): value is OccurrenceTimelin
     isNullableString(timings.openSince) &&
     isNullableString(timings.openUntil)
   )
+}
+
+/** Spec 266 T1.2: evento de tipo desconhecido é descartado antes do guard estrito dos demais. */
+export function parseOccurrenceTimeline(value: unknown): OccurrenceTimeline | null {
+  if (!isRecord(value) || !Array.isArray(value.events)) return null
+  const candidate = { ...value, events: value.events.filter(isKnownEventKind) }
+  return isOccurrenceTimeline(candidate) ? candidate : null
 }

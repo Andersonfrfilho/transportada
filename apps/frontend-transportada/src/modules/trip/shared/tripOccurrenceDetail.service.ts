@@ -4,11 +4,12 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import { OCCURRENCE_ITEMS_MODE, type OccurrenceItemsMode } from './occurrence.constant'
 import { TRIP_MANAGE_PERMISSION } from './trip.constant'
 import type { OccurrenceCorrection } from './trip.types'
-import type {
-  TripOccurrenceCaseStatus,
-  TripOccurrenceCaseView,
-  TripOccurrenceDetailDriver,
-  TripOccurrenceDetailItem,
+import {
+  TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS,
+  type TripOccurrenceCaseStatus,
+  type TripOccurrenceCaseView,
+  type TripOccurrenceDetailDriver,
+  type TripOccurrenceDetailItem,
 } from './tripOccurrenceFeed.service'
 
 export type OccurrenceDriverContact = Readonly<{
@@ -174,7 +175,10 @@ function resolveUnavailableReason(
   if (input.isCancelled) return t('occurrenceDetail.correction.unavailable.occurrenceCancelled')
   const { caseView } = input
   if (caseView === null) return null
-  if (OPEN_CASE_STATUSES.includes(caseView.status)) {
+  if (
+    OPEN_CASE_STATUSES.includes(caseView.status) ||
+    caseView.status === TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS
+  ) {
     return t('occurrenceDetail.correction.unavailable.caseOpen')
   }
   if (caseView.status === 'decided') {

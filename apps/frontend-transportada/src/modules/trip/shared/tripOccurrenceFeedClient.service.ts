@@ -13,6 +13,7 @@ import {
   OCCURRENCE_SETTLEMENT_PAYER_KINDS,
   TRIP_OCCURRENCE_CASE_DECISION_KINDS,
   TRIP_OCCURRENCE_CASE_STATUSES,
+  TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS,
   type OccurrenceContractorConversationState,
   type OccurrenceSettlementItem,
   type OccurrenceSettlementItemView,
@@ -21,6 +22,7 @@ import {
   type TripOccurrenceAttachment,
   type TripOccurrenceCaseDecisionKind,
   type TripOccurrenceCaseTakenBy,
+  type TripOccurrenceCaseStatus,
   type TripOccurrenceCaseView,
   type TripOccurrenceConversationSummary,
   type TripOccurrenceFeedFilters,
@@ -35,7 +37,7 @@ import {
 } from './tripOccurrenceFeed.service'
 import { serializeTripOccurrenceQuery } from './tripOccurrenceFeed.service'
 import type { OccurrenceTimeline } from './tripOccurrenceTimeline.service'
-import { isOccurrenceTimeline } from './tripOccurrenceTimeline.validation'
+import { parseOccurrenceTimeline } from './tripOccurrenceTimeline.validation'
 
 const TRIP_OCCURRENCES_PATH = '/trip-occurrences'
 
@@ -126,8 +128,14 @@ function isNullableString(value: unknown): value is null | string {
  * `case` ausente é "sem tratativa aberta" (mesmo padrão de `null`, RF10); `settlementTotal`
  * ausente é o de hoje, `null`, até a API preencher o valor (T8).
  */
-type RawCaseView = Omit<TripOccurrenceCaseView, 'settlementTotal' | 'takenBy'> &
-  Readonly<{ settlementTotal?: unknown; takenBy?: unknown }>
+type RawCaseView = Omit<TripOccurrenceCaseView, 'settlementTotal' | 'status' | 'takenBy'> &
+  Readonly<{ settlementTotal?: unknown; status: string; takenBy?: unknown }>
+
+/** Spec 266 T1.1: estado novo da API vira `unknown` — a tratativa continua visível, sem rótulo inventado. */
+function toCaseStatus(value: string): TripOccurrenceCaseStatus {
+  const knownStatus = TRIP_OCCURRENCE_CASE_STATUSES.find((status) => status === value)
+  return knownStatus ?? TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS
+}
 
 /** RF10: `null` é "sem tratativa aberta" — nunca um estado inventado. */
 function isCaseView(value: unknown): value is RawCaseView {
@@ -145,7 +153,7 @@ function isCaseView(value: unknown): value is RawCaseView {
     (value.settlementTotal === undefined ||
       value.settlementTotal === null ||
       isString(value.settlementTotal)) &&
-    (TRIP_OCCURRENCE_CASE_STATUSES as readonly unknown[]).includes(value.status) &&
+    isString(value.status) &&
     isString(value.updatedAt)
   )
 }
@@ -160,10 +168,11 @@ function toTakenBy(value: unknown): TripOccurrenceCaseTakenBy | null {
 }
 
 function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
-  const { settlementTotal, takenBy, ...rest } = raw
+  const { settlementTotal, status, takenBy, ...rest } = raw
   return {
     ...rest,
     settlementTotal: isString(settlementTotal) ? settlementTotal : null,
+    status: toCaseStatus(status),
     takenBy: toTakenBy(takenBy),
   }
 }
@@ -512,10 +521,9 @@ export function createTripOccurrenceFeedClient(
         dependencies,
         `${TRIP_OCCURRENCES_PATH}/${encodeURIComponent(input.occurrenceId)}/timeline`,
       )
-      if (!isRecord(payload) || !isOccurrenceTimeline(payload.data)) {
-        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      }
-      return payload.data
+      const timeline = isRecord(payload) ? parseOccurrenceTimeline(payload.data) : null
+      if (timeline === null) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return timeline
     },
     async listOccurrences(input) {
       const search = serializeTripOccurrenceQuery(input)
