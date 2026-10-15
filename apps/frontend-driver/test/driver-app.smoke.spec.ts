@@ -353,7 +353,7 @@ test('CA05(b): sinal fraco mostra a viagem salva e drena quando o Keycloak volta
   await expect(page.getByText(/Sem conexão — dados de \d/)).toBeVisible()
   // Pedido do usuário (25/09): "Entreguei" só existe depois de "Cheguei" — a chegada libera a nota.
   await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+  await page.getByRole('button', { exact: true, name: 'Entreguei' }).first().click()
   await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
   expect(api.reports()).toEqual([])
 
@@ -1317,7 +1317,7 @@ test('com resposta de Date, o corpo do deliver leva tappedAt e o desvio do reló
   const api = await mockDriverTripApi({ page, scenario: { serverClockOffsetMs: SERVER_AHEAD_MS } })
   await loginAsLocalUser(page)
   await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+  await page.getByRole('button', { exact: true, name: 'Entreguei' }).first().click()
 
   await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
 
@@ -1338,7 +1338,7 @@ test('sem Date nas respostas, o corpo do deliver sai como sempre saiu', async ({
   const api = await mockDriverTripApi({ page })
   await loginAsLocalUser(page)
   await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+  await page.getByRole('button', { exact: true, name: 'Entreguei' }).first().click()
 
   await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
 
@@ -1363,7 +1363,7 @@ test('o desvio é o de quando o toque nasceu: medido durante a drenagem, não en
   await loginAsLocalUser(page)
   api.setOffline(true)
   await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+  await page.getByRole('button', { exact: true, name: 'Entreguei' }).first().click()
   await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
 
   api.setServerClockOffset(SERVER_AHEAD_MS)
@@ -1429,7 +1429,7 @@ test('o desvio medido antes de recarregar sem sinal ainda vai no deliver feito o
   await page.reload()
   await expect(page.getByText(/Sem conexão — dados de \d/)).toBeVisible()
   await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+  await page.getByRole('button', { exact: true, name: 'Entreguei' }).first().click()
   await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
   expect(api.reports()).toEqual([])
 
