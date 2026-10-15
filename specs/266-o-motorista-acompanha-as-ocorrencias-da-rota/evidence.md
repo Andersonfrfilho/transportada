@@ -236,3 +236,29 @@ _(cada task registra aqui comando, saída resumida e commit)_
 - Desvios da prévia: "Corrigir e reenviar" leva à parada (o app não tem tela de correção); fotos como documentos, sem
   miniatura; destino da linha é o endereço da parada; compartilhar dentro da mensagem do chat não entrou.
 - Riscos: "Ver" abre aba depois de buscar a URL (o iOS pode bloquear o pop-up); compartilhar exige CORS de GET no bucket.
+
+### T2.5 / T2.6 — O motorista lê as ocorrências e os documentos (`7a49d730e`, `52a60f5da`)
+
+- `GET /me/trips/current/route-occurrences`, `.../:kind/:id` e `.../:kind/:id/attachments/:objectId/url` (`trip.read`,
+  5 min, `inline`, URL nunca em log). Leituras em lote. Código novo `DRIVER_TRIP_NOT_ACTIVE` (404) — não existia.
+- `reportKey` = `trip_field_reports.idempotency_key` do canal `driver_app` (casamento exato com a fila do app).
+- Contrato da API: 11800 pass, 25 skip, 1 falha do muro de nome de tipo (CA03) que lia arquivos **não commitados** do
+  app do motorista naquele momento; reconferir na T5.3. Integração `route-occurrence-driver.integration.ts`: 7 pass,
+  0 skip (nota, parada, cancelada, resolvida interna e `phraseKey`, reaberta, ajudante, outro motorista, outra empresa,
+  viagem finalizada, objeto de outra ocorrência, objeto expirado).
+- Leituras: reaberta → `state: open`, `reopenedAt`, `resolution: null`. O ajudante vê as ocorrências da viagem, mas
+  só os anexos da **própria** conversa (regra da 263).
+
+## Liberação gradual dos tipos (dono, 2026-10-15)
+
+- Pedido: "por enquanto em Q.A. e prod libere apenas a prorrogação de boletos". Aplicado com `active` (já existente).
+- **Staging:** via `railway ssh --service api` (URL interna, nunca impressa), uma transação: 15 tipos desativados,
+  "Prorrogação do boleto" ativo. Antes, todos os 16 ativos: Avaria no transporte, Cobrança inesperada, Destinatário
+  ausente, Devolução parcial, Devolução total, Divergência de quantidade, Divergência de quantidade na chegada, Doca
+  interditada, Espera longa, Exigiram agendamento, Item avariado, Item avariado na chegada, Item faltante, Item faltante
+  na chegada, Outro, Prorrogação do boleto. Reverter = reativar.
+- **Produção:** 15 tipos ativos e **nenhum "Prorrogação do boleto"**; aplicar deixaria zero tipos ativos. O dono
+  decidiu **deixar produção como está**.
+- Incidente: a CLI do Railway 5.68 escreve o JSON de `variables --json` na saída de erro, e a senha do Postgres de
+  staging apareceu no terminal da sessão. O dono decidiu não rotacionar ("deixa isso para lá"). Lição: capturar
+  `2>&1` numa variável e nunca imprimir; preferir `railway ssh` com a variável do próprio contêiner.

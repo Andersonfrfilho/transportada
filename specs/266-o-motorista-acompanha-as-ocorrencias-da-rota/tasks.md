@@ -45,11 +45,11 @@
       grava `resolved` (`system`, frase fixa, `case_event_id`) na mesma transação. **Auditar o caminho do cancelamento
       da 167** contra a ordem de lock tratativa → ocorrência. Teste de integração dos três terminais. **Medir em staging** quantas
       tratativas já encerradas ficariam "em aberto" e registrar no `evidence.md` para a decisão de backfill.
-- [ ] **T2.5** `sonnet` — `GET /me/trips/current/route-occurrences` e `GET .../:kind/:id` (sem links assinados), só com
+- [x] **T2.5** `sonnet` — `GET /me/trips/current/route-occurrences` e `GET .../:kind/:id` (sem links assinados), só com
       viagem não finalizada (finalizada → 404). Contrato negativo: outro motorista e outra empresa dão 404. Contrato de
       rotas: nenhum par com o mesmo método casa o mesmo caminho. Integração com nota, parada, cancelada, resolvida e
       reaberta.
-- [ ] **T2.6** `sonnet` — Documentos do detalhe: fotos e assinatura do motorista, anexos da conversa da ocorrência e
+- [x] **T2.6** `sonnet` — Documentos do detalhe: fotos e assinatura do motorista, anexos da conversa da ocorrência e
       `GET /me/trips/current/route-occurrences/:kind/:id/attachments/:objectId/url` (5 min), que confere o dono e a
       viagem não finalizada antes de assinar. Contrato negativo do objeto
       de outra ocorrência.
