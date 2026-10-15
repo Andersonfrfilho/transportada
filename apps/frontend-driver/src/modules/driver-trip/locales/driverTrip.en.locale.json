@@ -693,6 +693,7 @@
         "open": "Open conversation",
         "openUnread_one": "Open conversation · {{count}} new",
         "openUnread_other": "Open conversation · {{count}} new",
+        "reopenAndReply": "Reopen and reply",
         "view": "View conversation",
         "viewUnread_one": "View conversation · {{count}} new",
         "viewUnread_other": "View conversation · {{count}} new"

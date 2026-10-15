@@ -711,6 +711,7 @@
         "open": "Abrir conversa",
         "openUnread_one": "Abrir conversa · {{count}} nova",
         "openUnread_other": "Abrir conversa · {{count}} novas",
+        "reopenAndReply": "Reabrir e responder",
         "view": "Ver conversa",
         "viewUnread_one": "Ver conversa · {{count}} nova",
         "viewUnread_other": "Ver conversa · {{count}} novas"

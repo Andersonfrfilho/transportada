@@ -90,3 +90,9 @@ export const CONVERSATION_REFRESH_MAX_SKIPPED_CYCLES = 7
 export const CONVERSATION_OUTBOX_LIMIT = { maxCount: 100, maxFileBytes: 48 * 1024 * 1024 } as const
 
 export const QUOTA_EXCEEDED_ERROR_NAME = 'QuotaExceededError'
+
+/** O servidor recusa a resposta que reabre (spec 266 RF9b): a ocorrência já estava aberta, ou foi cancelada. */
+export const REOPEN_REFUSAL_CODE = {
+  ALREADY_OPEN: 'OCCURRENCE_NOT_RESOLVED',
+  CANCELLED: 'OCCURRENCE_CANCELLED',
+} as const

@@ -149,6 +149,7 @@ export function createConversationOutbox(
           type: file.type,
         })),
         ownerKey,
+        ...(input.reopen === true ? { reopen: true as const } : {}),
         state: 'queued',
         subject: input.subject,
         text: input.text,

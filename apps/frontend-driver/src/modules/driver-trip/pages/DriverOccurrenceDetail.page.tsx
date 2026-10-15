@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { getDriverConversationsApi } from '@/modules/conversation/shared/driverConversationsApiInstance.service'
 import {
   navigateToDriverConversation,
   navigateToDriverStop,
@@ -132,9 +133,30 @@ function RefusalPanel({ entry }: Pick<DetailSectionProps, 'entry'>) {
   )
 }
 
+/** Resolvida e sem conversa: a conversa nasce no servidor com a primeira resposta, que já reabre (spec 266 RF9b). */
+function ReopenAndReplyButton({ entry }: Pick<DetailSectionProps, 'entry'>) {
+  const { t } = useTranslation('driverTrip')
+  const subject = { subjectId: entry.id, subjectType: 'occurrence' }
+  return (
+    <button
+      className={styles.primaryButton}
+      type="button"
+      onClick={() => {
+        getDriverConversationsApi().reopen.arm(subject)
+        navigateToDriverConversation(subject)
+      }}
+    >
+      <Icon name="message" /> {t('routeOccurrence.detail.chat.reopenAndReply')}
+    </button>
+  )
+}
+
 function ChatButton({ entry }: Pick<DetailSectionProps, 'entry'>) {
   const { t } = useTranslation('driverTrip')
-  if (entry.source !== 'server' || !entry.hasConversation) return null
+  if (entry.source !== 'server') return null
+  if (!entry.hasConversation) {
+    return entry.state === 'resolved' ? <ReopenAndReplyButton entry={entry} /> : null
+  }
   const isClosed = entry.state === 'resolved' || entry.state === 'cancelled'
   const base = isClosed ? 'routeOccurrence.detail.chat.view' : 'routeOccurrence.detail.chat.open'
   const label = entry.unreadCount > 0 ? t(`${base}Unread`, { count: entry.unreadCount }) : t(base)
