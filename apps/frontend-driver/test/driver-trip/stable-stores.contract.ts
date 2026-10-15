@@ -1,11 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test } from 'bun:test'
 
 const HOOK_PATH = join(
-  new URL('../..', import.meta.url).pathname,
+  fileURLToPath(new URL('../..', import.meta.url)),
   'src/modules/driver-trip/hooks/useDriverTrip.hook.ts',
 )
 const HOOK_SOURCE = readFileSync(HOOK_PATH, 'utf8')
