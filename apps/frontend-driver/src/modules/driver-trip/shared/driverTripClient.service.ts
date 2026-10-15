@@ -27,6 +27,17 @@ import {
   type StopOccurrenceReportReference,
 } from './driverTrip.types'
 import { buildDeviceProfile } from './deviceProfile.service'
+import type {
+  DriverRouteOccurrence,
+  DriverRouteOccurrenceDetail,
+  RouteOccurrenceKind,
+  RouteOccurrencesReadResult,
+} from './driverRouteOccurrence.types'
+import {
+  toDriverRouteOccurrenceDetail,
+  toDriverRouteOccurrenceList,
+  toRouteOccurrenceFileUrl,
+} from './driverRouteOccurrenceResponse.validation'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
 import { shouldSendLateRegistration } from './lateRegistration.service'
@@ -298,6 +309,15 @@ export type DriverTripClient = Readonly<{
    * contra). Nunca manda CPF/CNPJ como parâmetro: security.md §3 proíbe dado pessoal em URL.
    */
   listOccurrenceTypes: () => Promise<DriverOccurrenceTypesResult>
+  /** Spec 266: as ocorrências da viagem atual. `404` é viagem finalizada (decisão C) — estado, não exceção. */
+  listRouteOccurrences: () => Promise<RouteOccurrencesReadResult<readonly DriverRouteOccurrence[]>>
+  readRouteOccurrence: (
+    input: Readonly<{ id: string; kind: RouteOccurrenceKind }>,
+  ) => Promise<RouteOccurrencesReadResult<DriverRouteOccurrenceDetail>>
+  /** O link assinado de 5 min de foto, assinatura ou anexo: pedido na hora de abrir, nunca guardado. */
+  readRouteOccurrenceFileUrl: (
+    input: Readonly<{ id: string; kind: RouteOccurrenceKind; objectId: string }>,
+  ) => Promise<RouteOccurrencesReadResult<string>>
   /**
    * O DAMDFE vem como **bytes**, não como URL: numa barreira o motorista abre o papel, e uma URL
    * assinada de cinco minutos que expirou no bolso não abre nada.
@@ -511,6 +531,35 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       } catch {
         return { status: 'failed' }
       }
+    },
+    async listRouteOccurrences() {
+      return readRouteOccurrencesOrFinished({
+        parse: toDriverRouteOccurrenceList,
+        send: () =>
+          request({ dependencies, method: 'GET', path: `${CURRENT_TRIP_PATH}/route-occurrences` }),
+      })
+    },
+    async readRouteOccurrence({ id, kind }) {
+      return readRouteOccurrencesOrFinished({
+        parse: toDriverRouteOccurrenceDetail,
+        send: () =>
+          request({
+            dependencies,
+            method: 'GET',
+            path: `${CURRENT_TRIP_PATH}/route-occurrences/${kind}/${id}`,
+          }),
+      })
+    },
+    async readRouteOccurrenceFileUrl({ id, kind, objectId }) {
+      return readRouteOccurrencesOrFinished({
+        parse: toRouteOccurrenceFileUrl,
+        send: () =>
+          request({
+            dependencies,
+            method: 'GET',
+            path: `${CURRENT_TRIP_PATH}/route-occurrences/${kind}/${id}/attachments/${objectId}/url`,
+          }),
+      })
     },
     async readManifestDamdfe(manifestId) {
       return requestFile({
@@ -1341,6 +1390,29 @@ async function request(
   }
 
   return payload
+}
+
+/** Spec 266 decisão C: `404` das rotas de leitura é viagem finalizada; corpo fora do contrato é recusa explícita. */
+async function readRouteOccurrencesOrFinished<TData>(
+  input: Readonly<{ parse: (payload: unknown) => TData; send: () => Promise<unknown> }>,
+): Promise<RouteOccurrencesReadResult<TData>> {
+  let payload: unknown
+  try {
+    payload = await input.send()
+  } catch (error) {
+    if (error instanceof DriverTripRequestError && error.status === 404) {
+      return { status: 'tripFinished' }
+    }
+    throw error
+  }
+  try {
+    return { data: input.parse(payload), status: 'loaded' }
+  } catch {
+    throw new DriverTripRequestError({
+      code: DRIVER_TRIP_ERROR.RESPONSE_INVALID,
+      isOffline: false,
+    })
+  }
 }
 
 /** Spec 234 D1: o `Date` da resposta contra o ponto médio do pedido; resposta sem `Date` mantém o desvio anterior. */
