@@ -313,3 +313,37 @@ _(cada task registra aqui comando, saída resumida e commit)_
 - `resolution` lido de forma tolerante; selos "Resolvida" e "Reaberta pelo motorista"; estado passado ao
   `OccurrenceResolutionPanel`; filtro "Andamento" (`resolutionStateIn`, "Em aberto" = `open,reopened`).
 - `bun run typecheck` ok; `test/trip.contract.test.ts --timeout 60000`: 3002 pass, 0 fail (20 novos); eslint ok.
+
+## Fase 5 — Fechamento
+
+### T5.2 — Revisões (code-reviewer e security-reviewer, `sonnet`)
+
+- **Segurança: risco baixo**, 0 crítico/alto. BOLA e isolamento confirmados nas rotas do motorista; link assinado
+  só depois de conferir o dono do objeto; sem nota, texto, URL ou PII em log/aviso. Achados: reabrir ocorrência de
+  viagem finalizada (médio), `reportKey` do ajudante, `inline` só para imagem/PDF, esquema da URL, ator no log,
+  retrato offline sem dono, `reopen` ignorado sem `occurrenceKind`.
+- **Código: pediu mudanças.** Alto: `created_at = now()` é o início da transação, então sob espera de lock a ordem
+  "último evento" pode inverter (resolução do escritório perdida). Médios: composer voltando a travar, estado
+  desconhecido offline, consulta em dobro, `as never` no aviso, `Promise.all` com leitura secundária, aviso segurando
+  a resposta. Baixos: ordenação por string de ms, `messageId ?? ''`, testes de corrida ausentes.
+- **Correções do app** (`81e8b4c1a`, `0a736df47`, `230a6308a`, `fe133a379`, `2831e3d9a`, `17cef6c79`): teste do
+  catálogo de avisos, lacunas da reabertura (mudança de estado, falha permanente, recarga pela fila), CA03 (falso
+  positivo `error.name` → `DOMException.ABORT_ERR`), estado pelo retrato offline e sem consulta em dobro, esquema da URL,
+  retrato preso ao dono (`subHash`). App: 2058 pass, 0 fail; muro CA03 da API: 22 pass, 0 fail.
+- Polimento T4.8 (`44da8a1`): composer não trava de novo enquanto a reabertura está a caminho.
+
+### T5.3 — Diagnóstico das verificações (antes das correções da API)
+
+- API: `tsc` e lint ok; contratos 11809 pass, 25 skip, 1 fail (CA03, já corrigido no app). Painel: typecheck ok,
+  lint 0 erro; `test --timeout 60000` 8237 pass, 2 fail (prévia de aviso sem `typeName`; teste do catálogo com
+  "quatro"). Integração: `trip-cargo-carrier.integration.ts:131` (`'0'` × `'0.00'`) em verificação de origem.
+- Auditoria §15: sem N+1, sem PII em log, avisos depois do commit e protegidos.
+
+### T5.1 — Smoke do app com prints (`14f4923`)
+
+- `spec-266-prints.smoke.spec.ts`: 6/6 pass, API simulada por `page.route`, conversas pela API de demonstração.
+  Rodado por `vite preview` na porta 53100 (53112/53200 ocupadas por um servidor do Windows de outra árvore).
+- Prints em [`prints/`](prints/): cabeçalho com e sem alerta, cartão da parada com ícones por NF e "+3", lista
+  (grupos, filtro com documento, filtro por nota, viagem encerrada), detalhe (reaberta, resolvida com observação,
+  frase fixa, irmãs da mesma nota, documentos, viagem encerrada), chat travado e liberado.
+- Não coberto: ocorrências na fila/recusadas (fila IndexedDB semeada) e o toque real em Ver/Compartilhar.
