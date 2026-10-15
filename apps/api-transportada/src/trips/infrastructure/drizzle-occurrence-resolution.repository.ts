@@ -186,3 +186,57 @@ export async function listLatestResolutionEventsByOccurrence(
   }
   return result
 }
+
+/** O histórico inteiro de uma ocorrência, para a linha do tempo do detalhe (poucos eventos por ocorrência). */
+export async function listAllResolutionEventsByOccurrence(
+  queryable: TripQueryable,
+  input: ListLatestResolutionEventsInput,
+): Promise<ReadonlyMap<string, readonly OccurrenceResolutionEventFact[]>> {
+  const result = new Map<string, OccurrenceResolutionEventFact[]>()
+  if (input.occurrenceIds.length === 0) return result
+
+  const ownerColumn =
+    input.occurrenceKind === 'document'
+      ? tripOccurrenceResolutionEvents.documentOccurrenceId
+      : tripOccurrenceResolutionEvents.stopOccurrenceId
+  const rows = await queryable
+    .select({
+      actorKind: tripOccurrenceResolutionEvents.actorKind,
+      caseEventStatus: tripOccurrenceCaseEvents.toStatus,
+      createdAt: tripOccurrenceResolutionEvents.createdAt,
+      id: tripOccurrenceResolutionEvents.id,
+      kind: tripOccurrenceResolutionEvents.kind,
+      note: tripOccurrenceResolutionEvents.note,
+      occurrenceId: ownerColumn,
+    })
+    .from(tripOccurrenceResolutionEvents)
+    .leftJoin(
+      tripOccurrenceCaseEvents,
+      and(
+        eq(tripOccurrenceCaseEvents.companyId, tripOccurrenceResolutionEvents.companyId),
+        eq(tripOccurrenceCaseEvents.id, tripOccurrenceResolutionEvents.caseEventId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripOccurrenceResolutionEvents.companyId, input.companyId),
+        inArray(ownerColumn, [...input.occurrenceIds]),
+      ),
+    )
+    .orderBy(tripOccurrenceResolutionEvents.createdAt, tripOccurrenceResolutionEvents.id)
+
+  for (const row of rows) {
+    if (row.occurrenceId === null) continue
+    const facts = result.get(row.occurrenceId) ?? []
+    facts.push({
+      actorKind: row.actorKind,
+      caseEventStatus: row.caseEventStatus ?? undefined,
+      createdAt: row.createdAt.toISOString(),
+      id: row.id,
+      kind: row.kind,
+      note: row.note ?? undefined,
+    })
+    result.set(row.occurrenceId, facts)
+  }
+  return result
+}

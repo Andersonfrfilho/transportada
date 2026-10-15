@@ -465,6 +465,10 @@ import { createTripDocumentReviewRoutes } from './trips/presentation/trip-docume
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
 import { createOccurrenceResolutionRoutes } from './trips/presentation/occurrence-resolution.routes.js'
+import { createMeRouteOccurrenceRoutes } from './trips/presentation/me-route-occurrence.routes.js'
+import { createFindDriverRouteOccurrenceUseCase } from './trips/application/find-driver-route-occurrence.use-case.js'
+import { createListDriverRouteOccurrencesUseCase } from './trips/application/list-driver-route-occurrences.use-case.js'
+import { createDrizzleDriverRouteOccurrenceReader } from './trips/infrastructure/drizzle-driver-route-occurrence.repository.js'
 import { createResolveOccurrenceUseCase } from './trips/application/resolve-occurrence.use-case.js'
 import { DrizzleOccurrenceResolutionUnitOfWork } from './trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
@@ -2273,6 +2277,10 @@ function createApplicationRoutes({
     cargoLayoutLeaseOptions,
   )
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database, logger)
+  const driverRouteOccurrenceReader = createDrizzleDriverRouteOccurrenceReader({
+    currentTrips: currentDriverTripRepository,
+    database,
+  })
   /** Spec 252 T4.3 (D12): o aviso de feriado nas paradas de `GET /me/trips/current` — só a rota do app o recebe. */
   const driverHolidayWarnings = {
     calendar: new DrizzleHolidayWarningRepository(database, businessCalendarClock.now),
@@ -3450,6 +3458,16 @@ function createApplicationRoutes({
         logger,
         unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
       }),
+    }),
+    /** Spec 266 / ADR-0105: o motorista lê as ocorrências da viagem atual dele. */
+    ...createMeRouteOccurrenceRoutes({
+      findOccurrence: createFindDriverRouteOccurrenceUseCase({
+        reader: driverRouteOccurrenceReader,
+      }),
+      listOccurrences: createListDriverRouteOccurrencesUseCase({
+        reader: driverRouteOccurrenceReader,
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     /**
      * Spec 183 T404: a conversa da ocorrência. Ler é `fleet.read`; escrever à contratante é

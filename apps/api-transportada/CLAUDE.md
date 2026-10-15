@@ -1040,3 +1040,18 @@ as linhas: número e valor pago da **ocorrência** são sobrescritos sem rastro 
 Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/evidence.md.
 
 ⚠️ **O ícone do tipo é catálogo fechado** (spec 255): ampliar `OCCURRENCE_TYPE_ICON_NAMES` pede migration `DROP/ADD CONSTRAINT` (rollback zera os novos) **e** as cópias por valor no painel e no `frontend-driver`. Detalhe: docs/ai-context/api-transportada.md § "Spec 255".
+
+## O motorista lê as ocorrências da rota (spec 266, ADR-0105)
+
+`GET /me/trips/current/route-occurrences` e `.../:kind/:id` (`trip.read`), só com a viagem **não finalizada** (`readCurrent`; senão 404
+`DRIVER_TRIP_NOT_ACTIVE`). O prefixo não é `occurrences` porque o roteador entrega o primeiro match dinâmico e
+`/me/trips/current/occurrences/:id/messages` já existe — o contrato de colisão de `/me/trips/current` prende isso. A tripulação inteira
+(principal e ajudante) vê as ocorrências da viagem; **conversa e anexos do chat são os do próprio usuário** (mesma regra de alcance da 263).
+
+- Leitura em lote (`driver-route-occurrence*.query.ts`): uma consulta por tabela, nunca por linha. Estado vem de
+  `resolveOccurrenceResolutionState`; a resolução do `system` sai como `phraseKey` fixa (nunca a nota interna) e a reaberta é `open` com
+  `reopenedAt` e `resolution: null`.
+- `reportKey` = `trip_field_reports.idempotency_key` cujo `result_id` é a ocorrência, só do canal `driver_app`; ocorrência do escritório
+  (ou linha extra de um lote do app) volta `null`.
+- `documentCount` = fotos + assinatura + anexos do chat. Objeto sem `status = 'deleted'`; foto da tabela 161, senão a coluna antiga.
+- Timeline do motorista: `recorded`, `photo`, `cancelled`, `resolution.*`. **Nunca `case.transition`** (ADR-0045 §6).
