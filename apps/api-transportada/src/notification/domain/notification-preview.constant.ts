@@ -26,4 +26,6 @@ export const NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD: Readonly<Record<string, stri
   rejectionReason: 'Alíquota fora do intervalo permitido',
   /** Spec 263 T2.5: o aviso do sino da conversa de nota e de viagem. */
   subjectLabel: 'NF 4512/1',
+  /** Spec 266 RF9: os avisos de resolvida e reaberta levam o nome do tipo da ocorrência. */
+  typeName: 'Caixa violada',
 }
