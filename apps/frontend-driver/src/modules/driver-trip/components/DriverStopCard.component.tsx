@@ -1017,17 +1017,39 @@ function DocumentRow({
                 {t('deliver')}
               </Button>
             ) : null}
-            <Button onClick={() => setOpenReturn((open) => !open)} type="button" variant="ghost">
-              <Icon name="close" />
-              {t('return')}
-            </Button>
           </>
         ) : null}
+        <Button onClick={() => setOpenReturn((open) => !open)} type="button" variant="ghost">
+          <Icon name="close" />
+          {t('return')}
+        </Button>
         <DocumentOccurrenceButton
           isOpen={openOccurrence}
           onToggle={() => setOpenOccurrence((open) => !open)}
         />
       </div>
+      {occurrenceForm}
+      {/*
+       * Spec 179, ajuste do usuário de 25/09: "Não entreguei" é a ocorrência com foto **e** a
+       * devolução — a devolução fecha a nota, a ocorrência é a prova
+       * (`notDelivered.service.ts`).
+       */}
+      {openReturn ? (
+        <DriverNotDeliveredForm
+          occurrenceTypes={occurrenceTypes}
+          onCancel={() => setOpenReturn(false)}
+          onConfirm={(draft) => {
+            onNotDelivered({
+              documentId: document.id,
+              draft,
+              lateRegistration: isLateRegistration,
+            })
+            onAnnounce(t('activity.toast.returned'))
+            setOpenReturn(false)
+          }}
+          onRetryOccurrenceTypes={onRetryOccurrenceTypes}
+        />
+      ) : null}
       {canActOnDocuments ? (
         <>
           {requiresProof ? (
@@ -1048,32 +1070,10 @@ function DocumentRow({
               onConfirm={confirmDelivery}
             />
           ) : null}
-          {/*
-           * Spec 179, ajuste do usuário de 25/09: "Não entreguei" é a ocorrência com foto **e** a
-           * devolução — a devolução fecha a nota, a ocorrência é a prova
-           * (`notDelivered.service.ts`).
-           */}
-          {openReturn ? (
-            <DriverNotDeliveredForm
-              occurrenceTypes={occurrenceTypes}
-              onCancel={() => setOpenReturn(false)}
-              onConfirm={(draft) => {
-                onNotDelivered({
-                  documentId: document.id,
-                  draft,
-                  lateRegistration: isLateRegistration,
-                })
-                onAnnounce(t('activity.toast.returned'))
-                setOpenReturn(false)
-              }}
-              onRetryOccurrenceTypes={onRetryOccurrenceTypes}
-            />
-          ) : null}
         </>
       ) : (
         <p className={styles.stopMeta}>{t('arrivalRequired')}</p>
       )}
-      {occurrenceForm}
     </li>
   )
 }
