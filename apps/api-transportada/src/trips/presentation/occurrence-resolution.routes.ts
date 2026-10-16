@@ -72,6 +72,7 @@ export function createOccurrenceResolutionRoutes(
         const body = await parseBody(resolveOccurrenceBodySchema, request)
         return { note: body.note, occurrenceId, occurrenceKind }
       },
+      pathParameterFormat: 'raw',
       pathname: OCCURRENCE_RESOLUTION_PATH,
       policy: OCCURRENCE_RESOLUTION_POLICY,
       rateLimit: OCCURRENCE_RESOLUTION_RATE_LIMIT,
