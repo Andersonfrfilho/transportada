@@ -1881,8 +1881,6 @@ function isOptionalString(value: unknown): value is string | undefined {
 
 const OCCURRENCE_TYPE_REQUIRED_KEYS = [
   'active',
-  'emailBody',
-  'emailSubject',
   'emailTemplateKey',
   'id',
   'name',
@@ -1900,6 +1898,8 @@ type RawOccurrenceType = Omit<
   OccurrenceType,
   | 'allowsMultipleItems'
   | 'attachmentMode'
+  | 'emailBody'
+  | 'emailSubject'
   | 'flow'
   | 'itemsMinimumCount'
   | 'itemsMode'
@@ -1913,6 +1913,10 @@ type RawOccurrenceType = Omit<
   Readonly<{
     allowsMultipleItems?: unknown
     attachmentMode?: unknown
+    emailBody?: unknown
+    emailSubject?: unknown
+    contractorMailTemplateId?: unknown
+    missingNotificationTemplate?: unknown
     emailsContractor?: unknown
     flow?: unknown
     itemsMinimumCount?: unknown
@@ -1984,6 +1988,11 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'declaredAmountScope',
         'declaredAmountLabel',
         'emailItemLineTemplate',
+        /** Spec 269 T1.2 (ADR-0106): o texto antigo do e-mail sai da API e o tipo passa a apontar para um modelo; tolerados antes de a API mudar. */
+        'emailBody',
+        'emailSubject',
+        'contractorMailTemplateId',
+        'missingNotificationTemplate',
         ...CONTRACTOR_REPLY_TYPE_KEYS,
       ],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
@@ -1998,8 +2007,13 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
       isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES)) &&
     (value.emailsContractor === undefined || isBoolean(value.emailsContractor)) &&
     (value.stopKind === undefined || value.stopKind === null || isString(value.stopKind)) &&
-    isString(value.emailBody) &&
-    isString(value.emailSubject) &&
+    (value.emailBody === undefined || isString(value.emailBody)) &&
+    (value.emailSubject === undefined || isString(value.emailSubject)) &&
+    (value.contractorMailTemplateId === undefined ||
+      value.contractorMailTemplateId === null ||
+      isString(value.contractorMailTemplateId)) &&
+    (value.missingNotificationTemplate === undefined ||
+      isBoolean(value.missingNotificationTemplate)) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     (value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)) &&
     isString(value.id) &&
@@ -2059,10 +2073,14 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     declaredAmountLabel,
     iconName,
     emailItemLineTemplate,
+    emailBody,
+    emailSubject,
     ...rest
   } = raw
   return {
     ...rest,
+    emailBody: isString(emailBody) ? emailBody : '',
+    emailSubject: isString(emailSubject) ? emailSubject : '',
     ...(isOneOf(itemsMode, OCCURRENCE_ITEMS_MODES) ? { itemsMode } : {}),
     ...(Array.isArray(moments) ? { moments: moments as readonly OccurrenceMoment[] } : {}),
     ...(itemsMinimumCount === null || typeof itemsMinimumCount === 'number'

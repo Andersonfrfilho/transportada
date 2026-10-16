@@ -110,3 +110,31 @@ describe('occurrenceAttachmentOverrides.validation — tolerância aos dois modo
     expect(result).toBeUndefined()
   })
 })
+
+describe('occurrenceAttachmentOverrides.validation — tolerância ao modelo de e-mail da exceção (spec 269 T1.2)', () => {
+  const contractorOverride = {
+    attachmentMode: 'required',
+    contractorId: 'contractor-1',
+    noteMode: 'required',
+    signatureMode: 'off',
+    itemsMode: 'optional',
+  }
+
+  it('aceita exceção com contractorMailTemplateId de texto ou nulo', () => {
+    for (const contractorMailTemplateId of ['template-1', null]) {
+      const result = readOccurrenceAttachmentOverrides({
+        contractorOverrides: [{ ...contractorOverride, contractorMailTemplateId }],
+        recipientOverrides: [],
+      })
+      expect(result?.contractorOverrides).toHaveLength(1)
+    }
+  })
+
+  it('reprova contractorMailTemplateId que não é texto nem nulo', () => {
+    const result = readOccurrenceAttachmentOverrides({
+      contractorOverrides: [{ ...contractorOverride, contractorMailTemplateId: 7 }],
+      recipientOverrides: [],
+    })
+    expect(result).toBeUndefined()
+  })
+})
