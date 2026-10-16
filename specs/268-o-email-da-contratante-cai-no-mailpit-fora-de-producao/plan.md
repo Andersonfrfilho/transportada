@@ -26,6 +26,7 @@
 ## Arquivos
 
 ### API
+
 - `src/config/environment.schema.ts`, `src/shared/api.types.ts`: `CONTRACTOR_MAIL_SANDBOX_SMTP`, `EMAIL_FROM`.
 - `src/database/contractor-mail.schema.ts` + migration `20261016120000_contractor_mail_message_transport`.
 - `src/contractor-mail/domain/contractor-mail.constant.ts`: `CONTRACTOR_MAIL_TRANSPORTS`.
@@ -33,17 +34,20 @@
 - `contractor-mail-settings.use-case.ts`/`.routes.ts`, `main.ts`: `sandboxDelivery`.
 
 ### Worker
+
 - `src/config/environment.schema.ts`, `src/shared/worker.types.ts`: flag.
 - `src/database/contractor-mail.schema.ts`, `drizzle-contractor-mail-outbound-worker.repository.ts`: coluna.
 - `src/contractor-mail/infrastructure/sandbox-smtp-mail.gateway.ts` (novo), `send-contractor-mail-outbound-message.use-case.ts`,
   `src/main.ts`.
 
 ### Painel
+
 - `delivery-clients/shared/contractorMailSettings*.ts`, `useContractorMailSettings.hook.ts`: `sandboxDelivery`.
 - `ContractorContactsPanel.component.tsx` (prop `contractorId` fixa e `onOpenContractors`), `ContractorFicha.component.tsx`,
   `MailSendReadinessSummary.component.tsx`, `DeliveryClientWorkspace.page.tsx`, locales pt/en.
 
 ### Infra e docs
+
 - `.railway/railway.ts`: `CONTRACTOR_MAIL_SANDBOX_SMTP` e `EMAIL_FROM` (API) como `preserve()`.
 - `apps/*/CLAUDE.md`, `docs/ai-context/*`, `.env.example`.
 

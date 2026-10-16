@@ -15,20 +15,20 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T1.1** `sonnet` — Teste antes: `CONTRACTOR_MAIL_SANDBOX_SMTP=true` + produção derruba o boot (API e worker); `true` na API
+- [x] **T1.1** `sonnet` — Teste antes: `CONTRACTOR_MAIL_SANDBOX_SMTP=true` + produção derruba o boot (API e worker); `true` na API
       exige `EMAIL_FROM`, no worker exige `SMTP_URL` e `EMAIL_FROM`. Depois, os dois schemas.
-- [ ] **T1.2** `sonnet` — Teste antes (contrato de schema/migration): coluna `transport` com default e CHECK. Depois, schema Drizzle
+- [x] **T1.2** `sonnet` — Teste antes (contrato de schema/migration): coluna `transport` com default e CHECK. Depois, schema Drizzle
       (API e worker), migration com rollback; `db:generate` → `no_changes`; aplicar, reverter e reaplicar em banco descartável.
-- [ ] **T1.3** `sonnet` — Teste antes: sem Resend pronto e modo ligado grava `sandbox_smtp` (de = `EMAIL_FROM`, sem segredo
+- [x] **T1.3** `sonnet` — Teste antes: sem Resend pronto e modo ligado grava `sandbox_smtp` (de = `EMAIL_FROM`, sem segredo
       decifrado); com Resend pronto grava `resend`; modo desligado mantém a recusa. Depois, caso de uso, porta, repositório,
       `main.ts`. Integração do repositório.
-- [ ] **T1.4** `sonnet` — Teste antes: `GET /contractor-mail-settings` devolve `sandboxDelivery`. Depois, caso de uso e rota.
+- [x] **T1.4** `sonnet` — Teste antes: `GET /contractor-mail-settings` devolve `sandboxDelivery`. Depois, caso de uso e rota.
 
 ## Fase 2 — Worker
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** `sonnet` — Teste antes (dublê do transporte): a linha `sandbox_smtp` sai pelo SMTP, vários destinatários, anexos, sem
+- [x] **T2.1** `sonnet` — Teste antes (dublê do transporte): a linha `sandbox_smtp` sai pelo SMTP, vários destinatários, anexos, sem
       `Reply-To`, sem tocar o Resend nem as configurações; modo desligado falha sem enviar. Depois, gateway, caso de uso,
       repositório (lê `transport`) e `main.ts`.
 
@@ -36,17 +36,17 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** `sonnet` — Teste antes: cliente/guarda aceita `sandboxDelivery` e recusa resposta sem ele. Depois, cliente e hook.
-- [ ] **T3.2** `sonnet` — Teste antes: a seção "Contatos de ocorrência" aparece na ficha, sem seletor, e a dica da aba de e-mail
+- [x] **T3.1** `sonnet` — Teste antes: cliente/guarda aceita `sandboxDelivery` e recusa resposta sem ele. Depois, cliente e hook.
+- [x] **T3.2** `sonnet` — Teste antes: a seção "Contatos de ocorrência" aparece na ficha, sem seletor, e a dica da aba de e-mail
       abre a aba Contratantes. Depois, `ContractorContactsPanel` e `ContractorFicha`.
-- [ ] **T3.3** `sonnet` — Teste antes: os dois avisos conforme prontidão e `sandboxDelivery`. Depois, `MailSendReadinessSummary` e locales.
+- [x] **T3.3** `sonnet` — Teste antes: os dois avisos conforme prontidão e `sandboxDelivery`. Depois, `MailSendReadinessSummary` e locales.
 
 ## Fase 4 — Infra e fechamento
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T4.1** `haiku` — `.railway/railway.ts` (`preserve()`), `.env.example`, `apps/*/CLAUDE.md`, `docs/ai-context/*`.
-- [ ] **T4.2** `sonnet` — Gates completos: contratos e integração das três apps, `prettier --check .` na raiz. Registrar no `evidence.md`.
+- [x] **T4.1** `haiku` — `.railway/railway.ts` (`preserve()`), `.env.example`, `apps/*/CLAUDE.md`, `docs/ai-context/*`.
+- [x] **T4.2** `sonnet` — Gates completos: contratos e integração das três apps, `prettier --check .` na raiz. Registrar no `evidence.md`.
 
 ## Prompt de execução
 
