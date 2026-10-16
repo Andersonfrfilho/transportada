@@ -3717,3 +3717,22 @@ devolve `{ data, sandboxDelivery }` — `sandboxDelivery` é `true` só com o mo
 escopo: correção de endereço (150) e encaminhamento do boleto (248) continuam exigindo o Resend. Contratos:
 `test/contractor-mail/sandbox-environment.contract.ts`, `test/occurrence-conversation/occurrence-mail.contract.ts`,
 `test/integration/occurrence-mail-sandbox.integration.ts`.
+
+## Spec 267 — Os responsáveis vão em cópia no e-mail da contratante
+
+Núcleo normativo em `apps/api-transportada/CLAUDE.md`. Histórico das decisões:
+
+- **Por que por item e não `PUT` da lista inteira:** a lista carrega estado (`active`/`inactive`) e o `PUT` trocaria linhas que
+  outro operador acabou de mexer. Cada escrita é uma transação com advisory lock da lista (hash de `(empresa, contratante|null)`)
+  e `audit_logs` com `before_snapshot`/`after_snapshot` (`userId`, `status`, `contractorId`; nunca endereço).
+- **Elegibilidade (decisão delegada ao dono):** o candidato precisa de vínculo ativo, `occurrences.resolve` e canal de e-mail no
+  perfil; quem perde algum deles continua **listado** com `eligible: false` (painel: "não elegível") e **não recebe cópia**.
+  Ativar/adicionar inelegível é `400 OCCURRENCE_WATCHER_NOT_ELIGIBLE`, sem dizer qual critério falhou. A spec dizia que o usuário
+  "sem e-mail" aparece marcado entre os candidatos; hoje ele nem é oferecido (o `eligible` da linha já gravada faz o papel).
+- **Teto:** 10 ativos e 30 linhas por lista (`OCCURRENCE_WATCHER_MAX_ACTIVE`/`_TOTAL`); `excludedWatcherUserIds` até 10.
+- **`maskedEmail`** usa `maskEmailAddress` (248); o endereço real só existe no servidor.
+- **Histórico:** o que a 267 chamava de "Para:" no histórico não existia na leitura da conversa; só `copy` (nome do perfil +
+  e-mail mascarado) foi acrescentado, na mensagem de saída. A correção de endereço não expõe histórico de mensagens por
+  destinatário (só `recipientCount`), então nada mudou nela além do dado do formulário (`cc`, `ccSource`).
+- **Contrato de rotas:** sem OpenAPI no repositório (o documento é este e os contratos em `test/`); `candidates` não colide com
+  `:userId` e há teste de rotas com `createRouter` + `allowedMethods`.
