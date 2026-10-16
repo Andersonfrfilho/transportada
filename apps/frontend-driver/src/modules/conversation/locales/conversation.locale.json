@@ -101,6 +101,18 @@
     "view": "Ver conversa"
   },
   "outboxFull": "Fila cheia: conecte-se para enviar o que já está esperando.",
+  "reopen": {
+    "lock": {
+      "cancelled": "Ocorrência cancelada. Não é possível escrever.",
+      "reopen": "Reabrir",
+      "resolved": "Ocorrência resolvida. Para escrever, reabra."
+    },
+    "refused": {
+      "alreadyOpen": "A ocorrência já tinha sido reaberta.",
+      "cancelled": "Ocorrência cancelada."
+    },
+    "stateUnknown": "Não foi possível confirmar se a ocorrência está resolvida"
+  },
   "subjectFallback": "Ocorrência",
   "title": "Conversas"
 }

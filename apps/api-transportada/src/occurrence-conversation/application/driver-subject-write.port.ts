@@ -17,7 +17,9 @@ export type DriverSubjectWriteTransactionPort = DriverSubjectTransactionPort &
     | 'attachments'
     | 'findIdempotency'
     | 'findOrCreateDriverConversation'
+    | 'insertDriverReopenedEvent'
     | 'insertMessage'
+    | 'lockOccurrenceResolution'
     | 'saveIdempotency'
   > & {
     /** A mensagem pelo id, na empresa e na conversa; `null` se não é desta conversa. */

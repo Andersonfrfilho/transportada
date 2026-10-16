@@ -1,8 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { DriverConversationSubject } from '@/modules/shared/driverRoute.service'
+import {
+  DRIVER_OCCURRENCE_KINDS,
+  type DriverConversationSubject,
+  type DriverOccurrenceRoute,
+} from '@/modules/shared/driverRoute.service'
 
 import {
   LEGACY_CONVERSATION_MESSAGE_TEMPLATE_KEY,
+  OCCURRENCE_RESOLVED_TEMPLATE_KEY,
   SUBJECT_CONVERSATION_MESSAGE_TEMPLATE_KEY,
   SUBJECT_ID_MAX_LENGTH,
   SUBJECT_TYPE_PATTERN,
@@ -11,6 +16,11 @@ import {
 export type NotificationDestination =
   | Readonly<{ kind: 'conversation'; subject: DriverConversationSubject }>
   | Readonly<{ kind: 'conversations' }>
+  | Readonly<{
+      kind: 'occurrence'
+      occurrenceId: string
+      occurrenceKind: DriverOccurrenceRoute['kind']
+    }>
   | Readonly<{ kind: 'stay' }>
 
 type NotificationDestinationInput = Readonly<{
@@ -26,10 +36,24 @@ function isValidSubjectId(value: unknown): value is string {
   return typeof value === 'string' && value.length >= 1 && value.length <= SUBJECT_ID_MAX_LENGTH
 }
 
+function resolveOccurrenceDestination(
+  payload: NotificationDestinationInput['payload'],
+): NotificationDestination {
+  const { occurrenceKind, subjectId, subjectType } = payload
+  const knownKind = DRIVER_OCCURRENCE_KINDS.find((candidate) => candidate === occurrenceKind)
+  if (subjectType !== 'occurrence' || knownKind === undefined || !isValidSubjectId(subjectId)) {
+    return { kind: 'stay' }
+  }
+  return { kind: 'occurrence', occurrenceId: subjectId, occurrenceKind: knownKind }
+}
+
 /** O sino só navega: o aviso de conversa abre o assunto quando o payload o traz, senão a lista. */
 export function resolveNotificationDestination(
   input: NotificationDestinationInput,
 ): NotificationDestination {
+  if (input.templateKey === OCCURRENCE_RESOLVED_TEMPLATE_KEY) {
+    return resolveOccurrenceDestination(input.payload)
+  }
   const isConversationKey =
     input.templateKey === LEGACY_CONVERSATION_MESSAGE_TEMPLATE_KEY ||
     input.templateKey === SUBJECT_CONVERSATION_MESSAGE_TEMPLATE_KEY

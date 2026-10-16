@@ -1506,6 +1506,11 @@
       "removeCaseStatus": "Remover estado de tratativa",
       "caseStatusSearch": "Buscar estado",
       "caseStatusSummary": "{{count}} selecionados",
+      "resolution": "Andamento",
+      "resolutionEmpty": "Nenhum andamento encontrado",
+      "removeResolution": "Remover andamento",
+      "resolutionSearch": "Buscar andamento",
+      "resolutionSummary": "{{count}} selecionados",
       "contractorReply": "Retorno da contratante",
       "contractorReplyOverdue": "Só as atrasadas",
       "contractorReplyOverdueHint": "Mostra as ocorrências cujo prazo de resposta da contratante já passou."
@@ -2322,6 +2327,25 @@
     },
     "closeBlockedByDraft": "Salve o acerto antes de encerrar — há item digitado que ainda não foi gravado."
   },
+  "occurrenceResolution": {
+    "action": "Resolver com observação",
+    "noteLabel": "Observação da resolução",
+    "noteHelp": "O motorista vai ler esta observação.",
+    "confirm": "Resolver",
+    "dismiss": "Cancelar",
+    "stateLabel": "Andamento",
+    "state": {
+      "open": "Em aberto",
+      "reopened": "Reaberta pelo motorista",
+      "resolved": "Resolvida",
+      "cancelled": "Cancelada"
+    },
+    "feedback": {
+      "alreadyResolved": "Já estava resolvida. A tela foi atualizada.",
+      "cancelled": "Esta ocorrência foi cancelada e não pode ser resolvida.",
+      "generic": "Não foi possível resolver a ocorrência. Tente novamente."
+    }
+  },
   "occurrenceSettlement": {
     "title": "Acerto dos produtos",
     "productCode": "Código do produto",
@@ -2575,7 +2599,10 @@
       "mailSent": "Enviou e-mail à contratante",
       "mailSentAutomatic": "Aviso automático enviado à contratante",
       "mailReceived": "A contratante respondeu por e-mail",
-      "cancelled": "Ocorrência cancelada"
+      "cancelled": "Ocorrência cancelada",
+      "resolvedInternal": "Resolvida por {{name}}: {{note}}",
+      "resolvedAutomatic": "Resolvida automaticamente ao encerrar a tratativa",
+      "reopened": "Reaberta pelo motorista {{name}}"
     }
   },
   "occurrenceCancellation": {

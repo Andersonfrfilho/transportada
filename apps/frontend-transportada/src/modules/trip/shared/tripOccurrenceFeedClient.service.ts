@@ -13,6 +13,8 @@ import {
   OCCURRENCE_SETTLEMENT_PAYER_KINDS,
   TRIP_OCCURRENCE_CASE_DECISION_KINDS,
   TRIP_OCCURRENCE_CASE_STATUSES,
+  TRIP_OCCURRENCE_RESOLUTION_ACTOR_KINDS,
+  TRIP_OCCURRENCE_RESOLUTION_STATES,
   TRIP_OCCURRENCE_UNKNOWN_CASE_STATUS,
   type OccurrenceContractorConversationState,
   type OccurrenceSettlementItem,
@@ -34,9 +36,14 @@ import {
   type TripOccurrenceFeedItem,
   type TripOccurrenceFeedOrder,
   type TripOccurrenceFeedPage,
+  type TripOccurrenceResolution,
 } from './tripOccurrenceFeed.service'
 import { serializeTripOccurrenceQuery } from './tripOccurrenceFeed.service'
 import type { OccurrenceTimeline } from './tripOccurrenceTimeline.service'
+import type {
+  OccurrenceResolutionKind,
+  OccurrenceResolutionResult,
+} from './occurrenceResolution.service'
 import { parseOccurrenceTimeline } from './tripOccurrenceTimeline.validation'
 
 const TRIP_OCCURRENCES_PATH = '/trip-occurrences'
@@ -75,6 +82,10 @@ export type TripOccurrenceFeedClient = Readonly<{
   readOccurrenceTimeline: (input: Readonly<{ occurrenceId: string }>) => Promise<OccurrenceTimeline>
   /** Spec 164 T7/RF8b: motivo obrigatório — ocorrência aberta por engano, só de `recorded`/`under_review`. */
   cancelOccurrenceCase: (input: CaseActionWithNoteInput) => Promise<CaseActionResult>
+  /** Spec 266 RF7: `POST /trip-occurrences/:kind/:id/resolution` — nota obrigatória, 409 se já resolvida ou cancelada. */
+  resolveTripOccurrence: (
+    input: Readonly<{ kind: OccurrenceResolutionKind; note: string; occurrenceId: string }>,
+  ) => Promise<OccurrenceResolutionResult>
   /** RF8: só sai de `decided`. */
   closeOccurrenceCase: (input: CaseActionInput) => Promise<CaseActionResult>
   /** RF7: recusa 422 quando `blocked` sem item para acertar. */
@@ -179,14 +190,29 @@ function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
 
 type RawFeedItem = Omit<
   TripOccurrenceFeedItem,
-  'case' | 'contractorReply' | 'conversation' | 'document'
+  'case' | 'contractorReply' | 'conversation' | 'document' | 'resolution'
 > &
   Readonly<{
     case?: unknown
     contractorReply?: unknown
     conversation?: unknown
     document?: unknown
+    resolution?: unknown
   }>
+
+/**
+ * Spec 266 T3.2: ausente, nulo ou com `at` malformado é em aberto. Estado desconhecido também vira
+ * `null` (a API mais nova pode ter outro andamento); ator desconhecido zera só o ator.
+ */
+function toResolution(value: unknown): null | TripOccurrenceResolution {
+  if (!isRecord(value) || !isString(value.at)) return null
+  const state = TRIP_OCCURRENCE_RESOLUTION_STATES.find((known) => known === value.state)
+  if (state === undefined) return null
+  const actorKind = TRIP_OCCURRENCE_RESOLUTION_ACTOR_KINDS.find(
+    (known) => known === value.actorKind,
+  )
+  return { actorKind: actorKind ?? null, at: value.at, state }
+}
 
 /** Spec 183 RF4: ausente ou malformado é "sem conversa" — o campo nunca reprova o item. */
 function toConversationSummary(value: unknown): TripOccurrenceConversationSummary {
@@ -241,7 +267,15 @@ function isFeedItem(value: unknown): value is RawFeedItem {
 }
 
 function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
-  const { cancellation, case: rawCase, contractorReply, conversation, document, ...rest } = raw
+  const {
+    cancellation,
+    case: rawCase,
+    contractorReply,
+    conversation,
+    document,
+    resolution,
+    ...rest
+  } = raw
   const replySummary = toContractorReplySummary(contractorReply)
   return {
     ...rest,
@@ -250,6 +284,7 @@ function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
     case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null,
     conversation: toConversationSummary(conversation),
     document: isOccurrenceDocument(document) ? document : null,
+    resolution: toResolution(resolution),
   }
 }
 
@@ -458,6 +493,21 @@ function readAttachments(payload: unknown): readonly TripOccurrenceAttachment[] 
   return payload.data
 }
 
+function readResolutionResult(payload: unknown): OccurrenceResolutionResult {
+  if (!isRecord(payload) || !isRecord(payload.data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  const { note, occurrenceId, occurrenceKind, resolvedAt, state } = payload.data
+  if (
+    !isString(note) ||
+    !isString(occurrenceId) ||
+    (occurrenceKind !== 'document' && occurrenceKind !== 'stop') ||
+    !isString(resolvedAt) ||
+    !isString(state)
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return { note, occurrenceId, occurrenceKind, resolvedAt, state }
+}
+
 function readErrorCode(payload: unknown): string {
   if (isRecord(payload) && isRecord(payload.error) && isString(payload.error.code)) {
     return payload.error.code
@@ -561,6 +611,14 @@ export function createTripOccurrenceFeedClient(
         { method: 'POST' },
       )
       return readCaseActionResult(payload)
+    },
+    async resolveTripOccurrence(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.kind}/${encodeURIComponent(input.occurrenceId)}/resolution`,
+        { body: { note: input.note }, method: 'POST' },
+      )
+      return readResolutionResult(payload)
     },
     async cancelOccurrenceCase(input) {
       const payload = await requestJson(

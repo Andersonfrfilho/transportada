@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useDriverSession } from '@/modules/driver-trip/hooks/useDriverSession.hook'
 import { DriverBottomBar } from '@/modules/driver-trip/components/DriverBottomBar.component'
 import {
   navigateToDriverConversation,
@@ -19,14 +20,21 @@ import {
   parseDriverConversationSubject,
 } from '@/modules/shared/driverRoute.service'
 
+import { createComposerLockRenderer } from '../components/DriverComposerLock.component'
 import { useConversationOutbox } from '../hooks/useConversationOutbox.hook'
 import { useConversationPathname } from '../hooks/useConversationPathname.hook'
+import { useDriverConversationReopen } from '../hooks/useDriverConversationReopen.hook'
 import { useDriverQuickReplies } from '../hooks/useDriverQuickReplies.hook'
-import { UNREAD_CONVERSATIONS_QUERY_KEY } from '../shared/driverConversation.constant'
+import { useRouteOccurrenceStates } from '../hooks/useRouteOccurrenceStates.hook'
+import {
+  DRIVER_CONVERSATION_SUBJECT_TYPE,
+  UNREAD_CONVERSATIONS_QUERY_KEY,
+} from '../shared/driverConversation.constant'
 import { driverAudioRecordingOptions } from '../shared/driverAudioRecording.service'
 import { getDriverConversationsApi } from '../shared/driverConversationsApiInstance.service'
 import { buildDriverSubjectGroups } from '../shared/driverSubjectGroups.constant'
 import { renderDriverSubjectIcon } from '../shared/driverSubjectIcon.service'
+import { conversationSubjectKey } from '../shared/conversationSnapshot.service'
 import styles from '../styles/conversation.module.css'
 
 const ParticipantConversations = lazy(async () => {
@@ -41,6 +49,23 @@ export function DriverConversationsPage() {
   const { isOutboxFull, onRetryPending, pendingMessages } = useConversationOutbox(api)
   const quickReplies = useDriverQuickReplies()
   const selected = parseDriverConversationSubject(useConversationPathname())
+  const { canSync } = useDriverSession()
+  const { isSettled, stateByOccurrenceId } = useRouteOccurrenceStates(canSync)
+  const isStateUnknown =
+    selected !== undefined &&
+    selected.subjectType === DRIVER_CONVERSATION_SUBJECT_TYPE &&
+    isSettled &&
+    !stateByOccurrenceId.has(selected.subjectId)
+  const { refusal } = useDriverConversationReopen({
+    api,
+    stateByOccurrenceId,
+    selectedKey: selected === undefined ? undefined : conversationSubjectKey(selected),
+  })
+  const renderComposerLock = createComposerLockRenderer({
+    isArmed: api.reopen.isReopening,
+    onReopen: api.reopen.arm,
+    stateByOccurrenceId,
+  })
   const labels = t('labels', { returnObjects: true }) as Partial<ParticipantConversationsLabels>
   const subjectGroups = buildDriverSubjectGroups({
     document: t('groups.document'),
@@ -64,6 +89,16 @@ export function DriverConversationsPage() {
           {t('outboxFull')}
         </p>
       ) : null}
+      {isStateUnknown ? (
+        <p role="status" className={styles.outboxNotice}>
+          {t('reopen.stateUnknown')}
+        </p>
+      ) : null}
+      {refusal === undefined ? null : (
+        <p role="alert" className={styles.outboxNotice}>
+          {t(`reopen.refused.${refusal}`)}
+        </p>
+      )}
       <main className={styles.conversationMain}>
         <Suspense
           fallback={
@@ -84,6 +119,7 @@ export function DriverConversationsPage() {
             subjectGroups={subjectGroups}
             pendingMessages={pendingMessages}
             quickReplies={quickReplies}
+            renderComposerLock={renderComposerLock}
             onBack={handleBack}
             onRetryPending={onRetryPending}
             onSelect={handleSelect}

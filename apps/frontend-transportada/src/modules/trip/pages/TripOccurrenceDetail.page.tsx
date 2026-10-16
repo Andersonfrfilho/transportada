@@ -19,6 +19,8 @@ import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { OccurrenceCancellationMark } from '../components/OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
+import { OccurrenceResolutionBadge } from '../components/OccurrenceResolutionBadge.component'
+import { OccurrenceResolutionPanel } from '../components/OccurrenceResolutionPanel.component'
 import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
@@ -40,6 +42,7 @@ import {
   resolveOccurrenceTypeLabel,
   type TripOccurrenceDetail,
 } from '../shared/tripOccurrenceFeed.service'
+import { resolveOccurrenceViewState } from '../shared/occurrenceResolution.service'
 import { navigateToTripOccurrences } from '../shared/tripOccurrenceRoute.service'
 import { navigateToTrip } from '../shared/tripRoute.service'
 import styles from '../styles/trip.module.css'
@@ -433,12 +436,19 @@ function OccurrenceDetailSections({
   const tripDocumentId = occurrence.document?.tripDocumentId ?? null
 
   const sections: Record<OccurrenceDetailSection, () => ReactNode> = {
-    case: () =>
-      occurrence.source === 'document' ? (
-        <section aria-labelledby="occurrence-case-title" className={styles.panel}>
-          <div className={styles.panelHead}>
-            <h2 id="occurrence-case-title">{t('occurrenceDetail.case.title')}</h2>
-          </div>
+    case: () => (
+      <section aria-labelledby="occurrence-case-title" className={styles.panel}>
+        <div className={styles.panelHead}>
+          <h2 id="occurrence-case-title">{t('occurrenceDetail.case.title')}</h2>
+        </div>
+        <OccurrenceResolutionBadge resolution={occurrence.resolution ?? null} />
+        <OccurrenceResolutionPanel
+          canResolve={canResolveOccurrenceCases}
+          occurrenceId={occurrence.id}
+          occurrenceKind={occurrence.source}
+          state={resolveOccurrenceViewState(occurrence.resolution)}
+        />
+        {occurrence.source === 'document' ? (
           <OccurrenceCasePanel
             canResolve={canResolveOccurrenceCases}
             occurrenceCase={occurrence.case}
@@ -460,8 +470,9 @@ function OccurrenceDetailSections({
                   },
                 })}
           />
-        </section>
-      ) : null,
+        ) : null}
+      </section>
+    ),
     contractorConversation: () => conversations('contractor'),
     conversations: () => conversations(),
     document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,

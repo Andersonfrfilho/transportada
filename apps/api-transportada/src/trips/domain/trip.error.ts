@@ -1107,6 +1107,28 @@ export class TripOccurrenceNotFoundError extends ApiError {
   }
 }
 
+/** Spec 266: sem viagem atual (ou já finalizada) o motorista não lê as ocorrências da rota. */
+export class DriverTripNotActiveError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DRIVER_TRIP_NOT_ACTIVE',
+      message: 'The driver has no active trip.',
+      status: 404,
+    })
+  }
+}
+
+/** Spec 266: objeto que não é foto, assinatura nem anexo do chat desta ocorrência — ou expirado. */
+export class TripOccurrenceAttachmentNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND',
+      message: 'The file was not found for this occurrence.',
+      status: 404,
+    })
+  }
+}
+
 /**
  * Spec 164 T3: a tratativa (`trip_occurrence_cases`) não existe nesta empresa — de outra empresa
  * ou inexistente respondem igual, no mesmo desenho de `TripOccurrenceNotFoundError`.

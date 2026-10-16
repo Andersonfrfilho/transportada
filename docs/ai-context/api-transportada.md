@@ -3660,3 +3660,47 @@ antiga da ocorrência **não** ganham os campos (ouro byte a byte).
 - **Estado atual em produção:** nenhuma linha de transcrição é gravada antes da Fase 3 (o worker). Até lá, o anexo de áudio sai
   `disabled` (empresa desligada) ou sem o campo `transcription`.
 - **Rotas por assunto sem `/v1`:** o código não tem prefixo `/v1` para as rotas da conversa, então os caminhos reais são os de `api-contract.md` §1.
+
+## Spec 266 — o motorista acompanha as ocorrências da rota (ADR-0105, 2026-10-15)
+
+- **Problema:** o motorista registrava ocorrência e perdia o fio. A tratativa (164) só existe para a nota com política de reentrega
+  `allowed`/`blocked`, e ocorrência de parada nunca tem tratativa. Faltava um **andamento** para todas as ocorrências, separado da
+  tratativa: o escritório dá o assunto por encerrado, o motorista avisa "não acabou".
+- **Decisão (ADR-0105):** eixo próprio em `trip_occurrence_resolution_events` (só inserção; `kind` `resolved`/`reopened`; `actor_kind`
+  `internal`/`driver`/`system`). A máquina da tratativa **não muda**. Emendas pontuais: 183 D4 e 263 D4 (o motorista só cria/reabre
+  conversa respondendo). A 167 continua valendo: reabrir a **tratativa** segue fora de escopo.
+- **Decisões do dono (2026-10-15, depois da revisão de arquitetura):**
+  - **A.** Reabrir é explícito. Na ocorrência resolvida o composer fica travado até o toque em "Reabrir". Tocar e não enviar não grava
+    nada. Resposta sem `reopen` (app antigo, WhatsApp) é gravada e não reabre.
+  - **B.** Resolução automática mostra frase fixa por status terminal (`case_closed`, `case_returned_to_warehouse`, `case_cancelled`),
+    nunca a nota interna. A resolução manual mostra a observação do operador, e o painel avisa que o motorista vai ler a observação.
+  - **C.** O motorista só enxerga enquanto a viagem não termina. Lista, detalhe e links assinados valem para viagem em andamento; depois,
+    404 (`DRIVER_TRIP_NOT_ACTIVE` na lista, `TRIP_OCCURRENCE_NOT_FOUND` no detalhe) e `trip.occurrence-resolved` não é enviada.
+  - **D.** `trip.occurrence-resolved` vai à equipe inteira (motorista e ajudantes).
+- **Mudanças do `architect` (T0.2, aprovado com mudanças), todas aplicadas na ADR:** identidade sem polimorfismo (`document_occurrence_id`
+  e `stop_occurrence_id`, FK composta, `CHECK` de dono único); ator `system` ligado ao evento da tratativa (`case_event_id`, com
+  `CHECK ((actor_kind='system') = (case_event_id IS NOT NULL))`); lock `FOR NO KEY UPDATE` na ocorrência, lido depois do lock (sai o
+  `FOR UPDATE` no último evento); resolução automática em `applyTransition`, não duplica; reabrir sem rota nova (`reopen` na resposta
+  existente, dentro de `replayOrRun.run`); prefixo `/me/trips/current/route-occurrences` (o roteador entrega o primeiro match dinâmico);
+  `case.transition` fora da linha do tempo do motorista (ADR-0045 §6).
+- **Estado no código:** `src/trips/domain/occurrence-resolution.policy.ts` (`resolveOccurrenceResolutionState`, `buildFeedResolutionView`,
+  frase por status). Último `resolved` vence. `cancelled_at` vence qualquer evento.
+  - Terminal da tratativa: `OCCURRENCE_CASE_TERMINAL_STATUSES` (`closed`, `returned_to_warehouse`, `cancelled`). `decided` fica de fora.
+  - Ocorrência cancelada (167) não resolve nem reabre. Cancelar a tratativa resolve a ocorrência como sistema, mas não a cancela.
+- **Rotas novas:**
+  - `POST /trip-occurrences/:kind/:id/resolution` (`occurrences.resolve`, 201, `note` obrigatória de 1 a 2000 caracteres). Código em
+    `src/trips/presentation/occurrence-resolution.routes.ts` e `resolve-occurrence.use-case.ts`.
+  - `GET /me/trips/current/route-occurrences`, `GET .../:kind/:id` e `GET .../:kind/:id/attachments/:objectId/url` (`trip.read`, viagem
+    não finalizada). Código em `src/trips/presentation/me-route-occurrence.routes.ts`.
+- **Reabertura:** `reopen?: true` no `replySchema` das duas rotas de resposta do motorista (`reply-my-subject-conversation` e
+  `driver-conversation`). Só assunto `occurrence` (`REOPEN_NOT_SUPPORTED_FOR_SUBJECT` 400 nos outros). A trava é do registro (`lockOccurrenceResolution`),
+  não da tratativa: o caminho do motorista nunca trava o caso. Cancelada → 409 `OCCURRENCE_CANCELLED`; não resolvida → 409 `OCCURRENCE_NOT_RESOLVED`.
+  Ver `src/occurrence-conversation/application/driver-occurrence-reopen.service.ts`.
+- **Avisos:** `src/trips/infrastructure/occurrence-resolution-notifier.gateway.ts`. Os dois são enviados depois do commit; falha vira
+  `warn` com o nome do erro e não sobe. Payload leva ids e nome do tipo, nunca nota, observação ou texto da mensagem.
+- **Feed e linha do tempo:** `resolutionStateIn` (`open`, `resolved`, `reopened`, `cancelled`) em SQL, com estados disjuntos; `resolution`
+  no item do feed. A linha do tempo recebe `resolution.resolved` e `resolution.reopened` no envelope existente.
+- **Backfill:** fechado sem backfill. A T2.4 mediu e não há tratativa real encerrada antes do deploy (`evidence.md`, 50719b4e5).
+  Tratativa que terminar depois do deploy resolve o andamento sozinha; ocorrência antiga continua em aberto.
+- **Divergência de forma, sem mudança de comportamento:** o `OpenAPI` não existe nesta API (ver `CLAUDE.md`), então a documentação das
+  rotas novas fica neste bloco e no núcleo de `apps/api-transportada/CLAUDE.md` (seção "O motorista lê as ocorrências da rota").

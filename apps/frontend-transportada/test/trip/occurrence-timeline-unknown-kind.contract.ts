@@ -64,14 +64,14 @@ async function readTimelineFailure(data: unknown): Promise<unknown> {
 }
 
 /**
- * Spec 266 T1.2: a API ganha tipos de evento novos (`resolution.*`). Evento de tipo desconhecido
+ * Spec 266 T1.2: a API pode ganhar tipos de evento que o painel ainda não conhece. Evento de tipo desconhecido
  * sai da linha do tempo; os eventos conhecidos seguem na ordem. Resposta estruturalmente inválida
  * continua reprovada.
  */
 describe('spec 266 T1.2: evento de linha do tempo desconhecido', () => {
-  test('descarta resolution.resolved e mantém os eventos válidos na ordem', async () => {
+  test('descarta resolution.escalated e mantém os eventos válidos na ordem', async () => {
     const timeline = await readTimeline({
-      events: [RECORDED, futureEvent('resolution.resolved'), DECIDED],
+      events: [RECORDED, futureEvent('resolution.escalated'), DECIDED],
       timings: TIMINGS,
     })
 
@@ -79,9 +79,9 @@ describe('spec 266 T1.2: evento de linha do tempo desconhecido', () => {
     expect(timeline.timings).toEqual(TIMINGS)
   })
 
-  test('descarta resolution.reopened', async () => {
+  test('descarta resolution.archived', async () => {
     const timeline = await readTimeline({
-      events: [futureEvent('resolution.reopened'), RECORDED],
+      events: [futureEvent('resolution.archived'), RECORDED],
       timings: TIMINGS,
     })
 
@@ -90,7 +90,7 @@ describe('spec 266 T1.2: evento de linha do tempo desconhecido', () => {
 
   test('evento desconhecido malformado também sai, sem reprovar a linha', async () => {
     const timeline = await readTimeline({
-      events: [RECORDED, { kind: 'resolution.resolved' }],
+      events: [RECORDED, { kind: 'resolution.escalated' }],
       timings: TIMINGS,
     })
 

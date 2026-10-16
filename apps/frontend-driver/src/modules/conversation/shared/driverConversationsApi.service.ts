@@ -27,6 +27,10 @@ import {
   createDriverConversationOpener,
   type DriverConversationOpenAvailability,
 } from './driverConversationOpen.service'
+import {
+  createDriverConversationReopen,
+  type DriverConversationReopen,
+} from './driverConversationReopen.service'
 import { createDriverConversationRoutes } from './driverConversationRoutes.service'
 import {
   DriverConversationRequestError,
@@ -66,6 +70,8 @@ export type DriverConversationsApi = ParticipantConversationsApi &
   Readonly<{
     openAvailability: DriverConversationOpenAvailability
     outbox: ConversationOutbox
+    /** Spec 266: o "Reabrir" da ocorrência resolvida (armar, desarmar, avisos). */
+    reopen: DriverConversationReopen
     requestRefresh: () => void
   }>
 
@@ -89,6 +95,7 @@ export function createDriverConversationsApi(
   const uploader = createDriverConversationUploader({ http, routes })
   const attachmentUrls = new Map<string, AttachmentUrlEntry>()
   const openAvailability = createDriverConversationOpenAvailability()
+  const reopen = createDriverConversationReopen()
   const openConversation = createDriverConversationOpener({
     availability: openAvailability,
     fallbackSubjectLabel: dependencies.fallbackSubjectLabel,
@@ -157,6 +164,7 @@ export function createDriverConversationsApi(
     isOnline: dependencies.isOnline ?? readBrowserOnline,
     now,
     outbox,
+    reopen,
     routes,
     uploader,
   })
@@ -181,6 +189,7 @@ export function createDriverConversationsApi(
     openAvailability,
     openConversation,
     outbox,
+    reopen,
     requestRefresh: refreshTicker.requestRefresh,
     retryPending: sender.retryPending,
     sendMessage: sender.sendMessage,

@@ -6,6 +6,11 @@ import type {
   QueuedAttachment,
 } from './offlineAttachments.service'
 import type { OfflineQueueStore, QueuedReport } from './offlineQueue.service'
+import type {
+  RouteOccurrenceSnapshotStore,
+  StoredRouteOccurrences,
+} from './driverRouteOccurrence.types'
+import { isStoredRouteOccurrences } from './driverRouteOccurrenceResponse.validation'
 import {
   isStoredProofThumbnail,
   type ProofThumbnailStore,
@@ -39,10 +44,12 @@ const QUEUE_KEY = 'queue'
  * ADR-0075 §8 (plan D5): a versão 3 traz o store `trip-snapshot`. A 4 traz `proof-thumbnails` — a
  * miniatura do canhoto que o servidor já aceitou (pedido do usuário, 01/10). As duas só criam store
  * novo: o `onupgradeneeded` abaixo nada migra, e aparelho na 3 sobe sem perder fila nem snapshot.
+ * A 5 traz `trip-occurrences` (spec 266): o retrato offline das ocorrências da rota, pelo mesmo caminho.
  */
-const DATABASE_VERSION = 4
+const DATABASE_VERSION = 5
 const TRIP_SNAPSHOT_STORE_NAME = 'trip-snapshot'
 const PROOF_THUMBNAIL_STORE_NAME = 'proof-thumbnails'
+const TRIP_OCCURRENCES_STORE_NAME = 'trip-occurrences'
 /** Ponteiro para o `subHash` de quem usou por último — é o snapshot que o boot sem rede abre. */
 const LAST_OWNER_KEY = 'last'
 
@@ -55,6 +62,7 @@ function openDatabase(): Promise<IDBDatabase> {
         ATTACHMENT_STORE_NAME,
         TRIP_SNAPSHOT_STORE_NAME,
         PROOF_THUMBNAIL_STORE_NAME,
+        TRIP_OCCURRENCES_STORE_NAME,
       ]) {
         if (!request.result.objectStoreNames.contains(name)) {
           request.result.createObjectStore(name)
@@ -305,6 +313,33 @@ export function createIndexedDbProofThumbnailStore(): ProofThumbnailStore {
     write: (input: { readonly documentId: string; readonly record: StoredProofThumbnail }) =>
       writeProofThumbnailStore((store) => {
         store.put(input.record, input.documentId)
+      }),
+  }
+}
+
+/** O retrato das ocorrências da rota, por `tripId` — só metadado, nunca link assinado. */
+export function createIndexedDbRouteOccurrenceSnapshotStore(): RouteOccurrenceSnapshotStore {
+  const writeStoreOf = (apply: (store: IDBObjectStore) => void) =>
+    writeStore({ apply, storeName: TRIP_OCCURRENCES_STORE_NAME })
+  return {
+    clear: () => writeStoreOf((store) => store.clear()),
+    async read(tripId) {
+      const stored = await readValue({ key: tripId, storeName: TRIP_OCCURRENCES_STORE_NAME })
+      return isStoredRouteOccurrences(stored) ? stored : undefined
+    },
+    remove: (tripId) => writeStoreOf((store) => store.delete(tripId)),
+    retainOnly: (tripId) =>
+      writeStoreOf((store) => {
+        const keysRequest = store.getAllKeys()
+        keysRequest.onsuccess = () => {
+          for (const key of keysRequest.result) {
+            if (key !== tripId) store.delete(key)
+          }
+        }
+      }),
+    write: (record: StoredRouteOccurrences) =>
+      writeStoreOf((store) => {
+        store.put(record, record.tripId)
       }),
   }
 }

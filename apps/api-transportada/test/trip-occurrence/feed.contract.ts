@@ -146,4 +146,24 @@ describe('fronteira da listagem de ocorrências', () => {
   test('sem o parâmetro não há filtro de retorno', () => {
     expect(parse('?stageIn=delivery').filters).toEqual({ stageIn: ['delivery'] })
   })
+
+  /** Spec 266 T2.9: o andamento com o motorista; `reopened` é o último evento `reopened`. */
+  test('resolutionStateIn aceita os quatro estados, um ou vários', () => {
+    expect(parse('?resolutionStateIn=reopened').filters).toEqual({
+      resolutionStateIn: ['reopened'],
+    })
+    expect(parse('?resolutionStateIn=open,reopened').filters).toEqual({
+      resolutionStateIn: ['open', 'reopened'],
+    })
+    expect(parse('?resolutionStateIn=resolved,cancelled').filters).toEqual({
+      resolutionStateIn: ['resolved', 'cancelled'],
+    })
+  })
+
+  test('resolutionStateIn fora do vocabulário, vazio ou repetido é recusa', () => {
+    expect(() => parse('?resolutionStateIn=closed')).toThrow()
+    expect(() => parse('?resolutionStateIn=open,closed')).toThrow()
+    expect(() => parse('?resolutionStateIn=')).toThrow()
+    expect(() => parse('?resolutionStateIn=open&resolutionStateIn=resolved')).toThrow()
+  })
 })

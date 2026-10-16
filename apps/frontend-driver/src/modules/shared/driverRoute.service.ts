@@ -9,6 +9,7 @@
 export type DriverRouteSection =
   | 'conversations'
   | 'notifications'
+  | 'occurrences'
   | 'pending-proofs'
   | 'profile'
   | 'queue'
@@ -17,6 +18,7 @@ export type DriverRouteSection =
 export const DRIVER_ROUTE_PATH: Readonly<Record<DriverRouteSection, string>> = {
   conversations: '/conversas',
   notifications: '/notificacoes',
+  occurrences: '/ocorrencias',
   'pending-proofs': '/fotos',
   profile: '/perfil',
   queue: '/fila',
@@ -104,5 +106,94 @@ export function navigateToDriverConversation(
   const path = buildDriverConversationPath(subject)
   if (target.location.pathname === path) return
   target.history.pushState({}, '', path)
+  target.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+export const DRIVER_OCCURRENCE_KINDS = ['document', 'stop'] as const
+export type DriverOccurrenceRouteKind = (typeof DRIVER_OCCURRENCE_KINDS)[number]
+
+export type DriverOccurrenceRoute = Readonly<{ id: string; kind: DriverOccurrenceRouteKind }>
+
+/** `/ocorrencias/:kind/:id`; a lista, kind desconhecido, segmentos a mais ou malformado não são detalhe. */
+export function parseDriverOccurrenceRoute(pathname: string): DriverOccurrenceRoute | undefined {
+  const prefix = `${DRIVER_ROUTE_PATH.occurrences}/`
+  if (!pathname.startsWith(prefix)) return undefined
+  const segments = pathname.slice(prefix.length).split('/')
+  const [kind, id] = segments
+  const knownKind = DRIVER_OCCURRENCE_KINDS.find((candidate) => candidate === kind)
+  if (segments.length !== 2 || knownKind === undefined || !id) return undefined
+  try {
+    return { id: decodeURIComponent(id), kind: knownKind }
+  } catch {
+    return undefined
+  }
+}
+
+export function buildDriverOccurrencePath(route: DriverOccurrenceRoute): string {
+  return `${DRIVER_ROUTE_PATH.occurrences}/${route.kind}/${encodeURIComponent(route.id)}`
+}
+
+export function navigateToDriverOccurrence(
+  route: DriverOccurrenceRoute,
+  target: DriverNavigationTarget = window,
+): void {
+  const path = buildDriverOccurrencePath(route)
+  if (target.location.pathname === path) return
+  target.history.pushState({}, '', path)
+  target.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+/** O filtro da lista: as ocorrências de uma nota (`?nota=`) ou só as de parada de uma parada (`?parada=`). */
+export type DriverOccurrenceListFilter = Readonly<{ documentId?: string; stopId?: string }>
+
+export function buildDriverOccurrenceListPath(filter: DriverOccurrenceListFilter): string {
+  const base = DRIVER_ROUTE_PATH.occurrences
+  if (filter.documentId !== undefined)
+    return `${base}?nota=${encodeURIComponent(filter.documentId)}`
+  if (filter.stopId !== undefined) return `${base}?parada=${encodeURIComponent(filter.stopId)}`
+  return base
+}
+
+export function parseDriverOccurrenceListFilter(search: string): DriverOccurrenceListFilter {
+  const params = new URLSearchParams(search)
+  const documentId = params.get('nota')
+  if (documentId) return { documentId }
+  const stopId = params.get('parada')
+  return stopId ? { stopId } : {}
+}
+
+/** Sempre empurra: o filtro mora na query, que o `pathname` do alvo não enxerga. */
+export function navigateToDriverOccurrenceList(
+  filter: DriverOccurrenceListFilter,
+  target: DriverNavigationTarget = window,
+): void {
+  target.history.pushState({}, '', buildDriverOccurrenceListPath(filter))
+  target.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+const STOP_HASH_PREFIX = '#stop-'
+
+/** `/#stop-<id>`: a rota com a parada em destaque; quem abre a viagem rola até ela e põe o foco. */
+export function buildDriverStopPath(stopId: string): string {
+  return `${DRIVER_ROUTE_PATH.trip}${STOP_HASH_PREFIX}${encodeURIComponent(stopId)}`
+}
+
+export function parseDriverStopHash(hash: string): string | undefined {
+  if (!hash.startsWith(STOP_HASH_PREFIX)) return undefined
+  const encoded = hash.slice(STOP_HASH_PREFIX.length)
+  if (encoded === '') return undefined
+  try {
+    return decodeURIComponent(encoded)
+  } catch {
+    return undefined
+  }
+}
+
+/** Sempre empurra: o destaque mora no hash, que o `pathname` do alvo não enxerga. */
+export function navigateToDriverStop(
+  stopId: string,
+  target: DriverNavigationTarget = window,
+): void {
+  target.history.pushState({}, '', buildDriverStopPath(stopId))
   target.dispatchEvent(new PopStateEvent('popstate'))
 }

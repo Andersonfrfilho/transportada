@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test'
 import { resolveNotificationDestination } from '../../src/modules/notification/shared/notificationDestination.service'
 import {
   LEGACY_CONVERSATION_MESSAGE_TEMPLATE_KEY,
+  OCCURRENCE_RESOLVED_TEMPLATE_KEY,
   SUBJECT_CONVERSATION_MESSAGE_TEMPLATE_KEY,
 } from '../../src/modules/notification/shared/notificationTemplate.constant'
 
@@ -85,5 +86,46 @@ describe('resolveNotificationDestination (spec 263 T1b.2, D6; T2.0 ADR-0101 §9/
         templateKey: 'trip.conversation-message-v9',
       }),
     ).toEqual({ kind: 'stay' })
+  })
+
+  describe(`chave ${OCCURRENCE_RESOLVED_TEMPLATE_KEY} (spec 266 T4.9)`, () => {
+    const templateKey = OCCURRENCE_RESOLVED_TEMPLATE_KEY
+
+    it.each(['document', 'stop'] as const)(
+      'abre o detalhe da ocorrência de %s',
+      (occurrenceKind) => {
+        expect(
+          resolveNotificationDestination({
+            payload: {
+              occurrenceKind,
+              subjectId: 'occ-1',
+              subjectType: 'occurrence',
+              typeName: 'Recusa',
+            },
+            templateKey,
+          }),
+        ).toEqual({ kind: 'occurrence', occurrenceId: 'occ-1', occurrenceKind })
+      },
+    )
+
+    it.each([
+      ['sem o tipo da ocorrência', { subjectId: 'occ-1', subjectType: 'occurrence' }],
+      [
+        'tipo de ocorrência desconhecido',
+        { occurrenceKind: 'trip', subjectId: 'occ-1', subjectType: 'occurrence' },
+      ],
+      [
+        'assunto que não é ocorrência',
+        { occurrenceKind: 'stop', subjectId: 'occ-1', subjectType: 'document' },
+      ],
+      ['id vazio', { occurrenceKind: 'stop', subjectId: '', subjectType: 'occurrence' }],
+      [
+        'id acima de 128 caracteres',
+        { occurrenceKind: 'stop', subjectId: 'a'.repeat(129), subjectType: 'occurrence' },
+      ],
+      ['id que não é texto', { occurrenceKind: 'stop', subjectId: 7, subjectType: 'occurrence' }],
+    ])('payload %s fica onde está', (_label, payload) => {
+      expect(resolveNotificationDestination({ payload, templateKey })).toEqual({ kind: 'stay' })
+    })
   })
 })

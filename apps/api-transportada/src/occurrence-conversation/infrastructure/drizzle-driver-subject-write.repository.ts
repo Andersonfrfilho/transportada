@@ -62,7 +62,9 @@ function createWriteTransactionPort(transaction: Transaction): DriverSubjectWrit
     findIdempotency: occurrence.findIdempotency,
     findOrCreateDriverConversation: occurrence.findOrCreateDriverConversation,
     findSubjectMessage: (input) => findSubjectMessage(transaction, input),
+    insertDriverReopenedEvent: occurrence.insertDriverReopenedEvent,
     insertMessage: occurrence.insertMessage,
+    lockOccurrenceResolution: occurrence.lockOccurrenceResolution,
     saveIdempotency: occurrence.saveIdempotency,
   }
 }

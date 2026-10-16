@@ -149,6 +149,17 @@ valor e não vazio), preso por um contrato de tabela espelhada em cada app. Pre�
 do usuário: o registro do motorista não abre a tratativa da 164, então a sugestão de acerto (RF12) não aparece nele. Detalhe:
 `apps/api-transportada/CLAUDE.md` § "A devolução soma os itens (spec 247)" e `specs/247-*/evidence.md`.
 
+**O motorista acompanha as ocorrências da rota** (spec 266, ADR-0105). A ocorrência ganhou um **andamento** separado
+da tratativa: eventos `resolved`/`reopened` em `trip_occurrence_resolution_events` (estado = último por `seq`, nunca por
+`created_at`), para ocorrência de nota **e** de parada. O escritório resolve com observação
+(`POST /trip-occurrences/:kind/:id/resolution`, `occurrences.resolve`) e a tratativa terminal resolve sozinha
+(`system`, frase fixa por `phraseKey`; `decided` não é terminal). O motorista lê por
+`/me/trips/current/route-occurrences` (só viagem não finalizada) e **reabre** respondendo com `reopen: true` na rota de
+resposta que já existe — não há rota de reabrir. No app: alerta no cabeçalho (some com zero em aberto), ícones por NF na
+parada, lista, detalhe com documentos e compartilhar, chat travado até "Reabrir" (`renderComposerLock`,
+`conversations-ui` 0.11.0). A liberação gradual usa o `active` do tipo; em staging só "Prorrogação do boleto" está
+ativo. Detalhe em `apps/api-transportada/CLAUDE.md` § "Andamento da ocorrência".
+
 **A NFS-e fala a Nota RP v3, mas a produção ainda está na v2** (spec 250, ADR 0098). A versão é gravada **por tentativa**
 (`providerApiVersion` no `provider_config`); `NFSE_PROVIDER_API_VERSION` (padrão `v2`) só diz qual versão a API grava na
 próxima emissão, e o worker obedece à tentativa. Notas emitidas fora do sistema (as de Ribeirão Preto) entram por

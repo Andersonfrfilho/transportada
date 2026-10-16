@@ -9,6 +9,7 @@
 import { parseIdempotencyKey } from '../../cte-batches/presentation/cte-batch.schema.js'
 import { parseBody } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
+import { ReopenNotSupportedError } from '../../trips/domain/occurrence-resolution.error.js'
 import { DriverNotRegisteredError } from '../../trips/domain/trip.error.js'
 import type { createReplyMySubjectConversationUseCase } from '../application/reply-my-subject-conversation.use-case.js'
 import type { createRequestMySubjectUploadUseCase } from '../application/request-my-subject-upload.use-case.js'
@@ -50,6 +51,7 @@ export function createMeSubjectConversationWriteRoutes(dependencies: {
         readonly attachmentIds: readonly string[]
         readonly bodyText: string
         readonly idempotencyKey: string
+        readonly reopen?: true
       }
     >({
       async handle({ context, input }): Promise<Response> {
@@ -67,8 +69,12 @@ export function createMeSubjectConversationWriteRoutes(dependencies: {
         const subject = parseSubjectPath(pathParameters)
         const idempotencyKey = parseIdempotencyKey(request.headers.get('idempotency-key'))
         const body = await parseBody(replySchema, request)
+        if (body.reopen !== undefined && subject.subjectType !== 'occurrence') {
+          throw new ReopenNotSupportedError()
+        }
         return {
           ...subject,
+          ...(body.reopen === undefined ? {} : { reopen: body.reopen }),
           attachmentIds: body.attachmentIds ?? [],
           bodyText: body.body,
           idempotencyKey,

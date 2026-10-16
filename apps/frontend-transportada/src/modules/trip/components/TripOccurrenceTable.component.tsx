@@ -12,6 +12,7 @@ import { ContractorReplyBadge } from '@/modules/occurrence-conversation/componen
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
+import { resolveOccurrenceViewState } from '../shared/occurrenceResolution.service'
 import {
   describeOccurrenceConversationCell,
   describeOccurrenceDocumentCells,
@@ -23,6 +24,8 @@ import {
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from './OccurrenceCasePanel.component'
+import { OccurrenceResolutionBadge } from './OccurrenceResolutionBadge.component'
+import { OccurrenceResolutionPanel } from './OccurrenceResolutionPanel.component'
 import { OccurrenceCaseTakenBy } from './OccurrenceCaseTakenBy.component'
 import {
   buildTripOccurrenceRoute,
@@ -76,6 +79,7 @@ function OccurrenceConversationCell({ item }: Readonly<{ item: TripOccurrenceFee
 
   return (
     <td className={styles.occurrenceConversationCell}>
+      <OccurrenceResolutionBadge resolution={item.resolution ?? null} />
       {cell.state === null ? null : (
         <span className={styles.statusBadge}>
           {t(`occurrenceFeed.conversation.${cell.state.kind}.${cell.state.value}`)}
@@ -204,6 +208,12 @@ function OccurrenceDetailRow({
         </p>
         <OccurrenceCancellationMark cancellation={item.cancellation} variant="notice" />
         <OccurrenceAttachments item={item} />
+        <OccurrenceResolutionPanel
+          canResolve={canResolveOccurrenceCases}
+          occurrenceId={item.id}
+          occurrenceKind={item.source}
+          state={resolveOccurrenceViewState(item.resolution)}
+        />
         {item.source === 'document' ? (
           <OccurrenceCasePanel
             canResolve={canResolveOccurrenceCases}
@@ -277,6 +287,7 @@ function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
             {t(`occurrenceFeed.stage.${item.stage ?? 'stop'}`)}
           </span>
           <OccurrenceCancellationMark cancellation={item.cancellation} variant="badge" />
+          <OccurrenceResolutionBadge resolution={item.resolution ?? null} />
         </span>
         <span className={styles.occurrenceCellNote}>
           {formatMoment(item.createdAt)} · {item.vehiclePlate}

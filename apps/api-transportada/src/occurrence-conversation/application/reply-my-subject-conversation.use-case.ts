@@ -18,6 +18,14 @@ import {
   ConversationNotFoundError,
   OccurrenceConversationDriverChangedError,
 } from '../domain/occurrence-conversation.error.js'
+import type { OccurrenceResolutionNotifierPort } from '../../trips/application/occurrence-resolution-notifier.port.js'
+import type { ApiLogger } from '../../shared/api.types.js'
+import { ReopenNotSupportedError } from '../../trips/domain/occurrence-resolution.error.js'
+import {
+  assertOccurrenceReopenable,
+  assertTripIsCurrent,
+  recordOccurrenceReopened,
+} from './driver-occurrence-reopen.service.js'
 import { enrichAudioAttachments } from './conversation-audio-enrichment.service.js'
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
 import {
@@ -44,6 +52,8 @@ export type ReplyMySubjectInput = MySubjectInput & {
   readonly attachmentIds?: readonly string[]
   readonly bodyText: string
   readonly idempotencyKey: string
+  /** Spec 266 (ADR-0105 §3): só no assunto `occurrence`; a rota recusa nos outros. */
+  readonly reopen?: true
 }
 
 export type ReplyMySubjectResult = {
@@ -97,6 +107,8 @@ async function resolveConversationId(
 export function createReplyMySubjectConversationUseCase(dependencies: {
   readonly clock: () => Date
   readonly fingerprintService: IdempotencyFingerprintPort
+  readonly logger?: ApiLogger
+  readonly reopenNotifier?: OccurrenceResolutionNotifierPort
   readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: DriverSubjectWriteUnitOfWorkPort
 }) {
@@ -107,6 +119,20 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
     subject: MyConversationSubject,
   ): Promise<StoredReply> {
     const now = dependencies.clock()
+    if (input.reopen === true && subject.occurrenceKind === null)
+      throw new ReopenNotSupportedError()
+    const reopenTarget =
+      input.reopen === true && subject.occurrenceKind !== null
+        ? {
+            companyId: input.companyId,
+            occurrenceId: input.subjectId,
+            occurrenceKind: subject.occurrenceKind,
+          }
+        : undefined
+    if (reopenTarget !== undefined) {
+      assertTripIsCurrent(subject.tripStatus)
+      await assertOccurrenceReopenable(transaction, reopenTarget)
+    }
     const conversationId = await resolveConversationId(transaction, input, subject)
     const message = await transaction.insertMessage({
       authorUserId: null,
@@ -128,6 +154,18 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
       transaction: transaction.attachments,
       uploadIds: input.attachmentIds ?? [],
     })
+    if (reopenTarget !== undefined) {
+      await recordOccurrenceReopened(transaction, {
+        ...reopenTarget,
+        conversationMessageId: message.id,
+        driverUserId: input.driverUserId,
+      })
+      dependencies.logger?.info('occurrence.resolution.reopened', {
+        actorKind: 'driver',
+        occurrenceId: input.subjectId,
+        occurrenceKind: reopenTarget.occurrenceKind,
+      })
+    }
     return { conversationId, messageId: message.id }
   }
 
@@ -163,7 +201,7 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
   return {
     async reply(input: ReplyMySubjectInput): Promise<ReplyMySubjectResult> {
       const bodyText = normalizeConversationMessageBody(input.bodyText, input.attachmentIds ?? [])
-      return dependencies.unitOfWork.execute(async (transaction) => {
+      const outcome = await dependencies.unitOfWork.execute(async (transaction) => {
         const subject = await findMySubjectOrFail(transaction, input)
         const executed = await replayOrRun<StoredReply>({
           companyId: input.companyId,
@@ -181,6 +219,14 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
           replayed: executed.replayed,
         }
       })
+      if (input.reopen === true && !outcome.replayed) {
+        void dependencies.reopenNotifier?.notifyReopened({
+          companyId: input.companyId,
+          messageId: outcome.message.id,
+          occurrenceId: input.subjectId,
+        })
+      }
+      return outcome
     },
   }
 }

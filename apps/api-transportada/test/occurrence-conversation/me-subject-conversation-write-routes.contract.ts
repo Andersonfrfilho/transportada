@@ -328,3 +328,59 @@ describe('pedir a subida do anexo por assunto (spec 263 T2.4)', () => {
     expect((await responseApiError(foreign)).code).toBe('CONVERSATION_NOT_FOUND')
   })
 })
+
+describe('reabrir pela resposta (spec 266 T2.7, ADR-0105 §3)', () => {
+  const reopenBody = { body: 'Não acabou', reopen: true }
+  const withKey = { 'idempotency-key': KEY }
+
+  test('na ocorrência o `reopen` chega ao caso de uso; sem ele o campo nem existe', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(post(messagesPath('occurrence'), reopenBody, withKey))
+    expect(response.status).toBe(201)
+    expect(fixture.calls[0]?.input).toMatchObject({ reopen: true })
+
+    const plain = createFixture({})
+    await plain.handle(post(messagesPath('occurrence'), { body: 'Oi' }, withKey))
+    expect(plain.calls[0]?.input).not.toHaveProperty('reopen')
+  })
+
+  test('nota e viagem recusam `reopen` com 400 e nada chega ao caso de uso', async () => {
+    for (const subjectType of ['document', 'trip']) {
+      const fixture = createFixture({})
+      const response = await fixture.handle(post(messagesPath(subjectType), reopenBody, withKey))
+      expect(response.status).toBe(400)
+      expect(fixture.calls).toEqual([])
+    }
+  })
+
+  test('`reopen: false` e valor que não é literal são 400', async () => {
+    for (const reopen of [false, 'true', 1]) {
+      const fixture = createFixture({})
+      const response = await fixture.handle(
+        post(messagesPath('occurrence'), { body: 'x', reopen }, withKey),
+      )
+      expect(response.status).toBe(400)
+    }
+  })
+})
+
+describe('a impressão digital da resposta leva o `reopen` (spec 266 T2.7)', () => {
+  test('o mesmo corpo com e sem `reopen` não produz os mesmos campos', async () => {
+    const { buildFingerprintFields } = await import(
+      '../../src/occurrence-conversation/application/reply-my-subject-conversation.support.js'
+    )
+    const input = {
+      bodyText: 'x',
+      companyId: 'c',
+      driverId: 'd',
+      driverUserId: 'u',
+      idempotencyKey: KEY,
+      subjectId: 's',
+      subjectType: 'occurrence',
+    } as const
+    expect(buildFingerprintFields({ ...input, reopen: true }, 'x')).toEqual([
+      ...buildFingerprintFields(input, 'x'),
+      'reopen',
+    ])
+  })
+})
