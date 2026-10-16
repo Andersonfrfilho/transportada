@@ -15,6 +15,7 @@ import notificationStyles from '@/modules/notification/styles/notification.modul
 import { navigateToDriverSection } from '@/modules/shared/driverRoute.service'
 import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
 
+import { DriverOccurrenceAlertButton } from './DriverOccurrenceAlertButton.component'
 import { formatQueueBadge } from '../shared/pendingQueue.service'
 import styles from '../styles/driverTrip.module.css'
 
@@ -29,6 +30,8 @@ const NOTIFICATION_BELL_CLASS = notificationStyles.notificationBell ?? ''
  * rota que decide o resto — nenhuma CSP nova, o stream fala com a origem da API já declarada.
  */
 type DriverShellHeaderProps = Readonly<{
+  /** Spec 266 RF2: as ocorrências em aberto da viagem; zero não desenha o alerta. */
+  openOccurrenceCount?: number
   /** Spec 193 D13: o `total` do dono na fila (`selectPendingTotal`), vindo do `useDriverTrip`. */
   pendingCount: number
 }>
@@ -37,7 +40,10 @@ type DriverShellHeaderProps = Readonly<{
  * Spec 193 D13: a fila de envio ganha lugar fixo entre a marca e o sino — o aviso da viagem some
  * quando a fila esvazia, e a entrada do Perfil fica a dois toques.
  */
-export function DriverShellHeader({ pendingCount }: DriverShellHeaderProps) {
+export function DriverShellHeader({
+  openOccurrenceCount = 0,
+  pendingCount,
+}: DriverShellHeaderProps) {
   const { t } = useTranslation('driverTrip')
   const brand = useInstallationBrandView()
   const profile = getKeycloakAuthProvider().getProfile()
@@ -66,6 +72,7 @@ export function DriverShellHeader({ pendingCount }: DriverShellHeaderProps) {
           </span>
         )}
       </button>
+      <DriverOccurrenceAlertButton count={openOccurrenceCount} />
       <NotificationBell
         className={NOTIFICATION_BELL_CLASS}
         onClick={() => navigateToDriverSection('notifications')}

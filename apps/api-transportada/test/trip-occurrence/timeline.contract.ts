@@ -284,3 +284,100 @@ describe('os três tempos do topo (spec 183 RF19)', () => {
     expect(buildOccurrenceTimeline({ sources: [RECORDED] }).timings.openUntil).toBeNull()
   })
 })
+
+/**
+ * Spec 266 T2.9: espelho das expectativas do guard do painel
+ * (`tripOccurrenceTimeline.validation.ts`, T3.3) — nenhuma app importa código de outra, então a regra
+ * é repetida aqui e o JSON que a API produz passa por ela. Se o guard do painel mudar, este espelho muda junto.
+ */
+const PANEL_ACTOR_KINDS = ['contractor', 'driver', 'operation', 'system']
+
+function panelAccepts(value: unknown): boolean {
+  const event = value as Record<string, unknown>
+  const actor = event.actor as { kind?: unknown; name?: unknown } | undefined
+  const isNullableString = (field: unknown) => field === null || typeof field === 'string'
+  if (
+    actor === undefined ||
+    !PANEL_ACTOR_KINDS.includes(actor.kind as string) ||
+    !isNullableString(actor.name) ||
+    typeof event.id !== 'string' ||
+    typeof event.isKey !== 'boolean' ||
+    typeof event.occurredAt !== 'string' ||
+    !(event.sincePreviousSeconds === null || typeof event.sincePreviousSeconds === 'number')
+  ) {
+    return false
+  }
+  if (event.kind === 'resolution.resolved') return isNullableString(event.note)
+  return event.kind === 'resolution.reopened'
+}
+
+describe('o andamento na linha do tempo (spec 266 T2.9)', () => {
+  const resolved = (actorKind: 'operation' | 'system'): OccurrenceTimelineSource => ({
+    actor:
+      actorKind === 'system'
+        ? { kind: 'system', name: null }
+        : { kind: 'operation', name: 'Operadora Lima' },
+    id: 'resolution-1',
+    kind: 'resolution.resolved',
+    note: actorKind === 'system' ? null : 'Resolvido por telefone',
+    occurredAt: '2026-09-24T11:00:00.000Z',
+    phraseKey: actorKind === 'system' ? 'case_closed' : null,
+  })
+  const reopened: OccurrenceTimelineSource = {
+    actor: { kind: 'driver', name: 'Motorista Alves' },
+    id: 'resolution-2',
+    kind: 'resolution.reopened',
+    messageId: 'message-9',
+    occurredAt: '2026-09-24T12:00:00.000Z',
+  }
+
+  test('resolvida e reaberta entram em ordem, como eventos-chave, e o JSON passa pelo guard do painel', () => {
+    const timeline = buildOccurrenceTimeline({
+      sources: [reopened, RECORDED, resolved('operation')],
+    })
+
+    expect(timeline.events.map((event) => event.kind)).toEqual([
+      'occurrence.recorded',
+      'resolution.resolved',
+      'resolution.reopened',
+    ])
+    expect(timeline.events.slice(1).every((event) => event.isKey)).toBe(true)
+    expect(timeline.events[1]).toMatchObject({
+      actor: { kind: 'operation', name: 'Operadora Lima' },
+      id: 'resolution.resolved:resolution-1',
+      note: 'Resolvido por telefone',
+      phraseKey: null,
+    })
+    expect(timeline.events[2]).toMatchObject({ actor: { kind: 'driver' }, messageId: 'message-9' })
+    const json = JSON.parse(JSON.stringify(timeline)) as { events: unknown[] }
+    expect(json.events.slice(1).every(panelAccepts)).toBe(true)
+  })
+
+  test('a resolução do sistema leva note nulo e a chave da frase fixa', () => {
+    const [, event] = buildOccurrenceTimeline({ sources: [RECORDED, resolved('system')] }).events
+    expect(event).toMatchObject({
+      actor: { kind: 'system', name: null },
+      note: null,
+      phraseKey: 'case_closed',
+    })
+    expect(panelAccepts(JSON.parse(JSON.stringify(event)))).toBe(true)
+  })
+
+  test('no mesmo instante a resolução vem depois do registro e da tratativa; não mexe nos três tempos', () => {
+    const at = RECORDED.occurredAt
+    const timeline = buildOccurrenceTimeline({
+      sources: [
+        { ...reopened, occurredAt: at },
+        { ...resolved('operation'), occurredAt: at },
+        RECORDED,
+      ],
+    })
+    expect(timeline.events.map((event) => event.kind)).toEqual([
+      'occurrence.recorded',
+      'resolution.resolved',
+      'resolution.reopened',
+    ])
+    expect(timeline.timings.openUntil).toBeNull()
+    expect(timeline.timings.driverReleasedAt).toBeNull()
+  })
+})

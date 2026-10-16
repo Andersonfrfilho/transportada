@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import {
   navigateToDriverConversation,
+  navigateToDriverOccurrence,
   navigateToDriverSection,
 } from '@/modules/shared/driverRoute.service'
 
@@ -39,7 +40,12 @@ export function DriverNotificationsPage() {
           const destination = resolveNotificationDestination(notification)
           if (destination.kind === 'conversation') navigateToDriverConversation(destination.subject)
           else if (destination.kind === 'conversations') navigateToDriverSection('conversations')
-          else navigateToDriverSection('notifications')
+          else if (destination.kind === 'occurrence') {
+            navigateToDriverOccurrence({
+              id: destination.occurrenceId,
+              kind: destination.occurrenceKind,
+            })
+          } else navigateToDriverSection('notifications')
         }}
       />
     </main>

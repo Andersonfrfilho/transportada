@@ -129,6 +129,50 @@ export type OccurrenceSettlementView = Readonly<{
   total: string
 }>
 
+/** Spec 266 T3.2: andamento que a API grava; ausente ou `null` é em aberto, nunca um estado inventado. */
+export const TRIP_OCCURRENCE_RESOLUTION_STATES = ['resolved', 'reopened', 'cancelled'] as const
+export type TripOccurrenceResolutionState = (typeof TRIP_OCCURRENCE_RESOLUTION_STATES)[number]
+
+export const TRIP_OCCURRENCE_RESOLUTION_ACTOR_KINDS = ['internal', 'driver', 'system'] as const
+export type TripOccurrenceResolutionActorKind =
+  (typeof TRIP_OCCURRENCE_RESOLUTION_ACTOR_KINDS)[number]
+
+export type TripOccurrenceResolution = Readonly<{
+  /** `null` quando a API manda um ator que este bundle não conhece — o estado continua valendo. */
+  actorKind: null | TripOccurrenceResolutionActorKind
+  at: string
+  state: TripOccurrenceResolutionState
+}>
+
+/** Estados que a API aceita em `resolutionStateIn`, na ordem em que vão à consulta. */
+export const TRIP_OCCURRENCE_RESOLUTION_QUERY_STATES = [
+  'open',
+  'resolved',
+  'reopened',
+  'cancelled',
+] as const
+export type TripOccurrenceResolutionQueryState =
+  (typeof TRIP_OCCURRENCE_RESOLUTION_QUERY_STATES)[number]
+
+/** Opções do filtro "Andamento". "Em aberto" cobre a aberta e a reaberta (ver `RESOLUTION_FILTER_QUERY_STATES`). */
+export const TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES = [
+  'open',
+  'reopened',
+  'resolved',
+  'cancelled',
+] as const
+export type TripOccurrenceResolutionFilterValue =
+  (typeof TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES)[number]
+
+const RESOLUTION_FILTER_QUERY_STATES: Readonly<
+  Record<TripOccurrenceResolutionFilterValue, readonly TripOccurrenceResolutionQueryState[]>
+> = {
+  cancelled: ['cancelled'],
+  open: ['open', 'reopened'],
+  reopened: ['reopened'],
+  resolved: ['resolved'],
+}
+
 export type TripOccurrenceFeedItem = Readonly<{
   /** Spec 240 RF9: `null` é "não foi cancelada"; a cancelada continua na leitura, marcada. */
   cancellation?: null | OccurrenceCancellation
@@ -149,6 +193,8 @@ export type TripOccurrenceFeedItem = Readonly<{
   notifies: boolean
   /** Spec 241 RF5: ausente é API anterior ao campo. */
   occurrenceTypeId?: null | string
+  /** Spec 266 T3.2: `null` é em aberto; ausente é API anterior ao andamento. */
+  resolution?: null | TripOccurrenceResolution
   source: 'document' | 'stop'
   stage: 'delivery' | 'separation' | null
   stopLabel: null | string
@@ -283,6 +329,8 @@ export type TripOccurrenceFeedOrder = 'asc' | 'desc'
 export type TripOccurrenceFeedFilters = Readonly<{
   /** RF11: estado da tratativa, incluindo `none` ("sem tratativa"). Todos selecionados = sem filtro. */
   caseStatuses: readonly TripOccurrenceCaseStatusFilterValue[]
+  /** Spec 266 T3.2: andamento da ocorrência ("Andamento"). Todos selecionados = sem filtro. */
+  resolutionStates: readonly TripOccurrenceResolutionFilterValue[]
   /** Spec 248 RF5: só as ocorrências cujo retorno da contratante está atrasado (`contractorReplyStatusIn=overdue`). */
   contractorReplyOverdue: boolean
   createdFrom: string
@@ -297,6 +345,7 @@ export type TripOccurrenceFeedFilters = Readonly<{
 export const EMPTY_TRIP_OCCURRENCE_FILTERS: TripOccurrenceFeedFilters = {
   caseStatuses: TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
   contractorReplyOverdue: false,
+  resolutionStates: TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES,
   createdFrom: '',
   createdUntil: '',
   platesQuery: '',
@@ -398,6 +447,26 @@ export function setTripOccurrenceCaseStatuses(
   }
 }
 
+export function setTripOccurrenceResolutionStates(
+  filters: TripOccurrenceFeedFilters,
+  states: readonly TripOccurrenceResolutionFilterValue[],
+): TripOccurrenceFeedFilters {
+  return {
+    ...filters,
+    resolutionStates: TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES.filter((value) =>
+      states.includes(value),
+    ),
+  }
+}
+
+function toResolutionQueryStates(
+  values: readonly TripOccurrenceResolutionFilterValue[],
+): readonly TripOccurrenceResolutionQueryState[] {
+  return TRIP_OCCURRENCE_RESOLUTION_QUERY_STATES.filter((state) =>
+    values.some((value) => RESOLUTION_FILTER_QUERY_STATES[value].includes(state)),
+  )
+}
+
 function parseListQuery(raw: string): readonly string[] {
   return raw
     .split(',')
@@ -451,6 +520,13 @@ export function serializeTripOccurrenceQuery(
     input.filters.caseStatuses.length < TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.length
   ) {
     search.set('caseStatusIn', input.filters.caseStatuses.join(','))
+  }
+  const resolutionStates = toResolutionQueryStates(input.filters.resolutionStates)
+  if (
+    resolutionStates.length > 0 &&
+    resolutionStates.length < TRIP_OCCURRENCE_RESOLUTION_QUERY_STATES.length
+  ) {
+    search.set('resolutionStateIn', resolutionStates.join(','))
   }
   if (input.filters.contractorReplyOverdue) {
     search.set(CONTRACTOR_REPLY_STATUS_QUERY_KEY, CONTRACTOR_REPLY_OVERDUE_STATUS)
@@ -538,11 +614,14 @@ export function countActiveTripOccurrenceFilters(filters: TripOccurrenceFeedFilt
   const stagesChanged = filters.stages.length === TRIP_OCCURRENCE_STAGES.length ? 0 : 1
   const caseStatusesChanged =
     filters.caseStatuses.length === TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.length ? 0 : 1
+  const resolutionStatesChanged =
+    filters.resolutionStates.length === TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES.length ? 0 : 1
   const contractorReplyChanged = filters.contractorReplyOverdue ? 1 : 0
   return (
     scalarFields.filter((field) => field.trim().length > 0).length +
     stagesChanged +
     caseStatusesChanged +
+    resolutionStatesChanged +
     contractorReplyChanged
   )
 }

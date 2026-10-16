@@ -20,6 +20,8 @@ export type OutboxMessage = Readonly<{
   files: readonly OutboxFile[]
   lastAttemptAt?: string | undefined
   ownerKey: string
+  /** A primeira resposta que reabre a ocorrência resolvida (spec 266); registro antigo não tem o campo. */
+  reopen?: true | undefined
   state: OutboxMessageState
   subject: ParticipantSubjectRef
   text: string
@@ -42,6 +44,7 @@ export type EnqueueMessageInput = Readonly<{
   attachments?: readonly ParticipantAttachment[] | undefined
   clientMessageId: string
   files: readonly File[]
+  reopen?: true | undefined
   subject: ParticipantSubjectRef
   text: string
 }>

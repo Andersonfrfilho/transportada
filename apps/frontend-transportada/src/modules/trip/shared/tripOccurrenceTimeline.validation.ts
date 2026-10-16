@@ -4,6 +4,7 @@
  * Spec 183 RF19: o guard da linha do tempo é **estrito** — a rota nasceu com a 183, então campo
  * ausente ou ator fora dos quatro é resposta inválida, não API antiga.
  * Spec 266 T1.2: tipo de evento desconhecido sai da linha; o resto da resposta segue valendo.
+ * Spec 266 T3.3: `resolution.resolved` e `resolution.reopened` entram na lista dos conhecidos.
  */
 import { isRecord, isString } from './tripGuards.validation'
 import {
@@ -31,6 +32,8 @@ const KNOWN_EVENT_KINDS: readonly OccurrenceTimelineEvent['kind'][] = [
   'case.transition',
   'contractor.mail.received',
   'contractor.mail.sent',
+  'resolution.resolved',
+  'resolution.reopened',
 ]
 
 function isKnownEventKind(value: unknown): boolean {
@@ -60,6 +63,10 @@ function isEvent(value: unknown): value is OccurrenceTimelineEvent {
     case 'contractor.mail.received':
     case 'contractor.mail.sent':
       return isNullableString(value.deliveryStatus) && isNullableString(value.interpretation)
+    case 'resolution.resolved':
+      return isNullableString(value.note)
+    case 'resolution.reopened':
+      return true
     default:
       return false
   }

@@ -10,6 +10,7 @@
  */
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   check,
   foreignKey,
@@ -39,7 +40,13 @@ import {
 } from '../shared/occurrence-conversation-subject.constant.js'
 import { inList } from './schema-check.constant.js'
 import { storedObjects } from './storage.schema.js'
-import { tripDocuments, trips } from './trip.schema.js'
+import {
+  tripDocumentOccurrences,
+  tripOccurrenceCaseEvents,
+  tripStopOccurrences,
+  tripDocuments,
+  trips,
+} from './trip.schema.js'
 
 /** As duas fontes da listagem de ocorrências (`trip_stop_occurrences`, `trip_document_occurrences`). */
 export const OCCURRENCE_CONVERSATION_KINDS = ['stop', 'document'] as const
@@ -696,5 +703,115 @@ export const occurrenceConversationUploads = pgTable(
       sql`(${table.status} = 'attached') = (${table.attachedAt} is not null)`,
     ),
     index('occurrence_conversation_uploads_status_expires_idx').on(table.status, table.expiresAt),
+  ],
+)
+
+export const OCCURRENCE_RESOLUTION_EVENT_KINDS = ['resolved', 'reopened'] as const
+export type OccurrenceResolutionEventKind = (typeof OCCURRENCE_RESOLUTION_EVENT_KINDS)[number]
+
+export const OCCURRENCE_RESOLUTION_ACTOR_KINDS = ['internal', 'driver', 'system'] as const
+export type OccurrenceResolutionActorKind = (typeof OCCURRENCE_RESOLUTION_ACTOR_KINDS)[number]
+
+/**
+ * Spec 266 / ADR-0105: o andamento da ocorrência com o motorista — só inserção, o estado é o último
+ * evento. Mora aqui (e não em `trip.schema.ts`) porque aponta para a mensagem da conversa, e este
+ * arquivo já importa o de viagem: o caminho inverso fecharia um ciclo de módulos.
+ */
+export const tripOccurrenceResolutionEvents = pgTable(
+  'trip_occurrence_resolution_events',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    /** Ordem de gravação: `created_at` não serve (é lido antes do lock), a sequência é atribuída no insert. */
+    sequence: bigint('seq', { mode: 'number' }).notNull().generatedAlwaysAsIdentity(),
+    companyId: uuid('company_id').notNull(),
+    documentOccurrenceId: uuid('document_occurrence_id'),
+    stopOccurrenceId: uuid('stop_occurrence_id'),
+    kind: varchar().notNull().$type<OccurrenceResolutionEventKind>(),
+    actorKind: varchar('actor_kind').notNull().$type<OccurrenceResolutionActorKind>(),
+    actorUserId: uuid('actor_user_id'),
+    /** Só o evento `system` aponta para o evento da tratativa que o causou. */
+    caseEventId: uuid('case_event_id'),
+    note: text(),
+    conversationMessageId: uuid('conversation_message_id'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_occurrence_resolution_events_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.documentOccurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_occurrence_resolution_events_company_document_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.stopOccurrenceId],
+      foreignColumns: [tripStopOccurrences.companyId, tripStopOccurrences.id],
+      name: 'trip_occurrence_resolution_events_company_stop_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.caseEventId],
+      foreignColumns: [tripOccurrenceCaseEvents.companyId, tripOccurrenceCaseEvents.id],
+      name: 'trip_occurrence_resolution_events_company_case_event_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.conversationMessageId],
+      foreignColumns: [occurrenceConversationMessages.companyId, occurrenceConversationMessages.id],
+      name: 'trip_occurrence_resolution_events_company_message_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    uniqueIndex('trip_occurrence_resolution_events_case_event_unique')
+      .on(table.companyId, table.caseEventId)
+      .where(sql`${table.caseEventId} is not null`),
+    uniqueIndex('trip_occurrence_resolution_events_message_unique')
+      .on(table.companyId, table.conversationMessageId)
+      .where(sql`${table.conversationMessageId} is not null`),
+    check(
+      'trip_occurrence_resolution_events_kind_check',
+      sql`${table.kind} in (${sql.raw(inList(OCCURRENCE_RESOLUTION_EVENT_KINDS))})`,
+    ),
+    check(
+      'trip_occurrence_resolution_events_actor_kind_check',
+      sql`${table.actorKind} in (${sql.raw(inList(OCCURRENCE_RESOLUTION_ACTOR_KINDS))})`,
+    ),
+    check(
+      'trip_occurrence_resolution_events_owner_check',
+      sql`num_nonnulls(${table.documentOccurrenceId}, ${table.stopOccurrenceId}) = 1`,
+    ),
+    check(
+      'trip_occurrence_resolution_events_system_actor_check',
+      sql`(${table.actorKind} = 'system') = (${table.actorUserId} is null)`,
+    ),
+    check(
+      'trip_occurrence_resolution_events_system_case_event_check',
+      sql`(${table.actorKind} = 'system') = (${table.caseEventId} is not null)`,
+    ),
+    check(
+      'trip_occurrence_resolution_events_internal_note_check',
+      sql`${table.kind} <> 'resolved' or ${table.actorKind} <> 'internal' or length(btrim(${table.note})) > 0`,
+    ),
+    check(
+      'trip_occurrence_resolution_events_reopen_check',
+      sql`${table.kind} <> 'reopened' or (${table.actorKind} = 'driver' and ${table.conversationMessageId} is not null)`,
+    ),
+    index('trip_occurrence_resolution_events_document_latest_idx')
+      .on(table.companyId, table.documentOccurrenceId, table.createdAt.desc(), table.id)
+      .where(sql`${table.documentOccurrenceId} is not null`),
+    index('trip_occurrence_resolution_events_stop_latest_idx')
+      .on(table.companyId, table.stopOccurrenceId, table.createdAt.desc(), table.id)
+      .where(sql`${table.stopOccurrenceId} is not null`),
   ],
 )

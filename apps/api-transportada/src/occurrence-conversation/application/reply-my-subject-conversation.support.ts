@@ -23,7 +23,8 @@ export function buildFingerprintFields(
 ): readonly string[] {
   const attachments = (input.attachmentIds ?? []).join(',')
   if (isOccurrenceSubject(input.subjectType)) {
-    return [input.companyId, input.subjectId, input.driverUserId, bodyText, attachments]
+    const base = [input.companyId, input.subjectId, input.driverUserId, bodyText, attachments]
+    return input.reopen === true ? [...base, 'reopen'] : base
   }
   return [
     input.companyId,

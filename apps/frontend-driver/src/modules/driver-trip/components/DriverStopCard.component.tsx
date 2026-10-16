@@ -32,6 +32,7 @@ import {
 import { DriverDeliverSyncNotice } from './DriverDeliverSyncNotice.component'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
+import { DriverOccurrenceStopRow } from './DriverOccurrenceStopRow.component'
 import { ProofCargoField } from './ProofCargoField.component'
 import { ProofCrop } from './ProofCrop.component'
 import { ProofImageLightbox } from './ProofImageLightbox.component'
@@ -87,6 +88,7 @@ import {
 import { canOfferLateRegistration } from '../shared/lateRegistration.service'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
 import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
+import type { RouteOccurrenceStopGroup } from '../shared/routeOccurrenceView.types'
 import {
   applyRecipientShortcut,
   buildReceiverFields,
@@ -144,6 +146,13 @@ function formatScheduleTime(scheduledAt: string | null): string {
     month: '2-digit',
   })
 }
+
+/** Spec 266 RF3: o estado da entrega da parada em ícone — feita, a caminho ou a seguir. */
+const STOP_CHIP_ICON = {
+  completed: 'check',
+  current: 'truck',
+  pending: 'clock',
+} as const satisfies Record<'completed' | 'current' | 'pending', IconName>
 
 const DELIVERY_WINDOW_KEYS = {
   between: 'deliveryWindow.between',
@@ -263,6 +272,8 @@ type DriverStopCardProps = Readonly<{
   returnActivityByDocumentId: ReadonlyMap<string, DocumentReturnActivityView>
   /** Spec 157 RF5: o toque em "Tentar de novo" no painel de ocorrência da nota. */
   onRetryOccurrenceTypes: () => void
+  /** Spec 266 RF3: as ocorrências desta parada por nota, juntando o servidor e a fila. */
+  occurrenceGroup?: RouteOccurrenceStopGroup | undefined
   stop: DriverTripStop
   /** Pedido do usuário (25/09): "ocorrência registrada às HH:MM · na fila/enviada" do "Deu problema". */
   stopOccurrenceActivity: DocumentActivityView | undefined
@@ -283,6 +294,7 @@ export function DriverStopCard({
   lastKnownLocation,
   notDeliveredKeyByDocumentId,
   notDeliveredStatusByDocumentId,
+  occurrenceGroup,
   onArrive,
   onCancelDeparture,
   onDeliver,
@@ -479,9 +491,7 @@ export function DriverStopCard({
             <span
               className={`${styles.stopChip} ${stopChipView === 'current' ? styles.stopChipCurrent : ''} ${stopChipView === 'completed' ? styles.stopChipCompleted : ''}`}
             >
-              {stopChipView === 'completed' ? (
-                <Icon aria-hidden="true" name="check" size="sm" />
-              ) : null}
+              <Icon aria-hidden="true" name={STOP_CHIP_ICON[stopChipView]} size="sm" />
               {stopChipLabel}
             </span>
             {hasOccurrenceMarker ? (
@@ -560,6 +570,7 @@ export function DriverStopCard({
           )}
         </button>
       </h2>
+      {occurrenceGroup === undefined ? null : <DriverOccurrenceStopRow group={occurrenceGroup} />}
       {stopPlace === 'last' ? (
         <p className={styles.stopFinalHint} role="status">
           <Icon aria-hidden="true" name="truck" size="sm" />

@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { ParticipantSubjectRef } from '@adatechnology/conversation-contracts'
 import type { ParticipantPendingMessage } from '@adatechnology/conversations-ui/participant'
 
 import { isRetryDue } from '@/modules/driver-trip/shared/retryBackoff.service'
@@ -33,6 +34,8 @@ export type ConversationOutbox = Readonly<{
   enqueue: (input: EnqueueMessageInput) => Promise<void>
   flush: (params: FlushOutboxParams) => Promise<void>
   listPending: () => Promise<readonly ParticipantPendingMessage[]>
+  /** Os assuntos com mensagem de reabertura ainda esperando entrega (a `failed` já não conta). */
+  listReopenSubjects: () => Promise<readonly ParticipantSubjectRef[]>
   remove: (clientMessageId: string) => Promise<void>
   requeue: (clientMessageId: string) => Promise<void>
   rememberAttachments: (
@@ -149,6 +152,7 @@ export function createConversationOutbox(
           type: file.type,
         })),
         ownerKey,
+        ...(input.reopen === true ? { reopen: true as const } : {}),
         state: 'queued',
         subject: input.subject,
         text: input.text,
@@ -172,6 +176,11 @@ export function createConversationOutbox(
     },
     async listPending() {
       return (await readOwned()).map(toPendingMessage)
+    },
+    async listReopenSubjects() {
+      return (await readOwned())
+        .filter((message) => message.reopen === true && message.state === 'queued')
+        .map((message) => message.subject)
     },
     async remove(clientMessageId) {
       const message = (await readOwned()).find((item) => item.clientMessageId === clientMessageId)

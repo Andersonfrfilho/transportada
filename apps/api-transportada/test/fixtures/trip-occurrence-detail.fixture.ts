@@ -13,6 +13,7 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
   declaredAmount: null,
   contractorReply: null,
   conversation: { contractorState: 'none', driverUnreadCount: 0 },
+  resolution: null,
   channel: 'driver_app',
   createdAt: '2026-09-24T14:12:00.000Z',
   description: 'Recebedor cobrando descarga.',

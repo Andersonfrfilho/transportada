@@ -464,6 +464,14 @@ import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.r
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
+import { createOccurrenceResolutionRoutes } from './trips/presentation/occurrence-resolution.routes.js'
+import { createMeRouteOccurrenceRoutes } from './trips/presentation/me-route-occurrence.routes.js'
+import { createFindDriverRouteOccurrenceUseCase } from './trips/application/find-driver-route-occurrence.use-case.js'
+import { createSignDriverRouteOccurrenceFileUseCase } from './trips/application/sign-driver-route-occurrence-file.use-case.js'
+import { createListDriverRouteOccurrencesUseCase } from './trips/application/list-driver-route-occurrences.use-case.js'
+import { createDrizzleDriverRouteOccurrenceReader } from './trips/infrastructure/drizzle-driver-route-occurrence.repository.js'
+import { createResolveOccurrenceUseCase } from './trips/application/resolve-occurrence.use-case.js'
+import { DrizzleOccurrenceResolutionUnitOfWork } from './trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
@@ -548,6 +556,8 @@ import {
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
 import { createContractorReplyDeliveryNotifier } from './occurrence-conversation/infrastructure/contractor-reply-delivery-notifier.adapter.js'
+import { resolveCompanyPermissions } from './identity/domain/authorization.policy.js'
+import { createOccurrenceResolutionNotifier } from './trips/infrastructure/occurrence-resolution-notifier.gateway.js'
 import { createDriverConversationNotifier } from './occurrence-conversation/infrastructure/driver-conversation-notifier.gateway.js'
 import { createDrizzleDriverConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
 import { createDrizzleOccurrenceMailStatusRepository } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
@@ -2270,6 +2280,11 @@ function createApplicationRoutes({
     cargoLayoutLeaseOptions,
   )
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database, logger)
+  const driverRouteOccurrenceReader = createDrizzleDriverRouteOccurrenceReader({
+    currentTrips: currentDriverTripRepository,
+    database,
+    logger,
+  })
   /** Spec 252 T4.3 (D12): o aviso de feriado nas paradas de `GET /me/trips/current` — só a rota do app o recebe. */
   const driverHolidayWarnings = {
     calendar: new DrizzleHolidayWarningRepository(database, businessCalendarClock.now),
@@ -2388,7 +2403,32 @@ function createApplicationRoutes({
     logger,
   )
   /** Spec 164 T5/T7: as ações internas da tratativa da ocorrência. */
-  const occurrenceCaseRepository = new DrizzleOccurrenceCaseRepository(database)
+  /** Spec 266 RF9 / ADR-0105: os avisos "resolvida" (tripulação) e "reaberta" (quem resolveu), depois do commit. */
+  const occurrenceResolutionMemberships = new DrizzleMembershipRepository(database)
+  const occurrenceResolutionNotifier = createOccurrenceResolutionNotifier({
+    canUserResolveOccurrences: async ({ companyId, userId }) => {
+      const membership = await occurrenceResolutionMemberships.findActiveByUserAndCompany({
+        companyId,
+        userId,
+      })
+      if (membership === null) return false
+      return resolveCompanyPermissions({
+        granted: membership.grantedPermissions,
+        roles: membership.roles,
+      }).has('occurrences.resolve')
+    },
+    logger,
+    queryable: database,
+    send: (params) =>
+      notifications.useCases.sendNotification.execute({
+        ...params,
+        locale: NOTIFICATION_DEFAULT_LOCALE,
+      }),
+  })
+  const occurrenceCaseRepository = new DrizzleOccurrenceCaseRepository(
+    database,
+    occurrenceResolutionNotifier,
+  )
   const occurrenceCaseUseCase = createOccurrenceCaseUseCase({
     repository: occurrenceCaseRepository,
   })
@@ -3441,6 +3481,29 @@ function createApplicationRoutes({
         reader: { findSources: (input) => findTripOccurrenceTimelineSources(database, input) },
       }),
     }),
+    /** Spec 266 / ADR-0105: o escritório resolve a ocorrência (nota ou parada) com observação. */
+    ...createOccurrenceResolutionRoutes({
+      resolveOccurrence: createResolveOccurrenceUseCase({
+        logger,
+        notifier: occurrenceResolutionNotifier,
+        unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
+      }),
+    }),
+    /** Spec 266 / ADR-0105: o motorista lê as ocorrências da viagem atual dele. */
+    ...createMeRouteOccurrenceRoutes({
+      findOccurrence: createFindDriverRouteOccurrenceUseCase({
+        reader: driverRouteOccurrenceReader,
+      }),
+      listOccurrences: createListDriverRouteOccurrencesUseCase({
+        reader: driverRouteOccurrenceReader,
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      signFile: createSignDriverRouteOccurrenceFileUseCase({
+        clock: () => new Date(),
+        reader: driverRouteOccurrenceReader,
+        storage: storageGateway,
+      }),
+    }),
     /**
      * Spec 183 T404: a conversa da ocorrência. Ler é `fleet.read`; escrever à contratante é
      * `occurrences.resolve` (o separador não alcança), com teto próprio no Postgres.
@@ -3526,6 +3589,8 @@ function createApplicationRoutes({
       reply: createReplyMyOccurrenceConversationUseCase({
         clock: () => new Date(),
         fingerprintService,
+        logger,
+        reopenNotifier: occurrenceResolutionNotifier,
         storage: storageGateway,
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
@@ -3564,6 +3629,8 @@ function createApplicationRoutes({
       reply: createReplyMySubjectConversationUseCase({
         clock: () => new Date(),
         fingerprintService,
+        logger,
+        reopenNotifier: occurrenceResolutionNotifier,
         storage: storageGateway,
         unitOfWork: createDrizzleDriverSubjectWriteUnitOfWork(database),
       }),

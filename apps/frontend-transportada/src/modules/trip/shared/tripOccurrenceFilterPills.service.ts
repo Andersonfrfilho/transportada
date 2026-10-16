@@ -16,6 +16,7 @@ export const TRIP_OCCURRENCE_PILL_FIELDS = [
   'platesQuery',
   'createdRange',
   'caseStatuses',
+  'resolutionStates',
   'contractorReplyOverdue',
 ] as const
 
@@ -33,6 +34,7 @@ const FIELD_LABEL_KEY: Readonly<Record<TripOccurrencePillField, string>> = {
   contractorReplyOverdue: 'occurrenceFeed.filters.contractorReply',
   createdRange: 'occurrenceFeed.filters.createdRange',
   platesQuery: 'occurrenceFeed.filters.plates',
+  resolutionStates: 'occurrenceFeed.filters.resolution',
   stages: 'occurrenceFeed.filters.stage',
   typesQuery: 'occurrenceFeed.filters.types',
 }
@@ -71,6 +73,19 @@ function describeField(
       labelKey: FIELD_LABEL_KEY[field],
       value: '',
       valueKeys: filters.caseStatuses.map((status) => `occurrenceFeed.caseStatus.${status}`),
+    }
+  }
+  if (field === 'resolutionStates') {
+    const isApplied = selectionDiffersFromDefault({
+      defaults: EMPTY_TRIP_OCCURRENCE_FILTERS.resolutionStates,
+      values: filters.resolutionStates,
+    })
+    if (!isApplied) return null
+    return {
+      field,
+      labelKey: FIELD_LABEL_KEY[field],
+      value: '',
+      valueKeys: filters.resolutionStates.map((state) => `occurrenceResolution.state.${state}`),
     }
   }
   if (field === 'contractorReplyOverdue') {
@@ -117,6 +132,9 @@ export function clearTripOccurrenceFilterField(
   }
   if (input.field === 'caseStatuses') {
     return { ...input.filters, caseStatuses: EMPTY_TRIP_OCCURRENCE_FILTERS.caseStatuses }
+  }
+  if (input.field === 'resolutionStates') {
+    return { ...input.filters, resolutionStates: EMPTY_TRIP_OCCURRENCE_FILTERS.resolutionStates }
   }
   if (input.field === 'contractorReplyOverdue') {
     return { ...input.filters, contractorReplyOverdue: false }

@@ -16,8 +16,14 @@ import {
   occurrenceConversationMessages,
   occurrenceConversations,
   tripDrivers,
+  trips,
   userCompanyMemberships,
 } from '../../database/database.schema.js'
+import { tripOccurrenceResolutionEvents } from '../../database/occurrence-conversation.schema.js'
+import {
+  listLatestResolutionEventsByOccurrence,
+  lockOccurrenceRow,
+} from '../../trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { OCCURRENCE_CONVERSATION_SUBJECT } from '../../shared/occurrence-conversation-subject.constant.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
@@ -204,7 +210,13 @@ export function createTransactionPort(transaction: Transaction): DriverConversat
           ),
         )
         .limit(1)
-      return crew === undefined ? null : { occurrenceKind: item.source }
+      if (crew === undefined) return null
+      const [trip] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, companyId), eq(trips.id, item.tripId)))
+        .limit(1)
+      return trip === undefined ? null : { occurrenceKind: item.source, tripStatus: trip.status }
     },
 
     async findIdempotency({ companyId, idempotencyKey, operation }) {
@@ -279,6 +291,29 @@ export function createTransactionPort(transaction: Transaction): DriverConversat
         id: conversation.id,
         protocol: conversation.protocol,
       }
+    },
+
+    async lockOccurrenceResolution(input) {
+      const locked = await lockOccurrenceRow(transaction, input)
+      if (locked === undefined) return undefined
+      const latest = await listLatestResolutionEventsByOccurrence(transaction, {
+        companyId: input.companyId,
+        occurrenceIds: [input.occurrenceId],
+        occurrenceKind: input.occurrenceKind,
+      })
+      return { cancelledAt: locked.cancelledAt, events: latest.get(input.occurrenceId) ?? [] }
+    },
+
+    async insertDriverReopenedEvent(input) {
+      await transaction.insert(tripOccurrenceResolutionEvents).values({
+        actorKind: 'driver',
+        actorUserId: input.driverUserId,
+        companyId: input.companyId,
+        conversationMessageId: input.conversationMessageId,
+        documentOccurrenceId: input.occurrenceKind === 'document' ? input.occurrenceId : null,
+        kind: 'reopened',
+        stopOccurrenceId: input.occurrenceKind === 'stop' ? input.occurrenceId : null,
+      })
     },
 
     async insertMessage(input) {

@@ -166,7 +166,7 @@ describe('o arquivo de miniaturas está ligado ao ciclo de vida da sessão', () 
   it('o IndexedDB cria a store e sobe de versão', () => {
     const source = readFileSync(INDEXED_DB, 'utf8')
     expect(source).toInclude("const PROOF_THUMBNAIL_STORE_NAME = 'proof-thumbnails'")
-    expect(source).toInclude('const DATABASE_VERSION = 5')
+    expect(source).toInclude('const DATABASE_VERSION = 6')
     expect(source).toInclude('createIndexedDbProofThumbnailStore')
   })
 

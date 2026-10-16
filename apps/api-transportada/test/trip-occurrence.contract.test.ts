@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import './trip-occurrence/occurrence-resolution-policy.contract'
 import './trip-occurrence/attachment-errors.contract'
 import './trip-occurrence/attachment-pdf.contract'
 import './trip-occurrence/attachment-policy.contract'
@@ -70,3 +71,6 @@ import './trip-occurrence/correction-effective-requirements.contract'
 import './trip-occurrence/occurrence-detail-requirements.contract'
 import './trip-occurrence/occurrence-type-icon.contract'
 import './trip-occurrence/driver-repository-logger-wiring.contract'
+import './trip-occurrence/occurrence-resolution-route-collision.contract'
+import './trip-occurrence/occurrence-resolution-route.contract'
+import './trip-occurrence/driver-route-occurrence.contract'

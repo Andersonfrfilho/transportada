@@ -69,6 +69,10 @@ export const NOTIFICATION_TEMPLATE_KEY = {
    * Quem dispara é o worker (`occurrence.contractor-reply.alert`); a chave de dedupe leva o número do alerta.
    */
   TRIP_OCCURRENCE_CONTRACTOR_REPLY_OVERDUE: 'trip.occurrence-contractor-reply-overdue',
+  /** Spec 266 / ADR-0105: o escritório (ou a tratativa) resolveu a ocorrência; a tripulação é avisada. */
+  TRIP_OCCURRENCE_RESOLVED: 'trip.occurrence-resolved',
+  /** Spec 266 / ADR-0105: o motorista reabriu a ocorrência respondendo; quem a resolveu é avisado. */
+  TRIP_OCCURRENCE_REOPENED: 'trip.occurrence-reopened',
 } as const
 export type NotificationTemplateKey =
   (typeof NOTIFICATION_TEMPLATE_KEY)[keyof typeof NOTIFICATION_TEMPLATE_KEY]
@@ -244,6 +248,33 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
       },
       inbox: {
         body: 'A contratante ainda não respondeu ao pedido da ocorrência {{occurrenceLabel}} (alerta {{alertNumber}}).',
+      },
+    },
+  },
+  /**
+   * Spec 266 RF9: a ocorrência foi resolvida. Só o tipo no texto: a observação do operador fica na
+   * ocorrência, atrás do login do app.
+   */
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: [NOTIFICATION_CHANNEL.INBOX],
+    placeholders: ['typeName'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_RESOLVED,
+    templates: {
+      inbox: {
+        body: 'A ocorrência "{{typeName}}" foi resolvida pelo escritório. Abra a ocorrência no app para ver.',
+      },
+    },
+  },
+  /** Spec 266 RF9: o motorista reabriu; o texto da mensagem dele fica na conversa, nunca no aviso. */
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: [NOTIFICATION_CHANNEL.INBOX],
+    placeholders: ['typeName'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_REOPENED,
+    templates: {
+      inbox: {
+        body: 'O motorista reabriu a ocorrência "{{typeName}}". Abra a ocorrência no TransportAdA para responder.',
       },
     },
   },

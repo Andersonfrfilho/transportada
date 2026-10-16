@@ -101,6 +101,18 @@
     "view": "View conversation"
   },
   "outboxFull": "Queue full: connect to send what is already waiting.",
+  "reopen": {
+    "lock": {
+      "cancelled": "Occurrence cancelled. Writing is not possible.",
+      "reopen": "Reopen",
+      "resolved": "Occurrence resolved. To write, reopen it."
+    },
+    "refused": {
+      "alreadyOpen": "The occurrence had already been reopened.",
+      "cancelled": "Occurrence cancelled."
+    },
+    "stateUnknown": "Could not confirm whether the occurrence is resolved"
+  },
   "subjectFallback": "Occurrence",
   "title": "Conversations"
 }

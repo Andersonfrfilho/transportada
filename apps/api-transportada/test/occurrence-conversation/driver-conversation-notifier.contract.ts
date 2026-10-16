@@ -258,4 +258,19 @@ describe('o aviso do sino por assunto, para nota e viagem (spec 263 T2.5)', () =
       'A operação mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. Abra a ocorrência no app para ler e responder.',
     )
   })
+
+  test('o envio de teste dos avisos de andamento da ocorrência tem exemplo para cada variável', () => {
+    for (const templateKey of [
+      NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_RESOLVED,
+      NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_REOPENED,
+    ]) {
+      const entry = NOTIFICATION_CATALOG.find((item) => item.templateKey === templateKey)
+      expect(entry?.placeholders.length).toBeGreaterThan(0)
+      for (const placeholder of entry?.placeholders ?? []) {
+        expect(`${placeholder}: ${NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD[placeholder]}`).not.toBe(
+          `${placeholder}: undefined`,
+        )
+      }
+    }
+  })
 })

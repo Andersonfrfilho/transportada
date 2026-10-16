@@ -1,0 +1,2401 @@
+<title>Ocorrências da rota</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<style>
+  /* Layout: guia de passos à esquerda, celular com o app do motorista à direita; empilha no telefone. */
+  /* Tokens copiados de apps/frontend-driver/src/styles/index.css (escuro primeiro, claro espelhado). */
+  :root {
+    color-scheme: dark;
+    --color-alert: #ff5f57;
+    --color-asphalt: #10222c;
+    --color-copper: #d58a47;
+    --color-fog: #f0f2ee;
+    --color-graphite: #1c2b33;
+    --color-ready: #6aae8c;
+    --color-slate: #8fa3ad;
+    --color-ink-on-accent: #10222c;
+    --page-ground: #0b1820;
+    --font-body: 'Avenir Next', Avenir, 'Segoe UI', system-ui, sans-serif;
+    --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+    --font-utility: 'SFMono-Regular', Consolas, monospace;
+    --touch-target: 2.75rem;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) {
+      color-scheme: light;
+      --color-alert: #c2382f;
+      --color-asphalt: #f2efe9;
+      --color-copper: #a3591f;
+      --color-fog: #1d2b33;
+      --color-graphite: #fbf9f5;
+      --color-ready: #2e7d54;
+      --color-slate: #5a6b74;
+      --color-ink-on-accent: #faf8f4;
+      --page-ground: #e6e1d8;
+    }
+  }
+  :root[data-theme='light'] {
+    color-scheme: light;
+    --color-alert: #c2382f;
+    --color-asphalt: #f2efe9;
+    --color-copper: #a3591f;
+    --color-fog: #1d2b33;
+    --color-graphite: #fbf9f5;
+    --color-ready: #2e7d54;
+    --color-slate: #5a6b74;
+    --color-ink-on-accent: #faf8f4;
+    --page-ground: #e6e1d8;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: var(--page-ground);
+    color: var(--color-fog);
+    font-family: var(--font-body);
+    font-size: 15px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 24px 40px;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  button:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--color-copper);
+    outline-offset: 2px;
+  }
+  svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex: none;
+  }
+
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 22rem) auto;
+    gap: 40px;
+    justify-content: center;
+    align-items: start;
+    max-width: 64rem;
+    margin: 0 auto;
+  }
+  @media (max-width: 760px) {
+    .stage {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+    }
+  }
+
+  /* Guia */
+  .guide {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+  }
+  .guide h1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 2.2rem;
+    letter-spacing: 0.02em;
+    margin: 0;
+    line-height: 1;
+    text-wrap: balance;
+  }
+  .guide p {
+    margin: 0;
+    color: var(--color-slate);
+    line-height: 1.5;
+  }
+  .steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .steps button {
+    width: 100%;
+    text-align: left;
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    gap: 10px;
+    align-items: start;
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+    padding: 10px 12px;
+  }
+  .steps button[aria-current='step'] {
+    border-color: var(--color-copper);
+    background: color-mix(in srgb, var(--color-copper) 10%, transparent);
+  }
+  .steps .n {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: var(--color-copper);
+    line-height: 1;
+  }
+  .steps strong {
+    display: block;
+    font-size: 0.95rem;
+  }
+  .steps small {
+    color: var(--color-slate);
+    font-size: 0.82rem;
+    line-height: 1.4;
+    display: block;
+    margin-top: 2px;
+  }
+  .note {
+    border-left: 2px solid var(--color-slate);
+    padding-left: 12px;
+    font-size: 0.85rem;
+  }
+  .toast {
+    min-height: 1.4em;
+    font-family: var(--font-utility);
+    font-size: 0.78rem;
+    color: var(--color-copper);
+  }
+
+  /* Celular */
+  .phone {
+    width: min(390px, 100%);
+    height: 760px;
+    max-height: calc(100vh - 48px);
+    min-height: 600px;
+    border: 10px solid #05090c;
+    border-radius: 34px;
+    background: var(--color-asphalt);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+    justify-self: center;
+    box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.6);
+  }
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+    background: var(--color-graphite);
+    min-height: 56px;
+  }
+  .app-header .back {
+    background: none;
+    border: 0;
+    width: var(--touch-target);
+    height: var(--touch-target);
+    margin: -8px 0 -8px -10px;
+    display: grid;
+    place-items: center;
+  }
+  .app-header .title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    letter-spacing: 0.03em;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .app-header .sub {
+    display: block;
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    color: var(--color-slate);
+    letter-spacing: 0;
+  }
+  .sync {
+    font-family: var(--font-utility);
+    font-size: 0.7rem;
+    color: var(--color-ready);
+    border: 1px solid currentColor;
+    padding: 2px 6px;
+  }
+  .screen {
+    overflow-y: auto;
+    padding: 14px;
+    display: grid;
+    gap: 12px;
+    align-content: start;
+  }
+  .bottombar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+    background: var(--color-graphite);
+  }
+  .bottombar button {
+    background: none;
+    border: 0;
+    min-height: 56px;
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    font-size: 0.72rem;
+    color: var(--color-slate);
+    position: relative;
+  }
+  .bottombar button[aria-current='page'] {
+    color: var(--color-copper);
+  }
+  .dot {
+    position: absolute;
+    top: 6px;
+    left: calc(50% + 6px);
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--color-alert);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+  }
+
+  /* Viagem */
+  .progress {
+    display: grid;
+    gap: 4px;
+  }
+  .bar {
+    display: flex;
+    gap: 4px;
+  }
+  .bar i {
+    flex: 1;
+    height: 8px;
+    background: var(--color-slate);
+    opacity: 0.45;
+  }
+  .bar i.done {
+    background: var(--color-ready);
+    opacity: 1;
+  }
+  .bar i.occ {
+    background: var(--color-alert);
+    opacity: 1;
+  }
+  .progress p {
+    margin: 0;
+    color: var(--color-slate);
+    font-size: 0.82rem;
+  }
+  .progress strong {
+    color: var(--color-fog);
+  }
+
+  .signal {
+    width: 100%;
+    text-align: left;
+    background: var(--color-graphite);
+    border: 1px solid var(--color-alert);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+  }
+  .signal .ico {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--color-alert) 18%, transparent);
+    color: var(--color-alert);
+  }
+  .signal strong {
+    display: block;
+    font-size: 0.98rem;
+  }
+  .signal span.meta {
+    font-size: 0.8rem;
+    color: var(--color-slate);
+  }
+  .signal .new {
+    color: var(--color-copper);
+    font-weight: 700;
+  }
+  .pulse {
+    animation: pulse 1.6s ease-out 2;
+  }
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-alert) 60%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 12px transparent;
+    }
+  }
+
+  .stop {
+    background: var(--color-graphite);
+    border: 1px solid var(--color-slate);
+    padding: 14px;
+    display: grid;
+    gap: 8px;
+  }
+  .stop.current {
+    border-color: var(--color-copper);
+    box-shadow: 0 0 0 1px var(--color-copper);
+  }
+  .stop.done {
+    opacity: 0.65;
+  }
+  .stop.flash {
+    box-shadow: 0 0 0 2px var(--color-alert);
+  }
+  .stop-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.78rem;
+    color: var(--color-slate);
+  }
+  .stop h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+  .stop .addr {
+    font-size: 0.82rem;
+    color: var(--color-slate);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    color: var(--color-slate);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 1px 8px;
+  }
+  .chip svg {
+    width: 0.85rem;
+    height: 0.85rem;
+  }
+  .chip.current {
+    border-color: var(--color-copper);
+    color: var(--color-copper);
+  }
+  .chip.ok {
+    border-color: var(--color-ready);
+    color: var(--color-ready);
+  }
+  .chip.occ {
+    border-color: var(--color-alert);
+    color: var(--color-alert);
+    background: none;
+  }
+  button.chip {
+    cursor: pointer;
+  }
+  .stop .activity {
+    font-size: 0.78rem;
+    color: var(--color-slate);
+    margin: 0;
+  }
+
+  /* Lista */
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .section-head h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 1.3rem;
+    letter-spacing: 0.03em;
+  }
+  .section-head span {
+    font-size: 0.8rem;
+    color: var(--color-slate);
+  }
+  .filters {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+  }
+  .filters button {
+    background: none;
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    color: var(--color-slate);
+  }
+  .filters button[aria-pressed='true'] {
+    border-color: var(--color-copper);
+    color: var(--color-copper);
+  }
+  .occ-list {
+    display: grid;
+    gap: 8px;
+  }
+  .occ-row {
+    width: 100%;
+    text-align: left;
+    background: var(--color-graphite);
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    display: grid;
+    grid-template-columns: 38px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    min-height: 64px;
+  }
+  .occ-row .ico {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-alert);
+    color: var(--color-alert);
+  }
+  .occ-row .body {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .occ-row strong {
+    font-size: 0.92rem;
+  }
+  .occ-row .line {
+    font-size: 0.78rem;
+    color: var(--color-slate);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .state {
+    font-family: var(--font-utility);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .state.sent {
+    color: var(--color-ready);
+  }
+  .state.queued {
+    color: var(--color-copper);
+  }
+  .state.refused {
+    color: var(--color-alert);
+  }
+  .state.resolved {
+    color: var(--color-ready);
+  }
+  .occ-row.resolved {
+    opacity: 0.7;
+  }
+  .occ-row.resolved .ico {
+    border-color: var(--color-ready);
+    color: var(--color-ready);
+  }
+  .group-title {
+    margin: 6px 0 0;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-slate);
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+  }
+  .stop-filter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    border: 1px solid var(--color-copper);
+    padding: 6px 6px 6px 10px;
+  }
+  .signal.all-resolved {
+    border-color: var(--color-ready);
+  }
+  .signal.all-resolved .ico {
+    background: color-mix(in srgb, var(--color-ready) 18%, transparent);
+    color: var(--color-ready);
+  }
+  .resolved-banner {
+    border-color: var(--color-ready) !important;
+  }
+  .resolved-banner h3 {
+    color: var(--color-ready);
+  }
+  .closed-note {
+    font-size: 0.8rem;
+    color: var(--color-slate);
+    border-top: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+    padding-top: 10px;
+    margin: 0;
+  }
+  .simulate {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .action {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    font-size: 0.7rem;
+    color: var(--color-slate);
+    position: relative;
+    min-width: 48px;
+  }
+  .action svg {
+    width: 1.3rem;
+    height: 1.3rem;
+    color: var(--color-fog);
+  }
+  .action .dot {
+    top: -6px;
+    left: 28px;
+  }
+  .action .doc {
+    color: var(--color-copper);
+  }
+
+  /* Detalhe */
+  .detail-head {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 12px;
+    align-items: center;
+  }
+  .detail-head .ico {
+    width: 48px;
+    height: 48px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-alert);
+    color: var(--color-alert);
+  }
+  .detail-head .ico svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  .detail-head h2 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+  .detail-head p {
+    margin: 2px 0 0;
+    font-size: 0.82rem;
+    color: var(--color-slate);
+  }
+  .panel {
+    background: var(--color-graphite);
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    padding: 12px;
+    display: grid;
+    gap: 10px;
+  }
+  .panel h3 {
+    margin: 0;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-slate);
+    font-weight: 700;
+  }
+  dl.facts {
+    margin: 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 12px;
+    font-size: 0.86rem;
+  }
+  dl.facts dt {
+    color: var(--color-slate);
+  }
+  dl.facts dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .quote {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.45;
+  }
+  .thumbs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .thumbs span {
+    aspect-ratio: 1;
+    max-width: 100%;
+    background: repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-slate) 30%, transparent) 0 6px,
+      transparent 6px 12px
+    );
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    display: grid;
+    place-items: center;
+    font-size: 0.68rem;
+    color: var(--color-slate);
+  }
+  .doc-row {
+    display: grid;
+    grid-template-columns: 34px 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+  .doc-row .file {
+    width: 34px;
+    height: 40px;
+    border: 1px solid var(--color-copper);
+    color: var(--color-copper);
+    display: grid;
+    place-items: center;
+    font-family: var(--font-utility);
+    font-size: 0.6rem;
+    font-weight: 700;
+  }
+  .doc-row .name {
+    min-width: 0;
+    font-size: 0.85rem;
+  }
+  .doc-row .name small {
+    display: block;
+    color: var(--color-slate);
+    font-size: 0.74rem;
+  }
+  .ui-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: var(--touch-target);
+    padding: 0 14px;
+    border: 1px solid transparent;
+    font-weight: 700;
+    font-size: 0.88rem;
+  }
+  .ui-button.primary {
+    background: var(--color-copper);
+    color: var(--color-ink-on-accent);
+  }
+  .ui-button.ghost {
+    background: transparent;
+    border-color: var(--color-slate);
+    color: var(--color-fog);
+  }
+  .ui-button.small {
+    min-height: 2.25rem;
+    padding: 0 10px;
+    font-size: 0.8rem;
+  }
+  .ui-button.block {
+    width: 100%;
+  }
+  .timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+    font-size: 0.84rem;
+  }
+  .timeline li {
+    display: grid;
+    grid-template-columns: 3rem 1fr;
+    gap: 8px;
+  }
+  .timeline time {
+    font-family: var(--font-utility);
+    font-size: 0.75rem;
+    color: var(--color-slate);
+    padding-top: 1px;
+  }
+
+  /* Chat */
+  .chat {
+    display: grid;
+    gap: 10px;
+  }
+  .chat-context {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.78rem;
+    color: var(--color-slate);
+    border: 1px dashed color-mix(in srgb, var(--color-slate) 50%, transparent);
+    padding: 8px 10px;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+  .msg {
+    max-width: 85%;
+    padding: 9px 11px;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    display: grid;
+    gap: 6px;
+  }
+  .msg .who {
+    font-size: 0.7rem;
+    color: var(--color-slate);
+    font-weight: 700;
+  }
+  .msg time {
+    font-family: var(--font-utility);
+    font-size: 0.66rem;
+    color: var(--color-slate);
+    justify-self: end;
+  }
+  .msg.them {
+    background: var(--color-graphite);
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    justify-self: start;
+  }
+  .msg.me {
+    background: color-mix(in srgb, var(--color-copper) 22%, var(--color-asphalt));
+    justify-self: end;
+  }
+  .msg.system {
+    justify-self: center;
+    max-width: 100%;
+    font-size: 0.75rem;
+    color: var(--color-slate);
+    text-align: center;
+    padding: 2px;
+  }
+  .msg .attach {
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    gap: 8px;
+    align-items: center;
+    border-top: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+    padding-top: 8px;
+  }
+  .msg .attach .file {
+    width: 30px;
+    height: 36px;
+    border: 1px solid var(--color-copper);
+    color: var(--color-copper);
+    display: grid;
+    place-items: center;
+    font-family: var(--font-utility);
+    font-size: 0.56rem;
+    font-weight: 700;
+  }
+  .msg .attach-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .divider-new {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+    color: var(--color-copper);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+  .divider-new::before,
+  .divider-new::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid var(--color-copper);
+  }
+  .composer {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    position: sticky;
+    bottom: -14px;
+    background: var(--color-asphalt);
+    padding-block: 8px;
+  }
+  .composer input {
+    min-height: var(--touch-target);
+    background: var(--color-graphite);
+    border: 1px solid var(--color-slate);
+    color: var(--color-fog);
+    padding: 0 10px;
+    font: inherit;
+    min-width: 0;
+  }
+
+  /* Folha de compartilhar */
+  .sheet-wrap {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: grid;
+    align-items: end;
+    justify-items: center;
+    z-index: 10;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .sheet {
+    width: min(390px, 100%);
+    background: var(--color-graphite);
+    border-top: 2px solid var(--color-copper);
+    padding: 16px max(16px, env(safe-area-inset-left, 0px)) 20px;
+    display: grid;
+    gap: 12px;
+  }
+  .sheet h3 {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+  .sheet p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--color-slate);
+  }
+  .share-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .share-grid button {
+    background: none;
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    padding: 10px 4px;
+    font-size: 0.72rem;
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+  }
+  .phone {
+    position: relative;
+  }
+  .note-group {
+    display: grid;
+    gap: 6px;
+    border-top: 1px dashed color-mix(in srgb, var(--color-slate) 40%, transparent);
+    padding-top: 8px;
+  }
+  .note-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-utility);
+    font-size: 0.72rem;
+    color: var(--color-slate);
+  }
+  .note-count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border: 1px solid var(--color-slate);
+    display: grid;
+    place-items: center;
+    font-size: 0.66rem;
+  }
+  .more-chip {
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: 1px dashed var(--color-slate);
+    color: var(--color-fog);
+    font-family: var(--font-utility);
+    font-size: 0.8rem;
+  }
+  .header-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .header-icon {
+    position: relative;
+    background: none;
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    width: var(--touch-target);
+    height: var(--touch-target);
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+  .header-icon.alert {
+    border-color: var(--color-alert);
+    color: var(--color-alert);
+  }
+  .header-icon .dot {
+    top: -8px;
+    left: auto;
+    right: -8px;
+  }
+  .stop-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .status-icon {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    color: var(--color-slate);
+    flex: none;
+  }
+  .status-icon.ok {
+    border-color: var(--color-ready);
+    color: var(--color-ready);
+  }
+  .status-icon.current {
+    border-color: var(--color-copper);
+    color: var(--color-copper);
+  }
+  .stop-occurrences {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 4px 8px 8px 0;
+  }
+  .occ-icon {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-alert);
+    color: var(--color-alert);
+    background: none;
+    padding: 0;
+    flex: none;
+  }
+  .occ-icon > svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  .occ-icon.queued {
+    border-color: var(--color-copper);
+    color: var(--color-copper);
+  }
+  .occ-icon.resolved {
+    border-color: var(--color-ready);
+    color: var(--color-ready);
+  }
+  .occ-icon .dot {
+    top: -8px;
+    left: auto;
+    right: -8px;
+  }
+  .state-badge,
+  .clip-badge {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--color-graphite);
+    border: 1px solid currentColor;
+    font-style: normal;
+  }
+  .state-badge {
+    right: -7px;
+    bottom: -7px;
+  }
+  .state-badge svg,
+  .clip-badge svg {
+    width: 10px;
+    height: 10px;
+  }
+  .state-badge.sent {
+    color: var(--color-ready);
+  }
+  .state-badge.queued {
+    color: var(--color-copper);
+  }
+  .state-badge.refused {
+    color: var(--color-alert);
+  }
+  .state-badge.resolved {
+    color: var(--color-ready);
+    background: color-mix(in srgb, var(--color-ready) 25%, var(--color-graphite));
+  }
+  .clip-badge {
+    left: -7px;
+    bottom: -7px;
+    color: var(--color-copper);
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    font-size: 0.8rem;
+    color: var(--color-slate);
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend .state-badge,
+  .legend .clip-badge {
+    position: static;
+  }
+  .legend-dot {
+    font-style: normal;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background: var(--color-alert);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+  }
+  .filters button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 2.4rem;
+  }
+  .filters button span {
+    font-family: var(--font-utility);
+    font-size: 0.75rem;
+  }
+  .occ-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0;
+    gap: 0;
+    background: var(--color-graphite);
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    min-height: 0;
+  }
+  .occ-main {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    background: none;
+    border: 0;
+    text-align: left;
+    width: 100%;
+  }
+  .occ-main .body {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .occ-main strong {
+    font-size: 0.92rem;
+  }
+  .occ-main .line {
+    font-size: 0.78rem;
+    color: var(--color-slate);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .occ-main .line.time {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-utility);
+  }
+  .occ-main .line.time svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+  .row-share {
+    background: none;
+    border: 0;
+    border-left: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+    width: 48px;
+    color: var(--color-copper);
+    display: grid;
+    place-items: center;
+  }
+  .group-title span:first-child {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .group-title svg {
+    width: 0.85rem;
+    height: 0.85rem;
+  }
+  .detail-head .occ-icon {
+    width: 48px;
+    height: 48px;
+  }
+  .state-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .state-line svg {
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+  .state-line.sent,
+  .state-line.resolved {
+    color: var(--color-ready) !important;
+  }
+  .state-line.queued {
+    color: var(--color-copper) !important;
+  }
+  .state-line.refused {
+    color: var(--color-alert) !important;
+  }
+  .panel h3 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .panel h3 svg {
+    width: 0.85rem;
+    height: 0.85rem;
+  }
+  .refused-banner {
+    border-color: var(--color-alert) !important;
+  }
+  .refused-banner h3 {
+    color: var(--color-alert);
+  }
+  .doc-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .icon-button {
+    background: none;
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+    width: var(--touch-target);
+    height: var(--touch-target);
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+  .icon-button:last-child {
+    border-color: var(--color-copper);
+    color: var(--color-copper);
+  }
+  .chat-context .occ-icon {
+    width: 34px;
+    height: 34px;
+  }
+  .chat-context small {
+    color: var(--color-slate);
+  }
+  .notification {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    text-align: left;
+    width: 100%;
+    background: var(--color-graphite);
+    border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  }
+  .notification.unread {
+    border-left: 3px solid var(--color-copper);
+  }
+  .notification:not(.unread) {
+    opacity: 0.65;
+  }
+  .notification .body,
+  .banner .body {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .notification strong,
+  .banner strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+  }
+  .notification strong svg,
+  .banner strong svg {
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+  .notification .line,
+  .banner .line {
+    font-size: 0.78rem;
+    color: var(--color-slate);
+  }
+  .notification time {
+    font-family: var(--font-utility);
+    font-size: 0.72rem;
+    color: var(--color-slate);
+    align-self: start;
+  }
+  .banner {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    text-align: left;
+    background: var(--color-graphite);
+    border: 1px solid var(--color-copper);
+    box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6);
+    animation: drop 0.25s ease-out;
+  }
+  .banner small {
+    font-size: 0.7rem;
+    color: var(--color-slate);
+  }
+  @keyframes drop {
+    from {
+      transform: translateY(-20px);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .banner {
+      animation: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pulse {
+      animation: none;
+    }
+  }
+</style>
+
+<div class="stage">
+  <section class="guide" aria-labelledby="guide-title">
+    <h1 id="guide-title">Ocorrências da rota</h1>
+    <p>
+      Prévia clicável do app do motorista: alerta no cabeçalho, ícones na rota, notificações,
+      documentos e chat. Dados de exemplo; nada disso está implementado.
+    </p>
+    <ol class="steps" id="steps">
+      <li>
+        <button data-go="trip">
+          <span class="n">1</span
+          ><span
+            ><strong>Rota</strong
+            ><small
+              >Alerta vermelho no cabeçalho com o número de ocorrências em aberto. Some quando todas
+              são resolvidas. Cada parada mostra os ícones das suas ocorrências.</small
+            ></span
+          >
+        </button>
+      </li>
+      <li>
+        <button data-go="bell">
+          <span class="n">2</span
+          ><span
+            ><strong>Notificações</strong
+            ><small
+              >O sino que o app já tem recebe mensagem nova e mudança de estado. Tocar abre o chat
+              ou o detalhe.</small
+            ></span
+          >
+        </button>
+      </li>
+      <li>
+        <button data-go="list">
+          <span class="n">3</span
+          ><span
+            ><strong>Lista</strong
+            ><small
+              >Em aberto em cima, resolvidas embaixo. Filtros por ícone e botão de compartilhar
+              quando há documento.</small
+            ></span
+          >
+        </button>
+      </li>
+      <li>
+        <button data-go="detail">
+          <span class="n">4</span
+          ><span
+            ><strong>Detalhe</strong
+            ><small
+              >Estado, documentos com ver e compartilhar (um ou todos), andamento e as outras
+              ocorrências da parada.</small
+            ></span
+          >
+        </button>
+      </li>
+      <li>
+        <button data-go="chat">
+          <span class="n">5</span
+          ><span
+            ><strong>Chat</strong
+            ><small>O retorno do escritório, com anexo para compartilhar ou baixar.</small></span
+          >
+        </button>
+      </li>
+    </ol>
+    <div class="legend" aria-label="Legenda dos ícones">
+      <span
+        ><i class="state-badge sent"
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="M3 11l18-8-8 18-2-8z" /></svg></i
+        >Enviada</span
+      >
+      <span
+        ><i class="state-badge queued"
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" /></svg></i
+        >Na fila</span
+      >
+      <span
+        ><i class="state-badge refused"
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" /></svg></i
+        >Recusada</span
+      >
+      <span
+        ><i class="state-badge resolved"
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="M5 12l5 5 9-10" /></svg></i
+        >Resolvida</span
+      >
+      <span><i class="legend-dot">2</i>Mensagens novas</span>
+      <span
+        ><i class="clip-badge legend-clip"
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="M20 11l-8 8a5 5 0 01-7-7l8-8a3.5 3.5 0 015 5l-8 8a2 2 0 01-3-3l7-7" /></svg></i
+        >Tem documento</span
+      >
+    </div>
+    <div class="simulate">
+      <button class="ui-button ghost small" id="sim-message">Escritório manda mensagem</button>
+      <button class="ui-button ghost small" id="sim-resolve">Escritório resolve uma</button>
+      <button class="ui-button ghost small" id="reset-demo">Voltar ao exemplo</button>
+    </div>
+    <p class="note">
+      <strong>Várias na mesma nota:</strong> a NF 48.207 tem duas Avarias (uma resolvida, outra em
+      aberto) e a NF 48.213 tem a Prorrogação do boleto e uma Avaria. Na parada, os ícones ficam
+      agrupados por NF; no detalhe aparecem primeiro “Outras desta nota”.
+    </p>
+    <p class="note">
+      Toque “Escritório resolve uma” várias vezes: o número do alerta cai, a parada fica verde e, na
+      última, o alerta sai do cabeçalho. Cada mudança chega como notificação.
+    </p>
+    <p class="toast" id="toast" role="status" aria-live="polite"></p>
+  </section>
+
+  <div class="phone" aria-label="App do motorista (prévia)">
+    <button class="banner" id="banner" hidden></button>
+    <header class="app-header" id="header"></header>
+    <main class="screen" id="screen"></main>
+    <nav class="bottombar" aria-label="Navegação do app" id="bottombar"></nav>
+  </div>
+</div>
+
+<div class="sheet-wrap" id="sheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <h3 id="sheet-title">Compartilhar</h3>
+    <p id="sheet-file"></p>
+    <div class="share-grid">
+      <button data-share="WhatsApp">WhatsApp</button>
+      <button data-share="E-mail">E-mail</button>
+      <button data-share="Drive">Drive</button>
+      <button data-share="Mais">Mais…</button>
+    </div>
+    <p>
+      É a folha de compartilhar do próprio celular. Onde o aparelho não tiver, o botão vira
+      “Baixar”.
+    </p>
+    <button class="ui-button ghost block" id="sheet-close">Cancelar</button>
+  </div>
+</div>
+
+<script>
+  const svg = (path) =>
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">${path}</svg>`
+  const ICONS = {
+    back: svg('<path d="M15 18l-6-6 6-6"/>'),
+    alert: svg('<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>'),
+    bell: svg('<path d="M6 16v-5a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>'),
+    chat: svg('<path d="M4 5h16v11H9l-5 4z"/>'),
+    note: svg('<path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/>'),
+    share: svg(
+      '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/>',
+    ),
+    download: svg('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'),
+    eye: svg(
+      '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    ),
+    clip: svg('<path d="M20 11l-8 8a5 5 0 01-7-7l8-8a3.5 3.5 0 015 5l-8 8a2 2 0 01-3-3l7-7"/>'),
+    truck: svg(
+      '<path d="M2 6h11v10H2zM13 9h5l3 3v4h-8"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
+    ),
+    user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>'),
+    check: svg('<path d="M5 12l5 5 9-10"/>'),
+    send: svg('<path d="M3 11l18-8-8 18-2-8z"/>'),
+    clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    cross: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
+    circle: svg('<circle cx="12" cy="12" r="5"/>'),
+    damage: svg('<path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M12 8l-2 4 3 1-2 4"/>'),
+    refuse: svg('<circle cx="12" cy="12" r="9"/><path d="M6 18L18 6"/>'),
+    returnPartial: svg('<path d="M9 14l-5-5 5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>'),
+    boleto: svg(
+      '<rect x="3" y="5" width="18" height="14"/><path d="M7 9v6M10 9v6M12 9v6M15 9v6M17 9v6"/>',
+    ),
+    absent: svg('<path d="M4 21V10l8-6 8 6v11z"/><path d="M10 21v-6h4v6"/>'),
+  }
+
+  const STATES = {
+    sent: { icon: 'send', label: 'Enviada ao escritório' },
+    queued: { icon: 'clock', label: 'Na fila, sobe quando tiver sinal' },
+    refused: { icon: 'cross', label: 'Recusada pelo escritório' },
+    resolved: { icon: 'check', label: 'Resolvida' },
+  }
+
+  const STOP_STATUS = {
+    done: { icon: 'check', label: 'Entregue', className: 'ok' },
+    current: { icon: 'truck', label: 'Parada atual', className: 'current' },
+    next: { icon: 'circle', label: 'Próxima', className: '' },
+  }
+
+  const STOPS = [
+    {
+      seq: 1,
+      name: 'Loja Ferragens Alvorada',
+      addr: 'R. Tiradentes, 410 · Ribeirão Preto',
+      invoices: 'NF 48.201',
+      status: 'done',
+    },
+    {
+      seq: 2,
+      name: 'Distribuidora Leme',
+      addr: 'Av. Caramuru, 1.880 · Ribeirão Preto',
+      invoices: 'NF 48.207 · NF 48.208',
+      status: 'done',
+    },
+    {
+      seq: 3,
+      name: 'Mercado São Jorge',
+      addr: 'R. Garibaldi, 77 · Ribeirão Preto',
+      invoices: 'NF 48.213',
+      status: 'done',
+    },
+    {
+      seq: 4,
+      name: 'Padaria Bom Grão',
+      addr: 'R. Amador Bueno, 1.212 · Ribeirão Preto',
+      invoices: 'NF 48.219',
+      status: 'current',
+    },
+    {
+      seq: 5,
+      name: 'Armazém Vila Tibério',
+      addr: 'R. Luiz da Cunha, 300 · Ribeirão Preto',
+      invoices: 'NF 48.224',
+      status: 'next',
+    },
+  ]
+
+  function createOccurrences() {
+    return [
+      {
+        id: 'o1',
+        icon: 'boleto',
+        type: 'Prorrogação do boleto',
+        invoice: 'NF 48.213',
+        stop: 3,
+        recipient: 'Mercado São Jorge',
+        time: '14:32',
+        state: 'sent',
+        observation: 'Cliente pediu para prorrogar o boleto para dia 30. Responsável: Sr. Carlos.',
+        photos: 1,
+        chat: { unread: 2, office: 'Ana · escritório' },
+        documents: [
+          {
+            name: 'boleto-48213-prorrogado.pdf',
+            kind: 'PDF',
+            size: '84 KB',
+            from: 'enviado pela contratante',
+          },
+        ],
+        messages: [
+          { who: 'system', text: 'Conversa aberta pela ocorrência às 14:32' },
+          {
+            who: 'me',
+            text: 'Cliente pediu prorrogação do boleto pro dia 30. Ele quer o boleto novo antes de eu sair.',
+            time: '14:34',
+          },
+          {
+            who: 'them',
+            text: 'Recebido. Já pedi para a contratante, te aviso aqui.',
+            time: '14:51',
+          },
+          {
+            who: 'them',
+            text: 'A contratante aprovou. Segue o boleto com vencimento 30/10. Pode mandar para o cliente pelo WhatsApp.',
+            time: '15:20',
+            attach: 0,
+          },
+          { who: 'them', text: 'Depois de enviar, pode seguir para a parada 4.', time: '15:21' },
+        ],
+        timeline: [
+          ['14:32', 'Você registrou'],
+          ['14:33', 'Chegou ao escritório'],
+          ['14:51', 'Pedido enviado à contratante'],
+          ['15:20', 'Contratante mandou o boleto novo'],
+        ],
+      },
+      {
+        id: 'o2',
+        icon: 'damage',
+        type: 'Avaria',
+        invoice: 'NF 48.207',
+        stop: 2,
+        recipient: 'Distribuidora Leme',
+        time: '11:05',
+        state: 'resolved',
+        observation: '2 caixas amassadas na lateral. Cliente recebeu com ressalva no canhoto.',
+        photos: 3,
+        chat: { unread: 0, office: 'Rafael · escritório' },
+        documents: [
+          {
+            name: 'canhoto-48207-ressalva.jpg',
+            kind: 'JPG',
+            size: '1,2 MB',
+            from: 'foto que você tirou',
+          },
+        ],
+        resolution: {
+          time: '12:10',
+          text: 'Ressalva aceita pela contratante. Nada a fazer na rota.',
+        },
+        messages: [
+          { who: 'system', text: 'Conversa aberta pela ocorrência às 11:05' },
+          {
+            who: 'them',
+            text: 'Vi as fotos. Ressalva no canhoto está certa, pode seguir.',
+            time: '11:40',
+          },
+          {
+            who: 'them',
+            text: 'Contratante aceitou a ressalva. Encerrando por aqui, obrigado.',
+            time: '12:10',
+          },
+          { who: 'system', text: 'Resolvida pelo escritório às 12:10' },
+        ],
+        timeline: [
+          ['11:05', 'Você registrou'],
+          ['11:06', 'Chegou ao escritório'],
+          ['11:40', 'Escritório respondeu no chat'],
+          ['12:10', 'Resolvida pelo escritório'],
+        ],
+      },
+      {
+        id: 'o5',
+        icon: 'returnPartial',
+        type: 'Devolução parcial',
+        invoice: 'NF 48.208',
+        stop: 2,
+        recipient: 'Distribuidora Leme',
+        time: '11:12',
+        state: 'sent',
+        observation:
+          'Cliente devolveu 4 fardos de água (vencimento curto). Valor pago: R$ 1.260,00.',
+        photos: 2,
+        chat: { unread: 1, office: 'Rafael · escritório' },
+        documents: [
+          {
+            name: 'nota-devolucao-48208.pdf',
+            kind: 'PDF',
+            size: '62 KB',
+            from: 'enviada pela contratante',
+          },
+          {
+            name: 'termo-devolucao-assinado.pdf',
+            kind: 'PDF',
+            size: '110 KB',
+            from: 'assinado pelo cliente',
+          },
+        ],
+        messages: [
+          { who: 'system', text: 'Conversa aberta pela ocorrência às 11:12' },
+          {
+            who: 'me',
+            text: 'Devolveram 4 fardos de água, vencimento curto. Já registrei o valor pago.',
+            time: '11:14',
+          },
+          {
+            who: 'them',
+            text: 'Segue a nota de devolução para entregar junto com os fardos no CD. Os 4 voltam no caminhão até o fim da rota?',
+            time: '13:02',
+            attach: 0,
+          },
+        ],
+        timeline: [
+          ['11:12', 'Você registrou'],
+          ['11:13', 'Chegou ao escritório'],
+          ['13:02', 'Escritório mandou a nota de devolução'],
+        ],
+      },
+      {
+        id: 'o6',
+        icon: 'damage',
+        type: 'Avaria',
+        invoice: 'NF 48.207',
+        stop: 2,
+        recipient: 'Distribuidora Leme',
+        time: '11:20',
+        state: 'sent',
+        observation: 'Na conferência apareceu mais 1 caixa molhada, separada das 2 amassadas.',
+        photos: 1,
+        chat: undefined,
+        documents: [
+          {
+            name: 'avaria-48207-caixa-molhada.jpg',
+            kind: 'JPG',
+            size: '980 KB',
+            from: 'foto que você tirou',
+          },
+        ],
+        timeline: [
+          ['11:20', 'Você registrou'],
+          ['11:21', 'Chegou ao escritório'],
+        ],
+      },
+      {
+        id: 'o7',
+        icon: 'damage',
+        type: 'Avaria',
+        invoice: 'NF 48.213',
+        stop: 3,
+        recipient: 'Mercado São Jorge',
+        time: '14:40',
+        state: 'sent',
+        observation: '1 fardo rasgado. Cliente recebeu o restante.',
+        photos: 2,
+        chat: { unread: 0, office: 'Ana · escritório' },
+        documents: [],
+        messages: [
+          { who: 'system', text: 'Conversa aberta pela ocorrência às 14:40' },
+          { who: 'them', text: 'Recebido, vou incluir junto com a prorrogação.', time: '14:55' },
+        ],
+        timeline: [
+          ['14:40', 'Você registrou'],
+          ['14:41', 'Chegou ao escritório'],
+        ],
+      },
+      {
+        id: 'o3',
+        icon: 'refuse',
+        type: 'Recusa',
+        invoice: 'NF 48.219',
+        stop: 4,
+        recipient: 'Padaria Bom Grão',
+        time: '15:48',
+        state: 'queued',
+        observation: 'Pedido não confere com o que foi comprado. Cliente recusou a nota inteira.',
+        photos: 2,
+        chat: { unread: 0, office: 'Escritório' },
+        documents: [],
+        messages: [
+          {
+            who: 'system',
+            text: 'A ocorrência ainda está na fila. A conversa começa quando ela chegar ao escritório.',
+          },
+        ],
+        timeline: [
+          ['15:48', 'Você registrou'],
+          ['—', 'Aguardando sinal para enviar'],
+        ],
+      },
+      {
+        id: 'o4',
+        icon: 'absent',
+        type: 'Cliente ausente',
+        invoice: 'NF 48.201',
+        stop: 1,
+        recipient: 'Loja Ferragens Alvorada',
+        time: '09:12',
+        state: 'refused',
+        observation: 'Portão fechado, ninguém atendeu. Liguei 2 vezes.',
+        photos: 1,
+        chat: undefined,
+        documents: [],
+        refusal: 'Falta a foto da fachada com o número.',
+        timeline: [
+          ['09:12', 'Você registrou'],
+          ['09:40', 'Escritório recusou: falta a foto da fachada'],
+        ],
+      },
+    ]
+  }
+
+  function createNotifications() {
+    return [
+      {
+        kind: 'message',
+        occurrenceId: 'o1',
+        title: 'Ana respondeu',
+        text: 'Prorrogação do boleto · mandou o boleto novo',
+        time: '15:20',
+        read: false,
+      },
+      {
+        kind: 'message',
+        occurrenceId: 'o5',
+        title: 'Rafael respondeu',
+        text: 'Devolução parcial · mandou a nota de devolução',
+        time: '13:02',
+        read: false,
+      },
+      {
+        kind: 'status',
+        occurrenceId: 'o2',
+        title: 'Avaria resolvida',
+        text: 'Ressalva aceita pela contratante',
+        time: '12:10',
+        read: true,
+      },
+      {
+        kind: 'status',
+        occurrenceId: 'o4',
+        title: 'Cliente ausente recusada',
+        text: 'Falta a foto da fachada com o número',
+        time: '09:40',
+        read: false,
+      },
+    ]
+  }
+
+  let occurrences = createOccurrences()
+  let notifications = createNotifications()
+  const view = {
+    name: 'trip',
+    occurrenceId: 'o1',
+    filter: 'all',
+    stopFilter: undefined,
+    flashStop: undefined,
+  }
+  const navigationStack = []
+  let bannerTimer
+
+  const byId = (id) => occurrences.find((occurrence) => occurrence.id === id)
+  const isOpen = (occurrence) => occurrence.state !== 'resolved'
+  const unreadOf = (occurrence) => occurrence.chat?.unread ?? 0
+  const occurrencesOfStop = (sequence) =>
+    occurrences.filter((occurrence) => occurrence.stop === sequence)
+  const escape = (text) =>
+    String(text).replace(
+      /[&<>"]/g,
+      (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[character],
+    )
+  const plural = (count, singular, pluralForm) => `${count} ${count === 1 ? singular : pluralForm}`
+
+  function say(message) {
+    document.getElementById('toast').textContent = message
+  }
+
+  function markNotificationsRead(occurrenceId, kind) {
+    notifications.forEach((notification) => {
+      if (notification.occurrenceId === occurrenceId && notification.kind === kind)
+        notification.read = true
+    })
+  }
+
+  function occurrenceIcon(occurrence, tag) {
+    const state = STATES[occurrence.state]
+    const unread = unreadOf(occurrence)
+    const parts = [occurrence.type, state.label, `às ${occurrence.time}`]
+    if (unread > 0) parts.push(plural(unread, 'mensagem nova', 'mensagens novas'))
+    if (occurrence.documents.length > 0)
+      parts.push(plural(occurrence.documents.length, 'documento', 'documentos'))
+    const label = escape(parts.join(' · '))
+    const attributes =
+      tag === 'button'
+        ? `data-open="${occurrence.id}" aria-label="${label}"`
+        : `role="img" aria-label="${label}"`
+    const unreadBadge = unread > 0 ? `<span class="dot">${unread}</span>` : ''
+    const clipBadge =
+      occurrence.documents.length > 0 ? `<span class="clip-badge">${ICONS.clip}</span>` : ''
+    return `<${tag} class="occ-icon ${occurrence.state}" title="${label}" ${attributes}>${ICONS[occurrence.icon]}<span class="state-badge ${occurrence.state}">${ICONS[state.icon]}</span>${unreadBadge}${clipBadge}</${tag}>`
+  }
+
+  function renderHeaderActions() {
+    const open = occurrences.filter(isOpen).length
+    const unreadNotifications = notifications.filter((notification) => !notification.read).length
+    const hasUnreadMessages = occurrences.some((occurrence) => unreadOf(occurrence) > 0)
+    const alert =
+      open > 0
+        ? `<button class="header-icon alert ${hasUnreadMessages ? 'pulse' : ''}" data-go="list" data-clear-stop aria-label="${plural(open, 'ocorrência em aberto', 'ocorrências em aberto')}" title="${plural(open, 'ocorrência em aberto', 'ocorrências em aberto')}">${ICONS.alert}<span class="dot">${open}</span></button>`
+        : ''
+    const bellBadge =
+      unreadNotifications > 0 ? `<span class="dot">${unreadNotifications}</span>` : ''
+    const bell = `<button class="header-icon" data-go="bell" aria-label="Notificações, ${unreadNotifications} novas" title="Notificações">${ICONS.bell}${bellBadge}</button>`
+    return `<span class="header-actions">${alert}${bell}</span>`
+  }
+
+  function renderHeader() {
+    const occurrence = byId(view.occurrenceId)
+    const titles = {
+      trip: ['Viagem 1.284', 'Ribeirão Preto · 5 paradas'],
+      list: ['Ocorrências da rota', 'Viagem 1.284'],
+      detail: [occurrence.type, `${occurrence.invoice} · Parada ${occurrence.stop}`],
+      chat: [occurrence.chat?.office ?? 'Conversa', `${occurrence.type} · ${occurrence.invoice}`],
+      bell: ['Notificações', 'Viagem 1.284'],
+    }
+    const [title, subtitle] = titles[view.name]
+    const back =
+      view.name === 'trip'
+        ? ''
+        : `<button class="back" data-back aria-label="Voltar">${ICONS.back}</button>`
+    const actions = view.name === 'trip' ? renderHeaderActions() : ''
+    document.getElementById('header').innerHTML =
+      `${back}<span class="title">${escape(title)}<span class="sub">${escape(subtitle)}</span></span>${actions}`
+  }
+
+  function renderBottomBar() {
+    const unread = occurrences.reduce((sum, occurrence) => sum + unreadOf(occurrence), 0)
+    const conversationBadge = unread > 0 ? `<span class="dot">${unread}</span>` : ''
+    document.getElementById('bottombar').innerHTML = `
+    <button aria-current="${view.name === 'chat' ? 'false' : 'page'}" data-go="trip">${ICONS.truck}Viagem</button>
+    <button aria-current="${view.name === 'chat' ? 'page' : 'false'}" data-tab="conversas">${ICONS.chat}Conversas${conversationBadge}</button>
+    <button data-tab="perfil">${ICONS.user}Perfil</button>`
+  }
+
+  function renderTrip() {
+    const segments = STOPS.map((stop) => {
+      const hasOpen = occurrencesOfStop(stop.seq).some(isOpen)
+      if (hasOpen) return '<i class="occ"></i>'
+      return `<i class="${stop.status === 'done' ? 'done' : ''}"></i>`
+    }).join('')
+    return `
+    <div class="progress"><div class="bar">${segments}</div><p><strong>3 de 5</strong> paradas · 60%</p></div>
+    ${STOPS.map(renderStop).join('')}`
+  }
+
+  function renderStop(stop) {
+    const stopOccurrences = occurrencesOfStop(stop.seq)
+    const status = STOP_STATUS[stop.status]
+    const groups = new Map()
+    stopOccurrences.forEach((occurrence) => {
+      const key = occurrence.invoice ?? 'Parada'
+      groups.set(key, [...(groups.get(key) ?? []), occurrence])
+    })
+    const row = [...groups]
+      .map(([invoice, items]) => {
+        const visibleItems = items.length > 4 ? items.slice(0, 3) : items
+        const more =
+          items.length > 4
+            ? `<button class="more-chip" data-note-list="${escape(invoice)}" aria-label="Mais ${items.length - 3} ocorrências da ${escape(invoice)}">+${items.length - 3}</button>`
+            : ''
+        const count = items.length > 1 ? `<span class="note-count">${items.length}</span>` : ''
+        return `<div class="note-group"><span class="note-label">${escape(invoice)}${count}</span><div class="stop-occurrences">${visibleItems.map((occurrence) => occurrenceIcon(occurrence, 'button')).join('')}${more}</div></div>`
+      })
+      .join('')
+    const classes = [
+      'stop',
+      stop.status === 'current' ? 'current' : '',
+      stop.status === 'done' ? 'done' : '',
+      view.flashStop === stop.seq ? 'flash' : '',
+    ].join(' ')
+    return `<article class="${classes}" id="stop-${stop.seq}">
+    <div class="stop-top"><span>Parada ${stop.seq}</span><span>${stop.invoices}</span></div>
+    <div class="stop-title"><h3>${escape(stop.name)}</h3><span class="status-icon ${status.className}" role="img" aria-label="${status.label}" title="${status.label}">${ICONS[status.icon]}</span></div>
+    <span class="addr">${escape(stop.addr)}</span>${row}</article>`
+  }
+
+  const FILTERS = [
+    { key: 'all', label: 'Todas', test: () => true },
+    {
+      key: 'unread',
+      icon: 'chat',
+      label: 'Com mensagem nova',
+      test: (occurrence) => unreadOf(occurrence) > 0,
+    },
+    {
+      key: 'documents',
+      icon: 'clip',
+      label: 'Com documento',
+      test: (occurrence) => occurrence.documents.length > 0,
+    },
+    {
+      key: 'refused',
+      icon: 'cross',
+      label: 'Recusadas',
+      test: (occurrence) => occurrence.state === 'refused',
+    },
+    {
+      key: 'queued',
+      icon: 'clock',
+      label: 'Na fila',
+      test: (occurrence) => occurrence.state === 'queued',
+    },
+  ]
+
+  function renderList() {
+    const scoped = occurrences.filter(
+      (occurrence) =>
+        (!view.stopFilter || occurrence.stop === view.stopFilter) &&
+        (!view.noteFilter || occurrence.invoice === view.noteFilter),
+    )
+    const activeFilter = FILTERS.find((filter) => filter.key === view.filter)
+    const visible = scoped.filter(activeFilter.test)
+    const open = visible.filter(isOpen)
+    const resolved = visible.filter((occurrence) => !isOpen(occurrence))
+    const filterButtons = FILTERS.map((filter) => {
+      const count = scoped.filter(filter.test).length
+      const face = filter.icon ? ICONS[filter.icon] : filter.label
+      return `<button data-filter="${filter.key}" aria-pressed="${view.filter === filter.key}" aria-label="${filter.label}" title="${filter.label}">${face}<span>${count}</span></button>`
+    }).join('')
+    const stopName = view.stopFilter ? STOPS.find((stop) => stop.seq === view.stopFilter).name : ''
+    const filterLabel = view.noteFilter
+      ? escape(view.noteFilter)
+      : `Parada ${view.stopFilter} · ${escape(stopName)}`
+    const stopFilter =
+      view.stopFilter || view.noteFilter
+        ? `<div class="stop-filter"><span>${filterLabel}</span><button class="ui-button ghost small" data-clear-stop>Ver todas</button></div>`
+        : ''
+    const openGroup =
+      open.length > 0
+        ? `<p class="group-title"><span>${ICONS.alert}Em aberto</span><span>${open.length}</span></p>${open.map(renderRow).join('')}`
+        : ''
+    const resolvedGroup =
+      resolved.length > 0
+        ? `<p class="group-title"><span>${ICONS.check}Resolvidas</span><span>${resolved.length}</span></p>${resolved.map(renderRow).join('')}`
+        : ''
+    const empty = visible.length === 0 ? '<p class="note">Nenhuma ocorrência neste filtro.</p>' : ''
+    return `
+    ${stopFilter}
+    <div class="filters" role="group" aria-label="Filtrar">${filterButtons}</div>
+    <div class="occ-list">${openGroup}${resolvedGroup}${empty}</div>`
+  }
+
+  function renderRow(occurrence) {
+    const unread = unreadOf(occurrence)
+    const action = occurrence.chat
+      ? `<span class="action" title="Abre o chat">${ICONS.chat}${unread > 0 ? `<span class="dot">${unread}</span>` : ''}</span>`
+      : `<span class="action" title="Abre o detalhe">${ICONS.note}</span>`
+    const share =
+      occurrence.documents.length > 0
+        ? `<button class="row-share" data-share-occurrence="${occurrence.id}" aria-label="Compartilhar documentos de ${escape(occurrence.type)}" title="Compartilhar documentos">${ICONS.share}</button>`
+        : ''
+    return `<div class="occ-row ${isOpen(occurrence) ? '' : 'resolved'}">
+    <button class="occ-main" data-row="${occurrence.id}">
+      ${occurrenceIcon(occurrence, 'span')}
+      <span class="body"><strong>${escape(occurrence.type)}</strong>
+        <span class="line">${occurrence.invoice} · P${occurrence.stop} · ${escape(occurrence.recipient)}</span>
+        <span class="line time">${ICONS.clock}${occurrence.time}</span></span>
+      ${action}
+    </button>${share}</div>`
+  }
+
+  function renderDocument(documentFile) {
+    const name = escape(documentFile.name)
+    return `<div class="doc-row">
+    <span class="file">${documentFile.kind}</span>
+    <span class="name">${name}<small>${documentFile.size} · ${documentFile.from}</small></span>
+    <span class="doc-actions">
+      <button class="icon-button" data-say="Abre o ${documentFile.kind} na tela." aria-label="Ver ${name}" title="Ver">${ICONS.eye}</button>
+      <button class="icon-button" data-share-file="${name}" aria-label="Compartilhar ${name}" title="Compartilhar">${ICONS.share}</button>
+    </span>
+  </div>`
+  }
+
+  function renderDetail() {
+    const occurrence = byId(view.occurrenceId)
+    markNotificationsRead(occurrence.id, 'status')
+    const state = STATES[occurrence.state]
+    const thumbs = Array.from(
+      { length: occurrence.photos },
+      (_, index) => `<span>foto ${index + 1}</span>`,
+    ).join('')
+    const resolution =
+      occurrence.state === 'resolved'
+        ? `<div class="panel resolved-banner"><h3>${ICONS.check}Resolvida pelo escritório às ${occurrence.resolution.time}</h3><p class="quote">${escape(occurrence.resolution.text)}</p></div>`
+        : ''
+    const refusal =
+      occurrence.state === 'refused'
+        ? `<div class="panel refused-banner"><h3>${ICONS.cross}Recusada pelo escritório</h3><p class="quote">${escape(occurrence.refusal)}</p><button class="ui-button primary block" data-say="Abre o registro com o que já foi preenchido, para completar e reenviar.">Corrigir e reenviar</button></div>`
+        : ''
+    const unread = unreadOf(occurrence)
+    const chatButton = occurrence.chat
+      ? `<button class="ui-button ${occurrence.state === 'resolved' ? 'ghost' : 'primary'} block" data-go="chat">${ICONS.chat}${occurrence.state === 'resolved' ? 'Ver conversa' : 'Abrir conversa'}${unread > 0 ? ` · ${unread} nova${unread > 1 ? 's' : ''}` : ''}</button>`
+      : ''
+    const count = occurrence.documents.length
+    const shareAll =
+      count > 1
+        ? `<button class="ui-button primary block" data-share-occurrence="${occurrence.id}">${ICONS.share}Compartilhar os ${count}</button>`
+        : ''
+    const documents =
+      count > 0
+        ? `<div class="panel"><h3>${ICONS.clip}Documentos · ${count}</h3>${occurrence.documents.map(renderDocument).join('')}${shareAll}</div>`
+        : ''
+    const others = occurrencesOfStop(occurrence.stop).filter(
+      (sibling) => sibling.id !== occurrence.id,
+    )
+    const sameNote = others.filter((sibling) => sibling.invoice === occurrence.invoice)
+    const sameStop = others.filter((sibling) => sibling.invoice !== occurrence.invoice)
+    const sameNotePanel =
+      sameNote.length > 0
+        ? `<div class="panel"><h3>${ICONS.note}Outras desta nota · ${occurrence.invoice}</h3>${sameNote.map(renderRow).join('')}</div>`
+        : ''
+    const sameStopPanel =
+      sameStop.length > 0
+        ? `<div class="panel"><h3>Outras desta parada</h3>${sameStop.map(renderRow).join('')}</div>`
+        : ''
+    const siblingsPanel = sameNotePanel + sameStopPanel
+    const timeline = occurrence.timeline
+      .map(([time, text]) => `<li><time>${time}</time><span>${escape(text)}</span></li>`)
+      .join('')
+    return `
+    <div class="detail-head">${occurrenceIcon(occurrence, 'span')}<div><h2>${escape(occurrence.type)}</h2><p class="state-line ${occurrence.state}">${ICONS[state.icon]}${state.label} · ${occurrence.time}</p></div></div>
+    ${resolution}${refusal}${chatButton}${documents}
+    <div class="panel"><h3>O que você registrou</h3>
+      <dl class="facts"><dt>Nota</dt><dd>${occurrence.invoice}</dd><dt>Parada</dt><dd>${occurrence.stop} · ${escape(occurrence.recipient)}</dd></dl>
+      <p class="quote">${escape(occurrence.observation)}</p>
+      <div class="thumbs">${thumbs}</div>
+    </div>
+    <div class="panel"><h3>Andamento</h3><ol class="timeline">${timeline}</ol></div>
+    ${siblingsPanel}
+    <button class="ui-button ghost block" data-stop="${occurrence.stop}">${ICONS.note}Ver a nota na parada ${occurrence.stop}</button>`
+  }
+
+  function renderMessage(occurrence, message) {
+    if (message.who === 'system') return `<div class="msg system">${escape(message.text)}</div>`
+    const who =
+      message.who === 'them' ? `<span class="who">${escape(occurrence.chat.office)}</span>` : ''
+    const documentFile =
+      message.attach === undefined ? undefined : occurrence.documents[message.attach]
+    const attachment = documentFile
+      ? `
+    <div class="attach"><span class="file">${documentFile.kind}</span><span>${escape(documentFile.name)}<br><small>${documentFile.size}</small></span></div>
+    <div class="attach-actions">
+      <button class="ui-button primary small" data-share-file="${escape(documentFile.name)}">${ICONS.share}Compartilhar</button>
+      <button class="ui-button ghost small" data-say="Baixa o arquivo no celular.">${ICONS.download}Baixar</button>
+    </div>`
+      : ''
+    return `<div class="msg ${message.who}">${who}${escape(message.text)}${attachment}<time>${message.time}</time></div>`
+  }
+
+  function renderChat() {
+    const occurrence = byId(view.occurrenceId)
+    const unreadAtOpen = occurrence.chat.unread
+    occurrence.chat.unread = 0
+    markNotificationsRead(occurrence.id, 'message')
+    const firstNew = occurrence.messages.length - unreadAtOpen
+    const divider = `<div class="divider-new">${plural(unreadAtOpen, 'nova', 'novas')}</div>`
+    const messages = occurrence.messages
+      .map(
+        (message, index) =>
+          (unreadAtOpen > 0 && index === firstNew ? divider : '') +
+          renderMessage(occurrence, message),
+      )
+      .join('')
+    const isResolved = occurrence.state === 'resolved'
+    const footer = isResolved
+      ? '<p class="closed-note">Ocorrência resolvida: a conversa fica para consulta. Se algo mudar, registre uma nova ocorrência na nota.</p>'
+      : ''
+    return `
+    <div class="chat">
+      <button class="chat-context" data-go="detail">${occurrenceIcon(occurrence, 'span')}<span>${escape(occurrence.type)} · ${occurrence.invoice} · Parada ${occurrence.stop}<br><small>ver detalhe e documentos</small></span></button>
+      ${messages}
+    </div>
+    ${footer}
+    <form class="composer" ${isResolved ? 'hidden' : ''}><input id="composer-input" aria-label="Mensagem" placeholder="Escreva para o escritório" autocomplete="off"><button class="ui-button primary">Enviar</button></form>`
+  }
+
+  function renderBell() {
+    const unread = notifications.filter((notification) => !notification.read).length
+    const items = notifications
+      .map((notification, index) => {
+        const occurrence = byId(notification.occurrenceId)
+        const kindIcon =
+          notification.kind === 'message' ? ICONS.chat : ICONS[STATES[occurrence.state].icon]
+        return `<button class="notification ${notification.read ? '' : 'unread'}" data-notification="${index}">
+      ${occurrenceIcon(occurrence, 'span')}
+      <span class="body"><strong>${kindIcon}${escape(notification.title)}</strong><span class="line">${escape(notification.text)}</span></span>
+      <time>${notification.time}</time></button>`
+      })
+      .join('')
+    return `
+    <div class="section-head"><h2>${plural(unread, 'nova', 'novas')}</h2><span>mensagem e mudança de estado</span></div>
+    <div class="occ-list">${items}</div>`
+  }
+
+  function render() {
+    renderHeader()
+    const screen = document.getElementById('screen')
+    const renderers = {
+      trip: renderTrip,
+      list: renderList,
+      detail: renderDetail,
+      chat: renderChat,
+      bell: renderBell,
+    }
+    screen.innerHTML = renderers[view.name]()
+    renderHeader()
+    renderBottomBar()
+    document.querySelectorAll('#steps button').forEach((button) => {
+      button.setAttribute('aria-current', button.dataset.go === view.name ? 'step' : 'false')
+    })
+    if (view.flashStop) {
+      document.getElementById(`stop-${view.flashStop}`)?.scrollIntoView({ block: 'center' })
+      view.flashStop = undefined
+      return
+    }
+    screen.scrollTop = view.name === 'chat' ? screen.scrollHeight : 0
+  }
+
+  function go(name) {
+    if (name === 'chat' && !byId(view.occurrenceId).chat) view.occurrenceId = 'o1'
+    if (name !== view.name) navigationStack.push(view.name)
+    view.name = name
+    render()
+  }
+
+  function openOccurrence(occurrenceId, preferChat) {
+    view.occurrenceId = occurrenceId
+    go(preferChat && byId(occurrenceId).chat ? 'chat' : 'detail')
+  }
+
+  function openSheet(description) {
+    document.getElementById('sheet-file').textContent = description
+    document.getElementById('sheet').hidden = false
+    document.getElementById('sheet-close').focus()
+  }
+
+  function notify(notification) {
+    notifications.unshift(notification)
+    const occurrence = byId(notification.occurrenceId)
+    const banner = document.getElementById('banner')
+    const kindIcon =
+      notification.kind === 'message' ? ICONS.chat : ICONS[STATES[occurrence.state].icon]
+    banner.innerHTML = `${occurrenceIcon(occurrence, 'span')}<span class="body"><small>TransportAdA · agora</small><strong>${kindIcon}${escape(notification.title)}</strong><span class="line">${escape(notification.text)}</span></span>`
+    banner.dataset.notification = '0'
+    banner.hidden = false
+    clearTimeout(bannerTimer)
+    bannerTimer = setTimeout(() => {
+      banner.hidden = true
+    }, 6000)
+    render()
+  }
+
+  function simulateMessage() {
+    const target = occurrences.find(
+      (occurrence) => occurrence.chat && isOpen(occurrence) && occurrence.state !== 'queued',
+    )
+    if (!target) {
+      say('Nenhuma ocorrência em aberto com chat.')
+      return
+    }
+    target.messages.push({
+      who: 'them',
+      text: 'Confirmado com a contratante. Pode seguir a rota.',
+      time: 'agora',
+    })
+    target.chat.unread += 1
+    notify({
+      kind: 'message',
+      occurrenceId: target.id,
+      title: `${target.chat.office.split(' ·')[0]} respondeu`,
+      text: `${target.type} · Confirmado com a contratante`,
+      time: 'agora',
+      read: false,
+    })
+  }
+
+  function simulateResolve() {
+    const target =
+      occurrences.find(
+        (occurrence) => occurrence.state === 'sent' || occurrence.state === 'refused',
+      ) ?? occurrences.find(isOpen)
+    if (!target) {
+      say('Todas já estão resolvidas. Use “Voltar ao exemplo”.')
+      return
+    }
+    target.state = 'resolved'
+    target.resolution = { time: 'agora', text: 'Tratativa encerrada pelo escritório.' }
+    target.timeline.push(['agora', 'Resolvida pelo escritório'])
+    target.messages?.push({ who: 'system', text: 'Resolvida pelo escritório agora' })
+    const open = occurrences.filter(isOpen).length
+    notify({
+      kind: 'status',
+      occurrenceId: target.id,
+      title: `${target.type} resolvida`,
+      text:
+        open === 0
+          ? 'Era a última em aberto da rota'
+          : `Faltam ${plural(open, 'em aberto', 'em aberto')}`,
+      time: 'agora',
+      read: false,
+    })
+    say(
+      open === 0
+        ? 'Era a última: o alerta do cabeçalho some e a barra da rota volta ao normal.'
+        : `Alerta do cabeçalho agora mostra ${open}.`,
+    )
+  }
+
+  function resetDemo() {
+    occurrences = createOccurrences()
+    notifications = createNotifications()
+    Object.assign(view, {
+      name: 'trip',
+      occurrenceId: 'o1',
+      filter: 'all',
+      stopFilter: undefined,
+      noteFilter: undefined,
+    })
+    navigationStack.length = 0
+    document.getElementById('banner').hidden = true
+    say('')
+    render()
+  }
+
+  function openNotification(index) {
+    const notification = notifications[index]
+    notification.read = true
+    document.getElementById('banner').hidden = true
+    openOccurrence(notification.occurrenceId, notification.kind === 'message')
+  }
+
+  const CLICK_ACTIONS = [
+    ['sim-message', () => simulateMessage()],
+    ['sim-resolve', () => simulateResolve()],
+    ['reset-demo', () => resetDemo()],
+    [
+      'sheet-close',
+      () => {
+        document.getElementById('sheet').hidden = true
+      },
+    ],
+  ]
+
+  function handleDataAction(target) {
+    const data = target.dataset
+    if (data.notification !== undefined) return openNotification(Number(data.notification))
+    if (data.open) return openOccurrence(data.open, false)
+    if (data.row) return openOccurrence(data.row, true)
+    if (data.filter) {
+      view.filter = data.filter
+      return render()
+    }
+    if (data.shareFile) return openSheet(data.shareFile)
+    if (data.shareOccurrence) {
+      const files = byId(data.shareOccurrence).documents.map((documentFile) => documentFile.name)
+      return openSheet(`${plural(files.length, 'arquivo', 'arquivos')}: ${files.join(', ')}`)
+    }
+    if (data.share) {
+      document.getElementById('sheet').hidden = true
+      return say(`Prévia: iria para ${data.share}.`)
+    }
+    if (data.say) return say(data.say)
+    if (data.tab === 'conversas')
+      return say(
+        'A aba Conversas continua como hoje; as conversas das ocorrências aparecem lá também.',
+      )
+    if (data.tab === 'perfil') return say('Perfil não muda nesta proposta.')
+    return undefined
+  }
+
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest('button')
+    if (!target) return
+    const action = CLICK_ACTIONS.find(([id]) => id === target.id)
+    if (action) return action[1]()
+    if (target.hasAttribute('data-back')) {
+      view.name = navigationStack.pop() ?? 'trip'
+      return render()
+    }
+    if (target.dataset.noteList) {
+      view.noteFilter = target.dataset.noteList
+      view.stopFilter = undefined
+      view.filter = 'all'
+      return go('list')
+    }
+    if (target.hasAttribute('data-clear-stop')) {
+      view.stopFilter = undefined
+      view.noteFilter = undefined
+      if (!target.dataset.go) return render()
+    }
+    if (target.dataset.stop) {
+      navigationStack.length = 0
+      view.flashStop = Number(target.dataset.stop)
+      view.name = 'trip'
+      render()
+      return say(`Parada ${target.dataset.stop} destacada na rota.`)
+    }
+    if (target.dataset.go) {
+      say('')
+      return go(target.dataset.go)
+    }
+    return handleDataAction(target)
+  })
+
+  document.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const input = document.getElementById('composer-input')
+    const text = input.value.trim()
+    if (!text) return
+    byId(view.occurrenceId).messages.push({ who: 'me', text, time: 'agora' })
+    render()
+  })
+
+  document.getElementById('sheet').addEventListener('click', (event) => {
+    if (event.target.id === 'sheet') event.currentTarget.hidden = true
+  })
+
+  render()
+</script>

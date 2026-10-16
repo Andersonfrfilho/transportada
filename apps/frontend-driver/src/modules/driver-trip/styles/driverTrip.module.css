@@ -2302,3 +2302,155 @@
   padding: 0 var(--space-2);
   text-decoration: underline;
 }
+
+/* Spec 266: o alerta das ocorrências em aberto, ao lado da fila e do sino — vermelho porque pede ação. */
+.occurrenceAlertButton {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--color-alert);
+  border-radius: 0;
+  color: var(--color-alert);
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  justify-content: center;
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  padding: var(--space-2);
+  position: relative;
+}
+
+.occurrenceAlertButton:focus-visible,
+.occurrenceIcon:focus-visible,
+.occurrenceMoreButton:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}
+
+.occurrenceAlertBadge {
+  background: var(--color-alert);
+  border-radius: 0;
+  color: var(--color-ink-on-accent);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.125rem;
+  min-width: 1.125rem;
+  padding: 0 var(--space-1);
+  position: absolute;
+  right: calc(var(--space-2) * -1);
+  text-align: center;
+  top: calc(var(--space-2) * -1);
+}
+
+.occurrenceRow {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.occurrenceGroup {
+  border-top: 1px dashed color-mix(in srgb, var(--color-slate) 40%, transparent);
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.occurrenceGroupLabel {
+  align-items: center;
+  color: var(--color-slate);
+  display: inline-flex;
+  font-size: 0.75rem;
+  gap: var(--space-2);
+}
+
+.occurrenceGroupCount {
+  border: 1px solid var(--color-slate);
+  font-size: 0.6875rem;
+  min-width: 1.125rem;
+  padding: 0 var(--space-1);
+  text-align: center;
+}
+
+.occurrenceIcons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-2) var(--space-2) 0;
+}
+
+.occurrenceIcon,
+.occurrenceMoreButton {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--color-alert);
+  border-radius: 0;
+  color: var(--color-alert);
+  cursor: pointer;
+  display: inline-grid;
+  flex: none;
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  padding: 0;
+  place-items: center;
+  position: relative;
+}
+
+.occurrenceIcon[data-state='queued'] {
+  border-color: var(--color-copper);
+  color: var(--color-copper);
+}
+
+.occurrenceIcon[data-state='resolved'] {
+  border-color: var(--color-ready);
+  color: var(--color-ready);
+}
+
+.occurrenceIcon[data-state='cancelled'] {
+  border-color: var(--color-slate);
+  color: var(--color-slate);
+}
+
+.occurrenceMoreButton {
+  border-color: var(--color-slate);
+  border-style: dashed;
+  color: var(--color-fog);
+  font-size: 0.8rem;
+}
+
+.occurrenceStateBadge,
+.occurrenceClipBadge,
+.occurrenceUnreadDot {
+  align-items: center;
+  background: var(--color-graphite);
+  border: 1px solid currentColor;
+  display: inline-grid;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  min-height: 1.125rem;
+  min-width: 1.125rem;
+  place-items: center;
+  pointer-events: none;
+  position: absolute;
+}
+
+.occurrenceStateBadge {
+  bottom: calc(var(--space-2) * -1);
+  right: calc(var(--space-2) * -1);
+}
+
+.occurrenceClipBadge {
+  bottom: calc(var(--space-2) * -1);
+  color: var(--color-copper);
+  left: calc(var(--space-2) * -1);
+}
+
+.occurrenceUnreadDot {
+  background: var(--color-alert);
+  color: var(--color-ink-on-accent);
+  right: calc(var(--space-2) * -1);
+  top: calc(var(--space-2) * -1);
+}
+
+/* O segmento da parada com ocorrência em aberto vence a cor do estado: o alerta precisa aparecer na barra. */
+.progressSegment[data-has-occurrence='true'] {
+  background: var(--color-alert);
+}

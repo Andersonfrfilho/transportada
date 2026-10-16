@@ -9,7 +9,7 @@ import { resolveSelectedTrip, resolveTripSwitch } from '../shared/driverTripSele
 const SELECTED_TRIP_STORAGE_KEY = 'transportada.driver-trip.selected-trip'
 
 /** Aba privada ou armazenamento bloqueado: a escolha só não sobrevive à recarga. */
-function readStoredTripId(): string | undefined {
+export function readStoredTripId(): string | undefined {
   try {
     return window.sessionStorage.getItem(SELECTED_TRIP_STORAGE_KEY) ?? undefined
   } catch {

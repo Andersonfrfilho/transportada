@@ -1040,3 +1040,44 @@ as linhas: número e valor pago da **ocorrência** são sobrescritos sem rastro 
 Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/evidence.md.
 
 ⚠️ **O ícone do tipo é catálogo fechado** (spec 255): ampliar `OCCURRENCE_TYPE_ICON_NAMES` pede migration `DROP/ADD CONSTRAINT` (rollback zera os novos) **e** as cópias por valor no painel e no `frontend-driver`. Detalhe: docs/ai-context/api-transportada.md § "Spec 255".
+
+## O motorista lê as ocorrências da rota (spec 266, ADR-0105)
+
+`GET /me/trips/current/route-occurrences` e `.../:kind/:id` (`trip.read`), só com a viagem **não finalizada** (`readCurrent`; senão 404
+`DRIVER_TRIP_NOT_ACTIVE`). O prefixo não é `occurrences` porque o roteador entrega o primeiro match dinâmico e
+`/me/trips/current/occurrences/:id/messages` já existe — o contrato de colisão de `/me/trips/current` prende isso. A tripulação inteira
+(principal e ajudante) vê as ocorrências da viagem; **conversa e anexos do chat são os do próprio usuário** (mesma regra de alcance da 263).
+
+- Leitura em lote (`driver-route-occurrence*.query.ts`): uma consulta por tabela, nunca por linha. Estado vem de
+  `resolveOccurrenceResolutionState`; a resolução do `system` sai como `phraseKey` fixa (nunca a nota interna) e a reaberta é `open` com
+  `reopenedAt` e `resolution: null`.
+- `reportKey` = `trip_field_reports.idempotency_key` cujo `result_id` é a ocorrência, só do canal `driver_app`; ocorrência do escritório
+  (ou linha extra de um lote do app) volta `null`.
+- `documentCount` = fotos + assinatura + anexos do chat. Objeto sem `status = 'deleted'`; foto da tabela 161, senão a coluna antiga.
+- Timeline do motorista: `recorded`, `photo`, `cancelled`, `resolution.*`. **Nunca `case.transition`** (ADR-0045 §6).
+- **Link assinado sob demanda** (`.../:kind/:id/attachments/:objectId/url`, 5 min, `inline`): o `objectId` só assina se for foto, assinatura ou anexo do
+  chat **da própria ocorrência** (vem do mesmo leitor do detalhe) e a `retention_until` não tiver vencido; senão 404
+  `TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND`. O link nunca vai a log nem entra no retrato offline do app (só metadado).
+
+### Andamento da ocorrência (ADR-0105)
+
+- **Estado = último evento** de `trip_occurrence_resolution_events` (sem evento = `open`; `resolved` = `resolved`; `reopened` = `open`).
+  Ocorrência cancelada (167) vence o histórico. O app acrescenta `queued` e `rejected`; a API só devolve `open`, `resolved` e `cancelled`.
+- **Quem resolve:** `POST /trip-occurrences/:kind/:id/resolution` (`occurrences.resolve`, escopo company, 201). Observação obrigatória, até
+  2000 caracteres. Já resolvida → 409 `OCCURRENCE_ALREADY_RESOLVED`; cancelada → 409 `OCCURRENCE_CANCELLED`.
+- **A tratativa terminal resolve sozinha** (`applyTransition`): `closed`, `returned_to_warehouse` e `cancelled` gravam `resolved` com
+  `actor_kind = system` e `case_event_id`, na mesma transação. `decided` **não** é terminal. O motorista recebe `phraseKey` fixa por status
+  (`case_closed`, `case_returned_to_warehouse`, `case_cancelled`), nunca a nota da tratativa. Só ocorrência de nota tem tratativa.
+  Cancelar a tratativa **não** cancela a ocorrência.
+- **Quem reabre:** só o motorista, com `reopen: true` na resposta **existente** da conversa (`reply-my-subject-conversation` e
+  `driver-conversation`). Sem `reopen`, a resposta é gravada e não reabre. Erros: `REOPEN_NOT_SUPPORTED_FOR_SUBJECT` 400 (assunto que não é
+  ocorrência); `OCCURRENCE_CANCELLED` 409; `OCCURRENCE_NOT_RESOLVED` 409 (nada é gravado). Com `reopen`, `reopened` e a mensagem entram na
+  mesma transação. Repetição idempotente não grava nem avisa de novo.
+- **Lock:** resolver, reabrir e a resolução automática travam a linha da ocorrência com `FOR NO KEY UPDATE` e leem o estado **depois**
+  do lock. Só a automática trava as duas linhas, na ordem tratativa → ocorrência.
+- **Avisos** (depois do commit; falha só loga, sem nota nem texto no payload):
+  - `trip.occurrence-resolved`: tripulação ativa (motorista e ajudantes), só com viagem em andamento (`route_planned` ou na rua).
+  - `trip.occurrence-reopened`: quem gravou o último `resolved` (na automática, o ator do evento da tratativa), se ainda tem
+    `occurrences.resolve`. Senão loga `info` e não envia.
+- **Feed e linha do tempo:** o feed traz `resolution {state, at, actorKind} | null` e filtra por `resolutionStateIn` (`open`, `resolved`,
+  `reopened`, `cancelled`); "em aberto" = `open,reopened`. A linha do tempo usa `resolution.resolved` e `resolution.reopened`.

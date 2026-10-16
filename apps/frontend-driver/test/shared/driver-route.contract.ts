@@ -2,10 +2,19 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   buildDriverConversationPath,
+  buildDriverOccurrenceListPath,
+  buildDriverOccurrencePath,
   buildDriverRoutePath,
+  buildDriverStopPath,
   DRIVER_ROUTE_PATH,
   navigateToDriverConversation,
+  navigateToDriverOccurrence,
+  navigateToDriverOccurrenceList,
+  navigateToDriverStop,
   parseDriverConversationSubject,
+  parseDriverOccurrenceListFilter,
+  parseDriverOccurrenceRoute,
+  parseDriverStopHash,
   resolveDriverRouteSection,
   subscribeDriverRoute,
   type DriverRouteSection,
@@ -105,5 +114,87 @@ describe('driverRoute (RF5, ADR-0075 §6)', () => {
     currentPathname = '/fila'
     for (const listener of listeners) listener()
     expect(seen).toEqual(['profile'])
+  })
+})
+
+describe('rotas das ocorrências da rota (spec 266 T4.4)', () => {
+  function createFakeTarget(pathname: string) {
+    const pushed: string[] = []
+    const events: Event[] = []
+    return {
+      events,
+      pushed,
+      target: {
+        dispatchEvent: (event: Event) => {
+          events.push(event)
+          return true
+        },
+        history: {
+          pushState: (_state: unknown, _title: string, url?: string | URL | null) => {
+            pushed.push(String(url))
+          },
+        },
+        location: { pathname },
+      },
+    }
+  }
+
+  it('/ocorrencias é a seção occurrences, com o detalhe dentro dela', () => {
+    expect(DRIVER_ROUTE_PATH.occurrences).toBe('/ocorrencias')
+    expect(resolveDriverRouteSection('/ocorrencias')).toBe('occurrences')
+    expect(resolveDriverRouteSection('/ocorrencias/document/abc')).toBe('occurrences')
+  })
+
+  it('monta e lê /ocorrencias/:kind/:id', () => {
+    const path = buildDriverOccurrencePath({ id: 'a/b', kind: 'document' })
+    expect(path).toBe('/ocorrencias/document/a%2Fb')
+    expect(parseDriverOccurrenceRoute(path)).toEqual({ id: 'a/b', kind: 'document' })
+    expect(parseDriverOccurrenceRoute('/ocorrencias/stop/x')).toEqual({ id: 'x', kind: 'stop' })
+  })
+
+  it('a lista, kind desconhecido, segmentos a mais ou malformado não são detalhe', () => {
+    expect(parseDriverOccurrenceRoute('/ocorrencias')).toBeUndefined()
+    expect(parseDriverOccurrenceRoute('/ocorrencias/other/x')).toBeUndefined()
+    expect(parseDriverOccurrenceRoute('/ocorrencias/document/x/y')).toBeUndefined()
+    expect(parseDriverOccurrenceRoute('/ocorrencias/document/%E0%A4%A')).toBeUndefined()
+    expect(parseDriverOccurrenceRoute('/conversas/document/x')).toBeUndefined()
+  })
+
+  it('o filtro da lista vai na query: ?nota= ou ?parada=', () => {
+    expect(buildDriverOccurrenceListPath({})).toBe('/ocorrencias')
+    expect(buildDriverOccurrenceListPath({ documentId: 'd 1' })).toBe('/ocorrencias?nota=d%201')
+    expect(buildDriverOccurrenceListPath({ stopId: 's1' })).toBe('/ocorrencias?parada=s1')
+    expect(parseDriverOccurrenceListFilter('?nota=d%201')).toEqual({ documentId: 'd 1' })
+    expect(parseDriverOccurrenceListFilter('?parada=s1')).toEqual({ stopId: 's1' })
+    expect(parseDriverOccurrenceListFilter('')).toEqual({})
+    expect(parseDriverOccurrenceListFilter('?nota=')).toEqual({})
+  })
+
+  it('navega por pushState + popstate, sem repetir o mesmo caminho', () => {
+    const fake = createFakeTarget('/')
+    navigateToDriverOccurrence({ id: 'x', kind: 'stop' }, fake.target)
+    expect(fake.pushed).toEqual(['/ocorrencias/stop/x'])
+    expect(fake.events).toHaveLength(1)
+
+    const same = createFakeTarget('/ocorrencias/stop/x')
+    navigateToDriverOccurrence({ id: 'x', kind: 'stop' }, same.target)
+    expect(same.pushed).toEqual([])
+  })
+
+  it('a lista filtrada sempre empurra: o filtro vive na query, que o pathname não vê', () => {
+    const fake = createFakeTarget('/ocorrencias')
+    navigateToDriverOccurrenceList({ documentId: 'd1' }, fake.target)
+    expect(fake.pushed).toEqual(['/ocorrencias?nota=d1'])
+  })
+
+  it('a parada em destaque vive no hash da viagem e sempre empurra', () => {
+    const fake = createFakeTarget('/ocorrencias/document/o1')
+    navigateToDriverStop('stop 1', fake.target)
+    expect(fake.pushed).toEqual(['/#stop-stop%201'])
+    expect(buildDriverStopPath('s1')).toBe('/#stop-s1')
+    expect(parseDriverStopHash('#stop-stop%201')).toBe('stop 1')
+    expect(parseDriverStopHash('#stop-')).toBeUndefined()
+    expect(parseDriverStopHash('#outra')).toBeUndefined()
+    expect(parseDriverStopHash('#stop-%E0%A4%A')).toBeUndefined()
   })
 })

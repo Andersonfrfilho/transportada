@@ -13,6 +13,7 @@ import {
   reorderTripOccurrenceColumns,
   setTripOccurrenceCaseStatuses,
   setTripOccurrenceContractorReplyOverdue,
+  setTripOccurrenceResolutionStates,
   toggleTripOccurrenceOrder,
   toggleTripOccurrenceStage,
   TRIP_OCCURRENCE_STAGES,
@@ -24,6 +25,7 @@ import {
   type TripOccurrenceFeedOrder,
   type TripOccurrenceFeedStage,
   type TripOccurrenceFeedPage,
+  type TripOccurrenceResolutionFilterValue,
 } from '../shared/tripOccurrenceFeed.service'
 import {
   readTripOccurrenceUrlFilters,
@@ -124,6 +126,10 @@ export function useTripOccurrenceTable(input: UseTripOccurrenceTableInput) {
     applyFilters(setTripOccurrenceCaseStatuses(filters, statuses))
   }
 
+  function setResolutionStates(states: readonly TripOccurrenceResolutionFilterValue[]): void {
+    applyFilters(setTripOccurrenceResolutionStates(filters, states))
+  }
+
   function clearFilters(): void {
     applyFilters(EMPTY_TRIP_OCCURRENCE_FILTERS)
   }
@@ -180,6 +186,7 @@ export function useTripOccurrenceTable(input: UseTripOccurrenceTableInput) {
     setCaseStatuses,
     setContractorReplyOverdue,
     setDateRange,
+    setResolutionStates,
     setStages,
     setTextFilter,
     toggleColumnVisibility,
