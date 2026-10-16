@@ -38,8 +38,11 @@ describe('contractor mail settings routes contract (spec 143, T008)', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
-    const body = (await response.json()) as { readonly data: Record<string, unknown> }
-    expect(body).toEqual({ data: SETTINGS_SUMMARY })
+    const body = (await response.json()) as {
+      readonly data: Record<string, unknown>
+      readonly sandboxDelivery?: boolean
+    }
+    expect(body).toEqual({ data: SETTINGS_SUMMARY, sandboxDelivery: false })
     expect(Object.keys(body.data).sort()).toEqual([
       'apiKeyConfigured',
       'id',
@@ -62,7 +65,26 @@ describe('contractor mail settings routes contract (spec 143, T008)', () => {
     const response = await fixture.handle(getRequest('/contractor-mail-settings'))
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: null })
+    expect(await response.json()).toEqual({ data: null, sandboxDelivery: false })
+  })
+
+  /** Spec 268 RF9: só avisa o painel quando o ambiente está em modo de teste E a empresa não tem o Resend pronto. */
+  test.each([
+    ['sandbox ligado e empresa sem configuração', true, null, true],
+    ['sandbox ligado e remetente não verificado', true, SETTINGS_SUMMARY, true],
+    [
+      'sandbox ligado e Resend pronto',
+      true,
+      { ...SETTINGS_SUMMARY, sendingVerifiedAt: '2026-09-01T00:00:00.000Z' },
+      false,
+    ],
+    ['sandbox desligado e empresa sem configuração', false, null, false],
+  ] as const)('reports sandboxDelivery: %s', async (_name, sandboxEnabled, settings, expected) => {
+    const fixture = await createContractorMailHttpFixture({ sandboxEnabled, settings })
+
+    const response = await fixture.handle(getRequest('/contractor-mail-settings'))
+
+    expect(((await response.json()) as { sandboxDelivery: boolean }).sandboxDelivery).toBe(expected)
   })
 
   test('never returns the api key, the webhook secret or the sealed envelope on any route', async () => {
@@ -261,7 +283,10 @@ describe('contractor mail settings routes contract (spec 143, T008)', () => {
     const fixture = await createContractorMailHttpFixture()
 
     const response = await fixture.handle(postRequest('/contractor-mail-settings/test-email'))
-    const body = (await response.json()) as { readonly data: Record<string, unknown> }
+    const body = (await response.json()) as {
+      readonly data: Record<string, unknown>
+      readonly sandboxDelivery?: boolean
+    }
 
     expect(response.status).toBe(202)
     expect(body).toEqual({ data: TEST_EMAIL_RESULT })
