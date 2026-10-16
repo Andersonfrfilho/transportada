@@ -289,6 +289,15 @@ const environmentSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  /**
+   * Spec 268: fora de produção, o e-mail de ocorrência da contratante sai pelo SMTP do worker (Mailpit)
+   * quando a empresa não tem o Resend pronto. Opt-in; o remetente é o mesmo `EMAIL_FROM` do worker.
+   */
+  CONTRACTOR_MAIL_SANDBOX_SMTP: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  EMAIL_FROM: optionalText(),
   // Segredo compartilhado com o provedor de entrega, para o recibo. Ausente, a rota de webhook nem
   // é publicada pelo módulo: sem com o que verificar assinatura, aceitar corpo seria aceitar
   // qualquer um dizendo que a mensagem chegou.
@@ -368,8 +377,26 @@ const environmentSchema = z.object({
   SENTRY_ENVIRONMENT: optionalText(),
 })
 
+const validatedEnvironmentSchema = environmentSchema.superRefine((environment, context) => {
+  if (!environment.CONTRACTOR_MAIL_SANDBOX_SMTP) return
+  if (environment.APP_ENV === 'production') {
+    context.addIssue({
+      code: 'custom',
+      message: 'The contractor mail sandbox is forbidden in production',
+      path: ['CONTRACTOR_MAIL_SANDBOX_SMTP'],
+    })
+  }
+  if (environment.EMAIL_FROM === undefined) {
+    context.addIssue({
+      code: 'custom',
+      message: 'The contractor mail sandbox requires EMAIL_FROM',
+      path: ['EMAIL_FROM'],
+    })
+  }
+})
+
 export function parseEnvironment(environment: Record<string, string | undefined>): ApiEnvironment {
-  const parsed = environmentSchema.parse(environment)
+  const parsed = validatedEnvironmentSchema.parse(environment)
   const cryptography = parseCryptographicConfiguration(environment)
 
   return {
@@ -385,6 +412,9 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       maxRequests: parsed.RATE_LIMIT_CONTRACTOR_MAIL_MAX,
       windowSeconds: parsed.RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS,
     },
+    ...(parsed.CONTRACTOR_MAIL_SANDBOX_SMTP && parsed.EMAIL_FROM !== undefined
+      ? { contractorMailSandbox: { fromAddress: parsed.EMAIL_FROM } }
+      : {}),
     cryptography,
     databaseUrl: parsed.DATABASE_URL,
     databasePool: {

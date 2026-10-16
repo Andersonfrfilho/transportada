@@ -35,6 +35,11 @@ export type ApiEnvironment = {
     readonly maxRequests: number
     readonly windowSeconds: number
   }
+  /**
+   * Spec 268: presente só com `CONTRACTOR_MAIL_SANDBOX_SMTP=true` (nunca em produção). O e-mail de ocorrência da
+   * contratante, sem o Resend pronto, é gravado para o SMTP do worker com este remetente.
+   */
+  readonly contractorMailSandbox?: { readonly fromAddress: string }
   readonly cryptography: CryptographicConfiguration
   readonly databaseUrl: string
   /** Spec 137: pool e tempos explícitos do Bun SQL; ver `database/database-client.service.ts`. */

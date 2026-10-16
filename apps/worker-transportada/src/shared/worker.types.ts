@@ -92,6 +92,11 @@ export type WorkerEnvironment = {
   readonly appEnv: string
   /** Spec 145 D13: o primeiro degrau do orçamento da planta de carga, em ms. */
   readonly cargoLayoutTimeBudgetMs: number
+  /**
+   * Spec 268: presente só com `CONTRACTOR_MAIL_SANDBOX_SMTP=true` (nunca em produção). Linhas de e-mail da
+   * contratante marcadas `sandbox_smtp` saem por este SMTP (Mailpit), nunca pelo Resend.
+   */
+  readonly contractorMailSandbox?: { readonly from: string; readonly smtpUrl: string }
   readonly cteTechnicalResponsible?: CteTechnicalResponsibleEnvironment
   readonly databaseUrl: string
   /** Ausente desliga a entrega por e-mail: o convite é criado, mas o código não sai daqui. */

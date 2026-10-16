@@ -72,6 +72,11 @@ const workerEnvironmentSchema = z
     // Remetente e transporte juntos ou nenhum: com um só, o convite sai sem canal e o código morre
     // selado na linha do convite.
     EMAIL_FROM: optionalText(),
+    // Spec 268: opt-in, nunca em produção. Linhas `sandbox_smtp` do e-mail da contratante saem pelo SMTP_URL.
+    CONTRACTOR_MAIL_SANDBOX_SMTP: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     // Com a chave, o e-mail vai pela API HTTPS do Resend e o `SMTP_URL` é ignorado.
     RESEND_API_KEY: optionalText(),
     FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: z
@@ -187,6 +192,23 @@ const workerEnvironmentSchema = z
       })
     }
 
+    if (environment.CONTRACTOR_MAIL_SANDBOX_SMTP) {
+      if (environment.APP_ENV === 'production') {
+        context.addIssue({
+          code: 'custom',
+          message: 'The contractor mail sandbox is forbidden in production',
+          path: ['CONTRACTOR_MAIL_SANDBOX_SMTP'],
+        })
+      }
+      if (environment.SMTP_URL === undefined || environment.EMAIL_FROM === undefined) {
+        context.addIssue({
+          code: 'custom',
+          message: 'The contractor mail sandbox requires SMTP_URL and EMAIL_FROM',
+          path: ['SMTP_URL', 'EMAIL_FROM'],
+        })
+      }
+    }
+
     if (environment.APP_ENV === 'production' && environment.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED) {
       context.addIssue({
         code: 'custom',
@@ -236,6 +258,11 @@ export function parseWorkerEnvironment(
     fuelPricePull: toFuelPricePull(result.data),
     ...(identityDocumentBackfill === undefined ? {} : { identityDocumentBackfill }),
     ...toEmailDelivery(result.data),
+    ...(result.data.CONTRACTOR_MAIL_SANDBOX_SMTP &&
+    result.data.SMTP_URL !== undefined &&
+    result.data.EMAIL_FROM !== undefined
+      ? { contractorMailSandbox: { from: result.data.EMAIL_FROM, smtpUrl: result.data.SMTP_URL } }
+      : {}),
     foundationSyntheticConsumerEnabled: result.data.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED,
     foundationSyntheticEffectDelayMs: result.data.FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS,
     logLevel: result.data.LOG_LEVEL,
