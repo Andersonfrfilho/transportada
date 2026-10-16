@@ -22,6 +22,7 @@ import { useRouteOccurrenceEntries } from '../hooks/useRouteOccurrenceEntries.ho
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
 import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNotice.component'
+import { DriverTripSyncBanner } from '../components/DriverTripSyncBanner.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
@@ -54,6 +55,7 @@ import {
 } from '../shared/stopPlace.service'
 import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
 import {
+  collectLocallyDelivered,
   resolveDocumentActivityStatus,
   type DocumentActivityView,
   type DocumentReturnActivityView,
@@ -85,6 +87,7 @@ import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.service'
 import { formatShortTripId, formatTripCreatedAt } from '../shared/tripIdentifier.service'
 import {
+  applyLocalDeliveries,
   filterStopsBySearchTerm,
   findCurrentStop,
   findProofDocumentLabel,
@@ -214,7 +217,27 @@ export function DriverTripWorkspacePage() {
 
   const snapshot = driverTrip.snapshot
   /** RF12: com duas viagens ativas, a da tela é a escolhida — nunca mais `trips[0]` às cegas. */
-  const { autoSwitchedTripId, selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
+  const {
+    autoSwitchedTripId,
+    selectTrip,
+    trip: selectedTrip,
+  } = useSelectedDriverTrip(snapshot?.trips ?? [])
+  /**
+   * Pedido do usuário (15/10): o toque em "Confirmar entrega" dá a nota como entregue na hora (selo
+   * "aguardando envio") e a fila envia em segundo plano. Recusa do servidor tira a nota daqui: ela
+   * volta a pendente, com o aviso de recusa.
+   */
+  const trip =
+    selectedTrip === undefined
+      ? undefined
+      : applyLocalDeliveries({
+          deliveredAtByDocumentId: collectLocallyDelivered({
+            deliverKeyByDocumentId,
+            queueView: driverTrip.queueView,
+            sentReportKeys: driverTrip.sentReportKeys,
+          }),
+          trip: selectedTrip,
+        })
   /** RF15: roda em qualquer seção, porque o que conta é a app estar na tela, não a aba aberta. */
   /** Spec 243 RF-3: o ajudante não reporta, então a posição dele nunca sobe — a API recusaria. */
   const reportableTrips = (snapshot?.trips ?? []).filter(canReportOnTrip)
@@ -270,6 +293,17 @@ export function DriverTripWorkspacePage() {
       element.focus({ preventScroll: true })
     })
   }
+
+  /**
+   * Pedido do usuário (15/10): o histórico de envios vale até a viagem ser concluída. Viagem toda
+   * resolvida e fila vazia (sem pendente nem recusado): apaga os registros dela.
+   */
+  const isTripHistoryDone =
+    trip !== undefined && isTripFullySettled(trip) && driverTrip.queueView.length === 0
+  const purgeTripHistory = driverTrip.purgeSentHistoryOfTrip
+  useEffect(() => {
+    if (isTripHistoryDone && trip !== undefined) void purgeTripHistory(trip)
+  }, [isTripHistoryDone])
 
   /** Spec 266 RF5: "Ver a nota na parada" chega aqui com `#stop-<id>`; a parada abre, rola e recebe o foco. */
   const stopToFocus =
@@ -331,6 +365,7 @@ export function DriverTripWorkspacePage() {
         <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverEventQueuePage
           {...(enRouteStopId === undefined ? {} : { enRouteStopId })}
+          history={driverTrip.sentHistory}
           isLoading={driverTrip.isQueueLoading}
           isSyncing={driverTrip.isSyncing}
           items={driverTrip.queueView}
@@ -784,6 +819,13 @@ export function DriverTripWorkspacePage() {
         {trip === undefined || canReportOnTrip(trip) ? null : <DriverHelperNotice />}
 
         {trip === undefined ? null : (
+          <DriverTripSyncBanner
+            onOpen={() => navigateToDriverSection('queue')}
+            onSendNow={driverTrip.sendAllNow}
+            queueView={driverTrip.queueView}
+          />
+        )}
+        {trip === undefined ? null : (
           <DriverTripProgress
             stopIdsWithOpenOccurrence={routeOccurrences.stopIdsWithOpenOccurrence}
             trip={trip}
@@ -1044,6 +1086,7 @@ export function DriverTripWorkspacePage() {
                     onDeliver={deliverDocument}
                     onDepart={departStop}
                     onDiscardProofAwaitingDelivery={handleDiscardProofAwaitingDelivery}
+                    onSendAllNow={driverTrip.sendAllNow}
                     onFocusStop={focusStop}
                     onHeaderRef={registerStopHeaderRef}
                     onProof={handleProof}

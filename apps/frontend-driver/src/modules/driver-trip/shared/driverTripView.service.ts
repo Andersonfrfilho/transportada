@@ -162,3 +162,37 @@ export function filterStopsBySearchTerm(
 ): readonly DriverTripStop[] {
   return stops.filter((stop) => matchesStopSearchTerm(stop, searchTerm))
 }
+
+/**
+ * Pedido do usuário (15/10): confirmar a entrega não pode travar no botão — a nota vale como entregue
+ * na hora e o envio segue em segundo plano. `deliveredAtByDocumentId` é o que o aparelho sabe e o
+ * snapshot ainda não: o toque na fila (ou já aceito, esperando a viagem nova). A parada em que toda nota
+ * ficou entregue vira concluída, e a próxima passa a ser a atual. Só a tela: nada disto sobe ao servidor.
+ */
+export function applyLocalDeliveries(input: {
+  readonly deliveredAtByDocumentId: ReadonlyMap<string, string>
+  readonly trip: DriverTrip
+}): DriverTrip {
+  const { deliveredAtByDocumentId, trip } = input
+  if (deliveredAtByDocumentId.size === 0) return trip
+  const stops = trip.stops.map((stop): DriverTripStop => {
+    const touched = stop.documents.filter(
+      (document) => !isDocumentSettled(document) && deliveredAtByDocumentId.has(document.id),
+    )
+    if (touched.length === 0) return stop
+    const documents = stop.documents.map((document) =>
+      touched.includes(document) ? { ...document, separationStatus: 'delivered' } : document,
+    )
+    const isEveryDocumentSettled = documents.every(isDocumentSettled)
+    const lastDeliveredAt = touched
+      .map((document) => deliveredAtByDocumentId.get(document.id) ?? '')
+      .sort()
+      .at(-1)
+    return {
+      ...stop,
+      completedAt: stop.completedAt ?? (isEveryDocumentSettled ? (lastDeliveredAt ?? null) : null),
+      documents,
+    }
+  })
+  return { ...trip, stops }
+}

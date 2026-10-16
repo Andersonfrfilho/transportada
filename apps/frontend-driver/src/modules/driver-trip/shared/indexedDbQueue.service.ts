@@ -11,6 +11,7 @@ import type {
   StoredRouteOccurrences,
 } from './driverRouteOccurrence.types'
 import { isStoredRouteOccurrences } from './driverRouteOccurrenceResponse.validation'
+import type { SentHistoryEntry, SentHistoryStore } from './sentHistory.service'
 import {
   isStoredProofThumbnail,
   type ProofThumbnailStore,
@@ -45,10 +46,14 @@ const QUEUE_KEY = 'queue'
  * miniatura do canhoto que o servidor já aceitou (pedido do usuário, 01/10). As duas só criam store
  * novo: o `onupgradeneeded` abaixo nada migra, e aparelho na 3 sobe sem perder fila nem snapshot.
  * A 5 traz `trip-occurrences` (spec 266): o retrato offline das ocorrências da rota, pelo mesmo caminho.
+ * A 6 traz `sent-history` (15/10): o histórico leve de itens enviados. Subiu para 6 e não ficou na 5
+ * porque aparelho que já abriu a 5 com `trip-occurrences` não rodaria o `onupgradeneeded` de novo.
  */
-const DATABASE_VERSION = 5
+const DATABASE_VERSION = 6
 const TRIP_SNAPSHOT_STORE_NAME = 'trip-snapshot'
 const PROOF_THUMBNAIL_STORE_NAME = 'proof-thumbnails'
+const SENT_HISTORY_STORE_NAME = 'sent-history'
+const SENT_HISTORY_KEY = 'history'
 const TRIP_OCCURRENCES_STORE_NAME = 'trip-occurrences'
 /** Ponteiro para o `subHash` de quem usou por último — é o snapshot que o boot sem rede abre. */
 const LAST_OWNER_KEY = 'last'
@@ -62,6 +67,7 @@ function openDatabase(): Promise<IDBDatabase> {
         ATTACHMENT_STORE_NAME,
         TRIP_SNAPSHOT_STORE_NAME,
         PROOF_THUMBNAIL_STORE_NAME,
+        SENT_HISTORY_STORE_NAME,
         TRIP_OCCURRENCES_STORE_NAME,
       ]) {
         if (!request.result.objectStoreNames.contains(name)) {
@@ -314,6 +320,25 @@ export function createIndexedDbProofThumbnailStore(): ProofThumbnailStore {
       writeProofThumbnailStore((store) => {
         store.put(input.record, input.documentId)
       }),
+  }
+}
+
+export function createIndexedDbSentHistoryStore(): SentHistoryStore {
+  return {
+    async read() {
+      const stored = await readValue({ key: SENT_HISTORY_KEY, storeName: SENT_HISTORY_STORE_NAME })
+      return Array.isArray(stored) ? (stored as readonly SentHistoryEntry[]) : []
+    },
+    async update(mutate) {
+      const next = await readModifyWrite({
+        deleteWhenEmpty: false,
+        key: SENT_HISTORY_KEY,
+        mutate: (stored) =>
+          mutate(Array.isArray(stored) ? (stored as readonly SentHistoryEntry[]) : []),
+        storeName: SENT_HISTORY_STORE_NAME,
+      })
+      return next as readonly SentHistoryEntry[]
+    },
   }
 }
 

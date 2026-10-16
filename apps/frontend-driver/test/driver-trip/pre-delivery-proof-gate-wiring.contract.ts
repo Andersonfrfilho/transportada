@@ -46,7 +46,7 @@ describe('o gate de antes da entrega no cartão da parada (spec 218)', () => {
     const gate = gateSource()
     expect(gate).toInclude('listMissingProofFields({')
     expect(gate).toInclude('disabled={missingFields.length > 0 || isConfirming}')
-    expect(gate).toInclude("t('deliveryGate.confirm')")
+    expect(gate).toInclude("'deliveryGate.confirm'")
     /* Aviso, não erro — o mesmo tom do resto do comprovante (spec 203). */
     expect(gate).not.toInclude('role="alert"')
   })
@@ -122,5 +122,371 @@ describe('o app só lê o comprovante resolvido (spec 218 T19)', () => {
       ),
     )
     expect(offenders).toEqual([])
+  })
+})
+
+/**
+ * Relato de 15/10 (staging, celular): foto salva "sobe com a entrega" e "Confirmar entrega" esmaecido,
+ * sem dizer o porquê. O toque já estava na fila; a trava de 10 s soltava e o botão voltava a aceitar
+ * um segundo `deliver` com o primeiro ainda pendente.
+ */
+describe('Confirmar entrega fica travado enquanto o deliver da nota está na fila', () => {
+  const item = (kind: string, documentId: string, status: unknown) =>
+    ({ attachmentCount: 0, documentId, idempotencyKey: 'k', kind, queuedAt: 't', status }) as never
+
+  it('deliver desta nota na fila trava; recusado, foto, outra nota ou fila vazia não', async () => {
+    const { resolveQueuedDeliverState } = await import(
+      '../../src/modules/driver-trip/shared/eventQueueView.service'
+    )
+    expect(resolveQueuedDeliverState([item('deliver', 'd1', { state: 'queued' })], 'd1')).toBe(
+      'waiting',
+    )
+    expect(
+      resolveQueuedDeliverState([item('deliver', 'd1', { attempts: 2, state: 'failed' })], 'd1'),
+    ).toBe('retrying')
+    // recusa do servidor não volta sozinha: o botão não pode ficar preso para sempre
+    expect(
+      resolveQueuedDeliverState([item('deliver', 'd1', { cause: 'x', state: 'rejected' })], 'd1'),
+    ).toBe('none')
+    expect(resolveQueuedDeliverState([item('deliver', 'd2', { state: 'queued' })], 'd1')).toBe(
+      'none',
+    )
+    expect(resolveQueuedDeliverState([item('proof', 'd1', { state: 'queued' })], 'd1')).toBe('none')
+    expect(resolveQueuedDeliverState([], 'd1')).toBe('none')
+  })
+
+  it('o cartão trava o botão pela fila, diz o porquê e oferece "Enviar agora" — nos dois idiomas', () => {
+    expect(CARD).toContain("resolveQueuedDeliverState(queueView, document.id) !== 'none'")
+    expect(CARD).toContain("'deliveryGate.confirming'")
+    expect(CARD).toContain("'deliveryGate.retrying'")
+    expect(CARD).toContain("'deliveryGate.sending'")
+    expect(CARD).toContain("t('deliveryGate.sendNow')")
+    expect(readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')).toContain(
+      'onSendAllNow={driverTrip.sendAllNow}',
+    )
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.deliveryGate.confirming.length).toBeGreaterThan(0)
+      expect(locale.deliveryGate.retrying.length).toBeGreaterThan(0)
+      expect(locale.deliveryGate.sendNow.length).toBeGreaterThan(0)
+      expect(locale.deliveryGate.sending.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+/** Pedido do usuário (15/10): confirmar a entrega não trava — a nota vale como entregue e a fila envia. */
+describe('a entrega confirmada vale na hora, com selo de envio (15/10)', () => {
+  const stop = (id: string, documentIds: readonly string[], completedAt: string | null = null) =>
+    ({
+      completedAt,
+      documents: documentIds.map((documentId) => ({ id: documentId, separationStatus: 'pending' })),
+      id,
+    }) as never
+
+  it('a parada com toda nota entregue na fila vira concluída; com nota faltando, segue aberta', async () => {
+    const { applyLocalDeliveries } = await import(
+      '../../src/modules/driver-trip/shared/driverTripView.service'
+    )
+    const trip = { id: 't', stops: [stop('s1', ['a', 'b']), stop('s2', ['c'])] } as never
+    const partial = applyLocalDeliveries({
+      deliveredAtByDocumentId: new Map([['a', '2026-10-15T10:00:00Z']]),
+      trip,
+    }) as unknown as {
+      stops: { completedAt: string | null; documents: { separationStatus: string }[] }[]
+    }
+    expect(partial.stops[0]?.documents[0]?.separationStatus).toBe('delivered')
+    expect(partial.stops[0]?.completedAt).toBeNull()
+    const full = applyLocalDeliveries({
+      deliveredAtByDocumentId: new Map([
+        ['a', '2026-10-15T10:00:00Z'],
+        ['b', '2026-10-15T10:05:00Z'],
+      ]),
+      trip,
+    }) as unknown as typeof partial
+    expect(full.stops[0]?.completedAt).toBe('2026-10-15T10:05:00Z')
+    expect(full.stops[1]?.completedAt).toBeNull()
+  })
+
+  it('a entrega recusada não conta como entregue; a na fila e a já enviada contam', async () => {
+    const { collectLocallyDelivered } = await import(
+      '../../src/modules/driver-trip/shared/documentActivity.service'
+    )
+    const queueView = [
+      { documentId: 'q', idempotencyKey: 'kq', kind: 'deliver', status: { state: 'queued' } },
+      {
+        documentId: 'f',
+        idempotencyKey: 'kf',
+        kind: 'deliver',
+        status: { attempts: 2, state: 'failed' },
+      },
+      {
+        documentId: 'r',
+        idempotencyKey: 'kr',
+        kind: 'deliver',
+        status: { cause: 'x', state: 'rejected' },
+      },
+    ] as never
+    const result = collectLocallyDelivered({
+      deliverKeyByDocumentId: new Map([['s', { at: '2026-10-15T09:00:00Z', key: 'ks' }]]),
+      nowIso: '2026-10-15T11:00:00Z',
+      queueView,
+      sentReportKeys: new Set(['ks']),
+    })
+    expect([...result.keys()].sort()).toEqual(['f', 'q', 's'])
+    expect(result.get('s')).toBe('2026-10-15T09:00:00Z')
+  })
+
+  it('o cartão concluído mostra o selo, o aviso de falha e "Enviar agora"; o texto diz "aguardando envio"', () => {
+    const settled = CARD.slice(CARD.indexOf('if (isDocumentSettled(document)) {\n    return ('))
+    expect(settled).toContain('deliverActivity === undefined')
+    expect(settled).toContain("'activity.deliveredQueued'")
+    expect(settled).toContain("t('deliveryGate.sendNow')")
+    expect(readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')).toContain(
+      'applyLocalDeliveries(',
+    )
+    expect(driverTrip.activity.deliveredQueued).toInclude('sincronizando')
+  })
+})
+
+/** Pedido do usuário (15/10): faixa "Sincronizando eventos" / "Sincronizado" no topo da viagem. */
+describe('a faixa de sincronização da viagem (15/10)', () => {
+  const item = (state: string, kind = 'deliver') =>
+    ({ idempotencyKey: `${kind}-${state}`, kind, status: { state } }) as never
+
+  it('em curso conta fila e falha; recusa fica à parte e nunca vira "Sincronizado"', async () => {
+    const { resolveTripSyncBanner } = await import(
+      '../../src/modules/driver-trip/shared/tripSyncBanner.service'
+    )
+    expect(resolveTripSyncBanner({ justSynced: false, queueView: [] })).toEqual({ kind: 'idle' })
+    expect(resolveTripSyncBanner({ justSynced: true, queueView: [] })).toEqual({ kind: 'synced' })
+    expect(
+      resolveTripSyncBanner({
+        justSynced: false,
+        queueView: [item('queued'), item('failed', 'proof'), item('unverified')],
+      }),
+    ).toEqual({ kind: 'syncing', syncing: 2 })
+    expect(
+      resolveTripSyncBanner({ justSynced: true, queueView: [item('rejected'), item('queued')] }),
+    ).toEqual({ kind: 'rejected', rejected: 1, syncing: 1 })
+  })
+
+  it('a viagem monta a faixa no topo e os dois idiomas têm os textos', () => {
+    expect(readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')).toContain(
+      'queueView={driverTrip.queueView}',
+    )
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.tripSync.synced.length).toBeGreaterThan(0)
+      expect(locale.tripSync.syncing_other.length).toBeGreaterThan(0)
+      expect(locale.tripSync.rejected_one.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+/** Pedido do usuário (15/10): histórico de itens enviados, com a hora do toque e a do envio. */
+describe('o histórico de enviados (15/10)', () => {
+  const entry = (key: string, at: string, result: 'discarded' | 'rejected' | 'sent' = 'sent') =>
+    ({ at, key, kind: 'deliver', result, tappedAt: at }) as never
+
+  it('guarda o mais recente primeiro, troca o desfecho do mesmo item e respeita prazo e teto', async () => {
+    const { SENT_HISTORY_MAX_ENTRIES, appendSentHistory } = await import(
+      '../../src/modules/driver-trip/shared/sentHistory.service'
+    )
+    const nowMs = Date.parse('2026-10-15T12:00:00Z')
+    const result = appendSentHistory({
+      additions: [entry('a', '2026-10-15T11:00:00Z', 'sent')],
+      current: [
+        entry('a', '2026-10-15T09:00:00Z', 'rejected'),
+        entry('b', '2026-10-15T10:00:00Z'),
+        entry('velho', '2026-09-01T10:00:00Z'),
+      ],
+      nowMs,
+    }) as unknown as { key: string; result: string }[]
+    expect(result.map((item) => `${item.key}:${item.result}`)).toEqual(['a:sent', 'b:sent'])
+    const many = appendSentHistory({
+      additions: Array.from({ length: SENT_HISTORY_MAX_ENTRIES + 20 }, (_, index) =>
+        entry(`k${index}`, '2026-10-15T11:00:00Z'),
+      ),
+      current: [],
+      nowMs,
+    })
+    expect(many.length).toBe(SENT_HISTORY_MAX_ENTRIES)
+  })
+
+  it('o registro leva o toque, o tipo e a nota ou a parada — e nada do corpo do evento', async () => {
+    const { toSentHistoryEntry } = await import(
+      '../../src/modules/driver-trip/shared/sentHistory.service'
+    )
+    const entryOut = toSentHistoryEntry({
+      at: '2026-10-15T14:40:00Z',
+      item: {
+        attempts: 0,
+        createdAt: '2026-10-15T14:32:00Z',
+        report: { documentId: 'd1', idempotencyKey: 'k1', kind: 'deliver', location: null },
+      } as never,
+      result: 'sent',
+    })
+    expect(entryOut).toEqual({
+      at: '2026-10-15T14:40:00Z',
+      documentId: 'd1',
+      key: 'k1',
+      kind: 'deliver',
+      result: 'sent',
+      tappedAt: '2026-10-15T14:32:00Z',
+    })
+  })
+
+  it('a tela de pendências lista o histórico e o hook grava o desfecho no IndexedDB', () => {
+    const page = readSource('src/modules/driver-trip/pages/DriverEventQueue.page.tsx')
+    expect(page).toContain("t('eventQueue.history.title')")
+    expect(page).toContain('history.map(')
+    expect(HOOK).toContain("remember(stamped.report.idempotencyKey, 'sent')")
+    expect(HOOK).toContain("result: 'discarded'")
+    expect(readSource('src/modules/driver-trip/shared/indexedDbQueue.service.ts')).toContain(
+      "'sent-history'",
+    )
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.eventQueue.history.sent.length).toBeGreaterThan(0)
+      expect(locale.eventQueue.history.rejected.length).toBeGreaterThan(0)
+      expect(locale.eventQueue.history.discarded.length).toBeGreaterThan(0)
+      expect(locale.tripSync.open.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('o histórico vale até a viagem ser concluída (15/10)', () => {
+  it('concluída a viagem, saem os registros das notas e paradas dela; os de outra viagem ficam', async () => {
+    const { purgeTripSentHistory } = await import(
+      '../../src/modules/driver-trip/shared/sentHistory.service'
+    )
+    const make = (key: string, ids: { documentId?: string; stopId?: string }) =>
+      ({
+        at: '2026-10-15T10:00:00Z',
+        key,
+        kind: 'deliver',
+        result: 'sent',
+        tappedAt: 'x',
+        ...ids,
+      }) as never
+    const kept = purgeTripSentHistory({
+      entries: [
+        make('a', { documentId: 'd1' }),
+        make('b', { stopId: 's1' }),
+        make('c', { documentId: 'outra' }),
+        make('d', {}),
+      ],
+      trip: { stops: [{ documents: [{ id: 'd1' }], id: 's1' }] },
+    }) as unknown as { key: string }[]
+    expect(kept.map((entry) => entry.key)).toEqual(['c', 'd'])
+  })
+
+  it('a página só apaga com a viagem toda resolvida e a fila vazia (nem pendente nem recusado)', () => {
+    const page = readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')
+    expect(page).toContain('isTripFullySettled(trip) && driverTrip.queueView.length === 0')
+    expect(page).toContain('purgeTripHistory(trip)')
+  })
+})
+/** Teste local do #250 (15/10): "Enviar agora" só após falha/espera, aviso persistente, foto na nota. */
+describe('ajustes do teste local do #250 (15/10)', () => {
+  const view = (kind: string, state: string, extra: object = {}) =>
+    ({
+      attachmentCount: 0,
+      documentId: 'd1',
+      idempotencyKey: `${kind}-${state}`,
+      kind,
+      queuedAt: '2026-10-15T10:00:00Z',
+      status: { state },
+      ...extra,
+    }) as never
+
+  it('a foto pendente da nota aparece: grupo órfão ou foto que viaja com a entrega; recusada não', async () => {
+    const { resolveProofSyncState } = await import(
+      '../../src/modules/driver-trip/shared/eventQueueView.service'
+    )
+    expect(resolveProofSyncState([], 'd1')).toBe('none')
+    expect(resolveProofSyncState([view('proof', 'queued')], 'd1')).toBe('syncing')
+    expect(resolveProofSyncState([view('deliver', 'queued', { attachmentCount: 1 })], 'd1')).toBe(
+      'syncing',
+    )
+    expect(resolveProofSyncState([view('deliver', 'queued')], 'd1')).toBe('none')
+    expect(resolveProofSyncState([view('proof', 'failed')], 'd1')).toBe('retrying')
+    expect(resolveProofSyncState([view('proof', 'rejected')], 'd1')).toBe('none')
+  })
+
+  it('o cartão usa o aviso persistente e mostra a foto sincronizando; os textos existem', () => {
+    const notice = readSource(
+      'src/modules/driver-trip/components/DriverDeliverSyncNotice.component.tsx',
+    )
+    expect(notice).toContain('SEND_NOW_DELAY_MS')
+    expect(notice).toContain('setHasFailed(true)')
+    expect(CARD).toContain('<DriverDeliverSyncNotice')
+    expect(CARD).toContain("'activity.photoSyncing'")
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.activity.photoSyncing.length).toBeGreaterThan(0)
+      expect(locale.activity.photoRetrying.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+/** Segundo teste local do #250 (15/10). */
+describe('falha visível no topo, foto que falha, histórico e horas independentes de locale (15/10)', () => {
+  it('foto órfã com tentativa registrada vira "failed" e a nota diz que está esperando sinal', async () => {
+    const { buildEventQueueView, resolveProofSyncState } = await import(
+      '../../src/modules/driver-trip/shared/eventQueueView.service'
+    )
+    const attachment = (attempts: number) =>
+      ({
+        attachmentKey: 'a1',
+        attempts,
+        blob: new Blob(['x']),
+        capturedAt: '2026-10-15T10:00:00Z',
+        documentId: 'd1',
+        fileName: 'f.jpg',
+        kind: 'photo',
+      }) as never
+    const viewOf = (attempts: number) =>
+      buildEventQueueView({ attachments: [['k1', [attachment(attempts)]]], queued: [] })
+    expect(resolveProofSyncState(viewOf(0), 'd1')).toBe('syncing')
+    expect(resolveProofSyncState(viewOf(2), 'd1')).toBe('retrying')
+  })
+
+  it('o topo mostra a falha com "Enviar agora" mesmo com o cartão recolhido', () => {
+    const banner = readSource(
+      'src/modules/driver-trip/components/DriverTripSyncBanner.component.tsx',
+    )
+    expect(banner).toContain("item.status.state === 'failed'")
+    expect(banner).toContain("t('tripSync.failed')")
+    expect(banner).toContain("t('deliveryGate.sendNow')")
+    expect(readSource('src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx')).toContain(
+      'onSendNow={driverTrip.sendAllNow}',
+    )
+  })
+
+  it('o histórico mostra segundos, descreve a regra no vazio e guarda o comprovante', async () => {
+    const { toProofSentHistoryEntry } = await import(
+      '../../src/modules/driver-trip/shared/sentHistory.service'
+    )
+    expect(
+      toProofSentHistoryEntry({
+        at: '2026-10-15T10:05:00Z',
+        attachment: { attachmentKey: 'a1', capturedAt: '2026-10-15T10:00:00Z', documentId: 'd1' },
+      }),
+    ).toEqual({
+      at: '2026-10-15T10:05:00Z',
+      documentId: 'd1',
+      key: 'a1',
+      kind: 'proof',
+      result: 'sent',
+      tappedAt: '2026-10-15T10:00:00Z',
+    })
+    expect(readSource('src/modules/driver-trip/pages/DriverEventQueue.page.tsx')).toContain(
+      "second: '2-digit'",
+    )
+    expect(driverTrip.eventQueue.history.empty).toBe('Nada enviado nesta viagem.')
+    expect(HOOK).toContain('toProofSentHistoryEntry(')
+  })
+
+  it('a hora do cartão não depende do locale do aparelho (golden igual no Windows e no Linux)', () => {
+    expect(readSource('src/modules/driver-trip/shared/documentActivity.service.ts')).toContain(
+      "toLocaleTimeString('pt-BR'",
+    )
   })
 })

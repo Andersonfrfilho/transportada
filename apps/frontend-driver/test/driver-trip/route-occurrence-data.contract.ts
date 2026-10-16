@@ -388,8 +388,8 @@ describe('as frases fixas da tratativa no locale (spec 266 T4.2b)', () => {
 describe('o store trip-occurrences no IndexedDB (spec 266 T4.2)', () => {
   const source = readFileSync(INDEXED_DB, 'utf8')
 
-  it('sobe para a versão 5 criando só store novo, sem migrar nada', () => {
-    expect(source).toInclude('const DATABASE_VERSION = 5')
+  it('sobe de versão (a 6 traz o histórico; a 5 trouxe este store) criando só store novo, sem migrar nada', () => {
+    expect(source).toInclude('const DATABASE_VERSION = 6')
     expect(source).toInclude("const TRIP_OCCURRENCES_STORE_NAME = 'trip-occurrences'")
     const upgrade = source.slice(
       source.indexOf('request.onupgradeneeded'),
