@@ -44,15 +44,19 @@ describe('spec 268: o modo sandbox do e-mail da contratante no worker', () => {
   })
 
   test('ligado sem SMTP_URL derruba o boot, mesmo com o Resend configurado', () => {
-    const { SMTP_URL: _smtpUrl, ...withoutSmtp } = sandboxEnvironment
-    expect(() => parseWorkerEnvironment({ ...withoutSmtp, RESEND_API_KEY: 're_test_key' })).toThrow(
-      WorkerConfigurationError,
-    )
+    expect(() =>
+      parseWorkerEnvironment({
+        ...sandboxEnvironment,
+        RESEND_API_KEY: 're_test_key',
+        SMTP_URL: undefined,
+      }),
+    ).toThrow(WorkerConfigurationError)
   })
 
   test('ligado sem EMAIL_FROM derruba o boot', () => {
-    const { EMAIL_FROM: _from, SMTP_URL: _smtpUrl, ...withoutFrom } = sandboxEnvironment
-    expect(() => parseWorkerEnvironment(withoutFrom)).toThrow(WorkerConfigurationError)
+    expect(() =>
+      parseWorkerEnvironment({ ...sandboxEnvironment, EMAIL_FROM: undefined, SMTP_URL: undefined }),
+    ).toThrow(WorkerConfigurationError)
   })
 
   test('valor fora de true/false derruba o boot', () => {
