@@ -102,7 +102,7 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
         <ContractorMailSettingsPanel
           // Sem a chave que muda quando a consulta responde, o painel monta vazio e o operador
           // regrava por cima do que já estava salvo.
-          key={`${contractorMail.settingsQuery.data?.id ?? 'none'}`}
+          key={`${contractorMail.settingsQuery.data?.summary?.id ?? 'none'}`}
           apiUrl={getIdentityEnvironment().apiBaseUrl}
           checks={contractorMail.checksQuery.data}
           checksLoading={contractorMail.checksQuery.isLoading}
@@ -113,7 +113,7 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
           onSave={(body) => contractorMail.saveMutation.mutate(body)}
           onSendTestEmail={() => contractorMail.sendTestEmailMutation.mutate()}
           saved={contractorMail.saveMutation.isSuccess}
-          summary={contractorMail.settingsQuery.data}
+          summary={contractorMail.settingsQuery.data?.summary}
           testEmailErrorCode={toErrorCode(contractorMail.sendTestEmailMutation.error)}
           testEmailErrorRetryAfterSeconds={toRetryAfterSeconds(
             contractorMail.sendTestEmailMutation.error,
@@ -122,7 +122,10 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
           testEmailSent={contractorMail.sendTestEmailMutation.isSuccess}
         />
         <ContractorMailTemplatesPanel isDisabled={!canManageContractorMail} />
-        <ContractorContactsPanel isDisabled={!canManageContractorMail} />
+        <ContractorContactsPanel
+          isDisabled={!canManageContractorMail}
+          onOpenContractors={() => setActiveTab('contractors')}
+        />
       </>
     ),
   }

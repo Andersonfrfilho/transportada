@@ -6,6 +6,7 @@ import {
   ContractorMailSettingsResponseError,
   nullableSettingsFromApi,
   settingsFromApi,
+  settingsReadFromApi,
   testEmailResultFromApi,
 } from '../../src/modules/delivery-clients/shared/contractorMailSettingsResponse.validation'
 
@@ -26,6 +27,27 @@ const VALID_SUMMARY = {
 describe('contractor mail settings response validation', () => {
   test('accepts the real shape of GET /contractor-mail-settings', () => {
     expect(settingsFromApi({ data: VALID_SUMMARY })).toEqual(VALID_SUMMARY)
+  })
+
+  /** Spec 268 RF9: `sandboxDelivery` vem ao lado de `data`, que segue com as chaves exatas. */
+  test('reads the settings together with the sandbox delivery flag', () => {
+    expect(settingsReadFromApi({ data: VALID_SUMMARY, sandboxDelivery: false })).toEqual({
+      sandboxDelivery: false,
+      summary: VALID_SUMMARY,
+    })
+    expect(settingsReadFromApi({ data: null, sandboxDelivery: true })).toEqual({
+      sandboxDelivery: true,
+      summary: null,
+    })
+  })
+
+  test('rejects a settings read without a boolean sandboxDelivery', () => {
+    expect(() => settingsReadFromApi({ data: VALID_SUMMARY })).toThrow(
+      ContractorMailSettingsResponseError,
+    )
+    expect(() => settingsReadFromApi({ data: null, sandboxDelivery: 'yes' })).toThrow(
+      ContractorMailSettingsResponseError,
+    )
   })
 
   test('accepts { data: null } when the company has no configuration yet, without a 404', () => {

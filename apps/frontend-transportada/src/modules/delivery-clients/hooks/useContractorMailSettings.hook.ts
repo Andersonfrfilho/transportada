@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getContractorMailSettingsClient } from '../shared/contractorMailSettingsClient.service'
 import type { ContractorMailSettingsSaveBody } from '../shared/contractorMailSettingsClient.service'
+import type { ContractorMailSettingsRead } from '../shared/contractorMailSettings.types'
 
 const CONTRACTOR_MAIL_SETTINGS_QUERY_KEY = 'contractor-mail-settings'
 const CONTRACTOR_MAIL_CHECKS_QUERY_KEY = 'contractor-mail-settings-checks'
@@ -34,7 +35,10 @@ export function useContractorMailSettings(
   const saveMutation = useMutation({
     mutationFn: (body: ContractorMailSettingsSaveBody) => client.saveSettings(body),
     onSuccess(summary) {
-      queryClient.setQueryData(settingsKey, summary)
+      queryClient.setQueryData<ContractorMailSettingsRead>(settingsKey, (current) => ({
+        sandboxDelivery: current?.sandboxDelivery ?? false,
+        summary,
+      }))
       invalidateChecks()
     },
   })

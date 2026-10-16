@@ -22,6 +22,12 @@ export type ContractorMailSettingsSummary = Readonly<{
   webhookSecretConfigured: boolean
 }>
 
+/** Spec 268: a leitura da configuração e se o ambiente manda o e-mail da contratante para o Mailpit. */
+export type ContractorMailSettingsRead = Readonly<{
+  sandboxDelivery: boolean
+  summary: ContractorMailSettingsSummary | null
+}>
+
 export const CONTRACTOR_MAIL_SETTINGS_SUMMARY_KEYS = [
   'apiKeyConfigured',
   'id',

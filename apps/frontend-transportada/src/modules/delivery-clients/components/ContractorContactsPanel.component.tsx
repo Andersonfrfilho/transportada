@@ -31,7 +31,13 @@ import {
 } from '../shared/contractorContacts.validation'
 import styles from '../styles/deliveryClients.module.css'
 
-type ContractorContactsPanelProps = Readonly<{ isDisabled: boolean }>
+type ContractorContactsPanelProps = Readonly<{
+  /** Spec 268: a ficha da contratante fixa a contratante — sem seletor, e com o título dela. */
+  contractorId?: string
+  isDisabled: boolean
+  /** Spec 268: na aba de e-mail, a dica leva à ficha da contratante, onde a lista mora. */
+  onOpenContractors?: () => void
+}>
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' })
 
@@ -388,12 +394,18 @@ function ContactCard({
  * desativar é o mesmo botão de reativar, trocando só o `status` (a trilha de mensagens aponta para o
  * contato).
  */
-export function ContractorContactsPanel({ isDisabled }: ContractorContactsPanelProps): JSX.Element {
+export function ContractorContactsPanel({
+  contractorId: fixedContractorId,
+  isDisabled,
+  onOpenContractors,
+}: ContractorContactsPanelProps): JSX.Element {
   const { t } = useTranslation('deliveryClients')
-  const [contractorId, setContractorId] = useState<string | undefined>(undefined)
+  const [pickedContractorId, setContractorId] = useState<string | undefined>(undefined)
   const [editingContactId, setEditingContactId] = useState<string | undefined>(undefined)
+  const isContractorFixed = fixedContractorId !== undefined
+  const contractorId = fixedContractorId ?? pickedContractorId
   const { contactsQuery, contractorsQuery, createMutation, updateMutation } = useContractorContacts(
-    { contractorId, enabled: true },
+    { contractorId, enabled: true, shouldListContractors: !isContractorFixed },
   )
 
   const contractors = contractorsQuery.data ?? []
@@ -402,26 +414,40 @@ export function ContractorContactsPanel({ isDisabled }: ContractorContactsPanelP
 
   return (
     <section aria-labelledby="contractor-contacts-title" className={styles.form}>
-      <h2 id="contractor-contacts-title">{t('contractorContacts.title')}</h2>
-      <p className={styles.hint}>{t('contractorContacts.hint')}</p>
+      <h2 id="contractor-contacts-title">
+        {isContractorFixed ? t('contractorContacts.cardTitle') : t('contractorContacts.title')}
+      </h2>
+      <p className={styles.hint}>
+        {isContractorFixed ? t('contractorContacts.cardHint') : t('contractorContacts.hint')}
+      </p>
+      {onOpenContractors === undefined ? null : (
+        <p className={styles.hint}>
+          {t('contractorContacts.cardLinkHint')}{' '}
+          <Button onClick={onOpenContractors} size="sm" type="button" variant="ghost">
+            {t('contractorContacts.openContractors')}
+          </Button>
+        </p>
+      )}
 
-      <label className={styles.field}>
-        <span>{t('contractorContacts.contractorLabel')}</span>
-        <Select
-          ariaLabel={t('contractorContacts.contractorLabel')}
-          disabled={isDisabled || contractorsQuery.isLoading}
-          onChange={(value) => {
-            setContractorId(value === '' ? undefined : value)
-            setEditingContactId(undefined)
-          }}
-          options={contractors.map((contractor) => ({
-            label: `${contractor.displayName === '' ? contractor.taxId : contractor.displayName}`,
-            value: contractor.id,
-          }))}
-          placeholder={t('contractorContacts.contractorPlaceholder')}
-          value={contractorId ?? ''}
-        />
-      </label>
+      {isContractorFixed ? null : (
+        <label className={styles.field}>
+          <span>{t('contractorContacts.contractorLabel')}</span>
+          <Select
+            ariaLabel={t('contractorContacts.contractorLabel')}
+            disabled={isDisabled || contractorsQuery.isLoading}
+            onChange={(value) => {
+              setContractorId(value === '' ? undefined : value)
+              setEditingContactId(undefined)
+            }}
+            options={contractors.map((contractor) => ({
+              label: `${contractor.displayName === '' ? contractor.taxId : contractor.displayName}`,
+              value: contractor.id,
+            }))}
+            placeholder={t('contractorContacts.contractorPlaceholder')}
+            value={contractorId ?? ''}
+          />
+        </label>
+      )}
 
       {contractorId === undefined ? null : contactsQuery.isLoading ? (
         <SkeletonGroup label={t('contractorContacts.loading')}>
