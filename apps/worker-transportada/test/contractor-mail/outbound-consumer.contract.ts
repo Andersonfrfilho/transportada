@@ -101,9 +101,11 @@ function buildDependenciesStub(
         return {
           bodyHtml: null,
           bodyText: 'corpo',
+          fromAddress: 'ocorrencias@example.com.br',
           subject: 'Teste de configuração de e-mail com contratantes',
           threadId: THREAD_ID,
           toAddresses: ['admin@example.com.br'],
+          transport: 'resend' as const,
         }
       },
       async findSettingsByCompanyId() {

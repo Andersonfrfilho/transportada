@@ -178,6 +178,7 @@ import { createDriverReplyNotifier } from './occurrence-conversation/infrastruct
 import { createDrizzleContractorMailInboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
+import { createSandboxSmtpMailGateway } from './contractor-mail/infrastructure/sandbox-smtp-mail.gateway.js'
 import {
   createDkimVerifierGateway,
   resolveDkimDnsRecord,
@@ -1156,6 +1157,13 @@ export async function startWorkerRuntime(
         repository: createDrizzleContractorMailOutboundWorkerRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
+        ...(config.contractorMailSandbox === undefined
+          ? {}
+          : {
+              sandboxMailGateway: createSandboxSmtpMailGateway({
+                smtpUrl: config.contractorMailSandbox.smtpUrl,
+              }),
+            }),
         secretService: createContractorMailCredentialSecretService({
           envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
         }),

@@ -49,3 +49,10 @@ export const MIME_PART_LIMITS = {
   maxBoundaryLines: 1000,
   maxNestedMessages: 5,
 } as const
+
+/**
+ * Spec 268: por onde a API mandou enviar a mensagem. Cópia por valor de
+ * `api-transportada/src/contractor-mail/domain/contractor-mail.constant.ts`.
+ */
+export const CONTRACTOR_MAIL_TRANSPORTS = ['resend', 'sandbox_smtp'] as const
+export type ContractorMailTransport = (typeof CONTRACTOR_MAIL_TRANSPORTS)[number]
