@@ -61,25 +61,37 @@ fatos que moldam o plano:
 
 ### Configuração (`settings.manage`)
 
+Endpoints por item (revisão T0.2: PUT da lista inteira trocaria linhas que outro operador acabou de mexer e não
+carrega o estado ativo/inativo).
+
 ```ts
-// GET /company-settings/occurrence-watchers
-{ data: { watchers: Array<{ userId: string; name: string; maskedEmail: string | null; eligible: boolean }> } }
-// PUT /company-settings/occurrence-watchers   (substitui a lista inteira; idempotente)
-{ userIds: string[] /* 0..10, únicos */ }  // .strict()
-// 200 → mesmo corpo do GET · 400 OCCURRENCE_WATCHER_NOT_ELIGIBLE · 400 OCCURRENCE_WATCHER_LIST_TOO_LONG
+type WatcherItem = {
+  userId: string
+  name: string
+  maskedEmail: string | null
+  status: 'active' | 'inactive'
+  eligible: boolean
+}
 
-// GET /contractors/:id/occurrence-watchers
-{ data: { watchers: [...mesmo item...], effectiveSource: 'contractor' | 'company' } }
-// PUT /contractors/:id/occurrence-watchers   { userIds: string[] /* 0..10 */ }  — [] volta a herdar
-// 404 CONTRACTOR_NOT_FOUND (outra empresa também)
+// GET    /company-settings/occurrence-watchers              → { data: { watchers: WatcherItem[] } }
+// POST   /company-settings/occurrence-watchers              { userId } .strict() → 201 WatcherItem (200 se já existe)
+// PATCH  /company-settings/occurrence-watchers/:userId      { status } .strict() → 200 WatcherItem
+// DELETE /company-settings/occurrence-watchers/:userId      → 204
+// GET    /company-settings/occurrence-watchers/candidates   → { data: Array<{ userId; name; maskedEmail }> }
 
-// GET /company-settings/occurrence-watchers/candidates
-{ data: Array<{ userId: string; name: string; maskedEmail: string | null }> } // vínculo ativo + occurrences.resolve
+// Mesmo desenho sob /contractors/:id/occurrence-watchers[/:userId]; o GET acrescenta effectiveSource.
+// GET /contractors/:id/occurrence-watchers → { data: { watchers: WatcherItem[]; effectiveSource: 'contractor' | 'company' } }
 ```
 
-`maskedEmail` usa `maskEmailAddress` (248). `eligible: false` marca quem está gravado mas perdeu vínculo, permissão ou
-e-mail; a tela mostra e o envio ignora. O prefixo `/company-settings/occurrence-watchers/candidates` não pode colidir
-com outra rota dinâmica: contrato de rotas na T1.4.
+Erros: `400 OCCURRENCE_WATCHER_NOT_ELIGIBLE` (POST e PATCH para `active`), `400 OCCURRENCE_WATCHER_LIST_TOO_LONG`,
+`404 OCCURRENCE_WATCHER_NOT_FOUND`, `404 CONTRACTOR_NOT_FOUND` (inclui contratante de outra empresa).
+`candidates` não colide com `:userId`: o parâmetro é validado como uuid, não existe `GET /:userId`, e há teste de rotas
+com o roteador real (`createRouter` + `allowedMethods`; a 266 mostrou que contrato que contorna o roteador não pega).
+
+Limites (decisão delegada ao dono): no máximo **10 ativos** e **30 linhas no total** por lista. Só linhas **ativas**
+vão em cópia; inativas continuam listadas; remover apaga a linha. **Lista da contratante sem nenhuma linha ativa herda
+a da empresa** (`effectiveSource` acompanha). `maskedEmail` usa `maskEmailAddress` (248). `eligible: false` marca quem
+está gravado mas perdeu vínculo, permissão ou e-mail: continua listado com o selo "não elegível" e o envio o ignora.
 
 ### Envio
 
@@ -126,8 +138,11 @@ worker; muda só a leitura — **nenhum e-mail de saída é gerado** e nenhum av
 CREATE TABLE company_occurrence_watchers (
   company_id uuid NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
   user_id    uuid NOT NULL,
+  status     varchar(16) NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
   created_by_user_id uuid NOT NULL,
+  updated_by_user_id uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (company_id, user_id),
   FOREIGN KEY (user_id, company_id) REFERENCES user_company_memberships (user_id, company_id) ON DELETE CASCADE
 );
@@ -135,8 +150,11 @@ CREATE TABLE contractor_occurrence_watchers (
   company_id    uuid NOT NULL,
   contractor_id uuid NOT NULL,
   user_id       uuid NOT NULL,
+  status        varchar(16) NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
   created_by_user_id uuid NOT NULL,
+  updated_by_user_id uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (company_id, contractor_id, user_id),
   FOREIGN KEY (company_id, contractor_id) REFERENCES contractors (company_id, id) ON DELETE CASCADE,
   FOREIGN KEY (user_id, company_id) REFERENCES user_company_memberships (user_id, company_id) ON DELETE CASCADE
@@ -173,12 +191,12 @@ elegibilidade é conferida no envio.
 - Nenhum endereço em log; o log do corte por limite e do responsável descartado leva só contagens e ids.
 - A identificação `internal` na entrada exige DKIM alinhado (mesma regra do contato): sem ela, um e-mail forjado com o
   endereço do atendente seria lido como mensagem interna.
-- `audit_logs` na troca de lista: `action` `occurrence_watchers.company.replace` / `occurrence_watchers.contractor.replace`,
-  ator, alvo, ids antes/depois (T0.1 confere onde o `audit_logs` guarda detalhe).
+- `audit_logs` na troca de lista: `action` `occurrence_watchers.{company|contractor}.{add|activate|deactivate|remove}`, permissão `settings.manage`,
+  `before_snapshot`/`after_snapshot` com `userId`, `status` e `contractorId` — nunca endereço.
 
 ## Idempotência e concorrência
 
-- PUT substitui a lista inteira numa transação (`DELETE` + `INSERT`); repetir é idempotente.
+- POST é idempotente (200 se a linha existe); PATCH para o mesmo estado é no-op; DELETE de linha ausente é 404. Cada escrita e o seu `audit_logs` vão na mesma transação.
 - Envio: a idempotência existente do envio (`Idempotency-Key`) passa a incluir `excludedWatcherUserIds` (ordenados) na
   impressão digital.
 - A lista efetiva é lida no envio, não no preview: o que o operador viu pode mudar entre os dois (aceito; o histórico
@@ -212,3 +230,31 @@ Integração da API com `bun --env-file=../../.env.test run test:integration`; m
 | Resposta só ao token (sem a contratante) parece ter ido à contratante | Selo "só para a equipe — a contratante não recebeu" (`reachedContractor`)      |
 | Atendente cai em spam ou lista enorme                                 | Máximo de 10 por lista; `To`+`Cc` ≤ 50                                         |
 | Janela entre API e worker envia sem cópia                             | Aceito e registrado; o worker vai logo depois                                  |
+
+## Revisão de arquitetura (T0.2) — veredito: aprovado com mudanças
+
+Sem ADR: a decisão é aditiva e local (duas tabelas de junção, uma coluna, um campo de e-mail), sem contrato novo entre
+apps nem mudança de modelo de dados que outras specs herdem. As mudanças abaixo já estão incorporadas ao plano.
+
+1. **Gateway sandbox.** `sandbox-smtp-mail.gateway.ts` ganha `cc?: readonly string[]` em `SendSandboxSmtpEmailInput` e em
+   `SandboxSmtpMessage` (vazio → omite; repassa a `cc` do nodemailer). `send-contractor-mail-outbound-message` confere
+   `to + cc ≤ CONTRACTOR_MAIL_MAX_RECIPIENTS` **uma vez, antes de escolher o transporte**; os dois gateways mantêm a
+   guarda própria. O sandbox não tem `Reply-To`: a resposta de um responsável não volta (documentado, aceito).
+2. **Cópia do schema no worker.** `apps/worker-transportada/src/database/contractor-mail.schema.ts` ganha
+   `ccAddresses: text('cc_addresses').array().notNull().default(sql\`'{}'\`)`junto a`to_addresses`, e o repositório do
+worker (`drizzle-contractor-mail-outbound-worker.repository.ts`) a seleciona.
+3. **T2.1** passa `message.ccAddresses` nos **dois** ramos (Resend e sandbox), com teste do sandbox com `cc` e de
+   `to + cc > 50` recusado nos dois transportes.
+4. **`recordMail`** mantém `transport: delivery.transport` (268). O corte/limite ocorre antes de a entrega ser escolhida.
+   A correção de endereço não tem caminho sandbox (usa `resend` por padrão): aceito e documentado.
+5. **Tabelas** ganham `status` (`active`/`inactive`, CHECK), `updated_at` e `updated_by_user_id` (ver § Dados). Só ativas
+   vão em cópia; inativas continuam listadas; remover apaga. Teto: 10 ativas, 30 no total. Lista da contratante sem
+   ativa herda a da empresa.
+6. **Endpoints por item** no lugar do PUT da lista inteira (ver § Contratos), com teste de roteador real.
+7. **Auditoria** na mesma transação, ações `occurrence_watchers.{company|contractor}.{add|activate|deactivate|remove}`.
+8. **Painel:** cada linha mostra o usuário, o interruptor Ativo/Inativo (PATCH) e "Remover" com confirmação na página
+   (`AlertDialog` do shadcn; nunca `window.confirm`); adicionar a partir dos candidatos (POST). Seção da contratante em
+   `ContractorFicha.component.tsx` logo depois do `ContractorContactsPanel`; sem ativo: "nenhum ativo — vale a lista da
+   empresa". Inelegível continua listado com o selo "não elegível".
+9. **T1.2** acrescenta os casos: inativo não vai em cópia; lista da contratante só com inativos herda a da empresa.
+10. **T2.2:** `excludedWatcherUserIds` entra, ordenado, na impressão digital da idempotência (`send-occurrence-mail.use-case.ts`).

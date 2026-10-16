@@ -10,41 +10,40 @@
 
 > 🤖 Modelo: `sonnet` (T0.2 é 🧠)
 
-- [ ] **T0.1** `sonnet` — Conferir contra `origin/staging` as linhas de `plan.md` § Contexto e o levantamento de
+- [x] **T0.1** `sonnet` — Conferir contra `origin/staging` as linhas de `plan.md` § Contexto e o levantamento de
       `evidence.md`. Responder também, com arquivo:linha: (a) a 211 já foi publicada (`ConversationEmailTransportPort`
       em uso)? (b) o validador do preview no painel (`SendToContractorDialog` e o da correção) ignora campo novo, ou
       precisa de fase de tolerância? (c) onde o `audit_logs` guarda o detalhe (antes/depois)? (d) de onde o
       `identity-recipient.resolver.ts` tira o e-mail do usuário, e o que acontece com `contactChannel` diferente de
       e-mail? (e) a correção de endereço tem preview/dado de formulário próprio? (f) a idempotência do envio de
       ocorrência — onde está a impressão digital? Divergência vira nota no `evidence.md` antes de seguir.
-- [ ] **T0.2** 🧠 `opus` — Validar com `architect` o `plan.md`: tabelas e FKs, elegibilidade (`occurrences.resolve`
+- [x] **T0.2** 🧠 `opus` — Validar com `architect` o `plan.md`: tabelas e FKs, elegibilidade (`occurrences.resolve`
       também para a correção de endereço, que é `settings.manage`), limite 50 e o corte no automático, o
       `kind: 'internal'` na entrada com DKIM, a ordem de publicação. Decidir se precisa de ADR (se sim, escrever
       `docs/adr/NNNN-...md` conferindo o número em `origin/staging`). Ajuste aprovado entra no `plan.md`. **Outras tasks
-      herdam este contrato.**
+      herdam este contrato.** Veredito: aprovado com mudanças, sem ADR (ver `plan.md` § Revisão de arquitetura).
 
 ## Fase 1 — API: configuração dos responsáveis
 
 > 🤖 Modelo: `sonnet` (T1.2 → `haiku`)
 
 - [ ] **T1.1** `sonnet` — Migration das tabelas `company_occurrence_watchers` e `contractor_occurrence_watchers` e da
-      coluna `contractor_mail_messages.cc_addresses` (plan § Dados), schema Drizzle e códigos de erro. Aceite:
+      coluna `contractor_mail_messages.cc_addresses` (plan § Dados, com `status`/`updated_at`/`updated_by_user_id`), schema Drizzle (API **e a cópia do worker**) e códigos de erro. Aceite:
       `make migration-test` e `db:generate` com `no_changes` depois.
 - [ ] **T1.2** `haiku` — Teste antes de `occurrence-watcher.policy.ts` (`resolveEffectiveWatchers`, os 7 casos do plano
-      § Estratégia de testes), depois a implementação pura.
+      § Estratégia de testes + inativo fora da cópia + lista da contratante só com inativos herda a da empresa), depois a implementação pura.
 - [ ] **T1.3** `sonnet` — Repositório: ler/trocar as duas listas (transação, `audit_logs` com antes/depois),
       candidatos elegíveis (vínculo ativo + `occurrences.resolve`) e endereços dos elegíveis **em lote** (molde do
       `identity-recipient.resolver.ts`, sem N+1). Integração na mesma task.
-- [ ] **T1.4** `sonnet` — Use cases e `occurrence-watchers.routes.ts` (`settings.manage`): GET/PUT da empresa, GET/PUT da
-      contratante, GET dos candidatos. Contratos: 200, 400 inelegível, 400 acima de 10, 404 de outra empresa (lista e
+- [ ] **T1.4** `sonnet` — Use cases e `occurrence-watchers.routes.ts` (`settings.manage`): endpoints por item (GET/POST/PATCH/DELETE) da empresa e da contratante, GET dos candidatos, teste com o roteador real. Contratos: 200, 400 inelegível, 400 acima de 10, 404 de outra empresa (lista e
       contratante), usuário de outra empresa → 400; nenhum par de rotas com o mesmo método casa o mesmo caminho.
 
 ## Fase 2 — Envio com cópia
 
 > 🤖 Modelo: `sonnet` (T2.6 → `haiku`)
 
-- [ ] **T2.1** `sonnet` — Worker, teste antes: `SendResendEmailInput.cc?`, validação por endereço e
-      `to + cc ≤ CONTRACTOR_MAIL_MAX_RECIPIENTS`; `send-contractor-mail-outbound-message` passa `message.ccAddresses`
+- [ ] **T2.1** `sonnet` — Worker, teste antes: `SendResendEmailInput.cc?` e o `cc?` do gateway sandbox, validação por endereço e
+      `to + cc ≤ CONTRACTOR_MAIL_MAX_RECIPIENTS` conferido uma vez antes do transporte (Resend e sandbox); `send-contractor-mail-outbound-message` passa `message.ccAddresses`
       (vazio → sem campo). O contrato de paridade do limite continua verde.
 - [ ] **T2.2** `sonnet` — `executeSend` resolve a cópia (`resolve-mail-copy.service.ts`), `recordMail` grava
       `ccAddresses`, a rota aceita `excludedWatcherUserIds` (ainda `.strict()`; o contrato `cc` → 400 é mantido) e entra

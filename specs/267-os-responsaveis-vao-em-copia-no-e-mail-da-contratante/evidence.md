@@ -90,11 +90,40 @@ continua valendo para a cópia) — registradas nas T3.1, T3.2 e T5.2.
 
 ## T0.1 — Conferência do levantamento
 
-_(pendente)_
+Conferido contra o worktree (rebaseado em `origin/staging` com as specs 266 e 268). Respostas: (a) a 211 **não** foi
+publicada (T401 aguarda o dono); (b) o validador do preview no painel é tolerante, ver § T0.1b; (c) `audit_logs`
+guarda antes/depois em `before_snapshot`/`after_snapshot`; (d) o resolvedor lê `identity_user_profiles.contactAddress` e
+só devolve endereço quando `contactChannel` é e-mail; (e) a correção de endereço tem dado de formulário próprio;
+(f) a impressão digital do envio de ocorrência está em `executeSend`.
+
+### Divergências de linha achadas na revisão (T0.2)
+
+| Onde                              | Levantamento dizia   | Código tem                                                                                                                                                     |
+| --------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `executeSend`                     | :139                 | :187                                                                                                                                                           |
+| contatos / `To` / `toAddresses`   | :202, :204-211, :267 | `toAddresses` montado em :254-261, passado em :317                                                                                                             |
+| impressão digital da idempotência | —                    | :209-225 (fingerprint), :374-375                                                                                                                               |
+| `recordMail` e `toAddresses`      | :530, :555           | :530 e :555 (`transport: delivery.transport` em :556, da 268)                                                                                                  |
+| schema `contractor_mail_messages` | `to_addresses` :475  | `pgTable` :454, `to_addresses` :481, CHECK :602                                                                                                                |
+| schema `contractor_contacts`      | :133                 | :139                                                                                                                                                           |
+| `SendResendEmailInput`            | :67-79               | corpo do gateway alterado pela 268 (sandbox gateway separado, `sandbox-smtp-mail.gateway.ts`)                                                                  |
+| worker outbound                   | :136-146             | Resend :155-158, sandbox :204-210 (dois ramos, não um)                                                                                                         |
+| última migration                  | `20261015120000_…`   | `20261016125229_contractor_mail_message_transport` (268)                                                                                                       |
+| entrada: `cc`                     | "passa a ler"        | o schema já declara `cc` (`resend-mail.gateway.ts:45`) e o token já usa `cc` (:140); o que falta é **gravar** `cc_addresses` (a gravação em :247 só leva `to`) |
+| gateway sandbox                   | inexistente          | existe (268) e também precisa de `cc`                                                                                                                          |
+
+### T0.1b — O painel antigo tolera a API nova (sem fase de tolerância)
+
+`readPreview` (`occurrenceConversationClient.service.ts:266`) só confere os campos que lê e ignora o resto, então `cc` e
+`ccSource` no preview não o quebram. `toMessage` (:156) também ignora campo novo (`ccAddresses`), e `isIdentity` (:134)
+devolve `null` para um `kind: 'internal'` desconhecido (a mensagem continua aparecendo, "sem identidade"). **Nenhuma fase
+de tolerância é necessária**; a ordem continua API → worker → painel (o painel novo manda `excludedWatcherUserIds`, que a
+API antiga recusa com 400 `.strict()`).
 
 ## T0.2 — Revisão de arquitetura
 
-_(pendente)_
+Veredito do `architect`: **aprovado com mudanças**, sem ADR. As dez mudanças estão em `plan.md` § Revisão de
+arquitetura (T0.2) e já refletidas em `tasks.md`.
 
 ## Tasks
 
