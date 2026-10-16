@@ -132,3 +132,36 @@ Nenhuma aberta. Q1–Q3 respondidas em 2026-10-16 (ver "Respostas do dono" acima
   na API só acha o schema Drizzle das colunas (`trip.schema.ts:2935,2936,3063,3200`) e o `PUT` que aceita e ignora
   (`occurrence.schema.ts:462,569-571`). Nenhum arquivo removido está na lista do `package.json`. O painel e o app do
   motorista ainda citam as chaves — saem na Fase 4 (T4.1, T4.5, T4.6).
+
+### T4.1–T4.6 — telas (2026-10-16)
+
+- Painel: `tsc --noEmit` limpo; `bun run lint` sem erro (16 avisos antigos); `bun run test` 8254 pass e 1 fail (a sonda CSP do
+  Chromium, conhecida e local); `bun run test:hooks` 1370 pass, 0 fail. `frontend-driver`: lint limpo, `bun run test` 2096 pass.
+- T4.1/T4.1b: `OccurrenceTypeMailTemplateSelect` no tipo e na exceção por contratante ("Herdar do tipo" = `null`); saíram os campos, a ajuda de
+  marcadores, o rascunho, a prévia antiga e `previewOccurrenceTypeEmail`. T4.2: `occurrence` em "Modelos"; o 409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE` lista tipos e
+  exceções. T4.3: diálogo desabilitado com o aviso e o caminho. T4.4: selo no feed (célula e cartão) e no detalhe. T4.5: locales e CSS mortos fora.
+  T4.6: o app do motorista perdeu a tolerância a `emailItemLineTemplate`.
+
+### T5.2 — revisão (code-reviewer e security-reviewer, 2026-10-16)
+
+- Segurança: nenhum achado alto ou médio; tenant, cabeçalho do assunto, escape do HTML, PII em log e o 409 conferidos.
+  **L1** (assunto digitado à mão no envio manual não tira CR/LF; caminho antigo da 183, não novo) e **L2** (`readSuggestedMail` e
+  `findEffectiveOccurrenceMailTemplate` sem filtro `status = 'active'`; sem impacto hoje, a escolha só vale com modelo ativo) ficam **registrados, não corrigidos**.
+- Código, corrigidos: **M1** o aviso do feed (`listMissingNotificationTemplates`) agora é refinamento isolado de falha, dentro do `Promise.all`
+  (`listMissingNotificationTemplatesOrEmpty`, teste `occurrence-mail-template-missing-read-failure.contract.test.ts`); **M2** o painel
+  tolera e ignora o texto antigo (`emailBody`/`emailSubject`/`emailItemLineTemplate`) até a etapa B (rollback da API); 409
+  `CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE` com mensagem própria; campo morto `missingNotificationTemplate` do tipo saiu; chave da lista de uso.
+- Registrados, **não corrigidos**: o `template_id` gravado pelo envio automático pode diferir do que gerou o texto se o tipo trocar de modelo entre o plano
+  e o envio (janela de milissegundos); o link "Abrir tipos de ocorrência" aparece também a quem não tem `settings.manage` (a aba cai no feed); o diálogo
+  de envio segue desabilitado depois do 409 até reabrir. Perguntas ao dono: a varredura do worker manda, no dia da escolha do modelo, os e-mails das
+  ocorrências ainda dentro da janela; o aviso do tipo ignora exceções por contratante (D8).
+
+### T5.3 — auditoria §15 e gates (2026-10-16)
+
+- N+1 no feed: nenhum (uma leitura fixa por página das exceções). `Promise.all`: o novo da prévia/arquivar (`assertOccurrenceMailTemplateIsUnused`) lê duas
+  tabelas que decidem a mesma resposta (as duas são necessárias); o do feed passou a isolado.
+- API: `tsc` limpo, `bun run lint` limpo, contrato 11844 pass / 25 skip (`test.skip` antigos) / 0 fail; integração dos 24 arquivos tocados + 3 do feed: 0 skip, 0 fail;
+  `db:generate` → `no_changes`. Worker: `tsc` e lint limpos; `bun run test` 2641 pass e 2 fail e integração (`transportada_worker_integration`) 343 pass, 4 skip
+  (OSRM opt-in), 3 fail — todos do decodificador de canhoto (conhecido e local). `bunx prettier --check .` na raiz: limpo.
+- Não feitos aqui: **T5.1** (conferência no navegador: pede a stack inteira com Keycloak e API apontando para um banco; as portas e os bancos locais em uso são de outras
+  sessões), **T5.4** (medição em staging e produção) e **T5.5** (publicação) — os dois últimos dependem do dono.

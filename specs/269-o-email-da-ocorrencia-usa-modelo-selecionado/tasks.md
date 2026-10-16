@@ -98,23 +98,23 @@
 
 > 🤖 Modelo: `sonnet` (T4.2, T4.5 e T4.6 → `haiku`)
 
-- [ ] **T4.1** `sonnet` — Editor do tipo: `OccurrenceTypeMailTemplateSelect` (modelos `occurrence` ativos + "Nenhum",
+- [x] **T4.1** `sonnet` — Editor do tipo: `OccurrenceTypeMailTemplateSelect` (modelos `occurrence` ativos + "Nenhum",
       prévia renderizada, "Gerenciar modelos", aviso "Tipo sem modelo de notificação" com `emailsContractor` ligado e
       nada escolhido). O interruptor `emailsContractor` fica. Remover os campos de assunto, corpo e linha, a ajuda de
       marcadores, o rascunho, a prévia antiga e o cliente `previewOccurrenceTypeEmail` (inventário). Testes de
       renderização e do salvar.
-- [ ] **T4.1b** `sonnet` — Editor da exceção por contratante (`OccurrenceExceptionForm`): o mesmo seletor, com "Herdar
+- [x] **T4.1b** `sonnet` — Editor da exceção por contratante (`OccurrenceExceptionForm`): o mesmo seletor, com "Herdar
       do tipo" (nulo). Teste de renderização e do salvar.
-- [ ] **T4.2** `haiku` — "Modelos": `occurrence` em `CONTRACTOR_MAIL_TEMPLATE_TYPES` do painel, rótulo e locales; o 409
+- [x] **T4.2** `haiku` — "Modelos": `occurrence` em `CONTRACTOR_MAIL_TEMPLATE_TYPES` do painel, rótulo e locales; o 409
       `CONTRACTOR_MAIL_TEMPLATE_IN_USE` mostra os tipos e as contratantes. Teste.
-- [ ] **T4.3** `sonnet` — Diálogo "Enviar à contratante": com `missingNotificationTemplate`, o envio fica
+- [x] **T4.3** `sonnet` — Diálogo "Enviar à contratante": com `missingNotificationTemplate`, o envio fica
       **desabilitado** com o aviso "Tipo sem modelo de notificação" e o link para o editor do tipo/exceção; trata o 409
       `OCCURRENCE_MAIL_TEMPLATE_MISSING` (corrida) mostrando o mesmo aviso. Teste.
-- [ ] **T4.4** `sonnet` — Feed e detalhe: selo "Tipo sem modelo de notificação" com link para o editor do tipo/exceção.
+- [x] **T4.4** `sonnet` — Feed e detalhe: selo "Tipo sem modelo de notificação" com link para o editor do tipo/exceção.
       Teste.
-- [ ] **T4.5** `haiku` — Locales pt-BR/en de tudo o que é novo; remover as chaves mortas (`occurrenceTypeCatalog.mail.*`
+- [x] **T4.5** `haiku` — Locales pt-BR/en de tudo o que é novo; remover as chaves mortas (`occurrenceTypeCatalog.mail.*`
       exceto `title` e `switch`).
-- [ ] **T4.6** `haiku` — App do motorista: tirar a tolerância a `emailItemLineTemplate` (`driverTrip.types.ts`) e o caso
+- [x] **T4.6** `haiku` — App do motorista: tirar a tolerância a `emailItemLineTemplate` (`driverTrip.types.ts`) e o caso
       do teste do guarda.
 
 ## Fase 5 — Fechamento e publicação da etapa A
@@ -123,9 +123,9 @@
 
 - [ ] **T5.1** `sonnet` — Conferir no navegador local (por texto, `read_page`) o editor do tipo, "Modelos", o diálogo e
       o editor da exceção, o diálogo desabilitado e o aviso; um e-mail automático no Mailpit (com a 268). Um print só no fim, no `evidence.md`.
-- [ ] **T5.2** `sonnet` — Revisão (`code-reviewer`) e revisão de segurança (`security-reviewer`: tenant do modelo,
+- [x] **T5.2** `sonnet` — Revisão (`code-reviewer`) e revisão de segurança (`security-reviewer`: tenant do modelo,
       injeção de cabeçalho no assunto, HTML escapado, PII em log). Achados corrigidos ou registrados.
-- [ ] **T5.3** `sonnet` — Auditoria §15 (N+1 no feed com a flag, `Promise.all` vs `allSettled` na prévia) e gates
+- [x] **T5.3** `sonnet` — Auditoria §15 (N+1 no feed com a flag, `Promise.all` vs `allSettled` na prévia) e gates
       completos das três apps + worker: typecheck, lint, script `test`, contrato da API
       (`bun --env-file=../../.env.test test --timeout 120000`), integração, migration-test, `bunx prettier --check .`
       na raiz.
