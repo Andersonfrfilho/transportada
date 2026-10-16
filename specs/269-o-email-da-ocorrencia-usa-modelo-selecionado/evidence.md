@@ -1,0 +1,100 @@
+# Evidência — 269 O e-mail da ocorrência usa o modelo selecionado
+
+## Decisões do dono (chat, 2026-10-16)
+
+1. O e-mail de ocorrência à contratante usa os modelos com parâmetros de "E-mail com contratantes → Modelos"
+   (`contractor_mail_templates`, spec 150), não o `email_subject`/`email_body` fixo do tipo.
+2. Seleção: no editor do **tipo** de ocorrência (Ocorrências → aba Tipos), um seletor dos modelos do tipo de e-mail novo
+   `occurrence`.
+3. Tipo sem modelo selecionado → **nenhum** e-mail sai (automático ou sugerido). Quando o tipo tem "envia e-mail à
+   contratante" ligado, a ocorrência mostra o aviso "Tipo sem modelo de notificação" (detalhe e lista do painel, e o
+   diálogo de envio).
+4. Começa do zero: o texto antigo dos tipos **não** é migrado para modelos; deixa de ser usado.
+5. Sem lixo: remover tudo o que ficar desnecessário — o caminho que renderiza o e-mail pelo texto do tipo, a máquina
+   `{{camelCase}}` **se** nada mais a usar, as constantes que ficarem mortas, os campos e a ajuda do editor de tipos, os
+   testes do código removido, e as colunas `email_subject`/`email_body` (e `email_item_line_template`, se só servir a este
+   e-mail). Em duas etapas: (A) o código para de ler e escrever as colunas e o código morto sai, na mesma entrega da
+   feature; (B) migration destrutiva separada, com rollback escrito, só depois de (A) em produção e com aprovação humana.
+
+## Levantamento contra `origin/staging` (e79e26171, 2026-10-16)
+
+Feito por leitura direta e uma busca paralela, só de leitura. A T0.1 confere as linhas antes de qualquer código.
+
+### Cadastro de modelos (150)
+
+- `CONTRACTOR_MAIL_TEMPLATE_TYPES = ['address_correction']`
+  (`apps/api-transportada/src/contractor-mail/domain/mail-template-catalog.constant.ts:9`); o cabeçalho do arquivo diz
+  que a ocorrência "entra depois, aqui". `MAIL_TEMPLATE_CATALOG` (:65-106) com `mailVariables`, `itemVariables` e
+  `suggestedTemplate`.
+- CHECK `contractor_mail_templates_mail_type_check` gerada da constante (`src/database/contractor-mail.schema.ts:372`):
+  tipo novo exige migration.
+- Unicidade: nome ativo por `(company, mail_type)` e um `is_default` ativo por `(company, mail_type)`; teto de 50 ativos
+  por tipo. Arquivar é `status = 'archived'` pela atualização do modelo.
+- Validação e renderização (`mail-template-render.policy.ts:41-93`): sintaxe `{nome}` (`/^[a-z_]+$/`), variável de item só
+  em `itemText`, todos os erros de uma vez; HTML escapa depois de substituir.
+- Prévia por tipo de e-mail: `previewRenderers` injetados em `createContractorMailTemplatesUseCase`
+  (`contractor-mail-templates.use-case.ts:80`) — o tipo novo precisa do seu.
+- `contractor_mail_messages.template_id` (FK composta para o modelo) existe; o e-mail de ocorrência **não** o preenche
+  hoje (`drizzle-occurrence-mail.repository.ts:543-556`).
+- **Painel estrito:** `contractorMailTemplatesResponse.validation.ts:57,78` reprova o catálogo e a lista inteiros com um
+  `mailType` desconhecido (`isOneOf(..., CONTRACTOR_MAIL_TEMPLATE_TYPES)`; constante copiada em
+  `contractorMailTemplates.types.ts:7`). Um `occurrence` vindo da API derruba a seção "Modelos" → a tolerância vai a
+  produção antes da API.
+
+### E-mail de ocorrência hoje (079/183/247)
+
+- Sugestão: `createOccurrenceSuggestedMailReader` (`drizzle-occurrence-mail.repository.ts:178-241`) lê
+  `email_subject`/`email_body`; assunto vazio → `null`; renderiza com `renderOccurrenceTemplate` (`{{camelCase}}`,
+  `trips/domain/occurrence-template.policy.ts:150`).
+- Automático: `send-automatic-occurrence-mail.use-case.ts:82-85` — `not_document`, `type_off` (`emails_contractor`
+  desligado), `no_template` (sugestão nula), `no_recipient`, `mail_not_ready`. O plano lê a sugestão só com
+  `emails_contractor` ligado (`drizzle-occurrence-mail.repository.ts:309`).
+- Diálogo: `preview-occurrence-mail.use-case.ts:65-73` usa a sugestão quando o operador não digitou; `suggested: boolean`
+  na resposta.
+- Registro: `register-trip-occurrence.use-case.ts:513-536` (`renderEmail`) também renderiza o texto do tipo e devolve
+  `email` na resposta do registro.
+- Variáveis (`src/shared/occurrence-template.constant.ts:13-49`): de ocorrência `numeroNota`, `numeroNotaSemSerie`,
+  `razaoSocial`, `valorNota`, `contratante`, `motorista`, `parada`, `data`, `item`, `codigoItem`, `quantidadeItem`,
+  `observacao`, `numeroReferencia`, `somaItens`, `valorDeclarado`; só no corpo `linhasItens`; só na linha `unidadeItem`,
+  `valorUnitarioItem`, `somaItem`, `valorItem`. Teto de 200 linhas; linha padrão quando o tipo não escreve a sua.
+- **Painel estrito no tipo:** `tripResponse.validation.ts:1882-1885` exige `emailBody` e `emailSubject` em cada tipo, e
+  a lista de chaves permitidas (:1956-1990) reprova chave desconhecida. Tirar os campos da API ou mandar
+  `emailTemplateId` antes do painel tolerante derruba a aba Tipos.
+- `emails_contractor` **fica**: a 248 exige o par (`trip.schema.ts:3266`, `contractor_reply_mode <> 'off'` →
+  `emails_contractor`) e o automático o lê.
+
+### O que a 248 usa (e por isso fica) — e o que é código morto
+
+- `driver_reply_template` é enviado como texto fixo, só aparado (`contractor-reply-driver-delivery.support.ts:58-62`);
+  `forward_email_subject`/`forward_email_body` só são aparados e escapados
+  (`forward-contractor-reply-by-email.use-case.ts:139-140`, `contractor-reply-note-recipient-forward.support.ts:103-114`).
+  **Nenhum importa `occurrence-template*`.** O aviso interno (`notifies` + `email_template_key`,
+  `register-trip-occurrence.use-case.ts:564-568`) também não.
+- Logo, a máquina `{{camelCase}}` inteira serve só ao e-mail à contratante, à prévia do tipo e à cópia do e-mail na
+  resposta do registro (`RegisterTripOccurrenceResult.email` → painel "e-mail pronto", `TripOccurrences.component.tsx:59,302-306`,
+  locale `occurrence.emailReady`). Tudo isso é morto depois desta spec. O inventário por item está em `plan.md`.
+- `email_item_line_template`: único leitor é a expansão de `{{linhasItens}}` (`occurrence-template.policy.ts:130-132`).
+  Morto. O `frontend-driver` só tolera a chave na resposta (`driverTrip.types.ts:501,532,565-566`).
+- **Lacuna do worker:** a varredura do aviso automático pega ocorrência com `emails_contractor = true` e sem registro de
+  idempotência (`worker-transportada/.../drizzle-occurrence-automatic-mail-queue.repository.ts:37-62`) e não olha o
+  assunto. Um pulo `no_template` não grava idempotência, então a mesma ocorrência volta a cada rodada até a janela
+  fechar. Com o RF8 (todo tipo sem modelo no deploy) isso viraria carga contínua → a varredura passa a exigir
+  `email_template_id IS NOT NULL` (T2.6).
+
+## Perguntas ao dono (abertas; nenhuma bloqueia a Fase 0–2)
+
+- **Q1 — O operador ainda pode escrever o e-mail à mão quando o tipo não tem modelo?** Padrão desta spec: **sim** — o
+  diálogo "Enviar à contratante" abre em branco com o aviso, e o envio manual continua possível (é o que a 183 faz para
+  tipo sem texto hoje). Se a resposta for "não", o botão fica desabilitado com o aviso (muda só a T4.3).
+- **Q2 — Modelo por contratante?** Padrão: **não na v1**. O modelo é do tipo, igual para toda contratante.
+- **Q3 — O tipo **inativo** segura o modelo contra arquivamento?** Padrão: **sim** (o tipo pode ser reativado e voltaria
+  sem e-mail em silêncio).
+
+## Medições pedidas antes de `main`
+
+- T5.4 (repetida na T6.1 antes da etapa B): quantos tipos por empresa têm `emails_contractor = true` (ficam sem e-mail no deploy, RF8) e quantos têm texto
+  não vazio em `email_subject` (texto descartado na etapa B). Só contagem, sem conteúdo.
+
+## Registro das tasks
+
+(vazio — cada task registra aqui comando, saída resumida e commit)
