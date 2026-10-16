@@ -407,3 +407,20 @@
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   }
 }
+
+.usageList {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.usageList p,
+.usageList ul {
+  margin: 0;
+}
+
+.usageList ul {
+  padding-left: var(--space-4);
+}

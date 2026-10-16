@@ -140,7 +140,12 @@
     "errorNotFound": "Modelo não encontrado.",
     "errorVersionConflict": "Este modelo foi alterado em outra aba. Recarregue e tente de novo — o texto digitado aqui não foi perdido.",
     "errorInvalidRequest": "Confira os campos e tente novamente.",
-    "errorGeneric": "Não foi possível salvar: {{code}}"
+    "errorGeneric": "Não foi possível salvar: {{code}}",
+    "errorInUse": "Este modelo ainda é escolhido por tipos de ocorrência ou por exceções de contratante. Troque o modelo deles antes de arquivar.",
+    "usage": {
+      "occurrenceTypes": "Tipos de ocorrência que o usam:",
+      "contractorExceptions": "Exceções por contratante que o usam (tipo / contratante):"
+    }
   },
   "contractorContacts": {
     "title": "Contatos da contratante",
