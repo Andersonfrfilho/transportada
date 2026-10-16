@@ -86,7 +86,7 @@ describe('contractor mail template routes (spec 150 T402)', () => {
         readonly suggestedTemplate: Record<string, string>
       }[]
     }
-    expect(body.data.map((entry) => entry.mailType)).toEqual(['address_correction'])
+    expect(body.data.map((entry) => entry.mailType)).toEqual(['address_correction', 'occurrence'])
     expect(body.data[0]?.mailVariables.map((variable) => variable.name)).toContain('clientes')
     expect(body.data[0]?.itemVariables.map((variable) => variable.name)).toContain('motivo')
     expect(body.data[0]?.suggestedTemplate).toMatchObject({ subject: SUGGESTED.subject })
@@ -395,7 +395,7 @@ describe('contractor mail template routes (spec 150 T402)', () => {
   test('refuses an unknown mailType filter and an unknown query key', async () => {
     const fixture = await createContractorMailTemplatesHttpFixture()
 
-    expect((await fixture.handle(getRequest(`${PATH}?mailType=occurrence`))).status).toBe(400)
+    expect((await fixture.handle(getRequest(`${PATH}?mailType=unknown_type`))).status).toBe(400)
     expect((await fixture.handle(getRequest(`${PATH}?companyId=${OTHER_COMPANY_ID}`))).status).toBe(
       400,
     )
