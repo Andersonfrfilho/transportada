@@ -127,7 +127,73 @@ arquitetura (T0.2) e já refletidas em `tasks.md`.
 
 ## Tasks
 
-_(cada task registra aqui comando, saída resumida e commit)_
+Commits em `work/spec-267`, um por task (`git commit --only`), com o trailer do Claude Opus 5.5. Gates por task: `tsc --noEmit` +
+testes da app + integração dos arquivos tocados sem `skip` (Postgres de teste 127.0.0.1:65432).
+
+| Task      | Commit                                | O que fechou                                                                                                                          |
+| --------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| T0.1/T0.2 | `a6e4d8519`                           | Revisão de arquitetura (aprovado com mudanças, sem ADR), divergências de linha, painel tolerante (sem fase de tolerância).            |
+| T1.1      | `59462559d`                           | Migration `20261016145700_occurrence_watchers` (duas tabelas + `cc_addresses`), rollback, cópia do schema no worker, códigos de erro. |
+| T1.2      | `8cf26a976`                           | `resolveEffectiveWatchers` (10 casos, incluindo inativo e lista só com inativos).                                                     |
+| T1.3      | `84ecbdd3f`                           | Repositório com auditoria na transação, tetos 10/30 sob advisory lock, elegibilidade em lote (6 consultas).                           |
+| T1.4      | `351a181e8`                           | Use cases e rotas por item; contrato com `createRouter` + `allowedMethods` (`candidates` × `:userId`).                                |
+| T2.1      | `e44d38b52`                           | Worker: `cc` no Resend e no sandbox, `to + cc ≤ 50` antes do transporte, integração do sandbox lendo `cc_addresses`.                  |
+| T2.2      | `5144b5c8a`                           | Envio manual: `resolveMailCopy`, `ccAddresses`, `excludedWatcherUserIds` (rota + impressão digital), prévia com `cc`/`ccSource`.      |
+| T2.3      | `f1287e2c0`                           | Automático com a lista inteira, reenvio da 248 recalculado, encaminhamento a terceiro com `{}`.                                       |
+| T2.4      | `b389053b9`                           | Correção de endereço: cópia, `excludedWatcherUserIds`, `cc` no dado do formulário.                                                    |
+| T2.5      | `396b7ade3`                           | Histórico da conversa: `copy` (nome + e-mail mascarado) na mensagem de saída.                                                         |
+| T2.6      | `f57eef995`                           | Contexto de I.A. da API e do worker.                                                                                                  |
+| T3.1      | `b1b9d4109`                           | Worker grava o `Cc` do e-mail recebido; emenda da 143 registrada.                                                                     |
+| T3.2      | `2a4b98346`                           | `identifyContractorSender` com `kind: 'internal'` (DKIM alinhado), leitura em lote; emenda da 183 registrada.                         |
+| T3.3      | `bc09e05b8`                           | Integração: o responsável entra como interno, sem sugestão de cadastro e sem e-mail de saída novo.                                    |
+| T4.1      | `9a1449252`                           | Aba "Responsáveis por ocorrências" em Configurações.                                                                                  |
+| T4.2      | `19c2241b4`                           | Lista própria na ficha da contratante.                                                                                                |
+| T4.3      | `7d4058311`                           | Chips removíveis nos diálogos de envio e de correção; chave de idempotência acompanha a remoção.                                      |
+| T4.4      | `433112557`                           | Histórico: linha "Cópia:" e mensagem da equipe com o selo.                                                                            |
+| T4.5      | `bf1447067`                           | Painel montado de verdade (DOM) e paridade pt-BR/en.                                                                                  |
+| T5.1      | `6051765f7`, `ea54e7ffb`, `7678a8fbb` | Achados da revisão corrigidos (abaixo).                                                                                               |
+
+### T5.1 — revisão de código e de segurança (`code-reviewer` e `security-reviewer`, sonnet)
+
+Corrigidos (com teste que falha sem a correção):
+
+1. **Alto — a resposta do responsável avançava o retorno da contratante e podia ir ao chat do motorista.** O worker não sabia quem
+   respondia. Agora `recordOccurrenceConversationMailReply` pula `applyContractorReplyToMessage` quando o `From` é usuário da empresa
+   com vínculo ativo **e** DKIM alinhado (`test/integration/occurrence-contractor-reply-received.integration.ts`).
+2. **Alto — a impressão digital do envio de ocorrência mudava para todo envio** (campo vazio no hash): chave em voo durante o deploy
+   daria 409. O campo só entra quando alguém saiu da cópia (`excludedFingerprintFields`).
+3. **Médio — endereço de perfil malformado** (vírgula, `<>`, quebra de linha, espaço) quebraria o envio permanentemente no gateway;
+   passa a ser tratado como "sem endereço" (inelegível) em `occurrence-watcher-directory.query.ts`, e o SMTP de sandbox
+   recusa os mesmos caracteres no `to` e no `cc`, como o Resend.
+4. **Médio — a prévia e o formulário da correção dependiam da consulta dos responsáveis**: falhando, a consulta vira cópia vazia e
+   `contractor_mail.copy.display_unavailable` (só o evento); o envio real continua falhando alto.
+5. **Baixo — `readCopyNames` sem `status = 'active'`**; nome de variável de uma letra.
+
+Registrados, sem alteração (decisão do dono ou fora de escopo):
+
+- **Lista da contratante só com ativos inelegíveis não herda a da empresa** (RF3 lido literalmente: "preenchida substitui"). Se o dono
+  preferir "ativo **e elegível**", é uma linha em `selectSource` e em `list`. **Pergunta aberta.**
+- **Limite da lista:** 10 ativos e 30 linhas (decisão delegada ao dono, § T0.2), onde o RF7 dizia só "10".
+- **Usuário sem elegibilidade responde 400, não 404** (`OCCURRENCE_WATCHER_NOT_ELIGIBLE`, sem dizer o critério): o 404 do NFR vale para
+  contratante e linha de outra empresa; usuário de outra empresa é "não elegível" como o inexistente.
+- **RF8 pela metade na correção de endereço:** o histórico da correção só expõe `recipientCount`; não existe "Para:" lá para somar a
+  "Cópia:". A cópia fica gravada (`cc_addresses`) e aparece no dado do formulário; o histórico da conversa mostra a cópia da ocorrência.
+- **Limitação conhecida:** `contractorState` da conversa (`replied` quando a última mensagem é recebida) **também conta a resposta
+  interna**. A mensagem aparece como da equipe, mas a coluna "Conversa" da listagem pode mostrar "respondeu". Corrigir exige distinguir
+  o remetente na consulta resumo (`occurrence-conversation-summary.query.ts`); não foi pedido na spec. **Seguimento sugerido.**
+- `maskEmailAddress` devolve o valor cru quando não há `@` (função da 248); a lista de candidatos só tem canal de e-mail.
+
+### Divergências de execução
+
+- **Painel sem `AlertDialog` do shadcn:** o repositório não o tem; a confirmação segue o molde `useModalDialog` + portal
+  (`role="alertdialog"`). O interruptor é o `Checkbox` do design system.
+- **Tolerância:** nenhuma fase de tolerância no painel foi necessária (§ T0.1b).
+- **Elegibilidade:** quem não tem e-mail não é oferecido como candidato; a spec previa mostrá-lo "sem e-mail". O selo "não elegível"
+  cobre quem já está gravado e perdeu o e-mail.
+- **Banco de teste do worker:** a integração do worker usa `transportada_worker_integration` com a migration aplicada por
+  `bun run db:migrate` da API (`DATABASE_URL` apontando para ele).
+- **Integração da API em shards:** o `test:integration` inteiro passa de 55 minutos neste ambiente (WSL sobre NTFS); a CI o
+  reparte em 8 shards (`scripts/integration-shard.ts`), e os gates rodaram assim (4 shards por vez).
 
 ## Respostas do dono (chat, 2026-10-15)
 

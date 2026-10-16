@@ -27,36 +27,36 @@
 
 > 🤖 Modelo: `sonnet` (T1.2 → `haiku`)
 
-- [ ] **T1.1** `sonnet` — Migration das tabelas `company_occurrence_watchers` e `contractor_occurrence_watchers` e da
+- [x] **T1.1** `sonnet` — Migration das tabelas `company_occurrence_watchers` e `contractor_occurrence_watchers` e da
       coluna `contractor_mail_messages.cc_addresses` (plan § Dados, com `status`/`updated_at`/`updated_by_user_id`), schema Drizzle (API **e a cópia do worker**) e códigos de erro. Aceite:
       `make migration-test` e `db:generate` com `no_changes` depois.
-- [ ] **T1.2** `haiku` — Teste antes de `occurrence-watcher.policy.ts` (`resolveEffectiveWatchers`, os 7 casos do plano
+- [x] **T1.2** `haiku` — Teste antes de `occurrence-watcher.policy.ts` (`resolveEffectiveWatchers`, os 7 casos do plano
       § Estratégia de testes + inativo fora da cópia + lista da contratante só com inativos herda a da empresa), depois a implementação pura.
-- [ ] **T1.3** `sonnet` — Repositório: ler/trocar as duas listas (transação, `audit_logs` com antes/depois),
+- [x] **T1.3** `sonnet` — Repositório: ler/trocar as duas listas (transação, `audit_logs` com antes/depois),
       candidatos elegíveis (vínculo ativo + `occurrences.resolve`) e endereços dos elegíveis **em lote** (molde do
       `identity-recipient.resolver.ts`, sem N+1). Integração na mesma task.
-- [ ] **T1.4** `sonnet` — Use cases e `occurrence-watchers.routes.ts` (`settings.manage`): endpoints por item (GET/POST/PATCH/DELETE) da empresa e da contratante, GET dos candidatos, teste com o roteador real. Contratos: 200, 400 inelegível, 400 acima de 10, 404 de outra empresa (lista e
+- [x] **T1.4** `sonnet` — Use cases e `occurrence-watchers.routes.ts` (`settings.manage`): endpoints por item (GET/POST/PATCH/DELETE) da empresa e da contratante, GET dos candidatos, teste com o roteador real. Contratos: 200, 400 inelegível, 400 acima de 10, 404 de outra empresa (lista e
       contratante), usuário de outra empresa → 400; nenhum par de rotas com o mesmo método casa o mesmo caminho.
 
 ## Fase 2 — Envio com cópia
 
 > 🤖 Modelo: `sonnet` (T2.6 → `haiku`)
 
-- [ ] **T2.1** `sonnet` — Worker, teste antes: `SendResendEmailInput.cc?` e o `cc?` do gateway sandbox, validação por endereço e
+- [x] **T2.1** `sonnet` — Worker, teste antes: `SendResendEmailInput.cc?` e o `cc?` do gateway sandbox, validação por endereço e
       `to + cc ≤ CONTRACTOR_MAIL_MAX_RECIPIENTS` conferido uma vez antes do transporte (Resend e sandbox); `send-contractor-mail-outbound-message` passa `message.ccAddresses`
       (vazio → sem campo). O contrato de paridade do limite continua verde.
-- [ ] **T2.2** `sonnet` — `executeSend` resolve a cópia (`resolve-mail-copy.service.ts`), `recordMail` grava
+- [x] **T2.2** `sonnet` — `executeSend` resolve a cópia (`resolve-mail-copy.service.ts`), `recordMail` grava
       `ccAddresses`, a rota aceita `excludedWatcherUserIds` (ainda `.strict()`; o contrato `cc` → 400 é mantido) e entra
       na impressão digital da idempotência; o preview devolve `cc` e `ccSource`; `MAX_RECIPIENTS` local da rota passa a
       importar `CONTRACTOR_MAIL_MAX_RECIPIENTS`; manual acima de 50 → 400 `CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS`.
       Contrato e integração (manual com e sem remoção, responsável sem permissão some).
-- [ ] **T2.3** `sonnet` — Automático (lista inteira, corte com `warn` acima de 50), reenvio da 248 (lista recalculada) e
+- [x] **T2.3** `sonnet` — Automático (lista inteira, corte com `warn` acima de 50), reenvio da 248 (lista recalculada) e
       encaminhamento a terceiro (`cc_addresses = '{}'`). Integração dos três.
-- [ ] **T2.4** `sonnet` — Correção de endereço: o envio resolve a cópia pela contratante da correção, aceita
+- [x] **T2.4** `sonnet` — Correção de endereço: o envio resolve a cópia pela contratante da correção, aceita
       `excludedWatcherUserIds`, o dado do formulário devolve `cc`. Contrato e integração.
-- [ ] **T2.5** `sonnet` — O histórico de e-mail da conversa e da correção expõe `ccAddresses` (mesmo tratamento do
+- [x] **T2.5** `sonnet` — O histórico de e-mail da conversa e da correção expõe `ccAddresses` (mesmo tratamento do
       `toAddresses` atual). Contrato da resposta.
-- [ ] **T2.6** `haiku` — Documentação viva: OpenAPI das rotas novas e dos campos novos, `apps/api-transportada/CLAUDE.md`
+- [x] **T2.6** `haiku` — Documentação viva: OpenAPI das rotas novas e dos campos novos, `apps/api-transportada/CLAUDE.md`
       (núcleo) e `docs/ai-context/api-transportada.md`; `apps/worker-transportada/CLAUDE.md` e
       `docs/ai-context/worker-transportada.md` (cópia na saída e `cc` na entrada).
 
@@ -64,35 +64,35 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** `sonnet` — Worker: o schema do e-mail recebido declara `cc`, e `record-contractor-mail-inbound-message`
+- [x] **T3.1** `sonnet` — Worker: o schema do e-mail recebido declara `cc`, e `record-contractor-mail-inbound-message`
       grava `cc_addresses`. Registrar a emenda da 143 (`plan.md:49`) com link para esta spec. Teste.
-- [ ] **T3.2** `sonnet` — Teste antes: `identifyContractorSender` com `kind: 'internal'` (usuário da empresa com DKIM →
+- [x] **T3.2** `sonnet` — Teste antes: `identifyContractorSender` com `kind: 'internal'` (usuário da empresa com DKIM →
       interno; sem DKIM → `unknown`; contato vence usuário; `reachedContractor`). Depois, a política e o
       `occurrence-conversation.query.ts` (endereços dos usuários citados, em lote). Registrar a emenda da 183 com link.
-- [ ] **T3.3** `sonnet` — Integração ponta a ponta: o responsável responde a todos pelo token → a conversa mostra a
+- [x] **T3.3** `sonnet` — Integração ponta a ponta: o responsável responde a todos pelo token → a conversa mostra a
       mensagem interna dele, sem sugestão de cadastro e **sem** e-mail de saída nem notificação nova.
 
 ## Fase 4 — Painel
 
 > 🤖 Modelo: `sonnet` (T4.4 e T4.5 → `haiku`)
 
-- [ ] **T4.1** `sonnet` — Aba "Responsáveis por ocorrências" em `/company-settings` (painel, placement, tab id, ramo na
+- [x] **T4.1** `sonnet` — Aba "Responsáveis por ocorrências" em `/company-settings` (painel, placement, tab id, ramo na
       página, molde do `quickReplies`): seleção múltipla dos candidatos, "sem e-mail"/"sem permissão" marcados, máximo 10. Teste de renderização e do salvar.
-- [ ] **T4.2** `sonnet` — Seção "Responsáveis desta contratante — substitui a lista da empresa" na tela da contratante,
+- [x] **T4.2** `sonnet` — Seção "Responsáveis desta contratante — substitui a lista da empresa" na tela da contratante,
       ao lado dos contatos, mostrando qual lista vale (`effectiveSource`) e "Limpar e herdar da empresa". Teste.
-- [ ] **T4.3** `sonnet` — Linha "Cópia:" com chips removíveis no diálogo de envio de ocorrência e no da correção de
+- [x] **T4.3** `sonnet` — Linha "Cópia:" com chips removíveis no diálogo de envio de ocorrência e no da correção de
       endereço; o envio manda `excludedWatcherUserIds`; sem campo de digitar. Teste: remover um chip e enviar.
-- [ ] **T4.4** `haiku` — Histórico: "Cópia:" na mensagem; mensagem interna por e-mail com o autor e o selo "só para a
+- [x] **T4.4** `haiku` — Histórico: "Cópia:" na mensagem; mensagem interna por e-mail com o autor e o selo "só para a
       equipe — a contratante não recebeu" quando `reachedContractor` for falso. Teste.
-- [ ] **T4.5** `haiku` — Locales pt-BR/en de tudo acima.
+- [x] **T4.5** `haiku` — Locales pt-BR/en de tudo acima.
 
 ## Fase 5 — Fechamento
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** `sonnet` — Revisão (`code-reviewer`) e revisão de segurança (`security-reviewer`: BOLA nas listas,
+- [x] **T5.1** `sonnet` — Revisão (`code-reviewer`) e revisão de segurança (`security-reviewer`: BOLA nas listas,
       endereço livre impossível, nenhum endereço em log, `internal` só com DKIM). Achados corrigidos ou registrados.
-- [ ] **T5.2** `sonnet` — Auditoria §15 (N+1 na resolução dos endereços, `Promise.all` vs `allSettled`, sem PII). Gates
+- [x] **T5.2** `sonnet` — Auditoria §15 (N+1 na resolução dos endereços, `Promise.all` vs `allSettled`, sem PII). Gates
       completos: `make check`, integração da API, `make migration-test`. Emenda da 248 (`spec.md:75`: a cópia só leva
       usuário da empresa) registrada com link.
 - [ ] **T5.3** `sonnet` — Publicação em etapas, **cada uma com aprovação humana**: API + migration → worker → painel

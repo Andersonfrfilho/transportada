@@ -624,3 +624,19 @@ configuração não está pronta, ou o aviso do Mailpit quando o `GET /contracto
 (`settingsReadFromApi`: `sandboxDelivery` vem ao lado de `data`, que segue com as chaves exatas). A seção de contatos dessa aba
 tem um botão que abre a aba "Contratantes". Teste: `test/trip-hooks/contractor-mail-sandbox-panel.contract.ts` (roda no
 `test:hooks`, com o preload de DOM).
+
+## Os responsáveis vão em cópia no e-mail da contratante (spec 267)
+
+⚠️ O painel dos responsáveis (`OccurrenceWatchersPanel`, módulo `occurrence-conversation`) é **autocontido** e serve a dois
+lugares: a aba "Responsáveis por ocorrências" de Configurações (escopo `company`) e a ficha da contratante
+(`ContractorOccurrenceWatchers`, escopo `contractor`, logo depois dos contatos). Cada linha: nome, e-mail **mascarado**, interruptor
+Ativo/Inativo (`PATCH`) e "Remover" com confirmação na página (`OccurrenceWatcherRemoveDialog`, `role="alertdialog"`, nunca
+`window.confirm`); inelegível continua listado com o selo "não elegível". O cliente (`occurrenceWatchersClient`) fala com as rotas
+**por item** da API; o provider (`occurrenceWatchersClient.provider`) é o que os testes de DOM trocam
+(`test/trip-hooks/occurrenceWatchersHarness.helper.ts`, instalado por `installContractorDirectoryDouble`, porque a ficha monta o painel).
+Os diálogos de envio (`SendToContractorDialog`, `AddressCorrectionMailDialog`) mostram a "Cópia:" em chips removíveis
+(`MailCopyChips`, `modules/shared`): **não há campo para adicionar nem digitar endereço**; quem sai vai em `excludedWatcherUserIds`
+(só quando há remoção) e **entra na chave de idempotência** (outra remoção, outra chave). No histórico, a mensagem de saída ganha a
+linha "Cópia: …" e a resposta do responsável (`identity.kind === 'internal'`) vira "Nome · Equipe", com o selo "só para a equipe — a
+contratante não recebeu" quando `reachedContractor` é falso. Não houve fase de tolerância: a leitura do painel antigo ignora campo novo.
+Detalhe: `docs/ai-context/frontend-transportada.md`.
