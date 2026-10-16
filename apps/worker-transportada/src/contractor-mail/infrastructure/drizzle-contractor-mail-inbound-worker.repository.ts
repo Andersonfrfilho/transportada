@@ -64,6 +64,8 @@ export type RecordContractorMailInboundMessageInput = {
   readonly subject: string
   readonly threadId: string
   readonly toAddresses: readonly string[]
+  /** Spec 267 RF9: o `Cc` do e-mail recebido; vazio quando não veio. */
+  readonly ccAddresses: readonly string[]
 }
 
 export type ContractorMailInboundWorkerRepository = {
@@ -218,6 +220,7 @@ export function createDrizzleContractorMailInboundWorkerRepository(
             subject: input.subject,
             threadId: input.threadId,
             toAddresses: [...input.toAddresses],
+            ccAddresses: [...input.ccAddresses],
           })
           .onConflictDoNothing({
             target: [contractorMailMessages.companyId, contractorMailMessages.providerEmailId],

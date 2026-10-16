@@ -211,6 +211,7 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
       subject: 'Re: Ocorrência',
       threadId: seeded.threadId,
       toAddresses: ['r+token@reply.example.test'],
+      ccAddresses: ['ana@empresa.example.test'],
     })
   }
 
