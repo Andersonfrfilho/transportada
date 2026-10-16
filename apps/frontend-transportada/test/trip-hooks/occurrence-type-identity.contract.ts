@@ -26,8 +26,6 @@ const TYPE: OccurrenceType = {
   allowsMultipleItems: true,
   ...OCCURRENCE_REQUIREMENT_DEFAULTS,
   attachmentMode: 'optional',
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: null,
   flow: 'document',
   id: 'type-1',

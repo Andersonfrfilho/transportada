@@ -4,7 +4,7 @@
  * Spec 150 T403: modelos de e-mail por tipo. ⚠️ Cópia por valor do que a API devolve (T402,
  * `mail-template-catalog.constant.ts`) — o bundle não carrega código de lá.
  */
-export const CONTRACTOR_MAIL_TEMPLATE_TYPES = ['address_correction'] as const
+export const CONTRACTOR_MAIL_TEMPLATE_TYPES = ['address_correction', 'occurrence'] as const
 export type ContractorMailTemplateType = (typeof CONTRACTOR_MAIL_TEMPLATE_TYPES)[number]
 
 /** RF15: arquivado, nunca apagado — a mensagem enviada aponta para o modelo que usou. */

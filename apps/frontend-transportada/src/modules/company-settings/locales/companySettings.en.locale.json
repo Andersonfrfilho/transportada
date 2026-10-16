@@ -463,33 +463,7 @@
     },
     "mail": {
       "title": "Contractor e-mail",
-      "switch": "Send an e-mail to the invoice's contractor when registered",
-      "save": "Save e-mail",
-      "undo": "Undo",
-      "fields": {
-        "subject": "Subject",
-        "body": "Body",
-        "itemLine": "Line for each product"
-      },
-      "markers": {
-        "subject": "Subject markers — tap one to insert it where the cursor is.",
-        "body": "Body markers — tap one to insert it where the cursor is.",
-        "itemLine": "Product line markers — tap one to insert it where the cursor is."
-      },
-      "markerOverflow": "The marker did not fit: this field is already at its {{max}}-character limit. Delete some text and try again.",
-      "unknownMarker_one": "This marker does not exist in this field: {{markers}}. Use one from the list below; nothing was saved.",
-      "unknownMarker_other": "These markers do not exist in this field: {{markers}}. Use the ones from the list below; nothing was saved.",
-      "preview": {
-        "title": "Preview · sample data",
-        "recipient": "To: the invoice contractor's contacts that receive occurrences",
-        "loading": "Generating the preview…",
-        "failed": "Could not generate the preview. What you typed is still here; try again shortly.",
-        "blocked": "Fix the marker to see the preview.",
-        "automatic": "Goes out automatically when the type is registered.",
-        "manual": "Off: the operator sends it from the occurrence conversation, if they want.",
-        "noSubject": "Without a subject the automatic e-mail does not go out.",
-        "linesWithoutItems": "This type has no products: wherever there is {{marker}} the e-mail goes out without lines."
-      }
+      "switch": "Send an e-mail to the invoice's contractor when registered"
     },
     "moments": {
       "title": "Who registers, and where",
@@ -619,6 +593,18 @@
         "automaticNeedsReply": "Automatic sending to the invoice customer requires the reply to be on.",
         "forwardNeedsText": "Write the subject and the text: the email to the third party is not sent without both."
       }
+    },
+    "mailTemplate": {
+      "label": "Email template",
+      "none": "None",
+      "inherit": "Inherit from the type",
+      "archivedName": "{{name}} (archived)",
+      "failed": "Could not load the templates. Try again shortly.",
+      "previewTitle": "Preview · sample data",
+      "previewLoading": "Building the preview…",
+      "previewFailed": "Could not build the preview.",
+      "missing": "Type without a notification template: the email to the contractor is not sent. Choose a template.",
+      "manage": "Manage templates"
     }
   },
   "settingsResolution": {

@@ -25,8 +25,6 @@ function buildType(id: string, stage: 'delivery' | 'separation'): OccurrenceType
     active: true,
     allowsMultipleItems: false,
     attachmentMode: 'off',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     id,

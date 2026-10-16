@@ -222,8 +222,6 @@ async function mockCompanySettingsOccurrenceTypesWorkspace(page: Page): Promise<
         {
           active: true,
           allowsMultipleItems: true,
-          emailBody: '',
-          emailSubject: '',
           emailTemplateKey: null,
           id: OCCURRENCE_TYPE_SEPARATION_ID,
           leavesDocumentBehind: true,
@@ -235,8 +233,6 @@ async function mockCompanySettingsOccurrenceTypesWorkspace(page: Page): Promise<
         {
           active: true,
           allowsMultipleItems: true,
-          emailBody: '',
-          emailSubject: '',
           emailTemplateKey: null,
           id: OCCURRENCE_TYPE_DELIVERY_ID,
           leavesDocumentBehind: false,

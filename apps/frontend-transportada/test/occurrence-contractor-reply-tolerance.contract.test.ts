@@ -28,8 +28,6 @@ function buildOccurrenceType(extra: Readonly<Record<string, unknown>> = {}) {
   return {
     active: true,
     allowsMultipleItems: false,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TYPE_ID,
     name: 'Cliente pediu prorrogação do boleto',

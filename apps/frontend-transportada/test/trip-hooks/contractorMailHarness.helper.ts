@@ -21,6 +21,7 @@ import type {
   ContractorMailSettingsRead,
   ContractorMailSettingsSummary,
 } from '@/modules/delivery-clients/shared/contractorMailSettings.types'
+import type { ContractorMailTemplate } from '@/modules/delivery-clients/shared/contractorMailTemplates.types'
 import type { ContractorMailTemplatesClient } from '@/modules/delivery-clients/shared/contractorMailTemplatesClient.service'
 
 /** Mesmo valor de `ALFA_CONTRACTOR_ID` do harness do diretório, que importa este arquivo. */
@@ -60,9 +61,11 @@ export const ALFA_CONTACT: ContractorContact = {
 export const mailFakes: {
   contacts: ContractorContact[]
   read: ContractorMailSettingsRead
+  templates: ContractorMailTemplate[]
 } = {
   contacts: [],
   read: { sandboxDelivery: false, summary: null },
+  templates: [],
 }
 
 export type MailDoubleCalls = {
@@ -70,6 +73,7 @@ export type MailDoubleCalls = {
   readonly contactUpdates: { body: unknown; contactId: string }[]
   readonly contactCreates: { body: unknown; contractorId: string }[]
   readonly contractorListCalls: { count: number }
+  readonly previewTemplateIds: string[]
 }
 
 const CONTRACTOR_SUMMARIES: readonly ContractorSummary[] = [
@@ -92,11 +96,13 @@ export function installContractorMailDouble(
 ): MailDoubleCalls {
   mailFakes.contacts = initial.contacts ?? []
   mailFakes.read = initial.read ?? { sandboxDelivery: false, summary: null }
+  mailFakes.templates = initial.templates ?? []
   const calls: MailDoubleCalls = {
     contactCreates: [],
     contactLists: [],
     contactUpdates: [],
     contractorListCalls: { count: 0 },
+    previewTemplateIds: [],
   }
   contactsClient.current = {
     createContact: (input) => {
@@ -151,7 +157,17 @@ export function installContractorMailDouble(
           suggestedTemplate: { closing: 'c', intro: 'i', itemText: '', name: 'n', subject: 's' },
         },
       ]),
-    listTemplates: () => Promise.resolve([]),
+    listTemplates: (mailType: string) =>
+      Promise.resolve(mailFakes.templates.filter((template) => template.mailType === mailType)),
+    preview: (source: { templateId?: string }) => {
+      const templateId = source.templateId ?? ''
+      calls.previewTemplateIds.push(templateId)
+      return Promise.resolve({
+        html: '',
+        subject: `ASSUNTO ${templateId}`,
+        text: `CORPO ${templateId}`,
+      })
+    },
   } as unknown as ContractorMailTemplatesClient
   return calls
 }

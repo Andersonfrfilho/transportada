@@ -1901,8 +1901,6 @@ type RawOccurrenceType = Omit<
   OccurrenceType,
   | 'allowsMultipleItems'
   | 'attachmentMode'
-  | 'emailBody'
-  | 'emailSubject'
   | 'flow'
   | 'itemsMinimumCount'
   | 'itemsMode'
@@ -1916,10 +1914,6 @@ type RawOccurrenceType = Omit<
   Readonly<{
     allowsMultipleItems?: unknown
     attachmentMode?: unknown
-    emailBody?: unknown
-    emailSubject?: unknown
-    contractorMailTemplateId?: unknown
-    missingNotificationTemplate?: unknown
     emailsContractor?: unknown
     flow?: unknown
     itemsMinimumCount?: unknown
@@ -1936,7 +1930,6 @@ type RawOccurrenceType = Omit<
     declaredAmountMode?: unknown
     declaredAmountScope?: unknown
     declaredAmountLabel?: unknown
-    emailItemLineTemplate?: unknown
   }>
 
 function isPositiveInteger(value: unknown): value is number {
@@ -1990,10 +1983,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'declaredAmountMode',
         'declaredAmountScope',
         'declaredAmountLabel',
-        'emailItemLineTemplate',
-        /** Spec 269 T1.2 (ADR-0106): o texto antigo do e-mail sai da API e o tipo passa a apontar para um modelo; tolerados antes de a API mudar. */
-        'emailBody',
-        'emailSubject',
+        /** Spec 269 (ADR-0106): o tipo aponta para um modelo `occurrence`, e a API avisa quando falta. */
         'contractorMailTemplateId',
         'missingNotificationTemplate',
         ...CONTRACTOR_REPLY_TYPE_KEYS,
@@ -2010,8 +2000,6 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
       isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES)) &&
     (value.emailsContractor === undefined || isBoolean(value.emailsContractor)) &&
     (value.stopKind === undefined || value.stopKind === null || isString(value.stopKind)) &&
-    (value.emailBody === undefined || isString(value.emailBody)) &&
-    (value.emailSubject === undefined || isString(value.emailSubject)) &&
     (value.contractorMailTemplateId === undefined ||
       value.contractorMailTemplateId === null ||
       isString(value.contractorMailTemplateId)) &&
@@ -2048,7 +2036,6 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
       isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
     (value.declaredAmountLabel === undefined || isString(value.declaredAmountLabel)) &&
     (value.iconName === undefined || value.iconName === null || isString(value.iconName)) &&
-    (value.emailItemLineTemplate === undefined || isString(value.emailItemLineTemplate)) &&
     hasValidContractorReplyTypeFields(value)
   )
 }
@@ -2075,15 +2062,10 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     declaredAmountScope,
     declaredAmountLabel,
     iconName,
-    emailItemLineTemplate,
-    emailBody,
-    emailSubject,
     ...rest
   } = raw
   return {
     ...rest,
-    emailBody: isString(emailBody) ? emailBody : '',
-    emailSubject: isString(emailSubject) ? emailSubject : '',
     ...(isOneOf(itemsMode, OCCURRENCE_ITEMS_MODES) ? { itemsMode } : {}),
     ...(Array.isArray(moments) ? { moments: moments as readonly OccurrenceMoment[] } : {}),
     ...(itemsMinimumCount === null || typeof itemsMinimumCount === 'number'
@@ -2100,7 +2082,6 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     ...(isString(declaredAmountScope) ? { declaredAmountScope } : {}),
     ...(isString(declaredAmountLabel) ? { declaredAmountLabel } : {}),
     ...(isString(iconName) ? { iconName } : {}),
-    ...(isString(emailItemLineTemplate) ? { emailItemLineTemplate } : {}),
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
     flow: isOneOf(flow, OCCURRENCE_TYPE_FLOWS) ? flow : 'document',

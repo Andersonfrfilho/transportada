@@ -17,8 +17,6 @@ const TYPE: OccurrenceType = {
   active: true,
   allowsMultipleItems: false,
   attachmentMode: 'required',
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: 'trip.occurrence',
   flow: 'stop',
   id: 'type-1',
@@ -38,7 +36,7 @@ const NEW_FIELD_KEYS = [
   'declaredAmountLabel',
   'declaredAmountMode',
   'declaredAmountScope',
-  'emailItemLineTemplate',
+  'contractorMailTemplateId',
   'emailsContractor',
   'itemsMinimumCount',
   'moments',
@@ -66,8 +64,6 @@ describe('buildOccurrenceTypeUpdate', () => {
       active: true,
       allowsMultipleItems: false,
       attachmentMode: 'required',
-      emailBody: '',
-      emailSubject: '',
       emailTemplateKey: 'trip.occurrence',
       leavesDocumentBehind: true,
       name: 'Avaria',
@@ -80,24 +76,24 @@ describe('buildOccurrenceTypeUpdate', () => {
     expect(update).not.toHaveProperty('flow')
   })
 
-  test('o e-mail à contratante vai como está em toda edição: o PUT sem ele gravaria vazio (spec 247 RF2)', () => {
-    const withMail: OccurrenceType = {
+  test('o modelo do e-mail à contratante só vai quando a edição o troca (spec 269)', () => {
+    const withTemplate: OccurrenceType = {
       ...TYPE,
-      emailBody: 'Corpo gravado',
-      emailItemLineTemplate: '{{item}}',
-      emailSubject: 'Assunto gravado',
+      contractorMailTemplateId: 'template-1',
       emailsContractor: true,
     }
     for (const edit of EDITS) {
-      const update = buildOccurrenceTypeUpdate(withMail, edit)
-      expect(update.emailBody).toBe('Corpo gravado')
-      expect(update.emailSubject).toBe('Assunto gravado')
-      expect(update).not.toHaveProperty('emailItemLineTemplate')
+      const update = buildOccurrenceTypeUpdate(withTemplate, edit)
+      expect(update).not.toHaveProperty('contractorMailTemplateId')
       expect(update).not.toHaveProperty('emailsContractor')
     }
-    expect(buildOccurrenceTypeUpdate(withMail, { emailsContractor: false }).emailsContractor).toBe(
-      false,
-    )
+    expect(
+      buildOccurrenceTypeUpdate(withTemplate, { contractorMailTemplateId: null })
+        .contractorMailTemplateId,
+    ).toBeNull()
+    expect(
+      buildOccurrenceTypeUpdate(withTemplate, { emailsContractor: false }).emailsContractor,
+    ).toBe(false)
   })
 
   test('cada edição troca só o campo editado e nunca manda itemsMode', () => {

@@ -34,8 +34,6 @@ function buildType(): OccurrenceType {
     declaredAmountLabel: ORIGINAL_LABEL,
     declaredAmountMode: 'optional',
     declaredAmountScope: 'item',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     id: 'type-1',

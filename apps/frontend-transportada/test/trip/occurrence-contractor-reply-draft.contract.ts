@@ -21,8 +21,6 @@ const TYPE = {
   active: true,
   allowsMultipleItems: true,
   attachmentMode: 'off',
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: null,
   emailsContractor: true,
   flow: 'document',

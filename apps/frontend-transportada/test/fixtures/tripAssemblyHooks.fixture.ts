@@ -66,7 +66,6 @@ export type FakeTripClient = Pick<
   | 'listContractors'
   | 'listOccurrenceAttachmentOverridesBatch'
   | 'listOccurrenceTypes'
-  | 'previewOccurrenceTypeEmail'
   | 'readMultiVehicleProposal'
   | 'readMultiVehicleSuggestion'
   | 'readTripDeliveryProofs'
@@ -92,8 +91,6 @@ export function createUnexpectedTripClient(): FakeTripClient {
     listOccurrenceAttachmentOverridesBatch: () =>
       Promise.reject(new Error('UNEXPECTED_LIST_OCCURRENCE_OVERRIDES_BATCH')),
     listOccurrenceTypes: () => Promise.reject(new Error('UNEXPECTED_LIST_OCCURRENCE_TYPES')),
-    previewOccurrenceTypeEmail: () =>
-      Promise.reject(new Error('UNEXPECTED_PREVIEW_OCCURRENCE_TYPE_EMAIL')),
     readMultiVehicleProposal: () => Promise.reject(new Error('UNEXPECTED_PROPOSAL_READ')),
     readMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_SUGGESTION_READ')),
     readTripDeliveryProofs: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_DELIVERY_PROOFS')),

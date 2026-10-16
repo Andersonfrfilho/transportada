@@ -14,8 +14,6 @@ const TYPE: OccurrenceType = {
   active: true,
   allowsMultipleItems: false,
   attachmentMode: 'off',
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: null,
   flow: 'document',
   iconName: 'truck',

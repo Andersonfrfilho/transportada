@@ -141,17 +141,12 @@ import {
   readOccurrenceAttachmentOverrides,
   readOccurrenceAttachmentOverridesBatch,
 } from './occurrenceAttachmentOverrides.validation'
-import type {
-  OccurrenceMailPreview,
-  OccurrenceMailPreviewInput,
-} from './occurrenceMailDraft.service'
 import type { OccurrenceTypeSaveInput } from './occurrenceTypeUpdate.service'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
 const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
 /** Spec 218 RF-B3: exceções do `attachmentMode` de um tipo, por contratante e por destinatário. */
-const OCCURRENCE_TYPE_EMAIL_PREVIEW_PATH = `${OCCURRENCE_TYPES_PATH}/email-preview`
 const OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_BATCH_PATH = `${OCCURRENCE_TYPES_PATH}/attachment-overrides`
 const occurrenceTypeAttachmentOverridesPath = (occurrenceTypeId: string): string =>
   `${OCCURRENCE_TYPES_PATH}/${occurrenceTypeId}/attachment-overrides`
@@ -339,7 +334,6 @@ export type TripClient = Readonly<{
   ) => Promise<OccurrenceAttachmentOverrides>
   saveOccurrenceType: (input: OccurrenceTypeSaveInput) => Promise<OccurrenceType>
   /** Spec 247 RF4: o e-mail do tipo renderizado pelo servidor, com dados de exemplo — nada é gravado. */
-  previewOccurrenceTypeEmail: (input: OccurrenceMailPreviewInput) => Promise<OccurrenceMailPreview>
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
@@ -962,12 +956,10 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           active: input.active,
           allowsMultipleItems: input.allowsMultipleItems,
           attachmentMode: input.attachmentMode,
-          /** Spec 247 RF2: o e-mail à contratante vai como está — o `PUT` sem ele o gravaria vazio. */
-          ...(input.emailBody === undefined ? {} : { emailBody: input.emailBody }),
-          ...(input.emailSubject === undefined ? {} : { emailSubject: input.emailSubject }),
-          ...(input.emailItemLineTemplate === undefined
+          /** Spec 269: o modelo do e-mail à contratante — `null` limpa, ausente mantém. */
+          ...(input.contractorMailTemplateId === undefined
             ? {}
-            : { emailItemLineTemplate: input.emailItemLineTemplate }),
+            : { contractorMailTemplateId: input.contractorMailTemplateId }),
           ...(input.emailsContractor === undefined
             ? {}
             : { emailsContractor: input.emailsContractor }),
@@ -1050,19 +1042,6 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: OCCURRENCE_TYPES_PATH,
       })
       return adapters.occurrenceTypeFromApi(readEnvelopeData(response))
-    },
-    async previewOccurrenceTypeEmail(input) {
-      const response = await authorizedRequest({
-        body: JSON.stringify(input),
-        dependencies,
-        method: 'POST',
-        path: OCCURRENCE_TYPE_EMAIL_PREVIEW_PATH,
-      })
-      const data = readEnvelopeData(response)
-      if (!isRecord(data) || !isString(data.body) || !isString(data.subject)) {
-        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      }
-      return { body: data.body, subject: data.subject }
     },
     async listOccurrenceAttachmentOverrides(input) {
       const response = await authorizedRequest({

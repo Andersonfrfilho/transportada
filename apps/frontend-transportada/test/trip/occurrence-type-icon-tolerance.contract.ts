@@ -15,8 +15,6 @@ function buildOccurrenceType(extra: Readonly<Record<string, unknown>> = {}) {
   return {
     active: true,
     allowsMultipleItems: false,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: '54ed0225-f293-47c3-84fe-0b66eff68784',
     name: 'Item avariado',

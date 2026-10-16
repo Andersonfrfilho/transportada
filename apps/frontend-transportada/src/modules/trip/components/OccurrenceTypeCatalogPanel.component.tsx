@@ -8,10 +8,6 @@ import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import styles from '@/modules/trip/styles/trip.module.css'
 
 import {
-  createOccurrenceMailDraftStore,
-  OccurrenceMailDraftStoreContext,
-} from '../hooks/useOccurrenceMailDraftStore.hook'
-import {
   createOccurrenceMomentsDraftStore,
   OccurrenceMomentsDraftStoreContext,
 } from '../hooks/useOccurrenceMomentsDraftStore.hook'
@@ -75,7 +71,6 @@ export function OccurrenceTypeCatalogPanel({
 
   const filtersController = useOccurrenceTypeFilters()
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
-  const [mailDraftStore] = useState(createOccurrenceMailDraftStore)
   const [momentsDraftStore] = useState(createOccurrenceMomentsDraftStore)
 
   const created = useOccurrenceTypeJustCreated({
@@ -152,20 +147,18 @@ export function OccurrenceTypeCatalogPanel({
           query={filtersController.filters.query}
         />
       ) : (
-        <OccurrenceMailDraftStoreContext.Provider value={mailDraftStore}>
-          <OccurrenceMomentsDraftStoreContext.Provider value={momentsDraftStore}>
-            <OccurrenceTypeList
-              canManage={canManage}
-              exceptionsOf={exceptionsOf}
-              expandedIds={expandedIds}
-              isSaving={isSaving}
-              onSave={onSave}
-              onToggle={handleToggle}
-              templates={templates}
-              types={visibleTypes}
-            />
-          </OccurrenceMomentsDraftStoreContext.Provider>
-        </OccurrenceMailDraftStoreContext.Provider>
+        <OccurrenceMomentsDraftStoreContext.Provider value={momentsDraftStore}>
+          <OccurrenceTypeList
+            canManage={canManage}
+            exceptionsOf={exceptionsOf}
+            expandedIds={expandedIds}
+            isSaving={isSaving}
+            onSave={onSave}
+            onToggle={handleToggle}
+            templates={templates}
+            types={visibleTypes}
+          />
+        </OccurrenceMomentsDraftStoreContext.Provider>
       )}
 
       {canManage && loadStatus === 'ready' ? (

@@ -49,7 +49,7 @@ describe('contractor mail templates response validation', () => {
   })
 
   test('drops a well-formed catalog entry with an unknown mail type and keeps the known ones', () => {
-    const futureEntry = { ...CATALOG_ENTRY, mailType: 'occurrence' }
+    const futureEntry = { ...CATALOG_ENTRY, mailType: 'future_type' }
     expect(catalogFromApi({ data: [CATALOG_ENTRY, futureEntry] })).toEqual([CATALOG_ENTRY])
   })
 
@@ -60,7 +60,7 @@ describe('contractor mail templates response validation', () => {
   })
 
   test('drops a listed template of an unknown mail type and keeps the known ones', () => {
-    const futureTemplate = { ...TEMPLATE, id: 'template-9', mailType: 'occurrence' }
+    const futureTemplate = { ...TEMPLATE, id: 'template-9', mailType: 'future_type' }
     expect(templateListFromApi({ data: [futureTemplate, TEMPLATE] })).toEqual([TEMPLATE])
   })
 
