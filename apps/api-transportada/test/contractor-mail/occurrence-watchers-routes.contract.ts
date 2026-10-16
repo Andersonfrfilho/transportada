@@ -164,8 +164,20 @@ function buildApi(permissions: readonly string[] = ['settings.manage']) {
 const COMPANY_PATH = '/company-settings/occurrence-watchers'
 const CONTRACTOR_PATH = `/contractors/${CONTRACTOR_ID}/occurrence-watchers`
 
-async function readJson(response: Response): Promise<any> {
-  return response.json()
+type WatcherData = {
+  readonly effectiveSource?: string
+  readonly status?: string
+  readonly watchers: readonly { readonly eligible: boolean; readonly userId: string }[]
+}
+type JsonBody = { readonly data: unknown; readonly error: { readonly code: string } }
+
+/** O corpo `data` de um item ou de uma lista, para ler um campo sem afirmar a forma inteira. */
+function dataOf(body: JsonBody): WatcherData {
+  return body.data as WatcherData
+}
+
+async function readJson(response: Response): Promise<JsonBody> {
+  return (await response.json()) as JsonBody
 }
 
 describe('occurrence watchers routes (spec 267 T1.4)', () => {
@@ -235,7 +247,7 @@ describe('occurrence watchers routes (spec 267 T1.4)', () => {
     await api.send('POST', COMPANY_PATH, { userId: ANA })
     const response = await api.send('PATCH', `${COMPANY_PATH}/${ANA}`, { status: 'inactive' })
     expect(response.status).toBe(200)
-    expect((await readJson(response)).data.status).toBe('inactive')
+    expect(dataOf(await readJson(response)).status).toBe('inactive')
     expect((await api.send('PATCH', `${COMPANY_PATH}/${ANA}`, { status: 'paused' })).status).toBe(
       400,
     )
@@ -268,11 +280,11 @@ describe('occurrence watchers routes (spec 267 T1.4)', () => {
     const text = JSON.stringify(await readJson(response))
     expect(text).not.toContain('@empresa.test')
     const body = JSON.parse(text)
-    expect(body.data.watchers.map((item: any) => [item.userId, item.eligible])).toEqual([
+    expect(dataOf(body).watchers.map((item) => [item.userId, item.eligible])).toEqual([
       [ANA, true],
       [NO_PERMISSION, false],
     ])
-    expect(body.data.effectiveSource).toBeUndefined()
+    expect(dataOf(body).effectiveSource).toBeUndefined()
   })
 
   test('a lista da contratante diz qual lista vale; sem ativo vale a da empresa', async () => {
@@ -281,11 +293,11 @@ describe('occurrence watchers routes (spec 267 T1.4)', () => {
     expect(empty.data).toEqual({ effectiveSource: 'company', watchers: [] })
     await api.send('POST', CONTRACTOR_PATH, { userId: ANA })
     await api.send('PATCH', `${CONTRACTOR_PATH}/${ANA}`, { status: 'inactive' })
-    expect((await readJson(await api.send('GET', CONTRACTOR_PATH))).data.effectiveSource).toBe(
+    expect(dataOf(await readJson(await api.send('GET', CONTRACTOR_PATH))).effectiveSource).toBe(
       'company',
     )
     await api.send('PATCH', `${CONTRACTOR_PATH}/${ANA}`, { status: 'active' })
-    expect((await readJson(await api.send('GET', CONTRACTOR_PATH))).data.effectiveSource).toBe(
+    expect(dataOf(await readJson(await api.send('GET', CONTRACTOR_PATH))).effectiveSource).toBe(
       'contractor',
     )
     expect((await api.send('DELETE', `${CONTRACTOR_PATH}/${ANA}`)).status).toBe(204)
