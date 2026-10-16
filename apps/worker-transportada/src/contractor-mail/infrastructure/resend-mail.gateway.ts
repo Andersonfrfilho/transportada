@@ -67,6 +67,8 @@ export type ResendEmailAttachment = {
 export type SendResendEmailInput = {
   readonly apiKey: string
   readonly attachments?: readonly ResendEmailAttachment[]
+  /** Spec 267: a cópia da empresa; só usuário da empresa, nunca endereço digitado. `To` + `Cc` ≤ 50. */
+  readonly cc?: readonly string[]
   readonly from: string
   readonly headers: Readonly<Record<string, string>>
   /** Spec 150 T302: sem HTML, o e-mail sai só em texto — a chave nem vai no corpo do POST. */
@@ -109,7 +111,8 @@ export function createResendMailGateway(input: CreateResendMailGatewayInput): Re
 
   return {
     async sendEmail(request) {
-      if (!isValidRecipientList(request.to)) throw new ResendInvalidRecipientsError()
+      if (!isValidRecipientList(request.to, request.cc ?? []))
+        throw new ResendInvalidRecipientsError()
 
       const body = await requestJson({
         body: {
@@ -122,6 +125,7 @@ export function createResendMailGateway(input: CreateResendMailGatewayInput): Re
                   filename: attachment.fileName,
                 })),
               }),
+          ...(request.cc === undefined || request.cc.length === 0 ? {} : { cc: [...request.cc] }),
           from: request.from,
           headers: request.headers,
           ...(request.html === undefined ? {} : { html: request.html }),
@@ -237,10 +241,12 @@ async function requestJson(params: {
   }
 }
 
-function isValidRecipientList(recipients: readonly string[]): boolean {
+function isValidRecipientList(recipients: readonly string[], copied: readonly string[]): boolean {
   if (recipients.length === 0) return false
-  if (recipients.length > CONTRACTOR_MAIL_MAX_RECIPIENTS) return false
-  return recipients.every((address) => !FORBIDDEN_RECIPIENT_CHARACTERS.test(address))
+  if (recipients.length + copied.length > CONTRACTOR_MAIL_MAX_RECIPIENTS) return false
+  return [...recipients, ...copied].every(
+    (address) => !FORBIDDEN_RECIPIENT_CHARACTERS.test(address),
+  )
 }
 
 function safeParseUrl(value: string): URL | undefined {
