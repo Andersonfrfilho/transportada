@@ -190,6 +190,8 @@ export type TripOccurrenceFeedItem = Readonly<{
   id: string
   invoiceNumber: null | string
   invoiceSeries: null | string
+  /** Spec 269 D8: o tipo avisa a contratante e não há modelo efetivo. Ausente é API anterior ao campo. */
+  missingNotificationTemplate?: boolean
   notifies: boolean
   /** Spec 241 RF5: ausente é API anterior ao campo. */
   occurrenceTypeId?: null | string
