@@ -955,6 +955,7 @@ const API_VERSION = '0.1.0'
  * O aviso não leva anexo, então a storage dele recusa qualquer uso.
  */
 function buildSendAutomaticOccurrenceMailUseCase(input: {
+  readonly contractorMailSandbox: ApiEnvironment['contractorMailSandbox']
   readonly database: ReturnType<typeof createDatabaseProvider>['db']
   readonly envelopeKeyRing: Parameters<typeof createSecretEnvelopeProvider>[0]
   readonly idempotencyHmacKey: Uint8Array
@@ -964,6 +965,9 @@ function buildSendAutomaticOccurrenceMailUseCase(input: {
   return createSendAutomaticOccurrenceMailUseCase({
     reader: createAutomaticOccurrenceMailReader(input.database),
     sendMail: createSendOccurrenceMailUseCase({
+      ...(input.contractorMailSandbox === undefined
+        ? {}
+        : { contractorMailSandbox: input.contractorMailSandbox }),
       fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
       logger: input.logger,
       secretService: createContractorMailCredentialSecretService({
@@ -1006,6 +1010,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDatabaseProvider({ pool: config.databasePool, url: config.databaseUrl })
   const sendAutomaticOccurrenceMail = buildSendAutomaticOccurrenceMailUseCase({
+    contractorMailSandbox: config.contractorMailSandbox,
     database: database.db,
     envelopeKeyRing: config.cryptography.envelopeKeyRing,
     idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
@@ -1644,6 +1649,7 @@ export function bootstrap(): Bun.Server<undefined> {
         automaticManifestNotifier,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
         contractorMailRateLimit: config.contractorMailRateLimit,
+        contractorMailSandbox: config.contractorMailSandbox,
         database: database.db,
         notifications,
         envelopeKeyRing: config.cryptography.envelopeKeyRing,
@@ -1986,6 +1992,8 @@ type CreateApplicationRoutesParams = {
   readonly cargoLayoutTimeBudgetMs: number
   /** Spec 150 RF18: o teto do envio de correção e do e-mail de teste, do ambiente. */
   readonly contractorMailRateLimit: ApiEnvironment['contractorMailRateLimit']
+  /** Spec 268: o modo sandbox do e-mail da contratante; ausente em produção. */
+  readonly contractorMailSandbox: ApiEnvironment['contractorMailSandbox']
   readonly database: CompanySettingsDatabase
   /** O módulo de notificação, para o envio de teste do editor de template sair pelo caminho real. */
   readonly notifications: NotificationModule
@@ -2062,6 +2070,7 @@ function createApplicationRoutes({
   automaticManifestNotifier,
   cargoLayoutTimeBudgetMs,
   contractorMailRateLimit,
+  contractorMailSandbox,
   database,
   googleMapsApiKey,
   messaging,
@@ -3048,6 +3057,7 @@ function createApplicationRoutes({
       mailRateLimit: contractorMailRateLimit,
       read: { execute: (input) => contractorMailSettings.read(input) },
       runChecks: { execute: (input) => contractorMailSettings.runChecks(input) },
+      sandboxEnabled: contractorMailSandbox !== undefined,
       save: { execute: (input) => contractorMailSettings.save(input) },
       sendTestEmail: { execute: (input) => sendContractorMailTestEmail.execute(input) },
     }),
@@ -3427,6 +3437,7 @@ function createApplicationRoutes({
       resendRequest: createResendContractorReplyRequestUseCase({
         reader: createDrizzleContractorReplyResendReader(database),
         sendMail: createSendOccurrenceMailUseCase({
+          ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
           fingerprintService,
           secretService: contractorMailCredentialSecretService,
           storage: storageGateway,
@@ -3535,6 +3546,7 @@ function createApplicationRoutes({
         suggestedMail: createOccurrenceSuggestedMailReader(database),
       }),
       sendMail: createSendOccurrenceMailUseCase({
+        ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
         fingerprintService,
         secretService: contractorMailCredentialSecretService,
         storage: storageGateway,

@@ -553,6 +553,7 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
         subject: params.subject,
         threadId: params.threadId,
         toAddresses: [...params.toAddresses],
+        transport: params.transport,
       })
       .returning({ id: contractorMailMessages.id })
     if (message === undefined) throw new Error('OCCURRENCE_MAIL_MESSAGE_NOT_PERSISTED')
