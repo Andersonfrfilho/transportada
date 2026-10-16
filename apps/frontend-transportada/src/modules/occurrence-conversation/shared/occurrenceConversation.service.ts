@@ -34,6 +34,8 @@ export type ConversationMessageAuthorView =
       suggestion: ContractorSenderSuggestion
       unverified: boolean
     }>
+  /** Spec 267 RF9: o responsável da equipe que respondeu por e-mail. */
+  | Readonly<{ kind: 'internal'; name: string; reachedContractor: boolean }>
   /** Portal: o usuário da contratante (Fase 6b). */
   | Readonly<{ kind: 'contractorUser' }>
 
@@ -51,6 +53,9 @@ function describeAuthor(message: OccurrenceConversationMessage): ConversationMes
   if (author.kind === 'driver') return { kind: 'driver', name: author.name ?? '' }
   const { identity } = author
   if (identity === null) return { kind: 'contractorUser' }
+  if (identity.kind === 'internal') {
+    return { kind: 'internal', name: identity.name, reachedContractor: identity.reachedContractor }
+  }
   if (identity.kind === 'contact') {
     const { contact } = identity
     return {

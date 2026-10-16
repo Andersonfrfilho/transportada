@@ -32,8 +32,11 @@ const LABELS: OccurrenceThreadAuthorLabels = {
   },
   contractor: 'Contratante',
   contractorUser: 'Usuário da contratante',
+  copy: 'Cópia',
   driver: 'Motorista',
   operation: 'Operação',
+  team: 'Equipe',
+  teamOnly: 'só para a equipe — a contratante não recebeu',
   unverified: 'Remetente não confirmado',
 }
 
@@ -220,6 +223,45 @@ describe('o mapa da mensagem da ocorrência para o SDK', () => {
     expect(withName('  ')).toBe('Contratante · via E-mail')
     expect(withName('compras@alfa.example.test')).toBe('Contratante · via E-mail')
     expect(withName('Compras Alfa')).not.toContain('@')
+  })
+
+  /** Spec 267 RF8/RF9: a cópia aparece no histórico; o responsável que respondeu é da equipe, com o selo quando a contratante não recebeu. */
+  test('a mensagem de saída mostra "Cópia:" e a resposta do responsável é da equipe, com o selo se a contratante não recebeu', () => {
+    const withCopy = toThreadMessage(
+      message({
+        copy: [
+          { maskedEmail: 'a***@e***.test', name: 'Ana' },
+          { maskedEmail: 'b***@e***.test', name: null },
+        ],
+      }),
+      LABELS,
+    )
+    expect(withCopy.text).toBe('Cópia: Ana, b***@e***.test\n\nAutorizam a descarga?')
+    expect(toThreadMessage(message(), LABELS).text).toBe('Autorizam a descarga?')
+
+    const internal = (reachedContractor: boolean) =>
+      toThreadMessage(
+        message({
+          author: {
+            identity: {
+              arrivedAs: 'ana@empresa.test',
+              kind: 'internal',
+              name: 'Ana',
+              reachedContractor,
+              userId: 'user-ana',
+            },
+            kind: 'contractor',
+            userId: null,
+          },
+          direction: 'inbound',
+          status: null,
+        }),
+        LABELS,
+      ).authorName
+    expect(internal(true)).toBe('Ana · Equipe · via E-mail')
+    expect(internal(false)).toBe(
+      'Ana · Equipe · só para a equipe — a contratante não recebeu · via E-mail',
+    )
   })
 
   test('o aviso automático e o motorista têm nome; o anexo vira o formato do SDK', () => {

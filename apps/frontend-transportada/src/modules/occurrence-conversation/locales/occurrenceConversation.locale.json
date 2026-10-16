@@ -50,7 +50,10 @@
     },
     "automatic": "Aviso automático do tipo de ocorrência",
     "unverified": "Remetente não confirmado",
-    "unverifiedHint": "O e-mail chegou sem assinatura do domínio do remetente: o endereço pode ter sido escrito por outra pessoa."
+    "unverifiedHint": "O e-mail chegou sem assinatura do domínio do remetente: o endereço pode ter sido escrito por outra pessoa.",
+    "copy": "Cópia",
+    "team": "Equipe",
+    "teamOnly": "só para a equipe — a contratante não recebeu"
   },
   "status": {
     "queued": "Na fila",

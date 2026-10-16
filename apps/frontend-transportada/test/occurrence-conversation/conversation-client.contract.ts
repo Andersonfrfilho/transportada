@@ -89,6 +89,71 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
     ])
   })
 
+  /** Spec 267 RF8/RF9: a cópia da mensagem de saída e o responsável que respondeu (interno) são lidos. */
+  test('lê a cópia da mensagem de saída e a identidade interna do responsável', async () => {
+    const client = createClient(
+      Response.json({
+        data: {
+          conversations: [
+            {
+              id: 'conversation-1',
+              messages: [
+                {
+                  ...OUTBOUND,
+                  copy: [
+                    { maskedEmail: 'a***@e***.test', name: 'Ana' },
+                    { maskedEmail: 'b***@e***.test', name: null },
+                    { broken: true },
+                  ],
+                  id: 'with-copy',
+                },
+                {
+                  ...OUTBOUND,
+                  author: {
+                    identity: {
+                      arrivedAs: 'ana@empresa.test',
+                      kind: 'internal',
+                      name: 'Ana',
+                      reachedContractor: false,
+                      userId: 'user-ana',
+                    },
+                    kind: 'contractor',
+                    userId: null,
+                  },
+                  direction: 'inbound',
+                  id: 'internal-reply',
+                  status: null,
+                },
+              ],
+              participant: 'contractor',
+              status: 'open',
+              unreadCount: 0,
+            },
+          ],
+        },
+      }),
+    )
+
+    const { conversations } = await client.listConversations({ occurrenceId: OCCURRENCE_ID })
+    const [withCopy, internal] = conversations[0]?.messages ?? []
+
+    expect(withCopy?.copy).toEqual([
+      { maskedEmail: 'a***@e***.test', name: 'Ana' },
+      { maskedEmail: 'b***@e***.test', name: null },
+    ])
+    expect(internal?.author).toEqual({
+      identity: {
+        arrivedAs: 'ana@empresa.test',
+        kind: 'internal',
+        name: 'Ana',
+        reachedContractor: false,
+        userId: 'user-ana',
+      },
+      kind: 'contractor',
+      userId: null,
+    })
+  })
+
   test('a leitura diz se o canal Portal está aberto (spec 183 T654)', async () => {
     const client = createClient(
       Response.json({ data: { contractorPortal: { available: true }, conversations: [] } }),

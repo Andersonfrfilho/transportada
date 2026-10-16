@@ -23,6 +23,7 @@ import {
   OCCURRENCE_CONVERSATION_MESSAGE_STATUSES,
   type ContractorMailRequest,
   type OccurrenceConversation,
+  type OccurrenceConversationCopyEntry,
   type OccurrenceConversationsView,
   type OccurrenceConversationMessage,
   type OccurrenceMailCopyEntry,
@@ -141,7 +142,21 @@ function isIdentity(value: unknown): boolean {
       typeof value.inactive === 'boolean'
     )
   }
+  if (value.kind === 'internal') {
+    return (
+      isString(value.name) && isString(value.userId) && typeof value.reachedContractor === 'boolean'
+    )
+  }
   return value.kind === 'unknown' && isRecord(value.suggestion)
+}
+
+function toCopy(value: unknown): readonly OccurrenceConversationCopyEntry[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry): OccurrenceConversationCopyEntry[] =>
+    isRecord(entry) && isString(entry.maskedEmail) && (entry.name === null || isString(entry.name))
+      ? [{ maskedEmail: entry.maskedEmail, name: entry.name }]
+      : [],
+  )
 }
 
 function toMessage(value: unknown): null | OccurrenceConversationMessage {
@@ -171,11 +186,13 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
         ),
       )
     : {}
+  const copy = toCopy(value.copy)
   return {
     attachments: toConversationAttachments(value.attachments),
     author,
     bodyText: value.bodyText,
     channel: value.channel,
+    ...(copy.length === 0 ? {} : { copy }),
     createdAt: value.createdAt,
     direction: value.direction,
     id: value.id,

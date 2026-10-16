@@ -50,7 +50,10 @@
     },
     "automatic": "Automatic notice from the occurrence type",
     "unverified": "Sender not confirmed",
-    "unverifiedHint": "The email arrived without the sender domain's signature: someone else may have written that address."
+    "unverifiedHint": "The email arrived without the sender domain's signature: someone else may have written that address.",
+    "copy": "Cc",
+    "team": "Team",
+    "teamOnly": "team only — the contractor did not receive it"
   },
   "status": {
     "queued": "Queued",
