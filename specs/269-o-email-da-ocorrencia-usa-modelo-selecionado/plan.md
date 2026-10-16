@@ -8,6 +8,10 @@ fatos que moldam o plano:
 - **O cadastro da 150 já tem quase tudo:** modelos por tipo de e-mail, variáveis em dois níveis, validação com todos os
   erros, renderização com HTML escapado, prévia por tipo, padrão, arquivamento, teto de 50 e `template_id` na mensagem.
   Falta o tipo `occurrence` (constante + CHECK + renderizador de prévia).
+- **A exceção por contratante já existe** (`company_occurrence_type_contractor_overrides`, `trip.schema.ts:3289`; PUT
+  `/company-settings/occurrence-types/attachment-overrides`, schema `.strict()`; precedência em
+  `src/shared/resolve-with-overrides.policy.ts`) e o painel a edita na aba Tipos (`OccurrenceTypeExceptions`,
+  `OccurrenceExceptionForm`). A coluna nova entra nela como as irmãs (nulo herda).
 - **O texto do tipo e a máquina `{{camelCase}}` só servem a este e-mail** (e à cópia dele na resposta do registro). A 248
   não os usa. Por isso a máquina sai inteira; fica só a **leitura dos valores** (nota, itens, somas), que passa a
   alimentar as variáveis `{snake_case}`.
@@ -15,7 +19,7 @@ fatos que moldam o plano:
   ocorrência exige `emailSubject`/`emailBody` e reprova chave desconhecida; a resposta do registro e a prévia do diálogo
   têm forma fixa. **Por isso a Fase 1 (painel tolerante) vai a produção antes da API.**
 - **Lacuna do worker:** pulo sem modelo não grava idempotência e a varredura repete a ocorrência. A varredura passa a
-  exigir modelo.
+  exigir modelo efetivo (tipo ou exceção).
 
 ### Ordem com a 268
 
@@ -28,17 +32,17 @@ resumo da aba de e-mail (`MailSendReadinessSummary`).
 
 ## Decisões de desenho (a T0.2 valida com `architect`)
 
-| #   | Escolha                                                                                                                                                                                                                                                                                 | Alternativa rejeitada                                                                                            |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| D1  | Tipo de e-mail `occurrence` no catálogo da 150, renderizado por `renderMailTemplate`.                                                                                                                                                                                                   | Manter `{{camelCase}}` e só mover o texto — duas sintaxes para sempre.                                           |
-| D2  | `company_occurrence_types.email_template_id uuid NULL`, FK composta `(company_id, email_template_id)` → `contractor_mail_templates (company_id, id)` `ON DELETE RESTRICT`.                                                                                                              | Tabela de ligação tipo × modelo — não há N:N (um modelo por tipo na v1).                                         |
-| D3  | O modelo escolhido precisa ser `occurrence` e `active` — conferido na gravação do tipo, com `FOR KEY SHARE` no modelo; arquivar trava o modelo `FOR UPDATE` e responde 409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE` se algum tipo (ativo ou inativo) o usa.                                    | Arquivar e limpar o tipo em silêncio; CHECK por gatilho no banco (mais caro de manter que a regra na transação). |
-| D4  | Modelo nulo = sem e-mail. Não cai no `is_default` nem no texto antigo.                                                                                                                                                                                                                  | Usar o padrão do tipo `occurrence` — o dono quer escolha explícita por tipo.                                     |
-| D5  | Corpo = abertura + linhas de item + encerramento, separados por linha em branco; seção vazia some. A assinatura (operador e transportadora) continua sendo anexada por `buildOccurrenceMail`, como hoje — por isso o catálogo `occurrence` **não** tem `{operador}`/`{transportadora}`. | Variáveis de assinatura no modelo — o envio automático não tem operador, e a assinatura sairia duplicada.        |
-| D6  | Variáveis de e-mail que agregam itens têm nome no plural (`{itens}`, `{codigos_itens}`, `{quantidades_itens}`); as de item ficam no singular. O validador da 150 confere variável de item **antes** da de e-mail, então o mesmo nome não pode existir nos dois níveis.                  | Reusar `{item}` nos dois níveis — o validador recusaria `{item}` no assunto.                                     |
-| D7  | O envio manual registra o modelo quando o diálogo partiu da sugestão: a prévia devolve `templateId`; o envio aceita `templateId?` opcional, conferido como modelo `occurrence` ativo da empresa (404/409), e o grava em `template_id`.                                                  | Inferir pelo texto; gravar sempre `null` no manual.                                                              |
-| D8  | O aviso é um booleano calculado pela API (`missingNotificationTemplate = emails_contractor && email_template_id IS NULL`) no item do feed, no detalhe e na prévia do diálogo. O painel não recalcula.                                                                                   | O painel ler o tipo e decidir — duplicaria a regra em três telas.                                                |
-| D9  | Etapa A remove o código; o schema `.strict()` do `PUT` **aceita e ignora** `emailSubject`/`emailBody`/`emailItemLineTemplate` até a etapa B (o painel antigo, ainda em produção durante a publicação, os manda). A etapa B tira as chaves e as colunas.                                 | Tirar as chaves já na A — o painel antigo tomaria 400 ao salvar um tipo durante a janela de publicação.          |
+| #   | Escolha                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Alternativa rejeitada                                                                                                                                                                                   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Tipo de e-mail `occurrence` no catálogo da 150, renderizado por `renderMailTemplate`.                                                                                                                                                                                                                                                                                                                                                                                                                    | Manter `{{camelCase}}` e só mover o texto — duas sintaxes para sempre.                                                                                                                                  |
+| D2  | `email_template_id uuid NULL` em **dois** lugares: `company_occurrence_types` (o modelo do tipo) e `company_occurrence_type_contractor_overrides` (a exceção por contratante, specs 218/246/247/248; nulo herda do tipo, campo a campo, como as colunas irmãs). Cada um com FK composta `(company_id, email_template_id)` → `contractor_mail_templates (company_id, id)` `ON DELETE RESTRICT`. **Modelo efetivo = exceção da contratante ?? tipo** (`resolveWithOverrides`, sem camada de destinatário). | Tabela de ligação tipo × modelo; exceção por destinatário (o dono quer só por contratante); escopo do tipo por contratante (o dono recusou: o tipo é geral, a exceção acompanha a contratante da nota). |
+| D3  | O modelo escolhido (no tipo ou na exceção) precisa ser `occurrence` e `active` — conferido na gravação, com `FOR KEY SHARE` no modelo; arquivar trava o modelo `FOR UPDATE` e responde 409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE` se algum tipo (ativo ou inativo) **ou alguma exceção de contratante** o usa, listando os tipos e os pares tipo/contratante.                                                                                                                                                 | Arquivar e limpar em silêncio; CHECK por gatilho no banco.                                                                                                                                              |
+| D4  | Modelo efetivo nulo = sem e-mail, **nem à mão**: o automático pula, o diálogo fica com o envio desabilitado e a API recusa o envio manual com 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`. Não cai no `is_default` nem no texto antigo.                                                                                                                                                                                                                                                                       | Usar o padrão do tipo `occurrence`; deixar o operador escrever à mão (o dono bloqueou).                                                                                                                 |
+| D5  | Corpo = abertura + linhas de item + encerramento, separados por linha em branco; seção vazia some. A assinatura (operador e transportadora) continua sendo anexada por `buildOccurrenceMail`, como hoje — por isso o catálogo `occurrence` **não** tem `{operador}`/`{transportadora}`.                                                                                                                                                                                                                  | Variáveis de assinatura no modelo — o envio automático não tem operador, e a assinatura sairia duplicada.                                                                                               |
+| D6  | Variáveis de e-mail que agregam itens têm nome no plural (`{itens}`, `{codigos_itens}`, `{quantidades_itens}`); as de item ficam no singular. O validador da 150 confere variável de item **antes** da de e-mail, então o mesmo nome não pode existir nos dois níveis.                                                                                                                                                                                                                                   | Reusar `{item}` nos dois níveis — o validador recusaria `{item}` no assunto.                                                                                                                            |
+| D7  | O servidor resolve o modelo efetivo também no envio manual e o grava em `template_id`; o corpo do envio **não** traz `templateId` (o cliente não escolhe o modelo). O operador pode editar o texto sugerido antes de enviar.                                                                                                                                                                                                                                                                             | Aceitar `templateId` do cliente — confiar no cliente para o rastreio; gravar `null` no manual.                                                                                                          |
+| D8  | O aviso é um booleano calculado pela API (`missingNotificationTemplate = emails_contractor && modelo efetivo IS NULL`, com a exceção da contratante da nota) no item do feed, no detalhe e na prévia do diálogo. O painel não recalcula.                                                                                                                                                                                                                                                                 | O painel ler tipo e exceção e decidir — duplicaria a resolução em três telas.                                                                                                                           |
+| D9  | Etapa A remove o código; o schema `.strict()` do `PUT` **aceita e ignora** `emailSubject`/`emailBody`/`emailItemLineTemplate` até a etapa B (o painel antigo, ainda em produção durante a publicação, os manda). A etapa B tira as chaves e as colunas.                                                                                                                                                                                                                                                  | Tirar as chaves já na A — o painel antigo tomaria 400 ao salvar um tipo durante a janela de publicação.                                                                                                 |
 
 ## Catálogo `occurrence`
 
@@ -77,26 +81,30 @@ item `{codigo_item} – {item} – {quantidade_item} {unidade_item} – R$ {valo
 
 ### API (`apps/api-transportada`)
 
-| Camada       | Arquivo (novo ou alterado)                                                                                                                                                                                                                         |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Catálogo     | `contractor-mail/domain/mail-template-catalog.constant.ts`: `occurrence` em `CONTRACTOR_MAIL_TEMPLATE_TYPES`, `OCCURRENCE_MAIL_TYPE`, entrada do catálogo                                                                                          |
-| Domínio      | `contractor-mail/domain/occurrence-mail-body.policy.ts` (pura, nova): compõe assunto e corpo (D5) a partir do modelo e dos valores; teto de 200 linhas                                                                                             |
-| Domínio      | `trips/domain/occurrence-mail-values.policy.ts` (nova, nasce do que sobra de `occurrence-template.policy.ts` + `occurrence-template-lines.policy.ts`): valores de e-mail e de item em `{snake_case}`                                               |
-| Prévia       | renderizador `occurrence` em `previewRenderers` (`contractor-mail-templates.use-case.ts:80`), com valores de exemplo (o `OCCURRENCE_TEMPLATE_PREVIEW_SAMPLE` de hoje, renomeado)                                                                   |
-| Arquivar     | `contractor-mail-templates.use-case.ts` + repositório: `FOR UPDATE` no modelo, conferir uso por `company_occurrence_types.email_template_id`, 409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE` com `details.occurrenceTypeNames`                              |
-| Tipo         | `occurrence.schema.ts` (`emailTemplateId: uuid \| null` opcional, D9), `save-occurrence-type.use-case.ts`, `save-occurrence-type-values.mapper.ts`, `delivery-proof-read.support.ts` (leitura e escrita da coluna; resposta com `emailTemplateId`) |
-| Envio        | `drizzle-occurrence-mail.repository.ts`: `createOccurrenceSuggestedMailReader` lê o modelo escolhido (join), devolve `{ subject, bodyText, templateId }` ou `null`; `recordMail` grava `templateId`                                                |
-| Envio        | `send-automatic-occurrence-mail.use-case.ts`: motivo `no_template` vira `no_template_selected`; passa `templateId`                                                                                                                                 |
-| Envio        | `send-occurrence-mail.use-case.ts` + schema da rota: `templateId?` (D7)                                                                                                                                                                            |
-| Diálogo      | `preview-occurrence-mail.use-case.ts`: `templateId` e `missingNotificationTemplate` na resposta                                                                                                                                                    |
-| Feed/detalhe | item do feed (`GET /trip-occurrences`) e detalhe ganham `missingNotificationTemplate` (D8)                                                                                                                                                         |
-| Schema       | `database/trip.schema.ts` (coluna + FK + índice parcial), `database/contractor-mail.schema.ts` (CHECK via constante) + migration                                                                                                                   |
-| Erros        | `shared/errors/codes.ts`: `CONTRACTOR_MAIL_TEMPLATE_IN_USE` (409), `OCCURRENCE_TYPE_EMAIL_TEMPLATE_KIND_INVALID` (400); reusa `CONTRACTOR_MAIL_TEMPLATE_NOT_FOUND`/`_ARCHIVED` se existirem (T0.1 confere)                                         |
+| Camada       | Arquivo (novo ou alterado)                                                                                                                                                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Catálogo     | `contractor-mail/domain/mail-template-catalog.constant.ts`: `occurrence` em `CONTRACTOR_MAIL_TEMPLATE_TYPES`, `OCCURRENCE_MAIL_TYPE`, entrada do catálogo                                                                                                                      |
+| Domínio      | `contractor-mail/domain/occurrence-mail-body.policy.ts` (pura, nova): compõe assunto e corpo (D5) a partir do modelo e dos valores; teto de 200 linhas                                                                                                                         |
+| Domínio      | `trips/domain/occurrence-mail-values.policy.ts` (nova, nasce do que sobra de `occurrence-template.policy.ts` + `occurrence-template-lines.policy.ts`): valores de e-mail e de item em `{snake_case}`                                                                           |
+| Prévia       | renderizador `occurrence` em `previewRenderers` (`contractor-mail-templates.use-case.ts:80`), com valores de exemplo (o `OCCURRENCE_TEMPLATE_PREVIEW_SAMPLE` de hoje, renomeado)                                                                                               |
+| Arquivar     | `contractor-mail-templates.use-case.ts` + repositório: `FOR UPDATE` no modelo, conferir uso no tipo e na exceção, 409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE` com `details.occurrenceTypeNames` e `details.contractorExceptions`                                                     |
+| Tipo         | `occurrence.schema.ts` (`emailTemplateId: uuid \| null` opcional, D9), `save-occurrence-type.use-case.ts`, `save-occurrence-type-values.mapper.ts`, `delivery-proof-read.support.ts` (leitura e escrita da coluna; resposta com `emailTemplateId`)                             |
+| Envio        | `drizzle-occurrence-mail.repository.ts`: `createOccurrenceSuggestedMailReader` lê o modelo escolhido (join), devolve `{ subject, bodyText, templateId }` ou `null`; `recordMail` grava `templateId`                                                                            |
+| Envio        | `send-automatic-occurrence-mail.use-case.ts`: motivo `no_template` vira `no_template_selected`; passa `templateId`                                                                                                                                                             |
+| Exceção      | `occurrence-attachment-overrides.use-case.ts`, `drizzle-occurrence-attachment-overrides.repository.ts`, schema do `PUT .../attachment-overrides` e `list-occurrence-attachment-overrides.use-case.ts`: `emailTemplateId: uuid \| null` (nulo herda), mesma conferência do tipo |
+| Resolução    | `occurrence-mail-template.policy.ts` (pura, nova): modelo efetivo = `resolveWithOverrides({ contractorOverride, general, recipientOverride: null, fallback: null })`                                                                                                           |
+| Envio        | `send-occurrence-mail.use-case.ts`: resolve o modelo efetivo na transação; sem modelo → 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING` (D4); grava `template_id` (D7)                                                                                                                  |
+| Diálogo      | `preview-occurrence-mail.use-case.ts`: `templateId` e `missingNotificationTemplate` na resposta                                                                                                                                                                                |
+| Feed/detalhe | item do feed (`GET /trip-occurrences`) e detalhe ganham `missingNotificationTemplate` (D8)                                                                                                                                                                                     |
+| Schema       | `database/trip.schema.ts` (coluna + FK + índice parcial), `database/contractor-mail.schema.ts` (CHECK via constante) + migration                                                                                                                                               |
+| Erros        | `shared/errors/codes.ts`: `CONTRACTOR_MAIL_TEMPLATE_IN_USE` (409), `OCCURRENCE_TYPE_EMAIL_TEMPLATE_KIND_INVALID` (400), `OCCURRENCE_MAIL_TEMPLATE_MISSING` (409); reusa `CONTRACTOR_MAIL_TEMPLATE_NOT_FOUND`/`_ARCHIVED` se existirem (T0.1 confere)                           |
 
 ### Worker (`apps/worker-transportada`)
 
-- `drizzle-occurrence-automatic-mail-queue.repository.ts:37-62`: a varredura passa a exigir
-  `company_occurrence_types.email_template_id IS NOT NULL` (lacuna do `evidence.md`).
+- `drizzle-occurrence-automatic-mail-queue.repository.ts:37-62`: a varredura passa a exigir modelo efetivo —
+  `company_occurrence_types.email_template_id` **ou** o da exceção da contratante da nota não nulo (lacuna do
+  `evidence.md`). A T0.1 confere se a varredura já conhece a contratante; se não, o join vem da mesma leitura do plano
+  automático.
 
 ### Painel (`apps/frontend-transportada`)
 
@@ -104,7 +112,8 @@ item `{codigo_item} – {item} – {quantidade_item} {unidade_item} – R$ {valo
   - `delivery-clients/shared/contractorMailTemplatesResponse.validation.ts`: catálogo e lista **descartam** entrada com
     `mailType` desconhecido em vez de reprovar a resposta;
   - `trip/shared/tripResponse.validation.ts`: no tipo, `emailSubject`/`emailBody` passam a opcionais e
-    `emailTemplateId` e `missingNotificationTemplate` entram nas chaves permitidas; a resposta do registro tolera
+    `emailTemplateId` e `missingNotificationTemplate` entram nas chaves permitidas; o guarda da exceção por contratante
+    tolera `emailTemplateId`; a resposta do registro tolera
     `email` ausente;
   - guarda do feed/detalhe (`tripOccurrenceFeedClient.service.ts`) e da prévia do diálogo
     (`occurrenceConversationClient.service.ts:273-282`) toleram `missingNotificationTemplate` e `templateId`.
@@ -113,7 +122,10 @@ item `{codigo_item} – {item} – {quantidade_item} {unidade_item} – R$ {valo
     `OccurrenceTypeMailTemplateSelect.component.tsx` (seletor dos modelos `occurrence` ativos + "Nenhum" + prévia +
     "Gerenciar modelos" + aviso);
   - "Modelos": `occurrence` entra em `CONTRACTOR_MAIL_TEMPLATE_TYPES`; o 409 de arquivar mostra os tipos;
-  - diálogo `SendToContractorDialog.component.tsx`: aviso, abre em branco sem modelo, manda `templateId`;
+  - editor da exceção (`OccurrenceExceptionForm.component.tsx`): o mesmo seletor, com "Herdar do tipo" no lugar de
+    "Nenhum";
+  - diálogo `SendToContractorDialog.component.tsx`: sem modelo efetivo, o envio fica **desabilitado** com o aviso e o
+    link para o tipo/exceção; trata o 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`;
   - feed e detalhe: selo "Tipo sem modelo de notificação" com link para a aba Tipos.
 
 ### App do motorista (`apps/frontend-driver`)
@@ -143,6 +155,7 @@ destrutiva com aprovação humana.
 | Leitura/escrita de `email_subject`/`email_body`/`email_item_line_template`                                                                                                                                                                                                          | `delivery-proof-read.support.ts:869-871,1040-1042,1239-1240,1255-1257,1363-1365`; `save-occurrence-type*.ts`; `trip.routes.ts:335-351`                                                                                                                                                                                            | não                                                                                                 | **remover** (A); a resposta do tipo deixa de trazer as chaves depois do painel tolerante                                                 |
 | Seed e cenários                                                                                                                                                                                                                                                                     | `database/local-occurrence-type-seed.service.ts:75-76`; `scripts/contractor-reply-scenarios/scenario-fixtures.ts:295-296`; `test/fixtures/occurrence-conversation-database.fixture.ts:104-105`                                                                                                                                    | —                                                                                                   | **remover** as chaves (A)                                                                                                                |
 | Colunas `email_subject`, `email_body`, `email_item_line_template` + CHECK da linha                                                                                                                                                                                                  | `database/trip.schema.ts:2934-2935,3056,3191-3193`                                                                                                                                                                                                                                                                                | não depois da A                                                                                     | **remover em B** (migration destrutiva, rollback escrito)                                                                                |
+| Exceção por contratante: coluna `email_template_id` (nova)                                                                                                                                                                                                                          | `database/trip.schema.ts:3289` + exceção (use case, repositório, schema, lista)                                                                                                                                                                                                                                                   | —                                                                                                   | **adicionar** (A, aditiva)                                                                                                               |
 | `emails_contractor`                                                                                                                                                                                                                                                                 | `trip.schema.ts:2947`                                                                                                                                                                                                                                                                                                             | **sim**: automático, CHECK da 248 (`:3264-3266`), worker, painel                                    | **fica**                                                                                                                                 |
 | `driver_reply_template`, `forward_email_subject`/`_body` (248)                                                                                                                                                                                                                      | `trip.schema.ts:3101-3102`                                                                                                                                                                                                                                                                                                        | 248 (texto fixo, sem marcadores)                                                                    | **fica**                                                                                                                                 |
 | `notifies`, `email_template_key` (079, aviso interno)                                                                                                                                                                                                                               | `register-trip-occurrence.use-case.ts:564-568`                                                                                                                                                                                                                                                                                    | sim                                                                                                 | **fica**                                                                                                                                 |
@@ -164,6 +177,9 @@ só pode achar o schema Drizzle das colunas e o `PUT` que aceita e ignora (D9).
 
 `PUT /company-settings/occurrence-types` — o item ganha `emailTemplateId?: string | null` (ausente = não mexe).
 
+Exceção por contratante: `PUT /company-settings/occurrence-types/attachment-overrides` — cada exceção ganha
+`emailTemplateId?: string | null` (nulo herda do tipo), com as mesmas respostas de erro abaixo.
+
 ```ts
 // 200: cada tipo traz emailTemplateId: string | null  (e deixa de trazer emailSubject/emailBody/emailItemLineTemplate
 //       só depois de o painel tolerante estar em produção — T3.1)
@@ -176,13 +192,15 @@ só pode achar o schema Drizzle das colunas e o `PUT` que aceita e ignora (D9).
 
 - `GET /contractor-mail-templates/catalog`: entrada `occurrence` (§ Catálogo).
 - `POST/PATCH /contractor-mail-templates`, `POST /contractor-mail-templates/preview`: valem para `occurrence`.
-- Arquivar modelo em uso: `409 { error: { code: 'CONTRACTOR_MAIL_TEMPLATE_IN_USE', details: { occurrenceTypeNames: string[] } } }`.
+- Arquivar modelo em uso (tipo ou exceção):
+  `409 { error: { code: 'CONTRACTOR_MAIL_TEMPLATE_IN_USE', details: { occurrenceTypeNames: string[], contractorExceptions: Array<{ occurrenceTypeName: string, contractorName: string }> } } }`.
 
 ### E-mail de ocorrência
 
 - Prévia do diálogo: a resposta ganha `templateId: string | null` e `missingNotificationTemplate: boolean`.
   `suggested` continua.
-- Envio manual: corpo ganha `templateId?: string` (D7).
+- Envio manual: corpo **sem** campo novo; o servidor resolve o modelo efetivo e o grava (D7). Sem modelo efetivo →
+  `409 OCCURRENCE_MAIL_TEMPLATE_MISSING` (D4).
 - Automático: `skipped` com `reason: 'no_template_selected'` (antes `no_template`).
 - Feed (`GET /trip-occurrences`) e detalhe: `missingNotificationTemplate: boolean` por item.
 
@@ -200,9 +218,16 @@ ALTER TABLE company_occurrence_types ADD CONSTRAINT company_occurrence_types_ema
   ON DELETE RESTRICT ON UPDATE CASCADE;
 CREATE INDEX company_occurrence_types_email_template_idx
   ON company_occurrence_types (company_id, email_template_id) WHERE email_template_id IS NOT NULL;
+ALTER TABLE company_occurrence_type_contractor_overrides ADD COLUMN email_template_id uuid NULL;
+ALTER TABLE company_occurrence_type_contractor_overrides
+  ADD CONSTRAINT company_occurrence_type_contractor_overrides_email_template_fk
+  FOREIGN KEY (company_id, email_template_id) REFERENCES contractor_mail_templates (company_id, id)
+  ON DELETE RESTRICT ON UPDATE CASCADE;
+CREATE INDEX company_occurrence_type_contractor_overrides_email_template_idx
+  ON company_occurrence_type_contractor_overrides (company_id, email_template_id) WHERE email_template_id IS NOT NULL;
 ```
 
-Rollback A: `DROP INDEX`, `DROP CONSTRAINT` da FK, `DROP COLUMN email_template_id`, e a CHECK volta a
+Rollback A: nas duas tabelas, `DROP INDEX`, `DROP CONSTRAINT` da FK e `DROP COLUMN email_template_id`; e a CHECK volta a
 `('address_correction')` **como `NOT VALID`** (modelos `occurrence` já gravados ficam; nenhum dado de outra feature se
 perde). Sem backfill: começa do zero (RF8).
 
@@ -230,7 +255,7 @@ Antes da B, a T6.1 registra a contagem de tipos com texto não vazio (sem conte�
 ## Idempotência e concorrência
 
 - Envio automático continua com `occurrence-auto-mail:<id>`; a varredura do worker não pede mais ocorrência sem modelo.
-- Gravar tipo × arquivar modelo: o tipo trava o modelo `FOR KEY SHARE`; arquivar trava `FOR UPDATE` e confere o uso
+- Gravar tipo ou exceção × arquivar modelo: a gravação trava o modelo `FOR KEY SHARE`; arquivar trava `FOR UPDATE` e confere o uso
   depois do lock. Ordem única: modelo → tipo.
 
 ## Observabilidade
@@ -240,16 +265,16 @@ Antes da B, a T6.1 registra a contagem de tipos com texto não vazio (sem conte�
 
 ## Estratégia de testes
 
-| Camada        | Teste                                                                                                                                                               |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Catálogo      | contrato do catálogo `occurrence`; validação (`{codigo_item}` no assunto → erro; `{itens}` no assunto ok; nome inexistente → erro)                                  |
-| Política pura | `occurrence-mail-body.policy.contract.ts`: abertura + itens + encerramento, sem itens, `item_text` vazio, 201 itens → "e mais 1 item", HTML escapado                |
-| Valores       | `occurrence-mail-values.policy.contract.ts`: mesmos valores de hoje com chaves `{snake_case}` (tabela espelhada da 247 para dinheiro)                               |
-| Rotas         | `PUT` do tipo com `emailTemplateId` (200, 404 outra empresa, 400 tipo errado, 409 arquivado); arquivar em uso → 409 com nomes; prévia e envio com `templateId`      |
-| Integração    | `occurrence-mail-template.integration.ts`: automático com modelo (grava `template_id`), sem modelo (`no_template_selected`), corrida gravar × arquivar; migration A |
-| Worker        | contrato da varredura: tipo sem modelo não entra                                                                                                                    |
-| Painel        | guardas tolerantes (Fase 1); seletor + prévia + aviso no editor; aviso no feed, detalhe e diálogo; 409 de arquivar                                                  |
-| Limpeza       | `grep` do aceite da etapa A; listas de teste do `package.json` sem arquivo removido                                                                                 |
+| Camada        | Teste                                                                                                                                                                                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catálogo      | contrato do catálogo `occurrence`; validação (`{codigo_item}` no assunto → erro; `{itens}` no assunto ok; nome inexistente → erro)                                                                                                                                                                |
+| Política pura | `occurrence-mail-body.policy.contract.ts`: abertura + itens + encerramento, sem itens, `item_text` vazio, 201 itens → "e mais 1 item", HTML escapado; `occurrence-mail-template.policy.contract.ts`: exceção vence tipo, exceção nula herda, os dois nulos → nulo                                 |
+| Valores       | `occurrence-mail-values.policy.contract.ts`: mesmos valores de hoje com chaves `{snake_case}` (tabela espelhada da 247 para dinheiro)                                                                                                                                                             |
+| Rotas         | `PUT` do tipo e da exceção com `emailTemplateId` (200, 404 outra empresa, 400 tipo errado, 409 arquivado; exceção nula herda); arquivar em uso por tipo ou por exceção → 409 com os nomes; prévia com `templateId`/flag; envio manual sem modelo efetivo → 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING` |
+| Integração    | `occurrence-mail-template.integration.ts`: automático com modelo do tipo, com modelo da exceção vencendo o do tipo, exceção nula herdando, sem modelo efetivo (`no_template_selected`); manual sem modelo → 409; `template_id` gravado; corrida gravar × arquivar; migration A                    |
+| Worker        | contrato da varredura: tipo sem modelo não entra                                                                                                                                                                                                                                                  |
+| Painel        | guardas tolerantes (Fase 1); seletor + prévia + aviso no editor do tipo e da exceção; envio desabilitado com aviso no diálogo; aviso no feed e detalhe; 409 de arquivar com tipos e contratantes                                                                                                  |
+| Limpeza       | `grep` do aceite da etapa A; listas de teste do `package.json` sem arquivo removido                                                                                                                                                                                                               |
 
 Integração da API: `bun --env-file=../../.env.test run test:integration` (de `apps/api-transportada`). Migration:
 `make migration-test` ou aplicar, reverter e reaplicar num Postgres descartável, e `db:generate` com `no_changes`.

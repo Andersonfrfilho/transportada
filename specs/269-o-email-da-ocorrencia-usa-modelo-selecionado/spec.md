@@ -25,8 +25,8 @@ modelos de e-mail com variáveis e prévia ("E-mail com contratantes → Modelos
 São dois editores de e-mail, com duas sintaxes, e o da ocorrência fica escondido dentro do tipo.
 
 **Resultado:** o e-mail de ocorrência usa um modelo do cadastro "Modelos", do tipo de e-mail novo **Ocorrência**
-(`occurrence`). Cada tipo de ocorrência escolhe o seu modelo num seletor na aba Tipos. Tipo sem modelo escolhido **não
-envia e-mail** — nem automático, nem sugerido — e, quando o tipo está marcado para enviar e-mail à contratante, a
+(`occurrence`). Cada tipo de ocorrência escolhe o seu modelo num seletor na aba Tipos, e a exceção por contratante do
+tipo pode trocar o modelo para aquela contratante. Sem modelo efetivo **não sai e-mail** — nem automático, nem à mão — e, quando o tipo está marcado para enviar e-mail à contratante, a
 ocorrência mostra o aviso "Tipo sem modelo de notificação". O texto antigo do tipo não é migrado: começa do zero, e o
 código e as colunas que só serviam a ele são removidos (as colunas em uma etapa separada, com aprovação humana).
 
@@ -42,19 +42,25 @@ código e as colunas que só serviam a ele são removidos (as colunas em uma eta
 - **RF3 — O tipo escolhe o modelo.** Na aba Tipos de `/ocorrencias`, o editor do tipo troca os campos de assunto, corpo
   e linha de item por um **seletor** com os modelos ativos do tipo `occurrence`, com "Nenhum" e uma prévia renderizada
   com valores de exemplo. O link "Gerenciar modelos" leva a "E-mail com contratantes → Modelos".
-- **RF4 — Sem modelo, sem e-mail.** Tipo sem modelo escolhido:
+- **RF3b — A exceção da contratante pode trocar o modelo.** A exceção por contratante do tipo
+  (`company_occurrence_type_contractor_overrides`, specs 218/246/247/248) ganha o mesmo seletor, com "Herdar do tipo".
+  **Modelo efetivo = modelo da exceção da contratante da nota ?? modelo do tipo**, campo a campo como as colunas irmãs.
+  Não há exceção por destinatário, e o tipo continua geral (não é restrito a uma contratante).
+- **RF4 — Sem modelo efetivo, sem e-mail — nem à mão.**
   - o envio automático não sai (motivo `no_template_selected`, contado no resultado, sem falha);
-  - o diálogo "Enviar à contratante" abre **em branco**, sem sugestão (o operador ainda pode escrever e enviar à mão —
-    ver Q1 em `evidence.md`).
+  - no diálogo "Enviar à contratante" o envio fica **desabilitado**, com o aviso do RF5;
+  - a API recusa o envio manual com 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`.
 - **RF5 — Aviso "Tipo sem modelo de notificação".** Quando o tipo tem "envia e-mail à contratante" ligado
-  (`emails_contractor`) e nenhum modelo escolhido:
-  - o detalhe e a linha da ocorrência no painel mostram o aviso, com link para o editor do tipo;
-  - o diálogo "Enviar à contratante" mostra o mesmo aviso;
-  - o editor do tipo mostra o aviso junto do seletor.
+  (`emails_contractor`) e não há modelo efetivo para a contratante da nota:
+  - o detalhe e a linha da ocorrência no painel mostram o aviso, com link para o editor do tipo/exceção;
+  - o diálogo "Enviar à contratante" mostra o mesmo aviso, com o envio desabilitado;
+  - o editor do tipo mostra o aviso junto do seletor quando o tipo não tem modelo (as contratantes sem exceção ficam sem
+    e-mail).
 - **RF6 — O envio registra o modelo.** A mensagem gravada (`contractor_mail_messages.template_id`) aponta para o modelo
-  usado, no envio automático e no manual que partiu da sugestão. Texto digitado pelo operador sem sugestão: `null`.
+  efetivo, no envio automático e no manual (o servidor o resolve; o operador pode editar o texto sugerido).
 - **RF7 — Modelo em uso não se arquiva.** Arquivar um modelo `occurrence` escolhido por algum tipo **ativo ou inativo**
-  responde 409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE`, com os nomes dos tipos que o usam. O painel mostra a lista.
+  ou por alguma **exceção de contratante** responde 409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE`, com os nomes dos tipos e os
+  pares tipo/contratante que o usam. O painel mostra a lista.
 - **RF8 — Começa do zero.** O texto antigo de cada tipo **não** é migrado para modelos. Desde o deploy da API, nenhum
   tipo envia e-mail à contratante até alguém criar um modelo e escolhê-lo (o aviso do RF5 aparece nos tipos com
   `emails_contractor` ligado).
@@ -74,7 +80,7 @@ código e as colunas que só serviam a ele são removidos (as colunas em uma eta
 
 ## Fora do escopo
 
-- **Modelo por contratante** (sobrescrever o modelo do tipo para uma contratante): não entra na v1 (Q2 em `evidence.md`).
+- Modelo por **destinatário** (a exceção é só por contratante) e tipo restrito a uma contratante.
 - Os textos da 248 (`driver_reply_template`, `forward_email_subject`/`forward_email_body`), o interruptor
   `emails_contractor` e o aviso interno da 079 (`notifies` + `email_template_key`): continuam como estão.
 - Migrar o texto antigo dos tipos para modelos (decisão do dono: começa do zero).
@@ -89,10 +95,12 @@ código e as colunas que só serviam a ele são removidos (as colunas em uma eta
    do modelo, a abertura, duas linhas de item e o encerramento; a mensagem gravada tem `template_id` do modelo.
 3. O mesmo tipo sem modelo: nenhum e-mail sai (`skipped`/`no_template_selected`), e o painel mostra "Tipo sem modelo de
    notificação" no detalhe, na linha e no diálogo.
-4. O diálogo "Enviar à contratante" de um tipo com modelo abre preenchido pelo modelo; sem modelo, abre em branco com o
-   aviso.
-5. Arquivar o modelo escolhido por um tipo responde 409 com o nome do tipo; depois de trocar o tipo para "Nenhum",
-   arquivar funciona.
+4. O diálogo "Enviar à contratante" de um tipo com modelo abre preenchido pelo modelo; sem modelo efetivo, o envio fica
+   desabilitado com o aviso, e um `POST` manual direto na API responde 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`.
+   4b. A contratante com exceção que escolhe outro modelo recebe o e-mail desse modelo; a exceção com "Herdar do tipo"
+   recebe o do tipo; um tipo sem modelo com exceção que escolhe modelo envia só para aquela contratante.
+5. Arquivar o modelo escolhido por um tipo ou por uma exceção responde 409 com os nomes; depois de trocar os dois para
+   "Nenhum"/"Herdar do tipo", arquivar funciona.
 6. O modelo de outra empresa não pode ser escolhido (404) nem um modelo `address_correction` (400).
 7. O painel publicado antes da API continua abrindo "Modelos" e a aba Tipos quando a API passa a mandar o tipo de e-mail
    `occurrence` e o campo `emailTemplateId`.

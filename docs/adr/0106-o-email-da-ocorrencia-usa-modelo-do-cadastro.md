@@ -27,16 +27,23 @@
 1. **Tipo de e-mail `occurrence` no catálogo da 150.** Variáveis de e-mail (assunto, abertura, encerramento e item) e de
    item (só no `item_text`, que se repete por item) — lista fechada no `plan.md` da 269. A renderização é a da 150
    (`renderMailTemplate`, HTML escapado). A CHECK `contractor_mail_templates_mail_type_check` muda por migration aditiva.
-2. **O tipo aponta para o modelo.** `company_occurrence_types.email_template_id uuid NULL`, FK composta
-   `(company_id, email_template_id) → contractor_mail_templates (company_id, id)` `ON DELETE RESTRICT`. A gravação do tipo
-   confere, na mesma transação, que o modelo é da empresa, do tipo `occurrence` e ativo. Um modelo escolhido por algum
-   tipo **não se arquiva** (409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE`). Alternativa rejeitada: arquivar e limpar o tipo em
-   silêncio — o tipo pararia de enviar sem ninguém saber.
-3. **Sem modelo, sem e-mail.** O modelo nulo não cai em padrão nenhum (nem no `is_default` do tipo `occurrence`, nem no
-   texto antigo): o envio automático pula com `no_template_selected` e o diálogo abre em branco. Quando o tipo tem
-   `emails_contractor` ligado e modelo nulo, a API expõe `missingNotificationTemplate: true` e o painel mostra "Tipo sem
-   modelo de notificação". Alternativa rejeitada: usar o modelo padrão do tipo `occurrence` — o dono quer a escolha
-   explícita por tipo.
+2. **O tipo aponta para o modelo, e a exceção da contratante pode trocá-lo.** `email_template_id uuid NULL` em
+   `company_occurrence_types` e em `company_occurrence_type_contractor_overrides` (a exceção por contratante das specs
+   218/246/247/248; nulo herda do tipo, campo a campo, como as colunas irmãs), cada um com FK composta
+   `(company_id, email_template_id) → contractor_mail_templates (company_id, id)` `ON DELETE RESTRICT`. **Modelo efetivo =
+   modelo da exceção da contratante da nota ?? modelo do tipo** (`resolveWithOverrides`, sem camada de destinatário). O
+   tipo continua geral — não é restrito a uma contratante; a exceção acompanha a contratante da nota. A gravação (tipo ou
+   exceção) confere, na mesma transação, que o modelo é da empresa, do tipo `occurrence` e ativo. Um modelo escolhido por
+   algum tipo **ou** alguma exceção **não se arquiva** (409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE`, listando tipos e
+   contratantes). Alternativas rejeitadas: arquivar e limpar em silêncio (o tipo pararia de enviar sem ninguém saber);
+   exceção por destinatário; tipo restrito a contratante.
+3. **Sem modelo efetivo, sem e-mail — nem à mão.** O nulo não cai em padrão nenhum (nem no `is_default` do tipo
+   `occurrence`, nem no texto antigo): o envio automático pula com `no_template_selected`, o diálogo do painel fica com o
+   envio desabilitado, e a API recusa o envio manual com 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`. O servidor resolve o
+   modelo também no envio manual e o grava em `contractor_mail_messages.template_id` (o cliente não escolhe o modelo).
+   Quando o tipo tem `emails_contractor` ligado e não há modelo efetivo, a API expõe `missingNotificationTemplate: true`
+   e o painel mostra "Tipo sem modelo de notificação". Alternativas rejeitadas: usar o modelo padrão do tipo
+   `occurrence`; deixar o operador escrever à mão — o dono quer a escolha explícita e o bloqueio.
 4. **Começa do zero.** O texto antigo não é migrado. No deploy da API, todo tipo com `emails_contractor` fica sem e-mail
    até alguém escolher um modelo; o aviso mostra onde.
 5. **Sem lixo, em duas etapas.** Etapa A (junto da feature): o código que só servia ao texto do tipo sai — leitor da
@@ -54,9 +61,9 @@
   (quando avisar); o modelo, com o texto.
 - O rastreio passa a dizer qual modelo saiu em cada e-mail de ocorrência (`template_id`), como na correção de endereço.
 - No dia do deploy, os tipos que enviavam e-mail param até alguém escolher modelo. É intencional (decisão do dono) e
-  visível (aviso no tipo e na ocorrência). A T5.4 mede quantos tipos ficam nessa situação por empresa antes de ir a
+  visível (aviso no tipo e na ocorrência). O operador também não envia à mão até haver modelo. A T5.4 mede quantos tipos ficam nessa situação por empresa antes de ir a
   `main`.
 - Uma sintaxe só de marcador no produto (`{snake_case}`); a `{{camelCase}}` deixa de existir.
-- O envio automático deixa de reprocessar ocorrência sem modelo: a varredura do worker passa a exigir modelo escolhido
+- O envio automático deixa de reprocessar ocorrência sem modelo: a varredura do worker passa a exigir modelo efetivo
   (hoje um pulo `no_template` não grava idempotência e a varredura pede a mesma ocorrência a cada rodada).
 - O drop das colunas é irreversível quanto ao dado; o rollback só devolve a forma.

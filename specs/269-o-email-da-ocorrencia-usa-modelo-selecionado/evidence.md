@@ -16,6 +16,21 @@
    e-mail). Em duas etapas: (A) o código para de ler e escrever as colunas e o código morto sai, na mesma entrega da
    feature; (B) migration destrutiva separada, com rollback escrito, só depois de (A) em produção e com aprovação humana.
 
+### Respostas do dono às perguntas abertas (chat, 2026-10-16)
+
+- **Q1 → bloquear.** Sem modelo efetivo, o operador **também não** envia à mão: no painel o envio fica desabilitado com
+  o aviso "Tipo sem modelo de notificação" (+ link para o editor do tipo/exceção), e a API recusa o envio manual sem
+  modelo efetivo com 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`.
+- **Q2 → sim, pela exceção por contratante que já existe** (`company_occurrence_type_contractor_overrides`, specs
+  218/246/247/248; resolução tipo → contratante → destinatário já usada pelo app e pelo painel): a exceção ganha
+  `email_template_id uuid NULL` (nulo herda o modelo do tipo, campo a campo como as colunas irmãs; FK composta
+  `company_id`; precisa ser `occurrence` e ativo). Modelo efetivo = modelo da exceção da contratante ?? modelo do tipo.
+  O editor da exceção na aba Tipos ganha o mesmo seletor. **Sem exceção por destinatário** (só contratante). O tipo
+  continua geral — o dono recusou restringir tipo a contratante: "se na ocorrência vamos definir já se é de uma
+  contratante X o modelo vai acompanhar isso".
+- **Q3 → bloquear o arquivamento** enquanto o modelo estiver escolhido por algum tipo **ou** alguma exceção de
+  contratante (409 listando os nomes dos tipos e das contratantes).
+
 ## Levantamento contra `origin/staging` (e79e26171, 2026-10-16)
 
 Feito por leitura direta e uma busca paralela, só de leitura. A T0.1 confere as linhas antes de qualquer código.
@@ -60,6 +75,12 @@ Feito por leitura direta e uma busca paralela, só de leitura. A T0.1 confere as
 - **Painel estrito no tipo:** `tripResponse.validation.ts:1882-1885` exige `emailBody` e `emailSubject` em cada tipo, e
   a lista de chaves permitidas (:1956-1990) reprova chave desconhecida. Tirar os campos da API ou mandar
   `emailTemplateId` antes do painel tolerante derruba a aba Tipos.
+- **Exceção por contratante** (`company_occurrence_type_contractor_overrides`, `trip.schema.ts:3289`): colunas
+  anuláveis que herdam do tipo (`note_mode`, `items_mode`, `reference_number_mode`, `contractor_reply_mode`…); gravada
+  por `PUT /company-settings/occurrence-types/attachment-overrides` (`trip.routes.ts:224`, schema `.strict()`); precedência
+  em `src/shared/resolve-with-overrides.policy.ts` (destinatário ?? contratante ?? geral ?? padrão). Painel:
+  `OccurrenceTypeExceptions`/`OccurrenceExceptionForm`. A T0.1 confere se o guarda da exceção no painel reprova chave
+  desconhecida.
 - `emails_contractor` **fica**: a 248 exige o par (`trip.schema.ts:3266`, `contractor_reply_mode <> 'off'` →
   `emails_contractor`) e o automático o lê.
 
@@ -79,16 +100,11 @@ Feito por leitura direta e uma busca paralela, só de leitura. A T0.1 confere as
   idempotência (`worker-transportada/.../drizzle-occurrence-automatic-mail-queue.repository.ts:37-62`) e não olha o
   assunto. Um pulo `no_template` não grava idempotência, então a mesma ocorrência volta a cada rodada até a janela
   fechar. Com o RF8 (todo tipo sem modelo no deploy) isso viraria carga contínua → a varredura passa a exigir
-  `email_template_id IS NOT NULL` (T2.6).
+  modelo efetivo (tipo ou exceção da contratante) (T2.6).
 
-## Perguntas ao dono (abertas; nenhuma bloqueia a Fase 0–2)
+## Perguntas ao dono
 
-- **Q1 — O operador ainda pode escrever o e-mail à mão quando o tipo não tem modelo?** Padrão desta spec: **sim** — o
-  diálogo "Enviar à contratante" abre em branco com o aviso, e o envio manual continua possível (é o que a 183 faz para
-  tipo sem texto hoje). Se a resposta for "não", o botão fica desabilitado com o aviso (muda só a T4.3).
-- **Q2 — Modelo por contratante?** Padrão: **não na v1**. O modelo é do tipo, igual para toda contratante.
-- **Q3 — O tipo **inativo** segura o modelo contra arquivamento?** Padrão: **sim** (o tipo pode ser reativado e voltaria
-  sem e-mail em silêncio).
+Nenhuma aberta. Q1–Q3 respondidas em 2026-10-16 (ver "Respostas do dono" acima).
 
 ## Medições pedidas antes de `main`
 
