@@ -10,6 +10,7 @@ import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import type { ProviderMatchLevel } from '../../database/address-comparison.schema.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { resolveMailCopy } from '../../contractor-mail/application/resolve-mail-copy.service.js'
 import { ContractorMailTemplateNotUsableError } from '../../contractor-mail/domain/contractor-mail-template.error.js'
 import { createMailSendReadinessError } from '../../contractor-mail/domain/contractor-mail.error.js'
 import { resolveMailSendReadiness } from '../../contractor-mail/domain/mail-send-readiness.policy.js'
@@ -50,6 +51,8 @@ export type SendAddressCorrectionMailInput = {
   readonly contactIds: readonly string[]
   readonly contractorTaxId: string
   readonly correlationId: string
+  /** Spec 267 RF4: quem o operador tirou da cópia neste envio; só remove, nunca adiciona. */
+  readonly excludedWatcherUserIds?: readonly string[]
   readonly idempotencyKey: string
   readonly requestIds: readonly string[] | undefined
   /** Spec 150 T402 (RF15): ausente, vale o modelo padrão do tipo. */
@@ -94,6 +97,7 @@ async function executeSend(params: {
   if (contractor === undefined) throw new AddressCorrectionContractorNotFoundError()
 
   const dedupedContactIds = [...new Set(input.contactIds)]
+  const excludedWatcherUserIds = [...new Set(input.excludedWatcherUserIds ?? [])].sort()
   const sortedRequestIdsMarker =
     input.requestIds === undefined ? NO_REQUEST_IDS_MARKER : [...input.requestIds].sort().join(',')
   /** O modelo entra no fingerprint só quando escolhido: o envio pelo padrão mantém o de antes. */
@@ -104,6 +108,9 @@ async function executeSend(params: {
       [...dedupedContactIds].sort().join(','),
       sortedRequestIdsMarker,
       ...(input.templateId === undefined ? [] : [`template:${input.templateId}`]),
+      ...(excludedWatcherUserIds.length === 0
+        ? []
+        : [`excluded:${excludedWatcherUserIds.join(',')}`]),
     ].map((value) => ENCODER.encode(value)),
     operation: OPERATION,
   })
@@ -152,6 +159,15 @@ async function executeSend(params: {
     throw new AddressCorrectionNoActiveContactError()
   }
   const recipientEmails = deduplicateRecipients(toAddresses as readonly string[])
+  const copyAddresses = await resolveMailCopy({
+    automatic: false,
+    companyId,
+    contractorId: contractor.id,
+    excludedUserIds: excludedWatcherUserIds,
+    loadCandidates: (query) => transaction.loadWatcherCandidates(query),
+    logger: undefined,
+    recipients: recipientEmails,
+  })
 
   const { invalidRequestIds, sendable } = await transaction.findSendableRequests({
     companyId,
@@ -184,6 +200,7 @@ async function executeSend(params: {
     actorUserId: input.actorUserId,
     bodyHtml: mail.html,
     bodyText: mail.text,
+    ccAddresses: copyAddresses,
     companyId,
     contractorId: contractor.id,
     correlationId: input.correlationId,

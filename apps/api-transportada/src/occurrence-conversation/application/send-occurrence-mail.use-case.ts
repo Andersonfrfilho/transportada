@@ -14,9 +14,10 @@ import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
 import type { ContractorMailTransport } from '../../contractor-mail/domain/contractor-mail.constant.js'
-import { ContractorMailTooManyRecipientsError } from '../../contractor-mail/domain/occurrence-watcher.error.js'
-import { resolveEffectiveWatchers } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
-import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import {
+  resolveMailCopy,
+  type MailCopyLogger,
+} from '../../contractor-mail/application/resolve-mail-copy.service.js'
 import { createMailSendReadinessError } from '../../contractor-mail/domain/contractor-mail.error.js'
 import { resolveMailSendReadiness } from '../../contractor-mail/domain/mail-send-readiness.policy.js'
 import {
@@ -99,10 +100,7 @@ function assertMailContent(input: SendOccurrenceMailInput): void {
   }
 }
 
-/** `info` é opcional: o aviso do reenvio da 248 só precisa de `warn`. */
-export type OccurrenceMailLogger = OpenContractorReplyLogger & {
-  info?(event: string, fields?: Record<string, unknown>): void
-}
+export type OccurrenceMailLogger = OpenContractorReplyLogger & MailCopyLogger
 
 /** Mesma regra do worker: minúsculas, primeira ocorrência vence. */
 function deduplicateRecipients(addresses: readonly string[]): string[] {
@@ -275,9 +273,9 @@ async function executeSend(params: {
     companyId,
     contractorId,
     excludedUserIds: input.excludedWatcherUserIds ?? [],
+    loadCandidates: (query) => transaction.loadWatcherCandidates(query),
     logger: params.logger,
     recipients,
-    transaction,
   })
 
   const [carrierName, operatorName] = await Promise.all([
@@ -397,49 +395,4 @@ async function executeSend(params: {
     response,
   })
   return response
-}
-
-/**
- * Spec 267 RF3/RF7: a cópia efetiva, dentro do teto de `To` + `Cc`. O envio manual que estoura é recusado antes de
- * gravar; o automático (sem operador para corrigir) corta a cópia até caber, e os contatos da contratante sempre vão.
- * Nenhum endereço entra em log: só contagens e a origem da lista.
- */
-async function resolveMailCopy(params: {
-  readonly automatic: boolean
-  readonly companyId: string
-  readonly contractorId: string
-  readonly excludedUserIds: readonly string[]
-  readonly logger: OccurrenceMailLogger | undefined
-  readonly recipients: readonly string[]
-  readonly transaction: OccurrenceMailTransactionPort
-}): Promise<readonly string[]> {
-  const candidates = await params.transaction.loadWatcherCandidates({
-    companyId: params.companyId,
-    contractorId: params.contractorId,
-  })
-  const effective = resolveEffectiveWatchers({
-    companyWatchers: candidates.company,
-    contractorWatchers: candidates.contractor,
-    excludedUserIds: params.excludedUserIds,
-    toAddresses: params.recipients,
-  })
-  const room = Math.max(CONTRACTOR_MAIL_MAX_RECIPIENTS - params.recipients.length, 0)
-  const fits = effective.copy.length <= room
-  if (!fits && !params.automatic) throw new ContractorMailTooManyRecipientsError()
-
-  const kept = effective.copy.slice(0, room)
-  if (!fits) {
-    params.logger?.warn('contractor_mail.copy.truncated', {
-      ccCount: kept.length,
-      droppedCount: effective.copy.length - kept.length,
-      toCount: params.recipients.length,
-    })
-  } else if (effective.source !== null) {
-    params.logger?.info?.('contractor_mail.copy.resolved', {
-      ccCount: kept.length,
-      droppedCount: effective.droppedCount,
-      source: effective.source,
-    })
-  }
-  return kept.map((entry) => entry.address)
 }

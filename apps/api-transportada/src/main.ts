@@ -2808,6 +2808,7 @@ function createApplicationRoutes({
   const findAddressCorrectionRecipients = createFindAddressCorrectionRecipientsUseCase({
     contractorLookup: addressCorrectionRepository,
     listContacts: { execute: (input) => contractorContacts.list(input) },
+    watchers: new DrizzleOccurrenceWatcherRepository(database),
   })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,

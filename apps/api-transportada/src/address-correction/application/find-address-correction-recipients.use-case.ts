@@ -8,6 +8,11 @@
  * corpo do `POST` — nunca da URL — e sob a mesma `settings.manage` do resto do pedido de correção.
  */
 import type { ContractorContactStatus } from '../../database/contractor-mail.schema.js'
+import {
+  resolveEffectiveWatchers,
+  type OccurrenceWatcherCandidate,
+} from '../../contractor-mail/domain/occurrence-watcher.policy.js'
+import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { AddressCorrectionContractorNotFoundError } from '../domain/address-correction.error.js'
 import type { AddressCorrectionContractor } from './address-correction.port.js'
@@ -21,6 +26,9 @@ export type AddressCorrectionRecipientContact = Readonly<{
 }>
 
 export type AddressCorrectionRecipients = Readonly<{
+  /** Spec 267 RF4: a cópia efetiva da contratante, mascarada; o operador só tira chips, nunca digita. */
+  cc: readonly Readonly<{ maskedEmail: string; name: string; userId: string }>[]
+  ccSource: 'company' | 'contractor' | null
   contacts: readonly AddressCorrectionRecipientContact[]
   contractor: AddressCorrectionContractor
 }>
@@ -48,9 +56,20 @@ type ListContactsPort = Readonly<{
   }) => Promise<readonly AddressCorrectionRecipientContact[]>
 }>
 
+type WatcherCandidatesPort = Readonly<{
+  loadEffectiveCandidates: (input: {
+    readonly companyId: string
+    readonly contractorId: string
+  }) => Promise<{
+    readonly company: readonly OccurrenceWatcherCandidate[]
+    readonly contractor: readonly OccurrenceWatcherCandidate[]
+  }>
+}>
+
 export function createFindAddressCorrectionRecipientsUseCase(dependencies: {
   readonly contractorLookup: ContractorLookupPort
   readonly listContacts: ListContactsPort
+  readonly watchers: WatcherCandidatesPort
 }): FindAddressCorrectionRecipientsUseCase {
   return {
     async find(input) {
@@ -60,12 +79,30 @@ export function createFindAddressCorrectionRecipientsUseCase(dependencies: {
       })
       if (contractor === undefined) throw new AddressCorrectionContractorNotFoundError()
 
-      const contacts = await dependencies.listContacts.execute({
-        context: input.context,
-        contractorId: contractor.id,
+      const [contacts, candidates] = await Promise.all([
+        dependencies.listContacts.execute({ context: input.context, contractorId: contractor.id }),
+        dependencies.watchers.loadEffectiveCandidates({
+          companyId: input.context.companyId,
+          contractorId: contractor.id,
+        }),
+      ])
+      const copy = resolveEffectiveWatchers({
+        companyWatchers: candidates.company,
+        contractorWatchers: candidates.contractor,
+        excludedUserIds: [],
+        toAddresses: [],
       })
 
-      return { contacts: contacts.filter((contact) => contact.status === 'active'), contractor }
+      return {
+        cc: copy.copy.map((entry) => ({
+          maskedEmail: maskEmailAddress(entry.address),
+          name: entry.name,
+          userId: entry.userId,
+        })),
+        ccSource: copy.source,
+        contacts: contacts.filter((contact) => contact.status === 'active'),
+        contractor,
+      }
     },
   }
 }

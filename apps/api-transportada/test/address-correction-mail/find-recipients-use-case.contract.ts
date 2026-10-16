@@ -54,11 +54,23 @@ describe('findAddressCorrectionRecipients (revisão final, item de segurança B3
           return [ACTIVE_CONTACT, INACTIVE_CONTACT]
         },
       },
+      watchers: {
+        loadEffectiveCandidates: async () => ({
+          company: [
+            { address: 'ana@empresa.example', name: 'Ana', status: 'active', userId: 'user-ana' },
+            { address: undefined, name: 'Bruno', status: 'active', userId: 'user-bruno' },
+          ],
+          contractor: [],
+        }),
+      },
     })
 
     const result = await useCase.find({ context: CONTEXT, contractorTaxId: '30290856000160' })
 
+    /** Spec 267 RF4: a cópia que o formulário mostra, mascarada; quem não pode receber não aparece. */
     expect(result).toEqual({
+      cc: [{ maskedEmail: 'a***@e***.example', name: 'Ana', userId: 'user-ana' }],
+      ccSource: 'company',
       contacts: [ACTIVE_CONTACT],
       contractor: { displayName: 'Contratante Exemplo', id: CONTRACTOR_ID },
     })
@@ -68,6 +80,7 @@ describe('findAddressCorrectionRecipients (revisão final, item de segurança B3
     const useCase = createFindAddressCorrectionRecipientsUseCase({
       contractorLookup: { findContractorByTaxId: async () => undefined },
       listContacts: { execute: async () => [] },
+      watchers: { loadEffectiveCandidates: async () => ({ company: [], contractor: [] }) },
     })
 
     await expect(

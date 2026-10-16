@@ -296,6 +296,9 @@ describe('address correction requests http contract', () => {
 
       expect(response.status).toBe(200)
       expect(await responseData(response)).toEqual({
+        /** Spec 267 RF4: a cópia efetiva, mascarada, para o formulário. */
+        cc: [{ maskedEmail: 'a***@e***.example', name: 'Ana', userId: 'user-ana' }],
+        ccSource: 'company',
         contacts: [
           {
             canDecide: false,

@@ -30,6 +30,7 @@ import {
   ContractorMailTemplateMissingError,
 } from '../../src/contractor-mail/domain/contractor-mail.error.js'
 import { ContractorMailTemplateNotUsableError } from '../../src/contractor-mail/domain/contractor-mail-template.error.js'
+import type { OccurrenceWatcherCandidate } from '../../src/contractor-mail/domain/occurrence-watcher.policy.js'
 import { MAIL_TEMPLATE_CATALOG } from '../../src/contractor-mail/domain/mail-template-catalog.constant.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000c01'
@@ -124,6 +125,11 @@ function createFakeTransaction(overrides: {
   readonly requests?: readonly (AddressCorrectionRequest & { readonly contractorId: string })[]
   /** Só os modelos ativos de `address_correction` desta empresa — o repositório filtra o resto. */
   readonly templates?: readonly FakeTemplate[]
+  /** Spec 267: as duas listas de responsáveis, com o endereço já resolvido. */
+  readonly watchers?: {
+    readonly company?: readonly OccurrenceWatcherCandidate[]
+    readonly contractor?: readonly OccurrenceWatcherCandidate[]
+  }
 }): { readonly calls: Calls; readonly transaction: AddressCorrectionMailTransactionPort } {
   const templates = overrides.templates ?? [DEFAULT_TEMPLATE, CHOSEN_TEMPLATE]
   const requests = new Map(
@@ -229,6 +235,12 @@ function createFakeTransaction(overrides: {
         if (request !== undefined) requests.set(id, { ...request, status: 'sent', threadId })
       }
     },
+    async loadWatcherCandidates() {
+      return {
+        company: overrides.watchers?.company ?? [],
+        contractor: overrides.watchers?.contractor ?? [],
+      }
+    },
     async recordMail(input) {
       calls.recordMail.push(input)
       return { messageId: `message-for-${input.threadId}` }
@@ -267,6 +279,7 @@ function createUseCase(fake: ReturnType<typeof createFakeTransaction>) {
 function baseInput(
   overrides: {
     readonly contactIds?: readonly string[]
+    readonly excludedWatcherUserIds?: readonly string[]
     readonly idempotencyKey?: string
     readonly requestIds?: readonly string[] | undefined
     readonly templateId?: string
@@ -274,6 +287,9 @@ function baseInput(
 ) {
   return {
     ...(overrides.templateId === undefined ? {} : { templateId: overrides.templateId }),
+    ...(overrides.excludedWatcherUserIds === undefined
+      ? {}
+      : { excludedWatcherUserIds: overrides.excludedWatcherUserIds }),
     actorUserId: ACTOR_USER_ID,
     companyId: COMPANY_ID,
     contactIds: overrides.contactIds ?? [CONTACT_ACTIVE_ID],
@@ -530,5 +546,79 @@ describe('send address correction mail use case contract', () => {
     await expect(
       useCase.send(baseInput({ idempotencyKey: 'template-key', templateId: CHOSEN_TEMPLATE_ID })),
     ).rejects.toBeInstanceOf(AddressCorrectionIdempotencyKeyReusedError)
+  })
+})
+
+function watcher(name: string, overrides: Partial<OccurrenceWatcherCandidate> = {}) {
+  return {
+    address: `${name.toLowerCase()}@empresa.example`,
+    name,
+    status: 'active' as const,
+    userId: `user-${name.toLowerCase()}`,
+    ...overrides,
+  }
+}
+
+describe('spec 267: a cópia no pedido de correção de endereço', () => {
+  test('a lista efetiva da contratante da correção vai em ccAddresses; a da contratante vence', async () => {
+    const company = createFakeTransaction({
+      watchers: { company: [watcher('Ana'), watcher('Bruno')] },
+    })
+    await createUseCase(company).send(baseInput())
+    expect(company.calls.recordMail[0]?.ccAddresses).toEqual([
+      'ana@empresa.example',
+      'bruno@empresa.example',
+    ])
+
+    const contractor = createFakeTransaction({
+      watchers: { company: [watcher('Ana')], contractor: [watcher('Carla')] },
+    })
+    await createUseCase(contractor).send(baseInput())
+    expect(contractor.calls.recordMail[0]?.ccAddresses).toEqual(['carla@empresa.example'])
+  })
+
+  test('o operador tira alguém naquele envio, sem lista a cópia é vazia', async () => {
+    const removed = createFakeTransaction({
+      watchers: { company: [watcher('Ana'), watcher('Bruno')] },
+    })
+    await createUseCase(removed).send(baseInput({ excludedWatcherUserIds: ['user-bruno'] }))
+    expect(removed.calls.recordMail[0]?.ccAddresses).toEqual(['ana@empresa.example'])
+
+    const none = createFakeTransaction({})
+    await createUseCase(none).send(baseInput())
+    expect(none.calls.recordMail[0]?.ccAddresses).toEqual([])
+  })
+
+  test('quem perdeu a permissão (sem endereço) ou já está no To não vai em cópia', async () => {
+    const fake = createFakeTransaction({
+      watchers: {
+        company: [
+          watcher('Ana', { address: undefined }),
+          watcher('Bruno', { address: 'ATIVO@contratante.example' }),
+          watcher('Carla'),
+        ],
+      },
+    })
+
+    await createUseCase(fake).send(baseInput())
+
+    expect(fake.calls.recordMail[0]?.ccAddresses).toEqual(['carla@empresa.example'])
+  })
+
+  test('os excluídos entram, ordenados, na impressão digital: outra remoção com a mesma chave é 409', async () => {
+    const fake = createFakeTransaction({
+      watchers: { company: [watcher('Ana'), watcher('Bruno')] },
+    })
+    const useCase = createUseCase(fake)
+    const first = await useCase.send(
+      baseInput({ excludedWatcherUserIds: ['user-bruno', 'user-ana'] }),
+    )
+
+    expect(
+      await useCase.send(baseInput({ excludedWatcherUserIds: ['user-ana', 'user-bruno'] })),
+    ).toEqual(first)
+    await expect(useCase.send(baseInput())).rejects.toBeInstanceOf(
+      AddressCorrectionIdempotencyKeyReusedError,
+    )
   })
 })
