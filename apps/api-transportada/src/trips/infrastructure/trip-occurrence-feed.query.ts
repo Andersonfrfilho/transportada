@@ -69,7 +69,7 @@ import {
   buildOccurrenceTypeItemsView,
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
-import { listMissingNotificationTemplates } from './occurrence-mail-template-missing.query.js'
+import { listMissingNotificationTemplatesOrEmpty } from './occurrence-mail-template-missing.query.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { NfeDestinationAddress } from './nfe-destination-address.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -681,7 +681,7 @@ async function toFeedItems(
    * Spec 240 RF9 e 241 RF5: o cancelamento (a parada nunca é cancelada) e o modo de itens dos tipos
    * da página inteira, uma leitura cada, em paralelo — o modo de itens isolado de falha.
    */
-  const [cancellations, typeShapes, contractorReplies] = await Promise.all([
+  const [cancellations, typeShapes, contractorReplies, missingTemplateIds] = await Promise.all([
     listOccurrenceCancellationsByIds(queryable, {
       companyId,
       occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
@@ -698,21 +698,23 @@ async function toFeedItems(
       companyId,
       occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
     }),
+    /** Spec 269 D8: o aviso do modelo da página inteira, numa leitura só das exceções — isolado de falha. */
+    listMissingNotificationTemplatesOrEmpty(queryable, {
+      candidates: rows.map((row) => ({
+        contractorId:
+          row.nfeDocumentId === null
+            ? null
+            : (emitters.get(row.nfeDocumentId)?.contractorId ?? null),
+        emailsContractor: row.emailsContractor,
+        id: row.id,
+        occurrenceTypeId: row.occurrenceTypeId,
+        source: row.source,
+        typeMailTemplateId: row.typeMailTemplateId,
+      })),
+      companyId,
+      ...(logger === undefined ? {} : { logger }),
+    }),
   ])
-
-  /** Spec 269 D8: o aviso do modelo da página inteira, numa leitura só das exceções. */
-  const missingTemplateIds = await listMissingNotificationTemplates(queryable, {
-    candidates: rows.map((row) => ({
-      contractorId:
-        row.nfeDocumentId === null ? null : (emitters.get(row.nfeDocumentId)?.contractorId ?? null),
-      emailsContractor: row.emailsContractor,
-      id: row.id,
-      occurrenceTypeId: row.occurrenceTypeId,
-      source: row.source,
-      typeMailTemplateId: row.typeMailTemplateId,
-    })),
-    companyId,
-  })
 
   /** Spec 266: o andamento da página inteira, em lote. */
   const resolutions = await listFeedResolutionViews(queryable, {
