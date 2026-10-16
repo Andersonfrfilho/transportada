@@ -121,6 +121,8 @@ export type OccurrenceAttachmentContractorOverride = OccurrenceRequirementOverri
   Readonly<{
     attachmentMode: OccurrenceAttachmentMode
     contractorId: string
+    /** Spec 269: o modelo `occurrence` da exceção; nulo herda o do tipo. Ausente é API anterior ao campo. */
+    contractorMailTemplateId?: null | string
   }>
 
 export type OccurrenceAttachmentRecipientOverride = OccurrenceRequirementOverrideFields &

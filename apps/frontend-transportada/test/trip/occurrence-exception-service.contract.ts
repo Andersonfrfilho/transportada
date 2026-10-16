@@ -135,3 +135,31 @@ describe('recusas dos momentos pela API: um texto por código estável (T5.3b)',
     }
   })
 })
+
+describe('o modelo do e-mail na exceção por contratante (spec 269 RF1)', () => {
+  test('a exceção nova herda o modelo do tipo: nulo explícito, nunca ausente', () => {
+    const added = addException(BASE, {
+      attachmentMode: 'off',
+      key: { contractorId: 'contractor-2', kind: 'contractor' },
+    })
+
+    expect(added.contractorOverrides[1]).toMatchObject({
+      contractorId: 'contractor-2',
+      contractorMailTemplateId: null,
+    })
+  })
+
+  test('escolher o modelo troca só o da contratante; nulo volta a herdar', () => {
+    const chosen = editException(BASE, CONTRACTOR, { contractorMailTemplateId: 'template-1' })
+
+    expect(chosen.contractorOverrides[0]).toMatchObject({
+      contractorMailTemplateId: 'template-1',
+      itemsMinimumCount: 3,
+      signatureMode: 'required',
+    })
+    expect(chosen.recipientOverrides).toEqual(BASE.recipientOverrides)
+
+    const inherited = editException(chosen, CONTRACTOR, { contractorMailTemplateId: null })
+    expect(inherited.contractorOverrides[0]?.contractorMailTemplateId).toBeNull()
+  })
+})

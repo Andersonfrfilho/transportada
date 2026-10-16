@@ -21,6 +21,7 @@ import styles from '@/modules/trip/styles/occurrenceException.module.css'
 
 import { OccurrenceExceptionMinimums } from './OccurrenceExceptionMinimums.component'
 import { OccurrenceExceptionModeSelect } from './OccurrenceExceptionModeSelect.component'
+import { OccurrenceTypeMailTemplateSelect } from './OccurrenceTypeMailTemplateSelect.component'
 
 type OccurrenceExceptionItemProps = Readonly<{
   disabled: boolean
@@ -123,6 +124,17 @@ export function OccurrenceExceptionItem({
           onEdit={handleEdit}
         />
       </div>
+      {key.kind === 'contractor' ? (
+        <OccurrenceTypeMailTemplateSelect
+          disabled={disabled}
+          isInheriting
+          onSelect={(contractorMailTemplateId) => handleEdit({ contractorMailTemplateId })}
+          selectedTemplateId={
+            'contractorMailTemplateId' in entry ? (entry.contractorMailTemplateId ?? null) : null
+          }
+          shouldWarnMissing={false}
+        />
+      ) : null}
       <div>
         <Button
           aria-label={t('occurrenceTypeCatalog.exceptions.removeOf', { name: label })}
