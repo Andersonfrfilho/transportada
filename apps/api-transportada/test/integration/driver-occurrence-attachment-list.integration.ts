@@ -49,8 +49,6 @@ describe('a ocorrência de nota guarda N fotos (spec 246 T2.7)', () => {
           active: true,
           attachmentMode: 'required',
           companyId: company.companyId,
-          emailBody: '',
-          emailSubject: '',
           emailTemplateKey: null,
           flow: 'document',
           name: 'Recusa total',
@@ -125,8 +123,6 @@ describe('a ocorrência de nota guarda N fotos (spec 246 T2.7)', () => {
       const type = await saveOccurrenceType(database.db, {
         active: true,
         companyId: company.companyId,
-        emailBody: '',
-        emailSubject: '',
         emailTemplateKey: null,
         flow: 'document',
         name: 'Cliente ausente',

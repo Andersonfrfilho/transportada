@@ -68,7 +68,6 @@ import {
   listDocumentProducts,
   listOccurrenceTypes,
   listTripOccurrences,
-  readOccurrenceTemplateValues,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleTripDocumentBatchRepository } from '../../src/trips/infrastructure/drizzle-trip-document-batch.repository.js'
 import { DrizzleTripDocumentRepository } from '../../src/trips/infrastructure/drizzle-trip-document.repository.js'
@@ -680,7 +679,6 @@ async function buildScenario(db: Database, companyId: string) {
             findOccurrenceType: (query) => findOccurrenceType(db, query),
             listDocumentProducts: (query) => listDocumentProducts(db, query),
             listOccurrences: (query) => listTripOccurrences(db, query),
-            readTemplateValues: (query) => readOccurrenceTemplateValues(db, query),
             saveOccurrence: (query) =>
               persistSeparationOccurrenceWithAttachment({
                 attachment: query.attachment,

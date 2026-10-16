@@ -32,8 +32,6 @@ async function seedTypeWithMoments(
   const saved = await saveOccurrenceType(database.db, {
     active: true,
     companyId: company.companyId,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     moments,
     name: `Tipo ${moments.join('+')}`,

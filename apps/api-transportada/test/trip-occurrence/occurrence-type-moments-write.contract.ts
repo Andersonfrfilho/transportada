@@ -23,8 +23,6 @@ function values(overrides: Partial<SaveOccurrenceTypeValues> = {}): SaveOccurren
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     name: 'Avaria',
     notifies: false,

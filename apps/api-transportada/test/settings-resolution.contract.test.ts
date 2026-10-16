@@ -97,8 +97,6 @@ function buildPort(input: {
           active: true,
           allowsMultipleItems: true,
           attachmentMode: 'off',
-          emailBody: '',
-          emailSubject: '',
           emailTemplateKey: null,
           flow: 'document',
           id: OCCURRENCE_TYPE_ID,

@@ -51,8 +51,6 @@ function register(input: PhotoRequirement & { readonly attachmentObjectId: strin
         active: true,
         allowsMultipleItems: true,
         attachmentMode: input.attachmentMode,
-        emailBody: '',
-        emailSubject: '',
         emailTemplateKey: null,
         id: TYPE_ID,
         name: 'Recusa total',

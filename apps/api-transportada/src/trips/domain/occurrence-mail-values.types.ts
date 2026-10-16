@@ -6,7 +6,7 @@
 import type { OccurrenceAmountLine } from './occurrence-amount.policy.js'
 
 /** Um item marcado na ocorrência, com o que a NF-e e o registro dizem dele. */
-export type OccurrenceTemplateLine = OccurrenceAmountLine & {
+export type OccurrenceMailLine = OccurrenceAmountLine & {
   readonly code: string
   readonly description: string
   /** A quantidade da NF-e: só aparece quando a ocorrência não registrou a sua. */
@@ -14,7 +14,7 @@ export type OccurrenceTemplateLine = OccurrenceAmountLine & {
   readonly unit: string
 }
 
-export type OccurrenceTemplateValues = {
+export type OccurrenceMailValues = {
   /** O nome do embarcador — o que o assunto dos modelos chama de `{{contratante}}`. */
   readonly contractorName: string
   /** O valor pago digitado pela ocorrência inteira (`numeric` cru); ausente é não digitado. */
@@ -26,11 +26,9 @@ export type OccurrenceTemplateValues = {
   /** Vazio na ocorrência da nota inteira: não há item a apontar. */
   readonly itemCode: string
   readonly itemLabel: string
-  /** O formato de cada linha de `{{linhasItens}}`; ausente ou vazio usa a linha padrão. */
-  readonly itemLineTemplate?: string | undefined
   readonly itemQuantity: string
   /** Os itens marcados, na ordem; ausente é a nota inteira, sem linha a imprimir. */
-  readonly lines?: readonly OccurrenceTemplateLine[] | undefined
+  readonly lines?: readonly OccurrenceMailLine[] | undefined
   /** A observação da ocorrência: o motivo que quem registra digitou. */
   readonly note: string
   readonly occurredOn: string
@@ -43,7 +41,7 @@ export type OccurrenceTemplateValues = {
 }
 
 /** Os itens que a ocorrência aponta, na ordem em que foram marcados. */
-export type OccurrenceTemplateItem = {
+export type OccurrenceMailItem = {
   readonly code: string
   readonly description: string
   readonly quantity: number | string

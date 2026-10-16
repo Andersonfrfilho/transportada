@@ -22,8 +22,6 @@ const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
 function baseBody(): Record<string, unknown> {
   return {
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     name: 'Recusa total',
     notifies: false,

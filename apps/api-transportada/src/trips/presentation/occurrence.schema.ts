@@ -38,17 +38,16 @@ import {
 } from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
 import {
-  emailBodyTemplateSchema,
-  emailItemLineTemplateSchema,
-  emailSubjectTemplateSchema,
-} from './occurrence-template-fields.schema.js'
-import {
   OFFICE_MULTIPART_FILE_FIELD,
   readOfficeMultipartFile,
   readOfficeMultipartForm,
   type OfficeForm,
   type OfficeFormValue,
 } from './office-multipart.schema.js'
+
+/** Spec 269 D9: texto antigo do e-mail do tipo, só tolerado na fronteira até a etapa B. */
+const LEGACY_EMAIL_TEXT_MAX_LENGTH = 4000
+const legacyEmailTextSchema = z.string().max(LEGACY_EMAIL_TEXT_MAX_LENGTH)
 
 const OCCURRENCE_PRODUCT_CODE_MAX_LENGTH = 60
 
@@ -457,10 +456,10 @@ const occurrenceTypeSchema = z
     referenceNumberLabel: requirementLabelSchema.optional(),
     referenceNumberMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
     /**
-     * Spec 247 (RF5, RF6): o formato de cada linha de item do e-mail, conferido com os marcadores de
-     * LINHA — `{{linhasItens}}` ali dentro seria recursão. Ausente é "não mexa"; vazio é a linha padrão.
+     * Spec 269 D9: o painel antigo ainda manda o texto antigo do e-mail durante a publicação em etapas. Aceito
+     * e descartado antes do mapeador, sem conferir marcador, até a etapa B tirar as chaves.
      */
-    emailItemLineTemplate: emailItemLineTemplateSchema.optional(),
+    emailItemLineTemplate: legacyEmailTextSchema.optional(),
     /**
      * Spec 248 (RF1): o retorno da contratante. ⚠️ **Opcionais sem `default`, pelo mesmo motivo de
      * `attachmentMode`**: ausente é "não mexa". As CHECKs entre campos (retorno exige e-mail e texto;
@@ -567,14 +566,9 @@ const occurrenceTypeSchema = z
      * marcado "segue sem a nota" desligaria a marca sem erro nenhum. Ausente é "não mexa".
      */
     leavesDocumentBehind: z.boolean().optional(),
-    /**
-     * Marcador desconhecido é recusado aqui, no cadastro — ver `occurrence-template-fields.schema.ts`.
-     * ⚠️ **Opcionais sem `default`**: o UPDATE sobrescreve o registro inteiro, e o painel publicado não
-     * manda estes campos; com `default('')` cada edição apagava o e-mail à contratante. Ausente é
-     * "não mexa"; `''` explícito apaga de propósito.
-     */
-    emailBody: emailBodyTemplateSchema.optional(),
-    emailSubject: emailSubjectTemplateSchema.optional(),
+    /** Spec 269 D9: aceitos e descartados (ver `emailItemLineTemplate`). */
+    emailBody: legacyEmailTextSchema.optional(),
+    emailSubject: legacyEmailTextSchema.optional(),
     /**
      * A chave do template do módulo de notificações que o tipo seleciona para o aviso interno. Presente,
      * ela é conferida contra o catálogo da empresa na gravação; assunto/corpo acima são o e-mail à

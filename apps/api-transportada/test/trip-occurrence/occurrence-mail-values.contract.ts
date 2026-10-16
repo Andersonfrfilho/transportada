@@ -8,13 +8,16 @@
 import { describe, expect, test } from 'bun:test'
 
 import { MAIL_TEMPLATE_CATALOG } from '../../src/contractor-mail/domain/mail-template-catalog.constant.js'
-import { buildOccurrenceMailValues } from '../../src/trips/domain/occurrence-mail-values.policy.js'
+import {
+  buildOccurrenceItemValues,
+  buildOccurrenceMailValues,
+} from '../../src/trips/domain/occurrence-mail-values.policy.js'
 import type {
-  OccurrenceTemplateLine,
-  OccurrenceTemplateValues,
-} from '../../src/trips/domain/occurrence-template.types.js'
+  OccurrenceMailLine,
+  OccurrenceMailValues,
+} from '../../src/trips/domain/occurrence-mail-values.types.js'
 
-const LINE_A: OccurrenceTemplateLine = {
+const LINE_A: OccurrenceMailLine = {
   code: '7000001 01',
   declaredAmount: null,
   description: 'PRODUTO EXEMPLO A 500G',
@@ -25,7 +28,7 @@ const LINE_A: OccurrenceTemplateLine = {
   unitValue: '57.2000',
 }
 
-const LINE_B: OccurrenceTemplateLine = {
+const LINE_B: OccurrenceMailLine = {
   code: '7000002 02',
   declaredAmount: '10.0000',
   description: 'PRODUTO EXEMPLO B 1KG',
@@ -36,7 +39,7 @@ const LINE_B: OccurrenceTemplateLine = {
   unitValue: '19.9950',
 }
 
-const VALUES: OccurrenceTemplateValues = {
+const VALUES: OccurrenceMailValues = {
   contractorName: 'Contratante Exemplo',
   declaredAmount: null,
   documentLabel: '123456/1',
@@ -142,5 +145,28 @@ describe('valores do e-mail da ocorrência (spec 269 T2.3)', () => {
     expect(Object.keys(items[0] ?? {}).toSorted()).toEqual(
       catalog.itemVariables.map((variable) => variable.name).toSorted(),
     )
+  })
+})
+
+describe('os valores que agregam os itens seguem como eram, com a quantidade formatada (spec 247 RF8, D5)', () => {
+  const ITENS = [
+    { code: 'ZG-4410', description: 'Parafuso sextavado', quantity: '12.000' },
+    { code: 'ZG-4411', description: 'Porca', quantity: '2.500' },
+  ] as const
+
+  test('a quantidade da ocorrência sai sem zeros à direita, e os itens seguem juntos por vírgula', () => {
+    expect(buildOccurrenceItemValues(ITENS)).toEqual({
+      itemCode: 'ZG-4410, ZG-4411',
+      itemLabel: 'Parafuso sextavado, Porca',
+      itemQuantity: '12, 2,5',
+    })
+  })
+
+  test('quantidade numérica continua aceita', () => {
+    expect(buildOccurrenceItemValues([{ code: 'A', description: 'B', quantity: 2.5 }])).toEqual({
+      itemCode: 'A',
+      itemLabel: 'B',
+      itemQuantity: '2,5',
+    })
   })
 })

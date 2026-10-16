@@ -101,8 +101,6 @@ describe('a rota do galpão só grava tipo de galpão (spec 157)', () => {
           return {
             active: true,
             allowsMultipleItems: true,
-            emailBody: '',
-            emailSubject: '',
             emailTemplateKey: null,
             id: TIPO,
             name: stage === 'delivery' ? 'Recusa total' : 'Item faltante',
@@ -115,9 +113,6 @@ describe('a rota do galpão só grava tipo de galpão (spec 157)', () => {
         },
         async listOccurrences() {
           return []
-        },
-        async readTemplateValues() {
-          throw new Error('TEMPLATE_NOT_EXPECTED')
         },
         async saveOccurrence(saved) {
           calls.saved += 1

@@ -61,8 +61,6 @@ function buildType(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeReco
     attachmentMode: 'off',
     declaredAmountMode: 'off',
     declaredAmountScope: 'occurrence',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TIPO,
     itemsMode: 'optional',

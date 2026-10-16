@@ -335,7 +335,6 @@ import {
   listTripOccurrences,
   readOccurrenceLabels,
   readOccurrenceLabelsForDocuments,
-  readOccurrenceTemplateValues,
   saveOccurrenceType,
 } from './trips/infrastructure/delivery-proof-read.support.js'
 import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
@@ -599,7 +598,6 @@ import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
 import { createTripFieldOfficeRoutes } from './trips/presentation/trip-field-office.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from './trips/presentation/trip-field-office-occurrence.routes.js'
-import { createOccurrenceTypeEmailPreviewRoutes } from './trips/presentation/occurrence-type-email-preview.routes.js'
 import { createTripFieldDeliverySettingsRoutes } from './trips/presentation/trip-field-delivery-settings.routes.js'
 import { listFieldOccurrenceTypes } from './trips/application/list-field-occurrence-types.use-case.js'
 import { registerOfficeDocumentOccurrences } from './trips/application/register-office-document-occurrences.use-case.js'
@@ -1349,7 +1347,6 @@ export function bootstrap(): Bun.Server<undefined> {
             findOccurrenceType: (query) => findOccurrenceType(database.db, query),
             listDocumentProducts: (query) => listDocumentProducts(database.db, query),
             listOccurrences: (query) => listTripOccurrences(database.db, { ...query, logger }),
-            readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
             saveOccurrence: (query) =>
               persistSeparationOccurrenceWithAttachment({
                 attachment: query.attachment,
@@ -1430,7 +1427,6 @@ export function bootstrap(): Bun.Server<undefined> {
               id: attachment.id,
               position: attachment.position,
             })),
-            email: null,
           }
         },
       })
@@ -4296,7 +4292,6 @@ function createApplicationRoutes({
         startFieldTrip({ ...input, repository: currentDriverTripRepository }),
       targets: fieldTripTargetRepository,
     }),
-    ...createOccurrenceTypeEmailPreviewRoutes(),
     ...createTripFieldOfficeOccurrenceRoutes({
       resolveClientIp,
       listFieldOccurrenceTypes: (input) =>
@@ -4548,7 +4543,6 @@ function createApplicationRoutes({
                     findOccurrenceType: (query) => findOccurrenceType(database, query),
                     listDocumentProducts: (query) => listDocumentProducts(database, query),
                     listOccurrences: (query) => listTripOccurrences(database, { ...query, logger }),
-                    readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
                     /**
                      * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem
                      * o original e a miniatura opcional e grava a linha de anexo, tudo na transação
@@ -4607,8 +4601,6 @@ function createApplicationRoutes({
                   id: attachment.id,
                   position: attachment.position,
                 })),
-                /** Reenvio não reconstrói o e-mail pronto — quem precisa dele releu no primeiro. */
-                email: null,
               }
             },
           }),

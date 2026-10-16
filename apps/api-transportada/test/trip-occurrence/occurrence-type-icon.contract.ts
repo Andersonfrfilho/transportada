@@ -41,8 +41,6 @@ function buildRecord(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeRe
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     id: TYPE_ID,

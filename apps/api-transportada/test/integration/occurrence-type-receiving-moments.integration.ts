@@ -155,8 +155,6 @@ describe('o tipo de recebimento não é de rua (spec 246 A-1, spec 237)', () => 
             saveOccurrenceType(world.database.db, {
               active: true,
               companyId: world.company.companyId,
-              emailBody: '',
-              emailSubject: '',
               emailTemplateKey: null,
               moments: ['document', 'office'],
               name: 'Avaria na entrada',

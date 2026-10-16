@@ -56,8 +56,6 @@ function baseValues(companyId: string, overrides: Partial<SaveInput> = {}): Save
   return {
     active: true,
     companyId,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     name: 'Recusa total',

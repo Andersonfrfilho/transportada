@@ -38,8 +38,6 @@ function buildType(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeReco
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TYPE_ID,
     name: 'Avaria',
@@ -77,7 +75,6 @@ function registerAsSeparator(type: OccurrenceTypeRecord): Promise<unknown> {
         findOccurrenceType: async () => type,
         listDocumentProducts: async () => passedGuard(),
         listOccurrences: async () => [],
-        readTemplateValues: async () => passedGuard(),
         saveOccurrence: async () => passedGuard(),
       },
       tripId: TRIP,

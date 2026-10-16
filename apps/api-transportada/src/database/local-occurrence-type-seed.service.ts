@@ -72,8 +72,6 @@ async function seedOccurrenceTypes(): Promise<void> {
         /** Spec 166: a bancada nasce como a instalação nasce — todo tipo aceita vários itens. */
         allowsMultipleItems: true,
         companyId: empresa.id,
-        emailBody: '',
-        emailSubject: '',
         emailTemplateKey: null,
         /** Spec 241: só na criação — reescrever o modo de um tipo que o operador mudou apagaria a escolha dele. */
         itemsMode: existente === undefined ? OCCURRENCE_ITEMS_MODE.optional : undefined,

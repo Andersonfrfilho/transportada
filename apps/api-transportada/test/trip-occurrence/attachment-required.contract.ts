@@ -50,8 +50,6 @@ function registrar(input: {
         return {
           active: true,
           allowsMultipleItems: true,
-          emailBody: '',
-          emailSubject: '',
           emailTemplateKey: null,
           id: TIPO,
           name: 'Item faltante',
@@ -64,9 +62,6 @@ function registrar(input: {
       },
       async listOccurrences() {
         return []
-      },
-      async readTemplateValues() {
-        throw new Error('TEMPLATE_NOT_EXPECTED')
       },
       async saveOccurrence(saved) {
         input.calls.saved += 1

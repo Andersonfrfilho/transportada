@@ -56,8 +56,6 @@ function baseValues(companyId: string, overrides: Partial<SaveInput> = {}): Save
     active: true,
     allowsMultipleItems: true,
     companyId,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     name: 'Cliente pediu prorrogação do boleto',

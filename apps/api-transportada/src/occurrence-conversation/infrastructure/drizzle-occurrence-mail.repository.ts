@@ -36,7 +36,7 @@ import { OCCURRENCE_MAIL_TYPE } from '../../contractor-mail/domain/mail-template
 import { buildOccurrenceMailValues } from '../../trips/domain/occurrence-mail-values.policy.js'
 import { resolveEffectiveOccurrenceMailTemplateId } from '../../trips/domain/occurrence-mail-template.policy.js'
 import { resolveOccurrenceProductCodes } from '../../trips/domain/occurrence-scope.policy.js'
-import { readOccurrenceTemplateValues } from '../../trips/infrastructure/delivery-proof-read.support.js'
+import { readOccurrenceMailValues } from '../../trips/infrastructure/delivery-proof-read.support.js'
 import { listOccurrenceProductCodes } from '../../trips/infrastructure/drizzle-occurrence-product.repository.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
@@ -326,7 +326,7 @@ export function createOccurrenceSuggestedMailReader(
         companyId: params.companyId,
         occurrenceIds: [params.occurrenceId],
       })
-      const values = await readOccurrenceTemplateValues(database, {
+      const values = await readOccurrenceMailValues(database, {
         companyId: params.companyId,
         documentId: row.tripDocumentId,
         note: row.note,

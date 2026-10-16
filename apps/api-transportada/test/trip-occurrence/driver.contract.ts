@@ -57,8 +57,6 @@ function readPort(
         ...(overrides.attachmentMode === undefined
           ? {}
           : { attachmentMode: overrides.attachmentMode }),
-        emailBody: '',
-        emailSubject: '',
         emailTemplateKey: null,
         ...(overrides.flow === undefined ? {} : { flow: overrides.flow }),
         id: TIPO,

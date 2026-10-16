@@ -50,8 +50,6 @@ const FORWARD = {
 function valuesFor(overrides: Partial<SaveOccurrenceTypeValues> = {}): SaveOccurrenceTypeValues {
   return {
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     emailsContractor: true,
     flow: 'document',

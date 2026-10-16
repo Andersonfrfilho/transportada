@@ -15,9 +15,10 @@ import {
   resolveOccurrenceAmounts,
 } from './occurrence-amount.policy.js'
 import type {
-  OccurrenceTemplateLine,
-  OccurrenceTemplateValues,
-} from './occurrence-template.types.js'
+  OccurrenceMailItem,
+  OccurrenceMailLine,
+  OccurrenceMailValues,
+} from './occurrence-mail-values.types.js'
 
 type MailValues = Readonly<Record<string, string>>
 
@@ -32,7 +33,7 @@ function formatCents(cents: bigint | null): string {
 }
 
 function buildItemValues(
-  line: OccurrenceTemplateLine,
+  line: OccurrenceMailLine,
   amount: ReturnType<typeof resolveOccurrenceAmounts>['lines'][number],
 ): MailValues {
   return {
@@ -47,7 +48,7 @@ function buildItemValues(
 }
 
 export function buildOccurrenceMailValues(
-  values: OccurrenceTemplateValues,
+  values: OccurrenceMailValues,
 ): OccurrenceMailValuesResult {
   const lines = values.lines ?? []
   const amounts = resolveOccurrenceAmounts({
@@ -77,5 +78,22 @@ export function buildOccurrenceMailValues(
       valor_nota:
         values.totalValue === '' ? '' : formatCents(parseAmountToCents(values.totalValue)),
     },
+  }
+}
+
+/**
+ * ⚠️ **O e-mail cita todos os itens marcados, não só o primeiro:** um texto que nomeia um só manda o
+ * cliente conferir a carga errada. Nota inteira imprime vazio nos três marcadores, nunca o marcador
+ * cru. A quantidade é a da ocorrência, em formato brasileiro e sem zeros à direita (`2,5`).
+ */
+export function buildOccurrenceItemValues(items: readonly OccurrenceMailItem[]): {
+  readonly itemCode: string
+  readonly itemLabel: string
+  readonly itemQuantity: string
+} {
+  return {
+    itemCode: items.map((item) => item.code).join(', '),
+    itemLabel: items.map((item) => item.description).join(', '),
+    itemQuantity: items.map((item) => formatBrazilianQuantity(String(item.quantity))).join(', '),
   }
 }

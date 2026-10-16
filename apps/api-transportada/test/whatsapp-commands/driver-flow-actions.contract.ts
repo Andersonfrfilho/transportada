@@ -207,8 +207,6 @@ function buildOccurrenceType(overrides: Partial<OccurrenceTypeRecord> = {}): Occ
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: OCCURRENCE_TYPE_ID,
     name: 'Recusa total',

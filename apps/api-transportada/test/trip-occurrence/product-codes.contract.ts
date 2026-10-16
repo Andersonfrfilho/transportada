@@ -77,8 +77,6 @@ function registrar(input: {
   readonly productCodes?: readonly string[]
   readonly seen: {
     save: SaveCall
-    templateOccurrenceId?: string | undefined
-    templateProductCodes: readonly string[] | undefined
   }
 }) {
   return registerTripOccurrence({
@@ -96,8 +94,6 @@ function registrar(input: {
         return {
           active: true,
           allowsMultipleItems: true,
-          emailBody: 'Itens: {{item}}',
-          emailSubject: 'Ocorrência',
           emailTemplateKey: null,
           id: TIPO,
           name: 'Item avariado',
@@ -110,23 +106,6 @@ function registrar(input: {
       },
       async listOccurrences() {
         return []
-      },
-      async readTemplateValues(query) {
-        input.seen.templateProductCodes = query.productCodes
-        input.seen.templateOccurrenceId = query.occurrenceId
-        return {
-          contractorName: '',
-          documentLabel: '',
-          driverName: '',
-          itemCode: '',
-          itemLabel: 'Parafuso sextavado, Porca',
-          itemQuantity: '',
-          note: '',
-          occurredOn: '',
-          recipientName: '',
-          stopLabel: '',
-          totalValue: '',
-        }
       },
       async saveOccurrence(saved) {
         input.seen.save = {
@@ -160,12 +139,10 @@ function registrar(input: {
 
 type Seen = {
   save: SaveCall
-  templateOccurrenceId?: string | undefined
-  templateProductCodes: readonly string[] | undefined
 }
 
 function buildSeen(): Seen {
-  return { save: undefined, templateProductCodes: undefined }
+  return { save: undefined }
 }
 
 async function statusOf(operation: Promise<unknown>): Promise<number | undefined> {
@@ -217,17 +194,6 @@ describe('o registro grava vários itens e mantém a coluna antiga', () => {
     expect(seen.save?.productCode).toBe('ZG-4410')
     expect(seen.save?.productCodes).toEqual(['ZG-4410'])
     expect(registered.productCodes).toEqual(['ZG-4410'])
-  })
-
-  test('o e-mail pronto é montado com todos os itens', async () => {
-    const seen = buildSeen()
-
-    const registered = await registrar({ productCodes: ['ZG-4410', 'ZG-4411'], seen })
-
-    expect(seen.templateProductCodes).toEqual(['ZG-4410', 'ZG-4411'])
-    /** Spec 247 (T4.7): o leitor do modelo recebe a ocorrência já gravada, de onde lê o que o registro guardou. */
-    expect(seen.templateOccurrenceId).toBe(OCCURRENCE_ID)
-    expect(registered.email?.body).toBe('Itens: Parafuso sextavado, Porca')
   })
 
   test('os dois campos juntos são 422, e nada é gravado', async () => {

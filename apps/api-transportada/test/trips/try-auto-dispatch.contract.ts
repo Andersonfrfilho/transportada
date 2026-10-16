@@ -214,8 +214,6 @@ describe('a ocorrência só despacha quando deixa a nota para trás (spec 185 re
         findOccurrenceType: async () => ({
           active: true,
           allowsMultipleItems: true,
-          emailBody: '',
-          emailSubject: '',
           emailTemplateKey: null,
           id: TYPE_ID,
           leavesDocumentBehind: input.leavesDocumentBehind,
@@ -225,9 +223,6 @@ describe('a ocorrência só despacha quando deixa a nota para trás (spec 185 re
         }),
         listDocumentProducts: async () => [{ code: 'SKU-1', description: 'Caixa' }],
         listOccurrences: async () => [],
-        readTemplateValues: async () => {
-          throw new Error('não deveria montar e-mail')
-        },
         saveOccurrence: async (query) => ({
           createdAt: '2026-09-24T12:00:00.000Z',
           id: 'occurrence-1',
