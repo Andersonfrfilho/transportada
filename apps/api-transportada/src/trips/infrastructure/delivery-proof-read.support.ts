@@ -111,6 +111,7 @@ import {
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import { lockUsableOccurrenceMailTemplate } from './occurrence-mail-template-lock.support.js'
 import {
   replaceOccurrenceTypeMoments,
   withOccurrenceTypeMoments,
@@ -871,6 +872,7 @@ export async function findOccurrenceType(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
       contractorReplyAlertIntervalMinutes:
         companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
@@ -1042,6 +1044,7 @@ export async function listOccurrenceTypes(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
       contractorReplyAlertIntervalMinutes:
         companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
@@ -1131,6 +1134,12 @@ export async function saveOccurrenceType(
   },
 ): Promise<OccurrenceTypeRecord> {
   return queryable.transaction(async (transaction) => {
+    if (typeof input.contractorMailTemplateId === 'string') {
+      await lockUsableOccurrenceMailTemplate(transaction, {
+        companyId: input.companyId,
+        templateId: input.contractorMailTemplateId,
+      })
+    }
     const saved = await writeOccurrenceTypeRow(transaction, input)
     const moments =
       input.moments ??
@@ -1174,6 +1183,8 @@ async function writeOccurrenceTypeRow(
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
+    /** Spec 269: o modelo do e-mail à contratante; ausente é "não mexa", `null` limpa. */
+    readonly contractorMailTemplateId?: null | string | undefined
     readonly contractorReplyAlertIntervalMinutes?: number | undefined
     readonly contractorReplyAlertMaxCount?: number | undefined
     readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
@@ -1262,6 +1273,9 @@ async function writeOccurrenceTypeRow(
       ? {}
       : { referenceNumberMode: input.referenceNumberMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
+    ...(input.contractorMailTemplateId === undefined
+      ? {}
+      : { contractorMailTemplateId: input.contractorMailTemplateId }),
     ...(input.contractorReplyAlertIntervalMinutes === undefined
       ? {}
       : { contractorReplyAlertIntervalMinutes: input.contractorReplyAlertIntervalMinutes }),
@@ -1365,6 +1379,7 @@ async function writeOccurrenceTypeRow(
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
+    contractorMailTemplateId: saved.contractorMailTemplateId,
     contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,
     contractorReplyAlertMaxCount: saved.contractorReplyAlertMaxCount,
     contractorReplyAlertMode: saved.contractorReplyAlertMode,

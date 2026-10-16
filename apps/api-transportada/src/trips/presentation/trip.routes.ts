@@ -348,6 +348,8 @@ type SaveOccurrenceTypeInput = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
+  /** Spec 269: o modelo do e-mail à contratante; ausente é "não mexa", `null` limpa. */
+  readonly contractorMailTemplateId?: null | string | undefined
   readonly emailSubject?: string | undefined
   readonly emailTemplateKey: null | string
   /**

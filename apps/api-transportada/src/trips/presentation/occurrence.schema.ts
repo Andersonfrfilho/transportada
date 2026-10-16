@@ -553,6 +553,12 @@ const occurrenceTypeSchema = z
      */
     emailsContractor: z.boolean().optional(),
     /**
+     * Spec 269 (ADR-0106): o modelo `occurrence` do cadastro de modelos que escreve o e-mail deste tipo.
+     * Ausente é "não mexa"; `null` limpa (o tipo fica sem e-mail). Conferido na gravação: da empresa,
+     * `occurrence` e ativo.
+     */
+    contractorMailTemplateId: z.string().uuid().nullable().optional(),
+    /**
      * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota" — só para tipo de separação
      * (`stage: 'separation'`); um tipo de entrega com `true` é recusado no caso de uso, 422.
      *
