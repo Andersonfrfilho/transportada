@@ -135,7 +135,8 @@ describe('tripResponse.validation — tolerância ao modelo de e-mail do tipo (s
   })
 
   it('continua exigindo o que sempre foi exigido', () => {
-    const { name: _name, ...withoutName } = typeWithoutLegacyEmailText
+    const withoutName: Record<string, unknown> = { ...typeWithoutLegacyEmailText }
+    delete withoutName.name
     expect(() => adapters.occurrenceTypeFromApi(withoutName)).toThrow()
   })
 })
