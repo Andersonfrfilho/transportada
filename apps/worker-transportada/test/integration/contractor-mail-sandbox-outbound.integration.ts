@@ -7,7 +7,7 @@
  */
 import { createHash } from 'node:crypto'
 
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq, sql } from 'drizzle-orm'
 
@@ -25,6 +25,11 @@ describeDatabase('o e-mail da contratante em modo sandbox contra o banco (spec 2
   const provider = createDrizzleProvider({ connection: databaseUrl! })
   const database = provider.db
   const repository = createDrizzleContractorMailOutboundWorkerRepository(database)
+
+  /* Todos os arquivos de integração rodam no mesmo processo: pool sem fechar esgota o Postgres da CI. */
+  afterAll(async () => {
+    await provider.close()
+  })
 
   async function seedSandboxMessage(): Promise<{ companyId: string; messageId: string }> {
     const companyId = crypto.randomUUID()
