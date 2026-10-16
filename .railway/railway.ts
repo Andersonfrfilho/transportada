@@ -90,6 +90,8 @@ export default defineRailway((ctx) => {
       APP_ENV: preserve(),
       APP_PORT: preserve(),
       BOOTSTRAP_TOKEN: preserve(),
+      /** Spec 268: só fora de produção. `true` manda o e-mail de ocorrência da contratante ao Mailpit; exige `EMAIL_FROM`, e produção recusa no boot. */
+      CONTRACTOR_MAIL_SANDBOX_SMTP: preserve(),
       DATABASE_URL: preserve(),
       /**
        * Gravada pelo `.github/scripts/railway-deploy.sh` a cada deploy. Precisa estar declarada em
@@ -98,6 +100,8 @@ export default defineRailway((ctx) => {
       DEPLOYED_REVISION: preserve(),
       /** Só anuncia o canal nas notificações: quem envia é o worker, dono da chave do provedor. */
       EMAIL_CHANNEL_ENABLED: preserve(),
+      /** Spec 268: o remetente do e-mail sandbox da contratante (o mesmo do worker); só é lido com o modo ligado. */
+      EMAIL_FROM: preserve(),
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       FLEET_VEHICLE_CATALOG_URL: preserve(),
@@ -168,6 +172,8 @@ export default defineRailway((ctx) => {
       AUDIO_TRANSCRIPTION_RECOVERY_WINDOW: '72',
       AUDIO_TRANSCRIPTION_THREADS: '7',
       AUDIO_TRANSCRIPTION_TIMEOUT_MS: '300000',
+      /** Spec 268: só fora de produção. `true` envia as linhas `sandbox_smtp` do e-mail da contratante pelo `SMTP_URL` (Mailpit); exige `SMTP_URL` e `EMAIL_FROM`, e produção recusa no boot. */
+      CONTRACTOR_MAIL_SANDBOX_SMTP: preserve(),
       CTE_TECHNICAL_RESPONSIBLE_CNPJ: preserve(),
       CTE_TECHNICAL_RESPONSIBLE_CONTACT: preserve(),
       CTE_TECHNICAL_RESPONSIBLE_EMAIL: preserve(),

@@ -1658,3 +1658,13 @@ monthlyRequestBudget` da configuração; `>=` como o worker) → falha por par �
     mostrou na primeira tentativa, com o teste verde. Hoje o teste afirma zero `.cv-p-audio__error` e o botão "Tocar áudio" habilitado.
   - A página de Configurações lê `/company-settings/logo` ao abrir; sem dublê, `failures()` acusa `ERR_FAILED`.
   - O que o `getUserMedia` injetado NÃO prova: captura real do microfone, codec do `MediaRecorder` real, permissão do navegador, nem reprodução com saída de áudio.
+
+## Spec 268 — Contatos de ocorrência na ficha e avisos do e-mail com contratantes (spec 268)
+
+A ficha da contratante (aba "Contratantes") tem a seção "Contatos de ocorrência": é o `ContractorContactsPanel` com
+`contractorId` fixo (sem seletor, sem listar contratantes), só para `settings.manage`. Na aba "E-mail com contratantes",
+`MailSendReadinessSummary` mostra "Sem esta configuração nenhum e-mail de ocorrência sai para a contratante." quando a
+configuração não está pronta, ou o aviso do Mailpit quando o `GET /contractor-mail-settings` traz `sandboxDelivery: true`
+(`settingsReadFromApi`: `sandboxDelivery` vem ao lado de `data`, que segue com as chaves exatas). A seção de contatos dessa aba
+tem um botão que abre a aba "Contratantes". Teste: `test/trip-hooks/contractor-mail-sandbox-panel.contract.ts` (roda no
+`test:hooks`, com o preload de DOM).

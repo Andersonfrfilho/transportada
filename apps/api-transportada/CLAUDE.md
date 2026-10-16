@@ -1081,3 +1081,16 @@ Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/eviden
     `occurrences.resolve`. Senão loga `info` e não envia.
 - **Feed e linha do tempo:** o feed traz `resolution {state, at, actorKind} | null` e filtra por `resolutionStateIn` (`open`, `resolved`,
   `reopened`, `cancelled`); "em aberto" = `open,reopened`. A linha do tempo usa `resolution.resolved` e `resolution.reopened`.
+
+## O e-mail da contratante cai no Mailpit fora de produção (spec 268)
+
+⚠️ **`CONTRACTOR_MAIL_SANDBOX_SMTP=true`** (opt-in; API e worker; **produção recusa no boot nas duas apps**) manda o e-mail de
+ocorrência da contratante pelo SMTP do ambiente (Mailpit) **só quando a empresa não tem o Resend pronto**
+(`resolveMailSendReadiness`). Com o Resend pronto o envio é o de sempre, mesmo em staging. Na API o modo exige
+`EMAIL_FROM` (o remetente do sandbox; mesmo valor do worker) e `send-occurrence-mail.use-case.ts` grava
+`contractor_mail_messages.transport = 'sandbox_smtp'` (`varchar(16)`, padrão `resend`, CHECK) sem decifrar nada,
+com hash de token aleatório na thread e **sem** `Reply-To` (ninguém responde pelo Mailpit). O `GET /contractor-mail-settings`
+devolve `{ data, sandboxDelivery }` — `sandboxDelivery` é `true` só com o modo ligado e a configuração não pronta. Fora do
+escopo: correção de endereço (150) e encaminhamento do boleto (248) continuam exigindo o Resend. Contratos:
+`test/contractor-mail/sandbox-environment.contract.ts`, `test/occurrence-conversation/occurrence-mail.contract.ts`,
+`test/integration/occurrence-mail-sandbox.integration.ts`.
