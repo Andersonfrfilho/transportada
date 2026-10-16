@@ -139,5 +139,9 @@
   },
   "refusal": {
     "lead": "Confira:"
+  },
+  "watchers": {
+    "title": "Responsáveis desta contratante — substitui a lista da empresa",
+    "description": "O atendente fixo desta contratante. Com algum responsável ativo aqui, só ele vai em cópia nos e-mails desta contratante; sem nenhum ativo, vale a lista da empresa."
   }
 }

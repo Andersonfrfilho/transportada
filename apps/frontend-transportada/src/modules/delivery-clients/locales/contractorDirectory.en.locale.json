@@ -139,5 +139,9 @@
   },
   "refusal": {
     "lead": "Check:"
+  },
+  "watchers": {
+    "title": "Owners of this contractor — replaces the company list",
+    "description": "The fixed attendant for this contractor. With any active owner here, only they are copied on this contractor's e-mails; with none active, the company list applies."
   }
 }
