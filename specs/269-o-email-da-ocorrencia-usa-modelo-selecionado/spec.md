@@ -15,7 +15,7 @@
 | 242  | O editor de tipos (`PUT /company-settings/occurrence-types`, schema `.strict()`) grava a política. O campo novo entra no mesmo schema.                                                                                                                                                                                                                                                     |
 | 247  | Editor de `email_subject`/`email_body` na aba Tipos, `email_item_line_template` e `{{linhasItens}}`, somas por item. **O editor desse texto sai**; somas, valor pago e `reference_number_mode` ficam (são do registro, não do e-mail).                                                                                                                                                     |
 | 248  | Retorno da contratante: `contractor_reply_mode` exige `emails_contractor` (CHECK `company_occurrence_types_contractor_reply_requires_mail_check`). `driver_reply_template` e `forward_email_subject`/`forward_email_body` são **texto fixo** (só aparado e escapado), sem marcadores — não usam a máquina `{{camelCase}}`. **Ficam como estão**, e `emails_contractor` fica.               |
-| 268  | (em andamento em `work/spec-268`, ainda não em `staging`) O e-mail de ocorrência à contratante cai no Mailpit fora de produção (`transport = 'sandbox_smtp'`) e os contatos aparecem na ficha da contratante. Mexe no mesmo `send-occurrence-mail`/`recordMail`. **A implementação da 269 é rebaseada sobre a 268** (`plan.md` § Ordem com a 268).                                         |
+| 268  | (**já em `staging`**, PR #259) O e-mail de ocorrência à contratante cai no Mailpit fora de produção (`transport = 'sandbox_smtp'`) e os contatos aparecem na ficha da contratante. Mexe no mesmo `send-occurrence-mail`/`recordMail`. Esta branch já está rebaseada sobre ela (`plan.md` § Ordem com a 268).                                                                               |
 
 ## Problema e resultado
 
@@ -103,7 +103,7 @@ código e as colunas que só serviam a ele são removidos (as colunas em uma eta
    "Nenhum"/"Herdar do tipo", arquivar funciona.
 6. O modelo de outra empresa não pode ser escolhido (404) nem um modelo `address_correction` (400).
 7. O painel publicado antes da API continua abrindo "Modelos" e a aba Tipos quando a API passa a mandar o tipo de e-mail
-   `occurrence` e o campo `emailTemplateId`.
+   `occurrence` e o campo `contractorMailTemplateId`.
 8. Etapa A: nenhuma linha de código de produção lê ou escreve `email_subject`, `email_body` ou `email_item_line_template`
    (conferido por `grep`), a máquina `{{camelCase}}` (renderizador, marcadores, schemas, prévia do tipo e a rota
    `POST /company-settings/occurrence-types/email-preview`) não existe mais, a resposta do registro não traz `email`, e

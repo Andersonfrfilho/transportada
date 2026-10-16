@@ -23,7 +23,7 @@
   modelo efetivo com 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`.
 - **Q2 → sim, pela exceção por contratante que já existe** (`company_occurrence_type_contractor_overrides`, specs
   218/246/247/248; resolução tipo → contratante → destinatário já usada pelo app e pelo painel): a exceção ganha
-  `email_template_id uuid NULL` (nulo herda o modelo do tipo, campo a campo como as colunas irmãs; FK composta
+  `contractor_mail_template_id uuid NULL` (nulo herda o modelo do tipo, campo a campo como as colunas irmãs; FK composta
   `company_id`; precisa ser `occurrence` e ativo). Modelo efetivo = modelo da exceção da contratante ?? modelo do tipo.
   O editor da exceção na aba Tipos ganha o mesmo seletor. **Sem exceção por destinatário** (só contratante). O tipo
   continua geral — o dono recusou restringir tipo a contratante: "se na ocorrência vamos definir já se é de uma
@@ -74,7 +74,7 @@ Feito por leitura direta e uma busca paralela, só de leitura. A T0.1 confere as
   `valorUnitarioItem`, `somaItem`, `valorItem`. Teto de 200 linhas; linha padrão quando o tipo não escreve a sua.
 - **Painel estrito no tipo:** `tripResponse.validation.ts:1882-1885` exige `emailBody` e `emailSubject` em cada tipo, e
   a lista de chaves permitidas (:1956-1990) reprova chave desconhecida. Tirar os campos da API ou mandar
-  `emailTemplateId` antes do painel tolerante derruba a aba Tipos.
+  `contractorMailTemplateId` antes do painel tolerante derruba a aba Tipos.
 - **Exceção por contratante** (`company_occurrence_type_contractor_overrides`, `trip.schema.ts:3289`): colunas
   anuláveis que herdam do tipo (`note_mode`, `items_mode`, `reference_number_mode`, `contractor_reply_mode`…); gravada
   por `PUT /company-settings/occurrence-types/attachment-overrides` (`trip.routes.ts:224`, schema `.strict()`); precedência
@@ -113,4 +113,9 @@ Nenhuma aberta. Q1–Q3 respondidas em 2026-10-16 (ver "Respostas do dono" acima
 
 ## Registro das tasks
 
-(vazio — cada task registra aqui comando, saída resumida e commit)
+### T0.1 / T0.2 — revisão de arquitetura (2026-10-16)
+
+- 268 já em `staging` (PR #259, `338ef615d`); a branch está rebaseada sobre ela. Linhas do plano são aproximadas:
+  o mapeamento é por símbolo.
+- Veredito do architect: **aprovado com mudanças**, aplicadas em `plan.md` (§ Revisão de arquitetura e § Convivência com a
+  267), `tasks.md` e na ADR-0106 (agora "aceita com mudanças").

@@ -14,15 +14,15 @@
 
 > 🤖 Modelo: `sonnet` (T0.2 é 🧠)
 
-- [ ] **T0.1** `sonnet` — Conferir contra `origin/staging` os números de linha de `plan.md` (§ Inventário) e de
+- [x] **T0.1** `sonnet` — Conferir contra `origin/staging` os números de linha de `plan.md` (§ Inventário) e de
       `evidence.md`. Mapear **todos** os guardas do painel que veem as mudanças (catálogo e lista de modelos, tipo de
       ocorrência, exceção por contratante, resposta do registro, feed/detalhe, prévia do diálogo) e dizer se cada um reprova chave ou valor
       desconhecido. Conferir se os códigos `CONTRACTOR_MAIL_TEMPLATE_NOT_FOUND`/`_ARCHIVED` existem. Conferir se a 268
-      já entrou em `staging`; se não, registrar o plano de rebase. Divergência vira nota no `evidence.md`.
-- [ ] **T0.2** 🧠 `opus` — Validar com `architect` a ADR-0106 e as decisões D1–D9 do `plan.md`: nomes das variáveis
+      já entrou em `staging`; se não, registrar o plano de rebase. Divergência vira nota no `evidence.md`. **Feito:** 268 já em `staging`; remapeamento por símbolo.
+- [x] **T0.2** 🧠 `opus` — Validar com `architect` a ADR-0106 e as decisões D1–D9 do `plan.md`: nomes das variáveis
       (D6), composição do corpo e assinatura (D5), modelo efetivo exceção ?? tipo (D2), trava gravar × arquivar com tipo e
       exceção (D3), bloqueio do envio manual (D4), modelo resolvido no servidor no envio manual (D7), flag calculada (D8), aceitar e ignorar as chaves antigas até a etapa B (D9), migrations A e B e seus rollbacks. Ajuste
-      aprovado entra no `plan.md`, e a ADR passa a "aceita". **Outras tasks herdam este contrato.**
+      aprovado entra no `plan.md`, e a ADR passa a "aceita". **Outras tasks herdam este contrato.** **Veredito: aprovado com mudanças** (`plan.md` § Revisão de arquitetura).
 
 ## Fase 1 — Painel tolerante (vai a produção ANTES da API)
 
@@ -32,7 +32,7 @@
       mostram só as conhecidas. Depois, `contractorMailTemplatesResponse.validation.ts` descarta a entrada desconhecida
       em vez de lançar.
 - [ ] **T1.2** `haiku` — Teste antes: tipo de ocorrência sem `emailSubject`/`emailBody`/`emailItemLineTemplate` e com
-      `emailTemplateId` e `missingNotificationTemplate` passa no guarda; exceção por contratante com `emailTemplateId`
+      `contractorMailTemplateId` e `missingNotificationTemplate` passa no guarda; exceção por contratante com `contractorMailTemplateId`
       passa. Depois, `tripResponse.validation.ts` (e o guarda da exceção) torna os três opcionais e permite as chaves
       novas.
 - [ ] **T1.3** `haiku` — Teste antes: resposta do registro sem `email` passa; feed, detalhe e prévia do diálogo com
@@ -56,10 +56,10 @@
       as chaves `{snake_case}` a partir do que `readOccurrenceTemplateValues` lê hoje. Depois, mover/renomear
       `buildOccurrenceItemValues`, `buildOccurrenceTemplateLines` e os tipos (inventário) **sem** apagar a máquina
       antiga ainda (ela sai na Fase 3).
-- [ ] **T2.4** `sonnet` — `emailTemplateId` no `PUT /company-settings/occurrence-types` (opcional, nulo limpa), na
+- [ ] **T2.4** `sonnet` — `contractorMailTemplateId` no `PUT /company-settings/occurrence-types` (opcional, nulo limpa), na
       gravação (`FOR KEY SHARE` no modelo; empresa, tipo `occurrence`, ativo) e na resposta. As chaves antigas seguem
       aceitas (D9). Contratos: 200, 404 de outra empresa, 400 tipo de e-mail errado, 409 arquivado. Integração.
-- [ ] **T2.4b** `sonnet` — Mesmo campo na exceção por contratante: `emailTemplateId` (nulo herda) no
+- [ ] **T2.4b** `sonnet` — Mesmo campo na exceção por contratante: `contractorMailTemplateId` (nulo herda) no
       `PUT .../attachment-overrides`, na lista e no repositório, com a mesma conferência. Teste antes da política pura
       `occurrence-mail-template.policy.ts` (exceção vence tipo, exceção nula herda, os dois nulos → nulo; usa
       `resolveWithOverrides`). Contratos e integração.
@@ -70,7 +70,7 @@
       `no_template_selected`; envio manual resolve o modelo no servidor, sem modelo → 409
       `OCCURRENCE_MAIL_TEMPLATE_MISSING` (D4), e grava `template_id` (D7); `recordMail` grava `template_id`; a varredura
       do worker exige modelo efetivo.
-      **Conflito com a 268 aqui** — resolver sobre o código dela. Integração: modelo do tipo, modelo da exceção vencendo,
+      **268 já em `staging`** (código dela é a base). O reenvio da 248 (`contractorReplyResend`) fica isento do bloqueio e grava o `template_id` da mensagem original (ou nulo), com teste; assunto colapsado e truncado, corpo truncado com "e mais N itens"; um 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING` do envio (corrida) vira `skipped`/`no_template_selected`. Ponto único no `executeSend` (§ Convivência com a 267). Integração: modelo do tipo, modelo da exceção vencendo,
       exceção herdando, sem modelo (automático pula; manual 409), e o contrato da varredura do worker.
 - [ ] **T2.7** `sonnet` — `missingNotificationTemplate` (D8) no item do feed, no detalhe e na prévia do diálogo (+
       `templateId` na prévia). Contratos do feed e da prévia.
@@ -87,7 +87,7 @@
       `src/shared/occurrence-template.constant.ts`, as constantes de tamanho de assunto e corpo, e toda leitura e escrita
       das três colunas no `delivery-proof-read.support.ts` e no `save-occurrence-type*`. A resposta do tipo deixa de
       trazer as três chaves (o painel tolerante já está em produção — T1.4). O `PUT` continua aceitando e ignorando
-      (D9). Testes do código removido saem; os mistos são editados.
+      (D9). Testes do código removido saem; os mistos são editados. Inventário extra: locale `trip.locale.json` ~1384-1386, `shard-weights.json`; testes mistos `occurrence-declared-amount.integration.ts`, `occurrence-configuration-decides.integration.ts`, `occurrence-type-declared-amount-write.integration.ts`, `configuration-decides`, `declared-amount-type-write`, `product-selection`; no painel `occurrence-type-update` e `tripResponse.validation.contract.test.ts`. **Ficam** as `{{camelCase}}` das notificações (`notification-catalog`, `notification.constant` do worker, `occurrenceNoticePreview` do motorista) e `occurrence-amount.policy.ts`; os `grep` usam `-rnwE`.
 - [ ] **T3.2** `haiku` — Seed (`local-occurrence-type-seed.service.ts`), cenários (`scripts/contractor-reply-scenarios`)
       e fixtures sem as chaves. Reescrever `occurrence-template-values.integration.ts` para o modelo.
 - [ ] **T3.3** `haiku` — Gate de limpeza: o `grep` do aceite da etapa A (`plan.md` § Inventário) só acha o schema
@@ -130,7 +130,7 @@
       (`bun --env-file=../../.env.test test --timeout 120000`), integração, migration-test, `bunx prettier --check .`
       na raiz.
 - [ ] **T5.4** `sonnet` — **Medir em staging e produção** (só contagem, sem conteúdo): tipos com `emails_contractor`
-      por empresa (ficam sem e-mail no deploy) e tipos com `email_subject` não vazio (texto que a etapa B descarta).
+      por empresa (ficam sem e-mail no deploy) e tipos com `email_subject` não vazio (texto que a etapa B descarta) e tipos com `contractor_reply_mode <> 'off'` (o retorno da contratante só abre no envio automático: sem modelo, não abre).
       Registrar no `evidence.md` e **mostrar ao dono antes de `main`**.
 - [ ] **T5.5** `sonnet` — Publicação em etapas, **cada uma com aprovação humana**: rebase em `origin/staging` (sobre a
       268), `bun install --frozen-lockfile`, gates; API + worker + telas para staging → conferir → `main`. Contexto de

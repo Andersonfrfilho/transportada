@@ -1,6 +1,6 @@
 # ADR 0106 — O e-mail da ocorrência usa o modelo do cadastro, escolhido no tipo
 
-- **Status:** proposta (2026-10-16) — a validar pelo architect na T0.2 da spec 269. Escopo decidido pelo Anderson no chat
+- **Status:** aceita com mudanças (2026-10-16, revisão de arquitetura T0.2 da spec 269). Escopo decidido pelo Anderson no chat
   do projeto em 2026-10-16.
 - **Data:** 2026-10-16
 - **Nasce da spec 269:** o e-mail de ocorrência à contratante passa a sair dos modelos de "E-mail com contratantes →
@@ -27,10 +27,10 @@
 1. **Tipo de e-mail `occurrence` no catálogo da 150.** Variáveis de e-mail (assunto, abertura, encerramento e item) e de
    item (só no `item_text`, que se repete por item) — lista fechada no `plan.md` da 269. A renderização é a da 150
    (`renderMailTemplate`, HTML escapado). A CHECK `contractor_mail_templates_mail_type_check` muda por migration aditiva.
-2. **O tipo aponta para o modelo, e a exceção da contratante pode trocá-lo.** `email_template_id uuid NULL` em
+2. **O tipo aponta para o modelo, e a exceção da contratante pode trocá-lo.** `contractor_mail_template_id uuid NULL` em
    `company_occurrence_types` e em `company_occurrence_type_contractor_overrides` (a exceção por contratante das specs
    218/246/247/248; nulo herda do tipo, campo a campo, como as colunas irmãs), cada um com FK composta
-   `(company_id, email_template_id) → contractor_mail_templates (company_id, id)` `ON DELETE RESTRICT`. **Modelo efetivo =
+   `(company_id, contractor_mail_template_id) → contractor_mail_templates (company_id, id)` `ON DELETE RESTRICT`. **Modelo efetivo =
    modelo da exceção da contratante da nota ?? modelo do tipo** (`resolveWithOverrides`, sem camada de destinatário). O
    tipo continua geral — não é restrito a uma contratante; a exceção acompanha a contratante da nota. A gravação (tipo ou
    exceção) confere, na mesma transação, que o modelo é da empresa, do tipo `occurrence` e ativo. Um modelo escolhido por
@@ -63,7 +63,9 @@
 - No dia do deploy, os tipos que enviavam e-mail param até alguém escolher modelo. É intencional (decisão do dono) e
   visível (aviso no tipo e na ocorrência). O operador também não envia à mão até haver modelo. A T5.4 mede quantos tipos ficam nessa situação por empresa antes de ir a
   `main`.
-- Uma sintaxe só de marcador no produto (`{snake_case}`); a `{{camelCase}}` deixa de existir.
+- A sintaxe `{{camelCase}}` do e-mail da ocorrência deixa de existir (a das notificações fica).
+- O retorno da contratante (248) só abre no envio automático: sem modelo, não abre.
+- O reenvio do retorno (`contractorReplyResend`, 248) não passa pelo bloqueio e grava o `template_id` da mensagem original (ou nulo).
 - O envio automático deixa de reprocessar ocorrência sem modelo: a varredura do worker passa a exigir modelo efetivo
   (hoje um pulo `no_template` não grava idempotência e a varredura pede a mesma ocorrência a cada rodada).
 - O drop das colunas é irreversível quanto ao dado; o rollback só devolve a forma.
