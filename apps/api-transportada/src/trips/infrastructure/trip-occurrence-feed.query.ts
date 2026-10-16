@@ -69,6 +69,7 @@ import {
   buildOccurrenceTypeItemsView,
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
+import { listMissingNotificationTemplates } from './occurrence-mail-template-missing.query.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { NfeDestinationAddress } from './nfe-destination-address.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -92,11 +93,15 @@ type FeedRow = Omit<
   | 'conversation'
   | 'createdAt'
   | 'document'
+  | 'missingNotificationTemplate'
   | 'resolution'
   | 'typeAllowsMultipleItems'
   | 'typeItemsMode'
 > & {
   readonly createdAt: Date
+  /** Spec 269: só alimentam o aviso do modelo; saem na montagem do item. */
+  readonly emailsContractor: boolean
+  readonly typeMailTemplateId: null | string
   readonly nfeDocumentId: null | string
   readonly totalValue: null | string
   readonly tripDocumentId: null | string
@@ -294,6 +299,8 @@ async function listDocumentOccurrenceRows(
       invoiceNumber: nfeDocuments.number,
       invoiceSeries: nfeDocuments.series,
       notifies: companyOccurrenceTypes.notifies,
+      emailsContractor: companyOccurrenceTypes.emailsContractor,
+      typeMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
       occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       onBehalfOfDriverName: feedOnBehalfDriver.name,
       stage: tripDocumentOccurrences.stage,
@@ -401,6 +408,8 @@ async function listDocumentOccurrenceRows(
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
     notifies: row.notifies,
+    emailsContractor: row.emailsContractor,
+    typeMailTemplateId: row.typeMailTemplateId,
     occurrenceTypeId: row.occurrenceTypeId,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'document' as const,
@@ -583,6 +592,8 @@ async function listStopOccurrenceRows(
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
     notifies: false,
+    emailsContractor: false,
+    typeMailTemplateId: null,
     occurrenceTypeId: null,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'stop' as const,
@@ -689,6 +700,20 @@ async function toFeedItems(
     }),
   ])
 
+  /** Spec 269 D8: o aviso do modelo da página inteira, numa leitura só das exceções. */
+  const missingTemplateIds = await listMissingNotificationTemplates(queryable, {
+    candidates: rows.map((row) => ({
+      contractorId:
+        row.nfeDocumentId === null ? null : (emitters.get(row.nfeDocumentId)?.contractorId ?? null),
+      emailsContractor: row.emailsContractor,
+      id: row.id,
+      occurrenceTypeId: row.occurrenceTypeId,
+      source: row.source,
+      typeMailTemplateId: row.typeMailTemplateId,
+    })),
+    companyId,
+  })
+
   /** Spec 266: o andamento da página inteira, em lote. */
   const resolutions = await listFeedResolutionViews(queryable, {
     companyId,
@@ -705,8 +730,12 @@ async function toFeedItems(
       occurrenceTypeId: row.occurrenceTypeId,
       shapes: typeShapes,
     })
+    const { emailsContractor, typeMailTemplateId, ...itemFields } = row
+    void emailsContractor
+    void typeMailTemplateId
     return {
-      ...row,
+      ...itemFields,
+      missingNotificationTemplate: missingTemplateIds.has(row.id),
       typeAllowsMultipleItems,
       typeItemsMode,
       cancellation: row.source === 'document' ? (cancellations.get(row.id) ?? null) : null,
