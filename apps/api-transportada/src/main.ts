@@ -742,6 +742,8 @@ import { createCargoPreviewHttpRoutes } from './cargo-receiving/cargo-preview.co
 import { createContractorPreviewEmailHttpRoutes } from './cargo-receiving/contractor-preview-email.composition.js'
 import { CARGO_ARRIVAL_CHANNEL } from './shared/cargo-arrival.constant.js'
 import { createContractorContactsUseCase } from './contractor-mail/application/contractor-contacts.use-case.js'
+import { createOccurrenceWatchersUseCase } from './contractor-mail/application/occurrence-watchers.use-case.js'
+import { DrizzleOccurrenceWatcherRepository } from './contractor-mail/infrastructure/drizzle-occurrence-watcher.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createContractorMailSettingsUseCase } from './contractor-mail/application/contractor-mail-settings.use-case.js'
 import { createProcessInboundEmailWebhookUseCase } from './contractor-mail/application/process-inbound-email-webhook.use-case.js'
@@ -751,6 +753,7 @@ import { DrizzleContractorMailRepository } from './contractor-mail/infrastructur
 import { createMxLookupGateway } from './contractor-mail/infrastructure/mx-lookup.gateway.js'
 import { createResendAccountGateway } from './contractor-mail/infrastructure/resend-account.gateway.js'
 import { createContractorContactRoutes } from './contractor-mail/presentation/contractor-contacts.routes.js'
+import { createOccurrenceWatchersRoutes } from './contractor-mail/presentation/occurrence-watchers.routes.js'
 import { createContractorMailSettingsRoutes } from './contractor-mail/presentation/contractor-mail-settings.routes.js'
 import { createContractorMailTemplatesUseCase } from './contractor-mail/application/contractor-mail-templates.use-case.js'
 import { DrizzleContractorMailTemplateRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-template.repository.js'
@@ -2779,6 +2782,11 @@ function createApplicationRoutes({
     getContractor: { execute: (input) => contractorRegistry.get(input) },
     repository: contractorMailRepository,
   })
+  /** Spec 267: os responsáveis por ocorrências (cópia no e-mail); a contratante é conferida antes de tudo. */
+  const occurrenceWatchers = createOccurrenceWatchersUseCase({
+    getContractor: { execute: (input) => contractorRegistry.get(input) },
+    repository: new DrizzleOccurrenceWatcherRepository(database),
+  })
   /** Spec 150 T402: a prévia de cada tipo usa os dados fictícios do desenho aprovado. */
   const contractorMailTemplates = createContractorMailTemplatesUseCase({
     previewRenderers: {
@@ -3857,6 +3865,7 @@ function createApplicationRoutes({
       listContacts: { execute: (input) => contractorContacts.list(input) },
       updateContact: { execute: (input) => contractorContacts.update(input) },
     }),
+    ...createOccurrenceWatchersRoutes({ useCase: occurrenceWatchers }),
     ...createContractorDeliveryRoutes({
       listDeliveries: { execute: (input) => readContractorDeliveries(input) },
       readDeliveryLocation: { execute: (input) => readContractorDeliveryLocation(input) },
