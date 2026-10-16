@@ -353,6 +353,27 @@ describe('o gateway SMTP do sandbox', () => {
     expect('cc' in (messages[1] ?? {})).toBe(false)
   })
 
+  test('recusa endereço que injetaria cabeçalho ou viraria lista, no to e no cc, sem tocar o transporte', async () => {
+    const { messages, transport } = fakeTransport({ accepted: ['a'], rejected: [] })
+    const gateway = createSandboxSmtpMailGateway({ transport })
+    const base = {
+      from: 'no-reply@staging.example.test',
+      subject: 'Assunto',
+      text: 'Corpo',
+      to: ['a@example.test'],
+    }
+
+    for (const hostile of ['x@e.test\nBcc: y@e.test', 'x@e.test, y@e.test', 'Nome <x@e.test>']) {
+      await expect(gateway.sendEmail({ ...base, cc: [hostile] })).rejects.toMatchObject({
+        name: 'SandboxSmtpRecipientsRejectedError',
+      })
+      await expect(gateway.sendEmail({ ...base, to: [hostile] })).rejects.toMatchObject({
+        name: 'SandboxSmtpRecipientsRejectedError',
+      })
+    }
+    expect(messages).toEqual([])
+  })
+
   test('recusa To + Cc acima do teto sem tocar o transporte', async () => {
     const { messages, transport } = fakeTransport({ accepted: ['a'], rejected: [] })
     const gateway = createSandboxSmtpMailGateway({ transport })

@@ -59,6 +59,9 @@ type NodemailerModule = {
   createTransport(smtpUrl: string): SandboxSmtpTransport
 }
 
+/** Quebra de linha injeta cabeçalho; vírgula e `<>` fariam um item virar lista ou nome+endereço (como no gateway do Resend). */
+const FORBIDDEN_RECIPIENT_CHARACTERS = /[\r\n,<>]/
+
 const NODEMAILER_MODULE_NAME: string = 'nodemailer'
 
 async function createNodemailerTransport(smtpUrl: string): Promise<SandboxSmtpTransport> {
@@ -79,7 +82,10 @@ export function createSandboxSmtpMailGateway(
   return {
     async sendEmail(request) {
       const copied = request.cc ?? []
-      if (request.to.length + copied.length > CONTRACTOR_MAIL_MAX_RECIPIENTS) {
+      if (
+        request.to.length + copied.length > CONTRACTOR_MAIL_MAX_RECIPIENTS ||
+        [...request.to, ...copied].some((address) => FORBIDDEN_RECIPIENT_CHARACTERS.test(address))
+      ) {
         throw new SandboxSmtpRecipientsRejectedError()
       }
       const transport = await resolveTransport()
