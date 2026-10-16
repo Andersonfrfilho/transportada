@@ -50,35 +50,37 @@ export function DriverTripSyncBanner({
   return (
     <div aria-live="polite" className={styles.tripSyncBanner} data-state={state.kind} role="status">
       {state.kind === 'syncing' || (state.kind === 'rejected' && state.syncing > 0) ? (
-        <span>
+        <span className={styles.tripSyncItem} data-tone="waiting">
           <span aria-hidden="true" className={styles.syncStatusSpinner} />
           {t('tripSync.syncing', { count: state.syncing })}
         </span>
       ) : null}
       {state.kind === 'rejected' ? (
-        <span>
-          <Icon aria-hidden="true" name="clock" size="sm" />
+        <span className={styles.tripSyncItem} data-tone="error">
+          <Icon aria-hidden="true" name="alert" size="sm" />
           {t('tripSync.rejected', { count: state.rejected })}
         </span>
       ) : null}
       {hasFailure ? (
-        <span role="alert">
-          <Icon aria-hidden="true" name="clock" size="sm" />
+        <span className={styles.tripSyncItem} data-tone="attention" role="alert">
+          <Icon aria-hidden="true" name="alert" size="sm" />
           {t('tripSync.failed')}
           {onSendNow === undefined ? null : (
-            <button className={styles.tripSyncOpen} onClick={onSendNow} type="button">
+            <button className={styles.tripSyncAction} onClick={onSendNow} type="button">
+              <Icon aria-hidden="true" name="refresh" size="sm" />
               {t('deliveryGate.sendNow')}
             </button>
           )}
         </span>
       ) : null}
       {state.kind === 'synced' ? (
-        <span>
+        <span className={styles.tripSyncItem} data-tone="done">
           <Icon aria-hidden="true" name="check" size="sm" />
           {t('tripSync.synced')}
         </span>
       ) : null}
       <button className={styles.tripSyncOpen} onClick={onOpen} type="button">
+        <Icon aria-hidden="true" name="clipboard-list" size="sm" />
         {t('tripSync.open')}
       </button>
     </div>

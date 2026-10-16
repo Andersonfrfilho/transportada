@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export type PhotoPreview = Readonly<{
   previewUrl: string | undefined
@@ -7,31 +7,29 @@ export type PhotoPreview = Readonly<{
 }>
 
 /**
- * A miniatura da foto que acabou de ser anexada. A URL `blob:` é recurso do navegador: a anterior
- * é liberada ao trocar de foto, e a última, quando o formulário sai da tela.
+ * A miniatura da foto que acabou de ser anexada. A URL `blob:` é recurso do navegador: cada ciclo do
+ * efeito cria a sua e a libera ao trocar de foto ou ao sair da tela.
+ *
+ * Criar a URL dentro do efeito (e não ao iniciar o estado) é o que sobrevive ao desmonte e à
+ * remontagem do `StrictMode`: uma URL criada na inicialização era liberada pelo primeiro cleanup e a
+ * imagem ficava quebrada até a tela remontar.
  *
  * Spec 218: `initialBlob` é o arquivo que a fila já guarda — a miniatura nasce dele, sem esperar
  * uma captura nova.
  */
 export function usePhotoPreviewUrl(initialBlob?: Blob): PhotoPreview {
-  const [previewUrl, setPreviewUrl] = useState<string | undefined>(() =>
-    initialBlob === undefined ? undefined : URL.createObjectURL(initialBlob),
-  )
-  const currentUrlRef = useRef<string | undefined>(previewUrl)
+  const [blob, setBlob] = useState<Blob | undefined>(initialBlob)
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined)
 
-  useEffect(
-    () => () => {
-      if (currentUrlRef.current !== undefined) URL.revokeObjectURL(currentUrlRef.current)
-    },
-    [],
-  )
-
-  function showPhoto(blob: Blob): void {
-    if (currentUrlRef.current !== undefined) URL.revokeObjectURL(currentUrlRef.current)
+  useEffect(() => {
+    if (blob === undefined) {
+      setPreviewUrl(undefined)
+      return undefined
+    }
     const url = URL.createObjectURL(blob)
-    currentUrlRef.current = url
     setPreviewUrl(url)
-  }
+    return () => URL.revokeObjectURL(url)
+  }, [blob])
 
-  return { previewUrl, showPhoto }
+  return { previewUrl, showPhoto: setBlob }
 }
