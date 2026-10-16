@@ -182,6 +182,39 @@ describe('resend mail gateway (spec 143 T007)', () => {
     expect(stub.calls).toHaveLength(0)
   })
 
+  /** Spec 267: o `cc` vai no mesmo POST; vazio nem entra no corpo; o teto vale para To + Cc. */
+  test('sends cc in the same request and omits it when empty', async () => {
+    const stub = fakeFetch(async () => json({ id: 'email-id-cc' }))
+    const gateway = createResendMailGateway({ fetch: stub.fetch })
+
+    await gateway.sendEmail({ ...SEND_INPUT, cc: ['ana@empresa.com.br'], to: ['a@exemplo.com.br'] })
+    await gateway.sendEmail({ ...SEND_INPUT, cc: [], to: ['a@exemplo.com.br'] })
+
+    expect(stub.calls[0]?.body).toMatchObject({ cc: ['ana@empresa.com.br'] })
+    expect('cc' in (stub.calls[1]?.body as object)).toBe(false)
+  })
+
+  test('refuses to + cc above the limit and a cc with forbidden characters, without the network', async () => {
+    const stub = fakeFetch(async () => json({ id: 'email-id-cc2' }))
+    const gateway = createResendMailGateway({ fetch: stub.fetch })
+    const to = Array.from(
+      { length: CONTRACTOR_MAIL_MAX_RECIPIENTS },
+      (_, index) => `contato${index}@exemplo.com.br`,
+    )
+
+    await expect(
+      gateway.sendEmail({ ...SEND_INPUT, cc: ['ana@empresa.com.br'], to }),
+    ).rejects.toBeInstanceOf(ResendInvalidRecipientsError)
+    await expect(
+      gateway.sendEmail({
+        ...SEND_INPUT,
+        cc: ['ana@empresa.com.br\nBcc: x@y.com'],
+        to: ['a@exemplo.com.br'],
+      }),
+    ).rejects.toBeInstanceOf(ResendInvalidRecipientsError)
+    expect(stub.calls).toHaveLength(0)
+  })
+
   test('refuses an empty recipient list without touching the network', async () => {
     const stub = fakeFetch(async () => json({ id: 'email-id-5' }))
     const gateway = createResendMailGateway({ fetch: stub.fetch })

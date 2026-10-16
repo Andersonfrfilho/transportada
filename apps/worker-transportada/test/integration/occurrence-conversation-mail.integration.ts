@@ -101,6 +101,7 @@ describeDatabase('conversa da ocorrência pelo trilho de e-mail da 143 (spec 183
       subject: 'Re: Ocorrência',
       threadId: seeded.threadId,
       toAddresses: ['r+token@reply.example.test'],
+      ccAddresses: ['ana@empresa.example.test'],
     })
   }
 
@@ -133,10 +134,15 @@ describeDatabase('conversa da ocorrência pelo trilho de e-mail da 143 (spec 183
     )
     /** Spec 183 T406 (RF16): o nome do `From` fica gravado na mensagem da 143. */
     const [mail] = await database
-      .select({ fromDisplayName: contractorMailMessages.fromDisplayName })
+      .select({
+        ccAddresses: contractorMailMessages.ccAddresses,
+        fromDisplayName: contractorMailMessages.fromDisplayName,
+      })
       .from(contractorMailMessages)
       .where(eq(contractorMailMessages.id, recorded.id))
     expect(mail?.fromDisplayName).toBe('Compras Alfa')
+    /** Spec 267 RF9: o `Cc` do e-mail recebido fica gravado na mensagem. */
+    expect(mail?.ccAddresses).toEqual(['ana@empresa.example.test'])
     expect(received).toEqual([
       {
         bodyText: 'Podem descarregar.',

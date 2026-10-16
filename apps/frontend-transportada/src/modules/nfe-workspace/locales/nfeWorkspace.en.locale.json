@@ -425,8 +425,12 @@
           "templateNotUsable": "The chosen template was archived or is no longer available. Pick another template.",
           "idempotencyReused": "This send was already processed. Refresh the page before trying again.",
           "tooManyRequests": "Too many send attempts. Try again in {{minutes}} min.",
-          "generic": "Could not send the correction request."
-        }
+          "generic": "Could not send the correction request.",
+          "tooManyRecipients": "Recipients and copy exceed the e-mail limit. Remove someone from the copy or untick contacts."
+        },
+        "copyLabel": "Cc:",
+        "copyEmpty": "No owner is copied on this e-mail.",
+        "copyRemove": "Take {{name}} off this e-mail's copy"
       }
     }
   },

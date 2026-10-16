@@ -205,3 +205,12 @@ da empresa nem fala com o Resend**. Sem `CONTRACTOR_MAIL_SANDBOX_SMTP=true` nest
 (`sandbox_disabled`); o modo com `APP_ENV=production` derruba o boot, e exige `SMTP_URL` e `EMAIL_FROM`. Todos os destinatários
 recusados é falha permanente; erro de conexão propaga e a fila tenta de novo. Log só com `messageId`/`threadId`/motivo.
 Contrato: `test/contractor-mail/sandbox-outbound.contract.ts`, `test/contractor-mail-sandbox-environment.contract.test.ts`.
+
+## A cópia no e-mail da contratante (spec 267)
+
+⚠️ A API grava `contractor_mail_messages.cc_addresses` (usuários da empresa, já resolvidos); o worker só a lê
+(`message.ccAddresses`, deduplicada, sem quem já está no `To`) e a manda no `cc` do **Resend e do SMTP de sandbox** (vazio não
+vai no corpo). O teto `To` + `Cc` ≤ `CONTRACTOR_MAIL_MAX_RECIPIENTS` é conferido **uma vez, antes de escolher o transporte**
+(`invalid_recipients`, falha permanente), e os dois gateways mantêm a guarda própria. O sandbox não tem `Reply-To`: a resposta
+de um responsável não volta. Nenhum endereço em log. Contratos: `test/contractor-mail/{outbound-message,sandbox-outbound,
+resend-mail-gateway}.contract.ts`, `test/integration/contractor-mail-sandbox-outbound.integration.ts`.

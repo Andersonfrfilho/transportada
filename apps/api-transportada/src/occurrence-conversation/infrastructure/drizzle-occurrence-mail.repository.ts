@@ -36,6 +36,7 @@ import { readOccurrenceTemplateValues } from '../../trips/infrastructure/deliver
 import { listOccurrenceProductCodes } from '../../trips/infrastructure/drizzle-occurrence-product.repository.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
+import { loadEffectiveWatcherCandidates } from '../../contractor-mail/infrastructure/occurrence-watcher-candidates.query.js'
 import type {
   OccurrenceMailContact,
   OccurrenceMailIdempotencyRecord,
@@ -162,13 +163,18 @@ export function createOccurrenceMailReader(
   database: TripQueryable,
 ): Pick<
   OccurrenceMailTransactionPort,
-  'findCarrierName' | 'findOccurrenceTarget' | 'findOperatorName' | 'listOccurrenceRecipients'
+  | 'findCarrierName'
+  | 'findOccurrenceTarget'
+  | 'findOperatorName'
+  | 'listOccurrenceRecipients'
+  | 'loadWatcherCandidates'
 > {
   return {
     findCarrierName: (params) => findCarrierName(database, params),
     findOccurrenceTarget: (params) => findOccurrenceTarget(database, params),
     findOperatorName: (params) => findOperatorName(database, params),
     listOccurrenceRecipients: (params) => listOccurrenceRecipients(database, params),
+    loadWatcherCandidates: (params) => loadEffectiveWatcherCandidates(database, params),
   }
 }
 
@@ -329,6 +335,13 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
 
   public constructor(private readonly transaction: Transaction) {
     this.attachments = createConversationAttachmentTransactionPort(transaction)
+  }
+
+  public loadWatcherCandidates(params: {
+    readonly companyId: string
+    readonly contractorId: string
+  }) {
+    return loadEffectiveWatcherCandidates(this.transaction, params)
   }
 
   public listOccurrenceRecipients(params: {
@@ -553,6 +566,7 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
         subject: params.subject,
         threadId: params.threadId,
         toAddresses: [...params.toAddresses],
+        ccAddresses: [...params.ccAddresses],
         transport: params.transport,
       })
       .returning({ id: contractorMailMessages.id })

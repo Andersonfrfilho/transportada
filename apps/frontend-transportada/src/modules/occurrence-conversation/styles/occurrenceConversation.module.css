@@ -515,3 +515,62 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Spec 267: os responsáveis por ocorrências — a lista, a linha e o chip da cópia. */
+.watcherList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.watcherRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.watcherInactive {
+  opacity: 0.6;
+}
+
+.watcherIdentity {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.watcherName {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.watcherAdd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.copyChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.copyChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}

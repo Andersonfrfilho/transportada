@@ -253,6 +253,19 @@ describe('o diálogo "Enviar à contratante"', () => {
     ).toEqual({ body: 'Texto', channel: 'email', contactIds: ['contact-1'], subject: 'Assunto' })
   })
 
+  /** Spec 267 RF4: só quem o operador tirou vai no corpo; sem remoção, a chave nem existe. */
+  test('o pedido leva excludedWatcherUserIds só quando alguém saiu da cópia', () => {
+    const draft = { body: 'Texto', contactIds: ['contact-1'], subject: 'Assunto' }
+
+    expect(buildContractorMailRequest(draft)).not.toHaveProperty('excludedWatcherUserIds')
+    expect(buildContractorMailRequest({ ...draft, excludedWatcherUserIds: [] })).not.toHaveProperty(
+      'excludedWatcherUserIds',
+    )
+    expect(
+      buildContractorMailRequest({ ...draft, excludedWatcherUserIds: ['user-bruno'] }),
+    ).toMatchObject({ excludedWatcherUserIds: ['user-bruno'] })
+  })
+
   test('a chave de idempotência cabe no formato da API', () => {
     const key = createOccurrenceMailIdempotencyKey(() => '0f8e1c2a-7b3d-4e5f-9a6b-1c2d3e4f5a6b')
     expect(key).toMatch(/^[A-Za-z0-9._:-]{16,256}$/u)

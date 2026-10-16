@@ -21,6 +21,8 @@ export type ContractorMailOutboundMessageRecord = {
   /** Spec 150 T302: o HTML que a API gravou; `null` em mensagem antiga, que sai só em texto. */
   readonly bodyHtml: string | null
   readonly bodyText: string
+  /** Spec 267: a cópia que a API resolveu; vazia na mensagem antiga e no que não leva cópia. */
+  readonly ccAddresses: readonly string[]
   /** Spec 268: o remetente gravado pela API; só o `sandbox_smtp` o usa (o Resend usa o da configuração). */
   readonly fromAddress: string | null
   readonly subject: string
@@ -112,6 +114,7 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
         .select({
           bodyHtml: contractorMailMessages.bodyHtml,
           bodyText: contractorMailMessages.bodyText,
+          ccAddresses: contractorMailMessages.ccAddresses,
           fromAddress: contractorMailMessages.fromAddress,
           subject: contractorMailMessages.subject,
           threadId: contractorMailMessages.threadId,

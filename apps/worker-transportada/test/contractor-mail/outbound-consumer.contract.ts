@@ -101,6 +101,7 @@ function buildDependenciesStub(
         return {
           bodyHtml: null,
           bodyText: 'corpo',
+          ccAddresses: [] as string[],
           fromAddress: 'ocorrencias@example.com.br',
           subject: 'Teste de configuração de e-mail com contratantes',
           threadId: THREAD_ID,

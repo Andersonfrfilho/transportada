@@ -1668,3 +1668,26 @@ configuração não está pronta, ou o aviso do Mailpit quando o `GET /contracto
 (`settingsReadFromApi`: `sandboxDelivery` vem ao lado de `data`, que segue com as chaves exatas). A seção de contatos dessa aba
 tem um botão que abre a aba "Contratantes". Teste: `test/trip-hooks/contractor-mail-sandbox-panel.contract.ts` (roda no
 `test:hooks`, com o preload de DOM).
+
+## Spec 267 — Os responsáveis vão em cópia no e-mail da contratante
+
+Núcleo normativo em `apps/frontend-transportada/CLAUDE.md`.
+
+- **Onde mora:** `occurrence-conversation/components/OccurrenceWatchersPanel.component.tsx` (+ `OccurrenceWatcherRow`,
+  `OccurrenceWatcherRemoveDialog`), `queries/occurrenceWatchers.query.ts`, `shared/occurrenceWatchers*.ts`. `delivery-clients`
+  importa só o componente autocontido (`ContractorOccurrenceWatchers`). A aba de Configurações é `occurrenceWatchers`
+  (`SETTINGS_PANELS`, `SETTINGS_PANEL_PLACEMENT`, `COMPANY_SETTINGS_TAB_IDS`, ramo em `CompanySettings.page.tsx`).
+- **Sem `AlertDialog` do shadcn:** o repositório não o tem; a confirmação segue o molde de `HolidayDeleteDialog`
+  (`useModalDialog` + portal), com `role="alertdialog"`.
+- **Interruptor:** o `Checkbox` do design system ("Ativo"); não há primitivo `Switch`.
+- **Chips da cópia:** `modules/shared/MailCopyChips.component.tsx` — só remove; a lista vem do `cc`/`ccSource` do preview
+  (ocorrência) e do `POST /address-correction-requests/recipients` (correção). `buildContractorMailRequest` e
+  `buildAddressCorrectionMailRequestBody` omitem `excludedWatcherUserIds` quando ninguém saiu.
+- **Idempotência:** o diálogo da ocorrência renova a chave ao tirar um chip; a correção passa o conjunto removido por
+  `resolveAddressCorrectionMailIdempotencyKey` (`currentExcludedWatcherIds`/`previousExcludedWatcherIds`).
+- **Histórico:** `ContractorSenderIdentity` ganhou `kind: 'internal'`; `OccurrenceConversationMessage.copy` traz nome (ou e-mail
+  mascarado) de quem foi em cópia. O SDK só desenha texto: a linha "Cópia: …" é prefixada ao texto da mensagem de saída
+  (`withCopyLine`), e o selo "Equipe"/"só para a equipe" vai no `authorName`.
+- **Testes:** `test/occurrence-conversation/occurrence-watchers{,-locales}.contract.ts`,
+  `test/delivery-clients/contractor-occurrence-watchers.contract.ts`, `test/trip-hooks/occurrence-watchers-panel.contract.ts`
+  (DOM, com `occurrenceWatchersHarness.helper.ts`).

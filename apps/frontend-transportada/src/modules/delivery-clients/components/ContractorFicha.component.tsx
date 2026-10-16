@@ -12,6 +12,7 @@ import { useReceivingProfileQuery } from '../queries/useReceivingProfile.query'
 import type { Contractor } from '../shared/contractorDirectory.types'
 import styles from '../styles/contractorDirectory.module.css'
 import { ContractorContactsPanel } from './ContractorContactsPanel.component'
+import { ContractorOccurrenceWatchers } from './ContractorOccurrenceWatchers.component'
 import { ContractorDetailsForm } from './ContractorDetailsForm.component'
 import { PreviewEmailPanel } from './PreviewEmailPanel.component'
 import { ReceivingProfileForm } from './ReceivingProfileForm.component'
@@ -73,6 +74,8 @@ export function ContractorFicha({
       {canManage ? (
         <ContractorContactsPanel contractorId={contractor.id} isDisabled={false} />
       ) : null}
+
+      {canManage ? <ContractorOccurrenceWatchers contractorId={contractor.id} /> : null}
 
       {canManage ? <PreviewEmailPanel contractorId={contractor.id} /> : null}
     </section>

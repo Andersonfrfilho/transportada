@@ -3,6 +3,7 @@
  */
 import { createHash } from 'node:crypto'
 
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../domain/contractor-mail.constant.js'
 import { buildReplyAddress, deriveReplyToken } from '../domain/reply-token.policy.js'
 import {
   ResendInvalidRecipientsError,
@@ -86,9 +87,19 @@ export async function sendContractorMailOutboundMessage(
     throw new Error(`contractor mail message ${messageId} was not found for company ${companyId}`)
   }
 
+  /** Spec 267 / RF7: o teto vale para `To` + `Cc`, conferido uma vez, antes de escolher o transporte. */
+  const recipients = deduplicateRecipients(message.toAddresses)
+  const copied = deduplicateRecipients(message.ccAddresses).filter(
+    (address) => !recipients.includes(address),
+  )
+  if (recipients.length + copied.length > CONTRACTOR_MAIL_MAX_RECIPIENTS) {
+    await dependencies.repository.markMessageFailed({ companyId, messageId })
+    return { outcome: 'failed', reason: 'invalid_recipients', threadId: message.threadId }
+  }
+
   /** Spec 268: a linha diz por onde sai; `sandbox_smtp` nunca lê a configuração da empresa nem fala com o Resend. */
   if (message.transport === 'sandbox_smtp') {
-    return sendThroughSandbox({ companyId, dependencies, message, messageId })
+    return sendThroughSandbox({ companyId, copied, dependencies, message, messageId, recipients })
   }
 
   const settings = await dependencies.repository.findSettingsByCompanyId({ companyId })
@@ -148,6 +159,7 @@ export async function sendContractorMailOutboundMessage(
     const sent = await dependencies.mailGateway.sendEmail({
       apiKey: secret.apiKey,
       ...(attachments.length === 0 ? {} : { attachments }),
+      ...(copied.length === 0 ? {} : { cc: copied }),
       from: `${settings.senderName} <${settings.senderAddress}>`,
       headers,
       ...(message.bodyHtml === null ? {} : { html: message.bodyHtml }),
@@ -155,7 +167,7 @@ export async function sendContractorMailOutboundMessage(
       ...(replyToAddress === undefined ? {} : { replyTo: replyToAddress }),
       subject: message.subject,
       text: message.bodyText,
-      to: deduplicateRecipients(message.toAddresses),
+      to: recipients,
     })
 
     await dependencies.repository.markMessageSent({
@@ -179,11 +191,13 @@ export async function sendContractorMailOutboundMessage(
 
 async function sendThroughSandbox(input: {
   readonly companyId: string
+  readonly copied: readonly string[]
   readonly dependencies: SendContractorMailOutboundMessageDependencies
   readonly message: ContractorMailOutboundMessageRecord
   readonly messageId: string
+  readonly recipients: readonly string[]
 }): Promise<SendContractorMailOutboundMessageResult> {
-  const { companyId, dependencies, message, messageId } = input
+  const { companyId, copied, dependencies, message, messageId, recipients } = input
   const { sandboxMailGateway } = dependencies
   if (sandboxMailGateway === undefined || message.fromAddress === null) {
     await dependencies.repository.markMessageFailed({ companyId, messageId })
@@ -203,11 +217,12 @@ async function sendThroughSandbox(input: {
   try {
     const sent = await sandboxMailGateway.sendEmail({
       ...(attachments.length === 0 ? {} : { attachments }),
+      ...(copied.length === 0 ? {} : { cc: copied }),
       from: message.fromAddress,
       ...(message.bodyHtml === null ? {} : { html: message.bodyHtml }),
       subject: message.subject,
       text: message.bodyText,
-      to: deduplicateRecipients(message.toAddresses),
+      to: recipients,
     })
     await dependencies.repository.markMessageSent({
       companyId,

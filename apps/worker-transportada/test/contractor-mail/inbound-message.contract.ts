@@ -194,6 +194,8 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           subject: 'APROVADO',
           text: 'APROVADO',
           to: [`${REPLY_TOKEN}@${REPLY_DOMAIN}`],
+          /** Spec 267 RF9: o `Cc` do e-mail recebido é gravado, para saber se a contratante o recebeu. */
+          cc: ['Ana@empresa.example.test', 'financeiro@contratante.com.br'],
         }),
         sendEmail: async () => {
           throw new Error('not used by this contract')
@@ -243,6 +245,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
       subject: 'APROVADO',
       threadId: THREAD_ID,
       toAddresses: [`${REPLY_TOKEN}@${REPLY_DOMAIN}`],
+      ccAddresses: ['Ana@empresa.example.test', 'financeiro@contratante.com.br'],
     })
     expect(recordCalls[0]?.raw.sha256).toBe(createHash('sha256').update(rawBytes).digest('hex'))
     expect(recordCalls[0]?.raw.sizeBytes).toBe(rawBytes.byteLength)
@@ -300,6 +303,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
 
     expect(recordCalls).toHaveLength(1)
     expect(recordCalls[0]?.inReplyTo).toBeUndefined()
+    expect(recordCalls[0]?.ccAddresses).toEqual([])
     expect(recordCalls[0]?.rfcMessageId).toBe('<own-message-id@contratante.com.br>')
     /** Spec 183 T406 (RF16): o `From` chega separado em endereço e nome. */
     expect(recordCalls[0]?.fromAddress).toBe('financeiro@contratante.com.br')

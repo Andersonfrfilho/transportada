@@ -16,7 +16,9 @@ import {
   occurrenceConversationMessages,
   occurrenceConversationReads,
   occurrenceConversations,
+  userCompanyMemberships,
 } from '../../database/database.schema.js'
+import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import { findContractorPortalAudience } from '../../contractor-portal/infrastructure/contractor-occurrence.query.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
@@ -24,6 +26,7 @@ import type { ContractorMailDkimResult } from '../../database/contractor-mail.sc
 import { countUnread, readLastReads } from './occurrence-conversation-summary.query.js'
 import {
   identifyContractorSender,
+  type ContractorSenderCompanyUser,
   type ContractorSenderContact,
 } from '../domain/contractor-sender.policy.js'
 import type {
@@ -43,6 +46,8 @@ type MessageRow = {
   readonly authorUserId: null | string
   readonly automatic: boolean
   readonly bodyText: string
+  readonly ccAddresses: null | readonly string[]
+  readonly toAddresses: null | readonly string[]
   readonly channel: OccurrenceConversationMessageView['channel']
   readonly contractorContactId: null | string
   readonly conversationId: string
@@ -62,6 +67,7 @@ function toAuthor(
   row: MessageRow,
   contractorId: null | string,
   contacts: readonly ContractorSenderContact[],
+  companyUsers: readonly ContractorSenderCompanyUser[],
 ): OccurrenceConversationMessageAuthor {
   if (row.direction === 'outbound') {
     if (row.automatic || row.authorUserId === null) return { kind: 'automatic' }
@@ -78,9 +84,11 @@ function toAuthor(
           /** T903 (S2): o `From` de e-mail só vale como identidade com DKIM alinhado. */
           authenticated: row.channel !== 'email' || row.dkimResult === 'aligned',
           channel: row.channel === 'whatsapp' ? 'whatsapp' : 'email',
+          companyUsers,
           contacts,
           contractorId,
           displayName: row.fromDisplayName,
+          receivedAddresses: [...(row.toAddresses ?? []), ...(row.ccAddresses ?? [])],
         })
   return { identity, kind: 'contractor', userId: row.authorUserId }
 }
@@ -130,6 +138,8 @@ async function readMessages(
       authorUserId: occurrenceConversationMessages.authorUserId,
       automatic: occurrenceConversationMessages.automatic,
       bodyText: occurrenceConversationMessages.bodyText,
+      ccAddresses: contractorMailMessages.ccAddresses,
+      toAddresses: contractorMailMessages.toAddresses,
       channel: occurrenceConversationMessages.channel,
       contractorContactId: occurrenceConversationMessages.contractorContactId,
       conversationId: occurrenceConversationMessages.conversationId,
@@ -162,6 +172,97 @@ async function readMessages(
     )
     .orderBy(asc(occurrenceConversationMessages.createdAt), asc(occurrenceConversationMessages.id))
     .limit(MESSAGE_LIMIT)
+}
+
+/** Spec 267 RF8: a cópia só aparece na mensagem de saída; o do e-mail recebido é do remetente, não nosso. */
+function toCopy(
+  row: MessageRow,
+  names: ReadonlyMap<string, string>,
+): Pick<OccurrenceConversationMessageView, 'copy'> {
+  if (row.direction !== 'outbound' || row.ccAddresses === null || row.ccAddresses.length === 0) {
+    return {}
+  }
+  return {
+    copy: row.ccAddresses.map((address) => ({
+      maskedEmail: maskEmailAddress(address),
+      name: names.get(address.toLowerCase()) ?? null,
+    })),
+  }
+}
+
+/**
+ * Spec 267 RF9: quem respondeu por e-mail pode ser usuário da empresa (um responsável que recebeu a cópia). Só os
+ * remetentes de e-mail recebido entram, e só com vínculo ativo na empresa do contexto — numa leitura só.
+ */
+async function readCompanyUsersBySender(
+  queryable: TripQueryable,
+  companyId: string,
+  messages: readonly MessageRow[],
+): Promise<readonly ContractorSenderCompanyUser[]> {
+  const addresses = [
+    ...new Set(
+      messages.flatMap((row) =>
+        row.direction === 'inbound' && row.channel === 'email' && row.senderAddress !== null
+          ? [row.senderAddress.trim().toLowerCase()]
+          : [],
+      ),
+    ),
+  ]
+  if (addresses.length === 0) return []
+  const rows = await queryable
+    .select({
+      address: identityUserProfiles.contactAddress,
+      name: identityUserProfiles.name,
+      userId: identityUserProfiles.userId,
+    })
+    .from(identityUserProfiles)
+    .innerJoin(
+      userCompanyMemberships,
+      eq(userCompanyMemberships.userId, identityUserProfiles.userId),
+    )
+    .where(
+      and(
+        eq(userCompanyMemberships.companyId, companyId),
+        eq(userCompanyMemberships.status, 'active'),
+        eq(identityUserProfiles.contactChannel, 'email'),
+        inArray(sql`lower(${identityUserProfiles.contactAddress})`, addresses),
+      ),
+    )
+  return rows.map((row) => ({ emails: [row.address], name: row.name, userId: row.userId }))
+}
+
+/** Os responsáveis são usuários da empresa: o nome sai do perfil, pelo endereço, numa leitura só. */
+async function readCopyNames(
+  queryable: TripQueryable,
+  companyId: string,
+  messages: readonly MessageRow[],
+): Promise<ReadonlyMap<string, string>> {
+  const addresses = [
+    ...new Set(
+      messages.flatMap((row) =>
+        row.direction === 'outbound'
+          ? (row.ccAddresses ?? []).map((address) => address.toLowerCase())
+          : [],
+      ),
+    ),
+  ]
+  if (addresses.length === 0) return new Map()
+  const rows = await queryable
+    .select({ address: identityUserProfiles.contactAddress, name: identityUserProfiles.name })
+    .from(identityUserProfiles)
+    .innerJoin(
+      userCompanyMemberships,
+      eq(userCompanyMemberships.userId, identityUserProfiles.userId),
+    )
+    .where(
+      and(
+        eq(userCompanyMemberships.companyId, companyId),
+        eq(userCompanyMemberships.status, 'active'),
+        eq(identityUserProfiles.contactChannel, 'email'),
+        inArray(sql`lower(${identityUserProfiles.contactAddress})`, addresses),
+      ),
+    )
+  return new Map(rows.map((row) => [row.address.toLowerCase(), row.name]))
 }
 
 export async function findOccurrenceConversations(
@@ -198,6 +299,11 @@ export async function findOccurrenceConversations(
     item.source === 'document' ? findContractorPortalAudience(queryable, input) : null,
   ])
 
+  const [copyNames, companyUsers] = await Promise.all([
+    readCopyNames(queryable, input.companyId, messages),
+    readCompanyUsersBySender(queryable, input.companyId, messages),
+  ])
+
   return {
     contractorPortal: { available: (portalAudience?.userIds.length ?? 0) > 0 },
     conversations: conversations.map((conversation) => {
@@ -206,9 +312,10 @@ export async function findOccurrenceConversations(
         id: conversation.id,
         messages: own.map((row) => ({
           attachments: [],
-          author: toAuthor(row, conversation.contractorId, contacts),
+          author: toAuthor(row, conversation.contractorId, contacts, companyUsers),
           bodyText: row.bodyText,
           channel: row.channel,
+          ...toCopy(row, copyNames),
           createdAt: row.createdAt.toISOString(),
           direction: row.direction,
           id: row.id,

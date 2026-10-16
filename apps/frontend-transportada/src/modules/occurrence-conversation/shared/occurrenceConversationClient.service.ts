@@ -23,8 +23,10 @@ import {
   OCCURRENCE_CONVERSATION_MESSAGE_STATUSES,
   type ContractorMailRequest,
   type OccurrenceConversation,
+  type OccurrenceConversationCopyEntry,
   type OccurrenceConversationsView,
   type OccurrenceConversationMessage,
+  type OccurrenceMailCopyEntry,
   type OccurrenceMailPreview,
   type OccurrenceMailRecipient,
   type UnassignedCandidate,
@@ -140,7 +142,21 @@ function isIdentity(value: unknown): boolean {
       typeof value.inactive === 'boolean'
     )
   }
+  if (value.kind === 'internal') {
+    return (
+      isString(value.name) && isString(value.userId) && typeof value.reachedContractor === 'boolean'
+    )
+  }
   return value.kind === 'unknown' && isRecord(value.suggestion)
+}
+
+function toCopy(value: unknown): readonly OccurrenceConversationCopyEntry[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry): OccurrenceConversationCopyEntry[] =>
+    isRecord(entry) && isString(entry.maskedEmail) && (entry.name === null || isString(entry.name))
+      ? [{ maskedEmail: entry.maskedEmail, name: entry.name }]
+      : [],
+  )
 }
 
 function toMessage(value: unknown): null | OccurrenceConversationMessage {
@@ -170,11 +186,13 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
         ),
       )
     : {}
+  const copy = toCopy(value.copy)
   return {
     attachments: toConversationAttachments(value.attachments),
     author,
     bodyText: value.bodyText,
     channel: value.channel,
+    ...(copy.length === 0 ? {} : { copy }),
     createdAt: value.createdAt,
     direction: value.direction,
     id: value.id,
@@ -263,6 +281,12 @@ function isRecipient(value: unknown): value is OccurrenceMailRecipient {
   )
 }
 
+function toCopyEntry(value: unknown): null | OccurrenceMailCopyEntry {
+  if (!isRecord(value) || !isString(value.userId) || !isString(value.name)) return null
+  if (!isString(value.maskedEmail)) return null
+  return { maskedEmail: value.maskedEmail, name: value.name, userId: value.userId }
+}
+
 function readPreview(payload: unknown): OccurrenceMailPreview {
   const data = isRecord(payload) ? payload.data : undefined
   if (
@@ -276,6 +300,8 @@ function readPreview(payload: unknown): OccurrenceMailPreview {
   }
   return {
     bodyText: data.bodyText,
+    cc: Array.isArray(data.cc) ? data.cc.flatMap((entry) => toCopyEntry(entry) ?? []) : [],
+    ccSource: data.ccSource === 'company' || data.ccSource === 'contractor' ? data.ccSource : null,
     contractorName: isString(data.contractorName) ? data.contractorName : '',
     recipients: Array.isArray(data.recipients) ? data.recipients.filter(isRecipient) : [],
     subject: data.subject,
@@ -297,7 +323,7 @@ export async function requestJson(
   init?: Readonly<{
     body?: object
     headers?: Record<string, string>
-    method?: 'GET' | 'PATCH' | 'POST' | 'PUT'
+    method?: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
   }>,
 ): Promise<unknown> {
   const accessToken = await dependencies.getAccessToken()

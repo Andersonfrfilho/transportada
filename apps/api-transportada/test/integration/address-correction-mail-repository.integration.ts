@@ -274,6 +274,7 @@ describeDatabase(
           subject: 'Correção de endereço de entrega — 1 cliente',
           templateId,
           threadId,
+          ccAddresses: ['ana@empresa.example'],
           toAddresses: ['ativo@contratante.example'],
         })
         await transaction.markRequestsSent({
@@ -301,14 +302,16 @@ describeDatabase(
       const [message] = await database.db.execute<{
         body_html: string
         body_text: string
+        cc_addresses: readonly string[]
         template_id: string
         to_addresses: readonly string[]
       }>(
-        sql`select body_html, body_text, template_id, to_addresses from contractor_mail_messages where id = ${messageId}`,
+        sql`select body_html, body_text, cc_addresses, template_id, to_addresses from contractor_mail_messages where id = ${messageId}`,
       )
       expect(message).toMatchObject({
         body_html: '<p>html</p>',
         body_text: 'text',
+        cc_addresses: ['ana@empresa.example'],
         template_id: templateId,
         to_addresses: ['ativo@contratante.example'],
       })
@@ -365,6 +368,7 @@ describeDatabase(
             subject: 'Correção de endereço de entrega — 1 cliente',
             templateId,
             threadId,
+            ccAddresses: [],
             toAddresses: ['ativo@contratante.example'],
           })
           throw new Error('boom')
@@ -432,6 +436,7 @@ describeDatabase(
             subject: 'Correção de endereço de entrega — 1 cliente',
             templateId,
             threadId,
+            ccAddresses: [],
             toAddresses: ['ativo@contratante.example'],
           })
           await transaction.markRequestsSent({
@@ -531,6 +536,7 @@ describeDatabase(
             subject: `Correção de endereço de entrega — ${sendableIds.length} cliente(s)`,
             templateId,
             threadId,
+            ccAddresses: [],
             toAddresses: ['ativo@contratante.example'],
           })
           await transaction.markRequestsSent({

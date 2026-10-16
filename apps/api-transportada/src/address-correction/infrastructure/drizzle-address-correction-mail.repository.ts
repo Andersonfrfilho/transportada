@@ -5,6 +5,7 @@
  * como `sent` — nenhuma decisão de negócio mora aqui (isso é do caso de uso), só leitura e escrita.
  */
 import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
+import { loadEffectiveWatcherCandidates } from '../../contractor-mail/infrastructure/occurrence-watcher-candidates.query.js'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
@@ -293,6 +294,13 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
     })
   }
 
+  public loadWatcherCandidates(params: {
+    readonly companyId: string
+    readonly contractorId: string
+  }) {
+    return loadEffectiveWatcherCandidates(this.transaction, params)
+  }
+
   /** RF6: a conversa, a mensagem `queued` e o evento de outbox, todos nesta transação. */
   public async recordMail(
     params: RecordAddressCorrectionMailInput,
@@ -320,6 +328,7 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
         templateId: params.templateId,
         threadId: params.threadId,
         toAddresses: [...params.toAddresses],
+        ccAddresses: [...params.ccAddresses],
       })
       .returning({ id: contractorMailMessages.id })
     if (message === undefined) throw new AddressCorrectionMailMessageNotPersistedError()

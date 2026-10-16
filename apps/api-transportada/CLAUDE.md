@@ -1094,3 +1094,23 @@ devolve `{ data, sandboxDelivery }` — `sandboxDelivery` é `true` só com o mo
 escopo: correção de endereço (150) e encaminhamento do boleto (248) continuam exigindo o Resend. Contratos:
 `test/contractor-mail/sandbox-environment.contract.ts`, `test/occurrence-conversation/occurrence-mail.contract.ts`,
 `test/integration/occurrence-mail-sandbox.integration.ts`.
+
+## Os responsáveis vão em cópia no e-mail da contratante (spec 267)
+
+⚠️ Duas listas de **responsáveis por ocorrências**: `company_occurrence_watchers` e `contractor_occurrence_watchers` (PK
+composta, `status` `active`/`inactive`, auditoria de quem mexeu). **Lista da contratante com algum ativo vence a da empresa;
+sem nenhum ativo, herda.** Só ativo vai em `Cc`; inativo continua listado; remover apaga. Tetos: **10 ativos e 30 linhas** por
+lista. Elegível = vínculo ativo + `occurrences.resolve` (papel, grupo ou concessão direta, calculados **em lote** em
+`occurrence-watcher-directory.query.ts`) + perfil com canal de e-mail. A cópia **nunca é endereço digitado**: o corpo do envio
+só aceita `excludedWatcherUserIds` (só remove, `.strict()`, `cc` livre segue 400). Rotas por item em `/company-settings/
+occurrence-watchers[/:userId|/candidates]` e `/contractors/:id/occurrence-watchers[/:userId]` (`settings.manage`); `candidates`
+é rota estática, `:userId` só casa uuid (teste com o roteador real). Escrita e `audit_logs`
+(`occurrence_watchers.{company|contractor}.{add|activate|deactivate|remove}`, sem endereço) na **mesma transação**, sob advisory lock da lista.
+`resolveMailCopy` (`contractor-mail/application/resolve-mail-copy.service.ts`) resolve a cópia dentro de `To` + `Cc` ≤
+`CONTRACTOR_MAIL_MAX_RECIPIENTS`: envio manual que estoura é `400 CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS`; o automático corta a
+cópia (os contatos sempre vão) e registra `contractor_mail.copy.truncated` com contagens. `send-occurrence-mail` e
+`send-address-correction-mail` gravam `cc_addresses`; `excludedWatcherUserIds` entra, ordenado, na impressão digital da
+idempotência. O reenvio da 248 **recalcula** a lista; o encaminhamento a terceiro grava `{}`. O preview e o dado do formulário da
+correção devolvem `cc: [{ userId, name, maskedEmail }]` e `ccSource`; o histórico da conversa traz `copy` na mensagem de saída.
+A correção de endereço não tem caminho `sandbox_smtp` (268): continua exigindo o Resend. Detalhe: `docs/ai-context/api-transportada.md`.
+Contratos: `test/contractor-mail/occurrence-watcher*.contract.ts`, `test/integration/occurrence-watchers-*.integration.ts`.

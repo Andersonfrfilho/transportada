@@ -31,7 +31,9 @@ describeDatabase('o e-mail da contratante em modo sandbox contra o banco (spec 2
     await provider.close()
   })
 
-  async function seedSandboxMessage(): Promise<{ companyId: string; messageId: string }> {
+  async function seedSandboxMessage(
+    ccAddresses: readonly string[] = [],
+  ): Promise<{ companyId: string; messageId: string }> {
     const companyId = crypto.randomUUID()
     const userId = crypto.randomUUID()
     const contractorId = crypto.randomUUID()
@@ -49,8 +51,8 @@ describeDatabase('o e-mail da contratante em modo sandbox contra o banco (spec 2
       values (${threadId}, ${companyId}, ${contractorId}, 'document_occurrence', ${crypto.randomUUID()}, ${createHash('sha256').update(threadId).digest('hex')})
     `)
     await database.execute(sql`
-      insert into contractor_mail_messages (id, company_id, thread_id, direction, actor_user_id, from_address, subject, to_addresses, body_text, delivery_status, transport)
-      values (${messageId}, ${companyId}, ${threadId}, 'outbound', ${userId}, 'no-reply@staging.example.test', 'Ocorrência', array['compras@alfa.example.test'], 'Autorizam?', 'queued', 'sandbox_smtp')
+      insert into contractor_mail_messages (id, company_id, thread_id, direction, actor_user_id, from_address, subject, to_addresses, cc_addresses, body_text, delivery_status, transport)
+      values (${messageId}, ${companyId}, ${threadId}, 'outbound', ${userId}, 'no-reply@staging.example.test', 'Ocorrência', array['compras@alfa.example.test'], ${`{${ccAddresses.join(',')}}`}::text[], 'Autorizam?', 'queued', 'sandbox_smtp')
     `)
     return { companyId, messageId }
   }
@@ -125,6 +127,21 @@ describeDatabase('o e-mail da contratante em modo sandbox contra o banco (spec 2
       deliveryStatus: 'sent',
       providerEmailId: '<sandbox-1@mailpit>',
     })
+  })
+
+  it('lê a cópia gravada pela API e a leva no cc (spec 267)', async () => {
+    const { companyId, messageId } = await seedSandboxMessage(['ana@empresa.example.test'])
+    const copies: (readonly string[] | undefined)[] = []
+    const { value } = dependencies({
+      sendEmail: async (request) => {
+        copies.push(request.cc)
+        return { id: '<sandbox-cc@mailpit>' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(envelope(companyId, messageId), value)
+
+    expect(copies).toEqual([['ana@empresa.example.test']])
   })
 
   it('worker sem o modo ligado marca a linha como falha, sem enviar', async () => {

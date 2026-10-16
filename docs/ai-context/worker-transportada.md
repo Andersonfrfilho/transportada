@@ -869,3 +869,12 @@ da empresa nem fala com o Resend**. Sem `CONTRACTOR_MAIL_SANDBOX_SMTP=true` nest
 (`sandbox_disabled`); o modo com `APP_ENV=production` derruba o boot, e exige `SMTP_URL` e `EMAIL_FROM`. Todos os destinatários
 recusados é falha permanente; erro de conexão propaga e a fila tenta de novo. Log só com `messageId`/`threadId`/motivo.
 Contrato: `test/contractor-mail/sandbox-outbound.contract.ts`, `test/contractor-mail-sandbox-environment.contract.test.ts`.
+
+## Spec 267 — A cópia no e-mail da contratante
+
+- A coluna `cc_addresses` (`text[] NOT NULL DEFAULT '{}'`) é gravada pela API; a cópia do schema no worker a declara e
+  `findMessageById` a seleciona (`ccAddresses`). Mensagem antiga e o encaminhamento a terceiro (248) têm `{}`.
+- `send-contractor-mail-outbound-message.use-case.ts` calcula `recipients` (`to` deduplicado) e `copied` (`cc` deduplicado,
+  menos quem está no `to`) e recusa `to + cc > 50` antes do ramo do transporte; Resend e sandbox recebem `cc` só quando não vazio.
+- Gateway do Resend: cada endereço do `cc` passa pela mesma validação do `to` (sem `\r \n , < >`) e o teto vale para a soma.
+- Gateway SMTP do sandbox: `cc` vai ao nodemailer; sem `Reply-To` (268), a resposta de um responsável não volta (aceito).

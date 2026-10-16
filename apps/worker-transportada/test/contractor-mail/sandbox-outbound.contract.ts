@@ -9,6 +9,7 @@ import {
   sendContractorMailOutboundMessage,
   type SendContractorMailOutboundMessageDependencies,
 } from '../../src/contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../src/contractor-mail/domain/contractor-mail.constant.js'
 import {
   createSandboxSmtpMailGateway,
   type SandboxSmtpMailGateway,
@@ -25,6 +26,7 @@ const PDF = new TextEncoder().encode('%PDF-1.7 nota')
 const SANDBOX_MESSAGE: ContractorMailOutboundMessageRecord = {
   bodyHtml: '<p>Ocorrência</p>',
   bodyText: 'Ocorrência',
+  ccAddresses: [],
   fromAddress: 'no-reply@staging.example.test',
   subject: 'Ocorrência NF 4512',
   threadId: THREAD_ID,
@@ -232,6 +234,53 @@ describe('spec 268: o e-mail da contratante em modo sandbox sai pelo SMTP do amb
   })
 })
 
+describe('spec 267: a cópia no modo sandbox', () => {
+  test('leva a cópia deduplicada no cc, sem repetir quem já está no To', async () => {
+    const requests: Parameters<SandboxSmtpMailGateway['sendEmail']>[0][] = []
+    const { dependencies } = buildDependencies({
+      message: {
+        ...SANDBOX_MESSAGE,
+        ccAddresses: ['Ana@empresa.test', 'ana@empresa.test', 'bruno@empresa.test'],
+      },
+      sandbox: {
+        sendEmail: async (request) => {
+          requests.push(request)
+          return { id: '<smtp-cc@mailpit>' }
+        },
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(requests[0]?.cc).toEqual(['ana@empresa.test', 'bruno@empresa.test'])
+  })
+
+  test('To + Cc acima do teto é falha permanente antes de qualquer envio', async () => {
+    let attempts = 0
+    const addresses = (prefix: string, count: number) =>
+      Array.from({ length: count }, (_, index) => `${prefix}${index}@example.test`)
+    const { dependencies, failed } = buildDependencies({
+      message: {
+        ...SANDBOX_MESSAGE,
+        ccAddresses: addresses('cc', 1),
+        toAddresses: addresses('to', CONTRACTOR_MAIL_MAX_RECIPIENTS),
+      },
+      sandbox: {
+        sendEmail: async () => {
+          attempts += 1
+          return { id: 'x' }
+        },
+      },
+    })
+
+    const result = await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(result).toEqual({ outcome: 'failed', reason: 'invalid_recipients', threadId: THREAD_ID })
+    expect(failed).toEqual([MESSAGE_ID])
+    expect(attempts).toBe(0)
+  })
+})
+
 describe('o gateway SMTP do sandbox', () => {
   function fakeTransport(result: { accepted: readonly unknown[]; rejected: readonly unknown[] }) {
     const messages: Parameters<SandboxSmtpTransport['sendMail']>[0][] = []
@@ -285,5 +334,59 @@ describe('o gateway SMTP do sandbox', () => {
         to: ['a@example.test'],
       }),
     ).rejects.toMatchObject({ name: 'SandboxSmtpRecipientsRejectedError' })
+  })
+
+  test('entrega o cc ao transporte e o omite quando vazio', async () => {
+    const { messages, transport } = fakeTransport({ accepted: ['a'], rejected: [] })
+    const gateway = createSandboxSmtpMailGateway({ transport })
+    const base = {
+      from: 'no-reply@staging.example.test',
+      subject: 'Assunto',
+      text: 'Corpo',
+      to: ['a@example.test'],
+    }
+
+    await gateway.sendEmail({ ...base, cc: ['ana@example.test'] })
+    await gateway.sendEmail({ ...base, cc: [] })
+
+    expect(messages[0]?.cc).toEqual(['ana@example.test'])
+    expect('cc' in (messages[1] ?? {})).toBe(false)
+  })
+
+  test('recusa endereço que injetaria cabeçalho ou viraria lista, no to e no cc, sem tocar o transporte', async () => {
+    const { messages, transport } = fakeTransport({ accepted: ['a'], rejected: [] })
+    const gateway = createSandboxSmtpMailGateway({ transport })
+    const base = {
+      from: 'no-reply@staging.example.test',
+      subject: 'Assunto',
+      text: 'Corpo',
+      to: ['a@example.test'],
+    }
+
+    for (const hostile of ['x@e.test\nBcc: y@e.test', 'x@e.test, y@e.test', 'Nome <x@e.test>']) {
+      await expect(gateway.sendEmail({ ...base, cc: [hostile] })).rejects.toMatchObject({
+        name: 'SandboxSmtpRecipientsRejectedError',
+      })
+      await expect(gateway.sendEmail({ ...base, to: [hostile] })).rejects.toMatchObject({
+        name: 'SandboxSmtpRecipientsRejectedError',
+      })
+    }
+    expect(messages).toEqual([])
+  })
+
+  test('recusa To + Cc acima do teto sem tocar o transporte', async () => {
+    const { messages, transport } = fakeTransport({ accepted: ['a'], rejected: [] })
+    const gateway = createSandboxSmtpMailGateway({ transport })
+
+    await expect(
+      gateway.sendEmail({
+        cc: ['ana@example.test'],
+        from: 'no-reply@staging.example.test',
+        subject: 'Assunto',
+        text: 'Corpo',
+        to: Array.from({ length: CONTRACTOR_MAIL_MAX_RECIPIENTS }, (_, i) => `to${i}@example.test`),
+      }),
+    ).rejects.toMatchObject({ name: 'SandboxSmtpRecipientsRejectedError' })
+    expect(messages).toEqual([])
   })
 })

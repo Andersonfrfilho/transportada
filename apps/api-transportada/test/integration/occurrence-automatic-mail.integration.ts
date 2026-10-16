@@ -9,8 +9,13 @@
 import { describe, expect } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 
+import { DrizzleOccurrenceWatcherRepository } from '../../src/contractor-mail/infrastructure/drizzle-occurrence-watcher.repository.js'
 import {
   companyOccurrenceTypes,
+  identityUserProfiles,
+  identityUsers,
+  membershipRoles,
+  userCompanyMemberships,
   contractorMailMessages,
   contractorMailOutbox,
   occurrenceConversationMessages,
@@ -52,6 +57,56 @@ function automaticMail(database: TestDatabase) {
 }
 
 describe('o aviso automático à contratante contra Postgres (spec 183 T802)', () => {
+  testWithPostgres(
+    'spec 267: o aviso automático sai com a lista efetiva inteira em cópia',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId, userId } = seeded.company
+        await setEmailsContractor(database, seeded, true)
+        const responsibleId = crypto.randomUUID()
+        const address = 'ana@empresa.example.test'
+        await database.db.insert(identityUsers).values({ id: responsibleId })
+        await database.db.insert(identityUserProfiles).values({
+          contactAddress: address,
+          contactChannel: 'email',
+          email: address,
+          name: 'Ana',
+          phone: '',
+          taxId: '',
+          userId: responsibleId,
+          username: `ana-${responsibleId.slice(0, 8)}`,
+        })
+        const [membership] = await database.db
+          .insert(userCompanyMemberships)
+          .values({ companyId, status: 'active', userId: responsibleId })
+          .returning({ id: userCompanyMemberships.id })
+        await database.db
+          .insert(membershipRoles)
+          .values({ membershipId: membership?.id ?? '', role: 'operator' })
+        await new DrizzleOccurrenceWatcherRepository(database.db).addWatcher({
+          actorUserId: userId,
+          correlationId: 'corr-auto-watchers',
+          scope: { companyId, kind: 'company' },
+          userId: responsibleId,
+        })
+
+        await automaticMail(database).send({
+          companyId,
+          correlationId: 'correlation-auto-cc',
+          occurrenceId: seeded.occurrenceId,
+        })
+
+        const [mail] = await database.db
+          .select({ cc: contractorMailMessages.ccAddresses })
+          .from(contractorMailMessages)
+          .where(eq(contractorMailMessages.companyId, companyId))
+        expect(mail?.cc).toEqual([address])
+      })
+    },
+    60_000,
+  )
+
   testWithPostgres(
     'tipo ligado: e-mail da 143 sem ator, outbox, mensagem automática; uma vez só',
     async () => {

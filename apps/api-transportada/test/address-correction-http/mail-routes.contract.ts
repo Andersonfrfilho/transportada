@@ -105,6 +105,33 @@ describe('POST /address-correction-requests/mail http contract', () => {
     expect(fixture.sendMailCalls[0]?.templateId).toBe(templateId)
   })
 
+  /** Spec 267 RF4: o corpo só remove gente da cópia; `cc` livre segue 400. */
+  test('passes excludedWatcherUserIds through and still refuses a free cc', async () => {
+    const fixture = await createAddressCorrectionHttpFixture()
+    const watcherId = '00000000-0000-4000-8000-000000267001'
+
+    const accepted = await fixture.handle(
+      mailRequest({
+        body: { ...validBody(), excludedWatcherUserIds: [watcherId] },
+        headers: { 'idempotency-key': 'address-correction-mail-cc-1' },
+      }),
+    )
+    expect(accepted.status).toBe(202)
+    expect(fixture.sendMailCalls[0]?.excludedWatcherUserIds).toEqual([watcherId])
+
+    for (const body of [
+      { ...validBody(), cc: ['x@y.com'] },
+      { ...validBody(), excludedWatcherUserIds: ['nao-e-uuid'] },
+      { ...validBody(), excludedWatcherUserIds: Array(11).fill(watcherId) },
+    ]) {
+      const refused = await fixture.handle(
+        mailRequest({ body, headers: { 'idempotency-key': 'address-correction-mail-cc-2' } }),
+      )
+      expect(refused.status).toBe(400)
+    }
+    expect(fixture.sendMailCalls).toHaveLength(1)
+  })
+
   test('refuses a templateId that is not a uuid, with details', async () => {
     const fixture = await createAddressCorrectionHttpFixture()
 

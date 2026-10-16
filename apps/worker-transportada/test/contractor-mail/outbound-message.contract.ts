@@ -13,6 +13,7 @@ import {
   ResendProviderUnauthorizedError,
   ResendProviderUnreachableError,
 } from '../../src/contractor-mail/domain/resend-provider.error.js'
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../src/contractor-mail/domain/contractor-mail.constant.js'
 import { CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE } from '../../src/messaging/contractor-mail-outbound-envelope.schema.js'
 import type { ContractorMailOutboundEnvelopeV1 } from '../../src/messaging/contractor-mail-outbound-envelope.schema.js'
 import type {
@@ -30,6 +31,7 @@ const REPLY_TOKEN_SECRET = 'a'.repeat(64)
 
 const MESSAGE: ContractorMailOutboundMessageRecord = {
   bodyHtml: null,
+  ccAddresses: [],
   bodyText: 'Este é um e-mail de teste.',
   fromAddress: 'ocorrencias@fernandes-transportadora.com.br',
   subject: 'Teste de configuração de e-mail com contratantes',
@@ -71,6 +73,9 @@ function buildDependencies(input: {
 }): {
   readonly dependencies: SendContractorMailOutboundMessageDependencies
   readonly failedCalls: { readonly companyId: string; readonly messageId: string }[]
+  readonly sendCalls: Parameters<
+    SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+  >[0][]
   readonly sentCalls: {
     readonly companyId: string
     readonly messageId: string
@@ -79,6 +84,9 @@ function buildDependencies(input: {
 } {
   const sentCalls: { companyId: string; messageId: string; providerEmailId: string }[] = []
   const failedCalls: { companyId: string; messageId: string }[] = []
+  const sendCalls: Parameters<
+    SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+  >[0][] = []
   const message = input.message ?? MESSAGE
   const settings = input.settings ?? SETTINGS
 
@@ -95,7 +103,10 @@ function buildDependencies(input: {
       fetchReceivedEmail: async () => {
         throw new Error('not used by this contract')
       },
-      sendEmail: input.sendEmail,
+      sendEmail: async (request) => {
+        sendCalls.push(request)
+        return input.sendEmail(request)
+      },
     },
     repository: {
       async findContractorReplyForward() {
@@ -128,7 +139,7 @@ function buildDependencies(input: {
     },
   }
 
-  return { dependencies, failedCalls, sentCalls }
+  return { dependencies, failedCalls, sendCalls, sentCalls }
 }
 
 describe('send contractor mail outbound message (spec 143, T009 — correção pós-entrega)', () => {
@@ -556,5 +567,43 @@ describe('o boleto levado a um terceiro sai sem thread de conversa (spec 248 T4.
       'In-Reply-To': REFERENCE.rfcMessageId,
       References: REFERENCE.rfcMessageId,
     })
+  })
+
+  /** Spec 267: a cópia sai no `cc`, deduplicada, e nunca repete quem já está no `to`. */
+  test('sends the stored copy as cc, deduplicated, and omits cc when there is none', async () => {
+    const withCopy = buildDependencies({
+      message: {
+        ...MESSAGE,
+        ccAddresses: ['Ana@Empresa.test', 'ana@empresa.test', 'bruno@empresa.test'],
+      },
+      sendEmail: async () => ({ id: 'email-cc' }),
+    })
+    await sendContractorMailOutboundMessage(buildEnvelope(), withCopy.dependencies)
+    expect(withCopy.sendCalls[0]?.cc).toEqual(['ana@empresa.test', 'bruno@empresa.test'])
+
+    const without = buildDependencies({ sendEmail: async () => ({ id: 'email-no-cc' }) })
+    await sendContractorMailOutboundMessage(buildEnvelope(), without.dependencies)
+    expect('cc' in (without.sendCalls[0] ?? {})).toBe(false)
+  })
+
+  /** Spec 267: o teto vale para To + Cc, conferido antes de escolher o transporte. */
+  test('refuses to + cc above the limit before sending, as a permanent failure', async () => {
+    const addresses = (prefix: string, count: number) =>
+      Array.from({ length: count }, (_, index) => `${prefix}${index}@exemplo.com.br`)
+    const { dependencies, failedCalls, sendCalls, sentCalls } = buildDependencies({
+      message: {
+        ...MESSAGE,
+        ccAddresses: addresses('cc', 1),
+        toAddresses: addresses('to', CONTRACTOR_MAIL_MAX_RECIPIENTS),
+      },
+      sendEmail: async () => ({ id: 'never' }),
+    })
+
+    const result = await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(result).toEqual({ outcome: 'failed', reason: 'invalid_recipients', threadId: THREAD_ID })
+    expect(failedCalls).toEqual([{ companyId: COMPANY_ID, messageId: MESSAGE_ID }])
+    expect(sendCalls).toEqual([])
+    expect(sentCalls).toEqual([])
   })
 })

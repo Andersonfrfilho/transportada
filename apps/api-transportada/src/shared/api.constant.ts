@@ -73,6 +73,13 @@ export const API_CONTRACTORS_PATH = '/contractors'
 /** Spec 150 T301 (spec 143 T013): a lista de contatos de e-mail da contratante. */
 export const API_CONTRACTOR_CONTACTS_PATH = '/contractors/:id/contacts'
 export const API_CONTRACTOR_CONTACT_PATH = '/contractors/:id/contacts/:contactId'
+/** Spec 267: os responsáveis por ocorrências que vão em cópia no e-mail da contratante (empresa e contratante). */
+export const API_COMPANY_OCCURRENCE_WATCHERS_PATH = '/company-settings/occurrence-watchers'
+export const API_COMPANY_OCCURRENCE_WATCHER_CANDIDATES_PATH =
+  '/company-settings/occurrence-watchers/candidates'
+export const API_COMPANY_OCCURRENCE_WATCHER_PATH = '/company-settings/occurrence-watchers/:userId'
+export const API_CONTRACTOR_OCCURRENCE_WATCHERS_PATH = '/contractors/:id/occurrence-watchers'
+export const API_CONTRACTOR_OCCURRENCE_WATCHER_PATH = '/contractors/:id/occurrence-watchers/:userId'
 /** Spec 237 (ADR-0094): as regras de recebimento do contratante, como dado. */
 export const API_CONTRACTOR_RECEIVING_PROFILE_PATH = '/contractors/:id/receiving-profile'
 export const API_CONTRACTOR_RECEIVING_PROFILES_PATH = '/contractor-receiving-profiles'

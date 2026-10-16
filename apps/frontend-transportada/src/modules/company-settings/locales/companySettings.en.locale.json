@@ -12,7 +12,8 @@
     "quickReplies": "Quick replies",
     "settingsResolution": "Check configuration",
     "businessCalendar": "Calendar",
-    "audioTranscription": "Audio transcription"
+    "audioTranscription": "Audio transcription",
+    "occurrenceWatchers": "Occurrence owners"
   },
   "entryKinds": {
     "title": "Entry kinds",

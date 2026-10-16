@@ -5,6 +5,12 @@
  * `buildOccurrenceMail`, a mesma função do envio — a prévia é o e-mail que sai. Sem texto do
  * operador, parte do modelo do tipo da ocorrência (spec 079); tipo sem e-mail começa em branco.
  */
+import {
+  loadCandidatesForDisplay,
+  type MailCopyLogger,
+} from '../../contractor-mail/application/resolve-mail-copy.service.js'
+import { resolveEffectiveWatchers } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
+import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { buildOccurrenceMail, type OccurrenceMail } from '../domain/occurrence-mail.template.js'
 import type {
@@ -33,7 +39,18 @@ export type OccurrenceMailRecipient = {
   readonly roleLabel: string
 }
 
+/** Spec 267 RF4: um responsável em cópia como o diálogo mostra; o endereço real nunca sai da API. */
+export type OccurrenceMailCopyEntry = {
+  readonly maskedEmail: string
+  readonly name: string
+  readonly userId: string
+}
+
 export type OccurrenceMailPreview = OccurrenceMail & {
+  /** Spec 267: a lista efetiva da contratante (ou da empresa); o operador só tira chips, nunca digita. */
+  readonly cc: readonly OccurrenceMailCopyEntry[]
+  /** `null` quando nenhuma lista tem responsável ativo. */
+  readonly ccSource: 'company' | 'contractor' | null
   /** O texto do operador (ou o do modelo), para o diálogo abrir preenchido. */
   readonly bodyText: string
   readonly contractorName: string
@@ -47,9 +64,14 @@ export type PreviewOccurrenceMailUseCase = Readonly<{
 }>
 
 export function createPreviewOccurrenceMailUseCase(dependencies: {
+  readonly logger?: Pick<MailCopyLogger, 'warn'>
   readonly reader: Pick<
     OccurrenceMailTransactionPort,
-    'findCarrierName' | 'findOccurrenceTarget' | 'findOperatorName' | 'listOccurrenceRecipients'
+    | 'findCarrierName'
+    | 'findOccurrenceTarget'
+    | 'findOperatorName'
+    | 'listOccurrenceRecipients'
+    | 'loadWatcherCandidates'
   >
   readonly suggestedMail: OccurrenceSuggestedMailPort
 }): PreviewOccurrenceMailUseCase {
@@ -73,13 +95,25 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
       const bodyText = input.bodyText ?? suggestion?.bodyText ?? ''
 
       const { contractorId } = target
-      const [carrierName, operatorName, candidates] = await Promise.all([
+      const [carrierName, operatorName, candidates, watchers] = await Promise.all([
         dependencies.reader.findCarrierName({ companyId }),
         dependencies.reader.findOperatorName({ companyId, userId: input.actorUserId }),
         contractorId === null
           ? []
           : dependencies.reader.listOccurrenceRecipients({ companyId, contractorId }),
+        contractorId === null
+          ? { company: [], contractor: [] }
+          : loadCandidatesForDisplay({
+              load: () => dependencies.reader.loadWatcherCandidates({ companyId, contractorId }),
+              logger: dependencies.logger,
+            }),
       ])
+      const copy = resolveEffectiveWatchers({
+        companyWatchers: watchers.company,
+        contractorWatchers: watchers.contractor,
+        excludedUserIds: [],
+        toAddresses: [],
+      })
       return {
         ...buildOccurrenceMail({
           bodyText,
@@ -88,6 +122,12 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
           subject,
         }),
         bodyText,
+        cc: copy.copy.map((entry) => ({
+          maskedEmail: maskEmailAddress(entry.address),
+          name: entry.name,
+          userId: entry.userId,
+        })),
+        ccSource: copy.source,
         contractorName: target.contractorName,
         recipients: candidates.map((candidate) => ({
           approvesCharges: candidate.types.includes('approves_charges'),

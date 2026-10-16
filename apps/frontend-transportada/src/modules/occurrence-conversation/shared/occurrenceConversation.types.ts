@@ -44,6 +44,15 @@ export type ContractorSenderSuggestion = Readonly<{
 }>
 
 export type ContractorSenderIdentity =
+  /** Spec 267 RF9: um usuário da empresa (responsável em cópia) que respondeu por e-mail. */
+  | Readonly<{
+      arrivedAs: string
+      kind: 'internal'
+      name: string
+      /** `false`: a contratante não estava no `To`/`Cc` — a mensagem é só para a equipe. */
+      reachedContractor: boolean
+      userId: string
+    }>
   | Readonly<{
       arrivedAs: string
       contact: ContractorSenderContact
@@ -80,11 +89,18 @@ export type OccurrenceConversationAttachment = Readonly<{
   url: string
 }>
 
+export type OccurrenceConversationCopyEntry = Readonly<{
+  maskedEmail: string
+  name: null | string
+}>
+
 export type OccurrenceConversationMessage = Readonly<{
   attachments: readonly OccurrenceConversationAttachment[]
   author: OccurrenceConversationAuthor
   bodyText: string
   channel: OccurrenceConversationChannel
+  /** Spec 267 RF8: quem foi em cópia no e-mail de saída; ausente quando ninguém foi. */
+  copy?: readonly OccurrenceConversationCopyEntry[]
   createdAt: string
   direction: 'inbound' | 'outbound'
   id: string
@@ -119,8 +135,17 @@ export type OccurrenceMailRecipient = Readonly<{
 }>
 
 /** `POST …/conversations/contractor/mail-preview`: o e-mail que sai, e a quem pode sair. */
+export type OccurrenceMailCopyEntry = Readonly<{
+  maskedEmail: string
+  name: string
+  userId: string
+}>
+
 export type OccurrenceMailPreview = Readonly<{
   bodyText: string
+  /** Spec 267 RF4: a cópia efetiva (responsáveis da contratante ou da empresa). O operador só tira chips. */
+  cc: readonly OccurrenceMailCopyEntry[]
+  ccSource: 'company' | 'contractor' | null
   contractorName: string
   recipients: readonly OccurrenceMailRecipient[]
   subject: string
@@ -131,6 +156,8 @@ export type OccurrenceMailPreview = Readonly<{
 export type ContractorMailDraft = Readonly<{
   body: string
   contactIds: readonly string[]
+  /** Spec 267 RF4: quem o operador tirou da cópia neste envio. */
+  excludedWatcherUserIds?: readonly string[]
   subject: string
 }>
 
@@ -140,6 +167,8 @@ export type ContractorMailRequest = Readonly<{
   body: string
   channel: 'email'
   contactIds: readonly string[]
+  /** Spec 267 RF4: só quem saiu da cópia; ausente quando ninguém saiu. */
+  excludedWatcherUserIds?: readonly string[]
   subject: string
 }>
 

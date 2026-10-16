@@ -55,6 +55,7 @@ type SendMailInput = Readonly<{
   contactIds: readonly string[]
   contractorTaxId: string
   correlationId: string
+  excludedWatcherUserIds: readonly string[]
   idempotencyKey: string
   requestIds: readonly string[] | undefined
   templateId: string | undefined
@@ -114,6 +115,7 @@ export function createAddressCorrectionRoutes(
           contactIds: input.contactIds,
           contractorTaxId: input.contractorTaxId,
           correlationId: input.correlationId,
+          excludedWatcherUserIds: input.excludedWatcherUserIds,
           idempotencyKey: input.idempotencyKey,
           requestIds: input.requestIds,
           templateId: input.templateId,
@@ -127,6 +129,7 @@ export function createAddressCorrectionRoutes(
           contactIds: body.contactIds,
           contractorTaxId: body.contractorTaxId,
           correlationId,
+          excludedWatcherUserIds: body.excludedWatcherUserIds ?? [],
           idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
           requestIds: body.requestIds,
           templateId: body.templateId,
@@ -175,6 +178,8 @@ function serializeSendAddressCorrectionMailResult(result: SendAddressCorrectionM
 /** Nunca `companyId`: chave interna, não algo que a tela de confirmação precisa. */
 function serializeAddressCorrectionRecipients(recipients: AddressCorrectionRecipients): object {
   return {
+    cc: recipients.cc,
+    ccSource: recipients.ccSource,
     contacts: recipients.contacts.map((contact) => ({
       canDecide: contact.canDecide,
       email: contact.email,

@@ -14,6 +14,10 @@ import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
 import type { ContractorMailTransport } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import {
+  resolveMailCopy,
+  type MailCopyLogger,
+} from '../../contractor-mail/application/resolve-mail-copy.service.js'
 import { createMailSendReadinessError } from '../../contractor-mail/domain/contractor-mail.error.js'
 import { resolveMailSendReadiness } from '../../contractor-mail/domain/mail-send-readiness.policy.js'
 import {
@@ -68,6 +72,8 @@ export type SendOccurrenceMailInput = {
    */
   readonly contractorReplyResend?: boolean
   readonly correlationId: string
+  /** Spec 267 RF4: quem o operador tirou da cópia neste envio. Só remove: id fora da lista efetiva é ignorado. */
+  readonly excludedWatcherUserIds?: readonly string[]
   readonly idempotencyKey: string
   readonly occurrenceId: string
   readonly subject: string
@@ -94,6 +100,14 @@ function assertMailContent(input: SendOccurrenceMailInput): void {
   }
 }
 
+export type OccurrenceMailLogger = OpenContractorReplyLogger & MailCopyLogger
+
+/** Só entra na impressão digital quando alguém saiu da cópia: sem isso, o hash de antes da 267 segue valendo. */
+function excludedFingerprintFields(excluded: readonly string[] | undefined): string[] {
+  const unique = [...new Set(excluded ?? [])].sort()
+  return unique.length === 0 ? [] : [`excluded:${unique.join(',')}`]
+}
+
 /** Mesma regra do worker: minúsculas, primeira ocorrência vence. */
 function deduplicateRecipients(addresses: readonly string[]): string[] {
   return [...new Set(addresses.map((address) => address.toLowerCase()))]
@@ -114,7 +128,7 @@ type OccurrenceMailDelivery = {
 export function createSendOccurrenceMailUseCase(dependencies: {
   readonly contractorMailSandbox?: OccurrenceMailSandbox
   readonly fingerprintService: IdempotencyFingerprintPort
-  readonly logger?: OpenContractorReplyLogger
+  readonly logger?: OccurrenceMailLogger
   readonly now?: () => Date
   readonly secretService: ContractorMailCredentialSecretService
   readonly storage: ConversationAttachmentStoragePort
@@ -188,7 +202,7 @@ async function executeSend(params: {
   readonly contractorMailSandbox?: OccurrenceMailSandbox
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly input: SendOccurrenceMailInput
-  readonly logger?: OpenContractorReplyLogger
+  readonly logger?: OccurrenceMailLogger
   readonly now: Date
   readonly secretService: ContractorMailCredentialSecretService
   readonly storage: ConversationAttachmentStoragePort
@@ -211,6 +225,7 @@ async function executeSend(params: {
       companyId,
       input.occurrenceId,
       [...contactIds].sort().join(','),
+      ...excludedFingerprintFields(input.excludedWatcherUserIds),
       input.subject.trim(),
       input.bodyText.trim(),
       (input.attachmentIds ?? []).join(','),
@@ -259,6 +274,15 @@ async function executeSend(params: {
     throw new OccurrenceConversationNoRecipientError()
   }
   const recipients = deduplicateRecipients(toAddresses as readonly string[])
+  const copy = await resolveMailCopy({
+    automatic: input.automatic === true,
+    companyId,
+    contractorId,
+    excludedUserIds: input.excludedWatcherUserIds ?? [],
+    loadCandidates: (query) => transaction.loadWatcherCandidates(query),
+    logger: params.logger,
+    recipients,
+  })
 
   const [carrierName, operatorName] = await Promise.all([
     transaction.findCarrierName({ companyId }),
@@ -304,6 +328,7 @@ async function executeSend(params: {
     actorUserId: input.actorUserId,
     bodyHtml: mail.html,
     bodyText: mail.text,
+    ccAddresses: copy,
     companyId,
     contractorId,
     correlationId: input.correlationId,

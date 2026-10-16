@@ -245,6 +245,7 @@ export async function recordContractorMailInboundMessage(
       subject: normalizeNonEmpty(received.subject, FALLBACK_SUBJECT),
       threadId: thread.id,
       toAddresses: received.to,
+      ccAddresses: received.cc ?? [],
     })
   }
 }

@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../domain/contractor-mail.constant.js'
 import { SandboxSmtpRecipientsRejectedError } from '../domain/sandbox-smtp.error.js'
 
 /**
@@ -17,6 +18,8 @@ export type SandboxSmtpAttachment = {
 
 export type SendSandboxSmtpEmailInput = {
   readonly attachments?: readonly SandboxSmtpAttachment[]
+  /** Spec 267: a cópia da empresa. O sandbox não tem `Reply-To`, então a resposta de um responsável não volta. */
+  readonly cc?: readonly string[]
   readonly from: string
   readonly html?: string
   readonly subject: string
@@ -35,6 +38,7 @@ type SandboxSmtpMessage = {
     readonly encoding: 'base64'
     readonly filename: string
   }[]
+  readonly cc?: readonly string[]
   readonly from: string
   readonly html?: string
   readonly subject: string
@@ -55,6 +59,9 @@ type NodemailerModule = {
   createTransport(smtpUrl: string): SandboxSmtpTransport
 }
 
+/** Quebra de linha injeta cabeçalho; vírgula e `<>` fariam um item virar lista ou nome+endereço (como no gateway do Resend). */
+const FORBIDDEN_RECIPIENT_CHARACTERS = /[\r\n,<>]/
+
 const NODEMAILER_MODULE_NAME: string = 'nodemailer'
 
 async function createNodemailerTransport(smtpUrl: string): Promise<SandboxSmtpTransport> {
@@ -74,6 +81,13 @@ export function createSandboxSmtpMailGateway(
 
   return {
     async sendEmail(request) {
+      const copied = request.cc ?? []
+      if (
+        request.to.length + copied.length > CONTRACTOR_MAIL_MAX_RECIPIENTS ||
+        [...request.to, ...copied].some((address) => FORBIDDEN_RECIPIENT_CHARACTERS.test(address))
+      ) {
+        throw new SandboxSmtpRecipientsRejectedError()
+      }
       const transport = await resolveTransport()
       const result = await transport.sendMail({
         ...(request.attachments === undefined || request.attachments.length === 0
@@ -86,6 +100,7 @@ export function createSandboxSmtpMailGateway(
                 filename: attachment.fileName,
               })),
             }),
+        ...(copied.length === 0 ? {} : { cc: copied }),
         from: request.from,
         ...(request.html === undefined ? {} : { html: request.html }),
         subject: request.subject,

@@ -18,7 +18,16 @@ export type AddressCorrectionMailContact = Readonly<{
 export type AddressCorrectionMailContractor = Readonly<{ id: string }>
 
 /** `POST /address-correction-requests/recipients` (revisão final, item de segurança B3). */
+export type AddressCorrectionMailCopyEntry = Readonly<{
+  maskedEmail: string
+  name: string
+  userId: string
+}>
+
 export type AddressCorrectionRecipients = Readonly<{
+  /** Spec 267 RF4: a cópia efetiva da contratante, mascarada; o operador só tira chips. */
+  cc: readonly AddressCorrectionMailCopyEntry[]
+  ccSource: 'company' | 'contractor' | null
   contacts: readonly AddressCorrectionMailContact[]
   contractor: AddressCorrectionMailContractor
 }>
@@ -121,7 +130,19 @@ export function mapAddressCorrectionRecipients(value: unknown): AddressCorrectio
         .map(mapAddressCorrectionMailContact)
         .filter((contact): contact is AddressCorrectionMailContact => contact !== null)
     : []
-  return { contacts, contractor }
+  const cc = Array.isArray(data.cc)
+    ? data.cc.flatMap((entry): AddressCorrectionMailCopyEntry[] =>
+        isRecord(entry) &&
+        isString(entry.userId) &&
+        isString(entry.name) &&
+        isString(entry.maskedEmail)
+          ? [{ maskedEmail: entry.maskedEmail, name: entry.name, userId: entry.userId }]
+          : [],
+      )
+    : []
+  const ccSource =
+    data.ccSource === 'company' || data.ccSource === 'contractor' ? data.ccSource : null
+  return { cc, ccSource, contacts, contractor }
 }
 
 export function mapAddressCorrectionMailSendResult(

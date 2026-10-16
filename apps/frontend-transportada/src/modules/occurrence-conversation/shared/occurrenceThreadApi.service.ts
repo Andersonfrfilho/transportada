@@ -41,8 +41,13 @@ export type OccurrenceThreadAuthorLabels = Readonly<{
   channel: Readonly<Record<OccurrenceConversationChannel, string>>
   contractor: string
   contractorUser: string
+  /** Spec 267 RF8: o prefixo da linha da cópia (Cópia: Ana, Bruno). */
+  copy: string
   driver: string
   operation: string
+  /** Spec 267 RF9: a marca do responsável que respondeu, e o selo de quando a contratante não recebeu. */
+  team: string
+  teamOnly: string
   unverified: string
 }>
 
@@ -58,6 +63,10 @@ function describeAuthorName(
   if (author.kind === 'driver') return author.name ?? labels.driver
   const { identity } = author
   if (identity === null) return labels.contractorUser
+  if (identity.kind === 'internal') {
+    const team = `${identity.name}${AUTHOR_SEPARATOR}${labels.team}`
+    return identity.reachedContractor ? team : `${team}${AUTHOR_SEPARATOR}${labels.teamOnly}`
+  }
   /** Só o nome de quem respondeu: nunca o endereço de e-mail nem o cargo. Sem nome legível, "Contratante". */
   if (identity.kind === 'contact') {
     return identity.contact.name.trim() === '' ? labels.contractor : identity.contact.name
@@ -99,8 +108,19 @@ export function toThreadMessage(
     direction: message.direction,
     id: message.id,
     ...(message.status === null ? {} : { status: message.status }),
-    text: message.bodyText,
+    text: withCopyLine(message, labels),
   }
+}
+
+/** Spec 267 RF8: o SDK só desenha o texto — a cópia vai numa linha antes dele, só na mensagem de saída. */
+function withCopyLine(
+  message: OccurrenceConversationMessage,
+  labels: OccurrenceThreadAuthorLabels,
+): string {
+  const copy = message.copy ?? []
+  if (message.direction !== 'outbound' || copy.length === 0) return message.bodyText
+  const names = copy.map((entry) => entry.name ?? entry.maskedEmail).join(', ')
+  return `${labels.copy}: ${names}\n\n${message.bodyText}`
 }
 
 export type OccurrenceThreadClient = Pick<
