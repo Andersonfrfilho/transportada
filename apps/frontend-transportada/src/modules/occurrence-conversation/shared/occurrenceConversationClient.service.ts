@@ -25,6 +25,7 @@ import {
   type OccurrenceConversation,
   type OccurrenceConversationsView,
   type OccurrenceConversationMessage,
+  type OccurrenceMailCopyEntry,
   type OccurrenceMailPreview,
   type OccurrenceMailRecipient,
   type UnassignedCandidate,
@@ -263,6 +264,12 @@ function isRecipient(value: unknown): value is OccurrenceMailRecipient {
   )
 }
 
+function toCopyEntry(value: unknown): null | OccurrenceMailCopyEntry {
+  if (!isRecord(value) || !isString(value.userId) || !isString(value.name)) return null
+  if (!isString(value.maskedEmail)) return null
+  return { maskedEmail: value.maskedEmail, name: value.name, userId: value.userId }
+}
+
 function readPreview(payload: unknown): OccurrenceMailPreview {
   const data = isRecord(payload) ? payload.data : undefined
   if (
@@ -276,6 +283,8 @@ function readPreview(payload: unknown): OccurrenceMailPreview {
   }
   return {
     bodyText: data.bodyText,
+    cc: Array.isArray(data.cc) ? data.cc.flatMap((entry) => toCopyEntry(entry) ?? []) : [],
+    ccSource: data.ccSource === 'company' || data.ccSource === 'contractor' ? data.ccSource : null,
     contractorName: isString(data.contractorName) ? data.contractorName : '',
     recipients: Array.isArray(data.recipients) ? data.recipients.filter(isRecipient) : [],
     subject: data.subject,

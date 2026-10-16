@@ -88,7 +88,13 @@
       "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "Um envio anterior já foi registrado. Envie de novo para mandar o texto atual.",
       "OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED": "Um dos anexos não é o que diz ser, ou os arquivos passam do total que um e-mail leva. Confira e tente de novo.",
       "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Não foi possível subir os anexos. Tente de novo em instantes.",
-      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez."
+      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez.",
+      "CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS": "Destinatários e cópia passam do limite de um e-mail. Tire alguém da cópia ou desmarque contatos."
+    },
+    "copy": {
+      "label": "Cópia:",
+      "empty": "Nenhum responsável em cópia neste e-mail.",
+      "remove": "Tirar {{name}} da cópia deste e-mail"
     }
   },
   "unassigned": {

@@ -119,8 +119,17 @@ export type OccurrenceMailRecipient = Readonly<{
 }>
 
 /** `POST …/conversations/contractor/mail-preview`: o e-mail que sai, e a quem pode sair. */
+export type OccurrenceMailCopyEntry = Readonly<{
+  maskedEmail: string
+  name: string
+  userId: string
+}>
+
 export type OccurrenceMailPreview = Readonly<{
   bodyText: string
+  /** Spec 267 RF4: a cópia efetiva (responsáveis da contratante ou da empresa). O operador só tira chips. */
+  cc: readonly OccurrenceMailCopyEntry[]
+  ccSource: 'company' | 'contractor' | null
   contractorName: string
   recipients: readonly OccurrenceMailRecipient[]
   subject: string
@@ -131,6 +140,8 @@ export type OccurrenceMailPreview = Readonly<{
 export type ContractorMailDraft = Readonly<{
   body: string
   contactIds: readonly string[]
+  /** Spec 267 RF4: quem o operador tirou da cópia neste envio. */
+  excludedWatcherUserIds?: readonly string[]
   subject: string
 }>
 
@@ -140,6 +151,8 @@ export type ContractorMailRequest = Readonly<{
   body: string
   channel: 'email'
   contactIds: readonly string[]
+  /** Spec 267 RF4: só quem saiu da cópia; ausente quando ninguém saiu. */
+  excludedWatcherUserIds?: readonly string[]
   subject: string
 }>
 

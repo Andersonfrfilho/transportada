@@ -294,6 +294,7 @@ export type NfeWorkspaceClient = Readonly<{
     input: Readonly<{
       contactIds: readonly string[]
       contractorTaxId: string
+      excludedWatcherUserIds?: readonly string[]
       idempotencyKey: string
       requestIds?: readonly string[]
       templateId?: string
@@ -853,6 +854,9 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
           buildAddressCorrectionMailRequestBody({
             contactIds: input.contactIds,
             contractorTaxId: input.contractorTaxId,
+            ...(input.excludedWatcherUserIds === undefined
+              ? {}
+              : { excludedWatcherUserIds: input.excludedWatcherUserIds }),
             ...(input.requestIds === undefined ? {} : { requestIds: input.requestIds }),
             ...(input.templateId === undefined ? {} : { templateId: input.templateId }),
           }),

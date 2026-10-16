@@ -214,3 +214,55 @@ describe('os responsáveis por texto de fonte (spec 267)', () => {
     }
   })
 })
+
+describe('a cópia nos diálogos de envio (spec 267 T4.3)', () => {
+  const OCCURRENCE_DIALOG =
+    'src/modules/occurrence-conversation/components/SendToContractorDialog.component.tsx'
+  const CORRECTION_DIALOG =
+    'src/modules/nfe-workspace/components/AddressCorrectionMailDialog.component.tsx'
+  const CHIPS = 'src/modules/shared/MailCopyChips.component.tsx'
+
+  test('os dois diálogos mostram a cópia em chips removíveis, e o corpo do envio leva só quem saiu', () => {
+    const occurrence = readFileSync(OCCURRENCE_DIALOG, 'utf8')
+    const correction = readFileSync(CORRECTION_DIALOG, 'utf8')
+
+    expect(occurrence).toContain('<MailCopyChips')
+    expect(occurrence).toContain('excludedWatcherUserIds: removedCopyIds')
+    expect(correction).toContain('<MailCopyChips')
+    expect(correction).toContain('onRemove={dialog.removeCopy}')
+  })
+
+  test('não existe campo para adicionar nem digitar endereço na cópia', () => {
+    const chips = readFileSync(CHIPS, 'utf8')
+
+    expect(chips).not.toContain('<input')
+    expect(chips).not.toContain('<textarea')
+    expect(chips).not.toContain('type="email"')
+    expect(chips).toContain('onRemove')
+  })
+
+  test('as chaves de texto da cópia existem em pt-BR e em inglês', () => {
+    for (const file of [
+      'src/modules/occurrence-conversation/locales/occurrenceConversation.locale.json',
+      'src/modules/occurrence-conversation/locales/occurrenceConversation.en.locale.json',
+    ]) {
+      const locale = JSON.parse(readFileSync(file, 'utf8')) as {
+        dialog: { copy: Record<string, string>; error: Record<string, string> }
+      }
+      expect(locale.dialog.copy.label).toBeString()
+      expect(locale.dialog.copy.remove).toContain('{{name}}')
+      expect(locale.dialog.error.CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS).toBeString()
+    }
+    for (const file of [
+      'src/modules/nfe-workspace/locales/nfeWorkspace.locale.json',
+      'src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json',
+    ]) {
+      const locale = JSON.parse(readFileSync(file, 'utf8')) as {
+        addressReport: { correction: { mail: Record<string, unknown> } }
+      }
+      const mail = locale.addressReport.correction.mail
+      expect(mail.copyLabel).toBeString()
+      expect((mail.error as Record<string, string>).tooManyRecipients).toBeString()
+    }
+  })
+})

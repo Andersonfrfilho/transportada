@@ -107,6 +107,28 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     })
   })
 
+  /** Spec 267 RF4: só quem saiu da cópia vai no corpo; sem remoção a chave não existe. */
+  test('com excludedWatcherUserIds monta o corpo sem a cópia removida; vazio nem entra', () => {
+    expect(
+      buildAddressCorrectionMailRequestBody({
+        contactIds: ['contact-1'],
+        contractorTaxId: '30290856000160',
+        excludedWatcherUserIds: ['user-bruno'],
+      }),
+    ).toEqual({
+      contactIds: ['contact-1'],
+      contractorTaxId: '30290856000160',
+      excludedWatcherUserIds: ['user-bruno'],
+    })
+    expect(
+      buildAddressCorrectionMailRequestBody({
+        contactIds: ['contact-1'],
+        contractorTaxId: '30290856000160',
+        excludedWatcherUserIds: [],
+      }),
+    ).not.toHaveProperty('excludedWatcherUserIds')
+  })
+
   test('botão desabilitado com 0 contatos, habilitado até o teto, desabilitado acima dele ou sem modelo', () => {
     expect(ADDRESS_CORRECTION_MAIL_MAX_CONTACTS).toBe(50)
     expect(canConfirmAddressCorrectionMail({ hasTemplate: true, selectedContactCount: 0 })).toBe(
@@ -209,6 +231,9 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
   test('cada código estável do servidor tem uma mensagem própria, e o desconhecido cai na genérica', () => {
     expect(addressCorrectionMailErrorMessageKey('ADDRESS_CORRECTION_CONTRACTOR_NOT_FOUND')).toBe(
       'addressReport.correction.mail.error.contractorNotFound',
+    )
+    expect(addressCorrectionMailErrorMessageKey('CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS')).toBe(
+      'addressReport.correction.mail.error.tooManyRecipients',
     )
     expect(addressCorrectionMailErrorMessageKey('CONTRACTOR_NOT_FOUND')).toBe(
       'addressReport.correction.mail.error.contractorNotFound',
@@ -356,6 +381,12 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
                 },
               ],
               contractor: { id: 'contractor-1' },
+              /** Spec 267 RF4: a cópia efetiva, mascarada, com a lista de origem; item inválido some. */
+              cc: [
+                { maskedEmail: 'a***@e***.example', name: 'Ana', userId: 'user-ana' },
+                { broken: true },
+              ],
+              ccSource: 'company',
             },
           }),
         )
@@ -368,6 +399,10 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     })
     expect(recipients.contractor).toEqual({ id: 'contractor-1' })
     expect(recipients.contacts).toEqual([ACTIVE_SUBSCRIBED])
+    expect(recipients.cc).toEqual([
+      { maskedEmail: 'a***@e***.example', name: 'Ana', userId: 'user-ana' },
+    ])
+    expect(recipients.ccSource).toBe('company')
 
     const [request] = requests
     if (request === undefined) throw new Error('ADDRESS_CORRECTION_MAIL_CONTRACT_REQUEST_MISSING')
@@ -571,6 +606,34 @@ describe('chave de idempotência do envio (spec 150, revisão final / T405)', ()
       previousTemplateId: null,
     })
     expect(resolved.idempotencyKey).toBe('key-from-open')
+  })
+
+  /** Spec 267: tirar alguém da cópia muda o corpo (e a impressão digital da API): chave nova, nunca a mesma. */
+  test('nova chave quando a cópia removida muda; estável quando é o mesmo conjunto, em qualquer ordem', () => {
+    const base = {
+      currentContactIds: ['contact-1'],
+      currentTemplateId: null,
+      previousContactIds: ['contact-1'],
+      previousIdempotencyKey: 'key-from-open',
+      previousTemplateId: null,
+    }
+
+    expect(
+      resolveAddressCorrectionMailIdempotencyKey({
+        ...base,
+        currentExcludedWatcherIds: ['user-bruno', 'user-ana'],
+        generateKey: () => 'should-not-be-called',
+        previousExcludedWatcherIds: ['user-ana', 'user-bruno'],
+      }).idempotencyKey,
+    ).toBe('key-from-open')
+    const changed = resolveAddressCorrectionMailIdempotencyKey({
+      ...base,
+      currentExcludedWatcherIds: ['user-bruno'],
+      generateKey: () => 'fresh-key-on-copy-change',
+      previousExcludedWatcherIds: [],
+    })
+    expect(changed.idempotencyKey).toBe('fresh-key-on-copy-change')
+    expect(changed.excludedWatcherIds).toEqual(['user-bruno'])
   })
 
   test('nova chave ao reabrir (sem seleção anterior)', () => {

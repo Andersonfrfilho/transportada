@@ -88,7 +88,13 @@
       "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "A previous send was already recorded. Send again to send the current text.",
       "OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED": "One of the attachments is not what it claims to be, or the files exceed what an email can carry. Check and try again.",
       "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Could not upload the attachments. Try again shortly.",
-      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "An attachment expired before sending. Send again — it will upload once more."
+      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "An attachment expired before sending. Send again — it will upload once more.",
+      "CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS": "Recipients and copy exceed the e-mail limit. Remove someone from the copy or untick contacts."
+    },
+    "copy": {
+      "label": "Cc:",
+      "empty": "No owner is copied on this e-mail.",
+      "remove": "Take {{name}} off this e-mail's copy"
     }
   },
   "unassigned": {

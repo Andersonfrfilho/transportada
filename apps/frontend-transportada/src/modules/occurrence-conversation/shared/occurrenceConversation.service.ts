@@ -128,6 +128,9 @@ export function buildContractorMailRequest(draft: ContractorMailDraft): Contract
     body: draft.body.trim(),
     channel: 'email',
     contactIds: [...draft.contactIds],
+    ...((draft.excludedWatcherUserIds ?? []).length === 0
+      ? {}
+      : { excludedWatcherUserIds: [...(draft.excludedWatcherUserIds ?? [])] }),
     subject: draft.subject.trim(),
   }
 }

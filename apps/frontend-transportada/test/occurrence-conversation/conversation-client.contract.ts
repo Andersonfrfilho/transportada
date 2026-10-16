@@ -180,13 +180,39 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
     }
     const client = createClient(Response.json({ data: preview }))
 
+    /** Spec 267: API antiga, sem a cópia — a prévia segue legível, com a lista vazia. */
     expect(await client.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toEqual({
       bodyText: 'Texto',
+      cc: [],
+      ccSource: null,
       contractorName: 'Contratante Alfa',
       recipients: preview.recipients,
       subject: 'Assunto',
       suggested: true,
       text: 'Texto\n\n—\nOperadora',
+    })
+  })
+
+  /** Spec 267 RF4: a cópia efetiva (nome e e-mail mascarado) e de qual lista ela veio. */
+  test('a prévia traz a cópia dos responsáveis e a lista de origem; entrada inválida some', async () => {
+    const client = createClient(
+      Response.json({
+        data: {
+          bodyText: 'Texto',
+          cc: [{ maskedEmail: 'a***@e***.test', name: 'Ana', userId: 'user-ana' }, { broken: 1 }],
+          ccSource: 'contractor',
+          contractorName: 'Contratante Alfa',
+          recipients: [],
+          subject: 'Assunto',
+          suggested: false,
+          text: 'Texto',
+        },
+      }),
+    )
+
+    expect(await client.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
+      cc: [{ maskedEmail: 'a***@e***.test', name: 'Ana', userId: 'user-ana' }],
+      ccSource: 'contractor',
     })
   })
 

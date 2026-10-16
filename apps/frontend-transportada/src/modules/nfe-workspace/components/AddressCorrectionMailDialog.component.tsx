@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { MailCopyChips } from '@/modules/shared/MailCopyChips.component'
 import { resolveRetryAfterMinutes } from '@/modules/shared/retryAfter.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
@@ -143,6 +144,23 @@ export function AddressCorrectionMailDialog({ dialog }: AddressCorrectionMailDia
             </ul>
           )}
         </section>
+
+        {dialog.recipientsLoading || dialog.recipientsFailed ? null : (
+          <section className={styles.mailSection}>
+            <MailCopyChips
+              chips={dialog.copy.map((entry) => ({
+                hint: entry.maskedEmail,
+                id: entry.userId,
+                name: entry.name,
+              }))}
+              emptyLabel={t('addressReport.correction.mail.copyEmpty')}
+              isDisabled={dialog.isSending || isFinished}
+              label={t('addressReport.correction.mail.copyLabel')}
+              onRemove={dialog.removeCopy}
+              removeLabel={(name) => t('addressReport.correction.mail.copyRemove', { name })}
+            />
+          </section>
+        )}
 
         <section className={styles.mailSection}>
           <h3 className={styles.mailSectionTitle}>

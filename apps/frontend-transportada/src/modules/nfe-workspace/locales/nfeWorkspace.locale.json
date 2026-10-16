@@ -602,8 +602,12 @@
           "templateNotUsable": "O modelo escolhido foi arquivado ou não está mais disponível. Escolha outro modelo.",
           "idempotencyReused": "Este envio já foi processado. Atualize a página antes de tentar de novo.",
           "tooManyRequests": "Muitas tentativas de envio. Tente de novo em {{minutes}} min.",
-          "generic": "Não foi possível enviar o pedido de correção."
-        }
+          "generic": "Não foi possível enviar o pedido de correção.",
+          "tooManyRecipients": "Destinatários e cópia passam do limite de um e-mail. Tire alguém da cópia ou desmarque contatos."
+        },
+        "copyLabel": "Cópia:",
+        "copyEmpty": "Nenhum responsável em cópia neste e-mail.",
+        "copyRemove": "Tirar {{name}} da cópia deste e-mail"
       }
     }
   },

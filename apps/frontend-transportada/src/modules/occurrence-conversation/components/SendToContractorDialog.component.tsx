@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { MailCopyChips } from '@/modules/shared/MailCopyChips.component'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import {
@@ -29,6 +30,8 @@ import { QuickReplyPicker } from './QuickReplyPicker.component'
 const KNOWN_ERRORS = new Set([
   'CONTRACTOR_MAIL_NOT_CONFIGURED',
   'CONTRACTOR_MAIL_SENDING_NOT_VERIFIED',
+  /** Spec 267 RF7: To + Cc acima do teto do provedor. */
+  'CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS',
   'OCCURRENCE_CONVERSATION_CONTRACTOR_UNKNOWN',
   'OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED',
   'OCCURRENCE_CONVERSATION_MAIL_INVALID',
@@ -75,6 +78,8 @@ export function SendToContractorDialog({
   const [body, setBody] = useState('')
   const [contactIds, setContactIds] = useState<readonly string[]>([])
   const [isSubmitted, setSubmitted] = useState(false)
+  /** Spec 267 RF4: quem o operador tirou da cópia — vale só para este envio. */
+  const [removedCopyIds, setRemovedCopyIds] = useState<readonly string[]>([])
   /** Spec 183 T702e: os anexos do e-mail e o que já subiu deles (o reenvio reusa os ids). */
   const [files, setFiles] = useState<readonly File[]>([])
   const uploaded = useRef(new Map<File, string>())
@@ -94,7 +99,10 @@ export function SendToContractorDialog({
   }, [initialBody, loadInitialPreview])
 
   const preview = initialPreview.data
-  const draft = { body, contactIds, subject }
+  const draft = { body, contactIds, excludedWatcherUserIds: removedCopyIds, subject }
+  const copyChips = (preview?.cc ?? [])
+    .filter((entry) => !removedCopyIds.includes(entry.userId))
+    .map((entry) => ({ hint: entry.maskedEmail, id: entry.userId, name: entry.name }))
   const errors = isSubmitted ? validateContractorMailDraft(draft) : {}
   const isBusy = send.isPending
 
@@ -218,6 +226,19 @@ export function SendToContractorDialog({
                 <span className={styles.error}>{t('dialog.subjectRequired')}</span>
               )}
             </label>
+
+            <MailCopyChips
+              chips={copyChips}
+              emptyLabel={t('dialog.copy.empty')}
+              isDisabled={isBusy}
+              label={t('dialog.copy.label')}
+              onRemove={(userId) => {
+                setRemovedCopyIds((current) => [...current, userId])
+                /** A cópia entra na impressão digital da API: outro envio pede outra chave. */
+                setIdempotencyKey(createOccurrenceMailIdempotencyKey(() => crypto.randomUUID()))
+              }}
+              removeLabel={(name) => t('dialog.copy.remove', { name })}
+            />
 
             <QuickReplyPicker
               audience="contractor"
