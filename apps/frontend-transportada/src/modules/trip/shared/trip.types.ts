@@ -315,7 +315,6 @@ export type RegisteredOccurrence = Omit<TripOccurrence, 'attachments'> &
     attachments: readonly Readonly<{ id: string; position: number }>[]
     /** Spec 185 T6.1 (RF2/RF3): a ocorrência de separação também tenta o despacho automático. */
     autoDispatch?: AutoDispatchOutcome
-    email: null | Readonly<{ body: string; subject: string }>
   }>
 
 /**

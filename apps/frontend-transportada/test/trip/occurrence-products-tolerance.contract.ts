@@ -21,7 +21,6 @@ function buildRegistered(extra: Readonly<Record<string, unknown>> = {}) {
   return {
     attachments: [{ id: 'a1', position: 1 }],
     createdAt: '2026-09-22T19:03:10.795Z',
-    email: null,
     id: '4b581a02-3dba-4df9-a20b-20ac66163fa1',
     note: '',
     occurrenceTypeId: '54ed0225-f293-47c3-84fe-0b66eff68784',

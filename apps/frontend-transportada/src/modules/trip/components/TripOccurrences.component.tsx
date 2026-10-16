@@ -55,8 +55,6 @@ type TripOccurrencesProps = Readonly<{
   /** Spec 233 D8: só quem lê a frota abre `/ocorrencias/:id` — sem isso, o tipo sai como texto. */
   canOpenOccurrence?: boolean
   canRegister: boolean
-  /** O e-mail que o último registro produziu, para o operador conferir e enviar. */
-  email: null | Readonly<{ body: string; subject: string }>
   /**
    * Revisão de design spec 161: `SeparationOccurrenceDialog` hospeda este formulário dentro do
    * molde `.mdfeGateDialog`/`.mdfeGateFooter` (rodapé sticky) que todo outro diálogo de viagem usa;
@@ -118,7 +116,6 @@ type TripOccurrencesProps = Readonly<{
 export function TripOccurrences({
   canOpenOccurrence = false,
   canRegister,
-  email,
   isDialog = false,
   isRegistering,
   occurrences,
@@ -293,18 +290,6 @@ export function TripOccurrences({
             )
           })}
         </ul>
-      )}
-      {/*
-       * ⚠️ O e-mail volta **pronto para conferir e enviar**, não enviado: o destinatário é externo,
-       * e mandar em nome da transportadora é decisão que ainda não foi tomada. O que isto resolve é
-       * o retrabalho de escrever à mão — que é onde o número da nota entra trocado.
-       */}
-      {email === null ? null : (
-        <div className={styles.occurrenceForm}>
-          <p className={styles.hint}>{t('occurrence.emailReady')}</p>
-          <strong>{email.subject}</strong>
-          <pre className={styles.occurrenceEmail}>{email.body}</pre>
-        </div>
       )}
       {canRegister && disponiveis.length > 0 && !isOpen ? (
         <Button

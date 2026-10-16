@@ -1186,20 +1186,21 @@ export function createTripResponseAdapters() {
       return input.items
     },
     /**
-     * ⚠️ O registro devolve **mais** que a listagem: o e-mail pronto vem junto. O guard aceita a
-     * chave a mais em vez de reusar `isOccurrence`, que é exato de propósito.
+     * ⚠️ O registro devolve **mais** que a listagem (anexos estreitos e `autoDispatch`). O guard aceita
+     * as chaves a mais em vez de reusar `isOccurrence`, que é exato de propósito. Spec 269 T1.3: o
+     * `email` pronto que a API de antes ainda manda é descartado — o painel não o lê mais.
      */
     registeredOccurrenceFromApi(input: unknown): RegisteredOccurrence {
       if (!isRecord(input)) throw invalid()
-      const { attachments, autoDispatch, email, ...occurrence } = input
+      const { attachments, autoDispatch } = input
+      const occurrence = Object.fromEntries(
+        Object.entries(input).filter(([key]) => !REGISTRATION_ONLY_KEYS.includes(key)),
+      )
       if (!isTripOccurrence(occurrence)) throw invalid()
       if (
         attachments !== undefined &&
         !(Array.isArray(attachments) && attachments.every(isOccurrenceAttachmentPosition))
       ) {
-        throw invalid()
-      }
-      if (email !== null && !(isRecord(email) && isString(email.body) && isString(email.subject))) {
         throw invalid()
       }
       /** Spec 185 T6.1 (RF2/RF3): a ocorrência de separação também tenta o despacho automático. */
@@ -1208,7 +1209,6 @@ export function createTripResponseAdapters() {
         ...occurrence,
         attachments: attachments ?? [],
         ...(autoDispatch === undefined ? {} : { autoDispatch }),
-        email: email as RegisteredOccurrence['email'],
       }
     },
     /**
@@ -1878,6 +1878,9 @@ function isOptionalNullableString(value: unknown): value is null | string | unde
 function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || isString(value)
 }
+
+/** Chaves que só a resposta do registro traz; ficam fora do guard exato da ocorrência. */
+const REGISTRATION_ONLY_KEYS: readonly string[] = ['attachments', 'autoDispatch', 'email']
 
 const OCCURRENCE_TYPE_REQUIRED_KEYS = [
   'active',

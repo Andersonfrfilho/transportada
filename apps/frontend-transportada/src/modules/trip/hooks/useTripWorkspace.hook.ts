@@ -627,10 +627,6 @@ export function useTripWorkspace(
     readonly OccurrencePhotoSendItem[]
   >([])
   const [isSendingOccurrencePhotos, setIsSendingOccurrencePhotos] = useState(false)
-  const [lastOccurrenceEmail, setLastOccurrenceEmail] = useState<null | Readonly<{
-    body: string
-    subject: string
-  }>>(null)
   const occurrencePhotoKeysRef = useRef<Record<string, string>>({})
   const occurrencePhotoOccurrenceIdRef = useRef<string | undefined>(undefined)
 
@@ -638,7 +634,6 @@ export function useTripWorkspace(
     occurrencePhotoKeysRef.current = {}
     occurrencePhotoOccurrenceIdRef.current = undefined
     setOccurrencePhotoSendState([])
-    setLastOccurrenceEmail(null)
   }
 
   async function sendSeparationOccurrencePhotos(
@@ -739,7 +734,6 @@ export function useTripWorkspace(
                 : { productQuantityUnits: input_.productQuantityUnits }),
               ...(photo.thumbnail === undefined ? {} : { thumbnail: photo.thumbnail }),
             })
-            setLastOccurrenceEmail(registered.email)
             /** Spec 185 T6.1 (RF2/RF3): a ocorrência de separação também tenta o gatilho automático. */
             setAutoDispatchOutcome(registered.autoDispatch)
             return { occurrenceId: registered.id }
@@ -1121,7 +1115,6 @@ export function useTripWorkspace(
     occurrenceTypesQuery,
     occurrencesQuery,
     isSendingOccurrencePhotos,
-    lastOccurrenceEmail,
     occurrencePhotoSendState,
     resetSeparationOccurrencePhotoSend,
     sendSeparationOccurrencePhotos,

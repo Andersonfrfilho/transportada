@@ -19,7 +19,6 @@ import styles from '../styles/trip.module.css'
 export type SeparationOccurrenceDialogProps = Readonly<{
   canRegister: boolean
   document: TripDocumentDetail
-  email: null | Readonly<{ body: string; subject: string }>
   isOpen: boolean
   isRegistering: boolean
   occurrences: readonly TripOccurrence[]
@@ -49,7 +48,6 @@ export type SeparationOccurrenceDialogProps = Readonly<{
 export function SeparationOccurrenceDialog({
   canRegister,
   document: tripDocument,
-  email,
   isOpen,
   isRegistering,
   occurrences,
@@ -143,7 +141,6 @@ export function SeparationOccurrenceDialog({
 
         <TripOccurrences
           canRegister={canRegister}
-          email={email}
           isDialog
           isRegistering={isRegistering}
           occurrences={occurrences}
