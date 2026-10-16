@@ -38,8 +38,6 @@ export type OccurrenceType = Readonly<{
   declaredAmountScope?: DeclaredAmountScope
   /** Spec 269: o modelo `occurrence` que o tipo escolhe para o e-mail à contratante; nulo é sem modelo. Ausente é API anterior. */
   contractorMailTemplateId?: null | string
-  /** Spec 269 D8: o tipo avisa a contratante e não há modelo efetivo no tipo. Ausente é API anterior. */
-  missingNotificationTemplate?: boolean
   /** Spec 183 T802: o tipo avisa a contratante sozinho no registro. Ausente é API anterior ao campo. */
   emailsContractor?: boolean
   /** Spec 248 RF1: o retorno da contratante — todos opcionais; ausentes são API anterior aos campos. */

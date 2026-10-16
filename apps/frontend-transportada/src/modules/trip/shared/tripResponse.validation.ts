@@ -1914,6 +1914,9 @@ type RawOccurrenceType = Omit<
   Readonly<{
     allowsMultipleItems?: unknown
     attachmentMode?: unknown
+    emailBody?: unknown
+    emailItemLineTemplate?: unknown
+    emailSubject?: unknown
     emailsContractor?: unknown
     flow?: unknown
     itemsMinimumCount?: unknown
@@ -1983,9 +1986,12 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'declaredAmountMode',
         'declaredAmountScope',
         'declaredAmountLabel',
-        /** Spec 269 (ADR-0106): o tipo aponta para um modelo `occurrence`, e a API avisa quando falta. */
+        /** Spec 269 (ADR-0106): o tipo aponta para um modelo `occurrence`. */
         'contractorMailTemplateId',
-        'missingNotificationTemplate',
+        /** Até a etapa B a API ainda pode mandar o texto antigo do e-mail (rollback da API): tolerado e ignorado. */
+        'emailBody',
+        'emailItemLineTemplate',
+        'emailSubject',
         ...CONTRACTOR_REPLY_TYPE_KEYS,
       ],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
@@ -2003,8 +2009,6 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.contractorMailTemplateId === undefined ||
       value.contractorMailTemplateId === null ||
       isString(value.contractorMailTemplateId)) &&
-    (value.missingNotificationTemplate === undefined ||
-      isBoolean(value.missingNotificationTemplate)) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     (value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)) &&
     isString(value.id) &&
@@ -2061,9 +2065,13 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     declaredAmountMode,
     declaredAmountScope,
     declaredAmountLabel,
+    emailBody,
+    emailItemLineTemplate,
+    emailSubject,
     iconName,
     ...rest
   } = raw
+  void [emailBody, emailItemLineTemplate, emailSubject]
   return {
     ...rest,
     ...(isOneOf(itemsMode, OCCURRENCE_ITEMS_MODES) ? { itemsMode } : {}),

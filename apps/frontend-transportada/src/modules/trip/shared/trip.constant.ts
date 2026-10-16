@@ -181,6 +181,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   OCCURRENCE_CASE_NOTE_REQUIRED: 'occurrenceCaseNoteRequired',
   /** Spec 237 T3.4a: o nome do tipo é único por empresa em qualquer etapa, e o tipo de recebimento não aparece nesta lista. */
   OCCURRENCE_TYPE_NAME_TAKEN: 'occurrenceTypeNameTaken',
+  /** Spec 269: o modelo escolhido para o e-mail foi arquivado (ou é de outro tipo) entre a lista e o salvar. */
+  CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE: 'occurrenceMailTemplateNotUsable',
   /** Spec 240 RF7: a correção e o cancelamento da ocorrência de nota (spec 167). */
   [OCCURRENCE_CORRECTION_ERROR.CASE_ALREADY_OPEN]: 'occurrenceCaseAlreadyOpen',
   [OCCURRENCE_CORRECTION_ERROR.ALREADY_CANCELLED]: 'occurrenceAlreadyCancelled',

@@ -20,8 +20,8 @@ export function ContractorMailTemplateUsageList({
         <>
           <p>{t('mailTemplates.usage.occurrenceTypes')}</p>
           <ul>
-            {usage.occurrenceTypes.map((name) => (
-              <li key={name}>{name}</li>
+            {usage.occurrenceTypes.map((name, index) => (
+              <li key={`${index}-${name}`}>{name}</li>
             ))}
           </ul>
         </>
@@ -30,8 +30,8 @@ export function ContractorMailTemplateUsageList({
         <>
           <p>{t('mailTemplates.usage.contractorExceptions')}</p>
           <ul>
-            {usage.contractorExceptions.map((name) => (
-              <li key={name}>{name}</li>
+            {usage.contractorExceptions.map((name, index) => (
+              <li key={`${index}-${name}`}>{name}</li>
             ))}
           </ul>
         </>

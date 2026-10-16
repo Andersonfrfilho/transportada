@@ -163,3 +163,13 @@ describe('o modelo do e-mail na exceção por contratante (spec 269 RF1)', () =>
     expect(inherited.contractorOverrides[0]?.contractorMailTemplateId).toBeNull()
   })
 })
+
+describe('o salvar com um modelo que deixou de valer (spec 269)', () => {
+  test('o 409 CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE tem mensagem própria, nos dois idiomas', () => {
+    const key = resolveTripFeedbackKey(new Error('CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE'))
+
+    expect(key).toBe('occurrenceMailTemplateNotUsable')
+    expect(trip.feedback).toHaveProperty(key as string)
+    expect(tripEn.feedback).toHaveProperty(key as string)
+  })
+})

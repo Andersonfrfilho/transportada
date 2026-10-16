@@ -147,6 +147,11 @@ describe('spec 269 T4.4: o feed carrega o aviso "Tipo sem modelo de notificaçã
       pagination: { nextCursor: null },
     })
 
-    expect(client.listOccurrences(LIST_INPUT)).rejects.toThrow()
+    const outcome = await client.listOccurrences(LIST_INPUT).then(
+      () => 'resolved',
+      () => 'rejected',
+    )
+
+    expect(outcome).toBe('rejected')
   })
 })

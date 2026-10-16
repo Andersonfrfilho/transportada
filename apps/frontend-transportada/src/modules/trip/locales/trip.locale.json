@@ -1113,6 +1113,7 @@
     "occurrenceTypeMomentsRequired": "O tipo precisa de ao menos um momento: sem nenhum ele não apareceria para ninguém. Nada foi gravado.",
     "occurrenceTypeMomentsDocumentAndStop": "Motorista, numa nota e Motorista, na parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado.",
     "occurrenceTypeMomentsStageConflict": "Este tipo tem vários momentos e o grupo (galpão ou rua) não pode ser trocado sem eles. Ajuste os momentos e salve de novo; nada foi gravado.",
+    "occurrenceMailTemplateNotUsable": "Este modelo de e-mail foi arquivado ou não está mais disponível. Escolha outro modelo da lista.",
     "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro.",
     "occurrenceReferenceNumberRequired": "Este tipo de ocorrência exige o número do documento do cliente. Preencha o número em vez de limpá-lo e salve de novo. Nada foi gravado.",
     "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado.",
