@@ -334,6 +334,8 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   daquela conversa; é isso que alimenta o contador da aba e a coluna Conversa da listagem (RF4). O
   registro é por usuário, e abrir a aba não manda nenhuma confirmação de volta à contratante nem ao
   motorista.
+  > **Emenda (spec 267, RF9):** o remetente que é usuário da empresa com vínculo ativo (e DKIM alinhado) deixa de ser
+  > `unknown`: vira `internal`, sem sugestão de cadastro. Ver [`specs/267-os-responsaveis-vao-em-copia-no-e-mail-da-contratante/`](../267-os-responsaveis-vao-em-copia-no-e-mail-da-contratante/spec.md).
 - **RF16** Toda mensagem recebida da contratante mostra **quem respondeu**, puxado do cadastro:
   - o remetente (e-mail sem diferença de caixa; telefone em E.164) é casado com os contatos **daquela
     contratante**; achando, a mensagem mostra nome, setor, tipos (destaque para "Aprova cobranças") e

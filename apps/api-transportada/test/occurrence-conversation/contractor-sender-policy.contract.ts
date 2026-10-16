@@ -205,3 +205,79 @@ describe('o e-mail sem DKIM alinhado não vira o contato (spec 183 T903, S2)', (
     ).toMatchObject({ contact: { id: 'contact-1' }, kind: 'contact' })
   })
 })
+
+describe('o responsável que responde por e-mail (spec 267 RF9)', () => {
+  const ANA = { emails: ['ana@empresa.example.test'], name: 'Ana', userId: 'user-ana' }
+  const base = {
+    address: 'Ana@Empresa.example.test',
+    authenticated: true,
+    channel: 'email' as const,
+    contacts: [contact()],
+    contractorId: CONTRACTOR_ID,
+    displayName: 'Ana da Transportadora',
+    companyUsers: [ANA],
+  }
+
+  test('usuário da empresa com DKIM alinhado é interno, nunca sugestão de cadastro', () => {
+    expect(
+      identifyContractorSender({ ...base, receivedAddresses: ['compras@alfa.example.test'] }),
+    ).toEqual({
+      arrivedAs: 'Ana@Empresa.example.test',
+      kind: 'internal',
+      name: 'Ana',
+      reachedContractor: true,
+      userId: 'user-ana',
+    })
+  })
+
+  test('sem DKIM alinhado o endereço não prova nada: segue desconhecido e não confirmado', () => {
+    expect(
+      identifyContractorSender({
+        ...base,
+        authenticated: false,
+        receivedAddresses: ['compras@alfa.example.test'],
+      }),
+    ).toMatchObject({ kind: 'unknown', unverified: true })
+  })
+
+  test('o contato da contratante vence o usuário da empresa com o mesmo endereço', () => {
+    const identity = identifyContractorSender({
+      ...base,
+      address: 'compras@alfa.example.test',
+      companyUsers: [{ emails: ['compras@alfa.example.test'], name: 'Dupla', userId: 'user-x' }],
+      receivedAddresses: [],
+    })
+    expect(identity).toMatchObject({ contact: { id: 'contact-1' }, kind: 'contact' })
+  })
+
+  test('responder só ao endereço do sistema: a contratante não recebeu', () => {
+    expect(
+      identifyContractorSender({
+        ...base,
+        receivedAddresses: ['token@resposta.example.test', 'outra@empresa.example.test'],
+      }),
+    ).toMatchObject({ kind: 'internal', reachedContractor: false })
+  })
+
+  test('contato inativo da contratante no To não conta como alcançada', () => {
+    expect(
+      identifyContractorSender({
+        ...base,
+        contacts: [contact({ status: 'inactive' })],
+        receivedAddresses: ['compras@alfa.example.test'],
+      }),
+    ).toMatchObject({ kind: 'internal', reachedContractor: false })
+  })
+
+  test('WhatsApp nunca é interno', () => {
+    expect(
+      identifyContractorSender({
+        ...base,
+        address: '5511999990000',
+        channel: 'whatsapp',
+        companyUsers: [{ emails: ['5511999990000'], name: 'X', userId: 'u' }],
+        receivedAddresses: [],
+      }),
+    ).toMatchObject({ kind: 'unknown' })
+  })
+})
