@@ -25,8 +25,10 @@ import {
 import {
   CONTRACTOR_MAIL_TEMPLATE_MAX_ACTIVE,
   CONTRACTOR_MAIL_TEMPLATE_STATUSES,
+  OCCURRENCE_MAIL_TYPE,
   type ContractorMailTemplateType,
 } from '../domain/mail-template-catalog.constant.js'
+import { assertOccurrenceMailTemplateIsUnused } from './occurrence-mail-template-usage.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -169,6 +171,15 @@ export class DrizzleContractorMailTemplateRepository
         mailType: target.mailType,
         transaction,
       })
+      if (target.mailType === OCCURRENCE_MAIL_TYPE) {
+        /** Spec 269 D3: trava o modelo e só então confere o uso — a gravação da escolha segura `FOR KEY SHARE`. */
+        await transaction
+          .select({ id: table.id })
+          .from(table)
+          .where(and(...buildContractorMailTemplateFilters(params)))
+          .for('update')
+        await assertOccurrenceMailTemplateIsUnused(transaction, params)
+      }
       return this.updateRow(transaction, params, { isArchiving: true })
     })
   }
