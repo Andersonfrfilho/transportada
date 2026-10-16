@@ -10,6 +10,7 @@ import {
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -24,13 +25,17 @@ import {
   type ContractorMailTransport,
 } from '../contractor-mail/domain/contractor-mail.constant.js'
 import {
+  OCCURRENCE_WATCHER_STATUSES,
+  type OccurrenceWatcherStatus,
+} from '../contractor-mail/domain/occurrence-watcher.constant.js'
+import {
   CONTRACTOR_MAIL_TEMPLATE_LIMITS,
   CONTRACTOR_MAIL_TEMPLATE_STATUSES,
   CONTRACTOR_MAIL_TEMPLATE_TYPES,
   type ContractorMailTemplateStatus,
   type ContractorMailTemplateType,
 } from '../contractor-mail/domain/mail-template-catalog.constant.js'
-import { companies, identityUsers } from './identity.schema.js'
+import { companies, identityUsers, userCompanyMemberships } from './identity.schema.js'
 import { contractors } from './delivery-client.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
@@ -479,6 +484,14 @@ export const contractorMailMessages = pgTable(
      * (o(s) endereço(s) `To` do e-mail recebido).
      */
     toAddresses: text('to_addresses').array().notNull(),
+    /**
+     * Spec 267: a cópia da saída (responsáveis da empresa, só usuário da empresa) e o `Cc` do e-mail
+     * recebido. Vazio é o normal; sem CHECK de tamanho.
+     */
+    ccAddresses: text('cc_addresses')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     bodyText: text('body_text').notNull(),
     /**
      * Spec 150 T302: o HTML do e-mail de saída, montado aqui e nunca no worker — o registro guarda o
@@ -734,6 +747,86 @@ export const contractorInboundEmailOutbox = pgTable(
     check(
       'contractor_inbound_email_outbox_provider_email_id_check',
       sql`length(btrim(${table.providerEmailId})) > 0`,
+    ),
+  ],
+)
+
+/**
+ * Spec 267: os atendentes responsáveis por ocorrências da empresa. Só linha `active` vai em cópia no e-mail da
+ * contratante; `inactive` continua listada. Junção N:N interna: PK composta, sem id próprio.
+ */
+export const companyOccurrenceWatchers = pgTable(
+  'company_occurrence_watchers',
+  {
+    companyId: uuid('company_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    status: varchar({ length: 16 }).$type<OccurrenceWatcherStatus>().notNull().default('active'),
+    createdByUserId: uuid('created_by_user_id').notNull(),
+    updatedByUserId: uuid('updated_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.companyId, table.userId],
+      name: 'company_occurrence_watchers_pk',
+    }),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_occurrence_watchers_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.userId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'company_occurrence_watchers_membership_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    check(
+      'company_occurrence_watchers_status_check',
+      sql`${table.status} in (${sql.raw(inList(OCCURRENCE_WATCHER_STATUSES))})`,
+    ),
+  ],
+)
+
+/** Spec 267: o atendente fixo de uma contratante; sem nenhuma linha ativa, vale a lista da empresa. */
+export const contractorOccurrenceWatchers = pgTable(
+  'contractor_occurrence_watchers',
+  {
+    companyId: uuid('company_id').notNull(),
+    contractorId: uuid('contractor_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    status: varchar({ length: 16 }).$type<OccurrenceWatcherStatus>().notNull().default('active'),
+    createdByUserId: uuid('created_by_user_id').notNull(),
+    updatedByUserId: uuid('updated_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.companyId, table.contractorId, table.userId],
+      name: 'contractor_occurrence_watchers_pk',
+    }),
+    foreignKey({
+      columns: [table.companyId, table.contractorId],
+      foreignColumns: [contractors.companyId, contractors.id],
+      name: 'contractor_occurrence_watchers_contractor_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.userId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'contractor_occurrence_watchers_membership_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    check(
+      'contractor_occurrence_watchers_status_check',
+      sql`${table.status} in (${sql.raw(inList(OCCURRENCE_WATCHER_STATUSES))})`,
     ),
   ],
 )
