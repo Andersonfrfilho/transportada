@@ -15,8 +15,14 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core'
 
+import {
+  CONTRACTOR_MAIL_DEFAULT_TRANSPORT,
+  CONTRACTOR_MAIL_TRANSPORTS,
+  type ContractorMailTransport,
+} from '../contractor-mail/domain/contractor-mail.constant.js'
 import {
   CONTRACTOR_MAIL_TEMPLATE_LIMITS,
   CONTRACTOR_MAIL_TEMPLATE_STATUSES,
@@ -490,6 +496,11 @@ export const contractorMailMessages = pgTable(
     interpretation: text().$type<ContractorMailInterpretation>(),
     downgradeReason: text('downgrade_reason').$type<ContractorMailDowngradeReason>(),
     deliveryStatus: text('delivery_status').$type<ContractorMailDeliveryStatus>(),
+    /** Spec 268: por onde o worker envia; `sandbox_smtp` só fora de produção, com o modo ligado. */
+    transport: varchar({ length: 16 })
+      .$type<ContractorMailTransport>()
+      .notNull()
+      .default(CONTRACTOR_MAIL_DEFAULT_TRANSPORT),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -567,6 +578,10 @@ export const contractorMailMessages = pgTable(
     check(
       'contractor_mail_messages_delivery_status_check',
       sql`${table.deliveryStatus} is null or ${table.deliveryStatus} in (${sql.raw(inList(CONTRACTOR_MAIL_DELIVERY_STATUSES))})`,
+    ),
+    check(
+      'contractor_mail_messages_transport_check',
+      sql`${table.transport} in (${sql.raw(inList(CONTRACTOR_MAIL_TRANSPORTS))})`,
     ),
     /** Só `outbound` tem status de entrega — `inbound` não é enviada por nós. */
     check(

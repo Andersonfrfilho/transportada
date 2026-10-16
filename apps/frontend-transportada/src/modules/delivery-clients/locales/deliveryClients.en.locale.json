@@ -79,7 +79,11 @@
         "templates": "Go to Templates"
       },
       "roundTripReady": "Contractor replies: configured. Sending does not depend on this.",
-      "roundTripPending": "Contractor replies: not configured yet. Sending does not depend on this."
+      "roundTripPending": "Contractor replies: not configured yet. Sending does not depend on this.",
+      "occurrenceMail": {
+        "blocked": "Without this configuration no occurrence e-mail is sent to the contractor.",
+        "sandbox": "Test environment: e-mails to the contractor go to Mailpit and do not leave for the internet."
+      }
     }
   },
   "mailTemplates": {
@@ -140,6 +144,10 @@
   },
   "contractorContacts": {
     "title": "Contracting party contacts",
+    "cardTitle": "Occurrence contacts",
+    "cardHint": "Who receives the e-mail when an occurrence of this contractor is registered. Tick the \"Occurrences\" type on the contact.",
+    "cardLinkHint": "Each contractor's contact list lives on its own record, in the Contractors tab.",
+    "openContractors": "Open the Contractors tab",
     "hint": "Who receives notices and talks about this contracting party's occurrences, charges and invoices — by e-mail and, with consent, by WhatsApp.",
     "contractorLabel": "Contractor",
     "contractorPlaceholder": "Choose the contractor",

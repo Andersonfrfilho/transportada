@@ -10,6 +10,7 @@ import type {
   ContractorContactOccurrenceStage,
   ContractorContactType,
 } from '../../database/contractor-mail.schema.js'
+import type { ContractorMailTransport } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
 import type {
   ContractorReplyConfiguration,
@@ -78,6 +79,8 @@ export type RecordOccurrenceMailInput = {
   readonly subject: string
   readonly threadId: string
   readonly toAddresses: readonly string[]
+  /** Spec 268: `sandbox_smtp` só fora de produção, sem Resend pronto e com o modo ligado. */
+  readonly transport: ContractorMailTransport
 }
 
 /** Spec 248: the type of the occurrence and the exception of its contractor, read in the send. */

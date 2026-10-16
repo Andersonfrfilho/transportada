@@ -859,3 +859,13 @@ rotinas por causa de uma opcional.
   de ser registrada no próximo boot.
 - **Reverter:** `rollback.sql` da migração `20261012154238` apaga a agenda e as execuções do job. Só com o worker
   revertido também, senão a batida publica um job que a CHECK recusa. As transcrições ficam intactas.
+
+## Spec 268 — O e-mail da contratante cai no Mailpit fora de produção (spec 268)
+
+⚠️ A linha de `contractor_mail_messages` diz por onde sai (`transport`). `sandbox_smtp` é enviada por
+`sandbox-smtp-mail.gateway.ts` (nodemailer direto — o driver do `email-provider` tem um destinatário só e nenhum anexo)
+no `SMTP_URL`, de `message.fromAddress`, com todos os destinatários e anexos, **sem `Reply-To`**, e **nunca lê a configuração
+da empresa nem fala com o Resend**. Sem `CONTRACTOR_MAIL_SANDBOX_SMTP=true` neste worker, a linha falha sem enviar
+(`sandbox_disabled`); o modo com `APP_ENV=production` derruba o boot, e exige `SMTP_URL` e `EMAIL_FROM`. Todos os destinatários
+recusados é falha permanente; erro de conexão propaga e a fila tenta de novo. Log só com `messageId`/`threadId`/motivo.
+Contrato: `test/contractor-mail/sandbox-outbound.contract.ts`, `test/contractor-mail-sandbox-environment.contract.test.ts`.

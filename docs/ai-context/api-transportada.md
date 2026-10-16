@@ -3704,3 +3704,16 @@ antiga da ocorrência **não** ganham os campos (ouro byte a byte).
   Tratativa que terminar depois do deploy resolve o andamento sozinha; ocorrência antiga continua em aberto.
 - **Divergência de forma, sem mudança de comportamento:** o `OpenAPI` não existe nesta API (ver `CLAUDE.md`), então a documentação das
   rotas novas fica neste bloco e no núcleo de `apps/api-transportada/CLAUDE.md` (seção "O motorista lê as ocorrências da rota").
+
+## Spec 268 — O e-mail da contratante cai no Mailpit fora de produção (spec 268)
+
+⚠️ **`CONTRACTOR_MAIL_SANDBOX_SMTP=true`** (opt-in; API e worker; **produção recusa no boot nas duas apps**) manda o e-mail de
+ocorrência da contratante pelo SMTP do ambiente (Mailpit) **só quando a empresa não tem o Resend pronto**
+(`resolveMailSendReadiness`). Com o Resend pronto o envio é o de sempre, mesmo em staging. Na API o modo exige
+`EMAIL_FROM` (o remetente do sandbox; mesmo valor do worker) e `send-occurrence-mail.use-case.ts` grava
+`contractor_mail_messages.transport = 'sandbox_smtp'` (`varchar(16)`, padrão `resend`, CHECK) sem decifrar nada,
+com hash de token aleatório na thread e **sem** `Reply-To` (ninguém responde pelo Mailpit). O `GET /contractor-mail-settings`
+devolve `{ data, sandboxDelivery }` — `sandboxDelivery` é `true` só com o modo ligado e a configuração não pronta. Fora do
+escopo: correção de endereço (150) e encaminhamento do boleto (248) continuam exigindo o Resend. Contratos:
+`test/contractor-mail/sandbox-environment.contract.ts`, `test/occurrence-conversation/occurrence-mail.contract.ts`,
+`test/integration/occurrence-mail-sandbox.integration.ts`.

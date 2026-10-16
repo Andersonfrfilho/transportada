@@ -60,6 +60,8 @@ function createFake(
     contacts: readonly { email: string; id: string }[]
     logger: { warn: (event: string, fields?: Record<string, unknown>) => void }
     replyConfiguration: StoredContractorReplyConfiguration | null
+    /** Spec 268: o modo sandbox do ambiente (`CONTRACTOR_MAIL_SANDBOX_SMTP`), ausente em produção. */
+    sandbox: { readonly fromAddress: string }
     resendOutcome: RecordContractorReplyResendOutcome
     settings: Awaited<ReturnType<OccurrenceMailTransactionPort['findMailSettings']>>
     target: OccurrenceMailTarget | null
@@ -166,7 +168,9 @@ function createFake(
       state.idempotency.set(idempotencyKey, { fingerprint, response })
     },
   }
+  const decryptCalls: string[] = []
   const useCase = createSendOccurrenceMailUseCase({
+    ...(overrides.sandbox === undefined ? {} : { contractorMailSandbox: overrides.sandbox }),
     ...(overrides.logger === undefined ? {} : { logger: overrides.logger }),
     fingerprintService: {
       create: async ({ fields }) =>
@@ -174,7 +178,10 @@ function createFake(
     },
     now: () => NOW,
     secretService: {
-      decrypt: async () => ({ apiKey: 're_test', replyTokenSecret: 'a'.repeat(64) }),
+      decrypt: async () => {
+        decryptCalls.push('decrypt')
+        return { apiKey: 're_test', replyTokenSecret: 'a'.repeat(64) }
+      },
     } as never,
     storage: {
       createSignedDownload: async ({ key }) => new URL(`https://s3.test/${key}`),
@@ -186,7 +193,7 @@ function createFake(
     },
     unitOfWork: { execute: (operation) => operation(transaction) },
   })
-  return { attached, locked, state, useCase }
+  return { attached, decryptCalls, locked, state, useCase }
 }
 
 function input(
@@ -711,5 +718,77 @@ describe('o primeiro e-mail da ocorrência não corre (spec 183 T903, achado C3)
       `lock:${COMPANY_ID}:document:${OCCURRENCE_ID}`,
       'findOccurrenceThread',
     ])
+  })
+})
+
+describe('o e-mail da contratante em modo sandbox (spec 268)', () => {
+  const SANDBOX = { fromAddress: 'no-reply@staging.example.test' } as const
+  const NOT_READY = undefined
+
+  test('sem Resend pronto e com o modo ligado, grava a mensagem para o SMTP do ambiente', async () => {
+    const { decryptCalls, state, useCase } = createFake({ sandbox: SANDBOX, settings: NOT_READY })
+
+    const result = await useCase.send(input())
+
+    expect(state.mails).toHaveLength(1)
+    expect(state.mails[0]).toMatchObject({
+      createThread: true,
+      fromAddress: 'no-reply@staging.example.test',
+      toAddresses: ['compras@alfa.example.test', 'fiscal@alfa.example.test'],
+      transport: 'sandbox_smtp',
+    })
+    expect(state.mails[0]?.replyTokenHash).toMatch(/^[0-9a-f]{64}$/u)
+    expect(decryptCalls).toEqual([])
+    expect(result.recipientCount).toBe(2)
+  })
+
+  test('configuração sem remetente verificado também cai no sandbox', async () => {
+    const { state, useCase } = createFake({
+      sandbox: SANDBOX,
+      settings: {
+        id: 'settings-1',
+        secretEnvelope: {},
+        senderAddress: 'ocorrencias@transportadora.example.test',
+        sendingVerifiedAt: null,
+      },
+    })
+
+    await useCase.send(input())
+
+    expect(state.mails[0]).toMatchObject({ transport: 'sandbox_smtp' })
+  })
+
+  test('com o Resend pronto, o modo ligado não desvia: continua pelo Resend', async () => {
+    const { decryptCalls, state, useCase } = createFake({ sandbox: SANDBOX })
+
+    await useCase.send(input())
+
+    expect(state.mails[0]).toMatchObject({
+      fromAddress: 'ocorrencias@transportadora.example.test',
+      transport: 'resend',
+    })
+    expect(decryptCalls).toEqual(['decrypt'])
+  })
+
+  test('sem o modo ligado, a recusa de hoje continua', async () => {
+    const { state, useCase } = createFake({ settings: NOT_READY })
+
+    expect(await failure(() => useCase.send(input()))).toMatchObject({
+      code: 'CONTRACTOR_MAIL_NOT_CONFIGURED',
+    })
+    expect(state.mails).toEqual([])
+  })
+
+  test('a segunda mensagem da mesma thread segue no sandbox', async () => {
+    const { state, useCase } = createFake({ sandbox: SANDBOX, settings: NOT_READY })
+    const first = await useCase.send(input())
+
+    await useCase.send(input({ bodyText: 'Seguimos aguardando.', idempotencyKey: 'key-2' }))
+
+    expect(state.mails[1]).toMatchObject({
+      createThread: false,
+      threadId: first.threadId,
+      transport: 'sandbox_smtp',
+    })
   })
 })

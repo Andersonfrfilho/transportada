@@ -16,6 +16,7 @@ import type {
   ContractorMailSettingsSummary,
 } from '../application/contractor-mail-settings.use-case.js'
 import type { SendContractorMailTestEmailResult } from '../application/send-contractor-mail-test-email.use-case.js'
+import { resolveMailSendReadiness } from '../domain/mail-send-readiness.policy.js'
 import { parseSaveContractorMailSettingsRequest } from './contractor-mail-settings.schema.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
@@ -48,6 +49,8 @@ type Dependencies = {
       readonly context: CompanyContext
     }): Promise<readonly ContractorMailCheckItem[]>
   }
+  /** Spec 268: `CONTRACTOR_MAIL_SANDBOX_SMTP` ligado neste ambiente (nunca em produção). */
+  readonly sandboxEnabled?: boolean
   readonly save: {
     execute(
       input: SaveInput & { readonly context: CompanyContext },
@@ -68,7 +71,10 @@ export function createContractorMailSettingsRoutes(
       async handle({ context }): Promise<Response> {
         const settings = await dependencies.read.execute({ context: context.scope })
         return jsonResponse({
-          body: { data: settings === null ? null : serializeSettings(settings) },
+          body: {
+            data: settings === null ? null : serializeSettings(settings),
+            sandboxDelivery: dependencies.sandboxEnabled === true && !isSendingReady(settings),
+          },
         })
       },
       method: 'GET',
@@ -126,6 +132,19 @@ export function createContractorMailSettingsRoutes(
       },
     }),
   ]
+}
+
+/** O mesmo critério do envio (`resolveMailSendReadiness`): sem remetente verificado o Resend não manda. */
+function isSendingReady(settings: ContractorMailSettingsSummary | null): boolean {
+  return resolveMailSendReadiness({
+    settings:
+      settings === null
+        ? undefined
+        : {
+            sendingVerifiedAt:
+              settings.sendingVerifiedAt === null ? null : new Date(settings.sendingVerifiedAt),
+          },
+  }).ready
 }
 
 /**

@@ -77,6 +77,7 @@ type RouteDependencies = {
   readonly runChecks: {
     execute(input: ExecuteCall): Promise<readonly ContractorMailCheckItem[]>
   }
+  readonly sandboxEnabled?: boolean
   readonly save: {
     execute(input: ExecuteCall): Promise<ContractorMailSettingsSummary>
   }
@@ -88,6 +89,7 @@ type RouteDependencies = {
 type CreateFixtureParams = {
   readonly checks?: readonly ContractorMailCheckItem[]
   readonly permissions?: CompanyContext['permissions']
+  readonly sandboxEnabled?: boolean
   readonly saveError?: Error
   readonly sendTestEmailError?: Error
   readonly sendTestEmailResult?: SendContractorMailTestEmailResult
@@ -108,6 +110,7 @@ export async function createContractorMailHttpFixture(params: CreateFixtureParam
 
   const routes = await loadRoutes({
     mailRateLimit: { maxRequests: 20, windowSeconds: 3_600 },
+    ...(params.sandboxEnabled === undefined ? {} : { sandboxEnabled: params.sandboxEnabled }),
     read: {
       async execute(input) {
         readCalls.push(structuredClone(input))

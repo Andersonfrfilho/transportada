@@ -13,6 +13,7 @@ import {
   mailSendReadinessReasonLocaleKey,
   resolveMailSendReadinessShortcutTarget,
   resolveMailSendReadinessView,
+  resolveOccurrenceMailNotice,
   type MailSendReadinessShortcutTarget,
 } from '../shared/mailSendReadiness.service'
 import styles from '../styles/contractorMailSettings.module.css'
@@ -73,10 +74,16 @@ export function MailSendReadinessSummary({
   const view = resolveMailSendReadinessView({
     checks: settings.checksQuery.data ?? [],
     mailType,
-    settings: settings.settingsQuery.data ?? null,
+    settings: settings.settingsQuery.data?.summary ?? null,
     templates: templates.templatesQuery.data ?? [],
   })
-  const roundTripConfigured = isMailRoundTripConfigured(settings.settingsQuery.data ?? null)
+  const occurrenceMailNotice = resolveOccurrenceMailNotice({
+    sandboxDelivery: settings.settingsQuery.data?.sandboxDelivery ?? false,
+    settings: settings.settingsQuery.data?.summary ?? null,
+  })
+  const roundTripConfigured = isMailRoundTripConfigured(
+    settings.settingsQuery.data?.summary ?? null,
+  )
 
   return (
     <section aria-labelledby="contractor-mail-readiness-title" className={styles.settingsPanel}>
@@ -102,6 +109,14 @@ export function MailSendReadinessSummary({
               `contractorMail.sendReadiness.shortcut.${resolveMailSendReadinessShortcutTarget(view.reason)}`,
             )}
           </button>
+        </p>
+      )}
+      {occurrenceMailNotice === 'none' ? null : (
+        <p
+          className={styles.fieldHint}
+          role={occurrenceMailNotice === 'blocked' ? 'alert' : 'status'}
+        >
+          {t(`contractorMail.sendReadiness.occurrenceMail.${occurrenceMailNotice}`)}
         </p>
       )}
       <p className={styles.fieldHint}>

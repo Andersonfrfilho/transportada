@@ -8,6 +8,7 @@ import {
   contractorMailMessages,
   contractorMailSettings,
 } from '../../database/contractor-mail.schema.js'
+import type { ContractorMailTransport } from '../domain/contractor-mail.constant.js'
 import { applyOccurrenceConversationMailStatus } from '../../occurrence-conversation/infrastructure/drizzle-occurrence-conversation-mail.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -20,9 +21,13 @@ export type ContractorMailOutboundMessageRecord = {
   /** Spec 150 T302: o HTML que a API gravou; `null` em mensagem antiga, que sai só em texto. */
   readonly bodyHtml: string | null
   readonly bodyText: string
+  /** Spec 268: o remetente gravado pela API; só o `sandbox_smtp` o usa (o Resend usa o da configuração). */
+  readonly fromAddress: string | null
   readonly subject: string
   readonly threadId: string
   readonly toAddresses: readonly string[]
+  /** Spec 268: por onde a API mandou enviar. */
+  readonly transport: ContractorMailTransport
 }
 
 export type ContractorMailOutboundSettingsRecord = {
@@ -107,9 +112,11 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
         .select({
           bodyHtml: contractorMailMessages.bodyHtml,
           bodyText: contractorMailMessages.bodyText,
+          fromAddress: contractorMailMessages.fromAddress,
           subject: contractorMailMessages.subject,
           threadId: contractorMailMessages.threadId,
           toAddresses: contractorMailMessages.toAddresses,
+          transport: contractorMailMessages.transport,
         })
         .from(contractorMailMessages)
         .where(

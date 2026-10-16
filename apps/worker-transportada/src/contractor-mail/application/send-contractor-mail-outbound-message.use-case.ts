@@ -9,11 +9,16 @@ import {
   ResendProviderUnauthorizedError,
 } from '../domain/resend-provider.error.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
-import type { ContractorMailOutboundWorkerRepository } from '../infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
+import type {
+  ContractorMailOutboundMessageRecord,
+  ContractorMailOutboundWorkerRepository,
+} from '../infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
 import type {
   ResendEmailAttachment,
   ResendMailGateway,
 } from '../infrastructure/resend-mail.gateway.js'
+import { SandboxSmtpRecipientsRejectedError } from '../domain/sandbox-smtp.error.js'
+import type { SandboxSmtpMailGateway } from '../infrastructure/sandbox-smtp-mail.gateway.js'
 import type { ContractorMailOutboundEnvelopeV1 } from '../../messaging/contractor-mail-outbound-envelope.schema.js'
 
 /** Spec 183 T702e: um anexo da mensagem da conversa que aponta para este e-mail. */
@@ -44,6 +49,8 @@ export type SendContractorMailOutboundMessageDependencies = {
   readonly attachments: ContractorMailOutboundAttachmentsPort
   readonly mailGateway: ResendMailGateway
   readonly repository: ContractorMailOutboundWorkerRepository
+  /** Spec 268: presente só com `CONTRACTOR_MAIL_SANDBOX_SMTP` ligado neste worker (nunca em produção). */
+  readonly sandboxMailGateway?: SandboxSmtpMailGateway
   readonly secretService: ContractorMailCredentialSecretService
 }
 
@@ -77,6 +84,11 @@ export async function sendContractorMailOutboundMessage(
   const message = await dependencies.repository.findMessageById({ companyId, messageId })
   if (message === undefined) {
     throw new Error(`contractor mail message ${messageId} was not found for company ${companyId}`)
+  }
+
+  /** Spec 268: a linha diz por onde sai; `sandbox_smtp` nunca lê a configuração da empresa nem fala com o Resend. */
+  if (message.transport === 'sandbox_smtp') {
+    return sendThroughSandbox({ companyId, dependencies, message, messageId })
   }
 
   const settings = await dependencies.repository.findSettingsByCompanyId({ companyId })
@@ -158,6 +170,53 @@ export async function sendContractorMailOutboundMessage(
       return { outcome: 'failed', reason: 'provider_unauthorized', threadId: message.threadId }
     }
     if (error instanceof ResendInvalidRecipientsError) {
+      await dependencies.repository.markMessageFailed({ companyId, messageId })
+      return { outcome: 'failed', reason: 'invalid_recipients', threadId: message.threadId }
+    }
+    throw error
+  }
+}
+
+async function sendThroughSandbox(input: {
+  readonly companyId: string
+  readonly dependencies: SendContractorMailOutboundMessageDependencies
+  readonly message: ContractorMailOutboundMessageRecord
+  readonly messageId: string
+}): Promise<SendContractorMailOutboundMessageResult> {
+  const { companyId, dependencies, message, messageId } = input
+  const { sandboxMailGateway } = dependencies
+  if (sandboxMailGateway === undefined || message.fromAddress === null) {
+    await dependencies.repository.markMessageFailed({ companyId, messageId })
+    return {
+      outcome: 'failed',
+      reason: sandboxMailGateway === undefined ? 'sandbox_disabled' : 'sender_missing',
+      threadId: message.threadId,
+    }
+  }
+
+  const attachments = await loadAttachments({ companyId, messageId }, dependencies.attachments)
+  if (attachments === 'unavailable') {
+    await dependencies.repository.markMessageFailed({ companyId, messageId })
+    return { outcome: 'failed', reason: 'attachment_unavailable', threadId: message.threadId }
+  }
+
+  try {
+    const sent = await sandboxMailGateway.sendEmail({
+      ...(attachments.length === 0 ? {} : { attachments }),
+      from: message.fromAddress,
+      ...(message.bodyHtml === null ? {} : { html: message.bodyHtml }),
+      subject: message.subject,
+      text: message.bodyText,
+      to: deduplicateRecipients(message.toAddresses),
+    })
+    await dependencies.repository.markMessageSent({
+      companyId,
+      messageId,
+      providerEmailId: sent.id,
+    })
+    return { outcome: 'sent', threadId: message.threadId }
+  } catch (error) {
+    if (error instanceof SandboxSmtpRecipientsRejectedError) {
       await dependencies.repository.markMessageFailed({ companyId, messageId })
       return { outcome: 'failed', reason: 'invalid_recipients', threadId: message.threadId }
     }

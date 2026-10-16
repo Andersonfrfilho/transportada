@@ -31,9 +31,11 @@ const REPLY_TOKEN_SECRET = 'a'.repeat(64)
 const MESSAGE: ContractorMailOutboundMessageRecord = {
   bodyHtml: null,
   bodyText: 'Este é um e-mail de teste.',
+  fromAddress: 'ocorrencias@fernandes-transportadora.com.br',
   subject: 'Teste de configuração de e-mail com contratantes',
   threadId: THREAD_ID,
   toAddresses: ['admin@fernandes-transportadora.com.br'],
+  transport: 'resend',
 }
 
 const SETTINGS: ContractorMailOutboundSettingsRecord = {

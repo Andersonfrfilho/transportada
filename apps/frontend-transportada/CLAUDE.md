@@ -614,3 +614,13 @@ O acerto da 164 sugere o valor pago, senão a soma, mas só onde há tratativa (
 Detalhe: docs/ai-context/frontend-transportada.md § "Spec 247".
 
 ⚠️ **O ícone do tipo é catálogo fechado** (spec 255): `occurrenceTypeIcon.constant.ts` é cópia por valor da API; ampliar exige API (migration) + esta cópia + `icon.tsx` + `frontend-driver`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 255".
+
+## Contatos de ocorrência na ficha e avisos do e-mail com contratantes (spec 268)
+
+A ficha da contratante (aba "Contratantes") tem a seção "Contatos de ocorrência": é o `ContractorContactsPanel` com
+`contractorId` fixo (sem seletor, sem listar contratantes), só para `settings.manage`. Na aba "E-mail com contratantes",
+`MailSendReadinessSummary` mostra "Sem esta configuração nenhum e-mail de ocorrência sai para a contratante." quando a
+configuração não está pronta, ou o aviso do Mailpit quando o `GET /contractor-mail-settings` traz `sandboxDelivery: true`
+(`settingsReadFromApi`: `sandboxDelivery` vem ao lado de `data`, que segue com as chaves exatas). A seção de contatos dessa aba
+tem um botão que abre a aba "Contratantes". Teste: `test/trip-hooks/contractor-mail-sandbox-panel.contract.ts` (roda no
+`test:hooks`, com o preload de DOM).

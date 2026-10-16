@@ -128,3 +128,18 @@ export function mailSendReadinessReasonLocaleKey(reason: MailSendReadinessReason
 export function isMailRoundTripConfigured(settings: ContractorMailSettingsSummary | null): boolean {
   return settings?.status === 'active'
 }
+
+export type OccurrenceMailNotice = 'blocked' | 'none' | 'sandbox'
+
+/**
+ * Spec 268 RF8: o e-mail de ocorrência só depende da configuração (chave aceita e remetente verificado), não do
+ * modelo. Sem ela, `sandbox` quando o ambiente de teste manda o e-mail ao Mailpit (a API só informa `sandboxDelivery`
+ * nesse caso), `blocked` quando nenhum e-mail sai.
+ */
+export function resolveOccurrenceMailNotice(
+  params: Readonly<{ sandboxDelivery: boolean; settings: ContractorMailSettingsSummary | null }>,
+): OccurrenceMailNotice {
+  if (params.sandboxDelivery) return 'sandbox'
+  if (params.settings === null || params.settings.sendingVerifiedAt === null) return 'blocked'
+  return 'none'
+}

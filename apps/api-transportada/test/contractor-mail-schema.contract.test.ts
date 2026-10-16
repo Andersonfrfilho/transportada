@@ -4,3 +4,4 @@
 import './contractor-mail-schema/tenant-safety.contract.js'
 import './contractor-mail-schema/template-tenant-safety.contract.js'
 import './contractor-mail-schema/contact-channels.contract.js'
+import './contractor-mail-schema/message-transport.contract.js'

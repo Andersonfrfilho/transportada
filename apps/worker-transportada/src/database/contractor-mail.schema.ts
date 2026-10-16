@@ -5,7 +5,9 @@
  * `contractor-mail-outbound.v1` lê e escreve está declarado aqui: o outbox de saída inteiro, e das
  * outras três tabelas apenas as colunas que o envio de e-mail toca.
  */
-import { bigint, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { bigint, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
+
+import type { ContractorMailTransport } from '../contractor-mail/domain/contractor-mail.constant.js'
 
 export const contractorMailSettings = pgTable('contractor_mail_settings', {
   id: uuid().defaultRandom().primaryKey(),
@@ -54,6 +56,7 @@ export const contractorMailMessages = pgTable('contractor_mail_messages', {
   interpretation: text(),
   providerEmailId: text('provider_email_id'),
   deliveryStatus: text('delivery_status'),
+  transport: varchar({ length: 16 }).$type<ContractorMailTransport>().notNull().default('resend'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

@@ -195,3 +195,13 @@ cinco tabelas é a **empresa, na tela** (spec 239): o worker lê `company_locati
 carência de 24 h. Sem linha ou desligada, nada é apagado; não existe variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`
 saiu e, se sobrar no Railway, é ignorada). O log conta linhas por tabela e `companies`, nunca coordenada, evento ou pessoa. Detalhe:
 docs/ai-context/worker-transportada.md § "O expurgo de posição".
+
+## O e-mail da contratante cai no Mailpit fora de produção (spec 268)
+
+⚠️ A linha de `contractor_mail_messages` diz por onde sai (`transport`). `sandbox_smtp` é enviada por
+`sandbox-smtp-mail.gateway.ts` (nodemailer direto — o driver do `email-provider` tem um destinatário só e nenhum anexo)
+no `SMTP_URL`, de `message.fromAddress`, com todos os destinatários e anexos, **sem `Reply-To`**, e **nunca lê a configuração
+da empresa nem fala com o Resend**. Sem `CONTRACTOR_MAIL_SANDBOX_SMTP=true` neste worker, a linha falha sem enviar
+(`sandbox_disabled`); o modo com `APP_ENV=production` derruba o boot, e exige `SMTP_URL` e `EMAIL_FROM`. Todos os destinatários
+recusados é falha permanente; erro de conexão propaga e a fila tenta de novo. Log só com `messageId`/`threadId`/motivo.
+Contrato: `test/contractor-mail/sandbox-outbound.contract.ts`, `test/contractor-mail-sandbox-environment.contract.test.ts`.

@@ -13,6 +13,7 @@ import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
+import type { ContractorMailTransport } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import { createMailSendReadinessError } from '../../contractor-mail/domain/contractor-mail.error.js'
 import { resolveMailSendReadiness } from '../../contractor-mail/domain/mail-send-readiness.policy.js'
 import {
@@ -98,7 +99,20 @@ function deduplicateRecipients(addresses: readonly string[]): string[] {
   return [...new Set(addresses.map((address) => address.toLowerCase()))]
 }
 
+/**
+ * Spec 268: o modo sandbox do ambiente (`CONTRACTOR_MAIL_SANDBOX_SMTP`, nunca em produção). Presente, uma
+ * empresa sem o Resend pronto não é recusada: a mensagem é gravada para o SMTP do worker, de `fromAddress`.
+ */
+export type OccurrenceMailSandbox = { readonly fromAddress: string }
+
+type OccurrenceMailDelivery = {
+  readonly fromAddress: string
+  readonly replyTokenHash: string
+  readonly transport: ContractorMailTransport
+}
+
 export function createSendOccurrenceMailUseCase(dependencies: {
+  readonly contractorMailSandbox?: OccurrenceMailSandbox
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly logger?: OpenContractorReplyLogger
   readonly now?: () => Date
@@ -136,7 +150,42 @@ async function assertContractorReplyResendRecorded(params: {
   if (outcome === 'too_soon') throw new ContractorReplyResendTooSoonError()
 }
 
+/** Sandbox: ninguém responde pelo Mailpit; o hash existe só porque a thread o exige, único e opaco. */
+function createSandboxDelivery(sandbox: OccurrenceMailSandbox): OccurrenceMailDelivery {
+  return {
+    fromAddress: sandbox.fromAddress,
+    replyTokenHash: hashReplyToken(crypto.randomUUID()),
+    transport: 'sandbox_smtp',
+  }
+}
+
+async function createResendDelivery(params: {
+  readonly companyId: string
+  readonly secretService: ContractorMailCredentialSecretService
+  readonly settings: {
+    readonly id: string
+    readonly secretEnvelope: unknown
+    readonly senderAddress: string
+  }
+  readonly threadId: string
+}): Promise<OccurrenceMailDelivery> {
+  const { companyId, settings, threadId } = params
+  const secret = await params.secretService.decrypt({
+    companyId,
+    envelope: settings.secretEnvelope as SecretEnvelopeV1,
+    settingsId: settings.id,
+  })
+  return {
+    fromAddress: settings.senderAddress,
+    replyTokenHash: hashReplyToken(
+      deriveReplyToken({ companyId, replyTokenSecret: secret.replyTokenSecret, threadId }),
+    ),
+    transport: 'resend',
+  }
+}
+
 async function executeSend(params: {
+  readonly contractorMailSandbox?: OccurrenceMailSandbox
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly input: SendOccurrenceMailInput
   readonly logger?: OpenContractorReplyLogger
@@ -186,8 +235,9 @@ async function executeSend(params: {
   const readiness = resolveMailSendReadiness({
     settings: await transaction.findMailSettings({ companyId }),
   })
-  if (!readiness.ready) throw createMailSendReadinessError(readiness.reason)
-  const { settings } = readiness
+  if (!readiness.ready && params.contractorMailSandbox === undefined) {
+    throw createMailSendReadinessError(readiness.reason)
+  }
 
   if (input.contractorReplyResend === true && input.actorUserId !== null) {
     await assertContractorReplyResendRecorded({
@@ -241,14 +291,14 @@ async function executeSend(params: {
     occurrenceKind: target.kind,
   })
   const threadId = existingThread?.id ?? crypto.randomUUID()
-  const secret = await params.secretService.decrypt({
-    companyId,
-    envelope: settings.secretEnvelope as SecretEnvelopeV1,
-    settingsId: settings.id,
-  })
-  const replyTokenHash = hashReplyToken(
-    deriveReplyToken({ companyId, replyTokenSecret: secret.replyTokenSecret, threadId }),
-  )
+  const delivery = readiness.ready
+    ? await createResendDelivery({
+        companyId,
+        secretService: params.secretService,
+        settings: readiness.settings,
+        threadId,
+      })
+    : createSandboxDelivery(params.contractorMailSandbox as OccurrenceMailSandbox)
 
   const recorded = await transaction.recordMail({
     actorUserId: input.actorUserId,
@@ -258,13 +308,14 @@ async function executeSend(params: {
     contractorId,
     correlationId: input.correlationId,
     createThread: existingThread === undefined,
-    fromAddress: settings.senderAddress,
+    fromAddress: delivery.fromAddress,
     occurrenceId: input.occurrenceId,
     occurrenceKind: target.kind,
-    replyTokenHash,
+    replyTokenHash: delivery.replyTokenHash,
     subject: mail.subject,
     threadId,
     toAddresses: recipients,
+    transport: delivery.transport,
   })
   const conversationMessage = await transaction.recordConversationMessage({
     authorUserId: input.actorUserId,
