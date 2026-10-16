@@ -32,7 +32,7 @@ describe('as lojas de useDriverTrip são estáveis entre renders', () => {
 
   test('a loja padrão nasce de um useState preguiçoso, uma vez por instância', () => {
     expect(HOOK_SOURCE).toMatch(
-      /useState\(\(\) => \(\{\s*attachmentStore: createIndexedDbAttachmentStore\(\),\s*store: createIndexedDbQueueStore\(\),\s*\}\)\)/u,
+      /useState\(\(\) => \(\{\s*attachmentStore: createIndexedDbAttachmentStore\(\),\s*sentHistoryStore: createIndexedDbSentHistoryStore\(\),\s*store: createIndexedDbQueueStore\(\),\s*\}\)\)/u,
     )
   })
 })

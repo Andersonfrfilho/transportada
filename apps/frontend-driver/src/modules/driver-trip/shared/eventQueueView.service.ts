@@ -97,6 +97,11 @@ function toStatus(item: QueuedReport): EventQueueItemStatus {
   return { state: 'queued' }
 }
 
+/** Teste local (15/10): foto que falhou sozinha conta tentativa no anexo; o grupo órfão passa a dizer "failed". */
+function maxAttachmentAttempts(group: readonly QueuedAttachment[]): number {
+  return Math.max(0, ...group.map((attachment) => attachment.attempts ?? 0))
+}
+
 export function buildEventQueueView(input: {
   readonly attachments: AttachmentGroupEntries
   readonly queued: readonly QueuedReport[]
@@ -152,7 +157,9 @@ export function buildEventQueueView(input: {
             ? { cause, state: 'rejected' }
             : group.some((attachment) => attachment.isUnverified === true)
               ? { state: 'unverified' }
-              : { state: 'queued' },
+              : maxAttachmentAttempts(group) > 0
+                ? { attempts: maxAttachmentAttempts(group), state: 'failed' }
+                : { state: 'queued' },
       }
     })
 
@@ -301,4 +308,45 @@ export function resolveEventQueueDepartBlock(input: {
   if (blockingStop === undefined) return undefined
 
   return { blockingStopId: blockingStop.id, blockingStopSequence: blockingStop.sequence }
+}
+
+/**
+ * O toque em "Confirmar entrega" já está na fila desta nota: `waiting` (ainda não tentou ou espera o
+ * GPS/sinal) ou `retrying` (a última tentativa falhou e o app tenta de novo sozinho, com espaçamento).
+ * A trava de 10 s do cartão solta sozinha, mas a entrega continua pendente — o botão segue
+ * desabilitado e a tela diz o porquê, em vez de aceitar um segundo `deliver` (defeito de 14/10).
+ * Entrega recusada pelo servidor NÃO conta: ela não volta sozinha, e o motorista precisa poder agir.
+ */
+export type QueuedDeliverState = 'none' | 'retrying' | 'waiting'
+
+export function resolveQueuedDeliverState(
+  queueView: readonly EventQueueItemView[],
+  documentId: string,
+): QueuedDeliverState {
+  const items = queueView.filter(
+    (item) =>
+      item.kind === 'deliver' && item.documentId === documentId && item.status.state !== 'rejected',
+  )
+  if (items.length === 0) return 'none'
+  return items.some((item) => item.status.state === 'failed') ? 'retrying' : 'waiting'
+}
+
+/**
+ * Teste local do #250 (15/10): a foto da nota que ainda não subiu — o grupo de anexos órfão (`proof`)
+ * ou a foto que viaja junto da entrega na fila. A recusada não conta: tem o aviso próprio.
+ */
+export type ProofSyncState = 'none' | 'retrying' | 'syncing'
+
+export function resolveProofSyncState(
+  queueView: readonly EventQueueItemView[],
+  documentId: string,
+): ProofSyncState {
+  const items = queueView.filter(
+    (item) =>
+      item.documentId === documentId &&
+      item.status.state !== 'rejected' &&
+      (item.kind === 'proof' || (item.kind === 'deliver' && item.attachmentCount > 0)),
+  )
+  if (items.length === 0) return 'none'
+  return items.some((item) => item.status.state === 'failed') ? 'retrying' : 'syncing'
 }

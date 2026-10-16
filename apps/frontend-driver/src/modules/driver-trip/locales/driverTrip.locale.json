@@ -70,6 +70,16 @@
       "open": "Descartar",
       "warning": "A entrega não foi registrada; fale com o escritório. Descartar apaga este item do aparelho."
     },
+    "history": {
+      "title": "Enviados recentemente",
+      "discarded": "Descartado às {{time}}",
+      "note": "Nota {{number}}",
+      "stop": "Parada {{sequence}}",
+      "empty": "Nada enviado nesta viagem.",
+      "rejected": "Recusado às {{time}}",
+      "sent": "Enviado às {{time}}",
+      "tapped": "Toque às {{time}}"
+    },
     "empty": "Nada aguardando envio.",
     "itemTitle": {
       "depart": "Iniciar rota — parada {{sequence}}"
@@ -409,6 +419,15 @@
     "syncing_one": "Enviando {{count}} pendência…",
     "syncing_other": "Enviando {{count}} pendências…"
   },
+  "tripSync": {
+    "rejected_one": "O escritório recusou {{count}} evento. Veja em eventos pendentes.",
+    "rejected_other": "O escritório recusou {{count}} eventos. Veja em eventos pendentes.",
+    "failed": "O envio falhou (sinal fraco). O app tenta de novo sozinho.",
+    "open": "Ver histórico",
+    "synced": "Sincronizado",
+    "syncing_one": "Sincronizando evento…",
+    "syncing_other": "Sincronizando {{count}} eventos…"
+  },
   "theme": {
     "title": "Aparência",
     "useDark": "Usar tema escuro",
@@ -503,6 +522,10 @@
     "lead": "Esta entrega pede comprovante. Preencha o que tem * e confirme.",
     "confirm": "Confirmar entrega",
     "cancel": "Cancelar",
+    "sending": "Enviando entrega…",
+    "retrying": "O último envio falhou (sinal fraco). O app tenta de novo sozinho; toque em Enviar agora para tentar já.",
+    "sendNow": "Enviar agora",
+    "confirming": "Entrega registrada. Ela segue para o servidor assim que houver sinal, e a foto sobe logo depois. Não precisa tocar de novo.",
     "missingLead": "Para confirmar, falta: {{fields}}."
   },
   "notDelivered": {
@@ -562,10 +585,12 @@
     "back": "Voltar"
   },
   "activity": {
-    "delivered": "Entregue às {{time}}",
-    "deliveredQueued": "Entregue às {{time}} · na fila",
+    "delivered": "Entregue às {{time}} · enviado",
+    "deliveredQueued": "Entregue às {{time}} · sincronizando",
     "deliveredRejected": "O escritório recusou o registro da entrega às {{time}}. Veja em eventos pendentes.",
     "occurrenceMarker": "Com ocorrência",
+    "photoRetrying": "Foto aguardando sinal; o app tenta de novo sozinho.",
+    "photoSyncing": "Foto sincronizando…",
     "occurrenceQueued": "Ocorrência registrada às {{time}} · na fila",
     "occurrenceRejected": "O escritório recusou a ocorrência registrada às {{time}}. Veja em eventos pendentes.",
     "occurrenceSent": "Ocorrência registrada às {{time}} · enviada",

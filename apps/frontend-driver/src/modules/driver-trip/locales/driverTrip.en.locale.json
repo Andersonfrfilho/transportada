@@ -83,6 +83,16 @@
       "open": "Discard",
       "warning": "The delivery was not recorded; talk to the office. Discarding removes this item from the device."
     },
+    "history": {
+      "title": "Recently sent",
+      "discarded": "Discarded at {{time}}",
+      "note": "Note {{number}}",
+      "stop": "Stop {{sequence}}",
+      "empty": "Nothing sent on this trip.",
+      "rejected": "Refused at {{time}}",
+      "sent": "Sent at {{time}}",
+      "tapped": "Tapped at {{time}}"
+    },
     "empty": "Nothing waiting to be sent.",
     "itemTitle": {
       "depart": "Start route — stop {{sequence}}"
@@ -375,6 +385,15 @@
     "syncing_one": "Sending {{count}} pending item…",
     "syncing_other": "Sending {{count}} pending items…"
   },
+  "tripSync": {
+    "rejected_one": "The office refused {{count}} event. See pending events.",
+    "rejected_other": "The office refused {{count}} events. See pending events.",
+    "failed": "Sending failed (weak signal). The app retries on its own.",
+    "open": "See history",
+    "synced": "Synced",
+    "syncing_one": "Syncing event…",
+    "syncing_other": "Syncing {{count}} events…"
+  },
   "theme": {
     "title": "Appearance",
     "useDark": "Use dark theme",
@@ -485,6 +504,10 @@
     "lead": "This delivery needs proof. Fill in what has * and confirm.",
     "confirm": "Confirm delivery",
     "cancel": "Cancel",
+    "sending": "Sending delivery…",
+    "retrying": "The last send failed (weak signal). The app retries on its own; tap Send now to try right away.",
+    "sendNow": "Send now",
+    "confirming": "Delivery recorded. It goes to the server as soon as there is signal, and the photo follows. No need to tap again.",
     "missingLead": "To confirm, add: {{fields}}."
   },
   "notDelivered": {
@@ -545,8 +568,10 @@
   },
   "activity": {
     "delivered": "Delivered at {{time}}",
-    "deliveredQueued": "Delivered at {{time}} · queued",
+    "deliveredQueued": "Delivered at {{time}} · syncing",
     "deliveredRejected": "The office refused the delivery recorded at {{time}}. See pending events.",
+    "photoRetrying": "Photo waiting for signal; the app retries on its own.",
+    "photoSyncing": "Photo syncing…",
     "occurrenceMarker": "Has an occurrence",
     "occurrenceQueued": "Occurrence recorded at {{time}} · queued",
     "occurrenceRejected": "The office refused the occurrence recorded at {{time}}. See pending events.",
