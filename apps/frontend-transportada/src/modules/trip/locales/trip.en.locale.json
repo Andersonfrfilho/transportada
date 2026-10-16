@@ -1452,6 +1452,10 @@
     "singleItemHint": "This type only accepts one item — choosing another replaces it."
   },
   "occurrenceFeed": {
+    "missingTemplate": {
+      "badge": "Type without a notification template",
+      "open": "Open occurrence types"
+    },
     "columns": {
       "contractor": "Contracting party",
       "destination": "Delivery address",

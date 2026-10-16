@@ -241,6 +241,7 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
       ],
       subject: 'Assunto',
       suggested: true,
+      templateId: 'template-1',
       text: 'Texto\n\n—\nOperadora',
     }
     const client = createClient(Response.json({ data: preview }))
@@ -251,9 +252,11 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
       cc: [],
       ccSource: null,
       contractorName: 'Contratante Alfa',
+      missingNotificationTemplate: false,
       recipients: preview.recipients,
       subject: 'Assunto',
       suggested: true,
+      templateId: 'template-1',
       text: 'Texto\n\n—\nOperadora',
     })
   })
@@ -278,6 +281,23 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
     expect(await client.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
       cc: [{ maskedEmail: 'a***@e***.test', name: 'Ana', userId: 'user-ana' }],
       ccSource: 'contractor',
+    })
+  })
+
+  test('a prévia sem modelo efetivo traz a flag; API anterior sem os campos vira "tem modelo"', async () => {
+    const base = { bodyText: '', html: '', recipients: [], subject: '', suggested: false, text: '' }
+    const missing = createClient(
+      Response.json({ data: { ...base, missingNotificationTemplate: true, templateId: null } }),
+    )
+    const legacy = createClient(Response.json({ data: base }))
+
+    expect(await missing.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
+      missingNotificationTemplate: true,
+      templateId: null,
+    })
+    expect(await legacy.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
+      missingNotificationTemplate: false,
+      templateId: null,
     })
   })
 

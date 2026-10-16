@@ -8,6 +8,8 @@ import type { WorkspaceNavigator } from '@/modules/shared/workspaceNavigation.se
 export const TRIP_OCCURRENCES_ROUTE = '/ocorrencias'
 const TRIP_OCCURRENCE_ROUTE_PREFIX = `${TRIP_OCCURRENCES_ROUTE}/`
 const TRIP_OCCURRENCES_WORKSPACE = 'trip-occurrences'
+/** A aba Tipos de `/ocorrencias`, onde o tipo e a exceção da contratante escolhem o modelo do e-mail. */
+export const TRIP_OCCURRENCE_TYPES_ROUTE = `${TRIP_OCCURRENCES_ROUTE}?tab=types`
 
 export function buildTripOccurrenceRoute(occurrenceId: string): string {
   return `${TRIP_OCCURRENCE_ROUTE_PREFIX}${encodeURIComponent(occurrenceId)}`
@@ -27,6 +29,12 @@ export function navigateToTripOccurrence(
   input.navigator.pushPath(buildTripOccurrenceRoute(input.occurrenceId))
   input.navigator.rememberWorkspace(TRIP_OCCURRENCES_WORKSPACE)
   input.navigator.dispatchPopState()
+}
+
+export function navigateToTripOccurrenceTypes(navigator: WorkspaceNavigator): void {
+  navigator.pushPath(TRIP_OCCURRENCE_TYPES_ROUTE)
+  navigator.rememberWorkspace(TRIP_OCCURRENCES_WORKSPACE)
+  navigator.dispatchPopState()
 }
 
 export function navigateToTripOccurrences(navigator: WorkspaceNavigator): void {

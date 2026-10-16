@@ -147,9 +147,12 @@ export type OccurrenceMailPreview = Readonly<{
   cc: readonly OccurrenceMailCopyEntry[]
   ccSource: 'company' | 'contractor' | null
   contractorName: string
+  /** Spec 269 D8: sem modelo efetivo (tipo ou exceção da contratante), o e-mail não sai. Ausente é API anterior. */
+  missingNotificationTemplate: boolean
   recipients: readonly OccurrenceMailRecipient[]
   subject: string
   suggested: boolean
+  templateId: null | string
   text: string
 }>
 

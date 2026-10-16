@@ -26,6 +26,7 @@ import { insertQuickReply } from '../shared/quickReplies.service'
 import styles from '../styles/occurrenceConversation.module.css'
 import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.component'
 import { QuickReplyPicker } from './QuickReplyPicker.component'
+import { ContractorMailMissingTemplateNotice } from './ContractorMailMissingTemplateNotice.component'
 
 const KNOWN_ERRORS = new Set([
   'CONTRACTOR_MAIL_NOT_CONFIGURED',
@@ -41,6 +42,15 @@ const KNOWN_ERRORS = new Set([
   'OCCURRENCE_CONVERSATION_UPLOAD_FAILED',
   'OCCURRENCE_CONVERSATION_UPLOAD_INVALID',
 ])
+
+/** Spec 269 D4: sem modelo efetivo o envio não existe — nem à mão. A API também recusa (corrida). */
+const MISSING_TEMPLATE_ERROR = 'OCCURRENCE_MAIL_TEMPLATE_MISSING'
+
+function isMissingTemplateError(error: unknown): boolean {
+  return (
+    error instanceof OccurrenceConversationRequestError && error.code === MISSING_TEMPLATE_ERROR
+  )
+}
 
 function errorKey(error: unknown): string {
   if (error instanceof OccurrenceConversationRequestError && KNOWN_ERRORS.has(error.code)) {
@@ -105,6 +115,8 @@ export function SendToContractorDialog({
     .map((entry) => ({ hint: entry.maskedEmail, id: entry.userId, name: entry.name }))
   const errors = isSubmitted ? validateContractorMailDraft(draft) : {}
   const isBusy = send.isPending
+  const isTemplateMissing =
+    preview?.missingNotificationTemplate === true || isMissingTemplateError(send.error)
 
   function submit(): void {
     setSubmitted(true)
@@ -279,7 +291,9 @@ export function SendToContractorDialog({
               </section>
             )}
 
-            {send.isError ? (
+            {isTemplateMissing ? <ContractorMailMissingTemplateNotice /> : null}
+
+            {send.isError && !isMissingTemplateError(send.error) ? (
               <p className={styles.error} role="alert">
                 {t(errorKey(send.error))}
               </p>
@@ -297,7 +311,7 @@ export function SendToContractorDialog({
               >
                 {t('dialog.preview')}
               </Button>
-              <Button disabled={isBusy} type="submit">
+              <Button disabled={isBusy || isTemplateMissing} type="submit">
                 {isBusy ? t('dialog.sending') : t('dialog.send')}
               </Button>
             </div>

@@ -303,9 +303,11 @@ function readPreview(payload: unknown): OccurrenceMailPreview {
     cc: Array.isArray(data.cc) ? data.cc.flatMap((entry) => toCopyEntry(entry) ?? []) : [],
     ccSource: data.ccSource === 'company' || data.ccSource === 'contractor' ? data.ccSource : null,
     contractorName: isString(data.contractorName) ? data.contractorName : '',
+    missingNotificationTemplate: data.missingNotificationTemplate === true,
     recipients: Array.isArray(data.recipients) ? data.recipients.filter(isRecipient) : [],
     subject: data.subject,
     suggested: data.suggested,
+    templateId: isString(data.templateId) ? data.templateId : null,
     text: data.text,
   }
 }

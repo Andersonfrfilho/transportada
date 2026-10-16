@@ -65,6 +65,7 @@
     "times": "Message times"
   },
   "dialog": {
+    "missingTemplate": "Type without a notification template: without a template the email is not sent, not even by hand. Choose a template on the type or on the contractor exception.",
     "title": "Send to contractor",
     "close": "Close",
     "loading": "Preparing the email",

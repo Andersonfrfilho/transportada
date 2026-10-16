@@ -1452,6 +1452,10 @@
     "singleItemHint": "Este tipo aceita só um item — escolher outro substitui o anterior."
   },
   "occurrenceFeed": {
+    "missingTemplate": {
+      "badge": "Tipo sem modelo de notificação",
+      "open": "Abrir tipos de ocorrência"
+    },
     "columns": {
       "contractor": "Contratante",
       "destination": "Endereço de entrega",
