@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -14,10 +15,8 @@ export const META_WHATSAPP_SCHEMA = 'meta_whatsapp'
  * diretório nosso em `drizzle/` para o rollback ficar ao lado — e acrescentar um quebraria o
  * contrato que fixa a lista de migrations da aplicação.
  */
-export const META_WHATSAPP_ROLLBACK_FILE = new URL(
-  '../../drizzle-meta-whatsapp/rollback.sql',
-  import.meta.url,
-).pathname
+export const META_WHATSAPP_ROLLBACK_FILE = fileURLToPath(new URL(
+  '../../drizzle-meta-whatsapp/rollback.sql', import.meta.url))
 
 type RunMetaWhatsAppSchemaMigrationsParams = {
   readonly connectionString: string

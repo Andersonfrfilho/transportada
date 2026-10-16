@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { fileURLToPath } from 'node:url'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { migrate } from 'drizzle-orm/bun-sql/migrator'
 
@@ -8,7 +9,7 @@ import { runMetaWhatsAppSchemaMigrations } from './meta-whatsapp-migration.servi
 import { runNotificationSchemaMigrations } from './notification-migration.service.js'
 import { runUserSchemaMigrations } from './user-migration.service.js'
 
-export const DEFAULT_MIGRATIONS_DIRECTORY = new URL('../../drizzle/', import.meta.url).pathname
+export const DEFAULT_MIGRATIONS_DIRECTORY = fileURLToPath(new URL('../../drizzle/', import.meta.url))
 export const MIGRATIONS_SCHEMA = 'drizzle'
 
 type RunDatabaseMigrationsParams = {

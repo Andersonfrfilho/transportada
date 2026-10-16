@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -15,8 +16,7 @@ export const USER_SCHEMA = 'user'
  * migrations da aplicação. Ele mora ao lado do runner, num diretório irmão (mesmo padrão do
  * schema de notificações).
  */
-export const USER_ROLLBACK_FILE = new URL('../../drizzle-user/rollback.sql', import.meta.url)
-  .pathname
+export const USER_ROLLBACK_FILE = fileURLToPath(new URL('../../drizzle-user/rollback.sql', import.meta.url))
 
 export async function readUserRollbackSql(): Promise<string> {
   return readFile(USER_ROLLBACK_FILE, 'utf8')

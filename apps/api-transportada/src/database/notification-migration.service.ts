@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -14,10 +15,8 @@ export const NOTIFICATION_SCHEMA = 'notification'
  * para o rollback ficar ao lado — e acrescentar um quebraria o contrato que fixa a lista de
  * migrations da aplicação. Ele mora ao lado do runner, num diretório irmão.
  */
-export const NOTIFICATION_ROLLBACK_FILE = new URL(
-  '../../drizzle-notification/rollback.sql',
-  import.meta.url,
-).pathname
+export const NOTIFICATION_ROLLBACK_FILE = fileURLToPath(new URL(
+  '../../drizzle-notification/rollback.sql', import.meta.url))
 
 type RunNotificationSchemaMigrationsParams = {
   readonly connectionString: string

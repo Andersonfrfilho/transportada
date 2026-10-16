@@ -136,6 +136,7 @@ bench: up ## 🧪 Prepara a bancada local inteira (migrations, sementes e OSRM d
 	@set -a; . "./$(ENV_FILE)"; set +a; \
 		bun run --cwd apps/api-transportada db:seed:fleet; \
 		bun run --cwd apps/api-transportada db:seed:trip; \
+		bun run --cwd apps/api-transportada db:seed:driver-trip; \
 		bun run --cwd apps/api-transportada db:seed:emission-profiles; \
 		bun run --cwd apps/api-transportada db:seed:company-settings
 	@if [ ! -f deploy/osrm/data/fixture.osrm ]; then $(MAKE) --no-print-directory routing-fixture; fi

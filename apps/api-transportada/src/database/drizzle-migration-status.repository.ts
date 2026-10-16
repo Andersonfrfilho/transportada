@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { fileURLToPath } from 'node:url'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { pgSchema, text } from 'drizzle-orm/pg-core'
 import { existsSync, readdirSync } from 'node:fs'
@@ -11,8 +12,8 @@ import type { MigrationStatusPort } from '../shared/api.types.js'
 
 /** Fonte roda de `src/database/`, imagem roda de `dist/main.js`: são profundidades diferentes. */
 const MIGRATIONS_DIRECTORY_CANDIDATES = [
-  new URL('../../drizzle/', import.meta.url).pathname,
-  new URL('../drizzle/', import.meta.url).pathname,
+  fileURLToPath(new URL('../../drizzle/', import.meta.url)),
+  fileURLToPath(new URL('../drizzle/', import.meta.url)),
   join(process.cwd(), 'drizzle'),
 ] as const
 
