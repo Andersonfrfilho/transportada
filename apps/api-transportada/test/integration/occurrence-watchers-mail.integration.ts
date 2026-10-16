@@ -13,6 +13,7 @@ import {
   createOccurrenceMailReader,
   createOccurrenceSuggestedMailReader,
 } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
+import { findOccurrenceConversations } from '../../src/occurrence-conversation/infrastructure/occurrence-conversation.query.js'
 import { DrizzleOccurrenceWatcherRepository } from '../../src/contractor-mail/infrastructure/drizzle-occurrence-watcher.repository.js'
 import {
   contractorMailMessages,
@@ -63,6 +64,51 @@ async function readCopy(database: TestDatabase, mailMessageId: string) {
 }
 
 describe('a cópia do e-mail de ocorrência contra Postgres (spec 267)', () => {
+  testWithPostgres(
+    'o histórico da conversa mostra a cópia com nome e e-mail mascarado, só na mensagem de saída que a levou',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const ana = await seedResponsible(database, seeded, 'Ana')
+        await new DrizzleOccurrenceWatcherRepository(database.db).addWatcher({
+          actorUserId: seeded.company.userId,
+          correlationId: 'corr-history',
+          scope: { companyId: seeded.company.companyId, kind: 'company' },
+          userId: ana.userId,
+        })
+        const useCase = createOccurrenceMailUseCase(database)
+        const base = {
+          actorUserId: seeded.company.userId,
+          bodyText: 'Autorizam?',
+          companyId: seeded.company.companyId,
+          contactIds: seeded.contactIds.slice(0, 1),
+          correlationId: 'corr-history-send',
+          occurrenceId: seeded.occurrenceId,
+          subject: 'Ocorrência — NF 1',
+        }
+        await useCase.send({ ...base, idempotencyKey: 'key-copy' })
+        await useCase.send({
+          ...base,
+          excludedWatcherUserIds: [ana.userId],
+          idempotencyKey: 'key-no-copy',
+        })
+
+        const view = await findOccurrenceConversations(database.db, {
+          companyId: seeded.company.companyId,
+          occurrenceId: seeded.occurrenceId,
+          userId: seeded.company.userId,
+        })
+        const messages = view?.conversations.find((c) => c.participant === 'contractor')?.messages
+        expect(messages?.[0]?.copy).toEqual([
+          { maskedEmail: 'a***@e***.example.test', name: 'Ana' },
+        ])
+        expect(messages?.[1] !== undefined && 'copy' in messages[1]).toBe(false)
+        expect(JSON.stringify(view)).not.toContain('ana@empresa')
+      })
+    },
+    90_000,
+  )
+
   testWithPostgres(
     'lista efetiva: empresa, contratante vence, só inativos herda, remoção por envio, permissão perdida',
     async () => {
