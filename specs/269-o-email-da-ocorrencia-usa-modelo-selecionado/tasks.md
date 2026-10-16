@@ -28,14 +28,14 @@
 
 > 🤖 Modelo: `haiku` (T1.4 → `sonnet`)
 
-- [ ] **T1.1** `haiku` — Teste antes: catálogo e lista de modelos com uma entrada `mailType: 'occurrence'` carregam e
+- [x] **T1.1** `haiku` — Teste antes: catálogo e lista de modelos com uma entrada `mailType: 'occurrence'` carregam e
       mostram só as conhecidas. Depois, `contractorMailTemplatesResponse.validation.ts` descarta a entrada desconhecida
       em vez de lançar.
-- [ ] **T1.2** `haiku` — Teste antes: tipo de ocorrência sem `emailSubject`/`emailBody`/`emailItemLineTemplate` e com
+- [x] **T1.2** `haiku` — Teste antes: tipo de ocorrência sem `emailSubject`/`emailBody`/`emailItemLineTemplate` e com
       `contractorMailTemplateId` e `missingNotificationTemplate` passa no guarda; exceção por contratante com `contractorMailTemplateId`
       passa. Depois, `tripResponse.validation.ts` (e o guarda da exceção) torna os três opcionais e permite as chaves
       novas.
-- [ ] **T1.3** `haiku` — Teste antes: resposta do registro sem `email` passa; feed, detalhe e prévia do diálogo com
+- [x] **T1.3** `haiku` — Teste antes: resposta do registro sem `email` passa; feed, detalhe e prévia do diálogo com
       `missingNotificationTemplate`/`templateId` passam. Depois, os guardas toleram, e o painel **para de ler** `email`
       do registro (remove o "e-mail pronto": `TripOccurrences.component.tsx`, `useTripWorkspace.hook.ts`, locale
       `occurrence.emailReady`).
@@ -46,51 +46,51 @@
 
 > 🤖 Modelo: `sonnet` (T2.8 → `haiku`)
 
-- [ ] **T2.1** `sonnet` — Migration A (plan § Dados) + schema Drizzle (coluna, FK composta e índice parcial no tipo **e
+- [x] **T2.1** `sonnet` — Migration A (plan § Dados) + schema Drizzle (coluna, FK composta e índice parcial no tipo **e
       na exceção por contratante**, CHECK pela constante) + `occurrence` em `CONTRACTOR_MAIL_TEMPLATE_TYPES` + códigos de erro. `rollback.sql` com a CHECK
       `NOT VALID`. Aceite: migration-test e `db:generate` `no_changes`.
-- [ ] **T2.2** `sonnet` — Teste antes do catálogo `occurrence` (variáveis do plan, validação: `{codigo_item}` no assunto
+- [x] **T2.2** `sonnet` — Teste antes do catálogo `occurrence` (variáveis do plan, validação: `{codigo_item}` no assunto
       é erro, `{itens}` não) e da política pura `occurrence-mail-body.policy.ts` (D5; sem itens; `item_text` vazio;
       201 itens; HTML escapado). Depois, a implementação e o renderizador de prévia `occurrence` com valores de exemplo.
-- [ ] **T2.3** `sonnet` — Teste antes (tabela espelhada dos valores de hoje): `occurrence-mail-values.policy.ts` produz
+- [x] **T2.3** `sonnet` — Teste antes (tabela espelhada dos valores de hoje): `occurrence-mail-values.policy.ts` produz
       as chaves `{snake_case}` a partir do que `readOccurrenceTemplateValues` lê hoje. Depois, mover/renomear
       `buildOccurrenceItemValues`, `buildOccurrenceTemplateLines` e os tipos (inventário) **sem** apagar a máquina
       antiga ainda (ela sai na Fase 3).
-- [ ] **T2.4** `sonnet` — `contractorMailTemplateId` no `PUT /company-settings/occurrence-types` (opcional, nulo limpa), na
+- [x] **T2.4** `sonnet` — `contractorMailTemplateId` no `PUT /company-settings/occurrence-types` (opcional, nulo limpa), na
       gravação (`FOR KEY SHARE` no modelo; empresa, tipo `occurrence`, ativo) e na resposta. As chaves antigas seguem
       aceitas (D9). Contratos: 200, 404 de outra empresa, 400 tipo de e-mail errado, 409 arquivado. Integração.
-- [ ] **T2.4b** `sonnet` — Mesmo campo na exceção por contratante: `contractorMailTemplateId` (nulo herda) no
+- [x] **T2.4b** `sonnet` — Mesmo campo na exceção por contratante: `contractorMailTemplateId` (nulo herda) no
       `PUT .../attachment-overrides`, na lista e no repositório, com a mesma conferência. Teste antes da política pura
       `occurrence-mail-template.policy.ts` (exceção vence tipo, exceção nula herda, os dois nulos → nulo; usa
       `resolveWithOverrides`). Contratos e integração.
-- [ ] **T2.5** `sonnet` — Arquivar modelo em uso → 409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE` com `occurrenceTypeNames`
+- [x] **T2.5** `sonnet` — Arquivar modelo em uso → 409 `CONTRACTOR_MAIL_TEMPLATE_IN_USE` com `occurrenceTypeNames`
       (tipo ativo ou inativo) e `contractorExceptions` (pares tipo/contratante), `FOR UPDATE` no modelo. Integração da corrida gravar × arquivar.
-- [ ] **T2.6** `sonnet` — Envio pelo modelo efetivo (exceção da contratante da nota ?? tipo):
+- [x] **T2.6** `sonnet` — Envio pelo modelo efetivo (exceção da contratante da nota ?? tipo):
       `createOccurrenceSuggestedMailReader` devolve `{ subject, bodyText, templateId }` ou `null`; automático com
       `no_template_selected`; envio manual resolve o modelo no servidor, sem modelo → 409
       `OCCURRENCE_MAIL_TEMPLATE_MISSING` (D4), e grava `template_id` (D7); `recordMail` grava `template_id`; a varredura
       do worker exige modelo efetivo.
       **268 já em `staging`** (código dela é a base). O reenvio da 248 (`contractorReplyResend`) fica isento do bloqueio e grava o `template_id` da mensagem original (ou nulo), com teste; assunto colapsado e truncado, corpo truncado com "e mais N itens"; um 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING` do envio (corrida) vira `skipped`/`no_template_selected`. Ponto único no `executeSend` (§ Convivência com a 267). Integração: modelo do tipo, modelo da exceção vencendo,
       exceção herdando, sem modelo (automático pula; manual 409), e o contrato da varredura do worker.
-- [ ] **T2.7** `sonnet` — `missingNotificationTemplate` (D8) no item do feed, no detalhe e na prévia do diálogo (+
+- [x] **T2.7** `sonnet` — `missingNotificationTemplate` (D8) no item do feed, no detalhe e na prévia do diálogo (+
       `templateId` na prévia). Contratos do feed e da prévia.
-- [ ] **T2.8** `haiku` — Documentação viva: OpenAPI das rotas alteradas, `apps/api-transportada/CLAUDE.md` e
+- [x] **T2.8** `haiku` — Documentação viva: OpenAPI das rotas alteradas, `apps/api-transportada/CLAUDE.md` e
       `docs/ai-context/api-transportada.md` (o e-mail de ocorrência sai do modelo; a ADR-0106 emenda a 183).
 
 ## Fase 3 — API: etapa A, o código morto sai
 
 > 🤖 Modelo: `sonnet` (T3.2 e T3.3 → `haiku`)
 
-- [ ] **T3.1** `sonnet` — Remover, conforme `plan.md` § Inventário: `renderEmail` e `email` na resposta do registro
+- [x] **T3.1** `sonnet` — Remover, conforme `plan.md` § Inventário: `renderEmail` e `email` na resposta do registro
       (e as ligações do `main.ts`), a prévia do tipo (política, rota, schema, ligação no `main.ts`),
       `occurrence-template.policy.ts` (o que sobrou), `occurrence-template-fields.schema.ts`,
       `src/shared/occurrence-template.constant.ts`, as constantes de tamanho de assunto e corpo, e toda leitura e escrita
       das três colunas no `delivery-proof-read.support.ts` e no `save-occurrence-type*`. A resposta do tipo deixa de
       trazer as três chaves (o painel tolerante já está em produção — T1.4). O `PUT` continua aceitando e ignorando
       (D9). Testes do código removido saem; os mistos são editados. Inventário extra: locale `trip.locale.json` ~1384-1386, `shard-weights.json`; testes mistos `occurrence-declared-amount.integration.ts`, `occurrence-configuration-decides.integration.ts`, `occurrence-type-declared-amount-write.integration.ts`, `configuration-decides`, `declared-amount-type-write`, `product-selection`; no painel `occurrence-type-update` e `tripResponse.validation.contract.test.ts`. **Ficam** as `{{camelCase}}` das notificações (`notification-catalog`, `notification.constant` do worker, `occurrenceNoticePreview` do motorista) e `occurrence-amount.policy.ts`; os `grep` usam `-rnwE`.
-- [ ] **T3.2** `haiku` — Seed (`local-occurrence-type-seed.service.ts`), cenários (`scripts/contractor-reply-scenarios`)
+- [x] **T3.2** `haiku` — Seed (`local-occurrence-type-seed.service.ts`), cenários (`scripts/contractor-reply-scenarios`)
       e fixtures sem as chaves. Reescrever `occurrence-template-values.integration.ts` para o modelo.
-- [ ] **T3.3** `haiku` — Gate de limpeza: o `grep` do aceite da etapa A (`plan.md` § Inventário) só acha o schema
+- [x] **T3.3** `haiku` — Gate de limpeza: o `grep` do aceite da etapa A (`plan.md` § Inventário) só acha o schema
       Drizzle das colunas e o `PUT` que ignora; nenhum arquivo removido continua na lista de testes do `package.json`.
       Saída no `evidence.md`.
 

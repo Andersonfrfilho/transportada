@@ -119,3 +119,16 @@ Nenhuma aberta. Q1–Q3 respondidas em 2026-10-16 (ver "Respostas do dono" acima
   o mapeamento é por símbolo.
 - Veredito do architect: **aprovado com mudanças**, aplicadas em `plan.md` (§ Revisão de arquitetura e § Convivência com a
   267), `tasks.md` e na ADR-0106 (agora "aceita com mudanças").
+
+### T3.1 / T3.2 / T3.3 — etapa A, o código morto sai (2026-10-16)
+
+- API: `tsc --noEmit` limpo; `eslint src test` limpo; contrato (`bun --env-file=../../.env.test test --timeout 120000`):
+  11844 pass, 25 skip (já `test.skip` no contrato), 0 fail; integração dos 24 arquivos tocados: 91 pass, 0 skip, 0 fail.
+- Testes do código removido saíram (prévia do tipo, marcadores `{{camelCase}}` do texto do tipo, e-mail montado do registro);
+  `configuration-decides` (contrato e integração) ficaram com a exigência, o gravado e a soma, sem o e-mail.
+- T3.2: seed sem as chaves; os cenários da 248 criam um modelo `occurrence` (prefixo `[TESTE 248]`, apagado pelo `--reset`)
+  e o tipo aponta para ele; `occurrence-template-values.integration.ts` já lê o modelo do cadastro (T2.6).
+- T3.3 — `grep -rnwE "emailSubject|emailBody|emailItemLineTemplate|email_subject|email_body|email_item_line_template|renderOccurrenceTemplate" apps/*/src`
+  na API só acha o schema Drizzle das colunas (`trip.schema.ts:2935,2936,3063,3200`) e o `PUT` que aceita e ignora
+  (`occurrence.schema.ts:462,569-571`). Nenhum arquivo removido está na lista do `package.json`. O painel e o app do
+  motorista ainda citam as chaves — saem na Fase 4 (T4.1, T4.5, T4.6).
