@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "d4a862ca-6486-43d4-9079-ec3e91d42097",
+  "id": "ea0ae423-a362-40c0-9ea0-c36c539c2a9b",
   "prevIds": [
-    "be4d709a-f96d-4b23-a078-79bbf3be0ea4"
+    "ed8b6e41-987d-4583-a40b-913d0457a974"
   ],
   "ddl": [
     {
@@ -956,6 +956,12 @@
     },
     {
       "isRlsEnabled": false,
+      "name": "company_occurrence_watchers",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
       "name": "contractor_contacts",
       "entityType": "tables",
       "schema": "public"
@@ -993,6 +999,12 @@
     {
       "isRlsEnabled": false,
       "name": "contractor_mail_threads",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "contractor_occurrence_watchers",
       "entityType": "tables",
       "schema": "public"
     },
@@ -26315,6 +26327,97 @@
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'active'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
       "default": "gen_random_uuid()",
       "generated": null,
       "identity": null,
@@ -26839,6 +26942,19 @@
       "generated": null,
       "identity": null,
       "name": "to_addresses",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_messages"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 1,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "cc_addresses",
       "entityType": "columns",
       "schema": "public",
       "table": "contractor_mail_messages"
@@ -27674,6 +27790,110 @@
       "entityType": "columns",
       "schema": "public",
       "table": "contractor_mail_threads"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "contractor_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'active'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
     },
     {
       "type": "uuid",
@@ -53963,6 +54183,42 @@
       ],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
+      "name": "company_occurrence_watchers_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "user_id",
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "user_id",
+        "company_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "company_occurrence_watchers_membership_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "contractor_contacts_company_id_companies_id_fk",
       "entityType": "fks",
       "schema": "public",
@@ -54200,6 +54456,44 @@
       "entityType": "fks",
       "schema": "public",
       "table": "contractor_mail_threads"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractors",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "contractor_occurrence_watchers_contractor_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "user_id",
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "user_id",
+        "company_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "contractor_occurrence_watchers_membership_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
     },
     {
       "nameExplicit": true,
@@ -58393,6 +58687,29 @@
       "entityType": "pks",
       "schema": "public",
       "table": "user_invitation_roles"
+    },
+    {
+      "columns": [
+        "company_id",
+        "user_id"
+      ],
+      "nameExplicit": true,
+      "name": "company_occurrence_watchers_pk",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "columns": [
+        "company_id",
+        "contractor_id",
+        "user_id"
+      ],
+      "nameExplicit": true,
+      "name": "contractor_occurrence_watchers_pk",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
     },
     {
       "columns": [
@@ -69129,6 +69446,13 @@
     },
     {
       "value": "\"status\" in ('active', 'inactive')",
+      "name": "company_occurrence_watchers_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_occurrence_watchers"
+    },
+    {
+      "value": "\"status\" in ('active', 'inactive')",
       "name": "contractor_contacts_status_check",
       "entityType": "checks",
       "schema": "public",
@@ -69469,6 +69793,13 @@
       "entityType": "checks",
       "schema": "public",
       "table": "contractor_mail_threads"
+    },
+    {
+      "value": "\"status\" in ('active', 'inactive')",
+      "name": "contractor_occurrence_watchers_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_occurrence_watchers"
     },
     {
       "value": "\"status\" in ('active', 'disabled')",
