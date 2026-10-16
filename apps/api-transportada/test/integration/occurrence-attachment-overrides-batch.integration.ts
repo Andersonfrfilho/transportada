@@ -127,6 +127,7 @@ describe('exceções de exigência em lote (spec 246 T5.3-api, RF11c)', () => {
           {
             attachmentMode: 'required',
             contractorId,
+            contractorMailTemplateId: null,
             declaredAmountMode: null,
             itemsMinimumCount: null,
             itemsMode: null,

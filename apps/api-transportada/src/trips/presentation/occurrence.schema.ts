@@ -678,6 +678,11 @@ export const occurrenceAttachmentOverridesSchema = z
           .object({
             attachmentMode: attachmentOverrideModeSchema,
             contractorId: z.string().uuid(),
+            /**
+             * Spec 269 (ADR-0106): o modelo de e-mail desta contratante; nulo herda o do tipo, ausente é
+             * "não mexa" — como as colunas irmãs. Só a exceção de contratante o tem (sem destinatário).
+             */
+            contractorMailTemplateId: z.string().uuid().nullable().optional(),
             ...overrideRequirementFields,
           })
           .strict()
