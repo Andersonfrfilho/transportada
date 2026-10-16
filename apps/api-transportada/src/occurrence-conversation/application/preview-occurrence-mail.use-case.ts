@@ -3,7 +3,8 @@
  *
  * Spec 183 RF7: a prévia do e-mail do diálogo "Enviar à contratante". É montada por
  * `buildOccurrenceMail`, a mesma função do envio — a prévia é o e-mail que sai. Sem texto do
- * operador, parte do modelo do tipo da ocorrência (spec 079); tipo sem e-mail começa em branco.
+ * operador, parte do modelo efetivo da ocorrência (spec 269); sem modelo, começa em branco e o envio
+ * fica bloqueado.
  */
 import {
   loadCandidatesForDisplay,
@@ -54,9 +55,16 @@ export type OccurrenceMailPreview = OccurrenceMail & {
   /** O texto do operador (ou o do modelo), para o diálogo abrir preenchido. */
   readonly bodyText: string
   readonly contractorName: string
+  /**
+   * Spec 269 D8: `true` quando não há modelo efetivo (exceção da contratante ?? tipo) — o envio fica
+   * desabilitado no painel e a API o recusa (409). Calculado aqui; o painel não decide.
+   */
+  readonly missingNotificationTemplate: boolean
   readonly recipients: readonly OccurrenceMailRecipient[]
-  /** `true` quando o texto veio do modelo do tipo, e não do operador. */
+  /** `true` quando o texto veio do modelo, e não do operador. */
   readonly suggested: boolean
+  /** O modelo efetivo; o servidor o resolve também no envio, o cliente nunca o escolhe. */
+  readonly templateId: null | string
 }
 
 export type PreviewOccurrenceMailUseCase = Readonly<{
@@ -68,6 +76,7 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
   readonly reader: Pick<
     OccurrenceMailTransactionPort,
     | 'findCarrierName'
+    | 'findEffectiveOccurrenceMailTemplate'
     | 'findOccurrenceTarget'
     | 'findOperatorName'
     | 'listOccurrenceRecipients'
@@ -84,17 +93,28 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
       })
       if (target === null) throw new TripOccurrenceNotFoundError()
 
+      const { contractorId } = target
+      const effective =
+        contractorId === null
+          ? null
+          : await dependencies.reader.findEffectiveOccurrenceMailTemplate({
+              companyId,
+              contractorId,
+              occurrenceId: input.occurrenceId,
+            })
+      const templateId = effective?.templateId ?? null
       const typed = input.subject !== undefined || input.bodyText !== undefined
-      const suggestion = typed
-        ? null
-        : await dependencies.suggestedMail.readSuggestedMail({
-            companyId,
-            occurrenceId: input.occurrenceId,
-          })
+      const suggestion =
+        typed || templateId === null
+          ? null
+          : await dependencies.suggestedMail.readSuggestedMail({
+              companyId,
+              occurrenceId: input.occurrenceId,
+              templateId,
+            })
       const subject = input.subject ?? suggestion?.subject ?? ''
       const bodyText = input.bodyText ?? suggestion?.bodyText ?? ''
 
-      const { contractorId } = target
       const [carrierName, operatorName, candidates, watchers] = await Promise.all([
         dependencies.reader.findCarrierName({ companyId }),
         dependencies.reader.findOperatorName({ companyId, userId: input.actorUserId }),
@@ -129,6 +149,7 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
         })),
         ccSource: copy.source,
         contractorName: target.contractorName,
+        missingNotificationTemplate: templateId === null,
         recipients: candidates.map((candidate) => ({
           approvesCharges: candidate.types.includes('approves_charges'),
           contactId: candidate.id,
@@ -138,6 +159,7 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
           roleLabel: candidate.roleLabel,
         })),
         suggested: suggestion !== null,
+        templateId,
       }
     },
   }

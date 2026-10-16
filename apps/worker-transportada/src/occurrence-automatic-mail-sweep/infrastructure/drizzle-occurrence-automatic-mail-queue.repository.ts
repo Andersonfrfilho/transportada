@@ -21,6 +21,10 @@ type PendingRow = Readonly<{ company_id: string; occurrence_id: string }>
  * A contratante é a emitente da nota casada pelo CNPJ dentro da mesma empresa — a mesma ligação que a
  * API usa para decidir o destinatário. Sem contratante a API pularia e o varredor revisitaria a
  * ocorrência a cada batida até a janela fechar, por isso ela é exigida aqui.
+ *
+ * Spec 269: o mesmo vale para o modelo de e-mail — o da exceção da contratante, senão o do tipo. Sem modelo
+ * efetivo a API pula (`no_template_selected`, sem gravar idempotência), e o varredor a repetiria a cada
+ * batida; a fila só pede ocorrência que o envio pode atender.
  */
 export function createDrizzleOccurrenceAutomaticMailQueue(
   database: OccurrenceAutomaticMailDatabase,
@@ -50,9 +54,14 @@ export function createDrizzleOccurrenceAutomaticMailQueue(
             select 1
             from nfe_participants p
             join contractors c on c."company_id" = p."company_id" and c."tax_id" = p."tax_id"
+            left join company_occurrence_type_contractor_overrides x
+              on x."company_id" = o."company_id"
+              and x."occurrence_type_id" = t."id"
+              and x."contractor_id" = c."id"
             where p."document_id" = d."nfe_document_id"
               and p."company_id" = o."company_id"
               and p."role" = 'emitter'
+              and coalesce(x."contractor_mail_template_id", t."contractor_mail_template_id") is not null
           )
           and not exists (
             select 1

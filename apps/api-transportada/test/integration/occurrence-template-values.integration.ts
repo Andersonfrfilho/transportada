@@ -6,6 +6,9 @@
  * caminho de produção (`registerDriverOccurrence` → `createAutomaticOccurrenceMailReader` → envio da 143).
  * O modelo do SAC sai com o assunto e o corpo exatos; `SPANI` vem de `contractors.display_name`. A CA03
  * da T4.5 é estendida a esse caminho: o e-mail segue a configuração, nunca o nome do tipo.
+ *
+ * Spec 269: o texto vem do modelo `occurrence` do cadastro de modelos (variáveis `{snake_case}`), escolhido
+ * no tipo — não mais do texto do próprio tipo (`{{camelCase}}`).
  */
 import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
@@ -24,12 +27,14 @@ import {
 import { createSendAutomaticOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import {
   createAutomaticOccurrenceMailReader,
+  createOccurrenceMailReader,
   createOccurrenceSuggestedMailReader,
 } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
 import {
   createOccurrenceMailUseCase,
   withConversationDatabase,
 } from '../fixtures/occurrence-conversation-database.fixture.js'
+import { seedOccurrenceMailTemplate } from '../fixtures/occurrence-mail-template.fixture.js'
 import { registerStreetOccurrence } from '../fixtures/street-occurrence-registration.fixture.js'
 import type { StreetOccurrenceRegistration } from '../fixtures/street-occurrence-registration.fixture.js'
 import { seedCompany, seedTrip } from '../fixtures/trip-field-office-database.fixture.js'
@@ -47,18 +52,17 @@ const SAC_DESCRIPTION = 'MAC ADRIA OVOS 500G – PARAFUSO'
 const SAC_NUMBER = '680481'
 const SAC_RECIPIENT = 'MERCADO DA LOJA LTDA'
 const REFERENCE_NUMBER = '45029'
-const SAC_SUBJECT = 'OCORRÊNCIA: {{contratante}} – NF {{numeroNotaSemSerie}} – DEVOLUÇÃO PARCIAL'
-const SAC_BODY = [
+const SAC_CLOSING = 'Atenciosamente.'
+const SAC_SUBJECT = 'OCORRÊNCIA: {contratante} – NF {numero_nota_sem_serie} – DEVOLUÇÃO PARCIAL'
+const SAC_INTRO = [
   'Por favor, verificar. A loja emitiu a NFD devido à divergência identificada no ato da entrega.',
   '',
-  'NFD {{numeroReferencia}} – R$ {{valorDeclarado}}',
-  'RAZÃO SOCIAL: {{razaoSocial}}',
-  'NOTA FISCAL: {{numeroNotaSemSerie}}',
-  'VALOR DA ENTREGA: R$ {{valorNota}}',
-  '',
-  '{{linhasItens}}',
+  'NFD {numero_referencia} – R$ {valor_declarado}',
+  'RAZÃO SOCIAL: {razao_social}',
+  'NOTA FISCAL: {numero_nota_sem_serie}',
+  'VALOR DA ENTREGA: R$ {valor_nota}',
 ].join('\n')
-const SAC_LINE = '{{codigoItem}} – {{item}} – {{quantidadeItem}}{{unidadeItem}} – {{observacao}}'
+const SAC_LINE = '{codigo_item} – {item} – {quantidade_item}{unidade_item} – {observacao}'
 const SAC_EXPECTED_SUBJECT = `OCORRÊNCIA: SPANI – NF ${SAC_NUMBER} – DEVOLUÇÃO PARCIAL`
 const sacExpectedBody = (declaredAmount: string) =>
   [
@@ -70,6 +74,8 @@ const sacExpectedBody = (declaredAmount: string) =>
     'VALOR DA ENTREGA: R$ 7.840,64',
     '',
     `${SAC_CODE} – ${SAC_DESCRIPTION} – 1FD – ${NOTE}`,
+    '',
+    SAC_CLOSING,
   ].join('\n')
 
 const databaseUrl =
@@ -78,25 +84,37 @@ const databaseUrl =
   process.env.DATABASE_URL
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
 
-type World = { readonly company: Company; readonly trip: SeededTrip }
+type World = {
+  readonly company: Company
+  readonly contractorId: string
+  readonly trip: SeededTrip
+}
 
 type TypeConfiguration = {
   readonly declaredAmountMode: 'off' | 'optional' | 'required'
   readonly declaredAmountScope: 'item' | 'occurrence'
-  readonly emailBody: string
-  readonly emailItemLineTemplate: string
-  readonly emailSubject: string
   readonly itemsMode: 'off' | 'optional' | 'required'
   readonly name: string
+  readonly template: {
+    readonly closing: string
+    readonly intro: string
+    readonly itemText: string
+    readonly subject: string
+  }
 }
+
+const SAC_TEMPLATE = {
+  closing: SAC_CLOSING,
+  intro: SAC_INTRO,
+  itemText: SAC_LINE,
+  subject: SAC_SUBJECT,
+} as const
 
 const SAC_CONFIGURATION: Omit<TypeConfiguration, 'name'> = {
   declaredAmountMode: 'optional',
   declaredAmountScope: 'item',
-  emailBody: SAC_BODY,
-  emailItemLineTemplate: SAC_LINE,
-  emailSubject: SAC_SUBJECT,
   itemsMode: 'required',
+  template: SAC_TEMPLATE,
 }
 
 async function seedWorld(database: TestDatabase): Promise<World> {
@@ -172,7 +190,7 @@ async function seedWorld(database: TestDatabase): Promise<World> {
     senderName: 'Transportadora Sintética',
     sendingVerifiedAt: new Date('2026-09-01T00:00:00.000Z'),
   })
-  return { company, trip }
+  return { company, contractorId, trip }
 }
 
 async function seedType(
@@ -181,14 +199,16 @@ async function seedType(
   configuration: TypeConfiguration,
 ): Promise<string> {
   const id = crypto.randomUUID()
+  const templateId = await seedOccurrenceMailTemplate(database, world.company, {
+    ...configuration.template,
+    name: `Modelo ${configuration.name} ${id.slice(0, 8)}`,
+  })
   await database.db.insert(companyOccurrenceTypes).values({
     allowsMultipleItems: true,
     companyId: world.company.companyId,
+    contractorMailTemplateId: templateId,
     declaredAmountMode: configuration.declaredAmountMode,
     declaredAmountScope: configuration.declaredAmountScope,
-    emailBody: configuration.emailBody,
-    emailItemLineTemplate: configuration.emailItemLineTemplate,
-    emailSubject: configuration.emailSubject,
     emailsContractor: true,
     id,
     itemsMinimumCount: configuration.itemsMode === 'required' ? 1 : null,
@@ -226,9 +246,18 @@ function automaticMail(database: TestDatabase) {
 }
 
 async function suggestedMail(database: TestDatabase, world: World, occurrenceId: string) {
+  const effective = await createOccurrenceMailReader(
+    database.db,
+  ).findEffectiveOccurrenceMailTemplate({
+    companyId: world.company.companyId,
+    contractorId: world.contractorId,
+    occurrenceId,
+  })
+  if (effective === null) throw new Error('EFFECTIVE_TEMPLATE_EXPECTED')
   return createOccurrenceSuggestedMailReader(database.db).readSuggestedMail({
     companyId: world.company.companyId,
     occurrenceId,
+    templateId: effective.templateId,
   })
 }
 
@@ -276,9 +305,13 @@ describe('o aviso automático com os valores gravados pelo motorista (spec 247 T
         const world = await seedWorld(database)
         const typeId = await seedType(database, world, {
           ...SAC_CONFIGURATION,
-          emailBody:
-            'Pago {{valorDeclarado}} de {{somaItens}} – {{quantidadeItem}} – R$ {{valorNota}}',
           name: 'Tipo quantidade',
+          template: {
+            closing: SAC_CLOSING,
+            intro: 'Pago {valor_declarado} de {soma_itens} – {quantidades_itens} – R$ {valor_nota}',
+            itemText: '',
+            subject: SAC_SUBJECT,
+          },
         })
         const occurrenceId = await register(database, world, {
           items: [{ declaredAmount: '50', productCode: SAC_CODE, quantity: '2.5' }],
@@ -288,23 +321,30 @@ describe('o aviso automático com os valores gravados pelo motorista (spec 247 T
 
         const suggested = await suggestedMail(database, world, occurrenceId)
 
-        expect(suggested?.bodyText).toBe('Pago 50,00 de 143,00 – 2,5 – R$ 7.840,64')
+        expect(suggested?.bodyText).toBe(
+          `Pago 50,00 de 143,00 – 2,5 – R$ 7.840,64\n\n${SAC_CLOSING}`,
+        )
       })
     },
     60_000,
   )
 
   testWithPostgres(
-    'o valor pago da ocorrência (escopo occurrence) entra em valorDeclarado; sem itens, linhasItens sai vazio',
+    'o valor pago da ocorrência (escopo occurrence) entra em valor_declarado; sem itens, a seção de itens some',
     async () => {
       await withConversationDatabase(async (database) => {
         const world = await seedWorld(database)
         const typeId = await seedType(database, world, {
           ...SAC_CONFIGURATION,
           declaredAmountScope: 'occurrence',
-          emailBody: 'NFD {{numeroReferencia}} – R$ {{valorDeclarado}}\n[{{linhasItens}}]',
           itemsMode: 'off',
           name: 'Tipo da nota inteira',
+          template: {
+            closing: SAC_CLOSING,
+            intro: 'NFD {numero_referencia} – R$ {valor_declarado}',
+            itemText: SAC_LINE,
+            subject: SAC_SUBJECT,
+          },
         })
         const occurrenceId = await register(database, world, {
           declaredAmount: '99.9',
@@ -314,7 +354,7 @@ describe('o aviso automático com os valores gravados pelo motorista (spec 247 T
 
         const suggested = await suggestedMail(database, world, occurrenceId)
 
-        expect(suggested?.bodyText).toBe(`NFD ${REFERENCE_NUMBER} – R$ 99,90\n[]`)
+        expect(suggested?.bodyText).toBe(`NFD ${REFERENCE_NUMBER} – R$ 99,90\n\n${SAC_CLOSING}`)
       })
     },
     60_000,
@@ -336,11 +376,14 @@ describe('só a configuração decide o e-mail pelo caminho real de envio (spec 
         const looseTypeId = await seedType(database, loose, {
           declaredAmountMode: 'off',
           declaredAmountScope: 'occurrence',
-          emailBody: 'Aviso: {{observacao}}',
-          emailItemLineTemplate: '',
-          emailSubject: 'Aviso {{numeroNota}}',
           itemsMode: 'optional',
           name: sameName,
+          template: {
+            closing: SAC_CLOSING,
+            intro: 'Aviso: {observacao}',
+            itemText: '',
+            subject: 'Aviso {numero_nota}',
+          },
         })
         const firstTwin = await seedType(database, strict, { ...SAC_CONFIGURATION, name: 'Alfa' })
         const secondTwin = await seedType(database, strict, { ...SAC_CONFIGURATION, name: 'Beta' })
@@ -371,7 +414,7 @@ describe('só a configuração decide o e-mail pelo caminho real de envio (spec 
         const looseMail = await planOf(loose, looseId)
         expect(strictMail?.subject).toBe(SAC_EXPECTED_SUBJECT)
         expect(looseMail?.subject).toBe(`Aviso ${SAC_NUMBER}/1`)
-        expect(looseMail?.bodyText).toBe(`Aviso: ${NOTE}`)
+        expect(looseMail?.bodyText).toBe(`Aviso: ${NOTE}\n\n${SAC_CLOSING}`)
         expect(strictMail).not.toEqual(looseMail)
 
         expect(await planOf(strict, firstId)).toEqual(strictMail)

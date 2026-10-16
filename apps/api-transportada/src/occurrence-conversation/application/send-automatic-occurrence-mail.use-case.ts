@@ -4,7 +4,7 @@
  * Spec 183 T802 (absorve a 143 T025): o aviso automático à contratante.
  *
  * - A ocorrência de nota registrada com um tipo `emails_contractor` avisa a contratante sozinha, com
- *   o texto do tipo (079), aos contatos ativos que recebem ocorrência **daquela etapa**.
+ *   o modelo escolhido no tipo ou na exceção da contratante (269), aos contatos ativos que recebem ocorrência **daquela etapa**.
  * - Canal preferido de cada contato: e-mail sai por e-mail. WhatsApp ainda não envia (T002): quem o
  *   prefere e tem e-mail recebe por e-mail (`whatsappFallbackCount`); sem e-mail, não recebe
  *   (`whatsappUnreachableCount`). Nada disso é silencioso — o resultado conta.
@@ -27,7 +27,7 @@ export type AutomaticOccurrenceMailPlan = {
   readonly emailsContractor: boolean
   readonly recipients: readonly AutomaticOccurrenceMailRecipient[]
   readonly stage: 'delivery' | 'separation'
-  /** O texto do tipo (079) já com os valores da nota; `null` quando o tipo não tem assunto. */
+  /** O texto do modelo efetivo (spec 269) já com os valores da nota; `null` sem modelo efetivo. */
   readonly suggested: null | { readonly bodyText: string; readonly subject: string }
 }
 
@@ -51,7 +51,7 @@ export type AutomaticOccurrenceMailResult =
       readonly reason:
         | 'mail_not_ready'
         | 'no_recipient'
-        | 'no_template'
+        | 'no_template_selected'
         | 'not_document'
         | 'type_off'
     }
@@ -61,6 +61,8 @@ const MAIL_NOT_READY_CODES = new Set([
   'CONTRACTOR_MAIL_NOT_CONFIGURED',
   'CONTRACTOR_MAIL_SENDING_NOT_VERIFIED',
 ])
+
+const OCCURRENCE_MAIL_TEMPLATE_MISSING_CODE = 'OCCURRENCE_MAIL_TEMPLATE_MISSING'
 
 export const AUTOMATIC_OCCURRENCE_MAIL_KEY_PREFIX = 'occurrence-auto-mail:'
 
@@ -82,7 +84,7 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
       const plan = await dependencies.reader.findPlan(input)
       if (plan === null) return { outcome: 'skipped', reason: 'not_document' }
       if (!plan.emailsContractor) return { outcome: 'skipped', reason: 'type_off' }
-      if (plan.suggested === null) return { outcome: 'skipped', reason: 'no_template' }
+      if (plan.suggested === null) return { outcome: 'skipped', reason: 'no_template_selected' }
 
       const ofStage = plan.recipients.filter((recipient) => recipient.stages.includes(plan.stage))
       const byEmail = ofStage.filter((recipient) => recipient.email !== null)
@@ -103,6 +105,10 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
       } catch (error) {
         if (MAIL_NOT_READY_CODES.has(errorCode(error) ?? '')) {
           return { outcome: 'skipped', reason: 'mail_not_ready' }
+        }
+        /** Corrida: o modelo deixou de valer entre o plano e o envio — é motivo, não falha. */
+        if (errorCode(error) === OCCURRENCE_MAIL_TEMPLATE_MISSING_CODE) {
+          return { outcome: 'skipped', reason: 'no_template_selected' }
         }
         throw error
       }

@@ -314,7 +314,7 @@ describe('os dois modos das exceções contra o Postgres (spec 247 D8)', () => {
 
 describe('o aviso interno e o e-mail à contratante são independentes (spec 247 RF2, CA05)', () => {
   testWithPostgres(
-    'salvar o tipo com email_template_key mantém assunto e corpo, e o aviso automático sai com eles',
+    'salvar o tipo com email_template_key mantém assunto e corpo gravados, e o aviso automático sai pelo modelo escolhido',
     async () => {
       await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
@@ -377,8 +377,8 @@ describe('o aviso interno e o e-mail à contratante são independentes (spec 247
           .from(contractorMailMessages)
           .where(eq(contractorMailMessages.companyId, companyId))
         expect(mails).toHaveLength(1)
-        expect(mails[0]?.subject).toStartWith('OCORRÊNCIA:')
-        expect(mails[0]?.subject).toEndWith('– DEVOLUÇÃO PARCIAL')
+        /** Spec 269: o e-mail sai do modelo escolhido no tipo; o texto antigo do tipo não é lido. */
+        expect(mails[0]?.subject).toStartWith('Ocorrência — NF ')
       })
     },
     30_000,

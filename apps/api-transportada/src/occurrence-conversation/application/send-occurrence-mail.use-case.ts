@@ -36,8 +36,10 @@ import {
   OccurrenceConversationIdempotencyKeyReusedError,
   OccurrenceConversationMailInvalidError,
   OccurrenceConversationNoRecipientError,
+  OccurrenceMailTemplateMissingError,
 } from '../domain/occurrence-conversation.error.js'
 import { buildOccurrenceMail } from '../domain/occurrence-mail.template.js'
+import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
 import { openContractorReplyWhenConfigured } from './open-contractor-reply.service.js'
 import type { OpenContractorReplyLogger } from './open-contractor-reply.service.js'
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
@@ -198,6 +200,34 @@ async function createResendDelivery(params: {
   }
 }
 
+/**
+ * Spec 269 (ADR-0106, D4): o e-mail da ocorrência sai de um modelo do cadastro — o da exceção da contratante,
+ * senão o do tipo. Sem modelo efetivo, 409, nem à mão. O reenvio do retorno da contratante (248) não passa por
+ * aqui: continua a conversa que já existe e grava o modelo da mensagem original (ou nulo).
+ */
+async function resolveTemplateId(params: {
+  readonly contractorId: string
+  readonly input: SendOccurrenceMailInput
+  readonly target: { readonly kind: OccurrenceConversationKind }
+  readonly transaction: OccurrenceMailTransactionPort
+}): Promise<null | string> {
+  const { contractorId, input, target, transaction } = params
+  if (input.contractorReplyResend === true) {
+    return transaction.findOriginalOccurrenceMailTemplateId({
+      companyId: input.companyId,
+      occurrenceId: input.occurrenceId,
+      occurrenceKind: target.kind,
+    })
+  }
+  const effective = await transaction.findEffectiveOccurrenceMailTemplate({
+    companyId: input.companyId,
+    contractorId,
+    occurrenceId: input.occurrenceId,
+  })
+  if (effective === null) throw new OccurrenceMailTemplateMissingError()
+  return effective.templateId
+}
+
 async function executeSend(params: {
   readonly contractorMailSandbox?: OccurrenceMailSandbox
   readonly fingerprintService: IdempotencyFingerprintPort
@@ -242,17 +272,15 @@ async function executeSend(params: {
     return replay.response
   }
 
-  /**
-   * O modelo do e-mail de ocorrência é o texto do tipo (spec 079) mais o que o operador escreveu —
-   * não um `contractor_mail_templates` da 150. Sem `template`, a prontidão confere só a
-   * configuração: chave aceita e remetente verificado.
-   */
+  /** A prontidão confere só a configuração: chave aceita e remetente verificado. */
   const readiness = resolveMailSendReadiness({
     settings: await transaction.findMailSettings({ companyId }),
   })
   if (!readiness.ready && params.contractorMailSandbox === undefined) {
     throw createMailSendReadinessError(readiness.reason)
   }
+
+  const templateId = await resolveTemplateId({ contractorId, input, target, transaction })
 
   if (input.contractorReplyResend === true && input.actorUserId !== null) {
     await assertContractorReplyResendRecorded({
@@ -338,6 +366,7 @@ async function executeSend(params: {
     occurrenceKind: target.kind,
     replyTokenHash: delivery.replyTokenHash,
     subject: mail.subject,
+    templateId,
     threadId,
     toAddresses: recipients,
     transport: delivery.transport,

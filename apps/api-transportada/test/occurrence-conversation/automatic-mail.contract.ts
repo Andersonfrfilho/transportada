@@ -15,6 +15,7 @@ import {
   createSendAutomaticOccurrenceMailUseCase,
   type AutomaticOccurrenceMailPlan,
 } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
+import { OccurrenceMailTemplateMissingError } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import { ContractorMailNotConfiguredError } from '../../src/contractor-mail/domain/contractor-mail.error.js'
 import type { SendOccurrenceMailInput } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 
@@ -114,7 +115,7 @@ describe('o aviso automático à contratante (spec 183 T802)', () => {
   test.each([
     ['ocorrência de parada ou inexistente', null, 'not_document'],
     ['tipo sem o envio ligado', plan({ emailsContractor: false }), 'type_off'],
-    ['tipo sem texto de e-mail', plan({ suggested: null }), 'no_template'],
+    ['tipo sem modelo selecionado', plan({ suggested: null }), 'no_template_selected'],
     [
       'nenhum contato da etapa com e-mail',
       plan({
@@ -141,6 +142,12 @@ describe('o aviso automático à contratante (spec 183 T802)', () => {
     const { run } = setup({ fail: new ContractorMailNotConfiguredError(), plan: plan() })
 
     expect(await run()).toEqual({ outcome: 'skipped', reason: 'mail_not_ready' })
+  })
+
+  test('corrida: o modelo deixou de valer entre o plano e o envio (409) vira motivo, não falha', async () => {
+    const { run } = setup({ fail: new OccurrenceMailTemplateMissingError(), plan: plan() })
+
+    expect(await run()).toEqual({ outcome: 'skipped', reason: 'no_template_selected' })
   })
 
   test('outro erro sobe: o chamador registra e segue (falha não é "não configurado")', async () => {

@@ -4,6 +4,9 @@
  * Spec 248 T4.4b (RF2), contra Postgres real: a fila do varredor — o que entra (maduro, dentro da
  * janela, tipo que avisa, contratante casada, ainda sem aviso) e o que fica de fora, e a garantia de
  * que duas passadas viram um envio só.
+ *
+ * Spec 269: entra só a ocorrência com modelo de e-mail efetivo (o da exceção da contratante, senão o do
+ * tipo) — sem modelo a API pula e o varredor a revisitaria a cada batida até a janela fechar.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -32,14 +35,25 @@ type Scenario = {
   readonly alreadySent?: boolean
   readonly cancelled?: boolean
   readonly hasContractor?: boolean
+  /** Spec 269: a exceção da contratante escolhe o modelo (ou `null`, herdando o do tipo). */
+  readonly exceptionTemplate?: 'chosen' | 'inherit'
   readonly typeEmailsContractor?: boolean
+  /** Spec 269: padrão `true`; `false` é o tipo sem modelo selecionado. */
+  readonly typeHasTemplate?: boolean
 }
 
 const SCENARIOS = {
   alreadySent: { ageMilliseconds: 30 * MINUTE, alreadySent: true },
   cancelled: { ageMilliseconds: 30 * MINUTE, cancelled: true },
+  exceptionInherits: { ageMilliseconds: 26 * MINUTE, exceptionTemplate: 'inherit' },
+  exceptionOnly: {
+    ageMilliseconds: 27 * MINUTE,
+    exceptionTemplate: 'chosen',
+    typeHasTemplate: false,
+  },
   fresh: { ageMilliseconds: 2 * MINUTE },
   noContractor: { ageMilliseconds: 30 * MINUTE, hasContractor: false },
+  noTemplate: { ageMilliseconds: 30 * MINUTE, typeHasTemplate: false },
   older: { ageMilliseconds: 45 * MINUTE },
   ripe: { ageMilliseconds: 30 * MINUTE },
   tooOld: { ageMilliseconds: OCCURRENCE_AUTOMATIC_MAIL_LOOKBACK_MILLISECONDS + 60 * MINUTE },
@@ -54,6 +68,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
   const provider = createDrizzleProvider({ connection: databaseUrl! })
   const db = provider.db
   const occurrenceIds = {} as Record<ScenarioName | 'otherCompany', string>
+  const templateIds = new Map<string, string>()
   const ownIds = new Set<string>()
   let accessKeySequence = 0
 
@@ -70,6 +85,12 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
 
   async function seedCompany(id: string): Promise<void> {
     await db.execute(sql`insert into companies (id, status) values (${id}, 'active')`)
+    const templateId = crypto.randomUUID()
+    templateIds.set(id, templateId)
+    await db.execute(
+      sql`insert into contractor_mail_templates (id, company_id, mail_type, name, subject, intro, closing)
+          values (${templateId}, ${id}, 'occurrence', 'Modelo da ocorrência', 'Assunto', 'Abertura', 'Fecho')`,
+    )
     await db.execute(
       sql`insert into user_company_memberships (id, user_id, company_id, status)
           values (${crypto.randomUUID()}, ${userId}, ${id}, 'active')`,
@@ -141,10 +162,21 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
           values (${tripDocumentId}, ${company}, ${tripId}, ${documentId})`,
     )
     await db.execute(
-      sql`insert into company_occurrence_types (id, company_id, name, stage, emails_contractor)
+      sql`insert into company_occurrence_types
+            (id, company_id, name, stage, emails_contractor, contractor_mail_template_id)
           values (${typeId}, ${company}, ${`Prorrogação ${typeId}`}, 'delivery',
-            ${scenario.typeEmailsContractor ?? true})`,
+            ${scenario.typeEmailsContractor ?? true},
+            ${scenario.typeHasTemplate === false ? null : (templateIds.get(company) ?? null)}::uuid)`,
     )
+    if (scenario.exceptionTemplate !== undefined) {
+      await db.execute(
+        sql`insert into company_occurrence_type_contractor_overrides
+              (company_id, occurrence_type_id, contractor_id, attachment_mode, contractor_mail_template_id)
+            select ${company}, ${typeId}, c."id", 'optional',
+              ${scenario.exceptionTemplate === 'chosen' ? (templateIds.get(company) ?? null) : null}::uuid
+            from contractors c where c."company_id" = ${company} and c."tax_id" = ${taxId}`,
+      )
+    }
     const createdAt = new Date(NOW.getTime() - scenario.ageMilliseconds)
     await db.execute(
       sql`insert into trip_document_occurrences
@@ -203,6 +235,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
       await db.execute(sql`delete from idempotency_records where company_id = ${id}`)
       await db.execute(sql`delete from trip_document_occurrences where company_id = ${id}`)
       await db.execute(sql`delete from company_occurrence_types where company_id = ${id}`)
+      await db.execute(sql`delete from contractor_mail_templates where company_id = ${id}`)
       await db.execute(sql`delete from trip_documents where company_id = ${id}`)
       await db.execute(sql`delete from trips where company_id = ${id}`)
       await db.execute(sql`delete from nfe_participants where company_id = ${id}`)
@@ -221,8 +254,22 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     const pending = await listOwn()
 
     expect(pending.map((item) => item.occurrenceId).sort()).toEqual(
-      [occurrenceIds.older, occurrenceIds.otherCompany, occurrenceIds.ripe].sort(),
+      [
+        occurrenceIds.exceptionInherits,
+        occurrenceIds.exceptionOnly,
+        occurrenceIds.older,
+        occurrenceIds.otherCompany,
+        occurrenceIds.ripe,
+      ].sort(),
     )
+  })
+
+  it('leaves out a type with no mail template, unless the contractor exception chooses one (spec 269)', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    expect(listed).not.toContain(occurrenceIds.noTemplate)
+    expect(listed).toContain(occurrenceIds.exceptionOnly)
+    expect(listed).toContain(occurrenceIds.exceptionInherits)
   })
 
   it('returns the company of each occurrence and the oldest first', async () => {
@@ -272,7 +319,13 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     await routine.run(context)
 
     expect(sent.sort()).toEqual(
-      [occurrenceIds.older, occurrenceIds.otherCompany, occurrenceIds.ripe].sort(),
+      [
+        occurrenceIds.exceptionInherits,
+        occurrenceIds.exceptionOnly,
+        occurrenceIds.older,
+        occurrenceIds.otherCompany,
+        occurrenceIds.ripe,
+      ].sort(),
     )
     expect(await listOwn()).toEqual([])
   })
