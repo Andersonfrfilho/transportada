@@ -161,6 +161,15 @@ describe('o caso de uso do reenvio (spec 248 RF6)', () => {
     ])
   })
 
+  /** Spec 267 RF5: a cópia é recalculada no reenvio, nunca copiada da mensagem original. */
+  test('não leva excludedWatcherUserIds: o envio recalcula a lista efetiva', async () => {
+    const { sent, useCase } = build(CONTEXT)
+
+    await useCase.resend(request)
+
+    expect('excludedWatcherUserIds' in (sent[0] ?? {})).toBe(false)
+  })
+
   test('sem retorno é 409 do reenvio; sem o pedido original na conversa é 409 com código próprio; nada é enviado', async () => {
     const withoutReply = build(null)
     expect(
