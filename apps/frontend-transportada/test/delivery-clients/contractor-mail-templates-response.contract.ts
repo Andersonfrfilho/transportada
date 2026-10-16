@@ -48,10 +48,20 @@ describe('contractor mail templates response validation', () => {
     )
   })
 
-  test('rejects a catalog entry with an unknown mail type', () => {
-    expect(() => catalogFromApi({ data: [{ ...CATALOG_ENTRY, mailType: 'unknown' }] })).toThrow(
+  test('drops a well-formed catalog entry with an unknown mail type and keeps the known ones', () => {
+    const futureEntry = { ...CATALOG_ENTRY, mailType: 'occurrence' }
+    expect(catalogFromApi({ data: [CATALOG_ENTRY, futureEntry] })).toEqual([CATALOG_ENTRY])
+  })
+
+  test('still rejects a malformed catalog entry of a known mail type', () => {
+    expect(() => catalogFromApi({ data: [{ ...CATALOG_ENTRY, label: 1 }] })).toThrow(
       ContractorMailTemplatesResponseError,
     )
+  })
+
+  test('drops a listed template of an unknown mail type and keeps the known ones', () => {
+    const futureTemplate = { ...TEMPLATE, id: 'template-9', mailType: 'occurrence' }
+    expect(templateListFromApi({ data: [futureTemplate, TEMPLATE] })).toEqual([TEMPLATE])
   })
 
   test('accepts a single template', () => {
