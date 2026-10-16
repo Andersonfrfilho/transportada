@@ -9,6 +9,10 @@
  */
 import type { ContractorContactStatus } from '../../database/contractor-mail.schema.js'
 import {
+  loadCandidatesForDisplay,
+  type MailCopyLogger,
+} from '../../contractor-mail/application/resolve-mail-copy.service.js'
+import {
   resolveEffectiveWatchers,
   type OccurrenceWatcherCandidate,
 } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
@@ -69,6 +73,7 @@ type WatcherCandidatesPort = Readonly<{
 export function createFindAddressCorrectionRecipientsUseCase(dependencies: {
   readonly contractorLookup: ContractorLookupPort
   readonly listContacts: ListContactsPort
+  readonly logger?: Pick<MailCopyLogger, 'warn'>
   readonly watchers: WatcherCandidatesPort
 }): FindAddressCorrectionRecipientsUseCase {
   return {
@@ -81,9 +86,13 @@ export function createFindAddressCorrectionRecipientsUseCase(dependencies: {
 
       const [contacts, candidates] = await Promise.all([
         dependencies.listContacts.execute({ context: input.context, contractorId: contractor.id }),
-        dependencies.watchers.loadEffectiveCandidates({
-          companyId: input.context.companyId,
-          contractorId: contractor.id,
+        loadCandidatesForDisplay({
+          load: () =>
+            dependencies.watchers.loadEffectiveCandidates({
+              companyId: input.context.companyId,
+              contractorId: contractor.id,
+            }),
+          logger: dependencies.logger,
         }),
       ])
       const copy = resolveEffectiveWatchers({

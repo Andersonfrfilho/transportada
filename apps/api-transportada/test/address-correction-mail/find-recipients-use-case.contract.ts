@@ -76,6 +76,29 @@ describe('findAddressCorrectionRecipients (revisão final, item de segurança B3
     })
   })
 
+  test('a consulta dos responsáveis que falha não derruba os contatos: cópia vazia', async () => {
+    const useCase = createFindAddressCorrectionRecipientsUseCase({
+      contractorLookup: {
+        findContractorByTaxId: async () => ({
+          displayName: 'Contratante Exemplo',
+          id: CONTRACTOR_ID,
+        }),
+      },
+      listContacts: { execute: async () => [ACTIVE_CONTACT] },
+      watchers: {
+        loadEffectiveCandidates: async () => {
+          throw new Error('database unavailable')
+        },
+      },
+    })
+
+    const result = await useCase.find({ context: CONTEXT, contractorTaxId: '30290856000160' })
+
+    expect(result.contacts).toEqual([ACTIVE_CONTACT])
+    expect(result.cc).toEqual([])
+    expect(result.ccSource).toBeNull()
+  })
+
   test('propagates the stable 404 when no contractor is registered for the tax id', async () => {
     const useCase = createFindAddressCorrectionRecipientsUseCase({
       contractorLookup: { findContractorByTaxId: async () => undefined },

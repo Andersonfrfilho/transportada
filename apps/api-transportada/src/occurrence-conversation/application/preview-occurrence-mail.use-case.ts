@@ -5,6 +5,10 @@
  * `buildOccurrenceMail`, a mesma função do envio — a prévia é o e-mail que sai. Sem texto do
  * operador, parte do modelo do tipo da ocorrência (spec 079); tipo sem e-mail começa em branco.
  */
+import {
+  loadCandidatesForDisplay,
+  type MailCopyLogger,
+} from '../../contractor-mail/application/resolve-mail-copy.service.js'
 import { resolveEffectiveWatchers } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
 import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
@@ -60,6 +64,7 @@ export type PreviewOccurrenceMailUseCase = Readonly<{
 }>
 
 export function createPreviewOccurrenceMailUseCase(dependencies: {
+  readonly logger?: Pick<MailCopyLogger, 'warn'>
   readonly reader: Pick<
     OccurrenceMailTransactionPort,
     | 'findCarrierName'
@@ -98,7 +103,10 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
           : dependencies.reader.listOccurrenceRecipients({ companyId, contractorId }),
         contractorId === null
           ? { company: [], contractor: [] }
-          : dependencies.reader.loadWatcherCandidates({ companyId, contractorId }),
+          : loadCandidatesForDisplay({
+              load: () => dependencies.reader.loadWatcherCandidates({ companyId, contractorId }),
+              logger: dependencies.logger,
+            }),
       ])
       const copy = resolveEffectiveWatchers({
         companyWatchers: watchers.company,

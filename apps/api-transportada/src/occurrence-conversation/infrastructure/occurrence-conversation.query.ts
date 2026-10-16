@@ -240,7 +240,9 @@ async function readCopyNames(
   const addresses = [
     ...new Set(
       messages.flatMap((row) =>
-        row.direction === 'outbound' ? (row.ccAddresses ?? []).map((a) => a.toLowerCase()) : [],
+        row.direction === 'outbound'
+          ? (row.ccAddresses ?? []).map((address) => address.toLowerCase())
+          : [],
       ),
     ),
   ]
@@ -255,6 +257,7 @@ async function readCopyNames(
     .where(
       and(
         eq(userCompanyMemberships.companyId, companyId),
+        eq(userCompanyMemberships.status, 'active'),
         eq(identityUserProfiles.contactChannel, 'email'),
         inArray(sql`lower(${identityUserProfiles.contactAddress})`, addresses),
       ),

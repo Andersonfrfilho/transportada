@@ -822,6 +822,27 @@ function watcher(name: string, overrides: Partial<OccurrenceWatcherCandidate> = 
 }
 
 describe('a prévia mostra a cópia (spec 267 RF4)', () => {
+  test('a consulta dos responsáveis que falha não derruba a prévia: cópia vazia e aviso sem endereço', async () => {
+    const warnings: string[] = []
+    const preview = await createPreviewOccurrenceMailUseCase({
+      logger: { warn: (event) => warnings.push(event) },
+      reader: {
+        findCarrierName: async () => 'Transportadora Sintética',
+        findOccurrenceTarget: async () => TARGET,
+        findOperatorName: async () => 'Operadora Lima',
+        listOccurrenceRecipients: async () => [],
+        loadWatcherCandidates: async () => {
+          throw new Error('database unavailable')
+        },
+      },
+      suggestedMail: { readSuggestedMail: async () => null },
+    }).preview({ actorUserId: ACTOR_ID, companyId: COMPANY_ID, occurrenceId: OCCURRENCE_ID })
+
+    expect(preview.cc).toEqual([])
+    expect(preview.ccSource).toBeNull()
+    expect(warnings).toEqual(['contractor_mail.copy.display_unavailable'])
+  })
+
   test('a lista efetiva com e-mail mascarado e a origem; inelegível não aparece', async () => {
     const preview = await createPreviewOccurrenceMailUseCase({
       reader: {
@@ -846,6 +867,17 @@ describe('a prévia mostra a cópia (spec 267 RF4)', () => {
 })
 
 describe('a cópia no e-mail de ocorrência (spec 267)', () => {
+  /** Sem remoção a impressão digital é a de antes da 267: chave em voo durante o deploy continua válida. */
+  test('sem excluídos a impressão digital não ganha campo novo', async () => {
+    const { state, useCase } = createFake()
+
+    await useCase.send(input())
+
+    const stored = state.idempotency.get('key-1')?.fingerprint ?? ''
+    expect(stored.split('|')).toHaveLength(6)
+    expect(stored).not.toContain('excluded')
+  })
+
   test('a lista da empresa vai em ccAddresses; o To segue os contatos', async () => {
     const { state, useCase } = createFake({
       watchers: { company: [watcher('Bruno'), watcher('Ana')] },

@@ -102,6 +102,12 @@ function assertMailContent(input: SendOccurrenceMailInput): void {
 
 export type OccurrenceMailLogger = OpenContractorReplyLogger & MailCopyLogger
 
+/** Só entra na impressão digital quando alguém saiu da cópia: sem isso, o hash de antes da 267 segue valendo. */
+function excludedFingerprintFields(excluded: readonly string[] | undefined): string[] {
+  const unique = [...new Set(excluded ?? [])].sort()
+  return unique.length === 0 ? [] : [`excluded:${unique.join(',')}`]
+}
+
 /** Mesma regra do worker: minúsculas, primeira ocorrência vence. */
 function deduplicateRecipients(addresses: readonly string[]): string[] {
   return [...new Set(addresses.map((address) => address.toLowerCase()))]
@@ -219,7 +225,7 @@ async function executeSend(params: {
       companyId,
       input.occurrenceId,
       [...contactIds].sort().join(','),
-      [...new Set(input.excludedWatcherUserIds ?? [])].sort().join(','),
+      ...excludedFingerprintFields(input.excludedWatcherUserIds),
       input.subject.trim(),
       input.bodyText.trim(),
       (input.attachmentIds ?? []).join(','),

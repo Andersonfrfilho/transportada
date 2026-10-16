@@ -37,6 +37,15 @@ function groupBy<TRow, TValue>(
   return grouped
 }
 
+/** Endereço que injetaria cabeçalho ou viraria lista no `Cc` é tratado como ausente: o usuário fica inelegível. */
+const UNSAFE_ADDRESS_CHARACTERS = /[\r\n,<>\s]/u
+
+function safeMailAddress(raw: string): string | undefined {
+  const address = raw.trim()
+  if (UNSAFE_ADDRESS_CHARACTERS.test(address)) return undefined
+  return /^[^@]+@[^@]+$/u.test(address) ? address : undefined
+}
+
 export async function findOccurrenceWatcherUsers(
   database: Database | Transaction,
   params: { readonly companyId: string; readonly userIds?: readonly string[] },
@@ -118,7 +127,7 @@ export async function findOccurrenceWatcherUsers(
     })
     return [
       {
-        address: profile.channel === 'email' ? profile.address.trim() : undefined,
+        address: profile.channel === 'email' ? safeMailAddress(profile.address) : undefined,
         canResolve: permissions.has('occurrences.resolve'),
         name: profile.name,
         userId: membership.userId,

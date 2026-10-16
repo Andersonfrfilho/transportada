@@ -150,6 +150,11 @@ describe('occurrence watchers repository integration (spec 267)', () => {
           channel: 'whatsapp',
           role: 'operator',
         })
+        /** Endereço que injetaria cabeçalho ou viraria lista no `Cc`: o usuário fica sem endereço (inelegível). */
+        const unsafe = await seedMember(database, tenant.companyId, {
+          address: 'um@empresa.test, dois@empresa.test',
+          role: 'operator',
+        })
         const disabled = await seedMember(database, tenant.companyId, {
           role: 'operator',
           status: 'disabled',
@@ -163,6 +168,7 @@ describe('occurrence watchers repository integration (spec 267)', () => {
         expect(byId.get(noPermission.userId)?.canResolve).toBe(false)
         expect(byId.get(byGroup.userId)?.canResolve).toBe(true)
         expect(byId.get(byPhone.userId)?.address).toBeUndefined()
+        expect(byId.get(unsafe.userId)?.address).toBeUndefined()
         expect(byId.has(disabled.userId)).toBe(false)
         expect(byId.has(foreign.userId)).toBe(false)
 
@@ -235,6 +241,7 @@ async function seedMember(
   database: TestDatabase,
   companyId: string,
   options: {
+    readonly address?: string
     readonly channel?: 'email' | 'whatsapp'
     readonly role: 'fiscal' | 'operator'
     readonly status?: 'active' | 'disabled'
@@ -243,7 +250,7 @@ async function seedMember(
   memberSequence += 1
   const userId = crypto.randomUUID()
   const name = `Pessoa ${memberSequence}`
-  const address = `pessoa${memberSequence}@empresa.test`
+  const address = options.address ?? `pessoa${memberSequence}@empresa.test`
   await database.db.insert(identityUsers).values({ id: userId })
   await database.db.insert(identityUserProfiles).values({
     contactAddress: address,

@@ -2808,6 +2808,7 @@ function createApplicationRoutes({
   const findAddressCorrectionRecipients = createFindAddressCorrectionRecipientsUseCase({
     contractorLookup: addressCorrectionRepository,
     listContacts: { execute: (input) => contractorContacts.list(input) },
+    logger,
     watchers: new DrizzleOccurrenceWatcherRepository(database),
   })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
@@ -3551,6 +3552,7 @@ function createApplicationRoutes({
         storage: storageGateway,
       }),
       previewMail: createPreviewOccurrenceMailUseCase({
+        logger,
         reader: createOccurrenceMailReader(database),
         suggestedMail: createOccurrenceSuggestedMailReader(database),
       }),

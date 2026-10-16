@@ -65,3 +65,19 @@ export async function resolveMailCopy(params: {
   }
   return kept.map((entry) => entry.address)
 }
+
+/**
+ * Spec 267: a prévia e o formulário só mostram a cópia — uma consulta secundária que falha não pode derrubar o resto
+ * (§15 do code-standart). O envio real recalcula dentro da transação e falha alto.
+ */
+export async function loadCandidatesForDisplay(params: {
+  readonly load: () => Promise<MailCopyCandidates>
+  readonly logger: Pick<MailCopyLogger, 'warn'> | undefined
+}): Promise<MailCopyCandidates> {
+  try {
+    return await params.load()
+  } catch {
+    params.logger?.warn('contractor_mail.copy.display_unavailable')
+    return { company: [], contractor: [] }
+  }
+}
