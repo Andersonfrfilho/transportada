@@ -136,6 +136,10 @@ function buildRoots(companyId: string, userIds: readonly string[]): Root[] {
       predicate: `company_id = ${company} and name like ${quoteLiteral(PREFIX_PATTERN)}`,
       table: 'company_occurrence_types',
     },
+    {
+      predicate: `company_id = ${company} and name like ${quoteLiteral(PREFIX_PATTERN)}`,
+      table: 'contractor_mail_templates',
+    },
     { predicate: `company_id = ${company} and id in (${vehicles})`, table: 'fleet_vehicles' },
     {
       predicate: `company_id = ${company} and name like ${quoteLiteral(PREFIX_PATTERN)}`,

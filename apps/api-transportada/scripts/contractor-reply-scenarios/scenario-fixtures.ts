@@ -14,6 +14,7 @@ import {
   companyOccurrenceTypes,
   contractorContacts,
   contractorMailSettings,
+  contractorMailTemplates,
   contractors,
   fleetDrivers,
   fleetVehicles,
@@ -283,6 +284,19 @@ export async function createOccurrenceType(
   const { companyId, database } = context
   const id = crypto.randomUUID()
   const forwards = input.forwardToNoteRecipient !== 'off'
+  const mailTemplateId = crypto.randomUUID()
+  await database.db.insert(contractorMailTemplates).values({
+    actorUserId: context.actorUserId,
+    closing: 'Aguardamos o retorno.',
+    companyId,
+    id: mailTemplateId,
+    intro: 'Solicitamos a prorrogação do boleto da nota {numero_nota}: {observacao}',
+    itemText: '{codigo_item} - {item}',
+    mailType: 'occurrence',
+    name: `${SCENARIO_PREFIX} Modelo — ${input.name}`,
+    status: 'active',
+    subject: 'Prorrogação de boleto — NF {numero_nota}',
+  })
   await database.db.insert(companyOccurrenceTypes).values({
     active: true,
     companyId,
@@ -290,10 +304,9 @@ export async function createOccurrenceType(
     contractorReplyAlertMaxCount: settings.alertMaxCount,
     contractorReplyAlertMode: input.alertMode,
     contractorReplyMode: input.mode,
+    contractorMailTemplateId: mailTemplateId,
     contractorReplyWaitHours: 6,
     driverReplyTemplate: 'Segue o boleto prorrogado.',
-    emailBody: 'Solicitamos a prorrogação do boleto da nota {{numeroNota}}: {{observacao}}',
-    emailSubject: 'Prorrogação de boleto — NF {{numeroNota}}',
     emailsContractor: true,
     forwardEmailBody: forwards ? 'Segue o boleto prorrogado da nota {{numeroNota}}.' : '',
     forwardEmailSubject: forwards ? 'Boleto prorrogado — NF {{numeroNota}}' : '',
