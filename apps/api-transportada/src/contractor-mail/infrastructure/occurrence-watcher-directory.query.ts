@@ -21,6 +21,7 @@ import { resolveCompanyPermissions } from '../../identity/domain/authorization.p
 import type { OccurrenceWatcherUser } from '../application/occurrence-watcher.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 function groupBy<TRow, TValue>(
   rows: readonly TRow[],
@@ -37,7 +38,7 @@ function groupBy<TRow, TValue>(
 }
 
 export async function findOccurrenceWatcherUsers(
-  database: Database,
+  database: Database | Transaction,
   params: { readonly companyId: string; readonly userIds?: readonly string[] },
 ): Promise<readonly OccurrenceWatcherUser[]> {
   if (params.userIds?.length === 0) return []

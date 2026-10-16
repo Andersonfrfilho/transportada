@@ -15,6 +15,9 @@
  */
 import { z } from 'zod'
 
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import { OCCURRENCE_WATCHER_MAX_ACTIVE } from '../../contractor-mail/domain/occurrence-watcher.constant.js'
+
 import { parseIdempotencyKey } from '../../cte-batches/presentation/cte-batch.schema.js'
 import {
   invalidRequest,
@@ -73,8 +76,8 @@ export const OCCURRENCE_CONVERSATION_UPLOAD_RATE_LIMIT = {
 const operatorUploadSchema = z
   .object({ ...conversationUploadFields, channel: z.enum(OCCURRENCE_CONVERSATION_CHANNELS) })
   .strict()
-/** O teto de destinatários do worker da 143 (`to_addresses`, até 50). */
-const MAX_RECIPIENTS = 50
+/** Spec 267: quantos chips da cópia o operador pode tirar — o teto de responsáveis ativos por lista. */
+const MAX_EXCLUDED_WATCHERS = OCCURRENCE_WATCHER_MAX_ACTIVE
 
 /** O canal decide o corpo: lido primeiro, e o corpo do canal é conferido estrito depois. */
 const channelSchema = z.object({ channel: z.enum(OCCURRENCE_CONVERSATION_CHANNELS) }).passthrough()
@@ -85,7 +88,8 @@ const mailMessageSchema = z
     attachmentIds: conversationAttachmentIdsSchema,
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body),
     channel: z.literal('email'),
-    contactIds: z.array(z.string().uuid()).min(1).max(MAX_RECIPIENTS),
+    contactIds: z.array(z.string().uuid()).min(1).max(CONTRACTOR_MAIL_MAX_RECIPIENTS),
+    excludedWatcherUserIds: z.array(z.string().uuid()).max(MAX_EXCLUDED_WATCHERS).optional(),
     subject: z.string().max(OCCURRENCE_MAIL_LIMITS.subject),
   })
   .strict()
@@ -155,6 +159,7 @@ type SendInput =
       readonly bodyText: string
       readonly contactIds: readonly string[]
       readonly correlationId: string
+      readonly excludedWatcherUserIds: readonly string[]
       readonly idempotencyKey: string
       readonly kind: 'mail'
       readonly occurrenceId: string
@@ -216,6 +221,7 @@ export function createOccurrenceConversationRoutes(
           companyId: context.scope.companyId,
           contactIds: input.contactIds,
           correlationId: input.correlationId,
+          excludedWatcherUserIds: input.excludedWatcherUserIds,
           idempotencyKey: input.idempotencyKey,
           occurrenceId: input.occurrenceId,
           subject: input.subject,
@@ -240,6 +246,7 @@ export function createOccurrenceConversationRoutes(
             bodyText: body.data.body,
             contactIds: body.data.contactIds,
             correlationId,
+            excludedWatcherUserIds: body.data.excludedWatcherUserIds ?? [],
             idempotencyKey,
             kind: 'mail' as const,
             occurrenceId,

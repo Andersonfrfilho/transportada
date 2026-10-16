@@ -204,6 +204,7 @@ describe('POST /trip-occurrences/:id/conversations/:participant/messages (spec 1
           companyId: COMPANY_CONTEXT.companyId,
           contactIds: MAIL_BODY.contactIds,
           correlationId: 'trip-http-correlation',
+          excludedWatcherUserIds: [],
           idempotencyKey: 'conversation-key-0001',
           occurrenceId: OCCURRENCE_ID,
           subject: MAIL_BODY.subject,
@@ -211,6 +212,31 @@ describe('POST /trip-occurrences/:id/conversations/:participant/messages (spec 1
         name: 'send',
       },
     ])
+  })
+
+  /** Spec 267 RF4: o corpo só remove gente da cópia; `cc` livre segue 400 e id que não é uuid também. */
+  test('aceita excludedWatcherUserIds, que só remove; recusa não-uuid e mais de dez', async () => {
+    const watcherId = '00000000-0000-4000-8000-000000267001'
+    const fixture = createFixture({})
+    const accepted = await fixture.handle(
+      sendRequest({ ...MAIL_BODY, excludedWatcherUserIds: [watcherId] }),
+    )
+    expect(accepted.status).toBe(202)
+    expect(fixture.calls[0]).toMatchObject({ input: { excludedWatcherUserIds: [watcherId] } })
+
+    const invalid = createFixture({})
+    expect(
+      (await invalid.handle(sendRequest({ ...MAIL_BODY, excludedWatcherUserIds: ['nao-e-uuid'] })))
+        .status,
+    ).toBe(400)
+    expect(
+      (
+        await invalid.handle(
+          sendRequest({ ...MAIL_BODY, excludedWatcherUserIds: Array(11).fill(watcherId) }),
+        )
+      ).status,
+    ).toBe(400)
+    expect(invalid.calls).toEqual([])
   })
 
   test('o separador (trip.manage + fleet.read) não envia: 403 antes do caso de uso', async () => {

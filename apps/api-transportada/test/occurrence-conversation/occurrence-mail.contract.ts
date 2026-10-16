@@ -25,6 +25,7 @@ import type { ConversationUploadTarget } from '../../src/occurrence-conversation
 import { createPreviewOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/preview-occurrence-mail.use-case.js'
 import { createSendOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import { buildOccurrenceMail } from '../../src/occurrence-conversation/domain/occurrence-mail.template.js'
+import type { OccurrenceWatcherCandidate } from '../../src/contractor-mail/domain/occurrence-watcher.policy.js'
 import { TripOccurrenceNotFoundError } from '../../src/trips/domain/trip.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000183401'
@@ -58,7 +59,15 @@ type FakeState = {
 function createFake(
   overrides: Partial<{
     contacts: readonly { email: string; id: string }[]
-    logger: { warn: (event: string, fields?: Record<string, unknown>) => void }
+    logger: {
+      info?: (event: string, fields?: Record<string, unknown>) => void
+      warn: (event: string, fields?: Record<string, unknown>) => void
+    }
+    /** Spec 267: as duas listas de responsáveis, já com o endereço resolvido. */
+    watchers: {
+      company?: readonly OccurrenceWatcherCandidate[]
+      contractor?: readonly OccurrenceWatcherCandidate[]
+    }
     replyConfiguration: StoredContractorReplyConfiguration | null
     /** Spec 268: o modo sandbox do ambiente (`CONTRACTOR_MAIL_SANDBOX_SMTP`), ausente em produção. */
     sandbox: { readonly fromAddress: string }
@@ -100,6 +109,12 @@ function createFake(
     },
     async listOccurrenceRecipients() {
       return []
+    },
+    async loadWatcherCandidates() {
+      return {
+        company: overrides.watchers?.company ?? [],
+        contractor: overrides.watchers?.contractor ?? [],
+      }
     },
     async findContractorReplyConfiguration({ occurrenceId }) {
       state.replyReads.push(occurrenceId)
@@ -383,6 +398,7 @@ describe('a prévia do e-mail (RF7)', () => {
         findOperatorName: async () => 'Operadora Lima',
         findOccurrenceTarget: async () => target,
         listOccurrenceRecipients: async () => RECIPIENTS,
+        loadWatcherCandidates: async () => ({ company: [], contractor: [] }),
       },
       suggestedMail: { readSuggestedMail: async () => suggested },
     })
@@ -402,6 +418,8 @@ describe('a prévia do e-mail (RF7)', () => {
         subject: 'Ocorrência — NF 4512',
       }),
       bodyText: 'Ocorrência na NF 4512: cobrança de descarga.',
+      cc: [],
+      ccSource: null,
       contractorName: 'Contratante Alfa',
       /** Spec 183 T407: marcado de saída quem recebe ocorrências do grupo desta (RF5). */
       recipients: [
@@ -790,5 +808,178 @@ describe('o e-mail da contratante em modo sandbox (spec 268)', () => {
       threadId: first.threadId,
       transport: 'sandbox_smtp',
     })
+  })
+})
+
+function watcher(name: string, overrides: Partial<OccurrenceWatcherCandidate> = {}) {
+  return {
+    address: `${name.toLowerCase()}@empresa.example.test`,
+    name,
+    status: 'active' as const,
+    userId: `user-${name.toLowerCase()}`,
+    ...overrides,
+  }
+}
+
+describe('a prévia mostra a cópia (spec 267 RF4)', () => {
+  test('a lista efetiva com e-mail mascarado e a origem; inelegível não aparece', async () => {
+    const preview = await createPreviewOccurrenceMailUseCase({
+      reader: {
+        findCarrierName: async () => 'Transportadora Sintética',
+        findOccurrenceTarget: async () => TARGET,
+        findOperatorName: async () => 'Operadora Lima',
+        listOccurrenceRecipients: async () => [],
+        loadWatcherCandidates: async () => ({
+          company: [watcher('Ana'), watcher('Bruno', { address: undefined })],
+          contractor: [watcher('Carla')],
+        }),
+      },
+      suggestedMail: { readSuggestedMail: async () => null },
+    }).preview({ actorUserId: ACTOR_ID, companyId: COMPANY_ID, occurrenceId: OCCURRENCE_ID })
+
+    expect(preview.ccSource).toBe('contractor')
+    expect(preview.cc).toEqual([
+      { maskedEmail: 'c***@e***.example.test', name: 'Carla', userId: 'user-carla' },
+    ])
+    expect(JSON.stringify(preview)).not.toContain('carla@empresa')
+  })
+})
+
+describe('a cópia no e-mail de ocorrência (spec 267)', () => {
+  test('a lista da empresa vai em ccAddresses; o To segue os contatos', async () => {
+    const { state, useCase } = createFake({
+      watchers: { company: [watcher('Bruno'), watcher('Ana')] },
+    })
+
+    await useCase.send(input())
+
+    expect(state.mails[0]).toMatchObject({
+      ccAddresses: ['ana@empresa.example.test', 'bruno@empresa.example.test'],
+      toAddresses: ['compras@alfa.example.test', 'fiscal@alfa.example.test'],
+    })
+  })
+
+  test('a lista da contratante substitui a da empresa', async () => {
+    const { state, useCase } = createFake({
+      watchers: { company: [watcher('Ana')], contractor: [watcher('Carla')] },
+    })
+
+    await useCase.send(input())
+
+    expect(state.mails[0]?.ccAddresses).toEqual(['carla@empresa.example.test'])
+  })
+
+  test('sem nenhuma lista a mensagem grava cópia vazia', async () => {
+    const { state, useCase } = createFake()
+
+    await useCase.send(input())
+
+    expect(state.mails[0]?.ccAddresses).toEqual([])
+  })
+
+  test('o operador tira alguém naquele envio; id desconhecido não adiciona ninguém', async () => {
+    const { state, useCase } = createFake({
+      watchers: { company: [watcher('Ana'), watcher('Bruno')] },
+    })
+
+    await useCase.send(input({ excludedWatcherUserIds: ['user-bruno', 'user-desconhecido'] }))
+
+    expect(state.mails[0]?.ccAddresses).toEqual(['ana@empresa.example.test'])
+  })
+
+  test('responsável sem permissão (sem endereço) sai sem erro; quem já está no To não repete', async () => {
+    const { state, useCase } = createFake({
+      watchers: {
+        company: [
+          watcher('Ana', { address: undefined }),
+          watcher('Bruno', { address: 'COMPRAS@alfa.example.test' }),
+          watcher('Carla'),
+        ],
+      },
+    })
+
+    await useCase.send(input())
+
+    expect(state.mails[0]?.ccAddresses).toEqual(['carla@empresa.example.test'])
+  })
+
+  test('os excluídos entram, ordenados, na impressão digital da idempotência', async () => {
+    const { state, useCase } = createFake({
+      watchers: { company: [watcher('Ana'), watcher('Bruno')] },
+    })
+    const first = await useCase.send(input({ excludedWatcherUserIds: ['user-bruno', 'user-ana'] }))
+
+    expect(
+      await useCase.send(input({ excludedWatcherUserIds: ['user-ana', 'user-bruno'] })),
+    ).toEqual(first)
+    expect(state.mails).toHaveLength(1)
+    const reused = await failure(() => useCase.send(input({ excludedWatcherUserIds: [] })))
+    expect(reused).toMatchObject({
+      code: 'OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED',
+      status: 409,
+    })
+  })
+
+  test('manual com To + Cc acima de 50 é 400 antes de gravar', async () => {
+    const contacts = Array.from({ length: 50 }, (_, index) => ({
+      email: `contato${index}@alfa.example.test`,
+      id: `contact-${index}`,
+    }))
+    const { state, useCase } = createFake({ contacts, watchers: { company: [watcher('Ana')] } })
+
+    const result = await failure(() =>
+      useCase.send(input({ contactIds: contacts.map((contact) => contact.id) })),
+    )
+
+    expect(result).toMatchObject({ code: 'CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS', status: 400 })
+    expect(state.mails).toEqual([])
+    expect(state.idempotency.size).toBe(0)
+  })
+
+  test('automático acima de 50 corta a cópia até caber e registra warn só com contagens', async () => {
+    const warnings: { event: string; fields: Record<string, unknown> | undefined }[] = []
+    const contacts = Array.from({ length: 49 }, (_, index) => ({
+      email: `contato${index}@alfa.example.test`,
+      id: `contact-${index}`,
+    }))
+    const { state, useCase } = createFake({
+      contacts,
+      logger: { warn: (event, fields) => warnings.push({ event, fields }) },
+      watchers: { company: [watcher('Ana'), watcher('Bruno'), watcher('Carla')] },
+    })
+
+    await useCase.send(
+      input({
+        actorUserId: null,
+        automatic: true,
+        contactIds: contacts.map((contact) => contact.id),
+      }),
+    )
+
+    expect(state.mails[0]?.ccAddresses).toEqual(['ana@empresa.example.test'])
+    expect(warnings).toEqual([
+      {
+        event: 'contractor_mail.copy.truncated',
+        fields: { ccCount: 1, droppedCount: 2, toCount: 49 },
+      },
+    ])
+  })
+
+  test('o log de resolução leva contagens e a origem, nunca endereço', async () => {
+    const infos: unknown[] = []
+    const { useCase } = createFake({
+      logger: { info: (event, fields) => infos.push({ event, fields }), warn: () => undefined },
+      watchers: { company: [watcher('Ana'), watcher('Bruno', { address: undefined })] },
+    })
+
+    await useCase.send(input())
+
+    expect(infos).toEqual([
+      {
+        event: 'contractor_mail.copy.resolved',
+        fields: { ccCount: 1, droppedCount: 1, source: 'company' },
+      },
+    ])
+    expect(JSON.stringify(infos)).not.toContain('@')
   })
 })

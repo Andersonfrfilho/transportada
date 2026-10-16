@@ -27,7 +27,10 @@ import {
   OccurrenceWatcherListTooLongError,
   OccurrenceWatcherNotFoundError,
 } from '../domain/occurrence-watcher.error.js'
-import type { OccurrenceWatcherCandidate } from '../domain/occurrence-watcher.policy.js'
+import {
+  loadEffectiveWatcherCandidates,
+  readOccurrenceWatcherRows,
+} from './occurrence-watcher-candidates.query.js'
 import { findOccurrenceWatcherUsers } from './occurrence-watcher-directory.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -47,27 +50,6 @@ function whereRow(scope: OccurrenceWatcherScope, userId: string) {
   return scope.kind === 'company'
     ? and(whereScope(scope), eq(companyOccurrenceWatchers.userId, userId))
     : and(whereScope(scope), eq(contractorOccurrenceWatchers.userId, userId))
-}
-
-async function readRows(
-  executor: Database | Transaction,
-  scope: OccurrenceWatcherScope,
-): Promise<readonly OccurrenceWatcherRow[]> {
-  return scope.kind === 'company'
-    ? executor
-        .select({
-          status: companyOccurrenceWatchers.status,
-          userId: companyOccurrenceWatchers.userId,
-        })
-        .from(companyOccurrenceWatchers)
-        .where(whereScope(scope))
-    : executor
-        .select({
-          status: contractorOccurrenceWatchers.status,
-          userId: contractorOccurrenceWatchers.userId,
-        })
-        .from(contractorOccurrenceWatchers)
-        .where(whereScope(scope))
 }
 
 async function lockList(transaction: Transaction, scope: OccurrenceWatcherScope): Promise<void> {
@@ -133,7 +115,7 @@ export class DrizzleOccurrenceWatcherRepository implements OccurrenceWatcherRepo
   public async listWatcherRows(
     scope: OccurrenceWatcherScope,
   ): Promise<readonly OccurrenceWatcherRow[]> {
-    return readRows(this.database, scope)
+    return readOccurrenceWatcherRows(this.database, scope)
   }
 
   public findWatcherUsers(params: {
@@ -146,7 +128,7 @@ export class DrizzleOccurrenceWatcherRepository implements OccurrenceWatcherRepo
   public async addWatcher(context: OccurrenceWatcherWriteContext): Promise<boolean> {
     return this.database.transaction(async (transaction) => {
       await lockList(transaction, context.scope)
-      const rows = await readRows(transaction, context.scope)
+      const rows = await readOccurrenceWatcherRows(transaction, context.scope)
       if (rows.some((row) => row.userId === context.userId)) return false
       assertRoom(rows, true, true)
       const values = {
@@ -172,7 +154,7 @@ export class DrizzleOccurrenceWatcherRepository implements OccurrenceWatcherRepo
   ): Promise<void> {
     await this.database.transaction(async (transaction) => {
       await lockList(transaction, context.scope)
-      const rows = await readRows(transaction, context.scope)
+      const rows = await readOccurrenceWatcherRows(transaction, context.scope)
       const current = rows.find((row) => row.userId === context.userId)
       if (current === undefined) throw new OccurrenceWatcherNotFoundError()
       if (current.status === context.status) return
@@ -205,7 +187,7 @@ export class DrizzleOccurrenceWatcherRepository implements OccurrenceWatcherRepo
   public async removeWatcher(context: OccurrenceWatcherWriteContext): Promise<void> {
     await this.database.transaction(async (transaction) => {
       await lockList(transaction, context.scope)
-      const rows = await readRows(transaction, context.scope)
+      const rows = await readOccurrenceWatcherRows(transaction, context.scope)
       const current = rows.find((row) => row.userId === context.userId)
       if (current === undefined) throw new OccurrenceWatcherNotFoundError()
       if (context.scope.kind === 'company') {
@@ -226,32 +208,10 @@ export class DrizzleOccurrenceWatcherRepository implements OccurrenceWatcherRepo
     })
   }
 
-  public async loadEffectiveCandidates(params: {
+  public loadEffectiveCandidates(params: {
     readonly companyId: string
     readonly contractorId: string
-  }): Promise<{
-    readonly company: readonly OccurrenceWatcherCandidate[]
-    readonly contractor: readonly OccurrenceWatcherCandidate[]
-  }> {
-    const [companyRows, contractorRows] = await Promise.all([
-      readRows(this.database, { companyId: params.companyId, kind: 'company' }),
-      readRows(this.database, { ...params, kind: 'contractor' }),
-    ])
-    const userIds = [...new Set([...companyRows, ...contractorRows].map((row) => row.userId))]
-    const users = new Map(
-      (
-        await findOccurrenceWatcherUsers(this.database, { companyId: params.companyId, userIds })
-      ).map((user) => [user.userId, user]),
-    )
-    const toCandidate = (row: OccurrenceWatcherRow): OccurrenceWatcherCandidate => {
-      const user = users.get(row.userId)
-      return {
-        address: user?.canResolve === true ? user.address : undefined,
-        name: user?.name ?? '',
-        status: row.status,
-        userId: row.userId,
-      }
-    }
-    return { company: companyRows.map(toCandidate), contractor: contractorRows.map(toCandidate) }
+  }) {
+    return loadEffectiveWatcherCandidates(this.database, params)
   }
 }

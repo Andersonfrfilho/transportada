@@ -10,6 +10,7 @@ import type {
   ContractorContactOccurrenceStage,
   ContractorContactType,
 } from '../../database/contractor-mail.schema.js'
+import type { OccurrenceWatcherCandidate } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
 import type { ContractorMailTransport } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
 import type {
@@ -67,6 +68,8 @@ export type RecordOccurrenceMailInput = {
   readonly actorUserId: null | string
   readonly bodyHtml: string
   readonly bodyText: string
+  /** Spec 267: a cópia resolvida (só usuário da empresa); vazia quando nenhuma lista vale. */
+  readonly ccAddresses: readonly string[]
   readonly companyId: string
   readonly contractorId: string
   readonly correlationId: string
@@ -148,6 +151,14 @@ export type OccurrenceMailTransactionPort = {
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind
   }): Promise<{ readonly id: string } | undefined>
+  /** Spec 267: as listas de responsáveis da empresa e da contratante, com o endereço já resolvido. */
+  loadWatcherCandidates(params: {
+    readonly companyId: string
+    readonly contractorId: string
+  }): Promise<{
+    readonly company: readonly OccurrenceWatcherCandidate[]
+    readonly contractor: readonly OccurrenceWatcherCandidate[]
+  }>
   /** Thread (quando nova), mensagem da 143 e o evento de envio no outbox, na mesma transação. */
   recordMail(params: RecordOccurrenceMailInput): Promise<{ readonly messageId: string }>
   /** A mensagem da conversa nasce no status inicial do e-mail (`queued`, T402), com o horário. */
