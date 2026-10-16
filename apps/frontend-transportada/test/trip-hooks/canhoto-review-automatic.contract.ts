@@ -72,7 +72,6 @@ function createWorkspace(proof: DeliveryProof): TripWorkspaceController {
     deliveryProofsQuery: { data: [proof], isLoading: false },
     documentProductsQuery: { data: [] },
     isSendingOccurrencePhotos: false,
-    lastOccurrenceEmail: '',
     occurrencePhotoSendState: { status: 'idle' },
     occurrencesQuery: { data: [] },
     occurrenceTypesQuery: { data: [] },

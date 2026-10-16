@@ -1382,7 +1382,6 @@
     "dialogTitle": "Separation occurrence — {{document}}",
     "dialogTitleFixed": "Separation occurrence",
     "emailBody": "Email text",
-    "emailReady": "Email ready to send to the shipper — check it before sending.",
     "emailSubject": "Email subject",
     "line": "{{type}} — {{moment}}",
     "none": "No occurrence registered.",

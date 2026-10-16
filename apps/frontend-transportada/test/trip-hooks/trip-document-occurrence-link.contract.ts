@@ -22,7 +22,6 @@ function renderSection(canReadTripFleetDetails: boolean): HTMLElement {
     controller: { canManageTrips: false, canReadTripFleetDetails },
     documentProductsQuery: { data: [] },
     isSendingOccurrencePhotos: false,
-    lastOccurrenceEmail: null,
     occurrencePhotoSendState: [],
     occurrenceTypesQuery: { data: [] },
     occurrencesQuery: {

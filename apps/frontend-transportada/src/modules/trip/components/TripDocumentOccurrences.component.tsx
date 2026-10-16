@@ -33,7 +33,6 @@ export function TripDocumentOccurrences({ document, workspace }: TripDocumentOcc
       <TripOccurrences
         canOpenOccurrence={workspace.controller.canReadTripFleetDetails}
         canRegister={workspace.controller.canManageTrips && hasTripDocumentProof(document)}
-        email={workspace.lastOccurrenceEmail}
         isRegistering={workspace.isSendingOccurrencePhotos}
         occurrences={workspace.occurrencesQuery.data ?? []}
         onRegister={(occurrence) =>

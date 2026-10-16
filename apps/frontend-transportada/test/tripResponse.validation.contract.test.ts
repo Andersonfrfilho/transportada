@@ -98,6 +98,50 @@ describe('tripResponse.validation — tolerância aos campos da spec 247', () =>
 })
 
 /**
+ * Spec 269 T1.2 (ADR-0106): o painel tolera o tipo sem o texto de e-mail antigo e com o modelo escolhido
+ * antes de a API mudar. Etapa 1 (painel tolerante) da ADR-0081 §9.
+ */
+describe('tripResponse.validation — tolerância ao modelo de e-mail do tipo (spec 269)', () => {
+  const adapters = createTripResponseAdapters()
+  const typeWithoutLegacyEmailText = {
+    id: 'type-1',
+    name: 'Devolução parcial',
+    active: true,
+    stage: 'delivery',
+    emailTemplateKey: null,
+    notifies: false,
+  }
+
+  it('aceita tipo sem emailSubject, emailBody e emailItemLineTemplate', () => {
+    expect(adapters.occurrenceTypeFromApi(typeWithoutLegacyEmailText)).toBeDefined()
+  })
+
+  it('aceita tipo com contractorMailTemplateId e missingNotificationTemplate', () => {
+    const result = adapters.occurrenceTypeFromApi({
+      ...typeWithoutLegacyEmailText,
+      contractorMailTemplateId: 'template-1',
+      missingNotificationTemplate: false,
+    })
+    expect(result).toBeDefined()
+  })
+
+  it('aceita contractorMailTemplateId nulo', () => {
+    expect(
+      adapters.occurrenceTypeFromApi({
+        ...typeWithoutLegacyEmailText,
+        contractorMailTemplateId: null,
+      }),
+    ).toBeDefined()
+  })
+
+  it('continua exigindo o que sempre foi exigido', () => {
+    const withoutName: Record<string, unknown> = { ...typeWithoutLegacyEmailText }
+    delete withoutName.name
+    expect(() => adapters.occurrenceTypeFromApi(withoutName)).toThrow()
+  })
+})
+
+/**
  * Spec 252 T5.1: O painel tolera o campo novo `holidayWarnings` nas paradas antes de a API mandá-lo.
  * Um detalhe de viagem COM e SEM o campo é aceito. Esta é a etapa 1 (painel tolerante)
  * da ADR-0081 §9 e ADR-0100 §6.

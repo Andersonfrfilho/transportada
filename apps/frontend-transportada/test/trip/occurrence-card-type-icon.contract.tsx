@@ -29,7 +29,6 @@ function render(occurrence: TripOccurrence, canOpenOccurrence: boolean): string 
     <TripOccurrences
       canOpenOccurrence={canOpenOccurrence}
       canRegister={false}
-      email={null}
       isRegistering={false}
       occurrences={[occurrence]}
       onReset={() => undefined}

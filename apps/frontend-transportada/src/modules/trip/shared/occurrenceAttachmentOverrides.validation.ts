@@ -52,6 +52,7 @@ function isContractorOverride(value: unknown): boolean {
     isRecord(value) &&
     isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES) &&
     isString(value.contractorId) &&
+    (isNullOrAbsent(value.contractorMailTemplateId) || isString(value.contractorMailTemplateId)) &&
     hasValidRequirementFields(value) &&
     hasValidContractorOverrideReplyFields(value)
   )

@@ -1539,7 +1539,6 @@ function SeparationOccurrenceDialogLoader({
     <SeparationOccurrenceDialog
       canRegister={workspace.controller.canManageTrips}
       document={document}
-      email={workspace.lastOccurrenceEmail}
       isOpen
       isRegistering={workspace.isSendingOccurrencePhotos}
       occurrences={workspace.occurrencesQuery.data ?? []}

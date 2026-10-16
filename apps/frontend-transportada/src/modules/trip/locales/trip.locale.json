@@ -1382,7 +1382,6 @@
     "dialogTitle": "Ocorrência de separação — {{document}}",
     "dialogTitleFixed": "Ocorrência de separação",
     "emailBody": "Texto do e-mail",
-    "emailReady": "E-mail pronto para enviar ao embarcador — confira antes de mandar.",
     "emailSubject": "Assunto do e-mail",
     "line": "{{type}} — {{moment}}",
     "none": "Nenhuma ocorrência registrada.",

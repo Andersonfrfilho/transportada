@@ -2287,15 +2287,6 @@ button.occurrenceCaseBadge {
   padding: var(--space-3);
 }
 
-/* O corpo do e-mail preserva as quebras que o modelo tem, e quebra palavra longa em vez de rolar. */
-.occurrenceEmail {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-family: inherit;
-  font-size: 0.8rem;
-  margin: 0;
-}
-
 .tileMap {
   position: relative;
   overflow: hidden;
