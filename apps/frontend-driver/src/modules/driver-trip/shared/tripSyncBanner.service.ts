@@ -30,3 +30,25 @@ export function resolveTripSyncBanner(input: {
   if (syncing > 0) return { kind: 'syncing', syncing }
   return input.justSynced ? { kind: 'synced' } : { kind: 'idle' }
 }
+
+/**
+ * Pedido do usuário (16/10): a faixa ganha barra de progresso. Indeterminada enquanto a fila tem um
+ * item só (não há o que contar); determinada quando a fila chegou a ter mais de um — o total é o
+ * maior tamanho visto desde que o envio começou e o que já saiu é total menos o que resta. Quando
+ * "Sincronizado" aparece a barra completa.
+ */
+export type TripSyncProgress =
+  | Readonly<{ kind: 'determinate'; percent: number }>
+  | Readonly<{ kind: 'indeterminate' }>
+
+export function resolveTripSyncProgress(input: {
+  /** O maior número de eventos em curso visto desde que o envio começou. */
+  readonly peak: number
+  readonly remaining: number
+  readonly synced: boolean
+}): TripSyncProgress {
+  if (input.synced) return { kind: 'determinate', percent: 100 }
+  if (input.peak <= 1) return { kind: 'indeterminate' }
+  const done = Math.max(0, input.peak - Math.max(0, input.remaining))
+  return { kind: 'determinate', percent: Math.min(100, Math.round((done / input.peak) * 100)) }
+}
