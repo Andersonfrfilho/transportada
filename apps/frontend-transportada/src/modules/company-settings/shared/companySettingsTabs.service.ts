@@ -24,6 +24,7 @@ export const SETTINGS_PANELS = [
   'cameraMeasurement',
   'entryKindCatalog',
   'quickReplies',
+  'occurrenceWatchers',
   'settingsResolution',
   'businessCalendar',
   'audioTranscription',
@@ -62,6 +63,7 @@ export type SettingsDataSource =
   | 'locationRetentionSettings'
   | 'nfse'
   | 'occurrenceTypeCatalog'
+  | 'occurrenceWatchers'
   | 'quickReplies'
   | 'scheduledDistribution'
   | 'settingsResolution'
@@ -174,6 +176,15 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
    */
   quickReplies: { module: 'company-settings', source: 'quickReplies', tab: 'quickReplies' },
   /**
+   * Spec 267 RF1: os responsáveis por ocorrências que vão em cópia no e-mail da contratante — lista da empresa, em
+   * Configurações; a lista própria de cada contratante mora na ficha dela (`delivery-clients`).
+   */
+  occurrenceWatchers: {
+    module: 'company-settings',
+    source: 'occurrenceWatchers',
+    tab: 'occurrenceWatchers',
+  },
+  /**
    * Spec 218 RF-E1/RF-E2: a tela de verificação — mesma família do catálogo e do lançamento
    * (cadastro/consulta da empresa), aba própria porque a busca é livre (contratante e/ou
    * destinatário), não uma configuração para editar.
@@ -264,6 +275,7 @@ export function resolveSettingsDataScope(
     locationRetentionSettings: sources.has('locationRetentionSettings'),
     nfse: sources.has('nfse'),
     occurrenceTypeCatalog: sources.has('occurrenceTypeCatalog'),
+    occurrenceWatchers: sources.has('occurrenceWatchers'),
     quickReplies: sources.has('quickReplies'),
     scheduledDistribution: sources.has('scheduledDistribution'),
     settingsResolution: sources.has('settingsResolution'),
@@ -279,6 +291,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'driverAllowance',
   'entryKinds',
   'quickReplies',
+  'occurrenceWatchers',
   'settingsResolution',
   'businessCalendar',
   'audioTranscription',

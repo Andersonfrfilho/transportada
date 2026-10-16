@@ -297,7 +297,7 @@ export async function requestJson(
   init?: Readonly<{
     body?: object
     headers?: Record<string, string>
-    method?: 'GET' | 'PATCH' | 'POST' | 'PUT'
+    method?: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
   }>,
 ): Promise<unknown> {
   const accessToken = await dependencies.getAccessToken()

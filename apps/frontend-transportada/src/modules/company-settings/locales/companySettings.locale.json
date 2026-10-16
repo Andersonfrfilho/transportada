@@ -12,7 +12,8 @@
     "quickReplies": "Respostas rápidas",
     "settingsResolution": "Verificar configuração",
     "businessCalendar": "Calendário",
-    "audioTranscription": "Transcrição de áudios"
+    "audioTranscription": "Transcrição de áudios",
+    "occurrenceWatchers": "Responsáveis por ocorrências"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",

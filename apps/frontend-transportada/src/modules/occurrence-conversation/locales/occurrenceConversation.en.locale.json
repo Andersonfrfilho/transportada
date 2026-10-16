@@ -463,5 +463,41 @@
       "overdue": "The contractor missed the deadline. Consider calling or resending the request.",
       "reply_received": "The contractor replied with the boleto and it is on its way to the driver."
     }
+  },
+  "watchers": {
+    "title": "Occurrence owners",
+    "description": "The staff who are copied on every occurrence and address-correction e-mail sent to contractors. Each contractor can have its own list, which replaces this one.",
+    "loading": "Loading the owners",
+    "loadError": "Could not load the owners. Try again shortly.",
+    "empty": "No owners yet. E-mails go out without a copy.",
+    "emptyContractor": "This contractor has no owners of its own.",
+    "active": "Active",
+    "remove": "Remove",
+    "ineligible": "not eligible",
+    "noEmail": "No e-mail on file",
+    "unknownUser": "User without access",
+    "addLabel": "Add owner",
+    "addPlaceholder": "Pick a user",
+    "noCandidates": "No user available",
+    "add": "Add",
+    "limit": "The list is full: at most {{count}} active owners and 30 in total. Deactivate or remove someone to add another.",
+    "source": {
+      "contractor": "This contractor uses the list below: it replaces the company list.",
+      "company": "None active — the company list applies.",
+      "companyOverridden": "None active — the company list applies."
+    },
+    "removeDialog": {
+      "title": "Remove {{name}}?",
+      "body": "The owner stops appearing on this list. To only pause the copy, deactivate instead of removing.",
+      "cancel": "Cancel",
+      "confirm": "Remove"
+    },
+    "error": {
+      "generic": "Could not save. Try again shortly.",
+      "OCCURRENCE_WATCHER_NOT_ELIGIBLE": "This user cannot be an owner: they need active access, permission to handle occurrences and an e-mail.",
+      "OCCURRENCE_WATCHER_LIST_TOO_LONG": "The list reached the owner limit.",
+      "OCCURRENCE_WATCHER_NOT_FOUND": "This owner is no longer on the list.",
+      "CONTRACTOR_NOT_FOUND": "Contractor not found."
+    }
   }
 }

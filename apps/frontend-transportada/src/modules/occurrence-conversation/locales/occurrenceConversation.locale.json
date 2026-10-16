@@ -463,5 +463,41 @@
       "overdue": "A contratante passou do prazo sem responder. Vale ligar ou reenviar o pedido.",
       "reply_received": "A contratante respondeu com o boleto e ele está a caminho do motorista."
     }
+  },
+  "watchers": {
+    "title": "Responsáveis por ocorrências",
+    "description": "Os atendentes que vão em cópia em todo e-mail de ocorrência e de correção de endereço enviado às contratantes. Cada contratante pode ter a própria lista, que substitui esta.",
+    "loading": "Carregando os responsáveis",
+    "loadError": "Não foi possível carregar os responsáveis. Tente de novo em instantes.",
+    "empty": "Nenhum responsável cadastrado. Os e-mails saem sem cópia.",
+    "emptyContractor": "Nenhum responsável próprio desta contratante.",
+    "active": "Ativo",
+    "remove": "Remover",
+    "ineligible": "não elegível",
+    "noEmail": "Sem e-mail cadastrado",
+    "unknownUser": "Usuário sem vínculo",
+    "addLabel": "Adicionar responsável",
+    "addPlaceholder": "Escolha um usuário",
+    "noCandidates": "Nenhum usuário disponível",
+    "add": "Adicionar",
+    "limit": "A lista chegou ao limite: no máximo {{count}} responsáveis ativos e 30 no total. Desative ou remova alguém para adicionar outro.",
+    "source": {
+      "contractor": "Esta contratante usa a lista própria abaixo: ela substitui a da empresa.",
+      "company": "Nenhum ativo — vale a lista da empresa.",
+      "companyOverridden": "Nenhum ativo — vale a lista da empresa."
+    },
+    "removeDialog": {
+      "title": "Remover {{name}}?",
+      "body": "O responsável deixa de aparecer nesta lista. Para só pausar a cópia, desative em vez de remover.",
+      "cancel": "Cancelar",
+      "confirm": "Remover"
+    },
+    "error": {
+      "generic": "Não foi possível salvar. Tente de novo em instantes.",
+      "OCCURRENCE_WATCHER_NOT_ELIGIBLE": "Este usuário não pode ser responsável: precisa de vínculo ativo, de permissão para tratar ocorrências e de e-mail.",
+      "OCCURRENCE_WATCHER_LIST_TOO_LONG": "A lista chegou ao limite de responsáveis.",
+      "OCCURRENCE_WATCHER_NOT_FOUND": "Este responsável não está mais na lista.",
+      "CONTRACTOR_NOT_FOUND": "Contratante não encontrada."
+    }
   }
 }
