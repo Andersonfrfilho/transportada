@@ -189,13 +189,14 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
     seeded: Seeded,
     providerEmailId: string,
     conversationAttachments: readonly Attachment[],
+    sender: { readonly dkimResult?: string; readonly fromAddress?: string } = {},
   ) {
     return inbound.recordInboundMessage({
       bodyText: 'Segue o boleto.',
       companyId: seeded.companyId,
       conversationAttachments,
-      dkimResult: 'aligned',
-      fromAddress: 'compras@alfa.example.test',
+      dkimResult: sender.dkimResult ?? 'aligned',
+      fromAddress: sender.fromAddress ?? 'compras@alfa.example.test',
       fromDisplayName: 'Compras Alfa',
       inReplyTo: undefined,
       providerEmailId,
@@ -251,6 +252,44 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
         to_status: 'awaiting_operator',
       },
     ])
+  })
+
+  /** Spec 267 RF9: o responsável em cópia que responde a todos entra na conversa, mas não é "a resposta da contratante". */
+  it('resposta de usuário da empresa com DKIM alinhado não avança o retorno nem avisa o motorista; sem DKIM é tratada como qualquer remetente', async () => {
+    const seeded = await seed('forward_automatic', { withDriver: true })
+    const responsible = crypto.randomUUID()
+    await database.execute(
+      sql`insert into identity_users (id, status) values (${responsible}, 'active')`,
+    )
+    await database.execute(sql`
+      insert into identity_user_profiles (user_id, name, contact_address, contact_channel, tax_id, email, phone, username)
+      values (${responsible}, 'Ana', 'Ana@Empresa.example.test', 'email', '', 'ana@empresa.example.test', '', ${`ana-${responsible.slice(0, 8)}`})`)
+    await database.execute(sql`
+      insert into user_company_memberships (user_id, company_id, status)
+      values (${responsible}, ${seeded.companyId}, 'active')`)
+
+    const internal = await recordReply(
+      seeded,
+      `re_${crypto.randomUUID()}`,
+      [attachmentOf('application/pdf')],
+      { fromAddress: 'ana@empresa.example.test' },
+    )
+
+    expect(internal.driverNotice).toBeUndefined()
+    expect((await replyOf(seeded))?.status).toBe('awaiting_contractor')
+    expect(await eventsOf(seeded)).toEqual([])
+    const [stored] = [
+      ...(await database.execute(sql`
+        select count(*)::int as total from occurrence_conversation_messages
+        where company_id = ${seeded.companyId} and direction = 'inbound' and sender_address = 'ana@empresa.example.test'`)),
+    ]
+    expect(stored?.total).toBe(1)
+
+    await recordReply(seeded, `re_${crypto.randomUUID()}`, [attachmentOf('application/pdf')], {
+      dkimResult: 'not_aligned',
+      fromAddress: 'ana@empresa.example.test',
+    })
+    expect((await replyOf(seeded))?.status).toBe('delivered')
   })
 
   it('PDF no modo automático: reply_received', async () => {

@@ -233,6 +233,7 @@ export function createDrizzleContractorMailInboundWorkerRepository(
             attachments: input.conversationAttachments,
             bodyText: input.bodyText,
             companyId: input.companyId,
+            dkimResult: input.dkimResult,
             fromAddress: input.fromAddress,
             mailMessageId: message.id,
             threadId: input.threadId,
