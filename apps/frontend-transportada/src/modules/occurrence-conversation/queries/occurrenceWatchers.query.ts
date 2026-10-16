@@ -1,24 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
-import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
-
-import {
-  createOccurrenceWatchersClient,
-  type OccurrenceWatchersClient,
-} from '../shared/occurrenceWatchersClient.service'
+import { getOccurrenceWatchersClient } from '../shared/occurrenceWatchersClient.provider'
 import type { OccurrenceWatcherScope } from '../shared/occurrenceWatchers.types'
 
 export const OCCURRENCE_WATCHERS_QUERY_KEY = 'occurrence-watchers'
-
-function getOccurrenceWatchersClient(): OccurrenceWatchersClient {
-  return createOccurrenceWatchersClient({
-    apiUrl: getIdentityEnvironment().apiBaseUrl,
-    fetch: (request, init) => fetch(request, init),
-    getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
-  })
-}
 
 function scopeKey(scope: OccurrenceWatcherScope): readonly string[] {
   return scope.kind === 'company' ? ['company'] : ['contractor', scope.contractorId]
