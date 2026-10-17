@@ -41,7 +41,7 @@
 
 > 🤖 Modelo: `sonnet` (T2.8 → `haiku`)
 
-- [ ] **T2.1** `sonnet` — Migration (plan § Dados), schema Drizzle (coluna + CHECK da constante + tabela nova),
+- [x] **T2.1** `sonnet` — Migration (plan § Dados), schema Drizzle (coluna + CHECK da constante + tabela nova),
       constantes e erros. Aceite: `make migration-test` (ou aplica, reverte e reaplica num Postgres descartável) e
       `db:generate` com `no_changes` depois.
 - [ ] **T2.2** `sonnet` — Teste antes da política pura `occurrence-type-contractor-scope.policy.ts`: `all` com e sem
