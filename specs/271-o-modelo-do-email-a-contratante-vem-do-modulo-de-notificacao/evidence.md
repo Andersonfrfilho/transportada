@@ -129,3 +129,7 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 ### T2.1 — migration A
 
 - `drizzle/20261017041702_occurrence_type_contractor_mail` (aplica, reverte e reaplica em Postgres descartável; `db:generate` → `no_changes`). Contrato de API completo: 12012 pass / 25 skip (preexistentes) / 0 fail.
+
+### T2.2 — valores do modelo
+
+- `buildContractorMailValues` (chaves `camelCase`, `tipoOcorrencia`, `linhasItens`, teto 200 + "e mais N itens") entra ao lado de `buildOccurrenceMailValues`; a função da 269 (e seu teste) **sai na T2.5**, junto com o último consumidor, para cada commit ficar verde. Gate API: tsc/lint/prettier limpos, contrato 11998 pass / 25 skip / 0 fail.

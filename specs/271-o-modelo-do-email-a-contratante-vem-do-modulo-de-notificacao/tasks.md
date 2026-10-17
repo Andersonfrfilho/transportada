@@ -53,7 +53,7 @@
 
 - [x] **T2.1** `sonnet` — Migration A (plan § Dados) + schema Drizzle (colunas, CHECK, duas tabelas, colunas da
       mensagem) + `rollback.sql`. Aceite: aplica, reverte e reaplica; `db:generate` → `no_changes`.
-- [ ] **T2.2** `haiku` — Teste antes (tabela espelhada dos valores da 269): `occurrence-mail-values.policy.ts` produz as
+- [x] **T2.2** `haiku` — Teste antes (tabela espelhada dos valores da 269): `occurrence-mail-values.policy.ts` produz as
       chaves `camelCase` do plan § Variáveis com os mesmos valores, mais `tipoOcorrencia` e `linhasItens` (1 item, 3
       itens, 201 itens → 200 linhas + "e mais 1 item", item sem código). Depois, a mudança.
 - [ ] **T2.3** `sonnet` — Teste antes das políticas puras: `occurrence-contractor-template.policy.ts` (utilizável;

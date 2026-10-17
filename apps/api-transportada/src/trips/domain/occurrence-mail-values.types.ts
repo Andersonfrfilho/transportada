@@ -31,6 +31,8 @@ export type OccurrenceMailValues = {
   readonly lines?: readonly OccurrenceMailLine[] | undefined
   /** A observação da ocorrência: o motivo que quem registra digitou. */
   readonly note: string
+  /** Spec 271: o nome do tipo de ocorrência (`{{tipoOcorrencia}}`); ausente imprime vazio. */
+  readonly occurrenceTypeName?: string | undefined
   readonly occurredOn: string
   readonly recipientName: string
   /** O número do documento do cliente (a NFD) que quem registra digitou. */

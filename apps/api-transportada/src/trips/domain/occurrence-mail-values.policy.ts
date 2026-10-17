@@ -14,6 +14,7 @@ import {
   parseAmountToCents,
   resolveOccurrenceAmounts,
 } from './occurrence-amount.policy.js'
+import { OCCURRENCE_ITEM_LINES_LIMIT } from '../../occurrence-conversation/domain/occurrence-contractor-mail.constant.js'
 import type {
   OccurrenceMailItem,
   OccurrenceMailLine,
@@ -95,5 +96,79 @@ export function buildOccurrenceItemValues(items: readonly OccurrenceMailItem[]):
     itemCode: items.map((item) => item.code).join(', '),
     itemLabel: items.map((item) => item.description).join(', '),
     itemQuantity: items.map((item) => formatBrazilianQuantity(String(item.quantity))).join(', '),
+  }
+}
+
+export type ContractorMailValuesResult = {
+  /** Uma linha por item marcado, na ordem em que foram marcados — todas, sem o teto; quem monta o corpo encurta. */
+  readonly itemLines: readonly string[]
+  /** As variáveis `{{camelCase}}` do modelo do módulo de notificação; ausente é `''`, nunca `undefined`. */
+  readonly mail: MailValues
+}
+
+/** `{codigo} – {item} – {quantidade} {unidade} – R$ {valor}`; o segmento que a nota não tem some. */
+function buildItemLine(
+  line: OccurrenceMailLine,
+  amount: ReturnType<typeof resolveOccurrenceAmounts>['lines'][number],
+): string {
+  const quantity = [formatBrazilianQuantity(line.quantity ?? line.nfeQuantity), line.unit]
+    .filter((part) => part !== '')
+    .join(' ')
+  return [
+    line.code,
+    line.description,
+    quantity,
+    `R$ ${formatBrazilianAmount(amount.itemAmountCents)}`,
+  ]
+    .filter((part) => part !== '')
+    .join(' – ')
+}
+
+/** O bloco que `{{linhasItens}}` imprime: até o teto de linhas e, por fim, "e mais N itens". */
+function joinItemLines(itemLines: readonly string[]): string {
+  const shown = itemLines.slice(0, OCCURRENCE_ITEM_LINES_LIMIT)
+  const omitted = itemLines.length - shown.length
+  const omittedLine = omitted > 0 ? [`e mais ${omitted} ${omitted === 1 ? 'item' : 'itens'}`] : []
+  return [...shown, ...omittedLine].join('\n')
+}
+
+/**
+ * Spec 271 (ADR-0108, D4): os valores do modelo do módulo de notificação, com as chaves `{{camelCase}}` da
+ * lista fechada (`OCCURRENCE_CONTRACTOR_MAIL_VARIABLES`). Os mesmos valores da 269, mais `tipoOcorrencia` e
+ * `linhasItens`.
+ */
+export function buildContractorMailValues(
+  values: OccurrenceMailValues,
+): ContractorMailValuesResult {
+  const lines = values.lines ?? []
+  const amounts = resolveOccurrenceAmounts({
+    declaredAmount: values.declaredAmount ?? null,
+    lines,
+  })
+  const itemLines = lines.flatMap((line, index) => {
+    const amount = amounts.lines[index]
+    return amount === undefined ? [] : [buildItemLine(line, amount)]
+  })
+  return {
+    itemLines,
+    mail: {
+      codigosItens: values.itemCode,
+      contratante: values.contractorName,
+      data: values.occurredOn,
+      itens: values.itemLabel,
+      linhasItens: joinItemLines(itemLines),
+      motorista: values.driverName,
+      numeroNota: values.documentLabel,
+      numeroNotaSemSerie: values.documentNumber ?? '',
+      numeroReferencia: values.referenceNumber ?? '',
+      observacao: values.note,
+      parada: values.stopLabel,
+      quantidadesItens: values.itemQuantity,
+      razaoSocial: values.recipientName,
+      somaItens: formatCents(amounts.itemsSumCents),
+      tipoOcorrencia: values.occurrenceTypeName ?? '',
+      valorDeclarado: formatCents(amounts.declaredAmountCents),
+      valorNota: values.totalValue === '' ? '' : formatCents(parseAmountToCents(values.totalValue)),
+    },
   }
 }
