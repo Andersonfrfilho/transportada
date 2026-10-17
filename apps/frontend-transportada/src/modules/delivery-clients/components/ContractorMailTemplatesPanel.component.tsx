@@ -11,11 +11,6 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { useContractorMailTemplates } from '../hooks/useContractorMailTemplates.hook'
 import { ContractorMailTemplateEditor } from './ContractorMailTemplateEditor.component'
-import { ContractorMailTemplateUsageList } from './ContractorMailTemplateUsageList.component'
-import {
-  ContractorMailTemplatesRequestError,
-  type ContractorMailTemplateUsage,
-} from '../shared/contractorMailTemplatesClient.service'
 import { contractorMailTemplateErrorLocaleKey } from '../shared/contractorMailTemplateErrors.service'
 import type { MailTemplateDraft } from '../hooks/useContractorMailTemplateEditor.hook'
 import type {
@@ -42,10 +37,6 @@ type ContractorMailTemplatesPanelProps = Readonly<{ isDisabled: boolean }>
 
 function toErrorCode(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined
-}
-
-function toErrorUsage(error: unknown): ContractorMailTemplateUsage | undefined {
-  return error instanceof ContractorMailTemplatesRequestError ? error.usage : undefined
 }
 
 function toErrorDetails(error: unknown): ReadonlyMap<string, string> {
@@ -242,7 +233,6 @@ export function ContractorMailTemplatesPanel({
 
       <ArchiveTemplateDialog
         errorCode={toErrorCode(templatesHook.updateMutation.error)}
-        errorUsage={toErrorUsage(templatesHook.updateMutation.error)}
         isPending={templatesHook.updateMutation.isPending}
         onClose={() => setArchiveTarget(undefined)}
         onConfirm={handleArchiveConfirm}
@@ -254,7 +244,6 @@ export function ContractorMailTemplatesPanel({
 
 type ArchiveTemplateDialogProps = Readonly<{
   errorCode: string | undefined
-  errorUsage: ContractorMailTemplateUsage | undefined
   isPending: boolean
   onClose: () => void
   onConfirm: () => void
@@ -263,7 +252,6 @@ type ArchiveTemplateDialogProps = Readonly<{
 
 function ArchiveTemplateDialog({
   errorCode,
-  errorUsage,
   isPending,
   onClose,
   onConfirm,
@@ -291,7 +279,6 @@ function ArchiveTemplateDialog({
             {t(contractorMailTemplateErrorLocaleKey(errorCode), { code: errorCode })}
           </p>
         )}
-        {errorUsage === undefined ? null : <ContractorMailTemplateUsageList usage={errorUsage} />}
         <footer className={styles.dialogFooter}>
           <Button onClick={onClose} type="button" variant="ghost">
             {t('mailTemplates.archiveDialogCancel')}

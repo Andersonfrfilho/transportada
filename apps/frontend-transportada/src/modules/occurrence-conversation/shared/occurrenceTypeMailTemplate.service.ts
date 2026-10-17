@@ -1,0 +1,77 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+/**
+ * Spec 271 (ADR-0108): o modelo do e-mail à contratante é do módulo de notificação (`{{campo}}`). O editor do tipo mostra
+ * as variáveis da lista fechada e a prévia com valores de exemplo — cópia por valor da API
+ * (`occurrence-contractor-mail.constant.ts`), presa por `occurrence-type-mail-parity.contract.ts`.
+ */
+
+/** Os nomes na ordem da API; a descrição de cada um vem do idioma (`occurrenceTypeMail.variables.<nome>`). */
+export const OCCURRENCE_MAIL_VARIABLE_NAMES = [
+  'numeroNota',
+  'numeroNotaSemSerie',
+  'razaoSocial',
+  'valorNota',
+  'contratante',
+  'motorista',
+  'parada',
+  'data',
+  'observacao',
+  'tipoOcorrencia',
+  'numeroReferencia',
+  'somaItens',
+  'valorDeclarado',
+  'itens',
+  'codigosItens',
+  'quantidadesItens',
+  'linhasItens',
+] as const
+
+export type OccurrenceMailVariableName = (typeof OCCURRENCE_MAIL_VARIABLE_NAMES)[number]
+
+/** O que a prévia mostra no lugar de cada variável — dados de exemplo, nunca da operação. */
+export const OCCURRENCE_MAIL_SAMPLE_VALUES: Readonly<Record<OccurrenceMailVariableName, string>> = {
+  codigosItens: '7000001 01, 7000002 02',
+  contratante: 'Contratante Exemplo',
+  data: '01/01/2026',
+  itens: 'PRODUTO EXEMPLO A 500G, PRODUTO EXEMPLO B 1KG',
+  linhasItens:
+    '7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20\n7000002 02 – PRODUTO EXEMPLO B 1KG – 3 CX – R$ 60,00',
+  motorista: 'Motorista Exemplo',
+  numeroNota: '123456/1',
+  numeroNotaSemSerie: '123456',
+  numeroReferencia: '45029',
+  observacao: 'Avaria identificada no momento da conferência das mercadorias',
+  parada: 'Rua Exemplo, 100',
+  quantidadesItens: '1, 3',
+  razaoSocial: 'Supermercado Exemplo Ltda',
+  somaItens: '117,20',
+  tipoOcorrencia: 'Avaria',
+  valorDeclarado: '117,20',
+  valorNota: '7.840,64',
+}
+
+/** O modelo sugerido, para copiar no módulo de notificação (nunca semeado). */
+export const OCCURRENCE_MAIL_SUGGESTED_TEMPLATE = {
+  body: 'Olá, equipe {{contratante}},\n\nRegistramos {{tipoOcorrencia}} na nota {{numeroNota}} ({{razaoSocial}}) em {{data}}.\n\n{{observacao}}\n\n{{linhasItens}}\n\nQualquer dúvida, é só responder este e-mail.',
+  subject: 'Ocorrência na nota {{numeroNota}} — {{contratante}}',
+} as const
+
+/** O mesmo `{{ nome }}` do renderizador do módulo; a variável que falta sai vazia. */
+const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/gu
+
+export function interpolateMailTemplate(
+  template: string,
+  values: Readonly<Record<string, string>>,
+): string {
+  return template.replace(PLACEHOLDER_PATTERN, (_match, name: string) => values[name] ?? '')
+}
+
+/** A prévia: assunto numa linha, corpo como escrito, com os valores de exemplo. */
+export function renderOccurrenceMailPreview(template: Readonly<{ body: string; subject: string }>) {
+  return {
+    body: interpolateMailTemplate(template.body, OCCURRENCE_MAIL_SAMPLE_VALUES),
+    subject: interpolateMailTemplate(template.subject, OCCURRENCE_MAIL_SAMPLE_VALUES)
+      .replace(/\s+/gu, ' ')
+      .trim(),
+  }
+}

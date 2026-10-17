@@ -1,5 +1,7 @@
 {
-  "clientLink": { "label": "View client" },
+  "clientLink": {
+    "label": "View client"
+  },
   "title": "Delivery clients",
   "subtitle": "Every recipient becomes a record on its own when the invoice is imported. Here you fill in the rules for the ones with a delivery window or a fee — the minority.",
   "tabs": {
@@ -140,12 +142,7 @@
     "errorNotFound": "Template not found.",
     "errorVersionConflict": "This template was changed in another tab. Reload and try again — the text typed here was not lost.",
     "errorInvalidRequest": "Check the fields and try again.",
-    "errorGeneric": "Could not save: {{code}}",
-    "errorInUse": "This template is still chosen by occurrence types or contractor exceptions. Change theirs before archiving.",
-    "usage": {
-      "occurrenceTypes": "Occurrence types using it:",
-      "contractorExceptions": "Contractor exceptions using it (type / contractor):"
-    }
+    "errorGeneric": "Could not save: {{code}}"
   },
   "contractorContacts": {
     "title": "Contracting party contacts",

@@ -308,7 +308,7 @@
     "stageDelivery": "Na rua",
     "notifies": "Avisar quando acontecer",
     "active": "Em uso",
-    "emailTemplate": "Modelo de e-mail",
+    "emailTemplate": "Aviso interno (modelo de e-mail)",
     "emailTemplateNone": "Sem e-mail",
     "editTemplates": "Editar modelos de e-mail",
     "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
@@ -467,7 +467,77 @@
     },
     "mail": {
       "title": "E-mail à contratante",
-      "switch": "Mandar e-mail à contratante da nota ao registrar"
+      "switch": "Mandar e-mail à contratante da nota ao registrar",
+      "template": {
+        "label": "Modelo",
+        "none": "Nenhum",
+        "createInNotifications": "Criar modelo em Notificações",
+        "loading": "Carregando os modelos…",
+        "failed": "Não foi possível carregar os modelos. Tente de novo em instantes.",
+        "missing": "Tipo sem modelo de notificação: o e-mail à contratante não sai. Escolha um modelo.",
+        "unusable": "O modelo \"{{key}}\" não serve ao e-mail à contratante e o e-mail não sai: {{problems}}",
+        "previewTitle": "Prévia · valores de exemplo",
+        "hint": "O texto do e-mail é escrito em Notificações → Preferências, num modelo de e-mail em português. Aqui você só escolhe qual.",
+        "variablesTitle": "Variáveis que o modelo aceita",
+        "suggestedTitle": "Modelo sugerido (copie em Notificações)",
+        "problems": {
+          "not_found": "Não existe modelo de e-mail ativo em português com esta chave.",
+          "system_key": "É um aviso do sistema, com outras variáveis.",
+          "html_body": "O corpo tem HTML; o e-mail à contratante é só texto.",
+          "empty_subject": "O assunto está vazio.",
+          "unknown_variables": "Variáveis fora da lista saem vazias: {{variables}}.",
+          "malformed_placeholder": "Há uma chave {{ }} mal escrita."
+        },
+        "variables": {
+          "numeroNota": "Número da nota com série.",
+          "numeroNotaSemSerie": "Número da nota sem série.",
+          "razaoSocial": "Razão social do destinatário da nota.",
+          "valorNota": "Valor total da nota.",
+          "contratante": "Nome da contratante.",
+          "motorista": "Nome do motorista da viagem.",
+          "parada": "A parada da nota.",
+          "data": "Data da ocorrência.",
+          "observacao": "Observação registrada.",
+          "tipoOcorrencia": "Nome do tipo de ocorrência.",
+          "numeroReferencia": "Número do documento do cliente.",
+          "somaItens": "Soma das linhas dos itens.",
+          "valorDeclarado": "Valor pago declarado.",
+          "itens": "Os itens num texto só, separados por vírgula.",
+          "codigosItens": "Os códigos dos itens, separados por vírgula.",
+          "quantidadesItens": "As quantidades, separadas por vírgula.",
+          "linhasItens": "Uma linha por item: código – item – quantidade unidade – R$ valor."
+        }
+      },
+      "watchers": {
+        "label": "Em cópia",
+        "placeholder": "Ninguém: vale a lista da contratante, senão a da empresa",
+        "summary_one": "{{count}} responsável",
+        "summary_other": "{{count}} responsáveis",
+        "empty": "Nenhum responsável ativo na lista da empresa.",
+        "clearAll": "Limpar a escolha",
+        "remove": "Tirar {{name}}",
+        "search": "Buscar responsável",
+        "hint": "Até {{max}} por tipo, da lista de responsáveis da empresa. Vazio: vale a lista da contratante da nota e, sem ela, a da empresa.",
+        "inactive": "inativo na lista da empresa",
+        "notEligible": "sem permissão ou sem e-mail",
+        "failed": "Não foi possível carregar os responsáveis da empresa."
+      },
+      "recipients": {
+        "label": "Destinatários",
+        "placeholder": "Ninguém: vão os contatos que recebem ocorrências da etapa",
+        "summary_one": "{{count}} contato",
+        "summary_other": "{{count}} contatos",
+        "empty": "Nenhum contato ativo que receba ocorrências nas contratantes do tipo.",
+        "clearAll": "Limpar a escolha",
+        "remove": "Tirar {{name}}",
+        "search": "Buscar contato",
+        "hint": "Contatos das contratantes deste tipo. Na nota, vão só os da contratante dela. Vazio: vão os contatos que recebem ocorrências da etapa.",
+        "inactive": "inativo",
+        "notEligible": "não recebe ocorrências",
+        "failed": "Não foi possível carregar os contatos das contratantes.",
+        "leaving_one": "{{count}} contato escolhido como destinatário sai da escolha ao aplicar.",
+        "leaving_other": "{{count}} contatos escolhidos como destinatários saem da escolha ao aplicar."
+      }
     },
     "moments": {
       "title": "Quem registra, e onde",
@@ -597,18 +667,6 @@
         "automaticNeedsReply": "O envio automático ao cliente da nota exige que o retorno esteja ligado.",
         "forwardNeedsText": "Escreva o assunto e o texto: o e-mail ao terceiro não sai sem os dois."
       }
-    },
-    "mailTemplate": {
-      "label": "Modelo do e-mail",
-      "none": "Nenhum",
-      "inherit": "Herdar do tipo",
-      "archivedName": "{{name}} (arquivado)",
-      "failed": "Não foi possível carregar os modelos. Tente de novo em instantes.",
-      "previewTitle": "Prévia · dados de exemplo",
-      "previewLoading": "Gerando a prévia…",
-      "previewFailed": "Não foi possível gerar a prévia.",
-      "missing": "Tipo sem modelo de notificação: o e-mail à contratante não sai. Escolha um modelo.",
-      "manage": "Gerenciar modelos"
     },
     "contractorScope": {
       "title": "Vale para",

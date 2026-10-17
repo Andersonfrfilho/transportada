@@ -32,8 +32,12 @@ export type OccurrenceTypeSaveInput = Readonly<{
   declaredAmountLabel?: string | undefined
   declaredAmountMode?: OccurrenceAttachmentMode | undefined
   declaredAmountScope?: DeclaredAmountScope | undefined
-  /** Spec 269: o modelo `occurrence` do e-mail à contratante — `null` limpa; `undefined` é "não mexe". */
-  contractorMailTemplateId?: null | string | undefined
+  /** Spec 271: o modelo de e-mail do módulo de notificação do e-mail à contratante — `null` limpa; `undefined` é "não mexe". */
+  contractorNotificationTemplateKey?: null | string | undefined
+  /** Spec 271: os responsáveis em cópia (da lista da empresa) — `[]` limpa; `undefined` é "não mexe". */
+  contractorMailWatcherUserIds?: readonly string[] | undefined
+  /** Spec 271: os destinatários (contatos das contratantes do tipo `listed`) — `[]` limpa; `undefined` é "não mexe". */
+  contractorMailRecipientContactIds?: readonly string[] | undefined
   /** Spec 270: escopo e lista vão **juntos** (um sem o outro é 400); `undefined` nos dois é "não mexe". */
   contractorIds?: readonly string[] | undefined
   contractorScope?: OccurrenceTypeContractorScope | undefined
@@ -94,7 +98,9 @@ export type OccurrenceTypeEdit = Readonly<
       | 'declaredAmountMode'
       | 'declaredAmountScope'
       | 'contractorIds'
-      | 'contractorMailTemplateId'
+      | 'contractorMailRecipientContactIds'
+      | 'contractorMailWatcherUserIds'
+      | 'contractorNotificationTemplateKey'
       | 'contractorReplyAlertIntervalMinutes'
       | 'contractorReplyAlertMaxCount'
       | 'contractorReplyAlertMode'

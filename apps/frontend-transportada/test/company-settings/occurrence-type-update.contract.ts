@@ -36,7 +36,9 @@ const NEW_FIELD_KEYS = [
   'declaredAmountLabel',
   'declaredAmountMode',
   'declaredAmountScope',
-  'contractorMailTemplateId',
+  'contractorMailRecipientContactIds',
+  'contractorMailWatcherUserIds',
+  'contractorNotificationTemplateKey',
   'emailsContractor',
   'itemsMinimumCount',
   'moments',
@@ -76,24 +78,34 @@ describe('buildOccurrenceTypeUpdate', () => {
     expect(update).not.toHaveProperty('flow')
   })
 
-  test('o modelo do e-mail à contratante só vai quando a edição o troca (spec 269)', () => {
-    const withTemplate: OccurrenceType = {
+  test('o bloco de e-mail à contratante só vai quando a edição o troca (spec 271)', () => {
+    const withMail: OccurrenceType = {
       ...TYPE,
-      contractorMailTemplateId: 'template-1',
+      contractorNotificationTemplateKey: 'ocorrencia.avaria',
       emailsContractor: true,
     }
     for (const edit of EDITS) {
-      const update = buildOccurrenceTypeUpdate(withTemplate, edit)
-      expect(update).not.toHaveProperty('contractorMailTemplateId')
+      const update = buildOccurrenceTypeUpdate(withMail, edit)
+      expect(update).not.toHaveProperty('contractorNotificationTemplateKey')
+      expect(update).not.toHaveProperty('contractorMailWatcherUserIds')
+      expect(update).not.toHaveProperty('contractorMailRecipientContactIds')
       expect(update).not.toHaveProperty('emailsContractor')
     }
     expect(
-      buildOccurrenceTypeUpdate(withTemplate, { contractorMailTemplateId: null })
-        .contractorMailTemplateId,
+      buildOccurrenceTypeUpdate(withMail, { contractorNotificationTemplateKey: null })
+        .contractorNotificationTemplateKey,
     ).toBeNull()
     expect(
-      buildOccurrenceTypeUpdate(withTemplate, { emailsContractor: false }).emailsContractor,
-    ).toBe(false)
+      buildOccurrenceTypeUpdate(withMail, { contractorMailWatcherUserIds: [] })
+        .contractorMailWatcherUserIds,
+    ).toEqual([])
+    expect(
+      buildOccurrenceTypeUpdate(withMail, { contractorMailRecipientContactIds: ['contact-1'] })
+        .contractorMailRecipientContactIds,
+    ).toEqual(['contact-1'])
+    expect(buildOccurrenceTypeUpdate(withMail, { emailsContractor: false }).emailsContractor).toBe(
+      false,
+    )
   })
 
   test('cada edição troca só o campo editado e nunca manda itemsMode', () => {

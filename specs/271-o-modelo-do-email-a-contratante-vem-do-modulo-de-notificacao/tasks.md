@@ -114,23 +114,23 @@
 
 > 🤖 Modelo: `sonnet` (T4.4 e T4.5 → `haiku`)
 
-- [ ] **T4.1** `sonnet` — Teste antes; depois o bloco "E-mail à contratante" no editor do tipo e na criação: interruptor
+- [x] **T4.1** `sonnet` — Teste antes; depois o bloco "E-mail à contratante" no editor do tipo e na criação: interruptor
       (fica), **Modelo** (`OccurrenceTypeContractorTemplateSelect`: lista D3, "Nenhum", link "Criar modelo em
       Notificações", prévia com `interpolateTemplate` e valores de exemplo, variáveis, modelo sugerido para copiar,
       variáveis desconhecidas do modelo atual como aviso, aviso do RF9 só com o e-mail ligado, erros 400 com os
       problemas). **Neste campo a lista vem de `GET /company-settings/occurrence-types/contractor-mail-templates`**
       (plan § Revisão, item 3), **não** de `useEmailTemplatesQuery` (o seletor do aviso interno segue nela). O campo do aviso interno ganha o rótulo "Aviso interno" e não muda de comportamento.
-- [ ] **T4.2** `sonnet` — Teste antes; depois **Em cópia** (`OccurrenceTypeWatchersSelect`: `MultiSelect` da lista da
+- [x] **T4.2** `sonnet` — Teste antes; depois **Em cópia** (`OccurrenceTypeWatchersSelect`: `MultiSelect` da lista da
       empresa, inativo/sem permissão/sem e-mail marcados, teto 10, frase "vazio: vale a lista da contratante, senão a da
       empresa") e **Destinatários** (`OccurrenceTypeRecipientsSelect`: só com escopo `listed` — teste de que não renderiza
       no `all`; contatos das contratantes do tipo agrupados; inativo marcado; ao tirar contratante do escopo, os
       contatos dela somem da seleção com aviso; frase "vazio: vão os contatos que recebem ocorrências da etapa").
-- [ ] **T4.3** `sonnet` — Remover o seletor da 269 no tipo e na exceção, `contractorMailTemplateId` dos tipos, serviços e
+- [x] **T4.3** `sonnet` — Remover o seletor da 269 no tipo e na exceção, `contractorMailTemplateId` dos tipos, serviços e
       validações do painel; o link do aviso no feed/detalhe/diálogo aponta só para o tipo. Testes da 269 do painel que
       só cobriam isso saem.
-- [ ] **T4.4** `haiku` — "Modelos" (150): `occurrence` sai de `CONTRACTOR_MAIL_TEMPLATE_TYPES` do painel, do rótulo e do
+- [x] **T4.4** `haiku` — "Modelos" (150): `occurrence` sai de `CONTRACTOR_MAIL_TEMPLATE_TYPES` do painel, do rótulo e do
       caso de 409 em `contractorMailTemplateErrors.service.ts`. Teste.
-- [ ] **T4.5** `haiku` — Locales pt-BR/en das telas novas e dos códigos de erro; chaves mortas da 269 saem.
+- [x] **T4.5** `haiku` — Locales pt-BR/en das telas novas e dos códigos de erro; chaves mortas da 269 saem.
 
 ## Fase 5 — Fechamento e publicação
 

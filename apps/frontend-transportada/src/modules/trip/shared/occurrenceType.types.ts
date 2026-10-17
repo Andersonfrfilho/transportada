@@ -63,8 +63,6 @@ export type OccurrenceType = Readonly<{
   declaredAmountLabel?: string
   declaredAmountMode?: OccurrenceAttachmentMode
   declaredAmountScope?: DeclaredAmountScope
-  /** Spec 269: o modelo `occurrence` que o tipo escolhe para o e-mail à contratante; nulo é sem modelo. Ausente é API anterior. */
-  contractorMailTemplateId?: null | string
   /** Spec 271: o bloco "E-mail à contratante" do tipo. Todos ausentes numa API anterior. */
   contractorMailRecipients?: readonly OccurrenceTypeMailRecipient[]
   contractorMailWatchers?: readonly OccurrenceTypeMailWatcher[]
@@ -157,8 +155,6 @@ export type OccurrenceAttachmentContractorOverride = OccurrenceRequirementOverri
   Readonly<{
     attachmentMode: OccurrenceAttachmentMode
     contractorId: string
-    /** Spec 269: o modelo `occurrence` da exceção; nulo herda o do tipo. Ausente é API anterior ao campo. */
-    contractorMailTemplateId?: null | string
   }>
 
 export type OccurrenceAttachmentRecipientOverride = OccurrenceRequirementOverrideFields &

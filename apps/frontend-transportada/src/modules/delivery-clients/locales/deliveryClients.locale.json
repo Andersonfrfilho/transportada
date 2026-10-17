@@ -1,5 +1,7 @@
 {
-  "clientLink": { "label": "Ver cliente" },
+  "clientLink": {
+    "label": "Ver cliente"
+  },
   "title": "Clientes de entrega",
   "subtitle": "Todo destinatário vira cadastro sozinho quando a nota é importada. Aqui você preenche a regra de quem tem hora marcada ou cobra para receber — que é a minoria.",
   "tabs": {
@@ -140,12 +142,7 @@
     "errorNotFound": "Modelo não encontrado.",
     "errorVersionConflict": "Este modelo foi alterado em outra aba. Recarregue e tente de novo — o texto digitado aqui não foi perdido.",
     "errorInvalidRequest": "Confira os campos e tente novamente.",
-    "errorGeneric": "Não foi possível salvar: {{code}}",
-    "errorInUse": "Este modelo ainda é escolhido por tipos de ocorrência ou por exceções de contratante. Troque o modelo deles antes de arquivar.",
-    "usage": {
-      "occurrenceTypes": "Tipos de ocorrência que o usam:",
-      "contractorExceptions": "Exceções por contratante que o usam (tipo / contratante):"
-    }
+    "errorGeneric": "Não foi possível salvar: {{code}}"
   },
   "contractorContacts": {
     "title": "Contatos da contratante",

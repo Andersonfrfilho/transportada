@@ -93,6 +93,7 @@ export function OccurrenceTypeRow({
           moments={resolveOccurrenceMoments(type)}
           onEdit={handleEdit}
           people={exceptions.people}
+          recipients={type.contractorMailRecipients}
           scope={type.contractorScope}
         />
       )}

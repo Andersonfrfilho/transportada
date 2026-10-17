@@ -20,9 +20,6 @@ describe('contractor mail template error map', () => {
     expect(contractorMailTemplateErrorLocaleKey('CONTRACTOR_MAIL_TEMPLATE_VERSION_CONFLICT')).toBe(
       'mailTemplates.errorVersionConflict',
     )
-    expect(contractorMailTemplateErrorLocaleKey('CONTRACTOR_MAIL_TEMPLATE_IN_USE')).toBe(
-      'mailTemplates.errorInUse',
-    )
     expect(contractorMailTemplateErrorLocaleKey('INVALID_REQUEST')).toBe(
       'mailTemplates.errorInvalidRequest',
     )

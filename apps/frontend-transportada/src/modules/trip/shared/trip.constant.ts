@@ -188,8 +188,14 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR: 'occurrenceTypeNotAvailableForContractor',
   /** Spec 270: contratante da lista que não é da empresa (ou sumiu) — o mesmo 404 dos dois casos. */
   CONTRACTOR_NOT_FOUND: 'occurrenceTypeContractorNotFound',
-  /** Spec 269: o modelo escolhido para o e-mail foi arquivado (ou é de outro tipo) entre a lista e o salvar. */
-  CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE: 'occurrenceMailTemplateNotUsable',
+  /** Spec 271 (ADR-0108): o bloco "E-mail à contratante" do tipo — o modelo do módulo, a cópia e os destinatários. */
+  OCCURRENCE_CONTRACTOR_TEMPLATE_INVALID: 'occurrenceContractorTemplateInvalid',
+  OCCURRENCE_TYPE_WATCHER_NOT_FOUND: 'occurrenceTypeWatcherNotFound',
+  OCCURRENCE_TYPE_WATCHER_LIMIT: 'occurrenceTypeWatcherLimit',
+  OCCURRENCE_TYPE_WATCHER_INACTIVE: 'occurrenceTypeWatcherInactive',
+  OCCURRENCE_TYPE_RECIPIENTS_REQUIRE_LISTED_SCOPE: 'occurrenceTypeRecipientsRequireListedScope',
+  OCCURRENCE_TYPE_RECIPIENT_NOT_IN_SCOPE: 'occurrenceTypeRecipientNotInScope',
+  CONTRACTOR_CONTACT_NOT_FOUND: 'occurrenceTypeContactNotFound',
   /** Spec 240 RF7: a correção e o cancelamento da ocorrência de nota (spec 167). */
   [OCCURRENCE_CORRECTION_ERROR.CASE_ALREADY_OPEN]: 'occurrenceCaseAlreadyOpen',
   [OCCURRENCE_CORRECTION_ERROR.ALREADY_CANCELLED]: 'occurrenceAlreadyCancelled',

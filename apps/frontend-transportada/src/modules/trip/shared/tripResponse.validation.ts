@@ -1920,6 +1920,7 @@ type RawOccurrenceType = Omit<
     attachmentMode?: unknown
     contractorScope?: unknown
     contractors?: unknown
+    contractorMailTemplateId?: unknown
     emailBody?: unknown
     emailItemLineTemplate?: unknown
     emailSubject?: unknown
@@ -2024,7 +2025,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'declaredAmountMode',
         'declaredAmountScope',
         'declaredAmountLabel',
-        /** Spec 269 (ADR-0106): o tipo aponta para um modelo `occurrence`. */
+        /** Spec 271 (D14): a API ainda pode mandar a chave da 269 até a etapa B: tolerada e ignorada (não chega ao tipo). */
         'contractorMailTemplateId',
         /** Spec 270 T1.1 (ADR-0107, ADR-0081 §9): o escopo de contratantes do tipo, tolerado antes de a API mandá-lo. */
         'contractorScope',
@@ -2052,9 +2053,6 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
       isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES)) &&
     (value.emailsContractor === undefined || isBoolean(value.emailsContractor)) &&
     (value.stopKind === undefined || value.stopKind === null || isString(value.stopKind)) &&
-    (value.contractorMailTemplateId === undefined ||
-      value.contractorMailTemplateId === null ||
-      isString(value.contractorMailTemplateId)) &&
     (value.contractorNotificationTemplateKey === undefined ||
       value.contractorNotificationTemplateKey === null ||
       isString(value.contractorNotificationTemplateKey)) &&
@@ -2111,6 +2109,7 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     attachmentMode,
     contractorScope,
     contractors,
+    contractorMailTemplateId,
     flow,
     itemsMinimumCount,
     itemsMode,
@@ -2131,7 +2130,7 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     iconName,
     ...rest
   } = raw
-  void [emailBody, emailItemLineTemplate, emailSubject]
+  void [contractorMailTemplateId, emailBody, emailItemLineTemplate, emailSubject]
   return {
     ...rest,
     ...(isOneOf(itemsMode, OCCURRENCE_ITEMS_MODES) ? { itemsMode } : {}),

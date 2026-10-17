@@ -1113,7 +1113,6 @@
     "occurrenceTypeMomentsRequired": "The type needs at least one moment: with none it would show for nobody. Nothing was saved.",
     "occurrenceTypeMomentsDocumentAndStop": "Driver, on an invoice and Driver, at the stop cannot share one type: the driver app would show the type twice. Nothing was saved.",
     "occurrenceTypeMomentsStageConflict": "This type has several moments, so its group (warehouse or street) cannot change without them. Adjust the moments and save again; nothing was saved.",
-    "occurrenceMailTemplateNotUsable": "This email template was archived or is no longer available. Choose another one from the list.",
     "occurrenceTypeNameTaken": "An occurrence type with this name already exists. The name is unique across the company, in any stage (including receiving types, which this list does not show): choose another.",
     "occurrenceReferenceNumberRequired": "This occurrence type requires the customer document number. Fill it in instead of clearing it and save again. Nothing was saved.",
     "occurrenceDeclaredAmountRequired": "This occurrence type requires the amount paid. Fill it in (on the lines or on the occurrence, as the type asks) instead of clearing it and save again. Nothing was saved.",
@@ -1122,7 +1121,14 @@
     "occurrenceTypeContractorScopeNeedsDocument": "A stop-only type cannot be limited to contractors: a stop has no contractor. Nothing was saved.",
     "occurrenceTypeContractorScopeInvalid": "The scope and the contractor list go together, and All contractors takes no list. Nothing was saved.",
     "occurrenceTypeNotAvailableForContractor": "This type does not apply to the contractor of this note. Choose another type.",
-    "occurrenceTypeContractorNotFound": "One of the chosen contractors no longer exists or is not from this company. Reload the list and choose again."
+    "occurrenceTypeContractorNotFound": "One of the chosen contractors no longer exists or is not from this company. Reload the list and choose again.",
+    "occurrenceContractorTemplateInvalid": "The chosen template cannot be used for the email to the contractor (missing, HTML, empty subject or variable outside the list). Choose another one. Nothing was saved.",
+    "occurrenceTypeWatcherNotFound": "One of the chosen watchers is no longer in the company list. Reload and choose again.",
+    "occurrenceTypeWatcherLimit": "A type takes at most 10 watchers in copy.",
+    "occurrenceTypeWatcherInactive": "Only an active watcher of the company list can be added to the type.",
+    "occurrenceTypeRecipientsRequireListedScope": "Recipients only exist on a type limited to contractors. Nothing was saved.",
+    "occurrenceTypeRecipientNotInScope": "One of the recipients is not an active contact of a contractor of this type. Reload the list and choose again.",
+    "occurrenceTypeContactNotFound": "One of the chosen contacts no longer exists. Reload the list and choose again."
   },
   "filters": {
     "active_one": "{{count}} active filter",

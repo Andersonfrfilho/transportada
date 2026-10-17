@@ -978,10 +978,16 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           active: input.active,
           allowsMultipleItems: input.allowsMultipleItems,
           attachmentMode: input.attachmentMode,
-          /** Spec 269: o modelo do e-mail à contratante — `null` limpa, ausente mantém. */
-          ...(input.contractorMailTemplateId === undefined
+          /** Spec 271: o bloco "E-mail à contratante" — só vai o que a edição muda; `null`/`[]` limpam. */
+          ...(input.contractorNotificationTemplateKey === undefined
             ? {}
-            : { contractorMailTemplateId: input.contractorMailTemplateId }),
+            : { contractorNotificationTemplateKey: input.contractorNotificationTemplateKey }),
+          ...(input.contractorMailWatcherUserIds === undefined
+            ? {}
+            : { contractorMailWatcherUserIds: input.contractorMailWatcherUserIds }),
+          ...(input.contractorMailRecipientContactIds === undefined
+            ? {}
+            : { contractorMailRecipientContactIds: input.contractorMailRecipientContactIds }),
           ...(input.emailsContractor === undefined
             ? {}
             : { emailsContractor: input.emailsContractor }),
