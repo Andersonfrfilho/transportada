@@ -91,7 +91,7 @@
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T4.1** `haiku` — Teste antes; depois rótulo de `OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR` em
+- [x] **T4.1** `haiku` — Teste antes; depois rótulo de `OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR` em
       `rejectionCauseLabel.service.ts` + locales, e `DriverOccurrenceDetail.page.tsx:118` usando o rótulo.
 - [ ] **T4.2** `haiku` — Teste de contrato: retrato com tipo ausente na nota de outra contratante → o registro daquela
       nota não o oferece, e o fallback (`occurrenceRegistration.service.ts:45-54`) também não.

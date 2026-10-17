@@ -75,7 +75,8 @@
       "notOfDriver": "this trip was transferred; ask the office to record it",
       "referenceNumberRequired": "the customer document number is required by this occurrence type",
       "stopNotReachable": "this stop was removed from the trip; ask the office to record it",
-      "tooLarge": "the photo is larger than the server accepts"
+      "tooLarge": "the photo is larger than the server accepts",
+      "typeNotAvailableForContractor": "this occurrence type does not apply to the contractor of this note; choose another type"
     },
     "discard": {
       "confirm": "Discard anyway",

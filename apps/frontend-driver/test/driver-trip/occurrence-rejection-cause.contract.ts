@@ -45,8 +45,18 @@ describe('as recusas da devolução têm texto humano na fila', () => {
     )
   })
 
+  it('spec 270: o tipo que não vale para a contratante da nota tem texto humano (RF7)', () => {
+    expect(resolveRejectionCauseLabelKey('422 OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR')).toBe(
+      'eventQueue.cause.typeNotAvailableForContractor',
+    )
+    expect(ptLocale.eventQueue.cause.typeNotAvailableForContractor).toContain(
+      'não vale para a contratante desta nota',
+    )
+  })
+
   it('toda chave existe nos dois idiomas', () => {
     for (const code of [
+      '422 OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR',
       '422 TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED',
       '422 TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED',
       '400 OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT',

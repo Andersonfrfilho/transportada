@@ -13,6 +13,8 @@ import type { DriverTripErrorDetail } from './offlineQueue.service'
  */
 const REJECTION_CAUSE_LABEL_KEYS: Readonly<Record<string, string>> = {
   OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT: 'eventQueue.cause.itemQuantityAboveNote',
+  /** Spec 270 (ADR-0107, RF7): o tipo mudou de escopo enquanto o registro esperava na fila. */
+  OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR: 'eventQueue.cause.typeNotAvailableForContractor',
   PAYLOAD_TOO_LARGE: 'eventQueue.cause.tooLarge',
   TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED: 'eventQueue.cause.declaredAmountRequired',
   TRIP_OCCURRENCE_ITEMS_MINIMUM_NOT_MET: 'eventQueue.cause.itemsMinimumNotMet',
