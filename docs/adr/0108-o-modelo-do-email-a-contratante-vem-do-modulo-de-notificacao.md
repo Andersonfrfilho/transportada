@@ -1,6 +1,6 @@
 # ADR 0108 — O modelo do e-mail à contratante vem do módulo de notificação
 
-- **Status:** proposta (2026-10-17) — a T0.2 da spec 271 valida com o `architect`. Decisões do Anderson no chat do
+- **Status:** aceita com mudanças (2026-10-17) — T0.2 da spec 271 (plan § Revisão de arquitetura). Decisões do Anderson no chat do
   projeto em 2026-10-17.
 - **Data:** 2026-10-17
 - **Nasce da spec 271:** o texto do e-mail de ocorrência à contratante é um modelo do módulo de notificação, escolhido

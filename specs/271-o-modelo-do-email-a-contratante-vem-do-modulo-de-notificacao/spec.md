@@ -84,6 +84,7 @@ contratante é um tipo só dela (270). A entrega não muda: mesmo remetente, mes
 - **RF11 — Rastreio.** Cada e-mail de ocorrência grava a chave e a versão do modelo que saiu
   (`contractor_mail_messages.notification_template_key`/`_version`). O reenvio da 248 grava as do envio original (ou
   nulo).
+- **RF11 (nota):** grava a versão ativa **no momento do envio**; no envio manual o corpo é o texto do operador.
 - **RF12 — Auditoria.** Trocar o modelo, a cópia ou os destinatários do tipo grava `audit_logs` com ator, tipo e ids
   antes e depois (nunca endereço).
 
@@ -99,6 +100,10 @@ contratante é um tipo só dela (270). A entrega não muda: mesmo remetente, mes
   `sendNotification` (exige usuário do sistema, não tem `cc`, usa remetente global).
 - **Publicação em etapas (ADR-0081 §9):** painel tolerante → API (migration aditiva A) → telas → migration destrutiva B
   com aprovação humana.
+
+## Notas da revisão (T0.2)
+
+- Responsável removido da lista da empresa por cascata de membership deixa o tipo sem entrada de auditoria: aceito.
 
 ## Fora do escopo
 

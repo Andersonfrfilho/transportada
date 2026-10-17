@@ -15,7 +15,7 @@
 
 > 🤖 Modelo: `sonnet` (T0.2 é 🧠)
 
-- [ ] **T0.1** `sonnet` — Conferir contra `origin/staging` e contra o pacote instalado (os pacotes `notification-module` e `notification-contracts` em `node_modules`) os fatos de `plan.md` § Contexto e o levantamento do `evidence.md`: a versão
+- [x] **T0.1** `sonnet` — Conferir contra `origin/staging` e contra o pacote instalado (os pacotes `notification-module` e `notification-contracts` em `node_modules`) os fatos de `plan.md` § Contexto e o levantamento do `evidence.md`: a versão
       instalada exporta `templates`, `interpolateTemplate` e `extractTemplatePlaceholders`; a casa de
       `occurrence-mail-template.policy.ts`; o código 404 de contato inexistente; se `CONTRACTOR_MAIL_TEMPLATE_IN_USE` só
       serve ao `occurrence`; se o `saveOccurrenceType` já grava `audit_logs`; os nomes exatos das constraints da 269 para
@@ -24,12 +24,12 @@
       de testes da 269 que só cobrem o que sai. **Medir em staging (só contagem):** modelos `occurrence`, linhas com
       `contractor_mail_template_id` não nulo no tipo e na exceção, mensagens com `template_id` de modelo `occurrence`.
       Divergência vira nota no `evidence.md` antes de seguir.
-- [ ] **T0.2** 🧠 `opus` — Validar com `architect` a ADR-0108 e D1–D15 do `plan.md`: chave sem FK (D1), carimbo novo
+- [x] **T0.2** 🧠 `opus` — Validar com `architect` a ADR-0108 e D1–D15 do `plan.md`: chave sem FK (D1), carimbo novo
       (D2), filtro das chaves do sistema (D3), recusa de HTML (D5), `EXISTS` cross-schema no feed e no worker (D9), FK
       dos responsáveis para a lista da empresa com `CASCADE` (D10), precedência (D11), poda dos destinatários na mesma
       transação da 270 (D12), pré-marcação no manual (D13), ordem das guardas no `PUT` (escopo 270 → destinatários →
       modelo → responsáveis). Ajuste aprovado entra no `plan.md`, e a ADR passa a "aceita". **Outras tasks herdam este
-      contrato.**
+      contrato.** Veredito: **aprovado com mudanças** (plan § Revisão de arquitetura).
 
 ## Fase 1 — Painel tolerante (vai a produção ANTES da API, junto das Fases 1 da 269 e da 270)
 
@@ -42,7 +42,8 @@
       (`occurrenceAttachmentOverrides.validation.ts`).
 - [ ] **T1.2** `haiku` — Teste antes: prévia do diálogo com `notificationTemplateKey` e sem `templateId`, e mensagem do
       histórico com `notificationTemplateKey`/`notificationTemplateVersion`, passam (guardas da T0.1). Depois, a
-      tolerância.
+      tolerância. `ccSource` aceita `'occurrence_type'` (`occurrenceConversationClient.service.ts` ~:304 e
+      `occurrenceConversation.types.ts` ~:148).
 - [ ] **T1.3** `sonnet` — Publicar a Fase 1 (PR → `staging` → `main`) **com aprovação humana**, junto da 269 T1.4 e da
       270 T1.2. Registrar o commit em produção no `evidence.md`. **A Fase 2 não vai a `main` antes disto.**
 
@@ -84,8 +85,16 @@
       da gravação da 270), o automático e o `preselected` da prévia. Integração do critério 6 e 7 da spec.
 - [ ] **T2.8** `sonnet` — Auditoria D15 (só quando muda; ids, nunca endereço) e aviso D9 no feed e no detalhe na mesma
       consulta (`EXISTS`), sem N+1 (teste que conta consultas, molde da 269 T2.7).
+- [ ] **T2.10** `sonnet` — Gate do TMS nas rotas do módulo: `POST`/`PUT`/`DELETE` em `/notification-templates*` exigem
+      `settings.manage` antes do roteador do módulo (`router.service.ts` ~:288). Teste de contrato: membro sem a permissão
+      → 403. (Lacuna existente: as rotas do módulo usam escopo `admin` sem `requiredScopes` e `isScopeSatisfied` deixa
+      qualquer membro entrar.) Também as rotas de leitura do plan § Revisão item 3 (`contractor-mail-templates` e
+      `contractor-mail-recipient-candidates`), com `settings.manage`.
 - [ ] **T2.9** `haiku` — Documentação viva: OpenAPI das rotas alteradas, `apps/api-transportada/CLAUDE.md` (núcleo, uma
       linha sob ocorrência) e `docs/ai-context/api-transportada.md`.
+
+> Publicação (registro, nada é publicado nesta execução): o passo 1 é uma branch `promote/*` a partir de `origin/main`
+> com **só** os commits do painel tolerante (269 T1.1–T1.3, 270 T1.1, 271 T1.1–T1.2), como o PR #158.
 
 ## Fase 3 — API e worker: o que a 269 deixou e sai (etapa A)
 
@@ -109,7 +118,8 @@
       (fica), **Modelo** (`OccurrenceTypeContractorTemplateSelect`: lista D3, "Nenhum", link "Criar modelo em
       Notificações", prévia com `interpolateTemplate` e valores de exemplo, variáveis, modelo sugerido para copiar,
       variáveis desconhecidas do modelo atual como aviso, aviso do RF9 só com o e-mail ligado, erros 400 com os
-      problemas). O campo do aviso interno ganha o rótulo "Aviso interno" e não muda de comportamento.
+      problemas). **Neste campo a lista vem de `GET /company-settings/occurrence-types/contractor-mail-templates`**
+      (plan § Revisão, item 3), **não** de `useEmailTemplatesQuery` (o seletor do aviso interno segue nela). O campo do aviso interno ganha o rótulo "Aviso interno" e não muda de comportamento.
 - [ ] **T4.2** `sonnet` — Teste antes; depois **Em cópia** (`OccurrenceTypeWatchersSelect`: `MultiSelect` da lista da
       empresa, inativo/sem permissão/sem e-mail marcados, teto 10, frase "vazio: vale a lista da contratante, senão a da
       empresa") e **Destinatários** (`OccurrenceTypeRecipientsSelect`: só com escopo `listed` — teste de que não renderiza

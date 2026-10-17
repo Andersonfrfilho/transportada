@@ -116,4 +116,7 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 
 ## Registro das tasks
 
-(vazio — a execução registra aqui)
+### T0.1 / T0.2 — 2026-10-17
+
+- Veredito da revisão de arquitetura: **aprovado com mudanças** (plan § Revisão de arquitetura). ADR-0108 passa a aceita.
+
