@@ -133,7 +133,8 @@ describe('occurrence watchers repository integration (spec 267)', () => {
         expect((await repository.listWatcherRows(scope)).length).toBe(30)
       })
     },
-    120_000,
+    /* Banco descartável com a cadeia inteira de migrations + ~70 escritas em ordem: estoura 120 s na CI. */
+    300_000,
   )
 
   testWithPostgres(
