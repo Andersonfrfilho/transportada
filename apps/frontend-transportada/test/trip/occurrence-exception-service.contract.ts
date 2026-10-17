@@ -136,39 +136,22 @@ describe('recusas dos momentos pela API: um texto por código estável (T5.3b)',
   })
 })
 
-describe('o modelo do e-mail na exceção por contratante (spec 269 RF1)', () => {
-  test('a exceção nova herda o modelo do tipo: nulo explícito, nunca ausente', () => {
-    const added = addException(BASE, {
-      attachmentMode: 'off',
-      key: { contractorId: 'contractor-2', kind: 'contractor' },
-    })
+describe('as recusas do bloco de e-mail à contratante do tipo (spec 271)', () => {
+  test.each([
+    ['OCCURRENCE_CONTRACTOR_TEMPLATE_INVALID', 'occurrenceContractorTemplateInvalid'],
+    ['OCCURRENCE_TYPE_WATCHER_NOT_FOUND', 'occurrenceTypeWatcherNotFound'],
+    ['OCCURRENCE_TYPE_WATCHER_LIMIT', 'occurrenceTypeWatcherLimit'],
+    ['OCCURRENCE_TYPE_WATCHER_INACTIVE', 'occurrenceTypeWatcherInactive'],
+    [
+      'OCCURRENCE_TYPE_RECIPIENTS_REQUIRE_LISTED_SCOPE',
+      'occurrenceTypeRecipientsRequireListedScope',
+    ],
+    ['OCCURRENCE_TYPE_RECIPIENT_NOT_IN_SCOPE', 'occurrenceTypeRecipientNotInScope'],
+    ['CONTRACTOR_CONTACT_NOT_FOUND', 'occurrenceTypeContactNotFound'],
+  ])('%s tem mensagem própria, nos dois idiomas', (code, expectedKey) => {
+    const key = resolveTripFeedbackKey(new Error(code))
 
-    expect(added.contractorOverrides[1]).toMatchObject({
-      contractorId: 'contractor-2',
-      contractorMailTemplateId: null,
-    })
-  })
-
-  test('escolher o modelo troca só o da contratante; nulo volta a herdar', () => {
-    const chosen = editException(BASE, CONTRACTOR, { contractorMailTemplateId: 'template-1' })
-
-    expect(chosen.contractorOverrides[0]).toMatchObject({
-      contractorMailTemplateId: 'template-1',
-      itemsMinimumCount: 3,
-      signatureMode: 'required',
-    })
-    expect(chosen.recipientOverrides).toEqual(BASE.recipientOverrides)
-
-    const inherited = editException(chosen, CONTRACTOR, { contractorMailTemplateId: null })
-    expect(inherited.contractorOverrides[0]?.contractorMailTemplateId).toBeNull()
-  })
-})
-
-describe('o salvar com um modelo que deixou de valer (spec 269)', () => {
-  test('o 409 CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE tem mensagem própria, nos dois idiomas', () => {
-    const key = resolveTripFeedbackKey(new Error('CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE'))
-
-    expect(key).toBe('occurrenceMailTemplateNotUsable')
+    expect(key).toBe(expectedKey)
     expect(trip.feedback).toHaveProperty(key as string)
     expect(tripEn.feedback).toHaveProperty(key as string)
   })

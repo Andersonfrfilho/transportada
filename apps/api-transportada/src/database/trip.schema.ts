@@ -2963,6 +2963,19 @@ export const companyOccurrenceTypes = pgTable(
       withTimezone: true,
     }),
     /**
+     * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação (`notification.templates`) que
+     * escreve o e-mail deste tipo à contratante. Sem FK: a identidade do módulo é versionada e o envio lê a
+     * versão ativa mais alta. Nula é "sem modelo".
+     */
+    contractorNotificationTemplateKey: varchar('contractor_notification_template_key', {
+      length: 128,
+    }),
+    /** Spec 271 (D2): quando a chave foi escolhida (troca para outra chave; `null` limpa). O automático só vale daqui. */
+    contractorNotificationTemplateSelectedAt: timestamp(
+      'contractor_notification_template_selected_at',
+      { withTimezone: true },
+    ),
+    /**
      * Spec 270 (ADR-0107): para quem o tipo vale. `all` (padrão) é toda contratante; `listed` é a
      * lista de `company_occurrence_type_contractors`. Todo tipo existente fica `all`.
      */
@@ -3317,6 +3330,10 @@ export const companyOccurrenceTypes = pgTable(
     index('company_occurrence_types_mail_template_idx')
       .on(table.companyId, table.contractorMailTemplateId)
       .where(sql`${table.contractorMailTemplateId} is not null`),
+    check(
+      'company_occurrence_types_contractor_notification_template_key_check',
+      sql`${table.contractorNotificationTemplateKey} is null or length(btrim(${table.contractorNotificationTemplateKey})) > 0`,
+    ),
   ],
 )
 

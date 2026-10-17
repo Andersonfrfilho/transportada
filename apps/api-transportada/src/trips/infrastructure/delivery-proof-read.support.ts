@@ -112,10 +112,16 @@ import {
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import { buildTemplateSelectedAtChange } from './template-selected-at.support.js'
 import {
-  buildTemplateSelectedAtChange,
-  lockUsableOccurrenceMailTemplate,
-} from './occurrence-mail-template-lock.support.js'
+  hasOccurrenceTypeMailChange,
+  readOccurrenceTypeMailSnapshot,
+  writeOccurrenceTypeMailAudit,
+  type OccurrenceTypeMailSnapshot,
+} from './occurrence-type-mail-audit.support.js'
+import { lockTypeRow } from './occurrence-type-contractors.query.js'
+import { replaceOccurrenceTypeMailRecipients } from './occurrence-type-mail-recipients.support.js'
+import { replaceOccurrenceTypeMailWatchers } from './occurrence-type-mail-watchers.support.js'
 import {
   replaceOccurrenceTypeMoments,
   withOccurrenceTypeMoments,
@@ -878,7 +884,8 @@ export async function findOccurrenceType(
       iconName: companyOccurrenceTypes.iconName,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
-      contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
+      /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
+      contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
       contractorScope: companyOccurrenceTypes.contractorScope,
       contractorReplyAlertIntervalMinutes:
@@ -1054,7 +1061,8 @@ export async function listOccurrenceTypes(
       iconName: companyOccurrenceTypes.iconName,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
-      contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
+      /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
+      contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
       contractorScope: companyOccurrenceTypes.contractorScope,
       contractorReplyAlertIntervalMinutes:
@@ -1150,19 +1158,28 @@ function rethrowOccurrenceTypeViolation(error: unknown): never {
 export async function saveOccurrenceType(
   queryable: TripQueryable,
   input: Parameters<typeof writeOccurrenceTypeRow>[1] & {
+    /** Spec 271: quem grava (`created_by_user_id` das escolhas do tipo e a auditoria); exigido quando a escolha muda. */
+    readonly actorUserId?: string | undefined
+    readonly correlationId?: string | undefined
     /** Spec 270: com o escopo, a lista vai junto; ausentes é "não mexa". */
     readonly contractorIds?: readonly string[] | undefined
+    /** Spec 271 (D12): os destinatários do tipo (contatos das contratantes da lista); ausente é "não mexa". */
+    readonly contractorMailRecipientContactIds?: readonly string[] | undefined
+    /** Spec 271 (D10): os responsáveis em cópia do tipo, da lista da empresa; ausente é "não mexa". */
+    readonly contractorMailWatcherUserIds?: readonly string[] | undefined
     readonly contractorScope?: OccurrenceTypeContractorScope | undefined
     readonly moments?: readonly OccurrenceMoment[] | undefined
   },
 ): Promise<OccurrenceTypeRecord> {
   return queryable.transaction(async (transaction) => {
-    if (typeof input.contractorMailTemplateId === 'string') {
-      await lockUsableOccurrenceMailTemplate(transaction, {
-        companyId: input.companyId,
-        templateId: input.contractorMailTemplateId,
-      })
-    }
+    /** Spec 271 (D15): o tipo travado antes de ler o "antes" da auditoria; a criação não tem antes. */
+    const mailBefore =
+      input.occurrenceTypeId === null
+        ? null
+        : await readMailSnapshotLocked(transaction, {
+            companyId: input.companyId,
+            occurrenceTypeId: input.occurrenceTypeId,
+          })
     const saved = await writeOccurrenceTypeRow(transaction, input)
     const moments =
       input.moments ??
@@ -1187,6 +1204,29 @@ export async function saveOccurrenceType(
         occurrenceTypeId: saved.id,
       })
     }
+    if (input.contractorMailWatcherUserIds !== undefined) {
+      await replaceOccurrenceTypeMailWatchers(transaction, {
+        actorUserId: requireActor(input.actorUserId),
+        companyId: input.companyId,
+        occurrenceTypeId: saved.id,
+        userIds: input.contractorMailWatcherUserIds,
+      })
+    }
+    if (input.contractorMailRecipientContactIds !== undefined) {
+      await replaceOccurrenceTypeMailRecipients(transaction, {
+        actorUserId: requireActor(input.actorUserId),
+        companyId: input.companyId,
+        contactIds: input.contractorMailRecipientContactIds,
+        occurrenceTypeId: saved.id,
+      })
+    }
+    await auditMailChange(transaction, {
+      actorUserId: input.actorUserId,
+      before: mailBefore,
+      companyId: input.companyId,
+      correlationId: input.correlationId,
+      occurrenceTypeId: saved.id,
+    })
     const [withMoments] = await withOccurrenceTypeMoments(transaction, {
       companyId: input.companyId,
       records: [
@@ -1201,6 +1241,46 @@ export async function saveOccurrenceType(
     })
     return withContractors ?? withMoments ?? saved
   })
+}
+
+async function readMailSnapshotLocked(
+  transaction: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceTypeId: string },
+): Promise<OccurrenceTypeMailSnapshot | null> {
+  await lockTypeRow(transaction, params)
+  return readOccurrenceTypeMailSnapshot(transaction, params)
+}
+
+/** A auditoria do bloco de e-mail: só quando mudou, e então ator e correlação são obrigatórios. */
+async function auditMailChange(
+  transaction: TripQueryable,
+  params: {
+    readonly actorUserId: string | undefined
+    readonly before: OccurrenceTypeMailSnapshot | null
+    readonly companyId: string
+    readonly correlationId: string | undefined
+    readonly occurrenceTypeId: string
+  },
+): Promise<void> {
+  const after = await readOccurrenceTypeMailSnapshot(transaction, params)
+  if (!hasOccurrenceTypeMailChange(params.before, after)) return
+  if (params.actorUserId === undefined || params.correlationId === undefined) {
+    throw new Error('OCCURRENCE_TYPE_MAIL_AUDIT_CONTEXT_REQUIRED')
+  }
+  await writeOccurrenceTypeMailAudit(transaction, {
+    actorUserId: params.actorUserId,
+    after,
+    before: params.before,
+    companyId: params.companyId,
+    correlationId: params.correlationId,
+    occurrenceTypeId: params.occurrenceTypeId,
+  })
+}
+
+/** As escolhas do bloco de e-mail guardam quem as fez; sem ator a gravação não segue (erro de programação). */
+function requireActor(actorUserId: string | undefined): string {
+  if (actorUserId === undefined) throw new Error('OCCURRENCE_TYPE_MAIL_ACTOR_REQUIRED')
+  return actorUserId
 }
 
 async function writeOccurrenceTypeRow(
@@ -1223,8 +1303,8 @@ async function writeOccurrenceTypeRow(
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
-    /** Spec 269: o modelo do e-mail à contratante; ausente é "não mexa", `null` limpa. */
-    readonly contractorMailTemplateId?: null | string | undefined
+    /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
+    readonly contractorNotificationTemplateKey?: null | string | undefined
     readonly contractorReplyAlertIntervalMinutes?: number | undefined
     readonly contractorReplyAlertMaxCount?: number | undefined
     readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
@@ -1370,10 +1450,10 @@ async function writeOccurrenceTypeRow(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
-            ...(typeof input.contractorMailTemplateId === 'string'
+            ...(typeof input.contractorNotificationTemplateKey === 'string'
               ? {
-                  contractorMailTemplateId: input.contractorMailTemplateId,
-                  contractorMailTemplateSelectedAt: sql`now()`,
+                  contractorNotificationTemplateKey: input.contractorNotificationTemplateKey,
+                  contractorNotificationTemplateSelectedAt: sql`now()`,
                 }
               : {}),
             ...(input.flow === 'stop' ? { stopKind: 'other' as const } : {}),
@@ -1385,14 +1465,15 @@ async function writeOccurrenceTypeRow(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
-            ...(input.contractorMailTemplateId === undefined
+            ...(input.contractorNotificationTemplateKey === undefined
               ? {}
               : {
-                  contractorMailTemplateId: input.contractorMailTemplateId,
-                  contractorMailTemplateSelectedAt: buildTemplateSelectedAtChange({
-                    selectedAtColumn: companyOccurrenceTypes.contractorMailTemplateSelectedAt,
-                    templateColumn: companyOccurrenceTypes.contractorMailTemplateId,
-                    templateId: input.contractorMailTemplateId,
+                  contractorNotificationTemplateKey: input.contractorNotificationTemplateKey,
+                  contractorNotificationTemplateSelectedAt: buildTemplateSelectedAtChange({
+                    selectedAtColumn:
+                      companyOccurrenceTypes.contractorNotificationTemplateSelectedAt,
+                    value: input.contractorNotificationTemplateKey,
+                    valueColumn: companyOccurrenceTypes.contractorNotificationTemplateKey,
                   }),
                 }),
             /** Spec 218 D2: virou tipo de parada sem valor? vale como `other`; o que já tinha, fica. */
@@ -1424,7 +1505,7 @@ async function writeOccurrenceTypeRow(
     iconName: saved.iconName,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
-    contractorMailTemplateId: saved.contractorMailTemplateId,
+    contractorNotificationTemplateKey: saved.contractorNotificationTemplateKey,
     contractorScope: saved.contractorScope,
     contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,
     contractorReplyAlertMaxCount: saved.contractorReplyAlertMaxCount,
@@ -1475,6 +1556,8 @@ export async function readOccurrenceMailValues(
     readonly note: string
     /** Spec 247: a ocorrência já gravada — de onde saem o número, o valor pago e as linhas. */
     readonly occurrenceId?: string | undefined
+    /** Spec 271: o nome do tipo, para `{{tipoOcorrencia}}`. */
+    readonly occurrenceTypeName?: string | undefined
     readonly occurredOn: string
     /** Todos os itens marcados: o e-mail cita todos, não só o primeiro. Vazia é a nota inteira. */
     readonly productCodes: readonly string[]
@@ -1568,6 +1651,7 @@ export async function readOccurrenceMailValues(
     ),
     lines,
     note: input.note,
+    occurrenceTypeName: input.occurrenceTypeName,
     occurredOn: input.occurredOn,
     recipientName: contato?.name ?? '',
     ...(stored?.referenceNumber == null ? {} : { referenceNumber: stored.referenceNumber }),

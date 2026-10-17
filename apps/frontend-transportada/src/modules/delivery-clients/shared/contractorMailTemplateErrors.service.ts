@@ -3,7 +3,6 @@
 /** Mapa código→chave de locale (evidence.md T402 § "Contrato HTTP"). */
 const CONTRACTOR_MAIL_TEMPLATE_ERROR_LOCALE_KEY: Readonly<Record<string, string>> = {
   CONTRACTOR_MAIL_TEMPLATE_ARCHIVED: 'mailTemplates.errorArchived',
-  CONTRACTOR_MAIL_TEMPLATE_IN_USE: 'mailTemplates.errorInUse',
   CONTRACTOR_MAIL_TEMPLATE_NAME_TAKEN: 'mailTemplates.errorNameTaken',
   CONTRACTOR_MAIL_TEMPLATE_NOT_FOUND: 'mailTemplates.errorNotFound',
   CONTRACTOR_MAIL_TEMPLATE_VERSION_CONFLICT: 'mailTemplates.errorVersionConflict',

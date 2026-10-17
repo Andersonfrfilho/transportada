@@ -143,16 +143,17 @@ export type OccurrenceMailCopyEntry = Readonly<{
 
 export type OccurrenceMailPreview = Readonly<{
   bodyText: string
-  /** Spec 267 RF4: a cópia efetiva (responsáveis da contratante ou da empresa). O operador só tira chips. */
+  /** Spec 267 RF4 / 271: a cópia efetiva (responsáveis do tipo, da contratante ou da empresa). O operador só tira chips. */
   cc: readonly OccurrenceMailCopyEntry[]
-  ccSource: 'company' | 'contractor' | null
+  ccSource: 'company' | 'contractor' | 'occurrence_type' | null
   contractorName: string
-  /** Spec 269 D8: sem modelo efetivo (tipo ou exceção da contratante), o e-mail não sai. Ausente é API anterior. */
+  /** Spec 269 D8 / 271: sem modelo utilizável no tipo, o e-mail não sai. Ausente é API anterior. */
   missingNotificationTemplate: boolean
+  /** Spec 271: a chave do modelo do módulo de notificação que o tipo escolheu. Ausente é API anterior. */
+  notificationTemplateKey: null | string
   recipients: readonly OccurrenceMailRecipient[]
   subject: string
   suggested: boolean
-  templateId: null | string
   text: string
 }>
 

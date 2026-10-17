@@ -150,7 +150,10 @@ describe('os mínimos do tipo de ocorrência contra o Postgres (spec 246 T1c.4)'
             companyId,
             findCurrentType: (input) => findOccurrenceType(provider.db, input),
             save: (values) => saveOccurrenceType(provider.db, { ...values, companyId }),
-            templates: { hasActiveEmailTemplate: async () => true },
+            templates: {
+              findContractorTemplate: async () => null,
+              hasActiveEmailTemplate: async () => true,
+            },
             values: { ...baseValues(companyId, { occurrenceTypeId: created.id }), ...extra },
           })
 

@@ -5,7 +5,6 @@
  * respeita o tenant, o único por nome e o padrão único — o banco de verdade é provado na integração.
  */
 import { buildAddressCorrectionMail } from '../../src/address-correction/domain/address-correction-mail.template.js'
-import { renderOccurrenceMailPreview } from '../../src/occurrence-conversation/domain/occurrence-mail-body.policy.js'
 import { ADDRESS_CORRECTION_MAIL_SAMPLE } from '../../src/address-correction/domain/address-correction-mail-sample.constant.js'
 import type {
   ContractorMailTemplate,
@@ -156,7 +155,6 @@ export async function createContractorMailTemplatesHttpFixture(
     previewRenderers: {
       address_correction: (template) =>
         buildAddressCorrectionMail({ ...ADDRESS_CORRECTION_MAIL_SAMPLE, template }),
-      occurrence: renderOccurrenceMailPreview,
     },
     repository,
   })

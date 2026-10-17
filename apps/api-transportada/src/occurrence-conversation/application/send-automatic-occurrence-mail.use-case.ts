@@ -13,6 +13,7 @@
  * - Motivo para não enviar é **resultado**; só falha inesperada sobe, e o chamador a registra sem
  *   derrubar o registro da ocorrência. ⚠️ A conversa não decide (D4): nada aqui toca a tratativa.
  */
+import { resolveOccurrenceRecipients } from '../domain/occurrence-contractor-recipients.policy.js'
 import type { SendOccurrenceMailUseCase } from './send-occurrence-mail.use-case.js'
 
 export type AutomaticOccurrenceMailRecipient = {
@@ -24,6 +25,8 @@ export type AutomaticOccurrenceMailRecipient = {
 }
 
 export type AutomaticOccurrenceMailPlan = {
+  /** Spec 271 (D13): os destinatários escolhidos no tipo; vazio é o `To` automático da etapa. */
+  readonly chosenContactIds: readonly string[]
   readonly emailsContractor: boolean
   /** A ocorrência é anterior ao momento em que o modelo efetivo foi escolhido: o aviso automático não vale. */
   readonly isRegisteredBeforeTemplate: boolean
@@ -92,7 +95,17 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
         return { outcome: 'skipped', reason: 'registered_before_template' }
       }
 
-      const ofStage = plan.recipients.filter((recipient) => recipient.stages.includes(plan.stage))
+      const resolved = resolveOccurrenceRecipients({
+        chosenContactIds: plan.chosenContactIds,
+        contacts: plan.recipients.map((recipient) => ({
+          email: recipient.email,
+          id: recipient.contactId,
+          occurrenceStages: recipient.stages,
+        })),
+        stage: plan.stage,
+      })
+      const resolvedIds = new Set(resolved.contactIds)
+      const ofStage = plan.recipients.filter((recipient) => resolvedIds.has(recipient.contactId))
       const byEmail = ofStage.filter((recipient) => recipient.email !== null)
       if (byEmail.length === 0) return { outcome: 'skipped', reason: 'no_recipient' }
 

@@ -304,6 +304,13 @@ import {
   OCCURRENCE_CANCELLATION_OPERATION,
   OCCURRENCE_CORRECTION_OPERATION,
 } from './trips/domain/occurrence-correction.policy.js'
+import { toContractorTemplateView } from './occurrence-conversation/domain/occurrence-contractor-template.policy.js'
+import { listOccurrenceTypeRecipientCandidates } from './trips/infrastructure/occurrence-type-mail-view.query.js'
+import { createOccurrenceTypeMailRoutes } from './trips/presentation/occurrence-type-mail.routes.js'
+import {
+  findActiveContractorTemplate,
+  listActiveContractorTemplates,
+} from './occurrence-conversation/infrastructure/notification-template.query.js'
 import { toOccurrenceTypeSettingsViews } from './trips/infrastructure/occurrence-type-contractors.query.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
@@ -764,7 +771,6 @@ import { createContractorMailTemplatesUseCase } from './contractor-mail/applicat
 import { DrizzleContractorMailTemplateRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-template.repository.js'
 import { createContractorMailTemplateRoutes } from './contractor-mail/presentation/contractor-mail-templates.routes.js'
 import { buildAddressCorrectionMail } from './address-correction/domain/address-correction-mail.template.js'
-import { renderOccurrenceMailPreview } from './occurrence-conversation/domain/occurrence-mail-body.policy.js'
 import { ADDRESS_CORRECTION_MAIL_SAMPLE } from './address-correction/domain/address-correction-mail-sample.constant.js'
 import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/public-inbound-email.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
@@ -2795,7 +2801,6 @@ function createApplicationRoutes({
     previewRenderers: {
       address_correction: (template) =>
         buildAddressCorrectionMail({ ...ADDRESS_CORRECTION_MAIL_SAMPLE, template }),
-      occurrence: renderOccurrenceMailPreview,
     },
     repository: new DrizzleContractorMailTemplateRepository(database),
   })
@@ -3994,6 +3999,21 @@ function createApplicationRoutes({
       saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
     }),
     /** Spec 218 RF-E1: composição pura — os mesmos repositórios das rotas acima, sem escrita. */
+    ...createOccurrenceTypeMailRoutes({
+      listContractorMailRecipientCandidates: {
+        execute: (input) =>
+          listOccurrenceTypeRecipientCandidates(database, {
+            companyId: input.context.companyId,
+            contractorIds: input.contractorIds,
+          }),
+      },
+      listContractorMailTemplates: {
+        execute: async (input) =>
+          (
+            await listActiveContractorTemplates(database, { companyId: input.context.companyId })
+          ).map(toContractorTemplateView),
+      },
+    }),
     ...createSettingsResolutionRoutes({
       readSettingsResolution: (input) =>
         readSettingsResolution({
@@ -4359,6 +4379,7 @@ function createApplicationRoutes({
         execute: async (input) =>
           toOccurrenceTypeSettingsViews(database, {
             companyId: input.context.companyId,
+            logger,
             records: await listOccurrenceTypes(database, { companyId: input.context.companyId }),
           }),
       },
@@ -4430,8 +4451,15 @@ function createApplicationRoutes({
             findCurrentType: ({ companyId, occurrenceTypeId }) =>
               findOccurrenceType(database, { companyId, occurrenceTypeId }),
             save: (values) =>
-              saveOccurrenceType(database, { ...values, companyId: input.context.companyId }),
+              saveOccurrenceType(database, {
+                ...values,
+                actorUserId: input.context.userId,
+                companyId: input.context.companyId,
+                correlationId: input.correlationId,
+              }),
             templates: {
+              findContractorTemplate: async ({ companyId, key }) =>
+                findActiveContractorTemplate(database, { companyId, key }),
               /**
                * O predicado consulta o catálogo do módulo — a mesma fonte que a tela de templates
                * edita. Chave sem template ativo de e-mail é recusada na gravação, não no envio.
@@ -4448,6 +4476,7 @@ function createApplicationRoutes({
           })
           const [view] = await toOccurrenceTypeSettingsViews(database, {
             companyId: input.context.companyId,
+            logger,
             records: [saved],
           })
           return view ?? saved

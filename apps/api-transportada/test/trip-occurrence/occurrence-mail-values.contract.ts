@@ -7,10 +7,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { MAIL_TEMPLATE_CATALOG } from '../../src/contractor-mail/domain/mail-template-catalog.constant.js'
+import { OCCURRENCE_CONTRACTOR_MAIL_VARIABLES } from '../../src/occurrence-conversation/domain/occurrence-contractor-mail.constant.js'
 import {
+  buildContractorMailValues,
   buildOccurrenceItemValues,
-  buildOccurrenceMailValues,
 } from '../../src/trips/domain/occurrence-mail-values.policy.js'
 import type {
   OccurrenceMailLine,
@@ -50,6 +50,7 @@ const VALUES: OccurrenceMailValues = {
   itemQuantity: '1, 2,5',
   lines: [LINE_A, LINE_B],
   note: 'Avaria identificada',
+  occurrenceTypeName: 'Avaria',
   occurredOn: '01/01/2026',
   recipientName: 'Supermercado Exemplo Ltda',
   referenceNumber: '45029',
@@ -57,58 +58,86 @@ const VALUES: OccurrenceMailValues = {
   totalValue: '7840.6400',
 }
 
-describe('valores do e-mail da ocorrência (spec 269 T2.3)', () => {
-  test('o nível do e-mail traz as chaves snake_case com os valores de hoje', () => {
-    expect(buildOccurrenceMailValues(VALUES).mail).toEqual({
-      codigos_itens: '7000001 01, 7000002 02',
+describe('valores do e-mail da ocorrência (spec 271 T2.2)', () => {
+  test('o nível do e-mail traz as chaves camelCase com os valores de hoje, mais tipoOcorrencia e linhasItens', () => {
+    expect(buildContractorMailValues(VALUES).mail).toEqual({
+      codigosItens: '7000001 01, 7000002 02',
       contratante: 'Contratante Exemplo',
       data: '01/01/2026',
       itens: 'PRODUTO EXEMPLO A 500G, PRODUTO EXEMPLO B 1KG',
+      linhasItens:
+        '7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20\n7000002 02 – PRODUTO EXEMPLO B 1KG – 2,5 CX – R$ 10,00',
       motorista: 'Motorista Exemplo',
-      numero_nota: '123456/1',
-      numero_nota_sem_serie: '123456',
-      numero_referencia: '45029',
+      numeroNota: '123456/1',
+      numeroNotaSemSerie: '123456',
+      numeroReferencia: '45029',
       observacao: 'Avaria identificada',
       parada: 'Rua Exemplo, 100',
-      quantidades_itens: '1, 2,5',
-      razao_social: 'Supermercado Exemplo Ltda',
-      soma_itens: '107,19',
-      valor_declarado: '67,20',
-      valor_nota: '7.840,64',
+      quantidadesItens: '1, 2,5',
+      razaoSocial: 'Supermercado Exemplo Ltda',
+      somaItens: '107,19',
+      tipoOcorrencia: 'Avaria',
+      valorDeclarado: '67,20',
+      valorNota: '7.840,64',
     })
   })
 
-  test('cada item traz as chaves de item, uma por linha', () => {
-    expect(buildOccurrenceMailValues(VALUES).items).toEqual([
-      {
-        codigo_item: '7000001 01',
-        item: 'PRODUTO EXEMPLO A 500G',
-        quantidade_item: '1',
-        soma_item: '57,20',
-        unidade_item: 'FD',
-        valor_item: '57,20',
-        valor_unitario_item: '57,20',
-      },
-      {
-        codigo_item: '7000002 02',
-        item: 'PRODUTO EXEMPLO B 1KG',
-        quantidade_item: '2,5',
-        soma_item: '49,99',
-        unidade_item: 'CX',
-        valor_item: '10,00',
-        valor_unitario_item: '20,00',
-      },
+  test('uma linha por item, na ordem em que foram marcados', () => {
+    expect(buildContractorMailValues(VALUES).itemLines).toEqual([
+      '7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20',
+      '7000002 02 – PRODUTO EXEMPLO B 1KG – 2,5 CX – R$ 10,00',
     ])
   })
 
-  test('o valor pago da ocorrência vence a soma dos valores das linhas', () => {
-    const { mail } = buildOccurrenceMailValues({ ...VALUES, declaredAmount: '0.0000' })
+  test('um item vira uma linha só', () => {
+    const { itemLines, mail } = buildContractorMailValues({ ...VALUES, lines: [LINE_A] })
 
-    expect(mail.valor_declarado).toBe('0,00')
+    expect(itemLines).toEqual(['7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20'])
+    expect(mail.linhasItens).toBe('7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20')
   })
 
-  test('sem linha, a soma e o valor pago saem vazios e não há item', () => {
-    const { items, mail } = buildOccurrenceMailValues({
+  test('três itens viram três linhas', () => {
+    const { mail } = buildContractorMailValues({ ...VALUES, lines: [LINE_A, LINE_B, LINE_A] })
+
+    expect(mail.linhasItens?.split('\n')).toHaveLength(3)
+  })
+
+  test('201 itens: 200 linhas e "e mais 1 item"', () => {
+    const lines = Array.from({ length: 201 }, () => LINE_A)
+    const { itemLines, mail } = buildContractorMailValues({ ...VALUES, lines })
+    const printed = mail.linhasItens?.split('\n') ?? []
+
+    expect(itemLines).toHaveLength(201)
+    expect(printed).toHaveLength(201)
+    expect(printed[199]).toBe('7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20')
+    expect(printed[200]).toBe('e mais 1 item')
+  })
+
+  test('202 itens: "e mais 2 itens" no plural', () => {
+    const lines = Array.from({ length: 202 }, () => LINE_A)
+
+    expect(
+      buildContractorMailValues({ ...VALUES, lines }).mail.linhasItens?.endsWith('e mais 2 itens'),
+    ).toBe(true)
+  })
+
+  test('item sem código imprime a linha sem o código, nunca com um traço solto', () => {
+    const { itemLines } = buildContractorMailValues({
+      ...VALUES,
+      lines: [{ ...LINE_A, code: '' }],
+    })
+
+    expect(itemLines).toEqual(['PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20'])
+  })
+
+  test('o valor pago da ocorrência vence a soma dos valores das linhas', () => {
+    const { mail } = buildContractorMailValues({ ...VALUES, declaredAmount: '0.0000' })
+
+    expect(mail.valorDeclarado).toBe('0,00')
+  })
+
+  test('sem linha, a soma e o valor pago saem vazios e não há linha de item', () => {
+    const { itemLines, mail } = buildContractorMailValues({
       ...VALUES,
       itemCode: '',
       itemLabel: '',
@@ -116,34 +145,31 @@ describe('valores do e-mail da ocorrência (spec 269 T2.3)', () => {
       lines: undefined,
     })
 
-    expect(items).toEqual([])
-    expect(mail.soma_itens).toBe('')
-    expect(mail.valor_declarado).toBe('')
+    expect(itemLines).toEqual([])
+    expect(mail.somaItens).toBe('')
+    expect(mail.valorDeclarado).toBe('')
     expect(mail.itens).toBe('')
+    expect(mail.linhasItens).toBe('')
   })
 
   test('campo opcional ausente sai vazio, nunca undefined', () => {
-    const { mail } = buildOccurrenceMailValues({
+    const { mail } = buildContractorMailValues({
       ...VALUES,
       documentNumber: undefined,
       referenceNumber: undefined,
       totalValue: '',
     })
 
-    expect(mail.numero_nota_sem_serie).toBe('')
-    expect(mail.numero_referencia).toBe('')
-    expect(mail.valor_nota).toBe('')
+    expect(mail.numeroNotaSemSerie).toBe('')
+    expect(mail.numeroReferencia).toBe('')
+    expect(mail.valorNota).toBe('')
   })
 
-  test('cobre exatamente as variáveis do catálogo, nos dois níveis', () => {
-    const { items, mail } = buildOccurrenceMailValues(VALUES)
-    const catalog = MAIL_TEMPLATE_CATALOG.occurrence
+  test('cobre exatamente a lista fechada de variáveis', () => {
+    const { mail } = buildContractorMailValues(VALUES)
 
     expect(Object.keys(mail).toSorted()).toEqual(
-      catalog.mailVariables.map((variable) => variable.name).toSorted(),
-    )
-    expect(Object.keys(items[0] ?? {}).toSorted()).toEqual(
-      catalog.itemVariables.map((variable) => variable.name).toSorted(),
+      OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.map((variable) => variable.name).toSorted(),
     )
   })
 })

@@ -9,7 +9,9 @@ import type { OccurrenceTypeEdit } from '@/modules/trip/shared/occurrenceTypeUpd
 import itemStyles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
 import styles from '@/modules/trip/styles/occurrenceTypeMail.module.css'
 
-import { OccurrenceTypeMailTemplateSelect } from './OccurrenceTypeMailTemplateSelect.component'
+import { OccurrenceTypeContractorTemplateSelect } from './OccurrenceTypeContractorTemplateSelect.component'
+import { OccurrenceTypeRecipientsSelect } from './OccurrenceTypeRecipientsSelect.component'
+import { OccurrenceTypeWatchersSelect } from './OccurrenceTypeWatchersSelect.component'
 
 type OccurrenceTypeContractorMailProps = Readonly<{
   disabled: boolean
@@ -18,8 +20,8 @@ type OccurrenceTypeContractorMailProps = Readonly<{
 }>
 
 /**
- * Spec 269 RF1: o e-mail que a contratante da nota recebe ao registrar. O interruptor e o modelo gravam na
- * hora; o texto mora no cadastro de modelos, não no tipo.
+ * Spec 271 RF1: o bloco "E-mail à contratante" do tipo — o interruptor, o modelo, quem vai em cópia e os destinatários
+ * gravam na hora; o texto mora no módulo de notificação, não no tipo.
  */
 export function OccurrenceTypeContractorMail({
   disabled,
@@ -27,7 +29,7 @@ export function OccurrenceTypeContractorMail({
   type,
 }: OccurrenceTypeContractorMailProps) {
   const { t } = useTranslation('companySettings')
-  const selectedTemplateId = type.contractorMailTemplateId ?? null
+  const selectedKey = type.contractorNotificationTemplateKey ?? null
 
   return (
     <section aria-label={t('occurrenceTypeCatalog.mail.title')} className={styles.mail}>
@@ -38,12 +40,23 @@ export function OccurrenceTypeContractorMail({
         label={t('occurrenceTypeCatalog.mail.switch')}
         onChange={(value) => onEdit({ emailsContractor: value })}
       />
-      <OccurrenceTypeMailTemplateSelect
+      <OccurrenceTypeContractorTemplateSelect
         disabled={disabled}
-        onSelect={(contractorMailTemplateId) => onEdit({ contractorMailTemplateId })}
-        selectedTemplateId={selectedTemplateId}
-        shouldWarnMissing={type.emailsContractor === true && selectedTemplateId === null}
+        onSelect={(contractorNotificationTemplateKey) =>
+          onEdit({ contractorNotificationTemplateKey })
+        }
+        selectedKey={selectedKey}
+        shouldWarnMissing={
+          type.emailsContractor === true && type.missingNotificationTemplate === true
+        }
       />
+      {/* Spec 271: API anterior ao bloco não manda as listas — sem os campos, nada que ela recusaria com `.strict()`. */}
+      {type.contractorMailWatchers === undefined ? null : (
+        <OccurrenceTypeWatchersSelect disabled={disabled} onEdit={onEdit} type={type} />
+      )}
+      {type.contractorMailRecipients === undefined ? null : (
+        <OccurrenceTypeRecipientsSelect disabled={disabled} onEdit={onEdit} type={type} />
+      )}
     </section>
   )
 }

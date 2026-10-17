@@ -181,36 +181,6 @@ describe('contractor mail templates client — error mapping', () => {
     })
   })
 
-  test('the in-use 409 keeps every occurrence type and contractor exception it lists (spec 269 RF7)', async () => {
-    const { fetchFn } = fakeFetch(
-      {
-        error: {
-          code: 'CONTRACTOR_MAIL_TEMPLATE_IN_USE',
-          details: [
-            { field: 'occurrenceType', message: 'Devolução parcial' },
-            { field: 'occurrenceType', message: 'Recusa total' },
-            { field: 'contractorException', message: 'Recusa total / Distribuidora Aurora' },
-          ],
-        },
-      },
-      409,
-    )
-    const client = createContractorMailTemplatesClient(dependencies(fetchFn))
-
-    const error = await client
-      .updateTemplate({ body: { status: 'archived', version: '1' }, templateId: 'template-1' })
-      .then(
-        () => undefined,
-        (reason: unknown) => reason,
-      )
-
-    expect(error).toBeInstanceOf(ContractorMailTemplatesRequestError)
-    expect((error as ContractorMailTemplatesRequestError).usage).toEqual({
-      contractorExceptions: ['Recusa total / Distribuidora Aurora'],
-      occurrenceTypes: ['Devolução parcial', 'Recusa total'],
-    })
-  })
-
   test('throws ContractorMailTemplatesRequestError when the transport itself fails', () => {
     const client = createContractorMailTemplatesClient({
       apiUrl: 'https://api.example.com',

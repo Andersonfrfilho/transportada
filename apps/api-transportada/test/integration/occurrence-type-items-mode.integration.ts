@@ -132,7 +132,10 @@ describe('"itemsMode" do tipo de ocorrência contra o Postgres (spec 241)', () =
         companyId,
         findCurrentType: (query) => findOccurrenceType(provider.db, query),
         save: (values) => saveOccurrenceType(provider.db, { ...values, companyId }),
-        templates: { hasActiveEmailTemplate: async () => false },
+        templates: {
+          findContractorTemplate: async () => null,
+          hasActiveEmailTemplate: async () => false,
+        },
         values: {
           ...baseValues(companyId),
           attachmentMode: 'off',
@@ -163,7 +166,10 @@ describe('"itemsMode" do tipo de ocorrência contra o Postgres (spec 241)', () =
           companyId,
           findCurrentType: (query) => findOccurrenceType(provider.db, query),
           save: (values) => saveOccurrenceType(provider.db, { ...values, companyId }),
-          templates: { hasActiveEmailTemplate: async () => false },
+          templates: {
+            findContractorTemplate: async () => null,
+            hasActiveEmailTemplate: async () => false,
+          },
           values: { ...baseValues(companyId), itemsMode: 'off', occurrenceTypeId: blocked.id },
         })
 

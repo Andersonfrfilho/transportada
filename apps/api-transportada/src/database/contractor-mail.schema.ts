@@ -8,6 +8,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -31,7 +32,6 @@ import {
 import {
   CONTRACTOR_MAIL_TEMPLATE_LIMITS,
   CONTRACTOR_MAIL_TEMPLATE_STATUSES,
-  CONTRACTOR_MAIL_TEMPLATE_TYPES,
   type ContractorMailTemplateStatus,
   type ContractorMailTemplateType,
 } from '../contractor-mail/domain/mail-template-catalog.constant.js'
@@ -40,6 +40,9 @@ import { contractors } from './delivery-client.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
 import { WHATSAPP_PHONE_PATTERN } from '../whatsapp-commands/domain/whatsapp-phone.policy.js'
+
+/** A CHECK de `mail_type` ainda aceita `occurrence` (spec 269, banco já migrado); volta a `address_correction` só na migration B da 271. */
+const MAIL_TYPE_CHECK_VALUES = ['address_correction', 'occurrence'] as const
 
 /**
  * Spec 143 (ADR-0063): a configuração é por empresa. A chave de API do Resend e o segredo do
@@ -381,7 +384,7 @@ export const contractorMailTemplates = pgTable(
       .where(sql`${table.isDefault} and ${table.status} = 'active'`),
     check(
       'contractor_mail_templates_mail_type_check',
-      sql`${table.mailType} in (${sql.raw(inList(CONTRACTOR_MAIL_TEMPLATE_TYPES))})`,
+      sql`${table.mailType} in (${sql.raw(inList(MAIL_TYPE_CHECK_VALUES))})`,
     ),
     check(
       'contractor_mail_templates_status_check',
@@ -500,6 +503,9 @@ export const contractorMailMessages = pgTable(
     bodyHtml: text('body_html'),
     /** Spec 150 T402 (RF15): o modelo usado no envio. `null` em mensagem antiga, `inbound` e teste. */
     templateId: uuid('template_id'),
+    /** Spec 271 (D8): a chave e a versão do modelo do módulo de notificação que escreveu o e-mail de ocorrência. */
+    notificationTemplateKey: varchar('notification_template_key', { length: 128 }),
+    notificationTemplateVersion: integer('notification_template_version'),
     rawObjectId: uuid('raw_object_id'),
     rawSha256: text('raw_sha256'),
     providerEmailId: text('provider_email_id'),

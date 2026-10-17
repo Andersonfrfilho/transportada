@@ -101,7 +101,10 @@ describe('gravação do tipo com template do módulo', () => {
         savedValues = values
         return buildType({ emailTemplateKey: 'billing.invoice-due' })
       },
-      templates: { hasActiveEmailTemplate: async () => true },
+      templates: {
+        findContractorTemplate: async () => null,
+        hasActiveEmailTemplate: async () => true,
+      },
       values: { ...BASE_VALUES, emailTemplateKey: 'billing.invoice-due' },
     })
 
@@ -115,7 +118,10 @@ describe('gravação do tipo com template do módulo', () => {
         companyId: COMPANY,
         findCurrentType: async () => null,
         save: async () => buildType({}),
-        templates: { hasActiveEmailTemplate: async () => false },
+        templates: {
+          findContractorTemplate: async () => null,
+          hasActiveEmailTemplate: async () => false,
+        },
         values: { ...BASE_VALUES, emailTemplateKey: 'key.inexistente' },
       }),
     ).rejects.toBeInstanceOf(OccurrenceEmailTemplateNotFoundError)

@@ -147,6 +147,63 @@ describe('tripResponse.validation — tolerância ao modelo de e-mail do tipo (s
 })
 
 /**
+ * Spec 271 T1.1 (ADR-0108, ADR-0081 §9): o painel tolera o bloco novo "E-mail à contratante" do tipo
+ * antes de a API mandá-lo — modelo por chave, responsáveis em cópia, destinatários e o aviso de modelo ausente.
+ */
+describe('tripResponse.validation — tolerância ao bloco de e-mail à contratante do tipo (spec 271)', () => {
+  const adapters = createTripResponseAdapters()
+  const baseType = {
+    id: 'type-1',
+    name: 'Avaria',
+    active: true,
+    stage: 'delivery',
+    emailTemplateKey: null,
+    notifies: false,
+  }
+
+  it('aceita o tipo com as chaves novas e sem contractorMailTemplateId', () => {
+    const result = adapters.occurrenceTypeFromApi({
+      ...baseType,
+      contractorMailRecipients: [
+        {
+          contactId: 'contact-1',
+          contractorId: 'contractor-1',
+          email: 'a@example.com',
+          name: 'Carla',
+          receivesOccurrences: true,
+          status: 'active',
+        },
+      ],
+      contractorMailWatchers: [
+        { eligible: true, name: 'Davi', status: 'active', userId: 'user-1' },
+      ],
+      contractorNotificationTemplateKey: 'ocorrencia.avaria',
+      missingNotificationTemplate: false,
+    })
+
+    expect(result).toBeDefined()
+  })
+
+  it('aceita o tipo antigo, ainda com contractorMailTemplateId', () => {
+    expect(
+      adapters.occurrenceTypeFromApi({ ...baseType, contractorMailTemplateId: 'template-1' }),
+    ).toBeDefined()
+  })
+
+  it('aceita a chave do modelo nula', () => {
+    expect(
+      adapters.occurrenceTypeFromApi({ ...baseType, contractorNotificationTemplateKey: null }),
+    ).toBeDefined()
+  })
+
+  it('reprova a chave do modelo que não é texto', () => {
+    expect(() =>
+      adapters.occurrenceTypeFromApi({ ...baseType, contractorNotificationTemplateKey: 7 }),
+    ).toThrow()
+  })
+})
+
+/**
  * Spec 252 T5.1: O painel tolera o campo novo `holidayWarnings` nas paradas antes de a API mandá-lo.
  * Um detalhe de viagem COM e SEM o campo é aceito. Esta é a etapa 1 (painel tolerante)
  * da ADR-0081 §9 e ADR-0100 §6.

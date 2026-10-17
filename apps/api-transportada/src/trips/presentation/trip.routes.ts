@@ -330,6 +330,8 @@ type SaveOccurrenceTypeInput = {
    */
   readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly context: CompanyContext
+  /** Spec 271 (D15): a correlação do pedido, para a auditoria do bloco de e-mail do tipo. */
+  readonly correlationId: string
   /** Spec 247 (RF1): o valor pago digitado; ausente é "não mexa" — ver o caso de uso. */
   readonly declaredAmountLabel?: string | undefined
   readonly iconName?: null | OccurrenceTypeIconName | undefined
@@ -348,8 +350,12 @@ type SaveOccurrenceTypeInput = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
-  /** Spec 269: o modelo do e-mail à contratante; ausente é "não mexa", `null` limpa. */
-  readonly contractorMailTemplateId?: null | string | undefined
+  /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
+  readonly contractorNotificationTemplateKey?: null | string | undefined
+  /** Spec 271 (D10): os responsáveis em cópia do tipo; ausente é "não mexa". */
+  readonly contractorMailWatcherUserIds?: readonly string[] | undefined
+  /** Spec 271 (D12): os destinatários do tipo, só em tipo `listed`; ausente é "não mexa". */
+  readonly contractorMailRecipientContactIds?: readonly string[] | undefined
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): obrigatório na criação, ausente na edição é "não mexa" — ver
@@ -2019,8 +2025,8 @@ export function createTripRoutes(
         return jsonResponse({ body: { data: saved }, status: 200 })
       },
       method: 'PUT',
-      async parse({ request }) {
-        return parseOccurrenceTypeRequest(request)
+      async parse({ correlationId, request }) {
+        return { ...(await parseOccurrenceTypeRequest(request)), correlationId }
       },
       pathname: OCCURRENCE_TYPES_PATH,
       policy: SETTINGS_MANAGE_POLICY,

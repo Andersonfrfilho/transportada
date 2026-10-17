@@ -101,7 +101,7 @@ type FeedRow = Omit<
   readonly createdAt: Date
   /** Spec 269: só alimentam o aviso do modelo; saem na montagem do item. */
   readonly emailsContractor: boolean
-  readonly typeMailTemplateId: null | string
+  readonly typeNotificationTemplateKey: null | string
   readonly nfeDocumentId: null | string
   readonly totalValue: null | string
   readonly tripDocumentId: null | string
@@ -300,7 +300,7 @@ async function listDocumentOccurrenceRows(
       invoiceSeries: nfeDocuments.series,
       notifies: companyOccurrenceTypes.notifies,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
-      typeMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
+      typeNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       onBehalfOfDriverName: feedOnBehalfDriver.name,
       stage: tripDocumentOccurrences.stage,
@@ -409,7 +409,7 @@ async function listDocumentOccurrenceRows(
     invoiceSeries: row.invoiceSeries,
     notifies: row.notifies,
     emailsContractor: row.emailsContractor,
-    typeMailTemplateId: row.typeMailTemplateId,
+    typeNotificationTemplateKey: row.typeNotificationTemplateKey,
     occurrenceTypeId: row.occurrenceTypeId,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'document' as const,
@@ -593,7 +593,7 @@ async function listStopOccurrenceRows(
     invoiceSeries: row.invoiceSeries,
     notifies: false,
     emailsContractor: false,
-    typeMailTemplateId: null,
+    typeNotificationTemplateKey: null,
     occurrenceTypeId: null,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'stop' as const,
@@ -698,7 +698,7 @@ async function toFeedItems(
       companyId,
       occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
     }),
-    /** Spec 269 D8: o aviso do modelo da página inteira, numa leitura só das exceções — isolado de falha. */
+    /** Spec 269 D8 / 271 D9: o aviso do modelo da página inteira, numa leitura só das chaves — isolado de falha. */
     listMissingNotificationTemplatesOrEmpty(queryable, {
       candidates: rows.map((row) => ({
         contractorId:
@@ -707,9 +707,8 @@ async function toFeedItems(
             : (emitters.get(row.nfeDocumentId)?.contractorId ?? null),
         emailsContractor: row.emailsContractor,
         id: row.id,
-        occurrenceTypeId: row.occurrenceTypeId,
         source: row.source,
-        typeMailTemplateId: row.typeMailTemplateId,
+        typeNotificationTemplateKey: row.typeNotificationTemplateKey,
       })),
       companyId,
       ...(logger === undefined ? {} : { logger }),
@@ -732,9 +731,9 @@ async function toFeedItems(
       occurrenceTypeId: row.occurrenceTypeId,
       shapes: typeShapes,
     })
-    const { emailsContractor, typeMailTemplateId, ...itemFields } = row
+    const { emailsContractor, typeNotificationTemplateKey, ...itemFields } = row
     void emailsContractor
-    void typeMailTemplateId
+    void typeNotificationTemplateKey
     return {
       ...itemFields,
       missingNotificationTemplate: missingTemplateIds.has(row.id),

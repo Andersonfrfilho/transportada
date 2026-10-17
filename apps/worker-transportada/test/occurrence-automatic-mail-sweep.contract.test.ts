@@ -3,3 +3,4 @@
  */
 import './occurrence-automatic-mail-sweep/routine.contract.js'
 import './occurrence-automatic-mail-sweep/api.gateway.contract.js'
+import './occurrence-automatic-mail-sweep/html-body-pattern.contract.js'

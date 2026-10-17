@@ -287,6 +287,10 @@ function toCopyEntry(value: unknown): null | OccurrenceMailCopyEntry {
   return { maskedEmail: value.maskedEmail, name: value.name, userId: value.userId }
 }
 
+function readCcSource(value: unknown): OccurrenceMailPreview['ccSource'] {
+  return value === 'company' || value === 'contractor' || value === 'occurrence_type' ? value : null
+}
+
 function readPreview(payload: unknown): OccurrenceMailPreview {
   const data = isRecord(payload) ? payload.data : undefined
   if (
@@ -301,13 +305,15 @@ function readPreview(payload: unknown): OccurrenceMailPreview {
   return {
     bodyText: data.bodyText,
     cc: Array.isArray(data.cc) ? data.cc.flatMap((entry) => toCopyEntry(entry) ?? []) : [],
-    ccSource: data.ccSource === 'company' || data.ccSource === 'contractor' ? data.ccSource : null,
+    ccSource: readCcSource(data.ccSource),
     contractorName: isString(data.contractorName) ? data.contractorName : '',
     missingNotificationTemplate: data.missingNotificationTemplate === true,
     recipients: Array.isArray(data.recipients) ? data.recipients.filter(isRecipient) : [],
     subject: data.subject,
     suggested: data.suggested,
-    templateId: isString(data.templateId) ? data.templateId : null,
+    notificationTemplateKey: isString(data.notificationTemplateKey)
+      ? data.notificationTemplateKey
+      : null,
     text: data.text,
   }
 }

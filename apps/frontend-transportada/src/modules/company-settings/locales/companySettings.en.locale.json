@@ -308,7 +308,7 @@
     "stageDelivery": "On the road",
     "notifies": "Notify when it happens",
     "active": "In use",
-    "emailTemplate": "Email template",
+    "emailTemplate": "Internal notice (email template)",
     "emailTemplateNone": "No email",
     "editTemplates": "Edit email templates",
     "withoutTemplate": "No email: this type is only logged on the trip.",
@@ -467,7 +467,78 @@
     },
     "mail": {
       "title": "Contractor e-mail",
-      "switch": "Send an e-mail to the invoice's contractor when registered"
+      "switch": "Send an e-mail to the invoice's contractor when registered",
+      "template": {
+        "label": "Template",
+        "none": "None",
+        "createInNotifications": "Create a template in Notifications",
+        "loading": "Loading the templates…",
+        "failed": "Could not load the templates. Try again shortly.",
+        "missing": "Type without a notification template: the email to the contractor is not sent. Choose a template.",
+        "unusable": "The template \"{{key}}\" cannot be used for the email to the contractor, so no email is sent: {{problems}}",
+        "previewTitle": "Preview · sample values",
+        "hint": "The email text is written in Notifications → Preferences, in a Portuguese email template. Here you only choose which one.",
+        "variablesTitle": "Variables the template accepts",
+        "suggestedTitle": "Suggested template (copy it in Notifications)",
+        "problems": {
+          "not_found": "There is no active Portuguese email template with this key.",
+          "system_key": "It is a system notice, with other variables.",
+          "html_body": "The body has HTML; the email to the contractor is plain text.",
+          "empty_subject": "The subject is empty.",
+          "unknown_variables": "Variables outside the list come out empty: {{variables}}.",
+          "malformed_placeholder": "A {{ }} placeholder is malformed."
+        },
+        "variables": {
+          "numeroNota": "Invoice number with series.",
+          "numeroNotaSemSerie": "Invoice number without series.",
+          "razaoSocial": "Legal name of the invoice recipient.",
+          "valorNota": "Invoice total value.",
+          "contratante": "Contractor name.",
+          "motorista": "Driver of the trip.",
+          "parada": "The invoice's stop.",
+          "data": "Occurrence date.",
+          "observacao": "Registered note.",
+          "tipoOcorrencia": "Occurrence type name.",
+          "numeroReferencia": "Customer document number.",
+          "somaItens": "Sum of the item lines.",
+          "valorDeclarado": "Declared paid amount.",
+          "itens": "The items in one text, comma separated.",
+          "codigosItens": "The item codes, comma separated.",
+          "quantidadesItens": "The quantities, comma separated.",
+          "linhasItens": "One line per item: code – item – quantity unit – R$ value."
+        }
+      },
+      "watchers": {
+        "label": "In copy",
+        "placeholder": "Nobody: the contractor's list applies, else the company's",
+        "summary_one": "{{count}} watcher",
+        "summary_other": "{{count}} watchers",
+        "empty": "No active watcher in the company list.",
+        "clearAll": "Clear the choice",
+        "remove": "Remove {{name}}",
+        "search": "Search watcher",
+        "hint": "Up to {{max}} per type, from the company's watcher list. Empty: the invoice contractor's list applies and, without it, the company's.",
+        "inactive": "inactive in the company list",
+        "notEligible": "no permission or no email",
+        "failed": "Could not load the company watchers.",
+        "limit": "A type takes at most {{max}} watchers in copy: remove one to choose another."
+      },
+      "recipients": {
+        "label": "Recipients",
+        "placeholder": "Nobody: the contacts that receive occurrences of the stage go",
+        "summary_one": "{{count}} contact",
+        "summary_other": "{{count}} contacts",
+        "empty": "No active contact that receives occurrences on the type's contractors.",
+        "clearAll": "Clear the choice",
+        "remove": "Remove {{name}}",
+        "search": "Search contact",
+        "hint": "Contacts of this type's contractors. On an invoice, only those of its contractor go. Empty: the contacts that receive occurrences of the stage go.",
+        "inactive": "inactive",
+        "notEligible": "does not receive occurrences",
+        "failed": "Could not load the contractors' contacts.",
+        "leaving_one": "{{count}} contact chosen as recipient leaves the choice when you apply.",
+        "leaving_other": "{{count}} contacts chosen as recipients leave the choice when you apply."
+      }
     },
     "moments": {
       "title": "Who registers, and where",
@@ -597,18 +668,6 @@
         "automaticNeedsReply": "Automatic sending to the invoice customer requires the reply to be on.",
         "forwardNeedsText": "Write the subject and the text: the email to the third party is not sent without both."
       }
-    },
-    "mailTemplate": {
-      "label": "Email template",
-      "none": "None",
-      "inherit": "Inherit from the type",
-      "archivedName": "{{name}} (archived)",
-      "failed": "Could not load the templates. Try again shortly.",
-      "previewTitle": "Preview · sample data",
-      "previewLoading": "Building the preview…",
-      "previewFailed": "Could not build the preview.",
-      "missing": "Type without a notification template: the email to the contractor is not sent. Choose a template.",
-      "manage": "Manage templates"
     },
     "contractorScope": {
       "title": "Applies to",

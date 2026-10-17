@@ -120,7 +120,7 @@ describe('occurrenceAttachmentOverrides.validation — tolerância ao modelo de 
     itemsMode: 'optional',
   }
 
-  it('aceita exceção com contractorMailTemplateId de texto ou nulo', () => {
+  it('tolera e ignora o contractorMailTemplateId da 269 que a API ainda pode mandar (spec 271 D14)', () => {
     for (const contractorMailTemplateId of ['template-1', null]) {
       const result = readOccurrenceAttachmentOverrides({
         contractorOverrides: [{ ...contractorOverride, contractorMailTemplateId }],
@@ -130,11 +130,11 @@ describe('occurrenceAttachmentOverrides.validation — tolerância ao modelo de 
     }
   })
 
-  it('reprova contractorMailTemplateId que não é texto nem nulo', () => {
+  it('aceita exceção sem contractorMailTemplateId (API da spec 271)', () => {
     const result = readOccurrenceAttachmentOverrides({
-      contractorOverrides: [{ ...contractorOverride, contractorMailTemplateId: 7 }],
+      contractorOverrides: [contractorOverride],
       recipientOverrides: [],
     })
-    expect(result).toBeUndefined()
+    expect(result?.contractorOverrides).toHaveLength(1)
   })
 })

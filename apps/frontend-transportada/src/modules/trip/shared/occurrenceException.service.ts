@@ -19,7 +19,6 @@ export type OccurrenceExceptionKey =
 
 export type OccurrenceExceptionEdit = Readonly<{
   attachmentMode?: OccurrenceAttachmentMode
-  contractorMailTemplateId?: null | string
   declaredAmountMode?: null | OccurrenceAttachmentMode
   itemsMinimumCount?: null | number
   itemsMode?: null | OccurrenceItemsMode
@@ -119,7 +118,6 @@ export function addException(
         {
           attachmentMode: input.attachmentMode,
           contractorId: input.key.contractorId,
-          contractorMailTemplateId: null,
           ...INHERITING_FIELDS,
         },
       ],

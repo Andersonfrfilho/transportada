@@ -127,6 +127,8 @@ export type {
   OccurrenceAttachmentRecipientOverride,
   OccurrenceType,
   OccurrenceTypeContractor,
+  OccurrenceTypeMailRecipient,
+  OccurrenceTypeMailWatcher,
 } from './occurrenceType.types'
 
 /** Revisão do painel M7: o teto do seletor de contratantes da exceção — acima dele a tela avisa que a lista pode estar incompleta. */

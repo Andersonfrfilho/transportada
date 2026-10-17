@@ -604,10 +604,11 @@ histórico é a da linha do tempo (`OccurrenceTimeline`, `actor.name`).
 
 ## A devolução soma os itens no painel (spec 247)
 
-A aba Tipos configura número do documento do cliente e valor pago (modo, escopo, rótulo). ⚠️ O **e-mail à contratante não tem mais texto no tipo** (spec 269,
-ADR-0106): o tipo e a exceção da contratante só **escolhem** um modelo `occurrence` do cadastro "Modelos" (`OccurrenceTypeMailTemplateSelect`; "Herdar do tipo" na
-exceção); a prévia é a do servidor (`POST /contractor-mail-templates/preview`), nunca uma segunda implementação no painel. Sem modelo efetivo o envio não existe, nem à mão:
-feed e detalhe trazem `missingNotificationTemplate` (selo "Tipo sem modelo de notificação" com caminho até a aba Tipos), e o diálogo "Enviar à contratante" fica desabilitado. A correção
+A aba Tipos configura número do documento do cliente e valor pago (modo, escopo, rótulo). ⚠️ O **e-mail à contratante não tem texto no tipo** (spec 269/271, ADR-0108): o texto é um modelo de e-mail do **módulo de notificação** (Notificações → Preferências); o
+tipo só **escolhe a chave** (`OccurrenceTypeContractorTemplateSelect`, lista só os utilizáveis), mais quem vai em cópia (responsáveis da empresa, até 10) e, no tipo `listed`, os
+destinatários — a exceção por contratante não escolhe modelo. A prévia é com valores de exemplo (interpolação `{{campo}}` local, paridade em `occurrence-type-mail-parity.contract.ts`).
+Sem modelo utilizável o envio não existe, nem à mão: feed e detalhe trazem `missingNotificationTemplate` (selo "Tipo sem modelo de notificação" com caminho até a aba Tipos), e o diálogo
+"Enviar à contratante" fica desabilitado. A correção
 (`TripOccurrenceCorrectionForm`) obedece `requirements` do **detalhe** da ocorrência (modo efetivo: `off` esconde, `required` sem
 "Limpar"), para não depender de `settings.manage`; `useOccurrenceTypeRecordConfig` é só fallback quando `requirements` falta.
 `occurrenceAmount.service.ts` espelha o cálculo da API (`bigint`; contrato `occurrence-amount-mirror.contract.ts`) e a soma da linha

@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import { OCCURRENCE_WATCHER_MAX_TOTAL } from '../../contractor-mail/domain/occurrence-watcher.constant.js'
 import {
   CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES,
   CONTRACTOR_REPLY_ALERT_MAX_COUNT,
@@ -554,11 +556,37 @@ const occurrenceTypeSchema = z
      */
     emailsContractor: z.boolean().optional(),
     /**
-     * Spec 269 (ADR-0106): o modelo `occurrence` do cadastro de modelos que escreve o e-mail deste tipo.
-     * Ausente é "não mexa"; `null` limpa (o tipo fica sem e-mail). Conferido na gravação: da empresa,
-     * `occurrence` e ativo.
+     * Spec 271 (D14): a chave da 269 (modelo do cadastro da 150, por id) é **aceita e ignorada** até as telas novas
+     * estarem em produção — o painel antigo ainda a manda; depois disso sai daqui e o `.strict()` a recusa (T5.5).
      */
     contractorMailTemplateId: z.string().uuid().nullable().optional(),
+    /**
+     * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação que escreve o e-mail à
+     * contratante. Ausente é "não mexa"; `null` limpa. Conferida na gravação (400 com todos os problemas).
+     */
+    contractorNotificationTemplateKey: z.string().trim().min(1).max(128).nullable().optional(),
+    /**
+     * Spec 271 (D10): os responsáveis em cópia do e-mail à contratante, da lista da empresa. Ausente é "não mexa";
+     * `[]` limpa. O teto de 10 e a lista da empresa são conferidos no caso de uso (códigos próprios).
+     */
+    /**
+     * Spec 271 (D12): os destinatários do e-mail à contratante. Ausente é "não mexa"; `[]` limpa. Só tipo `listed`
+     * (400 no `all`); até o teto de destinatários por e-mail.
+     */
+    contractorMailRecipientContactIds: z
+      .array(z.string().uuid())
+      .max(CONTRACTOR_MAIL_MAX_RECIPIENTS)
+      .optional()
+      .refine((ids) => ids === undefined || new Set(ids).size === ids.length, {
+        message: 'RECIPIENT_IDS_MUST_BE_UNIQUE',
+      }),
+    contractorMailWatcherUserIds: z
+      .array(z.string().uuid())
+      .max(OCCURRENCE_WATCHER_MAX_TOTAL)
+      .optional()
+      .refine((ids) => ids === undefined || new Set(ids).size === ids.length, {
+        message: 'WATCHER_IDS_MUST_BE_UNIQUE',
+      }),
     /**
      * Spec 270 (ADR-0107): para quem o tipo vale. `contractorScope` e `contractorIds` vão juntos (o caso de
      * uso recusa um sem o outro, 400); ausentes é "não mexa". `all` apaga a lista; `listed` pede ao menos uma.
@@ -686,10 +714,7 @@ export const occurrenceAttachmentOverridesSchema = z
           .object({
             attachmentMode: attachmentOverrideModeSchema,
             contractorId: z.string().uuid(),
-            /**
-             * Spec 269 (ADR-0106): o modelo de e-mail desta contratante; nulo herda o do tipo, ausente é
-             * "não mexa" — como as colunas irmãs. Só a exceção de contratante o tem (sem destinatário).
-             */
+            /** Spec 271 (D7/D14): a exceção perdeu o modelo; a chave da 269 é aceita e ignorada até a T5.5. */
             contractorMailTemplateId: z.string().uuid().nullable().optional(),
             ...overrideRequirementFields,
           })

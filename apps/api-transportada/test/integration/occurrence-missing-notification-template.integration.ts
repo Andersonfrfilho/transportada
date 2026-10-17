@@ -1,16 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 269 T2.7 (D8), contra Postgres real: `missingNotificationTemplate` no feed e no detalhe — tipo que avisa a
- * contratante e sem modelo efetivo (exceção da contratante da nota ?? tipo).
+ * Spec 269 T2.7 (D8) e 271 (D9), contra Postgres real: `missingNotificationTemplate` no feed e no detalhe — tipo
+ * que avisa a contratante e sem modelo utilizável (chave do módulo de notificação).
  */
 import { describe, expect } from 'bun:test'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import {
-  companyOccurrenceTypeContractorOverrides,
   companyOccurrenceTypes,
-  contractors,
   tripDocumentOccurrences,
 } from '../../src/database/database.schema.js'
 import {
@@ -18,11 +16,11 @@ import {
   listTripOccurrenceFeed,
 } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
 import {
+  SEEDED_NOTIFICATION_TEMPLATE_KEY,
   seedMailScenario,
   withConversationDatabase,
 } from '../fixtures/occurrence-conversation-database.fixture.js'
 import type { Seeded } from '../fixtures/occurrence-conversation-database.fixture.js'
-import { seedOccurrenceMailTemplate } from '../fixtures/occurrence-mail-template.fixture.js'
 import { testWithPostgres } from '../fixtures/trip-field-office-database.fixture.js'
 import type { TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
 
@@ -72,18 +70,19 @@ async function flagsOf(database: TestDatabase, seeded: Seeded) {
   }
 }
 
-describe('o aviso "Tipo sem modelo de notificação" (spec 269 T2.7)', () => {
+describe('o aviso "Tipo sem modelo de notificação" (spec 271 D9)', () => {
   testWithPostgres(
-    'só quando o tipo avisa a contratante e não há modelo efetivo, no feed e no detalhe',
+    'só quando o tipo avisa a contratante e não há modelo utilizável no módulo, no feed e no detalhe',
     async () => {
       await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
         const { companyId } = seeded.company
+        const templateWhere = sql`company_id = ${companyId}::uuid and key = ${SEEDED_NOTIFICATION_TEMPLATE_KEY}`
 
         expect(await flagsOf(database, seeded)).toEqual({ detail: false, listed: false })
 
         await configure(database, seeded, {
-          contractorMailTemplateId: null,
+          contractorNotificationTemplateKey: null,
           emailsContractor: false,
         })
         expect(await flagsOf(database, seeded)).toEqual({ detail: false, listed: false })
@@ -91,27 +90,24 @@ describe('o aviso "Tipo sem modelo de notificação" (spec 269 T2.7)', () => {
         await configure(database, seeded, { emailsContractor: true })
         expect(await flagsOf(database, seeded)).toEqual({ detail: true, listed: true })
 
-        const [contractor] = await database.db
-          .select({ id: contractors.id })
-          .from(contractors)
-          .where(eq(contractors.companyId, companyId))
-        const templateId = await seedOccurrenceMailTemplate(database, seeded.company)
-        await database.db.insert(companyOccurrenceTypeContractorOverrides).values({
-          attachmentMode: 'optional',
-          companyId,
-          contractorId: contractor?.id ?? '',
-          contractorMailTemplateId: templateId,
-          occurrenceTypeId: await typeIdOf(database, seeded),
+        await configure(database, seeded, {
+          contractorNotificationTemplateKey: SEEDED_NOTIFICATION_TEMPLATE_KEY,
         })
         expect(await flagsOf(database, seeded)).toEqual({ detail: false, listed: false })
 
-        await database.db
-          .update(companyOccurrenceTypeContractorOverrides)
-          .set({ contractorMailTemplateId: null })
-          .where(eq(companyOccurrenceTypeContractorOverrides.companyId, companyId))
+        await database.db.execute(
+          sql`update notification.templates set active = false where ${templateWhere}`,
+        )
         expect(await flagsOf(database, seeded)).toEqual({ detail: true, listed: true })
 
-        await configure(database, seeded, { contractorMailTemplateId: templateId })
+        await database.db.execute(
+          sql`update notification.templates set active = true, body = '<p>html</p>' where ${templateWhere}`,
+        )
+        expect(await flagsOf(database, seeded)).toEqual({ detail: true, listed: true })
+
+        await database.db.execute(
+          sql`update notification.templates set body = 'texto {{numeroNota}}' where ${templateWhere}`,
+        )
         expect(await flagsOf(database, seeded)).toEqual({ detail: false, listed: false })
       })
     },

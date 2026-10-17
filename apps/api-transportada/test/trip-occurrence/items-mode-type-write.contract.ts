@@ -81,7 +81,10 @@ function createSaveDependency(stored: StoredShape | null): {
                   savedValues.push(values)
                   return buildRecord(values, stored ?? undefined)
                 },
-                templates: { hasActiveEmailTemplate: async () => true },
+                templates: {
+                  findContractorTemplate: async () => null,
+                  hasActiveEmailTemplate: async () => true,
+                },
                 values: input,
               }),
           }

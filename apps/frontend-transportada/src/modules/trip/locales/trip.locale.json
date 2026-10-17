@@ -1113,7 +1113,6 @@
     "occurrenceTypeMomentsRequired": "O tipo precisa de ao menos um momento: sem nenhum ele não apareceria para ninguém. Nada foi gravado.",
     "occurrenceTypeMomentsDocumentAndStop": "Motorista, numa nota e Motorista, na parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado.",
     "occurrenceTypeMomentsStageConflict": "Este tipo tem vários momentos e o grupo (galpão ou rua) não pode ser trocado sem eles. Ajuste os momentos e salve de novo; nada foi gravado.",
-    "occurrenceMailTemplateNotUsable": "Este modelo de e-mail foi arquivado ou não está mais disponível. Escolha outro modelo da lista.",
     "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro.",
     "occurrenceReferenceNumberRequired": "Este tipo de ocorrência exige o número do documento do cliente. Preencha o número em vez de limpá-lo e salve de novo. Nada foi gravado.",
     "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado.",
@@ -1122,7 +1121,14 @@
     "occurrenceTypeContractorScopeNeedsDocument": "Tipo só de parada não pode ser restrito a contratantes: a parada não tem contratante. Nada foi gravado.",
     "occurrenceTypeContractorScopeInvalid": "Escopo e lista de contratantes vão juntos, e Todas as contratantes não leva lista. Nada foi gravado.",
     "occurrenceTypeNotAvailableForContractor": "Este tipo não vale para a contratante desta nota. Escolha outro tipo.",
-    "occurrenceTypeContractorNotFound": "Uma das contratantes escolhidas não existe mais ou não é desta empresa. Recarregue a lista e escolha de novo."
+    "occurrenceTypeContractorNotFound": "Uma das contratantes escolhidas não existe mais ou não é desta empresa. Recarregue a lista e escolha de novo.",
+    "occurrenceContractorTemplateInvalid": "O modelo escolhido não serve ao e-mail à contratante (não existe, tem HTML, assunto vazio ou variável fora da lista). Escolha outro. Nada foi gravado.",
+    "occurrenceTypeWatcherNotFound": "Um dos responsáveis escolhidos não está mais na lista de responsáveis da empresa. Recarregue e escolha de novo.",
+    "occurrenceTypeWatcherLimit": "Um tipo leva até 10 responsáveis em cópia.",
+    "occurrenceTypeWatcherInactive": "Só responsável ativo na lista da empresa pode ser adicionado ao tipo.",
+    "occurrenceTypeRecipientsRequireListedScope": "Destinatários só existem em tipo restrito a contratantes. Nada foi gravado.",
+    "occurrenceTypeRecipientNotInScope": "Um dos destinatários não é contato ativo de uma contratante deste tipo. Recarregue a lista e escolha de novo.",
+    "occurrenceTypeContactNotFound": "Um dos contatos escolhidos não existe mais. Recarregue a lista e escolha de novo."
   },
   "filters": {
     "active_one": "{{count}} filtro ativo",

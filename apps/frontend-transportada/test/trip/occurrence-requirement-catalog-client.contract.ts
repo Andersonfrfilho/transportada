@@ -225,14 +225,19 @@ describe('cliente: o e-mail à contratante e a prévia do servidor (spec 247 RF2
     stage: 'delivery',
   } as const
 
-  test('o PUT leva o modelo e o interruptor só quando informados', async () => {
+  test('o PUT leva o bloco de e-mail à contratante e o interruptor só quando informados (spec 271)', async () => {
     const without: Request[] = []
     await createClient({
       requests: without,
       response: Response.json({ data: buildRawType() }),
     }).saveOccurrenceType(MAIL)
     const withoutBody: unknown = await without[0]?.json()
-    for (const key of ['contractorMailTemplateId', 'emailsContractor']) {
+    for (const key of [
+      'contractorMailRecipientContactIds',
+      'contractorMailWatcherUserIds',
+      'contractorNotificationTemplateKey',
+      'emailsContractor',
+    ]) {
       expect(withoutBody).not.toHaveProperty(key)
     }
 
@@ -242,11 +247,15 @@ describe('cliente: o e-mail à contratante e a prévia do servidor (spec 247 RF2
       response: Response.json({ data: buildRawType() }),
     }).saveOccurrenceType({
       ...MAIL,
-      contractorMailTemplateId: 'template-1',
+      contractorMailRecipientContactIds: ['contact-1'],
+      contractorMailWatcherUserIds: ['user-1'],
+      contractorNotificationTemplateKey: 'ocorrencia.avaria',
       emailsContractor: true,
     })
     expect(await withMail[0]?.json()).toMatchObject({
-      contractorMailTemplateId: 'template-1',
+      contractorMailRecipientContactIds: ['contact-1'],
+      contractorMailWatcherUserIds: ['user-1'],
+      contractorNotificationTemplateKey: 'ocorrencia.avaria',
       emailsContractor: true,
     })
   })

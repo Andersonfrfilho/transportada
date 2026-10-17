@@ -10,12 +10,14 @@ import type {
   OccurrenceMoment,
   OccurrenceTypeContractor,
   OccurrenceTypeContractorScope,
+  OccurrenceTypeMailRecipient,
 } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceExceptionPeople } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import {
   buildContractorScopeOptions,
   readContractorScopeProblem,
 } from '@/modules/trip/shared/occurrenceTypeContractorScope.service'
+import { countRecipientsLeavingScope } from '@/modules/trip/shared/occurrenceTypeMailChoices.service'
 import type { OccurrenceTypeEdit } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 import styles from '@/modules/trip/styles/occurrenceException.module.css'
 
@@ -30,6 +32,8 @@ type OccurrenceTypeContractorScopeProps = Readonly<{
   moments: readonly OccurrenceMoment[]
   onEdit: (edit: OccurrenceTypeEdit) => void
   people: OccurrenceExceptionPeople
+  /** Spec 271 (RF7): os destinatários do e-mail escolhidos hoje — os das contratantes que saem do escopo saem junto. */
+  recipients?: readonly OccurrenceTypeMailRecipient[] | undefined
   scope: OccurrenceTypeContractorScope
 }>
 
@@ -47,6 +51,7 @@ export function OccurrenceTypeContractorScope({
   moments,
   onEdit,
   people,
+  recipients = [],
   scope,
 }: OccurrenceTypeContractorScopeProps) {
   const { t } = useTranslation('companySettings')
@@ -57,6 +62,14 @@ export function OccurrenceTypeContractorScope({
   const problem = isPending
     ? readContractorScopeProblem({ contractorIds: shown.ids, moments, scope: shown.scope })
     : null
+
+  const leavingRecipients = isPending
+    ? countRecipientsLeavingScope({
+        nextContractorIds: shown.ids,
+        nextScope: shown.scope,
+        recipients,
+      })
+    : 0
 
   function handleApply() {
     if (!isPending || problem !== null) return
@@ -84,6 +97,11 @@ export function OccurrenceTypeContractorScope({
       {isPending ? (
         <p aria-live="polite" className={styles.pendingNotice} role="status">
           {t('occurrenceTypeCatalog.contractorScope.pending')}
+        </p>
+      ) : null}
+      {leavingRecipients > 0 ? (
+        <p aria-live="polite" className={styles.pendingNotice} role="status">
+          {t('occurrenceTypeCatalog.mail.recipients.leaving', { count: leavingRecipients })}
         </p>
       ) : null}
       {isPending ? (
