@@ -51,7 +51,7 @@
       incompleto 400, lista vazia 400, só parada 400, contratante de outra empresa 404, ausente não altera, `all` apaga
       a lista; leitura sem N+1. Integração na mesma task (cria `listed`, regrava sem as chaves e segue, troca para `all`
       e a tabela fica vazia, contratante de outra empresa).
-- [ ] **T2.4** `sonnet` — Listas filtradas (D4/D5): retrato do motorista (`documents[].occurrenceTypes`),
+- [x] **T2.4** `sonnet` — Listas filtradas (D4/D5): retrato do motorista (`documents[].occurrenceTypes`),
       `GET /me/trips/current/occurrence-types` (sem parâmetro novo: momento `document` → só `all`; parada sem filtro), `GET /trips/occurrence-types/field` com
       `documentIds` (interseção), lista da separação por nota (`GET /trips/:tripId/documents/:documentId/occurrence-types`, `trip.manage`, momento
       `separation`; nota da viagem e da empresa, senão 404; teste de roteador com `createRouter`+`allowedMethods`). O WhatsApp
@@ -59,17 +59,17 @@
       no 422 responde "Este tipo não vale para a contratante desta nota" e volta à lista de tipos, sem relançar e sem
       ficar em `photoEntry`. O recebimento de carga está fora (R2). Contrato negativo: `contractorId` da query apontando para a contratante listada numa
       nota de outra não libera o tipo; `documentId` de outra empresa → 404. Integração.
-- [ ] **T2.5** `sonnet` — Guarda D6 em todo caso de uso da lista da T0.1, antes de qualquer escrita: 422
+- [x] **T2.5** `sonnet` — Guarda D6 em todo caso de uso da lista da T0.1, antes de qualquer escrita: 422
       `OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR`. Ordem das guardas: tipo existe/ativo → momento → nota alcançável/da empresa (404) → escopo (422) → exigência da 246 →
       qualquer escrita ou upload. Lote: `findReachableDocumentIds` devolve `{id, contractorId}` na mesma consulta e o escopo
       é conferido antes de `persistBatchAttachment`; galpão lê a contratante por `findDocumentOccurrenceSubject`. Integração por caminho (motorista, escritório, lote com uma nota fora
       → nada gravado, galpão, WhatsApp do motorista e do operador) e o caso nota sem contratante + tipo `listed`. O log da
       recusa só tem ids.
-- [ ] **T2.6** `sonnet` — Registro já gravado continua legível (RF8): integração que registra, troca o tipo para
+- [x] **T2.6** `sonnet` — Registro já gravado continua legível (RF8): integração que registra, troca o tipo para
       `listed` sem a contratante e confere feed, detalhe, linha do tempo, rota do motorista (266) e correção de itens.
-- [ ] **T2.7** `sonnet` — Parada intacta (RF5): integração de ocorrência de parada com tipo `stop` + `office`
+- [x] **T2.7** `sonnet` — Parada intacta (RF5): integração de ocorrência de parada com tipo `stop` + `office`
       `listed` numa parada sem nota da contratante listada → grava normalmente.
-- [ ] **T2.8** `haiku` — Documentação viva: OpenAPI das rotas alteradas, `apps/api-transportada/CLAUDE.md` (núcleo, uma
+- [x] **T2.8** `haiku` — Documentação viva: OpenAPI das rotas alteradas, `apps/api-transportada/CLAUDE.md` (núcleo, uma
       linha sob ocorrência) e `docs/ai-context/api-transportada.md`.
 
 ## Fase 3 — Painel
