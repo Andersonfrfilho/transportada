@@ -30,6 +30,8 @@ export function toSaveOccurrenceTypeValues(
     forwardEmailBody: input.forwardEmailBody,
     emailsContractor: input.emailsContractor,
     contractorMailTemplateId: input.contractorMailTemplateId,
+    contractorIds: input.contractorIds,
+    contractorScope: input.contractorScope,
     emailTemplateKey: input.emailTemplateKey,
     flow: input.flow,
     iconName: input.iconName,

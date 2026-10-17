@@ -55,6 +55,7 @@ import type {
 import type {
   OccurrenceMoment,
   OccurrenceDeclaredAmountScope,
+  OccurrenceTypeContractorScope,
   OccurrenceTypeFlow,
   OccurrenceTypeIconName,
   TripOccurrenceStage,
@@ -120,6 +121,11 @@ import {
   withOccurrenceTypeMoments,
 } from './occurrence-type-moments.query.js'
 import { deriveOccurrenceMomentsFromStageAndFlow } from '../domain/occurrence-moment.policy.js'
+import {
+  assertStoredOccurrenceTypeContractorScope,
+  replaceOccurrenceTypeContractorScope,
+  withOccurrenceTypeContractorIds,
+} from './occurrence-type-contractors.query.js'
 
 /**
  * Spec 156 T9 (D3): resolve o nome de quem gravou pela mesma janela do padrão já em produção
@@ -873,6 +879,8 @@ export async function findOccurrenceType(
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
+      /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
+      contractorScope: companyOccurrenceTypes.contractorScope,
       contractorReplyAlertIntervalMinutes:
         companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
@@ -925,7 +933,12 @@ export async function findOccurrenceType(
     companyId: input.companyId,
     records: [row],
   })
-  return withMoments ?? null
+  if (withMoments === undefined) return null
+  const [withContractors] = await withOccurrenceTypeContractorIds(queryable, {
+    companyId: input.companyId,
+    records: [withMoments],
+  })
+  return withContractors ?? null
 }
 
 /**
@@ -1042,6 +1055,8 @@ export async function listOccurrenceTypes(
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
+      /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
+      contractorScope: companyOccurrenceTypes.contractorScope,
       contractorReplyAlertIntervalMinutes:
         companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
@@ -1080,7 +1095,15 @@ export async function listOccurrenceTypes(
     )
     .orderBy(asc(companyOccurrenceTypes.stage), asc(companyOccurrenceTypes.name))
   /** Spec 246 (RF0): o conjunto de cada tipo, numa consulta só para a lista inteira. */
-  return withOccurrenceTypeMoments(queryable, { companyId: input.companyId, records })
+  const withMoments = await withOccurrenceTypeMoments(queryable, {
+    companyId: input.companyId,
+    records,
+  })
+  /** Spec 270 (R7): só os ids por tipo, numa consulta; nome e CNPJ ficam no cadastro. */
+  return withOccurrenceTypeContractorIds(queryable, {
+    companyId: input.companyId,
+    records: withMoments,
+  })
 }
 
 /**
@@ -1127,6 +1150,9 @@ function rethrowOccurrenceTypeViolation(error: unknown): never {
 export async function saveOccurrenceType(
   queryable: TripQueryable,
   input: Parameters<typeof writeOccurrenceTypeRow>[1] & {
+    /** Spec 270: com o escopo, a lista vai junto; ausentes é "não mexa". */
+    readonly contractorIds?: readonly string[] | undefined
+    readonly contractorScope?: OccurrenceTypeContractorScope | undefined
     readonly moments?: readonly OccurrenceMoment[] | undefined
   },
 ): Promise<OccurrenceTypeRecord> {
@@ -1148,11 +1174,32 @@ export async function saveOccurrenceType(
         occurrenceTypeId: saved.id,
       })
     }
+    if (input.contractorScope !== undefined) {
+      await replaceOccurrenceTypeContractorScope(transaction, {
+        companyId: input.companyId,
+        contractorIds: input.contractorIds ?? [],
+        occurrenceTypeId: saved.id,
+        scope: input.contractorScope,
+      })
+    } else if (input.occurrenceTypeId !== null && moments !== undefined) {
+      await assertStoredOccurrenceTypeContractorScope(transaction, {
+        companyId: input.companyId,
+        occurrenceTypeId: saved.id,
+      })
+    }
     const [withMoments] = await withOccurrenceTypeMoments(transaction, {
       companyId: input.companyId,
-      records: [saved],
+      records: [
+        input.contractorScope === undefined
+          ? saved
+          : { ...saved, contractorScope: input.contractorScope },
+      ],
     })
-    return withMoments ?? saved
+    const [withContractors] = await withOccurrenceTypeContractorIds(transaction, {
+      companyId: input.companyId,
+      records: withMoments === undefined ? [saved] : [withMoments],
+    })
+    return withContractors ?? withMoments ?? saved
   })
 }
 
@@ -1378,6 +1425,7 @@ async function writeOccurrenceTypeRow(
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
     contractorMailTemplateId: saved.contractorMailTemplateId,
+    contractorScope: saved.contractorScope,
     contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,
     contractorReplyAlertMaxCount: saved.contractorReplyAlertMaxCount,
     contractorReplyAlertMode: saved.contractorReplyAlertMode,

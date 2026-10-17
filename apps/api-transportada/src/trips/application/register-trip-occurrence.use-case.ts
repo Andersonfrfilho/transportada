@@ -15,6 +15,7 @@ import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
   OccurrenceTypeFlow,
+  OccurrenceTypeContractorScope,
   OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
@@ -140,6 +141,12 @@ export type OccurrenceTypeRecord = {
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope
   /** A chave do template do módulo de notificações (aviso interno); nula é tipo sem aviso interno. */
   readonly emailTemplateKey: null | string
+  /**
+   * Spec 270 (ADR-0107): para quem o tipo vale e a lista de contratantes (vazia com `all`). Ausentes
+   * são dublê de teste: valem como `all`; a leitura real (`findOccurrenceType`/`listOccurrenceTypes`) sempre grava.
+   */
+  readonly contractorIds?: readonly string[]
+  readonly contractorScope?: OccurrenceTypeContractorScope
   /**
    * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. Ausente é tratado
    * como `'document'` — existe como opcional só para os dublês de teste que ainda não conhecem o

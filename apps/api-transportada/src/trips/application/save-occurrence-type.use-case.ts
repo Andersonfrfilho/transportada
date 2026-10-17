@@ -11,14 +11,20 @@ import {
 } from '../domain/trip.error.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT, OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
+  OccurrenceTypeContractorScope,
   OccurrenceTypeFlow,
   OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
+import { OccurrenceTypeContractorScopeInvalidError } from '../domain/occurrence-type-contractor-scope.error.js'
+import {
+  assertOccurrenceTypeContractorScopeIsWritable,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE_ISSUE,
+} from '../domain/occurrence-type-contractor-scope.policy.js'
 import { assertDeclaredAmountHasItems } from '../domain/occurrence-declared-amount-shape.policy.js'
 import {
   assertItemsMinimumMatchesMode,
@@ -83,6 +89,12 @@ export type SaveOccurrenceTypeValues = {
   readonly emailsContractor?: boolean | undefined
   /** Spec 269: o modelo do e-mail à contratante. Ausente é "não mexa"; `null` limpa. */
   readonly contractorMailTemplateId?: null | string | undefined
+  /**
+   * Spec 270 (ADR-0107): para quem o tipo vale. Escopo e lista vão **juntos** (um sem o outro é 400);
+   * ausentes é "não mexa". `all` sem lista; `listed` com ao menos uma contratante da empresa.
+   */
+  readonly contractorIds?: readonly string[] | undefined
+  readonly contractorScope?: OccurrenceTypeContractorScope | undefined
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. Obrigatório na
@@ -137,6 +149,7 @@ export type SaveOccurrenceTypeValues = {
 export type CurrentOccurrenceTypeShape = Partial<
   Pick<
     OccurrenceTypeRecord,
+    | 'contractorScope'
     | 'declaredAmountMode'
     | 'declaredAmountScope'
     | 'flow'
@@ -176,6 +189,7 @@ export async function saveOccurrenceTypeWithTemplate(
   assertItemsOffHasNoRedeliveryPolicy({ stored, values })
   assertItemsMinimumMatchesMode({ stored, values })
   assertDeclaredAmountHasItems({ stored, values })
+  assertContractorScopeValues(values)
 
   const { emailTemplateKey } = values
   if (emailTemplateKey === null) return input.save(values)
@@ -241,4 +255,26 @@ function resolveMomentsChange(params: ResolveMomentsChangeParams): SaveOccurrenc
     throw new OccurrenceTypeMomentsStageConflictError()
   }
   return { ...values, moments: deriveOccurrenceMomentsFromStageAndFlow(nextPair) }
+}
+
+/**
+ * Spec 270 (D7): escopo e lista vão juntos; o par completo é validado com os momentos que vierem. O que
+ * depende do gravado (momentos só de parada num tipo já `listed`) é conferido na transação da gravação.
+ */
+function assertContractorScopeValues(values: SaveOccurrenceTypeValues): void {
+  const { contractorIds, contractorScope } = values
+  if (contractorScope === undefined && contractorIds === undefined) return
+  if (contractorScope === undefined || contractorIds === undefined) {
+    throw new OccurrenceTypeContractorScopeInvalidError([
+      {
+        field: contractorScope === undefined ? 'contractorScope' : 'contractorIds',
+        message: OCCURRENCE_TYPE_CONTRACTOR_SCOPE_ISSUE.listNotAllowed,
+      },
+    ])
+  }
+  assertOccurrenceTypeContractorScopeIsWritable({
+    contractorIds,
+    moments: values.moments ?? [OCCURRENCE_MOMENT.document],
+    scope: contractorScope,
+  })
 }

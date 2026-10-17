@@ -304,6 +304,7 @@ import {
   OCCURRENCE_CANCELLATION_OPERATION,
   OCCURRENCE_CORRECTION_OPERATION,
 } from './trips/domain/occurrence-correction.policy.js'
+import { toOccurrenceTypeSettingsViews } from './trips/infrastructure/occurrence-type-contractors.query.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
 import {
@@ -4345,7 +4346,11 @@ function createApplicationRoutes({
       setTripTrailer: { execute: (input) => trips.setTrailer(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       listOccurrenceTypes: {
-        execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
+        execute: async (input) =>
+          toOccurrenceTypeSettingsViews(database, {
+            companyId: input.context.companyId,
+            records: await listOccurrenceTypes(database, { companyId: input.context.companyId }),
+          }),
       },
       listOccurrenceAttachmentOverrides: {
         execute: (input) =>
@@ -4397,8 +4402,8 @@ function createApplicationRoutes({
           }),
       },
       saveOccurrenceType: {
-        execute: (input) =>
-          saveOccurrenceTypeWithTemplate({
+        execute: async (input) => {
+          const saved = await saveOccurrenceTypeWithTemplate({
             companyId: input.context.companyId,
             findCurrentType: ({ companyId, occurrenceTypeId }) =>
               findOccurrenceType(database, { companyId, occurrenceTypeId }),
@@ -4418,7 +4423,13 @@ function createApplicationRoutes({
               },
             },
             values: toSaveOccurrenceTypeValues(input),
-          }),
+          })
+          const [view] = await toOccurrenceTypeSettingsViews(database, {
+            companyId: input.context.companyId,
+            records: [saved],
+          })
+          return view ?? saved
+        },
       },
       /**
        * Spec 156 T7b: mesma `anyPermission` da leitura de ocorrências (D11) — o anexo do lote sai
