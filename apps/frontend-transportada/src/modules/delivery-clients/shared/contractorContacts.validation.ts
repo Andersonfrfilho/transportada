@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { formatStoredPhone } from '@/modules/shared/phone.service'
+import {
+  PHONE_MAX_LENGTH,
+  formatPhone,
+  formatStoredPhone,
+  stripPhone,
+} from '@/modules/shared/phone.service'
 
 import {
   CONTRACTOR_CONTACT_OCCURRENCE_STAGES,
@@ -111,6 +116,16 @@ export function formatContractorContactPhone(phone: null | string): string {
     ? phone.slice(BRAZIL_COUNTRY_CODE.length)
     : phone
   return formatStoredPhone(local)
+}
+
+/** A máscara de quem digita: o DDI colado (`+55`) sai e o dígito excedente é cortado. */
+export function maskContractorContactPhoneInput(typed: string): string {
+  const digits = stripPhone(typed)
+  const local =
+    digits.length > PHONE_MAX_LENGTH && digits.startsWith(BRAZIL_COUNTRY_CODE)
+      ? digits.slice(BRAZIL_COUNTRY_CODE.length)
+      : digits
+  return formatPhone(local.slice(0, PHONE_MAX_LENGTH))
 }
 
 export function contractorContactDraftFromContact(

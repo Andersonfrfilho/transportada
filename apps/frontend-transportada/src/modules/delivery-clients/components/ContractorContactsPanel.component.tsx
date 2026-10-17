@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { PHONE_MASK_LENGTH } from '@/modules/shared/phone.service'
 import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import { useContractorContacts } from '../hooks/useContractorContacts.hook'
@@ -23,6 +24,7 @@ import {
   contractorContactDraftFromContact,
   EMPTY_CONTRACTOR_CONTACT_DRAFT,
   formatContractorContactPhone,
+  maskContractorContactPhoneInput,
   normalizeContractorContactPhone,
   toggleContractorContactOption,
   validateContractorContactDraft,
@@ -172,11 +174,12 @@ export function ContactForm({
           <span>{t('contractorContacts.phoneLabel')}</span>
           <input
             aria-invalid={errors.phone !== undefined}
-            autoComplete="off"
+            autoComplete="tel"
             disabled={isBusy}
             inputMode="tel"
+            maxLength={PHONE_MASK_LENGTH}
             onChange={(event) => {
-              const phone = event.target.value
+              const phone = maskContractorContactPhoneInput(event.target.value)
               update(phone.trim() === '' ? { phone, whatsappOptIn: false } : { phone })
             }}
             placeholder={t('contractorContacts.phonePlaceholder')}
