@@ -10,7 +10,11 @@ import type {
   ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
 } from '../../shared/occurrence-contractor-reply.constant.js'
-import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_MOMENT,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
+  TRIP_OCCURRENCE_STAGE,
+} from '../../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
@@ -27,6 +31,7 @@ import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quant
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
+import { assertOccurrenceTypeAvailableForContractor } from '../domain/occurrence-type-contractor-scope.policy.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
 import {
   OccurrencePhotoRequiredError,
@@ -225,6 +230,15 @@ export type OccurrenceTypeRecord = {
 }
 
 export type TripOccurrencePort = {
+  /**
+   * Spec 270 (R4): a contratante da nota, lida só para tipo `listed`; `null` quando a nota não é desta
+   * viagem e empresa. Ausente é dublê de teste: sem contratante, e só o tipo `all` passa.
+   */
+  findDocumentContractor?(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly tripId: string
+  }): Promise<null | { readonly contractorId: null | string }>
   listOccurrences(input: {
     readonly companyId: string
     readonly documentId: string
@@ -382,6 +396,20 @@ export async function registerTripOccurrence(
     !occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.separation, type: occurrenceType })
   ) {
     throw new OccurrenceTypeNotSeparationError()
+  }
+
+  /**
+   * Spec 270 (D6, R4): depois do momento e antes de qualquer escrita. Só o tipo `listed` precisa da
+   * contratante da nota; a nota fora da viagem ou da empresa é 404, como o resto deste caso de uso.
+   */
+  if (occurrenceType.contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed) {
+    const subject = await repository.findDocumentContractor?.({ companyId, documentId, tripId })
+    if (subject === null) throw new TripDocumentNotFoundError()
+    assertOccurrenceTypeAvailableForContractor({
+      contractorId: subject?.contractorId,
+      documentId,
+      type: occurrenceType,
+    })
   }
 
   /** Spec 241 (RF6, CA03): tipo sem itens recusa produto antes de qualquer leitura ou efeito. */

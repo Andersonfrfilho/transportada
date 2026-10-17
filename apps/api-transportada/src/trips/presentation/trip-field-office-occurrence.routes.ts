@@ -8,7 +8,11 @@
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import { OCCURRENCE_MOMENT, type OccurrenceMoment } from '../../shared/trip-occurrence.constant.js'
-import { parseUuidFilter, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+import {
+  parseUuidFilter,
+  parseUuidListFilter,
+  parseUuidPathIdentifier,
+} from '../../http/request-parsing.service.js'
 import { API_TRIPS_PATH } from '../../shared/api.constant.js'
 import type { FieldTripTargetPort } from '../application/field-trip-target.port.js'
 import type { ResolvedTripFieldTarget } from '../application/field-trip-target.types.js'
@@ -46,6 +50,11 @@ export type TripFieldOfficeOccurrenceDependencies = {
   readonly listFieldOccurrenceTypes: (input: {
     readonly companyId: string
     readonly contractorId?: string | null
+    /**
+     * Spec 270 (D5): as notas do lote; o servidor lê a contratante de cada uma e oferece a interseção.
+     * Ausente é a lista sem nota — só os tipos `all`. Nota de outra empresa é 404.
+     */
+    readonly documentIds?: readonly string[]
     /** Spec 246 T1b.2: o lote do escritório é o momento `office`. */
     readonly moment: OccurrenceMoment
     readonly recipientTaxId?: string | null
@@ -69,11 +78,16 @@ export function createTripFieldOfficeOccurrenceRoutes(
 ): readonly ReturnType<typeof defineRoute>[] {
   return [
     /** L2: só `id` e `name` dos tipos ativos de rua — o e-mail do tipo é `settings.manage`. */
-    defineRoute<{ readonly contractorId: string | null; readonly recipientTaxId: string | null }>({
+    defineRoute<{
+      readonly contractorId: string | null
+      readonly documentIds: readonly string[]
+      readonly recipientTaxId: string | null
+    }>({
       async handle({ context, input }): Promise<Response> {
         const types = await dependencies.listFieldOccurrenceTypes({
           companyId: context.scope.companyId,
           contractorId: input.contractorId,
+          documentIds: input.documentIds,
           moment: OCCURRENCE_MOMENT.office,
           recipientTaxId: input.recipientTaxId,
         })
@@ -84,6 +98,7 @@ export function createTripFieldOfficeOccurrenceRoutes(
         const url = new URL(request.url)
         return {
           contractorId: parseUuidFilter(url.searchParams.get('contractorId')) ?? null,
+          documentIds: parseUuidListFilter(url.searchParams.get('documentIds')) ?? [],
           recipientTaxId: url.searchParams.get('recipientTaxId'),
         }
       },

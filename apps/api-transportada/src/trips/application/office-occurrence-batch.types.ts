@@ -20,6 +20,12 @@ import type {
 import type { RemovableObjectStoragePort } from './stored-object-cleanup.service.js'
 import type { OfficeAuditRequest } from './trip-field-office-audit.port.js'
 
+/** Spec 270 (R4): a nota alcançável e a contratante dela, lidas na mesma consulta. */
+export type ReachableBatchDocument = {
+  readonly contractorId: null | string
+  readonly id: string
+}
+
 export type OfficeOccurrenceBatchTransactionPort = Pick<
   DriverFieldReportTransactionPort,
   'claim' | 'recordOfficeAudit' | 'settle'
@@ -33,7 +39,7 @@ export type OfficeOccurrenceBatchTransactionPort = Pick<
     readonly companyId: string
     readonly documentIds: readonly string[]
     readonly target: FieldTripTarget
-  }): Promise<readonly string[]>
+  }): Promise<readonly ReachableBatchDocument[]>
   saveDocumentOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId?: string | null

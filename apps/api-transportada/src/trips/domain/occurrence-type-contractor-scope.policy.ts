@@ -14,6 +14,7 @@ import {
   OccurrenceTypeContractorScopeEmptyError,
   OccurrenceTypeContractorScopeInvalidError,
   OccurrenceTypeContractorScopeNeedsDocumentError,
+  OccurrenceTypeNotAvailableForContractorError,
 } from './occurrence-type-contractor-scope.error.js'
 
 export const OCCURRENCE_TYPE_CONTRACTOR_SCOPE_ISSUE = {
@@ -38,6 +39,54 @@ export function isOccurrenceTypeAvailableForContractor(
   if (params.scope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all) return true
   if (params.contractorId === null || params.contractorId === undefined) return false
   return params.contractorIds.includes(params.contractorId)
+}
+
+export type IsOccurrenceTypeAvailableForNotesParams = {
+  /** A contratante de cada nota do pedido; `null` é a nota sem contratante e lista vazia é "sem nota" (`[null]`). */
+  readonly noteContractorIds: readonly (string | null | undefined)[]
+  readonly type: ScopedOccurrenceType
+}
+
+/** O que a política precisa do tipo: ausentes são dublê de teste e valem como `all`. */
+export type ScopedOccurrenceType = {
+  readonly contractorIds?: readonly string[] | undefined
+  readonly contractorScope?: OccurrenceTypeContractorScope | undefined
+}
+
+/**
+ * Várias notas oferecem a interseção (D5): o tipo vale quando vale para **todas** elas. Sem nenhuma
+ * nota, vale como a nota sem contratante — só o tipo `all`.
+ */
+export function isOccurrenceTypeAvailableForNotes(
+  params: IsOccurrenceTypeAvailableForNotesParams,
+): boolean {
+  const contractors = params.noteContractorIds.length === 0 ? [null] : params.noteContractorIds
+  return contractors.every((contractorId) =>
+    isOccurrenceTypeAvailableForContractor({
+      contractorId,
+      contractorIds: params.type.contractorIds ?? [],
+      scope: params.type.contractorScope ?? OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all,
+    }),
+  )
+}
+
+/** D6: a guarda do registro com nota. Lança antes de qualquer escrita; a recusa não leva a lista do tipo. */
+export function assertOccurrenceTypeAvailableForContractor(params: {
+  readonly contractorId: string | null | undefined
+  readonly documentId?: string | undefined
+  readonly type: ScopedOccurrenceType
+}): void {
+  if (
+    isOccurrenceTypeAvailableForNotes({
+      noteContractorIds: [params.contractorId],
+      type: params.type,
+    })
+  ) {
+    return
+  }
+  throw new OccurrenceTypeNotAvailableForContractorError(
+    params.documentId === undefined ? [] : [params.documentId],
+  )
 }
 
 export type ValidateOccurrenceTypeContractorScopeParams = {

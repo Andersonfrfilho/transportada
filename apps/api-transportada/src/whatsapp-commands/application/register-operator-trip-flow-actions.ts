@@ -66,6 +66,8 @@ import {
 import { WhatsAppCommandHandoffRequestedError } from '../domain/whatsapp-command.error.js'
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
 import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
+import { OccurrenceTypeNotAvailableForContractorError } from '../../trips/domain/occurrence-type-contractor-scope.error.js'
+import { OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE } from './driver-occurrence-refusal.service.js'
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import {
   rejectListAnswer,
@@ -105,8 +107,10 @@ export type OperatorFlowActionDependencies = {
     readonly context: CompanyContext
     readonly tripId: string
   }) => Promise<DispatchTripResult>
+  /** Spec 270: com `documentId` a lista já vem filtrada pela contratante da nota; sem ele, só os tipos `all`. */
   readonly listOccurrenceTypes: (input: {
     readonly companyId: string
+    readonly documentId?: string | undefined
   }) => Promise<readonly OccurrenceTypeRecord[]>
   readonly listWarehouseTrips: (input: {
     readonly companyId: string
@@ -581,7 +585,10 @@ export function createOperatorWhatsAppFlowActions(
     context,
     session,
   }) => {
-    const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
+    const catalog = await deps.listOccurrenceTypes({
+      companyId: actor.scope.companyId,
+      documentId: readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.documentId),
+    })
     const options = catalog.filter(isOfferedToOperator)
     if (options.length === 0) {
       await channel.sendText(
@@ -625,7 +632,10 @@ export function createOperatorWhatsAppFlowActions(
       }
     }
 
-    const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
+    const catalog = await deps.listOccurrenceTypes({
+      companyId: actor.scope.companyId,
+      documentId: readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.documentId),
+    })
     const offered = catalog.some((type) => type.id === answer && isOfferedToOperator(type))
     if (!offered) {
       return rejectListAnswer({
@@ -886,6 +896,11 @@ export function createOperatorWhatsAppFlowActions(
           `Limite de 5 fotos por ocorrência atingido. Ocorrência registrada com ${input.photoCount} foto(s). ✅`,
         )
         return { context: clearPhotoStepContext(), next: OPERATOR_FLOW_NODE.tripActionMenu }
+      }
+      /** Spec 270 (R3): o tipo não vale para a contratante da nota — volta à lista, nunca fica na foto. */
+      if (error instanceof OccurrenceTypeNotAvailableForContractorError) {
+        await channel.sendText(session.whatsappNumber, OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE)
+        return { context: clearPhotoStepContext(), next: OPERATOR_FLOW_NODE.listOccurrenceTypes }
       }
       await channel.sendText(session.whatsappNumber, describeTripError(error))
       return { next: OPERATOR_FLOW_NODE.photoEntry }
