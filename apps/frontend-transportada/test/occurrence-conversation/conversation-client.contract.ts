@@ -241,7 +241,7 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
       ],
       subject: 'Assunto',
       suggested: true,
-      templateId: 'template-1',
+      notificationTemplateKey: 'ocorrencia.avaria',
       text: 'Texto\n\n—\nOperadora',
     }
     const client = createClient(Response.json({ data: preview }))
@@ -256,7 +256,7 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
       recipients: preview.recipients,
       subject: 'Assunto',
       suggested: true,
-      templateId: 'template-1',
+      notificationTemplateKey: 'ocorrencia.avaria',
       text: 'Texto\n\n—\nOperadora',
     })
   })
@@ -284,20 +284,43 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
     })
   })
 
+  /** Spec 271 T1.2: a cópia do tipo (`occurrence_type`) e a chave do modelo chegam; `templateId` some sem quebrar. */
+  test('a prévia aceita ccSource do tipo e a chave do modelo, sem templateId', async () => {
+    const client = createClient(
+      Response.json({
+        data: {
+          bodyText: 'Texto',
+          ccSource: 'occurrence_type',
+          contractorName: 'Contratante Alfa',
+          notificationTemplateKey: 'ocorrencia.avaria',
+          recipients: [],
+          subject: 'Assunto',
+          suggested: true,
+          text: 'Texto',
+        },
+      }),
+    )
+
+    expect(await client.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
+      ccSource: 'occurrence_type',
+      notificationTemplateKey: 'ocorrencia.avaria',
+    })
+  })
+
   test('a prévia sem modelo efetivo traz a flag; API anterior sem os campos vira "tem modelo"', async () => {
     const base = { bodyText: '', html: '', recipients: [], subject: '', suggested: false, text: '' }
     const missing = createClient(
-      Response.json({ data: { ...base, missingNotificationTemplate: true, templateId: null } }),
+      Response.json({ data: { ...base, missingNotificationTemplate: true } }),
     )
     const legacy = createClient(Response.json({ data: base }))
 
     expect(await missing.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
       missingNotificationTemplate: true,
-      templateId: null,
+      notificationTemplateKey: null,
     })
     expect(await legacy.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
       missingNotificationTemplate: false,
-      templateId: null,
+      notificationTemplateKey: null,
     })
   })
 
