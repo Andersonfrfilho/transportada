@@ -17,6 +17,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import {
   companies,
   companyOccurrenceTypes,
+  contractors,
   fleetDrivers,
   fleetVehicles,
   identityUsers,
@@ -250,6 +251,47 @@ describe('a ocorrência de parada pelo tipo do catálogo (spec 218 D2)', () => {
       expect(await database.db.select().from(tripStopOccurrences)).toHaveLength(0)
     })
   })
+
+  /**
+   * Spec 270 (RF5, T2.7): a parada não tem contratante — o escopo não se aplica. O tipo `stop` + `office`
+   * restrito a uma contratante grava normalmente numa parada sem nota dela (aqui, sem nota nenhuma).
+   */
+  testWithPostgres(
+    'o tipo de parada restrito a uma contratante grava normalmente na parada (spec 270 RF5)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const contractorId = crypto.randomUUID()
+        await database.db
+          .insert(contractors)
+          .values({ companyId: world.companyId, id: contractorId, taxId: '22333444000155' })
+        const created = await saveOccurrenceType(database.db, {
+          active: true,
+          allowsMultipleItems: true,
+          companyId: world.companyId,
+          contractorIds: [contractorId],
+          contractorScope: 'listed',
+          emailTemplateKey: null,
+          flow: 'stop',
+          moments: ['stop', 'office'],
+          name: 'Espera na doca da contratante',
+          notifies: false,
+          occurrenceTypeId: null,
+          stage: 'delivery',
+        })
+        expect(created.contractorScope).toBe('listed')
+
+        const recorded = await reportStopOccurrence({
+          ...occurrenceInput(database, world, { attachmentObjectId: null, key: 'chave-escopo' }),
+          kind: undefined,
+          occurrenceTypeId: created.id,
+        })
+
+        expect(recorded.id).toEqual(expect.any(String))
+        expect(await database.db.select().from(tripStopOccurrences)).toHaveLength(1)
+      })
+    },
+  )
 
   testWithPostgres(
     'tipo que o cadastro cria como de parada nasce com stop_kind "other"',
