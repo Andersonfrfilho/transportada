@@ -1,0 +1,119 @@
+# Evidência — 271 O modelo do e-mail à contratante vem do módulo de notificação
+
+## Decisões do dono (chat, 2026-10-17)
+
+1. **"É apenas criado no módulo de notificação; a escolha deve ser na ocorrência em si."** O modelo do e-mail à
+   contratante é criado e editado só em Notificações → Preferências (`/notificacoes/preferencias`,
+   `NotificationSettingsWorkspace` do `@adatechnology/notification-ui`, tabela `notification.templates`). A escolha fica
+   no cadastro do **tipo** (Ocorrências → Tipos), num campo **separado** do aviso interno
+   (`company_occurrence_types.email_template_key`, 079/246, que não muda).
+2. **"Se cadastramos ocorrências gerais ou por contratantes específicos e selecionamos o modelo nesse cadastro, não
+   precisa ter uma tela para isso."** Sem escolha de modelo na exceção por contratante: texto próprio de uma
+   contratante = tipo de contratantes (270). O uso da coluna de modelo na exceção (269) sai.
+3. **A entrega não muda:** `send-occurrence-mail` (Resend da empresa ou Mailpit fora de produção, 268), contatos da
+   contratante em `To`, responsáveis em `Cc` (267), fio de resposta (183/248). O módulo é **só** depósito e
+   renderizador — não passar por `sendNotification` (exige usuário do sistema, não tem `cc`, remetente global).
+4. **Bloco "E-mail à contratante" no cadastro do tipo, com três coisas:**
+   1. **Modelo** — modelo do módulo de notificação (itens 1–3).
+   2. **Em cópia** — seleção múltipla dos **responsáveis da empresa** (`company_occurrence_watchers`, 267); ativos e
+      elegíveis aparecem, inativos/inelegíveis marcados. Precedência da cópia: **escolha do tipo (se não vazia) ?? lista
+      da contratante (267) ?? lista da empresa (267)**. Escolha vazia = como hoje. Tabela de ligação
+      `company_occurrence_type_watchers (company_id, occurrence_type_id, user_id)` com FKs compostas e auditoria. Teto
+      de 50, remoção de chip pelo operador no envio manual e impressão digital da 267 continuam.
+   3. **Destinatários** — **só** em tipo de contratantes (270, `listed`): seleção múltipla dos contatos
+      (`contractor_contacts`) das contratantes da lista. Escolhido: `To` = contatos escolhidos **da contratante da
+      nota** (ativos, com e-mail). Vazio: automático como hoje (contatos da contratante da nota que recebem ocorrência
+      daquela etapa). Tipo geral (`all`): campo escondido, `To` sempre automático. Tabela
+      `company_occurrence_type_recipients (company_id, occurrence_type_id, contact_id)`; quando uma contratante sai da
+      lista do tipo, os contatos dela saem da escolha (decidido nesta spec: apagados na mesma transação — D12).
+5. Manter da 269 (ADR-0106): sem modelo não sai e-mail, nem à mão; reenvio da 248 isento; assunto saneado e truncado;
+   automático só para ocorrência registrada depois da escolha; aviso só com o e-mail ligado.
+
+**Emendas registradas:** a ADR-0108 substitui a ADR-0106 §1 (tipo `occurrence` no catálogo da 150) e §2 (modelo no
+tipo **e na exceção**, por id). A 267 "Fora do escopo: responsáveis por tipo de ocorrência" deixa de valer (item 4.2). A
+regra de `To` da 143/183 (contatos da etapa) ganha a escolha explícita no tipo `listed` (item 4.3).
+
+## Decisões tomadas nesta spec (padrões; a T0.2 valida)
+
+- **Pela chave, sem FK** (D1): a identidade do módulo é versionada; o envio lê a versão ativa mais alta. Editar o texto
+  no módulo vale no próximo e-mail, sem tocar no tipo.
+- **Carimbo novo** `contractor_notification_template_selected_at` (D2); as colunas da 269 saem na etapa B.
+- **Lista do seletor** = modelos de e-mail ativos `pt-BR` da empresa, menos as chaves de aviso do sistema (D3).
+- **Variáveis `{{camelCase}}`** com lista fechada validada pela TMS ao salvar o tipo (D4), porque o catálogo do módulo
+  é por chave exata e a chave é livre.
+- **Corpo HTML recusado** (D5); no envio, modelo não utilizável ≡ sem modelo (D9).
+- **`{{linhasItens}}`** com a linha fixa da 269 substitui o texto de item configurável (Q1).
+- **Rastreio por chave e versão** em `contractor_mail_messages` (D8); `template_id` fica para a correção de endereço.
+- **Responsável do tipo amarrado à lista da empresa** por FK com `CASCADE` (D10); só se escolhe ativo; até 10.
+- **Destinatário escolhido vence a etapa** e, sem nenhum da contratante da nota, vale a regra de hoje (D13); no manual,
+  é pré-marcação.
+- **Publicação junto:** 269 + 270 + 271 vão a produção juntas; a API da 269 nunca sozinha.
+
+## Perguntas abertas (com padrão adotado — não bloqueiam a execução)
+
+- **Q1 — Linha do item.** Padrão: fixa (`{codigo} – {item} – {quantidade} {unidade} – R$ {valor}`). Alternativa: um
+  campo "linha do item" no tipo (volta um texto ao tipo, que o dono quis tirar). Mudar depois é aditivo.
+- **Q2 — Variáveis no editor do módulo.** Padrão: a TMS mostra e valida as variáveis no editor do **tipo**; o painel de
+  variáveis do módulo não as lista (catálogo por chave exata). Alternativa: mudar o pacote para aceitar catálogo por
+  prefixo (ex.: `ocorrencia.*`) e passar `templateVariables` — exige release do `notification-module`/`-ui`.
+- **Q3 — Remover modelo em uso no módulo.** Padrão: o módulo deixa desativar; a 271 mostra o aviso "Tipo sem modelo de
+  notificação" e para de enviar. Alternativa: gancho no pacote para bloquear (mudança no pacote).
+- **Q4 — Destinatários no envio manual.** Padrão: pré-marcados, o operador pode mudar (como a 183). Alternativa: travar
+  o `To` nos escolhidos.
+- **Q5 — Contato escolhido sem a etapa.** Padrão: a escolha explícita ignora `occurrence_stages`. Alternativa: cruzar com
+  a etapa.
+
+## Levantamento contra `origin/staging` (84c05c96b, 2026-10-17)
+
+Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/` salvo indicação. A T0.1 confere.
+
+### Módulo de notificação (`~/personal/adatechnology-packages/packages/backend/`)
+
+- `notification-module/src/schema/schema.ts:29-51`: `notification.templates` (`id`, `company_id`, `key varchar(128)`,
+  `channel varchar(16)`, `locale varchar(16)`, `version`, `subject varchar(256)`, `body text`, `active`), índice único
+  `(company_id, key, channel, locale, version)`.
+- `notification-module/src/repositories/TemplateRepository.ts:24` `findActive` (versão ativa mais alta);
+  `deactivateIdentity` (desativa todas as versões da chave); `listByCompany` (:85). Só `listTemplates` é exposto como
+  caso de uso; a tabela `templates` é exportada (`index.ts:76`).
+- `notification-contracts/src/templateRender.ts:34-35` `interpolateTemplate` (ausente → `''`);
+  `extractTemplatePlaceholders`.
+- `notification-module/src/use-cases/Template.use-cases.ts:43-49`: catálogo de variáveis só com `templateVariables` e
+  por chave exata (`TemplateVariableCatalog = Record<key, …>`); a TMS não passa catálogo.
+- `notification-ui/src/components/NotificationSettingsWorkspace.tsx:119` `isHtmlBody`; o editor cria modelo com chave
+  livre ("Novo modelo"); o painel de variáveis lê `templateVariables[draft.key]` (`useTemplateEditor.ts:278`).
+- Versões instaladas: `@adatechnology/notification-module` `0.1.0-rc.3`, `notification-contracts` `0.1.0-rc.2` (API);
+  `notification-ui` `0.1.0-rc.9`, `notification-client` `0.1.0-rc.3` (painel). A T0.1 confere os exports na versão
+  instalada (a branch não tem `node_modules`).
+
+### TMS
+
+- Catálogo de avisos do sistema: `notification/domain/notification-catalog.constant.ts` (`NOTIFICATION_TEMPLATE_KEY`);
+  seed `notification-template-seed.service.ts:65`; `NOTIFICATION_DEFAULT_LOCALE = 'pt-BR'`
+  (`notification/notification.constant.ts:9`); rota de teste `POST /notification-templates/:key/test`
+  (`notification-template-test.routes.ts:13`).
+- Aviso interno: `save-occurrence-type.use-case.ts:194-201` (`hasActiveEmailTemplate`), implementação em `main.ts:4439`
+  (via `listTemplates`); painel `OccurrenceTypeNotification.component.tsx` + `notification/queries/useEmailTemplates.query.ts`.
+- 269: `trip.schema.ts:2957-2965` (tipo) e `:3366-3375` (exceção) colunas `contractor_mail_template_id`/`_selected_at`,
+  FKs `:3311-3319` e `:3458`; `contractor-mail/domain/mail-template-catalog.constant.ts:10,14`;
+  `drizzle-occurrence-mail.repository.ts:171-260` (fonte efetiva, original), `:307` leitor da sugestão, `:369`
+  `template_id`; `preview-occurrence-mail.use-case.ts:105-113,152,158,162`; `send-automatic-occurrence-mail.use-case.ts:90-117`;
+  `send-occurrence-mail.use-case.ts:208-228` (`resolveTemplateId`); worker
+  `occurrence-automatic-mail-sweep/infrastructure/drizzle-occurrence-automatic-mail-queue.repository.ts:37-70`. Painel:
+  `OccurrenceTypeContractorMail.component.tsx:30,43`, `OccurrenceTypeMailTemplateSelect.component.tsx`,
+  `OccurrenceExceptionItem.component.tsx:139-141`, `delivery-clients/shared/contractorMailTemplates.types.ts:7`.
+- 267: `database/contractor-mail.schema.ts:757-835` (`company_occurrence_watchers` PK `(company_id, user_id)`, `status`;
+  `contractor_occurrence_watchers`); `occurrence-watcher.policy.ts` (`resolveEffectiveWatchers`, "com algum ativo
+  vence"); `resolve-mail-copy.service.ts` (teto, automático corta, manual 400); `occurrence-watcher-candidates.query.ts`
+  (endereço e `occurrences.resolve` em lote); `drizzle-occurrence-watcher.repository.ts:195` (remover apaga a linha,
+  com auditoria); `occurrence-watcher.constant.ts` (`MAX_ACTIVE = 10`, `MAX_TOTAL = 30`).
+- Contatos: `database/contractor-mail.schema.ts:144-240` (`receives_occurrences`, `occurrence_stages` ⊆
+  `separation|delivery|stop`, `status`, unique `(company_id, id)`); rotas `contractor-contacts.routes.ts` só `POST` e
+  `PATCH` (contato não se apaga). `To` do automático por etapa: `send-automatic-occurrence-mail.use-case.ts:95`; manual
+  recebe `contactIds` e confere a contratante (`send-occurrence-mail.use-case.ts:291-302`).
+- Última migration em `staging`: `20261017010529_occurrence_type_contractor_scope` (270).
+- **Staging (verificado antes desta spec):** zero modelos `contractor_mail_templates` com `mail_type = 'occurrence'` e
+  zero escolhas no tipo e na exceção. A T0.1 mede de novo, só contagem.
+
+## Registro das tasks
+
+(vazio — a execução registra aqui)
