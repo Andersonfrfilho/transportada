@@ -459,7 +459,10 @@
         "off": "{{field}}: desligado",
         "optional": "{{field}}: opcional",
         "required": "{{field}}: obrigatório"
-      }
+      },
+      "contractorScope": "Só: {{names}}",
+      "contractorScopeMore": "Só: {{names}} e mais {{count}}",
+      "contractorScopeTitle": "Só para: {{names}}"
     },
     "mail": {
       "title": "E-mail à contratante",

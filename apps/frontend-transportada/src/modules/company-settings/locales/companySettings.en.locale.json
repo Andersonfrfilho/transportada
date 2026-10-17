@@ -459,7 +459,10 @@
         "off": "{{field}}: off",
         "optional": "{{field}}: optional",
         "required": "{{field}}: required"
-      }
+      },
+      "contractorScope": "Only: {{names}}",
+      "contractorScopeMore": "Only: {{names}} and {{count}} more",
+      "contractorScopeTitle": "Only for: {{names}}"
     },
     "mail": {
       "title": "Contractor e-mail",

@@ -80,7 +80,7 @@
       "Vale para" + `MultiSelect` existente com as contratantes ("Nome · CNPJ", busca por nome e CNPJ, inativa marcada,
       aviso de lista truncada), travado no tipo só de parada com a frase do RF5, frase "na parada vale para todas" no tipo
       com `stop` + nota. Erros 400/404 do `PUT` mostrados no bloco.
-- [ ] **T3.2** `haiku` — Chip "Só: …" no `OccurrenceTypeSummary` (até 2 nomes + "e mais N", título completo). Teste de
+- [x] **T3.2** `haiku` — Chip "Só: …" no `OccurrenceTypeSummary` (até 2 nomes + "e mais N", título completo). Teste de
       renderização com 1, 2 e 4 contratantes e com `all` (sem chip).
 - [ ] **T3.3** `haiku` — Aviso na exceção por contratante fora da lista (RF9). Teste.
 - [ ] **T3.4** `sonnet` — Separação e lote do escritório usam a lista do servidor por nota (T2.4); a separação deixa de
