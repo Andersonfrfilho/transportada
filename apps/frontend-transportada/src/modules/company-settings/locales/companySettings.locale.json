@@ -362,7 +362,8 @@
       "readOnly": "Sem permissão para alterar as exceções.",
       "add": "Adicionar exceção",
       "remove": "Remover",
-      "removeOf": "Remover exceção de {{name}}"
+      "removeOf": "Remover exceção de {{name}}",
+      "noEffect": "Esta exceção não tem efeito enquanto o tipo não valer para esta contratante. Ela continua guardada."
     },
     "identity": {
       "title": "Identificação",

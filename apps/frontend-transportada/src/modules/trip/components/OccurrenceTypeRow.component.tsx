@@ -4,7 +4,10 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
+import {
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
+  type OccurrenceType,
+} from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import {
   hasDeclaredAmountWithoutItems,
@@ -117,6 +120,11 @@ export function OccurrenceTypeRow({
       {scope.hasExceptions ? (
         <OccurrenceTypeExceptions
           canManage={canManage}
+          contractorIdsOfScope={
+            type.contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed
+              ? (type.contractors ?? []).map((contractor) => contractor.id)
+              : undefined
+          }
           exceptions={exceptions}
           scope={scope}
           isDisabled={isSaving}

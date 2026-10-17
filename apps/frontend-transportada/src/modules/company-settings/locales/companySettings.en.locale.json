@@ -362,7 +362,8 @@
       "readOnly": "No permission to change the exceptions.",
       "add": "Add exception",
       "remove": "Remove",
-      "removeOf": "Remove the exception of {{name}}"
+      "removeOf": "Remove the exception of {{name}}",
+      "noEffect": "This exception has no effect while the type does not apply to this contractor. It stays saved."
     },
     "identity": {
       "title": "Identification",
