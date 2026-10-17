@@ -191,3 +191,56 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 - Editor do tipo: o bloco "E-mail à contratante" (`OccurrenceTypeContractorMail`) tem o interruptor, **Modelo** (`OccurrenceTypeContractorTemplateSelect`: lista da `GET .../contractor-mail-templates` — só os utilizáveis —, "Nenhum", "Criar modelo em Notificações", prévia com valores de exemplo, variáveis, modelo sugerido, motivo quando o escolhido deixou de servir, aviso RF9 só com o e-mail ligado), **Em cópia** (`OccurrenceTypeWatchersSelect`, `MultiSelect` sobre a lista da empresa da 267, marcados os inativos/inelegíveis, teto 10) e **Destinatários** (`OccurrenceTypeRecipientsSelect`, só com escopo `listed`, contatos das contratantes do tipo agrupados). O "Vale para" avisa quantos destinatários saem junto ao tirar contratante ou trocar para "Todas". A criação do tipo não tem o bloco (nunca teve: o editor abre depois de criar) — nada a acrescentar ali. O campo do aviso interno ganhou o rótulo "Aviso interno (modelo de e-mail)".
 - Removidos: `OccurrenceTypeMailTemplateSelect`, o seletor da exceção, `contractorMailTemplateId` dos tipos/serviços/validações (a chave só continua **tolerada e ignorada** em `tripResponse.validation.ts`, ADR-0081 §9), `ContractorMailTemplateUsageList` e o tratamento do 409 de "em uso", `occurrence` de `CONTRACTOR_MAIL_TEMPLATE_TYPES` do "Modelos", o código de erro e as chaves de locale da 269, e os testes que só cobriam isso. Códigos novos mapeados em `trip.constant.ts` (pt-BR/en). Sem `notification-contracts` direto no painel: a interpolação `{{campo}}` é local (`occurrenceTypeMailTemplate.service.ts`), com paridade da lista de variáveis lida do arquivo da API em `occurrence-type-mail-parity.contract.ts`.
 - Painel: `bun run test` 8334 pass + hooks 1406 pass, 0 fail; tsc limpo; lint 0 erros (16 avisos preexistentes).
+
+### T3.3 — gate de limpeza (etapa A)
+
+`rtk proxy grep -rnwE '<identificadores removidos>' apps` (sem `node_modules`, `dist`, `drizzle` — migrations e snapshots ficam), depois de T3.1, T3.2 e T4.1–T4.5. Só sobra: o schema das colunas que saem na **B**
+(`trip.schema.ts`), a chave **aceita e ignorada** do `PUT` (D14: `occurrence.schema.ts` na API; `tripResponse.validation.ts` no painel) e os testes que prendem uma coisa ou outra.
+Identificadores: `contractorMailTemplateId`, `contractor_mail_template_id`, `contractor_mail_template_selected_at`, `contractorMailTemplateSelectedAt`, `OCCURRENCE_MAIL_TYPE`,
+`CONTRACTOR_MAIL_TEMPLATE_IN_USE`, `ContractorMailTemplateInUseError`, `lockUsableOccurrenceMailTemplate`, `resolveEffectiveOccurrenceMailTemplateId`, `assertOccurrenceMailTemplateIsUnused`,
+`renderOccurrenceMailPreview`, `composeOccurrenceMail`, `OCCURRENCE_MAIL_ITEM_LINES_LIMIT`, `findEffectiveOccurrenceMailTemplate`, `findOriginalOccurrenceMailTemplateId`,
+`buildOccurrenceMailValues`, `seedOccurrenceMailTemplate`, `ContractorMailTemplateUsage`, `ContractorMailTemplateUsageList`, `OccurrenceTypeMailTemplateSelect`,
+`occurrenceMailTemplateNotUsable`, `errorInUse`, `occurrence-mail-body`, `occurrence-mail-template.policy`, `occurrence-mail-template-usage`.
+
+```text
+apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts:1923:    contractorMailTemplateId?: unknown
+apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts:2029:        'contractorMailTemplateId',
+apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts:2112:    contractorMailTemplateId,
+apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts:2133:  void [contractorMailTemplateId, emailBody, emailItemLineTemplate, emailSubject]
+apps/frontend-transportada/test/tripResponse.validation.contract.test.ts:112:  it('aceita tipo com contractorMailTemplateId', () => {
+apps/frontend-transportada/test/tripResponse.validation.contract.test.ts:115:      contractorMailTemplateId: 'template-1',
+apps/frontend-transportada/test/tripResponse.validation.contract.test.ts:133:  it('aceita contractorMailTemplateId nulo', () => {
+apps/frontend-transportada/test/tripResponse.validation.contract.test.ts:137:        contractorMailTemplateId: null,
+apps/frontend-transportada/test/tripResponse.validation.contract.test.ts:164:  it('aceita o tipo com as chaves novas e sem contractorMailTemplateId', () => {
+apps/frontend-transportada/test/tripResponse.validation.contract.test.ts:187:  it('aceita o tipo antigo, ainda com contractorMailTemplateId', () => {
+apps/frontend-transportada/test/tripResponse.validation.contract.test.ts:189:      adapters.occurrenceTypeFromApi({ ...baseType, contractorMailTemplateId: 'template-1' })
+apps/frontend-transportada/test/occurrenceAttachmentOverrides.validation.contract.test.ts:123:  it('tolera e ignora o contractorMailTemplateId da 269 que a API ainda pode
+apps/frontend-transportada/test/occurrenceAttachmentOverrides.validation.contract.test.ts:124:    for (const contractorMailTemplateId of ['template-1', null]) {
+apps/frontend-transportada/test/occurrenceAttachmentOverrides.validation.contract.test.ts:126:        contractorOverrides: [{ ...contractorOverride, contractorMailTemplat
+apps/frontend-transportada/test/occurrenceAttachmentOverrides.validation.contract.test.ts:133:  it('aceita exceção sem contractorMailTemplateId (API da spec 271)', () =
+apps/api-transportada/src/database/trip.schema.ts:2957:    contractorMailTemplateId: uuid('contractor_mail_template_id'),
+apps/api-transportada/src/database/trip.schema.ts:2962:    contractorMailTemplateSelectedAt: timestamp('contractor_mail_template_selected_at', {
+apps/api-transportada/src/database/trip.schema.ts:3324:      columns: [table.companyId, table.contractorMailTemplateId],
+apps/api-transportada/src/database/trip.schema.ts:3331:      .on(table.companyId, table.contractorMailTemplateId)
+apps/api-transportada/src/database/trip.schema.ts:3332:      .where(sql`${table.contractorMailTemplateId} is not null`),
+apps/api-transportada/src/database/trip.schema.ts:3383:    contractorMailTemplateId: uuid('contractor_mail_template_id'),
+apps/api-transportada/src/database/trip.schema.ts:3388:    contractorMailTemplateSelectedAt: timestamp('contractor_mail_template_selected_at', {
+apps/api-transportada/src/database/trip.schema.ts:3475:      columns: [table.companyId, table.contractorMailTemplateId],
+apps/api-transportada/src/database/trip.schema.ts:3482:      .on(table.companyId, table.contractorMailTemplateId)
+apps/api-transportada/src/database/trip.schema.ts:3483:      .where(sql`${table.contractorMailTemplateId} is not null`),
+apps/api-transportada/src/trips/presentation/occurrence.schema.ts:562:    contractorMailTemplateId: z.string().uuid().nullable().optional(),
+apps/api-transportada/src/trips/presentation/occurrence.schema.ts:718:            contractorMailTemplateId: z.string().uuid().nullable().optional(),
+apps/api-transportada/test/trip-occurrence/occurrence-type-mail-template-schema.contract.ts:4: * Spec 271 (D14): o `PUT` do tipo ainda **aceita** `contractorMailTemplateI
+apps/api-transportada/test/trip-occurrence/occurrence-type-mail-template-schema.contract.ts:33:    for (const contractorMailTemplateId of [TEMPLATE_ID, null]) {
+apps/api-transportada/test/trip-occurrence/occurrence-type-mail-template-schema.contract.ts:34:      const parsed = await parseOccurrenceTypeRequest(putRequest({ contract
+apps/api-transportada/test/trip-occurrence/occurrence-type-mail-template-schema.contract.ts:36:      expect(toSaveOccurrenceTypeValues(parsed)).not.toHaveProperty('contra
+apps/api-transportada/test/trip-occurrence/occurrence-type-mail-template-schema.contract.ts:42:      parseOccurrenceTypeRequest(putRequest({ contractorMailTemplateId: 'mo
+apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:48:        (candidate) => candidate.name === 'contractor_mail_template_id',
+apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:55:        'contractor_mail_template_id',
+apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:65:    test(`${config.name}: contractor_mail_template_selected_at é timestamptz
+apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:67:        (candidate) => candidate.name === 'contractor_mail_template_selected_
+apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:77:    expect(sql).toContain('ADD COLUMN "contractor_mail_template_id" uuid')
+apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:79:      'ADD COLUMN "contractor_mail_template_selected_at" timestamp with time 
+apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:88:    expect(sql).toContain('DROP COLUMN "contractor_mail_template_id"')
+apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:89:    expect(sql).toContain('DROP COLUMN "contractor_mail_template_selected_at"
+```

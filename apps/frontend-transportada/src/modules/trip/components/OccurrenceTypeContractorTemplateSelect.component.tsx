@@ -11,7 +11,7 @@ import { useContractorMailTemplateChoicesQuery } from '@/modules/occurrence-conv
 import {
   OCCURRENCE_MAIL_SUGGESTED_TEMPLATE,
   OCCURRENCE_MAIL_VARIABLE_NAMES,
-  renderOccurrenceMailPreview,
+  renderContractorMailPreview,
 } from '@/modules/occurrence-conversation/shared/occurrenceTypeMailTemplate.service'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import styles from '@/modules/trip/styles/occurrenceTypeMail.module.css'
@@ -49,7 +49,7 @@ export function OccurrenceTypeContractorTemplateSelect({
 
   const templates = templatesQuery.data ?? []
   const selected = templates.find((template) => template.key === selectedKey)
-  const preview = selected === undefined ? null : renderOccurrenceMailPreview(selected)
+  const preview = selected === undefined ? null : renderContractorMailPreview(selected)
   const unusableProblems =
     selected !== undefined && !selected.usable
       ? selected.problems.map((problem) =>

@@ -1420,7 +1420,7 @@ segue com as 10 chaves. `requestContractorApi` passou a aceitar `POST`.
 ## Spec 247 — Tipos, correção e acerto com número e valor pago (ainda não publicada)
 
 **Aba Tipos.** `OccurrenceTypeRecordFields`/`OccurrenceTypeRequirementFields` (número do documento e valor pago: modo, rótulo, escopo; exceções com "Igual ao tipo"),
-`OccurrenceTypeContractorMail` (interruptor e, desde a spec 269, o seletor de modelo; ver § "Spec 269"), `OccurrenceTypeNotification` agora "Aviso interno". Rótulos de momento "Quem registra, e onde" (locale; o contrato procura o rótulo no controle).
+`OccurrenceTypeContractorMail` (interruptor, modelo do módulo, cópia e destinatários; ver § "Spec 271"), `OccurrenceTypeNotification` agora "Aviso interno". Rótulos de momento "Quem registra, e onde" (locale; o contrato procura o rótulo no controle).
 O rascunho do e-mail só some quando o salvar pousa; marcador que estoura o teto é dito em `role="status"`.
 
 **Correção e acerto.** `TripOccurrenceCorrectionForm` + `OccurrenceCorrectionAmounts*`: lê `requirements` do detalhe (N1/N2); `off` esconde, `required` sem "Limpar" e Salvar
@@ -1691,14 +1691,19 @@ Núcleo normativo em `apps/frontend-transportada/CLAUDE.md`.
   `test/delivery-clients/contractor-occurrence-watchers.contract.ts`, `test/trip-hooks/occurrence-watchers-panel.contract.ts`
   (DOM, com `occurrenceWatchersHarness.helper.ts`).
 
-## Spec 269 — O e-mail da ocorrência usa o modelo escolhido (etapa A)
+## Spec 271 — O modelo do e-mail da ocorrência vem do módulo de notificação (ADR-0108)
 
-O texto do e-mail à contratante saiu do tipo: `emailSubject`/`emailBody`/`emailItemLineTemplate` não existem mais no painel (tipo, `PUT`, rascunho, prévia
-`/email-preview`, marcadores `{{camelCase}}`; as notificações seguem com os deles). `OccurrenceTypeContractorMail` = interruptor `emailsContractor` +
-`OccurrenceTypeMailTemplateSelect` (modelos `occurrence` ativos + "Nenhum", prévia do servidor via `POST /contractor-mail-templates/preview`, "Gerenciar modelos" abre
-a aba de e-mail de `/clientes`, aviso "Tipo sem modelo de notificação" com o interruptor ligado e nada escolhido). O mesmo seletor está em `OccurrenceExceptionItem`
-(só exceção por **contratante**; "Herdar do tipo" = `null`; exceção nova nasce com `contractorMailTemplateId: null` explícito). "Modelos" aceita `occurrence`; o 409
-`CONTRACTOR_MAIL_TEMPLATE_IN_USE` lista os tipos e as exceções (`ContractorMailTemplatesRequestError.usage`). `missingNotificationTemplate` chega no feed, no detalhe e na prévia
-do diálogo; `SendToContractorDialog` desabilita o envio e trata o 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`. Testes: `trip-hooks/occurrence-type-mail-template`,
-`occurrence-exception-mail-template`, `contractor-mail-template-usage`, `contractor-mail-missing-template`, `occurrence-missing-template-mark`. `frontend-driver` perdeu a
-tolerância a `emailItemLineTemplate`.
+A 271 **substituiu** o desenho da 269 (modelo `occurrence` do cadastro "Modelos", escolhido por id no tipo e na exceção). O texto do e-mail à contratante
+(`emailSubject`/`emailBody`/`emailItemLineTemplate` já tinham saído na 269) é um modelo de e-mail do **módulo de notificação** (Notificações → Preferências,
+`{{camelCase}}` da lista fechada), escolhido **pela chave** no tipo. `OccurrenceTypeContractorMail` = interruptor `emailsContractor` + **Modelo**
+(`OccurrenceTypeContractorTemplateSelect`: lista de `GET /company-settings/occurrence-types/contractor-mail-templates` — só os `usable`, "Nenhum", "Criar modelo em
+Notificações", prévia com valores de exemplo, variáveis, modelo sugerido, motivo quando o escolhido deixou de servir, aviso "Tipo sem modelo de notificação" só com o
+e-mail ligado e `missingNotificationTemplate`) + **Em cópia** (`OccurrenceTypeWatchersSelect`: responsáveis da empresa da 267, até 10, inativo/inelegível marcado) +
+**Destinatários** (`OccurrenceTypeRecipientsSelect`: só com `contractorScope = 'listed'`; contatos de `GET .../contractor-mail-recipient-candidates`; ao tirar contratante
+do "Vale para" o rascunho avisa quantos saem junto). A exceção por contratante **não** escolhe modelo. "Modelos" (150) voltou a ter só a correção de endereço (o 409 de
+"em uso" e `ContractorMailTemplatesRequestError.usage` saíram). Sem `notification-contracts` direto: a interpolação `{{campo}}` é local
+(`occurrenceTypeMailTemplate.service.ts`), com paridade da lista de variáveis em `occurrence-type-mail-parity.contract.ts`. O painel **tolera e ignora**
+`contractorMailTemplateId` (API ainda pode mandá-lo até a migration B). Os cliente/consultas ficam em `occurrence-conversation` (`occurrenceTypeMailClient`,
+`occurrenceTypeMail.query`). `missingNotificationTemplate` chega no feed, no detalhe e na prévia do diálogo (`notificationTemplateKey`, `ccSource` ganhou
+`occurrence_type`); `SendToContractorDialog` desabilita o envio e trata o 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`. Testes: `trip-hooks/occurrence-type-contractor-mail`
+(com `occurrenceTypeMailHarness.helper.ts`), `contractor-mail-missing-template`, `occurrence-missing-template-mark`.

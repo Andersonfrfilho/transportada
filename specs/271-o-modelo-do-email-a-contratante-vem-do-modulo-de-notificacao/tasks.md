@@ -107,7 +107,7 @@
 - [x] **T3.2** `sonnet` — Worker: varredura pela chave, carimbo e `EXISTS` (plan § Worker). Teste de integração do
       worker: tipo sem chave, chave sem modelo ativo, modelo HTML e ocorrência anterior ao carimbo não entram; o caso
       certo entra uma vez.
-- [ ] **T3.3** `haiku` — Gate de limpeza: o `grep` do aceite da etapa A (`plan.md` § Inventário) só acha o schema das
+- [x] **T3.3** `haiku` — Gate de limpeza: o `grep` do aceite da etapa A (`plan.md` § Inventário) só acha o schema das
       colunas da B e a chave aceita-e-ignorada. Colar a saída no `evidence.md`.
 
 ## Fase 4 — Telas

@@ -67,7 +67,7 @@ export function interpolateMailTemplate(
 }
 
 /** A prévia: assunto numa linha, corpo como escrito, com os valores de exemplo. */
-export function renderOccurrenceMailPreview(template: Readonly<{ body: string; subject: string }>) {
+export function renderContractorMailPreview(template: Readonly<{ body: string; subject: string }>) {
   return {
     body: interpolateMailTemplate(template.body, OCCURRENCE_MAIL_SAMPLE_VALUES),
     subject: interpolateMailTemplate(template.subject, OCCURRENCE_MAIL_SAMPLE_VALUES)

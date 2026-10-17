@@ -5,7 +5,7 @@ import {
   interpolateMailTemplate,
   OCCURRENCE_MAIL_SAMPLE_VALUES,
   OCCURRENCE_MAIL_VARIABLE_NAMES,
-  renderOccurrenceMailPreview,
+  renderContractorMailPreview,
 } from '../../src/modules/occurrence-conversation/shared/occurrenceTypeMailTemplate.service'
 
 /**
@@ -43,7 +43,7 @@ describe('as variáveis do e-mail à contratante no editor do tipo (spec 271)', 
   })
 
   test('a prévia troca as variáveis por exemplos e deixa o assunto numa linha só', () => {
-    const preview = renderOccurrenceMailPreview({
+    const preview = renderContractorMailPreview({
       body: 'Itens:\n{{linhasItens}}',
       subject: 'NF {{numeroNota}}\n— {{contratante}}',
     })
