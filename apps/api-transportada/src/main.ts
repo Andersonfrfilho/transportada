@@ -304,6 +304,7 @@ import {
   OCCURRENCE_CANCELLATION_OPERATION,
   OCCURRENCE_CORRECTION_OPERATION,
 } from './trips/domain/occurrence-correction.policy.js'
+import { toOccurrenceTypeSettingsViews } from './trips/infrastructure/occurrence-type-contractors.query.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
 import {
@@ -600,6 +601,12 @@ import { createTripFieldOfficeRoutes } from './trips/presentation/trip-field-off
 import { createTripFieldOfficeOccurrenceRoutes } from './trips/presentation/trip-field-office-occurrence.routes.js'
 import { createTripFieldDeliverySettingsRoutes } from './trips/presentation/trip-field-delivery-settings.routes.js'
 import { listFieldOccurrenceTypes } from './trips/application/list-field-occurrence-types.use-case.js'
+import { listOccurrenceTypesForNote } from './trips/infrastructure/occurrence-types-for-note.query.js'
+import { listSeparationOccurrenceTypes } from './trips/application/list-separation-occurrence-types.use-case.js'
+import {
+  findDocumentOccurrenceSubject,
+  readNoteContractorIds,
+} from './trips/infrastructure/document-occurrence-subject.query.js'
 import { registerOfficeDocumentOccurrences } from './trips/application/register-office-document-occurrences.use-case.js'
 import { DrizzleOfficeOccurrenceBatchUnitOfWork } from './trips/infrastructure/drizzle-office-occurrence-batch.repository.js'
 import { DrizzleFieldTripTargetRepository } from './trips/infrastructure/drizzle-field-trip-target.repository'
@@ -1163,8 +1170,7 @@ export function bootstrap(): Bun.Server<undefined> {
         repository: whatsappDriverTripRepository,
         scores: whatsappDriverScoreRepository,
       }),
-    listOccurrenceTypes: (input) =>
-      listOccurrenceTypes(database.db, { companyId: input.companyId }),
+    listOccurrenceTypes: (input) => listOccurrenceTypesForNote(database.db, input),
     registerOccurrence: async (input) => {
       const occurrence = await registerDriverOccurrence({
         ...input,
@@ -1294,8 +1300,7 @@ export function bootstrap(): Bun.Server<undefined> {
         repository: whatsappTripRouteRepository,
         tripId: input.tripId,
       }),
-    listOccurrenceTypes: (input) =>
-      listOccurrenceTypes(database.db, { companyId: input.companyId }),
+    listOccurrenceTypes: (input) => listOccurrenceTypesForNote(database.db, input),
     listWarehouseTrips: (input) =>
       listWarehouseTrips({
         companyId: input.companyId,
@@ -1344,6 +1349,7 @@ export function bootstrap(): Bun.Server<undefined> {
           /** O fluxo do WhatsApp não escolhe item: a ocorrência é sempre da nota inteira. */
           productCodes: [],
           repository: {
+            findDocumentContractor: (query) => findDocumentOccurrenceSubject(database.db, query),
             findOccurrenceType: (query) => findOccurrenceType(database.db, query),
             listDocumentProducts: (query) => listDocumentProducts(database.db, query),
             listOccurrences: (query) => listTripOccurrences(database.db, { ...query, logger }),
@@ -4294,11 +4300,16 @@ function createApplicationRoutes({
     }),
     ...createTripFieldOfficeOccurrenceRoutes({
       resolveClientIp,
-      listFieldOccurrenceTypes: (input) =>
+      listFieldOccurrenceTypes: async (input) =>
         listFieldOccurrenceTypes({
           companyId: input.companyId,
           contractorId: input.contractorId ?? null,
           moment: input.moment,
+          /** Spec 270 (D5): a contratante de cada nota, lida aqui — nota de outra empresa é 404. */
+          noteContractorIds: await readNoteContractorIds(database, {
+            companyId: input.companyId,
+            documentIds: input.documentIds ?? [],
+          }),
           overrides: {
             listOverridesForTypes: (query) =>
               occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
@@ -4345,7 +4356,23 @@ function createApplicationRoutes({
       setTripTrailer: { execute: (input) => trips.setTrailer(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       listOccurrenceTypes: {
-        execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
+        execute: async (input) =>
+          toOccurrenceTypeSettingsViews(database, {
+            companyId: input.context.companyId,
+            records: await listOccurrenceTypes(database, { companyId: input.context.companyId }),
+          }),
+      },
+      listSeparationOccurrenceTypes: {
+        execute: (input) =>
+          listSeparationOccurrenceTypes({
+            companyId: input.context.companyId,
+            documentId: input.documentId,
+            repository: {
+              findDocumentContractor: (query) => findDocumentOccurrenceSubject(database, query),
+              listOccurrenceTypes: (query) => listOccurrenceTypes(database, query),
+            },
+            tripId: input.tripId,
+          }),
       },
       listOccurrenceAttachmentOverrides: {
         execute: (input) =>
@@ -4397,8 +4424,8 @@ function createApplicationRoutes({
           }),
       },
       saveOccurrenceType: {
-        execute: (input) =>
-          saveOccurrenceTypeWithTemplate({
+        execute: async (input) => {
+          const saved = await saveOccurrenceTypeWithTemplate({
             companyId: input.context.companyId,
             findCurrentType: ({ companyId, occurrenceTypeId }) =>
               findOccurrenceType(database, { companyId, occurrenceTypeId }),
@@ -4418,7 +4445,13 @@ function createApplicationRoutes({
               },
             },
             values: toSaveOccurrenceTypeValues(input),
-          }),
+          })
+          const [view] = await toOccurrenceTypeSettingsViews(database, {
+            companyId: input.context.companyId,
+            records: [saved],
+          })
+          return view ?? saved
+        },
       },
       /**
        * Spec 156 T7b: mesma `anyPermission` da leitura de ocorrências (D11) — o anexo do lote sai
@@ -4540,6 +4573,8 @@ function createApplicationRoutes({
                   productQuantities: input.productQuantities,
                   productQuantityUnits: input.productQuantityUnits,
                   repository: {
+                    findDocumentContractor: (query) =>
+                      findDocumentOccurrenceSubject(database, query),
                     findOccurrenceType: (query) => findOccurrenceType(database, query),
                     listDocumentProducts: (query) => listDocumentProducts(database, query),
                     listOccurrences: (query) => listTripOccurrences(database, { ...query, logger }),

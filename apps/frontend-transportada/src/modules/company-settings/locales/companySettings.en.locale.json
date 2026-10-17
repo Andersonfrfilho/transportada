@@ -362,7 +362,8 @@
       "readOnly": "No permission to change the exceptions.",
       "add": "Add exception",
       "remove": "Remove",
-      "removeOf": "Remove the exception of {{name}}"
+      "removeOf": "Remove the exception of {{name}}",
+      "noEffect": "This exception has no effect while the type does not apply to this contractor. It stays saved."
     },
     "identity": {
       "title": "Identification",
@@ -459,7 +460,10 @@
         "off": "{{field}}: off",
         "optional": "{{field}}: optional",
         "required": "{{field}}: required"
-      }
+      },
+      "contractorScope": "Only: {{names}}",
+      "contractorScopeMore": "Only: {{names}} and {{count}} more",
+      "contractorScopeTitle": "Only for: {{names}}"
     },
     "mail": {
       "title": "Contractor e-mail",
@@ -605,6 +609,33 @@
       "previewFailed": "Could not build the preview.",
       "missing": "Type without a notification template: the email to the contractor is not sent. Choose a template.",
       "manage": "Manage templates"
+    },
+    "contractorScope": {
+      "title": "Applies to",
+      "options": {
+        "all": "All contractors",
+        "listed": "Only these contractors"
+      },
+      "pickerLabel": "Contractors of the type",
+      "placeholder": "Choose the contractors",
+      "searchPlaceholder": "Search by name or tax ID",
+      "empty": "No contractor found.",
+      "clearAll": "Clear contractors",
+      "remove": "Remove contractor {{label}}",
+      "summary_one": "{{count}} contractor",
+      "summary_other": "{{count}} contractors",
+      "inactive": "inactive",
+      "truncated": "The contractor list may be incomplete: only the first 3000 were loaded, and anyone left out cannot be chosen.",
+      "pending": "Change to Applies to not applied yet — click Apply for it to take effect.",
+      "apply": "Apply",
+      "undo": "Undo",
+      "note": "A restricted type is only offered, to the driver and to the office, on notes from a contractor in the list. A note from an unregistered contractor gets only the all-contractor types. What was already recorded stays visible.",
+      "stopOnly": "A stop has no contractor: this type applies to all of them.",
+      "stopAllContractors": "On a stop this type applies to all contractors; the restriction applies to records with a note.",
+      "problem": {
+        "empty": "Choose at least one contractor: with none the type would appear on no note, so nothing was saved.",
+        "needsDocument": "A stop-only type cannot be limited to contractors: a stop has no contractor. Nothing was saved."
+      }
     }
   },
   "settingsResolution": {

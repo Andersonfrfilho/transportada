@@ -17,6 +17,7 @@ import {
   TripOccurrenceReferenceNumberRequiredError,
   TripOccurrenceSignatureRequiredError,
 } from '../../trips/domain/trip.error.js'
+import { OccurrenceTypeNotAvailableForContractorError } from '../../trips/domain/occurrence-type-contractor-scope.error.js'
 import { DRIVER_FLOW_NODE } from '../domain/whatsapp-driver-flow.constant.js'
 
 export type DriverOccurrenceRefusal = {
@@ -25,6 +26,10 @@ export type DriverOccurrenceRefusal = {
 }
 
 const USE_THE_APP = 'Registre pelo aplicativo.'
+
+/** Spec 270 (R3): a frase dos dois canais do WhatsApp quando o servidor recusa o tipo pela contratante. */
+export const OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE =
+  'Este tipo não vale para a contratante desta nota. Escolha outro tipo.'
 
 /** `undefined` quando o erro não é uma exigência de campo — quem chama segue o tratamento de sempre. */
 export function describeOccurrenceRequirementRefusal(
@@ -74,6 +79,13 @@ export function describeOccurrenceRequirementRefusal(
     return {
       message: `Essa ocorrência exige o valor pago e as quantidades, e o WhatsApp não os envia. ${USE_THE_APP}`,
       next: DRIVER_FLOW_NODE.tripMenu,
+    }
+  }
+  /** Spec 270 (R3): volta à lista de tipos, nunca relança e nunca fica no passo da observação. */
+  if (error instanceof OccurrenceTypeNotAvailableForContractorError) {
+    return {
+      message: OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE,
+      next: DRIVER_FLOW_NODE.listOccurrenceTypes,
     }
   }
   return undefined

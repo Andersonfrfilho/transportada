@@ -13,6 +13,8 @@ import {
   OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
   OCCURRENCE_TYPE_FLOWS,
   OCCURRENCE_TYPE_ICON_NAMES,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPES,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS,
   TRIP_OCCURRENCE_STAGE,
@@ -21,6 +23,7 @@ import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceItemQuantityUnit,
   OccurrenceTypeFlow,
+  OccurrenceTypeContractorScope,
   OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../shared/trip-occurrence.constant.js'
@@ -2960,6 +2963,14 @@ export const companyOccurrenceTypes = pgTable(
       withTimezone: true,
     }),
     /**
+     * Spec 270 (ADR-0107): para quem o tipo vale. `all` (padrão) é toda contratante; `listed` é a
+     * lista de `company_occurrence_type_contractors`. Todo tipo existente fica `all`.
+     */
+    contractorScope: varchar('contractor_scope', { length: 16 })
+      .$type<OccurrenceTypeContractorScope>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all),
+    /**
      * Spec 164 T1: se a nota atingida por este tipo de ocorrência pode ser reentregue
      * (`allowed`/`blocked`) ou se o tipo não decide isso (`unset`, o padrão — nenhuma instalação
      * ganha tratativa nova ao aplicar esta migration). `unset` nunca abre `trip_occurrence_cases`
@@ -3292,6 +3303,10 @@ export const companyOccurrenceTypes = pgTable(
       sql`(${table.forwardToNoteRecipient} = 'off' and ${table.forwardToInformedEmail} = 'off') or (btrim(${table.forwardEmailSubject}) <> '' and btrim(${table.forwardEmailBody}) <> '')`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
+    check(
+      'company_occurrence_types_contractor_scope_check',
+      sql`${table.contractorScope} in (${sql.raw(inList(OCCURRENCE_TYPE_CONTRACTOR_SCOPES))})`,
+    ),
     foreignKey({
       columns: [table.companyId, table.contractorMailTemplateId],
       foreignColumns: [contractorMailTemplates.companyId, contractorMailTemplates.id],

@@ -9,6 +9,7 @@ import {
   type OccurrenceType,
 } from '@/modules/trip/shared/occurrence.constant'
 import { resolveOccurrenceMoments } from '@/modules/trip/shared/occurrenceMoments.service'
+import { summarizeContractorScope } from '@/modules/trip/shared/occurrenceTypeContractorScope.service'
 import { countExceptions } from '@/modules/trip/shared/occurrenceException.service'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import type { OccurrenceRequirementField } from '@/modules/trip/shared/occurrenceRequirement.constant'
@@ -55,6 +56,10 @@ export function OccurrenceTypeSummary({
   const momentLabels = resolveOccurrenceMoments(type).map((moment) =>
     t(`occurrenceTypeCatalog.moments.labels.${moment}`),
   )
+  const contractorScope = summarizeContractorScope({
+    contractors: type.contractors,
+    scope: type.contractorScope,
+  })
   const count = countExceptions(exceptions.overrides)
   const photoCount = type.photoMinimumCount ?? 1
   const countLabel = (() => {
@@ -88,6 +93,23 @@ export function OccurrenceTypeSummary({
             {label}
           </span>
         ))}
+        {contractorScope === null ? null : (
+          <span
+            className={styles.tag}
+            title={t('occurrenceTypeCatalog.summary.contractorScopeTitle', {
+              names: contractorScope.fullNames.join(', '),
+            })}
+          >
+            {contractorScope.hiddenCount === 0
+              ? t('occurrenceTypeCatalog.summary.contractorScope', {
+                  names: contractorScope.shownNames.join(', '),
+                })
+              : t('occurrenceTypeCatalog.summary.contractorScopeMore', {
+                  count: contractorScope.hiddenCount,
+                  names: contractorScope.shownNames.join(', '),
+                })}
+          </span>
+        )}
       </span>
       <span className={styles.needs}>
         {readNeeds(type).map(([field, mode]) => (

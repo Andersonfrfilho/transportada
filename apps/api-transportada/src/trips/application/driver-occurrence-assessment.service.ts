@@ -24,6 +24,7 @@ import {
   assertOccurrenceTypeAcceptsProducts,
 } from '../domain/occurrence-items-mode.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
+import { assertOccurrenceTypeAvailableForContractor } from '../domain/occurrence-type-contractor-scope.policy.js'
 import { assertDriverOccurrenceRequirements } from '../domain/occurrence-requirement-guard.policy.js'
 import { resolveDocumentProductPricing } from '../domain/occurrence-product-pricing.policy.js'
 import type { OccurrenceRequirements } from '../domain/occurrence-requirements.policy.js'
@@ -210,6 +211,12 @@ export async function assessDriverOccurrence(
     target: toFieldTripTarget(input),
   })
   if (reachable === null) throw new TripDocumentNotReachableError()
+  /** Spec 270 (D6, R4): depois da nota alcançável e antes da exigência da 246 e de qualquer escrita ou upload. */
+  assertOccurrenceTypeAvailableForContractor({
+    contractorId: reachable.contractorId,
+    documentId: input.documentId,
+    type: occurrenceType,
+  })
   const { tripId } = reachable
 
   const requirements = await resolveDocumentOccurrenceRequirements({

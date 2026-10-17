@@ -171,6 +171,24 @@ describe('detalhe da ocorrência da rota (spec 266 T4.6)', () => {
     expect(html).toContain('Corrigir e reenviar')
   })
 
+  /** Spec 270 (RF7): o servidor recusou o registro da fila porque o tipo mudou de escopo — texto humano, não o código cru. */
+  test('recusada pelo escopo do tipo mostra o motivo em texto humano, não o código', () => {
+    const html = render({
+      state: {
+        detail: undefined,
+        entry: entry({
+          rejectionCause: '422 OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR',
+          source: 'queue',
+          state: 'rejected',
+        }),
+        status: 'ready',
+      },
+    })
+    expect(html).toContain('não vale para a contratante desta nota')
+    expect(html).not.toContain('OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR')
+    expect(html).toContain('Corrigir e reenviar')
+  })
+
   test('o botão do chat leva a contagem de novas; resolvida vira "Ver conversa"', () => {
     const open = render({
       state: {

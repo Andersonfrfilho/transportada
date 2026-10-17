@@ -305,6 +305,7 @@ describe('separator role contract', () => {
       /** Spec 222 RF-A1: os comprovantes da viagem em lote — `fleet.read`, como o de uma nota logo abaixo. */
       'GET /trips/:id/delivery-proofs',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
+      'GET /trips/:id/documents/:documentId/occurrence-types',
       /**
        * Spec 079 T020: o que houve com a carga, e o separador **lê e escreve** — decisão registrada
        * aqui. Ele é quem encontra o item faltante ou avariado ao separar; a ocorrência de separação

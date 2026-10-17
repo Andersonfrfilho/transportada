@@ -1141,3 +1141,16 @@ sai de um modelo `occurrence` de "E-mail com contratantes → Modelos" (spec 150
   `emails_contractor` desligado). **Nunca** no DTO exato `isTripOccurrence` do painel.
 - **Worker:** a varredura só pede ocorrência com modelo efetivo.
 - **Publicação em etapas:** painel tolerante → API → telas → (depois) migration B que remove as três colunas de texto.
+
+## O tipo de ocorrência tem escopo de contratantes (spec 270, ADR-0107)
+
+- **`contractor_scope` `all`|`listed` + `company_occurrence_type_contractors`.** `listed` ⇔ ao menos uma linha, conferido por
+  `replaceOccurrenceTypeContractorScope` (o mesmo do `PUT` e do script de dados), com o tipo travado `FOR UPDATE`; contratante de
+  outra empresa é 404 `CONTRACTOR_NOT_FOUND`. O `PUT` aceita `contractorScope` e `contractorIds` **juntos** (um sem o outro é 400
+  `OCCURRENCE_TYPE_CONTRACTOR_SCOPE_INVALID`); lista vazia é `_EMPTY`; tipo só de parada é `_NEEDS_DOCUMENT`.
+- **O servidor decide.** As listas filtram por `noteContractorIds` — a contratante que o servidor leu da nota, nunca o `contractorId`
+  da query. Sem nota, só `all`; várias notas, interseção; a parada ignora o escopo. O DTO de rua nunca leva escopo nem contratantes.
+- **Guarda no registro** (`assertOccurrenceTypeAvailableForContractor`): depois do momento e da nota alcançável, antes da exigência da
+  246 e de qualquer escrita ou upload → 422 `OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR` (o lote leva só `documentIds`).
+- **Rota nova:** `GET /trips/:id/documents/:documentId/occurrence-types` (`trip.manage`, momento `separation`).
+- Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O escopo de contratantes do tipo (spec 270)".

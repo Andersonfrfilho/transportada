@@ -181,6 +181,13 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   OCCURRENCE_CASE_NOTE_REQUIRED: 'occurrenceCaseNoteRequired',
   /** Spec 237 T3.4a: o nome do tipo é único por empresa em qualquer etapa, e o tipo de recebimento não aparece nesta lista. */
   OCCURRENCE_TYPE_NAME_TAKEN: 'occurrenceTypeNameTaken',
+  /** Spec 270 (ADR-0107): o escopo de contratantes do tipo — as três recusas do cadastro e a do registro. */
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE_EMPTY: 'occurrenceTypeContractorScopeEmpty',
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE_INVALID: 'occurrenceTypeContractorScopeInvalid',
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE_NEEDS_DOCUMENT: 'occurrenceTypeContractorScopeNeedsDocument',
+  OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR: 'occurrenceTypeNotAvailableForContractor',
+  /** Spec 270: contratante da lista que não é da empresa (ou sumiu) — o mesmo 404 dos dois casos. */
+  CONTRACTOR_NOT_FOUND: 'occurrenceTypeContractorNotFound',
   /** Spec 269: o modelo escolhido para o e-mail foi arquivado (ou é de outro tipo) entre a lista e o salvar. */
   CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE: 'occurrenceMailTemplateNotUsable',
   /** Spec 240 RF7: a correção e o cancelamento da ocorrência de nota (spec 167). */

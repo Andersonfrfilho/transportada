@@ -31,6 +31,8 @@ import {
   OCCURRENCE_DECLARED_AMOUNT_SCOPES,
   OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX,
   OCCURRENCE_MOMENTS,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE_MAX_CONTRACTORS,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPES,
   OCCURRENCE_PHOTO_MINIMUM_COUNT,
   OCCURRENCE_REFERENCE_NUMBER_PATTERN,
   OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH,
@@ -557,6 +559,18 @@ const occurrenceTypeSchema = z
      * `occurrence` e ativo.
      */
     contractorMailTemplateId: z.string().uuid().nullable().optional(),
+    /**
+     * Spec 270 (ADR-0107): para quem o tipo vale. `contractorScope` e `contractorIds` vão juntos (o caso de
+     * uso recusa um sem o outro, 400); ausentes é "não mexa". `all` apaga a lista; `listed` pede ao menos uma.
+     */
+    contractorIds: z
+      .array(z.string().uuid())
+      .max(OCCURRENCE_TYPE_CONTRACTOR_SCOPE_MAX_CONTRACTORS)
+      .optional()
+      .refine((ids) => ids === undefined || new Set(ids).size === ids.length, {
+        message: 'CONTRACTOR_IDS_MUST_BE_UNIQUE',
+      }),
+    contractorScope: z.enum(OCCURRENCE_TYPE_CONTRACTOR_SCOPES).optional(),
     /**
      * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota" — só para tipo de separação
      * (`stage: 'separation'`); um tipo de entrega com `true` é recusado no caso de uso, 422.

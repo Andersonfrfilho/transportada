@@ -10,6 +10,7 @@ import {
   type OccurrenceMoment,
   type OccurrenceRedeliveryPolicy,
   type OccurrenceType,
+  type OccurrenceTypeContractorScope,
   type OccurrenceTypeFlow,
   type TripOccurrenceStage,
 } from '@/modules/trip/shared/occurrence.constant'
@@ -33,6 +34,9 @@ export type OccurrenceTypeSaveInput = Readonly<{
   declaredAmountScope?: DeclaredAmountScope | undefined
   /** Spec 269: o modelo `occurrence` do e-mail à contratante — `null` limpa; `undefined` é "não mexe". */
   contractorMailTemplateId?: null | string | undefined
+  /** Spec 270: escopo e lista vão **juntos** (um sem o outro é 400); `undefined` nos dois é "não mexe". */
+  contractorIds?: readonly string[] | undefined
+  contractorScope?: OccurrenceTypeContractorScope | undefined
   /** Spec 183 T802: o aviso automático à contratante — `undefined` é "não mexe". */
   emailsContractor?: boolean | undefined
   /** Spec 248 RF1: o retorno da contratante — `undefined` é "não mexe". */
@@ -89,6 +93,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'declaredAmountLabel'
       | 'declaredAmountMode'
       | 'declaredAmountScope'
+      | 'contractorIds'
       | 'contractorMailTemplateId'
       | 'contractorReplyAlertIntervalMinutes'
       | 'contractorReplyAlertMaxCount'
@@ -96,6 +101,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'
       | 'contractorReplyWaitHours'
+      | 'contractorScope'
       | 'driverReplyTemplate'
       | 'emailsContractor'
       | 'forwardEmailBody'

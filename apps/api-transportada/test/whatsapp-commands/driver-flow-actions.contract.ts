@@ -18,6 +18,7 @@ import { AuthorizationService } from '../../src/identity/application/authorizati
 import type { CompanyPermission } from '../../src/identity/domain/authorization.policy.js'
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import type { FindCurrentDriverTripResult } from '../../src/trips/application/find-current-driver-trip.use-case.js'
+import { OccurrenceTypeNotAvailableForContractorError } from '../../src/trips/domain/occurrence-type-contractor-scope.error.js'
 import { registerDriverOccurrence } from '../../src/trips/application/register-driver-occurrence.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import {
@@ -746,6 +747,53 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
     expect(sent[0]?.kind).toBe('list')
     expect(prompted).toEqual({ next: DRIVER_FLOW_NODE.noteEntry })
+  })
+
+  /** Spec 270 (R3): o servidor recusa o tipo pela contratante — a conversa volta à lista, sem relançar. */
+  test('tipo que não vale para a contratante da nota: avisa e volta à lista de tipos', async () => {
+    const { channel, sent } = buildChannel()
+    const result = await callAction({
+      channel,
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.noteAnswer]: 'skip',
+        [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeId]: OCCURRENCE_TYPE_ID,
+      },
+      deps: buildDeps({
+        registerOccurrence: async () => {
+          throw new OccurrenceTypeNotAvailableForContractorError()
+        },
+      }),
+      kind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
+    })
+
+    expect(sent[0]?.body).toBe(
+      'Este tipo não vale para a contratante desta nota. Escolha outro tipo.',
+    )
+    expect(result).toEqual({ next: DRIVER_FLOW_NODE.listOccurrenceTypes })
+  })
+
+  test('a lista e o roteador de tipos pedem o catálogo da nota da conversa', async () => {
+    const asked: unknown[] = []
+    const deps = buildDeps({
+      listOccurrenceTypes: async (input) => {
+        asked.push(input)
+        return [buildOccurrenceType()]
+      },
+    })
+    const context = { [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID }
+
+    await callAction({ context, deps, kind: DRIVER_FLOW_ACTION_KIND.listOccurrenceTypes })
+    await callAction({
+      context: { ...context, [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeAnswer]: OCCURRENCE_TYPE_ID },
+      deps,
+      kind: DRIVER_FLOW_ACTION_KIND.occurrenceTypeRouter,
+    })
+
+    expect(asked).toEqual([
+      { companyId: COMPANY_ID, documentId: DOCUMENT_ID },
+      { companyId: COMPANY_ID, documentId: DOCUMENT_ID },
+    ])
   })
 
   test('observação "Pular" registra ocorrência com nota vazia', async () => {

@@ -7,11 +7,13 @@
 import {
   OCCURRENCE_ATTACHMENT_MODE,
   OCCURRENCE_REDELIVERY_POLICY,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
   TRIP_OCCURRENCE_STAGE,
   type OccurrenceAttachmentMode,
   type OccurrenceItemsWriteMode,
   type OccurrenceMoment,
   type OccurrenceRedeliveryPolicy,
+  type OccurrenceTypeContractorScope,
   type OccurrenceTypeFlow,
   type TripOccurrenceStage,
 } from './occurrence.constant'
@@ -22,6 +24,8 @@ import type { OccurrenceTypeSaveInput } from './occurrenceTypeUpdate.service'
 export type OccurrenceTypeCreateDraft = Readonly<{
   allowsMultipleItems: boolean
   attachmentMode: OccurrenceAttachmentMode
+  contractorIds: readonly string[]
+  contractorScope: OccurrenceTypeContractorScope
   emailTemplateKey: string
   itemsMode: OccurrenceItemsWriteMode
   leavesDocumentBehind: boolean
@@ -35,6 +39,8 @@ export type OccurrenceTypeCreateDraft = Readonly<{
 
 /** O que a API que responde a listagem sabe receber: o painel não manda o que ela recusaria com `.strict()`. */
 export type OccurrenceTypeCreateSupport = Readonly<{
+  /** Spec 270: a API manda `contractorScope` no tipo — só então o cadastro oferece o "Vale para". */
+  hasContractorScope: boolean
   hasItemsMode: boolean
   hasMoments: boolean
   hasRequirementModes: boolean
@@ -65,6 +71,11 @@ export function buildOccurrenceTypeCreateInput(
     attachmentMode: fields.includes('photo')
       ? draft.attachmentMode
       : OCCURRENCE_ATTACHMENT_MODE.off,
+    /** Spec 270: o tipo novo nasce `all` na API; só o restrito manda escopo e lista, juntos. */
+    ...(support.hasContractorScope &&
+    draft.contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed
+      ? { contractorIds: draft.contractorIds, contractorScope: draft.contractorScope }
+      : {}),
     emailTemplateKey:
       draft.emailTemplateKey === OCCURRENCE_TEMPLATE_NONE ? null : draft.emailTemplateKey,
     flow: deriveOccurrenceFlow(draft.moments),

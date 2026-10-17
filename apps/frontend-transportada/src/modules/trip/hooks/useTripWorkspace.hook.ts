@@ -164,7 +164,13 @@ export type TripController = Readonly<{
   reportStopOccurrence: (input: ReportStopOccurrenceInput) => Promise<FieldReportIdResult>
   startFieldTrip: (input: StartFieldTripInput) => Promise<FieldTripStepResult>
   /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
-  readFieldOccurrenceTypes: () => Promise<readonly FieldOccurrenceType[]>
+  readFieldOccurrenceTypes: (
+    input?: Readonly<{ documentIds?: readonly string[] }>,
+  ) => Promise<readonly FieldOccurrenceType[]>
+  /** Spec 270 (R6): `GET /trips/:id/documents/:documentId/occurrence-types` — os tipos do galpão para uma nota. */
+  listSeparationOccurrenceTypes: (
+    input: Readonly<{ documentId: string; tripId: string }>,
+  ) => Promise<readonly OccurrenceType[]>
   /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences`, uma nota ou o lote da seleção. */
   registerFieldOccurrences: (
     input: RegisterFieldOccurrencesInput,
@@ -305,8 +311,10 @@ export function createTripController(
     reportStopOccurrence: (body) =>
       canReportOnBehalf ? input.client.reportStopOccurrence(body) : forbidden(),
     startFieldTrip: (body) => (canReportOnBehalf ? input.client.startFieldTrip(body) : forbidden()),
-    readFieldOccurrenceTypes: () =>
-      canReportOnBehalf ? input.client.readFieldOccurrenceTypes() : forbidden(),
+    readFieldOccurrenceTypes: (body) =>
+      canReportOnBehalf ? input.client.readFieldOccurrenceTypes(body) : forbidden(),
+    listSeparationOccurrenceTypes: (body) =>
+      canReadTrips ? input.client.listSeparationOccurrenceTypes(body) : forbidden(),
     registerFieldOccurrences: (body) =>
       canReportOnBehalf ? input.client.registerFieldOccurrences(body) : forbidden(),
     reportFieldDelivery: (body) =>
@@ -847,13 +855,6 @@ export function useTripWorkspace(
     },
   })
 
-  /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
-  const fieldOccurrenceTypesQuery = useQuery({
-    enabled: controller.canReportOnBehalf,
-    queryFn: () => controller.readFieldOccurrenceTypes(),
-    queryKey: [TRIP_QUERY_KEY, 'field-occurrence-types'] as const,
-  })
-
   /**
    * Spec 156 T9: a chave por escopo é o mesmo lote (a lista de notas ordenada) — reusada enquanto o
    * diálogo não fecha com sucesso, do jeito que `arrive`/`occurrence` já fazem por parada.
@@ -1099,7 +1100,6 @@ export function useTripWorkspace(
     deliveryProofsQuery,
     fieldActionCapabilities,
     fieldDeliverDocumentMutation,
-    fieldOccurrenceTypesQuery,
     fieldReturnDocumentMutation,
     registerFieldOccurrencesMutation,
     resetFieldOccurrenceIdempotency,

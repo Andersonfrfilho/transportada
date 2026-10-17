@@ -3763,3 +3763,23 @@ sai de um modelo `occurrence` de "E-mail com contratantes → Modelos" (spec 150
   `emails_contractor` desligado). **Nunca** no DTO exato `isTripOccurrence` do painel.
 - **Worker:** a varredura só pede ocorrência com modelo efetivo.
 - **Publicação em etapas:** painel tolerante → API → telas → (depois) migration B que remove as três colunas de texto.
+
+## O escopo de contratantes do tipo (spec 270, ADR-0107)
+
+- **Dados:** `company_occurrence_types.contractor_scope` (`all` padrão, CHECK gerada de `OCCURRENCE_TYPE_CONTRACTOR_SCOPES`) e
+  `company_occurrence_type_contractors (company_id, occurrence_type_id, contractor_id)` — FK do tipo `CASCADE`, da contratante
+  `RESTRICT`. Migration `20261017010529_occurrence_type_contractor_scope` (aditiva; o rollback descarta as listas).
+- **Escrita:** `occurrence-type-contractors.query.ts` → `replaceOccurrenceTypeContractorScope` (trava o tipo, confere as
+  contratantes com `FOR KEY SHARE`, troca as linhas, confere a invariante) e `assertStoredOccurrenceTypeContractorScope` (pega o
+  `PUT` que só muda os momentos de um tipo `listed` para "só parada", dentro da transação). A política pura é
+  `occurrence-type-contractor-scope.policy.ts` (`isOccurrenceTypeAvailableForNotes`, `validateOccurrenceTypeContractorScope`).
+- **Leitura:** `listOccurrenceTypes`/`findOccurrenceType` trazem `contractorScope` e `contractorIds` (uma consulta, só dos `listed`).
+  O cadastro (`GET`/`PUT /company-settings/occurrence-types`) troca `contractorIds` por `contractors` (nome, CNPJ, situação) via
+  `toOccurrenceTypeSettingsViews`. **Nenhum outro leitor** (feed, detalhe, linha do tempo, rota do motorista, correção) conhece o
+  escopo — o escopo vale para registrar (RF8); `test/occurrence-type-contractor-scope/readers-untouched.contract.ts` prende isso.
+- **Listas:** `selectFieldOccurrenceTypes({ noteContractorIds })`; `listFieldOccurrenceTypes` sem `noteContractorIds` usa `[null]`
+  (só `all`). Retrato do motorista: `[row.contractorId]` por nota. `GET /trips/occurrence-types/field?documentIds=` lê a contratante de
+  cada nota numa consulta (nota de outra empresa é 404). Separação: rota nova por nota. WhatsApp (motorista e operador):
+  `listOccurrenceTypesForNote` pela nota do contexto do fluxo; no 422 a conversa avisa e volta à lista de tipos.
+- **Fora:** o recebimento de carga (tipos seed-only, momentos `[]`, sempre `all`) e a parada.
+- **Publicação em etapas (ADR-0081 §9):** painel tolerante (Fase 1) → API → editor → passo de dados da Spani (Fase 6, do dono).

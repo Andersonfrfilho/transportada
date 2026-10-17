@@ -4,9 +4,15 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 
+import { alias } from 'drizzle-orm/pg-core'
+
+import { contractors } from '../../database/delivery-client.schema.js'
+import { nfeParticipants } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import { tripDocumentOccurrences, tripDocuments, trips } from '../../database/trip.schema.js'
 import type { FieldTripTarget } from '../application/field-trip-target.types.js'
+import type { ReachableBatchDocument } from '../application/office-occurrence-batch.types.js'
+import { EMITTER_PARTICIPANT_ROLE } from '../domain/delivery-event.constant.js'
 import type {
   OfficeOccurrenceBatchTransactionPort,
   OfficeOccurrenceBatchUnitOfWork,
@@ -18,6 +24,8 @@ import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
+
+const batchEmitterParticipants = alias(nfeParticipants, 'office_batch_emitter')
 
 /**
  * Spec 156 T7.3: o lote de ocorrências numa transação só. A reserva e a liquidação da chave são as
@@ -61,13 +69,29 @@ export async function findReachableDocumentIds(
     readonly documentIds: readonly string[]
     readonly target: FieldTripTarget
   },
-): Promise<readonly string[]> {
+): Promise<readonly ReachableBatchDocument[]> {
   const rows = await queryable
-    .select({ id: tripDocuments.id })
+    .select({ contractorId: contractors.id, id: tripDocuments.id })
     .from(tripDocuments)
     .innerJoin(
       trips,
       and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+    )
+    /** Spec 270 (R4): a contratante da nota — o emitente casado em `contractors` — na mesma consulta. */
+    .leftJoin(
+      batchEmitterParticipants,
+      and(
+        eq(batchEmitterParticipants.companyId, tripDocuments.companyId),
+        eq(batchEmitterParticipants.documentId, tripDocuments.nfeDocumentId),
+        eq(batchEmitterParticipants.role, EMITTER_PARTICIPANT_ROLE),
+      ),
+    )
+    .leftJoin(
+      contractors,
+      and(
+        eq(contractors.companyId, batchEmitterParticipants.companyId),
+        eq(contractors.taxId, batchEmitterParticipants.taxId),
+      ),
     )
     .where(
       and(
@@ -79,7 +103,7 @@ export async function findReachableDocumentIds(
       ),
     )
 
-  return rows.map((row) => row.id)
+  return rows.map((row) => ({ contractorId: row.contractorId, id: row.id }))
 }
 
 export async function findDocumentOccurrence(

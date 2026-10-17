@@ -19,7 +19,6 @@ import {
 } from '../shared/occurrenceProductSelection.service'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
-import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
 import {
   carriesOccurrenceItems,
@@ -52,6 +51,8 @@ import {
 import styles from '../styles/trip.module.css'
 
 type TripOccurrencesProps = Readonly<{
+  /** Spec 270: a lista de tipos é por nota e chega do servidor — enquanto carrega, o aviso de "nenhum tipo" espera. */
+  areTypesLoading?: boolean
   /** Spec 233 D8: só quem lê a frota abre `/ocorrencias/:id` — sem isso, o tipo sai como texto. */
   canOpenOccurrence?: boolean
   canRegister: boolean
@@ -115,6 +116,7 @@ type TripOccurrencesProps = Readonly<{
  */
 export function TripOccurrences({
   canOpenOccurrence = false,
+  areTypesLoading = false,
   canRegister,
   isDialog = false,
   isRegistering,
@@ -130,10 +132,13 @@ export function TripOccurrences({
   const formatMoment = useMomentFormatter()
 
   const [isOpen, setIsOpen] = useState(false)
-  const disponiveis = types.filter(
-    (type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.separation,
-  )
-  const [occurrenceTypeId, setOccurrenceTypeId] = useState(disponiveis[0]?.id ?? '')
+  /** Spec 270: o servidor já entrega só os tipos ativos do galpão que valem para a contratante da nota. */
+  const disponiveis = types
+  const [chosenTypeId, setOccurrenceTypeId] = useState('')
+  /** A lista chega depois de o formulário abrir (é por nota): sem escolha, vale o primeiro tipo oferecido. */
+  const occurrenceTypeId = disponiveis.some((type) => type.id === chosenTypeId)
+    ? chosenTypeId
+    : (disponiveis[0]?.id ?? '')
   const [productCodes, setProductCodes] = useState<readonly string[]>([])
   /**
    * Spec 166 RF4/RF7: quantidade e unidade por código de item marcado. Mapa em vez de lista
@@ -291,6 +296,9 @@ export function TripOccurrences({
           })}
         </ul>
       )}
+      {canRegister && !areTypesLoading && disponiveis.length === 0 ? (
+        <p className={styles.hint}>{t('occurrence.noTypesForDocument')}</p>
+      ) : null}
       {canRegister && disponiveis.length > 0 && !isOpen ? (
         <Button
           onClick={() => {

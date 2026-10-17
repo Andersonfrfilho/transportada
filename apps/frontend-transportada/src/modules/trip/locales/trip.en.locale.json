@@ -1117,7 +1117,12 @@
     "occurrenceTypeNameTaken": "An occurrence type with this name already exists. The name is unique across the company, in any stage (including receiving types, which this list does not show): choose another.",
     "occurrenceReferenceNumberRequired": "This occurrence type requires the customer document number. Fill it in instead of clearing it and save again. Nothing was saved.",
     "occurrenceDeclaredAmountRequired": "This occurrence type requires the amount paid. Fill it in (on the lines or on the occurrence, as the type asks) instead of clearing it and save again. Nothing was saved.",
-    "noteNumberNotFound": "No free note with this number in this company. Check the number or use the search."
+    "noteNumberNotFound": "No free note with this number in this company. Check the number or use the search.",
+    "occurrenceTypeContractorScopeEmpty": "Choose at least one contractor: a restricted type with no contractor would appear on no note. Nothing was saved.",
+    "occurrenceTypeContractorScopeNeedsDocument": "A stop-only type cannot be limited to contractors: a stop has no contractor. Nothing was saved.",
+    "occurrenceTypeContractorScopeInvalid": "The scope and the contractor list go together, and All contractors takes no list. Nothing was saved.",
+    "occurrenceTypeNotAvailableForContractor": "This type does not apply to the contractor of this note. Choose another type.",
+    "occurrenceTypeContractorNotFound": "One of the chosen contractors no longer exists or is not from this company. Reload the list and choose again."
   },
   "filters": {
     "active_one": "{{count}} active filter",
@@ -1450,7 +1455,8 @@
       "box": "Box",
       "unit": "Piece"
     },
-    "singleItemHint": "This type only accepts one item — choosing another replaces it."
+    "singleItemHint": "This type only accepts one item — choosing another replaces it.",
+    "noTypesForDocument": "No warehouse occurrence type applies to the contractor of this note."
   },
   "occurrenceFeed": {
     "missingTemplate": {

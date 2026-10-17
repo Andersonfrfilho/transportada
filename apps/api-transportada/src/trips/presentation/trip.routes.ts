@@ -49,6 +49,7 @@ import type {
   TripOccurrenceAttachmentView,
   TripOccurrenceFeedPage,
 } from '../application/trip-occurrence-feed.use-case.js'
+import type { SeparationOccurrenceTypeView } from '../application/list-separation-occurrence-types.use-case.js'
 import type {
   OccurrenceTypeRecord,
   RegisteredOccurrence,
@@ -211,6 +212,8 @@ const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
 const TRIP_DELIVERY_PROOFS_PATH = `${TRIP_DETAIL_PATH}/delivery-proofs`
 const TRIP_DOCUMENT_PRODUCTS_PATH = `${TRIP_DOCUMENT_PATH}/products`
 const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
+/** Spec 270 (R6): os tipos do galpão para esta nota — o servidor filtra pela contratante dela. */
+const TRIP_DOCUMENT_OCCURRENCE_TYPES_PATH = `${TRIP_DOCUMENT_PATH}/occurrence-types`
 /**
  * Spec 079: a configuração do aviso é **da empresa**, não da viagem — ligar "recusa total" vale
  * para toda viagem, presente e futura. Pendurá-la numa viagem sugeriria um efeito local que ela
@@ -610,6 +613,13 @@ type Dependencies = {
   }
   readonly listOccurrenceTypes: {
     execute(input: { readonly context: CompanyContext }): Promise<readonly OccurrenceTypeRecord[]>
+  }
+  readonly listSeparationOccurrenceTypes: {
+    execute(input: {
+      readonly context: CompanyContext
+      readonly documentId: string
+      readonly tripId: string
+    }): Promise<readonly SeparationOccurrenceTypeView[]>
   }
   readonly saveOccurrenceType: {
     execute(input: TenantInput<SaveOccurrenceTypeInput>): Promise<OccurrenceTypeRecord>
@@ -1897,6 +1907,24 @@ export function createTripRoutes(
       pathname: TRIP_DOCUMENT_OCCURRENCES_PATH,
       policy: TRIP_MANAGE_POLICY,
       rateLimit: REGISTER_OCCURRENCE_RATE_LIMIT,
+    }),
+    /** Spec 270 (R6): os tipos do galpão para uma nota; nota fora da viagem ou da empresa é 404. */
+    defineRoute<{ readonly documentId: string; readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const types = await dependencies.listSeparationOccurrenceTypes.execute({
+          context: context.scope,
+          documentId: input.documentId,
+          tripId: input.tripId,
+        })
+        return jsonResponse({ body: { data: types }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_DOCUMENT_OCCURRENCE_TYPES_PATH,
+      policy: TRIP_MANAGE_POLICY,
     }),
     /**
      * Spec 161 T7 (RF6): a segunda foto em diante, para uma ocorrência já registrada. 404 quando a

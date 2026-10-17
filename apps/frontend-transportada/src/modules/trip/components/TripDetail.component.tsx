@@ -65,6 +65,9 @@ import {
 } from '../shared/tripNavigation.service'
 import { hasTripDocumentProof, tripDocumentLabel } from '../shared/tripDocument.service'
 import { canSeparateOrLoadDocuments, isTripEditable } from '../shared/tripStatus.service'
+import { useFieldOccurrenceTypesQuery } from '../queries/useFieldOccurrenceTypes.query'
+import { useSeparationOccurrenceTypesQuery } from '../queries/useSeparationOccurrenceTypes.query'
+import { readRefusedScopeDocuments } from '../shared/occurrenceScopeRefusal.service'
 import { resolveSeparationOccurrenceButtonVisibility } from '../shared/separationOccurrenceButton.service'
 import { shouldShowRouteInvalidatedNotice } from '../shared/routeInvalidatedNotice.service'
 import {
@@ -367,6 +370,14 @@ export function TripDetail({
   const [fieldOccurrenceDocumentIds, setFieldOccurrenceDocumentIds] = useState<
     readonly string[] | null
   >(null)
+  /**
+   * Spec 270 (D5): o catálogo do lote é pedido **para as notas do lote** — o servidor lê a contratante de cada
+   * uma e oferece a interseção. Antes de qualquer `return`, como os outros hooks desta tela.
+   */
+  const fieldOccurrenceTypesQuery = useFieldOccurrenceTypesQuery({
+    documentIds: fieldOccurrenceDocumentIds ?? [],
+    isEnabled: fieldOccurrenceDocumentIds !== null && workspace.controller.canReportOnBehalf,
+  })
   /** Spec 156 T11: mesma ideia — uma nota (linha) ou o maço da seleção (massa) no mesmo assistente. */
   const [fieldDeliveryDocumentIds, setFieldDeliveryDocumentIds] = useState<
     readonly string[] | null
@@ -655,6 +666,11 @@ export function TripDetail({
   ])
   /** Os endereços que o 422 de rota nomeia, para a pessoa saber qual ponto corrigir. */
   const routeStopsWithoutLocation = readRouteStopsWithoutLocation(workspace.planRouteMutation.error)
+  /** Spec 270 (R9): o lote recusado pelo escopo nomeia as notas — o servidor manda ids, o número é lido aqui. */
+  const refusedScopeDocuments = readRefusedScopeDocuments({
+    documents: trip.documents,
+    error: workspace.registerFieldOccurrencesMutation.error,
+  })
   /**
    * Spec 185 RF8: a recusa do botão "Despachar" ganha frase própria (parada nomeada, ou "sem
    * rota") — nunca o genérico "serverRefused" que o `feedbackKey` de cima daria a ela. Sem motivo
@@ -953,6 +969,13 @@ export function TripDetail({
           {routeStopsWithoutLocation.length === 0 ? null : (
             <ul>
               {routeStopsWithoutLocation.map((label) => (
+                <li key={label}>{label}</li>
+              ))}
+            </ul>
+          )}
+          {refusedScopeDocuments.length === 0 ? null : (
+            <ul>
+              {refusedScopeDocuments.map((label) => (
                 <li key={label}>{label}</li>
               ))}
             </ul>
@@ -1267,7 +1290,7 @@ export function TripDetail({
             { onSuccess: () => setFieldOccurrenceDocumentIds(null) },
           )
         }}
-        types={workspace.fieldOccurrenceTypesQuery.data ?? []}
+        types={fieldOccurrenceTypesQuery.data ?? []}
       />
 
       <SeparationOccurrenceDialogLoader
@@ -1536,7 +1559,36 @@ function SeparationOccurrenceDialogLoader({
   if (document === undefined) return null
 
   return (
+    <SeparationOccurrenceDialogWithTypes
+      document={document}
+      documentId={documentId}
+      onClose={onClose}
+      workspace={workspace}
+    />
+  )
+}
+
+/** Spec 270 (R6): os tipos do galpão são por nota e vêm do servidor — a consulta nasce com o diálogo aberto. */
+function SeparationOccurrenceDialogWithTypes({
+  document,
+  documentId,
+  onClose,
+  workspace,
+}: Readonly<{
+  document: TripDocumentDetail
+  documentId: string
+  onClose: () => void
+  workspace: TripWorkspaceController
+}>) {
+  const typesQuery = useSeparationOccurrenceTypesQuery({
+    documentId,
+    isEnabled: workspace.controller.canReadTrips,
+    tripId: document.tripId,
+  })
+
+  return (
     <SeparationOccurrenceDialog
+      areTypesLoading={typesQuery.isPending}
       canRegister={workspace.controller.canManageTrips}
       document={document}
       isOpen
@@ -1558,7 +1610,7 @@ function SeparationOccurrenceDialogLoader({
       onReset={workspace.resetSeparationOccurrencePhotoSend}
       photoSendState={workspace.occurrencePhotoSendState}
       products={workspace.documentProductsQuery.data ?? []}
-      types={workspace.occurrenceTypesQuery.data ?? []}
+      types={typesQuery.data ?? []}
     />
   )
 }

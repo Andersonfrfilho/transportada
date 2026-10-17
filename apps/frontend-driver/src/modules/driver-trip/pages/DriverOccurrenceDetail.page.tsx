@@ -21,6 +21,7 @@ import { formatActivityTime } from '../shared/documentActivity.service'
 import type { DriverRouteOccurrenceDetail } from '../shared/driverRouteOccurrence.types'
 import type { DriverTripStop } from '../shared/driverTrip.types'
 import type { OccurrenceDetailState } from '../shared/occurrenceDetailState.service'
+import { resolveRejectionCauseLabelKey } from '../shared/rejectionCauseLabel.service'
 import { listRouteOccurrenceDocuments } from '../shared/routeOccurrenceDocuments.service'
 import { listSiblingRouteOccurrences } from '../shared/routeOccurrenceView.service'
 import type { RouteOccurrenceEntry } from '../shared/routeOccurrenceView.types'
@@ -109,14 +110,18 @@ function ResolutionPanel({ detail, entry }: Pick<DetailSectionProps, 'detail' | 
 function RefusalPanel({ entry }: Pick<DetailSectionProps, 'entry'>) {
   const { t } = useTranslation('driverTrip')
   if (entry.state !== 'rejected') return null
+  /** Spec 270 (RF7): a causa conhecida sai em texto humano; a desconhecida, crua como veio. */
+  function describeRejectionCause(cause: string | undefined): string {
+    if (cause === undefined) return t('routeOccurrence.detail.refused.noCause')
+    const key = resolveRejectionCauseLabelKey(cause)
+    return key === undefined ? cause : t(key)
+  }
   return (
     <section className={`${styles.panel} ${styles.panelAlert}`} data-panel="refusal">
       <h2 className={styles.panelTitle}>
         <Icon name="close" size="sm" /> {t('routeOccurrence.detail.refused.title')}
       </h2>
-      <p className={styles.quote}>
-        {entry.rejectionCause ?? t('routeOccurrence.detail.refused.noCause')}
-      </p>
+      <p className={styles.quote}>{describeRejectionCause(entry.rejectionCause)}</p>
       {entry.stopId === '' ? null : (
         <>
           <button

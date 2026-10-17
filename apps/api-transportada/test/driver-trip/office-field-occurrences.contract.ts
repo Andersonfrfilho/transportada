@@ -122,7 +122,9 @@ function unitOfWork(world: World): RegisterOfficeDocumentOccurrencesParams['unit
           return world.occurrenceType
         },
         async findReachableDocumentIds(input) {
-          return input.documentIds.filter((documentId) => world.reachable.has(documentId))
+          return input.documentIds
+            .filter((documentId) => world.reachable.has(documentId))
+            .map((id) => ({ contractorId: null, id }))
         },
         async saveDocumentOccurrence(input) {
           const id = crypto.randomUUID()

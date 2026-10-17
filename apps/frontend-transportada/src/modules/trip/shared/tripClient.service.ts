@@ -411,7 +411,16 @@ export type TripClient = Readonly<{
   /** Spec 156 T5: `POST /trips/:id/start-route` — leva a viagem a `on_delivery_route`. */
   startFieldTrip: (input: StartFieldTripInput) => Promise<FieldTripStepResult>
   /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
-  readFieldOccurrenceTypes: () => Promise<readonly FieldOccurrenceType[]>
+  readFieldOccurrenceTypes: (
+    input?: Readonly<{ documentIds?: readonly string[] }>,
+  ) => Promise<readonly FieldOccurrenceType[]>
+  /**
+   * Spec 270 (R6): `GET /trips/:tripId/documents/:documentId/occurrence-types` — os tipos do galpão para
+   * uma nota; o servidor filtra pela contratante dela (`trip.manage`).
+   */
+  listSeparationOccurrenceTypes: (
+    input: Readonly<{ documentId: string; tripId: string }>,
+  ) => Promise<readonly OccurrenceType[]>
   /**
    * Spec 156 T7.3/T7b/T9: `POST /trips/:id/documents/field-occurrences` — ocorrência de campo para
    * uma ou várias notas (até 50), multipart, com foto opcional para o lote inteiro.
@@ -689,13 +698,26 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.fieldReportIdResultFromApi(readEnvelopeData(response))
     },
-    async readFieldOccurrenceTypes() {
+    async readFieldOccurrenceTypes(input) {
+      /** Spec 270 (D5): as notas do lote — o servidor lê a contratante de cada uma e oferece a interseção. */
+      const documentIds = input?.documentIds ?? []
       const response = await authorizedRequest({
         dependencies,
         method: 'GET',
-        path: TRIP_FIELD_OCCURRENCE_TYPES_PATH,
+        path:
+          documentIds.length === 0
+            ? TRIP_FIELD_OCCURRENCE_TYPES_PATH
+            : `${TRIP_FIELD_OCCURRENCE_TYPES_PATH}?${new URLSearchParams({ documentIds: documentIds.join(',') }).toString()}`,
       })
       return adapters.fieldOccurrenceTypesFromApi(readEnvelopeData(response))
+    },
+    async listSeparationOccurrenceTypes(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${input.tripId}/documents/${input.documentId}/occurrence-types`,
+      })
+      return adapters.occurrenceTypesFromApi(readEnvelopeData(response))
     },
     async registerFieldOccurrences(input) {
       const form = new FormData()
@@ -964,6 +986,10 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             ? {}
             : { emailsContractor: input.emailsContractor }),
           emailTemplateKey: input.emailTemplateKey,
+          /** Spec 270: escopo e lista vão juntos — só quando a edição os muda. */
+          ...(input.contractorScope === undefined || input.contractorIds === undefined
+            ? {}
+            : { contractorIds: input.contractorIds, contractorScope: input.contractorScope }),
           /** Spec 248 RF1: o retorno da contratante — só vai o que a edição muda. */
           ...(input.contractorReplyAlertIntervalMinutes === undefined
             ? {}

@@ -131,6 +131,8 @@ export async function readSettingsResolution(
       listFieldOccurrenceTypeResolutions({
         companyId,
         contractorId,
+        /** Spec 270: a prévia é "o que o motorista vê para esta contratante" — o escopo vale como numa nota dela. */
+        noteContractorIds: [contractorId ?? null],
         overrides: port.occurrenceTypeOverrides,
         recipientTaxId,
         repository: port.occurrenceTypes,
