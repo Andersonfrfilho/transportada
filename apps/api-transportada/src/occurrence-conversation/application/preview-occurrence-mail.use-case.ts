@@ -16,6 +16,7 @@ import {
 } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
 import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
+import { resolveOccurrenceRecipients } from '../domain/occurrence-contractor-recipients.policy.js'
 import { buildOccurrenceMail, type OccurrenceMail } from '../domain/occurrence-mail.template.js'
 import type {
   OccurrenceMailTransactionPort,
@@ -31,8 +32,8 @@ export type PreviewOccurrenceMailInput = {
 }
 
 /**
- * Spec 183 T407: o destinatário como o diálogo mostra. `preselected` marca quem recebe ocorrências
- * do grupo desta (RF5); o operador pode marcar qualquer um da lista, e o envio confere de novo.
+ * Spec 183 T407: o destinatário como o diálogo mostra. `preselected` marca os destinatários escolhidos no tipo
+ * (271, D13) ou, sem escolha, quem recebe ocorrências do grupo desta (RF5); o operador pode marcar qualquer um da lista, e o envio confere de novo.
  */
 export type OccurrenceMailRecipient = {
   readonly approvesCharges: boolean
@@ -79,6 +80,7 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
   readonly reader: Pick<
     OccurrenceMailTransactionPort,
     | 'findCarrierName'
+    | 'findChosenOccurrenceRecipientIds'
     | 'findOccurrenceNotificationTemplate'
     | 'findOccurrenceTarget'
     | 'findOperatorName'
@@ -117,24 +119,43 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
       const subject = input.subject ?? suggestion?.subject ?? ''
       const bodyText = input.bodyText ?? suggestion?.bodyText ?? ''
 
-      const [carrierName, operatorName, candidates, watchers] = await Promise.all([
-        dependencies.reader.findCarrierName({ companyId }),
-        dependencies.reader.findOperatorName({ companyId, userId: input.actorUserId }),
-        contractorId === null
-          ? []
-          : dependencies.reader.listOccurrenceRecipients({ companyId, contractorId }),
-        contractorId === null
-          ? { company: [], contractor: [], type: [] }
-          : loadCandidatesForDisplay({
-              load: () =>
-                dependencies.reader.loadWatcherCandidates({
-                  companyId,
-                  contractorId,
-                  occurrenceTypeId: target.occurrenceTypeId,
-                }),
-              logger: dependencies.logger,
-            }),
-      ])
+      const [carrierName, operatorName, candidates, watchers, chosenContactIds] = await Promise.all(
+        [
+          dependencies.reader.findCarrierName({ companyId }),
+          dependencies.reader.findOperatorName({ companyId, userId: input.actorUserId }),
+          contractorId === null
+            ? []
+            : dependencies.reader.listOccurrenceRecipients({ companyId, contractorId }),
+          contractorId === null
+            ? { company: [], contractor: [], type: [] }
+            : loadCandidatesForDisplay({
+                load: () =>
+                  dependencies.reader.loadWatcherCandidates({
+                    companyId,
+                    contractorId,
+                    occurrenceTypeId: target.occurrenceTypeId,
+                  }),
+                logger: dependencies.logger,
+              }),
+          contractorId === null || target.occurrenceTypeId === null
+            ? []
+            : dependencies.reader.findChosenOccurrenceRecipientIds({
+                companyId,
+                occurrenceTypeId: target.occurrenceTypeId,
+              }),
+        ],
+      )
+      const preselected = new Set(
+        resolveOccurrenceRecipients({
+          chosenContactIds,
+          contacts: candidates.map((candidate) => ({
+            email: candidate.email,
+            id: candidate.id,
+            occurrenceStages: candidate.occurrenceStages,
+          })),
+          stage: target.stage,
+        }).contactIds,
+      )
       const copy = resolveEffectiveWatchers({
         companyWatchers: watchers.company,
         contractorWatchers: watchers.contractor,
@@ -163,7 +184,7 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
           contactId: candidate.id,
           email: candidate.email,
           name: candidate.name,
-          preselected: candidate.occurrenceStages.includes(target.stage),
+          preselected: preselected.has(candidate.id),
           roleLabel: candidate.roleLabel,
         })),
         notificationTemplateKey: templateKey,

@@ -36,6 +36,7 @@ import { readOccurrenceMailValues } from '../../trips/infrastructure/delivery-pr
 import { listOccurrenceProductCodes } from '../../trips/infrastructure/drizzle-occurrence-product.repository.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
+import { readOccurrenceTypeRecipientContactIds } from '../../trips/infrastructure/occurrence-type-mail-recipients.support.js'
 import { loadEffectiveWatcherCandidates } from '../../contractor-mail/infrastructure/occurrence-watcher-candidates.query.js'
 import { renderContractorMail } from '../domain/occurrence-contractor-mail-render.policy.js'
 import {
@@ -126,6 +127,13 @@ async function listOccurrenceRecipients(
       ),
     )
     .orderBy(asc(contractorContacts.createdAt), asc(contractorContacts.email))
+}
+
+async function findChosenOccurrenceRecipientIds(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceTypeId: string },
+): Promise<readonly string[]> {
+  return readOccurrenceTypeRecipientContactIds(queryable, params)
 }
 
 async function findCarrierName(
@@ -267,6 +275,7 @@ export function createOccurrenceMailReader(
 ): Pick<
   OccurrenceMailTransactionPort,
   | 'findCarrierName'
+  | 'findChosenOccurrenceRecipientIds'
   | 'findOccurrenceNotificationTemplate'
   | 'findOccurrenceTarget'
   | 'findOperatorName'
@@ -275,6 +284,8 @@ export function createOccurrenceMailReader(
 > {
   return {
     findCarrierName: (params) => findCarrierName(database, params),
+    findChosenOccurrenceRecipientIds: (params) =>
+      findChosenOccurrenceRecipientIds(database, params),
     findOccurrenceNotificationTemplate: (params) =>
       findOccurrenceNotificationTemplate(database, params),
     findOccurrenceTarget: (params) => findOccurrenceTarget(database, params),
@@ -404,7 +415,10 @@ export function createAutomaticOccurrenceMailReader(
         return null
       }
       const [type] = await database
-        .select({ emailsContractor: companyOccurrenceTypes.emailsContractor })
+        .select({
+          emailsContractor: companyOccurrenceTypes.emailsContractor,
+          occurrenceTypeId: companyOccurrenceTypes.id,
+        })
         .from(tripDocumentOccurrences)
         .innerJoin(
           companyOccurrenceTypes,
@@ -446,7 +460,14 @@ export function createAutomaticOccurrenceMailReader(
         contractorId: target.contractorId,
         emailsContractor,
       })
+      const chosenContactIds = emailsContractor
+        ? await readOccurrenceTypeRecipientContactIds(database, {
+            companyId: params.companyId,
+            occurrenceTypeId: type.occurrenceTypeId,
+          })
+        : []
       return {
+        chosenContactIds,
         emailsContractor,
         isRegisteredBeforeTemplate: planned.isRegisteredBeforeTemplate,
         recipients: contacts.map((contact) => ({
@@ -532,6 +553,13 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     readonly occurrenceKind: OccurrenceConversationKind
   }): Promise<null | OccurrenceNotificationTemplate> {
     return findOriginalOccurrenceNotificationTemplate(this.transaction, params)
+  }
+
+  public findChosenOccurrenceRecipientIds(params: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+  }): Promise<readonly string[]> {
+    return findChosenOccurrenceRecipientIds(this.transaction, params)
   }
 
   public findCarrierName(params: { readonly companyId: string }): Promise<string | undefined> {

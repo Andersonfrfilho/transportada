@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import { OCCURRENCE_WATCHER_MAX_TOTAL } from '../../contractor-mail/domain/occurrence-watcher.constant.js'
 import {
   CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES,
@@ -569,6 +570,17 @@ const occurrenceTypeSchema = z
      * Spec 271 (D10): os responsáveis em cópia do e-mail à contratante, da lista da empresa. Ausente é "não mexa";
      * `[]` limpa. O teto de 10 e a lista da empresa são conferidos no caso de uso (códigos próprios).
      */
+    /**
+     * Spec 271 (D12): os destinatários do e-mail à contratante. Ausente é "não mexa"; `[]` limpa. Só tipo `listed`
+     * (400 no `all`); até o teto de destinatários por e-mail.
+     */
+    contractorMailRecipientContactIds: z
+      .array(z.string().uuid())
+      .max(CONTRACTOR_MAIL_MAX_RECIPIENTS)
+      .optional()
+      .refine((ids) => ids === undefined || new Set(ids).size === ids.length, {
+        message: 'RECIPIENT_IDS_MUST_BE_UNIQUE',
+      }),
     contractorMailWatcherUserIds: z
       .array(z.string().uuid())
       .max(OCCURRENCE_WATCHER_MAX_TOTAL)

@@ -354,6 +354,8 @@ type SaveOccurrenceTypeInput = {
   readonly contractorNotificationTemplateKey?: null | string | undefined
   /** Spec 271 (D10): os responsáveis em cópia do tipo; ausente é "não mexa". */
   readonly contractorMailWatcherUserIds?: readonly string[] | undefined
+  /** Spec 271 (D12): os destinatários do tipo, só em tipo `listed`; ausente é "não mexa". */
+  readonly contractorMailRecipientContactIds?: readonly string[] | undefined
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): obrigatório na criação, ausente na edição é "não mexa" — ver

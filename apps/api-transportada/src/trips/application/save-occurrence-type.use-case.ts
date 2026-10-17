@@ -110,6 +110,11 @@ export type SaveOccurrenceTypeValues = {
    */
   readonly contractorMailWatcherUserIds?: readonly string[] | undefined
   /**
+   * Spec 271 (D12): os destinatários do e-mail à contratante, contatos das contratantes da lista do tipo. Só em tipo
+   * `listed`. Ausente é "não mexa"; `[]` limpa; vazio é o `To` automático da etapa.
+   */
+  readonly contractorMailRecipientContactIds?: readonly string[] | undefined
+  /**
    * Spec 270 (ADR-0107): para quem o tipo vale. Escopo e lista vão **juntos** (um sem o outro é 400);
    * ausentes é "não mexa". `all` sem lista; `listed` com ao menos uma contratante da empresa.
    */

@@ -17,9 +17,12 @@ import {
 import type { ApiLogger } from '../../shared/api.types.js'
 import { resolveOccurrenceTypeMoments } from '../domain/occurrence-moment.policy.js'
 import { assertOccurrenceTypeContractorScopeIsWritable } from '../domain/occurrence-type-contractor-scope.policy.js'
+import { pruneOccurrenceTypeMailRecipients } from './occurrence-type-mail-recipients.support.js'
 import { listTypesWithoutUsableTemplateOrEmpty } from './occurrence-mail-template-missing.query.js'
 import {
+  readOccurrenceTypeMailRecipients,
   readOccurrenceTypeMailWatchers,
+  type OccurrenceTypeMailRecipientView,
   type OccurrenceTypeMailWatcherView,
 } from './occurrence-type-mail-view.query.js'
 import { readOccurrenceTypeMoments } from './occurrence-type-moments.query.js'
@@ -35,6 +38,8 @@ export type OccurrenceTypeContractorDetail = {
 export type OccurrenceTypeContractorScopeView = {
   readonly contractors: readonly OccurrenceTypeContractorDetail[]
   readonly contractorScope: OccurrenceTypeContractorScope
+  /** Spec 271 (D12): os destinatários escolhidos no tipo `listed` (contatos das contratantes da lista). */
+  readonly contractorMailRecipients: readonly OccurrenceTypeMailRecipientView[]
   /** Spec 271: os responsáveis em cópia escolhidos no tipo (da lista da empresa). */
   readonly contractorMailWatchers: readonly OccurrenceTypeMailWatcherView[]
   /** Spec 271 (D9): o e-mail à contratante está ligado e o tipo não tem modelo utilizável. */
@@ -172,10 +177,17 @@ export async function toOccurrenceTypeSettingsViews<
     companyId: params.companyId,
     occurrenceTypeIds: listedIds,
   })
-  const watchersByType = await readOccurrenceTypeMailWatchers(queryable, {
-    companyId: params.companyId,
-    occurrenceTypeIds: params.records.map((record) => record.id),
-  })
+  const typeIds = params.records.map((record) => record.id)
+  const [watchersByType, recipientsByType] = await Promise.all([
+    readOccurrenceTypeMailWatchers(queryable, {
+      companyId: params.companyId,
+      occurrenceTypeIds: typeIds,
+    }),
+    readOccurrenceTypeMailRecipients(queryable, {
+      companyId: params.companyId,
+      occurrenceTypeIds: typeIds,
+    }),
+  ])
   const missingTemplateTypeIds = await listTypesWithoutUsableTemplateOrEmpty(queryable, {
     companyId: params.companyId,
     ...(params.logger === undefined ? {} : { logger: params.logger }),
@@ -195,6 +207,7 @@ export async function toOccurrenceTypeSettingsViews<
         contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed
           ? (detailsByType.get(record.id) ?? [])
           : [],
+      contractorMailRecipients: recipientsByType.get(record.id) ?? [],
       contractorMailWatchers: watchersByType.get(record.id) ?? [],
       contractorScope,
       missingNotificationTemplate: missingTemplateTypeIds.has(record.id),
@@ -250,6 +263,8 @@ export async function replaceOccurrenceTypeContractorScope(
       })),
     )
   }
+  /** Spec 271 (D12): a escolha de destinatários segue o escopo — contratante que saiu da lista leva os contatos dela. */
+  await pruneOccurrenceTypeMailRecipients(transaction, params)
   await assertStoredOccurrenceTypeContractorScope(transaction, params)
 }
 

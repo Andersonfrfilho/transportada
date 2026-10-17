@@ -32,6 +32,7 @@ export function toSaveOccurrenceTypeValues(
     contractorMailTemplateId: input.contractorMailTemplateId,
     contractorNotificationTemplateKey: input.contractorNotificationTemplateKey,
     contractorMailWatcherUserIds: input.contractorMailWatcherUserIds,
+    contractorMailRecipientContactIds: input.contractorMailRecipientContactIds,
     contractorIds: input.contractorIds,
     contractorScope: input.contractorScope,
     emailTemplateKey: input.emailTemplateKey,

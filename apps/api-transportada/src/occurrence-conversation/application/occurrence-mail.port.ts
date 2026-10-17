@@ -127,6 +127,11 @@ export type OccurrenceMailTransactionPort = {
     readonly companyId: string
     readonly contractorId: string
   }): Promise<readonly OccurrenceMailRecipientCandidate[]>
+  /** Spec 271 (D12/D13): os destinatários escolhidos no tipo da ocorrência; vazio é o `To` automático da etapa. */
+  findChosenOccurrenceRecipientIds(params: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+  }): Promise<readonly string[]>
   /** Contatos **ativos** desta contratante que recebem ocorrências; o resto não é achado. */
   findOccurrenceContacts(params: {
     readonly companyId: string

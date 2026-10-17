@@ -5,12 +5,14 @@
  * destinatários escolhidos, em lote (uma leitura para N tipos, nunca uma por tipo). Nunca devolve endereço de
  * usuário da empresa: `eligible` diz se ele recebe.
  */
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 
 import { findOccurrenceWatcherUsers } from '../../contractor-mail/infrastructure/occurrence-watcher-directory.query.js'
 import {
+  companyOccurrenceTypeRecipients,
   companyOccurrenceTypeWatchers,
   companyOccurrenceWatchers,
+  contractorContacts,
 } from '../../database/database.schema.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -74,6 +76,55 @@ export async function readOccurrenceTypeMailWatchers(
       (left, right) =>
         left.name.localeCompare(right.name) || left.userId.localeCompare(right.userId),
     )
+  }
+  return byType
+}
+
+export type OccurrenceTypeMailRecipientView = {
+  readonly contactId: string
+  readonly contractorId: string
+  /** O cadastro de contatos já mostra o e-mail ao mesmo papel (`settings.manage`); o editor o exibe ao lado do nome. */
+  readonly email: string
+  readonly name: string
+  readonly receivesOccurrences: boolean
+  readonly status: string
+}
+
+export async function readOccurrenceTypeMailRecipients(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceTypeIds: readonly string[] },
+): Promise<ReadonlyMap<string, readonly OccurrenceTypeMailRecipientView[]>> {
+  if (params.occurrenceTypeIds.length === 0) return new Map()
+  const rows = await queryable
+    .select({
+      contactId: contractorContacts.id,
+      contractorId: contractorContacts.contractorId,
+      email: contractorContacts.email,
+      name: contractorContacts.name,
+      occurrenceTypeId: companyOccurrenceTypeRecipients.occurrenceTypeId,
+      receivesOccurrences: contractorContacts.receivesOccurrences,
+      status: contractorContacts.status,
+    })
+    .from(companyOccurrenceTypeRecipients)
+    .innerJoin(
+      contractorContacts,
+      and(
+        eq(contractorContacts.companyId, companyOccurrenceTypeRecipients.companyId),
+        eq(contractorContacts.id, companyOccurrenceTypeRecipients.contactId),
+      ),
+    )
+    .where(
+      and(
+        eq(companyOccurrenceTypeRecipients.companyId, params.companyId),
+        inArray(companyOccurrenceTypeRecipients.occurrenceTypeId, [...params.occurrenceTypeIds]),
+      ),
+    )
+    .orderBy(asc(contractorContacts.name), asc(contractorContacts.id))
+  const byType = new Map<string, OccurrenceTypeMailRecipientView[]>()
+  for (const { occurrenceTypeId, ...view } of rows) {
+    const views = byType.get(occurrenceTypeId) ?? []
+    views.push(view)
+    byType.set(occurrenceTypeId, views)
   }
   return byType
 }

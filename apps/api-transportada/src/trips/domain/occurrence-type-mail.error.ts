@@ -39,3 +39,25 @@ export class OccurrenceTypeWatcherInactiveError extends ApiError {
     })
   }
 }
+
+/** Destinatários escolhidos num tipo `all`: o `To` é sempre o automático, então a escolha não teria efeito. */
+export class OccurrenceTypeRecipientsRequireListedScopeError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_RECIPIENTS_REQUIRE_LISTED_SCOPE',
+      message: 'Recipients can only be chosen on an occurrence type limited to contractors.',
+      status: 400,
+    })
+  }
+}
+
+/** Contato de contratante fora da lista do tipo, ou **novo** e inativo / sem `receives_occurrences`. */
+export class OccurrenceTypeRecipientNotInScopeError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_RECIPIENT_NOT_IN_SCOPE',
+      message: 'The contact does not belong to the contractors of this occurrence type.',
+      status: 400,
+    })
+  }
+}

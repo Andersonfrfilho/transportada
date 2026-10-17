@@ -24,6 +24,7 @@ const OCCURRENCE_ID = '00000000-0000-4000-8000-000000180202'
 
 function plan(overrides: Partial<AutomaticOccurrenceMailPlan> = {}): AutomaticOccurrenceMailPlan {
   return {
+    chosenContactIds: [],
     emailsContractor: true,
     isRegisteredBeforeTemplate: false,
     recipients: [
@@ -111,6 +112,21 @@ describe('o aviso automático à contratante (spec 183 T802)', () => {
         subject: 'Ocorrência — NF 4512',
       },
     ])
+  })
+
+  /** Spec 271 D13: o destinatário escolhido no tipo vence a etapa; sem nenhum que sobre, vale a regra de hoje. */
+  test('os destinatários escolhidos no tipo vão, ignorando a etapa deles', async () => {
+    const { run, sent } = setup({ plan: plan({ chosenContactIds: ['contact-other-stage'] }) })
+
+    expect(await run()).toMatchObject({ outcome: 'sent', recipientCount: 1 })
+    expect(sent[0]?.contactIds).toEqual(['contact-other-stage'])
+  })
+
+  test('escolhido sem e-mail não sobra: vale a regra da etapa, não "ninguém"', async () => {
+    const { run, sent } = setup({ plan: plan({ chosenContactIds: ['contact-whatsapp-only'] }) })
+
+    expect(await run()).toMatchObject({ outcome: 'sent' })
+    expect(sent[0]?.contactIds).toEqual(['contact-email', 'contact-whatsapp'])
   })
 
   test.each([

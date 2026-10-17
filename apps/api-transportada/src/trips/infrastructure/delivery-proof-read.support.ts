@@ -116,6 +116,7 @@ import {
   buildTemplateSelectedAtChange,
   lockUsableOccurrenceMailTemplate,
 } from './occurrence-mail-template-lock.support.js'
+import { replaceOccurrenceTypeMailRecipients } from './occurrence-type-mail-recipients.support.js'
 import { replaceOccurrenceTypeMailWatchers } from './occurrence-type-mail-watchers.support.js'
 import {
   replaceOccurrenceTypeMoments,
@@ -1159,6 +1160,8 @@ export async function saveOccurrenceType(
     readonly actorUserId?: string | undefined
     /** Spec 270: com o escopo, a lista vai junto; ausentes é "não mexa". */
     readonly contractorIds?: readonly string[] | undefined
+    /** Spec 271 (D12): os destinatários do tipo (contatos das contratantes da lista); ausente é "não mexa". */
+    readonly contractorMailRecipientContactIds?: readonly string[] | undefined
     /** Spec 271 (D10): os responsáveis em cópia do tipo, da lista da empresa; ausente é "não mexa". */
     readonly contractorMailWatcherUserIds?: readonly string[] | undefined
     readonly contractorScope?: OccurrenceTypeContractorScope | undefined
@@ -1202,6 +1205,14 @@ export async function saveOccurrenceType(
         companyId: input.companyId,
         occurrenceTypeId: saved.id,
         userIds: input.contractorMailWatcherUserIds,
+      })
+    }
+    if (input.contractorMailRecipientContactIds !== undefined) {
+      await replaceOccurrenceTypeMailRecipients(transaction, {
+        actorUserId: requireActor(input.actorUserId),
+        companyId: input.companyId,
+        contactIds: input.contractorMailRecipientContactIds,
+        occurrenceTypeId: saved.id,
       })
     }
     const [withMoments] = await withOccurrenceTypeMoments(transaction, {

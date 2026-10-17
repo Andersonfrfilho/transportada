@@ -78,7 +78,7 @@
       400, inativo já escolhido fica) e a auditoria do remover da 267 com os tipos afetados. Integração dos critérios 5
       da spec (manual, automático, reenvio da 248) e da cascata ao remover da lista da empresa. Correção de endereço sem
       mudança (teste de regressão).
-- [ ] **T2.7** `sonnet` — Destinatários (D12/D13): teste antes de `occurrence-contractor-recipients.policy.ts` (só da
+- [x] **T2.7** `sonnet` — Destinatários (D12/D13): teste antes de `occurrence-contractor-recipients.policy.ts` (só da
       contratante da nota; inativo e sem `receives_occurrences` caem; ignora etapa; vazio → regra de hoje); depois o
       `PUT` (`contractorMailRecipientContactIds`: tipo `all` → 400; contato de contratante fora da lista → 400; outra
       empresa → 404; > 50 → 400), a poda ao tirar contratante do escopo e ao trocar para `all` (mesma transação, depois

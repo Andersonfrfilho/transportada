@@ -64,6 +64,7 @@ type FakeState = {
 
 function createFake(
   overrides: Partial<{
+    chosenRecipientIds: readonly string[]
     contacts: readonly { email: string; id: string }[]
     /** Spec 271: o modelo do tipo no módulo de notificação; `null` é sem modelo utilizável. */
     effectiveTemplate: null | typeof EFFECTIVE_TEMPLATE
@@ -121,6 +122,9 @@ function createFake(
     },
     async listOccurrenceRecipients() {
       return []
+    },
+    async findChosenOccurrenceRecipientIds() {
+      return overrides.chosenRecipientIds ?? []
     },
     async loadWatcherCandidates(params) {
       state.watcherTypeIds.push(params.occurrenceTypeId)
@@ -418,6 +422,7 @@ describe('a prévia do e-mail (RF7)', () => {
     return createPreviewOccurrenceMailUseCase({
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
+        findChosenOccurrenceRecipientIds: async () => [],
         findOccurrenceNotificationTemplate: async () => template,
         findOperatorName: async () => 'Operadora Lima',
         findOccurrenceTarget: async () => target,
@@ -470,6 +475,27 @@ describe('a prévia do e-mail (RF7)', () => {
     })
   })
 
+  /** Spec 271 D13: os escolhidos no tipo vêm pré-marcados no lugar da regra da etapa; o operador ainda muda. */
+  test('com destinatários escolhidos no tipo, a pré-marcação é a escolha, não a etapa', async () => {
+    const preview = await createPreviewOccurrenceMailUseCase({
+      reader: {
+        findCarrierName: async () => 'Transportadora Sintética',
+        findChosenOccurrenceRecipientIds: async () => ['contact-separation'],
+        findOccurrenceNotificationTemplate: async () => EFFECTIVE_TEMPLATE,
+        findOccurrenceTarget: async () => TARGET,
+        findOperatorName: async () => 'Operadora Lima',
+        listOccurrenceRecipients: async () => RECIPIENTS,
+        loadWatcherCandidates: async () => ({ company: [], contractor: [] }),
+      },
+      suggestedMail: { readSuggestedMail: async () => null },
+    }).preview({ actorUserId: ACTOR_ID, companyId: COMPANY_ID, occurrenceId: OCCURRENCE_ID })
+
+    expect(preview.recipients.map((r) => [r.contactId, r.preselected])).toEqual([
+      ['contact-delivery', false],
+      ['contact-separation', true],
+    ])
+  })
+
   test('ocorrência sem contratante casada não oferece destinatário (o envio responde 422)', async () => {
     const preview = await createPreview(null, {
       ...TARGET,
@@ -516,6 +542,7 @@ describe('a prévia do e-mail (RF7)', () => {
     const preview = await createPreviewOccurrenceMailUseCase({
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
+        findChosenOccurrenceRecipientIds: async () => [],
         findOccurrenceNotificationTemplate: async () => null,
         findOccurrenceTarget: async () => TARGET,
         findOperatorName: async () => 'Operadora Lima',
@@ -965,6 +992,7 @@ describe('a prévia mostra a cópia (spec 267 RF4)', () => {
       logger: { warn: (event) => warnings.push(event) },
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
+        findChosenOccurrenceRecipientIds: async () => [],
         findOccurrenceNotificationTemplate: async () => EFFECTIVE_TEMPLATE,
         findOccurrenceTarget: async () => TARGET,
         findOperatorName: async () => 'Operadora Lima',
@@ -985,6 +1013,7 @@ describe('a prévia mostra a cópia (spec 267 RF4)', () => {
     const preview = await createPreviewOccurrenceMailUseCase({
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
+        findChosenOccurrenceRecipientIds: async () => [],
         findOccurrenceNotificationTemplate: async () => EFFECTIVE_TEMPLATE,
         findOccurrenceTarget: async () => TARGET,
         findOperatorName: async () => 'Operadora Lima',
