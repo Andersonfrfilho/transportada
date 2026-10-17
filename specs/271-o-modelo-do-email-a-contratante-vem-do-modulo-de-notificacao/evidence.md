@@ -120,3 +120,12 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 
 - Veredito da revisão de arquitetura: **aprovado com mudanças** (plan § Revisão de arquitetura). ADR-0108 passa a aceita.
 
+
+### T1.1 / T1.2 — painel tolerante (commits 4877cb6f2, e5caecedd)
+
+- Guarda do tipo (`isOccurrenceType`) aceita `contractorNotificationTemplateKey`, `contractorMailWatchers`, `contractorMailRecipients`, `missingNotificationTemplate`; guarda da exceção já tolerava a ausência de `contractorMailTemplateId`. Prévia: `ccSource` aceita `occurrence_type`; `notificationTemplateKey` entra e `templateId` sai (nenhuma tela o lia). O guarda do histórico de mensagens não é estrito (não lê chave de modelo): nada a tolerar.
+- Painel: `bun run test` 8328 + 1404 pass, 0 fail; typecheck limpo; lint 0 erros (16 avisos preexistentes).
+
+### T2.1 — migration A
+
+- `drizzle/20261017041702_occurrence_type_contractor_mail` (aplica, reverte e reaplica em Postgres descartável; `db:generate` → `no_changes`). Contrato de API completo: 12012 pass / 25 skip (preexistentes) / 0 fail.

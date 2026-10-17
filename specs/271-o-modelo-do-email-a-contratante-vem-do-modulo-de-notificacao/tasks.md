@@ -35,12 +35,12 @@
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T1.1** `haiku` — Teste antes: tipo com `contractorNotificationTemplateKey`, `contractorMailWatchers`,
+- [x] **T1.1** `haiku` — Teste antes: tipo com `contractorNotificationTemplateKey`, `contractorMailWatchers`,
       `contractorMailRecipients` e `missingNotificationTemplate`, **sem** `contractorMailTemplateId`, passa por
       `occurrenceTypesFromApi`; com `contractorMailTemplateId` também (tipo antigo). Depois, as chaves entram opcionais
       em `allowed` de `isOccurrenceType` (`tripResponse.validation.ts`). Exceção sem `contractorMailTemplateId` passa
       (`occurrenceAttachmentOverrides.validation.ts`).
-- [ ] **T1.2** `haiku` — Teste antes: prévia do diálogo com `notificationTemplateKey` e sem `templateId`, e mensagem do
+- [x] **T1.2** `haiku` — Teste antes: prévia do diálogo com `notificationTemplateKey` e sem `templateId`, e mensagem do
       histórico com `notificationTemplateKey`/`notificationTemplateVersion`, passam (guardas da T0.1). Depois, a
       tolerância. `ccSource` aceita `'occurrence_type'` (`occurrenceConversationClient.service.ts` ~:304 e
       `occurrenceConversation.types.ts` ~:148).
@@ -51,7 +51,7 @@
 
 > 🤖 Modelo: `sonnet` (T2.2 e T2.9 → `haiku`)
 
-- [ ] **T2.1** `sonnet` — Migration A (plan § Dados) + schema Drizzle (colunas, CHECK, duas tabelas, colunas da
+- [x] **T2.1** `sonnet` — Migration A (plan § Dados) + schema Drizzle (colunas, CHECK, duas tabelas, colunas da
       mensagem) + `rollback.sql`. Aceite: aplica, reverte e reaplica; `db:generate` → `no_changes`.
 - [ ] **T2.2** `haiku` — Teste antes (tabela espelhada dos valores da 269): `occurrence-mail-values.policy.ts` produz as
       chaves `camelCase` do plan § Variáveis com os mesmos valores, mais `tipoOcorrencia` e `linhasItens` (1 item, 3
