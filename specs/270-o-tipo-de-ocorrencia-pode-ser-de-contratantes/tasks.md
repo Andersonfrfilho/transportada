@@ -85,7 +85,7 @@
 - [x] **T3.3** `haiku` — Aviso na exceção por contratante fora da lista (RF9). Teste.
 - [x] **T3.4** `sonnet` — Separação e lote do escritório usam a lista do servidor por nota (T2.4); a separação deixa de
       filtrar tipos no cliente; o lote manda `documentIds` e mostra o 422 com as notas recusadas. Teste dos dois.
-- [ ] **T3.5** `haiku` — Locales pt-BR/en das telas novas e do código de erro.
+- [x] **T3.5** `haiku` — Locales pt-BR/en das telas novas e do código de erro.
 
 ## Fase 4 — App do motorista
 
