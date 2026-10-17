@@ -6,6 +6,7 @@
  * `pushState`; o `href` fica para "abrir em outra aba". Dados sintéticos.
  */
 import { act, createElement } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'bun:test'
 
@@ -45,10 +46,14 @@ function renderSection(canReadTripFleetDetails: boolean): HTMLElement {
   root = createRoot(container)
   act(() =>
     root?.render(
-      createElement(TripDocumentOccurrences, {
-        document: { id: 'document-1', tripId: 'trip-1' } as unknown as TripDocumentDetail,
-        workspace,
-      }),
+      createElement(
+        QueryClientProvider,
+        { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+        createElement(TripDocumentOccurrences, {
+          document: { id: 'document-1', tripId: 'trip-1' } as unknown as TripDocumentDetail,
+          workspace,
+        }),
+      ),
     ),
   )
   return container

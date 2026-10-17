@@ -1455,7 +1455,8 @@
       "box": "Box",
       "unit": "Piece"
     },
-    "singleItemHint": "This type only accepts one item — choosing another replaces it."
+    "singleItemHint": "This type only accepts one item — choosing another replaces it.",
+    "noTypesForDocument": "No warehouse occurrence type applies to the contractor of this note."
   },
   "occurrenceFeed": {
     "missingTemplate": {

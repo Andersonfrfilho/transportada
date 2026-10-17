@@ -40,14 +40,17 @@ describe('os tipos de ocorrência vêm do cadastro (spec 079)', () => {
   })
 
   /**
-   * ⚠️ A tela do escritório oferece **só os de galpão, e só os ativos**. Tipo de rua é
-   * `trip.report` e mora na árvore do motorista; oferecê-lo aqui daria um botão que sempre responde
-   * 403. Tipo aposentado sai da escolha, mas o já registrado com ele continua legível.
+   * Spec 270 (ADR-0107): quem decide o que a tela do galpão oferece é o servidor, **por nota** —
+   * `GET /trips/:id/documents/:documentId/occurrence-types` entrega só os tipos ativos do momento
+   * `separation` que valem para a contratante da nota. A tela não filtra por etapa nem por escopo: duas
+   * regras (uma no servidor, outra aqui) divergiriam no dia em que o escopo mudasse de forma.
    */
-  it('a tela oferece só tipo de galpão ativo', () => {
+  it('a tela não filtra tipo por etapa: oferece o que o servidor entregou para a nota', () => {
     const panel = readFileSync(PANEL, 'utf8')
 
-    expect(panel).toInclude('type.active && type.stage === TRIP_OCCURRENCE_STAGE.separation')
+    expect(panel).not.toInclude('TRIP_OCCURRENCE_STAGE.separation')
+    expect(panel).not.toInclude('type.active &&')
+    expect(panel).toInclude('areTypesLoading')
   })
 
   /** O item é opcional, e "a nota inteira" é o padrão — recusa total não tem item a apontar. */

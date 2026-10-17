@@ -17,6 +17,8 @@ import type { TripDocumentDetail, TripDocumentProduct, TripOccurrence } from '..
 import styles from '../styles/trip.module.css'
 
 export type SeparationOccurrenceDialogProps = Readonly<{
+  /** Spec 270: os tipos são por nota e chegam do servidor — enquanto carregam, não se diz "nenhum tipo". */
+  areTypesLoading?: boolean
   canRegister: boolean
   document: TripDocumentDetail
   isOpen: boolean
@@ -46,6 +48,7 @@ export type SeparationOccurrenceDialogProps = Readonly<{
  * (mesmo padrão de `FieldOccurrenceDialog`/`TripStopOccurrenceDialog`) em volta dele.
  */
 export function SeparationOccurrenceDialog({
+  areTypesLoading = false,
   canRegister,
   document: tripDocument,
   isOpen,
@@ -140,6 +143,7 @@ export function SeparationOccurrenceDialog({
         ) : null}
 
         <TripOccurrences
+          areTypesLoading={areTypesLoading}
           canRegister={canRegister}
           isDialog
           isRegistering={isRegistering}
