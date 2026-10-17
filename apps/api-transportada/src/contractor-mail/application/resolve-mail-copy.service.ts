@@ -21,6 +21,8 @@ export type MailCopyLogger = {
 export type MailCopyCandidates = Readonly<{
   company: readonly OccurrenceWatcherCandidate[]
   contractor: readonly OccurrenceWatcherCandidate[]
+  /** Spec 271: a lista do tipo de ocorrência; ausente na correção de endereço (sem tipo). */
+  type?: readonly OccurrenceWatcherCandidate[]
 }>
 
 export async function resolveMailCopy(params: {
@@ -28,9 +30,12 @@ export async function resolveMailCopy(params: {
   readonly companyId: string
   readonly contractorId: string
   readonly excludedUserIds: readonly string[]
+  /** Spec 271: o tipo da ocorrência; ausente é a correção de endereço, que não tem tipo. */
+  readonly occurrenceTypeId?: null | string
   readonly loadCandidates: (query: {
     readonly companyId: string
     readonly contractorId: string
+    readonly occurrenceTypeId?: null | string
   }) => Promise<MailCopyCandidates>
   readonly logger: MailCopyLogger | undefined
   readonly recipients: readonly string[]
@@ -38,12 +43,14 @@ export async function resolveMailCopy(params: {
   const candidates = await params.loadCandidates({
     companyId: params.companyId,
     contractorId: params.contractorId,
+    ...(params.occurrenceTypeId === undefined ? {} : { occurrenceTypeId: params.occurrenceTypeId }),
   })
   const effective = resolveEffectiveWatchers({
     companyWatchers: candidates.company,
     contractorWatchers: candidates.contractor,
     excludedUserIds: params.excludedUserIds,
     toAddresses: params.recipients,
+    ...(candidates.type === undefined ? {} : { typeWatchers: candidates.type }),
   })
   const room = Math.max(CONTRACTOR_MAIL_MAX_RECIPIENTS - params.recipients.length, 0)
   const fits = effective.copy.length <= room
@@ -78,6 +85,6 @@ export async function loadCandidatesForDisplay(params: {
     return await params.load()
   } catch {
     params.logger?.warn('contractor_mail.copy.display_unavailable')
-    return { company: [], contractor: [] }
+    return { company: [], contractor: [], type: [] }
   }
 }

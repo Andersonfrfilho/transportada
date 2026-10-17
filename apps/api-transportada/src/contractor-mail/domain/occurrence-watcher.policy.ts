@@ -13,17 +13,22 @@ export type OccurrenceWatcherCandidate = Readonly<{
 
 export type OccurrenceWatcherCopy = Readonly<{ address: string; name: string; userId: string }>
 
-export type EffectiveWatchers = Readonly<{
-  copy: readonly OccurrenceWatcherCopy[]
-  droppedCount: number
-  source: 'company' | 'contractor' | null
-}>
+export type OccurrenceWatcherSource = 'company' | 'contractor' | 'occurrence_type'
+
+export type EffectiveWatchers<TSource extends OccurrenceWatcherSource = OccurrenceWatcherSource> =
+  Readonly<{
+    copy: readonly OccurrenceWatcherCopy[]
+    droppedCount: number
+    source: TSource | null
+  }>
 
 export type ResolveEffectiveWatchersParams = Readonly<{
   companyWatchers: readonly OccurrenceWatcherCandidate[]
   contractorWatchers: readonly OccurrenceWatcherCandidate[]
   excludedUserIds: readonly string[]
   toAddresses: readonly string[]
+  /** Spec 271 (D11): a lista do tipo de ocorrência, com o `status` da linha da **empresa**; ausente é a correção de endereço. */
+  typeWatchers?: readonly OccurrenceWatcherCandidate[]
 }>
 
 function normalizeAddress(address: string): string {
@@ -32,8 +37,10 @@ function normalizeAddress(address: string): string {
 
 function selectSource(params: ResolveEffectiveWatchersParams): {
   readonly active: readonly OccurrenceWatcherCandidate[]
-  readonly source: EffectiveWatchers['source']
+  readonly source: OccurrenceWatcherSource | null
 } {
+  const typeActive = (params.typeWatchers ?? []).filter((entry) => entry.status === 'active')
+  if (typeActive.length > 0) return { active: typeActive, source: 'occurrence_type' }
   const contractorActive = params.contractorWatchers.filter((entry) => entry.status === 'active')
   if (contractorActive.length > 0) return { active: contractorActive, source: 'contractor' }
   const companyActive = params.companyWatchers.filter((entry) => entry.status === 'active')
@@ -41,7 +48,14 @@ function selectSource(params: ResolveEffectiveWatchersParams): {
   return { active: [], source: null }
 }
 
-/** Lista da contratante com algum ativo vence a da empresa; sem ativo herda. O operador só remove, nunca adiciona. */
+/**
+ * Lista do tipo (271) com algum ativo vence a da contratante, que vence a da empresa; sem ativo herda. O operador só
+ * remove, nunca adiciona.
+ */
+export function resolveEffectiveWatchers(
+  params: ResolveEffectiveWatchersParams & { readonly typeWatchers?: undefined },
+): EffectiveWatchers<'company' | 'contractor'>
+export function resolveEffectiveWatchers(params: ResolveEffectiveWatchersParams): EffectiveWatchers
 export function resolveEffectiveWatchers(
   params: ResolveEffectiveWatchersParams,
 ): EffectiveWatchers {

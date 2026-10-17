@@ -98,6 +98,7 @@ async function findOccurrenceTarget(
     contractorId: item.document?.contractor?.contractorId ?? null,
     contractorName: item.document?.contractor?.name ?? '',
     kind: item.source,
+    occurrenceTypeId: item.occurrenceTypeId ?? null,
     stage: item.stage ?? 'stop',
   }
 }
@@ -483,6 +484,7 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
   public loadWatcherCandidates(params: {
     readonly companyId: string
     readonly contractorId: string
+    readonly occurrenceTypeId?: null | string
   }) {
     return loadEffectiveWatcherCandidates(this.transaction, params)
   }

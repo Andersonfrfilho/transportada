@@ -71,7 +71,7 @@
       (`notificationTemplateKey`), `recordMail` com chave/versão e `template_id = null`; reenvio da 248 copia chave/versão
       da original sem bloqueio. A exceção deixa de contar. Integração: automático renderiza e grava chave/versão;
       desativar no módulo → manual 409, automático pula; reenvio da 248 sem modelo segue.
-- [ ] **T2.6** `sonnet` — Em cópia (D10/D11): teste antes de `resolveEffectiveWatchers` com `typeWatchers` (tipo com
+- [x] **T2.6** `sonnet` — Em cópia (D10/D11): teste antes de `resolveEffectiveWatchers` com `typeWatchers` (tipo com
       ativo vence; tipo só com inativo herda contratante; contratante vazia herda empresa; removido no manual; já no
       `To`; sem e-mail); depois a política, `loadEffectiveWatcherCandidates` com `occurrenceTypeId` (uma ida), o `PUT`
       (`contractorMailWatcherUserIds`: fora da lista da empresa → 404, outra empresa → 404, > 10 → 400, novo inativo →

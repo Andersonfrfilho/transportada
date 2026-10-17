@@ -308,6 +308,7 @@ async function executeSend(params: {
     excludedUserIds: input.excludedWatcherUserIds ?? [],
     loadCandidates: (query) => transaction.loadWatcherCandidates(query),
     logger: params.logger,
+    occurrenceTypeId: target.occurrenceTypeId,
     recipients,
   })
 

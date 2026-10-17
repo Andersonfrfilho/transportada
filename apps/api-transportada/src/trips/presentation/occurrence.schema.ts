@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { OCCURRENCE_WATCHER_MAX_TOTAL } from '../../contractor-mail/domain/occurrence-watcher.constant.js'
 import {
   CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES,
   CONTRACTOR_REPLY_ALERT_MAX_COUNT,
@@ -564,6 +565,17 @@ const occurrenceTypeSchema = z
      * contratante. Ausente é "não mexa"; `null` limpa. Conferida na gravação (400 com todos os problemas).
      */
     contractorNotificationTemplateKey: z.string().trim().min(1).max(128).nullable().optional(),
+    /**
+     * Spec 271 (D10): os responsáveis em cópia do e-mail à contratante, da lista da empresa. Ausente é "não mexa";
+     * `[]` limpa. O teto de 10 e a lista da empresa são conferidos no caso de uso (códigos próprios).
+     */
+    contractorMailWatcherUserIds: z
+      .array(z.string().uuid())
+      .max(OCCURRENCE_WATCHER_MAX_TOTAL)
+      .optional()
+      .refine((ids) => ids === undefined || new Set(ids).size === ids.length, {
+        message: 'WATCHER_IDS_MUST_BE_UNIQUE',
+      }),
     /**
      * Spec 270 (ADR-0107): para quem o tipo vale. `contractorScope` e `contractorIds` vão juntos (o caso de
      * uso recusa um sem o outro, 400); ausentes é "não mexa". `all` apaga a lista; `listed` pede ao menos uma.

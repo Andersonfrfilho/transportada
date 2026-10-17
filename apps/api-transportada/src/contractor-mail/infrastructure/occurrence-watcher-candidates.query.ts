@@ -8,6 +8,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
 import {
+  companyOccurrenceTypeWatchers,
   companyOccurrenceWatchers,
   contractorOccurrenceWatchers,
 } from '../../database/database.schema.js'
@@ -48,18 +49,65 @@ export async function readOccurrenceWatcherRows(
     )
 }
 
+/**
+ * Spec 271 (D10/D11): os responsáveis escolhidos no tipo, com o `status` da linha da **empresa** — a FK composta
+ * garante que toda escolha tem a linha lá; quem sai da lista da empresa sai do tipo.
+ */
+export async function readOccurrenceTypeWatcherRows(
+  executor: Database | Transaction,
+  params: { readonly companyId: string; readonly occurrenceTypeId: string },
+): Promise<readonly OccurrenceWatcherRow[]> {
+  return executor
+    .select({
+      status: companyOccurrenceWatchers.status,
+      userId: companyOccurrenceTypeWatchers.userId,
+    })
+    .from(companyOccurrenceTypeWatchers)
+    .innerJoin(
+      companyOccurrenceWatchers,
+      and(
+        eq(companyOccurrenceWatchers.companyId, companyOccurrenceTypeWatchers.companyId),
+        eq(companyOccurrenceWatchers.userId, companyOccurrenceTypeWatchers.userId),
+      ),
+    )
+    .where(
+      and(
+        eq(companyOccurrenceTypeWatchers.companyId, params.companyId),
+        eq(companyOccurrenceTypeWatchers.occurrenceTypeId, params.occurrenceTypeId),
+      ),
+    )
+}
+
+/** As três listas numa ida só (empresa, contratante e, com `occurrenceTypeId`, o tipo), com os endereços em lote. */
 export async function loadEffectiveWatcherCandidates(
   executor: Database | Transaction,
-  params: { readonly companyId: string; readonly contractorId: string },
+  params: {
+    readonly companyId: string
+    readonly contractorId: string
+    readonly occurrenceTypeId?: null | string | undefined
+  },
 ): Promise<{
   readonly company: readonly OccurrenceWatcherCandidate[]
   readonly contractor: readonly OccurrenceWatcherCandidate[]
+  readonly type: readonly OccurrenceWatcherCandidate[]
 }> {
-  const [companyRows, contractorRows] = await Promise.all([
+  const [companyRows, contractorRows, typeRows] = await Promise.all([
     readOccurrenceWatcherRows(executor, { companyId: params.companyId, kind: 'company' }),
-    readOccurrenceWatcherRows(executor, { ...params, kind: 'contractor' }),
+    readOccurrenceWatcherRows(executor, {
+      companyId: params.companyId,
+      contractorId: params.contractorId,
+      kind: 'contractor',
+    }),
+    params.occurrenceTypeId === undefined || params.occurrenceTypeId === null
+      ? []
+      : readOccurrenceTypeWatcherRows(executor, {
+          companyId: params.companyId,
+          occurrenceTypeId: params.occurrenceTypeId,
+        }),
   ])
-  const userIds = [...new Set([...companyRows, ...contractorRows].map((row) => row.userId))]
+  const userIds = [
+    ...new Set([...companyRows, ...contractorRows, ...typeRows].map((row) => row.userId)),
+  ]
   const users = new Map(
     (await findOccurrenceWatcherUsers(executor, { companyId: params.companyId, userIds })).map(
       (user) => [user.userId, user],
@@ -74,5 +122,9 @@ export async function loadEffectiveWatcherCandidates(
       userId: row.userId,
     }
   }
-  return { company: companyRows.map(toCandidate), contractor: contractorRows.map(toCandidate) }
+  return {
+    company: companyRows.map(toCandidate),
+    contractor: contractorRows.map(toCandidate),
+    type: typeRows.map(toCandidate),
+  }
 }

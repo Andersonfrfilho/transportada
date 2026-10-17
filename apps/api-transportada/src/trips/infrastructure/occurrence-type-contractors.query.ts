@@ -18,6 +18,10 @@ import type { ApiLogger } from '../../shared/api.types.js'
 import { resolveOccurrenceTypeMoments } from '../domain/occurrence-moment.policy.js'
 import { assertOccurrenceTypeContractorScopeIsWritable } from '../domain/occurrence-type-contractor-scope.policy.js'
 import { listTypesWithoutUsableTemplateOrEmpty } from './occurrence-mail-template-missing.query.js'
+import {
+  readOccurrenceTypeMailWatchers,
+  type OccurrenceTypeMailWatcherView,
+} from './occurrence-type-mail-view.query.js'
 import { readOccurrenceTypeMoments } from './occurrence-type-moments.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -31,6 +35,8 @@ export type OccurrenceTypeContractorDetail = {
 export type OccurrenceTypeContractorScopeView = {
   readonly contractors: readonly OccurrenceTypeContractorDetail[]
   readonly contractorScope: OccurrenceTypeContractorScope
+  /** Spec 271: os responsáveis em cópia escolhidos no tipo (da lista da empresa). */
+  readonly contractorMailWatchers: readonly OccurrenceTypeMailWatcherView[]
   /** Spec 271 (D9): o e-mail à contratante está ligado e o tipo não tem modelo utilizável. */
   readonly missingNotificationTemplate: boolean
 }
@@ -166,6 +172,10 @@ export async function toOccurrenceTypeSettingsViews<
     companyId: params.companyId,
     occurrenceTypeIds: listedIds,
   })
+  const watchersByType = await readOccurrenceTypeMailWatchers(queryable, {
+    companyId: params.companyId,
+    occurrenceTypeIds: params.records.map((record) => record.id),
+  })
   const missingTemplateTypeIds = await listTypesWithoutUsableTemplateOrEmpty(queryable, {
     companyId: params.companyId,
     ...(params.logger === undefined ? {} : { logger: params.logger }),
@@ -185,6 +195,7 @@ export async function toOccurrenceTypeSettingsViews<
         contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed
           ? (detailsByType.get(record.id) ?? [])
           : [],
+      contractorMailWatchers: watchersByType.get(record.id) ?? [],
       contractorScope,
       missingNotificationTemplate: missingTemplateTypeIds.has(record.id),
     }

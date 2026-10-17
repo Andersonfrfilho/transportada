@@ -45,6 +45,7 @@ const TARGET: OccurrenceMailTarget = {
   contractorId: CONTRACTOR_ID,
   contractorName: 'Contratante Alfa',
   kind: 'document',
+  occurrenceTypeId: '00000000-0000-4000-8000-000000271401',
   stage: 'delivery',
 }
 
@@ -58,6 +59,7 @@ type FakeState = {
   replyReads: string[]
   resendCalls: Parameters<OccurrenceMailTransactionPort['recordContractorReplyResend']>[0][]
   threadId: string | undefined
+  watcherTypeIds: (null | string | undefined)[]
 }
 
 function createFake(
@@ -71,10 +73,11 @@ function createFake(
       info?: (event: string, fields?: Record<string, unknown>) => void
       warn: (event: string, fields?: Record<string, unknown>) => void
     }
-    /** Spec 267: as duas listas de responsáveis, já com o endereço resolvido. */
+    /** Spec 267/271: as listas de responsáveis, já com o endereço resolvido. */
     watchers: {
       company?: readonly OccurrenceWatcherCandidate[]
       contractor?: readonly OccurrenceWatcherCandidate[]
+      type?: readonly OccurrenceWatcherCandidate[]
     }
     replyConfiguration: StoredContractorReplyConfiguration | null
     /** Spec 268: o modo sandbox do ambiente (`CONTRACTOR_MAIL_SANDBOX_SMTP`), ausente em produção. */
@@ -99,6 +102,7 @@ function createFake(
     replyReads: [],
     resendCalls: [],
     threadId: undefined,
+    watcherTypeIds: [],
   }
   const transaction: OccurrenceMailTransactionPort = {
     attachments: {
@@ -118,10 +122,12 @@ function createFake(
     async listOccurrenceRecipients() {
       return []
     },
-    async loadWatcherCandidates() {
+    async loadWatcherCandidates(params) {
+      state.watcherTypeIds.push(params.occurrenceTypeId)
       return {
         company: overrides.watchers?.company ?? [],
         contractor: overrides.watchers?.contractor ?? [],
+        type: overrides.watchers?.type ?? [],
       }
     },
     async findContractorReplyConfiguration({ occurrenceId }) {
@@ -1027,6 +1033,34 @@ describe('a cópia no e-mail de ocorrência (spec 267)', () => {
   test('a lista da contratante substitui a da empresa', async () => {
     const { state, useCase } = createFake({
       watchers: { company: [watcher('Ana')], contractor: [watcher('Carla')] },
+    })
+
+    await useCase.send(input())
+
+    expect(state.mails[0]?.ccAddresses).toEqual(['carla@empresa.example.test'])
+  })
+
+  test('a lista do tipo vence a da contratante e a da empresa (spec 271 D11)', async () => {
+    const { state, useCase } = createFake({
+      watchers: {
+        company: [watcher('Ana')],
+        contractor: [watcher('Carla')],
+        type: [watcher('Davi')],
+      },
+    })
+
+    await useCase.send(input())
+
+    expect(state.mails[0]?.ccAddresses).toEqual(['davi@empresa.example.test'])
+    expect(state.watcherTypeIds).toEqual(['00000000-0000-4000-8000-000000271401'])
+  })
+
+  test('o tipo só com responsável inativo herda a contratante', async () => {
+    const { state, useCase } = createFake({
+      watchers: {
+        contractor: [watcher('Carla')],
+        type: [watcher('Davi', { status: 'inactive' })],
+      },
     })
 
     await useCase.send(input())

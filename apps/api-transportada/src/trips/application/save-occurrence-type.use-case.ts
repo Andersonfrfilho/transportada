@@ -105,6 +105,11 @@ export type SaveOccurrenceTypeValues = {
    */
   readonly contractorNotificationTemplateKey?: null | string | undefined
   /**
+   * Spec 271 (D10): os responsáveis em cópia do e-mail à contratante, da lista da empresa (267). Ausente é
+   * "não mexa"; `[]` limpa; vazio herda a lista da contratante e, depois, a da empresa.
+   */
+  readonly contractorMailWatcherUserIds?: readonly string[] | undefined
+  /**
    * Spec 270 (ADR-0107): para quem o tipo vale. Escopo e lista vão **juntos** (um sem o outro é 400);
    * ausentes é "não mexa". `all` sem lista; `listed` com ao menos uma contratante da empresa.
    */

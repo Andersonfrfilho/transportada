@@ -10,7 +10,7 @@ import type {
   ContractorContactOccurrenceStage,
   ContractorContactType,
 } from '../../database/contractor-mail.schema.js'
-import type { OccurrenceWatcherCandidate } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
+import type { MailCopyCandidates } from '../../contractor-mail/application/resolve-mail-copy.service.js'
 import type { ContractorMailTransport } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
 import type {
@@ -24,6 +24,8 @@ export type OccurrenceMailTarget = {
   readonly contractorId: string | null
   readonly contractorName: string
   readonly kind: OccurrenceConversationKind
+  /** Spec 271: o tipo da ocorrência, de onde vêm a cópia e os destinatários escolhidos; `null` na ocorrência de parada. */
+  readonly occurrenceTypeId: null | string
   /** O grupo da ocorrência nos contatos (RF5): a de parada não tem etapa e é `stop`. */
   readonly stage: ContractorContactOccurrenceStage
 }
@@ -173,14 +175,12 @@ export type OccurrenceMailTransactionPort = {
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind
   }): Promise<{ readonly id: string } | undefined>
-  /** Spec 267: as listas de responsáveis da empresa e da contratante, com o endereço já resolvido. */
+  /** Spec 267/271: as listas de responsáveis da empresa, da contratante e do tipo, com o endereço já resolvido. */
   loadWatcherCandidates(params: {
     readonly companyId: string
     readonly contractorId: string
-  }): Promise<{
-    readonly company: readonly OccurrenceWatcherCandidate[]
-    readonly contractor: readonly OccurrenceWatcherCandidate[]
-  }>
+    readonly occurrenceTypeId?: null | string
+  }): Promise<MailCopyCandidates>
   /** Thread (quando nova), mensagem da 143 e o evento de envio no outbox, na mesma transação. */
   recordMail(params: RecordOccurrenceMailInput): Promise<{ readonly messageId: string }>
   /** A mensagem da conversa nasce no status inicial do e-mail (`queued`, T402), com o horário. */

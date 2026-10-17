@@ -10,7 +10,10 @@ import {
   loadCandidatesForDisplay,
   type MailCopyLogger,
 } from '../../contractor-mail/application/resolve-mail-copy.service.js'
-import { resolveEffectiveWatchers } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
+import {
+  resolveEffectiveWatchers,
+  type OccurrenceWatcherSource,
+} from '../../contractor-mail/domain/occurrence-watcher.policy.js'
 import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { buildOccurrenceMail, type OccurrenceMail } from '../domain/occurrence-mail.template.js'
@@ -48,10 +51,10 @@ export type OccurrenceMailCopyEntry = {
 }
 
 export type OccurrenceMailPreview = OccurrenceMail & {
-  /** Spec 267: a lista efetiva da contratante (ou da empresa); o operador só tira chips, nunca digita. */
+  /** Spec 267/271: a lista efetiva (do tipo, da contratante ou da empresa); o operador só tira chips, nunca digita. */
   readonly cc: readonly OccurrenceMailCopyEntry[]
   /** `null` quando nenhuma lista tem responsável ativo. */
-  readonly ccSource: 'company' | 'contractor' | null
+  readonly ccSource: OccurrenceWatcherSource | null
   /** O texto do operador (ou o do modelo), para o diálogo abrir preenchido. */
   readonly bodyText: string
   readonly contractorName: string
@@ -121,9 +124,14 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
           ? []
           : dependencies.reader.listOccurrenceRecipients({ companyId, contractorId }),
         contractorId === null
-          ? { company: [], contractor: [] }
+          ? { company: [], contractor: [], type: [] }
           : loadCandidatesForDisplay({
-              load: () => dependencies.reader.loadWatcherCandidates({ companyId, contractorId }),
+              load: () =>
+                dependencies.reader.loadWatcherCandidates({
+                  companyId,
+                  contractorId,
+                  occurrenceTypeId: target.occurrenceTypeId,
+                }),
               logger: dependencies.logger,
             }),
       ])
@@ -132,6 +140,7 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
         contractorWatchers: watchers.contractor,
         excludedUserIds: [],
         toAddresses: [],
+        typeWatchers: watchers.type ?? [],
       })
       return {
         ...buildOccurrenceMail({

@@ -9,6 +9,7 @@ import { and, eq, sql } from 'drizzle-orm'
 
 import {
   auditLogs,
+  companyOccurrenceTypeWatchers,
   companyOccurrenceWatchers,
   contractorOccurrenceWatchers,
 } from '../../database/database.schema.js'
@@ -69,13 +70,23 @@ async function writeAudit(
     readonly after: OccurrenceWatcherStatus | null
     readonly before: OccurrenceWatcherStatus | null
     readonly context: OccurrenceWatcherWriteContext
+    /** Spec 271: os tipos que escolhiam este responsável em cópia; sair da lista da empresa o tira deles (cascata). */
+    readonly occurrenceTypeIds?: readonly string[]
     readonly verb: AuditVerb
   },
 ): Promise<void> {
   const { context } = params
   const contractorId = context.scope.kind === 'contractor' ? context.scope.contractorId : null
+  const affected = params.occurrenceTypeIds ?? []
   const snapshot = (status: OccurrenceWatcherStatus | null) =>
-    status === null ? null : { contractorId, status, userId: context.userId }
+    status === null
+      ? null
+      : {
+          contractorId,
+          ...(affected.length === 0 ? {} : { occurrenceTypeIds: affected }),
+          status,
+          userId: context.userId,
+        }
   await transaction.insert(auditLogs).values({
     action: `occurrence_watchers.${context.scope.kind}.${params.verb}`,
     actorUserId: context.actorUserId,
@@ -89,6 +100,23 @@ async function writeAudit(
     targetId: context.userId,
     targetType: 'user',
   })
+}
+
+async function readTypesChoosingWatcher(
+  transaction: Transaction,
+  companyId: string,
+  userId: string,
+): Promise<readonly string[]> {
+  const rows = await transaction
+    .select({ occurrenceTypeId: companyOccurrenceTypeWatchers.occurrenceTypeId })
+    .from(companyOccurrenceTypeWatchers)
+    .where(
+      and(
+        eq(companyOccurrenceTypeWatchers.companyId, companyId),
+        eq(companyOccurrenceTypeWatchers.userId, userId),
+      ),
+    )
+  return rows.map((row) => row.occurrenceTypeId).toSorted()
 }
 
 function assertRoom(
@@ -190,6 +218,11 @@ export class DrizzleOccurrenceWatcherRepository implements OccurrenceWatcherRepo
       const rows = await readOccurrenceWatcherRows(transaction, context.scope)
       const current = rows.find((row) => row.userId === context.userId)
       if (current === undefined) throw new OccurrenceWatcherNotFoundError()
+      /** Lidos antes do `DELETE`: a FK com `CASCADE` apaga as escolhas dos tipos junto, e a auditoria os nomeia. */
+      const occurrenceTypeIds =
+        context.scope.kind === 'company'
+          ? await readTypesChoosingWatcher(transaction, context.scope.companyId, context.userId)
+          : []
       if (context.scope.kind === 'company') {
         await transaction
           .delete(companyOccurrenceWatchers)
@@ -203,6 +236,7 @@ export class DrizzleOccurrenceWatcherRepository implements OccurrenceWatcherRepo
         after: null,
         before: current.status,
         context,
+        occurrenceTypeIds,
         verb: 'remove',
       })
     })

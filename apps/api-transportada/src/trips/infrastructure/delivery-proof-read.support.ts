@@ -116,6 +116,7 @@ import {
   buildTemplateSelectedAtChange,
   lockUsableOccurrenceMailTemplate,
 } from './occurrence-mail-template-lock.support.js'
+import { replaceOccurrenceTypeMailWatchers } from './occurrence-type-mail-watchers.support.js'
 import {
   replaceOccurrenceTypeMoments,
   withOccurrenceTypeMoments,
@@ -1154,8 +1155,12 @@ function rethrowOccurrenceTypeViolation(error: unknown): never {
 export async function saveOccurrenceType(
   queryable: TripQueryable,
   input: Parameters<typeof writeOccurrenceTypeRow>[1] & {
+    /** Spec 271: quem grava (`created_by_user_id` das escolhas do tipo); exigido quando a escolha vai junto. */
+    readonly actorUserId?: string | undefined
     /** Spec 270: com o escopo, a lista vai junto; ausentes é "não mexa". */
     readonly contractorIds?: readonly string[] | undefined
+    /** Spec 271 (D10): os responsáveis em cópia do tipo, da lista da empresa; ausente é "não mexa". */
+    readonly contractorMailWatcherUserIds?: readonly string[] | undefined
     readonly contractorScope?: OccurrenceTypeContractorScope | undefined
     readonly moments?: readonly OccurrenceMoment[] | undefined
   },
@@ -1191,6 +1196,14 @@ export async function saveOccurrenceType(
         occurrenceTypeId: saved.id,
       })
     }
+    if (input.contractorMailWatcherUserIds !== undefined) {
+      await replaceOccurrenceTypeMailWatchers(transaction, {
+        actorUserId: requireActor(input.actorUserId),
+        companyId: input.companyId,
+        occurrenceTypeId: saved.id,
+        userIds: input.contractorMailWatcherUserIds,
+      })
+    }
     const [withMoments] = await withOccurrenceTypeMoments(transaction, {
       companyId: input.companyId,
       records: [
@@ -1205,6 +1218,12 @@ export async function saveOccurrenceType(
     })
     return withContractors ?? withMoments ?? saved
   })
+}
+
+/** As escolhas do bloco de e-mail guardam quem as fez; sem ator a gravação não segue (erro de programação). */
+function requireActor(actorUserId: string | undefined): string {
+  if (actorUserId === undefined) throw new Error('OCCURRENCE_TYPE_MAIL_ACTOR_REQUIRED')
+  return actorUserId
 }
 
 async function writeOccurrenceTypeRow(

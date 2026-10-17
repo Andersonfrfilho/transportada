@@ -4432,7 +4432,11 @@ function createApplicationRoutes({
             findCurrentType: ({ companyId, occurrenceTypeId }) =>
               findOccurrenceType(database, { companyId, occurrenceTypeId }),
             save: (values) =>
-              saveOccurrenceType(database, { ...values, companyId: input.context.companyId }),
+              saveOccurrenceType(database, {
+                ...values,
+                actorUserId: input.context.userId,
+                companyId: input.context.companyId,
+              }),
             templates: {
               findContractorTemplate: async ({ companyId, key }) =>
                 findActiveContractorTemplate(database, { companyId, key }),
