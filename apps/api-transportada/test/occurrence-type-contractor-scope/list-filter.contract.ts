@@ -206,3 +206,35 @@ describe('spec 270 T2.4: listFieldOccurrenceTypes (a lista de rua)', () => {
     }
   })
 })
+
+describe('spec 270: a prévia de resolução vale como numa nota da contratante', () => {
+  test('o tipo listed aparece na prévia da contratante da lista e some na das outras', async () => {
+    const { readSettingsResolution } = await import(
+      '../../src/trips/application/read-settings-resolution.use-case.js'
+    )
+    const port = (types: readonly OccurrenceTypeRecord[]) =>
+      ({
+        deliveryProof: {
+          listContractorOverrides: async () => [],
+          listOverrides: async () => [],
+          readSettings: async () => ({ photo: 'off' }),
+        },
+        occurrenceTypeOverrides: {
+          listOverridesForTypes: async () => ({ contractorOverrides: [], recipientOverrides: [] }),
+        },
+        occurrenceTypes: { listOccurrenceTypes: async () => types },
+      }) as never
+    const read = async (contractorId: string) =>
+      (
+        await readSettingsResolution({
+          companyId: COMPANY,
+          contractorId,
+          port: port(TYPES),
+          recipientTaxId: undefined,
+        } as never)
+      ).occurrenceTypes.map((entry) => entry.id)
+
+    expect(await read(ZARAGOZA)).toContain('zaragoza')
+    expect(await read(RIBER)).not.toContain('zaragoza')
+  })
+})

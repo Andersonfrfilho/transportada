@@ -161,3 +161,13 @@ Base: `origin/staging` 6f9337f4a (269 já mergeada, PR #262); última migration 
 **aprovado com mudanças** (R1-R10), aplicadas em `plan.md` § Ajustes, `spec.md`, `tasks.md` e na ADR-0107 (agora aceita).
 Divergências de linha: `company_occurrence_types_company_id_id_unique` em `trip.schema.ts:3294`; exceções começam em :3314;
 `isOccurrenceType` :1950; `occurrenceTypesFromApi` :1132; filtro da separação em `TripOccurrences.component.tsx:134`.
+
+## Execução (2026-10-17) — fases 0 a 5, sem publicar e sem a Fase 6
+
+- Painel tolerante (T1.1) é o primeiro commit de código e **vai a produção antes da API** (T1.2, não feita).
+- Revisões (T5.2): code-reviewer achou a prévia de resolução escondendo tipo `listed` — corrigido (`read-settings-resolution.use-case.ts`,
+  teste em `list-filter.contract.ts`); lista sem `moment` oferece tipo `document`+`stop` por causa da isenção da parada (aceito: o retrato usa
+  `moment: document` e o registro recobra). security-reviewer: sem achado alto; recebimento de carga fora do escopo por decisão (R2).
+- Gates: typecheck das 7 apps, lint das 7 apps, `prettier --check .`, contrato da API, testes do painel (script + `test:hooks`) e do motorista verdes;
+  worker e painel com as falhas conhecidas (decoder do canhoto, sonda CSP). Integração completa: ver o relatório final.
+- Não feitos: T1.2, T5.3 (smoke com stack e navegador), T5.4 e toda a Fase 6.
