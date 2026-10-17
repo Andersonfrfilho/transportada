@@ -424,6 +424,7 @@
     "rejected_other": "O escritório recusou {{count}} eventos. Veja em eventos pendentes.",
     "failed": "O envio falhou (sinal fraco). O app tenta de novo sozinho.",
     "open": "Ver histórico",
+    "progress": "Progresso da sincronização",
     "synced": "Sincronizado",
     "syncing_one": "Sincronizando evento…",
     "syncing_other": "Sincronizando {{count}} eventos…"

@@ -2192,10 +2192,45 @@
   flex-wrap: wrap;
   font-size: var(--font-size-sm);
   gap: var(--space-1) var(--space-3);
+  overflow: hidden;
   padding: var(--space-1) var(--space-3);
   position: sticky;
   top: var(--space-2);
   z-index: 5;
+}
+
+/* 16/10: barra de progresso na base da faixa; a cor acompanha o estado (cobre, vermelho, verde). */
+.tripSyncBar {
+  background: color-mix(in srgb, currentcolor 15%, transparent);
+  bottom: 0;
+  height: 3px;
+  left: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+}
+
+.tripSyncBarFill {
+  background: var(--color-copper);
+  display: block;
+  height: 100%;
+}
+
+.tripSyncBar[data-mode='determinate'] > .tripSyncBarFill {
+  min-width: 4%;
+}
+
+.tripSyncBar[data-mode='indeterminate'] > .tripSyncBarFill {
+  width: 40%;
+}
+
+.tripSyncBanner[data-state='rejected'] .tripSyncBarFill {
+  background: var(--color-alert);
+}
+
+.tripSyncBanner[data-state='synced'] .tripSyncBarFill {
+  background: var(--color-ready);
 }
 
 .tripSyncItem {
@@ -2254,8 +2289,20 @@
     animation: driver-sync-banner-in 0.2s ease-out;
   }
 
+  .tripSyncBanner[data-leaving='true'] {
+    animation: driver-sync-banner-out 0.22s ease-in forwards;
+  }
+
   .tripSyncItem[data-tone='done'] {
     animation: driver-sync-done-pop 0.3s ease-out;
+  }
+
+  .tripSyncBarFill {
+    transition: width 0.3s ease-out;
+  }
+
+  .tripSyncBar[data-mode='indeterminate'] > .tripSyncBarFill {
+    animation: driver-sync-bar-slide 1.2s ease-in-out infinite;
   }
 
   .tripSyncItem[data-tone='attention'] > svg {
@@ -2267,6 +2314,23 @@
   from {
     opacity: 0;
     transform: translateY(calc(-1 * var(--space-2)));
+  }
+}
+
+@keyframes driver-sync-banner-out {
+  to {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-2)));
+  }
+}
+
+@keyframes driver-sync-bar-slide {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(250%);
   }
 }
 

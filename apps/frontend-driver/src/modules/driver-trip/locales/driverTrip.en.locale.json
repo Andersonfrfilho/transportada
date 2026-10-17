@@ -390,6 +390,7 @@
     "rejected_other": "The office refused {{count}} events. See pending events.",
     "failed": "Sending failed (weak signal). The app retries on its own.",
     "open": "See history",
+    "progress": "Sync progress",
     "synced": "Synced",
     "syncing_one": "Syncing event…",
     "syncing_other": "Syncing {{count}} events…"
