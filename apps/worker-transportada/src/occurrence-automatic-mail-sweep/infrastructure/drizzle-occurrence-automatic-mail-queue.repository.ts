@@ -9,8 +9,12 @@ import type {
   OccurrenceAutomaticMailQueuePort,
 } from '../application/occurrence-automatic-mail-queue.port.js'
 import {
+  HTML_BODY_PATTERN,
+  NOTIFICATION_SCHEMA,
   OCCURRENCE_AUTOMATIC_MAIL_KEY_PREFIX,
   OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION,
+  OCCURRENCE_CONTRACTOR_MAIL_CHANNEL,
+  OCCURRENCE_CONTRACTOR_MAIL_LOCALE,
 } from '../domain/occurrence-automatic-mail-sweep.constant.js'
 
 export type OccurrenceAutomaticMailDatabase = ReturnType<typeof createDrizzleProvider>['db']
@@ -22,12 +26,13 @@ type PendingRow = Readonly<{ company_id: string; occurrence_id: string }>
  * API usa para decidir o destinatário. Sem contratante a API pularia e o varredor revisitaria a
  * ocorrência a cada batida até a janela fechar, por isso ela é exigida aqui.
  *
- * Spec 269: o mesmo vale para o modelo de e-mail — o da exceção da contratante, senão o do tipo. Sem modelo
- * efetivo a API pula (`no_template_selected`, sem gravar idempotência), e o varredor a repetiria a cada
- * batida; a fila só pede ocorrência que o envio pode atender.
+ * Spec 271: o mesmo vale para o modelo de e-mail — a chave que o tipo escolheu precisa ter, no módulo de notificação,
+ * a versão ativa mais alta utilizável (e-mail `pt-BR`, assunto preenchido, corpo sem HTML). Sem modelo utilizável a API
+ * pula (`no_template_selected`, sem gravar idempotência), e o varredor a repetiria a cada batida; a fila só pede
+ * ocorrência que o envio pode atender.
  *
- * Só as registradas depois da escolha (decisão de 2026-10-17): vale o carimbo da origem que fornece o modelo
- * (o da exceção quando ela o escolheu, senão o do tipo), o mesmo critério da API (`registered_before_template`).
+ * Só as registradas depois da escolha (decisão de 2026-10-17): vale o carimbo da escolha da chave no tipo, o mesmo
+ * critério da API (`registered_before_template`).
  */
 export function createDrizzleOccurrenceAutomaticMailQueue(
   database: OccurrenceAutomaticMailDatabase,
@@ -57,21 +62,34 @@ export function createDrizzleOccurrenceAutomaticMailQueue(
             select 1
             from nfe_participants p
             join contractors c on c."company_id" = p."company_id" and c."tax_id" = p."tax_id"
-            left join company_occurrence_type_contractor_overrides x
-              on x."company_id" = o."company_id"
-              and x."occurrence_type_id" = t."id"
-              and x."contractor_id" = c."id"
             where p."document_id" = d."nfe_document_id"
               and p."company_id" = o."company_id"
               and p."role" = 'emitter'
-              and coalesce(x."contractor_mail_template_id", t."contractor_mail_template_id") is not null
-              and o."created_at" >= coalesce(
-                case when x."contractor_mail_template_id" is not null
-                  then x."contractor_mail_template_selected_at"
-                  else t."contractor_mail_template_selected_at"
-                end,
-                '-infinity'::timestamptz
+          )
+          and t."contractor_notification_template_key" is not null
+          and o."created_at" >= coalesce(
+            t."contractor_notification_template_selected_at",
+            '-infinity'::timestamptz
+          )
+          and exists (
+            select 1
+            from ${sql.identifier(NOTIFICATION_SCHEMA)}."templates" nt
+            where nt."company_id" = o."company_id"
+              and nt."key" = t."contractor_notification_template_key"
+              and nt."channel" = ${OCCURRENCE_CONTRACTOR_MAIL_CHANNEL}
+              and nt."locale" = ${OCCURRENCE_CONTRACTOR_MAIL_LOCALE}
+              and nt."active"
+              and nt."version" = (
+                select max(latest."version")
+                from ${sql.identifier(NOTIFICATION_SCHEMA)}."templates" latest
+                where latest."company_id" = nt."company_id"
+                  and latest."key" = nt."key"
+                  and latest."channel" = nt."channel"
+                  and latest."locale" = nt."locale"
+                  and latest."active"
               )
+              and btrim(coalesce(nt."subject", '')) <> ''
+              and nt."body" !~ ${HTML_BODY_PATTERN}
           )
           and not exists (
             select 1

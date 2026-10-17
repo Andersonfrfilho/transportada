@@ -100,11 +100,11 @@
 
 > 🤖 Modelo: `sonnet` (T3.3 → `haiku`)
 
-- [ ] **T3.1** `sonnet` — Remover conforme `plan.md` § Inventário: tipo `occurrence` do catálogo da 150 (prévia,
+- [x] **T3.1** `sonnet` — Remover conforme `plan.md` § Inventário: tipo `occurrence` do catálogo da 150 (prévia,
       arquivar em uso, suporte de uso), `occurrence-mail-body.policy.ts`, `occurrence-mail-template.policy.ts`, leitura e
       escrita de `contractor_mail_template_id`/`_selected_at` no tipo e na exceção (a chave fica aceita e ignorada no
       `PUT`, D14), e os testes que só cobriam isso (fora do `package.json` e do agregador). O `POST` de modelos da 150 com `mailType: 'occurrence'` → 400 (teste).
-- [ ] **T3.2** `sonnet` — Worker: varredura pela chave, carimbo e `EXISTS` (plan § Worker). Teste de integração do
+- [x] **T3.2** `sonnet` — Worker: varredura pela chave, carimbo e `EXISTS` (plan § Worker). Teste de integração do
       worker: tipo sem chave, chave sem modelo ativo, modelo HTML e ocorrência anterior ao carimbo não entram; o caso
       certo entra uma vez.
 - [ ] **T3.3** `haiku` — Gate de limpeza: o `grep` do aceite da etapa A (`plan.md` § Inventário) só acha o schema das
