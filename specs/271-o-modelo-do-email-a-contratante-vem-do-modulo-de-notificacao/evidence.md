@@ -120,7 +120,6 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 
 - Veredito da revisão de arquitetura: **aprovado com mudanças** (plan § Revisão de arquitetura). ADR-0108 passa a aceita.
 
-
 ### T1.1 / T1.2 — painel tolerante (commits 4877cb6f2, e5caecedd)
 
 - Guarda do tipo (`isOccurrenceType`) aceita `contractorNotificationTemplateKey`, `contractorMailWatchers`, `contractorMailRecipients`, `missingNotificationTemplate`; guarda da exceção já tolerava a ausência de `contractorMailTemplateId`. Prévia: `ccSource` aceita `occurrence_type`; `notificationTemplateKey` entra e `templateId` sai (nenhuma tela o lia). O guarda do histórico de mensagens não é estrito (não lê chave de modelo): nada a tolerar.
@@ -240,7 +239,30 @@ apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.co
 apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:65:    test(`${config.name}: contractor_mail_template_selected_at é timestamptz
 apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:67:        (candidate) => candidate.name === 'contractor_mail_template_selected_
 apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:77:    expect(sql).toContain('ADD COLUMN "contractor_mail_template_id" uuid')
-apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:79:      'ADD COLUMN "contractor_mail_template_selected_at" timestamp with time 
+apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:79:      'ADD COLUMN "contractor_mail_template_selected_at" timestamp with time
 apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:88:    expect(sql).toContain('DROP COLUMN "contractor_mail_template_id"')
 apps/api-transportada/test/contractor-mail-schema/occurrence-template-columns.contract.ts:89:    expect(sql).toContain('DROP COLUMN "contractor_mail_template_selected_at"
 ```
+
+### T5.1 — gates completos (2026-10-17, rebaseado em `origin/staging` 701bae03b)
+
+- `bunx prettier --check .` na raiz: limpo. `tsc --noEmit` e lint (`--max-warnings=0` onde o app o exige): API, worker, painel, `frontend-driver`, `frontend-client`, `cron-transportada`, `frontend-landing` — sem erro (painel: 16 avisos preexistentes).
+- API, contrato (`bun --env-file=../../.env.test test --timeout 120000`): 12039 pass / 25 skip / 0 fail. `db:generate` → `no_changes`; migration A aplica, reverte e reaplica.
+- API, integração **inteira** em 4 shards paralelos por peso (`scripts/integration-shard.ts`), `--timeout 300000`, `DRIZZLE_TEST_DATABASE_URL` definido: 1661 pass / 5 fail, **nenhum skip**. Os 5 são de ambiente, fora desta spec: `trip-cargo-carrier` (o default `numeric` volta `'0.00'` no Postgres local, esperado `'0'`) e 4 testes de anexo contra S3 local (`NoSuchBucket: transportada-test` — o MinIO local não tem o bucket): `occurrence-conversation-attachment` (3) e o PUT tardio da URL de subida (1).
+- Worker (`bun run test`): 2659 pass / 5 fail — os 5 são do decodificador de canhoto (conhecidos localmente; 3 deles viram 5 com a carga das outras suítes em paralelo). Integração do varredor em Postgres descartável: 6 pass.
+- Painel (`bun run test`, que inclui os testes de hooks): 8338 + 1406 pass, 0 fail.
+- Auditoria §15 (go-live): sem N+1 (modelos e responsáveis/destinatários em lote por `IN`), sem `Promise.all` novo em transação (`toOccurrenceTypeSettingsViews` roda no `database`; o do envio já existia), nenhuma PII em log (só contagens, ids e SQLSTATE) nem em auditoria (só ids).
+
+### T5.2 — revisão (`code-reviewer` e `security-reviewer`, sonnet, em paralelo, só leitura)
+
+Sem achado crítico, alto ou médio. Aplicado: (1) o gate de `settings.manage` das escritas de modelo **falha fechado** se a resolução de quem pede lança erro (era aberto: o módulo resolve de novo, e uma oscilação entre as duas leituras deixaria passar) — contrato novo; (2) o seletor "Em cópia" avisa ao passar do teto de 10 em vez de ignorar calado (+ contrato do teto e das opções). Aceitos e registrados:
+
+- `GET /v1/notification-templates` (lista do módulo) segue aberto a qualquer membro: a decisão da T2.10 é gatear só a escrita; as leituras do editor do tipo (`settings.manage`) são as novas rotas.
+- A cópia do tipo vence assim que há um responsável **ativo** na lista, mesmo que nenhum tenha endereço ou permissão (então sai sem cópia): é a regra "com algum ativo vence" da 267, que a 271 estende — o editor marca esses responsáveis como inelegíveis.
+- Contato escolhido sem e-mail some da contagem de "inalcançáveis" do automático, e, se nenhum escolhido for entregável, vale a regra da etapa (D13: "vazio → regra de hoje").
+- A versão gravada em `notification_template_version` vem da leitura dentro da transação do envio, e o texto da sugestão, de leitura anterior: se uma versão nova entrar entre as duas, a versão gravada é a nova (só metadado de auditoria; o e-mail em si é o que o operador viu).
+- `HTML_BODY_PATTERN` não pega marca colada no fim do texto sem caractere seguinte; a saída é escapada (`buildOccurrenceMail`), então segue segura.
+
+### T5.3 — conferência no navegador local
+
+**Não executada.** Exige a pilha inteira (Keycloak, API, worker, painel, Mailpit) com sessão autenticada no Chrome; esta execução é não supervisionada e mexeria na infra local compartilhada. Os caminhos que ela provaria estão cobertos por integração em Postgres real (envio, `To`, `Cc`, carimbo, poda) e por testes de DOM do editor. Fica para quem publicar na `staging`.

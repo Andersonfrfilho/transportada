@@ -82,6 +82,25 @@ describe('criar modelo de notificação exige settings.manage (spec 271 T2.10)',
     expect(upserts).toEqual([])
   })
 
+  test('falha ao resolver quem pede fecha: 403, e o módulo nem é chamado', async () => {
+    const upserts: unknown[] = []
+    const router = createNotificationHttpRouter({
+      authResolver: {
+        resolve: async () => {
+          throw new Error('keycloak unavailable')
+        },
+      },
+      module: {
+        useCases: { upsertTemplate: { execute: async (params: unknown) => upserts.push(params) } },
+      } as unknown as NotificationModule,
+    })
+
+    const response = await router.handle(templateWrite('POST'))
+
+    expect(response.status).toBe(403)
+    expect(upserts).toEqual([])
+  })
+
   test('com settings.manage a escrita chega ao módulo', async () => {
     const { router, upserts } = buildRouter(['settings.manage'])
 

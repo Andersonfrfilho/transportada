@@ -520,7 +520,8 @@
         "hint": "Up to {{max}} per type, from the company's watcher list. Empty: the invoice contractor's list applies and, without it, the company's.",
         "inactive": "inactive in the company list",
         "notEligible": "no permission or no email",
-        "failed": "Could not load the company watchers."
+        "failed": "Could not load the company watchers.",
+        "limit": "A type takes at most {{max}} watchers in copy: remove one to choose another."
       },
       "recipients": {
         "label": "Recipients",

@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MultiSelect } from '@/components/ui/multi-select'
@@ -33,6 +34,7 @@ export function OccurrenceTypeWatchersSelect({
 }: OccurrenceTypeWatchersSelectProps) {
   const { t } = useTranslation('companySettings')
   const watchersQuery = useOccurrenceWatchersQuery({ enabled: true, scope: { kind: 'company' } })
+  const [isLimitHit, setIsLimitHit] = useState(false)
   const chosenIds = readChosenWatcherIds(type)
   const options = buildWatcherOptions({
     chosen: type.contractorMailWatchers ?? [],
@@ -44,7 +46,9 @@ export function OccurrenceTypeWatchersSelect({
   })
 
   function handleChange(values: readonly string[]) {
-    if (!isWatcherSelectionAllowed(chosenIds, values)) return
+    const isAllowed = isWatcherSelectionAllowed(chosenIds, values)
+    setIsLimitHit(!isAllowed)
+    if (!isAllowed) return
     onEdit({ contractorMailWatcherUserIds: values })
   }
 
@@ -69,6 +73,13 @@ export function OccurrenceTypeWatchersSelect({
       <p className={styles.hint}>
         {t('occurrenceTypeCatalog.mail.watchers.hint', { max: OCCURRENCE_TYPE_MAIL_WATCHERS_MAX })}
       </p>
+      {isLimitHit ? (
+        <p className={styles.alert} role="alert">
+          {t('occurrenceTypeCatalog.mail.watchers.limit', {
+            max: OCCURRENCE_TYPE_MAIL_WATCHERS_MAX,
+          })}
+        </p>
+      ) : null}
       {watchersQuery.isError ? (
         <p className={styles.alert} role="alert">
           {t('occurrenceTypeCatalog.mail.watchers.failed')}

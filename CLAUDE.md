@@ -160,6 +160,12 @@ parada, lista, detalhe com documentos e compartilhar, chat travado até "Reabrir
 `conversations-ui` 0.11.0). A liberação gradual usa o `active` do tipo; em staging só "Prorrogação do boleto" está
 ativo. Detalhe em `apps/api-transportada/CLAUDE.md` § "Andamento da ocorrência".
 
+**O modelo do e-mail da ocorrência vem do módulo de notificação** (spec 271, ADR-0108; ainda não publicada, vai a `main` junto com 269 e 270). O texto à contratante é um
+modelo de e-mail de Notificações → Preferências (`{{camelCase}}`, lista fechada), escolhido **pela chave** no tipo (`contractor_notification_template_key`, sem FK); o mesmo bloco
+escolhe quem vai em cópia (responsáveis da empresa, até 10) e, no tipo de contratantes, os destinatários. A exceção por contratante **não** escolhe modelo. Sem modelo utilizável não sai
+e-mail, nem à mão. O módulo é só depósito e renderizador (nunca `sendNotification`); as escritas de modelo em `/v1/notification-templates*` exigem `settings.manage`. As colunas da 269
+saem só na migration B (destrutiva, com aprovação). Detalhe: `apps/api-transportada/CLAUDE.md` e `docs/ai-context/`.
+
 **A NFS-e fala a Nota RP v3, mas a produção ainda está na v2** (spec 250, ADR 0098). A versão é gravada **por tentativa**
 (`providerApiVersion` no `provider_config`); `NFSE_PROVIDER_API_VERSION` (padrão `v2`) só diz qual versão a API grava na
 próxima emissão, e o worker obedece à tentativa. Notas emitidas fora do sistema (as de Ribeirão Preto) entram por

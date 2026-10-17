@@ -136,12 +136,12 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** `sonnet` — Gates completos: `bun run typecheck`; lint por app; script `test` de `apps/api-transportada`,
+- [x] **T5.1** `sonnet` — Gates completos: `bun run typecheck`; lint por app; script `test` de `apps/api-transportada`,
       `apps/worker-transportada` e `apps/frontend-transportada`; contrato da API
       `bun --env-file=../../.env.test test --timeout 120000`; integração
       `bun --env-file=../../.env.test run test:integration` sem skip; `bunx prettier --check .` na raiz; auditoria §15
       (N+1, `Promise.all` × `allSettled` na prévia, PII em log).
-- [ ] **T5.2** `sonnet` — `code-reviewer` e `security-reviewer` em paralelo sobre `origin/staging...HEAD` (BOLA em
+- [x] **T5.2** `sonnet` — `code-reviewer` e `security-reviewer` em paralelo sobre `origin/staging...HEAD` (BOLA em
       modelo/responsável/contato, chave de outra empresa, endereço em log, cliente tentando mandar modelo ou `cc`).
       Corrigir e reverificar.
 - [ ] **T5.3** `sonnet` — Conferir no navegador local, por texto (`read_page`): criar modelo em Notificações, escolher no

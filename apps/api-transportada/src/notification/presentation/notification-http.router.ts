@@ -31,8 +31,9 @@ function isTemplateWrite(request: Request): boolean {
 
 /**
  * Criar, trocar ou apagar modelo de notificação exige `settings.manage`, antes do roteador do módulo — o texto do
- * e-mail à contratante nasce aqui (ADR-0108). Sem identidade resolvida ou com falha de autorização, o módulo
- * responde como sempre (401/403 pelo caminho dele).
+ * e-mail à contratante nasce aqui (ADR-0108). Sem identidade resolvida (`undefined`), o módulo responde 401 pelo caminho
+ * dele. **Falha de resolução, de qualquer tipo, fecha:** o módulo resolve de novo, e uma oscilação entre as duas leituras não
+ * pode deixar passar quem não tem a permissão.
  */
 async function isTemplateWriteForbidden(
   authResolver: AuthContextResolverPort,
@@ -42,7 +43,7 @@ async function isTemplateWriteForbidden(
     const auth = await authResolver.resolve({ headers: Object.fromEntries(request.headers) })
     return auth !== undefined && !auth.scopes.includes(TEMPLATE_WRITE_PERMISSION)
   } catch {
-    return false
+    return true
   }
 }
 

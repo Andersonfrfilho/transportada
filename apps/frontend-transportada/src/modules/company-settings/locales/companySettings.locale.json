@@ -520,7 +520,8 @@
         "hint": "Até {{max}} por tipo, da lista de responsáveis da empresa. Vazio: vale a lista da contratante da nota e, sem ela, a da empresa.",
         "inactive": "inativo na lista da empresa",
         "notEligible": "sem permissão ou sem e-mail",
-        "failed": "Não foi possível carregar os responsáveis da empresa."
+        "failed": "Não foi possível carregar os responsáveis da empresa.",
+        "limit": "Um tipo leva até {{max}} responsáveis em cópia: tire um para escolher outro."
       },
       "recipients": {
         "label": "Destinatários",
