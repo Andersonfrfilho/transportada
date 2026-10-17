@@ -124,9 +124,12 @@ function buildItemLine(
     .join(' – ')
 }
 
-/** O bloco que `{{linhasItens}}` imprime: até o teto de linhas e, por fim, "e mais N itens". */
-function joinItemLines(itemLines: readonly string[]): string {
-  const shown = itemLines.slice(0, OCCURRENCE_ITEM_LINES_LIMIT)
+/** O bloco que `{{linhasItens}}` imprime: até `maxLines` linhas (padrão, o teto) e, por fim, "e mais N itens". */
+export function joinItemLines(
+  itemLines: readonly string[],
+  maxLines: number = OCCURRENCE_ITEM_LINES_LIMIT,
+): string {
+  const shown = itemLines.slice(0, Math.min(maxLines, OCCURRENCE_ITEM_LINES_LIMIT))
   const omitted = itemLines.length - shown.length
   const omittedLine = omitted > 0 ? [`e mais ${omitted} ${omitted === 1 ? 'item' : 'itens'}`] : []
   return [...shown, ...omittedLine].join('\n')

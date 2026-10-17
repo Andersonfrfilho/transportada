@@ -56,7 +56,7 @@
 - [x] **T2.2** `haiku` — Teste antes (tabela espelhada dos valores da 269): `occurrence-mail-values.policy.ts` produz as
       chaves `camelCase` do plan § Variáveis com os mesmos valores, mais `tipoOcorrencia` e `linhasItens` (1 item, 3
       itens, 201 itens → 200 linhas + "e mais 1 item", item sem código). Depois, a mudança.
-- [ ] **T2.3** `sonnet` — Teste antes das políticas puras: `occurrence-contractor-template.policy.ts` (utilizável;
+- [x] **T2.3** `sonnet` — Teste antes das políticas puras: `occurrence-contractor-template.policy.ts` (utilizável;
       `not_found`, `system_key`, `html_body`, `empty_subject`, `unknown_variables` — todos de uma vez; chave do sistema
       vinda de `NOTIFICATION_TEMPLATE_KEY`) e `occurrence-contractor-mail-render.policy.ts` (variável ausente → vazio;
       assunto com quebra de linha colapsado e truncado; corpo longo encurta `linhasItens` antes de truncar; sem HTML

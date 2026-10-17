@@ -133,3 +133,7 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 ### T2.2 — valores do modelo
 
 - `buildContractorMailValues` (chaves `camelCase`, `tipoOcorrencia`, `linhasItens`, teto 200 + "e mais N itens") entra ao lado de `buildOccurrenceMailValues`; a função da 269 (e seu teste) **sai na T2.5**, junto com o último consumidor, para cada commit ficar verde. Gate API: tsc/lint/prettier limpos, contrato 11998 pass / 25 skip / 0 fail.
+
+### T2.3 — políticas puras
+
+- `occurrence-contractor-template.policy.ts` (`assessContractorTemplate`: todos os problemas, ordem `system_key`, `html_body`, `empty_subject`, `unknown_variables`, `malformed_placeholder`; `not_found` sozinho; `blocksContractorMailSend` bloqueia só `not_found`/`html_body`/`empty_subject`) e `occurrence-contractor-mail-render.policy.ts` (`renderContractorMail`). Gate API: tsc/lint/prettier limpos, contrato 12022 pass / 25 skip / 0 fail.

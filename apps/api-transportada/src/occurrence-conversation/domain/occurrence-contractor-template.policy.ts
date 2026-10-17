@@ -1,0 +1,82 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 271 (ADR-0108, D3/D4/D5): quando um modelo de e-mail do módulo de notificação serve ao e-mail de
+ * ocorrência à contratante. Pura: devolve **todos** os problemas de uma vez, na ordem fixa abaixo; quem lê o
+ * banco e quem responde o 400 ficam de fora.
+ */
+import { extractTemplatePlaceholders } from '@adatechnology/notification-contracts'
+
+import { NOTIFICATION_TEMPLATE_KEY } from '../../notification/domain/notification-catalog.constant.js'
+import {
+  HTML_BODY_PATTERN,
+  OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES,
+} from './occurrence-contractor-mail.constant.js'
+
+export type ContractorTemplateProblem =
+  | { readonly code: 'empty_subject' }
+  | { readonly code: 'html_body' }
+  | { readonly code: 'malformed_placeholder' }
+  | { readonly code: 'not_found' }
+  | { readonly code: 'system_key' }
+  | { readonly code: 'unknown_variables'; readonly variables: readonly string[] }
+
+export type ContractorTemplateContent = {
+  readonly body: string
+  readonly subject: string
+}
+
+/** As chaves dos avisos do sistema: variáveis outras, nunca escolhidas para o e-mail à contratante. */
+export const SYSTEM_NOTIFICATION_TEMPLATE_KEYS: ReadonlySet<string> = new Set(
+  Object.values(NOTIFICATION_TEMPLATE_KEY),
+)
+
+const HTML_BODY_REGEX = new RegExp(HTML_BODY_PATTERN, 'u')
+/** Uma `{{` que o renderizador do módulo não casa (`{{ nome }}`): o texto sairia com o marcador cru. */
+const MALFORMED_PLACEHOLDER_REGEX = /\{\{(?!\s*[A-Za-z0-9_]+\s*\}\})/u
+
+const SEND_BLOCKING_CODES: ReadonlySet<ContractorTemplateProblem['code']> = new Set([
+  'empty_subject',
+  'html_body',
+  'not_found',
+])
+
+function findUnknownVariables(template: ContractorTemplateContent): readonly string[] {
+  return [
+    ...new Set(
+      [template.subject, template.body]
+        .flatMap((text) => extractTemplatePlaceholders(text))
+        .filter((name) => !OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES.has(name)),
+    ),
+  ]
+}
+
+export function assessContractorTemplate(params: {
+  readonly key: string
+  /** A versão ativa mais alta (e-mail, pt-BR) da chave; `null` é "não existe". */
+  readonly template: ContractorTemplateContent | null
+}): readonly ContractorTemplateProblem[] {
+  const { key, template } = params
+  if (template === null) return [{ code: 'not_found' }]
+  const unknownVariables = findUnknownVariables(template)
+  const hasMalformedPlaceholder = [template.subject, template.body].some((text) =>
+    MALFORMED_PLACEHOLDER_REGEX.test(text),
+  )
+  return [
+    ...(SYSTEM_NOTIFICATION_TEMPLATE_KEYS.has(key) ? [{ code: 'system_key' } as const] : []),
+    ...(HTML_BODY_REGEX.test(template.body) ? [{ code: 'html_body' } as const] : []),
+    ...(template.subject.trim() === '' ? [{ code: 'empty_subject' } as const] : []),
+    ...(unknownVariables.length > 0
+      ? [{ code: 'unknown_variables', variables: unknownVariables } as const]
+      : []),
+    ...(hasMalformedPlaceholder ? [{ code: 'malformed_placeholder' } as const] : []),
+  ]
+}
+
+/**
+ * No envio, só o que faz o modelo não existir bloqueia (D5): variável desconhecida sai vazia, e a chave de
+ * aviso do sistema nunca chega a ser escolhida (a gravação do tipo a recusa).
+ */
+export function blocksContractorMailSend(problems: readonly ContractorTemplateProblem[]): boolean {
+  return problems.some((problem) => SEND_BLOCKING_CODES.has(problem.code))
+}
