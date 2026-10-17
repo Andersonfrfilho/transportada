@@ -6,8 +6,10 @@
  * ser da empresa, `occurrence` e ativo.
  */
 import { describe, expect } from 'bun:test'
+import { eq } from 'drizzle-orm'
 
 import { ContractorMailTemplateNotUsableError } from '../../src/contractor-mail/domain/contractor-mail-template.error.js'
+import { companyOccurrenceTypeContractorOverrides } from '../../src/database/trip.schema.js'
 import { contractors } from '../../src/database/delivery-client.schema.js'
 import { saveOccurrenceType } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleOccurrenceAttachmentOverridesRepository } from '../../src/trips/infrastructure/drizzle-occurrence-attachment-overrides.repository.js'
@@ -55,7 +57,59 @@ async function captureError(run: () => Promise<unknown>): Promise<unknown> {
   }
 }
 
+async function readSelectedAt(database: TestDatabase, companyId: string) {
+  const [row] = await database.db
+    .select({
+      selectedAt: companyOccurrenceTypeContractorOverrides.contractorMailTemplateSelectedAt,
+    })
+    .from(companyOccurrenceTypeContractorOverrides)
+    .where(eq(companyOccurrenceTypeContractorOverrides.companyId, companyId))
+  return row?.selectedAt
+}
+
 describe('o modelo de e-mail da exceção por contratante (spec 269 T2.4b)', () => {
+  testWithPostgres(
+    'marca o momento da escolha a cada troca para um modelo, mantém quando nada muda e limpa com null',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { company, contractorId, repository, scope } = await seedScope(database)
+        const first = await seedOccurrenceMailTemplate(database, company)
+        const second = await seedOccurrenceMailTemplate(database, company, { name: 'Outro modelo' })
+        const save = (contractorMailTemplateId?: null | string) =>
+          repository.replaceContractorOverrides({
+            ...scope,
+            overrides: [
+              {
+                attachmentMode: 'optional',
+                contractorId,
+                ...(contractorMailTemplateId === undefined ? {} : { contractorMailTemplateId }),
+              },
+            ],
+          })
+
+        await save()
+        expect(await readSelectedAt(database, company.companyId)).toBeNull()
+
+        await save(first)
+        const selectedAt = await readSelectedAt(database, company.companyId)
+        expect(selectedAt).toBeInstanceOf(Date)
+
+        await save(first)
+        expect(await readSelectedAt(database, company.companyId)).toEqual(selectedAt!)
+        await save()
+        expect(await readSelectedAt(database, company.companyId)).toEqual(selectedAt!)
+
+        await save(second)
+        const reselected = await readSelectedAt(database, company.companyId)
+        expect(reselected!.getTime()).toBeGreaterThan(selectedAt!.getTime())
+
+        await save(null)
+        expect(await readSelectedAt(database, company.companyId)).toBeNull()
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+
   testWithPostgres(
     'grava, lê, mantém quando o PUT não o manda e herda com null',
     async () => {

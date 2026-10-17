@@ -123,6 +123,16 @@ item `{codigo_item} – {item} – {quantidade_item} {unidade_item} – R$ {valo
 | Schema       | `database/trip.schema.ts` (coluna + FK + índice parcial), `database/contractor-mail.schema.ts` (CHECK via constante) + migration                                                                                                                                                        |
 | Erros        | `shared/errors/codes.ts`: `CONTRACTOR_MAIL_TEMPLATE_IN_USE` (409), `OCCURRENCE_TYPE_EMAIL_TEMPLATE_KIND_INVALID` (400), `OCCURRENCE_MAIL_TEMPLATE_MISSING` (409); reusa `CONTRACTOR_MAIL_TEMPLATE_NOT_FOUND`/`_ARCHIVED` se existirem (T0.1 confere)                                    |
 
+### Só as registradas depois da escolha (decisão de 2026-10-17)
+
+- Gravação: `saveOccurrenceType` (`delivery-proof-read.support.ts`) e `replaceContractorOverrides`
+  (`drizzle-occurrence-attachment-overrides.repository.ts`) usam `buildTemplateSelectedAtChange`
+  (`occurrence-mail-template-lock.support.ts`): `CASE WHEN id_antigo IS DISTINCT FROM id_novo THEN now() ELSE carimbo END`.
+- Plano automático: `findEffectiveOccurrenceMailTemplateSource` devolve também se a ocorrência é anterior ao carimbo da
+  origem efetiva; `AutomaticOccurrenceMailPlan.isRegisteredBeforeTemplate` → motivo `registered_before_template`.
+- Varredura do worker: `o.created_at >= coalesce(carimbo da origem efetiva, '-infinity')` na própria SQL.
+- Painel: o aviso do editor do tipo exige `emails_contractor` ligado (já exigia; teste do caso desligado).
+
 ### Worker (`apps/worker-transportada`)
 
 - `drizzle-occurrence-automatic-mail-queue.repository.ts:37-62`: a varredura passa a exigir modelo efetivo —
@@ -230,7 +240,9 @@ Exceção por contratante: `PUT /company-settings/occurrence-types/attachment-ov
 
 ## Dados, migration e rollback
 
-**Migration A (aditiva), na Fase 2:**
+**Migration A (aditiva), na Fase 2:** (decisão de 2026-10-17: as duas tabelas ganham também
+`contractor_mail_template_selected_at timestamptz NULL`, carimbada no gravar — troca para id não nulo = `now()`, mesmo id
+mantém, `null` limpa; editada no lugar, com rollback e snapshot)
 
 ```sql
 ALTER TABLE contractor_mail_templates DROP CONSTRAINT contractor_mail_templates_mail_type_check;

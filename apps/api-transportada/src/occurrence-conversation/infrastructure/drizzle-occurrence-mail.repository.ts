@@ -168,17 +168,24 @@ async function findOperatorName(
  * Spec 269 (ADR-0106, D2): o modelo efetivo é o da exceção da contratante da nota, senão o do tipo. Uma
  * consulta só — o `LEFT JOIN` da exceção não multiplica linhas (única por tipo e contratante).
  */
-async function findEffectiveOccurrenceMailTemplate(
+async function findEffectiveOccurrenceMailTemplateSource(
   queryable: TripQueryable,
   params: {
     readonly companyId: string
     readonly contractorId: string
     readonly occurrenceId: string
   },
-): Promise<{ readonly templateId: string } | null> {
+): Promise<{
+  readonly isRegisteredBeforeSelection: boolean
+  readonly templateId: string
+} | null> {
   const [row] = await queryable
     .select({
+      exceptionSelectedAt:
+        companyOccurrenceTypeContractorOverrides.contractorMailTemplateSelectedAt,
       exceptionTemplateId: companyOccurrenceTypeContractorOverrides.contractorMailTemplateId,
+      occurrenceCreatedAt: tripDocumentOccurrences.createdAt,
+      typeSelectedAt: companyOccurrenceTypes.contractorMailTemplateSelectedAt,
       typeTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
     })
     .from(tripDocumentOccurrences)
@@ -209,7 +216,26 @@ async function findEffectiveOccurrenceMailTemplate(
     contractorOverride: row.exceptionTemplateId,
     general: row.typeTemplateId,
   })
-  return templateId === null ? null : { templateId }
+  if (templateId === null) return null
+  /** O carimbo é o da origem que fornece o modelo: a exceção, quando ela o escolheu; senão o tipo. */
+  const selectedAt = row.exceptionTemplateId === null ? row.typeSelectedAt : row.exceptionSelectedAt
+  return {
+    isRegisteredBeforeSelection:
+      selectedAt !== null && row.occurrenceCreatedAt.getTime() < selectedAt.getTime(),
+    templateId,
+  }
+}
+
+async function findEffectiveOccurrenceMailTemplate(
+  queryable: TripQueryable,
+  params: {
+    readonly companyId: string
+    readonly contractorId: string
+    readonly occurrenceId: string
+  },
+): Promise<{ readonly templateId: string } | null> {
+  const source = await findEffectiveOccurrenceMailTemplateSource(queryable, params)
+  return source === null ? null : { templateId: source.templateId }
 }
 
 /** O modelo da primeira mensagem de e-mail desta ocorrência (reenvio do retorno, spec 248). */
@@ -359,15 +385,21 @@ export function createAutomaticOccurrenceMailReader(
     readonly contractorId: string
     readonly emailsContractor: boolean
     readonly occurrenceId: string
-  }): Promise<Awaited<ReturnType<OccurrenceSuggestedMailPort['readSuggestedMail']>>> {
-    if (!params.emailsContractor) return null
-    const effective = await findEffectiveOccurrenceMailTemplate(database, params)
-    if (effective === null) return null
-    return suggested.readSuggestedMail({
-      companyId: params.companyId,
-      occurrenceId: params.occurrenceId,
-      templateId: effective.templateId,
-    })
+  }): Promise<{
+    readonly isRegisteredBeforeTemplate: boolean
+    readonly suggested: Awaited<ReturnType<OccurrenceSuggestedMailPort['readSuggestedMail']>>
+  }> {
+    if (!params.emailsContractor) return { isRegisteredBeforeTemplate: false, suggested: null }
+    const effective = await findEffectiveOccurrenceMailTemplateSource(database, params)
+    if (effective === null) return { isRegisteredBeforeTemplate: false, suggested: null }
+    return {
+      isRegisteredBeforeTemplate: effective.isRegisteredBeforeSelection,
+      suggested: await suggested.readSuggestedMail({
+        companyId: params.companyId,
+        occurrenceId: params.occurrenceId,
+        templateId: effective.templateId,
+      }),
+    }
   }
 
   return {
@@ -419,8 +451,14 @@ export function createAutomaticOccurrenceMailReader(
             )
             .orderBy(asc(contractorContacts.createdAt), asc(contractorContacts.id))
         : []
+      const planned = await readPlannedSuggestion({
+        ...params,
+        contractorId: target.contractorId,
+        emailsContractor,
+      })
       return {
         emailsContractor,
+        isRegisteredBeforeTemplate: planned.isRegisteredBeforeTemplate,
         recipients: contacts.map((contact) => ({
           contactId: contact.id,
           email: contact.email.trim() === '' ? null : contact.email,
@@ -428,11 +466,7 @@ export function createAutomaticOccurrenceMailReader(
           stages: contact.occurrenceStages,
         })),
         stage: target.stage,
-        suggested: await readPlannedSuggestion({
-          ...params,
-          contractorId: target.contractorId,
-          emailsContractor,
-        }),
+        suggested: planned.suggested,
       }
     },
   }

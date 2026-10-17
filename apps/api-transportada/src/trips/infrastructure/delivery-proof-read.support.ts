@@ -111,7 +111,10 @@ import {
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
-import { lockUsableOccurrenceMailTemplate } from './occurrence-mail-template-lock.support.js'
+import {
+  buildTemplateSelectedAtChange,
+  lockUsableOccurrenceMailTemplate,
+} from './occurrence-mail-template-lock.support.js'
 import {
   replaceOccurrenceTypeMoments,
   withOccurrenceTypeMoments,
@@ -1258,9 +1261,6 @@ async function writeOccurrenceTypeRow(
       ? {}
       : { referenceNumberMode: input.referenceNumberMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
-    ...(input.contractorMailTemplateId === undefined
-      ? {}
-      : { contractorMailTemplateId: input.contractorMailTemplateId }),
     ...(input.contractorReplyAlertIntervalMinutes === undefined
       ? {}
       : { contractorReplyAlertIntervalMinutes: input.contractorReplyAlertIntervalMinutes }),
@@ -1323,6 +1323,12 @@ async function writeOccurrenceTypeRow(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
+            ...(typeof input.contractorMailTemplateId === 'string'
+              ? {
+                  contractorMailTemplateId: input.contractorMailTemplateId,
+                  contractorMailTemplateSelectedAt: sql`now()`,
+                }
+              : {}),
             ...(input.flow === 'stop' ? { stopKind: 'other' as const } : {}),
           })
           .returning()
@@ -1332,6 +1338,16 @@ async function writeOccurrenceTypeRow(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
+            ...(input.contractorMailTemplateId === undefined
+              ? {}
+              : {
+                  contractorMailTemplateId: input.contractorMailTemplateId,
+                  contractorMailTemplateSelectedAt: buildTemplateSelectedAtChange({
+                    selectedAtColumn: companyOccurrenceTypes.contractorMailTemplateSelectedAt,
+                    templateColumn: companyOccurrenceTypes.contractorMailTemplateId,
+                    templateId: input.contractorMailTemplateId,
+                  }),
+                }),
             /** Spec 218 D2: virou tipo de parada sem valor? vale como `other`; o que já tinha, fica. */
             ...(input.flow === 'stop'
               ? { stopKind: sql`coalesce(${companyOccurrenceTypes.stopKind}, 'other')` }

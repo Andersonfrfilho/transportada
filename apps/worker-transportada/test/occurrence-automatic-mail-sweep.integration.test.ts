@@ -40,6 +40,10 @@ type Scenario = {
   readonly typeEmailsContractor?: boolean
   /** Spec 269: padrão `true`; `false` é o tipo sem modelo selecionado. */
   readonly typeHasTemplate?: boolean
+  /** Spec 269: quando o modelo do tipo foi escolhido, em relação à ocorrência; padrão antes (`-MINUTE`). */
+  readonly typeSelectedOffsetMilliseconds?: number
+  /** Spec 269: o mesmo para o modelo da exceção da contratante; padrão antes (`-MINUTE`). */
+  readonly exceptionSelectedOffsetMilliseconds?: number
 }
 
 const SCENARIOS = {
@@ -51,6 +55,18 @@ const SCENARIOS = {
     exceptionTemplate: 'chosen',
     typeHasTemplate: false,
   },
+  exceptionSelectedEarlier: {
+    ageMilliseconds: 24 * MINUTE,
+    exceptionSelectedOffsetMilliseconds: -MINUTE,
+    exceptionTemplate: 'chosen',
+    typeSelectedOffsetMilliseconds: MINUTE,
+  },
+  exceptionSelectedLater: {
+    ageMilliseconds: 23 * MINUTE,
+    exceptionSelectedOffsetMilliseconds: MINUTE,
+    exceptionTemplate: 'chosen',
+    typeSelectedOffsetMilliseconds: -MINUTE,
+  },
   fresh: { ageMilliseconds: 2 * MINUTE },
   noContractor: { ageMilliseconds: 30 * MINUTE, hasContractor: false },
   noTemplate: { ageMilliseconds: 30 * MINUTE, typeHasTemplate: false },
@@ -58,6 +74,7 @@ const SCENARIOS = {
   ripe: { ageMilliseconds: 30 * MINUTE },
   tooOld: { ageMilliseconds: OCCURRENCE_AUTOMATIC_MAIL_LOOKBACK_MILLISECONDS + 60 * MINUTE },
   typeOff: { ageMilliseconds: 30 * MINUTE, typeEmailsContractor: false },
+  typeSelectedLater: { ageMilliseconds: 30 * MINUTE, typeSelectedOffsetMilliseconds: MINUTE },
 } as const satisfies Record<string, Scenario>
 type ScenarioName = keyof typeof SCENARIOS
 
@@ -161,23 +178,34 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
       sql`insert into trip_documents (id, company_id, trip_id, nfe_document_id)
           values (${tripDocumentId}, ${company}, ${tripId}, ${documentId})`,
     )
+    const createdAt = new Date(NOW.getTime() - scenario.ageMilliseconds)
+    const typeSelectedAt = new Date(
+      createdAt.getTime() + (scenario.typeSelectedOffsetMilliseconds ?? -MINUTE),
+    )
+    const exceptionSelectedAt = new Date(
+      createdAt.getTime() + (scenario.exceptionSelectedOffsetMilliseconds ?? -MINUTE),
+    )
+    const hasTypeTemplate = scenario.typeHasTemplate !== false
     await db.execute(
       sql`insert into company_occurrence_types
-            (id, company_id, name, stage, emails_contractor, contractor_mail_template_id)
+            (id, company_id, name, stage, emails_contractor, contractor_mail_template_id,
+             contractor_mail_template_selected_at)
           values (${typeId}, ${company}, ${`Prorrogação ${typeId}`}, 'delivery',
             ${scenario.typeEmailsContractor ?? true},
-            ${scenario.typeHasTemplate === false ? null : (templateIds.get(company) ?? null)}::uuid)`,
+            ${hasTypeTemplate ? (templateIds.get(company) ?? null) : null}::uuid,
+            ${hasTypeTemplate ? typeSelectedAt.toISOString() : null}::timestamptz)`,
     )
     if (scenario.exceptionTemplate !== undefined) {
       await db.execute(
         sql`insert into company_occurrence_type_contractor_overrides
-              (company_id, occurrence_type_id, contractor_id, attachment_mode, contractor_mail_template_id)
+              (company_id, occurrence_type_id, contractor_id, attachment_mode, contractor_mail_template_id,
+               contractor_mail_template_selected_at)
             select ${company}, ${typeId}, c."id", 'optional',
-              ${scenario.exceptionTemplate === 'chosen' ? (templateIds.get(company) ?? null) : null}::uuid
+              ${scenario.exceptionTemplate === 'chosen' ? (templateIds.get(company) ?? null) : null}::uuid,
+              ${scenario.exceptionTemplate === 'chosen' ? exceptionSelectedAt.toISOString() : null}::timestamptz
             from contractors c where c."company_id" = ${company} and c."tax_id" = ${taxId}`,
       )
     }
-    const createdAt = new Date(NOW.getTime() - scenario.ageMilliseconds)
     await db.execute(
       sql`insert into trip_document_occurrences
             (id, company_id, trip_document_id, stage, actor_user_id, occurrence_type_id, created_at,
@@ -257,6 +285,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
       [
         occurrenceIds.exceptionInherits,
         occurrenceIds.exceptionOnly,
+        occurrenceIds.exceptionSelectedEarlier,
         occurrenceIds.older,
         occurrenceIds.otherCompany,
         occurrenceIds.ripe,
@@ -270,6 +299,15 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     expect(listed).not.toContain(occurrenceIds.noTemplate)
     expect(listed).toContain(occurrenceIds.exceptionOnly)
     expect(listed).toContain(occurrenceIds.exceptionInherits)
+  })
+
+  it('skips what was registered before the effective template was chosen, by the exception timestamp when it supplies the template (spec 269)', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    expect(listed).not.toContain(occurrenceIds.typeSelectedLater)
+    expect(listed).not.toContain(occurrenceIds.exceptionSelectedLater)
+    expect(listed).toContain(occurrenceIds.exceptionSelectedEarlier)
+    expect(listed).toContain(occurrenceIds.ripe)
   })
 
   it('returns the company of each occurrence and the oldest first', async () => {
@@ -322,6 +360,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
       [
         occurrenceIds.exceptionInherits,
         occurrenceIds.exceptionOnly,
+        occurrenceIds.exceptionSelectedEarlier,
         occurrenceIds.older,
         occurrenceIds.otherCompany,
         occurrenceIds.ripe,

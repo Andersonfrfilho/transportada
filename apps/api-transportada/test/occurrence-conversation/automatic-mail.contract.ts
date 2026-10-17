@@ -25,6 +25,7 @@ const OCCURRENCE_ID = '00000000-0000-4000-8000-000000180202'
 function plan(overrides: Partial<AutomaticOccurrenceMailPlan> = {}): AutomaticOccurrenceMailPlan {
   return {
     emailsContractor: true,
+    isRegisteredBeforeTemplate: false,
     recipients: [
       {
         contactId: 'contact-email',
@@ -116,6 +117,11 @@ describe('o aviso automático à contratante (spec 183 T802)', () => {
     ['ocorrência de parada ou inexistente', null, 'not_document'],
     ['tipo sem o envio ligado', plan({ emailsContractor: false }), 'type_off'],
     ['tipo sem modelo selecionado', plan({ suggested: null }), 'no_template_selected'],
+    [
+      'ocorrência registrada antes da escolha do modelo',
+      plan({ isRegisteredBeforeTemplate: true }),
+      'registered_before_template',
+    ],
     [
       'nenhum contato da etapa com e-mail',
       plan({

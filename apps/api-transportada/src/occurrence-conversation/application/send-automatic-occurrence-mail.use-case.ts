@@ -25,6 +25,8 @@ export type AutomaticOccurrenceMailRecipient = {
 
 export type AutomaticOccurrenceMailPlan = {
   readonly emailsContractor: boolean
+  /** A ocorrência é anterior ao momento em que o modelo efetivo foi escolhido: o aviso automático não vale. */
+  readonly isRegisteredBeforeTemplate: boolean
   readonly recipients: readonly AutomaticOccurrenceMailRecipient[]
   readonly stage: 'delivery' | 'separation'
   /** O texto do modelo efetivo (spec 269) já com os valores da nota; `null` sem modelo efetivo. */
@@ -53,6 +55,7 @@ export type AutomaticOccurrenceMailResult =
         | 'no_recipient'
         | 'no_template_selected'
         | 'not_document'
+        | 'registered_before_template'
         | 'type_off'
     }
 
@@ -85,6 +88,9 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
       if (plan === null) return { outcome: 'skipped', reason: 'not_document' }
       if (!plan.emailsContractor) return { outcome: 'skipped', reason: 'type_off' }
       if (plan.suggested === null) return { outcome: 'skipped', reason: 'no_template_selected' }
+      if (plan.isRegisteredBeforeTemplate) {
+        return { outcome: 'skipped', reason: 'registered_before_template' }
+      }
 
       const ofStage = plan.recipients.filter((recipient) => recipient.stages.includes(plan.stage))
       const byEmail = ofStage.filter((recipient) => recipient.email !== null)

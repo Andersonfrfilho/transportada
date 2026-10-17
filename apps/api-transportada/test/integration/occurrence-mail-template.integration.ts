@@ -120,6 +120,91 @@ async function storedMails(database: TestDatabase, seeded: Seeded) {
     .where(eq(contractorMailMessages.companyId, seeded.company.companyId))
 }
 
+const HOUR_MS = 3_600_000
+
+/** A ocorrência semeada nasce agora: uma hora adiante é "a escolha veio depois dela". */
+const AFTER_OCCURRENCE = new Date(Date.now() + HOUR_MS)
+const BEFORE_OCCURRENCE = new Date(Date.now() - HOUR_MS)
+
+async function setExceptionSelectedAt(
+  database: TestDatabase,
+  seeded: Seeded,
+  selectedAt: Date,
+): Promise<void> {
+  await database.db
+    .update(companyOccurrenceTypeContractorOverrides)
+    .set({ contractorMailTemplateSelectedAt: selectedAt })
+    .where(eq(companyOccurrenceTypeContractorOverrides.companyId, seeded.company.companyId))
+}
+
+describe('o e-mail da ocorrência registrada antes da escolha do modelo (spec 269, decisão de 2026-10-17)', () => {
+  testWithPostgres(
+    'antes da escolha do tipo: o automático pula e o manual segue; depois: envia',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setType(database, seeded, {
+          contractorMailTemplateSelectedAt: AFTER_OCCURRENCE,
+          emailsContractor: true,
+        })
+
+        expect(await sendAutomatic(database, seeded)).toEqual({
+          outcome: 'skipped',
+          reason: 'registered_before_template',
+        })
+        expect(await storedMails(database, seeded)).toEqual([])
+        await sendManual(database, seeded)
+        expect(await storedMails(database, seeded)).toHaveLength(1)
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'escolha do tipo anterior à ocorrência: o automático envia',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setType(database, seeded, {
+          contractorMailTemplateSelectedAt: BEFORE_OCCURRENCE,
+          emailsContractor: true,
+        })
+
+        expect(await sendAutomatic(database, seeded)).toMatchObject({ outcome: 'sent' })
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'o modelo vem da exceção: vale o momento da exceção, não o do tipo',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setType(database, seeded, {
+          contractorMailTemplateSelectedAt: BEFORE_OCCURRENCE,
+          emailsContractor: true,
+        })
+        const exceptionTemplateId = await seedOccurrenceMailTemplate(database, seeded.company, {
+          subject: 'Só exceção',
+        })
+        await chooseForContractor(database, seeded, exceptionTemplateId)
+        await setExceptionSelectedAt(database, seeded, AFTER_OCCURRENCE)
+
+        expect(await sendAutomatic(database, seeded)).toEqual({
+          outcome: 'skipped',
+          reason: 'registered_before_template',
+        })
+
+        await setExceptionSelectedAt(database, seeded, BEFORE_OCCURRENCE)
+        await setType(database, seeded, { contractorMailTemplateSelectedAt: AFTER_OCCURRENCE })
+        expect(await sendAutomatic(database, seeded)).toMatchObject({ outcome: 'sent' })
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+})
+
 describe('o e-mail da ocorrência pelo modelo efetivo (spec 269 T2.6)', () => {
   testWithPostgres(
     'o modelo do tipo escreve o e-mail automático e a mensagem aponta para ele',

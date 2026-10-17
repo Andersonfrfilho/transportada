@@ -25,6 +25,9 @@ type PendingRow = Readonly<{ company_id: string; occurrence_id: string }>
  * Spec 269: o mesmo vale para o modelo de e-mail — o da exceção da contratante, senão o do tipo. Sem modelo
  * efetivo a API pula (`no_template_selected`, sem gravar idempotência), e o varredor a repetiria a cada
  * batida; a fila só pede ocorrência que o envio pode atender.
+ *
+ * Só as registradas depois da escolha (decisão de 2026-10-17): vale o carimbo da origem que fornece o modelo
+ * (o da exceção quando ela o escolheu, senão o do tipo), o mesmo critério da API (`registered_before_template`).
  */
 export function createDrizzleOccurrenceAutomaticMailQueue(
   database: OccurrenceAutomaticMailDatabase,
@@ -62,6 +65,13 @@ export function createDrizzleOccurrenceAutomaticMailQueue(
               and p."company_id" = o."company_id"
               and p."role" = 'emitter'
               and coalesce(x."contractor_mail_template_id", t."contractor_mail_template_id") is not null
+              and o."created_at" >= coalesce(
+                case when x."contractor_mail_template_id" is not null
+                  then x."contractor_mail_template_selected_at"
+                  else t."contractor_mail_template_selected_at"
+                end,
+                '-infinity'::timestamptz
+              )
           )
           and not exists (
             select 1

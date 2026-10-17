@@ -77,6 +77,13 @@
 - [x] **T2.8** `haiku` — Documentação viva: OpenAPI das rotas alteradas, `apps/api-transportada/CLAUDE.md` e
       `docs/ai-context/api-transportada.md` (o e-mail de ocorrência sai do modelo; a ADR-0106 emenda a 183).
 
+- [x] **T2.9** `sonnet` — Decisão do dono de 2026-10-17, "só as registradas depois da escolha": colunas
+      `contractor_mail_template_selected_at` (migration editada no lugar, rollback, snapshot), carimbo na gravação do tipo e da
+      exceção, `registered_before_template` no automático e na SQL da varredura. Testes primeiro: contrato do plano e do
+      esquema, integração (antes/depois, carimbo da exceção, carimbo na gravação) e a fila do worker.
+- [x] **T4.7** `haiku` — Decisão do dono de 2026-10-17: o aviso do editor do tipo só com `emails_contractor` ligado; teste do
+      caso desligado e sem modelo.
+
 ## Fase 3 — API: etapa A, o código morto sai
 
 > 🤖 Modelo: `sonnet` (T3.2 e T3.3 → `haiku`)

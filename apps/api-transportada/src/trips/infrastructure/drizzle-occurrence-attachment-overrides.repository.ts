@@ -6,7 +6,7 @@
  * Toda consulta e toda escrita com o `companyId` do contexto no `where` — a exceção de uma empresa
  * nunca vaza para o cadastro de outra.
  */
-import { and, asc, eq, inArray, notInArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypeContractorOverrides,
@@ -15,7 +15,10 @@ import {
 import { contractors } from '../../database/delivery-client.schema.js'
 import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
 import type { TripQueryable } from './trip-queryable.type.js'
-import { lockUsableOccurrenceMailTemplate } from './occurrence-mail-template-lock.support.js'
+import {
+  buildTemplateSelectedAtChange,
+  lockUsableOccurrenceMailTemplate,
+} from './occurrence-mail-template-lock.support.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import {
   rethrowOverrideShapeViolation,
@@ -171,6 +174,8 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
               companyId: input.companyId,
               contractorId: override.contractorId,
               contractorMailTemplateId: override.contractorMailTemplateId ?? null,
+              contractorMailTemplateSelectedAt:
+                typeof override.contractorMailTemplateId === 'string' ? sql`now()` : null,
               occurrenceTypeId: input.occurrenceTypeId,
             })
             .onConflictDoUpdate({
@@ -178,7 +183,16 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
                 ...toOverrideRequirementUpdate(override),
                 ...(override.contractorMailTemplateId === undefined
                   ? {}
-                  : { contractorMailTemplateId: override.contractorMailTemplateId }),
+                  : {
+                      contractorMailTemplateId: override.contractorMailTemplateId,
+                      contractorMailTemplateSelectedAt: buildTemplateSelectedAtChange({
+                        selectedAtColumn:
+                          companyOccurrenceTypeContractorOverrides.contractorMailTemplateSelectedAt,
+                        templateColumn:
+                          companyOccurrenceTypeContractorOverrides.contractorMailTemplateId,
+                        templateId: override.contractorMailTemplateId,
+                      }),
+                    }),
               },
               target: [
                 companyOccurrenceTypeContractorOverrides.companyId,

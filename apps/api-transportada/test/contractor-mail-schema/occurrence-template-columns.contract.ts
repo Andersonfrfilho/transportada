@@ -66,9 +66,25 @@ describe('spec 269: o modelo de e-mail do tipo de ocorrência e da exceção por
     })
   }
 
+  for (const { table } of TABLES) {
+    const config = getTableConfig(table)
+
+    test(`${config.name}: contractor_mail_template_selected_at é timestamptz nulo, sem padrão`, () => {
+      const column = config.columns.find(
+        (candidate) => candidate.name === 'contractor_mail_template_selected_at',
+      )
+      expect(column?.getSQLType()).toBe('timestamp with time zone')
+      expect(column?.notNull).toBe(false)
+      expect(column?.hasDefault).toBe(false)
+    })
+  }
+
   test('a migration é aditiva e não faz backfill', () => {
     const sql = readFileSync(new URL('migration.sql', MIGRATION_DIRECTORY), 'utf8')
     expect(sql).toContain('ADD COLUMN "contractor_mail_template_id" uuid')
+    expect(sql).toContain(
+      'ADD COLUMN "contractor_mail_template_selected_at" timestamp with time zone',
+    )
     expect(sql).toContain("CHECK (\"mail_type\" in ('address_correction', 'occurrence'))")
     expect(sql).not.toMatch(/^(UPDATE|DELETE)\s|DROP COLUMN|DROP TABLE/mu)
   })
@@ -77,6 +93,7 @@ describe('spec 269: o modelo de e-mail do tipo de ocorrência e da exceção por
     const sql = readFileSync(new URL('rollback.sql', MIGRATION_DIRECTORY), 'utf8')
     expect(sql).toContain('CHECK ("mail_type" in (\'address_correction\')) NOT VALID')
     expect(sql).toContain('DROP COLUMN "contractor_mail_template_id"')
+    expect(sql).toContain('DROP COLUMN "contractor_mail_template_selected_at"')
     expect(sql).toContain('20261016165917_occurrence_mail_template')
   })
 })

@@ -2953,6 +2953,13 @@ export const companyOccurrenceTypes = pgTable(
      */
     contractorMailTemplateId: uuid('contractor_mail_template_id'),
     /**
+     * Spec 269 (decisão de 2026-10-17): quando o modelo foi escolhido (qualquer troca para um id não nulo; `null`
+     * limpa). O aviso automático só vale para ocorrência registrada a partir daqui.
+     */
+    contractorMailTemplateSelectedAt: timestamp('contractor_mail_template_selected_at', {
+      withTimezone: true,
+    }),
+    /**
      * Spec 164 T1: se a nota atingida por este tipo de ocorrência pode ser reentregue
      * (`allowed`/`blocked`) ou se o tipo não decide isso (`unset`, o padrão — nenhuma instalação
      * ganha tratativa nova ao aplicar esta migration). `unset` nunca abre `trip_occurrence_cases`
@@ -3342,6 +3349,13 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
     }).$type<ForwardToNoteRecipientMode>(),
     /** Spec 269: the mail template of this contractor; null inherits the type's template, no default. */
     contractorMailTemplateId: uuid('contractor_mail_template_id'),
+    /**
+     * Spec 269 (decisão de 2026-10-17): quando o modelo foi escolhido (qualquer troca para um id não nulo; `null`
+     * limpa). O aviso automático só vale para ocorrência registrada a partir daqui.
+     */
+    contractorMailTemplateSelectedAt: timestamp('contractor_mail_template_selected_at', {
+      withTimezone: true,
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

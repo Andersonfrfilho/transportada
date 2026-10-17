@@ -31,6 +31,23 @@
 - **Q3 → bloquear o arquivamento** enquanto o modelo estiver escolhido por algum tipo **ou** alguma exceção de
   contratante (409 listando os nomes dos tipos e das contratantes).
 
+## Decisões do dono (2026-10-17)
+
+1. **Só as registradas depois da escolha.** Quando um modelo passa a valer para um tipo (ou para uma exceção de
+   contratante), as ocorrências registradas **antes** desse momento **não** recebem o e-mail automático. As duas tabelas
+   (`company_occurrence_types`, `company_occurrence_type_contractor_overrides`) ganham
+   `contractor_mail_template_selected_at timestamptz NULL`, carimbada com `now()` a cada troca para um id não nulo
+   (inclusive de um modelo para outro) e limpa com `null`; o mesmo id mantém o carimbo. O envio automático e a varredura
+   do worker só consideram a ocorrência com `created_at >= selected_at` da **origem efetiva** do modelo (a exceção, quando
+   ela fornece o modelo; senão o tipo); senão pulam com `registered_before_template`, e a SQL da varredura já as exclui (sem
+   laço de idempotência). O envio manual não muda: o operador ainda manda com o modelo. A migration
+   `20261016165917_occurrence_mail_template` foi editada no lugar (não está em lugar nenhum), com o rollback e o snapshot.
+2. **O aviso do tipo só com o e-mail ligado.** "Tipo sem modelo de notificação" (e qualquer aviso no nível do tipo) só
+   aparece quando o tipo tem o e-mail à contratante marcado (`emails_contractor = true`) e não tem modelo; nunca com o
+   e-mail desligado. A flag da ocorrência (feed/detalhe) já exigia `emails_contractor` (`listMissingNotificationTemplates`);
+   conferido. O editor do tipo já derivava `emailsContractor === true && modelo === null`; ganhou teste explícito do
+   caso desligado e sem modelo.
+
 ## Levantamento contra `origin/staging` (e79e26171, 2026-10-16)
 
 Feito por leitura direta e uma busca paralela, só de leitura. A T0.1 confere as linhas antes de qualquer código.

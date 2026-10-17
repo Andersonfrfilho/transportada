@@ -56,6 +56,11 @@ código e as colunas que só serviam a ele são removidos (as colunas em uma eta
   - o diálogo "Enviar à contratante" mostra o mesmo aviso, com o envio desabilitado;
   - o editor do tipo mostra o aviso junto do seletor quando o tipo não tem modelo (as contratantes sem exceção ficam sem
     e-mail).
+- **RF5b — Só as registradas depois da escolha.** O e-mail automático só vale para a ocorrência registrada a partir do
+  momento em que o modelo efetivo foi escolhido (`contractor_mail_template_selected_at`, no tipo e na exceção; vale o
+  carimbo da origem que fornece o modelo). Antes disso: `registered_before_template`, sem e-mail e sem entrar de novo na
+  varredura do worker. O envio manual não muda. O aviso do RF5 no editor do tipo só aparece com `emails_contractor`
+  ligado.
 - **RF6 — O envio registra o modelo.** A mensagem gravada (`contractor_mail_messages.template_id`) aponta para o modelo
   efetivo, no envio automático e no manual (o servidor o resolve; o operador pode editar o texto sugerido).
 - **RF7 — Modelo em uso não se arquiva.** Arquivar um modelo `occurrence` escolhido por algum tipo **ativo ou inativo**
@@ -88,6 +93,9 @@ código e as colunas que só serviam a ele são removidos (as colunas em uma eta
 - O Mailpit fora de produção e os contatos na ficha (spec 268).
 
 ## Critérios de aceite
+
+0. Ocorrência registrada antes da escolha do modelo: o automático pula (`registered_before_template`) e a varredura não a
+   pede; depois da escolha, envia; com o modelo vindo da exceção vale o carimbo da exceção. O manual segue valendo.
 
 1. O catálogo `GET /contractor-mail-templates/catalog` traz `occurrence` com as variáveis do `plan.md`; criar um modelo
    `occurrence` com `{numero_nota}` no assunto e `{codigo_item}` no item salva; `{codigo_item}` no assunto responde 400.
