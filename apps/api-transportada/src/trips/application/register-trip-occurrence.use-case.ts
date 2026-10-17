@@ -196,8 +196,6 @@ export type OccurrenceTypeRecord = {
   readonly photoMinimumCount?: number
   /** Spec 183 T802: o registro avisa a contratante sozinho (o envio é do gancho, depois do commit). */
   readonly emailsContractor?: boolean
-  /** Spec 269: o modelo `occurrence` do tipo; nulo é sem modelo. Opcional só para os dublês de teste. */
-  readonly contractorMailTemplateId?: null | string
   /** Spec 271: a chave do modelo do módulo de notificação do tipo; nula é sem modelo. Opcional só para os dublês de teste. */
   readonly contractorNotificationTemplateKey?: null | string
   /** Spec 248 (RF1): o retorno da contratante — opcionais só para os dublês de teste; a leitura real sempre traz. */

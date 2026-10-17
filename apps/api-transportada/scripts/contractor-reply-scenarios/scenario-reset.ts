@@ -14,6 +14,7 @@ import {
   SCENARIO_BUCKET,
   SCENARIO_IMPORT_KEY_PREFIX,
   SCENARIO_PREFIX,
+  SCENARIO_TEMPLATE_KEY_PREFIX,
 } from './scenario.constant.js'
 
 type ForeignKey = {
@@ -137,8 +138,8 @@ function buildRoots(companyId: string, userIds: readonly string[]): Root[] {
       table: 'company_occurrence_types',
     },
     {
-      predicate: `company_id = ${company} and name like ${quoteLiteral(PREFIX_PATTERN)}`,
-      table: 'contractor_mail_templates',
+      predicate: `company_id = ${company} and key like ${quoteLiteral(`${SCENARIO_TEMPLATE_KEY_PREFIX}%`)}`,
+      table: 'notification.templates',
     },
     { predicate: `company_id = ${company} and id in (${vehicles})`, table: 'fleet_vehicles' },
     {

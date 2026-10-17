@@ -6,7 +6,7 @@
  * Toda consulta e toda escrita com o `companyId` do contexto no `where` — a exceção de uma empresa
  * nunca vaza para o cadastro de outra.
  */
-import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, notInArray } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypeContractorOverrides,
@@ -15,10 +15,6 @@ import {
 import { contractors } from '../../database/delivery-client.schema.js'
 import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
 import type { TripQueryable } from './trip-queryable.type.js'
-import {
-  buildTemplateSelectedAtChange,
-  lockUsableOccurrenceMailTemplate,
-} from './occurrence-mail-template-lock.support.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import {
   rethrowOverrideShapeViolation,
@@ -32,8 +28,6 @@ type Database = TripQueryable
 export type OccurrenceAttachmentContractorOverride = OccurrenceOverrideRequirementFields & {
   readonly attachmentMode: DeliveryProofFieldMode
   readonly contractorId: string
-  /** Spec 269: o modelo de e-mail da contratante; nulo herda do tipo, ausente é "não mexa". */
-  readonly contractorMailTemplateId?: null | string | undefined
 }
 
 export type OccurrenceAttachmentRecipientOverride = OccurrenceOverrideRequirementFields & {
@@ -62,7 +56,6 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
         attachmentMode: companyOccurrenceTypeContractorOverrides.attachmentMode,
         declaredAmountMode: companyOccurrenceTypeContractorOverrides.declaredAmountMode,
         contractorId: companyOccurrenceTypeContractorOverrides.contractorId,
-        contractorMailTemplateId: companyOccurrenceTypeContractorOverrides.contractorMailTemplateId,
         itemsMinimumCount: companyOccurrenceTypeContractorOverrides.itemsMinimumCount,
         itemsMode: companyOccurrenceTypeContractorOverrides.itemsMode,
         noteMode: companyOccurrenceTypeContractorOverrides.noteMode,
@@ -137,19 +130,6 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
 
     try {
       await this.database.transaction(async (transaction) => {
-        const chosenTemplateIds = new Set(
-          input.overrides.flatMap((override) =>
-            typeof override.contractorMailTemplateId === 'string'
-              ? [override.contractorMailTemplateId]
-              : [],
-          ),
-        )
-        for (const templateId of [...chosenTemplateIds].sort()) {
-          await lockUsableOccurrenceMailTemplate(transaction, {
-            companyId: input.companyId,
-            templateId,
-          })
-        }
         const keptContractorIds = input.overrides.map((override) => override.contractorId)
         await transaction
           .delete(companyOccurrenceTypeContractorOverrides)
@@ -173,27 +153,10 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
               ...toOverrideRequirementInsert(override),
               companyId: input.companyId,
               contractorId: override.contractorId,
-              contractorMailTemplateId: override.contractorMailTemplateId ?? null,
-              contractorMailTemplateSelectedAt:
-                typeof override.contractorMailTemplateId === 'string' ? sql`now()` : null,
               occurrenceTypeId: input.occurrenceTypeId,
             })
             .onConflictDoUpdate({
-              set: {
-                ...toOverrideRequirementUpdate(override),
-                ...(override.contractorMailTemplateId === undefined
-                  ? {}
-                  : {
-                      contractorMailTemplateId: override.contractorMailTemplateId,
-                      contractorMailTemplateSelectedAt: buildTemplateSelectedAtChange({
-                        selectedAtColumn:
-                          companyOccurrenceTypeContractorOverrides.contractorMailTemplateSelectedAt,
-                        value: override.contractorMailTemplateId,
-                        valueColumn:
-                          companyOccurrenceTypeContractorOverrides.contractorMailTemplateId,
-                      }),
-                    }),
-              },
+              set: toOverrideRequirementUpdate(override),
               target: [
                 companyOccurrenceTypeContractorOverrides.companyId,
                 companyOccurrenceTypeContractorOverrides.occurrenceTypeId,
@@ -271,8 +234,6 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
           attachmentMode: companyOccurrenceTypeContractorOverrides.attachmentMode,
           declaredAmountMode: companyOccurrenceTypeContractorOverrides.declaredAmountMode,
           contractorId: companyOccurrenceTypeContractorOverrides.contractorId,
-          contractorMailTemplateId:
-            companyOccurrenceTypeContractorOverrides.contractorMailTemplateId,
           itemsMinimumCount: companyOccurrenceTypeContractorOverrides.itemsMinimumCount,
           itemsMode: companyOccurrenceTypeContractorOverrides.itemsMode,
           noteMode: companyOccurrenceTypeContractorOverrides.noteMode,

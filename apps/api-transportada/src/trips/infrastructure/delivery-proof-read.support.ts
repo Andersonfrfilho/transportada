@@ -112,10 +112,7 @@ import {
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
-import {
-  buildTemplateSelectedAtChange,
-  lockUsableOccurrenceMailTemplate,
-} from './occurrence-mail-template-lock.support.js'
+import { buildTemplateSelectedAtChange } from './template-selected-at.support.js'
 import {
   hasOccurrenceTypeMailChange,
   readOccurrenceTypeMailSnapshot,
@@ -887,7 +884,6 @@ export async function findOccurrenceType(
       iconName: companyOccurrenceTypes.iconName,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
-      contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
       /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
       contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
@@ -1065,7 +1061,6 @@ export async function listOccurrenceTypes(
       iconName: companyOccurrenceTypes.iconName,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
-      contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
       /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
       contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
@@ -1185,12 +1180,6 @@ export async function saveOccurrenceType(
             companyId: input.companyId,
             occurrenceTypeId: input.occurrenceTypeId,
           })
-    if (typeof input.contractorMailTemplateId === 'string') {
-      await lockUsableOccurrenceMailTemplate(transaction, {
-        companyId: input.companyId,
-        templateId: input.contractorMailTemplateId,
-      })
-    }
     const saved = await writeOccurrenceTypeRow(transaction, input)
     const moments =
       input.moments ??
@@ -1314,8 +1303,6 @@ async function writeOccurrenceTypeRow(
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
-    /** Spec 269: o modelo do e-mail à contratante; ausente é "não mexa", `null` limpa. */
-    readonly contractorMailTemplateId?: null | string | undefined
     /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
     readonly contractorNotificationTemplateKey?: null | string | undefined
     readonly contractorReplyAlertIntervalMinutes?: number | undefined
@@ -1463,12 +1450,6 @@ async function writeOccurrenceTypeRow(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
-            ...(typeof input.contractorMailTemplateId === 'string'
-              ? {
-                  contractorMailTemplateId: input.contractorMailTemplateId,
-                  contractorMailTemplateSelectedAt: sql`now()`,
-                }
-              : {}),
             ...(typeof input.contractorNotificationTemplateKey === 'string'
               ? {
                   contractorNotificationTemplateKey: input.contractorNotificationTemplateKey,
@@ -1484,16 +1465,6 @@ async function writeOccurrenceTypeRow(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
-            ...(input.contractorMailTemplateId === undefined
-              ? {}
-              : {
-                  contractorMailTemplateId: input.contractorMailTemplateId,
-                  contractorMailTemplateSelectedAt: buildTemplateSelectedAtChange({
-                    selectedAtColumn: companyOccurrenceTypes.contractorMailTemplateSelectedAt,
-                    value: input.contractorMailTemplateId,
-                    valueColumn: companyOccurrenceTypes.contractorMailTemplateId,
-                  }),
-                }),
             ...(input.contractorNotificationTemplateKey === undefined
               ? {}
               : {
@@ -1534,7 +1505,6 @@ async function writeOccurrenceTypeRow(
     iconName: saved.iconName,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
-    contractorMailTemplateId: saved.contractorMailTemplateId,
     contractorNotificationTemplateKey: saved.contractorNotificationTemplateKey,
     contractorScope: saved.contractorScope,
     contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,

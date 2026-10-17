@@ -97,8 +97,6 @@ export type SaveOccurrenceTypeValues = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
   readonly emailsContractor?: boolean | undefined
-  /** Spec 269: o modelo do e-mail à contratante. Ausente é "não mexa"; `null` limpa. */
-  readonly contractorMailTemplateId?: null | string | undefined
   /**
    * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação que escreve o e-mail à contratante.
    * Ausente é "não mexa"; `null` limpa. Conferida **antes** da transação: sem trava, e o envio reconfere.

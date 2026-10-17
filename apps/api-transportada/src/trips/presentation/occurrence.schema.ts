@@ -556,9 +556,8 @@ const occurrenceTypeSchema = z
      */
     emailsContractor: z.boolean().optional(),
     /**
-     * Spec 269 (ADR-0106): o modelo `occurrence` do cadastro de modelos que escreve o e-mail deste tipo.
-     * Ausente é "não mexa"; `null` limpa (o tipo fica sem e-mail). Conferido na gravação: da empresa,
-     * `occurrence` e ativo.
+     * Spec 271 (D14): a chave da 269 (modelo do cadastro da 150, por id) é **aceita e ignorada** até as telas novas
+     * estarem em produção — o painel antigo ainda a manda; depois disso sai daqui e o `.strict()` a recusa (T5.5).
      */
     contractorMailTemplateId: z.string().uuid().nullable().optional(),
     /**
@@ -715,10 +714,7 @@ export const occurrenceAttachmentOverridesSchema = z
           .object({
             attachmentMode: attachmentOverrideModeSchema,
             contractorId: z.string().uuid(),
-            /**
-             * Spec 269 (ADR-0106): o modelo de e-mail desta contratante; nulo herda o do tipo, ausente é
-             * "não mexa" — como as colunas irmãs. Só a exceção de contratante o tem (sem destinatário).
-             */
+            /** Spec 271 (D7/D14): a exceção perdeu o modelo; a chave da 269 é aceita e ignorada até a T5.5. */
             contractorMailTemplateId: z.string().uuid().nullable().optional(),
             ...overrideRequirementFields,
           })

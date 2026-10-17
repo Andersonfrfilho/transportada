@@ -7,10 +7,6 @@ import { getTableConfig } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
 
 import {
-  CONTRACTOR_MAIL_TEMPLATE_TYPES,
-  MAIL_TEMPLATE_CATALOG,
-} from '../../src/contractor-mail/domain/mail-template-catalog.constant.js'
-import {
   companyOccurrenceTypeContractorOverrides,
   companyOccurrenceTypes,
   contractorMailTemplates,
@@ -34,14 +30,11 @@ const TABLES = [
   },
 ] as const
 
-describe('spec 269: o modelo de e-mail do tipo de ocorrência e da exceção por contratante', () => {
-  test('occurrence entra depois de address_correction, e o catálogo cobre cada tipo', () => {
-    expect(CONTRACTOR_MAIL_TEMPLATE_TYPES).toEqual(['address_correction', 'occurrence'])
-    for (const mailType of CONTRACTOR_MAIL_TEMPLATE_TYPES) {
-      expect(MAIL_TEMPLATE_CATALOG[mailType].label.length).toBeGreaterThan(0)
-    }
-  })
-
+/**
+ * Spec 271: as colunas da 269 ficam no schema, sem leitor nem escritor, até a migration B (Fase 6) as tirar; este contrato as
+ * prende até lá, e a B o apaga junto com elas.
+ */
+describe('spec 269: as colunas do modelo de e-mail do tipo e da exceção, até a migration B da 271', () => {
   test('a CHECK do tipo de e-mail aceita os dois tipos', () => {
     const checks = getTableConfig(contractorMailTemplates).checks
     expect(checks.map((check) => check.name)).toContain('contractor_mail_templates_mail_type_check')

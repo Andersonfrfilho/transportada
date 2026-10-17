@@ -6,7 +6,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { OCCURRENCE_CONTRACTOR_MAIL_VARIABLES } from '../../src/occurrence-conversation/domain/occurrence-contractor-mail.constant.js'
+import {
+  HTML_BODY_PATTERN,
+  OCCURRENCE_CONTRACTOR_MAIL_VARIABLES,
+} from '../../src/occurrence-conversation/domain/occurrence-contractor-mail.constant.js'
 import {
   assessContractorTemplate,
   blocksContractorMailSend,
@@ -131,5 +134,30 @@ describe('spec 271: o que bloqueia o envio é só o que torna o modelo inexisten
 
   test('sem problema, não bloqueia', () => {
     expect(blocksContractorMailSend([])).toBe(false)
+  })
+})
+
+/** Espelhada no worker (`html-body-pattern.contract.ts`): mesmo valor e mesma tabela de casos. */
+describe('spec 271: HTML_BODY_PATTERN é o mesmo da fila do varredor do worker', () => {
+  const CASES: readonly (readonly [string, boolean])[] = [
+    ['<p>html</p>', true],
+    ['texto <b>negrito</b>', true],
+    ['quebra<br/>aqui', true],
+    ['</div>', true],
+    ['<a href="x">link</a>', true],
+    ['a < b e c > d', false],
+    ['<3 amor', false],
+    ['1<2', false],
+    ['Nota {{numeroNota}}', false],
+    ['<!-- comentário -->', false],
+    ['', false],
+  ]
+
+  test('o valor combinado', () => {
+    expect(HTML_BODY_PATTERN).toBe('</?[A-Za-z][A-Za-z0-9_:-]*[\\s>/]')
+  })
+
+  test.each(CASES)('%j → %p', (body, isHtml) => {
+    expect(new RegExp(HTML_BODY_PATTERN, 'u').test(body)).toBe(isHtml)
   })
 })

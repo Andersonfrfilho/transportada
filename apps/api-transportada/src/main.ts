@@ -771,7 +771,6 @@ import { createContractorMailTemplatesUseCase } from './contractor-mail/applicat
 import { DrizzleContractorMailTemplateRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-template.repository.js'
 import { createContractorMailTemplateRoutes } from './contractor-mail/presentation/contractor-mail-templates.routes.js'
 import { buildAddressCorrectionMail } from './address-correction/domain/address-correction-mail.template.js'
-import { renderOccurrenceMailPreview } from './occurrence-conversation/domain/occurrence-mail-body.policy.js'
 import { ADDRESS_CORRECTION_MAIL_SAMPLE } from './address-correction/domain/address-correction-mail-sample.constant.js'
 import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/public-inbound-email.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
@@ -2802,7 +2801,6 @@ function createApplicationRoutes({
     previewRenderers: {
       address_correction: (template) =>
         buildAddressCorrectionMail({ ...ADDRESS_CORRECTION_MAIL_SAMPLE, template }),
-      occurrence: renderOccurrenceMailPreview,
     },
     repository: new DrizzleContractorMailTemplateRepository(database),
   })

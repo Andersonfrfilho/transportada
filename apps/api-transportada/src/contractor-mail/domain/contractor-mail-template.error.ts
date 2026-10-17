@@ -68,50 +68,11 @@ export class ContractorMailTemplateInvalidError extends ApiError {
  * Inexistente, arquivado, de outro tipo ou de outra empresa recebem a mesma resposta.
  */
 export class ContractorMailTemplateNotUsableError extends ApiError {
-  public constructor(field = 'templateId') {
+  public constructor() {
     super({
       code: 'CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE',
-      details: [{ field, message: 'must be an active template of this mail type' }],
+      details: [{ field: 'templateId', message: 'must be an active template of this mail type' }],
       message: 'The contractor mail template cannot be used for this message',
-      status: 409,
-    })
-  }
-}
-
-export const CONTRACTOR_MAIL_TEMPLATE_IN_USE_FIELDS = {
-  contractorException: 'contractorException',
-  occurrenceType: 'occurrenceType',
-} as const
-
-/**
- * Spec 269 RF7 (ADR-0106): modelo `occurrence` escolhido por um tipo de ocorrência (ativo ou inativo) ou por
- * uma exceção de contratante não se arquiva — o tipo pararia de enviar e-mail sem ninguém saber. Os
- * detalhes listam os nomes de configuração (tipo; tipo e contratante), nunca dado de ocorrência.
- */
-export class ContractorMailTemplateInUseError extends ApiError {
-  public constructor(
-    usage: Readonly<{
-      contractorExceptions: readonly Readonly<{
-        contractorName: string
-        occurrenceTypeName: string
-      }>[]
-      occurrenceTypeNames: readonly string[]
-    }>,
-  ) {
-    super({
-      code: 'CONTRACTOR_MAIL_TEMPLATE_IN_USE',
-      details: [
-        ...usage.occurrenceTypeNames.map((name) => ({
-          field: CONTRACTOR_MAIL_TEMPLATE_IN_USE_FIELDS.occurrenceType,
-          message: name,
-        })),
-        ...usage.contractorExceptions.map((exception) => ({
-          field: CONTRACTOR_MAIL_TEMPLATE_IN_USE_FIELDS.contractorException,
-          message: `${exception.occurrenceTypeName} / ${exception.contractorName}`,
-        })),
-      ],
-      message:
-        'The contractor mail template is chosen by an occurrence type or contractor exception',
       status: 409,
     })
   }

@@ -39,7 +39,6 @@ import { seedNotificationTemplate } from './notification-template.fixture.js'
 
 /** A chave do modelo do módulo de notificação que o tipo semeado escolhe (spec 271). */
 export const SEEDED_NOTIFICATION_TEMPLATE_KEY = 'ocorrencia.padrao'
-import { seedOccurrenceMailTemplate } from './occurrence-mail-template.fixture.js'
 
 const EMITTER_TAX_ID = '11222333000181'
 
@@ -104,13 +103,6 @@ export async function seedMailScenario(database: TestDatabase): Promise<Seeded> 
   })
 
   const occurrenceTypeId = crypto.randomUUID()
-  /** Spec 269: o e-mail da ocorrência sai de um modelo do cadastro, escolhido no tipo. */
-  const mailTemplateId = await seedOccurrenceMailTemplate(database, company, {
-    closing: 'Obrigado.',
-    intro: 'Ocorrência na nota {numero_nota}: {observacao}',
-    itemText: '',
-    subject: 'Ocorrência — NF {numero_nota}',
-  })
   /** Spec 271: o e-mail da ocorrência passa a sair de um modelo do módulo de notificação, escolhido pela chave. */
   await seedNotificationTemplate(database, {
     body: 'Ocorrência na nota {{numeroNota}}: {{observacao}}\n\nObrigado.',
@@ -121,7 +113,6 @@ export async function seedMailScenario(database: TestDatabase): Promise<Seeded> 
   await database.db.insert(companyOccurrenceTypes).values({
     active: true,
     companyId: company.companyId,
-    contractorMailTemplateId: mailTemplateId,
     contractorNotificationTemplateKey: SEEDED_NOTIFICATION_TEMPLATE_KEY,
     contractorNotificationTemplateSelectedAt: new Date('2026-09-01T00:00:00.000Z'),
     id: occurrenceTypeId,
