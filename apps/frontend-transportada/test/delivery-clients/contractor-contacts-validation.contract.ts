@@ -8,6 +8,7 @@ import {
   CONTRACTOR_CONTACT_VALIDATION_ERROR,
   EMPTY_CONTRACTOR_CONTACT_DRAFT,
   formatContractorContactPhone,
+  maskContractorContactPhoneInput,
   normalizeContractorContactEmail,
   normalizeContractorContactPhone,
   toggleContractorContactOption,
@@ -223,5 +224,28 @@ describe('o cadastro preenchido a partir do remetente (spec 183 T406)', () => {
     expect(draft.phone).toBe(formatContractorContactPhone('5511987654321'))
     expect(draft.email).toBe('')
     expect(draft.whatsappOptIn).toBe(false)
+  })
+
+  test('typing digits yields the masked phone and extra digits are cut', () => {
+    expect(maskContractorContactPhoneInput('1')).toBe('(1')
+    expect(maskContractorContactPhoneInput('11999990001')).toBe('(11) 99999-0001')
+    expect(maskContractorContactPhoneInput('1133334444')).toBe('(11) 3333-4444')
+    expect(maskContractorContactPhoneInput('1199999000199')).toBe('(11) 99999-0001')
+    expect(maskContractorContactPhoneInput('')).toBe('')
+  })
+
+  test('a pasted international number loses the country code before masking', () => {
+    expect(maskContractorContactPhoneInput('+55 11 99999-0001')).toBe('(11) 99999-0001')
+  })
+
+  test('the masked phone still normalizes to the same payload and matches the recorded opt-in', () => {
+    const draft = {
+      ...EMPTY_CONTRACTOR_CONTACT_DRAFT,
+      email: 'compras@example.com.br',
+      phone: maskContractorContactPhoneInput('11999990001'),
+    }
+    expect(buildContractorContactPayload(draft)?.phone).toBe('5511999990001')
+    expect(normalizeContractorContactPhone(draft.phone)).toBe(OPTED_IN_CONTACT.phone ?? undefined)
+    expect(contractorContactDraftFromContact(OPTED_IN_CONTACT).phone).toBe('(11) 99999-0001')
   })
 })
