@@ -1,6 +1,6 @@
 # ADR 0107 — O tipo de ocorrência tem escopo de contratantes
 
-- **Status:** proposta (2026-10-16) — a validar pelo architect na T0.2 da spec 270. Pedido do Anderson no chat do projeto
+- **Status:** aceita (2026-10-16) — revisada pelo architect na T0.2 da spec 270 ("aprovado com mudanças"; ajustes no `plan.md`). Pedido do Anderson no chat do projeto
   em 2026-10-16.
 - **Data:** 2026-10-16
 - **Nasce da spec 270:** cada tipo de ocorrência vale para todas as contratantes (padrão, o de hoje) ou só para uma lista
@@ -37,9 +37,10 @@ contractor_id, created_at)`, PK nas três colunas, FK composta para o tipo `ON D
    coluna da exceção (mistura "ajusta" com "restringe" e obrigaria uma linha de exceção por contratante só para liberar o
    tipo).
 3. **O escopo vale onde há nota.** Todo registro com nota (motorista na entrega, escritório em nome do motorista, lote do
-   escritório, galpão, fluxo do operador pelo WhatsApp, recebimento de carga) só aceita tipo `all` ou tipo `listed` com a
+   escritório, galpão, fluxo do WhatsApp do motorista e do operador) só aceita tipo `all` ou tipo `listed` com a
    contratante da nota na lista. Nota sem contratante identificada só aceita `all`. O registro de **parada** ignora o
-   escopo; por isso um tipo cujo único momento é `stop` não pode ser `listed`.
+   escopo; por isso um tipo cujo único momento é `stop` não pode ser `listed`. `stop` nunca combina com `document` (246); num tipo
+   `stop`+`office` o escopo vale no lote do escritório. O recebimento de carga (tipos seed-only, sempre `all`) fica fora.
 4. **O servidor decide e recobra.** As listas de tipos filtram pelo escopo usando a contratante que **o servidor** lê da
    nota (`documentId`); o `contractorId` da query continua valendo só para a exceção (exibição). Sem nota e sem
    contratante, a lista traz só `all`. Todo caso de uso de registro com nota confere de novo e recusa com 422

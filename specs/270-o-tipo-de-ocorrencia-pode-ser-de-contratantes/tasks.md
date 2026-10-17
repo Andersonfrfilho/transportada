@@ -13,12 +13,12 @@
 
 > 🤖 Modelo: `sonnet` (T0.2 é 🧠)
 
-- [ ] **T0.1** `sonnet` — Conferir contra `origin/staging` (e a 269, se já entrou) os números de linha de `plan.md` §
+- [x] **T0.1** `sonnet` — Conferir contra `origin/staging` (e a 269, se já entrou) os números de linha de `plan.md` §
       Contexto e o levantamento do `evidence.md`. Listar **todo** caso de uso que registra ocorrência com nota (inclusive
       o fluxo do operador pelo WhatsApp em `main.ts` e o recebimento de carga) e a origem da contratante em cada um.
       Conferir se `CONTRACTOR_NOT_FOUND` existe e como os momentos se aplicam aos tipos de etapa `receiving`.
       Divergência vira nota no `evidence.md` antes de seguir.
-- [ ] **T0.2** 🧠 `opus` — Validar com `architect` a ADR-0107 e as decisões D1–D8 do `plan.md`: invariante
+- [x] **T0.2** 🧠 `opus` — Validar com `architect` a ADR-0107 e as decisões D1–D8 do `plan.md`: invariante
       `listed`/lista na transação, regra da parada (D3), interseção no lote (D5), onde fica a lista por nota da
       separação (rota nova ou parâmetro), ordem das guardas (momento → escopo → exigência da 246). Ajuste aprovado entra
       no `plan.md`, e a ADR passa a "aceita". **Outras tasks herdam este contrato.**
@@ -46,23 +46,28 @@
       `db:generate` com `no_changes` depois.
 - [ ] **T2.2** `sonnet` — Teste antes da política pura `occurrence-type-contractor-scope.policy.ts`: `all` com e sem
       contratante; `listed` com contratante dentro, fora e nula; validação (lista vazia, `all` com lista, só `stop`,
-      `stop` + `document`), todos os erros de uma vez. Depois a implementação.
+      `stop` + `document`, que a 246 já recusa; `stop` + `office` válido), todos os erros de uma vez. Depois a implementação.
 - [ ] **T2.3** `sonnet` — Gravação e leitura do escopo no `PUT`/`GET /company-settings/occurrence-types` (D7): par
       incompleto 400, lista vazia 400, só parada 400, contratante de outra empresa 404, ausente não altera, `all` apaga
       a lista; leitura sem N+1. Integração na mesma task (cria `listed`, regrava sem as chaves e segue, troca para `all`
       e a tabela fica vazia, contratante de outra empresa).
 - [ ] **T2.4** `sonnet` — Listas filtradas (D4/D5): retrato do motorista (`documents[].occurrenceTypes`),
-      `GET /me/trips/current/occurrence-types` com e sem `documentId`, `GET /trips/occurrence-types/field` com
-      `documentIds` (interseção), lista da separação por nota (rota decidida na T0.2), lista do recebimento pela
-      contratante do recebimento. Contrato negativo: `contractorId` da query apontando para a contratante listada numa
+      `GET /me/trips/current/occurrence-types` (sem parâmetro novo: momento `document` → só `all`; parada sem filtro), `GET /trips/occurrence-types/field` com
+      `documentIds` (interseção), lista da separação por nota (`GET /trips/:tripId/documents/:documentId/occurrence-types`, `trip.manage`, momento
+      `separation`; nota da viagem e da empresa, senão 404; teste de roteador com `createRouter`+`allowedMethods`). O WhatsApp
+      (motorista e operador) filtra a lista pela contratante da nota do contexto do fluxo (mesma política, uma leitura);
+      no 422 responde "Este tipo não vale para a contratante desta nota" e volta à lista de tipos, sem relançar e sem
+      ficar em `photoEntry`. O recebimento de carga está fora (R2). Contrato negativo: `contractorId` da query apontando para a contratante listada numa
       nota de outra não libera o tipo; `documentId` de outra empresa → 404. Integração.
 - [ ] **T2.5** `sonnet` — Guarda D6 em todo caso de uso da lista da T0.1, antes de qualquer escrita: 422
-      `OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR`. Integração por caminho (motorista, escritório, lote com uma nota fora
-      → nada gravado, galpão, WhatsApp do operador, recebimento) e o caso nota sem contratante + tipo `listed`. O log da
+      `OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR`. Ordem das guardas: tipo existe/ativo → momento → nota alcançável/da empresa (404) → escopo (422) → exigência da 246 →
+      qualquer escrita ou upload. Lote: `findReachableDocumentIds` devolve `{id, contractorId}` na mesma consulta e o escopo
+      é conferido antes de `persistBatchAttachment`; galpão lê a contratante por `findDocumentOccurrenceSubject`. Integração por caminho (motorista, escritório, lote com uma nota fora
+      → nada gravado, galpão, WhatsApp do motorista e do operador) e o caso nota sem contratante + tipo `listed`. O log da
       recusa só tem ids.
 - [ ] **T2.6** `sonnet` — Registro já gravado continua legível (RF8): integração que registra, troca o tipo para
       `listed` sem a contratante e confere feed, detalhe, linha do tempo, rota do motorista (266) e correção de itens.
-- [ ] **T2.7** `sonnet` — Parada intacta (RF5): integração de ocorrência de parada com tipo `stop` + `document`
+- [ ] **T2.7** `sonnet` — Parada intacta (RF5): integração de ocorrência de parada com tipo `stop` + `office`
       `listed` numa parada sem nota da contratante listada → grava normalmente.
 - [ ] **T2.8** `haiku` — Documentação viva: OpenAPI das rotas alteradas, `apps/api-transportada/CLAUDE.md` (núcleo, uma
       linha sob ocorrência) e `docs/ai-context/api-transportada.md`.
@@ -116,7 +121,11 @@
 - [ ] **T6.1** `sonnet` — Teste antes (integração): zero, uma e duas contratantes casando `%spani%`; tipo só de parada
       ignorado; tipo já `listed` = [Spani] intacto; tipo `listed` com outra contratante relatado e intacto; segunda
       execução não muda nada; sem `--confirm` não grava. Depois `scripts/occurrence-type-contractor-scope-assign.ts` +
-      serviço (plan § Passo de dados), usando o serviço de gravação do `PUT`. Saída sem CNPJ completo e sem segredo.
+      serviço (plan § Passo de dados), chamando `replaceOccurrenceTypeContractorScope` (o mesmo do `PUT`; não `saveOccurrenceType`, para não tocar em
+      `contractor_mail_template_selected_at` da 269). Casamento por padrão parametrizado com `%` e `_` escapados; só
+      inativa casando → para. "Tipo de nota" = momentos ∩ {separation, document, office} ≠ ∅; o dry-run mostra os momentos de
+      cada tipo `[stop, office]`. O script é escrito e testado aqui, mas **nunca rodado** em staging/produção por esta
+      execução (Fase 6 é do dono). Saída sem CNPJ completo e sem segredo.
 - [ ] **T6.2** ⛔ `sonnet` — **Staging.** Pare e pergunte: mostrar ao dono o comando e pedir a confirmação do ambiente.
       Rodar o dry-run por `railway ssh -e staging -s api -- bun run scripts/... --company <uuid> --contractor-name spani`
       e colar a listagem no `evidence.md`. Esperado hoje: **Spani não existe em staging** (só RIBER PET e COMERCIAL

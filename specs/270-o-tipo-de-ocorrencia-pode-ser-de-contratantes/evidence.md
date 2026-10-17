@@ -32,7 +32,7 @@ pedido de 2026-10-16 muda isso; a ADR-0107 emenda a ADR-0106 §2 só nesse ponto
 - **O servidor decide e recobra**: listas filtram pela contratante que o servidor lê da nota; o `contractorId` da query
   fica só para a exceção; registro fora do escopo → 422 `OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR`.
 - **Lote do escritório** com notas de várias contratantes oferece a interseção; uma nota fora recusa o lote inteiro.
-- **Recebimento de carga** também cobra o escopo, pela contratante do recebimento.
+- **Recebimento de carga fora do escopo** (revisão T0.2): tipos seed-only, momentos `[]`, sempre `all`.
 - **Ficha da contratante sem seção "Tipos exclusivos"**: fora do escopo; o chip do catálogo mostra a informação.
 - **Passo da Spani por script com `--confirm`**, sem migration de dados (uma migration valeria para todo deploy novo de
   outra transportadora — a distribuição é um deploy por transportadora, ADR-0021).
@@ -154,3 +154,10 @@ Caminhos relativos a `apps/api-transportada/` salvo indicação.
 
 - Spec 270: livre (`origin/staging` vai até 268; 267 e 269 em branches próprias).
 - ADR: `origin/staging` vai até 0105; a 269 usa 0106; **0107** para esta spec. A T5.4 confere de novo antes de publicar.
+
+## T0.1 / T0.2 — Revisão de arquitetura (2026-10-16)
+
+Base: `origin/staging` 6f9337f4a (269 já mergeada, PR #262); última migration `20261016165917`. Veredito do architect:
+**aprovado com mudanças** (R1-R10), aplicadas em `plan.md` § Ajustes, `spec.md`, `tasks.md` e na ADR-0107 (agora aceita).
+Divergências de linha: `company_occurrence_types_company_id_id_unique` em `trip.schema.ts:3294`; exceções começam em :3314;
+`isOccurrenceType` :1950; `occurrenceTypesFromApi` :1132; filtro da separação em `TripOccurrences.component.tsx:134`.

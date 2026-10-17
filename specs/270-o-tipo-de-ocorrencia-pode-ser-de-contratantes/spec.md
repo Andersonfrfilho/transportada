@@ -20,7 +20,7 @@
 | 247 / 248 | Colunas da exceção por contratante (`reference_number_mode`, `declared_amount_mode`, `contractor_reply_mode`…). Não mudam.                                                                                                                                                                        |
 | 255       | `icon_name` no tipo; o chip "Só: …" desta spec fica ao lado do ícone no catálogo.                                                                                                                                                                                                                 |
 | 266       | O `active` do tipo esconde o tipo **para registrar**; ocorrência já registrada continua visível. O escopo segue a mesma regra.                                                                                                                                                                    |
-| 269       | (em `work/spec-269`, ainda não em `staging`) `email_template_id` no tipo e na exceção por contratante; modelo efetivo = exceção ?? tipo. **ADR-0106 §2 dizia que o dono recusou o tipo restrito a contratante** — o dono mudou de ideia em 2026-10-16; a ADR-0107 emenda esse trecho.             |
+| 269       | (em `work/spec-269`, ainda não em `staging`) `contractor_mail_template_id`/`_selected_at` no tipo e na exceção por contratante; modelo efetivo = exceção ?? tipo. **ADR-0106 §2 dizia que o dono recusou o tipo restrito a contratante** — o dono mudou de ideia em 2026-10-16; a ADR-0107 emenda esse trecho.             |
 
 ## Problema e resultado
 
@@ -51,9 +51,10 @@ contratante continua como está: **a exceção ajusta, o escopo restringe** — 
 - **RF4 — Só o tipo da contratante é oferecido.** Onde o registro tem uma **nota**, o tipo `listed` só é oferecido se a
   contratante da nota está na lista:
   - app do motorista: os tipos por nota do retrato da viagem (`GET /me/trips/current`) e a lista de
-    `GET /me/trips/current/occurrence-types` quando chamada com a nota;
-  - painel: o registro do escritório em nome do motorista, o lote do escritório, o registro do galpão (separação) e o
-    recebimento de carga (a contratante do recebimento);
+    `GET /me/trips/current/occurrence-types` (sem parâmetro novo: no momento `document` só os `all`);
+  - painel: o registro do escritório em nome do motorista, o lote do escritório, o registro do galpão (separação, por nota: `GET /trips/:tripId/documents/:documentId/occurrence-types`) e o
+    WhatsApp (motorista e operador, pela contratante da nota do fluxo). **Recebimento de carga está fora**: seus tipos são
+    seed-only e sempre `all`;
   - a **nota sem contratante identificada** (CNPJ do emitente fora do cadastro) recebe só os tipos `all`;
   - lista pedida **sem nota** (o catálogo de rua do motorista, usado também como reserva quando o retrato não traz os
     tipos da nota) traz só os tipos `all`: um tipo restrito nunca aparece por falta de contexto.
@@ -62,11 +63,11 @@ contratante continua como está: **a exceção ajusta, o escopo restringe** — 
   a parada pode ter notas de várias contratantes. Por isso o escopo **não se aplica** ao registro de parada: todo tipo
   ativo do momento `stop` é oferecido como hoje. Um tipo que só tem o momento `stop` não pode ser `listed` (400); no
   editor, o "Vale para" fica travado em "Todas as contratantes" com a frase "Na parada não há contratante: este tipo vale
-  para todas". Um tipo com `stop` **e** um momento de nota pode ser `listed`: o escopo vale nos registros com nota, e na
+  para todas". Um tipo com `stop` e `office`/`separation` (nunca `document`: a 246 proíbe `document`+`stop`) pode ser `listed`: o escopo vale nos registros com nota, e na
   parada ele vale para todas (o editor diz isso).
 - **RF6 — O servidor cobra.** Registrar numa nota um tipo `listed` sem a contratante da nota na lista responde **422
   `OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR`** e nada é gravado, em todo caso de uso que registra ocorrência de nota
-  (motorista, escritório, lote do escritório, galpão, fluxo do WhatsApp do operador, recebimento de carga). A resposta
+  (motorista, escritório, lote do escritório, galpão, fluxo do WhatsApp do motorista e do operador). A resposta
   não traz a lista de contratantes do tipo. O `contractorId` que o cliente manda na query das listas nunca decide o
   escopo: o servidor lê a contratante da nota.
 - **RF7 — A fila offline do motorista.** Um registro que entrou na fila **antes** de o tipo mudar de escopo e sobe depois
