@@ -3737,32 +3737,41 @@ Núcleo normativo em `apps/api-transportada/CLAUDE.md`. Histórico das decisões
 - **Contrato de rotas:** sem OpenAPI no repositório (o documento é este e os contratos em `test/`); `candidates` não colide com
   `:userId` e há teste de rotas com `createRouter` + `allowedMethods`.
 
-## O e-mail da ocorrência usa o modelo do cadastro (spec 269, ADR-0106)
+## O modelo do e-mail da ocorrência vem do módulo de notificação (spec 271, ADR-0108)
 
-O e-mail de ocorrência à contratante **não** sai mais do texto do tipo (`email_subject`/`email_body`, spec 079/247, `{{camelCase}}`):
-sai de um modelo `occurrence` de "E-mail com contratantes → Modelos" (spec 150, `{snake_case}`, catálogo em
-`mail-template-catalog.constant.ts`). A ADR-0106 emenda a decisão de desenho da 183 (`evidence.md:529-532`).
+A 271 **substituiu** o desenho da 269 (modelo `occurrence` do cadastro "E-mail com contratantes → Modelos", `{snake_case}`, escolhido por id
+no tipo e na exceção por contratante): o texto é um modelo de e-mail do módulo de notificação, escolhido **pela chave** no tipo. O código da 269
+sai na etapa A, Fase 3 (tipo `occurrence` do catálogo da 150, `lockUsableOccurrenceMailTemplate`, `occurrence-mail-template.policy.ts`, a exceção); as
+colunas dela só saem na migration B (Fase 6, destrutiva, com aprovação).
 
-- **Escolha:** `company_occurrence_types.contractor_mail_template_id` e a mesma coluna na exceção por contratante
-  (`company_occurrence_type_contractor_overrides`; nulo herda). Modelo efetivo = exceção ?? tipo
-  (`occurrence-mail-template.policy.ts`). Sem padrão: nulo é **sem modelo**, não cai no `is_default`.
-- **Gravar:** `PUT /company-settings/occurrence-types` e `.../attachment-overrides` aceitam `contractorMailTemplateId`
-  (ausente = não mexa, `null` limpa/herda). `lockUsableOccurrenceMailTemplate` segura o modelo `FOR KEY SHARE` na mesma
-  transação; modelo inexistente, de outra empresa, arquivado ou de outro tipo de e-mail é 409
-  `CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE`.
-- **Arquivar:** modelo `occurrence` escolhido por tipo (ativo ou inativo) ou exceção é 409
-  `CONTRACTOR_MAIL_TEMPLATE_IN_USE`; `details[]` traz `occurrenceType:<nome>` e `contractorException:<tipo> / <contratante>`.
-  A ordem é advisory lock → `FOR UPDATE` no modelo → conferir uso.
-- **Envio:** `executeSend` tem um ponto só (`resolveTemplateId`): sem modelo efetivo, 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`,
-  nem à mão. O reenvio do retorno (248) não passa pelo bloqueio e grava o `template_id` da mensagem original (ou nulo). O
-  automático pula com `no_template_selected` (também no 409 de corrida). `contractor_mail_messages.template_id` guarda o modelo.
-- **Corpo:** `composeOccurrenceMail` = abertura + linhas de item + encerramento; assunto numa linha só, tetos de
-  `OCCURRENCE_MAIL_LIMITS`, teto de 200 linhas ("e mais N itens"). A assinatura segue sendo anexada por `buildOccurrenceMail`.
-- **Aviso:** `missingNotificationTemplate` no feed e no detalhe (`listMissingNotificationTemplates`, uma leitura por página) e na
-  prévia do diálogo (`templateId` + flag). Na prévia a flag é "não há modelo efetivo" (o envio é bloqueado mesmo com
-  `emails_contractor` desligado). **Nunca** no DTO exato `isTripOccurrence` do painel.
-- **Worker:** a varredura só pede ocorrência com modelo efetivo.
-- **Publicação em etapas:** painel tolerante → API → telas → (depois) migration B que remove as três colunas de texto.
+- **Dados (migration A `20261017041702_occurrence_type_contractor_mail`, aditiva):** `company_occurrence_types.contractor_notification_template_key`
+  (varchar 128, sem FK: a identidade do módulo é versionada) e `contractor_notification_template_selected_at`; `company_occurrence_type_watchers`
+  (FK composta à lista da empresa da 267, `CASCADE`); `company_occurrence_type_recipients` (FK composta ao contato, `CASCADE`);
+  `contractor_mail_messages.notification_template_key`/`_version`.
+- **Leitura do módulo:** `occurrence-conversation/infrastructure/notification-template.query.ts` — `sql` parametrizado em
+  `notification.templates` (o `templates` exportado do pacote é de outra instância do drizzle-orm), versão ativa mais alta, `email`, `pt-BR`.
+  O worker lê pela mesma forma, com o mesmo `HTML_BODY_PATTERN`.
+- **Política pura:** `occurrence-contractor-template.policy.ts` (`assessContractorTemplate`: problemas em ordem fixa; `blocksContractorMailSend`
+  bloqueia só `not_found`/`html_body`/`empty_subject` — variável desconhecida sai vazia), `occurrence-contractor-mail-render.policy.ts`
+  (assunto numa linha, teto; corpo encurta `linhasItens` antes de truncar), `occurrence-contractor-recipients.policy.ts` (D13),
+  `occurrence-watcher.policy.ts` (`typeWatchers`, origem `occurrence_type`). Valores: `buildContractorMailValues` (`trips/domain`).
+- **Gravação (`saveOccurrenceType`, uma transação):** tipo travado `FOR UPDATE` e "antes" lido → linha/carimbo → momentos → escopo (270, que
+  já poda os destinatários) → responsáveis → destinatários → auditoria. O modelo é conferido **antes** (sem trava; o envio reconfere).
+  `actorUserId` e `correlationId` vêm do `main.ts`/rota até aqui.
+- **Erros:** `OCCURRENCE_CONTRACTOR_TEMPLATE_INVALID` (400; `details[]` = `{field:'contractorNotificationTemplateKey', message:<código>}` e
+  `{field:'variables', message:<nome>}`), `OCCURRENCE_TYPE_WATCHER_NOT_FOUND` (404), `_WATCHER_LIMIT`, `_WATCHER_INACTIVE`,
+  `OCCURRENCE_TYPE_RECIPIENTS_REQUIRE_LISTED_SCOPE`, `OCCURRENCE_TYPE_RECIPIENT_NOT_IN_SCOPE` (400); contato inexistente/de outra empresa é o 404
+  de contato da 150.
+- **Envio:** `findOccurrenceNotificationTemplate` (chave do tipo + versão ativa) em `send-occurrence-mail`, prévia e automático;
+  `recordMail` grava chave e versão e `template_id = null`; o reenvio da 248 copia chave e versão da mensagem original (ou nulo).
+  `ccSource` da prévia ganha `occurrence_type`.
+- **Aviso D9:** `occurrence-mail-template-missing.query.ts` (`listMissingNotificationTemplates`, `listTypesWithoutUsableTemplate`, ambos `…OrEmpty`
+  com log só do SQLSTATE): uma consulta `IN (chaves)` por página.
+- **Leituras e gate (T2.10):** `occurrence-type-mail.routes.ts` e o gate de `settings.manage` em `notification-http.router.ts`.
+- **Contratos:** `test/occurrence-contractor-mail/*.contract.ts` (agregador `test/occurrence-contractor-mail.contract.test.ts`) e
+  `test/integration/occurrence-type-contractor-{template,watchers,recipients}.integration.ts`, `occurrence-mail-template.integration.ts`.
+- **Publicação em etapas (ADR-0081 §9):** painel tolerante (269 T1.1–T1.3, 270 T1.1, 271 T1.1–T1.2) → API+worker com a migration A (269+270+271
+  juntas) → telas → migration B.
 
 ## O escopo de contratantes do tipo (spec 270, ADR-0107)
 

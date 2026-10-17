@@ -1115,32 +1115,28 @@ correção devolvem `cc: [{ userId, name, maskedEmail }]` e `ccSource`; o histó
 A correção de endereço não tem caminho `sandbox_smtp` (268): continua exigindo o Resend. Detalhe: `docs/ai-context/api-transportada.md`.
 Contratos: `test/contractor-mail/occurrence-watcher*.contract.ts`, `test/integration/occurrence-watchers-*.integration.ts`.
 
-## O e-mail da ocorrência usa o modelo do cadastro (spec 269, ADR-0106)
+## O modelo do e-mail da ocorrência vem do módulo de notificação (spec 271, ADR-0108)
 
-O e-mail de ocorrência à contratante **não** sai mais do texto do tipo (`email_subject`/`email_body`, spec 079/247, `{{camelCase}}`):
-sai de um modelo `occurrence` de "E-mail com contratantes → Modelos" (spec 150, `{snake_case}`, catálogo em
-`mail-template-catalog.constant.ts`). A ADR-0106 emenda a decisão de desenho da 183 (`evidence.md:529-532`).
+Substitui o desenho da 269 (modelo `occurrence` do cadastro da 150, escolhido por id no tipo e na exceção): **um lugar só** para escrever
+o texto — Notificações → Preferências (`notification.templates`, canal `email`, `pt-BR`, `{{camelCase}}` da lista fechada
+`OCCURRENCE_CONTRACTOR_MAIL_VARIABLES`, com `{{linhasItens}}`). O módulo é só depósito e renderizador: a API lê a tabela com `sql`
+parametrizado (`notification-template.query.ts`, versão ativa mais alta) e usa `interpolateTemplate`; nunca `sendNotification`.
 
-- **Escolha:** `company_occurrence_types.contractor_mail_template_id` e a mesma coluna na exceção por contratante
-  (`company_occurrence_type_contractor_overrides`; nulo herda). Modelo efetivo = exceção ?? tipo
-  (`occurrence-mail-template.policy.ts`). Sem padrão: nulo é **sem modelo**, não cai no `is_default`.
-- **Gravar:** `PUT /company-settings/occurrence-types` e `.../attachment-overrides` aceitam `contractorMailTemplateId`
-  (ausente = não mexa, `null` limpa/herda). `lockUsableOccurrenceMailTemplate` segura o modelo `FOR KEY SHARE` na mesma
-  transação; modelo inexistente, de outra empresa, arquivado ou de outro tipo de e-mail é 409
-  `CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE`.
-- **Arquivar:** modelo `occurrence` escolhido por tipo (ativo ou inativo) ou exceção é 409
-  `CONTRACTOR_MAIL_TEMPLATE_IN_USE`; `details[]` traz `occurrenceType:<nome>` e `contractorException:<tipo> / <contratante>`.
-  A ordem é advisory lock → `FOR UPDATE` no modelo → conferir uso.
-- **Envio:** `executeSend` tem um ponto só (`resolveTemplateId`): sem modelo efetivo, 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`,
-  nem à mão. O reenvio do retorno (248) não passa pelo bloqueio e grava o `template_id` da mensagem original (ou nulo). O
-  automático pula com `no_template_selected` (também no 409 de corrida). `contractor_mail_messages.template_id` guarda o modelo.
-- **Corpo:** `composeOccurrenceMail` = abertura + linhas de item + encerramento; assunto numa linha só, tetos de
-  `OCCURRENCE_MAIL_LIMITS`, teto de 200 linhas ("e mais N itens"). A assinatura segue sendo anexada por `buildOccurrenceMail`.
-- **Aviso:** `missingNotificationTemplate` no feed e no detalhe (`listMissingNotificationTemplates`, uma leitura por página) e na
-  prévia do diálogo (`templateId` + flag). Na prévia a flag é "não há modelo efetivo" (o envio é bloqueado mesmo com
-  `emails_contractor` desligado). **Nunca** no DTO exato `isTripOccurrence` do painel.
-- **Worker:** a varredura só pede ocorrência com modelo efetivo.
-- **Publicação em etapas:** painel tolerante → API → telas → (depois) migration B que remove as três colunas de texto.
+- **Bloco do tipo** (`PUT /company-settings/occurrence-types`, chaves opcionais e independentes — ausente não mexe, `null`/`[]` limpa):
+  `contractorNotificationTemplateKey` (varchar, **sem FK**; 400 `OCCURRENCE_CONTRACTOR_TEMPLATE_INVALID` com **todos** os problemas:
+  `not_found`, `system_key`, `html_body`, `empty_subject`, `unknown_variables`, `malformed_placeholder`, conferido **antes** da transação),
+  `contractorMailWatcherUserIds` (em cópia: só da lista da empresa da 267, até 10, novo inativo é 400) e `contractorMailRecipientContactIds`
+  (destinatários: só tipo `listed`, contatos das contratantes da lista, poda explícita ao mudar o escopo). Auditoria
+  `occurrence_type.contractor_mail.updated` com ids antes/depois, na mesma transação.
+- **Envio:** modelo utilizável = versão ativa, e-mail `pt-BR`, corpo sem HTML, assunto não vazio (`blocksContractorMailSend`); senão 409
+  `OCCURRENCE_MAIL_TEMPLATE_MISSING`, nem à mão; reenvio da 248 isento. `contractor_mail_messages.notification_template_key`/`_version`
+  guardam o que saiu (`template_id` fica só para a correção de endereço). Cópia efetiva = tipo ?? contratante ?? empresa; `To` = escolhidos
+  da contratante da nota (ignora a etapa), senão a regra da etapa. Carimbo `contractor_notification_template_selected_at`: o automático só
+  vale para ocorrência registrada depois da escolha.
+- **Aviso** `missingNotificationTemplate` (feed, detalhe, editor do tipo, prévia): lote `IN (chaves)` best-effort.
+- **Leituras do editor** (`settings.manage`): `GET .../contractor-mail-templates` e `GET .../contractor-mail-recipient-candidates`. As escritas
+  em `/v1/notification-templates*` exigem `settings.manage` (o módulo, sozinho, deixa qualquer membro).
+- Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O modelo do e-mail da ocorrência vem do módulo de notificação (spec 271)".
 
 ## O tipo de ocorrência tem escopo de contratantes (spec 270, ADR-0107)
 

@@ -171,3 +171,7 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 - `createNotificationHttpRouter` recusa `POST`/`PUT`/`PATCH`/`DELETE` em `/v1/notification-templates*` com 403 quando o membro não tem `settings.manage` (antes do roteador do módulo, que marca a escrita só como `admin` sem escopo exigido e deixava qualquer membro entrar); sem identidade ou com falha de autorização o módulo responde como sempre. A leitura da lista do módulo não mudou.
 - Novas leituras com `settings.manage`: `GET /company-settings/occurrence-types/contractor-mail-templates` (`[{ key, subject, body, version, usable, problems[] }]`, a versão ativa mais alta de cada chave de e-mail `pt-BR`) e `GET …/contractor-mail-recipient-candidates?contractorIds=…` (contatos ativos que recebem ocorrências; contratante de outra empresa → 404). Arquivo próprio `occurrence-type-mail.routes.ts`.
 - Contrato 12055 pass / 25 skip / 0 fail; integração dos dois arquivos tocados: 11 pass / 0 fail; tsc, lint e prettier limpos.
+
+### T2.9 — documentação viva
+
+- `apps/api-transportada/CLAUDE.md` (a seção da 269 virou a da 271, núcleo) e `docs/ai-context/api-transportada.md` (histórico e decisões). Esta base **não tem OpenAPI gerado ou escrito à mão** (nenhum arquivo `openapi` em `apps/api-transportada`): as rotas novas e alteradas estão documentadas nas duas seções acima e nos contratos de rota.

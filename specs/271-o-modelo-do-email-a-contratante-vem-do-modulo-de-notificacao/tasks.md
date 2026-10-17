@@ -90,7 +90,7 @@
       → 403. (Lacuna existente: as rotas do módulo usam escopo `admin` sem `requiredScopes` e `isScopeSatisfied` deixa
       qualquer membro entrar.) Também as rotas de leitura do plan § Revisão item 3 (`contractor-mail-templates` e
       `contractor-mail-recipient-candidates`), com `settings.manage`.
-- [ ] **T2.9** `haiku` — Documentação viva: OpenAPI das rotas alteradas, `apps/api-transportada/CLAUDE.md` (núcleo, uma
+- [x] **T2.9** `haiku` — Documentação viva: OpenAPI das rotas alteradas, `apps/api-transportada/CLAUDE.md` (núcleo, uma
       linha sob ocorrência) e `docs/ai-context/api-transportada.md`.
 
 > Publicação (registro, nada é publicado nesta execução): o passo 1 é uma branch `promote/*` a partir de `origin/main`
