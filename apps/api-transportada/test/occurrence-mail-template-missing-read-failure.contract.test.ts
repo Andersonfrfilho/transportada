@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 269 (revisão): o aviso "Tipo sem modelo de notificação" é refinamento do feed — falhar vira "ninguém sem
+ * Spec 269 (revisão), 271: o aviso "Tipo sem modelo de notificação" é refinamento do feed — falhar vira "ninguém sem
  * modelo", mas a falha é registrada (sem parâmetro nem dado) e, sem logger (dentro de transação), propaga a causa.
  */
 import { describe, expect, test } from 'bun:test'
@@ -20,7 +20,7 @@ const SENSITIVE_VALUE = 'cliente-sigiloso@example.com'
 function buildFailingQueryable(cause: Error): TripQueryable {
   const failure = new Error(`Failed query: select\nparams: ${SENSITIVE_VALUE}`, { cause })
   return {
-    select: () => ({ from: () => ({ where: () => Promise.reject(failure) }) }),
+    execute: () => Promise.reject(failure),
   } as unknown as TripQueryable
 }
 
@@ -40,9 +40,8 @@ const PARAMS = {
       contractorId: 'contractor-1',
       emailsContractor: true,
       id: 'occurrence-1',
-      occurrenceTypeId: 'type-1',
       source: 'document',
-      typeMailTemplateId: null,
+      typeNotificationTemplateKey: 'ocorrencia.avaria',
     },
   ],
   companyId: 'company-1',

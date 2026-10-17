@@ -137,3 +137,11 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 ### T2.3 — políticas puras
 
 - `occurrence-contractor-template.policy.ts` (`assessContractorTemplate`: todos os problemas, ordem `system_key`, `html_body`, `empty_subject`, `unknown_variables`, `malformed_placeholder`; `not_found` sozinho; `blocksContractorMailSend` bloqueia só `not_found`/`html_body`/`empty_subject`) e `occurrence-contractor-mail-render.policy.ts` (`renderContractorMail`). Gate API: tsc/lint/prettier limpos, contrato 12022 pass / 25 skip / 0 fail.
+
+### T2.4 — modelo escolhido no tipo, pela chave
+
+- `notification-template.query.ts` (SQL parametrizado em `notification.templates`, versão ativa mais alta, e-mail `pt-BR`), `PUT`/`GET` do tipo com `contractorNotificationTemplateKey` (ausente não mexe, `null` limpa, carimbo `is distinct from` sem cast, `INSERT` com chave carimba), 400 `OCCURRENCE_CONTRACTOR_TEMPLATE_INVALID` com todos os problemas.
+- **Desvio de contrato:** o `ApiError` só carrega `details[{field,message}]`; os problemas vão como `{field:'contractorNotificationTemplateKey', message:<code>}` e cada variável desconhecida como `{field:'variables', message:<nome>}` (no lugar de `details.problems[]`).
+- O aviso D9 (`missingNotificationTemplate`) já nasce em lote por `IN (chaves)` (feed, detalhe e editor do tipo), best-effort com log só do SQLSTATE; o teste que conta as consultas está em `missing-template-query.contract.ts`.
+- Integração (36 arquivos de tipo, feed, envio e conversa): 128 pass / 0 fail / 0 skip. Contrato da API: 12032 pass / 25 skip / 0 fail; tsc e lint limpos.
+- A suíte de integração inteira soma ~55 min sequenciais (pesos), então cada task roda só os arquivos que toca; a suíte inteira roda no fechamento (T5.1).

@@ -66,7 +66,10 @@ function save(database: TestDatabase, companyId: string, values: SaveOccurrenceT
     companyId,
     findCurrentType: (query) => findOccurrenceType(database.db, query),
     save: (toSave) => saveOccurrenceType(database.db, { ...toSave, companyId }),
-    templates: { hasActiveEmailTemplate: async () => true },
+    templates: {
+      findContractorTemplate: async () => null,
+      hasActiveEmailTemplate: async () => true,
+    },
     values,
   })
 }

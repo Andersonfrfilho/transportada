@@ -560,6 +560,11 @@ const occurrenceTypeSchema = z
      */
     contractorMailTemplateId: z.string().uuid().nullable().optional(),
     /**
+     * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação que escreve o e-mail à
+     * contratante. Ausente é "não mexa"; `null` limpa. Conferida na gravação (400 com todos os problemas).
+     */
+    contractorNotificationTemplateKey: z.string().trim().min(1).max(128).nullable().optional(),
+    /**
      * Spec 270 (ADR-0107): para quem o tipo vale. `contractorScope` e `contractorIds` vão juntos (o caso de
      * uso recusa um sem o outro, 400); ausentes é "não mexa". `all` apaga a lista; `listed` pede ao menos uma.
      */

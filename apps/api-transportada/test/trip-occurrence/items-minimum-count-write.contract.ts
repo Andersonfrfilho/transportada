@@ -68,7 +68,10 @@ async function save(input: {
       saved.push(written)
       return { id: OCCURRENCE_TYPE_ID } as OccurrenceTypeRecord
     },
-    templates: { hasActiveEmailTemplate: async () => true },
+    templates: {
+      findContractorTemplate: async () => null,
+      hasActiveEmailTemplate: async () => true,
+    },
     values: input.values,
   })
   const [written] = saved
@@ -174,7 +177,10 @@ describe('itemsMinimumCount só vale com Produtos obrigatório (spec 246 T1c.4, 
         saved.push(written)
         return { id: OCCURRENCE_TYPE_ID } as OccurrenceTypeRecord
       },
-      templates: { hasActiveEmailTemplate: async () => true },
+      templates: {
+        findContractorTemplate: async () => null,
+        hasActiveEmailTemplate: async () => true,
+      },
       values: values(overrides),
     }).then(
       () => undefined,

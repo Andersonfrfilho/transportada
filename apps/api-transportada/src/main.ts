@@ -304,6 +304,7 @@ import {
   OCCURRENCE_CANCELLATION_OPERATION,
   OCCURRENCE_CORRECTION_OPERATION,
 } from './trips/domain/occurrence-correction.policy.js'
+import { findActiveContractorTemplate } from './occurrence-conversation/infrastructure/notification-template.query.js'
 import { toOccurrenceTypeSettingsViews } from './trips/infrastructure/occurrence-type-contractors.query.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
@@ -4359,6 +4360,7 @@ function createApplicationRoutes({
         execute: async (input) =>
           toOccurrenceTypeSettingsViews(database, {
             companyId: input.context.companyId,
+            logger,
             records: await listOccurrenceTypes(database, { companyId: input.context.companyId }),
           }),
       },
@@ -4432,6 +4434,8 @@ function createApplicationRoutes({
             save: (values) =>
               saveOccurrenceType(database, { ...values, companyId: input.context.companyId }),
             templates: {
+              findContractorTemplate: async ({ companyId, key }) =>
+                findActiveContractorTemplate(database, { companyId, key }),
               /**
                * O predicado consulta o catálogo do módulo — a mesma fonte que a tela de templates
                * edita. Chave sem template ativo de e-mail é recusada na gravação, não no envio.
@@ -4448,6 +4452,7 @@ function createApplicationRoutes({
           })
           const [view] = await toOccurrenceTypeSettingsViews(database, {
             companyId: input.context.companyId,
+            logger,
             records: [saved],
           })
           return view ?? saved

@@ -350,6 +350,8 @@ type SaveOccurrenceTypeInput = {
   readonly emailsContractor?: boolean | undefined
   /** Spec 269: o modelo do e-mail à contratante; ausente é "não mexa", `null` limpa. */
   readonly contractorMailTemplateId?: null | string | undefined
+  /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
+  readonly contractorNotificationTemplateKey?: null | string | undefined
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): obrigatório na criação, ausente na edição é "não mexa" — ver

@@ -39,14 +39,15 @@ export async function lockUsableOccurrenceMailTemplate(
 }
 
 /**
- * O momento da escolha (decisão de 2026-10-17): troca para um id diferente carimba `now()`, o mesmo id
+ * O momento da escolha (decisão de 2026-10-17): troca para um valor diferente carimba `now()`, o mesmo valor
  * mantém o carimbo e `null` o limpa. Só vale em UPDATE, onde a coluna do lado direito é o valor antigo.
+ * Serve a uuid (modelo da 269) e a varchar (chave do módulo de notificação, 271): o parâmetro herda o tipo da coluna.
  */
 export function buildTemplateSelectedAtChange(params: {
   readonly selectedAtColumn: PgColumn
-  readonly templateColumn: PgColumn
-  readonly templateId: null | string
+  readonly value: null | string
+  readonly valueColumn: PgColumn
 }): SQL | null {
-  if (params.templateId === null) return null
-  return sql`case when ${params.templateColumn} is distinct from ${params.templateId}::uuid then now() else ${params.selectedAtColumn} end`
+  if (params.value === null) return null
+  return sql`case when ${params.valueColumn} is distinct from ${params.value} then now() else ${params.selectedAtColumn} end`
 }

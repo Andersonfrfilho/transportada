@@ -234,7 +234,10 @@ async function save(input: {
       saved.push(values)
       return buildRecord()
     },
-    templates: { hasActiveEmailTemplate: async () => true },
+    templates: {
+      findContractorTemplate: async () => null,
+      hasActiveEmailTemplate: async () => true,
+    },
     values: { ...BASE_VALUES, ...input.values },
   })
   return saved

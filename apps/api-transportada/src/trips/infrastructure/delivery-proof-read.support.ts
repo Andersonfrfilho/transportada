@@ -879,6 +879,8 @@ export async function findOccurrenceType(
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
+      /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
+      contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
       contractorScope: companyOccurrenceTypes.contractorScope,
       contractorReplyAlertIntervalMinutes:
@@ -1055,6 +1057,8 @@ export async function listOccurrenceTypes(
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
+      /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
+      contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
       contractorScope: companyOccurrenceTypes.contractorScope,
       contractorReplyAlertIntervalMinutes:
@@ -1225,6 +1229,8 @@ async function writeOccurrenceTypeRow(
     readonly emailsContractor?: boolean | undefined
     /** Spec 269: o modelo do e-mail à contratante; ausente é "não mexa", `null` limpa. */
     readonly contractorMailTemplateId?: null | string | undefined
+    /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
+    readonly contractorNotificationTemplateKey?: null | string | undefined
     readonly contractorReplyAlertIntervalMinutes?: number | undefined
     readonly contractorReplyAlertMaxCount?: number | undefined
     readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
@@ -1376,6 +1382,12 @@ async function writeOccurrenceTypeRow(
                   contractorMailTemplateSelectedAt: sql`now()`,
                 }
               : {}),
+            ...(typeof input.contractorNotificationTemplateKey === 'string'
+              ? {
+                  contractorNotificationTemplateKey: input.contractorNotificationTemplateKey,
+                  contractorNotificationTemplateSelectedAt: sql`now()`,
+                }
+              : {}),
             ...(input.flow === 'stop' ? { stopKind: 'other' as const } : {}),
           })
           .returning()
@@ -1391,8 +1403,19 @@ async function writeOccurrenceTypeRow(
                   contractorMailTemplateId: input.contractorMailTemplateId,
                   contractorMailTemplateSelectedAt: buildTemplateSelectedAtChange({
                     selectedAtColumn: companyOccurrenceTypes.contractorMailTemplateSelectedAt,
-                    templateColumn: companyOccurrenceTypes.contractorMailTemplateId,
-                    templateId: input.contractorMailTemplateId,
+                    value: input.contractorMailTemplateId,
+                    valueColumn: companyOccurrenceTypes.contractorMailTemplateId,
+                  }),
+                }),
+            ...(input.contractorNotificationTemplateKey === undefined
+              ? {}
+              : {
+                  contractorNotificationTemplateKey: input.contractorNotificationTemplateKey,
+                  contractorNotificationTemplateSelectedAt: buildTemplateSelectedAtChange({
+                    selectedAtColumn:
+                      companyOccurrenceTypes.contractorNotificationTemplateSelectedAt,
+                    value: input.contractorNotificationTemplateKey,
+                    valueColumn: companyOccurrenceTypes.contractorNotificationTemplateKey,
                   }),
                 }),
             /** Spec 218 D2: virou tipo de parada sem valor? vale como `other`; o que já tinha, fica. */
@@ -1425,6 +1448,7 @@ async function writeOccurrenceTypeRow(
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
     contractorMailTemplateId: saved.contractorMailTemplateId,
+    contractorNotificationTemplateKey: saved.contractorNotificationTemplateKey,
     contractorScope: saved.contractorScope,
     contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,
     contractorReplyAlertMaxCount: saved.contractorReplyAlertMaxCount,

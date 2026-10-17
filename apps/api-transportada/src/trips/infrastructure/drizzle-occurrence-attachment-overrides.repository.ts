@@ -188,9 +188,9 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
                       contractorMailTemplateSelectedAt: buildTemplateSelectedAtChange({
                         selectedAtColumn:
                           companyOccurrenceTypeContractorOverrides.contractorMailTemplateSelectedAt,
-                        templateColumn:
+                        value: override.contractorMailTemplateId,
+                        valueColumn:
                           companyOccurrenceTypeContractorOverrides.contractorMailTemplateId,
-                        templateId: override.contractorMailTemplateId,
                       }),
                     }),
               },

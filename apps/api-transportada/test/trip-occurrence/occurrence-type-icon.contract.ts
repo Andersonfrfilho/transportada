@@ -94,7 +94,10 @@ describe('o PUT do catálogo valida o ícone do tipo (spec 255 RF2, CA2)', () =>
         companyId: COMPANY,
         findCurrentType: async () => null,
         save: async (values) => buildRecord({ iconName: values.iconName ?? null }),
-        templates: { hasActiveEmailTemplate: async () => true },
+        templates: {
+          findContractorTemplate: async () => null,
+          hasActiveEmailTemplate: async () => true,
+        },
         values: {
           active: true,
           emailTemplateKey: null,

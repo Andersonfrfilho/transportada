@@ -14,8 +14,10 @@ import {
   OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
   type OccurrenceTypeContractorScope,
 } from '../../shared/trip-occurrence.constant.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import { resolveOccurrenceTypeMoments } from '../domain/occurrence-moment.policy.js'
 import { assertOccurrenceTypeContractorScopeIsWritable } from '../domain/occurrence-type-contractor-scope.policy.js'
+import { listTypesWithoutUsableTemplateOrEmpty } from './occurrence-mail-template-missing.query.js'
 import { readOccurrenceTypeMoments } from './occurrence-type-moments.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -29,10 +31,14 @@ export type OccurrenceTypeContractorDetail = {
 export type OccurrenceTypeContractorScopeView = {
   readonly contractors: readonly OccurrenceTypeContractorDetail[]
   readonly contractorScope: OccurrenceTypeContractorScope
+  /** Spec 271 (D9): o e-mail à contratante está ligado e o tipo não tem modelo utilizável. */
+  readonly missingNotificationTemplate: boolean
 }
 
 type ScopedRecord = {
+  readonly contractorNotificationTemplateKey?: null | string | undefined
   readonly contractorScope?: OccurrenceTypeContractorScope | undefined
+  readonly emailsContractor?: boolean | undefined
   readonly id: string
 }
 
@@ -147,7 +153,11 @@ export async function toOccurrenceTypeSettingsViews<
   TRecord extends ScopedRecord & { readonly contractorIds?: readonly string[] | undefined },
 >(
   queryable: TripQueryable,
-  params: { readonly companyId: string; readonly records: readonly TRecord[] },
+  params: {
+    readonly companyId: string
+    readonly logger?: ApiLogger
+    readonly records: readonly TRecord[]
+  },
 ): Promise<readonly (Omit<TRecord, 'contractorIds'> & OccurrenceTypeContractorScopeView)[]> {
   const listedIds = params.records
     .filter((record) => record.contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed)
@@ -155,6 +165,15 @@ export async function toOccurrenceTypeSettingsViews<
   const detailsByType = await readOccurrenceTypeContractorDetails(queryable, {
     companyId: params.companyId,
     occurrenceTypeIds: listedIds,
+  })
+  const missingTemplateTypeIds = await listTypesWithoutUsableTemplateOrEmpty(queryable, {
+    companyId: params.companyId,
+    ...(params.logger === undefined ? {} : { logger: params.logger }),
+    types: params.records.map((record) => ({
+      emailsContractor: record.emailsContractor ?? false,
+      id: record.id,
+      key: record.contractorNotificationTemplateKey ?? null,
+    })),
   })
   return params.records.map((original) => {
     const record: Omit<TRecord, 'contractorIds'> & { contractorIds?: unknown } = { ...original }
@@ -167,6 +186,7 @@ export async function toOccurrenceTypeSettingsViews<
           ? (detailsByType.get(record.id) ?? [])
           : [],
       contractorScope,
+      missingNotificationTemplate: missingTemplateTypeIds.has(record.id),
     }
   })
 }

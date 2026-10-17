@@ -151,6 +151,7 @@
   "./test/integration/occurrence-template-values.integration.ts": 12,
   "./test/integration/occurrence-type-allows-multiple-items.integration.ts": 6,
   "./test/integration/occurrence-type-catalog-seed.integration.ts": 5,
+  "./test/integration/occurrence-type-contractor-template.integration.ts": 16,
   "./test/integration/occurrence-type-declared-amount-write.integration.ts": 20,
   "./test/integration/occurrence-type-icon-write.integration.ts": 8,
   "./test/integration/occurrence-type-icon.integration.ts": 3,

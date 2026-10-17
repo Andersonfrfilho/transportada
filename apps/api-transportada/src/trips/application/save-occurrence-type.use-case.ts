@@ -20,6 +20,11 @@ import type {
   OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
+import { OccurrenceContractorTemplateInvalidError } from '../../occurrence-conversation/domain/occurrence-contractor-template.error.js'
+import {
+  assessContractorTemplate,
+  type ContractorTemplateContent,
+} from '../../occurrence-conversation/domain/occurrence-contractor-template.policy.js'
 import { OccurrenceTypeContractorScopeInvalidError } from '../domain/occurrence-type-contractor-scope.error.js'
 import {
   assertOccurrenceTypeContractorScopeIsWritable,
@@ -47,8 +52,13 @@ import type {
   ForwardToNoteRecipientMode,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 
-/** O catálogo de templates da empresa, visto pelo único predicado que este cadastro precisa. */
+/** O catálogo de templates da empresa (módulo de notificação), visto pelo que este cadastro precisa dele. */
 export type OccurrenceEmailTemplateCatalogPort = {
+  /** Spec 271 (D1): a versão ativa mais alta (e-mail, pt-BR) da chave, da empresa; `null` quando não há. */
+  findContractorTemplate(input: {
+    readonly companyId: string
+    readonly key: string
+  }): Promise<ContractorTemplateContent | null>
   hasActiveEmailTemplate(input: {
     readonly companyId: string
     readonly templateKey: string
@@ -89,6 +99,11 @@ export type SaveOccurrenceTypeValues = {
   readonly emailsContractor?: boolean | undefined
   /** Spec 269: o modelo do e-mail à contratante. Ausente é "não mexa"; `null` limpa. */
   readonly contractorMailTemplateId?: null | string | undefined
+  /**
+   * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação que escreve o e-mail à contratante.
+   * Ausente é "não mexa"; `null` limpa. Conferida **antes** da transação: sem trava, e o envio reconfere.
+   */
+  readonly contractorNotificationTemplateKey?: null | string | undefined
   /**
    * Spec 270 (ADR-0107): para quem o tipo vale. Escopo e lista vão **juntos** (um sem o outro é 400);
    * ausentes é "não mexa". `all` sem lista; `listed` com ao menos uma contratante da empresa.
@@ -190,6 +205,11 @@ export async function saveOccurrenceTypeWithTemplate(
   assertItemsMinimumMatchesMode({ stored, values })
   assertDeclaredAmountHasItems({ stored, values })
   assertContractorScopeValues(values)
+  await assertContractorTemplateIsUsable({
+    companyId: input.companyId,
+    templates: input.templates,
+    values,
+  })
 
   const { emailTemplateKey } = values
   if (emailTemplateKey === null) return input.save(values)
@@ -201,6 +221,22 @@ export async function saveOccurrenceTypeWithTemplate(
   if (!exists) throw new OccurrenceEmailTemplateNotFoundError()
 
   return input.save(values)
+}
+
+/** Spec 271 (D5): chave presente é conferida na gravação — todos os problemas de uma vez, nunca o primeiro só. */
+async function assertContractorTemplateIsUsable(params: {
+  readonly companyId: string
+  readonly templates: OccurrenceEmailTemplateCatalogPort
+  readonly values: SaveOccurrenceTypeValues
+}): Promise<void> {
+  const key = params.values.contractorNotificationTemplateKey
+  if (key === undefined || key === null) return
+  const template = await params.templates.findContractorTemplate({
+    companyId: params.companyId,
+    key,
+  })
+  const problems = assessContractorTemplate({ key, template })
+  if (problems.length > 0) throw new OccurrenceContractorTemplateInvalidError(problems)
 }
 
 /** Uma leitura só do gravado, e só na edição que deixa algum campo ausente. */

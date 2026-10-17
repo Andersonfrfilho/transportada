@@ -61,7 +61,7 @@
       vinda de `NOTIFICATION_TEMPLATE_KEY`) e `occurrence-contractor-mail-render.policy.ts` (variável ausente → vazio;
       assunto com quebra de linha colapsado e truncado; corpo longo encurta `linhasItens` antes de truncar; sem HTML
       escapado no texto). Depois, a implementação.
-- [ ] **T2.4** `sonnet` — `notification-template.query.ts` (versão ativa mais alta, `email`, `pt-BR`, empresa; outra
+- [x] **T2.4** `sonnet` — `notification-template.query.ts` (versão ativa mais alta, `email`, `pt-BR`, empresa; outra
       empresa não aparece) e o `PUT`/`GET` do tipo com `contractorNotificationTemplateKey` (ausente não mexe, `null`
       limpa, carimbo D2 só quando a chave muda, `missingNotificationTemplate` na leitura). Integração: modelo de outra
       empresa → 400 `not_found`; desativado; HTML; `{{foo}}`; versão nova da mesma chave não muda o carimbo.
