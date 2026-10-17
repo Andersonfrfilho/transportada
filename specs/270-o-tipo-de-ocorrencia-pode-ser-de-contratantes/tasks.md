@@ -44,7 +44,7 @@
 - [x] **T2.1** `sonnet` — Migration (plan § Dados), schema Drizzle (coluna + CHECK da constante + tabela nova),
       constantes e erros. Aceite: `make migration-test` (ou aplica, reverte e reaplica num Postgres descartável) e
       `db:generate` com `no_changes` depois.
-- [ ] **T2.2** `sonnet` — Teste antes da política pura `occurrence-type-contractor-scope.policy.ts`: `all` com e sem
+- [x] **T2.2** `sonnet` — Teste antes da política pura `occurrence-type-contractor-scope.policy.ts`: `all` com e sem
       contratante; `listed` com contratante dentro, fora e nula; validação (lista vazia, `all` com lista, só `stop`,
       `stop` + `document`, que a 246 já recusa; `stop` + `office` válido), todos os erros de uma vez. Depois a implementação.
 - [ ] **T2.3** `sonnet` — Gravação e leitura do escopo no `PUT`/`GET /company-settings/occurrence-types` (D7): par
