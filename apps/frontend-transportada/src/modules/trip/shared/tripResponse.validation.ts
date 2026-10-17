@@ -1963,6 +1963,28 @@ function isOccurrenceTypeContractor(value: unknown): value is Readonly<Record<st
   )
 }
 
+function isOccurrenceTypeMailWatcher(value: unknown): value is Readonly<Record<string, unknown>> {
+  return (
+    isRecord(value) &&
+    isString(value.userId) &&
+    isString(value.name) &&
+    isString(value.status) &&
+    isBoolean(value.eligible)
+  )
+}
+
+function isOccurrenceTypeMailRecipient(value: unknown): value is Readonly<Record<string, unknown>> {
+  return (
+    isRecord(value) &&
+    isString(value.contactId) &&
+    isString(value.contractorId) &&
+    isString(value.name) &&
+    isString(value.email) &&
+    isString(value.status) &&
+    isBoolean(value.receivesOccurrences)
+  )
+}
+
 function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
     !hasKeys(value, {
@@ -2007,6 +2029,11 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         /** Spec 270 T1.1 (ADR-0107, ADR-0081 §9): o escopo de contratantes do tipo, tolerado antes de a API mandá-lo. */
         'contractorScope',
         'contractors',
+        /** Spec 271 T1.1 (ADR-0108, ADR-0081 §9): o bloco "E-mail à contratante" do tipo, tolerado antes de a API mandá-lo. */
+        'contractorNotificationTemplateKey',
+        'contractorMailWatchers',
+        'contractorMailRecipients',
+        'missingNotificationTemplate',
         /** Até a etapa B a API ainda pode mandar o texto antigo do e-mail (rollback da API): tolerado e ignorado. */
         'emailBody',
         'emailItemLineTemplate',
@@ -2028,6 +2055,15 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.contractorMailTemplateId === undefined ||
       value.contractorMailTemplateId === null ||
       isString(value.contractorMailTemplateId)) &&
+    (value.contractorNotificationTemplateKey === undefined ||
+      value.contractorNotificationTemplateKey === null ||
+      isString(value.contractorNotificationTemplateKey)) &&
+    (value.contractorMailWatchers === undefined ||
+      isEveryItem(value.contractorMailWatchers, isOccurrenceTypeMailWatcher)) &&
+    (value.contractorMailRecipients === undefined ||
+      isEveryItem(value.contractorMailRecipients, isOccurrenceTypeMailRecipient)) &&
+    (value.missingNotificationTemplate === undefined ||
+      isBoolean(value.missingNotificationTemplate)) &&
     (value.contractorScope === undefined || isString(value.contractorScope)) &&
     (value.contractors === undefined ||
       isEveryItem(value.contractors, isOccurrenceTypeContractor)) &&

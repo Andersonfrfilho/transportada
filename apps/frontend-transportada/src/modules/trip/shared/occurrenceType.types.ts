@@ -27,6 +27,24 @@ export type OccurrenceTypeContractor = Readonly<{
   taxId: string
 }>
 
+/** Spec 271 (ADR-0108): responsável da empresa escolhido para ir em cópia no e-mail do tipo. */
+export type OccurrenceTypeMailWatcher = Readonly<{
+  eligible: boolean
+  name: string
+  status: string
+  userId: string
+}>
+
+/** Spec 271: contato de contratante escolhido como destinatário do e-mail do tipo (só tipo `listed`). */
+export type OccurrenceTypeMailRecipient = Readonly<{
+  contactId: string
+  contractorId: string
+  email: string
+  name: string
+  receivesOccurrences: boolean
+  status: string
+}>
+
 /** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
 export type OccurrenceType = Readonly<{
   active: boolean
@@ -47,6 +65,11 @@ export type OccurrenceType = Readonly<{
   declaredAmountScope?: DeclaredAmountScope
   /** Spec 269: o modelo `occurrence` que o tipo escolhe para o e-mail à contratante; nulo é sem modelo. Ausente é API anterior. */
   contractorMailTemplateId?: null | string
+  /** Spec 271: o bloco "E-mail à contratante" do tipo. Todos ausentes numa API anterior. */
+  contractorMailRecipients?: readonly OccurrenceTypeMailRecipient[]
+  contractorMailWatchers?: readonly OccurrenceTypeMailWatcher[]
+  contractorNotificationTemplateKey?: null | string
+  missingNotificationTemplate?: boolean
   /**
    * Spec 270 (ADR-0107): para quem o tipo vale. Ausente é API anterior ao campo: lê-se como `all`, e o
    * `PUT` nunca o manda. `contractors` é a lista do tipo `listed`, ordenada por nome pela API.
