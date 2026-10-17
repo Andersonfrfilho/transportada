@@ -1947,6 +1947,16 @@ function isPhotoMinimumCount(value: unknown): boolean {
   )
 }
 
+function isOccurrenceTypeContractor(value: unknown): value is Readonly<Record<string, unknown>> {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isString(value.displayName) &&
+    isString(value.taxId) &&
+    isString(value.status)
+  )
+}
+
 function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
     !hasKeys(value, {
@@ -1988,6 +1998,9 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'declaredAmountLabel',
         /** Spec 269 (ADR-0106): o tipo aponta para um modelo `occurrence`. */
         'contractorMailTemplateId',
+        /** Spec 270 T1.1 (ADR-0107, ADR-0081 §9): o escopo de contratantes do tipo, tolerado antes de a API mandá-lo. */
+        'contractorScope',
+        'contractors',
         /** Até a etapa B a API ainda pode mandar o texto antigo do e-mail (rollback da API): tolerado e ignorado. */
         'emailBody',
         'emailItemLineTemplate',
@@ -2009,6 +2022,9 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.contractorMailTemplateId === undefined ||
       value.contractorMailTemplateId === null ||
       isString(value.contractorMailTemplateId)) &&
+    (value.contractorScope === undefined || isString(value.contractorScope)) &&
+    (value.contractors === undefined ||
+      isEveryItem(value.contractors, isOccurrenceTypeContractor)) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     (value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)) &&
     isString(value.id) &&

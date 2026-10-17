@@ -22,7 +22,7 @@
       `listed`/lista na transação, regra da parada (D3), interseção no lote (D5), onde fica a lista por nota da
       separação (rota nova ou parâmetro), ordem das guardas (momento → escopo → exigência da 246). Ajuste aprovado entra
       no `plan.md`, e a ADR passa a "aceita". **Outras tasks herdam este contrato.**
-- [ ] **T0.3** `sonnet` — Rebase sobre a 269: se a 269 já está em `origin/staging`, `git rebase origin/staging`; se não,
+- [x] **T0.3** `sonnet` — Rebase sobre a 269: se a 269 já está em `origin/staging`, `git rebase origin/staging`; se não,
       `git rebase work/spec-269`. `bun install --frozen-lockfile`, `bun run typecheck`. Registrar no `evidence.md` a base
       usada e o carimbo da última migration (a da 270 nasce depois dele).
 
@@ -30,7 +30,7 @@
 
 > 🤖 Modelo: `haiku` (T1.2 → `sonnet`)
 
-- [ ] **T1.1** `haiku` — Teste antes: a lista de tipos com `contractorScope: 'listed'` e `contractors: [...]` passa por
+- [x] **T1.1** `haiku` — Teste antes: a lista de tipos com `contractorScope: 'listed'` e `contractors: [...]` passa por
       `occurrenceTypesFromApi`, e com `contractorScope: 'qualquer'` também (tratado como `all`). Depois, as duas chaves
       entram opcionais em `allowed` de `isOccurrenceType` (`tripResponse.validation.ts:1947-1990`). Conferir que o guarda
       de tipos de campo (`isFieldOccurrenceType`, :1563-1573) não recebe chave nova (a API não a manda lá).
