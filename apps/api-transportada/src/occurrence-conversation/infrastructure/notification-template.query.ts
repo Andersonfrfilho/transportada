@@ -34,6 +34,10 @@ type TemplateRow = {
  * A versão ativa mais alta de cada chave pedida, e-mail `pt-BR`, **da empresa** — uma consulta para N chaves.
  * Chave sem versão ativa (ou de outra empresa) não aparece no mapa.
  */
+function toActiveTemplate(row: TemplateRow): ActiveContractorTemplate {
+  return { body: row.body, key: row.key, subject: row.subject ?? '', version: Number(row.version) }
+}
+
 export async function readActiveContractorTemplates(
   queryable: TripQueryable,
   params: { readonly companyId: string; readonly keys: readonly string[] },
@@ -52,12 +56,23 @@ export async function readActiveContractorTemplates(
       and t.locale = ${OCCURRENCE_CONTRACTOR_MAIL_LOCALE}
       and t.active
     order by t.key, t.version desc`)
-  return new Map(
-    rows.map((row) => [
-      row.key,
-      { body: row.body, key: row.key, subject: row.subject ?? '', version: Number(row.version) },
-    ]),
-  )
+  return new Map(rows.map((row) => [row.key, toActiveTemplate(row)]))
+}
+
+/** Todos os modelos de e-mail `pt-BR` ativos da empresa — a versão ativa mais alta de cada chave —, por chave. */
+export async function listActiveContractorTemplates(
+  queryable: TripQueryable,
+  params: { readonly companyId: string },
+): Promise<readonly ActiveContractorTemplate[]> {
+  const rows = await queryable.execute<TemplateRow>(sql`
+    select distinct on (t.key) t.key, t.version, t.subject, t.body
+    from ${sql.identifier(NOTIFICATION_SCHEMA)}.templates as t
+    where t.company_id = ${params.companyId}::uuid
+      and t.channel = ${OCCURRENCE_CONTRACTOR_MAIL_CHANNEL}
+      and t.locale = ${OCCURRENCE_CONTRACTOR_MAIL_LOCALE}
+      and t.active
+    order by t.key, t.version desc`)
+  return rows.map(toActiveTemplate)
 }
 
 export async function findActiveContractorTemplate(

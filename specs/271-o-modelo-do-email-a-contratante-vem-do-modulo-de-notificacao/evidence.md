@@ -165,3 +165,9 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 
 - Auditoria `occurrence_type.contractor_mail.updated` (D15, RF12) na mesma transação, com o tipo travado `FOR UPDATE` antes de ler o "antes" (item 6 da revisão): ator, tipo e `{ templateKey, watcherUserIds, recipientContactIds }` antes e depois, só quando algo mudou, nunca endereço; a `correlationId` do pedido vai da rota (`parse`) até a gravação. O aviso D9 em lote já vinha da T2.4 (teste de contagem em `missing-template-query.contract.ts`).
 - Integração (25 arquivos `occurrence-type-*`): 76 pass / 0 fail / 0 skip. Contrato 12045 pass / 25 skip / 0 fail; tsc, lint e prettier limpos.
+
+### T2.10 — gate do TMS nas escritas de modelo e leituras do editor
+
+- `createNotificationHttpRouter` recusa `POST`/`PUT`/`PATCH`/`DELETE` em `/v1/notification-templates*` com 403 quando o membro não tem `settings.manage` (antes do roteador do módulo, que marca a escrita só como `admin` sem escopo exigido e deixava qualquer membro entrar); sem identidade ou com falha de autorização o módulo responde como sempre. A leitura da lista do módulo não mudou.
+- Novas leituras com `settings.manage`: `GET /company-settings/occurrence-types/contractor-mail-templates` (`[{ key, subject, body, version, usable, problems[] }]`, a versão ativa mais alta de cada chave de e-mail `pt-BR`) e `GET …/contractor-mail-recipient-candidates?contractorIds=…` (contatos ativos que recebem ocorrências; contratante de outra empresa → 404). Arquivo próprio `occurrence-type-mail.routes.ts`.
+- Contrato 12055 pass / 25 skip / 0 fail; integração dos dois arquivos tocados: 11 pass / 0 fail; tsc, lint e prettier limpos.

@@ -7,6 +7,8 @@
  */
 import { and, asc, eq, inArray } from 'drizzle-orm'
 
+import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
+import { contractors } from '../../database/delivery-client.schema.js'
 import { findOccurrenceWatcherUsers } from '../../contractor-mail/infrastructure/occurrence-watcher-directory.query.js'
 import {
   companyOccurrenceTypeRecipients,
@@ -127,4 +129,40 @@ export async function readOccurrenceTypeMailRecipients(
     byType.set(occurrenceTypeId, views)
   }
   return byType
+}
+
+/**
+ * Os contatos que o editor oferece como destinatários: ativos e que recebem ocorrências, das contratantes pedidas.
+ * Contratante de outra empresa ou inexistente é o mesmo 404, sem dizer qual.
+ */
+export async function listOccurrenceTypeRecipientCandidates(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly contractorIds: readonly string[] },
+): Promise<readonly OccurrenceTypeMailRecipientView[]> {
+  const contractorIds = [...new Set(params.contractorIds)]
+  if (contractorIds.length === 0) return []
+  const owned = await queryable
+    .select({ id: contractors.id })
+    .from(contractors)
+    .where(and(eq(contractors.companyId, params.companyId), inArray(contractors.id, contractorIds)))
+  if (owned.length !== contractorIds.length) throw new ContractorNotFoundError()
+  return queryable
+    .select({
+      contactId: contractorContacts.id,
+      contractorId: contractorContacts.contractorId,
+      email: contractorContacts.email,
+      name: contractorContacts.name,
+      receivesOccurrences: contractorContacts.receivesOccurrences,
+      status: contractorContacts.status,
+    })
+    .from(contractorContacts)
+    .where(
+      and(
+        eq(contractorContacts.companyId, params.companyId),
+        inArray(contractorContacts.contractorId, contractorIds),
+        eq(contractorContacts.status, 'active'),
+        eq(contractorContacts.receivesOccurrences, true),
+      ),
+    )
+    .orderBy(asc(contractorContacts.name), asc(contractorContacts.id))
 }

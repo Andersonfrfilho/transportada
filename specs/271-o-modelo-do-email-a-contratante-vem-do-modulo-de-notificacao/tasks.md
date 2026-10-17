@@ -85,7 +85,7 @@
       da gravação da 270), o automático e o `preselected` da prévia. Integração do critério 6 e 7 da spec.
 - [x] **T2.8** `sonnet` — Auditoria D15 (só quando muda; ids, nunca endereço) e aviso D9 no feed e no detalhe na mesma
       consulta (`EXISTS`), sem N+1 (teste que conta consultas, molde da 269 T2.7).
-- [ ] **T2.10** `sonnet` — Gate do TMS nas rotas do módulo: `POST`/`PUT`/`DELETE` em `/notification-templates*` exigem
+- [x] **T2.10** `sonnet` — Gate do TMS nas rotas do módulo: `POST`/`PUT`/`DELETE` em `/notification-templates*` exigem
       `settings.manage` antes do roteador do módulo (`router.service.ts` ~:288). Teste de contrato: membro sem a permissão
       → 403. (Lacuna existente: as rotas do módulo usam escopo `admin` sem `requiredScopes` e `isScopeSatisfied` deixa
       qualquer membro entrar.) Também as rotas de leitura do plan § Revisão item 3 (`contractor-mail-templates` e

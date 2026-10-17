@@ -10,6 +10,7 @@ import { describe, expect } from 'bun:test'
 import { eq } from 'drizzle-orm'
 
 import { ContractorContactNotFoundError } from '../../src/contractor-mail/domain/contractor-mail.error.js'
+import { ContractorNotFoundError } from '../../src/delivery-clients/domain/delivery-client.error.js'
 import {
   companyOccurrenceTypeRecipients,
   contractorContacts,
@@ -37,6 +38,7 @@ import {
   findOccurrenceType,
   saveOccurrenceType,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
+import { listOccurrenceTypeRecipientCandidates } from '../../src/trips/infrastructure/occurrence-type-mail-view.query.js'
 import { toOccurrenceTypeSettingsViews } from '../../src/trips/infrastructure/occurrence-type-contractors.query.js'
 import {
   createOccurrenceMailUseCase,
@@ -347,6 +349,51 @@ describe('o To com destinatários escolhidos (spec 271 D13, critério 6)', () =>
           'compras@alfa.example.test',
           'fiscal@alfa.example.test',
         ])
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+})
+
+describe('os contatos candidatos a destinatário (spec 271 T2.10)', () => {
+  testWithPostgres(
+    'só ativos que recebem ocorrências das contratantes pedidas; contratante de outra empresa é 404',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const stranger = await seedMailScenario(database)
+        const { companyId } = world.seeded.company
+
+        const candidates = await listOccurrenceTypeRecipientCandidates(database.db, {
+          companyId,
+          contractorIds: [world.contractorX, world.contractorY],
+        })
+
+        expect(candidates.map((candidate) => candidate.email).toSorted()).toEqual([
+          'compras@alfa.example.test',
+          'contato@beta.example.test',
+          'fiscal@alfa.example.test',
+        ])
+        expect(candidates.every((candidate) => candidate.status === 'active')).toBe(true)
+
+        const [strangerContractor] = await database.db
+          .select({ id: contractors.id })
+          .from(contractors)
+          .where(eq(contractors.companyId, stranger.company.companyId))
+        expect(
+          await captureError(() =>
+            listOccurrenceTypeRecipientCandidates(database.db, {
+              companyId,
+              contractorIds: [strangerContractor?.id ?? ''],
+            }),
+          ),
+        ).toBeInstanceOf(ContractorNotFoundError)
+        expect(
+          await listOccurrenceTypeRecipientCandidates(database.db, {
+            companyId,
+            contractorIds: [],
+          }),
+        ).toEqual([])
       })
     },
     TEST_TIMEOUT_MS,

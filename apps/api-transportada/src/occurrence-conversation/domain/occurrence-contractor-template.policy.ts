@@ -80,3 +80,23 @@ export function assessContractorTemplate(params: {
 export function blocksContractorMailSend(problems: readonly ContractorTemplateProblem[]): boolean {
   return problems.some((problem) => SEND_BLOCKING_CODES.has(problem.code))
 }
+
+/** O modelo como o editor do tipo o lê: o texto, a versão ativa e se serve (sem problema algum, D5). */
+export type ContractorTemplateView = {
+  readonly body: string
+  readonly key: string
+  readonly problems: readonly ContractorTemplateProblem[]
+  readonly subject: string
+  readonly usable: boolean
+  readonly version: number
+}
+
+export function toContractorTemplateView(template: {
+  readonly body: string
+  readonly key: string
+  readonly subject: string
+  readonly version: number
+}): ContractorTemplateView {
+  const problems = assessContractorTemplate({ key: template.key, template })
+  return { ...template, problems, usable: problems.length === 0 }
+}

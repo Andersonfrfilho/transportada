@@ -11,7 +11,10 @@ import { and, eq, sql } from 'drizzle-orm'
 import { userCompanyMemberships } from '../../src/database/database.schema.js'
 import { companyOccurrenceTypes } from '../../src/database/trip.schema.js'
 import { OccurrenceContractorTemplateInvalidError } from '../../src/occurrence-conversation/domain/occurrence-contractor-template.error.js'
-import { findActiveContractorTemplate } from '../../src/occurrence-conversation/infrastructure/notification-template.query.js'
+import {
+  findActiveContractorTemplate,
+  listActiveContractorTemplates,
+} from '../../src/occurrence-conversation/infrastructure/notification-template.query.js'
 import {
   saveOccurrenceTypeWithTemplate,
   type SaveOccurrenceTypeValues,
@@ -318,6 +321,42 @@ describe('the notification template of the occurrence type (spec 271 T2.4)', () 
         )
         const after = await readViews()
         expect(after.get(withTemplate.id)).toBe(true)
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'the editor list has the highest active version of each e-mail pt-BR key of the company, nothing else',
+    async () => {
+      await withNotificationDatabase(async (database) => {
+        const { companyId } = await seedCompany(database)
+        const other = await seedCompany(database)
+        await seedNotificationTemplate(database, { companyId, key: 'a.modelo', version: 1 })
+        await seedNotificationTemplate(database, {
+          body: 'Versão dois {{numeroNota}}',
+          companyId,
+          key: 'a.modelo',
+          version: 2,
+        })
+        await seedNotificationTemplate(database, {
+          active: false,
+          companyId,
+          key: 'a.modelo',
+          version: 3,
+        })
+        await seedNotificationTemplate(database, { companyId, key: 'b.modelo' })
+        await seedNotificationTemplate(database, { channel: 'inbox', companyId, key: 'c.caixa' })
+        await seedNotificationTemplate(database, { companyId, key: 'd.ingles', locale: 'en-US' })
+        await seedNotificationTemplate(database, { companyId: other.companyId, key: 'e.outra' })
+
+        const listed = await listActiveContractorTemplates(database.db, { companyId })
+
+        expect(listed.map((template) => [template.key, template.version])).toEqual([
+          ['a.modelo', 2],
+          ['b.modelo', 1],
+        ])
+        expect(listed[0]?.body).toBe('Versão dois {{numeroNota}}')
       })
     },
     TEST_TIMEOUT_MS,

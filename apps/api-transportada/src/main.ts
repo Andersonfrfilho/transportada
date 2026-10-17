@@ -304,7 +304,13 @@ import {
   OCCURRENCE_CANCELLATION_OPERATION,
   OCCURRENCE_CORRECTION_OPERATION,
 } from './trips/domain/occurrence-correction.policy.js'
-import { findActiveContractorTemplate } from './occurrence-conversation/infrastructure/notification-template.query.js'
+import { toContractorTemplateView } from './occurrence-conversation/domain/occurrence-contractor-template.policy.js'
+import { listOccurrenceTypeRecipientCandidates } from './trips/infrastructure/occurrence-type-mail-view.query.js'
+import { createOccurrenceTypeMailRoutes } from './trips/presentation/occurrence-type-mail.routes.js'
+import {
+  findActiveContractorTemplate,
+  listActiveContractorTemplates,
+} from './occurrence-conversation/infrastructure/notification-template.query.js'
 import { toOccurrenceTypeSettingsViews } from './trips/infrastructure/occurrence-type-contractors.query.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
@@ -3995,6 +4001,21 @@ function createApplicationRoutes({
       saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
     }),
     /** Spec 218 RF-E1: composição pura — os mesmos repositórios das rotas acima, sem escrita. */
+    ...createOccurrenceTypeMailRoutes({
+      listContractorMailRecipientCandidates: {
+        execute: (input) =>
+          listOccurrenceTypeRecipientCandidates(database, {
+            companyId: input.context.companyId,
+            contractorIds: input.contractorIds,
+          }),
+      },
+      listContractorMailTemplates: {
+        execute: async (input) =>
+          (
+            await listActiveContractorTemplates(database, { companyId: input.context.companyId })
+          ).map(toContractorTemplateView),
+      },
+    }),
     ...createSettingsResolutionRoutes({
       readSettingsResolution: (input) =>
         readSettingsResolution({
