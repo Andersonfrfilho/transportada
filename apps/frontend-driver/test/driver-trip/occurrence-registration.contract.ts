@@ -187,6 +187,44 @@ describe('a lista por documento resolve a exceção de ocorrência por nota (spe
 
     expect(types).toEqual([DOCUMENT_REQUIRED, STOP_OPTIONAL])
   })
+
+  /**
+   * Spec 270 (ADR-0107, T4.2): o tipo restrito a contratantes vem do servidor só nas notas da contratante da
+   * lista. O app não filtra por escopo — recebe a lista por nota já feita —, e nenhum caminho dele reinjeta o
+   * tipo ausente: nem o registro da nota de outra contratante, nem o reserva quando o retrato não traz a lista.
+   */
+  describe('tipo restrito a contratantes (spec 270)', () => {
+    const RESTRICTED: DriverOccurrenceType = {
+      attachmentMode: 'optional',
+      flow: 'document',
+      id: 'tipo-restrito',
+      name: 'Procedimento da contratante',
+      stopKind: null,
+    }
+
+    it('a nota de outra contratante registra só o que o servidor listou para ela', () => {
+      const ofListedContractor = buildDocument({ occurrenceTypes: [DOCUMENT_OFF, RESTRICTED] })
+      const ofOtherContractor = buildDocument({ occurrenceTypes: [DOCUMENT_OFF] })
+      const tripWideTypes = [DOCUMENT_OFF, STOP_OPTIONAL]
+
+      expect(
+        resolveOccurrenceTypesForDocument({ document: ofListedContractor, tripWideTypes }),
+      ).toContain(RESTRICTED)
+      expect(
+        resolveOccurrenceTypesForDocument({ document: ofOtherContractor, tripWideTypes }),
+      ).toEqual([DOCUMENT_OFF, STOP_OPTIONAL])
+    })
+
+    it('o reserva (occurrenceTypes null) usa a lista da viagem, que o servidor entrega só com os tipos de todas', () => {
+      const document = buildDocument({ occurrenceTypes: null })
+      const tripWideTypes = [DOCUMENT_OFF, STOP_OPTIONAL]
+
+      const types = resolveOccurrenceTypesForDocument({ document, tripWideTypes })
+
+      expect(types).toEqual(tripWideTypes)
+      expect(types).not.toContain(RESTRICTED)
+    })
+  })
 })
 
 describe('o gate da foto obrigatória (P5): captura local, nunca upload', () => {
