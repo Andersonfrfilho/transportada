@@ -186,6 +186,16 @@ describe('o seletor do modelo do e-mail à contratante (spec 269 RF1)', () => {
   )
 
   test(
+    'e-mail desligado e sem modelo: o seletor aparece, mas nenhum aviso de tipo (decisão de 2026-10-17)',
+    scenario(async () => {
+      await mount(buildType({ contractorMailTemplateId: null, emailsContractor: false }))
+      await waitFor(() => expect(templateTrigger().disabled).toBe(false))
+      expect(document.querySelector('[role="alert"]')).toBeNull()
+      expect(blockText()).not.toContain('Tipo sem modelo de notificação')
+    }),
+  )
+
+  test(
     'modelo arquivado que o tipo ainda aponta continua visível, marcado como arquivado',
     scenario(async () => {
       await mount(buildType({ contractorMailTemplateId: 'template-3' }))
