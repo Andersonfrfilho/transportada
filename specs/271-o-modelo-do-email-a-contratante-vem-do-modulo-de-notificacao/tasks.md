@@ -65,7 +65,7 @@
       empresa não aparece) e o `PUT`/`GET` do tipo com `contractorNotificationTemplateKey` (ausente não mexe, `null`
       limpa, carimbo D2 só quando a chave muda, `missingNotificationTemplate` na leitura). Integração: modelo de outra
       empresa → 400 `not_found`; desativado; HTML; `{{foo}}`; versão nova da mesma chave não muda o carimbo.
-- [ ] **T2.5** `sonnet` — Envio pelo modelo do tipo: `readSuggestedMail`, `send-occurrence-mail` (`resolveTemplate`,
+- [x] **T2.5** `sonnet` — Envio pelo modelo do tipo: `readSuggestedMail`, `send-occurrence-mail` (`resolveTemplate`,
       409 `OCCURRENCE_MAIL_TEMPLATE_MISSING` sem modelo utilizável), `send-automatic-occurrence-mail`
       (`no_template_selected`, `registered_before_template` pelo carimbo novo), `preview-occurrence-mail`
       (`notificationTemplateKey`), `recordMail` com chave/versão e `template_id = null`; reenvio da 248 copia chave/versão

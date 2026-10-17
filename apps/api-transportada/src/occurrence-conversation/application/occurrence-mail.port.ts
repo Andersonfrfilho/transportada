@@ -63,6 +63,12 @@ export type OccurrenceMailIdempotencyRecord = {
   readonly response: SendOccurrenceMailResult
 }
 
+/** O modelo do módulo de notificação (`notification.templates`) que o e-mail usou: a chave e a versão ativa no envio. */
+export type OccurrenceNotificationTemplate = {
+  readonly key: string
+  readonly version: number
+}
+
 export type RecordOccurrenceMailInput = {
   /** `null` só no aviso automático do tipo (spec 183 T802): ator `system`. */
   readonly actorUserId: null | string
@@ -80,8 +86,8 @@ export type RecordOccurrenceMailInput = {
   readonly occurrenceKind: OccurrenceConversationKind
   readonly replyTokenHash: string
   readonly subject: string
-  /** Spec 269 (RF6): o modelo do cadastro que escreveu o e-mail; `null` só no reenvio de retorno sem original. */
-  readonly templateId: null | string
+  /** Spec 271 (RF11): a chave e a versão do modelo do módulo de notificação que escreveu o e-mail; `null` só no reenvio de retorno sem original. */
+  readonly notificationTemplate: null | OccurrenceNotificationTemplate
   readonly threadId: string
   readonly toAddresses: readonly string[]
   /** Spec 268: `sandbox_smtp` só fora de produção, sem Resend pronto e com o modo ligado. */
@@ -126,20 +132,19 @@ export type OccurrenceMailTransactionPort = {
     readonly contractorId: string
   }): Promise<readonly OccurrenceMailContact[]>
   /**
-   * Spec 269 (ADR-0106, D2): o modelo efetivo do e-mail da ocorrência — o da exceção desta contratante, senão
-   * o do tipo; `null` é sem modelo (nenhum e-mail sai, nem à mão).
+   * Spec 271 (ADR-0108, D1/D9): o modelo do tipo desta ocorrência — a chave escolhida no tipo e a versão ativa mais
+   * alta (e-mail, pt-BR) no módulo de notificação; `null` é sem modelo utilizável (nenhum e-mail sai, nem à mão).
    */
-  findEffectiveOccurrenceMailTemplate(params: {
+  findOccurrenceNotificationTemplate(params: {
     readonly companyId: string
-    readonly contractorId: string
     readonly occurrenceId: string
-  }): Promise<{ readonly templateId: string } | null>
-  /** Spec 269 (D4): o modelo da primeira mensagem de e-mail desta ocorrência, para o reenvio do retorno (248). */
-  findOriginalOccurrenceMailTemplateId(params: {
+  }): Promise<null | OccurrenceNotificationTemplate>
+  /** Spec 271 (RF11): o modelo da primeira mensagem de e-mail desta ocorrência, para o reenvio do retorno (248). */
+  findOriginalOccurrenceNotificationTemplate(params: {
     readonly companyId: string
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind
-  }): Promise<null | string>
+  }): Promise<null | OccurrenceNotificationTemplate>
   findCarrierName(params: { readonly companyId: string }): Promise<string | undefined>
   findOperatorName(params: {
     readonly companyId: string
@@ -224,11 +229,11 @@ export type OccurrenceMailUnitOfWorkPort = {
   ): Promise<TResult>
 }
 
-/** O texto do modelo efetivo (spec 269) com os valores da nota; `null` quando o modelo não existe. */
+/** O texto do modelo do tipo (spec 271) com os valores da nota; `null` quando o modelo não existe. */
 export type OccurrenceSuggestedMailPort = {
   readSuggestedMail(params: {
     readonly companyId: string
     readonly occurrenceId: string
-    readonly templateId: string
+    readonly templateKey: string
   }): Promise<{ readonly bodyText: string; readonly subject: string } | null>
 }

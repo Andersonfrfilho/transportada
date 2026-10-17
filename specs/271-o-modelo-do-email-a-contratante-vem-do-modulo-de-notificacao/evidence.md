@@ -145,3 +145,8 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 - O aviso D9 (`missingNotificationTemplate`) já nasce em lote por `IN (chaves)` (feed, detalhe e editor do tipo), best-effort com log só do SQLSTATE; o teste que conta as consultas está em `missing-template-query.contract.ts`.
 - Integração (36 arquivos de tipo, feed, envio e conversa): 128 pass / 0 fail / 0 skip. Contrato da API: 12032 pass / 25 skip / 0 fail; tsc e lint limpos.
 - A suíte de integração inteira soma ~55 min sequenciais (pesos), então cada task roda só os arquivos que toca; a suíte inteira roda no fechamento (T5.1).
+
+### T2.5 — envio pelo modelo do módulo
+
+- `readSuggestedMail` renderiza o modelo do módulo (`renderContractorMail`), `findOccurrenceNotificationTemplate` (chave do tipo + versão ativa; sem modelo utilizável → `null`), envio manual 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`, automático `no_template_selected`/`registered_before_template` pelo carimbo novo, prévia com `notificationTemplateKey`, `recordMail` grava `notification_template_key`/`_version` e `template_id = null`; reenvio da 248 copia chave/versão da original sem bloqueio. A exceção por contratante deixou de contar. `buildOccurrenceMailValues` (269) saiu com o último consumidor.
+- Integração (15 arquivos de envio, automático, conversa, 248, sandbox, cópia): 63 pass / 0 fail / 0 skip. Contrato 12026 pass / 25 skip / 0 fail; tsc, lint e prettier limpos.

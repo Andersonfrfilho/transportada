@@ -1499,6 +1499,8 @@ export async function readOccurrenceMailValues(
     readonly note: string
     /** Spec 247: a ocorrência já gravada — de onde saem o número, o valor pago e as linhas. */
     readonly occurrenceId?: string | undefined
+    /** Spec 271: o nome do tipo, para `{{tipoOcorrencia}}`. */
+    readonly occurrenceTypeName?: string | undefined
     readonly occurredOn: string
     /** Todos os itens marcados: o e-mail cita todos, não só o primeiro. Vazia é a nota inteira. */
     readonly productCodes: readonly string[]
@@ -1592,6 +1594,7 @@ export async function readOccurrenceMailValues(
     ),
     lines,
     note: input.note,
+    occurrenceTypeName: input.occurrenceTypeName,
     occurredOn: input.occurredOn,
     recipientName: contato?.name ?? '',
     ...(stored?.referenceNumber == null ? {} : { referenceNumber: stored.referenceNumber }),

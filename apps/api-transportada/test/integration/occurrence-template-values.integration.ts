@@ -7,8 +7,8 @@
  * O modelo do SAC sai com o assunto e o corpo exatos; `SPANI` vem de `contractors.display_name`. A CA03
  * da T4.5 é estendida a esse caminho: o e-mail segue a configuração, nunca o nome do tipo.
  *
- * Spec 269: o texto vem do modelo `occurrence` do cadastro de modelos (variáveis `{snake_case}`), escolhido
- * no tipo — não mais do texto do próprio tipo (`{{camelCase}}`).
+ * Spec 271 (ADR-0108): o texto vem do modelo de e-mail do módulo de notificação (`{{camelCase}}`, com
+ * `{{linhasItens}}`), escolhido pela chave no tipo.
  */
 import { describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
@@ -34,7 +34,7 @@ import {
   createOccurrenceMailUseCase,
   withConversationDatabase,
 } from '../fixtures/occurrence-conversation-database.fixture.js'
-import { seedOccurrenceMailTemplate } from '../fixtures/occurrence-mail-template.fixture.js'
+import { seedNotificationTemplate } from '../fixtures/notification-template.fixture.js'
 import { registerStreetOccurrence } from '../fixtures/street-occurrence-registration.fixture.js'
 import type { StreetOccurrenceRegistration } from '../fixtures/street-occurrence-registration.fixture.js'
 import { seedCompany, seedTrip } from '../fixtures/trip-field-office-database.fixture.js'
@@ -53,16 +53,19 @@ const SAC_NUMBER = '680481'
 const SAC_RECIPIENT = 'MERCADO DA LOJA LTDA'
 const REFERENCE_NUMBER = '45029'
 const SAC_CLOSING = 'Atenciosamente.'
-const SAC_SUBJECT = 'OCORRÊNCIA: {contratante} – NF {numero_nota_sem_serie} – DEVOLUÇÃO PARCIAL'
-const SAC_INTRO = [
+const SAC_SUBJECT = 'OCORRÊNCIA: {{contratante}} – NF {{numeroNotaSemSerie}} – DEVOLUÇÃO PARCIAL'
+const SAC_BODY = [
   'Por favor, verificar. A loja emitiu a NFD devido à divergência identificada no ato da entrega.',
   '',
-  'NFD {numero_referencia} – R$ {valor_declarado}',
-  'RAZÃO SOCIAL: {razao_social}',
-  'NOTA FISCAL: {numero_nota_sem_serie}',
-  'VALOR DA ENTREGA: R$ {valor_nota}',
+  'NFD {{numeroReferencia}} – R$ {{valorDeclarado}}',
+  'RAZÃO SOCIAL: {{razaoSocial}}',
+  'NOTA FISCAL: {{numeroNotaSemSerie}}',
+  'VALOR DA ENTREGA: R$ {{valorNota}}',
+  '',
+  '{{linhasItens}}',
+  '',
+  SAC_CLOSING,
 ].join('\n')
-const SAC_LINE = '{codigo_item} – {item} – {quantidade_item}{unidade_item} – {observacao}'
 const SAC_EXPECTED_SUBJECT = `OCORRÊNCIA: SPANI – NF ${SAC_NUMBER} – DEVOLUÇÃO PARCIAL`
 const sacExpectedBody = (declaredAmount: string) =>
   [
@@ -73,7 +76,7 @@ const sacExpectedBody = (declaredAmount: string) =>
     `NOTA FISCAL: ${SAC_NUMBER}`,
     'VALOR DA ENTREGA: R$ 7.840,64',
     '',
-    `${SAC_CODE} – ${SAC_DESCRIPTION} – 1FD – ${NOTE}`,
+    `${SAC_CODE} – ${SAC_DESCRIPTION} – 1 FD – R$ ${declaredAmount}`,
     '',
     SAC_CLOSING,
   ].join('\n')
@@ -95,20 +98,10 @@ type TypeConfiguration = {
   readonly declaredAmountScope: 'item' | 'occurrence'
   readonly itemsMode: 'off' | 'optional' | 'required'
   readonly name: string
-  readonly template: {
-    readonly closing: string
-    readonly intro: string
-    readonly itemText: string
-    readonly subject: string
-  }
+  readonly template: { readonly body: string; readonly subject: string }
 }
 
-const SAC_TEMPLATE = {
-  closing: SAC_CLOSING,
-  intro: SAC_INTRO,
-  itemText: SAC_LINE,
-  subject: SAC_SUBJECT,
-} as const
+const SAC_TEMPLATE = { body: SAC_BODY, subject: SAC_SUBJECT } as const
 
 const SAC_CONFIGURATION: Omit<TypeConfiguration, 'name'> = {
   declaredAmountMode: 'optional',
@@ -199,14 +192,16 @@ async function seedType(
   configuration: TypeConfiguration,
 ): Promise<string> {
   const id = crypto.randomUUID()
-  const templateId = await seedOccurrenceMailTemplate(database, world.company, {
+  const key = `ocorrencia.${id}`
+  await seedNotificationTemplate(database, {
     ...configuration.template,
-    name: `Modelo ${configuration.name} ${id.slice(0, 8)}`,
+    companyId: world.company.companyId,
+    key,
   })
   await database.db.insert(companyOccurrenceTypes).values({
     allowsMultipleItems: true,
     companyId: world.company.companyId,
-    contractorMailTemplateId: templateId,
+    contractorNotificationTemplateKey: key,
     declaredAmountMode: configuration.declaredAmountMode,
     declaredAmountScope: configuration.declaredAmountScope,
     emailsContractor: true,
@@ -246,18 +241,14 @@ function automaticMail(database: TestDatabase) {
 }
 
 async function suggestedMail(database: TestDatabase, world: World, occurrenceId: string) {
-  const effective = await createOccurrenceMailReader(
-    database.db,
-  ).findEffectiveOccurrenceMailTemplate({
-    companyId: world.company.companyId,
-    contractorId: world.contractorId,
-    occurrenceId,
-  })
-  if (effective === null) throw new Error('EFFECTIVE_TEMPLATE_EXPECTED')
+  const template = await createOccurrenceMailReader(database.db).findOccurrenceNotificationTemplate(
+    { companyId: world.company.companyId, occurrenceId },
+  )
+  if (template === null) throw new Error('NOTIFICATION_TEMPLATE_EXPECTED')
   return createOccurrenceSuggestedMailReader(database.db).readSuggestedMail({
     companyId: world.company.companyId,
     occurrenceId,
-    templateId: effective.templateId,
+    templateKey: template.key,
   })
 }
 
@@ -307,9 +298,7 @@ describe('o aviso automático com os valores gravados pelo motorista (spec 247 T
           ...SAC_CONFIGURATION,
           name: 'Tipo quantidade',
           template: {
-            closing: SAC_CLOSING,
-            intro: 'Pago {valor_declarado} de {soma_itens} – {quantidades_itens} – R$ {valor_nota}',
-            itemText: '',
+            body: `Pago {{valorDeclarado}} de {{somaItens}} – {{quantidadesItens}} – R$ {{valorNota}}\n\n${SAC_CLOSING}`,
             subject: SAC_SUBJECT,
           },
         })
@@ -330,7 +319,7 @@ describe('o aviso automático com os valores gravados pelo motorista (spec 247 T
   )
 
   testWithPostgres(
-    'o valor pago da ocorrência (escopo occurrence) entra em valor_declarado; sem itens, a seção de itens some',
+    'o valor pago da ocorrência (escopo occurrence) entra em valorDeclarado; sem itens, linhasItens sai vazio',
     async () => {
       await withConversationDatabase(async (database) => {
         const world = await seedWorld(database)
@@ -340,9 +329,7 @@ describe('o aviso automático com os valores gravados pelo motorista (spec 247 T
           itemsMode: 'off',
           name: 'Tipo da nota inteira',
           template: {
-            closing: SAC_CLOSING,
-            intro: 'NFD {numero_referencia} – R$ {valor_declarado}',
-            itemText: SAC_LINE,
+            body: `NFD {{numeroReferencia}} – R$ {{valorDeclarado}}\n\n{{linhasItens}}\n\n${SAC_CLOSING}`,
             subject: SAC_SUBJECT,
           },
         })
@@ -354,7 +341,7 @@ describe('o aviso automático com os valores gravados pelo motorista (spec 247 T
 
         const suggested = await suggestedMail(database, world, occurrenceId)
 
-        expect(suggested?.bodyText).toBe(`NFD ${REFERENCE_NUMBER} – R$ 99,90\n\n${SAC_CLOSING}`)
+        expect(suggested?.bodyText).toBe(`NFD ${REFERENCE_NUMBER} – R$ 99,90\n\n\n\n${SAC_CLOSING}`)
       })
     },
     60_000,
@@ -379,10 +366,8 @@ describe('só a configuração decide o e-mail pelo caminho real de envio (spec 
           itemsMode: 'optional',
           name: sameName,
           template: {
-            closing: SAC_CLOSING,
-            intro: 'Aviso: {observacao}',
-            itemText: '',
-            subject: 'Aviso {numero_nota}',
+            body: `Aviso: {{observacao}}\n\n${SAC_CLOSING}`,
+            subject: 'Aviso {{numeroNota}}',
           },
         })
         const firstTwin = await seedType(database, strict, { ...SAC_CONFIGURATION, name: 'Alfa' })

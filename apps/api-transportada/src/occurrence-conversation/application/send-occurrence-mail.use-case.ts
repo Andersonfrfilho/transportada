@@ -47,6 +47,7 @@ import { attachConversationUploads } from './conversation-attachment.service.js'
 import type {
   OccurrenceMailTransactionPort,
   OccurrenceMailUnitOfWorkPort,
+  OccurrenceNotificationTemplate,
   SendOccurrenceMailResult,
 } from './occurrence-mail.port.js'
 
@@ -201,31 +202,29 @@ async function createResendDelivery(params: {
 }
 
 /**
- * Spec 269 (ADR-0106, D4): o e-mail da ocorrência sai de um modelo do cadastro — o da exceção da contratante,
- * senão o do tipo. Sem modelo efetivo, 409, nem à mão. O reenvio do retorno da contratante (248) não passa por
- * aqui: continua a conversa que já existe e grava o modelo da mensagem original (ou nulo).
+ * Spec 271 (ADR-0108, D9): o e-mail da ocorrência sai de um modelo do módulo de notificação, o do tipo. Sem modelo
+ * utilizável, 409, nem à mão. O reenvio do retorno da contratante (248) não passa por aqui: continua a conversa que
+ * já existe e grava o modelo (chave e versão) da mensagem original, ou nulo.
  */
-async function resolveTemplateId(params: {
-  readonly contractorId: string
+async function resolveNotificationTemplate(params: {
   readonly input: SendOccurrenceMailInput
   readonly target: { readonly kind: OccurrenceConversationKind }
   readonly transaction: OccurrenceMailTransactionPort
-}): Promise<null | string> {
-  const { contractorId, input, target, transaction } = params
+}): Promise<null | OccurrenceNotificationTemplate> {
+  const { input, target, transaction } = params
   if (input.contractorReplyResend === true) {
-    return transaction.findOriginalOccurrenceMailTemplateId({
+    return transaction.findOriginalOccurrenceNotificationTemplate({
       companyId: input.companyId,
       occurrenceId: input.occurrenceId,
       occurrenceKind: target.kind,
     })
   }
-  const effective = await transaction.findEffectiveOccurrenceMailTemplate({
+  const template = await transaction.findOccurrenceNotificationTemplate({
     companyId: input.companyId,
-    contractorId,
     occurrenceId: input.occurrenceId,
   })
-  if (effective === null) throw new OccurrenceMailTemplateMissingError()
-  return effective.templateId
+  if (template === null) throw new OccurrenceMailTemplateMissingError()
+  return template
 }
 
 async function executeSend(params: {
@@ -280,7 +279,7 @@ async function executeSend(params: {
     throw createMailSendReadinessError(readiness.reason)
   }
 
-  const templateId = await resolveTemplateId({ contractorId, input, target, transaction })
+  const notificationTemplate = await resolveNotificationTemplate({ input, target, transaction })
 
   if (input.contractorReplyResend === true && input.actorUserId !== null) {
     await assertContractorReplyResendRecorded({
@@ -365,8 +364,8 @@ async function executeSend(params: {
     occurrenceId: input.occurrenceId,
     occurrenceKind: target.kind,
     replyTokenHash: delivery.replyTokenHash,
+    notificationTemplate,
     subject: mail.subject,
-    templateId,
     threadId,
     toAddresses: recipients,
     transport: delivery.transport,

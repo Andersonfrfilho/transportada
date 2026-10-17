@@ -38,7 +38,8 @@ const PDF = new TextEncoder().encode('%PDF-1.7 nota de devolução')
 const UPLOAD_A = '00000000-0000-4000-8000-0000001834a1'
 const UPLOAD_B = '00000000-0000-4000-8000-0000001834a2'
 
-const EFFECTIVE_TEMPLATE_ID = '00000000-0000-4000-8000-000000269401'
+/** Spec 271: o modelo do módulo de notificação que o tipo escolheu, a versão ativa no envio. */
+const EFFECTIVE_TEMPLATE = { key: 'ocorrencia.padrao', version: 3 } as const
 
 const TARGET: OccurrenceMailTarget = {
   contractorId: CONTRACTOR_ID,
@@ -62,10 +63,10 @@ type FakeState = {
 function createFake(
   overrides: Partial<{
     contacts: readonly { email: string; id: string }[]
-    /** Spec 269: o modelo efetivo (exceção da contratante ?? tipo); `null` é sem modelo. */
-    effectiveTemplateId: null | string
-    /** Spec 269: o modelo da primeira mensagem de e-mail da ocorrência (reenvio do retorno). */
-    originalTemplateId: null | string
+    /** Spec 271: o modelo do tipo no módulo de notificação; `null` é sem modelo utilizável. */
+    effectiveTemplate: null | typeof EFFECTIVE_TEMPLATE
+    /** Spec 271: o modelo da primeira mensagem de e-mail da ocorrência (reenvio do retorno). */
+    originalTemplate: null | typeof EFFECTIVE_TEMPLATE
     logger: {
       info?: (event: string, fields?: Record<string, unknown>) => void
       warn: (event: string, fields?: Record<string, unknown>) => void
@@ -137,13 +138,13 @@ function createFake(
     async findCarrierName() {
       return 'Transportadora Sintética'
     },
-    async findEffectiveOccurrenceMailTemplate() {
-      const templateId =
-        'effectiveTemplateId' in overrides ? overrides.effectiveTemplateId : EFFECTIVE_TEMPLATE_ID
-      return templateId === null || templateId === undefined ? null : { templateId }
+    async findOccurrenceNotificationTemplate() {
+      const template =
+        'effectiveTemplate' in overrides ? overrides.effectiveTemplate : EFFECTIVE_TEMPLATE
+      return template ?? null
     },
-    async findOriginalOccurrenceMailTemplateId() {
-      return overrides.originalTemplateId ?? null
+    async findOriginalOccurrenceNotificationTemplate() {
+      return overrides.originalTemplate ?? null
     },
     async findIdempotency({ idempotencyKey }) {
       return state.idempotency.get(idempotencyKey) ?? null
@@ -406,13 +407,12 @@ describe('a prévia do e-mail (RF7)', () => {
   function createPreview(
     suggested: { bodyText: string; subject: string } | null,
     target: OccurrenceMailTarget = TARGET,
-    templateId: null | string = EFFECTIVE_TEMPLATE_ID,
+    template: null | typeof EFFECTIVE_TEMPLATE = EFFECTIVE_TEMPLATE,
   ) {
     return createPreviewOccurrenceMailUseCase({
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
-        findEffectiveOccurrenceMailTemplate: async () =>
-          templateId === null ? null : { templateId },
+        findOccurrenceNotificationTemplate: async () => template,
         findOperatorName: async () => 'Operadora Lima',
         findOccurrenceTarget: async () => target,
         listOccurrenceRecipients: async () => RECIPIENTS,
@@ -459,8 +459,8 @@ describe('a prévia do e-mail (RF7)', () => {
           roleLabel: '',
         },
       ],
+      notificationTemplateKey: EFFECTIVE_TEMPLATE.key,
       suggested: true,
-      templateId: EFFECTIVE_TEMPLATE_ID,
     })
   })
 
@@ -510,7 +510,7 @@ describe('a prévia do e-mail (RF7)', () => {
     const preview = await createPreviewOccurrenceMailUseCase({
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
-        findEffectiveOccurrenceMailTemplate: async () => null,
+        findOccurrenceNotificationTemplate: async () => null,
         findOccurrenceTarget: async () => TARGET,
         findOperatorName: async () => 'Operadora Lima',
         listOccurrenceRecipients: async () => RECIPIENTS,
@@ -528,8 +528,8 @@ describe('a prévia do e-mail (RF7)', () => {
       bodyText: '',
       missingNotificationTemplate: true,
       subject: '',
+      notificationTemplateKey: null,
       suggested: false,
-      templateId: null,
     })
     expect(suggestedReads).toBe(0)
   })
@@ -545,7 +545,7 @@ describe('a prévia do e-mail (RF7)', () => {
 
     expect(preview).toMatchObject({
       missingNotificationTemplate: false,
-      templateId: EFFECTIVE_TEMPLATE_ID,
+      notificationTemplateKey: EFFECTIVE_TEMPLATE.key,
     })
   })
 
@@ -560,21 +560,24 @@ describe('a prévia do e-mail (RF7)', () => {
       occurrenceId: OCCURRENCE_ID,
     })
 
-    expect(preview).toMatchObject({ missingNotificationTemplate: true, templateId: null })
+    expect(preview).toMatchObject({
+      missingNotificationTemplate: true,
+      notificationTemplateKey: null,
+    })
   })
 })
 
-describe('o modelo do e-mail da ocorrência no envio (spec 269 D4, D7)', () => {
-  test('grava o modelo efetivo que o servidor resolveu, no envio manual', async () => {
+describe('o modelo do e-mail da ocorrência no envio (spec 271 D9, RF11)', () => {
+  test('grava a chave e a versão do modelo que o servidor resolveu, no envio manual', async () => {
     const { state, useCase } = createFake()
 
     await useCase.send(input())
 
-    expect(state.mails[0]?.templateId).toBe(EFFECTIVE_TEMPLATE_ID)
+    expect(state.mails[0]?.notificationTemplate).toEqual(EFFECTIVE_TEMPLATE)
   })
 
   test('sem modelo efetivo, 409 OCCURRENCE_MAIL_TEMPLATE_MISSING — nem à mão — e nada é gravado', async () => {
-    const { state, useCase } = createFake({ effectiveTemplateId: null })
+    const { state, useCase } = createFake({ effectiveTemplate: null })
 
     const error = await failure(() => useCase.send(input()))
 
@@ -585,7 +588,7 @@ describe('o modelo do e-mail da ocorrência no envio (spec 269 D4, D7)', () => {
   })
 
   test('o aviso automático também precisa de modelo efetivo', async () => {
-    const { state, useCase } = createFake({ effectiveTemplateId: null })
+    const { state, useCase } = createFake({ effectiveTemplate: null })
 
     const error = await failure(() => useCase.send(input({ actorUserId: null, automatic: true })))
 
@@ -593,23 +596,23 @@ describe('o modelo do e-mail da ocorrência no envio (spec 269 D4, D7)', () => {
     expect(state.mails).toEqual([])
   })
 
-  test('o reenvio do retorno (248) não passa pelo bloqueio e grava o modelo da mensagem original', async () => {
+  test('o reenvio do retorno (248) não passa pelo bloqueio e grava a chave e a versão da mensagem original', async () => {
     const { state, useCase } = createFake({
-      effectiveTemplateId: null,
-      originalTemplateId: EFFECTIVE_TEMPLATE_ID,
+      effectiveTemplate: null,
+      originalTemplate: EFFECTIVE_TEMPLATE,
     })
 
     await useCase.send(input({ contractorReplyResend: true }))
 
-    expect(state.mails[0]?.templateId).toBe(EFFECTIVE_TEMPLATE_ID)
+    expect(state.mails[0]?.notificationTemplate).toEqual(EFFECTIVE_TEMPLATE)
   })
 
   test('o reenvio sem mensagem original com modelo grava nulo, sem erro', async () => {
-    const { state, useCase } = createFake({ effectiveTemplateId: null })
+    const { state, useCase } = createFake({ effectiveTemplate: null })
 
     await useCase.send(input({ contractorReplyResend: true }))
 
-    expect(state.mails[0]?.templateId).toBeNull()
+    expect(state.mails[0]?.notificationTemplate).toBeNull()
   })
 })
 
@@ -956,7 +959,7 @@ describe('a prévia mostra a cópia (spec 267 RF4)', () => {
       logger: { warn: (event) => warnings.push(event) },
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
-        findEffectiveOccurrenceMailTemplate: async () => ({ templateId: EFFECTIVE_TEMPLATE_ID }),
+        findOccurrenceNotificationTemplate: async () => EFFECTIVE_TEMPLATE,
         findOccurrenceTarget: async () => TARGET,
         findOperatorName: async () => 'Operadora Lima',
         listOccurrenceRecipients: async () => [],
@@ -976,7 +979,7 @@ describe('a prévia mostra a cópia (spec 267 RF4)', () => {
     const preview = await createPreviewOccurrenceMailUseCase({
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
-        findEffectiveOccurrenceMailTemplate: async () => ({ templateId: EFFECTIVE_TEMPLATE_ID }),
+        findOccurrenceNotificationTemplate: async () => EFFECTIVE_TEMPLATE,
         findOccurrenceTarget: async () => TARGET,
         findOperatorName: async () => 'Operadora Lima',
         listOccurrenceRecipients: async () => [],

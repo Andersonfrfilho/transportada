@@ -14,13 +14,11 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import {
   CONTRACTOR_MAIL_OUTBOX_EVENT_TYPES,
   companyFiscalProfiles,
-  companyOccurrenceTypeContractorOverrides,
   companyOccurrenceTypes,
   contractorContacts,
   contractorMailMessages,
   contractorMailOutbox,
   contractorMailSettings,
-  contractorMailTemplates,
   contractorMailThreads,
   identityUserProfiles,
   idempotencyRecords,
@@ -32,16 +30,19 @@ import {
 } from '../../database/database.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
-import { OCCURRENCE_MAIL_TYPE } from '../../contractor-mail/domain/mail-template-catalog.constant.js'
-import { buildOccurrenceMailValues } from '../../trips/domain/occurrence-mail-values.policy.js'
-import { resolveEffectiveOccurrenceMailTemplateId } from '../../trips/domain/occurrence-mail-template.policy.js'
+import { buildContractorMailValues } from '../../trips/domain/occurrence-mail-values.policy.js'
 import { resolveOccurrenceProductCodes } from '../../trips/domain/occurrence-scope.policy.js'
 import { readOccurrenceMailValues } from '../../trips/infrastructure/delivery-proof-read.support.js'
 import { listOccurrenceProductCodes } from '../../trips/infrastructure/drizzle-occurrence-product.repository.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 import { loadEffectiveWatcherCandidates } from '../../contractor-mail/infrastructure/occurrence-watcher-candidates.query.js'
-import { composeOccurrenceMail } from '../domain/occurrence-mail-body.policy.js'
+import { renderContractorMail } from '../domain/occurrence-contractor-mail-render.policy.js'
+import {
+  assessContractorTemplate,
+  blocksContractorMailSend,
+} from '../domain/occurrence-contractor-template.policy.js'
+import { findActiveContractorTemplate } from './notification-template.query.js'
 import type {
   OccurrenceMailContact,
   OccurrenceMailIdempotencyRecord,
@@ -50,6 +51,7 @@ import type {
   OccurrenceMailTarget,
   OccurrenceMailTransactionPort,
   OccurrenceMailUnitOfWorkPort,
+  OccurrenceNotificationTemplate,
   OccurrenceSuggestedMailPort,
   RecordOccurrenceMailInput,
   SendOccurrenceMailResult,
@@ -165,28 +167,23 @@ async function findOperatorName(
 }
 
 /**
- * Spec 269 (ADR-0106, D2): o modelo efetivo é o da exceção da contratante da nota, senão o do tipo. Uma
- * consulta só — o `LEFT JOIN` da exceção não multiplica linhas (única por tipo e contratante).
+ * Spec 271 (ADR-0108, D1/D9): o modelo do tipo da ocorrência — a chave escolhida no tipo e a versão ativa mais alta
+ * no módulo de notificação. Sem chave, sem versão ativa de e-mail `pt-BR`, de corpo HTML ou sem assunto: `null`,
+ * ≡ sem modelo. Duas consultas, sem trava: o envio reconfere, e quem desativa o modelo no módulo não espera por nós.
  */
-async function findEffectiveOccurrenceMailTemplateSource(
+async function findOccurrenceNotificationTemplateSource(
   queryable: TripQueryable,
-  params: {
-    readonly companyId: string
-    readonly contractorId: string
-    readonly occurrenceId: string
-  },
+  params: { readonly companyId: string; readonly occurrenceId: string },
 ): Promise<{
   readonly isRegisteredBeforeSelection: boolean
-  readonly templateId: string
+  readonly key: string
+  readonly version: number
 } | null> {
   const [row] = await queryable
     .select({
-      exceptionSelectedAt:
-        companyOccurrenceTypeContractorOverrides.contractorMailTemplateSelectedAt,
-      exceptionTemplateId: companyOccurrenceTypeContractorOverrides.contractorMailTemplateId,
+      key: companyOccurrenceTypes.contractorNotificationTemplateKey,
       occurrenceCreatedAt: tripDocumentOccurrences.createdAt,
-      typeSelectedAt: companyOccurrenceTypes.contractorMailTemplateSelectedAt,
-      typeTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
+      selectedAt: companyOccurrenceTypes.contractorNotificationTemplateSelectedAt,
     })
     .from(tripDocumentOccurrences)
     .innerJoin(
@@ -196,14 +193,6 @@ async function findEffectiveOccurrenceMailTemplateSource(
         eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
       ),
     )
-    .leftJoin(
-      companyOccurrenceTypeContractorOverrides,
-      and(
-        eq(companyOccurrenceTypeContractorOverrides.companyId, tripDocumentOccurrences.companyId),
-        eq(companyOccurrenceTypeContractorOverrides.occurrenceTypeId, companyOccurrenceTypes.id),
-        eq(companyOccurrenceTypeContractorOverrides.contractorId, params.contractorId),
-      ),
-    )
     .where(
       and(
         eq(tripDocumentOccurrences.companyId, params.companyId),
@@ -211,44 +200,42 @@ async function findEffectiveOccurrenceMailTemplateSource(
       ),
     )
     .limit(1)
-  if (row === undefined) return null
-  const templateId = resolveEffectiveOccurrenceMailTemplateId({
-    contractorOverride: row.exceptionTemplateId,
-    general: row.typeTemplateId,
+  if (row?.key === null || row === undefined) return null
+  const template = await findActiveContractorTemplate(queryable, {
+    companyId: params.companyId,
+    key: row.key,
   })
-  if (templateId === null) return null
-  /** O carimbo é o da origem que fornece o modelo: a exceção, quando ela o escolheu; senão o tipo. */
-  const selectedAt = row.exceptionTemplateId === null ? row.typeSelectedAt : row.exceptionSelectedAt
+  if (blocksContractorMailSend(assessContractorTemplate({ key: row.key, template }))) return null
   return {
     isRegisteredBeforeSelection:
-      selectedAt !== null && row.occurrenceCreatedAt.getTime() < selectedAt.getTime(),
-    templateId,
+      row.selectedAt !== null && row.occurrenceCreatedAt.getTime() < row.selectedAt.getTime(),
+    key: row.key,
+    version: template?.version ?? 0,
   }
 }
 
-async function findEffectiveOccurrenceMailTemplate(
+async function findOccurrenceNotificationTemplate(
   queryable: TripQueryable,
-  params: {
-    readonly companyId: string
-    readonly contractorId: string
-    readonly occurrenceId: string
-  },
-): Promise<{ readonly templateId: string } | null> {
-  const source = await findEffectiveOccurrenceMailTemplateSource(queryable, params)
-  return source === null ? null : { templateId: source.templateId }
+  params: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<null | OccurrenceNotificationTemplate> {
+  const source = await findOccurrenceNotificationTemplateSource(queryable, params)
+  return source === null ? null : { key: source.key, version: source.version }
 }
 
-/** O modelo da primeira mensagem de e-mail desta ocorrência (reenvio do retorno, spec 248). */
-async function findOriginalOccurrenceMailTemplateId(
+/** O modelo (chave e versão) da primeira mensagem de e-mail desta ocorrência (reenvio do retorno, spec 248). */
+async function findOriginalOccurrenceNotificationTemplate(
   queryable: TripQueryable,
   params: {
     readonly companyId: string
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind
   },
-): Promise<null | string> {
+): Promise<null | OccurrenceNotificationTemplate> {
   const [row] = await queryable
-    .select({ templateId: contractorMailMessages.templateId })
+    .select({
+      key: contractorMailMessages.notificationTemplateKey,
+      version: contractorMailMessages.notificationTemplateVersion,
+    })
     .from(contractorMailMessages)
     .innerJoin(
       contractorMailThreads,
@@ -270,7 +257,7 @@ async function findOriginalOccurrenceMailTemplateId(
     )
     .orderBy(asc(contractorMailMessages.createdAt))
     .limit(1)
-  return row?.templateId ?? null
+  return row?.key == null || row.version === null ? null : { key: row.key, version: row.version }
 }
 
 /** A prévia só lê: as leituras que ela precisa, sem transação. */
@@ -279,7 +266,7 @@ export function createOccurrenceMailReader(
 ): Pick<
   OccurrenceMailTransactionPort,
   | 'findCarrierName'
-  | 'findEffectiveOccurrenceMailTemplate'
+  | 'findOccurrenceNotificationTemplate'
   | 'findOccurrenceTarget'
   | 'findOperatorName'
   | 'listOccurrenceRecipients'
@@ -287,8 +274,8 @@ export function createOccurrenceMailReader(
 > {
   return {
     findCarrierName: (params) => findCarrierName(database, params),
-    findEffectiveOccurrenceMailTemplate: (params) =>
-      findEffectiveOccurrenceMailTemplate(database, params),
+    findOccurrenceNotificationTemplate: (params) =>
+      findOccurrenceNotificationTemplate(database, params),
     findOccurrenceTarget: (params) => findOccurrenceTarget(database, params),
     findOperatorName: (params) => findOperatorName(database, params),
     listOccurrenceRecipients: (params) => listOccurrenceRecipients(database, params),
@@ -297,31 +284,19 @@ export function createOccurrenceMailReader(
 }
 
 /**
- * O texto do modelo efetivo (spec 269) com os valores da nota — os mesmos que o registro lia do texto do
- * tipo (079), agora com as chaves `{snake_case}` do catálogo. Modelo que não existe mais: `null`.
+ * O texto do modelo do tipo (spec 271) com os valores da nota — os mesmos que o registro lia do texto do tipo
+ * (079), com as chaves `{{camelCase}}` da lista fechada. Modelo que não existe mais: `null`.
  */
 export function createOccurrenceSuggestedMailReader(
   database: TripQueryable,
 ): OccurrenceSuggestedMailPort {
   return {
     async readSuggestedMail(params) {
-      const [template] = await database
-        .select({
-          closing: contractorMailTemplates.closing,
-          intro: contractorMailTemplates.intro,
-          itemText: contractorMailTemplates.itemText,
-          subject: contractorMailTemplates.subject,
-        })
-        .from(contractorMailTemplates)
-        .where(
-          and(
-            eq(contractorMailTemplates.companyId, params.companyId),
-            eq(contractorMailTemplates.id, params.templateId),
-            eq(contractorMailTemplates.mailType, OCCURRENCE_MAIL_TYPE),
-          ),
-        )
-        .limit(1)
-      if (template === undefined) return null
+      const template = await findActiveContractorTemplate(database, {
+        companyId: params.companyId,
+        key: params.templateKey,
+      })
+      if (template === null) return null
 
       const [row] = await database
         .select({
@@ -330,6 +305,7 @@ export function createOccurrenceSuggestedMailReader(
           productCode: tripDocumentOccurrences.productCode,
           tripDocumentId: tripDocuments.id,
           tripId: tripDocuments.tripId,
+          typeName: companyOccurrenceTypes.name,
         })
         .from(tripDocumentOccurrences)
         .innerJoin(
@@ -337,6 +313,13 @@ export function createOccurrenceSuggestedMailReader(
           and(
             eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
             eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
+          ),
+        )
+        .innerJoin(
+          companyOccurrenceTypes,
+          and(
+            eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
+            eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
           ),
         )
         .where(
@@ -357,6 +340,7 @@ export function createOccurrenceSuggestedMailReader(
         documentId: row.tripDocumentId,
         note: row.note,
         occurrenceId: params.occurrenceId,
+        occurrenceTypeName: row.typeName,
         occurredOn: row.createdAt.toLocaleDateString('pt-BR'),
         productCodes: resolveOccurrenceProductCodes({
           productCode: row.productCode,
@@ -364,8 +348,13 @@ export function createOccurrenceSuggestedMailReader(
         }),
         tripId: row.tripId,
       })
-      const { items, mail } = buildOccurrenceMailValues(values)
-      return composeOccurrenceMail({ items, template, values: mail })
+      const { itemLines, mail } = buildContractorMailValues(values)
+      return renderContractorMail({
+        bodyTemplate: template.body,
+        itemLines,
+        subjectTemplate: template.subject,
+        values: mail,
+      })
     },
   }
 }
@@ -390,14 +379,14 @@ export function createAutomaticOccurrenceMailReader(
     readonly suggested: Awaited<ReturnType<OccurrenceSuggestedMailPort['readSuggestedMail']>>
   }> {
     if (!params.emailsContractor) return { isRegisteredBeforeTemplate: false, suggested: null }
-    const effective = await findEffectiveOccurrenceMailTemplateSource(database, params)
-    if (effective === null) return { isRegisteredBeforeTemplate: false, suggested: null }
+    const source = await findOccurrenceNotificationTemplateSource(database, params)
+    if (source === null) return { isRegisteredBeforeTemplate: false, suggested: null }
     return {
-      isRegisteredBeforeTemplate: effective.isRegisteredBeforeSelection,
+      isRegisteredBeforeTemplate: source.isRegisteredBeforeSelection,
       suggested: await suggested.readSuggestedMail({
         companyId: params.companyId,
         occurrenceId: params.occurrenceId,
-        templateId: effective.templateId,
+        templateKey: source.key,
       }),
     }
   }
@@ -528,20 +517,19 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     return findOccurrenceTarget(this.transaction, params)
   }
 
-  public findEffectiveOccurrenceMailTemplate(params: {
+  public findOccurrenceNotificationTemplate(params: {
     readonly companyId: string
-    readonly contractorId: string
     readonly occurrenceId: string
-  }): Promise<{ readonly templateId: string } | null> {
-    return findEffectiveOccurrenceMailTemplate(this.transaction, params)
+  }): Promise<null | OccurrenceNotificationTemplate> {
+    return findOccurrenceNotificationTemplate(this.transaction, params)
   }
 
-  public findOriginalOccurrenceMailTemplateId(params: {
+  public findOriginalOccurrenceNotificationTemplate(params: {
     readonly companyId: string
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind
-  }): Promise<null | string> {
-    return findOriginalOccurrenceMailTemplateId(this.transaction, params)
+  }): Promise<null | OccurrenceNotificationTemplate> {
+    return findOriginalOccurrenceNotificationTemplate(this.transaction, params)
   }
 
   public findCarrierName(params: { readonly companyId: string }): Promise<string | undefined> {
@@ -733,8 +721,9 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
         deliveryStatus: 'queued',
         direction: 'outbound',
         fromAddress: params.fromAddress,
+        notificationTemplateKey: params.notificationTemplate?.key ?? null,
+        notificationTemplateVersion: params.notificationTemplate?.version ?? null,
         subject: params.subject,
-        templateId: params.templateId,
         threadId: params.threadId,
         toAddresses: [...params.toAddresses],
         ccAddresses: [...params.ccAddresses],
