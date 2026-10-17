@@ -98,6 +98,15 @@ export const OCCURRENCE_MOMENTS = ['separation', 'document', 'stop', 'office'] a
 
 export type OccurrenceMoment = (typeof OCCURRENCE_MOMENTS)[number]
 
+/**
+ * Spec 270 (ADR-0107): para quem o tipo vale — espelha `OCCURRENCE_TYPE_CONTRACTOR_SCOPES` da API. `all` é
+ * o padrão (toda contratante); `listed`, a lista do tipo. Valor desconhecido que o servidor mande lê-se como `all`.
+ */
+export const OCCURRENCE_TYPE_CONTRACTOR_SCOPE = { all: 'all', listed: 'listed' } as const
+
+export type OccurrenceTypeContractorScope =
+  (typeof OCCURRENCE_TYPE_CONTRACTOR_SCOPE)[keyof typeof OCCURRENCE_TYPE_CONTRACTOR_SCOPE]
+
 /** Spec 246 RF1/RF3: o valor de hoje, que a tela só lê quando a API não manda o campo — nunca o grava de volta. */
 export const DEFAULT_OCCURRENCE_NOTE_MODE: OccurrenceAttachmentMode =
   OCCURRENCE_ATTACHMENT_MODE.optional
@@ -117,6 +126,7 @@ export type {
   OccurrenceAttachmentOverridesByType,
   OccurrenceAttachmentRecipientOverride,
   OccurrenceType,
+  OccurrenceTypeContractor,
 } from './occurrenceType.types'
 
 /** Revisão do painel M7: o teto do seletor de contratantes da exceção — acima dele a tela avisa que a lista pode estar incompleta. */

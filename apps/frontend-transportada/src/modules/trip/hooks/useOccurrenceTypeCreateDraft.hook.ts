@@ -7,12 +7,14 @@ import {
   OCCURRENCE_ATTACHMENT_MODE,
   OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_REDELIVERY_POLICY,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
   OccurrenceAttachmentMode,
   OccurrenceItemsWriteMode,
   OccurrenceMoment,
   OccurrenceRedeliveryPolicy,
+  OccurrenceTypeContractorScope,
 } from '@/modules/trip/shared/occurrence.constant'
 import { OCCURRENCE_TEMPLATE_NONE } from '@/modules/trip/shared/occurrenceTemplate.service'
 
@@ -45,6 +47,11 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
   const [itemsMode, setItemsMode] = useState<OccurrenceItemsWriteMode>(
     OCCURRENCE_ITEMS_MODE.optional,
   )
+  /** Spec 270: o tipo novo nasce para todas as contratantes, como o de hoje. */
+  const [contractorScope, setContractorScope] = useState<OccurrenceTypeContractorScope>(
+    OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all,
+  )
+  const [contractorIds, setContractorIds] = useState<readonly string[]>([])
   const isItemsOff = hasItemsModeSupport && itemsMode === OCCURRENCE_ITEMS_MODE.off
 
   function reset() {
@@ -59,11 +66,15 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
     setNoteMode(OCCURRENCE_ATTACHMENT_MODE.optional)
     setSignatureMode(OCCURRENCE_ATTACHMENT_MODE.off)
     setItemsMode(OCCURRENCE_ITEMS_MODE.optional)
+    setContractorScope(OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all)
+    setContractorIds([])
   }
 
   return {
     allowsMultipleItems,
     attachmentMode,
+    contractorIds,
+    contractorScope,
     emailTemplateKey,
     isItemsOff,
     itemsMode,
@@ -76,6 +87,8 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
     reset,
     setAllowsMultipleItems,
     setAttachmentMode,
+    setContractorIds,
+    setContractorScope,
     setEmailTemplateKey,
     setItemsMode,
     setLeavesDocumentBehind,

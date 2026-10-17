@@ -605,6 +605,33 @@
       "previewFailed": "Não foi possível gerar a prévia.",
       "missing": "Tipo sem modelo de notificação: o e-mail à contratante não sai. Escolha um modelo.",
       "manage": "Gerenciar modelos"
+    },
+    "contractorScope": {
+      "title": "Vale para",
+      "options": {
+        "all": "Todas as contratantes",
+        "listed": "Só estas contratantes"
+      },
+      "pickerLabel": "Contratantes do tipo",
+      "placeholder": "Escolha as contratantes",
+      "searchPlaceholder": "Buscar por nome ou CNPJ",
+      "empty": "Nenhuma contratante encontrada.",
+      "clearAll": "Limpar contratantes",
+      "remove": "Tirar a contratante {{label}}",
+      "summary_one": "{{count}} contratante",
+      "summary_other": "{{count}} contratantes",
+      "inactive": "inativa",
+      "truncated": "A lista de contratantes pode estar incompleta: só as primeiras 3000 foram carregadas, e quem ficou de fora não aparece para ser escolhida.",
+      "pending": "Mudança em Vale para ainda não aplicada — clique em Aplicar para valer.",
+      "apply": "Aplicar",
+      "undo": "Desfazer",
+      "note": "O tipo restrito só aparece, para o motorista e para o escritório, nas notas de uma contratante da lista. A nota de uma contratante não cadastrada recebe só os tipos de todas. O que já foi registrado continua visível.",
+      "stopOnly": "Na parada não há contratante: este tipo vale para todas.",
+      "stopAllContractors": "Na parada este tipo vale para todas as contratantes; a restrição vale nos registros com nota.",
+      "problem": {
+        "empty": "Escolha ao menos uma contratante: sem nenhuma o tipo não apareceria em nota nenhuma, então nada foi gravado.",
+        "needsDocument": "Tipo só de parada não pode ser restrito a contratantes: a parada não tem contratante. Nada foi gravado."
+      }
     }
   },
   "settingsResolution": {

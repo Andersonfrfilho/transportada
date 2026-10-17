@@ -7,6 +7,7 @@ import type {
   OccurrenceItemsMode,
   OccurrenceMoment,
   OccurrenceRedeliveryPolicy,
+  OccurrenceTypeContractorScope,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from './occurrence.constant'
@@ -17,6 +18,14 @@ import type {
   InformedEmailForwardMode,
   NoteRecipientForwardMode,
 } from './occurrenceContractorReply.constant'
+
+/** Spec 270: a contratante que o tipo atende, como o cadastro a devolve (nome e CNPJ vêm prontos). */
+export type OccurrenceTypeContractor = Readonly<{
+  displayName: string
+  id: string
+  status: string
+  taxId: string
+}>
 
 /** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
 export type OccurrenceType = Readonly<{
@@ -38,6 +47,12 @@ export type OccurrenceType = Readonly<{
   declaredAmountScope?: DeclaredAmountScope
   /** Spec 269: o modelo `occurrence` que o tipo escolhe para o e-mail à contratante; nulo é sem modelo. Ausente é API anterior. */
   contractorMailTemplateId?: null | string
+  /**
+   * Spec 270 (ADR-0107): para quem o tipo vale. Ausente é API anterior ao campo: lê-se como `all`, e o
+   * `PUT` nunca o manda. `contractors` é a lista do tipo `listed`, ordenada por nome pela API.
+   */
+  contractorScope?: OccurrenceTypeContractorScope
+  contractors?: readonly OccurrenceTypeContractor[]
   /** Spec 183 T802: o tipo avisa a contratante sozinho no registro. Ausente é API anterior ao campo. */
   emailsContractor?: boolean
   /** Spec 248 RF1: o retorno da contratante — todos opcionais; ausentes são API anterior aos campos. */

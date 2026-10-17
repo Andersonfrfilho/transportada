@@ -76,7 +76,7 @@
 
 > 🤖 Modelo: `sonnet` (T3.2 e T3.3 → `haiku`)
 
-- [ ] **T3.1** `sonnet` — Teste antes; depois `OccurrenceTypeContractorScope.component.tsx` no editor e na criação:
+- [x] **T3.1** `sonnet` — Teste antes; depois `OccurrenceTypeContractorScope.component.tsx` no editor e na criação:
       "Vale para" + `MultiSelect` existente com as contratantes ("Nome · CNPJ", busca por nome e CNPJ, inativa marcada,
       aviso de lista truncada), travado no tipo só de parada com a frase do RF5, frase "na parada vale para todas" no tipo
       com `stop` + nota. Erros 400/404 do `PUT` mostrados no bloco.

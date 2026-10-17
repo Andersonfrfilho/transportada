@@ -1117,7 +1117,12 @@
     "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro.",
     "occurrenceReferenceNumberRequired": "Este tipo de ocorrência exige o número do documento do cliente. Preencha o número em vez de limpá-lo e salve de novo. Nada foi gravado.",
     "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado.",
-    "noteNumberNotFound": "Nenhuma nota livre com este número nesta empresa. Confira o número ou use a busca."
+    "noteNumberNotFound": "Nenhuma nota livre com este número nesta empresa. Confira o número ou use a busca.",
+    "occurrenceTypeContractorScopeEmpty": "Escolha ao menos uma contratante: um tipo restrito sem contratante não apareceria em nota nenhuma. Nada foi gravado.",
+    "occurrenceTypeContractorScopeNeedsDocument": "Tipo só de parada não pode ser restrito a contratantes: a parada não tem contratante. Nada foi gravado.",
+    "occurrenceTypeContractorScopeInvalid": "Escopo e lista de contratantes vão juntos, e Todas as contratantes não leva lista. Nada foi gravado.",
+    "occurrenceTypeNotAvailableForContractor": "Este tipo não vale para a contratante desta nota. Escolha outro tipo.",
+    "occurrenceTypeContractorNotFound": "Uma das contratantes escolhidas não existe mais ou não é desta empresa. Recarregue a lista e escolha de novo."
   },
   "filters": {
     "active_one": "{{count}} filtro ativo",

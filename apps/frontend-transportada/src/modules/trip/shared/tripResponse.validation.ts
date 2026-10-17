@@ -7,9 +7,11 @@ import {
   OCCURRENCE_ITEMS_MODES,
   OCCURRENCE_MOMENTS,
   OCCURRENCE_PHOTO_MINIMUM_COUNT,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
   OCCURRENCE_TYPE_FLOWS,
   type OccurrenceMoment,
   type OccurrenceType,
+  type OccurrenceTypeContractor,
 } from './occurrence.constant'
 import {
   TRIP_FIELD_CHANNELS,
@@ -1901,6 +1903,8 @@ type RawOccurrenceType = Omit<
   OccurrenceType,
   | 'allowsMultipleItems'
   | 'attachmentMode'
+  | 'contractorScope'
+  | 'contractors'
   | 'flow'
   | 'itemsMinimumCount'
   | 'itemsMode'
@@ -1914,6 +1918,8 @@ type RawOccurrenceType = Omit<
   Readonly<{
     allowsMultipleItems?: unknown
     attachmentMode?: unknown
+    contractorScope?: unknown
+    contractors?: unknown
     emailBody?: unknown
     emailItemLineTemplate?: unknown
     emailSubject?: unknown
@@ -2067,6 +2073,8 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
   const {
     allowsMultipleItems,
     attachmentMode,
+    contractorScope,
+    contractors,
     flow,
     itemsMinimumCount,
     itemsMode,
@@ -2092,6 +2100,18 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     ...rest,
     ...(isOneOf(itemsMode, OCCURRENCE_ITEMS_MODES) ? { itemsMode } : {}),
     ...(Array.isArray(moments) ? { moments: moments as readonly OccurrenceMoment[] } : {}),
+    /** Spec 270: valor desconhecido do escopo lê-se como `all` — nunca restringe por engano. */
+    ...(isString(contractorScope)
+      ? {
+          contractorScope:
+            contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed
+              ? OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed
+              : OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all,
+        }
+      : {}),
+    ...(Array.isArray(contractors)
+      ? { contractors: contractors as readonly OccurrenceTypeContractor[] }
+      : {}),
     ...(itemsMinimumCount === null || typeof itemsMinimumCount === 'number'
       ? { itemsMinimumCount }
       : {}),

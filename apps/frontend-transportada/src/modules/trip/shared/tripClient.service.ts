@@ -964,6 +964,10 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             ? {}
             : { emailsContractor: input.emailsContractor }),
           emailTemplateKey: input.emailTemplateKey,
+          /** Spec 270: escopo e lista vão juntos — só quando a edição os muda. */
+          ...(input.contractorScope === undefined || input.contractorIds === undefined
+            ? {}
+            : { contractorIds: input.contractorIds, contractorScope: input.contractorScope }),
           /** Spec 248 RF1: o retorno da contratante — só vai o que a edição muda. */
           ...(input.contractorReplyAlertIntervalMinutes === undefined
             ? {}
