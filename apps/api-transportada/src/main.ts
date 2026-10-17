@@ -4436,6 +4436,7 @@ function createApplicationRoutes({
                 ...values,
                 actorUserId: input.context.userId,
                 companyId: input.context.companyId,
+                correlationId: input.correlationId,
               }),
             templates: {
               findContractorTemplate: async ({ companyId, key }) =>

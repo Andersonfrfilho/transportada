@@ -48,10 +48,12 @@ import {
 import { toOccurrenceTypeSettingsViews } from '../../src/trips/infrastructure/occurrence-type-contractors.query.js'
 import {
   createOccurrenceMailUseCase,
+  SEEDED_NOTIFICATION_TEMPLATE_KEY,
   seedMailScenario,
   withConversationDatabase,
 } from '../fixtures/occurrence-conversation-database.fixture.js'
 import type { Seeded } from '../fixtures/occurrence-conversation-database.fixture.js'
+import { seedNotificationTemplate } from '../fixtures/notification-template.fixture.js'
 import { testWithPostgres } from '../fixtures/trip-field-office-database.fixture.js'
 import type { TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
 
@@ -140,7 +142,12 @@ function saveType(
     companyId,
     findCurrentType: (query) => findOccurrenceType(database.db, query),
     save: (values) =>
-      saveOccurrenceType(database.db, { ...values, actorUserId: userId, companyId }),
+      saveOccurrenceType(database.db, {
+        ...values,
+        actorUserId: userId,
+        companyId,
+        correlationId: 'corr-save',
+      }),
     templates: {
       findContractorTemplate: ({ key }) =>
         findActiveContractorTemplate(database.db, { companyId, key }),
@@ -431,6 +438,77 @@ describe('a cópia efetiva do e-mail à contratante: tipo ?? contratante ?? empr
           .from(contractorMailMessages)
           .where(eq(contractorMailMessages.companyId, companyId))
         expect(mails.map((mail) => mail.cc)).toEqual([[world.davi.address], [world.davi.address]])
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+})
+
+describe('a auditoria do bloco de e-mail à contratante do tipo (spec 271 D15, RF12)', () => {
+  async function auditRows(database: TestDatabase, world: World) {
+    return database.db
+      .select({
+        action: auditLogs.action,
+        actorUserId: auditLogs.actorUserId,
+        after: auditLogs.afterSnapshot,
+        before: auditLogs.beforeSnapshot,
+        entityId: auditLogs.entityId,
+      })
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.companyId, world.seeded.company.companyId),
+          eq(auditLogs.action, 'occurrence_type.contractor_mail.updated'),
+        ),
+      )
+  }
+
+  testWithPostgres(
+    'grava ator, tipo e os ids de antes e depois só quando o modelo, a cópia ou os destinatários mudam — nunca endereço',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const world = await seedWorld(database)
+        await seedNotificationTemplate(database, {
+          companyId: world.seeded.company.companyId,
+          key: 'ocorrencia.avaria',
+        })
+
+        await saveType(database, world, { contractorMailWatcherUserIds: [world.davi.userId] })
+        expect(await auditRows(database, world)).toEqual([
+          {
+            action: 'occurrence_type.contractor_mail.updated',
+            actorUserId: world.seeded.company.userId,
+            after: {
+              recipientContactIds: [],
+              templateKey: SEEDED_NOTIFICATION_TEMPLATE_KEY,
+              watcherUserIds: [world.davi.userId],
+            },
+            before: {
+              recipientContactIds: [],
+              templateKey: SEEDED_NOTIFICATION_TEMPLATE_KEY,
+              watcherUserIds: [],
+            },
+            entityId: world.typeId,
+          },
+        ])
+
+        await saveType(database, world, {
+          contractorMailWatcherUserIds: [world.davi.userId],
+          name: 'Só o nome mudou',
+        })
+        expect(await auditRows(database, world)).toHaveLength(1)
+
+        await saveType(database, world, { contractorNotificationTemplateKey: 'ocorrencia.avaria' })
+        const rows = await auditRows(database, world)
+        expect(rows).toHaveLength(2)
+        expect(rows[1]).toMatchObject({
+          after: { templateKey: 'ocorrencia.avaria', watcherUserIds: [world.davi.userId] },
+          before: {
+            templateKey: SEEDED_NOTIFICATION_TEMPLATE_KEY,
+            watcherUserIds: [world.davi.userId],
+          },
+        })
+        expect(JSON.stringify(rows)).not.toContain('@')
       })
     },
     TEST_TIMEOUT_MS,

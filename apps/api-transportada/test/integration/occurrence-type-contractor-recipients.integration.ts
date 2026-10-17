@@ -115,7 +115,12 @@ function saveType(
     companyId,
     findCurrentType: (query) => findOccurrenceType(database.db, query),
     save: (values) =>
-      saveOccurrenceType(database.db, { ...values, actorUserId: userId, companyId }),
+      saveOccurrenceType(database.db, {
+        ...values,
+        actorUserId: userId,
+        companyId,
+        correlationId: 'corr-save',
+      }),
     templates: {
       findContractorTemplate: ({ key }) =>
         findActiveContractorTemplate(database.db, { companyId, key }),

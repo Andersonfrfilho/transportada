@@ -83,7 +83,7 @@
       `PUT` (`contractorMailRecipientContactIds`: tipo `all` → 400; contato de contratante fora da lista → 400; outra
       empresa → 404; > 50 → 400), a poda ao tirar contratante do escopo e ao trocar para `all` (mesma transação, depois
       da gravação da 270), o automático e o `preselected` da prévia. Integração do critério 6 e 7 da spec.
-- [ ] **T2.8** `sonnet` — Auditoria D15 (só quando muda; ids, nunca endereço) e aviso D9 no feed e no detalhe na mesma
+- [x] **T2.8** `sonnet` — Auditoria D15 (só quando muda; ids, nunca endereço) e aviso D9 no feed e no detalhe na mesma
       consulta (`EXISTS`), sem N+1 (teste que conta consultas, molde da 269 T2.7).
 - [ ] **T2.10** `sonnet` — Gate do TMS nas rotas do módulo: `POST`/`PUT`/`DELETE` em `/notification-templates*` exigem
       `settings.manage` antes do roteador do módulo (`router.service.ts` ~:288). Teste de contrato: membro sem a permissão

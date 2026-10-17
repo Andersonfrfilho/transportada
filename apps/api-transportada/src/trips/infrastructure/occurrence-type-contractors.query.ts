@@ -310,7 +310,7 @@ export async function assertStoredOccurrenceTypeContractorScope(
   })
 }
 
-async function lockTypeRow(
+export async function lockTypeRow(
   transaction: TripQueryable,
   params: { readonly companyId: string; readonly occurrenceTypeId: string },
 ): Promise<void> {

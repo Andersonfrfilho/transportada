@@ -8,6 +8,7 @@
 import { describe, expect } from 'bun:test'
 import { and, eq, sql } from 'drizzle-orm'
 
+import { userCompanyMemberships } from '../../src/database/database.schema.js'
 import { companyOccurrenceTypes } from '../../src/database/trip.schema.js'
 import { OccurrenceContractorTemplateInvalidError } from '../../src/occurrence-conversation/domain/occurrence-contractor-template.error.js'
 import { findActiveContractorTemplate } from '../../src/occurrence-conversation/infrastructure/notification-template.query.js'
@@ -44,15 +45,32 @@ function buildValues(overrides: Partial<SaveOccurrenceTypeValues> = {}): SaveOcc
   }
 }
 
-function saveThroughUseCase(
+async function actorOf(database: TestDatabase, companyId: string): Promise<string> {
+  const [membership] = await database.db
+    .select({ userId: userCompanyMemberships.userId })
+    .from(userCompanyMemberships)
+    .where(eq(userCompanyMemberships.companyId, companyId))
+    .limit(1)
+  if (membership === undefined) throw new Error('ACTOR_EXPECTED')
+  return membership.userId
+}
+
+async function saveThroughUseCase(
   database: TestDatabase,
   companyId: string,
   values: SaveOccurrenceTypeValues,
 ) {
+  const actorUserId = await actorOf(database, companyId)
   return saveOccurrenceTypeWithTemplate({
     companyId,
     findCurrentType: (query) => findOccurrenceType(database.db, query),
-    save: (toSave) => saveOccurrenceType(database.db, { ...toSave, companyId }),
+    save: (toSave) =>
+      saveOccurrenceType(database.db, {
+        ...toSave,
+        actorUserId,
+        companyId,
+        correlationId: 'corr-save',
+      }),
     templates: {
       findContractorTemplate: ({ key }) =>
         findActiveContractorTemplate(database.db, { companyId, key }),

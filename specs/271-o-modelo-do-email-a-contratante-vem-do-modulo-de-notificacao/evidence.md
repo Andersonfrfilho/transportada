@@ -160,3 +160,8 @@ Leitura direta, só de leitura. Caminhos relativos a `apps/api-transportada/src/
 
 - `company_occurrence_type_recipients`, `contractorMailRecipientContactIds` no `PUT` (tipo `all` com ids → 400 `OCCURRENCE_TYPE_RECIPIENTS_REQUIRE_LISTED_SCOPE`, `[]` → 200; contato de contratante fora da lista ou **novo** inativo / sem `receives_occurrences` → 400 `OCCURRENCE_TYPE_RECIPIENT_NOT_IN_SCOPE`; de outra empresa ou inexistente → 404 `ContractorContactNotFoundError`; o já escolhido que ficou inativo continua), poda **explícita** dentro de `replaceOccurrenceTypeContractorScope` (depois da lista regravada da 270) ao tirar contratante do escopo e ao trocar para `all`, `contractorMailRecipients` na leitura, política `resolveOccurrenceRecipients` (escolha vence a etapa; sem sobra, regra de hoje), `preselected` da prévia e `To` do automático.
 - Integração (9 arquivos de escopo, cópia, automático, conversa): 33 pass / 0 fail / 0 skip. Contrato 12045 pass / 25 skip / 0 fail; tsc, lint e prettier limpos.
+
+### T2.8 — auditoria do bloco e aviso em lote
+
+- Auditoria `occurrence_type.contractor_mail.updated` (D15, RF12) na mesma transação, com o tipo travado `FOR UPDATE` antes de ler o "antes" (item 6 da revisão): ator, tipo e `{ templateKey, watcherUserIds, recipientContactIds }` antes e depois, só quando algo mudou, nunca endereço; a `correlationId` do pedido vai da rota (`parse`) até a gravação. O aviso D9 em lote já vinha da T2.4 (teste de contagem em `missing-template-query.contract.ts`).
+- Integração (25 arquivos `occurrence-type-*`): 76 pass / 0 fail / 0 skip. Contrato 12045 pass / 25 skip / 0 fail; tsc, lint e prettier limpos.

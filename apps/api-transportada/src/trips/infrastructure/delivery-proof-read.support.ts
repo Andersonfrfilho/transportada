@@ -116,6 +116,13 @@ import {
   buildTemplateSelectedAtChange,
   lockUsableOccurrenceMailTemplate,
 } from './occurrence-mail-template-lock.support.js'
+import {
+  hasOccurrenceTypeMailChange,
+  readOccurrenceTypeMailSnapshot,
+  writeOccurrenceTypeMailAudit,
+  type OccurrenceTypeMailSnapshot,
+} from './occurrence-type-mail-audit.support.js'
+import { lockTypeRow } from './occurrence-type-contractors.query.js'
 import { replaceOccurrenceTypeMailRecipients } from './occurrence-type-mail-recipients.support.js'
 import { replaceOccurrenceTypeMailWatchers } from './occurrence-type-mail-watchers.support.js'
 import {
@@ -1156,8 +1163,9 @@ function rethrowOccurrenceTypeViolation(error: unknown): never {
 export async function saveOccurrenceType(
   queryable: TripQueryable,
   input: Parameters<typeof writeOccurrenceTypeRow>[1] & {
-    /** Spec 271: quem grava (`created_by_user_id` das escolhas do tipo); exigido quando a escolha vai junto. */
+    /** Spec 271: quem grava (`created_by_user_id` das escolhas do tipo e a auditoria); exigido quando a escolha muda. */
     readonly actorUserId?: string | undefined
+    readonly correlationId?: string | undefined
     /** Spec 270: com o escopo, a lista vai junto; ausentes é "não mexa". */
     readonly contractorIds?: readonly string[] | undefined
     /** Spec 271 (D12): os destinatários do tipo (contatos das contratantes da lista); ausente é "não mexa". */
@@ -1169,6 +1177,14 @@ export async function saveOccurrenceType(
   },
 ): Promise<OccurrenceTypeRecord> {
   return queryable.transaction(async (transaction) => {
+    /** Spec 271 (D15): o tipo travado antes de ler o "antes" da auditoria; a criação não tem antes. */
+    const mailBefore =
+      input.occurrenceTypeId === null
+        ? null
+        : await readMailSnapshotLocked(transaction, {
+            companyId: input.companyId,
+            occurrenceTypeId: input.occurrenceTypeId,
+          })
     if (typeof input.contractorMailTemplateId === 'string') {
       await lockUsableOccurrenceMailTemplate(transaction, {
         companyId: input.companyId,
@@ -1215,6 +1231,13 @@ export async function saveOccurrenceType(
         occurrenceTypeId: saved.id,
       })
     }
+    await auditMailChange(transaction, {
+      actorUserId: input.actorUserId,
+      before: mailBefore,
+      companyId: input.companyId,
+      correlationId: input.correlationId,
+      occurrenceTypeId: saved.id,
+    })
     const [withMoments] = await withOccurrenceTypeMoments(transaction, {
       companyId: input.companyId,
       records: [
@@ -1228,6 +1251,40 @@ export async function saveOccurrenceType(
       records: withMoments === undefined ? [saved] : [withMoments],
     })
     return withContractors ?? withMoments ?? saved
+  })
+}
+
+async function readMailSnapshotLocked(
+  transaction: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceTypeId: string },
+): Promise<OccurrenceTypeMailSnapshot | null> {
+  await lockTypeRow(transaction, params)
+  return readOccurrenceTypeMailSnapshot(transaction, params)
+}
+
+/** A auditoria do bloco de e-mail: só quando mudou, e então ator e correlação são obrigatórios. */
+async function auditMailChange(
+  transaction: TripQueryable,
+  params: {
+    readonly actorUserId: string | undefined
+    readonly before: OccurrenceTypeMailSnapshot | null
+    readonly companyId: string
+    readonly correlationId: string | undefined
+    readonly occurrenceTypeId: string
+  },
+): Promise<void> {
+  const after = await readOccurrenceTypeMailSnapshot(transaction, params)
+  if (!hasOccurrenceTypeMailChange(params.before, after)) return
+  if (params.actorUserId === undefined || params.correlationId === undefined) {
+    throw new Error('OCCURRENCE_TYPE_MAIL_AUDIT_CONTEXT_REQUIRED')
+  }
+  await writeOccurrenceTypeMailAudit(transaction, {
+    actorUserId: params.actorUserId,
+    after,
+    before: params.before,
+    companyId: params.companyId,
+    correlationId: params.correlationId,
+    occurrenceTypeId: params.occurrenceTypeId,
   })
 }
 

@@ -330,6 +330,8 @@ type SaveOccurrenceTypeInput = {
    */
   readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly context: CompanyContext
+  /** Spec 271 (D15): a correlação do pedido, para a auditoria do bloco de e-mail do tipo. */
+  readonly correlationId: string
   /** Spec 247 (RF1): o valor pago digitado; ausente é "não mexa" — ver o caso de uso. */
   readonly declaredAmountLabel?: string | undefined
   readonly iconName?: null | OccurrenceTypeIconName | undefined
@@ -2025,8 +2027,8 @@ export function createTripRoutes(
         return jsonResponse({ body: { data: saved }, status: 200 })
       },
       method: 'PUT',
-      async parse({ request }) {
-        return parseOccurrenceTypeRequest(request)
+      async parse({ correlationId, request }) {
+        return { ...(await parseOccurrenceTypeRequest(request)), correlationId }
       },
       pathname: OCCURRENCE_TYPES_PATH,
       policy: SETTINGS_MANAGE_POLICY,
