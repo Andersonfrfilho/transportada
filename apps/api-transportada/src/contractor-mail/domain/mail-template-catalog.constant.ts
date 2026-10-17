@@ -6,10 +6,12 @@
  * do banco lê `CONTRACTOR_MAIL_TEMPLATE_TYPES` para a CHECK de `mail_type`.
  */
 
-export const CONTRACTOR_MAIL_TEMPLATE_TYPES = ['address_correction'] as const
+/** ⚠️ A ordem importa: o painel lê `catalog[0]` como o tipo de e-mail padrão — `occurrence` vai depois (spec 269). */
+export const CONTRACTOR_MAIL_TEMPLATE_TYPES = ['address_correction', 'occurrence'] as const
 export type ContractorMailTemplateType = (typeof CONTRACTOR_MAIL_TEMPLATE_TYPES)[number]
 
 export const ADDRESS_CORRECTION_MAIL_TYPE: ContractorMailTemplateType = 'address_correction'
+export const OCCURRENCE_MAIL_TYPE: ContractorMailTemplateType = 'occurrence'
 
 /** RF15: arquivado, nunca apagado — a mensagem enviada aponta para o modelo que usou. */
 export const CONTRACTOR_MAIL_TEMPLATE_STATUSES = ['active', 'archived'] as const
@@ -102,6 +104,55 @@ export const MAIL_TEMPLATE_CATALOG: Readonly<
       itemText: 'Motivo: {motivo}.',
       name: 'Padrão',
       subject: 'Correção de endereço de entrega — {clientes}',
+    },
+  },
+  /**
+   * Spec 269 (ADR-0106): o e-mail da ocorrência. Sem `{operador}`/`{transportadora}`: a assinatura é
+   * anexada por quem monta o e-mail, e o envio automático não tem operador. Os nomes de item ficam
+   * no singular e os de e-mail que agregam itens no plural — o validador confere o item primeiro,
+   * então o mesmo nome não pode existir nos dois níveis.
+   */
+  occurrence: {
+    itemVariables: [
+      { description: 'A descrição do item da nota.', name: 'item' },
+      { description: 'O código do item.', name: 'codigo_item' },
+      { description: 'A quantidade do item.', name: 'quantidade_item' },
+      { description: 'A unidade do item.', name: 'unidade_item' },
+      { description: 'O valor unitário do item, como veio na nota.', name: 'valor_unitario_item' },
+      { description: 'A soma da linha do item (quantidade x valor unitário).', name: 'soma_item' },
+      { description: 'O valor pago declarado para o item.', name: 'valor_item' },
+    ],
+    label: 'Ocorrência',
+    mailVariables: [
+      { description: 'Número da nota com série.', name: 'numero_nota' },
+      { description: 'Número da nota sem série.', name: 'numero_nota_sem_serie' },
+      { description: 'Razão social do destinatário da nota.', name: 'razao_social' },
+      { description: 'Valor total da nota.', name: 'valor_nota' },
+      { description: 'Nome da contratante.', name: 'contratante' },
+      { description: 'Nome do motorista da viagem.', name: 'motorista' },
+      { description: 'A parada da nota (sequência e cliente).', name: 'parada' },
+      { description: 'Data da ocorrência.', name: 'data' },
+      { description: 'Observação registrada.', name: 'observacao' },
+      { description: 'Número do documento do cliente.', name: 'numero_referencia' },
+      { description: 'Soma das linhas dos itens.', name: 'soma_itens' },
+      { description: 'Valor pago declarado.', name: 'valor_declarado' },
+      {
+        description: 'Os itens da ocorrência num texto só, separados por vírgula.',
+        name: 'itens',
+      },
+      { description: 'Os códigos dos itens, separados por vírgula.', name: 'codigos_itens' },
+      {
+        description: 'As quantidades dos itens, separadas por vírgula.',
+        name: 'quantidades_itens',
+      },
+    ],
+    suggestedTemplate: {
+      closing: 'Qualquer dúvida, é só responder este e-mail.',
+      intro:
+        'Olá, equipe {contratante},\n\nRegistramos uma ocorrência na nota {numero_nota} ({razao_social}) em {data}.\n\n{observacao}',
+      itemText: '{codigo_item} – {item} – {quantidade_item} {unidade_item} – R$ {valor_item}',
+      name: 'Padrão',
+      subject: 'Ocorrência na nota {numero_nota} — {contratante}',
     },
   },
 }

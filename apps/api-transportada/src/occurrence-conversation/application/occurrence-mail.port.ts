@@ -80,6 +80,8 @@ export type RecordOccurrenceMailInput = {
   readonly occurrenceKind: OccurrenceConversationKind
   readonly replyTokenHash: string
   readonly subject: string
+  /** Spec 269 (RF6): o modelo do cadastro que escreveu o e-mail; `null` só no reenvio de retorno sem original. */
+  readonly templateId: null | string
   readonly threadId: string
   readonly toAddresses: readonly string[]
   /** Spec 268: `sandbox_smtp` só fora de produção, sem Resend pronto e com o modo ligado. */
@@ -123,6 +125,21 @@ export type OccurrenceMailTransactionPort = {
     readonly contactIds: readonly string[]
     readonly contractorId: string
   }): Promise<readonly OccurrenceMailContact[]>
+  /**
+   * Spec 269 (ADR-0106, D2): o modelo efetivo do e-mail da ocorrência — o da exceção desta contratante, senão
+   * o do tipo; `null` é sem modelo (nenhum e-mail sai, nem à mão).
+   */
+  findEffectiveOccurrenceMailTemplate(params: {
+    readonly companyId: string
+    readonly contractorId: string
+    readonly occurrenceId: string
+  }): Promise<{ readonly templateId: string } | null>
+  /** Spec 269 (D4): o modelo da primeira mensagem de e-mail desta ocorrência, para o reenvio do retorno (248). */
+  findOriginalOccurrenceMailTemplateId(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  }): Promise<null | string>
   findCarrierName(params: { readonly companyId: string }): Promise<string | undefined>
   findOperatorName(params: {
     readonly companyId: string
@@ -207,10 +224,11 @@ export type OccurrenceMailUnitOfWorkPort = {
   ): Promise<TResult>
 }
 
-/** O texto que o tipo da ocorrência oferece (spec 079); `null` no tipo sem e-mail. */
+/** O texto do modelo efetivo (spec 269) com os valores da nota; `null` quando o modelo não existe. */
 export type OccurrenceSuggestedMailPort = {
   readSuggestedMail(params: {
     readonly companyId: string
     readonly occurrenceId: string
+    readonly templateId: string
   }): Promise<{ readonly bodyText: string; readonly subject: string } | null>
 }

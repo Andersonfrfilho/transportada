@@ -124,6 +124,11 @@ export type TripOccurrenceFeedItem = {
   readonly id: string
   readonly invoiceNumber: null | string
   readonly invoiceSeries: null | string
+  /**
+   * Spec 269 (D8): o tipo avisa a contratante (`emails_contractor`) e não há modelo efetivo (exceção da
+   * contratante da nota ?? tipo) — "Tipo sem modelo de notificação". Calculado aqui; falso na parada.
+   */
+  readonly missingNotificationTemplate: boolean
   /** O tipo cadastrado avisa o embarcador quando a empresa ligou isso. Falso para parada. */
   readonly notifies: boolean
   /**

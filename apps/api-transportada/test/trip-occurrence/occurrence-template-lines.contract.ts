@@ -3,7 +3,7 @@
  *
  * Spec 247 T4.7 (RF8, RF9, RF10): as linhas que o modelo de e-mail recebe, montadas do que o registro
  * gravou (quantidade, unidade, valor unitário copiado, valor pago) e do que a nota diz (descrição,
- * quantidade da NF-e, `vProd`). Nada aqui lê banco: a leitura de `readOccurrenceTemplateValues` só
+ * quantidade da NF-e, `vProd`). Nada aqui lê banco: a leitura de `readOccurrenceMailValues` só
  * entrega estas duas listas à política.
  */
 import { describe, expect, test } from 'bun:test'

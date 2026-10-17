@@ -23,6 +23,7 @@ import {
 } from '../shared/tripOccurrenceFeed.service'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
+import { OccurrenceMissingTemplateMark } from './OccurrenceMissingTemplateMark.component'
 import { OccurrenceCasePanel } from './OccurrenceCasePanel.component'
 import { OccurrenceResolutionBadge } from './OccurrenceResolutionBadge.component'
 import { OccurrenceResolutionPanel } from './OccurrenceResolutionPanel.component'
@@ -132,6 +133,10 @@ function OccurrenceCell({
           {label.labelKey === null ? label.value : t(label.labelKey)}
         </a>
         <OccurrenceCancellationMark cancellation={item.cancellation} variant="badge" />
+        <OccurrenceMissingTemplateMark
+          isMissing={item.missingNotificationTemplate}
+          variant="badge"
+        />
       </td>
     )
   }
@@ -207,6 +212,10 @@ function OccurrenceDetailRow({
             : item.description}
         </p>
         <OccurrenceCancellationMark cancellation={item.cancellation} variant="notice" />
+        <OccurrenceMissingTemplateMark
+          isMissing={item.missingNotificationTemplate}
+          variant="notice"
+        />
         <OccurrenceAttachments item={item} />
         <OccurrenceResolutionPanel
           canResolve={canResolveOccurrenceCases}
@@ -287,6 +296,10 @@ function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
             {t(`occurrenceFeed.stage.${item.stage ?? 'stop'}`)}
           </span>
           <OccurrenceCancellationMark cancellation={item.cancellation} variant="badge" />
+          <OccurrenceMissingTemplateMark
+            isMissing={item.missingNotificationTemplate}
+            variant="badge"
+          />
           <OccurrenceResolutionBadge resolution={item.resolution ?? null} />
         </span>
         <span className={styles.occurrenceCellNote}>

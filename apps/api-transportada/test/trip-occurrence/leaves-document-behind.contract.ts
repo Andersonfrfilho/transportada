@@ -19,8 +19,6 @@ const BASE_VALUES = {
   active: true,
   allowsMultipleItems: true,
   attachmentMode: 'off' as const,
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: null as null | string,
   name: 'Item faltante',
   notifies: false,
@@ -32,8 +30,6 @@ function buildType(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeReco
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TIPO,
     name: 'Item faltante',

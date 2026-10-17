@@ -28,8 +28,6 @@ function repository(notifies: boolean) {
       return {
         active: true,
         allowsMultipleItems: true,
-        emailBody: '',
-        emailSubject: '',
         emailTemplateKey: null,
         id: TIPO,
         name: 'Recusa total',
@@ -42,21 +40,6 @@ function repository(notifies: boolean) {
     },
     async listOccurrences() {
       return []
-    },
-    async readTemplateValues() {
-      return {
-        contractorName: '',
-        documentLabel: '883658/1',
-        driverName: '',
-        itemCode: '',
-        itemLabel: '',
-        itemQuantity: '',
-        note: '',
-        occurredOn: '03/09/2026',
-        recipientName: '',
-        stopLabel: '',
-        totalValue: '',
-      }
     },
     async saveOccurrence(saved: { readonly typeName: string }) {
       return {

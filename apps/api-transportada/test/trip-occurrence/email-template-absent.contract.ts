@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 247 (T7.2 R1, M1): o `PUT` do tipo sem `emailBody`/`emailSubject` — o painel publicado não os
- * manda — não pode apagar o e-mail à contratante. Ausente é "não mexa"; `''` explícito apaga de
- * propósito. Antes, `.default('')` na fronteira transformava a ausência em "apague".
+ * Spec 269 D9: o painel antigo ainda manda `emailBody`/`emailSubject`/`emailItemLineTemplate` durante a
+ * publicação em etapas. O `PUT` do tipo os aceita, sem conferir marcador, e o mapeador os descarta: nenhum
+ * valor chega ao caso de uso. A etapa B tira as chaves.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -27,30 +27,25 @@ function putRequest(extra: Readonly<Record<string, unknown>>): Request {
   })
 }
 
-describe('o PUT do tipo sem o e-mail à contratante não o apaga (spec 247 T7.2 M1)', () => {
-  test('sem emailBody e emailSubject, a fronteira os deixa ausentes', async () => {
+describe('o PUT do tipo aceita e ignora o texto antigo do e-mail (spec 269 D9)', () => {
+  test('o painel antigo, com as três chaves e marcadores {{camelCase}}, não toma 400', async () => {
     const parsed = await parseOccurrenceTypeRequest(putRequest({}))
 
-    expect(parsed.emailBody).toBeUndefined()
-    expect(parsed.emailSubject).toBeUndefined()
-    const values = toSaveOccurrenceTypeValues(parsed)
+    expect(parsed.name).toBe('Devolução parcial')
+  })
+
+  test('nenhuma das três chaves chega aos valores do caso de uso', async () => {
+    const parsed = await parseOccurrenceTypeRequest(
+      putRequest({ emailBody: 'x', emailItemLineTemplate: 'y', emailSubject: 'z' }),
+    )
+
+    const values = toSaveOccurrenceTypeValues(parsed) as Record<string, unknown>
     expect(values.emailBody).toBeUndefined()
+    expect(values.emailItemLineTemplate).toBeUndefined()
     expect(values.emailSubject).toBeUndefined()
   })
 
-  test("'' explícito continua válido e chega ao caso de uso (apaga de propósito)", async () => {
-    const parsed = await parseOccurrenceTypeRequest(putRequest({ emailBody: '', emailSubject: '' }))
-
-    expect(parsed.emailBody).toBe('')
-    expect(parsed.emailSubject).toBe('')
-  })
-
-  test('texto presente chega como veio', async () => {
-    const parsed = await parseOccurrenceTypeRequest(
-      putRequest({ emailBody: 'corpo {{contratante}}', emailSubject: 'assunto' }),
-    )
-
-    expect(parsed.emailBody).toBe('corpo {{contratante}}')
-    expect(parsed.emailSubject).toBe('assunto')
+  test('sem as chaves também passa', async () => {
+    await expect(parseOccurrenceTypeRequest(putRequest({}))).resolves.toBeDefined()
   })
 })

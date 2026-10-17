@@ -19,6 +19,7 @@ import type {
 import {
   ContractorReplyNotResendableError,
   ContractorReplyResendTooSoonError,
+  OccurrenceMailTemplateMissingError,
 } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import type { StoredContractorReplyConfiguration } from '../../src/occurrence-conversation/application/occurrence-mail.port.js'
 import type { ConversationUploadTarget } from '../../src/occurrence-conversation/application/conversation-attachment.port.js'
@@ -36,6 +37,8 @@ const NOW = new Date('2026-09-24T18:00:00.000Z')
 const PDF = new TextEncoder().encode('%PDF-1.7 nota de devolução')
 const UPLOAD_A = '00000000-0000-4000-8000-0000001834a1'
 const UPLOAD_B = '00000000-0000-4000-8000-0000001834a2'
+
+const EFFECTIVE_TEMPLATE_ID = '00000000-0000-4000-8000-000000269401'
 
 const TARGET: OccurrenceMailTarget = {
   contractorId: CONTRACTOR_ID,
@@ -59,6 +62,10 @@ type FakeState = {
 function createFake(
   overrides: Partial<{
     contacts: readonly { email: string; id: string }[]
+    /** Spec 269: o modelo efetivo (exceção da contratante ?? tipo); `null` é sem modelo. */
+    effectiveTemplateId: null | string
+    /** Spec 269: o modelo da primeira mensagem de e-mail da ocorrência (reenvio do retorno). */
+    originalTemplateId: null | string
     logger: {
       info?: (event: string, fields?: Record<string, unknown>) => void
       warn: (event: string, fields?: Record<string, unknown>) => void
@@ -129,6 +136,14 @@ function createFake(
     },
     async findCarrierName() {
       return 'Transportadora Sintética'
+    },
+    async findEffectiveOccurrenceMailTemplate() {
+      const templateId =
+        'effectiveTemplateId' in overrides ? overrides.effectiveTemplateId : EFFECTIVE_TEMPLATE_ID
+      return templateId === null || templateId === undefined ? null : { templateId }
+    },
+    async findOriginalOccurrenceMailTemplateId() {
+      return overrides.originalTemplateId ?? null
     },
     async findIdempotency({ idempotencyKey }) {
       return state.idempotency.get(idempotencyKey) ?? null
@@ -391,10 +406,13 @@ describe('a prévia do e-mail (RF7)', () => {
   function createPreview(
     suggested: { bodyText: string; subject: string } | null,
     target: OccurrenceMailTarget = TARGET,
+    templateId: null | string = EFFECTIVE_TEMPLATE_ID,
   ) {
     return createPreviewOccurrenceMailUseCase({
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
+        findEffectiveOccurrenceMailTemplate: async () =>
+          templateId === null ? null : { templateId },
         findOperatorName: async () => 'Operadora Lima',
         findOccurrenceTarget: async () => target,
         listOccurrenceRecipients: async () => RECIPIENTS,
@@ -404,7 +422,7 @@ describe('a prévia do e-mail (RF7)', () => {
     })
   }
 
-  test('sem texto do operador, parte do modelo do tipo da ocorrência (079)', async () => {
+  test('sem texto do operador, parte do modelo efetivo da ocorrência (269)', async () => {
     const preview = await createPreview({
       bodyText: 'Ocorrência na NF 4512: cobrança de descarga.',
       subject: 'Ocorrência — NF 4512',
@@ -421,6 +439,7 @@ describe('a prévia do e-mail (RF7)', () => {
       cc: [],
       ccSource: null,
       contractorName: 'Contratante Alfa',
+      missingNotificationTemplate: false,
       /** Spec 183 T407: marcado de saída quem recebe ocorrências do grupo desta (RF5). */
       recipients: [
         {
@@ -441,6 +460,7 @@ describe('a prévia do e-mail (RF7)', () => {
         },
       ],
       suggested: true,
+      templateId: EFFECTIVE_TEMPLATE_ID,
     })
   })
 
@@ -482,6 +502,114 @@ describe('a prévia do e-mail (RF7)', () => {
     })
 
     expect(preview).toMatchObject({ bodyText: '', subject: '', suggested: false })
+  })
+
+  /** Spec 269 D4/D8: sem modelo efetivo a prévia sai em branco, com o aviso, e o envio é bloqueado no painel. */
+  test('sem modelo efetivo: aviso, sem sugestão e sem modelo', async () => {
+    let suggestedReads = 0
+    const preview = await createPreviewOccurrenceMailUseCase({
+      reader: {
+        findCarrierName: async () => 'Transportadora Sintética',
+        findEffectiveOccurrenceMailTemplate: async () => null,
+        findOccurrenceTarget: async () => TARGET,
+        findOperatorName: async () => 'Operadora Lima',
+        listOccurrenceRecipients: async () => RECIPIENTS,
+        loadWatcherCandidates: async () => ({ company: [], contractor: [] }),
+      },
+      suggestedMail: {
+        readSuggestedMail: async () => {
+          suggestedReads += 1
+          return { bodyText: 'x', subject: 'y' }
+        },
+      },
+    }).preview({ actorUserId: ACTOR_ID, companyId: COMPANY_ID, occurrenceId: OCCURRENCE_ID })
+
+    expect(preview).toMatchObject({
+      bodyText: '',
+      missingNotificationTemplate: true,
+      subject: '',
+      suggested: false,
+      templateId: null,
+    })
+    expect(suggestedReads).toBe(0)
+  })
+
+  test('o texto do operador não troca o modelo efetivo que a prévia informa', async () => {
+    const preview = await createPreview(null).preview({
+      actorUserId: ACTOR_ID,
+      bodyText: 'Texto do operador',
+      companyId: COMPANY_ID,
+      occurrenceId: OCCURRENCE_ID,
+      subject: 'Assunto do operador',
+    })
+
+    expect(preview).toMatchObject({
+      missingNotificationTemplate: false,
+      templateId: EFFECTIVE_TEMPLATE_ID,
+    })
+  })
+
+  test('ocorrência sem contratante casada não tem modelo efetivo', async () => {
+    const preview = await createPreview(null, {
+      ...TARGET,
+      contractorId: null,
+      contractorName: '',
+    }).preview({
+      actorUserId: ACTOR_ID,
+      companyId: COMPANY_ID,
+      occurrenceId: OCCURRENCE_ID,
+    })
+
+    expect(preview).toMatchObject({ missingNotificationTemplate: true, templateId: null })
+  })
+})
+
+describe('o modelo do e-mail da ocorrência no envio (spec 269 D4, D7)', () => {
+  test('grava o modelo efetivo que o servidor resolveu, no envio manual', async () => {
+    const { state, useCase } = createFake()
+
+    await useCase.send(input())
+
+    expect(state.mails[0]?.templateId).toBe(EFFECTIVE_TEMPLATE_ID)
+  })
+
+  test('sem modelo efetivo, 409 OCCURRENCE_MAIL_TEMPLATE_MISSING — nem à mão — e nada é gravado', async () => {
+    const { state, useCase } = createFake({ effectiveTemplateId: null })
+
+    const error = await failure(() => useCase.send(input()))
+
+    expect(error).toBeInstanceOf(OccurrenceMailTemplateMissingError)
+    expect(error).toMatchObject({ code: 'OCCURRENCE_MAIL_TEMPLATE_MISSING', status: 409 })
+    expect(state.mails).toEqual([])
+    expect(state.conversationMessages).toEqual([])
+  })
+
+  test('o aviso automático também precisa de modelo efetivo', async () => {
+    const { state, useCase } = createFake({ effectiveTemplateId: null })
+
+    const error = await failure(() => useCase.send(input({ actorUserId: null, automatic: true })))
+
+    expect(error).toBeInstanceOf(OccurrenceMailTemplateMissingError)
+    expect(state.mails).toEqual([])
+  })
+
+  test('o reenvio do retorno (248) não passa pelo bloqueio e grava o modelo da mensagem original', async () => {
+    const { state, useCase } = createFake({
+      effectiveTemplateId: null,
+      originalTemplateId: EFFECTIVE_TEMPLATE_ID,
+    })
+
+    await useCase.send(input({ contractorReplyResend: true }))
+
+    expect(state.mails[0]?.templateId).toBe(EFFECTIVE_TEMPLATE_ID)
+  })
+
+  test('o reenvio sem mensagem original com modelo grava nulo, sem erro', async () => {
+    const { state, useCase } = createFake({ effectiveTemplateId: null })
+
+    await useCase.send(input({ contractorReplyResend: true }))
+
+    expect(state.mails[0]?.templateId).toBeNull()
   })
 })
 
@@ -828,6 +956,7 @@ describe('a prévia mostra a cópia (spec 267 RF4)', () => {
       logger: { warn: (event) => warnings.push(event) },
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
+        findEffectiveOccurrenceMailTemplate: async () => ({ templateId: EFFECTIVE_TEMPLATE_ID }),
         findOccurrenceTarget: async () => TARGET,
         findOperatorName: async () => 'Operadora Lima',
         listOccurrenceRecipients: async () => [],
@@ -847,6 +976,7 @@ describe('a prévia mostra a cópia (spec 267 RF4)', () => {
     const preview = await createPreviewOccurrenceMailUseCase({
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
+        findEffectiveOccurrenceMailTemplate: async () => ({ templateId: EFFECTIVE_TEMPLATE_ID }),
         findOccurrenceTarget: async () => TARGET,
         findOperatorName: async () => 'Operadora Lima',
         listOccurrenceRecipients: async () => [],

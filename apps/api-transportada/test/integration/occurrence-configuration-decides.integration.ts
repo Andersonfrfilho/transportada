@@ -5,7 +5,7 @@
  * do motorista (`registerDriverOccurrence` + repositórios Drizzle) — dois com o MESMO nome em empresas
  * diferentes (o nome é único por empresa) e configuração diferente, dois com nomes diferentes e a MESMA
  * configuração. A exigência efetiva (tipo + exceção do contratante lida da nota), o que fica gravado, a
- * soma e o e-mail montado das linhas gravadas seguem a configuração; o nome não entra.
+ * soma das linhas gravadas seguem a configuração; o nome não entra.
  */
 import { describe, expect, test } from 'bun:test'
 import { asc, eq } from 'drizzle-orm'
@@ -21,11 +21,6 @@ import {
 } from '../../src/database/trip.schema.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import { resolveOccurrenceAmounts } from '../../src/trips/domain/occurrence-amount.policy.js'
-import {
-  buildOccurrenceItemValues,
-  renderOccurrenceTemplate,
-} from '../../src/trips/domain/occurrence-template.policy.js'
-import type { OccurrenceTemplateLine } from '../../src/trips/domain/occurrence-template.types.js'
 import { registerStreetOccurrence } from '../fixtures/street-occurrence-registration.fixture.js'
 import {
   seedCompany,
@@ -46,11 +41,6 @@ const DECLARED_AMOUNT_REQUIRED = 'TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED'
 const NAME_PARTIAL_RETURN = 'Devolução parcial'
 const NAME_EXTENSION = 'Prorrogação'
 const NAME_TOTAL_RETURN = 'Devolução total'
-const EMAIL_SUBJECT = 'Retorno {{numeroNotaSemSerie}}'
-const EMAIL_BODY =
-  'NFD {{numeroReferencia}}\n{{linhasItens}}\nPago {{valorDeclarado}} de {{somaItens}}'
-const EMAIL_ITEM_LINE = '{{codigoItem}} {{quantidadeItem}} {{unidadeItem}} = {{valorItem}}'
-const LOOSE_EMAIL_BODY = 'Aviso: {{observacao}}'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -126,9 +116,6 @@ async function seedType(database: TestDatabase, seed: TypeSeed): Promise<string>
     companyId: seed.world.company.companyId,
     declaredAmountMode: seed.isStrict ? 'required' : 'off',
     declaredAmountScope: seed.isStrict ? 'item' : 'occurrence',
-    emailBody: seed.isStrict ? EMAIL_BODY : LOOSE_EMAIL_BODY,
-    emailItemLineTemplate: seed.isStrict ? EMAIL_ITEM_LINE : '{{item}}',
-    emailSubject: seed.isStrict ? EMAIL_SUBJECT : 'Aviso {{numeroNota}}',
     id,
     itemsMinimumCount: seed.isStrict ? 1 : null,
     itemsMode: seed.isStrict ? 'required' : 'optional',
@@ -211,51 +198,22 @@ async function readStored(database: TestDatabase, occurrenceId: string) {
   return { lines, occurrence }
 }
 
-const DESCRIPTIONS: Readonly<Record<string, string>> = { P1: 'Biscoito', P2: 'Bolo' }
-
 type StoredOccurrence = Awaited<ReturnType<typeof readStored>>
 
-/** A conta e o e-mail saem só das linhas gravadas e do texto do tipo, como no envio. */
-function summarize(stored: StoredOccurrence, isStrict: boolean) {
-  const lines: readonly OccurrenceTemplateLine[] = stored.lines.map((line) => ({
-    code: line.productCode,
+/** A conta sai só das linhas gravadas, como no envio. */
+function summarize(stored: StoredOccurrence) {
+  const lines = stored.lines.map((line) => ({
     declaredAmount: line.declaredAmount,
-    description: DESCRIPTIONS[line.productCode] ?? '',
-    nfeQuantity: line.quantity ?? '0',
     quantity: line.quantity,
     totalValue: '0',
-    unit: line.quantityUnit ?? '',
     unitValue: line.unitValue ?? '0',
   }))
   const amounts = resolveOccurrenceAmounts({
     declaredAmount: stored.occurrence.declaredAmount,
     lines,
   })
-  const values = {
-    contractorName: 'Contratante',
-    declaredAmount: stored.occurrence.declaredAmount,
-    documentLabel: '123/1',
-    documentNumber: '123',
-    driverName: 'Motorista',
-    ...buildOccurrenceItemValues(
-      lines.map((line) => ({
-        code: line.code,
-        description: line.description,
-        quantity: line.quantity ?? line.nfeQuantity,
-      })),
-    ),
-    itemLineTemplate: isStrict ? EMAIL_ITEM_LINE : '{{item}}',
-    lines,
-    note: stored.occurrence.note,
-    occurredOn: '01/01/2026',
-    recipientName: 'Destinatário',
-    referenceNumber: stored.occurrence.referenceNumber ?? undefined,
-    stopLabel: 'Rua',
-    totalValue: '0',
-  }
   return {
     declaredAmountCents: amounts.declaredAmountCents,
-    email: renderOccurrenceTemplate({ template: isStrict ? EMAIL_BODY : LOOSE_EMAIL_BODY, values }),
     itemsSumCents: amounts.itemsSumCents,
   }
 }
@@ -315,7 +273,7 @@ describe('só a configuração decide, contra o banco (spec 247 T4.5, CA03)', ()
   )
 
   testWithPostgres(
-    'o gravado, a soma e o e-mail de nomes diferentes com a mesma configuração são idênticos',
+    'o gravado e a soma de nomes diferentes com a mesma configuração são idênticos',
     async () => {
       await withDisposableDatabase(async (database) => {
         const { looseSameName, strictOtherName, strictSameName } = await seedFourTypes(database)
@@ -351,15 +309,11 @@ describe('só a configuração decide, contra o banco (spec 247 T4.5, CA03)', ()
             unitValue: '57.2000',
           },
         ])
-        const firstSummary = summarize(first, true)
-        expect(summarize(second, true)).toEqual(firstSummary)
+        const firstSummary = summarize(first)
+        expect(summarize(second)).toEqual(firstSummary)
         expect(firstSummary.declaredAmountCents).toBe(8220n)
         expect(firstSummary.itemsSumCents).toBe(9719n)
-        expect(firstSummary.email).toBe(
-          'NFD NFD 45029\nP1 2 CX = 25,00\nP2 1 UN = 57,20\nPago 82,20 de 97,19',
-        )
         expect(loose.occurrence.referenceNumber).toBeNull()
-        expect(summarize(loose, false).email).toBe('Aviso: cliente ausente')
       })
     },
     90_000,

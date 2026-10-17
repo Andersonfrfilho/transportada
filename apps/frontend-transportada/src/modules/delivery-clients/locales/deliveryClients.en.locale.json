@@ -140,7 +140,12 @@
     "errorNotFound": "Template not found.",
     "errorVersionConflict": "This template was changed in another tab. Reload and try again — the text typed here was not lost.",
     "errorInvalidRequest": "Check the fields and try again.",
-    "errorGeneric": "Could not save: {{code}}"
+    "errorGeneric": "Could not save: {{code}}",
+    "errorInUse": "This template is still chosen by occurrence types or contractor exceptions. Change theirs before archiving.",
+    "usage": {
+      "occurrenceTypes": "Occurrence types using it:",
+      "contractorExceptions": "Contractor exceptions using it (type / contractor):"
+    }
   },
   "contractorContacts": {
     "title": "Contracting party contacts",

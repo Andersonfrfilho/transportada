@@ -30,8 +30,6 @@ function type(overrides: Partial<OccurrenceTypeRecord> = {}): OccurrenceTypeReco
     active: true,
     allowsMultipleItems: true,
     attachmentMode: 'optional',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TYPE_ID,
     itemsMinimumCount: null,

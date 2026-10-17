@@ -65,6 +65,7 @@
     "times": "Horários da mensagem"
   },
   "dialog": {
+    "missingTemplate": "Tipo sem modelo de notificação: sem modelo o e-mail não sai, nem à mão. Escolha um modelo no tipo ou na exceção da contratante.",
     "title": "Enviar à contratante",
     "close": "Fechar",
     "loading": "Preparando o e-mail",

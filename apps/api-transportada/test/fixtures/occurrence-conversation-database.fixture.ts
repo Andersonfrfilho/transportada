@@ -34,6 +34,7 @@ import {
   seedTrip,
 } from './trip-field-office-database.fixture.js'
 import type { Company, SeededTrip, TestDatabase } from './trip-field-office-database.fixture.js'
+import { seedOccurrenceMailTemplate } from './occurrence-mail-template.fixture.js'
 
 const EMITTER_TAX_ID = '11222333000181'
 
@@ -98,11 +99,17 @@ export async function seedMailScenario(database: TestDatabase): Promise<Seeded> 
   })
 
   const occurrenceTypeId = crypto.randomUUID()
+  /** Spec 269: o e-mail da ocorrência sai de um modelo do cadastro, escolhido no tipo. */
+  const mailTemplateId = await seedOccurrenceMailTemplate(database, company, {
+    closing: 'Obrigado.',
+    intro: 'Ocorrência na nota {numero_nota}: {observacao}',
+    itemText: '',
+    subject: 'Ocorrência — NF {numero_nota}',
+  })
   await database.db.insert(companyOccurrenceTypes).values({
     active: true,
     companyId: company.companyId,
-    emailBody: 'Ocorrência na nota {{numeroNota}}: {{observacao}}',
-    emailSubject: 'Ocorrência — NF {{numeroNota}}',
+    contractorMailTemplateId: mailTemplateId,
     id: occurrenceTypeId,
     name: 'Caixa violada',
     notifies: false,

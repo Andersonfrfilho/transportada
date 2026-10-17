@@ -27,8 +27,6 @@ import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.
 import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
-import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
-import type { OccurrenceTemplateValues } from '../domain/occurrence-template.types.js'
 import {
   OccurrencePhotoRequiredError,
   OccurrenceTypeNotSeparationError,
@@ -119,7 +117,6 @@ export type RegisteredOccurrence = TripOccurrence & {
   /** Spec 161 T6 (RF5): `[]` quando `saveOccurrence` não devolveu anexo (não deveria acontecer
    * para `separation`, já que D1 exige foto — mas a leitura fica defensiva, nunca `undefined`). */
   readonly attachments: readonly TripOccurrenceAttachmentPosition[]
-  readonly email: null | { readonly body: string; readonly subject: string }
 }
 
 /** O tipo cadastrado, como o caso de uso precisa vê-lo para decidir. */
@@ -141,12 +138,7 @@ export type OccurrenceTypeRecord = {
   readonly iconName?: null | OccurrenceTypeIconName
   readonly declaredAmountMode?: DeliveryProofFieldMode
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope
-  /** Vazio é tipo que não gera e-mail: nem toda ocorrência precisa avisar o embarcador. */
-  readonly emailBody: string
-  /** Spec 247 (RF6): o formato da linha de item; vazio usa a linha padrão. Opcional só em dublê. */
-  readonly emailItemLineTemplate?: string
-  readonly emailSubject: string
-  /** A chave do template do módulo de notificações; nula é o legado (assunto/corpo próprios). */
+  /** A chave do template do módulo de notificações (aviso interno); nula é tipo sem aviso interno. */
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. Ausente é tratado
@@ -192,6 +184,8 @@ export type OccurrenceTypeRecord = {
   readonly photoMinimumCount?: number
   /** Spec 183 T802: o registro avisa a contratante sozinho (o envio é do gancho, depois do commit). */
   readonly emailsContractor?: boolean
+  /** Spec 269: o modelo `occurrence` do tipo; nulo é sem modelo. Opcional só para os dublês de teste. */
+  readonly contractorMailTemplateId?: null | string
   /** Spec 248 (RF1): o retorno da contratante — opcionais só para os dublês de teste; a leitura real sempre traz. */
   readonly contractorReplyAlertIntervalMinutes?: number
   readonly contractorReplyAlertMaxCount?: number
@@ -247,16 +241,6 @@ export type TripOccurrencePort = {
       readonly description: string
     }[]
   >
-  readTemplateValues(input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly note: string
-    /** Spec 247 (T4.7): a ocorrência já gravada — o leitor lê dela o que o registro guardou. */
-    readonly occurrenceId?: string | undefined
-    readonly occurredOn: string
-    readonly productCodes: readonly string[]
-    readonly tripId: string
-  }): Promise<OccurrenceTemplateValues>
   saveOccurrence(input: {
     readonly actorUserId: string
     /**
@@ -497,41 +481,8 @@ export async function registerTripOccurrence(
     ...saved,
     ...(autoDispatch === undefined ? {} : { autoDispatch }),
     attachments: saved.attachments ?? [],
-    email: await renderEmail({ input, occurrenceId: saved.id, occurrenceType, scope }),
     productCodes: scope.productCodes,
     products: items,
-  }
-}
-
-/**
- * ⚠️ **Assunto vazio é tipo sem e-mail**, e a checagem é no assunto: um corpo sem assunto sairia
- * como mensagem sem título, e um assunto sem corpo ainda é um e-mail útil.
- *
- * Os valores são lidos **depois** de o registro existir, e de propósito: se a leitura falhar, a
- * ocorrência já está gravada e o operador perde o texto pronto, não o registro.
- */
-async function renderEmail(params: {
-  readonly input: RegisterTripOccurrenceInput
-  readonly occurrenceId: string
-  readonly occurrenceType: OccurrenceTypeRecord
-  readonly scope: { readonly productCodes: readonly string[] }
-}): Promise<null | { readonly body: string; readonly subject: string }> {
-  /** Spec 247 (RF2): a chave é do aviso interno; o e-mail à contratante só depende do assunto. */
-  if (params.occurrenceType.emailSubject === '') return null
-
-  const values = await params.input.repository.readTemplateValues({
-    companyId: params.input.companyId,
-    documentId: params.input.documentId,
-    note: params.input.note,
-    occurrenceId: params.occurrenceId,
-    occurredOn: params.input.occurredOn,
-    productCodes: params.scope.productCodes,
-    tripId: params.input.tripId,
-  })
-
-  return {
-    body: renderOccurrenceTemplate({ template: params.occurrenceType.emailBody, values }),
-    subject: renderOccurrenceTemplate({ template: params.occurrenceType.emailSubject, values }),
   }
 }
 

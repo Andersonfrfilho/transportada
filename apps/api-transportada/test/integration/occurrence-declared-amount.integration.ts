@@ -49,8 +49,6 @@ function typeValues(companyId: string, overrides: Partial<SaveInput> = {}): Save
   return {
     active: true,
     companyId,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     name: TYPE_NAME,
@@ -264,7 +262,6 @@ describe('número do cliente e valor pago contra o Postgres (spec 247 T2.3)', ()
         expect(
           await updateType(database, type.id, {
             declaredAmountLabel: 'Valor da NFD',
-            emailItemLineTemplate: 'x'.repeat(400),
             referenceNumberLabel: 'Número da NFD',
           }),
         ).toBe('accepted')

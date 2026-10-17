@@ -36,8 +36,6 @@ function buildType(): OccurrenceType {
     declaredAmountLabel: 'Valor pago',
     declaredAmountMode: 'optional',
     declaredAmountScope: 'item',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     id: 'type-1',

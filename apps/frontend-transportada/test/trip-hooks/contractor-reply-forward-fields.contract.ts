@@ -23,8 +23,6 @@ const BASE = {
   contractorReplyMode: 'forward_after_approval',
   contractorReplyWaitHours: 6,
   driverReplyTemplate: 'Segue o boleto.',
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: null,
   emailsContractor: true,
   flow: 'document',

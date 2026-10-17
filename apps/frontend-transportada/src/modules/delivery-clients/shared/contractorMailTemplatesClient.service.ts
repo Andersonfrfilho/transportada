@@ -25,14 +25,28 @@ export const CONTRACTOR_MAIL_TEMPLATES_ERROR = {
   RESPONSE_INVALID: 'RESPONSE_INVALID',
 } as const
 
+/** Spec 269 RF7: quem escolhe o modelo — os nomes de configuração que o 409 de arquivar lista. */
+export type ContractorMailTemplateUsage = Readonly<{
+  contractorExceptions: readonly string[]
+  occurrenceTypes: readonly string[]
+}>
+
+const EMPTY_USAGE: ContractorMailTemplateUsage = { contractorExceptions: [], occurrenceTypes: [] }
+
 /** `web.md` §11: a recusa do servidor nomeia o campo — `details` ancora o aviso no campo certo. */
 export class ContractorMailTemplatesRequestError extends Error {
   public readonly details: ReadonlyMap<string, string>
+  public readonly usage: ContractorMailTemplateUsage
 
-  public constructor(code: string, details: ReadonlyMap<string, string> = new Map()) {
+  public constructor(
+    code: string,
+    details: ReadonlyMap<string, string> = new Map(),
+    usage: ContractorMailTemplateUsage = EMPTY_USAGE,
+  ) {
     super(code)
     this.name = 'ContractorMailTemplatesRequestError'
     this.details = details
+    this.usage = usage
   }
 }
 
@@ -96,6 +110,21 @@ function readErrorDetails(payload: unknown): ReadonlyMap<string, string> {
   return details
 }
 
+/** O `Map` por campo perde as repetições; o 409 de uso lista vários tipos sob o mesmo campo. */
+function readErrorUsage(payload: unknown): ContractorMailTemplateUsage {
+  if (!isRecord(payload) || !isRecord(payload.error) || !Array.isArray(payload.error.details)) {
+    return EMPTY_USAGE
+  }
+  const occurrenceTypes: string[] = []
+  const contractorExceptions: string[] = []
+  for (const detail of payload.error.details) {
+    if (!isRecord(detail) || !isString(detail.message)) continue
+    if (detail.field === 'occurrenceType') occurrenceTypes.push(detail.message)
+    if (detail.field === 'contractorException') contractorExceptions.push(detail.message)
+  }
+  return { contractorExceptions, occurrenceTypes }
+}
+
 function readErrorCode(payload: unknown): string {
   if (
     isRecord(payload) &&
@@ -141,7 +170,11 @@ async function request(
     throw new ContractorMailTemplatesRequestError(CONTRACTOR_MAIL_TEMPLATES_ERROR.RESPONSE_INVALID)
   }
   if (!response.ok) {
-    throw new ContractorMailTemplatesRequestError(readErrorCode(payload), readErrorDetails(payload))
+    throw new ContractorMailTemplatesRequestError(
+      readErrorCode(payload),
+      readErrorDetails(payload),
+      readErrorUsage(payload),
+    )
   }
 
   return payload

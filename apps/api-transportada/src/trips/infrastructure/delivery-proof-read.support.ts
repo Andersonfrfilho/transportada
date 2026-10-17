@@ -71,7 +71,7 @@ import {
   TRIP_BOUND_OCCURRENCE_STAGES,
 } from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
-import type { OccurrenceTemplateValues } from '../domain/occurrence-template.types.js'
+import type { OccurrenceMailValues } from '../domain/occurrence-mail-values.types.js'
 import {
   OccurrenceTypeContractorReplyAlertNeedsWaitError,
   OccurrenceTypeContractorReplyNeedsMailError,
@@ -95,7 +95,7 @@ import type { FieldAuthorship } from '../application/field-trip-target.types.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
 import { buildOccurrenceTemplateLines } from '../domain/occurrence-template-lines.policy.js'
-import { buildOccurrenceItemValues } from '../domain/occurrence-template.policy.js'
+import { buildOccurrenceItemValues } from '../domain/occurrence-mail-values.policy.js'
 import { readStoredOccurrenceTemplateSource } from './occurrence-template-source.query.js'
 import type {
   OccurrenceCancellationView,
@@ -111,6 +111,10 @@ import {
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import {
+  buildTemplateSelectedAtChange,
+  lockUsableOccurrenceMailTemplate,
+} from './occurrence-mail-template-lock.support.js'
 import {
   replaceOccurrenceTypeMoments,
   withOccurrenceTypeMoments,
@@ -866,11 +870,9 @@ export async function findOccurrenceType(
       declaredAmountMode: companyOccurrenceTypes.declaredAmountMode,
       declaredAmountScope: companyOccurrenceTypes.declaredAmountScope,
       iconName: companyOccurrenceTypes.iconName,
-      emailBody: companyOccurrenceTypes.emailBody,
-      emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
-      emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
       contractorReplyAlertIntervalMinutes:
         companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
@@ -1037,11 +1039,9 @@ export async function listOccurrenceTypes(
       declaredAmountMode: companyOccurrenceTypes.declaredAmountMode,
       declaredAmountScope: companyOccurrenceTypes.declaredAmountScope,
       iconName: companyOccurrenceTypes.iconName,
-      emailBody: companyOccurrenceTypes.emailBody,
-      emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
-      emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      contractorMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
       contractorReplyAlertIntervalMinutes:
         companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
@@ -1131,6 +1131,12 @@ export async function saveOccurrenceType(
   },
 ): Promise<OccurrenceTypeRecord> {
   return queryable.transaction(async (transaction) => {
+    if (typeof input.contractorMailTemplateId === 'string') {
+      await lockUsableOccurrenceMailTemplate(transaction, {
+        companyId: input.companyId,
+        templateId: input.contractorMailTemplateId,
+      })
+    }
     const saved = await writeOccurrenceTypeRow(transaction, input)
     const moments =
       input.moments ??
@@ -1167,13 +1173,11 @@ async function writeOccurrenceTypeRow(
     readonly iconName?: null | OccurrenceTypeIconName | undefined
     readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
     readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
-    /** Spec 247 RF2: ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
-    readonly emailBody?: string | undefined
-    readonly emailItemLineTemplate?: string | undefined
-    readonly emailSubject?: string | undefined
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
+    /** Spec 269: o modelo do e-mail à contratante; ausente é "não mexa", `null` limpa. */
+    readonly contractorMailTemplateId?: null | string | undefined
     readonly contractorReplyAlertIntervalMinutes?: number | undefined
     readonly contractorReplyAlertMaxCount?: number | undefined
     readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
@@ -1236,8 +1240,6 @@ async function writeOccurrenceTypeRow(
   }
 
   const attachmentModeChange = {
-    ...(input.emailBody === undefined ? {} : { emailBody: input.emailBody }),
-    ...(input.emailSubject === undefined ? {} : { emailSubject: input.emailSubject }),
     ...(input.allowsMultipleItems === undefined
       ? {}
       : { allowsMultipleItems: input.allowsMultipleItems }),
@@ -1252,9 +1254,6 @@ async function writeOccurrenceTypeRow(
     ...(input.declaredAmountScope === undefined
       ? {}
       : { declaredAmountScope: input.declaredAmountScope }),
-    ...(input.emailItemLineTemplate === undefined
-      ? {}
-      : { emailItemLineTemplate: input.emailItemLineTemplate }),
     ...(input.referenceNumberLabel === undefined
       ? {}
       : { referenceNumberLabel: input.referenceNumberLabel }),
@@ -1324,6 +1323,12 @@ async function writeOccurrenceTypeRow(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
+            ...(typeof input.contractorMailTemplateId === 'string'
+              ? {
+                  contractorMailTemplateId: input.contractorMailTemplateId,
+                  contractorMailTemplateSelectedAt: sql`now()`,
+                }
+              : {}),
             ...(input.flow === 'stop' ? { stopKind: 'other' as const } : {}),
           })
           .returning()
@@ -1333,6 +1338,16 @@ async function writeOccurrenceTypeRow(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
+            ...(input.contractorMailTemplateId === undefined
+              ? {}
+              : {
+                  contractorMailTemplateId: input.contractorMailTemplateId,
+                  contractorMailTemplateSelectedAt: buildTemplateSelectedAtChange({
+                    selectedAtColumn: companyOccurrenceTypes.contractorMailTemplateSelectedAt,
+                    templateColumn: companyOccurrenceTypes.contractorMailTemplateId,
+                    templateId: input.contractorMailTemplateId,
+                  }),
+                }),
             /** Spec 218 D2: virou tipo de parada sem valor? vale como `other`; o que já tinha, fica. */
             ...(input.flow === 'stop'
               ? { stopKind: sql`coalesce(${companyOccurrenceTypes.stopKind}, 'other')` }
@@ -1360,11 +1375,9 @@ async function writeOccurrenceTypeRow(
     declaredAmountMode: saved.declaredAmountMode,
     declaredAmountScope: saved.declaredAmountScope,
     iconName: saved.iconName,
-    emailBody: saved.emailBody,
-    emailItemLineTemplate: saved.emailItemLineTemplate,
-    emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
+    contractorMailTemplateId: saved.contractorMailTemplateId,
     contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,
     contractorReplyAlertMaxCount: saved.contractorReplyAlertMaxCount,
     contractorReplyAlertMode: saved.contractorReplyAlertMode,
@@ -1406,7 +1419,7 @@ async function writeOccurrenceTypeRow(
  * linha, e o formato da linha de item do tipo. Sem ele (a prévia de cadastro e dublês), as linhas são os
  * códigos marcados, inteiros da nota, e a quantidade cai na da NF-e.
  */
-export async function readOccurrenceTemplateValues(
+export async function readOccurrenceMailValues(
   queryable: TripQueryable,
   input: {
     readonly companyId: string
@@ -1419,7 +1432,7 @@ export async function readOccurrenceTemplateValues(
     readonly productCodes: readonly string[]
     readonly tripId: string
   },
-): Promise<OccurrenceTemplateValues> {
+): Promise<OccurrenceMailValues> {
   const [row] = await queryable
     .select({
       driverName: tripDrivers.driverName,
@@ -1505,7 +1518,6 @@ export async function readOccurrenceTemplateValues(
         quantity: line.quantity ?? line.nfeQuantity,
       })),
     ),
-    itemLineTemplate: stored?.emailItemLineTemplate,
     lines,
     note: input.note,
     occurredOn: input.occurredOn,

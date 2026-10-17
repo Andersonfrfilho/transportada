@@ -21,8 +21,6 @@ function buildOccurrenceType(extra: Readonly<Record<string, unknown>> = {}) {
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TYPE_ID,
     name: 'Cliente pediu segunda via do boleto',

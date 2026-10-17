@@ -47,8 +47,6 @@ async function rejectionStatus(extra: Readonly<Record<string, unknown>>): Promis
 function values(overrides: Partial<SaveOccurrenceTypeValues> = {}): SaveOccurrenceTypeValues {
   return {
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     name: 'Recusa total',
     notifies: false,
@@ -230,8 +228,6 @@ describe('o `PUT` entrega ao caso de uso tudo o que a fronteira aceitou (spec 24
       active: true,
       allowsMultipleItems: false,
       attachmentMode: 'required',
-      emailBody: 'corpo',
-      emailSubject: 'assunto',
       emailTemplateKey: 'template',
       emailsContractor: true,
       flow: 'stop',

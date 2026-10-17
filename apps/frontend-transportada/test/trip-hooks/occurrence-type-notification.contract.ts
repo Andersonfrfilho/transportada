@@ -46,8 +46,6 @@ function buildType(overrides: Partial<OccurrenceType> = {}): OccurrenceType {
     allowsMultipleItems: true,
     ...OCCURRENCE_REQUIREMENT_DEFAULTS,
     attachmentMode: 'off',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: 'occurrence.refusal',
     flow: 'document',
     id: 'type-1',
@@ -172,8 +170,6 @@ describe('aviso ao contratante no tipo (RF1e)', () => {
     scenario(async () => {
       await mount(
         buildType({
-          emailBody: 'Corpo do e-mail à contratante',
-          emailSubject: 'Assunto do e-mail à contratante',
           emailTemplateKey: null,
         }),
       )

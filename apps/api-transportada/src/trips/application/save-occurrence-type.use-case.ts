@@ -67,10 +67,6 @@ export type SaveOccurrenceTypeValues = {
   readonly iconName?: null | OccurrenceTypeIconName | undefined
   readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
-  /** Ausente é "não mexa"; `''` explícito apaga o texto (spec 247 RF2). */
-  readonly emailBody?: string | undefined
-  /** Spec 247 (RF6): o formato de cada linha de item do e-mail. Ausente é "não mexa". */
-  readonly emailItemLineTemplate?: string | undefined
   /** Spec 248 (RF1): o retorno da contratante. Ausente é "não mexa" — nunca o padrão da coluna. */
   readonly contractorReplyAlertIntervalMinutes?: number | undefined
   readonly contractorReplyAlertMaxCount?: number | undefined
@@ -85,7 +81,8 @@ export type SaveOccurrenceTypeValues = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
   readonly emailsContractor?: boolean | undefined
-  readonly emailSubject?: string | undefined
+  /** Spec 269: o modelo do e-mail à contratante. Ausente é "não mexa"; `null` limpa. */
+  readonly contractorMailTemplateId?: null | string | undefined
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. Obrigatório na

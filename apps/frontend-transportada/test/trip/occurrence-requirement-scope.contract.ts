@@ -23,8 +23,6 @@ function buildType(
     active: true,
     allowsMultipleItems: true,
     attachmentMode: 'optional',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     id: 'type-1',

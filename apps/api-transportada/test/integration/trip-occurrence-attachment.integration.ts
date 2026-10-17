@@ -159,8 +159,6 @@ function wireOccurrenceUseCases(database: TestDatabase) {
             findOccurrenceType: async () => ({
               active: true,
               allowsMultipleItems: true,
-              emailBody: '',
-              emailSubject: '',
               emailTemplateKey: null,
               id: input.occurrenceTypeId,
               name: 'Caixa violada',
@@ -169,19 +167,6 @@ function wireOccurrenceUseCases(database: TestDatabase) {
             }),
             listDocumentProducts: async () => [],
             listOccurrences: (query) => listTripOccurrences(database.db, query),
-            readTemplateValues: async () => ({
-              contractorName: '',
-              documentLabel: '',
-              driverName: '',
-              itemCode: '',
-              itemLabel: '',
-              itemQuantity: '',
-              note: '',
-              occurredOn: '',
-              recipientName: '',
-              stopLabel: '',
-              totalValue: '',
-            }),
             saveOccurrence: (query) =>
               persistSeparationOccurrenceWithAttachment({
                 attachment: query.attachment,

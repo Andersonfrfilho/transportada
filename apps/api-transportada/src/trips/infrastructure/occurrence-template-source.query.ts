@@ -8,7 +8,6 @@
 import { and, asc, eq } from 'drizzle-orm'
 
 import {
-  companyOccurrenceTypes,
   tripDocumentOccurrenceProducts,
   tripDocumentOccurrences,
 } from '../../database/trip.schema.js'
@@ -17,7 +16,6 @@ import type { TripQueryable } from './trip-queryable.type.js'
 
 export type StoredOccurrenceTemplateSource = {
   readonly declaredAmount: null | string
-  readonly emailItemLineTemplate: string
   readonly lines: readonly StoredOccurrenceLine[]
   readonly referenceNumber: null | string
 }
@@ -30,17 +28,9 @@ export async function readStoredOccurrenceTemplateSource(
     queryable
       .select({
         declaredAmount: tripDocumentOccurrences.declaredAmount,
-        emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
         referenceNumber: tripDocumentOccurrences.referenceNumber,
       })
       .from(tripDocumentOccurrences)
-      .innerJoin(
-        companyOccurrenceTypes,
-        and(
-          eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
-          eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
-        ),
-      )
       .where(
         and(
           eq(tripDocumentOccurrences.companyId, input.companyId),

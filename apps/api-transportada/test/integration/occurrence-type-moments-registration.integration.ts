@@ -61,8 +61,6 @@ async function seedType(
     active: true,
     allowsMultipleItems: true,
     companyId: world.company.companyId,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     moments: input.moments,
     name: input.name,
@@ -126,9 +124,6 @@ function registerAsSeparator(world: World, input: { actorUserId: string; typeId:
       findOccurrenceType: (query) => findOccurrenceType(database.db, query),
       listDocumentProducts: (query) => listDocumentProducts(database.db, query),
       listOccurrences: (query) => listTripOccurrences(database.db, query),
-      readTemplateValues: async () => {
-        throw new Error('a ocorrência sem aviso não lê o modelo')
-      },
       saveOccurrence: (query) =>
         persistSeparationOccurrenceWithAttachment({
           attachment: query.attachment,

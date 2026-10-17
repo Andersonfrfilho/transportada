@@ -12,8 +12,6 @@ import { createTripClient } from '@/modules/trip/shared/tripClient.service'
 const TYPE_RESPONSE = {
   active: true,
   allowsMultipleItems: true,
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: null,
   id: '54ed0225-f293-47c3-84fe-0b66eff68784',
   itemsMode: 'off',

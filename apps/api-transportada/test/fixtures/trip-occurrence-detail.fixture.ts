@@ -61,6 +61,7 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
   id: '00000000-0000-4000-8000-00000000d001',
   invoiceNumber: '4512',
   invoiceSeries: '1',
+  missingNotificationTemplate: false,
   notifies: false,
   occurrenceTypeId: '00000000-0000-4000-8000-00000000e001',
   onBehalfOfDriverName: null,

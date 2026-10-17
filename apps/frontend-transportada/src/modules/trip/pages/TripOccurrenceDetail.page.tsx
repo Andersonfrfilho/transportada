@@ -18,6 +18,7 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { OccurrenceCancellationMark } from '../components/OccurrenceCancellationMark.component'
+import { OccurrenceMissingTemplateMark } from '../components/OccurrenceMissingTemplateMark.component'
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
 import { OccurrenceResolutionBadge } from '../components/OccurrenceResolutionBadge.component'
 import { OccurrenceResolutionPanel } from '../components/OccurrenceResolutionPanel.component'
@@ -577,6 +578,10 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
             <OccurrenceTypeTitle occurrence={occurrence} />
             <OccurrenceAuthorship occurrence={occurrence} />
             <OccurrenceCancellationMark cancellation={occurrence.cancellation} variant="notice" />
+            <OccurrenceMissingTemplateMark
+              isMissing={occurrence.missingNotificationTemplate}
+              variant="notice"
+            />
           </header>
           <OccurrenceDetailSections
             canManageContacts={canManageContacts}

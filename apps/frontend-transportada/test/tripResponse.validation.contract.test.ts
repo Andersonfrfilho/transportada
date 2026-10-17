@@ -17,8 +17,6 @@ describe('tripResponse.validation — tolerância aos campos da spec 247', () =>
       name: 'Devolução parcial',
       active: true,
       stage: 'delivery',
-      emailBody: 'Corpo do e-mail',
-      emailSubject: 'Assunto',
       emailTemplateKey: null,
       notifies: false,
       redeliveryPolicy: 'unset',
@@ -42,8 +40,6 @@ describe('tripResponse.validation — tolerância aos campos da spec 247', () =>
       name: 'Devolução parcial',
       active: true,
       stage: 'delivery',
-      emailBody: 'Corpo do e-mail',
-      emailSubject: 'Assunto',
       emailTemplateKey: null,
       notifies: false,
       redeliveryPolicy: 'unset',
@@ -60,7 +56,6 @@ describe('tripResponse.validation — tolerância aos campos da spec 247', () =>
       declaredAmountMode: 'optional',
       declaredAmountScope: 'item',
       declaredAmountLabel: 'Valor pago',
-      emailItemLineTemplate: '{{codigoItem}} – {{item}} – {{quantidadeItem}}{{unidadeItem}}',
     }
 
     // Should not throw
@@ -74,8 +69,6 @@ describe('tripResponse.validation — tolerância aos campos da spec 247', () =>
       name: 'Devolução total',
       active: true,
       stage: 'delivery',
-      emailBody: 'Cliente devolveu.',
-      emailSubject: 'Devolução total',
       emailTemplateKey: null,
       notifies: false,
       redeliveryPolicy: 'unset',
@@ -112,17 +105,29 @@ describe('tripResponse.validation — tolerância ao modelo de e-mail do tipo (s
     notifies: false,
   }
 
-  it('aceita tipo sem emailSubject, emailBody e emailItemLineTemplate', () => {
+  it('aceita tipo sem o texto antigo do e-mail', () => {
     expect(adapters.occurrenceTypeFromApi(typeWithoutLegacyEmailText)).toBeDefined()
   })
 
-  it('aceita tipo com contractorMailTemplateId e missingNotificationTemplate', () => {
+  it('aceita tipo com contractorMailTemplateId', () => {
     const result = adapters.occurrenceTypeFromApi({
       ...typeWithoutLegacyEmailText,
       contractorMailTemplateId: 'template-1',
-      missingNotificationTemplate: false,
     })
     expect(result).toBeDefined()
+  })
+
+  it('rollback da API: o texto antigo do e-mail ainda é aceito e não chega ao tipo', () => {
+    const result = adapters.occurrenceTypeFromApi({
+      ...typeWithoutLegacyEmailText,
+      emailBody: 'Corpo antigo',
+      emailItemLineTemplate: '{{item}}',
+      emailSubject: 'Assunto antigo',
+    })
+
+    expect(result).not.toHaveProperty('emailBody')
+    expect(result).not.toHaveProperty('emailSubject')
+    expect(result).not.toHaveProperty('emailItemLineTemplate')
   })
 
   it('aceita contractorMailTemplateId nulo', () => {

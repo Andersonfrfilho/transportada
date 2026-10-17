@@ -61,8 +61,6 @@ describe('o cadastro do tipo aceita o interruptor de multi-item (spec 166 RF9)',
   function baseBody() {
     return JSON.stringify({
       active: true,
-      emailBody: '',
-      emailSubject: '',
       emailTemplateKey: null,
       flow: 'document',
       name: 'Item avariado',

@@ -135,3 +135,41 @@ describe('recusas dos momentos pela API: um texto por código estável (T5.3b)',
     }
   })
 })
+
+describe('o modelo do e-mail na exceção por contratante (spec 269 RF1)', () => {
+  test('a exceção nova herda o modelo do tipo: nulo explícito, nunca ausente', () => {
+    const added = addException(BASE, {
+      attachmentMode: 'off',
+      key: { contractorId: 'contractor-2', kind: 'contractor' },
+    })
+
+    expect(added.contractorOverrides[1]).toMatchObject({
+      contractorId: 'contractor-2',
+      contractorMailTemplateId: null,
+    })
+  })
+
+  test('escolher o modelo troca só o da contratante; nulo volta a herdar', () => {
+    const chosen = editException(BASE, CONTRACTOR, { contractorMailTemplateId: 'template-1' })
+
+    expect(chosen.contractorOverrides[0]).toMatchObject({
+      contractorMailTemplateId: 'template-1',
+      itemsMinimumCount: 3,
+      signatureMode: 'required',
+    })
+    expect(chosen.recipientOverrides).toEqual(BASE.recipientOverrides)
+
+    const inherited = editException(chosen, CONTRACTOR, { contractorMailTemplateId: null })
+    expect(inherited.contractorOverrides[0]?.contractorMailTemplateId).toBeNull()
+  })
+})
+
+describe('o salvar com um modelo que deixou de valer (spec 269)', () => {
+  test('o 409 CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE tem mensagem própria, nos dois idiomas', () => {
+    const key = resolveTripFeedbackKey(new Error('CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE'))
+
+    expect(key).toBe('occurrenceMailTemplateNotUsable')
+    expect(trip.feedback).toHaveProperty(key as string)
+    expect(tripEn.feedback).toHaveProperty(key as string)
+  })
+})

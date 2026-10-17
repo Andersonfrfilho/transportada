@@ -51,6 +51,7 @@ import {
 } from './company-delivery-proof-settings.schema.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { contractors, deliveryClients } from './delivery-client.schema.js'
+import { contractorMailTemplates } from './contractor-mail.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
@@ -2946,6 +2947,19 @@ export const companyOccurrenceTypes = pgTable(
      */
     emailsContractor: boolean('emails_contractor').notNull().default(false),
     /**
+     * Spec 269 (ADR-0106): o modelo `occurrence` do cadastro "E-mail com contratantes → Modelos" que
+     * escreve o e-mail deste tipo. Nulo é "sem modelo": nenhum e-mail sai, nem à mão, e o aviso
+     * aparece quando `emails_contractor` está ligado. Sem padrão e sem backfill de propósito.
+     */
+    contractorMailTemplateId: uuid('contractor_mail_template_id'),
+    /**
+     * Spec 269 (decisão de 2026-10-17): quando o modelo foi escolhido (qualquer troca para um id não nulo; `null`
+     * limpa). O aviso automático só vale para ocorrência registrada a partir daqui.
+     */
+    contractorMailTemplateSelectedAt: timestamp('contractor_mail_template_selected_at', {
+      withTimezone: true,
+    }),
+    /**
      * Spec 164 T1: se a nota atingida por este tipo de ocorrência pode ser reentregue
      * (`allowed`/`blocked`) ou se o tipo não decide isso (`unset`, o padrão — nenhuma instalação
      * ganha tratativa nova ao aplicar esta migration). `unset` nunca abre `trip_occurrence_cases`
@@ -3278,6 +3292,16 @@ export const companyOccurrenceTypes = pgTable(
       sql`(${table.forwardToNoteRecipient} = 'off' and ${table.forwardToInformedEmail} = 'off') or (btrim(${table.forwardEmailSubject}) <> '' and btrim(${table.forwardEmailBody}) <> '')`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
+    foreignKey({
+      columns: [table.companyId, table.contractorMailTemplateId],
+      foreignColumns: [contractorMailTemplates.companyId, contractorMailTemplates.id],
+      name: 'company_occurrence_types_mail_template_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    index('company_occurrence_types_mail_template_idx')
+      .on(table.companyId, table.contractorMailTemplateId)
+      .where(sql`${table.contractorMailTemplateId} is not null`),
   ],
 )
 
@@ -3323,6 +3347,15 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
     forwardToNoteRecipient: varchar('forward_to_note_recipient', {
       length: 16,
     }).$type<ForwardToNoteRecipientMode>(),
+    /** Spec 269: the mail template of this contractor; null inherits the type's template, no default. */
+    contractorMailTemplateId: uuid('contractor_mail_template_id'),
+    /**
+     * Spec 269 (decisão de 2026-10-17): quando o modelo foi escolhido (qualquer troca para um id não nulo; `null`
+     * limpa). O aviso automático só vale para ocorrência registrada a partir daqui.
+     */
+    contractorMailTemplateSelectedAt: timestamp('contractor_mail_template_selected_at', {
+      withTimezone: true,
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -3406,6 +3439,16 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
       'occurrence_type_contractor_overrides_forward_note_check',
       sql`${table.forwardToNoteRecipient} in (${raw(inList(FORWARD_TO_NOTE_RECIPIENT_MODES))})`,
     ),
+    foreignKey({
+      columns: [table.companyId, table.contractorMailTemplateId],
+      foreignColumns: [contractorMailTemplates.companyId, contractorMailTemplates.id],
+      name: 'occurrence_type_contractor_overrides_mail_template_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    index('occurrence_type_contractor_overrides_mail_template_idx')
+      .on(table.companyId, table.contractorMailTemplateId)
+      .where(sql`${table.contractorMailTemplateId} is not null`),
   ],
 )
 

@@ -29,6 +29,20 @@ export class OccurrenceConversationNoRecipientError extends ApiError {
   }
 }
 
+/**
+ * Spec 269 D4 (ADR-0106): sem modelo efetivo (exceção da contratante ?? tipo) não há e-mail à contratante,
+ * nem à mão — a escolha do modelo é explícita.
+ */
+export class OccurrenceMailTemplateMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_MAIL_TEMPLATE_MISSING',
+      message: 'The occurrence type has no mail template selected for this contracting party',
+      status: 409,
+    })
+  }
+}
+
 export class OccurrenceConversationMailInvalidError extends ApiError {
   public constructor() {
     super({

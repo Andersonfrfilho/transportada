@@ -69,6 +69,7 @@ import {
   buildOccurrenceTypeItemsView,
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
+import { listMissingNotificationTemplatesOrEmpty } from './occurrence-mail-template-missing.query.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { NfeDestinationAddress } from './nfe-destination-address.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -92,11 +93,15 @@ type FeedRow = Omit<
   | 'conversation'
   | 'createdAt'
   | 'document'
+  | 'missingNotificationTemplate'
   | 'resolution'
   | 'typeAllowsMultipleItems'
   | 'typeItemsMode'
 > & {
   readonly createdAt: Date
+  /** Spec 269: só alimentam o aviso do modelo; saem na montagem do item. */
+  readonly emailsContractor: boolean
+  readonly typeMailTemplateId: null | string
   readonly nfeDocumentId: null | string
   readonly totalValue: null | string
   readonly tripDocumentId: null | string
@@ -294,6 +299,8 @@ async function listDocumentOccurrenceRows(
       invoiceNumber: nfeDocuments.number,
       invoiceSeries: nfeDocuments.series,
       notifies: companyOccurrenceTypes.notifies,
+      emailsContractor: companyOccurrenceTypes.emailsContractor,
+      typeMailTemplateId: companyOccurrenceTypes.contractorMailTemplateId,
       occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       onBehalfOfDriverName: feedOnBehalfDriver.name,
       stage: tripDocumentOccurrences.stage,
@@ -401,6 +408,8 @@ async function listDocumentOccurrenceRows(
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
     notifies: row.notifies,
+    emailsContractor: row.emailsContractor,
+    typeMailTemplateId: row.typeMailTemplateId,
     occurrenceTypeId: row.occurrenceTypeId,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'document' as const,
@@ -583,6 +592,8 @@ async function listStopOccurrenceRows(
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
     notifies: false,
+    emailsContractor: false,
+    typeMailTemplateId: null,
     occurrenceTypeId: null,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'stop' as const,
@@ -670,7 +681,7 @@ async function toFeedItems(
    * Spec 240 RF9 e 241 RF5: o cancelamento (a parada nunca é cancelada) e o modo de itens dos tipos
    * da página inteira, uma leitura cada, em paralelo — o modo de itens isolado de falha.
    */
-  const [cancellations, typeShapes, contractorReplies] = await Promise.all([
+  const [cancellations, typeShapes, contractorReplies, missingTemplateIds] = await Promise.all([
     listOccurrenceCancellationsByIds(queryable, {
       companyId,
       occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
@@ -686,6 +697,22 @@ async function toFeedItems(
     listOccurrenceContractorReplySummaries(queryable, {
       companyId,
       occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
+    }),
+    /** Spec 269 D8: o aviso do modelo da página inteira, numa leitura só das exceções — isolado de falha. */
+    listMissingNotificationTemplatesOrEmpty(queryable, {
+      candidates: rows.map((row) => ({
+        contractorId:
+          row.nfeDocumentId === null
+            ? null
+            : (emitters.get(row.nfeDocumentId)?.contractorId ?? null),
+        emailsContractor: row.emailsContractor,
+        id: row.id,
+        occurrenceTypeId: row.occurrenceTypeId,
+        source: row.source,
+        typeMailTemplateId: row.typeMailTemplateId,
+      })),
+      companyId,
+      ...(logger === undefined ? {} : { logger }),
     }),
   ])
 
@@ -705,8 +732,12 @@ async function toFeedItems(
       occurrenceTypeId: row.occurrenceTypeId,
       shapes: typeShapes,
     })
+    const { emailsContractor, typeMailTemplateId, ...itemFields } = row
+    void emailsContractor
+    void typeMailTemplateId
     return {
-      ...row,
+      ...itemFields,
+      missingNotificationTemplate: missingTemplateIds.has(row.id),
       typeAllowsMultipleItems,
       typeItemsMode,
       cancellation: row.source === 'document' ? (cancellations.get(row.id) ?? null) : null,

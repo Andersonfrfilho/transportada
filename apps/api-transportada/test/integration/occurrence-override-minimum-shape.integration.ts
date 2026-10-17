@@ -34,8 +34,6 @@ async function seedScope(database: Parameters<Parameters<typeof withDisposableDa
   const type = await saveOccurrenceType(database.db, {
     active: true,
     companyId: company.companyId,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     name: 'Recusa total',

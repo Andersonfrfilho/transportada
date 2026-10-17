@@ -120,3 +120,38 @@ describe('spec 269 T1.3: tolerância ao aviso e ao modelo do e-mail da ocorrênc
     expect('email' in registered).toBe(false)
   })
 })
+
+describe('spec 269 T4.4: o feed carrega o aviso "Tipo sem modelo de notificação" até a tela', () => {
+  test('o item expõe missingNotificationTemplate; ausente (API anterior) fica ausente', async () => {
+    const client = feedClientFor({
+      data: [
+        buildFeedItem({ id: 'a', missingNotificationTemplate: true }),
+        buildFeedItem({ id: 'b', missingNotificationTemplate: false }),
+        buildFeedItem({ id: 'c' }),
+      ],
+      pagination: { nextCursor: null },
+    })
+
+    const page = await client.listOccurrences(LIST_INPUT)
+
+    expect(page.items.map((item) => item.missingNotificationTemplate)).toEqual([
+      true,
+      false,
+      undefined,
+    ])
+  })
+
+  test('valor que não é booleano é resposta inválida', async () => {
+    const client = feedClientFor({
+      data: [buildFeedItem({ missingNotificationTemplate: 'sim' })],
+      pagination: { nextCursor: null },
+    })
+
+    const outcome = await client.listOccurrences(LIST_INPUT).then(
+      () => 'resolved',
+      () => 'rejected',
+    )
+
+    expect(outcome).toBe('rejected')
+  })
+})

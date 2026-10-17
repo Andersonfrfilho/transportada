@@ -205,8 +205,6 @@ describe('o tipo de recebimento é da chegada (ADR-0094 §9.5, ajuste 1)', () =>
             active: true,
             allowsMultipleItems: true,
             companyId,
-            emailBody: '',
-            emailSubject: '',
             emailTemplateKey: null,
             name: 'Convertido',
             notifies: false,

@@ -64,8 +64,6 @@ describe('a lista de tipos de rua tolera os modos resolvidos (spec 246)', () => 
 function buildCatalogType(extra: Readonly<Record<string, unknown>> = {}) {
   return {
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TYPE_ID,
     name: 'Recusa total',

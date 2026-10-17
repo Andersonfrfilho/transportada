@@ -23,8 +23,6 @@ function values(overrides: Partial<SaveInput>): SaveInput {
     active: true,
     allowsMultipleItems: true,
     companyId: COMPANY_CONTEXT.companyId,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     name: 'Caixa molhada',

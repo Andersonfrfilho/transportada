@@ -48,8 +48,6 @@ describe('a assinatura da ocorrência não vira comprovante, nota nem foto (spec
         const type = await saveOccurrenceType(database.db, {
           active: true,
           companyId: company.companyId,
-          emailBody: '',
-          emailSubject: '',
           emailTemplateKey: null,
           flow: 'document',
           name: 'Recusa total',
@@ -145,8 +143,6 @@ describe('a assinatura repetida como anexo é recusada e não vira foto (spec 24
           active: true,
           attachmentMode: 'required',
           companyId: company.companyId,
-          emailBody: '',
-          emailSubject: '',
           emailTemplateKey: null,
           flow: 'document',
           name: 'Recusa total',

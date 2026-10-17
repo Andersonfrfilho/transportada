@@ -23,8 +23,6 @@ function buildType(overrides: Partial<OccurrenceType> & Pick<OccurrenceType, 'id
     allowsMultipleItems: true,
     ...OCCURRENCE_REQUIREMENT_DEFAULTS,
     attachmentMode: 'off',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     leavesDocumentBehind: false,

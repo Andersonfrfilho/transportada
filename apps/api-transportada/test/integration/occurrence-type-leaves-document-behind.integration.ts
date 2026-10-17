@@ -57,8 +57,6 @@ function baseValues(
     active: true,
     allowsMultipleItems: true,
     companyId,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     name: 'Item faltante',
     notifies: false,

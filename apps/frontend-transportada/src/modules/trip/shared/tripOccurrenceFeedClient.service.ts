@@ -250,6 +250,8 @@ function isFeedItem(value: unknown): value is RawFeedItem {
     isNullableString(value.invoiceNumber) &&
     isNullableString(value.invoiceSeries) &&
     typeof value.notifies === 'boolean' &&
+    (value.missingNotificationTemplate === undefined ||
+      typeof value.missingNotificationTemplate === 'boolean') &&
     (value.occurrenceTypeId === undefined || isNullableString(value.occurrenceTypeId)) &&
     (value.source === 'document' || value.source === 'stop') &&
     (value.stage === null || value.stage === 'delivery' || value.stage === 'separation') &&

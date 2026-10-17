@@ -34,8 +34,6 @@ function buildType(overrides: Partial<OccurrenceType>): OccurrenceType {
     active: true,
     allowsMultipleItems: true,
     attachmentMode: 'off',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     id: 'type-1',

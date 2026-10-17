@@ -8,7 +8,7 @@
  */
 import { formatScaledDecimal, parseScaledDecimal } from './occurrence-amount.policy.js'
 import { resolveDocumentProductPricing } from './occurrence-product-pricing.policy.js'
-import type { OccurrenceTemplateLine } from './occurrence-template.types.js'
+import type { OccurrenceMailLine } from './occurrence-mail-values.types.js'
 
 export type StoredOccurrenceLine = {
   readonly declaredAmount: null | string
@@ -54,7 +54,7 @@ function sumTotalValues(products: readonly OccurrenceTemplateNfeProduct[]): stri
 
 export function buildOccurrenceTemplateLines(
   params: BuildOccurrenceTemplateLinesParams,
-): readonly OccurrenceTemplateLine[] {
+): readonly OccurrenceMailLine[] {
   const pricing = resolveDocumentProductPricing(
     params.nfeProducts.map((product) => ({ ...product, code: product.code.trim() })),
   )

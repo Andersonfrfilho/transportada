@@ -3736,3 +3736,30 @@ Núcleo normativo em `apps/api-transportada/CLAUDE.md`. Histórico das decisões
   destinatário (só `recipientCount`), então nada mudou nela além do dado do formulário (`cc`, `ccSource`).
 - **Contrato de rotas:** sem OpenAPI no repositório (o documento é este e os contratos em `test/`); `candidates` não colide com
   `:userId` e há teste de rotas com `createRouter` + `allowedMethods`.
+
+## O e-mail da ocorrência usa o modelo do cadastro (spec 269, ADR-0106)
+
+O e-mail de ocorrência à contratante **não** sai mais do texto do tipo (`email_subject`/`email_body`, spec 079/247, `{{camelCase}}`):
+sai de um modelo `occurrence` de "E-mail com contratantes → Modelos" (spec 150, `{snake_case}`, catálogo em
+`mail-template-catalog.constant.ts`). A ADR-0106 emenda a decisão de desenho da 183 (`evidence.md:529-532`).
+
+- **Escolha:** `company_occurrence_types.contractor_mail_template_id` e a mesma coluna na exceção por contratante
+  (`company_occurrence_type_contractor_overrides`; nulo herda). Modelo efetivo = exceção ?? tipo
+  (`occurrence-mail-template.policy.ts`). Sem padrão: nulo é **sem modelo**, não cai no `is_default`.
+- **Gravar:** `PUT /company-settings/occurrence-types` e `.../attachment-overrides` aceitam `contractorMailTemplateId`
+  (ausente = não mexa, `null` limpa/herda). `lockUsableOccurrenceMailTemplate` segura o modelo `FOR KEY SHARE` na mesma
+  transação; modelo inexistente, de outra empresa, arquivado ou de outro tipo de e-mail é 409
+  `CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE`.
+- **Arquivar:** modelo `occurrence` escolhido por tipo (ativo ou inativo) ou exceção é 409
+  `CONTRACTOR_MAIL_TEMPLATE_IN_USE`; `details[]` traz `occurrenceType:<nome>` e `contractorException:<tipo> / <contratante>`.
+  A ordem é advisory lock → `FOR UPDATE` no modelo → conferir uso.
+- **Envio:** `executeSend` tem um ponto só (`resolveTemplateId`): sem modelo efetivo, 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`,
+  nem à mão. O reenvio do retorno (248) não passa pelo bloqueio e grava o `template_id` da mensagem original (ou nulo). O
+  automático pula com `no_template_selected` (também no 409 de corrida). `contractor_mail_messages.template_id` guarda o modelo.
+- **Corpo:** `composeOccurrenceMail` = abertura + linhas de item + encerramento; assunto numa linha só, tetos de
+  `OCCURRENCE_MAIL_LIMITS`, teto de 200 linhas ("e mais N itens"). A assinatura segue sendo anexada por `buildOccurrenceMail`.
+- **Aviso:** `missingNotificationTemplate` no feed e no detalhe (`listMissingNotificationTemplates`, uma leitura por página) e na
+  prévia do diálogo (`templateId` + flag). Na prévia a flag é "não há modelo efetivo" (o envio é bloqueado mesmo com
+  `emails_contractor` desligado). **Nunca** no DTO exato `isTripOccurrence` do painel.
+- **Worker:** a varredura só pede ocorrência com modelo efetivo.
+- **Publicação em etapas:** painel tolerante → API → telas → (depois) migration B que remove as três colunas de texto.

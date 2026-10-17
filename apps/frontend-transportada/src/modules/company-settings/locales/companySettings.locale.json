@@ -463,33 +463,7 @@
     },
     "mail": {
       "title": "E-mail à contratante",
-      "switch": "Mandar e-mail à contratante da nota ao registrar",
-      "save": "Salvar e-mail",
-      "undo": "Desfazer",
-      "fields": {
-        "subject": "Assunto",
-        "body": "Corpo",
-        "itemLine": "Linha de cada produto"
-      },
-      "markers": {
-        "subject": "Marcadores do assunto — toque num para inserir onde o cursor está.",
-        "body": "Marcadores do corpo — toque num para inserir onde o cursor está.",
-        "itemLine": "Marcadores da linha de cada produto — toque num para inserir onde o cursor está."
-      },
-      "markerOverflow": "O marcador não coube: este campo já está no limite de {{max}} caracteres. Apague um trecho e tente de novo.",
-      "unknownMarker_one": "Este marcador não existe neste campo: {{markers}}. Use um da lista abaixo; nada foi gravado.",
-      "unknownMarker_other": "Estes marcadores não existem neste campo: {{markers}}. Use os da lista abaixo; nada foi gravado.",
-      "preview": {
-        "title": "Prévia · dados de exemplo",
-        "recipient": "Para: contatos da contratante da nota que recebem ocorrências",
-        "loading": "Gerando a prévia…",
-        "failed": "Não foi possível gerar a prévia. O que você digitou continua aqui; tente de novo em instantes.",
-        "blocked": "Corrija o marcador para ver a prévia.",
-        "automatic": "Sai automaticamente quando o tipo é registrado.",
-        "manual": "Desligado: o operador manda pela conversa da ocorrência, se quiser.",
-        "noSubject": "Sem assunto o e-mail automático não sai.",
-        "linesWithoutItems": "Este tipo está sem produtos: onde houver {{marker}} o e-mail sai sem linhas."
-      }
+      "switch": "Mandar e-mail à contratante da nota ao registrar"
     },
     "moments": {
       "title": "Quem registra, e onde",
@@ -619,6 +593,18 @@
         "automaticNeedsReply": "O envio automático ao cliente da nota exige que o retorno esteja ligado.",
         "forwardNeedsText": "Escreva o assunto e o texto: o e-mail ao terceiro não sai sem os dois."
       }
+    },
+    "mailTemplate": {
+      "label": "Modelo do e-mail",
+      "none": "Nenhum",
+      "inherit": "Herdar do tipo",
+      "archivedName": "{{name}} (arquivado)",
+      "failed": "Não foi possível carregar os modelos. Tente de novo em instantes.",
+      "previewTitle": "Prévia · dados de exemplo",
+      "previewLoading": "Gerando a prévia…",
+      "previewFailed": "Não foi possível gerar a prévia.",
+      "missing": "Tipo sem modelo de notificação: o e-mail à contratante não sai. Escolha um modelo.",
+      "manage": "Gerenciar modelos"
     }
   },
   "settingsResolution": {
