@@ -149,3 +149,13 @@ describe('a página liga as três rotas', () => {
     expect(source(REPORT_PATH)).toInclude("kind: 'documentOccurrence'")
   })
 })
+
+describe('ocorrência esconde os comprovantes da entrega (pedido do usuário, 18/10)', () => {
+  it('a captura da entrega some com a ocorrência aberta e o botão de comprovantes a traz de volta', () => {
+    const card = source(CARD_PATH)
+    expect(card).toMatch(/<div hidden=\{openOccurrence\}>\s*<PreDeliveryProofGate/)
+    expect(card).toInclude("t('occurrenceRegistration.backToProofs')")
+    expect(driverTrip.occurrenceRegistration.backToProofs).toBeString()
+    expect(driverTripEnglish.occurrenceRegistration.backToProofs).toBeString()
+  })
+})

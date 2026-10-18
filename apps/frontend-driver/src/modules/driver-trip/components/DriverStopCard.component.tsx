@@ -1085,6 +1085,13 @@ function DocumentRow({
           isOpen={openOccurrence}
           onToggle={() => setOpenOccurrence((open) => !open)}
         />
+        {/* Pedido do usuário (18/10): em ocorrência só valem os comprovantes dela; este botão volta aos da entrega. */}
+        {openOccurrence && canActOnDocuments && requiresProof ? (
+          <Button onClick={() => setOpenOccurrence(false)} type="button" variant="ghost">
+            <Icon name="camera" />
+            {t('occurrenceRegistration.backToProofs')}
+          </Button>
+        ) : null}
       </div>
       {/* O formulário abre logo abaixo do botão, não no fim do cartão (pedido do usuário, 15/10). */}
       {occurrenceForm}
@@ -1112,26 +1119,28 @@ function DocumentRow({
       {canActOnDocuments ? (
         <>
           {requiresProof ? (
-            <PreDeliveryProofGate
-              captureProps={{
-                documentId: document.id,
-                ...(isLateRegistration ? { lateRegistration: true } : {}),
-                onProof,
-                ...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate }),
-                ...(onRemoveProof === undefined ? {} : { onRemoveProof }),
-                proofSettings,
-                queueView,
-                recipientDisplayName: document.recipientDisplayName,
-                recipientIsCompany: document.recipientIsCompany,
-              }}
-              deliverQueueState={resolveQueuedDeliverState(queueView, document.id)}
-              isConfirming={
-                isConfirming || resolveQueuedDeliverState(queueView, document.id) !== 'none'
-              }
-              onCancel={() => onDiscardProofAwaitingDelivery(document.id)}
-              {...(onSendAllNow === undefined ? {} : { onSendNow: onSendAllNow })}
-              onConfirm={confirmDelivery}
-            />
+            <div hidden={openOccurrence}>
+              <PreDeliveryProofGate
+                captureProps={{
+                  documentId: document.id,
+                  ...(isLateRegistration ? { lateRegistration: true } : {}),
+                  onProof,
+                  ...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate }),
+                  ...(onRemoveProof === undefined ? {} : { onRemoveProof }),
+                  proofSettings,
+                  queueView,
+                  recipientDisplayName: document.recipientDisplayName,
+                  recipientIsCompany: document.recipientIsCompany,
+                }}
+                deliverQueueState={resolveQueuedDeliverState(queueView, document.id)}
+                isConfirming={
+                  isConfirming || resolveQueuedDeliverState(queueView, document.id) !== 'none'
+                }
+                onCancel={() => onDiscardProofAwaitingDelivery(document.id)}
+                {...(onSendAllNow === undefined ? {} : { onSendNow: onSendAllNow })}
+                onConfirm={confirmDelivery}
+              />
+            </div>
           ) : null}
         </>
       ) : (

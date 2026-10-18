@@ -654,6 +654,7 @@
     "noteRequired": "What happened (required)",
     "open": "Occurrence",
     "openHint": "Report a problem with this invoice or the stop",
+    "backToProofs": "Delivery proofs",
     "photoAnother": "Take another photo",
     "photoCount": "Photos: {{count}} of {{limit}}",
     "photoRemoveLast": "Remove the last photo",
