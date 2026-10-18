@@ -79,7 +79,8 @@ UNSAFE_EMAIL_HTML_PATTERN` (uma expressão POSIX equivalente às cinco regras), 
 - **D3 — Renderer próprio, uma passada, escape só nos valores.** `renderContractorMailHtml({ bodyTemplate,
 subjectTemplate, values, systemHtml })` (pura, na API): uma única varredura troca cada `{{nome}}` do **modelo**
   pelo valor; o valor entra por `escapeMailHtml` (`mail-template-render.policy.ts:85-92`), exceto as chaves do
-  conjunto fechado `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES = ['logoTransportadora', 'tabelaItens', 'marcasRodape']`
+  conjunto fechado `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES = ['logoTransportadora', 'tabelaItens', 'marcasRodape',
+  'faixaResposta']`
   (`as const`, no `*.constant.ts`), cujo valor vem de `systemHtml` — um objeto tipado separado de `values`, que só a
   API preenche e que nunca é montado a partir de entrada de usuário sem escape. **Segurança:** (a) a chave raw é
   decidida pelo **nome no conjunto fechado**, nunca pelo conteúdo do valor; (b) uma passada só — um valor que contém
@@ -93,20 +94,23 @@ subjectTemplate, values, systemHtml })` (pura, na API): uma única varredura tro
 - **D5 — Variáveis novas** (lista fechada da 271, catálogo da API + `OCCURRENCE_MAIL_VARIABLE_NAMES` e exemplos do
   painel + descrições nos dois locales, um contrato de paridade):
 
-  | Variável             | Tipo            | Origem                                                                                                                                                                           |
-  | -------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `nomeExibicao`       | texto           | `resolveCompanyDisplayName` (`company_fiscal_profiles`)                                                                                                                          |
-  | `cnpjTransportadora` | texto           | `company_fiscal_profiles.cnpj` por `formatCnpjForDisplay`                                                                                                                        |
-  | `cnpjContratante`    | texto           | `feed.document.contractor.taxId` repassado por `findOccurrenceTarget`: 11 dígitos → CPF `000.000.000-00`; 14 → CNPJ por `formatCnpjForDisplay`; outro → vazio                    |
-  | `assinaturaNome`     | texto           | D6                                                                                                                                                                               |
-  | `assinaturaCargo`    | texto           | D6                                                                                                                                                                               |
-  | `logoTransportadora` | HTML d. sistema | com logo: `<img src="cid:company-logo" alt="<nome de exibição>" width="48" height="48" style="…">` e `has_inline_logo = true`; sem: quadrado de tabela com as iniciais escapadas |
-  | `tabelaItens`        | HTML d. sistema | tabela Código / Item / Qtd. / Valor com "Total dos itens" (soma da 247) e "e mais N itens" acima de 200; vazia sem itens                                                         |
-  | `marcasRodape`       | HTML d. sistema | `APP_BASE_URL` + `/icons/icon-192.png` e `/icons/ada-technology.png` com "Enviado pelo TransportAdA — uma solução Ada Technology"; sem a variável, só o texto                    |
+  | Variável                    | Tipo            | Origem                                                                                                                                                                           |
+  | --------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `nomeExibicao`              | texto           | `resolveCompanyDisplayName` (`company_fiscal_profiles`)                                                                                                                          |
+  | `cnpjTransportadora`        | texto           | `company_fiscal_profiles.cnpj` por `formatCnpjForDisplay`                                                                                                                        |
+  | `cnpjContratante`           | texto           | `feed.document.contractor.taxId` repassado por `findOccurrenceTarget`: 11 dígitos → CPF `000.000.000-00`; 14 → CNPJ por `formatCnpjForDisplay`; outro → vazio                    |
+  | `assinaturaNome`            | texto           | D6                                                                                                                                                                               |
+  | `assinaturaCargo`           | texto           | D6                                                                                                                                                                               |
+  | `logoTransportadora`        | HTML d. sistema | com logo: `<img src="cid:company-logo" alt="<nome de exibição>" width="48" height="48" style="…">` e `has_inline_logo = true`; sem: quadrado de tabela com as iniciais escapadas |
+  | `tabelaItens`               | HTML d. sistema | tabela Código / Item / Qtd. / Valor com "Total dos itens" (soma da 247) e "e mais N itens" acima de 200; vazia sem itens                                                         |
+  | `cidadeTransportadora`      | texto           | `city · state` de `company_fiscal_profiles` (D16 do dono)                                                                                                                        |
+  | `razaoSocialTransportadora` | texto           | razão social de `company_fiscal_profiles` (D16)                                                                                                                                  |
+  | `assinaturaIniciais`        | texto           | iniciais do assinante (D6); equipe → iniciais do nome de exibição (D16)                                                                                                          |
+  | `faixaResposta`             | HTML d. sistema | faixa "↩ Responda este e-mail: a resposta entra na conversa desta ocorrência e chega à equipe." só quando a mensagem sai com `Reply-To`; vazia no sandbox (D15)                 |
+  | `marcasRodape`              | HTML d. sistema | `APP_BASE_URL` + `/icons/icon-192.png` e `/icons/ada-technology.png` com "Enviado pelo TransportAdA — uma solução Ada Technology"; sem a variável, só o texto                    |
 
-  `valorNota`, `motorista`, `parada` e `data` já existem e não são duplicadas (`dataRegistro` = `data`; Q4). Os
-  pedidos que o desenho usa e a lista não traz (cidade/UF e razão social da transportadora, iniciais da assinatura,
-  faixa "Responda" condicional) são perguntas (Q2, Q3), não variáveis inventadas.
+  `valorNota`, `motorista`, `parada` e `data` já existem e não são duplicadas (`dataRegistro` não existe: D17). Linha
+  vazia no resumo é aceita (D16). Ajustado pelas respostas do dono D15/D16 (`evidence.md`).
 
 - **D6 — Assinante.** `OccurrenceMailSigner` = `{ kind: 'operator' | 'owner', userId, name, jobTitle? }` ou
   `{ kind: 'team' }`. Manual → `operator` (o ator); automático → `owner` se a porta `OccurrenceOwnerReader`
@@ -143,12 +147,17 @@ AND company_id = ?`; corpo só com `jobTitle` não chama o Keycloak; resposta po
 - **D11 — Rótulo do papel na API** (mantida). `COMPANY_ROLE_LABELS` em `identity/domain/company-role-label.constant.ts`
   (`satisfies Record<CompanyRole, string>`), cópia de `identity.locale.json` `role.*` + `contractor`/`automation`;
   `operator` = "Operação"; paridade por contrato que lê o JSON do painel por caminho relativo no teste.
-- **D12 — Envio manual com modelo HTML** (padrão reversível; Q1). A prévia existente
-  (`POST …/conversations/contractor/mail-preview`) devolve, sem `body`, `bodyText` = texto gerado do HTML (D4) e
-  `html` = o HTML renderizado; o diálogo continua editando texto. No `POST`, a API renderiza de novo o modelo com os
-  mesmos valores e compara o texto recebido com o gerado (normalizado: fim de linha e espaços nas pontas): **igual** →
-  sai o HTML do modelo; **diferente** → sai o texto do operador pelo caminho de texto (parágrafos), sem o HTML do
-  modelo. Sem rota nova, sem `fullSubject`, sem `inlineLogo`, sem balde próprio (a prévia "Como chega" foi adiada).
+- **D12 — Envio manual com modelo HTML: a área de mensagem** (D14 do dono; substitui o padrão "editado → texto").
+  O modelo HTML marca a área do corpo com `<!-- mensagem -->` … `<!-- /mensagem -->` (`OCCURRENCE_MAIL_MESSAGE_AREA`
+  no `*.constant.ts`); o que fica entre os dois é o texto padrão do modelo, com `{{variáveis}}`. Modelo HTML sem o par
+  (ou com mais de um, ou desbalanceado) → problema `missing_message_area`, em `SEND_BLOCKING_CODES` como
+  `unsafe_html`. A prévia existente (`POST …/conversations/contractor/mail-preview`), sem `body`, devolve `bodyText` =
+  texto gerado (D4) **só da área** renderizada e `html` = o HTML inteiro renderizado; com `body`, o `html` com o texto
+  do operador na área. No envio manual: texto recebido igual ao gerado da área (normalizado: fim de linha e espaços nas
+  pontas) → a área renderizada do modelo fica como está; diferente → a área é trocada pelo texto do operador escapado
+  em parágrafos (`<p style=…>`, quebra simples → `<br>`). **Sempre** sai o HTML do modelo. O automático usa a área do
+  modelo. `body_text` = texto gerado do HTML final inteiro. `{{tabelaItens}}` fica fora da área nos cinco modelos (o
+  texto do operador não apaga a tabela). Sem rota nova, sem `fullSubject`, sem `inlineLogo`.
 - **D13 — Janela de deploy** (mantida). API e worker no mesmo PR e no mesmo run (`deploy-api` → `deploy-services`);
   nos minutos entre os dois, o worker velho manda o HTML sem a parte inline (o `alt` aparece) e o "De" antigo. Worker
   fora do run = parar e perguntar.
@@ -261,7 +270,9 @@ versão anterior de novo pelo mesmo script a partir do arquivo do commit anterio
 - D6/D11: `resolveSignerJobTitle` (cargo, papel, nenhum); paridade dos rótulos; dono injetado na porta (critério 12).
 - D7/D8: tabelas de casos do prefixo (300 caracteres, nome > 80, idempotência) e do "De" (controle, U+2028, bidi,
   `<>"\,;`, > 200 corta a pessoa), espelhada no worker; `sender_name` nunca no "De".
-- D12: texto mantido → HTML; editado → texto; prévia sem `body` devolve `bodyText` gerado.
+- D12: texto mantido → HTML do modelo com a área original; editado → HTML do modelo com o texto do operador escapado
+  na área (`<b>` do operador sai escapado); prévia sem `body` devolve `bodyText` só da área; modelo sem área ou com
+  par desbalanceado → `missing_message_area` bloqueia.
 - D10: política do cargo e contratos do `PATCH` (critério 13).
 - Worker: Resend com `from` nomeado e anexo `content_id`; sandbox com `{ name, address }` e `cid`; logo ausente → sem a
   parte; fila do automático aceita modelo HTML seguro e recusa inseguro (integração com Postgres descartável).

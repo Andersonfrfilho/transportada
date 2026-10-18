@@ -55,7 +55,8 @@
    demais regras do editor (folha externa, `data:`, tags desbalanceadas e os avisos) continuam só no editor.
 3. **Renderer próprio, uma passada, escape só nos valores.** Uma varredura única troca cada `{{nome}}` **do modelo**
    pelo valor escapado (`escapeMailHtml`); o texto do modelo nunca é escapado nem reinterpretado. Só as chaves do
-   conjunto fechado `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES` (`logoTransportadora`, `tabelaItens`, `marcasRodape`) entram
+   conjunto fechado `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES` (`logoTransportadora`, `tabelaItens`, `marcasRodape`,
+   `faixaResposta`) entram
    sem escape, com valor vindo de um objeto separado que só a API monta — a decisão de não escapar é **pelo nome da
    chave**, nunca pelo conteúdo. O HTML do sistema escapa tudo o que carrega. Um valor que contém `{{…}}` não é
    reinterpretado. É uma política pura da API (não uma injeção de `TemplateRendererPort`, porque o envio do módulo não
@@ -64,7 +65,8 @@
    entidades decodificadas, sem biblioteca. É o `body_text` gravado e o texto da mensagem na conversa.
 5. **Variáveis novas na lista fechada** (catálogo da API e do editor do tipo, com o contrato de paridade da 271): texto
    escapado — `nomeExibicao`, `cnpjTransportadora`, `cnpjContratante` (CNPJ ou CPF formatado, vazio sem documento),
-   `assinaturaNome`, `assinaturaCargo`; HTML do sistema — `logoTransportadora` (`<img src="cid:company-logo">` com
+   `assinaturaNome`, `assinaturaCargo`, `assinaturaIniciais`, `cidadeTransportadora`, `razaoSocialTransportadora`;
+   HTML do sistema — `faixaResposta` (a faixa "↩ Responda este e-mail" só quando a mensagem sai com `Reply-To`), — `logoTransportadora` (`<img src="cid:company-logo">` com
    logo, iniciais sem logo), `tabelaItens` (até 200 linhas, "e mais N itens", "Total dos itens" com a soma da 247),
    `marcasRodape` (`APP_BASE_URL` + `/icons/icon-192.png` e `/icons/ada-technology.png`; sem a variável, só o texto).
    `valorNota`, `motorista`, `parada` e `data` já existem e não são duplicadas.
@@ -94,9 +96,12 @@ false`; o worker lê `company_logos` pela empresa da mensagem e anexa a parte in
 11. **Rótulo do papel na API, igual ao do painel.** `COMPANY_ROLE_LABELS` com `satisfies Record<CompanyRole, string>`,
     cópia de `identity.locale.json` (`operator` = "Operação") + `contractor`/`automation`; paridade por contrato que lê
     o JSON do painel; só papéis diretos, o primeiro na ordem de `COMPANY_ROLES`.
-12. **Envio manual com modelo HTML: o diálogo segue editando texto.** A prévia existente devolve o texto gerado (§4) e
-    o `html`; no envio, texto igual ao gerado (normalizado) → sai o HTML do modelo; editado → sai o texto do operador
-    pelo caminho de texto. Sem rota nova; a prévia "Como chega" foi adiada.
+12. **Envio manual com modelo HTML: o desenho nunca se perde.** O modelo marca a área do corpo com
+    `<!-- mensagem -->` … `<!-- /mensagem -->`; o texto entre os dois é o padrão. O diálogo segue editando texto: a
+    prévia existente devolve o texto gerado só da área e o `html` inteiro. No envio, texto igual ao gerado → a área do
+    modelo fica; editado → a área vira o texto do operador escapado em parágrafos. Sempre sai o HTML do modelo. Modelo
+    HTML sem a área → `missing_message_area`, que bloqueia como `unsafe_html`. Sem rota nova; a prévia "Como chega"
+    foi adiada.
 13. **Modelos versionados e publicados por script.** Os cinco modelos (`ocorrencia.prorrogacao-boleto`,
     `.avaria`, `.devolucao`, `.entrega-nao-realizada`, `.recusa`) são arquivos `.html` no repositório
     (`apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates/`), com o assunto num comentário de
@@ -122,8 +127,11 @@ false`; o worker lê `company_logos` pela empresa da mensagem e anexa a parte in
 - **Gravar o assinante (`signer_kind`/`signer_user_id`) e `layout_version`:** serviam ao reenvio repetindo o original
   e ao histórico por layout, os dois fora; a 273 não os usa.
 - **Prévia "Como chega" no diálogo:** adiada pelo dono para spec seguinte; a tela de Notificações já pré-visualiza.
-- **Faixa "Responda este e-mail" condicional ao `Reply-To`:** o modelo não tem condicional; fica como pergunta ao dono
-  (`evidence.md` Q2).
+- **Condicional no modelo** (para a faixa "Responda"): o renderer não ganha linguagem de controle; a faixa é variável de
+  HTML do sistema (§5).
+- **Envio manual editado sai em texto, sem o desenho** (padrão da revisão 2 antes da resposta do dono): vetado (D14).
+- **Variável `{{mensagem}}` para o corpo editável:** precisaria de um valor padrão fora do modelo para o automático;
+  o par de comentários guarda o padrão no próprio modelo.
 
 ## Consequências
 

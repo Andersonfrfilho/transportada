@@ -122,6 +122,32 @@ Padrões adotados e reversíveis; nenhum `[NEEDS CLARIFICATION]` aberto antes da
 - **Q5 — Rastreio de quem assinou cada e-mail:** sem `signer_*`, o automático assinado pelo dono não guarda o assinante
   na mensagem (fica a ocorrência com o dono, 273). Padrão: não gravar; se o dono quiser, coluna em spec seguinte.
 
+### Respostas do dono às perguntas Q1–Q5 (2026-10-18) — decisões D14–D18
+
+Respondidas no relançamento da sessão (trava de git do OMC desligada, prioridade "terminar o mais rápido possível").
+Substituem os padrões das perguntas acima; nenhuma volta a ser perguntada.
+
+- **D14 (Q1) — O envio manual nunca perde o desenho.** O modelo HTML é a moldura e tem uma **área de corpo**; o texto
+  que o operador vê e edita no diálogo é o conteúdo dessa área. Texto mantido ou editado, sai sempre o HTML do modelo
+  com o texto do operador (escapado, em parágrafos) no lugar da área. O diálogo continua editando texto simples.
+  **Como foi desenhado (plan D12, ADR §12):** a área é delimitada no modelo por dois comentários HTML,
+  `<!-- mensagem -->` … `<!-- /mensagem -->`; o que fica entre eles é o texto padrão do modelo (com `{{variáveis}}`).
+  O dono sugeriu "ex.: variável `{{corpo}}`/`{{mensagem}}`"; a variável não serve sozinha porque precisaria de um valor
+  padrão para o automático e o modelo só tem assunto e corpo — o par de comentários guarda o texto padrão no próprio
+  modelo, é invisível no cliente de e-mail e não colide com `{{…}}`. Modelo HTML sem a área (ou com o par
+  desbalanceado) é "não utilizável" (problema `missing_message_area`, bloqueia como `unsafe_html`).
+- **D15 (Q2) — Faixa "↩ Responda este e-mail"** = variável de HTML do sistema `faixaResposta`, preenchida só quando a
+  mensagem sai com `Reply-To` (vazia no sandbox/Mailpit). **Por que não dá para responder no ambiente local:** a
+  resposta da contratante volta pelo _inbound_ do Resend (subdomínio de resposta com MX apontado ao Resend + webhook
+  `email.received` que a API recebe, spec 183); o Mailpit da 268 só captura o que sai, não tem entrada nem webhook, e
+  por isso o sandbox não põe `Reply-To`. **Sugestão de spec seguinte (fora da 272):** um simulador de resposta local
+  (ex.: botão no Mailpit/rota de dev que posta no webhook de entrada um e-mail assinado como se viesse do Resend).
+- **D16 (Q3)** — variáveis de texto novas `cidadeTransportadora` (`city · state` de `company_fiscal_profiles`, A3),
+  `razaoSocialTransportadora` e `assinaturaIniciais` (iniciais do assinante; equipe → iniciais do nome de exibição);
+  linha vazia no resumo é aceita (sem motorista, a linha sai com o rótulo e o valor vazio).
+- **D17 (Q4)** — não criar `dataRegistro`; os modelos usam `{{data}}`.
+- **D18 (Q5)** — o assinante não é gravado na mensagem nesta spec.
+
 ## Decisões do dono (sessões de 2026-10-17 e 2026-10-18)
 
 > **Revisão 2:** D1 (texto simples, o sistema monta o HTML) e D7 (`{{linhasItens}}` vira tabela pelo bloco) foram
@@ -673,7 +699,4 @@ script idempotente por chave.
 
 ## Onde parou (2026-10-18)
 
-Documentação da revisão 2 feita: `spec.md`, `plan.md`, `tasks.md`, `evidence.md` e a ADR-0110 (status "proposta,
-revisão 2"). **Próxima task: T0.3** 🧠 — validar a ADR-0110 revisão 2 com o `architect` (opus). **Nenhuma task de
-código começou** (só os testes da Fase 1, já commitados). Perguntas ao dono Q1–Q5 abertas (§ Mudança de escopo);
-Q2/Q3 bloqueiam só a T4.2. Push depois de cada commit.
+Q1–Q5 respondidas (D14–D18, § Respostas do dono); plan D3/D5/D12 e ADR §3/§5/§12 ajustados. Próxima task: **T0.3**.
