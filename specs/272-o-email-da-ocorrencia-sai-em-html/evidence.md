@@ -29,6 +29,17 @@ moderno da prévia serve só para desenhar — o e-mail final usa tabelas e esti
   TransportAdA e Ada como asset público estável, não base64 inline.
 - **D11** Achado do teste em staging de 2026-10-18: o sandbox (268) manda o "De" só com o endereço, sem nome. A 272 põe o
   nome de exibição da transportadora no "De" também no sandbox.
+- **D12** (2026-10-18, veto da assunção A1 da primeira versão) **"De" com o nome de exibição sempre**: também no envio
+  pelo Resend em produção, o nome no "De" é o nome de exibição da transportadora configurado no sistema (operador/dono:
+  `<nome> — <nome de exibição>`; equipe: `<nome de exibição>`), ignorando o nome do remetente salvo na configuração do
+  Resend. O endereço continua o da configuração (Resend) ou `EMAIL_FROM` (sandbox). **Colisão com a 273 RF7**, que dizia
+  `<nome do dono> — <nome do remetente da empresa>`: a 273 passa a herdar a regra da 272 (`<nome do dono> — <nome de
+exibição>`); o RF7 e o critério 10 da 273 se ajustam quando ela for executada.
+- **D13** (2026-10-18, veto da assunção A2 da primeira versão) **Cargo livre na assinatura**: campo de cargo livre por
+  usuário na empresa (ex.: "Atendimento — ocorrências"), editável na tela de usuários do painel, exibido abaixo do nome
+  do operador/dono na assinatura; sem cargo, o rótulo do papel ("Operador", "Financeiro"). Entra no escopo: migration
+  aditiva (coluna anulável, limite de tamanho, saneada), rota/permissão de edição, auditoria se o padrão do módulo de
+  usuários audita, tela e locales, contratos negativos de BOLA.
 
 ## Decisões tomadas nesta spec (padrões; a T0.2 valida)
 
@@ -48,19 +59,22 @@ Detalhe e trade-offs em `plan.md` § Decisões de desenho.
 - **Prévia = envio** (D8 do plan), com rota que renderiza o texto editado.
 - **Gravar o que saiu** (D9 do plan): `from_display_name`, `signer_kind`, `signer_user_id`, `layout_version`,
   `has_inline_logo`.
+- **Cargo (D10 do plan, da D13 do dono):** `user_company_memberships.job_title varchar(80)` nula — o cargo é por empresa,
+  e o perfil de identidade é por pessoa e sincronizado com o Keycloak. Editado por quem tem `users.manage` no `PATCH
+/company-users/:id` que já edita a ficha (padrão existente; não há rota de perfil próprio, e criar uma só para o cargo
+  abriria superfície nova). **Sem auditoria**, como o resto do perfil (`update-company-user-profile.use-case.ts` não
+  audita; status, senha, permissões e grupos auditam). 404 para usuário de outra empresa pelo caso de uso existente.
+  Cargo fora de log.
 
 ## Assunções (reversíveis; o dono pode vetar sem bloquear a execução)
 
-- **A1 — Nome do remetente no Resend.** No Resend, o nome-base do "De" continua o configurado pela empresa
-  (`contractor_mail_settings.sender_name`), que é o que a contratante já vê; o nome de exibição da empresa só entra no
-  sandbox (D11). Alternativa: trocar também no Resend pelo nome de exibição. Mudar depois é uma linha em
-  `buildSenderDisplayName`. Compatível com a 273 RF7 ("`<dono> — <nome do remetente da empresa>`").
-- **A2 — Papel na assinatura** = rótulo pt-BR do papel da empresa (`CompanyRole`, ex.: "Operador", "Financeiro"). Não
-  existe cargo livre ("Atendimento — ocorrências", como na prévia); criar seria cadastro novo, fora do escopo.
-- **A3 — Encaminhamento a terceiro (248) continua em texto/HTML simples** (`buildOccurrenceMail` de hoje).
-- **A4 — Mensagens anteriores à 272 não são reprocessadas**: o histórico as mostra como hoje; o reenvio de uma delas usa
+As assunções A1 (nome do remetente do Resend no "De") e A2 (só o rótulo do papel na assinatura) da primeira versão
+foram vetadas pelo dono e viraram D12 e D13.
+
+- **A1 — Encaminhamento a terceiro (248) continua em texto/HTML simples** (`buildOccurrenceMail` de hoje).
+- **A2 — Mensagens anteriores à 272 não são reprocessadas**: o histórico as mostra como hoje; o reenvio de uma delas usa
   o montador novo com assinatura da equipe.
-- **A5 — Cidade no cabeçalho** = `city · state` de `company_fiscal_profiles` (endereço fiscal).
+- **A3 — Cidade no cabeçalho** = `city · state` de `company_fiscal_profiles` (endereço fiscal).
 
 Nenhum `[NEEDS CLARIFICATION]`: as perguntas acima têm padrão adotado e não bloqueiam.
 
@@ -68,7 +82,8 @@ Nenhum `[NEEDS CLARIFICATION]`: as perguntas acima têm padrão adotado e não b
 
 Ver `plan.md` § Coordenação com a 273. Em resumo: a 272 vai antes; ela cria `OccurrenceMailSigner` (com `owner`), a
 porta `OccurrenceOwnerReader` (implementação nula) e `buildSenderDisplayName`; a T3.3 da 273 passa a ser "implementar a
-porta". A 273 não precisa tocar no montador nem no "De".
+porta". A 273 não precisa tocar no montador nem no "De". Pela D12, a regra do "De" da 273 RF7 passa a ser a da 272
+(`<nome do dono> — <nome de exibição>`); o leitor de dono devolve também o cargo (D13).
 
 ## Levantamento contra `origin/staging` (68613c0f9, 2026-10-18)
 
@@ -151,6 +166,23 @@ operatorName, subject })` → `{ html, subject, text }` (:11-15). Assinatura em 
   em `trip-occurrence-feed.query.ts:628`, :639, :667).
 - Papel do operador não é lido no caso de uso; existe em `roles: CompanyRole[]` (`shared/api.types.ts:230`).
 
+### Usuários e cargo (D13)
+
+- Não existe cargo. `identity_user_profiles` (`api-transportada/src/database/identity-user-profile.schema.ts:19-50`) é
+  por pessoa (nome, login, canal/contato, e-mail, telefone, CPF); `user_company_memberships`
+  (`database/identity.schema.ts:117-140`) tem usuário, empresa, status e datas.
+- `PATCH /company-users/:id` (`identity/presentation/user-administration.routes.ts:381-407`; `USER_PATH` :86,
+  `USERS_MANAGE_POLICY = { permission: 'users.manage', scope: 'company' }` :98; `API_COMPANY_USERS_PATH` em
+  `shared/api.constant.ts:261`); corpos `.strict()` em `user-administration.schema.ts`.
+- `update-company-user-profile.use-case.ts`: acha pela empresa do token (:61-62, `CompanyUserNotFoundError`), sincroniza
+  atributos com o Keycloak (:119), **sem auditoria**. Auditam: `change-company-user-status`, `set-company-user-password`,
+  `manage-direct-permissions`, `manage-company-groups`, `activate-company-user`, `remove-company-user-membership`.
+- Sem rota de perfil próprio: `/me/*` só tem viagens, diagnóstico, consentimento de localização e WhatsApp
+  (`shared/api.constant.ts:217-222`).
+- Painel: `frontend-transportada/src/modules/identity/components/CompanyUserEditDialog.component.tsx`,
+  `pages/UserAdministration.page.tsx`, `hooks/useUserAdministration.hook.ts`, guarda
+  `shared/companyUsersResponse.validation.ts`.
+
 ### Bibliotecas e ambiente
 
 - Sem mjml, react-email, juice ou handlebars; só `nodemailer ^7.0.9` (`worker-transportada/package.json:47`).
@@ -176,8 +208,9 @@ spec 273 em ~/personal/transportada-wt/spec-273/specs/273-a-ocorrencia-tem-dono/
 Árvore única: ~/personal/transportada-wt/spec-272 (FS do Linux, branch work/spec-272, criada de origin/staging);
 nada fora dela. Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 0 → executor model=sonnet (T0.2 🧠 → opus: escrever a ADR-0110 e validar com architect antes de
-qualquer código) · Fase 1 → executor model=haiku (T1.2 sonnet) · Fase 2 → executor model=sonnet (T2.1/T2.3/T2.8 haiku) ·
-Fase 3 → executor model=sonnet (T3.3 haiku) · Fase 4 → executor model=sonnet (T4.2 haiku) · Fase 5 → sonnet ·
+qualquer código) · Fase 1 → executor model=haiku (T1.3 sonnet) · Fase 2 → executor model=sonnet (T2.1/T2.3/T2.8/T2.9 haiku;
+T2.9 antes da T2.4) ·
+Fase 3 → executor model=sonnet (T3.3 haiku) · Fase 4 → executor model=sonnet (T4.3 haiku) · Fase 5 → sonnet ·
 revisão final → code-reviewer model=sonnet e security-reviewer model=sonnet.
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Teste antes da implementação. Cada task fecha com bun run typecheck + lint por app (cwd na app) + script `test` do
@@ -186,7 +219,7 @@ Task que toca test/integration/** só fecha com `bun --env-file=../../.env.test 
 apps/api-transportada), ZERO skips. Migration: aplica, reverte e reaplica e db:generate esperando no_changes.
 Antes de publicar: git fetch, rebase em origin/staging, bun install --frozen-lockfile, gates,
 `bunx prettier --check .` na raiz; conferir numeração de spec/ADR/migration contra origin/staging e contra a 273.
-Pare e pergunte antes de: qualquer merge em main (T1.2, T5.4 — o painel tolerante vai a produção ANTES da API, e a
+Pare e pergunte antes de: qualquer merge em main (T1.3, T5.4 — o painel tolerante vai a produção ANTES da API, e a
 272 só vai a main depois de 269 + 270 + 271); qualquer mudança de dados ou consulta que não seja contagem em staging
 ou produção; deploy da API sem o worker no mesmo deploy (plan § Publicação passo 2); e qualquer
 [NEEDS CLARIFICATION] que surgir.
@@ -195,5 +228,8 @@ multipart text+html; cores fixas da plataforma, tabelas e estilos inline, sem bi
 embutido por cid: lido de company_logos; marcas TransportAdA e Ada por APP_BASE_URL do painel; assunto
 "<nome de exibição> · CNPJ <cnpj> — <assunto do modelo>"; resumo Nota fiscal / Partes / Registro; {{linhasItens}} vira
 tabela (no manual só se o bloco ficou intacto); faixa de resposta só com Reply-To; assinatura operador / dono (porta
-OccurrenceOwnerReader, nula até a 273) / equipe; "De" por buildSenderDisplayName, com nome também no sandbox.
+OccurrenceOwnerReader, nula até a 273) / equipe, com o cargo livre do usuário na empresa (job_title na membership,
+editado em Usuários por users.manage na rota PATCH /company-users/:id, sem auditoria como o perfil; vazio → rótulo do
+papel); "De" por buildSenderDisplayName com o nome de exibição SEMPRE (Resend e sandbox; o sender_name do Resend não
+aparece), e a 273 RF7 herda essa regra.
 ```

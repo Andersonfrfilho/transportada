@@ -11,17 +11,17 @@
 
 ## Specs do mesmo assunto (lidas contra o código em `origin/staging` 68613c0f9, 2026-10-18)
 
-| Spec      | O que já decidiu e esta spec **usa sem refazer** (ou emenda, quando dito)                                                                                                                                                                                                                                                                          |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 143 / 183 | O e-mail de ocorrência é a mensagem da 143 (`contractor_mail_messages`) mais a da conversa, gravadas numa transação por `send-occurrence-mail`; o worker envia pelo Resend da empresa. `Reply-To` com token traz a resposta para a conversa. **Usa:** a faixa "Responda este e-mail" só existe porque o `Reply-To` existe.                         |
-| 247       | Itens da ocorrência com código, quantidade, unidade e valor; soma das linhas, dinheiro em `bigint`/string com arredondamento único. **Usa** os mesmos valores na tabela de itens; nenhum cálculo novo.                                                                                                                                             |
-| 248       | Reenvio do pedido de resposta e encaminhamento a terceiro. **Fica fora**: o reenvio repete o envio original (sai em HTML se o original saiu), o encaminhamento a terceiro continua em texto.                                                                                                                                                       |
-| 267       | Responsáveis em cópia, teto 50 em `To`+`Cc`. Não muda.                                                                                                                                                                                                                                                                                             |
-| 268       | Modo sandbox (`transport = 'sandbox_smtp'`, Mailpit, sem `Reply-To`, `From = EMAIL_FROM`). **Emenda:** o "De" do sandbox ganha o nome de exibição da transportadora (achado do teste em staging de 2026-10-18, D11), e a faixa "Responda este e-mail" some no sandbox.                                                                             |
-| 269       | Assunto saneado (sem quebra de linha) e truncado. **Usa:** o prefixo da 272 entra antes do corte e nunca é cortado.                                                                                                                                                                                                                                |
-| 270       | Tipo geral ou de contratantes. Não muda.                                                                                                                                                                                                                                                                                                           |
-| 271       | (em `staging`) O texto é um modelo do módulo de notificação, **texto simples** (corpo HTML recusado), variáveis `{{camelCase}}` da lista fechada, `{{linhasItens}}` com uma linha por item, `interpolateTemplate`. **Usa sem refazer**: o modelo continua texto e a recusa de HTML continua; a 272 monta o HTML **em volta** do texto renderizado. |
-| 273       | (em `work/spec-273`, não em `staging`) Grava o **dono** da ocorrência e, no envio automático, quer o dono no "De" e na assinatura (273 RF7). **Coordena:** a 272 cria o ponto `signer` (operador, dono ou equipe) e a regra única do "De"; a 273 só passa o dono para ele. A 272 não depende da 273: sem dono, assina a equipe.                    |
+| Spec      | O que já decidiu e esta spec **usa sem refazer** (ou emenda, quando dito)                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 143 / 183 | O e-mail de ocorrência é a mensagem da 143 (`contractor_mail_messages`) mais a da conversa, gravadas numa transação por `send-occurrence-mail`; o worker envia pelo Resend da empresa. `Reply-To` com token traz a resposta para a conversa. **Usa:** a faixa "Responda este e-mail" só existe porque o `Reply-To` existe.                                                                                                                                                                            |
+| 247       | Itens da ocorrência com código, quantidade, unidade e valor; soma das linhas, dinheiro em `bigint`/string com arredondamento único. **Usa** os mesmos valores na tabela de itens; nenhum cálculo novo.                                                                                                                                                                                                                                                                                                |
+| 248       | Reenvio do pedido de resposta e encaminhamento a terceiro. **Fica fora**: o reenvio repete o envio original (sai em HTML se o original saiu), o encaminhamento a terceiro continua em texto.                                                                                                                                                                                                                                                                                                          |
+| 267       | Responsáveis em cópia, teto 50 em `To`+`Cc`. Não muda.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 268       | Modo sandbox (`transport = 'sandbox_smtp'`, Mailpit, sem `Reply-To`, `From = EMAIL_FROM`). **Emenda:** o "De" do sandbox ganha o nome de exibição da transportadora (achado do teste em staging de 2026-10-18, D11), e a faixa "Responda este e-mail" some no sandbox.                                                                                                                                                                                                                                |
+| 269       | Assunto saneado (sem quebra de linha) e truncado. **Usa:** o prefixo da 272 entra antes do corte e nunca é cortado.                                                                                                                                                                                                                                                                                                                                                                                   |
+| 270       | Tipo geral ou de contratantes. Não muda.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 271       | (em `staging`) O texto é um modelo do módulo de notificação, **texto simples** (corpo HTML recusado), variáveis `{{camelCase}}` da lista fechada, `{{linhasItens}}` com uma linha por item, `interpolateTemplate`. **Usa sem refazer**: o modelo continua texto e a recusa de HTML continua; a 272 monta o HTML **em volta** do texto renderizado.                                                                                                                                                    |
+| 273       | (em `work/spec-273`, não em `staging`) Grava o **dono** da ocorrência e, no envio automático, quer o dono no "De" e na assinatura (273 RF7). **Coordena e emenda:** a 272 cria o ponto `signer` (operador, dono ou equipe) e a regra única do "De"; a 273 só passa o dono para ele. A 273 RF7 dizia `<nome do dono> — <nome do remetente da empresa>`; pela D12 do dono vale `<nome do dono> — <nome de exibição>` (a 273 herda a regra da 272). A 272 não depende da 273: sem dono, assina a equipe. |
 
 ## Problema e resultado
 
@@ -64,8 +64,9 @@ preenchido>`. O saneamento e o corte da 269 valem só para a parte do modelo; o 
 - **RF7 — Faixa de resposta.** "↩ Responda este e-mail: a resposta entra na conversa desta ocorrência e chega à equipe."
   Só quando a mensagem tem `Reply-To` (Resend). No sandbox (268) não aparece.
 - **RF8 — Assinatura.**
-  - Envio manual: o operador — avatar com as iniciais, nome, papel na empresa, nome de exibição e CNPJ.
-  - Envio automático: o **dono** da ocorrência quando a 273 estiver publicada e houver dono (mesma forma do operador);
+  - Envio manual: o operador — avatar com as iniciais, nome e, abaixo, o **cargo** (RF14; sem cargo, o rótulo do papel
+    na empresa, ex.: "Operador"), com o nome de exibição e o CNPJ.
+  - Envio automático: o **dono** da ocorrência quando a 273 estiver publicada e houver dono (mesma forma do operador, com o cargo dele);
     senão "Equipe <nome de exibição>", com "Mensagem automática do registro da ocorrência · CNPJ <cnpj>" e as iniciais da
     transportadora.
   - Reenvio da 248: a assinatura do envio original.
@@ -75,13 +76,20 @@ preenchido>`. O saneamento e o corte da 269 valem só para a parte do modelo; o 
   — TransportAdA. Todos os direitos reservados."
 - **RF10 — Cores fixas.** Asfalto `#10222c`, cobre `#d58a47`, névoa `#f0f2ee`, ardósia `#5a6b74`, tinta `#1d2b33`, fundo
   branco. O e-mail não segue tema escuro do cliente de e-mail (sem `prefers-color-scheme`).
-- **RF11 — "De" com o nome da transportadora.** Nome no "De": envio automático sem dono → `<nome do remetente>`; envio
-  manual → `<operador> — <nome do remetente>`; automático com dono (273) → `<dono> — <nome do remetente>`. O nome do
-  remetente é o configurado no Resend da empresa (o de hoje) e, no sandbox (268), o nome de exibição da transportadora
-  (`plan.md` D5). O endereço não muda (o do Resend da empresa, ou `EMAIL_FROM` no sandbox). **Vale também no sandbox**,
-  que hoje manda o endereço sem nome.
+- **RF11 — "De" com o nome de exibição, sempre (D12).** Nome no "De": envio automático sem dono → `<nome de
+exibição>`; envio manual → `<operador> — <nome de exibição>`; automático com dono (273) → `<dono> — <nome de
+exibição>`. O nome de exibição é o da transportadora no sistema (`resolveCompanyDisplayName`), **nos dois
+  transportes**: no Resend, o nome do remetente salvo na configuração do Resend (`sender_name`) deixa de aparecer no
+  "De". O endereço não muda (o da configuração do Resend, ou `EMAIL_FROM` no sandbox). Vale também no sandbox, que hoje
+  manda o endereço sem nome.
 - **RF12 — Ver antes de enviar.** A prévia do diálogo de envio manual mostra o e-mail em HTML como vai sair (mesma
   montagem do servidor), além do texto editável de hoje.
+- **RF14 — Cargo livre na assinatura (D13).** Cada usuário tem, **na empresa**, um campo de cargo livre (ex.:
+  "Atendimento — ocorrências"), até 80 caracteres, saneado (sem quebra de linha nem caractere de controle; espaços
+  colapsados; vazio = sem cargo). Editado em Usuários (diálogo de edição do usuário no painel) por quem tem
+  `users.manage`, pela mesma rota que já edita o perfil (`PATCH /company-users/:id`); usuário de outra empresa → 404.
+  Aparece abaixo do nome do operador ou do dono na assinatura (HTML e texto); sem cargo, o rótulo pt-BR do papel na
+  empresa ("Operador", "Financeiro"; com vários papéis, o primeiro na ordem do catálogo).
 - **RF13 — Rastreio.** A mensagem gravada guarda o HTML que saiu, o nome usado no "De" e quem assinou (tipo e id), para o
   histórico da conversa e para o reenvio da 248 repetir o original.
 
@@ -105,28 +113,36 @@ preenchido>`. O saneamento e o corte da 269 valem só para a parte do modelo; o 
   internos do módulo de notificação: continuam como estão.
 - Tema escuro, idioma diferente de pt-BR, cores por transportadora.
 - Gravar o dono da ocorrência (spec 273).
+- Edição do cargo pelo próprio usuário (não há rota de perfil próprio hoje; `plan.md` D10) e sincronização do cargo
+  com o Keycloak.
 - Cadastro do logo: usa o que Configurações da empresa já guarda (`evidence.md` § Levantamento); se faltar algo no
   cadastro, é pergunta, não escopo.
 
 ## Critérios de aceite
 
 1. Ocorrência "Avaria" de NF 48.213-1 com dois itens, modelo `ocorrencia.avaria` com `{{linhasItens}}`: o automático
-   chega com assunto `Tapete Mágico Transportes · CNPJ 12.345.678/0001-90 — Avaria no transporte na entrega — NF
-48.213-1`, parte HTML com cabeçalho, resumo nos três grupos, tabela com 2 linhas e "Total dos itens", e parte texto.
+   chega com assunto "Tapete Mágico Transportes · CNPJ 12.345.678/0001-90 — Avaria no transporte na entrega — NF
+   48.213-1", parte HTML com cabeçalho, resumo nos três grupos, tabela com 2 linhas e "Total dos itens", e parte texto.
 2. O HTML final passa no teste de forma (sem grid/flex/`var(`/script) e todo valor com `<`, `&` ou `"` sai escapado
    (teste com `observacao = '<b>x</b> & "y"'`).
 3. Empresa sem logo: cabeçalho e rodapé com as iniciais, sem `<img>` quebrado. Com logo: a imagem é parte embutida do
    e-mail e o HTML a referencia por `cid:`; nenhum `data:` nem link de API aparece no HTML.
-4. Envio manual de Ana Lima: "De" `Ana Lima — Tapete Mágico Transportes <…>`, assinatura com nome, papel, nome de
-   exibição e CNPJ. Automático sem dono: "De" `Tapete Mágico Transportes <…>` e "Equipe Tapete Mágico Transportes".
-5. Sandbox (268), no Mailpit: "De" `Tapete Mágico Transportes <EMAIL_FROM>` (com nome), sem a faixa "Responda este
+4. Envio manual de Ana Lima com cargo "Atendimento — ocorrências": "De" `Ana Lima — Tapete Mágico Transportes <…>`,
+   assinatura com o nome, o cargo abaixo, o nome de exibição e o CNPJ. Sem cargo: o rótulo do papel ("Operador").
+   Automático sem dono: "De" `Tapete Mágico Transportes <…>` e "Equipe Tapete Mágico Transportes".
+5. Resend com `sender_name = "TMT Ocorrências"` e nome de exibição "Tapete Mágico Transportes": o "De" é
+   `Tapete Mágico Transportes <endereço do Resend>` (o `sender_name` não aparece).
+6. Sandbox (268), no Mailpit: "De" `Tapete Mágico Transportes <EMAIL_FROM>` (com nome), sem a faixa "Responda este
    e-mail", com as duas partes.
-6. Operador edita o bloco de linhas dos itens no diálogo: o HTML mostra o texto editado, sem tabela. Mantém o bloco: sai
+7. Operador edita o bloco de linhas dos itens no diálogo: o HTML mostra o texto editado, sem tabela. Mantém o bloco: sai
    a tabela.
-7. Ocorrência de parada sem nota: o resumo não tem o grupo "Nota fiscal" nem linha vazia.
-8. 200 itens: HTML abaixo de 100 KB e a linha "e mais N itens" quando passar de 200.
-9. Reenvio da 248 de um e-mail enviado em HTML repete o HTML, o "De" e a assinatura gravados.
-10. Assunto do modelo com 300 caracteres: o prefixo fica inteiro e a parte do modelo é cortada no limite da 269.
-11. A prévia do diálogo mostra o mesmo HTML que o Mailpit recebe (mesma montagem; teste de igualdade de string).
-12. Com a 273 publicada e dono Carla na ocorrência: o automático sai "De" `Carla — Tapete Mágico Transportes` e assinado
+8. Ocorrência de parada sem nota: o resumo não tem o grupo "Nota fiscal" nem linha vazia.
+9. 200 itens: HTML abaixo de 100 KB e a linha "e mais N itens" quando passar de 200.
+10. Reenvio da 248 de um e-mail enviado em HTML repete o HTML, o "De" e a assinatura gravados.
+11. Assunto do modelo com 300 caracteres: o prefixo fica inteiro e a parte do modelo é cortada no limite da 269.
+12. A prévia do diálogo mostra o mesmo HTML que o Mailpit recebe (mesma montagem; teste de igualdade de string).
+13. Com a 273 publicada e dono Carla na ocorrência: o automático sai "De" `Carla — Tapete Mágico Transportes` e assinado
     por Carla (teste do ponto `signer` com dono, mesmo antes da 273, por injeção).
+14. Cargo: `PATCH /company-users/:id` com `jobTitle` de 81 caracteres → 400; com quebra de linha → gravado sem ela;
+    `null` ou `""` limpa; sem `users.manage` → 403; usuário de outra empresa → 404; a leitura da lista de usuários
+    devolve `jobTitle`.
