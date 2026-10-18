@@ -94,14 +94,14 @@ Pacote em `~/personal/adatechnology-packages/packages/{frontend,backend}/`; Tran
 
 ### Migration reavaliada
 
-| Coluna (revisão 1)                    | Revisão 2  | Por quê                                                                                                                                                       |
-| ------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `has_inline_logo`                     | **Fica**   | O worker decide se anexa o logo sem interpretar o HTML; o renderer sabe se usou o `cid:`                                                                      |
-| `from_display_name` (já existe)       | **Reusada** | Nome do "De" gravado pela API, lido pelo worker em `outbound`; sem migration                                                                                  |
-| `signer_kind`, `signer_user_id`       | **Saem**   | Serviam ao reenvio da 248 repetindo o assinante (adiado) e ao histórico; a 273 não os usa. O manual já tem autor na mensagem da conversa; o dono fica na ocorrência (273). Q5 |
-| `layout_version`                      | **Sai**    | Não há layout em código para versionar; a versão do modelo já é gravada (`notification_template_key`/`_version`, 271)                                          |
-| Três CHECKs da invariante             | **Saem**   | Amarravam `layout_version`, `signer_*` e `from_display_name`; sem essas colunas não há invariante                                                              |
-| `user_company_memberships.job_title`  | **Fica**   | Cargo (D13 do dono)                                                                                                                                            |
+| Coluna (revisão 1)                   | Revisão 2   | Por quê                                                                                                                                                                       |
+| ------------------------------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `has_inline_logo`                    | **Fica**    | O worker decide se anexa o logo sem interpretar o HTML; o renderer sabe se usou o `cid:`                                                                                      |
+| `from_display_name` (já existe)      | **Reusada** | Nome do "De" gravado pela API, lido pelo worker em `outbound`; sem migration                                                                                                  |
+| `signer_kind`, `signer_user_id`      | **Saem**    | Serviam ao reenvio da 248 repetindo o assinante (adiado) e ao histórico; a 273 não os usa. O manual já tem autor na mensagem da conversa; o dono fica na ocorrência (273). Q5 |
+| `layout_version`                     | **Sai**     | Não há layout em código para versionar; a versão do modelo já é gravada (`notification_template_key`/`_version`, 271)                                                         |
+| Três CHECKs da invariante            | **Saem**    | Amarravam `layout_version`, `signer_*` e `from_display_name`; sem essas colunas não há invariante                                                                             |
+| `user_company_memberships.job_title` | **Fica**    | Cargo (D13 do dono)                                                                                                                                                           |
 
 ### Perguntas ao dono (não bloqueiam até a T4.2, salvo dito)
 
@@ -169,6 +169,10 @@ exibição>`); o RF7 e o critério 10 da 273 se ajustam quando ela for executada
 
 ## Decisões tomadas nesta spec (padrões; a T0.2 valida)
 
+> **Revisão 2:** a lista abaixo é da revisão 1. Montador puro, D6 (bloco) e D8 (prévia) foram **substituídos** ou
+> **adiados** pela § Mudança de escopo; D9 ficou só com `has_inline_logo` (§ Migration reavaliada); o resto continua
+> (plan revisão 2, D5–D11, D13).
+
 Detalhe e trade-offs em `plan.md` § Decisões de desenho.
 
 - **Montador puro no servidor, sem biblioteca** (D1/D2 do plan): funções TS que devolvem string com tabelas e estilos
@@ -208,6 +212,10 @@ foram vetadas pelo dono e viraram D12 e D13.
 Nenhum `[NEEDS CLARIFICATION]`: as perguntas acima têm padrão adotado e não bloqueiam.
 
 ## Coordenação com a 273
+
+> **Revisão 2:** a 272 deixa de ter montador e de gravar `signer_*`/`layout_version`; a 273 continua só implementando a
+> porta e herdando o "De" (impacto em `plan.md` § Coordenação com a 273 e em § Mudança de escopo → Fatos conferidos).
+> O parágrafo abaixo é da revisão 1.
 
 Ver `plan.md` § Coordenação com a 273. Em resumo: a 272 vai antes; ela cria `OccurrenceMailSigner` (com `owner`), a
 porta `OccurrenceOwnerReader` (implementação nula) e `buildSenderDisplayName`; a T3.3 da 273 passa a ser "implementar a
@@ -590,6 +598,7 @@ exercitadas por `previewContractorMail` e `listConversations`). Registrado em `t
 - Mensagem do histórico sem `fromDisplayName`/`signerKind` entra; com os dois entra; com os dois `null` entra.
 
 Gates (cwd `apps/frontend-transportada`):
+
 - `bun test ./test/occurrence-conversation.contract.test.ts -t "spec 272"` → 6 pass, 0 fail.
 - `bun test ./test/occurrence-conversation.contract.test.ts` → 272 pass, 0 fail (o arquivo inteiro).
 - `bun run typecheck` → exit 0.
@@ -608,6 +617,7 @@ Arquivo novo: `apps/frontend-transportada/test/identity/company-user-job-title-t
 Registrado em `test/identity.contract.test.ts` (já listado no `package.json`).
 
 Gates (cwd `apps/frontend-transportada`):
+
 - `bun test ./test/identity/company-user-job-title-tolerance.contract.ts` → 9 pass, 0 fail.
 - `bun run typecheck` → exit 0.
 - `bun run lint` → exit 0, 0 errors, 16 warnings (nenhum no arquivo novo).
@@ -616,37 +626,54 @@ Gates (cwd `apps/frontend-transportada`):
 
 Código de produção: nenhum mudou.
 
+### T1.3 — Sem deploy da Fase 1 (2026-10-18)
+
+A T1.1 (commit `af99db9ee`) e a T1.2 (commit `2d43e01ca`) só acrescentaram testes; nenhum arquivo de produção mudou
+(`git show --stat af99db9ee 2d43e01ca`: só `apps/frontend-transportada/test/**`). **Não há deploy da Fase 1: nada a
+publicar.** A Fase 2 não espera produção. Na revisão 2, a guarda da lista de modelos (`toProblem`,
+`occurrenceTypeMailClient.service.ts:19-42`) também já descarta o código novo `unsafe_html` sem derrubar o modelo:
+continua sem fase tolerante.
+
 ## Prompt de execução
 
+> Revisão 2 (2026-10-18). O prompt da revisão 1 está no histórico do git (commit `2d43e01ca`).
+
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/272-o-email-da-ocorrencia-sai-em-html/ (leia spec.md, plan.md,
-tasks.md e evidence.md antes de começar; leia também specs/268-*, 269-*, 271-* (+ ADR-0108) com os evidence.md, e a
-spec 273 em ~/personal/transportada-wt/spec-273/specs/273-a-ocorrencia-tem-dono/ para o ponto signer).
-Árvore única: ~/personal/transportada-wt/spec-272 (FS do Linux, branch work/spec-272, criada de origin/staging);
-nada fora dela. Uma task por vez, na ordem do tasks.md.
-Modelos: Fase 0 → executor model=sonnet (T0.2 🧠 → opus: escrever a ADR-0110 e validar com architect antes de
-qualquer código) · Fase 1 → executor model=haiku (T1.3 sonnet) · Fase 2 → executor model=sonnet (T2.1/T2.3/T2.8/T2.9 haiku;
-T2.9 antes da T2.4) ·
-Fase 3 → executor model=sonnet (T3.3 haiku) · Fase 4 → executor model=sonnet (T4.3 haiku) · Fase 5 → sonnet ·
-revisão final → code-reviewer model=sonnet e security-reviewer model=sonnet.
+/oh-my-claudecode:autopilot Execute a spec specs/272-o-email-da-ocorrencia-sai-em-html/ (revisão 2: o HTML vem do
+modelo do módulo de notificação). Leia spec.md, plan.md, tasks.md, evidence.md e docs/adr/0110-* antes de começar;
+leia também a regra global ~/.claude/rules/rules/email-templates.md, specs/271-* (+ ADR-0108) com o evidence.md, e a
+spec 273 em ~/personal/transportada-wt/spec-273/specs/273-a-ocorrencia-tem-dono/ para a porta de dono.
+Árvore única: ~/personal/transportada-wt/spec-272 (branch work/spec-272); nada fora dela. Uma task por vez, na ordem
+do tasks.md. Antes do código: rebase em origin/staging.
+Modelos: T0.3 🧠 → opus (validar a ADR-0110 revisão 2 com architect antes de qualquer código) · Fase 2 → executor
+model=sonnet (T2.1 haiku) · Fase 3 → executor model=sonnet · Fase 4 → executor model=sonnet (T4.2 e T4.4 haiku) ·
+Fase 5 → sonnet · revisão final → code-reviewer model=sonnet e security-reviewer model=sonnet.
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
-Teste antes da implementação. Cada task fecha com bun run typecheck + lint por app (cwd na app) + script `test` do
-package.json da app (nunca `bun test` cru) + commit isolado (`git commit --only <paths>`), evidência em evidence.md.
-Task que toca test/integration/** só fecha com `bun --env-file=../../.env.test run test:integration` (de
+Teste antes da implementação. Cada task de código fecha com bun run typecheck + lint por app (cwd na app) + script
+`test` do package.json da app (nunca `bun test` cru) + commit isolado (`git commit --only <paths>`), evidência em
+evidence.md. Task que toca test/integration/** só fecha com `bun --env-file=../../.env.test run test:integration` (de
 apps/api-transportada), ZERO skips. Migration: aplica, reverte e reaplica e db:generate esperando no_changes.
 Antes de publicar: git fetch, rebase em origin/staging, bun install --frozen-lockfile, gates,
-`bunx prettier --check .` na raiz; conferir numeração de spec/ADR/migration contra origin/staging e contra a 273.
-Pare e pergunte antes de: qualquer merge em main (T1.3, T5.4 — o painel tolerante vai a produção ANTES da API, e a
-272 só vai a main depois de 269 + 270 + 271); qualquer mudança de dados ou consulta que não seja contagem em staging
-ou produção; deploy da API sem o worker no mesmo deploy (plan § Publicação passo 2); e qualquer
-[NEEDS CLARIFICATION] que surgir.
-Decisões já tomadas (evidence.md): o modelo continua texto (271 recusa HTML) e o servidor monta o HTML em volta, com
-multipart text+html; cores fixas da plataforma, tabelas e estilos inline, sem biblioteca; logo da transportadora
-embutido por cid: lido de company_logos; marcas TransportAdA e Ada por APP_BASE_URL do painel; assunto
-"<nome de exibição> · CNPJ <cnpj> — <assunto do modelo>"; resumo Nota fiscal / Partes / Registro; {{linhasItens}} vira
-tabela (no manual só se o bloco ficou intacto); faixa de resposta só com Reply-To; assinatura operador / dono (porta
-OccurrenceOwnerReader, nula até a 273) / equipe, com o cargo livre do usuário na empresa (job_title na membership,
-editado em Usuários por users.manage na rota PATCH /company-users/:id, sem auditoria como o perfil; vazio → rótulo do
-papel); "De" por buildSenderDisplayName com o nome de exibição SEMPRE (Resend e sandbox; o sender_name do Resend não
-aparece), e a 273 RF7 herda essa regra.
+`bunx prettier --check .` na raiz; numeração de spec/ADR/migration contra origin/staging e contra a 273.
+Pare e pergunte antes de: rodar o script dos modelos (scripts/occurrence-mail-templates-publish.ts) contra staging ou
+produção — é mudança de dados, mostre o dry-run; qualquer merge em main (a 272 só vai a main depois de 269 + 270 +
+271); qualquer outra mudança de dados ou consulta que não seja contagem em staging ou produção; deploy da API sem o
+worker no mesmo run; a T4.2 sem as respostas Q2/Q3 do dono; e qualquer [NEEDS CLARIFICATION] que surgir.
+Decisões já tomadas (evidence.md, ADR-0110 rev. 2): o visual mora no modelo HTML de Notificações (proibido layout em
+código); HTML inseguro (script, on*, javascript:, iframe, form) é não utilizável (unsafe_html no lugar de html_body),
+com a mesma tabela de casos na API, no validador do painel e no filtro da fila do worker; renderer de uma passada que
+escapa só os valores, com o conjunto fechado logoTransportadora/tabelaItens/marcasRodape montado pela API; text/plain
+gerado do HTML; modelo sem tag segue o caminho de texto de hoje; assunto "<nome de exibição> · CNPJ <cnpj> — <assunto
+do modelo>" idempotente; "De" por buildSenderDisplayName com o nome de exibição SEMPRE (Resend e sandbox), saneado na
+API e espelhado no worker; logo por cid: lido de company_logos (has_inline_logo); cargo livre job_title na membership,
+PATCH /company-users/:id com users.manage, sem auditoria; OccurrenceOwnerReader nulo para a 273; envio manual com
+modelo HTML: texto mantido → HTML, editado → texto; reenvio da 248 como hoje; cinco modelos .html versionados +
+script idempotente por chave.
 ```
+
+## Onde parou (2026-10-18)
+
+Documentação da revisão 2 feita: `spec.md`, `plan.md`, `tasks.md`, `evidence.md` e a ADR-0110 (status "proposta,
+revisão 2"). **Próxima task: T0.3** 🧠 — validar a ADR-0110 revisão 2 com o `architect` (opus). **Nenhuma task de
+código começou** (só os testes da Fase 1, já commitados). Perguntas ao dono Q1–Q5 abertas (§ Mudança de escopo);
+Q2/Q3 bloqueiam só a T4.2. Push depois de cada commit.

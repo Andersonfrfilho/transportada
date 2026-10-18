@@ -143,13 +143,13 @@ false`; o worker lê `company_logos` pela empresa da mensagem e anexa a parte in
 Aceita na T0.2 (validação do `architect`, `evidence.md` § T0.2), substituída na mesma data pela mudança de escopo.
 Resumo do que decidia e do que aconteceu com cada ponto:
 
-| Revisão 1                                                                                              | Na revisão 2                                                   |
-| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| §1 servidor monta, modelo continua texto; §2 sem biblioteca, blocos TS                                  | **Substituídas** por §1–§4                                     |
-| §3 logo por `cid:`; §4 marcas por `APP_BASE_URL`                                                        | **Mantidas** como §9 e §5 (`marcasRodape`)                     |
-| §5 ponto `signer` e "De"                                                                                | **Mantida** como §6 e §8                                       |
-| §6 tabela pelo bloco exato (`itemLinesBlock`)                                                           | **Substituída** por `tabelaItens` (§5) e §12                   |
-| §7 prefixo do assunto                                                                                   | **Mantida** como §7                                            |
-| §8 prévia com HTML do layout, `fullSubject`, `inlineLogo`, balde próprio                                | **Adiada pelo dono — spec seguinte**                           |
-| §9 quatro colunas e três CHECKs; §10 reenvio repete o original                                          | **Substituídas** por §9 (só `has_inline_logo`); reenvio como hoje |
-| §11 rótulo do papel; §12 cargo; §13 CNPJ/CPF da contratante; §14 janela de deploy                       | **Mantidas** como §11, §10, §5 e §14                           |
+| Revisão 1                                                                         | Na revisão 2                                                      |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| §1 servidor monta, modelo continua texto; §2 sem biblioteca, blocos TS            | **Substituídas** por §1–§4                                        |
+| §3 logo por `cid:`; §4 marcas por `APP_BASE_URL`                                  | **Mantidas** como §9 e §5 (`marcasRodape`)                        |
+| §5 ponto `signer` e "De"                                                          | **Mantida** como §6 e §8                                          |
+| §6 tabela pelo bloco exato (`itemLinesBlock`)                                     | **Substituída** por `tabelaItens` (§5) e §12                      |
+| §7 prefixo do assunto                                                             | **Mantida** como §7                                               |
+| §8 prévia com HTML do layout, `fullSubject`, `inlineLogo`, balde próprio          | **Adiada pelo dono — spec seguinte**                              |
+| §9 quatro colunas e três CHECKs; §10 reenvio repete o original                    | **Substituídas** por §9 (só `has_inline_logo`); reenvio como hoje |
+| §11 rótulo do papel; §12 cargo; §13 CNPJ/CPF da contratante; §14 janela de deploy | **Mantidas** como §11, §10, §5 e §14                              |

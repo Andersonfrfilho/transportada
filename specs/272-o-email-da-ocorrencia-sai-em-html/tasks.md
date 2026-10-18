@@ -61,8 +61,7 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       modelo seguro utilizável, inseguro 400/409) e `bun --env-file=../../.env.test run test:integration` sem skip.
 - [ ] **T2.3** `sonnet` — Variáveis e leituras (D5, D6, D11), teste antes: `findOccurrenceTarget` com
       `contractorTaxId`; `findCarrierIdentity` (nome de exibição, CNPJ, `hasLogo`); `findOperatorSigner` (nome + cargo +
-      papéis diretos, uma consulta); porta `OccurrenceOwnerReader` nula; `resolveSignerJobTitle`; `COMPANY_ROLE_LABELS`
-      + contrato de paridade com `identity.locale.json`; `occurrence-mail-system-html.policy.ts` (logo/iniciais,
+      papéis diretos, uma consulta); porta `OccurrenceOwnerReader` nula; `resolveSignerJobTitle`; `COMPANY_ROLE_LABELS` + contrato de paridade com `identity.locale.json`; `occurrence-mail-system-html.policy.ts` (logo/iniciais,
       tabela de itens, marcas); `APP_BASE_URL` opcional no schema de env; as oito variáveis novas no catálogo da API
       **e** em `OCCURRENCE_MAIL_VARIABLE_NAMES`/`OCCURRENCE_MAIL_SAMPLE_VALUES` e nos dois locales do painel (o contrato
       `occurrence-type-mail-parity.contract.ts` exige os dois lados no mesmo commit). Aceite: casos D5/D6/D11 do
@@ -161,23 +160,23 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
 Tasks abertas da revisão 1 (nenhuma tinha começado). Mantidas para rastreio; motivo em `evidence.md` § Mudança de
 escopo.
 
-| Revisão 1 | Situação                                                                                                                         |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| T2.1      | **Substituída** pela T2.1 nova (só `has_inline_logo`; `signer_*`, `layout_version` e os três CHECKs saem)                         |
-| T2.2      | **Substituída** (montador e golden files de layout) pela T2.2 nova (renderer) e pelos modelos da T4.2                            |
-| T2.3      | **Mantida** dentro da T2.4 nova (prefixo e "De")                                                                                 |
-| T2.4      | **Mantida** como T2.3 nova (leituras, porta, rótulos), mais as variáveis                                                         |
-| T2.5      | **Substituída** pela T2.4 nova (envio pelo modelo; sem `itemLinesBlock`)                                                         |
-| T2.6      | **Adiada pelo dono em 2026-10-18 — spec seguinte** (reenvio da 248 com layout/assinante do original); o reenvio continua como hoje |
+| Revisão 1 | Situação                                                                                                                            |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| T2.1      | **Substituída** pela T2.1 nova (só `has_inline_logo`; `signer_*`, `layout_version` e os três CHECKs saem)                           |
+| T2.2      | **Substituída** (montador e golden files de layout) pela T2.2 nova (renderer) e pelos modelos da T4.2                               |
+| T2.3      | **Mantida** dentro da T2.4 nova (prefixo e "De")                                                                                    |
+| T2.4      | **Mantida** como T2.3 nova (leituras, porta, rótulos), mais as variáveis                                                            |
+| T2.5      | **Substituída** pela T2.4 nova (envio pelo modelo; sem `itemLinesBlock`)                                                            |
+| T2.6      | **Adiada pelo dono em 2026-10-18 — spec seguinte** (reenvio da 248 com layout/assinante do original); o reenvio continua como hoje  |
 | T2.7      | **Adiada pelo dono em 2026-10-18 — spec seguinte** (`fullSubject`, `inlineLogo`, balde da prévia); sobra o `html`/`bodyText` (T2.4) |
-| T2.8      | **Mantida** dentro da T4.4                                                                                                       |
-| T2.9      | **Mantida** dentro da T2.1 (migration e política do cargo)                                                                       |
-| T2.10     | **Mantida** como T2.5                                                                                                            |
-| T3.1–T3.3 | **Mantidas** juntas na T3.1 (mais o filtro da fila) e na T4.4 (docs)                                                             |
-| T4.1      | **Adiada pelo dono em 2026-10-18 — spec seguinte** (prévia "Como chega")                                                         |
-| T4.2–T4.3 | **Mantidas** na T4.1 nova                                                                                                        |
-| T5.1–T5.3 | **Juntadas** na T5.1                                                                                                             |
-| T5.4      | **Mantida** como T5.2, com o script em staging                                                                                   |
+| T2.8      | **Mantida** dentro da T4.4                                                                                                          |
+| T2.9      | **Mantida** dentro da T2.1 (migration e política do cargo)                                                                          |
+| T2.10     | **Mantida** como T2.5                                                                                                               |
+| T3.1–T3.3 | **Mantidas** juntas na T3.1 (mais o filtro da fila) e na T4.4 (docs)                                                                |
+| T4.1      | **Adiada pelo dono em 2026-10-18 — spec seguinte** (prévia "Como chega")                                                            |
+| T4.2–T4.3 | **Mantidas** na T4.1 nova                                                                                                           |
+| T5.1–T5.3 | **Juntadas** na T5.1                                                                                                                |
+| T5.4      | **Mantida** como T5.2, com o script em staging                                                                                      |
 
 ## Prompt de execução
 
