@@ -25,7 +25,7 @@
 > 🤖 Modelo: `haiku`
 
 - [ ] **T1.1** `haiku` — Teste antes: guardas de resposta aceitam `owner` (objeto ou `null`) na ocorrência, `isPrimary`
-      nas linhas de responsáveis, `contractorMailPrimaryWatcherUserId` no tipo e o evento `owner_changed` na linha do tempo
+      nas linhas de responsáveis, `contractorMailPrimaryWatcherUserId` no tipo e os eventos `owner.assigned`/`owner.transferred`/`owner.cleared` na linha do tempo
       (renderiza como evento genérico). Depois, a tolerância.
 - [ ] **T1.2** `sonnet` — Publicar a Fase 1 (PR → `staging` → `main`) **com aprovação humana**. Registrar commit.
 
@@ -41,8 +41,8 @@
       senão 400), leitura, auditoria.
 - [ ] **T2.5** `sonnet` — Dono no registro: `assign-occurrence-owner.service.ts` em todos os caminhos da T0.1, na
       transação. Integração: critérios 1–5 no banco.
-- [ ] **T2.6** `sonnet` — Assumir/passar: `PUT /occurrences/:id/owner`, evento `owner_changed`, `audit_logs`, sino a quem
-      recebeu. Contratos: 404 outra empresa, 422 inelegível.
+- [ ] **T2.6** `sonnet` — Assumir/passar: `PUT /trip-occurrences/:id/owner`, evento `owner.transferred`, `audit_logs`, sino a quem
+      recebeu. Contratos: 404 outra empresa e inelegível (spec RF4); 409 cancelada.
 - [ ] **T2.7** `sonnet` — Leitura: `owner` na lista e no detalhe (com `isEligible`), filtro `owner=me|none|all`.
 - [ ] **T2.8** `sonnet` — Reabertura avisa o dono (reserva: último que resolveu).
 - [ ] **T2.9** `haiku` — Documentação viva: OpenAPI das rotas novas, `apps/api-transportada/CLAUDE.md` e
@@ -64,7 +64,7 @@
 
 - [ ] **T4.1** `sonnet` — Estrela em `OccurrenceWatcherRow` (empresa e contratante) e em `OccurrenceTypeWatchersSelect`.
 - [ ] **T4.2** `sonnet` — Filtro Minhas / Sem dono / Todas e selo do dono na lista de ocorrências.
-- [ ] **T4.3** `sonnet` — Bloco "Dono" no detalhe com origem, Assumir e Passar para…; evento `owner_changed` com texto.
+- [ ] **T4.3** `sonnet` — Bloco "Dono" no detalhe com origem, Assumir e Passar para…; eventos `owner.*` com texto.
 - [ ] **T4.4** `haiku` — Textos em `.locale.json`; smoke do painel.
 
 ## Fase 5 — Publicação e verificação
