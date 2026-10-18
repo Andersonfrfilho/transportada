@@ -12,7 +12,7 @@
 
 > 🤖 Modelo: `sonnet` (T0.2 é 🧠)
 
-- [ ] **T0.1** `sonnet` — Conferir contra o código: todos os caminhos que registram ocorrência (motorista, painel,
+- [x] **T0.1** `sonnet` — Conferir contra o código: todos os caminhos que registram ocorrência (motorista, painel,
       parada, outros); a tabela/forma dos eventos da linha do tempo da ocorrência; o nome da coluna de estado
       (aberta/resolvida); versão do Postgres (FK `SET NULL (col)`); permissão de `…/occurrence-watchers/candidates`;
       como o sino é emitido hoje (outbox/chave de notificação) para reusar; onde a lista de ocorrências do painel filtra.
