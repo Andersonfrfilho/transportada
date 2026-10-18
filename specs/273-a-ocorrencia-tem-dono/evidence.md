@@ -10,6 +10,14 @@
 - **D-e** Configuração nas telas que já existem (267): aba da empresa e ficha da contratante; perfil = quem tem
   `occurrences.resolve` (hoje Administrador da empresa, Financeiro, Operador).
 
+- **D-f** (2026-10-18, resposta à Q1: "é só o worker verificar as permissões") O worker verifica a elegibilidade
+  completa — vínculo ativo **e** `occurrences.resolve` —, igual à API. "Só vínculo" não é aceitável. O worker não importa
+  código da API; a não divergência fica a cargo do plano (preferência: lógica pura espelhada + contrato de tabela
+  espelhada, como na 247, com permissões resolvidas por SQL sobre as mesmas tabelas).
+- **D-g** (2026-10-18: sem sino no registro, "só um status ali") O dono **não** recebe sino quando a ocorrência é
+  registrada; no painel, a ocorrência dele mostra um status visível na lista e no detalhe ("Atribuída a você"; para os
+  demais, o nome do dono). Emenda pequena ao RF9, sem tabela de lida/não lida.
+
 ## Assunções (reversíveis, marcar se o dono vetar)
 
 - **A1** Lista sem estrela ainda dá dono: o primeiro elegível por nome.
@@ -201,7 +209,7 @@ dizem 404 — vale a spec (`tasks.md` T2.6 corrigida).
 registrada; o aviso de registro continua indo a quem despachou (`occurrence-notifier.gateway.ts:33`). Se o dono quiser
 o sino do registro para o dono, vira emenda.
 
-### [NEEDS CLARIFICATION] Q1 — elegibilidade do dono no worker
+### Q1 — elegibilidade do dono no worker (respondida: D-f)
 
 O RF5/RF6 dizem que dono sem vínculo **ou** sem `occurrences.resolve` é "sem dono", e os avisos caem na reserva. A
 permissão só é resolvida na API (`resolveCompanyPermissions`, em TypeScript, com papéis, grupos e concessões diretas);
@@ -214,5 +222,57 @@ teria teste cruzado (apps não importam código uma da outra).
 - **Alternativas:** (a) copiar a resolução de permissão no worker (deriva em silêncio); (b) a API grava a elegibilidade
   a cada mudança de papel, grupo ou concessão (escrita em todo fluxo de permissão).
 
-Decisão do dono: aceitar a divergência (padrão) ou exigir (a)/(b). Até a resposta, a T0.2 fica **aberta** e a Fase 3
-(T3.1, T3.2) não começa; as Fases 1 e 2 não dependem disto.
+Resposta do dono em 2026-10-18 (D-f): o worker verifica as permissões como a API; o padrão "só vínculo" sai. Desenho
+abaixo, em § T0.2 — D-f, D-g e alinhamento com a 272.
+
+### T0.2 — D-f, D-g e alinhamento com a 272 (2026-10-18)
+
+**D-f — escolha:** política pura espelhada nas duas apps (API delega a `resolveCompanyPermissions`; worker com
+`OCCURRENCE_RESOLVE_ROLES` espelhado), fatos por SQL sobre as mesmas tabelas (empresa, vínculo, perfil, papéis e
+concessões diretos e de grupo) e **tabela de casos em forma de fatos idêntica byte a byte** nas duas apps (E01–E27), com
+quatro travas: teste na raiz (identidade e existência dos dois arquivos, passo no job `quality` do CI), exaustividade da
+API sobre `COMPANY_ROLE_PERMISSIONS` e `isGrantablePermission`, contrato puro nas duas apps e integração nas duas apps
+semeada pela mesma fábrica. Plan § Elegibilidade espelhada; ADR-0109 §7.
+
+Revisão `oh-my-claudecode:architect` (opus) só do trecho: **aprovado com mudanças**. View/função no banco **recusada**
+(terceira cópia da matriz em SQL, presa em migration; deriva invisível sem o mesmo teste espelhado; worker dependente
+das migrations da API). Achados, **todos aceitos**:
+
+- F1 (alto) — a autorização canônica (`drizzle-membership.repository.ts:43,50`, `tenant-context.service.ts:91-106`,
+  `main.ts:2427-2439`) exige `companies.status = 'active'`; o diretório de responsáveis não. Regra e fatos ganham a
+  empresa ativa, o diretório passa a filtrar, caso E23.
+- F2 (alto) — casos em forma de fatos; integração semeia pela mesma fábrica (sem semente à mão por id).
+- F3 (médio) — integração também na API (`findOccurrenceWatcherUsers`), na lista do `package.json`, com `--env-file`.
+- F4 (médio) — subconsultas escalares separadas para papéis e concessões; vazio `'{}'`, nunca `{NULL}`.
+- F5 (médio) — E18 não testava nada: esperado de E14–E16 preso a `isGrantablePermission('occurrences.resolve')`.
+- F6 (baixo) — exaustividade nos dois sentidos; papel fora do catálogo é barrado pelo CHECK
+  (`identity.schema.ts:160-164`, `company-group.schema.ts:71-74`).
+- F7 (baixo) — `membership_groups` não amarra a empresa do grupo à do vínculo; o worker não filtra além da API (o escopo é
+  garantido na escrita). Apertar as duas apps fica fora desta spec.
+- F8 (baixo) — casos E24–E27 e a forma de E21 (`membershipStatus: null`).
+- F9 (baixo) — passo nomeado no `ci.yml` e falha se faltar arquivo. Ler os dois arquivos como texto na raiz é ferramenta
+  do repositório, não importação entre apps.
+
+Recusados: nenhum.
+
+**D-g — leitura:** "só um status ali" é o status derivado (`owner.userId === viewer` e `owner.isEligible`) na lista e no
+detalhe: "Atribuída a você" / nome do dono / "Sem dono". Não li nele um estado "nova até o dono abrir" (exigiria guardar
+leitura por usuário, o que o dono descartou ao pedir "só um status"); nenhuma `[NEEDS CLARIFICATION]`. Spec RF6, RF9 e
+critério 12; plan § Painel; tasks T4.2/T4.3.
+
+**Alinhamento com a 272** (`~/personal/transportada-wt/spec-272`, commits b01a443ad e 5e1ec9c35; a 272 sai antes e manda
+nos nomes):
+
+| Ponto          | 272                                                                                                   | 273                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Assinante      | `OccurrenceMailSigner` `operator`/`owner` (nome, `jobTitle`) ou `team`                                | Sem mudança no tipo                                            |
+| Leitor do dono | Porta `OccurrenceOwnerReader`, nula                                                                   | T2.10 implementa (dono elegível + `jobTitle`)                  |
+| "De"           | `buildSenderDisplayName`: `<nome> — <nome de exibição>` sempre, Resend e sandbox; `from_display_name` | RF7 e critério 10 herdam; o "De" do worker sai do plano da 273 |
+| Cargo          | `user_company_memberships.job_title`                                                                  | Lido pelo leitor do dono                                       |
+| Colunas        | `from_display_name`, `signer_kind`, `signer_user_id`, `layout_version`, `has_inline_logo`             | `signer_name`/`signer_*` próprios saem                         |
+| Cópia          | Não mexe                                                                                              | RF8 em `resolve-mail-copy.service.ts` (T2.10)                  |
+
+Colisões resolvidas a favor da 272: o "De" passa de `<dono> — <sender_name do Resend>` para `<dono> — <nome de exibição>`;
+as colunas de assinante da 273 deixam de existir; a T3.3 (worker) sai — o trabalho vira a T2.10 (API).
+
+Com Q1 respondida e a revisão da D-f incorporada, a T0.2 fecha.

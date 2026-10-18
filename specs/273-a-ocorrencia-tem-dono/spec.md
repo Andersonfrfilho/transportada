@@ -2,18 +2,19 @@
 
 > Pedido do dono em 2026-10-17: "o que você sugere para direcionar já para o atendimento correto? vamos adicionar
 > atendentes de ocorrências" — "e por tipo de ocorrência". Decisões do dono em [`evidence.md`](evidence.md) § Decisões do
-> dono. Spec independente da 272 (e-mail em HTML); a 272 só passa a desenhar o nome do dono que esta grava.
+> dono. A 272 (e-mail em HTML) sai **antes**: entrega a porta `OccurrenceOwnerReader` (nula), a regra única do "De" e o
+> cargo na assinatura; esta spec implementa a porta (plan § Coordenação com a 272).
 
 ## Specs do mesmo assunto (lidas contra o código em `origin/staging` 68613c0f9, 2026-10-17)
 
-| Spec | O que já decidiu e esta spec **usa sem refazer** (ou emenda, marcado) |
-| ---- | --- |
-| 267 | Listas de responsáveis da empresa (`company_occurrence_watchers`) e da contratante (`contractor_occurrence_watchers`), `status` ativo/inativo, até 10 ativos, auditoria em `audit_logs`, elegível = vínculo ativo + `occurrences.resolve` (`occurrence-watcher-directory.query.ts`). Telas: aba "Responsáveis por ocorrências" e seção na ficha da contratante. **Emenda:** 267 deixou o sino para os responsáveis fora do escopo; esta spec avisa **só o dono** no sino. |
-| 271 | Lista "Em cópia" do tipo (`company_occurrence_type_watchers`, FK para a linha da empresa, status lido de lá) e precedência da **cópia** tipo → contratante → empresa (`occurrence-watcher.policy.ts` `selectSource`). **Não muda**: a cópia continua nessa ordem. |
-| 270 | Tipo "Geral" ou "Só estas contratantes". Usa sem refazer: tipo de uma contratante só já é a combinação contratante × tipo. |
-| 248 | Alarme de resposta atrasada (`occurrence.contractor-reply.alert`) vai a quem despachou a viagem. **Emenda:** vai ao dono; sem dono, a quem despachou, como hoje. |
-| 266 | Reabrir avisa quem resolveu por último (`occurrence-resolution-notifier.gateway.ts`). **Emenda:** avisa o dono; sem dono, como hoje. |
-| 183 | Conversa da contratante separada da do motorista. O dono é da **ocorrência** e aparece só no painel; nada muda no app do motorista. |
+| Spec | O que já decidiu e esta spec **usa sem refazer** (ou emenda, marcado)                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 267  | Listas de responsáveis da empresa (`company_occurrence_watchers`) e da contratante (`contractor_occurrence_watchers`), `status` ativo/inativo, até 10 ativos, auditoria em `audit_logs`, elegível = vínculo ativo + `occurrences.resolve` (`occurrence-watcher-directory.query.ts`). Telas: aba "Responsáveis por ocorrências" e seção na ficha da contratante. **Emenda:** 267 deixou o sino para os responsáveis fora do escopo; esta spec avisa **só o dono** no sino. |
+| 271  | Lista "Em cópia" do tipo (`company_occurrence_type_watchers`, FK para a linha da empresa, status lido de lá) e precedência da **cópia** tipo → contratante → empresa (`occurrence-watcher.policy.ts` `selectSource`). **Não muda**: a cópia continua nessa ordem.                                                                                                                                                                                                         |
+| 270  | Tipo "Geral" ou "Só estas contratantes". Usa sem refazer: tipo de uma contratante só já é a combinação contratante × tipo.                                                                                                                                                                                                                                                                                                                                                |
+| 248  | Alarme de resposta atrasada (`occurrence.contractor-reply.alert`) vai a quem despachou a viagem. **Emenda:** vai ao dono; sem dono, a quem despachou, como hoje.                                                                                                                                                                                                                                                                                                          |
+| 266  | Reabrir avisa quem resolveu por último (`occurrence-resolution-notifier.gateway.ts`). **Emenda:** avisa o dono; sem dono, como hoje.                                                                                                                                                                                                                                                                                                                                      |
+| 183  | Conversa da contratante separada da do motorista. O dono é da **ocorrência** e aparece só no painel; nada muda no app do motorista.                                                                                                                                                                                                                                                                                                                                       |
 
 ## Problema e resultado
 
@@ -42,20 +43,25 @@ a resposta da contratante, o alarme de atraso e a reabertura; o e-mail automáti
   elegível da empresa. Gera evento na linha do tempo da ocorrência ("Ana assumiu", "Ana passou para Bruno") e
   `audit_logs`. Passar para alguém inelegível ou de outra empresa: 404. A ocorrência resolvida também pode trocar de dono.
 - **RF5 — Dono que perde o perfil.** Se o dono perde o vínculo ou `occurrences.resolve`, a ocorrência aparece como
-  "sem dono" na leitura (o dono gravado fica para histórico) e os avisos seguem a regra de "sem dono" do RF6.
+  "sem dono" na leitura (o dono gravado fica para histórico) e os avisos seguem a regra de "sem dono" do RF6. A mesma
+  regra vale na API e no worker (D-f).
 - **RF6 — Avisos.**
   - Resposta da contratante (e-mail recebido na conversa da contratante): sino para o dono. Sem dono: nada novo (como hoje).
   - Alarme de resposta atrasada (248): dono; sem dono, quem despachou (como hoje).
   - Reabertura (266): dono; sem dono, quem resolveu por último (como hoje).
   - Assumir/passar: sino para quem recebeu, se não foi ele mesmo que fez.
-- **RF7 — E-mail em nome do dono.** O envio **automático** usa o dono como quem assina: "De" vira
-  `<nome do dono> — <nome do remetente da empresa>` (endereço continua o da empresa) e a assinatura leva o nome do dono.
-  Sem dono: como hoje. O envio manual continua com o operador.
+  - Registro da ocorrência: **sem sino** ao dono (D-g); o aviso é o status no painel (RF9).
+- **RF7 — E-mail em nome do dono.** O envio **automático** usa o dono elegível como quem assina (`signer` `owner` da
+  272): "De" vira `<nome do dono> — <nome de exibição da transportadora>` (regra única da 272, nos dois transportes;
+  endereço continua o da empresa) e a assinatura leva o nome e o cargo do dono. Sem dono: assina a equipe (`team`, da
+  272). O envio manual continua com o operador.
 - **RF8 — Dono em cópia.** O dono elegível com e-mail sempre entra na cópia do e-mail da ocorrência, mesmo que a lista
   da cópia (tipo → contratante → empresa) não o tenha. Conta no limite de 50.
 - **RF9 — Painel.** Na lista de ocorrências: filtro "Minhas", "Sem dono", "Todas" (padrão "Todas") e coluna/selo do dono.
   No detalhe: o dono, a origem ("pela contratante", "pelo tipo", "pela empresa", "atribuído por Ana") e os botões
-  "Assumir" / "Passar para…".
+  "Assumir" / "Passar para…". **Emenda D-g:** na lista e no detalhe, a ocorrência cujo dono elegível é quem está vendo
+  mostra o selo "Atribuída a você"; para os demais, o nome do dono; sem dono, "Sem dono". Status derivado, sem
+  "lida/não lida".
 
 ## Requisitos não funcionais
 
@@ -86,5 +92,9 @@ a resposta da contratante, o alarme de atraso e a reabertura; o e-mail automáti
    sino para Ana. Passar para usuário de outra empresa: 404.
 8. Contratante responde por e-mail: sino só para o dono.
 9. Alarme de atraso e reabertura vão ao dono; sem dono, ao comportamento de hoje.
-10. Envio automático com dono Ana: "De: Ana Souza — Tapete Mágico Transportes", assinatura "Ana Souza", Ana em cópia.
+10. Envio automático com dono Ana (nome de exibição da transportadora "Tapete Mágico Transportes", cargo "Atendimento"):
+    "De: Ana Souza — Tapete Mágico Transportes", assinatura "Ana Souza" com "Atendimento", Ana em cópia.
 11. Filtro "Minhas" mostra só as do usuário; "Sem dono" mostra as sem dono e as de dono inelegível.
+12. Ocorrência registrada com dono Ana: nenhum sino; na lista, Ana vê "Atribuída a você" e Bruno vê "Ana Souza".
+13. Dono que perdeu só `occurrences.resolve` (vínculo ativo): resposta da contratante não gera sino a ele; o alarme vai a
+    quem despachou (worker aplica a mesma regra da API).

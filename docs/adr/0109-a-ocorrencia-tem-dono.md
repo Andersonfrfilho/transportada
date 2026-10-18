@@ -1,7 +1,7 @@
 # ADR 0109 — A ocorrência tem dono
 
 - **Status:** aceita com mudanças (2026-10-18) — T0.2 da spec 273, revisada por `architect` (plan § Revisão de
-  arquitetura). §7 tem uma divergência do RF5 no worker pendente do dono (`[NEEDS CLARIFICATION]` Q1 no evidence). Decisões do dono em
+  arquitetura e § Revisão de arquitetura da D-f). Decisões do dono (D-a a D-g) em
   [`specs/273-a-ocorrencia-tem-dono/evidence.md`](../../specs/273-a-ocorrencia-tem-dono/evidence.md) § Decisões do dono.
 - **Data:** 2026-10-18
 - **Nasce da spec 273:** cada lista de responsáveis marca um principal; a ocorrência ganha um dono no registro; o dono
@@ -61,19 +61,24 @@
    fora da empresa ou inelegível → 404 (não revela quem existe). Vale também para ocorrência resolvida. Trava a linha da
    ocorrência, grava o evento e `audit_logs`, e avisa quem recebeu quando não foi ele mesmo.
 7. **Avisos pessoais com reserva.** Resposta da contratante → sino ao dono elegível (sem dono, nada novo); alarme de
-   atraso → dono elegível ?? quem despachou; reabertura → dono elegível ?? quem resolveu por último. Na API, elegível é
-   vínculo ativo + `occurrences.resolve`; no worker (resposta e alarme), que não resolve permissão, elegível é vínculo
-   ativo — quem perdeu só a permissão aparece "sem dono" no painel e ainda recebe os dois sinos (divergência do RF5,
-   pendente do dono).
-8. **Assinante no e-mail.** A mensagem gravada ganha o assinante (`signer_user_id`, `signer_name`, `signer_kind`
-   `owner` | `operator`). No envio automático, o assinante é o dono elegível: a assinatura do corpo leva o nome dele e o
-   worker monta o "De" como `"<nome do dono> — <nome do remetente>" <endereço da empresa>` em quoted-string RFC 5322,
-   sem caracteres de controle nem bidi, truncado. No envio manual o assinante é o operador, como hoje, e o "De" não
-   muda. É esse assinante que a spec 272 desenha no e-mail em HTML: `name` é o texto cru do perfil (sem controle, ≤ 120,
-   instantâneo do envio); escapar HTML e citar no cabeçalho é de quem consome; só `kind = 'owner'` altera o "De".
+   atraso → dono elegível ?? quem despachou; reabertura → dono elegível ?? quem resolveu por último. O registro **não**
+   gera sino ao dono (D-g): o painel mostra o status "Atribuída a você" ao dono e o nome do dono aos demais, derivado,
+   sem estado de lida.
+   **Elegível é a mesma regra na API e no worker (D-f):** empresa ativa, vínculo ativo, perfil e `occurrences.resolve`
+   no conjunto efetivo (papéis e concessões, diretos e de grupo). Como nenhuma app importa código da outra, a regra é
+   **pura e espelhada** nas duas apps, com os fatos lidos por SQL sobre as mesmas tabelas, e presa por uma **tabela de
+   casos em forma de fatos idêntica byte a byte** nas duas (E01–E27): um teste na raiz falha se as cópias divergirem ou
+   sumirem, a API confere a tabela contra toda a matriz `COMPANY_ROLE_PERMISSIONS`, e a integração das duas apps semeia o
+   banco a partir dos mesmos casos. Motivo: a matriz de papéis continua com uma fonte só (TypeScript), e qualquer mudança
+   nela fica vermelha no próprio PR que a faz.
+8. **Assinante no e-mail: a 272 manda.** A 272 (ADR-0110, sai antes) define `OccurrenceMailSigner`
+   (`operator` | `owner` com nome e cargo, ou `team`), a regra única do "De" (`buildSenderDisplayName`:
+   `<nome> — <nome de exibição da transportadora>`, nos dois transportes, gravado em `from_display_name`) e a porta
+   `OccurrenceOwnerReader`, nula até aqui. Esta ADR só implementa a porta: o dono **elegível** da ocorrência com nome e
+   `job_title`. Sem dono, assina a equipe (`team`). Nenhuma coluna de assinante própria.
 9. **O dono vai em cópia.** Dono elegível com endereço entra na cópia, fora das listas e antes do corte de 50; não pode
    ser excluído pelo operador.
-10. **Publicação:** painel tolerante (pode não ter deploy se os parsers atuais já tolerarem o payload) → API
+10. **Publicação:** 272 → painel tolerante (pode não ter deploy se os parsers atuais já tolerarem o payload) → API
     (migration) → worker → telas.
 
 ## Alternativas rejeitadas
@@ -88,6 +93,11 @@
 - **Sem FK para o dono:** perderia a garantia de que o dono é da mesma empresa (BOLA no banco).
 - **Dono como mais um `kind` de `trip_occurrence_resolution_events`:** corromperia a leitura de aberta/resolvida.
 - **Rodízio ou menor carga:** fora do escopo da spec.
+- **Worker só com vínculo ativo:** recusado pelo dono (D-f) — o worker verifica a permissão como a API.
+- **View ou função no banco, criada por migration da API, para as duas apps:** seria uma terceira cópia da matriz de
+  papéis (em SQL, numa migration congelada), toda troca de papel exigiria migration nova, a deriva em relação ao
+  TypeScript só apareceria com o mesmo teste espelhado, e o worker passaria a depender do tempo das migrations da API.
+- **Sino ao dono no registro, ou estado "nova até o dono abrir":** o dono quis só o status (D-g).
 
 ## Consequências
 
@@ -95,8 +105,8 @@
   sempre, não só em tipo de contratantes.
 - Os filtros "Minhas" e "Sem dono" dependem do conjunto de elegíveis da empresa, resolvido em TypeScript a cada leitura
   (a permissão não é SQL).
-- O worker confere só o vínculo ativo do dono (§7); uma cópia da resolução de permissão no worker não teria teste
-  cruzado (apps não importam código uma da outra) e derivaria em silêncio.
-- O nome do dono passa a sair no cabeçalho do e-mail para a contratante, citado e saneado; nunca vai a log. O "De" de hoje
-  já era montado sem aspas e passa a ser citado também sem dono.
+- Duas implementações da elegibilidade (API e worker) e duas consultas de fatos para manter; as quatro travas da §7
+  tornam a divergência um teste vermelho, não um aviso no lugar errado. A API passa a exigir empresa ativa também no
+  diretório de responsáveis.
+- O nome do dono passa a sair no "De" do e-mail para a contratante pelo formatador saneado da 272; nunca vai a log.
 - Ocorrência de recebimento de carga ganha dono, mas não aparece no feed do painel (como hoje).

@@ -29,11 +29,10 @@ Fatos que moldam o plano: [`evidence.md`](evidence.md) § Execução → T0.1 (a
   `kind` (`assigned` | `transferred` | `cleared`), `source` (o `owner_source` resultante; nulo em `cleared`),
   `from_user_id`, `to_user_id` (sem FK: histórico sobrevive à remoção do vínculo), `actor_user_id` (nulo = sistema),
   `created_at clock_timestamp()`. Índices `(company_id, document_occurrence_id, seq)` e `(company_id, stop_occurrence_id, seq)`.
-- `contractor_mail_messages`: `signer_user_id uuid null`, `signer_name varchar(120) null`, `signer_kind varchar(16) null`
-  CHECK (`owner`,`operator`), os três juntos.
+- `contractor_mail_messages`: **nada novo nesta spec.** As colunas do assinante e do "De" (`from_display_name`,
+  `signer_kind` com `owner`, `signer_user_id`) e `user_company_memberships.job_title` são da 272 (D9, D10), que sai antes.
 - Cópias no worker: **não tocar** `trip-execution.schema.ts` (cópia mínima da purga, lista exata de colunas presa em
-  `test/trip-location-purge/schema-parity.contract.ts:160-183`); o worker lê o dono por SQL cru. Só a cópia de
-  `contractor_mail_messages` do worker ganha `signer_*`, na mesma task da migration.
+  `test/trip-location-purge/schema-parity.contract.ts:160-183`); o worker lê o dono por SQL cru.
 - Sem backfill. Rollback com guarda (molde `20261015151849_trip_occurrence_resolution_events/rollback.sql`).
 
 ## Domínio
@@ -108,64 +107,154 @@ occurrence_type_id and is_primary and user_id is distinct from $new`; (2) delete
   para, origem, ator) na união e no `KIND_PRIORITY` (`trips/domain/occurrence-timeline.policy.ts:26-84`), com
   `owner.assigned` logo depois de `occurrence.recorded` — um `kind` por verbo, como `resolution.resolved`/`.reopened`.
 - Reabertura: `occurrence-resolution-notifier.gateway.ts:180-214` → dono elegível ?? último que resolveu.
-- E-mail (API): no envio automático, `send-occurrence-mail.use-case.ts:315-320` usa o nome do dono elegível no lugar de
-  `operatorName` e grava `signer_kind = 'owner'`; no manual, `signer_kind = 'operator'` com o operador. `resolveMailCopy`
+- E-mail (API): a 273 **implementa a porta `OccurrenceOwnerReader`** que a 272 entrega nula
+  (`occurrence-conversation/application/occurrence-owner-reader.port.ts`): devolve o dono **elegível** da ocorrência
+  `{ userId, name, jobTitle }` (nome do perfil e `job_title` da membership ativa, senão o rótulo do papel — mesma leitura
+  do `findOperatorSigner` da 272), ou `undefined`. O montador, o `buildSenderDisplayName` e a gravação de
+  `from_display_name`/`signer_kind`/`signer_user_id` são da 272 e não mudam. `resolveMailCopy`
   (`resolve-mail-copy.service.ts:28-74`) recebe `ownerWatcher` e o põe primeiro na cópia (dedup com `To`), não
   excluível; o corte do automático corta só da cópia comum; o manual que chega a 50 por causa do dono (que não se
   remove) → 400 `CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS`, como hoje.
 
 ## Worker
 
-- Dono elegível no worker = vínculo `active` na empresa (`left join user_company_memberships m on m.company_id =
-o.company_id and m.user_id = o.owner_user_id and m.status = 'active'`), sem `occurrences.resolve`: o worker não resolve
-  permissão e uma cópia da política não teria teste cruzado possível. Diverge do RF5 no caso "perdeu só a permissão" —
-  `[NEEDS CLARIFICATION]` Q1 no `evidence.md`.
+- Dono elegível no worker = a **mesma** regra da API (D-f): vínculo `active` na empresa **e** `occurrences.resolve`,
+  pela elegibilidade espelhada (§ Elegibilidade espelhada). O alarme e o inbound leem os fatos do dono numa consulta e
+  decidem pela política do worker; inelegível = sem dono (reserva do RF6).
 - Inbound: `drizzle-occurrence-conversation-mail.repository.ts:98-183` devolve `ownerNotice` (dono elegível, ≠ remetente
   interno) independente da entrega ao motorista; `record-contractor-mail-inbound-message.use-case.ts` avisa pós-commit,
   melhor esforço como `notifyDriver` (:254-263). Chave nova `TRIP_OCCURRENCE_CONTRACTOR_REPLY_RECEIVED`
   (`trip.occurrence-contractor-reply-received`) no catálogo da API e na cópia do worker.
 - Alarme de atraso: `findRecipient` (`drizzle-occurrence-contractor-reply-alert-store.repository.ts:87-114`) → dono
   elegível ?? quem despachou (`coalesce(m.user_id, dispatch.actor_user_id)`).
-- "De": `send-contractor-mail-outbound-message.use-case.ts:163` monta hoje sem aspas (vírgula no nome quebraria em dois
-  endereços; `senderName` só tem `trim().max(200)`, `contractor-mail-settings.schema.ts:44`). Passa a ser: nome de
-  exibição = `${signer_name} — ${senderName}` quando `signer_kind = 'owner'`, senão `senderName`; remove C0/C1, CR/LF,
-  U+2028/2029 e controles bidi (U+202A–202E, U+2066–2069); trunca em 160; vira **quoted-string** RFC 5322 (escapa `\` e
-  `"`): `"…" <addr>`. O sandbox (nodemailer) recebe `{ name, address }` para codificar RFC 2047 (travessão e acentos).
-  Teste de contrato com vírgula, aspas, CRLF e acento.
+- "De": **nada no worker nesta spec.** A 272 grava `from_display_name` e o worker o usa nos dois transportes, com o
+  formatador saneado dela (D5 da 272); o dono chega ao "De" só por a porta devolver alguém.
+
+## Elegibilidade espelhada (D-f)
+
+Uma regra, duas implementações, nenhuma importação entre apps (molde do contrato de tabela espelhada da 247, com trava
+de identidade que a 247 não tem). Espelha a **autorização canônica** (`drizzle-membership.repository.ts:33-129` +
+`resolveCompanyPermissions`, o mesmo caminho do `canUserResolveOccurrences` da 266, `main.ts:2427-2439`), não o diretório
+de responsáveis, que hoje não confere o status da empresa.
+
+- **Regra pura** `canResolveOccurrences({ companyStatus, membershipStatus, hasProfile, roles, grantedPermissions })`:
+  empresa `active` **e** vínculo `active` **e** perfil existente (o diretório descarta quem não tem perfil,
+  `occurrence-watcher-directory.query.ts:123`) **e** `occurrences.resolve` no conjunto efetivo = união de papéis (diretos
+  e de grupo) e concessões (diretas e de grupo), com `companies.manage` e nomes fora do catálogo nunca contando e
+  permissão de serviço só por papel (`authorization.policy.ts:346-401`). Não há negação: revogar é apagar a linha.
+  - API: `contractor-mail/domain/occurrence-owner-eligibility.policy.ts`, delega a
+    `resolveCompanyPermissions({ roles, granted }).has('occurrences.resolve')` (`identity/domain/authorization.policy.ts:359`).
+    `findOccurrenceWatcherUsers` passa a usá-la e a filtrar `companies.status = 'active'` (o filtro de
+    `drizzle-membership.repository.ts:50`).
+  - Worker: `occurrence-owner/domain/occurrence-owner-eligibility.policy.ts` com as constantes espelhadas
+    `OCCURRENCE_RESOLVE_ROLES = ['company-admin', 'finance', 'operator']` (hoje `authorization.policy.ts:133-262`) e
+    `OCCURRENCE_RESOLVE_PERMISSION = 'occurrences.resolve'`. Papel fora do catálogo não chega a nenhuma app (CHECK em
+    `membership_roles.role`, `identity.schema.ts:160-164`, e em `company_group_roles`, `company-group.schema.ts:71-74`).
+- **Fatos por SQL sobre as mesmas tabelas** nas duas apps: `companies.status`; vínculo `(company_id, user_id)` e
+  `status`; perfil (`identity_user_profiles`); papéis = `membership_roles` ∪ `company_group_roles` via
+  `membership_groups`; concessões = `membership_permissions` ∪ `company_group_permissions` via `membership_groups`. Na
+  API, a consulta do diretório (`occurrence-watcher-directory.query.ts:70-107`, + empresa ativa); no worker,
+  `occurrence-owner/infrastructure/occurrence-owner-facts.query.ts`, SQL cru como o `findRecipient` do alarme (o worker
+  já mapeia `companies`, `identity_user_profiles` e `user_company_memberships` em
+  `apps/worker-transportada/src/database/identity.schema.ts`; não ganha cópia de schema de papéis e grupos). Papéis e
+  concessões em **subconsultas escalares separadas** (`array(select … union select …)`), nunca join de papéis ×
+  concessões (multiplica linhas; a API evita de propósito em `drizzle-membership.repository.ts:90-95`); vazio = `'{}'`,
+  nunca `{NULL}`. Filtrada por `company_id` e pelos ids dos donos. O worker **não** acrescenta filtro
+  `company_groups.company_id` que a API não tem (o escopo do grupo é garantido na escrita,
+  `drizzle-company-group.repository.ts:84,134`); apertar as duas fica para outra mudança.
+- **Casos em forma de fatos, não de prosa:** `test/fixtures/occurrence-owner-eligibility.cases.ts`, **idêntico byte a
+  byte** em `apps/api-transportada` e `apps/worker-transportada`:
+  `{ id, companyStatus, membershipStatus: 'active' | 'disabled' | null, hasProfile, roles, groupRoles, directGrants,
+groupGrants, otherCompanyMembership?, expected }`. O teste puro achata os fatos na entrada da política; os de
+  integração **semeiam as linhas a partir do mesmo objeto**, por uma fábrica por app — semente escrita à mão por id é
+  proibida.
+- **Quatro travas contra divergência:**
+  1. **Raiz:** `test/occurrence-owner-eligibility-mirror.contract.test.ts` falha se os dois arquivos de casos diferirem
+     **ou se algum não existir**; `ci.yml` ganha `- run: bun test test/occurrence-owner-eligibility-mirror.contract.test.ts`
+     ao lado da linha 95, no job `quality`, que sempre roda (a matriz de apps só roda o que foi tocado). Ler dois arquivos
+     como texto na raiz é ferramenta do repositório, não importação entre apps.
+  2. **Exaustividade na API:** para todo papel de `COMPANY_ROLE_PERMISSIONS` existe o caso "só este papel", com esperado
+     `COMPANY_ROLE_PERMISSIONS[papel].includes('occurrences.resolve')`; todo papel citado num caso é chave da matriz; o
+     esperado de E14/E15/E16 é `isGrantablePermission('occurrences.resolve')` (`authorization.policy.ts:399`).
+  3. **Pura nas duas apps:** `test/occurrence-owner/occurrence-owner-eligibility.contract.ts` roda todos os casos.
+  4. **Integração nas duas apps** (banco real, todos os casos semeados pela fábrica):
+     `apps/api-transportada/test/integration/occurrence-owner-eligibility.integration.ts` (exercita
+     `findOccurrenceWatcherUsers`; roda com `--env-file`, senão pula) e
+     `apps/worker-transportada/test/integration/occurrence-owner-facts.integration.ts`; os dois entram na lista explícita
+     de `test:integration` do `package.json` da app.
+
+  Cadeia: matriz muda → API vermelha (2) → tabela muda → raiz vermelha até a cópia do worker (1) → worker vermelho até
+  `OCCURRENCE_RESOLVE_ROLES` mudar (3).
+
+- **Casos** (id · fatos · elegível); salvo indicação, empresa `active`, vínculo `active`, com perfil:
+
+  | Id  | Fatos                                                                            | Elegível |
+  | --- | -------------------------------------------------------------------------------- | -------- |
+  | E01 | papel `company-admin`                                                            | sim      |
+  | E02 | papel `finance`                                                                  | sim      |
+  | E03 | papel `operator`                                                                 | sim      |
+  | E04 | papel `fiscal`                                                                   | não      |
+  | E05 | papel `viewer`                                                                   | não      |
+  | E06 | papel `driver`                                                                   | não      |
+  | E07 | papel `aggregate`                                                                | não      |
+  | E08 | papel `separator`                                                                | não      |
+  | E09 | papel `helper`                                                                   | não      |
+  | E10 | papel `contractor`                                                               | não      |
+  | E11 | papel `automation`                                                               | não      |
+  | E12 | sem papel nem concessão                                                          | não      |
+  | E13 | grupo que dá o papel `operator`                                                  | sim      |
+  | E14 | grupo que concede `occurrences.resolve`                                          | sim      |
+  | E15 | concessão direta `occurrences.resolve`                                           | sim      |
+  | E16 | papel `viewer` + concessão direta `occurrences.resolve`                          | sim      |
+  | E17 | concessão direta `trip.read`                                                     | não      |
+  | E18 | concessão de permissão de serviço (`occurrence.automatic-mail`) — não interfere  | não      |
+  | E19 | papel `company-admin`, vínculo `disabled`                                        | não      |
+  | E20 | vínculo apagado (sem linha; `membershipStatus: null`)                            | não      |
+  | E21 | `operator` ativo na empresa B, sem linha na empresa A (`membershipStatus: null`) | não      |
+  | E22 | papel `operator`, sem perfil                                                     | não      |
+  | E23 | papel `operator`, empresa `disabled`                                             | não      |
+  | E24 | grupo que concede `occurrences.resolve`, vínculo `disabled`                      | não      |
+  | E25 | concessão direta `occurrences.decide`                                            | não      |
+  | E26 | concessão ou grupo com `companies.manage` ou nome fora do catálogo               | não      |
+  | E27 | `operator` por papel e por grupo, mais concessão direta duplicada                | sim      |
 
 ## Painel
 
 - Estrela (`button` com `aria-pressed`, rótulo "Principal") em `OccurrenceWatcherRow` (empresa e contratante) e em
   `OccurrenceTypeWatchersSelect`. Texto de ajuda: "O principal vira dono das ocorrências desta lista."
-- Lista de ocorrências: filtro segmentado Minhas / Sem dono / Todas, selo com o nome do dono.
-- Detalhe: bloco "Dono" com origem, "Assumir", "Passar para…" (select de `/trip-occurrences/owner-candidates`).
+- Lista de ocorrências: filtro segmentado Minhas / Sem dono / Todas e status do dono em cada linha (D-g, emenda ao
+  RF9): para o dono elegível, selo **"Atribuída a você"**; para os demais, o nome do dono; dono ausente ou inelegível,
+  "Sem dono". Derivado de `owner.userId === viewer` e `owner.isEligible` — sem estado "lida/não lida" e sem coluna nova.
+- Detalhe: bloco "Dono" com o mesmo status ("Atribuída a você" / nome / "Sem dono"), origem, "Assumir", "Passar para…"
+  (select de `/trip-occurrences/owner-candidates`).
+- Registro de ocorrência **não** gera sino ao dono (D-g); o status no painel é o aviso.
 - Eventos `owner.assigned` / `owner.transferred` / `owner.cleared` na linha do tempo (`tripOccurrenceTimeline.service.ts` / `.validation.ts`).
 
 ## Coordenação com a 272 (ponto `signer`)
 
-A 272 (e-mail em HTML) desenha o nome de quem assina. Contrato que ela consome, fixado por esta spec:
+A 272 (`~/personal/transportada-wt/spec-272`, plan D5, D9, D10 e § Coordenação com a 273) sai **antes** e manda nos
+nomes; a 273 se adapta.
 
-```ts
-type OccurrenceMailSigner = {
-  readonly userId: string
-  readonly name: string // já saneado
-  readonly kind: 'owner' | 'operator'
-} | null // null = assina só a transportadora
-```
+| Ponto          | A 272 entrega                                                                                                                                                                                 | A 273 faz                                                                                                       |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Assinante      | `OccurrenceMailSigner` = `{ kind: 'operator' \| 'owner', userId, name, jobTitle }` ou `{ kind: 'team' }`                                                                                      | Nada no tipo                                                                                                    |
+| Leitor do dono | Porta `OccurrenceOwnerReader` com implementação nula                                                                                                                                          | Implementa: dono **elegível** (mesma regra da § Elegibilidade espelhada, lado API) `{ userId, name, jobTitle }` |
+| "De"           | `buildSenderDisplayName({ companyDisplayName, signer })`: `<nome> — <nome de exibição da transportadora>` sempre, Resend e sandbox; `from_display_name` gravado; formatador saneado no worker | Nada. O RF7 herda a regra: "De" = `<nome do dono> — <nome de exibição>` (não mais o `sender_name` do Resend)    |
+| Cargo          | `user_company_memberships.job_title` (D10)                                                                                                                                                    | O leitor devolve `jobTitle` na mesma leitura                                                                    |
+| Colunas        | `from_display_name`, `signer_kind` (`operator`,`owner`,`team`), `signer_user_id`, `layout_version`, `has_inline_logo`                                                                         | Nenhuma coluna de assinante própria (o `signer_name`/`signer_*` do rascunho anterior sai)                       |
+| Cópia (RF8)    | Não mexe                                                                                                                                                                                      | `resolve-mail-copy.service.ts`                                                                                  |
 
-`name` = texto cru do perfil, sem caracteres de controle, ≤ 120, **instantâneo** do envio; escapar HTML (272) e citar no
-cabeçalho (worker) é de quem consome. Só `kind = 'owner'` altera o "De". Gravado em `contractor_mail_messages.signer_*`
-e produzido por um só ponto na API (`resolveOccurrenceMailSigner`, ao lado
-de `send-occurrence-mail.use-case.ts`). A 272 lê dali; não recalcula o dono.
+Se a 273 ficar pronta antes da 272 chegar a `staging`, rebaseia sobre a 272.
 
 ## Publicação
 
+0. **A 272 antes** (porta, `from_display_name`, `job_title`).
 1. Painel tolerante: o painel já descarta `kind` desconhecido da linha do tempo
    (`tripOccurrenceTimeline.validation.ts:89-93`) e os guardas manuais ignoram chave extra. A T1.1 escreve o teste de
    contrato dos parsers atuais com o payload novo (`owner`, `isPrimary`, `contractorMailPrimaryWatcherUserId`,
    `owner.*`); se verde sem mudar código, a etapa 1 não tem deploy (T1.2 vira registro); se vermelho, tolerância →
    staging → main com aprovação.
-2. API + migration A (com as cópias de schema do worker) → staging.
+2. API + migration A → staging.
 3. Worker → staging.
 4. Painel com telas → staging.
    Produção só com aprovação humana, na mesma ordem.
@@ -174,11 +263,11 @@ de `send-occurrence-mail.use-case.ts`). A 272 lê dali; não recalcula o dono.
 
 - Registro mais lento: listas + elegíveis na transação; medir no teste de integração (lote do escritório carrega uma vez).
 - Dono que não está em cópia recebendo resposta: coberto pelo RF8.
-- Nome do dono no cabeçalho do e-mail: saneado no worker; nunca em log.
+- Nome do dono no cabeçalho do e-mail: saneado pelo formatador da 272; nunca em log.
 
 ## Revisão de arquitetura (T0.2) — veredito: aprovado com mudanças
 
-`architect` (opus), 2026-10-18. Achados aceitos já estão incorporados acima; recusados e a pergunta aberta no
+`architect` (opus), 2026-10-18. Achados aceitos já estão incorporados acima; recusados e a Q1 (respondida pela D-f) no
 `evidence.md` § T0.2.
 
 1. FK `RESTRICT` + limpeza explícita mantida; a justificativa ganha o bloqueio que `audit_logs` já impõe (só o dono
@@ -187,8 +276,26 @@ de `send-occurrence-mail.use-case.ts`). A 272 lê dali; não recalcula o dono.
    dono; troca converte violação da FK em 404.
 3. Índice parcial não adiável: ordem desmarcar → apagar → inserir → marcar no tipo; principal lido `for share`;
    invariante "estrela só vale se ativo e elegível".
-4. Filtros: `me` inelegível vazio, `all` resolve só a página, `none` com `= any`. Worker: elegível = vínculo ativo (Q1).
-5. "De" em quoted-string saneado; sandbox com `{ name, address }`; contrato do `signer` para a 272 detalhado.
+4. Filtros: `me` inelegível vazio, `all` resolve só a página, `none` com `= any`. Worker: elegível = vínculo ativo —
+   **substituído pela D-f** (§ Elegibilidade espelhada, revisão própria abaixo).
+5. "De" em quoted-string saneado; sandbox com `{ name, address }` — **passou à 272** (D5 dela), que sai antes.
 6. Não tocar `trip-execution.schema.ts` do worker; recebimento ganha dono mas não é lido nem trocado; eventos `owner.*`
    por verbo; etapa 1 da publicação pode não ter deploy; RF8 com 400 explícito; uma função grava colunas e evento;
    índice parcial `where owner_user_id is not null`; lote com `inArray`.
+
+## Revisão de arquitetura da D-f (T0.2) — veredito: aprovado com mudanças
+
+`architect` (opus), 2026-10-18, só o trecho da elegibilidade. Escolha: **política pura espelhada + fatos por SQL nas
+duas apps + tabela de casos espelhada**; a view/função no banco foi recusada (terceira cópia da matriz em SQL, presa em
+migration congelada, troca de papel exigindo migration nova, deriva invisível sem o mesmo teste espelhado, e o worker
+dependendo do tempo das migrations da API). Todos os achados aceitos e incorporados acima:
+
+1. **F1** empresa `active` na regra e nos fatos (a autorização canônica confere; o diretório não) + E23.
+2. **F2** casos em forma de fatos; integração semeia pela mesma fábrica.
+3. **F3** integração nas duas apps (a consulta da API também muda e precisava de trava).
+4. **F4** subconsultas separadas e `'{}'` para vazio.
+5. **F5** esperado de E14–E16 preso a `isGrantablePermission`; E18 rotulado "não interfere".
+6. **F6** exaustividade nos dois sentidos; papel fora do catálogo garantido pelo CHECK, não por caso.
+7. **F7** worker não filtra empresa do grupo além do que a API faz.
+8. **F8** E24–E27; forma de E21.
+9. **F9** passo no `ci.yml` (job `quality`) e falha se faltar arquivo.

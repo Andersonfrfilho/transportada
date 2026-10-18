@@ -17,7 +17,7 @@
       (aberta/resolvida); versão do Postgres (FK `SET NULL (col)`); permissão de `…/occurrence-watchers/candidates`;
       como o sino é emitido hoje (outbox/chave de notificação) para reusar; onde a lista de ocorrências do painel filtra.
       Medir em staging (só contagem): ocorrências abertas, linhas nas três listas. Divergência vira nota no `evidence.md`.
-- [ ] **T0.2** 🧠 `opus` — Escrever a ADR-0109 e validar com `architect` o `plan.md` (dados, precedência, RF8, FK,
+- [x] **T0.2** 🧠 `opus` — Escrever a ADR-0109 e validar com `architect` o `plan.md` (dados, precedência, RF8, FK,
       avisos com reserva). Ajuste aprovado entra no `plan.md`. **Outras tasks herdam este contrato.**
 
 ## Fase 1 — Painel tolerante (vai a produção antes da API)
@@ -35,6 +35,12 @@
 
 - [ ] **T2.1** `sonnet` — Migration A + schema Drizzle + `rollback.sql`.
 - [ ] **T2.2** `haiku` — Teste antes (tabela de casos dos critérios 1–5) da `occurrence-owner.policy.ts`; depois a política.
+- [ ] **T2.2b** `sonnet` — Elegibilidade espelhada, lado API (plan § Elegibilidade espelhada, D-f): teste antes com a
+      fixture de casos E01–E27 em forma de fatos (`test/fixtures/occurrence-owner-eligibility.cases.ts`), exaustividade
+      nos dois sentidos sobre `COMPANY_ROLE_PERMISSIONS` e `isGrantablePermission`, e integração
+      `test/integration/occurrence-owner-eligibility.integration.ts` semeada pela fábrica (na lista do `package.json`,
+      `--env-file`, zero skip); depois `occurrence-owner-eligibility.policy.ts` e `findOccurrenceWatcherUsers` usando-a
+      e filtrando empresa `active`.
 - [ ] **T2.3** `sonnet` — Estrela nas listas da empresa e da contratante: rotas `PUT/DELETE …/primary`, leitura com
       `isPrimary`, limpar estrela ao inativar/remover, `audit_logs`. Contratos (incluindo BOLA 404) antes.
 - [ ] **T2.4** `sonnet` — Estrela no tipo: `contractorMailPrimaryWatcherUserId` no salvamento do tipo (contido na lista →
@@ -45,6 +51,9 @@
       recebeu. Contratos: 404 outra empresa e inelegível (spec RF4); 409 cancelada.
 - [ ] **T2.7** `sonnet` — Leitura: `owner` na lista e no detalhe (com `isEligible`), filtro `owner=me|none|all`.
 - [ ] **T2.8** `sonnet` — Reabertura avisa o dono (reserva: último que resolveu).
+- [ ] **T2.10** `sonnet` — E-mail em nome do dono (RF7, RF8, critério 10): implementar a porta `OccurrenceOwnerReader`
+      da 272 (dono elegível `{ userId, name, jobTitle }`) e o dono no `Cc` antes do corte em `resolve-mail-copy.service.ts`.
+      **Depende da 272 em `staging`** (rebase sobre ela); "De" e assinatura não mudam aqui.
 - [ ] **T2.9** `haiku` — Documentação viva: OpenAPI das rotas novas, `apps/api-transportada/CLAUDE.md` e
       `docs/ai-context/api-transportada.md`.
 
@@ -52,10 +61,15 @@
 
 > 🤖 Modelo: `sonnet`
 
+- [ ] **T3.0** `sonnet` — Elegibilidade espelhada, lado worker (D-f): fixture idêntica byte a byte à da API, política e
+      constantes espelhadas, teste da raiz `test/occurrence-owner-eligibility-mirror.contract.test.ts` (falha se diferir
+      ou faltar arquivo) com passo próprio no job `quality` do `ci.yml`, consulta de fatos por SQL cru (subconsultas
+      separadas, vazio `'{}'`) e integração `test/integration/occurrence-owner-facts.integration.ts` semeada pela fábrica. Elegível = vínculo ativo **e**
+      `occurrences.resolve`, igual à API — nunca "só vínculo".
 - [ ] **T3.1** `sonnet` — Resposta da contratante → sino ao dono elegível (chave de notificação nova, registrada onde as
       outras estão).
 - [ ] **T3.2** `sonnet` — Alarme de atraso → dono ?? quem despachou.
-- [ ] **T3.3** `sonnet` — Envio automático em nome do dono: "De", assinatura, dono no `Cc` antes do corte (critério 10).
+- ~~**T3.3**~~ — sem trabalho no worker: o envio automático é da API e o "De" é da 272 → movida para **T2.10**.
 - [ ] **T3.4** `haiku` — `docs/ai-context/worker-transportada.md`.
 
 ## Fase 4 — Painel
@@ -63,8 +77,9 @@
 > 🤖 Modelo: `sonnet` (T4.4 → `haiku`)
 
 - [ ] **T4.1** `sonnet` — Estrela em `OccurrenceWatcherRow` (empresa e contratante) e em `OccurrenceTypeWatchersSelect`.
-- [ ] **T4.2** `sonnet` — Filtro Minhas / Sem dono / Todas e selo do dono na lista de ocorrências.
-- [ ] **T4.3** `sonnet` — Bloco "Dono" no detalhe com origem, Assumir e Passar para…; eventos `owner.*` com texto.
+- [ ] **T4.2** `sonnet` — Filtro Minhas / Sem dono / Todas e status do dono na lista (D-g): "Atribuída a você" para o
+      dono elegível, nome do dono para os demais, "Sem dono"; sem sino no registro.
+- [ ] **T4.3** `sonnet` — Bloco "Dono" no detalhe com o mesmo status, origem, Assumir e Passar para…; eventos `owner.*` com texto.
 - [ ] **T4.4** `haiku` — Textos em `.locale.json`; smoke do painel.
 
 ## Fase 5 — Publicação e verificação
@@ -82,12 +97,13 @@
 
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/273-a-ocorrencia-tem-dono/ (leia spec.md, plan.md, tasks.md e
-evidence.md antes de começar; leia também specs/267-*, 270-* e 271-* com os evidence.md e a ADR-0108).
+evidence.md antes de começar; leia também specs/267-*, 270-*, 271-* e 272-* com os evidence.md, a ADR-0108 e a
+ADR-0109). A 272 sai ANTES: a T2.10 só começa com a 272 em origin/staging (rebase sobre ela; a 272 manda nos nomes).
 Árvore única: ~/transportada-wt/spec-273 (FS do Linux, branch work/spec-273, criada de origin/staging); nada fora dela.
 Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 0 → executor model=sonnet (T0.2 🧠 → opus, validar com architect antes de qualquer código) ·
-Fase 1 → executor model=haiku (T1.2 sonnet) · Fase 2 → executor model=sonnet (T2.2/T2.9 haiku) ·
-Fase 3 → executor model=sonnet (T3.4 haiku) · Fase 4 → executor model=sonnet (T4.4 haiku) · Fase 5 → sonnet ·
+Fase 1 → executor model=haiku (T1.2 sonnet) · Fase 2 → executor model=sonnet (T2.2/T2.9 haiku; T2.2b e T2.10 sonnet) ·
+Fase 3 → executor model=sonnet (T3.0 antes de T3.1/T3.2; T3.3 movida para T2.10; T3.4 haiku) · Fase 4 → executor model=sonnet (T4.4 haiku) · Fase 5 → sonnet ·
 revisão final → code-reviewer model=sonnet e security-reviewer model=sonnet.
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Teste antes da implementação. Cada task fecha com bun run typecheck + lint por app (cwd na app) + script `test` do
@@ -100,8 +116,10 @@ Pare e pergunte antes de: qualquer merge em main (T1.2, T5.4 — painel tolerant
 mudança de dados que não seja contagem em staging ou produção; e qualquer [NEEDS CLARIFICATION] que surgir.
 Decisões já tomadas (evidence.md): dono escolhido no registro na ordem contratante → tipo → empresa (a cópia segue
 tipo → contratante → empresa, sem mudança); um principal por lista (estrela), no tipo a estrela fica na lista "Em
-cópia"; lista sem estrela dá o primeiro elegível por nome; elegível = vínculo ativo + occurrences.resolve; dono sempre
-em cópia; sem backfill; assumir/passar por quem tem occurrences.resolve, com evento e auditoria; sino ao dono na resposta
-da contratante, no alarme de atraso e na reabertura, com o comportamento atual como reserva sem dono; e-mail automático
-em nome do dono.
+cópia"; lista sem estrela dá o primeiro elegível por nome; elegível = vínculo ativo + occurrences.resolve, a MESMA
+regra na API e no worker (D-f: elegibilidade espelhada com tabela de casos E01–E27 idêntica nas duas apps e teste da
+raiz; nunca "só vínculo" no worker); dono sempre em cópia; sem backfill; assumir/passar por quem tem
+occurrences.resolve, com evento e auditoria; sino ao dono na resposta da contratante, no alarme de atraso e na
+reabertura, com o comportamento atual como reserva sem dono; SEM sino no registro — status "Atribuída a você" na lista e
+no detalhe (D-g); e-mail automático em nome do dono pela porta OccurrenceOwnerReader e pelo "De" da 272.
 ```
