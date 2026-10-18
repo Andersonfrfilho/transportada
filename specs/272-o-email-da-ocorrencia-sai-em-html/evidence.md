@@ -34,7 +34,7 @@ moderno da prévia serve só para desenhar — o e-mail final usa tabelas e esti
   `<nome> — <nome de exibição>`; equipe: `<nome de exibição>`), ignorando o nome do remetente salvo na configuração do
   Resend. O endereço continua o da configuração (Resend) ou `EMAIL_FROM` (sandbox). **Colisão com a 273 RF7**, que dizia
   `<nome do dono> — <nome do remetente da empresa>`: a 273 passa a herdar a regra da 272 (`<nome do dono> — <nome de
-exibição>`); o RF7 e o critério 10 da 273 se ajustam quando ela for executada.
+exibição>`); o RF7 e o critério 10 da 273 se ajustam quando ela for executada (já ajustados na 273, conferido na T0.2).
 - **D13** (2026-10-18, veto da assunção A2 da primeira versão) **Cargo livre na assinatura**: campo de cargo livre por
   usuário na empresa (ex.: "Atendimento — ocorrências"), editável na tela de usuários do painel, exibido abaixo do nome
   do operador/dono na assinatura; sem cargo, o rótulo do papel ("Operador", "Financeiro"). Entra no escopo: migration
@@ -56,9 +56,11 @@ Detalhe e trade-offs em `plan.md` § Decisões de desenho.
   desenhado para a 273.
 - **Tabela no manual só com o bloco intacto** (D6 do plan).
 - **Prefixo do assunto nunca é cortado** (D7 do plan).
-- **Prévia = envio** (D8 do plan), com rota que renderiza o texto editado.
+- **Prévia = envio** (D8 do plan), com rota que renderiza o texto editado. **Substituída pela T0.2:** sem rota nova; a
+  prévia existente devolve o HTML (ADR-0110 §8).
 - **Gravar o que saiu** (D9 do plan): `from_display_name`, `signer_kind`, `signer_user_id`, `layout_version`,
-  `has_inline_logo`.
+  `has_inline_logo`. **Substituída pela T0.2:** `from_display_name` já existe e é reusada; a migration cria só as
+  quatro outras, com os CHECKs da invariante (ADR-0110 §9).
 - **Cargo (D10 do plan, da D13 do dono):** `user_company_memberships.job_title varchar(80)` nula — o cargo é por empresa,
   e o perfil de identidade é por pessoa e sincronizado com o Keycloak. Editado por quem tem `users.manage` no `PATCH
 /company-users/:id` que já edita a ficha (padrão existente; não há rota de perfil próprio, e criar uma só para o cargo
@@ -73,7 +75,8 @@ foram vetadas pelo dono e viraram D12 e D13.
 
 - **A1 — Encaminhamento a terceiro (248) continua em texto/HTML simples** (`buildOccurrenceMail` de hoje).
 - **A2 — Mensagens anteriores à 272 não são reprocessadas**: o histórico as mostra como hoje; o reenvio de uma delas usa
-  o montador novo com assinatura da equipe.
+  o montador novo com assinatura da equipe. **Emendada pela ADR-0110 §10:** o reenvio de mensagem anterior à 272 sai
+  assinado pelo operador que a escreveu (ou pela equipe, se foi automática).
 - **A3 — Cidade no cabeçalho** = `city · state` de `company_fiscal_profiles` (endereço fiscal).
 
 Nenhum `[NEEDS CLARIFICATION]`: as perguntas acima têm padrão adotado e não bloqueiam.
@@ -397,6 +400,57 @@ apps por caminho relativo no teste: `frontend-transportada/test/delivery-clients
 - **CNPJ/CPF da contratante:** `contractor.taxId` repassado; 11 dígitos → "CPF" mascarado, 14 → "CNPJ" por
   `formatCnpjForDisplay`, outro → linha omitida.
 - **Fase 1:** guardas já tolerantes; T1.1/T1.2 só provam por teste; sem código mudado, T1.3 vira registro, sem deploy.
+
+#### Validação do architect (opus)
+
+**Veredito: APROVADA COM AJUSTES.** Todos os ajustes obrigatórios aplicados na ADR-0110 (status **aceita
+(2026-10-18)**), no `plan.md`, na `spec.md` e no `tasks.md` (marcados "Ajustado na T0.2 (architect)"). T0.1 e T0.2
+marcadas concluídas.
+
+Ajustes obrigatórios aplicados:
+
+1. **Prefixo duplicado no manual** (ADR §7, §8; plan D7, D8, Contratos): o diálogo devolve o assunto da prévia no `POST`
+   (`SendToContractorDialog.component.tsx:103`) e a prévia o trata como digitado (`preview-occurrence-mail.use-case.ts:110`,
+   :119). `subject` continua a parte do modelo, sem prefixo; a prévia ganha `fullSubject` só para exibir;
+   `applySubjectPrefix` idempotente. T2.3 (idempotência na tabela), T2.7 (`subject` da prévia reenviado gera um prefixo),
+   T4.1 (exibe `fullSubject`).
+2. **Logo na prévia** (ADR §8; plan D8; spec RF12): `cid:` não resolve em `srcDoc`, a CSP não aceita `data:`
+   (`contentSecurityPolicy.service.ts:161`) e a rota do logo exige `settings.manage`. A prévia sem `body` devolve
+   `inlineLogo?`; o painel troca o `cid:` por `blob:` só no `srcDoc`; `html` não muda (critério 12). Fallback:
+   `allow-same-origin` sem `allow-scripts`, senão o `alt` (RF12). T2.7 e T4.1 (prova no navegador).
+3. **D6 sem marcador** (ADR §6; plan D6): marcador forjável pela `observacao` e incompatível com o corte de 8000.
+   `renderContractorMail` devolve `itemLinesBlock`; o parágrafo igual a ele vira a tabela, nos três envios. T2.2/T2.5
+   com os testes de observação parecida e de corte com "e mais N".
+4. **Saneamento e tamanho do "De" e do prefixo** (ADR §5, §7; plan D5, D7; T2.3, T3.1): `buildSenderDisplayName` remove
+   `\p{Cc}`, U+2028/2029, bidi e `<>"\,;`, colapsa espaços, corta o nome da pessoa primeiro para caber em 200; o worker
+   reaplica o mesmo saneamento com tabela idêntica; nome de exibição cortado em 80 no prefixo.
+5. **Invariante no banco** (ADR §9; plan D9, Dados; T2.1): três CHECKs; `signer_user_id` sem FK de propósito (ADR-0076).
+6. **Contrato da porta e cargo** (ADR §5, §11; plan Coordenação; T2.4): `findEligibleOwner({ companyId, occurrenceId,
+kind })`; `resolveSignerJobTitle({ jobTitle, directRoles })`; sem cargo e sem papel direto → linha omitida.
+7. **Vínculo no reenvio** (ADR §10; plan D9-b; T2.6): pessoa exige membership ativa; `owner` também a elegibilidade
+   da 0109 pela porta; senão `team`.
+8. **Contradições**: A2 marcada emendada; § Decisões tomadas (prévia por rota nova, cinco colunas) marcadas
+   substituídas; linha da 248 na `spec.md` alinhada à ADR §10; ADR § Consequências diz que a 273 já foi ajustada
+   (conferido: 273 `spec.md` RF7 e critério 10 já trazem `<nome do dono> — <nome de exibição>`); T0.2 cita D1–D13;
+   "Sem backfill" duplicado removido do plan § Dados.
+9. **Critério 8** (parada sem nota) marcado como teste do montador (T2.2): num envio real não há contratante nem e-mail
+   (`drizzle-occurrence-mail.repository.ts:89`, :99).
+10. **Nome não ASCII no Resend**: a T3.1 confirma na doc oficial (context7) se o Resend codifica (RFC 2047) ou se o
+    gateway codifica; a T5.4 faz um envio real pelo Resend antes de `main`.
+
+Sugestões opcionais:
+
+- **Adotadas:** o worker confere `direction = 'outbound'` antes de usar `from_display_name` (`findMessageById`,
+  `drizzle-contractor-mail-outbound-worker.repository.ts:112-130`; T3.1); leitura do título no reenvio como função pura
+  testada com nome contendo "—" (T2.6); bidi também fora do cargo (`company-user-job-title.policy`, T2.9).
+- **Registradas:** 272 e 273 geram `snapshot.json` do mesmo pai (`20261017041702_…`), quem chegar depois regenera
+  (T5.4, ADR § Consequências); caso de uso interno da prévia sem destinatários/cópia, decisão depois da medição da T5.1
+  (T2.7); CSP `img-src` bloqueia as marcas na prévia se `APP_BASE_URL` não for a origem do painel (plan § Riscos, ADR §
+  Consequências), sem ação.
+
+Nota aritmética (não decidida aqui): com o nome de exibição cortado em 80, o prefixo chega a 109 caracteres
+(`80 + " · CNPJ " (8) + CNPJ formatado (18) + " — " (3)`) e o modelo fica com ao menos 91, não 100. A ADR e o plan
+registram o número real; garantir 100 exigiria cortar o nome em 71.
 
 ## Prompt de execução
 

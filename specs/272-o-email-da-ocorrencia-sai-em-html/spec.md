@@ -15,7 +15,7 @@
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 143 / 183 | O e-mail de ocorrência é a mensagem da 143 (`contractor_mail_messages`) mais a da conversa, gravadas numa transação por `send-occurrence-mail`; o worker envia pelo Resend da empresa. `Reply-To` com token traz a resposta para a conversa. **Usa:** a faixa "Responda este e-mail" só existe porque o `Reply-To` existe.                                                                                                                                                                            |
 | 247       | Itens da ocorrência com código, quantidade, unidade e valor; soma das linhas, dinheiro em `bigint`/string com arredondamento único. **Usa** os mesmos valores na tabela de itens; nenhum cálculo novo.                                                                                                                                                                                                                                                                                                |
-| 248       | Reenvio do pedido de resposta e encaminhamento a terceiro. **Fica fora**: o reenvio repete o envio original (sai em HTML se o original saiu), o encaminhamento a terceiro continua em texto.                                                                                                                                                                                                                                                                                                          |
+| 248       | Reenvio do pedido de resposta e encaminhamento a terceiro. **Emenda o reenvio**: sai sempre no layout novo, com o assinante do original (ADR-0110 §10; Ajustado na T0.2 (architect)). **Fica fora** o encaminhamento a terceiro, que continua em texto.                                                                                                                                                                                                                                               |
 | 267       | Responsáveis em cópia, teto 50 em `To`+`Cc`. Não muda.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | 268       | Modo sandbox (`transport = 'sandbox_smtp'`, Mailpit, sem `Reply-To`, `From = EMAIL_FROM`). **Emenda:** o "De" do sandbox ganha o nome de exibição da transportadora (achado do teste em staging de 2026-10-18, D11), e a faixa "Responda este e-mail" some no sandbox.                                                                                                                                                                                                                                |
 | 269       | Assunto saneado (sem quebra de linha) e truncado. **Usa:** o prefixo da 272 entra antes do corte e nunca é cortado.                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -86,13 +86,17 @@ exibição>`. O nome de exibição é o da transportadora no sistema (`resolveCo
 - **RF12 — Ver antes de enviar.** A prévia do diálogo de envio manual mostra o e-mail em HTML como vai sair (mesma
   montagem do servidor), além do texto editável de hoje. É a rota de prévia que já existe
   (`POST /trip-occurrences/:id/conversations/contractor/mail-preview`), chamada de novo com o texto editado; ela devolve
-  o HTML do layout novo, o assunto com o prefixo e o nome do "De". Sem rota nova (ADR-0110 §8).
+  o HTML do layout novo, o assunto como sai (`fullSubject`, só para exibir) e o nome do "De". Sem rota nova (ADR-0110
+  §8). **Logo na prévia** (Ajustado na T0.2 (architect)): o logo embutido (`cid:`) é trocado só na tela por uma URL
+  `blob:`; se o navegador não o carregar no quadro isolado, a prévia mostra o nome de exibição (o `alt`) no lugar do
+  logo — o e-mail enviado não muda.
 - **RF14 — Cargo livre na assinatura (D13).** Cada usuário tem, **na empresa**, um campo de cargo livre (ex.:
   "Atendimento — ocorrências"), até 80 caracteres, saneado (sem quebra de linha nem caractere de controle; espaços
   colapsados; vazio = sem cargo). Editado em Usuários (diálogo de edição do usuário no painel) por quem tem
   `users.manage`, pela mesma rota que já edita o perfil (`PATCH /company-users/:id`); usuário de outra empresa → 404.
   Aparece abaixo do nome do operador ou do dono na assinatura (HTML e texto); sem cargo, o rótulo pt-BR do papel na
   empresa, o mesmo do painel ("Operação", "Financeiro"; com vários papéis, o primeiro na ordem do catálogo; ADR-0110 §11).
+  Sem cargo e sem papel direto, a linha do cargo não aparece (Ajustado na T0.2 (architect)).
 - **RF13 — Rastreio.** A mensagem gravada guarda o HTML que saiu, o nome usado no "De" e quem assinou (tipo e id), para o
   histórico da conversa e para o reenvio da 248 repetir o original.
 
@@ -140,7 +144,9 @@ exibição>`. O nome de exibição é o da transportadora no sistema (`resolveCo
    e-mail", com as duas partes.
 7. Operador edita o bloco de linhas dos itens no diálogo: o HTML mostra o texto editado, sem tabela. Mantém o bloco: sai
    a tabela.
-8. Ocorrência de parada sem nota: o resumo não tem o grupo "Nota fiscal" nem linha vazia.
+8. Ocorrência de parada sem nota: o resumo não tem o grupo "Nota fiscal" nem linha vazia. **Teste do montador (T2.2)**,
+   não de integração nem do Mailpit: num envio real, sem nota não há contratante e não sai e-mail
+   (`drizzle-occurrence-mail.repository.ts:89`, :99; Ajustado na T0.2 (architect)).
 9. 200 itens: HTML abaixo de 100 KB e a linha "e mais N itens" quando passar de 200.
 10. Reenvio da 248 de um e-mail enviado em HTML sai no layout novo com o mesmo assinante do original (tipo e pessoa) e
     o "De" que sai dele, e com o assunto gravado sem prefixo duplicado; reenvio de um e-mail anterior à 272 sai

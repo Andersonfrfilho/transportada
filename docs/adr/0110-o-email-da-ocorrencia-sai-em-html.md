@@ -1,6 +1,7 @@
 # ADR 0110 — O e-mail da ocorrência sai em HTML
 
-- **Status:** proposta (2026-10-18) — T0.2 da spec 272; aguarda a validação do `architect` antes de qualquer código.
+- **Status:** aceita (2026-10-18) — T0.2 da spec 272; validada pelo `architect` (opus), aprovada com ajustes, todos
+  aplicados abaixo (registro em `evidence.md` da 272, § T0.2 — Validação do architect).
 - **Data:** 2026-10-18
 - **Nasce da spec 272:** o e-mail de ocorrência à contratante sai no desenho aprovado pelo dono (versão 10 do artefato,
   `specs/272-o-email-da-ocorrencia-sai-em-html/desenho-aprovado.html`), montado pelo servidor em volta do texto do
@@ -49,46 +50,84 @@
 4. **Marcas TransportAdA e Ada por `APP_BASE_URL`** (variável nova e opcional na API; o worker já tem) +
    `/icons/icon-192.png` e `/icons/ada-technology.png`. Sem a variável, as miniaturas saem e o texto fica. Nunca base64.
 5. **Ponto `signer` e uma regra para o "De".** `OccurrenceMailSigner` = `{ kind: 'operator' | 'owner', userId, name,
-jobTitle }` ou `{ kind: 'team' }`. Manual → `operator` (o ator); automático → `owner` se a porta
+jobTitle?: string }` ou `{ kind: 'team' }`. Manual → `operator` (o ator); automático → `owner` se a porta
    `OccurrenceOwnerReader` devolver alguém, senão `team` (a 272 entrega a porta com implementação nula; a 0109
-   implementa). `buildSenderDisplayName({ companyDisplayName, signer })`: `team` → `<nome de exibição>`; pessoa →
-   `<nome> — <nome de exibição>`. O nome-base é **sempre** o nome de exibição da transportadora
-   (`resolveCompanyDisplayName`), nos dois transportes (D12 do dono): o `sender_name` do Resend sai do "De". O endereço
-   não muda (configuração do Resend ou `EMAIL_FROM`). O worker formata com um saneador que tira `<>"\r\n,` (nodemailer
-   `{ name, address }`; Resend `"Nome" <endereço>`). `jobTitle` = cargo (§10) ou, vazio, o rótulo do papel (§11).
-6. **Tabela de itens no manual só com o bloco intacto.** No automático, um marcador no lugar de `{{linhasItens}}` vira
-   a tabela. No manual, o servidor recalcula `joinItemLines` e, se o texto contém o bloco exato como parágrafo inteiro,
-   troca pela tabela; senão o texto sai como o operador escreveu.
+   implementa). Contrato da porta: `findEligibleOwner({ companyId, occurrenceId, kind }) → { userId, name, jobTitle?:
+string } | undefined`; a elegibilidade (ADR-0109 §7) é da implementação (`kind` já existe em `findOccurrenceTarget`,
+   `item.source`). `buildSenderDisplayName({ companyDisplayName, signer })` (pura, na API): `team` →
+   `<nome de exibição>`; pessoa → `<nome> — <nome de exibição>`. O nome-base é **sempre** o nome de exibição da
+   transportadora (`resolveCompanyDisplayName`), nos dois transportes (D12 do dono): o `sender_name` do Resend sai do
+   "De". O endereço não muda (configuração do Resend ou `EMAIL_FROM`). **Saneamento e tamanho** (ajustado na T0.2,
+   architect): a função remove todo `\p{Cc}`, U+2028/U+2029, os caracteres bidi (U+202A–U+202E, U+2066–U+2069) e
+   `<>"\,;`, colapsa espaços e, para o total caber em 200 (o CHECK de `from_display_name`; `name` e `trade_name` são
+   `text` sem limite), corta **primeiro o nome da pessoa** (o nome de exibição só é cortado se sozinho passar de 200);
+   a API grava o valor já saneado. O worker reaplica o **mesmo** saneamento, espelhado, com tabela de casos idêntica nas
+   duas apps (defesa em profundidade, sem `import` entre apps), e formata (nodemailer `{ name, address }`; Resend
+   `"Nome" <endereço>`). Se o Resend não codificar nome não ASCII (RFC 2047) sozinho, o gateway codifica — a T3.1
+   confirma na doc oficial e a T5.4 faz um envio real pelo Resend antes de `main`. `jobTitle` = cargo (§12) ou, vazio,
+   o rótulo do papel (§11), pela função pura `resolveSignerJobTitle({ jobTitle, directRoles })`, usada por
+   `findOperatorSigner` e pelo leitor de dono; sem cargo e sem papel direto → `jobTitle` ausente e a linha do cargo é
+   omitida na assinatura.
+6. **Tabela de itens pelo bloco exato, sem marcador** (ajustado na T0.2, architect). Um marcador de texto seria
+   forjável (a `observacao` do motorista é interpolada no corpo) e quebraria o corte de 8000
+   (`occurrence-contractor-mail-render.policy.ts:43-48`). `renderContractorMail` passa a devolver também
+   `itemLinesBlock`: o texto exato injetado no lugar de `{{linhasItens}}`, já com as `shown` linhas que sobraram do
+   corte. Automático, manual e reenvio usam **uma** regra: o parágrafo do `bodyText` igual a `itemLinesBlock` vira a
+   tabela, com as mesmas `shown` linhas e "e mais N itens". Bloco vazio nunca casa. No manual, o bloco vem do mesmo
+   leitor da sugestão; se o operador editou o bloco, o texto sai como ele escreveu.
 7. **Assunto com prefixo que não se corta.** `<nome de exibição> · CNPJ <cnpj> — ` + o assunto do modelo cortado em
-   `200 − tamanho(prefixo)`. O prefixo é montado só sobre assunto que veio do modelo ou do diálogo (§9 trata o reenvio).
+   `200 − tamanho(prefixo)`. O prefixo é montado só sobre assunto que veio do modelo ou do diálogo (§10 trata o
+   reenvio). No prefixo, o nome de exibição passa pelo mesmo colapso de §5 e é cortado em 80 (com o CNPJ formatado, o
+   prefixo tem no máximo 109 caracteres e o modelo fica com ao menos 91). `applySubjectPrefix` é **idempotente**:
+   assunto que já começa pelo prefixo da empresa não é prefixado de novo (defesa para painel antigo e reenvio; ajustado
+   na T0.2, architect).
 8. **A prévia é a rota que já existe** (ajustado na T0.2; a rota nova `…/contractor-mail/rendered` do plano caiu). A
    prévia passa a devolver em `html` o HTML do layout novo e ganha `fromDisplayName`, a partir do `body` editado quando
-   vier, senão do texto sugerido; o assunto devolvido é o prefixado. O painel chama a mesma rota com atraso ao editar.
+   vier, senão do texto sugerido. O painel chama a mesma rota com atraso ao editar. **Assunto** (ajustado na T0.2,
+   architect): o diálogo devolve o assunto da prévia no `POST` (`SendToContractorDialog.component.tsx:103`) e a prévia
+   trata o `subject` recebido como digitado (`preview-occurrence-mail.use-case.ts:110`, :119), então `subject` continua
+   a parte do modelo (editável, sem prefixo); a prévia ganha `fullSubject` (o assunto como sai) só para exibir; o painel
+   nunca devolve `fullSubject`. **Logo na prévia** (ajustado na T0.2, architect): `cid:company-logo` não resolve num
+   `iframe` `srcDoc`, a CSP do painel não aceita `data:` (`contentSecurityPolicy.service.ts:161`, `img-src 'self'
+blob:`) e `GET /company-settings/logo` exige `settings.manage`. Decisão: a prévia, na primeira chamada (sem `body`),
+   devolve `inlineLogo?: { mimeType, contentBase64 }`; o painel cria uma URL `blob:` uma vez e troca
+   `cid:company-logo` por ela **só no `srcDoc`** — o `html` devolvido não muda (critério 12: `html` da prévia ==
+   `body_html`). Fallback, na ordem: se o `blob:` do pai não carregar no `iframe` de origem opaca, `sandbox` ganha
+   `allow-same-origin` **sem** `allow-scripts` (registrar aqui quando adotado); se nem assim, a prévia mostra o `alt`
+   (nome de exibição) no lugar do logo, declarado no RF12 da spec. A T4.1 prova no navegador qual caso vale.
    Ganha balde próprio de `rateLimit` (`OCCURRENCE_MAIL_PREVIEW_RATE_LIMIT`, escopo `occurrence-mail-preview`, 120 por
    300 s, `postgres`), separado do de mensagens (30 por 300 s), para que redigir não esgote o envio; o painel guarda o
    último HTML no 429. Os destinatários e a cópia continuam na resposta; se o custo pesar na medição da T5.1, extrai-se
-   um caso de uso interno, sem endpoint novo.
+   um caso de uso interno que só monta o HTML (sem buscar destinatários e cópia a cada pausa), sem endpoint novo.
 9. **Gravar o que saiu.** Migration aditiva com **quatro** colunas em `contractor_mail_messages`: `signer_kind
 varchar(16)` (CHECK `operator`/`owner`/`team`), `signer_user_id uuid`, `layout_version smallint` (1 = 272) e
    `has_inline_logo boolean not null default false`. **`from_display_name` é reusada** (ajustado na T0.2): já existe com
    CHECK ≤ 200, e na saída passa a guardar o nome do "De" — o mesmo significado que tem na entrada (o nome de exibição
    do cabeçalho `From`); a leitura do histórico só a usa para mensagem de entrada (`toAuthor` retorna antes na saída).
-   Invariante: mensagem de saída com `layout_version = 1` tem `from_display_name` não nulo, e vice-versa. **O worker
-   decide pelo `from_display_name`**: não nulo → é o nome do "De"; nulo (saída anterior à 272, encaminhamento a terceiro,
-   correção de endereço) → o comportamento de hoje (`settings.senderName` no Resend, endereço puro no sandbox). A API
-   decide o reenvio e o histórico pelo `layout_version`.
+   Invariante **no banco** (ajustado na T0.2, architect), três CHECKs na mesma migration, que as linhas atuais passam:
+   `direction <> 'outbound' or ((layout_version is null) = (from_display_name is null))`;
+   `(layout_version is null) = (signer_kind is null)`; `(signer_kind in ('operator','owner')) = (signer_user_id is not
+null)`. `signer_user_id` fica **sem FK de propósito**: o vínculo pode ser apagado (ADR-0076) e a mensagem é
+   histórico. **O worker decide pelo `from_display_name`**, e só em mensagem com `direction = 'outbound'` (na entrada a
+   coluna é o remetente da contratante; `findMessageById` passa a ler `direction`): não nulo → é o nome do "De"; nulo
+   (saída anterior à 272, encaminhamento a terceiro, correção de endereço) → o comportamento de hoje
+   (`settings.senderName` no Resend, endereço puro no sandbox). A API decide o reenvio e o histórico pelo
+   `layout_version`.
 10. **Reenvio da 248 repete o original** (ajustado na T0.2). `findOriginalRequest` passa a ler também
     `layout_version`, `signer_kind`, `signer_user_id` e o autor da mensagem original, e o reenvio passa o assinante ao
     envio (o ator continua sendo quem reenvia, para a trilha e a autoria da mensagem na conversa):
     - **Assinante:** original com layout → o mesmo `signer_kind`/`signer_user_id`, com nome e cargo lidos no reenvio
       (a pessoa é a mesma; o texto do cargo é o de hoje); `team` → `team`. Original anterior à 272 → o autor da
       mensagem original como `operator`, ou `team` se foi automático (emenda a assunção A2, que dizia sempre `team`:
-      o RF8 pede "a assinatura do envio original", e o e-mail de antes já saía assinado pelo operador). Pessoa que não
-      é mais lida na empresa (vínculo removido) → `team`. O "De" sai de `buildSenderDisplayName` com esse assinante.
+      o RF8 pede "a assinatura do envio original", e o e-mail de antes já saía assinado pelo operador). **Vínculo**
+      (ajustado na T0.2, architect): o assinante pessoa exige membership ativa na empresa; se o original é `owner`,
+      também a elegibilidade da ADR-0109 (pela porta `OccurrenceOwnerReader`); senão → `team`. O "De" sai de
+      `buildSenderDisplayName` com esse assinante.
     - **Assunto:** original com `layout_version = 1` → o assunto gravado é reusado **como está** (já tem o prefixo;
       nada é reaplicado nem recortado); o título do HTML é o trecho depois do primeiro `—` que segue
-      ` · CNPJ <cnpj formatado>`, ou o assunto inteiro se o padrão não casar. Original sem layout → o assunto gravado é
-      do modelo: recebe o prefixo pela §7, como um envio novo.
+      ` · CNPJ <cnpj formatado>`, ou o assunto inteiro se o padrão não casar — uma função de leitura pura, testada com
+      nome de exibição que contém "—". Original sem layout → o assunto gravado é do modelo: recebe o prefixo pela §7,
+      como um envio novo (a idempotência da §7 impede prefixo duplo também aqui).
     - **Layout:** o reenvio sempre sai no layout novo (`layout_version = 1`), com `has_inline_logo` do momento.
 11. **Rótulo do papel na API, igual ao do painel.** `COMPANY_ROLE_LABELS` (`identity/domain/company-role-label.constant.ts`,
     `satisfies Record<CompanyRole, string>`, papel novo reprova o typecheck) copia os rótulos de `identity.locale.json`
@@ -98,10 +137,10 @@ varchar(16)` (CHECK `operator`/`owner`/`team`), `signer_user_id uuid`, `layout_v
     Paridade por teste de contrato que lê o JSON do painel por caminho relativo dentro do teste, sem `import` de código
     entre apps (precedente: `frontend-transportada/test/delivery-clients/mail-template-variable-parity.contract.ts`).
     Vários papéis → o primeiro na ordem de `COMPANY_ROLES`; só papéis diretos da membership (`membership_roles`), não
-    os herdados de grupo.
+    os herdados de grupo. Sem cargo e sem papel direto → a linha do cargo é omitida (§5).
 12. **Cargo livre na membership** (D13 do dono). `user_company_memberships.job_title varchar(80)` nula, CHECK
-    `1..80`; saneado por política pura (controle e quebra de linha fora, espaços colapsados, `trim`, vazio → `null`,
-    mais de 80 → 400). Editado por `users.manage` no `PATCH /company-users/:id` existente (`jobTitle?: string | null`;
+    `1..80`; saneado por política pura (controle, quebra de linha e caracteres bidi — U+202A–U+202E, U+2066–U+2069 —
+    fora, espaços colapsados, `trim`, vazio → `null`, mais de 80 → 400; bidi adotado da sugestão do architect). Editado por `users.manage` no `PATCH /company-users/:id` existente (`jobTitle?: string | null`;
     ausente não altera; conta para o "ao menos um campo"). Gravado por **método novo** do repositório, `UPDATE …
 WHERE user_id = ? AND company_id = ?` (o `updateProfile` de hoje filtra só por pessoa e escreve o perfil). Corpo só
     com `jobTitle` **não chama o Keycloak** (o cargo não é atributo de identidade; o caso de uso hoje sempre sincroniza
@@ -137,6 +176,13 @@ WHERE user_id = ? AND company_id = ?` (o `updateProfile` de hoje filtra só por 
 - `from_display_name` ganha dois usos com o mesmo significado; `direction` separa quem a escreve.
 - O reenvio passa a ler o original (assinante e layout) como já lê o modelo (`findOriginalOccurrenceNotificationTemplate`).
 - Papel novo em `COMPANY_ROLES` exige o rótulo na API (typecheck) e no painel (contrato de paridade).
-- A 0109 só implementa a porta de dono e herda o "De"; o RF7 e o critério 10 da 273 se ajustam quando ela for
-  executada.
+- A 0109 só implementa a porta de dono (contrato da §5) e herda o "De"; o RF7 e o critério 10 da 273 já foram
+  ajustados (`specs/273-a-ocorrencia-tem-dono/spec.md`, RF7 e critério 10).
 - Uma janela de minutos com e-mail sem logo a cada publicação que mude o layout e o worker juntos.
+- O saneamento do "De" existe em duas cópias (API e worker), presas por tabela de casos idêntica.
+- A prévia carrega o logo da empresa (até 256 KiB) uma vez por abertura do diálogo, para quem tem
+  `occurrences.resolve`; é o mesmo logo que vai à contratante.
+- Se `APP_BASE_URL` não for a origem do painel, a CSP `img-src` do painel bloqueia as miniaturas das marcas na prévia
+  (no e-mail elas aparecem); registrado, sem ação.
+- 272 e 273 geram `snapshot.json` a partir do mesmo pai (`20261017041702_…`): quem chegar depois a `staging` regenera
+  a migration e o snapshot (T5.4).

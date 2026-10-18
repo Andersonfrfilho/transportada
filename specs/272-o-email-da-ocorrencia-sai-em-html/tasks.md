@@ -16,7 +16,7 @@
 
 > 🤖 Modelo: `sonnet` (T0.2 é 🧠)
 
-- [ ] **T0.1** `sonnet` — Conferir contra `origin/staging` cada linha do `evidence.md` § Levantamento e os fatos do
+- [x] **T0.1** `sonnet` — Conferir contra `origin/staging` cada linha do `evidence.md` § Levantamento e os fatos do
       `plan.md` § Contexto. Conferir também: (a) a API do Resend aceita anexo inline com `content_id` (doc oficial via
       `document-specialist`/context7) e o nodemailer o `cid`; (b) o `icon-192.png` do painel é a marca TransportAdA da
       prévia (senão, plano B do D4); (c) como o reenvio da 248 (`resend-contractor-reply-request.use-case.ts`) monta o
@@ -25,11 +25,11 @@
       (plan § Publicação, passo 2); (g) para o cargo (D10): o repositório que o `update-company-user-profile` usa para
       gravar e ler, onde `serializeCompanyUser` monta a resposta, se o guarda `companyUsersResponse.validation.ts`
       reprova chave desconhecida, e que o caso de uso continua sem auditoria. Divergência vira nota no `evidence.md` antes de seguir.
-- [ ] **T0.2** 🧠 `opus` — Escrever a ADR-0110 e validar com `architect` D1–D10 do `plan.md` (montador puro sem
+- [x] **T0.2** 🧠 `opus` — Escrever a ADR-0110 e validar com `architect` D1–D13 do `plan.md` (montador puro sem
       biblioteca, `cid:` × URL pública, marcas pelo `APP_BASE_URL`, ponto `signer` e regra do "De" com o nome de
       exibição sempre (D12 do dono; a 273 RF7 herda), D6 do bloco intacto, colunas D9, cargo na membership editado por
       `users.manage` sem auditoria (D10), ordem API+worker). Ajuste aprovado entra no `plan.md`. **Outras tasks herdam
-      este contrato.**
+      este contrato.** (Concluída: aprovada com ajustes, ADR aceita em 2026-10-18; `evidence.md` § T0.2.)
 
 ## Fase 1 — Painel tolerante (vai a produção ANTES da API)
 
@@ -52,26 +52,40 @@
 
 - [ ] **T2.1** `haiku` — Migration aditiva D9 com as **quatro** colunas (`signer_kind` + CHECK, `signer_user_id`,
       `layout_version`, `has_inline_logo`; `from_display_name` já existe e **não** entra — Ajustado na T0.2) + schema
-      Drizzle (API e espelho do worker) + `rollback.sql`. Aceite:
-      aplica, reverte, reaplica; `db:generate` → `no_changes` nas duas apps.
+      Drizzle (API e espelho do worker) + `rollback.sql`. (Ajustado na T0.2 (architect)) Os três CHECKs da invariante
+      (plan D9): `direction <> 'outbound' or ((layout_version is null) = (from_display_name is null))`,
+      `(layout_version is null) = (signer_kind is null)`, `(signer_kind in ('operator','owner')) = (signer_user_id is not
+null)`; `signer_user_id` sem FK. Aceite: aplica, reverte, reaplica com as linhas atuais passando nos CHECKs; teste
+      de migration que recusa linha incoerente; `db:generate` → `no_changes` nas duas apps.
 - [ ] **T2.2** `sonnet` — Teste antes (golden files e casos do `plan.md` § Testes); depois o montador puro:
       `occurrence-mail-layout.constant.ts`, `occurrence-mail-layout.types.ts`, `occurrence-mail-layout.policy.ts`,
       `occurrence-mail-layout-blocks.policy.ts`, `occurrence-mail-items-table.policy.ts`. Desenho de referência: a
-      função `render()` de `desenho-aprovado.html` (nesta pasta), traduzido para tabelas e estilos inline. Aceite: golden
-      files, teste de forma, escape, 200 itens < 100 KB, parada sem nota sem o grupo "Nota fiscal".
+      função `render()` de `desenho-aprovado.html` (nesta pasta), traduzido para tabelas e estilos inline. (Ajustado na
+      T0.2 (architect)) D6 sem marcador: `renderContractorMail` devolve também `itemLinesBlock`; o parágrafo igual a ele
+      vira a tabela. Aceite: golden files, teste de forma, escape, 200 itens < 100 KB, parada sem nota sem o grupo "Nota
+      fiscal" (critério 8 — só aqui, no montador), observação contendo texto parecido com o bloco não vira tabela,
+      bloco vazio não casa, corte com "e mais N itens" mostra as mesmas `shown` linhas.
 - [ ] **T2.3** `haiku` — Teste antes (tabelas de casos); depois `occurrence-mail-sender-name.policy.ts` (D5) e
       `occurrence-mail-subject.policy.ts` (D7). O "De" usa sempre o nome de exibição (D12): o `sender_name` do Resend
-      nunca aparece (critério 5 da spec).
+      nunca aparece (critério 5 da spec). (Ajustado na T0.2 (architect)) Tabela de casos do saneamento do "De" (`\p{Cc}`,
+      U+2028/2029, bidi, `<>"\,;`, espaços, total > 200 corta o nome da pessoa primeiro) — a mesma tabela será espelhada
+      no worker (T3.1); prefixo com nome de exibição colapsado e cortado em 80; `applySubjectPrefix` idempotente na
+      tabela de casos (assunto já prefixado não ganha segundo prefixo).
 - [ ] **T2.4** `sonnet` — Leituras: `findOccurrenceTarget` com o CNPJ da contratante, `findCarrierIdentity` (nome de
       exibição, razão social, CNPJ, cidade, UF, `hasLogo`), `findOperatorSigner` (nome + cargo da membership, senão o rótulo do
       papel, numa consulta; depende da T2.9), porta
-      `OccurrenceOwnerReader` com a implementação nula; `APP_BASE_URL` opcional no schema de env da API. Integração das
+      `OccurrenceOwnerReader` com a implementação nula; `APP_BASE_URL` opcional no schema de env da API. (Ajustado na
+      T0.2 (architect)) Contrato da porta: `findEligibleOwner({ companyId, occurrenceId, kind }) → { userId, name,
+jobTitle?: string } | undefined` (elegibilidade da ADR-0109 §7 é da implementação; `kind` vem de `item.source` em
+      `findOccurrenceTarget`); função pura `resolveSignerJobTitle({ jobTitle, directRoles })` usada por
+      `findOperatorSigner` e pelo leitor de dono; sem cargo e sem papel direto → `jobTitle` ausente (linha omitida). Integração das
       leituras (outra empresa não aparece). (Ajustado na T0.2) Inclui: `contractorTaxId` repassado por
       `findOccurrenceTarget` e o rótulo "CNPJ"/"CPF" (plan D12); `COMPANY_ROLE_LABELS` com `satisfies` e o contrato de
       paridade contra `identity.locale.json` do painel (plan D11; `operator` = "Operação"), papel = primeiro na ordem de
       `COMPANY_ROLES` entre os diretos.
 - [ ] **T2.5** `sonnet` — Envio manual e automático pelo montador: assinante (`operator`; `owner` pela porta; `team`),
-      D6 (bloco intacto vira tabela), D7, `from_display_name` e colunas D9 gravadas. Teste do critério 13 da spec por injeção de um leitor de dono falso. Integração: manual e
+      D6 (parágrafo igual a `itemLinesBlock` vira tabela, sem marcador — Ajustado na T0.2 (architect); teste: observação
+      com texto parecido não vira tabela), D7, `from_display_name` e colunas D9 gravadas. Teste do critério 13 da spec por injeção de um leitor de dono falso. Integração: manual e
       automático gravam as colunas; Resend e sandbox gravam o nome de exibição em `from_display_name` (nunca o
       `sender_name`).
 - [ ] **T2.6** `sonnet` — (Ajustado na T0.2, plan D9-b) Reenvio da 248: `findOriginalRequest` lê `layout_version`,
@@ -79,18 +93,25 @@
       quem reenvia). Original com layout → mesmo assinante (nome e cargo lidos agora) e assunto gravado **sem** reaplicar
       o prefixo (título = trecho depois de `· CNPJ <cnpj> —`); original anterior à 272 → autor como `operator` (ou
       `team` se automático) e prefixo aplicado uma vez; pessoa sem vínculo → `team`. Sai sempre em `layout_version = 1`.
-      Testes do prefixo não duplicado e integração do critério 10.
+      (Ajustado na T0.2 (architect)) O assinante pessoa exige membership ativa; original `owner` também exige a
+      elegibilidade da 0109 pela porta; senão → `team`. A leitura do título vira função pura testada com nome de
+      exibição contendo "—". Testes do prefixo não duplicado e integração do critério 10.
 - [ ] **T2.7** `sonnet` — (Ajustado na T0.2: a rota nova D8 caiu; a task passa a ser a prévia existente) A prévia
-      `POST …/conversations/contractor/mail-preview` devolve em `html` o HTML do layout novo, em `subject` o assunto
-      prefixado e `fromDisplayName`, do `body` editado ou do texto sugerido; balde `OCCURRENCE_MAIL_PREVIEW_RATE_LIMIT`
-      (120/300 s, 429). Contratos: 404 outra empresa, 403 sem permissão, nada gravado, 429 no balde próprio sem tocar o
-      de mensagens; critério 12 (o `html` da prévia é igual ao `body_html` gravado para o mesmo texto e operador).
+      `POST …/conversations/contractor/mail-preview` devolve em `html` o HTML do layout novo, `fromDisplayName` e (Ajustado
+      na T0.2 (architect)) `fullSubject` só para exibir — `subject` continua a parte do modelo, sem prefixo —, do `body`
+      editado ou do texto sugerido; na primeira chamada (sem `body`), `inlineLogo?: { mimeType, contentBase64 }`, sem
+      mudar o `html`. Balde `OCCURRENCE_MAIL_PREVIEW_RATE_LIMIT` (120/300 s, 429). Contratos: 404 outra empresa, 403 sem
+      permissão, nada gravado, 429 no balde próprio sem tocar o de mensagens; critério 12 (o `html` da prévia é igual ao
+      `body_html` gravado para o mesmo texto e operador); o `subject` da prévia reenviado ao `POST` gera exatamente um
+      prefixo; `inlineLogo` de outra empresa nunca vem. Opção registrada (decidir só depois da medição da T5.1): extrair
+      caso de uso interno que só monta o HTML, sem buscar destinatários e cópia a cada pausa.
 - [ ] **T2.8** `haiku` — Documentação viva: OpenAPI das respostas alteradas (prévia com `fromDisplayName` e o 429), `apps/api-transportada/CLAUDE.md`
       (uma linha sob o e-mail da ocorrência), `docs/ai-context/api-transportada.md`, `.env.example` e `.railway/railway.ts`
       (`APP_BASE_URL` como `preserve()`); OpenAPI do `PATCH /company-users/:id` com `jobTitle`.
 - [ ] **T2.9** `haiku` — Cargo, dados (D10): migration aditiva `user_company_membership_job_title` (`varchar(80)` nula + CHECK) + schema Drizzle + `rollback.sql`; teste antes e política pura `company-user-job-title.policy.ts` (tabela
       de casos do `plan.md` § Testes). Aceite: aplica, reverte, reaplica; `db:generate` → `no_changes`; testes da
-      política. Feita antes da T2.4.
+      política (Ajustado na T0.2 (architect): a política também remove bidi, U+202A–U+202E e U+2066–U+2069, com caso na
+      tabela). Feita antes da T2.4.
 - [ ] **T2.10** `sonnet` — Cargo, rota (D10): contratos antes (critério 14 da spec: ausente não altera, `null`/`""`
       limpa, 81 caracteres → 400, quebra de linha saneada, sem `users.manage` → 403, usuário de outra empresa → 404 —
       BOLA; corpo só com `jobTitle` não chama o Keycloak — dublê do gateway sem chamada); depois `jobTitle` no schema
@@ -106,8 +127,12 @@
 
 - [ ] **T3.1** `sonnet` — Teste antes; depois o "De" por `from_display_name` nos dois transportes (Resend:
       `from_display_name`, com `settings.senderName` só para mensagem anterior à 272; sandbox: `{ name, address }`), com o
-      formatador que tira `<>"\r\n,`. Critério 5 (Resend com o nome de exibição, não o `sender_name`) contra o dublê do
-      gateway e critério 6 (sandbox com nome) contra o dublê do nodemailer.
+      saneamento espelhado do da API (Ajustado na T0.2 (architect): mesma tabela de casos da T2.3 — `\p{Cc}`, U+2028/2029,
+      bidi, `<>"\,;`, espaços, 200). `findMessageById` lê `direction` e o worker só usa `from_display_name` em
+      `outbound` (sugestão do architect adotada). Antes do código, confirmar na doc oficial do Resend (context7) se ele
+      codifica nome não ASCII no `from` (RFC 2047) ou se o gateway precisa codificar; registrar no `evidence.md`.
+      Critério 5 (Resend com o nome de exibição, não o `sender_name`) contra o dublê do gateway e critério 6 (sandbox
+      com nome) contra o dublê do nodemailer.
 - [ ] **T3.2** `sonnet` — Teste antes; depois a parte inline do logo: `drizzle-company-logo.reader.ts`, anexo com
       `content_id` no Resend e `cid` no sandbox quando `has_inline_logo`; logo ausente → envia sem a parte e loga só
       `messageId` e o motivo.
@@ -121,7 +146,12 @@
 - [ ] **T4.1** `sonnet` — Teste antes; depois a área "Como chega" no diálogo de envio manual: `iframe` com `sandbox` (sem
       `allow-scripts`) e `srcDoc` do HTML, atualizado pela prévia existente com atraso de 400 ms ao editar (no 429, mantém
       o último HTML); "De" e assunto acima. Tipa e lê `html`/`fromDisplayName` da prévia.
-      O texto editável não muda. Acessível por teclado; título do `iframe`.
+      O texto editável não muda. Acessível por teclado; título do `iframe`. (Ajustado na T0.2 (architect)) Exibe
+      `fullSubject` e nunca o devolve no `POST` (devolve `subject`). Logo: cria uma URL `blob:` uma vez de `inlineLogo`
+      e troca `cid:company-logo` só no `srcDoc`; prova no navegador (`read_page`/geometria por `javascript_tool`, sem
+      screenshot intermediário) que o logo carrega no `iframe` sandbox. Se o `blob:` do pai não carregar na origem
+      opaca, usar `sandbox="allow-same-origin"` sem `allow-scripts` e registrar na ADR-0110 §8; se nem assim, fica o
+      `alt` (fallback do RF12) — registrar qual caso valeu no `evidence.md`.
 - [ ] **T4.2** `sonnet` — Teste antes; depois o campo "Cargo" em `CompanyUserEditDialog.component.tsx` (texto, até 80,
       contador, ajuda "Aparece na assinatura dos e-mails de ocorrência", vazio limpa), enviado no `PATCH` existente; o
       cargo abaixo do nome na lista de usuários (`UserAdministration.page.tsx`); erro 400 no campo.
@@ -146,8 +176,11 @@
       quando vazio). Um screenshot só no fim, como prova. Evidência.
 - [ ] **T5.4** `sonnet` — Publicação **com aprovação humana em cada passo** (plan § Publicação): rebase em
       `origin/staging`, `bun install --frozen-lockfile`, gates, conferir numeração de spec/ADR/migration contra
-      `origin/staging` e contra a 273; API + worker juntos → `staging` → conferir no Mailpit de staging → `main` (depois
-      de 269 + 270 + 271); telas → `staging` → `main`. Atualizar o `CLAUDE.md` da raiz (um parágrafo da 272).
+      `origin/staging` e contra a 273 (Ajustado na T0.2 (architect): 272 e 273 geram `snapshot.json` do mesmo pai
+      `20261017041702_…` — quem chegar depois a `staging` regenera migration e snapshot); API + worker juntos →
+      `staging` → conferir no Mailpit de staging → **um envio real pelo Resend** (nome não ASCII no "De", logo inline)
+      antes de `main` → `main` (depois de 269 + 270 + 271); telas → `staging` → `main`. Atualizar o `CLAUDE.md` da raiz
+      (um parágrafo da 272).
 
 ## Prompt de execução
 
