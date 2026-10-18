@@ -6,7 +6,7 @@
 > Teste novo entra no agregador e na lista explícita do `package.json`. Task que toca `test/integration/**` fecha com
 > `bun --env-file=../../.env.test run test:integration` (de `apps/api-transportada`) **sem skip**. Migration: aplica,
 > reverte, reaplica e `db:generate` → `no_changes`.
-> Worktree: `~/transportada-wt/spec-273` (FS do Linux, branch `work/spec-273`). Nada fora dela.
+> Worktree: `~/personal/transportada-wt/spec-273` (FS do Linux, branch `work/spec-273`). Nada fora dela.
 
 ## Fase 0 — Contrato
 
@@ -99,7 +99,7 @@
 /oh-my-claudecode:autopilot Execute a spec specs/273-a-ocorrencia-tem-dono/ (leia spec.md, plan.md, tasks.md e
 evidence.md antes de começar; leia também specs/267-*, 270-*, 271-* e 272-* com os evidence.md, a ADR-0108 e a
 ADR-0109). A 272 sai ANTES: a T2.10 só começa com a 272 em origin/staging (rebase sobre ela; a 272 manda nos nomes).
-Árvore única: ~/transportada-wt/spec-273 (FS do Linux, branch work/spec-273, criada de origin/staging); nada fora dela.
+Árvore única: ~/personal/transportada-wt/spec-273 (FS do Linux, branch work/spec-273, criada de origin/staging); nada fora dela.
 Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 0 → executor model=sonnet (T0.2 🧠 → opus, validar com architect antes de qualquer código) ·
 Fase 1 → executor model=haiku (T1.2 sonnet) · Fase 2 → executor model=sonnet (T2.2/T2.9 haiku; T2.2b e T2.10 sonnet) ·
