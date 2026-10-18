@@ -370,6 +370,34 @@ entrada, :90). O painel já tem precedente de `iframe sandbox="" srcDoc` (CSP `f
    (emitente pessoa física), então o rótulo e `formatCnpjForDisplay` (`shared/tax-id.service.ts`) devem tolerar. CNPJ da transportadora é alfanumérico
    (`company_fiscal_profiles_cnpj_check ^[A-Z0-9]{12}[0-9]{2}$`, :168) e é formatado por `formatCnpjForDisplay`.
 
+### T0.2 — ADR-0110 (2026-10-18)
+
+[`docs/adr/0110-o-email-da-ocorrencia-sai-em-html.md`](../../docs/adr/0110-o-email-da-ocorrencia-sai-em-html.md),
+status **proposta** até a validação do `architect`. Ajustes em `plan.md` (marcados "Ajustado na T0.2"), `spec.md` (RF8,
+RF12, RF14, critérios 4, 10 e 12) e `tasks.md` (T1.1, T1.2, T1.3, T2.1, T2.4, T2.5, T2.6, T2.7, T2.8, T2.10, T4.1, T5.2).
+Conferido no código além da T0.1: o worker não lê `from_display_name` na saída (só o schema, `contractor-mail.schema.ts:47`);
+o histórico só a usa na entrada (`toAuthor` retorna antes em `outbound`, `occurrence-conversation.query.ts:72-75`); o reenvio
+já lê metadado do original (`findOriginalOccurrenceNotificationTemplate`, `send-occurrence-mail.use-case.ts:215-221`); o balde
+`OCCURRENCE_CONVERSATION_RATE_LIMIT` é 30/300 s (`occurrence-conversation.routes.ts:52-56`); precedente de paridade entre
+apps por caminho relativo no teste: `frontend-transportada/test/delivery-clients/mail-template-variable-parity.contract.ts`.
+
+- **D8 / rota:** sem rota nova; a prévia existente devolve `html` do layout novo, `subject` prefixado e `fromDisplayName`;
+  balde próprio `OCCURRENCE_MAIL_PREVIEW_RATE_LIMIT` (120/300 s). T2.7 mantém o ID e passa a ser a prévia.
+- **D9 / `from_display_name`:** reusada na saída (mesmo significado: nome do `From`); migration com quatro colunas; worker
+  decide pelo `from_display_name` não nulo, API decide reenvio/histórico pelo `layout_version`; invariante entre os dois.
+- **Reenvio da 248:** assinante do original (com layout: mesmo `signer_kind`/`signer_user_id`, nome e cargo de agora;
+  anterior à 272: autor como `operator`, ou `team` — emenda A2); sem vínculo → `team`; assunto com layout reusado sem
+  reaplicar prefixo, sem layout recebe o prefixo; sempre `layout_version = 1`.
+- **Deploy:** opção (a), janela de minutos aceita, API e worker no mesmo PR e run; (b) e (c) rejeitadas; worker fora do run
+  = parar e perguntar.
+- **Cargo:** método novo `updateJobTitle` por `(user_id, company_id)`; só `jobTitle` não chama o Keycloak; resposta por
+  `toCompanyUserView`; T1.2 vira só o teste de tolerância (ID mantido).
+- **Rótulo do papel:** `COMPANY_ROLE_LABELS` na API com `satisfies`, paridade por teste que lê `identity.locale.json`;
+  `operator` = "Operação" (rótulo do catálogo, não "Operador"); só papéis diretos, primeiro na ordem de `COMPANY_ROLES`.
+- **CNPJ/CPF da contratante:** `contractor.taxId` repassado; 11 dígitos → "CPF" mascarado, 14 → "CNPJ" por
+  `formatCnpjForDisplay`, outro → linha omitida.
+- **Fase 1:** guardas já tolerantes; T1.1/T1.2 só provam por teste; sem código mudado, T1.3 vira registro, sem deploy.
+
 ## Prompt de execução
 
 ```text

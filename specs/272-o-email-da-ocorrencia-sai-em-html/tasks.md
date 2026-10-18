@@ -35,18 +35,24 @@
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T1.1** `haiku` — Teste antes: a prévia do diálogo com `bodyHtml`/`fromDisplayName` e a mensagem do histórico com
-      `fromDisplayName`/`signerKind` passam pelos guardas (arquivos da T0.1); sem as chaves também. Depois, a tolerância.
-- [ ] **T1.2** `haiku` — Teste antes: usuário da empresa com `jobTitle` (texto ou `null`) e sem a chave passa por
-      `companyUsersResponse.validation.ts` (lista, detalhe e resposta do `PATCH`). Depois, a tolerância.
-- [ ] **T1.3** `sonnet` — Publicar a Fase 1 (PR → `staging` → `main`) **com aprovação humana**. Registrar o commit em
-      produção no `evidence.md`. A Fase 2 não vai a `main` antes disto.
+- [ ] **T1.1** `haiku` — (Ajustado na T0.2) Teste que prova a tolerância: a prévia (`readPreview`) com `html` do layout
+      novo e `fromDisplayName`, e a mensagem do histórico (`toMessage`) com `fromDisplayName`/`signerKind`, passam pelos
+      guardas de `occurrenceConversationClient.service.ts`; sem as chaves também. As guardas já ignoram chave extra (T0.1
+      (h)): se o teste passa sem mudar código, a task fecha só com o teste. Ler/tipar as chaves fica para a Fase 4.
+- [ ] **T1.2** `haiku` — (Ajustado na T0.2) Só o teste que prova a tolerância: usuário da empresa com `jobTitle` (texto
+      ou `null`) e sem a chave passa por `toCompanyUser` (`companyUsersResponse.validation.ts`; lista, detalhe e resposta
+      do `PATCH`). A guarda já ignora chave extra (T0.1 (g)); nenhuma mudança de código esperada.
+- [ ] **T1.3** `sonnet` — (Ajustado na T0.2) Se a T1.1 e a T1.2 passaram sem mudar código de produção, não há deploy:
+      registrar no `evidence.md` e seguir. Se alguma mudou código, publicar a Fase 1 (PR → `staging` → `main`) **com
+      aprovação humana** e registrar o commit em produção; a Fase 2 não vai a `main` antes disto.
 
 ## Fase 2 — API: o montador e os dados
 
 > 🤖 Modelo: `sonnet` (T2.1, T2.3, T2.8 e T2.9 → `haiku`)
 
-- [ ] **T2.1** `haiku` — Migration aditiva D9 + schema Drizzle (API e espelho do worker) + `rollback.sql`. Aceite:
+- [ ] **T2.1** `haiku` — Migration aditiva D9 com as **quatro** colunas (`signer_kind` + CHECK, `signer_user_id`,
+      `layout_version`, `has_inline_logo`; `from_display_name` já existe e **não** entra — Ajustado na T0.2) + schema
+      Drizzle (API e espelho do worker) + `rollback.sql`. Aceite:
       aplica, reverte, reaplica; `db:generate` → `no_changes` nas duas apps.
 - [ ] **T2.2** `sonnet` — Teste antes (golden files e casos do `plan.md` § Testes); depois o montador puro:
       `occurrence-mail-layout.constant.ts`, `occurrence-mail-layout.types.ts`, `occurrence-mail-layout.policy.ts`,
@@ -60,17 +66,26 @@
       exibição, razão social, CNPJ, cidade, UF, `hasLogo`), `findOperatorSigner` (nome + cargo da membership, senão o rótulo do
       papel, numa consulta; depende da T2.9), porta
       `OccurrenceOwnerReader` com a implementação nula; `APP_BASE_URL` opcional no schema de env da API. Integração das
-      leituras (outra empresa não aparece).
+      leituras (outra empresa não aparece). (Ajustado na T0.2) Inclui: `contractorTaxId` repassado por
+      `findOccurrenceTarget` e o rótulo "CNPJ"/"CPF" (plan D12); `COMPANY_ROLE_LABELS` com `satisfies` e o contrato de
+      paridade contra `identity.locale.json` do painel (plan D11; `operator` = "Operação"), papel = primeiro na ordem de
+      `COMPANY_ROLES` entre os diretos.
 - [ ] **T2.5** `sonnet` — Envio manual e automático pelo montador: assinante (`operator`; `owner` pela porta; `team`),
-      D6 (bloco intacto vira tabela), D7, `from_display_name` e colunas D9 gravadas; prévia com `bodyHtml` e
-      `fromDisplayName`. Teste do critério 13 da spec por injeção de um leitor de dono falso. Integração: manual e
+      D6 (bloco intacto vira tabela), D7, `from_display_name` e colunas D9 gravadas. Teste do critério 13 da spec por injeção de um leitor de dono falso. Integração: manual e
       automático gravam as colunas; Resend e sandbox gravam o nome de exibição em `from_display_name` (nunca o
       `sender_name`).
-- [ ] **T2.6** `sonnet` — Reenvio da 248: repete `layout_version`, assinante e `from_display_name` do original; original
-      sem layout (anterior à 272) → reenvio no montador novo com assinante `team`. Integração do critério 10.
-- [ ] **T2.7** `sonnet` — Rota D8 (renderiza o texto editado): contrato `.strict()`, 404 outra empresa, 403 sem
-      permissão, nada gravado; critério 12 (igual ao `body_html` gravado).
-- [ ] **T2.8** `haiku` — Documentação viva: OpenAPI da rota nova e das respostas alteradas, `apps/api-transportada/CLAUDE.md`
+- [ ] **T2.6** `sonnet` — (Ajustado na T0.2, plan D9-b) Reenvio da 248: `findOriginalRequest` lê `layout_version`,
+      `signer_kind`, `signer_user_id` e o autor da mensagem original; o reenvio passa o assinante ao envio (ator continua
+      quem reenvia). Original com layout → mesmo assinante (nome e cargo lidos agora) e assunto gravado **sem** reaplicar
+      o prefixo (título = trecho depois de `· CNPJ <cnpj> —`); original anterior à 272 → autor como `operator` (ou
+      `team` se automático) e prefixo aplicado uma vez; pessoa sem vínculo → `team`. Sai sempre em `layout_version = 1`.
+      Testes do prefixo não duplicado e integração do critério 10.
+- [ ] **T2.7** `sonnet` — (Ajustado na T0.2: a rota nova D8 caiu; a task passa a ser a prévia existente) A prévia
+      `POST …/conversations/contractor/mail-preview` devolve em `html` o HTML do layout novo, em `subject` o assunto
+      prefixado e `fromDisplayName`, do `body` editado ou do texto sugerido; balde `OCCURRENCE_MAIL_PREVIEW_RATE_LIMIT`
+      (120/300 s, 429). Contratos: 404 outra empresa, 403 sem permissão, nada gravado, 429 no balde próprio sem tocar o
+      de mensagens; critério 12 (o `html` da prévia é igual ao `body_html` gravado para o mesmo texto e operador).
+- [ ] **T2.8** `haiku` — Documentação viva: OpenAPI das respostas alteradas (prévia com `fromDisplayName` e o 429), `apps/api-transportada/CLAUDE.md`
       (uma linha sob o e-mail da ocorrência), `docs/ai-context/api-transportada.md`, `.env.example` e `.railway/railway.ts`
       (`APP_BASE_URL` como `preserve()`); OpenAPI do `PATCH /company-users/:id` com `jobTitle`.
 - [ ] **T2.9** `haiku` — Cargo, dados (D10): migration aditiva `user_company_membership_job_title` (`varchar(80)` nula + CHECK) + schema Drizzle + `rollback.sql`; teste antes e política pura `company-user-job-title.policy.ts` (tabela
@@ -78,9 +93,12 @@
       política. Feita antes da T2.4.
 - [ ] **T2.10** `sonnet` — Cargo, rota (D10): contratos antes (critério 14 da spec: ausente não altera, `null`/`""`
       limpa, 81 caracteres → 400, quebra de linha saneada, sem `users.manage` → 403, usuário de outra empresa → 404 —
-      BOLA); depois `jobTitle` no schema `.strict()` do `PATCH /company-users/:id`, no caso de uso (grava por
-      `(user_id, company_id)`, sem auditoria, seguindo o perfil) e em `serializeCompanyUser`. Integração: gravar e ler de
-      volta; outra empresa não é tocada.
+      BOLA; corpo só com `jobTitle` não chama o Keycloak — dublê do gateway sem chamada); depois `jobTitle` no schema
+      `.strict()` do `PATCH /company-users/:id` (conta para o "ao menos um campo"), no caso de uso (método novo
+      `updateJobTitle` no repositório, `UPDATE` por `(user_id, company_id)`; só `jobTitle` → sem gateway; sem auditoria,
+      seguindo o perfil) e na resposta por `MEMBERSHIP_COLUMNS` → `CompanyUserRecord` → `toCompanyUserView`
+      (`company-user.policy.ts`; não em `serializeCompanyUser` — Ajustado na T0.2). Integração: gravar e ler de volta;
+      outra empresa não é tocada.
 
 ## Fase 3 — Worker: "De" com nome e logo embutido
 
@@ -101,7 +119,8 @@
 > 🤖 Modelo: `sonnet` (T4.3 → `haiku`)
 
 - [ ] **T4.1** `sonnet` — Teste antes; depois a área "Como chega" no diálogo de envio manual: `iframe` com `sandbox` (sem
-      `allow-scripts`) e `srcDoc` do HTML, atualizado pela rota D8 com atraso de 400 ms ao editar; "De" e assunto acima.
+      `allow-scripts`) e `srcDoc` do HTML, atualizado pela prévia existente com atraso de 400 ms ao editar (no 429, mantém
+      o último HTML); "De" e assunto acima. Tipa e lê `html`/`fromDisplayName` da prévia.
       O texto editável não muda. Acessível por teclado; título do `iframe`.
 - [ ] **T4.2** `sonnet` — Teste antes; depois o campo "Cargo" em `CompanyUserEditDialog.component.tsx` (texto, até 80,
       contador, ajuda "Aparece na assinatura dos e-mails de ocorrência", vazio limpa), enviado no `PATCH` existente; o
@@ -118,7 +137,7 @@
       `bun --env-file=../../.env.test run test:integration` sem skip; `bunx prettier --check .` na raiz; auditoria §15
       (PII em log, `Promise.all` × `allSettled` nas leituras da view, tamanho do HTML).
 - [ ] **T5.2** `sonnet` — `code-reviewer` e `security-reviewer` em paralelo sobre `origin/staging...HEAD` (escape de todo
-      valor no HTML, injeção de cabeçalho no "De", BOLA na rota D8, no logo de outra empresa e no `jobTitle` de
+      valor no HTML, injeção de cabeçalho no "De", BOLA na prévia, no logo de outra empresa e no `jobTitle` de
       usuário de outra empresa, cargo fora de log, `iframe` sem script).
       Corrigir e reverificar.
 - [ ] **T5.3** `sonnet` — Conferir localmente no Mailpit (268) por texto: enviar manual e automático, ler o HTML e os

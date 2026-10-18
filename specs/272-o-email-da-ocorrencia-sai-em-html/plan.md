@@ -1,8 +1,9 @@
 # Plano — 272 O e-mail da ocorrência sai em HTML
 
-ADR: **0110 — O e-mail da ocorrência sai em HTML** (escrita na T0.2; a 0109 está reservada pela 273). Registra D1–D10
-abaixo: montagem no servidor em volta do texto do modelo, logo da transportadora embutido por `cid:`, marcas do
-produto por URL pública do painel, ponto `signer` e regra única do "De".
+ADR: [**0110 — O e-mail da ocorrência sai em HTML**](../../docs/adr/0110-o-email-da-ocorrencia-sai-em-html.md)
+(escrita na T0.2; a 0109 é da 273). Registra D1–D13 abaixo: montagem no servidor em volta do texto do modelo, logo da
+transportadora embutido por `cid:`, marcas do produto por URL pública do painel, ponto `signer` e regra única do "De".
+Os itens marcados **Ajustado na T0.2** mudaram pelas divergências da T0.1 (`evidence.md` § T0.1).
 
 ## Contexto e premissas
 
@@ -77,16 +78,17 @@ Levantamento completo, com arquivo:linha, em [`evidence.md`](evidence.md) § Lev
 - **D5 — Ponto `signer` e regra única do "De".** `OccurrenceMailSigner` =
   `{ kind: 'operator' | 'owner', userId, name, jobTitle }` ou `{ kind: 'team' }`, resolvido pela API no momento do envio:
   manual → `operator` (o ator); automático → `owner` se o leitor de dono devolver alguém, senão `team`; reenvio da 248 →
-  o assinante gravado no original. A 272 entrega o leitor como porta `OccurrenceOwnerReader` com a implementação nula
+  o assinante do original (regra exata na D9-b, **Ajustado na T0.2**). A 272 entrega o leitor como porta `OccurrenceOwnerReader` com a implementação nula
   (sempre `undefined`); a 273 troca a implementação. O nome do "De" sai de **uma** função,
   `buildSenderDisplayName({ companyDisplayName, signer })`: `team` → `<nome de exibição>`; `operator`/`owner` →
   `<nome> — <nome de exibição>`. **Pela D12 do dono, o nome-base é sempre o nome de exibição da transportadora**
   (`resolveCompanyDisplayName`), nos dois transportes: o `sender_name` da configuração do Resend deixa de aparecer no
   "De" (continua só como dado da configuração). O endereço continua o da configuração (Resend) ou `EMAIL_FROM`
-  (sandbox). A API grava o resultado em `from_display_name`; o worker usa `from_display_name` nos dois transportes e só
-  cai em `settings.senderName` (Resend) ou no endereço puro (sandbox) para mensagem anterior à 272 (coluna nula), sempre
+  (sandbox). A API grava o resultado em `from_display_name` (coluna que **já existe**, reusada na saída — D9); o worker
+  usa `from_display_name` nos dois transportes quando não nulo e só cai em `settings.senderName` (Resend) ou no endereço
+  puro (sandbox) quando é nulo (saída anterior à 272, encaminhamento a terceiro, correção de endereço), sempre
   por um formatador que tira `<>"\r\n,` e codifica o nome (nodemailer: `{ name, address }`; Resend: `"Nome" <endereço>`).
-  `jobTitle` = o cargo da D10 ou, vazio, o rótulo pt-BR do papel na empresa.
+  `jobTitle` = o cargo da D10 ou, vazio, o rótulo pt-BR do papel na empresa (D11).
 - **D6 — Tabela de itens no manual só se o bloco ficou intacto.** O montador recebe o corpo em texto e a lista de itens.
   No automático, o corpo é renderizado com um marcador no lugar de `{{linhasItens}}` e o marcador vira a tabela. No
   manual, o servidor recalcula `joinItemLines` da ocorrência e, se o texto do operador contém esse bloco exatamente
@@ -95,14 +97,29 @@ Levantamento completo, com arquivo:linha, em [`evidence.md`](evidence.md) § Lev
 - **D7 — Assunto com prefixo que não se corta.** `subject = prefixo + ' — ' + cortar(assunto do modelo, 200 −
 tamanho(prefixo + ' — '))`, com o prefixo `<nome de exibição> · CNPJ <cnpj formatado>`. O corte da 269 (200) fica
   como limite do assunto inteiro.
-- **D8 — Prévia igual ao envio.** A prévia do diálogo devolve `bodyHtml` do texto sugerido, e uma rota nova
-  `POST /trip-occurrences/:id/contractor-mail/rendered` (`{ bodyText }` → `{ subject, html }`, mesma permissão da prévia)
-  renderiza o texto editado; o diálogo chama com atraso de 400 ms e mostra o HTML num `iframe` com `sandbox` (sem
-  script). O caminho e a permissão finais saem da T0.1 (seguir as rotas de `occurrence-conversation.routes.ts`).
-- **D9 — Gravar o que saiu.** Colunas novas em `contractor_mail_messages` (migration aditiva, todas anuláveis):
-  `from_display_name varchar(200)`, `signer_kind varchar(16)` com CHECK (`operator`,`owner`,`team`), `signer_user_id
-uuid`, `layout_version smallint` (1 = 272) e `has_inline_logo boolean not null default false`. `body_html` já existe e
-  passa a guardar o HTML novo. O reenvio da 248 lê essas colunas do original.
+- **D8 — Prévia igual ao envio, pela rota que já existe (Ajustado na T0.2).** Sem rota nova: a prévia
+  `POST /trip-occurrences/:id/conversations/contractor/mail-preview` (`occurrences.resolve`) já aceita o texto editado
+  (`body`) e já devolve `html`/`subject`/`text`. Passa a devolver em `html` o HTML do layout novo, em `subject` o
+  assunto prefixado (D7) e ganha `fromDisplayName`, a partir do `body` quando vier, senão do texto sugerido. O diálogo
+  chama a mesma rota com atraso de 400 ms e mostra o HTML num `iframe` com `sandbox` (sem script). A rota ganha balde
+  próprio `OCCURRENCE_MAIL_PREVIEW_RATE_LIMIT` (escopo `occurrence-mail-preview`, 120 por 300 s, `postgres`) — o de
+  mensagens (30 por 300 s) esgotaria o envio enquanto o operador digita; no 429 o painel mantém o último HTML.
+  Destinatários e cópia continuam na resposta; se pesar na medição da T5.1, extrair caso de uso interno, sem endpoint.
+- **D9 — Gravar o que saiu (Ajustado na T0.2).** Quatro colunas novas em `contractor_mail_messages` (migration
+  aditiva): `signer_kind varchar(16)` com CHECK (`operator`,`owner`,`team`), `signer_user_id uuid`, `layout_version
+smallint` (1 = 272) e `has_inline_logo boolean not null default false`. **`from_display_name` já existe** (spec 183,
+  `text` com CHECK ≤ 200, gravada só na entrada) e é **reusada** na saída com o mesmo significado (nome do `From`); a
+  leitura do histórico só a usa na entrada. Invariante: saída com `layout_version = 1` ⇔ `from_display_name` não nulo.
+  O worker decide pelo `from_display_name`; a API decide reenvio e histórico pelo `layout_version`. `body_html` já
+  existe e passa a guardar o HTML novo.
+  - **D9-b — Reenvio da 248.** `findOriginalRequest` lê também `layout_version`, `signer_kind`, `signer_user_id` e o
+    autor da mensagem original; o reenvio passa o assinante ao envio (o ator continua quem reenvia, para a trilha).
+    Assinante: original com layout → mesmo `signer_kind`/`signer_user_id`, nome e cargo lidos no reenvio; original
+    anterior à 272 → o autor da mensagem original como `operator`, ou `team` se automático (emenda a assunção A2);
+    pessoa sem vínculo na empresa → `team`. Assunto: original com `layout_version = 1` → o gravado, **como está** (já
+    prefixado; nada reaplicado nem recortado), título = trecho depois do primeiro `—` que segue
+    ` · CNPJ <cnpj formatado>` (ou o assunto inteiro); original sem layout → prefixo pela D7. O reenvio sai sempre no
+    layout novo, com `has_inline_logo` do momento.
 - **D10 — Cargo livre por usuário na empresa (D13 do dono).** Coluna `user_company_memberships.job_title varchar(80)
 null` (o cargo é **na empresa**: a mesma pessoa pode ter cargos diferentes em dois CNPJs; o perfil de identidade é por
   pessoa e é sincronizado com o Keycloak, o cargo não). Saneamento numa política pura (`company-user-job-title.policy.ts`):
@@ -117,25 +134,46 @@ null` (o cargo é **na empresa**: a mesma pessoa pode ter cargos diferentes em d
     negativo novo cobrindo o `jobTitle`). O `UPDATE` de `job_title` filtra por `(user_id, company_id)`.
   - **Auditoria:** não grava, seguindo o padrão do módulo para o perfil (`update-company-user-profile.use-case.ts` não
     audita; status, senha, permissões e grupos auditam). O cargo é texto de ficha, não acesso.
-  - **Leitura:** `serializeCompanyUser` devolve `jobTitle: string | null`; `findOperatorSigner` (e o leitor de dono da 273) leem `job_title` da membership ativa na mesma consulta do nome.
+  - **Leitura (Ajustado na T0.2):** a resposta sai de `toCompanyUserView` (`company-user.policy.ts`), não de
+    `serializeCompanyUser` (que só espalha): `jobTitle: string | null` entra em `MEMBERSHIP_COLUMNS`,
+    `CompanyUserRecord`, `CompanyUserViewSource` e `toCompanyUserView`. `findOperatorSigner` (e o leitor de dono da 273) leem `job_title` da membership ativa na mesma consulta do nome.
+  - **Gravação (Ajustado na T0.2):** método novo no repositório, `updateJobTitle({ companyId, userId, jobTitle })`,
+    `UPDATE` em `user_company_memberships` por `(user_id, company_id)` (o `updateProfile` de hoje filtra só por pessoa).
+    Corpo só com `jobTitle` **não chama o Keycloak** (o caso de uso hoje sempre sincroniza e falharia com ele fora).
+  - **Painel (Ajustado na T0.2):** a guarda `toCompanyUser` ignora chave extra; não há fase tolerante para `jobTitle`
+    — a T1.2 vira só o teste que prova a tolerância.
   - **Log:** o cargo não entra em log (texto livre pode ter nome de pessoa).
+- **D11 — Rótulo do papel (Ajustado na T0.2).** A API não tem rótulos pt-BR de `CompanyRole`. Mapa
+  `COMPANY_ROLE_LABELS` em `identity/domain/company-role-label.constant.ts` (`satisfies Record<CompanyRole, string>`),
+  copiado de `identity.locale.json` (`role.*`) do painel, mais `contractor: 'Contratante'` e `automation: 'Automação'`.
+  `operator` = **"Operação"** (o rótulo do catálogo; "Operador" na spec era exemplo do dono). Paridade por contrato que
+  lê o JSON do painel por caminho relativo dentro do teste (precedente `mail-template-variable-parity.contract.ts`).
+  Vários papéis → o primeiro na ordem de `COMPANY_ROLES`; só papéis diretos (`membership_roles`), não os de grupo.
+- **D12 — CNPJ ou CPF da contratante (Ajustado na T0.2).** De `feed.document.contractor.taxId`, repassado por
+  `findOccurrenceTarget`. 11 dígitos → "CPF" `000.000.000-00`; 14 caracteres → "CNPJ" por `formatCnpjForDisplay`
+  (alfanumérico); vazio ou outro tamanho → a linha não aparece.
+- **D13 — Janela de deploy aceita (Ajustado na T0.2).** API e worker no mesmo PR e no mesmo run (`deploy-api` →
+  `deploy-services`, sequencial). Nos minutos entre os dois, o worker velho manda o HTML novo sem a parte inline (o `alt`
+  com o nome de exibição aparece) e o "De" antigo: só visual. Rejeitadas: variável que liga o `cid` na API (duas
+  publicações e uma variável que vira lixo) e worker antes (lê colunas que a migration da API cria). Job do worker
+  vermelho = parar e perguntar (regra do dono).
 
 ## Arquitetura e arquivos afetados
 
 ### API (`apps/api-transportada`)
 
-| Camada     | Arquivo (novo ou alterado)                                                                                                                                                                                                                                                                                                              |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Constantes | `occurrence-conversation/domain/occurrence-mail-layout.constant.ts` (novo): cores, `COMPANY_LOGO_CONTENT_ID`, caminhos das marcas, `OCCURRENCE_MAIL_LAYOUT_VERSION = 1`, `SIGNER_KINDS`                                                                                                                                                 |
-| Tipos      | `occurrence-conversation/types/occurrence-mail-layout.types.ts` (novo): `OccurrenceMailView`, `OccurrenceMailSigner`, `BuildOccurrenceMailLayoutResult`                                                                                                                                                                                 |
-| Domínio    | `occurrence-mail-layout.policy.ts` (montador, D1/D2), `occurrence-mail-layout-blocks.policy.ts` (cabeçalho, resumo, assinatura, rodapé), `occurrence-mail-items-table.policy.ts` (tabela e D6), `occurrence-mail-sender-name.policy.ts` (D5), `occurrence-mail-subject.policy.ts` (D7) — todos puros                                    |
-| Leitura    | `drizzle-occurrence-mail.repository.ts`: `findOccurrenceTarget` devolve o CNPJ da contratante; `findCarrierIdentity` (nome de exibição, razão social, CNPJ, cidade, UF, `hasLogo`) no lugar de `findCarrierName`; `findOperatorSigner` (nome + `job_title` da membership, senão o rótulo do papel, numa consulta)                       |
-| Porta      | `occurrence-conversation/application/occurrence-owner-reader.port.ts` (novo, implementação nula; a 273 substitui)                                                                                                                                                                                                                       |
-| Casos      | `send-occurrence-mail.use-case.ts` (assinante, view, `from_display_name`, colunas D9), `send-automatic-occurrence-mail.use-case.ts` (assinante `owner`/`team`), `preview-occurrence-mail.use-case.ts` (`bodyHtml`), caso novo da rota D8, reenvio da 248 (assinante e layout do original)                                               |
-| Rotas      | `occurrence-conversation.routes.ts`: rota D8; OpenAPI                                                                                                                                                                                                                                                                                   |
-| Config     | `config/environment.schema.ts`: `APP_BASE_URL` opcional (URL https ou localhost)                                                                                                                                                                                                                                                        |
-| Usuários   | `database/identity.schema.ts` (`jobTitle`), `identity/domain/company-user-job-title.policy.ts` (novo, puro), `user-administration.schema.ts` (`jobTitle` opcional), `update-company-user-profile.use-case.ts`, repositório de usuários da empresa (grava e lê `job_title` por `(user_id, company_id)`), `serializeCompanyUser`; OpenAPI |
-| Schema     | `database/contractor-mail.schema.ts` + migration aditiva + `rollback.sql`                                                                                                                                                                                                                                                               |
+| Camada     | Arquivo (novo ou alterado)                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Constantes | `occurrence-conversation/domain/occurrence-mail-layout.constant.ts` (novo): cores, `COMPANY_LOGO_CONTENT_ID`, caminhos das marcas, `OCCURRENCE_MAIL_LAYOUT_VERSION = 1`, `SIGNER_KINDS`                                                                                                                                                                                                                                                                                 |
+| Tipos      | `occurrence-conversation/types/occurrence-mail-layout.types.ts` (novo): `OccurrenceMailView`, `OccurrenceMailSigner`, `BuildOccurrenceMailLayoutResult`                                                                                                                                                                                                                                                                                                                 |
+| Domínio    | `occurrence-mail-layout.policy.ts` (montador, D1/D2), `occurrence-mail-layout-blocks.policy.ts` (cabeçalho, resumo, assinatura, rodapé), `occurrence-mail-items-table.policy.ts` (tabela e D6), `occurrence-mail-sender-name.policy.ts` (D5), `occurrence-mail-subject.policy.ts` (D7) — todos puros                                                                                                                                                                    |
+| Leitura    | `drizzle-occurrence-mail.repository.ts`: `findOccurrenceTarget` devolve o CNPJ da contratante; `findCarrierIdentity` (nome de exibição, razão social, CNPJ, cidade, UF, `hasLogo`) no lugar de `findCarrierName`; `findOperatorSigner` (nome + `job_title` da membership, senão o rótulo do papel, numa consulta)                                                                                                                                                       |
+| Porta      | `occurrence-conversation/application/occurrence-owner-reader.port.ts` (novo, implementação nula; a 273 substitui)                                                                                                                                                                                                                                                                                                                                                       |
+| Casos      | `send-occurrence-mail.use-case.ts` (assinante, view, `from_display_name`, colunas D9), `send-automatic-occurrence-mail.use-case.ts` (assinante `owner`/`team`), `preview-occurrence-mail.use-case.ts` (`html` do layout novo, `fromDisplayName`), reenvio da 248 (`resend-contractor-reply-request.use-case.ts` + `drizzle-contractor-reply-resend.repository.ts`: assinante e layout do original, D9-b)                                                                |
+| Rotas      | `occurrence-conversation.routes.ts`: balde `OCCURRENCE_MAIL_PREVIEW_RATE_LIMIT` na prévia (D8); OpenAPI da prévia                                                                                                                                                                                                                                                                                                                                                       |
+| Config     | `config/environment.schema.ts`: `APP_BASE_URL` opcional (URL https ou localhost)                                                                                                                                                                                                                                                                                                                                                                                        |
+| Usuários   | `database/identity.schema.ts` (`jobTitle`), `identity/domain/company-user-job-title.policy.ts` (novo, puro), `user-administration.schema.ts` (`jobTitle` opcional), `update-company-user-profile.use-case.ts` (só `jobTitle` → sem Keycloak), repositório (`updateJobTitle` por `(user_id, company_id)`, `MEMBERSHIP_COLUMNS`), `company-user.port.ts`, `toCompanyUserView` (`company-user.policy.ts`), `identity/domain/company-role-label.constant.ts` (D11); OpenAPI |
+| Schema     | `database/contractor-mail.schema.ts` + migration aditiva + `rollback.sql`                                                                                                                                                                                                                                                                                                                                                                                               |
 
 O montador de hoje (`buildOccurrenceMail`) fica só para o encaminhamento a terceiro (248).
 
@@ -150,12 +188,13 @@ O montador de hoje (`buildOccurrenceMail`) fica só para o encaminhamento a terc
 
 ### Painel (`apps/frontend-transportada`)
 
-- Guarda da prévia e do histórico aceitam `bodyHtml`, `fromDisplayName`, `signerKind`; guarda de usuário
-  (`companyUsersResponse.validation.ts`) aceita `jobTitle` (painel tolerante, Fase 1).
+- Guardas da prévia (`html`, `fromDisplayName`), do histórico (`fromDisplayName`, `signerKind`) e de usuário
+  (`companyUsersResponse.validation.ts`, `jobTitle`) já ignoram chave extra (Ajustado na T0.2): a Fase 1 só prova com
+  teste; tipar e ler as chaves entra com as telas (Fase 4).
 - `CompanyUserEditDialog.component.tsx`: campo "Cargo" (texto, até 80, contador, ajuda "Aparece na assinatura dos
   e-mails de ocorrência"), enviado no `PATCH` existente; lista de usuários mostra o cargo abaixo do nome. Locales.
-- Diálogo de envio manual: aba/área "Como chega" com o HTML num `iframe sandbox` (D8), alimentado pela rota D8 com
-  atraso; o texto editável continua como está. Locales pt-BR/en.
+- Diálogo de envio manual: aba/área "Como chega" com o HTML num `iframe sandbox` (D8), alimentado pela prévia existente
+  com atraso (no 429, mantém o último HTML); o texto editável continua como está. Locales pt-BR/en.
 
 ### Infra
 
@@ -177,10 +216,10 @@ O montador de hoje (`buildOccurrenceMail`) fica só para o encaminhamento a terc
 
 ## Contratos
 
-- `GET` da prévia (existente): ganha `bodyHtml: string` e `fromDisplayName: string`.
-- `POST /trip-occurrences/:id/contractor-mail/rendered` (novo; caminho final na T0.1): corpo `.strict()`
-  `{ bodyText: string (1..8000) }` → `200 { data: { subject, html } }`. Ocorrência de outra empresa → 404. Sem
-  permissão → 403. Não grava nada.
+- `POST /trip-occurrences/:id/conversations/contractor/mail-preview` (existente, `occurrences.resolve`; **Ajustado na
+  T0.2**, sem rota nova): `html` passa a ser o HTML do layout novo, `subject` o assunto prefixado, e ganha
+  `fromDisplayName: string`; corpo `.strict()` `{ body?, subject? }` não muda. Balde próprio de `rateLimit` (429).
+  Ocorrência de outra empresa → 404; sem permissão → 403; não grava nada.
 - Histórico de mensagens da conversa: ganha `fromDisplayName`, `signerKind` (opcionais; painel tolerante antes).
 - `PATCH /company-users/:id` (existente, `users.manage`): corpo ganha `jobTitle?: string | null` (`.strict()` continua);
   mais de 80 caracteres depois do saneamento → 400 com o erro de validação de sempre; usuário de outra empresa → 404;
@@ -188,8 +227,9 @@ O montador de hoje (`buildOccurrenceMail`) fica só para o encaminhamento a terc
 
 ## Dados, migration e rollback
 
-Migration aditiva `contractor_mail_message_layout`: as cinco colunas da D9; CHECK `signer_kind IN
-('operator','owner','team')`. `rollback.sql`: `DROP CONSTRAINT` + `DROP COLUMN` das cinco.
+Migration aditiva `contractor_mail_message_layout`: as **quatro** colunas da D9 (`from_display_name` já existe; Ajustado
+na T0.2); CHECK `signer_kind IN ('operator','owner','team')`. `rollback.sql`: `DROP CONSTRAINT` + `DROP COLUMN` das
+quatro.
 
 Migration aditiva `user_company_membership_job_title` (D10): `job_title varchar(80) null` + CHECK de tamanho.
 `rollback.sql`: `DROP CONSTRAINT` + `DROP COLUMN`. Sem backfill (todos começam sem cargo e caem no rótulo do papel). Sem backfill (mensagens
@@ -202,7 +242,11 @@ antigas ficam com nulos e são mostradas como hoje). Aplica, reverte, reaplica; 
   com `<b>x</b> & "y"`; 200 itens < 100 KB; 201 itens com "e mais 1 item".
 - D5: tabela de casos de `buildSenderDisplayName` (team/operator/owner; nome com `<`, `"`, quebra de linha); o
   `sender_name` da configuração do Resend **nunca** aparece no "De" de mensagem da 272 (critério 5 da spec); mensagem
-  antiga (coluna nula) cai no comportamento de hoje.
+  com `from_display_name` nulo (anterior à 272, encaminhamento, correção de endereço) cai no comportamento de hoje.
+- D9-b: reenvio de original com layout não duplica o prefixo do assunto; reenvio de original anterior à 272 prefixa;
+  assinante do original (operador, dono, equipe, pessoa sem vínculo → equipe).
+- D11: contrato de paridade dos rótulos de papel com `identity.locale.json`; vários papéis → primeiro do catálogo.
+- D12: contratante com CPF, com CNPJ alfanumérico e sem documento.
 - D10: tabela de casos do saneamento (quebra de linha, controle, espaços, 80 e 81 caracteres, vazio → `null`);
   contratos do `PATCH` (ausente não altera, `null` limpa, 400, 403, 404 de outra empresa); assinatura com cargo e sem
   cargo (rótulo do papel).
@@ -211,14 +255,16 @@ antigas ficam com nulos e são mostradas como hoje). Aplica, reverte, reaplica; 
 - Worker: Resend recebe `from` com nome, anexo inline com `content_id` quando `has_inline_logo`; sandbox idem pelo
   nodemailer dublê; logo ausente → envia sem a parte inline.
 - Integração: envio manual e automático gravam as colunas D9; reenvio da 248 repete layout e assinante.
-- Critério 12: a string da rota D8 é igual ao `body_html` gravado para o mesmo texto.
+- Critério 12: o `html` da prévia é igual (string) ao `body_html` gravado para o mesmo texto e o mesmo ator.
 
 ## Publicação
 
-1. Painel tolerante (guardas com as chaves novas, inclusive `jobTitle`) → `staging` → `main` com aprovação humana.
-2. API + as duas migrations aditivas → `staging`. **Antes** de o worker novo ir junto, o worker velho manda `body_html` novo com
-   `cid:company-logo` sem a parte inline (imagem quebrada) — por isso a API só liga `has_inline_logo`/`cid` quando o
-   worker novo estiver no ar: API e worker vão no **mesmo** deploy (o monorepo publica os dois juntos; a T5.4 confere).
+1. Painel tolerante: as guardas da prévia, do histórico e de usuário já ignoram chave extra (T0.1 (g)/(h)); a Fase 1
+   escreve os testes que provam isso. Verde sem mudar código → não há deploy da Fase 1 (T1.3 vira registro); vermelho →
+   tolerância → `staging` → `main` com aprovação humana.
+2. API + worker + as duas migrations aditivas, **no mesmo PR e no mesmo run** (`deploy-api` → `deploy-services`,
+   sequencial — Ajustado na T0.2, D13). Janela de minutos aceita: o worker velho manda o HTML novo sem a parte inline
+   (aparece o `alt`) e o "De" antigo. A T5.4 confere os dois jobs verdes; worker fora do run = parar e perguntar.
 3. Telas (prévia no diálogo e campo "Cargo" em Usuários) → `staging`.
 4. Produção só com aprovação humana, na mesma ordem, depois de 269 + 270 + 271.
 

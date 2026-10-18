@@ -65,11 +65,12 @@ preenchido>`. O saneamento e o corte da 269 valem só para a parte do modelo; o 
   Só quando a mensagem tem `Reply-To` (Resend). No sandbox (268) não aparece.
 - **RF8 — Assinatura.**
   - Envio manual: o operador — avatar com as iniciais, nome e, abaixo, o **cargo** (RF14; sem cargo, o rótulo do papel
-    na empresa, ex.: "Operador"), com o nome de exibição e o CNPJ.
+    na empresa no catálogo do painel, ex.: "Operação"), com o nome de exibição e o CNPJ.
   - Envio automático: o **dono** da ocorrência quando a 273 estiver publicada e houver dono (mesma forma do operador, com o cargo dele);
     senão "Equipe <nome de exibição>", com "Mensagem automática do registro da ocorrência · CNPJ <cnpj>" e as iniciais da
     transportadora.
-  - Reenvio da 248: a assinatura do envio original.
+  - Reenvio da 248: a assinatura do envio original — a mesma pessoa (ou a equipe), com nome e cargo do momento do
+    reenvio; original anterior à 272 → o operador que o escreveu, ou a equipe se foi automático (ADR-0110 §10).
 - **RF9 — Rodapé.** Linha com o logo da transportadora (ou as iniciais) **antes** de "<nome de exibição> · <razão social>
   · CNPJ <cnpj>" e "Ocorrência da NF <número>"; abaixo, separada por linha fina, as miniaturas da transportadora, do
   TransportAdA e da Ada com "Enviado pelo TransportAdA — uma solução Ada Technology"; e "© <ano do envio> Ada Technology
@@ -83,13 +84,15 @@ exibição>`. O nome de exibição é o da transportadora no sistema (`resolveCo
   "De". O endereço não muda (o da configuração do Resend, ou `EMAIL_FROM` no sandbox). Vale também no sandbox, que hoje
   manda o endereço sem nome.
 - **RF12 — Ver antes de enviar.** A prévia do diálogo de envio manual mostra o e-mail em HTML como vai sair (mesma
-  montagem do servidor), além do texto editável de hoje.
+  montagem do servidor), além do texto editável de hoje. É a rota de prévia que já existe
+  (`POST /trip-occurrences/:id/conversations/contractor/mail-preview`), chamada de novo com o texto editado; ela devolve
+  o HTML do layout novo, o assunto com o prefixo e o nome do "De". Sem rota nova (ADR-0110 §8).
 - **RF14 — Cargo livre na assinatura (D13).** Cada usuário tem, **na empresa**, um campo de cargo livre (ex.:
   "Atendimento — ocorrências"), até 80 caracteres, saneado (sem quebra de linha nem caractere de controle; espaços
   colapsados; vazio = sem cargo). Editado em Usuários (diálogo de edição do usuário no painel) por quem tem
   `users.manage`, pela mesma rota que já edita o perfil (`PATCH /company-users/:id`); usuário de outra empresa → 404.
   Aparece abaixo do nome do operador ou do dono na assinatura (HTML e texto); sem cargo, o rótulo pt-BR do papel na
-  empresa ("Operador", "Financeiro"; com vários papéis, o primeiro na ordem do catálogo).
+  empresa, o mesmo do painel ("Operação", "Financeiro"; com vários papéis, o primeiro na ordem do catálogo; ADR-0110 §11).
 - **RF13 — Rastreio.** A mensagem gravada guarda o HTML que saiu, o nome usado no "De" e quem assinou (tipo e id), para o
   histórico da conversa e para o reenvio da 248 repetir o original.
 
@@ -128,7 +131,8 @@ exibição>`. O nome de exibição é o da transportadora no sistema (`resolveCo
 3. Empresa sem logo: cabeçalho e rodapé com as iniciais, sem `<img>` quebrado. Com logo: a imagem é parte embutida do
    e-mail e o HTML a referencia por `cid:`; nenhum `data:` nem link de API aparece no HTML.
 4. Envio manual de Ana Lima com cargo "Atendimento — ocorrências": "De" `Ana Lima — Tapete Mágico Transportes <…>`,
-   assinatura com o nome, o cargo abaixo, o nome de exibição e o CNPJ. Sem cargo: o rótulo do papel ("Operador").
+   assinatura com o nome, o cargo abaixo, o nome de exibição e o CNPJ. Sem cargo: o rótulo do papel do catálogo do
+   painel ("Operação" para `operator`).
    Automático sem dono: "De" `Tapete Mágico Transportes <…>` e "Equipe Tapete Mágico Transportes".
 5. Resend com `sender_name = "TMT Ocorrências"` e nome de exibição "Tapete Mágico Transportes": o "De" é
    `Tapete Mágico Transportes <endereço do Resend>` (o `sender_name` não aparece).
@@ -138,9 +142,12 @@ exibição>`. O nome de exibição é o da transportadora no sistema (`resolveCo
    a tabela.
 8. Ocorrência de parada sem nota: o resumo não tem o grupo "Nota fiscal" nem linha vazia.
 9. 200 itens: HTML abaixo de 100 KB e a linha "e mais N itens" quando passar de 200.
-10. Reenvio da 248 de um e-mail enviado em HTML repete o HTML, o "De" e a assinatura gravados.
+10. Reenvio da 248 de um e-mail enviado em HTML sai no layout novo com o mesmo assinante do original (tipo e pessoa) e
+    o "De" que sai dele, e com o assunto gravado sem prefixo duplicado; reenvio de um e-mail anterior à 272 sai
+    assinado pelo operador que o escreveu (ou pela equipe) e com o prefixo aplicado uma vez.
 11. Assunto do modelo com 300 caracteres: o prefixo fica inteiro e a parte do modelo é cortada no limite da 269.
-12. A prévia do diálogo mostra o mesmo HTML que o Mailpit recebe (mesma montagem; teste de igualdade de string).
+12. O `html` devolvido pela prévia existente para um texto (sugerido ou editado) é igual, como string, ao `body_html`
+    gravado no envio do mesmo texto pelo mesmo operador (e é o que o Mailpit recebe).
 13. Com a 273 publicada e dono Carla na ocorrência: o automático sai "De" `Carla — Tapete Mágico Transportes` e assinado
     por Carla (teste do ponto `signer` com dono, mesmo antes da 273, por injeção).
 14. Cargo: `PATCH /company-users/:id` com `jobTitle` de 81 caracteres → 400; com quebra de linha → gravado sem ela;
