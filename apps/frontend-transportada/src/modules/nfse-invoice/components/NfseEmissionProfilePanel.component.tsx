@@ -67,18 +67,22 @@ function ProfileSkeleton(): JSX.Element {
 
 export function NfseEmissionProfilePanel(props: NfseEmissionProfilePanelProps): JSX.Element {
   const { t } = useTranslation('nfseInvoice')
-  const [selectedId, setSelectedId] = useState<string>(NEW_PROFILE_VALUE)
-  const [draft, setDraft] = useState<NfseProfileDraft>(EMPTY_NFSE_PROFILE_DRAFT)
+  // Sem escolha do operador, abre o primeiro perfil já cadastrado em vez de um formulário vazio.
+  const [chosenId, setChosenId] = useState<string | undefined>(undefined)
+  const [editedDraft, setEditedDraft] = useState<NfseProfileDraft | undefined>(undefined)
   const [blockReason, setBlockReason] = useState<NfseProfileBlockReason | undefined>(undefined)
 
+  const selectedId = chosenId ?? props.profiles[0]?.id ?? NEW_PROFILE_VALUE
   const selected = props.profiles.find((profile) => profile.id === selectedId)
+  const draft =
+    editedDraft ?? (selected === undefined ? EMPTY_NFSE_PROFILE_DRAFT : toNfseProfileDraft(selected))
   const hasTaxationPair =
     selected?.nationalTaxationCode != null || selected?.simplesNationalRate != null
 
   function handleSelect(value: string) {
     const profile = props.profiles.find((candidate) => candidate.id === value)
-    setSelectedId(profile === undefined ? NEW_PROFILE_VALUE : profile.id)
-    setDraft(profile === undefined ? EMPTY_NFSE_PROFILE_DRAFT : toNfseProfileDraft(profile))
+    setChosenId(profile === undefined ? NEW_PROFILE_VALUE : profile.id)
+    setEditedDraft(undefined)
     setBlockReason(undefined)
   }
 
@@ -150,7 +154,7 @@ export function NfseEmissionProfilePanel(props: NfseEmissionProfilePanelProps): 
             disabled={props.disabled}
             draft={draft}
             freightRules={props.freightRules}
-            onChange={setDraft}
+            onChange={setEditedDraft}
           />
           <button className={styles.primaryAction} disabled={props.disabled} type="submit">
             <Icon name="save" />
