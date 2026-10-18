@@ -674,6 +674,7 @@
     "noteRequired": "O que aconteceu (obrigatório)",
     "open": "Ocorrência",
     "openHint": "Registrar um problema desta nota ou da parada",
+    "backToProofs": "Comprovantes da entrega",
     "photoAnother": "Tirar outra foto",
     "photoCount": "Fotos: {{count}} de {{limit}}",
     "photoRemoveLast": "Remover a última foto",
