@@ -1,188 +1,155 @@
 # ADR 0110 — O e-mail da ocorrência sai em HTML
 
-- **Status:** aceita (2026-10-18) — T0.2 da spec 272; validada pelo `architect` (opus), aprovada com ajustes, todos
-  aplicados abaixo (registro em `evidence.md` da 272, § T0.2 — Validação do architect).
+- **Status:** proposta (2026-10-18, revisão 2) — reescrita pela mudança de escopo do dono de 2026-10-18; volta a
+  "aceita" quando a T0.3 da spec 272 a validar com o `architect`. A revisão 1 (montador em código) foi aceita no mesmo
+  dia na T0.2 e está resumida em § Revisão 1 (substituída); o texto integral está no histórico do git (commit
+  `d56e8115c`).
 - **Data:** 2026-10-18
 - **Nasce da spec 272:** o e-mail de ocorrência à contratante sai no desenho aprovado pelo dono (versão 10 do artefato,
-  `specs/272-o-email-da-ocorrencia-sai-em-html/desenho-aprovado.html`), montado pelo servidor em volta do texto do
-  modelo da 271, com o "De" e a assinatura identificando a transportadora e quem escreveu.
-- **Mantém:** a [ADR-0108](0108-o-modelo-do-email-a-contratante-vem-do-modulo-de-notificacao.md) inteira — o modelo
-  continua texto (corpo HTML recusado), `{{camelCase}}` da lista fechada, `{{linhasItens}}` com formato fixo.
-- **Emenda:** a spec 268 (o "De" do sandbox ganha nome; a faixa de resposta some sem `Reply-To`) e a spec 248 (o
-  reenvio repete o assinante do original, não quem reenvia).
-- **Consumidora:** a [ADR-0109](0109-a-ocorrencia-tem-dono.md) (spec 273, `work/spec-273`) implementa a porta de dono
-  que esta ADR cria e herda a regra do "De" (§5).
-- **Base factual:** `evidence.md` da 272, § Levantamento e § T0.1 (conferido contra `origin/staging` 68613c0f9).
+  `specs/272-o-email-da-ocorrencia-sai-em-html/desenho-aprovado.html`), com o "De", o assunto e a assinatura
+  identificando a transportadora e quem escreveu.
+- **Segue a regra global** `email-templates.md` (`~/.claude/rules/rules/email-templates.md`, repositório `ia`): o
+  visual do e-mail mora no modelo do módulo de notificação; layout de e-mail em código é proibido.
+- **Emenda:** a [ADR-0108](0108-o-modelo-do-email-a-contratante-vem-do-modulo-de-notificacao.md) §3 e a D5 da spec 271
+  — **corpo HTML deixa de ser recusado** no modelo de e-mail à contratante; passa a ser recusado só o HTML inseguro
+  (§2). O resto da ADR-0108 (o módulo é depósito e renderizador, escolha pela chave, sem modelo sem e-mail, carimbo,
+  cópia, destinatários) continua. Emenda também a spec 268 (o "De" do sandbox ganha nome).
+- **Consumidora:** a [ADR-0109](0109-a-ocorrencia-tem-dono.md) (spec 273) implementa a porta de dono (§6) e herda a
+  regra do "De" (§8).
+- **Base factual:** `evidence.md` da 272, § Levantamento, § T0.1 e § Mudança de escopo → Fatos conferidos.
 
 ## Contexto
 
-- O e-mail já é `multipart/alternative`: `buildOccurrenceMail` devolve `{ html, subject, text }`, a API grava
-  `body_html`/`body_text` em `contractor_mail_messages` e o worker manda as duas partes, no Resend e no sandbox. Só
-  falta o desenho: hoje o HTML é `<p>` escapado com `--`/operador/transportadora.
-- O texto chega pronto de `renderContractorMail` (assunto cortado em 200, corpo em 8000, `linhasItens` fixo). No
-  manual, o operador pede a prévia, pode editar e o `POST` manda o texto pronto.
-- O logo da transportadora mora no Postgres (`company_logos`, até 256 KiB), não no bucket. A rota anônima
-  `/public/landing-logo` serve só a empresa da instalação — uma transportadora pode ter mais de um CNPJ.
-- O worker já tem um e-mail com desenho (`code-email-template.service.ts`): tabelas, paleta e marcas por
-  `APP_BASE_URL` + `/icons/...`. O `icon-192.png` do painel é byte a byte a marca da prévia aprovada.
-- A prévia do diálogo (`POST /trip-occurrences/:id/conversations/contractor/mail-preview`, `occurrences.resolve`) já
-  aceita o texto editado (`body`) e já devolve `html`/`subject`/`text`. Não tem `rateLimit`.
-- `contractor_mail_messages.from_display_name` já existe (spec 183): gravada e lida só no trilho de entrada; a saída
-  nunca a escreve e o worker não a lê para enviar.
-- O deploy publica API e worker no mesmo run, **em sequência** (`deploy-api` → `deploy-services`), e o worker só sai
-  se o diff o tocar. As migrations rodam no `preDeployCommand` da API.
-- A API não tem rótulos pt-BR de `CompanyRole`; eles moram em `identity.locale.json` do painel (`operator` é
-  "Operação").
+- A revisão 1 desta ADR decidiu um montador de HTML em código (blocos TS com tabelas inline, golden files) em volta do
+  texto do modelo. Na mesma tarde o dono descartou esse caminho: **o pacote já tem editor, validação e prévia de HTML
+  de e-mail**, e montar layout em código duplica isso, exige deploy para mudar uma cor e cria uma segunda fonte de
+  verdade do visual. A decisão virou a regra global `email-templates.md`.
+- `@adatechnology/notification-ui` (0.1.0-rc.9 no painel, código igual ao da 0.1.0): no canal e-mail, corpo com tag
+  troca o campo por `HtmlCodeField` (`isHtmlBody`, `NotificationSettingsWorkspace.tsx:119-121`, :736-753), que mostra
+  os problemas da função `validateEmailHtml` que o host passa (prop opcional, :85); a prévia `TemplatePreview` mostra o
+  corpo cru num `<iframe sandbox="" srcDoc>` (`emailHtml`, :784-785; `TemplatePreview.tsx:484-495`).
+- `validateEmailHtml` **não é do pacote**: é do painel do TransportAdA
+  (`frontend-transportada/src/modules/notification/shared/emailHtml.validation.ts:118`) e não cobre `on*`,
+  `javascript:`, `iframe` e `form`.
+- O renderer padrão escapa tudo no e-mail (`notification-contracts/src/templateRender.ts:103-121`); a porta
+  `TemplateRendererPort` existe para o host trocar (`providers.ts:65-68`; `DefaultTemplateRenderer.ts:4-5`). O e-mail
+  à contratante não usa o envio do módulo (ADR-0108 §1): a API lê `notification.templates` e interpola sozinha.
+- A 271 recusa HTML em `assessContractorTemplate` (`occurrence-contractor-template.policy.ts:67`, `html_body`, que
+  bloqueia o envio) e o worker filtra a fila do automático em SQL (`body !~ HTML_BODY_PATTERN`,
+  `drizzle-occurrence-automatic-mail-queue.repository.ts:92`).
+- Versões: API/worker `notification-contracts` 0.1.0-rc.2 e `notification-module` 0.1.0-rc.3; painel
+  `notification-ui` 0.1.0-rc.9. Tudo o que esta ADR usa já está nelas: sem bump.
 
 ## Decisão
 
-1. **O servidor monta; o modelo continua texto.** Um montador puro na API, `buildOccurrenceMailLayout(view)` →
-   `{ subject, html, text }`, é a única fonte do HTML: envio manual, automático, reenvio da 248 e prévia chamam ele.
-   O encaminhamento a terceiro (248) e a correção de endereço (150) seguem no montador de hoje.
-2. **Sem biblioteca.** Funções TS que devolvem string, com tabelas e estilos inline, cada bloco num arquivo sob 200
-   linhas; todo valor por `escapeMailHtml`; cores fixas e `color-scheme: light only`. mjml traria dependência pesada,
-   react-email traria React à API, juice resolveria só o inline que já escrevemos direto.
-3. **Logo da transportadora por `cid:`.** Com logo, o HTML referencia `cid:company-logo` e grava
-   `has_inline_logo = true`; o worker lê `company_logos` pela `company_id` da mensagem e anexa a parte inline
-   (`content_id` no Resend, `cid` no nodemailer). Logo sumido entre gravar e enviar → sai sem a parte, e o `alt` (nome
-   de exibição) aparece. Rejeitados: `/public/landing-logo` (só a empresa da instalação; imagem remota bloqueada no
-   Outlook), rota anônima nova por empresa (superfície que enumera logos) e `data:` (Gmail remove; passa de ~102 KB).
-4. **Marcas TransportAdA e Ada por `APP_BASE_URL`** (variável nova e opcional na API; o worker já tem) +
-   `/icons/icon-192.png` e `/icons/ada-technology.png`. Sem a variável, as miniaturas saem e o texto fica. Nunca base64.
-5. **Ponto `signer` e uma regra para o "De".** `OccurrenceMailSigner` = `{ kind: 'operator' | 'owner', userId, name,
-jobTitle?: string }` ou `{ kind: 'team' }`. Manual → `operator` (o ator); automático → `owner` se a porta
-   `OccurrenceOwnerReader` devolver alguém, senão `team` (a 272 entrega a porta com implementação nula; a 0109
-   implementa). Contrato da porta: `findEligibleOwner({ companyId, occurrenceId, kind }) → { userId, name, jobTitle?:
-string } | undefined`; a elegibilidade (ADR-0109 §7) é da implementação (`kind` já existe em `findOccurrenceTarget`,
-   `item.source`). `buildSenderDisplayName({ companyDisplayName, signer })` (pura, na API): `team` →
-   `<nome de exibição>`; pessoa → `<nome> — <nome de exibição>`. O nome-base é **sempre** o nome de exibição da
-   transportadora (`resolveCompanyDisplayName`), nos dois transportes (D12 do dono): o `sender_name` do Resend sai do
-   "De". O endereço não muda (configuração do Resend ou `EMAIL_FROM`). **Saneamento e tamanho** (ajustado na T0.2,
-   architect): a função remove todo `\p{Cc}`, U+2028/U+2029, os caracteres bidi (U+202A–U+202E, U+2066–U+2069) e
-   `<>"\,;`, colapsa espaços e, para o total caber em 200 (o CHECK de `from_display_name`; `name` e `trade_name` são
-   `text` sem limite), corta **primeiro o nome da pessoa** (o nome de exibição só é cortado se sozinho passar de 200);
-   a API grava o valor já saneado. O worker reaplica o **mesmo** saneamento, espelhado, com tabela de casos idêntica nas
-   duas apps (defesa em profundidade, sem `import` entre apps), e formata (nodemailer `{ name, address }`; Resend
-   `"Nome" <endereço>`). Se o Resend não codificar nome não ASCII (RFC 2047) sozinho, o gateway codifica — a T3.1
-   confirma na doc oficial e a T5.4 faz um envio real pelo Resend antes de `main`. `jobTitle` = cargo (§12) ou, vazio,
-   o rótulo do papel (§11), pela função pura `resolveSignerJobTitle({ jobTitle, directRoles })`, usada por
-   `findOperatorSigner` e pelo leitor de dono; sem cargo e sem papel direto → `jobTitle` ausente e a linha do cargo é
-   omitida na assinatura.
-6. **Tabela de itens pelo bloco exato, sem marcador** (ajustado na T0.2, architect). Um marcador de texto seria
-   forjável (a `observacao` do motorista é interpolada no corpo) e quebraria o corte de 8000
-   (`occurrence-contractor-mail-render.policy.ts:43-48`). `renderContractorMail` passa a devolver também
-   `itemLinesBlock`: o texto exato injetado no lugar de `{{linhasItens}}`, já com as `shown` linhas que sobraram do
-   corte. Automático, manual e reenvio usam **uma** regra: o parágrafo do `bodyText` igual a `itemLinesBlock` vira a
-   tabela, com as mesmas `shown` linhas e "e mais N itens". Bloco vazio nunca casa. No manual, o bloco vem do mesmo
-   leitor da sugestão; se o operador editou o bloco, o texto sai como ele escreveu.
+1. **O HTML é o modelo.** O desenho do e-mail mora no modelo de e-mail do módulo de notificação (canal `email`,
+   `pt-BR`), editado na tela de Notificações. A API não monta layout. Corpo com tag → caminho HTML (§3); corpo sem tag
+   → o caminho de texto de hoje (parágrafos e assinatura de texto). O encaminhamento a terceiro (248) e a correção de
+   endereço (150) não mudam.
+2. **HTML inseguro é "não utilizável".** Política pura na API, sem diferenciar maiúsculas: `<script`, atributo
+   `on*=`, `javascript:` em atributo (também com entidade ou espaço no meio), `<iframe`, `<form`. O problema
+   `html_body` da 271 dá lugar a `unsafe_html`, que bloqueia o envio pelos caminhos de hoje (400 ao gravar o tipo, 409
+   `OCCURRENCE_MAIL_TEMPLATE_MISSING` no manual, o automático pula, aviso "Tipo sem modelo de notificação"). O
+   validador do editor no painel ganha as quatro regras que lhe faltam como erro, e o worker troca o filtro da fila por
+   um padrão equivalente; as três cópias ficam presas por uma tabela de casos idêntica (sem `import` entre apps). As
+   demais regras do editor (folha externa, `data:`, tags desbalanceadas e os avisos) continuam só no editor.
+3. **Renderer próprio, uma passada, escape só nos valores.** Uma varredura única troca cada `{{nome}}` **do modelo**
+   pelo valor escapado (`escapeMailHtml`); o texto do modelo nunca é escapado nem reinterpretado. Só as chaves do
+   conjunto fechado `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES` (`logoTransportadora`, `tabelaItens`, `marcasRodape`) entram
+   sem escape, com valor vindo de um objeto separado que só a API monta — a decisão de não escapar é **pelo nome da
+   chave**, nunca pelo conteúdo. O HTML do sistema escapa tudo o que carrega. Um valor que contém `{{…}}` não é
+   reinterpretado. É uma política pura da API (não uma injeção de `TemplateRendererPort`, porque o envio do módulo não
+   é usado).
+4. **Parte texto gerada do HTML** renderizado: sem `<head>`/`<style>`, quebras de bloco preservadas, tags fora,
+   entidades decodificadas, sem biblioteca. É o `body_text` gravado e o texto da mensagem na conversa.
+5. **Variáveis novas na lista fechada** (catálogo da API e do editor do tipo, com o contrato de paridade da 271): texto
+   escapado — `nomeExibicao`, `cnpjTransportadora`, `cnpjContratante` (CNPJ ou CPF formatado, vazio sem documento),
+   `assinaturaNome`, `assinaturaCargo`; HTML do sistema — `logoTransportadora` (`<img src="cid:company-logo">` com
+   logo, iniciais sem logo), `tabelaItens` (até 200 linhas, "e mais N itens", "Total dos itens" com a soma da 247),
+   `marcasRodape` (`APP_BASE_URL` + `/icons/icon-192.png` e `/icons/ada-technology.png`; sem a variável, só o texto).
+   `valorNota`, `motorista`, `parada` e `data` já existem e não são duplicadas.
+6. **Assinante e porta de dono.** `OccurrenceMailSigner` = `{ kind: 'operator' | 'owner', userId, name, jobTitle? }`
+   ou `{ kind: 'team' }`. Manual → o operador; automático → o dono pela porta `OccurrenceOwnerReader.findEligibleOwner({
+companyId, occurrenceId, kind }) → { userId, name, jobTitle? } | undefined` (implementação nula aqui; a ADR-0109
+   implementa a elegibilidade), senão a equipe. `assinaturaNome` = nome ou "Equipe <nome de exibição>";
+   `assinaturaCargo` = o cargo (§10) ou o rótulo do papel (§11), por `resolveSignerJobTitle({ jobTitle, directRoles })`.
+   O assinante não é gravado na mensagem.
 7. **Assunto com prefixo que não se corta.** `<nome de exibição> · CNPJ <cnpj> — ` + o assunto do modelo cortado em
-   `200 − tamanho(prefixo)`. O prefixo é montado só sobre assunto que veio do modelo ou do diálogo (§10 trata o
-   reenvio). No prefixo, o nome de exibição passa pelo mesmo colapso de §5 e é cortado em 80 (com o CNPJ formatado, o
-   prefixo tem no máximo 109 caracteres e o modelo fica com ao menos 91). `applySubjectPrefix` é **idempotente**:
-   assunto que já começa pelo prefixo da empresa não é prefixado de novo (defesa para painel antigo e reenvio; ajustado
-   na T0.2, architect).
-8. **A prévia é a rota que já existe** (ajustado na T0.2; a rota nova `…/contractor-mail/rendered` do plano caiu). A
-   prévia passa a devolver em `html` o HTML do layout novo e ganha `fromDisplayName`, a partir do `body` editado quando
-   vier, senão do texto sugerido. O painel chama a mesma rota com atraso ao editar. **Assunto** (ajustado na T0.2,
-   architect): o diálogo devolve o assunto da prévia no `POST` (`SendToContractorDialog.component.tsx:103`) e a prévia
-   trata o `subject` recebido como digitado (`preview-occurrence-mail.use-case.ts:110`, :119), então `subject` continua
-   a parte do modelo (editável, sem prefixo); a prévia ganha `fullSubject` (o assunto como sai) só para exibir; o painel
-   nunca devolve `fullSubject`. **Logo na prévia** (ajustado na T0.2, architect): `cid:company-logo` não resolve num
-   `iframe` `srcDoc`, a CSP do painel não aceita `data:` (`contentSecurityPolicy.service.ts:161`, `img-src 'self'
-blob:`) e `GET /company-settings/logo` exige `settings.manage`. Decisão: a prévia, na primeira chamada (sem `body`),
-   devolve `inlineLogo?: { mimeType, contentBase64 }`; o painel cria uma URL `blob:` uma vez e troca
-   `cid:company-logo` por ela **só no `srcDoc`** — o `html` devolvido não muda (critério 12: `html` da prévia ==
-   `body_html`). Fallback, na ordem: se o `blob:` do pai não carregar no `iframe` de origem opaca, `sandbox` ganha
-   `allow-same-origin` **sem** `allow-scripts` (registrar aqui quando adotado); se nem assim, a prévia mostra o `alt`
-   (nome de exibição) no lugar do logo, declarado no RF12 da spec. A T4.1 prova no navegador qual caso vale.
-   Ganha balde próprio de `rateLimit` (`OCCURRENCE_MAIL_PREVIEW_RATE_LIMIT`, escopo `occurrence-mail-preview`, 120 por
-   300 s, `postgres`), separado do de mensagens (30 por 300 s), para que redigir não esgote o envio; o painel guarda o
-   último HTML no 429. Os destinatários e a cópia continuam na resposta; se o custo pesar na medição da T5.1, extrai-se
-   um caso de uso interno que só monta o HTML (sem buscar destinatários e cópia a cada pausa), sem endpoint novo.
-9. **Gravar o que saiu.** Migration aditiva com **quatro** colunas em `contractor_mail_messages`: `signer_kind
-varchar(16)` (CHECK `operator`/`owner`/`team`), `signer_user_id uuid`, `layout_version smallint` (1 = 272) e
-   `has_inline_logo boolean not null default false`. **`from_display_name` é reusada** (ajustado na T0.2): já existe com
-   CHECK ≤ 200, e na saída passa a guardar o nome do "De" — o mesmo significado que tem na entrada (o nome de exibição
-   do cabeçalho `From`); a leitura do histórico só a usa para mensagem de entrada (`toAuthor` retorna antes na saída).
-   Invariante **no banco** (ajustado na T0.2, architect), três CHECKs na mesma migration, que as linhas atuais passam:
-   `direction <> 'outbound' or ((layout_version is null) = (from_display_name is null))`;
-   `(layout_version is null) = (signer_kind is null)`; `(signer_kind in ('operator','owner')) = (signer_user_id is not
-null)`. `signer_user_id` fica **sem FK de propósito**: o vínculo pode ser apagado (ADR-0076) e a mensagem é
-   histórico. **O worker decide pelo `from_display_name`**, e só em mensagem com `direction = 'outbound'` (na entrada a
-   coluna é o remetente da contratante; `findMessageById` passa a ler `direction`): não nulo → é o nome do "De"; nulo
-   (saída anterior à 272, encaminhamento a terceiro, correção de endereço) → o comportamento de hoje
-   (`settings.senderName` no Resend, endereço puro no sandbox). A API decide o reenvio e o histórico pelo
-   `layout_version`.
-10. **Reenvio da 248 repete o original** (ajustado na T0.2). `findOriginalRequest` passa a ler também
-    `layout_version`, `signer_kind`, `signer_user_id` e o autor da mensagem original, e o reenvio passa o assinante ao
-    envio (o ator continua sendo quem reenvia, para a trilha e a autoria da mensagem na conversa):
-    - **Assinante:** original com layout → o mesmo `signer_kind`/`signer_user_id`, com nome e cargo lidos no reenvio
-      (a pessoa é a mesma; o texto do cargo é o de hoje); `team` → `team`. Original anterior à 272 → o autor da
-      mensagem original como `operator`, ou `team` se foi automático (emenda a assunção A2, que dizia sempre `team`:
-      o RF8 pede "a assinatura do envio original", e o e-mail de antes já saía assinado pelo operador). **Vínculo**
-      (ajustado na T0.2, architect): o assinante pessoa exige membership ativa na empresa; se o original é `owner`,
-      também a elegibilidade da ADR-0109 (pela porta `OccurrenceOwnerReader`); senão → `team`. O "De" sai de
-      `buildSenderDisplayName` com esse assinante.
-    - **Assunto:** original com `layout_version = 1` → o assunto gravado é reusado **como está** (já tem o prefixo;
-      nada é reaplicado nem recortado); o título do HTML é o trecho depois do primeiro `—` que segue
-      ` · CNPJ <cnpj formatado>`, ou o assunto inteiro se o padrão não casar — uma função de leitura pura, testada com
-      nome de exibição que contém "—". Original sem layout → o assunto gravado é do modelo: recebe o prefixo pela §7,
-      como um envio novo (a idempotência da §7 impede prefixo duplo também aqui).
-    - **Layout:** o reenvio sempre sai no layout novo (`layout_version = 1`), com `has_inline_logo` do momento.
-11. **Rótulo do papel na API, igual ao do painel.** `COMPANY_ROLE_LABELS` (`identity/domain/company-role-label.constant.ts`,
-    `satisfies Record<CompanyRole, string>`, papel novo reprova o typecheck) copia os rótulos de `identity.locale.json`
-    (`role.*`) e acrescenta `contractor: 'Contratante'` e `automation: 'Automação'`, que o painel não rotula e nenhuma
-    assinatura humana alcança. **O rótulo é o do catálogo do painel** — `operator` assina "Operação", não "Operador"
-    (o "Operador" da spec era exemplo do dono; dois nomes para o mesmo papel confundiriam quem lê a tela e o e-mail).
-    Paridade por teste de contrato que lê o JSON do painel por caminho relativo dentro do teste, sem `import` de código
-    entre apps (precedente: `frontend-transportada/test/delivery-clients/mail-template-variable-parity.contract.ts`).
-    Vários papéis → o primeiro na ordem de `COMPANY_ROLES`; só papéis diretos da membership (`membership_roles`), não
-    os herdados de grupo. Sem cargo e sem papel direto → a linha do cargo é omitida (§5).
-12. **Cargo livre na membership** (D13 do dono). `user_company_memberships.job_title varchar(80)` nula, CHECK
-    `1..80`; saneado por política pura (controle, quebra de linha e caracteres bidi — U+202A–U+202E, U+2066–U+2069 —
-    fora, espaços colapsados, `trim`, vazio → `null`, mais de 80 → 400; bidi adotado da sugestão do architect). Editado por `users.manage` no `PATCH /company-users/:id` existente (`jobTitle?: string | null`;
-    ausente não altera; conta para o "ao menos um campo"). Gravado por **método novo** do repositório, `UPDATE …
-WHERE user_id = ? AND company_id = ?` (o `updateProfile` de hoje filtra só por pessoa e escreve o perfil). Corpo só
-    com `jobTitle` **não chama o Keycloak** (o cargo não é atributo de identidade; o caso de uso hoje sempre sincroniza
-    e falharia com o Keycloak fora). A resposta sai de `toCompanyUserView` (`company-user.policy.ts`), não de
-    `serializeCompanyUser`. Sem auditoria, como o resto do perfil. Fora de log.
-13. **CNPJ ou CPF da contratante.** Vem de `feed.document.contractor.taxId` (o `findOccurrenceTarget` passa a
-    repassá-lo). Normalizado com 11 dígitos → rótulo "CPF", máscara `000.000.000-00`; 14 caracteres → rótulo "CNPJ",
-    `formatCnpjForDisplay` (aceita o alfanumérico); vazio ou outro tamanho → a linha não aparece.
-14. **Janela de deploy aceita** (ajustado na T0.2; opção (a) da T0.1). API e worker vão no **mesmo** PR e no mesmo
-    run (`deploy-api` → `deploy-services`), com o diff tocando `apps/worker-transportada` para o job do worker rodar.
-    Nos minutos entre os dois, o worker velho manda o HTML novo sem a parte inline (aparece o `alt` com o nome de
-    exibição) e o "De" antigo. Só visual, sem perda de e-mail nem de dado. O worker não pode ir antes: lê colunas que a
-    migration da API cria. Se o job do worker falhar, a janela deixa de ser de minutos: a T5.4 confere os dois jobs
-    verdes antes de dar o passo por concluído, e a regra do dono vale — **API sem o worker no mesmo run é parar e
-    perguntar**.
+   `200 − tamanho(prefixo)`; o nome de exibição colapsado e cortado em 80 no prefixo (prefixo ≤ 109). `applySubjectPrefix`
+   é idempotente — o reenvio da 248, que manda o assunto gravado, não ganha segundo prefixo.
+8. **"De" com o nome de exibição, sempre.** `buildSenderDisplayName({ companyDisplayName, signer })`: equipe →
+   `<nome de exibição>`; pessoa → `<nome> — <nome de exibição>`; remove `\p{Cc}`, U+2028/2029, bidi e `<>"\,;`,
+   colapsa espaços, corta primeiro o nome da pessoa para caber em 200. Gravado em `from_display_name` (coluna que já
+   existe; na saída guarda o nome do "De", o mesmo significado da entrada). O worker usa a coluna só em mensagem
+   `outbound` não nula, nos dois transportes, reaplicando o mesmo saneamento; nula → o comportamento de hoje. O
+   `sender_name` do Resend deixa de aparecer no "De".
+9. **Logo por `cid:`, gravado em uma coluna.** `contractor_mail_messages.has_inline_logo boolean not null default
+false`; o worker lê `company_logos` pela empresa da mensagem e anexa a parte inline (`content_id` no Resend, `cid`
+   no nodemailer); logo sumido → sai sem a parte (o `alt` aparece). Rejeitados, como na revisão 1:
+   `/public/landing-logo` (só a empresa da instalação), rota anônima por empresa (enumerável) e `data:` (Gmail corta).
+10. **Cargo livre na membership.** `user_company_memberships.job_title varchar(80)` nula, CHECK `1..80`, saneada por
+    política pura; editada por `users.manage` no `PATCH /company-users/:id` existente (`jobTitle?: string | null`),
+    gravada por `UPDATE … WHERE user_id = ? AND company_id = ?`; só `jobTitle` não chama o Keycloak; resposta por
+    `toCompanyUserView`; sem auditoria, como o perfil; fora de log.
+11. **Rótulo do papel na API, igual ao do painel.** `COMPANY_ROLE_LABELS` com `satisfies Record<CompanyRole, string>`,
+    cópia de `identity.locale.json` (`operator` = "Operação") + `contractor`/`automation`; paridade por contrato que lê
+    o JSON do painel; só papéis diretos, o primeiro na ordem de `COMPANY_ROLES`.
+12. **Envio manual com modelo HTML: o diálogo segue editando texto.** A prévia existente devolve o texto gerado (§4) e
+    o `html`; no envio, texto igual ao gerado (normalizado) → sai o HTML do modelo; editado → sai o texto do operador
+    pelo caminho de texto. Sem rota nova; a prévia "Como chega" foi adiada.
+13. **Modelos versionados e publicados por script.** Os cinco modelos (`ocorrencia.prorrogacao-boleto`,
+    `.avaria`, `.devolucao`, `.entrega-nao-realizada`, `.recusa`) são arquivos `.html` no repositório
+    (`apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates/`), com o assunto num comentário de
+    cabeçalho. Um script idempotente (`scripts/occurrence-mail-templates-publish.ts`, molde do
+    `whatsapp-flow-publish.ts`) valida todos (§2 e variáveis), compara com a versão ativa mais alta de cada chave e só
+    grava versão nova quando mudou; sem `--confirm` só mostra o plano. O arquivo é a fonte; o banco recebe versões.
+    Rodar em staging ou produção é mudança de dados com aprovação humana. O script não escolhe o modelo no tipo.
+14. **Janela de deploy aceita.** API e worker no mesmo PR e no mesmo run (`deploy-api` → `deploy-services`); nos
+    minutos entre os dois, o worker velho manda o HTML sem a parte inline e o "De" antigo. Worker fora do run = parar e
+    perguntar.
 
 ## Alternativas rejeitadas
 
-- **HTML escrito pela empresa no modelo:** a 271 recusa, e o desenho deixaria de ser da plataforma.
-- **Rota nova de renderização para a prévia:** a prévia existente já recebe o texto editado e já devolve `html`.
-- **Coluna nova `sender_display_name`:** `from_display_name` tem o mesmo significado (nome do `From`) e o CHECK certo.
-- **Reenvio assinado por quem reenvia (hoje):** contraria o RF8; a contratante veria outra pessoa no mesmo pedido.
-- **Ligar o `cid` por variável de ambiente na API** (opção (b)): fecha a janela, mas exige duas publicações e uma
-  variável que vira lixo depois; o defeito evitado é visual e de minutos.
-- **Worker antes da API** (opção (c)): o worker leria colunas que ainda não existem.
-- **Rótulo "Operador" só no e-mail:** o mesmo papel com dois nomes entre tela e e-mail.
-- **Cargo no perfil de identidade:** o perfil é por pessoa e sincronizado com o Keycloak; o cargo é por empresa.
+- **Montador de layout em código (revisão 1 desta ADR):** o pacote já tem editor, validação e prévia de HTML; o layout
+  em código obriga deploy para mudar o visual, duplica a tela do pacote e cria uma segunda fonte de verdade. Proibido
+  pela regra global `email-templates.md`.
+- **Manter a recusa de HTML da 271:** obrigaria o layout em código.
+- **Injetar `TemplateRendererPort` no módulo:** o e-mail à contratante não passa pelo envio do módulo (ADR-0108 §1);
+  uma política pura chamada pela API resolve sem tocar a fábrica do módulo.
+- **Importar `validateEmailHtml`:** não é exportado pelo pacote e mora no painel; nenhuma app importa código de
+  outra. Cópia com tabela de casos idêntica.
+- **Chave raw decidida pelo conteúdo** (ex.: "valor que começa com `<`"): um valor de usuário viraria HTML.
+- **Gravar o assinante (`signer_kind`/`signer_user_id`) e `layout_version`:** serviam ao reenvio repetindo o original
+  e ao histórico por layout, os dois fora; a 273 não os usa.
+- **Prévia "Como chega" no diálogo:** adiada pelo dono para spec seguinte; a tela de Notificações já pré-visualiza.
+- **Faixa "Responda este e-mail" condicional ao `Reply-To`:** o modelo não tem condicional; fica como pergunta ao dono
+  (`evidence.md` Q2).
 
 ## Consequências
 
-- Um montador só para tudo o que a contratante vê da ocorrência (prévia, envio, reenvio); o painel não reimplementa.
-- O e-mail fica maior com o logo inline (até 256 KiB); o teto do Resend é 40 MB.
-- `from_display_name` ganha dois usos com o mesmo significado; `direction` separa quem a escreve.
-- O reenvio passa a ler o original (assinante e layout) como já lê o modelo (`findOriginalOccurrenceNotificationTemplate`).
-- Papel novo em `COMPANY_ROLES` exige o rótulo na API (typecheck) e no painel (contrato de paridade).
-- A 0109 só implementa a porta de dono (contrato da §5) e herda o "De"; o RF7 e o critério 10 da 273 já foram
-  ajustados (`specs/273-a-ocorrencia-tem-dono/spec.md`, RF7 e critério 10).
-- Uma janela de minutos com e-mail sem logo a cada publicação que mude o layout e o worker juntos.
-- O saneamento do "De" existe em duas cópias (API e worker), presas por tabela de casos idêntica.
-- A prévia carrega o logo da empresa (até 256 KiB) uma vez por abertura do diálogo, para quem tem
-  `occurrences.resolve`; é o mesmo logo que vai à contratante.
-- Se `APP_BASE_URL` não for a origem do painel, a CSP `img-src` do painel bloqueia as miniaturas das marcas na prévia
-  (no e-mail elas aparecem); registrado, sem ação.
-- 272 e 273 geram `snapshot.json` a partir do mesmo pai (`20261017041702_…`): quem chegar depois a `staging` regenera
-  a migration e o snapshot (T5.4).
+- Mudar o visual do e-mail é editar o modelo (na tela ou no arquivo + script), sem deploy. A empresa pode estragar o
+  desenho editando o HTML; o arquivo versionado é o caminho de volta.
+- O HTML é dado de usuário que vai à contratante: a segurança depende da validação (§2) nas três cópias e do escape
+  por valor (§3). Revisão de segurança obrigatória antes da publicação.
+- Toda variável nova precisa entrar no catálogo da API, do editor do tipo e dos locales, ou o editor não a mostra.
+- O e-mail fica maior com o logo inline (até 256 KiB; teto do Resend 40 MB).
+- O reenvio da 248 de um e-mail HTML sai como hoje, em texto ("Reenvio do pedido abaixo." + o texto gravado).
+- A 0109 só implementa a porta (§6) e herda o "De" (§8); o texto da 273 que cita `signer_*`, `layout_version` e o
+  montador como "da 272" fica desatualizado e é corrigido quando ela for executada.
+- 272 e 273 geram `snapshot.json` do mesmo pai (`20261017041702_…`): quem chegar depois a `staging` regenera.
+
+## Revisão 1 (substituída em 2026-10-18)
+
+Aceita na T0.2 (validação do `architect`, `evidence.md` § T0.2), substituída na mesma data pela mudança de escopo.
+Resumo do que decidia e do que aconteceu com cada ponto:
+
+| Revisão 1                                                                                              | Na revisão 2                                                   |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| §1 servidor monta, modelo continua texto; §2 sem biblioteca, blocos TS                                  | **Substituídas** por §1–§4                                     |
+| §3 logo por `cid:`; §4 marcas por `APP_BASE_URL`                                                        | **Mantidas** como §9 e §5 (`marcasRodape`)                     |
+| §5 ponto `signer` e "De"                                                                                | **Mantida** como §6 e §8                                       |
+| §6 tabela pelo bloco exato (`itemLinesBlock`)                                                           | **Substituída** por `tabelaItens` (§5) e §12                   |
+| §7 prefixo do assunto                                                                                   | **Mantida** como §7                                            |
+| §8 prévia com HTML do layout, `fullSubject`, `inlineLogo`, balde próprio                                | **Adiada pelo dono — spec seguinte**                           |
+| §9 quatro colunas e três CHECKs; §10 reenvio repete o original                                          | **Substituídas** por §9 (só `has_inline_logo`); reenvio como hoje |
+| §11 rótulo do papel; §12 cargo; §13 CNPJ/CPF da contratante; §14 janela de deploy                       | **Mantidas** como §11, §10, §5 e §14                           |

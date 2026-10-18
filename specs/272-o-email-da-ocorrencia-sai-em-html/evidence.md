@@ -1,6 +1,132 @@
 # Evidência — 272 O e-mail da ocorrência sai em HTML
 
+## Mudança de escopo (dono, 2026-10-18)
+
+Relayada pela sessão `transportada-2a` em 2026-10-18, depois da T1.2. Vira a **revisão 2** da spec, do plano, das tasks
+e da ADR-0110 (status de volta a "proposta" até a T0.3). Regra global criada na mesma decisão:
+`~/.claude/rules/rules/email-templates.md` (repositório `ia`, `rules/email-templates.md`).
+
+**O que o dono decidiu:**
+
+- **O HTML vem do próprio modelo do módulo de notificação** (canal e-mail), não de montador ou layout em código. Motivo:
+  o pacote já tem editor de código HTML, validação e prévia com moldura; layout em código obriga deploy para mudar o
+  visual, duplica a tela do pacote e cria uma segunda fonte de verdade. **Emenda a D5 da 271 / ADR-0108 §3**: corpo
+  HTML deixa de ser recusado no modelo de e-mail à contratante.
+- A API renderiza com renderer próprio: interpola `{{campos}}` escapando **só os valores**; valida o HTML (sem script,
+  `on*`, `javascript:`, `iframe`, `form`) e trata o inválido como "não utilizável" (o caminho de aviso/409 da 271);
+  corpo sem tag continua texto em parágrafos; a parte `text/plain` sai do HTML renderizado.
+- Variáveis novas (valores escapados, exceto as de HTML montado pelo sistema): `nomeExibicao`, `cnpjTransportadora`,
+  `logoTransportadora` (HTML do sistema), `valorNota`, `cnpjContratante`, `parada`, `motorista`, `dataRegistro`,
+  `tabelaItens` (HTML do sistema; `linhasItens` continua), `assinaturaNome`, `assinaturaCargo`, `marcasRodape` (HTML do
+  sistema). Entram no catálogo da API e do painel, com o teste de paridade.
+- **Mantém:** prefixo do assunto (idempotente, nome cortado em 80); "De" com o nome de exibição sempre, saneado na API e
+  espelhado no worker; logo por `cid:` de `company_logos` (`has_inline_logo`); cargo livre `job_title` + `PATCH
+/company-users/:id` + campo na tela; `OccurrenceOwnerReader` nulo para a 273; publicação em etapas; revisão final com
+  `code-reviewer` e `security-reviewer`.
+- **Sai:** montador/layout em código e golden files de layout (**substituído**); prévia "Como chega" no diálogo e o que
+  a servia — `fullSubject`, `inlineLogo`, balde de rate limit da prévia (**adiado pelo dono em 2026-10-18 — spec
+  seguinte**); reenvio da 248 com layout/assinante do original (**adiado pelo dono em 2026-10-18 — spec seguinte**; o
+  reenvio continua como hoje). Migration reavaliada (abaixo).
+- **Entra:** os cinco modelos HTML como arquivos versionados + script idempotente que grava versão nova por chave;
+  rodar em staging é mudança de dados (parar e perguntar). Tasks enxutas (entregar mais rápido) e uma T0.3 🧠 que valida
+  a ADR revisão 2 com o `architect`.
+- **Complemento (mesma mudança):** alinhar à regra global; a ADR registra a decisão e o motivo citando a regra; a task
+  de documentação viva escreve a seção da raiz "E-mail em HTML vem do modelo do módulo de notificação (spec 272,
+  ADR-0110)", o detalhe em `apps/api-transportada/CLAUDE.md` e `docs/ai-context/api-transportada.md`, e uma linha no
+  `apps/worker-transportada/CLAUDE.md` sobre o logo por `cid:` (T4.4). Nesta revisão os `CLAUDE.md` **não** foram
+  tocados — só planejado.
+
+### Fatos conferidos (revisão 2, leitura direta em 2026-10-18)
+
+Pacote em `~/personal/adatechnology-packages/packages/{frontend,backend}/`; TransportAdA relativo à raiz do worktree.
+
+- **`@adatechnology/notification-ui`** (0.1.0): `isHtmlBody` privado em `NotificationSettingsWorkspace.tsx:119-121`
+  (`/<\/?[a-zA-Z][\w:-]*(\s|>|\/)/`); `HtmlCodeField` no canal e-mail em :736-753 (exportado em `src/index.ts:43-44`,
+  componente em `components/HtmlCodeField.tsx:34`); a prévia recebe `emailHtml: content?.body` em :784-785 — o corpo
+  **cru**, sem interpolar; `TemplatePreview.tsx:484-495` renderiza em `<iframe sandbox="" srcDoc>`. Tudo isso entrou no
+  commit `3ae555e` (2026-08-24) e foi publicado primeiro na **0.1.0-rc.6**; sem mudança de `src` entre a rc.9 e a HEAD.
+- **Divergência 1 — `validateEmailHtml` não é do pacote.** O pacote só declara a prop opcional
+  (`NotificationSettingsWorkspace.tsx:85`, tipo `EmailHtmlReport` em :50-57). A implementação é do painel:
+  `apps/frontend-transportada/src/modules/notification/shared/emailHtml.validation.ts:118`, ligada em
+  `NotificationSettings.page.tsx`. Erros: `<script`, `<link rel=stylesheet>`, `<img src="data:`, tags desbalanceadas;
+  avisos: flex/grid/position, URL relativa, imagem sem `alt`, acima de 102 400 bytes. **Não checa `on*`,
+  `javascript:`, `<iframe`, `<form`.** Efeito: a API não pode importar a função (nenhuma app importa código de outra) e
+  "a mesma regra do pacote" não cobre o que o dono pediu. Decisão proposta (plan D2): as cinco regras do dono na API,
+  as quatro que faltam acrescentadas ao validador do painel como erro, tabela de casos idêntica nas três cópias.
+- **`notification-contracts`** (0.1.0): `interpolateTemplate` (`templateRender.ts:35`) não escapa; `renderTemplate`
+  (:103-121) escapa tudo no e-mail (comentário: "quem quer HTML rico troca o renderer"). `TemplateRendererPort` em
+  `providers.ts:65-68`. `DefaultTemplateRenderer` é do **módulo** (`notification-module/src/shared/DefaultTemplateRenderer.ts:4-5`:
+  "quem precisa de HTML rico … injeta o próprio `TemplateRendererPort`"), injetável em `NotificationModule.ts:92`. A
+  fábrica da API (`notification-module.factory.ts:51-69`) não injeta renderer — e não precisa: o e-mail à contratante
+  não passa pelo envio do módulo (ADR-0108 §1). O "renderer próprio" é política pura da API.
+- **Divergência 2 — versões usadas (não exige bump).** API e worker: `notification-contracts` 0.1.0-rc.2 e
+  `notification-module` 0.1.0-rc.3 (`package.json:45-46` da API, :33-34 do worker); painel e app do motorista:
+  `notification-ui` 0.1.0-rc.9 e `notification-client` 0.1.0-rc.3; `bun.lock` resolve as mesmas. A rc.9 da UI já tem
+  tudo; a rc.2 de contracts já tem `TemplateRendererPort` e `interpolateTemplate`. Bump só se quisermos as mudanças
+  posteriores de `templateRender.ts` (`constraints`, `sanitizeTitle`), que a 272 não usa.
+- **Onde a 271 recusa HTML hoje** (API): `HTML_BODY_PATTERN` em
+  `occurrence-conversation/domain/occurrence-contractor-mail.constant.ts:16-17`; `occurrence-contractor-template.policy.ts:34`
+  (regex), :67 (`html_body`), :38-42 (`SEND_BLOCKING_CODES`), :80 (`blocksContractorMailSend`), :94-101
+  (`toContractorTemplateView`). Consumidores: 400 `OCCURRENCE_CONTRACTOR_TEMPLATE_INVALID`
+  (`save-occurrence-type.use-case.ts:246-247`); 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`
+  (`drizzle-occurrence-mail.repository.ts:217` → `send-occurrence-mail.use-case.ts:225`); aviso
+  (`occurrence-mail-template-missing.query.ts:33-44`, :90); lista do editor (`main.ts:4014`). **Worker**:
+  `occurrence-automatic-mail-sweep.constant.ts:28` e `drizzle-occurrence-automatic-mail-queue.repository.ts:92`
+  (`nt."body" !~ HTML_BODY_PATTERN`), paridade em `test/occurrence-automatic-mail-sweep/html-body-pattern.contract.ts`
+  — **não estava no pedido**; sem mudar o filtro, o automático nunca pegaria modelo HTML (plan D2).
+- **Painel tolera código novo de problema:** `toProblem` (`occurrenceTypeMailClient.service.ts:19-42`) descarta código
+  desconhecido e mantém o modelo. Locale do `html_body` em `companySettings.locale.json:486-489`.
+- **Catálogo da 271:** `OCCURRENCE_CONTRACTOR_MAIL_VARIABLES` (`occurrence-contractor-mail.constant.ts:24-49`, 17
+  nomes). **Divergência 3 — quatro das variáveis pedidas já existem:** `valorNota`, `motorista`, `parada` e `data`
+  ("Data da ocorrência", a data do registro; `createdAt.toLocaleDateString('pt-BR')`). Não são duplicadas;
+  `dataRegistro` seria um segundo nome para `data` (Q4). Painel: `OCCURRENCE_MAIL_VARIABLE_NAMES` e
+  `OCCURRENCE_MAIL_SAMPLE_VALUES` (`occurrenceTypeMailTemplate.service.ts:9`), descrições em `companySettings.locale.json`
+  (desde :491) e `.en`; paridade em `test/occurrence-conversation/occurrence-type-mail-parity.contract.ts` (o
+  `mail-template-variable-parity.contract.ts` citado na revisão 1 é o da 150, `{var}`, não o da 271).
+- **Divergência 4 — as chaves `ocorrencia.*` não existem em lugar nenhum** de seed ou migration (a 271 "começa do zero").
+  As cinco vêm só do desenho aprovado (`desenho-aprovado.html:495`, :509, :529, :546, :563); `ocorrencia.avaria` também
+  aparece em testes da API. O script da T4.3 as cria (versão 1); apontar cada tipo para a chave continua sendo escolha
+  na aba Tipos. Precedente de publicação versionada: `apps/api-transportada/scripts/whatsapp-flow-publish.ts`.
+- **273** (`~/personal/transportada-wt/spec-273`, spec/plan/tasks/evidence e ADR-0109): **não lê nem escreve
+  `signer_kind`/`signer_user_id`/`layout_version`**; só implementa a porta (T2.10 dela; ADR-0109 §8 "Nenhuma coluna de
+  assinante própria"). Cita as cinco colunas e o montador como "da 272" em plan:32-33, :113-114, :244 e evidence:272 —
+  texto que fica desatualizado e é corrigido quando ela for executada (plan § Coordenação com a 273).
+
+### Migration reavaliada
+
+| Coluna (revisão 1)                    | Revisão 2  | Por quê                                                                                                                                                       |
+| ------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `has_inline_logo`                     | **Fica**   | O worker decide se anexa o logo sem interpretar o HTML; o renderer sabe se usou o `cid:`                                                                      |
+| `from_display_name` (já existe)       | **Reusada** | Nome do "De" gravado pela API, lido pelo worker em `outbound`; sem migration                                                                                  |
+| `signer_kind`, `signer_user_id`       | **Saem**   | Serviam ao reenvio da 248 repetindo o assinante (adiado) e ao histórico; a 273 não os usa. O manual já tem autor na mensagem da conversa; o dono fica na ocorrência (273). Q5 |
+| `layout_version`                      | **Sai**    | Não há layout em código para versionar; a versão do modelo já é gravada (`notification_template_key`/`_version`, 271)                                          |
+| Três CHECKs da invariante             | **Saem**   | Amarravam `layout_version`, `signer_*` e `from_display_name`; sem essas colunas não há invariante                                                              |
+| `user_company_memberships.job_title`  | **Fica**   | Cargo (D13 do dono)                                                                                                                                            |
+
+### Perguntas ao dono (não bloqueiam até a T4.2, salvo dito)
+
+Padrões adotados e reversíveis; nenhum `[NEEDS CLARIFICATION]` aberto antes da T4.2.
+
+- **Q1 — Envio manual com modelo HTML** (plan D12). Padrão: o diálogo continua editando o texto (gerado do HTML); texto
+  mantido → sai o HTML do modelo; editado → sai o texto do operador em parágrafos, sem o desenho. Alternativa: o
+  operador não edita quando o modelo é HTML (só envia), ou edita um campo "mensagem do operador" que entra numa
+  variável. Afeta a T2.4.
+- **Q2 — Faixa "↩ Responda este e-mail" só com `Reply-To`.** O modelo não tem condicional. Opções: (a) variável de HTML
+  do sistema `faixaResposta`, vazia no sandbox; (b) a faixa fixa no modelo, aparecendo também no sandbox (só fora de
+  produção). Sem resposta, a T4.2 para e pergunta.
+- **Q3 — O desenho usa dados que a lista pedida não traz:** cidade/UF e razão social da transportadora (cabeçalho e
+  rodapé), as iniciais no avatar da assinatura, e o resumo que esconde linha vazia (sem motorista). Opções: variáveis
+  de texto `cidadeTransportadora`, `razaoSocialTransportadora`, `assinaturaIniciais` (escapadas) e linha vazia aceita no
+  resumo; ou cortar esses pedaços do desenho. Sem resposta, a T4.2 para e pergunta.
+- **Q4 — `dataRegistro`:** já existe `{{data}}` com a data do registro. Padrão: não criar o segundo nome.
+- **Q5 — Rastreio de quem assinou cada e-mail:** sem `signer_*`, o automático assinado pelo dono não guarda o assinante
+  na mensagem (fica a ocorrência com o dono, 273). Padrão: não gravar; se o dono quiser, coluna em spec seguinte.
+
 ## Decisões do dono (sessões de 2026-10-17 e 2026-10-18)
+
+> **Revisão 2:** D1 (texto simples, o sistema monta o HTML) e D7 (`{{linhasItens}}` vira tabela pelo bloco) foram
+> **substituídas** pela § Mudança de escopo; D2, D3, D5, D6, D8, D9 e D10 viram conteúdo dos modelos `.html` (T4.2);
+> D4, D11, D12 e D13 continuam.
 
 A prévia aprovada é a versão 10 do artefato "Modelos de e-mail de ocorrência"; cópia nesta pasta em
 [`desenho-aprovado.html`](desenho-aprovado.html) (o CSS e a função `render()` são o desenho de referência; o CSS
