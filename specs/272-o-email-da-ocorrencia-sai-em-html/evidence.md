@@ -473,6 +473,23 @@ Gates (cwd `apps/frontend-transportada`):
 
 Código de produção: nenhum mudou. A guarda aceita as chaves novas sem alteração.
 
+### T1.2 — Tolerância do usuário da empresa ao cargo (`jobTitle`) (2026-10-18)
+
+Teste só, sem mudança de código de produção (`toCompanyUser` lê campos por lista branca e ignora chave extra).
+Arquivo novo: `apps/frontend-transportada/test/identity/company-user-job-title-tolerance.contract.ts` (9 casos: 3 variantes
+`jobTitle` texto / `null` / ausente × lista, detalhe e PATCH). Lista pelo `createCompanyUsersClient.listUsers` (→
+`toCompanyUserPage`); detalhe por `toCompanyUser`; resposta do PATCH pelo `updateProfile` (→ `toCompanyUser`, método `PATCH`).
+Registrado em `test/identity.contract.test.ts` (já listado no `package.json`).
+
+Gates (cwd `apps/frontend-transportada`):
+- `bun test ./test/identity/company-user-job-title-tolerance.contract.ts` → 9 pass, 0 fail.
+- `bun run typecheck` → exit 0.
+- `bun run lint` → exit 0, 0 errors, 16 warnings (nenhum no arquivo novo).
+- `bun run test` → exit 0: suíte principal 8353 pass / 0 fail (39 arquivos; eram 8344, +9); `test:hooks` 1406 pass / 0 fail.
+- `bunx prettier --write` nos dois arquivos tocados.
+
+Código de produção: nenhum mudou.
+
 ## Prompt de execução
 
 ```text

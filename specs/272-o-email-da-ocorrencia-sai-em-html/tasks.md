@@ -39,7 +39,7 @@
       novo e `fromDisplayName`, e a mensagem do histórico (`toMessage`) com `fromDisplayName`/`signerKind`, passam pelos
       guardas de `occurrenceConversationClient.service.ts`; sem as chaves também. As guardas já ignoram chave extra (T0.1
       (h)): se o teste passa sem mudar código, a task fecha só com o teste. Ler/tipar as chaves fica para a Fase 4.
-- [ ] **T1.2** `haiku` — (Ajustado na T0.2) Só o teste que prova a tolerância: usuário da empresa com `jobTitle` (texto
+- [x] **T1.2** `haiku` — (Ajustado na T0.2) Só o teste que prova a tolerância: usuário da empresa com `jobTitle` (texto
       ou `null`) e sem a chave passa por `toCompanyUser` (`companyUsersResponse.validation.ts`; lista, detalhe e resposta
       do `PATCH`). A guarda já ignora chave extra (T0.1 (g)); nenhuma mudança de código esperada.
 - [ ] **T1.3** `sonnet` — (Ajustado na T0.2) Se a T1.1 e a T1.2 passaram sem mudar código de produção, não há deploy:
