@@ -495,6 +495,8 @@ export const contractorMailMessages = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** Spec 272 (D9): o worker anexa o logo `cid:` sem ler o HTML. */
+    hasInlineLogo: boolean('has_inline_logo').notNull().default(false),
     bodyText: text('body_text').notNull(),
     /**
      * Spec 150 T302: o HTML do e-mail de saída, montado aqui e nunca no worker — o registro guarda o
