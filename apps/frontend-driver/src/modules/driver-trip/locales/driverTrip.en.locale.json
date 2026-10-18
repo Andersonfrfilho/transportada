@@ -518,7 +518,7 @@
     "returnToWarehouseConfirmYes": "Confirm",
     "returnToWarehouseConfirmBack": "Back",
     "returnToWarehouseHint": "Frees the invoice so the office can put it on another trip.",
-    "occurrenceTypeLegend": "Which occurrence to record?",
+    "occurrenceTypeLegend": "Which occurrence to record? (optional)",
     "photoLabel": "Occurrence photo",
     "galleryHint": "If the camera does not open or access was denied, use Attach and pick the photo from the gallery.",
     "photoAttached": "Occurrence photo attached",
