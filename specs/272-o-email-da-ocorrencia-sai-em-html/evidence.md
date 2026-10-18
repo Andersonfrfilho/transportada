@@ -452,6 +452,27 @@ Nota aritmética (não decidida aqui): com o nome de exibição cortado em 80, o
 (`80 + " · CNPJ " (8) + CNPJ formatado (18) + " — " (3)`) e o modelo fica com ao menos 91, não 100. A ADR e o plan
 registram o número real; garantir 100 exigiria cortar o nome em 71.
 
+### T1.1 — Tolerância da prévia e do histórico às chaves novas (2026-10-18)
+
+Teste só, sem mudança de código de produção (as guardas de `occurrenceConversationClient.service.ts` já ignoram chave extra).
+Arquivo novo: `apps/frontend-transportada/test/occurrence-conversation/mail-layout-tolerance.contract.ts` (6 casos, pelo
+cliente `createOccurrenceConversationClient` com `fetch` dublado — `readPreview` e `toMessage` são privadas, então são
+exercitadas por `previewContractorMail` e `listConversations`). Registrado em `test/occurrence-conversation.contract.test.ts`
+(já listado no `package.json`; nenhuma linha nova no `package.json`).
+
+- Prévia sem as chaves novas (API anterior) passa; com `html`, `fullSubject`, `fromDisplayName` e `inlineLogo` passa; sem `inlineLogo` passa.
+- Mensagem do histórico sem `fromDisplayName`/`signerKind` entra; com os dois entra; com os dois `null` entra.
+
+Gates (cwd `apps/frontend-transportada`):
+- `bun test ./test/occurrence-conversation.contract.test.ts -t "spec 272"` → 6 pass, 0 fail.
+- `bun test ./test/occurrence-conversation.contract.test.ts` → 272 pass, 0 fail (o arquivo inteiro).
+- `bun run typecheck` → exit 0.
+- `bun run lint` → 0 errors, 16 warnings (todos fora do arquivo novo; 0 no arquivo).
+- `bun run test` → exit 0: suíte principal 8344 pass / 0 fail (39 arquivos); `test:hooks` 1406 pass / 0 fail.
+- `bunx prettier --write` nos dois arquivos tocados.
+
+Código de produção: nenhum mudou. A guarda aceita as chaves novas sem alteração.
+
 ## Prompt de execução
 
 ```text

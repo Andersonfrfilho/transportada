@@ -35,7 +35,7 @@
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T1.1** `haiku` — (Ajustado na T0.2) Teste que prova a tolerância: a prévia (`readPreview`) com `html` do layout
+- [x] **T1.1** `haiku` — (Ajustado na T0.2) Teste que prova a tolerância: a prévia (`readPreview`) com `html` do layout
       novo e `fromDisplayName`, e a mensagem do histórico (`toMessage`) com `fromDisplayName`/`signerKind`, passam pelos
       guardas de `occurrenceConversationClient.service.ts`; sem as chaves também. As guardas já ignoram chave extra (T0.1
       (h)): se o teste passa sem mudar código, a task fecha só com o teste. Ler/tipar as chaves fica para a Fase 4.
