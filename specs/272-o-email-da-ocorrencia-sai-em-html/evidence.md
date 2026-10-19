@@ -1022,8 +1022,16 @@ de staging** (268), antes de qualquer envio real pelo Resend.
 - **Fato, não sinal:** `GET https://api.staging.fernandes-transportadora.com.br/health/ready` →
   `{"dependencies":{"database":"up","identity":"up","migrations":"up"},"revision":"2483d6e",…}`.
 - `APP_BASE_URL` na API de staging definido antes do deploy (§ T4.4).
-- Pendente: chave do host no primeiro `railway ssh` (passo do dono), consulta do `companyId` de staging e dry-run do
-  script dos modelos — **aprovação do dono antes de cada um**; depois `--confirm`, envio no Mailpit de staging e um envio
+- **Modelos em staging (aprovação do dono em cada passo):** a imagem da API só leva `dist/` (o build empacota `main.ts` e
+  uma CLI), então o script foi empacotado localmente (`bun build --target=bun --packages=external`), enviado com os cinco
+  `.html` por `railway ssh` para uma pasta temporária do contêiner da API e rodado lá (o Postgres de staging não tem URL
+  pública); a pasta foi apagada no fim. Chave do host `ssh.railway.com` aceita por `ssh-keyscan`; chave do usuário
+  registrada no Railway (`helios-neo-16`). `companyId` de staging lido de `companies` (uma empresa ativa).
+- **Dry-run:** as cinco chaves já existiam (modelos de texto da 271; `prorrogacao-boleto` na v2, editada na tela) →
+  `differs` nas cinco. O dono escolheu sobrescrever as cinco: `--confirm --overwrite` ×5 → avaria, devolução, entrega não
+  realizada e recusa **v2**; prorrogação **v3**. As versões antigas ficam no banco. Segunda rodada: `same` nas cinco
+  (idempotente).
+- Pendente: envio de teste pelo painel de staging (o dono faz o login) e leitura no Mailpit de staging; depois um envio
   real pelo Resend antes de `main`.
 
 ## Prompt de execução
