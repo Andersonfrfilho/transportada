@@ -505,7 +505,19 @@
           "itens": "The items in one text, comma separated.",
           "codigosItens": "The item codes, comma separated.",
           "quantidadesItens": "The quantities, comma separated.",
-          "linhasItens": "One line per item: code – item – quantity unit – R$ value."
+          "linhasItens": "One line per item: code – item – quantity unit – R$ value.",
+          "nomeExibicao": "Carrier display name.",
+          "cnpjTransportadora": "Carrier CNPJ, formatted.",
+          "cnpjContratante": "Contractor CPF or CNPJ; empty without a document.",
+          "assinaturaNome": "Name of who signs the e-mail, or the team.",
+          "assinaturaCargo": "Job title of who signs; empty without a title or role.",
+          "logoTransportadora": "Carrier logo, or its initials without a logo (system HTML).",
+          "tabelaItens": "Item table with the total, up to 200 lines (system HTML).",
+          "cidadeTransportadora": "Carrier city and state.",
+          "razaoSocialTransportadora": "Carrier legal name.",
+          "assinaturaIniciais": "Initials of who signs, or of the display name.",
+          "faixaResposta": "\"Reply to this e-mail\" strip, only when replies arrive (system HTML).",
+          "marcasRodape": "Footer marks: TransportAdA and Ada Technology (system HTML)."
         }
       },
       "watchers": {

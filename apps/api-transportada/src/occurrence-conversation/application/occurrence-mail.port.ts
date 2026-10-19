@@ -23,11 +23,33 @@ import type {
 export type OccurrenceMailTarget = {
   readonly contractorId: string | null
   readonly contractorName: string
+  /** Spec 272 (D5): o CPF/CNPJ do emitente da nota, como gravado (sem pontuação); `null` sem documento. */
+  readonly contractorTaxId: string | null
   readonly kind: OccurrenceConversationKind
   /** Spec 271: o tipo da ocorrência, de onde vêm a cópia e os destinatários escolhidos; `null` na ocorrência de parada. */
   readonly occurrenceTypeId: null | string
   /** O grupo da ocorrência nos contatos (RF5): a de parada não tem etapa e é `stop`. */
   readonly stage: ContractorContactOccurrenceStage
+}
+
+/**
+ * Spec 272 (ADR-0110 §5, D5/D16): o que o e-mail em HTML diz da transportadora, de uma consulta só. `hasLogo` é só a
+ * existência da linha em `company_logos` — o conteúdo do logo nunca sobe com a leitura.
+ */
+export type CarrierIdentity = {
+  readonly city: string
+  /** O CNPJ como gravado, sem pontuação. */
+  readonly cnpj: string
+  readonly displayName: string
+  readonly hasLogo: boolean
+  readonly legalName: string
+  readonly state: string
+}
+
+/** Spec 272 (ADR-0110 §6): o operador que assina o envio manual; `jobTitle` já resolvido (cargo, senão papel). */
+export type OccurrenceOperatorSigner = {
+  readonly jobTitle?: string
+  readonly name: string
 }
 
 /** Spec 183 T407: quem o diálogo oferece — ativos da contratante que recebem ocorrências. */
@@ -153,10 +175,17 @@ export type OccurrenceMailTransactionPort = {
     readonly occurrenceKind: OccurrenceConversationKind
   }): Promise<null | OccurrenceNotificationTemplate>
   findCarrierName(params: { readonly companyId: string }): Promise<string | undefined>
+  /** Spec 272: nome de exibição, CNPJ, cidade, razão social e `hasLogo`; `undefined` sem perfil fiscal. */
+  findCarrierIdentity(params: { readonly companyId: string }): Promise<CarrierIdentity | undefined>
   findOperatorName(params: {
     readonly companyId: string
     readonly userId: string
   }): Promise<string | undefined>
+  /** Spec 272: nome, cargo e papéis diretos do vínculo **ativo**, numa consulta; `undefined` fora da empresa. */
+  findOperatorSigner(params: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<OccurrenceOperatorSigner | undefined>
   /** A conversa com a contratante desta ocorrência; criada na primeira mensagem. */
   findOrCreateContractorConversation(params: {
     readonly companyId: string

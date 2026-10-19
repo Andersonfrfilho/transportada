@@ -44,6 +44,7 @@ const EFFECTIVE_TEMPLATE = { key: 'ocorrencia.padrao', version: 3 } as const
 const TARGET: OccurrenceMailTarget = {
   contractorId: CONTRACTOR_ID,
   contractorName: 'Contratante Alfa',
+  contractorTaxId: '11222333000181',
   kind: 'document',
   occurrenceTypeId: '00000000-0000-4000-8000-000000271401',
   stage: 'delivery',
@@ -147,6 +148,19 @@ function createFake(
     },
     async findCarrierName() {
       return 'Transportadora Sintética'
+    },
+    async findCarrierIdentity() {
+      return {
+        city: 'Ribeirão Preto',
+        cnpj: '11444777000161',
+        displayName: 'Transportadora Sintética',
+        hasLogo: false,
+        legalName: 'Transportadora Sintética Ltda',
+        state: 'SP',
+      }
+    },
+    async findOperatorSigner() {
+      return { jobTitle: 'Operação', name: 'Operadora Lima' }
     },
     async findOccurrenceNotificationTemplate() {
       const template =

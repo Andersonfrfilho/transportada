@@ -42,6 +42,31 @@ export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLES: readonly OccurrenceContractor
     description: 'Uma linha por item: código – item – quantidade unidade – R$ valor.',
     name: 'linhasItens',
   },
+  /** Spec 272 (ADR-0110 §5, D5/D16): a identidade da transportadora e do assinante, para o e-mail em HTML. */
+  { description: 'Nome de exibição da transportadora.', name: 'nomeExibicao' },
+  { description: 'CNPJ da transportadora, com pontuação.', name: 'cnpjTransportadora' },
+  { description: 'CPF ou CNPJ da contratante; vazio sem documento.', name: 'cnpjContratante' },
+  { description: 'Nome de quem assina o e-mail, ou a equipe.', name: 'assinaturaNome' },
+  { description: 'Cargo de quem assina; vazio sem cargo nem papel.', name: 'assinaturaCargo' },
+  {
+    description: 'Logo da transportadora, ou as iniciais sem logo (HTML do sistema).',
+    name: 'logoTransportadora',
+  },
+  {
+    description: 'Tabela de itens com o total, até 200 linhas (HTML do sistema).',
+    name: 'tabelaItens',
+  },
+  { description: 'Cidade e UF da transportadora.', name: 'cidadeTransportadora' },
+  { description: 'Razão social da transportadora.', name: 'razaoSocialTransportadora' },
+  { description: 'Iniciais de quem assina, ou do nome de exibição.', name: 'assinaturaIniciais' },
+  {
+    description: 'Faixa "Responda este e-mail", só quando a resposta chega (HTML do sistema).',
+    name: 'faixaResposta',
+  },
+  {
+    description: 'Marcas do rodapé: TransportAdA e Ada Technology (HTML do sistema).',
+    name: 'marcasRodape',
+  },
 ]
 
 export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES: ReadonlySet<string> = new Set(

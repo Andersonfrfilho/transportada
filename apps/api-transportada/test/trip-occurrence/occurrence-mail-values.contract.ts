@@ -7,7 +7,12 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { OCCURRENCE_CONTRACTOR_MAIL_VARIABLES } from '../../src/occurrence-conversation/domain/occurrence-contractor-mail.constant.js'
+import {
+  OCCURRENCE_CONTRACTOR_MAIL_VARIABLES,
+  OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES,
+} from '../../src/occurrence-conversation/domain/occurrence-contractor-mail.constant.js'
+import { buildOccurrenceMailIdentityValues } from '../../src/occurrence-conversation/domain/occurrence-mail-carrier-values.policy.js'
+import { buildSignerValues } from '../../src/occurrence-conversation/domain/occurrence-mail-signer.policy.js'
 import {
   buildContractorMailValues,
   buildOccurrenceItemValues,
@@ -165,12 +170,33 @@ describe('valores do e-mail da ocorrência (spec 271 T2.2)', () => {
     expect(mail.valorNota).toBe('')
   })
 
+  /**
+   * Spec 272: o catálogo tem quatro origens — a nota e a ocorrência (este módulo), a transportadora e a contratante,
+   * o assinante e o HTML do sistema —, e juntas cobrem a lista fechada, sem sobra nem falta.
+   */
   test('cobre exatamente a lista fechada de variáveis', () => {
     const { mail } = buildContractorMailValues(VALUES)
+    const identity = buildOccurrenceMailIdentityValues({
+      carrier: {
+        city: '',
+        cnpj: '',
+        displayName: '',
+        hasLogo: false,
+        legalName: '',
+        state: '',
+      },
+      contractorTaxId: null,
+    })
+    const signer = buildSignerValues({ companyDisplayName: '', signer: { kind: 'team' } })
 
-    expect(Object.keys(mail).toSorted()).toEqual(
-      OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.map((variable) => variable.name).toSorted(),
-    )
+    expect(
+      [
+        ...Object.keys(mail),
+        ...Object.keys(identity),
+        ...Object.keys(signer),
+        ...OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES,
+      ].toSorted(),
+    ).toEqual(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.map((variable) => variable.name).toSorted())
   })
 })
 

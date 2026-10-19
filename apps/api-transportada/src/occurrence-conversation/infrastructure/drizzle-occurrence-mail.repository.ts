@@ -22,6 +22,7 @@ import {
   contractorMailThreads,
   identityUserProfiles,
   idempotencyRecords,
+  membershipRoles,
   occurrenceConversationMessages,
   occurrenceConversations,
   tripDocumentOccurrences,
@@ -44,7 +45,9 @@ import {
   blocksContractorMailSend,
 } from '../domain/occurrence-contractor-template.policy.js'
 import { findActiveContractorTemplate } from './notification-template.query.js'
+import { resolveSignerJobTitle } from '../domain/occurrence-mail-signer.policy.js'
 import type {
+  CarrierIdentity,
   OccurrenceMailContact,
   OccurrenceMailIdempotencyRecord,
   OccurrenceMailRecipientCandidate,
@@ -53,6 +56,7 @@ import type {
   OccurrenceMailTransactionPort,
   OccurrenceMailUnitOfWorkPort,
   OccurrenceNotificationTemplate,
+  OccurrenceOperatorSigner,
   OccurrenceSuggestedMailPort,
   RecordOccurrenceMailInput,
   SendOccurrenceMailResult,
@@ -98,6 +102,7 @@ async function findOccurrenceTarget(
   return {
     contractorId: item.document?.contractor?.contractorId ?? null,
     contractorName: item.document?.contractor?.name ?? '',
+    contractorTaxId: item.document?.contractor?.taxId ?? null,
     kind: item.source,
     occurrenceTypeId: item.occurrenceTypeId ?? null,
     stage: item.stage ?? 'stop',
@@ -151,6 +156,71 @@ async function findCarrierName(
     .limit(1)
   if (row === undefined) return undefined
   return resolveCompanyDisplayName(row)
+}
+
+async function findCarrierIdentity(
+  queryable: TripQueryable,
+  params: { readonly companyId: string },
+): Promise<CarrierIdentity | undefined> {
+  const [row] = await queryable
+    .select({
+      city: companyFiscalProfiles.city,
+      cnpj: companyFiscalProfiles.cnpj,
+      displayNameMode: companyFiscalProfiles.displayNameMode,
+      /** Colunas escritas por extenso: o Drizzle as imprime sem o prefixo da tabela, e `company_id` ligaria ao próprio logo. */
+      hasLogo: sql<boolean>`exists (select 1 from company_logos where company_logos.company_id = company_fiscal_profiles.company_id)`,
+      legalName: companyFiscalProfiles.legalName,
+      state: companyFiscalProfiles.state,
+      tradeName: companyFiscalProfiles.tradeName,
+    })
+    .from(companyFiscalProfiles)
+    .where(eq(companyFiscalProfiles.companyId, params.companyId))
+    .limit(1)
+  if (row === undefined) return undefined
+  return {
+    city: row.city,
+    cnpj: row.cnpj,
+    displayName: resolveCompanyDisplayName(row),
+    hasLogo: row.hasLogo,
+    legalName: row.legalName,
+    state: row.state,
+  }
+}
+
+/**
+ * Spec 272 (ADR-0110 §6/§11): o assinante do envio manual numa consulta só — o perfil, o cargo livre da membership
+ * ativa e os papéis **diretos** (`membership_roles`). Uma falha derruba a leitura inteira: sem `Promise.all`.
+ */
+async function findOperatorSigner(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly userId: string },
+): Promise<OccurrenceOperatorSigner | undefined> {
+  const rows = await queryable
+    .select({
+      jobTitle: userCompanyMemberships.jobTitle,
+      name: identityUserProfiles.name,
+      role: membershipRoles.role,
+    })
+    .from(identityUserProfiles)
+    .innerJoin(
+      userCompanyMemberships,
+      eq(userCompanyMemberships.userId, identityUserProfiles.userId),
+    )
+    .leftJoin(membershipRoles, eq(membershipRoles.membershipId, userCompanyMemberships.id))
+    .where(
+      and(
+        eq(identityUserProfiles.userId, params.userId),
+        eq(userCompanyMemberships.companyId, params.companyId),
+        eq(userCompanyMemberships.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+  const [first] = rows
+  if (first === undefined) return undefined
+  const jobTitle = resolveSignerJobTitle({
+    directRoles: rows.flatMap((row) => (row.role === null ? [] : [row.role])),
+    jobTitle: first.jobTitle,
+  })
+  return { ...(jobTitle === undefined ? {} : { jobTitle }), name: first.name }
 }
 
 async function findOperatorName(
@@ -274,15 +344,18 @@ export function createOccurrenceMailReader(
   database: TripQueryable,
 ): Pick<
   OccurrenceMailTransactionPort,
+  | 'findCarrierIdentity'
   | 'findCarrierName'
   | 'findChosenOccurrenceRecipientIds'
   | 'findOccurrenceNotificationTemplate'
   | 'findOccurrenceTarget'
   | 'findOperatorName'
+  | 'findOperatorSigner'
   | 'listOccurrenceRecipients'
   | 'loadWatcherCandidates'
 > {
   return {
+    findCarrierIdentity: (params) => findCarrierIdentity(database, params),
     findCarrierName: (params) => findCarrierName(database, params),
     findChosenOccurrenceRecipientIds: (params) =>
       findChosenOccurrenceRecipientIds(database, params),
@@ -290,6 +363,7 @@ export function createOccurrenceMailReader(
       findOccurrenceNotificationTemplate(database, params),
     findOccurrenceTarget: (params) => findOccurrenceTarget(database, params),
     findOperatorName: (params) => findOperatorName(database, params),
+    findOperatorSigner: (params) => findOperatorSigner(database, params),
     listOccurrenceRecipients: (params) => listOccurrenceRecipients(database, params),
     loadWatcherCandidates: (params) => loadEffectiveWatcherCandidates(database, params),
   }
@@ -566,11 +640,24 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     return findCarrierName(this.transaction, params)
   }
 
+  public findCarrierIdentity(params: {
+    readonly companyId: string
+  }): Promise<CarrierIdentity | undefined> {
+    return findCarrierIdentity(this.transaction, params)
+  }
+
   public findOperatorName(params: {
     readonly companyId: string
     readonly userId: string
   }): Promise<string | undefined> {
     return findOperatorName(this.transaction, params)
+  }
+
+  public findOperatorSigner(params: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<OccurrenceOperatorSigner | undefined> {
+    return findOperatorSigner(this.transaction, params)
   }
 
   public async findIdempotency(params: {

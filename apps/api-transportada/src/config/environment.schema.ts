@@ -54,6 +54,8 @@ function optionalText(): z.ZodType<string | undefined, string | undefined> {
 }
 
 const environmentSchema = z.object({
+  /** Origem do painel: dela saem as marcas do rodapé do e-mail da ocorrência. Ausente, o rodapé é só texto. */
+  APP_BASE_URL: optionalUrl('APP_BASE_URL'),
   APP_ENV: z.string().trim().min(1).default('local'),
   APP_PORT: z.coerce.number().int().min(0).max(65_535).default(53_001),
   // Não declarar é a forma de manter a rota de arranque morta; declarar em branco é engano de
@@ -486,6 +488,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
             },
           }),
     },
+    appBaseUrl: parsed.APP_BASE_URL,
     port: parsed.APP_PORT,
     routingMatrixUrl: parsed.ROUTING_MATRIX_URL,
     postalCodeProviders: {

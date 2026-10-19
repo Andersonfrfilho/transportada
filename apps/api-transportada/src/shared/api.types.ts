@@ -21,6 +21,8 @@ export type DatabasePoolConfiguration = {
 }
 
 export type ApiEnvironment = {
+  /** Spec 272: origem do painel (marcas do rodapé do e-mail da ocorrência); ausente, o rodapé é só texto. */
+  readonly appBaseUrl?: string | undefined
   readonly appEnv: string
   /** Token do primeiro acesso (ADR-0022); ausente é rota morta, nunca rota aberta. */
   readonly bootstrapToken: string | undefined

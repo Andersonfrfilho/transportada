@@ -796,6 +796,44 @@ Gates (cwd `apps/api-transportada`):
   (modelo HTML sem área → `missing_message_area`; inseguro → `unsafe_html`).
 - `bun run typecheck` → exit 0; `bunx eslint` e `bunx prettier --check` nos 13 arquivos tocados → limpos.
 
+### T2.3 — Variáveis e leituras (2026-10-18)
+
+Executor `sonnet`. API: leituras novas no `drizzle-occurrence-mail.repository.ts` (`findOccurrenceTarget` com
+`contractorTaxId`; `findCarrierIdentity` numa consulta, `hasLogo` por `exists` sem carregar o logo; `findOperatorSigner`
+numa consulta com `left join` em `membership_roles` e vínculo ativo, devolvendo `jobTitle` já resolvido); porta
+`OccurrenceOwnerReader` + `NULL_OCCURRENCE_OWNER_READER`; `occurrence-mail-signer.policy.ts` (`resolveSignerJobTitle`,
+iniciais), `occurrence-mail-carrier-values.policy.ts` (CPF/CNPJ do contratante), `occurrence-mail-system-html.policy.ts`
+(logo por `cid:` ou quadrado com iniciais, tabela de itens até 200 linhas + "e mais N item(ns)" + total — 200 linhas ≈ 84
+KB, marcas do rodapé por `APP_BASE_URL` só http(s), `faixaResposta` só com Reply-To); `COMPANY_ROLE_LABELS` com paridade
+contra `users.role` de `identity.locale.json`; `APP_BASE_URL` opcional no env (`appBaseUrl?`). As **12 variáveis novas**
+no catálogo da API e no painel (`occurrenceTypeMailTemplate.service.ts` + locales pt-BR/en), paridade nas duas apps:
+`nomeExibicao`, `cnpjTransportadora`, `cnpjContratante`, `assinaturaNome`, `assinaturaCargo`, `assinaturaIniciais`,
+`cidadeTransportadora`, `razaoSocialTransportadora` (texto) e `logoTransportadora`, `tabelaItens`, `marcasRodape`,
+`faixaResposta` (HTML do sistema).
+
+Defeito pego pela integração nova: o `exists(...)` do `hasLogo` saía sem prefixo de tabela e dava `true` para qualquer
+empresa; corrigido com colunas qualificadas.
+
+Decisões do executor: `findCarrierName`/`findOperatorName` ficam na porta até a T2.4 trocar os chamadores e removê-los;
+`buildSystemHtml` devolve `hasInlineLogo` = "há logo" (o "modelo usa `{{logoTransportadora}}`" é da T2.4);
+`contractor` = "Contratante" e `automation` = "Automação" sem rótulo no JSON do painel; exemplos das 4 variáveis de HTML
+no painel em texto sem marcação (travado por contrato); o corte de nomes longos é da D7 (T2.4), não desta task.
+
+Correção de lacuna da T2.1 (achada aqui): `test/identity-schema.contract.test.ts` não conhecia `job_title` nem o CHECK
+`user_company_memberships_job_title_check` → 2 fail; expectativas atualizadas → 7 pass / 0 fail. A T2.1 rodou só os
+arquivos tocados; o script `test` completo da API passa a rodar antes de cada commit desta fase.
+
+Gates:
+
+- Teste antes: agregador `occurrence-contractor-mail` da API → vermelho (módulos inexistentes) → **186 pass / 0 fail**
+  (eram 136). Painel `occurrence-conversation.contract.test.ts` → 272/2 → **274 pass / 0 fail**.
+- Integração `./test/integration/occurrence-mail-reads.integration.ts` (nova, em `test:integration`) → 3/3, sem skip;
+  vizinhas `occurrence-conversation-mail`, `occurrence-mail-template`, `occurrence-automatic-mail`,
+  `occurrence-template-values` → 21 pass.
+- Script `test` completo da API (com o `identity-schema` corrigido) → 12199 pass / 0 fail / 25 skip (213 arquivos).
+- `bun run typecheck` API e painel → limpos; `bunx eslint`/`prettier --check` nos tocados → limpos; script `test` do
+  painel → verde.
+
 ## Prompt de execução
 
 O prompt vigente está em `tasks.md` § Prompt de execução (uma cópia só; a daqui divergia). Revisões anteriores
@@ -803,4 +841,4 @@ no histórico do git.
 
 ## Onde parou (2026-10-18)
 
-T0.3, T2.1, T2.2 e T2.5 fechadas. Próxima: **T2.3** (variáveis e leituras), depois T2.4.
+T0.3, T2.1, T2.2, T2.3 e T2.5 fechadas. Próxima: **T2.4** (envio), depois gate completo da Fase 2.

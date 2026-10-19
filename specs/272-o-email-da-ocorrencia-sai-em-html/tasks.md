@@ -64,7 +64,7 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       `template-routes` e a integração `occurrence-type-contractor-template`). Aceite: casos do `plan.md` § Testes D2–D4
       (escape de `<b>x</b> & "y"`, chave raw só pelo nome, `{{logoTransportadora}}` dentro de valor não reinterpretado,
       modelo seguro utilizável, inseguro 400/409) e `bun --env-file=../../.env.test run test:integration` sem skip.
-- [ ] **T2.3** `sonnet` — Variáveis e leituras (D5, D6, D11), teste antes: `findOccurrenceTarget` com
+- [x] **T2.3** `sonnet` — Variáveis e leituras (D5, D6, D11), teste antes: `findOccurrenceTarget` com
       `contractorTaxId`; `findCarrierIdentity` (nome de exibição, CNPJ, `hasLogo`); `findOperatorSigner` (nome + cargo +
       papéis diretos, uma consulta); porta `OccurrenceOwnerReader` nula; `resolveSignerJobTitle`; `COMPANY_ROLE_LABELS` + contrato de paridade com `identity.locale.json`; `occurrence-mail-system-html.policy.ts` (logo/iniciais,
       tabela de itens, marcas); `APP_BASE_URL` opcional no schema de env; as doze variáveis novas (8 de texto + 4 de HTML do sistema) no catálogo da API

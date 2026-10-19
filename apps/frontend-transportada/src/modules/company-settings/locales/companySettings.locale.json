@@ -505,7 +505,19 @@
           "itens": "Os itens num texto só, separados por vírgula.",
           "codigosItens": "Os códigos dos itens, separados por vírgula.",
           "quantidadesItens": "As quantidades, separadas por vírgula.",
-          "linhasItens": "Uma linha por item: código – item – quantidade unidade – R$ valor."
+          "linhasItens": "Uma linha por item: código – item – quantidade unidade – R$ valor.",
+          "nomeExibicao": "Nome de exibição da transportadora.",
+          "cnpjTransportadora": "CNPJ da transportadora, com pontuação.",
+          "cnpjContratante": "CPF ou CNPJ da contratante; vazio sem documento.",
+          "assinaturaNome": "Nome de quem assina o e-mail, ou a equipe.",
+          "assinaturaCargo": "Cargo de quem assina; vazio sem cargo nem papel.",
+          "logoTransportadora": "Logo da transportadora, ou as iniciais sem logo (HTML do sistema).",
+          "tabelaItens": "Tabela de itens com o total, até 200 linhas (HTML do sistema).",
+          "cidadeTransportadora": "Cidade e UF da transportadora.",
+          "razaoSocialTransportadora": "Razão social da transportadora.",
+          "assinaturaIniciais": "Iniciais de quem assina, ou do nome de exibição.",
+          "faixaResposta": "Faixa \"Responda este e-mail\", só quando a resposta chega (HTML do sistema).",
+          "marcasRodape": "Marcas do rodapé: TransportAdA e Ada Technology (HTML do sistema)."
         }
       },
       "watchers": {
