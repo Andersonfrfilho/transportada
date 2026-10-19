@@ -83,7 +83,7 @@ describe('spec 272 D5/D16: os valores de texto da identidade', () => {
 })
 
 describe('spec 272 D5: o catálogo da API', () => {
-  test('as oito variáveis de texto e as quatro de HTML do sistema entram, com descrição', () => {
+  test('as oito variáveis de texto e as cinco de HTML do sistema entram, com descrição', () => {
     for (const name of [...NEW_TEXT_VARIABLES, ...OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES]) {
       expect(OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES.has(name)).toBe(true)
     }
@@ -93,10 +93,10 @@ describe('spec 272 D5: o catálogo da API', () => {
     expect(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.length).toBe(
       new Set(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.map((variable) => variable.name)).size,
     )
-    expect(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.length).toBe(17 + 12)
+    expect(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.length).toBe(17 + 13)
   })
 
-  test('a ordem do catálogo: as 17 da 271 primeiro, as 12 da 272 depois', () => {
+  test('a ordem do catálogo: as 17 da 271 primeiro, as 13 da 272 depois', () => {
     expect(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.slice(17).map((variable) => variable.name)).toEqual(
       [
         'nomeExibicao',
@@ -111,6 +111,7 @@ describe('spec 272 D5: o catálogo da API', () => {
         'assinaturaIniciais',
         'faixaResposta',
         'marcasRodape',
+        'logoAssinatura',
       ],
     )
   })

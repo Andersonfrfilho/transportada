@@ -17,12 +17,13 @@ function render(bodyTemplate: string, values: Record<string, string> = {}, syste
 }
 
 describe('spec 272: renderer do e-mail HTML', () => {
-  test('as quatro chaves de HTML do sistema, em ordem', () => {
+  test('as cinco chaves de HTML do sistema, em ordem', () => {
     expect(OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES).toEqual([
       'logoTransportadora',
       'tabelaItens',
       'marcasRodape',
       'faixaResposta',
+      'logoAssinatura',
     ])
     expect(OCCURRENCE_MAIL_HTML_MAX_BYTES).toBe(524288)
   })

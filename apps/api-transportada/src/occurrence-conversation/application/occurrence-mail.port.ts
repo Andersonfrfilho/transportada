@@ -49,6 +49,7 @@ export type CarrierIdentity = {
 
 /** Spec 272 (ADR-0110 §6): o operador que assina o envio manual; `jobTitle` já resolvido (cargo, senão papel). */
 export type OccurrenceOperatorSigner = {
+  readonly hasPicture?: boolean
   readonly jobTitle?: string
   readonly name: string
 }

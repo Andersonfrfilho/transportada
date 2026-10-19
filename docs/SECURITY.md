@@ -2809,3 +2809,19 @@ DEFAULT 90 CHECK (30–90)`, `purge_effective_at TIMESTAMPTZ` (carência), índi
   linha: apagar configuração de empresa é decisão humana.
 
 **Origem:** spec 239 (D3, D5, D9), T4.1. Registrado em 2026-10-03. Emenda correspondente na ADR-0081 §3.2.
+
+### 2026-10-19 — logo e foto de quem assina o e-mail da ocorrência por endereço público estável (risco aceito)
+
+**Onde:** `api-transportada`, `GET /public/mail-assets/:companyId/logo` e
+`GET /public/mail-assets/:companyId/users/:userId/picture`
+(`occurrence-conversation/presentation/public-mail-assets.routes.ts`).
+
+**O que é:** o cliente de e-mail da contratante busca `<img src>` sem login, então logo e foto saem por
+endereço aberto. Diferente da foto de perfil do realm (`/public/company-users/:token/picture`), o endereço
+**não leva credencial**: são os ids da empresa e da pessoa, que não giram quando a imagem muda — e-mail antigo
+mostra a imagem atual e não quebra. Quem conhece os dois ids vê o logo e o rosto de quem assina.
+
+**Por que aceito (decisão do dono, 2026-10-19):** é o padrão de e-mail transacional e evita a parte inline por
+mensagem. Mitigações: UUIDv4 (não enumerável), foto só abre com vínculo ativo da pessoa na empresa (recorte do
+banco), id torto é 404 antes de consultar, foto removida responde 404 e o e-mail cai nas iniciais, `cache-control`
+de 5 minutos e `nosniff`. Só sai com `API_PUBLIC_URL` configurada; sem ela o logo continua por `cid:` e não há foto.

@@ -25,3 +25,21 @@ export const OCCURRENCE_MAIL_REPLY_STRIP =
 export const OCCURRENCE_MAIL_COLORS = STANDARD_EMAIL_THEME.colors
 
 export const OCCURRENCE_MAIL_FONT = STANDARD_EMAIL_THEME.font
+
+/** Spec 272: as imagens do e-mail por endereço estável, relativas à origem pública da API (`API_PUBLIC_URL`). */
+export const PUBLIC_MAIL_ASSET_LOGO_PATH = '/public/mail-assets/:companyId/logo'
+export const PUBLIC_MAIL_ASSET_PICTURE_PATH = '/public/mail-assets/:companyId/users/:userId/picture'
+
+export function buildPublicMailAssetUrls(params: {
+  readonly apiPublicUrl: string | undefined
+  readonly companyId: string
+}): { readonly logo: string; readonly picture: (userId: string) => string } | undefined {
+  const { apiPublicUrl, companyId } = params
+  if (apiPublicUrl === undefined || !/^https?:\/\//iu.test(apiPublicUrl)) return undefined
+  const origin = apiPublicUrl.replace(/\/+$/u, '')
+  return {
+    logo: `${origin}${PUBLIC_MAIL_ASSET_LOGO_PATH.replace(':companyId', companyId)}`,
+    picture: (userId) =>
+      `${origin}${PUBLIC_MAIL_ASSET_PICTURE_PATH.replace(':companyId', companyId).replace(':userId', userId)}`,
+  }
+}

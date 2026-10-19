@@ -34,6 +34,8 @@ function build(overrides: Partial<Parameters<typeof buildOccurrenceMailSystemHtm
     hasReplyTo: false,
     itemRows: NO_ROWS,
     itemsSum: '',
+    signerInitials: 'AB',
+    signerIsTeam: false,
     ...overrides,
   })
 }
@@ -131,7 +133,67 @@ describe('spec 272 D5: tabelaItens', () => {
   })
 })
 
+const plain = (html: string): string => html.replace(/<[^>]+>/gu, '')
+
+describe('imagens por endereço público', () => {
+  const LOGO = 'https://api.example.test/public/mail-assets/c1/logo'
+  const PHOTO = 'https://api.example.test/public/mail-assets/c1/users/u1/picture'
+
+  test('com endereço, o logo vai por src e não há parte inline', () => {
+    const { hasInlineLogo, systemHtml } = build({ hasLogo: true, logoUrl: LOGO })
+
+    expect(hasInlineLogo).toBe(false)
+    expect(systemHtml.logoTransportadora).toContain(`src="${LOGO}"`)
+    expect(systemHtml.logoTransportadora).not.toContain('cid:')
+  })
+
+  test('assinatura de pessoa com foto: a foto; sem foto: as iniciais', () => {
+    expect(
+      build({ hasLogo: true, logoUrl: LOGO, signerPictureUrl: PHOTO }).systemHtml.logoAssinatura,
+    ).toContain(`src="${PHOTO}"`)
+    expect(build({ hasLogo: true, logoUrl: LOGO }).systemHtml.logoAssinatura).toBe('AB')
+  })
+
+  test('assinatura da equipe: o logo por endereço', () => {
+    expect(
+      build({ hasLogo: true, logoUrl: LOGO, signerIsTeam: true }).systemHtml.logoAssinatura,
+    ).toContain(`src="${LOGO}"`)
+  })
+
+  test('o endereço é escapado', () => {
+    expect(
+      build({ hasLogo: true, logoUrl: 'https://a.test/"x' }).systemHtml.logoTransportadora,
+    ).not.toContain('"x')
+  })
+})
+
+describe('logoAssinatura', () => {
+  test('equipe com logo: o logo por cid no quadrado da assinatura', () => {
+    const { logoAssinatura } = build({ hasLogo: true, signerIsTeam: true }).systemHtml
+
+    expect(logoAssinatura).toContain('src="cid:company-logo"')
+  })
+
+  test('pessoa assina, ou sem logo: as iniciais escapadas', () => {
+    expect(build({ hasLogo: true, signerInitials: 'A&B' }).systemHtml.logoAssinatura).toBe(
+      'A&amp;B',
+    )
+    expect(build({ signerInitials: 'AB', signerIsTeam: true }).systemHtml.logoAssinatura).toBe('AB')
+  })
+})
+
 describe('spec 272 D5: marcasRodape', () => {
+  test('cada miniatura fica ao lado do nome que identifica, na ordem do desenho', () => {
+    const { marcasRodape } = build({ appBaseUrl: 'https://app.example.test' }).systemHtml
+    const product = marcasRodape.indexOf('icon-192.png')
+    const platform = marcasRodape.indexOf('ada-technology.png')
+
+    expect(product).toBeLessThan(marcasRodape.indexOf('TransportAdA'))
+    expect(marcasRodape.indexOf('TransportAdA')).toBeLessThan(platform)
+    expect(platform).toBeLessThan(marcasRodape.indexOf('Ada Technology'))
+    expect(marcasRodape).not.toContain('margin:0 auto')
+  })
+
   const SIGNATURE = 'Enviado pelo TransportAdA — uma solução Ada Technology'
 
   test('com APP_BASE_URL: as duas marcas por URL absoluta (barra final aparada) e o texto', () => {
@@ -139,13 +201,13 @@ describe('spec 272 D5: marcasRodape', () => {
 
     expect(marcasRodape).toContain('src="https://app.example.test/icons/icon-192.png"')
     expect(marcasRodape).toContain('src="https://app.example.test/icons/ada-technology.png"')
-    expect(marcasRodape).toContain(SIGNATURE)
+    expect(plain(marcasRodape)).toBe(SIGNATURE)
   })
 
   test('sem APP_BASE_URL: só o texto, nenhuma imagem', () => {
     const { marcasRodape } = build().systemHtml
 
-    expect(marcasRodape).toContain(SIGNATURE)
+    expect(plain(marcasRodape)).toBe(SIGNATURE)
     expect(marcasRodape).not.toContain('<img')
   })
 
@@ -172,9 +234,10 @@ describe('spec 272 D5/D15: faixaResposta', () => {
     expect(build({ hasReplyTo: false }).systemHtml.faixaResposta).toBe('')
   })
 
-  test('as quatro chaves do conjunto fechado, e só elas', () => {
+  test('as cinco chaves do conjunto fechado, e só elas', () => {
     expect(Object.keys(build().systemHtml).sort()).toEqual([
       'faixaResposta',
+      'logoAssinatura',
       'logoTransportadora',
       'marcasRodape',
       'tabelaItens',

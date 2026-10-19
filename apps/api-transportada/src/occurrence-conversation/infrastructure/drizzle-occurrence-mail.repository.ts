@@ -20,6 +20,7 @@ import {
   contractorMailOutbox,
   contractorMailSettings,
   contractorMailThreads,
+  identityUserPictures,
   identityUserProfiles,
   idempotencyRecords,
   membershipRoles,
@@ -235,6 +236,7 @@ async function findOperatorSigner(
     .select({
       jobTitle: userCompanyMemberships.jobTitle,
       name: identityUserProfiles.name,
+      pictureUserId: identityUserPictures.userId,
       role: membershipRoles.role,
     })
     .from(identityUserProfiles)
@@ -243,6 +245,7 @@ async function findOperatorSigner(
       eq(userCompanyMemberships.userId, identityUserProfiles.userId),
     )
     .leftJoin(membershipRoles, eq(membershipRoles.membershipId, userCompanyMemberships.id))
+    .leftJoin(identityUserPictures, eq(identityUserPictures.userId, identityUserProfiles.userId))
     .where(
       and(
         eq(identityUserProfiles.userId, params.userId),
@@ -256,7 +259,11 @@ async function findOperatorSigner(
     directRoles: rows.flatMap((row) => (row.role === null ? [] : [row.role])),
     jobTitle: first.jobTitle,
   })
-  return { ...(jobTitle === undefined ? {} : { jobTitle }), name: first.name }
+  return {
+    hasPicture: first.pictureUserId !== null,
+    ...(jobTitle === undefined ? {} : { jobTitle }),
+    name: first.name,
+  }
 }
 
 /**
