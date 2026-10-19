@@ -1,7 +1,7 @@
 # Feature 274 — O chat da contratante envia por e-mail
 
 > Pedido do dono em 2026-10-19 ([`evidence.md`](evidence.md) § Decisões do dono). Decisão de arquitetura:
-> [ADR-0111](../../docs/adr/0111-o-chat-da-contratante-envia-por-email.md) (proposta; validar na T0.2). Revoga a
+> [ADR-0111](../../docs/adr/0111-o-chat-da-contratante-envia-por-email.md) (aceita na T0.2). Revoga a
 > **183 D7** ("no e-mail não existe lida").
 >
 > ⚠️ **Mudança do dono no mesmo dia (substitui a decisão 3 do pedido):** a mensagem do chat **não** usa o modelo do tipo

@@ -21,12 +21,12 @@
       se a chave Resend gravada é só de envio; diff entre as versões fixadas de `notification-*` e a última publicada
       (`npm view`). Medir em staging (só contagem): mensagens `email` por status, empresas com Resend pronto. Divergência
       vira nota no `evidence.md`. Aceite: § T0.1 preenchido.
-- [ ] **T0.2** 🧠 `opus` — Validar a ADR-0111 e o `plan.md` (D1–D13) com `architect`: uma mensagem com portal como
+- [x] **T0.2** 🧠 `opus` — Validar a ADR-0111 e o `plan.md` (D1–D13) com `architect`: uma mensagem com portal como
       vitrine (D2), modelo padrão configurável cadastrado pelo SDK no pré-deploy e o que migra do app (D3/D4, ajustados em 2026-10-19
       pelo dono), linha do e-mail pelo `message_id` do Resend (D7),
       revogação da 183 D7 (D8/D9), migration (D12). Ajuste aprovado entra no `plan.md` e na ADR ("Ajustado na T0.2");
       status → "aceita". **Outras tasks herdam este contrato.** Aceite: `grep -n "Status:\*\* aceita"
-docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa.
+docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa. (Concluída; `evidence.md` § T0.2.)
 
 ## Fase 1 — SDK de notificação (repositório `adatechnology-packages`)
 
@@ -36,40 +36,48 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa.
 - [ ] **T1.1** `sonnet` — `notification-contracts`, regras genéricas de e-mail HTML (D4). Teste antes (`bun test`),
       com as tabelas de caso da 272 copiadas sem editar caso (`apps/api-transportada/test/**/occurrence-mail-plain-text*`,
       `*html-safety*`, `*html-render*`, `*system-html*`): `htmlToPlainText`, `findUnsafeEmailHtml` (mesma regra do
-      `validateEmailHtml` da `notification-ui`, que passa a importá-la), `interpolateEmailHtml`, `buildInitials`,
+      `validateEmailHtml` da `notification-ui`) _[ajustado na T0.2: a `notification-ui` delega na T1.4]_, `interpolateEmailHtml`, `buildInitials`,
       `renderEmailLogoHtml`, `STANDARD_EMAIL_THEME`. Aceite:
       `pnpm --filter @adatechnology/notification-contracts test`.
 - [ ] **T1.2** `sonnet` — `notification-contracts`, modelo padrão (D3; identidade, assinante e rodapé dentro do
       modelo). Teste antes: escape de cada variável, `{{x}}` do operador literal, estrutura sem
       `<script`/`on*=`/`flex`/`grid`/`var(`, URL de marca não http(s) → vazia, logo `cid` × iniciais, sem anexos/sem
       cargo/sem `replyHint`, < 100 KB com 8000 caracteres e 5 anexos, `text` sem tags, `assessStandardEmailTemplate`
-      (sem uma das obrigatórias ou inseguro → inutilizável), o embutido passa no próprio `assess`. Depois `standard-email.pt-BR.html` (embutido no build), `STANDARD_EMAIL_*`,
-      `renderStandardEmail`. Aceite: `pnpm --filter @adatechnology/notification-contracts test`.
+      (sem uma das obrigatórias ou inseguro → inutilizável), o embutido passa no próprio `assess`. Depois `standard-email.pt-BR.html` (embutido no build com `loader: { '.html': 'text' }` no tsup e `with { type: 'text' }` no
+      bun test, ou `.ts` gerado com teste de igualdade; _ajustado na T0.2_), `STANDARD_EMAIL_*`,
+      `renderStandardEmail` (_ajustado na T0.2:_ o `marcasRodape` é HTML do sistema montado pelo SDK, só `http(s)`, e nenhuma
+      variável em atributo ou `style`). Aceite: `pnpm --filter @adatechnology/notification-contracts test`.
 - [ ] **T1.3** `sonnet` — `notification-module` (D3). Teste antes: `standardEmail.ensureTemplate` (sem linha → v1 com o
       embutido; segunda chamada → nada; linha editada ou desativada → nada), `resolveTemplate` (versão ativa usável → a
       da empresa; sem linha ativa ou inutilizável → embutido `version: 0` + log sem conteúdo; outra empresa não vaza),
       `render`, `restoreDefault` (versão nova com o embutido), `upsert` da chave recusado sem as obrigatórias
       (`StandardEmailTemplateInvalidError`), desativar a chave recusado (`StandardEmailTemplateRequiredError`), catálogo
       mesclado em `/notification-template-variables`. Aceite: `pnpm -r check && pnpm -r test`.
-- [ ] **T1.4** `sonnet` — `notification-ui` (D3): selo "Modelo do sistema", sem "Remover" na chave padrão,
+- [ ] **T1.4** `sonnet` — `notification-ui` (D3; _ajustado na T0.2:_ para a chave `notification.standard-email`, a UI valida com
+      `assessStandardEmailTemplate` (sem depender da área de mensagem) e **esconde o campo assunto**; `validateEmailHtml`
+      delega a `findUnsafeEmailHtml`, dependência direta de `notification-contracts`): selo "Modelo do sistema", sem "Remover" na chave padrão,
       "Restaurar padrão" (chama `restoreDefault`), prévia do modelo padrão por `renderStandardEmail` com os exemplos do
       catálogo. Teste antes. Aceite: `pnpm -r check && pnpm -r test`.
 - [ ] **T1.5** `haiku` — `CLAUDE.md`/README dos três pacotes (o modelo padrão, o cadastro por `ensureTemplate` e por que
       no pré-deploy do host, a rede de segurança) e
       changesets `minor`. Aceite: `pnpm -r check`.
 - [ ] **T1.6** `sonnet` — PR no repositório de pacotes. **Pare e pergunte antes do merge em `main`** (publica no npm).
-      Depois: `npm view` dos três pacotes; registrar versões e o diff desde `0.1.0-rc.2`/`0.1.0-rc.3`/`0.1.0-rc.9` no
-      `evidence.md`.
+      Depois: `npm view` dos três pacotes; registrar versões e o diff desde `0.1.0-rc.2`/`0.1.0-rc.3`/`0.1.0-rc.9` (e `notification-client` `0.1.0-rc.3`) no
+      `evidence.md`. _Ajustado na T0.2:_ listar também o diff da `notification-ui` e conferir a tela no navegador antes da T2.2.
+      Mesmo PR, task e commit isolados para a subida de versão (T3.1; Q3 resolvida).
 
-## Fase 2 — Painel tolerante (vai a produção antes da API)
+## Fase 2 — painel e worker tolerantes (vão a produção antes da API)
 
-> 🤖 Modelo: `haiku`
+> _Ajustado na T0.2: o worker entra aqui (o worker antigo rebaixa `read` para `sent`, `message-status.policy.ts:89-100`)._
+> 🤖 Modelo: `haiku` (T2.1 → `sonnet`)
 
-- [ ] **T2.1** `haiku` — Teste antes: escada do e-mail aceita `read` em `messageStatus.service.ts` (selo "Lida" com a
+- [ ] **T2.1** `sonnet` — Teste antes: escada do e-mail aceita `read` em `messageStatus.service.ts` (selo "Lida" com a
       dica do RF8); o código `OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS` tem texto. Depois a mudança (composer **ainda**
-      fechado sem portal) e, _ajustado em 2026-10-19 (dono)_, `notification-ui` na versão da T1.6 (D13): a tela de
+      fechado sem portal) e, _ajustado em 2026-10-19 (dono)_, `notification-ui` e `notification-client` na versão da T1.6 (D13): a tela de
       Notificações mostra o modelo padrão.
-- [ ] **T2.2** `sonnet` — Publicar a Fase 2 (PR → `staging` → `main`). **Pare e pergunte antes do merge em `main`.**
+- [ ] **T4.1** `haiku` — _Movida da Fase 4 na T0.2._ Política de status do **worker** espelhada (D8) com o contrato de paridade.
+      Teste antes. Vai a produção com o painel (plan § Publicação, passo 2).
+- [ ] **T2.2** `sonnet` — Publicar a Fase 2 (painel **e worker**; PR → `staging` → `main`). **Pare e pergunte antes do merge em `main`.**
 
 ## Fase 3 — API
 
@@ -85,7 +93,8 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa.
       `findUnsafeHtmlRules` e as cores viram re-export do SDK; `renderContractorMailHtml` delega a
       `interpolateEmailHtml`; `buildLogo`/`buildFooterMarks`/`buildInitials` delegam aos fragmentos; o renderer do
       modelo do tipo fica. `notification.standard-email` entra em `SYSTEM_NOTIFICATION_TEMPLATE_KEYS` (fora da escolha do
-      tipo). Teste antes: as tabelas da 272 continuam verdes sem editar caso; contrato da exclusão.
+      tipo), _ajustado na T0.2:_ e a listagem de modelos escolhíveis filtra as chaves do sistema
+      (`notification-template.query.ts:63-75`). `buildFooterMarks` delega a `renderEmailMarksHtml`. Teste antes: as tabelas da 272 continuam verdes sem editar caso; contrato da exclusão.
 - [ ] **T3.4** `sonnet` — Política de status (D8) com a tabela de casos (escada, salto, falha terminal, duplicado) e o
       webhook `email.opened → read` + gravação de `data.message_id` do `email.sent` (reserva `delivered`/`opened`) em
       `rfc_message_id` só se nulo (D7, ajustado em 2026-10-19 pelo dono). Contratos antes (payload de `email.sent` da doc
@@ -99,11 +108,14 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa.
       Integração `test/integration/occurrence-chat-mail.integration.ts` (na lista, `--env-file`, zero skip): sem linha →
       versão `0`; com versão da empresa → a versão dela.
 - [ ] **T3.7** `sonnet` — Portal (D2, D9): aviso sem corpo só a quem não está em `To`/`Cc`; `markRead` leva `email` a
-      `read`. Contrato + integração.
-- [ ] **T3.9** `sonnet` — Cadastro do modelo padrão (D3, ajustado em 2026-10-19 pelo dono): o passo `seedTemplates` do
-      pré-deploy (`database/pre-deploy.service.ts`) e o provisionamento de empresa chamam
-      `notifications.standardEmail.ensureTemplate` para **toda** empresa (não só a do `COMPANY_ID`). Teste antes:
-      contrato do `runPreDeploy` (chama por empresa; relatório conta as gravadas) e integração (primeira execução grava
+      `read`. _Ajustado na T0.2:_ a audiência passa a trazer o e-mail (minúsculas) de cada usuário do portal; portal
+      indisponível no chat = sem aviso, nunca `PortalUnavailableError`. Contrato + integração.
+- [ ] **T3.9** `sonnet` — Cadastro do modelo padrão (D3, ajustado em 2026-10-19 pelo dono): _ajustado na T0.2:_ passo novo
+      `seedStandardEmailTemplates` em `PreDeploySteps`/`PreDeployReport` (campo `standardEmailTemplates`): lê todos os
+      `companies.id` e chama `notifications.standardEmail.ensureTemplate` em série, independente de `COMPANY_ID`, depois de
+      `provision`; sem gancho no provisionamento; conflito 23505 = já existe (conta 0). Na semente local, a rede de
+      segurança (versão `0`) basta. Teste antes:
+      contrato do `runPreDeploy` (chama por empresa; relatório conta as gravadas), duas chamadas concorrentes sem erro e integração (primeira execução grava
       uma por empresa, segunda grava zero, versão editada intacta). Gravar em staging acontece no deploy da T6.2
       (autorizado); em produção, só na T6.5 com aprovação humana e contagem antes/depois.
 - [ ] **T3.8** `haiku` — OpenAPI da variante, `apps/api-transportada/CLAUDE.md` e `docs/ai-context/api-transportada.md`
@@ -111,9 +123,8 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa.
 
 ## Fase 4 — Worker
 
-> 🤖 Modelo: `sonnet` (T4.3 → `haiku`)
+> 🤖 Modelo: `sonnet` (T4.3 → `haiku`; a T4.1 foi para a Fase 2)
 
-- [ ] **T4.1** `haiku` — Política de status espelhada (D8) com o contrato de paridade. Teste antes.
 - [ ] **T4.2** `sonnet` — Cadeia de `References`/`In-Reply-To` com os `rfc_message_id` de entrada e de saída (este, o
       `message_id` do Resend gravado pela T3.4; saída sem ele fica fora), últimos 20; o worker não gera `Message-ID`
       (D7, ajustado em 2026-10-19 pelo dono). Teste do repositório e do caso de uso antes; integração do worker
@@ -136,7 +147,8 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa.
 
 - [ ] **T6.1** `sonnet` — Revisão: `code-reviewer` e `security-reviewer` (escape dos slots, BOLA, PII em log, webhook).
 - [ ] **T6.2** `sonnet` — Rebase em `origin/staging`, gates completos, `bunx prettier --check .`, numeração de
-      spec/ADR/migration conferida, PR → `staging` (autorizado; API + worker no mesmo run), acompanhar CI e deploy.
+      spec/ADR/migration conferida, PR → `staging` (autorizado; API + worker no mesmo run), acompanhar CI e deploy. _Ajustado na T0.2:_ o pacote só chega a
+      staging depois do merge em `main` dos pacotes (T1.6); sem `publish.yml` de branch.
 - [ ] **T6.3** `sonnet` — Verificar em staging no navegador (texto, não screenshot): composer aberto sem portal,
       mensagem no Mailpit com logo e anexos, selo "Enviada", portal mostra a mensagem uma vez; a tela de Notificações
       lista o modelo padrão (selo "Modelo do sistema"; o pré-deploy de staging o cadastrou). **Pare e pergunte** antes de editar o modelo padrão em staging (mudança de dados);

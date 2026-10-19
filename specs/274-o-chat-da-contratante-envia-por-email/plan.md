@@ -1,7 +1,7 @@
 # Plan — 274 O chat da contratante envia por e-mail
 
 ADR: [**0111 — O chat da contratante envia por e-mail**](../../docs/adr/0111-o-chat-da-contratante-envia-por-email.md)
-(proposta): composer por e-mail, modelo padrão configurável no SDK (ajustado em 2026-10-19, dono), "lida" por pixel
+(aceita, T0.2): composer por e-mail, modelo padrão configurável no SDK (ajustado em 2026-10-19, dono), "lida" por pixel
 (revoga 183 D7), portal como vitrine.
 
 Fatos que moldam o plano: [`evidence.md`](evidence.md) § Levantamento (arquivo:linha). Caminhos relativos a
@@ -17,7 +17,7 @@ Fatos que moldam o plano: [`evidence.md`](evidence.md) § Levantamento (arquivo:
 - **D2 — Uma mensagem, canal `email`; o portal é vitrine.** Nada de duas linhas. A listagem do portal não filtra canal
   (`drizzle-contractor-portal-conversation.repository.ts:287-310`): a mensagem já aparece lá. Com portal disponível, o
   caso de uso do chat dispara, depois do commit, o aviso sem corpo da ADR-0073 (`contractor-portal-message.use-case.ts:157-172`)
-  para os usuários do portal cujo e-mail (normalizado, minúsculas) **não** está em `To`/`Cc`; nenhum restante → sem aviso.
+  para os usuários do portal cujo e-mail (normalizado, minúsculas) **não** está em `To`/`Cc`; nenhum restante → sem aviso. _Ajustado na T0.2._ A audiência passa a trazer o e-mail (minúsculas) de cada usuário do portal. Portal indisponível no chat = sem aviso, nunca `PortalUnavailableError`.
   Recusado: gravar `email` + `portal` e agrupar na tela (duas escadas de status para o mesmo texto, agrupamento novo
   no SDK `conversations-ui`, dois registros a auditar).
 - **D3 — Modelo padrão configurável, cadastrado pelo SDK.** _Ajustado em 2026-10-19 (dono): substitui o "layout fixo
@@ -37,20 +37,23 @@ Fatos que moldam o plano: [`evidence.md`](evidence.md) § Levantamento (arquivo:
     D6); um assunto de modelo em volta de `{{assunto}}` se acumularia a cada mensagem da mesma linha.
   - **Variáveis (catálogo `STANDARD_EMAIL_VARIABLES`, aparece no editor).** Texto, escapado por valor:
     `nomeEmpresa`, `iniciaisAssinante`, `nomeAssinante`, `cargoAssinante` (vazio sem cargo), `rodapePlataforma`
-    (frase do produto) e os `values` extras do host; URLs `marcaProdutoUrl`/`marcaPlataformaUrl` (escapadas; vazias se
-    não forem `http(s)`). HTML do sistema, decidido **pelo nome** (conjunto fechado
+    (frase do produto) e os `values` extras do host. HTML do sistema, decidido **pelo nome** (conjunto fechado
     `STANDARD_EMAIL_SYSTEM_HTML_VARIABLES`, mesma regra da 272 `occurrence-mail-html-render.policy.ts`), só onde a
     interpolação `{{x}}` não expressa a forma: `logoEmpresa` (`<img src="cid:…">` **ou** o quadrado de iniciais),
     `corpoMensagem` (texto escapado em parágrafos: linha em branco → parágrafo, quebra simples → `<br>`), `listaAnexos`
-    (nomes escapados; vazio sem anexo), `faixaResposta` (vazio sem `replyHint`). Obrigatórias no modelo:
-    `corpoMensagem`, `logoEmpresa`, `nomeEmpresa`, `nomeAssinante` e `rodapePlataforma` (identidade, assinante e rodapé
-    obrigatórios).
+    (nomes escapados; vazio sem anexo), `faixaResposta` (vazio sem `replyHint`), `marcasRodape` (HTML do sistema: as
+    imagens das marcas montadas pelo SDK a partir de `footer.productMarkUrl/platformMarkUrl`, só `http(s)`; sem URL, só o
+    texto). Nenhuma variável em atributo ou `style`; as cores são literais no `.html`. _Ajustado na T0.2._ Obrigatórias no modelo:
+    `corpoMensagem`, `logoEmpresa`, `nomeEmpresa`, `nomeAssinante`, `rodapePlataforma` e `marcasRodape` (identidade,
+    assinante e rodapé obrigatórios).
   - **Cadastro pelo SDK (semente idempotente, no pré-deploy).** O módulo expõe
     `standardEmail.ensureTemplate({ companyId, locale })`: grava a v1 com o conteúdo embutido **só se a identidade não
     tem nenhuma linha** (ativa ou não), pelo `upsert` do módulo; nunca sobrescreve versão da empresa. A API o chama no
-    passo `seedTemplates` do pré-deploy (`database/pre-deploy.service.ts:74,149`, o mesmo que já semeia o catálogo de
-    avisos "só o que não existe" — `notification-template-seed.service.ts`), **para toda empresa** existente (como o
-    `seedOccurrenceTypes`), e no provisionamento de empresa. **Por que este mecanismo:** (a) já é o caminho de semente de
+    pré-deploy (`database/pre-deploy.service.ts:74,149`; o caminho de semente de modelos desta base é o
+    `notification-template-seed.service.ts`), **para toda empresa** existente (como o `seedOccurrenceTypes`). _Ajustado na T0.2._ Passo novo `seedStandardEmailTemplates` em `PreDeploySteps`/`PreDeployReport` (campo `standardEmailTemplates`): lê todos os
+    `companies.id` e chama `ensureTemplate` em série, independente de `COMPANY_ID`, e roda depois de `provision`. Sem
+    gancho separado no provisionamento. Na semente local, a rede de segurança (versão `0`) basta. Conflito de unicidade
+    (23505) no `ensureTemplate` = já existe (conta 0, sem erro); teste com duas chamadas concorrentes. **Por que este mecanismo:** (a) já é o caminho de semente de
     modelos desta base, ordenado depois da migration e do provisionamento, um processo só (sem corrida de versão entre
     réplicas); (b) **boot do servidor** foi recusado — regra da casa ("nunca no startup do servidor",
     `notification-template-seed.service.ts:91`) e N réplicas disputariam a v1; (c) **migration do pacote** foi recusada —
@@ -67,7 +70,9 @@ Fatos que moldam o plano: [`evidence.md`](evidence.md) § Levantamento (arquivo:
     nova versão). O SDK protege a chave: `upsert` sem as obrigatórias ou com HTML inseguro → `StandardEmailTemplateInvalidError`
     (400); "Remover" (desativar) a chave → `StandardEmailTemplateRequiredError` (409), para o modelo não sumir da tela;
     `standardEmail.restoreDefault({ companyId, locale })` grava uma versão nova com o conteúdo embutido ("Restaurar
-    padrão", histórico preservado). O catálogo do modelo padrão é mesclado ao `templateVariables` do host pelo SDK (o host
+    padrão", histórico preservado). _Ajustado na T0.2._ Rota `POST /notification-templates/:id/restore-default` no `managementRoutes` do módulo, sob o portão
+    `settings.manage` do host (`notification-http.router.ts:22-30`); erros: `StandardEmailTemplateInvalidError` → 400,
+    `StandardEmailTemplateRequiredError` → 409; o `notification-client` ganha `restoreDefault`. O catálogo do modelo padrão é mesclado ao `templateVariables` do host pelo SDK (o host
     não o sobrescreve): `/notification-template-variables` e a validação do `upsert` o conhecem. A `notification-ui`
     ganha o selo "Modelo do sistema", o "Restaurar padrão", esconde "Remover" na chave e faz a prévia pelo mesmo
     `renderStandardEmail` com os exemplos do catálogo.
@@ -93,18 +98,21 @@ Fatos que moldam o plano: [`evidence.md`](evidence.md) § Levantamento (arquivo:
     nome" (`renderContractorMailHtml` passa a delegar a `interpolateEmailHtml({ template, values, systemHtml,
 systemHtmlNames })` do SDK, mantendo no app o assunto, o limite e o `tooLarge`).
   - **Fica no app:** o renderer do modelo **do tipo** da 272 (vocabulário da ocorrência: `tabelaItens`,
-    `logoTransportadora`, `marcasRodape` — `buildFooterMarks` :93 fica, o rodapé do modelo padrão é marcação do
-    modelo —, área `<!-- mensagem -->`, compor, leitura do modelo dentro da transação do outbox em
+    `logoTransportadora`, `marcasRodape` — `buildFooterMarks` delega a `renderEmailMarksHtml` do SDK com a mesma saída (_Ajustado na T0.2._), o rodapé do modelo
+    padrão é marcação do modelo —, área `<!-- mensagem -->`, compor, leitura do modelo dentro da transação do outbox em
     `notification-template.query.ts`), `applySubjectPrefix`, `buildSenderDisplayName` (e a cópia do worker),
     `buildSignerValues`/`resolveSignerJobTitle`, `COMPANY_LOGO_CONTENT_ID`, `APP_BASE_URL`/caminhos das marcas.
     **Critério:** vai ao SDK o que é regra genérica de e-mail HTML (sem vocabulário da TMS) ou o que o envio sem modelo
     precisa; mover o renderer do tipo traria vocabulário de ocorrência ao SDK e mudaria a leitura transacional da 272 sem
     ganho para esta spec.
+  - _Ajustado na T0.2._ Regra de HTML inseguro: três cópias — API e painel delegam a `findUnsafeEmailHtml` (o painel ganha dependência
+    direta de `@adatechnology/notification-contracts`); a do worker fica (SQL, filtro grosso), com a paridade presa pelo
+    contrato de hoje.
   - O app exclui `notification.standard-email` da lista de modelos escolhíveis no tipo
     (`SYSTEM_NOTIFICATION_TEMPLATE_KEYS`, `occurrence-contractor-template.policy.ts:36`; `listActiveContractorTemplates`
     lista toda chave `email`/`pt-BR` ativa).
 - **D5 — Rota: variante "chat" do POST de mensagens.** `POST /trip-occurrences/:id/conversations/contractor/messages`
-  com `{ channel: 'email', mode: 'chat', body, attachmentIds }` `.strict()` (a variante do diálogo continua sem `mode`).
+  com `{ channel: 'email', mode: 'chat', body, attachmentIds }` `.strict()` (a variante do diálogo continua sem `mode`). _Ajustado na T0.2._ O `parse` desvia por `raw.mode === 'chat'` antes do `mailMessageSchema`; o diálogo continua recusando `mode`.
   `body` 1..8000 depois do `trim`. O servidor resolve tudo o resto. Caso de uso novo
   `occurrence-conversation/application/send-occurrence-chat-mail.use-case.ts`, que reutiliza as peças do
   `send-occurrence-mail.use-case.ts` (prontidão `resolveMailSendReadiness` :401-406, entrega Resend/sandbox :187-218,
@@ -118,16 +126,22 @@ systemHtmlNames })` do SDK, mantendo no app o assunto, o limite e o `tooLarge`).
   `Reply-To`) e chama
   `notifications.standardEmail.render(...)` **antes** da transação; grava `body_html`/`body_text` devolvidos e
   `notification_template_key = 'notification.standard-email'` + `notification_template_version` = a versão usada
-  (`0` = rede de segurança embutida) — as colunas da 271 D8, sem coluna nova. `tooLarge` → 400 (não 500).
-- **D6 — Assunto.** O assunto do último e-mail de saída da linha da ocorrência (`contractor_mail_messages` da
-  `contractor_mail_threads` da ocorrência), sem acrescentar "Re:". Sem e-mail anterior: `applySubjectPrefix` sobre
+  (`0` = rede de segurança embutida) — as colunas da 271 D8, sem coluna nova. `tooLarge` → 400 (não 500). _Ajustado na T0.2._ O render acontece depois do replay de idempotência, da prontidão e dos destinatários.
+- **D6 — Assunto.** O assunto do último e-mail de saída da linha da ocorrência que **não** é encaminhamento da 248 (_ajustado na T0.2_;
+  `contractor_mail_messages` da `contractor_mail_threads` da ocorrência), sem acrescentar "Re:". Sem e-mail anterior: `applySubjectPrefix` sobre
   `Ocorrência <nome do tipo> — NF <número>` (parada sem nota não chega aqui: o composer exige nota). Idempotente.
 - **D7 — Linha do e-mail.** Hoje o worker só põe `In-Reply-To`/`References` com a última mensagem **de entrada**
   (`drizzle-contractor-mail-outbound-worker.repository.ts:158-176`) e não guarda o `Message-ID` de saída.
   _Ajustado em 2026-10-19 (dono), pelo fato da T0.1 (evidence § T0.1 itens 4-5):_ a linha usa o **`message_id` que o
   Resend devolve** no webhook, não um `Message-ID` escolhido por nós. O webhook lê `data.message_id` de `email.sent`
   (documentado; também de `email.delivered`/`email.opened` se vier, como reserva) e grava em
-  `contractor_mail_messages.rfc_message_id` da mensagem de saída **só se nulo**; hoje o webhook não lê o campo. O worker
+  `contractor_mail_messages.rfc_message_id` da mensagem de saída **só se nulo**; hoje o webhook não lê o campo. _Ajustado na T0.2._
+  `UPDATE contractor_mail_messages SET rfc_message_id = normalize(data.message_id) WHERE company_id = $empresaDoWebhook AND
+provider_email_id = data.email_id AND rfc_message_id IS NULL`, em qualquer evento que traga `message_id`
+  (`sent`/`delivered`/`opened`), independente do resultado do status; o schema do corpo
+  (`process-inbound-email-webhook.use-case.ts:52-55`) ganha `message_id` opcional. Normalizar com `<…>` na gravação e
+  na montagem, para entrada e saída. A cadeia exclui as mensagens de encaminhamento; o encaminhamento continua sem
+  `In-Reply-To`/`References` (ramo `forward` de hoje). O worker
   monta `References` com os `rfc_message_id` da linha (entrada e saída, ordem de criação, últimos 20) e `In-Reply-To`
   com o último. Mensagem anterior cujo `email.sent` ainda não chegou fica de fora; o assunto igual mantém a linha no
   Gmail. O worker **não** põe `Message-ID` próprio. Um envio de teste numa conta Resend de teste que prove que o
@@ -141,7 +155,8 @@ systemHtmlNames })` do SDK, mantendo no app o assunto, o limite e o `tooLarge`).
   `email.opened → read`; `email.clicked` continua ignorado. Repetição de `opened` → `duplicate`.
 - **D9 — Lida pelo portal.** `markRead` (`drizzle-contractor-portal-conversation.repository.ts:312-349`) passa a
   levar as mensagens de saída de canal `portal` **e** `email` (status não nulo, não falha) a `read`, cada uma pela
-  própria regra de canal.
+  própria regra de canal. _Ajustado na T0.2._ Aceito: leitura no portal com o e-mail ainda `queued` leva a `read`; falha posterior do worker fica
+  `stale`.
 - **D10 — Erros do chat.** 409 `OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS` (nenhum pré-marcado); prontidão de hoje
   (`CONTRACTOR_MAIL_NOT_CONFIGURED`/`CONTRACTOR_MAIL_SENDING_NOT_VERIFIED` — T0.1 confere qual a rota devolve); 400
   corpo vazio/longo e anexos fora da regra; 409 chave reutilizada; 404 outra empresa. **Nunca** 409 de modelo. No
@@ -160,7 +175,7 @@ occurrence_conversation_messages_email_never_read_check`. _Ajustado em 2026-10-1
   `0.1.0-rc.3`, e o repositório de pacotes já saiu do modo `rc`. A T1.6 lista o diff entre as versões fixadas e a nova
   (`npm view`, changelog/commits) e a sobe nas **duas** apps juntas (lock coerente). _Ajustado em 2026-10-19 (dono):_ o
   painel sobe `@adatechnology/notification-ui` (hoje `0.1.0-rc.9`) para a versão com o selo, o "Restaurar padrão" e sem
-  "Remover" no modelo padrão (D3), na Fase 2.
+  "Remover" no modelo padrão (D3), na Fase 2. _Ajustado na T0.2._ Sobe também `@adatechnology/notification-client` (hoje `0.1.0-rc.3`).
 
 ## Arquivos por app
 
@@ -184,7 +199,7 @@ occurrence_conversation_messages_email_never_read_check`. _Ajustado em 2026-10-1
   `occurrence-conversation/infrastructure/drizzle-occurrence-message-status.repository.ts` (gravar `rfc_message_id`),
   `infrastructure/drizzle-contractor-portal-conversation.repository.ts` (D9), aviso do portal (D2),
   `database/occurrence-conversation.schema.ts`, `database/contractor-mail.schema.ts`, migration nova,
-  `database/pre-deploy.service.ts` + provisionamento de empresa (`ensureTemplate`, D3), `main.ts` (fiação),
+  `database/pre-deploy.service.ts` (passo `seedStandardEmailTemplates`, D3), `main.ts` (fiação),
   OpenAPI da rota, `package.json` (versões + testes novos).
 - **Worker:** `occurrence-conversation/domain/message-status.policy.ts` (D8),
   `contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.ts` (cadeia de referências D7),
@@ -199,7 +214,8 @@ occurrence_conversation_messages_email_never_read_check`. _Ajustado em 2026-10-1
 ## Contratos
 
 - `POST …/conversations/contractor/messages` `{ channel: 'email', mode: 'chat', body, attachmentIds? }`, cabeçalho
-  `Idempotency-Key` → 201 `{ message }` (mesma forma da mensagem de hoje, `channel: 'email'`, `status: 'queued'`).
+  `Idempotency-Key` → 202 `{ data: { conversationId, conversationMessageId, mailMessageId, recipientCount, threadId } }`
+  (forma do diálogo; _Ajustado na T0.2._).
   Erros: D10. Permissão `occurrences.resolve`; limite 30/300 s (o de hoje).
 - Webhook: `email.opened` → `read`; `data.message_id` de `email.sent` (reserva: `delivered`/`opened`) grava
   `rfc_message_id` se vazio (D7).
@@ -210,7 +226,9 @@ occurrence_conversation_messages_email_never_read_check`. _Ajustado em 2026-10-1
   `findUnsafeEmailHtml`, `renderEmailLogoHtml`, `buildInitials`, `STANDARD_EMAIL_THEME`, tipos
   `StandardEmailInput`/`StandardEmailRendered`; `notification-module` — `module.standardEmail.ensureTemplate`,
   `.resolveTemplate`, `.render` e `.restoreDefault` (todos `{ companyId, locale, … }`),
-  `StandardEmailTemplateInvalidError` (400), `StandardEmailTemplateRequiredError` (409).
+  `StandardEmailTemplateInvalidError` (400), `StandardEmailTemplateRequiredError` (409); HTTP do módulo:
+  `POST /notification-templates/:id/restore-default` (`settings.manage`) e `notification-client.restoreDefault`
+  (_Ajustado na T0.2._).
 
 ## Dados, migration e rollback
 
@@ -241,7 +259,8 @@ Log estruturado sem PII: `occurrence_chat_mail_sent` (`messageId`, `attachments`
 - SDK: casos de escape e estrutura (D3), paridade de `htmlToPlainText`/`findUnsafeEmailHtml`/`interpolateEmailHtml` com
   as tabelas da 272, resolução empresa × embutido × inutilizável, `ensureTemplate` idempotente, `upsert`/desativar
   recusados, `restoreDefault`.
-- API pré-deploy: `seedTemplates` chama `ensureTemplate` para cada empresa; segunda execução grava zero.
+- API pré-deploy: `seedStandardEmailTemplates` chama `ensureTemplate` para cada empresa; segunda execução grava zero; duas
+  chamadas concorrentes não erram (23505 = já existe).
 - API contrato: política de status (tabela: escada do e-mail com `read`, salto, falha terminal, duplicado); assunto do
   chat (D6); schema da rota (variante chat `.strict()`, 1..8000); caso de uso com dublês (sem modelo → envia; sem
   pré-marcado → 409; idempotência; aviso do portal só a quem não está em `To`/`Cc`; grava chave e versão do modelo
@@ -258,11 +277,14 @@ Log estruturado sem PII: `occurrence_chat_mail_sent` (`messageId`, `attachments`
 ## Publicação
 
 1. **Pacotes:** PR no repositório de pacotes → `main` (o CI publica no npm) **com aprovação humana**; conferir
-   `npm view` de `notification-contracts`, `-module` e `-ui`.
-2. **Painel tolerante:** escada do e-mail com `read`, textos de erro novos e `notification-ui` nova (sem abrir o
-   composer) → `staging` → `main` com aprovação.
-3. **API + worker + migration** (o pré-deploy cadastra o modelo padrão por empresa) no mesmo PR e no mesmo run (o worker velho não conhece `read` no e-mail: `stale`
-   inofensivo; mas a cadeia de referências e a política precisam sair juntas).
+   `npm view` de `notification-contracts`, `-module`, `-ui` e `-client`. _Ajustado na T0.2._ Não há caminho para staging antes do merge em
+   `main` dos pacotes. Disparar o `publish.yml` de branch é proibido (empurra a branch para `main`). O desenvolvimento
+   das Fases 2–5 pode usar `pnpm pack`/tarball **local**, nunca commitado; o `package.json` só fixa a versão depois da
+   T1.6. Uma tag `next` por snapshot só com aprovação humana explícita e fora deste fluxo.
+2. **Painel e worker tolerantes** (_Ajustado na T0.2._): escada do e-mail com `read` (painel e worker; o worker velho rebaixa `read`
+   para `sent`, `message-status.policy.ts:89-100`), textos de erro novos e `notification-ui` nova (sem abrir o composer) →
+   `staging` → `main`, antes da API, com aprovação.
+3. **API + worker + migration** (o pré-deploy cadastra o modelo padrão por empresa) no mesmo PR e no mesmo run (a cadeia de referências do worker sai junto).
 4. **Telas:** composer aberto, dica do selo → `staging`; verificação no Mailpit.
 5. **Ligar a confirmação de leitura** (abaixo), primeiro numa conta de teste/staging, depois a da transportadora em
    produção — cada uma com aprovação humana.

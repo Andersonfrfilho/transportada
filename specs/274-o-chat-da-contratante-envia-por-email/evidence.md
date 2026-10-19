@@ -190,6 +190,50 @@ messageId`) e marca `sent` (`drizzle-contractor-mail-outbound-worker.repository.
 
 - Nenhum derruba D1–D13. **Tensiona a D7** (linha do e-mail): depende de o `Message-ID` ser o devolvido pelo Resend, não um escolhido por nós (item 5). **Q2** ganha o fato do `full_access` (item da correção). **Q3/T3.1:** 6 mudanças do module incluem migrations (item 8).
 
+### T0.2 — ADR-0111 validada com o `architect` (2026-10-19)
+
+**Veredito: APROVADO COM AJUSTES.** ADR-0111 → `**Status:** aceita`. Os trechos alterados levam "Ajustado na T0.2" na
+ADR, no `plan.md` e no `tasks.md`. Nenhum código tocado.
+
+Ajustes obrigatórios (12):
+
+1. Placeholder em atributo é HTML inseguro: `marcaProdutoUrl`/`marcaPlataformaUrl` saem; entra `marcasRodape` (HTML do
+   sistema, só `http(s)`), obrigatória; nenhuma variável em atributo/`style`; `buildFooterMarks` delega a
+   `renderEmailMarksHtml` (plan D3/D4, ADR §3).
+2. O worker antigo rebaixa `read` para `sent` (`message-status.policy.ts:89-100`): T4.1 vai para a Fase 2 "painel e worker
+   tolerantes"; plan § Publicação passo 2 inclui o worker; sai a frase do "worker velho" do passo 3.
+3. Semente: passo novo `seedStandardEmailTemplates` (`PreDeploySteps`/`PreDeployReport`, campo `standardEmailTemplates`),
+   todas as empresas, em série, depois de `provision`; sem gancho no provisionamento (plan D3, T3.9, ADR §3).
+4. Contrato: 202 `{ data: { conversationId, conversationMessageId, mailMessageId, recipientCount, threadId } }`; o `parse`
+   desvia por `raw.mode === 'chat'` antes do `mailMessageSchema` (plan § Contratos, D5).
+5. Concorrência: 23505 no `ensureTemplate` = já existe; teste com duas chamadas concorrentes (D3, T3.9, testes).
+6. D7: `UPDATE ... SET rfc_message_id = normalize(data.message_id) WHERE company_id AND provider_email_id AND
+rfc_message_id IS NULL` em qualquer evento com `message_id`; schema do corpo ganha `message_id` opcional; normalizar
+   com `<…>` na gravação e na montagem.
+7. 248: o assunto vem do último e-mail de saída que **não** é encaminhamento (D6); a cadeia exclui encaminhamentos, que
+   seguem sem `In-Reply-To`/`References` (D7).
+8. HTML inseguro: três cópias (API e painel delegam a `findUnsafeEmailHtml`, o painel ganha dependência direta de
+   `notification-contracts`; a do worker fica). T1.4: `assessStandardEmailTemplate` e campo assunto escondido; T1.1 sem
+   "a `notification-ui` passa a importá-la".
+9. Restaurar padrão: `POST /notification-templates/:id/restore-default` no `managementRoutes`, portão `settings.manage`;
+   400/409; `notification-client.restoreDefault`; D13/T2.1 sobem também `notification-client` (hoje `0.1.0-rc.3`).
+10. D2/T3.7: a audiência traz o e-mail (minúsculas) de cada usuário do portal; portal indisponível no chat = sem aviso.
+11. T3.3: a listagem de modelos escolhíveis filtra as chaves do sistema (`notification-template.query.ts:63-75`).
+12. § Publicação item 1: sem caminho para staging antes do merge em `main` dos pacotes; `publish.yml` de branch proibido;
+    `pnpm pack`/tarball local nas Fases 2–5, nunca commitado; `package.json` só fixa a versão depois da T1.6; tag `next`
+    só com aprovação humana explícita.
+
+Opcionais adotados: D9 registra o aceito (leitura no portal com e-mail `queued` → `read`; falha posterior do worker fica
+`stale`); D5 renderiza depois de replay, prontidão e destinatários; `.html` embutido por `loader: { '.html': 'text' }` no
+tsup e `with { type: 'text' }` no bun test (ou `.ts` gerado com teste de igualdade); T2.1 em `sonnet` e T1.6 lista o diff
+da `notification-ui` e confere a tela no navegador antes da T2.2; Q3 resolvida (mesmo PR, task e commit isolados, T3.1);
+T3.8 reordenada para depois da T3.9.
+
+## Onde parou
+
+T0.2 concluída (ADR-0111 aceita). **Próxima: T1.1** (`notification-contracts`, regras genéricas de e-mail HTML), no
+repositório de pacotes, branch `work/spec-274-standard-email`.
+
 ## Execução
 
-_(vazio — preencher a partir da T0.1)_
+_(T0.1 e T0.2 acima; as demais tasks registram aqui.)_

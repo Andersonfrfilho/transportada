@@ -1,6 +1,7 @@
 # ADR 0111 — O chat da contratante envia por e-mail
 
-- **Status:** proposta (2026-10-19) — a validar com `architect` na T0.2 da spec 274.
+- **Status:** aceita
+- **Validada** em 2026-10-19 pelo `architect` (T0.2 da spec 274): APROVADO COM AJUSTES, marcados "Ajustado na T0.2".
 - **Data:** 2026-10-19
 - **Nasce da spec 274:** o composer da conversa com a contratante fica sempre aberto e cada mensagem sai por e-mail no
   **modelo padrão de envio do sistema**, configurável e cadastrado pelo SDK de notificação (ajustado em 2026-10-19,
@@ -51,11 +52,11 @@
    - **Conteúdo padrão:** um `.html` versionado no `notification-contracts` (tabelas e estilos inline, 620 px, cores
      da plataforma). **Identidade (logo `cid:` ou iniciais, nome de exibição), assinante (iniciais, nome, cargo) e
      rodapé de marcas são marcação do modelo**, com variáveis; HTML do sistema só onde `{{x}}` não expressa a forma
-     (`logoEmpresa`, `corpoMensagem`, `listaAnexos`, `faixaResposta`), decidido pelo nome; o resto é texto escapado por
-     valor. Obrigatórias: `corpoMensagem`, `logoEmpresa`, `nomeEmpresa`, `nomeAssinante`, `rodapePlataforma`. Sem
+     (`logoEmpresa`, `corpoMensagem`, `listaAnexos`, `faixaResposta`, `marcasRodape`), decidido pelo nome; o resto é texto escapado por
+     valor. Obrigatórias: `corpoMensagem`, `logoEmpresa`, `nomeEmpresa`, `nomeAssinante`, `rodapePlataforma`, `marcasRodape`. Nenhuma variável vai em atributo ou `style` (cores literais no `.html`). _Ajustado na T0.2._ Sem
      assunto editável (o assunto é a linha da conversa).
    - **Cadastro:** `standardEmail.ensureTemplate` grava a v1 só se a chave não tem linha, nunca sobrescreve; a API o
-     chama no pré-deploy (passo de semente de modelos que já existe), para toda empresa, e no provisionamento.
+     chama no pré-deploy (passo de semente de modelos que já existe), para toda empresa (passo próprio, depois do provisionamento; sem gancho no provisionamento). _Ajustado na T0.2._
    - **Resolução:** versão ativa usável da empresa; sem ela, o conteúdo embutido como **rede de segurança** (versão
      `0`, log). A chave não pode ser desativada; "Restaurar padrão" grava versão nova com o embutido.
    - **Renderização:** `renderStandardEmail` (puro, também na prévia da tela) e `standardEmail.render` (resolve e
@@ -109,7 +110,7 @@
   filtro de spam. E o rastreio é **do domínio**: vale para todo e-mail que a transportadora manda por ele (aviso
   automático, diálogo, reenvio da 248), não só o chat.
 
-O dono aceitou os cinco em 2026-10-19: "Lida" é um indício útil para o operador, não prova. A tela não promete mais
+O dono aceitou os cinco em 2026-10-19 (_ajustado na T0.2:_ aceito também que a leitura no portal leve a `read` uma mensagem de e-mail ainda `queued`, e que uma falha posterior do worker fique `stale`): "Lida" é um indício útil para o operador, não prova. A tela não promete mais
 que isso (texto do selo e dica, spec RF8).
 
 ## Consequências
