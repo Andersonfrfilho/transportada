@@ -50,8 +50,8 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 /**
- * O driver do Bun expõe o SQLSTATE em `errno` (com `code: 'ERR_POSTGRES_SERVER_ERROR'`), e o SDK só
- * reconhece `code === '23505'` — a corrida pela v1 chegava aqui como erro. Perder a corrida é "já existe".
+ * O driver do Bun expõe o SQLSTATE em `errno` (com `code: 'ERR_POSTGRES_SERVER_ERROR'`). O SDK 0.2.2 já trata `errno`;
+ * mantemos o tratamento aqui como defesa em profundidade (sem teste que prove a corrida): perder a corrida pela v1 é "já existe".
  */
 export async function ensureStandardEmailTemplate(
   ensureTemplate: SeedStandardEmailTemplatesParams['ensureTemplate'],
