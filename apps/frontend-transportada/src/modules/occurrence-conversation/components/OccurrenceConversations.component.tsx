@@ -31,6 +31,8 @@ import styles from '../styles/occurrenceConversation.module.css'
 import threadStyles from '../styles/occurrenceThread.module.css'
 import { useMinWidth } from '@/modules/shared/useMinWidth.hook'
 
+import { useConversationAlerts } from '../shared/useConversationAlerts.hook'
+
 import {
   conversationLayoutStorageKey,
   readConversationLayout,
@@ -461,6 +463,17 @@ export function OccurrenceConversations({
     (conversation) => conversation.participant === 'driver',
   )
   const driverUnread = driverConversation?.unreadCount ?? 0
+  /** À vista: coluna expandida (lado a lado) ou aba selecionada; no celular a aba de cima já escolheu a parte. */
+  const isOpen = (who: 'contractor' | 'driver') =>
+    participant !== undefined
+      ? participant === who
+      : layout === 'side-by-side'
+        ? !collapsed[who]
+        : tab === who
+  useConversationAlerts([
+    { isOpen: isOpen('contractor'), unread },
+    { isOpen: isOpen('driver'), unread: driverUnread },
+  ])
 
   if (query.isLoading) {
     return (
