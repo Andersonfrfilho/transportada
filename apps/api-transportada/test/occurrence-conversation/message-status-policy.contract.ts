@@ -57,7 +57,6 @@ describe('a escada de cada canal (RF14)', () => {
   })
 
   test.each([
-    ['email', 'read'],
     ['app', 'sent'],
     ['app', 'failed'],
     ['portal', 'queued'],
@@ -69,6 +68,18 @@ describe('a escada de cada canal (RF14)', () => {
     const result = applyMessageStatus({ at: T1, channel, current, incoming })
 
     expect(result).toEqual({ changed: false, reason: 'unsupported', ...current })
+  })
+})
+
+describe('o e-mail aceita read (spec 274 D8)', () => {
+  test('delivered -> read avança e guarda o horário', () => {
+    const current = state('delivered')
+    expect(
+      applyMessageStatus({ at: T1, channel: 'email', current, incoming: 'read' }),
+    ).toMatchObject({
+      changed: true,
+      status: 'read',
+    })
   })
 })
 
