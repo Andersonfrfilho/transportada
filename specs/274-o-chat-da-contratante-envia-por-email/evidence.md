@@ -229,10 +229,80 @@ tsup e `with { type: 'text' }` no bun test (ou `.ts` gerado com teste de igualda
 da `notification-ui` e confere a tela no navegador antes da T2.2; Q3 resolvida (mesmo PR, task e commit isolados, T3.1);
 T3.8 reordenada para depois da T3.9.
 
+### Fase 1 — SDK (repositório `adatechnology-packages`, branch `feat/standard-email-template`, PR #142)
+
+- **T1.1** (`f5409bc`) — `notification-contracts`: `escapeEmailHtml`, `findUnsafeEmailHtml`, `htmlToPlainText`,
+  `interpolateEmailHtml`, `buildInitials`, `renderEmailLogoHtml`, `renderEmailMarksHtml`, `STANDARD_EMAIL_THEME`. Tabelas
+  da 272 copiadas sem editar caso (42 casos de HTML inseguro + texto, interpolação, iniciais e logo). Vermelho (módulo
+  inexistente) → 71 pass.
+- **T1.2** (`6cdd2fc`) — modelo padrão `notification.standard-email` (identidade, corpo, anexos, faixa, assinatura e
+  rodapé como variáveis do sistema; nenhuma em atributo ou `style`), `assessStandardEmailTemplate`,
+  `renderStandardEmail`. Embutido por `.ts` gerado do `.html` com teste de igualdade (o tsconfig CommonJS recusa `with {
+type: 'text' }`). `marcasRodape` só imagens; a nota fica em `{{rodapePlataforma}}` (sem URL, a nota continua). Vermelho
+  → 33 pass; pacote 160 pass.
+- **T1.3** (`e925bc2`, `e027a1a`) — `notification-module`: `standardEmail.ensureTemplate` (bool; 23505 = já existe),
+  `resolveTemplate` (empresa ou embutido v0 + log sem conteúdo), `render`, `restoreDefault`; rota
+  `POST /notification-templates/:id/restore-default` → 201 `{ data }`, 400/409; a chave não se desativa nem se salva sem
+  as obrigatórias; catálogo mesclado. O `check` vermelho era o `module-http` sem `dist` (build da dependência). Testes
+  escritos junto com o código (sem vermelho registrado); módulo 120 pass.
+- **T1.4** (`be76f1c`) — `notification-ui`/`notification-client`: selo "Modelo do sistema", sem "Remover", "Restaurar
+  padrão", sem assunto, validação e prévia pelo SDK; `restoreDefault(id)` no cliente (vermelho → 18/18). UI 91 pass.
+- **T1.5** (`04dfc9e`) — docs dos quatro pacotes e changesets `minor` (todos → 0.2.0; sem pre mode). `pnpm -r test` 4341 /
+  0; `pnpm -r check` verde nos pacotes da mudança (três NestJS falham também em `main`, provado num worktree de
+  `origin/main`); builds verdes.
+- **T1.6** — PR #142 aberto, CI `build` verde. **Merge em `main` (publica no npm) aguarda o dono.**
+
+### Fase 2 — painel e worker tolerantes
+
+- **T2.1, parte tolerante** (`16a0471c8`) — escada do e-mail com `read` no painel, dica `status.readEmailHint`, texto de
+  `OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS`. Vermelho 3 fail → 8410 pass. A sessão principal corrigiu (`bb7efba54`) a
+  releitura automática, que passara a esperar o `read` (pode nunca chegar): para em `delivered` no e-mail. A subida de
+  `notification-ui`/`notification-client` fica para depois da publicação.
+- **T4.1** (`b230075bd`) — worker com `read` na escada (o `sent` tardio não rebaixa mais). 1 fail → 2727 pass. O executor
+  também pôs `read` na escada da API (os contratos de paridade leem o fonte da API).
+
+### Fase 3 — API (parte que não depende do pacote)
+
+- **T3.2** (`18f022b27`) — migration `20261019130221_occurrence_conversation_email_read` (só derruba
+  `occurrence_conversation_messages_email_never_read_check`), schema e `rollback.sql` com guarda (aborta com `email`/`read`);
+  assertion no `database-migration.integration.ts`. `make migration-test` 226/0; `db:generate` `no_changes`.
+- **T3.4** (`288e89424`) — `email.opened` → `read`; `data.message_id` gravado em `rfc_message_id` só se nulo, em
+  `sent`/`delivered`/`opened`, normalizado `<…>`, independente do status; empresa alheia sem efeito. Webhook 2 fail → 954
+  pass nos agregadores.
+- **T3.5** (`b81b4e0da`) — `occurrence-mail-delivery.service.ts` extraído sem mudar comportamento (caracterização: 1010
+  contratos e 8 integrações do diálogo verdes antes e depois, nenhum caso editado).
+- **T3.7** (`064ab9cf0`) — aviso do portal só a quem está fora de To/Cc (o e-mail do usuário do portal é lido no
+  repositório de mensagens do portal, porque `tenant-safety.contract.ts` proíbe o `contractor-portal/` de ler
+  `identityUserProfiles`); portal indisponível = sem aviso e sem erro; `markRead` leva `email` a `read`. Vermelho provado
+  revertendo o `markRead` (8/1 → 9/0).
+- **T3.6** (`1e0c55b2e`, `87e792be7`) — variante chat da rota (desvio por `mode === 'chat'`), caso de uso com porta
+  `StandardEmailRendererPort` (dublê nos testes), operação de idempotência própria, destinatários pré-marcados + cópia 267
+  (sem pré-marcado → 409), assunto pelo último e-mail de saída não encaminhado, aviso do portal, 202 `{ data }`. **Sem o
+  renderer ligado, responde 503 `OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED`** — a ligação ao pacote é a `TODO(T3.1)` do `main.ts`.
+  Integração `occurrence-chat-mail.integration.ts` registrada (3/3). API `test` 12380 / 0. Contrato escrito junto com o
+  código.
+
+### Fase 4 — worker
+
+- **T4.2** (`d38c0202b`, `3fa033144`) — `References`/`In-Reply-To` com os `rfc_message_id` de entrada e saída da thread
+  (ordem, sem duplicar, últimos 20), encaminhamentos da 248 fora, sem `Message-ID` próprio. Integração
+  `contractor-mail-reply-chain.integration.ts` registrada. Worker `test` 2737 / 0; integrações 23 / 0 / 0 skip. Testes
+  escritos junto com o código.
+
+### Fase 5 — painel
+
+- **T5.1–T5.3** (`c94e834a9`, um commit: os três mexem nos mesmos arquivos) — composer da contratante aberto com
+  `canWrite`, com ou sem portal; o adaptador envia a variante chat (`email-message:`, `queued`, anexos `channel:
+'email'`); erros com motivo e, sem destinatário, "Enviar por e-mail" abre o diálogo com o texto digitado;
+  `thread.closed.noPortal` saiu. Vermelho (módulo ausente) → 280 pass no agregador. **A conferir no gate:** a contagem do
+  script `test` do painel reportada (1407) parece só a dos hooks. O print de revisão `spec-183-portal-channel.smoke.spec.ts`
+  (fora da lista da CI) ficou desatualizado — revisar na T6.
+
+**Ressalva de processo:** T1.3, T3.6, T4.2 e parte da T5 tiveram os testes escritos junto com o código, não antes.
+
 ## Onde parou
 
-T0.2 concluída (ADR-0111 aceita). **Próxima: T1.1** (`notification-contracts`, regras genéricas de e-mail HTML), no
-repositório de pacotes, branch `work/spec-274-standard-email`.
+Fases 1–5 implementadas, exceto o que depende do pacote publicado. **Bloqueio:** merge do PR #142 do SDK (aprovação do dono). Depois: T1.6 (versões no evidence), T3.1 (subir versão + ligar o renderer, `TODO(T3.1)`), T2.1 (subir `notification-ui`/`notification-client`), T3.3, T3.9, T3.8, T4.3, T6.
 
 ## Execução
 
