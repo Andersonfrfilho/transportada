@@ -518,7 +518,8 @@
           "razaoSocialTransportadora": "Razão social da transportadora.",
           "assinaturaIniciais": "Iniciais de quem assina, ou do nome de exibição.",
           "faixaResposta": "Faixa \"Responda este e-mail\", só quando a resposta chega (HTML do sistema).",
-          "marcasRodape": "Marcas do rodapé: TransportAdA e Ada Technology (HTML do sistema)."
+          "marcasRodape": "Marcas do rodapé: TransportAdA e Ada Technology (HTML do sistema).",
+          "logoAssinatura": "Quadrado da assinatura: o logo da transportadora na assinatura da equipe, senão as iniciais (HTML do sistema)."
         }
       },
       "watchers": {

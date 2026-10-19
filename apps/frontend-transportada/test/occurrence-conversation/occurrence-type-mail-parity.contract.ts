@@ -82,7 +82,7 @@ describe('as variáveis do e-mail à contratante no editor do tipo (spec 271)', 
     expect(preview.body).toContain('7000001 01 – PRODUTO EXEMPLO A 500G')
   })
 
-  test('spec 272: cada variável tem descrição nos dois idiomas, e as doze novas estão na lista', async () => {
+  test('spec 272: cada variável tem descrição nos dois idiomas, e as treze novas estão na lista', async () => {
     const [pt, en] = await Promise.all([
       readVariableDescriptions(PT_LOCALE),
       readVariableDescriptions(EN_LOCALE),
@@ -94,7 +94,7 @@ describe('as variáveis do e-mail à contratante no editor do tipo (spec 271)', 
     }
     expect(Object.keys(pt).sort()).toEqual([...OCCURRENCE_MAIL_VARIABLE_NAMES].sort())
     expect(Object.keys(en).sort()).toEqual([...OCCURRENCE_MAIL_VARIABLE_NAMES].sort())
-    expect<number>(OCCURRENCE_MAIL_VARIABLE_NAMES.length).toBe(17 + 12)
+    expect<number>(OCCURRENCE_MAIL_VARIABLE_NAMES.length).toBe(17 + 13)
   })
 
   test('spec 272: o exemplo das variáveis de HTML do sistema é texto fixo, sem caractere de marcação', () => {

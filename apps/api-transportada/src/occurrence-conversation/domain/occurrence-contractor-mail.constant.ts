@@ -68,6 +68,11 @@ export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLES: readonly OccurrenceContractor
     description: 'Marcas do rodapé: TransportAdA e Ada Technology (HTML do sistema).',
     name: 'marcasRodape',
   },
+  {
+    description:
+      'Quadrado da assinatura: o logo da transportadora na assinatura da equipe, senão as iniciais (HTML do sistema).',
+    name: 'logoAssinatura',
+  },
 ]
 
 export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES: ReadonlySet<string> = new Set(
@@ -83,6 +88,7 @@ export const OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES = [
   'tabelaItens',
   'marcasRodape',
   'faixaResposta',
+  'logoAssinatura',
 ] as const
 
 export type OccurrenceMailSystemHtmlVariable =

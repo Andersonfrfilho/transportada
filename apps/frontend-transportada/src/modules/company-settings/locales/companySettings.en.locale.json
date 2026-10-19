@@ -518,7 +518,8 @@
           "razaoSocialTransportadora": "Carrier legal name.",
           "assinaturaIniciais": "Initials of who signs, or of the display name.",
           "faixaResposta": "\"Reply to this e-mail\" strip, only when replies arrive (system HTML).",
-          "marcasRodape": "Footer marks: TransportAdA and Ada Technology (system HTML)."
+          "marcasRodape": "Footer marks: TransportAdA and Ada Technology (system HTML).",
+          "logoAssinatura": "Signature square: the carrier logo on the team signature, otherwise the initials (system HTML)."
         }
       },
       "watchers": {

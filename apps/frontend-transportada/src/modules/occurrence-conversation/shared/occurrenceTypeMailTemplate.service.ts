@@ -37,6 +37,7 @@ export const OCCURRENCE_MAIL_VARIABLE_NAMES = [
   'assinaturaIniciais',
   'faixaResposta',
   'marcasRodape',
+  'logoAssinatura',
 ] as const
 
 export type OccurrenceMailVariableName = (typeof OCCURRENCE_MAIL_VARIABLE_NAMES)[number]
@@ -58,6 +59,7 @@ export const OCCURRENCE_MAIL_SAMPLE_VALUES: Readonly<Record<OccurrenceMailVariab
   itens: 'PRODUTO EXEMPLO A 500G, PRODUTO EXEMPLO B 1KG',
   linhasItens:
     '7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20\n7000002 02 – PRODUTO EXEMPLO B 1KG – 3 CX – R$ 60,00',
+  logoAssinatura: 'ME',
   logoTransportadora: 'TE',
   marcasRodape: 'Enviado pelo TransportAdA — uma solução Ada Technology',
   motorista: 'Motorista Exemplo',

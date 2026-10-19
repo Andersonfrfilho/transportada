@@ -2,6 +2,7 @@
 <table
   role="presentation"
   width="620"
+  align="center"
   cellpadding="0"
   cellspacing="0"
   border="0"
@@ -165,7 +166,7 @@
               font-weight: bold;
             "
           >
-            {{assinaturaIniciais}}
+            {{logoAssinatura}}
           </td>
           <td valign="middle" style="padding-left: 12px; font-size: 13px; line-height: 1.4">
             <div style="font-weight: bold; color: #10222c">{{assinaturaNome}}</div>
@@ -189,7 +190,11 @@
         <b style="color: #1d2b33">{{razaoSocialTransportadora}}</b> · CNPJ {{cnpjTransportadora}}
       </div>
       <div>Ocorrência da NF {{numeroNota}}</div>
-      <div style="padding-top: 8px">{{marcasRodape}}</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-top: 8px; font-size: 11px; color: #5a6b74">{{marcasRodape}}</td>
+        </tr>
+      </table>
     </td>
   </tr>
 </table>

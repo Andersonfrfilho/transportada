@@ -118,7 +118,7 @@ describe('spec 272 T4.2: os cinco modelos .html do e-mail de ocorrência', () =>
 
       test('tem a assinatura e o rodapé do sistema', () => {
         for (const name of [
-          'assinaturaIniciais',
+          'logoAssinatura',
           'assinaturaNome',
           'assinaturaCargo',
           'cidadeTransportadora',

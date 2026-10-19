@@ -113,11 +113,8 @@ export function composeOccurrenceMailHtml(params: {
     carrier === undefined
       ? {}
       : buildOccurrenceMailIdentityValues({ carrier, contractorTaxId: params.contractorTaxId })
-  const values = {
-    ...source.values,
-    ...identity,
-    ...buildSignerValues({ companyDisplayName: displayName, signer: params.signer }),
-  }
+  const signerValues = buildSignerValues({ companyDisplayName: displayName, signer: params.signer })
+  const values = { ...source.values, ...identity, ...signerValues }
   const areaTemplate = source.bodyTemplate.slice(area.contentStart, area.contentEnd)
   const shown = resolveShownLines({ areaTemplate, source, values })
   const { hasInlineLogo, systemHtml } = buildOccurrenceMailSystemHtml({
@@ -127,6 +124,8 @@ export function composeOccurrenceMailHtml(params: {
     hasReplyTo: params.hasReplyTo,
     itemRows: source.itemRows,
     itemsSum: source.itemsSum,
+    signerInitials: signerValues.assinaturaIniciais,
+    signerIsTeam: params.signer.kind === 'team',
   })
   const rendered = renderContractorMailHtml({
     bodyTemplate: source.bodyTemplate,

@@ -5,7 +5,7 @@
  * rodapé e faixa de resposta. É a única fonte de HTML sem escape do e-mail: **tudo o que carrega é escapado aqui**
  * (nome de exibição, iniciais, código, item, quantidade, valor, origem do painel). Pura.
  */
-import { renderEmailLogoHtml, renderEmailMarksHtml } from '@adatechnology/notification-contracts'
+import { renderEmailLogoHtml } from '@adatechnology/notification-contracts'
 import { escapeMailHtml } from '../../contractor-mail/domain/mail-template-render.policy.js'
 import {
   OCCURRENCE_ITEM_LINES_LIMIT,
@@ -16,7 +16,6 @@ import {
   COMPANY_LOGO_CONTENT_ID,
   OCCURRENCE_MAIL_COLORS,
   OCCURRENCE_MAIL_FONT,
-  OCCURRENCE_MAIL_PRODUCT_SIGNATURE,
   OCCURRENCE_MAIL_REPLY_STRIP,
   PRODUCT_MARK_PATH,
 } from './occurrence-mail-html.constant.js'
@@ -36,6 +35,10 @@ export type BuildOccurrenceMailSystemHtmlParams = {
   readonly hasLogo: boolean
   /** A mensagem sai com `Reply-To`: só então a faixa "Responda este e-mail" aparece. */
   readonly hasReplyTo: boolean
+  /** As iniciais de quem assina; saem no quadrado da assinatura quando ele não leva o logo. */
+  readonly signerInitials: string
+  /** A equipe assina (sem pessoa): o quadrado da assinatura leva o logo da transportadora, se houver. */
+  readonly signerIsTeam: boolean
   /** Todas as linhas; a tabela mostra até `OCCURRENCE_ITEM_LINES_LIMIT` e conta o resto. */
   readonly itemRows: readonly OccurrenceMailItemRow[]
   /** A soma das linhas (`somaItens`, formatada); vazia, a linha de total não aparece. */
@@ -87,21 +90,41 @@ function buildItemsTable(rows: readonly OccurrenceMailItemRow[], itemsSum: strin
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;color:${ink}"><tr><th align="left" style="${HEAD_CELL}">Código</th><th align="left" style="${HEAD_CELL}">Item</th><th align="right" style="${HEAD_CELL}">Qtd.</th><th align="right" style="${HEAD_CELL}">Valor</th></tr>${body}${omittedRow}${totalRow}</table>`
 }
 
+const FOOTER_TEXT = `font-family:${OCCURRENCE_MAIL_FONT};font-size:11px;color:${slate}`
+
+/** A miniatura de 20px ao lado do nome que ela identifica — o desenho aprovado (spec 272). */
+function footerMark(url: string | undefined, height: number): string {
+  if (url === undefined) return ''
+  return `<img src="${escapeMailHtml(url)}" alt="" height="${height}" style="vertical-align:middle;margin-right:6px;border:0;height:${height}px">`
+}
+
 function buildFooterMarks(appBaseUrl: string | undefined): string {
   const origin =
     appBaseUrl !== undefined && HTTP_ORIGIN.test(appBaseUrl)
       ? appBaseUrl.replace(TRAILING_SLASHES, '')
       : undefined
-  return renderEmailMarksHtml({
-    platformMarkUrl: origin === undefined ? undefined : `${origin}${ADA_MARK_PATH}`,
-    productMarkUrl: origin === undefined ? undefined : `${origin}${PRODUCT_MARK_PATH}`,
-    text: OCCURRENCE_MAIL_PRODUCT_SIGNATURE,
-  })
+  const productMark = footerMark(
+    origin === undefined ? undefined : `${origin}${PRODUCT_MARK_PATH}`,
+    20,
+  )
+  const platformMark = footerMark(
+    origin === undefined ? undefined : `${origin}${ADA_MARK_PATH}`,
+    20,
+  )
+  const text = (value: string): string =>
+    `<span style="${FOOTER_TEXT}">${escapeMailHtml(value)}</span>`
+  const name = (value: string): string => `<b style="${FOOTER_TEXT}">${escapeMailHtml(value)}</b>`
+  return `${productMark}${text('Enviado pelo ')}${name('TransportAdA')}${text(' — uma solução ')}${platformMark}${name('Ada Technology')}`
 }
 
 function buildReplyStrip(hasReplyTo: boolean): string {
   if (!hasReplyTo) return ''
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:10px 14px;background:${mist};border-left:3px solid ${copper};font-family:${OCCURRENCE_MAIL_FONT};font-size:12px;color:${ink}">${escapeMailHtml(OCCURRENCE_MAIL_REPLY_STRIP)}</td></tr></table>`
+}
+
+function buildSignatureLogo(params: BuildOccurrenceMailSystemHtmlParams): string {
+  if (!(params.signerIsTeam && params.hasLogo)) return escapeMailHtml(params.signerInitials)
+  return `<img src="cid:${COMPANY_LOGO_CONTENT_ID}" alt="${escapeMailHtml(params.displayName)}" width="40" height="40" style="display:block;border:0;width:40px;height:40px">`
 }
 
 export function buildOccurrenceMailSystemHtml(
@@ -111,6 +134,7 @@ export function buildOccurrenceMailSystemHtml(
     hasInlineLogo: params.hasLogo,
     systemHtml: {
       faixaResposta: buildReplyStrip(params.hasReplyTo),
+      logoAssinatura: buildSignatureLogo(params),
       logoTransportadora: buildLogo(params.displayName, params.hasLogo),
       marcasRodape: buildFooterMarks(params.appBaseUrl),
       tabelaItens: buildItemsTable(params.itemRows, params.itemsSum),
