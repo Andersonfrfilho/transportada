@@ -1198,7 +1198,8 @@ mensagem sai por e-mail. Contrato: `POST /v1/trip-occurrences/:id/conversations/
   23505 nos dois campos: perder a corrida pela v1 é "já existe".
 - **Migrations do módulo:** `notification-migration.service.ts` roda com `layout: 'v1'` (por quê: drizzle 1.x × journal).
 - **Regras genéricas de e-mail HTML** (escape, texto puro, HTML inseguro) são do SDK; a API delega (T3.3).
-- **Enquanto a T3.1 não ligar o pacote** (`main.ts`), a rota responde 503 `OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED`.
+- O `main.ts` liga o renderer (`notifications.standardEmail.render`). Sem ele (só em teste/composição incompleta), a rota
+  responde 503 `OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED` e nunca monta HTML próprio.
 - Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O chat da contratante envia por e-mail (spec 274)".
 
 ## O tipo de ocorrência tem escopo de contratantes (spec 270, ADR-0107)

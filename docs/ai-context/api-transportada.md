@@ -3846,8 +3846,8 @@ a 183 RF14, a 263 T5.2-C e a ADR-0073 (aviso do portal).
   nos testes) e usa a operação de idempotência própria `occurrence-conversation.chat-mail.send`
   (`SEND_OCCURRENCE_CHAT_MAIL_OPERATION`). A entrega (prontidão, thread, gravação) é a do diálogo, extraída para
   `occurrence-mail-delivery.service.ts` (T3.5, sem mudança de comportamento; caracterização antes e depois).
-- **Rota:** `presentation/occurrence-conversation.routes.ts`, desvio por `mode === 'chat'`, 202 `{ data }`. Sem o renderer
-  ligado (T3.1: `main.ts`, `TODO(T3.1)`), 503 `OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED`; nunca cai num HTML montado aqui.
+- **Rota:** `presentation/occurrence-conversation.routes.ts`, desvio por `mode === 'chat'`, 202 `{ data }`. O renderer é
+  ligado no `main.ts` (T3.1); sem ele, 503 `OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED`, nunca um HTML montado aqui.
 - **Destinatários (D1, D10):** pré-marcados da prévia mais a cópia da 267; vazio → 409 `OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS`
   (código em `occurrence-conversation.error.ts`). O chat não consulta o modelo do tipo: sem 409 de modelo.
 - **Corpo (D3):** `notification.standard-email`, `pt-BR`, editável em Notificações. `notifications.standardEmail.render`
