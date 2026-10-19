@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { sql } from 'drizzle-orm'
 
 import { parseEnvironment } from '../config/environment.schema.js'
 import { createApiNotificationModule } from '../notification/infrastructure/notification-module.factory.js'
@@ -12,8 +13,15 @@ export type StandardEmailTemplateSeedResult = {
   readonly written: number
 }
 
+type Database = ReturnType<typeof createDrizzleProvider>['db']
+
 type SeedStandardEmailTemplatesParams = {
-  readonly ensureTemplate: (params: { readonly companyId: string }) => Promise<boolean>
+  /** `db` é a transação que segura o lock da empresa: o módulo de notificação tem de gravar por ela. */
+  readonly ensureTemplate: (params: {
+    readonly companyId: string
+    readonly db: Database
+  }) => Promise<boolean>
+  readonly database: Database
   readonly listCompanyIds: () => Promise<readonly string[]>
 }
 
@@ -23,13 +31,14 @@ type SeedStandardEmailTemplatesParams = {
  * `written` conta só o que esta passada criou.
  */
 export async function seedStandardEmailTemplates({
+  database,
   ensureTemplate,
   listCompanyIds,
 }: SeedStandardEmailTemplatesParams): Promise<StandardEmailTemplateSeedResult> {
   const companyIds = await listCompanyIds()
   let written = 0
   for (const companyId of companyIds) {
-    if (await ensureStandardEmailTemplate(ensureTemplate, { companyId })) written += 1
+    if (await ensureStandardEmailTemplate(database, ensureTemplate, { companyId })) written += 1
   }
 
   return { companies: companyIds.length, written }
@@ -54,11 +63,20 @@ function isUniqueViolation(error: unknown): boolean {
  * mantemos o tratamento aqui como defesa em profundidade (sem teste que prove a corrida): perder a corrida pela v1 é "já existe".
  */
 export async function ensureStandardEmailTemplate(
+  database: Database,
   ensureTemplate: SeedStandardEmailTemplatesParams['ensureTemplate'],
   params: { readonly companyId: string },
 ): Promise<boolean> {
   try {
-    return await ensureTemplate(params)
+    // `ensureTemplate` do SDK faz `existsIdentity` e depois `upsert` (max(version)+1): duas chamadas
+    // concorrentes gravam v1 e v2 sem conflito de unicidade. O lock transacional por empresa as serializa.
+    return await database.transaction(async (transaction) => {
+      await transaction.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`notification.standard-email:${params.companyId}`}, 0))`,
+      )
+
+      return ensureTemplate({ ...params, db: transaction as unknown as Database })
+    })
   } catch (error) {
     if (isUniqueViolation(error)) return false
     throw error
@@ -73,10 +91,10 @@ export async function seedStandardEmailTemplatesFromEnvironment(
     connection: { adapter: 'postgres', max: 1, url: config.databaseUrl },
   })
   try {
-    const module = createApiNotificationModule({ config, db: provider.db })
-
     return await seedStandardEmailTemplates({
-      ensureTemplate: (params) => module.standardEmail.ensureTemplate(params),
+      database: provider.db,
+      ensureTemplate: ({ companyId, db }) =>
+        createApiNotificationModule({ config, db }).standardEmail.ensureTemplate({ companyId }),
       listCompanyIds: async () =>
         (await provider.db.select({ id: companies.id }).from(companies)).map((row) => row.id),
     })
