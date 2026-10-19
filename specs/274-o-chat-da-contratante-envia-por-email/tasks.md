@@ -13,7 +13,7 @@
 
 > 🤖 Modelo: `sonnet` (T0.2 é 🧠)
 
-- [ ] **T0.1** `sonnet` — Conferir o `evidence.md` § Levantamento contra `origin/staging` (rebase antes) e completar:
+- [x] **T0.1** `sonnet` — Conferir o `evidence.md` § Levantamento contra `origin/staging` (rebase antes) e completar:
       qual erro de prontidão a rota de e-mail devolve sem Resend e sem sandbox; se o SDK `conversations-ui` 0.10.0 mostra
       `read` no tema sem a prop `channel` (`confirmsRead`); a forma de `contractor_mail_threads` por ocorrência e onde
       ler o último assunto de saída; se o payload de `email.sent`/`email.delivered` traz `data.message_id`; se o Resend

@@ -49,7 +49,7 @@
 
 ## Levantamento (`origin/staging` 2483d6e6f, 2026-10-19)
 
-Caminhos relativos a `apps/<app>/src/` salvo indicação. A conferir na T0.1.
+Caminhos relativos a `apps/<app>/src/` salvo indicação. Conferido na T0.1 (§ abaixo).
 
 ### O que cada spec decidiu × o que o código faz
 
@@ -125,7 +125,7 @@ messageId`) e marca `sent` (`drizzle-contractor-mail-outbound-worker.repository.
 
 ### Pacote de notificação
 
-- `~/Documents/personal/adatechnology-packages` (pnpm, changesets, publica no npm pelo CI ao entrar em `main`,
+- `~/Documents/personal/adatechnology-packages` (pnpm, changesets; pacotes em `packages/backend/notification-contracts` e `packages/backend/notification-module`, publica no npm pelo CI ao entrar em `main`,
   `.github/workflows/publish.yml`; saiu do modo `rc`, commit `7a82896`). `notification-contracts` local 0.1.0,
   `notification-module` 0.1.2. A TMS fixa `0.1.0-rc.2`/`0.1.0-rc.3` (API `package.json:45-46`, worker `:33-34`).
 - Não existe layout padrão no pacote; `renderTemplate` escapa o corpo inteiro (`templateRender.ts:103-121`);
@@ -142,6 +142,36 @@ messageId`) e marca `sent` (`drizzle-contractor-mail-outbound-worker.repository.
   Gmail cortado acima de 102 KB). O Resend sugere rastrear só broadcasts.
 - `email.opened` traz `data.email_id` e `data.message_id`. Linha: `In-Reply-To` + `References` com os `message_id`
   anteriores separados por espaço.
+
+## T0.1 — Levantamento conferido (2026-10-19)
+
+`origin/staging` seguia em 2483d6e6f (sem novidade; sem rebase). Tudo abaixo lido no código real; nada medido em staging.
+
+### Corrigido no § Levantamento
+
+- Pacotes ficam em `packages/backend/notification-contracts` e `…/notification-module` (a linha dizia só "pacote").
+- Chave Resend: o código **exige `full_access`** (`api-transportada/src/contractor-mail/infrastructure/resend-account.gateway.ts:19`; spec 143 `plan.md:58`), logo **não é só de envio** — a mesma chave pode `PATCH /domains/:id`. Isso é fato novo para o Q2 (quem liga o rastreio: a API pode ligar, não só o painel Resend).
+- O webhook de e-mail **não lê `data.message_id`** hoje (zero ocorrências em `process-inbound-email-webhook.use-case.ts`); só `data.email_id`.
+- Status do e-mail: o comentário `:25-35` e o mapa `OCCURRENCE_MAIL_STATUS_BY_EVENT_TYPE` (`:12-18`) batem com o levantamento.
+
+### Respostas da T0.1
+
+1. **Erro de prontidão sem Resend e sem sandbox:** `send-occurrence-mail.use-case.ts:401-406` chama `resolveMailSendReadiness` e, se não pronto e sem sandbox, `createMailSendReadinessError` (`contractor-mail/domain/contractor-mail.error.ts:114-118`): `409 CONTRACTOR_MAIL_NOT_CONFIGURED` (sem configuração; `:81`) ou `409 CONTRACTOR_MAIL_SENDING_NOT_VERIFIED` (remetente não verificado; `:95`). `template_missing` não ocorre ali (a prontidão é chamada só com `settings`).
+2. **`read` no tema sem a prop `channel`:** sim. `conversations-ui` 0.10.0 usa `channelCapabilityFor(props.channel ?? "app")` (`dist/participant/index.js:2750`, `:3305`) e `OccurrenceThread.component.tsx:66` passa só `channels` (plural). Em `conversation-contracts` 0.6.0 (`dist/index.js:51-137`) `email` tem `confirmsRead: false`, `app` `true`. Sem `channel`, a bolha cai no padrão `app` e mostra `read`; **se alguém passar `channel="email"` o SDK rebaixa `read` para `delivered`** (`participant/index.js:2659`). O contrato da T2.1 deve fixar isso.
+3. **`contractor_mail_threads` por ocorrência:** uma linha por objeto (`subject_type`, `subject_id`; unique `contractor_mail_threads_company_subject_unique`, `database/contractor-mail.schema.ts:288-321`). O **assunto** mora em `contractor_mail_messages.subject` (`:482`, `text not null`, por mensagem; o worker o lê em `drizzle-contractor-mail-outbound-worker.repository.ts:127`). O último assunto de saída = a mensagem `direction='outbound'` mais recente da thread da ocorrência; a thread não guarda assunto. `rfc_message_id` (`:514`), `provider_email_id` (`:513`) e `in_reply_to` existem na mensagem.
+4. **`data.message_id` em `email.sent`/`email.delivered`:** `email.sent` traz `message_id` ("RFC Message-ID header value for the email"; https://resend.com/docs/webhooks/emails/sent); o payload de `email.opened` idem. Dado o contrato comum dos eventos, `delivered` o traz igual, mas só `sent` e `opened` foram vistos escritos na doc. O código atual **não lê** o campo (ver acima): a D7 precisa ler de `email.sent`.
+5. **Resend preserva um `Message-ID` customizado?** **Não documentado; não verificado.** Fonte: https://resend.com/docs/dashboard/emails/custom-headers só exemplifica `X-Entity-Ref-ID` e `List-Unsubscribe` e diz que o Resend já inclui "todos os cabeçalhos necessários"; os exemplos de thread (https://resend.com/docs/dashboard/receiving/reply-to-emails) usam `In-Reply-To`/`References` com o `message_id` **que o Resend devolve** no webhook, nunca um id escolhido por nós. O gateway do worker repassa `headers` cru (`resend-mail.gateway.ts:135`, schema `:47`), então enviar `Message-ID` próprio é tecnicamente possível, mas o provedor pode sobrescrevê-lo. Sem conta de teste, **não foi feito envio de teste**. Conclusão: a D7 deve usar o `message_id` devolvido por `email.sent` (gravar em `rfc_message_id`), não um id gerado por nós; um envio de teste fica como condição da T3.4. Hoje o worker só monta `In-Reply-To`/`References` da última mensagem **de entrada** (`send-contractor-mail-outbound-message.use-case.ts:146-156`).
+6. **Open tracking do Resend** (https://resend.com/docs/dashboard/domains/tracking): **por domínio**, não por envio; desligado por padrão; liga no painel (aba Configuration) ou `PATCH /domains/:id {"open_tracking": true, "click_tracking": false, "tracking_subdomain": "links"}` (também no `POST /domains`); exige o subdomínio de rastreio verificado por CNAME. Webhook `email.opened`: `{ type, created_at, data: { broadcast_id?, created_at, email_id, message_id, from, to[], subject, template_id?, tags? } }` (https://resend.com/docs/webhooks/emails/opened). Casa por `data.email_id` como os outros eventos. A doc avisa que a taxa de abertura não é exata e recomenda rastrear só broadcasts (já aceito pelo dono, decisão 2).
+7. **Repositório de pacotes:** pnpm + turbo; `.changeset/config.json` (`access: public`, `baseBranch: main`); `publish.yml` dispara em `workflow_run` do CI na `main` (e `workflow_dispatch`), ambiente `production`, só se o CI passou. Versão atual publicada: `notification-contracts` **0.1.0** (`latest`; `rc` = 0.1.0-rc.6), `notification-module` **0.1.2** (`latest`; `rc` = 0.1.0-rc.12). A TMS fixa `0.1.0-rc.2` / `0.1.0-rc.3` (API `package.json:45-46`, worker `:33-34`). `rc.2` do contracts saiu em 2026-08-06; `rc.3` do module em 2026-08-13.
+8. **Diff desde a versão usada** (só `git log` dos dois pacotes após essas datas, sem os "version packages"):
+   - contracts: `446f73d` anexo de e-mail por referência, como variável declarada; `9aef637` aceita http em loopback no anexo; `7a82896` sai do modo `rc` (0.1.0).
+   - module: `99a5327` compatibilidade com drizzle 1.x; `3b40d4e` migrations que host nenhum conseguia aplicar; `635eae5` painel de templates com variáveis, preview duplo e roteamento por empresa; `c69c36d` despacho passa o anexo ao driver de e-mail; `be211f3` a delivery registra o que foi anexado; `5a24d98` migrations convergentes (0.1.1/0.1.2).
+   - Nota: as duas migrations do module mudam o que o host aplica; a T3.1 deve rodar `db:test` da API e o `notification-migration` além dos gates.
+9. **Portal lista mensagens de todos os canais (D2):** sim. `drizzle-contractor-portal-conversation.repository.ts:287-310` (`listMessages`) filtra só por `companyId` + `conversationId`, seleciona `channel` e `bodyText`; `contractor-portal-conversation.use-case.ts:107-118` devolve `body` e `channel`, com `mine` só para `channel === 'portal'` do próprio usuário e `side` por direção (e-mail de saída = `carrier`, `mine: false`). O `frontend-client` descarta o canal (`modules/occurrences/shared/portalParticipantApi.service.ts:54-64`) e declara `channels: ['portal']` (`:32`): a mensagem de e-mail aparece como bolha da transportadora, sem selo de canal e sem ticks (`mine: false`). Para a vitrine da D2 basta o `body` da mensagem `email` ser o texto do chat, sem tag HTML.
+
+### Fato que derruba ou tensiona decisão
+
+- Nenhum derruba D1–D13. **Tensiona a D7** (linha do e-mail): depende de o `Message-ID` ser o devolvido pelo Resend, não um escolhido por nós (item 5). **Q2** ganha o fato do `full_access` (item da correção). **Q3/T3.1:** 6 mudanças do module incluem migrations (item 8).
 
 ## Execução
 
