@@ -18,11 +18,12 @@ const RECIPIENT_CANDIDATES_PATH =
 
 const PROBLEM_CODES: readonly string[] = [
   'empty_subject',
-  'html_body',
   'malformed_placeholder',
+  'missing_message_area',
   'not_found',
   'system_key',
   'unknown_variables',
+  'unsafe_html',
 ]
 
 export type OccurrenceTypeMailClient = Readonly<{

@@ -483,7 +483,8 @@
         "problems": {
           "not_found": "There is no active Portuguese email template with this key.",
           "system_key": "It is a system notice, with other variables.",
-          "html_body": "The body has HTML; the email to the contractor is plain text.",
+          "unsafe_html": "The HTML body has active content (script, iframe, event, javascript: address or a variable inside a tag); the email is not sent.",
+          "missing_message_area": "The HTML template needs exactly one message area, between <!-- mensagem --> and <!-- /mensagem -->; the email is not sent.",
           "empty_subject": "The subject is empty.",
           "unknown_variables": "Variables outside the list come out empty: {{variables}}.",
           "malformed_placeholder": "A {{ }} placeholder is malformed."

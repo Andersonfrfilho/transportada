@@ -101,6 +101,8 @@
       "username": "Login",
       "usernameHint": "Minúsculas, sem espaço e sem acento; ponto, hífen e sublinhado são aceitos.",
       "usernameInvalid": "Login fora do formato aceito: de 3 a 60 caracteres, começando por letra ou número.",
+      "jobTitle": "Cargo",
+      "jobTitleHint": "Aparece na assinatura dos e-mails de ocorrência",
       "channel": "Canal do contato",
       "contact": "Novo contato",
       "contactHint": "O contato guardado aparece mascarado na lista; preencha só para substituí-lo.",

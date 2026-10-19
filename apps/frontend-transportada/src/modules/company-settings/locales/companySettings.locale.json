@@ -483,7 +483,8 @@
         "problems": {
           "not_found": "Não existe modelo de e-mail ativo em português com esta chave.",
           "system_key": "É um aviso do sistema, com outras variáveis.",
-          "html_body": "O corpo tem HTML; o e-mail à contratante é só texto.",
+          "unsafe_html": "O corpo HTML tem conteúdo ativo (script, iframe, evento, endereço javascript: ou variável dentro de tag); o e-mail não sai.",
+          "missing_message_area": "O modelo HTML precisa de uma única área de mensagem, entre <!-- mensagem --> e <!-- /mensagem -->; o e-mail não sai.",
           "empty_subject": "O assunto está vazio.",
           "unknown_variables": "Variáveis fora da lista saem vazias: {{variables}}.",
           "malformed_placeholder": "Há uma chave {{ }} mal escrita."

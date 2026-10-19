@@ -221,11 +221,12 @@ function readEnvelopeData(payload: unknown): unknown {
 }
 
 /** A rota exige ao menos um campo, e chave ausente é o que diz "não mexa neste dado". */
-function buildProfileBody(input: UpdateCompanyUserProfileInput): Record<string, string> {
-  const body: Record<string, string> = {}
+function buildProfileBody(input: UpdateCompanyUserProfileInput): Record<string, null | string> {
+  const body: Record<string, null | string> = {}
   if (input.channel !== undefined) body.channel = input.channel
   if (input.contact !== undefined) body.contact = input.contact
   if (input.email !== undefined) body.email = input.email
+  if (input.jobTitle !== undefined) body.jobTitle = input.jobTitle
   if (input.name !== undefined) body.name = input.name
   if (input.phone !== undefined) body.phone = input.phone
   if (input.taxId !== undefined) body.taxId = input.taxId

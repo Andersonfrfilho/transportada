@@ -95,6 +95,9 @@ export function CompanyUserTable({
                 <span className={styles.primaryCell}>
                   {user.name === '' ? t('users.noProfile') : user.name}
                 </span>
+                {user.jobTitle === undefined ? null : (
+                  <span className={styles.secondaryCell}>{user.jobTitle}</span>
+                )}
                 <span className={styles.secondaryCell}>
                   {user.username === '' ? user.id : user.username}
                 </span>

@@ -66,6 +66,12 @@ describe('as variáveis do e-mail à contratante no editor do tipo (spec 271)', 
     ).toBe('Nota 1/1 []')
   })
 
+  test('nomes do protótipo não imprimem função: {{constructor}} sai vazio (revisão P2)', () => {
+    expect(interpolateMailTemplate('[{{constructor}}][{{toString}}][{{__proto__}}]', {})).toBe(
+      '[][][]',
+    )
+  })
+
   test('a prévia troca as variáveis por exemplos e deixa o assunto numa linha só', () => {
     const preview = renderContractorMailPreview({
       body: 'Itens:\n{{linhasItens}}',

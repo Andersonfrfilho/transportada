@@ -90,7 +90,16 @@ export function interpolateMailTemplate(
   template: string,
   values: Readonly<Record<string, string>>,
 ): string {
-  return template.replace(PLACEHOLDER_PATTERN, (_match, name: string) => values[name] ?? '')
+  return template.replace(PLACEHOLDER_PATTERN, (_match, name: string) =>
+    Object.hasOwn(values, name) ? (values[name] ?? '') : '',
+  )
+}
+
+/** A mesma condição de "corpo HTML" da API (`HTML_BODY_REGEX`): decide entre a prévia em iframe e em texto. */
+const HTML_BODY_PATTERN = /<\/?[A-Za-z][A-Za-z0-9_:-]*[\s>/]/u
+
+export function isHtmlMailBody(body: string): boolean {
+  return HTML_BODY_PATTERN.test(body)
 }
 
 /** A prévia: assunto numa linha, corpo como escrito, com os valores de exemplo. */
