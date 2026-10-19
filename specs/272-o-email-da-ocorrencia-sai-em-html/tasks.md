@@ -13,7 +13,7 @@
 > `apps/api-transportada`) **sem nenhum skip**.
 > Task com migration: aplica, reverte e reaplica (`make migration-test` ou Postgres descartável) e `db:generate` com
 > `no_changes` depois.
-> Worktree: `~/personal/transportada-wt/spec-272` (branch `work/spec-272`). Nada é feito fora dela.
+> Worktree: `~/Documents/personal/transportada-wt/spec-272` (branch `work/spec-272`). Nada é feito fora dela.
 > Antes de começar o código: rebase em `origin/staging`.
 
 ## Fase 0 — Contrato antes do código
@@ -184,8 +184,8 @@ escopo.
 /oh-my-claudecode:autopilot Execute a spec specs/272-o-email-da-ocorrencia-sai-em-html/ (revisão 2: o HTML vem do
 modelo do módulo de notificação). Leia spec.md, plan.md, tasks.md, evidence.md e docs/adr/0110-* antes de começar;
 leia também a regra global ~/.claude/rules/rules/email-templates.md, specs/271-* (+ ADR-0108) com o evidence.md, e a
-spec 273 em ~/personal/transportada-wt/spec-273/specs/273-a-ocorrencia-tem-dono/ para a porta de dono.
-Árvore única: ~/personal/transportada-wt/spec-272 (branch work/spec-272); nada fora dela. Uma task por vez, na ordem
+spec 273 em ~/Documents/personal/transportada-wt/spec-273/specs/273-a-ocorrencia-tem-dono/ para a porta de dono.
+Árvore única: ~/Documents/personal/transportada-wt/spec-272 (branch work/spec-272); nada fora dela. Uma task por vez, na ordem
 do tasks.md. Antes do código: rebase em origin/staging.
 Modelos: T0.3 🧠 → opus (validar a ADR-0110 revisão 2 com architect antes de qualquer código) · Fase 2 → executor
 model=sonnet (T2.1 haiku) · Fase 3 → executor model=sonnet · Fase 4 → executor model=sonnet (T4.2 e T4.4 haiku) ·

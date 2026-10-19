@@ -7,7 +7,7 @@ confira, rode os testes e feche as tasks antes de seguir. Onde parou na doc: `ev
 ## Como retomar no sistema novo
 
 ```bash
-cd ~/personal && git clone git@github.com:Andersonfrfilho/transportada.git   # se ainda não existir
+cd ~/Documents/personal && git clone git@github.com:Andersonfrfilho/transportada.git   # se ainda não existir
 cd transportada && git fetch origin && git worktree add ../transportada-wt/spec-272 work/spec-272
 cd ../transportada-wt/spec-272 && ln -sf ../../transportada/.env .env && ln -sf ../../transportada/.env.test .env.test
 bun install --frozen-lockfile   # Bun 1.3.14
@@ -21,8 +21,8 @@ Na sessão, cole o prompt abaixo.
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/272-o-email-da-ocorrencia-sai-em-html/ (leia spec.md, plan.md,
 tasks.md e evidence.md antes de começar; leia também specs/268-*, 269-*, 271-* (+ ADR-0108) com os evidence.md, e a
-spec 273 em ~/personal/transportada-wt/spec-273/specs/273-a-ocorrencia-tem-dono/ para o ponto signer).
-Árvore única: ~/personal/transportada-wt/spec-272 (FS do Linux, branch work/spec-272, criada de origin/staging);
+spec 273 em ~/Documents/personal/transportada-wt/spec-273/specs/273-a-ocorrencia-tem-dono/ para o ponto signer).
+Árvore única: ~/Documents/personal/transportada-wt/spec-272 (FS do Linux, branch work/spec-272, criada de origin/staging);
 nada fora dela. Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 0 → executor model=sonnet (T0.2 🧠 → opus: escrever a ADR-0110 e validar com architect antes de
 qualquer código) · Fase 1 → executor model=haiku (T1.3 sonnet) · Fase 2 → executor model=sonnet (T2.1/T2.3/T2.8/T2.9 haiku;
