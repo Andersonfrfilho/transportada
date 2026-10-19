@@ -761,6 +761,41 @@ Incidente: o executor rodou `git stash` na árvore compartilhada com a T2.2 em a
 o executor da T2.2 foi avisado para conferir os seus. Regra para os próximos executores: nada de `stash`/`checkout`/
 `reset` na árvore.
 
+### T2.2 — Renderer, HTML inseguro e parte texto (2026-10-18)
+
+Executor `sonnet`. Políticas puras novas em `apps/api-transportada/src/occurrence-conversation/domain/`:
+`occurrence-mail-html-safety.policy.ts`, `occurrence-mail-html-render.policy.ts`, `occurrence-mail-plain-text.policy.ts`.
+Constantes novas em `occurrence-contractor-mail.constant.ts`: `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES` (as quatro chaves),
+`OCCURRENCE_MAIL_MESSAGE_AREA` e `OCCURRENCE_MAIL_HTML_MAX_BYTES` (524288). `assessContractorTemplate`: `html_body` sai;
+`unsafe_html` e `missing_message_area` entram em `SEND_BLOCKING_CODES`.
+
+**Tabela de casos (fonte das cópias do painel na T4.1 e do worker na T3.1):** `OCCURRENCE_MAIL_UNSAFE_HTML_CASES` em
+`occurrence-mail-html-safety.policy.ts`, 35 casos `{ html, name, rules, worker }` (`rules` vazia = seguro; `worker`
+`'bloqueia'` | `'deixa para a API'`). O contrato exige ≥ 30 casos e que todo caso `bloqueia` seja inseguro na API (o
+worker nunca é mais estrito).
+
+Decisões do executor (o plan não fixava; dentro do contrato da ADR):
+
+1. As regras de HTML inseguro e `missing_message_area` só valem quando o corpo casa `HTML_BODY_PATTERN` (é modelo HTML);
+   texto puro como "online = sim" segue o caminho de texto e não é falso positivo.
+2. Chave de HTML do sistema dentro da área de mensagem → código `unsafe_html` (sem código novo).
+3. Tamanho: o renderer devolve `{ html, subject, tooLarge }`; a T2.4 converte `tooLarge` em problema do modelo.
+4. `findMessageArea` e `hasSystemHtmlKeyInMessageArea` exportados pela política de segurança (marcadores exatos); a
+   extração/substituição da área (D12) fica na T2.4. A parte texto da T2.2 é só `htmlToPlainText`.
+5. Assunto renderizado só com `values`, sem escape; chave de HTML do sistema no assunto sai vazia.
+6. Entidades nomeadas `&colon;`, `&tab;`, `&newline;` só com `;`; numéricas com ou sem.
+7. `eslint-disable no-control-regex` pontual no `[\u0000-\u0020]`, com a justificativa da ADR.
+
+Gates (cwd `apps/api-transportada`):
+
+- Teste antes: agregador `occurrence-contractor-mail` → vermelho (0 pass, 1 fail, 1 error: módulos inexistentes); os
+  três contratos antigos alterados → 24/6, 5/1 e 10/1 (pass/fail). Verde: agregador **136 pass / 0 fail** (296
+  `expect`); avulsos `html-safety` 41, `html-render` 9, `plain-text` 6, `template-policy` 30, `type-template-key` 6,
+  `template-routes` 11, todos 0 fail.
+- Integração `./test/integration/occurrence-type-contractor-template.integration.ts` → 5 pass / 0 fail, sem skip
+  (modelo HTML sem área → `missing_message_area`; inseguro → `unsafe_html`).
+- `bun run typecheck` → exit 0; `bunx eslint` e `bunx prettier --check` nos 13 arquivos tocados → limpos.
+
 ## Prompt de execução
 
 O prompt vigente está em `tasks.md` § Prompt de execução (uma cópia só; a daqui divergia). Revisões anteriores
@@ -768,4 +803,4 @@ no histórico do git.
 
 ## Onde parou (2026-10-18)
 
-T0.3, T2.1 e T2.5 fechadas; T2.2 em andamento. Depois: T2.3 → T2.4.
+T0.3, T2.1, T2.2 e T2.5 fechadas. Próxima: **T2.3** (variáveis e leituras), depois T2.4.

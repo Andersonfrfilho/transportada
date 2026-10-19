@@ -54,7 +54,7 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       `null`; o saneador do "De" tira os mesmos). A migration do inline logo leva o CHECK `not has_inline_logo or
       direction = 'outbound'` (molde `contractor_mail_messages_body_html_direction_check`). Ajustado na T0.3. Aceite: `make migration-test` (aplica, reverte,
       reaplica) verde; `bun run db:generate` → `no_changes`; testes da política verdes.
-- [ ] **T2.2** `sonnet` — Renderer (D2, D3, D4), teste antes: `occurrence-mail-html-safety.policy.ts` (tabela de casos
+- [x] **T2.2** `sonnet` — Renderer (D2, D3, D4), teste antes: `occurrence-mail-html-safety.policy.ts` (tabela de casos
       das regras de tag, evento, esquema e placeholder em tag, com a coluna `worker`; também vira o arquivo-fonte da
       tabela copiada inteira pelo painel e, em filtro grosso, pelo worker),
       `occurrence-mail-html-render.policy.ts` (uma passada; `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES` `as const`; `values`

@@ -13,7 +13,7 @@ export const OCCURRENCE_CONTRACTOR_MAIL_CHANNEL = 'email'
 /** O teto de linhas de item num e-mail; o que passa dele vira "e mais N itens". */
 export const OCCURRENCE_ITEM_LINES_LIMIT = 200
 
-/** O corpo do e-mail à contratante é texto: marcação HTML no modelo é recusada. Mesmo padrão no worker (`body !~`). */
+/** Corpo com marcação HTML → caminho HTML do e-mail (spec 272); sem marcação → o caminho de texto. */
 export const HTML_BODY_PATTERN = '</?[A-Za-z][A-Za-z0-9_:-]*[\\s>/]'
 
 export type OccurrenceContractorMailVariable = {
@@ -47,3 +47,26 @@ export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLES: readonly OccurrenceContractor
 export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES: ReadonlySet<string> = new Set(
   OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.map((variable) => variable.name),
 )
+
+/**
+ * Spec 272 (ADR-0110 §3): as únicas chaves cujo valor entra **sem escape**, decidido pelo nome e nunca pelo
+ * conteúdo. O valor vem de um objeto que só a API monta.
+ */
+export const OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES = [
+  'logoTransportadora',
+  'tabelaItens',
+  'marcasRodape',
+  'faixaResposta',
+] as const
+
+export type OccurrenceMailSystemHtmlVariable =
+  (typeof OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES)[number]
+
+/** O par que marca, no modelo HTML, a área do corpo editável pelo operador (ADR-0110 §12). */
+export const OCCURRENCE_MAIL_MESSAGE_AREA = {
+  close: '<!-- /mensagem -->',
+  open: '<!-- mensagem -->',
+} as const
+
+/** O CHECK `body_html_size_check` de `contractor_mail_messages`: bytes UTF-8 do HTML renderizado. */
+export const OCCURRENCE_MAIL_HTML_MAX_BYTES = 524288

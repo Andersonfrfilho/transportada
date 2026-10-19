@@ -233,6 +233,11 @@ describe('the notification template of the occurrence type (spec 271 T2.4)', () 
           key: 'com.html',
         })
         await seedNotificationTemplate(database, {
+          body: '<p>Olá</p><script>x</script><!-- mensagem -->a<!-- /mensagem -->',
+          companyId,
+          key: 'html.inseguro',
+        })
+        await seedNotificationTemplate(database, {
           body: 'Olá {{foo}}',
           companyId,
           key: 'com.variavel',
@@ -249,7 +254,8 @@ describe('the notification template of the occurrence type (spec 271 T2.4)', () 
           ['desativado', 'not_found'],
           ['so.caixa', 'not_found'],
           ['en.us', 'not_found'],
-          ['com.html', 'html_body'],
+          ['com.html', 'missing_message_area'],
+          ['html.inseguro', 'unsafe_html'],
           ['com.variavel', 'unknown_variables'],
         ]
 
