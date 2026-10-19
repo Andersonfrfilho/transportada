@@ -902,11 +902,11 @@ async function fillNotDelivered(page: Page): Promise<void> {
   await page.getByRole('button', { exact: true, name: 'Não entreguei' }).click()
   const confirm = page.getByRole('button', { exact: true, name: 'Confirmar' })
   await expect(confirm).toBeDisabled()
-  await expect(
-    page.getByText('Para confirmar, falta: o motivo, o tipo de ocorrência, a foto.'),
-  ).toBeVisible()
+  await expect(page.getByText('Para confirmar, falta: o motivo.')).toBeVisible()
 
+  // Pedido do usuário (18/10): a ocorrência é opcional — só o motivo basta; com tipo escolhido, a foto passa a valer.
   await page.getByRole('radio', { name: 'Recusa' }).click()
+  await expect(confirm).toBeEnabled()
   await page.getByRole('radio', { name: 'Cliente ausente' }).click()
   await expect(page.getByText('Para confirmar, falta: a foto.')).toBeVisible()
   await expect(confirm).toBeDisabled()
