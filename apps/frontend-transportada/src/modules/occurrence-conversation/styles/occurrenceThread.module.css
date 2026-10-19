@@ -287,8 +287,21 @@
   font-size: 0.72rem;
 }
 
+.columnToggle {
+  margin-left: auto;
+}
+
 @media (min-width: 64rem) {
   .columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Uma conversa minimizada fica só com o cabeçalho; a outra ocupa o resto da largura. */
+  .columnsFirstCollapsed {
+    grid-template-columns: minmax(12rem, 20rem) minmax(0, 1fr);
+  }
+
+  .columnsSecondCollapsed {
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 20rem);
   }
 }

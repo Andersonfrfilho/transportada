@@ -312,6 +312,8 @@
     }
   },
   "thread": {
+    "minimize": "Minimizar a conversa com {{name}}",
+    "expand": "Expandir a conversa com {{name}}",
     "newMessages_one": "{{count}} mensagem nova na conversa",
     "newMessages_other": "{{count}} mensagens novas na conversa",
     "contractorNewMessages": "Novas mensagens da contratante",

@@ -312,6 +312,8 @@
     }
   },
   "thread": {
+    "minimize": "Minimize the conversation with {{name}}",
+    "expand": "Expand the conversation with {{name}}",
     "newMessages_one": "{{count}} new message in the conversation",
     "newMessages_other": "{{count}} new messages in the conversation",
     "contractorNewMessages": "New messages from the contractor",

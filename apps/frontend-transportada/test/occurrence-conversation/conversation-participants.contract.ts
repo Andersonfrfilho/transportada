@@ -147,6 +147,14 @@ describe('modo de exibição das conversas', () => {
     expect(screen).toContain('<ConversationLayoutSwitch')
     expect(screen).toContain("useMinWidth('64rem')")
     expect(screen).toContain('<ConversationColumn')
+    // minimizar é por conversa: um estado por participante, o corpo continua montado
+    expect(screen).toContain("onToggleCollapsed={() => toggleCollapsed('contractor')}")
+    expect(screen).toContain("onToggleCollapsed={() => toggleCollapsed('driver')}")
+    const columnSource = await source(
+      'modules/occurrence-conversation/components/ConversationLayoutSwitch.component.tsx',
+    )
+    expect(columnSource).toContain('aria-expanded={!collapsed}')
+    expect(columnSource).toContain('hidden={collapsed}')
     const css = await source('modules/occurrence-conversation/styles/occurrenceThread.module.css')
     expect(css).toContain('@media (min-width: 64rem)')
     expect(css).not.toMatch(/max-width\s*:\s*\d+(rem|px)\s*\)/u)

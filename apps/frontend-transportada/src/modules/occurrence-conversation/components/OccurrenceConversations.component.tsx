@@ -432,6 +432,10 @@ export function OccurrenceConversations({
 }: OccurrenceConversationsProps) {
   const { t } = useTranslation('occurrenceConversation')
   const [tab, setTab] = useState('contractor')
+  /** Minimizar é por conversa: cada coluna guarda o próprio estado. */
+  const [collapsed, setCollapsed] = useState({ contractor: false, driver: false })
+  const toggleCollapsed = (who: 'contractor' | 'driver') =>
+    setCollapsed((current) => ({ ...current, [who]: !current[who] }))
   const layoutStorageKey = conversationLayoutStorageKey(companyId)
   const [storedLayout, setStoredLayout] = useState(() =>
     readConversationLayout(getLayoutStorage(), layoutStorageKey),
@@ -537,12 +541,30 @@ export function OccurrenceConversations({
   )
   /** Duas conversas ao mesmo tempo: o item enviado de uma coluna aparece na outra sem trocar de aba. */
   const columns = (
-    <div className={threadStyles.columns}>
-      <ConversationColumn participant="contractor" unreadCount={unread}>
+    <div
+      className={`${threadStyles.columns} ${
+        collapsed.contractor && !collapsed.driver && driverPanel !== null
+          ? threadStyles.columnsFirstCollapsed
+          : collapsed.driver && !collapsed.contractor
+            ? threadStyles.columnsSecondCollapsed
+            : ''
+      }`}
+    >
+      <ConversationColumn
+        collapsed={collapsed.contractor}
+        onToggleCollapsed={() => toggleCollapsed('contractor')}
+        participant="contractor"
+        unreadCount={unread}
+      >
         {contractorPanel}
       </ConversationColumn>
       {driverPanel === null ? null : (
-        <ConversationColumn participant="driver" unreadCount={driverUnread}>
+        <ConversationColumn
+          collapsed={collapsed.driver}
+          onToggleCollapsed={() => toggleCollapsed('driver')}
+          participant="driver"
+          unreadCount={driverUnread}
+        >
           {driverPanel}
         </ConversationColumn>
       )}
