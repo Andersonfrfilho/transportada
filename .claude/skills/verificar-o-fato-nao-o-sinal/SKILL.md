@@ -19,14 +19,14 @@ A regra é uma só: **quando um sinal afirmar sucesso, confira a evidência inde
 
 ## O que conferir, por tipo de afirmação
 
-| A afirmação | A evidência independente | Como |
-|---|---|---|
-| "a landing está publicada" | o bundle servido no ar | baixar `/assets/index-*.js` do host e procurar uma string que **só** existe na versão nova |
-| "a API subiu" | a resposta dela | `curl` numa rota real; `401` com envelope é sinal de vida, `000`/timeout não |
-| "o pacote foi publicado" | o registro npm | `bun add <pacote>@<versão>` num diretório descartável e importar de verdade |
-| "o teste cobre isso" | a lista declarada | o arquivo está em `scripts.test` do `package.json`? (contrato `test-registry`) |
-| "a CSP está limpa" | o asset existir | a diretiva só mede algo se o recurso for **emitido**; confira `dist/assets/` |
-| "o job protege X" | a condição parseada | ler o `if:` do YAML, não o comentário acima dele |
+| A afirmação                | A evidência independente | Como                                                                                       |
+| -------------------------- | ------------------------ | ------------------------------------------------------------------------------------------ |
+| "a landing está publicada" | o bundle servido no ar   | baixar `/assets/index-*.js` do host e procurar uma string que **só** existe na versão nova |
+| "a API subiu"              | a resposta dela          | `curl` numa rota real; `401` com envelope é sinal de vida, `000`/timeout não               |
+| "o pacote foi publicado"   | o registro npm           | `bun add <pacote>@<versão>` num diretório descartável e importar de verdade                |
+| "o teste cobre isso"       | a lista declarada        | o arquivo está em `scripts.test` do `package.json`? (contrato `test-registry`)             |
+| "a CSP está limpa"         | o asset existir          | a diretiva só mede algo se o recurso for **emitido**; confira `dist/assets/`               |
+| "o job protege X"          | a condição parseada      | ler o `if:` do YAML, não o comentário acima dele                                           |
 
 ## O caso mais perigoso: gate satisfeito por ausência
 
@@ -34,7 +34,7 @@ A regra é uma só: **quando um sinal afirmar sucesso, confira a evidência inde
 PDF entrar sem prova: a CSP veio sem `unsafe-eval` e sem `blob:` num bundle onde **nada importava o
 carregador**, então o pdf.js nunca era carregado e nenhuma diretiva era exercitada.
 
-Antes de aceitar um gate verde, pergunte: *o que este gate teria medido se o recurso não existisse?*
+Antes de aceitar um gate verde, pergunte: _o que este gate teria medido se o recurso não existisse?_
 Se a resposta for "o mesmo", ele não mediu nada.
 
 O mesmo vale para: teste que não está na lista, app que não está no filtro, permissão que não está
@@ -46,7 +46,7 @@ na allowlist, origem que não está no `connect-src`.
    mesmo com o job pulado, e o alvo ficava invisível ao filtro de diff **para sempre**. A landing
    ficou meses de commits atrás com todo run verde. Descoberto baixando o bundle do ar.
 2. **CSP limpa sem medir nada** (acima).
-3. **Publish verde, pacote 404.** O workflow do changesets fechou verde; o *packument* respondia 404
+3. **Publish verde, pacote 404.** O workflow do changesets fechou verde; o _packument_ respondia 404
    por cache do registro. O endpoint da versão respondia 200 e a instalação funcionava — mas só
    instalar provou. Não confie no `dist-tags` para decidir isso.
 4. **Teste no disco fora da lista.** `scripts.test` é uma linha com mais de 140 caminhos; quem a

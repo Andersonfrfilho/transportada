@@ -73,16 +73,16 @@ sobrou, o segundo imprime `1 !== 0` e manda você procurar.
 
 ## Onde já existe precedente nesta base
 
-| Paridade | Contrato |
-|---|---|
-| arquivo de teste × `scripts.test` | `test/test-registry/declaration.contract.ts` |
-| app em `apps/` × filtro do pipeline | `test/deploy/pipeline-change-filter.contract.ts` |
-| app × `COPY` dos Dockerfiles | `test/deploy/dockerfile-workspace.contract.ts` |
-| grafo de jobs do deploy | `test/deploy/pipeline-triggers.contract.ts` |
-| permissões e papéis da API × painel | `frontend-transportada/test/frontend-contract.test.ts` |
-| migration × lista estática | `test/database-migration/static-migration.contract.ts` |
-| catálogo copiado entre apps | `test/fuel-catalog/catalog.contract.ts` e os pares dele |
-| origem externa × `connect-src` da CSP | `test/shared/content-security-policy.contract.ts` |
+| Paridade                              | Contrato                                                |
+| ------------------------------------- | ------------------------------------------------------- |
+| arquivo de teste × `scripts.test`     | `test/test-registry/declaration.contract.ts`            |
+| app em `apps/` × filtro do pipeline   | `test/deploy/pipeline-change-filter.contract.ts`        |
+| app × `COPY` dos Dockerfiles          | `test/deploy/dockerfile-workspace.contract.ts`          |
+| grafo de jobs do deploy               | `test/deploy/pipeline-triggers.contract.ts`             |
+| permissões e papéis da API × painel   | `frontend-transportada/test/frontend-contract.test.ts`  |
+| migration × lista estática            | `test/database-migration/static-migration.contract.ts`  |
+| catálogo copiado entre apps           | `test/fuel-catalog/catalog.contract.ts` e os pares dele |
+| origem externa × `connect-src` da CSP | `test/shared/content-security-policy.contract.ts`       |
 
 Antes de escrever um novo, procure o análogo aqui: o formato de leitura da configuração
 (`Bun.file`, `readdir`, regex sobre o YAML) provavelmente já está resolvido.
