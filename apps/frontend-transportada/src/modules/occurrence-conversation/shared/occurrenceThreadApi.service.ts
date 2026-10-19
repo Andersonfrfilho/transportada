@@ -22,7 +22,7 @@ import {
 } from './conversationAttachment.service'
 import {
   createDriverMessageIdempotencyKey,
-  createPortalMessageIdempotencyKey,
+  createEmailMessageIdempotencyKey,
 } from './occurrenceConversation.service'
 import type { OccurrenceConversationClient } from './occurrenceConversationClient.service'
 import type {
@@ -128,9 +128,11 @@ export type OccurrenceThreadClient = Pick<
   | 'markConversationRead'
   | 'putConversationUpload'
   | 'requestConversationUpload'
-  | 'sendContractorPortalMessage'
+  | 'sendContractorChatMessage'
   | 'sendDriverAppMessage'
 >
+
+export type OccurrenceThreadSendError = Readonly<{ code: string; text: string }>
 
 export type OccurrenceThreadApiDependencies = Readonly<{
   client: OccurrenceThreadClient
@@ -139,6 +141,8 @@ export type OccurrenceThreadApiDependencies = Readonly<{
   onChanged: () => void
   occurrenceId: string
   /** Cada nome de autor lido e quem fala nele: o avatar do balão (ícone + cor) sai daqui. */
+  /** Spec 274 D10: a falha do envio (código da API + o texto) para o painel dizer o motivo; `null` limpa. */
+  onSendError?: (error: null | OccurrenceThreadSendError) => void
   onSpeaker?: (authorName: string, speaker: ConversationParticipant) => void
   participant: OccurrenceThreadParticipant
   /** A leitura da aba — o fio não faz uma segunda ida à API. */
@@ -162,12 +166,13 @@ export function createOccurrenceThreadApi(
     labels,
     occurrenceId,
     onChanged,
+    onSendError,
     onSpeaker,
     participant,
     readConversations,
     subscribe,
   } = dependencies
-  const channel = participant === 'driver' ? 'app' : 'portal'
+  const channel = participant === 'driver' ? 'app' : 'email'
   const attachmentUrls = new Map<string, string>()
   const uploaded = new Map<File, string>()
   let conversationId: null | string = null
@@ -186,11 +191,12 @@ export function createOccurrenceThreadApi(
       const idempotencyKey =
         participant === 'driver'
           ? createDriverMessageIdempotencyKey(() => input.clientMessageId)
-          : createPortalMessageIdempotencyKey(() => input.clientMessageId)
+          : createEmailMessageIdempotencyKey(() => input.clientMessageId)
       const message = { attachmentIds, body, idempotencyKey, occurrenceId }
       if (participant === 'driver') await client.sendDriverAppMessage(message)
-      else await client.sendContractorPortalMessage(message)
+      else await client.sendContractorChatMessage(message)
       uploaded.clear()
+      onSendError?.(null)
       onChanged()
       return {
         message: {
@@ -199,13 +205,17 @@ export function createOccurrenceThreadApi(
           createdAt: new Date().toISOString(),
           direction: 'outbound',
           id: input.clientMessageId,
-          status: participant === 'driver' ? 'queued' : 'delivered',
+          status: 'queued',
           text: body,
         },
         outcome: 'sent',
       }
     } catch (error) {
       if (recoverFromSendFailure(error).clearUploads) uploaded.clear()
+      if (participant === 'contractor') {
+        const code = (error as { code?: unknown } | null)?.code
+        onSendError?.({ code: typeof code === 'string' ? code : '', text: input.text ?? '' })
+      }
       throw error
     }
   }

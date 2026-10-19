@@ -326,8 +326,7 @@
     },
     "closed": {
       "readOnly": "You can read the conversation, but you are not allowed to write.",
-      "noRecipient": "Without an invoice or an identified contractor there is nobody to write to.",
-      "noPortal": "The contractor portal is not open for this occurrence. To write, use Send by email."
+      "noRecipient": "Without an invoice or an identified contractor there is nobody to write to."
     },
     "attachments": {
       "title": "Files received",
@@ -340,6 +339,13 @@
       "title": "Message that did not arrive",
       "resent": "Resent by {{channel}}.",
       "resendError": "Could not resend. Try again in a moment."
+    },
+    "sendError": {
+      "noRecipients": "There is no email recipient for this contractor. Use Send by email to choose who receives it.",
+      "notConfigured": "Email sending is not set up for this contractor. Set up the outbound mailbox before writing.",
+      "notVerified": "Email sending for this contractor has not been verified yet. Verify the outbound mailbox before writing.",
+      "generic": "The message could not be sent by email. Try again or use Send by email.",
+      "openMail": "Send by email"
     }
   },
   "sendRecovery": {

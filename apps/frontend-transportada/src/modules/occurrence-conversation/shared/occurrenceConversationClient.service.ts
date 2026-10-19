@@ -87,6 +87,13 @@ export type OccurrenceConversationClient = Readonly<{
     participant: 'contractor' | 'driver'
     sizeBytes: number
   }) => Promise<Readonly<{ uploadId: string; uploadUrl: string }>>
+  /** Spec 274 D1: o chat da contratante vai por e-mail (`mode: 'chat'`), sem diálogo nem assunto. */
+  sendContractorChatMessage: (input: {
+    attachmentIds?: readonly string[]
+    body: string
+    idempotencyKey: string
+    occurrenceId: string
+  }) => Promise<void>
   /** Spec 183 T654 (RF21): à contratante pelo portal — o texto e, desde a T702b, os anexos. */
   sendContractorPortalMessage: (input: {
     attachmentIds?: readonly string[]
@@ -548,6 +555,13 @@ export function createOccurrenceConversationClient(
           },
           attachmentIds,
         ),
+        headers: { 'idempotency-key': idempotencyKey },
+        method: 'POST',
+      })
+    },
+    async sendContractorChatMessage({ attachmentIds = [], body, idempotencyKey, occurrenceId }) {
+      await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
+        body: { attachmentIds, body, channel: 'email', mode: 'chat' },
         headers: { 'idempotency-key': idempotencyKey },
         method: 'POST',
       })

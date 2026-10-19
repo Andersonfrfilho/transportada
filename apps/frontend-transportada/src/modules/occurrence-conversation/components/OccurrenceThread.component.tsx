@@ -3,7 +3,10 @@ import { ConversationThread } from '@adatechnology/conversations-ui/participant'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { OccurrenceThreadParticipant } from '../shared/occurrenceThreadApi.service'
+import type {
+  OccurrenceThreadParticipant,
+  OccurrenceThreadSendError,
+} from '../shared/occurrenceThreadApi.service'
 import { SUBJECT_AUDIO_RECORDING_OPTIONS } from '../shared/subjectAudioRecording.service'
 import { buildSubjectThreadLabels } from '../shared/subjectThreadLabels.service'
 import { useOccurrenceThread } from '../shared/useOccurrenceThread.hook'
@@ -23,6 +26,7 @@ type OccurrenceThreadProps = Readonly<{
   counterpartLabel: string
   headerActions?: ReactNode
   occurrenceId: string
+  onSendError?: (error: null | OccurrenceThreadSendError) => void
   participant: OccurrenceThreadParticipant
   status: 'closed' | 'open'
   title: string
@@ -39,6 +43,7 @@ export function OccurrenceThread({
   counterpartLabel,
   headerActions,
   occurrenceId,
+  onSendError,
   participant,
   status,
   title,
@@ -48,6 +53,7 @@ export function OccurrenceThread({
   const { api, speakerOf, threadQuickReplies, threadSubject } = useOccurrenceThread({
     ...(companyId === undefined ? {} : { companyId }),
     occurrenceId,
+    ...(onSendError === undefined ? {} : { onSendError }),
     participant,
   })
   const labels = {

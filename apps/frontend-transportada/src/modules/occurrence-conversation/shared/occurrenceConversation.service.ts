@@ -165,6 +165,11 @@ export function createDriverMessageIdempotencyKey(randomId: () => string): strin
   return `driver-message:${randomId()}`
 }
 
+/** Spec 274 D11: a chave do chat da contratante por e-mail, uma por mensagem escrita. */
+export function createEmailMessageIdempotencyKey(randomId: () => string): string {
+  return `email-message:${randomId()}`
+}
+
 /** Spec 183 T654: a chave do envio à contratante pelo portal, uma por mensagem escrita. */
 export function createPortalMessageIdempotencyKey(randomId: () => string): string {
   return `portal-message:${randomId()}`

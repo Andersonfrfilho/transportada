@@ -326,8 +326,7 @@
     },
     "closed": {
       "readOnly": "Você pode ler a conversa, mas não tem permissão para escrever.",
-      "noRecipient": "Sem nota ou sem contratante identificada, não há a quem escrever.",
-      "noPortal": "O portal da contratante não está aberto para esta ocorrência. Para escrever, use Enviar por e-mail."
+      "noRecipient": "Sem nota ou sem contratante identificada, não há a quem escrever."
     },
     "attachments": {
       "title": "Arquivos recebidos",
@@ -340,6 +339,13 @@
       "title": "Mensagem que não chegou",
       "resent": "Reenviada por {{channel}}.",
       "resendError": "Não foi possível reenviar. Tente de novo em instantes."
+    },
+    "sendError": {
+      "noRecipients": "Não há destinatário de e-mail para esta contratante. Use Enviar por e-mail para escolher quem recebe.",
+      "notConfigured": "O envio de e-mail desta contratante não está configurado. Configure a caixa de saída antes de escrever.",
+      "notVerified": "O envio de e-mail desta contratante ainda não foi verificado. Verifique a caixa de saída antes de escrever.",
+      "generic": "Não foi possível enviar a mensagem por e-mail. Tente de novo ou use Enviar por e-mail.",
+      "openMail": "Enviar por e-mail"
     }
   },
   "sendRecovery": {
