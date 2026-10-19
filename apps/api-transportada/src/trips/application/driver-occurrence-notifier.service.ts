@@ -99,10 +99,14 @@ export function createDriverOccurrenceNotifier(input: {
               companyId,
               /** D5: o índice único do módulo é `(company_id, dedupe_key)` — a chave carrega o destinatário. */
               dedupeKey: `${templateKey}:${occurrenceId}:${recipientUserId}`,
+              /** Os ids são opacos: o painel monta o destino do clique com eles (sem nome nem endereço). */
               payload: {
+                documentId,
                 documentLabel: labels.documentLabel,
+                occurrenceId,
                 occurrenceType: notification.occurrenceTypeName,
                 stopLabel: labels.stopLabel,
+                tripId,
               },
               recipientUserId,
               templateKey,

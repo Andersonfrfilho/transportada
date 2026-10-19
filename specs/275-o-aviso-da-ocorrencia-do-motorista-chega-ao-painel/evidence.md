@@ -48,3 +48,12 @@ despachou. Reverte a 079 ("sem notificador").
 ## Gates
 
 `bun run typecheck` limpo · `bun run lint` limpo (`--max-warnings=0`) · `bun run format:check` (raiz) limpo.
+
+## Continuação RF-L — decisão da rota
+
+- **Rota escolhida: `/ocorrencias/:occurrenceId`** (`TripOccurrenceDetailPage`, spec 183 P1; `buildTripOccurrenceRoute`).
+  É o deep link que já existe para a ocorrência, é o destino que a timeline da viagem já usa, e abre o registro do motorista sem
+  precisar de foco em nota/parada (o detalhe da viagem `/trips/:id` não lê parâmetro de ocorrência). Fallback: `/trips/:tripId`.
+- O módulo de notificação aceita chaves de payload fora dos marcadores do modelo: `UnknownTemplateVariablesError` é do
+  salvamento de modelo, não do envio, e `occurrence-resolution-notifier` e `driver-conversation-notifier` já mandam ids extras.
+- Pacote `notification-ui` 0.2.0: ver T6 sobre marcar como lida.

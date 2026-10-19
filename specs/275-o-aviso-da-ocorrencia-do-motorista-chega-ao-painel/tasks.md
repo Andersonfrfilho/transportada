@@ -9,3 +9,8 @@
 - [x] **T3** `opus` — Integração `driver-occurrence-notification.integration.ts` no `test:integration`. Aceite: verde,
       zero skip.
 - [x] **T4** `haiku` — `apps/api-transportada/CLAUDE.md` e `docs/ai-context/api-transportada.md`.
+
+## Continuação — o clique no aviso abre a ocorrência (pedido do dono, 2026-10-19)
+
+- [x] **T5** `sonnet` — Contrato vermelho → API: o payload do aviso do motorista leva `tripId`, `occurrenceId`, `documentId`.
+- [x] **T6** `sonnet` — Painel: `notificationTarget.service.ts` (contrato primeiro) + `onSelectNotification` no workspace.
