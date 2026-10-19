@@ -8,6 +8,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   buildReplyChainHeaders,
   normalizeRfcMessageId,
+  parseRfcMessageId,
 } from '../../src/contractor-mail/domain/reply-chain-headers.policy.js'
 
 const ids = (count: number) => Array.from({ length: count }, (_, index) => `<m${index + 1}@x>`)
@@ -62,6 +63,39 @@ describe('buildReplyChainHeaders (spec 274 D7)', () => {
       )
     })
   }
+
+  test('descarta id inválido (espaço, quebra de linha, colchete interno, vazio, acima de 255) sem derrubar os válidos', () => {
+    const headers = buildReplyChainHeaders([
+      '<a@x>',
+      '<b@x>\r\nBcc: evil@x.test',
+      '<c d@x>',
+      '<e<f@x>',
+      `<${'z'.repeat(256)}>`,
+      '<g@x>',
+    ])
+    expect(headers).toEqual({ 'In-Reply-To': '<g@x>', References: '<a@x> <g@x>' })
+    expect(buildReplyChainHeaders(['<a b@x>', '<>'])).toBeUndefined()
+  })
+
+  test('References cabe em 998 bytes e mantém os ids mais recentes', () => {
+    const long = (index: number) => `<${String(index).padStart(3, '0')}${'k'.repeat(200)}@x>`
+    const headers = buildReplyChainHeaders(Array.from({ length: 20 }, (_, index) => long(index)))
+    expect(headers).toBeDefined()
+    const references = headers!.References
+    expect(Buffer.byteLength(references)).toBeLessThanOrEqual(998)
+    expect(headers!['In-Reply-To']).toBe(long(19))
+    expect(references.endsWith(long(19))).toBe(true)
+    expect(references).not.toContain(long(0))
+    expect(references.split(' ')).toHaveLength(4)
+  })
+
+  test('parseRfcMessageId normaliza e valida; inválido vira undefined', () => {
+    expect(parseRfcMessageId(' abc@x ')).toBe('<abc@x>')
+    expect(parseRfcMessageId('<abc@x>')).toBe('<abc@x>')
+    expect(parseRfcMessageId('<a b@x>')).toBeUndefined()
+    expect(parseRfcMessageId('<a@x>\nBcc: y')).toBeUndefined()
+    expect(parseRfcMessageId('')).toBeUndefined()
+  })
 
   test('normalizeRfcMessageId', () => {
     expect(normalizeRfcMessageId('abc@x')).toBe('<abc@x>')

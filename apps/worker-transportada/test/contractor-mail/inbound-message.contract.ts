@@ -310,6 +310,58 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
     expect(recordCalls[0]?.fromDisplayName).toBe('Financeiro Alfa')
   })
 
+  /** Spec 274 (segurança M2): o `Message-ID` de e-mail externo entra na linha de `References` do próximo envio. */
+  test('does not record a malformed external Message-ID (whitespace, line break, brackets)', async () => {
+    const recordCalls: RecordContractorMailInboundMessageInput[] = []
+    const dependencies: Deps = {
+      dkimVerifier: {
+        async verifyWithHeaderFrom() {
+          return { alignment: 'absent' as const, headerFrom: [] }
+        },
+      },
+      mailGateway: {
+        downloadRawEmail: async () => Buffer.from('conteudo'),
+        fetchReceivedEmail: async () => ({
+          from: 'Financeiro Alfa <financeiro@contratante.com.br>',
+          headers: {},
+          message_id: '<id com espaço@x>\r\nBcc: evil@x.test',
+          raw: { download_url: 'https://cdn.resend.com/raw/9', expires_at: '2099-01-01T00:00:00Z' },
+          subject: 'APROVADO',
+          text: 'APROVADO',
+          to: [`${REPLY_TOKEN}@${REPLY_DOMAIN}`],
+        }),
+        sendEmail: async () => {
+          throw new Error('not used by this contract')
+        },
+      },
+      driverNotifier: { notify: async () => undefined },
+      conversationAttachments: UNUSED_ATTACHMENTS,
+      repository: buildRepository({ recordCalls }),
+      secretService: {
+        async decrypt() {
+          return {
+            apiKey: 're_test_key',
+            replyTokenSecret: 'a'.repeat(64),
+            webhookSigningSecret: 'whsec_test',
+          }
+        },
+      },
+      storage: {
+        async storeObject() {
+          return undefined
+        },
+      },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
+      storageBucket: 'transportada-private',
+      storageProvider: 'minio',
+    }
+
+    await recordContractorMailInboundMessage(buildEnvelope(), dependencies)
+
+    expect(recordCalls).toHaveLength(1)
+    expect(recordCalls[0]?.rfcMessageId).toBeUndefined()
+  })
+
   test('discards without recording when the token is unknown', async () => {
     const recordCalls: RecordContractorMailInboundMessageInput[] = []
     let downloadCalled = false

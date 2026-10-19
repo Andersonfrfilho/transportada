@@ -75,13 +75,19 @@ describeDatabase('a linha de References da thread (spec 274 D7)', () => {
     await addMessage({ companyId, direction: 'outbound', rfc: '', secondsAgo: 5, threadId })
     await addMessage({ ...other, direction: 'inbound', rfc: '<alheia@x>', secondsAgo: 1 })
 
-    expect(await repository.listThreadReferenceIds({ companyId, threadId })).toEqual([
-      '<in1@x>',
-      '<out1@x>',
-      '<out2@x>',
-    ])
     expect(
-      await repository.listThreadReferenceIds({ companyId: other.companyId, threadId }),
+      await repository.listThreadReferenceIds({
+        companyId,
+        messageId: crypto.randomUUID(),
+        threadId,
+      }),
+    ).toEqual(['<in1@x>', '<out1@x>', '<out2@x>'])
+    expect(
+      await repository.listThreadReferenceIds({
+        companyId: other.companyId,
+        messageId: crypto.randomUUID(),
+        threadId,
+      }),
     ).toEqual([])
   })
 
@@ -122,9 +128,28 @@ describeDatabase('a linha de References da thread (spec 274 D7)', () => {
       threadId,
     })
 
-    expect(await repository.listThreadReferenceIds({ companyId, threadId })).toEqual([
-      '<in1@x>',
-      '<out1@x>',
-    ])
+    expect(
+      await repository.listThreadReferenceIds({
+        companyId,
+        messageId: crypto.randomUUID(),
+        threadId,
+      }),
+    ).toEqual(['<in1@x>', '<out1@x>'])
+  })
+
+  it('a própria mensagem em envio nunca entra na linha', async () => {
+    const { companyId, threadId } = await seedThread()
+    await addMessage({ companyId, direction: 'inbound', rfc: '<in1@x>', secondsAgo: 30, threadId })
+    const ownId = await addMessage({
+      companyId,
+      direction: 'outbound',
+      rfc: '<proprio@x>',
+      secondsAgo: 10,
+      threadId,
+    })
+
+    expect(
+      await repository.listThreadReferenceIds({ companyId, messageId: ownId, threadId }),
+    ).toEqual(['<in1@x>'])
   })
 })

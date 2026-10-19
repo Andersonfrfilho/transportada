@@ -149,6 +149,7 @@ export async function sendContractorMailOutboundMessage(
       ? (buildReplyChainHeaders(
           await dependencies.repository.listThreadReferenceIds({
             companyId,
+            messageId,
             threadId: message.threadId,
           }),
         ) ?? {})

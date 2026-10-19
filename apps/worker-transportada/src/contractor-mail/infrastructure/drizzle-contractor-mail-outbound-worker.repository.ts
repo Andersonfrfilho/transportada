@@ -68,6 +68,8 @@ export type ContractorMailOutboundWorkerRepository = {
   /** Spec 274 D7: os `rfc_message_id` da thread (entrada e saída, sem encaminhamento), do mais antigo ao mais novo. */
   listThreadReferenceIds(input: {
     readonly companyId: string
+    /** A própria mensagem em envio nunca entra na linha. */
+    readonly messageId: string
     readonly threadId: string
   }): Promise<readonly string[]>
   findMessageById(input: {
@@ -156,11 +158,12 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
      * Spec 274 D7: a linha da conversa inteira; o encaminhamento da 248 fica de fora, e a mensagem sem
      * `rfc_message_id` (o `email.sent` ainda não chegou) simplesmente não entra.
      */
-    async listThreadReferenceIds({ companyId, threadId }) {
+    async listThreadReferenceIds({ companyId, messageId, threadId }) {
       const rows = (await database.execute(
         sql`select m.rfc_message_id from contractor_mail_messages m
             where m.company_id = ${companyId}::uuid
               and m.thread_id = ${threadId}::uuid
+              and m.id <> ${messageId}::uuid
               and m.rfc_message_id is not null and m.rfc_message_id <> ''
               and not exists (
                 select 1 from occurrence_contractor_reply_deliveries d
