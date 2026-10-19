@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, mock, test } from 'bun:test'
 
+import enLocale from '../../src/modules/occurrence-conversation/locales/occurrenceConversation.en.locale.json'
+import ptLocale from '../../src/modules/occurrence-conversation/locales/occurrenceConversation.locale.json'
 import {
   resolveContractorChatError,
   resolveContractorComposer,
@@ -53,6 +55,65 @@ describe('chat da contratante por e-mail (spec 274 T5)', () => {
       'generic',
     )
     expect(resolveContractorChatError(undefined)).toBe('generic')
+  })
+
+  test('as falhas próprias do chat têm motivo próprio, nunca genérico (grande demais, não ligado, teto)', () => {
+    expect(resolveContractorChatError('OCCURRENCE_CHAT_MAIL_TOO_LARGE')).toBe('tooLarge')
+    expect(resolveContractorChatError('OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED')).toBe(
+      'chatUnavailable',
+    )
+    expect(resolveContractorChatError('OCCURRENCE_CHAT_MAIL_RATE_LIMITED')).toBe('rateLimited')
+  })
+
+  test('cada motivo tem texto em pt-BR e em inglês', () => {
+    const kinds = [
+      'chatUnavailable',
+      'generic',
+      'noRecipients',
+      'notConfigured',
+      'notVerified',
+      'rateLimited',
+      'tooLarge',
+    ]
+    for (const locale of [ptLocale, enLocale]) {
+      const sendError = (locale as { thread: { sendError: Record<string, string> } }).thread
+        .sendError
+      for (const kind of kinds) expect(sendError[kind]?.length ?? 0).toBeGreaterThan(0)
+    }
+  })
+
+  test('só com anexo (ou áudio) o painel manda body vazio e anexo, sem texto inventado', async () => {
+    const sent: { attachmentIds: readonly string[]; body: string }[] = []
+    const api = createOccurrenceThreadApi({
+      client: {
+        markConversationRead: () => Promise.resolve(),
+        putConversationUpload: () => Promise.resolve(),
+        requestConversationUpload: () =>
+          Promise.resolve({ uploadId: 'upload-1', uploadUrl: 'https://s.test/u' }),
+        sendContractorChatMessage: (message: {
+          attachmentIds?: readonly string[]
+          body: string
+        }) => {
+          sent.push({ attachmentIds: message.attachmentIds ?? [], body: message.body })
+          return Promise.resolve()
+        },
+        sendDriverAppMessage: () => Promise.resolve(),
+      },
+      labels: {} as never,
+      occurrenceId: 'occurrence-1',
+      onChanged: () => undefined,
+      onSendError: () => undefined,
+      participant: 'contractor',
+      readConversations: () =>
+        Promise.resolve({ contractorPortal: { available: false }, conversations: [] }),
+      subscribe: () => () => undefined,
+    })
+    await api.sendMessage({
+      clientMessageId: 'c2',
+      files: [new File(['x'], 'nota.pdf', { type: 'application/pdf' })],
+      subject: { subjectId: 's', subjectType: 't' },
+    })
+    expect(sent).toEqual([{ attachmentIds: ['upload-1'], body: '' }])
   })
 
   test('falha do envio chega ao painel com código e texto, e a exceção segue para o SDK', async () => {

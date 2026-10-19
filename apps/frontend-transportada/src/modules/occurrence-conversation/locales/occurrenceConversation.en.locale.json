@@ -344,6 +344,9 @@
       "noRecipients": "There is no email recipient for this contractor. Use Send by email to choose who receives it.",
       "notConfigured": "Email sending is not set up for this contractor. Set up the outbound mailbox before writing.",
       "notVerified": "Email sending for this contractor has not been verified yet. Verify the outbound mailbox before writing.",
+      "tooLarge": "The message is too large to send by email. Shorten the text or the attachments and try again.",
+      "chatUnavailable": "The standard email is not available in this environment yet. Use Send by email or try again later.",
+      "rateLimited": "Too many emails in a short time. Wait a few minutes and try again.",
       "generic": "The message could not be sent by email. Try again or use Send by email.",
       "openMail": "Send by email"
     }

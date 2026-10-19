@@ -10,12 +10,22 @@ export function resolveContractorComposer(input: {
   return { canWrite, status: canWrite ? 'open' : 'closed' }
 }
 
-export type ContractorChatErrorKind = 'generic' | 'noRecipients' | 'notConfigured' | 'notVerified'
+export type ContractorChatErrorKind =
+  | 'chatUnavailable'
+  | 'generic'
+  | 'noRecipients'
+  | 'notConfigured'
+  | 'notVerified'
+  | 'rateLimited'
+  | 'tooLarge'
 
 /** Spec 274 D10: o motivo da falha do chat vem do código da API, nunca do texto. */
 export function resolveContractorChatError(code: string | undefined): ContractorChatErrorKind {
   if (code === 'OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS') return 'noRecipients'
   if (code === 'CONTRACTOR_MAIL_NOT_CONFIGURED') return 'notConfigured'
   if (code === 'CONTRACTOR_MAIL_SENDING_NOT_VERIFIED') return 'notVerified'
+  if (code === 'OCCURRENCE_CHAT_MAIL_TOO_LARGE') return 'tooLarge'
+  if (code === 'OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED') return 'chatUnavailable'
+  if (code === 'OCCURRENCE_CHAT_MAIL_RATE_LIMITED') return 'rateLimited'
   return 'generic'
 }

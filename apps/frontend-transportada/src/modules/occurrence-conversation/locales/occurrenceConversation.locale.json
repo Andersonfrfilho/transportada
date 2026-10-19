@@ -344,6 +344,9 @@
       "noRecipients": "Não há destinatário de e-mail para esta contratante. Use Enviar por e-mail para escolher quem recebe.",
       "notConfigured": "O envio de e-mail desta contratante não está configurado. Configure a caixa de saída antes de escrever.",
       "notVerified": "O envio de e-mail desta contratante ainda não foi verificado. Verifique a caixa de saída antes de escrever.",
+      "tooLarge": "A mensagem ficou grande demais para ir por e-mail. Reduza o texto ou os anexos e tente de novo.",
+      "chatUnavailable": "O e-mail padrão ainda não está disponível neste ambiente. Use Enviar por e-mail ou tente mais tarde.",
+      "rateLimited": "Muitas mensagens por e-mail em pouco tempo. Aguarde alguns minutos e tente de novo.",
       "generic": "Não foi possível enviar a mensagem por e-mail. Tente de novo ou use Enviar por e-mail.",
       "openMail": "Enviar por e-mail"
     }
