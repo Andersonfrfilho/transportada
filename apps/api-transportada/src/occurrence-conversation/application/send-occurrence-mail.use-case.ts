@@ -113,6 +113,8 @@ function excludedFingerprintFields(excluded: readonly string[] | undefined): str
 }
 
 export function createSendOccurrenceMailUseCase(dependencies: {
+  /** A origem pública da API: logo e foto do e-mail vão por endereço estável; ausente, o logo vai por `cid:`. */
+  readonly apiPublicUrl?: string
   /** Spec 272 (D5): a origem do painel, para as marcas do rodapé; ausente, o rodapé sai só em texto. */
   readonly appBaseUrl?: string
   readonly contractorMailSandbox?: OccurrenceMailSandbox
@@ -206,6 +208,7 @@ async function resolveMailSigner(params: {
   })
   if (operator === undefined) return { kind: 'team' }
   return {
+    ...(operator.hasPicture === true ? { hasPicture: true } : {}),
     ...(operator.jobTitle === undefined ? {} : { jobTitle: operator.jobTitle }),
     kind: 'operator',
     name: operator.name,
@@ -225,6 +228,7 @@ type BuiltMail = {
  * texto de hoje. O assunto leva o prefixo da transportadora nos dois (idempotente: o reenvio já o traz).
  */
 async function buildMail(params: {
+  readonly apiPublicUrl: string | undefined
   readonly appBaseUrl: string | undefined
   readonly carrier: CarrierIdentity | undefined
   readonly delivery: OccurrenceMailDelivery
@@ -261,7 +265,9 @@ async function buildMail(params: {
         })()
       : (() => {
           const composed = composeOccurrenceMailHtml({
+            apiPublicUrl: params.apiPublicUrl,
             appBaseUrl: params.appBaseUrl,
+            companyId: params.input.companyId,
             carrier,
             contractorTaxId: params.target.contractorTaxId,
             hasReplyTo: params.delivery.transport === 'resend',
@@ -290,6 +296,7 @@ async function buildMail(params: {
 }
 
 async function executeSend(params: {
+  readonly apiPublicUrl?: string
   readonly appBaseUrl?: string
   readonly contractorMailSandbox?: OccurrenceMailSandbox
   readonly fingerprintService: IdempotencyFingerprintPort
@@ -389,6 +396,7 @@ async function executeSend(params: {
   })
 
   const mail = await buildMail({
+    apiPublicUrl: params.apiPublicUrl,
     appBaseUrl: params.appBaseUrl,
     carrier,
     delivery,

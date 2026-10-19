@@ -14,6 +14,7 @@ import {
 import {
   ADA_MARK_PATH,
   COMPANY_LOGO_CONTENT_ID,
+  COMPANY_LOGO_SIZE,
   OCCURRENCE_MAIL_COLORS,
   OCCURRENCE_MAIL_FONT,
   OCCURRENCE_MAIL_REPLY_STRIP,
@@ -35,8 +36,12 @@ export type BuildOccurrenceMailSystemHtmlParams = {
   readonly hasLogo: boolean
   /** A mensagem sai com `Reply-To`: só então a faixa "Responda este e-mail" aparece. */
   readonly hasReplyTo: boolean
-  /** As iniciais de quem assina; saem no quadrado da assinatura quando ele não leva o logo. */
+  /** As iniciais de quem assina; saem no quadrado da assinatura quando ele não leva o logo nem a foto. */
   readonly signerInitials: string
+  /** A foto de quem assina, por endereço público; ausente, sem foto ou sem origem pública da API. */
+  readonly signerPictureUrl?: string | undefined
+  /** O logo por endereço público estável (`API_PUBLIC_URL`); ausente, o logo vai por `cid:`. */
+  readonly logoUrl?: string | undefined
   /** A equipe assina (sem pessoa): o quadrado da assinatura leva o logo da transportadora, se houver. */
   readonly signerIsTeam: boolean
   /** Todas as linhas; a tabela mostra até `OCCURRENCE_ITEM_LINES_LIMIT` e conta o resto. */
@@ -51,11 +56,26 @@ export type OccurrenceMailSystemHtml = {
   readonly systemHtml: Readonly<Record<OccurrenceMailSystemHtmlVariable, string>>
 }
 
+/** O quadrado da assinatura no modelo (`width="40"`). */
+const SIGNATURE_SIZE = 40
+
+function publicImage(params: {
+  readonly alt: string
+  readonly size: number
+  readonly url: string
+}): string {
+  const { alt, size, url } = params
+  return `<img src="${escapeMailHtml(url)}" alt="${escapeMailHtml(alt)}" width="${size}" height="${size}" style="display:block;border:0;width:${size}px;height:${size}px">`
+}
+
 const HTTP_ORIGIN = /^https?:\/\//iu
 const TRAILING_SLASHES = /\/+$/u
 const { asphalt, copper, ink, mist, rule, slate } = OCCURRENCE_MAIL_COLORS
 
-function buildLogo(displayName: string, hasLogo: boolean): string {
+function buildLogo(params: BuildOccurrenceMailSystemHtmlParams): string {
+  const { displayName, hasLogo, logoUrl } = params
+  if (hasLogo && logoUrl !== undefined)
+    return publicImage({ alt: displayName, size: COMPANY_LOGO_SIZE, url: logoUrl })
   return renderEmailLogoHtml({
     displayName,
     logo: hasLogo ? { contentId: COMPANY_LOGO_CONTENT_ID, kind: 'cid' } : { kind: 'initials' },
@@ -123,19 +143,30 @@ function buildReplyStrip(hasReplyTo: boolean): string {
 }
 
 function buildSignatureLogo(params: BuildOccurrenceMailSystemHtmlParams): string {
+  if (!params.signerIsTeam && params.signerPictureUrl !== undefined) {
+    return publicImage({
+      alt: params.signerInitials,
+      size: SIGNATURE_SIZE,
+      url: params.signerPictureUrl,
+    })
+  }
   if (!(params.signerIsTeam && params.hasLogo)) return escapeMailHtml(params.signerInitials)
-  return `<img src="cid:${COMPANY_LOGO_CONTENT_ID}" alt="${escapeMailHtml(params.displayName)}" width="40" height="40" style="display:block;border:0;width:40px;height:40px">`
+  if (params.logoUrl !== undefined) {
+    return publicImage({ alt: params.displayName, size: SIGNATURE_SIZE, url: params.logoUrl })
+  }
+  return `<img src="cid:${COMPANY_LOGO_CONTENT_ID}" alt="${escapeMailHtml(params.displayName)}" width="${SIGNATURE_SIZE}" height="${SIGNATURE_SIZE}" style="display:block;border:0;width:${SIGNATURE_SIZE}px;height:${SIGNATURE_SIZE}px">`
 }
 
 export function buildOccurrenceMailSystemHtml(
   params: BuildOccurrenceMailSystemHtmlParams,
 ): OccurrenceMailSystemHtml {
   return {
-    hasInlineLogo: params.hasLogo,
+    /** O `cid:` só existe sem endereço público; com ele, o e-mail não leva a parte inline. */
+    hasInlineLogo: params.hasLogo && params.logoUrl === undefined,
     systemHtml: {
       faixaResposta: buildReplyStrip(params.hasReplyTo),
       logoAssinatura: buildSignatureLogo(params),
-      logoTransportadora: buildLogo(params.displayName, params.hasLogo),
+      logoTransportadora: buildLogo(params),
       marcasRodape: buildFooterMarks(params.appBaseUrl),
       tabelaItens: buildItemsTable(params.itemRows, params.itemsSum),
     },

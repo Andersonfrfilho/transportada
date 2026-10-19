@@ -85,8 +85,10 @@ export type PreviewOccurrenceMailUseCase = Readonly<{
  * grande demais): aí o envio o recusa com o mesmo 409 e a prévia segue o caminho de texto.
  */
 function composePreviewHtml(params: {
+  readonly apiPublicUrl: string | undefined
   readonly appBaseUrl: string | undefined
   readonly bodyText: string | undefined
+  readonly companyId: string
   readonly carrier: Parameters<typeof composeOccurrenceMailHtml>[0]['carrier']
   readonly contractorTaxId: null | string
   /** Como o envio: a faixa de resposta só existe quando o e-mail sai pelo Resend (com Reply-To). */
@@ -97,7 +99,9 @@ function composePreviewHtml(params: {
   if (params.source === null) return null
   try {
     return composeOccurrenceMailHtml({
+      apiPublicUrl: params.apiPublicUrl,
       appBaseUrl: params.appBaseUrl,
+      companyId: params.companyId,
       carrier: params.carrier,
       contractorTaxId: params.contractorTaxId,
       hasReplyTo: params.hasReplyTo,
@@ -112,6 +116,7 @@ function composePreviewHtml(params: {
 }
 
 export function createPreviewOccurrenceMailUseCase(dependencies: {
+  readonly apiPublicUrl?: string
   /** Spec 272 (D5): a origem do painel, para as marcas do rodapé da prévia; ausente, o rodapé sai só em texto. */
   readonly appBaseUrl?: string
   readonly logger?: Pick<MailCopyLogger, 'warn'>
@@ -156,6 +161,7 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
         operator === undefined
           ? { kind: 'team' }
           : {
+              ...(operator.hasPicture === true ? { hasPicture: true } : {}),
               ...(operator.jobTitle === undefined ? {} : { jobTitle: operator.jobTitle }),
               kind: 'operator',
               name: operator.name,
@@ -172,8 +178,10 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
               templateKey,
             })
       const composed = composePreviewHtml({
+        apiPublicUrl: dependencies.apiPublicUrl,
         appBaseUrl: dependencies.appBaseUrl,
         bodyText: input.bodyText,
+        companyId,
         carrier,
         contractorTaxId: target.contractorTaxId,
         hasReplyTo: resolveMailSendReadiness({ settings: mailSettings }).ready,

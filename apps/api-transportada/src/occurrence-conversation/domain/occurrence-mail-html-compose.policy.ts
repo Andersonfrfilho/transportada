@@ -25,6 +25,7 @@ import { buildOccurrenceMailIdentityValues } from './occurrence-mail-carrier-val
 import { OCCURRENCE_MAIL_COLORS, OCCURRENCE_MAIL_FONT } from './occurrence-mail-html.constant.js'
 import { renderContractorMailHtml } from './occurrence-mail-html-render.policy.js'
 import { findMessageArea } from './occurrence-mail-html-safety.policy.js'
+import { buildPublicMailAssetUrls } from './occurrence-mail-html.constant.js'
 import { htmlToPlainText } from './occurrence-mail-plain-text.policy.js'
 import { buildSignerValues, type OccurrenceMailSigner } from './occurrence-mail-signer.policy.js'
 import { buildOccurrenceMailSystemHtml } from './occurrence-mail-system-html.policy.js'
@@ -93,9 +94,12 @@ function assertWithinLimit(html: string): void {
 }
 
 export function composeOccurrenceMailHtml(params: {
+  /** A origem pública da API (`API_PUBLIC_URL`): com ela, logo e foto vão por endereço estável. */
+  readonly apiPublicUrl?: string | undefined
   readonly appBaseUrl: string | undefined
   /** `undefined` sem perfil fiscal: a identidade sai vazia e sem logo. */
   readonly carrier: CarrierIdentity | undefined
+  readonly companyId?: string
   readonly contractorTaxId: null | string
   /** A mensagem sai com `Reply-To` (Resend): só então a faixa de resposta aparece. */
   readonly hasReplyTo: boolean
@@ -105,6 +109,10 @@ export function composeOccurrenceMailHtml(params: {
   readonly source: OccurrenceMailHtmlSource
 }): ComposedOccurrenceMailHtml {
   const { carrier, source } = params
+  const publicAssets =
+    params.companyId === undefined
+      ? undefined
+      : buildPublicMailAssetUrls({ apiPublicUrl: params.apiPublicUrl, companyId: params.companyId })
   const area = findMessageArea(source.bodyTemplate)
   if (area === undefined) throw new OccurrenceMailTemplateMissingError()
 
@@ -124,7 +132,12 @@ export function composeOccurrenceMailHtml(params: {
     hasReplyTo: params.hasReplyTo,
     itemRows: source.itemRows,
     itemsSum: source.itemsSum,
+    logoUrl: publicAssets?.logo,
     signerInitials: signerValues.assinaturaIniciais,
+    signerPictureUrl:
+      params.signer.kind !== 'team' && params.signer.hasPicture === true
+        ? publicAssets?.picture(params.signer.userId)
+        : undefined,
     signerIsTeam: params.signer.kind === 'team',
   })
   const rendered = renderContractorMailHtml({

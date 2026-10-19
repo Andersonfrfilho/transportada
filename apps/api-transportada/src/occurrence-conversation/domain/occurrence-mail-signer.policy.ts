@@ -12,6 +12,8 @@ import { COMPANY_ROLE_LABELS } from '../../identity/domain/company-role-label.co
 export type OccurrenceMailSigner =
   | {
       /** Já resolvido por `resolveSignerJobTitle`; ausente é sem cargo nem papel. */
+      /** Tem foto de perfil: o quadrado da assinatura mostra a foto; sem ela, as iniciais. */
+      readonly hasPicture?: boolean
       readonly jobTitle?: string
       readonly kind: 'operator' | 'owner'
       readonly name: string

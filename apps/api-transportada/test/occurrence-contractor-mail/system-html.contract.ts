@@ -135,6 +135,38 @@ describe('spec 272 D5: tabelaItens', () => {
 
 const plain = (html: string): string => html.replace(/<[^>]+>/gu, '')
 
+describe('imagens por endereço público', () => {
+  const LOGO = 'https://api.example.test/public/mail-assets/c1/logo'
+  const PHOTO = 'https://api.example.test/public/mail-assets/c1/users/u1/picture'
+
+  test('com endereço, o logo vai por src e não há parte inline', () => {
+    const { hasInlineLogo, systemHtml } = build({ hasLogo: true, logoUrl: LOGO })
+
+    expect(hasInlineLogo).toBe(false)
+    expect(systemHtml.logoTransportadora).toContain(`src="${LOGO}"`)
+    expect(systemHtml.logoTransportadora).not.toContain('cid:')
+  })
+
+  test('assinatura de pessoa com foto: a foto; sem foto: as iniciais', () => {
+    expect(
+      build({ hasLogo: true, logoUrl: LOGO, signerPictureUrl: PHOTO }).systemHtml.logoAssinatura,
+    ).toContain(`src="${PHOTO}"`)
+    expect(build({ hasLogo: true, logoUrl: LOGO }).systemHtml.logoAssinatura).toBe('AB')
+  })
+
+  test('assinatura da equipe: o logo por endereço', () => {
+    expect(
+      build({ hasLogo: true, logoUrl: LOGO, signerIsTeam: true }).systemHtml.logoAssinatura,
+    ).toContain(`src="${LOGO}"`)
+  })
+
+  test('o endereço é escapado', () => {
+    expect(
+      build({ hasLogo: true, logoUrl: 'https://a.test/"x' }).systemHtml.logoTransportadora,
+    ).not.toContain('"x')
+  })
+})
+
 describe('logoAssinatura', () => {
   test('equipe com logo: o logo por cid no quadrado da assinatura', () => {
     const { logoAssinatura } = build({ hasLogo: true, signerIsTeam: true }).systemHtml

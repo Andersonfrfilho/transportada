@@ -879,6 +879,7 @@ import { createCompanyGroupRoutes } from './identity/presentation/company-group.
 import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
 import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
+import { createPublicMailAssetRoutes } from './occurrence-conversation/presentation/public-mail-assets.routes.js'
 import { createPublicUserPictureRoutes } from './identity/presentation/public-user-picture.routes.js'
 import { createPublicUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createFillProfilesFromRealmUseCase } from './identity/application/fill-profiles-from-realm.use-case.js'
@@ -1950,6 +1951,14 @@ function createAnonymousRoutes({
         userPicture: createPublicUserPictureUseCase({
           repository: new DrizzleUserPictureRepository(database),
         }),
+      }),
+      /**
+       * As imagens do e-mail da ocorrência (logo e foto de quem assina) por endereço estável, sem token: o cliente de
+       * e-mail da contratante abre `<img src>` sem login. Só leitura, e a foto exige vínculo ativo com a empresa.
+       */
+      ...createPublicMailAssetRoutes({
+        companyLogo: new DrizzleCompanyLogoRepository(database),
+        userPicture: new DrizzleUserPictureRepository(database),
       }),
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,
@@ -3600,6 +3609,7 @@ function createApplicationRoutes({
         storage: storageGateway,
       }),
       previewMail: createPreviewOccurrenceMailUseCase({
+        ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
         logger,
         reader: createOccurrenceMailReader(database),
@@ -3639,6 +3649,7 @@ function createApplicationRoutes({
         unitOfWork: new DrizzleOccurrenceMailRepository(database),
       }),
       sendMail: createSendOccurrenceMailUseCase({
+        ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
         ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
         fingerprintService,
