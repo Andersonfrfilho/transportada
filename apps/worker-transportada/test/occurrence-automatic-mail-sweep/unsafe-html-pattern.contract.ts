@@ -13,12 +13,12 @@ import { OCCURRENCE_MAIL_UNSAFE_HTML_CASES } from '../fixtures/occurrence-mail-u
 describe('o filtro grosso de HTML inseguro da fila (spec 272)', () => {
   test('o padrão tem o valor combinado', () => {
     expect(UNSAFE_EMAIL_HTML_PATTERN).toBe(
-      '<(script|iframe|form|object|embed)\\y|[\\s/"\']on[a-z]+\\s*=|(javascript|vbscript):|<[a-zA-Z/!]([^>"\']|"[^"]*"|\'[^\']*\')*(\\{\\{|"[^"]*\\{\\{|\'[^\']*\\{\\{)|<style\\y([^<]|<[^/])*\\{\\{',
+      '<(script|iframe|form|object|embed)\\y|[\\s/"\']on[a-z]+\\s*=|(javascript|vbscript):|<([a-zA-Z/!?%]|[[:space:]]*(?=\\{\\{))([^>"\']|"[^"]*"|\'[^\']*\')*(\\{\\{|"[^"]*\\{\\{|\'[^\']*\\{\\{)|<style\\y([^<]|<[^/])*\\{\\{',
     )
   })
 
-  test('a tabela copiada tem os 42 casos da API', () => {
-    expect(OCCURRENCE_MAIL_UNSAFE_HTML_CASES).toHaveLength(42)
+  test('a tabela copiada tem os 46 casos da API', () => {
+    expect(OCCURRENCE_MAIL_UNSAFE_HTML_CASES).toHaveLength(46)
   })
 
   test('nunca é mais estrito que a API: caso seguro na API fica fora do filtro', () => {

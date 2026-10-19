@@ -209,6 +209,30 @@ export const OCCURRENCE_MAIL_UNSAFE_HTML_CASES: readonly UnsafeHtmlCase[] = [
     worker: 'bloqueia',
   },
   {
+    html: '<p>x</p><{{contratante}}>',
+    name: 'placeholder em tag: logo no lugar do nome da tag',
+    rules: ['placeholder_in_tag'],
+    worker: 'bloqueia',
+  },
+  {
+    html: '<p>x</p>< {{contratante}}>',
+    name: 'placeholder em tag: espaço antes do placeholder no lugar da tag',
+    rules: ['placeholder_in_tag'],
+    worker: 'bloqueia',
+  },
+  {
+    html: '<p>x</p><?{{contratante}}>',
+    name: 'placeholder em tag: depois de <?',
+    rules: ['placeholder_in_tag'],
+    worker: 'bloqueia',
+  },
+  {
+    html: '<p>x</p><%{{contratante}}>',
+    name: 'placeholder em tag: depois de <%',
+    rules: ['placeholder_in_tag'],
+    worker: 'bloqueia',
+  },
+  {
     html: '<style type="text/css">p{color:red}</style><p>{{contratante}}</p>',
     name: 'placeholder depois de style é seguro',
     rules: [],
