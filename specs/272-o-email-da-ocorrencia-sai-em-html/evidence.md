@@ -136,6 +136,9 @@ Substituem os padrões das perguntas acima; nenhuma volta a ser perguntada.
   padrão para o automático e o modelo só tem assunto e corpo — o par de comentários guarda o texto padrão no próprio
   modelo, é invisível no cliente de e-mail e não colide com `{{…}}`. Modelo HTML sem a área (ou com o par
   desbalanceado) é "não utilizável" (problema `missing_message_area`, bloqueia como `unsafe_html`).
+  **Refinamento (Ajustado na T0.3):** "mantido → a área original do modelo, com a formatação dela" refina a Q1, não a
+  contradiz: o desenho nunca se perde nos dois casos. O texto do operador é escapado e inserido depois da renderização,
+  nunca passa pelo renderer.
 - **D15 (Q2) — Faixa "↩ Responda este e-mail"** = variável de HTML do sistema `faixaResposta`, preenchida só quando a
   mensagem sai com `Reply-To` (vazia no sandbox/Mailpit). **Por que não dá para responder no ambiente local:** a
   resposta da contratante volta pelo _inbound_ do Resend (subdomínio de resposta com MX apontado ao Resend + webhook
@@ -660,43 +663,51 @@ publicar.** A Fase 2 não espera produção. Na revisão 2, a guarda da lista de
 `occurrenceTypeMailClient.service.ts:19-42`) também já descarta o código novo `unsafe_html` sem derrubar o modelo:
 continua sem fase tolerante.
 
+### T0.3 — ADR-0110 revisão 2 validada com o `architect` (2026-10-18)
+
+`architect` (opus), leitura contra o código de `work/spec-272` (em dia com `origin/staging`, 0 atrás). **Veredito:
+APROVADO COM AJUSTES.** O desenho da revisão 2 se sustenta (modelo HTML no módulo, renderer de uma passada com conjunto
+fechado por nome, coluna mínima, porta de dono nula, sem conflito de coluna com a 273). Ajustes obrigatórios, aplicados
+na ADR, `plan.md`, `spec.md` e `tasks.md` (marcados "Ajustado na T0.3"):
+
+1. **Texto do HTML × CHECK de 8000** (defeito real): `occurrence_conversation_messages.body_text` tem CHECK ≤ 8000
+   (`occurrence-conversation.schema.ts:363-366`) e o envio recusa > 8000 (`send-occurrence-mail.use-case.ts:93-104`);
+   com 200 itens a tabela sozinha passa disso → 500. A conversa, o `bodyText` de entrada e a prévia levam o texto da
+   **área de mensagem** (com o corte de `linhasItens`); só `contractor_mail_messages.body_text` leva o texto do HTML
+   inteiro (ADR §4, plan D4/D12).
+2. **Envio manual**: RF10, critério 9, T2.4 e o prompt ainda diziam "editado → texto sem o desenho", contra a Q1/D14.
+   Alinhados à área `<!-- mensagem -->`; texto do operador escapado depois da renderização (ADR §12).
+3. **Conjunto fechado com quatro chaves** (`faixaResposta` incluída) e **doze variáveis novas** (8 texto + 4 HTML) em
+   spec RF2/RF5, T2.3, T4.2, T4.4 e prompt; T4.2 deixa de esperar Q2/Q3 (respondidas).
+4. **HTML inseguro com forma testável** (ADR §2, plan D2): tags `script|iframe|form|object|embed`, eventos
+   `[\s/"']on[a-z]+\s*=` sem ancorar, esquema `javascript|vbscript` em cópia com entidades decodificadas, e
+   **placeholder dentro de tag** = `unsafe_html`. Escopo: bloqueio de conteúdo ativo, não sanitizador. API e painel com a
+   mesma tabela; o worker é filtro grosso nunca mais estrito (coluna `worker` na tabela).
+5. **Renderer**: padrão do pacote `\{\{\s*([a-zA-Z0-9_]+)\s*\}\}`, busca só por `Object.hasOwn` (`{{constructor}}`
+   imprimiria função), `has_inline_logo` só com `{{logoTransportadora}}` e logo.
+6. **Parte texto**: entidades numa passada (`&amp;` por último); remove comentários, `<head>`, `<style>`, `<title>`.
+7. **Porta de dono**: `jobTitle` já resolvido por `resolveSignerJobTitle`, opcional (ADR §6).
+8. **Script dos modelos**: grava pelo `TemplateRepository` do pacote (INSERT de versão, nunca UPDATE), valida com
+   `assessContractorTemplate`; plano `create`/`same`/`differs`, `--confirm` aplica só `create`, `differs` exige
+   `--overwrite <chave>` (não apaga personalização feita na tela).
+
+Opcionais adotados: CHECK `not has_inline_logo or direction = 'outbound'` (T2.1); cargo e "De" tiram também U+200E,
+U+200F, U+061C e largura zero; HTML renderizado > 524288 bytes é problema do modelo, não 500; chave de HTML do sistema
+dentro da área é problema do modelo; `RETOMADA.md` sai na T5.2. Não adotado aqui: anotar no `evidence.md` da 273 que
+`signer_*`/`layout_version` não existirão (fora da árvore; fica para a sessão da 273).
+
+WIP `727d6dbe1`: migrations aditivas, rollbacks, schemas e cadeia de `snapshot.json` (pai `20261017041702`, o mesmo da
+273, que ainda não tem migration) corretos; **defeito**: caracteres bidi literais no fonte da política do cargo e do
+contrato (Trojan Source) → trocados por escapes na T2.1.
+
+Aceite: `grep -n "Status:\*\* aceita" docs/adr/0110-o-email-da-ocorrencia-sai-em-html.md` → linha 3.
+`bunx prettier --check` nos quatro documentos → limpo.
+
 ## Prompt de execução
 
-> Revisão 2 (2026-10-18). O prompt da revisão 1 está no histórico do git (commit `2d43e01ca`).
-
-```text
-/oh-my-claudecode:autopilot Execute a spec specs/272-o-email-da-ocorrencia-sai-em-html/ (revisão 2: o HTML vem do
-modelo do módulo de notificação). Leia spec.md, plan.md, tasks.md, evidence.md e docs/adr/0110-* antes de começar;
-leia também a regra global ~/.claude/rules/rules/email-templates.md, specs/271-* (+ ADR-0108) com o evidence.md, e a
-spec 273 em ~/personal/transportada-wt/spec-273/specs/273-a-ocorrencia-tem-dono/ para a porta de dono.
-Árvore única: ~/personal/transportada-wt/spec-272 (branch work/spec-272); nada fora dela. Uma task por vez, na ordem
-do tasks.md. Antes do código: rebase em origin/staging.
-Modelos: T0.3 🧠 → opus (validar a ADR-0110 revisão 2 com architect antes de qualquer código) · Fase 2 → executor
-model=sonnet (T2.1 haiku) · Fase 3 → executor model=sonnet · Fase 4 → executor model=sonnet (T4.2 e T4.4 haiku) ·
-Fase 5 → sonnet · revisão final → code-reviewer model=sonnet e security-reviewer model=sonnet.
-Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
-Teste antes da implementação. Cada task de código fecha com bun run typecheck + lint por app (cwd na app) + script
-`test` do package.json da app (nunca `bun test` cru) + commit isolado (`git commit --only <paths>`), evidência em
-evidence.md. Task que toca test/integration/** só fecha com `bun --env-file=../../.env.test run test:integration` (de
-apps/api-transportada), ZERO skips. Migration: aplica, reverte e reaplica e db:generate esperando no_changes.
-Antes de publicar: git fetch, rebase em origin/staging, bun install --frozen-lockfile, gates,
-`bunx prettier --check .` na raiz; numeração de spec/ADR/migration contra origin/staging e contra a 273.
-Pare e pergunte antes de: rodar o script dos modelos (scripts/occurrence-mail-templates-publish.ts) contra staging ou
-produção — é mudança de dados, mostre o dry-run; qualquer merge em main (a 272 só vai a main depois de 269 + 270 +
-271); qualquer outra mudança de dados ou consulta que não seja contagem em staging ou produção; deploy da API sem o
-worker no mesmo run; a T4.2 sem as respostas Q2/Q3 do dono; e qualquer [NEEDS CLARIFICATION] que surgir.
-Decisões já tomadas (evidence.md, ADR-0110 rev. 2): o visual mora no modelo HTML de Notificações (proibido layout em
-código); HTML inseguro (script, on*, javascript:, iframe, form) é não utilizável (unsafe_html no lugar de html_body),
-com a mesma tabela de casos na API, no validador do painel e no filtro da fila do worker; renderer de uma passada que
-escapa só os valores, com o conjunto fechado logoTransportadora/tabelaItens/marcasRodape montado pela API; text/plain
-gerado do HTML; modelo sem tag segue o caminho de texto de hoje; assunto "<nome de exibição> · CNPJ <cnpj> — <assunto
-do modelo>" idempotente; "De" por buildSenderDisplayName com o nome de exibição SEMPRE (Resend e sandbox), saneado na
-API e espelhado no worker; logo por cid: lido de company_logos (has_inline_logo); cargo livre job_title na membership,
-PATCH /company-users/:id com users.manage, sem auditoria; OccurrenceOwnerReader nulo para a 273; envio manual com
-modelo HTML: texto mantido → HTML, editado → texto; reenvio da 248 como hoje; cinco modelos .html versionados +
-script idempotente por chave.
-```
+O prompt vigente está em `tasks.md` § Prompt de execução (uma cópia só; a daqui divergia). Revisões anteriores
+no histórico do git.
 
 ## Onde parou (2026-10-18)
 
-Q1–Q5 respondidas (D14–D18, § Respostas do dono); plan D3/D5/D12 e ADR §3/§5/§12 ajustados. Próxima task: **T0.3**.
+T0.3 fechada (ADR-0110 aceita). Próxima: **T2.1** (fechar o WIP `727d6dbe1`).

@@ -1,9 +1,9 @@
 # ADR 0110 — O e-mail da ocorrência sai em HTML
 
-- **Status:** proposta (2026-10-18, revisão 2) — reescrita pela mudança de escopo do dono de 2026-10-18; volta a
-  "aceita" quando a T0.3 da spec 272 a validar com o `architect`. A revisão 1 (montador em código) foi aceita no mesmo
-  dia na T0.2 e está resumida em § Revisão 1 (substituída); o texto integral está no histórico do git (commit
-  `d56e8115c`).
+- **Status:** aceita
+- **Revisão:** 2, de 2026-10-18 — reescrita pela mudança de escopo do dono; validada pelo `architect` na T0.3 da spec 272
+  (ajustes marcados "Ajustado na T0.3"). A revisão 1 (montador em código) foi aceita no mesmo dia na T0.2 e está
+  resumida em § Revisão 1 (substituída); o texto integral está no histórico do git (commit `d56e8115c`).
 - **Data:** 2026-10-18
 - **Nasce da spec 272:** o e-mail de ocorrência à contratante sai no desenho aprovado pelo dono (versão 10 do artefato,
   `specs/272-o-email-da-ocorrencia-sai-em-html/desenho-aprovado.html`), com o "De", o assunto e a assinatura
@@ -46,23 +46,44 @@
    `pt-BR`), editado na tela de Notificações. A API não monta layout. Corpo com tag → caminho HTML (§3); corpo sem tag
    → o caminho de texto de hoje (parágrafos e assinatura de texto). O encaminhamento a terceiro (248) e a correção de
    endereço (150) não mudam.
-2. **HTML inseguro é "não utilizável".** Política pura na API, sem diferenciar maiúsculas: `<script`, atributo
-   `on*=`, `javascript:` em atributo (também com entidade ou espaço no meio), `<iframe`, `<form`. O problema
-   `html_body` da 271 dá lugar a `unsafe_html`, que bloqueia o envio pelos caminhos de hoje (400 ao gravar o tipo, 409
-   `OCCURRENCE_MAIL_TEMPLATE_MISSING` no manual, o automático pula, aviso "Tipo sem modelo de notificação"). O
-   validador do editor no painel ganha as quatro regras que lhe faltam como erro, e o worker troca o filtro da fila por
-   um padrão equivalente; as três cópias ficam presas por uma tabela de casos idêntica (sem `import` entre apps). As
-   demais regras do editor (folha externa, `data:`, tags desbalanceadas e os avisos) continuam só no editor.
+2. **HTML inseguro é "não utilizável".** Política pura na API, com forma testável (Ajustado na T0.3):
+   - **Tags:** `<(script|iframe|form|object|embed)\b`, sem diferenciar maiúsculas.
+   - **Eventos:** `[\s/"']on[a-z]+\s*=`, sem diferenciar maiúsculas e sem ancorar na tag; falso positivo em texto é
+     aceito.
+   - **Esquema:** numa cópia normalizada — entidades numéricas (decimais e hex, com ou sem `;`) e as nomeadas
+     `&colon;`, `&tab;`, `&newline;` decodificadas, e `[\u0000- ]` removidos —, procurar `(javascript|vbscript):` sem
+     ancorar.
+   - **Placeholder em tag:** `<[^>]*\{\{` é `unsafe_html` (impede valor externo virar URL de `href`; o escape não
+     protege `javascript:`).
+
+   Escopo: bloqueio de conteúdo ativo, não um sanitizador. O autor do modelo é usuário interno. `data:` (só imagem),
+   folha externa e tags desbalanceadas ficam só no editor. O problema `html_body` da 271 dá lugar a `unsafe_html`, que
+   bloqueia o envio pelos caminhos de hoje (400 ao gravar o tipo, 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING` no manual, o
+   automático pula, aviso "Tipo sem modelo de notificação"). **Três cópias:** a API e o validador do painel usam a
+   **mesma tabela inteira** (o painel ganha as regras que lhe faltam como erro). O worker (filtro SQL POSIX, que não
+   decodifica entidade) é um filtro **grosso, nunca mais estrito que a API**: tags, eventos, esquema literal e
+   placeholder em tag. A tabela de casos ganha a coluna `worker` (`bloqueia` / `deixa para a API`) e prende as três.
+   O que o worker deixa passar a API pula (`send-automatic-occurrence-mail.use-case.ts:126-130`) sem gravar
+   idempotência; a ocorrência volta a cada varredura até sair da janela — aceito. As demais regras do editor (folha
+   externa, `data:`, tags desbalanceadas e os avisos) continuam só no editor.
+
 3. **Renderer próprio, uma passada, escape só nos valores.** Uma varredura única troca cada `{{nome}}` **do modelo**
-   pelo valor escapado (`escapeMailHtml`); o texto do modelo nunca é escapado nem reinterpretado. Só as chaves do
-   conjunto fechado `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES` (`logoTransportadora`, `tabelaItens`, `marcasRodape`,
-   `faixaResposta`) entram
-   sem escape, com valor vindo de um objeto separado que só a API monta — a decisão de não escapar é **pelo nome da
-   chave**, nunca pelo conteúdo. O HTML do sistema escapa tudo o que carrega. Um valor que contém `{{…}}` não é
-   reinterpretado. É uma política pura da API (não uma injeção de `TemplateRendererPort`, porque o envio do módulo não
-   é usado).
-4. **Parte texto gerada do HTML** renderizado: sem `<head>`/`<style>`, quebras de bloco preservadas, tags fora,
-   entidades decodificadas, sem biblioteca. É o `body_text` gravado e o texto da mensagem na conversa.
+   (padrão do pacote, o mesmo de `extractTemplatePlaceholders`: `\{\{\s*([a-zA-Z0-9_]+)\s*\}\}`) pelo valor
+   escapado (`escapeMailHtml`); o valor só é buscado por `Object.hasOwn` (`{{constructor}}` não imprime função); o
+   texto do modelo nunca é escapado nem reinterpretado. Só as chaves do conjunto fechado
+   `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES` (`logoTransportadora`, `tabelaItens`, `marcasRodape`, `faixaResposta`)
+   entram sem escape, com valor vindo de um objeto separado que só a API monta — a decisão de não escapar é **pelo
+   nome da chave**, nunca pelo conteúdo. O HTML do sistema escapa tudo o que carrega. Um valor que contém `{{…}}` não é
+   reinterpretado. `has_inline_logo = true` só quando o modelo usa `{{logoTransportadora}}` **e** há logo (Ajustado na
+   T0.3). É uma política pura da API (não uma injeção de `TemplateRendererPort`, porque o envio do módulo não é usado).
+   HTML renderizado acima de 524288 bytes (CHECK `body_html_size_check`) é problema do modelo, não erro 500.
+4. **Parte texto gerada do HTML** renderizado (Ajustado na T0.3): sem biblioteca; remove comentários (inclusive os
+   marcadores da área de mensagem e condicionais `<!--[if mso]>`), `<head>`, `<style>` e `<title>`; quebras de bloco
+   preservadas; tags fora; entidades decodificadas **numa passada só, com `&amp;` por último** (`&amp;lt;` não vira
+   `<`). É o `body_text` de `contractor_mail_messages` (parte `text/plain`, sem teto além do HTML). A mensagem da
+   conversa (`occurrence_conversation_messages.body_text`, CHECK ≤ 8000), o `bodyText` de entrada (impressão digital e
+   `assertMailContent`, ≤ 8000) e a prévia levam **o texto da área de mensagem** (§12), nunca o do HTML inteiro. A
+   área renderizada usa o mesmo corte de `linhasItens` do caminho de texto.
 5. **Variáveis novas na lista fechada** (catálogo da API e do editor do tipo, com o contrato de paridade da 271): texto
    escapado — `nomeExibicao`, `cnpjTransportadora`, `cnpjContratante` (CNPJ ou CPF formatado, vazio sem documento),
    `assinaturaNome`, `assinaturaCargo`, `assinaturaIniciais`, `cidadeTransportadora`, `razaoSocialTransportadora`;
@@ -73,20 +94,21 @@
 6. **Assinante e porta de dono.** `OccurrenceMailSigner` = `{ kind: 'operator' | 'owner', userId, name, jobTitle? }`
    ou `{ kind: 'team' }`. Manual → o operador; automático → o dono pela porta `OccurrenceOwnerReader.findEligibleOwner({
 companyId, occurrenceId, kind }) → { userId, name, jobTitle? } | undefined` (implementação nula aqui; a ADR-0109
-   implementa a elegibilidade), senão a equipe. `assinaturaNome` = nome ou "Equipe <nome de exibição>";
+   implementa a elegibilidade), senão a equipe. A porta devolve `jobTitle` **já resolvido** por
+   `resolveSignerJobTitle` (cargo, senão o rótulo do papel), opcional, como `findOperatorSigner` (Ajustado na T0.3). `assinaturaNome` = nome ou "Equipe <nome de exibição>";
    `assinaturaCargo` = o cargo (§10) ou o rótulo do papel (§11), por `resolveSignerJobTitle({ jobTitle, directRoles })`.
    O assinante não é gravado na mensagem.
 7. **Assunto com prefixo que não se corta.** `<nome de exibição> · CNPJ <cnpj> — ` + o assunto do modelo cortado em
    `200 − tamanho(prefixo)`; o nome de exibição colapsado e cortado em 80 no prefixo (prefixo ≤ 109). `applySubjectPrefix`
    é idempotente — o reenvio da 248, que manda o assunto gravado, não ganha segundo prefixo.
 8. **"De" com o nome de exibição, sempre.** `buildSenderDisplayName({ companyDisplayName, signer })`: equipe →
-   `<nome de exibição>`; pessoa → `<nome> — <nome de exibição>`; remove `\p{Cc}`, U+2028/2029, bidi e `<>"\,;`,
+   `<nome de exibição>`; pessoa → `<nome> — <nome de exibição>`; remove `\p{Cc}`, U+2028/2029, bidi, U+200E, U+200F, U+061C, os de largura zero (U+200B–U+200D, U+FEFF) e `<>"\,;` (Ajustado na T0.3),
    colapsa espaços, corta primeiro o nome da pessoa para caber em 200. Gravado em `from_display_name` (coluna que já
    existe; na saída guarda o nome do "De", o mesmo significado da entrada). O worker usa a coluna só em mensagem
    `outbound` não nula, nos dois transportes, reaplicando o mesmo saneamento; nula → o comportamento de hoje. O
    `sender_name` do Resend deixa de aparecer no "De".
 9. **Logo por `cid:`, gravado em uma coluna.** `contractor_mail_messages.has_inline_logo boolean not null default
-false`; o worker lê `company_logos` pela empresa da mensagem e anexa a parte inline (`content_id` no Resend, `cid`
+false`, com CHECK `not has_inline_logo or direction = 'outbound'` (Ajustado na T0.3); o worker lê `company_logos` pela empresa da mensagem e anexa a parte inline (`content_id` no Resend, `cid`
    no nodemailer); logo sumido → sai sem a parte (o `alt` aparece). Rejeitados, como na revisão 1:
    `/public/landing-logo` (só a empresa da instalação), rota anônima por empresa (enumerável) e `data:` (Gmail corta).
 10. **Cargo livre na membership.** `user_company_memberships.job_title varchar(80)` nula, CHECK `1..80`, saneada por
@@ -99,16 +121,22 @@ false`; o worker lê `company_logos` pela empresa da mensagem e anexa a parte in
 12. **Envio manual com modelo HTML: o desenho nunca se perde.** O modelo marca a área do corpo com
     `<!-- mensagem -->` … `<!-- /mensagem -->`; o texto entre os dois é o padrão. O diálogo segue editando texto: a
     prévia existente devolve o texto gerado só da área e o `html` inteiro. No envio, texto igual ao gerado → a área do
-    modelo fica; editado → a área vira o texto do operador escapado em parágrafos. Sempre sai o HTML do modelo. Modelo
-    HTML sem a área → `missing_message_area`, que bloqueia como `unsafe_html`. Sem rota nova; a prévia "Como chega"
+    modelo fica; editado → a área vira o texto do operador escapado em parágrafos. Sempre sai o HTML do modelo. O texto
+    do operador é escapado e inserido **depois** da renderização; nunca passa pelo renderer (um `{{tabelaItens}}`
+    digitado sai literal) (Ajustado na T0.3). Modelo HTML sem a área → `missing_message_area`, que bloqueia como
+    `unsafe_html`; chave de HTML do sistema dentro da área também é problema do modelo. Sem rota nova; a prévia "Como chega"
     foi adiada.
 13. **Modelos versionados e publicados por script.** Os cinco modelos (`ocorrencia.prorrogacao-boleto`,
     `.avaria`, `.devolucao`, `.entrega-nao-realizada`, `.recusa`) são arquivos `.html` no repositório
     (`apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates/`), com o assunto num comentário de
-    cabeçalho. Um script idempotente (`scripts/occurrence-mail-templates-publish.ts`, molde do
-    `whatsapp-flow-publish.ts`) valida todos (§2 e variáveis), compara com a versão ativa mais alta de cada chave e só
-    grava versão nova quando mudou; sem `--confirm` só mostra o plano. O arquivo é a fonte; o banco recebe versões.
-    Rodar em staging ou produção é mudança de dados com aprovação humana. O script não escolhe o modelo no tipo.
+    cabeçalho. Um script (`scripts/occurrence-mail-templates-publish.ts`, molde do `whatsapp-flow-publish.ts`) grava
+    pelo `TemplateRepository` exportado de `@adatechnology/notification-module` (Ajustado na T0.3): `findActive` lê a
+    versão ativa mais alta; `upsert` faz `INSERT` com `max(version)+1`, nunca `UPDATE`; o índice único
+    `idx_templates_identity` barra corrida; o script passa `active: true`. Valida cada arquivo com
+    `assessContractorTemplate`, sem cópia da regra. O plano mostra, por chave, `create` / `same` / `differs`;
+    `--confirm` aplica só `create`; `differs` exige `--overwrite <chave>` (não apagar personalização feita na tela sem
+    aviso). O arquivo é a fonte; o banco recebe versões. Rodar em staging ou produção é mudança de dados com
+    aprovação humana. O script não escolhe o modelo no tipo.
 14. **Janela de deploy aceita.** API e worker no mesmo PR e no mesmo run (`deploy-api` → `deploy-services`); nos
     minutos entre os dois, o worker velho manda o HTML sem a parte inline e o "De" antigo. Worker fora do run = parar e
     perguntar.
@@ -122,7 +150,7 @@ false`; o worker lê `company_logos` pela empresa da mensagem e anexa a parte in
 - **Injetar `TemplateRendererPort` no módulo:** o e-mail à contratante não passa pelo envio do módulo (ADR-0108 §1);
   uma política pura chamada pela API resolve sem tocar a fábrica do módulo.
 - **Importar `validateEmailHtml`:** não é exportado pelo pacote e mora no painel; nenhuma app importa código de
-  outra. Cópia com tabela de casos idêntica.
+  outra. Cópia por valor com tabela de casos (API e painel inteiras; worker grosso, § 2).
 - **Chave raw decidida pelo conteúdo** (ex.: "valor que começa com `<`"): um valor de usuário viraria HTML.
 - **Gravar o assinante (`signer_kind`/`signer_user_id`) e `layout_version`:** serviam ao reenvio repetindo o original
   e ao histórico por layout, os dois fora; a 273 não os usa.

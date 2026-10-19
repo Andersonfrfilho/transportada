@@ -24,12 +24,13 @@
       (Concluída; `evidence.md` § T0.1.)
 - [x] **T0.2** 🧠 `opus` — ADR-0110 revisão 1 validada com `architect` (aceita em 2026-10-18; `evidence.md` § T0.2).
       **Substituída em parte** pela mudança de escopo: o que sobrou dela está marcado "Mantida" na ADR revisão 2.
-- [ ] **T0.3** 🧠 `opus` — Validar a ADR-0110 **revisão 2** com `architect` (opus): renderer de uma passada com o
+- [x] **T0.3** 🧠 `opus` — Validar a ADR-0110 **revisão 2** com `architect` (opus): renderer de uma passada com o
       conjunto fechado de chaves HTML do sistema (D3), regras de HTML inseguro e as três cópias (API, painel, worker —
       D2), parte texto (D4), envio manual com modelo HTML (D12), migration mínima e a saída de `signer_*`/`layout_version`
       (D9) contra a 273, script por chave (D14). Ajustes aprovados entram no `plan.md` e na ADR (marcados "Ajustado na
       T0.3"); status → "aceita". **Outras tasks herdam este contrato.** Aceite: `evidence.md` § T0.3 com o veredito;
       `grep -n "Status:\*\* aceita" docs/adr/0110-o-email-da-ocorrencia-sai-em-html.md` casa.
+      (Concluída; `evidence.md` § T0.3.)
 
 ## Fase 1 — Painel tolerante
 
@@ -49,20 +50,24 @@
 null default false`) e migration aditiva `user_company_membership_job_title` (`job_title varchar(80)` nula + CHECK
       `1..80`), schemas Drizzle (API; espelho de `has_inline_logo` e `direction` no worker), `rollback.sql` de cada uma;
       teste antes e política pura `company-user-job-title.policy.ts` (tabela de casos: quebra de linha, controle, bidi
-      U+202A–U+202E e U+2066–U+2069, espaços, 80 e 81, vazio → `null`). Aceite: `make migration-test` (aplica, reverte,
+      U+202A–U+202E, U+2066–U+2069, U+200E, U+200F, U+061C e largura zero U+200B–U+200D/U+FEFF, espaços, 80 e 81, vazio →
+      `null`; o saneador do "De" tira os mesmos). A migration do inline logo leva o CHECK `not has_inline_logo or
+      direction = 'outbound'` (molde `contractor_mail_messages_body_html_direction_check`). Ajustado na T0.3. Aceite: `make migration-test` (aplica, reverte,
       reaplica) verde; `bun run db:generate` → `no_changes`; testes da política verdes.
 - [ ] **T2.2** `sonnet` — Renderer (D2, D3, D4), teste antes: `occurrence-mail-html-safety.policy.ts` (tabela de casos
-      das cinco regras; também vira o arquivo-fonte da tabela copiada pelo painel e pelo worker),
+      das regras de tag, evento, esquema e placeholder em tag, com a coluna `worker`; também vira o arquivo-fonte da
+      tabela copiada inteira pelo painel e, em filtro grosso, pelo worker),
       `occurrence-mail-html-render.policy.ts` (uma passada; `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES` `as const`; `values`
       e `systemHtml` em objetos separados), `occurrence-mail-plain-text.policy.ts`; `assessContractorTemplate`: `html_body`
-      sai, `unsafe_html` entra em `SEND_BLOCKING_CODES` (ajustar `template-policy.contract.ts`, `type-template-key`,
+      sai, `unsafe_html` e `missing_message_area` entram em `SEND_BLOCKING_CODES` (chave de HTML do sistema dentro da área
+      de mensagem e HTML renderizado acima de 524288 bytes também são problema do modelo; ajustar `template-policy.contract.ts`, `type-template-key`,
       `template-routes` e a integração `occurrence-type-contractor-template`). Aceite: casos do `plan.md` § Testes D2–D4
       (escape de `<b>x</b> & "y"`, chave raw só pelo nome, `{{logoTransportadora}}` dentro de valor não reinterpretado,
       modelo seguro utilizável, inseguro 400/409) e `bun --env-file=../../.env.test run test:integration` sem skip.
 - [ ] **T2.3** `sonnet` — Variáveis e leituras (D5, D6, D11), teste antes: `findOccurrenceTarget` com
       `contractorTaxId`; `findCarrierIdentity` (nome de exibição, CNPJ, `hasLogo`); `findOperatorSigner` (nome + cargo +
       papéis diretos, uma consulta); porta `OccurrenceOwnerReader` nula; `resolveSignerJobTitle`; `COMPANY_ROLE_LABELS` + contrato de paridade com `identity.locale.json`; `occurrence-mail-system-html.policy.ts` (logo/iniciais,
-      tabela de itens, marcas); `APP_BASE_URL` opcional no schema de env; as oito variáveis novas no catálogo da API
+      tabela de itens, marcas); `APP_BASE_URL` opcional no schema de env; as doze variáveis novas (8 de texto + 4 de HTML do sistema) no catálogo da API
       **e** em `OCCURRENCE_MAIL_VARIABLE_NAMES`/`OCCURRENCE_MAIL_SAMPLE_VALUES` e nos dois locales do painel (o contrato
       `occurrence-type-mail-parity.contract.ts` exige os dois lados no mesmo commit). Aceite: casos D5/D6/D11 do
       `plan.md` (200 itens < 100 KB, 201 → "e mais 1 item", sem logo → iniciais, CPF/CNPJ/sem documento, cargo/papel/
@@ -71,8 +76,9 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       idempotente) e `occurrence-mail-sender-name.policy.ts` (tabela de casos do "De", que o worker copia);
       `send-occurrence-mail` e `send-automatic-occurrence-mail` escolhem o caminho HTML ou texto, montam os valores, o
       assinante (`operator`/`owner`/`team`), gravam `body_html`, `body_text` gerado, `from_display_name` (nunca o
-      `sender_name`) e `has_inline_logo`; a prévia devolve `bodyText` gerado e `html` do modelo; D12 (texto mantido →
-      HTML, editado → texto). Aceite: critérios 1, 4, 6, 7 (pelo valor gravado), 9, 11 e 12 da spec por contrato;
+      `sender_name`) e `has_inline_logo`; a prévia devolve `bodyText` gerado e `html` do modelo; D12 (área de mensagem:
+      mantido → área do modelo; editado → texto do operador escapado na área; sempre o HTML do modelo;
+      `missing_message_area`; HTML acima de 524288 bytes é problema do modelo, não 500). Aceite: critérios 1, 4, 6, 7 (pelo valor gravado), 9, 11 e 12 da spec por contrato;
       integração manual e automático com modelo HTML e com modelo texto, Resend e sandbox, sem skip.
 - [ ] **T2.5** `sonnet` — Cargo, rota (D10), contratos antes (critério 13: ausente não altera, `null`/`""` limpa, 81 →
       400, quebra saneada, 403, 404 outra empresa, só `jobTitle` não chama o gateway do Keycloak); depois o schema
@@ -87,8 +93,8 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       `"Nome" <endereço>`, sandbox `{ name, address }`), com o saneamento copiado da tabela da T2.4; confirmar na doc
       oficial do Resend (context7) se nome não ASCII é codificado (RFC 2047) e registrar. Logo inline quando
       `has_inline_logo` (`drizzle-company-logo.reader.ts`, `content_id` no Resend, `cid` no nodemailer; logo ausente →
-      sem a parte, log só com `messageId` e motivo). Fila do automático: `UNSAFE_EMAIL_HTML_PATTERN` no lugar de
-      `HTML_BODY_PATTERN`, contrato espelhado com a tabela da T2.2. Aceite: critérios 5 (parte inline), 7 e 8 contra os
+      sem a parte, log só com `messageId` e motivo). Fila do automático: `UNSAFE_EMAIL_HTML_PATTERN` (filtro grosso, nunca mais estrito que a API) no lugar de
+      `HTML_BODY_PATTERN`, contrato espelhado com a tabela da T2.2 (coluna `worker`). Aceite: critérios 5 (parte inline), 7 e 8 contra os
       dublês; integração da fila (HTML seguro entra, inseguro não) sem skip; `bun run test` do worker verde.
 
 ## Fase 4 — Telas, modelos e documentação
@@ -99,31 +105,33 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       contador, ajuda "Aparece na assinatura dos e-mails de ocorrência", vazio limpa) no `PATCH` existente e o cargo
       abaixo do nome em `UserAdministration.page.tsx`; código `unsafe_html` em `PROBLEM_CODES` e no locale (no lugar de
       `html_body`); prévia do editor do tipo com corpo HTML num `<iframe sandbox="" srcDoc>` com os exemplos;
-      `emailHtml.validation.ts` com as quatro regras novas como `error` e a tabela de paridade da T2.2. Locales pt-BR/en.
+      `emailHtml.validation.ts` com as regras que lhe faltam como `error` e a mesma tabela inteira da T2.2. Locales pt-BR/en.
       Aceite: `bun run test` do painel verde (contratos + `test:hooks`); revisão de design contra a página (`web.md`
       §15), um print ao fim.
 - [ ] **T4.2** `haiku` — Os cinco modelos `.html` a partir de `desenho-aprovado.html` (`render()` e `TEMPLATES`):
       `apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates/{prorrogacao-boleto,avaria,devolucao,entrega-nao-realizada,recusa}.html`,
       com `<!-- subject: … -->` no topo; cabeçalho com `{{logoTransportadora}}` **antes** de `{{nomeExibicao}}`, resumo
       Nota fiscal / Partes / Registro com `{{valorNota}}` em linha própria e `{{cnpjContratante}}` em linha própria,
-      corpo do `TEMPLATES`, `{{tabelaItens}}` nos três com itens, assinatura `{{assinaturaNome}}`/`{{assinaturaCargo}}`,
-      rodapé com `{{marcasRodape}}`; tabelas e estilos inline, cores fixas, 620 px. Depende das respostas Q2/Q3 do
-      dono (`evidence.md` § Perguntas ao dono): sem resposta, **parar e perguntar**. Aceite: teste de forma e de
+      a área `<!-- mensagem -->…<!-- /mensagem -->` com o corpo do `TEMPLATES`, `{{faixaResposta}}`, `{{cidadeTransportadora}}`,
+      `{{razaoSocialTransportadora}}`, `{{assinaturaIniciais}}` e `{{tabelaItens}}` nos três com itens, **fora** da área, assinatura `{{assinaturaNome}}`/`{{assinaturaCargo}}`,
+      rodapé com `{{marcasRodape}}`; tabelas e estilos inline, cores fixas, 620 px. Q2/Q3 já respondidas (D15/D16 do dono). Aceite: teste de forma e de
       validação sobre os cinco arquivos (passam na D2, só variáveis da lista, sem `display:grid|flex`, `var(`,
       `<script`, `@import`), no script `test` da API.
 - [ ] **T4.3** `sonnet` — Teste antes. `apps/api-transportada/scripts/occurrence-mail-templates-publish.ts --company
-<uuid> [--confirm]` (D14, molde de `whatsapp-flow-publish.ts`): valida os cinco arquivos (recusa todos se um
-      falhar), compara com a versão ativa mais alta de cada chave (`email`, `pt-BR`) e grava versão nova só quando
-      mudou; sem `--confirm` só imprime o plano; nunca `UPDATE` de versão existente; sem PII no que imprime. Aceite:
+<uuid> [--confirm]` (D14, molde de `whatsapp-flow-publish.ts`): valida os cinco arquivos com `assessContractorTemplate` (recusa todos se um
+      falhar), grava pelo `TemplateRepository` do `notification-module` (`findActive`, `upsert` = `INSERT` com
+      `max(version)+1`, `active: true`; nunca `UPDATE`); o plano mostra `create` / `same` / `differs` por chave;
+      `--confirm` aplica só `create`; `differs` exige `--overwrite <chave>`; sem `--confirm` só imprime o plano; sem
+      PII no que imprime (Ajustado na T0.3). Aceite:
       contrato/integração com Postgres descartável (dry-run não grava, `--confirm` grava a versão 1, segunda rodada não
-      grava, arquivo inválido não grava nenhuma chave), sem skip. **Rodar contra staging ou produção não faz parte
+      grava, `differs` sem `--overwrite` não grava, arquivo inválido não grava nenhuma chave), sem skip. **Rodar contra staging ou produção não faz parte
       desta task: PARE E PERGUNTE** (é mudança de dados; vai na T5.2).
 - [ ] **T4.4** `haiku` — Documentação viva. Aceite por `grep` de cada item nos arquivos:
   - `CLAUDE.md` da **raiz**: seção curta "E-mail em HTML vem do modelo do módulo de notificação (spec 272, ADR-0110)":
     o visual mora no modelo HTML de Notificações; **proibido layout de e-mail em código**; modelo novo = `.html`
     versionado + script idempotente por chave (rodar em staging/produção pede aprovação); o renderer da API escapa só
     os valores, valida o HTML e gera o `text/plain`; variáveis já HTML (`logoTransportadora`, `tabelaItens`,
-    `marcasRodape`) são montadas pelo sistema; onde ficam os `.html` e o script; aponta a regra global
+    `marcasRodape`, `faixaResposta`) são montadas pelo sistema; onde ficam os `.html` e o script; aponta a regra global
     `~/.claude/rules/rules/email-templates.md`.
   - `apps/api-transportada/CLAUDE.md` e `docs/ai-context/api-transportada.md`: o mesmo, com a lista completa de
     variáveis (texto e HTML do sistema), o caminho do renderer (`occurrence-mail-html-render.policy.ts`, safety,
@@ -153,7 +161,8 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       e contra a 273 (mesmo pai de `snapshot.json`: quem chega depois regenera); API + worker juntos → `staging` (os dois
       jobs verdes); telas → `staging`; **PARE E PERGUNTE** antes de rodar o script dos modelos em staging (mostrar o
       dry-run); conferir no Mailpit de staging; um envio real pelo Resend (nome não ASCII no "De", logo inline) antes de
-      `main`; `main` só depois de 269 + 270 + 271; o script em produção é outra aprovação.
+      `main`; `main` só depois de 269 + 270 + 271; o script em produção é outra aprovação. No fechamento, apagar `RETOMADA.md`
+      (Ajustado na T0.3).
 
 ## Substituídas na revisão 2
 
@@ -200,15 +209,16 @@ Antes de publicar: git fetch, rebase em origin/staging, bun install --frozen-loc
 Pare e pergunte antes de: rodar o script dos modelos (scripts/occurrence-mail-templates-publish.ts) contra staging ou
 produção — é mudança de dados, mostre o dry-run; qualquer merge em main (a 272 só vai a main depois de 269 + 270 +
 271); qualquer outra mudança de dados ou consulta que não seja contagem em staging ou produção; deploy da API sem o
-worker no mesmo run; a T4.2 sem as respostas Q2/Q3 do dono; e qualquer [NEEDS CLARIFICATION] que surgir.
+worker no mesmo run; e qualquer [NEEDS CLARIFICATION] que surgir.
 Decisões já tomadas (evidence.md, ADR-0110 rev. 2): o visual mora no modelo HTML de Notificações (proibido layout em
 código); HTML inseguro (script, on*, javascript:, iframe, form) é não utilizável (unsafe_html no lugar de html_body),
-com a mesma tabela de casos na API, no validador do painel e no filtro da fila do worker; renderer de uma passada que
-escapa só os valores, com o conjunto fechado logoTransportadora/tabelaItens/marcasRodape montado pela API; text/plain
+com a mesma tabela inteira na API e no validador do painel e um filtro grosso, nunca mais estrito, no worker;
+renderer de uma passada que escapa só os valores, com o conjunto fechado
+logoTransportadora/tabelaItens/marcasRodape/faixaResposta montado pela API; text/plain
 gerado do HTML; modelo sem tag segue o caminho de texto de hoje; assunto "<nome de exibição> · CNPJ <cnpj> — <assunto
 do modelo>" idempotente; "De" por buildSenderDisplayName com o nome de exibição SEMPRE (Resend e sandbox), saneado na
 API e espelhado no worker; logo por cid: lido de company_logos (has_inline_logo); cargo livre job_title na membership,
 PATCH /company-users/:id com users.manage, sem auditoria; OccurrenceOwnerReader nulo para a 273; envio manual com
-modelo HTML: texto mantido → HTML, editado → texto; reenvio da 248 como hoje; cinco modelos .html versionados +
+modelo HTML: o desenho nunca se perde (área `<!-- mensagem -->`, D14); reenvio da 248 como hoje; cinco modelos .html versionados +
 script idempotente por chave.
 ```

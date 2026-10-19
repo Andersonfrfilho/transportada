@@ -1,7 +1,7 @@
 # Plano — 272 O e-mail da ocorrência sai em HTML
 
 ADR: [**0110 — O e-mail da ocorrência sai em HTML**](../../docs/adr/0110-o-email-da-ocorrencia-sai-em-html.md),
-**revisão 2** (proposta, 2026-10-18; a T0.3 valida com `architect`). Regra global que a revisão 2 segue:
+**revisão 2** (aceita, 2026-10-18; validada com `architect` na T0.3). Regra global que a revisão 2 segue:
 `~/.claude/rules/rules/email-templates.md` (no repositório `ia`: `rules/email-templates.md`).
 
 > **Mudança de escopo (dono, 2026-10-18).** A revisão 1 (D1–D13, aceita na T0.2) montava o HTML em código em volta do
@@ -57,40 +57,55 @@ Mudança de escopo → Fatos conferidos (revisão 2). Os fatos que moldam a revi
 - O resto do contexto da revisão 1 continua valendo (envio multipart já existe; `from_display_name` já existe;
   logo em `company_logos`; `APP_BASE_URL` só no worker; API e worker no mesmo run, em sequência).
 
-## Decisões de desenho (revisão 2; a T0.3 valida com `architect`)
+## Decisões de desenho (revisão 2; validadas com `architect` na T0.3)
 
 - **D1 — O HTML é o modelo.** O visual mora no modelo de e-mail do módulo de notificação; a API não monta layout. Corpo
   com tag (detecção pelo `HTML_BODY_PATTERN` de hoje) → caminho HTML; sem tag → caminho de texto de hoje
   (`renderContractorMail` + `buildOccurrenceMail`, com o prefixo e o "De" novos). **Emenda a D5 da 271 / ADR-0108 §3**:
   "corpo texto (não HTML)" vira "corpo texto ou HTML seguro".
-- **D2 — HTML inseguro é "não utilizável".** Política pura `occurrence-mail-html-safety.policy.ts` na API, por padrões
-  sem diferenciar maiúsculas: `<script`, atributo `on<letra>…=`, `javascript:` em qualquer atributo (também com
-  entidade ou espaço no meio), `<iframe`, `<form`. O problema `html_body` da 271 é **trocado** por `unsafe_html`, que
-  entra em `SEND_BLOCKING_CODES`: 400 ao gravar o tipo, 409 no manual, o automático pula e o aviso "Tipo sem modelo"
-  aparece — os caminhos de hoje, sem código novo de erro. **Divergência com o pedido** ("a mesma regra do pacote"): a
-  regra do painel (`emailHtml.validation.ts`) não cobre `on*`, `javascript:`, `iframe` e `form`. Decisão: a API usa as
-  cinco regras do dono; o validador do painel **ganha** as quatro que faltam como `error` (o editor avisa o mesmo que
-  a API recusa), presos por contrato de paridade com uma tabela de casos copiada nas duas apps. As outras regras do
-  painel (folha externa, `data:`, tags desbalanceadas, avisos) continuam só no editor.
-  **Worker:** a fila do automático troca `nt."body" !~ HTML_BODY_PATTERN` por `nt."body" !~*
-UNSAFE_EMAIL_HTML_PATTERN` (uma expressão POSIX equivalente às cinco regras), cópia por valor com contrato de
-  paridade espelhado (mesmo molde de `html-body-pattern.contract.ts`); a API confere de novo no envio (se a fila
-  deixar passar algo, o automático pula `no_template_selected`, como hoje).
+- **D2 — HTML inseguro é "não utilizável"** (Ajustado na T0.3). Política pura `occurrence-mail-html-safety.policy.ts`
+  na API, com forma testável: tags `<(script|iframe|form|object|embed)\b`; eventos `[\s/"']on[a-z]+\s*=` (sem ancorar
+  na tag; falso positivo em texto aceito); esquema `(javascript|vbscript):` sem ancorar, numa cópia normalizada
+  (entidades numéricas decimais e hex, com ou sem `;`, e as nomeadas `&colon;`, `&tab;`, `&newline;` decodificadas;
+  `[\u0000- ]` removidos); placeholder em tag `<[^>]*\{\{` (impede valor externo virar URL de `href`; escape não
+  protege `javascript:`). Tudo sem diferenciar maiúsculas. Escopo: bloqueio de conteúdo ativo, não um sanitizador; o
+  autor do modelo é usuário interno; `data:` (só imagem), folha externa e tags desbalanceadas ficam só no editor. O
+  problema `html_body` da 271 é **trocado** por `unsafe_html`, que entra em `SEND_BLOCKING_CODES`: 400 ao gravar o
+  tipo, 409 no manual, o automático pula e o aviso "Tipo sem modelo" aparece — os caminhos de hoje, sem código novo de
+  erro. **Divergência com o pedido** ("a mesma regra do pacote"): o pacote só pega `<script`, e o validador do painel
+  (`emailHtml.validation.ts`) não cobre `on*`, `javascript:`, `iframe` e `form`. Decisão: a API usa as regras do dono;
+  o validador do painel **ganha** as que faltam como `error`.
+  **Três cópias:** API e painel com a **mesma tabela inteira** (cópia por valor, sem `import` entre apps). O worker
+  troca `nt."body" !~ HTML_BODY_PATTERN` por `nt."body" !~* UNSAFE_EMAIL_HTML_PATTERN` (POSIX; não decodifica entidade):
+  filtro grosso **nunca mais estrito que a API** — tags, eventos, esquema literal e placeholder em tag. A tabela de
+  casos ganha a coluna `worker` (`bloqueia` / `deixa para a API`). O que o worker deixa passar a API pula
+  (`send-automatic-occurrence-mail.use-case.ts:126-130`) sem gravar idempotência; a ocorrência volta a cada varredura
+  até sair da janela — aceito. HTML renderizado acima de 524288 bytes (CHECK `body_html_size_check`) é problema do
+  modelo, não 500. Chave de HTML do sistema **dentro da área de mensagem** é problema do modelo (regra, não
+  convenção).
 - **D3 — Renderer próprio, uma passada, escape só nos valores.** `renderContractorMailHtml({ bodyTemplate,
-subjectTemplate, values, systemHtml })` (pura, na API): uma única varredura troca cada `{{nome}}` do **modelo**
-  pelo valor; o valor entra por `escapeMailHtml` (`mail-template-render.policy.ts:85-92`), exceto as chaves do
-  conjunto fechado `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES = ['logoTransportadora', 'tabelaItens', 'marcasRodape',
-  'faixaResposta']`
+subjectTemplate, values, systemHtml })` (pura, na API): uma única varredura, com o padrão do pacote
+  `\{\{\s*([a-zA-Z0-9_]+)\s*\}\}` (o mesmo de `extractTemplatePlaceholders`), troca cada `{{nome}}` do **modelo**
+  pelo valor, buscado só por `Object.hasOwn` (`{{constructor}}` não imprime função); o valor entra por
+  `escapeMailHtml` (`mail-template-render.policy.ts:85-92`), exceto as chaves do conjunto fechado
+  `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES = ['logoTransportadora', 'tabelaItens', 'marcasRodape', 'faixaResposta']`
   (`as const`, no `*.constant.ts`), cujo valor vem de `systemHtml` — um objeto tipado separado de `values`, que só a
   API preenche e que nunca é montado a partir de entrada de usuário sem escape. **Segurança:** (a) a chave raw é
   decidida pelo **nome no conjunto fechado**, nunca pelo conteúdo do valor; (b) uma passada só — um valor que contém
   `{{logoTransportadora}}` sai escapado, não é reinterpretado; (c) o HTML do sistema escapa tudo o que carrega (nome
   de exibição, iniciais, código, item, unidade); (d) o modelo já passou na D2. Variável desconhecida sai vazia (271).
-  O assunto continua texto (colapsado, cortado, sem escape: não é HTML).
-- **D4 — Parte texto gerada do HTML.** `htmlToPlainText(html)` pura: remove `<head>`/`<style>`, troca `<br>` e fim de
-  `p|div|tr|li|h1-6|table` por quebra, célula por espaço ou tabulação, tira as tags, decodifica as entidades básicas,
-  colapsa linhas em branco. Sem biblioteca (sem dependência nova; `code-standart.md` §13). `body_text` gravado = esse
-  texto; a mensagem da conversa leva o mesmo texto.
+  `has_inline_logo = true` só quando o modelo usa `{{logoTransportadora}}` **e** há logo (Ajustado na T0.3). HTML
+  renderizado acima de 524288 bytes é problema do modelo (D2), não 500. O assunto continua texto (colapsado, cortado,
+  sem escape: não é HTML).
+- **D4 — Parte texto gerada do HTML** (Ajustado na T0.3). `htmlToPlainText(html)` pura: remove comentários (inclusive
+  os marcadores da área e condicionais `<!--[if mso]>`), `<head>`, `<style>` e `<title>`; troca `<br>` e fim de
+  `p|div|tr|li|h1-6|table` por quebra, célula por espaço ou tabulação, tira as tags, decodifica as entidades **numa
+  passada só, com `&amp;` por último** (`&amp;lt;` não vira `<`), colapsa linhas em branco. Sem biblioteca (sem
+  dependência nova; `code-standart.md` §13). É o `body_text` de `contractor_mail_messages` (parte `text/plain`, sem
+  teto além do HTML). A mensagem da conversa (`occurrence_conversation_messages.body_text`, CHECK ≤ 8000,
+  `occurrence-conversation.schema.ts:363-366`), o `bodyText` de entrada (impressão digital e `assertMailContent`,
+  ≤ 8000, `send-occurrence-mail.use-case.ts:93-104`) e a prévia levam **o texto da área de mensagem** (D12), nunca o
+  do HTML inteiro. A área renderizada usa o mesmo corte de `linhasItens` do caminho de texto.
 - **D5 — Variáveis novas** (lista fechada da 271, catálogo da API + `OCCURRENCE_MAIL_VARIABLE_NAMES` e exemplos do
   painel + descrições nos dois locales, um contrato de paridade):
 
@@ -125,20 +140,21 @@ subjectTemplate, values, systemHtml })` (pura, na API): uma única varredura tro
   da 248 e painel antigo).
 - **D8 — "De" saneado** (mantida da revisão 1, sem o reenvio). `buildSenderDisplayName({ companyDisplayName, signer })`:
   `team` → `<nome de exibição>`; pessoa → `<nome> — <nome de exibição>`. Remove `\p{Cc}`, U+2028/2029, bidi
-  (U+202A–U+202E, U+2066–U+2069) e `<>"\,;`, colapsa espaços, corta **primeiro o nome da pessoa** para caber em 200
+  (U+202A–U+202E, U+2066–U+2069), U+200E, U+200F, U+061C, os de largura zero (U+200B–U+200D, U+FEFF) e `<>"\,;`
+  (Ajustado na T0.3), colapsa espaços, corta **primeiro o nome da pessoa** para caber em 200
   (CHECK de `from_display_name`). Grava em `from_display_name` (coluna que já existe, spec 183). O worker usa
   `from_display_name` só em `direction = 'outbound'` e não nulo, nos dois transportes, reaplicando o mesmo saneamento
   (tabela de casos idêntica); nulo → o comportamento de hoje (`settings.senderName` no Resend, endereço puro no
   sandbox). Nome não ASCII no Resend: a task do worker confirma na doc oficial se o Resend codifica (RFC 2047).
 - **D9 — Migration mínima.** `contractor_mail_messages.has_inline_logo boolean not null default false` (o worker sabe
-  se anexa o logo sem ler o HTML) e `user_company_memberships.job_title varchar(80)` nula + CHECK `1..80` (D10).
-  `from_display_name` é reusada. **Saem** da revisão 1 `signer_kind`, `signer_user_id`, `layout_version` e os três
+  se anexa o logo sem ler o HTML) e `user_company_memberships.job_title varchar(80)` nula + CHECK `1..80` (D10). Na migration do inline logo, CHECK `not has_inline_logo or direction = 'outbound'` (molde
+  `contractor_mail_messages_body_html_direction_check`; Ajustado na T0.3). `from_display_name` é reusada. **Saem** da revisão 1 `signer_kind`, `signer_user_id`, `layout_version` e os três
   CHECKs da invariante: serviam ao reenvio da 248 repetindo o original (fora) e ao histórico por layout (fora); a 273
   **não** os lê nem escreve (conferido em `spec-273` plan:32-33, :113-114, :244 e ADR-0109 §8 — ela só implementa a
   porta). O manual continua rastreado por `occurrence_conversation_messages` (autor); o dono do automático fica na
   ocorrência (273). Se o dono quiser saber "quem assinou" por mensagem, é coluna de spec seguinte (Q5).
 - **D10 — Cargo livre na membership** (mantida da revisão 1). `job_title varchar(80)` nula; política pura
-  `company-user-job-title.policy.ts` (controle, quebra de linha e bidi fora, espaços colapsados, `trim`, vazio →
+  `company-user-job-title.policy.ts` (controle, quebra de linha, bidi, U+200E, U+200F, U+061C e largura zero U+200B–U+200D/U+FEFF fora — Ajustado na T0.3 —, espaços colapsados, `trim`, vazio →
   `null`, mais de 80 → 400). `PATCH /company-users/:id` (`users.manage`) ganha `jobTitle?: string | null` (ausente não
   altera; conta para o "ao menos um campo"); gravação por método novo `updateJobTitle` com `UPDATE … WHERE user_id = ?
 AND company_id = ?`; corpo só com `jobTitle` não chama o Keycloak; resposta por `toCompanyUserView`
@@ -156,8 +172,12 @@ AND company_id = ?`; corpo só com `jobTitle` não chama o Keycloak; resposta po
   do operador na área. No envio manual: texto recebido igual ao gerado da área (normalizado: fim de linha e espaços nas
   pontas) → a área renderizada do modelo fica como está; diferente → a área é trocada pelo texto do operador escapado
   em parágrafos (`<p style=…>`, quebra simples → `<br>`). **Sempre** sai o HTML do modelo. O automático usa a área do
-  modelo. `body_text` = texto gerado do HTML final inteiro. `{{tabelaItens}}` fica fora da área nos cinco modelos (o
-  texto do operador não apaga a tabela). Sem rota nova, sem `fullSubject`, sem `inlineLogo`.
+  modelo. O texto do operador é escapado e inserido **depois** da renderização; nunca passa pelo renderer (um `{{tabelaItens}}`
+  digitado sai literal). `body_text` de `contractor_mail_messages` = texto gerado do HTML final inteiro; a mensagem da
+  conversa, o `bodyText` de entrada e a prévia levam o texto **da área** (D4: CHECK ≤ 8000 da conversa). `{{tabelaItens}}`
+  fica fora da área nos cinco modelos (o texto do operador não apaga a tabela) e chave de HTML do sistema dentro da
+  área é problema do modelo (regra, não convenção; D2). Sem rota nova, sem `fullSubject`, sem `inlineLogo`. (Ajustado
+  na T0.3.)
 - **D13 — Janela de deploy** (mantida). API e worker no mesmo PR e no mesmo run (`deploy-api` → `deploy-services`);
   nos minutos entre os dois, o worker velho manda o HTML sem a parte inline (o `alt` aparece) e o "De" antigo. Worker
   fora do run = parar e perguntar.
@@ -167,13 +187,16 @@ AND company_id = ?`; corpo só com `jobTitle` não chama o Keycloak; resposta po
   `<!-- subject: … -->` lido pelo script (um arquivo por modelo, assunto e corpo juntos). Desenho: `render()` e
   `TEMPLATES` de `desenho-aprovado.html` traduzidos para tabelas e estilos inline, cores fixas (asfalto `#10222c`,
   cobre `#d58a47`, névoa `#f0f2ee`, ardósia `#5a6b74`, tinta `#1d2b33`), `color-scheme: light only`, largura 620 px.
-  Script `apps/api-transportada/scripts/occurrence-mail-templates-publish.ts --company <uuid> [--confirm]` (molde do
-  `whatsapp-flow-publish.ts`): lê os arquivos, valida cada um pela D2 e pelas variáveis da lista fechada (recusa
-  tudo se um falhar), compara com a versão ativa mais alta da chave (canal `email`, `pt-BR`) e só grava **versão
-  nova** se assunto ou corpo mudaram (idempotente: rodar duas vezes grava uma); sem `--confirm` só mostra o plano
-  (chave, versão atual, ação). Grava pela API do módulo (`notification-module`) ou pelo mesmo `INSERT` versionado que
-  a tela usa — a task confere qual o módulo expõe; nunca `UPDATE` de versão existente. Não escolhe o modelo no tipo
-  (isso é do operador, na aba Tipos). Rodar em staging ou produção é mudança de dados: **parar e perguntar**.
+  Script `apps/api-transportada/scripts/occurrence-mail-templates-publish.ts --company <uuid> [--confirm]
+[--overwrite <chave>]` (molde do `whatsapp-flow-publish.ts`; Ajustado na T0.3): lê os arquivos e valida cada um com
+  `assessContractorTemplate` (sem cópia da regra) e as variáveis da lista fechada (recusa tudo se um falhar). Grava
+  pelo `TemplateRepository` exportado de `@adatechnology/notification-module`: `findActive` lê a versão ativa mais alta
+  (canal `email`, `pt-BR`); `upsert` faz `INSERT` com `max(version)+1`, nunca `UPDATE`; o índice único
+  `idx_templates_identity` barra corrida; passa `active: true`. O plano mostra por chave `create` / `same` /
+  `differs`; `--confirm` aplica só `create` (idempotente: rodar duas vezes grava uma); `differs` exige
+  `--overwrite <chave>`, para não apagar personalização feita na tela sem aviso; sem `--confirm` só mostra o plano.
+  Não escolhe o modelo no tipo (isso é do operador, na aba Tipos). Rodar em staging ou produção é mudança de dados:
+  **parar e perguntar**.
 
 ## Arquitetura e arquivos afetados
 
@@ -259,8 +282,10 @@ versão anterior de novo pelo mesmo script a partir do arquivo do commit anterio
 
 ## Testes (antes da implementação)
 
-- D2: tabela de casos do HTML inseguro (cada regra, maiúsculas, `on` em texto comum não casa, `javascript:` com
-  entidade/espaço, HTML seguro passa), idêntica na API, no painel (`emailHtml.validation`) e no padrão do worker.
+- D2: tabela de casos do HTML inseguro (cada regra, maiúsculas, `on` em texto comum, `javascript:`/`vbscript:` com
+  entidade/espaço, placeholder em tag, HTML seguro passa), com a coluna `worker` (`bloqueia` / `deixa para a API`):
+  a mesma tabela inteira na API e no painel (`emailHtml.validation`); o padrão do worker nunca mais estrito que a API.
+  (Ajustado na T0.3.)
 - D3: valor com `<b>x</b> & "y"` escapado e o HTML do modelo intacto; chave do conjunto raw só pelo nome; valor
   contendo `{{logoTransportadora}}` não é reinterpretado; variável desconhecida vazia; o HTML do sistema escapa nome
   e itens.
@@ -270,14 +295,14 @@ versão anterior de novo pelo mesmo script a partir do arquivo do commit anterio
 - D6/D11: `resolveSignerJobTitle` (cargo, papel, nenhum); paridade dos rótulos; dono injetado na porta (critério 12).
 - D7/D8: tabelas de casos do prefixo (300 caracteres, nome > 80, idempotência) e do "De" (controle, U+2028, bidi,
   `<>"\,;`, > 200 corta a pessoa), espelhada no worker; `sender_name` nunca no "De".
-- D12: texto mantido → HTML do modelo com a área original; editado → HTML do modelo com o texto do operador escapado
+- D12: 200 itens com `{{linhasItens}}` na área: a conversa grava ≤ 8000 (Ajustado na T0.3); texto mantido → HTML do modelo com a área original; editado → HTML do modelo com o texto do operador escapado
   na área (`<b>` do operador sai escapado); prévia sem `body` devolve `bodyText` só da área; modelo sem área ou com
   par desbalanceado → `missing_message_area` bloqueia.
 - D10: política do cargo e contratos do `PATCH` (critério 13).
 - Worker: Resend com `from` nomeado e anexo `content_id`; sandbox com `{ name, address }` e `cid`; logo ausente → sem a
   parte; fila do automático aceita modelo HTML seguro e recusa inseguro (integração com Postgres descartável).
-- D14: o script em dry-run não grava; com `--confirm` grava versão 1; segunda rodada não grava; arquivo inválido →
-  nenhuma chave gravada. Os cinco arquivos passam na D2, usam só variáveis da lista e passam no teste de forma (sem
+- D14: o script em dry-run não grava; com `--confirm` grava versão 1; segunda rodada não grava; `differs` sem
+  `--overwrite` não grava; arquivo inválido → nenhuma chave gravada. Os cinco arquivos passam na D2, usam só variáveis da lista e passam no teste de forma (sem
   `display:grid|flex`, `var(`, `<script`, `@import`).
 - Integração: manual e automático com modelo HTML gravam `body_html`, `body_text` gerado, `from_display_name` e
   `has_inline_logo`; modelo texto sai como hoje.
