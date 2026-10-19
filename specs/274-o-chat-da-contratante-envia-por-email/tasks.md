@@ -146,10 +146,10 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa. (Concluída; `evid
 > 🤖 Modelo: `sonnet`
 
 - [x] **T6.1** `sonnet` — Revisão: `code-reviewer` e `security-reviewer` (escape dos slots, BOLA, PII em log, webhook).
-- [ ] **T6.2** `sonnet` — Rebase em `origin/staging`, gates completos, `bunx prettier --check .`, numeração de
+- [x] **T6.2** `sonnet` — Rebase em `origin/staging`, gates completos, `bunx prettier --check .`, numeração de
       spec/ADR/migration conferida, PR → `staging` (autorizado; API + worker no mesmo run), acompanhar CI e deploy. _Ajustado na T0.2:_ o pacote só chega a
       staging depois do merge em `main` dos pacotes (T1.6); sem `publish.yml` de branch.
-- [ ] **T6.3** `sonnet` — Verificar em staging no navegador (texto, não screenshot): composer aberto sem portal,
+- [x] **T6.3** `sonnet` — Verificar em staging no navegador (texto, não screenshot): composer aberto sem portal,
       mensagem no Mailpit com logo e anexos, selo "Enviada", portal mostra a mensagem uma vez; a tela de Notificações
       lista o modelo padrão (selo "Modelo do sistema"; o pré-deploy de staging o cadastrou). **Pare e pergunte** antes de editar o modelo padrão em staging (mudança de dados);
       com aprovação: editar, enviar, conferir no Mailpit, "Restaurar padrão". Evidência no `evidence.md`.
