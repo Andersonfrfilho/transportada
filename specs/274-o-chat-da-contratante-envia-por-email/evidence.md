@@ -300,9 +300,43 @@ type: 'text' }`). `marcasRodape` só imagens; a nota fica em `{{rodapePlataforma
 
 **Ressalva de processo:** T1.3, T3.6, T4.2 e parte da T5 tiveram os testes escritos junto com o código, não antes.
 
+### Pacote 0.2.x publicado e integrado (2026-10-19)
+
+- **T1.6** — PR #142 merge (`f4fd8d746`, autorizado): `notification-contracts`/`-module`/`-ui`/`-client` 0.2.0 no npm. O
+  passo final do `publish.yml` acusou a UI e o cliente "inacessíveis" — era atraso de propagação do registry (minutos
+  depois, 200; os quatro já tinham `publishConfig.access: public`).
+- **Migrations do módulo** — subir para 0.2.0 quebrou o `make migration-test`: o pacote publica o journal do drizzle-kit
+  0.31 (hosts 0.45, quickcart e ada) e o drizzle 1.x do TransportAdA recusa esse formato. Análise do `architect` (simulação
+  em Postgres): o 1.x reconhece migration aplicada só pelo nome da pasta. **0.2.1** (PR #143, `828faaf18`): `migrations/`
+  (journal) intacta + `migrations-v1/` com os nomes do rc.3 reescritos idempotentes + silky/bright; `runNotificationMigrations`
+  com `layout`. O TransportAdA passa `layout: 'v1'`; integração prova rc.3 → 0.2.1 aplicando só as duas novas.
+- **T3.1** (`cd8047ad7`, `db7f78406`) — versões 0.2.x nas três apps; renderer real ligado no `main.ts` (versão 0 sem linha).
+- **T3.3** (`89b09fd43`) — a API delega ao SDK escape, texto, regra de HTML inseguro, interpolação, logo, marcas e cores; as
+  tabelas da 272 sem editar caso.
+- **T3.9** (`37c3469c4`) — `seedStandardEmailTemplates` no pré-deploy (depois de migrate/provision, em série, toda empresa);
+  integração: 1ª grava uma por empresa, 2ª zero, versão editada intacta, concorrência sem erro. Achado: no Bun o 23505 vem em
+  `errno` — tratado no host e corrigido no SDK.
+- **T3.8/T4.3** (`1618e60e6`, `0e1a7393c`) — documentação viva.
+
+### T6.1 — revisões de código e de segurança (2026-10-19)
+
+Ambas **APROVADO COM AJUSTES**, nenhum CRÍTICO; segurança sem ALTO. Corrigidos (`392b2dbee`, `4a3c1807c`, `70c0c5e1e`,
+`68d62bb1b`): chat só com anexo/áudio aceito (ALTO de código: o composer deixava e a API dava 400); listagem filtra só a
+chave padrão (as outras do sistema voltam como "não utilizável"); modelo resolvido antes da transação (render puro dentro);
+`References` sem a própria mensagem; `rfc_message_id` validado (`^<[^\s<>\r\n]{1,255}>$`) no webhook, na entrada externa e na
+montagem, `References` ≤ 998 bytes (M2); teto do chat 10/5 min por ocorrência e 300/h por empresa, 429
+`OCCURRENCE_CHAT_MAIL_RATE_LIMITED` (M3); assunto limpo sem perfil fiscal e sem espaço duplo (B1); motivos próprios no painel.
+**M1** (`<{{x}}>` passava na regra de placeholder em tag): SDK **contracts 0.2.1 / module 0.2.2** (PR #144, `9a27fb0f0`, também
+com o 23505 por `errno`); TransportAdA subiu (`7702177ca`) e as três cópias ganharam os 4 casos, 42 → 46 (`2505bb576`; o
+POSIX do worker estendido, `worker: 'bloqueia'`). **Não adotado** (registrado): B2 (`<base>`/`<meta>`/`<link>`/`data:` só
+pelo autor do modelo); B3 (aviso na tela quando a versão ativa é inutilizável).
+
+Gates finais locais: API contrato 12391 / 0, integrações de e-mail 105 / 0 / 0 skip, `make migration-test` 231 / 0; worker
+2741 / 0 e `make worker-integration` 354 / 0 / 4 skip; painel 8420 + 1407 / 0. A integração completa da API roda na CI.
+
 ## Onde parou
 
-Fases 1–5 implementadas, exceto o que depende do pacote publicado. **Bloqueio:** merge do PR #142 do SDK (aprovação do dono). Depois: T1.6 (versões no evidence), T3.1 (subir versão + ligar o renderer, `TODO(T3.1)`), T2.1 (subir `notification-ui`/`notification-client`), T3.3, T3.9, T3.8, T4.3, T6.
+Fases 1–5 e T6.1 fechadas. Próxima: **T6.2** (PR para `staging`, autorizado pelo dono) e **T6.3** (verificação em staging no navegador). Pendentes: T6.4 (rastreio de abertura no Resend, aprovação) e T6.5 (produção, aprovação).
 
 ## Execução
 

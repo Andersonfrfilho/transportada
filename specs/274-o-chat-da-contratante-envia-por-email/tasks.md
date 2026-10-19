@@ -61,7 +61,7 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa. (Concluída; `evid
 - [x] **T1.5** `haiku` — `CLAUDE.md`/README dos três pacotes (o modelo padrão, o cadastro por `ensureTemplate` e por que
       no pré-deploy do host, a rede de segurança) e
       changesets `minor`. Aceite: `pnpm -r check`.
-- [ ] **T1.6** `sonnet` — PR no repositório de pacotes. **Pare e pergunte antes do merge em `main`** (publica no npm).
+- [x] **T1.6** `sonnet` — PR no repositório de pacotes. **Pare e pergunte antes do merge em `main`** (publica no npm).
       Depois: `npm view` dos três pacotes; registrar versões e o diff desde `0.1.0-rc.2`/`0.1.0-rc.3`/`0.1.0-rc.9` (e `notification-client` `0.1.0-rc.3`) no
       `evidence.md`. _Ajustado na T0.2:_ listar também o diff da `notification-ui` e conferir a tela no navegador antes da T2.2.
       Mesmo PR, task e commit isolados para a subida de versão (T3.1; Q3 resolvida).
@@ -71,7 +71,7 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa. (Concluída; `evid
 > _Ajustado na T0.2: o worker entra aqui (o worker antigo rebaixa `read` para `sent`, `message-status.policy.ts:89-100`)._
 > 🤖 Modelo: `haiku` (T2.1 → `sonnet`)
 
-- [ ] **T2.1** `sonnet` — Teste antes: escada do e-mail aceita `read` em `messageStatus.service.ts` (selo "Lida" com a
+- [x] **T2.1** `sonnet` — Teste antes: escada do e-mail aceita `read` em `messageStatus.service.ts` (selo "Lida" com a
       dica do RF8); o código `OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS` tem texto. Depois a mudança (composer **ainda**
       fechado sem portal) e, _ajustado em 2026-10-19 (dono)_, `notification-ui` e `notification-client` na versão da T1.6 (D13): a tela de
       Notificações mostra o modelo padrão.
@@ -83,13 +83,13 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa. (Concluída; `evid
 
 > 🤖 Modelo: `sonnet` (T3.1 → `haiku`)
 
-- [ ] **T3.1** `haiku` — Subir `notification-contracts`/`notification-module` para a versão da T1.6 na API **e** no
+- [x] **T3.1** `haiku` — Subir `notification-contracts`/`notification-module` para a versão da T1.6 na API **e** no
       worker (`bun install`, lock). Aceite: gates das duas apps verdes sem mudança de código, `db:test` e
       `notification-migration` verdes (migrations novas do módulo, T0.1 item 8).
 - [x] **T3.2** `sonnet` — Migration (D12: só derruba a CHECK; sem `standard_body_version`, ajustado em 2026-10-19 pelo
       dono) + schema Drizzle + `rollback.sql` com guarda. Integração: e-mail aceita `read`; rollback aborta com linha
       `email`/`read`.
-- [ ] **T3.3** `sonnet` — D4 (_ajustado em 2026-10-19, dono_): `htmlToPlainText`, `escapeMailHtml`,
+- [x] **T3.3** `sonnet` — D4 (_ajustado em 2026-10-19, dono_): `htmlToPlainText`, `escapeMailHtml`,
       `findUnsafeHtmlRules` e as cores viram re-export do SDK; `renderContractorMailHtml` delega a
       `interpolateEmailHtml`; `buildLogo`/`buildFooterMarks`/`buildInitials` delegam aos fragmentos; o renderer do
       modelo do tipo fica. `notification.standard-email` entra em `SYSTEM_NOTIFICATION_TEMPLATE_KEYS` (fora da escolha do
@@ -101,7 +101,7 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa. (Concluída; `evid
       do Resend; repetição não reescreve). Envio de teste de `Message-ID` próprio **não** é condição desta task.
 - [x] **T3.5** `sonnet` — Extrair `occurrence-mail-delivery.service.ts` do `send-occurrence-mail.use-case.ts` sem mudar
       comportamento (teste de caracterização do diálogo antes, verde antes e depois).
-- [ ] **T3.6** `sonnet` — Variante chat da rota + `send-occurrence-chat-mail.use-case.ts` + assunto (D5, D6, D10, D11).
+- [x] **T3.6** `sonnet` — Variante chat da rota + `send-occurrence-chat-mail.use-case.ts` + assunto (D5, D6, D10, D11).
       O caso de uso monta `StandardEmailInput` e chama `notifications.standardEmail.render` (porta no app, dublê no
       contrato); grava `notification_template_key`/`_version` (ajustado em 2026-10-19 pelo dono). Contratos antes: schema
       `.strict()`, sem modelo do tipo envia, sem pré-marcado 409, idempotência, `tooLarge` → 400, BOLA 404, 403.
@@ -110,7 +110,7 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa. (Concluída; `evid
 - [x] **T3.7** `sonnet` — Portal (D2, D9): aviso sem corpo só a quem não está em `To`/`Cc`; `markRead` leva `email` a
       `read`. _Ajustado na T0.2:_ a audiência passa a trazer o e-mail (minúsculas) de cada usuário do portal; portal
       indisponível no chat = sem aviso, nunca `PortalUnavailableError`. Contrato + integração.
-- [ ] **T3.9** `sonnet` — Cadastro do modelo padrão (D3, ajustado em 2026-10-19 pelo dono): _ajustado na T0.2:_ passo novo
+- [x] **T3.9** `sonnet` — Cadastro do modelo padrão (D3, ajustado em 2026-10-19 pelo dono): _ajustado na T0.2:_ passo novo
       `seedStandardEmailTemplates` em `PreDeploySteps`/`PreDeployReport` (campo `standardEmailTemplates`): lê todos os
       `companies.id` e chama `notifications.standardEmail.ensureTemplate` em série, independente de `COMPANY_ID`, depois de
       `provision`; sem gancho no provisionamento; conflito 23505 = já existe (conta 0). Na semente local, a rede de
@@ -118,7 +118,7 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa. (Concluída; `evid
       contrato do `runPreDeploy` (chama por empresa; relatório conta as gravadas), duas chamadas concorrentes sem erro e integração (primeira execução grava
       uma por empresa, segunda grava zero, versão editada intacta). Gravar em staging acontece no deploy da T6.2
       (autorizado); em produção, só na T6.5 com aprovação humana e contagem antes/depois.
-- [ ] **T3.8** `haiku` — OpenAPI da variante, `apps/api-transportada/CLAUDE.md` e `docs/ai-context/api-transportada.md`
+- [x] **T3.8** `haiku` — OpenAPI da variante, `apps/api-transportada/CLAUDE.md` e `docs/ai-context/api-transportada.md`
       (§ "O chat da contratante envia por e-mail"; a 183 D7 revogada).
 
 ## Fase 4 — Worker
@@ -129,7 +129,7 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa. (Concluída; `evid
       `message_id` do Resend gravado pela T3.4; saída sem ele fica fora), últimos 20; o worker não gera `Message-ID`
       (D7, ajustado em 2026-10-19 pelo dono). Teste do repositório e do caso de uso antes; integração do worker
       (`make worker-integration`).
-- [ ] **T4.3** `haiku` — `docs/ai-context/worker-transportada.md`.
+- [x] **T4.3** `haiku` — `docs/ai-context/worker-transportada.md`.
 
 ## Fase 5 — Painel
 
@@ -145,7 +145,7 @@ docs/adr/0111-o-chat-da-contratante-envia-por-email.md` casa. (Concluída; `evid
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T6.1** `sonnet` — Revisão: `code-reviewer` e `security-reviewer` (escape dos slots, BOLA, PII em log, webhook).
+- [x] **T6.1** `sonnet` — Revisão: `code-reviewer` e `security-reviewer` (escape dos slots, BOLA, PII em log, webhook).
 - [ ] **T6.2** `sonnet` — Rebase em `origin/staging`, gates completos, `bunx prettier --check .`, numeração de
       spec/ADR/migration conferida, PR → `staging` (autorizado; API + worker no mesmo run), acompanhar CI e deploy. _Ajustado na T0.2:_ o pacote só chega a
       staging depois do merge em `main` dos pacotes (T1.6); sem `publish.yml` de branch.
