@@ -214,3 +214,10 @@ vai no corpo). O teto `To` + `Cc` ≤ `CONTRACTOR_MAIL_MAX_RECIPIENTS` é confer
 (`invalid_recipients`, falha permanente), e os dois gateways mantêm a guarda própria. O sandbox não tem `Reply-To`: a resposta
 de um responsável não volta. Nenhum endereço em log. Contratos: `test/contractor-mail/{outbound-message,sandbox-outbound,
 resend-mail-gateway}.contract.ts`, `test/integration/contractor-mail-sandbox-outbound.integration.ts`.
+
+## O logo e o remetente do e-mail da ocorrência (spec 272, ADR-0110)
+
+Mensagem `outbound` com `has_inline_logo = true` anexa o logo da empresa da própria mensagem como parte inline `cid:company-logo`
+(`company_logos`, `drizzle-company-logo.reader.ts`); sem logo, sai sem a parte. O "De" vem de `from_display_name`, saneado de novo
+(`sender-display-name.policy.ts`, cópia da API). A fila do automático filtra HTML inseguro por `UNSAFE_EMAIL_HTML_PATTERN` (filtro grosso).
+Detalhe: `docs/ai-context/worker-transportada.md` § "O logo embutido e o remetente do e-mail da ocorrência (spec 272)".

@@ -3,7 +3,14 @@
  */
 import { createHash } from 'node:crypto'
 
-import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../domain/contractor-mail.constant.js'
+import {
+  COMPANY_LOGO_CONTENT_ID,
+  CONTRACTOR_MAIL_MAX_RECIPIENTS,
+} from '../domain/contractor-mail.constant.js'
+import { sanitizeSenderDisplayName } from '../domain/sender-display-name.policy.js'
+import { safeLogWarn } from '../../logging/safe-logger.service.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
+import type { CompanyLogoReader } from '../infrastructure/drizzle-company-logo.reader.js'
 import { buildReplyAddress, deriveReplyToken } from '../domain/reply-token.policy.js'
 import {
   ResendInvalidRecipientsError,
@@ -48,6 +55,10 @@ export type ContractorMailOutboundAttachmentsPort = {
 
 export type SendContractorMailOutboundMessageDependencies = {
   readonly attachments: ContractorMailOutboundAttachmentsPort
+  /** Spec 272: o logo inline; sem leitor, a mensagem com `has_inline_logo` sai sem a parte (como logo ausente). */
+  readonly companyLogo?: CompanyLogoReader
+  /** Spec 272: só `messageId` e motivo vão a log (nunca endereço, nome ou corpo). */
+  readonly logger?: WorkerLogger
   readonly mailGateway: ResendMailGateway
   readonly repository: ContractorMailOutboundWorkerRepository
   /** Spec 268: presente só com `CONTRACTOR_MAIL_SANDBOX_SMTP` ligado neste worker (nunca em produção). */
@@ -155,12 +166,16 @@ export async function sendContractorMailOutboundMessage(
     return { outcome: 'failed', reason: 'attachment_unavailable', threadId: message.threadId }
   }
 
+  const inlineLogo = await loadInlineLogo({ companyId, dependencies, message, messageId })
+  const allAttachments = [...attachments, ...inlineLogo]
+  const displayName = resolveFromDisplayName(message)
+
   try {
     const sent = await dependencies.mailGateway.sendEmail({
       apiKey: secret.apiKey,
-      ...(attachments.length === 0 ? {} : { attachments }),
+      ...(allAttachments.length === 0 ? {} : { attachments: allAttachments }),
       ...(copied.length === 0 ? {} : { cc: copied }),
-      from: `${settings.senderName} <${settings.senderAddress}>`,
+      from: `${displayName === undefined ? settings.senderName : `"${displayName}"`} <${settings.senderAddress}>`,
       headers,
       ...(message.bodyHtml === null ? {} : { html: message.bodyHtml }),
       idempotencyKey: messageId,
@@ -214,11 +229,18 @@ async function sendThroughSandbox(input: {
     return { outcome: 'failed', reason: 'attachment_unavailable', threadId: message.threadId }
   }
 
+  const inlineLogo = await loadInlineLogo({ companyId, dependencies, message, messageId })
+  const allAttachments = [...attachments, ...inlineLogo]
+  const displayName = resolveFromDisplayName(message)
+
   try {
     const sent = await sandboxMailGateway.sendEmail({
-      ...(attachments.length === 0 ? {} : { attachments }),
+      ...(allAttachments.length === 0 ? {} : { attachments: allAttachments }),
       ...(copied.length === 0 ? {} : { cc: copied }),
-      from: message.fromAddress,
+      from:
+        displayName === undefined
+          ? message.fromAddress
+          : { address: message.fromAddress, name: displayName },
       ...(message.bodyHtml === null ? {} : { html: message.bodyHtml }),
       subject: message.subject,
       text: message.bodyText,
@@ -237,6 +259,46 @@ async function sendThroughSandbox(input: {
     }
     throw error
   }
+}
+
+/** Spec 272 (ADR-0110 §8): só `outbound` e só o que sobra do saneamento; `undefined` é o comportamento de antes. */
+function resolveFromDisplayName(message: ContractorMailOutboundMessageRecord): string | undefined {
+  if (message.direction !== 'outbound' || message.fromDisplayName === null) return undefined
+  const sanitized = sanitizeSenderDisplayName(message.fromDisplayName)
+  return sanitized === '' ? undefined : sanitized
+}
+
+/**
+ * Spec 272 (ADR-0110 §9): o logo da empresa **da mensagem** como parte inline (`Content-ID` `company-logo`). Logo
+ * ausente não derruba o envio: sai sem a parte e o log leva só `messageId` e o motivo.
+ */
+async function loadInlineLogo(input: {
+  readonly companyId: string
+  readonly dependencies: SendContractorMailOutboundMessageDependencies
+  readonly message: ContractorMailOutboundMessageRecord
+  readonly messageId: string
+}): Promise<readonly ResendEmailAttachment[]> {
+  const { companyId, dependencies, message, messageId } = input
+  if (!message.hasInlineLogo) return []
+  const logo = await dependencies.companyLogo?.find({ companyId })
+  if (logo === undefined) {
+    if (dependencies.logger !== undefined) {
+      safeLogWarn({
+        logger: dependencies.logger,
+        message: 'contractor_mail_inline_logo_missing',
+        metadata: { messageId, reason: 'logo_not_found' },
+      })
+    }
+    return []
+  }
+  return [
+    {
+      content: logo.contentBase64,
+      contentId: COMPANY_LOGO_CONTENT_ID,
+      contentType: logo.mimeType,
+      fileName: logo.mimeType === 'image/png' ? 'logo.png' : 'logo.jpg',
+    },
+  ]
 }
 
 function deduplicateRecipients(addresses: readonly string[]): string[] {

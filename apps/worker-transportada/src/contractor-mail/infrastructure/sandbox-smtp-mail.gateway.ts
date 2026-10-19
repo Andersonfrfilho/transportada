@@ -12,6 +12,8 @@ import { SandboxSmtpRecipientsRejectedError } from '../domain/sandbox-smtp.error
 export type SandboxSmtpAttachment = {
   /** Base64, como o gateway do Resend recebe. */
   readonly content: string
+  /** Spec 272: `Content-ID` da parte inline; vira `cid` no nodemailer. */
+  readonly contentId?: string
   readonly contentType: string
   readonly fileName: string
 }
@@ -20,12 +22,15 @@ export type SendSandboxSmtpEmailInput = {
   readonly attachments?: readonly SandboxSmtpAttachment[]
   /** Spec 267: a cópia da empresa. O sandbox não tem `Reply-To`, então a resposta de um responsável não volta. */
   readonly cc?: readonly string[]
-  readonly from: string
+  /** Spec 272: com nome de exibição, `{ name, address }` — o nodemailer monta o cabeçalho e codifica o que não é ASCII. */
+  readonly from: SandboxSmtpFrom
   readonly html?: string
   readonly subject: string
   readonly text: string
   readonly to: readonly string[]
 }
+
+export type SandboxSmtpFrom = string | { readonly address: string; readonly name: string }
 
 export type SandboxSmtpMailGateway = {
   sendEmail(input: SendSandboxSmtpEmailInput): Promise<{ readonly id: string }>
@@ -33,13 +38,14 @@ export type SandboxSmtpMailGateway = {
 
 type SandboxSmtpMessage = {
   readonly attachments?: readonly {
+    readonly cid?: string
     readonly content: string
     readonly contentType: string
     readonly encoding: 'base64'
     readonly filename: string
   }[]
   readonly cc?: readonly string[]
-  readonly from: string
+  readonly from: SandboxSmtpFrom
   readonly html?: string
   readonly subject: string
   readonly text: string
@@ -94,6 +100,7 @@ export function createSandboxSmtpMailGateway(
           ? {}
           : {
               attachments: request.attachments.map((attachment) => ({
+                ...(attachment.contentId === undefined ? {} : { cid: attachment.contentId }),
                 content: attachment.content,
                 contentType: attachment.contentType,
                 encoding: 'base64' as const,

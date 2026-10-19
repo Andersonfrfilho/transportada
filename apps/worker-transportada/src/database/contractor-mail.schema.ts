@@ -6,7 +6,16 @@
  * outras três tabelas apenas as colunas que o envio de e-mail toca.
  */
 import { sql } from 'drizzle-orm'
-import { bigint, boolean, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
+import {
+  bigint,
+  boolean,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core'
 
 import type { ContractorMailTransport } from '../contractor-mail/domain/contractor-mail.constant.js'
 
