@@ -237,6 +237,9 @@ foram vetadas pelo dono e viraram D12 e D13.
   o montador novo com assinatura da equipe. **Emendada pela ADR-0110 §10:** o reenvio de mensagem anterior à 272 sai
   assinado pelo operador que a escreveu (ou pela equipe, se foi automática).
 - **A3 — Cidade no cabeçalho** = `city · state` de `company_fiscal_profiles` (endereço fiscal).
+- **A4 — Transportadora sem perfil fiscal não bloqueia o envio** (T2.4): assunto sem prefixo, "De" como antes,
+  identidade vazia e sem logo no HTML. Alternativa vetável: recusar o envio (fail-closed) até o perfil existir.
+- **A5 — O reenvio da 248 ganha o prefixo e o "De" novo** (T2.4), seguindo no caminho de texto.
 
 Nenhum `[NEEDS CLARIFICATION]`: as perguntas acima têm padrão adotado e não bloqueiam.
 
@@ -834,11 +837,181 @@ Gates:
 - `bun run typecheck` API e painel → limpos; `bunx eslint`/`prettier --check` nos tocados → limpos; script `test` do
   painel → verde.
 
+### T2.4 — Envio manual e automático pelo modelo HTML (2026-10-19)
+
+Executor `sonnet`. Políticas novas em `src/occurrence-conversation/domain/`: `occurrence-mail-subject.policy.ts`
+(prefixo idempotente; o nome de exibição só encolhe abaixo de 80 quando o prefixo passaria de 160, e a parte do modelo
+nunca fica abaixo de 40), `occurrence-mail-sender-name.policy.ts` (**tabela do "De"**: `SENDER_DISPLAY_NAME_CASES`, 29
+casos, e `SENDER_DISPLAY_NAME_MAX`; controles e U+2028/2029 viram espaço; bidi, invisíveis e `<>"\,;` saem; escapes
+`\u{…}` no fonte), `occurrence-mail-html-compose.policy.ts` (`composeOccurrenceMailHtml`, usada por envio, prévia e
+leitor do automático) e `occurrence-mail-text.policy.ts` (`collapseLine`, `truncateText` sem partir par substituto). A
+porta ganhou `findOccurrenceMailHtmlSource` (`null` para modelo de texto); `findCarrierName`/`findOperatorName` saíram.
+
+Comportamento: corpo que casa `HTML_BODY_REGEX` → caminho HTML; senão, texto como hoje. Gravado em
+`contractor_mail_messages`: `body_html`, `body_text` = texto do HTML inteiro, `from_display_name`, `has_inline_logo`
+(modelo usa `{{logoTransportadora}}` **e** há logo). A conversa e o `bodyText` de entrada levam o texto da área. Manual
+(D12): texto igual → área do modelo; editado → texto do operador escapado em parágrafos, inserido depois da
+renderização. Modelo sem área ou HTML > 524288 bytes → `OccurrenceMailTemplateMissingError` (409); no automático vira
+"sem modelo"; na prévia cai no texto em branco.
+
+Decisões do executor (assunções reversíveis, § Assunções):
+
+1. **Sem perfil fiscal: não recusa.** Assunto sem prefixo, `from_display_name` nulo (o worker segue como antes),
+   identidade vazia e sem logo no HTML. A recusa fail-closed (sugestão do `architect` na revisão 1) não chegou a virar
+   decisão na ADR; recusar quebraria os fixtures `seedMailScenario`. Mudar para recusa é uma linha em
+   `send-occurrence-mail.use-case.ts`.
+2. Automático: usa sempre a área do modelo; a conversa leva `input.bodyText.trim()`. Operador sem vínculo ativo assina
+   como `team`.
+3. **Reenvio da 248:** segue o caminho de texto, mas ganha o prefixo (idempotente) e o "De" novo.
+4. Critério 10: com linhas longas, 200 itens deram 117 KB na integração (lá se asserta só ≤ 524288); os < 100 KB
+   seguem medidos na T2.3 com linhas curtas (~84 KB).
+
+**Correção da sessão principal — prévia ≠ envio na faixa de resposta:** a prévia compunha com `hasReplyTo: true`
+fixo, então no sandbox mostrava a faixa "Responda este e-mail" que o e-mail enviado não leva (fere o critério 12). A
+prévia passou a ler `findMailSettings` (função extraída no repositório, reusada pelo método da transação) e decidir por
+`resolveMailSendReadiness(...).ready`, como o envio. Teste novo "a faixa de resposta segue o envio" (sandbox sem faixa,
+Resend pronto com faixa).
+
+Desvio do TDD: só as políticas (assunto, "De", composição) tiveram vermelho antes; os testes de caso de uso (envio e
+prévia) vieram depois da implementação.
+
+Gates: agregador `occurrence-contractor-mail` 0/1 fail/1 error → 245 pass (eram 186); `occurrence-mail.contract.ts` 74
+pass (eram 58); integração nova `occurrence-mail-html-send.integration.ts` 8/8 (manual e automático, HTML e texto,
+Resend e sandbox, dono injetado, 200 itens: conversa ≤ 8000 e `body_text` do e-mail > 8000); 21 integrações de envio,
+modelo, watchers, recipients, reply e sandbox → 107 pass, nenhum skip; script `test` da API 12274 pass / 0 fail / 25
+skip; depois da correção da prévia, `occurrence-conversation.contract.test.ts` 693 pass / 0 fail.
+
+### T4.1 — Painel: cargo, `unsafe_html`, prévia em iframe e validação (2026-10-19)
+
+Executor `sonnet`. Cargo: campo em `CompanyUserEditDialog.component.tsx` (até 80, contador na dica, ajuda "Aparece na
+assinatura dos e-mails de ocorrência"; `resolveJobTitleChange`: `undefined` não altera, `null` limpa) no `PATCH`
+existente; o cargo aparece abaixo do nome em `CompanyUserTable.component.tsx` (a página não renderiza o nome).
+`jobTitle` opcional em `CompanyUser` (obrigatório quebraria dezenas de fixtures). `unsafe_html` e
+`missing_message_area` no lugar de `html_body` (tipos, cliente, locales). Prévia do tipo com corpo HTML em
+`<iframe sandbox="" srcDoc>`. Validação: cópia por valor da tabela (`emailHtmlUnsafeCases.constant.ts`, 35 casos) e da
+lógica em `emailHtml.validation.ts` (`findUnsafeHtmlRules`); `<script` mantém o código `EMAIL_HTML_SCRIPT`; códigos novos
+`UNSAFE_TAG`, `UNSAFE_EVENT`, `UNSAFE_SCHEME`, `PLACEHOLDER_IN_TAG`, todos `error`. Contrato
+`test/notification/email-html-unsafe.contract.ts` confere os nomes contra o fonte da API e o mesmo veredito por caso.
+`contentSecurityPolicy.service.ts`: `https://x.com` dos casos declarado em `NON_FETCH_ORIGIN`.
+
+**Correção da sessão principal — escopo das regras novas:** o `validateEmailHtml` é o do editor de Notificações, que
+serve a **todos** os modelos; do jeito que veio, um `<a href="{{url}}">` legítimo de outra notificação passaria a ser
+recusado. As quatro regras novas agora só valem quando o HTML tem a área `<!-- mensagem -->` (o que identifica o modelo
+do e-mail da ocorrência, ADR §12); `<script` segue recusado em qualquer modelo. Teste antes: o caso "outra notificação
+com link `{{url}}`" deu 1 fail / 40 pass; depois 41 pass / 0 fail.
+
+Gates (executor): `bun run test` 8398 pass / 0 fail; `test:hooks` 1407 / 0; typecheck limpo; lint 0 erros (16 avisos
+antigos); prettier limpo. Não há teste de renderização do diálogo e da tabela (só fonte e locale).
+
+### T4.2 — Os cinco modelos `.html` (2026-10-19)
+
+Executor `haiku`. `apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates/{prorrogacao-boleto,
+avaria,devolucao,entrega-nao-realizada,recusa}.html` a partir de `desenho-aprovado.html`: `<!-- subject: … -->` na
+linha 1, logo antes do nome de exibição, resumo, área `<!-- mensagem -->` com o texto do `TEMPLATES`, `{{tabelaItens}}`
+fora da área em avaria, devolução e recusa, `{{faixaResposta}}`, assinatura e `{{marcasRodape}}`; tabelas e estilo
+inline, 620 px. No desenho a tabela ficava no meio do corpo (em `{{linhasItens}}`); com uma área só, ela ficou logo
+depois da área. A sessão principal tirou um `· {{data}}` que o executor acrescentou ao rodapé (não está no desenho).
+Teste `test/occurrence-contractor-mail/mail-templates-files.contract.ts`: vermelho 5 errors (arquivos ausentes) → 45
+pass / 0 fail; a linha do assunto é separada antes de validar (o `{{…}}` dela acusaria `placeholder_in_tag`).
+
+### T4.3 — Script que publica os modelos (2026-10-19)
+
+Executor `sonnet`. `apps/api-transportada/scripts/occurrence-mail-templates-publish.ts --company <uuid> [--confirm]
+[--overwrite <chave>]` (fino) + `src/occurrence-conversation/application/occurrence-mail-templates-publish.service.ts`
+(lógica). Chave = `ocorrencia.<arquivo>` (plan D14, ADR §13), canal `email`, `pt-BR`. Separa a linha do assunto e valida
+o resto com `assessContractorTemplate`; um inválido → nada é gravado e sai com código 1. Grava pelo `TemplateRepository`
+do pacote (INSERT de versão, nunca UPDATE). Plano `create`/`same`/`differs`; `--confirm` aplica só `create`;
+`differs` só com `--overwrite <chave>`; imprime só chave, versão e veredito. Testes:
+`mail-templates-publish.contract.ts` (vermelho → 10 pass) e `test/integration/occurrence-mail-templates-publish.
+integration.ts` (3/3, sem skip; pegou um defeito do próprio executor: com `--confirm` e arquivo inválido devolvia
+`invalid: []`). Os dois testes entraram no agregador `occurrence-contractor-mail` e em `test:integration` (agregador:
+300 pass / 0 fail).
+
+### T3.1 — Worker: "De", logo inline e filtro da fila (2026-10-19)
+
+Executor `sonnet`. **"De"** por `from_display_name` em `outbound` nos dois transportes: Resend `"Nome" <endereço>` com o
+nome cru em UTF-8 entre aspas (a API já tira `" \ < > , ;`); sandbox `{ name, address }` (o nodemailer codifica).
+Saneamento copiado em `src/contractor-mail/domain/sender-display-name.policy.ts`, paridade pela fixture com os 29
+casos da API. Nulo ou esvaziado pelo saneamento → comportamento de hoje. **Logo inline** quando `has_inline_logo`:
+`drizzle-company-logo.reader.ts` lê `company_logos` pela `company_id` da própria mensagem; parte inline `logo.png`/
+`logo.jpg` com Content-ID `company-logo` (`COMPANY_LOGO_CONTENT_ID`, igual ao da API); logo ausente → sem a parte e log
+warn `contractor_mail_inline_logo_missing` só com `{ messageId, reason }`. **Fila do automático:** `!~*
+UNSAFE_EMAIL_HTML_PATTERN` = `<(script|iframe|form|object|embed)\y|[\s/"']on[a-z]+\s*=|(javascript|vbscript):|<[^>]*\{\{`
+(`\y` porque `\b` é backspace no POSIX do Postgres) no lugar de `!~ HTML_BODY_PATTERN`; a integração roda os 35 casos
+da tabela contra o Postgres e exige bloqueio exatamente quando `worker === 'bloqueia'`.
+
+Pendências registradas (não bloqueiam staging, conferir no envio real da T5.2):
+
+- **Resend:** a doc oficial (context7, resend.com/docs/llms-full.txt) documenta `from` como `"Name <email>"` e o campo
+  "content id" do anexo para `<img src="cid:…">`, mas não fala de RFC 2047 nem mostra o nome REST `content_id`
+  (deduzido do snake_case dos outros campos do anexo). O envio real em staging prova os dois.
+- **Grant:** não há papel de banco próprio do worker no repositório; o worker usa o mesmo usuário da API, então o
+  SELECT em `company_logos` vale por consequência. Conferir no papel real do deploy.
+- `HTML_BODY_PATTERN` ficou sem uso no worker (com o contrato); remoção fica para depois.
+
+Gates (cwd `apps/worker-transportada`): fila vermelha antes (export inexistente) → 8/8; `bun run test` 2721 pass / 0
+fail (109 arquivos); integrações tocadas (fila, sandbox-outbound, outbound-outbox, reply-email-delivery,
+outbound-attachments) 22 pass / 0 fail / 0 skip, num banco descartável migrado pelo `db:migrate` da API; typecheck e
+`lint --max-warnings=0` limpos. A sessão principal formatou `src/database/contractor-mail.schema.ts` (o WIP da T2.1
+deixou uma linha fora do prettier). Os contratos de "De" e logo foram escritos antes do código, mas o vermelho deles não
+foi rodado isolado.
+
+### T4.4 — Documentação viva (2026-10-19)
+
+Executor `haiku`. Seções novas: `CLAUDE.md` da raiz ("E-mail em HTML vem do modelo do módulo de notificação"),
+`apps/api-transportada/CLAUDE.md` e `docs/ai-context/api-transportada.md` (variáveis, políticas, `unsafe_html`, "De",
+prefixo, cargo, área de mensagem e CHECK de 8000; a seção da 271 trocou `html_body` por `unsafe_html`/
+`missing_message_area`), `apps/worker-transportada/CLAUDE.md` e `docs/ai-context/worker-transportada.md` (logo `cid:`,
+"De", filtro da fila). **Não há OpenAPI** nesta API (o `CLAUDE.md` da API já dizia); o `jobTitle` ficou documentado
+apontando para `user-administration.schema.ts`. `APP_BASE_URL` já existia no `.env.example` e no worker do
+`.railway/railway.ts`: entrou `APP_BASE_URL: preserve()` na API e o comentário do `.env.example` cita o rodapé. Gates:
+`env-example` 5/5; contratos que leem `railway.ts` 81/81; `deploy.contract.test.ts` 202/202; prettier limpo.
+
+**Atenção para a T5.2:** `preserve()` mantém o valor que o serviço já tem; se a API de staging não tiver `APP_BASE_URL`, o
+rodapé sai só em texto. Conferir/definir a variável na API de staging antes do teste.
+Feito em 2026-10-19 com autorização do dono: `railway variables -s api -e staging --set APP_BASE_URL=… --skip-deploys`
+(mesmo valor do worker, `https://app.staging.fernandes-transportadora.com.br`); vale no próximo deploy da API.
+
+### T5.1 — Revisão de código e de segurança, correções e gates (2026-10-19)
+
+`code-reviewer` e `security-reviewer` (sonnet) em paralelo sobre `git diff origin/staging` (inclui o não commitado).
+**Os dois: APROVADO COM AJUSTES, nenhum CRÍTICO/ALTO.** Corrigidos por um executor `sonnet`, teste antes em cada item:
+
+- **Fila do worker mais estrita que a API para corpo de texto** (código, MÉDIO — regressão silenciosa): o filtro novo
+  valia para todo corpo; modelo de texto com `NF <{{numeroNota}}>`, `online = sim` ou `javascript:` sumia da fila do
+  automático. Agora `(body !~ HTML_BODY_PATTERN or body !~* UNSAFE_EMAIL_HTML_PATTERN)`, como a API (só HTML).
+- **Valor multilinha perdia as quebras no HTML** (código, MÉDIO): `\n` do valor vira `<br>`; ida e volta pela parte texto.
+- **Placeholder em tag burlável** (segurança, BAIXO): `<a title=">" href="{{x}}">` e `{{x}}` dentro de `<style>`. A regra
+  ficou ciente de aspas e ganhou o ramo `<style>`; nas três cópias, com 7 casos novos (tabela agora com **42** casos na
+  API, no painel e no worker; o POSIX do worker segue nunca mais estrito).
+- **Modelo relido sem reavaliação** (segurança, BAIXO): `readTemplateSource` reavalia o corpo
+  (`blocksContractorMailSend(assessContractorTemplate(...))`) e devolve `null` se bloquear — vale também para a sugestão
+  do automático.
+- **Assunto** sem controles/invisíveis (`cleanSubjectText`: `[\p{Cc}\p{Cf}]`); **"De"** com `\p{Cf}` na API e no worker (4
+  casos novos; tabela do "De" com 33 casos).
+- Entidade que vira NUL/substituto solto/> U+10FFFF decodifica para `''` (o Postgres recusaria); corte da área por
+  `truncateText` (não parte par substituto); **cargo gravado só depois do perfil/Keycloak** (falha do gateway não grava);
+  prévia do painel por `Object.hasOwn`; a tabela deixou de usar `https://x.com`, e a exceção saiu do CSP do painel.
+
+Não corrigidos (registrados): `ADD CONSTRAINT … CHECK` sem `NOT VALID` (tabelas pequenas; o padrão do repositório faz
+igual); a prévia lê o envelope cifrado só para a prontidão (não é devolvido nem logado); o painel aplica as regras novas
+só com a área `<!-- mensagem -->` — escolha deliberada (o editor serve a todos os modelos; a API reavalia em todo uso);
+a prévia mostra o assunto sem o prefixo ("Como chega" adiada pelo dono).
+
+Vermelhos medidos por item (A5, W3 e P2 por reversão parcial/cálculo, não por rodada limpa). Gates depois das correções:
+API typecheck/lint limpos, `test` **12348 pass / 0 fail**, integrações de e-mail 29 + cargo 3; worker typecheck/lint limpos,
+`test` **2726 / 0**, integrações 18 / 0 / 0 skip; painel typecheck limpo, lint 0 erros (16 avisos antigos), `test` **8408 +
+1407 / 0**; prettier limpo.
+
+**Desvio do Mailpit local:** o `make dev` exige o MinIO do pacote privado do GHCR (sem cache nesta máquina nova) e o
+Keycloak; a verificação no Mailpit (um manual e um automático, lidos pela API do Mailpit) passa a ser feita no **Mailpit
+de staging** (268), antes de qualquer envio real pelo Resend.
+
 ## Prompt de execução
 
 O prompt vigente está em `tasks.md` § Prompt de execução (uma cópia só; a daqui divergia). Revisões anteriores
 no histórico do git.
 
-## Onde parou (2026-10-18)
+## Onde parou (2026-10-19)
 
-T0.3, T2.1, T2.2, T2.3 e T2.5 fechadas. Próxima: **T2.4** (envio), depois gate completo da Fase 2.
+T0.3–T4.4 e as correções da T5.1 feitas; integração completa da API rodando. Depois: commits, T5.2 (staging).

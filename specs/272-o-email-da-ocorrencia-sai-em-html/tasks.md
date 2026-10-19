@@ -72,7 +72,7 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       `occurrence-type-mail-parity.contract.ts` exige os dois lados no mesmo commit). Aceite: casos D5/D6/D11 do
       `plan.md` (200 itens < 100 KB, 201 → "e mais 1 item", sem logo → iniciais, CPF/CNPJ/sem documento, cargo/papel/
       nenhum, dono injetado); integração das leituras (outra empresa não aparece); paridade verde nas duas apps.
-- [ ] **T2.4** `sonnet` — Envio (D7, D8, D12), teste antes: `occurrence-mail-subject.policy.ts` (prefixo, corte em 80,
+- [x] **T2.4** `sonnet` — Envio (D7, D8, D12), teste antes: `occurrence-mail-subject.policy.ts` (prefixo, corte em 80,
       idempotente) e `occurrence-mail-sender-name.policy.ts` (tabela de casos do "De", que o worker copia);
       `send-occurrence-mail` e `send-automatic-occurrence-mail` escolhem o caminho HTML ou texto, montam os valores, o
       assinante (`operator`/`owner`/`team`), gravam `body_html`, `body_text` gerado, `from_display_name` (nunca o
@@ -89,7 +89,7 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** `sonnet` — Teste antes. "De" por `from_display_name` em `outbound` nos dois transportes (Resend
+- [x] **T3.1** `sonnet` — Teste antes. "De" por `from_display_name` em `outbound` nos dois transportes (Resend
       `"Nome" <endereço>`, sandbox `{ name, address }`), com o saneamento copiado da tabela da T2.4; confirmar na doc
       oficial do Resend (context7) se nome não ASCII é codificado (RFC 2047) e registrar. Logo inline quando
       `has_inline_logo` (`drizzle-company-logo.reader.ts`, `content_id` no Resend, `cid` no nodemailer; logo ausente →
@@ -101,14 +101,14 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
 
 > 🤖 Modelo: `sonnet` (T4.2 e T4.4 → `haiku`)
 
-- [ ] **T4.1** `sonnet` — Teste antes. Campo "Cargo" em `CompanyUserEditDialog.component.tsx` (texto, até 80,
+- [x] **T4.1** `sonnet` — Teste antes. Campo "Cargo" em `CompanyUserEditDialog.component.tsx` (texto, até 80,
       contador, ajuda "Aparece na assinatura dos e-mails de ocorrência", vazio limpa) no `PATCH` existente e o cargo
       abaixo do nome em `UserAdministration.page.tsx`; código `unsafe_html` em `PROBLEM_CODES` e no locale (no lugar de
       `html_body`); prévia do editor do tipo com corpo HTML num `<iframe sandbox="" srcDoc>` com os exemplos;
       `emailHtml.validation.ts` com as regras que lhe faltam como `error` e a mesma tabela inteira da T2.2. Locales pt-BR/en.
       Aceite: `bun run test` do painel verde (contratos + `test:hooks`); revisão de design contra a página (`web.md`
       §15), um print ao fim.
-- [ ] **T4.2** `haiku` — Os cinco modelos `.html` a partir de `desenho-aprovado.html` (`render()` e `TEMPLATES`):
+- [x] **T4.2** `haiku` — Os cinco modelos `.html` a partir de `desenho-aprovado.html` (`render()` e `TEMPLATES`):
       `apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates/{prorrogacao-boleto,avaria,devolucao,entrega-nao-realizada,recusa}.html`,
       com `<!-- subject: … -->` no topo; cabeçalho com `{{logoTransportadora}}` **antes** de `{{nomeExibicao}}`, resumo
       Nota fiscal / Partes / Registro com `{{valorNota}}` em linha própria e `{{cnpjContratante}}` em linha própria,
@@ -117,7 +117,7 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       rodapé com `{{marcasRodape}}`; tabelas e estilos inline, cores fixas, 620 px. Q2/Q3 já respondidas (D15/D16 do dono). Aceite: teste de forma e de
       validação sobre os cinco arquivos (passam na D2, só variáveis da lista, sem `display:grid|flex`, `var(`,
       `<script`, `@import`), no script `test` da API.
-- [ ] **T4.3** `sonnet` — Teste antes. `apps/api-transportada/scripts/occurrence-mail-templates-publish.ts --company
+- [x] **T4.3** `sonnet` — Teste antes. `apps/api-transportada/scripts/occurrence-mail-templates-publish.ts --company
 <uuid> [--confirm]` (D14, molde de `whatsapp-flow-publish.ts`): valida os cinco arquivos com `assessContractorTemplate` (recusa todos se um
       falhar), grava pelo `TemplateRepository` do `notification-module` (`findActive`, `upsert` = `INSERT` com
       `max(version)+1`, `active: true`; nunca `UPDATE`); o plano mostra `create` / `same` / `differs` por chave;
@@ -126,7 +126,7 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       contrato/integração com Postgres descartável (dry-run não grava, `--confirm` grava a versão 1, segunda rodada não
       grava, `differs` sem `--overwrite` não grava, arquivo inválido não grava nenhuma chave), sem skip. **Rodar contra staging ou produção não faz parte
       desta task: PARE E PERGUNTE** (é mudança de dados; vai na T5.2).
-- [ ] **T4.4** `haiku` — Documentação viva. Aceite por `grep` de cada item nos arquivos:
+- [x] **T4.4** `haiku` — Documentação viva. Aceite por `grep` de cada item nos arquivos:
   - `CLAUDE.md` da **raiz**: seção curta "E-mail em HTML vem do modelo do módulo de notificação (spec 272, ADR-0110)":
     o visual mora no modelo HTML de Notificações; **proibido layout de e-mail em código**; modelo novo = `.html`
     versionado + script idempotente por chave (rodar em staging/produção pede aprovação); o renderer da API escapa só
