@@ -18,6 +18,7 @@ import {
   resolveInviteContact,
   resolveInviteContactField,
 } from '../shared/companyUserInvite.service'
+import { resolveJobTitleChange } from '../shared/companyUserJobTitle.service'
 import { buildRoleChoices } from '../shared/companyUsersViewModel.service'
 
 const DEFAULT_CHANNEL: ContactChannel = 'email'
@@ -111,6 +112,7 @@ export type CompanyUserEditForm = Readonly<{
   isContactRequired: boolean
   isReady: boolean
   isUsernameValid: boolean
+  jobTitle: string
   name: string
   roleChoices: readonly string[]
   roles: readonly string[]
@@ -118,6 +120,7 @@ export type CompanyUserEditForm = Readonly<{
   setChannel: (value: string) => void
   setContact: (value: string) => void
   setEmail: (value: string) => void
+  setJobTitle: (value: string) => void
   setName: (value: string) => void
   setPhone: (value: string) => void
   setTaxId: (value: string) => void
@@ -134,6 +137,7 @@ export function useCompanyUserEditForm(user: CompanyUser | null): CompanyUserEdi
   const [channel, setChannel] = useState<string>(user?.contact.channel ?? DEFAULT_CHANNEL)
   const [contact, setContact] = useState('')
   const [email, setEmail] = useState('')
+  const [jobTitle, setJobTitle] = useState(user?.jobTitle ?? '')
   const [name, setName] = useState(user?.name ?? '')
   /**
    * Telefone e CPF chegam mascarados da API, como o contato: o campo abre vazio e só entra no
@@ -148,6 +152,7 @@ export function useCompanyUserEditForm(user: CompanyUser | null): CompanyUserEdi
     setChannel(user?.contact.channel ?? DEFAULT_CHANNEL)
     setContact('')
     setEmail('')
+    setJobTitle(user?.jobTitle ?? '')
     setName(user?.name ?? '')
     setPhone('')
     setTaxId('')
@@ -160,8 +165,10 @@ export function useCompanyUserEditForm(user: CompanyUser | null): CompanyUserEdi
   const isUsernameValid = !isUsernameChanged || USERNAME_PATTERN.test(trimmedUsername)
   const isNameChanged = user !== null && name.trim() !== '' && name.trim() !== user.name
   const isChannelChanged = user !== null && channel !== user.contact.channel
+  const jobTitleChange = user === null ? undefined : resolveJobTitleChange(jobTitle, user.jobTitle)
   const hasProfileChange =
     isNameChanged ||
+    jobTitleChange !== undefined ||
     isUsernameChanged ||
     isChannelChanged ||
     contact.trim() !== '' ||
@@ -181,6 +188,7 @@ export function useCompanyUserEditForm(user: CompanyUser | null): CompanyUserEdi
     isContactRequired,
     isReady: (hasProfileChange || hasRoleChange) && isUsernameValid && !isContactRequired,
     isUsernameValid,
+    jobTitle,
     name,
     phone,
     roleChoices: buildRoleChoices(user?.roles ?? []),
@@ -188,6 +196,7 @@ export function useCompanyUserEditForm(user: CompanyUser | null): CompanyUserEdi
     setChannel,
     setContact,
     setEmail,
+    setJobTitle,
     /** Maiúscula em cada palavra e ligação minúscula enquanto se digita — mesma regra da frota. */
     setName: (value) => setName(toDisplayPersonName(value)),
     setPhone,
@@ -201,6 +210,7 @@ export function useCompanyUserEditForm(user: CompanyUser | null): CompanyUserEdi
       return {
         userId: user.id,
         ...(isNameChanged ? { name: name.trim() } : {}),
+        ...(jobTitleChange === undefined ? {} : { jobTitle: jobTitleChange }),
         ...(isUsernameChanged ? { username: trimmedUsername } : {}),
         ...(isChannelChanged ? { channel: channel as ContactChannel } : {}),
         ...(contact.trim() === '' ? {} : { contact: contact.trim() }),

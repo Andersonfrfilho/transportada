@@ -23,8 +23,13 @@ export type ContractorMailOutboundMessageRecord = {
   readonly bodyText: string
   /** Spec 267: a cópia que a API resolveu; vazia na mensagem antiga e no que não leva cópia. */
   readonly ccAddresses: readonly string[]
+  readonly direction: string
   /** Spec 268: o remetente gravado pela API; só o `sandbox_smtp` o usa (o Resend usa o da configuração). */
   readonly fromAddress: string | null
+  /** Spec 272: o nome do "De" que a API gravou (saneado); só vale em `outbound`, nulo mantém o comportamento de antes. */
+  readonly fromDisplayName: string | null
+  /** Spec 272: o HTML usa `cid:company-logo`; o worker anexa o logo da empresa da mensagem. */
+  readonly hasInlineLogo: boolean
   readonly subject: string
   readonly threadId: string
   readonly toAddresses: readonly string[]
@@ -115,7 +120,10 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
           bodyHtml: contractorMailMessages.bodyHtml,
           bodyText: contractorMailMessages.bodyText,
           ccAddresses: contractorMailMessages.ccAddresses,
+          direction: contractorMailMessages.direction,
           fromAddress: contractorMailMessages.fromAddress,
+          fromDisplayName: contractorMailMessages.fromDisplayName,
+          hasInlineLogo: contractorMailMessages.hasInlineLogo,
           subject: contractorMailMessages.subject,
           threadId: contractorMailMessages.threadId,
           toAddresses: contractorMailMessages.toAddresses,

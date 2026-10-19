@@ -3,6 +3,7 @@
  */
 import './user-administration-http/activation.contract.js'
 import './user-administration-http/identifiers.contract.js'
+import './user-administration-http/job-title.contract.js'
 import './user-administration-http/password.contract.js'
 import './user-administration-http/routes.contract.js'
 import './user-administration-http/security.contract.js'

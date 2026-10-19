@@ -10,6 +10,7 @@ import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notifi
 import { useContractorMailTemplateChoicesQuery } from '@/modules/occurrence-conversation/queries/occurrenceTypeMail.query'
 import {
   OCCURRENCE_MAIL_SUGGESTED_TEMPLATE,
+  isHtmlMailBody,
   OCCURRENCE_MAIL_VARIABLE_NAMES,
   renderContractorMailPreview,
 } from '@/modules/occurrence-conversation/shared/occurrenceTypeMailTemplate.service'
@@ -117,7 +118,17 @@ export function OccurrenceTypeContractorTemplateSelect({
           </p>
           <div className={styles.mailCard}>
             <p className={styles.mailSubject}>{preview.subject}</p>
-            <pre className={styles.mailBody}>{preview.body}</pre>
+            {isHtmlMailBody(preview.body) ? (
+              /* Sandbox vazio: sem script, sem formulário, sem navegação — a prévia é só desenho. */
+              <iframe
+                className={styles.mailFrame}
+                sandbox=""
+                srcDoc={preview.body}
+                title={t('occurrenceTypeCatalog.mail.template.previewTitle')}
+              />
+            ) : (
+              <pre className={styles.mailBody}>{preview.body}</pre>
+            )}
           </div>
         </aside>
       )}

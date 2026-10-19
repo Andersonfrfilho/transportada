@@ -133,12 +133,13 @@ describe('a chave do modelo do e-mail à contratante no cadastro do tipo (spec 2
   })
 
   test('todos os problemas de uma vez, com as variáveis desconhecidas', async () => {
-    const { run } = buildRun({ body: '<b>{{foo}}</b>', subject: '' })
+    const { run } = buildRun({ body: '<script>{{foo}}</script>', subject: '' })
 
     const error = await run({ contractorNotificationTemplateKey: KEY }).catch((cause) => cause)
 
     expect(error.details).toEqual([
-      { field: 'contractorNotificationTemplateKey', message: 'html_body' },
+      { field: 'contractorNotificationTemplateKey', message: 'unsafe_html' },
+      { field: 'contractorNotificationTemplateKey', message: 'missing_message_area' },
       { field: 'contractorNotificationTemplateKey', message: 'empty_subject' },
       { field: 'contractorNotificationTemplateKey', message: 'unknown_variables' },
       { field: 'variables', message: 'foo' },

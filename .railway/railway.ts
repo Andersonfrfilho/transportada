@@ -87,6 +87,8 @@ export default defineRailway((ctx) => {
     env: {
       AGGREGATE_DOCUMENT_OCR_URL: preserve(),
       API_PUBLIC_URL: preserve(),
+      /** Spec 272: origem das marcas do rodapé do e-mail de ocorrência. Ausente, só o texto. */
+      APP_BASE_URL: preserve(),
       APP_ENV: preserve(),
       APP_PORT: preserve(),
       BOOTSTRAP_TOKEN: preserve(),

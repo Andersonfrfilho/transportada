@@ -85,6 +85,14 @@
   overflow-wrap: anywhere;
 }
 
+.mailFrame {
+  width: 100%;
+  min-width: 0;
+  height: 28rem;
+  border: 0;
+  background: #fff;
+}
+
 .mailBody {
   margin: 0;
   color: var(--color-fog);

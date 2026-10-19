@@ -101,6 +101,8 @@
       "username": "Login",
       "usernameHint": "Lowercase, no spaces or accents; dot, hyphen and underscore are accepted.",
       "usernameInvalid": "Login outside the accepted format: 3 to 60 characters, starting with a letter or digit.",
+      "jobTitle": "Job title",
+      "jobTitleHint": "Appears in the signature of the occurrence emails",
       "channel": "Contact channel",
       "contact": "New contact",
       "contactHint": "The stored contact is masked in the list; fill this only to replace it.",

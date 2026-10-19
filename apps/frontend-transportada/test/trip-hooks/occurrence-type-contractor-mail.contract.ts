@@ -47,7 +47,11 @@ const TEMPLATES: readonly ContractorMailTemplateChoice[] = [
     problems: [{ code: 'system_key' }],
     usable: false,
   }),
-  buildTemplate({ key: 'com.html', problems: [{ code: 'html_body' }], usable: false }),
+  buildTemplate({ key: 'com.html', problems: [{ code: 'unsafe_html' }], usable: false }),
+  buildTemplate({
+    body: '<table><tr><td>Nota {{numeroNota}} na {{contratante}}</td></tr></table>',
+    key: 'ocorrencia.html',
+  }),
 ]
 
 function buildType(overrides: Partial<OccurrenceType> = {}): OccurrenceType {
@@ -148,6 +152,7 @@ describe('o seletor do modelo do e-mail à contratante (spec 271 RF1-RF4)', () =
         'Nenhum',
         expect.stringContaining('ocorrencia.avaria'),
         expect.stringContaining('ocorrencia.falta'),
+        expect.stringContaining('ocorrencia.html'),
       ] as unknown as string[])
       expect(optionTexts().join(' ')).not.toContain('trip.delivery-occurrence')
       expect(optionTexts().join(' ')).not.toContain('com.html')
@@ -204,8 +209,27 @@ describe('o seletor do modelo do e-mail à contratante (spec 271 RF1-RF4)', () =
     'modelo já escolhido que deixou de servir fica à vista, com o motivo',
     scenario({ templates: TEMPLATES }, async () => {
       await mount(buildType({ contractorNotificationTemplateKey: 'com.html' }))
-      await waitFor(() => expect(pageText()).toContain('O corpo tem HTML'))
+      await waitFor(() => expect(pageText()).toContain('conteúdo ativo'))
       expect(trigger('Modelo').textContent).toContain('com.html')
+    }),
+  )
+
+  test(
+    'modelo com corpo HTML aparece num iframe sandbox vazio com os valores de exemplo; texto segue em pre',
+    scenario({ templates: TEMPLATES }, async () => {
+      await mount(buildType({ contractorNotificationTemplateKey: 'ocorrencia.html' }))
+      await waitFor(() => expect(document.querySelector('iframe')).not.toBeNull())
+      const frame = document.querySelector('iframe') as HTMLIFrameElement
+
+      expect(frame.getAttribute('sandbox')).toBe('')
+      expect(frame.getAttribute('srcdoc')).toContain('Nota 123456/1 na Contratante Exemplo')
+      expect(frame.getAttribute('srcdoc')).not.toContain('{{')
+      expect(document.querySelector('pre[class*="mailBody"]')).toBeNull()
+      mounted.splice(0).forEach((rendered) => rendered.unmount())
+
+      await mount(buildType({ contractorNotificationTemplateKey: 'ocorrencia.avaria' }))
+      await waitFor(() => expect(pageText()).toContain('Nota 123456/1 na Contratante Exemplo'))
+      expect(document.querySelector('iframe')).toBeNull()
     }),
   )
 

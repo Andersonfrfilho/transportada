@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 271 (ADR-0108, D3/D4/D5): quando um modelo de e-mail do módulo de notificação serve ao e-mail de
+ * Spec 271 (ADR-0108, D3/D4/D5) e 272 (ADR-0110 §2: HTML seguro é utilizável): quando um modelo de e-mail do módulo de notificação serve ao e-mail de
  * ocorrência à contratante. Pura: devolve **todos** os problemas de uma vez, na ordem fixa abaixo; quem lê o
  * banco e quem responde o 400 ficam de fora.
  */
@@ -9,16 +9,22 @@ import { extractTemplatePlaceholders } from '@adatechnology/notification-contrac
 
 import { NOTIFICATION_TEMPLATE_KEY } from '../../notification/domain/notification-catalog.constant.js'
 import {
-  HTML_BODY_PATTERN,
+  HTML_BODY_REGEX,
   OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES,
 } from './occurrence-contractor-mail.constant.js'
+import {
+  findMessageArea,
+  findUnsafeHtmlRules,
+  hasSystemHtmlKeyInMessageArea,
+} from './occurrence-mail-html-safety.policy.js'
 
 export type ContractorTemplateProblem =
   | { readonly code: 'empty_subject' }
-  | { readonly code: 'html_body' }
   | { readonly code: 'malformed_placeholder' }
+  | { readonly code: 'missing_message_area' }
   | { readonly code: 'not_found' }
   | { readonly code: 'system_key' }
+  | { readonly code: 'unsafe_html' }
   | { readonly code: 'unknown_variables'; readonly variables: readonly string[] }
 
 export type ContractorTemplateContent = {
@@ -31,14 +37,14 @@ export const SYSTEM_NOTIFICATION_TEMPLATE_KEYS: ReadonlySet<string> = new Set(
   Object.values(NOTIFICATION_TEMPLATE_KEY),
 )
 
-const HTML_BODY_REGEX = new RegExp(HTML_BODY_PATTERN, 'u')
 /** Uma `{{` que o renderizador do módulo não casa (`{{ nome }}`): o texto sairia com o marcador cru. */
 const MALFORMED_PLACEHOLDER_REGEX = /\{\{(?!\s*[A-Za-z0-9_]+\s*\}\})/u
 
 const SEND_BLOCKING_CODES: ReadonlySet<ContractorTemplateProblem['code']> = new Set([
   'empty_subject',
-  'html_body',
+  'missing_message_area',
   'not_found',
+  'unsafe_html',
 ])
 
 function findUnknownVariables(template: ContractorTemplateContent): readonly string[] {
@@ -49,6 +55,11 @@ function findUnknownVariables(template: ContractorTemplateContent): readonly str
         .filter((name) => !OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES.has(name)),
     ),
   ]
+}
+
+/** HTML inseguro (ADR-0110 §2) ou chave de HTML do sistema dentro da área de mensagem (§12). */
+function hasUnsafeHtml(body: string): boolean {
+  return findUnsafeHtmlRules(body).length > 0 || hasSystemHtmlKeyInMessageArea(body)
 }
 
 export function assessContractorTemplate(params: {
@@ -62,9 +73,13 @@ export function assessContractorTemplate(params: {
   const hasMalformedPlaceholder = [template.subject, template.body].some((text) =>
     MALFORMED_PLACEHOLDER_REGEX.test(text),
   )
+  const isHtml = HTML_BODY_REGEX.test(template.body)
   return [
     ...(SYSTEM_NOTIFICATION_TEMPLATE_KEYS.has(key) ? [{ code: 'system_key' } as const] : []),
-    ...(HTML_BODY_REGEX.test(template.body) ? [{ code: 'html_body' } as const] : []),
+    ...(isHtml && hasUnsafeHtml(template.body) ? [{ code: 'unsafe_html' } as const] : []),
+    ...(isHtml && findMessageArea(template.body) === undefined
+      ? [{ code: 'missing_message_area' } as const]
+      : []),
     ...(template.subject.trim() === '' ? [{ code: 'empty_subject' } as const] : []),
     ...(unknownVariables.length > 0
       ? [{ code: 'unknown_variables', variables: unknownVariables } as const]

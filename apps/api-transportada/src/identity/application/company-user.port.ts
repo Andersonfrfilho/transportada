@@ -23,6 +23,8 @@ export type CompanyUserRecord = {
   readonly email: string
   /** Só a existência da linha em `identity_user_pictures`: os bytes têm rota própria. */
   readonly hasPicture: boolean
+  /** Cargo livre da membership (D10); ausente/nulo = sem cargo. */
+  readonly jobTitle?: string | null
   /** O id do vínculo, não o da pessoa: é ele que o motorista da frota referencia. */
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus
@@ -195,6 +197,12 @@ export type CompanyUserRepositoryPort = {
   readonly setMembershipStatus: (input: {
     readonly companyId: string
     readonly status: MembershipStatus
+    readonly userId: string
+  }) => Promise<void>
+  /** Recorte por `(user_id, company_id)`: a empresa é a do contexto autenticado, nunca a do corpo. */
+  readonly updateJobTitle: (input: {
+    readonly companyId: string
+    readonly jobTitle: string | null
     readonly userId: string
   }) => Promise<void>
   /** Lança `DuplicateUsernameError` quando o login já pertence a outra pessoa do realm. */

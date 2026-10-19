@@ -23,7 +23,7 @@ type UpdateCompanyUserProfileDependencies = {
   readonly publicBaseUrl?: string
   readonly repository: Pick<
     CompanyUserRepositoryPort,
-    'findByUserId' | 'findIdentitySubject' | 'updateProfile'
+    'findByUserId' | 'findIdentitySubject' | 'updateJobTitle' | 'updateProfile'
   >
 }
 
@@ -32,6 +32,8 @@ export type UpdateCompanyUserProfileInput = {
   readonly contact?: string
   readonly context: { readonly companyId: string }
   readonly email?: string
+  /** Já saneado pela rota (política do cargo); `null` limpa, ausente não altera. */
+  readonly jobTitle?: string | null
   readonly name?: string
   readonly phone?: string
   readonly taxId?: string
@@ -57,9 +59,35 @@ export function createUpdateCompanyUserProfileUseCase({
   repository,
 }: UpdateCompanyUserProfileDependencies): UpdateCompanyUserProfileUseCase {
   return {
-    async execute({ channel, contact, context, email, name, phone, taxId, userId, username }) {
+    async execute({
+      channel,
+      contact,
+      context,
+      email,
+      jobTitle,
+      name,
+      phone,
+      taxId,
+      userId,
+      username,
+    }) {
       const existing = await repository.findByUserId({ companyId: context.companyId, userId })
       if (existing === undefined) throw new CompanyUserNotFoundError()
+
+      const nextJobTitle = jobTitle === undefined ? (existing.jobTitle ?? null) : jobTitle
+      /** O cargo é só da membership: sem campo de ficha, o Keycloak não tem o que receber. */
+      const hasProfileChange = [channel, contact, email, name, phone, taxId, username].some(
+        (value) => value !== undefined,
+      )
+      if (!hasProfileChange) {
+        if (jobTitle !== undefined) {
+          await repository.updateJobTitle({ companyId: context.companyId, jobTitle, userId })
+        }
+        return toCompanyUserView({
+          ...existing,
+          jobTitle: nextJobTitle,
+        })
+      }
 
       await repository.updateProfile({
         userId,
@@ -128,10 +156,16 @@ export function createUpdateCompanyUserProfileUseCase({
         userId: subject,
       })
 
+      /** O cargo é gravado por último: falha do provedor não deixa o cargo novo com a ficha antiga. */
+      if (jobTitle !== undefined) {
+        await repository.updateJobTitle({ companyId: context.companyId, jobTitle, userId })
+      }
+
       return toCompanyUserView({
         ...existing,
         contactAddress: contact ?? existing.contactAddress,
         contactChannel: channel ?? existing.contactChannel,
+        jobTitle: nextJobTitle,
         name: name === undefined ? existing.name : toStoredPersonName(name),
         phone: phone ?? existing.phone,
         taxId: taxId ?? existing.taxId,

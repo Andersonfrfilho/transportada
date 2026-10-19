@@ -395,6 +395,7 @@ export function createUserAdministrationRoutes(
           ...(body.channel === undefined ? {} : { channel: body.channel }),
           ...(body.contact === undefined ? {} : { contact: body.contact }),
           ...(body.email === undefined ? {} : { email: body.email }),
+          ...(body.jobTitle === undefined ? {} : { jobTitle: body.jobTitle }),
           ...(body.name === undefined ? {} : { name: body.name }),
           ...(body.phone === undefined ? {} : { phone: body.phone }),
           ...(body.taxId === undefined ? {} : { taxId: body.taxId }),

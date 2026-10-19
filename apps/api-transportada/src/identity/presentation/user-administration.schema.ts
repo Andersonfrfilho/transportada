@@ -12,6 +12,8 @@ import {
   type Paging,
 } from '../../http/request-parsing.service.js'
 import { COMPANY_USER_API_STATUSES } from '../application/change-company-user-status.use-case.js'
+import { COMPANY_USER_JOB_TITLE_MAX_LENGTH } from '../domain/company-user-job-title.constant.js'
+import { normalizeCompanyUserJobTitle } from '../domain/company-user-job-title.policy.js'
 import { isCompanyPermission, isGrantablePermission } from '../domain/authorization.policy.js'
 import {
   COMPANY_USER_PASSWORD_MAX_LENGTH,
@@ -155,11 +157,26 @@ export type GrantDirectPermissionsBody = z.infer<typeof grantDirectPermissionsSc
 /** Login do Keycloak: minúsculo, sem espaço e sem acento — o que o realm aceita sem normalizar. */
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,59}$/u
 
+/** Sai saneado pela política: `null` e `""` limpam, mais de 80 caracteres é 400. */
+const jobTitleSchema = z
+  .string()
+  .nullable()
+  .transform((value, context): string | null => {
+    const result = normalizeCompanyUserJobTitle(value)
+    if (result.ok) return result.value
+    context.addIssue({
+      code: 'custom',
+      message: `Job title must have at most ${COMPANY_USER_JOB_TITLE_MAX_LENGTH} characters.`,
+    })
+    return z.NEVER
+  })
+
 export const updateCompanyUserProfileSchema = z
   .object({
     channel: z.enum(CONTACT_CHANNELS).optional(),
     contact: z.string().trim().min(1).optional(),
     email: optionalEmailSchema.optional(),
+    jobTitle: jobTitleSchema.optional(),
     name: z.string().trim().min(1).optional(),
     phone: optionalPhoneSchema.optional(),
     taxId: optionalTaxIdSchema.optional(),

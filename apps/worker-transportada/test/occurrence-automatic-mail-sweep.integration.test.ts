@@ -6,8 +6,11 @@
  * que duas passadas viram um envio só.
  *
  * Spec 271: entra só a ocorrência cujo tipo escolheu, pela chave, um modelo utilizável no módulo de notificação
- * (versão ativa mais alta, e-mail `pt-BR`, assunto preenchido, corpo sem HTML) — sem ele a API pula e o varredor a
+ * (versão ativa mais alta, e-mail `pt-BR`, assunto preenchido) — sem ele a API pula e o varredor a
  * revisitaria a cada batida até a janela fechar.
+ *
+ * Spec 272 (ADR-0110 §2): modelo com HTML entra; só o HTML inseguro (filtro grosso `UNSAFE_EMAIL_HTML_PATTERN`) fica de fora, e a
+ * tabela de casos da API confere, caso a caso, com o veredito do Postgres.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -21,7 +24,9 @@ import {
   OCCURRENCE_AUTOMATIC_MAIL_LOOKBACK_MILLISECONDS,
   OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION,
   OCCURRENCE_AUTOMATIC_MAIL_SWEEP_JOB,
+  UNSAFE_EMAIL_HTML_PATTERN,
 } from '../src/occurrence-automatic-mail-sweep/domain/occurrence-automatic-mail-sweep.constant.js'
+import { OCCURRENCE_MAIL_UNSAFE_HTML_CASES } from './fixtures/occurrence-mail-unsafe-html-cases.fixture.js'
 import { createDrizzleOccurrenceAutomaticMailQueue } from '../src/occurrence-automatic-mail-sweep/infrastructure/drizzle-occurrence-automatic-mail-queue.repository.js'
 
 const databaseUrl = process.env.DATABASE_URL
@@ -37,9 +42,15 @@ type TemplateShape =
   | 'inactive'
   | 'none'
   | 'newerVersionHtml'
+  | 'newerVersionUnsafe'
   | 'otherChannel'
   | 'otherCompanyOnly'
   | 'otherLocale'
+  | 'safeEntityScheme'
+  | 'textLooksUnsafe'
+  | 'unsafeEvent'
+  | 'unsafeScheme'
+  | 'unsafeScript'
   | 'usable'
 
 type Scenario = {
@@ -69,6 +80,12 @@ const SCENARIOS = {
   templateInactive: { ageMilliseconds: 30 * MINUTE, template: 'inactive' },
   templateMissing: { ageMilliseconds: 30 * MINUTE, template: 'none' },
   templateNewerVersionHtml: { ageMilliseconds: 30 * MINUTE, template: 'newerVersionHtml' },
+  templateNewerVersionUnsafe: { ageMilliseconds: 30 * MINUTE, template: 'newerVersionUnsafe' },
+  templateSafeEntityScheme: { ageMilliseconds: 30 * MINUTE, template: 'safeEntityScheme' },
+  templateTextLooksUnsafe: { ageMilliseconds: 30 * MINUTE, template: 'textLooksUnsafe' },
+  templateUnsafeEvent: { ageMilliseconds: 30 * MINUTE, template: 'unsafeEvent' },
+  templateUnsafeScheme: { ageMilliseconds: 30 * MINUTE, template: 'unsafeScheme' },
+  templateUnsafeScript: { ageMilliseconds: 30 * MINUTE, template: 'unsafeScript' },
   templateOfAnotherCompany: { ageMilliseconds: 30 * MINUTE, template: 'otherCompanyOnly' },
   templateOtherChannel: { ageMilliseconds: 30 * MINUTE, template: 'otherChannel' },
   templateOtherLocale: { ageMilliseconds: 30 * MINUTE, template: 'otherLocale' },
@@ -238,10 +255,20 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
       key,
       ...(shape === 'emptySubject' ? { subject: '   ' } : {}),
       ...(shape === 'html' ? { body: '<p>Olá {{contratante}}</p>' } : {}),
+      ...(shape === 'safeEntityScheme' ? { body: '<a href="java&#115;cript:x">a</a>' } : {}),
+      ...(shape === 'textLooksUnsafe'
+        ? { body: 'NF <{{numeroNota}}> online = sim, veja javascript:x' }
+        : {}),
+      ...(shape === 'unsafeEvent' ? { body: '<a href="#" onclick="x()">a</a>' } : {}),
+      ...(shape === 'unsafeScheme' ? { body: '<a href="javascript:x">a</a>' } : {}),
+      ...(shape === 'unsafeScript' ? { body: '<script>x</script>' } : {}),
       ...(shape === 'inactive' ? { active: false } : {}),
       ...(shape === 'otherChannel' ? { channel: 'inbox' } : {}),
       ...(shape === 'otherLocale' ? { locale: 'en-US' } : {}),
     })
+    if (shape === 'newerVersionUnsafe') {
+      await insertTemplate({ body: '<script>x</script>', company, key, version: 2 })
+    }
     if (shape === 'newerVersionHtml') {
       await insertTemplate({ body: '<b>nova</b>', company, key, version: 2 })
     }
@@ -308,7 +335,15 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     const pending = await listOwn()
 
     expect(pending.map((item) => item.occurrenceId).sort()).toEqual(
-      [occurrenceIds.older, occurrenceIds.otherCompany, occurrenceIds.ripe].sort(),
+      [
+        occurrenceIds.older,
+        occurrenceIds.otherCompany,
+        occurrenceIds.ripe,
+        occurrenceIds.templateHtml,
+        occurrenceIds.templateNewerVersionHtml,
+        occurrenceIds.templateSafeEntityScheme,
+        occurrenceIds.templateTextLooksUnsafe,
+      ].sort(),
     )
   })
 
@@ -318,17 +353,42 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     for (const name of [
       'noKey',
       'templateEmptySubject',
-      'templateHtml',
       'templateInactive',
       'templateMissing',
-      'templateNewerVersionHtml',
+      'templateNewerVersionUnsafe',
       'templateOfAnotherCompany',
       'templateOtherChannel',
       'templateOtherLocale',
+      'templateUnsafeEvent',
+      'templateUnsafeScheme',
+      'templateUnsafeScript',
     ] as const) {
       expect(listed).not.toContain(occurrenceIds[name])
     }
     expect(listed).toContain(occurrenceIds.ripe)
+  })
+
+  it('lets safe HTML through, including what only the API can judge (spec 272)', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    for (const name of [
+      'templateHtml',
+      'templateNewerVersionHtml',
+      'templateSafeEntityScheme',
+      'templateTextLooksUnsafe',
+    ] as const) {
+      expect(listed).toContain(occurrenceIds[name])
+    }
+  })
+
+  it('the coarse filter matches the copied case table, case by case, in Postgres (spec 272)', async () => {
+    expect(OCCURRENCE_MAIL_UNSAFE_HTML_CASES.length).toBeGreaterThan(0)
+    for (const entry of OCCURRENCE_MAIL_UNSAFE_HTML_CASES) {
+      const [row] = (await db.execute(
+        sql`select (${entry.html}::text ~* ${UNSAFE_EMAIL_HTML_PATTERN}) as blocked`,
+      )) as unknown as { blocked: boolean }[]
+      expect([entry.name, row?.blocked]).toEqual([entry.name, entry.worker === 'bloqueia'])
+    }
   })
 
   it('skips what was registered before the template was chosen on the type (spec 269, kept)', async () => {
@@ -385,7 +445,15 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     await routine.run(context)
 
     expect(sent.sort()).toEqual(
-      [occurrenceIds.older, occurrenceIds.otherCompany, occurrenceIds.ripe].sort(),
+      [
+        occurrenceIds.older,
+        occurrenceIds.otherCompany,
+        occurrenceIds.ripe,
+        occurrenceIds.templateHtml,
+        occurrenceIds.templateNewerVersionHtml,
+        occurrenceIds.templateSafeEntityScheme,
+        occurrenceIds.templateTextLooksUnsafe,
+      ].sort(),
     )
     expect(await listOwn()).toEqual([])
   })

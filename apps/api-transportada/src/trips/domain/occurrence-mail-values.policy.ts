@@ -51,22 +51,58 @@ export type ContractorMailValuesResult = {
   readonly mail: MailValues
 }
 
-/** `{codigo} – {item} – {quantidade} {unidade} – R$ {valor}`; o segmento que a nota não tem some. */
-function buildItemLine(
-  line: OccurrenceMailLine,
-  amount: ReturnType<typeof resolveOccurrenceAmounts>['lines'][number],
-): string {
-  const quantity = [formatBrazilianQuantity(line.quantity ?? line.nfeQuantity), line.unit]
+type ItemAmount = ReturnType<typeof resolveOccurrenceAmounts>['lines'][number]
+
+/** A quantidade da ocorrência (senão a da nota) em formato brasileiro, com a unidade quando há. */
+function buildItemQuantity(line: OccurrenceMailLine): string {
+  return [formatBrazilianQuantity(line.quantity ?? line.nfeQuantity), line.unit]
     .filter((part) => part !== '')
     .join(' ')
+}
+
+/** `{codigo} – {item} – {quantidade} {unidade} – R$ {valor}`; o segmento que a nota não tem some. */
+function buildItemLine(line: OccurrenceMailLine, amount: ItemAmount): string {
   return [
     line.code,
     line.description,
-    quantity,
+    buildItemQuantity(line),
     `R$ ${formatBrazilianAmount(amount.itemAmountCents)}`,
   ]
     .filter((part) => part !== '')
     .join(' – ')
+}
+
+/**
+ * Spec 272 (ADR-0110 §5): as mesmas linhas, em colunas, para a tabela do e-mail em HTML — os mesmos números do texto,
+ * e a soma da 247 (`''` sem linha). Todas, sem o teto: quem monta a tabela corta e conta o resto.
+ */
+export function buildOccurrenceItemRows(values: OccurrenceMailValues): {
+  readonly itemsSum: string
+  readonly rows: readonly {
+    readonly amount: string
+    readonly code: string
+    readonly description: string
+    readonly quantity: string
+  }[]
+} {
+  const lines = values.lines ?? []
+  const amounts = resolveOccurrenceAmounts({ declaredAmount: values.declaredAmount ?? null, lines })
+  return {
+    itemsSum: formatCents(amounts.itemsSumCents),
+    rows: lines.flatMap((line, index) => {
+      const amount = amounts.lines[index]
+      return amount === undefined
+        ? []
+        : [
+            {
+              amount: `R$ ${formatBrazilianAmount(amount.itemAmountCents)}`,
+              code: line.code,
+              description: line.description,
+              quantity: buildItemQuantity(line),
+            },
+          ]
+    }),
+  }
 }
 
 /** O bloco que `{{linhasItens}}` imprime: até `maxLines` linhas (padrão, o teto) e, por fim, "e mais N itens". */

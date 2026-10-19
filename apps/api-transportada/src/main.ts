@@ -970,6 +970,7 @@ const API_VERSION = '0.1.0'
  * O aviso não leva anexo, então a storage dele recusa qualquer uso.
  */
 function buildSendAutomaticOccurrenceMailUseCase(input: {
+  readonly appBaseUrl: ApiEnvironment['appBaseUrl']
   readonly contractorMailSandbox: ApiEnvironment['contractorMailSandbox']
   readonly database: ReturnType<typeof createDatabaseProvider>['db']
   readonly envelopeKeyRing: Parameters<typeof createSecretEnvelopeProvider>[0]
@@ -980,6 +981,7 @@ function buildSendAutomaticOccurrenceMailUseCase(input: {
   return createSendAutomaticOccurrenceMailUseCase({
     reader: createAutomaticOccurrenceMailReader(input.database),
     sendMail: createSendOccurrenceMailUseCase({
+      ...(input.appBaseUrl === undefined ? {} : { appBaseUrl: input.appBaseUrl }),
       ...(input.contractorMailSandbox === undefined
         ? {}
         : { contractorMailSandbox: input.contractorMailSandbox }),
@@ -1025,6 +1027,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDatabaseProvider({ pool: config.databasePool, url: config.databaseUrl })
   const sendAutomaticOccurrenceMail = buildSendAutomaticOccurrenceMailUseCase({
+    appBaseUrl: config.appBaseUrl,
     contractorMailSandbox: config.contractorMailSandbox,
     database: database.db,
     envelopeKeyRing: config.cryptography.envelopeKeyRing,
@@ -1656,6 +1659,7 @@ export function bootstrap(): Bun.Server<undefined> {
     routes: [
       ...createApplicationRoutes({
         apiPublicUrl: config.apiPublicUrl,
+        appBaseUrl: config.appBaseUrl,
         automaticOccurrenceMail,
         sendAutomaticOccurrenceMail,
         automaticManifestNotifier,
@@ -1998,6 +2002,8 @@ type CreateApplicationRoutesParams = {
   readonly sendAutomaticOccurrenceMail: ReturnType<typeof createSendAutomaticOccurrenceMailUseCase>
   /** Endereço público desta instalação. Ausente, a foto é gravada e o atributo do realm não. */
   readonly apiPublicUrl: string | undefined
+  /** Spec 272 (D5): a origem do painel, para as marcas do rodapé do e-mail da ocorrência; ausente, só o texto. */
+  readonly appBaseUrl: ApiEnvironment['appBaseUrl']
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
   readonly automaticManifestNotifier: AutomaticManifestNotifierPort | undefined
   /** Spec 145 D14: a API reabre planta parada pelo mesmo lease que o worker deriva deste número. */
@@ -2077,6 +2083,7 @@ async function readTripRouteGeometryStopsOrWarn(input: {
 
 function createApplicationRoutes({
   apiPublicUrl,
+  appBaseUrl,
   automaticOccurrenceMail,
   sendAutomaticOccurrenceMail,
   automaticManifestNotifier,
@@ -3561,11 +3568,13 @@ function createApplicationRoutes({
         storage: storageGateway,
       }),
       previewMail: createPreviewOccurrenceMailUseCase({
+        ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
         logger,
         reader: createOccurrenceMailReader(database),
         suggestedMail: createOccurrenceSuggestedMailReader(database),
       }),
       sendMail: createSendOccurrenceMailUseCase({
+        ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
         ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
         fingerprintService,
         secretService: contractorMailCredentialSecretService,

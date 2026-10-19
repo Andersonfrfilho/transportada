@@ -483,7 +483,8 @@
         "problems": {
           "not_found": "There is no active Portuguese email template with this key.",
           "system_key": "It is a system notice, with other variables.",
-          "html_body": "The body has HTML; the email to the contractor is plain text.",
+          "unsafe_html": "The HTML body has active content (script, iframe, event, javascript: address or a variable inside a tag); the email is not sent.",
+          "missing_message_area": "The HTML template needs exactly one message area, between <!-- mensagem --> and <!-- /mensagem -->; the email is not sent.",
           "empty_subject": "The subject is empty.",
           "unknown_variables": "Variables outside the list come out empty: {{variables}}.",
           "malformed_placeholder": "A {{ }} placeholder is malformed."
@@ -505,7 +506,19 @@
           "itens": "The items in one text, comma separated.",
           "codigosItens": "The item codes, comma separated.",
           "quantidadesItens": "The quantities, comma separated.",
-          "linhasItens": "One line per item: code – item – quantity unit – R$ value."
+          "linhasItens": "One line per item: code – item – quantity unit – R$ value.",
+          "nomeExibicao": "Carrier display name.",
+          "cnpjTransportadora": "Carrier CNPJ, formatted.",
+          "cnpjContratante": "Contractor CPF or CNPJ; empty without a document.",
+          "assinaturaNome": "Name of who signs the e-mail, or the team.",
+          "assinaturaCargo": "Job title of who signs; empty without a title or role.",
+          "logoTransportadora": "Carrier logo, or its initials without a logo (system HTML).",
+          "tabelaItens": "Item table with the total, up to 200 lines (system HTML).",
+          "cidadeTransportadora": "Carrier city and state.",
+          "razaoSocialTransportadora": "Carrier legal name.",
+          "assinaturaIniciais": "Initials of who signs, or of the display name.",
+          "faixaResposta": "\"Reply to this e-mail\" strip, only when replies arrive (system HTML).",
+          "marcasRodape": "Footer marks: TransportAdA and Ada Technology (system HTML)."
         }
       },
       "watchers": {

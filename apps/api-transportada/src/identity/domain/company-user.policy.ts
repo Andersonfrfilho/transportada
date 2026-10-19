@@ -37,6 +37,8 @@ export type CompanyUserView = {
   readonly hasPicture: boolean
   readonly id: string
   readonly invitation?: { readonly expiresAt: string; readonly status: 'pending' }
+  /** Cargo livre da membership; `null` quando não há. */
+  readonly jobTitle: string | null
   /**
    * O `id` acima é a pessoa; este é o vínculo dela com a empresa, e são chaves diferentes. Quem
    * referencia vínculo — o motorista da frota — precisa deste, e sem publicá-lo o operador só
@@ -58,6 +60,7 @@ type CompanyUserViewSource = {
   readonly contactChannel: ContactChannel
   readonly email: string
   readonly hasPicture: boolean
+  readonly jobTitle?: string | null
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus
   readonly name: string
@@ -149,6 +152,7 @@ export function toCompanyUserView(source: CompanyUserViewSource): CompanyUserVie
     ...(source.fleet === undefined ? {} : { fleet: source.fleet }),
     hasPicture: source.hasPicture,
     id: source.userId,
+    jobTitle: source.jobTitle ?? null,
     membershipId: source.membershipId,
     name: toDisplayPersonName(source.name),
     phone: maskTrailingDigits(source.phone),

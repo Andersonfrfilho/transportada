@@ -170,7 +170,12 @@ describe('as leituras do editor do tipo (spec 271 T2.10)', () => {
         subject: 'Assunto',
         version: 2,
       }),
-      toContractorTemplateView({ body: '<p>{{foo}}</p>', key: 'ruim', subject: '', version: 1 }),
+      toContractorTemplateView({
+        body: '<script>{{foo}}</script>',
+        key: 'ruim',
+        subject: '',
+        version: 1,
+      }),
     ]
     const route = routeAt(
       OCCURRENCE_TYPE_MAIL_TEMPLATES_PATH,
@@ -196,7 +201,8 @@ describe('as leituras do editor do tipo (spec 271 T2.10)', () => {
     })
     expect(data[1]?.usable).toBe(false)
     expect(data[1]?.problems.map((problem) => problem.code)).toEqual([
-      'html_body',
+      'unsafe_html',
+      'missing_message_area',
       'empty_subject',
       'unknown_variables',
     ])

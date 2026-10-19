@@ -15,6 +15,7 @@ import {
   OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION,
   OCCURRENCE_CONTRACTOR_MAIL_CHANNEL,
   OCCURRENCE_CONTRACTOR_MAIL_LOCALE,
+  UNSAFE_EMAIL_HTML_PATTERN,
 } from '../domain/occurrence-automatic-mail-sweep.constant.js'
 
 export type OccurrenceAutomaticMailDatabase = ReturnType<typeof createDrizzleProvider>['db']
@@ -27,7 +28,7 @@ type PendingRow = Readonly<{ company_id: string; occurrence_id: string }>
  * ocorrência a cada batida até a janela fechar, por isso ela é exigida aqui.
  *
  * Spec 271: o mesmo vale para o modelo de e-mail — a chave que o tipo escolheu precisa ter, no módulo de notificação,
- * a versão ativa mais alta utilizável (e-mail `pt-BR`, assunto preenchido, corpo sem HTML). Sem modelo utilizável a API
+ * a versão ativa mais alta utilizável (e-mail `pt-BR`, assunto preenchido, corpo sem HTML inseguro — spec 272). Sem modelo utilizável a API
  * pula (`no_template_selected`, sem gravar idempotência), e o varredor a repetiria a cada batida; a fila só pede
  * ocorrência que o envio pode atender.
  *
@@ -89,7 +90,7 @@ export function createDrizzleOccurrenceAutomaticMailQueue(
                   and latest."active"
               )
               and btrim(coalesce(nt."subject", '')) <> ''
-              and nt."body" !~ ${HTML_BODY_PATTERN}
+              and (nt."body" !~ ${HTML_BODY_PATTERN} or nt."body" !~* ${UNSAFE_EMAIL_HTML_PATTERN})
           )
           and not exists (
             select 1

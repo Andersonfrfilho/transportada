@@ -8,11 +8,12 @@
 export type ContractorTemplateProblem = Readonly<{
   code:
     | 'empty_subject'
-    | 'html_body'
     | 'malformed_placeholder'
+    | 'missing_message_area'
     | 'not_found'
     | 'system_key'
     | 'unknown_variables'
+    | 'unsafe_html'
   variables?: readonly string[]
 }>
 

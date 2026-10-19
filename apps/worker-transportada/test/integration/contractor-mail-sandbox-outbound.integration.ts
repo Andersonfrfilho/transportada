@@ -108,7 +108,7 @@ describeDatabase('o e-mail da contratante em modo sandbox contra o banco (spec 2
 
   it('sem configuração da empresa, envia pelo SMTP do ambiente e marca a linha como enviada', async () => {
     const { companyId, messageId } = await seedSandboxMessage()
-    const sent: { from: string; to: readonly string[] }[] = []
+    const sent: { from: unknown; to: readonly string[] }[] = []
     const { resendCalls, value } = dependencies({
       sendEmail: async (request) => {
         sent.push({ from: request.from, to: request.to })

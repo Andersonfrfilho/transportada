@@ -495,6 +495,8 @@ export const contractorMailMessages = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** Spec 272 (D9): o worker anexa o logo `cid:` sem ler o HTML. */
+    hasInlineLogo: boolean('has_inline_logo').notNull().default(false),
     bodyText: text('body_text').notNull(),
     /**
      * Spec 150 T302: o HTML do e-mail de saída, montado aqui e nunca no worker — o registro guarda o
@@ -628,6 +630,10 @@ export const contractorMailMessages = pgTable(
     check(
       'contractor_mail_messages_body_html_size_check',
       sql`octet_length(${table.bodyHtml}) <= 524288`,
+    ),
+    check(
+      'contractor_mail_messages_has_inline_logo_direction_check',
+      sql`not ${table.hasInlineLogo} or ${table.direction} = 'outbound'`,
     ),
   ],
 )
