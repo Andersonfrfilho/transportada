@@ -311,9 +311,14 @@ function createTransactionPort(
 
     async markRead({ at, companyId, conversationId, userId }) {
       await markOccurrenceConversationRead(transaction, { companyId, conversationId, userId })
-      /** T654: só o canal `portal` sabe "lida" pela contratante; e-mail e WhatsApp têm a deles. */
+      /**
+       * T654: o canal `portal` sabe "lida" pela contratante. Spec 274 D9: o e-mail da transportadora que a
+       * contratante lê aqui (o portal é a vitrine do chat) também vira `read`, pela escada do e-mail; WhatsApp
+       * tem a dele.
+       */
       const rows = await transaction
         .select({
+          channel: occurrenceConversationMessages.channel,
           id: occurrenceConversationMessages.id,
           status: occurrenceConversationMessages.status,
           statusTimes: occurrenceConversationMessages.statusTimes,
@@ -324,7 +329,7 @@ function createTransactionPort(
             eq(occurrenceConversationMessages.companyId, companyId),
             eq(occurrenceConversationMessages.conversationId, conversationId),
             eq(occurrenceConversationMessages.direction, 'outbound'),
-            eq(occurrenceConversationMessages.channel, 'portal'),
+            inArray(occurrenceConversationMessages.channel, ['portal', 'email']),
             isNotNull(occurrenceConversationMessages.status),
           ),
         )
@@ -333,7 +338,7 @@ function createTransactionPort(
         if (row.status === null) continue
         const result = applyMessageStatus({
           at: at.toISOString(),
-          channel: 'portal',
+          channel: row.channel,
           current: { status: row.status, statusTimes: row.statusTimes },
           incoming: 'read',
         })
