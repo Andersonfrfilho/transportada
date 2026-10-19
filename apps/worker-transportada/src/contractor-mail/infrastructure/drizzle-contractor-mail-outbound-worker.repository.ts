@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import {
@@ -45,10 +45,6 @@ export type ContractorMailOutboundSettingsRecord = {
   readonly senderName: string
 }
 
-export type ContractorMailReferenceHeaders = {
-  readonly rfcMessageId: string
-}
-
 /**
  * Spec 248 T4.7: a mensagem é o boleto levado a um terceiro (a linha da entrega aponta para ela). O
  * `Reply-To` é o primeiro e-mail de contato da empresa, quando houver; nunca o endereço com token.
@@ -69,10 +65,11 @@ export type ContractorMailOutboundWorkerRepository = {
     readonly companyId: string
     readonly messageId: string
   }): Promise<ContractorReplyForwardRecord | undefined>
-  findLastInboundReferenceHeaders(input: {
+  /** Spec 274 D7: os `rfc_message_id` da thread (entrada e saída, sem encaminhamento), do mais antigo ao mais novo. */
+  listThreadReferenceIds(input: {
     readonly companyId: string
     readonly threadId: string
-  }): Promise<ContractorMailReferenceHeaders | undefined>
+  }): Promise<readonly string[]>
   findMessageById(input: {
     readonly companyId: string
     readonly messageId: string
@@ -155,24 +152,27 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
       return row
     },
 
-    /** A última mensagem **recebida** da conversa dá o `In-Reply-To`/`References` (RF7). */
-    async findLastInboundReferenceHeaders({ companyId, threadId }) {
-      const [row] = await database
-        .select({ rfcMessageId: contractorMailMessages.rfcMessageId })
-        .from(contractorMailMessages)
-        .where(
-          and(
-            eq(contractorMailMessages.companyId, companyId),
-            eq(contractorMailMessages.threadId, threadId),
-            eq(contractorMailMessages.direction, 'inbound'),
-          ),
-        )
-        .orderBy(desc(contractorMailMessages.createdAt))
-        .limit(1)
-
-      if (row === undefined || row.rfcMessageId === null || row.rfcMessageId === '')
-        return undefined
-      return { rfcMessageId: row.rfcMessageId }
+    /**
+     * Spec 274 D7: a linha da conversa inteira; o encaminhamento da 248 fica de fora, e a mensagem sem
+     * `rfc_message_id` (o `email.sent` ainda não chegou) simplesmente não entra.
+     */
+    async listThreadReferenceIds({ companyId, threadId }) {
+      const rows = (await database.execute(
+        sql`select m.rfc_message_id from contractor_mail_messages m
+            where m.company_id = ${companyId}::uuid
+              and m.thread_id = ${threadId}::uuid
+              and m.rfc_message_id is not null and m.rfc_message_id <> ''
+              and not exists (
+                select 1 from occurrence_contractor_reply_deliveries d
+                where d.company_id = m.company_id
+                  and d.mail_message_id = m.id
+                  and d.target in ${FORWARD_TARGETS_SQL}
+              )
+            order by m.created_at asc, m.id asc`,
+      )) as readonly Record<string, unknown>[]
+      return rows.flatMap((row) =>
+        typeof row.rfc_message_id === 'string' ? [row.rfc_message_id] : [],
+      )
     },
 
     /** Spec 183 T405: a mensagem da conversa (se houver) acompanha, na mesma transação. */

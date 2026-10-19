@@ -11,6 +11,7 @@ import { sanitizeSenderDisplayName } from '../domain/sender-display-name.policy.
 import { safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 import type { CompanyLogoReader } from '../infrastructure/drizzle-company-logo.reader.js'
+import { buildReplyChainHeaders } from '../domain/reply-chain-headers.policy.js'
 import { buildReplyAddress, deriveReplyToken } from '../domain/reply-token.policy.js'
 import {
   ResendInvalidRecipientsError,
@@ -143,17 +144,15 @@ export async function sendContractorMailOutboundMessage(
         })
       : threadReplyTo
 
-  const referenceHeaders =
-    forward === undefined
-      ? await dependencies.repository.findLastInboundReferenceHeaders({
-          companyId,
-          threadId: message.threadId,
-        })
-      : undefined
   const headers: Record<string, string> =
-    referenceHeaders === undefined
-      ? {}
-      : { 'In-Reply-To': referenceHeaders.rfcMessageId, References: referenceHeaders.rfcMessageId }
+    forward === undefined
+      ? (buildReplyChainHeaders(
+          await dependencies.repository.listThreadReferenceIds({
+            companyId,
+            threadId: message.threadId,
+          }),
+        ) ?? {})
+      : {}
 
   /**
    * Spec 183 T702e: os bytes saem do bucket e conferem com o `sha256` gravado quando a API os

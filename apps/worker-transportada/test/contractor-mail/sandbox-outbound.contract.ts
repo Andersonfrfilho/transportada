@@ -90,9 +90,9 @@ function buildDependencies(input: {
         calls.push('repository:forward')
         return undefined
       },
-      async findLastInboundReferenceHeaders() {
+      async listThreadReferenceIds() {
         calls.push('repository:reference-headers')
-        return undefined
+        return []
       },
       async findMessageById() {
         return input.message ?? SANDBOX_MESSAGE
