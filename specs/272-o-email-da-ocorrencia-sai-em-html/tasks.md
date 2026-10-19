@@ -146,7 +146,7 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** `sonnet` — Gates completos e revisão: `bun run typecheck`; lint por app; script `test` da API, do
+- [x] **T5.1** `sonnet` — Gates completos e revisão: `bun run typecheck`; lint por app; script `test` da API, do
       worker e do painel; contrato da API `bun --env-file=../../.env.test test --timeout 120000`; integração
       `bun --env-file=../../.env.test run test:integration` sem skip; `bunx prettier --check .` na raiz; auditoria §15
       (PII em log, `Promise.all` × `allSettled` nas leituras novas, tamanho do HTML). Depois `code-reviewer` e

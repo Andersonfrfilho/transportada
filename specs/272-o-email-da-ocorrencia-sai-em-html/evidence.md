@@ -1003,6 +1003,12 @@ API typecheck/lint limpos, `test` **12348 pass / 0 fail**, integrações de e-ma
 `test` **2726 / 0**, integrações 18 / 0 / 0 skip; painel typecheck limpo, lint 0 erros (16 avisos antigos), `test` **8408 +
 1407 / 0**; prettier limpo.
 
+**Integração completa da API** (depois das correções): `bun --env-file=../../.env.test run test:integration` →
+**1715 pass / 0 fail / 8 skip** (2943 s). Os 8 pulados **não são da 272**: a CI do último merge em `staging` (PR #266) já
+tinha 4 + 1 + 3 = 8 pulados (`integration-api` partes 2, 7 e 8); um deles é o teste que exige MinIO
+(`trip-occurrence-upload-confirm`, `isStorageReachable`). Os arquivos de integração da 272 rodaram todos (0 skip). O relator
+JUnit do Bun 1.3.14 trava, então a lista nominal não saiu.
+
 **Desvio do Mailpit local:** o `make dev` exige o MinIO do pacote privado do GHCR (sem cache nesta máquina nova) e o
 Keycloak; a verificação no Mailpit (um manual e um automático, lidos pela API do Mailpit) passa a ser feita no **Mailpit
 de staging** (268), antes de qualquer envio real pelo Resend.
@@ -1014,4 +1020,4 @@ no histórico do git.
 
 ## Onde parou (2026-10-19)
 
-T0.3–T4.4 e as correções da T5.1 feitas; integração completa da API rodando. Depois: commits, T5.2 (staging).
+Fases 0–4 e a T5.1 fechadas e commitadas. Próxima: **T5.2** — PR para `staging`, CI, merge, Mailpit de staging, dry-run do script dos modelos (aprovação do dono).
