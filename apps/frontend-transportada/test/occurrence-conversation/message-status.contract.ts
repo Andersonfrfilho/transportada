@@ -176,8 +176,12 @@ describe('reenviar por outro canal (spec 183 T703)', () => {
 describe('o selo muda sozinho (spec 183 T703)', () => {
   test('enquanto alguma mensagem que sai ainda pode avançar, a conversa volta a ser lida', () => {
     expect(hasPendingOutboundStatus([message({ status: 'queued' })])).toBe(true)
-    /** Spec 274: o e-mail entregue ainda pode virar "lida" pelo rastreio de abertura. */
-    expect(hasPendingOutboundStatus([message({ status: 'delivered' })])).toBe(true)
+    /**
+     * Spec 274: o "lida" do e-mail vem do pixel e pode nunca chegar (cliente que bloqueia imagem), então a releitura
+     * automática para em "entregue"; a "lida" aparece na próxima leitura da conversa.
+     */
+    expect(hasPendingOutboundStatus([message({ status: 'sent' })])).toBe(true)
+    expect(hasPendingOutboundStatus([message({ status: 'delivered' })])).toBe(false)
     expect(hasPendingOutboundStatus([message({ channel: 'whatsapp', status: 'delivered' })])).toBe(
       true,
     )
