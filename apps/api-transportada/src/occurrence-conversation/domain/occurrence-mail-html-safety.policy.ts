@@ -6,64 +6,18 @@
  * arquivo-fonte copiado por valor pelo painel (inteira) e pelo worker (filtro grosso, coluna `worker`).
  */
 import {
+  findUnsafeEmailHtml,
+  type UnsafeEmailHtmlRule,
+} from '@adatechnology/notification-contracts'
+import {
   OCCURRENCE_MAIL_MESSAGE_AREA,
   OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES,
 } from './occurrence-contractor-mail.constant.js'
 
-export type UnsafeHtmlRule = 'event' | 'placeholder_in_tag' | 'scheme' | 'tag'
+export type UnsafeHtmlRule = UnsafeEmailHtmlRule
 
-const TAG_REGEX = /<(?:script|iframe|form|object|embed)\b/iu
-const EVENT_REGEX = /[\s/"']on[a-z]+\s*=/iu
-const SCHEME_REGEX = /(?:javascript|vbscript):/iu
-/**
- * `{{` dentro de uma tag aberta: atributos entre aspas podem conter `>` e o `{{` pode estar dentro do valor entre aspas.
- * Fora disso, `{{` dentro de `<style>…</style>` (CSS injetável).
- */
-const PLACEHOLDER_IN_TAG_REGEX =
-  /<[a-zA-Z/!](?:[^>"']|"[^"]*"|'[^']*')*(?:\{\{|"[^"]*\{\{|'[^']*\{\{)/u
-const PLACEHOLDER_IN_STYLE_REGEX = /<style\b(?:(?!<\/style\b)[\s\S])*?\{\{/iu
-// eslint-disable-next-line no-control-regex -- ADR-0110 §2: exatamente `[\u0000- ]` (controles e espaço)
-const CONTROL_AND_SPACE_REGEX = /[\u0000- ]/gu
-const NUMERIC_ENTITY_REGEX = /&#(?:x([0-9a-f]+)|([0-9]+));?/giu
-const NAMED_ENTITY_REGEX = /&(colon|tab|newline);/giu
-const NAMED_ENTITY_VALUE: Readonly<Record<string, string>> = {
-  colon: ':',
-  newline: '\n',
-  tab: '\t',
-}
-const MAX_CODE_POINT = 0x10ffff
-
-function decodeCodePoint(code: number): string {
-  return Number.isFinite(code) && code <= MAX_CODE_POINT ? String.fromCodePoint(code) : ''
-}
-
-/** A cópia em que o esquema é procurado: entidades decodificadas (uma vez) e `[\u0000- ]` removidos. */
-function normalizeForScheme(html: string): string {
-  return html
-    .replace(
-      NUMERIC_ENTITY_REGEX,
-      (_entity, hex: string | undefined, decimal: string | undefined) =>
-        decodeCodePoint(
-          hex === undefined ? Number.parseInt(decimal ?? '', 10) : Number.parseInt(hex, 16),
-        ),
-    )
-    .replace(
-      NAMED_ENTITY_REGEX,
-      (_entity, name: string) => NAMED_ENTITY_VALUE[name.toLowerCase()] ?? '',
-    )
-    .replace(CONTROL_AND_SPACE_REGEX, '')
-}
-
-export function findUnsafeHtmlRules(html: string): readonly UnsafeHtmlRule[] {
-  return [
-    ...(TAG_REGEX.test(html) ? (['tag'] as const) : []),
-    ...(EVENT_REGEX.test(html) ? (['event'] as const) : []),
-    ...(SCHEME_REGEX.test(normalizeForScheme(html)) ? (['scheme'] as const) : []),
-    ...(PLACEHOLDER_IN_TAG_REGEX.test(html) || PLACEHOLDER_IN_STYLE_REGEX.test(html)
-      ? (['placeholder_in_tag'] as const)
-      : []),
-  ]
-}
+/** Spec 274 (ADR-0111, D4): a regra genérica (tag, evento, esquema, placeholder em tag/style) é a do SDK. */
+export const findUnsafeHtmlRules: (html: string) => readonly UnsafeHtmlRule[] = findUnsafeEmailHtml
 
 export type MessageArea = {
   /** Fim do par (depois do comentário de fechamento) e início do par, no HTML inteiro. */

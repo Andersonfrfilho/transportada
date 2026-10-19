@@ -15,6 +15,7 @@ import {
   OCCURRENCE_CONTRACTOR_MAIL_CHANNEL,
   OCCURRENCE_CONTRACTOR_MAIL_LOCALE,
 } from '../domain/occurrence-contractor-mail.constant.js'
+import { SYSTEM_NOTIFICATION_TEMPLATE_KEYS } from '../domain/occurrence-contractor-template.policy.js'
 
 export type ActiveContractorTemplate = {
   readonly body: string
@@ -59,7 +60,7 @@ export async function readActiveContractorTemplates(
   return new Map(rows.map((row) => [row.key, toActiveTemplate(row)]))
 }
 
-/** Todos os modelos de e-mail `pt-BR` ativos da empresa — a versão ativa mais alta de cada chave —, por chave. */
+/** Os modelos escolhíveis: e-mail `pt-BR` ativos da empresa, sem as chaves do sistema (spec 274, T3.3) — a versão ativa mais alta de cada chave —, por chave. */
 export async function listActiveContractorTemplates(
   queryable: TripQueryable,
   params: { readonly companyId: string },
@@ -71,6 +72,10 @@ export async function listActiveContractorTemplates(
       and t.channel = ${OCCURRENCE_CONTRACTOR_MAIL_CHANNEL}
       and t.locale = ${OCCURRENCE_CONTRACTOR_MAIL_LOCALE}
       and t.active
+      and t.key not in (${sql.join(
+        [...SYSTEM_NOTIFICATION_TEMPLATE_KEYS].map((key) => sql`${key}`),
+        sql`, `,
+      )})
     order by t.key, t.version desc`)
   return rows.map(toActiveTemplate)
 }

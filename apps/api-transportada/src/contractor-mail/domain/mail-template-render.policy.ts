@@ -5,6 +5,7 @@
  * não há escape de chave — `{` e `}` soltos são recusados ao salvar, para o texto nunca sair com um
  * pedaço de variável quebrada.
  */
+import { escapeEmailHtml } from '@adatechnology/notification-contracts'
 import {
   MAIL_TEMPLATE_CATALOG,
   type ContractorMailTemplateType,
@@ -81,15 +82,8 @@ export function renderMailTemplate(params: RenderMailTemplateParams): string {
   return params.format === 'html' ? escapeMailHtml(rendered) : rendered
 }
 
-/** `&` sempre primeiro: escapar os outros antes duplicaria o `&amp;` que eles introduzem. */
-export function escapeMailHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-}
+/** Spec 274 (D4): o escape é o do SDK; o nome fica para os chamadores do app. */
+export const escapeMailHtml: (value: string) => string = escapeEmailHtml
 
 /** `undefined` quando alguma chave está solta ou o nome entre chaves não tem forma de variável. */
 function tokenizeTemplate(text: string): readonly TemplateToken[] | undefined {

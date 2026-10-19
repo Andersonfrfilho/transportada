@@ -5,6 +5,7 @@
  * rodapé e faixa de resposta. É a única fonte de HTML sem escape do e-mail: **tudo o que carrega é escapado aqui**
  * (nome de exibição, iniciais, código, item, quantidade, valor, origem do painel). Pura.
  */
+import { renderEmailLogoHtml, renderEmailMarksHtml } from '@adatechnology/notification-contracts'
 import { escapeMailHtml } from '../../contractor-mail/domain/mail-template-render.policy.js'
 import {
   OCCURRENCE_ITEM_LINES_LIMIT,
@@ -13,14 +14,12 @@ import {
 import {
   ADA_MARK_PATH,
   COMPANY_LOGO_CONTENT_ID,
-  COMPANY_LOGO_SIZE,
   OCCURRENCE_MAIL_COLORS,
   OCCURRENCE_MAIL_FONT,
   OCCURRENCE_MAIL_PRODUCT_SIGNATURE,
   OCCURRENCE_MAIL_REPLY_STRIP,
   PRODUCT_MARK_PATH,
 } from './occurrence-mail-html.constant.js'
-import { buildInitials } from './occurrence-mail-signer.policy.js'
 
 /** Uma linha da tabela, já formatada como o texto a mostra (a quantidade com a unidade, o valor com `R$`). */
 export type OccurrenceMailItemRow = {
@@ -54,11 +53,10 @@ const TRAILING_SLASHES = /\/+$/u
 const { asphalt, copper, ink, mist, rule, slate } = OCCURRENCE_MAIL_COLORS
 
 function buildLogo(displayName: string, hasLogo: boolean): string {
-  if (hasLogo) {
-    return `<img src="cid:${COMPANY_LOGO_CONTENT_ID}" alt="${escapeMailHtml(displayName)}" width="${COMPANY_LOGO_SIZE}" height="${COMPANY_LOGO_SIZE}" style="display:block;border:0;width:${COMPANY_LOGO_SIZE}px;height:${COMPANY_LOGO_SIZE}px">`
-  }
-  const size = `${COMPANY_LOGO_SIZE}px`
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${COMPANY_LOGO_SIZE}" height="${COMPANY_LOGO_SIZE}"><tr><td align="center" valign="middle" width="${COMPANY_LOGO_SIZE}" height="${COMPANY_LOGO_SIZE}" style="width:${size};height:${size};background:${asphalt};color:${copper};font-family:${OCCURRENCE_MAIL_FONT};font-size:18px;font-weight:700">${escapeMailHtml(buildInitials(displayName))}</td></tr></table>`
+  return renderEmailLogoHtml({
+    displayName,
+    logo: hasLogo ? { contentId: COMPANY_LOGO_CONTENT_ID, kind: 'cid' } : { kind: 'initials' },
+  })
 }
 
 /**
@@ -94,11 +92,11 @@ function buildFooterMarks(appBaseUrl: string | undefined): string {
     appBaseUrl !== undefined && HTTP_ORIGIN.test(appBaseUrl)
       ? appBaseUrl.replace(TRAILING_SLASHES, '')
       : undefined
-  const text = `<span style="font-family:${OCCURRENCE_MAIL_FONT};font-size:11px;color:${slate}">${escapeMailHtml(OCCURRENCE_MAIL_PRODUCT_SIGNATURE)}</span>`
-  if (origin === undefined) return text
-  const productMark = `<img src="${escapeMailHtml(`${origin}${PRODUCT_MARK_PATH}`)}" alt="" height="28" style="display:block;margin:0 auto 8px;border:0;height:28px">`
-  const adaMark = `<img src="${escapeMailHtml(`${origin}${ADA_MARK_PATH}`)}" alt="" height="12" style="vertical-align:middle;margin-right:6px;border:0;height:12px">`
-  return `${productMark}${adaMark}${text}`
+  return renderEmailMarksHtml({
+    platformMarkUrl: origin === undefined ? undefined : `${origin}${ADA_MARK_PATH}`,
+    productMarkUrl: origin === undefined ? undefined : `${origin}${PRODUCT_MARK_PATH}`,
+    text: OCCURRENCE_MAIL_PRODUCT_SIGNATURE,
+  })
 }
 
 function buildReplyStrip(hasReplyTo: boolean): string {

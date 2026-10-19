@@ -6,6 +6,7 @@
  * muda quando a chave muda, e o modelo precisa existir, ser da empresa, ativo e de texto.
  */
 import { describe, expect } from 'bun:test'
+import { STANDARD_EMAIL_TEMPLATE_KEY } from '@adatechnology/notification-contracts'
 import { and, eq, sql } from 'drizzle-orm'
 
 import { userCompanyMemberships } from '../../src/database/database.schema.js'
@@ -355,6 +356,7 @@ describe('the notification template of the occurrence type (spec 271 T2.4)', () 
         await seedNotificationTemplate(database, { channel: 'inbox', companyId, key: 'c.caixa' })
         await seedNotificationTemplate(database, { companyId, key: 'd.ingles', locale: 'en-US' })
         await seedNotificationTemplate(database, { companyId: other.companyId, key: 'e.outra' })
+        await seedNotificationTemplate(database, { companyId, key: STANDARD_EMAIL_TEMPLATE_KEY })
 
         const listed = await listActiveContractorTemplates(database.db, { companyId })
 
