@@ -96,6 +96,7 @@ export const COMPANY_USER = {
   id: TARGET_USER_ID,
   invitation: { expiresAt: '2026-08-06T12:00:00.000Z', status: 'pending' },
   hasPicture: false,
+  jobTitle: null,
   membershipId: TARGET_MEMBERSHIP_ID,
   name: 'Pessoa Convidada',
   phone: '',

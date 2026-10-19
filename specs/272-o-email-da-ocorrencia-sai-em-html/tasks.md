@@ -80,7 +80,7 @@ null default false`) e migration aditiva `user_company_membership_job_title` (`j
       mantido → área do modelo; editado → texto do operador escapado na área; sempre o HTML do modelo;
       `missing_message_area`; HTML acima de 524288 bytes é problema do modelo, não 500). Aceite: critérios 1, 4, 6, 7 (pelo valor gravado), 9, 11 e 12 da spec por contrato;
       integração manual e automático com modelo HTML e com modelo texto, Resend e sandbox, sem skip.
-- [ ] **T2.5** `sonnet` — Cargo, rota (D10), contratos antes (critério 13: ausente não altera, `null`/`""` limpa, 81 →
+- [x] **T2.5** `sonnet` — Cargo, rota (D10), contratos antes (critério 13: ausente não altera, `null`/`""` limpa, 81 →
       400, quebra saneada, 403, 404 outra empresa, só `jobTitle` não chama o gateway do Keycloak); depois o schema
       `.strict()`, o caso de uso (`updateJobTitle` por `(user_id, company_id)`) e a resposta por `toCompanyUserView`.
       Aceite: contratos verdes; integração grava, lê de volta e não toca outra empresa, sem skip.

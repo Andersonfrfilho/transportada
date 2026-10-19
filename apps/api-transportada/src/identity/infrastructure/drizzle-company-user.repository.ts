@@ -64,6 +64,7 @@ type MembershipRow = {
   readonly contactAddress: string | null
   readonly contactChannel: CompanyUserRecord['contactChannel'] | null
   readonly email: string | null
+  readonly jobTitle: string | null
   readonly membershipCreatedAt: Date
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus
@@ -78,6 +79,7 @@ const MEMBERSHIP_COLUMNS = {
   contactAddress: identityUserProfiles.contactAddress,
   contactChannel: identityUserProfiles.contactChannel,
   email: identityUserProfiles.email,
+  jobTitle: userCompanyMemberships.jobTitle,
   membershipCreatedAt: userCompanyMemberships.createdAt,
   membershipId: userCompanyMemberships.id,
   membershipStatus: userCompanyMemberships.status,
@@ -722,6 +724,22 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       )
   }
 
+  public async updateJobTitle(input: {
+    readonly companyId: string
+    readonly jobTitle: string | null
+    readonly userId: string
+  }): Promise<void> {
+    await this.database
+      .update(userCompanyMemberships)
+      .set({ jobTitle: input.jobTitle, updatedAt: new Date() })
+      .where(
+        and(
+          eq(userCompanyMemberships.companyId, input.companyId),
+          eq(userCompanyMemberships.userId, input.userId),
+        ),
+      )
+  }
+
   /** O `username` é único no realm inteiro: a colisão vem do índice, não de uma leitura prévia. */
   /**
    * O conserto do quarto estado. `onConflictDoNothing` e não `upsert`: perfil que já existe é
@@ -1054,6 +1072,7 @@ function toRecord({
     emails: emailsByUser.get(row.userId) ?? [],
     ...(fleet === undefined ? {} : { fleet }),
     hasPicture: usersWithPicture.has(row.userId),
+    jobTitle: row.jobTitle,
     membershipId: row.membershipId,
     membershipStatus: row.membershipStatus,
     name: row.name ?? '',

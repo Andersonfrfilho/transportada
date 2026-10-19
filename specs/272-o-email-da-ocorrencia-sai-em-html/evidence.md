@@ -734,6 +734,33 @@ Gates (cwd `apps/api-transportada`, salvo dito):
   inversa (tudo 0) → reaplica (tudo de volta). `pg_get_constraintdef` confere os dois CHECKs.
 - `bunx eslint` e `bunx prettier --check` nos arquivos TS tocados → limpos.
 
+### T2.5 — Cargo no `PATCH /company-users/:id` (2026-10-18)
+
+Executor `sonnet`, em paralelo com a T2.2 (arquivos disjuntos). Reusa a política da T2.1.
+
+- Schema `.strict()` aceita `jobTitle`, normalizado por `normalizeCompanyUserJobTitle` (`transform` + `addIssue`; 81 →
+  400). O caso de uso confia no valor já saneado (`string | null`, ou ausente = não altera).
+- `updateJobTitle` no `DrizzleCompanyUserRepository`: `UPDATE … WHERE user_id AND company_id`, `companyId` do contexto.
+  `jobTitle` em `MEMBERSHIP_COLUMNS`/`toRecord`; a view (`toCompanyUserView`) devolve sempre `jobTitle: string | null`.
+- PATCH só com `jobTitle`: grava e devolve a view sem `updateProfile`, `findIdentitySubject` nem gateway do Keycloak.
+  Prova: gateway falso que registra toda chamada fica `[]`; com `jobTitle` + `phone`, o fluxo do perfil segue e
+  `updateAttributes` é chamado. Sem auditoria (como o perfil).
+- Testes novos: `test/user-administration-http/job-title.contract.ts` (11), `test/user-administration-application/
+job-title-update.contract.ts` (6), `test/integration/company-user-job-title.integration.ts` (3; entrou no
+  `test:integration` do `package.json`).
+
+Gates (cwd `apps/api-transportada`):
+
+- Teste antes: os dois agregadores `user-administration-http` + `user-administration-application` → **236 pass / 12
+  fail** antes da implementação; **248 pass / 0 fail** (827 `expect`) depois.
+- Integração `./test/integration/company-user-job-title.integration.ts` → 3/3, sem skip (outra empresa não grava; o
+  CHECK do banco recusa 81). `company-user-listing.integration.ts` (mesmo repositório) → 10/10.
+- `bun run typecheck` → sem erro nos arquivos da T2.5; `bunx eslint` e `bunx prettier --check` nos tocados → limpos.
+
+Incidente: o executor rodou `git stash` na árvore compartilhada com a T2.2 em andamento; restaurou os arquivos tracked e
+o executor da T2.2 foi avisado para conferir os seus. Regra para os próximos executores: nada de `stash`/`checkout`/
+`reset` na árvore.
+
 ## Prompt de execução
 
 O prompt vigente está em `tasks.md` § Prompt de execução (uma cópia só; a daqui divergia). Revisões anteriores
@@ -741,4 +768,4 @@ no histórico do git.
 
 ## Onde parou (2026-10-18)
 
-T0.3 e T2.1 fechadas. Próxima: **T2.2** (renderer, regras de HTML inseguro, parte texto).
+T0.3, T2.1 e T2.5 fechadas; T2.2 em andamento. Depois: T2.3 → T2.4.
