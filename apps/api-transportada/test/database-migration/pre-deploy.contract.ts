@@ -187,7 +187,12 @@ describe('Pre-deploy da API', () => {
     let inFlight = 0
     const written = new Set(['a', 'c'])
 
+    const fakeTransaction = { execute: async () => undefined }
     const result = await seedStandardEmailTemplates({
+      database: {
+        transaction: async (work: (transaction: unknown) => Promise<unknown>) =>
+          work(fakeTransaction),
+      } as never,
       listCompanyIds: async () => ['a', 'b', 'c'],
       ensureTemplate: async ({ companyId }) => {
         inFlight += 1

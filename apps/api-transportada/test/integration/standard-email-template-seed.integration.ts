@@ -20,6 +20,7 @@ import { testWithPostgres } from '../fixtures/trip-field-office-database.fixture
 import type { TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
 
 const STANDARD_EMAIL_KEY = 'notification.standard-email'
+const CONCURRENT_CALLS = 5
 const TEST_TIMEOUT_MS = 90_000
 
 const CONFIG = {
@@ -27,11 +28,17 @@ const CONFIG = {
   emailChannelEnabled: false,
 } as never
 
-function runSeed(database: TestDatabase) {
-  const module = createApiNotificationModule({ config: CONFIG, db: database.db })
+function ensureOnDatabase(params: { readonly companyId: string; readonly db: TestDatabase['db'] }) {
+  return createApiNotificationModule({
+    config: CONFIG,
+    db: params.db,
+  }).standardEmail.ensureTemplate({ companyId: params.companyId })
+}
 
+function runSeed(database: TestDatabase) {
   return seedStandardEmailTemplates({
-    ensureTemplate: (params) => module.standardEmail.ensureTemplate(params),
+    database: database.db,
+    ensureTemplate: ensureOnDatabase,
     listCompanyIds: async () =>
       (await database.db.select({ id: companies.id }).from(companies)).map((row) => row.id),
   })
@@ -83,7 +90,7 @@ describe('seed do modelo padrão de e-mail contra Postgres real', () => {
   )
 
   testWithPostgres(
-    'duas chamadas concorrentes para a mesma empresa não falham e deixam uma linha',
+    'cinco chamadas concorrentes para a mesma empresa não falham e deixam uma linha',
     async () => {
       await withNotificationDatabase(async (database) => {
         const [company] = await database.db
@@ -91,16 +98,11 @@ describe('seed do modelo padrão de e-mail contra Postgres real', () => {
           .values([{ status: 'active' }])
           .returning({ id: companies.id })
         if (company === undefined) throw new Error('COMPANY_EXPECTED')
-        const module = createApiNotificationModule({ config: CONFIG, db: database.db })
-
-        const results = await Promise.all([
-          ensureStandardEmailTemplate((params) => module.standardEmail.ensureTemplate(params), {
-            companyId: company.id,
-          }),
-          ensureStandardEmailTemplate((params) => module.standardEmail.ensureTemplate(params), {
-            companyId: company.id,
-          }),
-        ])
+        const results = await Promise.all(
+          Array.from({ length: CONCURRENT_CALLS }, () =>
+            ensureStandardEmailTemplate(database.db, ensureOnDatabase, { companyId: company.id }),
+          ),
+        )
 
         expect(results.filter(Boolean)).toHaveLength(1)
         expect(await rowsOf(database)).toHaveLength(1)
