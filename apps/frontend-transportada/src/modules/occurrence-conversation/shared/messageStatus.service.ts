@@ -19,7 +19,7 @@ export const CONVERSATION_STATUS_LADDERS: Readonly<
   Record<OccurrenceConversationChannel, readonly OccurrenceConversationMessageStatus[]>
 > = {
   app: ['queued', 'delivered', 'read'],
-  email: ['queued', 'sent', 'delivered'],
+  email: ['queued', 'sent', 'delivered', 'read'],
   portal: ['delivered', 'read'],
   whatsapp: ['queued', 'sent', 'delivered', 'read'],
 }

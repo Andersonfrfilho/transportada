@@ -62,7 +62,8 @@
     "read": "Read",
     "failed": "Failed",
     "bounced": "Bounced",
-    "times": "Message times"
+    "times": "Message times",
+    "readEmailHint": "Opened by the contractor (may not show if the email blocks images)"
   },
   "dialog": {
     "missingTemplate": "Type without a notification template: without a template the email is not sent, not even by hand. Choose a template on the type or on the contractor exception.",
@@ -93,7 +94,8 @@
       "OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED": "One of the attachments is not what it claims to be, or the files exceed what an email can carry. Check and try again.",
       "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Could not upload the attachments. Try again shortly.",
       "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "An attachment expired before sending. Send again — it will upload once more.",
-      "CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS": "Recipients and copy exceed the e-mail limit. Remove someone from the copy or untick contacts."
+      "CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS": "Recipients and copy exceed the e-mail limit. Remove someone from the copy or untick contacts.",
+      "OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS": "No contact of this contractor receives email right now. Check the contacts and try again."
     },
     "copy": {
       "label": "Cc:",
