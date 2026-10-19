@@ -2,14 +2,16 @@
 
 - **Status:** proposta (2026-10-19) — a validar com `architect` na T0.2 da spec 274.
 - **Data:** 2026-10-19
-- **Nasce da spec 274:** o composer da conversa com a contratante fica sempre aberto e cada mensagem sai por e-mail num
-  **corpo de e-mail padrão** do pacote de notificação, com as confirmações de envio, entrega e **leitura** na conversa.
+- **Nasce da spec 274:** o composer da conversa com a contratante fica sempre aberto e cada mensagem sai por e-mail no
+  **modelo padrão de envio do sistema**, configurável e cadastrado pelo SDK de notificação (ajustado em 2026-10-19,
+  dono), com as confirmações de envio, entrega e **leitura** na conversa.
 - **Revoga:** a [spec 183](../../specs/183-a-ocorrencia-tem-duas-conversas/spec.md) **D7** ("no e-mail não existe
   'lida' — o selo para em 'entregue'") e, com ela, a CHECK `occurrence_conversation_messages_email_never_read_check`.
 - **Emenda:** a 183 **RF14** (escada do e-mail ganha `read`); a [ADR-0073](0073-o-portal-ganha-a-conversa-da-ocorrencia.md)
   §Consequências (o aviso sem corpo do portal deixa de ir a quem já recebe o e-mail com o corpo; a leitura no portal
   passa a marcar também as mensagens de e-mail); a 263 T5.2-C (composer só-portal); a regra global
-  `email-templates.md` no ponto "envio sem modelo" (§3 abaixo; a regra é de outro repositório e o dono a atualiza).
+  `email-templates.md` §2 (o modelo padrão é semeado pelo SDK, não por script do produto — §3 abaixo; a regra é de
+  outro repositório e o dono a atualiza).
 - **Mantém:** a 183 D2 (canal por mensagem), D9 (o portal mostra toda a conversa), a [ADR-0108](0108-o-modelo-do-email-a-contratante-vem-do-modulo-de-notificacao.md)
   e a [ADR-0110](0110-o-email-da-ocorrencia-sai-em-html.md) para o aviso automático e o diálogo "Enviar por e-mail".
 - **Base factual:** `specs/274-o-chat-da-contratante-envia-por-email/evidence.md` § Levantamento.
@@ -42,19 +44,32 @@
    recebem o aviso sem corpo da ADR-0073. Não se gravam duas mensagens: a tela não duplica, o status é um só e a
    idempotência também. Considerado e recusado: duas mensagens (`email` + `portal`) agrupadas na tela — duas escadas
    de status para o mesmo texto, agrupamento novo no SDK e dois registros para auditar.
-3. **O corpo padrão mora no pacote de notificação, não no produto.** Envio sem modelo usa um layout único, versionado
-   no pacote `@adatechnology/notification-contracts` (função pura, sem dependência de runtime, re-exportada por
-   `@adatechnology/notification-module`): tabelas e estilos inline, 620 px, cores fixas da plataforma, com slots de
-   identidade (logo por `cid:` ou iniciais, nome de exibição), corpo (texto escapado em parágrafos), lista de anexos,
-   assinatura e rodapé de marcas; devolve `html` e `text/plain`. **Nenhum slot aceita HTML cru**: o pacote escapa tudo.
-   É um layout só, para o envio que por definição não tem modelo — não um segundo editor nem um segundo lugar para o
-   visual de e-mails com modelo. O chat **não exige modelo** do tipo (sem 409 de modelo no chat); o modelo do tipo
-   continua obrigatório no aviso automático e no diálogo.
-4. **O que vai ao pacote e o que fica.** Vai: o layout padrão, o gerador de `text/plain` (hoje `htmlToPlainText` da
-   272, que o produto passa a importar do pacote) e os fragmentos de logo/iniciais e de marcas do rodapé (os
-   construtores `logoTransportadora`/`marcasRodape` da 272 passam a delegar a eles: um só desenho). Fica no produto:
-   prefixo do assunto, "De", assinante e cargo, validação de HTML de modelo, renderer de modelo, `APP_BASE_URL` e o
-   `cid` do logo (dados do produto passados como entrada).
+3. **O envio sem modelo usa o modelo padrão do sistema, cadastrado pelo SDK.** _Ajustado em 2026-10-19 (dono):
+   substitui o "layout único em código no pacote" desta ADR proposta._ É um **modelo** do módulo de notificação
+   (`notification.standard-email`, canal `email`, `pt-BR`), editável na tela de Notificações como os outros. O SDK
+   (`@adatechnology/notification-*`) é dono de tudo o que é dele:
+   - **Conteúdo padrão:** um `.html` versionado no `notification-contracts` (tabelas e estilos inline, 620 px, cores
+     da plataforma). **Identidade (logo `cid:` ou iniciais, nome de exibição), assinante (iniciais, nome, cargo) e
+     rodapé de marcas são marcação do modelo**, com variáveis; HTML do sistema só onde `{{x}}` não expressa a forma
+     (`logoEmpresa`, `corpoMensagem`, `listaAnexos`, `faixaResposta`), decidido pelo nome; o resto é texto escapado por
+     valor. Obrigatórias: `corpoMensagem`, `logoEmpresa`, `nomeEmpresa`, `nomeAssinante`, `rodapePlataforma`. Sem
+     assunto editável (o assunto é a linha da conversa).
+   - **Cadastro:** `standardEmail.ensureTemplate` grava a v1 só se a chave não tem linha, nunca sobrescreve; a API o
+     chama no pré-deploy (passo de semente de modelos que já existe), para toda empresa, e no provisionamento.
+   - **Resolução:** versão ativa usável da empresa; sem ela, o conteúdo embutido como **rede de segurança** (versão
+     `0`, log). A chave não pode ser desativada; "Restaurar padrão" grava versão nova com o embutido.
+   - **Renderização:** `renderStandardEmail` (puro, também na prévia da tela) e `standardEmail.render` (resolve e
+     renderiza): devolve `html`, `text/plain`, tamanho e a chave/versão usada, que a mensagem grava.
+     O app só monta os valores (texto, anexos, assinante, identidade, frase do rodapé) e chama; não guarda layout nem
+     envia pelo módulo: o transporte continua no outbox da TMS. O chat **não exige modelo do tipo** (sem 409 de modelo);
+     o modelo do tipo continua obrigatório no aviso automático e no diálogo.
+4. **O que vai ao SDK e o que fica (uma cópia de cada regra).** Vai: escape, `htmlToPlainText`, a regra de HTML
+   inseguro, a interpolação "valor escapado, HTML do sistema pelo nome", o desenho do logo/iniciais e as cores — o
+   renderer da 272 passa a delegar. Fica no app: o renderer do **modelo do tipo** (vocabulário da ocorrência: tabela de
+   itens, área `<!-- mensagem -->`, marcas do rodapé da 272, leitura transacional do modelo), prefixo do assunto, "De",
+   resolução do assinante e cargo, `APP_BASE_URL` e o `cid` do logo. Critério: vai ao SDK o que é regra genérica de
+   e-mail HTML ou o que o envio sem modelo precisa; o resto não ganha nada mudando de lugar nesta spec. A chave
+   `notification.standard-email` sai da lista de modelos escolhíveis no tipo.
 5. **"Lida" pelo pixel de abertura — revoga a 183 D7.** O webhook mapeia `email.opened → read`; a escada do e-mail
    vira `queued → sent → delivered → read` (API, worker e painel); a CHECK que proibia `read` no e-mail sai.
    Falha (`bounced`/`failed`) continua terminal: abertura depois de devolução não muda nada. Abertura antes da entrega
@@ -66,6 +81,21 @@
    rastreio com CNAME verificado e `email.opened` assinado no webhook. Feito por quem administra a conta Resend e o DNS
    da transportadora, com aprovação humana, seguindo o roteiro da spec. A aplicação não altera o domínio. Sem a
    configuração, o selo para em "Entregue" — sem fingir.
+
+## Alternativas recusadas (§3, ajustado em 2026-10-19)
+
+- **Layout fixo em código no pacote** (a versão proposta desta ADR): mudar uma cor exigiria publicar o SDK e subir a
+  dependência; a transportadora não poderia ajustar o próprio e-mail; e criaria um segundo lugar para o visual de
+  e-mail, ao lado dos modelos que a tela já edita — o que a regra `email-templates.md` existe para evitar.
+- **Padrão só embutido, sem linha no banco** (entrada virtual na tela): a tela listaria o que não existe na tabela, e
+  "Remover"/versões precisariam de semântica especial. O dono quer o modelo cadastrado; o embutido fica só como rede.
+- **Cadastro no boot do servidor:** proibido nesta base (semente nunca no startup) e N réplicas disputariam a v1.
+- **Cadastro por migration do pacote:** migration do módulo é schema, não conhece empresas, e congelaria o conteúdo
+  em SQL.
+- **Cadastro por script manual:** esquecido por ambiente e por empresa nova; o script avulso existente fica para
+  reparo.
+- **`sendWithStandardTemplate` no SDK:** o chat não envia pelo módulo — o transporte é o outbox da TMS (Resend da
+  transportadora, webhook, idempotência, cabeçalhos de linha).
 
 ## Contras aceitos (os motivos da 183 D7)
 
@@ -87,13 +117,22 @@ que isso (texto do selo e dica, spec RF8).
 - O operador conversa com qualquer contratante que tenha contato que recebe ocorrências, com ou sem portal.
 - Toda mensagem do chat vira e-mail: mais volume pelo Resend da transportadora (limite de taxa da rota: 30 em 5 min).
 - O e-mail de chat não tem resumo da nota nem tabela de itens: o resumo fica no primeiro aviso (modelo do tipo).
-- Mudar o visual do corpo padrão é publicar versão do pacote e subir a dependência na API — de propósito: é o visual
-  da plataforma, não da transportadora.
+- _Ajustado em 2026-10-19 (dono):_ mudar o visual do e-mail do chat é editar o modelo padrão na tela de
+  Notificações, sem deploy. Um padrão novo do SDK **não** reescreve a linha cadastrada; chega pelo "Restaurar padrão"
+  (perde as edições da empresa).
+- O pré-deploy grava uma linha de modelo por empresa (só se ausente): mudança de dados que sai com o deploy, com
+  aprovação humana em produção.
+- A linha do e-mail usa o `message_id` que o Resend devolve no `email.sent`, gravado pelo webhook; não geramos
+  `Message-ID` (spec 274 plan D7).
 - `sandbox_smtp` (268) para em "Enviada": sem webhook, sem pixel.
 - O "Lida" do e-mail passa a existir em mensagens antigas do diálogo e do automático também, a partir da configuração.
 
 ## Follow-ups
 
-- Dono: atualizar `email-templates.md` (repositório `ia`) com a exceção do envio sem modelo (§3).
-- Prévia do e-mail do chat no painel (o pacote é importável pelo front; fora desta spec).
+- Dono: atualizar `email-templates.md` (repositório `ia`): o modelo padrão de envio sem modelo é do SDK e semeado por
+  ele (§3).
+- Atualizar sozinha a linha do modelo padrão nunca editada quando o SDK trouxer padrão novo (evidence Q4).
+- Envio de teste que prove se o Resend preserva `Message-ID` próprio (condição opcional; só então outra spec pode
+  dispensar a espera pelo webhook).
+- Prévia do e-mail do chat no composer (o renderizador é importável pelo front; fora desta spec).
 - Medir em produção, depois de 30 dias, a fração de mensagens que chega a `read` (contagem, sem PII).

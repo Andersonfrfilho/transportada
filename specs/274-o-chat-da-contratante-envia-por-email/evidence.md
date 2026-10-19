@@ -19,6 +19,16 @@
    regra; (d) assunto = o da linha, com o prefixo da 272.
 4. **Portal aberto:** a mensagem vai por e-mail **e** portal juntos (canal por mensagem, 183 D2). Desenho escolhido:
    uma mensagem `email`, portal como vitrine (plan D2).
+5. **Ajustado em 2026-10-19 (dono) — modelo padrão configurável no SDK (substitui o "corpo padrão" em layout fixo,
+   plan D3/D4).** O envio sem modelo usa um **modelo padrão** (`notification.standard-email`, `email`, `pt-BR`) do
+   módulo de notificação, editável na tela de Notificações; conteúdo padrão, resolução e renderização ficam no SDK e a
+   API só monta os valores e chama. Precisão no mesmo dia: "o modelo da identidade, footer e o assinante devem ficar no
+   modelo padrão de envio do sistema, cadastrado a partir do SDK" — identidade, rodapé e assinante são marcação do
+   modelo, e o SDK **cadastra** a linha (`standardEmail.ensureTemplate`, idempotente, nunca sobrescreve; chamado pela API
+   no pré-deploy para toda empresa); o conteúdo embutido só como rede de segurança.
+6. **Ajustado em 2026-10-19 (dono), pelo fato da T0.1 (itens 4-5) — D7.** A linha do e-mail usa o `message_id` que o
+   Resend devolve no `email.sent` (gravado em `rfc_message_id` pelo webhook), não um `Message-ID` escolhido por nós; o
+   envio de teste de `Message-ID` próprio vira condição opcional (follow-up), não base do desenho.
 
 ## Assunções (padrão adotado; vetável pelo dono)
 
@@ -36,8 +46,13 @@
 - **A8** O aviso sem corpo do portal (ADR-0073) vai só a usuários do portal fora de `To`/`Cc`.
 - **A9** Leitura no portal marca também as mensagens de e-mail como lidas.
 - **A10** `click_tracking` fica desligado.
-- **A11** O corpo padrão fica em `notification-contracts` (puro, importável pelo front para uma prévia futura) e o
-  `notification-module` re-exporta; a API importa do módulo.
+- **A11** ~~O corpo padrão fica em `notification-contracts` e o `notification-module` re-exporta.~~ _Ajustado em
+  2026-10-19 (dono):_ o renderizador puro e o conteúdo padrão ficam em `notification-contracts` (a prévia da
+  `notification-ui` usa o mesmo código); cadastro, resolução e `render` com banco ficam no `notification-module`; a API
+  chama o módulo.
+- **A12** _(2026-10-19)_ Mecanismo de cadastro: semente idempotente do SDK no pré-deploy (não boot, não migration do
+  pacote, não script manual) — plan D3. Padrão novo do SDK não reescreve linha cadastrada; chega pelo "Restaurar
+  padrão".
 
 ## Perguntas ao dono (não bloqueiam)
 
@@ -45,7 +60,9 @@
 - **Q2** Quem liga o rastreio no Resend e cria o CNAME no DNS da transportadora (staging e produção)? Staging tem conta
   Resend real para testar o "Lida", ou só o Mailpit?
 - **Q3** Subir `notification-*` de `0.1.0-rc.*` para a versão estável nova traz o que mais saiu no pacote desde então
-  (T1.3 lista); aceitar no mesmo PR ou separar?
+  (T1.6 lista); aceitar no mesmo PR ou separar?
+- **Q4** _(2026-10-19)_ Atualizar sozinha a linha do modelo padrão que a empresa nunca editou quando o SDK trouxer
+  padrão novo (exige marcar a origem da versão)? Hoje: não; follow-up.
 
 ## Levantamento (`origin/staging` 2483d6e6f, 2026-10-19)
 

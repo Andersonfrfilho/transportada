@@ -8,6 +8,12 @@
 > nem o HTML completo da 272. Sai num **corpo de e-mail padrão** do pacote de notificação, com o texto, os anexos, a
 > identidade da transportadora, a assinatura do operador e o rodapé de marcas.
 >
+> ⚠️ **Ajustado em 2026-10-19 (dono):** o "corpo padrão" **não** é layout fixo em código. É um **modelo padrão
+> configurável para envio sem modelo** (`notification.standard-email`, `email`, `pt-BR`), **cadastrado** no banco de
+> modelos pelo SDK (semente idempotente no pré-deploy), com identidade, assinante e rodapé **dentro do modelo**;
+> conteúdo padrão, cadastro, resolução (versão ativa da empresa; o embutido só como rede de segurança) e renderização
+> ficam **no SDK**; a API só monta os valores e chama (plan D3/D4). A linha do e-mail usa o `message_id` que o Resend devolve no `email.sent` (plan D7).
+>
 > ⚠️ **Ordem:** a 272 está em `staging` e não em produção; a 274 vai a `main` **depois** da 272 (e de 269–271). Depende
 > de uma versão nova de `@adatechnology/notification-contracts`/`-module` (Fase 1, repositório de pacotes).
 
@@ -22,7 +28,7 @@
 | 267      | Cópia aos responsáveis (teto 50 em `To`+`Cc`, operador só remove). **Usa:** a cópia efetiva entra no e-mail do chat como no diálogo.                                                                                                                                                                                                                                       |
 | 268      | Sandbox (Mailpit, global, sem `Reply-To`, sem webhook). **Usa:** no sandbox a mensagem para em "Enviada".                                                                                                                                                                                                                                                                  |
 | 269/271  | Modelo obrigatório (`OCCURRENCE_MAIL_TEMPLATE_MISSING`, 409), modelo do módulo escolhido no tipo, destinatários do tipo. **Não vale para o chat** (o chat não usa modelo); continua no automático e no diálogo. **Usa:** a resolução de destinatários pré-marcados.                                                                                                        |
-| 272      | HTML do modelo, área `<!-- mensagem -->`, prefixo do assunto, "De" com o nome de exibição, assinatura com cargo, logo `cid:`. **Usa** prefixo, "De", assinante e `has_inline_logo`. **Move ao pacote** `htmlToPlainText` e o desenho do logo/iniciais e das marcas do rodapé (plan D4).                                                                                    |
+| 272      | HTML do modelo, área `<!-- mensagem -->`, prefixo do assunto, "De" com o nome de exibição, assinatura com cargo, logo `cid:`. **Usa** prefixo, "De", assinante e `has_inline_logo`. **Move ao SDK** (ajustado 2026-10-19, dono) escape, `htmlToPlainText`, regra de HTML inseguro, interpolação e logo/marcas; o renderer do modelo do tipo fica (plan D4).                |
 
 ## Problema e resultado
 
@@ -31,7 +37,7 @@ caso comum. Para falar com ela o operador abre um diálogo de e-mail por mensage
 depende do modelo do tipo. A conversa não parece conversa, e o operador não sabe se a contratante leu.
 
 **Resultado:** o composer fica **sempre aberto** (há nota, contratante e permissão). Cada mensagem — texto, anexos e
-áudio — sai por **e-mail** num corpo padrão com a identidade da transportadora, a assinatura do operador e o rodapé da
+áudio — sai por **e-mail** no modelo padrão do sistema com a identidade da transportadora, a assinatura do operador e o rodapé da
 plataforma, na mesma linha do e-mail da ocorrência, aos contatos pré-marcados com os responsáveis em cópia. Na conversa
 ela aparece como chat, com os selos **Enviada**, **Entregue** e **Lida** (pixel de abertura ou leitura no portal). Com o
 portal aberto, a mesma mensagem está no portal.
@@ -44,17 +50,20 @@ portal aberto, a mesma mensagem está no portal.
 - **RF2 — Enviar é e-mail.** Enviar grava **uma** mensagem de canal `email` na conversa da contratante, que nasce
   `queued`, e um e-mail de saída (`contractor_mail_messages`) na linha (`contractor_mail_threads`) da ocorrência. O
   envio usa o Resend da transportadora ou o sandbox (268), pelas regras de prontidão de hoje.
-- **RF3 — Corpo padrão, sem modelo.** O e-mail sai no corpo padrão do pacote de notificação: identidade (logo `cid:`
-  ou iniciais, nome de exibição), o texto do operador escapado em parágrafos, a lista dos anexos (nome), a assinatura
-  do operador (nome e cargo, regra da 272) e o rodapé de marcas da plataforma; parte `text/plain` gerada do HTML. O
-  chat **não** exige modelo do tipo: nunca responde 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`.
+- **RF3 — Modelo padrão, sem modelo do tipo.** _Ajustado em 2026-10-19 (dono)._ O e-mail sai no **modelo padrão** do
+  SDK de notificação (`notification.standard-email`): a versão ativa da empresa, editada na tela de Notificações, ou,
+  sem ela (rede de segurança), o conteúdo embutido no SDK. O modelo traz identidade (logo `cid:` ou iniciais, nome de exibição), o texto do
+  operador escapado em parágrafos, a lista dos anexos (nome), a assinatura do operador (nome e cargo, regra da 272) e o
+  rodapé de marcas da plataforma (obrigatório); parte `text/plain` gerada do HTML pelo SDK. O chat **não** exige modelo
+  do tipo: nunca responde 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`.
 - **RF4 — Para quem.** `To` = os contatos pré-marcados que a prévia de hoje resolve (escolhidos no tipo, senão os da
   etapa), ativos, que recebem ocorrências e com e-mail. `Cc` = a cópia efetiva da 267/271 (e o dono da 273, quando
   publicada). Sem nenhum pré-marcado → 409 `OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS`; o composer mostra o erro com o atalho
   "Enviar por e-mail" (escolher contatos no diálogo).
 - **RF5 — Assunto e linha.** Assunto = o da linha (último e-mail de saída da ocorrência); sem e-mail anterior, o assunto
   padrão do plan D6 com o prefixo da 272 (idempotente). `In-Reply-To` = último `Message-ID` conhecido da linha
-  (entrada ou saída); `References` = a cadeia, até 20.
+  (entrada, ou saída com o `message_id` devolvido pelo Resend no `email.sent` — ajustado em 2026-10-19, dono);
+  `References` = a cadeia, até 20.
 - **RF6 — Anexos e áudio.** O composer anexa arquivos e grava áudio pelas regras do e-mail
   (`conversation-attachment.policy.ts`: pdf, planilhas, csv, imagens e áudio mp4/mpeg/ogg/webm; 10 MB por arquivo, 25 MB
   no total, 5 por mensagem). Os arquivos vão como anexos do e-mail e listados no corpo.
@@ -72,13 +81,20 @@ portal aberto, a mesma mensagem está no portal.
 - **RF11 — Ligar o rastreio.** Roteiro em `plan.md` § Ligar a confirmação de leitura: no Resend da transportadora,
   `open_tracking` ligado, `click_tracking` desligado, subdomínio de rastreio verificado (CNAME) e `email.opened` no
   webhook. Executado por quem administra a conta e o DNS, com aprovação humana; a aplicação não altera o domínio.
-- **RF12 — Corpo padrão no pacote.** O layout padrão é uma função pura do `@adatechnology/notification-contracts`,
-  re-exportada pelo `@adatechnology/notification-module`, publicada pelo fluxo do repositório de pacotes e consumida
-  pela API com versão fixa.
+- **RF12 — Modelo padrão no SDK.** _Ajustado em 2026-10-19 (dono)._ O SDK de notificação fornece o conteúdo padrão
+  (arquivo `.html` no pacote), o **cadastro** (`standardEmail.ensureTemplate`, chamado pela API no pré-deploy para toda
+  empresa: grava a v1 só se a chave não tem linha, nunca sobrescreve), a resolução (versão ativa da empresa; embutido
+  como rede de segurança) e a renderização (`renderStandardEmail` puro em `notification-contracts`;
+  `standardEmail.render` no `notification-module`). Identidade (logo, nome de exibição), assinante (iniciais, nome,
+  cargo) e rodapé são marcação do modelo, com variáveis. A tela de Notificações lista e edita o modelo como os outros
+  (selo "Modelo do sistema"), "Restaurar padrão" grava uma versão nova com o conteúdo embutido e "Remover" não existe
+  para ele. Versão sem as variáveis obrigatórias (`corpoMensagem`, `logoEmpresa`, `nomeEmpresa`, `nomeAssinante`,
+  `rodapePlataforma`) ou com HTML inseguro é recusada ao salvar. Publicado pelo fluxo do repositório de pacotes e
+  consumido com versão fixa.
 
 ## Requisitos não funcionais
 
-- **Segurança:** nenhum slot do corpo padrão aceita HTML; texto, nomes de anexo, nome e cargo saem escapados. Sem
+- **Segurança:** nenhuma variável de texto do modelo padrão aceita HTML; texto, nomes de anexo, nome e cargo saem escapados. Sem
   `script`, sem `on*`, sem link reescrito (`click_tracking` desligado).
 - **Isolamento:** `companyId` do token; contatos e cópia só da empresa e da contratante da nota; contrato negativo de
   BOLA (outra empresa → 404) na rota.
@@ -115,11 +131,18 @@ portal aberto, a mesma mensagem está no portal.
 6. Contratante com portal: a mensagem aparece uma vez no painel e uma vez no portal; o usuário do portal que também é
    contato em `To` não recebe o aviso sem corpo; o outro usuário recebe. Abrir a conversa no portal leva a mensagem a
    "Lida" sem webhook.
-7. Segunda mensagem do chat na mesma ocorrência: mesmo assunto da primeira; `In-Reply-To` = `Message-ID` da primeira
-   (capturado do webhook) ou da última resposta da contratante, o que for mais recente.
+7. Segunda mensagem do chat na mesma ocorrência: mesmo assunto da primeira; `In-Reply-To` = `message_id` da primeira
+   (devolvido pelo Resend no `email.sent` e gravado pelo webhook) ou da última resposta da contratante, o que for mais
+   recente; sem `email.sent` da primeira ainda, ela fica fora de `References`.
 8. Mesma chave de idempotência duas vezes → uma mensagem; mesma chave com outro texto → 409.
 9. Sandbox (268): a mensagem chega ao Mailpit com logo inline e fica em "Enviada".
 10. Áudio gravado no composer (webm) → anexo do e-mail; arquivo de 11 MB → 400 antes de gravar.
 11. Usuário de outra empresa na rota → 404; sem `occurrences.resolve` → 403.
-12. O pacote: `renderStandardEmail` com texto de 8000 caracteres e 5 anexos → HTML < 100 KB, sem `<script`, `on*=`,
-    `display:flex`, `var(`; os slots aparecem escapados; `text` sem tags.
+12. O SDK: `renderStandardEmail` com o padrão embutido, texto de 8000 caracteres e 5 anexos → HTML < 100 KB, sem
+    `<script`, `on*=`, `display:flex`, `var(`; os slots aparecem escapados; `text` sem tags.
+13. _Ajustado em 2026-10-19 (dono):_ depois do pré-deploy, cada empresa tem a v1 de `notification.standard-email`; a
+    segunda execução grava zero; a tela de Notificações a mostra com o selo "Modelo do sistema" e sem "Remover". A
+    empresa edita a cor do cabeçalho e salva → o próximo envio usa a versão dela (grava chave e versão); "Restaurar
+    padrão" → nova versão com o conteúdo embutido. Salvar sem `{{rodapePlataforma}}` → recusado. Sem linha ativa (rede
+    de segurança) → sai no embutido, grava versão `0` e loga `standard_email_template_fallback`. O modelo padrão não
+    aparece na escolha de modelo do tipo.
