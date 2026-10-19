@@ -14,6 +14,7 @@ import { OCCURRENCE_MAIL_LIMITS } from './occurrence-conversation.constant.js'
 
 /** O padrão do pacote de notificação (`extractTemplatePlaceholders`). */
 const PLACEHOLDER_REGEX = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/gu
+const LINE_BREAK_REGEX = /\r\n|\r|\n/gu
 const WHITESPACE_RUN = /\s+/gu
 const SYSTEM_HTML_NAMES: ReadonlySet<string> = new Set(OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES)
 
@@ -37,12 +38,17 @@ function lookup(source: Readonly<Record<string, string>>, name: string): string 
   return Object.hasOwn(source, name) ? (source[name] ?? '') : ''
 }
 
+/** O valor é texto: escapado, e a quebra de linha dele vira `<br>` (o HTML a colapsaria num espaço). */
+function escapeValue(value: string): string {
+  return escapeMailHtml(value).replace(LINE_BREAK_REGEX, '<br>')
+}
+
 export function renderContractorMailHtml(
   params: RenderContractorMailHtmlParams,
 ): RenderedContractorMailHtml {
   const { bodyTemplate, subjectTemplate, systemHtml, values } = params
   const html = bodyTemplate.replace(PLACEHOLDER_REGEX, (_match, name: string) =>
-    SYSTEM_HTML_NAMES.has(name) ? lookup(systemHtml, name) : escapeMailHtml(lookup(values, name)),
+    SYSTEM_HTML_NAMES.has(name) ? lookup(systemHtml, name) : escapeValue(lookup(values, name)),
   )
   const subject = subjectTemplate
     .replace(PLACEHOLDER_REGEX, (_match, name: string) =>

@@ -15,6 +15,7 @@ export const OCCURRENCE_ITEM_LINES_LIMIT = 200
 
 /** Corpo com marcação HTML → caminho HTML do e-mail (spec 272); sem marcação → o caminho de texto. */
 export const HTML_BODY_PATTERN = '</?[A-Za-z][A-Za-z0-9_:-]*[\\s>/]'
+export const HTML_BODY_REGEX = new RegExp(HTML_BODY_PATTERN, 'u')
 
 export type OccurrenceContractorMailVariable = {
   readonly description: string

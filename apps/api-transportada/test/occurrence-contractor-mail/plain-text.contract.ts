@@ -47,3 +47,13 @@ describe('spec 272: htmlToPlainText', () => {
     expect(htmlToPlainText('<p>a&nbsp;b</p><p></p><p></p><p>c</p>')).toBe('a b\n\nc')
   })
 })
+
+describe('spec 272 review A2: entidade que vira NUL ou substituto solto', () => {
+  test('&#0;, &#xD800;, &#57343; e acima de U+10FFFF somem', () => {
+    expect(htmlToPlainText('<p>a&#0;b&#xD800;c&#57343;d&#x110000;e&#xD83D;f</p>')).toBe('abcdef')
+  })
+
+  test('código válido continua: &#x1F600; e &#65;', () => {
+    expect(htmlToPlainText('<p>&#x1F600; &#65;</p>')).toBe('\u{1F600} A')
+  })
+})

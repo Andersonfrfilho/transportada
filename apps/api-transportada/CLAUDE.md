@@ -1124,11 +1124,11 @@ parametrizado (`notification-template.query.ts`, versão ativa mais alta) e usa 
 
 - **Bloco do tipo** (`PUT /company-settings/occurrence-types`, chaves opcionais e independentes — ausente não mexe, `null`/`[]` limpa):
   `contractorNotificationTemplateKey` (varchar, **sem FK**; 400 `OCCURRENCE_CONTRACTOR_TEMPLATE_INVALID` com **todos** os problemas:
-  `not_found`, `system_key`, `html_body`, `empty_subject`, `unknown_variables`, `malformed_placeholder`, conferido **antes** da transação),
+  `not_found`, `system_key`, `unsafe_html`, `missing_message_area`, `empty_subject`, `unknown_variables`, `malformed_placeholder`, conferido **antes** da transação),
   `contractorMailWatcherUserIds` (em cópia: só da lista da empresa da 267, até 10, novo inativo é 400) e `contractorMailRecipientContactIds`
   (destinatários: só tipo `listed`, contatos das contratantes da lista, poda explícita ao mudar o escopo). Auditoria
   `occurrence_type.contractor_mail.updated` com ids antes/depois, na mesma transação.
-- **Envio:** modelo utilizável = versão ativa, e-mail `pt-BR`, corpo sem HTML, assunto não vazio (`blocksContractorMailSend`); senão 409
+- **Envio:** modelo utilizável = versão ativa, e-mail `pt-BR`, sem HTML inseguro (spec 272), assunto não vazio (`blocksContractorMailSend`); senão 409
   `OCCURRENCE_MAIL_TEMPLATE_MISSING`, nem à mão; reenvio da 248 isento. `contractor_mail_messages.notification_template_key`/`_version`
   guardam o que saiu (`template_id` fica só para a correção de endereço). Cópia efetiva = tipo ?? contratante ?? empresa; `To` = escolhidos
   da contratante da nota (ignora a etapa), senão a regra da etapa. Carimbo `contractor_notification_template_selected_at`: o automático só
@@ -1137,6 +1137,42 @@ parametrizado (`notification-template.query.ts`, versão ativa mais alta) e usa 
 - **Leituras do editor** (`settings.manage`): `GET .../contractor-mail-templates` e `GET .../contractor-mail-recipient-candidates`. As escritas
   em `/v1/notification-templates*` exigem `settings.manage` (o módulo, sozinho, deixa qualquer membro).
 - Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O modelo do e-mail da ocorrência vem do módulo de notificação (spec 271)".
+
+## E-mail da ocorrência em HTML (spec 272, ADR-0110)
+
+Emenda a ADR-0108 §3 e a D5 da 271: **corpo HTML deixa de ser recusado**; é recusado só o HTML inseguro. O desenho mora no modelo
+de Notificações (`notification.templates`, `email`, `pt-BR`); a API não monta layout.
+
+- **Modelos:** `src/occurrence-conversation/occurrence-mail-templates/*.html` (cinco; assunto em `<!-- subject: … -->` na linha 1).
+  O corpo editável é a área `<!-- mensagem -->…<!-- /mensagem -->`; sem ela → `missing_message_area`. Publicação:
+  `scripts/occurrence-mail-templates-publish.ts --company <uuid> [--confirm] [--overwrite <chave>]`, chave `ocorrencia.<arquivo>`,
+  plano `create`/`same`/`differs`, versão nova pelo `TemplateRepository` (nunca UPDATE). Staging ou produção = mudança de dados com
+  aprovação humana.
+- **Variáveis:** texto escapado — as de 271 mais `nomeExibicao`, `cnpjTransportadora`, `cnpjContratante`, `assinaturaNome`,
+  `assinaturaCargo`, `assinaturaIniciais`, `cidadeTransportadora`, `razaoSocialTransportadora`. HTML do sistema, montado pela API e
+  sem escape (lista fechada `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES`): `logoTransportadora`, `tabelaItens`, `marcasRodape`,
+  `faixaResposta`, montadas por `occurrence-mail-system-html.policy.ts`. A decisão de escapar é pelo **nome da chave**, nunca pelo conteúdo. Catálogo espelhado no painel.
+- **Renderer** (`occurrence-mail-html-render.policy.ts`): uma passada; troca só `{{nome}}` do modelo, valor por `Object.hasOwn`;
+  valor com `{{…}}` não é reinterpretado. `has_inline_logo` só com `{{logoTransportadora}}` no modelo **e** logo. HTML acima de
+  524288 bytes é problema do modelo (409), não 500.
+- **Segurança** (`occurrence-mail-html-safety.policy.ts` → `unsafe_html`): tags, eventos, esquema (com entidades decodificadas) e
+  placeholder em tag. `OCCURRENCE_MAIL_UNSAFE_HTML_CASES` (35 casos, coluna `worker`) é a fonte das cópias no painel e no worker.
+- **Texto** (`occurrence-mail-plain-text.policy.ts`): gera o `text/plain`. A conversa e o `bodyText` de entrada levam só o texto da
+  área (CHECK ≤ 8000 em `occurrence_conversation_messages.body_text`).
+- **Envio manual** (`occurrence-mail-html-compose.policy.ts`): texto igual ao gerado → área do modelo; editado → texto escapado em
+  parágrafos, inserido depois da renderização (`{{tabelaItens}}` digitado sai literal). Sempre sai o HTML do modelo.
+- **"De" e assunto:** `occurrence-mail-sender-name.policy.ts` (`buildSenderDisplayName`: equipe = nome de exibição; pessoa =
+  `<nome> — <nome de exibição>`; saneado, 29 casos; gravado em `from_display_name`). `occurrence-mail-subject.policy.ts`: prefixo
+  `<nome de exibição> · CNPJ <cnpj> — `, idempotente, assunto ≤ 200.
+- **Assinatura:** `occurrence-mail-signer.policy.ts` (`resolveSignerJobTitle`): manual → operador; automático → dono pela porta
+  `OccurrenceOwnerReader` (implementação nula até a 273), senão equipe. Sem cargo, `assinaturaCargo` é o rótulo do papel
+  (`COMPANY_ROLE_LABELS`, paridade com `identity.locale.json`).
+- **Cargo:** `user_company_memberships.job_title` (`varchar(80)`, `identity/domain/company-user-job-title.policy.ts`), editado por
+  `users.manage` no `PATCH /company-users/:id` com `jobTitle` (string ≤ 80; `null` limpa; ausente não altera). Só `jobTitle` não
+  chama o Keycloak; sem auditoria, fora de log. Esta API não tem OpenAPI: o contrato é `identity/presentation/user-administration.schema.ts`.
+- **Logo:** `has_inline_logo` gravado em `contractor_mail_messages`; o worker anexa o logo por `cid:company-logo`.
+- **Publicação:** API e worker no mesmo PR e no mesmo run (ADR-0081 §9); a janela entre os dois deploys é aceita.
+- Detalhe e contratos: `docs/ai-context/api-transportada.md` § "E-mail da ocorrência em HTML (spec 272)".
 
 ## O tipo de ocorrência tem escopo de contratantes (spec 270, ADR-0107)
 

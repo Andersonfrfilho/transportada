@@ -75,15 +75,14 @@ export function createUpdateCompanyUserProfileUseCase({
       if (existing === undefined) throw new CompanyUserNotFoundError()
 
       const nextJobTitle = jobTitle === undefined ? (existing.jobTitle ?? null) : jobTitle
-      if (jobTitle !== undefined) {
-        await repository.updateJobTitle({ companyId: context.companyId, jobTitle, userId })
-      }
-
       /** O cargo é só da membership: sem campo de ficha, o Keycloak não tem o que receber. */
       const hasProfileChange = [channel, contact, email, name, phone, taxId, username].some(
         (value) => value !== undefined,
       )
       if (!hasProfileChange) {
+        if (jobTitle !== undefined) {
+          await repository.updateJobTitle({ companyId: context.companyId, jobTitle, userId })
+        }
         return toCompanyUserView({
           ...existing,
           jobTitle: nextJobTitle,
@@ -156,6 +155,11 @@ export function createUpdateCompanyUserProfileUseCase({
         },
         userId: subject,
       })
+
+      /** O cargo é gravado por último: falha do provedor não deixa o cargo novo com a ficha antiga. */
+      if (jobTitle !== undefined) {
+        await repository.updateJobTitle({ companyId: context.companyId, jobTitle, userId })
+      }
 
       return toCompanyUserView({
         ...existing,

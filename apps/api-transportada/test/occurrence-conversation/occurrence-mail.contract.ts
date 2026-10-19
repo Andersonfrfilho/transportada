@@ -10,6 +10,8 @@
 import { describe, expect, test } from 'bun:test'
 
 import type {
+  CarrierIdentity,
+  OccurrenceMailHtmlSource,
   OccurrenceMailTarget,
   OccurrenceMailTransactionPort,
   RecordContractorReplyResendOutcome,
@@ -23,6 +25,9 @@ import {
 } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import type { StoredContractorReplyConfiguration } from '../../src/occurrence-conversation/application/occurrence-mail.port.js'
 import type { ConversationUploadTarget } from '../../src/occurrence-conversation/application/conversation-attachment.port.js'
+import type { OccurrenceOwnerReader } from '../../src/occurrence-conversation/application/occurrence-owner-reader.port.js'
+import { htmlToPlainText } from '../../src/occurrence-conversation/domain/occurrence-mail-plain-text.policy.js'
+import { composeOccurrenceMailHtml } from '../../src/occurrence-conversation/domain/occurrence-mail-html-compose.policy.js'
 import { createPreviewOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/preview-occurrence-mail.use-case.js'
 import { createSendOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import { buildOccurrenceMail } from '../../src/occurrence-conversation/domain/occurrence-mail.template.js'
@@ -41,6 +46,18 @@ const UPLOAD_B = '00000000-0000-4000-8000-0000001834a2'
 /** Spec 271: o modelo do módulo de notificação que o tipo escolheu, a versão ativa no envio. */
 const EFFECTIVE_TEMPLATE = { key: 'ocorrencia.padrao', version: 3 } as const
 
+const CARRIER_IDENTITY: CarrierIdentity = {
+  city: 'Ribeirão Preto',
+  cnpj: '11444777000161',
+  displayName: 'Transportadora Sintética',
+  hasLogo: false,
+  legalName: 'Transportadora Sintética Ltda',
+  state: 'SP',
+}
+const OPERATOR_SIGNER = { jobTitle: 'Operação', name: 'Operadora Lima' } as const
+/** Spec 272 D7: o prefixo que o assunto de toda mensagem de ocorrência passa a ter. */
+const SUBJECT_PREFIX = 'Transportadora Sintética · CNPJ 11.444.777/0001-61 — '
+
 const TARGET: OccurrenceMailTarget = {
   contractorId: CONTRACTOR_ID,
   contractorName: 'Contratante Alfa',
@@ -54,6 +71,7 @@ type FakeState = {
   calls: string[]
   conversations: { id: string; publicRef: string }[]
   conversationMessages: Parameters<OccurrenceMailTransactionPort['recordConversationMessage']>[0][]
+  htmlSourceReads: string[]
   idempotency: Map<string, { fingerprint: string; response: SendOccurrenceMailResult }>
   mails: RecordOccurrenceMailInput[]
   openedReplies: Parameters<OccurrenceMailTransactionPort['openContractorReply']>[0][]
@@ -65,8 +83,14 @@ type FakeState = {
 
 function createFake(
   overrides: Partial<{
+    appBaseUrl: string
+    carrier: CarrierIdentity | undefined
     chosenRecipientIds: readonly string[]
     contacts: readonly { email: string; id: string }[]
+    /** Spec 272 D6: o dono da 273 injetado na porta; ausente, a porta nula. */
+    ownerReader: OccurrenceOwnerReader
+    /** Spec 272: o modelo HTML e os valores da nota; ausente é modelo de texto. */
+    htmlSource: OccurrenceMailHtmlSource
     /** Spec 271: o modelo do tipo no módulo de notificação; `null` é sem modelo utilizável. */
     effectiveTemplate: null | typeof EFFECTIVE_TEMPLATE
     /** Spec 271: o modelo da primeira mensagem de e-mail da ocorrência (reenvio do retorno). */
@@ -98,6 +122,7 @@ function createFake(
     calls: [],
     conversationMessages: [],
     conversations: [],
+    htmlSourceReads: [],
     idempotency: new Map(),
     mails: [],
     openedReplies: [],
@@ -146,21 +171,15 @@ function createFake(
       state.resendCalls.push(params)
       return overrides.resendOutcome ?? 'recorded'
     },
-    async findCarrierName() {
-      return 'Transportadora Sintética'
-    },
     async findCarrierIdentity() {
-      return {
-        city: 'Ribeirão Preto',
-        cnpj: '11444777000161',
-        displayName: 'Transportadora Sintética',
-        hasLogo: false,
-        legalName: 'Transportadora Sintética Ltda',
-        state: 'SP',
-      }
+      return 'carrier' in overrides ? overrides.carrier : CARRIER_IDENTITY
     },
     async findOperatorSigner() {
-      return { jobTitle: 'Operação', name: 'Operadora Lima' }
+      return OPERATOR_SIGNER
+    },
+    async findOccurrenceMailHtmlSource(params) {
+      state.htmlSourceReads.push(params.templateKey)
+      return overrides.htmlSource ?? null
     },
     async findOccurrenceNotificationTemplate() {
       const template =
@@ -200,9 +219,6 @@ function createFake(
     async lockOccurrenceThread(params) {
       state.calls.push(`lock:${params.companyId}:${params.occurrenceKind}:${params.occurrenceId}`)
     },
-    async findOperatorName() {
-      return 'Operadora Lima'
-    },
     async findOrCreateContractorConversation({ publicRef }) {
       const existing = state.conversations[0]
       if (existing !== undefined) return { id: existing.id }
@@ -225,6 +241,8 @@ function createFake(
   }
   const decryptCalls: string[] = []
   const useCase = createSendOccurrenceMailUseCase({
+    ...(overrides.appBaseUrl === undefined ? {} : { appBaseUrl: overrides.appBaseUrl }),
+    ...(overrides.ownerReader === undefined ? {} : { ownerReader: overrides.ownerReader }),
     ...(overrides.sandbox === undefined ? {} : { contractorMailSandbox: overrides.sandbox }),
     ...(overrides.logger === undefined ? {} : { logger: overrides.logger }),
     fingerprintService: {
@@ -312,7 +330,7 @@ describe('o envio do e-mail da conversa (spec 183 T403)', () => {
       fromAddress: 'ocorrencias@transportadora.example.test',
       occurrenceId: OCCURRENCE_ID,
       occurrenceKind: 'document',
-      subject: 'Ocorrência na entrega — NF 4512',
+      subject: `${SUBJECT_PREFIX}Ocorrência na entrega — NF 4512`,
       toAddresses: ['compras@alfa.example.test', 'fiscal@alfa.example.test'],
     })
     expect(mail?.replyTokenHash).toMatch(/^[0-9a-f]{64}$/u)
@@ -435,10 +453,12 @@ describe('a prévia do e-mail (RF7)', () => {
   ) {
     return createPreviewOccurrenceMailUseCase({
       reader: {
-        findCarrierName: async () => 'Transportadora Sintética',
+        findCarrierIdentity: async () => CARRIER_IDENTITY,
+        findMailSettings: async () => undefined,
         findChosenOccurrenceRecipientIds: async () => [],
         findOccurrenceNotificationTemplate: async () => template,
-        findOperatorName: async () => 'Operadora Lima',
+        findOccurrenceMailHtmlSource: async () => null,
+        findOperatorSigner: async () => OPERATOR_SIGNER,
         findOccurrenceTarget: async () => target,
         listOccurrenceRecipients: async () => RECIPIENTS,
         loadWatcherCandidates: async () => ({ company: [], contractor: [] }),
@@ -493,11 +513,13 @@ describe('a prévia do e-mail (RF7)', () => {
   test('com destinatários escolhidos no tipo, a pré-marcação é a escolha, não a etapa', async () => {
     const preview = await createPreviewOccurrenceMailUseCase({
       reader: {
-        findCarrierName: async () => 'Transportadora Sintética',
+        findCarrierIdentity: async () => CARRIER_IDENTITY,
+        findMailSettings: async () => undefined,
         findChosenOccurrenceRecipientIds: async () => ['contact-separation'],
         findOccurrenceNotificationTemplate: async () => EFFECTIVE_TEMPLATE,
         findOccurrenceTarget: async () => TARGET,
-        findOperatorName: async () => 'Operadora Lima',
+        findOccurrenceMailHtmlSource: async () => null,
+        findOperatorSigner: async () => OPERATOR_SIGNER,
         listOccurrenceRecipients: async () => RECIPIENTS,
         loadWatcherCandidates: async () => ({ company: [], contractor: [] }),
       },
@@ -555,11 +577,13 @@ describe('a prévia do e-mail (RF7)', () => {
     let suggestedReads = 0
     const preview = await createPreviewOccurrenceMailUseCase({
       reader: {
-        findCarrierName: async () => 'Transportadora Sintética',
+        findCarrierIdentity: async () => CARRIER_IDENTITY,
+        findMailSettings: async () => undefined,
         findChosenOccurrenceRecipientIds: async () => [],
         findOccurrenceNotificationTemplate: async () => null,
         findOccurrenceTarget: async () => TARGET,
-        findOperatorName: async () => 'Operadora Lima',
+        findOccurrenceMailHtmlSource: async () => null,
+        findOperatorSigner: async () => OPERATOR_SIGNER,
         listOccurrenceRecipients: async () => RECIPIENTS,
         loadWatcherCandidates: async () => ({ company: [], contractor: [] }),
       },
@@ -1005,11 +1029,13 @@ describe('a prévia mostra a cópia (spec 267 RF4)', () => {
     const preview = await createPreviewOccurrenceMailUseCase({
       logger: { warn: (event) => warnings.push(event) },
       reader: {
-        findCarrierName: async () => 'Transportadora Sintética',
+        findCarrierIdentity: async () => CARRIER_IDENTITY,
+        findMailSettings: async () => undefined,
         findChosenOccurrenceRecipientIds: async () => [],
         findOccurrenceNotificationTemplate: async () => EFFECTIVE_TEMPLATE,
         findOccurrenceTarget: async () => TARGET,
-        findOperatorName: async () => 'Operadora Lima',
+        findOccurrenceMailHtmlSource: async () => null,
+        findOperatorSigner: async () => OPERATOR_SIGNER,
         listOccurrenceRecipients: async () => [],
         loadWatcherCandidates: async () => {
           throw new Error('database unavailable')
@@ -1026,11 +1052,13 @@ describe('a prévia mostra a cópia (spec 267 RF4)', () => {
   test('a lista efetiva com e-mail mascarado e a origem; inelegível não aparece', async () => {
     const preview = await createPreviewOccurrenceMailUseCase({
       reader: {
-        findCarrierName: async () => 'Transportadora Sintética',
+        findCarrierIdentity: async () => CARRIER_IDENTITY,
+        findMailSettings: async () => undefined,
         findChosenOccurrenceRecipientIds: async () => [],
         findOccurrenceNotificationTemplate: async () => EFFECTIVE_TEMPLATE,
         findOccurrenceTarget: async () => TARGET,
-        findOperatorName: async () => 'Operadora Lima',
+        findOccurrenceMailHtmlSource: async () => null,
+        findOperatorSigner: async () => OPERATOR_SIGNER,
         listOccurrenceRecipients: async () => [],
         loadWatcherCandidates: async () => ({
           company: [watcher('Ana'), watcher('Bruno', { address: undefined })],
@@ -1223,5 +1251,348 @@ describe('a cópia no e-mail de ocorrência (spec 267)', () => {
       },
     ])
     expect(JSON.stringify(infos)).not.toContain('@')
+  })
+})
+
+/** Spec 272 T2.4: o modelo HTML — a área de mensagem, a tabela, o logo e a assinatura. */
+const HTML_TEMPLATE = [
+  '<html><body>',
+  '<div>{{logoTransportadora}} <b>{{nomeExibicao}}</b> CNPJ {{cnpjTransportadora}}</div>',
+  '<!-- mensagem -->',
+  '<p>Prezados, a NF {{numeroNota}} teve avaria. {{observacao}}</p>',
+  '<!-- /mensagem -->',
+  '{{tabelaItens}}',
+  '{{faixaResposta}}',
+  '<p>{{assinaturaNome}} — {{assinaturaCargo}}</p>',
+  '</body></html>',
+].join('\n')
+
+function htmlSource(overrides: Partial<OccurrenceMailHtmlSource> = {}): OccurrenceMailHtmlSource {
+  return {
+    bodyTemplate: HTML_TEMPLATE,
+    itemLines: ['A1 – Tapete – 2 un – R$ 10,00'],
+    itemRows: [{ amount: 'R$ 10,00', code: 'A1', description: 'Tapete', quantity: '2 un' }],
+    itemsSum: 'R$ 10,00',
+    subjectTemplate: 'Avaria — NF {{numeroNota}}',
+    values: {
+      linhasItens: 'A1 – Tapete – 2 un – R$ 10,00',
+      numeroNota: '48.213-1',
+      observacao: '',
+    },
+    ...overrides,
+  }
+}
+
+const AREA_TEXT = 'Prezados, a NF 48.213-1 teve avaria.'
+
+describe('o envio do e-mail com modelo HTML (spec 272 T2.4, D1/D7/D8/D12)', () => {
+  test('manual, texto mantido: o HTML do modelo, o texto gerado do HTML inteiro e o "De" com o operador', async () => {
+    const { state, useCase } = createFake({ htmlSource: htmlSource() })
+
+    await useCase.send(input({ bodyText: AREA_TEXT, subject: 'Avaria — NF 48.213-1' }))
+
+    const [mail] = state.mails
+    expect(state.htmlSourceReads).toEqual([EFFECTIVE_TEMPLATE.key])
+    expect(mail?.bodyHtml).toContain('<p>Prezados, a NF 48.213-1 teve avaria. </p>')
+    expect(mail?.bodyHtml).toContain('<b>Transportadora Sintética</b> CNPJ 11.444.777/0001-61')
+    expect(mail?.bodyHtml).toContain('<p>Operadora Lima — Operação</p>')
+    expect(mail?.bodyText).toBe(htmlToPlainText(mail?.bodyHtml ?? ''))
+    expect(mail?.bodyText).toContain('Tapete')
+    expect(mail?.bodyText).not.toMatch(/<[a-z]/u)
+    expect(mail?.fromDisplayName).toBe('Operadora Lima — Transportadora Sintética')
+    expect(mail?.subject).toBe(`${SUBJECT_PREFIX}Avaria — NF 48.213-1`)
+    expect(mail?.hasInlineLogo).toBe(false)
+  })
+
+  test('manual, texto editado: o HTML do modelo com o texto do operador escapado na área; a conversa leva o texto dele', async () => {
+    const { state, useCase } = createFake({ htmlSource: htmlSource() })
+
+    await useCase.send(input({ bodyText: 'Segue <b>novo</b> texto & mais.' }))
+
+    const [mail] = state.mails
+    expect(mail?.bodyHtml).toContain('Segue &lt;b&gt;novo&lt;/b&gt; texto &amp; mais.')
+    expect(mail?.bodyHtml).not.toContain('<b>novo</b>')
+    expect(mail?.bodyHtml).not.toContain('teve avaria')
+    expect(mail?.bodyHtml).toContain('<td style=')
+    expect(mail?.bodyHtml).toContain('<p>Operadora Lima — Operação</p>')
+    expect(state.conversationMessages[0]?.bodyText).toBe('Segue <b>novo</b> texto & mais.')
+  })
+
+  test('o aviso automático usa sempre a área do modelo, e a equipe assina (critério 6)', async () => {
+    const { state, useCase } = createFake({ htmlSource: htmlSource() })
+
+    await useCase.send(
+      input({
+        actorUserId: null,
+        automatic: true,
+        bodyText: 'texto do plano',
+        idempotencyKey: 'a',
+      }),
+    )
+
+    const [mail] = state.mails
+    expect(mail?.bodyHtml).toContain('<p>Prezados, a NF 48.213-1 teve avaria. </p>')
+    expect(mail?.bodyHtml).not.toContain('texto do plano')
+    expect(mail?.bodyHtml).toContain('<p>Equipe Transportadora Sintética — </p>')
+    expect(mail?.fromDisplayName).toBe('Transportadora Sintética')
+  })
+
+  test('com o dono injetado na porta (critério 12), o automático sai em nome dele', async () => {
+    const { state, useCase } = createFake({
+      htmlSource: htmlSource(),
+      ownerReader: {
+        findEligibleOwner: async () => ({ jobTitle: 'Gerente', name: 'Carla', userId: 'owner-1' }),
+      },
+    })
+
+    await useCase.send(input({ actorUserId: null, automatic: true, idempotencyKey: 'a' }))
+
+    expect(state.mails[0]?.fromDisplayName).toBe('Carla — Transportadora Sintética')
+    expect(state.mails[0]?.bodyHtml).toContain('<p>Carla — Gerente</p>')
+  })
+
+  test('assunto de 200 caracteres (o teto do renderer sobre um modelo de 300): o prefixo fica inteiro (critério 11); o assunto já prefixado não ganha outro', async () => {
+    const { state, useCase } = createFake({ htmlSource: htmlSource() })
+
+    await useCase.send(input({ bodyText: AREA_TEXT, subject: 'x'.repeat(200) }))
+    expect(state.mails[0]?.subject).toHaveLength(200)
+    expect(state.mails[0]?.subject.startsWith(SUBJECT_PREFIX)).toBe(true)
+
+    await useCase.send(
+      input({ bodyText: AREA_TEXT, idempotencyKey: 'k2', subject: `${SUBJECT_PREFIX}Avaria` }),
+    )
+    expect(state.mails[1]?.subject).toBe(`${SUBJECT_PREFIX}Avaria`)
+  })
+
+  test('logo: has_inline_logo só com o modelo usando {{logoTransportadora}} e logo cadastrado', async () => {
+    const withLogo = createFake({
+      carrier: { ...CARRIER_IDENTITY, hasLogo: true },
+      htmlSource: htmlSource(),
+    })
+    await withLogo.useCase.send(input({ bodyText: AREA_TEXT }))
+    expect(withLogo.state.mails[0]?.hasInlineLogo).toBe(true)
+    expect(withLogo.state.mails[0]?.bodyHtml).toContain('cid:company-logo')
+
+    const withoutPlaceholder = createFake({
+      carrier: { ...CARRIER_IDENTITY, hasLogo: true },
+      htmlSource: htmlSource({
+        bodyTemplate: HTML_TEMPLATE.replace('{{logoTransportadora}}', ''),
+      }),
+    })
+    await withoutPlaceholder.useCase.send(input({ bodyText: AREA_TEXT }))
+    expect(withoutPlaceholder.state.mails[0]?.hasInlineLogo).toBe(false)
+  })
+
+  test('Resend: a faixa de resposta e o endereço do Resend; sandbox: sem a faixa, com o nome no "De"', async () => {
+    const resend = createFake({ htmlSource: htmlSource() })
+    await resend.useCase.send(input({ bodyText: AREA_TEXT }))
+    expect(resend.state.mails[0]).toMatchObject({ transport: 'resend' })
+    expect(resend.state.mails[0]?.bodyHtml).toContain('Responda este e-mail')
+
+    const sandbox = createFake({
+      htmlSource: htmlSource(),
+      sandbox: { fromAddress: 'sandbox@example.test' },
+      settings: undefined,
+    })
+    await sandbox.useCase.send(input({ bodyText: AREA_TEXT }))
+    expect(sandbox.state.mails[0]).toMatchObject({
+      fromAddress: 'sandbox@example.test',
+      fromDisplayName: 'Operadora Lima — Transportadora Sintética',
+      transport: 'sandbox_smtp',
+    })
+    expect(sandbox.state.mails[0]?.bodyHtml).not.toContain('Responda este e-mail')
+  })
+
+  test('200 itens com {{linhasItens}} na área: a conversa grava até 8000 e o e-mail leva o texto inteiro', async () => {
+    const lines = Array.from(
+      { length: 200 },
+      (_, index) =>
+        `COD${index} – Item de teste número ${index} com descrição longa – 10 un – R$ 1.234,56`,
+    )
+    const source = htmlSource({
+      bodyTemplate: HTML_TEMPLATE.replace('{{observacao}}', '{{linhasItens}}'),
+      itemLines: lines,
+      itemRows: lines.map((line, index) => ({
+        amount: 'R$ 1.234,56',
+        code: `COD${index}`,
+        description: line,
+        quantity: '10 un',
+      })),
+      values: { linhasItens: lines.join('\n'), numeroNota: '1' },
+    })
+    const generated = composeOccurrenceMailHtml({
+      appBaseUrl: undefined,
+      carrier: CARRIER_IDENTITY,
+      contractorTaxId: null,
+      hasReplyTo: true,
+      signer: { kind: 'operator', name: 'Operadora Lima', userId: ACTOR_ID },
+      source,
+    }).areaText
+    const { state, useCase } = createFake({ htmlSource: source })
+
+    await useCase.send(input({ bodyText: generated }))
+
+    expect(generated.length).toBeLessThanOrEqual(8000)
+    expect(state.conversationMessages[0]?.bodyText.length).toBeLessThanOrEqual(8000)
+    expect(state.mails[0]?.bodyText.length).toBeGreaterThan(8000)
+    expect(state.mails[0]?.bodyHtml).toContain('COD199')
+  })
+
+  test('HTML acima de 524288 bytes: problema do modelo (409), nada gravado, nunca 500', async () => {
+    const { state, useCase } = createFake({
+      htmlSource: htmlSource({
+        values: { numeroNota: '1', observacao: 'o'.repeat(600_000) },
+      }),
+    })
+
+    const error = await failure(() => useCase.send(input({ bodyText: AREA_TEXT })))
+
+    expect(error).toBeInstanceOf(OccurrenceMailTemplateMissingError)
+    expect(state.mails).toEqual([])
+    expect(state.conversationMessages).toEqual([])
+  })
+
+  test('o reenvio do retorno (248) segue o caminho de texto: nem lê o modelo HTML; o prefixo é idempotente', async () => {
+    const { state, useCase } = createFake({
+      htmlSource: htmlSource(),
+      originalTemplate: EFFECTIVE_TEMPLATE,
+    })
+
+    await useCase.send(
+      input({
+        bodyText: 'Reenvio do pedido abaixo.',
+        contractorReplyResend: true,
+        subject: `${SUBJECT_PREFIX}Pedido de boleto`,
+      }),
+    )
+
+    expect(state.htmlSourceReads).toEqual([])
+    expect(state.mails[0]?.subject).toBe(`${SUBJECT_PREFIX}Pedido de boleto`)
+    expect(state.mails[0]?.bodyText).toContain('Reenvio do pedido abaixo.')
+    expect(state.mails[0]?.hasInlineLogo).toBe(false)
+  })
+
+  test('modelo de texto (critério 4): sai como hoje, com o prefixo e o "De" novos', async () => {
+    const { state, useCase } = createFake()
+
+    await useCase.send(input())
+
+    const [mail] = state.mails
+    expect(mail?.bodyText).toBe(
+      'Recebedor está cobrando taxa de descarga. Autorizam?\n\n--\nOperadora Lima\nTransportadora Sintética',
+    )
+    expect(mail?.bodyHtml).toContain('<p>Recebedor está cobrando taxa de descarga. Autorizam?</p>')
+    expect(mail?.subject).toBe(`${SUBJECT_PREFIX}Ocorrência na entrega — NF 4512`)
+    expect(mail?.fromDisplayName).toBe('Operadora Lima — Transportadora Sintética')
+    expect(mail?.hasInlineLogo).toBe(false)
+  })
+
+  test('automático com modelo de texto: "De" é só o nome de exibição', async () => {
+    const { state, useCase } = createFake()
+
+    await useCase.send(input({ actorUserId: null, automatic: true }))
+
+    expect(state.mails[0]?.fromDisplayName).toBe('Transportadora Sintética')
+    expect(state.mails[0]?.bodyText).toBe(
+      'Recebedor está cobrando taxa de descarga. Autorizam?\n\n--\nTransportadora Sintética',
+    )
+  })
+
+  test('sem perfil fiscal: assunto sem prefixo e "De" nulo (o worker segue como antes)', async () => {
+    const { state, useCase } = createFake({ carrier: undefined })
+
+    await useCase.send(input())
+
+    expect(state.mails[0]).toMatchObject({
+      fromDisplayName: null,
+      subject: 'Ocorrência na entrega — NF 4512',
+    })
+  })
+})
+
+describe('a prévia com modelo HTML (spec 272 T2.4, D12)', () => {
+  const READY_SETTINGS = {
+    id: 'settings-1',
+    secretEnvelope: {},
+    senderAddress: 'ocorrencias@transportadora.example.test',
+    sendingVerifiedAt: new Date('2026-09-01T00:00:00.000Z'),
+  }
+
+  function createHtmlPreview(
+    source: OccurrenceMailHtmlSource | null = htmlSource(),
+    settings: typeof READY_SETTINGS | undefined = undefined,
+  ) {
+    return createPreviewOccurrenceMailUseCase({
+      reader: {
+        findCarrierIdentity: async () => CARRIER_IDENTITY,
+        findChosenOccurrenceRecipientIds: async () => [],
+        findMailSettings: async () => settings,
+        findOccurrenceMailHtmlSource: async () => source,
+        findOccurrenceNotificationTemplate: async () => EFFECTIVE_TEMPLATE,
+        findOccurrenceTarget: async () => TARGET,
+        findOperatorSigner: async () => OPERATOR_SIGNER,
+        listOccurrenceRecipients: async () => RECIPIENTS,
+        loadWatcherCandidates: async () => ({ company: [], contractor: [] }),
+      },
+      suggestedMail: {
+        readSuggestedMail: async () => {
+          throw new Error('SUGGESTED_MAIL_NOT_USED_FOR_HTML')
+        },
+      },
+    })
+  }
+
+  test('sem body: bodyText é só o texto da área; html é o HTML do modelo renderizado; subject sem prefixo', async () => {
+    const preview = await createHtmlPreview().preview({
+      actorUserId: ACTOR_ID,
+      companyId: COMPANY_ID,
+      occurrenceId: OCCURRENCE_ID,
+    })
+
+    expect(preview.bodyText).toBe(AREA_TEXT)
+    expect(preview.html).toContain('<p>Prezados, a NF 48.213-1 teve avaria. </p>')
+    expect(preview.html).toContain('<p>Operadora Lima — Operação</p>')
+    expect(preview.subject).toBe('Avaria — NF 48.213-1')
+    expect(preview.text).toBe(htmlToPlainText(preview.html))
+    expect(preview.suggested).toBe(true)
+    expect(preview.missingNotificationTemplate).toBe(false)
+  })
+
+  test('com body: o html leva o texto do operador escapado na área', async () => {
+    const preview = await createHtmlPreview().preview({
+      actorUserId: ACTOR_ID,
+      bodyText: 'Meu <i>texto</i>',
+      companyId: COMPANY_ID,
+      occurrenceId: OCCURRENCE_ID,
+    })
+
+    expect(preview.bodyText).toBe('Meu <i>texto</i>')
+    expect(preview.html).toContain('Meu &lt;i&gt;texto&lt;/i&gt;')
+    expect(preview.html).not.toContain('teve avaria')
+    expect(preview.suggested).toBe(false)
+  })
+
+  test('a faixa de resposta segue o envio: só com Resend pronto (Reply-To), nunca no sandbox', async () => {
+    const withStrip = htmlSource({ bodyTemplate: `${HTML_TEMPLATE}<div>[{{faixaResposta}}]</div>` })
+    const request = { actorUserId: ACTOR_ID, companyId: COMPANY_ID, occurrenceId: OCCURRENCE_ID }
+
+    const sandbox = await createHtmlPreview(withStrip).preview(request)
+    const resend = await createHtmlPreview(withStrip, READY_SETTINGS).preview(request)
+
+    expect(sandbox.html).toContain('<div>[]</div>')
+    expect(resend.html).not.toContain('<div>[]</div>')
+    expect(resend.html).toContain('Responda')
+  })
+
+  test('modelo sem área não compõe: a prévia cai no texto em branco e o envio recusa com 409', async () => {
+    const preview = await createHtmlPreview(
+      htmlSource({ bodyTemplate: '<p>{{numeroNota}}</p>' }),
+    ).preview({
+      actorUserId: ACTOR_ID,
+      companyId: COMPANY_ID,
+      occurrenceId: OCCURRENCE_ID,
+    })
+
+    expect(preview.bodyText).toBe('')
   })
 })

@@ -13,6 +13,7 @@ import type {
 import type { MailCopyCandidates } from '../../contractor-mail/application/resolve-mail-copy.service.js'
 import type { ContractorMailTransport } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
+import type { OccurrenceMailItemRow } from '../domain/occurrence-mail-system-html.policy.js'
 import type {
   ContractorReplyConfiguration,
   ContractorReplyOverride,
@@ -50,6 +51,20 @@ export type CarrierIdentity = {
 export type OccurrenceOperatorSigner = {
   readonly jobTitle?: string
   readonly name: string
+}
+
+/**
+ * Spec 272 (ADR-0110 §3, D12): o que o renderer do e-mail HTML precisa do modelo e da nota. `values` são os valores da
+ * nota (spec 271) sem a identidade nem o assinante, que a composição acrescenta; `itemLines` são todas as linhas de
+ * `linhasItens` (sem o teto) e `itemRows` as mesmas, em colunas, para `{{tabelaItens}}`.
+ */
+export type OccurrenceMailHtmlSource = {
+  readonly bodyTemplate: string
+  readonly itemLines: readonly string[]
+  readonly itemRows: readonly OccurrenceMailItemRow[]
+  readonly itemsSum: string
+  readonly subjectTemplate: string
+  readonly values: Readonly<Record<string, string>>
 }
 
 /** Spec 183 T407: quem o diálogo oferece — ativos da contratante que recebem ocorrências. */
@@ -106,6 +121,10 @@ export type RecordOccurrenceMailInput = {
   /** `true` na primeira mensagem: a thread da 143 nasce com o hash do token de resposta. */
   readonly createThread: boolean
   readonly fromAddress: string
+  /** Spec 272 (D8): o nome do "De" já saneado; `null` sem perfil fiscal (o worker segue como antes). */
+  readonly fromDisplayName: null | string
+  /** Spec 272 (D3/D9): o modelo usa `{{logoTransportadora}}` e há logo — o worker anexa a parte inline. */
+  readonly hasInlineLogo: boolean
   readonly occurrenceId: string
   readonly occurrenceKind: OccurrenceConversationKind
   readonly replyTokenHash: string
@@ -168,19 +187,23 @@ export type OccurrenceMailTransactionPort = {
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<null | OccurrenceNotificationTemplate>
+  /**
+   * Spec 272 (ADR-0110 §1/§3): o modelo da chave e os valores da nota, para o caminho HTML; `null` quando o modelo não
+   * existe ou o corpo é texto (o caminho de texto de hoje).
+   */
+  findOccurrenceMailHtmlSource(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly templateKey: string
+  }): Promise<null | OccurrenceMailHtmlSource>
   /** Spec 271 (RF11): o modelo da primeira mensagem de e-mail desta ocorrência, para o reenvio do retorno (248). */
   findOriginalOccurrenceNotificationTemplate(params: {
     readonly companyId: string
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind
   }): Promise<null | OccurrenceNotificationTemplate>
-  findCarrierName(params: { readonly companyId: string }): Promise<string | undefined>
   /** Spec 272: nome de exibição, CNPJ, cidade, razão social e `hasLogo`; `undefined` sem perfil fiscal. */
   findCarrierIdentity(params: { readonly companyId: string }): Promise<CarrierIdentity | undefined>
-  findOperatorName(params: {
-    readonly companyId: string
-    readonly userId: string
-  }): Promise<string | undefined>
   /** Spec 272: nome, cargo e papéis diretos do vínculo **ativo**, numa consulta; `undefined` fora da empresa. */
   findOperatorSigner(params: {
     readonly companyId: string

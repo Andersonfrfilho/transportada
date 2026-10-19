@@ -18,8 +18,16 @@ const NAMED_ENTITY: Readonly<Record<string, string>> = {
   quot: '"',
 }
 const MAX_CODE_POINT = 0x10ffff
+const SURROGATE_MIN = 0xd800
+const SURROGATE_MAX = 0xdfff
 const HORIZONTAL_SPACE_RUN = /[^\S\n]+/gu
 const BLANK_LINE_RUN = /\n{3,}/gu
+
+/** NUL e substituto solto (U+D800–U+DFFF) não são texto: UTF-8 inválido ou derruba a gravação. */
+function isValidScalar(code: number): boolean {
+  const isSurrogate = code >= SURROGATE_MIN && code <= SURROGATE_MAX
+  return Number.isFinite(code) && code > 0 && code <= MAX_CODE_POINT && !isSurrogate
+}
 
 /** Uma passada só: cada entidade é decodificada uma vez, então `&amp;lt;` vira `&lt;`, nunca `<`. */
 function decodeEntities(text: string): string {
@@ -28,7 +36,7 @@ function decodeEntities(text: string): string {
     (_entity, hex: string | undefined, decimal: string | undefined, named: string | undefined) => {
       if (named !== undefined) return NAMED_ENTITY[named.toLowerCase()] ?? ''
       const code = hex === undefined ? Number.parseInt(decimal ?? '', 10) : Number.parseInt(hex, 16)
-      return Number.isFinite(code) && code <= MAX_CODE_POINT ? String.fromCodePoint(code) : ''
+      return isValidScalar(code) ? String.fromCodePoint(code) : ''
     },
   )
 }

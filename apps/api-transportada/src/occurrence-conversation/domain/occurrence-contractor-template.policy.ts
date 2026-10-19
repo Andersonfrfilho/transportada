@@ -9,7 +9,7 @@ import { extractTemplatePlaceholders } from '@adatechnology/notification-contrac
 
 import { NOTIFICATION_TEMPLATE_KEY } from '../../notification/domain/notification-catalog.constant.js'
 import {
-  HTML_BODY_PATTERN,
+  HTML_BODY_REGEX,
   OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES,
 } from './occurrence-contractor-mail.constant.js'
 import {
@@ -37,7 +37,6 @@ export const SYSTEM_NOTIFICATION_TEMPLATE_KEYS: ReadonlySet<string> = new Set(
   Object.values(NOTIFICATION_TEMPLATE_KEY),
 )
 
-const HTML_BODY_REGEX = new RegExp(HTML_BODY_PATTERN, 'u')
 /** Uma `{{` que o renderizador do módulo não casa (`{{ nome }}`): o texto sairia com o marcador cru. */
 const MALFORMED_PLACEHOLDER_REGEX = /\{\{(?!\s*[A-Za-z0-9_]+\s*\}\})/u
 

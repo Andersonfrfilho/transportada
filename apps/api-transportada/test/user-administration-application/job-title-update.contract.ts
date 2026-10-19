@@ -141,6 +141,26 @@ describe('edição de usuário — cargo', () => {
     expect(fakes.gatewayCalls).toContain('updateAttributes')
   })
 
+  test('falha do Keycloak (usuário ou atributos): o cargo não é gravado (revisão A8)', async () => {
+    for (const failing of ['updateUser', 'updateAttributes'] as const) {
+      const fakes = createFakes()
+      fakes.gateway[failing] = async () => {
+        throw new Error('keycloak fora')
+      }
+
+      await expect(
+        createUseCase(fakes).execute({
+          context: { companyId: COMPANY_ID },
+          jobTitle: 'Gerente',
+          phone: '11999998888',
+          userId: USER_ID,
+        }),
+      ).rejects.toThrow('keycloak fora')
+
+      expect(fakes.jobTitleUpdates).toEqual([])
+    }
+  })
+
   test('usuário de outra empresa: 404 de domínio e nada é gravado', async () => {
     const fakes = createFakes({ found: false })
 

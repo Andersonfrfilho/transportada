@@ -14,10 +14,15 @@ import {
   resolveEffectiveWatchers,
   type OccurrenceWatcherSource,
 } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
+import { resolveMailSendReadiness } from '../../contractor-mail/domain/mail-send-readiness.policy.js'
 import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { resolveOccurrenceRecipients } from '../domain/occurrence-contractor-recipients.policy.js'
+import { OccurrenceMailTemplateMissingError } from '../domain/occurrence-conversation.error.js'
 import { buildOccurrenceMail, type OccurrenceMail } from '../domain/occurrence-mail.template.js'
+import { composeOccurrenceMailHtml } from '../domain/occurrence-mail-html-compose.policy.js'
+import { htmlToPlainText } from '../domain/occurrence-mail-plain-text.policy.js'
+import type { OccurrenceMailSigner } from '../domain/occurrence-mail-signer.policy.js'
 import type {
   OccurrenceMailTransactionPort,
   OccurrenceSuggestedMailPort,
@@ -75,15 +80,50 @@ export type PreviewOccurrenceMailUseCase = Readonly<{
   preview: (input: PreviewOccurrenceMailInput) => Promise<OccurrenceMailPreview>
 }>
 
+/**
+ * A composição do modelo HTML para a prévia; `null` sem modelo HTML — e também quando o modelo não compõe (sem área ou
+ * grande demais): aí o envio o recusa com o mesmo 409 e a prévia segue o caminho de texto.
+ */
+function composePreviewHtml(params: {
+  readonly appBaseUrl: string | undefined
+  readonly bodyText: string | undefined
+  readonly carrier: Parameters<typeof composeOccurrenceMailHtml>[0]['carrier']
+  readonly contractorTaxId: null | string
+  /** Como o envio: a faixa de resposta só existe quando o e-mail sai pelo Resend (com Reply-To). */
+  readonly hasReplyTo: boolean
+  readonly signer: OccurrenceMailSigner
+  readonly source: Parameters<typeof composeOccurrenceMailHtml>[0]['source'] | null
+}): ReturnType<typeof composeOccurrenceMailHtml> | null {
+  if (params.source === null) return null
+  try {
+    return composeOccurrenceMailHtml({
+      appBaseUrl: params.appBaseUrl,
+      carrier: params.carrier,
+      contractorTaxId: params.contractorTaxId,
+      hasReplyTo: params.hasReplyTo,
+      ...(params.bodyText === undefined ? {} : { operatorText: params.bodyText }),
+      signer: params.signer,
+      source: params.source,
+    })
+  } catch (error) {
+    if (error instanceof OccurrenceMailTemplateMissingError) return null
+    throw error
+  }
+}
+
 export function createPreviewOccurrenceMailUseCase(dependencies: {
+  /** Spec 272 (D5): a origem do painel, para as marcas do rodapé da prévia; ausente, o rodapé sai só em texto. */
+  readonly appBaseUrl?: string
   readonly logger?: Pick<MailCopyLogger, 'warn'>
   readonly reader: Pick<
     OccurrenceMailTransactionPort,
-    | 'findCarrierName'
+    | 'findCarrierIdentity'
     | 'findChosenOccurrenceRecipientIds'
+    | 'findMailSettings'
+    | 'findOccurrenceMailHtmlSource'
     | 'findOccurrenceNotificationTemplate'
     | 'findOccurrenceTarget'
-    | 'findOperatorName'
+    | 'findOperatorSigner'
     | 'listOccurrenceRecipients'
     | 'loadWatcherCandidates'
   >
@@ -107,44 +147,72 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
               occurrenceId: input.occurrenceId,
             })
       const templateKey = template?.key ?? null
+      const [carrier, operator, mailSettings] = await Promise.all([
+        dependencies.reader.findCarrierIdentity({ companyId }),
+        dependencies.reader.findOperatorSigner({ companyId, userId: input.actorUserId }),
+        dependencies.reader.findMailSettings({ companyId }),
+      ])
+      const signer: OccurrenceMailSigner =
+        operator === undefined
+          ? { kind: 'team' }
+          : {
+              ...(operator.jobTitle === undefined ? {} : { jobTitle: operator.jobTitle }),
+              kind: 'operator',
+              name: operator.name,
+              userId: input.actorUserId,
+            }
       const typed = input.subject !== undefined || input.bodyText !== undefined
+      /** Spec 272 (D12): modelo HTML → o `html` é o do modelo, e o texto do diálogo é o da área de mensagem. */
+      const htmlSource =
+        templateKey === null
+          ? null
+          : await dependencies.reader.findOccurrenceMailHtmlSource({
+              companyId,
+              occurrenceId: input.occurrenceId,
+              templateKey,
+            })
+      const composed = composePreviewHtml({
+        appBaseUrl: dependencies.appBaseUrl,
+        bodyText: input.bodyText,
+        carrier,
+        contractorTaxId: target.contractorTaxId,
+        hasReplyTo: resolveMailSendReadiness({ settings: mailSettings }).ready,
+        signer,
+        source: htmlSource,
+      })
       const suggestion =
-        typed || templateKey === null
+        typed || templateKey === null || htmlSource !== null
           ? null
           : await dependencies.suggestedMail.readSuggestedMail({
               companyId,
               occurrenceId: input.occurrenceId,
               templateKey,
             })
-      const subject = input.subject ?? suggestion?.subject ?? ''
-      const bodyText = input.bodyText ?? suggestion?.bodyText ?? ''
+      const subject = input.subject ?? composed?.subject ?? suggestion?.subject ?? ''
+      const bodyText = input.bodyText ?? composed?.areaText ?? suggestion?.bodyText ?? ''
 
-      const [carrierName, operatorName, candidates, watchers, chosenContactIds] = await Promise.all(
-        [
-          dependencies.reader.findCarrierName({ companyId }),
-          dependencies.reader.findOperatorName({ companyId, userId: input.actorUserId }),
-          contractorId === null
-            ? []
-            : dependencies.reader.listOccurrenceRecipients({ companyId, contractorId }),
-          contractorId === null
-            ? { company: [], contractor: [], type: [] }
-            : loadCandidatesForDisplay({
-                load: () =>
-                  dependencies.reader.loadWatcherCandidates({
-                    companyId,
-                    contractorId,
-                    occurrenceTypeId: target.occurrenceTypeId,
-                  }),
-                logger: dependencies.logger,
-              }),
-          contractorId === null || target.occurrenceTypeId === null
-            ? []
-            : dependencies.reader.findChosenOccurrenceRecipientIds({
-                companyId,
-                occurrenceTypeId: target.occurrenceTypeId,
-              }),
-        ],
-      )
+      const [candidates, watchers, chosenContactIds] = await Promise.all([
+        contractorId === null
+          ? []
+          : dependencies.reader.listOccurrenceRecipients({ companyId, contractorId }),
+        contractorId === null
+          ? { company: [], contractor: [], type: [] }
+          : loadCandidatesForDisplay({
+              load: () =>
+                dependencies.reader.loadWatcherCandidates({
+                  companyId,
+                  contractorId,
+                  occurrenceTypeId: target.occurrenceTypeId,
+                }),
+              logger: dependencies.logger,
+            }),
+        contractorId === null || target.occurrenceTypeId === null
+          ? []
+          : dependencies.reader.findChosenOccurrenceRecipientIds({
+              companyId,
+              occurrenceTypeId: target.occurrenceTypeId,
+            }),
+      ])
       const preselected = new Set(
         resolveOccurrenceRecipients({
           chosenContactIds,
@@ -164,12 +232,18 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
         typeWatchers: watchers.type ?? [],
       })
       return {
-        ...buildOccurrenceMail({
-          bodyText,
-          carrierName: carrierName ?? '',
-          operatorName: operatorName ?? '',
-          subject,
-        }),
+        ...(composed === null
+          ? buildOccurrenceMail({
+              bodyText,
+              carrierName: carrier?.displayName ?? '',
+              operatorName: signer.kind === 'team' ? '' : signer.name,
+              subject,
+            })
+          : {
+              html: composed.html,
+              subject: subject.trim(),
+              text: htmlToPlainText(composed.html),
+            }),
         bodyText,
         cc: copy.copy.map((entry) => ({
           maskedEmail: maskEmailAddress(entry.address),
@@ -188,7 +262,7 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
           roleLabel: candidate.roleLabel,
         })),
         notificationTemplateKey: templateKey,
-        suggested: suggestion !== null,
+        suggested: suggestion !== null || (composed !== null && !typed),
       }
     },
   }

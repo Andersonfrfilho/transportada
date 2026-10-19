@@ -39,12 +39,24 @@ import {
   OccurrenceMailTemplateMissingError,
 } from '../domain/occurrence-conversation.error.js'
 import { buildOccurrenceMail } from '../domain/occurrence-mail.template.js'
+import { composeOccurrenceMailHtml } from '../domain/occurrence-mail-html-compose.policy.js'
+import { htmlToPlainText } from '../domain/occurrence-mail-plain-text.policy.js'
+import { buildSenderDisplayName } from '../domain/occurrence-mail-sender-name.policy.js'
+import type { OccurrenceMailSigner } from '../domain/occurrence-mail-signer.policy.js'
+import { applySubjectPrefix } from '../domain/occurrence-mail-subject.policy.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
 import { openContractorReplyWhenConfigured } from './open-contractor-reply.service.js'
 import type { OpenContractorReplyLogger } from './open-contractor-reply.service.js'
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
 import { attachConversationUploads } from './conversation-attachment.service.js'
+import {
+  NULL_OCCURRENCE_OWNER_READER,
+  type OccurrenceOwnerReader,
+} from './occurrence-owner-reader.port.js'
+import { resolveAutomaticMailSigner } from './resolve-automatic-mail-signer.service.js'
 import type {
+  CarrierIdentity,
+  OccurrenceMailTarget,
   OccurrenceMailTransactionPort,
   OccurrenceMailUnitOfWorkPort,
   OccurrenceNotificationTemplate,
@@ -129,10 +141,14 @@ type OccurrenceMailDelivery = {
 }
 
 export function createSendOccurrenceMailUseCase(dependencies: {
+  /** Spec 272 (D5): a origem do painel, para as marcas do rodapé; ausente, o rodapé sai só em texto. */
+  readonly appBaseUrl?: string
   readonly contractorMailSandbox?: OccurrenceMailSandbox
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly logger?: OccurrenceMailLogger
   readonly now?: () => Date
+  /** Spec 272 (D6): o dono que assina o aviso automático; sem a 273, ninguém, e a equipe assina. */
+  readonly ownerReader?: OccurrenceOwnerReader
   readonly secretService: ContractorMailCredentialSecretService
   readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: OccurrenceMailUnitOfWorkPort
@@ -227,12 +243,122 @@ async function resolveNotificationTemplate(params: {
   return template
 }
 
+/**
+ * Spec 272 (ADR-0110 §6): manual → o operador (sem vínculo ativo, a equipe); automático → o dono pela porta, senão a
+ * equipe. O assinante só existe até o e-mail ser montado: não é gravado.
+ */
+async function resolveMailSigner(params: {
+  readonly input: SendOccurrenceMailInput
+  readonly kind: OccurrenceMailTarget['kind']
+  readonly ownerReader: OccurrenceOwnerReader
+  readonly transaction: OccurrenceMailTransactionPort
+}): Promise<OccurrenceMailSigner> {
+  const { input, transaction } = params
+  if (input.actorUserId === null) {
+    return resolveAutomaticMailSigner({
+      companyId: input.companyId,
+      kind: params.kind,
+      occurrenceId: input.occurrenceId,
+      ownerReader: params.ownerReader,
+    })
+  }
+  const operator = await transaction.findOperatorSigner({
+    companyId: input.companyId,
+    userId: input.actorUserId,
+  })
+  if (operator === undefined) return { kind: 'team' }
+  return {
+    ...(operator.jobTitle === undefined ? {} : { jobTitle: operator.jobTitle }),
+    kind: 'operator',
+    name: operator.name,
+    userId: input.actorUserId,
+  }
+}
+
+type BuiltMail = {
+  readonly bodyHtml: string
+  readonly bodyText: string
+  readonly hasInlineLogo: boolean
+  readonly subject: string
+}
+
+/**
+ * Corpo do modelo com tag → o HTML do modelo (spec 272 D1/D12); sem tag, ou no reenvio do retorno (248), o caminho de
+ * texto de hoje. O assunto leva o prefixo da transportadora nos dois (idempotente: o reenvio já o traz).
+ */
+async function buildMail(params: {
+  readonly appBaseUrl: string | undefined
+  readonly carrier: CarrierIdentity | undefined
+  readonly delivery: OccurrenceMailDelivery
+  readonly input: SendOccurrenceMailInput
+  readonly notificationTemplate: null | OccurrenceNotificationTemplate
+  readonly signer: OccurrenceMailSigner
+  readonly target: OccurrenceMailTarget
+  readonly transaction: OccurrenceMailTransactionPort
+}): Promise<BuiltMail> {
+  const { carrier, input, notificationTemplate, signer } = params
+  const source =
+    notificationTemplate === null || input.contractorReplyResend === true
+      ? null
+      : await params.transaction.findOccurrenceMailHtmlSource({
+          companyId: input.companyId,
+          occurrenceId: input.occurrenceId,
+          templateKey: notificationTemplate.key,
+        })
+  const mail =
+    source === null
+      ? (() => {
+          const text = buildOccurrenceMail({
+            bodyText: input.bodyText,
+            carrierName: carrier?.displayName ?? '',
+            operatorName: signer.kind === 'team' ? '' : signer.name,
+            subject: input.subject,
+          })
+          return {
+            bodyHtml: text.html,
+            bodyText: text.text,
+            hasInlineLogo: false,
+            subject: text.subject,
+          }
+        })()
+      : (() => {
+          const composed = composeOccurrenceMailHtml({
+            appBaseUrl: params.appBaseUrl,
+            carrier,
+            contractorTaxId: params.target.contractorTaxId,
+            hasReplyTo: params.delivery.transport === 'resend',
+            ...(input.automatic === true ? {} : { operatorText: input.bodyText }),
+            signer,
+            source,
+          })
+          return {
+            bodyHtml: composed.html,
+            bodyText: htmlToPlainText(composed.html),
+            hasInlineLogo: composed.hasInlineLogo,
+            subject: input.subject.trim(),
+          }
+        })()
+  return {
+    ...mail,
+    subject:
+      carrier === undefined
+        ? mail.subject
+        : applySubjectPrefix({
+            cnpj: carrier.cnpj,
+            companyDisplayName: carrier.displayName,
+            subject: mail.subject,
+          }),
+  }
+}
+
 async function executeSend(params: {
+  readonly appBaseUrl?: string
   readonly contractorMailSandbox?: OccurrenceMailSandbox
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly input: SendOccurrenceMailInput
   readonly logger?: OccurrenceMailLogger
   readonly now: Date
+  readonly ownerReader?: OccurrenceOwnerReader
   readonly secretService: ContractorMailCredentialSecretService
   readonly storage: ConversationAttachmentStoragePort
   readonly transaction: OccurrenceMailTransactionPort
@@ -312,17 +438,12 @@ async function executeSend(params: {
     recipients,
   })
 
-  const [carrierName, operatorName] = await Promise.all([
-    transaction.findCarrierName({ companyId }),
-    input.actorUserId === null
-      ? Promise.resolve(null)
-      : transaction.findOperatorName({ companyId, userId: input.actorUserId }),
-  ])
-  const mail = buildOccurrenceMail({
-    bodyText: input.bodyText,
-    carrierName: carrierName ?? '',
-    operatorName: operatorName ?? '',
-    subject: input.subject,
+  const carrier = await transaction.findCarrierIdentity({ companyId })
+  const signer = await resolveMailSigner({
+    input,
+    kind: target.kind,
+    ownerReader: params.ownerReader ?? NULL_OCCURRENCE_OWNER_READER,
+    transaction,
   })
 
   const conversation = await transaction.findOrCreateContractorConversation({
@@ -352,16 +473,33 @@ async function executeSend(params: {
       })
     : createSandboxDelivery(params.contractorMailSandbox as OccurrenceMailSandbox)
 
+  const mail = await buildMail({
+    appBaseUrl: params.appBaseUrl,
+    carrier,
+    delivery,
+    input,
+    notificationTemplate,
+    signer,
+    target,
+    transaction,
+  })
+  const fromDisplayName =
+    carrier === undefined
+      ? ''
+      : buildSenderDisplayName({ companyDisplayName: carrier.displayName, signer })
+
   const recorded = await transaction.recordMail({
     actorUserId: input.actorUserId,
-    bodyHtml: mail.html,
-    bodyText: mail.text,
+    bodyHtml: mail.bodyHtml,
+    bodyText: mail.bodyText,
     ccAddresses: copy,
     companyId,
     contractorId,
     correlationId: input.correlationId,
     createThread: existingThread === undefined,
     fromAddress: delivery.fromAddress,
+    fromDisplayName: fromDisplayName === '' ? null : fromDisplayName,
+    hasInlineLogo: mail.hasInlineLogo,
     occurrenceId: input.occurrenceId,
     occurrenceKind: target.kind,
     replyTokenHash: delivery.replyTokenHash,

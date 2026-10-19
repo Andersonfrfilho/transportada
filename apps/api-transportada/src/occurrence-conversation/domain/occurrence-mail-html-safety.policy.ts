@@ -15,7 +15,13 @@ export type UnsafeHtmlRule = 'event' | 'placeholder_in_tag' | 'scheme' | 'tag'
 const TAG_REGEX = /<(?:script|iframe|form|object|embed)\b/iu
 const EVENT_REGEX = /[\s/"']on[a-z]+\s*=/iu
 const SCHEME_REGEX = /(?:javascript|vbscript):/iu
-const PLACEHOLDER_IN_TAG_REGEX = /<[^>]*\{\{/u
+/**
+ * `{{` dentro de uma tag aberta: atributos entre aspas podem conter `>` e o `{{` pode estar dentro do valor entre aspas.
+ * Fora disso, `{{` dentro de `<style>…</style>` (CSS injetável).
+ */
+const PLACEHOLDER_IN_TAG_REGEX =
+  /<[a-zA-Z/!](?:[^>"']|"[^"]*"|'[^']*')*(?:\{\{|"[^"]*\{\{|'[^']*\{\{)/u
+const PLACEHOLDER_IN_STYLE_REGEX = /<style\b(?:(?!<\/style\b)[\s\S])*?\{\{/iu
 // eslint-disable-next-line no-control-regex -- ADR-0110 §2: exatamente `[\u0000- ]` (controles e espaço)
 const CONTROL_AND_SPACE_REGEX = /[\u0000- ]/gu
 const NUMERIC_ENTITY_REGEX = /&#(?:x([0-9a-f]+)|([0-9]+));?/giu
@@ -53,7 +59,9 @@ export function findUnsafeHtmlRules(html: string): readonly UnsafeHtmlRule[] {
     ...(TAG_REGEX.test(html) ? (['tag'] as const) : []),
     ...(EVENT_REGEX.test(html) ? (['event'] as const) : []),
     ...(SCHEME_REGEX.test(normalizeForScheme(html)) ? (['scheme'] as const) : []),
-    ...(PLACEHOLDER_IN_TAG_REGEX.test(html) ? (['placeholder_in_tag'] as const) : []),
+    ...(PLACEHOLDER_IN_TAG_REGEX.test(html) || PLACEHOLDER_IN_STYLE_REGEX.test(html)
+      ? (['placeholder_in_tag'] as const)
+      : []),
   ]
 }
 
@@ -129,13 +137,13 @@ export const OCCURRENCE_MAIL_UNSAFE_HTML_CASES: readonly UnsafeHtmlCase[] = [
     worker: 'bloqueia',
   },
   {
-    html: '<iframe src="https://x.com"></iframe>',
+    html: '<iframe src="//example.test/"></iframe>',
     name: 'tag: iframe',
     rules: ['tag'],
     worker: 'bloqueia',
   },
   {
-    html: '<form action="https://x.com"><input></form>',
+    html: '<form action="//example.test/"><input></form>',
     name: 'tag: form',
     rules: ['tag'],
     worker: 'bloqueia',
@@ -263,7 +271,7 @@ export const OCCURRENCE_MAIL_UNSAFE_HTML_CASES: readonly UnsafeHtmlCase[] = [
     worker: 'bloqueia',
   },
   {
-    html: '<a href="https://x.com/javascript">a</a>',
+    html: '<a href="/docs/javascript">a</a>',
     name: 'esquema: a palavra sem os dois pontos é segura',
     rules: [],
     worker: 'deixa para a API',
@@ -285,6 +293,48 @@ export const OCCURRENCE_MAIL_UNSAFE_HTML_CASES: readonly UnsafeHtmlCase[] = [
     name: 'placeholder em tag: style',
     rules: ['placeholder_in_tag'],
     worker: 'bloqueia',
+  },
+  {
+    html: '<a title=">" href="{{contratante}}">a</a>',
+    name: 'placeholder em tag: href depois de aspas com >',
+    rules: ['placeholder_in_tag'],
+    worker: 'bloqueia',
+  },
+  {
+    html: "<p title='>' style='{{cor}}'>a</p>",
+    name: 'placeholder em tag: aspas simples com > antes',
+    rules: ['placeholder_in_tag'],
+    worker: 'bloqueia',
+  },
+  {
+    html: '<a title=">{{contratante}}">a</a>',
+    name: 'placeholder em tag: dentro de valor entre aspas, depois de >',
+    rules: ['placeholder_in_tag'],
+    worker: 'bloqueia',
+  },
+  {
+    html: '<style>p{color:{{cor}}}</style>',
+    name: 'placeholder em tag: dentro de style',
+    rules: ['placeholder_in_tag'],
+    worker: 'bloqueia',
+  },
+  {
+    html: '<style type="text/css">p{color:red}</style><p>{{contratante}}</p>',
+    name: 'placeholder depois de style é seguro',
+    rules: [],
+    worker: 'deixa para a API',
+  },
+  {
+    html: '<p title="a>b">{{contratante}}</p>',
+    name: 'placeholder fora de tag com > em atributo é seguro',
+    rules: [],
+    worker: 'deixa para a API',
+  },
+  {
+    html: "<p>a > b e don't</p><p>{{contratante}}</p>",
+    name: 'placeholder depois de > e aspas soltas no texto é seguro',
+    rules: [],
+    worker: 'deixa para a API',
   },
   {
     html: '<p>{{contratante}}</p>',

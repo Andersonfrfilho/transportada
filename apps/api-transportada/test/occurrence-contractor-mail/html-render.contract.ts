@@ -9,6 +9,7 @@ import {
   OCCURRENCE_MAIL_HTML_MAX_BYTES,
   OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES,
 } from '../../src/occurrence-conversation/domain/occurrence-contractor-mail.constant.js'
+import { htmlToPlainText } from '../../src/occurrence-conversation/domain/occurrence-mail-plain-text.policy.js'
 import { renderContractorMailHtml } from '../../src/occurrence-conversation/domain/occurrence-mail-html-render.policy.js'
 
 function render(bodyTemplate: string, values: Record<string, string> = {}, systemHtml = {}) {
@@ -87,5 +88,14 @@ describe('spec 272: renderer do e-mail HTML', () => {
     expect(render(`${exact}a`).tooLarge).toBe(true)
     expect(render('é'.repeat(OCCURRENCE_MAIL_HTML_MAX_BYTES / 2 + 1)).tooLarge).toBe(true)
     expect(render('é'.repeat(OCCURRENCE_MAIL_HTML_MAX_BYTES / 2)).tooLarge).toBe(false)
+  })
+})
+
+describe('spec 272 review A1: valor multilinha', () => {
+  test('quebra de linha do valor vira <br> no HTML e volta como quebra no texto', () => {
+    const { html } = render('<p>{{observacao}}</p>', { observacao: 'a\nb\r\nc' })
+
+    expect(html).toBe('<p>a<br>b<br>c</p>')
+    expect(htmlToPlainText(html)).toBe('a\nb\nc')
   })
 })
