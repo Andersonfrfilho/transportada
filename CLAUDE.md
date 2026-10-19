@@ -175,6 +175,12 @@ só os valores, valida o HTML (`unsafe_html`, `missing_message_area`) e gera o `
 (`logoTransportadora`, `tabelaItens`, `marcasRodape`, `faixaResposta`) são montadas pela API. Regra global:
 `~/.claude/rules/rules/email-templates.md`.
 
+**O chat da contratante envia por e-mail** (spec 274, ADR-0111). O composer da aba Contratante fica sempre aberto, com ou
+sem portal, e cada mensagem sai pelo Resend da transportadora no modelo padrão de envio (`notification.standard-email`,
+cadastrado pelo SDK e editável em Notificações). O portal só avisa quem não está no e-mail. O "lida" do e-mail vem do pixel
+`email.opened` (revoga a 183 D7) e depende do rastreio configurado no domínio. Contrato e detalhe em
+`apps/api-transportada/CLAUDE.md` § "O chat da contratante envia por e-mail".
+
 **A NFS-e fala a Nota RP v3, mas a produção ainda está na v2** (spec 250, ADR 0098). A versão é gravada **por tentativa**
 (`providerApiVersion` no `provider_config`); `NFSE_PROVIDER_API_VERSION` (padrão `v2`) só diz qual versão a API grava na
 próxima emissão, e o worker obedece à tentativa. Notas emitidas fora do sistema (as de Ribeirão Preto) entram por

@@ -221,3 +221,9 @@ Mensagem `outbound` com `has_inline_logo = true` anexa o logo da empresa da pró
 (`company_logos`, `drizzle-company-logo.reader.ts`); sem logo, sai sem a parte. O "De" vem de `from_display_name`, saneado de novo
 (`sender-display-name.policy.ts`, cópia da API). A fila do automático filtra HTML inseguro por `UNSAFE_EMAIL_HTML_PATTERN` (filtro grosso).
 Detalhe: `docs/ai-context/worker-transportada.md` § "O logo embutido e o remetente do e-mail da ocorrência (spec 272)".
+
+## A escada do e-mail e a cadeia de References (spec 274, ADR-0111)
+
+A escada do e-mail tem `read` (`occurrence-conversation/domain/message-status.policy.ts`, como a API). `References` e
+`In-Reply-To` saem dos `rfc_message_id` de entrada e de saída da thread (últimos 20, sem encaminhamentos, sem `Message-ID`
+próprio). Detalhe: `docs/ai-context/worker-transportada.md` § "O chat da contratante envia por e-mail (spec 274)".
