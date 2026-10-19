@@ -1013,11 +1013,22 @@ JUnit do Bun 1.3.14 trava, então a lista nominal não saiu.
 Keycloak; a verificação no Mailpit (um manual e um automático, lidos pela API do Mailpit) passa a ser feita no **Mailpit
 de staging** (268), antes de qualquer envio real pelo Resend.
 
+### T5.2 — Publicação em staging (2026-10-19, em andamento)
+
+- PR #269 (`work/spec-272 → staging`): 21 checks da CI verdes (gate com integração da API em 8 partes, worker, smokes).
+  Merge `2483d6e6f` autorizado pelo dono ("deixe correta e completa até chegar em staging").
+- Run de deploy `39201818918`: `deploy-api`, `deploy-services (worker)`, `deploy-services (cron)`, `deploy-frontend`,
+  `deploy-client`, `deploy-driver` e `mark-deployed` com sucesso — API e worker no mesmo run (D13).
+- **Fato, não sinal:** `GET https://api.staging.fernandes-transportadora.com.br/health/ready` →
+  `{"dependencies":{"database":"up","identity":"up","migrations":"up"},"revision":"2483d6e",…}`.
+- `APP_BASE_URL` na API de staging definido antes do deploy (§ T4.4).
+- Pendente: chave do host no primeiro `railway ssh` (passo do dono), consulta do `companyId` de staging e dry-run do
+  script dos modelos — **aprovação do dono antes de cada um**; depois `--confirm`, envio no Mailpit de staging e um envio
+  real pelo Resend antes de `main`.
+
 ## Prompt de execução
 
 O prompt vigente está em `tasks.md` § Prompt de execução (uma cópia só; a daqui divergia). Revisões anteriores
 no histórico do git.
 
-## Onde parou (2026-10-19)
-
-Fases 0–4 e a T5.1 fechadas e commitadas. Próxima: **T5.2** — PR para `staging`, CI, merge, Mailpit de staging, dry-run do script dos modelos (aprovação do dono).
+W2 em staging (`2483d6e`). Aguardando o dono: aceitar a chave do host no `railway ssh` e aprovar a consulta do `companyId` + o dry-run do script dos modelos.
