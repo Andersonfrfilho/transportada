@@ -103,11 +103,11 @@ describe('occurrence watchers repository integration (spec 267)', () => {
           contractorId: tenant.contractorId,
           kind: 'contractor',
         } as const
-        const members = await Promise.all(
-          Array.from({ length: 31 }, () =>
-            seedMember(database, tenant.companyId, { role: 'operator' }),
-          ),
-        )
+        /* Em série: 31 seedMember concorrentes (124 INSERTs) no provider cru reproduzem o travamento do Bun SQL (spec 137). */
+        const members: Awaited<ReturnType<typeof seedMember>>[] = []
+        for (let index = 0; index < 31; index += 1) {
+          members.push(await seedMember(database, tenant.companyId, { role: 'operator' }))
+        }
         const write = (userId: string) => ({
           actorUserId: actor.userId,
           correlationId: 'corr-cap',
@@ -133,8 +133,8 @@ describe('occurrence watchers repository integration (spec 267)', () => {
         expect((await repository.listWatcherRows(scope)).length).toBe(30)
       })
     },
-    /* Banco descartável com a cadeia inteira de migrations + ~70 escritas em ordem: estoura 120 s na CI. */
-    300_000,
+    /* Banco descartável com a cadeia inteira de migrations + ~70 escritas em ordem; travamento falha rápido. */
+    90_000,
   )
 
   testWithPostgres(

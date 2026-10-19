@@ -262,15 +262,13 @@ describeDatabase('a prévia no worker (integration, spec 237 T4.3)', () => {
   test('duas reavaliações ao mesmo tempo não ligam a mesma nota duas vezes', async () => {
     const { bytes, graph, previewId } = await readyGraph()
     await process(graph, bytes, previewId)
+    /* Montado uma vez: o zipSync grava a hora com resolução de 2 s e dois builds podem divergir no sha256. */
+    const secondBytes = buildCargoPreviewWorkbook({ rows: ROWS.slice(0, 2), reservedEmptyRows: 3 })
     const secondPreview = await graph.seedPreview({
-      bytes: buildCargoPreviewWorkbook({ rows: ROWS.slice(0, 2), reservedEmptyRows: 3 }),
+      bytes: secondBytes,
       receivedAt: new Date(Date.now() - 2 * HOUR_MS),
     })
-    await process(
-      graph,
-      buildCargoPreviewWorkbook({ rows: ROWS.slice(0, 2), reservedEmptyRows: 3 }),
-      secondPreview,
-    )
+    expect(await process(graph, secondBytes, secondPreview)).toBe('ready')
     await graph.seedDocument({
       number: '1',
       postalCode: '00000101',
