@@ -4,13 +4,28 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
+import {
+  resolveNotificationTarget,
+  type NotificationTargetSource,
+} from '../shared/notificationTarget.service'
 import { NOTIFICATION_SETTINGS_HREF } from '../shared/notificationCatalog.constant'
 import { NOTIFICATION_THEME_CLASS } from '../shared/notificationTheme.constant'
 import styles from '../styles/notification.module.css'
 
 export function NotificationWorkspacePage(): ReactNode {
   const { t } = useTranslation('notification')
+
+  /** O pacote já marca como lida ao selecionar; aqui só se navega, e aviso sem id válido fica onde está. */
+  function handleSelectNotification(notification: NotificationTargetSource): void {
+    const target = resolveNotificationTarget(notification)
+    if (target === null) return
+    const navigator = createBrowserWorkspaceNavigator()
+    navigator.pushPath(target.href)
+    navigator.rememberWorkspace(target.workspace)
+    navigator.dispatchPopState()
+  }
 
   /*
    * O workspace já desenha um `<h1>`, porque ele é a tela. Entregar o nosso pelo slot substitui o
@@ -36,6 +51,7 @@ export function NotificationWorkspacePage(): ReactNode {
       <NotificationsWorkspace
         className={NOTIFICATION_THEME_CLASS}
         renderEmpty={() => <p>{t('empty')}</p>}
+        onSelectNotification={handleSelectNotification}
         renderHeader={renderHeader}
       />
     </main>
