@@ -78,12 +78,15 @@ export async function readOccurrenceTypeWatcherRows(
     )
 }
 
-/** As três listas numa ida só (empresa, contratante e, com `occurrenceTypeId`, o tipo), com os endereços em lote. */
+/**
+ * As três listas numa ida só (empresa, contratante e, com `occurrenceTypeId`, o tipo), com os endereços em lote.
+ * Spec 275: `contractorId` nulo é a nota sem contratante cadastrada — a lista dela fica vazia (tipo > empresa).
+ */
 export async function loadEffectiveWatcherCandidates(
   executor: Database | Transaction,
   params: {
     readonly companyId: string
-    readonly contractorId: string
+    readonly contractorId: null | string
     readonly occurrenceTypeId?: null | string | undefined
   },
 ): Promise<{
@@ -93,11 +96,13 @@ export async function loadEffectiveWatcherCandidates(
 }> {
   const [companyRows, contractorRows, typeRows] = await Promise.all([
     readOccurrenceWatcherRows(executor, { companyId: params.companyId, kind: 'company' }),
-    readOccurrenceWatcherRows(executor, {
-      companyId: params.companyId,
-      contractorId: params.contractorId,
-      kind: 'contractor',
-    }),
+    params.contractorId === null
+      ? []
+      : readOccurrenceWatcherRows(executor, {
+          companyId: params.companyId,
+          contractorId: params.contractorId,
+          kind: 'contractor',
+        }),
     params.occurrenceTypeId === undefined || params.occurrenceTypeId === null
       ? []
       : readOccurrenceTypeWatcherRows(executor, {
