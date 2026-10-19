@@ -894,3 +894,19 @@ Contrato: `test/contractor-mail/sandbox-outbound.contract.ts`, `test/contractor-
   API** (não decodifica entidade): o que ele deixa passar a API recusa e pula sem gravar idempotência, e a ocorrência volta a cada varredura
   até sair da janela (aceito, ADR §2). Os 35 casos da tabela da API rodam contra o Postgres com a coluna `worker`.
 - **Deploy:** API e worker no mesmo run; na janela entre os dois, o worker velho manda o HTML sem a parte inline e o "De" antigo.
+
+## O chat da contratante envia por e-mail (spec 274, ADR-0111)
+
+- **Escada com `read` (D8, T4.1):** `occurrence-conversation/domain/message-status.policy.ts` aceita `read` no e-mail, com a
+  mesma escada da API (`queued → sent → delivered → read`). A política é monotônica: um `sent` tardio não rebaixa `read`, e
+  `read` não recua. Falha segue terminal (`opened` depois de `bounced` → `stale`). A API recebe `email.opened` no webhook;
+  o worker só lê a linha.
+- **Cadeia de `References` (D7, T4.2):** `contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.ts`
+  lê os `rfc_message_id` da thread (entrada e saída, por `created_at` e `id`), **sem** as mensagens de encaminhamento da 248
+  (`occurrence_contractor_reply_deliveries`), e só os não nulos e não vazios. `contractor-mail/domain/reply-chain-headers.policy.ts`
+  (`buildReplyChainHeaders`, `REPLY_CHAIN_MAX_REFERENCES = 20`) põe em `In-Reply-To` o mais recente e em `References` os últimos
+  20, sem repetir; `normalizeRfcMessageId` normaliza `<…>`.
+- **O que fica de fora:** saída cujo `email.sent` ainda não chegou (sem `rfc_message_id`) não entra na cadeia; encaminhamento
+  sai sem `In-Reply-To`/`References`, como antes. O worker **não** gera `Message-ID`. Sandbox não tem cabeçalhos (como antes).
+- **Contratos:** `test/contractor-mail/reply-chain-headers.contract.ts` e `test/integration/contractor-mail-reply-chain.integration.ts`
+  (`make worker-integration`). Ver também a seção da 272 acima para o logo e o "De".

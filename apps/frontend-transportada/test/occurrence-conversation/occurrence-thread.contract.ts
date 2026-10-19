@@ -94,6 +94,7 @@ function conversation(
 
 function createFakeClient() {
   const calls = {
+    chat: [] as unknown[],
     driver: [] as unknown[],
     markRead: [] as unknown[],
     portal: [] as unknown[],
@@ -109,8 +110,8 @@ function createFakeClient() {
       calls.uploads.push(input)
       return Promise.resolve({ uploadId: 'upload-1', uploadUrl: 'https://s.test/u' })
     },
-    sendContractorPortalMessage: (input) => {
-      calls.portal.push(input)
+    sendContractorChatMessage: (input) => {
+      calls.chat.push(input)
       return Promise.resolve()
     },
     sendDriverAppMessage: (input) => {
@@ -339,17 +340,26 @@ describe('o adaptador do fio da ocorrência', () => {
     expect(onChanged).toHaveBeenCalledTimes(1)
   })
 
-  test('contratante: envia pelo portal, nunca pelo app', async () => {
+  test('contratante: envia o chat por e-mail (chave email-message, otimista queued), nunca portal nem app', async () => {
     const { api, calls } = createApi({ conversations: [], participant: 'contractor' })
-    await api.sendMessage({ clientMessageId: 'client-2', subject: SUBJECT, text: 'Bom dia.' })
-    expect(calls.portal).toEqual([
+    const file = new File(['x'], 'foto.jpg', { type: 'image/jpeg' })
+    const result = await api.sendMessage({
+      clientMessageId: 'client-2',
+      files: [file],
+      subject: SUBJECT,
+      text: 'Bom dia.',
+    })
+    expect(calls.chat).toEqual([
       {
-        attachmentIds: [],
+        attachmentIds: ['upload-1'],
         body: 'Bom dia.',
-        idempotencyKey: 'portal-message:client-2',
+        idempotencyKey: 'email-message:client-2',
         occurrenceId: 'occurrence-1',
       },
     ])
+    expect(calls.uploads[0]).toMatchObject({ channel: 'email', participant: 'contractor' })
+    expect(result.outcome === 'sent' && result.message.status).toBe('queued')
+    expect(calls.portal).toEqual([])
     expect(calls.driver).toEqual([])
   })
 

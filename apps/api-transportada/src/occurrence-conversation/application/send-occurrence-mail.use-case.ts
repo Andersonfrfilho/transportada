@@ -9,21 +9,8 @@
  *
  * ⚠️ **A conversa não decide** (D4): nada aqui toca a tratativa, a taxa ou o acerto da 164.
  */
-import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
-
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
-import type { ContractorMailTransport } from '../../contractor-mail/domain/contractor-mail.constant.js'
-import {
-  resolveMailCopy,
-  type MailCopyLogger,
-} from '../../contractor-mail/application/resolve-mail-copy.service.js'
-import { createMailSendReadinessError } from '../../contractor-mail/domain/contractor-mail.error.js'
-import { resolveMailSendReadiness } from '../../contractor-mail/domain/mail-send-readiness.policy.js'
-import {
-  deriveReplyToken,
-  hashReplyToken,
-} from '../../contractor-mail/domain/reply-token.policy.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import {
   OCCURRENCE_MAIL_LIMITS,
@@ -33,9 +20,7 @@ import {
   ContractorReplyNotResendableError,
   ContractorReplyResendTooSoonError,
   OccurrenceConversationContractorUnknownError,
-  OccurrenceConversationIdempotencyKeyReusedError,
   OccurrenceConversationMailInvalidError,
-  OccurrenceConversationNoRecipientError,
   OccurrenceMailTemplateMissingError,
 } from '../domain/occurrence-conversation.error.js'
 import { buildOccurrenceMail } from '../domain/occurrence-mail.template.js'
@@ -46,9 +31,21 @@ import type { OccurrenceMailSigner } from '../domain/occurrence-mail-signer.poli
 import { applySubjectPrefix } from '../domain/occurrence-mail-subject.policy.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
 import { openContractorReplyWhenConfigured } from './open-contractor-reply.service.js'
-import type { OpenContractorReplyLogger } from './open-contractor-reply.service.js'
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
-import { attachConversationUploads } from './conversation-attachment.service.js'
+import {
+  createMailFingerprint,
+  createPublicRef,
+  findMailReplay,
+  prepareMailDelivery,
+  recordMailDelivery,
+  resolveMailCc,
+  resolveMailReadiness,
+  resolveMailRecipients,
+  saveMailReplay,
+  type OccurrenceMailDelivery,
+  type OccurrenceMailLogger,
+  type OccurrenceMailSandbox,
+} from './occurrence-mail-delivery.service.js'
 import {
   NULL_OCCURRENCE_OWNER_READER,
   type OccurrenceOwnerReader,
@@ -63,11 +60,9 @@ import type {
   SendOccurrenceMailResult,
 } from './occurrence-mail.port.js'
 
-const ENCODER = new TextEncoder()
-/** RF12 da 150: caractere que injetaria cabeçalho ou trocaria o destinatário no `to` do gateway. */
-const UNSAFE_EMAIL_CHARACTERS = /[\r\n,<>]/u
-/** RF21: 144 bits aleatórios em base64url — opaco, sem o id interno. */
-const PUBLIC_REF_BYTES = 18
+/** Quem importava daqui continua importando: a entrega mora no serviço (spec 274 T3.5). */
+export { createPublicRef }
+export type { OccurrenceMailLogger, OccurrenceMailSandbox }
 
 export type SendOccurrenceMailInput = {
   /**
@@ -98,10 +93,6 @@ export type SendOccurrenceMailUseCase = Readonly<{
   send: (input: SendOccurrenceMailInput) => Promise<SendOccurrenceMailResult>
 }>
 
-export function createPublicRef(): string {
-  return Buffer.from(crypto.getRandomValues(new Uint8Array(PUBLIC_REF_BYTES))).toString('base64url')
-}
-
 function assertMailContent(input: SendOccurrenceMailInput): void {
   const subject = input.subject.trim()
   const body = input.bodyText.trim()
@@ -115,29 +106,10 @@ function assertMailContent(input: SendOccurrenceMailInput): void {
   }
 }
 
-export type OccurrenceMailLogger = OpenContractorReplyLogger & MailCopyLogger
-
 /** Só entra na impressão digital quando alguém saiu da cópia: sem isso, o hash de antes da 267 segue valendo. */
 function excludedFingerprintFields(excluded: readonly string[] | undefined): string[] {
   const unique = [...new Set(excluded ?? [])].sort()
   return unique.length === 0 ? [] : [`excluded:${unique.join(',')}`]
-}
-
-/** Mesma regra do worker: minúsculas, primeira ocorrência vence. */
-function deduplicateRecipients(addresses: readonly string[]): string[] {
-  return [...new Set(addresses.map((address) => address.toLowerCase()))]
-}
-
-/**
- * Spec 268: o modo sandbox do ambiente (`CONTRACTOR_MAIL_SANDBOX_SMTP`, nunca em produção). Presente, uma
- * empresa sem o Resend pronto não é recusada: a mensagem é gravada para o SMTP do worker, de `fromAddress`.
- */
-export type OccurrenceMailSandbox = { readonly fromAddress: string }
-
-type OccurrenceMailDelivery = {
-  readonly fromAddress: string
-  readonly replyTokenHash: string
-  readonly transport: ContractorMailTransport
 }
 
 export function createSendOccurrenceMailUseCase(dependencies: {
@@ -181,40 +153,6 @@ async function assertContractorReplyResendRecorded(params: {
   const outcome = await transaction.recordContractorReplyResend(rest)
   if (outcome === 'not_resendable') throw new ContractorReplyNotResendableError()
   if (outcome === 'too_soon') throw new ContractorReplyResendTooSoonError()
-}
-
-/** Sandbox: ninguém responde pelo Mailpit; o hash existe só porque a thread o exige, único e opaco. */
-function createSandboxDelivery(sandbox: OccurrenceMailSandbox): OccurrenceMailDelivery {
-  return {
-    fromAddress: sandbox.fromAddress,
-    replyTokenHash: hashReplyToken(crypto.randomUUID()),
-    transport: 'sandbox_smtp',
-  }
-}
-
-async function createResendDelivery(params: {
-  readonly companyId: string
-  readonly secretService: ContractorMailCredentialSecretService
-  readonly settings: {
-    readonly id: string
-    readonly secretEnvelope: unknown
-    readonly senderAddress: string
-  }
-  readonly threadId: string
-}): Promise<OccurrenceMailDelivery> {
-  const { companyId, settings, threadId } = params
-  const secret = await params.secretService.decrypt({
-    companyId,
-    envelope: settings.secretEnvelope as SecretEnvelopeV1,
-    settingsId: settings.id,
-  })
-  return {
-    fromAddress: settings.senderAddress,
-    replyTokenHash: hashReplyToken(
-      deriveReplyToken({ companyId, replyTokenSecret: secret.replyTokenSecret, threadId }),
-    ),
-    transport: 'resend',
-  }
 }
 
 /**
@@ -375,7 +313,7 @@ async function executeSend(params: {
   const { contractorId } = target
 
   const contactIds = [...new Set(input.contactIds)]
-  const fingerprint = await params.fingerprintService.create({
+  const fingerprint = await createMailFingerprint({
     fields: [
       companyId,
       input.occurrenceId,
@@ -384,26 +322,23 @@ async function executeSend(params: {
       input.subject.trim(),
       input.bodyText.trim(),
       (input.attachmentIds ?? []).join(','),
-    ].map((value) => ENCODER.encode(value)),
+    ],
+    fingerprintService: params.fingerprintService,
     operation: SEND_OCCURRENCE_MAIL_OPERATION,
   })
-  const replay = await transaction.findIdempotency({
+  const replay = await findMailReplay({
     companyId,
+    fingerprint,
     idempotencyKey: input.idempotencyKey,
+    transaction,
   })
-  if (replay !== null) {
-    if (replay.fingerprint !== fingerprint)
-      throw new OccurrenceConversationIdempotencyKeyReusedError()
-    return replay.response
-  }
+  if (replay !== null) return replay
 
-  /** A prontidão confere só a configuração: chave aceita e remetente verificado. */
-  const readiness = resolveMailSendReadiness({
-    settings: await transaction.findMailSettings({ companyId }),
+  const readiness = await resolveMailReadiness({
+    companyId,
+    sandbox: params.contractorMailSandbox,
+    transaction,
   })
-  if (!readiness.ready && params.contractorMailSandbox === undefined) {
-    throw createMailSendReadinessError(readiness.reason)
-  }
 
   const notificationTemplate = await resolveNotificationTemplate({ input, target, transaction })
 
@@ -417,25 +352,21 @@ async function executeSend(params: {
     })
   }
 
-  const contacts = await transaction.findOccurrenceContacts({ companyId, contactIds, contractorId })
-  const emailById = new Map(contacts.map((contact) => [contact.id, contact.email]))
-  const toAddresses = contactIds.map((id) => emailById.get(id))
-  if (
-    contactIds.length === 0 ||
-    toAddresses.some((email) => email === undefined || UNSAFE_EMAIL_CHARACTERS.test(email))
-  ) {
-    throw new OccurrenceConversationNoRecipientError()
-  }
-  const recipients = deduplicateRecipients(toAddresses as readonly string[])
-  const copy = await resolveMailCopy({
+  const recipients = await resolveMailRecipients({
+    companyId,
+    contactIds,
+    contractorId,
+    transaction,
+  })
+  const copy = await resolveMailCc({
     automatic: input.automatic === true,
     companyId,
     contractorId,
     excludedUserIds: input.excludedWatcherUserIds ?? [],
-    loadCandidates: (query) => transaction.loadWatcherCandidates(query),
     logger: params.logger,
     occurrenceTypeId: target.occurrenceTypeId,
     recipients,
+    transaction,
   })
 
   const carrier = await transaction.findCarrierIdentity({ companyId })
@@ -446,32 +377,16 @@ async function executeSend(params: {
     transaction,
   })
 
-  const conversation = await transaction.findOrCreateContractorConversation({
+  const { conversation, delivery, existingThread, threadId } = await prepareMailDelivery({
     companyId,
     contractorId,
     occurrenceId: input.occurrenceId,
     occurrenceKind: target.kind,
-    publicRef: createPublicRef(),
+    readiness,
+    sandbox: params.contractorMailSandbox,
+    secretService: params.secretService,
+    transaction,
   })
-  await transaction.lockOccurrenceThread({
-    companyId,
-    occurrenceId: input.occurrenceId,
-    occurrenceKind: target.kind,
-  })
-  const existingThread = await transaction.findOccurrenceThread({
-    companyId,
-    occurrenceId: input.occurrenceId,
-    occurrenceKind: target.kind,
-  })
-  const threadId = existingThread?.id ?? crypto.randomUUID()
-  const delivery = readiness.ready
-    ? await createResendDelivery({
-        companyId,
-        secretService: params.secretService,
-        settings: readiness.settings,
-        threadId,
-      })
-    : createSandboxDelivery(params.contractorMailSandbox as OccurrenceMailSandbox)
 
   const mail = await buildMail({
     appBaseUrl: params.appBaseUrl,
@@ -488,59 +403,34 @@ async function executeSend(params: {
       ? ''
       : buildSenderDisplayName({ companyDisplayName: carrier.displayName, signer })
 
-  const recorded = await transaction.recordMail({
+  const { response } = await recordMailDelivery({
     actorUserId: input.actorUserId,
+    attachmentIds: input.attachmentIds ?? [],
+    automatic: input.automatic === true,
     bodyHtml: mail.bodyHtml,
     bodyText: mail.bodyText,
     ccAddresses: copy,
     companyId,
     contractorId,
+    conversationId: conversation.id,
     correlationId: input.correlationId,
-    createThread: existingThread === undefined,
-    fromAddress: delivery.fromAddress,
+    delivery,
+    fingerprint,
     fromDisplayName: fromDisplayName === '' ? null : fromDisplayName,
     hasInlineLogo: mail.hasInlineLogo,
+    idempotencyKey: input.idempotencyKey,
+    messageText: input.bodyText.trim(),
+    notificationTemplate,
+    now: params.now,
     occurrenceId: input.occurrenceId,
     occurrenceKind: target.kind,
-    replyTokenHash: delivery.replyTokenHash,
-    notificationTemplate,
+    recipients,
+    storage: params.storage,
     subject: mail.subject,
+    threadExists: existingThread !== undefined,
     threadId,
-    toAddresses: recipients,
-    transport: delivery.transport,
+    transaction,
   })
-  const conversationMessage = await transaction.recordConversationMessage({
-    authorUserId: input.actorUserId,
-    ...(input.automatic === true ? { automatic: true } : {}),
-    bodyText: input.bodyText.trim(),
-    companyId,
-    conversationId: conversation.id,
-    mailMessageId: recorded.messageId,
-    queuedAt: params.now.toISOString(),
-  })
-  /**
-   * Spec 183 T702e: o anexo liga à mensagem **da conversa**; o worker o acha pela
-   * `mail_message_id` dela ao montar o envio. Bytes que não conferem desfazem tudo — nem a
-   * mensagem da 143 nem o outbox ficam.
-   */
-  /** O aviso automático não leva anexo: anexo é sempre de quem pediu o upload. */
-  if (input.actorUserId !== null) {
-    await attachConversationUploads({
-      messageId: conversationMessage.id,
-      now: params.now,
-      storage: params.storage,
-      target: {
-        channel: 'email',
-        companyId,
-        occurrenceId: input.occurrenceId,
-        occurrenceKind: target.kind,
-        participant: 'contractor',
-        requestedByUserId: input.actorUserId,
-      },
-      transaction: transaction.attachments,
-      uploadIds: input.attachmentIds ?? [],
-    })
-  }
 
   if (input.automatic === true) {
     await openContractorReplyWhenConfigured({
@@ -554,18 +444,12 @@ async function executeSend(params: {
     })
   }
 
-  const response: SendOccurrenceMailResult = {
-    conversationId: conversation.id,
-    conversationMessageId: conversationMessage.id,
-    mailMessageId: recorded.messageId,
-    recipientCount: recipients.length,
-    threadId,
-  }
-  await transaction.saveIdempotency({
+  await saveMailReplay({
     companyId,
     fingerprint,
     idempotencyKey: input.idempotencyKey,
     response,
+    transaction,
   })
   return response
 }

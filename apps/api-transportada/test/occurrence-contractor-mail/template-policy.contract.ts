@@ -5,6 +5,7 @@
  * Política pura: todos os problemas de uma vez, e o que bloqueia o envio.
  */
 import { describe, expect, test } from 'bun:test'
+import { STANDARD_EMAIL_TEMPLATE_KEY } from '@adatechnology/notification-contracts'
 
 import {
   HTML_BODY_PATTERN,
@@ -13,6 +14,7 @@ import {
 import {
   assessContractorTemplate,
   blocksContractorMailSend,
+  SYSTEM_NOTIFICATION_TEMPLATE_KEYS,
 } from '../../src/occurrence-conversation/domain/occurrence-contractor-template.policy.js'
 import { NOTIFICATION_TEMPLATE_KEY } from '../../src/notification/domain/notification-catalog.constant.js'
 
@@ -61,6 +63,13 @@ describe('spec 271: modelo utilizável no e-mail à contratante', () => {
         template: GOOD,
       }),
     ).toEqual([{ code: 'system_key' }])
+  })
+
+  test('spec 274: o modelo padrão de e-mail é chave do sistema, fora da escolha do tipo', () => {
+    expect(SYSTEM_NOTIFICATION_TEMPLATE_KEYS.has(STANDARD_EMAIL_TEMPLATE_KEY)).toBe(true)
+    expect(assessContractorTemplate({ key: STANDARD_EMAIL_TEMPLATE_KEY, template: GOOD })).toEqual([
+      { code: 'system_key' },
+    ])
   })
 
   test('corpo HTML seguro com a área de mensagem: utilizável', () => {

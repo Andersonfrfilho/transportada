@@ -5,7 +5,10 @@
  * ocorrência à contratante. Pura: devolve **todos** os problemas de uma vez, na ordem fixa abaixo; quem lê o
  * banco e quem responde o 400 ficam de fora.
  */
-import { extractTemplatePlaceholders } from '@adatechnology/notification-contracts'
+import {
+  extractTemplatePlaceholders,
+  STANDARD_EMAIL_TEMPLATE_KEY,
+} from '@adatechnology/notification-contracts'
 
 import { NOTIFICATION_TEMPLATE_KEY } from '../../notification/domain/notification-catalog.constant.js'
 import {
@@ -33,9 +36,10 @@ export type ContractorTemplateContent = {
 }
 
 /** As chaves dos avisos do sistema: variáveis outras, nunca escolhidas para o e-mail à contratante. */
-export const SYSTEM_NOTIFICATION_TEMPLATE_KEYS: ReadonlySet<string> = new Set(
-  Object.values(NOTIFICATION_TEMPLATE_KEY),
-)
+export const SYSTEM_NOTIFICATION_TEMPLATE_KEYS: ReadonlySet<string> = new Set([
+  ...Object.values(NOTIFICATION_TEMPLATE_KEY),
+  STANDARD_EMAIL_TEMPLATE_KEY,
+])
 
 /** Uma `{{` que o renderizador do módulo não casa (`{{ nome }}`): o texto sairia com o marcador cru. */
 const MALFORMED_PLACEHOLDER_REGEX = /\{\{(?!\s*[A-Za-z0-9_]+\s*\}\})/u

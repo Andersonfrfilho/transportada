@@ -9,6 +9,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createRequestHandler } from '../../src/http/request-handler.service.js'
+import type { RateLimitWindowStorePort } from '../../src/http/rate-limit-window.port.js'
 import { createRouter } from '../../src/http/router.service.js'
 import { HealthService } from '../../src/health/health.service.js'
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
@@ -48,6 +49,7 @@ const VIEW: OccurrenceConversationsView = {
 type Calls = { readonly name: string; readonly input: unknown }[]
 
 function createFixture(params: {
+  readonly chatRateLimiter?: RateLimitWindowStorePort
   readonly error?: Error
   readonly logs?: unknown[]
   readonly permissions?: CompanyContext['permissions']
@@ -58,7 +60,7 @@ function createFixture(params: {
     if (params.error !== undefined) throw params.error
     return name === 'list'
       ? VIEW
-      : name === 'send'
+      : name === 'send' || name === 'sendChat'
         ? {
             conversationId: CONVERSATION_ID,
             conversationMessageId: 'message-1',
@@ -99,12 +101,14 @@ function createFixture(params: {
     }),
     rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: createOccurrenceConversationRoutes({
+      chatRateLimiter: params.chatRateLimiter ?? { consume: async () => ({ allowed: true }) },
       listConversations: { list: record('list') as never },
       markRead: { markRead: record('read') as never },
       sendDriverApp: { send: record('sendDriverApp') as never },
       sendPortal: { send: record('sendPortal') as never },
       previewMail: { preview: record('preview') as never },
       requestUpload: { request: record('requestUpload') as never },
+      sendChatMail: { send: record('sendChat') as never },
       sendMail: { send: record('send') as never },
     }),
     tenantContext: { resolveCompany: async () => context },
@@ -147,6 +151,159 @@ const MAIL_BODY = {
   contactIds: ['00000000-0000-4000-8000-000000183503'],
   subject: 'Ocorrência — NF 4512',
 }
+
+const CHAT_BODY = {
+  attachmentIds: [],
+  body: '  Boa tarde, segue a nota.  ',
+  channel: 'email',
+  mode: 'chat',
+}
+
+describe('POST .../contractor/messages, variante chat (spec 274 D5)', () => {
+  test('envia pelo caso de uso do chat, com o texto aparado, a chave e a correlação, e responde 202', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(sendRequest(CHAT_BODY))
+
+    expect(response.status).toBe(202)
+    expect(fixture.calls).toEqual([
+      {
+        input: {
+          actorUserId: COMPANY_CONTEXT.userId,
+          attachmentIds: [],
+          bodyText: 'Boa tarde, segue a nota.',
+          companyId: COMPANY_CONTEXT.companyId,
+          correlationId: 'trip-http-correlation',
+          idempotencyKey: 'conversation-key-0001',
+          occurrenceId: OCCURRENCE_ID,
+        },
+        name: 'sendChat',
+      },
+    ])
+    expect(Object.keys(((await response.json()) as { data: object }).data).sort()).toEqual([
+      'conversationId',
+      'conversationMessageId',
+      'mailMessageId',
+      'recipientCount',
+      'threadId',
+    ])
+  })
+
+  test('o schema é estrito: destinatário, assunto ou cópia do cliente, corpo vazio ou acima de 8000 é 400', async () => {
+    const fixture = createFixture({})
+    for (const extra of [
+      { contactIds: ['00000000-0000-4000-8000-000000183503'] },
+      { subject: 'x' },
+      { excludedWatcherUserIds: [] },
+      { cc: ['x@example.test'] },
+    ]) {
+      expect((await fixture.handle(sendRequest({ ...CHAT_BODY, ...extra }))).status).toBe(400)
+    }
+    expect((await fixture.handle(sendRequest({ ...CHAT_BODY, body: '   ' }))).status).toBe(400)
+    expect(
+      (await fixture.handle(sendRequest({ ...CHAT_BODY, body: 'x'.repeat(8001) }))).status,
+    ).toBe(400)
+    expect((await fixture.handle(sendRequest(CHAT_BODY, {}))).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('só com anexo (ou áudio) o texto pode ir vazio; sem anexo o texto segue obrigatório', async () => {
+    const fixture = createFixture({})
+    const attachmentId = '00000000-0000-4000-8000-000000274701'
+    for (const body of ['', '   ']) {
+      const response = await fixture.handle(
+        sendRequest({ ...CHAT_BODY, attachmentIds: [attachmentId], body }),
+      )
+      expect(response.status).toBe(202)
+    }
+    expect(fixture.calls.map((call) => (call.input as { bodyText: string }).bodyText)).toEqual([
+      '',
+      '',
+    ])
+    expect(
+      (await fixture.handle(sendRequest({ ...CHAT_BODY, attachmentIds: [], body: '' }))).status,
+    ).toBe(400)
+    expect((await fixture.handle(sendRequest({ ...CHAT_BODY, body: '' }))).status).toBe(400)
+    expect(fixture.calls).toHaveLength(2)
+  })
+
+  test('teto extra do chat: 10 por ocorrência em 5 min e 300 por empresa por hora, 429 com código próprio', async () => {
+    const seen: {
+      maxRequests: number
+      scope: string
+      subjectKey: string
+      windowSeconds: number
+    }[] = []
+    const ok = createFixture({
+      chatRateLimiter: {
+        consume: async (params) => {
+          seen.push({ ...params })
+          return { allowed: true }
+        },
+      },
+    })
+    expect((await ok.handle(sendRequest(CHAT_BODY))).status).toBe(202)
+    expect(seen).toEqual([
+      {
+        maxRequests: 10,
+        scope: 'occurrence-chat-mail-occurrence',
+        subjectKey: `${COMPANY_CONTEXT.companyId}:${OCCURRENCE_ID}`,
+        windowSeconds: 300,
+      },
+      {
+        maxRequests: 300,
+        scope: 'occurrence-chat-mail-company',
+        subjectKey: COMPANY_CONTEXT.companyId,
+        windowSeconds: 3600,
+      },
+    ])
+
+    for (const blocked of ['occurrence-chat-mail-occurrence', 'occurrence-chat-mail-company']) {
+      const fixture = createFixture({
+        chatRateLimiter: {
+          consume: async ({ scope }) =>
+            scope === blocked ? { allowed: false, retryAfterSeconds: 42 } : { allowed: true },
+        },
+      })
+      const response = await fixture.handle(sendRequest(CHAT_BODY))
+      expect(response.status).toBe(429)
+      expect(response.headers.get('retry-after')).toBe('42')
+      expect((await responseApiError(response)).code).toBe('OCCURRENCE_CHAT_MAIL_RATE_LIMITED')
+      expect(fixture.calls).toEqual([])
+    }
+  })
+
+  test('o diálogo e os outros canais não gastam o teto do chat', async () => {
+    const seen: string[] = []
+    const fixture = createFixture({
+      chatRateLimiter: {
+        consume: async ({ scope }) => {
+          seen.push(scope)
+          return { allowed: true }
+        },
+      },
+    })
+    expect((await fixture.handle(sendRequest(MAIL_BODY))).status).toBe(202)
+    expect(seen).toEqual([])
+  })
+
+  test('o diálogo continua recusando `mode` (spec 183 estrita)', async () => {
+    const fixture = createFixture({})
+    expect((await fixture.handle(sendRequest({ ...MAIL_BODY, mode: 'chat' }))).status).toBe(400)
+    expect((await fixture.handle(sendRequest({ ...MAIL_BODY, mode: 'dialog' }))).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('sem occurrences.resolve é 403 e ocorrência de outra empresa é 404', async () => {
+    const reader = createFixture({ permissions: new Set(['fleet.read'] as const) })
+    expect((await reader.handle(sendRequest(CHAT_BODY))).status).toBe(403)
+    expect(reader.calls).toEqual([])
+
+    const missing = createFixture({ error: new TripOccurrenceNotFoundError() })
+    const response = await missing.handle(sendRequest(CHAT_BODY))
+    expect(response.status).toBe(404)
+    expect((await responseApiError(response)).code).toBe('TRIP_OCCURRENCE_NOT_FOUND')
+  })
+})
 
 describe('GET /trip-occurrences/:id/conversations (spec 183 T404)', () => {
   test('com fleet.read lista as conversas do usuário do contexto, sem cache', async () => {

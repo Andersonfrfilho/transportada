@@ -94,8 +94,8 @@ function buildDependenciesStub(
       async findContractorReplyForward() {
         return undefined
       },
-      async findLastInboundReferenceHeaders() {
-        return undefined
+      async listThreadReferenceIds() {
+        return []
       },
       async findMessageById() {
         return {

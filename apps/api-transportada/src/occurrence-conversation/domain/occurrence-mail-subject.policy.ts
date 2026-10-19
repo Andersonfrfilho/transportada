@@ -16,7 +16,7 @@ const LINE_WHITESPACE_REGEX = /[\t\n\r]/gu
 const CONTROL_AND_FORMAT_REGEX = /[\p{Cc}\p{Cf}]/gu
 
 /** Tab, LF e CR viram espaço (antes de colapsar); os demais controles e invisíveis (`Cc`, `Cf`) saem. */
-function cleanSubjectText(text: string): string {
+export function cleanSubjectText(text: string): string {
   return collapseLine(
     text.replace(LINE_WHITESPACE_REGEX, ' ').replace(CONTROL_AND_FORMAT_REGEX, ''),
   )

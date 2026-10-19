@@ -26,13 +26,18 @@ import {
   tripOccurrenceCases,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
+import { identityUserProfiles } from '../../src/database/identity-user-profile.schema.js'
 import { resolveContractorScope } from '../../src/contractor-portal/domain/contractor-scope.policy.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import { createContractorPortalConversationUseCase } from '../../src/occurrence-conversation/application/contractor-portal-conversation.use-case.js'
 import { createSendContractorPortalMessageUseCase } from '../../src/occurrence-conversation/application/contractor-portal-message.use-case.js'
 import { createPublicRef } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import { createDrizzleContractorPortalConversationUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
-import { createDrizzleContractorPortalMessageUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
+import { createContractorPortalChatNotice } from '../../src/occurrence-conversation/application/contractor-portal-chat-notice.service.js'
+import {
+  createDrizzleContractorPortalChatAudienceReader,
+  createDrizzleContractorPortalMessageUnitOfWork,
+} from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
 import { openContractorReply } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-contractor-reply.repository.js'
 import { findOccurrenceConversations } from '../../src/occurrence-conversation/infrastructure/occurrence-conversation.query.js'
 import {
@@ -654,6 +659,114 @@ describe('a resposta pelo portal move o retorno (spec 248 T4.5, CA02)', () => {
           status: 'needs_operator',
         })
         expect(reply?.replyMessageId).not.toBeNull()
+      })
+    },
+    30_000,
+  )
+})
+
+describe('o chat usa o portal como vitrine (spec 274 T3.7)', () => {
+  testWithPostgres(
+    'abrir a conversa no portal leva o e-mail da transportadora a lida; falha terminal não muda',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId, userId: operatorUserId } = seeded.company
+        const portal = await seedPortalUser(database, companyId)
+        const scope = resolveContractorScope([
+          { contractorId: await contractorIdOf(database, companyId), taxId: EMITTER_TAX_ID },
+        ])
+        await setCaseStatus(database, seeded, 'awaiting_contractor')
+        const useCase = createUseCase(database, () => scope)
+        const sendMail = (idempotencyKey: string) =>
+          createOccurrenceMailUseCase(database).send({
+            actorUserId: operatorUserId,
+            bodyText: 'Segue a atualização.',
+            companyId,
+            contactIds: seeded.contactIds.slice(0, 1),
+            correlationId: `correlation-${idempotencyKey}`,
+            idempotencyKey,
+            occurrenceId: seeded.occurrenceId,
+            subject: 'Ocorrência',
+          })
+        const queued = await sendMail('portal-read-key-0001')
+        const bounced = await sendMail('portal-read-key-0002')
+        await database.db
+          .update(occurrenceConversationMessages)
+          .set({ status: 'bounced' })
+          .where(eq(occurrenceConversationMessages.id, bounced.conversationMessageId))
+        const [existing] = await database.db
+          .select({ publicRef: occurrenceConversations.publicRef })
+          .from(occurrenceConversations)
+          .where(eq(occurrenceConversations.companyId, companyId))
+        const ref = existing?.publicRef ?? ''
+
+        await useCase.markRead({ context: portal, ref })
+
+        const statusOf = async (id: string) => {
+          const [row] = await database.db
+            .select({
+              status: occurrenceConversationMessages.status,
+              statusTimes: occurrenceConversationMessages.statusTimes,
+            })
+            .from(occurrenceConversationMessages)
+            .where(eq(occurrenceConversationMessages.id, id))
+          return row
+        }
+        const read = await statusOf(queued.conversationMessageId)
+        expect(read?.status).toBe('read')
+        expect(Object.keys(read?.statusTimes ?? {})).toContain('read')
+        expect((await statusOf(bounced.conversationMessageId))?.status).toBe('bounced')
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'o aviso sem corpo vai só a quem não está em To/Cc; portal indisponível é sem aviso, sem erro',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const contractorId = await contractorIdOf(database, companyId)
+        const inMail = await seedPortalUser(database, companyId)
+        const outsideMail = await seedPortalUser(database, companyId)
+        for (const [account, email] of [
+          [inMail, '  Ana@Contratante.COM '],
+          [outsideMail, 'bruno@contratante.com'],
+        ] as const) {
+          await database.db.insert(identityUserProfiles).values({
+            contactAddress: email.trim(),
+            contactChannel: 'email',
+            email,
+            name: 'Conta do portal',
+            userId: account.userId,
+            username: account.userId,
+          })
+          await database.db
+            .insert(contractorPortalBindings)
+            .values({ companyId, contractorId, membershipId: account.membershipId })
+        }
+        const notices: { readonly recipientUserIds: readonly string[] }[] = []
+        const notice = createContractorPortalChatNotice({
+          audienceReader: createDrizzleContractorPortalChatAudienceReader(database.db),
+          notifier: { notify: async (input) => void notices.push(input) },
+        })
+        const notify = () =>
+          notice.notify({
+            companyId,
+            mailAddresses: ['ana@contratante.com', 'copia@contratante.com'],
+            messageId: crypto.randomUUID(),
+            occurrenceId: seeded.occurrenceId,
+          })
+
+        await setCaseStatus(database, seeded, 'under_review')
+        await notify()
+        expect(notices).toEqual([])
+
+        await setCaseStatus(database, seeded, 'awaiting_contractor')
+        await notify()
+        expect(notices.map((item) => item.recipientUserIds)).toEqual([[outsideMail.userId]])
       })
     },
     30_000,

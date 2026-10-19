@@ -7,6 +7,7 @@
  * ⚠️ SQL parametrizado, não o `templates` exportado do pacote: o pacote traz a própria instância do drizzle-orm,
  * e uma tabela dele dentro de uma consulta nossa não compõe. O worker lê pela mesma forma.
  */
+import { STANDARD_EMAIL_TEMPLATE_KEY } from '@adatechnology/notification-contracts'
 import { sql } from 'drizzle-orm'
 
 import { NOTIFICATION_SCHEMA } from '../../database/notification-migration.service.js'
@@ -59,7 +60,11 @@ export async function readActiveContractorTemplates(
   return new Map(rows.map((row) => [row.key, toActiveTemplate(row)]))
 }
 
-/** Todos os modelos de e-mail `pt-BR` ativos da empresa — a versão ativa mais alta de cada chave —, por chave. */
+/**
+ * Os modelos da lista do editor: e-mail `pt-BR` ativos da empresa — a versão ativa mais alta de cada chave —, por chave.
+ * Só o modelo padrão (`notification.standard-email`, spec 274) fica de fora: ele tem tela própria. As outras chaves do
+ * sistema voltam à lista como antes, e a política as marca `usable: false` / `system_key`.
+ */
 export async function listActiveContractorTemplates(
   queryable: TripQueryable,
   params: { readonly companyId: string },
@@ -71,6 +76,7 @@ export async function listActiveContractorTemplates(
       and t.channel = ${OCCURRENCE_CONTRACTOR_MAIL_CHANNEL}
       and t.locale = ${OCCURRENCE_CONTRACTOR_MAIL_LOCALE}
       and t.active
+      and t.key <> ${STANDARD_EMAIL_TEMPLATE_KEY}
     order by t.key, t.version desc`)
   return rows.map(toActiveTemplate)
 }

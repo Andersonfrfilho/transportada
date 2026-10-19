@@ -24,6 +24,7 @@ import {
   parseBody,
   parseUuidPathIdentifier,
 } from '../../http/request-parsing.service.js'
+import type { RateLimitWindowStorePort } from '../../http/rate-limit-window.port.js'
 import { defineRoute } from '../../http/router.service.js'
 import {
   OCCURRENCE_CONVERSATION_CHANNELS,
@@ -38,9 +39,13 @@ import type {
 import type { createSendContractorPortalMessageUseCase } from '../application/contractor-portal-message.use-case.js'
 import type { createSendDriverAppMessageUseCase } from '../application/driver-conversation.use-case.js'
 import type { createRequestOccurrenceConversationUploadUseCase } from '../application/occurrence-conversation-upload.use-case.js'
+import type { SendOccurrenceChatMailUseCase } from '../application/send-occurrence-chat-mail.use-case.js'
 import type { SendOccurrenceMailUseCase } from '../application/send-occurrence-mail.use-case.js'
 import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
-import { OccurrenceConversationChannelUnavailableError } from '../domain/occurrence-conversation.error.js'
+import {
+  OccurrenceChatMailRateLimitedError,
+  OccurrenceConversationChannelUnavailableError,
+} from '../domain/occurrence-conversation.error.js'
 import {
   conversationAttachmentIdsSchema,
   conversationUploadFields,
@@ -54,6 +59,22 @@ export const OCCURRENCE_CONVERSATION_RATE_LIMIT = {
   scope: 'occurrence-conversation',
   store: 'postgres',
   windowSeconds: 300,
+} as const
+
+/**
+ * Spec 274 (segurança M3): o chat dispara e-mail com um clique, então tem teto próprio além do balde da rota (30 em 5
+ * min por usuário) — por ocorrência, contra rajada num mesmo assunto, e por empresa, contra volume por hora. Só a
+ * variante `mode: 'chat'` gasta estes baldes; contam no Postgres, fora da transação do envio.
+ */
+export const OCCURRENCE_CHAT_MAIL_OCCURRENCE_RATE_LIMIT = {
+  maxRequests: 10,
+  scope: 'occurrence-chat-mail-occurrence',
+  windowSeconds: 300,
+} as const
+export const OCCURRENCE_CHAT_MAIL_COMPANY_RATE_LIMIT = {
+  maxRequests: 300,
+  scope: 'occurrence-chat-mail-company',
+  windowSeconds: 3600,
 } as const
 
 const CONVERSATIONS_PATH = '/trip-occurrences/:id/conversations'
@@ -94,6 +115,21 @@ const mailMessageSchema = z
   })
   .strict()
 
+/**
+ * Spec 274 (D5): o chat da contratante por e-mail. O operador manda o texto (até 8000 depois do `trim`) e os anexos;
+ * o texto só pode ir vazio quando há ao menos um anexo (foto, arquivo ou áudio) — sem anexo, é obrigatório.
+ * Destinatários, assunto, assinante e modelo são do servidor — por isso nenhum deles cabe aqui (`.strict()` → 400).
+ */
+const chatMailMessageSchema = z
+  .object({
+    attachmentIds: conversationAttachmentIdsSchema,
+    body: z.string().trim().max(OCCURRENCE_MAIL_LIMITS.body),
+    channel: z.literal('email'),
+    mode: z.literal('chat'),
+  })
+  .strict()
+  .refine((value) => value.body !== '' || (value.attachmentIds?.length ?? 0) > 0)
+
 /** Spec 183 T601 (RF11): ao motorista pelo app — o texto e, desde a T702a, os anexos. */
 const appMessageSchema = z
   .object({
@@ -125,6 +161,8 @@ const mailPreviewSchema = z
   .strict()
 
 export type OccurrenceConversationRoutesDependencies = {
+  /** Spec 274 (M3): o balde Postgres dos tetos extras do chat; fora da transação do envio. */
+  readonly chatRateLimiter: RateLimitWindowStorePort
   readonly listConversations: ListOccurrenceConversationsUseCase
   readonly markRead: MarkOccurrenceConversationReadUseCase
   readonly previewMail: PreviewOccurrenceMailUseCase
@@ -133,6 +171,8 @@ export type OccurrenceConversationRoutesDependencies = {
     ReturnType<typeof createRequestOccurrenceConversationUploadUseCase>,
     'request'
   >
+  /** Spec 274: o chat por e-mail; ausente, a variante `mode: 'chat'` responde como canal indisponível. */
+  readonly sendChatMail?: SendOccurrenceChatMailUseCase
   readonly sendMail: SendOccurrenceMailUseCase
   /** Spec 183 T601: ao motorista pelo app. */
   readonly sendDriverApp: Pick<ReturnType<typeof createSendDriverAppMessageUseCase>, 'send'>
@@ -168,11 +208,37 @@ type SendInput =
   | {
       readonly attachmentIds: readonly string[]
       readonly bodyText: string
+      readonly correlationId: string
+      readonly idempotencyKey: string
+      readonly kind: 'chat'
+      readonly occurrenceId: string
+    }
+  | {
+      readonly attachmentIds: readonly string[]
+      readonly bodyText: string
       readonly forwardAttachmentIds?: readonly string[]
       readonly idempotencyKey: string
       readonly kind: 'app' | 'portal'
       readonly occurrenceId: string
     }
+
+/** Por ocorrência primeiro: o recusado ali não gasta o balde da empresa. Sem try/catch: balde fora do ar é fail-closed. */
+async function assertChatMailWithinCeilings(params: {
+  readonly companyId: string
+  readonly limiter: RateLimitWindowStorePort
+  readonly occurrenceId: string
+}): Promise<void> {
+  const byOccurrence = await params.limiter.consume({
+    ...OCCURRENCE_CHAT_MAIL_OCCURRENCE_RATE_LIMIT,
+    subjectKey: `${params.companyId}:${params.occurrenceId}`,
+  })
+  if (!byOccurrence.allowed) throw new OccurrenceChatMailRateLimitedError(byOccurrence)
+  const byCompany = await params.limiter.consume({
+    ...OCCURRENCE_CHAT_MAIL_COMPANY_RATE_LIMIT,
+    subjectKey: params.companyId,
+  })
+  if (!byCompany.allowed) throw new OccurrenceChatMailRateLimitedError(byCompany)
+}
 
 export function createOccurrenceConversationRoutes(
   dependencies: OccurrenceConversationRoutesDependencies,
@@ -196,6 +262,26 @@ export function createOccurrenceConversationRoutes(
     }),
     defineRoute<SendInput>({
       async handle({ context, input }): Promise<Response> {
+        if (input.kind === 'chat') {
+          if (dependencies.sendChatMail === undefined) {
+            throw new OccurrenceConversationChannelUnavailableError()
+          }
+          await assertChatMailWithinCeilings({
+            companyId: context.scope.companyId,
+            limiter: dependencies.chatRateLimiter,
+            occurrenceId: input.occurrenceId,
+          })
+          const result = await dependencies.sendChatMail.send({
+            actorUserId: context.scope.userId,
+            attachmentIds: input.attachmentIds,
+            bodyText: input.bodyText,
+            companyId: context.scope.companyId,
+            correlationId: input.correlationId,
+            idempotencyKey: input.idempotencyKey,
+            occurrenceId: input.occurrenceId,
+          })
+          return jsonResponse({ data: result }, 202)
+        }
         if (input.kind !== 'mail') {
           const request = {
             actorUserId: context.scope.userId,
@@ -239,6 +325,19 @@ export function createOccurrenceConversationRoutes(
          * (T601). WhatsApp espera os modelos da Meta (T503).
          */
         if (participant === 'contractor' && raw.channel === 'email') {
+          /** Spec 274: o desvio é pelo `mode`, antes do `.strict()` do diálogo, que continua recusando `mode`. */
+          if (raw.mode === 'chat') {
+            const chat = chatMailMessageSchema.safeParse(raw)
+            if (!chat.success) throw invalidRequest()
+            return {
+              attachmentIds: chat.data.attachmentIds ?? [],
+              bodyText: chat.data.body,
+              correlationId,
+              idempotencyKey,
+              kind: 'chat' as const,
+              occurrenceId,
+            }
+          }
           const body = mailMessageSchema.safeParse(raw)
           if (!body.success) throw invalidRequest()
           return {

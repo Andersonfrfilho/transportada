@@ -23,18 +23,38 @@ import type { OccurrenceConversationMessageStatus } from '../../database/occurre
 const EMAIL_RECEIVED_EVENT_TYPE = 'email.received'
 
 /**
- * Spec 183 T405 (RF14): o status que o Resend dá ao envio, no vocabulário da conversa. Aberto e
- * clicado ficam de fora de propósito — o e-mail não tem "lida" (D7) — e atraso ou reclamação não são
- * estado da mensagem.
+ * Spec 183 T405 (RF14): o status que o Resend dá ao envio, no vocabulário da conversa. Spec 274 (D8): o
+ * pixel de abertura vira "lida". Clicado, atraso e reclamação não são estado da mensagem.
  */
 const OCCURRENCE_MAIL_STATUS_BY_EVENT_TYPE = {
   'email.bounced': 'bounced',
   'email.delivered': 'delivered',
   'email.failed': 'failed',
+  'email.opened': 'read',
   'email.sent': 'sent',
 } as const satisfies Readonly<Record<string, OccurrenceConversationMessageStatus>>
 
 type OccurrenceMailStatusEventType = keyof typeof OCCURRENCE_MAIL_STATUS_BY_EVENT_TYPE
+
+/** Spec 274 (D7): estes eventos trazem o `message_id` RFC que o Resend deu ao envio. */
+const RFC_MESSAGE_ID_EVENT_TYPES: ReadonlySet<string> = new Set([
+  'email.delivered',
+  'email.opened',
+  'email.sent',
+])
+
+/**
+ * O `Message-ID` vai sempre entre `<…>`, na gravação e na montagem. Spec 274 (segurança M2): o id vira cabeçalho de
+ * e-mail depois, então só entra o que não tem espaço, quebra de linha nem colchete interno e cabe em 255 — inválido
+ * não é gravado (o status do evento segue). O worker confere o mesmo padrão ao montar.
+ */
+const RFC_MESSAGE_ID_REGEX = /^<[^\s<>\r\n]{1,255}>$/u
+
+function normalizeRfcMessageId(value: string): string | undefined {
+  const inner = value.trim().replace(/^<+/u, '').replace(/>+$/u, '').trim()
+  const normalized = `<${inner}>`
+  return RFC_MESSAGE_ID_REGEX.test(normalized) ? normalized : undefined
+}
 
 function isOccurrenceMailStatusEventType(type: string): type is OccurrenceMailStatusEventType {
   return Object.hasOwn(OCCURRENCE_MAIL_STATUS_BY_EVENT_TYPE, type)
@@ -48,10 +68,16 @@ export type OccurrenceMailStatusPort = {
     readonly incoming: OccurrenceConversationMessageStatus
     readonly providerEmailId: string
   }): Promise<void>
+  /** Grava o `Message-ID` RFC do envio só se ainda for nulo: o evento repetido não reescreve. */
+  recordRfcMessageId(input: {
+    readonly companyId: string
+    readonly providerEmailId: string
+    readonly rfcMessageId: string
+  }): Promise<void>
 }
 
 const inboundEmailWebhookBodySchema = z.object({
-  data: z.object({ email_id: z.string().min(1) }),
+  data: z.object({ email_id: z.string().min(1), message_id: z.string().optional() }),
   type: z.string().min(1),
 })
 
@@ -117,6 +143,17 @@ export function createProcessInboundEmailWebhookUseCase(dependencies: {
 
       if (isOccurrenceMailStatusEventType(parsedBody.type)) {
         if (dependencies.occurrenceMailStatus === undefined) return { outcome: 'ignored' }
+        const rfcMessageId =
+          parsedBody.data.message_id === undefined
+            ? undefined
+            : normalizeRfcMessageId(parsedBody.data.message_id)
+        if (rfcMessageId !== undefined && RFC_MESSAGE_ID_EVENT_TYPES.has(parsedBody.type)) {
+          await dependencies.occurrenceMailStatus.recordRfcMessageId({
+            companyId: configuration.companyId,
+            providerEmailId: parsedBody.data.email_id,
+            rfcMessageId,
+          })
+        }
         await dependencies.occurrenceMailStatus.apply({
           at: now(),
           companyId: configuration.companyId,

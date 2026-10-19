@@ -53,6 +53,51 @@ export class OccurrenceConversationMailInvalidError extends ApiError {
   }
 }
 
+/** Spec 274 (segurança M3): o teto extra do chat (por ocorrência ou por empresa); o `Retry-After` diz quando voltar. */
+export class OccurrenceChatMailRateLimitedError extends ApiError {
+  public constructor(outcome: { readonly retryAfterSeconds: number }) {
+    super({
+      code: 'OCCURRENCE_CHAT_MAIL_RATE_LIMITED',
+      headers: { 'retry-after': String(outcome.retryAfterSeconds) },
+      message: 'Too many chat e-mails were sent; try again later',
+      status: 429,
+    })
+  }
+}
+
+/** Spec 274 (D10): o chat só escreve aos pré-marcados; sem nenhum, o operador usa o diálogo (que escolhe o `To`). */
+export class OccurrenceChatMailNoRecipientsError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS',
+      message: 'No contact is preselected to receive this occurrence by e-mail',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 274 (D5): o modelo padrão renderizou acima do teto do HTML; é do texto ou dos anexos, não do servidor. */
+export class OccurrenceChatMailTooLargeError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CHAT_MAIL_TOO_LARGE',
+      message: 'The message is too large to be sent by e-mail',
+      status: 400,
+    })
+  }
+}
+
+/** Spec 274: a variante chat sem o renderer do modelo padrão (pacote ainda não ligado neste ambiente). */
+export class OccurrenceChatMailNotConfiguredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED',
+      message: 'The standard e-mail renderer is not configured in this environment',
+      status: 503,
+    })
+  }
+}
+
 export class OccurrenceConversationIdempotencyKeyReusedError extends ApiError {
   public constructor() {
     super({

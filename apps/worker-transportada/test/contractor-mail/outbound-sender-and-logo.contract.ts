@@ -89,7 +89,7 @@ function build(input: {
     }),
     repository: {
       findContractorReplyForward: async () => undefined,
-      findLastInboundReferenceHeaders: async () => undefined,
+      listThreadReferenceIds: async () => [],
       findMessageById: async () => input.message,
       findSettingsByCompanyId: async () => ({
         id: crypto.randomUUID(),

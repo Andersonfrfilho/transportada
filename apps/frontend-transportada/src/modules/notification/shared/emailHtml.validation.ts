@@ -69,7 +69,7 @@ const UNSAFE_OTHER_TAG_PATTERN = /<(?:iframe|form|object|embed)\b/iu
 const UNSAFE_EVENT_PATTERN = /[\s/"']on[a-z]+\s*=/iu
 const UNSAFE_SCHEME_PATTERN = /(?:javascript|vbscript):/iu
 const PLACEHOLDER_IN_TAG_PATTERN =
-  /<[a-zA-Z/!](?:[^>"']|"[^"]*"|'[^']*')*(?:\{\{|"[^"]*\{\{|'[^']*\{\{)/u
+  /<(?:[a-zA-Z/!?%]|(?=\s*\{\{))(?:[^>"']|"[^"]*"|'[^']*')*(?:\{\{|"[^"]*\{\{|'[^']*\{\{)/u
 const PLACEHOLDER_IN_STYLE_PATTERN = /<style\b(?:(?!<\/style\b)[\s\S])*?\{\{/iu
 // eslint-disable-next-line no-control-regex -- ADR-0110 §2: exatamente `[\u0000- ]` (controles e espaço)
 const CONTROL_AND_SPACE_PATTERN = /[\u0000- ]/gu

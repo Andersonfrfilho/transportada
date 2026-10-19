@@ -142,7 +142,7 @@ describe('as tabelas da conversa da ocorrência (spec 183 T401)', () => {
       expect(checks.occurrence_conversation_messages_status_check).toContain(`'${status}'`)
     }
     expect(checks.occurrence_conversation_messages_status_direction_check).toContain('direction')
-    expect(checks.occurrence_conversation_messages_email_never_read_check).toContain("'read'")
+    expect(checks.occurrence_conversation_messages_email_never_read_check).toBeUndefined()
     expect(checks.occurrence_conversation_messages_portal_status_check).toContain("'portal'")
   })
 

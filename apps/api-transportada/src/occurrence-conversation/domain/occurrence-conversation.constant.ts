@@ -6,6 +6,9 @@ import type { ContractorMailThreadSubjectType } from '../../database/contractor-
 
 export const SEND_OCCURRENCE_MAIL_OPERATION = 'occurrence-conversation.mail.send'
 
+/** Spec 274 (D11): o chat tem a operação própria — a mesma chave no diálogo e no chat nunca se confunde. */
+export const SEND_OCCURRENCE_CHAT_MAIL_OPERATION = 'occurrence-conversation.chat-mail.send'
+
 /** Os limites da mensagem, iguais aos CHECKs do banco e ao assunto dos modelos da 150. */
 export const OCCURRENCE_MAIL_LIMITS = { body: 8000, subject: 200 } as const
 

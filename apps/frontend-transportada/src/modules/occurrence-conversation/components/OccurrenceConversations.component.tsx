@@ -15,7 +15,12 @@ import {
   useOccurrenceConversationsQuery,
   useSendContractorPortalMessageMutation,
 } from '../queries/occurrenceConversation.query'
+import {
+  resolveContractorChatError,
+  resolveContractorComposer,
+} from '../shared/contractorChat.service'
 import { isForwardAlreadyDone } from '../shared/conversationAttachment.service'
+import type { OccurrenceThreadSendError } from '../shared/occurrenceThreadApi.service'
 import type {
   ContractorSenderSuggestion,
   OccurrenceConversation,
@@ -229,12 +234,10 @@ type ContractorConversationPanelProps = Readonly<{
 
 function resolveContractorClosedNotice(input: {
   canSend: boolean
-  canWrite: boolean
   t: (key: string) => string
 }): string {
   if (!input.canSend) return input.t('thread.closed.readOnly')
-  if (!input.canWrite) return input.t('thread.closed.noRecipient')
-  return input.t('thread.closed.noPortal')
+  return input.t('thread.closed.noRecipient')
 }
 
 function ContractorConversationPanel({
@@ -255,8 +258,9 @@ function ContractorConversationPanel({
   /** Spec 183 T703: o reenvio por e-mail leva o texto da mensagem que falhou ao diálogo. */
   const [mailBody, setMailBody] = useState<string | undefined>(undefined)
   const messages = conversation?.messages ?? []
-  const canWrite = canSend && hasDocument && contractorId !== null
-  const canWritePortal = canWrite && portalAvailable
+  const { canWrite, status } = resolveContractorComposer({ canSend, contractorId, hasDocument })
+  /** Spec 274 D10: a última falha do envio do chat — o motivo e, sem destinatário, a saída pelo diálogo. */
+  const [sendError, setSendError] = useState<null | OccurrenceThreadSendError>(null)
 
   /**
    * Spec 248 T4.6/T4.7: o boleto que a contratante mandou segue ao motorista (quando há motorista) e, por
@@ -324,7 +328,6 @@ function ContractorConversationPanel({
         <OccurrenceThread
           closedNotice={resolveContractorClosedNotice({
             canSend,
-            canWrite,
             t: (key) => t(key),
           })}
           {...(companyId === undefined ? {} : { companyId })}
@@ -340,8 +343,9 @@ function ContractorConversationPanel({
               }
             : {})}
           occurrenceId={occurrenceId}
+          onSendError={setSendError}
           participant="contractor"
-          status={canWritePortal ? 'open' : 'closed'}
+          status={status}
           title={
             contractorName === ''
               ? t('contractor.title')
@@ -349,6 +353,27 @@ function ContractorConversationPanel({
           }
         />
       ) : null}
+
+      {sendError === null ? null : (
+        <p className={threadStyles.error} role="alert">
+          {t(`thread.sendError.${resolveContractorChatError(sendError.code)}`)}{' '}
+          {resolveContractorChatError(sendError.code) === 'noRecipients' ? (
+            <Button
+              onClick={() => {
+                setMailBody(sendError.text)
+                setSending(true)
+                setSendError(null)
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="send" size="sm" />
+              {t('thread.sendError.openMail')}
+            </Button>
+          ) : null}
+        </p>
+      )}
 
       {canSend ? <ContractorReplyEmailHistory occurrenceId={occurrenceId} /> : null}
 

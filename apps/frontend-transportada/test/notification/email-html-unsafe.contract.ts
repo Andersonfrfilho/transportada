@@ -52,12 +52,12 @@ function unsafeCodesOf(html: string): readonly string[] {
 }
 
 describe('a tabela de HTML inseguro do painel é a da API', () => {
-  test('tem os 42 casos e os mesmos nomes, na mesma ordem, do arquivo-fonte da API', () => {
+  test('tem os 46 casos e os mesmos nomes, na mesma ordem, do arquivo-fonte da API', () => {
     const source = readFileSync(API_POLICY_SOURCE, 'utf8')
     const table = source.slice(source.indexOf('export const OCCURRENCE_MAIL_UNSAFE_HTML_CASES'))
     const apiNames = [...table.matchAll(/\bname: '([^']*)'/gu)].map((match) => match[1] ?? '')
 
-    expect(OCCURRENCE_MAIL_UNSAFE_HTML_CASES).toHaveLength(42)
+    expect(OCCURRENCE_MAIL_UNSAFE_HTML_CASES).toHaveLength(46)
     expect(OCCURRENCE_MAIL_UNSAFE_HTML_CASES.map((entry) => entry.name)).toEqual(apiNames)
   })
 })

@@ -1174,6 +1174,34 @@ de Notificações (`notification.templates`, `email`, `pt-BR`); a API não monta
 - **Publicação:** API e worker no mesmo PR e no mesmo run (ADR-0081 §9); a janela entre os dois deploys é aceita.
 - Detalhe e contratos: `docs/ai-context/api-transportada.md` § "E-mail da ocorrência em HTML (spec 272)".
 
+## O chat da contratante envia por e-mail (spec 274, ADR-0111)
+
+O composer da aba Contratante fica aberto (nota, contratante e `occurrences.resolve`), com ou sem portal, e cada
+mensagem sai por e-mail. Contrato: `POST /v1/trip-occurrences/:id/conversations/contractor/messages` com
+`{ channel: 'email', mode: 'chat', body, attachmentIds }` → 202 `{ data }`. Sem OpenAPI: o contrato é a rota em
+`occurrence-conversation.routes.ts`.
+
+- **Destinatários:** os pré-marcados da prévia, mais a cópia da 267. Sem pré-marcado → 409
+  `OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS`. O chat **nunca** responde 409 de modelo: não exige modelo do tipo.
+- **Corpo:** o modelo padrão do SDK, `notification.standard-email` (identidade, assinante e rodapé ficam dentro do modelo),
+  renderizado por `notifications.standardEmail.render`. Sem linha cadastrada, usa o embutido (versão `0`, com log). A API
+  só monta os valores e não guarda layout.
+- **Assunto:** o da última mensagem de saída não encaminhada da linha.
+- **Aviso do portal:** vai só a quem está fora de `To`/`Cc`; quem já recebeu o corpo pelo e-mail não recebe o aviso.
+- **Status:** `email.opened` → `read` (pixel; a 183 D7 foi revogada). O `message_id` do `email.sent` grava
+  `rfc_message_id` da mensagem, só se nulo; é o que o worker usa na cadeia de `References`. Falha (`bounced`/`failed`)
+  segue terminal.
+- **Pré-deploy:** `seedStandardEmailTemplates` cadastra a v1 do modelo padrão para toda empresa, em série, depois de
+  `provision`. `ensureTemplate` nunca sobrescreve versão editada.
+- **Achado do Bun:** o driver expõe o SQLSTATE em `errno` (com `code: 'ERR_POSTGRES_SERVER_ERROR'`), e o SDK só reconhece
+  `code === '23505'`. Por isso `ensureStandardEmailTemplate` (`src/database/standard-email-template-seed.service.ts`) aceita
+  23505 nos dois campos: perder a corrida pela v1 é "já existe".
+- **Migrations do módulo:** `notification-migration.service.ts` roda com `layout: 'v1'` (por quê: drizzle 1.x × journal).
+- **Regras genéricas de e-mail HTML** (escape, texto puro, HTML inseguro) são do SDK; a API delega (T3.3).
+- O `main.ts` liga o renderer (`notifications.standardEmail.render`). Sem ele (só em teste/composição incompleta), a rota
+  responde 503 `OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED` e nunca monta HTML próprio.
+- Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O chat da contratante envia por e-mail (spec 274)".
+
 ## O tipo de ocorrência tem escopo de contratantes (spec 270, ADR-0107)
 
 - **`contractor_scope` `all`|`listed` + `company_occurrence_type_contractors`.** `listed` ⇔ ao menos uma linha, conferido por

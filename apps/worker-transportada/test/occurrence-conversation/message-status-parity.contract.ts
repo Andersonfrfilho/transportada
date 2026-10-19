@@ -54,4 +54,39 @@ describe('paridade da política de status da mensagem (spec 183 T405)', () => {
       statusTimes: { sent: '2026-09-24T12:00:00.000Z' },
     })
   })
+
+  test('o e-mail aceita read (spec 274 D8): sent tardio não rebaixa, falha depois de read é velha', () => {
+    const delivered = {
+      status: 'delivered',
+      statusTimes: { delivered: '2026-10-19T12:00:00.000Z' },
+    } as const
+    const read = applyMessageStatus({
+      at: '2026-10-19T12:05:00.000Z',
+      channel: 'email',
+      current: delivered,
+      incoming: 'read',
+    })
+    expect(read).toEqual({
+      changed: true,
+      status: 'read',
+      statusTimes: { delivered: '2026-10-19T12:00:00.000Z', read: '2026-10-19T12:05:00.000Z' },
+    })
+
+    const lateSent = applyMessageStatus({
+      at: '2026-10-19T12:06:00.000Z',
+      channel: 'email',
+      current: { status: 'read', statusTimes: read.statusTimes },
+      incoming: 'sent',
+    })
+    expect(lateSent.status).toBe('read')
+
+    expect(
+      applyMessageStatus({
+        at: '2026-10-19T12:07:00.000Z',
+        channel: 'email',
+        current: { status: 'read', statusTimes: read.statusTimes },
+        incoming: 'bounced',
+      }),
+    ).toMatchObject({ changed: false, reason: 'stale', status: 'read' })
+  })
 })

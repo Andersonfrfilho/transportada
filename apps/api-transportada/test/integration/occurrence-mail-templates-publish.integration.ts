@@ -45,7 +45,7 @@ async function activeVersions(
       key,
       locale: OCCURRENCE_MAIL_TEMPLATE_LOCALE,
     })
-    result[key] = row?.version
+    result[key] = row?.version as number | undefined
   }
   return result
 }
@@ -63,7 +63,7 @@ async function setup(database: TestDatabase) {
       companyId,
       confirm: options.confirm,
       overwrite: options.overwrite ?? [],
-      repository,
+      repository: repository as never,
       templates: options.templates ?? readOccurrenceMailTemplateFiles(),
     })
   return { companyId, repository, run }

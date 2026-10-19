@@ -16,3 +16,4 @@ apps/*/drizzle*/meta
 apps/frontend-transportada/vendor/opencv
 # Runtime do tesseract.js servido como asset: bundle minificado de terceiro, formatar o quebraria
 apps/frontend-transportada/public/canhoto-ocr
+apps/api-transportada/test/fixtures/notification-migrations-rc3/

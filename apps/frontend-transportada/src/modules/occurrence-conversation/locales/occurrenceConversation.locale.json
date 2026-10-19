@@ -62,7 +62,8 @@
     "read": "Lido",
     "failed": "Falhou",
     "bounced": "Devolvido",
-    "times": "Horários da mensagem"
+    "times": "Horários da mensagem",
+    "readEmailHint": "Aberta pela contratante (pode não aparecer se o e-mail bloquear imagens)"
   },
   "dialog": {
     "missingTemplate": "Tipo sem modelo de notificação: sem modelo o e-mail não sai, nem à mão. Escolha um modelo no tipo ou na exceção da contratante.",
@@ -93,7 +94,8 @@
       "OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED": "Um dos anexos não é o que diz ser, ou os arquivos passam do total que um e-mail leva. Confira e tente de novo.",
       "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Não foi possível subir os anexos. Tente de novo em instantes.",
       "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez.",
-      "CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS": "Destinatários e cópia passam do limite de um e-mail. Tire alguém da cópia ou desmarque contatos."
+      "CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS": "Destinatários e cópia passam do limite de um e-mail. Tire alguém da cópia ou desmarque contatos.",
+      "OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS": "Nenhum contato desta contratante recebe e-mail agora. Confira o cadastro de contatos e tente de novo."
     },
     "copy": {
       "label": "Cópia:",
@@ -324,8 +326,7 @@
     },
     "closed": {
       "readOnly": "Você pode ler a conversa, mas não tem permissão para escrever.",
-      "noRecipient": "Sem nota ou sem contratante identificada, não há a quem escrever.",
-      "noPortal": "O portal da contratante não está aberto para esta ocorrência. Para escrever, use Enviar por e-mail."
+      "noRecipient": "Sem nota ou sem contratante identificada, não há a quem escrever."
     },
     "attachments": {
       "title": "Arquivos recebidos",
@@ -338,6 +339,16 @@
       "title": "Mensagem que não chegou",
       "resent": "Reenviada por {{channel}}.",
       "resendError": "Não foi possível reenviar. Tente de novo em instantes."
+    },
+    "sendError": {
+      "noRecipients": "Não há destinatário de e-mail para esta contratante. Use Enviar por e-mail para escolher quem recebe.",
+      "notConfigured": "O envio de e-mail desta contratante não está configurado. Configure a caixa de saída antes de escrever.",
+      "notVerified": "O envio de e-mail desta contratante ainda não foi verificado. Verifique a caixa de saída antes de escrever.",
+      "tooLarge": "A mensagem ficou grande demais para ir por e-mail. Reduza o texto ou os anexos e tente de novo.",
+      "chatUnavailable": "O e-mail padrão ainda não está disponível neste ambiente. Use Enviar por e-mail ou tente mais tarde.",
+      "rateLimited": "Muitas mensagens por e-mail em pouco tempo. Aguarde alguns minutos e tente de novo.",
+      "generic": "Não foi possível enviar a mensagem por e-mail. Tente de novo ou use Enviar por e-mail.",
+      "openMail": "Enviar por e-mail"
     }
   },
   "sendRecovery": {

@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto'
 import { RAW_EMAIL_MIME_TYPE } from '../domain/contractor-mail.constant.js'
 import { hasBoundedMimeHeaders } from '../domain/mime-header-bounds.policy.js'
 import { buildRawEmailObjectKey } from '../domain/raw-email-object-key.policy.js'
+import { parseRfcMessageId } from '../domain/reply-chain-headers.policy.js'
 import { hashReplyToken } from '../domain/reply-token.policy.js'
 import { resolveConversationDkimResult } from '../domain/conversation-sender-identity.policy.js'
 import { parseSenderMailbox } from '../domain/sender-mailbox.policy.js'
@@ -241,7 +242,7 @@ export async function recordContractorMailInboundMessage(
         sha256,
         sizeBytes: rawMessage.byteLength,
       },
-      rfcMessageId: normalizeOptional(received.message_id),
+      rfcMessageId: parseRfcMessageId(received.message_id ?? ''),
       subject: normalizeNonEmpty(received.subject, FALLBACK_SUBJECT),
       threadId: thread.id,
       toAddresses: received.to,

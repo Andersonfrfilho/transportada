@@ -3,7 +3,7 @@
  * ⚠️ Cópia por valor da API (`test/occurrence-conversation/message-status-parity.contract.ts`).
  *
  * Spec 183 RF14 (D7): o status da mensagem enviada, por canal. Cada canal mostra a confirmação que
- * consegue dar — e só ela: o e-mail não tem "lida", o app não passa por "enviada", o portal nasce
+ * consegue dar — e só ela: o e-mail só tem "lida" com rastreio de abertura (spec 274), o app não passa por "enviada", o portal nasce
  * disponível. O estado só avança (um `delivered` atrasado não desfaz um `read`), cada transição
  * guarda o horário, e o evento repetido do provedor não muda nada — é o que torna o webhook de status
  * idempotente além do `unique` do id do provedor.
@@ -40,7 +40,7 @@ const CHANNEL_RULES: Readonly<Record<OccurrenceConversationChannel, ChannelRule>
   email: {
     failableUntil: 'sent',
     failures: ['bounced', 'failed'],
-    ladder: ['queued', 'sent', 'delivered'],
+    ladder: ['queued', 'sent', 'delivered', 'read'],
   },
   portal: { failableUntil: null, failures: [], ladder: ['delivered', 'read'] },
   whatsapp: {

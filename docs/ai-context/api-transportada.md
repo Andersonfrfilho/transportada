@@ -3831,6 +3831,62 @@ justificativas: `docs/adr/0110-o-email-da-ocorrencia-sai-em-html.md`; evidência
 - **Publicação (§14):** API e worker no mesmo PR e no mesmo run (`deploy-api` → `deploy-services`); nos minutos entre os dois, o worker velho manda
   o HTML sem a parte inline e o "De" antigo. Worker fora do run = parar e perguntar.
 
+## O chat da contratante envia por e-mail (spec 274, ADR-0111)
+
+Decisões e justificativas: `docs/adr/0111-o-chat-da-contratante-envia-por-email.md`; plano e evidência:
+`specs/274-o-chat-da-contratante-envia-por-email/{plan,evidence}.md`. Revoga a 183 D7 ("no e-mail não existe lida") e emenda
+a 183 RF14, a 263 T5.2-C e a ADR-0073 (aviso do portal).
+
+- **Uma mensagem, um canal de transporte (ADR §2, D2).** O composer grava uma mensagem `email` na conversa da contratante
+  (`occurrence_conversation_messages`), que nasce `queued` e sobe `sent → delivered → read`. O portal não ganha segunda
+  mensagem: lista a mesma pelo canal (183 D9). O aviso sem corpo (ADR-0073) só vai a quem está fora de `To`/`Cc` (T3.7).
+  O e-mail do usuário do portal é lido no repositório de mensagens do portal, porque `tenant-safety.contract.ts` proíbe
+  `contractor-portal/` de ler `identityUserProfiles`. Portal indisponível = sem aviso e sem erro.
+- **Caso de uso:** `application/send-occurrence-chat-mail.use-case.ts`. Recebe a porta `StandardEmailRendererPort` (dublê
+  nos testes) e usa a operação de idempotência própria `occurrence-conversation.chat-mail.send`
+  (`SEND_OCCURRENCE_CHAT_MAIL_OPERATION`). A entrega (prontidão, thread, gravação) é a do diálogo, extraída para
+  `occurrence-mail-delivery.service.ts` (T3.5, sem mudança de comportamento; caracterização antes e depois).
+- **Rota:** `presentation/occurrence-conversation.routes.ts`, desvio por `mode === 'chat'`, 202 `{ data }`. O renderer é
+  ligado no `main.ts` (T3.1); sem ele, 503 `OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED`, nunca um HTML montado aqui.
+- **Destinatários (D1, D10):** pré-marcados da prévia mais a cópia da 267; vazio → 409 `OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS`
+  (código em `occurrence-conversation.error.ts`). O chat não consulta o modelo do tipo: sem 409 de modelo.
+- **Corpo (D3):** `notification.standard-email`, `pt-BR`, editável em Notificações. `notifications.standardEmail.render`
+  devolve `html`, `text/plain`, tamanho e a chave/versão usada, que a mensagem grava. O app só passa valores (texto, anexos,
+  assinante, identidade, frase do rodapé). Versão `0` = embutido, com log: rede de segurança, não caminho normal.
+- **Assunto (D6):** o da última mensagem de saída não encaminhada da linha (`occurrence-chat-mail-subject.policy.ts`). A
+  linha `contractor_mail_threads` é uma por objeto (unique `contractor_mail_threads_company_subject_unique`).
+- **Cadastro do modelo padrão (D3, T3.9):** `seedStandardEmailTemplates` (`src/database/standard-email-template-seed.service.ts`)
+  roda como passo `standardEmailTemplates` do `PreDeployReport` (`database/pre-deploy.service.ts`): lê todos os
+  `companies.id` e chama `ensureTemplate` em série, independente de `COMPANY_ID`, depois de `provision`. Sem gancho no
+  provisionamento e sem semente no boot. `written` conta só o que a passada criou; `ensureTemplate` não sobrescreve versão
+  que a empresa editou ou desativou. Em produção, gravar é mudança de dados com aprovação humana.
+- **Achado do Bun (23505):** o driver do Bun expõe o SQLSTATE em `errno`, com `code: 'ERR_POSTGRES_SERVER_ERROR'`; o
+  `standardEmail.ensureTemplate` do SDK só lê `code`. A corrida pela v1 chegava como erro. Tratado no host, em
+  `ensureStandardEmailTemplate`, nos dois campos; o SDK não muda por isso.
+- **Migrations do módulo:** `notification-migration.service.ts` chama `runNotificationMigrations` com `layout: 'v1'`
+  (por quê: drizzle 1.x × journal).
+- **Status (D8, D9):** a escada do e-mail é `['queued','sent','delivered','read']` (`occurrence-conversation/domain/message-status.policy.ts`,
+  com cópias no worker e no painel). `failableUntil` continua `sent`; falha é terminal (`opened` depois de `bounced` → `stale`).
+  O webhook (`process-inbound-email-webhook.use-case.ts`) mapeia `email.opened` → `read`; `email.clicked` segue ignorado;
+  `opened` repetido → `duplicate`. Migration `20261019130221_occurrence_conversation_email_read` só derruba a CHECK
+  `occurrence_conversation_messages_email_never_read_check`; o `rollback.sql` aborta se houver mensagem `email` em `read`.
+- **Leitura pelo portal (D9):** `markRead` (`drizzle-contractor-portal-conversation.repository.ts`) leva a `read` as mensagens
+  de saída de canal `portal` **e** `email` (status não nulo, não falha), cada uma pela regra do próprio canal. Aceito: leitura
+  no portal com o e-mail ainda `queued` leva a `read`; falha posterior do worker fica `stale`.
+- **`rfc_message_id` (D7):** `data.message_id` de `email.sent` (também de `delivered`/`opened`, como reserva) grava
+  `contractor_mail_messages.rfc_message_id` da mensagem de saída **só se nulo**, normalizado com `<…>`, independente do status.
+  A API não gera `Message-ID`; o id é o que o Resend devolveu.
+- **Rastreio é do domínio, não do código:** no Resend da transportadora, `open_tracking` ligado com subdomínio de rastreio
+  verificado por CNAME e `email.opened` assinado no webhook; `click_tracking` desligado (reescrever links quebra o e-mail).
+  Feito por quem administra a conta e o DNS, com aprovação humana. Sem isso, o selo para em "Entregue".
+- **Delegação ao SDK (D4, T3.3):** escape, `htmlToPlainText` e a regra de HTML inseguro vão ao `notification-contracts`; o
+  renderer do modelo do tipo (272) fica no app. Critério: vai ao SDK o que é regra genérica de e-mail HTML ou o que o envio
+  sem modelo precisa.
+- **Publicação:** a ordem (painel e worker tolerantes antes da API; semente no pré-deploy) está em `plan.md` § Publicação. O
+  worker antigo rebaixa `read` para `sent` (`message-status.policy.ts:89-100`), por isso ele sobe antes.
+- **Testes:** contratos das políticas de status e do webhook; `test/integration/occurrence-chat-mail.integration.ts` (rota
+  de chat, 202/409/503); semente com duas chamadas concorrentes (23505 = já existe).
+
 ## O escopo de contratantes do tipo (spec 270, ADR-0107)
 
 - **Dados:** `company_occurrence_types.contractor_scope` (`all` padrão, CHECK gerada de `OCCURRENCE_TYPE_CONTRACTOR_SCOPES`) e

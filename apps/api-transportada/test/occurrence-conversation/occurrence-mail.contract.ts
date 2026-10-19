@@ -171,6 +171,9 @@ function createFake(
       state.resendCalls.push(params)
       return overrides.resendOutcome ?? 'recorded'
     },
+    async findChatMailSubjectFacts() {
+      return { invoiceNumber: '4512', lastOutboundSubject: null, typeName: 'Recusa' }
+    },
     async findCarrierIdentity() {
       return 'carrier' in overrides ? overrides.carrier : CARRIER_IDENTITY
     },

@@ -6,8 +6,10 @@
  * muda quando a chave muda, e o modelo precisa existir, ser da empresa, ativo e de texto.
  */
 import { describe, expect } from 'bun:test'
+import { STANDARD_EMAIL_TEMPLATE_KEY } from '@adatechnology/notification-contracts'
 import { and, eq, sql } from 'drizzle-orm'
 
+import { NOTIFICATION_TEMPLATE_KEY } from '../../src/notification/domain/notification-catalog.constant.js'
 import { userCompanyMemberships } from '../../src/database/database.schema.js'
 import { companyOccurrenceTypes } from '../../src/database/trip.schema.js'
 import { OccurrenceContractorTemplateInvalidError } from '../../src/occurrence-conversation/domain/occurrence-contractor-template.error.js'
@@ -333,7 +335,7 @@ describe('the notification template of the occurrence type (spec 271 T2.4)', () 
   )
 
   testWithPostgres(
-    'the editor list has the highest active version of each e-mail pt-BR key of the company, nothing else',
+    'the editor list has the highest active version of each e-mail pt-BR key of the company, hiding only the standard e-mail key',
     async () => {
       await withNotificationDatabase(async (database) => {
         const { companyId } = await seedCompany(database)
@@ -355,12 +357,18 @@ describe('the notification template of the occurrence type (spec 271 T2.4)', () 
         await seedNotificationTemplate(database, { channel: 'inbox', companyId, key: 'c.caixa' })
         await seedNotificationTemplate(database, { companyId, key: 'd.ingles', locale: 'en-US' })
         await seedNotificationTemplate(database, { companyId: other.companyId, key: 'e.outra' })
+        await seedNotificationTemplate(database, { companyId, key: STANDARD_EMAIL_TEMPLATE_KEY })
+        await seedNotificationTemplate(database, {
+          companyId,
+          key: NOTIFICATION_TEMPLATE_KEY.BILLING_INVOICE_DUE,
+        })
 
         const listed = await listActiveContractorTemplates(database.db, { companyId })
 
         expect(listed.map((template) => [template.key, template.version])).toEqual([
           ['a.modelo', 2],
           ['b.modelo', 1],
+          [NOTIFICATION_TEMPLATE_KEY.BILLING_INVOICE_DUE, 1],
         ])
         expect(listed[0]?.body).toBe('Versão dois {{numeroNota}}')
       })

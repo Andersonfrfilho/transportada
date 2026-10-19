@@ -146,9 +146,8 @@ describe('as tabelas da conversa contra Postgres (spec 183 T401)', () => {
         expect(await rejectedBy(() => insert({ status: 'queued' }))).toContain(
           'occurrence_conversation_messages_author_check',
         )
-        expect(
-          await rejectedBy(() => insert({ authorUserId: company.userId, status: 'read' })),
-        ).toContain('occurrence_conversation_messages_email_never_read_check')
+        /** Spec 274 D8/D12: o e-mail tem "lida" (pixel de abertura), a CHECK que a proibia caiu. */
+        await insert({ authorUserId: company.userId, status: 'read' })
         expect(
           await rejectedBy(() =>
             insert({ authorUserId: company.userId, channel: 'portal', status: 'queued' }),

@@ -62,7 +62,8 @@
     "read": "Read",
     "failed": "Failed",
     "bounced": "Bounced",
-    "times": "Message times"
+    "times": "Message times",
+    "readEmailHint": "Opened by the contractor (may not show if the email blocks images)"
   },
   "dialog": {
     "missingTemplate": "Type without a notification template: without a template the email is not sent, not even by hand. Choose a template on the type or on the contractor exception.",
@@ -93,7 +94,8 @@
       "OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED": "One of the attachments is not what it claims to be, or the files exceed what an email can carry. Check and try again.",
       "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Could not upload the attachments. Try again shortly.",
       "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "An attachment expired before sending. Send again — it will upload once more.",
-      "CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS": "Recipients and copy exceed the e-mail limit. Remove someone from the copy or untick contacts."
+      "CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS": "Recipients and copy exceed the e-mail limit. Remove someone from the copy or untick contacts.",
+      "OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS": "No contact of this contractor receives email right now. Check the contacts and try again."
     },
     "copy": {
       "label": "Cc:",
@@ -324,8 +326,7 @@
     },
     "closed": {
       "readOnly": "You can read the conversation, but you are not allowed to write.",
-      "noRecipient": "Without an invoice or an identified contractor there is nobody to write to.",
-      "noPortal": "The contractor portal is not open for this occurrence. To write, use Send by email."
+      "noRecipient": "Without an invoice or an identified contractor there is nobody to write to."
     },
     "attachments": {
       "title": "Files received",
@@ -338,6 +339,16 @@
       "title": "Message that did not arrive",
       "resent": "Resent by {{channel}}.",
       "resendError": "Could not resend. Try again in a moment."
+    },
+    "sendError": {
+      "noRecipients": "There is no email recipient for this contractor. Use Send by email to choose who receives it.",
+      "notConfigured": "Email sending is not set up for this contractor. Set up the outbound mailbox before writing.",
+      "notVerified": "Email sending for this contractor has not been verified yet. Verify the outbound mailbox before writing.",
+      "tooLarge": "The message is too large to send by email. Shorten the text or the attachments and try again.",
+      "chatUnavailable": "The standard email is not available in this environment yet. Use Send by email or try again later.",
+      "rateLimited": "Too many emails in a short time. Wait a few minutes and try again.",
+      "generic": "The message could not be sent by email. Try again or use Send by email.",
+      "openMail": "Send by email"
     }
   },
   "sendRecovery": {

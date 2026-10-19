@@ -31,7 +31,7 @@ export const HTML_BODY_PATTERN = '</?[A-Za-z][A-Za-z0-9_:-]*[\\s>/]'
 /**
  * Spec 272 (ADR-0110 §2, D2): o filtro **grosso** do HTML inseguro, regex POSIX do Postgres (`!~*`; `\\y` é a fronteira de palavra,
  * `\\b` seria backspace). Tags `script|iframe|form|object|embed`, evento `on…=`, esquema literal `javascript:`/`vbscript:` e
- * placeholder dentro de tag (ciente de aspas: um `>` entre aspas não fecha a tag, e `{{` dentro do valor entre aspas conta) ou dentro de `<style>` (até o primeiro `</`). Não decodifica entidade: o que escapa dele a API pula (nunca mais estrito que a API).
+ * placeholder dentro de tag (também `<{{x}}>`, `< {{x}}>`, `<?{{x}}>`, `<%{{x}}>`; ciente de aspas: um `>` entre aspas não fecha a tag, e `{{` dentro do valor entre aspas conta) ou dentro de `<style>` (até o primeiro `</`). Não decodifica entidade: o que escapa dele a API pula (nunca mais estrito que a API).
  */
 export const UNSAFE_EMAIL_HTML_PATTERN =
-  '<(script|iframe|form|object|embed)\\y|[\\s/"\']on[a-z]+\\s*=|(javascript|vbscript):|<[a-zA-Z/!]([^>"\']|"[^"]*"|\'[^\']*\')*(\\{\\{|"[^"]*\\{\\{|\'[^\']*\\{\\{)|<style\\y([^<]|<[^/])*\\{\\{'
+  '<(script|iframe|form|object|embed)\\y|[\\s/"\']on[a-z]+\\s*=|(javascript|vbscript):|<([a-zA-Z/!?%]|[[:space:]]*(?=\\{\\{))([^>"\']|"[^"]*"|\'[^\']*\')*(\\{\\{|"[^"]*\\{\\{|\'[^\']*\\{\\{)|<style\\y([^<]|<[^/])*\\{\\{'

@@ -153,11 +153,14 @@ export type OccurrenceMailTransactionPort = {
   findIdempotency(params: {
     readonly companyId: string
     readonly idempotencyKey: string
+    /** Spec 274 (D11): a operação da porta de entrada; ausente, a do diálogo. */
+    readonly operation?: string
   }): Promise<OccurrenceMailIdempotencyRecord | null>
   saveIdempotency(params: {
     readonly companyId: string
     readonly fingerprint: string
     readonly idempotencyKey: string
+    readonly operation?: string
     readonly response: SendOccurrenceMailResult
   }): Promise<void>
   findMailSettings(params: {
@@ -202,6 +205,19 @@ export type OccurrenceMailTransactionPort = {
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind
   }): Promise<null | OccurrenceNotificationTemplate>
+  /**
+   * Spec 274 (D6): o que o assunto do chat precisa — o último e-mail de **saída** da ocorrência que não é
+   * encaminhamento da 248 (`null` sem nenhum), o nome do tipo e o número da nota.
+   */
+  findChatMailSubjectFacts(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  }): Promise<{
+    readonly invoiceNumber: null | string
+    readonly lastOutboundSubject: null | string
+    readonly typeName: string
+  }>
   /** Spec 272: nome de exibição, CNPJ, cidade, razão social e `hasLogo`; `undefined` sem perfil fiscal. */
   findCarrierIdentity(params: { readonly companyId: string }): Promise<CarrierIdentity | undefined>
   /** Spec 272: nome, cargo e papéis diretos do vínculo **ativo**, numa consulta; `undefined` fora da empresa. */

@@ -6,9 +6,10 @@
  * a conversa não lê a tratativa por conta própria (D4). Tudo pela empresa do contexto.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { findContractorPortalAudience } from '../../contractor-portal/infrastructure/contractor-occurrence.query.js'
+import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import {
   idempotencyRecords,
   occurrenceConversationMessages,
@@ -16,6 +17,7 @@ import {
 } from '../../database/database.schema.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type {
+  ContractorPortalChatAudienceReaderPort,
   ContractorPortalMessageTransactionPort,
   ContractorPortalMessageUnitOfWorkPort,
 } from '../application/contractor-portal-message.port.js'
@@ -33,26 +35,75 @@ async function acquireAdvisoryLock(transaction: Transaction, fields: readonly st
   await transaction.execute(sql`select pg_advisory_xact_lock(${lockId})`)
 }
 
+/** O público do portal desta ocorrência (com o e-mail de cada conta, T274 D2), pela fronteira da 164. */
+async function findPortalAudience(
+  queryable: Parameters<typeof findTripOccurrenceFeedItem>[0],
+  { companyId, occurrenceId }: { readonly companyId: string; readonly occurrenceId: string },
+) {
+  const item = await findTripOccurrenceFeedItem(queryable, { companyId, occurrenceId })
+  if (item === null) return { kind: 'not_found' as const }
+  /** O portal só mostra ocorrência de nota (164). */
+  if (item.source !== 'document') return { kind: 'unavailable' as const }
+  const audience = await findContractorPortalAudience(queryable, { companyId, occurrenceId })
+  if (audience === null) return { kind: 'unavailable' as const }
+  /** A fronteira da 164 não lê perfil (contrato): o e-mail das contas é lido aqui, do lado da conversa. */
+  const profiles =
+    audience.userIds.length === 0
+      ? []
+      : await queryable
+          .select({
+            contactAddress: identityUserProfiles.contactAddress,
+            contactChannel: identityUserProfiles.contactChannel,
+            email: identityUserProfiles.email,
+            userId: identityUserProfiles.userId,
+          })
+          .from(identityUserProfiles)
+          .where(inArray(identityUserProfiles.userId, [...audience.userIds]))
+  const emailByUser = new Map(
+    profiles.map((profile) => [
+      profile.userId,
+      (profile.email.trim() !== ''
+        ? profile.email
+        : profile.contactChannel === 'email'
+          ? profile.contactAddress
+          : ''
+      )
+        .trim()
+        .toLowerCase(),
+    ]),
+  )
+  return {
+    audience: {
+      contractorId: audience.contractorId,
+      occurrenceKind: item.source,
+      occurrenceLabel: describeOccurrenceLabel(item),
+      userIds: audience.userIds,
+      users: audience.userIds.map((userId) => ({ email: emailByUser.get(userId) ?? '', userId })),
+    },
+    kind: 'available' as const,
+  }
+}
+
+/** Spec 274 T3.7 (D2): quem o portal alcança, lido fora da transação do envio (o aviso sai depois do commit). */
+export function createDrizzleContractorPortalChatAudienceReader(
+  database: Database,
+): ContractorPortalChatAudienceReaderPort {
+  return {
+    async find(input) {
+      const found = await findPortalAudience(database, input)
+      if (found.kind !== 'available') return null
+      return {
+        occurrenceLabel: found.audience.occurrenceLabel,
+        users: found.audience.users,
+      }
+    },
+  }
+}
+
 function createTransactionPort(transaction: Transaction): ContractorPortalMessageTransactionPort {
   return {
     attachments: createConversationAttachmentTransactionPort(transaction),
-    async findAudience({ companyId, occurrenceId }) {
-      const item = await findTripOccurrenceFeedItem(transaction, { companyId, occurrenceId })
-      if (item === null) return { kind: 'not_found' }
-      /** O portal só mostra ocorrência de nota (164). */
-      if (item.source !== 'document') return { kind: 'unavailable' }
-      const audience = await findContractorPortalAudience(transaction, { companyId, occurrenceId })
-      if (audience === null) return { kind: 'unavailable' }
-      return {
-        audience: {
-          contractorId: audience.contractorId,
-          occurrenceKind: item.source,
-          occurrenceLabel: describeOccurrenceLabel(item),
-          userIds: audience.userIds,
-        },
-        kind: 'available',
-      }
-    },
+    findAudience: (input) => findPortalAudience(transaction, input),
 
     async findIdempotency({ companyId, idempotencyKey, operation }) {
       await acquireAdvisoryLock(transaction, [operation, companyId, idempotencyKey])

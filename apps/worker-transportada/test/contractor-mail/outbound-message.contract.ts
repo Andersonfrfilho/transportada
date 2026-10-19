@@ -20,7 +20,6 @@ import type {
   ContractorReplyForwardRecord,
   ContractorMailOutboundMessageRecord,
   ContractorMailOutboundSettingsRecord,
-  ContractorMailReferenceHeaders,
 } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
 
 const COMPANY_ID = crypto.randomUUID()
@@ -70,7 +69,7 @@ function buildDependencies(input: {
   readonly forward?: ContractorReplyForwardRecord | undefined
   readonly objects?: ReadonlyMap<string, Uint8Array>
   readonly message?: ContractorMailOutboundMessageRecord
-  readonly referenceHeaders?: ContractorMailReferenceHeaders
+  readonly referenceIds?: readonly string[]
   readonly sendEmail: SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
   readonly settings?: ContractorMailOutboundSettingsRecord
 }): {
@@ -115,8 +114,8 @@ function buildDependencies(input: {
       async findContractorReplyForward() {
         return input.forward
       },
-      async findLastInboundReferenceHeaders() {
-        return input.referenceHeaders
+      async listThreadReferenceIds() {
+        return input.referenceIds ?? []
       },
       async findMessageById({ companyId, messageId }) {
         return companyId === COMPANY_ID && messageId === MESSAGE_ID ? message : undefined
@@ -319,7 +318,7 @@ describe('send contractor mail outbound message (spec 143, T009 — correção p
       SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
     >[0][] = []
     const { dependencies } = buildDependencies({
-      referenceHeaders: { rfcMessageId: '<abc123@mail.example.com>' },
+      referenceIds: ['<abc123@mail.example.com>'],
       sendEmail: async (request) => {
         requests.push(request)
         return { id: 'resend-email-id-2' }
@@ -331,6 +330,27 @@ describe('send contractor mail outbound message (spec 143, T009 — correção p
     expect(requests[0]?.headers).toEqual({
       'In-Reply-To': '<abc123@mail.example.com>',
       References: '<abc123@mail.example.com>',
+    })
+  })
+
+  /** Spec 274 D7: a linha leva entrada e saída; `References` em ordem, `In-Reply-To` o mais novo. */
+  test('chains inbound and outbound ids into References and uses the latest as In-Reply-To', async () => {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const { dependencies } = buildDependencies({
+      referenceIds: ['<in1@x>', 'out1@resend.dev', '<in2@x>'],
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id-chain' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(requests[0]?.headers).toEqual({
+      'In-Reply-To': '<in2@x>',
+      References: '<in1@x> <out1@resend.dev> <in2@x>',
     })
   })
 
@@ -530,7 +550,7 @@ describe('o e-mail da conversa sai com os anexos (spec 183 T702e)', () => {
 })
 
 describe('o boleto levado a um terceiro sai sem thread de conversa (spec 248 T4.7)', () => {
-  const REFERENCE: ContractorMailReferenceHeaders = { rfcMessageId: '<contratante@mail.example>' }
+  const REFERENCE = '<contratante@mail.example>'
 
   async function sendAs(forward: ContractorReplyForwardRecord | undefined) {
     const requests: Parameters<
@@ -538,7 +558,7 @@ describe('o boleto levado a um terceiro sai sem thread de conversa (spec 248 T4.
     >[0][] = []
     const { dependencies, sentCalls } = buildDependencies({
       forward,
-      referenceHeaders: REFERENCE,
+      referenceIds: [REFERENCE],
       sendEmail: async (request) => {
         requests.push(request)
         return { id: 'resend-email-id' }
@@ -567,8 +587,8 @@ describe('o boleto levado a um terceiro sai sem thread de conversa (spec 248 T4.
     const { request } = await sendAs(undefined)
     expect(request?.replyTo?.endsWith(`@${SETTINGS.replyDomain}`)).toBe(true)
     expect(request?.headers).toEqual({
-      'In-Reply-To': REFERENCE.rfcMessageId,
-      References: REFERENCE.rfcMessageId,
+      'In-Reply-To': REFERENCE,
+      References: REFERENCE,
     })
   })
 

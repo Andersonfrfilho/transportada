@@ -27,6 +27,7 @@ import { assertCargoPreviewEmailIntake } from './cargo-preview-email-intake.asse
 import { assertArrivalReferenceLabel } from './contractor-receiving-arrival-reference-label.assertion.js'
 import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
+import { assertConversationEmailRead } from './conversation-email-read.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
 import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
 import { assertConversationSubject } from './conversation-subject.assertion.js'
@@ -439,6 +440,14 @@ describe('Drizzle migration integration', () => {
           userId: identityFixture.userId,
         })
         await assertConversationAudioTranscribeJob(database)
+        await assertConversationEmailRead({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
         await assertDeliveryProofProcessing({
           companyId: identityFixture.companyId,
           connectionString,

@@ -506,7 +506,10 @@ import { createOpenMySubjectConversationUseCase } from './occurrence-conversatio
 import { createDrizzleDriverSubjectUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation-subject.repository.js'
 import { createSendContractorPortalMessageUseCase } from './occurrence-conversation/application/contractor-portal-message.use-case.js'
 import { createContractorPortalNotifier } from './occurrence-conversation/infrastructure/contractor-portal-notifier.gateway.js'
-import { createDrizzleContractorPortalMessageUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
+import {
+  createDrizzleContractorPortalChatAudienceReader,
+  createDrizzleContractorPortalMessageUnitOfWork,
+} from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
 import { createQuickRepliesUseCase } from './occurrence-conversation/application/quick-replies.use-case.js'
 import { createDrizzleQuickRepliesUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-quick-replies.repository.js'
 import { createQuickReplyRoutes } from './occurrence-conversation/presentation/quick-replies.routes.js'
@@ -543,6 +546,9 @@ import {
   createSendDriverAppMessageUseCase,
 } from './occurrence-conversation/application/driver-conversation.use-case.js'
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
+import { createContractorPortalChatNotice } from './occurrence-conversation/application/contractor-portal-chat-notice.service.js'
+import { createSendOccurrenceChatMailUseCase } from './occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
+import type { ResolvedStandardEmailTemplate } from './occurrence-conversation/application/standard-email-renderer.port.js'
 import {
   createPublicRef,
   createSendOccurrenceMailUseCase,
@@ -932,6 +938,10 @@ import { createErrorTracker } from './observability/sentry.service'
 import { NOTIFICATION_DEFAULT_LOCALE } from './notification/notification.constant.js'
 import { createAutomaticManifestNotifier } from './mdfe-manifests/infrastructure/automatic-manifest-notifier.gateway.js'
 import type { AutomaticManifestNotifierPort } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case.js'
+import {
+  renderStandardEmail,
+  type StandardEmailTemplate,
+} from '@adatechnology/notification-contracts'
 import type { NotificationModule } from '@adatechnology/notification-module'
 import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
 import { NOTIFICATION_ROUTES_BASE_PATH } from './notification/notification.constant.js'
@@ -3546,6 +3556,7 @@ function createApplicationRoutes({
      * `occurrences.resolve` (o separador não alcança), com teto próprio no Postgres.
      */
     ...createOccurrenceConversationRoutes({
+      chatRateLimiter: new DrizzleRateLimiterRepository(database),
       listConversations: createListOccurrenceConversationsUseCase({
         reader: {
           findAttachments: (input) => readConversationAttachments(database, input),
@@ -3572,6 +3583,39 @@ function createApplicationRoutes({
         logger,
         reader: createOccurrenceMailReader(database),
         suggestedMail: createOccurrenceSuggestedMailReader(database),
+      }),
+      /**
+       * Spec 274 (ADR-0111): o chat por e-mail. O `renderer` é o `standardEmail.render` do `notification-module`
+       * (modelo da empresa ou o embutido, versão 0); o app só entrega texto, nunca HTML.
+       */
+      sendChatMail: createSendOccurrenceChatMailUseCase({
+        ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
+        ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
+        fingerprintService,
+        logger,
+        portalNotice: createContractorPortalChatNotice({
+          audienceReader: createDrizzleContractorPortalChatAudienceReader(database),
+          notifier: createContractorPortalNotifier({
+            logger,
+            send: (params) =>
+              notifications.useCases.sendNotification.execute({
+                ...params,
+                locale: NOTIFICATION_DEFAULT_LOCALE,
+              } as never),
+          }),
+        }),
+        renderer: {
+          render: ({ input, template }) =>
+            renderStandardEmail({ input, template: template as unknown as StandardEmailTemplate }),
+          resolve: async ({ companyId }) =>
+            (await notifications.standardEmail.resolveTemplate({
+              companyId,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            })) as unknown as ResolvedStandardEmailTemplate,
+        },
+        secretService: contractorMailCredentialSecretService,
+        storage: storageGateway,
+        unitOfWork: new DrizzleOccurrenceMailRepository(database),
       }),
       sendMail: createSendOccurrenceMailUseCase({
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),

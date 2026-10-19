@@ -19,7 +19,7 @@ export const CONVERSATION_STATUS_LADDERS: Readonly<
   Record<OccurrenceConversationChannel, readonly OccurrenceConversationMessageStatus[]>
 > = {
   app: ['queued', 'delivered', 'read'],
-  email: ['queued', 'sent', 'delivered'],
+  email: ['queued', 'sent', 'delivered', 'read'],
   portal: ['delivered', 'read'],
   whatsapp: ['queued', 'sent', 'delivered', 'read'],
 }
@@ -78,6 +78,14 @@ export function resendChannelFor(
   return message.channel === 'whatsapp' ? 'email' : null
 }
 
+/**
+ * Spec 274: a releitura automática do e-mail para em "entregue". A "lida" vem do pixel de abertura e pode nunca chegar
+ * (cliente que bloqueia imagem); esperar por ela relia a conversa para sempre.
+ */
+const POLLING_SETTLES_AT: Partial<Record<keyof typeof CONVERSATION_STATUS_LADDERS, string>> = {
+  email: 'delivered',
+}
+
 /** Alguma mensagem que sai ainda pode avançar na escada do canal dela. */
 export function hasPendingOutboundStatus(
   messages: readonly OccurrenceConversationMessage[],
@@ -85,7 +93,9 @@ export function hasPendingOutboundStatus(
   return messages.some((message) => {
     if (message.direction !== 'outbound' || message.status === null) return false
     if (isFailure(message.status)) return false
-    const ladder = CONVERSATION_STATUS_LADDERS[message.channel]
-    return ladder.indexOf(message.status) < ladder.length - 1
+    const ladder: readonly string[] = CONVERSATION_STATUS_LADDERS[message.channel]
+    const settled = POLLING_SETTLES_AT[message.channel]
+    const last = settled === undefined ? ladder.length - 1 : ladder.indexOf(settled)
+    return ladder.indexOf(message.status) < last
   })
 }

@@ -343,11 +343,6 @@ export const occurrenceConversationMessages = pgTable(
       'occurrence_conversation_messages_status_direction_check',
       sql`(${table.direction} = 'outbound') = (${table.status} is not null)`,
     ),
-    /** D7: o e-mail não tem confirmação de leitura, e o selo nunca mostra o que o canal não dá. */
-    check(
-      'occurrence_conversation_messages_email_never_read_check',
-      sql`${table.channel} <> 'email' or ${table.status} is null or ${table.status} <> 'read'`,
-    ),
     /** Portal: gravada é disponível — `delivered` ou `read`, nada antes nem de falha. */
     check(
       'occurrence_conversation_messages_portal_status_check',
