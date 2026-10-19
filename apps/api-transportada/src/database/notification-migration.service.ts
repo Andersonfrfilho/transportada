@@ -45,6 +45,7 @@ export async function runNotificationSchemaMigrations({
   try {
     await runNotificationMigrations({
       db: provider.db as never,
+      layout: 'v1',
       migrate: migrate as never,
     })
   } finally {

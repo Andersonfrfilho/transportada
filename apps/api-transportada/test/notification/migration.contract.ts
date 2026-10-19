@@ -2,6 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { describe, expect } from 'bun:test'
+import { readFile } from 'node:fs/promises'
+
+import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { NOTIFICATION_MIGRATIONS_TABLE } from '@adatechnology/notification-module'
+import { migrate } from 'drizzle-orm/bun-sql/migrator'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -22,6 +27,7 @@ import {
  * `public` não é tocado, e o rollback devolve o banco ao estado anterior.
  */
 const NOTIFICATION_TABLES = [
+  'category_policies',
   'deliveries',
   'devices',
   'notifications',
@@ -95,4 +101,58 @@ describe('Notification migration contract', () => {
     expect(NOTIFICATION_ROLLBACK_FILE).toMatch(/drizzle-notification\/rollback\.sql$/)
     expect(rollbackSql).toMatch(/drop schema (if exists )?"?notification"?/i)
   })
+
+  testWithPostgres('o serviço aplica as migrations do módulo no layout v1', async () => {
+    const source = await readFile(
+      new URL('../../src/database/notification-migration.service.ts', import.meta.url),
+      'utf8',
+    )
+
+    expect(source).toMatch(/layout:\s*'v1'/)
+  })
+
+  testWithPostgres(
+    'banco do rc.3 sobe para o 0.2.x aplicando só as duas migrations novas',
+    async () => {
+      await withDisposableDatabase(async (database, connectionString) => {
+        await runDatabaseMigrations({ connectionString })
+        const provider = createDrizzleProvider({
+          connection: { adapter: 'postgres', max: 1, url: connectionString },
+        })
+        try {
+          await migrate(provider.db as never, {
+            migrationsFolder: new URL('../fixtures/notification-migrations-rc3', import.meta.url)
+              .pathname,
+            migrationsTable: NOTIFICATION_MIGRATIONS_TABLE,
+          })
+        } finally {
+          await provider.close()
+        }
+        const readApplied = () =>
+          database.unsafe(
+            `select name from drizzle."${NOTIFICATION_MIGRATIONS_TABLE}" order by name`,
+          ) as Promise<Array<{ readonly name: string }>>
+        const atRc3 = (await readApplied()).map((row) => row.name)
+        expect(atRc3).toEqual([
+          '20260802053704_melodic_selene',
+          '20260802130118_jittery_raider',
+          '20260802131549_bizarre_dagger',
+        ])
+        expect(await readSchemaTables(database, NOTIFICATION_SCHEMA)).not.toContain(
+          'category_policies',
+        )
+
+        await runNotificationSchemaMigrations({ connectionString })
+
+        expect((await readApplied()).map((row) => row.name)).toEqual([
+          ...atRc3,
+          '20260824183059_silky_omega_sentinel',
+          '20260825123207_bright_shape',
+        ])
+        expect(await readSchemaTables(database, NOTIFICATION_SCHEMA)).toEqual([
+          ...NOTIFICATION_TABLES,
+        ])
+      })
+    },
+  )
 })
