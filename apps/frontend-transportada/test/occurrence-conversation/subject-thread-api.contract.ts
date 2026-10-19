@@ -12,6 +12,7 @@ import type { SubjectConversationClient } from '@/modules/occurrence-conversatio
 import type { OccurrenceConversationMessage } from '@/modules/occurrence-conversation/shared/occurrenceConversation.types'
 import { createSubjectThreadApi } from '@/modules/occurrence-conversation/shared/subjectThreadApi.service'
 import {
+  buildContractorThreadLabels,
   buildSubjectThreadLabels,
   SUBJECT_THREAD_LABEL_KEYS,
 } from '@/modules/occurrence-conversation/shared/subjectThreadLabels.service'
@@ -224,5 +225,45 @@ describe('o adaptador do fio do escritório (spec 263 T5.2-B)', () => {
     expect(theme).toMatch(/--cv-p-tick-read: /u)
     expect(theme).toMatch(/--cv-p-accent: var\(--color-copper-ink\)/u)
     expect(theme).toMatch(/--cv-p-radius: 0/u)
+  })
+})
+
+describe('spec 274: textos do composer e da fila na conversa da contratante', () => {
+  async function readLocale(file: string) {
+    const url = new URL(
+      `../../src/modules/occurrence-conversation/locales/${file}`,
+      import.meta.url,
+    )
+    return JSON.parse(await readFile(url, 'utf8')) as {
+      thread: Record<string, string>
+    }
+  }
+
+  test('a contratante tem rótulo, placeholder e fila próprios, diferentes do motorista', async () => {
+    const pt = await readLocale('occurrenceConversation.locale.json')
+    const translate = (key: string) => pt.thread[key.replace('thread.', '')] ?? key
+    const labels = buildContractorThreadLabels(translate)
+    expect(labels.messageInputLabel).toBe('Mensagem à contratante')
+    expect(labels.messageInputPlaceholder).toBe('Escreva à contratante (sai por e-mail)')
+    expect(labels.statusQueued).toBe('Na fila de envio')
+    expect(labels.statusQueued).not.toContain('rede')
+    expect(labels.messageInputLabel).not.toContain('motorista')
+  })
+
+  test('o fio do motorista segue com o texto do app (fila offline)', async () => {
+    const subject = await readLocale('subjectConversation.locale.json')
+    const labels = (subject as unknown as { thread: { labels: Record<string, string> } }).thread
+      .labels
+    expect(labels.messageInputLabel).toBe('Mensagem ao motorista')
+    expect(labels.statusQueued).toBe('Na fila · envia quando a rede voltar')
+  })
+
+  test('en espelha as chaves de pt', async () => {
+    const pt = await readLocale('occurrenceConversation.locale.json')
+    const en = await readLocale('occurrenceConversation.en.locale.json')
+    for (const key of ['contractorInputLabel', 'contractorInputPlaceholder', 'contractorQueued']) {
+      expect(pt.thread[key]).toBeString()
+      expect(en.thread[key]).toBeString()
+    }
   })
 })
