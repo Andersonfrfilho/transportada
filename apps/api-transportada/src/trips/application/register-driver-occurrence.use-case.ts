@@ -10,6 +10,7 @@
  * ativa dele, e quem o garante é a consulta, não a permissão.
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { resolveDriverOccurrenceTemplateKey } from '../domain/occurrence-notification.policy.js'
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { assessDriverOccurrence } from './driver-occurrence-assessment.service.js'
 import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
@@ -53,7 +54,7 @@ export async function registerDriverOccurrence(
    * arquitetura de 23/09). Reserva e escrita na **mesma transação** — o reenvio da fila offline
    * (Fase 3) não pode duplicar a ocorrência.
    */
-  return input.unitOfWork.execute((transaction) =>
+  const occurrence = await input.unitOfWork.execute((transaction) =>
     withFieldReport<DriverDocumentOccurrence>({
       guard: {
         actorUserId: input.actorUserId,
@@ -103,4 +104,24 @@ export async function registerDriverOccurrence(
         transaction.findDocumentOccurrenceById({ companyId: input.companyId, occurrenceId }),
     }),
   )
+
+  /**
+   * Spec 275 (D1): depois do commit, sempre — sem olhar `notifies`. O reenvio da mesma chave chega aqui de novo e a
+   * `dedupeKey` por ocorrência e destinatário segura a repetição. O aviso nunca derruba o registro (D6).
+   */
+  try {
+    await input.notifier?.notify({
+      companyId: input.companyId,
+      documentId: input.documentId,
+      occurrenceId: occurrence.id,
+      occurrenceTypeId: occurrenceType.id,
+      occurrenceTypeName: occurrenceType.name,
+      templateKey: resolveDriverOccurrenceTemplateKey(occurrenceType.emailTemplateKey),
+      tripId,
+    })
+  } catch {
+    // Engolido de propósito: a ocorrência já está gravada.
+  }
+
+  return occurrence
 }

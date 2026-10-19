@@ -329,7 +329,10 @@ import {
   listTripOccurrenceAttachmentLocations,
   listTripOccurrenceFeed,
 } from './trips/infrastructure/trip-occurrence-feed.query.js'
+import { createDriverOccurrenceNotifier } from './trips/application/driver-occurrence-notifier.service.js'
+import type { DriverOccurrenceNotifierPort } from './trips/application/driver-occurrence-notifier.service.js'
 import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
+import { createDriverOccurrenceNotificationReader } from './trips/infrastructure/driver-occurrence-notification.query.js'
 import { createStopOccurrenceNotifier } from './trips/infrastructure/stop-occurrence-notifier.gateway.js'
 import {
   findDeliveryProofsByTrip,
@@ -1129,6 +1132,19 @@ export function bootstrap(): Bun.Server<undefined> {
     ...(notificationQueue === undefined ? {} : { queue: notificationQueue }),
     whatsappDriver,
   })
+  /**
+   * Spec 275: o aviso interno da ocorrência que o motorista registra numa nota — app e WhatsApp, sempre, para os
+   * responsáveis (267/271) e quem despachou. Reverte o "sem notificador" da 079.
+   */
+  const driverOccurrenceNotifier = createDriverOccurrenceNotifier({
+    logger,
+    reader: createDriverOccurrenceNotificationReader(database.db),
+    send: (params) =>
+      notifications.useCases.sendNotification.execute({
+        ...params,
+        locale: NOTIFICATION_DEFAULT_LOCALE,
+      } as never),
+  })
   const automaticManifestNotifier = createAutomaticManifestNotifier({
     database: database.db,
     logger,
@@ -1207,6 +1223,7 @@ export function bootstrap(): Bun.Server<undefined> {
           findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
         },
+        notifier: driverOccurrenceNotifier,
         unitOfWork: whatsappDriverFieldReports,
       })
       /** Spec 183 T802: depois do commit, o aviso automático do tipo (se ligado). */
@@ -1671,6 +1688,7 @@ export function bootstrap(): Bun.Server<undefined> {
         apiPublicUrl: config.apiPublicUrl,
         appBaseUrl: config.appBaseUrl,
         automaticOccurrenceMail,
+        driverOccurrenceNotifier,
         sendAutomaticOccurrenceMail,
         automaticManifestNotifier,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
@@ -2008,6 +2026,8 @@ function createAnonymousRoutes({
 type CreateApplicationRoutesParams = {
   /** Spec 183 T802: o aviso automático à contratante, chamado depois de cada registro. */
   readonly automaticOccurrenceMail: AutomaticOccurrenceMailHook
+  /** Spec 275: o aviso interno da ocorrência do motorista, o mesmo do WhatsApp. */
+  readonly driverOccurrenceNotifier: DriverOccurrenceNotifierPort
   /** Spec 248 T4.4b: o mesmo caso de uso, pela porta do robô da varredura. */
   readonly sendAutomaticOccurrenceMail: ReturnType<typeof createSendAutomaticOccurrenceMailUseCase>
   /** Endereço público desta instalação. Ausente, a foto é gravada e o atributo do realm não. */
@@ -2095,6 +2115,7 @@ function createApplicationRoutes({
   apiPublicUrl,
   appBaseUrl,
   automaticOccurrenceMail,
+  driverOccurrenceNotifier,
   sendAutomaticOccurrenceMail,
   automaticManifestNotifier,
   cargoLayoutTimeBudgetMs,
@@ -4106,10 +4127,10 @@ function createApplicationRoutes({
       startFieldTrip: (input) =>
         startFieldTrip({ ...input, repository: currentDriverTripRepository }),
       /**
-       * Spec 079: o motorista registra a ocorrência do celular. **Sem notificador**: quem despachou
-       * a viagem é justamente quem receberia o aviso, e ele não precisa ser avisado de algo que o
-       * motorista acabou de contar por rádio. O aviso configurável é do registro feito no
-       * escritório.
+       * Spec 079: o motorista registra a ocorrência do celular. A spec 275 reverteu o "sem notificador" da 079: o
+       * registro do app **é** o relato (ninguém conta por rádio), e quem trata a ocorrência nem sempre é quem
+       * despachou. O aviso interno sai sempre, para os responsáveis (267/271) e quem despachou — sem olhar
+       * `notifies`, que segue sendo a escolha do registro do escritório.
        */
       registerDriverOccurrence: async (input) => {
         const occurrence = await registerDriverOccurrence({
@@ -4126,6 +4147,7 @@ function createApplicationRoutes({
             findReachableDocument: (query) => findDriverReachableDocument(database, query),
             listDocumentProducts: (query) => listDocumentProducts(database, query),
           },
+          notifier: driverOccurrenceNotifier,
           unitOfWork: driverFieldReports,
         })
         /** Spec 183 T802: o aviso automático à contratante é do tipo, não do canal de registro. */

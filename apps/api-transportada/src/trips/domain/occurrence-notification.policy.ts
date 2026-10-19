@@ -59,3 +59,27 @@ export function resolveOccurrenceNotification(input: {
     templateKey: input.templateKey ?? NOTIFICATION_TEMPLATE_KEY.TRIP_DELIVERY_OCCURRENCE,
   }
 }
+
+/**
+ * Spec 275 (D1/D3): a ocorrência que o **motorista** registra numa nota avisa sempre — sem olhar `notifies`, que é a
+ * escolha do registro do escritório. O template é o mesmo da 079: o do tipo, senão o legado.
+ */
+export function resolveDriverOccurrenceTemplateKey(emailTemplateKey: null | string): string {
+  return emailTemplateKey ?? NOTIFICATION_TEMPLATE_KEY.TRIP_DELIVERY_OCCURRENCE
+}
+
+/**
+ * Spec 275 (D2): os responsáveis (já a lista efetiva da 267/271) mais quem despachou, sem duplicar. Sem lista, só quem
+ * despachou; sem os dois, ninguém.
+ */
+export function resolveDriverOccurrenceRecipients(input: {
+  readonly dispatcherUserId: null | string
+  readonly watcherUserIds: readonly string[]
+}): readonly string[] {
+  return [
+    ...new Set([
+      ...input.watcherUserIds,
+      ...(input.dispatcherUserId === null ? [] : [input.dispatcherUserId]),
+    ]),
+  ]
+}
