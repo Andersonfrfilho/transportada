@@ -3,8 +3,9 @@
  *
  * Spec 274 T3.6 (ADR-0111, D5/D6/D11), contra Postgres real: o chat da contratante grava o e-mail, a mensagem da
  * conversa `queued` e a versão do modelo padrão (0 = embutido; a da empresa quando o renderer a devolve). A segunda
- * chamada com a mesma chave não duplica. O renderer do SDK é um dublê da porta do app (o pacote ainda não está ligado).
+ * chamada com a mesma chave não duplica. Os casos de renderer usam o `StandardEmailService` REAL do pacote (sem dublê); os demais, um dublê da porta.
  */
+import { StandardEmailService, TemplateRepository } from '@adatechnology/notification-module'
 import { describe, expect } from 'bun:test'
 import { eq } from 'drizzle-orm'
 
@@ -15,6 +16,7 @@ import {
 } from '../../src/database/database.schema.js'
 import { createSendOccurrenceChatMailUseCase } from '../../src/occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
 import type { StandardEmailRendered } from '../../src/occurrence-conversation/application/standard-email-renderer.port.js'
+import { OCCURRENCE_MAIL_PRODUCT_SIGNATURE } from '../../src/occurrence-conversation/domain/occurrence-mail-html.constant.js'
 import { OccurrenceConversationIdempotencyKeyReusedError } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import { DrizzleOccurrenceMailRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
 import {
@@ -38,14 +40,24 @@ function render(version: number, source: 'builtin' | 'company'): StandardEmailRe
   }
 }
 
-function createUseCase(database: TestDatabase, rendered: StandardEmailRendered) {
+function createUseCase(database: TestDatabase, rendered: StandardEmailRendered | undefined) {
   return createSendOccurrenceChatMailUseCase({
     fingerprintService: {
       create: async ({ fields, operation }) =>
         `${operation}|${fields.map((field) => new TextDecoder().decode(field)).join('|')}`,
     },
     now: () => new Date('2026-10-19T12:00:00.000Z'),
-    renderer: { render: async () => rendered },
+    renderer:
+      rendered === undefined
+        ? {
+            render: ({ companyId, input }) =>
+              new StandardEmailService(new TemplateRepository(database.db as never)).render({
+                companyId,
+                input,
+                locale: 'pt-BR',
+              }),
+          }
+        : { render: async () => rendered },
     secretService: {
       decrypt: async () => ({ apiKey: 're_test', replyTokenSecret: 'c'.repeat(64) }),
     } as never,
@@ -161,6 +173,27 @@ describe('o chat da contratante contra Postgres (spec 274 T3.6)', () => {
         expect(rows).toHaveLength(2)
         expect(rows[1]?.subject).toBe(rows[0]?.subject ?? '')
         expect(rows[1]?.subject).not.toMatch(/^Re:/iu)
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'com o renderer real do SDK e sem linha da chave: versão 0, texto escapado e rodapé no HTML',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+
+        await send(createUseCase(database, undefined), seeded, {
+          bodyText: 'Segue <b>a nota</b> & o canhoto.',
+        })
+
+        const rows = await stored(database, seeded)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({ key: TEMPLATE_KEY, version: 0 })
+        expect(rows[0]?.bodyHtml).toContain('Segue &lt;b&gt;a nota&lt;/b&gt; &amp; o canhoto.')
+        expect(rows[0]?.bodyHtml).not.toContain('<b>a nota</b>')
+        expect(rows[0]?.bodyHtml).toContain(OCCURRENCE_MAIL_PRODUCT_SIGNATURE)
       })
     },
     TEST_TIMEOUT_MS,

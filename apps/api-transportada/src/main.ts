@@ -3579,9 +3579,8 @@ function createApplicationRoutes({
         suggestedMail: createOccurrenceSuggestedMailReader(database),
       }),
       /**
-       * Spec 274 (ADR-0111): o chat por e-mail. TODO(T3.1): ligar `renderer` ao `standardEmail.render` do
-       * `notification-module` quando o pacote 0.2.0 for publicado e fixado; sem ele a variante `mode: 'chat'`
-       * responde 503 `OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED` (nunca um HTML montado aqui).
+       * Spec 274 (ADR-0111): o chat por e-mail. O `renderer` é o `standardEmail.render` do `notification-module`
+       * (modelo da empresa ou o embutido, versão 0); o app só entrega texto, nunca HTML.
        */
       sendChatMail: createSendOccurrenceChatMailUseCase({
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
@@ -3599,6 +3598,14 @@ function createApplicationRoutes({
               } as never),
           }),
         }),
+        renderer: {
+          render: ({ companyId, input }) =>
+            notifications.standardEmail.render({
+              companyId,
+              input,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            }),
+        },
         secretService: contractorMailCredentialSecretService,
         storage: storageGateway,
         unitOfWork: new DrizzleOccurrenceMailRepository(database),
