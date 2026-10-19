@@ -7,13 +7,13 @@
 
 ## Specs do mesmo assunto (lidas contra o código em `origin/staging` f8e5a7a, 2026-10-19)
 
-| Spec | O que já decidiu e esta spec **usa sem refazer** (ou reverte/emenda, marcado) |
-| ---- | ----------------------------------------------------------------------------- |
+| Spec | O que já decidiu e esta spec **usa sem refazer** (ou reverte/emenda, marcado)                                                                                                                                                                                                                                                                                                                         |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 079  | Aviso interno da ocorrência de nota: `resolveOccurrenceNotification` (só com `notifies = true`), template `email_template_key` do tipo ou `trip.delivery-occurrence`, destinatário = quem despachou (`trip_dispatch_snapshots.actor_user_id`, último despacho), falha engolida (`notifyOccurrence`). **Reverte** só o "sem notificador" da rota do motorista. O caminho do escritório fica como está. |
-| 156  | Lote do escritório avisa por nota com `notifyOccurrence`; `dedupeKey` com a nota por id (M4). Não muda. |
-| 183  | T802: aviso automático à contratante (`automaticOccurrenceMail.announce`) depois do registro, em todo canal. Não muda; o aviso interno é outro trilho. |
-| 267  | RF3 — lista efetiva de responsáveis (vínculo ativo, `occurrences.resolve`, com e-mail, sem duplicata). **Usa** a regra inteira (`resolveEffectiveWatchers`). **Emenda** o "fora do escopo: sino para os responsáveis": vale para a ocorrência do motorista em nota. |
-| 271  | D10/D11 — lista do tipo vence a da contratante, que vence a da empresa (`loadEffectiveWatcherCandidates`). **Usa.** `email_template_key` continua sendo o aviso interno (271 § tabela). |
+| 156  | Lote do escritório avisa por nota com `notifyOccurrence`; `dedupeKey` com a nota por id (M4). Não muda.                                                                                                                                                                                                                                                                                               |
+| 183  | T802: aviso automático à contratante (`automaticOccurrenceMail.announce`) depois do registro, em todo canal. Não muda; o aviso interno é outro trilho.                                                                                                                                                                                                                                                |
+| 267  | RF3 — lista efetiva de responsáveis (vínculo ativo, `occurrences.resolve`, com e-mail, sem duplicata). **Usa** a regra inteira (`resolveEffectiveWatchers`). **Emenda** o "fora do escopo: sino para os responsáveis": vale para a ocorrência do motorista em nota.                                                                                                                                   |
+| 271  | D10/D11 — lista do tipo vence a da contratante, que vence a da empresa (`loadEffectiveWatcherCandidates`). **Usa.** `email_template_key` continua sendo o aviso interno (271 § tabela).                                                                                                                                                                                                               |
 
 ## Problema
 

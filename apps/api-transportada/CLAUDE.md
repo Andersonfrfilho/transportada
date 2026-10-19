@@ -1115,6 +1115,13 @@ correção devolvem `cc: [{ userId, name, maskedEmail }]` e `ccSource`; o histó
 A correção de endereço não tem caminho `sandbox_smtp` (268): continua exigindo o Resend. Detalhe: `docs/ai-context/api-transportada.md`.
 Contratos: `test/contractor-mail/occurrence-watcher*.contract.ts`, `test/integration/occurrence-watchers-*.integration.ts`.
 
+**O aviso da ocorrência do motorista chega ao painel (spec 275).** A ocorrência que o motorista registra numa nota (app e
+WhatsApp, o mesmo `registerDriverOccurrence`) avisa **sempre**, sem olhar `notifies`: caixa de entrada dos responsáveis (a
+lista efetiva acima, tipo > contratante > empresa) **∪** quem despachou, sem duplicar, com `dedupeKey`
+`<template>:<ocorrência>:<destinatário>` (o único do módulo é `(company_id, dedupe_key)`). Reverte o "sem notificador" da 079;
+o escritório e a parada não mudam. `driver-occurrence-notifier.service.ts`; contratos em
+`test/trip-occurrence/driver-notification.contract.ts`.
+
 ## O modelo do e-mail da ocorrência vem do módulo de notificação (spec 271, ADR-0108)
 
 Substitui o desenho da 269 (modelo `occurrence` do cadastro da 150, escolhido por id no tipo e na exceção): **um lugar só** para escrever

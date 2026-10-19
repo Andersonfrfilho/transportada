@@ -3906,3 +3906,25 @@ a 183 RF14, a 263 T5.2-C e a ADR-0073 (aviso do portal).
   `listOccurrenceTypesForNote` pela nota do contexto do fluxo; no 422 a conversa avisa e volta à lista de tipos.
 - **Fora:** o recebimento de carga (tipos seed-only, momentos `[]`, sempre `all`) e a parada.
 - **Publicação em etapas (ADR-0081 §9):** painel tolerante (Fase 1) → API → editor → passo de dados da Spani (Fase 6, do dono).
+
+## O aviso da ocorrência do motorista chega ao painel (spec 275, 2026-10-19)
+
+- **O que mudou:** `registerDriverOccurrence` ganhou `notifier?` e, depois do commit, chama `notify` com ids e o template
+  (`resolveDriverOccurrenceTemplateKey`: `email_template_key` do tipo, senão `trip.delivery-occurrence`). Sem olhar
+  `notifies` — essa flag segue sendo só do registro do escritório (`notifyOccurrence`). App (`/me`) e WhatsApp passam o mesmo
+  `driverOccurrenceNotifier`, montado no `bootstrap` de `main.ts`.
+- **Quem recebe:** `createDriverOccurrenceNotifier` (`trips/application/driver-occurrence-notifier.service.ts`) lê o último
+  despacho, a contratante da nota (`findDocumentOccurrenceSubject`), as três listas (`loadEffectiveWatcherCandidates`, agora com
+  `contractorId` nulo = nota sem contratante cadastrada → tipo > empresa) e os rótulos; aplica `resolveEffectiveWatchers` (267 RF3,
+  sem regra nova) e soma o despachante (`resolveDriverOccurrenceRecipients`). Leitor Drizzle em
+  `trips/infrastructure/driver-occurrence-notification.query.ts`.
+- **Idempotência:** o índice `idx_notifications_dedupe` do módulo é único em `(company_id, dedupe_key)`, então a chave leva o
+  destinatário (`<template>:<ocorrência>:<usuário>`); o reenvio da fila offline do app volta a chamar `notify` e o módulo devolve
+  `deduplicated`.
+- **Falha:** `allSettled` por destinatário; `driver_occurrence_notification_partial` (contagens + mensagem do primeiro erro) e
+  `driver_occurrence_notification_failed` (leitura). Nunca nome nem endereço.
+- ⚠️ **Medido na integração:** o `sendNotification` cria a linha em `notification.notifications` e **depois** lança
+  "Destinatário sem endereço utilizável para este canal" quando o usuário não tem perfil com contato — o aviso fica gravado,
+  e o `warn` parcial aparece. Usuário real do painel tem perfil; dublê de integração precisa semear `identity_user_profiles`.
+- **Testes:** `test/trip-occurrence/driver-notification.contract.ts` (caso de uso, serviço e a ligação no `main.ts`) e
+  `test/integration/driver-occurrence-notification.integration.ts` (Postgres + migrations do módulo).
