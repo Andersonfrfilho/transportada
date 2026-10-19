@@ -54,3 +54,11 @@ módulo de notificação) para os responsáveis por ocorrências **e** para quem
 4. O mesmo vale pelo WhatsApp.
 5. O notificador falha → a ocorrência é gravada e a resposta é a de sempre.
 6. O registro pelo escritório continua avisando só quem despachou e só com `notifies = true`.
+
+## Continuação — RF-L: o clique abre a tela (2026-10-19)
+
+- **RF-L1** Clicar num aviso em `/notificacoes` leva à ocorrência (`/ocorrencias/:id`) quando o payload traz a ocorrência; senão
+  à viagem (`/trips/:id`) quando traz só a viagem; sem id válido, não navega (aviso antigo só marca lida, como antes).
+- **RF-L2** O aviso do motorista (D1–D6) passa a gravar `tripId`, `occurrenceId` e `documentId` no payload — ids opacos, sem PII.
+- **RF-L3** O destino é decidido por um resolvedor puro no painel, que trata o payload como dado externo: só id em formato
+  de UUID vira rota.

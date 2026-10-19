@@ -48,3 +48,27 @@ despachou. Reverte a 079 ("sem notificador").
 ## Gates
 
 `bun run typecheck` limpo · `bun run lint` limpo (`--max-warnings=0`) · `bun run format:check` (raiz) limpo.
+
+## Continuação RF-L — decisão da rota
+
+- **Rota escolhida: `/ocorrencias/:occurrenceId`** (`TripOccurrenceDetailPage`, spec 183 P1; `buildTripOccurrenceRoute`).
+  É o deep link que já existe para a ocorrência, é o destino que a timeline da viagem já usa, e abre o registro do motorista sem
+  precisar de foco em nota/parada (o detalhe da viagem `/trips/:id` não lê parâmetro de ocorrência). Fallback: `/trips/:tripId`.
+- O módulo de notificação aceita chaves de payload fora dos marcadores do modelo: `UnknownTemplateVariablesError` é do
+  salvamento de modelo, não do envio, e `occurrence-resolution-notifier` e `driver-conversation-notifier` já mandam ids extras.
+- Pacote `notification-ui` 0.2.0: ver T6 sobre marcar como lida.
+
+## Continuação RF-L — painel (T6)
+
+- `notification-ui` 0.2.0: o item já chama `markAsRead` ao clicar e só então `onSelect`; o painel só navega (sem duplicar).
+- `resolveNotificationTarget` (puro, por payload, UUID validado): `occurrenceId` ou `subjectType=occurrence`+`subjectId` →
+  `/ocorrencias/:id`; só `tripId` → `/trips/:id`; resto → sem navegação. Contrato em
+  `test/notification/notification-target.contract.ts` (via `test/notification.contract.test.ts`, já na lista do `test`).
+- **Ganham destino:** `trip.delivery-occurrence` do motorista (agora com ids), `trip.occurrence-resolved` (`subjectId`),
+  `trip.occurrence-reopened` (`occurrenceId`/`tripId`), `trip.subject-conversation-message` e
+  `trip.conversation-message` quando de ocorrência (`subjectId`/`subjectType`).
+- **Sem destino (payload sem id; não alterado agora):** `trip.delivery-occurrence` do escritório/079 e aviso de despacho,
+  ocorrência de parada 082 (`long-wait`, `dock-closed`, `unexpected-charge`, `appointment-required`),
+  `contractor-reply-overdue`, `mdfe.manifest-issuance-failed`, `cte.batch-issuance-failed`, `nfse.invoice-rejected`,
+  `billing.invoice-due`, avisos antigos já gravados.
+- Gates: api `typecheck`/`lint`/`test` (12413 pass, 0 fail) · painel `typecheck`, `lint` (0 erros, 16 warnings pré-existentes), `test` (1407 pass, 0 fail) · prettier limpo. Integração não tocada (não confere payload).

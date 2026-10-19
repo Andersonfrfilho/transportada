@@ -147,6 +147,7 @@ describe('o registro do motorista avisa o painel (spec 275)', () => {
 type Sent = {
   readonly dedupeKey: string
   readonly recipientUserId: string
+  readonly payload: object
   readonly templateKey: string
 }
 
@@ -185,6 +186,7 @@ function notifierWith(input: {
       if (params.recipientUserId === input.failFor) throw new Error('recusado')
       sent.push({
         dedupeKey: params.dedupeKey,
+        payload: params.payload,
         recipientUserId: params.recipientUserId,
         templateKey: params.templateKey,
       })
@@ -226,6 +228,19 @@ describe('quem recebe o aviso do motorista (spec 275 D2/D5/D6)', () => {
     const { notifier, sent } = notifierWith({})
     await notifier.notify(NOTIFICATION)
     expect(sent.map((item) => item.recipientUserId)).toEqual([BETO])
+  })
+
+  test('o payload leva os ids opacos que o painel usa para abrir a ocorrência, e nenhum dado pessoal', async () => {
+    const { notifier, sent } = notifierWith({})
+    await notifier.notify(NOTIFICATION)
+    expect(sent[0]?.payload).toEqual({
+      documentId: DOCUMENT,
+      documentLabel: expect.any(String),
+      occurrenceId: OCCURRENCE,
+      occurrenceType: 'Cliente ausente',
+      stopLabel: expect.any(String),
+      tripId: TRIP,
+    })
   })
 
   test('responsável sem e-mail ou inativo fica fora (a lista efetiva da 267)', async () => {
