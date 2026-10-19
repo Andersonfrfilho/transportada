@@ -9,8 +9,12 @@ export type CompanyUserJobTitleResult =
 
 /** Quebras de linha e tabulação viram espaço antes de sair o resto: `a\nb` é dois nomes, não `ab`. */
 const LINE_BREAK_OR_TAB_PATTERN = /[\t\n\v\f\r\u2028\u2029]/gu
-/** Controle e marcas bidi (que reordenam a frase na tela) não têm lugar num cargo. */
-const CONTROL_OR_BIDI_PATTERN = /[\p{Cc}‪-‮⁦-⁩]/gu
+/**
+ * Controle, marcas bidi (que reordenam a frase na tela) e caracteres invisíveis de largura zero (que escondem
+ * o que foi digitado) não têm lugar num cargo.
+ */
+const CONTROL_OR_BIDI_PATTERN =
+  /[\p{Cc}\u{061c}\u{200b}-\u{200f}\u{202a}-\u{202e}\u{2066}-\u{2069}\u{feff}]/gu
 const WHITESPACE_RUN_PATTERN = /\s+/gu
 
 export function normalizeCompanyUserJobTitle(

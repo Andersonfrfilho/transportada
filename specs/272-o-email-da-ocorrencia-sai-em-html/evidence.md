@@ -703,6 +703,37 @@ contrato (Trojan Source) → trocados por escapes na T2.1.
 Aceite: `grep -n "Status:\*\* aceita" docs/adr/0110-o-email-da-ocorrencia-sai-em-html.md` → linha 3.
 `bunx prettier --check` nos quatro documentos → limpo.
 
+### T2.1 — Migrations do logo embutido e do cargo, política do cargo (2026-10-18)
+
+Fecha o WIP `727d6dbe1` (feito antes da formatação da máquina, sem gates). Executor `haiku`, sem escalada.
+
+- **Migrations** (aditivas): `20261018173511_contractor_mail_message_inline_logo` (`has_inline_logo boolean not null
+default false` + CHECK `contractor_mail_messages_has_inline_logo_direction_check`: `not has_inline_logo or direction =
+'outbound'`, opcional adotado na T0.3) e `20261018173526_user_company_membership_job_title` (`job_title varchar(80)`
+  nula + CHECK `char_length 1..80`). `rollback.sql` de cada uma no molde (`lock_timeout`, guarda do journal). Schemas
+  Drizzle da API conferem; o espelho do worker só declara a coluna `hasInlineLogo` (`direction` já existia).
+  `snapshot.json` das duas com o CHECK novo; pai `20261017041702`, o mesmo da 273.
+- **Política do cargo** `company-user-job-title.policy.ts`: tira controle, quebra de linha, bidi (U+202A–U+202E,
+  U+2066–U+2069) e, por ajuste da T0.3, U+200B–U+200F, U+061C e U+FEFF; apara; vazio → `null`; 80 aceito, 81 recusado
+  (conta por `[...s].length`, coerente com `char_length`). **Trojan Source corrigido:** o WIP tinha os caracteres bidi
+  **literais** no fonte da política e do contrato; viraram escapes `\u{...}` (`grep -nP` sem nenhum literal).
+- **Teste antes:** a política e o contrato entraram juntos no WIP, então não há prova de vermelho para os casos
+  originais. Os 7 casos novos (U+200E, U+200F, U+061C, U+200B, U+200C, U+200D, U+FEFF) deram **7 fail / 26 pass** antes
+  do ajuste da política e **33 pass / 0 fail** depois.
+- `test/database-migration/static-migration.contract.ts`: as duas pastas novas entraram na lista exata de migrations
+  (o `make migration-test` acusou a falta: 1 fail / 225 pass antes, 226 pass / 0 fail depois).
+
+Gates (cwd `apps/api-transportada`, salvo dito):
+
+- `bun run typecheck` → exit 0; worker `bun run typecheck` → exit 0.
+- `bun --env-file=../../.env.test test ./test/user-administration-application.contract.test.ts` → 168 pass / 0 fail.
+- `make migration-test ENV_FILE=.env.test` (raiz) → 226 pass / 0 fail, 8 arquivos.
+- `bun run db:generate` → `{"status":"no_changes"}`.
+- Ciclo manual em banco descartável no Postgres do `.env.test` (o `db:test` não exercita rollback de migration sem
+  asserção própria): aplica (`job_title`=1, `has_inline_logo`=1, CHECK=1, journal=2) → os dois `rollback.sql` em ordem
+  inversa (tudo 0) → reaplica (tudo de volta). `pg_get_constraintdef` confere os dois CHECKs.
+- `bunx eslint` e `bunx prettier --check` nos arquivos TS tocados → limpos.
+
 ## Prompt de execução
 
 O prompt vigente está em `tasks.md` § Prompt de execução (uma cópia só; a daqui divergia). Revisões anteriores
@@ -710,4 +741,4 @@ no histórico do git.
 
 ## Onde parou (2026-10-18)
 
-T0.3 fechada (ADR-0110 aceita). Próxima: **T2.1** (fechar o WIP `727d6dbe1`).
+T0.3 e T2.1 fechadas. Próxima: **T2.2** (renderer, regras de HTML inseguro, parte texto).

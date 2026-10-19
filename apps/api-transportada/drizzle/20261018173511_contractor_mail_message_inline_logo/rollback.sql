@@ -5,6 +5,8 @@ BEGIN;
 
 SET LOCAL lock_timeout = '3s';
 
+ALTER TABLE "contractor_mail_messages" DROP CONSTRAINT IF EXISTS "contractor_mail_messages_has_inline_logo_direction_check";
+
 ALTER TABLE "contractor_mail_messages" DROP COLUMN "has_inline_logo";
 
 DO $$

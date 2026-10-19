@@ -70220,6 +70220,13 @@
       "table": "contractor_mail_messages"
     },
     {
+      "value": "not \"has_inline_logo\" or \"direction\" = 'outbound'",
+      "name": "contractor_mail_messages_has_inline_logo_direction_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_messages"
+    },
+    {
       "value": "\"event_type\" in ('message.send.requested')",
       "name": "contractor_mail_outbox_event_type_check",
       "entityType": "checks",

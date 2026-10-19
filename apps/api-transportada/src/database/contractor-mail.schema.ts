@@ -631,6 +631,10 @@ export const contractorMailMessages = pgTable(
       'contractor_mail_messages_body_html_size_check',
       sql`octet_length(${table.bodyHtml}) <= 524288`,
     ),
+    check(
+      'contractor_mail_messages_has_inline_logo_direction_check',
+      sql`not ${table.hasInlineLogo} or ${table.direction} = 'outbound'`,
+    ),
   ],
 )
 

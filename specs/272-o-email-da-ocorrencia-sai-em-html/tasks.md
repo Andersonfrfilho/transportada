@@ -46,7 +46,7 @@
 
 > 🤖 Modelo: `sonnet` (T2.1 → `haiku`)
 
-- [ ] **T2.1** `haiku` — Dados: migration aditiva `contractor_mail_message_inline_logo` (`has_inline_logo boolean not
+- [x] **T2.1** `haiku` — Dados: migration aditiva `contractor_mail_message_inline_logo` (`has_inline_logo boolean not
 null default false`) e migration aditiva `user_company_membership_job_title` (`job_title varchar(80)` nula + CHECK
       `1..80`), schemas Drizzle (API; espelho de `has_inline_logo` e `direction` no worker), `rollback.sql` de cada uma;
       teste antes e política pura `company-user-job-title.policy.ts` (tabela de casos: quebra de linha, controle, bidi
