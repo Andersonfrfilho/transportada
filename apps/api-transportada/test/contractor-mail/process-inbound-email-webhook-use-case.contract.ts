@@ -409,6 +409,23 @@ describe('status do Resend no webhook (spec 183 T405)', () => {
     expect(applied.map((entry) => entry.incoming)).toEqual(['sent', 'delivered'])
   })
 
+  test('message_id inválido (espaço, quebra de linha, colchete interno, acima de 255) não é gravado; o status segue (segurança M2)', async () => {
+    const { applied, execute, rfcMessageIds } = buildUseCase({ withStatusPort: true })
+
+    for (const invalid of [
+      '<a b@x>',
+      '<a@x>\r\nBcc: evil@x.test',
+      '<a<b@x>',
+      `<${'z'.repeat(256)}>`,
+    ]) {
+      await execute('email.sent', invalid)
+    }
+    await execute('email.sent', `<${'z'.repeat(255)}>`)
+
+    expect(rfcMessageIds.map((record) => record.rfcMessageId)).toEqual([`<${'z'.repeat(255)}>`])
+    expect(applied).toHaveLength(5)
+  })
+
   test('sem a porta de status, o evento de status segue ignorado como antes', async () => {
     const { applied, execute } = buildUseCase({ withStatusPort: false })
 

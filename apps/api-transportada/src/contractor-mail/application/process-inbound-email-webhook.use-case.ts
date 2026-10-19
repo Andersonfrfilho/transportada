@@ -43,10 +43,17 @@ const RFC_MESSAGE_ID_EVENT_TYPES: ReadonlySet<string> = new Set([
   'email.sent',
 ])
 
-/** O `Message-ID` vai sempre entre `<…>`, na gravação e na montagem. */
+/**
+ * O `Message-ID` vai sempre entre `<…>`, na gravação e na montagem. Spec 274 (segurança M2): o id vira cabeçalho de
+ * e-mail depois, então só entra o que não tem espaço, quebra de linha nem colchete interno e cabe em 255 — inválido
+ * não é gravado (o status do evento segue). O worker confere o mesmo padrão ao montar.
+ */
+const RFC_MESSAGE_ID_REGEX = /^<[^\s<>\r\n]{1,255}>$/u
+
 function normalizeRfcMessageId(value: string): string | undefined {
   const inner = value.trim().replace(/^<+/u, '').replace(/>+$/u, '').trim()
-  return inner === '' ? undefined : `<${inner}>`
+  const normalized = `<${inner}>`
+  return RFC_MESSAGE_ID_REGEX.test(normalized) ? normalized : undefined
 }
 
 function isOccurrenceMailStatusEventType(type: string): type is OccurrenceMailStatusEventType {
