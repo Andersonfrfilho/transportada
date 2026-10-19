@@ -3752,7 +3752,7 @@ colunas dela só saem na migration B (Fase 6, destrutiva, com aprovação).
   `notification.templates` (o `templates` exportado do pacote é de outra instância do drizzle-orm), versão ativa mais alta, `email`, `pt-BR`.
   O worker lê pela mesma forma, com o mesmo `HTML_BODY_PATTERN`.
 - **Política pura:** `occurrence-contractor-template.policy.ts` (`assessContractorTemplate`: problemas em ordem fixa; `blocksContractorMailSend`
-  bloqueia só `not_found`/`html_body`/`empty_subject` — variável desconhecida sai vazia), `occurrence-contractor-mail-render.policy.ts`
+  bloqueia `not_found`/`unsafe_html`/`missing_message_area`/`empty_subject` (272) — variável desconhecida sai vazia), `occurrence-contractor-mail-render.policy.ts`
   (assunto numa linha, teto; corpo encurta `linhasItens` antes de truncar), `occurrence-contractor-recipients.policy.ts` (D13),
   `occurrence-watcher.policy.ts` (`typeWatchers`, origem `occurrence_type`). Valores: `buildContractorMailValues` (`trips/domain`).
 - **Gravação (`saveOccurrenceType`, uma transação):** tipo travado `FOR UPDATE` e "antes" lido → linha/carimbo → momentos → escopo (270, que
@@ -3772,6 +3772,64 @@ colunas dela só saem na migration B (Fase 6, destrutiva, com aprovação).
   `test/integration/occurrence-type-contractor-{template,watchers,recipients}.integration.ts`, `occurrence-mail-template.integration.ts`.
 - **Publicação em etapas (ADR-0081 §9):** painel tolerante (269 T1.1–T1.3, 270 T1.1, 271 T1.1–T1.2) → API+worker com a migration A (269+270+271
   juntas) → telas → migration B.
+
+## E-mail da ocorrência em HTML (spec 272, ADR-0110)
+
+A 272 emenda a ADR-0108 §3 e a D5 da 271: o corpo HTML deixa de ser recusado (era `html_body`). Recusa-se só o que é ativo
+(`unsafe_html`) e o modelo sem área (`missing_message_area`). O desenho é do modelo; a API não monta layout. Decisões e
+justificativas: `docs/adr/0110-o-email-da-ocorrencia-sai-em-html.md`; evidência: `specs/272-o-email-da-ocorrencia-sai-em-html/evidence.md`.
+
+- **Modelos versionados (§13):** `src/occurrence-conversation/occurrence-mail-templates/{prorrogacao-boleto,avaria,devolucao,entrega-nao-realizada,recusa}.html`.
+  Assunto em `<!-- subject: … -->` na linha 1; a área `<!-- mensagem -->…<!-- /mensagem -->` é o padrão do texto (o operador edita só ela).
+  `tabelaItens` fica fora da área. Publicação: `scripts/occurrence-mail-templates-publish.ts` (`application/occurrence-mail-templates-publish.service.ts`),
+  chave `ocorrencia.<arquivo>`, canal `email`, `pt-BR`; valida com `assessContractorTemplate` (um inválido → nada gravado, código 1); plano
+  `create`/`same`/`differs`; `--confirm` aplica só `create`; `differs` só com `--overwrite <chave>`. Grava por `TemplateRepository` do pacote
+  (INSERT com `max(version)+1`, `active: true`). Imprime só chave, versão e veredito. Rodar em staging/produção: aprovação humana.
+- **Variáveis (§5):** `OCCURRENCE_CONTRACTOR_MAIL_VARIABLES` (texto escapado) — `nomeExibicao`, `cnpjTransportadora`, `cnpjContratante` (CNPJ ou CPF, vazio
+  sem documento), `assinaturaNome`, `assinaturaCargo`, `assinaturaIniciais`, `cidadeTransportadora`, `razaoSocialTransportadora`, mais as de 271.
+  HTML do sistema (`OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES`, sem escape): `logoTransportadora` (`<img src="cid:company-logo">` com logo, iniciais sem
+  logo), `tabelaItens` (até 200 linhas, "e mais N itens", "Total dos itens" pela soma da 247), `marcasRodape` (`APP_BASE_URL` + `/icons/icon-192.png`
+  e `/icons/ada-technology.png`; sem a variável, só o texto), `faixaResposta` (só com `Reply-To`). Montadas por `occurrence-mail-system-html.policy.ts` (`buildOccurrenceMailSystemHtml`, `hasInlineLogo` = há logo). Catálogo: `occurrence-contractor-mail.constant.ts`,
+  espelhado no painel (`occurrenceTypeMailTemplate.service.ts`, locales).
+- **Renderer (§3):** `occurrence-mail-html-render.policy.ts` — uma passada; só `{{nome}}` do modelo troca, pelo valor escapado (`escapeMailHtml`);
+  valor por `Object.hasOwn`; decisão de escapar é pelo nome da chave. `has_inline_logo` = modelo usa `{{logoTransportadora}}` **e** há logo. Acima de
+  `OCCURRENCE_MAIL_HTML_MAX_BYTES` (524288, CHECK `body_html_size_check`) é problema do modelo (409 no manual; "sem modelo" no automático).
+- **Segurança (§2):** `occurrence-mail-html-safety.policy.ts` — tags (`script|iframe|form|object|embed`), eventos (`on*=`), esquema
+  (`javascript:`/`vbscript:` numa cópia com entidades numéricas e `&colon;`/`&tab;`/`&newline;` decodificadas e `[ - ]` removidos) e
+  placeholder em tag (`<[^>]*\{\{`). Tabela `OCCURRENCE_MAIL_UNSAFE_HTML_CASES` (35 casos `{ html, name, rules, worker }`); o contrato exige
+  que todo `bloqueia` seja inseguro na API. Cópias: painel (`emailHtml.validation.ts`, `emailHtmlUnsafeCases.constant.ts`) e worker (filtro grosso).
+  Chave de HTML do sistema dentro da área → `unsafe_html`.
+- **Texto (§4):** `occurrence-mail-plain-text.policy.ts` (`htmlToPlainText`): tira comentários (inclusive os marcadores), `head`, `style`, `title`;
+  quebras de bloco; entidades numa passada só com `&amp;` por último. Vira `body_text` de `contractor_mail_messages` (parte `text/plain`).
+  A conversa (`occurrence_conversation_messages.body_text`, CHECK ≤ 8000) e o `bodyText` de entrada levam o texto **da área**, nunca o do HTML.
+- **Envio manual (§12):** `occurrence-mail-html-compose.policy.ts` (`composeOccurrenceMailHtml`, usada por envio, prévia e automático). Texto igual
+  ao gerado → área do modelo; editado → texto escapado em parágrafos, inserido depois da renderização. Modelo sem área → 409. A prévia devolve o
+  texto da área e o `html` inteiro. A prévia "Como chega" foi adiada.
+- **Automático:** usa sempre a área do modelo; `OccurrenceMailSigner` pela porta `OccurrenceOwnerReader` (`findEligibleOwner`, nula até a 273),
+  senão equipe. Reenvio da 248: caminho de texto, com prefixo e "De" novos.
+- **Assinante e cargo (§6, §10, §11):** `occurrence-mail-signer.policy.ts` (`resolveSignerJobTitle({ jobTitle, directRoles })`: cargo, senão rótulo do
+  papel). `COMPANY_ROLE_LABELS` (`satisfies Record<CompanyRole, string>`, cópia de `identity.locale.json`; paridade por contrato). Só papéis diretos,
+  o primeiro na ordem de `COMPANY_ROLES`. O assinante não é gravado na mensagem.
+- **Cargo (`job_title`):** `user_company_memberships.job_title varchar(80)` nula, CHECK `1..80`, migration `20261018173526_user_company_membership_job_title`.
+  Política `identity/domain/company-user-job-title.policy.ts` (sem controle, bidi, invisíveis; apara; vazio → `null`; 80 aceito, 81 recusado).
+  `PATCH /company-users/:id` aceita `jobTitle` (string ≤ 80 ou `null`; ausente não altera), grava por `UPDATE … WHERE user_id AND company_id`
+  (`companyId` do contexto). Só `jobTitle` não chama o Keycloak. Sem auditoria, como o perfil; fora de log. Não há OpenAPI nesta API: o contrato
+  é `identity/presentation/user-administration.schema.ts` (`.strict()`). Testes: `test/user-administration-http/job-title.contract.ts`,
+  `test/user-administration-application/job-title-update.contract.ts`, `test/integration/company-user-job-title.integration.ts`.
+- **Assunto (§7):** `occurrence-mail-subject.policy.ts` — `<nome de exibição> · CNPJ <cnpj> — ` + o assunto do modelo cortado em `200 − tamanho(prefixo)`;
+  nome de exibição colapsado e cortado em 80 no prefixo; `applySubjectPrefix` é idempotente (reenvio da 248 não ganha segundo prefixo).
+- **"De" (§8):** `occurrence-mail-sender-name.policy.ts` (`buildSenderDisplayName`, `SENDER_DISPLAY_NAME_CASES` com 29 casos e
+  `SENDER_DISPLAY_NAME_MAX` = 200). Equipe → nome de exibição; pessoa → `<nome> — <nome de exibição>`. Remove controles, U+2028/2029, bidi, invisíveis
+  de largura zero e `<>"\,;`. Gravado em `from_display_name`. O worker reaplica o mesmo saneamento só em `outbound` não nulo.
+- **Logo (§9):** `contractor_mail_messages.has_inline_logo boolean not null default false`, CHECK `not has_inline_logo or direction = 'outbound'`
+  (migration `20261018173511_contractor_mail_message_inline_logo`). O worker anexa a parte inline. Rejeitados: `/public/landing-logo`, rota anônima
+  por empresa, `data:`.
+- **Testes:** `test/occurrence-contractor-mail/mail-templates-files.contract.ts` (forma dos cinco arquivos, sem `display:grid|flex`, `var(`,
+  `<script`, `@import`); `test/integration/occurrence-mail-templates-publish.integration.ts` (Postgres descartável, sem skip);
+  `test/integration/occurrence-mail-html-send.integration.ts` (manual/automático, HTML/texto, Resend/sandbox, 200 itens);
+  `test/integration/occurrence-mail-reads.integration.ts`; agregador `test/occurrence-contractor-mail.contract.test.ts`.
+- **Publicação (§14):** API e worker no mesmo PR e no mesmo run (`deploy-api` → `deploy-services`); nos minutos entre os dois, o worker velho manda
+  o HTML sem a parte inline e o "De" antigo. Worker fora do run = parar e perguntar.
 
 ## O escopo de contratantes do tipo (spec 270, ADR-0107)
 

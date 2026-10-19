@@ -878,3 +878,19 @@ Contrato: `test/contractor-mail/sandbox-outbound.contract.ts`, `test/contractor-
   menos quem está no `to`) e recusa `to + cc > 50` antes do ramo do transporte; Resend e sandbox recebem `cc` só quando não vazio.
 - Gateway do Resend: cada endereço do `cc` passa pela mesma validação do `to` (sem `\r \n , < >`) e o teto vale para a soma.
 - Gateway SMTP do sandbox: `cc` vai ao nodemailer; sem `Reply-To` (268), a resposta de um responsável não volta (aceito).
+
+## O logo embutido e o remetente do e-mail da ocorrência (spec 272, ADR-0110 §8–§9)
+
+- **Entrada:** `contractor_mail_messages.has_inline_logo` (CHECK: só `outbound`) e `from_display_name`, gravados pela API. O worker lê
+  os dois em `drizzle-contractor-mail-outbound-worker.repository.ts`; `from_display_name` nulo mantém o comportamento de antes.
+- **Logo:** `drizzle-company-logo.reader.ts` lê `company_logos` filtrando pela `company_id` da **mensagem**, nunca pela da configuração.
+  A parte inline sai com `content_id: 'company-logo'` no Resend e `cid: 'company-logo'` no nodemailer do sandbox. Sem logo: envia sem a
+  parte (o `alt` aparece) e loga `contractor_mail_inline_logo_missing` só com `messageId` e motivo.
+- **"De":** `sender-display-name.policy.ts` reaplica o saneamento da API (`SENDER_DISPLAY_NAME_CASES`, 29 casos, contrato de paridade).
+  Resend: `"Nome" <endereço>`, nome cru em UTF-8. Sandbox: `{ name, address }`. Só em `outbound` não nulo, nos dois transportes.
+- **Fila do automático** (`drizzle-occurrence-automatic-mail-queue.repository.ts`): o filtro SQL trocou `body !~ HTML_BODY_PATTERN` por
+  `body !~* UNSAFE_EMAIL_HTML_PATTERN` (`occurrence-automatic-mail-sweep.constant.ts`): tags `script|iframe|form|object|embed`, `on*=`,
+  `javascript:`/`vbscript:` literais e placeholder em tag. Usa `\y` porque `\b` é backspace no POSIX. É grosso e **nunca mais estrito que a
+  API** (não decodifica entidade): o que ele deixa passar a API recusa e pula sem gravar idempotência, e a ocorrência volta a cada varredura
+  até sair da janela (aceito, ADR §2). Os 35 casos da tabela da API rodam contra o Postgres com a coluna `worker`.
+- **Deploy:** API e worker no mesmo run; na janela entre os dois, o worker velho manda o HTML sem a parte inline e o "De" antigo.
