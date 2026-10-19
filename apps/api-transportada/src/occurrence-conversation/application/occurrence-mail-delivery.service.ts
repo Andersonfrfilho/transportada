@@ -88,11 +88,14 @@ export async function findMailReplay(params: {
   readonly companyId: string
   readonly fingerprint: string
   readonly idempotencyKey: string
+  /** Spec 274: a operação do chat; ausente, a do diálogo. */
+  readonly operation?: string
   readonly transaction: OccurrenceMailTransactionPort
 }): Promise<null | SendOccurrenceMailResult> {
   const replay = await params.transaction.findIdempotency({
     companyId: params.companyId,
     idempotencyKey: params.idempotencyKey,
+    ...(params.operation === undefined ? {} : { operation: params.operation }),
   })
   if (replay === null) return null
   if (replay.fingerprint !== params.fingerprint) {
@@ -333,6 +336,7 @@ export function saveMailReplay(params: {
   readonly companyId: string
   readonly fingerprint: string
   readonly idempotencyKey: string
+  readonly operation?: string
   readonly response: SendOccurrenceMailResult
   readonly transaction: OccurrenceMailTransactionPort
 }): Promise<void> {
@@ -340,6 +344,7 @@ export function saveMailReplay(params: {
     companyId: params.companyId,
     fingerprint: params.fingerprint,
     idempotencyKey: params.idempotencyKey,
+    ...(params.operation === undefined ? {} : { operation: params.operation }),
     response: params.response,
   })
 }

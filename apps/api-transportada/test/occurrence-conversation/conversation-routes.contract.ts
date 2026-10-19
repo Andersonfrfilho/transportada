@@ -58,7 +58,7 @@ function createFixture(params: {
     if (params.error !== undefined) throw params.error
     return name === 'list'
       ? VIEW
-      : name === 'send'
+      : name === 'send' || name === 'sendChat'
         ? {
             conversationId: CONVERSATION_ID,
             conversationMessageId: 'message-1',
@@ -105,6 +105,7 @@ function createFixture(params: {
       sendPortal: { send: record('sendPortal') as never },
       previewMail: { preview: record('preview') as never },
       requestUpload: { request: record('requestUpload') as never },
+      sendChatMail: { send: record('sendChat') as never },
       sendMail: { send: record('send') as never },
     }),
     tenantContext: { resolveCompany: async () => context },
@@ -147,6 +148,79 @@ const MAIL_BODY = {
   contactIds: ['00000000-0000-4000-8000-000000183503'],
   subject: 'Ocorrência — NF 4512',
 }
+
+const CHAT_BODY = {
+  attachmentIds: [],
+  body: '  Boa tarde, segue a nota.  ',
+  channel: 'email',
+  mode: 'chat',
+}
+
+describe('POST .../contractor/messages, variante chat (spec 274 D5)', () => {
+  test('envia pelo caso de uso do chat, com o texto aparado, a chave e a correlação, e responde 202', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(sendRequest(CHAT_BODY))
+
+    expect(response.status).toBe(202)
+    expect(fixture.calls).toEqual([
+      {
+        input: {
+          actorUserId: COMPANY_CONTEXT.userId,
+          attachmentIds: [],
+          bodyText: 'Boa tarde, segue a nota.',
+          companyId: COMPANY_CONTEXT.companyId,
+          correlationId: 'trip-http-correlation',
+          idempotencyKey: 'conversation-key-0001',
+          occurrenceId: OCCURRENCE_ID,
+        },
+        name: 'sendChat',
+      },
+    ])
+    expect(Object.keys(((await response.json()) as { data: object }).data).sort()).toEqual([
+      'conversationId',
+      'conversationMessageId',
+      'mailMessageId',
+      'recipientCount',
+      'threadId',
+    ])
+  })
+
+  test('o schema é estrito: destinatário, assunto ou cópia do cliente, corpo vazio ou acima de 8000 é 400', async () => {
+    const fixture = createFixture({})
+    for (const extra of [
+      { contactIds: ['00000000-0000-4000-8000-000000183503'] },
+      { subject: 'x' },
+      { excludedWatcherUserIds: [] },
+      { cc: ['x@example.test'] },
+    ]) {
+      expect((await fixture.handle(sendRequest({ ...CHAT_BODY, ...extra }))).status).toBe(400)
+    }
+    expect((await fixture.handle(sendRequest({ ...CHAT_BODY, body: '   ' }))).status).toBe(400)
+    expect(
+      (await fixture.handle(sendRequest({ ...CHAT_BODY, body: 'x'.repeat(8001) }))).status,
+    ).toBe(400)
+    expect((await fixture.handle(sendRequest(CHAT_BODY, {}))).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('o diálogo continua recusando `mode` (spec 183 estrita)', async () => {
+    const fixture = createFixture({})
+    expect((await fixture.handle(sendRequest({ ...MAIL_BODY, mode: 'chat' }))).status).toBe(400)
+    expect((await fixture.handle(sendRequest({ ...MAIL_BODY, mode: 'dialog' }))).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('sem occurrences.resolve é 403 e ocorrência de outra empresa é 404', async () => {
+    const reader = createFixture({ permissions: new Set(['fleet.read'] as const) })
+    expect((await reader.handle(sendRequest(CHAT_BODY))).status).toBe(403)
+    expect(reader.calls).toEqual([])
+
+    const missing = createFixture({ error: new TripOccurrenceNotFoundError() })
+    const response = await missing.handle(sendRequest(CHAT_BODY))
+    expect(response.status).toBe(404)
+    expect((await responseApiError(response)).code).toBe('TRIP_OCCURRENCE_NOT_FOUND')
+  })
+})
 
 describe('GET /trip-occurrences/:id/conversations (spec 183 T404)', () => {
   test('com fleet.read lista as conversas do usuário do contexto, sem cache', async () => {

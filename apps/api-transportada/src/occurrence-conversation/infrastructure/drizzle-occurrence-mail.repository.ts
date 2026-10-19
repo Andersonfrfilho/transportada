@@ -116,6 +116,52 @@ async function findOccurrenceTarget(
   }
 }
 
+const FORWARD_TARGETS_SQL = sql`('note_recipient_email', 'informed_email')`
+
+/**
+ * Spec 274 (D6): o assunto do último e-mail de saída da ocorrência, sem o encaminhamento da 248 (mesma exclusão da
+ * cadeia de referências do worker), mais o tipo e o número da nota para o assunto de abertura.
+ */
+async function findChatMailSubjectFacts(
+  queryable: TripQueryable,
+  params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  },
+): Promise<{
+  readonly invoiceNumber: null | string
+  readonly lastOutboundSubject: null | string
+  readonly typeName: string
+}> {
+  const item = await findTripOccurrenceFeedItem(queryable, {
+    companyId: params.companyId,
+    occurrenceId: params.occurrenceId,
+  })
+  const rows = (await queryable.execute(
+    sql`select m.subject from contractor_mail_messages m
+        join contractor_mail_threads t on t.company_id = m.company_id and t.id = m.thread_id
+        where m.company_id = ${params.companyId}::uuid
+          and m.direction = 'outbound'
+          and t.subject_type = ${OCCURRENCE_THREAD_SUBJECT_TYPE[params.occurrenceKind]}
+          and t.subject_id = ${params.occurrenceId}::uuid
+          and not exists (
+            select 1 from occurrence_contractor_reply_deliveries d
+            where d.company_id = m.company_id
+              and d.mail_message_id = m.id
+              and d.target in ${FORWARD_TARGETS_SQL}
+          )
+        order by m.created_at desc, m.id desc
+        limit 1`,
+  )) as readonly Record<string, unknown>[]
+  const subject = rows[0]?.subject
+  return {
+    invoiceNumber: item?.invoiceNumber ?? null,
+    lastOutboundSubject: typeof subject === 'string' && subject.trim() !== '' ? subject : null,
+    typeName: item?.typeName ?? '',
+  }
+}
+
 async function listOccurrenceRecipients(
   queryable: TripQueryable,
   params: { readonly companyId: string; readonly contractorId: string },
@@ -685,6 +731,14 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     return findOccurrenceNotificationTemplate(this.transaction, params)
   }
 
+  public findChatMailSubjectFacts(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  }) {
+    return findChatMailSubjectFacts(this.transaction, params)
+  }
+
   public findOriginalOccurrenceNotificationTemplate(params: {
     readonly companyId: string
     readonly occurrenceId: string
@@ -724,9 +778,11 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
   public async findIdempotency(params: {
     readonly companyId: string
     readonly idempotencyKey: string
+    readonly operation?: string
   }): Promise<OccurrenceMailIdempotencyRecord | null> {
+    const operation = params.operation ?? SEND_OCCURRENCE_MAIL_OPERATION
     await acquireAdvisoryLock(this.transaction, [
-      SEND_OCCURRENCE_MAIL_OPERATION,
+      operation,
       params.companyId,
       params.idempotencyKey,
     ])
@@ -739,7 +795,7 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
       .where(
         and(
           eq(idempotencyRecords.companyId, params.companyId),
-          eq(idempotencyRecords.operation, SEND_OCCURRENCE_MAIL_OPERATION),
+          eq(idempotencyRecords.operation, operation),
           eq(idempotencyRecords.idempotencyKey, params.idempotencyKey),
         ),
       )
@@ -752,12 +808,13 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     readonly companyId: string
     readonly fingerprint: string
     readonly idempotencyKey: string
+    readonly operation?: string
     readonly response: SendOccurrenceMailResult
   }): Promise<void> {
     await this.transaction.insert(idempotencyRecords).values({
       companyId: params.companyId,
       idempotencyKey: params.idempotencyKey,
-      operation: SEND_OCCURRENCE_MAIL_OPERATION,
+      operation: params.operation ?? SEND_OCCURRENCE_MAIL_OPERATION,
       requestFingerprint: params.fingerprint,
       response: params.response,
       status: 'succeeded',

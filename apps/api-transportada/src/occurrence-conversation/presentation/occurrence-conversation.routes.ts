@@ -38,6 +38,7 @@ import type {
 import type { createSendContractorPortalMessageUseCase } from '../application/contractor-portal-message.use-case.js'
 import type { createSendDriverAppMessageUseCase } from '../application/driver-conversation.use-case.js'
 import type { createRequestOccurrenceConversationUploadUseCase } from '../application/occurrence-conversation-upload.use-case.js'
+import type { SendOccurrenceChatMailUseCase } from '../application/send-occurrence-chat-mail.use-case.js'
 import type { SendOccurrenceMailUseCase } from '../application/send-occurrence-mail.use-case.js'
 import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
 import { OccurrenceConversationChannelUnavailableError } from '../domain/occurrence-conversation.error.js'
@@ -94,6 +95,19 @@ const mailMessageSchema = z
   })
   .strict()
 
+/**
+ * Spec 274 (D5): o chat da contratante por e-mail. O operador manda só o texto (1..8000 depois do `trim`) e os anexos;
+ * destinatários, assunto, assinante e modelo são do servidor — por isso nenhum deles cabe aqui (`.strict()` → 400).
+ */
+const chatMailMessageSchema = z
+  .object({
+    attachmentIds: conversationAttachmentIdsSchema,
+    body: z.string().trim().min(1).max(OCCURRENCE_MAIL_LIMITS.body),
+    channel: z.literal('email'),
+    mode: z.literal('chat'),
+  })
+  .strict()
+
 /** Spec 183 T601 (RF11): ao motorista pelo app — o texto e, desde a T702a, os anexos. */
 const appMessageSchema = z
   .object({
@@ -133,6 +147,8 @@ export type OccurrenceConversationRoutesDependencies = {
     ReturnType<typeof createRequestOccurrenceConversationUploadUseCase>,
     'request'
   >
+  /** Spec 274: o chat por e-mail; ausente, a variante `mode: 'chat'` responde como canal indisponível. */
+  readonly sendChatMail?: SendOccurrenceChatMailUseCase
   readonly sendMail: SendOccurrenceMailUseCase
   /** Spec 183 T601: ao motorista pelo app. */
   readonly sendDriverApp: Pick<ReturnType<typeof createSendDriverAppMessageUseCase>, 'send'>
@@ -168,6 +184,14 @@ type SendInput =
   | {
       readonly attachmentIds: readonly string[]
       readonly bodyText: string
+      readonly correlationId: string
+      readonly idempotencyKey: string
+      readonly kind: 'chat'
+      readonly occurrenceId: string
+    }
+  | {
+      readonly attachmentIds: readonly string[]
+      readonly bodyText: string
       readonly forwardAttachmentIds?: readonly string[]
       readonly idempotencyKey: string
       readonly kind: 'app' | 'portal'
@@ -196,6 +220,21 @@ export function createOccurrenceConversationRoutes(
     }),
     defineRoute<SendInput>({
       async handle({ context, input }): Promise<Response> {
+        if (input.kind === 'chat') {
+          if (dependencies.sendChatMail === undefined) {
+            throw new OccurrenceConversationChannelUnavailableError()
+          }
+          const result = await dependencies.sendChatMail.send({
+            actorUserId: context.scope.userId,
+            attachmentIds: input.attachmentIds,
+            bodyText: input.bodyText,
+            companyId: context.scope.companyId,
+            correlationId: input.correlationId,
+            idempotencyKey: input.idempotencyKey,
+            occurrenceId: input.occurrenceId,
+          })
+          return jsonResponse({ data: result }, 202)
+        }
         if (input.kind !== 'mail') {
           const request = {
             actorUserId: context.scope.userId,
@@ -239,6 +278,19 @@ export function createOccurrenceConversationRoutes(
          * (T601). WhatsApp espera os modelos da Meta (T503).
          */
         if (participant === 'contractor' && raw.channel === 'email') {
+          /** Spec 274: o desvio é pelo `mode`, antes do `.strict()` do diálogo, que continua recusando `mode`. */
+          if (raw.mode === 'chat') {
+            const chat = chatMailMessageSchema.safeParse(raw)
+            if (!chat.success) throw invalidRequest()
+            return {
+              attachmentIds: chat.data.attachmentIds ?? [],
+              bodyText: chat.data.body,
+              correlationId,
+              idempotencyKey,
+              kind: 'chat' as const,
+              occurrenceId,
+            }
+          }
           const body = mailMessageSchema.safeParse(raw)
           if (!body.success) throw invalidRequest()
           return {

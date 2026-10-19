@@ -506,7 +506,10 @@ import { createOpenMySubjectConversationUseCase } from './occurrence-conversatio
 import { createDrizzleDriverSubjectUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation-subject.repository.js'
 import { createSendContractorPortalMessageUseCase } from './occurrence-conversation/application/contractor-portal-message.use-case.js'
 import { createContractorPortalNotifier } from './occurrence-conversation/infrastructure/contractor-portal-notifier.gateway.js'
-import { createDrizzleContractorPortalMessageUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
+import {
+  createDrizzleContractorPortalChatAudienceReader,
+  createDrizzleContractorPortalMessageUnitOfWork,
+} from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
 import { createQuickRepliesUseCase } from './occurrence-conversation/application/quick-replies.use-case.js'
 import { createDrizzleQuickRepliesUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-quick-replies.repository.js'
 import { createQuickReplyRoutes } from './occurrence-conversation/presentation/quick-replies.routes.js'
@@ -543,6 +546,8 @@ import {
   createSendDriverAppMessageUseCase,
 } from './occurrence-conversation/application/driver-conversation.use-case.js'
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
+import { createContractorPortalChatNotice } from './occurrence-conversation/application/contractor-portal-chat-notice.service.js'
+import { createSendOccurrenceChatMailUseCase } from './occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
 import {
   createPublicRef,
   createSendOccurrenceMailUseCase,
@@ -3572,6 +3577,31 @@ function createApplicationRoutes({
         logger,
         reader: createOccurrenceMailReader(database),
         suggestedMail: createOccurrenceSuggestedMailReader(database),
+      }),
+      /**
+       * Spec 274 (ADR-0111): o chat por e-mail. TODO(T3.1): ligar `renderer` ao `standardEmail.render` do
+       * `notification-module` quando o pacote 0.2.0 for publicado e fixado; sem ele a variante `mode: 'chat'`
+       * responde 503 `OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED` (nunca um HTML montado aqui).
+       */
+      sendChatMail: createSendOccurrenceChatMailUseCase({
+        ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
+        ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
+        fingerprintService,
+        logger,
+        portalNotice: createContractorPortalChatNotice({
+          audienceReader: createDrizzleContractorPortalChatAudienceReader(database),
+          notifier: createContractorPortalNotifier({
+            logger,
+            send: (params) =>
+              notifications.useCases.sendNotification.execute({
+                ...params,
+                locale: NOTIFICATION_DEFAULT_LOCALE,
+              } as never),
+          }),
+        }),
+        secretService: contractorMailCredentialSecretService,
+        storage: storageGateway,
+        unitOfWork: new DrizzleOccurrenceMailRepository(database),
       }),
       sendMail: createSendOccurrenceMailUseCase({
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
