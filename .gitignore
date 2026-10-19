@@ -25,11 +25,9 @@ tmp/
 
 # XML fiscal real usado como insumo de pesquisa — CNPJ, IE e chave de acesso de terceiros
 specs/*/samples/
-# Estado operacional do OMC é descartável, mas `.omc/skills/` é exceção declarada no CLAUDE.md:
-# skill de escopo de projeto se versiona. O git não desce em diretório ignorado, então a
-# negação só funciona com `.omc/*` — `.omc/` sozinho tornaria a exceção inalcançável.
-.omc/*
-!.omc/skills/
+# Estado operacional do OMC é descartável. Skill de escopo de projeto se versiona em
+# `.claude/skills/<nome>/SKILL.md`, onde o Claude Code a carrega sem depender do OMC.
+.omc/
 .omo/
 deploy/osrm/data/
 !deploy/osrm/data/.gitkeep
