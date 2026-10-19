@@ -334,9 +334,47 @@ pelo autor do modelo); B3 (aviso na tela quando a versão ativa é inutilizável
 Gates finais locais: API contrato 12391 / 0, integrações de e-mail 105 / 0 / 0 skip, `make migration-test` 231 / 0; worker
 2741 / 0 e `make worker-integration` 354 / 0 / 4 skip; painel 8420 + 1407 / 0. A integração completa da API roda na CI.
 
-## Onde parou
+### T6.2/T6.3 — Staging (2026-10-19)
 
-Fases 1–5 e T6.1 fechadas. Próxima: **T6.2** (PR para `staging`, autorizado pelo dono) e **T6.3** (verificação em staging no navegador). Pendentes: T6.4 (rastreio de abertura no Resend, aprovação) e T6.5 (produção, aprovação).
+- **Publicação.** O PR #270 foi mergeado em `staging` antes da CI (15:47); o deploy dele (`9705ffc`) falhou no
+  `gate / integration` por uma **corrida real** no cadastro do modelo (`standard-email-template-seed.integration.ts`: duas
+  chamadas concorrentes → 2 linhas; o `ensureTemplate` do SDK 0.2.2 grava `max(version)+1`). O deploy seguinte (`411a758`,
+  #268 das skills, que contém a 274) passou por sorte de tempo e publicou a 274. Correções: no host, cadastro por empresa
+  numa transação com `pg_advisory_xact_lock` (PR #271, `4c247dc`; sem a trava 2 de 3 rodadas vermelhas com 5 chamadas, com
+  ela 20/20); no SDK, `notification-module` **0.2.3** (`ensureTemplate` grava a versão 1 → a corrida vira 23505, PR #145). O
+  deploy do #271 falhou uma vez por timeout de 300 s num teste da 267 (runner travado no incidente do GitHub Actions
+  "Degraded availability for GitHub Actions, GitHub Pages and Webhooks" de 2026-10-19); rerun dos jobs falhos → verde.
+  PR #272 (`f8e5a7a`, textos) com CI verde antes do merge. **Staging em `f8e5a7a`** (`/health/live`).
+- **Verificado no navegador (Chrome do dono, sessão logada), por texto:**
+  - `/notificacoes/preferencias`: `notification.standard-email` **v1 cadastrada pelo pré-deploy**, selo "Modelo do sistema",
+    sem "Remover"; editor com a dica "Moldura de todo e-mail enviado pelo sistema…", **sem campo de assunto**, prévia em
+    `<iframe sandbox="">`, botão "Restaurar padrão" (não acionado).
+  - Ocorrência `8b24e898…` (Prorrogação do boleto, sem portal): o aviso "O portal da contratante não está aberto…" sumiu;
+    composer da contratante aberto; mensagem "Teste do chat por e-mail (spec 274)…" enviada → **"Enviada"**.
+  - **Mailpit de staging** (`5zdMoZ7muNfbPX2YODV0Mq`, 17:06:48 UTC): "De" `anderson fernandes r filho — TAPETE MAGICO
+TRANSPORTADORA`; assunto = o do último e-mail de saída (D6); corpo no **modelo padrão do SDK**: logo inline
+    (`logo.png`, `cid=company-logo`), nome da empresa, só o texto do chat, assinatura `AF · anderson fernandes r filho ·
+Administrador`, rodapé "Enviado pelo TransportAdA — uma solução Ada Technology" com as marcas do `APP_BASE_URL`; zero
+    `{{` e zero `<script`.
+  - **Defeito achado e corrigido (PR #272):** o composer da contratante usava os rótulos do motorista ("Mensagem ao
+    motorista") e a fila dizia "envia quando a rede voltar"; agora "Mensagem à contratante", "Escreva à contratante (sai por
+    e-mail)", "Na fila de envio" — conferido no bundle `index-C9mQ-4_O.js` depois de atualizar o service worker (a PWA serviu
+    o bundle anterior até o `update()`). Print final da conversa: `/tmp/claude-chrome-screenshots-diWLqq/screenshot-1792431906671-0.jpg`.
+
+### Pendências (não bloqueiam staging)
+
+1. **Encadeamento no sandbox:** o e-mail do chat saiu sem `In-Reply-To`/`References` porque, no sandbox, o `Message-ID` das
+   mensagens de saída nunca é gravado (vem do `email.sent` do Resend, que o Mailpit não tem). Com o Resend real funciona.
+   Melhoria: gravar o `Message-ID` que o nodemailer gera no envio sandbox.
+2. **"Entregue" e "Lida"** só com o Resend real; "Lida" depende do rastreio de abertura no domínio (T6.4, CNAME +
+   aprovação do dono).
+3. **Subir o `notification-module` para 0.2.3** no TransportAdA (a trava do host fica como defesa).
+4. Segurança B2 (`<base>`/`<meta>`/`<link>`/`data:` no modelo, só pelo autor) e B3 (aviso na tela quando a versão ativa é
+   inutilizável).
+5. O print de revisão `spec-183-portal-channel.smoke.spec.ts` (fora da CI) ficou desatualizado.
+6. Produção (T6.5) com aprovação humana: o pré-deploy grava o modelo padrão por empresa — contar antes/depois.
+
+W4 em staging (`f8e5a7a`) e verificada no navegador. Abertas: T6.4 (rastreio de abertura no Resend, aprovação) e T6.5 (produção, aprovação); pendências listadas acima.
 
 ## Execução
 
