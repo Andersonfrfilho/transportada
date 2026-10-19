@@ -93,7 +93,7 @@ export type OccurrenceConversationClient = Readonly<{
     body: string
     idempotencyKey: string
     occurrenceId: string
-  }) => Promise<void>
+  }) => Promise<SentMessageReceipt>
   /** Spec 183 T654 (RF21): à contratante pelo portal — o texto e, desde a T702b, os anexos. */
   sendContractorPortalMessage: (input: {
     attachmentIds?: readonly string[]
@@ -102,7 +102,7 @@ export type OccurrenceConversationClient = Readonly<{
     forwardAttachmentIds?: readonly string[]
     idempotencyKey: string
     occurrenceId: string
-  }) => Promise<void>
+  }) => Promise<SentMessageReceipt>
   /** Spec 248 T4.6: leva o boleto da contratante ao motorista pelo chat do app. */
   deliverContractorReplyToDriver: (input: {
     attachmentId: string
@@ -113,7 +113,7 @@ export type OccurrenceConversationClient = Readonly<{
     body: string
     idempotencyKey: string
     occurrenceId: string
-  }) => Promise<void>
+  }) => Promise<SentMessageReceipt>
   sendContractorMail: (input: {
     idempotencyKey: string
     occurrenceId: string
@@ -426,6 +426,19 @@ const contractorReplyPath = (occurrenceId: string): string =>
 const occurrencePath = (occurrenceId: string): string =>
   `/trip-occurrences/${encodeURIComponent(occurrenceId)}/conversations`
 
+/** O recibo do envio: a API responde `{ data: { conversationMessageId } }`; sem ele (resposta antiga) o envio vale igual. */
+export type SentMessageReceipt = Readonly<{ conversationMessageId: null | string }>
+
+function readSentMessageReceipt(payload: unknown): SentMessageReceipt {
+  const data =
+    typeof payload === 'object' && payload !== null && 'data' in payload ? payload.data : undefined
+  const id =
+    typeof data === 'object' && data !== null && 'conversationMessageId' in data
+      ? data.conversationMessageId
+      : undefined
+  return { conversationMessageId: typeof id === 'string' && id !== '' ? id : null }
+}
+
 function readDeliveryKind(payload: unknown): 'already_delivered' | 'delivered' | 'skipped' {
   const data =
     typeof payload === 'object' && payload !== null && 'data' in payload ? payload.data : undefined
@@ -531,11 +544,13 @@ export function createOccurrenceConversationClient(
       return readDeliveryKind(payload)
     },
     async sendDriverAppMessage({ attachmentIds, body, idempotencyKey, occurrenceId }) {
-      await requestJson(dependencies, `${occurrencePath(occurrenceId)}/driver/messages`, {
-        body: withAttachments({ body, channel: 'app' }, attachmentIds),
-        headers: { 'idempotency-key': idempotencyKey },
-        method: 'POST',
-      })
+      return readSentMessageReceipt(
+        await requestJson(dependencies, `${occurrencePath(occurrenceId)}/driver/messages`, {
+          body: withAttachments({ body, channel: 'app' }, attachmentIds),
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        }),
+      )
     },
     async sendContractorPortalMessage({
       attachmentIds,
@@ -544,27 +559,31 @@ export function createOccurrenceConversationClient(
       idempotencyKey,
       occurrenceId,
     }) {
-      await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
-        body: withAttachments(
-          {
-            body,
-            channel: 'portal',
-            ...(forwardAttachmentIds === undefined || forwardAttachmentIds.length === 0
-              ? {}
-              : { forwardAttachmentIds }),
-          },
-          attachmentIds,
-        ),
-        headers: { 'idempotency-key': idempotencyKey },
-        method: 'POST',
-      })
+      return readSentMessageReceipt(
+        await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
+          body: withAttachments(
+            {
+              body,
+              channel: 'portal',
+              ...(forwardAttachmentIds === undefined || forwardAttachmentIds.length === 0
+                ? {}
+                : { forwardAttachmentIds }),
+            },
+            attachmentIds,
+          ),
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        }),
+      )
     },
     async sendContractorChatMessage({ attachmentIds = [], body, idempotencyKey, occurrenceId }) {
-      await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
-        body: { attachmentIds, body, channel: 'email', mode: 'chat' },
-        headers: { 'idempotency-key': idempotencyKey },
-        method: 'POST',
-      })
+      return readSentMessageReceipt(
+        await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
+          body: { attachmentIds, body, channel: 'email', mode: 'chat' },
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        }),
+      )
     },
     async sendContractorMail({ idempotencyKey, occurrenceId, request }) {
       const { attachmentIds = [], ...rest } = request

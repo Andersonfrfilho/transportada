@@ -367,7 +367,7 @@ describe('ao motorista pelo app (spec 183 T603)', () => {
       requests,
     )
 
-    await client.sendDriverAppMessage({
+    const receipt = await client.sendDriverAppMessage({
       body: 'Pode aguardar na doca?',
       idempotencyKey: 'driver-message:key-0001',
       occurrenceId: OCCURRENCE_ID,
@@ -379,5 +379,17 @@ describe('ao motorista pelo app (spec 183 T603)', () => {
     )
     expect(request?.headers.get('idempotency-key')).toBe('driver-message:key-0001')
     expect(await request?.json()).toEqual({ body: 'Pode aguardar na doca?', channel: 'app' })
+    expect(receipt).toEqual({ conversationMessageId: 'message-9' })
+  })
+
+  test('resposta sem o id gravado (API antiga) ainda vale como enviada, sem recibo', async () => {
+    const client = createClient(Response.json({ data: {} }, { status: 202 }), [])
+    expect(
+      await client.sendDriverAppMessage({
+        body: 'Oi',
+        idempotencyKey: 'driver-message:key-0002',
+        occurrenceId: OCCURRENCE_ID,
+      }),
+    ).toEqual({ conversationMessageId: null })
   })
 })

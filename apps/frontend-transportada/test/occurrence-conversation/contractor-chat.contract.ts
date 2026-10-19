@@ -17,7 +17,7 @@ function failingApi(code: string, onSendError: (error: unknown) => void) {
       requestConversationUpload: () =>
         Promise.resolve({ uploadId: 'u', uploadUrl: 'https://s.test/u' }),
       sendContractorChatMessage: () => Promise.reject(Object.assign(new Error(code), { code })),
-      sendDriverAppMessage: () => Promise.resolve(),
+      sendDriverAppMessage: () => Promise.resolve({ conversationMessageId: null }),
     },
     labels: {} as never,
     occurrenceId: 'occurrence-1',
@@ -95,9 +95,9 @@ describe('chat da contratante por e-mail (spec 274 T5)', () => {
           body: string
         }) => {
           sent.push({ attachmentIds: message.attachmentIds ?? [], body: message.body })
-          return Promise.resolve()
+          return Promise.resolve({ conversationMessageId: null })
         },
-        sendDriverAppMessage: () => Promise.resolve(),
+        sendDriverAppMessage: () => Promise.resolve({ conversationMessageId: null }),
       },
       labels: {} as never,
       occurrenceId: 'occurrence-1',

@@ -112,11 +112,11 @@ function createFakeClient() {
     },
     sendContractorChatMessage: (input) => {
       calls.chat.push(input)
-      return Promise.resolve()
+      return Promise.resolve({ conversationMessageId: 'server-chat-1' })
     },
     sendDriverAppMessage: (input) => {
       calls.driver.push(input)
-      return Promise.resolve()
+      return Promise.resolve({ conversationMessageId: 'server-driver-1' })
     },
   }
   return { calls, client }
@@ -361,6 +361,30 @@ describe('o adaptador do fio da ocorrência', () => {
     expect(result.outcome === 'sent' && result.message.status).toBe('queued')
     expect(calls.portal).toEqual([])
     expect(calls.driver).toEqual([])
+  })
+
+  test('a mensagem lida depois do envio leva o clientMessageId do SDK, senão o balão otimista fica duplicado', async () => {
+    for (const [participant, serverId] of [
+      ['driver', 'server-driver-1'],
+      ['contractor', 'server-chat-1'],
+    ] as const) {
+      const { api } = createApi({
+        conversations: [
+          conversation(participant, {
+            messages: [message({ id: serverId }), message({ id: 'outra-mensagem' })],
+          }),
+        ],
+        participant,
+      })
+      expect((await api.fetchMessages(SUBJECT)).map((item) => item.clientMessageId)).toEqual([
+        undefined,
+        undefined,
+      ])
+      await api.sendMessage({ clientMessageId: 'client-9', subject: SUBJECT, text: 'Ola' })
+      const [sent, other] = await api.fetchMessages(SUBJECT)
+      expect(sent).toMatchObject({ clientMessageId: 'client-9', id: serverId })
+      expect(other?.clientMessageId).toBeUndefined()
+    }
   })
 
   test('marcar como lida só com mensagem nova do outro lado, e uma vez', async () => {

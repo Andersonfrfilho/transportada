@@ -175,6 +175,12 @@ export function createOccurrenceThreadApi(
   const channel = participant === 'driver' ? 'app' : 'email'
   const attachmentUrls = new Map<string, string>()
   const uploaded = new Map<File, string>()
+  /**
+   * O SDK mantém o balão enviado até a leitura trazer a mensagem com o mesmo `clientMessageId`. A API não devolve esse
+   * eco na leitura, mas devolve o id gravado no envio: guardamos o par e carimbamos a mensagem lida. Sem isso o balão
+   * otimista (`queued`) ficava para sempre ao lado da mensagem real — a mensagem aparecia duplicada.
+   */
+  const clientMessageIds = new Map<string, string>()
   let conversationId: null | string = null
   let unreadCount = 0
 
@@ -193,8 +199,13 @@ export function createOccurrenceThreadApi(
           ? createDriverMessageIdempotencyKey(() => input.clientMessageId)
           : createEmailMessageIdempotencyKey(() => input.clientMessageId)
       const message = { attachmentIds, body, idempotencyKey, occurrenceId }
-      if (participant === 'driver') await client.sendDriverAppMessage(message)
-      else await client.sendContractorChatMessage(message)
+      const receipt =
+        participant === 'driver'
+          ? await client.sendDriverAppMessage(message)
+          : await client.sendContractorChatMessage(message)
+      if (receipt.conversationMessageId !== null) {
+        clientMessageIds.set(receipt.conversationMessageId, input.clientMessageId)
+      }
       uploaded.clear()
       onSendError?.(null)
       onChanged()
@@ -237,7 +248,8 @@ export function createOccurrenceThreadApi(
         if (threadMessage.authorName != null) {
           onSpeaker?.(threadMessage.authorName, resolveMessageSpeaker(message, participant))
         }
-        return threadMessage
+        const clientMessageId = clientMessageIds.get(message.id)
+        return clientMessageId === undefined ? threadMessage : { ...threadMessage, clientMessageId }
       })
     },
     async markRead() {
