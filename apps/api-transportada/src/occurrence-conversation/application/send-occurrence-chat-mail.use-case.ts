@@ -52,7 +52,10 @@ import type {
   OccurrenceMailUnitOfWorkPort,
   SendOccurrenceMailResult,
 } from './occurrence-mail.port.js'
-import type { StandardEmailRendererPort } from './standard-email-renderer.port.js'
+import type {
+  ResolvedStandardEmailTemplate,
+  StandardEmailRendererPort,
+} from './standard-email-renderer.port.js'
 
 const HTTP_ORIGIN = /^https?:\/\//iu
 const TRAILING_SLASHES = /\/+$/u
@@ -110,11 +113,25 @@ export function createSendOccurrenceChatMailUseCase(dependencies: {
       const { renderer } = dependencies
       if (renderer === undefined) throw new OccurrenceChatMailNotConfiguredError()
       const bodyText = input.bodyText.trim()
-      if (bodyText === '' || bodyText.length > OCCURRENCE_MAIL_LIMITS.body) {
+      /** O texto só pode ir vazio com anexo (foto, arquivo ou áudio); a conversa grava o vazio como nos outros canais. */
+      if (
+        (bodyText === '' && (input.attachmentIds?.length ?? 0) === 0) ||
+        bodyText.length > OCCURRENCE_MAIL_LIMITS.body
+      ) {
         throw new OccurrenceConversationMailInvalidError()
       }
+      /** Fora da transação: a leitura do modelo não segura conexão; dentro dela só o render puro. */
+      const template = await renderer.resolve({ companyId: input.companyId })
       const executed = await dependencies.unitOfWork.execute((transaction) =>
-        executeChatSend({ ...dependencies, bodyText, input, now: now(), renderer, transaction }),
+        executeChatSend({
+          ...dependencies,
+          bodyText,
+          input,
+          now: now(),
+          renderer,
+          template,
+          transaction,
+        }),
       )
       if (executed.mailAddresses.length > 0) {
         try {
@@ -146,6 +163,7 @@ async function executeChatSend(params: {
   readonly renderer: StandardEmailRendererPort
   readonly secretService: ContractorMailCredentialSecretService
   readonly storage: ConversationAttachmentStoragePort
+  readonly template: ResolvedStandardEmailTemplate
   readonly transaction: Parameters<Parameters<OccurrenceMailUnitOfWorkPort['execute']>[0]>[0]
 }): Promise<Executed> {
   const { bodyText, input, transaction } = params
@@ -252,8 +270,7 @@ async function executeChatSend(params: {
           },
         })
   const hasInlineLogo = carrier?.hasLogo === true
-  const rendered = await params.renderer.render({
-    companyId,
+  const rendered = params.renderer.render({
     input: {
       attachments: uploads.map((upload) => ({ name: upload.fileName })),
       bodyText,
@@ -273,6 +290,7 @@ async function executeChatSend(params: {
         ...(signerValues.assinaturaCargo === '' ? {} : { role: signerValues.assinaturaCargo }),
       },
     },
+    template: params.template,
   })
   if (rendered.tooLarge) throw new OccurrenceChatMailTooLargeError()
 

@@ -53,6 +53,18 @@ export class OccurrenceConversationMailInvalidError extends ApiError {
   }
 }
 
+/** Spec 274 (segurança M3): o teto extra do chat (por ocorrência ou por empresa); o `Retry-After` diz quando voltar. */
+export class OccurrenceChatMailRateLimitedError extends ApiError {
+  public constructor(outcome: { readonly retryAfterSeconds: number }) {
+    super({
+      code: 'OCCURRENCE_CHAT_MAIL_RATE_LIMITED',
+      headers: { 'retry-after': String(outcome.retryAfterSeconds) },
+      message: 'Too many chat e-mails were sent; try again later',
+      status: 429,
+    })
+  }
+}
+
 /** Spec 274 (D10): o chat só escreve aos pré-marcados; sem nenhum, o operador usa o diálogo (que escolhe o `To`). */
 export class OccurrenceChatMailNoRecipientsError extends ApiError {
   public constructor() {

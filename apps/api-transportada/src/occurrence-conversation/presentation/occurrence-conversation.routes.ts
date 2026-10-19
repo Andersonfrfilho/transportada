@@ -24,6 +24,7 @@ import {
   parseBody,
   parseUuidPathIdentifier,
 } from '../../http/request-parsing.service.js'
+import type { RateLimitWindowStorePort } from '../../http/rate-limit-window.port.js'
 import { defineRoute } from '../../http/router.service.js'
 import {
   OCCURRENCE_CONVERSATION_CHANNELS,
@@ -41,7 +42,10 @@ import type { createRequestOccurrenceConversationUploadUseCase } from '../applic
 import type { SendOccurrenceChatMailUseCase } from '../application/send-occurrence-chat-mail.use-case.js'
 import type { SendOccurrenceMailUseCase } from '../application/send-occurrence-mail.use-case.js'
 import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
-import { OccurrenceConversationChannelUnavailableError } from '../domain/occurrence-conversation.error.js'
+import {
+  OccurrenceChatMailRateLimitedError,
+  OccurrenceConversationChannelUnavailableError,
+} from '../domain/occurrence-conversation.error.js'
 import {
   conversationAttachmentIdsSchema,
   conversationUploadFields,
@@ -55,6 +59,22 @@ export const OCCURRENCE_CONVERSATION_RATE_LIMIT = {
   scope: 'occurrence-conversation',
   store: 'postgres',
   windowSeconds: 300,
+} as const
+
+/**
+ * Spec 274 (segurança M3): o chat dispara e-mail com um clique, então tem teto próprio além do balde da rota (30 em 5
+ * min por usuário) — por ocorrência, contra rajada num mesmo assunto, e por empresa, contra volume por hora. Só a
+ * variante `mode: 'chat'` gasta estes baldes; contam no Postgres, fora da transação do envio.
+ */
+export const OCCURRENCE_CHAT_MAIL_OCCURRENCE_RATE_LIMIT = {
+  maxRequests: 10,
+  scope: 'occurrence-chat-mail-occurrence',
+  windowSeconds: 300,
+} as const
+export const OCCURRENCE_CHAT_MAIL_COMPANY_RATE_LIMIT = {
+  maxRequests: 300,
+  scope: 'occurrence-chat-mail-company',
+  windowSeconds: 3600,
 } as const
 
 const CONVERSATIONS_PATH = '/trip-occurrences/:id/conversations'
@@ -96,17 +116,19 @@ const mailMessageSchema = z
   .strict()
 
 /**
- * Spec 274 (D5): o chat da contratante por e-mail. O operador manda só o texto (1..8000 depois do `trim`) e os anexos;
- * destinatários, assunto, assinante e modelo são do servidor — por isso nenhum deles cabe aqui (`.strict()` → 400).
+ * Spec 274 (D5): o chat da contratante por e-mail. O operador manda o texto (até 8000 depois do `trim`) e os anexos;
+ * o texto só pode ir vazio quando há ao menos um anexo (foto, arquivo ou áudio) — sem anexo, é obrigatório.
+ * Destinatários, assunto, assinante e modelo são do servidor — por isso nenhum deles cabe aqui (`.strict()` → 400).
  */
 const chatMailMessageSchema = z
   .object({
     attachmentIds: conversationAttachmentIdsSchema,
-    body: z.string().trim().min(1).max(OCCURRENCE_MAIL_LIMITS.body),
+    body: z.string().trim().max(OCCURRENCE_MAIL_LIMITS.body),
     channel: z.literal('email'),
     mode: z.literal('chat'),
   })
   .strict()
+  .refine((value) => value.body !== '' || (value.attachmentIds?.length ?? 0) > 0)
 
 /** Spec 183 T601 (RF11): ao motorista pelo app — o texto e, desde a T702a, os anexos. */
 const appMessageSchema = z
@@ -139,6 +161,8 @@ const mailPreviewSchema = z
   .strict()
 
 export type OccurrenceConversationRoutesDependencies = {
+  /** Spec 274 (M3): o balde Postgres dos tetos extras do chat; fora da transação do envio. */
+  readonly chatRateLimiter: RateLimitWindowStorePort
   readonly listConversations: ListOccurrenceConversationsUseCase
   readonly markRead: MarkOccurrenceConversationReadUseCase
   readonly previewMail: PreviewOccurrenceMailUseCase
@@ -198,6 +222,24 @@ type SendInput =
       readonly occurrenceId: string
     }
 
+/** Por ocorrência primeiro: o recusado ali não gasta o balde da empresa. Sem try/catch: balde fora do ar é fail-closed. */
+async function assertChatMailWithinCeilings(params: {
+  readonly companyId: string
+  readonly limiter: RateLimitWindowStorePort
+  readonly occurrenceId: string
+}): Promise<void> {
+  const byOccurrence = await params.limiter.consume({
+    ...OCCURRENCE_CHAT_MAIL_OCCURRENCE_RATE_LIMIT,
+    subjectKey: `${params.companyId}:${params.occurrenceId}`,
+  })
+  if (!byOccurrence.allowed) throw new OccurrenceChatMailRateLimitedError(byOccurrence)
+  const byCompany = await params.limiter.consume({
+    ...OCCURRENCE_CHAT_MAIL_COMPANY_RATE_LIMIT,
+    subjectKey: params.companyId,
+  })
+  if (!byCompany.allowed) throw new OccurrenceChatMailRateLimitedError(byCompany)
+}
+
 export function createOccurrenceConversationRoutes(
   dependencies: OccurrenceConversationRoutesDependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
@@ -224,6 +266,11 @@ export function createOccurrenceConversationRoutes(
           if (dependencies.sendChatMail === undefined) {
             throw new OccurrenceConversationChannelUnavailableError()
           }
+          await assertChatMailWithinCeilings({
+            companyId: context.scope.companyId,
+            limiter: dependencies.chatRateLimiter,
+            occurrenceId: input.occurrenceId,
+          })
           const result = await dependencies.sendChatMail.send({
             actorUserId: context.scope.userId,
             attachmentIds: input.attachmentIds,

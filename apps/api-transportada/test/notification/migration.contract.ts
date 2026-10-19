@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { describe, expect } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -102,7 +102,7 @@ describe('Notification migration contract', () => {
     expect(rollbackSql).toMatch(/drop schema (if exists )?"?notification"?/i)
   })
 
-  testWithPostgres('o serviço aplica as migrations do módulo no layout v1', async () => {
+  test('o serviço aplica as migrations do módulo no layout v1', async () => {
     const source = await readFile(
       new URL('../../src/database/notification-migration.service.ts', import.meta.url),
       'utf8',

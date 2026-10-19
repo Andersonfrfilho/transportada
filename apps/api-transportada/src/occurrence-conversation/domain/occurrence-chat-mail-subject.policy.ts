@@ -5,7 +5,9 @@
  * da ocorrência que não é encaminhamento da 248, sem acrescentar "Re:". Sem e-mail anterior, o assunto de abertura
  * leva o prefixo da transportadora da 272. Pura e idempotente.
  */
-import { applySubjectPrefix } from './occurrence-mail-subject.policy.js'
+import { OCCURRENCE_MAIL_LIMITS } from './occurrence-conversation.constant.js'
+import { applySubjectPrefix, cleanSubjectText } from './occurrence-mail-subject.policy.js'
+import { truncateText } from './occurrence-mail-text.policy.js'
 
 export function buildChatMailSubject(params: {
   /** `null` sem perfil fiscal: o assunto de abertura sai sem prefixo. */
@@ -15,11 +17,12 @@ export function buildChatMailSubject(params: {
   readonly lastOutboundSubject: null | string
   readonly typeName: string
 }): string {
-  const previous = params.lastOutboundSubject?.trim() ?? ''
-  if (previous !== '') return previous
-  const number = params.invoiceNumber?.trim() ?? ''
-  const opening = `Ocorrência ${params.typeName.trim()}${number === '' ? '' : ` — NF ${number}`}`
-  if (params.carrier === undefined) return opening
+  const previous = cleanSubjectText(params.lastOutboundSubject ?? '')
+  if (previous !== '') return truncateText(previous, OCCURRENCE_MAIL_LIMITS.subject)
+  const typeName = cleanSubjectText(params.typeName)
+  const number = cleanSubjectText(params.invoiceNumber ?? '')
+  const opening = `Ocorrência${typeName === '' ? '' : ` ${typeName}`}${number === '' ? '' : ` — NF ${number}`}`
+  if (params.carrier === undefined) return truncateText(opening, OCCURRENCE_MAIL_LIMITS.subject)
   return applySubjectPrefix({
     cnpj: params.carrier.cnpj,
     companyDisplayName: params.carrier.displayName,

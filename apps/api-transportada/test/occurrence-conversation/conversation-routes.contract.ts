@@ -9,6 +9,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createRequestHandler } from '../../src/http/request-handler.service.js'
+import type { RateLimitWindowStorePort } from '../../src/http/rate-limit-window.port.js'
 import { createRouter } from '../../src/http/router.service.js'
 import { HealthService } from '../../src/health/health.service.js'
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
@@ -48,6 +49,7 @@ const VIEW: OccurrenceConversationsView = {
 type Calls = { readonly name: string; readonly input: unknown }[]
 
 function createFixture(params: {
+  readonly chatRateLimiter?: RateLimitWindowStorePort
   readonly error?: Error
   readonly logs?: unknown[]
   readonly permissions?: CompanyContext['permissions']
@@ -99,6 +101,7 @@ function createFixture(params: {
     }),
     rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: createOccurrenceConversationRoutes({
+      chatRateLimiter: params.chatRateLimiter ?? { consume: async () => ({ allowed: true }) },
       listConversations: { list: record('list') as never },
       markRead: { markRead: record('read') as never },
       sendDriverApp: { send: record('sendDriverApp') as never },
@@ -201,6 +204,86 @@ describe('POST .../contractor/messages, variante chat (spec 274 D5)', () => {
     ).toBe(400)
     expect((await fixture.handle(sendRequest(CHAT_BODY, {}))).status).toBe(400)
     expect(fixture.calls).toEqual([])
+  })
+
+  test('só com anexo (ou áudio) o texto pode ir vazio; sem anexo o texto segue obrigatório', async () => {
+    const fixture = createFixture({})
+    const attachmentId = '00000000-0000-4000-8000-000000274701'
+    for (const body of ['', '   ']) {
+      const response = await fixture.handle(
+        sendRequest({ ...CHAT_BODY, attachmentIds: [attachmentId], body }),
+      )
+      expect(response.status).toBe(202)
+    }
+    expect(fixture.calls.map((call) => (call.input as { bodyText: string }).bodyText)).toEqual([
+      '',
+      '',
+    ])
+    expect(
+      (await fixture.handle(sendRequest({ ...CHAT_BODY, attachmentIds: [], body: '' }))).status,
+    ).toBe(400)
+    expect((await fixture.handle(sendRequest({ ...CHAT_BODY, body: '' }))).status).toBe(400)
+    expect(fixture.calls).toHaveLength(2)
+  })
+
+  test('teto extra do chat: 10 por ocorrência em 5 min e 300 por empresa por hora, 429 com código próprio', async () => {
+    const seen: {
+      maxRequests: number
+      scope: string
+      subjectKey: string
+      windowSeconds: number
+    }[] = []
+    const ok = createFixture({
+      chatRateLimiter: {
+        consume: async (params) => {
+          seen.push({ ...params })
+          return { allowed: true }
+        },
+      },
+    })
+    expect((await ok.handle(sendRequest(CHAT_BODY))).status).toBe(202)
+    expect(seen).toEqual([
+      {
+        maxRequests: 10,
+        scope: 'occurrence-chat-mail-occurrence',
+        subjectKey: `${COMPANY_CONTEXT.companyId}:${OCCURRENCE_ID}`,
+        windowSeconds: 300,
+      },
+      {
+        maxRequests: 300,
+        scope: 'occurrence-chat-mail-company',
+        subjectKey: COMPANY_CONTEXT.companyId,
+        windowSeconds: 3600,
+      },
+    ])
+
+    for (const blocked of ['occurrence-chat-mail-occurrence', 'occurrence-chat-mail-company']) {
+      const fixture = createFixture({
+        chatRateLimiter: {
+          consume: async ({ scope }) =>
+            scope === blocked ? { allowed: false, retryAfterSeconds: 42 } : { allowed: true },
+        },
+      })
+      const response = await fixture.handle(sendRequest(CHAT_BODY))
+      expect(response.status).toBe(429)
+      expect(response.headers.get('retry-after')).toBe('42')
+      expect((await responseApiError(response)).code).toBe('OCCURRENCE_CHAT_MAIL_RATE_LIMITED')
+      expect(fixture.calls).toEqual([])
+    }
+  })
+
+  test('o diálogo e os outros canais não gastam o teto do chat', async () => {
+    const seen: string[] = []
+    const fixture = createFixture({
+      chatRateLimiter: {
+        consume: async ({ scope }) => {
+          seen.push(scope)
+          return { allowed: true }
+        },
+      },
+    })
+    expect((await fixture.handle(sendRequest(MAIL_BODY))).status).toBe(202)
+    expect(seen).toEqual([])
   })
 
   test('o diálogo continua recusando `mode` (spec 183 estrita)', async () => {

@@ -548,6 +548,7 @@ import {
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
 import { createContractorPortalChatNotice } from './occurrence-conversation/application/contractor-portal-chat-notice.service.js'
 import { createSendOccurrenceChatMailUseCase } from './occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
+import type { ResolvedStandardEmailTemplate } from './occurrence-conversation/application/standard-email-renderer.port.js'
 import {
   createPublicRef,
   createSendOccurrenceMailUseCase,
@@ -937,6 +938,10 @@ import { createErrorTracker } from './observability/sentry.service'
 import { NOTIFICATION_DEFAULT_LOCALE } from './notification/notification.constant.js'
 import { createAutomaticManifestNotifier } from './mdfe-manifests/infrastructure/automatic-manifest-notifier.gateway.js'
 import type { AutomaticManifestNotifierPort } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case.js'
+import {
+  renderStandardEmail,
+  type StandardEmailTemplate,
+} from '@adatechnology/notification-contracts'
 import type { NotificationModule } from '@adatechnology/notification-module'
 import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
 import { NOTIFICATION_ROUTES_BASE_PATH } from './notification/notification.constant.js'
@@ -3551,6 +3556,7 @@ function createApplicationRoutes({
      * `occurrences.resolve` (o separador não alcança), com teto próprio no Postgres.
      */
     ...createOccurrenceConversationRoutes({
+      chatRateLimiter: new DrizzleRateLimiterRepository(database),
       listConversations: createListOccurrenceConversationsUseCase({
         reader: {
           findAttachments: (input) => readConversationAttachments(database, input),
@@ -3599,12 +3605,13 @@ function createApplicationRoutes({
           }),
         }),
         renderer: {
-          render: ({ companyId, input }) =>
-            notifications.standardEmail.render({
+          render: ({ input, template }) =>
+            renderStandardEmail({ input, template: template as unknown as StandardEmailTemplate }),
+          resolve: async ({ companyId }) =>
+            (await notifications.standardEmail.resolveTemplate({
               companyId,
-              input,
               locale: NOTIFICATION_DEFAULT_LOCALE,
-            }),
+            })) as unknown as ResolvedStandardEmailTemplate,
         },
         secretService: contractorMailCredentialSecretService,
         storage: storageGateway,

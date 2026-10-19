@@ -5,6 +5,10 @@
  * conversa `queued` e a versão do modelo padrão (0 = embutido; a da empresa quando o renderer a devolve). A segunda
  * chamada com a mesma chave não duplica. Os casos de renderer usam o `StandardEmailService` REAL do pacote (sem dublê); os demais, um dublê da porta.
  */
+import {
+  renderStandardEmail,
+  type StandardEmailTemplate,
+} from '@adatechnology/notification-contracts'
 import { StandardEmailService, TemplateRepository } from '@adatechnology/notification-module'
 import { describe, expect } from 'bun:test'
 import { eq } from 'drizzle-orm'
@@ -15,7 +19,10 @@ import {
   occurrenceConversationMessages,
 } from '../../src/database/database.schema.js'
 import { createSendOccurrenceChatMailUseCase } from '../../src/occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
-import type { StandardEmailRendered } from '../../src/occurrence-conversation/application/standard-email-renderer.port.js'
+import type {
+  ResolvedStandardEmailTemplate,
+  StandardEmailRendered,
+} from '../../src/occurrence-conversation/application/standard-email-renderer.port.js'
 import { OCCURRENCE_MAIL_PRODUCT_SIGNATURE } from '../../src/occurrence-conversation/domain/occurrence-mail-html.constant.js'
 import { OccurrenceConversationIdempotencyKeyReusedError } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import { DrizzleOccurrenceMailRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
@@ -50,14 +57,20 @@ function createUseCase(database: TestDatabase, rendered: StandardEmailRendered |
     renderer:
       rendered === undefined
         ? {
-            render: ({ companyId, input }) =>
-              new StandardEmailService(new TemplateRepository(database.db as never)).render({
-                companyId,
+            render: ({ input, template }) =>
+              renderStandardEmail({
                 input,
-                locale: 'pt-BR',
+                template: template as unknown as StandardEmailTemplate,
               }),
+            resolve: async ({ companyId }) =>
+              (await new StandardEmailService(
+                new TemplateRepository(database.db as never),
+              ).resolveTemplate({
+                companyId,
+                locale: 'pt-BR',
+              })) as unknown as ResolvedStandardEmailTemplate,
           }
-        : { render: async () => rendered },
+        : { render: () => rendered, resolve: async () => ({}) as ResolvedStandardEmailTemplate },
     secretService: {
       decrypt: async () => ({ apiKey: 're_test', replyTokenSecret: 'c'.repeat(64) }),
     } as never,

@@ -19,6 +19,7 @@ import type {
 } from '../../src/occurrence-conversation/application/occurrence-mail.port.js'
 import { createSendOccurrenceChatMailUseCase } from '../../src/occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
 import type {
+  ResolvedStandardEmailTemplate,
   StandardEmailInput,
   StandardEmailRendered,
 } from '../../src/occurrence-conversation/application/standard-email-renderer.port.js'
@@ -29,6 +30,7 @@ import {
   OccurrenceChatMailNotConfiguredError,
   OccurrenceChatMailTooLargeError,
   OccurrenceConversationIdempotencyKeyReusedError,
+  OccurrenceConversationMailInvalidError,
 } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import { TripOccurrenceNotFoundError } from '../../src/trips/domain/trip.error.js'
 
@@ -38,6 +40,7 @@ const CONTRACTOR_ID = '00000000-0000-4000-8000-000000274603'
 const ACTOR_ID = '00000000-0000-4000-8000-000000274604'
 const UPLOAD_ID = '00000000-0000-4000-8000-0000002746a1'
 const PDF = new TextEncoder().encode('%PDF-1.7 nota')
+const RESOLVED_TEMPLATE = { resolvedTemplate: true } as unknown as ResolvedStandardEmailTemplate
 const NOW = new Date('2026-10-19T12:00:00.000Z')
 
 const CARRIER: CarrierIdentity = {
@@ -107,7 +110,8 @@ function createFake(
     >(),
     mails: [] as RecordOccurrenceMailInput[],
     notices: [] as unknown[],
-    renders: [] as { companyId: string; input: StandardEmailInput }[],
+    renders: [] as { input: StandardEmailInput; template: unknown }[],
+    resolves: [] as string[],
     steps: [] as string[],
   }
   const transaction = {
@@ -238,10 +242,15 @@ function createFake(
       ...(withRenderer
         ? {
             renderer: {
-              render: async (params) => {
+              render: (params) => {
                 state.steps.push('render')
                 state.renders.push(params)
                 return overrides.render ?? rendered()
+              },
+              resolve: async ({ companyId }) => {
+                state.steps.push('resolve')
+                state.resolves.push(companyId)
+                return RESOLVED_TEMPLATE
               },
             },
           }
@@ -257,7 +266,12 @@ function createFake(
         headObject: async () => ({ contentLength: PDF.byteLength }),
         storeObject: async () => undefined,
       },
-      unitOfWork: { execute: (operation) => operation(transaction) },
+      unitOfWork: {
+        execute: (operation) => {
+          state.steps.push('transaction')
+          return operation(transaction)
+        },
+      },
     })
   return { state, useCase: build(), withoutRenderer: build(false) }
 }
@@ -328,7 +342,7 @@ describe('o chat por e-mail (spec 274 T3.6)', () => {
 
     expect(state.renders).toEqual([
       {
-        companyId: COMPANY_ID,
+        template: RESOLVED_TEMPLATE,
         input: {
           attachments: [{ name: 'nota.pdf' }],
           bodyText: 'Boa tarde, segue a nota.',
@@ -348,10 +362,38 @@ describe('o chat por e-mail (spec 274 T3.6)', () => {
     ])
   })
 
-  test('a ordem: replay, prontidão e destinatários antes do render; o assunto depois', async () => {
+  test('a ordem: o modelo é resolvido ANTES da transação; dentro dela só o render puro, depois de replay, prontidão e destinatários', async () => {
     const { state, useCase } = createFake()
     await useCase.send(input())
-    expect(state.steps).toEqual(['replay', 'readiness', 'recipients', 'render', 'facts', 'record'])
+    expect(state.resolves).toEqual([COMPANY_ID])
+    expect(state.steps).toEqual([
+      'resolve',
+      'transaction',
+      'replay',
+      'readiness',
+      'recipients',
+      'render',
+      'facts',
+      'record',
+    ])
+  })
+
+  test('só com anexo o texto vai vazio: o corpo da conversa fica vazio e o modelo renderiza com corpo vazio', async () => {
+    const { state, useCase } = createFake()
+    await useCase.send(input({ attachmentIds: [UPLOAD_ID], bodyText: '   ' }))
+    expect(state.renders[0]?.input.bodyText).toBe('')
+    expect(state.renders[0]?.input.attachments).toEqual([{ name: 'nota.pdf' }])
+    expect(state.conversationMessages[0]?.bodyText).toBe('')
+    expect(state.mails).toHaveLength(1)
+  })
+
+  test('sem anexo o texto vazio segue 422 e nada é resolvido nem gravado', async () => {
+    const { state, useCase } = createFake()
+    expect(await failure(() => useCase.send(input({ bodyText: '  ' })))).toBeInstanceOf(
+      OccurrenceConversationMailInvalidError,
+    )
+    expect(state.steps).toEqual([])
+    expect(state.mails).toEqual([])
   })
 
   test('o assunto é o do último e-mail de saída que não é encaminhamento, sem "Re:"', async () => {
@@ -470,6 +512,54 @@ describe('o assunto do chat (spec 274 D6)', () => {
         typeName: 'Recusa',
       }),
     ).toBe(subject)
+  })
+
+  test('sem tipo (vazio) o assunto não leva espaço duplo: "Ocorrência — NF 123"', () => {
+    expect(
+      buildChatMailSubject({
+        carrier: undefined,
+        invoiceNumber: '123',
+        lastOutboundSubject: null,
+        typeName: '  ',
+      }),
+    ).toBe('Ocorrência — NF 123')
+    expect(
+      buildChatMailSubject({
+        carrier: undefined,
+        invoiceNumber: null,
+        lastOutboundSubject: null,
+        typeName: '',
+      }),
+    ).toBe('Ocorrência')
+  })
+
+  test('sem perfil fiscal o assunto também sai limpo (controles, invisíveis, quebra de linha) e cortado em 200', () => {
+    expect(
+      buildChatMailSubject({
+        carrier: undefined,
+        invoiceNumber: '1\r\nBcc: x@evil.test',
+        lastOutboundSubject: null,
+        typeName: 'Re\u200Bcusa\u0007',
+      }),
+    ).toBe('Ocorrência Recusa — NF 1 Bcc: x@evil.test')
+    const long = buildChatMailSubject({
+      carrier: undefined,
+      invoiceNumber: '1',
+      lastOutboundSubject: null,
+      typeName: 'x'.repeat(500),
+    })
+    expect(long.length).toBeLessThanOrEqual(200)
+  })
+
+  test('o assunto do último e-mail também é limpo e cortado', () => {
+    const subject = buildChatMailSubject({
+      carrier: undefined,
+      invoiceNumber: null,
+      lastOutboundSubject: `a\nb${'y'.repeat(400)}`,
+      typeName: 'x',
+    })
+    expect(subject.startsWith('a b')).toBe(true)
+    expect(subject.length).toBeLessThanOrEqual(200)
   })
 
   test('sem perfil fiscal ou sem número da nota, ainda monta o assunto', () => {

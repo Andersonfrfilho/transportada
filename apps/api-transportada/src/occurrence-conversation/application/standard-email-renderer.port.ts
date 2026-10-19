@@ -37,9 +37,19 @@ export type StandardEmailRendered = {
   readonly tooLarge: boolean
 }
 
+declare const resolvedTemplateBrand: unique symbol
+
+/** O modelo já lido (da empresa ou o embutido); opaco para o app — só o adaptador sabe o que é. */
+export type ResolvedStandardEmailTemplate = { readonly [resolvedTemplateBrand]: true }
+
+/**
+ * Duas etapas de propósito: `resolve` lê o banco e roda **antes** da transação do envio (nunca uma conexão extra
+ * esperando enquanto a transação segura outra); `render` é puro e síncrono, e é o único que roda dentro dela.
+ */
 export type StandardEmailRendererPort = {
   render(params: {
-    readonly companyId: string
     readonly input: StandardEmailInput
-  }): Promise<StandardEmailRendered>
+    readonly template: ResolvedStandardEmailTemplate
+  }): StandardEmailRendered
+  resolve(params: { readonly companyId: string }): Promise<ResolvedStandardEmailTemplate>
 }
