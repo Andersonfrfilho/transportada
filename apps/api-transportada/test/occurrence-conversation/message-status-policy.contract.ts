@@ -71,15 +71,54 @@ describe('a escada de cada canal (RF14)', () => {
   })
 })
 
-describe('o e-mail aceita read (spec 274 D8)', () => {
-  test('delivered -> read avança e guarda o horário', () => {
-    const current = state('delivered')
-    expect(
-      applyMessageStatus({ at: T1, channel: 'email', current, incoming: 'read' }),
-    ).toMatchObject({
+describe('a escada do e-mail com read (spec 274 D8)', () => {
+  test.each([
+    ['sent', 'read'],
+    ['delivered', 'read'],
+    ['queued', 'read'],
+  ] as const)('%s + read -> read, guardando o horário (inclusive o salto)', (from, incoming) => {
+    const current = state(from)
+    expect(applyMessageStatus({ at: T1, channel: 'email', current, incoming })).toEqual({
       changed: true,
       status: 'read',
+      statusTimes: { [from]: T0, read: T1 },
     })
+  })
+
+  test('read repetido é duplicate e não muda o horário', () => {
+    const current = state('read')
+    expect(applyMessageStatus({ at: T2, channel: 'email', current, incoming: 'read' })).toEqual({
+      changed: false,
+      reason: 'duplicate',
+      ...current,
+    })
+  })
+
+  test('falha é terminal: read depois de bounced/failed é stale', () => {
+    for (const failure of ['bounced', 'failed'] as const) {
+      const current = state(failure)
+      expect(applyMessageStatus({ at: T1, channel: 'email', current, incoming: 'read' })).toEqual({
+        changed: false,
+        reason: 'stale',
+        ...current,
+      })
+    }
+  })
+
+  test('devolução depois de lida é stale (falha só vale até sent)', () => {
+    const current = state('read')
+    expect(applyMessageStatus({ at: T1, channel: 'email', current, incoming: 'bounced' })).toEqual({
+      changed: false,
+      reason: 'stale',
+      ...current,
+    })
+  })
+
+  test('delivered atrasado depois de read não desfaz, e o horário que faltava entra', () => {
+    const current = state('read')
+    expect(
+      applyMessageStatus({ at: T2, channel: 'email', current, incoming: 'delivered' }),
+    ).toEqual({ changed: true, status: 'read', statusTimes: { delivered: T2, read: T0 } })
   })
 })
 

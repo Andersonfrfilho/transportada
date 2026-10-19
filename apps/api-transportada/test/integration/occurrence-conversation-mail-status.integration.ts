@@ -8,7 +8,10 @@
 import { describe, expect } from 'bun:test'
 import { eq } from 'drizzle-orm'
 
-import { occurrenceConversationMessages } from '../../src/database/database.schema.js'
+import {
+  contractorMailMessages,
+  occurrenceConversationMessages,
+} from '../../src/database/database.schema.js'
 import { createDrizzleOccurrenceMailStatusRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
 import {
   createOccurrenceMailUseCase,
@@ -83,6 +86,75 @@ describe('status do Resend na mensagem da conversa (spec 183 T405)', () => {
         expect(message?.status).toBe('delivered')
         expect(message?.statusTimes.delivered).toBe('2026-09-24T12:01:00.000Z')
         expect(message?.statusTimes.bounced).toBeUndefined()
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'o message_id do Resend grava rfc_message_id só se nulo, na empresa do webhook; opened leva a lida',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const other = await seedCompany(database)
+        const { companyId, userId } = seeded.company
+        const sent = await createOccurrenceMailUseCase(database).send({
+          actorUserId: userId,
+          bodyText: 'Autorizam a descarga?',
+          companyId,
+          contactIds: seeded.contactIds.slice(0, 1),
+          correlationId: 'correlation-2',
+          idempotencyKey: 'conversation-status-key-0002',
+          occurrenceId: seeded.occurrenceId,
+          subject: 'Ocorrência',
+        })
+        await database.db
+          .update(occurrenceConversationMessages)
+          .set({ providerMessageId: 'em_status_2', status: 'delivered' })
+          .where(eq(occurrenceConversationMessages.id, sent.conversationMessageId))
+        await database.db
+          .update(contractorMailMessages)
+          .set({ providerEmailId: 'em_status_2' })
+          .where(eq(contractorMailMessages.id, sent.mailMessageId))
+        const status = createDrizzleOccurrenceMailStatusRepository(database.db)
+        const readRfc = async () =>
+          (
+            await database.db
+              .select({ rfcMessageId: contractorMailMessages.rfcMessageId })
+              .from(contractorMailMessages)
+              .where(eq(contractorMailMessages.id, sent.mailMessageId))
+          )[0]?.rfcMessageId
+
+        await status.recordRfcMessageId({
+          companyId: other.companyId,
+          providerEmailId: 'em_status_2',
+          rfcMessageId: '<outra@resend.dev>',
+        })
+        expect(await readRfc()).toBeNull()
+
+        await status.recordRfcMessageId({
+          companyId,
+          providerEmailId: 'em_status_2',
+          rfcMessageId: '<primeiro@resend.dev>',
+        })
+        await status.recordRfcMessageId({
+          companyId,
+          providerEmailId: 'em_status_2',
+          rfcMessageId: '<segundo@resend.dev>',
+        })
+        expect(await readRfc()).toBe('<primeiro@resend.dev>')
+
+        await status.apply({
+          at: new Date('2026-09-24T12:05:00.000Z'),
+          companyId,
+          incoming: 'read',
+          providerEmailId: 'em_status_2',
+        })
+        const [message] = await database.db
+          .select({ status: occurrenceConversationMessages.status })
+          .from(occurrenceConversationMessages)
+          .where(eq(occurrenceConversationMessages.id, sent.conversationMessageId))
+        expect(message?.status).toBe('read')
       })
     },
     30_000,
