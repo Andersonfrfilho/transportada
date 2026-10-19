@@ -8,7 +8,10 @@ import type {
   OccurrenceThreadSendError,
 } from '../shared/occurrenceThreadApi.service'
 import { SUBJECT_AUDIO_RECORDING_OPTIONS } from '../shared/subjectAudioRecording.service'
-import { buildSubjectThreadLabels } from '../shared/subjectThreadLabels.service'
+import {
+  buildContractorThreadLabels,
+  buildSubjectThreadLabels,
+} from '../shared/subjectThreadLabels.service'
 import { useOccurrenceThread } from '../shared/useOccurrenceThread.hook'
 import subjectStyles from '../styles/subjectConversation.module.css'
 import styles from '../styles/occurrenceThread.module.css'
@@ -58,9 +61,7 @@ export function OccurrenceThread({
   })
   const labels = {
     ...buildSubjectThreadLabels((key) => t(key), closedNotice),
-    ...(participant === 'contractor'
-      ? { newMessages: tOccurrence('thread.contractorNewMessages') }
-      : {}),
+    ...(participant === 'contractor' ? buildContractorThreadLabels((key) => tOccurrence(key)) : {}),
   }
 
   return (
