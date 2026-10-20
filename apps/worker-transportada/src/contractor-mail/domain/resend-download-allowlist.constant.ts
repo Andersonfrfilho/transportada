@@ -10,9 +10,13 @@
  * lista aceita o domínio genérico da CloudFront, isolada aqui (nunca dentro do `fetch`) para ser o
  * único ponto a mudar se um payload real mostrar host diferente.
  *
- * // confirmar com payload real na T012
+ * Payload real (staging, 2026-10-20): `https://cdn.resend.app/receiving/raw/...`, domínio próprio do Resend
+ * na frente da CloudFront — por isso `.resend.app` também entra.
  */
-export const RESEND_RAW_DOWNLOAD_ALLOWED_HOST_SUFFIXES: readonly string[] = ['.cloudfront.net']
+export const RESEND_RAW_DOWNLOAD_ALLOWED_HOST_SUFFIXES: readonly string[] = [
+  '.cloudfront.net',
+  '.resend.app',
+]
 
 export function isAllowedResendDownloadUrl(url: URL): boolean {
   if (url.protocol !== 'https:') return false
