@@ -775,6 +775,7 @@ const REPLY_TYPE: StoredContractorReplyConfiguration['type'] = {
   forwardToInformedEmail: 'off',
   forwardToNoteRecipient: 'off',
   mode: 'forward_automatic',
+  resolveOnDelivery: false,
   waitHours: 6,
 }
 

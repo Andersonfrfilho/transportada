@@ -21,6 +21,7 @@ export function toSaveOccurrenceTypeValues(
     contractorReplyAlertMaxCount: input.contractorReplyAlertMaxCount,
     contractorReplyAlertMode: input.contractorReplyAlertMode,
     contractorReplyAttachmentKind: input.contractorReplyAttachmentKind,
+    contractorReplyResolveOnDelivery: input.contractorReplyResolveOnDelivery,
     contractorReplyMode: input.contractorReplyMode,
     contractorReplyWaitHours: input.contractorReplyWaitHours,
     driverReplyTemplate: input.driverReplyTemplate,

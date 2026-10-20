@@ -88,6 +88,7 @@ export type SaveOccurrenceTypeValues = {
   readonly contractorReplyAlertMaxCount?: number | undefined
   readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
+  readonly contractorReplyResolveOnDelivery?: boolean | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined
   readonly driverReplyTemplate?: string | undefined

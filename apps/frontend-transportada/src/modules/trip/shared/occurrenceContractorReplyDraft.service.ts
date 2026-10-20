@@ -26,6 +26,8 @@ export type ContractorReplyDraft = Readonly<{
   forwardToInformedEmail: InformedEmailForwardMode
   forwardToNoteRecipient: NoteRecipientForwardMode
   mode: ContractorReplyMode
+  /** Spec 276 T3b: entregue ao motorista, a ocorrência fecha sozinha. */
+  resolveOnDelivery: boolean
   waitHours: string
 }>
 
@@ -65,6 +67,7 @@ export function readContractorReplyDraft(type: OccurrenceType): ContractorReplyD
     forwardToInformedEmail: type.forwardToInformedEmail ?? 'off',
     forwardToNoteRecipient: type.forwardToNoteRecipient ?? 'off',
     mode: type.contractorReplyMode ?? 'off',
+    resolveOnDelivery: type.contractorReplyResolveOnDelivery ?? false,
     waitHours:
       type.contractorReplyWaitHours === null || type.contractorReplyWaitHours === undefined
         ? ''
@@ -139,7 +142,7 @@ export function isContractorReplyDraftChanged(
   )
 }
 
-/** O `PUT` leva os onze campos de uma vez: a CHECK avalia o conjunto, não cada campo. */
+/** O `PUT` leva os doze campos de uma vez: a CHECK avalia o conjunto, não cada campo. */
 export function buildContractorReplyEdit(draft: ContractorReplyDraft): OccurrenceTypeEdit {
   return {
     contractorReplyAlertIntervalMinutes: parseInteger(draft.alertIntervalMinutes) ?? 60,
@@ -147,6 +150,7 @@ export function buildContractorReplyEdit(draft: ContractorReplyDraft): Occurrenc
     contractorReplyAlertMode: draft.alertMode,
     contractorReplyAttachmentKind: draft.attachmentKind,
     contractorReplyMode: draft.mode,
+    contractorReplyResolveOnDelivery: draft.resolveOnDelivery,
     contractorReplyWaitHours: draft.waitHours.trim() === '' ? null : parseInteger(draft.waitHours),
     driverReplyTemplate: draft.driverReplyTemplate,
     forwardEmailBody: draft.forwardEmailBody,

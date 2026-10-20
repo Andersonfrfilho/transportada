@@ -52,3 +52,25 @@ Postgres 16 local, Bun 1.4.2.
   pass, 0 fail. `tsc --noEmit` e `eslint` limpos.
 - Para a média por tipo (outra conversa): `timings.resolvedAt` é o início da última etapa quando ela é `resolved`, senão
   `null`; `openSince` é o registro.
+
+## T3b — fechar sozinha depois de entregar (20/10/2026)
+
+Postgres 16 local, Bun 1.4.2. Publicação em duas partes (ADR-0081 §9): painel e app tolerantes primeiro (PR #317, em
+staging), servidor e editor depois.
+
+- Migration `20261020181920_contractor_reply_resolve_on_delivery`, aditiva: `company_occurrence_types.contractor_reply_resolve_on_delivery`
+  (padrão `false`) e `trip_occurrence_resolution_events.contractor_reply_id` (FK composta, único parcial). A CHECK do `system`
+  passa a exigir **uma** causa (`case_event_id` ou `contractor_reply_id`). O `rollback.sql` recusa com o tipo usando a opção ou
+  com resolução causada pelo retorno. `db:test` → 231 pass (recusa, rollback e reaplicação).
+- Entregue ao motorista com a opção ligada, a mesma transação grava `resolved`/`system` com `contractor_reply_id`, sob
+  `FOR NO KEY UPDATE` na ocorrência; cancelada ou já resolvida (último por `seq`) não grava. Repetir a entrega não grava de novo.
+  O motorista lê `phraseKey: contractor_reply_delivered`; o painel mostra "Resolvida automaticamente ao entregar o documento ao motorista".
+- API: contratos → 12498 pass, 0 fail; integração `occurrence-contractor-reply-received`, `occurrence-type-contractor-reply-write`,
+  `trip-occurrence-timeline` → 25 pass, 0 fail (uma execução anterior teve 1 falha que não se repetiu).
+- Worker: a cópia `contractor-reply-driver-delivery.support.ts` é igual byte a byte (paridade passa). 2808 pass; as 5 falhas são
+  do decodificador do canhoto em `worker_thread` (`exited with 13`) e aparecem iguais na árvore sem esta mudança — ambiente local.
+- Painel: caixa "Fechar a ocorrência sozinha depois de entregar ao motorista" no bloco do retorno; o `PUT` leva os doze campos.
+  `bun run test` → 8475 + 1407 pass, 0 fail. `tsc` limpo nas três apps; `eslint` sem erro (avisos antigos).
+- Limite conhecido: a resolução automática pela entrega não dispara `trip.occurrence-resolved`; o motorista já recebe o documento
+  na mesma hora.
+

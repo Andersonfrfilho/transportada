@@ -483,6 +483,8 @@ const occurrenceTypeSchema = z
       .optional(),
     contractorReplyAlertMode: z.enum(CONTRACTOR_REPLY_ALERT_MODES).optional(),
     contractorReplyAttachmentKind: z.enum(CONTRACTOR_REPLY_ATTACHMENT_KINDS).optional(),
+    /** Spec 276 T3b: ausente não mexe. */
+    contractorReplyResolveOnDelivery: z.boolean().optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),
     contractorReplyWaitHours: z
       .number()

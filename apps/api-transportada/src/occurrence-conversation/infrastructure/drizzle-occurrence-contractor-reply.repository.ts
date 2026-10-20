@@ -94,6 +94,7 @@ export async function findContractorReplyConfiguration(
       alertMaxCount: type.contractorReplyAlertMaxCount,
       alertMode: type.contractorReplyAlertMode,
       attachmentKind: type.contractorReplyAttachmentKind,
+      resolveOnDelivery: type.contractorReplyResolveOnDelivery,
       driverReplyChannel: type.driverReplyChannel,
       driverReplyTemplate: type.driverReplyTemplate,
       driverReplyWindowClosedAction: type.driverReplyWindowClosedAction,

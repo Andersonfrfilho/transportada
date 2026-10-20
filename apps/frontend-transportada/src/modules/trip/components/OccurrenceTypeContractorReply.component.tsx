@@ -5,6 +5,7 @@ import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Icon, type IconName } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { OccurrenceTypeContractorReplyForward } from '@/modules/trip/components/OccurrenceTypeContractorReplyForward.component'
@@ -188,6 +189,12 @@ export function OccurrenceTypeContractorReply({
               />
               {renderAlert('driverReplyTemplate')}
             </label>
+            <Checkbox
+              checked={draft.resolveOnDelivery}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.contractorReply.fields.resolveOnDelivery')}
+              onChange={(resolveOnDelivery) => change({ resolveOnDelivery })}
+            />
           </>
         ) : null}
         {renderNumber('waitHours')}

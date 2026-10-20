@@ -49,6 +49,7 @@ export type OccurrenceTypeSaveInput = Readonly<{
   contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   contractorReplyMode?: ContractorReplyMode | undefined
+  contractorReplyResolveOnDelivery?: boolean | undefined
   contractorReplyWaitHours?: null | number | undefined
   driverReplyTemplate?: string | undefined
   forwardEmailBody?: string | undefined
@@ -106,6 +107,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'contractorReplyAlertMode'
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'
+      | 'contractorReplyResolveOnDelivery'
       | 'contractorReplyWaitHours'
       | 'contractorScope'
       | 'driverReplyTemplate'

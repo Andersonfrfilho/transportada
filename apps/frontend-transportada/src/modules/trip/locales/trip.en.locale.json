@@ -2637,6 +2637,7 @@
       "cancelled": "Occurrence cancelled",
       "resolvedInternal": "Resolved by {{name}}: {{note}}",
       "resolvedAutomatic": "Resolved automatically when the case was closed",
+      "resolvedOnDelivery": "Resolved automatically when the document was delivered to the driver",
       "reopened": "Reopened by the driver {{name}}",
       "contractorReply": "Contractor reply: {{status}}"
     },

@@ -3127,6 +3127,13 @@ export const companyOccurrenceTypes = pgTable(
     contractorReplyAlertMaxCount: smallint('contractor_reply_alert_max_count')
       .notNull()
       .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.alertMaxCount),
+    /**
+     * Spec 276 T3b: entregue o documento da contratante ao motorista, a ocorrência fica solucionada
+     * sozinha (evento `system` do andamento da 266). Desligado de fábrica.
+     */
+    contractorReplyResolveOnDelivery: boolean('contractor_reply_resolve_on_delivery')
+      .notNull()
+      .default(false),
     /** Sending the invoice to the e-mail of the note's customer is always an explicit choice. */
     forwardToNoteRecipient: varchar('forward_to_note_recipient', { length: 16 })
       .$type<ForwardToNoteRecipientMode>()

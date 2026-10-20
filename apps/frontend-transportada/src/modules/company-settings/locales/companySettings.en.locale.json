@@ -640,6 +640,7 @@
         "mode": "When the reply arrives",
         "attachmentKind": "Attachment that counts as the reply",
         "driverReplyTemplate": "Text sent to the driver",
+        "resolveOnDelivery": "Close the occurrence by itself after delivering to the driver",
         "waitHours": "Wait time (hours, empty = no deadline)",
         "alertMode": "If the contractor is late",
         "alertIntervalMinutes": "Repeat the alert every (minutes)",

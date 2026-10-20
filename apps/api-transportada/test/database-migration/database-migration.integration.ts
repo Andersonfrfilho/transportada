@@ -29,6 +29,7 @@ import { assertLocationRetentionRollbackRefusesRecordedSettings } from './locati
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertConversationEmailRead } from './conversation-email-read.assertion.js'
 import { assertContractorReplyBoletoCheck } from './contractor-reply-boleto-check.assertion.js'
+import { assertContractorReplyResolveOnDelivery } from './contractor-reply-resolve-on-delivery.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
 import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
 import { assertConversationSubject } from './conversation-subject.assertion.js'
@@ -152,6 +153,12 @@ describe('Drizzle migration integration', () => {
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
         await assertContractorReplyBoletoCheck({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertContractorReplyResolveOnDelivery({
           companyId: identityFixture.companyId,
           connectionString,
           database,

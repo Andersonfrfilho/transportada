@@ -47,6 +47,11 @@ export const contractorReplyConfigurationSchema = z.object({
   forwardToInformedEmail: z.enum(FORWARD_TO_INFORMED_EMAIL_MODES),
   forwardToNoteRecipient: z.enum(FORWARD_TO_NOTE_RECIPIENT_MODES),
   mode: z.enum(CONTRACTOR_REPLY_MODES),
+  /**
+   * Spec 276 T3b: entregue ao motorista, a ocorrência fica solucionada sozinha. O retorno aberto antes do campo
+   * não o tem e lê `false`: a cópia guardada nunca muda de sentido.
+   */
+  resolveOnDelivery: z.boolean().default(false),
   version: z.literal(CONTRACTOR_REPLY_CONFIGURATION_VERSION),
   waitHours: z
     .number()

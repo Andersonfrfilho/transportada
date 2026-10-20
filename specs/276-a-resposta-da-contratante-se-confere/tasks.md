@@ -13,7 +13,7 @@
       `GET /trip-occurrences/:id/timeline`, derivados em `occurrence-timeline.policy.ts` dos eventos já gravados — agora
       também os do retorno da 248 (`contractor.reply`, com a abertura do retorno). Nada é gravado. Painel mostra as etapas
       na linha do tempo da ocorrência (parser tolerante: API anterior sem `stages` segue valendo).
-- [ ] **T3b** Etapa 3, opção do tipo: fechar sozinha depois de entregar ao motorista (resolução `system` causada pelo
+- [x] **T3b** Etapa 3, opção do tipo: fechar sozinha depois de entregar ao motorista (resolução `system` causada pelo
       retorno; hoje a CHECK da 266 exige `case_event_id` no `system`, então pede migration) e o app do motorista.
 - [ ] **T4** Etapa 4: trava de pedido repetido na mesma nota (coluna do tipo, guarda no registro).
 - [ ] **T5** Etapa 5: resposta automática à contratante.

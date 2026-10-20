@@ -27,6 +27,7 @@ import { createDrizzleContractorPortalConversationUnitOfWork } from '../../src/o
 import { createSendAutomaticOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import { deliverContractorReplyToDriver } from '../../src/occurrence-conversation/infrastructure/contractor-reply-driver-delivery.support.js'
 import { deliverConversationAttachmentToDriver } from '../../src/occurrence-conversation/infrastructure/conversation-attachment-driver-delivery.support.js'
+import { tripOccurrenceResolutionEvents } from '../../src/database/occurrence-conversation.schema.js'
 import { buildOccurrenceTimeline } from '../../src/trips/domain/occurrence-timeline.policy.js'
 import { findTripOccurrenceTimelineSources } from '../../src/trips/infrastructure/trip-occurrence-timeline.query.js'
 import { applyContractorReplyToMessage } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-contractor-reply.repository.js'
@@ -53,6 +54,7 @@ async function openReply(
   seeded: Seeded,
   mode: Mode,
   attachmentKind: 'boleto_pdf' | 'pdf' = 'pdf',
+  resolveOnDelivery = false,
 ) {
   const { companyId } = seeded.company
   const [occurrence] = await database.db
@@ -64,6 +66,7 @@ async function openReply(
     .set({
       contractorReplyAttachmentKind: attachmentKind,
       contractorReplyMode: mode,
+      contractorReplyResolveOnDelivery: resolveOnDelivery,
       contractorReplyWaitHours: 6,
       driverReplyTemplate: 'Segue o boleto prorrogado.',
       emailsContractor: true,
@@ -209,6 +212,18 @@ async function replyOf(database: TestDatabase, companyId: string) {
     .where(eq(occurrenceContractorReplies.companyId, companyId))
   if (reply === undefined) throw new Error('EXPECTED_REPLY')
   return reply
+}
+
+function resolutionEventsOf(database: TestDatabase, occurrenceId: string) {
+  return database.db
+    .select({
+      actorKind: tripOccurrenceResolutionEvents.actorKind,
+      caseEventId: tripOccurrenceResolutionEvents.caseEventId,
+      contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
+      kind: tripOccurrenceResolutionEvents.kind,
+    })
+    .from(tripOccurrenceResolutionEvents)
+    .where(eq(tripOccurrenceResolutionEvents.documentOccurrenceId, occurrenceId))
 }
 
 function eventsOf(database: TestDatabase, replyId: string) {
@@ -737,6 +752,64 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
         })
         expect(repeated).toBeUndefined()
         expect(await driverMessagesOf(database, companyId)).toHaveLength(1)
+        expect(await resolutionEventsOf(database, seeded.occurrenceId)).toEqual([])
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'fechar sozinha (spec 276 T3b): a entrega ao motorista deixa a ocorrência solucionada, uma vez',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+        const conversationId = await openReply(database, seeded, 'forward_automatic', 'pdf', true)
+        const received = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+
+        const delivery = await apply(database, {
+          companyId,
+          conversationId,
+          messageId: received.messageId,
+        })
+
+        expect(delivery).toMatchObject({ kind: 'delivered', resolvedOccurrence: true })
+        const { id: replyId } = await replyOf(database, companyId)
+        expect(await resolutionEventsOf(database, seeded.occurrenceId)).toEqual([
+          { actorKind: 'system', caseEventId: null, contractorReplyId: replyId, kind: 'resolved' },
+        ])
+
+        const again = await database.db.transaction((transaction) =>
+          deliverContractorReplyToDriver(transaction, {
+            actorUserId: null,
+            companyId,
+            now: new Date(),
+            replyId,
+            trigger: 'automatic',
+          }),
+        )
+        expect(again).toEqual({ kind: 'already_delivered' })
+        expect(await resolutionEventsOf(database, seeded.occurrenceId)).toHaveLength(1)
+
+        const sources = await findTripOccurrenceTimelineSources(database.db, {
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        const timeline = buildOccurrenceTimeline({ sources: sources ?? [] })
+        expect(timeline.stages.map((stage) => stage.stage).slice(-2)).toEqual([
+          'delivered',
+          'resolved',
+        ])
+        expect(timeline.timings.resolvedAt).not.toBeNull()
+        expect(timeline.events.at(-1)).toMatchObject({
+          kind: 'resolution.resolved',
+          phraseKey: 'contractor_reply_delivered',
+        })
       })
     },
     60_000,

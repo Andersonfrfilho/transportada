@@ -36,6 +36,8 @@ const SAC_REPLY = {
   contractorReplyAlertMode: 'alert_operator',
   contractorReplyAttachmentKind: 'pdf',
   contractorReplyMode: 'forward_after_approval',
+  /** Spec 276 T3b: gravado, lido no get e na lista, e mantido pelo PUT sem o campo. */
+  contractorReplyResolveOnDelivery: true,
   contractorReplyWaitHours: 6,
   driverReplyTemplate: 'Segue o boleto atualizado.',
 } as const
@@ -131,6 +133,7 @@ describe('o retorno da contratante no cadastro do tipo contra o Postgres (spec 2
       await expect(parseBody({ contractorReplyAlertIntervalMinutes: 10 })).rejects.toBeDefined()
       await expect(parseBody({ contractorReplyAlertMaxCount: 97 })).rejects.toBeDefined()
       await expect(parseBody({ contractorReplyMode: 'always' })).rejects.toBeDefined()
+      await expect(parseBody({ contractorReplyResolveOnDelivery: 'yes' })).rejects.toBeDefined()
     },
     30_000,
   )
