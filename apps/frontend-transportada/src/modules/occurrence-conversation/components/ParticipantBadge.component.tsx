@@ -35,13 +35,21 @@ export function ParticipantBadge({
   )
 }
 
-/** O avatar do balão: círculo na cor do participante com o ícone dele (o nome vai ao lado, no balão). */
+/**
+ * O avatar do balão: círculo na cor do participante com o ícone dele (o nome vai ao lado, no balão). Com `initials`
+ * (quem fala não tem foto), o círculo mostra as iniciais no lugar do ícone.
+ */
 export function ParticipantAvatar({
+  initials = '',
   participant,
-}: Readonly<{ participant: ConversationParticipant }>) {
+}: Readonly<{ initials?: string; participant: ConversationParticipant }>) {
   return (
     <span aria-hidden="true" className={`${styles.avatar} ${participantToneClass(participant)}`}>
-      <Icon name={PARTICIPANT_APPEARANCE[participant].icon} size="sm" />
+      {initials === '' ? (
+        <Icon name={PARTICIPANT_APPEARANCE[participant].icon} size="sm" />
+      ) : (
+        initials
+      )}
     </span>
   )
 }

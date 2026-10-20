@@ -3,6 +3,8 @@ import { ConversationThread } from '@adatechnology/conversations-ui/participant'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { initialsOf } from '@/modules/trip/shared/tripOccurrenceDetail.service'
+
 import type {
   OccurrenceThreadParticipant,
   OccurrenceThreadSendError,
@@ -27,6 +29,8 @@ type OccurrenceThreadProps = Readonly<{
   closedNotice: string
   companyId?: string
   counterpartLabel: string
+  /** Nome de quem está do outro lado (o motorista): sem foto, o balão dele mostra as iniciais. */
+  counterpartName?: string
   headerActions?: ReactNode
   occurrenceId: string
   onSendError?: (error: null | OccurrenceThreadSendError) => void
@@ -44,6 +48,7 @@ export function OccurrenceThread({
   closedNotice,
   companyId,
   counterpartLabel,
+  counterpartName = '',
   headerActions,
   occurrenceId,
   onSendError,
@@ -69,7 +74,15 @@ export function OccurrenceThread({
       <ConversationThread
         api={api}
         audioRecording={SUBJECT_AUDIO_RECORDING_OPTIONS}
-        renderAuthorAvatar={(author) => <ParticipantAvatar participant={speakerOf(author.name)} />}
+        renderAuthorAvatar={(author) => {
+          const speaker = speakerOf(author.name)
+          return (
+            <ParticipantAvatar
+              initials={speaker === 'driver' ? initialsOf(counterpartName) : ''}
+              participant={speaker}
+            />
+          )
+        }}
         channels={[...THREAD_CHANNELS[participant]]}
         className={subjectStyles.conversationTheme ?? ''}
         counterpartLabel={counterpartLabel}
