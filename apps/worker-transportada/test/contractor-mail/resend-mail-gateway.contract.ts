@@ -253,6 +253,17 @@ describe('resend mail gateway (spec 143 T007)', () => {
     expect(stub.calls).toHaveLength(0)
   })
 
+  test('accepts the Resend CDN host seen in real payloads, and only its subdomains', async () => {
+    const stub = fakeFetch(async () => new Response('mime bytes', { status: 200 }))
+    const gateway = createResendMailGateway({ fetch: stub.fetch })
+
+    await gateway.downloadRawEmail({ downloadUrl: 'https://cdn.resend.app/receiving/raw/abc?x=1' })
+    await expect(
+      gateway.downloadRawEmail({ downloadUrl: 'https://cdn.resend.app.evil.com/raw/abc' }),
+    ).rejects.toBeInstanceOf(ResendDownloadHostNotAllowedError)
+    expect(stub.calls).toHaveLength(1)
+  })
+
   test('refuses a plain http url even against an allowlisted host', async () => {
     const stub = fakeFetch(async () => new Response('mime bytes', { status: 200 }))
     const gateway = createResendMailGateway({ fetch: stub.fetch })
