@@ -187,6 +187,10 @@
   border-radius: 50%;
   color: var(--participant-color);
   background: var(--color-graphite);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  font-weight: 600;
+  line-height: 1;
 }
 
 .channel {

@@ -210,6 +210,7 @@ function DriverConversationPanel({
         closedNotice={t('thread.closed.readOnly')}
         {...(companyId === undefined ? {} : { companyId })}
         counterpartLabel={t('thread.driver.counterpart')}
+        counterpartName={driverName}
         occurrenceId={occurrenceId}
         participant="driver"
         status={canSend ? 'open' : 'closed'}
