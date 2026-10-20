@@ -999,6 +999,14 @@ div.cardError {
   color: var(--color-slate);
 }
 
+.tableEmptyAction {
+  margin-top: var(--space-3);
+  font-family: var(--font-utility);
+  font-size: 0.875rem;
+  color: var(--color-slate);
+  text-decoration: underline;
+}
+
 .columnSort,
 .columnSortActive {
   display: inline-flex;

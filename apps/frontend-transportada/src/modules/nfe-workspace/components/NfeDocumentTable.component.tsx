@@ -638,10 +638,37 @@ export function NfeDocumentTable({
                 </tr>
               </thead>
               <tbody>
-                {table.pageItems.length === 0 && (
+                {table.pageItems.length === 0 && loading && (
+                  <>
+                    <tr>
+                      <td className={styles.srOnly} colSpan={columnSpan} role="status">
+                        {t('documents.loadingAll')}
+                      </td>
+                    </tr>
+                    {SKELETON_ROWS.map((rowKey) => (
+                      <tr aria-hidden="true" key={rowKey}>
+                        {Array.from({ length: columnSpan }, (_, cellIndex) => (
+                          <td key={cellIndex}>
+                            <span className={styles.skeletonBar} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </>
+                )}
+                {table.pageItems.length === 0 && !loading && (
                   <tr>
                     <td className={styles.tableEmpty} colSpan={columnSpan}>
-                      {t('documents.emptyFiltered')}
+                      <p>{t('documents.emptyFiltered')}</p>
+                      {table.hasActiveFilters && (
+                        <button
+                          className={styles.tableEmptyAction}
+                          onClick={table.clearAllFilters}
+                          type="button"
+                        >
+                          {t('documents.clearAll')}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )}
