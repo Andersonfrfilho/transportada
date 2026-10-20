@@ -2637,7 +2637,37 @@
       "cancelled": "Ocorrência cancelada",
       "resolvedInternal": "Resolvida por {{name}}: {{note}}",
       "resolvedAutomatic": "Resolvida automaticamente ao encerrar a tratativa",
-      "reopened": "Reaberta pelo motorista {{name}}"
+      "reopened": "Reaberta pelo motorista {{name}}",
+      "contractorReply": "Retorno da contratante: {{status}}"
+    },
+    "stagesTitle": "Etapas",
+    "stageRunning": "em andamento há {{elapsed}}",
+    "stageLasted": "durou {{elapsed}}",
+    "stage": {
+      "received": "Recebida",
+      "in_progress": "Em andamento",
+      "awaiting_contractor": "Aguardando a contratante",
+      "awaiting_operator": "Aguardando o operador",
+      "reply_received": "Resposta recebida",
+      "delivered": "Entregue ao motorista",
+      "reopened": "Reaberta",
+      "resolved": "Solucionada",
+      "cancelled": "Cancelada"
+    },
+    "stageReason": {
+      "document_not_confirmed": "o PDF não parece o boleto desta nota",
+      "multiple_attachments": "chegou mais de um anexo",
+      "no_accepted_attachment": "nenhum anexo aceito"
+    },
+    "replyStatus": {
+      "awaiting_contractor": "aguardando a contratante",
+      "overdue": "prazo da contratante vencido",
+      "reply_received": "resposta recebida",
+      "awaiting_operator": "aguardando a aprovação do operador",
+      "needs_operator": "precisa do operador",
+      "delivered": "entregue ao motorista",
+      "handled": "tratado pelo operador",
+      "cancelled": "cancelado"
     }
   },
   "occurrenceCancellation": {

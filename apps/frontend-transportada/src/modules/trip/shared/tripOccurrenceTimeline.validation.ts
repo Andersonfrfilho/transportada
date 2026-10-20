@@ -5,12 +5,16 @@
  * ausente ou ator fora dos quatro é resposta inválida, não API antiga.
  * Spec 266 T1.2: tipo de evento desconhecido sai da linha; o resto da resposta segue valendo.
  * Spec 266 T3.3: `resolution.resolved` e `resolution.reopened` entram na lista dos conhecidos.
+ * Spec 276 T3: `contractor.reply` entra; as etapas e `resolvedAt` são tolerantes — etapa malformada ou de
+ * nome desconhecido sai, e a resposta sem elas (API anterior) segue valendo.
  */
 import { isRecord, isString } from './tripGuards.validation'
 import {
   OCCURRENCE_TIMELINE_ACTOR_KINDS,
+  OCCURRENCE_TIMELINE_STAGES,
   type OccurrenceTimeline,
   type OccurrenceTimelineEvent,
+  type OccurrenceTimelineStage,
 } from './tripOccurrenceTimeline.service'
 
 function isNullableString(value: unknown): value is null | string {
@@ -34,6 +38,7 @@ const KNOWN_EVENT_KINDS: readonly OccurrenceTimelineEvent['kind'][] = [
   'contractor.mail.sent',
   'resolution.resolved',
   'resolution.reopened',
+  'contractor.reply',
 ]
 
 function isKnownEventKind(value: unknown): boolean {
@@ -67,6 +72,8 @@ function isEvent(value: unknown): value is OccurrenceTimelineEvent {
       return isNullableString(value.note)
     case 'resolution.reopened':
       return true
+    case 'contractor.reply':
+      return isNullableString(value.reason) && isString(value.toStatus)
     default:
       return false
   }
@@ -85,9 +92,36 @@ function isOccurrenceTimeline(value: unknown): value is OccurrenceTimeline {
   )
 }
 
+function isStage(value: unknown): value is OccurrenceTimelineStage {
+  return (
+    isRecord(value) &&
+    isActor(value.actor) &&
+    OCCURRENCE_TIMELINE_STAGES.some((stage) => stage === value.stage) &&
+    isString(value.startedAt) &&
+    isNullableString(value.endedAt) &&
+    isNullableString(value.reason) &&
+    typeof value.terminal === 'boolean' &&
+    (value.durationSeconds === null || typeof value.durationSeconds === 'number')
+  )
+}
+
+/** `resolvedAt` ausente ou malformado some sozinho: os outros tempos seguem valendo. */
+function withoutMalformedResolvedAt(timings: unknown): unknown {
+  if (!isRecord(timings) || isNullableString(timings.resolvedAt)) return timings
+  return Object.fromEntries(Object.entries(timings).filter(([key]) => key !== 'resolvedAt'))
+}
+
 /** Spec 266 T1.2: evento de tipo desconhecido é descartado antes do guard estrito dos demais. */
 export function parseOccurrenceTimeline(value: unknown): OccurrenceTimeline | null {
   if (!isRecord(value) || !Array.isArray(value.events)) return null
-  const candidate = { ...value, events: value.events.filter(isKnownEventKind) }
+  const { stages: rawStages, ...rest } = value
+  const stages = Array.isArray(rawStages) ? rawStages.filter(isStage) : undefined
+  const timings = withoutMalformedResolvedAt(value.timings)
+  const candidate = {
+    ...rest,
+    events: value.events.filter(isKnownEventKind),
+    ...(stages === undefined ? {} : { stages }),
+    timings,
+  }
   return isOccurrenceTimeline(candidate) ? candidate : null
 }

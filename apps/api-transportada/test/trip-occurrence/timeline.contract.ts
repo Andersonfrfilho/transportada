@@ -203,6 +203,7 @@ describe('os três tempos do topo (spec 183 RF19)', () => {
       driverReleasedAt: null,
       openSince: '2026-09-24T10:00:00.000Z',
       openUntil: null,
+      resolvedAt: null,
     })
   })
 

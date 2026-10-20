@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 183 RF19: os fatos crus da linha do tempo de uma ocorrência — o registro, as fotos, a
- * tratativa da spec 164 e os e-mails à contratante da spec 143. Quatro leituras fixas, toda uma com
+ * tratativa da spec 164, os e-mails à contratante da spec 143 e o retorno da contratante da 248. Quatro leituras fixas, toda uma com
  * `company_id`: um degrau sem ele é o caminho pelo qual a tratativa de uma empresa aparece na tela
  * de outra.
  *
@@ -15,6 +15,10 @@ import {
   contractorMailMessages,
   contractorMailThreads,
 } from '../../database/contractor-mail.schema.js'
+import {
+  occurrenceContractorReplies,
+  occurrenceContractorReplyEvents,
+} from '../../database/occurrence-contractor-reply.schema.js'
 import { tripOccurrenceResolutionEvents } from '../../database/occurrence-conversation.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import {
@@ -216,6 +220,77 @@ async function listResolutionSources(
 }
 
 /**
+ * Spec 276 T3: o retorno da contratante (248) — a abertura (`created_at` do retorno, que não grava evento)
+ * e cada mudança de status. Só status, motivo e ator; nunca a nota do operador nem o anexo. Só a
+ * ocorrência de nota abre retorno.
+ */
+async function listContractorReplySources(
+  queryable: TripQueryable,
+  scope: Scope,
+  item: TripOccurrenceFeedItem,
+): Promise<readonly OccurrenceTimelineSource[]> {
+  if (item.source !== 'document') return []
+  const replies = await queryable
+    .select({
+      createdAt: occurrenceContractorReplies.createdAt,
+      id: occurrenceContractorReplies.id,
+    })
+    .from(occurrenceContractorReplies)
+    .where(
+      and(
+        eq(occurrenceContractorReplies.companyId, scope.companyId),
+        eq(occurrenceContractorReplies.occurrenceId, scope.occurrenceId),
+      ),
+    )
+  const [reply] = replies
+  if (reply === undefined) return []
+  const rows = await queryable
+    .select({
+      actorKind: occurrenceContractorReplyEvents.actorKind,
+      actorName: identityUserProfiles.name,
+      createdAt: occurrenceContractorReplyEvents.createdAt,
+      id: occurrenceContractorReplyEvents.id,
+      reason: occurrenceContractorReplyEvents.reason,
+      toStatus: occurrenceContractorReplyEvents.toStatus,
+    })
+    .from(occurrenceContractorReplyEvents)
+    .leftJoin(
+      identityUserProfiles,
+      eq(identityUserProfiles.userId, occurrenceContractorReplyEvents.actorUserId),
+    )
+    .where(
+      and(
+        eq(occurrenceContractorReplyEvents.companyId, scope.companyId),
+        eq(occurrenceContractorReplyEvents.replyId, reply.id),
+      ),
+    )
+  const opened: OccurrenceTimelineSource = {
+    actor: { kind: 'system', name: null },
+    id: reply.id,
+    kind: 'contractor.reply',
+    occurredAt: reply.createdAt.toISOString(),
+    reason: null,
+    toStatus: 'awaiting_contractor',
+  }
+  return [
+    opened,
+    ...rows.map(
+      (row): OccurrenceTimelineSource => ({
+        actor:
+          row.actorKind === 'user'
+            ? { kind: 'operation', name: row.actorName ?? null }
+            : { kind: 'system', name: null },
+        id: row.id,
+        kind: 'contractor.reply',
+        occurredAt: row.createdAt.toISOString(),
+        reason: row.reason ?? null,
+        toStatus: row.toStatus,
+      }),
+    ),
+  ]
+}
+
+/**
  * E-mails da conversa desta ocorrência (spec 143). O envio sem autor é o aviso automático do tipo
  * que notifica — ator `system`. A resposta é da contratante; o nome de quem respondeu chega com a
  * T405, pelo cadastro de contatos.
@@ -279,11 +354,12 @@ export async function findTripOccurrenceTimelineSources(
 ): Promise<readonly OccurrenceTimelineSource[] | null> {
   const item = await findTripOccurrenceFeedItem(queryable, scope)
   if (item === null) return null
-  const [photos, caseEvents, mails, resolutions] = await Promise.all([
+  const [photos, caseEvents, mails, resolutions, replies] = await Promise.all([
     listPhotoSources(queryable, scope, item),
     listCaseSources(queryable, scope),
     listMailSources(queryable, scope, item),
     listResolutionSources(queryable, scope, item),
+    listContractorReplySources(queryable, scope, item),
   ])
   const recorded: OccurrenceTimelineSource = {
     actor: recordingActor(item),
@@ -303,5 +379,5 @@ export async function findTripOccurrenceTimelineSources(
             reason: item.cancellation.reason,
           },
         ]
-  return [recorded, ...photos, ...caseEvents, ...mails, ...cancelled, ...resolutions]
+  return [recorded, ...photos, ...caseEvents, ...mails, ...replies, ...cancelled, ...resolutions]
 }

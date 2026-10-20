@@ -27,6 +27,8 @@ import { createDrizzleContractorPortalConversationUnitOfWork } from '../../src/o
 import { createSendAutomaticOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import { deliverContractorReplyToDriver } from '../../src/occurrence-conversation/infrastructure/contractor-reply-driver-delivery.support.js'
 import { deliverConversationAttachmentToDriver } from '../../src/occurrence-conversation/infrastructure/conversation-attachment-driver-delivery.support.js'
+import { buildOccurrenceTimeline } from '../../src/trips/domain/occurrence-timeline.policy.js'
+import { findTripOccurrenceTimelineSources } from '../../src/trips/infrastructure/trip-occurrence-timeline.query.js'
 import { applyContractorReplyToMessage } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-contractor-reply.repository.js'
 import { createAutomaticOccurrenceMailReader } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
 import { extractPdfTextLayer } from '../../src/shared/pdf-text-layer.service.js'
@@ -389,6 +391,66 @@ describe('a resposta da contratante move o retorno (spec 248 T4.5, CA02)', () =>
           .from(occurrenceContractorReplyDeliveries)
           .where(eq(occurrenceContractorReplyDeliveries.replyId, reply.id))
         expect(deliveries).toEqual([])
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'etapas (spec 276 T3): o retorno entra na linha do tempo e a ocorrência fica aguardando o operador',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const other = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const conversationId = await openReply(database, seeded, 'forward_automatic', 'boleto_pdf')
+        const sent = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+        await apply(database, {
+          companyId,
+          conversationId,
+          messageId: sent.messageId,
+          readDocumentText: await documentTextReader(
+            database,
+            sent.attachmentIds[0] ?? '',
+            buildNotePdf(await noteNumberOf(database, seeded)),
+          ),
+        })
+
+        const sources = await findTripOccurrenceTimelineSources(database.db, {
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        const timeline = buildOccurrenceTimeline({ sources: sources ?? [] })
+
+        expect(
+          timeline.events
+            .filter((event) => event.kind === 'contractor.reply')
+            .map((event) => event.kind === 'contractor.reply' && [event.toStatus, event.reason]),
+        ).toEqual([
+          ['awaiting_contractor', null],
+          ['needs_operator', 'document_not_confirmed'],
+        ])
+        expect(timeline.stages.map((stage) => stage.stage)).toEqual([
+          'received',
+          'awaiting_contractor',
+          'awaiting_operator',
+        ])
+        expect(timeline.stages.at(-1)).toMatchObject({
+          endedAt: null,
+          reason: 'document_not_confirmed',
+          terminal: false,
+        })
+        expect(timeline.timings.resolvedAt).toBeNull()
+
+        const foreign = await findTripOccurrenceTimelineSources(database.db, {
+          companyId: other.company.companyId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        expect(foreign).toBeNull()
       })
     },
     30_000,

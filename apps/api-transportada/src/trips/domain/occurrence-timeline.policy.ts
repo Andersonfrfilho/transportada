@@ -46,6 +46,15 @@ export type OccurrenceTimelineSource =
     })
   /** Spec 266 / ADR-0105: o motorista reabriu respondendo; `messageId` é a mensagem que reabriu. */
   | (SourceBase & { readonly kind: 'resolution.reopened'; readonly messageId: string })
+  /**
+   * Spec 276 T3: o retorno da contratante (248) mudou de status — a abertura do retorno entra como
+   * `awaiting_contractor`. Só o status e o motivo, nunca o anexo nem a nota do operador.
+   */
+  | (SourceBase & {
+      readonly kind: 'contractor.reply'
+      readonly reason: null | string
+      readonly toStatus: string
+    })
 
 export type OccurrenceTimelineEvent = OccurrenceTimelineSource & {
   readonly isKey: boolean
@@ -64,10 +73,44 @@ export type OccurrenceTimelineTimings = {
   readonly driverReleasedAt: null | string
   readonly openSince: null | string
   readonly openUntil: null | string
+  /** Spec 276 T3: quando a ocorrência ficou solucionada pela última vez; nulo se não está solucionada agora. */
+  readonly resolvedAt: null | string
+}
+
+/** Spec 276 T3: os status da ocorrência, na ordem em que costumam acontecer. */
+export const OCCURRENCE_STAGES = [
+  'received',
+  'in_progress',
+  'awaiting_contractor',
+  'awaiting_operator',
+  'reply_received',
+  'delivered',
+  'reopened',
+  'resolved',
+  'cancelled',
+] as const
+export type OccurrenceStage = (typeof OCCURRENCE_STAGES)[number]
+
+const TERMINAL_STAGES: ReadonlySet<OccurrenceStage> = new Set(['cancelled', 'resolved'])
+
+/**
+ * Uma etapa: quando começou, quem a começou e quanto durou. A última não terminal tem `endedAt` nulo e a
+ * tela conta a duração com o relógio dela; a terminal não tem duração (é o fim).
+ */
+export type OccurrenceTimelineStage = {
+  readonly actor: OccurrenceTimelineActor
+  readonly durationSeconds: null | number
+  readonly endedAt: null | string
+  /** Só em `awaiting_operator`: o motivo do retorno (ex.: `document_not_confirmed`). */
+  readonly reason: null | string
+  readonly stage: OccurrenceStage
+  readonly startedAt: string
+  readonly terminal: boolean
 }
 
 export type OccurrenceTimeline = {
   readonly events: readonly OccurrenceTimelineEvent[]
+  readonly stages: readonly OccurrenceTimelineStage[]
   readonly timings: OccurrenceTimelineTimings
 }
 
@@ -76,11 +119,12 @@ const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> 
   'case.transition': 2,
   'contractor.mail.received': 4,
   'contractor.mail.sent': 3,
-  'occurrence.cancelled': 5,
+  'contractor.reply': 5,
+  'occurrence.cancelled': 6,
   'occurrence.photo': 1,
   'occurrence.recorded': 0,
-  'resolution.reopened': 7,
-  'resolution.resolved': 6,
+  'resolution.reopened': 8,
+  'resolution.resolved': 7,
 }
 
 /** Terminais da spec 164: a tratativa não sai mais deles. */
@@ -165,7 +209,96 @@ function resolveTimings(sources: readonly OccurrenceTimelineSource[]): Occurrenc
       transitions.find((source) => RELEASING_STATUSES.has(source.toStatus))?.occurredAt ?? null,
     openSince: recorded?.occurredAt ?? null,
     openUntil: closedAt ?? null,
+    resolvedAt: null,
   }
+}
+
+const CASE_STAGE: Readonly<Record<string, OccurrenceStage>> = {
+  awaiting_contractor: 'awaiting_contractor',
+  closed: 'resolved',
+  decided: 'reply_received',
+  returned_to_warehouse: 'resolved',
+  under_review: 'in_progress',
+}
+
+const REPLY_STAGE: Readonly<Record<string, OccurrenceStage>> = {
+  awaiting_contractor: 'awaiting_contractor',
+  awaiting_operator: 'awaiting_operator',
+  delivered: 'delivered',
+  handled: 'in_progress',
+  needs_operator: 'awaiting_operator',
+  overdue: 'awaiting_contractor',
+  reply_received: 'reply_received',
+}
+
+/**
+ * Para onde cada fato leva a ocorrência; `undefined` não muda a etapa. Com o retorno da 248 aberto, quem diz
+ * se a contratante respondeu é ele — o e-mail "Solicitado" sem o documento não é a resposta.
+ */
+function stageAfter(
+  source: OccurrenceTimelineSource,
+  current: OccurrenceStage | undefined,
+  hasContractorReply: boolean,
+): OccurrenceStage | undefined {
+  switch (source.kind) {
+    case 'occurrence.recorded':
+      return 'received'
+    case 'occurrence.cancelled':
+      return 'cancelled'
+    case 'resolution.resolved':
+      return 'resolved'
+    case 'resolution.reopened':
+      return 'reopened'
+    case 'case.transition':
+      return CASE_STAGE[source.toStatus]
+    case 'contractor.reply':
+      return REPLY_STAGE[source.toStatus]
+    case 'contractor.mail.sent':
+      return current === 'received' || current === 'in_progress' || current === 'reopened'
+        ? 'awaiting_contractor'
+        : undefined
+    case 'contractor.mail.received':
+      return !hasContractorReply &&
+        current === 'awaiting_contractor' &&
+        !NON_REPLY_INTERPRETATIONS.has(source.interpretation ?? '')
+        ? 'reply_received'
+        : undefined
+    case 'occurrence.photo':
+      return undefined
+  }
+}
+
+function resolveStages(
+  sources: readonly OccurrenceTimelineSource[],
+): readonly OccurrenceTimelineStage[] {
+  const hasContractorReply = sources.some((source) => source.kind === 'contractor.reply')
+  const started: { source: OccurrenceTimelineSource; stage: OccurrenceStage }[] = []
+  for (const source of sources) {
+    const current = started.at(-1)?.stage
+    /** Depois de cancelada nada reabre a etapa: o cancelamento vence o histórico (spec 266). */
+    if (current === 'cancelled') break
+    const next = stageAfter(source, current, hasContractorReply)
+    if (next === undefined || next === current) continue
+    started.push({ source, stage: next })
+  }
+  return started.map(({ source, stage }, index): OccurrenceTimelineStage => {
+    const following = started[index + 1]
+    const terminal = TERMINAL_STAGES.has(stage)
+    const endedAt = following?.source.occurredAt ?? null
+    return {
+      actor: source.actor,
+      durationSeconds:
+        endedAt === null
+          ? null
+          : Math.max(0, Math.round((Date.parse(endedAt) - Date.parse(source.occurredAt)) / 1000)),
+      endedAt,
+      reason:
+        stage === 'awaiting_operator' && source.kind === 'contractor.reply' ? source.reason : null,
+      stage,
+      startedAt: source.occurredAt,
+      terminal: terminal && following === undefined,
+    }
+  })
 }
 
 export function buildOccurrenceTimeline(input: {
@@ -187,5 +320,14 @@ export function buildOccurrenceTimeline(input: {
             ),
     }
   })
-  return { events, timings: resolveTimings(ordered) }
+  const stages = resolveStages(ordered)
+  const last = stages.at(-1)
+  return {
+    events,
+    stages,
+    timings: {
+      ...resolveTimings(ordered),
+      resolvedAt: last?.stage === 'resolved' ? last.startedAt : null,
+    },
+  }
 }
