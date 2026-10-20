@@ -86,7 +86,7 @@ describe('o que falta para confirmar "Não entreguei" (spec 179 T301, CA04)', ()
     }
   })
 
-  it('nada escolhido: motivo, tipo e foto, na ordem da tela', () => {
+  it('nada escolhido: só o motivo falta, a ocorrência é opcional (pedido do usuário, 18/10)', () => {
     const missing = listMissingNotDeliveredFields({
       draft: {
         note: '',
@@ -97,23 +97,23 @@ describe('o que falta para confirmar "Não entreguei" (spec 179 T301, CA04)', ()
       },
       occurrenceTypes: TYPES,
     })
-    expect(missing).toEqual(['reason', 'occurrenceType', 'photo'])
+    expect(missing).toEqual(['reason'])
   })
 
-  it('tipo que saiu da lista conta como não escolhido', () => {
+  it('tipo que saiu da lista conta como não escolhido, e a devolução segue', () => {
     const missing = listMissingNotDeliveredFields({
       draft: draft({ occurrenceTypeId: 'type-retired' }),
       occurrenceTypes: TYPES,
     })
-    expect(missing).toEqual(['occurrenceType'])
+    expect(missing).toEqual([])
   })
 
-  it('tipos ainda carregando: o tipo falta, e a tela espera', () => {
+  it('tipos ainda carregando: a devolução não espera', () => {
     const missing = listMissingNotDeliveredFields({
       draft: draft(),
       occurrenceTypes: { status: 'loading' },
     })
-    expect(missing).toEqual(['occurrenceType'])
+    expect(missing).toEqual([])
   })
 
   /**

@@ -72,14 +72,14 @@ export function listMissingNotDeliveredFields(input: {
   const missing: NotDeliveredField[] = []
   if (input.draft.reason === undefined) missing.push('reason')
 
-  if (input.occurrenceTypes.status === 'loading') return [...missing, 'occurrenceType']
+  /* Pedido do usuário (18/10): a ocorrência é opcional — a devolução segue só com o motivo. Escolhido o tipo, a foto (e a observação, se o tipo exigir) passam a valer. */
   const types = listAvailableOccurrenceTypes(input.occurrenceTypes)
   if (types === undefined) return missing
 
   const selected = findSelectedType({ draft: input.draft, types })
-  if (selected === undefined) missing.push('occurrenceType')
+  if (selected === undefined) return missing
   if (input.draft.photo === undefined) missing.push('photo')
-  if (selected?.attachmentMode === 'required' && input.draft.note.trim() === '') {
+  if (selected.attachmentMode === 'required' && input.draft.note.trim() === '') {
     missing.push('note')
   }
   return missing
