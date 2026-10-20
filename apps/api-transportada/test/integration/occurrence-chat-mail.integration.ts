@@ -23,7 +23,6 @@ import type {
   ResolvedStandardEmailTemplate,
   StandardEmailRendered,
 } from '../../src/occurrence-conversation/application/standard-email-renderer.port.js'
-import { OCCURRENCE_MAIL_PRODUCT_SIGNATURE } from '../../src/occurrence-conversation/domain/occurrence-mail-html.constant.js'
 import { OccurrenceConversationIdempotencyKeyReusedError } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import { DrizzleOccurrenceMailRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
 import {
@@ -206,7 +205,10 @@ describe('o chat da contratante contra Postgres (spec 274 T3.6)', () => {
         expect(rows[0]).toMatchObject({ key: TEMPLATE_KEY, version: 0 })
         expect(rows[0]?.bodyHtml).toContain('Segue &lt;b&gt;a nota&lt;/b&gt; &amp; o canhoto.')
         expect(rows[0]?.bodyHtml).not.toContain('<b>a nota</b>')
-        expect(rows[0]?.bodyHtml).toContain(OCCURRENCE_MAIL_PRODUCT_SIGNATURE)
+        // O rodapé do HTML sai em pedaços (nomes em negrito ao lado das marcas); a frase inteira só vai no texto puro.
+        expect(rows[0]?.bodyHtml).toContain('TransportAdA')
+        expect(rows[0]?.bodyHtml).toContain('Ada Technology')
+        expect(rows[0]?.bodyHtml).not.toContain('__ADA_PLATFORM_FOOTER__')
       })
     },
     TEST_TIMEOUT_MS,
