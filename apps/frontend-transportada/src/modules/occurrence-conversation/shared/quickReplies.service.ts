@@ -52,7 +52,20 @@ export function quickRepliesOf(
 
 type ThreadQuickReply = NonNullable<ConversationThreadProps['quickReplies']>[number]
 
-const THREAD_QUICK_REPLY_TITLE_MAX_LENGTH = 40
+export const THREAD_QUICK_REPLY_TITLE_MAX_LENGTH = 40
+
+/**
+ * O rótulo do chip: o texto inteiro quando cabe; senão corta na última palavra inteira e põe "…", para o chip nunca
+ * mostrar meia palavra ("é só ch"). Palavra única maior que o teto é cortada no teto, também com "…".
+ */
+export function toQuickReplyChipTitle(text: string): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= THREAD_QUICK_REPLY_TITLE_MAX_LENGTH) return trimmed
+  const room = trimmed.slice(0, THREAD_QUICK_REPLY_TITLE_MAX_LENGTH - 1)
+  const lastSpace = room.lastIndexOf(' ')
+  const cut = lastSpace > 0 ? room.slice(0, lastSpace) : room
+  return `${cut.replace(/[\s.,;:!?-]+$/u, '')}…`
+}
 
 /** As respostas ativas do público no formato dos chips do SDK; o atalho `/` não é usado aqui. */
 export function toThreadQuickReplies(replies: readonly QuickReply[]): ThreadQuickReply[] {
@@ -60,6 +73,6 @@ export function toThreadQuickReplies(replies: readonly QuickReply[]): ThreadQuic
     body: reply.text,
     id: reply.id,
     shortcut: `reply-${index + 1}`,
-    title: reply.text.slice(0, THREAD_QUICK_REPLY_TITLE_MAX_LENGTH),
+    title: toQuickReplyChipTitle(reply.text),
   }))
 }

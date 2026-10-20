@@ -15,7 +15,10 @@ import {
   buildSubjectThreadLabels,
   SUBJECT_THREAD_LABEL_KEYS,
 } from '@/modules/occurrence-conversation/shared/subjectThreadLabels.service'
-import { toThreadQuickReplies } from '@/modules/occurrence-conversation/shared/quickReplies.service'
+import {
+  toQuickReplyChipTitle,
+  toThreadQuickReplies,
+} from '@/modules/occurrence-conversation/shared/quickReplies.service'
 
 const SUBJECT = { subjectId: 'doc-1', subjectType: 'document', tripId: 'trip-1' } as const
 const REF = { subjectId: 'doc-1', subjectType: 'document' }
@@ -186,6 +189,21 @@ describe('o adaptador do fio do escritório (spec 263 T5.2-B)', () => {
 
     expect(chip).toMatchObject({ body: text, id: 'qr-1', shortcut: 'reply-1' })
     expect(chip?.title.length).toBeLessThanOrEqual(40)
+  })
+
+  test('o rótulo do chip corta na palavra inteira, com reticências, e o texto curto fica inteiro', () => {
+    expect(toQuickReplyChipTitle('Segue o documento solicitado.')).toBe(
+      'Segue o documento solicitado.',
+    )
+    expect(toQuickReplyChipTitle('Segue o boleto. Qualquer dúvida, é só chamar.')).toBe(
+      'Segue o boleto. Qualquer dúvida, é só…',
+    )
+    expect(toQuickReplyChipTitle('Recebido, obrigado! Já estamos verificando.')).toBe(
+      'Recebido, obrigado! Já estamos…',
+    )
+    const single = toQuickReplyChipTitle('x'.repeat(60))
+    expect(single.length).toBe(40)
+    expect(single.endsWith('…')).toBe(true)
   })
 
   test('os rótulos: o aviso de encerrada é o do motivo e as demais chaves vêm do locale', async () => {

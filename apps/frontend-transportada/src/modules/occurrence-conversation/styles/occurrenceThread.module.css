@@ -265,6 +265,9 @@
 
 .column {
   display: grid;
+  /* Sem a trilha explícita a coluna implícita é `auto` e cresce até o min-content do fio — a fileira de respostas
+   * rápidas, que não quebra linha, empurrava a conversa do motorista para fora da página. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--space-3);
   min-width: 0;
