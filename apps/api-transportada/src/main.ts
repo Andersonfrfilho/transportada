@@ -291,6 +291,7 @@ import {
   sha256Hex,
 } from './trips/domain/occurrence-attachment.policy.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
+import { formatOccurrenceMoment } from './trips/domain/occurrence-mail-values.policy.js'
 import { correctOccurrenceItems } from './trips/application/correct-occurrence-items.use-case.js'
 import { reviewCanhotoProof } from './trips/application/review-canhoto-proof.use-case.js'
 import { cancelOccurrence } from './trips/application/cancel-occurrence.use-case.js'
@@ -1381,7 +1382,7 @@ export function bootstrap(): Bun.Server<undefined> {
           companyId: input.companyId,
           documentId: input.documentId,
           note: input.note,
-          occurredOn: new Date().toLocaleDateString('pt-BR'),
+          occurredOn: formatOccurrenceMoment(new Date()),
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: '',
           /** O fluxo do WhatsApp não escolhe item: a ocorrência é sempre da nota inteira. */
@@ -4685,7 +4686,7 @@ function createApplicationRoutes({
                   occurrenceTypeId: input.occurrenceTypeId,
                   /** A data que o modelo imprime é a de agora — a ocorrência é registrada quando
                    * acontece. */
-                  occurredOn: new Date().toLocaleDateString('pt-BR'),
+                  occurredOn: formatOccurrenceMoment(new Date()),
                   productCode: input.productCode,
                   productCodes: input.productCodes,
                   productQuantities: input.productQuantities,

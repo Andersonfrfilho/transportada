@@ -157,3 +157,17 @@ export function buildContractorMailValues(
     },
   }
 }
+
+const OCCURRENCE_MOMENT_FORMAT = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: '2-digit',
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+})
+
+/** A data do e-mail da ocorrência leva a hora, no horário de Brasília (o servidor roda em UTC): `20/10/2026 10:35`. */
+export function formatOccurrenceMoment(moment: Date): string {
+  return OCCURRENCE_MOMENT_FORMAT.format(moment).replace(', ', ' ')
+}

@@ -4,6 +4,7 @@ import {
   CHAT_MAIL_FOOTER_PLACEHOLDER,
 } from '../../src/occurrence-conversation/domain/occurrence-chat-mail-branding.policy.js'
 import { buildFooterMarks } from '../../src/occurrence-conversation/domain/occurrence-mail-system-html.policy.js'
+import { formatOccurrenceMoment } from '../../src/trips/domain/occurrence-mail-values.policy.js'
 
 describe('chat da contratante: marcas do rodapé', () => {
   const html = `<img src="cid:company-logo" alt="x"><div>${CHAT_MAIL_FOOTER_PLACEHOLDER}</div><div></div>`
@@ -63,5 +64,15 @@ describe('chat da contratante: largura fluida', () => {
   test('remove as linhas vazias', () => {
     expect(branded).not.toContain('padding:0 24px 12px')
     expect(branded).toContain('oi')
+  })
+})
+
+describe('data do e-mail da ocorrência', () => {
+  test('leva a hora no horário de Brasília', () => {
+    expect(formatOccurrenceMoment(new Date('2026-10-20T13:35:00Z'))).toBe('20/10/2026 10:35')
+  })
+
+  test('vira o dia pelo horário de Brasília, não pelo UTC', () => {
+    expect(formatOccurrenceMoment(new Date('2026-10-21T01:05:00Z'))).toBe('20/10/2026 22:05')
   })
 })
