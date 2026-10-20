@@ -197,3 +197,41 @@
 .notificationTheme :global(.adn-bell__badge) {
   color: var(--color-asphalt);
 }
+
+.notificationBellAnchor {
+  display: inline-flex;
+}
+
+/* O cabeçalho tem ancestrais com overflow: o painel vive em portal, posicionado por JS. */
+.notificationPopover {
+  position: fixed;
+  z-index: 40;
+  top: var(--floating-layer-top, 0);
+  left: var(--floating-layer-left, 0);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(26rem, calc(100vw - var(--space-4) * 2));
+  max-height: min(32rem, var(--floating-layer-max-height, 32rem));
+  border: thin solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: var(--color-graphite);
+  color: var(--color-fog);
+}
+
+.notificationPopoverHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-bottom: thin solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+}
+
+.notificationPopoverTitle {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.notificationPopoverBody {
+  overflow-y: auto;
+  padding: var(--space-3);
+}
