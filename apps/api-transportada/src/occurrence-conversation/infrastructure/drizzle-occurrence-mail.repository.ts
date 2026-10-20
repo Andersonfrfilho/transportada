@@ -52,6 +52,7 @@ import {
   blocksContractorMailSend,
 } from '../domain/occurrence-contractor-template.policy.js'
 import { findActiveContractorTemplate } from './notification-template.query.js'
+import { toDisplayPersonName } from '../../shared/person-name.service.js'
 import { resolveSignerJobTitle } from '../domain/occurrence-mail-signer.policy.js'
 import type {
   CarrierIdentity,
@@ -262,7 +263,7 @@ async function findOperatorSigner(
   return {
     hasPicture: first.pictureUserId !== null,
     ...(jobTitle === undefined ? {} : { jobTitle }),
-    name: first.name,
+    name: toDisplayPersonName(first.name),
   }
 }
 

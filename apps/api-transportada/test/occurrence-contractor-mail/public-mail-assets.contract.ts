@@ -7,6 +7,7 @@ const USER = '22222222-2222-4222-8222-222222222222'
 const IMAGE = { bytes: Buffer.from('png'), mimeType: 'image/png', sha256: 'abc' }
 
 function routes(found: boolean) {
+  const whiteCalls: number[] = []
   const lookups: unknown[] = []
   const list = createPublicMailAssetRoutes({
     companyLogo: {
@@ -21,8 +22,12 @@ function routes(found: boolean) {
         return found ? (IMAGE as never) : null
       },
     },
+    whiteLogo: async () => {
+      whiteCalls.push(1)
+      return Buffer.from('white')
+    },
   })
-  return { list, lookups }
+  return { list, lookups, whiteCalls }
 }
 
 async function call(
@@ -45,6 +50,9 @@ describe('imagens públicas do e-mail da ocorrência', () => {
     })
 
     expect(urls?.logo).toBe(`https://api.example.test/public/mail-assets/${COMPANY}/logo`)
+    expect(urls?.logoWhite).toBe(
+      `https://api.example.test/public/mail-assets/${COMPANY}/logo-white`,
+    )
     expect(urls?.picture(USER)).toBe(
       `https://api.example.test/public/mail-assets/${COMPANY}/users/${USER}/picture`,
     )
@@ -62,7 +70,7 @@ describe('imagens públicas do e-mail da ocorrência', () => {
   test('logo e foto abrem sem login, com a empresa da URL no recorte', async () => {
     const { list, lookups } = routes(true)
     const logo = await call(list[0] as never, { companyId: COMPANY })
-    const picture = await call(list[1] as never, { companyId: COMPANY, userId: USER })
+    const picture = await call(list[2] as never, { companyId: COMPANY, userId: USER })
 
     expect(logo.status).toBe(200)
     expect(logo.headers.get('content-type')).toBe('image/png')
@@ -70,11 +78,23 @@ describe('imagens públicas do e-mail da ocorrência', () => {
     expect(lookups).toEqual([{ companyId: COMPANY }, { companyId: COMPANY, userId: USER }])
   })
 
+  test('logo-white serve a silhueta em PNG e guarda o resultado por sha256', async () => {
+    const { list, whiteCalls } = routes(true)
+    const route = list.find((candidate) => candidate.pathname.endsWith('/logo-white'))
+    const first = await call(route as never, { companyId: COMPANY })
+    const second = await call(route as never, { companyId: COMPANY })
+
+    expect(first.status).toBe(200)
+    expect(first.headers.get('content-type')).toBe('image/png')
+    expect(Buffer.from(await second.arrayBuffer()).toString()).toBe('white')
+    expect(whiteCalls.length).toBe(1)
+  })
+
   test('id torto não consulta o banco; ausente é 404', async () => {
     const { list, lookups } = routes(false)
 
     await expect(call(list[0] as never, { companyId: 'x' })).rejects.toBeDefined()
     expect(lookups).toEqual([])
-    await expect(call(list[1] as never, { companyId: COMPANY, userId: USER })).rejects.toBeDefined()
+    await expect(call(list[2] as never, { companyId: COMPANY, userId: USER })).rejects.toBeDefined()
   })
 })

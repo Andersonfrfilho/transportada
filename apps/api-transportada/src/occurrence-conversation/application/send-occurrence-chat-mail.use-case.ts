@@ -26,11 +26,15 @@ import {
   OccurrenceConversationMailInvalidError,
 } from '../domain/occurrence-conversation.error.js'
 import {
-  ADA_MARK_PATH,
+  brandChatMail,
+  CHAT_MAIL_FOOTER_PLACEHOLDER,
+} from '../domain/occurrence-chat-mail-branding.policy.js'
+import { buildFooterMarks } from '../domain/occurrence-mail-system-html.policy.js'
+import {
+  buildPublicMailAssetUrls,
   COMPANY_LOGO_CONTENT_ID,
   OCCURRENCE_MAIL_PRODUCT_SIGNATURE,
   OCCURRENCE_MAIL_REPLY_STRIP,
-  PRODUCT_MARK_PATH,
 } from '../domain/occurrence-mail-html.constant.js'
 import { buildSenderDisplayName } from '../domain/occurrence-mail-sender-name.policy.js'
 import { buildSignerValues } from '../domain/occurrence-mail-signer.policy.js'
@@ -57,9 +61,6 @@ import type {
   StandardEmailRendererPort,
 } from './standard-email-renderer.port.js'
 
-const HTTP_ORIGIN = /^https?:\/\//iu
-const TRAILING_SLASHES = /\/+$/u
-
 export type SendOccurrenceChatMailInput = {
   readonly actorUserId: string
   readonly attachmentIds?: readonly string[]
@@ -80,16 +81,9 @@ type Executed = {
   readonly response: SendOccurrenceMailResult
 }
 
-function resolveMarkUrls(appBaseUrl: string | undefined) {
-  if (appBaseUrl === undefined || !HTTP_ORIGIN.test(appBaseUrl)) return {}
-  const origin = appBaseUrl.replace(TRAILING_SLASHES, '')
-  return {
-    platformMarkUrl: `${origin}${ADA_MARK_PATH}`,
-    productMarkUrl: `${origin}${PRODUCT_MARK_PATH}`,
-  }
-}
-
 export function createSendOccurrenceChatMailUseCase(dependencies: {
+  /** A origem pública da API: o logo do cabeçalho vai branco por endereço estável; ausente, por `cid:`. */
+  readonly apiPublicUrl?: string
   /** A origem do painel, para as marcas do rodapé; ausente, o rodapé sai só em texto. */
   readonly appBaseUrl?: string
   readonly contractorMailSandbox?: OccurrenceMailSandbox
@@ -153,6 +147,7 @@ export function createSendOccurrenceChatMailUseCase(dependencies: {
 }
 
 async function executeChatSend(params: {
+  readonly apiPublicUrl?: string
   readonly appBaseUrl?: string
   readonly bodyText: string
   readonly contractorMailSandbox?: OccurrenceMailSandbox
@@ -269,20 +264,24 @@ async function executeChatSend(params: {
             requestedByUserId: input.actorUserId,
           },
         })
-  const hasInlineLogo = carrier?.hasLogo === true
+  const hasLogo = carrier?.hasLogo === true
+  const publicAssets = buildPublicMailAssetUrls({
+    apiPublicUrl: params.apiPublicUrl,
+    companyId,
+  })
+  /** Com endereço público o logo vai branco por URL, sem parte inline; sem ele, segue por `cid:`. */
+  const logoUrl = hasLogo ? publicAssets?.logoWhite : undefined
+  const hasInlineLogo = hasLogo && logoUrl === undefined
   const rendered = params.renderer.render({
     input: {
       attachments: uploads.map((upload) => ({ name: upload.fileName })),
       bodyText,
       footer: {
-        platformNote: OCCURRENCE_MAIL_PRODUCT_SIGNATURE,
-        ...resolveMarkUrls(params.appBaseUrl),
+        platformNote: CHAT_MAIL_FOOTER_PLACEHOLDER,
       },
       identity: {
         displayName,
-        logo: hasInlineLogo
-          ? { contentId: COMPANY_LOGO_CONTENT_ID, kind: 'cid' }
-          : { kind: 'initials' },
+        logo: hasLogo ? { contentId: COMPANY_LOGO_CONTENT_ID, kind: 'cid' } : { kind: 'initials' },
       },
       ...(readiness.ready ? { replyHint: OCCURRENCE_MAIL_REPLY_STRIP } : {}),
       signer: {
@@ -293,6 +292,13 @@ async function executeChatSend(params: {
     template: params.template,
   })
   if (rendered.tooLarge) throw new OccurrenceChatMailTooLargeError()
+  const branded = brandChatMail({
+    footerHtml: buildFooterMarks(params.appBaseUrl),
+    footerText: OCCURRENCE_MAIL_PRODUCT_SIGNATURE,
+    html: rendered.html,
+    logoUrl,
+    text: rendered.text,
+  })
 
   const facts = await transaction.findChatMailSubjectFacts({
     companyId,
@@ -318,8 +324,8 @@ async function executeChatSend(params: {
     actorUserId: input.actorUserId,
     attachmentIds,
     automatic: false,
-    bodyHtml: rendered.html,
-    bodyText: rendered.text,
+    bodyHtml: branded.html,
+    bodyText: branded.text,
     ccAddresses: copy,
     companyId,
     contractorId,

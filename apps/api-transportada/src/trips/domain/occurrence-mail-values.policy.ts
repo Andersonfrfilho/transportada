@@ -14,6 +14,7 @@ import {
   parseAmountToCents,
   resolveOccurrenceAmounts,
 } from './occurrence-amount.policy.js'
+import { toDisplayPersonName } from '../../shared/person-name.service.js'
 import { OCCURRENCE_ITEM_LINES_LIMIT } from '../../occurrence-conversation/domain/occurrence-contractor-mail.constant.js'
 import type {
   OccurrenceMailItem,
@@ -141,7 +142,7 @@ export function buildContractorMailValues(
       data: values.occurredOn,
       itens: values.itemLabel,
       linhasItens: joinItemLines(itemLines),
-      motorista: values.driverName,
+      motorista: toDisplayPersonName(values.driverName),
       numeroNota: values.documentLabel,
       numeroNotaSemSerie: values.documentNumber ?? '',
       numeroReferencia: values.referenceNumber ?? '',

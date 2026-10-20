@@ -879,6 +879,7 @@ import { createCompanyGroupRoutes } from './identity/presentation/company-group.
 import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
 import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
+import { toWhiteLogoPng } from './occurrence-conversation/infrastructure/white-logo.gateway.js'
 import { createPublicMailAssetRoutes } from './occurrence-conversation/presentation/public-mail-assets.routes.js'
 import { createPublicUserPictureRoutes } from './identity/presentation/public-user-picture.routes.js'
 import { createPublicUserPictureUseCase } from './identity/application/user-picture.use-case.js'
@@ -1959,6 +1960,7 @@ function createAnonymousRoutes({
       ...createPublicMailAssetRoutes({
         companyLogo: new DrizzleCompanyLogoRepository(database),
         userPicture: new DrizzleUserPictureRepository(database),
+        whiteLogo: toWhiteLogoPng,
       }),
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,
@@ -3620,6 +3622,7 @@ function createApplicationRoutes({
        * (modelo da empresa ou o embutido, versão 0); o app só entrega texto, nunca HTML.
        */
       sendChatMail: createSendOccurrenceChatMailUseCase({
+        ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
         ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
         fingerprintService,
