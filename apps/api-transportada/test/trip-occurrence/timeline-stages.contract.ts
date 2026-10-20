@@ -242,4 +242,20 @@ describe('as etapas da ocorrência (spec 276 T3)', () => {
       toStatus: 'needs_operator',
     })
   })
+
+  test('recebido e entregue no mesmo instante seguem a ordem do retorno, não a do id', () => {
+    for (const [receivedId, deliveredId] of [
+      ['a-received', 'z-delivered'],
+      ['z-received', 'a-delivered'],
+    ] as const) {
+      expect(
+        stagesOf([
+          RECORDED,
+          replyTo('open', 1, 'awaiting_contractor'),
+          replyTo(deliveredId, 30, 'delivered'),
+          replyTo(receivedId, 30, 'reply_received'),
+        ]).map(([stage]) => stage),
+      ).toEqual(['received', 'awaiting_contractor', 'reply_received', 'delivered'])
+    }
+  })
 })
