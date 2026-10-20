@@ -73,3 +73,37 @@ staging), servidor e editor depois.
   `bun run test` → 8475 + 1407 pass, 0 fail. `tsc` limpo nas três apps; `eslint` sem erro (avisos antigos).
 - Limite conhecido: a resolução automática pela entrega não dispara `trip.occurrence-resolved`; o motorista já recebe o documento
   na mesma hora.
+
+## T4 — trava de pedido repetido na mesma nota (20/10/2026)
+
+Postgres 16 local, Bun 1.4.2. Painel tolerante no #322; servidor e editor no #327 (em staging, CI verde).
+
+- Migration `20261020193306_occurrence_duplicate_request_policy`: padrão `allow`; o tipo que já pede retorno à contratante
+  passa a `while_request_open`. `db:test` → 231 pass (recusa do rollback, rollback e reaplicação).
+- Integração `occurrence-duplicate-request`, `occurrence-type-contractor-reply-write`, `occurrence-contractor-reply-received` →
+  pass. Contratos da API → 12500 pass, 0 fail; `trip-schema` → 265 pass.
+- Painel: seletor "Pedido repetido na mesma nota" no cadastro e no editor (tipo novo nasce `while_request_open`); aviso
+  "Esta nota já tem esse pedido em andamento." `bun run test` → 8484 + 1407 pass, 0 fail. `tsc`, `eslint`, `prettier` limpos.
+- Limites conhecidos: o recebimento da carga (237) não passa pela trava; as fotos de um pedido do motorista recusado pela
+  trava ficam sem referência até o expurgo.
+
+## T5 — resposta automática à contratante (20/10/2026)
+
+Postgres 16 local, Bun 1.4.2.
+
+- Migration `20261020204714_contractor_reply_acknowledgement`, aditiva: a coluna nula no tipo e o alvo
+  `contractor_acknowledgement` na CHECK de `occurrence_contractor_reply_deliveries`. O `rollback.sql` recusa com tipo usando a
+  opção ou com resposta automática registrada. `db:test` → 231 pass.
+- `queueContractorReplyAcknowledgement` (cópia igual na API e no worker, paridade passa) roda depois da entrega automática ao
+  motorista, num savepoint: e-mail na mesma thread (`Re:` do último assunto, para o remetente da resposta), mensagem
+  `automatic` na conversa, outbox e linha de entrega com chave `contractor_acknowledgement:<conversa>`. Sem remetente
+  verificado ou sem thread, grava a entrega como falha e não derruba a entrega ao motorista.
+- O salvar do tipo recusa resposta rápida inativa, do motorista, de outra empresa ou inexistente com
+  400 `OCCURRENCE_TYPE_ACKNOWLEDGEMENT_INVALID`; ausente mantém, `null` desliga.
+- Integração: `occurrence-contractor-reply-received` (envia uma vez na mesma thread; a segunda é `already_queued`; desligada ou
+  inativa não envia; aguardando o operador não envia) e `occurrence-type-contractor-reply-write` (7 pass). Contratos da API →
+  12506 pass, 0 fail. Worker: `tsc` limpo, 2812 pass; as 5 falhas são as do decodificador do canhoto, iguais às da T3b.
+- Painel: seletor "Resposta automática à contratante" no bloco do retorno, com "Desligada" e as respostas rápidas ativas da
+  contratante; API anterior ao campo não mostra o seletor nem manda a chave; o parser aceita a chave antes da API.
+  `bun run test` → 8494 + 1407 pass, 0 fail. `tsc` limpo; `eslint` sem erro (avisos antigos).
+- Limites conhecidos: só por e-mail; não sai quando o operador aprova à mão (só na entrega automática).

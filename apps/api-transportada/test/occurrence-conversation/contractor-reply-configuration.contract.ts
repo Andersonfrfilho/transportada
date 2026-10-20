@@ -30,6 +30,7 @@ const TYPE: ContractorReplyTypeConfiguration = {
   forwardToInformedEmail: 'manual',
   forwardToNoteRecipient: 'manual',
   mode: 'forward_after_approval',
+  acknowledgementQuickReplyId: null,
   resolveOnDelivery: false,
   waitHours: 6,
 }
@@ -64,6 +65,7 @@ describe('a configuração efetiva do retorno (spec 248 D8)', () => {
       forwardToInformedEmail: 'manual',
       forwardToNoteRecipient: 'manual',
       mode: 'forward_after_approval',
+      acknowledgementQuickReplyId: null,
       resolveOnDelivery: false,
       version: 1,
       waitHours: 6,
@@ -172,10 +174,23 @@ describe('a configuração efetiva do retorno (spec 248 D8)', () => {
 
     const stored = Object.fromEntries(
       Object.entries(TYPE).filter(
-        ([key]) => key !== 'resolveOnDelivery' && key !== 'emailsContractor',
+        ([key]) =>
+          key !== 'resolveOnDelivery' &&
+          key !== 'acknowledgementQuickReplyId' &&
+          key !== 'emailsContractor',
       ),
     )
     const parsed = contractorReplyConfigurationSchema.parse({ ...stored, version: 1 })
     expect(parsed.resolveOnDelivery).toBe(false)
+    expect(parsed.acknowledgementQuickReplyId).toBeNull()
+  })
+
+  test('a resposta automática à contratante (spec 276 T5) vem do tipo; nula é desligada', () => {
+    const quickReplyId = '0f3f6a3c-7b8e-4c9a-9f1e-2b6d1c0e5a47'
+    expect(
+      open({ acknowledgementQuickReplyId: quickReplyId }, EMPTY_OVERRIDE)
+        .acknowledgementQuickReplyId,
+    ).toBe(quickReplyId)
+    expect(open({}, EMPTY_OVERRIDE).acknowledgementQuickReplyId).toBeNull()
   })
 })

@@ -52,6 +52,8 @@ export const contractorReplyConfigurationSchema = z.object({
    * não o tem e lê `false`: a cópia guardada nunca muda de sentido.
    */
   resolveOnDelivery: z.boolean().default(false),
+  /** Spec 276 T5: a resposta rápida que sai à contratante depois da entrega; nula é desligada. */
+  acknowledgementQuickReplyId: z.string().nullable().default(null),
   version: z.literal(CONTRACTOR_REPLY_CONFIGURATION_VERSION),
   waitHours: z
     .number()

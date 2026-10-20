@@ -1598,3 +1598,23 @@ export class OccurrenceDuplicateRequestError extends ApiError {
     this.existingOccurrenceId = existingOccurrenceId
   }
 }
+
+/**
+ * Spec 276 T5: a resposta automática à contratante aponta uma resposta rápida que não existe nesta empresa, não é do
+ * público da contratante ou está desativada.
+ */
+export class OccurrenceTypeAcknowledgementInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_ACKNOWLEDGEMENT_INVALID',
+      details: [
+        {
+          field: 'contractorReplyAcknowledgementQuickReplyId',
+          message: 'Choose an active contractor quick reply.',
+        },
+      ],
+      message: 'The automatic reply must be an active contractor quick reply of this company.',
+      status: 400,
+    })
+  }
+}

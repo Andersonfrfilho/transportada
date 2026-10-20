@@ -488,6 +488,8 @@ const occurrenceTypeSchema = z
     contractorReplyResolveOnDelivery: z.boolean().optional(),
     /** Spec 276 T4: a trava de pedido repetido; ausente não mexe. */
     duplicateRequestPolicy: z.enum(DUPLICATE_REQUEST_POLICIES).optional(),
+    /** Spec 276 T5: `null` desliga; ausente não mexe. */
+    contractorReplyAcknowledgementQuickReplyId: z.string().uuid().nullable().optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),
     contractorReplyWaitHours: z
       .number()

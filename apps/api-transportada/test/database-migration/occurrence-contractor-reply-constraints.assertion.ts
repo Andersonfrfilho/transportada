@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import type { SQL } from 'bun'
 import { expect } from 'bun:test'
 
+import { rollbackContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { rollbackContractorReplyResolveOnDelivery } from './contractor-reply-resolve-on-delivery.assertion.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -41,6 +42,7 @@ async function assertDefaultsOnExistingType(
     join(migrationsDirectory.pathname, directory, 'rollback.sql'),
   ).text()
 
+  await rollbackContractorReplyAcknowledgement(database, directories)
   await rollbackContractorReplyResolveOnDelivery(database, directories)
   await database.unsafe(rollback)
   const typeId = crypto.randomUUID()

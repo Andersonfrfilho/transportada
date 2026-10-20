@@ -654,7 +654,8 @@
         "forwardToNoteRecipient": "Send the boleto to the invoice customer email",
         "forwardToInformedEmail": "Forward the boleto to an informed email",
         "forwardEmailSubject": "Subject of the email to the third party",
-        "forwardEmailBody": "Text of the email to the third party"
+        "forwardEmailBody": "Text of the email to the third party",
+        "acknowledgement": "Automatic reply to the contractor"
       },
       "mode": {
         "off": "Only show the reply",
@@ -689,6 +690,12 @@
         "maxCountOutOfRange": "Enter 1 to 96 alerts.",
         "automaticNeedsReply": "Automatic sending to the invoice customer requires the reply to be on.",
         "forwardNeedsText": "Write the subject and the text: the email to the third party is not sent without both."
+      },
+      "acknowledgement": {
+        "empty": "Add an active quick reply on the Contractor tab to pick it here.",
+        "hint": "Sent once per conversation, only when the document is confirmed and delivered to the driver without the operation stepping in.",
+        "inactive": "Deactivated quick reply",
+        "off": "Off"
       }
     },
     "contractorScope": {

@@ -27,6 +27,7 @@ import {
   nfeParticipants,
   nfeProducts,
 } from '../../database/nfe.schema.js'
+import { companyQuickReplies } from '../../database/occurrence-conversation.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   companyOccurrenceTypes,
@@ -76,6 +77,7 @@ import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import { assertNoDuplicateOccurrenceRequest } from './occurrence-duplicate-request.query.js'
 import type { OccurrenceMailValues } from '../domain/occurrence-mail-values.types.js'
 import {
+  OccurrenceTypeAcknowledgementInvalidError,
   OccurrenceTypeContractorReplyAlertNeedsWaitError,
   OccurrenceTypeContractorReplyNeedsMailError,
   OccurrenceTypeDeclaredAmountNeedsItemsError,
@@ -902,6 +904,8 @@ export async function findOccurrenceType(
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      contractorReplyAcknowledgementQuickReplyId:
+        companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
       contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
@@ -1081,6 +1085,8 @@ export async function listOccurrenceTypes(
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      contractorReplyAcknowledgementQuickReplyId:
+        companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
       contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
@@ -1191,6 +1197,7 @@ export async function saveOccurrenceType(
             companyId: input.companyId,
             occurrenceTypeId: input.occurrenceTypeId,
           })
+    await assertAcknowledgementQuickReply(transaction, input)
     const saved = await writeOccurrenceTypeRow(transaction, input)
     const moments =
       input.moments ??
@@ -1294,6 +1301,31 @@ function requireActor(actorUserId: string | undefined): string {
   return actorUserId
 }
 
+/** Spec 276 T5: a resposta automática só aponta resposta rápida ativa da contratante, da mesma empresa. */
+async function assertAcknowledgementQuickReply(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
+  },
+): Promise<void> {
+  const quickReplyId = input.contractorReplyAcknowledgementQuickReplyId
+  if (quickReplyId === undefined || quickReplyId === null) return
+  const [quickReply] = await queryable
+    .select({ id: companyQuickReplies.id })
+    .from(companyQuickReplies)
+    .where(
+      and(
+        eq(companyQuickReplies.companyId, input.companyId),
+        eq(companyQuickReplies.id, quickReplyId),
+        eq(companyQuickReplies.audience, 'contractor'),
+        eq(companyQuickReplies.active, true),
+      ),
+    )
+    .limit(1)
+  if (quickReply === undefined) throw new OccurrenceTypeAcknowledgementInvalidError()
+}
+
 async function writeOccurrenceTypeRow(
   queryable: TripQueryable,
   input: {
@@ -1322,6 +1354,7 @@ async function writeOccurrenceTypeRow(
     readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
     readonly contractorReplyResolveOnDelivery?: boolean | undefined
     readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+    readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
     readonly contractorReplyMode?: ContractorReplyMode | undefined
     readonly contractorReplyWaitHours?: null | number | undefined
     readonly driverReplyTemplate?: string | undefined
@@ -1419,6 +1452,12 @@ async function writeOccurrenceTypeRow(
     ...(input.duplicateRequestPolicy === undefined
       ? {}
       : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
+    ...(input.contractorReplyAcknowledgementQuickReplyId === undefined
+      ? {}
+      : {
+          contractorReplyAcknowledgementQuickReplyId:
+            input.contractorReplyAcknowledgementQuickReplyId,
+        }),
     ...(input.contractorReplyMode === undefined
       ? {}
       : { contractorReplyMode: input.contractorReplyMode }),
@@ -1532,6 +1571,7 @@ async function writeOccurrenceTypeRow(
     contractorReplyAttachmentKind: saved.contractorReplyAttachmentKind,
     contractorReplyResolveOnDelivery: saved.contractorReplyResolveOnDelivery,
     duplicateRequestPolicy: saved.duplicateRequestPolicy,
+    contractorReplyAcknowledgementQuickReplyId: saved.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: saved.contractorReplyMode,
     contractorReplyWaitHours: saved.contractorReplyWaitHours,
     driverReplyTemplate: saved.driverReplyTemplate,

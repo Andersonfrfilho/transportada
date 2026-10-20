@@ -45,6 +45,8 @@ export type OccurrenceTypeSaveInput = Readonly<{
   /** Spec 183 T802: o aviso automático à contratante — `undefined` é "não mexe". */
   emailsContractor?: boolean | undefined
   /** Spec 248 RF1: o retorno da contratante — `undefined` é "não mexe". */
+  /** Spec 276 T5: `undefined` é "não mexe"; `null` desliga. */
+  contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   contractorReplyAlertIntervalMinutes?: number | undefined
   contractorReplyAlertMaxCount?: number | undefined
   contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
@@ -105,6 +107,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'contractorMailRecipientContactIds'
       | 'contractorMailWatcherUserIds'
       | 'contractorNotificationTemplateKey'
+      | 'contractorReplyAcknowledgementQuickReplyId'
       | 'contractorReplyAlertIntervalMinutes'
       | 'contractorReplyAlertMaxCount'
       | 'contractorReplyAlertMode'

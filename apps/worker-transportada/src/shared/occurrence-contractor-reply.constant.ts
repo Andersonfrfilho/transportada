@@ -91,6 +91,8 @@ export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
   'driver_whatsapp',
   'note_recipient_email',
   'informed_email',
+  /** Spec 276 T5: a resposta automática à contratante (uma por conversa). Não leva o documento nem tira o token. */
+  'contractor_acknowledgement',
 ] as const
 export type ContractorReplyDeliveryTarget = (typeof CONTRACTOR_REPLY_DELIVERY_TARGETS)[number]
 
