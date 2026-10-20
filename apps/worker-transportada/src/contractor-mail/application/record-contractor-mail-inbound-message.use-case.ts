@@ -20,7 +20,11 @@ import { parseSenderMailbox } from '../domain/sender-mailbox.policy.js'
 import { extractReplyText } from '../domain/reply-text.policy.js'
 import { extractReplyTokenCandidates } from '../domain/recipient-reply-token.policy.js'
 import { ContractorMailInboundSettingsMissingError } from '../domain/contractor-mail-inbound.error.js'
-import { DKIM_ALIGNMENT_RESULT, type DkimAlignmentResult } from '../domain/dkim-alignment.policy.js'
+import {
+  DKIM_ALIGNMENT_RESULT,
+  type DkimAlignmentResult,
+  type DkimSignatureDiagnostic,
+} from '../domain/dkim-alignment.policy.js'
 import type { VerifyDkimHeaderFromPort } from '../infrastructure/dkim-verifier.gateway.js'
 import type {
   CargoPreviewEmailIntakePort,
@@ -94,6 +98,12 @@ export type RecordContractorMailInboundMessageResult =
   | {
       /** Spec 183 T702c1: só contagem — o nome do arquivo nunca sai daqui. */
       readonly attachments: { readonly linked: number; readonly skipped: number }
+      /** Só para log: o que levou ao `dkimResult`, sem domínio nem endereço. */
+      readonly dkimDiagnostic: {
+        readonly headerFromCount: number
+        readonly senderMatchesHeaderFrom: boolean
+        readonly signatures: readonly DkimSignatureDiagnostic[]
+      }
       readonly dkimResult: DkimAlignmentResult
       readonly outcome: 'recorded'
       readonly threadId: string
@@ -183,7 +193,7 @@ export async function recordContractorMailInboundMessage(
   const sender = parseSenderMailbox(received.from)
   const verification = hasBoundedHeaders
     ? await dependencies.dkimVerifier.verifyWithHeaderFrom(rawMessage)
-    : { alignment: DKIM_ALIGNMENT_RESULT.ABSENT, headerFrom: [] }
+    : { alignment: DKIM_ALIGNMENT_RESULT.ABSENT, headerFrom: [], signatures: [] }
   /** Spec 237 T4.7d: o selo de verificada só vale quando o `From` assinado é o remetente gravado. */
   const dkimResult = resolveConversationDkimResult({
     alignment: verification.alignment,
@@ -220,6 +230,13 @@ export async function recordContractorMailInboundMessage(
 
   return {
     attachments: { linked: recorded.linkedAttachments, skipped: attachments.skipped },
+    dkimDiagnostic: {
+      headerFromCount: verification.headerFrom.length,
+      senderMatchesHeaderFrom: verification.headerFrom.some(
+        (address) => address.toLowerCase() === sender.address.toLowerCase(),
+      ),
+      signatures: verification.signatures ?? [],
+    },
     dkimResult,
     outcome: 'recorded',
     threadId: thread.id,

@@ -327,6 +327,7 @@ describe('o prazo total da verificação de DKIM (spec 237 T4.7c, NOVO-3)', () =
     expect(await gateway.verifyWithHeaderFrom(Buffer.from(signed))).toEqual({
       alignment: 'aligned',
       headerFrom: [`financeiro@${domain}`],
+      signatures: [{ aligned: true, lengthLimited: false, reason: null, result: 'pass' }],
     })
   })
 

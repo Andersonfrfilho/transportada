@@ -228,6 +228,11 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
 
     expect(result).toEqual({
       attachments: { linked: 0, skipped: 0 },
+      dkimDiagnostic: {
+        headerFromCount: 1,
+        senderMatchesHeaderFrom: true,
+        signatures: [{ aligned: true, lengthLimited: false, reason: null, result: 'pass' }],
+      },
       dkimResult: 'aligned',
       outcome: 'recorded',
       threadId: THREAD_ID,
