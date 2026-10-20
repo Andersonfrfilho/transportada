@@ -17,6 +17,8 @@ export type CteTechnicalResponsibleEnvironment = {
  * ambiente local, onde o Mailpit escuta — porta SMTP de saída é o que trava em hospedagem.
  */
 export type EmailDeliveryEnvironment = {
+  /** Declarada, só estes e-mails (ou domínios `@x`) recebem; ausente não filtra. */
+  readonly allowedRecipients?: readonly string[]
   readonly from: string
   readonly transport:
     | { readonly kind: 'resend'; readonly apiKey: string }
@@ -101,6 +103,10 @@ export type WorkerEnvironment = {
   readonly databaseUrl: string
   /** Ausente desliga a entrega por e-mail: o convite é criado, mas o código não sai daqui. */
   readonly emailDelivery?: EmailDeliveryEnvironment
+  /** `EMAIL_ALLOWED_RECIPIENTS` (nunca em produção), também para o e-mail da contratante. */
+  readonly emailAllowedRecipients?: readonly string[]
+  /** `EMAIL_RESEND_ENABLED=false` (nunca em produção): o e-mail da contratante sai pelo sandbox SMTP. */
+  readonly emailResendDisabled?: true
   /**
    * O ambiente fiscal da instalação. Hoje só a reconciliação de NFS-e o lê, para casar a credencial
    * do provedor: a Nota RP publica um servidor só (ADR-0035), e quem separa uma instalação da outra

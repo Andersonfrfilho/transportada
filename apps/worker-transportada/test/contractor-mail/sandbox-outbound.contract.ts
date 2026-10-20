@@ -393,3 +393,101 @@ describe('o gateway SMTP do sandbox', () => {
     expect(messages).toEqual([])
   })
 })
+
+describe('EMAIL_ALLOWED_RECIPIENTS e EMAIL_RESEND_ENABLED no e-mail da contratante', () => {
+  function recordingLogger() {
+    const warnings: { message: string; metadata: unknown }[] = []
+    const logger = {
+      error: () => undefined,
+      info: () => undefined,
+      warn: (message: string, metadata: unknown) => {
+        warnings.push({ message, metadata })
+      },
+    }
+    return { logger: logger as never, warnings }
+  }
+
+  test('nenhum destinatário na lista: falha com email_recipient_not_allowed, sem enviar', async () => {
+    const requests: unknown[] = []
+    const { logger, warnings } = recordingLogger()
+    const { calls, dependencies, failed, sent } = buildDependencies({
+      sandbox: {
+        sendEmail: async (request) => {
+          requests.push(request)
+          return { id: '<smtp-x@mailpit>' }
+        },
+      },
+    })
+
+    const result = await sendContractorMailOutboundMessage(buildEnvelope(), {
+      ...dependencies,
+      allowedRecipients: ['dono@exemplo.com.br'],
+      logger,
+    })
+
+    expect(result).toEqual({
+      outcome: 'failed',
+      reason: 'email_recipient_not_allowed',
+      threadId: THREAD_ID,
+    })
+    expect(requests).toEqual([])
+    expect(failed).toEqual([MESSAGE_ID])
+    expect(sent).toEqual([])
+    expect(calls).toEqual([])
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]?.message).toBe('contractor_mail_recipient_not_allowed')
+    expect(JSON.stringify(warnings[0]?.metadata)).not.toContain('alfa.example.test')
+  })
+
+  test('parte na lista: envia só aos permitidos, no To e no Cc, e avisa quantos ficaram de fora', async () => {
+    const requests: Parameters<SandboxSmtpMailGateway['sendEmail']>[0][] = []
+    const { logger, warnings } = recordingLogger()
+    const { dependencies } = buildDependencies({
+      message: {
+        ...SANDBOX_MESSAGE,
+        ccAddresses: ['gestor@exemplo.com.br', 'diretoria@alfa.example.test'],
+      },
+      sandbox: {
+        sendEmail: async (request) => {
+          requests.push(request)
+          return { id: '<smtp-y@mailpit>' }
+        },
+      },
+    })
+
+    const result = await sendContractorMailOutboundMessage(buildEnvelope(), {
+      ...dependencies,
+      allowedRecipients: ['compras@alfa.example.test', '@exemplo.com.br'],
+      logger,
+    })
+
+    expect(result).toEqual({ outcome: 'sent', threadId: THREAD_ID })
+    expect(requests[0]?.to).toEqual(['compras@alfa.example.test'])
+    expect(requests[0]?.cc).toEqual(['gestor@exemplo.com.br'])
+    expect(warnings[0]?.metadata).toMatchObject({ blocked: 2, sending: 2 })
+  })
+
+  test('Resend desligado: a linha resend sai pelo sandbox, com o remetente do worker, sem tocar a empresa', async () => {
+    const requests: Parameters<SandboxSmtpMailGateway['sendEmail']>[0][] = []
+    const { calls, dependencies, sent } = buildDependencies({
+      message: { ...SANDBOX_MESSAGE, fromAddress: null, transport: 'resend' },
+      sandbox: {
+        sendEmail: async (request) => {
+          requests.push(request)
+          return { id: '<smtp-z@mailpit>' }
+        },
+      },
+    })
+
+    const result = await sendContractorMailOutboundMessage(buildEnvelope(), {
+      ...dependencies,
+      resendDisabled: true,
+      sandboxFromAddress: 'nao-responda@staging.example.test',
+    })
+
+    expect(result).toEqual({ outcome: 'sent', threadId: THREAD_ID })
+    expect(requests[0]?.from).toBe('nao-responda@staging.example.test')
+    expect(sent).toEqual([{ messageId: MESSAGE_ID, providerEmailId: '<smtp-z@mailpit>' }])
+    expect(calls).toEqual([])
+  })
+})

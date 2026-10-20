@@ -182,7 +182,9 @@ export default defineRailway((ctx) => {
       CTE_TECHNICAL_RESPONSIBLE_PHONE: preserve(),
       DATABASE_URL: preserve(),
       DEPLOYED_REVISION: preserve(),
+      EMAIL_ALLOWED_RECIPIENTS: preserve(),
       EMAIL_FROM: preserve(),
+      EMAIL_RESEND_ENABLED: preserve(),
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       /** Spec 262: as duas FERIADOS_API_* são legado ignorado pelo worker (chave e orçamento moram no banco); saem na T4.4. */
