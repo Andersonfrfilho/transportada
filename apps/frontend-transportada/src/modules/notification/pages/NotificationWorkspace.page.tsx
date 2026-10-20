@@ -5,12 +5,19 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 
+import { openNotificationTarget } from '../shared/notificationNavigation.service'
+import type { NotificationTargetSource } from '../shared/notificationTarget.service'
 import { NOTIFICATION_SETTINGS_HREF } from '../shared/notificationCatalog.constant'
 import { NOTIFICATION_THEME_CLASS } from '../shared/notificationTheme.constant'
 import styles from '../styles/notification.module.css'
 
 export function NotificationWorkspacePage(): ReactNode {
   const { t } = useTranslation('notification')
+
+  /** O pacote já marca como lida ao selecionar; aqui só se navega, e aviso sem id válido fica onde está. */
+  function handleSelectNotification(notification: NotificationTargetSource): void {
+    openNotificationTarget(notification)
+  }
 
   /*
    * O workspace já desenha um `<h1>`, porque ele é a tela. Entregar o nosso pelo slot substitui o
@@ -36,6 +43,7 @@ export function NotificationWorkspacePage(): ReactNode {
       <NotificationsWorkspace
         className={NOTIFICATION_THEME_CLASS}
         renderEmpty={() => <p>{t('empty')}</p>}
+        onSelectNotification={handleSelectNotification}
         renderHeader={renderHeader}
       />
     </main>

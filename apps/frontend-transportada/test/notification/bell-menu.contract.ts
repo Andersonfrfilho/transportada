@@ -18,6 +18,8 @@ describe('sino de notificações', () => {
     expect(main).not.toContain('<NotificationBell\n')
     expect(menu).toContain('onClick={() => setIsOpen(!isOpen)}')
     expect(menu).toContain('onViewAll()')
+    expect(menu).toContain('onSelect={selectNotification}')
+    expect(menu).toContain('openNotificationTarget(notification)')
   })
 
   test('os dois idiomas têm os textos do painel', async () => {
