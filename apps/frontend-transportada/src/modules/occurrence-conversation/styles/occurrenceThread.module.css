@@ -201,6 +201,20 @@
   font-size: var(--field-font-size-compact);
 }
 
+/* O avatar do participante (círculo com cor e ícone) entra no slot `renderAuthorAvatar` do SDK, que o embrulha num
+ * quadrado de 2rem com borda e `overflow: hidden`: sem isto aparecia um círculo recortado dentro de um quadrado. O
+ * embrulho fica invisível e o círculo ocupa o lugar inteiro. */
+.frame :global(.cv-p-avatar):has(> .avatar) {
+  overflow: visible;
+  border: 0;
+  background: none;
+}
+
+.frame :global(.cv-p-avatar) > .avatar {
+  width: 100%;
+  height: 100%;
+}
+
 /* A borda do balão diz de quem é: a do operador (minha) em verde; a do outro lado na cor do participante da aba. */
 .frame :global(.cv-p-bubble--mine) {
   border: 1px solid var(--tone-operator-color);
