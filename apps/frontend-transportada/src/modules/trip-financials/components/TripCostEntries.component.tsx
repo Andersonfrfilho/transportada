@@ -13,6 +13,7 @@ import type { TripCostEntryFormFields } from '../shared/tripCostEntryForm.servic
 import type { CompanyEntryKind, TripCostEntry } from '../shared/tripFinancials.types'
 import styles from '../styles/tripFinancials.module.css'
 import { TripCostEntryForm } from './TripCostEntryForm.component'
+import { formatPersonName } from '@/lib/personName'
 
 type TripCostEntriesProps = Readonly<{
   canRecord: boolean
@@ -101,7 +102,9 @@ export function TripCostEntries({
                 <span className={styles.costEntryMeta}>
                   {t('costEntries.by', {
                     actor:
-                      entry.actor.name === '' ? t('costEntries.unknownActor') : entry.actor.name,
+                      entry.actor.name === ''
+                        ? t('costEntries.unknownActor')
+                        : formatPersonName(entry.actor.name),
                     moment: formatMoment(entry.createdAt),
                   })}
                 </span>

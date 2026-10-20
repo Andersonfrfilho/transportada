@@ -6,6 +6,7 @@
  * (a mesma dos balões, T704), a frase de cada evento e os três tempos contados com o relógio local.
  */
 import type { OccurrenceCancellation } from './trip.types'
+import { formatPersonName } from '@/lib/personName'
 
 export type OccurrenceTimelineActorKind = 'contractor' | 'driver' | 'operation' | 'system'
 
@@ -83,7 +84,7 @@ export function toOccurrenceCancellation(
 ): OccurrenceCancellation {
   return {
     cancelledAt: event.occurredAt,
-    cancelledByName: event.actor.name,
+    cancelledByName: event.actor.name === null ? null : formatPersonName(event.actor.name),
     reason: event.reason,
   }
 }
@@ -144,12 +145,12 @@ export function describeOccurrenceTimelineEvent(
       }
       return {
         key: 'occurrenceTimeline.event.resolvedInternal',
-        values: { name: event.actor.name ?? '', note: event.note ?? '' },
+        values: { name: formatPersonName(event.actor.name ?? ''), note: event.note ?? '' },
       }
     case 'resolution.reopened':
       return {
         key: 'occurrenceTimeline.event.reopened',
-        values: { name: event.actor.name ?? '' },
+        values: { name: formatPersonName(event.actor.name ?? '') },
       }
   }
 }
