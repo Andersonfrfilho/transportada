@@ -23,6 +23,7 @@ import {
 import { createDrizzleContractorPortalConversationUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
 import { createSendAutomaticOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import { deliverContractorReplyToDriver } from '../../src/occurrence-conversation/infrastructure/contractor-reply-driver-delivery.support.js'
+import { deliverConversationAttachmentToDriver } from '../../src/occurrence-conversation/infrastructure/conversation-attachment-driver-delivery.support.js'
 import { applyContractorReplyToMessage } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-contractor-reply.repository.js'
 import { createAutomaticOccurrenceMailReader } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
 import {
@@ -581,6 +582,74 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
           .from(occurrenceContractorReplyDeliveries)
           .where(eq(occurrenceContractorReplyDeliveries.companyId, companyId))
         expect(deliveries).toEqual([{ reason: 'driver_without_account', status: 'skipped' }])
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'sem retorno: o arquivo escolhido vai ao motorista uma vez, com o mesmo objeto, sem linha de entrega',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+        const [conversation] = await database.db
+          .insert(occurrenceConversations)
+          .values({
+            companyId,
+            occurrenceId: seeded.occurrenceId,
+            occurrenceKind: 'document',
+            participant: 'contractor',
+          })
+          .returning({ id: occurrenceConversations.id })
+        const received = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId: conversation?.id ?? '',
+        })
+        const attachmentId = received.attachmentIds[0] ?? ''
+
+        const deliver = (occurrenceId: string) =>
+          database.db.transaction((transaction) =>
+            deliverConversationAttachmentToDriver(transaction, {
+              actorUserId: seeded.company.userId,
+              attachmentId,
+              companyId,
+              now: new Date(),
+              occurrenceId,
+            }),
+          )
+        expect(await deliver(crypto.randomUUID())).toEqual({
+          kind: 'skipped',
+          reason: 'attachment_not_found',
+        })
+        expect((await deliver(seeded.occurrenceId)).kind).toBe('delivered')
+        expect((await deliver(seeded.occurrenceId)).kind).toBe('already_delivered')
+
+        const messages = await driverMessagesOf(database, companyId)
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+          automatic: false,
+          bodyText: '',
+          channel: 'app',
+          direction: 'outbound',
+        })
+        const [source] = await database.db
+          .select({ storedObjectId: occurrenceConversationAttachments.storedObjectId })
+          .from(occurrenceConversationAttachments)
+          .where(eq(occurrenceConversationAttachments.id, attachmentId))
+        const delivered = await database.db
+          .select({ storedObjectId: occurrenceConversationAttachments.storedObjectId })
+          .from(occurrenceConversationAttachments)
+          .where(eq(occurrenceConversationAttachments.messageId, messages[0]?.id ?? ''))
+        expect(delivered).toEqual([{ storedObjectId: source?.storedObjectId ?? '' }])
+        expect(
+          await database.db
+            .select({ id: occurrenceContractorReplyDeliveries.id })
+            .from(occurrenceContractorReplyDeliveries)
+            .where(eq(occurrenceContractorReplyDeliveries.companyId, companyId)),
+        ).toEqual([])
       })
     },
     60_000,
