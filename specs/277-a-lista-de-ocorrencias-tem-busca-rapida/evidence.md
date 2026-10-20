@@ -24,7 +24,7 @@
 ## T3 (etapa 3, resolução média por tipo)
 
 - API: `GET /v1/trip-occurrence-resolution-summary` (`fleet.read`, como o feed) devolve, por tipo, `{ typeName, resolvedCount,
-  averageSeconds }`: do registro até o **último** `resolved` (o `resolvedAt` da 276), só de quem está resolvida agora — reaberta,
+averageSeconds }`: do registro até o **último** `resolved` (o `resolvedAt` da 276), só de quem está resolvida agora — reaberta,
   em aberto e cancelada ficam de fora; nome do tipo como no feed. Fora de `/trip-occurrences/` porque o `:id` do detalhe casaria o
   caminho (contrato de colisão da 266).
 - Integração contra Postgres 16 descartável: `test/integration/trip-occurrence-resolution-summary.integration.ts`, 3 pass / 0 fail
