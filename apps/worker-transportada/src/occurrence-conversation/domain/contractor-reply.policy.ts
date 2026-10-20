@@ -48,6 +48,7 @@ export type ContractorReplyDecisionInput = {
 
 export type ContractorReplyIgnoreReason =
   | 'already_answered'
+  | 'awaiting_attachment'
   | 'already_delivered'
   | 'cancelled'
   | 'handled'
@@ -87,6 +88,11 @@ export function decideContractorReply(
     acceptedContentTypes.includes(attachment.contentType),
   )
   const [onlyAccepted] = accepted
+  /**
+   * A reply with no attachment at all ("Solicitado") only confirms the request: the reply keeps
+   * waiting for the document, with its deadline and alarm, and the message stays in the conversation.
+   */
+  if (attachments.length === 0) return { kind: 'ignore', reason: 'awaiting_attachment' }
   if (onlyAccepted === undefined)
     return { kind: 'needs_operator', reason: 'no_accepted_attachment' }
   if (accepted.length > 1) return { kind: 'needs_operator', reason: 'multiple_attachments' }

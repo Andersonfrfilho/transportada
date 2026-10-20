@@ -65,9 +65,16 @@ const OPEN_STATUS_CASES: readonly DecisionCase[] = [
   {
     attachments: [],
     config: AUTOMATIC_PDF,
-    expected: NEEDS_NO_ATTACHMENT,
-    name: '0 attachments',
+    expected: { kind: 'ignore', reason: 'awaiting_attachment' },
+    name: '0 attachments ("Solicitado"): keeps waiting for the document',
     status: 'awaiting_contractor',
+  },
+  {
+    attachments: [],
+    config: APPROVAL_PDF,
+    expected: { kind: 'ignore', reason: 'awaiting_attachment' },
+    name: '0 attachments when already overdue: keeps waiting, the alarm goes on',
+    status: 'overdue',
   },
   {
     attachments: [PDF],
@@ -209,6 +216,17 @@ describe('decideContractorReply (spec 248 RF4, CA03)', () => {
       expect(decide(status, config, attachments)).toEqual(expected)
     })
   }
+
+  test('a text-only reply first and the pdf later: the pdf is the one accepted', () => {
+    const first = decide('awaiting_contractor', AUTOMATIC_PDF, [])
+    expect(first).toEqual({ kind: 'ignore', reason: 'awaiting_attachment' })
+
+    expect(decide('awaiting_contractor', AUTOMATIC_PDF, [PDF])).toEqual({
+      attachmentId: PDF.id,
+      kind: 'accept',
+      nextStep: 'deliver',
+    })
+  })
 
   test('only the waiting statuses can accept a reply', () => {
     const accepting = CONTRACTOR_REPLY_STATUSES.filter(

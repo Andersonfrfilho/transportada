@@ -594,7 +594,7 @@ describe('a operação escreve pelo portal, contra Postgres (spec 183 T654)', ()
 
 describe('a resposta pelo portal move o retorno (spec 248 T4.5, CA02)', () => {
   testWithPostgres(
-    'mensagem do portal sem anexo aceito leva o retorno ao operador, na mesma transação',
+    'mensagem do portal só com texto mantém o retorno aguardando o documento',
     async () => {
       await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
@@ -655,10 +655,10 @@ describe('a resposta pelo portal move o retorno (spec 248 T4.5, CA02)', () => {
           .from(occurrenceContractorReplies)
           .where(eq(occurrenceContractorReplies.companyId, companyId))
         expect(reply).toMatchObject({
-          reason: 'no_accepted_attachment',
-          status: 'needs_operator',
+          reason: null,
+          replyMessageId: null,
+          status: 'awaiting_contractor',
         })
-        expect(reply?.replyMessageId).not.toBeNull()
       })
     },
     30_000,
