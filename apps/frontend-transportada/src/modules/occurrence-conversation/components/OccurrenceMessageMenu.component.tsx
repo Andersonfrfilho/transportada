@@ -4,7 +4,6 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useFloatingLayer } from '@/components/ui/useFloatingLayer.hook'
@@ -36,9 +35,9 @@ type OccurrenceMessageMenuProps = Readonly<{
 const BUBBLE_SELECTOR = '.cv-p-bubble'
 
 /**
- * As opções de cada balão dos chats da ocorrência, atrás de um botão de três pontos: copiar o trecho
- * selecionado, copiar o texto, encaminhar ao outro chat e baixar os arquivos. Ficam fora da vista para o
- * balão não crescer com ícones que quase nunca são usados.
+ * As opções de uma mensagem marcada, atrás de um botão de três pontos: copiar o trecho selecionado,
+ * copiar o texto, encaminhar ao outro chat e baixar os arquivos. Só aparece depois que a mensagem é marcada
+ * (`OccurrenceMessageSlot`), para o balão não carregar ícones que quase nunca são usados.
  *
  * ⚠️ A seleção é lida no `pointerdown`/`keydown` do botão, antes de o clique mexer no foco: lida no
  * `click`, alguns navegadores já a teriam desfeito.
@@ -201,28 +200,23 @@ export function OccurrenceMessageMenu({
 
   return (
     <span className={styles.messageMenu}>
-      <div
-        className={styles.messageMenuAnchor}
-        data-open={isOpen ? 'true' : 'false'}
-        ref={anchorRef}
-      >
+      <div className={styles.messageMenuAnchor} ref={anchorRef}>
         <Tooltip dismissOnActivate label={triggerLabel}>
-          <Button
+          <button
             aria-controls={isOpen ? menuId : undefined}
             aria-expanded={isOpen}
             aria-haspopup="menu"
             aria-label={triggerLabel}
+            className={styles.messageMenuTrigger}
             onClick={() => setIsOpen((open) => !open)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') captureSelection()
             }}
             onPointerDown={captureSelection}
-            size="sm"
             type="button"
-            variant="ghost"
           >
             <Icon name={hasCopied ? 'check' : 'more-vertical'} size="sm" />
-          </Button>
+          </button>
         </Tooltip>
       </div>
       {forward.isError && !isForwarded ? (

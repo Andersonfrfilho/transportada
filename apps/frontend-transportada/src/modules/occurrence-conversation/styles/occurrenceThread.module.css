@@ -402,10 +402,52 @@
 }
 
 /*
- * As opções da mensagem (copiar, encaminhar, baixar) abrem por um botão de três pontos na linha da hora do
- * balão. Com mouse, o botão só aparece sob o ponteiro ou com foco no balão; no toque fica sempre à vista,
- * porque não há "passar por cima".
+ * Marcar a mensagem: clique no balão (ou Tab até o interruptor, que só aparece com foco). Com uma marcada, os três
+ * pontos dela aparecem; com duas ou mais, a barra de seleção. Nada fica à vista no balão em repouso.
  */
+.selectableThread {
+  display: contents;
+}
+
+.messageSlot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Fora da vista e fora do fluxo até receber foco pelo teclado. */
+.messageSelectToggle {
+  position: absolute;
+  overflow: hidden;
+  clip-path: inset(50%);
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  border: 0;
+  white-space: nowrap;
+}
+
+.messageSelectToggle:focus-visible {
+  position: static;
+  overflow: visible;
+  clip-path: none;
+  inline-size: auto;
+  block-size: auto;
+  padding: 0 var(--space-1);
+  border: 1px solid currentColor;
+  color: inherit;
+  background: transparent;
+}
+
+.messageSelectToggle:focus-visible::after {
+  content: '✓';
+}
+
+:global(.cv-p-bubble):has([data-message-selected='true']) {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 75%, transparent);
+  outline-offset: 2px;
+}
+
 .messageMenu {
   display: inline-flex;
   align-items: center;
@@ -414,19 +456,41 @@
 
 .messageMenuAnchor {
   display: inline-flex;
-  transition: opacity 120ms ease;
 }
 
-@media (hover: hover) {
-  :global(.cv-p-bubble):not(:hover):not(:focus-within) .messageMenuAnchor[data-open='false'] {
-    opacity: 0;
-  }
+/* Discreto: sem caixa nem fundo, só o glifo na cor do texto da hora. */
+.messageMenuTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-block: calc(var(--space-1) * -1);
+  padding: var(--space-1) 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  opacity: 0.7;
+  cursor: pointer;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .messageMenuAnchor {
-    transition: none;
-  }
+.messageMenuTrigger:hover,
+.messageMenuTrigger:focus-visible,
+.messageMenuTrigger[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.selectionBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 8%, transparent);
+}
+
+.selectionCount {
+  margin-inline-end: auto;
+  font-weight: 600;
 }
 
 .messageMenuPanel {

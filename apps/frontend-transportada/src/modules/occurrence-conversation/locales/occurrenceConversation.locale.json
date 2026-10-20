@@ -553,5 +553,16 @@
     "forwardToContractor": "Encaminhar à contratante",
     "forwarded": "Encaminhada",
     "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
+  },
+  "selection": {
+    "title": "Mensagens marcadas",
+    "toggle": "Marcar mensagem",
+    "count_one": "{{count}} mensagem marcada",
+    "count_other": "{{count}} mensagens marcadas",
+    "copy": "Copiar as marcadas",
+    "forwardToDriver": "Encaminhar ao motorista",
+    "forwardToContractor": "Encaminhar à contratante",
+    "forwarding": "Encaminhando…",
+    "cancel": "Desmarcar"
   }
 }

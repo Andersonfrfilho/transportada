@@ -21,6 +21,7 @@ import {
 } from '../shared/contractorChat.service'
 import { isForwardAlreadyDone } from '../shared/conversationAttachment.service'
 import { attachmentDownloadUrls } from '../shared/messageMenu.service'
+import { useMessageSelection } from '../shared/useMessageSelection.hook'
 import type { OccurrenceThreadSendError } from '../shared/occurrenceThreadApi.service'
 import type {
   ContractorSenderSuggestion,
@@ -45,7 +46,12 @@ import { ContractorReplyEmailActions } from './ContractorReplyEmailActions.compo
 import { ConversationColumn, ConversationLayoutSwitch } from './ConversationLayoutSwitch.component'
 import { OccurrenceConversationLegend } from './OccurrenceConversationLegend.component'
 import { ContractorReplyEmailHistory } from './ContractorReplyEmailHistory.component'
-import { OccurrenceMessageMenu } from './OccurrenceMessageMenu.component'
+import {
+  OccurrenceMessageSlot,
+  SelectableThread,
+  selectBubbleOnClick,
+} from './OccurrenceMessageSlot.component'
+import { OccurrenceSelectionBar } from './OccurrenceSelectionBar.component'
 import { OccurrenceThread } from './OccurrenceThread.component'
 import {
   OccurrenceThreadAttachments,
@@ -178,6 +184,7 @@ function DriverConversationPanel({
   const { t } = useTranslation('occurrenceConversation')
   const messages = conversation?.messages ?? []
   const attachmentUrls = attachmentDownloadUrls(messages)
+  const selection = useMessageSelection()
   /** Spec 183 T702d: as ações só no arquivo que o motorista mandou. */
   const attachmentActions: RenderAttachmentActions = (attachment, message) => {
     if (message.direction !== 'inbound') return null
@@ -216,26 +223,39 @@ function DriverConversationPanel({
           renderAttachmentActions={attachmentActions}
         />
       </div>
-      <OccurrenceThread
-        closedNotice={t('thread.closed.readOnly')}
-        {...(companyId === undefined ? {} : { companyId })}
-        counterpartLabel={t('thread.driver.counterpart')}
-        counterpartName={driverName}
-        occurrenceId={occurrenceId}
-        participant="driver"
-        renderMessageActions={(message) => (
-          <OccurrenceMessageMenu
-            attachmentUrls={attachmentUrls}
-            canForward={canSend}
-            from="driver"
-            message={message}
-            occurrenceId={occurrenceId}
-            portalAvailable={portalAvailable}
-          />
-        )}
-        status={canSend ? 'open' : 'closed'}
-        title={driverName === '' ? t('driver.title') : t('driver.withName', { name: driverName })}
-      />
+      {selection.selected.size > 1 ? (
+        <OccurrenceSelectionBar
+          canForward={canSend}
+          conversation={messages}
+          from="driver"
+          occurrenceId={occurrenceId}
+          portalAvailable={portalAvailable}
+          selection={selection}
+        />
+      ) : null}
+      <SelectableThread onClick={selectBubbleOnClick}>
+        <OccurrenceThread
+          closedNotice={t('thread.closed.readOnly')}
+          {...(companyId === undefined ? {} : { companyId })}
+          counterpartLabel={t('thread.driver.counterpart')}
+          counterpartName={driverName}
+          occurrenceId={occurrenceId}
+          participant="driver"
+          renderMessageActions={(message) => (
+            <OccurrenceMessageSlot
+              attachmentUrls={attachmentUrls}
+              canForward={canSend}
+              from="driver"
+              message={message}
+              occurrenceId={occurrenceId}
+              portalAvailable={portalAvailable}
+              selection={selection}
+            />
+          )}
+          status={canSend ? 'open' : 'closed'}
+          title={driverName === '' ? t('driver.title') : t('driver.withName', { name: driverName })}
+        />
+      </SelectableThread>
     </div>
   )
 }
@@ -282,6 +302,7 @@ function ContractorConversationPanel({
   const [mailBody, setMailBody] = useState<string | undefined>(undefined)
   const messages = conversation?.messages ?? []
   const attachmentUrls = attachmentDownloadUrls(messages)
+  const selection = useMessageSelection()
   const { canWrite, status } = resolveContractorComposer({ canSend, contractorId, hasDocument })
   /** Spec 274 D10: a última falha do envio do chat — o motivo e, sem destinatário, a saída pelo diálogo. */
   const [sendError, setSendError] = useState<null | OccurrenceThreadSendError>(null)
@@ -354,43 +375,55 @@ function ContractorConversationPanel({
         ) : null}
       </div>
 
-      {canWrite || messages.length > 0 ? (
-        <OccurrenceThread
-          closedNotice={resolveContractorClosedNotice({
-            canSend,
-            t: (key) => t(key),
-          })}
-          {...(companyId === undefined ? {} : { companyId })}
-          counterpartLabel={t('thread.contractor.counterpart')}
-          {...(canWrite
-            ? {
-                headerActions: (
-                  <Button onClick={() => setSending(true)} size="sm" type="button">
-                    <Icon name="send" size="sm" />
-                    {t('contractor.send')}
-                  </Button>
-                ),
-              }
-            : {})}
+      {selection.selected.size > 1 ? (
+        <OccurrenceSelectionBar
+          canForward={canSend && hasDriver}
+          conversation={messages}
+          from="contractor"
           occurrenceId={occurrenceId}
-          onSendError={setSendError}
-          participant="contractor"
-          renderMessageActions={(message) => (
-            <OccurrenceMessageMenu
-              attachmentUrls={attachmentUrls}
-              canForward={canSend && hasDriver}
-              from="contractor"
-              message={message}
-              occurrenceId={occurrenceId}
-            />
-          )}
-          status={status}
-          title={
-            contractorName === ''
-              ? t('contractor.title')
-              : t('contractor.withName', { name: contractorName })
-          }
+          selection={selection}
         />
+      ) : null}
+      {canWrite || messages.length > 0 ? (
+        <SelectableThread onClick={selectBubbleOnClick}>
+          <OccurrenceThread
+            closedNotice={resolveContractorClosedNotice({
+              canSend,
+              t: (key) => t(key),
+            })}
+            {...(companyId === undefined ? {} : { companyId })}
+            counterpartLabel={t('thread.contractor.counterpart')}
+            {...(canWrite
+              ? {
+                  headerActions: (
+                    <Button onClick={() => setSending(true)} size="sm" type="button">
+                      <Icon name="send" size="sm" />
+                      {t('contractor.send')}
+                    </Button>
+                  ),
+                }
+              : {})}
+            occurrenceId={occurrenceId}
+            onSendError={setSendError}
+            participant="contractor"
+            renderMessageActions={(message) => (
+              <OccurrenceMessageSlot
+                attachmentUrls={attachmentUrls}
+                canForward={canSend && hasDriver}
+                from="contractor"
+                message={message}
+                occurrenceId={occurrenceId}
+                selection={selection}
+              />
+            )}
+            status={status}
+            title={
+              contractorName === ''
+                ? t('contractor.title')
+                : t('contractor.withName', { name: contractorName })
+            }
+          />
+        </SelectableThread>
       ) : null}
 
       {sendError === null ? null : (
