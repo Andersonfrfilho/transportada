@@ -7,6 +7,7 @@
  * **Leitura pura**: nada aqui decide a tratativa (spec 183 D4).
  */
 
+import { CONTRACTOR_REPLY_STATUSES } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { SystemResolutionPhraseKey } from './occurrence-resolution.types.js'
 
 /** Os quatro atores, os mesmos dos balões das conversas — a cor é do ator, não do evento. */
@@ -144,11 +145,24 @@ const RELEASING_STATUSES: ReadonlySet<string> = new Set([...CLOSING_STATUSES, 'd
 /** Resposta automática da contratante (férias, fora do escritório) não é resposta. */
 const NON_REPLY_INTERPRETATIONS: ReadonlySet<string> = new Set(['ignored_auto_reply'])
 
+function replyStatusRank(status: string): number {
+  const rank = (CONTRACTOR_REPLY_STATUSES as readonly string[]).indexOf(status)
+  return rank === -1 ? CONTRACTOR_REPLY_STATUSES.length : rank
+}
+
 function compareSources(left: OccurrenceTimelineSource, right: OccurrenceTimelineSource): number {
   const byTime = Date.parse(left.occurredAt) - Date.parse(right.occurredAt)
   if (byTime !== 0) return byTime
   const byKind = KIND_PRIORITY[left.kind] - KIND_PRIORITY[right.kind]
   if (byKind !== 0) return byKind
+  /**
+   * O retorno que recebe e entrega na mesma transação grava os dois eventos com o mesmo `now()`: a ordem é a do
+   * vocabulário (recebido antes de entregue), nunca a do id aleatório.
+   */
+  if (left.kind === 'contractor.reply' && right.kind === 'contractor.reply') {
+    const byStatus = replyStatusRank(left.toStatus) - replyStatusRank(right.toStatus)
+    if (byStatus !== 0) return byStatus
+  }
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
 }
 
