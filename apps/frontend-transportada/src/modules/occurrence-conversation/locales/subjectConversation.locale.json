@@ -103,7 +103,7 @@
       "statusDelivered": "Entregue",
       "statusFailed": "Falhou — toque para reenviar",
       "statusFailedShort": "Falhou",
-      "statusQueued": "Na fila · envia quando a rede voltar",
+      "statusQueued": "Aguardando o app do motorista",
       "statusRead": "Lida pelo motorista",
       "statusSending": "Enviando",
       "statusSent": "Enviada",
