@@ -73,4 +73,3 @@ staging), servidor e editor depois.
   `bun run test` → 8475 + 1407 pass, 0 fail. `tsc` limpo nas três apps; `eslint` sem erro (avisos antigos).
 - Limite conhecido: a resolução automática pela entrega não dispara `trip.occurrence-resolved`; o motorista já recebe o documento
   na mesma hora.
-
