@@ -1121,6 +1121,7 @@
     "occurrenceTypeContractorScopeNeedsDocument": "Tipo só de parada não pode ser restrito a contratantes: a parada não tem contratante. Nada foi gravado.",
     "occurrenceTypeContractorScopeInvalid": "Escopo e lista de contratantes vão juntos, e Todas as contratantes não leva lista. Nada foi gravado.",
     "occurrenceTypeNotAvailableForContractor": "Este tipo não vale para a contratante desta nota. Escolha outro tipo.",
+    "occurrenceDuplicateRequest": "Esta nota já tem esse pedido em andamento. Acompanhe a ocorrência que já existe.",
     "occurrenceTypeContractorNotFound": "Uma das contratantes escolhidas não existe mais ou não é desta empresa. Recarregue a lista e escolha de novo.",
     "occurrenceContractorTemplateInvalid": "O modelo escolhido não serve ao e-mail à contratante (não existe, tem HTML, assunto vazio ou variável fora da lista). Escolha outro. Nada foi gravado.",
     "occurrenceTypeWatcherNotFound": "Um dos responsáveis escolhidos não está mais na lista de responsáveis da empresa. Recarregue e escolha de novo.",

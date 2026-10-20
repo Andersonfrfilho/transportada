@@ -39,6 +39,8 @@ const SAC_REPLY = {
   /** Spec 276 T3b: gravado, lido no get e na lista, e mantido pelo PUT sem o campo. */
   contractorReplyResolveOnDelivery: true,
   contractorReplyWaitHours: 6,
+  /** Spec 276 T4: a trava de pedido repetido, gravada e lida como as outras. */
+  duplicateRequestPolicy: 'until_resolved',
   driverReplyTemplate: 'Segue o boleto atualizado.',
 } as const
 
@@ -134,6 +136,7 @@ describe('o retorno da contratante no cadastro do tipo contra o Postgres (spec 2
       await expect(parseBody({ contractorReplyAlertMaxCount: 97 })).rejects.toBeDefined()
       await expect(parseBody({ contractorReplyMode: 'always' })).rejects.toBeDefined()
       await expect(parseBody({ contractorReplyResolveOnDelivery: 'yes' })).rejects.toBeDefined()
+      await expect(parseBody({ duplicateRequestPolicy: 'never' })).rejects.toBeDefined()
     },
     30_000,
   )

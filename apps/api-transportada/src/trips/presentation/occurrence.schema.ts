@@ -15,6 +15,7 @@ import {
   FORWARD_EMAIL_SUBJECT_MAX_LENGTH,
   FORWARD_TO_INFORMED_EMAIL_MODES,
   FORWARD_TO_NOTE_RECIPIENT_MODES,
+  DUPLICATE_REQUEST_POLICIES,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import { z } from 'zod'
 
@@ -485,6 +486,8 @@ const occurrenceTypeSchema = z
     contractorReplyAttachmentKind: z.enum(CONTRACTOR_REPLY_ATTACHMENT_KINDS).optional(),
     /** Spec 276 T3b: ausente não mexe. */
     contractorReplyResolveOnDelivery: z.boolean().optional(),
+    /** Spec 276 T4: a trava de pedido repetido; ausente não mexe. */
+    duplicateRequestPolicy: z.enum(DUPLICATE_REQUEST_POLICIES).optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),
     contractorReplyWaitHours: z
       .number()

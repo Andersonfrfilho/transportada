@@ -17,6 +17,7 @@ import {
   type OccurrenceTypeFlow,
   type TripOccurrenceStage,
 } from './occurrence.constant'
+import type { DuplicateRequestPolicy } from './occurrenceContractorReply.constant'
 import { readRequirementFieldsOfMoments } from './occurrenceRequirementScope.service'
 import { OCCURRENCE_TEMPLATE_NONE } from './occurrenceTemplate.service'
 import type { OccurrenceTypeSaveInput } from './occurrenceTypeUpdate.service'
@@ -26,6 +27,7 @@ export type OccurrenceTypeCreateDraft = Readonly<{
   attachmentMode: OccurrenceAttachmentMode
   contractorIds: readonly string[]
   contractorScope: OccurrenceTypeContractorScope
+  duplicateRequestPolicy: DuplicateRequestPolicy
   emailTemplateKey: string
   itemsMode: OccurrenceItemsWriteMode
   leavesDocumentBehind: boolean
@@ -41,6 +43,8 @@ export type OccurrenceTypeCreateDraft = Readonly<{
 export type OccurrenceTypeCreateSupport = Readonly<{
   /** Spec 270: a API manda `contractorScope` no tipo — só então o cadastro oferece o "Vale para". */
   hasContractorScope: boolean
+  /** Spec 276 T4: a API manda `duplicateRequestPolicy` no tipo — só então o cadastro a oferece. */
+  hasDuplicateRequestPolicy: boolean
   hasItemsMode: boolean
   hasMoments: boolean
   hasRequirementModes: boolean
@@ -75,6 +79,9 @@ export function buildOccurrenceTypeCreateInput(
     ...(support.hasContractorScope &&
     draft.contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed
       ? { contractorIds: draft.contractorIds, contractorScope: draft.contractorScope }
+      : {}),
+    ...(support.hasDuplicateRequestPolicy
+      ? { duplicateRequestPolicy: draft.duplicateRequestPolicy }
       : {}),
     emailTemplateKey:
       draft.emailTemplateKey === OCCURRENCE_TEMPLATE_NONE ? null : draft.emailTemplateKey,

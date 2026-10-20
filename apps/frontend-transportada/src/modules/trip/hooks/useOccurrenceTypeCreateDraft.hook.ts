@@ -16,6 +16,10 @@ import type {
   OccurrenceRedeliveryPolicy,
   OccurrenceTypeContractorScope,
 } from '@/modules/trip/shared/occurrence.constant'
+import {
+  DUPLICATE_REQUEST_POLICY_FOR_NEW_TYPE,
+  type DuplicateRequestPolicy,
+} from '@/modules/trip/shared/occurrenceContractorReply.constant'
 import { OCCURRENCE_TEMPLATE_NONE } from '@/modules/trip/shared/occurrenceTemplate.service'
 
 export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
@@ -52,6 +56,10 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
     OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all,
   )
   const [contractorIds, setContractorIds] = useState<readonly string[]>([])
+  /** Spec 276 T4: o tipo novo nasce sem deixar pedir duas vezes a mesma coisa na mesma nota. */
+  const [duplicateRequestPolicy, setDuplicateRequestPolicy] = useState<DuplicateRequestPolicy>(
+    DUPLICATE_REQUEST_POLICY_FOR_NEW_TYPE,
+  )
   const isItemsOff = hasItemsModeSupport && itemsMode === OCCURRENCE_ITEMS_MODE.off
 
   function reset() {
@@ -68,6 +76,7 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
     setItemsMode(OCCURRENCE_ITEMS_MODE.optional)
     setContractorScope(OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all)
     setContractorIds([])
+    setDuplicateRequestPolicy(DUPLICATE_REQUEST_POLICY_FOR_NEW_TYPE)
   }
 
   return {
@@ -75,6 +84,7 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
     attachmentMode,
     contractorIds,
     contractorScope,
+    duplicateRequestPolicy,
     emailTemplateKey,
     isItemsOff,
     itemsMode,
@@ -89,6 +99,7 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
     setAttachmentMode,
     setContractorIds,
     setContractorScope,
+    setDuplicateRequestPolicy,
     setEmailTemplateKey,
     setItemsMode,
     setLeavesDocumentBehind,

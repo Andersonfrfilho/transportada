@@ -9,6 +9,7 @@ import type {
   ContractorReplyMode,
   ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
+  DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import {
   OCCURRENCE_MOMENT,
@@ -204,6 +205,7 @@ export type OccurrenceTypeRecord = {
   readonly contractorReplyAlertMode?: ContractorReplyAlertMode
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   readonly contractorReplyResolveOnDelivery?: boolean
+  readonly duplicateRequestPolicy?: DuplicateRequestPolicy
   readonly contractorReplyMode?: ContractorReplyMode
   readonly contractorReplyWaitHours?: null | number
   readonly driverReplyTemplate?: string

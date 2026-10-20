@@ -14,6 +14,7 @@ import {
   OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
+import type { DuplicateRequestPolicy } from '@/modules/trip/shared/occurrenceContractorReply.constant'
 import type { OccurrenceExceptionPeople } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import { readContractorScopeProblem } from '@/modules/trip/shared/occurrenceTypeContractorScope.service'
 import { readOccurrenceMomentsProblem } from '@/modules/trip/shared/occurrenceMoments.service'
@@ -64,7 +65,7 @@ export function OccurrenceTypeCreateForm({
   templateOptions,
 }: OccurrenceTypeCreateFormProps) {
   const { t } = useTranslation('companySettings')
-  const { redeliveryPolicyOptions } = useOccurrenceTypeOptions()
+  const { duplicateRequestPolicyOptions, redeliveryPolicyOptions } = useOccurrenceTypeOptions()
   const draft = useOccurrenceTypeCreateDraft(support.hasItemsMode)
   const momentsProblem = support.hasMoments ? readOccurrenceMomentsProblem(draft.moments) : null
   const fields = readRequirementFieldsOfMoments(draft.moments).filter(
@@ -166,6 +167,14 @@ export function OccurrenceTypeCreateForm({
             value={draft.redeliveryPolicy}
           />
         )}
+        {support.hasDuplicateRequestPolicy ? (
+          <Select
+            ariaLabel={t('occurrenceTypeCatalog.duplicateRequestPolicy')}
+            onChange={(value) => draft.setDuplicateRequestPolicy(value as DuplicateRequestPolicy)}
+            options={duplicateRequestPolicyOptions}
+            value={draft.duplicateRequestPolicy}
+          />
+        ) : null}
         {isSeparation ? (
           <Checkbox
             checked={draft.leavesDocumentBehind}

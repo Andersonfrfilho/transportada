@@ -12,6 +12,7 @@ import type {
   ContractorReplyMode,
   ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
+  DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import { alias } from 'drizzle-orm/pg-core'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
@@ -72,6 +73,7 @@ import {
   TRIP_BOUND_OCCURRENCE_STAGES,
 } from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
+import { assertNoDuplicateOccurrenceRequest } from './occurrence-duplicate-request.query.js'
 import type { OccurrenceMailValues } from '../domain/occurrence-mail-values.types.js'
 import {
   OccurrenceTypeContractorReplyAlertNeedsWaitError,
@@ -615,6 +617,11 @@ export async function saveTripOccurrence(
     )
     .limit(1)
   if (document === undefined) return null
+  await assertNoDuplicateOccurrenceRequest(queryable, {
+    companyId: input.companyId,
+    occurrenceTypeId: input.occurrenceTypeId,
+    tripDocumentId: input.documentId,
+  })
 
   const [saved] = await queryable
     .insert(tripDocumentOccurrences)
@@ -894,6 +901,7 @@ export async function findOccurrenceType(
       contractorReplyAlertMode: companyOccurrenceTypes.contractorReplyAlertMode,
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
+      duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
       contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
@@ -1072,6 +1080,7 @@ export async function listOccurrenceTypes(
       contractorReplyAlertMode: companyOccurrenceTypes.contractorReplyAlertMode,
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
+      duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
       contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
@@ -1312,6 +1321,7 @@ async function writeOccurrenceTypeRow(
     readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
     readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
     readonly contractorReplyResolveOnDelivery?: boolean | undefined
+    readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
     readonly contractorReplyMode?: ContractorReplyMode | undefined
     readonly contractorReplyWaitHours?: null | number | undefined
     readonly driverReplyTemplate?: string | undefined
@@ -1406,6 +1416,9 @@ async function writeOccurrenceTypeRow(
     ...(input.contractorReplyResolveOnDelivery === undefined
       ? {}
       : { contractorReplyResolveOnDelivery: input.contractorReplyResolveOnDelivery }),
+    ...(input.duplicateRequestPolicy === undefined
+      ? {}
+      : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
     ...(input.contractorReplyMode === undefined
       ? {}
       : { contractorReplyMode: input.contractorReplyMode }),
@@ -1518,6 +1531,7 @@ async function writeOccurrenceTypeRow(
     contractorReplyAlertMode: saved.contractorReplyAlertMode,
     contractorReplyAttachmentKind: saved.contractorReplyAttachmentKind,
     contractorReplyResolveOnDelivery: saved.contractorReplyResolveOnDelivery,
+    duplicateRequestPolicy: saved.duplicateRequestPolicy,
     contractorReplyMode: saved.contractorReplyMode,
     contractorReplyWaitHours: saved.contractorReplyWaitHours,
     driverReplyTemplate: saved.driverReplyTemplate,

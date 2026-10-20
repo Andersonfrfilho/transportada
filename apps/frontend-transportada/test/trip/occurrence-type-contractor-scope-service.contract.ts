@@ -148,6 +148,7 @@ describe('buildOccurrenceTypeCreateInput com o escopo (spec 270 T3.1)', () => {
     attachmentMode: 'off',
     contractorIds: ['z'],
     contractorScope: 'listed',
+    duplicateRequestPolicy: 'while_request_open',
     emailTemplateKey: OCCURRENCE_TEMPLATE_NONE,
     itemsMode: 'optional',
     leavesDocumentBehind: false,
@@ -160,6 +161,7 @@ describe('buildOccurrenceTypeCreateInput com o escopo (spec 270 T3.1)', () => {
   } as const
   const SUPPORT = {
     hasContractorScope: true,
+    hasDuplicateRequestPolicy: true,
     hasItemsMode: true,
     hasMoments: true,
     hasRequirementModes: true,

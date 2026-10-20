@@ -18,6 +18,7 @@ import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
+  DuplicateRequestPolicy,
   InformedEmailForwardMode,
   NoteRecipientForwardMode,
 } from '@/modules/trip/shared/occurrenceContractorReply.constant'
@@ -52,6 +53,8 @@ export type OccurrenceTypeSaveInput = Readonly<{
   contractorReplyResolveOnDelivery?: boolean | undefined
   contractorReplyWaitHours?: null | number | undefined
   driverReplyTemplate?: string | undefined
+  /** Spec 276 T4: `undefined` é "não mexe". */
+  duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
   forwardEmailBody?: string | undefined
   forwardEmailSubject?: string | undefined
   forwardToInformedEmail?: InformedEmailForwardMode | undefined
@@ -108,6 +111,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'
       | 'contractorReplyResolveOnDelivery'
+      | 'duplicateRequestPolicy'
       | 'contractorReplyWaitHours'
       | 'contractorScope'
       | 'driverReplyTemplate'

@@ -65,6 +65,7 @@ export function OccurrenceTypeCatalogPanel({
   const { t: tTrip } = useTranslation('trip')
   const createSupport = {
     hasContractorScope: types.some((type) => type.contractorScope !== undefined),
+    hasDuplicateRequestPolicy: types.some((type) => type.duplicateRequestPolicy !== undefined),
     hasItemsMode: types.some((type) => type.itemsMode !== undefined),
     hasMoments: types.some((type) => type.moments !== undefined),
     hasRequirementModes: types.some((type) => type.noteMode !== undefined),

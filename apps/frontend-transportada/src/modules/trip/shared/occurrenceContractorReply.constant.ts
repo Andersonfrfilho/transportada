@@ -12,6 +12,8 @@ export const CONTRACTOR_REPLY_MODES = [
  */
 export const DUPLICATE_REQUEST_POLICIES = ['while_request_open', 'until_resolved', 'allow'] as const
 export type DuplicateRequestPolicy = (typeof DUPLICATE_REQUEST_POLICIES)[number]
+/** O tipo novo nasce bloqueando; o padrão do banco (`allow`) é só para o tipo antigo que não pede nada. */
+export const DUPLICATE_REQUEST_POLICY_FOR_NEW_TYPE: DuplicateRequestPolicy = 'while_request_open'
 
 /** Spec 276 T2: `boleto_pdf` é o PDF conferido como boleto da nota (linha digitável e número ou valor). */
 export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image', 'boleto_pdf'] as const

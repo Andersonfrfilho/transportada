@@ -1121,6 +1121,7 @@
     "occurrenceTypeContractorScopeNeedsDocument": "A stop-only type cannot be limited to contractors: a stop has no contractor. Nothing was saved.",
     "occurrenceTypeContractorScopeInvalid": "The scope and the contractor list go together, and All contractors takes no list. Nothing was saved.",
     "occurrenceTypeNotAvailableForContractor": "This type does not apply to the contractor of this note. Choose another type.",
+    "occurrenceDuplicateRequest": "This note already has this request in progress. Follow the existing occurrence.",
     "occurrenceTypeContractorNotFound": "One of the chosen contractors no longer exists or is not from this company. Reload the list and choose again.",
     "occurrenceContractorTemplateInvalid": "The chosen template cannot be used for the email to the contractor (missing, HTML, empty subject or variable outside the list). Choose another one. Nothing was saved.",
     "occurrenceTypeWatcherNotFound": "One of the chosen watchers is no longer in the company list. Reload and choose again.",
