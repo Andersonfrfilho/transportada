@@ -9,6 +9,10 @@ import {
 } from '../domain/contractor-mail.constant.js'
 import { sanitizeSenderDisplayName } from '../domain/sender-display-name.policy.js'
 import { safeLogWarn } from '../../logging/safe-logger.service.js'
+import {
+  EMAIL_RECIPIENT_NOT_ALLOWED_ERROR_CODE,
+  isRecipientAllowed,
+} from '../../notification/infrastructure/email-recipient-allowlist.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 import type { CompanyLogoReader } from '../infrastructure/drizzle-company-logo.reader.js'
 import { buildReplyChainHeaders } from '../domain/reply-chain-headers.policy.js'
@@ -55,6 +59,11 @@ export type ContractorMailOutboundAttachmentsPort = {
 }
 
 export type SendContractorMailOutboundMessageDependencies = {
+  /**
+   * `EMAIL_ALLOWED_RECIPIENTS` (nunca em produção): declarada, quem está fora dela sai do `To`/`Cc`;
+   * sem nenhum `To` permitido, a mensagem falha com `email_recipient_not_allowed`.
+   */
+  readonly allowedRecipients?: readonly string[]
   readonly attachments: ContractorMailOutboundAttachmentsPort
   /** Spec 272: o logo inline; sem leitor, a mensagem com `has_inline_logo` sai sem a parte (como logo ausente). */
   readonly companyLogo?: CompanyLogoReader
@@ -62,6 +71,13 @@ export type SendContractorMailOutboundMessageDependencies = {
   readonly logger?: WorkerLogger
   readonly mailGateway: ResendMailGateway
   readonly repository: ContractorMailOutboundWorkerRepository
+  /**
+   * `EMAIL_RESEND_ENABLED=false` (nunca em produção): a linha `resend` também sai pelo SMTP do sandbox,
+   * sem `Reply-To` e sem abrir a credencial da empresa.
+   */
+  readonly resendDisabled?: boolean
+  /** O `EMAIL_FROM` do worker: remetente da linha `resend` desviada ao sandbox, que não grava `fromAddress`. */
+  readonly sandboxFromAddress?: string
   /** Spec 268: presente só com `CONTRACTOR_MAIL_SANDBOX_SMTP` ligado neste worker (nunca em produção). */
   readonly sandboxMailGateway?: SandboxSmtpMailGateway
   readonly secretService: ContractorMailCredentialSecretService
@@ -100,17 +116,44 @@ export async function sendContractorMailOutboundMessage(
   }
 
   /** Spec 267 / RF7: o teto vale para `To` + `Cc`, conferido uma vez, antes de escolher o transporte. */
-  const recipients = deduplicateRecipients(message.toAddresses)
-  const copied = deduplicateRecipients(message.ccAddresses).filter(
-    (address) => !recipients.includes(address),
+  const allRecipients = deduplicateRecipients(message.toAddresses)
+  const allCopied = deduplicateRecipients(message.ccAddresses).filter(
+    (address) => !allRecipients.includes(address),
   )
-  if (recipients.length + copied.length > CONTRACTOR_MAIL_MAX_RECIPIENTS) {
+  if (allRecipients.length + allCopied.length > CONTRACTOR_MAIL_MAX_RECIPIENTS) {
     await dependencies.repository.markMessageFailed({ companyId, messageId })
     return { outcome: 'failed', reason: 'invalid_recipients', threadId: message.threadId }
   }
 
+  const recipients = keepAllowedRecipients(allRecipients, dependencies.allowedRecipients)
+  const copied = keepAllowedRecipients(allCopied, dependencies.allowedRecipients)
+  const blocked = allRecipients.length + allCopied.length - recipients.length - copied.length
+  if (blocked > 0) {
+    /** Só contagens: o endereço barrado nunca vai a log. */
+    if (dependencies.logger !== undefined) {
+      safeLogWarn({
+        logger: dependencies.logger,
+        message: 'contractor_mail_recipient_not_allowed',
+        metadata: {
+          blocked,
+          messageId,
+          reason: EMAIL_RECIPIENT_NOT_ALLOWED_ERROR_CODE,
+          sending: recipients.length + copied.length,
+        },
+      })
+    }
+    if (recipients.length === 0) {
+      await dependencies.repository.markMessageFailed({ companyId, messageId })
+      return {
+        outcome: 'failed',
+        reason: EMAIL_RECIPIENT_NOT_ALLOWED_ERROR_CODE,
+        threadId: message.threadId,
+      }
+    }
+  }
+
   /** Spec 268: a linha diz por onde sai; `sandbox_smtp` nunca lê a configuração da empresa nem fala com o Resend. */
-  if (message.transport === 'sandbox_smtp') {
+  if (message.transport === 'sandbox_smtp' || dependencies.resendDisabled === true) {
     return sendThroughSandbox({ companyId, copied, dependencies, message, messageId, recipients })
   }
 
@@ -214,7 +257,8 @@ async function sendThroughSandbox(input: {
 }): Promise<SendContractorMailOutboundMessageResult> {
   const { companyId, copied, dependencies, message, messageId, recipients } = input
   const { sandboxMailGateway } = dependencies
-  if (sandboxMailGateway === undefined || message.fromAddress === null) {
+  const fromAddress = message.fromAddress ?? dependencies.sandboxFromAddress ?? null
+  if (sandboxMailGateway === undefined || fromAddress === null) {
     await dependencies.repository.markMessageFailed({ companyId, messageId })
     return {
       outcome: 'failed',
@@ -237,10 +281,7 @@ async function sendThroughSandbox(input: {
     const sent = await sandboxMailGateway.sendEmail({
       ...(allAttachments.length === 0 ? {} : { attachments: allAttachments }),
       ...(copied.length === 0 ? {} : { cc: copied }),
-      from:
-        displayName === undefined
-          ? message.fromAddress
-          : { address: message.fromAddress, name: displayName },
+      from: displayName === undefined ? fromAddress : { address: fromAddress, name: displayName },
       ...(message.bodyHtml === null ? {} : { html: message.bodyHtml }),
       subject: message.subject,
       text: message.bodyText,
@@ -299,6 +340,14 @@ async function loadInlineLogo(input: {
       fileName: logo.mimeType === 'image/png' ? 'logo.png' : 'logo.jpg',
     },
   ]
+}
+
+function keepAllowedRecipients(
+  addresses: readonly string[],
+  allowedRecipients: readonly string[] | undefined,
+): string[] {
+  if (allowedRecipients === undefined) return [...addresses]
+  return addresses.filter((address) => isRecipientAllowed({ address, allowedRecipients }))
 }
 
 function deduplicateRecipients(addresses: readonly string[]): string[] {

@@ -181,6 +181,23 @@ const workerEnvironmentSchema = z
       })
     }
 
+    if (environment.APP_ENV === 'production') {
+      if (!environment.EMAIL_RESEND_ENABLED) {
+        context.addIssue({
+          code: 'custom',
+          message: 'EMAIL_RESEND_ENABLED=false is forbidden in production',
+          path: ['EMAIL_RESEND_ENABLED'],
+        })
+      }
+      if (environment.EMAIL_ALLOWED_RECIPIENTS !== undefined) {
+        context.addIssue({
+          code: 'custom',
+          message: 'EMAIL_ALLOWED_RECIPIENTS is forbidden in production',
+          path: ['EMAIL_ALLOWED_RECIPIENTS'],
+        })
+      }
+    }
+
     if (
       !environment.EMAIL_RESEND_ENABLED &&
       environment.SMTP_URL === undefined &&
@@ -278,7 +295,8 @@ export function parseWorkerEnvironment(
     fuelPricePull: toFuelPricePull(result.data),
     ...(identityDocumentBackfill === undefined ? {} : { identityDocumentBackfill }),
     ...toEmailDelivery(result.data),
-    ...(result.data.CONTRACTOR_MAIL_SANDBOX_SMTP &&
+    ...toEmailRecipientGuard(result.data),
+    ...((result.data.CONTRACTOR_MAIL_SANDBOX_SMTP || !result.data.EMAIL_RESEND_ENABLED) &&
     result.data.SMTP_URL !== undefined &&
     result.data.EMAIL_FROM !== undefined
       ? { contractorMailSandbox: { from: result.data.EMAIL_FROM, smtpUrl: result.data.SMTP_URL } }
@@ -493,6 +511,20 @@ function toEmailDelivery(
       from: environment.EMAIL_FROM,
       transport: { kind: 'smtp', smtpUrl: environment.SMTP_URL },
     },
+  }
+}
+
+/** O e-mail da contratante não passa pelo `emailDelivery`: a trava chega a ele por aqui. */
+function toEmailRecipientGuard(
+  environment: Readonly<{
+    EMAIL_ALLOWED_RECIPIENTS?: string | undefined
+    EMAIL_RESEND_ENABLED: boolean
+  }>,
+): Pick<WorkerEnvironment, 'emailAllowedRecipients' | 'emailResendDisabled'> {
+  const allowedRecipients = parseAllowedRecipients(environment.EMAIL_ALLOWED_RECIPIENTS)
+  return {
+    ...(allowedRecipients === undefined ? {} : { emailAllowedRecipients: allowedRecipients }),
+    ...(environment.EMAIL_RESEND_ENABLED ? {} : { emailResendDisabled: true as const }),
   }
 }
 

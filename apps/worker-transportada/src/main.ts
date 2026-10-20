@@ -1162,9 +1162,14 @@ export async function startWorkerRuntime(
         repository: createDrizzleContractorMailOutboundWorkerRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
+        ...(config.emailAllowedRecipients === undefined
+          ? {}
+          : { allowedRecipients: config.emailAllowedRecipients }),
+        ...(config.emailResendDisabled === true ? { resendDisabled: true } : {}),
         ...(config.contractorMailSandbox === undefined
           ? {}
           : {
+              sandboxFromAddress: config.contractorMailSandbox.from,
               sandboxMailGateway: createSandboxSmtpMailGateway({
                 smtpUrl: config.contractorMailSandbox.smtpUrl,
               }),

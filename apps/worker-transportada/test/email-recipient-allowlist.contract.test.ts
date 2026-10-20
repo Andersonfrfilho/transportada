@@ -97,4 +97,35 @@ describe('variáveis EMAIL_RESEND_ENABLED e EMAIL_ALLOWED_RECIPIENTS', () => {
     }).emailDelivery
     expect(filtered?.allowedRecipients).toEqual(['dono@exemplo.com.br', '@teste.example'])
   })
+
+  test('a lista também chega ao e-mail da contratante, fora do emailDelivery', () => {
+    const environment = parseWorkerEnvironment({
+      ...baseEnvironment,
+      ...both,
+      EMAIL_ALLOWED_RECIPIENTS: 'dono@exemplo.com.br',
+    })
+    expect(environment.emailAllowedRecipients).toEqual(['dono@exemplo.com.br'])
+  })
+
+  test('EMAIL_RESEND_ENABLED=false liga o sandbox do e-mail da contratante', () => {
+    const environment = parseWorkerEnvironment({
+      ...baseEnvironment,
+      ...both,
+      EMAIL_RESEND_ENABLED: 'false',
+    })
+    expect(environment.emailResendDisabled).toBe(true)
+    expect(environment.contractorMailSandbox).toEqual({
+      from: 'no-reply@exemplo.com.br',
+      smtpUrl: 'smtp://localhost:51025',
+    })
+  })
+
+  test('produção recusa as duas variáveis', () => {
+    const production = { ...baseEnvironment, ...both, APP_ENV: 'production' }
+    expect(() => parseWorkerEnvironment({ ...production, EMAIL_RESEND_ENABLED: 'false' })).toThrow()
+    expect(() =>
+      parseWorkerEnvironment({ ...production, EMAIL_ALLOWED_RECIPIENTS: 'dono@exemplo.com.br' }),
+    ).toThrow()
+    expect(parseWorkerEnvironment(production).emailDelivery?.transport.kind).toBe('resend')
+  })
 })
