@@ -410,7 +410,8 @@
     },
     "reason": {
       "no_accepted_attachment": "no accepted attachment",
-      "multiple_attachments": "more than one attachment"
+      "multiple_attachments": "more than one attachment",
+      "document_not_confirmed": "the PDF does not look like this note's boleto"
     },
     "alerts_one": "{{count}} alert",
     "alerts_other": "{{count}} alerts",
@@ -491,7 +492,8 @@
         "attachment_too_large_for_email": "file too large for e-mail",
         "send_failed": "sending failed",
         "no_accepted_attachment": "no accepted attachment",
-        "multiple_attachments": "more than one attachment"
+        "multiple_attachments": "more than one attachment",
+        "document_not_confirmed": "the PDF does not look like this note's boleto"
       }
     },
     "hint": {

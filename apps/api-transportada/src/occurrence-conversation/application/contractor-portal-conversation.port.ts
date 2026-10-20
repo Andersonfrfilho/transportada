@@ -68,6 +68,8 @@ export type ContractorPortalConversationTransactionPort = {
     readonly conversationId: string
     readonly messageId: string
     readonly now: Date
+    /** Spec 276 T2: the text layer of a PDF of this message, by stored object (the boleto check). */
+    readonly readDocumentText?: (storedObjectId: string) => Promise<string>
   }): Promise<ContractorReplyDelivery | undefined>
   /**
    * A referência de cada ocorrência listada cuja contratante (o emitente da nota) está no recorte.

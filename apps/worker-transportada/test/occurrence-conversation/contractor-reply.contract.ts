@@ -228,6 +228,72 @@ describe('decideContractorReply (spec 248 RF4, CA03)', () => {
     })
   })
 
+  describe('boleto pdf: the content decides (spec 276 T2)', () => {
+    const AUTOMATIC_BOLETO: ReplyConfig = {
+      attachmentKind: 'boleto_pdf',
+      mode: 'forward_automatic',
+    }
+    const APPROVAL_BOLETO: ReplyConfig = {
+      attachmentKind: 'boleto_pdf',
+      mode: 'forward_after_approval',
+    }
+    const NOT_CONFIRMED: ContractorReplyDecision = {
+      kind: 'needs_operator',
+      reason: 'document_not_confirmed',
+    }
+
+    function decideBoleto(
+      config: ReplyConfig,
+      attachments: ContractorReplyDecisionInput['attachments'],
+      documentConfirmed?: boolean,
+    ): ContractorReplyDecision {
+      return decideContractorReply({
+        attachments,
+        ...(documentConfirmed === undefined ? {} : { documentConfirmed }),
+        reply: { config, status: 'awaiting_contractor' },
+      })
+    }
+
+    test('1 pdf confirmed as the boleto goes on like any accepted pdf', () => {
+      expect(decideBoleto(AUTOMATIC_BOLETO, [PDF], true)).toEqual({
+        attachmentId: PDF.id,
+        kind: 'accept',
+        nextStep: 'deliver',
+      })
+      expect(decideBoleto(APPROVAL_BOLETO, [PDF], true)).toEqual({
+        attachmentId: PDF.id,
+        kind: 'accept',
+        nextStep: 'await_operator',
+      })
+    })
+
+    test('1 pdf that is not the boleto goes to the operator, in both modes', () => {
+      expect(decideBoleto(AUTOMATIC_BOLETO, [PDF], false)).toEqual(NOT_CONFIRMED)
+      expect(decideBoleto(APPROVAL_BOLETO, [PDF], false)).toEqual(NOT_CONFIRMED)
+    })
+
+    test('a check that never ran is not a confirmation', () => {
+      expect(decideBoleto(AUTOMATIC_BOLETO, [PDF])).toEqual(NOT_CONFIRMED)
+    })
+
+    test('"Solicitado" without attachment still waits, and an image is still not a pdf', () => {
+      expect(decideBoleto(AUTOMATIC_BOLETO, [])).toEqual({
+        kind: 'ignore',
+        reason: 'awaiting_attachment',
+      })
+      expect(decideBoleto(AUTOMATIC_BOLETO, [PNG], true)).toEqual(NEEDS_NO_ATTACHMENT)
+      expect(decideBoleto(AUTOMATIC_BOLETO, [PDF, SECOND_PDF], true)).toEqual(NEEDS_MULTIPLE)
+    })
+
+    test('the plain pdf kind never reads the check', () => {
+      expect(decideBoleto(AUTOMATIC_PDF, [PDF], false)).toEqual({
+        attachmentId: PDF.id,
+        kind: 'accept',
+        nextStep: 'deliver',
+      })
+    })
+  })
+
   test('only the waiting statuses can accept a reply', () => {
     const accepting = CONTRACTOR_REPLY_STATUSES.filter(
       (status) => decide(status, AUTOMATIC_PDF, [PDF]).kind === 'accept',

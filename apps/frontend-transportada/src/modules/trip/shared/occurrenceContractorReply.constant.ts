@@ -6,7 +6,8 @@ export const CONTRACTOR_REPLY_MODES = [
   'forward_automatic',
 ] as const
 
-export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image'] as const
+/** Spec 276 T2: `boleto_pdf` é o PDF conferido como boleto da nota (linha digitável e número ou valor). */
+export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image', 'boleto_pdf'] as const
 
 export const DRIVER_REPLY_CHANNELS = ['app_chat', 'whatsapp', 'both'] as const
 

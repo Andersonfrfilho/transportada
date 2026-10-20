@@ -38,11 +38,17 @@ function silenceConsole(): void {
 
 export type PdfExtractionWorkerData = Readonly<{
   bytes: Uint8Array
+  /**
+   * Spec 276 T2: `text` only returns the text layer of the first page (the boleto check of the contractor
+   * reply); absent is the field reading of the aggregate attachment.
+   */
+  mode?: 'fields' | 'text'
   type: string
 }>
 
 export type PdfExtractionWorkerResult = Readonly<{
   fields: Readonly<Record<string, unknown>> | null
+  text?: string
 }>
 
 /**
@@ -58,6 +64,9 @@ export async function extractAttachmentFields(
   input: PdfExtractionWorkerData,
 ): Promise<PdfExtractionWorkerResult> {
   const page = await readPdfTextLayer({ data: input.bytes, getDocument })
+  if (input.mode === 'text') {
+    return { fields: null, text: page.fragments.map((fragment) => fragment.text).join(' ') }
+  }
   const kind = identifyDocumentKind(page)
 
   const values =

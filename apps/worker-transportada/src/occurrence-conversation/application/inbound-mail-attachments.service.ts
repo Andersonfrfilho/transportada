@@ -39,6 +39,11 @@ export type StoredInboundAttachment = {
   readonly provider: string
   readonly sha256: string
   readonly sizeBytes: number
+  /**
+   * Spec 276 T2: the text layer of a PDF, read before the transaction (the boleto check of the contractor
+   * reply). Absent for anything that is not a PDF, or when the store has no reader.
+   */
+  readonly textLayer?: string
 }
 
 /** A porta que o trilho de e-mail usa: guardar os anexos antes da transação e descartá-los sem ela. */
@@ -99,6 +104,8 @@ export function createInboundConversationAttachmentStore(dependencies: {
   /** Só para teste; em produção, 256 bits aleatórios (a mesma chave opaca da API). */
   readonly newToken?: () => string
   readonly provider: string
+  /** Spec 276 T2: reads the PDF text in a `worker_thread` (ADR-0053); failure is an empty text. */
+  readonly readPdfText?: (bytes: Uint8Array) => Promise<string>
   readonly storage: {
     deleteObject(input: { readonly bucket: string; readonly key: string }): Promise<unknown>
     storeObject(input: {
@@ -143,6 +150,9 @@ export function createInboundConversationAttachmentStore(dependencies: {
           provider: dependencies.provider,
           sha256,
           sizeBytes: attachment.bytes.byteLength,
+          ...(attachment.contentType === 'application/pdf' && dependencies.readPdfText
+            ? { textLayer: await dependencies.readPdfText(attachment.bytes) }
+            : {}),
         })
       }
       return { skipped: extracted.skipped, stored }

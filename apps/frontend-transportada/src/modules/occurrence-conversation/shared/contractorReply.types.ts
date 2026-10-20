@@ -15,7 +15,11 @@ export const CONTRACTOR_REPLY_STATUSES = [
 ] as const
 export type ContractorReplyStatus = (typeof CONTRACTOR_REPLY_STATUSES)[number]
 
-export const CONTRACTOR_REPLY_REASONS = ['no_accepted_attachment', 'multiple_attachments'] as const
+export const CONTRACTOR_REPLY_REASONS = [
+  'no_accepted_attachment',
+  'multiple_attachments',
+  'document_not_confirmed',
+] as const
 export type ContractorReplyReason = (typeof CONTRACTOR_REPLY_REASONS)[number]
 
 export const CONTRACTOR_REPLY_ACTOR_KINDS = ['system', 'user'] as const

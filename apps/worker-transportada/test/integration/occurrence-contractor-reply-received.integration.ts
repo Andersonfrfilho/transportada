@@ -13,7 +13,9 @@ import { describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
+import { readPdfTextInThread } from '../../src/aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
 import { createDrizzleContractorMailInboundWorkerRepository } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
+import { buildBoletoPdf, buildNotePdf } from '../fixtures/boleto-pdf.fixture.js'
 
 const databaseUrl = process.env.DATABASE_URL
 const describeDatabase = databaseUrl ? describe : describe.skip
@@ -27,6 +29,7 @@ type Attachment = {
   readonly provider: string
   readonly sha256: string
   readonly sizeBytes: number
+  readonly textLayer?: string
 }
 type Seeded = {
   readonly companyId: string
@@ -124,6 +127,8 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
     options: {
       /** Liga o envio automático ao cliente da nota (RF10); `null` é a nota sem e-mail. */
       readonly noteRecipientEmail?: null | string
+      /** Spec 276 T2: `boleto_pdf` confere o conteúdo do PDF. */
+      readonly attachmentKind?: 'boleto_pdf' | 'pdf'
       readonly withDriver?: boolean
     } = {},
   ): Promise<Seeded> {
@@ -168,7 +173,7 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
         values (${companyId}, 'resposta.example.test', '{}'::jsonb, 'ocorrencias@transportadora.example.test', 'Transportadora Sintética', now())`)
     }
     const config = JSON.stringify({
-      attachmentKind: 'pdf',
+      attachmentKind: options.attachmentKind ?? 'pdf',
       ...(forwardsToNote
         ? {
             forwardEmailBody: 'Segue o boleto prorrogado.',
@@ -253,6 +258,73 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
         to_status: 'awaiting_operator',
       },
     ])
+  })
+
+  /** Spec 276 T2: o texto vem da mesma thread do pdf.js que o worker usa em produção. */
+  async function boletoAttachment(pdf: Uint8Array): Promise<Attachment> {
+    return { ...attachmentOf('application/pdf'), textLayer: await readPdfTextInThread(pdf) }
+  }
+
+  async function setNoteNumber(seeded: Seeded, number: string): Promise<void> {
+    await database.execute(
+      sql`update nfe_documents set number = ${number} where company_id = ${seeded.companyId}`,
+    )
+  }
+
+  it('boleto conferido (spec 276): o PDF com a linha digitável e o número da nota é o aceito', async () => {
+    const seeded = await seed('forward_after_approval', { attachmentKind: 'boleto_pdf' })
+    await setNoteNumber(seeded, '912453')
+
+    await recordReply(seeded, `re_${crypto.randomUUID()}`, [
+      await boletoAttachment(buildBoletoPdf('912453')),
+    ])
+
+    expect(await replyOf(seeded)).toEqual({
+      has_attachment: true,
+      has_message: true,
+      reason: null,
+      status: 'awaiting_operator',
+    })
+  })
+
+  it('boleto conferido (spec 276): o DANFE da nota vai ao operador como documento não confirmado', async () => {
+    const seeded = await seed('forward_automatic', {
+      attachmentKind: 'boleto_pdf',
+      withDriver: true,
+    })
+    await setNoteNumber(seeded, '912453')
+
+    const recorded = await recordReply(seeded, `re_${crypto.randomUUID()}`, [
+      await boletoAttachment(buildNotePdf('912453')),
+    ])
+
+    expect(recorded.driverNotice).toBeUndefined()
+    expect(await replyOf(seeded)).toEqual({
+      has_attachment: false,
+      has_message: true,
+      reason: 'document_not_confirmed',
+      status: 'needs_operator',
+    })
+    expect(await eventsOf(seeded)).toEqual([
+      {
+        actor_kind: 'system',
+        actor_user_id: null,
+        from_status: 'awaiting_contractor',
+        reason: 'document_not_confirmed',
+        to_status: 'needs_operator',
+      },
+    ])
+  })
+
+  it('boleto conferido (spec 276): PDF sem texto lido não segue sozinho', async () => {
+    const seeded = await seed('forward_automatic', { attachmentKind: 'boleto_pdf' })
+
+    await recordReply(seeded, `re_${crypto.randomUUID()}`, [attachmentOf('application/pdf')])
+
+    expect(await replyOf(seeded)).toMatchObject({
+      reason: 'document_not_confirmed',
+      status: 'needs_operator',
+    })
   })
 
   /** Spec 267 RF9: o responsável em cópia que responde a todos entra na conversa, mas não é "a resposta da contratante". */

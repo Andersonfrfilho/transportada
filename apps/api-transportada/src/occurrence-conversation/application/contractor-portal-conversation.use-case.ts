@@ -181,6 +181,11 @@ export function createContractorPortalConversationUseCase(dependencies: {
   readonly deliveryNotifier: ContractorReplyDeliveryNotifierPort
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly newRef: () => string
+  /**
+   * Spec 276 T2: the text layer of a PDF, for the boleto check of the reply. Absent, nothing is read and a
+   * type that checks the boleto sends the reply to the operator.
+   */
+  readonly readPdfText?: (bytes: Uint8Array) => Promise<string>
   readonly scopes: ContractorPortalScopePort
   readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: ContractorPortalConversationUnitOfWorkPort
@@ -280,7 +285,7 @@ export function createContractorPortalConversationUseCase(dependencies: {
           conversationId: conversation.id,
           createdAt: now,
         })
-        await attachConversationUploads({
+        const attached = await attachConversationUploads({
           messageId: message.id,
           now,
           storage: dependencies.storage,
@@ -288,11 +293,20 @@ export function createContractorPortalConversationUseCase(dependencies: {
           transaction: transaction.attachments,
           uploadIds: attachmentIds,
         })
+        const { readPdfText } = dependencies
         const delivery = await transaction.applyContractorReply({
           companyId,
           conversationId: conversation.id,
           messageId: message.id,
           now,
+          ...(readPdfText === undefined
+            ? {}
+            : {
+                readDocumentText: async (storedObjectId: string) => {
+                  const file = attached.get(storedObjectId)
+                  return file?.contentType === 'application/pdf' ? readPdfText(file.bytes) : ''
+                },
+              }),
         })
         const response = { createdAt: message.createdAt.toISOString() }
         await transaction.saveIdempotency({ ...key, fingerprint, response })

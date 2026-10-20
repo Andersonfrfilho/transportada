@@ -139,7 +139,10 @@ import { createThreadedCanhotoBarcodeDecoder } from './canhoto-read/infrastructu
 import { createTesseractOcrClient } from '@adatechnology/document-intake'
 
 import { createDocumentExtractionGateway } from './aggregate-attachment/infrastructure/document-extraction.gateway.js'
-import { createThreadedAttachmentExtractionGateway } from './aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
+import {
+  createThreadedAttachmentExtractionGateway,
+  readPdfTextInThread,
+} from './aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
 import { startAggregateAttachmentConsumer } from './runtime/aggregate-attachment-consumer.service.js'
 import { startCargoPreviewConsumer } from './runtime/cargo-preview-consumer.service.js'
 import { startDeliveryProofProcessingConsumer } from './runtime/delivery-proof-processing-consumer.service.js'
@@ -1192,6 +1195,8 @@ export async function startWorkerRuntime(
         conversationAttachments: createInboundConversationAttachmentStore({
           bucket: storageBucket,
           provider: INBOUND_MAIL_STORAGE_PROVIDER,
+          /** Spec 276 T2: o texto do PDF, na thread do pdf.js, para a conferência do boleto. */
+          readPdfText: readPdfTextInThread,
           storage: storageGateway,
         }),
         /** Spec 248 T4.6b: o boleto entregue sozinho avisa o sino do motorista, depois do commit. */

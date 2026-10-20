@@ -11,7 +11,8 @@ export const CONTRACTOR_REPLY_MODES = [
 ] as const
 export type ContractorReplyMode = (typeof CONTRACTOR_REPLY_MODES)[number]
 
-export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image'] as const
+/** Spec 276 T2: `boleto_pdf` is a PDF whose content is checked as the boleto of the note. */
+export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image', 'boleto_pdf'] as const
 export type ContractorReplyAttachmentKind = (typeof CONTRACTOR_REPLY_ATTACHMENT_KINDS)[number]
 
 export const DRIVER_REPLY_CHANNELS = ['app_chat', 'whatsapp', 'both'] as const
@@ -68,7 +69,11 @@ export type ContractorReplyStatus = (typeof CONTRACTOR_REPLY_STATUSES)[number]
 /** The statuses that still wait for the contractor, and so carry a deadline in the partial index. */
 export const CONTRACTOR_REPLY_WAITING_STATUSES = ['awaiting_contractor', 'overdue'] as const
 
-export const CONTRACTOR_REPLY_REASONS = ['no_accepted_attachment', 'multiple_attachments'] as const
+export const CONTRACTOR_REPLY_REASONS = [
+  'no_accepted_attachment',
+  'multiple_attachments',
+  'document_not_confirmed',
+] as const
 export type ContractorReplyReason = (typeof CONTRACTOR_REPLY_REASONS)[number]
 
 export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [

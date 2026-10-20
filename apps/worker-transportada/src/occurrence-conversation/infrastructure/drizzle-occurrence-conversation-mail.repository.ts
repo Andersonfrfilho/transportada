@@ -128,6 +128,8 @@ export async function recordOccurrenceConversationMailReply(
     .returning({ id: occurrenceConversationMessages.id })
   if (message === undefined) throw new Error('occurrence conversation mail reply was not inserted')
 
+  /** Spec 276 T2: the PDF text read before the transaction, by the stored object it became. */
+  const textByStoredObject = new Map<string, string>()
   for (const attachment of input.attachments) {
     const [object] = await transaction
       .insert(storedObjects)
@@ -153,6 +155,7 @@ export async function recordOccurrenceConversationMailReply(
       sizeBytes: attachment.sizeBytes,
       storedObjectId: object.id,
     })
+    if (attachment.textLayer !== undefined) textByStoredObject.set(object.id, attachment.textLayer)
   }
   /** O responsável não é "a resposta da contratante": não avança o retorno nem chega ao motorista (spec 267 RF9). */
   if (await isCompanyUserSender(transaction, input)) {
@@ -163,6 +166,7 @@ export async function recordOccurrenceConversationMailReply(
     conversationId,
     messageId: message.id,
     now: new Date(),
+    readDocumentText: async (storedObjectId) => textByStoredObject.get(storedObjectId) ?? '',
   })
   const driverNotice =
     delivery === undefined
