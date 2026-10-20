@@ -7,7 +7,7 @@
  */
 import {
   resolveOccurrenceResolutionState,
-  resolveSystemResolutionPhraseKey,
+  resolveSystemResolutionCausePhraseKey,
 } from './occurrence-resolution.policy.js'
 import type {
   DriverRouteOccurrenceDetail,
@@ -24,10 +24,9 @@ function toResolutionView(
   state: ResolveOccurrenceResolutionStateResult,
 ): DriverRouteOccurrenceResolutionView | null {
   if (state.state !== 'resolved' || state.lastResolution === null) return null
-  const { actorKind, at, caseEventStatus, note } = state.lastResolution
+  const { actorKind, at, note } = state.lastResolution
   if (actorKind === 'internal') return { actorKind, at, note: note ?? null, phraseKey: null }
-  const phraseKey =
-    caseEventStatus === undefined ? undefined : resolveSystemResolutionPhraseKey(caseEventStatus)
+  const phraseKey = resolveSystemResolutionCausePhraseKey(state.lastResolution)
   return { actorKind: 'system', at, note: null, phraseKey: phraseKey ?? null }
 }
 

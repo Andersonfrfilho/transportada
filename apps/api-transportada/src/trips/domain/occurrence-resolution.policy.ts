@@ -28,6 +28,17 @@ export function resolveSystemResolutionPhraseKey(
   return SYSTEM_RESOLUTION_PHRASE_KEYS[status]
 }
 
+/** Spec 276 T3b: a frase do evento `system` pela causa — o retorno entregue, senão o status da tratativa. */
+export function resolveSystemResolutionCausePhraseKey(cause: {
+  readonly caseEventStatus: TripOccurrenceCaseStatus | undefined
+  readonly causedByContractorReply?: true
+}): SystemResolutionPhraseKey | undefined {
+  if (cause.causedByContractorReply === true) return 'contractor_reply_delivered'
+  return cause.caseEventStatus === undefined
+    ? undefined
+    : resolveSystemResolutionPhraseKey(cause.caseEventStatus)
+}
+
 function compareBySequence(
   first: OccurrenceResolutionEventFact,
   second: OccurrenceResolutionEventFact,
@@ -46,6 +57,9 @@ export function resolveOccurrenceResolutionState(
         actorKind: lastResolved.actorKind,
         at: lastResolved.createdAt,
         caseEventStatus: lastResolved.caseEventStatus,
+        ...(lastResolved.causedByContractorReply === true
+          ? { causedByContractorReply: true as const }
+          : {}),
         note: lastResolved.note,
       }
     : null

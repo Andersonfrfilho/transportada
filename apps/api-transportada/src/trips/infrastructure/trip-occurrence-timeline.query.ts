@@ -30,7 +30,7 @@ import type {
   OccurrenceTimelineActor,
   OccurrenceTimelineSource,
 } from '../domain/occurrence-timeline.policy.js'
-import { resolveSystemResolutionPhraseKey } from '../domain/occurrence-resolution.policy.js'
+import { resolveSystemResolutionCausePhraseKey } from '../domain/occurrence-resolution.policy.js'
 import type { TripOccurrenceFeedItem } from '../application/trip-occurrence-feed.use-case.js'
 import { findTripOccurrenceFeedItem } from './trip-occurrence-feed.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -164,6 +164,7 @@ async function listResolutionSources(
       actorKind: tripOccurrenceResolutionEvents.actorKind,
       actorName: identityUserProfiles.name,
       caseStatus: tripOccurrenceCaseEvents.toStatus,
+      contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
       createdAt: tripOccurrenceResolutionEvents.createdAt,
       id: tripOccurrenceResolutionEvents.id,
       kind: tripOccurrenceResolutionEvents.kind,
@@ -211,10 +212,12 @@ async function listResolutionSources(
       kind: 'resolution.resolved',
       note: isSystem ? null : (row.note ?? null),
       occurredAt,
-      phraseKey:
-        isSystem && row.caseStatus !== null
-          ? (resolveSystemResolutionPhraseKey(row.caseStatus) ?? null)
-          : null,
+      phraseKey: isSystem
+        ? (resolveSystemResolutionCausePhraseKey({
+            caseEventStatus: row.caseStatus ?? undefined,
+            ...(row.contractorReplyId === null ? {} : { causedByContractorReply: true as const }),
+          }) ?? null)
+        : null,
     }
   })
 }

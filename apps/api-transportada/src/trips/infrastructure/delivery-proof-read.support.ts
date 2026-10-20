@@ -893,6 +893,7 @@ export async function findOccurrenceType(
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
       contractorReplyAlertMode: companyOccurrenceTypes.contractorReplyAlertMode,
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
+      contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
       contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
@@ -1070,6 +1071,7 @@ export async function listOccurrenceTypes(
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
       contractorReplyAlertMode: companyOccurrenceTypes.contractorReplyAlertMode,
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
+      contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
       contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
@@ -1309,6 +1311,7 @@ async function writeOccurrenceTypeRow(
     readonly contractorReplyAlertMaxCount?: number | undefined
     readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
     readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
+    readonly contractorReplyResolveOnDelivery?: boolean | undefined
     readonly contractorReplyMode?: ContractorReplyMode | undefined
     readonly contractorReplyWaitHours?: null | number | undefined
     readonly driverReplyTemplate?: string | undefined
@@ -1400,6 +1403,9 @@ async function writeOccurrenceTypeRow(
     ...(input.contractorReplyAttachmentKind === undefined
       ? {}
       : { contractorReplyAttachmentKind: input.contractorReplyAttachmentKind }),
+    ...(input.contractorReplyResolveOnDelivery === undefined
+      ? {}
+      : { contractorReplyResolveOnDelivery: input.contractorReplyResolveOnDelivery }),
     ...(input.contractorReplyMode === undefined
       ? {}
       : { contractorReplyMode: input.contractorReplyMode }),
@@ -1511,6 +1517,7 @@ async function writeOccurrenceTypeRow(
     contractorReplyAlertMaxCount: saved.contractorReplyAlertMaxCount,
     contractorReplyAlertMode: saved.contractorReplyAlertMode,
     contractorReplyAttachmentKind: saved.contractorReplyAttachmentKind,
+    contractorReplyResolveOnDelivery: saved.contractorReplyResolveOnDelivery,
     contractorReplyMode: saved.contractorReplyMode,
     contractorReplyWaitHours: saved.contractorReplyWaitHours,
     driverReplyTemplate: saved.driverReplyTemplate,

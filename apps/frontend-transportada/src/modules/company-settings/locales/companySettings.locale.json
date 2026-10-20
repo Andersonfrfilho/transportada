@@ -640,6 +640,7 @@
         "mode": "Ao receber a resposta",
         "attachmentKind": "Anexo que vale como retorno",
         "driverReplyTemplate": "Texto enviado ao motorista",
+        "resolveOnDelivery": "Fechar a ocorrência sozinha depois de entregar ao motorista",
         "waitHours": "Prazo de espera (horas, vazio = sem prazo)",
         "alertMode": "Se a contratante atrasar",
         "alertIntervalMinutes": "Repetir o alerta a cada (minutos)",

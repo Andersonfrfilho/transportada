@@ -82,6 +82,8 @@ export type OccurrenceType = Readonly<{
   contractorReplyAlertMode?: ContractorReplyAlertMode
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   contractorReplyMode?: ContractorReplyMode
+  /** Spec 276 T3b: ausente é API anterior ao campo (lê como desligado). */
+  contractorReplyResolveOnDelivery?: boolean
   contractorReplyWaitHours?: null | number
   driverReplyTemplate?: string
   forwardEmailBody?: string

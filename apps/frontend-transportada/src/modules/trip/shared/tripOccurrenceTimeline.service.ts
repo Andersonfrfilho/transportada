@@ -42,7 +42,13 @@ export type OccurrenceTimelineEvent =
         interpretation: null | string
         kind: 'contractor.mail.received' | 'contractor.mail.sent'
       }>)
-  | (EventBase & Readonly<{ kind: 'resolution.resolved'; note: null | string }>)
+  | (EventBase &
+      Readonly<{
+        kind: 'resolution.resolved'
+        note: null | string
+        /** Spec 276 T3b: a causa da resolução do sistema; ausente é API anterior ao campo. */
+        phraseKey?: null | string
+      }>)
   | (EventBase & Readonly<{ kind: 'resolution.reopened' }>)
   /** Spec 276 T3: o retorno da contratante (248) mudou de status; `reason` só quando foi ao operador. */
   | (EventBase & Readonly<{ kind: 'contractor.reply'; reason: null | string; toStatus: string }>)
@@ -182,7 +188,13 @@ export function describeOccurrenceTimelineEvent(
       return { key: 'occurrenceTimeline.event.mailReceived', values: {} }
     case 'resolution.resolved':
       if (event.actor.kind === 'system') {
-        return { key: 'occurrenceTimeline.event.resolvedAutomatic', values: {} }
+        return {
+          key:
+            event.phraseKey === 'contractor_reply_delivered'
+              ? 'occurrenceTimeline.event.resolvedOnDelivery'
+              : 'occurrenceTimeline.event.resolvedAutomatic',
+          values: {},
+        }
       }
       return {
         key: 'occurrenceTimeline.event.resolvedInternal',

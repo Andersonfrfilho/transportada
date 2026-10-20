@@ -30,6 +30,7 @@ const TYPE: ContractorReplyTypeConfiguration = {
   forwardToInformedEmail: 'manual',
   forwardToNoteRecipient: 'manual',
   mode: 'forward_after_approval',
+  resolveOnDelivery: false,
   waitHours: 6,
 }
 
@@ -63,6 +64,7 @@ describe('a configuração efetiva do retorno (spec 248 D8)', () => {
       forwardToInformedEmail: 'manual',
       forwardToNoteRecipient: 'manual',
       mode: 'forward_after_approval',
+      resolveOnDelivery: false,
       version: 1,
       waitHours: 6,
     }
@@ -162,5 +164,18 @@ describe('a configuração efetiva do retorno (spec 248 D8)', () => {
     expect(contractorReplyConfigurationSchema.safeParse({ ...valid, waitHours: 0 }).success).toBe(
       false,
     )
+  })
+
+  test('fechar sozinha depois de entregar (spec 276 T3b) vem do tipo; a cópia antiga sem o campo lê falso', () => {
+    expect(open({ resolveOnDelivery: true }, EMPTY_OVERRIDE).resolveOnDelivery).toBe(true)
+    expect(open({}, EMPTY_OVERRIDE).resolveOnDelivery).toBe(false)
+
+    const stored = Object.fromEntries(
+      Object.entries(TYPE).filter(
+        ([key]) => key !== 'resolveOnDelivery' && key !== 'emailsContractor',
+      ),
+    )
+    const parsed = contractorReplyConfigurationSchema.parse({ ...stored, version: 1 })
+    expect(parsed.resolveOnDelivery).toBe(false)
   })
 })

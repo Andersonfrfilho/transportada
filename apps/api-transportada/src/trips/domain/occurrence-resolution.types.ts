@@ -19,6 +19,8 @@ export type OccurrenceResolutionEventFact = {
   readonly note: string | undefined
   /** Status terminal da tratativa que causou o evento `system`. */
   readonly caseEventStatus: TripOccurrenceCaseStatus | undefined
+  /** Spec 276 T3b: o evento `system` veio da entrega do retorno da contratante ao motorista. */
+  readonly causedByContractorReply?: true
 }
 
 export type ResolveOccurrenceResolutionStateParams = {
@@ -31,6 +33,7 @@ export type OccurrenceLastResolution = {
   readonly actorKind: OccurrenceResolutionActorKind
   readonly note: string | undefined
   readonly caseEventStatus: TripOccurrenceCaseStatus | undefined
+  readonly causedByContractorReply?: true
 }
 
 export type ResolveOccurrenceResolutionStateResult = {
@@ -44,6 +47,7 @@ export type SystemResolutionPhraseKey =
   | 'case_closed'
   | 'case_returned_to_warehouse'
   | 'case_cancelled'
+  | 'contractor_reply_delivered'
 
 /** O estado de um item do feed; `open` é a ausência do objeto (`resolution: null`). */
 export type FeedResolutionView = {

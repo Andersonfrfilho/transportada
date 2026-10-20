@@ -5,6 +5,10 @@
  * app, com o texto do tipo e o **mesmo objeto do bucket** (uma linha nova de anexo, nenhuma cópia de bytes).
  * Idempotente por `(retorno, anexo)`: a mesma chave de entrega nunca manda duas vezes.
  *
+ * Spec 276 T3b: com `resolveOnDelivery` na cópia da configuração, a primeira entrega também deixa a ocorrência
+ * solucionada (evento `system` do andamento da 266, causado pelo retorno), na mesma transação. Ocorrência já
+ * solucionada ou cancelada fica como está.
+ *
  * ⚠️ SQL puro, sem tabela importada, para viver idêntico na API e no worker (nenhuma app importa a outra); o
  * contrato `contractor-reply-driver-delivery-parity.contract.ts` do worker compara os dois arquivos.
  * Nenhum log aqui: anexo, texto e destinatário nunca saem do banco.
@@ -33,6 +37,8 @@ export type DeliverContractorReplyToDriverResult =
       readonly driverUserId: string
       readonly occurrenceId: string
       readonly protocol: string
+      /** Spec 276 T3b: esta entrega deixou a ocorrência solucionada (ausente: o caminho não resolve). */
+      readonly resolvedOccurrence?: boolean
     }
   | { readonly kind: 'already_delivered' }
   | {
@@ -61,7 +67,58 @@ function resolveBodyText(config: unknown): string {
   return typeof template === 'string' ? template.trim() : ''
 }
 
+function resolvesOnDelivery(config: unknown): boolean {
+  if (typeof config !== 'object' || config === null) return false
+  return (config as Record<string, unknown>).resolveOnDelivery === true
+}
+
 const DRIVER_TARGET = 'driver_app_chat'
+
+/**
+ * Trava a ocorrência (`FOR NO KEY UPDATE`, o molde da 266) e lê o estado depois do lock: o último evento do
+ * andamento por `seq`. Grava `resolved` do sistema só se ela segue aberta e não cancelada.
+ */
+async function resolveOccurrenceOnDelivery(
+  runner: ContractorReplyDeliveryRunner,
+  params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: string
+    readonly replyId: string
+  },
+): Promise<boolean> {
+  const { companyId, occurrenceId, replyId } = params
+  const isDocument = params.occurrenceKind === 'document'
+  const [occurrence] = await rowsOf(
+    runner,
+    isDocument
+      ? sql`select cancelled_at is not null as cancelled from trip_document_occurrences
+            where company_id = ${companyId}::uuid and id = ${occurrenceId}::uuid
+            for no key update`
+      : sql`select false as cancelled from trip_stop_occurrences
+            where company_id = ${companyId}::uuid and id = ${occurrenceId}::uuid
+            for no key update`,
+  )
+  if (occurrence === undefined || occurrence.cancelled === true) return false
+  const [latest] = await rowsOf(
+    runner,
+    sql`select kind from trip_occurrence_resolution_events
+        where company_id = ${companyId}::uuid
+          and ${isDocument ? sql`document_occurrence_id` : sql`stop_occurrence_id`} = ${occurrenceId}::uuid
+        order by seq desc
+        limit 1`,
+  )
+  if (text(latest, 'kind') === 'resolved') return false
+  await rowsOf(
+    runner,
+    sql`insert into trip_occurrence_resolution_events
+          (company_id, document_occurrence_id, stop_occurrence_id, kind, actor_kind, contractor_reply_id)
+        values (${companyId}::uuid, ${isDocument ? occurrenceId : null}::uuid,
+                ${isDocument ? null : occurrenceId}::uuid, 'resolved', 'system', ${replyId}::uuid)
+        on conflict do nothing`,
+  )
+  return true
+}
 
 export async function deliverContractorReplyToDriver(
   runner: ContractorReplyDeliveryRunner,
@@ -202,6 +259,7 @@ export async function deliverContractorReplyToDriver(
         set status = 'delivered', updated_at = ${queuedAt}::timestamptz
         where company_id = ${companyId}::uuid and id = ${replyId}::uuid and status <> 'delivered'`,
   )
+  let resolvedOccurrence = false
   if (fromStatus !== 'delivered') {
     await rowsOf(
       runner,
@@ -210,6 +268,14 @@ export async function deliverContractorReplyToDriver(
           values (${companyId}::uuid, ${replyId}::uuid, ${textOf(delivery, 'id')}::uuid, ${fromStatus},
                   'delivered', ${isAutomatic ? 'system' : 'user'}, ${params.actorUserId}::uuid)`,
     )
+    if (resolvesOnDelivery(reply.config)) {
+      resolvedOccurrence = await resolveOccurrenceOnDelivery(runner, {
+        companyId,
+        occurrenceId,
+        occurrenceKind,
+        replyId,
+      })
+    }
   }
 
   return {
@@ -219,5 +285,6 @@ export async function deliverContractorReplyToDriver(
     kind: 'delivered',
     occurrenceId,
     protocol: textOf(conversation, 'protocol'),
+    resolvedOccurrence,
   }
 }

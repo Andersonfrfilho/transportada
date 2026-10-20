@@ -38,6 +38,7 @@ import {
   OCCURRENCE_CONVERSATION_SUBJECT_TYPES,
   type OccurrenceConversationSubjectType,
 } from '../shared/occurrence-conversation-subject.constant.js'
+import { occurrenceContractorReplies } from './occurrence-contractor-reply.schema.js'
 import { inList } from './schema-check.constant.js'
 import { storedObjects } from './storage.schema.js'
 import {
@@ -724,8 +725,12 @@ export const tripOccurrenceResolutionEvents = pgTable(
     kind: varchar().notNull().$type<OccurrenceResolutionEventKind>(),
     actorKind: varchar('actor_kind').notNull().$type<OccurrenceResolutionActorKind>(),
     actorUserId: uuid('actor_user_id'),
-    /** Só o evento `system` aponta para o evento da tratativa que o causou. */
+    /**
+     * Só o evento `system` aponta para o que o causou: o evento da tratativa (266) ou o retorno da
+     * contratante entregue ao motorista (276 T3b) — exatamente um dos dois.
+     */
     caseEventId: uuid('case_event_id'),
+    contractorReplyId: uuid('contractor_reply_id'),
     note: text(),
     conversationMessageId: uuid('conversation_message_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -762,6 +767,13 @@ export const tripOccurrenceResolutionEvents = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
     foreignKey({
+      columns: [table.companyId, table.contractorReplyId],
+      foreignColumns: [occurrenceContractorReplies.companyId, occurrenceContractorReplies.id],
+      name: 'trip_occurrence_resolution_events_company_contractor_reply_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
       columns: [table.companyId, table.conversationMessageId],
       foreignColumns: [occurrenceConversationMessages.companyId, occurrenceConversationMessages.id],
       name: 'trip_occurrence_resolution_events_company_message_fk',
@@ -771,6 +783,9 @@ export const tripOccurrenceResolutionEvents = pgTable(
     uniqueIndex('trip_occurrence_resolution_events_case_event_unique')
       .on(table.companyId, table.caseEventId)
       .where(sql`${table.caseEventId} is not null`),
+    uniqueIndex('trip_occurrence_resolution_events_contractor_reply_unique')
+      .on(table.companyId, table.contractorReplyId)
+      .where(sql`${table.contractorReplyId} is not null`),
     uniqueIndex('trip_occurrence_resolution_events_message_unique')
       .on(table.companyId, table.conversationMessageId)
       .where(sql`${table.conversationMessageId} is not null`),
@@ -792,7 +807,11 @@ export const tripOccurrenceResolutionEvents = pgTable(
     ),
     check(
       'trip_occurrence_resolution_events_system_case_event_check',
-      sql`(${table.actorKind} = 'system') = (${table.caseEventId} is not null)`,
+      sql`(${table.actorKind} = 'system') = (num_nonnulls(${table.caseEventId}, ${table.contractorReplyId}) = 1)`,
+    ),
+    check(
+      'trip_occurrence_resolution_events_system_cause_check',
+      sql`num_nonnulls(${table.caseEventId}, ${table.contractorReplyId}) <= 1`,
     ),
     check(
       'trip_occurrence_resolution_events_internal_note_check',

@@ -149,10 +149,11 @@ export async function removeContractorReplyFixture(
   const ids = createdIds.get(database)
   if (ids === undefined) return
   createdIds.delete(database)
-  // TRUNCATE não dispara o trigger append-only dos eventos.
+  // TRUNCATE não dispara o trigger append-only dos eventos. O andamento (266) entra junto: desde a 276 T3b ele
+  // referencia o retorno, e o TRUNCATE recusa tabela referenciada por FK de outra que fica de fora.
   await database`
     truncate occurrence_contractor_reply_events, occurrence_contractor_reply_deliveries,
-      occurrence_contractor_replies
+      trip_occurrence_resolution_events, occurrence_contractor_replies
   `
   await database`delete from occurrence_conversation_attachments where id = ${ids.attachment}`
   await database`delete from occurrence_conversation_messages where id = ${ids.message}`

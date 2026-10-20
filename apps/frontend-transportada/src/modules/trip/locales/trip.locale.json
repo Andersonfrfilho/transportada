@@ -2637,6 +2637,7 @@
       "cancelled": "Ocorrência cancelada",
       "resolvedInternal": "Resolvida por {{name}}: {{note}}",
       "resolvedAutomatic": "Resolvida automaticamente ao encerrar a tratativa",
+      "resolvedOnDelivery": "Resolvida automaticamente ao entregar o documento ao motorista",
       "reopened": "Reaberta pelo motorista {{name}}",
       "contractorReply": "Retorno da contratante: {{status}}"
     },

@@ -49,7 +49,18 @@ describe('o rascunho do retorno da contratante (spec 248 T5.1)', () => {
       forwardToInformedEmail: 'off',
       forwardToNoteRecipient: 'off',
       mode: 'off',
+      resolveOnDelivery: false,
       waitHours: '',
+    })
+  })
+
+  test('fechar sozinha depois de entregar (spec 276 T3b) lê do tipo e vai no PUT', () => {
+    const saved = readContractorReplyDraft({ ...TYPE, contractorReplyResolveOnDelivery: true })
+    expect(saved.resolveOnDelivery).toBe(true)
+    expect(isContractorReplyDraftChanged({ ...saved, resolveOnDelivery: false }, saved)).toBe(true)
+    expect(buildContractorReplyEdit(saved).contractorReplyResolveOnDelivery).toBe(true)
+    expect(buildOccurrenceTypeUpdate(TYPE, buildContractorReplyEdit(saved))).toMatchObject({
+      contractorReplyResolveOnDelivery: true,
     })
   })
 
@@ -125,7 +136,7 @@ describe('o rascunho do retorno da contratante (spec 248 T5.1)', () => {
     ).toEqual({})
   })
 
-  test('o roteiro do SAC (6 h, alerta a cada 60 min, até 24) vira os onze campos e o PUT os leva', () => {
+  test('o roteiro do SAC (6 h, alerta a cada 60 min, até 24) vira os doze campos e o PUT os leva', () => {
     const roteiro = draft({
       alertMode: 'alert_operator',
       driverReplyTemplate: 'Segue o boleto atualizado.',
@@ -139,6 +150,7 @@ describe('o rascunho do retorno da contratante (spec 248 T5.1)', () => {
       contractorReplyAlertMode: 'alert_operator',
       contractorReplyAttachmentKind: 'pdf',
       contractorReplyMode: 'forward_after_approval',
+      contractorReplyResolveOnDelivery: false,
       contractorReplyWaitHours: 6,
       driverReplyTemplate: 'Segue o boleto atualizado.',
       forwardEmailBody: '',

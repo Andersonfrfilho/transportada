@@ -5,7 +5,10 @@
  * do banco; o resto é o que a rota publica.
  */
 import type { OccurrenceKind } from '../application/occurrence-resolution.port.js'
-import type { OccurrenceResolutionEventFact } from './occurrence-resolution.types.js'
+import type {
+  OccurrenceResolutionEventFact,
+  SystemResolutionPhraseKey,
+} from './occurrence-resolution.types.js'
 
 export type DriverRouteOccurrenceFileFact = {
   readonly bucket: string
@@ -48,7 +51,7 @@ export type DriverRouteOccurrenceResolutionView = {
   readonly actorKind: 'internal' | 'system'
   readonly at: string
   readonly note: string | null
-  readonly phraseKey: 'case_closed' | 'case_returned_to_warehouse' | 'case_cancelled' | null
+  readonly phraseKey: SystemResolutionPhraseKey | null
 }
 
 export type DriverRouteOccurrenceItem = {
