@@ -20,3 +20,18 @@
   `prints/lista-celular.png`, gerados por `test/spec-277-prints.smoke.spec.ts` (fora do smoke da CI).
 - Decisões: peso e volumes saem de `nfe_volumes` (kg e quantidade; a nota não guarda m³); os quatro andamentos abrem ligados, como já
   era o padrão do filtro; a zebra é por classe dentro de cada grupo porque o `nth-child` do `.dataTable` conta o título do grupo.
+
+## T3 (etapa 3, resolução média por tipo)
+
+- API: `GET /v1/trip-occurrence-resolution-summary` (`fleet.read`, como o feed) devolve, por tipo, `{ typeName, resolvedCount,
+  averageSeconds }`: do registro até o **último** `resolved` (o `resolvedAt` da 276), só de quem está resolvida agora — reaberta,
+  em aberto e cancelada ficam de fora; nome do tipo como no feed. Fora de `/trip-occurrences/` porque o `:id` do detalhe casaria o
+  caminho (contrato de colisão da 266).
+- Integração contra Postgres 16 descartável: `test/integration/trip-occurrence-resolution-summary.integration.ts`, 3 pass / 0 fail
+  (média por tipo nas duas fontes, reaberta e cancelada fora, resolvida de novo conta pelo último `resolved`, outra empresa não aparece).
+- Contratos de rota: `separator-role` e `finance-read` listam a rota nova; colisão de rotas da 266 verde. Typecheck e eslint limpos.
+- Painel: `test/trip/occurrence-resolution-summary.contract.ts` (leitura tolerante, formatação "2 h 05 min", "menos de 1 min",
+  "Resolveu em" só para a resolvida); suíte do painel 1407 pass / 0 fail no script `test`. O painel some sozinho se a leitura falha
+  (API anterior à rota) ou se nada foi resolvido; resolver ou a tratativa terminal invalidam a média.
+- Revisão de design: `prints/lista-desktop.png` (cartões da média acima da tabela; a coluna "Resolveu em" fica à direita, depois de
+  Peso / volume, e entra pelo menu Colunas como as outras).

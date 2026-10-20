@@ -317,6 +317,7 @@ describe('listagem de ocorrências — colunas da nota', () => {
       'city',
       'invoiceValue',
       'cargo',
+      'resolvedIn',
       'conversation',
       'takenBy',
       'notified',
@@ -343,13 +344,14 @@ describe('listagem de ocorrências — colunas da nota', () => {
     }
     const preferences = readTripOccurrenceColumnPreferences(storage)
     expect(preferences.order.slice(0, 2)).toEqual(['stage', 'createdAt'])
-    expect(preferences.order.slice(-8)).toEqual([
+    expect(preferences.order.slice(-9)).toEqual([
       'contractor',
       'client',
       'destination',
       'city',
       'invoiceValue',
       'cargo',
+      'resolvedIn',
       'conversation',
       'takenBy',
     ])

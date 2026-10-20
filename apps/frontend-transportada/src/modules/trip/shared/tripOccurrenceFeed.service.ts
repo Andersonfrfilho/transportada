@@ -386,6 +386,7 @@ export const TRIP_OCCURRENCE_COLUMN_KEYS = [
   'city',
   'invoiceValue',
   'cargo',
+  'resolvedIn',
   'conversation',
   'takenBy',
   'notified',

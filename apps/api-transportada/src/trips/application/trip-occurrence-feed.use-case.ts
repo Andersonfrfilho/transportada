@@ -98,6 +98,13 @@ export type TripOccurrenceFeedDocument = {
 
 export type TripOccurrenceFeedResolutionView = FeedResolutionView
 
+/** Spec 277 RF5: uma linha da resolução média por tipo; `averageSeconds` é do registro até o último "resolvida". */
+export type TripOccurrenceResolutionSummaryItem = {
+  readonly averageSeconds: number
+  readonly resolvedCount: number
+  readonly typeName: string
+}
+
 export type TripOccurrenceFeedItem = {
   /** Spec 156 T9 (D3): nome de quem clicou, `null` sem vínculo ativo na empresa. */
   readonly actorName: string | null

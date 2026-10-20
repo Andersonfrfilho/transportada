@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getTripOccurrenceFeedClient,
   TRIP_OCCURRENCE_FEED_QUERY_KEY,
+  TRIP_OCCURRENCE_RESOLUTION_SUMMARY_QUERY_KEY,
   TRIP_OCCURRENCE_SETTLEMENT_QUERY_KEY,
 } from '../queries/tripOccurrenceFeed.query'
 
@@ -18,6 +19,8 @@ export function useOccurrenceCaseActions() {
 
   function invalidateFeed(): void {
     void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    /** A tratativa terminal resolve a ocorrência (266): a média por tipo muda junto. */
+    void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_RESOLUTION_SUMMARY_QUERY_KEY] })
   }
 
   function invalidateSettlement(): void {

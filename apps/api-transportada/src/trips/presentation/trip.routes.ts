@@ -45,6 +45,7 @@ import { parseIdempotencyKey } from './me-trip.schema.js'
 import { parseTripOccurrenceFeedList } from './trip-occurrence-feed.schema.js'
 import type {
   ListTripOccurrenceFeedInput,
+  TripOccurrenceResolutionSummaryItem,
   ReadTripOccurrenceAttachmentsInput,
   TripOccurrenceAttachmentView,
   TripOccurrenceFeedPage,
@@ -462,6 +463,8 @@ const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
  * (nota e parada juntas), não de uma viagem. Leitura pura: v1 não tem "tratar".
  */
 const TRIP_OCCURRENCE_FEED_PATH = '/trip-occurrences'
+/** ⚠️ Fora de `/trip-occurrences/`: lá o `:id` do detalhe casaria o caminho (contrato de colisão da 266). */
+const TRIP_OCCURRENCE_RESOLUTION_SUMMARY_PATH = '/trip-occurrence-resolution-summary'
 const TRIP_OCCURRENCE_FEED_ATTACHMENTS_PATH = `${TRIP_OCCURRENCE_FEED_PATH}/:id/attachments`
 const TRIP_STOPS_ORDER_PATH = `${TRIP_STOPS_PATH}/order`
 /**
@@ -653,6 +656,12 @@ type Dependencies = {
   }
   readonly listTripOccurrenceFeed: {
     execute(input: TenantInput<ListTripOccurrenceFeedInput>): Promise<TripOccurrenceFeedPage>
+  }
+  /** Spec 277 RF5: a resolução média por tipo, o mesmo dado da 276 somado. */
+  readonly summarizeTripOccurrenceResolution: {
+    execute(input: {
+      readonly context: CompanyContext
+    }): Promise<readonly TripOccurrenceResolutionSummaryItem[]>
   }
   readonly readTripOccurrenceAttachments: {
     execute(
@@ -1843,6 +1852,19 @@ export function createTripRoutes(
       method: 'GET',
       parse: ({ request }) => parseTripOccurrenceFeedList(new URL(request.url)),
       pathname: TRIP_OCCURRENCE_FEED_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
+    /** Mesma permissão do feed (TRIP_READ_POLICY). */
+    defineRoute<Record<string, never>>({
+      async handle({ context }): Promise<Response> {
+        const summary = await dependencies.summarizeTripOccurrenceResolution.execute({
+          context: context.scope,
+        })
+        return jsonResponse({ body: { data: summary }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: TRIP_OCCURRENCE_RESOLUTION_SUMMARY_PATH,
       policy: TRIP_READ_POLICY,
     }),
     /** O anexo sai por URL assinada de vida curta — nunca bucket nem chave no corpo. */

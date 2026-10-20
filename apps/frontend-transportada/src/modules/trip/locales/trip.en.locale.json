@@ -1475,6 +1475,7 @@
       "invoiceValue": "Invoice value",
       "conversation": "Conversation",
       "createdAt": "Time",
+      "resolvedIn": "Resolved in",
       "driverName": "Driver",
       "invoice": "Invoice",
       "notified": "Notice",
@@ -1599,6 +1600,14 @@
       "weight": "{{value}} kg",
       "volumes_one": "{{value}} volume",
       "volumes_other": "{{value}} volumes"
+    },
+    "resolutionSummary": {
+      "count_one": "{{count}} resolved",
+      "count_other": "{{count}} resolved",
+      "hint": "From registration to “Resolved”, resolved occurrences only",
+      "label": "Average resolution by occurrence type",
+      "lessThanMinute": "under 1 min",
+      "title": "Average resolution by type"
     },
     "groupCount_one": "{{count}} occurrence",
     "groupCount_other": "{{count}} occurrences"

@@ -228,6 +228,23 @@ async function open(page: Page): Promise<void> {
       status: 200,
     })
   })
+  await page.route(/\/trip-occurrence-resolution-summary$/, async (route: Route) => {
+    if (route.request().method() === 'OPTIONS') {
+      return route.fulfill({ headers: CORS_HEADERS, status: 204 })
+    }
+    return route.fulfill({
+      body: JSON.stringify({
+        data: [
+          { averageSeconds: 9300, resolvedCount: 4, typeName: 'Cliente ausente' },
+          { averageSeconds: 2700, resolvedCount: 2, typeName: 'Endereço não localizado' },
+          { averageSeconds: 45, resolvedCount: 1, typeName: 'Recusa do destinatário' },
+        ],
+      }),
+      contentType: 'application/json',
+      headers: CORS_HEADERS,
+      status: 200,
+    })
+  })
   await loginAsLocalUser(page)
   await page.evaluate(() => {
     window.history.pushState({}, '', '/ocorrencias')
@@ -240,6 +257,11 @@ test('print: a lista agrupada por andamento, filtros recolhidos', async ({ page 
   await page.setViewportSize(DESKTOP)
   await open(page)
   await expect(page.getByRole('columnheader', { name: 'Placa / veículo' })).toBeAttached()
+  await expect(page.getByRole('columnheader', { name: 'Resolveu em' })).toBeAttached()
+  await expect(page.getByRole('heading', { name: 'Resolução média por tipo' })).toBeVisible()
+  await expect(
+    page.getByRole('list', { name: 'Resolução média por tipo de ocorrência' }),
+  ).toContainText('2 h 35 min')
   await page.screenshot({ fullPage: true, path: resolve(PRINTS_DIRECTORY, 'lista-desktop.png') })
 })
 
