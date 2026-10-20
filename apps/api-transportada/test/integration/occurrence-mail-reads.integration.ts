@@ -160,6 +160,7 @@ describe('as leituras do e-mail em HTML contra Postgres (spec 272 T2.3)', () => 
 
         /** Sem cargo: o primeiro papel na ordem de COMPANY_ROLES (`operator` vem antes de `viewer`). */
         expect(await reader.findOperatorSigner(params)).toEqual({
+          hasPicture: false,
           jobTitle: 'Operação',
           name: 'Maria Operadora',
         })
@@ -169,9 +170,20 @@ describe('as leituras do e-mail em HTML contra Postgres (spec 272 T2.3)', () => 
           where user_id = ${company.userId} and company_id = ${company.companyId}
         `)
         expect(await reader.findOperatorSigner(params)).toEqual({
+          hasPicture: false,
           jobTitle: 'Gerente de Operações',
           name: 'Maria Operadora',
         })
+
+        /** Com foto de perfil gravada, a assinatura sabe que há foto (a imagem em si sai pela rota pública). */
+        await database.db.execute(sql`
+          insert into identity_user_pictures (user_id, mime_type, content_base64, byte_size, sha256)
+          values (${company.userId}, 'image/png', 'AA==', 1, ${'0'.repeat(64)})
+        `)
+        expect((await reader.findOperatorSigner(params))?.hasPicture).toBe(true)
+        await database.db.execute(
+          sql`delete from identity_user_pictures where user_id = ${company.userId}`,
+        )
 
         /** Sem cargo e sem papel direto: a chave `jobTitle` nem existe. */
         await database.db.execute(sql`
@@ -183,7 +195,7 @@ describe('as leituras do e-mail em HTML contra Postgres (spec 272 T2.3)', () => 
           where membership_id in (select id from user_company_memberships where user_id = ${company.userId})
         `)
         const bare = await reader.findOperatorSigner(params)
-        expect(bare).toEqual({ name: 'Maria Operadora' })
+        expect(bare).toEqual({ hasPicture: false, name: 'Maria Operadora' })
         expect(Object.hasOwn(bare ?? {}, 'jobTitle')).toBe(false)
 
         /** Outra empresa: o usuário não tem vínculo lá, então não aparece; membro inativo também não. */
