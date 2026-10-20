@@ -28,6 +28,8 @@ function allowingNull(check: FieldCheck): FieldCheck {
 }
 
 const TYPE_FIELD_CHECKS = {
+  /** Spec 276 T5: o id da resposta rápida da resposta automática, ou `null`. Aceito antes da API mandar. */
+  contractorReplyAcknowledgementQuickReplyId: allowingNull(isString),
   contractorReplyAlertMaxCount: (value: unknown) =>
     isIntegerInRange(value, CONTRACTOR_REPLY_ALERT_MAX_COUNT_RANGE),
   contractorReplyAlertIntervalMinutes: (value: unknown) =>
