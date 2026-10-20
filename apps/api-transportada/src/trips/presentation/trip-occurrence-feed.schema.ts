@@ -29,6 +29,8 @@ export const TRIP_OCCURRENCE_FEED_MAX_PER_PAGE = 100
 const DEFAULT_PER_PAGE = 25
 const CURSOR_SEPARATOR = '::'
 const MULTI_VALUE_SEPARATOR = ','
+const SEARCH_MIN_LENGTH = 2
+const SEARCH_MAX_LENGTH = 80
 
 const CONTRACTOR_REPLY_STATUS_VALUES = new Set<string>(CONTRACTOR_REPLY_STATUSES)
 
@@ -49,6 +51,7 @@ const ALLOWED_KEYS = new Set([
   'perPage',
   'plateIn',
   'resolutionStateIn',
+  'search',
   'stageIn',
   'typeIn',
 ])
@@ -123,6 +126,16 @@ function parseResolutionStateIn(
   return parts as readonly FeedResolutionStateFilter[]
 }
 
+/** Spec 277 RF1: texto livre aparado; curto demais casaria quase tudo, longo demais não é busca de gente. */
+function parseSearch(value: null | string): string | undefined {
+  if (value === null) return undefined
+  const trimmed = value.trim()
+  if (trimmed.length < SEARCH_MIN_LENGTH || trimmed.length > SEARCH_MAX_LENGTH) {
+    throw invalidRequest()
+  }
+  return trimmed
+}
+
 function parsePerPage(value: null | string): number {
   if (value === null) return DEFAULT_PER_PAGE
   const parsed = Number(value)
@@ -162,6 +175,7 @@ export function parseTripOccurrenceFeedList(url: URL): {
   )
 
   const resolutionStateIn = parseResolutionStateIn(url.searchParams.get('resolutionStateIn'))
+  const search = parseSearch(url.searchParams.get('search'))
 
   const filters: TripOccurrenceFeedFilters = {
     ...(caseStatusIn === undefined ? {} : { caseStatusIn }),
@@ -170,6 +184,7 @@ export function parseTripOccurrenceFeedList(url: URL): {
     ...(createdUntil === undefined ? {} : { createdUntil }),
     ...(plateIn === undefined ? {} : { plateIn }),
     ...(resolutionStateIn === undefined ? {} : { resolutionStateIn }),
+    ...(search === undefined ? {} : { search }),
     ...(stageIn === undefined ? {} : { stageIn }),
     ...(typeIn === undefined ? {} : { typeIn }),
   }

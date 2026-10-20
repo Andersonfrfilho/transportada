@@ -87,6 +87,10 @@ export type TripOccurrenceFeedDocument = {
     readonly state: string
   } | null
   readonly nfeDocumentId: string
+  /** Spec 277 RF2: o destinatário (o cliente); `null` sem participante `recipient` na nota. */
+  readonly recipient: { readonly name: string; readonly taxId: null | string } | null
+  /** Spec 277 RF2: soma dos volumes da nota — peso bruto em kg e quantidade de volumes, strings decimais. */
+  readonly cargo: { readonly grossWeightKg: string; readonly volumeCount: string }
   readonly totalValue: string
   /** Spec 183 T702d: a nota **da viagem** — o caminho da rota de anexo da ocorrência (161). */
   readonly tripDocumentId: string
@@ -154,6 +158,13 @@ export type TripOccurrenceFeedItem = {
   /** Nome do tipo cadastrado, ou o `kind` do relato de parada. É o que a tela imprime. */
   readonly typeName: string
   readonly vehiclePlate: string
+  /** Spec 277 RF2: o resto da ficha do veículo da viagem; `modelYear` `null` quando o cadastro não tem ano. */
+  readonly vehicle: {
+    readonly brand: string
+    readonly color: string
+    readonly model: string
+    readonly modelYear: null | number
+  }
 }
 
 /** RF11: `'none'` é "sem tratativa" — a ocorrência não tem `trip_occurrence_cases`. */
@@ -171,6 +182,8 @@ export type TripOccurrenceFeedFilters = {
   readonly plateIn?: readonly string[]
   /** Spec 266: o andamento com o motorista. `open` é sem evento; `reopened` é o último evento `reopened`. */
   readonly resolutionStateIn?: readonly FeedResolutionStateFilter[]
+  /** Spec 277 RF1: texto livre, já aparado; casa em qualquer campo da linha (nota, motorista, veículo, empresas, cidade, andamento). */
+  readonly search?: string
   readonly stageIn?: readonly TripOccurrenceFeedStage[]
   readonly typeIn?: readonly string[]
 }

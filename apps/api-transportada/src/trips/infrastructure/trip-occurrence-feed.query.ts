@@ -11,14 +11,19 @@
  * caberem na mesma projeção — e elas não cabem: uma tem tipo cadastrado, a outra tem anexo.
  */
 import { alias } from 'drizzle-orm/pg-core'
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 import type { SQL, SQLWrapper } from 'drizzle-orm'
 
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { contractors } from '../../database/delivery-client.schema.js'
-import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
+import {
+  nfeAddresses,
+  nfeDocuments,
+  nfeParticipants,
+  nfeVolumes,
+} from '../../database/nfe.schema.js'
 import { occurrenceContractorReplies } from '../../database/occurrence-contractor-reply.schema.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
@@ -50,6 +55,7 @@ import {
 } from './trip-occurrence-feed-resolution.query.js'
 import { mergeOccurrenceFeed } from '../domain/occurrence-feed.policy.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
+import type { FeedResolutionStateFilter } from '../domain/occurrence-resolution.types.js'
 import type {
   TripOccurrenceFeedCaseView,
   TripOccurrenceFeedFilters,
@@ -225,6 +231,107 @@ function stopOccurrencesMatchContractorReplyFilter(
   )
 }
 
+/** O papel do destinatário em `nfe_participants` — o cliente da nota. */
+const RECIPIENT_ROLE = 'recipient'
+
+/** Os rótulos do andamento que a busca entende; o texto digitado casa por prefixo, sem acento. */
+const SEARCH_RESOLUTION_LABELS: readonly (readonly [string, FeedResolutionStateFilter])[] = [
+  ['em aberto', 'open'],
+  ['aberta', 'open'],
+  ['reaberta', 'reopened'],
+  ['resolvida', 'resolved'],
+  ['cancelada', 'cancelled'],
+]
+
+function stripAccents(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+/** `%`, `_` e `\` digitados são texto, não curinga. */
+function likePattern(term: string): string {
+  return `%${term.replace(/[\\%_]/g, (character) => `\\${character}`)}%`
+}
+
+function searchResolutionStates(term: string): readonly FeedResolutionStateFilter[] {
+  const normalized = stripAccents(term.toLowerCase())
+  return [
+    ...new Set(
+      SEARCH_RESOLUTION_LABELS.filter(([label]) => label.startsWith(normalized)).map(
+        ([, state]) => state,
+      ),
+    ),
+  ]
+}
+
+/**
+ * Spec 277 RF1: a busca rápida. Os participantes e endereços da nota entram por `exists`, nunca por
+ * junção — uma junção multiplicaria a linha da ocorrência e quebraria o cursor. Toda subconsulta
+ * repete o `company_id` (o tenant vale em cada degrau, como no resto deste arquivo).
+ */
+function searchCondition(
+  search: string,
+  owner: 'document' | 'stop',
+  occurrenceCompanyId: SQLWrapper,
+): SQL {
+  const pattern = likePattern(search)
+  const digits = search.replace(/\D/g, '')
+  const taxIdMatch =
+    digits.length >= 3
+      ? sql`or regexp_replace(coalesce(p.tax_id, ''), '[^0-9]', '', 'g') like ${`%${digits}%`}`
+      : sql``
+  const states = searchResolutionStates(search)
+  const resolutionMatch =
+    states.length === 0 ? null : resolutionStateCondition({ resolutionStateIn: states }, owner)
+  const typeMatch =
+    owner === 'document'
+      ? ilike(companyOccurrenceTypes.name, pattern)
+      : ilike(tripStopOccurrences.kind, pattern)
+
+  const conditions: (SQL | undefined)[] = [
+    ilike(nfeDocuments.number, pattern),
+    ilike(tripDrivers.driverName, pattern),
+    ilike(fleetVehicles.plate, pattern),
+    ilike(fleetVehicles.brand, pattern),
+    ilike(fleetVehicles.model, pattern),
+    /** A cor é gravada como código (`azul_marinho`); o operador digita "azul marinho". */
+    sql`replace(${fleetVehicles.color}, '_', ' ') ilike ${pattern}`,
+    sql`${fleetVehicles.modelYear}::text like ${pattern}`,
+    typeMatch,
+    sql`exists (
+      select 1 from ${nfeParticipants} p
+      where p.company_id = ${occurrenceCompanyId}
+        and p.document_id = ${nfeDocuments.id}
+        and p.role in (${EMITTER_ROLE}, ${RECIPIENT_ROLE})
+        and (p.legal_name ilike ${pattern} or p.trade_name ilike ${pattern} ${taxIdMatch})
+    )`,
+    sql`exists (
+      select 1 from ${nfeParticipants} p
+      join ${nfeAddresses} a on a.company_id = p.company_id and a.participant_id = p.id
+      where p.company_id = ${occurrenceCompanyId}
+        and p.document_id = ${nfeDocuments.id}
+        and p.role in (${RECIPIENT_ROLE}, 'delivery')
+        and a.city ilike ${pattern}
+    )`,
+    resolutionMatch ?? undefined,
+  ]
+  return or(...conditions.filter((condition): condition is SQL => condition !== undefined)) as SQL
+}
+
+/** `model_year` 0 é o cadastro sem ano (o padrão da coluna): sai `null`, nunca "ano 0". */
+function toVehicleView(row: {
+  readonly vehicleBrand: string
+  readonly vehicleColor: string
+  readonly vehicleModel: string
+  readonly vehicleModelYear: number
+}): TripOccurrenceFeedItem['vehicle'] {
+  return {
+    brand: row.vehicleBrand,
+    color: row.vehicleColor,
+    model: row.vehicleModel,
+    modelYear: row.vehicleModelYear > 0 ? row.vehicleModelYear : null,
+  }
+}
+
 async function listDocumentOccurrenceRows(
   queryable: TripQueryable,
   query: FeedRowQuery,
@@ -262,6 +369,11 @@ async function listDocumentOccurrenceRows(
   if (contractorReplyCondition !== null) conditions.push(contractorReplyCondition)
   const resolutionCondition = resolutionStateCondition(query.filters, 'document')
   if (resolutionCondition !== null) conditions.push(resolutionCondition)
+  if (query.filters?.search !== undefined) {
+    conditions.push(
+      searchCondition(query.filters.search, 'document', tripDocumentOccurrences.companyId),
+    )
+  }
 
   const rows = await queryable
     .select({
@@ -308,6 +420,10 @@ async function listDocumentOccurrenceRows(
       tripId: tripDocuments.tripId,
       typeName: companyOccurrenceTypes.name,
       vehiclePlate: fleetVehicles.plate,
+      vehicleBrand: fleetVehicles.brand,
+      vehicleColor: fleetVehicles.color,
+      vehicleModel: fleetVehicles.model,
+      vehicleModelYear: fleetVehicles.modelYear,
     })
     .from(tripDocumentOccurrences)
     .innerJoin(
@@ -418,6 +534,7 @@ async function listDocumentOccurrenceRows(
     tripId: row.tripId,
     typeName: row.typeName,
     vehiclePlate: row.vehiclePlate,
+    vehicle: toVehicleView(row),
   }))
 }
 
@@ -500,6 +617,9 @@ async function listStopOccurrenceRows(
   }
   const resolutionCondition = resolutionStateCondition(query.filters, 'stop')
   if (resolutionCondition !== null) conditions.push(resolutionCondition)
+  if (query.filters?.search !== undefined) {
+    conditions.push(searchCondition(query.filters.search, 'stop', tripStopOccurrences.companyId))
+  }
 
   const rows = await queryable
     .select({
@@ -520,6 +640,10 @@ async function listStopOccurrenceRows(
       stopLabel: tripStops.label,
       tripId: tripStops.tripId,
       vehiclePlate: fleetVehicles.plate,
+      vehicleBrand: fleetVehicles.brand,
+      vehicleColor: fleetVehicles.color,
+      vehicleModel: fleetVehicles.model,
+      vehicleModelYear: fleetVehicles.modelYear,
     })
     .from(tripStopOccurrences)
     .innerJoin(
@@ -602,6 +726,7 @@ async function listStopOccurrenceRows(
     tripId: row.tripId,
     typeName: row.kind,
     vehiclePlate: row.vehiclePlate,
+    vehicle: toVehicleView(row),
   }))
 }
 
@@ -628,8 +753,10 @@ async function toFeedItems(
     { readonly contractorId: null | string; readonly name: string; readonly taxId: null | string }
   >()
   let destinations = new Map<string, NfeDestinationAddress>()
+  const recipients = new Map<string, { readonly name: string; readonly taxId: null | string }>()
+  const cargos = new Map<string, { readonly grossWeightKg: string; readonly volumeCount: string }>()
   if (nfeDocumentIds.length > 0) {
-    const [emitterRows, stopAddresses] = await Promise.all([
+    const [emitterRows, stopAddresses, recipientRows, cargoRows] = await Promise.all([
       queryable
         .select({
           contractorId: contractors.id,
@@ -655,7 +782,47 @@ async function toFeedItems(
           ),
         ),
       listStopAddresses(queryable, { companyId, nfeDocumentIds }),
+      /** Spec 277 RF2: o cliente da nota — o destinatário, em lote como o emitente. */
+      queryable
+        .select({
+          documentId: nfeParticipants.documentId,
+          legalName: nfeParticipants.legalName,
+          taxId: nfeParticipants.taxId,
+          tradeName: nfeParticipants.tradeName,
+        })
+        .from(nfeParticipants)
+        .where(
+          and(
+            eq(nfeParticipants.companyId, companyId),
+            inArray(nfeParticipants.documentId, nfeDocumentIds),
+            eq(nfeParticipants.role, RECIPIENT_ROLE),
+          ),
+        ),
+      /** Spec 277 RF2: peso bruto (kg) e quantidade de volumes da nota, somados no banco. */
+      queryable
+        .select({
+          documentId: nfeVolumes.documentId,
+          grossWeight: sql<string>`coalesce(sum(${nfeVolumes.grossWeight}), 0)::text`,
+          volumeCount: sql<string>`coalesce(sum(${nfeVolumes.quantity}), 0)::text`,
+        })
+        .from(nfeVolumes)
+        .where(
+          and(eq(nfeVolumes.companyId, companyId), inArray(nfeVolumes.documentId, nfeDocumentIds)),
+        )
+        .groupBy(nfeVolumes.documentId),
     ])
+    for (const recipient of recipientRows) {
+      recipients.set(recipient.documentId, {
+        name: (recipient.legalName ?? recipient.tradeName ?? '').trim(),
+        taxId: recipient.taxId ?? null,
+      })
+    }
+    for (const cargo of cargoRows) {
+      cargos.set(cargo.documentId, {
+        grossWeightKg: cargo.grossWeight,
+        volumeCount: cargo.volumeCount,
+      })
+    }
     for (const emitter of emitterRows) {
       const registeredName = emitter.contractorName?.trim() ?? ''
       emitters.set(emitter.documentId, {
@@ -761,6 +928,8 @@ async function toFeedItems(
                       state: destination.state,
                     },
               nfeDocumentId,
+              recipient: recipients.get(nfeDocumentId) ?? null,
+              cargo: cargos.get(nfeDocumentId) ?? { grossWeightKg: '0', volumeCount: '0' },
               totalValue,
               tripDocumentId,
             },

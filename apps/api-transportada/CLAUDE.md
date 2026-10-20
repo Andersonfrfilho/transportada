@@ -1221,3 +1221,12 @@ mensagem sai por e-mail. Contrato: `POST /v1/trip-occurrences/:id/conversations/
   246 e de qualquer escrita ou upload → 422 `OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR` (o lote leva só `documentIds`).
 - **Rota nova:** `GET /trips/:id/documents/:documentId/occurrence-types` (`trip.manage`, momento `separation`).
 - Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O escopo de contratantes do tipo (spec 270)".
+
+## A lista de ocorrências tem busca rápida (spec 277)
+
+`GET /v1/trip-occurrences?search=` (2 a 80 caracteres após `trim`) casa, sem diferenciar caixa, em qualquer campo da linha: nota,
+motorista, placa/marca/modelo/ano/cor do veículo, tipo, nome e CNPJ do contratante e do cliente, cidade de entrega e andamento
+(`searchCondition`, `trip-occurrence-feed.query.ts`). Participantes e endereços entram por `exists`, **nunca por junção** — junção
+multiplicaria a linha e quebraria o cursor. CNPJ casa só por dígitos; a cor é gravada como código (`azul_marinho`) e a busca
+troca `_` por espaço. O item ganha `vehicle`, `document.recipient` e `document.cargo` (peso bruto em kg e volumes, somados de
+`nfe_volumes`). O tempo médio de resolução por tipo é a etapa 3 e lê os eventos da 276, não recalcula.

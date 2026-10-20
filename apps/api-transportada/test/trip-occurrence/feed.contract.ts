@@ -166,4 +166,19 @@ describe('fronteira da listagem de ocorrências', () => {
     expect(() => parse('?resolutionStateIn=')).toThrow()
     expect(() => parse('?resolutionStateIn=open&resolutionStateIn=resolved')).toThrow()
   })
+
+  test('busca rápida: texto aparado vira filtro `search`', () => {
+    expect(parse('?search=%20Carlos%20').filters).toEqual({ search: 'Carlos' })
+    expect(parse('?search=48213&plateIn=ABC1D23').filters).toEqual({
+      plateIn: ['ABC1D23'],
+      search: '48213',
+    })
+  })
+
+  test('busca rápida: menos de 2 ou mais de 80 caracteres é recusa', () => {
+    expect(() => parse('?search=a')).toThrow()
+    expect(() => parse('?search=%20%20')).toThrow()
+    expect(() => parse(`?search=${'x'.repeat(81)}`)).toThrow()
+    expect(parse(`?search=${'x'.repeat(80)}`).filters).toEqual({ search: 'x'.repeat(80) })
+  })
 })
