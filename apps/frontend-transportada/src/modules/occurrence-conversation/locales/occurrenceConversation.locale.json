@@ -410,7 +410,8 @@
     },
     "reason": {
       "no_accepted_attachment": "sem anexo aceito",
-      "multiple_attachments": "mais de um anexo"
+      "multiple_attachments": "mais de um anexo",
+      "document_not_confirmed": "o PDF não parece o boleto desta nota"
     },
     "alerts_one": "{{count}} alerta",
     "alerts_other": "{{count}} alertas",
@@ -491,7 +492,8 @@
         "attachment_too_large_for_email": "arquivo grande demais para e-mail",
         "send_failed": "falha no envio",
         "no_accepted_attachment": "sem anexo aceito",
-        "multiple_attachments": "mais de um anexo"
+        "multiple_attachments": "mais de um anexo",
+        "document_not_confirmed": "o PDF não parece o boleto desta nota"
       }
     },
     "hint": {

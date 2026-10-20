@@ -763,6 +763,7 @@ import { createCargoArrivalOccurrenceHttpRoutes } from './cargo-receiving/cargo-
 import { createCargoPreviewHttpRoutes } from './cargo-receiving/cargo-preview.composition.js'
 import { createContractorPreviewEmailHttpRoutes } from './cargo-receiving/contractor-preview-email.composition.js'
 import { CARGO_ARRIVAL_CHANNEL } from './shared/cargo-arrival.constant.js'
+import { extractPdfTextLayer } from './shared/pdf-text-layer.service.js'
 import { createContractorContactsUseCase } from './contractor-mail/application/contractor-contacts.use-case.js'
 import { createOccurrenceWatchersUseCase } from './contractor-mail/application/occurrence-watchers.use-case.js'
 import { DrizzleOccurrenceWatcherRepository } from './contractor-mail/infrastructure/drizzle-occurrence-watcher.repository.js'
@@ -2641,6 +2642,8 @@ function createApplicationRoutes({
     }),
     fingerprintService,
     newRef: createPublicRef,
+    /** Spec 276 T2: the boleto check reads the text layer the generator wrote, never OCR. */
+    readPdfText: extractPdfTextLayer,
     scopes: contractorPortalRepository,
     storage: storageGateway,
     unitOfWork: createDrizzleContractorPortalConversationUnitOfWork(database),

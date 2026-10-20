@@ -6,7 +6,6 @@
  */
 import { Worker } from 'node:worker_threads'
 
-import type { AggregateAttachmentType } from '../../messaging/aggregate-attachment-envelope.schema.js'
 import type { AttachmentExtractionPort } from '../application/extract-attachment-fields.port.js'
 
 /**
@@ -27,30 +26,48 @@ const WORKER_URL = import.meta.url.endsWith('.ts')
     new URL('./aggregate-attachment/infrastructure/pdf-extraction.worker.js', import.meta.url)
 
 type WorkerMessage =
-  | { readonly ok: true; readonly result: { readonly fields: Record<string, unknown> | null } }
+  | {
+      readonly ok: true
+      readonly result: { readonly fields: Record<string, unknown> | null; readonly text?: string }
+    }
   | { readonly ok: false; readonly reason: string }
 
 export function createThreadedAttachmentExtractionGateway(): AttachmentExtractionPort {
   return {
     async extract({ bytes, type }) {
-      return runInThread({ bytes, type })
+      return (await runInThread({ bytes, type }, EXTRACTION_TIMEOUT_MS)).fields
     },
   }
 }
 
-function runInThread(input: {
-  readonly bytes: Uint8Array
-  readonly type: AggregateAttachmentType
-}): Promise<Readonly<Record<string, unknown>> | null> {
+/**
+ * Spec 276 T2: o texto da primeira página de um PDF da contratante, para a conferência do boleto. A mesma
+ * thread do anexo do agregado (ADR-0053: pdf.js nunca no processo principal), com prazo curto: o boleto é
+ * gerado por sistema e lê em milissegundos. Falha ou prazo estourado é texto vazio — o retorno vai ao
+ * operador, nunca segue sem conferência.
+ */
+export async function readPdfTextInThread(bytes: Uint8Array): Promise<string> {
+  try {
+    const result = await runInThread({ bytes, mode: 'text', type: 'pdf_text' }, TEXT_TIMEOUT_MS)
+    return result.text ?? ''
+  } catch {
+    return ''
+  }
+}
+
+const TEXT_TIMEOUT_MS = 10_000
+
+function runInThread(
+  workerData: { readonly bytes: Uint8Array; readonly mode?: 'text'; readonly type: string },
+  timeoutMs: number,
+): Promise<{ readonly fields: Readonly<Record<string, unknown>> | null; readonly text?: string }> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(WORKER_URL, {
-      workerData: { bytes: input.bytes, type: input.type },
-    })
+    const worker = new Worker(WORKER_URL, { workerData })
 
     const timer = setTimeout(() => {
       void worker.terminate()
       reject(new Error('aggregate attachment extraction timed out'))
-    }, EXTRACTION_TIMEOUT_MS)
+    }, timeoutMs)
 
     const settle = (action: () => void): void => {
       clearTimeout(timer)
@@ -61,7 +78,7 @@ function runInThread(input: {
     worker.on('message', (message: WorkerMessage) => {
       settle(() =>
         message.ok
-          ? resolve(message.result.fields)
+          ? resolve(message.result)
           : reject(new Error(`aggregate attachment extraction failed: ${message.reason}`)),
       )
     })

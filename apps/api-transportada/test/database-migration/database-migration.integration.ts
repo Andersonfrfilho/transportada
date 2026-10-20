@@ -28,6 +28,7 @@ import { assertArrivalReferenceLabel } from './contractor-receiving-arrival-refe
 import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertConversationEmailRead } from './conversation-email-read.assertion.js'
+import { assertContractorReplyBoletoCheck } from './contractor-reply-boleto-check.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
 import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
 import { assertConversationSubject } from './conversation-subject.assertion.js'
@@ -146,6 +147,16 @@ describe('Drizzle migration integration', () => {
         await assertFreightRegionConstraints(database, identityFixture, fleetFixture)
         await assertMdfeConstraints(database, identityFixture, fleetFixture)
         await assertTripConstraints(database, identityFixture, fleetFixture)
+        /**
+         * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
+         * diário da 276 ainda gravado, e o reapply não a alarga de novo.
+         */
+        await assertContractorReplyBoletoCheck({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
 
         const rollbackProbeTripId = crypto.randomUUID()
         await database`

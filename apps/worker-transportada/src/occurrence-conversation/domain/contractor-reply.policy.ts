@@ -27,6 +27,12 @@ export const CONTRACTOR_REPLY_ACCEPTED_CONTENT_TYPES: Readonly<
 > = {
   pdf: ['application/pdf'],
   pdf_or_image: ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'],
+  boleto_pdf: ['application/pdf'],
+}
+
+/** Spec 276 T2: the kinds whose accepted attachment is only taken after its content is checked. */
+export function requiresContractorReplyDocumentCheck(kind: ContractorReplyAttachmentKind): boolean {
+  return kind === 'boleto_pdf'
 }
 
 export type ContractorReplyAttachmentInput = {
@@ -37,6 +43,11 @@ export type ContractorReplyAttachmentInput = {
 
 export type ContractorReplyDecisionInput = {
   readonly attachments: readonly ContractorReplyAttachmentInput[]
+  /**
+   * Spec 276 T2: whether the content of the single accepted attachment was confirmed (the boleto check).
+   * Read only for a kind that requires the check; absent there means not confirmed.
+   */
+  readonly documentConfirmed?: boolean
   readonly reply: {
     readonly config: {
       readonly attachmentKind: ContractorReplyAttachmentKind
@@ -96,6 +107,13 @@ export function decideContractorReply(
   if (onlyAccepted === undefined)
     return { kind: 'needs_operator', reason: 'no_accepted_attachment' }
   if (accepted.length > 1) return { kind: 'needs_operator', reason: 'multiple_attachments' }
+  /** A PDF that is not the boleto (the note, a receipt, a scan without text) never goes on by itself. */
+  if (
+    requiresContractorReplyDocumentCheck(reply.config.attachmentKind) &&
+    input.documentConfirmed !== true
+  ) {
+    return { kind: 'needs_operator', reason: 'document_not_confirmed' }
+  }
 
   return {
     attachmentId: onlyAccepted.id,

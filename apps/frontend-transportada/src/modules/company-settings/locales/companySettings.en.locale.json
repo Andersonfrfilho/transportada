@@ -656,7 +656,8 @@
       },
       "attachmentKind": {
         "pdf": "PDF only",
-        "pdf_or_image": "PDF or image"
+        "pdf_or_image": "PDF or image",
+        "boleto_pdf": "Checked boleto PDF (payment line and note)"
       },
       "alertMode": {
         "off": "Do not alert",

@@ -656,7 +656,8 @@
       },
       "attachmentKind": {
         "pdf": "Somente PDF",
-        "pdf_or_image": "PDF ou imagem"
+        "pdf_or_image": "PDF ou imagem",
+        "boleto_pdf": "Boleto em PDF conferido (linha digitável e nota)"
       },
       "alertMode": {
         "off": "Não alertar",

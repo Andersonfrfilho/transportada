@@ -314,4 +314,29 @@ describe('guardar e descartar os anexos (spec 183 T702c1)', () => {
     await store.discard(result.stored)
     expect(deleted).toEqual(['occurrence-conversations/token-1'])
   })
+
+  test('com leitor de texto, só o PDF leva a camada de texto, lida antes da transação (spec 276 T2)', async () => {
+    const read: number[] = []
+    const store = createInboundConversationAttachmentStore({
+      bucket: 'bucket-privado',
+      provider: 'minio',
+      readPdfText: async (bytes) => {
+        read.push(bytes.byteLength)
+        return 'texto do boleto'
+      },
+      storage: { deleteObject: async () => undefined, storeObject: async () => undefined },
+    })
+    const raw = mime([
+      { bytes: PDF, contentType: 'application/pdf', disposition: 'attachment', fileName: 'b.pdf' },
+      { bytes: PNG, contentType: 'image/png', disposition: 'attachment', fileName: 'a.png' },
+    ])
+
+    const result = await store.store(new Uint8Array(raw))
+
+    expect(read).toEqual([PDF.byteLength])
+    expect(result.stored.map((item) => [item.contentType, item.textLayer])).toEqual([
+      ['application/pdf', 'texto do boleto'],
+      ['image/png', undefined],
+    ])
+  })
 })

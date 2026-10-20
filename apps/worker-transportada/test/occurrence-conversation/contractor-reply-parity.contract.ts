@@ -8,10 +8,14 @@ import { readFile } from 'node:fs/promises'
 const API_ROOT = '../../../api-transportada/'
 const MIRRORED_FILES = [
   'src/occurrence-conversation/domain/contractor-reply.policy.ts',
+  'src/occurrence-conversation/domain/contractor-reply-document.policy.ts',
+  'src/occurrence-conversation/infrastructure/contractor-reply-document-note.support.ts',
   'src/occurrence-conversation/infrastructure/contractor-reply-driver-delivery.support.ts',
   'src/occurrence-conversation/infrastructure/contractor-reply-note-recipient-forward.support.ts',
   'src/shared/occurrence-contractor-reply.constant.ts',
   'test/occurrence-conversation/contractor-reply.contract.ts',
+  'test/occurrence-conversation/contractor-reply-document.contract.ts',
+  'test/fixtures/boleto-pdf.fixture.ts',
 ] as const
 
 /** Spec 248 CA03: the API and the worker decide the reply by the same table, in a copy by value. */
