@@ -7,6 +7,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useFloatingLayer } from '@/components/ui/useFloatingLayer.hook'
 
+import { openNotificationTarget } from '../shared/notificationNavigation.service'
+import type { NotificationTargetSource } from '../shared/notificationTarget.service'
 import { NOTIFICATION_THEME_CLASS } from '../shared/notificationTheme.constant'
 import styles from '../styles/notification.module.css'
 
@@ -28,6 +30,11 @@ export function NotificationBellMenu({ onViewAll }: NotificationBellMenuProps): 
     isOpen,
     onDismiss: () => setIsOpen(false),
   })
+
+  /** Aviso com destino fecha o painel e abre a tela; sem destino, só fica marcado como lido. */
+  function selectNotification(notification: NotificationTargetSource): void {
+    if (openNotificationTarget(notification)) setIsOpen(false)
+  }
 
   function viewAll(): void {
     setIsOpen(false)
@@ -55,7 +62,10 @@ export function NotificationBellMenu({ onViewAll }: NotificationBellMenuProps): 
                 </Button>
               </header>
               <div className={styles.notificationPopoverBody}>
-                <NotificationList renderEmpty={() => <p>{t('empty')}</p>} />
+                <NotificationList
+                  onSelect={selectNotification}
+                  renderEmpty={() => <p>{t('empty')}</p>}
+                />
               </div>
             </section>,
             document.body,

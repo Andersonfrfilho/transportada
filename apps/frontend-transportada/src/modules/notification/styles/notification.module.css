@@ -210,7 +210,7 @@
   left: var(--floating-layer-left, 0);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(26rem, calc(100vw - var(--space-4) * 2));
+  width: min(30rem, calc(100vw - var(--space-4) * 2));
   max-height: min(32rem, var(--floating-layer-max-height, 32rem));
   border: thin solid color-mix(in srgb, var(--color-slate) 32%, transparent);
   background: var(--color-graphite);
@@ -232,6 +232,30 @@
 }
 
 .notificationPopoverBody {
+  overflow-x: hidden;
   overflow-y: auto;
-  padding: var(--space-3);
+}
+
+/*
+ * A linha do pacote foi desenhada para a página larga: título numa linha só e corpo em duas. No
+ * painel estreito isso cortava o aviso — e o botão da linha, sem `min-width: 0`, empurrava as ações
+ * para fora. Aqui o título quebra e o corpo mostra mais, sem mexer na página completa.
+ */
+.notificationPopoverBody :global(.adn-list) {
+  border: none;
+  border-radius: 0;
+}
+
+.notificationPopoverBody :global(.adn-item__main) {
+  min-width: 0;
+}
+
+.notificationPopoverBody :global(.adn-item__title) {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.notificationPopoverBody :global(.adn-item__body) {
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 4;
 }

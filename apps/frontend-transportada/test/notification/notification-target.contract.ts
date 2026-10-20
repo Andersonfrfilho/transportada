@@ -1,7 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
+import { openNotificationTarget } from '../../src/modules/notification/shared/notificationNavigation.service'
 import { resolveNotificationTarget } from '../../src/modules/notification/shared/notificationTarget.service'
+import type { WorkspaceNavigator } from '../../src/modules/shared/workspaceNavigation.service'
 
 const TRIP = '00000000-0000-4000-8000-000000000011'
 const OCCURRENCE = '00000000-0000-4000-8000-0000000000c1'
@@ -40,5 +42,37 @@ describe('o destino do clique no aviso (spec 275 RF-L)', () => {
     ).toEqual({ href: `/trips/${TRIP}`, workspace: 'trip' })
     expect(resolveNotificationTarget(notificationWith({ tripId: 'x/y?z' }))).toBeNull()
     expect(resolveNotificationTarget(notificationWith({ occurrenceId: 42 }))).toBeNull()
+  })
+})
+
+describe('abrir o destino do aviso (página e painel do sino)', () => {
+  function recordingNavigator(): { calls: string[]; navigator: WorkspaceNavigator } {
+    const calls: string[] = []
+    return {
+      calls,
+      navigator: {
+        dispatchPopState: () => calls.push('popstate'),
+        pushPath: (path) => calls.push(`push:${path}`),
+        rememberWorkspace: (workspace) => calls.push(`workspace:${workspace}`),
+      },
+    }
+  }
+
+  test('aviso com ocorrência navega e devolve true', () => {
+    const { calls, navigator } = recordingNavigator()
+    expect(openNotificationTarget(notificationWith({ occurrenceId: OCCURRENCE }), navigator)).toBe(
+      true,
+    )
+    expect(calls).toEqual([
+      `push:/ocorrencias/${OCCURRENCE}`,
+      'workspace:trip-occurrences',
+      'popstate',
+    ])
+  })
+
+  test('aviso sem destino não navega e devolve false', () => {
+    const { calls, navigator } = recordingNavigator()
+    expect(openNotificationTarget(notificationWith({}), navigator)).toBe(false)
+    expect(calls).toEqual([])
   })
 })
