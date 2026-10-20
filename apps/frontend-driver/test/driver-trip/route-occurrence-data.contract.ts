@@ -127,6 +127,24 @@ describe('validação da lista de ocorrências da rota (spec 266 T4.2)', () => {
     expect(item?.resolution?.phraseKey).toBeNull()
   })
 
+  it('a frase do retorno entregue (spec 276 T3b) é conhecida', () => {
+    const [item] = toDriverRouteOccurrenceList({
+      data: [
+        {
+          ...WIRE_ITEM,
+          resolution: {
+            actorKind: 'system',
+            at: '2026-10-20T11:00:00.000Z',
+            note: null,
+            phraseKey: 'contractor_reply_delivered',
+          },
+          state: 'resolved',
+        },
+      ],
+    })
+    expect(item?.resolution?.phraseKey).toBe('contractor_reply_delivered')
+  })
+
   it('resolução: nota nula e frase fixa conhecida; reportKey ausente vira null', () => {
     const withoutReportKey: Record<string, unknown> = { ...WIRE_ITEM }
     delete withoutReportKey.reportKey
@@ -368,7 +386,7 @@ describe('o cliente das rotas de leitura (spec 266 T4.2)', () => {
 })
 
 describe('as frases fixas da tratativa no locale (spec 266 T4.2b)', () => {
-  it('as três existem em pt-BR e en', () => {
+  it('as quatro existem em pt-BR e en (a da 276 T3b inclusa)', () => {
     for (const file of ['driverTrip.locale.json', 'driverTrip.en.locale.json']) {
       const locale = JSON.parse(
         readFileSync(
@@ -380,6 +398,7 @@ describe('as frases fixas da tratativa no locale (spec 266 T4.2b)', () => {
         'case_cancelled',
         'case_closed',
         'case_returned_to_warehouse',
+        'contractor_reply_delivered',
       ])
     }
   })

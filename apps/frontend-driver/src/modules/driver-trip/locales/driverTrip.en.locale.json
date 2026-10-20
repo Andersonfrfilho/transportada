@@ -810,7 +810,8 @@
     "phrase": {
       "case_cancelled": "Case cancelled by the office",
       "case_closed": "Closed by the office",
-      "case_returned_to_warehouse": "Goods returned to the warehouse"
+      "case_returned_to_warehouse": "Goods returned to the warehouse",
+      "contractor_reply_delivered": "The document requested from the contractor arrived and was sent to you."
     },
     "share": {
       "sharing": "Preparing the documents...",

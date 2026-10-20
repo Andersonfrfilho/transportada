@@ -83,6 +83,20 @@ describe('tolerância aos campos do retorno da contratante no tipo (spec 248 T1.
     expect(type?.id).toBe(TYPE_ID)
   })
 
+  it('aceita fechar sozinha depois de entregar (spec 276 T3b) antes de a API mandar', () => {
+    for (const value of [true, false]) {
+      const [type] = adapters.occurrenceTypesFromApi([
+        buildOccurrenceType({ contractorReplyResolveOnDelivery: value }),
+      ])
+      expect(type?.id).toBe(TYPE_ID)
+    }
+    expect(() =>
+      adapters.occurrenceTypesFromApi([
+        buildOccurrenceType({ contractorReplyResolveOnDelivery: 'yes' }),
+      ]),
+    ).toThrow()
+  })
+
   it('recusa campo do retorno fora do vocabulário ou da faixa', () => {
     expect(() =>
       adapters.occurrenceTypesFromApi([buildOccurrenceType({ contractorReplyMode: 'maybe' })]),
