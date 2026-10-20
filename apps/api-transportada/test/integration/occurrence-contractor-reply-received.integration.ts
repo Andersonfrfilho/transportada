@@ -11,6 +11,7 @@ import { and, eq } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypes,
+  contractors,
   occurrenceContractorReplies,
   occurrenceContractorReplyDeliveries,
   occurrenceContractorReplyEvents,
@@ -594,13 +595,19 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
         const seeded = await seedMailScenario(database)
         const { companyId } = seeded.company
         await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+        const [contractor] = await database.db
+          .select({ id: contractors.id })
+          .from(contractors)
+          .where(eq(contractors.companyId, companyId))
         const [conversation] = await database.db
           .insert(occurrenceConversations)
           .values({
             companyId,
+            contractorId: contractor?.id ?? '',
             occurrenceId: seeded.occurrenceId,
             occurrenceKind: 'document',
             participant: 'contractor',
+            publicRef: crypto.randomUUID().replaceAll('-', ''),
           })
           .returning({ id: occurrenceConversations.id })
         const received = await receiveReply(database, {
