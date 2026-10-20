@@ -354,6 +354,21 @@
       "rateLimited": "Muitas mensagens por e-mail em pouco tempo. Aguarde alguns minutos e tente de novo.",
       "generic": "Não foi possível enviar a mensagem por e-mail. Tente de novo ou use Enviar por e-mail.",
       "openMail": "Enviar por e-mail"
+    },
+    "summary": {
+      "title": "Resumo da conversa",
+      "count_one": "{{count}} mensagem",
+      "count_other": "{{count}} mensagens",
+      "last": "Última",
+      "byUs": "Nós",
+      "exchange": "Troca",
+      "sent_one": "{{count}} enviada",
+      "sent_other": "{{count}} enviadas",
+      "received_one": "{{count}} recebida",
+      "received_other": "{{count}} recebidas",
+      "files": "Arquivos",
+      "failed": "Falhas de envio",
+      "preview": "Última mensagem"
     }
   },
   "sendRecovery": {

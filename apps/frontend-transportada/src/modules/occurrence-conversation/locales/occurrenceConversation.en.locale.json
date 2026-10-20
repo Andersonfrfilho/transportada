@@ -354,6 +354,21 @@
       "rateLimited": "Too many emails in a short time. Wait a few minutes and try again.",
       "generic": "The message could not be sent by email. Try again or use Send by email.",
       "openMail": "Send by email"
+    },
+    "summary": {
+      "title": "Conversation summary",
+      "count_one": "{{count}} message",
+      "count_other": "{{count}} messages",
+      "last": "Last",
+      "byUs": "Us",
+      "exchange": "Exchange",
+      "sent_one": "{{count}} sent",
+      "sent_other": "{{count}} sent",
+      "received_one": "{{count}} received",
+      "received_other": "{{count}} received",
+      "files": "Files",
+      "failed": "Send failures",
+      "preview": "Last message"
     }
   },
   "sendRecovery": {
