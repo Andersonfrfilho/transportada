@@ -169,7 +169,7 @@
       "version": "0.2.0",
       "dependencies": {
         "@adatechnology/conversation-contracts": "0.7.0",
-        "@adatechnology/conversations-ui": "0.12.0",
+        "@adatechnology/conversations-ui": "0.13.0",
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/image-cutout": "0.1.0-rc.2",
@@ -274,7 +274,7 @@
 
     "@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.6.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-meGNEfiQAeBkXJQ+YNZlJOPK4sLnWHhbiiuQ16yPH8OsZ2/Fa1KQ7CWwdG3SGOOazjNpCBkqd/VcUAlBTwLkPw=="],
 
-    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.12.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.7.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-GchdpPGap8tspf/+cwdpSzVPfVLFbduTpjRR9HwY04v6L6FHP1N09scfVsXdTv3NeMunQ7rrTcyW3dZkM1sAtg=="],
+    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.13.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.7.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-W4l+4OKtZNp8ogdpmDwvdH8bV1wdZViHJ9gefzzXgdtPB++ZMBEKBXM7x2+mzagRCyeuE4EhxsHKLgwA1UKWxA=="],
 
     "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0", "", {}, "sha512-OPY9pvRJcsHQQKhDMe7bm4fUz0vZLz6X3MQa+nOEUSzFxRpWf+lPrlBlbyPYNxgvuEVqGk111aaFHSh83wUBbA=="],
 
