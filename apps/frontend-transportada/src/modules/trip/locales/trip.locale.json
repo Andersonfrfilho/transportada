@@ -1482,7 +1482,10 @@
       "stopLabel": "Parada",
       "takenBy": "Responsável",
       "typeName": "Tipo",
-      "vehiclePlate": "Placa"
+      "vehiclePlate": "Placa / veículo",
+      "client": "Cliente",
+      "city": "Cidade de entrega",
+      "cargo": "Peso / volumes"
     },
     "columnsMenu": {
       "moveDown": "Mover para baixo",
@@ -1526,7 +1529,8 @@
       "resolutionSummary": "{{count}} selecionados",
       "contractorReply": "Retorno da contratante",
       "contractorReplyOverdue": "Só as atrasadas",
-      "contractorReplyOverdueHint": "Mostra as ocorrências cujo prazo de resposta da contratante já passou."
+      "contractorReplyOverdueHint": "Mostra as ocorrências cujo prazo de resposta da contratante já passou.",
+      "advanced": "Filtros avançados"
     },
     "contractorReplyOverdue": "Atrasadas",
     "intro": "Tudo o que aconteceu com as notas e as paradas das viagens da empresa, em uma lista só.",
@@ -1579,7 +1583,25 @@
       "list": "Ocorrências",
       "newestFirst": "Mais recentes primeiro",
       "oldestFirst": "Mais antigas primeiro"
-    }
+    },
+    "search": {
+      "label": "Buscar nas ocorrências",
+      "placeholder": "Buscar por nota, motorista, placa, veículo, empresa, cidade ou andamento"
+    },
+    "copy": {
+      "copied": "Copiado",
+      "plate": "Copiar a placa {{plate}}",
+      "invoice": "Copiar o número da nota {{invoice}}",
+      "contractorTaxId": "Copiar o CNPJ do contratante",
+      "clientTaxId": "Copiar o CNPJ do cliente"
+    },
+    "cargo": {
+      "weight": "{{value}} kg",
+      "volumes_one": "{{value}} volume",
+      "volumes_other": "{{value}} volumes"
+    },
+    "groupCount_one": "{{count}} ocorrência",
+    "groupCount_other": "{{count}} ocorrências"
   },
   "pendingMeasurement": {
     "columns": {
