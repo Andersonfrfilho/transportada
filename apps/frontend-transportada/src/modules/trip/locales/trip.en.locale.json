@@ -1482,7 +1482,10 @@
       "stopLabel": "Stop",
       "takenBy": "Owner",
       "typeName": "Type",
-      "vehiclePlate": "Plate"
+      "vehiclePlate": "Plate / vehicle",
+      "client": "Customer",
+      "city": "Delivery city",
+      "cargo": "Weight / volumes"
     },
     "columnsMenu": {
       "moveDown": "Move down",
@@ -1526,7 +1529,8 @@
       "resolutionSummary": "{{count}} selected",
       "contractorReply": "Contractor reply",
       "contractorReplyOverdue": "Overdue only",
-      "contractorReplyOverdueHint": "Shows the occurrences whose contractor reply deadline has passed."
+      "contractorReplyOverdueHint": "Shows the occurrences whose contractor reply deadline has passed.",
+      "advanced": "Advanced filters"
     },
     "contractorReplyOverdue": "Overdue",
     "intro": "Everything that happened to the company trips' documents and stops, in a single list.",
@@ -1579,7 +1583,25 @@
       "list": "Occurrences",
       "newestFirst": "Newest first",
       "oldestFirst": "Oldest first"
-    }
+    },
+    "search": {
+      "label": "Search occurrences",
+      "placeholder": "Search by invoice, driver, plate, vehicle, company, city or status"
+    },
+    "copy": {
+      "copied": "Copied",
+      "plate": "Copy plate {{plate}}",
+      "invoice": "Copy invoice number {{invoice}}",
+      "contractorTaxId": "Copy the contractor tax ID",
+      "clientTaxId": "Copy the customer tax ID"
+    },
+    "cargo": {
+      "weight": "{{value}} kg",
+      "volumes_one": "{{value}} volume",
+      "volumes_other": "{{value}} volumes"
+    },
+    "groupCount_one": "{{count}} occurrence",
+    "groupCount_other": "{{count}} occurrences"
   },
   "pendingMeasurement": {
     "columns": {

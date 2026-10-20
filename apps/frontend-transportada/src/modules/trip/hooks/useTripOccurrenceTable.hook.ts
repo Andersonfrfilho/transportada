@@ -8,6 +8,7 @@ import {
 } from '../shared/tripOccurrenceFilterPills.service'
 import {
   countActiveTripOccurrenceFilters,
+  countAdvancedTripOccurrenceFilters,
   EMPTY_TRIP_OCCURRENCE_FILTERS,
   readTripOccurrenceColumnPreferences,
   reorderTripOccurrenceColumns,
@@ -38,6 +39,7 @@ export type TripOccurrenceTextFilterField =
   | 'createdFrom'
   | 'createdUntil'
   | 'platesQuery'
+  | 'search'
   | 'typesQuery'
 
 type UseTripOccurrenceTableInput = Readonly<{
@@ -90,6 +92,7 @@ export function useTripOccurrenceTable(input: UseTripOccurrenceTableInput) {
     (column) => columnPreferences.visibility[column],
   )
   const activeFilterCount = countActiveTripOccurrenceFilters(filters)
+  const advancedFilterCount = countAdvancedTripOccurrenceFilters(filters)
 
   /** Toda mudança de filtro reinicia a paginação — a chave da consulta faz isso sozinha. */
   function applyFilters(next: TripOccurrenceFeedFilters): void {
@@ -171,6 +174,7 @@ export function useTripOccurrenceTable(input: UseTripOccurrenceTableInput) {
 
   return {
     activeFilterCount,
+    advancedFilterCount,
     clearFilterField,
     clearFilters,
     columnPreferences,

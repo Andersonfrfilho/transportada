@@ -4,5 +4,5 @@
 
 - [x] **T1** Etapa 1: contrato vermelho (`feed.contract.ts`: `search`) → parse; condição de busca nas duas fontes; `vehicle`,
       `recipient`, `cargo` no item; integração (CA2/CA3).
-- [ ] **T2** Etapa 2: painel (busca, chips, agrupamento, colunas, copiar, zebra, revisão de design com print).
+- [x] **T2** Etapa 2: painel (busca, chips, agrupamento, colunas, copiar, zebra, revisão de design com print).
 - [ ] **T3** Etapa 3: resolução média por tipo, a partir dos eventos da 276 T3.

@@ -6342,3 +6342,108 @@ button.occurrenceCaseBadge {
   font-size: 0.72rem;
   text-transform: uppercase;
 }
+
+/*
+ * Spec 277: a busca rápida, os chips de andamento e o painel de filtros avançados da lista de
+ * ocorrências. O campo de busca repete a altura e a borda dos campos do painel (`--field-*`); fora
+ * de `.fieldGrid` o `input` nasce cru, então ele declara a própria aparência.
+ */
+.occurrenceSearchRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: stretch;
+}
+
+.occurrenceSearch {
+  position: relative;
+  flex: 1 1 18rem;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.occurrenceSearch svg {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--color-slate);
+  pointer-events: none;
+}
+
+.occurrenceSearch input {
+  width: 100%;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  padding-left: calc(var(--space-3) + var(--icon-size-md) + var(--space-2));
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.occurrenceStateChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.occurrenceAdvanced {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.occurrenceAdvanced h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* Spec 277 RF4: o texto e o botão de copiar na mesma linha; o botão não engorda a linha (margem negativa dele). */
+.occurrenceCopyLine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.occurrenceCellNote.occurrenceCopyLine {
+  display: flex;
+}
+
+.occurrenceColorSwatch {
+  display: inline-block;
+  inline-size: 0.7rem;
+  block-size: 0.7rem;
+  margin-right: var(--space-1);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 50%, transparent);
+  vertical-align: -0.05rem;
+}
+
+/* Spec 277 RF3: o título de cada grupo de andamento é uma linha da própria tabela, para as colunas alinharem. */
+.occurrenceGroupRow th {
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  text-align: left;
+}
+
+.occurrenceGroupRow .counter {
+  margin-left: var(--space-3);
+}
+
+/*
+ * Spec 277 RF4: a zebra da lista é por classe, contada dentro de cada grupo. O `nth-child` do
+ * `.dataTable` conta também o título do grupo e a linha de detalhe e inverteria a cor sem aviso.
+ */
+.occurrenceZebraTable tbody tr:nth-child(even) {
+  background: none;
+}
+
+.occurrenceZebraTable tbody tr.occurrenceRowAlt {
+  background: color-mix(in srgb, var(--color-slate) 9%, transparent);
+}
+
+.occurrenceZebraTable tbody tr.occurrenceRow:hover {
+  background: color-mix(in srgb, var(--color-copper) 14%, transparent);
+}
