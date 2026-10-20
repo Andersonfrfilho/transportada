@@ -35,6 +35,8 @@ const TYPE_FIELD_CHECKS = {
   contractorReplyAttachmentKind: (value: unknown) =>
     isOneOf(value, CONTRACTOR_REPLY_ATTACHMENT_KINDS),
   contractorReplyMode: (value: unknown) => isOneOf(value, CONTRACTOR_REPLY_MODES),
+  /** Spec 276 T3b: fechar a ocorrência sozinha depois de entregar ao motorista. Aceito antes da API mandar. */
+  contractorReplyResolveOnDelivery: (value: unknown) => typeof value === 'boolean',
   contractorReplyWaitHours: allowingNull((value: unknown) =>
     isIntegerInRange(value, CONTRACTOR_REPLY_WAIT_HOURS_RANGE),
   ),

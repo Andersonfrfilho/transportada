@@ -828,7 +828,8 @@
     "phrase": {
       "case_cancelled": "Tratativa cancelada pelo escritório",
       "case_closed": "Encerrada pelo escritório",
-      "case_returned_to_warehouse": "Mercadoria devolvida ao armazém"
+      "case_returned_to_warehouse": "Mercadoria devolvida ao armazém",
+      "contractor_reply_delivered": "O documento pedido à contratante chegou e foi enviado a você."
     },
     "share": {
       "sharing": "Preparando os documentos...",
