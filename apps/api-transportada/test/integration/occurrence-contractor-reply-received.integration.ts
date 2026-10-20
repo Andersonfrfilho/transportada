@@ -211,6 +211,48 @@ describe('a resposta da contratante move o retorno (spec 248 T4.5, CA02)', () =>
   )
 
   testWithPostgres(
+    '"Solicitado" sem anexo mantém o retorno aguardando; o "Segue" com o PDF depois é o aceito',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const conversationId = await openReply(database, seeded, 'forward_after_approval')
+        const requested = await receiveReply(database, {
+          companyId,
+          contentTypes: [],
+          conversationId,
+        })
+
+        await apply(database, { companyId, conversationId, messageId: requested.messageId })
+
+        const waiting = await replyOf(database, companyId)
+        expect(waiting).toMatchObject({
+          reason: null,
+          replyAttachmentId: null,
+          replyMessageId: null,
+          status: 'awaiting_contractor',
+        })
+        expect(await eventsOf(database, waiting.id)).toEqual([])
+
+        const sent = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+        await apply(database, { companyId, conversationId, messageId: sent.messageId })
+
+        expect(await replyOf(database, companyId)).toMatchObject({
+          reason: null,
+          replyAttachmentId: sent.attachmentIds[0],
+          replyMessageId: sent.messageId,
+          status: 'awaiting_operator',
+        })
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
     'PDF no modo automático: reply_received, pronto para a entrega',
     async () => {
       await withConversationDatabase(async (database) => {
