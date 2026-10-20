@@ -111,7 +111,13 @@
       "transcribing": "Transcrevendo…",
       "transcriptionReady": "Transcrição pronta",
       "transcriptionTooLong": "Transcrição só para áudios de menos de {minutes} minutos",
-      "valueCopied": "Copiado"
+      "valueCopied": "Copiado",
+      "cancelSelection": "Sair da seleção",
+      "copyMessage": "Copiar",
+      "copySelection": "Copiar seleção",
+      "selectMessage": "Marcar mensagem",
+      "selectMessages": "Selecionar mensagens",
+      "selectedCount": "{count} selecionadas"
     }
   },
   "error": {

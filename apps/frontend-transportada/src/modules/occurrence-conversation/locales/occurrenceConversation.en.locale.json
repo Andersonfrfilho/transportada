@@ -544,25 +544,10 @@
     }
   },
   "message": {
-    "options": "Message options",
-    "copySelection": "Copy selection",
     "download": "Download {{name}}",
-    "copy": "Copy text",
-    "copied": "Copied",
     "forwardToDriver": "Forward to driver",
     "forwardToContractor": "Forward to contractor",
     "forwarded": "Forwarded",
     "forwardError": "Could not forward. Try again shortly."
-  },
-  "selection": {
-    "title": "Selected messages",
-    "toggle": "Select message",
-    "count_one": "{{count}} message selected",
-    "count_other": "{{count}} messages selected",
-    "copy": "Copy selected",
-    "forwardToDriver": "Forward to driver",
-    "forwardToContractor": "Forward to contractor",
-    "forwarding": "Forwarding…",
-    "cancel": "Clear selection"
   }
 }
