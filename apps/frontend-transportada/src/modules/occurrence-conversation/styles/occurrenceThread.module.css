@@ -383,3 +383,10 @@
     min-height: var(--touch-target);
   }
 }
+
+/* Copiar e encaminhar ficam na linha da hora do balão: só ícones, o nome está na dica e no aria-label. */
+.messageActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@adatechnology/conversation-contracts": "0.7.0",
-    "@adatechnology/conversations-ui": "0.12.0",
+    "@adatechnology/conversations-ui": "0.13.0",
     "@adatechnology/document-intake": "0.1.0",
     "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
     "@adatechnology/image-cutout": "0.1.0-rc.2",

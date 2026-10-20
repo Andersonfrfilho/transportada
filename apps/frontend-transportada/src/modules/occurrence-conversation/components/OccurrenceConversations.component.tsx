@@ -44,6 +44,7 @@ import { ContractorReplyEmailActions } from './ContractorReplyEmailActions.compo
 import { ConversationColumn, ConversationLayoutSwitch } from './ConversationLayoutSwitch.component'
 import { OccurrenceConversationLegend } from './OccurrenceConversationLegend.component'
 import { ContractorReplyEmailHistory } from './ContractorReplyEmailHistory.component'
+import { OccurrenceMessageActions } from './OccurrenceMessageActions.component'
 import { OccurrenceThread } from './OccurrenceThread.component'
 import {
   OccurrenceThreadAttachments,
@@ -220,6 +221,15 @@ function DriverConversationPanel({
         counterpartName={driverName}
         occurrenceId={occurrenceId}
         participant="driver"
+        renderMessageActions={(message) => (
+          <OccurrenceMessageActions
+            canForward={canSend}
+            from="driver"
+            message={message}
+            occurrenceId={occurrenceId}
+            portalAvailable={portalAvailable}
+          />
+        )}
         status={canSend ? 'open' : 'closed'}
         title={driverName === '' ? t('driver.title') : t('driver.withName', { name: driverName })}
       />
@@ -361,6 +371,14 @@ function ContractorConversationPanel({
           occurrenceId={occurrenceId}
           onSendError={setSendError}
           participant="contractor"
+          renderMessageActions={(message) => (
+            <OccurrenceMessageActions
+              canForward={canSend && hasDriver}
+              from="contractor"
+              message={message}
+              occurrenceId={occurrenceId}
+            />
+          )}
           status={status}
           title={
             contractorName === ''

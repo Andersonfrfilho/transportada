@@ -622,6 +622,7 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
             deliverConversationAttachmentToDriver(transaction, {
               actorUserId: seeded.company.userId,
               attachmentId,
+              bodyText: 'Segue a requisição: Devolução',
               companyId,
               now: new Date(),
               occurrenceId,
@@ -638,7 +639,7 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
         expect(messages).toHaveLength(1)
         expect(messages[0]).toMatchObject({
           automatic: false,
-          bodyText: '',
+          bodyText: 'Segue a requisição: Devolução',
           channel: 'app',
           direction: 'outbound',
         })
