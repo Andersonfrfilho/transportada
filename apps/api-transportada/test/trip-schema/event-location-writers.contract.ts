@@ -85,6 +85,8 @@ function createFakeTransaction() {
               id: DOCUMENT_ID,
               note: '',
               occurrenceTypeId: 'type-1',
+              /** Spec 276 T4: o tipo permite o pedido repetido — a trava não entra neste contrato. */
+              policy: 'allow',
               productCode: '',
               referenceNumber: null,
               stage: 'delivery',

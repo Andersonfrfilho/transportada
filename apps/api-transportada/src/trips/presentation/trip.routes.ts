@@ -7,6 +7,7 @@ import type {
   ContractorReplyMode,
   ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
+  DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
@@ -343,6 +344,7 @@ type SaveOccurrenceTypeInput = {
   readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   readonly contractorReplyResolveOnDelivery?: boolean | undefined
+  readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined
   readonly driverReplyTemplate?: string | undefined

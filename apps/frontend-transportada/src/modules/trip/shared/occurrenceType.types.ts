@@ -15,6 +15,7 @@ import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
+  DuplicateRequestPolicy,
   InformedEmailForwardMode,
   NoteRecipientForwardMode,
 } from './occurrenceContractorReply.constant'
@@ -86,6 +87,8 @@ export type OccurrenceType = Readonly<{
   contractorReplyResolveOnDelivery?: boolean
   contractorReplyWaitHours?: null | number
   driverReplyTemplate?: string
+  /** Spec 276 T4: o pedido repetido na mesma nota. Ausente é API anterior ao campo. */
+  duplicateRequestPolicy?: DuplicateRequestPolicy
   forwardEmailBody?: string
   forwardEmailSubject?: string
   forwardToInformedEmail?: InformedEmailForwardMode

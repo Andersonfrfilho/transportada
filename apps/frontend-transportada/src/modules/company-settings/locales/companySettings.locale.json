@@ -321,6 +321,12 @@
     "redeliveryPolicyUnset": "Indefinido (não abre tratativa)",
     "redeliveryPolicyAllowed": "Admite reentrega",
     "redeliveryPolicyBlocked": "Não admite reentrega",
+    "duplicateRequestPolicy": "Pedido repetido na mesma nota",
+    "duplicateRequestPolicyOptions": {
+      "while_request_open": "Bloquear enquanto o pedido estiver aberto",
+      "until_resolved": "Bloquear até a ocorrência ser solucionada ou cancelada",
+      "allow": "Permitir sempre"
+    },
     "leavesDocumentBehind": "A viagem segue sem a nota",
     "leavesDocumentBehindHint": "Vale para ocorrência da nota inteira. A nota sai da viagem no despacho.",
     "attachmentMode": "Foto do comprovante",

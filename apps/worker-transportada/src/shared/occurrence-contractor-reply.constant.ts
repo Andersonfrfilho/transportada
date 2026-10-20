@@ -42,6 +42,16 @@ export const CONTRACTOR_REPLY_TYPE_DEFAULTS = {
   mode: 'off',
 } as const
 
+/**
+ * Spec 276 T4: a trava de pedido repetido na mesma nota, por tipo. `while_request_open` bloqueia enquanto o pedido à
+ * contratante não foi entregue ao motorista nem encerrado; `until_resolved` até a ocorrência ser solucionada ou
+ * cancelada; `allow` nunca bloqueia. O padrão da coluna é `allow` (quem grava sem a chave fica como antes); a migration
+ * liga a trava nos tipos que já pediam algo à contratante, e o cadastro de tipo novo sugere bloquear.
+ */
+export const DUPLICATE_REQUEST_POLICIES = ['while_request_open', 'until_resolved', 'allow'] as const
+export type DuplicateRequestPolicy = (typeof DUPLICATE_REQUEST_POLICIES)[number]
+export const DUPLICATE_REQUEST_POLICY_DEFAULT: DuplicateRequestPolicy = 'allow'
+
 export const CONTRACTOR_REPLY_WAIT_HOURS = { max: 168, min: 1 } as const
 export const CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES = { max: 1440, min: 15 } as const
 export const CONTRACTOR_REPLY_ALERT_MAX_COUNT = { max: 96, min: 1 } as const

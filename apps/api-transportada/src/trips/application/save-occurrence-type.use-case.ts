@@ -50,6 +50,7 @@ import type {
   ContractorReplyMode,
   ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
+  DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 
 /** O catálogo de templates da empresa (módulo de notificação), visto pelo que este cadastro precisa dele. */
@@ -89,6 +90,7 @@ export type SaveOccurrenceTypeValues = {
   readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   readonly contractorReplyResolveOnDelivery?: boolean | undefined
+  readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined
   readonly driverReplyTemplate?: string | undefined

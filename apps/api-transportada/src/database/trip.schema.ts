@@ -67,6 +67,8 @@ import {
   CONTRACTOR_REPLY_ALERT_MODES,
   CONTRACTOR_REPLY_ATTACHMENT_KINDS,
   CONTRACTOR_REPLY_MODES,
+  DUPLICATE_REQUEST_POLICIES,
+  DUPLICATE_REQUEST_POLICY_DEFAULT,
   CONTRACTOR_REPLY_TYPE_DEFAULTS,
   CONTRACTOR_REPLY_WAIT_HOURS,
   DRIVER_REPLY_CHANNELS,
@@ -79,6 +81,7 @@ import {
   type ContractorReplyAlertMode,
   type ContractorReplyAttachmentKind,
   type ContractorReplyMode,
+  type DuplicateRequestPolicy,
   type DriverReplyChannel,
   type DriverReplyWindowClosedAction,
   type ForwardToInformedEmailMode,
@@ -3134,6 +3137,11 @@ export const companyOccurrenceTypes = pgTable(
     contractorReplyResolveOnDelivery: boolean('contractor_reply_resolve_on_delivery')
       .notNull()
       .default(false),
+    /** Spec 276 T4: a trava de pedido repetido do mesmo tipo na mesma nota. */
+    duplicateRequestPolicy: varchar('duplicate_request_policy', { length: 24 })
+      .$type<DuplicateRequestPolicy>()
+      .notNull()
+      .default(DUPLICATE_REQUEST_POLICY_DEFAULT),
     /** Sending the invoice to the e-mail of the note's customer is always an explicit choice. */
     forwardToNoteRecipient: varchar('forward_to_note_recipient', { length: 16 })
       .$type<ForwardToNoteRecipientMode>()
@@ -3253,6 +3261,10 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_contractor_reply_mode_check',
       sql`${table.contractorReplyMode} in (${raw(inList(CONTRACTOR_REPLY_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_duplicate_request_policy_check',
+      sql`${table.duplicateRequestPolicy} in (${raw(inList(DUPLICATE_REQUEST_POLICIES))})`,
     ),
     check(
       'company_occurrence_types_contractor_reply_attachment_kind_check',

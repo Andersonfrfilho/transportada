@@ -266,6 +266,7 @@ async function mountCreateForm(supportsScope: boolean): Promise<void> {
         people: EXCEPTIONS.people,
         support: {
           hasContractorScope: supportsScope,
+          hasDuplicateRequestPolicy: false,
           hasItemsMode: true,
           hasMoments: true,
           hasRequirementModes: true,

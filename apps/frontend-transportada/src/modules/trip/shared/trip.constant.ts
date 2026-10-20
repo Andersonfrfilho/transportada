@@ -186,6 +186,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   OCCURRENCE_TYPE_CONTRACTOR_SCOPE_INVALID: 'occurrenceTypeContractorScopeInvalid',
   OCCURRENCE_TYPE_CONTRACTOR_SCOPE_NEEDS_DOCUMENT: 'occurrenceTypeContractorScopeNeedsDocument',
   OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR: 'occurrenceTypeNotAvailableForContractor',
+  /** Spec 276 T4: o tipo não deixa pedir de novo na mesma nota enquanto o pedido anterior está aberto. */
+  TRIP_OCCURRENCE_DUPLICATE_REQUEST: 'occurrenceDuplicateRequest',
   /** Spec 270: contratante da lista que não é da empresa (ou sumiu) — o mesmo 404 dos dois casos. */
   CONTRACTOR_NOT_FOUND: 'occurrenceTypeContractorNotFound',
   /** Spec 271 (ADR-0108): o bloco "E-mail à contratante" do tipo — o modelo do módulo, a cópia e os destinatários. */

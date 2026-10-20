@@ -15,5 +15,9 @@
       na linha do tempo da ocorrência (parser tolerante: API anterior sem `stages` segue valendo).
 - [x] **T3b** Etapa 3, opção do tipo: fechar sozinha depois de entregar ao motorista (resolução `system` causada pelo
       retorno; hoje a CHECK da 266 exige `case_event_id` no `system`, então pede migration) e o app do motorista.
-- [ ] **T4** Etapa 4: trava de pedido repetido na mesma nota (coluna do tipo, guarda no registro).
+- [x] **T4** Etapa 4: trava de pedido repetido na mesma nota, escolhida no tipo (`duplicate_request_policy`:
+      `while_request_open` | `until_resolved` | `allow`). Migration `20261020193306_occurrence_duplicate_request_policy`
+      (padrão `allow`; tipo que já pede retorno passa a bloquear). Guarda em `saveTripOccurrence` sob trava advisory por
+      nota e tipo; o app do motorista recebe a ocorrência que já existe, galpão e escritório recebem 409
+      `TRIP_OCCURRENCE_DUPLICATE_REQUEST`. Painel: tolerante no #322, editor e cadastro (tipo novo nasce bloqueando).
 - [ ] **T5** Etapa 5: resposta automática à contratante.
