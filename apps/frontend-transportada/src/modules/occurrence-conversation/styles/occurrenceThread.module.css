@@ -292,3 +292,74 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* O que cresce com a conversa (falhas, remetentes, arquivos) não empurra mais a página: a área tem teto e rola por
+ * dentro, e o fio abaixo segue na altura fixa da moldura. */
+.noticesArea {
+  display: grid;
+  gap: var(--space-2);
+  max-height: min(16rem, 32dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.noticesArea:empty {
+  display: none;
+}
+
+.summary {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  border-inline-start: 0.25rem solid var(--participant-color, var(--color-slate));
+  background: color-mix(in srgb, var(--color-graphite) 85%, var(--color-asphalt));
+}
+
+.summaryToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.summaryBody {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--field-font-size-compact);
+}
+
+.summaryBody > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.summaryBody dt {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+}
+
+.summaryBody dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.summaryPreview {
+  display: grid;
+}
+
+@media (pointer: coarse) {
+  .summaryToggle {
+    min-height: var(--touch-target);
+  }
+}

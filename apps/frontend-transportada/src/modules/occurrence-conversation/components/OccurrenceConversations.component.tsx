@@ -43,6 +43,7 @@ import {
   type RenderAttachmentActions,
 } from './OccurrenceThreadAttachments.component'
 import { OccurrenceThreadFailures } from './OccurrenceThreadFailures.component'
+import { OccurrenceThreadSummary } from './OccurrenceThreadSummary.component'
 import { OccurrenceThreadSenders } from './OccurrenceThreadSenders.component'
 import { SendToContractorDialog } from './SendToContractorDialog.component'
 
@@ -188,17 +189,23 @@ function DriverConversationPanel({
   return (
     <div className={threadStyles.panel}>
       {messages.length === 0 ? <p className={threadStyles.hint}>{t('driver.empty')}</p> : null}
-      <OccurrenceThreadFailures
-        canResend={canSend}
+      <OccurrenceThreadSummary
+        counterpartLabel={t('thread.driver.counterpart')}
         messages={messages}
-        occurrenceId={occurrenceId}
-        participant="driver"
-        portalAvailable={false}
       />
-      <OccurrenceThreadAttachments
-        messages={messages}
-        renderAttachmentActions={attachmentActions}
-      />
+      <div className={threadStyles.noticesArea}>
+        <OccurrenceThreadFailures
+          canResend={canSend}
+          messages={messages}
+          occurrenceId={occurrenceId}
+          participant="driver"
+          portalAvailable={false}
+        />
+        <OccurrenceThreadAttachments
+          messages={messages}
+          renderAttachmentActions={attachmentActions}
+        />
+      </div>
       <OccurrenceThread
         closedNotice={t('thread.closed.readOnly')}
         {...(companyId === undefined ? {} : { companyId })}
@@ -297,28 +304,34 @@ function ContractorConversationPanel({
         <p className={threadStyles.hint}>{t('contractor.empty')}</p>
       ) : null}
 
-      <OccurrenceThreadFailures
-        canResend={canWrite}
+      <OccurrenceThreadSummary
+        counterpartLabel={t('thread.contractor.counterpart')}
         messages={messages}
-        occurrenceId={occurrenceId}
-        onOpenMail={(message) => {
-          setMailBody(message.bodyText)
-          setSending(true)
-        }}
-        participant="contractor"
-        portalAvailable={portalAvailable}
       />
-      <OccurrenceThreadSenders
-        canManageContacts={canManageContacts && contractorId !== null}
-        messages={messages}
-        renderAddContact={renderAddContact}
-      />
-      {canSend ? (
-        <OccurrenceThreadAttachments
+      <div className={threadStyles.noticesArea}>
+        <OccurrenceThreadFailures
+          canResend={canWrite}
           messages={messages}
-          renderAttachmentActions={attachmentActions}
+          occurrenceId={occurrenceId}
+          onOpenMail={(message) => {
+            setMailBody(message.bodyText)
+            setSending(true)
+          }}
+          participant="contractor"
+          portalAvailable={portalAvailable}
         />
-      ) : null}
+        <OccurrenceThreadSenders
+          canManageContacts={canManageContacts && contractorId !== null}
+          messages={messages}
+          renderAddContact={renderAddContact}
+        />
+        {canSend ? (
+          <OccurrenceThreadAttachments
+            messages={messages}
+            renderAttachmentActions={attachmentActions}
+          />
+        ) : null}
+      </div>
 
       {canWrite || messages.length > 0 ? (
         <OccurrenceThread

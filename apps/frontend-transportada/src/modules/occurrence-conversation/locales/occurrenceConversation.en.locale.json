@@ -328,6 +328,21 @@
       "title": "Message that did not arrive",
       "resent": "Resent by {{channel}}.",
       "resendError": "Could not resend. Try again in a moment."
+    },
+    "summary": {
+      "title": "Conversation summary",
+      "count_one": "{{count}} message",
+      "count_other": "{{count}} messages",
+      "last": "Last",
+      "byUs": "Us",
+      "exchange": "Exchange",
+      "sent_one": "{{count}} sent",
+      "sent_other": "{{count}} sent",
+      "received_one": "{{count}} received",
+      "received_other": "{{count}} received",
+      "files": "Files",
+      "failed": "Send failures",
+      "preview": "Last message"
     }
   },
   "sendRecovery": {

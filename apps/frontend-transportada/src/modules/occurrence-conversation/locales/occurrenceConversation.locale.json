@@ -328,6 +328,21 @@
       "title": "Mensagem que não chegou",
       "resent": "Reenviada por {{channel}}.",
       "resendError": "Não foi possível reenviar. Tente de novo em instantes."
+    },
+    "summary": {
+      "title": "Resumo da conversa",
+      "count_one": "{{count}} mensagem",
+      "count_other": "{{count}} mensagens",
+      "last": "Última",
+      "byUs": "Nós",
+      "exchange": "Troca",
+      "sent_one": "{{count}} enviada",
+      "sent_other": "{{count}} enviadas",
+      "received_one": "{{count}} recebida",
+      "received_other": "{{count}} recebidas",
+      "files": "Arquivos",
+      "failed": "Falhas de envio",
+      "preview": "Última mensagem"
     }
   },
   "sendRecovery": {
