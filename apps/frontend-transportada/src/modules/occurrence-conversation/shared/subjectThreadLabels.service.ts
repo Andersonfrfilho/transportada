@@ -58,6 +58,7 @@ export const SUBJECT_THREAD_LABEL_KEYS = [
   'send',
   'sendAudio',
   'showFullTranscription',
+  'showOriginalText',
   'statusDelivered',
   'statusFailed',
   'statusFailedShort',

@@ -99,6 +99,7 @@
       "send": "Send",
       "sendAudio": "Send audio",
       "showFullTranscription": "Show all",
+      "showOriginalText": "show history",
       "statusDelivered": "Delivered",
       "statusFailed": "Failed — tap to resend",
       "statusFailedShort": "Failed",

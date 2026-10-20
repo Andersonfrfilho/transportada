@@ -107,6 +107,8 @@ export function toThreadMessage(
     createdAt: message.createdAt,
     direction: message.direction,
     id: message.id,
+    /** O SDK mostra o e-mail inteiro recolhido no balão, atrás do "ver histórico". */
+    ...(message.emailFullText === undefined ? {} : { originalText: message.emailFullText }),
     ...(message.status === null ? {} : { status: message.status }),
     text: withCopyLine(message, labels),
   }

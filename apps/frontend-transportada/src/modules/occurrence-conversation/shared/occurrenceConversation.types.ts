@@ -103,6 +103,8 @@ export type OccurrenceConversationMessage = Readonly<{
   copy?: readonly OccurrenceConversationCopyEntry[]
   createdAt: string
   direction: 'inbound' | 'outbound'
+  /** A resposta por e-mail como chegou, com o histórico citado; ausente quando é igual ao texto da conversa. */
+  emailFullText?: string
   id: string
   status: null | OccurrenceConversationMessageStatus
   statusTimes: Readonly<Record<string, string>>
