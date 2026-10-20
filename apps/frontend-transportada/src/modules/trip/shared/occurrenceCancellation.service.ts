@@ -8,6 +8,7 @@
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import type { OccurrenceCancellation } from './trip.types'
+import { formatPersonName } from '@/lib/personName'
 
 export type OccurrenceCancellationMark = Readonly<{
   authorship: string
@@ -33,7 +34,7 @@ export function resolveOccurrenceCancellationMark(
       ? translate('occurrenceCancellation.authorshipUnknown', { moment })
       : translate('occurrenceCancellation.authorship', {
           moment,
-          name: cancellation.cancelledByName,
+          name: formatPersonName(cancellation.cancelledByName),
         })
   const reason = translate('occurrenceCancellation.reason', { reason: cancellation.reason })
   return {

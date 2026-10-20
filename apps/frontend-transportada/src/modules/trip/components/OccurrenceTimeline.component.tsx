@@ -25,6 +25,7 @@ import {
   type OccurrenceTimelineTone,
 } from '../shared/tripOccurrenceTimeline.service'
 import styles from '../styles/trip.module.css'
+import { formatPersonName } from '@/lib/personName'
 
 /** Os tempos do topo contam em minutos: um tique por minuto basta, e não acorda a tela à toa. */
 const CLOCK_TICK_MS = 60_000
@@ -77,7 +78,10 @@ function TimelineItem({ event }: Readonly<{ event: OccurrenceTimelineEvent }>) {
     typeof sentence.values.status === 'string'
       ? { ...sentence.values, status: t(sentence.values.status) }
       : sentence.values
-  const actor = event.actor.name ?? t(`occurrenceTimeline.actor.${event.actor.kind}`)
+  const actor =
+    event.actor.name === null
+      ? t(`occurrenceTimeline.actor.${event.actor.kind}`)
+      : formatPersonName(event.actor.name)
   const gap = formatOccurrenceGap(event.sincePreviousSeconds)
   const cancellationMark =
     event.kind === 'occurrence.cancelled'
