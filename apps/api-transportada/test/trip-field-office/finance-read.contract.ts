@@ -264,6 +264,7 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
       'GET /fleet/drivers',
       'GET /trip-occurrences',
       'GET /trip-occurrences/:id/attachments',
+      'GET /trip-occurrence-resolution-summary',
       'GET /trips/:id/route-geometry',
       'POST /route-geometry',
       'GET /trips/:id/documents/:documentId/products',

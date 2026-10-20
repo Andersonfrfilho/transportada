@@ -6468,3 +6468,48 @@ button.occurrenceCaseBadge {
 .occurrenceZebraTable tbody tr.occurrenceRow:hover {
   background: color-mix(in srgb, var(--color-copper) 14%, transparent);
 }
+
+/*
+ * Spec 277 RF5: a resolução média por tipo — um cartão por tipo, o número em destaque. Mesma grade
+ * automática dos outros resumos, sem largura própria (`--layout-width` é do container).
+ */
+.occurrenceAverages {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.occurrenceAverage {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+  min-width: 0;
+}
+
+.occurrenceAverage strong {
+  font-family: var(--font-utility);
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.occurrenceAverage span {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.occurrenceAverage small {
+  color: var(--color-slate-muted);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+}
+
+.occurrenceResolvedIn {
+  font-family: var(--font-utility);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

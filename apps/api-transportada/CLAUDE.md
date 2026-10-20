@@ -1229,4 +1229,7 @@ motorista, placa/marca/modelo/ano/cor do veículo, tipo, nome e CNPJ do contrata
 (`searchCondition`, `trip-occurrence-feed.query.ts`). Participantes e endereços entram por `exists`, **nunca por junção** — junção
 multiplicaria a linha e quebraria o cursor. CNPJ casa só por dígitos; a cor é gravada como código (`azul_marinho`) e a busca
 troca `_` por espaço. O item ganha `vehicle`, `document.recipient` e `document.cargo` (peso bruto em kg e volumes, somados de
-`nfe_volumes`). O tempo médio de resolução por tipo é a etapa 3 e lê os eventos da 276, não recalcula.
+`nfe_volumes`). A resolução média por tipo é `GET /v1/trip-occurrence-resolution-summary` (`fleet.read`, como o feed; **fora** de
+`/trip-occurrences/` porque ali o `:id` do detalhe casaria o caminho): por tipo, `{ typeName, resolvedCount, averageSeconds }`, do
+registro até o **último** `resolved` (o `resolvedAt` da 276), só de quem está resolvida agora — reaberta, em aberto e cancelada
+ficam de fora. Nome do tipo como no feed (cadastrado, ou o `kind` da parada). `trip-occurrence-resolution-summary.query.ts`.

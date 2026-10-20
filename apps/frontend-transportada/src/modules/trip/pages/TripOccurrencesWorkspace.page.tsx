@@ -11,6 +11,7 @@ import { UnassignedMessages } from '@/modules/occurrence-conversation/components
 import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { TripOccurrenceColumnsMenu } from '../components/TripOccurrenceColumnsMenu.component'
 import { TripOccurrenceFilters } from '../components/TripOccurrenceFilters.component'
+import { TripOccurrenceResolutionSummary } from '../components/TripOccurrenceResolutionSummary.component'
 import {
   TripOccurrenceTable,
   TripOccurrenceTableSkeleton,
@@ -68,6 +69,10 @@ function TripOccurrencesFeedContent({
         {...(companyId === undefined ? {} : { companyId })}
       />
       <TripOccurrenceFilters table={table} />
+      <TripOccurrenceResolutionSummary
+        {...(companyId === undefined ? {} : { companyId })}
+        enabled={companyId !== undefined}
+      />
       <section className={styles.panel} aria-labelledby="trip-occurrence-table-title">
         <div className={styles.panelHead}>
           <h2 id="trip-occurrence-table-title">{t('occurrenceFeed.tableTitle')}</h2>

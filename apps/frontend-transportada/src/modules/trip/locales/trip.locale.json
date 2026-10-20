@@ -1475,6 +1475,7 @@
       "invoiceValue": "Valor NF-e",
       "conversation": "Conversa",
       "createdAt": "Hora",
+      "resolvedIn": "Resolveu em",
       "driverName": "Motorista",
       "invoice": "Nota",
       "notified": "Aviso",
@@ -1599,6 +1600,14 @@
       "weight": "{{value}} kg",
       "volumes_one": "{{value}} volume",
       "volumes_other": "{{value}} volumes"
+    },
+    "resolutionSummary": {
+      "count_one": "{{count}} resolvida",
+      "count_other": "{{count}} resolvidas",
+      "hint": "Do registro até “Resolvida”, só ocorrências já resolvidas",
+      "label": "Resolução média por tipo de ocorrência",
+      "lessThanMinute": "menos de 1 min",
+      "title": "Resolução média por tipo"
     },
     "groupCount_one": "{{count}} ocorrência",
     "groupCount_other": "{{count}} ocorrências"

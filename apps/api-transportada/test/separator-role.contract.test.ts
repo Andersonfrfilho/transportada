@@ -290,6 +290,8 @@ describe('separator role contract', () => {
        * passar por esta lista — foi este contrato que as barrou até a decisão existir. É para isso
        * que ele lista por extenso.
        */
+      // Spec 277 RF5: a resolução média por tipo lê o mesmo dado do feed, com a mesma permissão.
+      'GET /trip-occurrence-resolution-summary',
       'GET /trip-occurrences',
       'GET /trip-occurrences/:id/attachments',
       // Spec 183 T404: ler a conversa é da listagem; escrever à contratante não (occurrences.resolve).

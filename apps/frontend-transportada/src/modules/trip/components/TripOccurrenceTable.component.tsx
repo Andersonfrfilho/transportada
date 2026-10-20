@@ -29,6 +29,10 @@ import {
   type TripOccurrenceColumnKey,
   type TripOccurrenceFeedItem,
 } from '../shared/tripOccurrenceFeed.service'
+import {
+  formatResolutionDuration,
+  resolveOccurrenceResolvedInSeconds,
+} from '../shared/tripOccurrenceResolutionSummary.service'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { OccurrenceMissingTemplateMark } from './OccurrenceMissingTemplateMark.component'
@@ -224,6 +228,18 @@ function OccurrenceCell({
   const formatMoment = useMomentFormatter()
 
   if (column === 'createdAt') return <td>{formatMoment(item.createdAt)}</td>
+  if (column === 'resolvedIn') {
+    const seconds = resolveOccurrenceResolvedInSeconds(item)
+    return (
+      <td className={styles.occurrenceResolvedIn}>
+        {seconds === null
+          ? '—'
+          : formatResolutionDuration(seconds, {
+              lessThanMinute: t('occurrenceFeed.resolutionSummary.lessThanMinute'),
+            })}
+      </td>
+    )
+  }
   if (column === 'stage') {
     const stageKey = item.stage ?? 'stop'
     return (

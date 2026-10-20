@@ -330,6 +330,7 @@ import {
   listTripOccurrenceAttachmentLocations,
   listTripOccurrenceFeed,
 } from './trips/infrastructure/trip-occurrence-feed.query.js'
+import { summarizeTripOccurrenceResolution } from './trips/infrastructure/trip-occurrence-resolution-summary.query.js'
 import { createDriverOccurrenceNotifier } from './trips/application/driver-occurrence-notifier.service.js'
 import type { DriverOccurrenceNotifierPort } from './trips/application/driver-occurrence-notifier.service.js'
 import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
@@ -4618,6 +4619,10 @@ function createApplicationRoutes({
           listFeed: (query) => listTripOccurrenceFeed(database, query, { logger }),
         },
       }),
+      summarizeTripOccurrenceResolution: {
+        execute: (input) =>
+          summarizeTripOccurrenceResolution(database, { companyId: input.context.companyId }),
+      },
       readTripOccurrenceAttachments: createReadTripOccurrenceAttachmentsUseCase({
         downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
         reader: {
