@@ -178,6 +178,22 @@ describe('o mapa da mensagem da ocorrência para o SDK', () => {
     expect(received).not.toHaveProperty('status')
   })
 
+  test('a hora da leitura da mensagem enviada vai como readAt, para os dados da mensagem; a recebida não ganha o campo', () => {
+    const read = '2026-09-24T14:24:00.000Z'
+    expect(
+      toThreadMessage(message({ status: 'read', statusTimes: { read } }), LABELS),
+    ).toMatchObject({
+      readAt: read,
+    })
+    expect(toThreadMessage(message({ status: 'delivered' }), LABELS)).not.toHaveProperty('readAt')
+    expect(
+      toThreadMessage(
+        message({ direction: 'inbound', status: null, statusTimes: { read } }),
+        LABELS,
+      ),
+    ).not.toHaveProperty('readAt')
+  })
+
   test('o e-mail inteiro vai recolhido no balão; sem ele, o balão não ganha o campo', () => {
     const fullText =
       'Podem descarregar.\n\nEm ter., 20 de out. de 2026, Equipe escreveu:\n> Autorizam?'

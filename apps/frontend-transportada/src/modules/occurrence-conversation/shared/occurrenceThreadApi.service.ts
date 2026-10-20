@@ -110,6 +110,10 @@ export function toThreadMessage(
     /** O SDK mostra o e-mail inteiro recolhido no balão, atrás do "ver histórico". */
     ...(message.emailFullText === undefined ? {} : { originalText: message.emailFullText }),
     ...(message.status === null ? {} : { status: message.status }),
+    /** "Dados da mensagem" do SDK: quando a outra ponta leu o que o escritório mandou. */
+    ...(message.direction === 'outbound' && message.statusTimes.read !== undefined
+      ? { readAt: message.statusTimes.read }
+      : {}),
     text: withCopyLine(message, labels),
   }
 }

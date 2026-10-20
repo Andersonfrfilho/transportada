@@ -117,7 +117,15 @@
       "copySelection": "Copy selection",
       "selectMessage": "Select message",
       "selectMessages": "Select messages",
-      "selectedCount": "{count} selected"
+      "selectedCount": "{count} selected",
+      "closeMessageInfo": "Close",
+      "conversationOptions": "Conversation options",
+      "downloadConversation": "Download conversation",
+      "infoAuthor": "From",
+      "infoReadAt": "Read",
+      "infoSentAt": "Sent",
+      "infoStatus": "Status",
+      "messageInfo": "Message info"
     }
   },
   "error": {

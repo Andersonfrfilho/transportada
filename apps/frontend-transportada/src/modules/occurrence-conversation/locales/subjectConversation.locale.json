@@ -117,7 +117,15 @@
       "copySelection": "Copiar seleção",
       "selectMessage": "Marcar mensagem",
       "selectMessages": "Selecionar mensagens",
-      "selectedCount": "{count} selecionadas"
+      "selectedCount": "{count} selecionadas",
+      "closeMessageInfo": "Fechar",
+      "conversationOptions": "Opções da conversa",
+      "downloadConversation": "Baixar conversa",
+      "infoAuthor": "De",
+      "infoReadAt": "Lida",
+      "infoSentAt": "Enviada",
+      "infoStatus": "Situação",
+      "messageInfo": "Dados da mensagem"
     }
   },
   "error": {
