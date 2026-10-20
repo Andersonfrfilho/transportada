@@ -2,7 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 248 T4.6: o operador leva o boleto ao motorista. O aviso no sino sai uma vez, só depois da entrega,
- * e nunca desfaz a entrega; repetir não avisa de novo; ocorrência sem retorno é 404.
+ * e nunca desfaz a entrega; repetir não avisa de novo; ocorrência sem retorno leva o anexo escolhido, e sem
+ * anexo escolhido é 404.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -33,9 +34,14 @@ function build(overrides: {
 }) {
   const notifications: Array<Record<string, unknown>> = []
   const delivered: Array<Record<string, unknown>> = []
+  const deliveredAttachments: Array<Record<string, unknown>> = []
   const transaction: ContractorReplyDeliveryTransactionPort = {
     deliver: async (params) => {
       delivered.push({ ...params })
+      return overrides.result ?? DELIVERED
+    },
+    deliverAttachment: async (params) => {
+      deliveredAttachments.push({ ...params })
       return overrides.result ?? DELIVERED
     },
     findOccurrenceLabel: async () => 'NF 123',
@@ -51,7 +57,7 @@ function build(overrides: {
     },
     unitOfWork: { execute: (operation) => operation(transaction) },
   })
-  return { delivered, notifications, useCase }
+  return { delivered, deliveredAttachments, notifications, useCase }
 }
 
 const INPUT = { actorUserId: ACTOR_ID, companyId: COMPANY_ID, occurrenceId: OCCURRENCE_ID }
@@ -98,10 +104,29 @@ describe('entregar o boleto da contratante ao motorista (spec 248 T4.6)', () => 
     expect(skipped.notifications).toEqual([])
   })
 
-  test('ocorrência sem retorno aberto é 404 e nada é entregue', async () => {
-    const { delivered, useCase } = build({ replyId: null })
+  test('ocorrência sem retorno e sem anexo escolhido é 404 e nada é entregue', async () => {
+    const { delivered, deliveredAttachments, useCase } = build({ replyId: null })
     await expect(useCase.deliver(INPUT)).rejects.toBeInstanceOf(TripOccurrenceNotFoundError)
     expect(delivered).toEqual([])
+    expect(deliveredAttachments).toEqual([])
+  })
+
+  test('ocorrência sem retorno leva o anexo escolhido e avisa o motorista', async () => {
+    const { delivered, deliveredAttachments, notifications, useCase } = build({ replyId: null })
+    const attachmentId = '44444444-4444-4444-8444-444444444444'
+    const outcome = await useCase.deliver({ ...INPUT, attachmentId })
+    expect(outcome).toEqual({ conversationMessageId: 'message-1', kind: 'delivered' })
+    expect(delivered).toEqual([])
+    expect(deliveredAttachments).toEqual([
+      {
+        actorUserId: ACTOR_ID,
+        attachmentId,
+        companyId: COMPANY_ID,
+        now: new Date('2026-10-12T20:00:00.000Z'),
+        occurrenceId: OCCURRENCE_ID,
+      },
+    ])
+    expect(notifications).toHaveLength(1)
   })
 
   test('o anexo escolhido pelo operador chega ao núcleo da entrega', async () => {
