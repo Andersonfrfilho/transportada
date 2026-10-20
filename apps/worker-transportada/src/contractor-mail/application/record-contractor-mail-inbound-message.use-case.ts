@@ -17,6 +17,7 @@ import { parseRfcMessageId } from '../domain/reply-chain-headers.policy.js'
 import { hashReplyToken } from '../domain/reply-token.policy.js'
 import { resolveConversationDkimResult } from '../domain/conversation-sender-identity.policy.js'
 import { parseSenderMailbox } from '../domain/sender-mailbox.policy.js'
+import { extractReplyText } from '../domain/reply-text.policy.js'
 import { extractReplyTokenCandidates } from '../domain/recipient-reply-token.policy.js'
 import { ContractorMailInboundSettingsMissingError } from '../domain/contractor-mail-inbound.error.js'
 import { DKIM_ALIGNMENT_RESULT, type DkimAlignmentResult } from '../domain/dkim-alignment.policy.js'
@@ -226,7 +227,7 @@ export async function recordContractorMailInboundMessage(
 
   function recordInbound() {
     return dependencies.repository.recordInboundMessage({
-      bodyText: normalizeNonEmpty(received.text, FALLBACK_BODY_TEXT),
+      bodyText: normalizeNonEmpty(extractReplyText(received.text ?? ''), FALLBACK_BODY_TEXT),
       companyId,
       conversationAttachments: attachments.stored,
       dkimResult,
