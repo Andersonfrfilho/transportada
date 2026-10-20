@@ -29,6 +29,11 @@ const PUBLIC_LOGO_CACHE_CONTROL = 'public, max-age=3600'
 
 type PublicRoutesDependencies = {
   readonly landingLogo: LandingLogoUseCase
+  /** A silhueta branca do logo, para o painel sobre fundo escuro (`?variant=white`). */
+  readonly whiteLogo: (logo: {
+    readonly bytes: Uint8Array
+    readonly sha256: string
+  }) => Promise<Uint8Array>
   readonly landingSettings: LandingSettingsUseCase
 }
 
@@ -53,24 +58,27 @@ export function createLandingPublicRoutes(
       parse: () => undefined,
       pathname: API_PUBLIC_LANDING_SETTINGS_PATH,
     }),
-    defineAnonymousRoute<undefined>({
+    defineAnonymousRoute<{ readonly white: boolean }>({
       // Ausência de logo não é erro — é o caso comum enquanto o operador não configurou uma
       // marca própria (aba Site). 404 aqui é só "não há imagem", o cliente cai no ícone padrão.
-      async handle(): Promise<Response> {
+      async handle({ input }): Promise<Response> {
         const logo = await dependencies.landingLogo.getPublicLogo()
         if (logo === null) return new Response(null, { status: 404 })
 
-        return new Response(logo.bytes, {
+        const white = input.white ? await dependencies.whiteLogo(logo) : undefined
+        return new Response(white ?? logo.bytes, {
           headers: {
             'cache-control': PUBLIC_LOGO_CACHE_CONTROL,
-            'content-type': logo.mimeType,
-            etag: `"${logo.sha256}"`,
+            'content-type': white === undefined ? logo.mimeType : 'image/png',
+            etag: white === undefined ? `"${logo.sha256}"` : `"${logo.sha256}-white"`,
           },
           status: 200,
         })
       },
       method: 'GET',
-      parse: () => undefined,
+      parse: ({ request }) => ({
+        white: new URL(request.url).searchParams.get('variant') === 'white',
+      }),
       pathname: API_PUBLIC_LANDING_LOGO_PATH,
     }),
   ]

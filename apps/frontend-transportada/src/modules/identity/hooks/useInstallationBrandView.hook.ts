@@ -9,6 +9,8 @@ export const PRODUCT_BRAND_LOGO_URL = '/icons/icon.svg'
 
 export type InstallationBrandView = Readonly<{
   handleLogoError: () => void
+  /** O logo é o da transportadora (e não o ícone do produto): só ele ganha a variação branca. */
+  hasCompanyLogo: boolean
   isLoading: boolean
   logoUrl: string
   name: string
@@ -26,6 +28,7 @@ export function useInstallationBrandView(): InstallationBrandView {
 
   return {
     handleLogoError: () => setHasLogo(false),
+    hasCompanyLogo: company !== undefined && hasLogo,
     isLoading: brand.isLoading,
     logoUrl: company !== undefined && hasLogo ? company.logoUrl : PRODUCT_BRAND_LOGO_URL,
     name: company?.name ?? PRODUCT_BRAND_NAME,

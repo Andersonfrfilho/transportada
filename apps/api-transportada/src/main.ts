@@ -880,7 +880,7 @@ import { createCompanyGroupRoutes } from './identity/presentation/company-group.
 import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
 import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
-import { toWhiteLogoPng } from './occurrence-conversation/infrastructure/white-logo.gateway.js'
+import { createWhiteLogoCache } from './occurrence-conversation/infrastructure/white-logo.gateway.js'
 import { createPublicMailAssetRoutes } from './occurrence-conversation/presentation/public-mail-assets.routes.js'
 import { createPublicUserPictureRoutes } from './identity/presentation/public-user-picture.routes.js'
 import { createPublicUserPictureUseCase } from './identity/application/user-picture.use-case.js'
@@ -1877,7 +1877,9 @@ function createAnonymousRoutes({
     readReportByToken: { execute: (input) => publicExtraChargeBatches.readReportByToken(input) },
   })
   // Sem raiz para servir, o produto entrega o padrão do app — não é caso de erro.
+  const whiteLogo = createWhiteLogoCache()
   const landingPublicRoutes = createLandingPublicRoutes({
+    whiteLogo,
     landingLogo: createLandingLogoUseCase({
       companyLogoRepository: new DrizzleCompanyLogoRepository(database),
       landingCompanyId: config.companyId,
@@ -1961,7 +1963,7 @@ function createAnonymousRoutes({
       ...createPublicMailAssetRoutes({
         companyLogo: new DrizzleCompanyLogoRepository(database),
         userPicture: new DrizzleUserPictureRepository(database),
-        whiteLogo: toWhiteLogoPng,
+        whiteLogo,
       }),
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,

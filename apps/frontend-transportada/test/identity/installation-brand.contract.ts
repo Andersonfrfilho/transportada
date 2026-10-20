@@ -9,6 +9,7 @@ import {
   readCachedInstallationBrand,
   writeCachedInstallationBrand,
 } from '../../src/modules/identity/shared/installationBrandCache.service'
+import { resolveThemedLogoUrl } from '../../src/modules/shared/colorTheme.service'
 import { buildContentSecurityPolicy } from '../../src/modules/shared/contentSecurityPolicy.service'
 
 const API_URL = 'https://api.exemplo.com.br'
@@ -268,5 +269,20 @@ describe('a marca nasce pronta, sem piscar', () => {
     expect(query).toContain('initialDataUpdatedAt: 0')
     expect(login).toContain('useState<InstallationBrand | undefined>(readCachedInstallationBrand)')
     expect(login).not.toContain("brand?.name ?? 'TransportAdA'")
+  })
+})
+
+describe('o logo troca com o tema', () => {
+  test('fundo escuro pede a silhueta branca; fundo claro, o original', () => {
+    const logoUrl = `${API_URL}/public/landing-logo`
+
+    expect(resolveThemedLogoUrl({ logoUrl, theme: 'dark' })).toBe(`${logoUrl}?variant=white`)
+    expect(resolveThemedLogoUrl({ logoUrl, theme: 'light' })).toBe(logoUrl)
+  })
+
+  test('endereço que já tem consulta recebe a variação com &', () => {
+    expect(resolveThemedLogoUrl({ logoUrl: 'https://a.b/logo?v=2', theme: 'dark' })).toBe(
+      'https://a.b/logo?v=2&variant=white',
+    )
   })
 })

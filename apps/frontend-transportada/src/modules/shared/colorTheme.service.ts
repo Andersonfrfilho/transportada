@@ -89,3 +89,17 @@ export function appendColorThemeToLoginUrl(input: {
     return input.url
   }
 }
+
+const WHITE_LOGO_QUERY = 'variant=white'
+
+/**
+ * Fundo escuro usa o logo branco, fundo claro usa o original. A silhueta branca é gerada pela API a partir do
+ * logo cadastrado (`?variant=white`), então não há segundo upload nem logo desatualizado.
+ */
+export function resolveThemedLogoUrl(input: {
+  readonly logoUrl: string
+  readonly theme: ColorTheme
+}): string {
+  if (input.theme !== 'dark') return input.logoUrl
+  return `${input.logoUrl}${input.logoUrl.includes('?') ? '&' : '?'}${WHITE_LOGO_QUERY}`
+}

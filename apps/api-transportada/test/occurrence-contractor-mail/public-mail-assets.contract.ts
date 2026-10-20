@@ -78,15 +78,14 @@ describe('imagens públicas do e-mail da ocorrência', () => {
     expect(lookups).toEqual([{ companyId: COMPANY }, { companyId: COMPANY, userId: USER }])
   })
 
-  test('logo-white serve a silhueta em PNG e guarda o resultado por sha256', async () => {
+  test('logo-white serve a silhueta em PNG', async () => {
     const { list, whiteCalls } = routes(true)
     const route = list.find((candidate) => candidate.pathname.endsWith('/logo-white'))
     const first = await call(route as never, { companyId: COMPANY })
-    const second = await call(route as never, { companyId: COMPANY })
 
     expect(first.status).toBe(200)
     expect(first.headers.get('content-type')).toBe('image/png')
-    expect(Buffer.from(await second.arrayBuffer()).toString()).toBe('white')
+    expect(Buffer.from(await first.arrayBuffer()).toString()).toBe('white')
     expect(whiteCalls.length).toBe(1)
   })
 

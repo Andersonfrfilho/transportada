@@ -8,6 +8,7 @@ import {
   createLandingHttpFixture,
   landingRequest,
   LANDING_LOGO_PATH,
+  WHITE_LOGO_BYTES,
 } from '../fixtures/landing-http.fixture'
 
 const PNG_BYTES = Buffer.from(
@@ -34,6 +35,53 @@ describe(`GET ${LANDING_LOGO_PATH} HTTP contract`, () => {
     expect(response.headers.get('content-type')).toBe('image/png')
     expect(response.headers.get('etag')).toBe(`"${fixture.companyLogoRepository.stored.sha256}"`)
     expect(response.headers.get('cache-control')).toBe('public, max-age=3600')
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(PNG_BYTES)
+  })
+
+  test('serves the white silhouette with its own ETag on ?variant=white', async () => {
+    const fixture = await createLandingHttpFixture()
+    fixture.companyLogoRepository.stored = {
+      byteSize: PNG_BYTES.byteLength,
+      bytes: PNG_BYTES,
+      mimeType: 'image/png',
+      sha256: createHash('sha256').update(PNG_BYTES).digest('hex'),
+      updatedAt: new Date('2026-08-25T12:00:00.000Z'),
+    }
+
+    const response = await fixture.handle(
+      landingRequest({
+        authenticated: false,
+        method: 'GET',
+        pathname: `${LANDING_LOGO_PATH}?variant=white`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/png')
+    expect(response.headers.get('etag')).toBe(
+      `"${fixture.companyLogoRepository.stored.sha256}-white"`,
+    )
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(WHITE_LOGO_BYTES)
+  })
+
+  test('an unknown variant serves the original logo', async () => {
+    const fixture = await createLandingHttpFixture()
+    fixture.companyLogoRepository.stored = {
+      byteSize: PNG_BYTES.byteLength,
+      bytes: PNG_BYTES,
+      mimeType: 'image/png',
+      sha256: createHash('sha256').update(PNG_BYTES).digest('hex'),
+      updatedAt: new Date('2026-08-25T12:00:00.000Z'),
+    }
+
+    const response = await fixture.handle(
+      landingRequest({
+        authenticated: false,
+        method: 'GET',
+        pathname: `${LANDING_LOGO_PATH}?variant=other`,
+      }),
+    )
+
     expect(Buffer.from(await response.arrayBuffer())).toEqual(PNG_BYTES)
   })
 

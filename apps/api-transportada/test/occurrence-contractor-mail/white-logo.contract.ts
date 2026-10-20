@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import sharp from 'sharp'
-import { toWhiteLogoPng } from '../../src/occurrence-conversation/infrastructure/white-logo.gateway.js'
+import {
+  createWhiteLogoCache,
+  toWhiteLogoPng,
+} from '../../src/occurrence-conversation/infrastructure/white-logo.gateway.js'
 
 async function pixels(png: Uint8Array) {
   const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
@@ -75,5 +78,25 @@ describe('logo branco do e-mail', () => {
 
     expect(out.format).toBe('png')
     expect(out.width).toBe(512)
+  })
+})
+
+describe('cache do logo branco', () => {
+  test('converte uma vez por sha256 do original', async () => {
+    const source = await sharp({
+      create: {
+        background: { alpha: 1, b: 255, g: 255, r: 255 },
+        channels: 4,
+        height: 8,
+        width: 8,
+      },
+    })
+      .png()
+      .toBuffer()
+    const white = createWhiteLogoCache()
+    const first = await white({ bytes: source, sha256: 'a' })
+    const second = await white({ bytes: source, sha256: 'a' })
+
+    expect(second).toBe(first)
   })
 })
