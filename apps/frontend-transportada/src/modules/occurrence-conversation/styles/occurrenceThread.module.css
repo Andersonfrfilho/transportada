@@ -280,6 +280,9 @@
 }
 
 .unread {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   padding: 0 var(--space-2);
   color: var(--color-ink-on-accent);
   background: var(--participant-color);

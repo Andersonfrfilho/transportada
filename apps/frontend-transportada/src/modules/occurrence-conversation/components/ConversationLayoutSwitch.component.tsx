@@ -65,7 +65,10 @@ export function ConversationColumn({
       <header className={styles.columnHeader}>
         <ParticipantBadge participant={participant} />
         {unreadCount > 0 ? (
-          <span className={styles.unread}>{t('thread.unread', { count: unreadCount })}</span>
+          <span className={styles.unread}>
+            {collapsed ? <Icon name="message" size="sm" /> : null}
+            {t('thread.unread', { count: unreadCount })}
+          </span>
         ) : null}
         <Button
           aria-controls={bodyId}

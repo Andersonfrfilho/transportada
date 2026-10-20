@@ -1,4 +1,5 @@
 import './conversation/driver-conversations-api.contract'
+import './conversation/conversation-chime.contract'
 import './conversation/driver-conversations-fallback.contract'
 import './conversation/driver-subject-icon.contract'
 import './conversation/notification-destination.contract'
