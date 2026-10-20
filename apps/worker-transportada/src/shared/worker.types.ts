@@ -17,6 +17,8 @@ export type CteTechnicalResponsibleEnvironment = {
  * ambiente local, onde o Mailpit escuta — porta SMTP de saída é o que trava em hospedagem.
  */
 export type EmailDeliveryEnvironment = {
+  /** Declarada, só estes e-mails (ou domínios `@x`) recebem; ausente não filtra. */
+  readonly allowedRecipients?: readonly string[]
   readonly from: string
   readonly transport:
     | { readonly kind: 'resend'; readonly apiKey: string }

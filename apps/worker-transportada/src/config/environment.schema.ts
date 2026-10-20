@@ -79,6 +79,14 @@ const workerEnvironmentSchema = z
       .transform((value) => value === 'true'),
     // Com a chave, o e-mail vai pela API HTTPS do Resend e o `SMTP_URL` é ignorado.
     RESEND_API_KEY: optionalText(),
+    // Desliga o Resend sem apagar a chave: o e-mail volta ao SMTP_URL (Mailpit no staging).
+    EMAIL_RESEND_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    // Lista de e-mails ou domínios (`@exemplo.com.br`) separados por vírgula. Declarada, o worker só
+    // entrega a quem estiver nela; ausente, não filtra (produção).
+    EMAIL_ALLOWED_RECIPIENTS: optionalText(),
     FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: z
       .enum(['true', 'false'])
       .default('false')
@@ -170,6 +178,18 @@ const workerEnvironmentSchema = z
         code: 'custom',
         message: 'Email delivery requires both the sender and a transport (Resend or SMTP) or none',
         path: ['EMAIL_FROM', ...EMAIL_TRANSPORT_KEYS],
+      })
+    }
+
+    if (
+      !environment.EMAIL_RESEND_ENABLED &&
+      environment.SMTP_URL === undefined &&
+      environment.EMAIL_FROM !== undefined
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'EMAIL_RESEND_ENABLED=false requires SMTP_URL',
+        path: ['EMAIL_RESEND_ENABLED', 'SMTP_URL'],
       })
     }
 
@@ -447,15 +467,20 @@ function optionalText(): z.ZodType<string | undefined, string | undefined> {
 
 function toEmailDelivery(
   environment: Readonly<{
+    EMAIL_ALLOWED_RECIPIENTS?: string | undefined
     EMAIL_FROM?: string | undefined
+    EMAIL_RESEND_ENABLED: boolean
     RESEND_API_KEY?: string | undefined
     SMTP_URL?: string | undefined
   }>,
 ): { readonly emailDelivery?: EmailDeliveryEnvironment } {
   if (environment.EMAIL_FROM === undefined) return {}
-  if (environment.RESEND_API_KEY !== undefined) {
+  const allowedRecipients = parseAllowedRecipients(environment.EMAIL_ALLOWED_RECIPIENTS)
+  const filter = allowedRecipients === undefined ? {} : { allowedRecipients }
+  if (environment.RESEND_API_KEY !== undefined && environment.EMAIL_RESEND_ENABLED) {
     return {
       emailDelivery: {
+        ...filter,
         from: environment.EMAIL_FROM,
         transport: { apiKey: environment.RESEND_API_KEY, kind: 'resend' },
       },
@@ -464,8 +489,18 @@ function toEmailDelivery(
   if (environment.SMTP_URL === undefined) return {}
   return {
     emailDelivery: {
+      ...filter,
       from: environment.EMAIL_FROM,
       transport: { kind: 'smtp', smtpUrl: environment.SMTP_URL },
     },
   }
+}
+
+function parseAllowedRecipients(raw: string | undefined): readonly string[] | undefined {
+  if (raw === undefined) return undefined
+  const entries = raw
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry !== '')
+  return entries.length === 0 ? undefined : entries
 }

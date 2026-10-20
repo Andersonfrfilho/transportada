@@ -5,12 +5,19 @@ import { createResendEmailProvider, createSmtpEmailProvider } from '@adatechnolo
 import type { EmailDriverPort } from '@adatechnology/notification-contracts'
 
 import type { EmailDeliveryEnvironment } from '../../shared/worker.types.js'
+import { withRecipientAllowlist } from './email-recipient-allowlist.js'
 
 /**
  * Um lugar só decide o transporte: convite, recuperação de senha e notificação montavam o SMTP cada
  * um, e trocar de provedor exigia achar os três.
  */
 export function createWorkerEmailDriver(delivery: EmailDeliveryEnvironment): EmailDriverPort {
+  const driver = createTransportDriver(delivery)
+  if (delivery.allowedRecipients === undefined) return driver
+  return withRecipientAllowlist({ allowedRecipients: delivery.allowedRecipients, driver })
+}
+
+function createTransportDriver(delivery: EmailDeliveryEnvironment): EmailDriverPort {
   if (delivery.transport.kind === 'resend') {
     return createResendEmailProvider({ apiKey: delivery.transport.apiKey, from: delivery.from })
   }
