@@ -118,7 +118,7 @@ function footerMark(url: string | undefined, height: number): string {
   return `<img src="${escapeMailHtml(url)}" alt="" height="${height}" style="vertical-align:middle;margin-right:6px;border:0;height:${height}px">`
 }
 
-function buildFooterMarks(appBaseUrl: string | undefined): string {
+export function buildFooterMarks(appBaseUrl: string | undefined): string {
   const origin =
     appBaseUrl !== undefined && HTTP_ORIGIN.test(appBaseUrl)
       ? appBaseUrl.replace(TRAILING_SLASHES, '')

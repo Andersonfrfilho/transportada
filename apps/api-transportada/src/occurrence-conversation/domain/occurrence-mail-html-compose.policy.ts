@@ -132,7 +132,7 @@ export function composeOccurrenceMailHtml(params: {
     hasReplyTo: params.hasReplyTo,
     itemRows: source.itemRows,
     itemsSum: source.itemsSum,
-    logoUrl: publicAssets?.logo,
+    logoUrl: publicAssets?.logoWhite,
     signerInitials: signerValues.assinaturaIniciais,
     signerPictureUrl:
       params.signer.kind !== 'team' && params.signer.hasPicture === true

@@ -35,6 +35,7 @@ import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import {
   buildContractorMailValues,
   buildOccurrenceItemRows,
+  formatOccurrenceMoment,
 } from '../../trips/domain/occurrence-mail-values.policy.js'
 import { resolveOccurrenceProductCodes } from '../../trips/domain/occurrence-scope.policy.js'
 import { readOccurrenceMailValues } from '../../trips/infrastructure/delivery-proof-read.support.js'
@@ -52,6 +53,7 @@ import {
   blocksContractorMailSend,
 } from '../domain/occurrence-contractor-template.policy.js'
 import { findActiveContractorTemplate } from './notification-template.query.js'
+import { toDisplayPersonName } from '../../shared/person-name.service.js'
 import { resolveSignerJobTitle } from '../domain/occurrence-mail-signer.policy.js'
 import type {
   CarrierIdentity,
@@ -262,7 +264,7 @@ async function findOperatorSigner(
   return {
     hasPicture: first.pictureUserId !== null,
     ...(jobTitle === undefined ? {} : { jobTitle }),
-    name: first.name,
+    name: toDisplayPersonName(first.name),
   }
 }
 
@@ -479,7 +481,7 @@ async function readTemplateSource(
     note: row.note,
     occurrenceId: params.occurrenceId,
     occurrenceTypeName: row.typeName,
-    occurredOn: row.createdAt.toLocaleDateString('pt-BR'),
+    occurredOn: formatOccurrenceMoment(row.createdAt),
     productCodes: resolveOccurrenceProductCodes({
       productCode: row.productCode,
       productCodes: storedCodes.get(params.occurrenceId) ?? [],

@@ -291,6 +291,7 @@ import {
   sha256Hex,
 } from './trips/domain/occurrence-attachment.policy.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
+import { formatOccurrenceMoment } from './trips/domain/occurrence-mail-values.policy.js'
 import { correctOccurrenceItems } from './trips/application/correct-occurrence-items.use-case.js'
 import { reviewCanhotoProof } from './trips/application/review-canhoto-proof.use-case.js'
 import { cancelOccurrence } from './trips/application/cancel-occurrence.use-case.js'
@@ -879,6 +880,7 @@ import { createCompanyGroupRoutes } from './identity/presentation/company-group.
 import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
 import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
+import { toWhiteLogoPng } from './occurrence-conversation/infrastructure/white-logo.gateway.js'
 import { createPublicMailAssetRoutes } from './occurrence-conversation/presentation/public-mail-assets.routes.js'
 import { createPublicUserPictureRoutes } from './identity/presentation/public-user-picture.routes.js'
 import { createPublicUserPictureUseCase } from './identity/application/user-picture.use-case.js'
@@ -1380,7 +1382,7 @@ export function bootstrap(): Bun.Server<undefined> {
           companyId: input.companyId,
           documentId: input.documentId,
           note: input.note,
-          occurredOn: new Date().toLocaleDateString('pt-BR'),
+          occurredOn: formatOccurrenceMoment(new Date()),
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: '',
           /** O fluxo do WhatsApp não escolhe item: a ocorrência é sempre da nota inteira. */
@@ -1959,6 +1961,7 @@ function createAnonymousRoutes({
       ...createPublicMailAssetRoutes({
         companyLogo: new DrizzleCompanyLogoRepository(database),
         userPicture: new DrizzleUserPictureRepository(database),
+        whiteLogo: toWhiteLogoPng,
       }),
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,
@@ -3620,6 +3623,7 @@ function createApplicationRoutes({
        * (modelo da empresa ou o embutido, versão 0); o app só entrega texto, nunca HTML.
        */
       sendChatMail: createSendOccurrenceChatMailUseCase({
+        ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
         ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
         fingerprintService,
@@ -4682,7 +4686,7 @@ function createApplicationRoutes({
                   occurrenceTypeId: input.occurrenceTypeId,
                   /** A data que o modelo imprime é a de agora — a ocorrência é registrada quando
                    * acontece. */
-                  occurredOn: new Date().toLocaleDateString('pt-BR'),
+                  occurredOn: formatOccurrenceMoment(new Date()),
                   productCode: input.productCode,
                   productCodes: input.productCodes,
                   productQuantities: input.productQuantities,

@@ -346,11 +346,8 @@ describe('o chat por e-mail (spec 274 T3.6)', () => {
         input: {
           attachments: [{ name: 'nota.pdf' }],
           bodyText: 'Boa tarde, segue a nota.',
-          footer: {
-            platformMarkUrl: 'https://painel.example.test/icons/ada-technology.png',
-            platformNote: 'Enviado pelo TransportAdA — uma solução Ada Technology',
-            productMarkUrl: 'https://painel.example.test/icons/icon-192.png',
-          },
+          /** As marcas do rodapé entram depois do render (`brandChatMail`), ao lado dos nomes; aqui só a marca de posição. */
+          footer: { platformNote: '__ADA_PLATFORM_FOOTER__' },
           identity: {
             displayName: 'Transportadora Sintética',
             logo: { contentId: 'company-logo', kind: 'cid' },
