@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { NotificationBell, NotificationProvider } from '@adatechnology/notification-ui'
+import { NotificationProvider } from '@adatechnology/notification-ui'
 import '@adatechnology/conversations-ui/styles.css'
 import '@adatechnology/notification-ui/styles.css'
 import { lazy, StrictMode, Suspense, useEffect, useRef, useState } from 'react'
@@ -48,10 +48,10 @@ import { isSmokeAuthBypassEnabled } from '@/modules/identity/shared/smokeAuthByp
 import { parseCargoReceivingRoute } from '@/modules/cargo-receiving/shared/cargoReceivingRoute.service'
 import { parseMdfeManifestTripParameter } from '@/modules/mdfe-manifest/shared/mdfeManifestRoute.service'
 import { parseNfseInvoiceParameter } from '@/modules/nfse-invoice/shared/nfseInvoiceRoute.service'
+import { NotificationBellMenu } from '@/modules/notification/components/NotificationBellMenu.component'
 import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
 import { getNotificationClient } from '@/modules/notification/shared/notificationClient.service'
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
-import notificationStyles from '@/modules/notification/styles/notification.module.css'
 import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
 import { NoWorkspaceAccess } from '@/modules/identity/components/NoWorkspaceAccess.component'
 import { resolveNoWorkspaceAccessVariant } from '@/modules/identity/shared/noWorkspaceAccessVariant.service'
@@ -390,7 +390,6 @@ function resolvePage(
 }
 
 /** O tipo gerado para CSS Module devolve `string | undefined`; o pacote pede classe obrigatória. */
-const NOTIFICATION_BELL_CLASS = notificationStyles.notificationBell ?? ''
 
 /** O selo avisa se a emissão vale de verdade — o rótulo vem do ambiente da empresa, nunca de literal. */
 const FISCAL_ENVIRONMENT_LABELS: Readonly<Record<FiscalEnvironment, string>> = {
@@ -757,9 +756,8 @@ function ApplicationShell(): ReactNode {
                 >
                   <Icon name={colorTheme.theme === 'dark' ? 'sun' : 'moon'} />
                 </Button>
-                <NotificationBell
-                  className={NOTIFICATION_BELL_CLASS}
-                  onClick={() =>
+                <NotificationBellMenu
+                  onViewAll={() =>
                     navigateTo({
                       href: '/notificacoes',
                       key: 'notification',
