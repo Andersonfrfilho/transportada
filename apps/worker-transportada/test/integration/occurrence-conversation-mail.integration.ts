@@ -82,6 +82,7 @@ describeDatabase('conversa da ocorrência pelo trilho de e-mail da 143 (spec 183
   ) {
     return inbound.recordInboundMessage({
       bodyText,
+      conversationBodyText: bodyText,
       conversationAttachments,
       companyId: seeded.companyId,
       dkimResult: 'aligned',

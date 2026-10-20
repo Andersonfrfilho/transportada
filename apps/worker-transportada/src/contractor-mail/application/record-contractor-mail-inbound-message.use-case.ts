@@ -244,7 +244,12 @@ export async function recordContractorMailInboundMessage(
 
   function recordInbound() {
     return dependencies.repository.recordInboundMessage({
-      bodyText: normalizeNonEmpty(extractReplyText(received.text ?? ''), FALLBACK_BODY_TEXT),
+      /** O e-mail inteiro fica no registro da 143 (o painel abre o histórico por ele); a conversa leva só o novo. */
+      bodyText: normalizeNonEmpty(received.text, FALLBACK_BODY_TEXT),
+      conversationBodyText: normalizeNonEmpty(
+        extractReplyText(received.text ?? ''),
+        FALLBACK_BODY_TEXT,
+      ),
       companyId,
       conversationAttachments: attachments.stored,
       dkimResult,
