@@ -193,6 +193,7 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
   ) {
     return inbound.recordInboundMessage({
       bodyText: 'Segue o boleto.',
+      conversationBodyText: 'Segue o boleto.',
       companyId: seeded.companyId,
       conversationAttachments,
       dkimResult: sender.dkimResult ?? 'aligned',

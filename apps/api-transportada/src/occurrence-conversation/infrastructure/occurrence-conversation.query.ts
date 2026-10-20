@@ -58,6 +58,7 @@ type MessageRow = {
   readonly driverUserId: null | string
   readonly fromDisplayName: null | string
   readonly id: string
+  readonly mailBodyText: null | string
   readonly senderAddress: null | string
   readonly status: OccurrenceConversationMessageView['status']
   readonly statusTimes: Record<string, string>
@@ -150,6 +151,7 @@ async function readMessages(
       driverUserId: occurrenceConversationMessages.driverUserId,
       fromDisplayName: contractorMailMessages.fromDisplayName,
       id: occurrenceConversationMessages.id,
+      mailBodyText: contractorMailMessages.bodyText,
       senderAddress: occurrenceConversationMessages.senderAddress,
       status: occurrenceConversationMessages.status,
       statusTimes: occurrenceConversationMessages.statusTimes,
@@ -175,6 +177,22 @@ async function readMessages(
 }
 
 /** Spec 267 RF8: a cópia só aparece na mensagem de saída; o do e-mail recebido é do remetente, não nosso. */
+/** Teto do e-mail inteiro na resposta: um histórico longo não pesa a leitura da conversa. */
+const EMAIL_FULL_TEXT_MAX_LENGTH = 20_000
+
+/**
+ * A conversa guarda só o texto novo da resposta; o e-mail inteiro, com o histórico citado, fica no registro da 143.
+ * Sai só na mensagem recebida por e-mail e só quando é mais do que o próprio corpo.
+ */
+function toEmailFullText(
+  row: MessageRow,
+): Pick<OccurrenceConversationMessageView, 'emailFullText'> {
+  if (row.direction !== 'inbound' || row.channel !== 'email' || row.mailBodyText === null) return {}
+  const fullText = row.mailBodyText.trim()
+  if (fullText === '' || fullText === row.bodyText.trim()) return {}
+  return { emailFullText: fullText.slice(0, EMAIL_FULL_TEXT_MAX_LENGTH) }
+}
+
 function toCopy(
   row: MessageRow,
   names: ReadonlyMap<string, string>,
@@ -318,6 +336,7 @@ export async function findOccurrenceConversations(
           ...toCopy(row, copyNames),
           createdAt: row.createdAt.toISOString(),
           direction: row.direction,
+          ...toEmailFullText(row),
           id: row.id,
           status: row.status,
           statusTimes: row.statusTimes,

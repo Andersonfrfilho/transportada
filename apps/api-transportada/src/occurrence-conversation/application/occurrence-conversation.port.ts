@@ -48,6 +48,11 @@ export type OccurrenceConversationMessageView = {
   readonly copy?: readonly { readonly maskedEmail: string; readonly name: null | string }[]
   readonly createdAt: string
   readonly direction: OccurrenceConversationDirection
+  /**
+   * O e-mail recebido inteiro, com o histórico citado que o `bodyText` deixa de fora: o painel o mostra recolhido.
+   * Ausente quando a mensagem não veio por e-mail ou quando o texto inteiro é o próprio `bodyText`.
+   */
+  readonly emailFullText?: string
   readonly id: string
   readonly status: OccurrenceConversationMessageStatus | null
   readonly statusTimes: Readonly<Record<string, string>>
