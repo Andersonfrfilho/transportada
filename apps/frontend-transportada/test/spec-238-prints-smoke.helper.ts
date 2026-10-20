@@ -239,6 +239,11 @@ export async function mockSettingsShell(
   await page.route(/\/digital-certificates(?:\?.*)?$/, (route) =>
     fulfillJson(route, { data: [], page: { nextCursor: null } }),
   )
+  // `loginAsLocalUser` abre `/` antes de a tela de Configurações entrar, e o início pede as regras de frete.
+  // Sem dublê a requisição morre em `ERR_FAILED` e o `failures()` do teste reprova de vez em quando.
+  await page.route(/\/freight-rules(?:\?.*)?$/, (route) =>
+    fulfillJson(route, { data: [], page: { nextCursor: null } }),
+  )
 }
 
 /** Registra toda rota do calendário; a escrita responde como a API responde e muda o estado que a tela relê. */
