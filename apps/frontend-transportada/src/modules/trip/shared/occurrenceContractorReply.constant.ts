@@ -6,6 +6,13 @@ export const CONTRACTOR_REPLY_MODES = [
   'forward_automatic',
 ] as const
 
+/**
+ * Spec 276 T4: a trava de pedido repetido na mesma nota. `while_request_open` bloqueia enquanto o pedido à contratante
+ * não foi entregue nem encerrado; `until_resolved` até a ocorrência ser solucionada ou cancelada; `allow` nunca bloqueia.
+ */
+export const DUPLICATE_REQUEST_POLICIES = ['while_request_open', 'until_resolved', 'allow'] as const
+export type DuplicateRequestPolicy = (typeof DUPLICATE_REQUEST_POLICIES)[number]
+
 /** Spec 276 T2: `boleto_pdf` é o PDF conferido como boleto da nota (linha digitável e número ou valor). */
 export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image', 'boleto_pdf'] as const
 

@@ -97,6 +97,18 @@ describe('tolerância aos campos do retorno da contratante no tipo (spec 248 T1.
     ).toThrow()
   })
 
+  it('aceita a trava de pedido repetido (spec 276 T4) antes de a API mandar', () => {
+    for (const value of ['while_request_open', 'until_resolved', 'allow']) {
+      const [type] = adapters.occurrenceTypesFromApi([
+        buildOccurrenceType({ duplicateRequestPolicy: value }),
+      ])
+      expect(type?.id).toBe(TYPE_ID)
+    }
+    expect(() =>
+      adapters.occurrenceTypesFromApi([buildOccurrenceType({ duplicateRequestPolicy: 'never' })]),
+    ).toThrow()
+  })
+
   it('recusa campo do retorno fora do vocabulário ou da faixa', () => {
     expect(() =>
       adapters.occurrenceTypesFromApi([buildOccurrenceType({ contractorReplyMode: 'maybe' })]),

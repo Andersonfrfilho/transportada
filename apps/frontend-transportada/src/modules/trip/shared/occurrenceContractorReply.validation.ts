@@ -5,6 +5,7 @@ import {
   CONTRACTOR_REPLY_ALERT_MODES,
   CONTRACTOR_REPLY_ATTACHMENT_KINDS,
   CONTRACTOR_REPLY_MODES,
+  DUPLICATE_REQUEST_POLICIES,
   CONTRACTOR_REPLY_WAIT_HOURS_RANGE,
   DRIVER_REPLY_CHANNELS,
   DRIVER_REPLY_WINDOW_CLOSED_ACTIONS,
@@ -41,6 +42,8 @@ const TYPE_FIELD_CHECKS = {
     isIntegerInRange(value, CONTRACTOR_REPLY_WAIT_HOURS_RANGE),
   ),
   driverReplyChannel: (value: unknown) => isOneOf(value, DRIVER_REPLY_CHANNELS),
+  /** Spec 276 T4: a trava de pedido repetido. Aceita antes da API mandar. */
+  duplicateRequestPolicy: (value: unknown) => isOneOf(value, DUPLICATE_REQUEST_POLICIES),
   driverReplyTemplate: isString,
   driverReplyWindowClosedAction: (value: unknown) =>
     isOneOf(value, DRIVER_REPLY_WINDOW_CLOSED_ACTIONS),
