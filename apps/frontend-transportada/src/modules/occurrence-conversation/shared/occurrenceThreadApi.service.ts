@@ -179,6 +179,8 @@ export function createOccurrenceThreadApi(
    * O SDK mantém o balão enviado até a leitura trazer a mensagem com o mesmo `clientMessageId`. A API não devolve esse
    * eco na leitura, mas devolve o id gravado no envio: guardamos o par e carimbamos a mensagem lida. Sem isso o balão
    * otimista (`queued`) ficava para sempre ao lado da mensagem real — a mensagem aparecia duplicada.
+   * O eco devolvido ao SDK também leva o id gravado: o SDK une as mensagens por id e nunca descarta uma, então um eco
+   * com o id do cliente ficaria na tela para sempre, mesmo depois de a mensagem real chegar (ou falhar).
    */
   const clientMessageIds = new Map<string, string>()
   let conversationId: null | string = null
@@ -215,7 +217,7 @@ export function createOccurrenceThreadApi(
           clientMessageId: input.clientMessageId,
           createdAt: new Date().toISOString(),
           direction: 'outbound',
-          id: input.clientMessageId,
+          id: receipt.conversationMessageId ?? input.clientMessageId,
           status: 'queued',
           text: body,
         },

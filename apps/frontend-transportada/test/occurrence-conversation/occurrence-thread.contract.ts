@@ -380,7 +380,13 @@ describe('o adaptador do fio da ocorrência', () => {
         undefined,
         undefined,
       ])
-      await api.sendMessage({ clientMessageId: 'client-9', subject: SUBJECT, text: 'Ola' })
+      const result = await api.sendMessage({
+        clientMessageId: 'client-9',
+        subject: SUBJECT,
+        text: 'Ola',
+      })
+      // O SDK une por id e nunca descarta: o eco tem de ter o id gravado, senão sobra ao lado da mensagem real.
+      expect(result.outcome === 'sent' && result.message.id).toBe(serverId)
       const [sent, other] = await api.fetchMessages(SUBJECT)
       expect(sent).toMatchObject({ clientMessageId: 'client-9', id: serverId })
       expect(other?.clientMessageId).toBeUndefined()
