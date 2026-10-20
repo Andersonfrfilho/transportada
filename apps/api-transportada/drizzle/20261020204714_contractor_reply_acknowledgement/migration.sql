@@ -1,0 +1,2 @@
+ALTER TABLE "company_occurrence_types" ADD COLUMN "contractor_reply_acknowledgement_quick_reply_id" uuid;--> statement-breakpoint
+ALTER TABLE "occurrence_contractor_reply_deliveries" DROP CONSTRAINT "occurrence_contractor_reply_deliveries_target_check", ADD CONSTRAINT "occurrence_contractor_reply_deliveries_target_check" CHECK ("target" in ('driver_app_chat', 'driver_whatsapp', 'note_recipient_email', 'informed_email', 'contractor_acknowledgement'));

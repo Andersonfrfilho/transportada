@@ -20,4 +20,7 @@
       (padrão `allow`; tipo que já pede retorno passa a bloquear). Guarda em `saveTripOccurrence` sob trava advisory por
       nota e tipo; o app do motorista recebe a ocorrência que já existe, galpão e escritório recebem 409
       `TRIP_OCCURRENCE_DUPLICATE_REQUEST`. Painel: tolerante no #322, editor e cadastro (tipo novo nasce bloqueando).
-- [ ] **T5** Etapa 5: resposta automática à contratante.
+- [x] **T5** Etapa 5: resposta automática à contratante, escolhida no tipo entre as respostas rápidas ativas da aba
+      Contratante (`contractor_reply_acknowledgement_quick_reply_id`, nula = desligada, sem FK). Migration
+      `20261020204714_contractor_reply_acknowledgement`. Sai uma vez por conversa, na mesma thread de e-mail, só quando o
+      documento é confirmado e entregue ao motorista automaticamente; a ocorrência aberta segue o retrato do tipo que tinha.

@@ -23,6 +23,7 @@ export function toSaveOccurrenceTypeValues(
     contractorReplyAttachmentKind: input.contractorReplyAttachmentKind,
     contractorReplyResolveOnDelivery: input.contractorReplyResolveOnDelivery,
     duplicateRequestPolicy: input.duplicateRequestPolicy,
+    contractorReplyAcknowledgementQuickReplyId: input.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: input.contractorReplyMode,
     contractorReplyWaitHours: input.contractorReplyWaitHours,
     driverReplyTemplate: input.driverReplyTemplate,

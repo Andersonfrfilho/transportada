@@ -1012,6 +1012,12 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.contractorReplyMode === undefined
             ? {}
             : { contractorReplyMode: input.contractorReplyMode }),
+          ...(input.contractorReplyAcknowledgementQuickReplyId === undefined
+            ? {}
+            : {
+                contractorReplyAcknowledgementQuickReplyId:
+                  input.contractorReplyAcknowledgementQuickReplyId,
+              }),
           ...(input.contractorReplyResolveOnDelivery === undefined
             ? {}
             : { contractorReplyResolveOnDelivery: input.contractorReplyResolveOnDelivery }),

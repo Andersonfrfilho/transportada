@@ -206,6 +206,7 @@ export type OccurrenceTypeRecord = {
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   readonly contractorReplyResolveOnDelivery?: boolean
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy
+  readonly contractorReplyAcknowledgementQuickReplyId?: null | string
   readonly contractorReplyMode?: ContractorReplyMode
   readonly contractorReplyWaitHours?: null | number
   readonly driverReplyTemplate?: string

@@ -631,6 +631,7 @@ describe('a resposta pelo portal move o retorno (spec 248 T4.5, CA02)', () => {
             forwardToInformedEmail: 'off',
             forwardToNoteRecipient: 'off',
             mode: 'forward_automatic',
+            acknowledgementQuickReplyId: null,
             resolveOnDelivery: false,
             version: 1,
             waitHours: 6,

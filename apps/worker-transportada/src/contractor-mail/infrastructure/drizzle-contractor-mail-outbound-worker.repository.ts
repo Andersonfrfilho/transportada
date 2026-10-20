@@ -54,6 +54,8 @@ export type ContractorReplyForwardRecord = {
 }
 
 const FORWARD_TARGETS_SQL = sql`('note_recipient_email', 'informed_email')`
+/** Spec 276 T5: as entregas por e-mail cujo status segue o da mensagem — os encaminhamentos e a resposta automática. */
+const MAIL_DELIVERY_TARGETS_SQL = sql`('note_recipient_email', 'informed_email', 'contractor_acknowledgement')`
 
 /**
  * O consumidor carrega a mensagem e a configuração — não mais a conversa (correção pós-entrega da
@@ -202,7 +204,7 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
               set status = 'sent', sent_at = now()
               where company_id = ${companyId}::uuid
                 and mail_message_id = ${messageId}::uuid
-                and target in ${FORWARD_TARGETS_SQL}
+                and target in ${MAIL_DELIVERY_TARGETS_SQL}
                 and status = 'queued'`,
         )
       })
@@ -230,7 +232,7 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
               set status = 'failed', reason = 'send_failed'
               where company_id = ${companyId}::uuid
                 and mail_message_id = ${messageId}::uuid
-                and target in ${FORWARD_TARGETS_SQL}
+                and target in ${MAIL_DELIVERY_TARGETS_SQL}
                 and status = 'queued'`,
         )
       })

@@ -27,6 +27,7 @@ import {
   type DeliverContractorReplyToDriverResult,
 } from './contractor-reply-driver-delivery.support.js'
 import { findContractorReplyDocumentNote } from './contractor-reply-document-note.support.js'
+import { queueContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.support.js'
 import { queueContractorReplyToNoteRecipient } from './contractor-reply-note-recipient-forward.support.js'
 
 export type ContractorReplyAutomaticDelivery = Extract<
@@ -95,6 +96,7 @@ export async function findContractorReplyConfiguration(
       alertMode: type.contractorReplyAlertMode,
       attachmentKind: type.contractorReplyAttachmentKind,
       resolveOnDelivery: type.contractorReplyResolveOnDelivery,
+      acknowledgementQuickReplyId: type.contractorReplyAcknowledgementQuickReplyId,
       driverReplyChannel: type.driverReplyChannel,
       driverReplyTemplate: type.driverReplyTemplate,
       driverReplyWindowClosedAction: type.driverReplyWindowClosedAction,
@@ -245,6 +247,10 @@ export async function applyContractorReplyToMessage(
   })
   /** RF10: o mesmo boleto sai ao cliente da nota quando o tipo liga o envio automático; falha dele não desfaz nada acima. */
   await queueContractorReplyToNoteRecipient(queryable, { companyId, replyId: reply.id })
+  /** Spec 276 T5: entregue ao motorista, a contratante recebe a resposta rápida do tipo (uma por conversa), se ligada. */
+  if (delivery.kind === 'delivered') {
+    await queueContractorReplyAcknowledgement(queryable, { companyId, replyId: reply.id })
+  }
   return delivery.kind === 'delivered' ? delivery : undefined
 }
 

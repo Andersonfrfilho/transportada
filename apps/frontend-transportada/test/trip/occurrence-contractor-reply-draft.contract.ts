@@ -9,6 +9,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type { OccurrenceType } from '../../src/modules/trip/shared/occurrence.constant'
 import {
+  buildAcknowledgementOptions,
   buildContractorReplyEdit,
   isContractorReplyDraftChanged,
   readContractorReplyDraft,
@@ -39,6 +40,7 @@ function draft(overrides: Partial<ContractorReplyDraft> = {}): ContractorReplyDr
 describe('o rascunho do retorno da contratante (spec 248 T5.1)', () => {
   test('tipo de API anterior aos campos lê os padrões do banco', () => {
     expect(readContractorReplyDraft(TYPE)).toEqual({
+      acknowledgementQuickReplyId: undefined,
       alertIntervalMinutes: '60',
       alertMaxCount: '24',
       alertMode: 'off',
@@ -61,6 +63,46 @@ describe('o rascunho do retorno da contratante (spec 248 T5.1)', () => {
     expect(buildContractorReplyEdit(saved).contractorReplyResolveOnDelivery).toBe(true)
     expect(buildOccurrenceTypeUpdate(TYPE, buildContractorReplyEdit(saved))).toMatchObject({
       contractorReplyResolveOnDelivery: true,
+    })
+  })
+
+  test('a resposta automática (spec 276 T5): API anterior não mostra nem manda; vazio desliga com null', () => {
+    const legacy = readContractorReplyDraft(TYPE)
+    expect(legacy.acknowledgementQuickReplyId).toBeUndefined()
+    expect('contractorReplyAcknowledgementQuickReplyId' in buildContractorReplyEdit(legacy)).toBe(
+      false,
+    )
+
+    const off = readContractorReplyDraft({
+      ...TYPE,
+      contractorReplyAcknowledgementQuickReplyId: null,
+    })
+    expect(off.acknowledgementQuickReplyId).toBe('')
+    expect(buildContractorReplyEdit(off).contractorReplyAcknowledgementQuickReplyId).toBeNull()
+
+    const chosen = { ...off, acknowledgementQuickReplyId: 'quick-1' }
+    expect(isContractorReplyDraftChanged(chosen, off)).toBe(true)
+    expect(buildOccurrenceTypeUpdate(TYPE, buildContractorReplyEdit(chosen))).toMatchObject({
+      contractorReplyAcknowledgementQuickReplyId: 'quick-1',
+    })
+  })
+
+  test('as opções da resposta automática: desligada, as ativas da contratante, e a escolhida que saiu da lista', () => {
+    const quickReplies = [
+      { active: true, audience: 'contractor', id: 'q1', text: 'Recebido,\n obrigado.' },
+      { active: false, audience: 'contractor', id: 'q2', text: 'Inativa' },
+      { active: true, audience: 'driver', id: 'q3', text: 'Do motorista' },
+      { active: true, audience: 'contractor', id: 'q4', text: 'a'.repeat(80) },
+    ]
+    expect(buildAcknowledgementOptions({ quickReplies, selectedId: '' })).toEqual([
+      { kind: 'off', label: '', value: '' },
+      { kind: 'quickReply', label: 'Recebido, obrigado.', value: 'q1' },
+      { kind: 'quickReply', label: `${'a'.repeat(59)}…`, value: 'q4' },
+    ])
+    expect(buildAcknowledgementOptions({ quickReplies, selectedId: 'q2' }).at(-1)).toEqual({
+      kind: 'inactive',
+      label: '',
+      value: 'q2',
     })
   })
 

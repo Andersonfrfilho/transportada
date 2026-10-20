@@ -78,6 +78,8 @@ export type OccurrenceType = Readonly<{
   /** Spec 183 T802: o tipo avisa a contratante sozinho no registro. Ausente é API anterior ao campo. */
   emailsContractor?: boolean
   /** Spec 248 RF1: o retorno da contratante — todos opcionais; ausentes são API anterior aos campos. */
+  /** Spec 276 T5: a resposta rápida que vai à contratante quando o documento é entregue sozinho. Ausente é API anterior. */
+  contractorReplyAcknowledgementQuickReplyId?: null | string
   contractorReplyAlertIntervalMinutes?: number
   contractorReplyAlertMaxCount?: number
   contractorReplyAlertMode?: ContractorReplyAlertMode

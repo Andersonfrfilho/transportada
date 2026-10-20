@@ -654,7 +654,8 @@
         "forwardToNoteRecipient": "Enviar o boleto ao e-mail do cliente da nota",
         "forwardToInformedEmail": "Encaminhar o boleto a um e-mail informado",
         "forwardEmailSubject": "Assunto do e-mail ao terceiro",
-        "forwardEmailBody": "Texto do e-mail ao terceiro"
+        "forwardEmailBody": "Texto do e-mail ao terceiro",
+        "acknowledgement": "Resposta automática à contratante"
       },
       "mode": {
         "off": "Só mostrar a resposta",
@@ -689,6 +690,12 @@
         "maxCountOutOfRange": "Informe de 1 a 96 alertas.",
         "automaticNeedsReply": "O envio automático ao cliente da nota exige que o retorno esteja ligado.",
         "forwardNeedsText": "Escreva o assunto e o texto: o e-mail ao terceiro não sai sem os dois."
+      },
+      "acknowledgement": {
+        "empty": "Cadastre uma resposta rápida ativa na aba Contratante para escolher aqui.",
+        "hint": "Vai uma vez por conversa, só quando o documento é confirmado e entregue ao motorista sem passar pela operação.",
+        "inactive": "Resposta rápida desativada",
+        "off": "Desligada"
       }
     },
     "contractorScope": {

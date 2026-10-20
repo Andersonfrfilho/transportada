@@ -30,6 +30,7 @@ import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertConversationEmailRead } from './conversation-email-read.assertion.js'
 import { assertContractorReplyBoletoCheck } from './contractor-reply-boleto-check.assertion.js'
 import { assertContractorReplyResolveOnDelivery } from './contractor-reply-resolve-on-delivery.assertion.js'
+import { assertContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { assertOccurrenceDuplicateRequestPolicy } from './occurrence-duplicate-request-policy.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
 import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
@@ -166,6 +167,12 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
         })
         await assertOccurrenceDuplicateRequestPolicy({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertContractorReplyAcknowledgement({
           companyId: identityFixture.companyId,
           connectionString,
           database,

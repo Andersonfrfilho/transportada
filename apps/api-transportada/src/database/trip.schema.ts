@@ -3138,6 +3138,11 @@ export const companyOccurrenceTypes = pgTable(
       .notNull()
       .default(false),
     /** Spec 276 T4: a trava de pedido repetido do mesmo tipo na mesma nota. */
+    /** Spec 276 T5: a resposta rápida (`company_quick_replies`, público `contractor`) que sai sozinha à contratante depois da
+     * entrega ao motorista; nula é desligada. Sem FK (a resposta rápida se apaga sem tocar no tipo): quem grava confere. */
+    contractorReplyAcknowledgementQuickReplyId: uuid(
+      'contractor_reply_acknowledgement_quick_reply_id',
+    ),
     duplicateRequestPolicy: varchar('duplicate_request_policy', { length: 24 })
       .$type<DuplicateRequestPolicy>()
       .notNull()
