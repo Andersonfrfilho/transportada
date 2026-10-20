@@ -2615,7 +2615,37 @@
       "cancelled": "Occurrence cancelled",
       "resolvedInternal": "Resolved by {{name}}: {{note}}",
       "resolvedAutomatic": "Resolved automatically when the case was closed",
-      "reopened": "Reopened by the driver {{name}}"
+      "reopened": "Reopened by the driver {{name}}",
+      "contractorReply": "Contractor reply: {{status}}"
+    },
+    "stagesTitle": "Stages",
+    "stageRunning": "running for {{elapsed}}",
+    "stageLasted": "took {{elapsed}}",
+    "stage": {
+      "received": "Received",
+      "in_progress": "In progress",
+      "awaiting_contractor": "Waiting for the contractor",
+      "awaiting_operator": "Waiting for the operator",
+      "reply_received": "Reply received",
+      "delivered": "Delivered to the driver",
+      "reopened": "Reopened",
+      "resolved": "Resolved",
+      "cancelled": "Cancelled"
+    },
+    "stageReason": {
+      "document_not_confirmed": "the PDF does not look like this note's boleto",
+      "multiple_attachments": "more than one attachment arrived",
+      "no_accepted_attachment": "no accepted attachment"
+    },
+    "replyStatus": {
+      "awaiting_contractor": "waiting for the contractor",
+      "overdue": "contractor deadline passed",
+      "reply_received": "reply received",
+      "awaiting_operator": "waiting for operator approval",
+      "needs_operator": "needs the operator",
+      "delivered": "delivered to the driver",
+      "handled": "handled by the operator",
+      "cancelled": "cancelled"
     }
   },
   "occurrenceCancellation": {

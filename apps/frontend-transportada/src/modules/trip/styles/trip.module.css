@@ -5106,6 +5106,27 @@ button.occurrenceCaseBadge {
   border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
 }
 
+/* Spec 276 T3: as etapas da ocorrência, com a cor de quem começou cada uma (a mesma dos eventos). */
+.occurrenceStages {
+  margin: 0 0 var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.occurrenceStages h3 {
+  margin: 0;
+}
+
+.occurrenceStage {
+  --occurrence-tone: var(--color-slate);
+  --occurrence-edge: color-mix(in srgb, var(--occurrence-tone) 55%, var(--color-fog));
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  border-left: 4px solid var(--occurrence-edge);
+}
+
 .occurrenceTimings dt {
   color: var(--color-slate);
   font-size: 0.8rem;

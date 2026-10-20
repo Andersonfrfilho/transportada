@@ -9,6 +9,11 @@
       `contractor-reply-document.policy.ts` (linha digitável FEBRABAN de 47/48 dígitos com DV conferido **e** número da
       nota no texto ou valor da linha igual ao total), cópia idêntica no worker. Texto do PDF: API no portal (unpdf), worker
       antes da transação na thread do pdf.js (ADR-0053). Sem texto ou sem leitor, o retorno vai ao operador.
-- [ ] **T3** Etapa 3: status e tempos da ocorrência (leitura dos eventos; painel e app).
+- [x] **T3a** Etapa 3, leitura: `stages` (etapa, início, autor, duração, motivo, terminal) e `timings.resolvedAt` em
+      `GET /trip-occurrences/:id/timeline`, derivados em `occurrence-timeline.policy.ts` dos eventos já gravados — agora
+      também os do retorno da 248 (`contractor.reply`, com a abertura do retorno). Nada é gravado. Painel mostra as etapas
+      na linha do tempo da ocorrência (parser tolerante: API anterior sem `stages` segue valendo).
+- [ ] **T3b** Etapa 3, opção do tipo: fechar sozinha depois de entregar ao motorista (resolução `system` causada pelo
+      retorno; hoje a CHECK da 266 exige `case_event_id` no `system`, então pede migration) e o app do motorista.
 - [ ] **T4** Etapa 4: trava de pedido repetido na mesma nota (coluna do tipo, guarda no registro).
 - [ ] **T5** Etapa 5: resposta automática à contratante.

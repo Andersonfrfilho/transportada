@@ -35,3 +35,20 @@ Postgres 16 local, Bun 1.4.2.
   CHECK estreita com o diário da 276 ainda gravado.
 - Painel (`bun run test`) 1407 pass; app do motorista 2106 pass; `bun run typecheck` na raiz, `eslint` e `prettier
 --check` nos arquivos tocados: limpos.
+
+## T3a — etapas e tempo de solução (20/10/2026)
+
+Postgres 16 local, Bun 1.4.2.
+
+- Contrato novo `test/trip-occurrence/timeline-stages.contract.ts` (12 casos: prorrogação do boleto ponta a ponta com as
+  durações, tratativa que abre e soluciona, retorno atrasado não abre etapa, "Solicitado" não é a resposta quando há
+  retorno da 248, PDF que não é o boleto → aguardando o operador com o motivo, reaberta e `resolvedAt` da última,
+  cancelada terminal sem tempo de solução, autor de cada etapa, evento `contractor.reply`).
+- API, integração: `trip-occurrence-timeline` (etapas e `resolvedAt` da tratativa encerrada) e
+  `occurrence-contractor-reply-received` (o DANFE leva a etapa a `awaiting_operator` com `document_not_confirmed`; outra
+  empresa não lê nada) → 19 pass, 0 fail.
+- Painel: `test/trip/occurrence-timeline-stages.contract.ts` (frase do retorno, duração encerrada/correndo/terminal, cliente
+  com e sem `stages`, etapa desconhecida descartada, lista de etapas igual à da API, locales) e `bun run test` → 8465 + 1407
+  pass, 0 fail. `tsc --noEmit` e `eslint` limpos.
+- Para a média por tipo (outra conversa): `timings.resolvedAt` é o início da última etapa quando ela é `resolved`, senão
+  `null`; `openSince` é o registro.
