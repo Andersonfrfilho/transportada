@@ -16,6 +16,8 @@
 export type DkimSignatureStatus = {
   readonly result: string
   readonly aligned?: string | false
+  /** O motivo que a `mailauth` dá quando não passa (`body hash did not verify`, `no key`…). */
+  readonly comment?: string | false
 }
 
 export type DkimSignatureVerification = {
@@ -76,4 +78,47 @@ export function resolveDkimAlignment(
   if (signatures.some(isTransientFailure)) return DKIM_ALIGNMENT_RESULT.UNVERIFIABLE
 
   return DKIM_ALIGNMENT_RESULT.NOT_ALIGNED
+}
+
+/** Os motivos da `mailauth` que podem ir a log: vocabulário fixo, sem domínio nem endereço. */
+const DKIM_DIAGNOSTIC_REASONS = new Set([
+  'bad signature',
+  'body hash did not verify',
+  'expired',
+  'invalid expiration',
+  'invalid public key',
+  'no key',
+  'unknown key type',
+  'unknown key version',
+])
+const DKIM_DIAGNOSTIC_MAX_SIGNATURES = 5
+
+export type DkimSignatureDiagnostic = {
+  readonly aligned: boolean
+  readonly lengthLimited: boolean
+  readonly reason: string | null
+  readonly result: string
+}
+
+/**
+ * Por que o DKIM não alinhou, num formato que pode ir a log: veredito, alinhamento e o motivo da `mailauth` só
+ * quando é do vocabulário fixo (o resto vira `other`) — nunca domínio, seletor ou endereço.
+ */
+export function summarizeDkimSignatures(
+  signatures: readonly DkimSignatureVerification[],
+): readonly DkimSignatureDiagnostic[] {
+  return signatures.slice(0, DKIM_DIAGNOSTIC_MAX_SIGNATURES).map((signature) => {
+    const comment = signature.status.comment
+    return {
+      aligned: Boolean(signature.status.aligned),
+      lengthLimited: signature.canonBodyLengthLimited === true,
+      reason:
+        typeof comment === 'string' && comment !== ''
+          ? DKIM_DIAGNOSTIC_REASONS.has(comment)
+            ? comment
+            : 'other'
+          : null,
+      result: signature.status.result,
+    }
+  })
 }

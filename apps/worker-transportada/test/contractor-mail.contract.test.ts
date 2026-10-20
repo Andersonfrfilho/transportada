@@ -4,6 +4,7 @@
 import './contractor-mail/credential-secret-parity.contract.js'
 import './contractor-mail/credential-secret.contract.js'
 import './contractor-mail/dkim-verification.contract.js'
+import './contractor-mail/dkim-alignment-policy.contract.js'
 import './contractor-mail/inbound-consumer.contract.js'
 import './contractor-mail/inbound-envelope.contract.js'
 import './contractor-mail/inbound-message.contract.js'

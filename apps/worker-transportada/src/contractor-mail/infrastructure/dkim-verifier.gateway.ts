@@ -20,7 +20,9 @@ import { dkimVerify } from 'mailauth'
 import {
   DKIM_ALIGNMENT_RESULT,
   resolveDkimAlignment,
+  summarizeDkimSignatures,
   type DkimAlignmentResult,
+  type DkimSignatureDiagnostic,
 } from '../domain/dkim-alignment.policy.js'
 
 const DEFAULT_DNS_TIMEOUT_MS = 5_000
@@ -43,6 +45,8 @@ export const resolveDkimDnsRecord: DkimDnsResolver = async (name, recordType) =>
 export type DkimVerification = {
   readonly alignment: DkimAlignmentResult
   readonly headerFrom: readonly string[]
+  /** Só para log: por que cada assinatura passou ou não (sem veredito no prazo, ausente). */
+  readonly signatures?: readonly DkimSignatureDiagnostic[]
 }
 
 export type VerifyDkimAlignmentPort = {
@@ -116,6 +120,7 @@ export function createDkimVerifierGateway(
         verification.then((result) => ({
           alignment: resolveDkimAlignment(result.results),
           headerFrom: result.headerFrom,
+          signatures: summarizeDkimSignatures(result.results),
         })),
         deadline,
       ])
