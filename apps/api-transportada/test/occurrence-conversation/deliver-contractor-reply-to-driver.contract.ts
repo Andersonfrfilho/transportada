@@ -31,6 +31,7 @@ function build(overrides: {
   readonly notifyFails?: boolean
   readonly replyId?: null | string
   readonly result?: DeliverContractorReplyToDriverResult
+  readonly typeName?: null | string
 }) {
   const notifications: Array<Record<string, unknown>> = []
   const delivered: Array<Record<string, unknown>> = []
@@ -45,6 +46,8 @@ function build(overrides: {
       return overrides.result ?? DELIVERED
     },
     findOccurrenceLabel: async () => 'NF 123',
+    findOccurrenceTypeName: async () =>
+      overrides.typeName === undefined ? 'Prorrogação do boleto' : overrides.typeName,
     findReplyId: async () => (overrides.replyId === undefined ? 'reply-1' : overrides.replyId),
   }
   const useCase = createDeliverContractorReplyToDriverUseCase({
@@ -121,6 +124,7 @@ describe('entregar o boleto da contratante ao motorista (spec 248 T4.6)', () => 
       {
         actorUserId: ACTOR_ID,
         attachmentId,
+        bodyText: 'Segue a requisição: Prorrogação do boleto',
         companyId: COMPANY_ID,
         now: new Date('2026-10-12T20:00:00.000Z'),
         occurrenceId: OCCURRENCE_ID,
@@ -133,5 +137,17 @@ describe('entregar o boleto da contratante ao motorista (spec 248 T4.6)', () => 
     const { delivered, useCase } = build({})
     await useCase.deliver({ ...INPUT, attachmentId: '44444444-4444-4444-8444-444444444444' })
     expect(delivered[0]).toMatchObject({ attachmentId: '44444444-4444-4444-8444-444444444444' })
+  })
+
+  test('sem retorno, o arquivo vai com o texto do tipo; sem tipo, só o arquivo', async () => {
+    const attachmentId = '44444444-4444-4444-8444-444444444444'
+    const named = build({ replyId: null, typeName: '  Devolução  ' })
+    await named.useCase.deliver({ ...INPUT, attachmentId })
+    expect(named.deliveredAttachments[0]).toMatchObject({
+      bodyText: 'Segue a requisição: Devolução',
+    })
+    const unnamed = build({ replyId: null, typeName: null })
+    await unnamed.useCase.deliver({ ...INPUT, attachmentId })
+    expect(unnamed.deliveredAttachments[0]).toMatchObject({ bodyText: '' })
   })
 })

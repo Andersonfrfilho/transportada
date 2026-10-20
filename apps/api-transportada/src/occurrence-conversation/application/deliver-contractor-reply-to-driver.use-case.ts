@@ -8,6 +8,7 @@
  */
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { OCCURRENCE_CONVERSATION_SUBJECT } from '../../shared/occurrence-conversation-subject.constant.js'
+import { describeAttachmentDeliveryText } from '../domain/attachment-delivery-text.policy.js'
 import type { DriverConversationNotifierPort } from './driver-conversation.port.js'
 import type {
   DeliverContractorReplyToDriverParams,
@@ -23,6 +24,7 @@ export type ContractorReplyDeliveryTransactionPort = {
     params: DeliverConversationAttachmentToDriverParams,
   ): Promise<DeliverContractorReplyToDriverResult>
   findOccurrenceLabel(input: { companyId: string; occurrenceId: string }): Promise<null | string>
+  findOccurrenceTypeName(input: { companyId: string; occurrenceId: string }): Promise<null | string>
   findReplyId(input: { companyId: string; occurrenceId: string }): Promise<null | string>
 }
 
@@ -59,6 +61,9 @@ export function createDeliverContractorReplyToDriverUseCase(dependencies: {
             ? await transaction.deliverAttachment({
                 actorUserId: input.actorUserId,
                 attachmentId: input.attachmentId ?? '',
+                bodyText: describeAttachmentDeliveryText(
+                  await transaction.findOccurrenceTypeName(input),
+                ),
                 companyId: input.companyId,
                 now: dependencies.clock(),
                 occurrenceId: input.occurrenceId,

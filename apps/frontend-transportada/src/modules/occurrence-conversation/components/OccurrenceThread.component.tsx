@@ -1,5 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { ConversationThread } from '@adatechnology/conversations-ui/participant'
+import {
+  ConversationThread,
+  type ParticipantMessageActionsRenderer,
+} from '@adatechnology/conversations-ui/participant'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -35,6 +38,8 @@ type OccurrenceThreadProps = Readonly<{
   occurrenceId: string
   onSendError?: (error: null | OccurrenceThreadSendError) => void
   participant: OccurrenceThreadParticipant
+  /** Copiar e encaminhar ao outro chat, no fim de cada balão. */
+  renderMessageActions?: ParticipantMessageActionsRenderer
   status: 'closed' | 'open'
   title: string
 }>
@@ -53,6 +58,7 @@ export function OccurrenceThread({
   occurrenceId,
   onSendError,
   participant,
+  renderMessageActions,
   status,
   title,
 }: OccurrenceThreadProps) {
@@ -91,6 +97,7 @@ export function OccurrenceThread({
         locale={i18n.language}
         perspective="operator"
         quickReplies={threadQuickReplies}
+        {...(renderMessageActions === undefined ? {} : { renderMessageActions })}
         status={status}
         subject={threadSubject}
         title={title}

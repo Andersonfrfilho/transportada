@@ -3,7 +3,7 @@
  *
  * O arquivo que a contratante mandou na conversa vai ao motorista mesmo quando o tipo da ocorrência não abre
  * retorno (spec 248 pressupunha um): sem retorno não há texto do tipo nem linha de entrega, então a mensagem
- * sai só com o anexo — o **mesmo objeto do bucket**, como no caminho do retorno. Idempotente por anexo pela
+ * sai com o anexo e o texto que o caso de uso montou ("Segue a requisição: <tipo>") — o **mesmo objeto do bucket**, como no caminho do retorno. Idempotente por anexo pela
  * `client_message_id` da mensagem na conversa do motorista.
  *
  * Só da API: o worker entrega apenas pelo retorno (`contractor-reply-driver-delivery.support.ts`, que tem
@@ -19,6 +19,8 @@ import type {
 export type DeliverConversationAttachmentToDriverParams = {
   readonly actorUserId: string
   readonly attachmentId: string
+  /** O texto da mensagem que leva o arquivo; vazio é só o arquivo. */
+  readonly bodyText: string
   readonly companyId: string
   readonly now: Date
   readonly occurrenceId: string
@@ -107,7 +109,7 @@ export async function deliverConversationAttachmentToDriver(
           (company_id, conversation_id, channel, direction, author_user_id, automatic, body_text,
            status, status_times, client_message_id, created_at)
         values (${companyId}::uuid, ${conversationId}::uuid, 'app', 'outbound', ${params.actorUserId}::uuid,
-                false, '', 'queued', ${JSON.stringify({ queued: queuedAt })}::jsonb,
+                false, ${params.bodyText}, 'queued', ${JSON.stringify({ queued: queuedAt })}::jsonb,
                 ${conversationAttachmentDriverMessageKey(attachmentId)}, ${queuedAt}::timestamptz)
         on conflict (company_id, conversation_id, direction, client_message_id)
           where client_message_id is not null

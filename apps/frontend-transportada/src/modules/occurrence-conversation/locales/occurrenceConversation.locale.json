@@ -540,5 +540,13 @@
       "OCCURRENCE_WATCHER_NOT_FOUND": "Este responsável não está mais na lista.",
       "CONTRACTOR_NOT_FOUND": "Contratante não encontrada."
     }
+  },
+  "message": {
+    "copy": "Copiar texto",
+    "copied": "Copiado",
+    "forwardToDriver": "Encaminhar ao motorista",
+    "forwardToContractor": "Encaminhar à contratante",
+    "forwarded": "Encaminhada",
+    "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
   }
 }

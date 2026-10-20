@@ -540,5 +540,13 @@
       "OCCURRENCE_WATCHER_NOT_FOUND": "This owner is no longer on the list.",
       "CONTRACTOR_NOT_FOUND": "Contractor not found."
     }
+  },
+  "message": {
+    "copy": "Copy text",
+    "copied": "Copied",
+    "forwardToDriver": "Forward to driver",
+    "forwardToContractor": "Forward to contractor",
+    "forwarded": "Forwarded",
+    "forwardError": "Could not forward. Try again shortly."
   }
 }
