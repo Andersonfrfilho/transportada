@@ -178,6 +178,22 @@ describe('o mapa da mensagem da ocorrência para o SDK', () => {
     expect(received).not.toHaveProperty('status')
   })
 
+  test('o e-mail inteiro vai recolhido no balão; sem ele, o balão não ganha o campo', () => {
+    const fullText =
+      'Podem descarregar.\n\nEm ter., 20 de out. de 2026, Equipe escreveu:\n> Autorizam?'
+    const withHistory = toThreadMessage(
+      message({
+        bodyText: 'Podem descarregar.',
+        direction: 'inbound',
+        emailFullText: fullText,
+        status: null,
+      }),
+      LABELS,
+    )
+    expect(withHistory).toMatchObject({ originalText: fullText, text: 'Podem descarregar.' })
+    expect(toThreadMessage(message({ status: null }), LABELS)).not.toHaveProperty('originalText')
+  })
+
   test('remetente fora dos contatos diz "Remetente não confirmado" quando o DKIM não alinhou, senão "Fora dos contatos"', () => {
     const unknown = (unverified: boolean) =>
       message({

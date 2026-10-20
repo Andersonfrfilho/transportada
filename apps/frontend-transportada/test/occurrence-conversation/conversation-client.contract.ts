@@ -89,6 +89,35 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
     ])
   })
 
+  test('lê o e-mail inteiro da resposta e descarta o vazio ou de outro tipo', async () => {
+    const client = createClient(
+      Response.json({
+        data: {
+          conversations: [
+            {
+              id: 'conversation-1',
+              messages: [
+                { ...OUTBOUND, emailFullText: 'Ok\n> antes', id: 'with-history' },
+                { ...OUTBOUND, emailFullText: '  ', id: 'blank' },
+                { ...OUTBOUND, emailFullText: 42, id: 'wrong-type' },
+              ],
+              participant: 'contractor',
+              status: 'open',
+              unreadCount: 0,
+            },
+          ],
+        },
+      }),
+    )
+
+    const { conversations } = await client.listConversations({ occurrenceId: OCCURRENCE_ID })
+    const [withHistory, blank, wrongType] = conversations[0]?.messages ?? []
+
+    expect(withHistory?.emailFullText).toBe('Ok\n> antes')
+    expect(blank).not.toHaveProperty('emailFullText')
+    expect(wrongType).not.toHaveProperty('emailFullText')
+  })
+
   /** Spec 267 RF8/RF9: a cópia da mensagem de saída e o responsável que respondeu (interno) são lidos. */
   test('lê a cópia da mensagem de saída e a identidade interna do responsável', async () => {
     const client = createClient(

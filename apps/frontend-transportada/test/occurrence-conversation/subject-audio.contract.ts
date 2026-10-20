@@ -222,7 +222,11 @@ describe('a gravação no painel (contract §2)', () => {
 })
 
 describe('os rótulos do gravador, do player e da transcrição (contract §4)', () => {
-  const PACKAGE_KEYS = [...Object.keys(DEFAULT_PARTICIPANT_AUDIO_LABELS), 'messageOptions']
+  const PACKAGE_KEYS = [
+    ...Object.keys(DEFAULT_PARTICIPANT_AUDIO_LABELS),
+    'messageOptions',
+    'showOriginalText',
+  ]
 
   test('todo rótulo do pacote está em SUBJECT_THREAD_LABEL_KEYS e nos dois idiomas', async () => {
     const keys: readonly string[] = SUBJECT_THREAD_LABEL_KEYS

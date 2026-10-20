@@ -202,6 +202,9 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
     ...(copy.length === 0 ? {} : { copy }),
     createdAt: value.createdAt,
     direction: value.direction,
+    ...(isString(value.emailFullText) && value.emailFullText.trim() !== ''
+      ? { emailFullText: value.emailFullText }
+      : {}),
     id: value.id,
     status: value.status,
     statusTimes,
