@@ -72,3 +72,23 @@ function distance(data: Buffer, offset: number, background: Rgb): number {
     Math.abs((data[offset + 2] ?? 0) - background[2]),
   )
 }
+
+/** Um logo por empresa e a instalação é dedicada: o teto é folga, e estourar só descarta a memória. */
+const WHITE_CACHE_LIMIT = 32
+
+/** A silhueta branca guardada por `sha256` do original: o logo muda raramente e a conversão custa um decode. */
+export function createWhiteLogoCache(): (logo: {
+  readonly bytes: Uint8Array
+  readonly sha256: string
+}) => Promise<Uint8Array> {
+  const cache = new Map<string, Uint8Array>()
+  return async (logo) => {
+    let white = cache.get(logo.sha256)
+    if (white === undefined) {
+      white = await toWhiteLogoPng(logo.bytes)
+      if (cache.size >= WHITE_CACHE_LIMIT) cache.clear()
+      cache.set(logo.sha256, white)
+    }
+    return white
+  }
+}

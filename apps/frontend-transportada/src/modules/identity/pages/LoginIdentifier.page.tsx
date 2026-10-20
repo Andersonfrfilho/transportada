@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
+import { resolveThemedLogoUrl } from '@/modules/shared/colorTheme.service'
+import { useEffectiveColorTheme } from '@/modules/shared/useEffectiveColorTheme.hook'
 
 import { getIdentityEnvironment } from '../shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '../shared/KeycloakAuthProvider.provider'
@@ -39,6 +41,7 @@ export function LoginIdentifierPage() {
   const [brand, setBrand] = useState<InstallationBrand | undefined>(readCachedInstallationBrand)
   /** Instalação sem logotipo configurado, ou API fora do ar: a marca do produto assume. */
   const [hasLogo, setHasLogo] = useState(true)
+  const theme = useEffectiveColorTheme()
 
   useEffect(() => {
     let active = true
@@ -95,7 +98,11 @@ export function LoginIdentifierPage() {
                 className={styles.brandMark}
                 /** O `onError` cobre o 404 da instalação sem logotipo e a imagem que não carrega. */
                 onError={() => setHasLogo(false)}
-                src={hasLogo ? brand.logoUrl : '/icons/icon.svg'}
+                src={
+                  hasLogo
+                    ? resolveThemedLogoUrl({ logoUrl: brand.logoUrl, theme })
+                    : '/icons/icon.svg'
+                }
               />
               <strong className={styles.brandName}>{brand.name ?? 'TransportAdA'}</strong>
             </>

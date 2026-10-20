@@ -21,15 +21,16 @@ import {
  */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
 /** Curto de propósito: a troca do logo ou da foto aparece em minutos, e o e-mail não carrega versão no endereço. */
-/** Um logo por empresa; a instalação é dedicada, então o teto é folga. */
-const WHITE_CACHE_LIMIT = 32
 const CACHE_CONTROL = 'public, max-age=300'
 
 type Dependencies = {
   readonly companyLogo: Pick<CompanyLogoRepositoryPort, 'find'>
   readonly userPicture: Pick<UserPictureRepositoryPort, 'find'>
-  /** A silhueta branca do logo (PNG); a rota guarda o resultado por `sha256` do original. */
-  readonly whiteLogo: (bytes: Uint8Array) => Promise<Uint8Array>
+  /** A silhueta branca do logo (PNG), já guardada por `sha256` do original. */
+  readonly whiteLogo: (logo: {
+    readonly bytes: Uint8Array
+    readonly sha256: string
+  }) => Promise<Uint8Array>
 }
 
 type Image = { readonly bytes: Uint8Array; readonly mimeType: string; readonly sha256: string }
@@ -56,7 +57,6 @@ function uuid(value: string | undefined): string {
 export function createPublicMailAssetRoutes(
   dependencies: Dependencies,
 ): readonly RegisteredAnonymousRoute[] {
-  const whiteCache = new Map<string, Uint8Array>()
   return [
     defineAnonymousRoute<{ readonly companyId: string }>({
       async handle({ input }): Promise<Response> {
@@ -71,14 +71,8 @@ export function createPublicMailAssetRoutes(
       async handle({ input }): Promise<Response> {
         const logo = await dependencies.companyLogo.find({ companyId: input.companyId })
         if (logo === null) throw new ApiError(HTTP_ERROR.notFound)
-        let white = whiteCache.get(logo.sha256)
-        if (white === undefined) {
-          white = await dependencies.whiteLogo(logo.bytes)
-          if (whiteCache.size >= WHITE_CACHE_LIMIT) whiteCache.clear()
-          whiteCache.set(logo.sha256, white)
-        }
         return imageResponse({
-          bytes: white,
+          bytes: await dependencies.whiteLogo(logo),
           mimeType: 'image/png',
           sha256: `${logo.sha256}-white`,
         })

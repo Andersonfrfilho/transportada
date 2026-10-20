@@ -101,6 +101,8 @@ export class CompanyLogoRepositoryFixture implements CompanyLogoRepositoryPort {
   }
 }
 
+export const WHITE_LOGO_BYTES = Buffer.from('white-logo')
+
 export function landingRequest(input: {
   readonly authenticated?: boolean
   readonly body?: string
@@ -155,7 +157,11 @@ export async function createLandingHttpFixture({
   const context = authenticatedContext(permissions)
   const authorization = new AuthorizationService()
   const router = createRouter({
-    anonymousRoutes: createLandingPublicRoutes({ landingLogo, landingSettings }),
+    anonymousRoutes: createLandingPublicRoutes({
+      landingLogo,
+      landingSettings,
+      whiteLogo: async () => WHITE_LOGO_BYTES,
+    }),
     authentication: {
       async authenticate() {
         return context.identity
