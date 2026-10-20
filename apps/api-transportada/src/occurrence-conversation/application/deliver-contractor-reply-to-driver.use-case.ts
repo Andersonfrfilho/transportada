@@ -3,7 +3,8 @@
  *
  * Spec 248 RF7/RF9 (T4.6): o operador leva o boleto da contratante ao motorista pelo chat do app — a resposta
  * aceita do retorno ou qualquer anexo da conversa da contratante. O aviso no sino sai só depois do commit e
- * nunca desfaz a entrega.
+ * nunca desfaz a entrega. Ocorrência sem retorno leva o anexo escolhido assim mesmo (o botão aparece em todo
+ * arquivo recebido); sem retorno e sem anexo escolhido não há o que levar: 404.
  */
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { OCCURRENCE_CONVERSATION_SUBJECT } from '../../shared/occurrence-conversation-subject.constant.js'
@@ -12,10 +13,14 @@ import type {
   DeliverContractorReplyToDriverParams,
   DeliverContractorReplyToDriverResult,
 } from '../infrastructure/contractor-reply-driver-delivery.support.js'
+import type { DeliverConversationAttachmentToDriverParams } from '../infrastructure/conversation-attachment-driver-delivery.support.js'
 
 export type ContractorReplyDeliveryTransactionPort = {
   deliver(
     params: DeliverContractorReplyToDriverParams,
+  ): Promise<DeliverContractorReplyToDriverResult>
+  deliverAttachment(
+    params: DeliverConversationAttachmentToDriverParams,
   ): Promise<DeliverContractorReplyToDriverResult>
   findOccurrenceLabel(input: { companyId: string; occurrenceId: string }): Promise<null | string>
   findReplyId(input: { companyId: string; occurrenceId: string }): Promise<null | string>
@@ -46,15 +51,26 @@ export function createDeliverContractorReplyToDriverUseCase(dependencies: {
     }): Promise<DeliverContractorReplyToDriverOutcome> {
       const outcome = await dependencies.unitOfWork.execute(async (transaction) => {
         const replyId = await transaction.findReplyId(input)
-        if (replyId === null) throw new TripOccurrenceNotFoundError()
-        const result = await transaction.deliver({
-          actorUserId: input.actorUserId,
-          ...(input.attachmentId === undefined ? {} : { attachmentId: input.attachmentId }),
-          companyId: input.companyId,
-          now: dependencies.clock(),
-          replyId,
-          trigger: 'operator',
-        })
+        if (replyId === null && input.attachmentId === undefined) {
+          throw new TripOccurrenceNotFoundError()
+        }
+        const result =
+          replyId === null
+            ? await transaction.deliverAttachment({
+                actorUserId: input.actorUserId,
+                attachmentId: input.attachmentId ?? '',
+                companyId: input.companyId,
+                now: dependencies.clock(),
+                occurrenceId: input.occurrenceId,
+              })
+            : await transaction.deliver({
+                actorUserId: input.actorUserId,
+                ...(input.attachmentId === undefined ? {} : { attachmentId: input.attachmentId }),
+                companyId: input.companyId,
+                now: dependencies.clock(),
+                replyId,
+                trigger: 'operator',
+              })
         const occurrenceLabel =
           result.kind === 'delivered' ? await transaction.findOccurrenceLabel(input) : null
         return { occurrenceLabel, result }

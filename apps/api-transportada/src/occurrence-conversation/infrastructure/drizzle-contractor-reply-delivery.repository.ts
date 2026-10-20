@@ -11,6 +11,7 @@ import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occu
 import type { ContractorReplyDeliveryUnitOfWorkPort } from '../application/deliver-contractor-reply-to-driver.use-case.js'
 import { describeOccurrenceLabel } from '../domain/occurrence-label.policy.js'
 import { deliverContractorReplyToDriver } from './contractor-reply-driver-delivery.support.js'
+import { deliverConversationAttachmentToDriver } from './conversation-attachment-driver-delivery.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -22,6 +23,7 @@ export function createDrizzleContractorReplyDeliveryUnitOfWork(
       database.transaction((transaction) =>
         operation({
           deliver: (params) => deliverContractorReplyToDriver(transaction, params),
+          deliverAttachment: (params) => deliverConversationAttachmentToDriver(transaction, params),
           async findOccurrenceLabel({ companyId, occurrenceId }) {
             const item = await findTripOccurrenceFeedItem(transaction, { companyId, occurrenceId })
             return item === null ? null : describeOccurrenceLabel(item)
