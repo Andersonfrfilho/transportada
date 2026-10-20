@@ -58,6 +58,22 @@
   font-family: var(--font-body);
 }
 
+/* A fileira de respostas rápidas do SDK rola só para o lado e esconde a barra: no toque o dedo arrasta, mas a roda do
+ * mouse não a move. Do desktop para cima os chips quebram linha dentro da moldura, com teto de duas linhas e rolagem
+ * vertical (a roda do mouse alcança o resto) — sem o teto, nove respostas comiam a altura do fio. */
+@media (min-width: 64rem) {
+  .conversationTheme :global(.cv-p-quick) {
+    flex-wrap: wrap;
+    max-height: calc(2 * var(--control-height) + var(--space-3));
+    margin: 0;
+    padding-inline: 0;
+    overflow: hidden auto;
+    scrollbar-width: thin;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+}
+
 .notice {
   margin: 0;
   padding: var(--space-3) var(--space-4);
