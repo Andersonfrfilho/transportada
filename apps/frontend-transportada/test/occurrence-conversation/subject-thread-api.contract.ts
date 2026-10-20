@@ -250,12 +250,13 @@ describe('spec 274: textos do composer e da fila na conversa da contratante', ()
     expect(labels.messageInputLabel).not.toContain('motorista')
   })
 
-  test('o fio do motorista segue com o texto do app (fila offline)', async () => {
+  test('o fio do motorista diz que espera o app, não a rede: o painel nunca guarda envio offline', async () => {
     const subject = await readLocale('subjectConversation.locale.json')
     const labels = (subject as unknown as { thread: { labels: Record<string, string> } }).thread
       .labels
     expect(labels.messageInputLabel).toBe('Mensagem ao motorista')
-    expect(labels.statusQueued).toBe('Na fila · envia quando a rede voltar')
+    expect(labels.statusQueued).toBe('Aguardando o app do motorista')
+    expect(labels.statusQueued).not.toContain('rede')
   })
 
   test('en espelha as chaves de pt', async () => {

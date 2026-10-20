@@ -103,7 +103,7 @@
       "statusDelivered": "Delivered",
       "statusFailed": "Failed — tap to resend",
       "statusFailedShort": "Failed",
-      "statusQueued": "Queued · sends when the network is back",
+      "statusQueued": "Waiting for the driver app",
       "statusRead": "Read by the driver",
       "statusSending": "Sending",
       "statusSent": "Sent",
