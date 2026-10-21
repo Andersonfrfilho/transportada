@@ -23,8 +23,6 @@ function buildType(overrides: Partial<OccurrenceType> & Pick<OccurrenceType, 'id
     allowsMultipleItems: true,
     ...OCCURRENCE_REQUIREMENT_DEFAULTS,
     attachmentMode: 'off',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     leavesDocumentBehind: false,
@@ -75,7 +73,6 @@ async function mount(types: readonly OccurrenceType[]): Promise<void> {
   const rendered = await renderWithQueryClient(
     createElement(TripOccurrences, {
       canRegister: true,
-      email: null,
       isRegistering: false,
       occurrences: [],
       onRegister: () => Promise.resolve({ hasFailure: false }),

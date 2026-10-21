@@ -5,6 +5,7 @@
  * com link para `/ocorrencias/:id`, e "Nenhuma ocorrência registrada" quando não há. Cobre o
  * **renderizado**; o clique do link e a busca ficam em `test/trip-hooks`. Dados sintéticos.
  */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'bun:test'
 
@@ -14,6 +15,7 @@ import type { TripWorkspaceController } from '@/modules/trip/hooks/useTripWorksp
 import tripEn from '@/modules/trip/locales/trip.en.locale.json'
 import tripPt from '@/modules/trip/locales/trip.locale.json'
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
+import { TRIP_QUERY_KEY } from '@/modules/trip/shared/trip.constant'
 import type { TripDocumentDetail, TripOccurrence } from '@/modules/trip/shared/trip.types'
 
 const DOCUMENT = { id: 'document-1', tripId: 'trip-1' } as unknown as TripDocumentDetail
@@ -37,14 +39,16 @@ function render(
     controller: { canManageTrips: false, canReadTripFleetDetails: options.canReadTripFleetDetails },
     documentProductsQuery: { data: [] },
     isSendingOccurrencePhotos: false,
-    lastOccurrenceEmail: null,
     occurrencePhotoSendState: [],
-    occurrenceTypesQuery: { data: [] },
     occurrencesQuery: { data: options.occurrences },
     resetSeparationOccurrencePhotoSend: () => undefined,
     sendSeparationOccurrencePhotos: () => Promise.resolve({ hasFailure: false }),
   } as unknown as TripWorkspaceController
-  return renderToStaticMarkup(<TripDocumentOccurrences document={DOCUMENT} workspace={workspace} />)
+  return renderToStaticMarkup(
+    <QueryClientProvider client={new QueryClient()}>
+      <TripDocumentOccurrences document={DOCUMENT} workspace={workspace} />
+    </QueryClientProvider>,
+  )
 }
 
 const SEPARATION_TYPE = {
@@ -59,14 +63,22 @@ function renderAsManager(document: TripDocumentDetail): string {
     controller: { canManageTrips: true, canReadTripFleetDetails: true },
     documentProductsQuery: { data: [] },
     isSendingOccurrencePhotos: false,
-    lastOccurrenceEmail: null,
     occurrencePhotoSendState: [],
-    occurrenceTypesQuery: { data: [SEPARATION_TYPE] },
     occurrencesQuery: { data: [] },
     resetSeparationOccurrencePhotoSend: () => undefined,
     sendSeparationOccurrencePhotos: () => Promise.resolve({ hasFailure: false }),
   } as unknown as TripWorkspaceController
-  return renderToStaticMarkup(<TripDocumentOccurrences document={document} workspace={workspace} />)
+  /** Spec 270: os tipos do galpão vêm do servidor, por nota — a consulta já resolvida, como o painel a teria. */
+  const client = new QueryClient()
+  client.setQueryData(
+    [TRIP_QUERY_KEY, 'separation-occurrence-types', document.tripId, document.id],
+    [SEPARATION_TYPE],
+  )
+  return renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <TripDocumentOccurrences document={document} workspace={workspace} />
+    </QueryClientProvider>,
+  )
 }
 
 describe('a seção Ocorrências da nota aberta (spec 233 RF6)', () => {

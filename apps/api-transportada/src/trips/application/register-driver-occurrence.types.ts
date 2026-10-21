@@ -4,6 +4,7 @@
  * As portas e a entrada de `registerDriverOccurrence` (spec 079, 179, 246) — em arquivo próprio para o
  * caso de uso e a avaliação da ocorrência (`driver-occurrence-assessment.service.ts`) o compartilharem.
  */
+import type { DriverOccurrenceNotifierPort } from './driver-occurrence-notifier.service.js'
 import type { DriverOccurrenceItemRequest } from '../domain/driver-occurrence-items.policy.js'
 import type { PricedDocumentProduct } from '../domain/occurrence-product-pricing.policy.js'
 import type { ReportedLocation, DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
@@ -81,6 +82,11 @@ export type RegisterDriverOccurrenceInput = FieldTripLocator & {
   /** Spec 196 T3.3: o ponto do toque; ausente é o aparelho que não mandou, e carimba `unavailable`. */
   readonly location?: ReportedLocation | null | undefined
   readonly note: string
+  /**
+   * Spec 275: o aviso interno ao painel (responsáveis + quem despachou), depois do commit. Ausente é o dublê de teste
+   * que não avisa; a rota e o WhatsApp sempre passam.
+   */
+  readonly notifier?: DriverOccurrenceNotifierPort | undefined
   readonly occurrenceTypeId: string
   /** Vazio é a nota inteira: o motorista aponta o item quando o cliente recusou só parte. */
   readonly productCode: string

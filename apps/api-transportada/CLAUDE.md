@@ -1081,3 +1081,155 @@ Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/eviden
     `occurrences.resolve`. Senão loga `info` e não envia.
 - **Feed e linha do tempo:** o feed traz `resolution {state, at, actorKind} | null` e filtra por `resolutionStateIn` (`open`, `resolved`,
   `reopened`, `cancelled`); "em aberto" = `open,reopened`. A linha do tempo usa `resolution.resolved` e `resolution.reopened`.
+
+## O e-mail da contratante cai no Mailpit fora de produção (spec 268)
+
+⚠️ **`CONTRACTOR_MAIL_SANDBOX_SMTP=true`** (opt-in; API e worker; **produção recusa no boot nas duas apps**) manda o e-mail de
+ocorrência da contratante pelo SMTP do ambiente (Mailpit) **só quando a empresa não tem o Resend pronto**
+(`resolveMailSendReadiness`). Com o Resend pronto o envio é o de sempre, mesmo em staging. Na API o modo exige
+`EMAIL_FROM` (o remetente do sandbox; mesmo valor do worker) e `send-occurrence-mail.use-case.ts` grava
+`contractor_mail_messages.transport = 'sandbox_smtp'` (`varchar(16)`, padrão `resend`, CHECK) sem decifrar nada,
+com hash de token aleatório na thread e **sem** `Reply-To` (ninguém responde pelo Mailpit). O `GET /contractor-mail-settings`
+devolve `{ data, sandboxDelivery }` — `sandboxDelivery` é `true` só com o modo ligado e a configuração não pronta. Fora do
+escopo: correção de endereço (150) e encaminhamento do boleto (248) continuam exigindo o Resend. Contratos:
+`test/contractor-mail/sandbox-environment.contract.ts`, `test/occurrence-conversation/occurrence-mail.contract.ts`,
+`test/integration/occurrence-mail-sandbox.integration.ts`.
+
+## Os responsáveis vão em cópia no e-mail da contratante (spec 267)
+
+⚠️ Duas listas de **responsáveis por ocorrências**: `company_occurrence_watchers` e `contractor_occurrence_watchers` (PK
+composta, `status` `active`/`inactive`, auditoria de quem mexeu). **Lista da contratante com algum ativo vence a da empresa;
+sem nenhum ativo, herda.** Só ativo vai em `Cc`; inativo continua listado; remover apaga. Tetos: **10 ativos e 30 linhas** por
+lista. Elegível = vínculo ativo + `occurrences.resolve` (papel, grupo ou concessão direta, calculados **em lote** em
+`occurrence-watcher-directory.query.ts`) + perfil com canal de e-mail. A cópia **nunca é endereço digitado**: o corpo do envio
+só aceita `excludedWatcherUserIds` (só remove, `.strict()`, `cc` livre segue 400). Rotas por item em `/company-settings/
+occurrence-watchers[/:userId|/candidates]` e `/contractors/:id/occurrence-watchers[/:userId]` (`settings.manage`); `candidates`
+é rota estática, `:userId` só casa uuid (teste com o roteador real). Escrita e `audit_logs`
+(`occurrence_watchers.{company|contractor}.{add|activate|deactivate|remove}`, sem endereço) na **mesma transação**, sob advisory lock da lista.
+`resolveMailCopy` (`contractor-mail/application/resolve-mail-copy.service.ts`) resolve a cópia dentro de `To` + `Cc` ≤
+`CONTRACTOR_MAIL_MAX_RECIPIENTS`: envio manual que estoura é `400 CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS`; o automático corta a
+cópia (os contatos sempre vão) e registra `contractor_mail.copy.truncated` com contagens. `send-occurrence-mail` e
+`send-address-correction-mail` gravam `cc_addresses`; `excludedWatcherUserIds` entra, ordenado, na impressão digital da
+idempotência. O reenvio da 248 **recalcula** a lista; o encaminhamento a terceiro grava `{}`. O preview e o dado do formulário da
+correção devolvem `cc: [{ userId, name, maskedEmail }]` e `ccSource`; o histórico da conversa traz `copy` na mensagem de saída.
+A correção de endereço não tem caminho `sandbox_smtp` (268): continua exigindo o Resend. Detalhe: `docs/ai-context/api-transportada.md`.
+Contratos: `test/contractor-mail/occurrence-watcher*.contract.ts`, `test/integration/occurrence-watchers-*.integration.ts`.
+
+**O aviso da ocorrência do motorista chega ao painel (spec 275).** A ocorrência que o motorista registra numa nota (app e
+WhatsApp, o mesmo `registerDriverOccurrence`) avisa **sempre**, sem olhar `notifies`: caixa de entrada dos responsáveis (a
+lista efetiva acima, tipo > contratante > empresa) **∪** quem despachou, sem duplicar, com `dedupeKey`
+`<template>:<ocorrência>:<destinatário>` (o único do módulo é `(company_id, dedupe_key)`). Reverte o "sem notificador" da 079;
+o escritório e a parada não mudam. `driver-occurrence-notifier.service.ts`; contratos em
+`test/trip-occurrence/driver-notification.contract.ts`.
+
+## O modelo do e-mail da ocorrência vem do módulo de notificação (spec 271, ADR-0108)
+
+Substitui o desenho da 269 (modelo `occurrence` do cadastro da 150, escolhido por id no tipo e na exceção): **um lugar só** para escrever
+o texto — Notificações → Preferências (`notification.templates`, canal `email`, `pt-BR`, `{{camelCase}}` da lista fechada
+`OCCURRENCE_CONTRACTOR_MAIL_VARIABLES`, com `{{linhasItens}}`). O módulo é só depósito e renderizador: a API lê a tabela com `sql`
+parametrizado (`notification-template.query.ts`, versão ativa mais alta) e usa `interpolateTemplate`; nunca `sendNotification`.
+
+- **Bloco do tipo** (`PUT /company-settings/occurrence-types`, chaves opcionais e independentes — ausente não mexe, `null`/`[]` limpa):
+  `contractorNotificationTemplateKey` (varchar, **sem FK**; 400 `OCCURRENCE_CONTRACTOR_TEMPLATE_INVALID` com **todos** os problemas:
+  `not_found`, `system_key`, `unsafe_html`, `missing_message_area`, `empty_subject`, `unknown_variables`, `malformed_placeholder`, conferido **antes** da transação),
+  `contractorMailWatcherUserIds` (em cópia: só da lista da empresa da 267, até 10, novo inativo é 400) e `contractorMailRecipientContactIds`
+  (destinatários: só tipo `listed`, contatos das contratantes da lista, poda explícita ao mudar o escopo). Auditoria
+  `occurrence_type.contractor_mail.updated` com ids antes/depois, na mesma transação.
+- **Envio:** modelo utilizável = versão ativa, e-mail `pt-BR`, sem HTML inseguro (spec 272), assunto não vazio (`blocksContractorMailSend`); senão 409
+  `OCCURRENCE_MAIL_TEMPLATE_MISSING`, nem à mão; reenvio da 248 isento. `contractor_mail_messages.notification_template_key`/`_version`
+  guardam o que saiu (`template_id` fica só para a correção de endereço). Cópia efetiva = tipo ?? contratante ?? empresa; `To` = escolhidos
+  da contratante da nota (ignora a etapa), senão a regra da etapa. Carimbo `contractor_notification_template_selected_at`: o automático só
+  vale para ocorrência registrada depois da escolha.
+- **Aviso** `missingNotificationTemplate` (feed, detalhe, editor do tipo, prévia): lote `IN (chaves)` best-effort.
+- **Leituras do editor** (`settings.manage`): `GET .../contractor-mail-templates` e `GET .../contractor-mail-recipient-candidates`. As escritas
+  em `/v1/notification-templates*` exigem `settings.manage` (o módulo, sozinho, deixa qualquer membro).
+- Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O modelo do e-mail da ocorrência vem do módulo de notificação (spec 271)".
+
+## E-mail da ocorrência em HTML (spec 272, ADR-0110)
+
+Emenda a ADR-0108 §3 e a D5 da 271: **corpo HTML deixa de ser recusado**; é recusado só o HTML inseguro. O desenho mora no modelo
+de Notificações (`notification.templates`, `email`, `pt-BR`); a API não monta layout.
+
+- **Modelos:** `src/occurrence-conversation/occurrence-mail-templates/*.html` (cinco; assunto em `<!-- subject: … -->` na linha 1).
+  O corpo editável é a área `<!-- mensagem -->…<!-- /mensagem -->`; sem ela → `missing_message_area`. Publicação:
+  `scripts/occurrence-mail-templates-publish.ts --company <uuid> [--confirm] [--overwrite <chave>]`, chave `ocorrencia.<arquivo>`,
+  plano `create`/`same`/`differs`, versão nova pelo `TemplateRepository` (nunca UPDATE). Staging ou produção = mudança de dados com
+  aprovação humana.
+- **Variáveis:** texto escapado — as de 271 mais `nomeExibicao`, `cnpjTransportadora`, `cnpjContratante`, `assinaturaNome`,
+  `assinaturaCargo`, `assinaturaIniciais`, `cidadeTransportadora`, `razaoSocialTransportadora`. HTML do sistema, montado pela API e
+  sem escape (lista fechada `OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES`): `logoTransportadora`, `tabelaItens`, `marcasRodape`,
+  `faixaResposta`, montadas por `occurrence-mail-system-html.policy.ts`. A decisão de escapar é pelo **nome da chave**, nunca pelo conteúdo. Catálogo espelhado no painel.
+- **Renderer** (`occurrence-mail-html-render.policy.ts`): uma passada; troca só `{{nome}}` do modelo, valor por `Object.hasOwn`;
+  valor com `{{…}}` não é reinterpretado. `has_inline_logo` só com `{{logoTransportadora}}` no modelo **e** logo. HTML acima de
+  524288 bytes é problema do modelo (409), não 500.
+- **Segurança** (`occurrence-mail-html-safety.policy.ts` → `unsafe_html`): tags, eventos, esquema (com entidades decodificadas) e
+  placeholder em tag. `OCCURRENCE_MAIL_UNSAFE_HTML_CASES` (35 casos, coluna `worker`) é a fonte das cópias no painel e no worker.
+- **Texto** (`occurrence-mail-plain-text.policy.ts`): gera o `text/plain`. A conversa e o `bodyText` de entrada levam só o texto da
+  área (CHECK ≤ 8000 em `occurrence_conversation_messages.body_text`).
+- **Envio manual** (`occurrence-mail-html-compose.policy.ts`): texto igual ao gerado → área do modelo; editado → texto escapado em
+  parágrafos, inserido depois da renderização (`{{tabelaItens}}` digitado sai literal). Sempre sai o HTML do modelo.
+- **"De" e assunto:** `occurrence-mail-sender-name.policy.ts` (`buildSenderDisplayName`: equipe = nome de exibição; pessoa =
+  `<nome> — <nome de exibição>`; saneado, 29 casos; gravado em `from_display_name`). `occurrence-mail-subject.policy.ts`: prefixo
+  `<nome de exibição> · CNPJ <cnpj> — `, idempotente, assunto ≤ 200.
+- **Assinatura:** `occurrence-mail-signer.policy.ts` (`resolveSignerJobTitle`): manual → operador; automático → dono pela porta
+  `OccurrenceOwnerReader` (implementação nula até a 273), senão equipe. Sem cargo, `assinaturaCargo` é o rótulo do papel
+  (`COMPANY_ROLE_LABELS`, paridade com `identity.locale.json`).
+- **Cargo:** `user_company_memberships.job_title` (`varchar(80)`, `identity/domain/company-user-job-title.policy.ts`), editado por
+  `users.manage` no `PATCH /company-users/:id` com `jobTitle` (string ≤ 80; `null` limpa; ausente não altera). Só `jobTitle` não
+  chama o Keycloak; sem auditoria, fora de log. Esta API não tem OpenAPI: o contrato é `identity/presentation/user-administration.schema.ts`.
+- **Logo:** `has_inline_logo` gravado em `contractor_mail_messages`; o worker anexa o logo por `cid:company-logo`.
+- **Publicação:** API e worker no mesmo PR e no mesmo run (ADR-0081 §9); a janela entre os dois deploys é aceita.
+- Detalhe e contratos: `docs/ai-context/api-transportada.md` § "E-mail da ocorrência em HTML (spec 272)".
+
+## O chat da contratante envia por e-mail (spec 274, ADR-0111)
+
+O composer da aba Contratante fica aberto (nota, contratante e `occurrences.resolve`), com ou sem portal, e cada
+mensagem sai por e-mail. Contrato: `POST /v1/trip-occurrences/:id/conversations/contractor/messages` com
+`{ channel: 'email', mode: 'chat', body, attachmentIds }` → 202 `{ data }`. Sem OpenAPI: o contrato é a rota em
+`occurrence-conversation.routes.ts`.
+
+- **Destinatários:** os pré-marcados da prévia, mais a cópia da 267. Sem pré-marcado → 409
+  `OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS`. O chat **nunca** responde 409 de modelo: não exige modelo do tipo.
+- **Corpo:** o modelo padrão do SDK, `notification.standard-email` (identidade, assinante e rodapé ficam dentro do modelo),
+  renderizado por `notifications.standardEmail.render`. Sem linha cadastrada, usa o embutido (versão `0`, com log). A API
+  só monta os valores e não guarda layout.
+- **Assunto:** o da última mensagem de saída não encaminhada da linha.
+- **Aviso do portal:** vai só a quem está fora de `To`/`Cc`; quem já recebeu o corpo pelo e-mail não recebe o aviso.
+- **Status:** `email.opened` → `read` (pixel; a 183 D7 foi revogada). O `message_id` do `email.sent` grava
+  `rfc_message_id` da mensagem, só se nulo; é o que o worker usa na cadeia de `References`. Falha (`bounced`/`failed`)
+  segue terminal.
+- **Pré-deploy:** `seedStandardEmailTemplates` cadastra a v1 do modelo padrão para toda empresa, em série, depois de
+  `provision`. `ensureTemplate` nunca sobrescreve versão editada.
+- **Achado do Bun:** o driver expõe o SQLSTATE em `errno` (com `code: 'ERR_POSTGRES_SERVER_ERROR'`), e o SDK só reconhece
+  `code === '23505'`. Por isso `ensureStandardEmailTemplate` (`src/database/standard-email-template-seed.service.ts`) aceita
+  23505 nos dois campos: perder a corrida pela v1 é "já existe".
+- **Migrations do módulo:** `notification-migration.service.ts` roda com `layout: 'v1'` (por quê: drizzle 1.x × journal).
+- **Regras genéricas de e-mail HTML** (escape, texto puro, HTML inseguro) são do SDK; a API delega (T3.3).
+- O `main.ts` liga o renderer (`notifications.standardEmail.render`). Sem ele (só em teste/composição incompleta), a rota
+  responde 503 `OCCURRENCE_CHAT_MAIL_NOT_CONFIGURED` e nunca monta HTML próprio.
+- Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O chat da contratante envia por e-mail (spec 274)".
+
+## O tipo de ocorrência tem escopo de contratantes (spec 270, ADR-0107)
+
+- **`contractor_scope` `all`|`listed` + `company_occurrence_type_contractors`.** `listed` ⇔ ao menos uma linha, conferido por
+  `replaceOccurrenceTypeContractorScope` (o mesmo do `PUT` e do script de dados), com o tipo travado `FOR UPDATE`; contratante de
+  outra empresa é 404 `CONTRACTOR_NOT_FOUND`. O `PUT` aceita `contractorScope` e `contractorIds` **juntos** (um sem o outro é 400
+  `OCCURRENCE_TYPE_CONTRACTOR_SCOPE_INVALID`); lista vazia é `_EMPTY`; tipo só de parada é `_NEEDS_DOCUMENT`.
+- **O servidor decide.** As listas filtram por `noteContractorIds` — a contratante que o servidor leu da nota, nunca o `contractorId`
+  da query. Sem nota, só `all`; várias notas, interseção; a parada ignora o escopo. O DTO de rua nunca leva escopo nem contratantes.
+- **Guarda no registro** (`assertOccurrenceTypeAvailableForContractor`): depois do momento e da nota alcançável, antes da exigência da
+  246 e de qualquer escrita ou upload → 422 `OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR` (o lote leva só `documentIds`).
+- **Rota nova:** `GET /trips/:id/documents/:documentId/occurrence-types` (`trip.manage`, momento `separation`).
+- Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O escopo de contratantes do tipo (spec 270)".
+
+## A lista de ocorrências tem busca rápida (spec 277)
+
+`GET /v1/trip-occurrences?search=` (2 a 80 caracteres após `trim`) casa, sem diferenciar caixa, em qualquer campo da linha: nota,
+motorista, placa/marca/modelo/ano/cor do veículo, tipo, nome e CNPJ do contratante e do cliente, cidade de entrega e andamento
+(`searchCondition`, `trip-occurrence-feed.query.ts`). Participantes e endereços entram por `exists`, **nunca por junção** — junção
+multiplicaria a linha e quebraria o cursor. CNPJ casa só por dígitos; a cor é gravada como código (`azul_marinho`) e a busca
+troca `_` por espaço. O item ganha `vehicle`, `document.recipient` e `document.cargo` (peso bruto em kg e volumes, somados de
+`nfe_volumes`). A resolução média por tipo é `GET /v1/trip-occurrence-resolution-summary` (`fleet.read`, como o feed; **fora** de
+`/trip-occurrences/` porque ali o `:id` do detalhe casaria o caminho): por tipo, `{ typeName, resolvedCount, averageSeconds }`, do
+registro até o **último** `resolved` (o `resolvedAt` da 276), só de quem está resolvida agora — reaberta, em aberto e cancelada
+ficam de fora. Nome do tipo como no feed (cadastrado, ou o `kind` da parada). `trip-occurrence-resolution-summary.query.ts`.

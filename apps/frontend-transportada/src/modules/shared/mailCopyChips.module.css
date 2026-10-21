@@ -1,0 +1,41 @@
+/* Spec 267 RF4: a cópia do e-mail — um chip removível por responsável, sem campo para digitar endereço. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.chipHint {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+}
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.empty {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}

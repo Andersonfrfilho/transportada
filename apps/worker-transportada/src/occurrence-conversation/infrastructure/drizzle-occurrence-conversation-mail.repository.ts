@@ -11,10 +11,11 @@
  *
  * Nenhum log aqui: corpo, assunto e endereço nunca saem do banco.
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { contractorMailMessages } from '../../database/contractor-mail.schema.js'
+import { identityUserProfiles, userCompanyMemberships } from '../../database/identity.schema.js'
 import { storedObjects } from '../../database/nfe.schema.js'
 import {
   OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH,
@@ -59,6 +60,38 @@ export async function findOccurrenceConversationByThread(
 }
 
 /**
+ * Spec 267 RF9: o `From` é de um usuário da empresa com vínculo ativo (o responsável que respondeu a todos). Só vale com
+ * DKIM alinhado — a mesma regra do contato —, senão um `From` forjado com o endereço dele passaria por interno.
+ */
+async function isCompanyUserSender(
+  transaction: OccurrenceConversationTransaction,
+  input: {
+    readonly companyId: string
+    readonly dkimResult: string
+    readonly fromAddress: string
+  },
+): Promise<boolean> {
+  if (input.dkimResult !== 'aligned') return false
+  const [row] = await transaction
+    .select({ userId: identityUserProfiles.userId })
+    .from(identityUserProfiles)
+    .innerJoin(
+      userCompanyMemberships,
+      eq(userCompanyMemberships.userId, identityUserProfiles.userId),
+    )
+    .where(
+      and(
+        eq(userCompanyMemberships.companyId, input.companyId),
+        eq(userCompanyMemberships.status, 'active'),
+        eq(identityUserProfiles.contactChannel, 'email'),
+        sql`lower(${identityUserProfiles.contactAddress}) = ${input.fromAddress.trim().toLowerCase()}`,
+      ),
+    )
+    .limit(1)
+  return row !== undefined
+}
+
+/**
  * Chamada só quando a mensagem da 143 acabou de nascer — a reentrega não chega aqui, e é isso que a
  * torna única. O corpo acima do teto da conversa entra cortado; o inteiro segue na 143 e no MIME.
  */
@@ -69,6 +102,7 @@ export async function recordOccurrenceConversationMailReply(
     readonly attachments: readonly StoredInboundAttachment[]
     readonly bodyText: string
     readonly companyId: string
+    readonly dkimResult: string
     readonly fromAddress: string
     readonly mailMessageId: string
     readonly threadId: string
@@ -94,6 +128,8 @@ export async function recordOccurrenceConversationMailReply(
     .returning({ id: occurrenceConversationMessages.id })
   if (message === undefined) throw new Error('occurrence conversation mail reply was not inserted')
 
+  /** Spec 276 T2: the PDF text read before the transaction, by the stored object it became. */
+  const textByStoredObject = new Map<string, string>()
   for (const attachment of input.attachments) {
     const [object] = await transaction
       .insert(storedObjects)
@@ -119,12 +155,18 @@ export async function recordOccurrenceConversationMailReply(
       sizeBytes: attachment.sizeBytes,
       storedObjectId: object.id,
     })
+    if (attachment.textLayer !== undefined) textByStoredObject.set(object.id, attachment.textLayer)
+  }
+  /** O responsável não é "a resposta da contratante": não avança o retorno nem chega ao motorista (spec 267 RF9). */
+  if (await isCompanyUserSender(transaction, input)) {
+    return { driverNotice: undefined, linkedAttachments: input.attachments.length }
   }
   const delivery = await applyContractorReplyToMessage(transaction, {
     companyId: input.companyId,
     conversationId,
     messageId: message.id,
     now: new Date(),
+    readDocumentText: async (storedObjectId) => textByStoredObject.get(storedObjectId) ?? '',
   })
   const driverNotice =
     delivery === undefined

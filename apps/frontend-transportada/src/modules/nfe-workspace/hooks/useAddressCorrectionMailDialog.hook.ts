@@ -81,6 +81,9 @@ export function useAddressCorrectionMailDialog() {
   /** `null` até o operador trocar de modelo no seletor: a seleção efetiva cai para a inicial. */
   const [selectedTemplateIdOverride, setSelectedTemplateIdOverride] = useState<string | null>(null)
   const [templateSelectionSnapshot, setTemplateSelectionSnapshot] = useState<string | null>(null)
+  /** Spec 267 RF4: quem o operador tirou da cópia, e o conjunto da tentativa em andamento (chave de idempotência). */
+  const [removedCopyIds, setRemovedCopyIds] = useState<readonly string[]>([])
+  const [copySnapshot, setCopySnapshot] = useState<readonly string[]>([])
   const [idempotencyKey, setIdempotencyKey] = useState('')
   const [result, setResult] = useState<AddressCorrectionMailSendResult | null>(null)
 
@@ -131,14 +134,17 @@ export function useAddressCorrectionMailDialog() {
    */
   const resolvedIdempotency = resolveAddressCorrectionMailIdempotencyKey({
     currentContactIds: selectedContactIds,
+    currentExcludedWatcherIds: removedCopyIds,
     currentTemplateId: templateIdForRequest ?? null,
     generateKey: () => crypto.randomUUID(),
     previousContactIds: contactSelectionSnapshot,
+    previousExcludedWatcherIds: copySnapshot,
     previousIdempotencyKey: idempotencyKey,
     previousTemplateId: templateSelectionSnapshot,
   })
   if (resolvedIdempotency.idempotencyKey !== idempotencyKey) {
     setContactSelectionSnapshot(resolvedIdempotency.contactIds)
+    setCopySnapshot(resolvedIdempotency.excludedWatcherIds)
     setTemplateSelectionSnapshot(resolvedIdempotency.templateId)
     setIdempotencyKey(resolvedIdempotency.idempotencyKey)
   }
@@ -151,6 +157,7 @@ export function useAddressCorrectionMailDialog() {
       return client.sendAddressCorrectionMail({
         contactIds: selectedContactIds,
         contractorTaxId: target.contractorTaxId,
+        ...(removedCopyIds.length === 0 ? {} : { excludedWatcherUserIds: removedCopyIds }),
         idempotencyKey,
         ...(target.requestIds === undefined ? {} : { requestIds: target.requestIds }),
         ...(templateIdForRequest === undefined ? {} : { templateId: templateIdForRequest }),
@@ -175,6 +182,7 @@ export function useAddressCorrectionMailDialog() {
     setContactSelectionSnapshot(null)
     setSelectedTemplateIdOverride(null)
     setTemplateSelectionSnapshot(null)
+    setRemovedCopyIds([])
     setResult(null)
     sendMutation.reset()
   }
@@ -183,8 +191,13 @@ export function useAddressCorrectionMailDialog() {
     setTarget(null)
     setSelectedContactIdsOverride(null)
     setSelectedTemplateIdOverride(null)
+    setRemovedCopyIds([])
     setResult(null)
     sendMutation.reset()
+  }
+
+  function removeCopy(userId: string): void {
+    setRemovedCopyIds((current) => (current.includes(userId) ? current : [...current, userId]))
   }
 
   function toggleContact(contactId: string): void {
@@ -210,10 +223,15 @@ export function useAddressCorrectionMailDialog() {
     sendMutation.mutate()
   }
 
+  const copy = (recipientsQuery.data?.cc ?? []).filter(
+    (entry) => !removedCopyIds.includes(entry.userId),
+  )
+
   return {
     close,
     confirm,
     contacts,
+    copy,
     canConfirm: canConfirmAddressCorrectionMail({
       hasTemplate: templates.length > 0,
       selectedContactCount: selectedContactIds.length,
@@ -230,6 +248,7 @@ export function useAddressCorrectionMailDialog() {
     previewLoading: isOpen && selectedTemplateId !== null && previewQuery.isFetching,
     recipientsFailed: recipientsQuery.isError,
     recipientsLoading: isOpen && recipientsQuery.isFetching,
+    removeCopy,
     result,
     selectTemplate,
     selectedContactIds,

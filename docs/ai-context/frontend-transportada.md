@@ -1420,8 +1420,7 @@ segue com as 10 chaves. `requestContractorApi` passou a aceitar `POST`.
 ## Spec 247 — Tipos, correção e acerto com número e valor pago (ainda não publicada)
 
 **Aba Tipos.** `OccurrenceTypeRecordFields`/`OccurrenceTypeRequirementFields` (número do documento e valor pago: modo, rótulo, escopo; exceções com "Igual ao tipo"),
-`OccurrenceTypeContractorMail` + `MailFields`/`MailMarkers`/`MailPreview` (interruptor, assunto, corpo, linha de item, marcadores clicáveis, prévia do servidor com
-`debounce`), `OccurrenceTypeNotification` agora "Aviso interno". Rótulos de momento "Quem registra, e onde" (locale; o contrato procura o rótulo no controle).
+`OccurrenceTypeContractorMail` (interruptor, modelo do módulo, cópia e destinatários; ver § "Spec 271"), `OccurrenceTypeNotification` agora "Aviso interno". Rótulos de momento "Quem registra, e onde" (locale; o contrato procura o rótulo no controle).
 O rascunho do e-mail só some quando o salvar pousa; marcador que estoura o teto é dito em `role="status"`.
 
 **Correção e acerto.** `TripOccurrenceCorrectionForm` + `OccurrenceCorrectionAmounts*`: lê `requirements` do detalhe (N1/N2); `off` esconde, `required` sem "Limpar" e Salvar
@@ -1658,3 +1657,53 @@ monthlyRequestBudget` da configuração; `>=` como o worker) → falha por par �
     mostrou na primeira tentativa, com o teste verde. Hoje o teste afirma zero `.cv-p-audio__error` e o botão "Tocar áudio" habilitado.
   - A página de Configurações lê `/company-settings/logo` ao abrir; sem dublê, `failures()` acusa `ERR_FAILED`.
   - O que o `getUserMedia` injetado NÃO prova: captura real do microfone, codec do `MediaRecorder` real, permissão do navegador, nem reprodução com saída de áudio.
+
+## Spec 268 — Contatos de ocorrência na ficha e avisos do e-mail com contratantes (spec 268)
+
+A ficha da contratante (aba "Contratantes") tem a seção "Contatos de ocorrência": é o `ContractorContactsPanel` com
+`contractorId` fixo (sem seletor, sem listar contratantes), só para `settings.manage`. Na aba "E-mail com contratantes",
+`MailSendReadinessSummary` mostra "Sem esta configuração nenhum e-mail de ocorrência sai para a contratante." quando a
+configuração não está pronta, ou o aviso do Mailpit quando o `GET /contractor-mail-settings` traz `sandboxDelivery: true`
+(`settingsReadFromApi`: `sandboxDelivery` vem ao lado de `data`, que segue com as chaves exatas). A seção de contatos dessa aba
+tem um botão que abre a aba "Contratantes". Teste: `test/trip-hooks/contractor-mail-sandbox-panel.contract.ts` (roda no
+`test:hooks`, com o preload de DOM).
+
+## Spec 267 — Os responsáveis vão em cópia no e-mail da contratante
+
+Núcleo normativo em `apps/frontend-transportada/CLAUDE.md`.
+
+- **Onde mora:** `occurrence-conversation/components/OccurrenceWatchersPanel.component.tsx` (+ `OccurrenceWatcherRow`,
+  `OccurrenceWatcherRemoveDialog`), `queries/occurrenceWatchers.query.ts`, `shared/occurrenceWatchers*.ts`. `delivery-clients`
+  importa só o componente autocontido (`ContractorOccurrenceWatchers`). A aba de Configurações é `occurrenceWatchers`
+  (`SETTINGS_PANELS`, `SETTINGS_PANEL_PLACEMENT`, `COMPANY_SETTINGS_TAB_IDS`, ramo em `CompanySettings.page.tsx`).
+- **Sem `AlertDialog` do shadcn:** o repositório não o tem; a confirmação segue o molde de `HolidayDeleteDialog`
+  (`useModalDialog` + portal), com `role="alertdialog"`.
+- **Interruptor:** o `Checkbox` do design system ("Ativo"); não há primitivo `Switch`.
+- **Chips da cópia:** `modules/shared/MailCopyChips.component.tsx` — só remove; a lista vem do `cc`/`ccSource` do preview
+  (ocorrência) e do `POST /address-correction-requests/recipients` (correção). `buildContractorMailRequest` e
+  `buildAddressCorrectionMailRequestBody` omitem `excludedWatcherUserIds` quando ninguém saiu.
+- **Idempotência:** o diálogo da ocorrência renova a chave ao tirar um chip; a correção passa o conjunto removido por
+  `resolveAddressCorrectionMailIdempotencyKey` (`currentExcludedWatcherIds`/`previousExcludedWatcherIds`).
+- **Histórico:** `ContractorSenderIdentity` ganhou `kind: 'internal'`; `OccurrenceConversationMessage.copy` traz nome (ou e-mail
+  mascarado) de quem foi em cópia. O SDK só desenha texto: a linha "Cópia: …" é prefixada ao texto da mensagem de saída
+  (`withCopyLine`), e o selo "Equipe"/"só para a equipe" vai no `authorName`.
+- **Testes:** `test/occurrence-conversation/occurrence-watchers{,-locales}.contract.ts`,
+  `test/delivery-clients/contractor-occurrence-watchers.contract.ts`, `test/trip-hooks/occurrence-watchers-panel.contract.ts`
+  (DOM, com `occurrenceWatchersHarness.helper.ts`).
+
+## Spec 271 — O modelo do e-mail da ocorrência vem do módulo de notificação (ADR-0108)
+
+A 271 **substituiu** o desenho da 269 (modelo `occurrence` do cadastro "Modelos", escolhido por id no tipo e na exceção). O texto do e-mail à contratante
+(`emailSubject`/`emailBody`/`emailItemLineTemplate` já tinham saído na 269) é um modelo de e-mail do **módulo de notificação** (Notificações → Preferências,
+`{{camelCase}}` da lista fechada), escolhido **pela chave** no tipo. `OccurrenceTypeContractorMail` = interruptor `emailsContractor` + **Modelo**
+(`OccurrenceTypeContractorTemplateSelect`: lista de `GET /company-settings/occurrence-types/contractor-mail-templates` — só os `usable`, "Nenhum", "Criar modelo em
+Notificações", prévia com valores de exemplo, variáveis, modelo sugerido, motivo quando o escolhido deixou de servir, aviso "Tipo sem modelo de notificação" só com o
+e-mail ligado e `missingNotificationTemplate`) + **Em cópia** (`OccurrenceTypeWatchersSelect`: responsáveis da empresa da 267, até 10, inativo/inelegível marcado) +
+**Destinatários** (`OccurrenceTypeRecipientsSelect`: só com `contractorScope = 'listed'`; contatos de `GET .../contractor-mail-recipient-candidates`; ao tirar contratante
+do "Vale para" o rascunho avisa quantos saem junto). A exceção por contratante **não** escolhe modelo. "Modelos" (150) voltou a ter só a correção de endereço (o 409 de
+"em uso" e `ContractorMailTemplatesRequestError.usage` saíram). Sem `notification-contracts` direto: a interpolação `{{campo}}` é local
+(`occurrenceTypeMailTemplate.service.ts`), com paridade da lista de variáveis em `occurrence-type-mail-parity.contract.ts`. O painel **tolera e ignora**
+`contractorMailTemplateId` (API ainda pode mandá-lo até a migration B). Os cliente/consultas ficam em `occurrence-conversation` (`occurrenceTypeMailClient`,
+`occurrenceTypeMail.query`). `missingNotificationTemplate` chega no feed, no detalhe e na prévia do diálogo (`notificationTemplateKey`, `ccSource` ganhou
+`occurrence_type`); `SendToContractorDialog` desabilita o envio e trata o 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`. Testes: `trip-hooks/occurrence-type-contractor-mail`
+(com `occurrenceTypeMailHarness.helper.ts`), `contractor-mail-missing-template`, `occurrence-missing-template-mark`.

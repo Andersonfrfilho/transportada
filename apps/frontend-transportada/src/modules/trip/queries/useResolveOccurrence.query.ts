@@ -6,6 +6,7 @@ import { OCCURRENCE_CONVERSATIONS_QUERY_KEY } from '@/modules/occurrence-convers
 import {
   getTripOccurrenceFeedClient,
   TRIP_OCCURRENCE_FEED_QUERY_KEY,
+  TRIP_OCCURRENCE_RESOLUTION_SUMMARY_QUERY_KEY,
 } from './tripOccurrenceFeed.query'
 
 /** Feed, detalhe e linha do tempo moram sob a chave do feed; a conversa tem a própria. */
@@ -17,6 +18,9 @@ export function useResolveOccurrence() {
     mutationFn: client.resolveTripOccurrence,
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+      void queryClient.invalidateQueries({
+        queryKey: [TRIP_OCCURRENCE_RESOLUTION_SUMMARY_QUERY_KEY],
+      })
       void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
     },
   })

@@ -11,7 +11,8 @@ export const CONTRACTOR_REPLY_MODES = [
 ] as const
 export type ContractorReplyMode = (typeof CONTRACTOR_REPLY_MODES)[number]
 
-export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image'] as const
+/** Spec 276 T2: `boleto_pdf` is a PDF whose content is checked as the boleto of the note. */
+export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image', 'boleto_pdf'] as const
 export type ContractorReplyAttachmentKind = (typeof CONTRACTOR_REPLY_ATTACHMENT_KINDS)[number]
 
 export const DRIVER_REPLY_CHANNELS = ['app_chat', 'whatsapp', 'both'] as const
@@ -41,6 +42,16 @@ export const CONTRACTOR_REPLY_TYPE_DEFAULTS = {
   mode: 'off',
 } as const
 
+/**
+ * Spec 276 T4: a trava de pedido repetido na mesma nota, por tipo. `while_request_open` bloqueia enquanto o pedido à
+ * contratante não foi entregue ao motorista nem encerrado; `until_resolved` até a ocorrência ser solucionada ou
+ * cancelada; `allow` nunca bloqueia. O padrão da coluna é `allow` (quem grava sem a chave fica como antes); a migration
+ * liga a trava nos tipos que já pediam algo à contratante, e o cadastro de tipo novo sugere bloquear.
+ */
+export const DUPLICATE_REQUEST_POLICIES = ['while_request_open', 'until_resolved', 'allow'] as const
+export type DuplicateRequestPolicy = (typeof DUPLICATE_REQUEST_POLICIES)[number]
+export const DUPLICATE_REQUEST_POLICY_DEFAULT: DuplicateRequestPolicy = 'allow'
+
 export const CONTRACTOR_REPLY_WAIT_HOURS = { max: 168, min: 1 } as const
 export const CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES = { max: 1440, min: 15 } as const
 export const CONTRACTOR_REPLY_ALERT_MAX_COUNT = { max: 96, min: 1 } as const
@@ -68,7 +79,11 @@ export type ContractorReplyStatus = (typeof CONTRACTOR_REPLY_STATUSES)[number]
 /** The statuses that still wait for the contractor, and so carry a deadline in the partial index. */
 export const CONTRACTOR_REPLY_WAITING_STATUSES = ['awaiting_contractor', 'overdue'] as const
 
-export const CONTRACTOR_REPLY_REASONS = ['no_accepted_attachment', 'multiple_attachments'] as const
+export const CONTRACTOR_REPLY_REASONS = [
+  'no_accepted_attachment',
+  'multiple_attachments',
+  'document_not_confirmed',
+] as const
 export type ContractorReplyReason = (typeof CONTRACTOR_REPLY_REASONS)[number]
 
 export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
@@ -76,6 +91,8 @@ export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
   'driver_whatsapp',
   'note_recipient_email',
   'informed_email',
+  /** Spec 276 T5: a resposta automática à contratante (uma por conversa). Não leva o documento nem tira o token. */
+  'contractor_acknowledgement',
 ] as const
 export type ContractorReplyDeliveryTarget = (typeof CONTRACTOR_REPLY_DELIVERY_TARGETS)[number]
 

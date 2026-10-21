@@ -1,9 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './notification/settings-catalog.contract.js'
 import './notification/email-html-validation.contract.js'
+import './notification/email-html-unsafe.contract'
 import './notification/page-heading.contract.js'
 import './notification/theme.contract.js'
 import './notification/preview-payload.contract.js'
 import './notification/smoke-mock-coverage.contract.js'
-import './notification/bell-menu.contract.js'
 import './notification/notification-target.contract.js'
+import './notification/bell-menu.contract.js'

@@ -39,7 +39,10 @@ export type ContractorMailInboundThreadRecord = {
  * colunas por engano.
  */
 export type RecordContractorMailInboundMessageInput = {
+  /** O texto inteiro do e-mail, com o histórico citado: vai a `contractor_mail_messages`. */
   readonly bodyText: string
+  /** Só o texto novo, sem o histórico citado: é o que a conversa da ocorrência mostra. */
+  readonly conversationBodyText: string
   /**
    * Spec 183 T702c1: os anexos do e-mail, já no bucket. Viram anexo da mensagem da conversa na mesma
    * transação — só quando a resposta vira mensagem da conversa.
@@ -64,6 +67,8 @@ export type RecordContractorMailInboundMessageInput = {
   readonly subject: string
   readonly threadId: string
   readonly toAddresses: readonly string[]
+  /** Spec 267 RF9: o `Cc` do e-mail recebido; vazio quando não veio. */
+  readonly ccAddresses: readonly string[]
 }
 
 export type ContractorMailInboundWorkerRepository = {
@@ -218,6 +223,7 @@ export function createDrizzleContractorMailInboundWorkerRepository(
             subject: input.subject,
             threadId: input.threadId,
             toAddresses: [...input.toAddresses],
+            ccAddresses: [...input.ccAddresses],
           })
           .onConflictDoNothing({
             target: [contractorMailMessages.companyId, contractorMailMessages.providerEmailId],
@@ -228,8 +234,9 @@ export function createDrizzleContractorMailInboundWorkerRepository(
           /** Spec 183 T405: só a mensagem que acabou de nascer vira mensagem da conversa. */
           const linked = await recordOccurrenceConversationMailReply(transaction, {
             attachments: input.conversationAttachments,
-            bodyText: input.bodyText,
+            bodyText: input.conversationBodyText,
             companyId: input.companyId,
+            dkimResult: input.dkimResult,
             fromAddress: input.fromAddress,
             mailMessageId: message.id,
             threadId: input.threadId,

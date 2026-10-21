@@ -9,6 +9,12 @@
  */
 export const CONTRACTOR_MAIL_MAX_RECIPIENTS = 50
 
+/**
+ * Spec 272 (ADR-0110 §9): o `Content-ID` da parte inline do logo da empresa. O HTML da API usa `<img src="cid:company-logo">`
+ * (`COMPANY_LOGO_CONTENT_ID` de `occurrence-mail-html.constant.ts`); cópia por valor, presa por contrato.
+ */
+export const COMPANY_LOGO_CONTENT_ID = 'company-logo'
+
 /** O tipo do MIME bruto que o trilho de e-mail de entrada guarda no bucket e a mensagem encaminhada anexada. */
 export const RAW_EMAIL_MIME_TYPE = 'message/rfc822'
 
@@ -49,3 +55,10 @@ export const MIME_PART_LIMITS = {
   maxBoundaryLines: 1000,
   maxNestedMessages: 5,
 } as const
+
+/**
+ * Spec 268: por onde a API mandou enviar a mensagem. Cópia por valor de
+ * `api-transportada/src/contractor-mail/domain/contractor-mail.constant.ts`.
+ */
+export const CONTRACTOR_MAIL_TRANSPORTS = ['resend', 'sandbox_smtp'] as const
+export type ContractorMailTransport = (typeof CONTRACTOR_MAIL_TRANSPORTS)[number]

@@ -9,11 +9,13 @@ export type RouteOccurrenceServerState = (typeof ROUTE_OCCURRENCE_SERVER_STATES)
 
 export type RouteOccurrenceResolutionActorKind = 'internal' | 'system'
 
-/** A frase fixa do status da tratativa; o texto vem do locale, não do servidor. */
+/** A frase fixa do que resolveu sozinho (tratativa ou retorno da contratante); o texto vem do locale, não do servidor. */
 export const ROUTE_OCCURRENCE_PHRASE_KEYS = [
   'case_closed',
   'case_returned_to_warehouse',
   'case_cancelled',
+  /** Spec 276 T3b: o documento da contratante chegou ao motorista e o tipo fecha sozinho. */
+  'contractor_reply_delivered',
 ] as const
 export type RouteOccurrencePhraseKey = (typeof ROUTE_OCCURRENCE_PHRASE_KEYS)[number]
 

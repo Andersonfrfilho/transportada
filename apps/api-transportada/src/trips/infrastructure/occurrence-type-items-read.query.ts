@@ -62,7 +62,7 @@ export async function listOccurrenceTypeItemsShapesByIds(
 }
 
 /** SQLSTATE do Postgres: o `DrizzleQueryError` o carrega na causa, e a mensagem dele traz os parâmetros. */
-function readFailureCode(error: unknown): string {
+export function readFailureCode(error: unknown): string {
   const cause = error instanceof Error ? error.cause : undefined
   for (const candidate of [cause, error]) {
     if (typeof candidate !== 'object' || candidate === null) continue

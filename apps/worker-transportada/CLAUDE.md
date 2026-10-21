@@ -195,3 +195,35 @@ cinco tabelas é a **empresa, na tela** (spec 239): o worker lê `company_locati
 carência de 24 h. Sem linha ou desligada, nada é apagado; não existe variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`
 saiu e, se sobrar no Railway, é ignorada). O log conta linhas por tabela e `companies`, nunca coordenada, evento ou pessoa. Detalhe:
 docs/ai-context/worker-transportada.md § "O expurgo de posição".
+
+## O e-mail da contratante cai no Mailpit fora de produção (spec 268)
+
+⚠️ A linha de `contractor_mail_messages` diz por onde sai (`transport`). `sandbox_smtp` é enviada por
+`sandbox-smtp-mail.gateway.ts` (nodemailer direto — o driver do `email-provider` tem um destinatário só e nenhum anexo)
+no `SMTP_URL`, de `message.fromAddress`, com todos os destinatários e anexos, **sem `Reply-To`**, e **nunca lê a configuração
+da empresa nem fala com o Resend**. Sem `CONTRACTOR_MAIL_SANDBOX_SMTP=true` neste worker, a linha falha sem enviar
+(`sandbox_disabled`); o modo com `APP_ENV=production` derruba o boot, e exige `SMTP_URL` e `EMAIL_FROM`. Todos os destinatários
+recusados é falha permanente; erro de conexão propaga e a fila tenta de novo. Log só com `messageId`/`threadId`/motivo.
+Contrato: `test/contractor-mail/sandbox-outbound.contract.ts`, `test/contractor-mail-sandbox-environment.contract.test.ts`.
+
+## A cópia no e-mail da contratante (spec 267)
+
+⚠️ A API grava `contractor_mail_messages.cc_addresses` (usuários da empresa, já resolvidos); o worker só a lê
+(`message.ccAddresses`, deduplicada, sem quem já está no `To`) e a manda no `cc` do **Resend e do SMTP de sandbox** (vazio não
+vai no corpo). O teto `To` + `Cc` ≤ `CONTRACTOR_MAIL_MAX_RECIPIENTS` é conferido **uma vez, antes de escolher o transporte**
+(`invalid_recipients`, falha permanente), e os dois gateways mantêm a guarda própria. O sandbox não tem `Reply-To`: a resposta
+de um responsável não volta. Nenhum endereço em log. Contratos: `test/contractor-mail/{outbound-message,sandbox-outbound,
+resend-mail-gateway}.contract.ts`, `test/integration/contractor-mail-sandbox-outbound.integration.ts`.
+
+## O logo e o remetente do e-mail da ocorrência (spec 272, ADR-0110)
+
+Mensagem `outbound` com `has_inline_logo = true` anexa o logo da empresa da própria mensagem como parte inline `cid:company-logo`
+(`company_logos`, `drizzle-company-logo.reader.ts`); sem logo, sai sem a parte. O "De" vem de `from_display_name`, saneado de novo
+(`sender-display-name.policy.ts`, cópia da API). A fila do automático filtra HTML inseguro por `UNSAFE_EMAIL_HTML_PATTERN` (filtro grosso).
+Detalhe: `docs/ai-context/worker-transportada.md` § "O logo embutido e o remetente do e-mail da ocorrência (spec 272)".
+
+## A escada do e-mail e a cadeia de References (spec 274, ADR-0111)
+
+A escada do e-mail tem `read` (`occurrence-conversation/domain/message-status.policy.ts`, como a API). `References` e
+`In-Reply-To` saem dos `rfc_message_id` de entrada e de saída da thread (últimos 20, sem encaminhamentos, sem `Message-ID`
+próprio). Detalhe: `docs/ai-context/worker-transportada.md` § "O chat da contratante envia por e-mail (spec 274)".

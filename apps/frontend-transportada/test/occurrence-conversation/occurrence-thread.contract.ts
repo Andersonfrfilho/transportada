@@ -32,8 +32,11 @@ const LABELS: OccurrenceThreadAuthorLabels = {
   },
   contractor: 'Contratante',
   contractorUser: 'Usuário da contratante',
+  copy: 'Cópia',
   driver: 'Motorista',
   operation: 'Operação',
+  team: 'Equipe',
+  teamOnly: 'só para a equipe — a contratante não recebeu',
   unverified: 'Remetente não confirmado',
 }
 
@@ -91,6 +94,7 @@ function conversation(
 
 function createFakeClient() {
   const calls = {
+    chat: [] as unknown[],
     driver: [] as unknown[],
     markRead: [] as unknown[],
     portal: [] as unknown[],
@@ -106,13 +110,13 @@ function createFakeClient() {
       calls.uploads.push(input)
       return Promise.resolve({ uploadId: 'upload-1', uploadUrl: 'https://s.test/u' })
     },
-    sendContractorPortalMessage: (input) => {
-      calls.portal.push(input)
-      return Promise.resolve()
+    sendContractorChatMessage: (input) => {
+      calls.chat.push(input)
+      return Promise.resolve({ conversationMessageId: 'server-chat-1' })
     },
     sendDriverAppMessage: (input) => {
       calls.driver.push(input)
-      return Promise.resolve()
+      return Promise.resolve({ conversationMessageId: 'server-driver-1' })
     },
   }
   return { calls, client }
@@ -174,6 +178,22 @@ describe('o mapa da mensagem da ocorrência para o SDK', () => {
     expect(received).not.toHaveProperty('status')
   })
 
+  test('o e-mail inteiro vai recolhido no balão; sem ele, o balão não ganha o campo', () => {
+    const fullText =
+      'Podem descarregar.\n\nEm ter., 20 de out. de 2026, Equipe escreveu:\n> Autorizam?'
+    const withHistory = toThreadMessage(
+      message({
+        bodyText: 'Podem descarregar.',
+        direction: 'inbound',
+        emailFullText: fullText,
+        status: null,
+      }),
+      LABELS,
+    )
+    expect(withHistory).toMatchObject({ originalText: fullText, text: 'Podem descarregar.' })
+    expect(toThreadMessage(message({ status: null }), LABELS)).not.toHaveProperty('originalText')
+  })
+
   test('remetente fora dos contatos diz "Remetente não confirmado" quando o DKIM não alinhou, senão "Fora dos contatos"', () => {
     const unknown = (unverified: boolean) =>
       message({
@@ -220,6 +240,45 @@ describe('o mapa da mensagem da ocorrência para o SDK', () => {
     expect(withName('  ')).toBe('Contratante · via E-mail')
     expect(withName('compras@alfa.example.test')).toBe('Contratante · via E-mail')
     expect(withName('Compras Alfa')).not.toContain('@')
+  })
+
+  /** Spec 267 RF8/RF9: a cópia aparece no histórico; o responsável que respondeu é da equipe, com o selo quando a contratante não recebeu. */
+  test('a mensagem de saída mostra "Cópia:" e a resposta do responsável é da equipe, com o selo se a contratante não recebeu', () => {
+    const withCopy = toThreadMessage(
+      message({
+        copy: [
+          { maskedEmail: 'a***@e***.test', name: 'Ana' },
+          { maskedEmail: 'b***@e***.test', name: null },
+        ],
+      }),
+      LABELS,
+    )
+    expect(withCopy.text).toBe('Cópia: Ana, b***@e***.test\n\nAutorizam a descarga?')
+    expect(toThreadMessage(message(), LABELS).text).toBe('Autorizam a descarga?')
+
+    const internal = (reachedContractor: boolean) =>
+      toThreadMessage(
+        message({
+          author: {
+            identity: {
+              arrivedAs: 'ana@empresa.test',
+              kind: 'internal',
+              name: 'Ana',
+              reachedContractor,
+              userId: 'user-ana',
+            },
+            kind: 'contractor',
+            userId: null,
+          },
+          direction: 'inbound',
+          status: null,
+        }),
+        LABELS,
+      ).authorName
+    expect(internal(true)).toBe('Ana · Equipe · via E-mail')
+    expect(internal(false)).toBe(
+      'Ana · Equipe · só para a equipe — a contratante não recebeu · via E-mail',
+    )
   })
 
   test('o aviso automático e o motorista têm nome; o anexo vira o formato do SDK', () => {
@@ -297,18 +356,57 @@ describe('o adaptador do fio da ocorrência', () => {
     expect(onChanged).toHaveBeenCalledTimes(1)
   })
 
-  test('contratante: envia pelo portal, nunca pelo app', async () => {
+  test('contratante: envia o chat por e-mail (chave email-message, otimista queued), nunca portal nem app', async () => {
     const { api, calls } = createApi({ conversations: [], participant: 'contractor' })
-    await api.sendMessage({ clientMessageId: 'client-2', subject: SUBJECT, text: 'Bom dia.' })
-    expect(calls.portal).toEqual([
+    const file = new File(['x'], 'foto.jpg', { type: 'image/jpeg' })
+    const result = await api.sendMessage({
+      clientMessageId: 'client-2',
+      files: [file],
+      subject: SUBJECT,
+      text: 'Bom dia.',
+    })
+    expect(calls.chat).toEqual([
       {
-        attachmentIds: [],
+        attachmentIds: ['upload-1'],
         body: 'Bom dia.',
-        idempotencyKey: 'portal-message:client-2',
+        idempotencyKey: 'email-message:client-2',
         occurrenceId: 'occurrence-1',
       },
     ])
+    expect(calls.uploads[0]).toMatchObject({ channel: 'email', participant: 'contractor' })
+    expect(result.outcome === 'sent' && result.message.status).toBe('queued')
+    expect(calls.portal).toEqual([])
     expect(calls.driver).toEqual([])
+  })
+
+  test('a mensagem lida depois do envio leva o clientMessageId do SDK, senão o balão otimista fica duplicado', async () => {
+    for (const [participant, serverId] of [
+      ['driver', 'server-driver-1'],
+      ['contractor', 'server-chat-1'],
+    ] as const) {
+      const { api } = createApi({
+        conversations: [
+          conversation(participant, {
+            messages: [message({ id: serverId }), message({ id: 'outra-mensagem' })],
+          }),
+        ],
+        participant,
+      })
+      expect((await api.fetchMessages(SUBJECT)).map((item) => item.clientMessageId)).toEqual([
+        undefined,
+        undefined,
+      ])
+      const result = await api.sendMessage({
+        clientMessageId: 'client-9',
+        subject: SUBJECT,
+        text: 'Ola',
+      })
+      // O SDK une por id e nunca descarta: o eco tem de ter o id gravado, senão sobra ao lado da mensagem real.
+      expect(result.outcome === 'sent' && result.message.id).toBe(serverId)
+      const [sent, other] = await api.fetchMessages(SUBJECT)
+      expect(sent).toMatchObject({ clientMessageId: 'client-9', id: serverId })
+      expect(other?.clientMessageId).toBeUndefined()
+    }
   })
 
   test('marcar como lida só com mensagem nova do outro lado, e uma vez', async () => {

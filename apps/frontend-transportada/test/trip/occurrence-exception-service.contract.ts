@@ -135,3 +135,24 @@ describe('recusas dos momentos pela API: um texto por código estável (T5.3b)',
     }
   })
 })
+
+describe('as recusas do bloco de e-mail à contratante do tipo (spec 271)', () => {
+  test.each([
+    ['OCCURRENCE_CONTRACTOR_TEMPLATE_INVALID', 'occurrenceContractorTemplateInvalid'],
+    ['OCCURRENCE_TYPE_WATCHER_NOT_FOUND', 'occurrenceTypeWatcherNotFound'],
+    ['OCCURRENCE_TYPE_WATCHER_LIMIT', 'occurrenceTypeWatcherLimit'],
+    ['OCCURRENCE_TYPE_WATCHER_INACTIVE', 'occurrenceTypeWatcherInactive'],
+    [
+      'OCCURRENCE_TYPE_RECIPIENTS_REQUIRE_LISTED_SCOPE',
+      'occurrenceTypeRecipientsRequireListedScope',
+    ],
+    ['OCCURRENCE_TYPE_RECIPIENT_NOT_IN_SCOPE', 'occurrenceTypeRecipientNotInScope'],
+    ['CONTRACTOR_CONTACT_NOT_FOUND', 'occurrenceTypeContactNotFound'],
+  ])('%s tem mensagem própria, nos dois idiomas', (code, expectedKey) => {
+    const key = resolveTripFeedbackKey(new Error(code))
+
+    expect(key).toBe(expectedKey)
+    expect(trip.feedback).toHaveProperty(key as string)
+    expect(tripEn.feedback).toHaveProperty(key as string)
+  })
+})

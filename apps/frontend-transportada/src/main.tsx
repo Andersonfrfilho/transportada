@@ -644,7 +644,7 @@ function ApplicationShell(): ReactNode {
             <span aria-hidden="true">{sidebarOpen ? '×' : '☰'}</span>
           </Button>
           <span className="sidebar-brand-identity">
-            <InstallationBrandMark brand={brand} logoClassName="sidebar-brand-logo" />
+            <InstallationBrandMark brand={brand} logoClassName="sidebar-brand-logo" themed />
           </span>
         </div>
         <nav className="sidebar-navigation" aria-label="Módulos">

@@ -12,8 +12,6 @@ import { parseOccurrenceTypeRequest } from '../../src/trips/presentation/occurre
 function baseBody(): string {
   return JSON.stringify({
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     name: 'Recusa total',

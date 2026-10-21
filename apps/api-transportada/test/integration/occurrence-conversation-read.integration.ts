@@ -79,7 +79,9 @@ describe('as leituras da conversa contra Postgres (spec 183 T404)', () => {
         const [contactMail] = await database.db
           .insert(contractorMailMessages)
           .values({
-            bodyText: 'Podem descarregar.',
+            /** O registro do e-mail guarda o texto inteiro; a conversa, só o novo. */
+            bodyText:
+              'Podem descarregar.\n\nEm ter., 20 de out. de 2026, Equipe escreveu:\n> Autorizam a descarga?',
             companyId,
             direction: 'inbound',
             dkimResult: 'aligned',
@@ -110,6 +112,11 @@ describe('as leituras da conversa contra Postgres (spec 183 T404)', () => {
         const [conversation] = view?.conversations ?? []
         expect(conversation?.participant).toBe('contractor')
         expect(conversation?.unreadCount).toBe(1)
+        /** A resposta com histórico citado traz o e-mail inteiro; a mensagem de saída, não. */
+        expect(conversation?.messages.map((message) => message.emailFullText)).toEqual([
+          undefined,
+          'Podem descarregar.\n\nEm ter., 20 de out. de 2026, Equipe escreveu:\n> Autorizam a descarga?',
+        ])
         expect(conversation?.messages.map((message) => message.author)).toEqual([
           /** O seed não grava perfil: o nome sai nulo, e a tela cai no e-mail do usuário. */
           { kind: 'operation', name: null, userId },
@@ -161,6 +168,8 @@ describe('as leituras da conversa contra Postgres (spec 183 T404)', () => {
           occurrenceId: seeded.occurrenceId,
           userId,
         })
+        /** Sem histórico citado, o e-mail inteiro é o próprio corpo: a chave não sai. */
+        expect(withUnknown?.conversations[0]?.messages.at(-1)).not.toHaveProperty('emailFullText')
         expect(withUnknown?.conversations[0]?.messages.at(-1)?.author).toEqual({
           identity: {
             arrivedAs: 'Joao@Alfa.example.test',

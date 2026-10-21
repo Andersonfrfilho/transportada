@@ -19,8 +19,6 @@ const BASE_VALUES = {
   active: true,
   allowsMultipleItems: true,
   attachmentMode: 'off' as const,
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: null as null | string,
   name: 'Item faltante',
   notifies: false,
@@ -32,8 +30,6 @@ function buildType(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeReco
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TIPO,
     name: 'Item faltante',
@@ -50,7 +46,10 @@ describe('só separação pode "segue sem a nota" (spec 185 RF6)', () => {
         companyId: COMPANY,
         findCurrentType: async () => null,
         save: async () => buildType({ stage: 'delivery' }),
-        templates: { hasActiveEmailTemplate: async () => true },
+        templates: {
+          findContractorTemplate: async () => null,
+          hasActiveEmailTemplate: async () => true,
+        },
         values: { ...BASE_VALUES, leavesDocumentBehind: true, stage: 'delivery' },
       }),
     ).rejects.toBeInstanceOf(OccurrenceTypeLeavesDocumentBehindRequiresSeparationError)
@@ -69,7 +68,10 @@ describe('só separação pode "segue sem a nota" (spec 185 RF6)', () => {
         savedValues = values
         return buildType({ leavesDocumentBehind: true })
       },
-      templates: { hasActiveEmailTemplate: async () => true },
+      templates: {
+        findContractorTemplate: async () => null,
+        hasActiveEmailTemplate: async () => true,
+      },
       values: { ...BASE_VALUES, leavesDocumentBehind: true },
     })
 
@@ -82,7 +84,10 @@ describe('só separação pode "segue sem a nota" (spec 185 RF6)', () => {
       companyId: COMPANY,
       findCurrentType: async () => null,
       save: async () => buildType({ stage: 'delivery' }),
-      templates: { hasActiveEmailTemplate: async () => true },
+      templates: {
+        findContractorTemplate: async () => null,
+        hasActiveEmailTemplate: async () => true,
+      },
       values: { ...BASE_VALUES, stage: 'delivery' },
     })
 

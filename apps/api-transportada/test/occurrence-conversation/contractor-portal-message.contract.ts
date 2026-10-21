@@ -12,6 +12,10 @@ import type {
   ContractorPortalMessageTransactionPort,
   ContractorPortalNotifierPort,
 } from '../../src/occurrence-conversation/application/contractor-portal-message.port.js'
+import {
+  createContractorPortalChatNotice,
+  selectPortalChatNoticeRecipients,
+} from '../../src/occurrence-conversation/application/contractor-portal-chat-notice.service.js'
 import { createSendContractorPortalMessageUseCase } from '../../src/occurrence-conversation/application/contractor-portal-message.use-case.js'
 import { createContractorPortalNotifier } from '../../src/occurrence-conversation/infrastructure/contractor-portal-notifier.gateway.js'
 import { createOccurrenceConversationRoutes } from '../../src/occurrence-conversation/presentation/occurrence-conversation.routes.js'
@@ -275,5 +279,71 @@ describe('a rota do envio pelo portal (spec 183 T654)', () => {
     await expect(
       post({ body: '', channel: 'portal', forwardAttachmentIds: ['nao-e-uuid'] }),
     ).rejects.toMatchObject({ status: 400 })
+  })
+})
+
+describe('o aviso do portal no chat por e-mail (spec 274 T3.7, D2)', () => {
+  const users = [
+    { email: 'ana@contratante.com', userId: 'user-ana' },
+    { email: 'bruno@contratante.com', userId: 'user-bruno' },
+    { email: '', userId: 'user-sem-email' },
+  ]
+
+  test('só quem não está em To/Cc recebe; o e-mail compara em minúsculas e sem espaço', () => {
+    expect(selectPortalChatNoticeRecipients(users, ['ANA@Contratante.com '])).toEqual([
+      'user-bruno',
+      'user-sem-email',
+    ])
+    expect(selectPortalChatNoticeRecipients(users, [])).toEqual([
+      'user-ana',
+      'user-bruno',
+      'user-sem-email',
+    ])
+  })
+
+  test('avisa sem corpo os de fora do e-mail, depois do commit', async () => {
+    const notices: unknown[] = []
+    await createContractorPortalChatNotice({
+      audienceReader: { find: async () => ({ occurrenceLabel: 'NF 10', users }) },
+      notifier: { notify: async (input) => void notices.push(input) },
+    }).notify({
+      companyId: COMPANY_ID,
+      mailAddresses: ['ana@contratante.com', 'bruno@contratante.com'],
+      messageId: 'message-1',
+      occurrenceId: OCCURRENCE_ID,
+    })
+    expect(notices).toEqual([
+      {
+        companyId: COMPANY_ID,
+        messageId: 'message-1',
+        occurrenceLabel: 'NF 10',
+        recipientUserIds: ['user-sem-email'],
+      },
+    ])
+  })
+
+  test('portal indisponível, ou todos no e-mail: sem aviso e sem erro', async () => {
+    const notices: unknown[] = []
+    const notifier = { notify: async (input: unknown) => void notices.push(input) }
+    const input = {
+      companyId: COMPANY_ID,
+      mailAddresses: ['ana@contratante.com'],
+      messageId: 'message-1',
+      occurrenceId: OCCURRENCE_ID,
+    }
+    await createContractorPortalChatNotice({
+      audienceReader: { find: async () => null },
+      notifier,
+    }).notify(input)
+    await createContractorPortalChatNotice({
+      audienceReader: {
+        find: async () => ({
+          occurrenceLabel: 'NF 10',
+          users: [{ email: 'ana@contratante.com', userId: 'user-ana' }],
+        }),
+      },
+      notifier,
+    }).notify(input)
+    expect(notices).toEqual([])
   })
 })

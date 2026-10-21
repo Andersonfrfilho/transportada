@@ -18,6 +18,8 @@ import type {
   ReceivingProfileRules,
 } from '@/modules/delivery-clients/shared/receivingProfile.types'
 
+import { installContractorMailDouble } from './contractorMailHarness.helper'
+import { installOccurrenceWatchersDouble } from './occurrenceWatchersHarness.helper'
 import { installPreviewEmailDouble } from './previewEmailHarness.helper'
 
 export const CONTRACTOR_IDS = {
@@ -127,6 +129,10 @@ export function installContractorDirectoryDouble(
   contractorDirectoryFakes.saveFailure = undefined
   /** A ficha monta a seção da prévia por e-mail: sem a API dublada dela, a ficha iria à rede de verdade. */
   installPreviewEmailDouble()
+  /** E os contatos de ocorrência (spec 268): sem a API dublada, a ficha também iria à rede. */
+  installContractorMailDouble()
+  /** E os responsáveis por ocorrências (spec 267): a ficha monta a lista própria da contratante. */
+  installOccurrenceWatchersDouble()
   contractorDirectoryFakes.client = {
     getReceivingProfile: (contractorId) => {
       calls.profileReads.push(contractorId)

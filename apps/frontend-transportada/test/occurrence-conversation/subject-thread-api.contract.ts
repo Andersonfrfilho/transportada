@@ -12,10 +12,14 @@ import type { SubjectConversationClient } from '@/modules/occurrence-conversatio
 import type { OccurrenceConversationMessage } from '@/modules/occurrence-conversation/shared/occurrenceConversation.types'
 import { createSubjectThreadApi } from '@/modules/occurrence-conversation/shared/subjectThreadApi.service'
 import {
+  buildContractorThreadLabels,
   buildSubjectThreadLabels,
   SUBJECT_THREAD_LABEL_KEYS,
 } from '@/modules/occurrence-conversation/shared/subjectThreadLabels.service'
-import { toThreadQuickReplies } from '@/modules/occurrence-conversation/shared/quickReplies.service'
+import {
+  toQuickReplyChipTitle,
+  toThreadQuickReplies,
+} from '@/modules/occurrence-conversation/shared/quickReplies.service'
 
 const SUBJECT = { subjectId: 'doc-1', subjectType: 'document', tripId: 'trip-1' } as const
 const REF = { subjectId: 'doc-1', subjectType: 'document' }
@@ -188,6 +192,21 @@ describe('o adaptador do fio do escritório (spec 263 T5.2-B)', () => {
     expect(chip?.title.length).toBeLessThanOrEqual(40)
   })
 
+  test('o rótulo do chip corta na palavra inteira, com reticências, e o texto curto fica inteiro', () => {
+    expect(toQuickReplyChipTitle('Segue o documento solicitado.')).toBe(
+      'Segue o documento solicitado.',
+    )
+    expect(toQuickReplyChipTitle('Segue o boleto. Qualquer dúvida, é só chamar.')).toBe(
+      'Segue o boleto. Qualquer dúvida, é só…',
+    )
+    expect(toQuickReplyChipTitle('Recebido, obrigado! Já estamos verificando.')).toBe(
+      'Recebido, obrigado! Já estamos…',
+    )
+    const single = toQuickReplyChipTitle('x'.repeat(60))
+    expect(single.length).toBe(40)
+    expect(single.endsWith('…')).toBe(true)
+  })
+
   test('os rótulos: o aviso de encerrada é o do motivo e as demais chaves vêm do locale', async () => {
     const labels = buildSubjectThreadLabels((key) => `t:${key}`, 'Encerrada')
     expect(labels.closedNotice).toBe('Encerrada')
@@ -224,5 +243,46 @@ describe('o adaptador do fio do escritório (spec 263 T5.2-B)', () => {
     expect(theme).toMatch(/--cv-p-tick-read: /u)
     expect(theme).toMatch(/--cv-p-accent: var\(--color-copper-ink\)/u)
     expect(theme).toMatch(/--cv-p-radius: 0/u)
+  })
+})
+
+describe('spec 274: textos do composer e da fila na conversa da contratante', () => {
+  async function readLocale(file: string) {
+    const url = new URL(
+      `../../src/modules/occurrence-conversation/locales/${file}`,
+      import.meta.url,
+    )
+    return JSON.parse(await readFile(url, 'utf8')) as {
+      thread: Record<string, string>
+    }
+  }
+
+  test('a contratante tem rótulo, placeholder e fila próprios, diferentes do motorista', async () => {
+    const pt = await readLocale('occurrenceConversation.locale.json')
+    const translate = (key: string) => pt.thread[key.replace('thread.', '')] ?? key
+    const labels = buildContractorThreadLabels(translate)
+    expect(labels.messageInputLabel).toBe('Mensagem à contratante')
+    expect(labels.messageInputPlaceholder).toBe('Escreva à contratante (sai por e-mail)')
+    expect(labels.statusQueued).toBe('Na fila de envio')
+    expect(labels.statusQueued).not.toContain('rede')
+    expect(labels.messageInputLabel).not.toContain('motorista')
+  })
+
+  test('o fio do motorista diz que espera o app, não a rede: o painel nunca guarda envio offline', async () => {
+    const subject = await readLocale('subjectConversation.locale.json')
+    const labels = (subject as unknown as { thread: { labels: Record<string, string> } }).thread
+      .labels
+    expect(labels.messageInputLabel).toBe('Mensagem ao motorista')
+    expect(labels.statusQueued).toBe('Aguardando o app do motorista')
+    expect(labels.statusQueued).not.toContain('rede')
+  })
+
+  test('en espelha as chaves de pt', async () => {
+    const pt = await readLocale('occurrenceConversation.locale.json')
+    const en = await readLocale('occurrenceConversation.en.locale.json')
+    for (const key of ['contractorInputLabel', 'contractorInputPlaceholder', 'contractorQueued']) {
+      expect(pt.thread[key]).toBeString()
+      expect(en.thread[key]).toBeString()
+    }
   })
 })

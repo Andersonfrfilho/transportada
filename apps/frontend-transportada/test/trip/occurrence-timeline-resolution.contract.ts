@@ -65,6 +65,18 @@ describe('spec 266 T3.3: linha do tempo da resolução', () => {
     })
   })
 
+  test('fechada sozinha ao entregar o documento (spec 276 T3b) diz a causa', () => {
+    expect(
+      describeOccurrenceTimelineEvent({
+        ...RESOLVED_BY_SYSTEM,
+        phraseKey: 'contractor_reply_delivered',
+      }),
+    ).toEqual({ key: 'occurrenceTimeline.event.resolvedOnDelivery', values: {} })
+    expect(
+      describeOccurrenceTimelineEvent({ ...RESOLVED_BY_SYSTEM, phraseKey: 'case_closed' }).key,
+    ).toBe('occurrenceTimeline.event.resolvedAutomatic')
+  })
+
   test('reaberta diz o motorista', () => {
     expect(describeOccurrenceTimelineEvent(REOPENED)).toEqual({
       key: 'occurrenceTimeline.event.reopened',
@@ -102,6 +114,7 @@ describe('spec 266 T3.3: linha do tempo da resolução', () => {
     expect(event.resolvedInternal).toContain('{{name}}')
     expect(event.resolvedInternal).toContain('{{note}}')
     expect(event.resolvedAutomatic).toBeString()
+    expect(event.resolvedOnDelivery).toBeString()
     expect(event.reopened).toContain('{{name}}')
   })
 })

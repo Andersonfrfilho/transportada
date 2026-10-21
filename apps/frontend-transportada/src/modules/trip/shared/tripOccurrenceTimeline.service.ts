@@ -6,6 +6,7 @@
  * (a mesma dos balões, T704), a frase de cada evento e os três tempos contados com o relógio local.
  */
 import type { OccurrenceCancellation } from './trip.types'
+import { formatPersonName } from '@/lib/personName'
 
 export type OccurrenceTimelineActorKind = 'contractor' | 'driver' | 'operation' | 'system'
 
@@ -41,8 +42,16 @@ export type OccurrenceTimelineEvent =
         interpretation: null | string
         kind: 'contractor.mail.received' | 'contractor.mail.sent'
       }>)
-  | (EventBase & Readonly<{ kind: 'resolution.resolved'; note: null | string }>)
+  | (EventBase &
+      Readonly<{
+        kind: 'resolution.resolved'
+        note: null | string
+        /** Spec 276 T3b: a causa da resolução do sistema; ausente é API anterior ao campo. */
+        phraseKey?: null | string
+      }>)
   | (EventBase & Readonly<{ kind: 'resolution.reopened' }>)
+  /** Spec 276 T3: o retorno da contratante (248) mudou de status; `reason` só quando foi ao operador. */
+  | (EventBase & Readonly<{ kind: 'contractor.reply'; reason: null | string; toStatus: string }>)
 
 export type OccurrenceTimelineTimings = Readonly<{
   contractorAskedAt: null | string
@@ -50,10 +59,45 @@ export type OccurrenceTimelineTimings = Readonly<{
   driverReleasedAt: null | string
   openSince: null | string
   openUntil: null | string
+  /** Spec 276 T3: quando ficou solucionada pela última vez; ausente na API anterior. */
+  resolvedAt?: null | string
+}>
+
+/** Spec 276 T3: os status da ocorrência, na ordem em que costumam acontecer (a mesma lista da API). */
+export const OCCURRENCE_TIMELINE_STAGES = [
+  'received',
+  'in_progress',
+  'awaiting_contractor',
+  'awaiting_operator',
+  'reply_received',
+  'delivered',
+  'reopened',
+  'resolved',
+  'cancelled',
+] as const
+export type OccurrenceTimelineStageName = (typeof OCCURRENCE_TIMELINE_STAGES)[number]
+
+/** Os motivos de ir ao operador que têm frase própria; outro motivo mostra só a etapa. */
+export const OCCURRENCE_TIMELINE_STAGE_REASONS = [
+  'document_not_confirmed',
+  'multiple_attachments',
+  'no_accepted_attachment',
+] as const
+
+export type OccurrenceTimelineStage = Readonly<{
+  actor: EventBase['actor']
+  durationSeconds: null | number
+  endedAt: null | string
+  reason: null | string
+  stage: OccurrenceTimelineStageName
+  startedAt: string
+  terminal: boolean
 }>
 
 export type OccurrenceTimeline = Readonly<{
   events: readonly OccurrenceTimelineEvent[]
+  /** Spec 276 T3: ausente na API anterior — a tela simplesmente não mostra as etapas. */
+  stages?: readonly OccurrenceTimelineStage[]
   timings: OccurrenceTimelineTimings
 }>
 
@@ -83,13 +127,17 @@ export function toOccurrenceCancellation(
 ): OccurrenceCancellation {
   return {
     cancelledAt: event.occurredAt,
-    cancelledByName: event.actor.name,
+    cancelledByName: event.actor.name === null ? null : formatPersonName(event.actor.name),
     reason: event.reason,
   }
 }
 
 function isContractorMail(event: OccurrenceTimelineEvent): boolean {
-  return event.kind === 'contractor.mail.received' || event.kind === 'contractor.mail.sent'
+  return (
+    event.kind === 'contractor.mail.received' ||
+    event.kind === 'contractor.mail.sent' ||
+    event.kind === 'contractor.reply'
+  )
 }
 
 /**
@@ -140,16 +188,27 @@ export function describeOccurrenceTimelineEvent(
       return { key: 'occurrenceTimeline.event.mailReceived', values: {} }
     case 'resolution.resolved':
       if (event.actor.kind === 'system') {
-        return { key: 'occurrenceTimeline.event.resolvedAutomatic', values: {} }
+        return {
+          key:
+            event.phraseKey === 'contractor_reply_delivered'
+              ? 'occurrenceTimeline.event.resolvedOnDelivery'
+              : 'occurrenceTimeline.event.resolvedAutomatic',
+          values: {},
+        }
       }
       return {
         key: 'occurrenceTimeline.event.resolvedInternal',
-        values: { name: event.actor.name ?? '', note: event.note ?? '' },
+        values: { name: formatPersonName(event.actor.name ?? ''), note: event.note ?? '' },
       }
     case 'resolution.reopened':
       return {
         key: 'occurrenceTimeline.event.reopened',
-        values: { name: event.actor.name ?? '' },
+        values: { name: formatPersonName(event.actor.name ?? '') },
+      }
+    case 'contractor.reply':
+      return {
+        key: 'occurrenceTimeline.event.contractorReply',
+        values: { status: `occurrenceTimeline.replyStatus.${event.toStatus}` },
       }
   }
 }
@@ -189,6 +248,19 @@ export function resolveOccurrenceTimelineDurations(
     driverRelease: elapsed(timings.openSince, timings.driverReleasedAt, now),
     open: elapsed(timings.openSince, timings.openUntil, now),
   }
+}
+
+/**
+ * Spec 276 T3: quanto a etapa durou. A terminal não tem duração (é o fim); a última em aberto conta com o
+ * relógio da tela.
+ */
+export function resolveOccurrenceStageDuration(
+  stage: OccurrenceTimelineStage,
+  now: Date,
+): null | OccurrenceTimelineDuration {
+  if (stage.terminal) return null
+  if (stage.durationSeconds !== null) return { running: false, seconds: stage.durationSeconds }
+  return elapsed(stage.startedAt, stage.endedAt, now)
 }
 
 const MINUTE = 60

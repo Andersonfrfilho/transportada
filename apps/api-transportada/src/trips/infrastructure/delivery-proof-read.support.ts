@@ -12,6 +12,7 @@ import type {
   ContractorReplyMode,
   ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
+  DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import { alias } from 'drizzle-orm/pg-core'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
@@ -26,6 +27,7 @@ import {
   nfeParticipants,
   nfeProducts,
 } from '../../database/nfe.schema.js'
+import { companyQuickReplies } from '../../database/occurrence-conversation.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   companyOccurrenceTypes,
@@ -55,6 +57,7 @@ import type {
 import type {
   OccurrenceMoment,
   OccurrenceDeclaredAmountScope,
+  OccurrenceTypeContractorScope,
   OccurrenceTypeFlow,
   OccurrenceTypeIconName,
   TripOccurrenceStage,
@@ -71,8 +74,10 @@ import {
   TRIP_BOUND_OCCURRENCE_STAGES,
 } from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
-import type { OccurrenceTemplateValues } from '../domain/occurrence-template.types.js'
+import { assertNoDuplicateOccurrenceRequest } from './occurrence-duplicate-request.query.js'
+import type { OccurrenceMailValues } from '../domain/occurrence-mail-values.types.js'
 import {
+  OccurrenceTypeAcknowledgementInvalidError,
   OccurrenceTypeContractorReplyAlertNeedsWaitError,
   OccurrenceTypeContractorReplyNeedsMailError,
   OccurrenceTypeDeclaredAmountNeedsItemsError,
@@ -95,7 +100,7 @@ import type { FieldAuthorship } from '../application/field-trip-target.types.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
 import { buildOccurrenceTemplateLines } from '../domain/occurrence-template-lines.policy.js'
-import { buildOccurrenceItemValues } from '../domain/occurrence-template.policy.js'
+import { buildOccurrenceItemValues } from '../domain/occurrence-mail-values.policy.js'
 import { readStoredOccurrenceTemplateSource } from './occurrence-template-source.query.js'
 import type {
   OccurrenceCancellationView,
@@ -111,11 +116,26 @@ import {
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import { buildTemplateSelectedAtChange } from './template-selected-at.support.js'
+import {
+  hasOccurrenceTypeMailChange,
+  readOccurrenceTypeMailSnapshot,
+  writeOccurrenceTypeMailAudit,
+  type OccurrenceTypeMailSnapshot,
+} from './occurrence-type-mail-audit.support.js'
+import { lockTypeRow } from './occurrence-type-contractors.query.js'
+import { replaceOccurrenceTypeMailRecipients } from './occurrence-type-mail-recipients.support.js'
+import { replaceOccurrenceTypeMailWatchers } from './occurrence-type-mail-watchers.support.js'
 import {
   replaceOccurrenceTypeMoments,
   withOccurrenceTypeMoments,
 } from './occurrence-type-moments.query.js'
 import { deriveOccurrenceMomentsFromStageAndFlow } from '../domain/occurrence-moment.policy.js'
+import {
+  assertStoredOccurrenceTypeContractorScope,
+  replaceOccurrenceTypeContractorScope,
+  withOccurrenceTypeContractorIds,
+} from './occurrence-type-contractors.query.js'
 
 /**
  * Spec 156 T9 (D3): resolve o nome de quem gravou pela mesma janela do padrão já em produção
@@ -599,6 +619,11 @@ export async function saveTripOccurrence(
     )
     .limit(1)
   if (document === undefined) return null
+  await assertNoDuplicateOccurrenceRequest(queryable, {
+    companyId: input.companyId,
+    occurrenceTypeId: input.occurrenceTypeId,
+    tripDocumentId: input.documentId,
+  })
 
   const [saved] = await queryable
     .insert(tripDocumentOccurrences)
@@ -866,16 +891,21 @@ export async function findOccurrenceType(
       declaredAmountMode: companyOccurrenceTypes.declaredAmountMode,
       declaredAmountScope: companyOccurrenceTypes.declaredAmountScope,
       iconName: companyOccurrenceTypes.iconName,
-      emailBody: companyOccurrenceTypes.emailBody,
-      emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
-      emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
+      contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
+      /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
+      contractorScope: companyOccurrenceTypes.contractorScope,
       contractorReplyAlertIntervalMinutes:
         companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
       contractorReplyAlertMode: companyOccurrenceTypes.contractorReplyAlertMode,
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
+      contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
+      duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      contractorReplyAcknowledgementQuickReplyId:
+        companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
       contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
@@ -923,7 +953,12 @@ export async function findOccurrenceType(
     companyId: input.companyId,
     records: [row],
   })
-  return withMoments ?? null
+  if (withMoments === undefined) return null
+  const [withContractors] = await withOccurrenceTypeContractorIds(queryable, {
+    companyId: input.companyId,
+    records: [withMoments],
+  })
+  return withContractors ?? null
 }
 
 /**
@@ -1037,16 +1072,21 @@ export async function listOccurrenceTypes(
       declaredAmountMode: companyOccurrenceTypes.declaredAmountMode,
       declaredAmountScope: companyOccurrenceTypes.declaredAmountScope,
       iconName: companyOccurrenceTypes.iconName,
-      emailBody: companyOccurrenceTypes.emailBody,
-      emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
-      emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
+      contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
+      /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
+      contractorScope: companyOccurrenceTypes.contractorScope,
       contractorReplyAlertIntervalMinutes:
         companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
       contractorReplyAlertMode: companyOccurrenceTypes.contractorReplyAlertMode,
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
+      contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
+      duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      contractorReplyAcknowledgementQuickReplyId:
+        companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
       contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
@@ -1080,7 +1120,15 @@ export async function listOccurrenceTypes(
     )
     .orderBy(asc(companyOccurrenceTypes.stage), asc(companyOccurrenceTypes.name))
   /** Spec 246 (RF0): o conjunto de cada tipo, numa consulta só para a lista inteira. */
-  return withOccurrenceTypeMoments(queryable, { companyId: input.companyId, records })
+  const withMoments = await withOccurrenceTypeMoments(queryable, {
+    companyId: input.companyId,
+    records,
+  })
+  /** Spec 270 (R7): só os ids por tipo, numa consulta; nome e CNPJ ficam no cadastro. */
+  return withOccurrenceTypeContractorIds(queryable, {
+    companyId: input.companyId,
+    records: withMoments,
+  })
 }
 
 /**
@@ -1127,10 +1175,29 @@ function rethrowOccurrenceTypeViolation(error: unknown): never {
 export async function saveOccurrenceType(
   queryable: TripQueryable,
   input: Parameters<typeof writeOccurrenceTypeRow>[1] & {
+    /** Spec 271: quem grava (`created_by_user_id` das escolhas do tipo e a auditoria); exigido quando a escolha muda. */
+    readonly actorUserId?: string | undefined
+    readonly correlationId?: string | undefined
+    /** Spec 270: com o escopo, a lista vai junto; ausentes é "não mexa". */
+    readonly contractorIds?: readonly string[] | undefined
+    /** Spec 271 (D12): os destinatários do tipo (contatos das contratantes da lista); ausente é "não mexa". */
+    readonly contractorMailRecipientContactIds?: readonly string[] | undefined
+    /** Spec 271 (D10): os responsáveis em cópia do tipo, da lista da empresa; ausente é "não mexa". */
+    readonly contractorMailWatcherUserIds?: readonly string[] | undefined
+    readonly contractorScope?: OccurrenceTypeContractorScope | undefined
     readonly moments?: readonly OccurrenceMoment[] | undefined
   },
 ): Promise<OccurrenceTypeRecord> {
   return queryable.transaction(async (transaction) => {
+    /** Spec 271 (D15): o tipo travado antes de ler o "antes" da auditoria; a criação não tem antes. */
+    const mailBefore =
+      input.occurrenceTypeId === null
+        ? null
+        : await readMailSnapshotLocked(transaction, {
+            companyId: input.companyId,
+            occurrenceTypeId: input.occurrenceTypeId,
+          })
+    await assertAcknowledgementQuickReply(transaction, input)
     const saved = await writeOccurrenceTypeRow(transaction, input)
     const moments =
       input.moments ??
@@ -1142,12 +1209,121 @@ export async function saveOccurrenceType(
         occurrenceTypeId: saved.id,
       })
     }
+    if (input.contractorScope !== undefined) {
+      await replaceOccurrenceTypeContractorScope(transaction, {
+        companyId: input.companyId,
+        contractorIds: input.contractorIds ?? [],
+        occurrenceTypeId: saved.id,
+        scope: input.contractorScope,
+      })
+    } else if (input.occurrenceTypeId !== null && moments !== undefined) {
+      await assertStoredOccurrenceTypeContractorScope(transaction, {
+        companyId: input.companyId,
+        occurrenceTypeId: saved.id,
+      })
+    }
+    if (input.contractorMailWatcherUserIds !== undefined) {
+      await replaceOccurrenceTypeMailWatchers(transaction, {
+        actorUserId: requireActor(input.actorUserId),
+        companyId: input.companyId,
+        occurrenceTypeId: saved.id,
+        userIds: input.contractorMailWatcherUserIds,
+      })
+    }
+    if (input.contractorMailRecipientContactIds !== undefined) {
+      await replaceOccurrenceTypeMailRecipients(transaction, {
+        actorUserId: requireActor(input.actorUserId),
+        companyId: input.companyId,
+        contactIds: input.contractorMailRecipientContactIds,
+        occurrenceTypeId: saved.id,
+      })
+    }
+    await auditMailChange(transaction, {
+      actorUserId: input.actorUserId,
+      before: mailBefore,
+      companyId: input.companyId,
+      correlationId: input.correlationId,
+      occurrenceTypeId: saved.id,
+    })
     const [withMoments] = await withOccurrenceTypeMoments(transaction, {
       companyId: input.companyId,
-      records: [saved],
+      records: [
+        input.contractorScope === undefined
+          ? saved
+          : { ...saved, contractorScope: input.contractorScope },
+      ],
     })
-    return withMoments ?? saved
+    const [withContractors] = await withOccurrenceTypeContractorIds(transaction, {
+      companyId: input.companyId,
+      records: withMoments === undefined ? [saved] : [withMoments],
+    })
+    return withContractors ?? withMoments ?? saved
   })
+}
+
+async function readMailSnapshotLocked(
+  transaction: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceTypeId: string },
+): Promise<OccurrenceTypeMailSnapshot | null> {
+  await lockTypeRow(transaction, params)
+  return readOccurrenceTypeMailSnapshot(transaction, params)
+}
+
+/** A auditoria do bloco de e-mail: só quando mudou, e então ator e correlação são obrigatórios. */
+async function auditMailChange(
+  transaction: TripQueryable,
+  params: {
+    readonly actorUserId: string | undefined
+    readonly before: OccurrenceTypeMailSnapshot | null
+    readonly companyId: string
+    readonly correlationId: string | undefined
+    readonly occurrenceTypeId: string
+  },
+): Promise<void> {
+  const after = await readOccurrenceTypeMailSnapshot(transaction, params)
+  if (!hasOccurrenceTypeMailChange(params.before, after)) return
+  if (params.actorUserId === undefined || params.correlationId === undefined) {
+    throw new Error('OCCURRENCE_TYPE_MAIL_AUDIT_CONTEXT_REQUIRED')
+  }
+  await writeOccurrenceTypeMailAudit(transaction, {
+    actorUserId: params.actorUserId,
+    after,
+    before: params.before,
+    companyId: params.companyId,
+    correlationId: params.correlationId,
+    occurrenceTypeId: params.occurrenceTypeId,
+  })
+}
+
+/** As escolhas do bloco de e-mail guardam quem as fez; sem ator a gravação não segue (erro de programação). */
+function requireActor(actorUserId: string | undefined): string {
+  if (actorUserId === undefined) throw new Error('OCCURRENCE_TYPE_MAIL_ACTOR_REQUIRED')
+  return actorUserId
+}
+
+/** Spec 276 T5: a resposta automática só aponta resposta rápida ativa da contratante, da mesma empresa. */
+async function assertAcknowledgementQuickReply(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
+  },
+): Promise<void> {
+  const quickReplyId = input.contractorReplyAcknowledgementQuickReplyId
+  if (quickReplyId === undefined || quickReplyId === null) return
+  const [quickReply] = await queryable
+    .select({ id: companyQuickReplies.id })
+    .from(companyQuickReplies)
+    .where(
+      and(
+        eq(companyQuickReplies.companyId, input.companyId),
+        eq(companyQuickReplies.id, quickReplyId),
+        eq(companyQuickReplies.audience, 'contractor'),
+        eq(companyQuickReplies.active, true),
+      ),
+    )
+    .limit(1)
+  if (quickReply === undefined) throw new OccurrenceTypeAcknowledgementInvalidError()
 }
 
 async function writeOccurrenceTypeRow(
@@ -1167,17 +1343,18 @@ async function writeOccurrenceTypeRow(
     readonly iconName?: null | OccurrenceTypeIconName | undefined
     readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
     readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
-    /** Spec 247 RF2: ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
-    readonly emailBody?: string | undefined
-    readonly emailItemLineTemplate?: string | undefined
-    readonly emailSubject?: string | undefined
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
+    /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
+    readonly contractorNotificationTemplateKey?: null | string | undefined
     readonly contractorReplyAlertIntervalMinutes?: number | undefined
     readonly contractorReplyAlertMaxCount?: number | undefined
     readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
     readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
+    readonly contractorReplyResolveOnDelivery?: boolean | undefined
+    readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+    readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
     readonly contractorReplyMode?: ContractorReplyMode | undefined
     readonly contractorReplyWaitHours?: null | number | undefined
     readonly driverReplyTemplate?: string | undefined
@@ -1236,8 +1413,6 @@ async function writeOccurrenceTypeRow(
   }
 
   const attachmentModeChange = {
-    ...(input.emailBody === undefined ? {} : { emailBody: input.emailBody }),
-    ...(input.emailSubject === undefined ? {} : { emailSubject: input.emailSubject }),
     ...(input.allowsMultipleItems === undefined
       ? {}
       : { allowsMultipleItems: input.allowsMultipleItems }),
@@ -1252,9 +1427,6 @@ async function writeOccurrenceTypeRow(
     ...(input.declaredAmountScope === undefined
       ? {}
       : { declaredAmountScope: input.declaredAmountScope }),
-    ...(input.emailItemLineTemplate === undefined
-      ? {}
-      : { emailItemLineTemplate: input.emailItemLineTemplate }),
     ...(input.referenceNumberLabel === undefined
       ? {}
       : { referenceNumberLabel: input.referenceNumberLabel }),
@@ -1274,6 +1446,18 @@ async function writeOccurrenceTypeRow(
     ...(input.contractorReplyAttachmentKind === undefined
       ? {}
       : { contractorReplyAttachmentKind: input.contractorReplyAttachmentKind }),
+    ...(input.contractorReplyResolveOnDelivery === undefined
+      ? {}
+      : { contractorReplyResolveOnDelivery: input.contractorReplyResolveOnDelivery }),
+    ...(input.duplicateRequestPolicy === undefined
+      ? {}
+      : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
+    ...(input.contractorReplyAcknowledgementQuickReplyId === undefined
+      ? {}
+      : {
+          contractorReplyAcknowledgementQuickReplyId:
+            input.contractorReplyAcknowledgementQuickReplyId,
+        }),
     ...(input.contractorReplyMode === undefined
       ? {}
       : { contractorReplyMode: input.contractorReplyMode }),
@@ -1324,6 +1508,12 @@ async function writeOccurrenceTypeRow(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
+            ...(typeof input.contractorNotificationTemplateKey === 'string'
+              ? {
+                  contractorNotificationTemplateKey: input.contractorNotificationTemplateKey,
+                  contractorNotificationTemplateSelectedAt: sql`now()`,
+                }
+              : {}),
             ...(input.flow === 'stop' ? { stopKind: 'other' as const } : {}),
           })
           .returning()
@@ -1333,6 +1523,17 @@ async function writeOccurrenceTypeRow(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
+            ...(input.contractorNotificationTemplateKey === undefined
+              ? {}
+              : {
+                  contractorNotificationTemplateKey: input.contractorNotificationTemplateKey,
+                  contractorNotificationTemplateSelectedAt: buildTemplateSelectedAtChange({
+                    selectedAtColumn:
+                      companyOccurrenceTypes.contractorNotificationTemplateSelectedAt,
+                    value: input.contractorNotificationTemplateKey,
+                    valueColumn: companyOccurrenceTypes.contractorNotificationTemplateKey,
+                  }),
+                }),
             /** Spec 218 D2: virou tipo de parada sem valor? vale como `other`; o que já tinha, fica. */
             ...(input.flow === 'stop'
               ? { stopKind: sql`coalesce(${companyOccurrenceTypes.stopKind}, 'other')` }
@@ -1360,15 +1561,17 @@ async function writeOccurrenceTypeRow(
     declaredAmountMode: saved.declaredAmountMode,
     declaredAmountScope: saved.declaredAmountScope,
     iconName: saved.iconName,
-    emailBody: saved.emailBody,
-    emailItemLineTemplate: saved.emailItemLineTemplate,
-    emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
+    contractorNotificationTemplateKey: saved.contractorNotificationTemplateKey,
+    contractorScope: saved.contractorScope,
     contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,
     contractorReplyAlertMaxCount: saved.contractorReplyAlertMaxCount,
     contractorReplyAlertMode: saved.contractorReplyAlertMode,
     contractorReplyAttachmentKind: saved.contractorReplyAttachmentKind,
+    contractorReplyResolveOnDelivery: saved.contractorReplyResolveOnDelivery,
+    duplicateRequestPolicy: saved.duplicateRequestPolicy,
+    contractorReplyAcknowledgementQuickReplyId: saved.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: saved.contractorReplyMode,
     contractorReplyWaitHours: saved.contractorReplyWaitHours,
     driverReplyTemplate: saved.driverReplyTemplate,
@@ -1406,7 +1609,7 @@ async function writeOccurrenceTypeRow(
  * linha, e o formato da linha de item do tipo. Sem ele (a prévia de cadastro e dublês), as linhas são os
  * códigos marcados, inteiros da nota, e a quantidade cai na da NF-e.
  */
-export async function readOccurrenceTemplateValues(
+export async function readOccurrenceMailValues(
   queryable: TripQueryable,
   input: {
     readonly companyId: string
@@ -1414,12 +1617,14 @@ export async function readOccurrenceTemplateValues(
     readonly note: string
     /** Spec 247: a ocorrência já gravada — de onde saem o número, o valor pago e as linhas. */
     readonly occurrenceId?: string | undefined
+    /** Spec 271: o nome do tipo, para `{{tipoOcorrencia}}`. */
+    readonly occurrenceTypeName?: string | undefined
     readonly occurredOn: string
     /** Todos os itens marcados: o e-mail cita todos, não só o primeiro. Vazia é a nota inteira. */
     readonly productCodes: readonly string[]
     readonly tripId: string
   },
-): Promise<OccurrenceTemplateValues> {
+): Promise<OccurrenceMailValues> {
   const [row] = await queryable
     .select({
       driverName: tripDrivers.driverName,
@@ -1505,9 +1710,9 @@ export async function readOccurrenceTemplateValues(
         quantity: line.quantity ?? line.nfeQuantity,
       })),
     ),
-    itemLineTemplate: stored?.emailItemLineTemplate,
     lines,
     note: input.note,
+    occurrenceTypeName: input.occurrenceTypeName,
     occurredOn: input.occurredOn,
     recipientName: contato?.name ?? '',
     ...(stored?.referenceNumber == null ? {} : { referenceNumber: stored.referenceNumber }),

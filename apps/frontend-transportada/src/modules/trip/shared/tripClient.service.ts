@@ -141,17 +141,12 @@ import {
   readOccurrenceAttachmentOverrides,
   readOccurrenceAttachmentOverridesBatch,
 } from './occurrenceAttachmentOverrides.validation'
-import type {
-  OccurrenceMailPreview,
-  OccurrenceMailPreviewInput,
-} from './occurrenceMailDraft.service'
 import type { OccurrenceTypeSaveInput } from './occurrenceTypeUpdate.service'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
 const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
 /** Spec 218 RF-B3: exceções do `attachmentMode` de um tipo, por contratante e por destinatário. */
-const OCCURRENCE_TYPE_EMAIL_PREVIEW_PATH = `${OCCURRENCE_TYPES_PATH}/email-preview`
 const OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_BATCH_PATH = `${OCCURRENCE_TYPES_PATH}/attachment-overrides`
 const occurrenceTypeAttachmentOverridesPath = (occurrenceTypeId: string): string =>
   `${OCCURRENCE_TYPES_PATH}/${occurrenceTypeId}/attachment-overrides`
@@ -339,7 +334,6 @@ export type TripClient = Readonly<{
   ) => Promise<OccurrenceAttachmentOverrides>
   saveOccurrenceType: (input: OccurrenceTypeSaveInput) => Promise<OccurrenceType>
   /** Spec 247 RF4: o e-mail do tipo renderizado pelo servidor, com dados de exemplo — nada é gravado. */
-  previewOccurrenceTypeEmail: (input: OccurrenceMailPreviewInput) => Promise<OccurrenceMailPreview>
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
@@ -417,7 +411,16 @@ export type TripClient = Readonly<{
   /** Spec 156 T5: `POST /trips/:id/start-route` — leva a viagem a `on_delivery_route`. */
   startFieldTrip: (input: StartFieldTripInput) => Promise<FieldTripStepResult>
   /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
-  readFieldOccurrenceTypes: () => Promise<readonly FieldOccurrenceType[]>
+  readFieldOccurrenceTypes: (
+    input?: Readonly<{ documentIds?: readonly string[] }>,
+  ) => Promise<readonly FieldOccurrenceType[]>
+  /**
+   * Spec 270 (R6): `GET /trips/:tripId/documents/:documentId/occurrence-types` — os tipos do galpão para
+   * uma nota; o servidor filtra pela contratante dela (`trip.manage`).
+   */
+  listSeparationOccurrenceTypes: (
+    input: Readonly<{ documentId: string; tripId: string }>,
+  ) => Promise<readonly OccurrenceType[]>
   /**
    * Spec 156 T7.3/T7b/T9: `POST /trips/:id/documents/field-occurrences` — ocorrência de campo para
    * uma ou várias notas (até 50), multipart, com foto opcional para o lote inteiro.
@@ -695,13 +698,26 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.fieldReportIdResultFromApi(readEnvelopeData(response))
     },
-    async readFieldOccurrenceTypes() {
+    async readFieldOccurrenceTypes(input) {
+      /** Spec 270 (D5): as notas do lote — o servidor lê a contratante de cada uma e oferece a interseção. */
+      const documentIds = input?.documentIds ?? []
       const response = await authorizedRequest({
         dependencies,
         method: 'GET',
-        path: TRIP_FIELD_OCCURRENCE_TYPES_PATH,
+        path:
+          documentIds.length === 0
+            ? TRIP_FIELD_OCCURRENCE_TYPES_PATH
+            : `${TRIP_FIELD_OCCURRENCE_TYPES_PATH}?${new URLSearchParams({ documentIds: documentIds.join(',') }).toString()}`,
       })
       return adapters.fieldOccurrenceTypesFromApi(readEnvelopeData(response))
+    },
+    async listSeparationOccurrenceTypes(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${input.tripId}/documents/${input.documentId}/occurrence-types`,
+      })
+      return adapters.occurrenceTypesFromApi(readEnvelopeData(response))
     },
     async registerFieldOccurrences(input) {
       const form = new FormData()
@@ -962,16 +978,24 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           active: input.active,
           allowsMultipleItems: input.allowsMultipleItems,
           attachmentMode: input.attachmentMode,
-          /** Spec 247 RF2: o e-mail à contratante vai como está — o `PUT` sem ele o gravaria vazio. */
-          ...(input.emailBody === undefined ? {} : { emailBody: input.emailBody }),
-          ...(input.emailSubject === undefined ? {} : { emailSubject: input.emailSubject }),
-          ...(input.emailItemLineTemplate === undefined
+          /** Spec 271: o bloco "E-mail à contratante" — só vai o que a edição muda; `null`/`[]` limpam. */
+          ...(input.contractorNotificationTemplateKey === undefined
             ? {}
-            : { emailItemLineTemplate: input.emailItemLineTemplate }),
+            : { contractorNotificationTemplateKey: input.contractorNotificationTemplateKey }),
+          ...(input.contractorMailWatcherUserIds === undefined
+            ? {}
+            : { contractorMailWatcherUserIds: input.contractorMailWatcherUserIds }),
+          ...(input.contractorMailRecipientContactIds === undefined
+            ? {}
+            : { contractorMailRecipientContactIds: input.contractorMailRecipientContactIds }),
           ...(input.emailsContractor === undefined
             ? {}
             : { emailsContractor: input.emailsContractor }),
           emailTemplateKey: input.emailTemplateKey,
+          /** Spec 270: escopo e lista vão juntos — só quando a edição os muda. */
+          ...(input.contractorScope === undefined || input.contractorIds === undefined
+            ? {}
+            : { contractorIds: input.contractorIds, contractorScope: input.contractorScope }),
           /** Spec 248 RF1: o retorno da contratante — só vai o que a edição muda. */
           ...(input.contractorReplyAlertIntervalMinutes === undefined
             ? {}
@@ -988,12 +1012,24 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.contractorReplyMode === undefined
             ? {}
             : { contractorReplyMode: input.contractorReplyMode }),
+          ...(input.contractorReplyAcknowledgementQuickReplyId === undefined
+            ? {}
+            : {
+                contractorReplyAcknowledgementQuickReplyId:
+                  input.contractorReplyAcknowledgementQuickReplyId,
+              }),
+          ...(input.contractorReplyResolveOnDelivery === undefined
+            ? {}
+            : { contractorReplyResolveOnDelivery: input.contractorReplyResolveOnDelivery }),
           ...(input.contractorReplyWaitHours === undefined
             ? {}
             : { contractorReplyWaitHours: input.contractorReplyWaitHours }),
           ...(input.driverReplyTemplate === undefined
             ? {}
             : { driverReplyTemplate: input.driverReplyTemplate }),
+          ...(input.duplicateRequestPolicy === undefined
+            ? {}
+            : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
           ...(input.forwardToNoteRecipient === undefined
             ? {}
             : { forwardToNoteRecipient: input.forwardToNoteRecipient }),
@@ -1050,19 +1086,6 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: OCCURRENCE_TYPES_PATH,
       })
       return adapters.occurrenceTypeFromApi(readEnvelopeData(response))
-    },
-    async previewOccurrenceTypeEmail(input) {
-      const response = await authorizedRequest({
-        body: JSON.stringify(input),
-        dependencies,
-        method: 'POST',
-        path: OCCURRENCE_TYPE_EMAIL_PREVIEW_PATH,
-      })
-      const data = readEnvelopeData(response)
-      if (!isRecord(data) || !isString(data.body) || !isString(data.subject)) {
-        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-      }
-      return { body: data.body, subject: data.subject }
     },
     async listOccurrenceAttachmentOverrides(input) {
       const response = await authorizedRequest({

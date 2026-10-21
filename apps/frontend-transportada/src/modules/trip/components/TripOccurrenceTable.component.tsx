@@ -1,9 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
+import { VEHICLE_COLOR_SWATCH } from '@/modules/fleet/shared/fleet.constant'
+import type { VehicleColor } from '@/modules/fleet/shared/fleet.types'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
@@ -14,15 +18,24 @@ import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
 import { resolveOccurrenceViewState } from '../shared/occurrenceResolution.service'
 import {
+  describeOccurrenceCargoCells,
+  describeOccurrenceClientCells,
   describeOccurrenceConversationCell,
   describeOccurrenceDocumentCells,
+  describeOccurrenceVehicleCells,
   formatOccurrenceInvoice,
+  groupTripOccurrencesByResolution,
   resolveOccurrenceTypeLabel,
   type TripOccurrenceColumnKey,
   type TripOccurrenceFeedItem,
 } from '../shared/tripOccurrenceFeed.service'
+import {
+  formatResolutionDuration,
+  resolveOccurrenceResolvedInSeconds,
+} from '../shared/tripOccurrenceResolutionSummary.service'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
+import { OccurrenceMissingTemplateMark } from './OccurrenceMissingTemplateMark.component'
 import { OccurrenceCasePanel } from './OccurrenceCasePanel.component'
 import { OccurrenceResolutionBadge } from './OccurrenceResolutionBadge.component'
 import { OccurrenceResolutionPanel } from './OccurrenceResolutionPanel.component'
@@ -47,6 +60,7 @@ function OccurrenceDocumentCell({
   column: 'contractor' | 'destination' | 'invoiceValue'
   item: TripOccurrenceFeedItem
 }>) {
+  const { t } = useTranslation('trip')
   const cells = describeOccurrenceDocumentCells(item.document)
 
   if (column === 'contractor') {
@@ -54,7 +68,13 @@ function OccurrenceDocumentCell({
       <td className={styles.occurrenceWrapCell}>
         {cells.contractorName}
         {cells.contractorTaxId === '' ? null : (
-          <span className={styles.occurrenceCellNote}>{cells.contractorTaxId}</span>
+          <span className={`${styles.occurrenceCellNote} ${styles.occurrenceCopyLine}`}>
+            {cells.contractorTaxId}
+            <CopyValue
+              label={t('occurrenceFeed.copy.contractorTaxId')}
+              value={cells.contractorTaxId}
+            />
+          </span>
         )}
       </td>
     )
@@ -95,6 +115,106 @@ function OccurrenceConversationCell({ item }: Readonly<{ item: TripOccurrenceFee
   )
 }
 
+/** Spec 277 RF3: o selo do título de cada grupo — em aberto e cancelada também têm, ao contrário do selo da linha. */
+const GROUP_BADGE_VARIANT = {
+  cancelled: 'secondary',
+  open: 'info',
+  reopened: 'warning',
+  resolved: 'success',
+} as const
+
+/** Spec 277 RF4: o valor que a pessoa cola em outro sistema, com o botão sempre visível. */
+function CopyValue({ label, value }: Readonly<{ label: string; value: string }>) {
+  const { t } = useTranslation('trip')
+  if (value === '') return null
+  return <CopyButton copiedLabel={t('occurrenceFeed.copy.copied')} label={label} value={value} />
+}
+
+/** Código de cor do cadastro → amostra do token `--vehicle-color-*`; código desconhecido não pinta nada. */
+function resolveColorSwatch(code: string): null | string {
+  return Object.hasOwn(VEHICLE_COLOR_SWATCH, code)
+    ? VEHICLE_COLOR_SWATCH[code as VehicleColor]
+    : null
+}
+
+/** Spec 277 RF2: placa (copiável), marca/modelo/ano e a cor com amostra. */
+function OccurrenceVehicleCell({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
+  const { t } = useTranslation('trip')
+  const cells = describeOccurrenceVehicleCells(item)
+  const swatch = resolveColorSwatch(cells.colorCode)
+
+  return (
+    <td>
+      <span className={styles.occurrenceCopyLine}>
+        {cells.plate}
+        <CopyValue
+          label={t('occurrenceFeed.copy.plate', { plate: cells.plate })}
+          value={cells.plate}
+        />
+      </span>
+      {cells.description === '' ? null : (
+        <span className={styles.occurrenceCellNote}>{cells.description}</span>
+      )}
+      {cells.colorCode === '' ? null : (
+        <span className={styles.occurrenceCellNote}>
+          {swatch === null ? null : (
+            <span
+              aria-hidden="true"
+              className={styles.occurrenceColorSwatch}
+              style={{ background: swatch }}
+            />
+          )}
+          {t(`colorOption.${cells.colorCode}`, { defaultValue: cells.colorCode, ns: 'fleet' })}
+        </span>
+      )}
+    </td>
+  )
+}
+
+/** Spec 277 RF2: o cliente da nota, com CNPJ copiável. */
+function OccurrenceClientCell({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
+  const { t } = useTranslation('trip')
+  const cells = describeOccurrenceClientCells(item.document)
+
+  return (
+    <td className={styles.occurrenceWrapCell}>
+      {cells.name}
+      {cells.taxId === '' ? null : (
+        <span className={`${styles.occurrenceCellNote} ${styles.occurrenceCopyLine}`}>
+          {cells.taxId}
+          <CopyValue label={t('occurrenceFeed.copy.clientTaxId')} value={cells.taxId} />
+        </span>
+      )}
+    </td>
+  )
+}
+
+const WEIGHT_FORMAT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 })
+
+/** Spec 277 RF2: peso bruto em kg e quantidade de volumes; sem nota, célula vazia. */
+function OccurrenceCargoCell({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
+  const { t } = useTranslation('trip')
+  const cargo = describeOccurrenceCargoCells(item.document)
+
+  return (
+    <td className={styles.occurrenceMoneyCell}>
+      {cargo === null ? null : (
+        <>
+          {t('occurrenceFeed.cargo.weight', {
+            value: WEIGHT_FORMAT.format(Number(cargo.grossWeightKg)),
+          })}
+          <span className={styles.occurrenceCellNote}>
+            {t('occurrenceFeed.cargo.volumes', {
+              count: Number(cargo.volumeCount),
+              value: WEIGHT_FORMAT.format(Number(cargo.volumeCount)),
+            })}
+          </span>
+        </>
+      )}
+    </td>
+  )
+}
+
 /** Sem router: a troca de página é `pushState`, sem recarregar o app (spec 183 P1). */
 function openOccurrence(occurrenceId: string): void {
   navigateToTripOccurrence({ navigator: createBrowserWorkspaceNavigator(), occurrenceId })
@@ -108,6 +228,18 @@ function OccurrenceCell({
   const formatMoment = useMomentFormatter()
 
   if (column === 'createdAt') return <td>{formatMoment(item.createdAt)}</td>
+  if (column === 'resolvedIn') {
+    const seconds = resolveOccurrenceResolvedInSeconds(item)
+    return (
+      <td className={styles.occurrenceResolvedIn}>
+        {seconds === null
+          ? '—'
+          : formatResolutionDuration(seconds, {
+              lessThanMinute: t('occurrenceFeed.resolutionSummary.lessThanMinute'),
+            })}
+      </td>
+    )
+  }
   if (column === 'stage') {
     const stageKey = item.stage ?? 'stop'
     return (
@@ -132,14 +264,32 @@ function OccurrenceCell({
           {label.labelKey === null ? label.value : t(label.labelKey)}
         </a>
         <OccurrenceCancellationMark cancellation={item.cancellation} variant="badge" />
+        <OccurrenceMissingTemplateMark
+          isMissing={item.missingNotificationTemplate}
+          variant="badge"
+        />
       </td>
     )
   }
-  if (column === 'vehiclePlate') return <td>{item.vehiclePlate}</td>
+  if (column === 'vehiclePlate') return <OccurrenceVehicleCell item={item} />
+  if (column === 'client') return <OccurrenceClientCell item={item} />
+  if (column === 'city') return <td>{describeOccurrenceClientCells(item.document).city}</td>
+  if (column === 'cargo') return <OccurrenceCargoCell item={item} />
   if (column === 'driverName') return <td>{item.driverName}</td>
   if (column === 'stopLabel') return <td>{item.stopLabel ?? ''}</td>
   if (column === 'invoice') {
-    return <td>{formatOccurrenceInvoice(item.invoiceNumber, item.invoiceSeries)}</td>
+    const invoice = formatOccurrenceInvoice(item.invoiceNumber, item.invoiceSeries)
+    return (
+      <td>
+        <span className={styles.occurrenceCopyLine}>
+          {invoice}
+          <CopyValue
+            label={t('occurrenceFeed.copy.invoice', { invoice })}
+            value={item.invoiceNumber ?? ''}
+          />
+        </span>
+      </td>
+    )
   }
   if (column === 'contractor' || column === 'destination' || column === 'invoiceValue') {
     return <OccurrenceDocumentCell column={column} item={item} />
@@ -207,6 +357,10 @@ function OccurrenceDetailRow({
             : item.description}
         </p>
         <OccurrenceCancellationMark cancellation={item.cancellation} variant="notice" />
+        <OccurrenceMissingTemplateMark
+          isMissing={item.missingNotificationTemplate}
+          variant="notice"
+        />
         <OccurrenceAttachments item={item} />
         <OccurrenceResolutionPanel
           canResolve={canResolveOccurrenceCases}
@@ -287,6 +441,10 @@ function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
             {t(`occurrenceFeed.stage.${item.stage ?? 'stop'}`)}
           </span>
           <OccurrenceCancellationMark cancellation={item.cancellation} variant="badge" />
+          <OccurrenceMissingTemplateMark
+            isMissing={item.missingNotificationTemplate}
+            variant="badge"
+          />
           <OccurrenceResolutionBadge resolution={item.resolution ?? null} />
         </span>
         <span className={styles.occurrenceCellNote}>
@@ -361,6 +519,7 @@ export function TripOccurrenceTable({
   if (table.isLoading) return <TripOccurrenceTableSkeleton />
 
   const columnCount = table.visibleColumns.length + 1
+  const groups = groupTripOccurrencesByResolution(table.items)
 
   return (
     <>
@@ -383,7 +542,7 @@ export function TripOccurrenceTable({
         )}
       </div>
       <div className={`${styles.tableScroll} ${styles.occurrenceTableFrame}`}>
-        <table className={styles.dataTable}>
+        <table className={`${styles.dataTable} ${styles.occurrenceZebraTable}`}>
           <thead>
             <tr>
               {table.visibleColumns.map((column) =>
@@ -402,7 +561,11 @@ export function TripOccurrenceTable({
                   </th>
                 ) : (
                   <th
-                    className={column === 'invoiceValue' ? styles.occurrenceMoneyHeader : undefined}
+                    className={
+                      column === 'invoiceValue' || column === 'cargo'
+                        ? styles.occurrenceMoneyHeader
+                        : undefined
+                    }
                     key={column}
                     scope="col"
                   >
@@ -421,51 +584,63 @@ export function TripOccurrenceTable({
                 <td colSpan={columnCount}>{t('occurrenceFeed.empty')}</td>
               </tr>
             ) : (
-              table.items.flatMap((item) => {
-                const rows = [
-                  <tr
-                    className={styles.occurrenceRow}
-                    key={item.id}
-                    onClick={(event) => {
-                      /** A linha inteira abre o detalhe; botão e link dentro dela fazem só o deles. */
-                      if (
-                        event.target instanceof Element &&
-                        event.target.closest('a, button') !== null
-                      )
-                        return
-                      openOccurrence(item.id)
-                    }}
-                  >
-                    {table.visibleColumns.map((column) => (
-                      <OccurrenceCell column={column} item={item} key={column} />
-                    ))}
-                    <td>
-                      <Button
-                        onClick={() => table.toggleExpanded(item.id)}
-                        size="sm"
-                        type="button"
-                        variant="secondary"
-                      >
-                        <Icon name={table.expandedId === item.id ? 'close' : 'eye'} />
-                        {table.expandedId === item.id
-                          ? t('occurrenceFeed.detail.close')
-                          : t('occurrenceFeed.detail.open')}
-                      </Button>
-                    </td>
-                  </tr>,
-                ]
-                if (table.expandedId === item.id) {
-                  rows.push(
-                    <OccurrenceDetailRow
-                      canResolveOccurrenceCases={canResolveOccurrenceCases}
-                      columnCount={columnCount}
-                      item={item}
-                      key={`${item.id}-detail`}
-                    />,
-                  )
-                }
-                return rows
-              })
+              groups.flatMap((group) => [
+                <tr className={styles.occurrenceGroupRow} key={`group-${group.state}`}>
+                  <th colSpan={columnCount} scope="colgroup">
+                    <Badge variant={GROUP_BADGE_VARIANT[group.state]}>
+                      {t(`occurrenceResolution.state.${group.state}`)}
+                    </Badge>
+                    <span className={styles.counter}>
+                      {t('occurrenceFeed.groupCount', { count: group.items.length })}
+                    </span>
+                  </th>
+                </tr>,
+                ...group.items.flatMap((item, index) => {
+                  const rows = [
+                    <tr
+                      className={`${styles.occurrenceRow} ${index % 2 === 1 ? styles.occurrenceRowAlt : ''}`}
+                      key={item.id}
+                      onClick={(event) => {
+                        /** A linha inteira abre o detalhe; botão e link dentro dela fazem só o deles. */
+                        if (
+                          event.target instanceof Element &&
+                          event.target.closest('a, button') !== null
+                        )
+                          return
+                        openOccurrence(item.id)
+                      }}
+                    >
+                      {table.visibleColumns.map((column) => (
+                        <OccurrenceCell column={column} item={item} key={column} />
+                      ))}
+                      <td>
+                        <Button
+                          onClick={() => table.toggleExpanded(item.id)}
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                        >
+                          <Icon name={table.expandedId === item.id ? 'close' : 'eye'} />
+                          {table.expandedId === item.id
+                            ? t('occurrenceFeed.detail.close')
+                            : t('occurrenceFeed.detail.open')}
+                        </Button>
+                      </td>
+                    </tr>,
+                  ]
+                  if (table.expandedId === item.id) {
+                    rows.push(
+                      <OccurrenceDetailRow
+                        canResolveOccurrenceCases={canResolveOccurrenceCases}
+                        columnCount={columnCount}
+                        item={item}
+                        key={`${item.id}-detail`}
+                      />,
+                    )
+                  }
+                  return rows
+                }),
+              ])
             )}
           </tbody>
         </table>

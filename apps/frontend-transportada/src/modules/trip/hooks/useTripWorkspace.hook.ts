@@ -164,7 +164,13 @@ export type TripController = Readonly<{
   reportStopOccurrence: (input: ReportStopOccurrenceInput) => Promise<FieldReportIdResult>
   startFieldTrip: (input: StartFieldTripInput) => Promise<FieldTripStepResult>
   /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
-  readFieldOccurrenceTypes: () => Promise<readonly FieldOccurrenceType[]>
+  readFieldOccurrenceTypes: (
+    input?: Readonly<{ documentIds?: readonly string[] }>,
+  ) => Promise<readonly FieldOccurrenceType[]>
+  /** Spec 270 (R6): `GET /trips/:id/documents/:documentId/occurrence-types` — os tipos do galpão para uma nota. */
+  listSeparationOccurrenceTypes: (
+    input: Readonly<{ documentId: string; tripId: string }>,
+  ) => Promise<readonly OccurrenceType[]>
   /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences`, uma nota ou o lote da seleção. */
   registerFieldOccurrences: (
     input: RegisterFieldOccurrencesInput,
@@ -305,8 +311,10 @@ export function createTripController(
     reportStopOccurrence: (body) =>
       canReportOnBehalf ? input.client.reportStopOccurrence(body) : forbidden(),
     startFieldTrip: (body) => (canReportOnBehalf ? input.client.startFieldTrip(body) : forbidden()),
-    readFieldOccurrenceTypes: () =>
-      canReportOnBehalf ? input.client.readFieldOccurrenceTypes() : forbidden(),
+    readFieldOccurrenceTypes: (body) =>
+      canReportOnBehalf ? input.client.readFieldOccurrenceTypes(body) : forbidden(),
+    listSeparationOccurrenceTypes: (body) =>
+      canReadTrips ? input.client.listSeparationOccurrenceTypes(body) : forbidden(),
     registerFieldOccurrences: (body) =>
       canReportOnBehalf ? input.client.registerFieldOccurrences(body) : forbidden(),
     reportFieldDelivery: (body) =>
@@ -627,10 +635,6 @@ export function useTripWorkspace(
     readonly OccurrencePhotoSendItem[]
   >([])
   const [isSendingOccurrencePhotos, setIsSendingOccurrencePhotos] = useState(false)
-  const [lastOccurrenceEmail, setLastOccurrenceEmail] = useState<null | Readonly<{
-    body: string
-    subject: string
-  }>>(null)
   const occurrencePhotoKeysRef = useRef<Record<string, string>>({})
   const occurrencePhotoOccurrenceIdRef = useRef<string | undefined>(undefined)
 
@@ -638,7 +642,6 @@ export function useTripWorkspace(
     occurrencePhotoKeysRef.current = {}
     occurrencePhotoOccurrenceIdRef.current = undefined
     setOccurrencePhotoSendState([])
-    setLastOccurrenceEmail(null)
   }
 
   async function sendSeparationOccurrencePhotos(
@@ -739,7 +742,6 @@ export function useTripWorkspace(
                 : { productQuantityUnits: input_.productQuantityUnits }),
               ...(photo.thumbnail === undefined ? {} : { thumbnail: photo.thumbnail }),
             })
-            setLastOccurrenceEmail(registered.email)
             /** Spec 185 T6.1 (RF2/RF3): a ocorrência de separação também tenta o gatilho automático. */
             setAutoDispatchOutcome(registered.autoDispatch)
             return { occurrenceId: registered.id }
@@ -851,13 +853,6 @@ export function useTripWorkspace(
     onSuccess: (_result, variables) => {
       clearFieldReportKey(`occurrence:${variables.stopId}`)
     },
-  })
-
-  /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
-  const fieldOccurrenceTypesQuery = useQuery({
-    enabled: controller.canReportOnBehalf,
-    queryFn: () => controller.readFieldOccurrenceTypes(),
-    queryKey: [TRIP_QUERY_KEY, 'field-occurrence-types'] as const,
   })
 
   /**
@@ -1105,7 +1100,6 @@ export function useTripWorkspace(
     deliveryProofsQuery,
     fieldActionCapabilities,
     fieldDeliverDocumentMutation,
-    fieldOccurrenceTypesQuery,
     fieldReturnDocumentMutation,
     registerFieldOccurrencesMutation,
     resetFieldOccurrenceIdempotency,
@@ -1121,7 +1115,6 @@ export function useTripWorkspace(
     occurrenceTypesQuery,
     occurrencesQuery,
     isSendingOccurrencePhotos,
-    lastOccurrenceEmail,
     occurrencePhotoSendState,
     resetSeparationOccurrencePhotoSend,
     sendSeparationOccurrencePhotos,

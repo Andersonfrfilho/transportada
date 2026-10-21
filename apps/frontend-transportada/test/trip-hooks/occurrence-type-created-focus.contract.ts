@@ -27,8 +27,6 @@ function buildType(id: string, name: string): OccurrenceType {
     active: true,
     allowsMultipleItems: true,
     attachmentMode: 'off',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     id,

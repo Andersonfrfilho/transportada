@@ -83,8 +83,10 @@ export type DriverFlowActionDependencies = {
     readonly companyId: string
     readonly membershipId: string
   }) => Promise<FindCurrentDriverTripResult>
+  /** Spec 270: com `documentId` a lista já vem filtrada pela contratante da nota; sem ele, só os tipos `all`. */
   readonly listOccurrenceTypes: (input: {
     readonly companyId: string
+    readonly documentId?: string | undefined
   }) => Promise<readonly OccurrenceTypeRecord[]>
   readonly registerOccurrence: (input: {
     readonly actorUserId: string
@@ -396,7 +398,10 @@ export function createDriverWhatsAppFlowActions(
     context,
     session,
   }) => {
-    const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
+    const catalog = await deps.listOccurrenceTypes({
+      companyId: actor.scope.companyId,
+      documentId: readStringContext(context, DRIVER_FLOW_CONTEXT_KEY.documentId),
+    })
     const options = catalog.filter(isOfferedToDriver)
     if (options.length === 0) {
       await channel.sendText(
@@ -440,7 +445,10 @@ export function createDriverWhatsAppFlowActions(
       }
     }
 
-    const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
+    const catalog = await deps.listOccurrenceTypes({
+      companyId: actor.scope.companyId,
+      documentId: readStringContext(context, DRIVER_FLOW_CONTEXT_KEY.documentId),
+    })
     const offered = catalog.some((type) => type.id === answer && isOfferedToDriver(type))
     if (!offered) {
       return rejectListAnswer({

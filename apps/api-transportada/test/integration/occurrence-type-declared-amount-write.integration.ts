@@ -22,8 +22,6 @@ import {
   type SaveOccurrenceTypeValues,
 } from '../../src/trips/application/save-occurrence-type.use-case.js'
 import { OccurrenceTypeDeclaredAmountNeedsItemsError } from '../../src/trips/domain/trip.error.js'
-import { toSaveOccurrenceTypeValues } from '../../src/trips/application/save-occurrence-type-values.mapper.js'
-import { parseOccurrenceTypeRequest } from '../../src/trips/presentation/occurrence.schema.js'
 import {
   findOccurrenceType,
   listOccurrenceTypes,
@@ -41,14 +39,9 @@ import {
   type TestDatabase,
 } from '../fixtures/trip-field-office-database.fixture.js'
 
-const SAC_SUBJECT = 'OCORRÊNCIA: {{contratante}} – NF {{numeroNotaSemSerie}} – DEVOLUÇÃO PARCIAL'
-const SAC_BODY = 'NFD {{numeroReferencia}} – R$ {{valorDeclarado}}\n{{linhasItens}}'
-
 function valuesFor(overrides: Partial<SaveOccurrenceTypeValues> = {}): SaveOccurrenceTypeValues {
   return {
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     name: 'Devolução parcial',
@@ -68,7 +61,10 @@ function saveThroughUseCase(
     companyId,
     findCurrentType: (query) => findOccurrenceType(database.db, query),
     save: (toSave) => saveOccurrenceType(database.db, { ...toSave, companyId }),
-    templates: { hasActiveEmailTemplate: async () => true },
+    templates: {
+      findContractorTemplate: async () => null,
+      hasActiveEmailTemplate: async () => true,
+    },
     values,
   })
 }
@@ -86,7 +82,6 @@ describe('os campos novos do tipo contra o Postgres (spec 247 RF1)', () => {
             declaredAmountLabel: 'Valor pago pela loja',
             declaredAmountMode: 'optional',
             declaredAmountScope: 'item',
-            emailItemLineTemplate: '{{codigoItem}} – {{item}}',
             itemsMode: 'required',
             referenceNumberLabel: 'Número da NFD',
             referenceNumberMode: 'required',
@@ -96,7 +91,6 @@ describe('os campos novos do tipo contra o Postgres (spec 247 RF1)', () => {
           declaredAmountLabel: 'Valor pago pela loja',
           declaredAmountMode: 'optional',
           declaredAmountScope: 'item',
-          emailItemLineTemplate: '{{codigoItem}} – {{item}}',
           referenceNumberLabel: 'Número da NFD',
           referenceNumberMode: 'required',
         })
@@ -109,7 +103,6 @@ describe('os campos novos do tipo contra o Postgres (spec 247 RF1)', () => {
         expect(renamed).toMatchObject({
           declaredAmountLabel: 'Valor pago pela loja',
           declaredAmountMode: 'optional',
-          emailItemLineTemplate: '{{codigoItem}} – {{item}}',
           referenceNumberMode: 'required',
         })
 
@@ -134,53 +127,6 @@ describe('os campos novos do tipo contra o Postgres (spec 247 RF1)', () => {
   )
 
   testWithPostgres(
-    'o PUT sem emailBody e emailSubject preserva o gravado; "" explícito apaga (T7.2 M1)',
-    async () => {
-      await withConversationDatabase(async (database) => {
-        const { companyId } = await seedCompany(database)
-        const created = await saveThroughUseCase(
-          database,
-          companyId,
-          valuesFor({ emailBody: SAC_BODY, emailSubject: SAC_SUBJECT }),
-        )
-
-        const putWithout = async (extra: Record<string, unknown>) =>
-          saveThroughUseCase(
-            database,
-            companyId,
-            toSaveOccurrenceTypeValues(
-              await parseOccurrenceTypeRequest(
-                new Request('http://localhost/company-settings/occurrence-types', {
-                  body: JSON.stringify({
-                    emailTemplateKey: null,
-                    name: 'Devolução parcial',
-                    occurrenceTypeId: created.id,
-                    stage: 'delivery',
-                    ...extra,
-                  }),
-                  headers: { 'content-type': 'application/json' },
-                  method: 'PUT',
-                }),
-              ),
-            ),
-          )
-
-        const renamed = await putWithout({ name: 'Devolução parcial (SAC)' })
-        expect(renamed).toMatchObject({ emailBody: SAC_BODY, emailSubject: SAC_SUBJECT })
-        const read = await findOccurrenceType(database.db, {
-          companyId,
-          occurrenceTypeId: created.id,
-        })
-        expect(read).toMatchObject({ emailBody: SAC_BODY, emailSubject: SAC_SUBJECT })
-
-        const erased = await putWithout({ emailBody: '', emailSubject: '' })
-        expect(erased).toMatchObject({ emailBody: '', emailSubject: '' })
-      })
-    },
-    30_000,
-  )
-
-  testWithPostgres(
     'criação sem os campos nasce com os padrões: tudo desligado e rótulos de fábrica',
     async () => {
       await withConversationDatabase(async (database) => {
@@ -191,7 +137,6 @@ describe('os campos novos do tipo contra o Postgres (spec 247 RF1)', () => {
           declaredAmountLabel: 'Valor pago',
           declaredAmountMode: 'off',
           declaredAmountScope: 'item',
-          emailItemLineTemplate: '',
           referenceNumberLabel: 'Número do documento do cliente',
           referenceNumberMode: 'off',
         })
@@ -314,7 +259,7 @@ describe('os dois modos das exceções contra o Postgres (spec 247 D8)', () => {
 
 describe('o aviso interno e o e-mail à contratante são independentes (spec 247 RF2, CA05)', () => {
   testWithPostgres(
-    'salvar o tipo com email_template_key mantém assunto e corpo, e o aviso automático sai com eles',
+    'salvar o tipo com email_template_key mantém assunto e corpo gravados, e o aviso automático sai pelo modelo escolhido',
     async () => {
       await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
@@ -329,8 +274,6 @@ describe('o aviso interno e o e-mail à contratante são independentes (spec 247
           database,
           companyId,
           valuesFor({
-            emailBody: SAC_BODY,
-            emailSubject: SAC_SUBJECT,
             emailTemplateKey: 'trip.ocorrencia-personalizada',
             emailsContractor: true,
             name: 'Caixa violada',
@@ -339,14 +282,10 @@ describe('o aviso interno e o e-mail à contratante são independentes (spec 247
           }),
         )
         expect(saved).toMatchObject({
-          emailBody: SAC_BODY,
-          emailSubject: SAC_SUBJECT,
           emailTemplateKey: 'trip.ocorrencia-personalizada',
         })
         const [row] = await database.db
           .select({
-            emailBody: companyOccurrenceTypes.emailBody,
-            emailSubject: companyOccurrenceTypes.emailSubject,
             emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
           })
           .from(companyOccurrenceTypes)
@@ -357,8 +296,6 @@ describe('o aviso interno e o e-mail à contratante são independentes (spec 247
             ),
           )
         expect(row).toEqual({
-          emailBody: SAC_BODY,
-          emailSubject: SAC_SUBJECT,
           emailTemplateKey: 'trip.ocorrencia-personalizada',
         })
 
@@ -377,8 +314,8 @@ describe('o aviso interno e o e-mail à contratante são independentes (spec 247
           .from(contractorMailMessages)
           .where(eq(contractorMailMessages.companyId, companyId))
         expect(mails).toHaveLength(1)
-        expect(mails[0]?.subject).toStartWith('OCORRÊNCIA:')
-        expect(mails[0]?.subject).toEndWith('– DEVOLUÇÃO PARCIAL')
+        /** Spec 269: o e-mail sai do modelo escolhido no tipo; o texto antigo do tipo não é lido. */
+        expect(mails[0]?.subject).toStartWith('Ocorrência — NF ')
       })
     },
     30_000,

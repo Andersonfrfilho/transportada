@@ -43,7 +43,8 @@ describe('mensagem nova anunciada (spec 183 T902, D2)', () => {
     )
 
     expect(thread).toContain('<ConversationThread')
-    expect(thread).toContain('newMessages:')
+    expect(thread).toContain('buildContractorThreadLabels')
+    expect(labels).toContain('newMessages:')
     expect(labels).toContain("'newMessages'")
   })
 })

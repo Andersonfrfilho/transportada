@@ -1124,6 +1124,8 @@ function toDriverDocument(
       : resolveFieldOccurrenceTypes({
           contractorId: row.contractorId,
           moment: OCCURRENCE_MOMENT.document,
+          /** Spec 270: o escopo é decidido pela contratante desta nota, lida aqui — nunca pela query. */
+          noteContractorIds: [row.contractorId],
           overrides: occurrenceTypes.overrides,
           recipientTaxId: row.recipientTaxId ?? '',
           types: occurrenceTypes.types,

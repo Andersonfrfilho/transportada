@@ -56,7 +56,6 @@ import {
   findTripOccurrenceById,
   listDocumentProducts,
   listTripOccurrences,
-  readOccurrenceTemplateValues,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
@@ -447,7 +446,6 @@ async function registerWholeDocumentOccurrence(
       findOccurrenceType: (query) => findOccurrenceType(database.db, query),
       listDocumentProducts: (query) => listDocumentProducts(database.db, query),
       listOccurrences: (query) => listTripOccurrences(database.db, query),
-      readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
       saveOccurrence: (query) =>
         persistSeparationOccurrenceWithAttachment({
           attachment: query.attachment,

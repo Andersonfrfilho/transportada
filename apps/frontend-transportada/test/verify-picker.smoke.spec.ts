@@ -22,8 +22,6 @@ for (const [nome, viewport] of [
           data: [
             {
               active: true,
-              emailBody: '',
-              emailSubject: '',
               emailTemplateKey: null,
               id: '00000000-0000-4000-8000-0000000009a1',
               name: 'Item avariado',

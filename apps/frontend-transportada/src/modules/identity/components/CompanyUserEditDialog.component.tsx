@@ -13,6 +13,7 @@ import type { CompanyUserPasswordState } from '../hooks/useCompanyUserPassword.h
 import { useCompanyUserIdentifiers } from '../hooks/useCompanyUserIdentifiers.hook'
 import { readPictureErrorCode, useCompanyUserPicture } from '../hooks/useCompanyUserPicture.hook'
 import type { CompanyUserRevealState } from '../hooks/useCompanyUserReveal.hook'
+import { JOB_TITLE_MAX_LENGTH } from '../shared/companyUserJobTitle.service'
 import { CONTACT_CHANNELS } from '../shared/companyUsers.constant'
 import type { CompanyUser } from '../shared/companyUsers.types'
 import styles from '../styles/userAdministration.module.css'
@@ -261,6 +262,15 @@ export function CompanyUserEditDialog({
             label={t('users.editDialog.username')}
             onChange={form.setUsername}
             value={form.username}
+          />
+          <CompanyUserTextField
+            disabled={isPending}
+            hint={`${t('users.editDialog.jobTitleHint')} · ${form.jobTitle.length}/${JOB_TITLE_MAX_LENGTH}`}
+            isWide
+            label={t('users.editDialog.jobTitle')}
+            maxLength={JOB_TITLE_MAX_LENGTH}
+            onChange={form.setJobTitle}
+            value={form.jobTitle}
           />
           <CompanyUserSelectField
             disabled={isPending}

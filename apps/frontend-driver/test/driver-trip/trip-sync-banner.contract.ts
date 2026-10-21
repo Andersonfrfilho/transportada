@@ -8,6 +8,7 @@ import type {
 import {
   countSyncingEvents,
   resolveTripSyncBanner,
+  resolveTripSyncProgress,
 } from '@/modules/driver-trip/shared/tripSyncBanner.service'
 
 function queueItem(status: EventQueueItemStatus, key: string = status.state): EventQueueItemView {
@@ -87,5 +88,38 @@ describe('aviso de sincronização da viagem (teste local de 15/10)', () => {
         queueItem(UNVERIFIED, 'd'),
       ]),
     ).toBe(2)
+  })
+})
+
+describe('barra de progresso do aviso de sincronização (pedido de 16/10)', () => {
+  it('um item só: indeterminada, não há o que contar', () => {
+    expect(resolveTripSyncProgress({ peak: 1, remaining: 1, synced: false })).toEqual({
+      kind: 'indeterminate',
+    })
+  })
+
+  it('fila com vários itens: determinada pelo que já saiu do total visto', () => {
+    expect(resolveTripSyncProgress({ peak: 4, remaining: 4, synced: false })).toEqual({
+      kind: 'determinate',
+      percent: 0,
+    })
+    expect(resolveTripSyncProgress({ peak: 4, remaining: 1, synced: false })).toEqual({
+      kind: 'determinate',
+      percent: 75,
+    })
+  })
+
+  it('o total cresce se entra evento no meio e a barra nunca passa de 100 nem fica negativa', () => {
+    expect(resolveTripSyncProgress({ peak: 3, remaining: 5, synced: false })).toEqual({
+      kind: 'determinate',
+      percent: 0,
+    })
+  })
+
+  it('sincronizado: a barra completa, mesmo para um item só', () => {
+    expect(resolveTripSyncProgress({ peak: 1, remaining: 0, synced: true })).toEqual({
+      kind: 'determinate',
+      percent: 100,
+    })
   })
 })

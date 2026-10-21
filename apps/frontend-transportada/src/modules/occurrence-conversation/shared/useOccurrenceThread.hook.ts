@@ -16,6 +16,7 @@ import {
   createOccurrenceThreadApi,
   type OccurrenceThreadAuthorLabels,
   type OccurrenceThreadParticipant,
+  type OccurrenceThreadSendError,
 } from './occurrenceThreadApi.service'
 import type { ConversationParticipant } from './conversationParticipant.constant'
 import { toThreadQuickReplies } from './quickReplies.service'
@@ -24,6 +25,7 @@ import { createRefreshSubscription } from './subjectThreadApi.service'
 type UseOccurrenceThreadInput = Readonly<{
   companyId?: string
   occurrenceId: string
+  onSendError?: (error: null | OccurrenceThreadSendError) => void
   participant: OccurrenceThreadParticipant
 }>
 
@@ -31,6 +33,7 @@ type UseOccurrenceThreadInput = Readonly<{
 export function useOccurrenceThread({
   companyId,
   occurrenceId,
+  onSendError,
   participant,
 }: UseOccurrenceThreadInput) {
   const { t } = useTranslation('occurrenceConversation')
@@ -51,8 +54,11 @@ export function useOccurrenceThread({
       },
       contractor: t('participant.contractor'),
       contractorUser: t('author.contractorUser'),
+      copy: t('author.copy'),
       driver: t('author.driver'),
       operation: t('author.operation'),
+      team: t('author.team'),
+      teamOnly: t('author.teamOnly'),
       unverified: t('author.unverified'),
     }),
     [t],
@@ -74,6 +80,7 @@ export function useOccurrenceThread({
           void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
           void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
         },
+        ...(onSendError === undefined ? {} : { onSendError }),
         onSpeaker: (authorName, speaker) => speakers.current.set(authorName, speaker),
         participant,
         readConversations: () =>
@@ -83,7 +90,7 @@ export function useOccurrenceThread({
           }),
         subscribe: createRefreshSubscription(threadSubject, CONVERSATION_STATUS_REFETCH_MS),
       }),
-    [companyId, labels, occurrenceId, participant, queryClient, threadSubject],
+    [companyId, labels, occurrenceId, onSendError, participant, queryClient, threadSubject],
   )
   const threadQuickReplies = useMemo(
     () => toThreadQuickReplies(quickReplies.data ?? []),

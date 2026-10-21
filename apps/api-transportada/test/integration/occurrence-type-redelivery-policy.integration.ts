@@ -54,8 +54,6 @@ function baseValues(
     active: true,
     allowsMultipleItems: true,
     companyId,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     name: 'Recusa total',
     notifies: false,

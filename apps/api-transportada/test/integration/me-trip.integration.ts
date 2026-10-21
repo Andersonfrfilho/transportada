@@ -77,6 +77,15 @@ import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-tr
 import { listDeliveryProofs } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { listTripTimeline } from '../../src/trips/infrastructure/trip-timeline.query.js'
 import { buildFieldOccurrenceType } from '../fixtures/field-occurrence-type.fixture.js'
+import { companyOccurrenceTypeContractors } from '../../src/database/occurrence-type-contractor.schema.js'
+import { listFieldOccurrenceTypes } from '../../src/trips/application/list-field-occurrence-types.use-case.js'
+import { TripDocumentNotFoundError } from '../../src/trips/domain/trip.error.js'
+import { listOccurrenceTypes } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
+import {
+  findDocumentOccurrenceSubject,
+  readNoteContractorIds,
+} from '../../src/trips/infrastructure/document-occurrence-subject.query.js'
+import { listOccurrenceTypesForNote } from '../../src/trips/infrastructure/occurrence-types-for-note.query.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -731,6 +740,122 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
             name: 'Avaria parcial',
           }),
         ])
+      })
+    },
+  )
+
+  /**
+   * Spec 270 (ADR-0107, D4/D5): o tipo `listed` só aparece na nota da contratante da lista — o retrato
+   * lê a contratante de cada nota no servidor. A nota sem contratante cadastrada recebe só o geral.
+   * Contra Postgres de verdade porque a junção emitente → `contractors` é SQL próprio.
+   */
+  testWithPostgres(
+    'o tipo restrito a contratantes só aparece na nota da contratante da lista (spec 270)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        const { generalTypeId, listedTypeId, contractorId } = await seedScopedTypes(database, world)
+
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const snapshot = await findCurrentDriverTrip({
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          now: NOW,
+          repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+
+        const documents = snapshot.trips[0]?.stops[0]?.documents ?? []
+        const scopedDocument = documents.find((entry) => entry.id === world.documentIds[0])
+        const plainDocument = documents.find((entry) => entry.id === world.documentIds[1])
+        expect(scopedDocument?.occurrenceTypes?.map((type) => type.id).toSorted()).toEqual(
+          [generalTypeId, listedTypeId].toSorted(),
+        )
+        expect(plainDocument?.occurrenceTypes?.map((type) => type.id)).toEqual([generalTypeId])
+        expect(contractorId).toBeString()
+        for (const type of [
+          ...(scopedDocument?.occurrenceTypes ?? []),
+          ...(plainDocument?.occurrenceTypes ?? []),
+        ]) {
+          expect(Object.keys(type)).not.toContain('contractorScope')
+          expect(Object.keys(type)).not.toContain('contractorIds')
+          expect(Object.keys(type)).not.toContain('contractors')
+        }
+      })
+    },
+  )
+
+  /**
+   * Spec 270 (D5, R4, R6): a contratante de cada nota do pedido lida em uma consulta; a nota de outra
+   * empresa é 404; a lista do escritório oferece a interseção; o galpão confere a viagem da nota.
+   */
+  testWithPostgres(
+    'as listas do escritório e do galpão leem a contratante da nota no servidor (spec 270)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        const { contractorId, generalTypeId, listedTypeId } = await seedScopedTypes(database, world)
+        const [scopedDocument, plainDocument] = world.documentIds as [string, string]
+
+        expect(
+          await readNoteContractorIds(database.db, {
+            companyId: world.companyId,
+            documentIds: [scopedDocument, plainDocument],
+          }),
+        ).toEqual([contractorId, null])
+        expect(
+          await readNoteContractorIds(database.db, { companyId: world.companyId, documentIds: [] }),
+        ).toEqual([null])
+        const otherCompany = await captureError(() =>
+          readNoteContractorIds(database.db, {
+            companyId: crypto.randomUUID(),
+            documentIds: [scopedDocument],
+          }),
+        )
+        expect(otherCompany).toBeInstanceOf(TripDocumentNotFoundError)
+
+        const repository = {
+          listOccurrenceTypes: (query: { readonly companyId: string }) =>
+            listOccurrenceTypes(database.db, query),
+        }
+        const idsFor = async (noteContractorIds: readonly (null | string)[]) =>
+          (
+            await listFieldOccurrenceTypes({
+              companyId: world.companyId,
+              moment: 'office',
+              noteContractorIds,
+              repository,
+            })
+          )
+            .map((type) => type.id)
+            .toSorted()
+        expect(await idsFor([contractorId])).toEqual([generalTypeId, listedTypeId].toSorted())
+        expect(await idsFor([contractorId, null])).toEqual([generalTypeId])
+
+        expect(
+          await findDocumentOccurrenceSubject(database.db, {
+            companyId: world.companyId,
+            documentId: scopedDocument,
+            tripId: world.tripId,
+          }),
+        ).toMatchObject({ contractorId })
+        expect(
+          await findDocumentOccurrenceSubject(database.db, {
+            companyId: world.companyId,
+            documentId: scopedDocument,
+            tripId: crypto.randomUUID(),
+          }),
+        ).toBeNull()
+
+        const whatsapp = await listOccurrenceTypesForNote(database.db, {
+          companyId: world.companyId,
+          documentId: plainDocument,
+        })
+        expect(whatsapp.map((type) => type.id)).toEqual([generalTypeId])
+        const withoutNote = await listOccurrenceTypesForNote(database.db, {
+          companyId: world.companyId,
+        })
+        expect(withoutNote.map((type) => type.id)).toEqual([generalTypeId])
       })
     },
   )
@@ -2287,4 +2412,71 @@ async function withDisposableDatabase(
     open: (connectionString) => createDrizzleProvider({ connection: connectionString }),
     operation,
   })
+}
+
+/**
+ * Spec 270: um tipo geral e um tipo `listed` só da contratante da primeira nota (emitente cadastrado);
+ * a segunda nota fica sem contratante.
+ */
+async function seedScopedTypes(
+  database: TestDatabase,
+  world: World,
+): Promise<{
+  readonly contractorId: string
+  readonly generalTypeId: string
+  readonly listedTypeId: string
+}> {
+  const generalTypeId = crypto.randomUUID()
+  const listedTypeId = crypto.randomUUID()
+  await database.db.insert(companyOccurrenceTypes).values([
+    {
+      active: true,
+      attachmentMode: 'optional',
+      companyId: world.companyId,
+      flow: 'document',
+      id: generalTypeId,
+      name: 'Avaria geral',
+      notifies: false,
+      redeliveryPolicy: 'allowed',
+      stage: 'delivery',
+    },
+    {
+      active: true,
+      attachmentMode: 'optional',
+      companyId: world.companyId,
+      contractorScope: 'listed',
+      flow: 'document',
+      id: listedTypeId,
+      name: 'Procedimento da contratante',
+      notifies: false,
+      redeliveryPolicy: 'allowed',
+      stage: 'delivery',
+    },
+  ])
+  const emitterTaxId = '22333444000155'
+  const contractorId = crypto.randomUUID()
+  await database.db.insert(nfeParticipants).values({
+    companyId: world.companyId,
+    documentId: world.nfeDocumentIds[0] ?? '',
+    id: crypto.randomUUID(),
+    legalName: 'Distribuidora Alfa',
+    role: 'emitter',
+    taxId: emitterTaxId,
+  })
+  await database.db
+    .insert(contractors)
+    .values({ companyId: world.companyId, id: contractorId, taxId: emitterTaxId })
+  await database.db
+    .insert(companyOccurrenceTypeContractors)
+    .values({ companyId: world.companyId, contractorId, occurrenceTypeId: listedTypeId })
+  return { contractorId, generalTypeId, listedTypeId }
+}
+
+async function captureError(run: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await run()
+    return undefined
+  } catch (error) {
+    return error
+  }
 }

@@ -8,10 +8,6 @@ import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import styles from '@/modules/trip/styles/trip.module.css'
 
 import {
-  createOccurrenceMailDraftStore,
-  OccurrenceMailDraftStoreContext,
-} from '../hooks/useOccurrenceMailDraftStore.hook'
-import {
   createOccurrenceMomentsDraftStore,
   OccurrenceMomentsDraftStoreContext,
 } from '../hooks/useOccurrenceMomentsDraftStore.hook'
@@ -68,6 +64,8 @@ export function OccurrenceTypeCatalogPanel({
   const { t } = useTranslation('companySettings')
   const { t: tTrip } = useTranslation('trip')
   const createSupport = {
+    hasContractorScope: types.some((type) => type.contractorScope !== undefined),
+    hasDuplicateRequestPolicy: types.some((type) => type.duplicateRequestPolicy !== undefined),
     hasItemsMode: types.some((type) => type.itemsMode !== undefined),
     hasMoments: types.some((type) => type.moments !== undefined),
     hasRequirementModes: types.some((type) => type.noteMode !== undefined),
@@ -75,8 +73,9 @@ export function OccurrenceTypeCatalogPanel({
 
   const filtersController = useOccurrenceTypeFilters()
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
-  const [mailDraftStore] = useState(createOccurrenceMailDraftStore)
   const [momentsDraftStore] = useState(createOccurrenceMomentsDraftStore)
+  /** O cadastro do tipo novo só precisa das contratantes quando o "Vale para" pede "Só estas". */
+  const [isCreateScopeListed, setIsCreateScopeListed] = useState(false)
 
   const created = useOccurrenceTypeJustCreated({
     onCreated: (typeId) => setExpandedIds((current) => new Set(current).add(typeId)),
@@ -99,7 +98,8 @@ export function OccurrenceTypeCatalogPanel({
 
   const { exceptionsOf, overridesQuery, people, templates } = useOccurrenceTypeCatalogData({
     canManage,
-    isPeopleNeeded: expandedIds.size > 0 || filtersController.filters.query.trim() !== '',
+    isPeopleNeeded:
+      expandedIds.size > 0 || filtersController.filters.query.trim() !== '' || isCreateScopeListed,
   })
 
   const exceptionsByTypeId = overridesQuery.isSuccess
@@ -152,26 +152,26 @@ export function OccurrenceTypeCatalogPanel({
           query={filtersController.filters.query}
         />
       ) : (
-        <OccurrenceMailDraftStoreContext.Provider value={mailDraftStore}>
-          <OccurrenceMomentsDraftStoreContext.Provider value={momentsDraftStore}>
-            <OccurrenceTypeList
-              canManage={canManage}
-              exceptionsOf={exceptionsOf}
-              expandedIds={expandedIds}
-              isSaving={isSaving}
-              onSave={onSave}
-              onToggle={handleToggle}
-              templates={templates}
-              types={visibleTypes}
-            />
-          </OccurrenceMomentsDraftStoreContext.Provider>
-        </OccurrenceMailDraftStoreContext.Provider>
+        <OccurrenceMomentsDraftStoreContext.Provider value={momentsDraftStore}>
+          <OccurrenceTypeList
+            canManage={canManage}
+            exceptionsOf={exceptionsOf}
+            expandedIds={expandedIds}
+            isSaving={isSaving}
+            onSave={onSave}
+            onToggle={handleToggle}
+            templates={templates}
+            types={visibleTypes}
+          />
+        </OccurrenceMomentsDraftStoreContext.Provider>
       )}
 
       {canManage && loadStatus === 'ready' ? (
         <OccurrenceTypeCreateForm
           isSaving={isSaving}
           onSave={handleCreate}
+          onScopeListedChange={setIsCreateScopeListed}
+          people={people}
           support={createSupport}
           templateOptions={templates.options}
         />

@@ -3,10 +3,16 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   countActiveTripOccurrenceFilters,
+  countAdvancedTripOccurrenceFilters,
+  describeOccurrenceCargoCells,
+  describeOccurrenceClientCells,
   describeOccurrenceConversationCell,
   describeOccurrenceDocumentCells,
+  describeOccurrenceVehicleCells,
   EMPTY_TRIP_OCCURRENCE_FILTERS,
   formatOccurrenceInvoice,
+  groupTripOccurrencesByResolution,
+  normalizeTripOccurrenceSearch,
   readTripOccurrenceColumnPreferences,
   reorderTripOccurrenceColumns,
   resolveOccurrenceTypeLabel,
@@ -103,6 +109,7 @@ describe('listagem de ocorrências — pílulas de filtro', () => {
         createdUntil: '2026-09-02',
         platesQuery: 'ABC1D23',
         resolutionStates: ['resolved'],
+        search: '',
         stages: ['stop'],
         typesQuery: 'long_wait',
       },
@@ -127,6 +134,7 @@ describe('listagem de ocorrências — pílulas de filtro', () => {
       createdUntil: '2026-09-02',
       platesQuery: '',
       resolutionStates: EMPTY_TRIP_OCCURRENCE_FILTERS.resolutionStates,
+      search: '',
       stages: ['stop'] as const,
       typesQuery: '',
     }
@@ -304,8 +312,12 @@ describe('listagem de ocorrências — colunas da nota', () => {
       'stopLabel',
       'invoice',
       'contractor',
+      'client',
       'destination',
+      'city',
       'invoiceValue',
+      'cargo',
+      'resolvedIn',
       'conversation',
       'takenBy',
       'notified',
@@ -332,10 +344,14 @@ describe('listagem de ocorrências — colunas da nota', () => {
     }
     const preferences = readTripOccurrenceColumnPreferences(storage)
     expect(preferences.order.slice(0, 2)).toEqual(['stage', 'createdAt'])
-    expect(preferences.order.slice(-5)).toEqual([
+    expect(preferences.order.slice(-9)).toEqual([
       'contractor',
+      'client',
       'destination',
+      'city',
       'invoiceValue',
+      'cargo',
+      'resolvedIn',
       'conversation',
       'takenBy',
     ])
@@ -343,6 +359,8 @@ describe('listagem de ocorrências — colunas da nota', () => {
     expect(preferences.visibility.contractor).toBe(true)
     expect(preferences.visibility.invoiceValue).toBe(true)
     expect(preferences.visibility.conversation).toBe(true)
+    expect(preferences.visibility.client).toBe(true)
+    expect(preferences.visibility.cargo).toBe(true)
   })
 
   test('com nota: nome e CNPJ da contratante, destino físico e valor como string decimal', () => {
@@ -492,5 +510,134 @@ describe('listagem de ocorrências — fiação da tela', () => {
     expect(query).toContain('useInfiniteQuery')
     expect(query).toContain('getNextPageParam')
     expect(query).not.toContain('offset')
+  })
+})
+
+describe('listagem de ocorrências — busca rápida (spec 277)', () => {
+  test('a busca viaja aparada e só com 2 caracteres ou mais; o resto não restringe nada', () => {
+    const serialize = (value: string) =>
+      new URLSearchParams(
+        serializeTripOccurrenceQuery({
+          cursor: null,
+          filters: { ...EMPTY_TRIP_OCCURRENCE_FILTERS, search: value },
+          order: 'desc',
+          perPage: 25,
+        }),
+      ).get('search')
+    expect(serialize('  Carlos Menezes ')).toBe('Carlos Menezes')
+    expect(serialize('a')).toBeNull()
+    expect(serialize('   ')).toBeNull()
+    expect(serialize('')).toBeNull()
+    expect(serialize('x'.repeat(120))).toBe('x'.repeat(80))
+    expect(normalizeTripOccurrenceSearch('ab')).toBe('ab')
+  })
+
+  test('a busca conta como filtro ativo, mas não como filtro avançado; o andamento também não', () => {
+    const searched = { ...EMPTY_TRIP_OCCURRENCE_FILTERS, search: 'carlos' }
+    expect(countActiveTripOccurrenceFilters(searched)).toBe(1)
+    expect(countAdvancedTripOccurrenceFilters(searched)).toBe(0)
+    const chips = { ...EMPTY_TRIP_OCCURRENCE_FILTERS, resolutionStates: ['open'] as const }
+    expect(countAdvancedTripOccurrenceFilters(chips)).toBe(0)
+    const advanced = { ...searched, platesQuery: 'ABC1D23', contractorReplyOverdue: true }
+    expect(countAdvancedTripOccurrenceFilters(advanced)).toBe(2)
+    expect(countAdvancedTripOccurrenceFilters(EMPTY_TRIP_OCCURRENCE_FILTERS)).toBe(0)
+  })
+
+  test('a lista agrupa por andamento na ordem fixa, sem perder a ordem do servidor dentro do grupo', () => {
+    const item = (id: string, state?: 'cancelled' | 'reopened' | 'resolved') =>
+      ({
+        id,
+        resolution:
+          state === undefined ? null : { actorKind: null, at: '2026-10-20T10:00:00Z', state },
+      }) as unknown as Parameters<typeof groupTripOccurrencesByResolution>[0][number]
+    const groups = groupTripOccurrencesByResolution([
+      item('a', 'resolved'),
+      item('b'),
+      item('c', 'cancelled'),
+      item('d', 'reopened'),
+      item('e'),
+      item('f', 'resolved'),
+    ])
+    expect(groups.map((group) => [group.state, group.items.map((entry) => entry.id)])).toEqual([
+      ['open', ['b', 'e']],
+      ['reopened', ['d']],
+      ['resolved', ['a', 'f']],
+      ['cancelled', ['c']],
+    ])
+    expect(groupTripOccurrencesByResolution([])).toEqual([])
+  })
+
+  test('um andamento que este bundle não conhece cai em aberto — nunca some da lista', () => {
+    const unknown = { id: 'x', resolution: { actorKind: null, at: '', state: 'archived' } }
+    const groups = groupTripOccurrencesByResolution([
+      unknown as unknown as Parameters<typeof groupTripOccurrencesByResolution>[0][number],
+    ])
+    expect(groups.map((group) => group.state)).toEqual(['open'])
+  })
+
+  test('o veículo imprime marca, modelo e ano; cadastro incompleto não imprime 0 nem null', () => {
+    const vehicle = (partial: {
+      brand: string
+      color: string
+      model: string
+      modelYear: null | number
+    }) => describeOccurrenceVehicleCells({ vehicle: partial, vehiclePlate: 'ABC1D23' })
+    expect(vehicle({ brand: 'Volvo', color: 'branca', model: 'FH 540', modelYear: 2022 })).toEqual({
+      colorCode: 'branca',
+      description: 'Volvo FH 540 · 2022',
+      plate: 'ABC1D23',
+    })
+    expect(vehicle({ brand: '', color: '', model: 'Daily', modelYear: null }).description).toBe(
+      'Daily',
+    )
+    expect(vehicle({ brand: '', color: '', model: '', modelYear: 2019 }).description).toBe('2019')
+    expect(describeOccurrenceVehicleCells({ vehiclePlate: 'ABC1D23' })).toEqual({
+      colorCode: '',
+      description: '',
+      plate: 'ABC1D23',
+    })
+  })
+
+  test('o cliente e a cidade de entrega vêm da nota; sem nota ou sem campo, vazio', () => {
+    const document = {
+      cargo: { grossWeightKg: '820.0000', volumeCount: '5.0000' },
+      contractor: null,
+      destination: {
+        city: 'Guarulhos',
+        label: 'Avenida da Doca, 500',
+        origin: 'delivery',
+        postalCode: '07000000',
+        recipientName: 'Galpão Beta',
+        state: 'SP',
+      },
+      nfeDocumentId: 'nfe-1',
+      recipient: { name: 'Destinatário Beta Ltda', taxId: '99888777000166' },
+      totalValue: '10.0000',
+    } as const
+    expect(describeOccurrenceClientCells(document)).toEqual({
+      city: 'Guarulhos/SP',
+      name: 'Destinatário Beta Ltda',
+      taxId: '99888777000166',
+    })
+    expect(describeOccurrenceClientCells({ ...document, recipient: null }).name).toBe('Galpão Beta')
+    expect(describeOccurrenceClientCells(null)).toEqual({ city: '', name: '', taxId: '' })
+    expect(describeOccurrenceCargoCells(document)).toEqual({
+      grossWeightKg: '820.0000',
+      volumeCount: '5.0000',
+    })
+    expect(describeOccurrenceCargoCells(null)).toBeNull()
+    const { cargo: ignored, ...withoutCargo } = document
+    void ignored
+    expect(describeOccurrenceCargoCells(withoutCargo)).toBeNull()
+  })
+
+  test('a tela usa o botão de copiar, o selo de contagem e o painel revelado do design system', async () => {
+    const root = new URL('../../src/modules/trip/components/', import.meta.url)
+    const table = await Bun.file(new URL('TripOccurrenceTable.component.tsx', root)).text()
+    const filters = await Bun.file(new URL('TripOccurrenceFilters.component.tsx', root)).text()
+    expect(table).toContain("from '@/components/ui/copy-button'")
+    expect(filters).toContain("from '@/components/ui/count-badge'")
+    expect(filters).toContain('useRevealedPanel')
+    expect(filters).toContain('aria-expanded')
   })
 })

@@ -1,0 +1,198 @@
+<!-- subject: Entrega não realizada — {{tipoOcorrencia}} — NF {{numeroNota}} -->
+<table
+  role="presentation"
+  width="100%"
+  align="center"
+  cellpadding="0"
+  cellspacing="0"
+  border="0"
+  style="
+    width: 100%;
+    max-width: 620px;
+    margin: 0 auto;
+    background: #ffffff;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #1d2b33;
+  "
+>
+  <tr>
+    <td style="background: #10222c; padding: 18px 24px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td width="56" valign="middle" style="width: 56px">{{logoTransportadora}}</td>
+          <td valign="middle" style="padding-left: 12px; color: #ffffff">
+            <div style="font-size: 17px; font-weight: bold">{{nomeExibicao}}</div>
+            <div style="font-size: 12px; color: #c9d3d8">
+              CNPJ {{cnpjTransportadora}} · {{cidadeTransportadora}}
+            </div>
+          </td>
+          <td valign="middle" align="right" style="font-size: 12px; color: #ffffff">
+            {{tipoOcorrencia}}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 22px 24px 8px">
+      <div style="font-size: 19px; font-weight: bold; color: #10222c">
+        Entrega não realizada — {{tipoOcorrencia}} — NF {{numeroNota}}
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 8px 24px 0">
+      <table
+        role="presentation"
+        width="100%"
+        cellpadding="0"
+        cellspacing="0"
+        border="0"
+        style="font-size: 13px"
+      >
+        <tr>
+          <td
+            colspan="2"
+            style="
+              padding: 10px 0 4px;
+              font-size: 11px;
+              font-weight: bold;
+              color: #d58a47;
+              border-bottom: 1px solid #d9ded8;
+            "
+          >
+            Nota fiscal
+          </td>
+        </tr>
+        <tr>
+          <td width="160" style="padding: 5px 0; color: #5a6b74">Número</td>
+          <td style="padding: 5px 0">NF {{numeroNota}}</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #5a6b74">Valor da nota</td>
+          <td style="padding: 5px 0; font-weight: bold">{{valorNota}}</td>
+        </tr>
+        <tr>
+          <td
+            colspan="2"
+            style="
+              padding: 10px 0 4px;
+              font-size: 11px;
+              font-weight: bold;
+              color: #d58a47;
+              border-bottom: 1px solid #d9ded8;
+            "
+          >
+            Partes
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #5a6b74">Contratante</td>
+          <td style="padding: 5px 0">{{contratante}}</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #5a6b74">CNPJ</td>
+          <td style="padding: 5px 0">{{cnpjContratante}}</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #5a6b74">Cliente</td>
+          <td style="padding: 5px 0">{{razaoSocial}}</td>
+        </tr>
+        <tr>
+          <td
+            colspan="2"
+            style="
+              padding: 10px 0 4px;
+              font-size: 11px;
+              font-weight: bold;
+              color: #d58a47;
+              border-bottom: 1px solid #d9ded8;
+            "
+          >
+            Registro
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #5a6b74">Parada</td>
+          <td style="padding: 5px 0">{{parada}}</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #5a6b74">Data</td>
+          <td style="padding: 5px 0">{{data}}</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #5a6b74">Motorista</td>
+          <td style="padding: 5px 0">{{motorista}}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 18px 24px 6px; font-size: 14px; line-height: 1.55; color: #1d2b33">
+      <!-- mensagem -->
+      <p style="margin: 0 0 14px">Olá, equipe {{contratante}},</p>
+      <p style="margin: 0 0 14px">
+        Não conseguimos entregar a NF {{numeroNota}} para {{razaoSocial}}. Motivo:
+        {{tipoOcorrencia}}.
+      </p>
+      <p style="margin: 0 0 14px">Observação do motorista: {{observacao}}</p>
+      <p style="margin: 0 0 14px">
+        A mercadoria segue com a transportadora. Podem confirmar uma nova janela de entrega
+        respondendo este e-mail?
+      </p>
+      <!-- /mensagem -->
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 0 24px 16px">{{faixaResposta}}</td>
+  </tr>
+  <tr>
+    <td style="padding: 16px 24px; border-top: 1px solid #d9ded8">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td
+            width="40"
+            height="40"
+            align="center"
+            valign="middle"
+            style="
+              width: 40px;
+              height: 40px;
+              background: #10222c;
+              color: #ffffff;
+              font-size: 14px;
+              font-weight: bold;
+            "
+          >
+            {{logoAssinatura}}
+          </td>
+          <td valign="middle" style="padding-left: 12px; font-size: 13px; line-height: 1.4">
+            <div style="font-weight: bold; color: #10222c">{{assinaturaNome}}</div>
+            <div style="color: #5a6b74">{{assinaturaCargo}}</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td
+      style="
+        background: #f0f2ee;
+        padding: 14px 24px;
+        font-size: 11px;
+        line-height: 1.5;
+        color: #5a6b74;
+      "
+    >
+      <div>
+        <b style="color: #1d2b33">{{razaoSocialTransportadora}}</b> · CNPJ {{cnpjTransportadora}}
+      </div>
+      <div>Ocorrência da NF {{numeroNota}}</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-top: 8px; font-size: 11px; color: #5a6b74">{{marcasRodape}}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>

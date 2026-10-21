@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm'
 
 import { createDatabaseProvider } from '../../src/database/database-client.service.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { runNotificationSchemaMigrations } from '../../src/database/notification-migration.service.js'
 
 import { createSendOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import { DrizzleOccurrenceMailRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
@@ -34,6 +35,10 @@ import {
   seedTrip,
 } from './trip-field-office-database.fixture.js'
 import type { Company, SeededTrip, TestDatabase } from './trip-field-office-database.fixture.js'
+import { seedNotificationTemplate } from './notification-template.fixture.js'
+
+/** A chave do modelo do módulo de notificação que o tipo semeado escolhe (spec 271). */
+export const SEEDED_NOTIFICATION_TEMPLATE_KEY = 'ocorrencia.padrao'
 
 const EMITTER_TAX_ID = '11222333000181'
 
@@ -98,11 +103,18 @@ export async function seedMailScenario(database: TestDatabase): Promise<Seeded> 
   })
 
   const occurrenceTypeId = crypto.randomUUID()
+  /** Spec 271: o e-mail da ocorrência passa a sair de um modelo do módulo de notificação, escolhido pela chave. */
+  await seedNotificationTemplate(database, {
+    body: 'Ocorrência na nota {{numeroNota}}: {{observacao}}\n\nObrigado.',
+    companyId: company.companyId,
+    key: SEEDED_NOTIFICATION_TEMPLATE_KEY,
+    subject: 'Ocorrência — NF {{numeroNota}}',
+  })
   await database.db.insert(companyOccurrenceTypes).values({
     active: true,
     companyId: company.companyId,
-    emailBody: 'Ocorrência na nota {{numeroNota}}: {{observacao}}',
-    emailSubject: 'Ocorrência — NF {{numeroNota}}',
+    contractorNotificationTemplateKey: SEEDED_NOTIFICATION_TEMPLATE_KEY,
+    contractorNotificationTemplateSelectedAt: new Date('2026-09-01T00:00:00.000Z'),
     id: occurrenceTypeId,
     name: 'Caixa violada',
     notifies: false,
@@ -178,6 +190,7 @@ export async function withConversationDatabase(
     // Disposable database identifiers cannot be parameterized.
     await admin.unsafe(`create database "${databaseName}"`)
     await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
+    await runNotificationSchemaMigrations({ connectionString: disposableUrl.toString() })
     database = createDatabaseProvider({
       pool: { connectTimeoutSeconds: 10, max: 10, queryTimeoutMs: 20_000 },
       url: disposableUrl.toString(),

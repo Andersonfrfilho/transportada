@@ -47,8 +47,6 @@ function type(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeRecord {
     declaredAmountLabel: 'Valor pago',
     declaredAmountMode: 'optional',
     declaredAmountScope: 'item',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     id: TYPE_ID,

@@ -5,6 +5,7 @@
  * de cada passo, na ordem do canal. Falha e devolução ficam em destaque com o motivo, e a ação
  * "Reenviar por outro canal" só aparece quando existe outro canal para aquela parte.
  */
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { describe, expect, test } from 'bun:test'
@@ -49,6 +50,7 @@ describe('o selo pelo canal (spec 183 T703)', () => {
 
   test.each([
     ['email', 'delivered', ['queued', 'sent', 'delivered']],
+    ['email', 'read', ['queued', 'sent', 'delivered', 'read']],
     ['whatsapp', 'read', ['queued', 'sent', 'delivered', 'read']],
     ['app', 'read', ['queued', 'delivered', 'read']],
     ['portal', 'read', ['delivered', 'read']],
@@ -69,7 +71,7 @@ describe('o selo pelo canal (spec 183 T703)', () => {
     })
   })
 
-  test('e-mail nunca mostra "lida": um read que chegue vira o último passo que o canal dá', () => {
+  test('e-mail com rastreio: o read é o último passo e o selo "Lida" (spec 274 RF8)', () => {
     const view = describeMessageStatus(
       message({
         status: 'read',
@@ -82,8 +84,22 @@ describe('o selo pelo canal (spec 183 T703)', () => {
       }),
     )
 
-    expect(view?.value).toBe('delivered')
-    expect(view?.steps.map((step) => step.status)).toEqual(['queued', 'sent', 'delivered'])
+    expect(view?.value).toBe('read')
+    expect(view?.steps.map((step) => step.status)).toEqual(['queued', 'sent', 'delivered', 'read'])
+  })
+
+  test('a dica do selo "Lida" do e-mail e o erro sem destinatário têm texto (spec 274 RF8)', () => {
+    for (const file of [
+      'src/modules/occurrence-conversation/locales/occurrenceConversation.locale.json',
+      'src/modules/occurrence-conversation/locales/occurrenceConversation.en.locale.json',
+    ]) {
+      const locale = JSON.parse(readFileSync(file, 'utf8')) as {
+        dialog: { error: Record<string, string> }
+        status: Record<string, string>
+      }
+      expect(locale.status.readEmailHint).toBeString()
+      expect(locale.dialog.error.OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS).toBeString()
+    }
   })
 
   test('passo sem horário gravado não aparece; mensagem recebida não tem selo', () => {
@@ -160,12 +176,18 @@ describe('reenviar por outro canal (spec 183 T703)', () => {
 describe('o selo muda sozinho (spec 183 T703)', () => {
   test('enquanto alguma mensagem que sai ainda pode avançar, a conversa volta a ser lida', () => {
     expect(hasPendingOutboundStatus([message({ status: 'queued' })])).toBe(true)
+    /**
+     * Spec 274: o "lida" do e-mail vem do pixel e pode nunca chegar (cliente que bloqueia imagem), então a releitura
+     * automática para em "entregue"; a "lida" aparece na próxima leitura da conversa.
+     */
+    expect(hasPendingOutboundStatus([message({ status: 'sent' })])).toBe(true)
+    expect(hasPendingOutboundStatus([message({ status: 'delivered' })])).toBe(false)
     expect(hasPendingOutboundStatus([message({ channel: 'whatsapp', status: 'delivered' })])).toBe(
       true,
     )
     expect(
       hasPendingOutboundStatus([
-        message({ status: 'delivered' }),
+        message({ status: 'read' }),
         message({ channel: 'portal', status: 'read' }),
         message({ status: 'bounced' }),
         message({ direction: 'inbound', status: null }),

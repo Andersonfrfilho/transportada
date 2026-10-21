@@ -12,6 +12,7 @@ import {
   type SaveOccurrenceTypeValues,
 } from '../../src/trips/application/save-occurrence-type.use-case.js'
 import {
+  OccurrenceTypeAcknowledgementInvalidError,
   OccurrenceTypeContractorReplyAlertNeedsWaitError,
   OccurrenceTypeContractorReplyNeedsMailError,
   OccurrenceTypeForwardNeedsTextError,
@@ -23,6 +24,7 @@ import {
   listOccurrenceTypes,
   saveOccurrenceType,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
+import { companyQuickReplies } from '../../src/database/occurrence-conversation.schema.js'
 import { withConversationDatabase } from '../fixtures/occurrence-conversation-database.fixture.js'
 import {
   seedCompany,
@@ -36,7 +38,11 @@ const SAC_REPLY = {
   contractorReplyAlertMode: 'alert_operator',
   contractorReplyAttachmentKind: 'pdf',
   contractorReplyMode: 'forward_after_approval',
+  /** Spec 276 T3b: gravado, lido no get e na lista, e mantido pelo PUT sem o campo. */
+  contractorReplyResolveOnDelivery: true,
   contractorReplyWaitHours: 6,
+  /** Spec 276 T4: a trava de pedido repetido, gravada e lida como as outras. */
+  duplicateRequestPolicy: 'until_resolved',
   driverReplyTemplate: 'Segue o boleto atualizado.',
 } as const
 
@@ -50,8 +56,6 @@ const FORWARD = {
 function valuesFor(overrides: Partial<SaveOccurrenceTypeValues> = {}): SaveOccurrenceTypeValues {
   return {
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     emailsContractor: true,
     flow: 'document',
@@ -63,12 +67,34 @@ function valuesFor(overrides: Partial<SaveOccurrenceTypeValues> = {}): SaveOccur
   }
 }
 
+async function seedQuickReply(
+  database: TestDatabase,
+  companyId: string,
+  overrides: { readonly active?: boolean; readonly audience?: 'contractor' | 'driver' } = {},
+): Promise<string> {
+  const [row] = await database.db
+    .insert(companyQuickReplies)
+    .values({
+      active: overrides.active ?? true,
+      audience: overrides.audience ?? 'contractor',
+      bodyText: 'Recebido, obrigado.',
+      companyId,
+      position: 0,
+    })
+    .returning({ id: companyQuickReplies.id })
+  if (row === undefined) throw new Error('EXPECTED_QUICK_REPLY')
+  return row.id
+}
+
 function save(database: TestDatabase, companyId: string, values: SaveOccurrenceTypeValues) {
   return saveOccurrenceTypeWithTemplate({
     companyId,
     findCurrentType: (query) => findOccurrenceType(database.db, query),
     save: (toSave) => saveOccurrenceType(database.db, { ...toSave, companyId }),
-    templates: { hasActiveEmailTemplate: async () => true },
+    templates: {
+      findContractorTemplate: async () => null,
+      hasActiveEmailTemplate: async () => true,
+    },
     values,
   })
 }
@@ -130,6 +156,8 @@ describe('o retorno da contratante no cadastro do tipo contra o Postgres (spec 2
       await expect(parseBody({ contractorReplyAlertIntervalMinutes: 10 })).rejects.toBeDefined()
       await expect(parseBody({ contractorReplyAlertMaxCount: 97 })).rejects.toBeDefined()
       await expect(parseBody({ contractorReplyMode: 'always' })).rejects.toBeDefined()
+      await expect(parseBody({ contractorReplyResolveOnDelivery: 'yes' })).rejects.toBeDefined()
+      await expect(parseBody({ duplicateRequestPolicy: 'never' })).rejects.toBeDefined()
     },
     30_000,
   )
@@ -230,6 +258,80 @@ describe('o retorno da contratante no cadastro do tipo contra o Postgres (spec 2
       await expect(parseBody({ forwardToInformedEmail: 'automatic' })).rejects.toBeDefined()
       await expect(parseBody({ forwardEmailSubject: 'a'.repeat(201) })).rejects.toBeDefined()
       await expect(parseBody({ forwardEmailBody: 'a'.repeat(4001) })).rejects.toBeDefined()
+    },
+    30_000,
+  )
+  testWithPostgres(
+    'a resposta automática (spec 276 T5): aceita a resposta rápida ativa da contratante, o PUT sem o campo mantém, null desliga e o resto é 400',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId } = await seedCompany(database)
+        const other = await seedCompany(database)
+        const quickReplyId = await seedQuickReply(database, companyId)
+        const created = await save(
+          database,
+          companyId,
+          valuesFor({ ...SAC_REPLY, contractorReplyAcknowledgementQuickReplyId: quickReplyId }),
+        )
+        expect(created).toMatchObject({ contractorReplyAcknowledgementQuickReplyId: quickReplyId })
+
+        const renamed = await save(
+          database,
+          companyId,
+          valuesFor({ name: 'Prorrogação (SAC)', occurrenceTypeId: created.id }),
+        )
+        expect(renamed).toMatchObject({ contractorReplyAcknowledgementQuickReplyId: quickReplyId })
+        const listed = (await listOccurrenceTypes(database.db, { companyId })).find(
+          (type) => type.id === created.id,
+        )
+        expect(listed).toMatchObject({ contractorReplyAcknowledgementQuickReplyId: quickReplyId })
+
+        const refused = [
+          await seedQuickReply(database, companyId, { active: false }),
+          await seedQuickReply(database, companyId, { audience: 'driver' }),
+          await seedQuickReply(database, other.companyId),
+          crypto.randomUUID(),
+        ]
+        for (const refusedId of refused) {
+          await expect(
+            save(
+              database,
+              companyId,
+              valuesFor({
+                contractorReplyAcknowledgementQuickReplyId: refusedId,
+                occurrenceTypeId: created.id,
+              }),
+            ),
+          ).rejects.toBeInstanceOf(OccurrenceTypeAcknowledgementInvalidError)
+        }
+
+        const cleared = await save(
+          database,
+          companyId,
+          valuesFor({
+            contractorReplyAcknowledgementQuickReplyId: null,
+            occurrenceTypeId: created.id,
+          }),
+        )
+        expect(cleared).toMatchObject({ contractorReplyAcknowledgementQuickReplyId: null })
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'a fronteira aceita o id da resposta automática e recusa o que não é uuid',
+    async () => {
+      const id = crypto.randomUUID()
+      expect(await parseBody({ contractorReplyAcknowledgementQuickReplyId: id })).toMatchObject({
+        contractorReplyAcknowledgementQuickReplyId: id,
+      })
+      expect(await parseBody({ contractorReplyAcknowledgementQuickReplyId: null })).toMatchObject({
+        contractorReplyAcknowledgementQuickReplyId: null,
+      })
+      await expect(
+        parseBody({ contractorReplyAcknowledgementQuickReplyId: 'obrigado' }),
+      ).rejects.toBeDefined()
     },
     30_000,
   )

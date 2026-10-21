@@ -32,6 +32,8 @@ import { OccurrenceExceptionItem } from './OccurrenceExceptionItem.component'
 
 type OccurrenceTypeExceptionsProps = Readonly<{
   canManage: boolean
+  /** Spec 270 RF9: as contratantes do tipo restrito; `undefined` é tipo geral (ou API anterior) — nenhum aviso. */
+  contractorIdsOfScope?: readonly string[] | undefined
   exceptions: OccurrenceTypeExceptionsState
   isDisabled: boolean
   occurrenceTypeId: string
@@ -46,6 +48,7 @@ type OccurrenceTypeExceptionsProps = Readonly<{
  */
 export function OccurrenceTypeExceptions({
   canManage,
+  contractorIdsOfScope,
   exceptions,
   isDisabled,
   occurrenceTypeId,
@@ -122,6 +125,11 @@ export function OccurrenceTypeExceptions({
             <OccurrenceExceptionItem
               disabled={isLocked}
               entry={entry}
+              hasNoEffect={
+                contractorIdsOfScope !== undefined &&
+                'contractorId' in entry &&
+                !contractorIdsOfScope.includes(entry.contractorId)
+              }
               key={'contractorId' in entry ? `c:${entry.contractorId}` : `r:${entry.taxId}`}
               onEdit={handleEdit}
               onRemove={handleRemove}

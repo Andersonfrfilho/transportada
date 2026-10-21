@@ -17,8 +17,6 @@ const TYPE: OccurrenceType = {
   active: true,
   allowsMultipleItems: false,
   attachmentMode: 'required',
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: 'trip.occurrence',
   flow: 'stop',
   id: 'type-1',
@@ -38,7 +36,9 @@ const NEW_FIELD_KEYS = [
   'declaredAmountLabel',
   'declaredAmountMode',
   'declaredAmountScope',
-  'emailItemLineTemplate',
+  'contractorMailRecipientContactIds',
+  'contractorMailWatcherUserIds',
+  'contractorNotificationTemplateKey',
   'emailsContractor',
   'itemsMinimumCount',
   'moments',
@@ -66,8 +66,6 @@ describe('buildOccurrenceTypeUpdate', () => {
       active: true,
       allowsMultipleItems: false,
       attachmentMode: 'required',
-      emailBody: '',
-      emailSubject: '',
       emailTemplateKey: 'trip.occurrence',
       leavesDocumentBehind: true,
       name: 'Avaria',
@@ -80,21 +78,31 @@ describe('buildOccurrenceTypeUpdate', () => {
     expect(update).not.toHaveProperty('flow')
   })
 
-  test('o e-mail à contratante vai como está em toda edição: o PUT sem ele gravaria vazio (spec 247 RF2)', () => {
+  test('o bloco de e-mail à contratante só vai quando a edição o troca (spec 271)', () => {
     const withMail: OccurrenceType = {
       ...TYPE,
-      emailBody: 'Corpo gravado',
-      emailItemLineTemplate: '{{item}}',
-      emailSubject: 'Assunto gravado',
+      contractorNotificationTemplateKey: 'ocorrencia.avaria',
       emailsContractor: true,
     }
     for (const edit of EDITS) {
       const update = buildOccurrenceTypeUpdate(withMail, edit)
-      expect(update.emailBody).toBe('Corpo gravado')
-      expect(update.emailSubject).toBe('Assunto gravado')
-      expect(update).not.toHaveProperty('emailItemLineTemplate')
+      expect(update).not.toHaveProperty('contractorNotificationTemplateKey')
+      expect(update).not.toHaveProperty('contractorMailWatcherUserIds')
+      expect(update).not.toHaveProperty('contractorMailRecipientContactIds')
       expect(update).not.toHaveProperty('emailsContractor')
     }
+    expect(
+      buildOccurrenceTypeUpdate(withMail, { contractorNotificationTemplateKey: null })
+        .contractorNotificationTemplateKey,
+    ).toBeNull()
+    expect(
+      buildOccurrenceTypeUpdate(withMail, { contractorMailWatcherUserIds: [] })
+        .contractorMailWatcherUserIds,
+    ).toEqual([])
+    expect(
+      buildOccurrenceTypeUpdate(withMail, { contractorMailRecipientContactIds: ['contact-1'] })
+        .contractorMailRecipientContactIds,
+    ).toEqual(['contact-1'])
     expect(buildOccurrenceTypeUpdate(withMail, { emailsContractor: false }).emailsContractor).toBe(
       false,
     )

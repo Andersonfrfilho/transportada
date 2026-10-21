@@ -17,14 +17,18 @@ import {
   formatOccurrenceGap,
   OCCURRENCE_TIMELINE_ACTOR_TONE,
   OCCURRENCE_TIMELINE_FILTERS,
+  OCCURRENCE_TIMELINE_STAGE_REASONS,
+  resolveOccurrenceStageDuration,
   resolveOccurrenceTimelineDurations,
   toOccurrenceCancellation,
   type OccurrenceTimelineDuration,
   type OccurrenceTimelineEvent,
   type OccurrenceTimelineFilter,
+  type OccurrenceTimelineStage,
   type OccurrenceTimelineTone,
 } from '../shared/tripOccurrenceTimeline.service'
 import styles from '../styles/trip.module.css'
+import { formatPersonName } from '@/lib/personName'
 
 /** Os tempos do topo contam em minutos: um tique por minuto basta, e não acorda a tela à toa. */
 const CLOCK_TICK_MS = 60_000
@@ -77,7 +81,10 @@ function TimelineItem({ event }: Readonly<{ event: OccurrenceTimelineEvent }>) {
     typeof sentence.values.status === 'string'
       ? { ...sentence.values, status: t(sentence.values.status) }
       : sentence.values
-  const actor = event.actor.name ?? t(`occurrenceTimeline.actor.${event.actor.kind}`)
+  const actor =
+    event.actor.name === null
+      ? t(`occurrenceTimeline.actor.${event.actor.kind}`)
+      : formatPersonName(event.actor.name)
   const gap = formatOccurrenceGap(event.sincePreviousSeconds)
   const cancellationMark =
     event.kind === 'occurrence.cancelled'
@@ -121,6 +128,74 @@ function TimelineItem({ event }: Readonly<{ event: OccurrenceTimelineEvent }>) {
         )}
       </div>
     </li>
+  )
+}
+
+function StageItem({ now, stage }: Readonly<{ now: Date; stage: OccurrenceTimelineStage }>) {
+  const { t } = useTranslation('trip')
+  const formatMoment = useMomentFormatter()
+  const duration = resolveOccurrenceStageDuration(stage, now)
+  const actor =
+    stage.actor.name === null
+      ? t(`occurrenceTimeline.actor.${stage.actor.kind}`)
+      : formatPersonName(stage.actor.name)
+  const reason = OCCURRENCE_TIMELINE_STAGE_REASONS.find((known) => known === stage.reason)
+
+  return (
+    <li
+      className={cn(
+        styles.occurrenceStage,
+        TONE_CLASS[OCCURRENCE_TIMELINE_ACTOR_TONE[stage.actor.kind]],
+      )}
+      data-stage={stage.stage}
+    >
+      <p className={styles.occurrenceTimelineHead}>
+        <span className={styles.occurrenceTimelineTitle}>
+          {t(`occurrenceTimeline.stage.${stage.stage}`)}
+        </span>
+        <time className={styles.occurrenceTimelineTime} dateTime={stage.startedAt}>
+          {formatMoment(stage.startedAt)}
+        </time>
+      </p>
+      <p className={styles.occurrenceTimelineNote}>
+        <span className={styles.occurrenceTimelineActor}>{actor}</span>
+        {duration === null ? null : (
+          <span className={duration.running ? styles.occurrenceTimingRunning : undefined}>
+            {' · '}
+            {t(
+              duration.running
+                ? 'occurrenceTimeline.stageRunning'
+                : 'occurrenceTimeline.stageLasted',
+              { elapsed: formatOccurrenceElapsed(duration.seconds) },
+            )}
+          </span>
+        )}
+      </p>
+      {reason === undefined ? null : (
+        <p className={styles.occurrenceTimelineNote}>
+          {t(`occurrenceTimeline.stageReason.${reason}`)}
+        </p>
+      )}
+    </li>
+  )
+}
+
+/** Spec 276 T3: o status da ocorrência etapa por etapa, com quando começou, quem começou e quanto durou. */
+function OccurrenceStages({
+  now,
+  stages,
+}: Readonly<{ now: Date; stages: readonly OccurrenceTimelineStage[] }>) {
+  const { t } = useTranslation('trip')
+  if (stages.length === 0) return null
+  return (
+    <section aria-labelledby="occurrence-stages-title" className={styles.occurrenceStages}>
+      <h3 id="occurrence-stages-title">{t('occurrenceTimeline.stagesTitle')}</h3>
+      <ol className={styles.occurrenceTimelineList}>
+        {stages.map((stage) => (
+          <StageItem key={`${stage.stage}:${stage.startedAt}`} now={now} stage={stage} />
+        ))}
+      </ol>
+    </section>
   )
 }
 
@@ -174,6 +249,9 @@ export function OccurrenceTimelinePanel({
       {timeline === undefined ? null : (
         <>
           <OccurrenceTimings now={now} timings={timeline.timings} />
+          {timeline.stages === undefined ? null : (
+            <OccurrenceStages now={now} stages={timeline.stages} />
+          )}
           <Tabs
             ariaLabel={t('occurrenceTimeline.filterLabel')}
             items={OCCURRENCE_TIMELINE_FILTERS.map((option) => ({

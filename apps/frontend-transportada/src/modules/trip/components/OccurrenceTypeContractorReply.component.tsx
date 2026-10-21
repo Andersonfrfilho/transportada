@@ -5,8 +5,10 @@ import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Icon, type IconName } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
+import { OccurrenceTypeAcknowledgementSelect } from '@/modules/trip/components/OccurrenceTypeAcknowledgementSelect.component'
 import { OccurrenceTypeContractorReplyForward } from '@/modules/trip/components/OccurrenceTypeContractorReplyForward.component'
 import {
   CONTRACTOR_REPLY_ALERT_MODES,
@@ -188,6 +190,19 @@ export function OccurrenceTypeContractorReply({
               />
               {renderAlert('driverReplyTemplate')}
             </label>
+            <Checkbox
+              checked={draft.resolveOnDelivery}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.contractorReply.fields.resolveOnDelivery')}
+              onChange={(resolveOnDelivery) => change({ resolveOnDelivery })}
+            />
+            {draft.acknowledgementQuickReplyId === undefined ? null : (
+              <OccurrenceTypeAcknowledgementSelect
+                disabled={disabled}
+                onChange={(acknowledgementQuickReplyId) => change({ acknowledgementQuickReplyId })}
+                value={draft.acknowledgementQuickReplyId}
+              />
+            )}
           </>
         ) : null}
         {renderNumber('waitHours')}

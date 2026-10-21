@@ -85,6 +85,8 @@ export const SEND_MAIL_RESULT: SendAddressCorrectionMailResult = {
 }
 
 export const ADDRESS_CORRECTION_RECIPIENTS: AddressCorrectionRecipients = {
+  cc: [{ maskedEmail: 'a***@e***.example', name: 'Ana', userId: 'user-ana' }],
+  ccSource: 'company',
   contacts: [
     {
       canDecide: false,

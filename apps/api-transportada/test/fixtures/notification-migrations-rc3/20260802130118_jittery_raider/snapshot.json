@@ -1,0 +1,1484 @@
+{
+  "id": "88c2382c-5f19-4a84-87fa-931c945aa16b",
+  "prevIds": [
+    "1e970a44-d458-413f-89b0-4e7c0c7ddf8d"
+  ],
+  "version": "8",
+  "dialect": "postgres",
+  "ddl": [
+    {
+      "name": "notification",
+      "entityType": "schemas"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "deliveries",
+      "schema": "notification",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "deliveries_pkey",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "notification_id",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "driver",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "device_id",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "target_masked",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'queued'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "attempt",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(256)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "provider_message_id",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "error_code",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sent_at",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "delivered_at",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "failed_at",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "notification_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_deliveries_notification",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "indexes"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_deliveries_company_status",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "indexes"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "channel",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "provider_message_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_deliveries_provider_message",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "indexes"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "notification_id"
+      ],
+      "schemaTo": "notification",
+      "tableTo": "notifications",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "deliveries_notification_id_notifications_id_fk",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "fks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "device_id"
+      ],
+      "schemaTo": "notification",
+      "tableTo": "devices",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "deliveries_device_id_devices_id_fk",
+      "schema": "notification",
+      "table": "deliveries",
+      "entityType": "fks"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "devices",
+      "schema": "notification",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "devices_pkey",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "platform",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "driver",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "app_version",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "locale",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "timezone",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "last_seen_at",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "disabled_at",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "disabled_reason",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "driver",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "token",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_devices_driver_token",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "indexes"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "disabled_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_devices_company_user",
+      "schema": "notification",
+      "table": "devices",
+      "entityType": "indexes"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "notifications",
+      "schema": "notification",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "notifications_pkey",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recipient_user_id",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "category",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "template_key",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "payload",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(256)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "title",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "body",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(256)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "dedupe_key",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "scheduled_for",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(24)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'pending'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "read_at",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "deleted_at",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "dedupe_key",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"notification\".\"notifications\".\"dedupe_key\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_notifications_dedupe",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "indexes"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "recipient_user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "read_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_notifications_inbox",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "indexes"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "scheduled_for",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_notifications_due",
+      "schema": "notification",
+      "table": "notifications",
+      "entityType": "indexes"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "preferences",
+      "schema": "notification",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "preferences_pkey",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "category",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "enabled",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(5)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quiet_hours_start",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(5)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quiet_hours_end",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "timezone",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "category",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "channel",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_preferences_identity",
+      "schema": "notification",
+      "table": "preferences",
+      "entityType": "indexes"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "suppressions",
+      "schema": "notification",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "suppressions_pkey",
+      "schema": "notification",
+      "table": "suppressions",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "notification",
+      "table": "suppressions",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "schema": "notification",
+      "table": "suppressions",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "schema": "notification",
+      "table": "suppressions",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "target_hash",
+      "schema": "notification",
+      "table": "suppressions",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reason",
+      "schema": "notification",
+      "table": "suppressions",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "schema": "notification",
+      "table": "suppressions",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "schema": "notification",
+      "table": "suppressions",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "channel",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "target_hash",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_suppressions_identity",
+      "schema": "notification",
+      "table": "suppressions",
+      "entityType": "indexes"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "templates",
+      "schema": "notification",
+      "entityType": "tables"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "templates_pkey",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "pks"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "key",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "locale",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "1",
+      "generated": null,
+      "identity": null,
+      "name": "version",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(256)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "subject",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "body",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "whatsapp_template_name",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "active",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "columns"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "key",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "channel",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "locale",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "version",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "idx_templates_identity",
+      "schema": "notification",
+      "table": "templates",
+      "entityType": "indexes"
+    }
+  ],
+  "renames": []
+}

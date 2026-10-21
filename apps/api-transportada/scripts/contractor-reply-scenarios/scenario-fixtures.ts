@@ -7,7 +7,7 @@
  * carries a marker (name prefix, bucket, import key) so `--reset` can find it again.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypeMoments,
@@ -38,6 +38,7 @@ import {
   SCENARIO_MAIL_DOMAIN,
   SCENARIO_PLATE_PREFIX,
   SCENARIO_PREFIX,
+  SCENARIO_TEMPLATE_KEY_PREFIX,
 } from './scenario.constant.js'
 
 export type ScenarioDatabase = ReturnType<typeof createDrizzleProvider>
@@ -283,6 +284,14 @@ export async function createOccurrenceType(
   const { companyId, database } = context
   const id = crypto.randomUUID()
   const forwards = input.forwardToNoteRecipient !== 'off'
+  const templateKey = `${SCENARIO_TEMPLATE_KEY_PREFIX}${id}`
+  await database.db.execute(
+    sql`insert into notification.templates (company_id, key, channel, locale, version, subject, body, active)
+        values (${companyId}::uuid, ${templateKey}, 'email', 'pt-BR', 1,
+          'Prorrogação de boleto — NF {{numeroNota}}',
+          'Solicitamos a prorrogação do boleto da nota {{numeroNota}}: {{observacao}}\n\n{{linhasItens}}\n\nAguardamos o retorno.',
+          true)`,
+  )
   await database.db.insert(companyOccurrenceTypes).values({
     active: true,
     companyId,
@@ -290,10 +299,10 @@ export async function createOccurrenceType(
     contractorReplyAlertMaxCount: settings.alertMaxCount,
     contractorReplyAlertMode: input.alertMode,
     contractorReplyMode: input.mode,
+    contractorNotificationTemplateKey: templateKey,
+    contractorNotificationTemplateSelectedAt: new Date(),
     contractorReplyWaitHours: 6,
     driverReplyTemplate: 'Segue o boleto prorrogado.',
-    emailBody: 'Solicitamos a prorrogação do boleto da nota {{numeroNota}}: {{observacao}}',
-    emailSubject: 'Prorrogação de boleto — NF {{numeroNota}}',
     emailsContractor: true,
     forwardEmailBody: forwards ? 'Segue o boleto prorrogado da nota {{numeroNota}}.' : '',
     forwardEmailSubject: forwards ? 'Boleto prorrogado — NF {{numeroNota}}' : '',

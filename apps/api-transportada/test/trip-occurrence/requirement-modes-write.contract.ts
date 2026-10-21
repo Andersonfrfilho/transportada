@@ -233,8 +233,6 @@ describe('o caso de uso confere a assinatura e a grava na coluna própria (spec 
         findOccurrenceType: async () => ({
           active: true,
           allowsMultipleItems: true,
-          emailBody: '',
-          emailSubject: '',
           emailTemplateKey: null,
           id: TYPE_ID,
           name: 'Recusa total',

@@ -48,6 +48,8 @@
   `raw.expires_at` (a URL assinada do MIME original e sua expiração). O corpo real traz mais campos
   (`html`, `bcc`, `cc`, `attachments`…) que o schema Zod do gateway não declara, de propósito — só o
   que o trilho de entrada consome.
+  > **Emenda (spec 267):** o schema já declara `cc` e o token o lê; a 267 passa a **gravar** `cc_addresses` do e-mail recebido
+  > (RF9), para saber se a contratante o recebeu. Ver [`specs/267-os-responsaveis-vao-em-copia-no-e-mail-da-contratante/`](../267-os-responsaveis-vao-em-copia-no-e-mail-da-contratante/spec.md).
 - **O host de `raw.download_url` é a CloudFront**, descrito pela documentação como uma "Signed
   CloudFront URL to download the raw email file" — sem fixar o subdomínio exato. A allowlist contra
   SSRF (`resend-download-allowlist.constant.ts`, worker) aceita o sufixo genérico `.cloudfront.net`

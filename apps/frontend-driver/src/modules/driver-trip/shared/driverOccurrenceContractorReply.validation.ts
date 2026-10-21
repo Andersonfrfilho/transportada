@@ -2,7 +2,7 @@
 
 /** ⚠️ Cópia por valor do vocabulário do painel: um app não importa código de outro. */
 const CONTRACTOR_REPLY_MODES = ['off', 'forward_after_approval', 'forward_automatic'] as const
-const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image'] as const
+const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image', 'boleto_pdf'] as const
 const DRIVER_REPLY_CHANNELS = ['app_chat', 'whatsapp', 'both'] as const
 const DRIVER_REPLY_WINDOW_CLOSED_ACTIONS = ['fallback_app_chat', 'wait_for_driver'] as const
 const CONTRACTOR_REPLY_ALERT_MODES = ['off', 'alert_operator'] as const

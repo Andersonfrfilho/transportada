@@ -98,6 +98,15 @@ export const OCCURRENCE_MOMENTS = ['separation', 'document', 'stop', 'office'] a
 
 export type OccurrenceMoment = (typeof OCCURRENCE_MOMENTS)[number]
 
+/**
+ * Spec 270 (ADR-0107): para quem o tipo vale — espelha `OCCURRENCE_TYPE_CONTRACTOR_SCOPES` da API. `all` é
+ * o padrão (toda contratante); `listed`, a lista do tipo. Valor desconhecido que o servidor mande lê-se como `all`.
+ */
+export const OCCURRENCE_TYPE_CONTRACTOR_SCOPE = { all: 'all', listed: 'listed' } as const
+
+export type OccurrenceTypeContractorScope =
+  (typeof OCCURRENCE_TYPE_CONTRACTOR_SCOPE)[keyof typeof OCCURRENCE_TYPE_CONTRACTOR_SCOPE]
+
 /** Spec 246 RF1/RF3: o valor de hoje, que a tela só lê quando a API não manda o campo — nunca o grava de volta. */
 export const DEFAULT_OCCURRENCE_NOTE_MODE: OccurrenceAttachmentMode =
   OCCURRENCE_ATTACHMENT_MODE.optional
@@ -117,6 +126,9 @@ export type {
   OccurrenceAttachmentOverridesByType,
   OccurrenceAttachmentRecipientOverride,
   OccurrenceType,
+  OccurrenceTypeContractor,
+  OccurrenceTypeMailRecipient,
+  OccurrenceTypeMailWatcher,
 } from './occurrenceType.types'
 
 /** Revisão do painel M7: o teto do seletor de contratantes da exceção — acima dele a tela avisa que a lista pode estar incompleta. */
@@ -127,6 +139,10 @@ export const CONTRACTOR_DIRECTORY_LIMIT = CONTRACTOR_DIRECTORY_MAX_PAGES * 100
 export const OCCURRENCE_CANCELLATION_REASON_MAX_LENGTH = 500
 
 /** Spec 240: os códigos estáveis que as duas escritas da 167 devolvem (evidence.md, Fase 0). */
+/** Spec 270: o 422 do registro (e do lote) cujo tipo não vale para a contratante da nota. */
+export const OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR =
+  'OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR'
+
 export const OCCURRENCE_CORRECTION_ERROR = {
   ALREADY_CANCELLED: 'OCCURRENCE_ALREADY_CANCELLED',
   CANCELLATION_REASON_REQUIRED: 'OCCURRENCE_CANCELLATION_REASON_REQUIRED',

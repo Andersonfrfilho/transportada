@@ -9,12 +9,18 @@ import type {
   ContractorReplyMode,
   ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
+  DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
-import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_MOMENT,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
+  TRIP_OCCURRENCE_STAGE,
+} from '../../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
   OccurrenceTypeFlow,
+  OccurrenceTypeContractorScope,
   OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
@@ -26,9 +32,8 @@ import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quant
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
+import { assertOccurrenceTypeAvailableForContractor } from '../domain/occurrence-type-contractor-scope.policy.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
-import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
-import type { OccurrenceTemplateValues } from '../domain/occurrence-template.types.js'
 import {
   OccurrencePhotoRequiredError,
   OccurrenceTypeNotSeparationError,
@@ -119,7 +124,6 @@ export type RegisteredOccurrence = TripOccurrence & {
   /** Spec 161 T6 (RF5): `[]` quando `saveOccurrence` não devolveu anexo (não deveria acontecer
    * para `separation`, já que D1 exige foto — mas a leitura fica defensiva, nunca `undefined`). */
   readonly attachments: readonly TripOccurrenceAttachmentPosition[]
-  readonly email: null | { readonly body: string; readonly subject: string }
 }
 
 /** O tipo cadastrado, como o caso de uso precisa vê-lo para decidir. */
@@ -141,13 +145,14 @@ export type OccurrenceTypeRecord = {
   readonly iconName?: null | OccurrenceTypeIconName
   readonly declaredAmountMode?: DeliveryProofFieldMode
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope
-  /** Vazio é tipo que não gera e-mail: nem toda ocorrência precisa avisar o embarcador. */
-  readonly emailBody: string
-  /** Spec 247 (RF6): o formato da linha de item; vazio usa a linha padrão. Opcional só em dublê. */
-  readonly emailItemLineTemplate?: string
-  readonly emailSubject: string
-  /** A chave do template do módulo de notificações; nula é o legado (assunto/corpo próprios). */
+  /** A chave do template do módulo de notificações (aviso interno); nula é tipo sem aviso interno. */
   readonly emailTemplateKey: null | string
+  /**
+   * Spec 270 (ADR-0107): para quem o tipo vale e a lista de contratantes (vazia com `all`). Ausentes
+   * são dublê de teste: valem como `all`; a leitura real (`findOccurrenceType`/`listOccurrenceTypes`) sempre grava.
+   */
+  readonly contractorIds?: readonly string[]
+  readonly contractorScope?: OccurrenceTypeContractorScope
   /**
    * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. Ausente é tratado
    * como `'document'` — existe como opcional só para os dublês de teste que ainda não conhecem o
@@ -192,11 +197,16 @@ export type OccurrenceTypeRecord = {
   readonly photoMinimumCount?: number
   /** Spec 183 T802: o registro avisa a contratante sozinho (o envio é do gancho, depois do commit). */
   readonly emailsContractor?: boolean
+  /** Spec 271: a chave do modelo do módulo de notificação do tipo; nula é sem modelo. Opcional só para os dublês de teste. */
+  readonly contractorNotificationTemplateKey?: null | string
   /** Spec 248 (RF1): o retorno da contratante — opcionais só para os dublês de teste; a leitura real sempre traz. */
   readonly contractorReplyAlertIntervalMinutes?: number
   readonly contractorReplyAlertMaxCount?: number
   readonly contractorReplyAlertMode?: ContractorReplyAlertMode
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
+  readonly contractorReplyResolveOnDelivery?: boolean
+  readonly duplicateRequestPolicy?: DuplicateRequestPolicy
+  readonly contractorReplyAcknowledgementQuickReplyId?: null | string
   readonly contractorReplyMode?: ContractorReplyMode
   readonly contractorReplyWaitHours?: null | number
   readonly driverReplyTemplate?: string
@@ -224,6 +234,15 @@ export type OccurrenceTypeRecord = {
 }
 
 export type TripOccurrencePort = {
+  /**
+   * Spec 270 (R4): a contratante da nota, lida só para tipo `listed`; `null` quando a nota não é desta
+   * viagem e empresa. Ausente é dublê de teste: sem contratante, e só o tipo `all` passa.
+   */
+  findDocumentContractor?(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly tripId: string
+  }): Promise<null | { readonly contractorId: null | string }>
   listOccurrences(input: {
     readonly companyId: string
     readonly documentId: string
@@ -247,16 +266,6 @@ export type TripOccurrencePort = {
       readonly description: string
     }[]
   >
-  readTemplateValues(input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly note: string
-    /** Spec 247 (T4.7): a ocorrência já gravada — o leitor lê dela o que o registro guardou. */
-    readonly occurrenceId?: string | undefined
-    readonly occurredOn: string
-    readonly productCodes: readonly string[]
-    readonly tripId: string
-  }): Promise<OccurrenceTemplateValues>
   saveOccurrence(input: {
     readonly actorUserId: string
     /**
@@ -393,6 +402,20 @@ export async function registerTripOccurrence(
     throw new OccurrenceTypeNotSeparationError()
   }
 
+  /**
+   * Spec 270 (D6, R4): depois do momento e antes de qualquer escrita. Só o tipo `listed` precisa da
+   * contratante da nota; a nota fora da viagem ou da empresa é 404, como o resto deste caso de uso.
+   */
+  if (occurrenceType.contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed) {
+    const subject = await repository.findDocumentContractor?.({ companyId, documentId, tripId })
+    if (subject === null) throw new TripDocumentNotFoundError()
+    assertOccurrenceTypeAvailableForContractor({
+      contractorId: subject?.contractorId,
+      documentId,
+      type: occurrenceType,
+    })
+  }
+
   /** Spec 241 (RF6, CA03): tipo sem itens recusa produto antes de qualquer leitura ou efeito. */
   assertOccurrenceTypeAcceptsProducts({
     itemsMode: occurrenceType.itemsMode,
@@ -497,41 +520,8 @@ export async function registerTripOccurrence(
     ...saved,
     ...(autoDispatch === undefined ? {} : { autoDispatch }),
     attachments: saved.attachments ?? [],
-    email: await renderEmail({ input, occurrenceId: saved.id, occurrenceType, scope }),
     productCodes: scope.productCodes,
     products: items,
-  }
-}
-
-/**
- * ⚠️ **Assunto vazio é tipo sem e-mail**, e a checagem é no assunto: um corpo sem assunto sairia
- * como mensagem sem título, e um assunto sem corpo ainda é um e-mail útil.
- *
- * Os valores são lidos **depois** de o registro existir, e de propósito: se a leitura falhar, a
- * ocorrência já está gravada e o operador perde o texto pronto, não o registro.
- */
-async function renderEmail(params: {
-  readonly input: RegisterTripOccurrenceInput
-  readonly occurrenceId: string
-  readonly occurrenceType: OccurrenceTypeRecord
-  readonly scope: { readonly productCodes: readonly string[] }
-}): Promise<null | { readonly body: string; readonly subject: string }> {
-  /** Spec 247 (RF2): a chave é do aviso interno; o e-mail à contratante só depende do assunto. */
-  if (params.occurrenceType.emailSubject === '') return null
-
-  const values = await params.input.repository.readTemplateValues({
-    companyId: params.input.companyId,
-    documentId: params.input.documentId,
-    note: params.input.note,
-    occurrenceId: params.occurrenceId,
-    occurredOn: params.input.occurredOn,
-    productCodes: params.scope.productCodes,
-    tripId: params.input.tripId,
-  })
-
-  return {
-    body: renderOccurrenceTemplate({ template: params.occurrenceType.emailBody, values }),
-    subject: renderOccurrenceTemplate({ template: params.occurrenceType.emailSubject, values }),
   }
 }
 

@@ -11,14 +11,19 @@ const CONTRACTORS_QUERY_KEY = 'contractor-contacts-contractors'
 const CONTACTS_QUERY_KEY = 'contractor-contacts'
 
 export function useContractorContacts(
-  input: Readonly<{ contractorId: string | undefined; enabled: boolean }>,
+  input: Readonly<{
+    contractorId: string | undefined
+    enabled: boolean
+    /** Spec 268: a ficha da contratante já sabe qual é — não precisa da lista para o seletor. */
+    shouldListContractors?: boolean
+  }>,
 ) {
   const queryClient = useQueryClient()
   const client = getContractorContactsClient()
   const contactsKey = [CONTACTS_QUERY_KEY, input.contractorId] as const
 
   const contractorsQuery = useQuery({
-    enabled: input.enabled,
+    enabled: input.enabled && input.shouldListContractors !== false,
     queryFn: () => client.listContractors(),
     queryKey: [CONTRACTORS_QUERY_KEY],
   })

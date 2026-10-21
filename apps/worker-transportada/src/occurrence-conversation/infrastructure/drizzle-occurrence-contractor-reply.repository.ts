@@ -12,14 +12,18 @@ import {
   occurrenceContractorReplies,
   occurrenceContractorReplyEvents,
 } from '../../database/occurrence-contractor-reply.schema.js'
+import { checkBoletoDocument } from '../domain/contractor-reply-document.policy.js'
 import {
   decideContractorReply,
+  requiresContractorReplyDocumentCheck,
   type ContractorReplyDecisionInput,
 } from '../domain/contractor-reply.policy.js'
+import { findContractorReplyDocumentNote } from './contractor-reply-document-note.support.js'
 import {
   deliverContractorReplyToDriver,
   type DeliverContractorReplyToDriverResult,
 } from './contractor-reply-driver-delivery.support.js'
+import { queueContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.support.js'
 import { queueContractorReplyToNoteRecipient } from './contractor-reply-note-recipient-forward.support.js'
 import type { OccurrenceConversationTransaction } from './drizzle-occurrence-conversation-mail.repository.js'
 
@@ -38,6 +42,11 @@ export async function applyContractorReplyToMessage(
     readonly conversationId: string
     readonly messageId: string
     readonly now: Date
+    /**
+     * Spec 276 T2: the text layer of a PDF of this message, by its stored object. Called only when the type
+     * checks the boleto and one PDF was accepted; absent, or empty, means the document is not confirmed.
+     */
+    readonly readDocumentText?: (storedObjectId: string) => Promise<string>
   },
 ): Promise<ContractorReplyAutomaticDelivery | undefined> {
   const { companyId } = params
@@ -62,6 +71,7 @@ export async function applyContractorReplyToMessage(
     .select({
       contentType: occurrenceConversationAttachments.contentType,
       id: occurrenceConversationAttachments.id,
+      storedObjectId: occurrenceConversationAttachments.storedObjectId,
     })
     .from(occurrenceConversationAttachments)
     .where(
@@ -70,13 +80,24 @@ export async function applyContractorReplyToMessage(
         eq(occurrenceConversationAttachments.messageId, params.messageId),
       ),
     )
-  const decision = decideContractorReply({
-    attachments,
-    reply: {
-      config: reply.config as ContractorReplyDecisionInput['reply']['config'],
-      status: reply.status,
-    },
-  })
+  const config = reply.config as ContractorReplyDecisionInput['reply']['config']
+  const decisionInput = { attachments, reply: { config, status: reply.status } }
+  /** As if the content were confirmed: says which single PDF the boleto check has to read, if any. */
+  const firstDecision = decideContractorReply({ ...decisionInput, documentConfirmed: true })
+  const decision =
+    firstDecision.kind === 'accept' && requiresContractorReplyDocumentCheck(config.attachmentKind)
+      ? decideContractorReply({
+          ...decisionInput,
+          documentConfirmed: await isBoletoConfirmed(transaction, {
+            companyId,
+            readDocumentText: params.readDocumentText,
+            replyId: reply.id,
+            storedObjectId: attachments.find(
+              (attachment) => attachment.id === firstDecision.attachmentId,
+            )?.storedObjectId,
+          }),
+        })
+      : firstDecision
   if (decision.kind === 'ignore') return undefined
 
   const isAccepted = decision.kind === 'accept'
@@ -121,5 +142,29 @@ export async function applyContractorReplyToMessage(
   })
   /** RF10: o mesmo boleto sai ao cliente da nota quando o tipo liga o envio automático; falha dele não desfaz nada acima. */
   await queueContractorReplyToNoteRecipient(transaction, { companyId, replyId: reply.id })
+  /** Spec 276 T5: entregue ao motorista, a contratante recebe a resposta rápida do tipo (uma por conversa), se ligada. */
+  if (delivery.kind === 'delivered') {
+    await queueContractorReplyAcknowledgement(transaction, { companyId, replyId: reply.id })
+  }
   return delivery.kind === 'delivered' ? delivery : undefined
+}
+
+/** Spec 276 T2: the accepted PDF names the note of the occurrence with a valid boleto line. */
+async function isBoletoConfirmed(
+  transaction: OccurrenceConversationTransaction,
+  params: {
+    readonly companyId: string
+    readonly readDocumentText: ((storedObjectId: string) => Promise<string>) | undefined
+    readonly replyId: string
+    readonly storedObjectId: string | undefined
+  },
+): Promise<boolean> {
+  const { readDocumentText, storedObjectId } = params
+  const [note, text] = await Promise.all([
+    findContractorReplyDocumentNote(transaction, params),
+    storedObjectId === undefined || readDocumentText === undefined
+      ? Promise.resolve('')
+      : readDocumentText(storedObjectId),
+  ])
+  return checkBoletoDocument({ note, text }).confirmed
 }

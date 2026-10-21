@@ -86,3 +86,14 @@ export type ContractorPortalNotifierPort = {
     readonly recipientUserIds: readonly string[]
   }): Promise<void>
 }
+
+/**
+ * Spec 274 T3.7 (D2): quem o portal alcança numa ocorrência, com o e-mail (minúsculas) de cada conta. `null`
+ * quando o portal não mostra a ocorrência a ninguém — no chat isso é "sem aviso", nunca erro.
+ */
+export type ContractorPortalChatAudienceReaderPort = {
+  find(input: { readonly companyId: string; readonly occurrenceId: string }): Promise<null | {
+    readonly occurrenceLabel: string
+    readonly users: readonly { readonly email: string; readonly userId: string }[]
+  }>
+}

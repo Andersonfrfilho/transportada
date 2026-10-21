@@ -7,6 +7,7 @@ import type {
   OccurrenceItemsMode,
   OccurrenceMoment,
   OccurrenceRedeliveryPolicy,
+  OccurrenceTypeContractorScope,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from './occurrence.constant'
@@ -14,9 +15,36 @@ import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
+  DuplicateRequestPolicy,
   InformedEmailForwardMode,
   NoteRecipientForwardMode,
 } from './occurrenceContractorReply.constant'
+
+/** Spec 270: a contratante que o tipo atende, como o cadastro a devolve (nome e CNPJ vêm prontos). */
+export type OccurrenceTypeContractor = Readonly<{
+  displayName: string
+  id: string
+  status: string
+  taxId: string
+}>
+
+/** Spec 271 (ADR-0108): responsável da empresa escolhido para ir em cópia no e-mail do tipo. */
+export type OccurrenceTypeMailWatcher = Readonly<{
+  eligible: boolean
+  name: string
+  status: string
+  userId: string
+}>
+
+/** Spec 271: contato de contratante escolhido como destinatário do e-mail do tipo (só tipo `listed`). */
+export type OccurrenceTypeMailRecipient = Readonly<{
+  contactId: string
+  contractorId: string
+  email: string
+  name: string
+  receivesOccurrences: boolean
+  status: string
+}>
 
 /** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
 export type OccurrenceType = Readonly<{
@@ -36,21 +64,33 @@ export type OccurrenceType = Readonly<{
   declaredAmountLabel?: string
   declaredAmountMode?: OccurrenceAttachmentMode
   declaredAmountScope?: DeclaredAmountScope
-  /** O e-mail à contratante da nota (spec 079/183/247): assunto e corpo próprios, independentes do aviso interno. */
-  emailBody: string
-  /** Spec 247 RF6: o formato de cada linha de item; vazio é a linha padrão. Ausente é API anterior. */
-  emailItemLineTemplate?: string
-  emailSubject: string
+  /** Spec 271: o bloco "E-mail à contratante" do tipo. Todos ausentes numa API anterior. */
+  contractorMailRecipients?: readonly OccurrenceTypeMailRecipient[]
+  contractorMailWatchers?: readonly OccurrenceTypeMailWatcher[]
+  contractorNotificationTemplateKey?: null | string
+  missingNotificationTemplate?: boolean
+  /**
+   * Spec 270 (ADR-0107): para quem o tipo vale. Ausente é API anterior ao campo: lê-se como `all`, e o
+   * `PUT` nunca o manda. `contractors` é a lista do tipo `listed`, ordenada por nome pela API.
+   */
+  contractorScope?: OccurrenceTypeContractorScope
+  contractors?: readonly OccurrenceTypeContractor[]
   /** Spec 183 T802: o tipo avisa a contratante sozinho no registro. Ausente é API anterior ao campo. */
   emailsContractor?: boolean
   /** Spec 248 RF1: o retorno da contratante — todos opcionais; ausentes são API anterior aos campos. */
+  /** Spec 276 T5: a resposta rápida que vai à contratante quando o documento é entregue sozinho. Ausente é API anterior. */
+  contractorReplyAcknowledgementQuickReplyId?: null | string
   contractorReplyAlertIntervalMinutes?: number
   contractorReplyAlertMaxCount?: number
   contractorReplyAlertMode?: ContractorReplyAlertMode
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   contractorReplyMode?: ContractorReplyMode
+  /** Spec 276 T3b: ausente é API anterior ao campo (lê como desligado). */
+  contractorReplyResolveOnDelivery?: boolean
   contractorReplyWaitHours?: null | number
   driverReplyTemplate?: string
+  /** Spec 276 T4: o pedido repetido na mesma nota. Ausente é API anterior ao campo. */
+  duplicateRequestPolicy?: DuplicateRequestPolicy
   forwardEmailBody?: string
   forwardEmailSubject?: string
   forwardToInformedEmail?: InformedEmailForwardMode

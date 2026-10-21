@@ -99,6 +99,7 @@ function forwardedMailsOf(database: TestDatabase, companyId: string) {
   return database.db
     .select({
       bodyText: contractorMailMessages.bodyText,
+      ccAddresses: contractorMailMessages.ccAddresses,
       deliveryStatus: contractorMailMessages.deliveryStatus,
       direction: contractorMailMessages.direction,
       id: contractorMailMessages.id,
@@ -146,6 +147,8 @@ describe('o boleto por e-mail ao cliente da nota (spec 248 T4.7, RF10, CA07)', (
         expect(mail).toMatchObject({
           deliveryStatus: 'queued',
           direction: 'outbound',
+          /** Spec 267 RF6: o encaminhamento a terceiro nunca leva a cópia dos responsáveis. */
+          ccAddresses: [],
           subject: FORWARD_EMAIL_SUBJECT,
           toAddresses: [NOTE_EMAIL],
         })

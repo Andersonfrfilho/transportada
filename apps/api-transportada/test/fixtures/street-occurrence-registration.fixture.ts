@@ -6,6 +6,7 @@
  * (spec 179: `trip_occurrence_uploads` + objeto `trip_occurrence_attachment`).
  */
 import { tripOccurrenceUploads } from '../../src/database/trip.schema.js'
+import type { DriverOccurrenceNotifierPort } from '../../src/trips/application/driver-occurrence-notifier.service.js'
 import type { DriverDocumentOccurrence } from '../../src/trips/application/driver-document-occurrence.types.js'
 import { registerDriverOccurrence } from '../../src/trips/application/register-driver-occurrence.use-case.js'
 import type { DriverOccurrenceItemInput } from '../../src/trips/application/register-driver-occurrence.types.js'
@@ -58,6 +59,8 @@ export type StreetOccurrenceRegistration = Scope & {
   readonly items?: readonly DriverOccurrenceItemInput[]
   /** Spec 246: ausente é `cliente ausente`; vazio exercita a observação obrigatória. */
   readonly note?: string
+  /** Spec 275: o aviso interno; ausente é o registro sem aviso. */
+  readonly notifier?: DriverOccurrenceNotifierPort
   readonly productCode?: string
   /** Spec 247 (T4.4): o número do documento do cliente. */
   readonly referenceNumber?: string
@@ -88,6 +91,7 @@ export function registerStreetOccurrence(
     idempotencyKey: input.idempotencyKey ?? crypto.randomUUID(),
     ...(input.items === undefined ? {} : { items: input.items }),
     note: input.note ?? 'cliente ausente',
+    ...(input.notifier === undefined ? {} : { notifier: input.notifier }),
     occurrenceTypeId: input.typeId,
     productCode: input.productCode ?? '',
     ...(input.referenceNumber === undefined ? {} : { referenceNumber: input.referenceNumber }),

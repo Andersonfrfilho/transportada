@@ -27,6 +27,11 @@ import { assertCargoPreviewEmailIntake } from './cargo-preview-email-intake.asse
 import { assertArrivalReferenceLabel } from './contractor-receiving-arrival-reference-label.assertion.js'
 import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
+import { assertConversationEmailRead } from './conversation-email-read.assertion.js'
+import { assertContractorReplyBoletoCheck } from './contractor-reply-boleto-check.assertion.js'
+import { assertContractorReplyResolveOnDelivery } from './contractor-reply-resolve-on-delivery.assertion.js'
+import { assertContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
+import { assertOccurrenceDuplicateRequestPolicy } from './occurrence-duplicate-request-policy.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
 import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
 import { assertConversationSubject } from './conversation-subject.assertion.js'
@@ -145,6 +150,34 @@ describe('Drizzle migration integration', () => {
         await assertFreightRegionConstraints(database, identityFixture, fleetFixture)
         await assertMdfeConstraints(database, identityFixture, fleetFixture)
         await assertTripConstraints(database, identityFixture, fleetFixture)
+        /**
+         * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
+         * diário da 276 ainda gravado, e o reapply não a alarga de novo.
+         */
+        await assertContractorReplyBoletoCheck({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertContractorReplyResolveOnDelivery({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertOccurrenceDuplicateRequestPolicy({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertContractorReplyAcknowledgement({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
 
         const rollbackProbeTripId = crypto.randomUUID()
         await database`
@@ -439,6 +472,14 @@ describe('Drizzle migration integration', () => {
           userId: identityFixture.userId,
         })
         await assertConversationAudioTranscribeJob(database)
+        await assertConversationEmailRead({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
         await assertDeliveryProofProcessing({
           companyId: identityFixture.companyId,
           connectionString,

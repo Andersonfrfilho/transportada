@@ -25,6 +25,8 @@ import { OccurrenceExceptionModeSelect } from './OccurrenceExceptionModeSelect.c
 type OccurrenceExceptionItemProps = Readonly<{
   disabled: boolean
   entry: OccurrenceExceptionEntry
+  /** Spec 270 RF9: a contratante da exceção não está na lista do tipo restrito — a exceção segue guardada, sem efeito. */
+  hasNoEffect?: boolean
   onEdit: (key: OccurrenceExceptionKey, edit: OccurrenceExceptionEdit) => void
   onRemove: (key: OccurrenceExceptionKey) => void
   /** Spec 247 D8: os nomes que o tipo deu ao número e ao valor pago; `undefined` é API anterior aos campos. */
@@ -38,6 +40,7 @@ type OccurrenceExceptionItemProps = Readonly<{
 export function OccurrenceExceptionItem({
   disabled,
   entry,
+  hasNoEffect = false,
   onEdit,
   onRemove,
   recordLabels,
@@ -63,6 +66,11 @@ export function OccurrenceExceptionItem({
         </span>
         <span>{label}</span>
       </div>
+      {hasNoEffect ? (
+        <p className={styles.legend} role="status">
+          {t('occurrenceTypeCatalog.exceptions.noEffect')}
+        </p>
+      ) : null}
       <div className={styles.fields}>
         {fields.includes('photo') ? (
           <OccurrenceExceptionModeSelect

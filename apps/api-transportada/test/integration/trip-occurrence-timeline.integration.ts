@@ -246,7 +246,14 @@ describe('a linha do tempo da ocorrência (spec 183 T206)', () => {
           driverReleasedAt: '2026-09-22T13:30:00.000Z',
           openSince: '2026-09-22T12:00:00.000Z',
           openUntil: '2026-09-22T14:00:00.000Z',
+          resolvedAt: '2026-09-22T14:00:00.000Z',
         })
+        expect(timeline.stages.map((stage) => [stage.stage, stage.durationSeconds])).toEqual([
+          ['received', 10 * 60],
+          ['awaiting_contractor', 70 * 60],
+          ['reply_received', 40 * 60],
+          ['resolved', null],
+        ])
 
         const serialized = JSON.stringify(timeline)
         expect(serialized).not.toContain('example.test')

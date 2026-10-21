@@ -12,8 +12,6 @@ import { parseOccurrenceTypeRequest } from '../../src/trips/presentation/occurre
 function baseBody(): Record<string, unknown> {
   return {
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     name: 'Item faltante',
     notifies: false,

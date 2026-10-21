@@ -44,12 +44,24 @@ const OCCURRENCE_TIMELINE: OccurrenceTimeline = {
       sincePreviousSeconds: null,
     },
   ],
+  stages: [
+    {
+      actor: { kind: 'driver', name: 'Motorista Alves' },
+      durationSeconds: null,
+      endedAt: null,
+      reason: null,
+      stage: 'received',
+      startedAt: '2026-09-24T10:00:00.000Z',
+      terminal: false,
+    },
+  ],
   timings: {
     contractorAskedAt: null,
     contractorRepliedAt: null,
     driverReleasedAt: null,
     openSince: '2026-09-24T10:00:00.000Z',
     openUntil: null,
+    resolvedAt: null,
   },
 }
 

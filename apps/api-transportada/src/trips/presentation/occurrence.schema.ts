@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import { OCCURRENCE_WATCHER_MAX_TOTAL } from '../../contractor-mail/domain/occurrence-watcher.constant.js'
 import {
   CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES,
   CONTRACTOR_REPLY_ALERT_MAX_COUNT,
@@ -13,6 +15,7 @@ import {
   FORWARD_EMAIL_SUBJECT_MAX_LENGTH,
   FORWARD_TO_INFORMED_EMAIL_MODES,
   FORWARD_TO_NOTE_RECIPIENT_MODES,
+  DUPLICATE_REQUEST_POLICIES,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import { z } from 'zod'
 
@@ -31,6 +34,8 @@ import {
   OCCURRENCE_DECLARED_AMOUNT_SCOPES,
   OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX,
   OCCURRENCE_MOMENTS,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE_MAX_CONTRACTORS,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPES,
   OCCURRENCE_PHOTO_MINIMUM_COUNT,
   OCCURRENCE_REFERENCE_NUMBER_PATTERN,
   OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH,
@@ -38,17 +43,16 @@ import {
 } from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
 import {
-  emailBodyTemplateSchema,
-  emailItemLineTemplateSchema,
-  emailSubjectTemplateSchema,
-} from './occurrence-template-fields.schema.js'
-import {
   OFFICE_MULTIPART_FILE_FIELD,
   readOfficeMultipartFile,
   readOfficeMultipartForm,
   type OfficeForm,
   type OfficeFormValue,
 } from './office-multipart.schema.js'
+
+/** Spec 269 D9: texto antigo do e-mail do tipo, só tolerado na fronteira até a etapa B. */
+const LEGACY_EMAIL_TEXT_MAX_LENGTH = 4000
+const legacyEmailTextSchema = z.string().max(LEGACY_EMAIL_TEXT_MAX_LENGTH)
 
 const OCCURRENCE_PRODUCT_CODE_MAX_LENGTH = 60
 
@@ -457,10 +461,10 @@ const occurrenceTypeSchema = z
     referenceNumberLabel: requirementLabelSchema.optional(),
     referenceNumberMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
     /**
-     * Spec 247 (RF5, RF6): o formato de cada linha de item do e-mail, conferido com os marcadores de
-     * LINHA — `{{linhasItens}}` ali dentro seria recursão. Ausente é "não mexa"; vazio é a linha padrão.
+     * Spec 269 D9: o painel antigo ainda manda o texto antigo do e-mail durante a publicação em etapas. Aceito
+     * e descartado antes do mapeador, sem conferir marcador, até a etapa B tirar as chaves.
      */
-    emailItemLineTemplate: emailItemLineTemplateSchema.optional(),
+    emailItemLineTemplate: legacyEmailTextSchema.optional(),
     /**
      * Spec 248 (RF1): o retorno da contratante. ⚠️ **Opcionais sem `default`, pelo mesmo motivo de
      * `attachmentMode`**: ausente é "não mexa". As CHECKs entre campos (retorno exige e-mail e texto;
@@ -480,6 +484,12 @@ const occurrenceTypeSchema = z
       .optional(),
     contractorReplyAlertMode: z.enum(CONTRACTOR_REPLY_ALERT_MODES).optional(),
     contractorReplyAttachmentKind: z.enum(CONTRACTOR_REPLY_ATTACHMENT_KINDS).optional(),
+    /** Spec 276 T3b: ausente não mexe. */
+    contractorReplyResolveOnDelivery: z.boolean().optional(),
+    /** Spec 276 T4: a trava de pedido repetido; ausente não mexe. */
+    duplicateRequestPolicy: z.enum(DUPLICATE_REQUEST_POLICIES).optional(),
+    /** Spec 276 T5: `null` desliga; ausente não mexe. */
+    contractorReplyAcknowledgementQuickReplyId: z.string().uuid().nullable().optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),
     contractorReplyWaitHours: z
       .number()
@@ -553,6 +563,50 @@ const occurrenceTypeSchema = z
      */
     emailsContractor: z.boolean().optional(),
     /**
+     * Spec 271 (D14): a chave da 269 (modelo do cadastro da 150, por id) é **aceita e ignorada** até as telas novas
+     * estarem em produção — o painel antigo ainda a manda; depois disso sai daqui e o `.strict()` a recusa (T5.5).
+     */
+    contractorMailTemplateId: z.string().uuid().nullable().optional(),
+    /**
+     * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação que escreve o e-mail à
+     * contratante. Ausente é "não mexa"; `null` limpa. Conferida na gravação (400 com todos os problemas).
+     */
+    contractorNotificationTemplateKey: z.string().trim().min(1).max(128).nullable().optional(),
+    /**
+     * Spec 271 (D10): os responsáveis em cópia do e-mail à contratante, da lista da empresa. Ausente é "não mexa";
+     * `[]` limpa. O teto de 10 e a lista da empresa são conferidos no caso de uso (códigos próprios).
+     */
+    /**
+     * Spec 271 (D12): os destinatários do e-mail à contratante. Ausente é "não mexa"; `[]` limpa. Só tipo `listed`
+     * (400 no `all`); até o teto de destinatários por e-mail.
+     */
+    contractorMailRecipientContactIds: z
+      .array(z.string().uuid())
+      .max(CONTRACTOR_MAIL_MAX_RECIPIENTS)
+      .optional()
+      .refine((ids) => ids === undefined || new Set(ids).size === ids.length, {
+        message: 'RECIPIENT_IDS_MUST_BE_UNIQUE',
+      }),
+    contractorMailWatcherUserIds: z
+      .array(z.string().uuid())
+      .max(OCCURRENCE_WATCHER_MAX_TOTAL)
+      .optional()
+      .refine((ids) => ids === undefined || new Set(ids).size === ids.length, {
+        message: 'WATCHER_IDS_MUST_BE_UNIQUE',
+      }),
+    /**
+     * Spec 270 (ADR-0107): para quem o tipo vale. `contractorScope` e `contractorIds` vão juntos (o caso de
+     * uso recusa um sem o outro, 400); ausentes é "não mexa". `all` apaga a lista; `listed` pede ao menos uma.
+     */
+    contractorIds: z
+      .array(z.string().uuid())
+      .max(OCCURRENCE_TYPE_CONTRACTOR_SCOPE_MAX_CONTRACTORS)
+      .optional()
+      .refine((ids) => ids === undefined || new Set(ids).size === ids.length, {
+        message: 'CONTRACTOR_IDS_MUST_BE_UNIQUE',
+      }),
+    contractorScope: z.enum(OCCURRENCE_TYPE_CONTRACTOR_SCOPES).optional(),
+    /**
      * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota" — só para tipo de separação
      * (`stage: 'separation'`); um tipo de entrega com `true` é recusado no caso de uso, 422.
      *
@@ -561,14 +615,9 @@ const occurrenceTypeSchema = z
      * marcado "segue sem a nota" desligaria a marca sem erro nenhum. Ausente é "não mexa".
      */
     leavesDocumentBehind: z.boolean().optional(),
-    /**
-     * Marcador desconhecido é recusado aqui, no cadastro — ver `occurrence-template-fields.schema.ts`.
-     * ⚠️ **Opcionais sem `default`**: o UPDATE sobrescreve o registro inteiro, e o painel publicado não
-     * manda estes campos; com `default('')` cada edição apagava o e-mail à contratante. Ausente é
-     * "não mexa"; `''` explícito apaga de propósito.
-     */
-    emailBody: emailBodyTemplateSchema.optional(),
-    emailSubject: emailSubjectTemplateSchema.optional(),
+    /** Spec 269 D9: aceitos e descartados (ver `emailItemLineTemplate`). */
+    emailBody: legacyEmailTextSchema.optional(),
+    emailSubject: legacyEmailTextSchema.optional(),
     /**
      * A chave do template do módulo de notificações que o tipo seleciona para o aviso interno. Presente,
      * ela é conferida contra o catálogo da empresa na gravação; assunto/corpo acima são o e-mail à
@@ -672,6 +721,8 @@ export const occurrenceAttachmentOverridesSchema = z
           .object({
             attachmentMode: attachmentOverrideModeSchema,
             contractorId: z.string().uuid(),
+            /** Spec 271 (D7/D14): a exceção perdeu o modelo; a chave da 269 é aceita e ignorada até a T5.5. */
+            contractorMailTemplateId: z.string().uuid().nullable().optional(),
             ...overrideRequirementFields,
           })
           .strict()

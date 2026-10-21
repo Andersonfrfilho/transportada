@@ -23,8 +23,6 @@ const BASE = {
   contractorReplyMode: 'forward_after_approval',
   contractorReplyWaitHours: 6,
   driverReplyTemplate: 'Segue o boleto.',
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: null,
   emailsContractor: true,
   flow: 'document',
@@ -110,7 +108,7 @@ describe('o envio do boleto por e-mail na aba Tipos (spec 248 T4.7)', () => {
     expect(fieldByLabel(/Assunto do e-mail ao terceiro/u).getAttribute('aria-invalid')).toBe('true')
   })
 
-  it('escrever os dois textos limpa as mensagens e o PUT leva os onze campos de uma vez', async () => {
+  it('escrever os dois textos limpa as mensagens e o PUT leva os doze campos de uma vez', async () => {
     const edits: OccurrenceTypeEdit[] = []
     await mountBlock({ forwardToNoteRecipient: 'manual' }, (edit) => edits.push(edit))
 
@@ -132,7 +130,7 @@ describe('o envio do boleto por e-mail na aba Tipos (spec 248 T4.7)', () => {
       forwardToInformedEmail: 'off',
       forwardToNoteRecipient: 'manual',
     })
-    expect(Object.keys(edits[0] ?? {})).toHaveLength(11)
+    expect(Object.keys(edits[0] ?? {})).toHaveLength(12)
   })
 
   it('o assunto e o corpo respeitam o teto do banco (200 e 4000)', async () => {

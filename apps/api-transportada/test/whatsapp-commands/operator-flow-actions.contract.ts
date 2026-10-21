@@ -12,6 +12,7 @@ import type {
   FlowActionResult,
 } from '@adatechnology/meta-whatsapp-contracts'
 
+import { OccurrenceTypeNotAvailableForContractorError } from '../../src/trips/domain/occurrence-type-contractor-scope.error.js'
 import { createInMemoryWhatsAppSharedLocationStore } from '../../src/whatsapp-commands/application/whatsapp-shared-location.service.js'
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
 import type { CompanyPermission } from '../../src/identity/domain/authorization.policy.js'
@@ -177,8 +178,6 @@ function buildOccurrenceType(overrides: Partial<OccurrenceTypeRecord> = {}): Occ
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: OCCURRENCE_TYPE_ID,
     name: 'Avaria no barracão',
@@ -1048,6 +1047,42 @@ describe('FlowAction do passo de foto do operador (spec 161 T15)', () => {
       ])
     })
   }
+
+  /** Spec 270 (R3): o servidor recusa o tipo pela contratante — a conversa volta à lista, não fica na foto. */
+  test('tipo que não vale para a contratante da nota: avisa, volta à lista de tipos e não relança', async () => {
+    const { channel, sent } = await buildChannelWithMedia(1024)
+    const result = await callAction({
+      channel,
+      context: { ...PHOTO_CONTEXT, ...withImage() },
+      deps: buildDeps({
+        registerOccurrence: async () => {
+          throw new OccurrenceTypeNotAvailableForContractorError()
+        },
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(sent[0]?.body).toBe(
+      'Este tipo não vale para a contratante desta nota. Escolha outro tipo.',
+    )
+    expect(result).toMatchObject({ next: OPERATOR_FLOW_NODE.listOccurrenceTypes })
+  })
+
+  test('a lista de tipos do operador pede o catálogo da nota da conversa', async () => {
+    const asked: unknown[] = []
+    await callAction({
+      context: { [OPERATOR_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID },
+      deps: buildDeps({
+        listOccurrenceTypes: async (input) => {
+          asked.push(input)
+          return [buildOccurrenceType()]
+        },
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.listOccurrenceTypes,
+    })
+
+    expect(asked).toEqual([{ companyId: COMPANY_ID, documentId: DOCUMENT_ID }])
+  })
 
   test('primeira foto sem gatilho: só "Foto 1 anexada"', async () => {
     const { channel, sent } = await buildChannelWithMedia(1024)

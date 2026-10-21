@@ -4,13 +4,17 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
+import {
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
+  type OccurrenceType,
+} from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import {
   hasDeclaredAmountWithoutItems,
   readOccurrenceRecordLabels,
 } from '@/modules/trip/shared/occurrenceRecordFields.service'
 import { readOccurrenceRequirementScope } from '@/modules/trip/shared/occurrenceRequirementScope.service'
+import { resolveOccurrenceMoments } from '@/modules/trip/shared/occurrenceMoments.service'
 import type { OccurrenceEmailTemplatesState } from '@/modules/trip/shared/occurrenceTemplate.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
@@ -19,6 +23,7 @@ import {
   type OccurrenceTypeEdit,
   type OccurrenceTypeSaveInput,
 } from '../shared/occurrenceTypeUpdate.service'
+import { OccurrenceTypeContractorScope } from './OccurrenceTypeContractorScope.component'
 import { OccurrenceTypeContractorMail } from './OccurrenceTypeContractorMail.component'
 import { OccurrenceTypeContractorReply } from './OccurrenceTypeContractorReply.component'
 import { OccurrenceTypeExceptions } from './OccurrenceTypeExceptions.component'
@@ -80,6 +85,18 @@ export function OccurrenceTypeRow({
           typeId={type.id}
         />
       )}
+      {/* Spec 270: API anterior ao campo não manda `contractorScope` — sem o bloco, nada que ela recusaria com `.strict()`. */}
+      {type.contractorScope === undefined ? null : (
+        <OccurrenceTypeContractorScope
+          contractors={type.contractors ?? []}
+          disabled={isDisabled}
+          moments={resolveOccurrenceMoments(type)}
+          onEdit={handleEdit}
+          people={exceptions.people}
+          recipients={type.contractorMailRecipients}
+          scope={type.contractorScope}
+        />
+      )}
       <OccurrenceTypeRequirementFields
         disabled={isDisabled}
         hasAmountWithoutItems={blockedType === type}
@@ -104,6 +121,11 @@ export function OccurrenceTypeRow({
       {scope.hasExceptions ? (
         <OccurrenceTypeExceptions
           canManage={canManage}
+          contractorIdsOfScope={
+            type.contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed
+              ? (type.contractors ?? []).map((contractor) => contractor.id)
+              : undefined
+          }
           exceptions={exceptions}
           scope={scope}
           isDisabled={isSaving}

@@ -65,9 +65,16 @@ const OPEN_STATUS_CASES: readonly DecisionCase[] = [
   {
     attachments: [],
     config: AUTOMATIC_PDF,
-    expected: NEEDS_NO_ATTACHMENT,
-    name: '0 attachments',
+    expected: { kind: 'ignore', reason: 'awaiting_attachment' },
+    name: '0 attachments ("Solicitado"): keeps waiting for the document',
     status: 'awaiting_contractor',
+  },
+  {
+    attachments: [],
+    config: APPROVAL_PDF,
+    expected: { kind: 'ignore', reason: 'awaiting_attachment' },
+    name: '0 attachments when already overdue: keeps waiting, the alarm goes on',
+    status: 'overdue',
   },
   {
     attachments: [PDF],
@@ -209,6 +216,83 @@ describe('decideContractorReply (spec 248 RF4, CA03)', () => {
       expect(decide(status, config, attachments)).toEqual(expected)
     })
   }
+
+  test('a text-only reply first and the pdf later: the pdf is the one accepted', () => {
+    const first = decide('awaiting_contractor', AUTOMATIC_PDF, [])
+    expect(first).toEqual({ kind: 'ignore', reason: 'awaiting_attachment' })
+
+    expect(decide('awaiting_contractor', AUTOMATIC_PDF, [PDF])).toEqual({
+      attachmentId: PDF.id,
+      kind: 'accept',
+      nextStep: 'deliver',
+    })
+  })
+
+  describe('boleto pdf: the content decides (spec 276 T2)', () => {
+    const AUTOMATIC_BOLETO: ReplyConfig = {
+      attachmentKind: 'boleto_pdf',
+      mode: 'forward_automatic',
+    }
+    const APPROVAL_BOLETO: ReplyConfig = {
+      attachmentKind: 'boleto_pdf',
+      mode: 'forward_after_approval',
+    }
+    const NOT_CONFIRMED: ContractorReplyDecision = {
+      kind: 'needs_operator',
+      reason: 'document_not_confirmed',
+    }
+
+    function decideBoleto(
+      config: ReplyConfig,
+      attachments: ContractorReplyDecisionInput['attachments'],
+      documentConfirmed?: boolean,
+    ): ContractorReplyDecision {
+      return decideContractorReply({
+        attachments,
+        ...(documentConfirmed === undefined ? {} : { documentConfirmed }),
+        reply: { config, status: 'awaiting_contractor' },
+      })
+    }
+
+    test('1 pdf confirmed as the boleto goes on like any accepted pdf', () => {
+      expect(decideBoleto(AUTOMATIC_BOLETO, [PDF], true)).toEqual({
+        attachmentId: PDF.id,
+        kind: 'accept',
+        nextStep: 'deliver',
+      })
+      expect(decideBoleto(APPROVAL_BOLETO, [PDF], true)).toEqual({
+        attachmentId: PDF.id,
+        kind: 'accept',
+        nextStep: 'await_operator',
+      })
+    })
+
+    test('1 pdf that is not the boleto goes to the operator, in both modes', () => {
+      expect(decideBoleto(AUTOMATIC_BOLETO, [PDF], false)).toEqual(NOT_CONFIRMED)
+      expect(decideBoleto(APPROVAL_BOLETO, [PDF], false)).toEqual(NOT_CONFIRMED)
+    })
+
+    test('a check that never ran is not a confirmation', () => {
+      expect(decideBoleto(AUTOMATIC_BOLETO, [PDF])).toEqual(NOT_CONFIRMED)
+    })
+
+    test('"Solicitado" without attachment still waits, and an image is still not a pdf', () => {
+      expect(decideBoleto(AUTOMATIC_BOLETO, [])).toEqual({
+        kind: 'ignore',
+        reason: 'awaiting_attachment',
+      })
+      expect(decideBoleto(AUTOMATIC_BOLETO, [PNG], true)).toEqual(NEEDS_NO_ATTACHMENT)
+      expect(decideBoleto(AUTOMATIC_BOLETO, [PDF, SECOND_PDF], true)).toEqual(NEEDS_MULTIPLE)
+    })
+
+    test('the plain pdf kind never reads the check', () => {
+      expect(decideBoleto(AUTOMATIC_PDF, [PDF], false)).toEqual({
+        attachmentId: PDF.id,
+        kind: 'accept',
+        nextStep: 'deliver',
+      })
+    })
+  })
 
   test('only the waiting statuses can accept a reply', () => {
     const accepting = CONTRACTOR_REPLY_STATUSES.filter(

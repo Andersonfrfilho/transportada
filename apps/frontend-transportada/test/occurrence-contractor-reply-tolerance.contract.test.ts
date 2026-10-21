@@ -28,8 +28,6 @@ function buildOccurrenceType(extra: Readonly<Record<string, unknown>> = {}) {
   return {
     active: true,
     allowsMultipleItems: false,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TYPE_ID,
     name: 'Cliente pediu prorrogação do boleto',
@@ -83,6 +81,46 @@ describe('tolerância aos campos do retorno da contratante no tipo (spec 248 T1.
     ])
 
     expect(type?.id).toBe(TYPE_ID)
+  })
+
+  it('aceita fechar sozinha depois de entregar (spec 276 T3b) antes de a API mandar', () => {
+    for (const value of [true, false]) {
+      const [type] = adapters.occurrenceTypesFromApi([
+        buildOccurrenceType({ contractorReplyResolveOnDelivery: value }),
+      ])
+      expect(type?.id).toBe(TYPE_ID)
+    }
+    expect(() =>
+      adapters.occurrenceTypesFromApi([
+        buildOccurrenceType({ contractorReplyResolveOnDelivery: 'yes' }),
+      ]),
+    ).toThrow()
+  })
+
+  it('aceita a resposta automática (spec 276 T5) antes de a API mandar', () => {
+    for (const value of ['0f9a2c7e-5a1b-4c3d-9e8f-1a2b3c4d5e6f', null]) {
+      const [type] = adapters.occurrenceTypesFromApi([
+        buildOccurrenceType({ contractorReplyAcknowledgementQuickReplyId: value }),
+      ])
+      expect(type?.id).toBe(TYPE_ID)
+    }
+    expect(() =>
+      adapters.occurrenceTypesFromApi([
+        buildOccurrenceType({ contractorReplyAcknowledgementQuickReplyId: 7 }),
+      ]),
+    ).toThrow()
+  })
+
+  it('aceita a trava de pedido repetido (spec 276 T4) antes de a API mandar', () => {
+    for (const value of ['while_request_open', 'until_resolved', 'allow']) {
+      const [type] = adapters.occurrenceTypesFromApi([
+        buildOccurrenceType({ duplicateRequestPolicy: value }),
+      ])
+      expect(type?.id).toBe(TYPE_ID)
+    }
+    expect(() =>
+      adapters.occurrenceTypesFromApi([buildOccurrenceType({ duplicateRequestPolicy: 'never' })]),
+    ).toThrow()
   })
 
   it('recusa campo do retorno fora do vocabulário ou da faixa', () => {

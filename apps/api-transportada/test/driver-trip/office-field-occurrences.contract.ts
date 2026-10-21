@@ -37,8 +37,6 @@ const FOREIGN_DOCUMENT = '00000000-0000-4000-8000-0000000000f1'
 const DELIVERY_TYPE: OccurrenceTypeRecord = {
   active: true,
   allowsMultipleItems: true,
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: null,
   id: TYPE_ID,
   name: 'Cliente ausente',
@@ -124,7 +122,9 @@ function unitOfWork(world: World): RegisterOfficeDocumentOccurrencesParams['unit
           return world.occurrenceType
         },
         async findReachableDocumentIds(input) {
-          return input.documentIds.filter((documentId) => world.reachable.has(documentId))
+          return input.documentIds
+            .filter((documentId) => world.reachable.has(documentId))
+            .map((id) => ({ contractorId: null, id }))
         },
         async saveDocumentOccurrence(input) {
           const id = crypto.randomUUID()

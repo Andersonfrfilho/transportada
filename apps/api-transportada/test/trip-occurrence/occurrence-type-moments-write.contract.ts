@@ -23,8 +23,6 @@ function values(overrides: Partial<SaveOccurrenceTypeValues> = {}): SaveOccurren
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     name: 'Avaria',
     notifies: false,
@@ -46,7 +44,10 @@ async function save(input: {
       saved.push(written)
       return { id: OCCURRENCE_TYPE_ID } as OccurrenceTypeRecord
     },
-    templates: { hasActiveEmailTemplate: async () => true },
+    templates: {
+      findContractorTemplate: async () => null,
+      hasActiveEmailTemplate: async () => true,
+    },
     values: input.values,
   })
   const [written] = saved

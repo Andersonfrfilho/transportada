@@ -20,7 +20,9 @@ import { dkimVerify } from 'mailauth'
 import {
   DKIM_ALIGNMENT_RESULT,
   resolveDkimAlignment,
+  summarizeDkimSignatures,
   type DkimAlignmentResult,
+  type DkimSignatureDiagnostic,
 } from '../domain/dkim-alignment.policy.js'
 
 const DEFAULT_DNS_TIMEOUT_MS = 5_000
@@ -29,20 +31,35 @@ export const DKIM_VERIFICATION_DEADLINE_MS = 15_000
 
 export type DkimDnsResolver = (name: string, recordType: string) => Promise<string[][] | string[]>
 
+export type ResolveTxt = (name: string) => Promise<string[][]>
+
 /**
  * Spec 143 T010: o resolvedor de verdade, para produção — só `TXT`, que é tudo que o DKIM
  * consulta. Qualquer outro tipo de registro pedido pela `mailauth` é sinal de algo inesperado, e
  * vira falha transitória (`unverifiable`) como qualquer outro erro do resolvedor.
+ *
+ * O registro volta como UM só, com os pedaços juntados: o Bun devolve cada string de um TXT de várias
+ * strings como um registro à parte (`[[a], [b]]`, o Node dá `[[a, b]]`), e a `mailauth` só lê o
+ * primeiro. A chave de 2048 bits do Gmail vem em duas strings: só a primeira chegava, e a resposta
+ * ficava "Remetente não confirmado" com a assinatura válida. Seletor com dois registros DKIM de
+ * verdade já é inválido (RFC 6376 §3.6.2.2) e continua sem veredito.
  */
-export const resolveDkimDnsRecord: DkimDnsResolver = async (name, recordType) => {
-  if (recordType !== 'TXT') throw new Error(`unsupported DNS record type: ${recordType}`)
-  return resolveTxt(name)
+export function createDkimDnsResolver(resolve: ResolveTxt): DkimDnsResolver {
+  return async (name, recordType) => {
+    if (recordType !== 'TXT') throw new Error(`unsupported DNS record type: ${recordType}`)
+    const records = await resolve(name)
+    return records.length === 0 ? [] : [[records.flat().join('')]]
+  }
 }
+
+export const resolveDkimDnsRecord: DkimDnsResolver = createDkimDnsResolver(resolveTxt)
 
 /** `headerFrom`: os endereços que a `mailauth` leu nos cabeçalhos `From` — o que ela alinha ao `d=`. */
 export type DkimVerification = {
   readonly alignment: DkimAlignmentResult
   readonly headerFrom: readonly string[]
+  /** Só para log: por que cada assinatura passou ou não (sem veredito no prazo, ausente). */
+  readonly signatures?: readonly DkimSignatureDiagnostic[]
 }
 
 export type VerifyDkimAlignmentPort = {
@@ -116,6 +133,7 @@ export function createDkimVerifierGateway(
         verification.then((result) => ({
           alignment: resolveDkimAlignment(result.results),
           headerFrom: result.headerFrom,
+          signatures: summarizeDkimSignatures(result.results),
         })),
         deadline,
       ])

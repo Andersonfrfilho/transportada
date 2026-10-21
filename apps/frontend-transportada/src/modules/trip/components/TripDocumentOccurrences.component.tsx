@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
+import { useSeparationOccurrenceTypesQuery } from '../queries/useSeparationOccurrenceTypes.query'
 import { hasTripDocumentProof } from '../shared/tripDocument.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
@@ -24,6 +25,14 @@ type TripDocumentOccurrencesProps = Readonly<{
  */
 export function TripDocumentOccurrences({ document, workspace }: TripDocumentOccurrencesProps) {
   const { t } = useTranslation('trip')
+  const isRegistrationOffered =
+    workspace.controller.canManageTrips && hasTripDocumentProof(document)
+  /** Spec 270: os tipos do galpão vêm do servidor, por nota — só se pede quando o formulário é oferecido. */
+  const separationTypesQuery = useSeparationOccurrenceTypesQuery({
+    documentId: document.id,
+    isEnabled: isRegistrationOffered,
+    tripId: document.tripId,
+  })
 
   return (
     <section
@@ -32,8 +41,8 @@ export function TripDocumentOccurrences({ document, workspace }: TripDocumentOcc
     >
       <TripOccurrences
         canOpenOccurrence={workspace.controller.canReadTripFleetDetails}
-        canRegister={workspace.controller.canManageTrips && hasTripDocumentProof(document)}
-        email={workspace.lastOccurrenceEmail}
+        areTypesLoading={separationTypesQuery.isPending && isRegistrationOffered}
+        canRegister={isRegistrationOffered}
         isRegistering={workspace.isSendingOccurrencePhotos}
         occurrences={workspace.occurrencesQuery.data ?? []}
         onRegister={(occurrence) =>
@@ -51,7 +60,7 @@ export function TripDocumentOccurrences({ document, workspace }: TripDocumentOcc
         onReset={workspace.resetSeparationOccurrencePhotoSend}
         photoSendState={workspace.occurrencePhotoSendState}
         products={workspace.documentProductsQuery.data ?? []}
-        types={workspace.occurrenceTypesQuery.data ?? []}
+        types={separationTypesQuery.data ?? []}
       />
     </section>
   )

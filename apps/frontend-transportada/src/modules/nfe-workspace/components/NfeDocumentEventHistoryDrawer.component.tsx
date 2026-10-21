@@ -16,6 +16,7 @@ import {
   describeNfeEventType,
 } from '../shared/nfeDocumentEventHistory.service'
 import styles from '../styles/nfeWorkspace.module.css'
+import { formatPersonName } from '@/lib/personName'
 
 type NfeDocumentEventHistoryDrawerProps = Readonly<{
   controller: NfeDocumentEventHistoryController
@@ -222,7 +223,7 @@ function EventHistoryItem({ entry }: Readonly<{ entry: NfeDocumentEventEntry }>)
             <dt>{t('documents.eventHistory.actorLabel')}</dt>
             <dd>
               {actors.actor.kind === 'named'
-                ? actors.actor.name
+                ? formatPersonName(actors.actor.name)
                 : actorLabelKey !== null
                   ? t(actorLabelKey)
                   : null}

@@ -86,6 +86,7 @@ describe('contractor mail template routes (spec 150 T402)', () => {
         readonly suggestedTemplate: Record<string, string>
       }[]
     }
+    /** Spec 271: o catálogo ficou só com a correção de endereço; o e-mail de ocorrência vem do módulo de notificação. */
     expect(body.data.map((entry) => entry.mailType)).toEqual(['address_correction'])
     expect(body.data[0]?.mailVariables.map((variable) => variable.name)).toContain('clientes')
     expect(body.data[0]?.itemVariables.map((variable) => variable.name)).toContain('motivo')
@@ -145,7 +146,7 @@ describe('contractor mail template routes (spec 150 T402)', () => {
     expect(body.error.details?.map((detail) => detail.field)).toEqual(['intro', 'closing'])
   })
 
-  test('refuses a companyId in the body and an unknown mail type', async () => {
+  test('refuses a companyId in the body and a mail type outside the catalog (occurrence left it in spec 271)', async () => {
     const fixture = await createContractorMailTemplatesHttpFixture()
 
     const withCompany = await createTemplate(fixture, { companyId: OTHER_COMPANY_ID })
@@ -395,7 +396,7 @@ describe('contractor mail template routes (spec 150 T402)', () => {
   test('refuses an unknown mailType filter and an unknown query key', async () => {
     const fixture = await createContractorMailTemplatesHttpFixture()
 
-    expect((await fixture.handle(getRequest(`${PATH}?mailType=occurrence`))).status).toBe(400)
+    expect((await fixture.handle(getRequest(`${PATH}?mailType=unknown_type`))).status).toBe(400)
     expect((await fixture.handle(getRequest(`${PATH}?companyId=${OTHER_COMPANY_ID}`))).status).toBe(
       400,
     )

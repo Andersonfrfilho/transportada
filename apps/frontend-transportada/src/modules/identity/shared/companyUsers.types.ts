@@ -41,6 +41,8 @@ export type CompanyUser = Readonly<{
   taxId: string
   username: string
   fleet?: CompanyUserFleetLink
+  /** O cargo da assinatura dos e-mails de ocorrência (spec 272); ausente ou nulo na API = sem cargo. */
+  jobTitle?: string
   invitation?: Readonly<{ expiresAt: string; status: string }>
 }>
 
@@ -197,6 +199,8 @@ export type UpdateCompanyUserProfileInput = Readonly<{
   channel?: ContactChannel
   contact?: string
   email?: string
+  /** `null` limpa o cargo; ausente não altera. */
+  jobTitle?: null | string
   name?: string
   phone?: string
   taxId?: string

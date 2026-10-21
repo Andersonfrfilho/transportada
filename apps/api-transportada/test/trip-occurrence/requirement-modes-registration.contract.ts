@@ -68,8 +68,6 @@ function register(input: Registration) {
         active: true,
         allowsMultipleItems: true,
         attachmentMode: 'optional',
-        emailBody: '',
-        emailSubject: '',
         emailTemplateKey: null,
         id: TYPE_ID,
         name: 'Recusa total',

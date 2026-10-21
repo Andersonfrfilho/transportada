@@ -94,16 +94,22 @@ function buildDependenciesStub(
       async findContractorReplyForward() {
         return undefined
       },
-      async findLastInboundReferenceHeaders() {
-        return undefined
+      async listThreadReferenceIds() {
+        return []
       },
       async findMessageById() {
         return {
           bodyHtml: null,
           bodyText: 'corpo',
+          ccAddresses: [] as string[],
+          direction: 'outbound',
+          fromDisplayName: null,
+          hasInlineLogo: false,
+          fromAddress: 'ocorrencias@example.com.br',
           subject: 'Teste de configuração de e-mail com contratantes',
           threadId: THREAD_ID,
           toAddresses: ['admin@example.com.br'],
+          transport: 'resend' as const,
         }
       },
       async findSettingsByCompanyId() {

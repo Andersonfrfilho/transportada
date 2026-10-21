@@ -22,6 +22,10 @@ import {
   readEnvironmentProvisioningConfiguration,
   runEnvironmentProvisioning,
 } from './environment-provisioning.service.js'
+import {
+  seedStandardEmailTemplatesFromEnvironment,
+  type StandardEmailTemplateSeedResult,
+} from './standard-email-template-seed.service.js'
 import { assertMigrationsAreComplete } from './migration-completeness.service.js'
 
 export type PreDeploySteps = {
@@ -36,6 +40,8 @@ export type PreDeploySteps = {
   readonly seedOccurrenceTypes?: (() => Promise<number>) | undefined
   /** Reparo do literal `bucket: 'fiscal'` gravado por `src/trips/**` (spec 161) — idempotente. */
   readonly repairStoredObjectBuckets?: (() => Promise<number>) | undefined
+  /** Spec 274 T3.9: a v1 do modelo padrão de e-mail para TODA empresa (não depende de `COMPANY_ID`). */
+  readonly seedStandardEmailTemplates?: (() => Promise<StandardEmailTemplateSeedResult>) | undefined
 }
 
 export type PreDeployReport =
@@ -45,6 +51,7 @@ export type PreDeployReport =
       readonly migrationsChecked: number
       readonly occurrenceTypes: number | 'skipped'
       readonly provisioning: 'skipped'
+      readonly standardEmailTemplates: StandardEmailTemplateSeedResult | 'skipped'
       readonly templates: number | 'skipped'
     }
   | {
@@ -54,6 +61,7 @@ export type PreDeployReport =
       readonly migrationsChecked: number
       readonly occurrenceTypes: number | 'skipped'
       readonly provisioning: 'ensured'
+      readonly standardEmailTemplates: StandardEmailTemplateSeedResult | 'skipped'
       readonly templates: number | 'skipped'
     }
 
@@ -74,6 +82,7 @@ export async function runPreDeploy({
   seedTemplates,
   seedOccurrenceTypes,
   repairStoredObjectBuckets: repairBuckets,
+  seedStandardEmailTemplates: seedStandardEmail,
 }: PreDeploySteps): Promise<PreDeployReport> {
   await migrate()
   const migrationsChecked = await verifyMigrationsComplete()
@@ -85,6 +94,7 @@ export async function runPreDeploy({
       migrationsChecked,
       occurrenceTypes: await runSeed(seedOccurrenceTypes),
       provisioning: 'skipped',
+      standardEmailTemplates: await runStandardEmailSeed(seedStandardEmail),
       templates: await runSeed(seedTemplates),
     }
   }
@@ -99,11 +109,18 @@ export async function runPreDeploy({
     migrationsChecked,
     occurrenceTypes: await runSeed(seedOccurrenceTypes),
     provisioning: 'ensured',
+    standardEmailTemplates: await runStandardEmailSeed(seedStandardEmail),
     templates: await runSeed(seedTemplates),
   }
 }
 
 async function runSeed(seed: (() => Promise<number>) | undefined): Promise<number | 'skipped'> {
+  return seed === undefined ? 'skipped' : await seed()
+}
+
+async function runStandardEmailSeed(
+  seed: (() => Promise<StandardEmailTemplateSeedResult>) | undefined,
+): Promise<StandardEmailTemplateSeedResult | 'skipped'> {
   return seed === undefined ? 'skipped' : await seed()
 }
 
@@ -170,6 +187,8 @@ if (import.meta.main) {
         await provider.close()
       }
     },
+    // Depois do `provision` e das migrations do módulo (`runAllDatabaseMigrations`); toda empresa.
+    seedStandardEmailTemplates: async () => seedStandardEmailTemplatesFromEnvironment(config),
     repairStoredObjectBuckets: async () => {
       const provider = createDrizzleProvider({
         connection: { adapter: 'postgres', max: 1, url: config.databaseUrl },

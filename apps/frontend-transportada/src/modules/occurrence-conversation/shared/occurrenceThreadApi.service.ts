@@ -22,7 +22,7 @@ import {
 } from './conversationAttachment.service'
 import {
   createDriverMessageIdempotencyKey,
-  createPortalMessageIdempotencyKey,
+  createEmailMessageIdempotencyKey,
 } from './occurrenceConversation.service'
 import type { OccurrenceConversationClient } from './occurrenceConversationClient.service'
 import type {
@@ -41,8 +41,13 @@ export type OccurrenceThreadAuthorLabels = Readonly<{
   channel: Readonly<Record<OccurrenceConversationChannel, string>>
   contractor: string
   contractorUser: string
+  /** Spec 267 RF8: o prefixo da linha da cópia (Cópia: Ana, Bruno). */
+  copy: string
   driver: string
   operation: string
+  /** Spec 267 RF9: a marca do responsável que respondeu, e o selo de quando a contratante não recebeu. */
+  team: string
+  teamOnly: string
   unverified: string
 }>
 
@@ -58,6 +63,10 @@ function describeAuthorName(
   if (author.kind === 'driver') return author.name ?? labels.driver
   const { identity } = author
   if (identity === null) return labels.contractorUser
+  if (identity.kind === 'internal') {
+    const team = `${identity.name}${AUTHOR_SEPARATOR}${labels.team}`
+    return identity.reachedContractor ? team : `${team}${AUTHOR_SEPARATOR}${labels.teamOnly}`
+  }
   /** Só o nome de quem respondeu: nunca o endereço de e-mail nem o cargo. Sem nome legível, "Contratante". */
   if (identity.kind === 'contact') {
     return identity.contact.name.trim() === '' ? labels.contractor : identity.contact.name
@@ -98,9 +107,22 @@ export function toThreadMessage(
     createdAt: message.createdAt,
     direction: message.direction,
     id: message.id,
+    /** O SDK mostra o e-mail inteiro recolhido no balão, atrás do "ver histórico". */
+    ...(message.emailFullText === undefined ? {} : { originalText: message.emailFullText }),
     ...(message.status === null ? {} : { status: message.status }),
-    text: message.bodyText,
+    text: withCopyLine(message, labels),
   }
+}
+
+/** Spec 267 RF8: o SDK só desenha o texto — a cópia vai numa linha antes dele, só na mensagem de saída. */
+function withCopyLine(
+  message: OccurrenceConversationMessage,
+  labels: OccurrenceThreadAuthorLabels,
+): string {
+  const copy = message.copy ?? []
+  if (message.direction !== 'outbound' || copy.length === 0) return message.bodyText
+  const names = copy.map((entry) => entry.name ?? entry.maskedEmail).join(', ')
+  return `${labels.copy}: ${names}\n\n${message.bodyText}`
 }
 
 export type OccurrenceThreadClient = Pick<
@@ -108,9 +130,11 @@ export type OccurrenceThreadClient = Pick<
   | 'markConversationRead'
   | 'putConversationUpload'
   | 'requestConversationUpload'
-  | 'sendContractorPortalMessage'
+  | 'sendContractorChatMessage'
   | 'sendDriverAppMessage'
 >
+
+export type OccurrenceThreadSendError = Readonly<{ code: string; text: string }>
 
 export type OccurrenceThreadApiDependencies = Readonly<{
   client: OccurrenceThreadClient
@@ -119,6 +143,8 @@ export type OccurrenceThreadApiDependencies = Readonly<{
   onChanged: () => void
   occurrenceId: string
   /** Cada nome de autor lido e quem fala nele: o avatar do balão (ícone + cor) sai daqui. */
+  /** Spec 274 D10: a falha do envio (código da API + o texto) para o painel dizer o motivo; `null` limpa. */
+  onSendError?: (error: null | OccurrenceThreadSendError) => void
   onSpeaker?: (authorName: string, speaker: ConversationParticipant) => void
   participant: OccurrenceThreadParticipant
   /** A leitura da aba — o fio não faz uma segunda ida à API. */
@@ -142,14 +168,23 @@ export function createOccurrenceThreadApi(
     labels,
     occurrenceId,
     onChanged,
+    onSendError,
     onSpeaker,
     participant,
     readConversations,
     subscribe,
   } = dependencies
-  const channel = participant === 'driver' ? 'app' : 'portal'
+  const channel = participant === 'driver' ? 'app' : 'email'
   const attachmentUrls = new Map<string, string>()
   const uploaded = new Map<File, string>()
+  /**
+   * O SDK mantém o balão enviado até a leitura trazer a mensagem com o mesmo `clientMessageId`. A API não devolve esse
+   * eco na leitura, mas devolve o id gravado no envio: guardamos o par e carimbamos a mensagem lida. Sem isso o balão
+   * otimista (`queued`) ficava para sempre ao lado da mensagem real — a mensagem aparecia duplicada.
+   * O eco devolvido ao SDK também leva o id gravado: o SDK une as mensagens por id e nunca descarta uma, então um eco
+   * com o id do cliente ficaria na tela para sempre, mesmo depois de a mensagem real chegar (ou falhar).
+   */
+  const clientMessageIds = new Map<string, string>()
   let conversationId: null | string = null
   let unreadCount = 0
 
@@ -166,11 +201,17 @@ export function createOccurrenceThreadApi(
       const idempotencyKey =
         participant === 'driver'
           ? createDriverMessageIdempotencyKey(() => input.clientMessageId)
-          : createPortalMessageIdempotencyKey(() => input.clientMessageId)
+          : createEmailMessageIdempotencyKey(() => input.clientMessageId)
       const message = { attachmentIds, body, idempotencyKey, occurrenceId }
-      if (participant === 'driver') await client.sendDriverAppMessage(message)
-      else await client.sendContractorPortalMessage(message)
+      const receipt =
+        participant === 'driver'
+          ? await client.sendDriverAppMessage(message)
+          : await client.sendContractorChatMessage(message)
+      if (receipt.conversationMessageId !== null) {
+        clientMessageIds.set(receipt.conversationMessageId, input.clientMessageId)
+      }
       uploaded.clear()
+      onSendError?.(null)
       onChanged()
       return {
         message: {
@@ -178,14 +219,18 @@ export function createOccurrenceThreadApi(
           clientMessageId: input.clientMessageId,
           createdAt: new Date().toISOString(),
           direction: 'outbound',
-          id: input.clientMessageId,
-          status: participant === 'driver' ? 'queued' : 'delivered',
+          id: receipt.conversationMessageId ?? input.clientMessageId,
+          status: 'queued',
           text: body,
         },
         outcome: 'sent',
       }
     } catch (error) {
       if (recoverFromSendFailure(error).clearUploads) uploaded.clear()
+      if (participant === 'contractor') {
+        const code = (error as { code?: unknown } | null)?.code
+        onSendError?.({ code: typeof code === 'string' ? code : '', text: input.text ?? '' })
+      }
       throw error
     }
   }
@@ -207,7 +252,8 @@ export function createOccurrenceThreadApi(
         if (threadMessage.authorName != null) {
           onSpeaker?.(threadMessage.authorName, resolveMessageSpeaker(message, participant))
         }
-        return threadMessage
+        const clientMessageId = clientMessageIds.get(message.id)
+        return clientMessageId === undefined ? threadMessage : { ...threadMessage, clientMessageId }
       })
     },
     async markRead() {

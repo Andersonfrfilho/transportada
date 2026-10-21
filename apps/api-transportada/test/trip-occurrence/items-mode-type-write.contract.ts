@@ -32,8 +32,6 @@ const OFF_REDELIVERY_CODE = 'OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY'
 function baseBody(): Record<string, unknown> {
   return {
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     name: 'Cliente pediu prorrogação do boleto',
@@ -55,8 +53,6 @@ function buildRecord(values: SaveOccurrenceTypeValues, stored?: StoredShape): Oc
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: OCCURRENCE_TYPE_ID,
     itemsMode: values.itemsMode ?? stored?.itemsMode ?? 'optional',
@@ -85,7 +81,10 @@ function createSaveDependency(stored: StoredShape | null): {
                   savedValues.push(values)
                   return buildRecord(values, stored ?? undefined)
                 },
-                templates: { hasActiveEmailTemplate: async () => true },
+                templates: {
+                  findContractorTemplate: async () => null,
+                  hasActiveEmailTemplate: async () => true,
+                },
                 values: input,
               }),
           }

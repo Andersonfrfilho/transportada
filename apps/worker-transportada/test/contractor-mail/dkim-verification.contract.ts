@@ -10,7 +10,10 @@ import { describe, expect, test } from 'bun:test'
 import { dkimSign } from 'mailauth'
 
 import { resolveDkimAlignment } from '../../src/contractor-mail/domain/dkim-alignment.policy.js'
-import { createDkimVerifierGateway } from '../../src/contractor-mail/infrastructure/dkim-verifier.gateway.js'
+import {
+  createDkimDnsResolver,
+  createDkimVerifierGateway,
+} from '../../src/contractor-mail/infrastructure/dkim-verifier.gateway.js'
 
 const SELECTOR = 'teste'
 
@@ -327,6 +330,7 @@ describe('o prazo total da verificação de DKIM (spec 237 T4.7c, NOVO-3)', () =
     expect(await gateway.verifyWithHeaderFrom(Buffer.from(signed))).toEqual({
       alignment: 'aligned',
       headerFrom: [`financeiro@${domain}`],
+      signatures: [{ aligned: true, lengthLimited: false, reason: null, result: 'pass' }],
     })
   })
 
@@ -399,5 +403,72 @@ describe('só a falha transitória de assinatura ALINHADA vale como "sem veredit
     })
 
     expect(await gateway.verify(Buffer.from(signed))).toBe('unverifiable')
+  })
+})
+
+/**
+ * Uma string TXT tem no máximo 255 bytes: a chave de 2048 bits (a do Gmail) vem em duas. O Bun devolve
+ * cada string como um registro à parte, e a `mailauth` só lê o primeiro: a resposta do Gmail ficava
+ * "Remetente não confirmado" com `invalid public key`, assinatura válida e alinhada.
+ */
+describe('o registro DKIM de várias strings, do jeito que o Bun o devolve', () => {
+  function splitTxt(record: string): string[] {
+    return record.match(/.{1,255}/gu) ?? []
+  }
+
+  async function signedWith2048BitKey(domain: string) {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    })
+    const message = buildSyntheticMessage({ from: `contato@${domain}`, body: 'segue o boleto' })
+    const signed = await signSyntheticMessage({ message, signingDomain: domain, privateKey })
+    return { record: dkimTxtRecord(publicKey), signed }
+  }
+
+  test('cada string como registro à parte: o resolvedor junta e a assinatura alinha', async () => {
+    const domain = 'gmail.example.test'
+    const { record, signed } = await signedWith2048BitKey(domain)
+    const chunks = splitTxt(record)
+    expect(chunks.length).toBeGreaterThan(1)
+
+    const bunShaped = createDkimDnsResolver(async (name) => {
+      if (name !== `${SELECTOR}._domainkey.${domain}`)
+        throw new Error(`registro DNS inesperado: ${name}`)
+      return chunks.map((chunk) => [chunk])
+    })
+    const verification = await createDkimVerifierGateway({
+      resolveDns: bunShaped,
+    }).verifyWithHeaderFrom(Buffer.from(signed))
+
+    expect(verification.alignment).toBe('aligned')
+    expect(verification.signatures).toEqual([
+      { aligned: true, lengthLimited: false, reason: null, result: 'pass' },
+    ])
+  })
+
+  test('sem juntar, só a primeira string chega e a chave é inválida (o defeito medido)', async () => {
+    const domain = 'gmail.example.test'
+    const { record, signed } = await signedWith2048BitKey(domain)
+
+    const verification = await createDkimVerifierGateway({
+      resolveDns: async () => splitTxt(record).map((chunk) => [chunk]),
+    }).verifyWithHeaderFrom(Buffer.from(signed))
+
+    expect(verification.alignment).toBe('not_aligned')
+    expect(verification.signatures?.[0]).toMatchObject({
+      reason: 'invalid public key',
+      result: 'neutral',
+    })
+  })
+
+  test('o formato do Node (um registro, várias strings) continua igual; nenhum registro segue vazio', async () => {
+    const resolver = createDkimDnsResolver(async () => [['v=DKIM1; p=AB', 'CD']])
+    const empty = createDkimDnsResolver(async () => [])
+
+    expect(await resolver('x', 'TXT')).toEqual([['v=DKIM1; p=ABCD']])
+    expect(await empty('x', 'TXT')).toEqual([])
+    await expect(resolver('x', 'MX')).rejects.toThrow('unsupported DNS record type: MX')
   })
 })

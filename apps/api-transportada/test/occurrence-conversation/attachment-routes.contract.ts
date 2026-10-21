@@ -95,6 +95,7 @@ function post(path: string, body: unknown, idempotencyKey?: string): Request {
 
 function operatorRoutes(calls: Calls) {
   return createOccurrenceConversationRoutes({
+    chatRateLimiter: { consume: async () => ({ allowed: true }) },
     listConversations: { list: recorder(calls, 'list') },
     markRead: { markRead: recorder(calls, 'read') },
     previewMail: { preview: recorder(calls, 'preview') },

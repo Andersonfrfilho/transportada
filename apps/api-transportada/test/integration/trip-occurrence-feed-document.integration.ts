@@ -16,7 +16,8 @@
 import { describe, expect } from 'bun:test'
 
 import { contractors } from '../../src/database/delivery-client.schema.js'
-import { nfeAddresses, nfeParticipants } from '../../src/database/nfe.schema.js'
+import { fleetVehicles } from '../../src/database/fleet.schema.js'
+import { nfeAddresses, nfeParticipants, nfeVolumes } from '../../src/database/nfe.schema.js'
 import { tripStopOccurrences } from '../../src/database/trip.schema.js'
 import { listTripOccurrenceFeed } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
 import {
@@ -209,6 +210,9 @@ describe('a listagem mostra a nota da ocorrência (spec 183 T203)', () => {
             state: 'SP',
           },
           nfeDocumentId,
+          /** Spec 277 RF2: o cliente é o destinatário da nota; sem volume gravado a carga é zero. */
+          recipient: { name: 'Destinatário Beta', taxId: '99888777000166' },
+          cargo: { grossWeightKg: '0', volumeCount: '0' },
           totalValue: '10000.0000',
           /** Spec 183 T702d: a foto da conversa vira anexo da ocorrência pela nota da viagem. */
           tripDocumentId: trip.documentId,
@@ -383,6 +387,126 @@ describe('a listagem mostra a nota da ocorrência (spec 183 T203)', () => {
           ),
         )
       expect(row?.id).toBe(trip.documentId)
+    })
+  })
+})
+
+describe('a busca rápida e a ficha do veículo e da carga (spec 277)', () => {
+  async function seedSearchable(database: TestDatabase) {
+    const company = await seedCompany(database)
+    const trip = await seedTrip(database, company, 'in_transit')
+    const nfeDocumentId = await nfeDocumentIdOf(database, trip)
+    await seedDocumentParties(database, company, nfeDocumentId)
+    await database.db
+      .update(fleetVehicles)
+      .set({ brand: 'Volvo', color: 'azul_marinho', model: 'FH 540', modelYear: 2022 })
+      .where(eq(fleetVehicles.id, company.vehicleId))
+    await database.db.insert(nfeVolumes).values([
+      {
+        companyId: company.companyId,
+        documentId: nfeDocumentId,
+        grossWeight: '800.5000',
+        ordinal: 1n,
+        quantity: '3.0000',
+      },
+      {
+        companyId: company.companyId,
+        documentId: nfeDocumentId,
+        grossWeight: '19.5000',
+        ordinal: 2n,
+        quantity: '2.0000',
+      },
+    ])
+    const occurrenceId = await insertStopOccurrence(
+      database,
+      company,
+      trip,
+      true,
+      new Date('2026-09-22T12:00:00.000Z'),
+    )
+    return { company, nfeDocumentId, occurrenceId }
+  }
+
+  async function search(database: TestDatabase, companyId: string, term: string) {
+    const page = await listTripOccurrenceFeed(database.db, {
+      companyId,
+      cursor: null,
+      filters: { search: term },
+      limit: 20,
+      order: 'desc',
+    })
+    return page.items.map((item) => item.id)
+  }
+
+  testWithPostgres('o item traz a ficha do veículo e a carga somada da nota', async () => {
+    await withDisposableDatabase(async (database) => {
+      const { company, occurrenceId } = await seedSearchable(database)
+      const page = await listTripOccurrenceFeed(database.db, {
+        companyId: company.companyId,
+        cursor: null,
+        limit: 20,
+        order: 'desc',
+      })
+      const item = page.items.find((candidate) => candidate.id === occurrenceId)
+
+      expect(item?.vehicle).toEqual({
+        brand: 'Volvo',
+        color: 'azul_marinho',
+        model: 'FH 540',
+        modelYear: 2022,
+      })
+      expect(Number(item?.document?.cargo.grossWeightKg)).toBe(820)
+      expect(Number(item?.document?.cargo.volumeCount)).toBe(5)
+    })
+  })
+
+  testWithPostgres('casa por nota, motorista, veículo, empresas, cidade e andamento', async () => {
+    await withDisposableDatabase(async (database) => {
+      const { company, occurrenceId } = await seedSearchable(database)
+      const page = await listTripOccurrenceFeed(database.db, {
+        companyId: company.companyId,
+        cursor: null,
+        limit: 20,
+        order: 'desc',
+      })
+      const invoiceNumber = page.items.find((item) => item.id === occurrenceId)?.invoiceNumber ?? ''
+      expect(invoiceNumber).not.toBe('')
+
+      for (const term of [
+        invoiceNumber.slice(1, 5),
+        'motorista um',
+        'gcq8e48',
+        'volvo',
+        'fh 5',
+        '2022',
+        'azul mar',
+        'alfa',
+        '11.222.333/0001',
+        'beta',
+        '99.888.777',
+        'guarulhos',
+        'em aberto',
+      ]) {
+        const found = await search(database, company.companyId, term)
+        expect({ found, term }).toEqual({ found: [occurrenceId], term })
+      }
+    })
+  })
+
+  testWithPostgres('termo que não casa devolve vazio e o curinga digitado é texto', async () => {
+    await withDisposableDatabase(async (database) => {
+      const { company } = await seedSearchable(database)
+      expect(await search(database, company.companyId, 'xyzxyz')).toEqual([])
+      expect(await search(database, company.companyId, '%%')).toEqual([])
+      expect(await search(database, company.companyId, 'resolvida')).toEqual([])
+    })
+  })
+
+  testWithPostgres('a busca nunca atravessa a empresa', async () => {
+    await withDisposableDatabase(async (database) => {
+      await seedSearchable(database)
+      const other = await seedCompany(database)
+      expect(await search(database, other.companyId, 'volvo')).toEqual([])
     })
   })
 })

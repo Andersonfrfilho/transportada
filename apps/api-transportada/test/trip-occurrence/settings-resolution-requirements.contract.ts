@@ -48,8 +48,6 @@ function port(
           active: true,
           allowsMultipleItems: true,
           attachmentMode: 'optional',
-          emailBody: '',
-          emailSubject: '',
           emailTemplateKey: null,
           flow: 'document',
           id: TYPE_ID,

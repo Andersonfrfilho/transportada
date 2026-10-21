@@ -139,7 +139,10 @@ import { createThreadedCanhotoBarcodeDecoder } from './canhoto-read/infrastructu
 import { createTesseractOcrClient } from '@adatechnology/document-intake'
 
 import { createDocumentExtractionGateway } from './aggregate-attachment/infrastructure/document-extraction.gateway.js'
-import { createThreadedAttachmentExtractionGateway } from './aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
+import {
+  createThreadedAttachmentExtractionGateway,
+  readPdfTextInThread,
+} from './aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
 import { startAggregateAttachmentConsumer } from './runtime/aggregate-attachment-consumer.service.js'
 import { startCargoPreviewConsumer } from './runtime/cargo-preview-consumer.service.js'
 import { startDeliveryProofProcessingConsumer } from './runtime/delivery-proof-processing-consumer.service.js'
@@ -170,6 +173,7 @@ import { ContractorMailInboundOutboxPublisherService } from './contractor-mail/a
 import { ContractorMailInboundOutboxRelayService } from './contractor-mail/application/contractor-mail-inbound-outbox-relay.service.js'
 import { DrizzleContractorMailOutboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-outbox.repository.js'
 import { DrizzleContractorMailInboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-outbox.repository.js'
+import { createDrizzleCompanyLogoReader } from './contractor-mail/infrastructure/drizzle-company-logo.reader.js'
 import { createDrizzleContractorMailOutboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
 import { createContractorMailOutboundAttachments } from './occurrence-conversation/infrastructure/drizzle-conversation-mail-attachments.repository.js'
 import { createCargoPreviewEmailIntake } from './cargo-preview-email/application/intake-cargo-preview-email.use-case.js'
@@ -178,6 +182,7 @@ import { createDriverReplyNotifier } from './occurrence-conversation/infrastruct
 import { createDrizzleContractorMailInboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
+import { createSandboxSmtpMailGateway } from './contractor-mail/infrastructure/sandbox-smtp-mail.gateway.js'
 import {
   createDkimVerifierGateway,
   resolveDkimDnsRecord,
@@ -1152,10 +1157,26 @@ export async function startWorkerRuntime(
           database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
           storage: storageGateway,
         }),
+        companyLogo: createDrizzleCompanyLogoReader(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        logger,
         mailGateway: createResendMailGateway({ fetch: (target, init) => fetch(target, init) }),
         repository: createDrizzleContractorMailOutboundWorkerRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
+        ...(config.emailAllowedRecipients === undefined
+          ? {}
+          : { allowedRecipients: config.emailAllowedRecipients }),
+        ...(config.emailResendDisabled === true ? { resendDisabled: true } : {}),
+        ...(config.contractorMailSandbox === undefined
+          ? {}
+          : {
+              sandboxFromAddress: config.contractorMailSandbox.from,
+              sandboxMailGateway: createSandboxSmtpMailGateway({
+                smtpUrl: config.contractorMailSandbox.smtpUrl,
+              }),
+            }),
         secretService: createContractorMailCredentialSecretService({
           envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
         }),
@@ -1174,6 +1195,8 @@ export async function startWorkerRuntime(
         conversationAttachments: createInboundConversationAttachmentStore({
           bucket: storageBucket,
           provider: INBOUND_MAIL_STORAGE_PROVIDER,
+          /** Spec 276 T2: o texto do PDF, na thread do pdf.js, para a conferência do boleto. */
+          readPdfText: readPdfTextInThread,
           storage: storageGateway,
         }),
         /** Spec 248 T4.6b: o boleto entregue sozinho avisa o sino do motorista, depois do commit. */

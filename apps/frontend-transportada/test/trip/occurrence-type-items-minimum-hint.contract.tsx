@@ -19,8 +19,6 @@ function buildType(overrides: Partial<OccurrenceType>): OccurrenceType {
     attachmentMode: 'off',
     declaredAmountMode: 'optional',
     declaredAmountScope: 'item',
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     id: 'type-1',

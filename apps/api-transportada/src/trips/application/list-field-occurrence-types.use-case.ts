@@ -24,6 +24,7 @@ import type {
 } from '../../shared/trip-occurrence.constant.js'
 import { resolveDeclaredAmountTarget } from '../domain/occurrence-declared-amount-target.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
+import { isOccurrenceTypeAvailableForNotes } from '../domain/occurrence-type-contractor-scope.policy.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import {
   pickCoreRequirements,
@@ -130,23 +131,34 @@ type FieldOccurrenceMomentFilter = {
 /** Os momentos da rua que o motorista registra: a lista dele, quando nenhum momento é pedido. */
 export const DRIVER_FIELD_MOMENTS = [OCCURRENCE_MOMENT.document, OCCURRENCE_MOMENT.stop] as const
 
-export type ListFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter & {
-  readonly companyId: string
-  /** Spec 218 RF-B2: ausente é "sem contratante resolvido" — cai nos modos do tipo. */
-  readonly contractorId?: string | null
-  /** Só é consultado quando ao menos um dos dois vier informado — regressão zero sem eles. */
-  readonly overrides?: FieldOccurrenceTypeOverridesPort
-  /** Ausente é "sem destinatário resolvido" — mesmo tratamento de `contractorId`. */
-  readonly recipientTaxId?: string | null
-  readonly repository: FieldOccurrenceTypesPort
+/**
+ * Spec 270 (ADR-0107, D4/D5): a contratante **que o servidor leu** de cada nota do pedido — nunca o
+ * `contractorId` da query, que só ajusta a exceção. `[null]` é a nota sem contratante (e a lista
+ * pedida sem nota); várias notas oferecem a interseção. A parada ignora o escopo.
+ */
+type FieldOccurrenceScopeFilter = {
+  readonly noteContractorIds?: readonly (string | null)[] | undefined
 }
 
-export type ResolveFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter & {
-  readonly contractorId?: string | null
-  readonly overrides?: FieldOccurrenceTypeOverrides
-  readonly recipientTaxId?: string | null
-  readonly types: readonly OccurrenceTypeRecord[]
-}
+export type ListFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter &
+  FieldOccurrenceScopeFilter & {
+    readonly companyId: string
+    /** Spec 218 RF-B2: ausente é "sem contratante resolvido" — cai nos modos do tipo. */
+    readonly contractorId?: string | null
+    /** Só é consultado quando ao menos um dos dois vier informado — regressão zero sem eles. */
+    readonly overrides?: FieldOccurrenceTypeOverridesPort
+    /** Ausente é "sem destinatário resolvido" — mesmo tratamento de `contractorId`. */
+    readonly recipientTaxId?: string | null
+    readonly repository: FieldOccurrenceTypesPort
+  }
+
+export type ResolveFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter &
+  FieldOccurrenceScopeFilter & {
+    readonly contractorId?: string | null
+    readonly overrides?: FieldOccurrenceTypeOverrides
+    readonly recipientTaxId?: string | null
+    readonly types: readonly OccurrenceTypeRecord[]
+  }
 
 type OverridesByKey<TOverride> = ReadonlyMap<string, ReadonlyMap<string, TOverride>>
 
@@ -219,7 +231,11 @@ export function resolveFieldOccurrenceTypeResolutions(
     (override) => override.taxId,
   )
 
-  return selectFieldOccurrenceTypes({ moment: params.moment, types: params.types }).map((type) => {
+  return selectFieldOccurrenceTypes({
+    moment: params.moment,
+    noteContractorIds: params.noteContractorIds,
+    types: params.types,
+  }).map((type) => {
     const { requirements, sources } = resolveOccurrenceRequirements({
       contractorOverride: findOverride({
         byType: contractorsByType,
@@ -253,19 +269,30 @@ export async function listFieldOccurrenceTypeResolutions(
   const hasResolutionSubject =
     contractorId !== null || (recipientTaxId !== null && recipientTaxId.length > 0)
   const { moment } = params
+  /** Lista de rua sem nota decidida: só o tipo `all` — um tipo restrito nunca sai por falta de contexto. */
+  const noteContractorIds = params.noteContractorIds ?? [null]
 
   if (!hasResolutionSubject || params.overrides === undefined) {
-    return resolveFieldOccurrenceTypeResolutions({ contractorId, moment, recipientTaxId, types })
+    return resolveFieldOccurrenceTypeResolutions({
+      contractorId,
+      moment,
+      noteContractorIds,
+      recipientTaxId,
+      types,
+    })
   }
 
   const overrides = await params.overrides.listOverridesForTypes({
     companyId: params.companyId,
-    occurrenceTypeIds: selectFieldOccurrenceTypes({ moment, types }).map((type) => type.id),
+    occurrenceTypeIds: selectFieldOccurrenceTypes({ moment, noteContractorIds, types }).map(
+      (type) => type.id,
+    ),
   })
 
   return resolveFieldOccurrenceTypeResolutions({
     contractorId,
     moment,
+    noteContractorIds,
     overrides,
     recipientTaxId,
     types,
@@ -279,19 +306,33 @@ export async function listFieldOccurrenceTypes(
   return resolutions.map((resolution) => resolution.type)
 }
 
-type SelectFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter & {
-  readonly types: readonly OccurrenceTypeRecord[]
-}
+type SelectFieldOccurrenceTypesParams = FieldOccurrenceMomentFilter &
+  FieldOccurrenceScopeFilter & {
+    readonly types: readonly OccurrenceTypeRecord[]
+  }
 
-/** Spec 246 (RF0): os tipos ativos do momento pedido — pelo conjunto, nunca pelo `stage`. */
+/**
+ * Spec 246 (RF0): os tipos ativos do momento pedido — pelo conjunto, nunca pelo `stage`.
+ * Spec 270: com `noteContractorIds`, o escopo de contratantes vale em todo momento de nota; o momento
+ * `stop` o ignora (a parada não tem contratante). Sem `noteContractorIds` nenhum filtro de escopo se
+ * aplica — é a leitura em lote interna; toda lista de rua passa o que o servidor leu da nota.
+ */
 export function selectFieldOccurrenceTypes(
   params: SelectFieldOccurrenceTypesParams,
 ): readonly OccurrenceTypeRecord[] {
   const moments = params.moment === undefined ? DRIVER_FIELD_MOMENTS : [params.moment]
-  return params.types.filter(
-    (type) =>
-      type.active && moments.some((moment) => occurrenceTypeAcceptsMoment({ moment, type })),
-  )
+  const { noteContractorIds } = params
+  return params.types.filter((type) => {
+    if (!type.active) return false
+    const isScopeApplied =
+      noteContractorIds === undefined ||
+      isOccurrenceTypeAvailableForNotes({ noteContractorIds, type })
+    return moments.some(
+      (moment) =>
+        occurrenceTypeAcceptsMoment({ moment, type }) &&
+        (moment === OCCURRENCE_MOMENT.stop || isScopeApplied),
+    )
+  })
 }
 
 function resolveFieldStopKind(type: OccurrenceTypeRecord): TripStopOccurrenceKind | null {

@@ -160,6 +160,13 @@ function buildRepository(input: {
   }
 }
 
+const QUOTED_REPLY_TEXT = [
+  'APROVADO',
+  '',
+  'Em ter., 20 de out. de 2026 às 08:40, Equipe <ocorrencias@resposta.example.test> escreveu:',
+  '> Pedido de aprovação',
+].join('\n')
+
 describe('record contractor mail inbound message (spec 143, T010 — revisão do architect)', () => {
   test('records the message with the DKIM result when the token matches a known thread', async () => {
     const { privateKey, publicKey } = generateTestKeyPair()
@@ -192,8 +199,10 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           message_id: '<abc@contratante.com.br>',
           raw: { download_url: 'https://cdn.resend.com/raw/1', expires_at: '2099-01-01T00:00:00Z' },
           subject: 'APROVADO',
-          text: 'APROVADO',
+          text: QUOTED_REPLY_TEXT,
           to: [`${REPLY_TOKEN}@${REPLY_DOMAIN}`],
+          /** Spec 267 RF9: o `Cc` do e-mail recebido é gravado, para saber se a contratante o recebeu. */
+          cc: ['Ana@empresa.example.test', 'financeiro@contratante.com.br'],
         }),
         sendEmail: async () => {
           throw new Error('not used by this contract')
@@ -226,14 +235,21 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
 
     expect(result).toEqual({
       attachments: { linked: 0, skipped: 0 },
+      dkimDiagnostic: {
+        headerFromCount: 1,
+        senderMatchesHeaderFrom: true,
+        signatures: [{ aligned: true, lengthLimited: false, reason: null, result: 'pass' }],
+      },
       dkimResult: 'aligned',
       outcome: 'recorded',
       threadId: THREAD_ID,
     })
     expect(recordCalls).toHaveLength(1)
     expect(recordCalls[0]).toMatchObject({
-      bodyText: 'APROVADO',
+      /** O registro da 143 guarda o e-mail inteiro; a conversa leva só o texto novo. */
+      bodyText: QUOTED_REPLY_TEXT,
       companyId: COMPANY_ID,
+      conversationBodyText: 'APROVADO',
       dkimResult: 'aligned',
       fromAddress: `financeiro@${fromDomain}`,
       fromDisplayName: null,
@@ -243,6 +259,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
       subject: 'APROVADO',
       threadId: THREAD_ID,
       toAddresses: [`${REPLY_TOKEN}@${REPLY_DOMAIN}`],
+      ccAddresses: ['Ana@empresa.example.test', 'financeiro@contratante.com.br'],
     })
     expect(recordCalls[0]?.raw.sha256).toBe(createHash('sha256').update(rawBytes).digest('hex'))
     expect(recordCalls[0]?.raw.sizeBytes).toBe(rawBytes.byteLength)
@@ -300,10 +317,63 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
 
     expect(recordCalls).toHaveLength(1)
     expect(recordCalls[0]?.inReplyTo).toBeUndefined()
+    expect(recordCalls[0]?.ccAddresses).toEqual([])
     expect(recordCalls[0]?.rfcMessageId).toBe('<own-message-id@contratante.com.br>')
     /** Spec 183 T406 (RF16): o `From` chega separado em endereço e nome. */
     expect(recordCalls[0]?.fromAddress).toBe('financeiro@contratante.com.br')
     expect(recordCalls[0]?.fromDisplayName).toBe('Financeiro Alfa')
+  })
+
+  /** Spec 274 (segurança M2): o `Message-ID` de e-mail externo entra na linha de `References` do próximo envio. */
+  test('does not record a malformed external Message-ID (whitespace, line break, brackets)', async () => {
+    const recordCalls: RecordContractorMailInboundMessageInput[] = []
+    const dependencies: Deps = {
+      dkimVerifier: {
+        async verifyWithHeaderFrom() {
+          return { alignment: 'absent' as const, headerFrom: [] }
+        },
+      },
+      mailGateway: {
+        downloadRawEmail: async () => Buffer.from('conteudo'),
+        fetchReceivedEmail: async () => ({
+          from: 'Financeiro Alfa <financeiro@contratante.com.br>',
+          headers: {},
+          message_id: '<id com espaço@x>\r\nBcc: evil@x.test',
+          raw: { download_url: 'https://cdn.resend.com/raw/9', expires_at: '2099-01-01T00:00:00Z' },
+          subject: 'APROVADO',
+          text: 'APROVADO',
+          to: [`${REPLY_TOKEN}@${REPLY_DOMAIN}`],
+        }),
+        sendEmail: async () => {
+          throw new Error('not used by this contract')
+        },
+      },
+      driverNotifier: { notify: async () => undefined },
+      conversationAttachments: UNUSED_ATTACHMENTS,
+      repository: buildRepository({ recordCalls }),
+      secretService: {
+        async decrypt() {
+          return {
+            apiKey: 're_test_key',
+            replyTokenSecret: 'a'.repeat(64),
+            webhookSigningSecret: 'whsec_test',
+          }
+        },
+      },
+      storage: {
+        async storeObject() {
+          return undefined
+        },
+      },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
+      storageBucket: 'transportada-private',
+      storageProvider: 'minio',
+    }
+
+    await recordContractorMailInboundMessage(buildEnvelope(), dependencies)
+
+    expect(recordCalls).toHaveLength(1)
+    expect(recordCalls[0]?.rfcMessageId).toBeUndefined()
   })
 
   test('discards without recording when the token is unknown', async () => {

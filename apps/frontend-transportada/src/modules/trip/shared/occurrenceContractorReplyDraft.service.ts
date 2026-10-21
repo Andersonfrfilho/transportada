@@ -16,6 +16,11 @@ import type { OccurrenceTypeEdit } from './occurrenceTypeUpdate.service'
 
 /** Os números ficam como texto no rascunho: apagar o campo para digitar outro valor não pode virar `0`. */
 export type ContractorReplyDraft = Readonly<{
+  /**
+   * Spec 276 T5: a resposta rápida da resposta automática à contratante; `''` é desligada e `undefined` é a API
+   * anterior ao campo (o campo nem aparece, e o `PUT` não o manda).
+   */
+  acknowledgementQuickReplyId: string | undefined
   alertIntervalMinutes: string
   alertMaxCount: string
   alertMode: ContractorReplyAlertMode
@@ -26,6 +31,8 @@ export type ContractorReplyDraft = Readonly<{
   forwardToInformedEmail: InformedEmailForwardMode
   forwardToNoteRecipient: NoteRecipientForwardMode
   mode: ContractorReplyMode
+  /** Spec 276 T3b: entregue ao motorista, a ocorrência fecha sozinha. */
+  resolveOnDelivery: boolean
   waitHours: string
 }>
 
@@ -55,6 +62,10 @@ export type ContractorReplyProblems = Partial<
 
 export function readContractorReplyDraft(type: OccurrenceType): ContractorReplyDraft {
   return {
+    acknowledgementQuickReplyId:
+      type.contractorReplyAcknowledgementQuickReplyId === undefined
+        ? undefined
+        : (type.contractorReplyAcknowledgementQuickReplyId ?? ''),
     alertIntervalMinutes: String(type.contractorReplyAlertIntervalMinutes ?? 60),
     alertMaxCount: String(type.contractorReplyAlertMaxCount ?? 24),
     alertMode: type.contractorReplyAlertMode ?? 'off',
@@ -65,6 +76,7 @@ export function readContractorReplyDraft(type: OccurrenceType): ContractorReplyD
     forwardToInformedEmail: type.forwardToInformedEmail ?? 'off',
     forwardToNoteRecipient: type.forwardToNoteRecipient ?? 'off',
     mode: type.contractorReplyMode ?? 'off',
+    resolveOnDelivery: type.contractorReplyResolveOnDelivery ?? false,
     waitHours:
       type.contractorReplyWaitHours === null || type.contractorReplyWaitHours === undefined
         ? ''
@@ -139,14 +151,21 @@ export function isContractorReplyDraftChanged(
   )
 }
 
-/** O `PUT` leva os onze campos de uma vez: a CHECK avalia o conjunto, não cada campo. */
+/** O `PUT` leva os doze campos de uma vez: a CHECK avalia o conjunto, não cada campo. */
 export function buildContractorReplyEdit(draft: ContractorReplyDraft): OccurrenceTypeEdit {
   return {
+    ...(draft.acknowledgementQuickReplyId === undefined
+      ? {}
+      : {
+          contractorReplyAcknowledgementQuickReplyId:
+            draft.acknowledgementQuickReplyId === '' ? null : draft.acknowledgementQuickReplyId,
+        }),
     contractorReplyAlertIntervalMinutes: parseInteger(draft.alertIntervalMinutes) ?? 60,
     contractorReplyAlertMaxCount: parseInteger(draft.alertMaxCount) ?? 24,
     contractorReplyAlertMode: draft.alertMode,
     contractorReplyAttachmentKind: draft.attachmentKind,
     contractorReplyMode: draft.mode,
+    contractorReplyResolveOnDelivery: draft.resolveOnDelivery,
     contractorReplyWaitHours: draft.waitHours.trim() === '' ? null : parseInteger(draft.waitHours),
     driverReplyTemplate: draft.driverReplyTemplate,
     forwardEmailBody: draft.forwardEmailBody,
@@ -158,4 +177,45 @@ export function buildContractorReplyEdit(draft: ContractorReplyDraft): Occurrenc
 
 export function hasContractorReplyProblems(problems: ContractorReplyProblems): boolean {
   return Object.keys(problems).length > 0
+}
+
+const ACKNOWLEDGEMENT_LABEL_MAX_LENGTH = 60
+
+export type AcknowledgementOption = Readonly<{
+  /** `off` é "Desligada"; `inactive` é a escolhida que saiu da lista (desativada depois de escolhida). */
+  kind: 'inactive' | 'off' | 'quickReply'
+  label: string
+  value: string
+}>
+
+function shortenQuickReplyText(text: string): string {
+  const flat = text.replace(/\s+/gu, ' ').trim()
+  return flat.length <= ACKNOWLEDGEMENT_LABEL_MAX_LENGTH
+    ? flat
+    : `${flat.slice(0, ACKNOWLEDGEMENT_LABEL_MAX_LENGTH - 1)}…`
+}
+
+/**
+ * Spec 276 T5: "Desligada" primeiro, depois as respostas rápidas ativas da contratante, na ordem do cadastro. A
+ * escolhida que não está mais na lista continua visível (a API recusa salvar uma inativa, mas a gravada antes fica).
+ */
+export function buildAcknowledgementOptions(input: {
+  quickReplies: readonly Readonly<{ active: boolean; audience: string; id: string; text: string }>[]
+  selectedId: string
+}): readonly AcknowledgementOption[] {
+  const usable = input.quickReplies.filter(
+    (quickReply) => quickReply.active && quickReply.audience === 'contractor',
+  )
+  const options: AcknowledgementOption[] = [
+    { kind: 'off', label: '', value: '' },
+    ...usable.map((quickReply) => ({
+      kind: 'quickReply' as const,
+      label: shortenQuickReplyText(quickReply.text),
+      value: quickReply.id,
+    })),
+  ]
+  if (input.selectedId !== '' && !usable.some((quickReply) => quickReply.id === input.selectedId)) {
+    options.push({ kind: 'inactive', label: '', value: input.selectedId })
+  }
+  return options
 }

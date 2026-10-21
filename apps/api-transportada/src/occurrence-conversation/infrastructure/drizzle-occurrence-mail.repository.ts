@@ -20,8 +20,10 @@ import {
   contractorMailOutbox,
   contractorMailSettings,
   contractorMailThreads,
+  identityUserPictures,
   identityUserProfiles,
   idempotencyRecords,
+  membershipRoles,
   occurrenceConversationMessages,
   occurrenceConversations,
   tripDocumentOccurrences,
@@ -30,20 +32,41 @@ import {
 } from '../../database/database.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
-import { renderOccurrenceTemplate } from '../../trips/domain/occurrence-template.policy.js'
+import {
+  buildContractorMailValues,
+  buildOccurrenceItemRows,
+  formatOccurrenceMoment,
+} from '../../trips/domain/occurrence-mail-values.policy.js'
 import { resolveOccurrenceProductCodes } from '../../trips/domain/occurrence-scope.policy.js'
-import { readOccurrenceTemplateValues } from '../../trips/infrastructure/delivery-proof-read.support.js'
+import { readOccurrenceMailValues } from '../../trips/infrastructure/delivery-proof-read.support.js'
 import { listOccurrenceProductCodes } from '../../trips/infrastructure/drizzle-occurrence-product.repository.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
+import { readOccurrenceTypeRecipientContactIds } from '../../trips/infrastructure/occurrence-type-mail-recipients.support.js'
+import { loadEffectiveWatcherCandidates } from '../../contractor-mail/infrastructure/occurrence-watcher-candidates.query.js'
+import { HTML_BODY_REGEX } from '../domain/occurrence-contractor-mail.constant.js'
+import { renderContractorMail } from '../domain/occurrence-contractor-mail-render.policy.js'
+import { OccurrenceMailTemplateMissingError } from '../domain/occurrence-conversation.error.js'
+import { composeOccurrenceMailHtml } from '../domain/occurrence-mail-html-compose.policy.js'
+import {
+  assessContractorTemplate,
+  blocksContractorMailSend,
+} from '../domain/occurrence-contractor-template.policy.js'
+import { findActiveContractorTemplate } from './notification-template.query.js'
+import { toDisplayPersonName } from '../../shared/person-name.service.js'
+import { resolveSignerJobTitle } from '../domain/occurrence-mail-signer.policy.js'
 import type {
+  CarrierIdentity,
   OccurrenceMailContact,
+  OccurrenceMailHtmlSource,
   OccurrenceMailIdempotencyRecord,
   OccurrenceMailRecipientCandidate,
   OccurrenceMailSettings,
   OccurrenceMailTarget,
   OccurrenceMailTransactionPort,
   OccurrenceMailUnitOfWorkPort,
+  OccurrenceNotificationTemplate,
+  OccurrenceOperatorSigner,
   OccurrenceSuggestedMailPort,
   RecordOccurrenceMailInput,
   SendOccurrenceMailResult,
@@ -53,6 +76,7 @@ import {
   openContractorReply,
 } from './drizzle-occurrence-contractor-reply.repository.js'
 import { recordContractorReplyResend } from './drizzle-contractor-reply-resend.repository.js'
+import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
 import type { AutomaticOccurrenceMailReaderPort } from '../application/send-automatic-occurrence-mail.use-case.js'
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
 import {
@@ -88,8 +112,56 @@ async function findOccurrenceTarget(
   return {
     contractorId: item.document?.contractor?.contractorId ?? null,
     contractorName: item.document?.contractor?.name ?? '',
+    contractorTaxId: item.document?.contractor?.taxId ?? null,
     kind: item.source,
+    occurrenceTypeId: item.occurrenceTypeId ?? null,
     stage: item.stage ?? 'stop',
+  }
+}
+
+const FORWARD_TARGETS_SQL = sql`('note_recipient_email', 'informed_email')`
+
+/**
+ * Spec 274 (D6): o assunto do último e-mail de saída da ocorrência, sem o encaminhamento da 248 (mesma exclusão da
+ * cadeia de referências do worker), mais o tipo e o número da nota para o assunto de abertura.
+ */
+async function findChatMailSubjectFacts(
+  queryable: TripQueryable,
+  params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  },
+): Promise<{
+  readonly invoiceNumber: null | string
+  readonly lastOutboundSubject: null | string
+  readonly typeName: string
+}> {
+  const item = await findTripOccurrenceFeedItem(queryable, {
+    companyId: params.companyId,
+    occurrenceId: params.occurrenceId,
+  })
+  const rows = (await queryable.execute(
+    sql`select m.subject from contractor_mail_messages m
+        join contractor_mail_threads t on t.company_id = m.company_id and t.id = m.thread_id
+        where m.company_id = ${params.companyId}::uuid
+          and m.direction = 'outbound'
+          and t.subject_type = ${OCCURRENCE_THREAD_SUBJECT_TYPE[params.occurrenceKind]}
+          and t.subject_id = ${params.occurrenceId}::uuid
+          and not exists (
+            select 1 from occurrence_contractor_reply_deliveries d
+            where d.company_id = m.company_id
+              and d.mail_message_id = m.id
+              and d.target in ${FORWARD_TARGETS_SQL}
+          )
+        order by m.created_at desc, m.id desc
+        limit 1`,
+  )) as readonly Record<string, unknown>[]
+  const subject = rows[0]?.subject
+  return {
+    invoiceNumber: item?.invoiceNumber ?? null,
+    lastOutboundSubject: typeof subject === 'string' && subject.trim() !== '' ? subject : null,
+    typeName: item?.typeName ?? '',
   }
 }
 
@@ -118,34 +190,64 @@ async function listOccurrenceRecipients(
     .orderBy(asc(contractorContacts.createdAt), asc(contractorContacts.email))
 }
 
-async function findCarrierName(
+async function findChosenOccurrenceRecipientIds(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceTypeId: string },
+): Promise<readonly string[]> {
+  return readOccurrenceTypeRecipientContactIds(queryable, params)
+}
+
+async function findCarrierIdentity(
   queryable: TripQueryable,
   params: { readonly companyId: string },
-): Promise<string | undefined> {
+): Promise<CarrierIdentity | undefined> {
   const [row] = await queryable
     .select({
+      city: companyFiscalProfiles.city,
+      cnpj: companyFiscalProfiles.cnpj,
       displayNameMode: companyFiscalProfiles.displayNameMode,
+      /** Colunas escritas por extenso: o Drizzle as imprime sem o prefixo da tabela, e `company_id` ligaria ao próprio logo. */
+      hasLogo: sql<boolean>`exists (select 1 from company_logos where company_logos.company_id = company_fiscal_profiles.company_id)`,
       legalName: companyFiscalProfiles.legalName,
+      state: companyFiscalProfiles.state,
       tradeName: companyFiscalProfiles.tradeName,
     })
     .from(companyFiscalProfiles)
     .where(eq(companyFiscalProfiles.companyId, params.companyId))
     .limit(1)
   if (row === undefined) return undefined
-  return resolveCompanyDisplayName(row)
+  return {
+    city: row.city,
+    cnpj: row.cnpj,
+    displayName: resolveCompanyDisplayName(row),
+    hasLogo: row.hasLogo,
+    legalName: row.legalName,
+    state: row.state,
+  }
 }
 
-async function findOperatorName(
+/**
+ * Spec 272 (ADR-0110 §6/§11): o assinante do envio manual numa consulta só — o perfil, o cargo livre da membership
+ * ativa e os papéis **diretos** (`membership_roles`). Uma falha derruba a leitura inteira: sem `Promise.all`.
+ */
+async function findOperatorSigner(
   queryable: TripQueryable,
   params: { readonly companyId: string; readonly userId: string },
-): Promise<string | undefined> {
-  const [row] = await queryable
-    .select({ name: identityUserProfiles.name })
+): Promise<OccurrenceOperatorSigner | undefined> {
+  const rows = await queryable
+    .select({
+      jobTitle: userCompanyMemberships.jobTitle,
+      name: identityUserProfiles.name,
+      pictureUserId: identityUserPictures.userId,
+      role: membershipRoles.role,
+    })
     .from(identityUserProfiles)
     .innerJoin(
       userCompanyMemberships,
       eq(userCompanyMemberships.userId, identityUserProfiles.userId),
     )
+    .leftJoin(membershipRoles, eq(membershipRoles.membershipId, userCompanyMemberships.id))
+    .leftJoin(identityUserPictures, eq(identityUserPictures.userId, identityUserProfiles.userId))
     .where(
       and(
         eq(identityUserProfiles.userId, params.userId),
@@ -153,87 +255,310 @@ async function findOperatorName(
         eq(userCompanyMemberships.status, ACTIVE_MEMBERSHIP_STATUS),
       ),
     )
-    .limit(1)
-  return row?.name
-}
-
-/** A prévia só lê: as três leituras que ela precisa, sem transação. */
-export function createOccurrenceMailReader(
-  database: TripQueryable,
-): Pick<
-  OccurrenceMailTransactionPort,
-  'findCarrierName' | 'findOccurrenceTarget' | 'findOperatorName' | 'listOccurrenceRecipients'
-> {
+  const [first] = rows
+  if (first === undefined) return undefined
+  const jobTitle = resolveSignerJobTitle({
+    directRoles: rows.flatMap((row) => (row.role === null ? [] : [row.role])),
+    jobTitle: first.jobTitle,
+  })
   return {
-    findCarrierName: (params) => findCarrierName(database, params),
-    findOccurrenceTarget: (params) => findOccurrenceTarget(database, params),
-    findOperatorName: (params) => findOperatorName(database, params),
-    listOccurrenceRecipients: (params) => listOccurrenceRecipients(database, params),
+    hasPicture: first.pictureUserId !== null,
+    ...(jobTitle === undefined ? {} : { jobTitle }),
+    name: toDisplayPersonName(first.name),
   }
 }
 
 /**
- * O texto que o tipo da ocorrência oferece (spec 079), com os valores da nota — o mesmo que o
- * registro devolve. Ocorrência de parada e tipo sem e-mail não têm modelo: `null`.
+ * Spec 271 (ADR-0108, D1/D9): o modelo do tipo da ocorrência — a chave escolhida no tipo e a versão ativa mais alta
+ * no módulo de notificação. Sem chave, sem versão ativa de e-mail `pt-BR`, de corpo HTML ou sem assunto: `null`,
+ * ≡ sem modelo. Duas consultas, sem trava: o envio reconfere, e quem desativa o modelo no módulo não espera por nós.
+ */
+async function findOccurrenceNotificationTemplateSource(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<{
+  readonly isRegisteredBeforeSelection: boolean
+  readonly key: string
+  readonly version: number
+} | null> {
+  const [row] = await queryable
+    .select({
+      key: companyOccurrenceTypes.contractorNotificationTemplateKey,
+      occurrenceCreatedAt: tripDocumentOccurrences.createdAt,
+      selectedAt: companyOccurrenceTypes.contractorNotificationTemplateSelectedAt,
+    })
+    .from(tripDocumentOccurrences)
+    .innerJoin(
+      companyOccurrenceTypes,
+      and(
+        eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
+        eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, params.companyId),
+        eq(tripDocumentOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  if (row?.key === null || row === undefined) return null
+  const template = await findActiveContractorTemplate(queryable, {
+    companyId: params.companyId,
+    key: row.key,
+  })
+  if (blocksContractorMailSend(assessContractorTemplate({ key: row.key, template }))) return null
+  return {
+    isRegisteredBeforeSelection:
+      row.selectedAt !== null && row.occurrenceCreatedAt.getTime() < row.selectedAt.getTime(),
+    key: row.key,
+    version: template?.version ?? 0,
+  }
+}
+
+async function findOccurrenceNotificationTemplate(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<null | OccurrenceNotificationTemplate> {
+  const source = await findOccurrenceNotificationTemplateSource(queryable, params)
+  return source === null ? null : { key: source.key, version: source.version }
+}
+
+/** O modelo (chave e versão) da primeira mensagem de e-mail desta ocorrência (reenvio do retorno, spec 248). */
+async function findOriginalOccurrenceNotificationTemplate(
+  queryable: TripQueryable,
+  params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  },
+): Promise<null | OccurrenceNotificationTemplate> {
+  const [row] = await queryable
+    .select({
+      key: contractorMailMessages.notificationTemplateKey,
+      version: contractorMailMessages.notificationTemplateVersion,
+    })
+    .from(contractorMailMessages)
+    .innerJoin(
+      contractorMailThreads,
+      and(
+        eq(contractorMailThreads.companyId, contractorMailMessages.companyId),
+        eq(contractorMailThreads.id, contractorMailMessages.threadId),
+      ),
+    )
+    .where(
+      and(
+        eq(contractorMailMessages.companyId, params.companyId),
+        eq(contractorMailMessages.direction, 'outbound'),
+        eq(
+          contractorMailThreads.subjectType,
+          OCCURRENCE_THREAD_SUBJECT_TYPE[params.occurrenceKind],
+        ),
+        eq(contractorMailThreads.subjectId, params.occurrenceId),
+      ),
+    )
+    .orderBy(asc(contractorMailMessages.createdAt))
+    .limit(1)
+  return row?.key == null || row.version === null ? null : { key: row.key, version: row.version }
+}
+
+/** Spec 272: a prévia lê a configuração para decidir a faixa de resposta como o envio decide. */
+async function findMailSettings(
+  database: TripQueryable,
+  params: { readonly companyId: string },
+): Promise<OccurrenceMailSettings | undefined> {
+  const [row] = await database
+    .select({
+      id: contractorMailSettings.id,
+      secretEnvelope: contractorMailSettings.secretEnvelope,
+      senderAddress: contractorMailSettings.senderAddress,
+      sendingVerifiedAt: contractorMailSettings.sendingVerifiedAt,
+    })
+    .from(contractorMailSettings)
+    .where(eq(contractorMailSettings.companyId, params.companyId))
+    .limit(1)
+  return row
+}
+
+/** A prévia só lê: as leituras que ela precisa, sem transação. */
+export function createOccurrenceMailReader(
+  database: TripQueryable,
+): Pick<
+  OccurrenceMailTransactionPort,
+  | 'findCarrierIdentity'
+  | 'findChosenOccurrenceRecipientIds'
+  | 'findMailSettings'
+  | 'findOccurrenceMailHtmlSource'
+  | 'findOccurrenceNotificationTemplate'
+  | 'findOccurrenceTarget'
+  | 'findOperatorSigner'
+  | 'listOccurrenceRecipients'
+  | 'loadWatcherCandidates'
+> {
+  return {
+    findCarrierIdentity: (params) => findCarrierIdentity(database, params),
+    findChosenOccurrenceRecipientIds: (params) =>
+      findChosenOccurrenceRecipientIds(database, params),
+    findMailSettings: (params) => findMailSettings(database, params),
+    findOccurrenceMailHtmlSource: (params) => findOccurrenceMailHtmlSource(database, params),
+    findOccurrenceNotificationTemplate: (params) =>
+      findOccurrenceNotificationTemplate(database, params),
+    findOccurrenceTarget: (params) => findOccurrenceTarget(database, params),
+    findOperatorSigner: (params) => findOperatorSigner(database, params),
+    listOccurrenceRecipients: (params) => listOccurrenceRecipients(database, params),
+    loadWatcherCandidates: (params) => loadEffectiveWatcherCandidates(database, params),
+  }
+}
+
+/**
+ * O modelo da chave (spec 271) e os valores da nota — os mesmos que o registro lia do texto do tipo (079), com as
+ * chaves `{{camelCase}}` da lista fechada. Modelo que não existe mais, ou ocorrência que sumiu: `null`.
+ */
+async function readTemplateSource(
+  database: TripQueryable,
+  params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly templateKey: string
+  },
+): Promise<null | {
+  readonly itemLines: readonly string[]
+  readonly itemRows: OccurrenceMailHtmlSource['itemRows']
+  readonly itemsSum: string
+  readonly mail: Readonly<Record<string, string>>
+  readonly template: { readonly body: string; readonly subject: string }
+}> {
+  const template = await findActiveContractorTemplate(database, {
+    companyId: params.companyId,
+    key: params.templateKey,
+  })
+  if (template === null) return null
+  // O modelo é relido aqui, depois da avaliação que o aceitou: uma versão nova pode ter chegado no intervalo.
+  if (blocksContractorMailSend(assessContractorTemplate({ key: params.templateKey, template }))) {
+    return null
+  }
+
+  const [row] = await database
+    .select({
+      createdAt: tripDocumentOccurrences.createdAt,
+      note: tripDocumentOccurrences.note,
+      productCode: tripDocumentOccurrences.productCode,
+      tripDocumentId: tripDocuments.id,
+      tripId: tripDocuments.tripId,
+      typeName: companyOccurrenceTypes.name,
+    })
+    .from(tripDocumentOccurrences)
+    .innerJoin(
+      tripDocuments,
+      and(
+        eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
+        eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
+      ),
+    )
+    .innerJoin(
+      companyOccurrenceTypes,
+      and(
+        eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
+        eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, params.companyId),
+        eq(tripDocumentOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  if (row === undefined) return null
+
+  const storedCodes = await listOccurrenceProductCodes(database, {
+    companyId: params.companyId,
+    occurrenceIds: [params.occurrenceId],
+  })
+  const values = await readOccurrenceMailValues(database, {
+    companyId: params.companyId,
+    documentId: row.tripDocumentId,
+    note: row.note,
+    occurrenceId: params.occurrenceId,
+    occurrenceTypeName: row.typeName,
+    occurredOn: formatOccurrenceMoment(row.createdAt),
+    productCodes: resolveOccurrenceProductCodes({
+      productCode: row.productCode,
+      productCodes: storedCodes.get(params.occurrenceId) ?? [],
+    }),
+    tripId: row.tripId,
+  })
+  const { itemLines, mail } = buildContractorMailValues(values)
+  const { itemsSum, rows } = buildOccurrenceItemRows(values)
+  return { itemLines, itemRows: rows, itemsSum, mail, template }
+}
+
+/**
+ * Spec 272 (ADR-0110 §1): o modelo e os valores da nota para o caminho HTML; `null` quando o modelo não existe ou o
+ * corpo é texto — quem chama segue o caminho de texto de hoje.
+ */
+async function findOccurrenceMailHtmlSource(
+  database: TripQueryable,
+  params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly templateKey: string
+  },
+): Promise<null | OccurrenceMailHtmlSource> {
+  const source = await readTemplateSource(database, params)
+  if (source === null || !HTML_BODY_REGEX.test(source.template.body)) return null
+  return {
+    bodyTemplate: source.template.body,
+    itemLines: source.itemLines,
+    itemRows: source.itemRows,
+    itemsSum: source.itemsSum,
+    subjectTemplate: source.template.subject,
+    values: source.mail,
+  }
+}
+
+/**
+ * O texto do modelo do tipo (spec 271) com os valores da nota. Modelo HTML (spec 272): o texto é o da **área de
+ * mensagem**, com a equipe como assinante — o aviso automático é quem lê aqui, e o texto só entra na conversa; o
+ * e-mail em si é composto no envio.
  */
 export function createOccurrenceSuggestedMailReader(
   database: TripQueryable,
 ): OccurrenceSuggestedMailPort {
   return {
     async readSuggestedMail(params) {
-      const [row] = await database
-        .select({
-          createdAt: tripDocumentOccurrences.createdAt,
-          emailBody: companyOccurrenceTypes.emailBody,
-          emailSubject: companyOccurrenceTypes.emailSubject,
-          note: tripDocumentOccurrences.note,
-          productCode: tripDocumentOccurrences.productCode,
-          tripDocumentId: tripDocuments.id,
-          tripId: tripDocuments.tripId,
+      const source = await readTemplateSource(database, params)
+      if (source === null) return null
+      if (!HTML_BODY_REGEX.test(source.template.body)) {
+        return renderContractorMail({
+          bodyTemplate: source.template.body,
+          itemLines: source.itemLines,
+          subjectTemplate: source.template.subject,
+          values: source.mail,
         })
-        .from(tripDocumentOccurrences)
-        .innerJoin(
-          tripDocuments,
-          and(
-            eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
-            eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
-          ),
-        )
-        .innerJoin(
-          companyOccurrenceTypes,
-          and(
-            eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
-            eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
-          ),
-        )
-        .where(
-          and(
-            eq(tripDocumentOccurrences.companyId, params.companyId),
-            eq(tripDocumentOccurrences.id, params.occurrenceId),
-          ),
-        )
-        .limit(1)
-      if (row === undefined || row.emailSubject.trim() === '') return null
-
-      const storedCodes = await listOccurrenceProductCodes(database, {
-        companyId: params.companyId,
-        occurrenceIds: [params.occurrenceId],
-      })
-      const values = await readOccurrenceTemplateValues(database, {
-        companyId: params.companyId,
-        documentId: row.tripDocumentId,
-        note: row.note,
-        occurrenceId: params.occurrenceId,
-        occurredOn: row.createdAt.toLocaleDateString('pt-BR'),
-        productCodes: resolveOccurrenceProductCodes({
-          productCode: row.productCode,
-          productCodes: storedCodes.get(params.occurrenceId) ?? [],
-        }),
-        tripId: row.tripId,
-      })
-      return {
-        bodyText: renderOccurrenceTemplate({ template: row.emailBody, values }),
-        subject: renderOccurrenceTemplate({ template: row.emailSubject, values }),
+      }
+      const target = await findOccurrenceTarget(database, params)
+      try {
+        const composed = composeOccurrenceMailHtml({
+          appBaseUrl: undefined,
+          carrier: await findCarrierIdentity(database, params),
+          contractorTaxId: target?.contractorTaxId ?? null,
+          hasReplyTo: false,
+          signer: { kind: 'team' },
+          source: {
+            bodyTemplate: source.template.body,
+            itemLines: source.itemLines,
+            itemRows: source.itemRows,
+            itemsSum: source.itemsSum,
+            subjectTemplate: source.template.subject,
+            values: source.mail,
+          },
+        })
+        return { bodyText: composed.areaText, subject: composed.subject }
+      } catch (error) {
+        /** Modelo sem área ou grande demais: é o mesmo que sem modelo utilizável. */
+        if (error instanceof OccurrenceMailTemplateMissingError) return null
+        throw error
       }
     },
   }
@@ -248,6 +573,29 @@ export function createAutomaticOccurrenceMailReader(
   database: TripQueryable,
 ): AutomaticOccurrenceMailReaderPort {
   const suggested = createOccurrenceSuggestedMailReader(database)
+
+  async function readPlannedSuggestion(params: {
+    readonly companyId: string
+    readonly contractorId: string
+    readonly emailsContractor: boolean
+    readonly occurrenceId: string
+  }): Promise<{
+    readonly isRegisteredBeforeTemplate: boolean
+    readonly suggested: Awaited<ReturnType<OccurrenceSuggestedMailPort['readSuggestedMail']>>
+  }> {
+    if (!params.emailsContractor) return { isRegisteredBeforeTemplate: false, suggested: null }
+    const source = await findOccurrenceNotificationTemplateSource(database, params)
+    if (source === null) return { isRegisteredBeforeTemplate: false, suggested: null }
+    return {
+      isRegisteredBeforeTemplate: source.isRegisteredBeforeSelection,
+      suggested: await suggested.readSuggestedMail({
+        companyId: params.companyId,
+        occurrenceId: params.occurrenceId,
+        templateKey: source.key,
+      }),
+    }
+  }
+
   return {
     async findPlan(params) {
       const target = await findOccurrenceTarget(database, params)
@@ -260,7 +608,10 @@ export function createAutomaticOccurrenceMailReader(
         return null
       }
       const [type] = await database
-        .select({ emailsContractor: companyOccurrenceTypes.emailsContractor })
+        .select({
+          emailsContractor: companyOccurrenceTypes.emailsContractor,
+          occurrenceTypeId: companyOccurrenceTypes.id,
+        })
         .from(tripDocumentOccurrences)
         .innerJoin(
           companyOccurrenceTypes,
@@ -297,8 +648,21 @@ export function createAutomaticOccurrenceMailReader(
             )
             .orderBy(asc(contractorContacts.createdAt), asc(contractorContacts.id))
         : []
-      return {
+      const planned = await readPlannedSuggestion({
+        ...params,
+        contractorId: target.contractorId,
         emailsContractor,
+      })
+      const chosenContactIds = emailsContractor
+        ? await readOccurrenceTypeRecipientContactIds(database, {
+            companyId: params.companyId,
+            occurrenceTypeId: type.occurrenceTypeId,
+          })
+        : []
+      return {
+        chosenContactIds,
+        emailsContractor,
+        isRegisteredBeforeTemplate: planned.isRegisteredBeforeTemplate,
         recipients: contacts.map((contact) => ({
           contactId: contact.id,
           email: contact.email.trim() === '' ? null : contact.email,
@@ -306,7 +670,7 @@ export function createAutomaticOccurrenceMailReader(
           stages: contact.occurrenceStages,
         })),
         stage: target.stage,
-        suggested: emailsContractor ? await suggested.readSuggestedMail(params) : null,
+        suggested: planned.suggested,
       }
     },
   }
@@ -329,6 +693,14 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
 
   public constructor(private readonly transaction: Transaction) {
     this.attachments = createConversationAttachmentTransactionPort(transaction)
+  }
+
+  public loadWatcherCandidates(params: {
+    readonly companyId: string
+    readonly contractorId: string
+    readonly occurrenceTypeId?: null | string
+  }) {
+    return loadEffectiveWatcherCandidates(this.transaction, params)
   }
 
   public listOccurrenceRecipients(params: {
@@ -361,23 +733,65 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     return findOccurrenceTarget(this.transaction, params)
   }
 
-  public findCarrierName(params: { readonly companyId: string }): Promise<string | undefined> {
-    return findCarrierName(this.transaction, params)
+  public findOccurrenceNotificationTemplate(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<null | OccurrenceNotificationTemplate> {
+    return findOccurrenceNotificationTemplate(this.transaction, params)
   }
 
-  public findOperatorName(params: {
+  public findChatMailSubjectFacts(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  }) {
+    return findChatMailSubjectFacts(this.transaction, params)
+  }
+
+  public findOriginalOccurrenceNotificationTemplate(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  }): Promise<null | OccurrenceNotificationTemplate> {
+    return findOriginalOccurrenceNotificationTemplate(this.transaction, params)
+  }
+
+  public findChosenOccurrenceRecipientIds(params: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+  }): Promise<readonly string[]> {
+    return findChosenOccurrenceRecipientIds(this.transaction, params)
+  }
+
+  public findCarrierIdentity(params: {
+    readonly companyId: string
+  }): Promise<CarrierIdentity | undefined> {
+    return findCarrierIdentity(this.transaction, params)
+  }
+
+  public findOccurrenceMailHtmlSource(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly templateKey: string
+  }): Promise<null | OccurrenceMailHtmlSource> {
+    return findOccurrenceMailHtmlSource(this.transaction, params)
+  }
+
+  public findOperatorSigner(params: {
     readonly companyId: string
     readonly userId: string
-  }): Promise<string | undefined> {
-    return findOperatorName(this.transaction, params)
+  }): Promise<OccurrenceOperatorSigner | undefined> {
+    return findOperatorSigner(this.transaction, params)
   }
 
   public async findIdempotency(params: {
     readonly companyId: string
     readonly idempotencyKey: string
+    readonly operation?: string
   }): Promise<OccurrenceMailIdempotencyRecord | null> {
+    const operation = params.operation ?? SEND_OCCURRENCE_MAIL_OPERATION
     await acquireAdvisoryLock(this.transaction, [
-      SEND_OCCURRENCE_MAIL_OPERATION,
+      operation,
       params.companyId,
       params.idempotencyKey,
     ])
@@ -390,7 +804,7 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
       .where(
         and(
           eq(idempotencyRecords.companyId, params.companyId),
-          eq(idempotencyRecords.operation, SEND_OCCURRENCE_MAIL_OPERATION),
+          eq(idempotencyRecords.operation, operation),
           eq(idempotencyRecords.idempotencyKey, params.idempotencyKey),
         ),
       )
@@ -403,32 +817,23 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     readonly companyId: string
     readonly fingerprint: string
     readonly idempotencyKey: string
+    readonly operation?: string
     readonly response: SendOccurrenceMailResult
   }): Promise<void> {
     await this.transaction.insert(idempotencyRecords).values({
       companyId: params.companyId,
       idempotencyKey: params.idempotencyKey,
-      operation: SEND_OCCURRENCE_MAIL_OPERATION,
+      operation: params.operation ?? SEND_OCCURRENCE_MAIL_OPERATION,
       requestFingerprint: params.fingerprint,
       response: params.response,
       status: 'succeeded',
     })
   }
 
-  public async findMailSettings(params: {
+  public findMailSettings(params: {
     readonly companyId: string
   }): Promise<OccurrenceMailSettings | undefined> {
-    const [row] = await this.transaction
-      .select({
-        id: contractorMailSettings.id,
-        secretEnvelope: contractorMailSettings.secretEnvelope,
-        senderAddress: contractorMailSettings.senderAddress,
-        sendingVerifiedAt: contractorMailSettings.sendingVerifiedAt,
-      })
-      .from(contractorMailSettings)
-      .where(eq(contractorMailSettings.companyId, params.companyId))
-      .limit(1)
-    return row
+    return findMailSettings(this.transaction, params)
   }
 
   public async findOccurrenceContacts(params: {
@@ -550,9 +955,15 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
         deliveryStatus: 'queued',
         direction: 'outbound',
         fromAddress: params.fromAddress,
+        fromDisplayName: params.fromDisplayName,
+        hasInlineLogo: params.hasInlineLogo,
+        notificationTemplateKey: params.notificationTemplate?.key ?? null,
+        notificationTemplateVersion: params.notificationTemplate?.version ?? null,
         subject: params.subject,
         threadId: params.threadId,
         toAddresses: [...params.toAddresses],
+        ccAddresses: [...params.ccAddresses],
+        transport: params.transport,
       })
       .returning({ id: contractorMailMessages.id })
     if (message === undefined) throw new Error('OCCURRENCE_MAIL_MESSAGE_NOT_PERSISTED')

@@ -290,6 +290,8 @@ describe('separator role contract', () => {
        * passar por esta lista — foi este contrato que as barrou até a decisão existir. É para isso
        * que ele lista por extenso.
        */
+      // Spec 277 RF5: a resolução média por tipo lê o mesmo dado do feed, com a mesma permissão.
+      'GET /trip-occurrence-resolution-summary',
       'GET /trip-occurrences',
       'GET /trip-occurrences/:id/attachments',
       // Spec 183 T404: ler a conversa é da listagem; escrever à contratante não (occurrences.resolve).
@@ -305,6 +307,7 @@ describe('separator role contract', () => {
       /** Spec 222 RF-A1: os comprovantes da viagem em lote — `fleet.read`, como o de uma nota logo abaixo. */
       'GET /trips/:id/delivery-proofs',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
+      'GET /trips/:id/documents/:documentId/occurrence-types',
       /**
        * Spec 079 T020: o que houve com a carga, e o separador **lê e escreve** — decisão registrada
        * aqui. Ele é quem encontra o item faltante ou avariado ao separar; a ocorrência de separação

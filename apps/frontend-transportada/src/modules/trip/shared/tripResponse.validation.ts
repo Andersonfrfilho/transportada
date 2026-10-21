@@ -7,9 +7,11 @@ import {
   OCCURRENCE_ITEMS_MODES,
   OCCURRENCE_MOMENTS,
   OCCURRENCE_PHOTO_MINIMUM_COUNT,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
   OCCURRENCE_TYPE_FLOWS,
   type OccurrenceMoment,
   type OccurrenceType,
+  type OccurrenceTypeContractor,
 } from './occurrence.constant'
 import {
   TRIP_FIELD_CHANNELS,
@@ -1186,20 +1188,21 @@ export function createTripResponseAdapters() {
       return input.items
     },
     /**
-     * ⚠️ O registro devolve **mais** que a listagem: o e-mail pronto vem junto. O guard aceita a
-     * chave a mais em vez de reusar `isOccurrence`, que é exato de propósito.
+     * ⚠️ O registro devolve **mais** que a listagem (anexos estreitos e `autoDispatch`). O guard aceita
+     * as chaves a mais em vez de reusar `isOccurrence`, que é exato de propósito. Spec 269 T1.3: o
+     * `email` pronto que a API de antes ainda manda é descartado — o painel não o lê mais.
      */
     registeredOccurrenceFromApi(input: unknown): RegisteredOccurrence {
       if (!isRecord(input)) throw invalid()
-      const { attachments, autoDispatch, email, ...occurrence } = input
+      const { attachments, autoDispatch } = input
+      const occurrence = Object.fromEntries(
+        Object.entries(input).filter(([key]) => !REGISTRATION_ONLY_KEYS.includes(key)),
+      )
       if (!isTripOccurrence(occurrence)) throw invalid()
       if (
         attachments !== undefined &&
         !(Array.isArray(attachments) && attachments.every(isOccurrenceAttachmentPosition))
       ) {
-        throw invalid()
-      }
-      if (email !== null && !(isRecord(email) && isString(email.body) && isString(email.subject))) {
         throw invalid()
       }
       /** Spec 185 T6.1 (RF2/RF3): a ocorrência de separação também tenta o despacho automático. */
@@ -1208,7 +1211,6 @@ export function createTripResponseAdapters() {
         ...occurrence,
         attachments: attachments ?? [],
         ...(autoDispatch === undefined ? {} : { autoDispatch }),
-        email: email as RegisteredOccurrence['email'],
       }
     },
     /**
@@ -1879,10 +1881,11 @@ function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || isString(value)
 }
 
+/** Chaves que só a resposta do registro traz; ficam fora do guard exato da ocorrência. */
+const REGISTRATION_ONLY_KEYS: readonly string[] = ['attachments', 'autoDispatch', 'email']
+
 const OCCURRENCE_TYPE_REQUIRED_KEYS = [
   'active',
-  'emailBody',
-  'emailSubject',
   'emailTemplateKey',
   'id',
   'name',
@@ -1900,6 +1903,8 @@ type RawOccurrenceType = Omit<
   OccurrenceType,
   | 'allowsMultipleItems'
   | 'attachmentMode'
+  | 'contractorScope'
+  | 'contractors'
   | 'flow'
   | 'itemsMinimumCount'
   | 'itemsMode'
@@ -1913,6 +1918,12 @@ type RawOccurrenceType = Omit<
   Readonly<{
     allowsMultipleItems?: unknown
     attachmentMode?: unknown
+    contractorScope?: unknown
+    contractors?: unknown
+    contractorMailTemplateId?: unknown
+    emailBody?: unknown
+    emailItemLineTemplate?: unknown
+    emailSubject?: unknown
     emailsContractor?: unknown
     flow?: unknown
     itemsMinimumCount?: unknown
@@ -1929,7 +1940,6 @@ type RawOccurrenceType = Omit<
     declaredAmountMode?: unknown
     declaredAmountScope?: unknown
     declaredAmountLabel?: unknown
-    emailItemLineTemplate?: unknown
   }>
 
 function isPositiveInteger(value: unknown): value is number {
@@ -1941,6 +1951,38 @@ function isPhotoMinimumCount(value: unknown): boolean {
     isPositiveInteger(value) &&
     value >= OCCURRENCE_PHOTO_MINIMUM_COUNT.min &&
     value <= OCCURRENCE_PHOTO_MINIMUM_COUNT.max
+  )
+}
+
+function isOccurrenceTypeContractor(value: unknown): value is Readonly<Record<string, unknown>> {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isString(value.displayName) &&
+    isString(value.taxId) &&
+    isString(value.status)
+  )
+}
+
+function isOccurrenceTypeMailWatcher(value: unknown): value is Readonly<Record<string, unknown>> {
+  return (
+    isRecord(value) &&
+    isString(value.userId) &&
+    isString(value.name) &&
+    isString(value.status) &&
+    isBoolean(value.eligible)
+  )
+}
+
+function isOccurrenceTypeMailRecipient(value: unknown): value is Readonly<Record<string, unknown>> {
+  return (
+    isRecord(value) &&
+    isString(value.contactId) &&
+    isString(value.contractorId) &&
+    isString(value.name) &&
+    isString(value.email) &&
+    isString(value.status) &&
+    isBoolean(value.receivesOccurrences)
   )
 }
 
@@ -1983,7 +2025,20 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'declaredAmountMode',
         'declaredAmountScope',
         'declaredAmountLabel',
+        /** Spec 271 (D14): a API ainda pode mandar a chave da 269 até a etapa B: tolerada e ignorada (não chega ao tipo). */
+        'contractorMailTemplateId',
+        /** Spec 270 T1.1 (ADR-0107, ADR-0081 §9): o escopo de contratantes do tipo, tolerado antes de a API mandá-lo. */
+        'contractorScope',
+        'contractors',
+        /** Spec 271 T1.1 (ADR-0108, ADR-0081 §9): o bloco "E-mail à contratante" do tipo, tolerado antes de a API mandá-lo. */
+        'contractorNotificationTemplateKey',
+        'contractorMailWatchers',
+        'contractorMailRecipients',
+        'missingNotificationTemplate',
+        /** Até a etapa B a API ainda pode mandar o texto antigo do e-mail (rollback da API): tolerado e ignorado. */
+        'emailBody',
         'emailItemLineTemplate',
+        'emailSubject',
         ...CONTRACTOR_REPLY_TYPE_KEYS,
       ],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
@@ -1998,8 +2053,18 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
       isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES)) &&
     (value.emailsContractor === undefined || isBoolean(value.emailsContractor)) &&
     (value.stopKind === undefined || value.stopKind === null || isString(value.stopKind)) &&
-    isString(value.emailBody) &&
-    isString(value.emailSubject) &&
+    (value.contractorNotificationTemplateKey === undefined ||
+      value.contractorNotificationTemplateKey === null ||
+      isString(value.contractorNotificationTemplateKey)) &&
+    (value.contractorMailWatchers === undefined ||
+      isEveryItem(value.contractorMailWatchers, isOccurrenceTypeMailWatcher)) &&
+    (value.contractorMailRecipients === undefined ||
+      isEveryItem(value.contractorMailRecipients, isOccurrenceTypeMailRecipient)) &&
+    (value.missingNotificationTemplate === undefined ||
+      isBoolean(value.missingNotificationTemplate)) &&
+    (value.contractorScope === undefined || isString(value.contractorScope)) &&
+    (value.contractors === undefined ||
+      isEveryItem(value.contractors, isOccurrenceTypeContractor)) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     (value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)) &&
     isString(value.id) &&
@@ -2031,7 +2096,6 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
       isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
     (value.declaredAmountLabel === undefined || isString(value.declaredAmountLabel)) &&
     (value.iconName === undefined || value.iconName === null || isString(value.iconName)) &&
-    (value.emailItemLineTemplate === undefined || isString(value.emailItemLineTemplate)) &&
     hasValidContractorReplyTypeFields(value)
   )
 }
@@ -2043,6 +2107,9 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
   const {
     allowsMultipleItems,
     attachmentMode,
+    contractorScope,
+    contractors,
+    contractorMailTemplateId,
     flow,
     itemsMinimumCount,
     itemsMode,
@@ -2057,14 +2124,29 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     declaredAmountMode,
     declaredAmountScope,
     declaredAmountLabel,
-    iconName,
+    emailBody,
     emailItemLineTemplate,
+    emailSubject,
+    iconName,
     ...rest
   } = raw
+  void [contractorMailTemplateId, emailBody, emailItemLineTemplate, emailSubject]
   return {
     ...rest,
     ...(isOneOf(itemsMode, OCCURRENCE_ITEMS_MODES) ? { itemsMode } : {}),
     ...(Array.isArray(moments) ? { moments: moments as readonly OccurrenceMoment[] } : {}),
+    /** Spec 270: valor desconhecido do escopo lê-se como `all` — nunca restringe por engano. */
+    ...(isString(contractorScope)
+      ? {
+          contractorScope:
+            contractorScope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed
+              ? OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed
+              : OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all,
+        }
+      : {}),
+    ...(Array.isArray(contractors)
+      ? { contractors: contractors as readonly OccurrenceTypeContractor[] }
+      : {}),
     ...(itemsMinimumCount === null || typeof itemsMinimumCount === 'number'
       ? { itemsMinimumCount }
       : {}),
@@ -2079,7 +2161,6 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     ...(isString(declaredAmountScope) ? { declaredAmountScope } : {}),
     ...(isString(declaredAmountLabel) ? { declaredAmountLabel } : {}),
     ...(isString(iconName) ? { iconName } : {}),
-    ...(isString(emailItemLineTemplate) ? { emailItemLineTemplate } : {}),
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
     flow: isOneOf(flow, OCCURRENCE_TYPE_FLOWS) ? flow : 'document',

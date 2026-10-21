@@ -10,7 +10,13 @@ import { Select } from '@/components/ui/select'
 import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import type { OccurrenceRedeliveryPolicy } from '@/modules/trip/shared/occurrence.constant'
-import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant'
+import {
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
+  TRIP_OCCURRENCE_STAGE,
+} from '@/modules/trip/shared/occurrence.constant'
+import type { DuplicateRequestPolicy } from '@/modules/trip/shared/occurrenceContractorReply.constant'
+import type { OccurrenceExceptionPeople } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
+import { readContractorScopeProblem } from '@/modules/trip/shared/occurrenceTypeContractorScope.service'
 import { readOccurrenceMomentsProblem } from '@/modules/trip/shared/occurrenceMoments.service'
 import { readRequirementFieldsOfMoments } from '@/modules/trip/shared/occurrenceRequirementScope.service'
 import {
@@ -30,12 +36,17 @@ import { useOccurrenceTypeCreateDraft } from '../hooks/useOccurrenceTypeCreateDr
 import { useOccurrenceTypeOptions } from '../hooks/useOccurrenceTypeOptions.hook'
 import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceRequirementModeSelect } from './OccurrenceRequirementModeSelect.component'
+import { OccurrenceTypeCreateContractorScope } from './OccurrenceTypeCreateContractorScope.component'
+import type { ContractorScopeChange } from './OccurrenceTypeContractorScopeFields.component'
 import { OccurrenceTypeCreateMoments } from './OccurrenceTypeCreateMoments.component'
 import { OccurrenceTypeHiddenFieldsHint } from './OccurrenceTypeHiddenFieldsHint.component'
 
 type OccurrenceTypeCreateFormProps = Readonly<{
   isSaving: boolean
   onSave: (input: OccurrenceTypeSaveInput) => void
+  /** O painel carrega as contratantes só quando o "Vale para" do tipo novo pede "Só estas". */
+  onScopeListedChange: (isListed: boolean) => void
+  people: OccurrenceExceptionPeople
   /** O que a API que respondeu a listagem aceita: não se oferece o que ela recusaria. */
   support: OccurrenceTypeCreateSupport
   templateOptions: ReturnType<typeof buildOccurrenceEmailTemplateOptions>
@@ -48,11 +59,13 @@ type OccurrenceTypeCreateFormProps = Readonly<{
 export function OccurrenceTypeCreateForm({
   isSaving,
   onSave,
+  onScopeListedChange,
+  people,
   support,
   templateOptions,
 }: OccurrenceTypeCreateFormProps) {
   const { t } = useTranslation('companySettings')
-  const { redeliveryPolicyOptions } = useOccurrenceTypeOptions()
+  const { duplicateRequestPolicyOptions, redeliveryPolicyOptions } = useOccurrenceTypeOptions()
   const draft = useOccurrenceTypeCreateDraft(support.hasItemsMode)
   const momentsProblem = support.hasMoments ? readOccurrenceMomentsProblem(draft.moments) : null
   const fields = readRequirementFieldsOfMoments(draft.moments).filter(
@@ -60,6 +73,13 @@ export function OccurrenceTypeCreateForm({
       (field !== 'items' || support.hasItemsMode) &&
       ((field !== 'note' && field !== 'signature') || support.hasRequirementModes),
   )
+  const contractorScopeProblem = support.hasContractorScope
+    ? readContractorScopeProblem({
+        contractorIds: draft.contractorIds,
+        moments: draft.moments,
+        scope: draft.contractorScope,
+      })
+    : null
   const isSeparation = deriveOccurrenceStage(draft.moments) === TRIP_OCCURRENCE_STAGE.separation
   const modes = {
     items: [draft.itemsMode, draft.setItemsMode],
@@ -69,9 +89,16 @@ export function OccurrenceTypeCreateForm({
   } as const
 
   function handleAdd() {
-    if (draft.name.trim() === '' || momentsProblem !== null) return
+    if (draft.name.trim() === '' || momentsProblem !== null || contractorScopeProblem !== null)
+      return
     onSave(buildOccurrenceTypeCreateInput({ draft, support }))
     draft.reset()
+  }
+
+  function handleScopeChange(change: ContractorScopeChange) {
+    draft.setContractorScope(change.scope)
+    draft.setContractorIds(change.ids)
+    onScopeListedChange(change.scope === OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed)
   }
 
   function handleEditTemplates() {
@@ -97,6 +124,16 @@ export function OccurrenceTypeCreateForm({
             moments={draft.moments}
             onChange={draft.setMoments}
             problem={momentsProblem}
+          />
+        ) : null}
+        {support.hasContractorScope ? (
+          <OccurrenceTypeCreateContractorScope
+            contractorIds={draft.contractorIds}
+            moments={draft.moments}
+            onChange={handleScopeChange}
+            people={people}
+            problem={contractorScopeProblem}
+            scope={draft.contractorScope}
           />
         ) : null}
         <div className={createStyles.createFields}>
@@ -130,6 +167,14 @@ export function OccurrenceTypeCreateForm({
             value={draft.redeliveryPolicy}
           />
         )}
+        {support.hasDuplicateRequestPolicy ? (
+          <Select
+            ariaLabel={t('occurrenceTypeCatalog.duplicateRequestPolicy')}
+            onChange={(value) => draft.setDuplicateRequestPolicy(value as DuplicateRequestPolicy)}
+            options={duplicateRequestPolicyOptions}
+            value={draft.duplicateRequestPolicy}
+          />
+        ) : null}
         {isSeparation ? (
           <Checkbox
             checked={draft.leavesDocumentBehind}
@@ -155,7 +200,7 @@ export function OccurrenceTypeCreateForm({
         />
         <div className={createStyles.createActions}>
           <Button
-            disabled={isSaving || momentsProblem !== null}
+            disabled={isSaving || momentsProblem !== null || contractorScopeProblem !== null}
             onClick={handleAdd}
             size="sm"
             type="button"

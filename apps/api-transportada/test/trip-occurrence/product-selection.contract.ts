@@ -7,15 +7,12 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { buildOccurrenceItemValues } from '../../src/trips/domain/occurrence-mail-values.policy.js'
 import { buildOccurrenceAttachmentCreateFingerprint } from '../../src/trips/domain/occurrence-attachment.policy.js'
 import {
   resolveOccurrenceProductCodes,
   resolveOccurrenceProductSelection,
 } from '../../src/trips/domain/occurrence-scope.policy.js'
-import {
-  buildOccurrenceItemValues,
-  renderOccurrenceTemplate,
-} from '../../src/trips/domain/occurrence-template.policy.js'
 
 const PRODUTOS = [
   { code: 'ZG-4410', description: 'Parafuso sextavado' },
@@ -189,7 +186,7 @@ describe('a leitura deriva productCodes da tabela nova ou da coluna antiga', () 
   })
 })
 
-describe('o e-mail pronto cita todos os itens marcados', () => {
+describe('os valores de item citam todos os itens marcados', () => {
   const ITENS = [
     { code: 'ZG-4410', description: 'Parafuso sextavado', quantity: 12 },
     { code: 'ZG-4411', description: 'Porca', quantity: 3 },
@@ -218,25 +215,6 @@ describe('o e-mail pronto cita todos os itens marcados', () => {
       itemLabel: '',
       itemQuantity: '',
     })
-  })
-
-  test('o texto renderizado nomeia os dois itens', () => {
-    expect(
-      renderOccurrenceTemplate({
-        template: 'Itens: {{item}} ({{codigoItem}}) — quantidades {{quantidadeItem}}',
-        values: {
-          contractorName: '',
-          documentLabel: '',
-          driverName: '',
-          ...buildOccurrenceItemValues(ITENS),
-          note: '',
-          occurredOn: '',
-          recipientName: '',
-          stopLabel: '',
-          totalValue: '',
-        },
-      }),
-    ).toBe('Itens: Parafuso sextavado, Porca (ZG-4410, ZG-4411) — quantidades 12, 3')
   })
 })
 

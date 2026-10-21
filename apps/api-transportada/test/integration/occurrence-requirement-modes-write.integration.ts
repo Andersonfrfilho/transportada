@@ -37,8 +37,6 @@ function typeValues(company: Company, extra: Record<string, unknown> = {}) {
   return {
     active: true,
     companyId: company.companyId,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     name: 'Recusa total',
     notifies: false,

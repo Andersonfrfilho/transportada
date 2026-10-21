@@ -24,8 +24,6 @@ const CLIENT = readFileSync(
 function rawType(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: 'type-1',
     name: 'Recusa total',

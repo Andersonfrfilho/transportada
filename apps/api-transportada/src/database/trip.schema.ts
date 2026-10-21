@@ -13,6 +13,8 @@ import {
   OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
   OCCURRENCE_TYPE_FLOWS,
   OCCURRENCE_TYPE_ICON_NAMES,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPES,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS,
   TRIP_OCCURRENCE_STAGE,
@@ -21,6 +23,7 @@ import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceItemQuantityUnit,
   OccurrenceTypeFlow,
+  OccurrenceTypeContractorScope,
   OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../shared/trip-occurrence.constant.js'
@@ -51,6 +54,7 @@ import {
 } from './company-delivery-proof-settings.schema.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { contractors, deliveryClients } from './delivery-client.schema.js'
+import { contractorMailTemplates } from './contractor-mail.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
@@ -63,6 +67,8 @@ import {
   CONTRACTOR_REPLY_ALERT_MODES,
   CONTRACTOR_REPLY_ATTACHMENT_KINDS,
   CONTRACTOR_REPLY_MODES,
+  DUPLICATE_REQUEST_POLICIES,
+  DUPLICATE_REQUEST_POLICY_DEFAULT,
   CONTRACTOR_REPLY_TYPE_DEFAULTS,
   CONTRACTOR_REPLY_WAIT_HOURS,
   DRIVER_REPLY_CHANNELS,
@@ -75,6 +81,7 @@ import {
   type ContractorReplyAlertMode,
   type ContractorReplyAttachmentKind,
   type ContractorReplyMode,
+  type DuplicateRequestPolicy,
   type DriverReplyChannel,
   type DriverReplyWindowClosedAction,
   type ForwardToInformedEmailMode,
@@ -2946,6 +2953,40 @@ export const companyOccurrenceTypes = pgTable(
      */
     emailsContractor: boolean('emails_contractor').notNull().default(false),
     /**
+     * Spec 269 (ADR-0106): o modelo `occurrence` do cadastro "E-mail com contratantes → Modelos" que
+     * escreve o e-mail deste tipo. Nulo é "sem modelo": nenhum e-mail sai, nem à mão, e o aviso
+     * aparece quando `emails_contractor` está ligado. Sem padrão e sem backfill de propósito.
+     */
+    contractorMailTemplateId: uuid('contractor_mail_template_id'),
+    /**
+     * Spec 269 (decisão de 2026-10-17): quando o modelo foi escolhido (qualquer troca para um id não nulo; `null`
+     * limpa). O aviso automático só vale para ocorrência registrada a partir daqui.
+     */
+    contractorMailTemplateSelectedAt: timestamp('contractor_mail_template_selected_at', {
+      withTimezone: true,
+    }),
+    /**
+     * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação (`notification.templates`) que
+     * escreve o e-mail deste tipo à contratante. Sem FK: a identidade do módulo é versionada e o envio lê a
+     * versão ativa mais alta. Nula é "sem modelo".
+     */
+    contractorNotificationTemplateKey: varchar('contractor_notification_template_key', {
+      length: 128,
+    }),
+    /** Spec 271 (D2): quando a chave foi escolhida (troca para outra chave; `null` limpa). O automático só vale daqui. */
+    contractorNotificationTemplateSelectedAt: timestamp(
+      'contractor_notification_template_selected_at',
+      { withTimezone: true },
+    ),
+    /**
+     * Spec 270 (ADR-0107): para quem o tipo vale. `all` (padrão) é toda contratante; `listed` é a
+     * lista de `company_occurrence_type_contractors`. Todo tipo existente fica `all`.
+     */
+    contractorScope: varchar('contractor_scope', { length: 16 })
+      .$type<OccurrenceTypeContractorScope>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all),
+    /**
      * Spec 164 T1: se a nota atingida por este tipo de ocorrência pode ser reentregue
      * (`allowed`/`blocked`) ou se o tipo não decide isso (`unset`, o padrão — nenhuma instalação
      * ganha tratativa nova ao aplicar esta migration). `unset` nunca abre `trip_occurrence_cases`
@@ -3089,6 +3130,23 @@ export const companyOccurrenceTypes = pgTable(
     contractorReplyAlertMaxCount: smallint('contractor_reply_alert_max_count')
       .notNull()
       .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.alertMaxCount),
+    /**
+     * Spec 276 T3b: entregue o documento da contratante ao motorista, a ocorrência fica solucionada
+     * sozinha (evento `system` do andamento da 266). Desligado de fábrica.
+     */
+    contractorReplyResolveOnDelivery: boolean('contractor_reply_resolve_on_delivery')
+      .notNull()
+      .default(false),
+    /** Spec 276 T4: a trava de pedido repetido do mesmo tipo na mesma nota. */
+    /** Spec 276 T5: a resposta rápida (`company_quick_replies`, público `contractor`) que sai sozinha à contratante depois da
+     * entrega ao motorista; nula é desligada. Sem FK (a resposta rápida se apaga sem tocar no tipo): quem grava confere. */
+    contractorReplyAcknowledgementQuickReplyId: uuid(
+      'contractor_reply_acknowledgement_quick_reply_id',
+    ),
+    duplicateRequestPolicy: varchar('duplicate_request_policy', { length: 24 })
+      .$type<DuplicateRequestPolicy>()
+      .notNull()
+      .default(DUPLICATE_REQUEST_POLICY_DEFAULT),
     /** Sending the invoice to the e-mail of the note's customer is always an explicit choice. */
     forwardToNoteRecipient: varchar('forward_to_note_recipient', { length: 16 })
       .$type<ForwardToNoteRecipientMode>()
@@ -3210,6 +3268,10 @@ export const companyOccurrenceTypes = pgTable(
       sql`${table.contractorReplyMode} in (${raw(inList(CONTRACTOR_REPLY_MODES))})`,
     ),
     check(
+      'company_occurrence_types_duplicate_request_policy_check',
+      sql`${table.duplicateRequestPolicy} in (${raw(inList(DUPLICATE_REQUEST_POLICIES))})`,
+    ),
+    check(
       'company_occurrence_types_contractor_reply_attachment_kind_check',
       sql`${table.contractorReplyAttachmentKind} in (${raw(inList(CONTRACTOR_REPLY_ATTACHMENT_KINDS))})`,
     ),
@@ -3278,6 +3340,24 @@ export const companyOccurrenceTypes = pgTable(
       sql`(${table.forwardToNoteRecipient} = 'off' and ${table.forwardToInformedEmail} = 'off') or (btrim(${table.forwardEmailSubject}) <> '' and btrim(${table.forwardEmailBody}) <> '')`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
+    check(
+      'company_occurrence_types_contractor_scope_check',
+      sql`${table.contractorScope} in (${sql.raw(inList(OCCURRENCE_TYPE_CONTRACTOR_SCOPES))})`,
+    ),
+    foreignKey({
+      columns: [table.companyId, table.contractorMailTemplateId],
+      foreignColumns: [contractorMailTemplates.companyId, contractorMailTemplates.id],
+      name: 'company_occurrence_types_mail_template_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    index('company_occurrence_types_mail_template_idx')
+      .on(table.companyId, table.contractorMailTemplateId)
+      .where(sql`${table.contractorMailTemplateId} is not null`),
+    check(
+      'company_occurrence_types_contractor_notification_template_key_check',
+      sql`${table.contractorNotificationTemplateKey} is null or length(btrim(${table.contractorNotificationTemplateKey})) > 0`,
+    ),
   ],
 )
 
@@ -3323,6 +3403,15 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
     forwardToNoteRecipient: varchar('forward_to_note_recipient', {
       length: 16,
     }).$type<ForwardToNoteRecipientMode>(),
+    /** Spec 269: the mail template of this contractor; null inherits the type's template, no default. */
+    contractorMailTemplateId: uuid('contractor_mail_template_id'),
+    /**
+     * Spec 269 (decisão de 2026-10-17): quando o modelo foi escolhido (qualquer troca para um id não nulo; `null`
+     * limpa). O aviso automático só vale para ocorrência registrada a partir daqui.
+     */
+    contractorMailTemplateSelectedAt: timestamp('contractor_mail_template_selected_at', {
+      withTimezone: true,
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -3406,6 +3495,16 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
       'occurrence_type_contractor_overrides_forward_note_check',
       sql`${table.forwardToNoteRecipient} in (${raw(inList(FORWARD_TO_NOTE_RECIPIENT_MODES))})`,
     ),
+    foreignKey({
+      columns: [table.companyId, table.contractorMailTemplateId],
+      foreignColumns: [contractorMailTemplates.companyId, contractorMailTemplates.id],
+      name: 'occurrence_type_contractor_overrides_mail_template_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    index('occurrence_type_contractor_overrides_mail_template_idx')
+      .on(table.companyId, table.contractorMailTemplateId)
+      .where(sql`${table.contractorMailTemplateId} is not null`),
   ],
 )
 

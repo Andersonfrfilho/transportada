@@ -40,14 +40,17 @@ describe('os tipos de ocorrência vêm do cadastro (spec 079)', () => {
   })
 
   /**
-   * ⚠️ A tela do escritório oferece **só os de galpão, e só os ativos**. Tipo de rua é
-   * `trip.report` e mora na árvore do motorista; oferecê-lo aqui daria um botão que sempre responde
-   * 403. Tipo aposentado sai da escolha, mas o já registrado com ele continua legível.
+   * Spec 270 (ADR-0107): quem decide o que a tela do galpão oferece é o servidor, **por nota** —
+   * `GET /trips/:id/documents/:documentId/occurrence-types` entrega só os tipos ativos do momento
+   * `separation` que valem para a contratante da nota. A tela não filtra por etapa nem por escopo: duas
+   * regras (uma no servidor, outra aqui) divergiriam no dia em que o escopo mudasse de forma.
    */
-  it('a tela oferece só tipo de galpão ativo', () => {
+  it('a tela não filtra tipo por etapa: oferece o que o servidor entregou para a nota', () => {
     const panel = readFileSync(PANEL, 'utf8')
 
-    expect(panel).toInclude('type.active && type.stage === TRIP_OCCURRENCE_STAGE.separation')
+    expect(panel).not.toInclude('TRIP_OCCURRENCE_STAGE.separation')
+    expect(panel).not.toInclude('type.active &&')
+    expect(panel).toInclude('areTypesLoading')
   })
 
   /** O item é opcional, e "a nota inteira" é o padrão — recusa total não tem item a apontar. */
@@ -59,22 +62,11 @@ describe('os tipos de ocorrência vêm do cadastro (spec 079)', () => {
     expect(trip.occurrence.wholeDocument.toLowerCase()).toInclude('nota inteira')
   })
 
-  /**
-   * ⚠️ **O e-mail volta pronto para conferir e enviar, não enviado.** O destinatário é externo, e
-   * mandar em nome da transportadora é decisão que ainda não foi tomada. O que isto resolve é o
-   * retrabalho de escrever à mão — que é onde o número da nota entra trocado.
-   */
-  it('mostra o e-mail pronto sem enviá-lo', () => {
+  /** Spec 269 T1.3: o painel parou de ler o e-mail que o registro devolvia; o envio é pelo diálogo da conversa. */
+  it('não mostra mais o e-mail pronto do registro', () => {
     const panel = readFileSync(PANEL, 'utf8')
 
-    expect(panel).toInclude('email.subject')
-    expect(panel).toInclude('email.body')
-    expect(panel).not.toInclude('sendEmail')
-    expect(trip.occurrence.emailReady.toLowerCase()).toInclude('confira antes de mandar')
-  })
-
-  /** Tipo sem modelo não mostra caixa vazia: assunto vazio é tipo que não gera e-mail. */
-  it('não desenha o bloco quando não há e-mail', () => {
-    expect(readFileSync(PANEL, 'utf8')).toInclude('email === null ? null :')
+    expect(panel).not.toInclude('email.subject')
+    expect(panel).not.toInclude('occurrence.emailReady')
   })
 })

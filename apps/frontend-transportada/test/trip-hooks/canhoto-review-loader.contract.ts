@@ -60,7 +60,6 @@ function createWorkspace(
     deliveryProofsQuery: { data: [PENDING_RECEIPT], isLoading: false },
     documentProductsQuery: { data: [] },
     isSendingOccurrencePhotos: false,
-    lastOccurrenceEmail: '',
     occurrencePhotoSendState: { status: 'idle' },
     occurrencesQuery: { data: [] },
     occurrenceTypesQuery: { data: [] },

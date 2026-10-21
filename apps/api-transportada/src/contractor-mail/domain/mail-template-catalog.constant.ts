@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 150 RF13/RF14: o catálogo fechado de tipos de e-mail e das variáveis de cada tipo. A
- * ocorrência (spec 143) entra depois, aqui, pelo mesmo cadastro. Sem import de propósito: o schema
- * do banco lê `CONTRACTOR_MAIL_TEMPLATE_TYPES` para a CHECK de `mail_type`.
+ * Spec 150 RF13/RF14: o catálogo fechado de tipos de e-mail e das variáveis de cada tipo. Sem import de
+ * propósito.
  */
 
+/** Spec 271: o e-mail de ocorrência vem do módulo de notificação; este cadastro ficou só com a correção de endereço. */
 export const CONTRACTOR_MAIL_TEMPLATE_TYPES = ['address_correction'] as const
 export type ContractorMailTemplateType = (typeof CONTRACTOR_MAIL_TEMPLATE_TYPES)[number]
 

@@ -859,3 +859,54 @@ rotinas por causa de uma opcional.
   de ser registrada no próximo boot.
 - **Reverter:** `rollback.sql` da migração `20261012154238` apaga a agenda e as execuções do job. Só com o worker
   revertido também, senão a batida publica um job que a CHECK recusa. As transcrições ficam intactas.
+
+## Spec 268 — O e-mail da contratante cai no Mailpit fora de produção (spec 268)
+
+⚠️ A linha de `contractor_mail_messages` diz por onde sai (`transport`). `sandbox_smtp` é enviada por
+`sandbox-smtp-mail.gateway.ts` (nodemailer direto — o driver do `email-provider` tem um destinatário só e nenhum anexo)
+no `SMTP_URL`, de `message.fromAddress`, com todos os destinatários e anexos, **sem `Reply-To`**, e **nunca lê a configuração
+da empresa nem fala com o Resend**. Sem `CONTRACTOR_MAIL_SANDBOX_SMTP=true` neste worker, a linha falha sem enviar
+(`sandbox_disabled`); o modo com `APP_ENV=production` derruba o boot, e exige `SMTP_URL` e `EMAIL_FROM`. Todos os destinatários
+recusados é falha permanente; erro de conexão propaga e a fila tenta de novo. Log só com `messageId`/`threadId`/motivo.
+Contrato: `test/contractor-mail/sandbox-outbound.contract.ts`, `test/contractor-mail-sandbox-environment.contract.test.ts`.
+
+## Spec 267 — A cópia no e-mail da contratante
+
+- A coluna `cc_addresses` (`text[] NOT NULL DEFAULT '{}'`) é gravada pela API; a cópia do schema no worker a declara e
+  `findMessageById` a seleciona (`ccAddresses`). Mensagem antiga e o encaminhamento a terceiro (248) têm `{}`.
+- `send-contractor-mail-outbound-message.use-case.ts` calcula `recipients` (`to` deduplicado) e `copied` (`cc` deduplicado,
+  menos quem está no `to`) e recusa `to + cc > 50` antes do ramo do transporte; Resend e sandbox recebem `cc` só quando não vazio.
+- Gateway do Resend: cada endereço do `cc` passa pela mesma validação do `to` (sem `\r \n , < >`) e o teto vale para a soma.
+- Gateway SMTP do sandbox: `cc` vai ao nodemailer; sem `Reply-To` (268), a resposta de um responsável não volta (aceito).
+
+## O logo embutido e o remetente do e-mail da ocorrência (spec 272, ADR-0110 §8–§9)
+
+- **Entrada:** `contractor_mail_messages.has_inline_logo` (CHECK: só `outbound`) e `from_display_name`, gravados pela API. O worker lê
+  os dois em `drizzle-contractor-mail-outbound-worker.repository.ts`; `from_display_name` nulo mantém o comportamento de antes.
+- **Logo:** `drizzle-company-logo.reader.ts` lê `company_logos` filtrando pela `company_id` da **mensagem**, nunca pela da configuração.
+  A parte inline sai com `content_id: 'company-logo'` no Resend e `cid: 'company-logo'` no nodemailer do sandbox. Sem logo: envia sem a
+  parte (o `alt` aparece) e loga `contractor_mail_inline_logo_missing` só com `messageId` e motivo.
+- **"De":** `sender-display-name.policy.ts` reaplica o saneamento da API (`SENDER_DISPLAY_NAME_CASES`, 29 casos, contrato de paridade).
+  Resend: `"Nome" <endereço>`, nome cru em UTF-8. Sandbox: `{ name, address }`. Só em `outbound` não nulo, nos dois transportes.
+- **Fila do automático** (`drizzle-occurrence-automatic-mail-queue.repository.ts`): o filtro SQL trocou `body !~ HTML_BODY_PATTERN` por
+  `body !~* UNSAFE_EMAIL_HTML_PATTERN` (`occurrence-automatic-mail-sweep.constant.ts`): tags `script|iframe|form|object|embed`, `on*=`,
+  `javascript:`/`vbscript:` literais e placeholder em tag. Usa `\y` porque `\b` é backspace no POSIX. É grosso e **nunca mais estrito que a
+  API** (não decodifica entidade): o que ele deixa passar a API recusa e pula sem gravar idempotência, e a ocorrência volta a cada varredura
+  até sair da janela (aceito, ADR §2). Os 35 casos da tabela da API rodam contra o Postgres com a coluna `worker`.
+- **Deploy:** API e worker no mesmo run; na janela entre os dois, o worker velho manda o HTML sem a parte inline e o "De" antigo.
+
+## O chat da contratante envia por e-mail (spec 274, ADR-0111)
+
+- **Escada com `read` (D8, T4.1):** `occurrence-conversation/domain/message-status.policy.ts` aceita `read` no e-mail, com a
+  mesma escada da API (`queued → sent → delivered → read`). A política é monotônica: um `sent` tardio não rebaixa `read`, e
+  `read` não recua. Falha segue terminal (`opened` depois de `bounced` → `stale`). A API recebe `email.opened` no webhook;
+  o worker só lê a linha.
+- **Cadeia de `References` (D7, T4.2):** `contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.ts`
+  lê os `rfc_message_id` da thread (entrada e saída, por `created_at` e `id`), **sem** as mensagens de encaminhamento da 248
+  (`occurrence_contractor_reply_deliveries`), e só os não nulos e não vazios. `contractor-mail/domain/reply-chain-headers.policy.ts`
+  (`buildReplyChainHeaders`, `REPLY_CHAIN_MAX_REFERENCES = 20`) põe em `In-Reply-To` o mais recente e em `References` os últimos
+  20, sem repetir; `normalizeRfcMessageId` normaliza `<…>`.
+- **O que fica de fora:** saída cujo `email.sent` ainda não chegou (sem `rfc_message_id`) não entra na cadeia; encaminhamento
+  sai sem `In-Reply-To`/`References`, como antes. O worker **não** gera `Message-ID`. Sandbox não tem cabeçalhos (como antes).
+- **Contratos:** `test/contractor-mail/reply-chain-headers.contract.ts` e `test/integration/contractor-mail-reply-chain.integration.ts`
+  (`make worker-integration`). Ver também a seção da 272 acima para o logo e o "De".

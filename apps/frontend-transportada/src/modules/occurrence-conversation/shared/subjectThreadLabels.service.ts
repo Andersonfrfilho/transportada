@@ -58,6 +58,7 @@ export const SUBJECT_THREAD_LABEL_KEYS = [
   'send',
   'sendAudio',
   'showFullTranscription',
+  'showOriginalText',
   'statusDelivered',
   'statusFailed',
   'statusFailedShort',
@@ -82,4 +83,20 @@ export function buildSubjectThreadLabels(
   const labels: Partial<Record<keyof ParticipantConversationsLabels, string>> = { closedNotice }
   for (const key of SUBJECT_THREAD_LABEL_KEYS) labels[key] = translate(`thread.labels.${key}`)
   return labels
+}
+
+/**
+ * Spec 274: o fio da contratante sai por e-mail, não pelo app. O padrão do assunto fala "ao motorista" e promete
+ * reenvio "quando a rede voltar" (fila offline do app); aqui os textos são os do e-mail. `translate` lê o
+ * namespace `occurrenceConversation`.
+ */
+export function buildContractorThreadLabels(
+  translate: SubjectThreadTranslate,
+): Partial<ParticipantConversationsLabels> {
+  return {
+    messageInputLabel: translate('thread.contractorInputLabel'),
+    messageInputPlaceholder: translate('thread.contractorInputPlaceholder'),
+    newMessages: translate('thread.contractorNewMessages'),
+    statusQueued: translate('thread.contractorQueued'),
+  }
 }

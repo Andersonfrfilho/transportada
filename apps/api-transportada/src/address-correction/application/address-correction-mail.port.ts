@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { OccurrenceWatcherCandidate } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
 import type { MailTemplateContent } from '../../contractor-mail/domain/mail-template-catalog.constant.js'
 import type { AddressCorrectionRequest } from './address-correction.port.js'
 
@@ -41,6 +42,8 @@ export type RecordAddressCorrectionMailInput = {
   readonly actorUserId: string
   readonly bodyHtml: string
   readonly bodyText: string
+  /** Spec 267: a cópia resolvida para a contratante da correção; vazia quando nenhuma lista vale. */
+  readonly ccAddresses: readonly string[]
   readonly companyId: string
   readonly contractorId: string
   readonly correlationId: string
@@ -100,6 +103,14 @@ export type AddressCorrectionMailTransactionPort = {
     readonly contractorId: string
     readonly requestIds: readonly string[] | undefined
   }): Promise<FindSendableAddressCorrectionRequestsResult>
+  /** Spec 267: as listas de responsáveis da empresa e da contratante, com o endereço já resolvido. */
+  loadWatcherCandidates(params: {
+    readonly companyId: string
+    readonly contractorId: string
+  }): Promise<{
+    readonly company: readonly OccurrenceWatcherCandidate[]
+    readonly contractor: readonly OccurrenceWatcherCandidate[]
+  }>
   markRequestsSent(params: {
     readonly companyId: string
     readonly requestIds: readonly string[]

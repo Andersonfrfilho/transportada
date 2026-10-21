@@ -9,6 +9,7 @@ import {
   CONTRACTOR_MAIL_SETTINGS_SUMMARY_KEYS,
   CONTRACTOR_MAIL_TEST_EMAIL_RESULT_KEYS,
   type ContractorMailCheckItem,
+  type ContractorMailSettingsRead,
   type ContractorMailSettingsSummary,
   type ContractorMailTestEmailResult,
 } from './contractorMailSettings.types'
@@ -81,6 +82,18 @@ export function nullableSettingsFromApi(payload: unknown): ContractorMailSetting
   if (payload.data === null) return null
   if (!isSettingsSummary(payload.data)) throw new ContractorMailSettingsResponseError()
   return payload.data
+}
+
+/**
+ * Spec 268 RF9: o `GET` devolve `{ data, sandboxDelivery }`. `sandboxDelivery` é do ambiente (o e-mail da
+ * contratante cai no Mailpit enquanto a empresa não tem o Resend pronto) e fica fora de `data`, que segue
+ * recusando chave a mais.
+ */
+export function settingsReadFromApi(payload: unknown): ContractorMailSettingsRead {
+  if (!isRecord(payload) || typeof payload.sandboxDelivery !== 'boolean') {
+    throw new ContractorMailSettingsResponseError()
+  }
+  return { sandboxDelivery: payload.sandboxDelivery, summary: nullableSettingsFromApi(payload) }
 }
 
 export function settingsFromApi(payload: unknown): ContractorMailSettingsSummary {

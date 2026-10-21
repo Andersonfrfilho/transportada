@@ -13,7 +13,6 @@ const REGISTERED = {
   attachments: [{ id: 'attachment-1', position: 1 }],
   channel: 'driver_app',
   createdAt: '2026-09-22T13:04:52.000Z',
-  email: null,
   id: 'occurrence-1',
   note: 'Item avariado',
   occurrenceTypeId: 'type-1',
@@ -30,7 +29,6 @@ describe('registeredOccurrenceFromApi', () => {
     const registered = adapters.registeredOccurrenceFromApi({ ...REGISTERED })
 
     expect(registered.attachments).toEqual([{ id: 'attachment-1', position: 1 }])
-    expect(registered.email).toBeNull()
   })
 
   test('sem anexo na resposta vira lista vazia, não erro', () => {

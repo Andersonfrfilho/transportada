@@ -45,8 +45,13 @@ import type {
   OccurrenceResolutionResult,
 } from './occurrenceResolution.service'
 import { parseOccurrenceTimeline } from './tripOccurrenceTimeline.validation'
+import {
+  readTripOccurrenceResolutionSummary,
+  type TripOccurrenceResolutionSummaryItem,
+} from './tripOccurrenceResolutionSummary.service'
 
 const TRIP_OCCURRENCES_PATH = '/trip-occurrences'
+const TRIP_OCCURRENCE_RESOLUTION_SUMMARY_PATH = '/trip-occurrence-resolution-summary'
 
 type ClientDependencies = Readonly<{
   apiUrl: string
@@ -76,6 +81,8 @@ export type TripOccurrenceFeedClient = Readonly<{
     input: Readonly<{ occurrenceId: string }>,
   ) => Promise<readonly TripOccurrenceAttachment[]>
   listOccurrences: (input: ListTripOccurrencesInput) => Promise<TripOccurrenceFeedPage>
+  /** Spec 277 RF5: a resolução média por tipo. Leitura tolerante; API anterior à rota responde erro e a tela esconde o painel. */
+  readResolutionSummary: () => Promise<readonly TripOccurrenceResolutionSummaryItem[]>
   /** Spec 183 RF1: `GET /trip-occurrences/:id` — a linha, a nota e o motorista. */
   readOccurrence: (input: Readonly<{ occurrenceId: string }>) => Promise<TripOccurrenceDetail>
   /** Spec 183 RF19: `GET /trip-occurrences/:id/timeline` — os eventos em ordem e os três tempos. */
@@ -250,6 +257,8 @@ function isFeedItem(value: unknown): value is RawFeedItem {
     isNullableString(value.invoiceNumber) &&
     isNullableString(value.invoiceSeries) &&
     typeof value.notifies === 'boolean' &&
+    (value.missingNotificationTemplate === undefined ||
+      typeof value.missingNotificationTemplate === 'boolean') &&
     (value.occurrenceTypeId === undefined || isNullableString(value.occurrenceTypeId)) &&
     (value.source === 'document' || value.source === 'stop') &&
     (value.stage === null || value.stage === 'delivery' || value.stage === 'separation') &&
@@ -574,6 +583,10 @@ export function createTripOccurrenceFeedClient(
       const timeline = isRecord(payload) ? parseOccurrenceTimeline(payload.data) : null
       if (timeline === null) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
       return timeline
+    },
+    async readResolutionSummary() {
+      const payload = await requestJson(dependencies, TRIP_OCCURRENCE_RESOLUTION_SUMMARY_PATH)
+      return readTripOccurrenceResolutionSummary(payload)
     },
     async listOccurrences(input) {
       const search = serializeTripOccurrenceQuery(input)

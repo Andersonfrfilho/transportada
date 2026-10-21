@@ -7,21 +7,13 @@
  *   - dois com nomes diferentes e a MESMA configuração (o comportamento tem que ser idêntico).
  *
  * O que é afirmado: a exigência efetiva do registro (número do documento, valor pago, escopo, produtos,
- * exceção de contratante e de destinatário), o valor pago e a soma que sobem ao registro, e o e-mail
- * montado. Nenhum nome de tipo, nenhuma constante por tipo, nenhum contratante específico entra na conta.
+ * exceção de contratante e de destinatário), o valor pago e a soma que sobem ao registro. Nenhum nome de tipo, nenhuma constante por tipo, nenhum contratante específico entra na conta.
  */
 import { describe, expect, test } from 'bun:test'
 
 import type { FieldOccurrenceTypeOverrides } from '../../src/trips/application/list-field-occurrence-types.use-case.js'
 import { registerDriverOccurrence } from '../../src/trips/application/register-driver-occurrence.use-case.js'
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
-import { formatBrazilianAmount } from '../../src/trips/domain/occurrence-amount.policy.js'
-import { renderOccurrenceTemplate } from '../../src/trips/domain/occurrence-template.policy.js'
-import type {
-  OccurrenceTemplateLine,
-  OccurrenceTemplateValues,
-} from '../../src/trips/domain/occurrence-template.types.js'
-import { buildOccurrenceItemValues } from '../../src/trips/domain/occurrence-template.policy.js'
 import {
   createFieldReportState,
   createFieldReportUnitOfWork,
@@ -49,35 +41,26 @@ type TypeConfiguration = Pick<
   | 'allowsMultipleItems'
   | 'declaredAmountMode'
   | 'declaredAmountScope'
-  | 'emailBody'
-  | 'emailItemLineTemplate'
-  | 'emailSubject'
   | 'itemsMinimumCount'
   | 'itemsMode'
   | 'referenceNumberMode'
 >
 
-/** Exige tudo: número, valor pago por linha, produtos; e-mail com a conta de cada linha. */
+/** Exige tudo: número, valor pago por linha, produtos. */
 const STRICT_CONFIGURATION: TypeConfiguration = {
   allowsMultipleItems: true,
   declaredAmountMode: 'required',
   declaredAmountScope: 'item',
-  emailBody: 'NFD {{numeroReferencia}}\n{{linhasItens}}\nPago {{valorDeclarado}} de {{somaItens}}',
-  emailItemLineTemplate: '{{codigoItem}} {{quantidadeItem}} {{unidadeItem}} = {{valorItem}}',
-  emailSubject: 'Retorno {{numeroNotaSemSerie}}',
   itemsMinimumCount: 1,
   itemsMode: 'required',
   referenceNumberMode: 'required',
 }
 
-/** Não exige nada, valor pago da ocorrência inteira e outro texto de e-mail. */
+/** Não exige nada, valor pago da ocorrência inteira. */
 const LOOSE_CONFIGURATION: TypeConfiguration = {
   allowsMultipleItems: false,
   declaredAmountMode: 'off',
   declaredAmountScope: 'occurrence',
-  emailBody: 'Aviso: {{observacao}}',
-  emailItemLineTemplate: '{{item}}',
-  emailSubject: 'Aviso {{numeroNota}}',
   itemsMinimumCount: null,
   itemsMode: 'optional',
   referenceNumberMode: 'off',
@@ -365,7 +348,7 @@ describe('a exceção da nota vale, e vale a efetiva — nunca o modo do tipo (C
   })
 })
 
-describe('o que sobe ao registro e o e-mail seguem a configuração, não o nome (CA03)', () => {
+describe('o que sobe ao registro segue a configuração, não o nome (CA03)', () => {
   const FULL = {
     items: [
       { declaredAmount: '25.00', productCode: 'P1', quantity: '2' },
@@ -381,53 +364,13 @@ describe('o que sobe ao registro e o e-mail seguem a configuração, não o nome
     return saved
   }
 
-  function emailFor(type: TypeFixture, saved: Awaited<ReturnType<typeof savedFor>>): string {
-    const lines: readonly OccurrenceTemplateLine[] = saved.items.map((item) => {
-      const product = PRODUCTS.find((candidate) => candidate.code === item.productCode)
-      return {
-        code: item.productCode,
-        declaredAmount: item.declaredAmount,
-        description: product?.description ?? '',
-        nfeQuantity: product?.quantity ?? '0',
-        quantity: item.quantity,
-        totalValue: '0',
-        unit: item.quantityUnit ?? '',
-        unitValue: item.unitValue ?? '0',
-      }
-    })
-    const values: OccurrenceTemplateValues = {
-      contractorName: 'Contratante',
-      declaredAmount: saved.declaredAmount,
-      documentLabel: '123/1',
-      documentNumber: '123',
-      driverName: 'Motorista',
-      ...buildOccurrenceItemValues(
-        lines.map((line) => ({
-          code: line.code,
-          description: line.description,
-          quantity: line.quantity ?? line.nfeQuantity,
-        })),
-      ),
-      itemLineTemplate: type.configuration.emailItemLineTemplate,
-      lines,
-      note: saved.note,
-      occurredOn: '01/01/2026',
-      recipientName: 'Destinatário',
-      referenceNumber: saved.referenceNumber ?? undefined,
-      stopLabel: 'Rua',
-      totalValue: '0',
-    }
-    return `${renderOccurrenceTemplate({ template: type.configuration.emailSubject, values })}\n${renderOccurrenceTemplate({ template: type.configuration.emailBody, values })}`
-  }
-
-  test('mesma configuração: o mesmo gravado e o mesmo e-mail, e o valor pago é a conta das linhas', async () => {
+  test('mesma configuração: o mesmo gravado, e o valor pago é a conta das linhas', async () => {
     const withName = await savedFor(STRICT_SAME_NAME)
     const otherName = await savedFor(STRICT_OTHER_NAME)
 
     expect(otherName.items).toEqual(withName.items)
     expect(otherName.referenceNumber).toBe(withName.referenceNumber)
     expect(otherName.declaredAmount).toBe(withName.declaredAmount)
-    expect(emailFor(STRICT_OTHER_NAME, otherName)).toBe(emailFor(STRICT_SAME_NAME, withName))
     expect(withName.items).toEqual([
       {
         declaredAmount: '25.00',
@@ -444,17 +387,9 @@ describe('o que sobe ao registro e o e-mail seguem a configuração, não o nome
         unitValue: '57.2000',
       },
     ])
-    const expectedEmail = [
-      'Retorno 123',
-      'NFD NFD 45029',
-      'P1 2 CX = 25,00',
-      'P2 1 UN = 57,20',
-      `Pago ${formatBrazilianAmount(8220n)} de ${formatBrazilianAmount(9719n)}`,
-    ].join('\n')
-    expect(emailFor(STRICT_SAME_NAME, withName)).toBe(expectedEmail)
   })
 
-  test('mesmo nome, configuração diferente: outro e-mail, e o número fica fora quando o modo é off', async () => {
+  test('mesmo nome, configuração diferente: o número fica fora quando o modo é off', async () => {
     const strict = await savedFor(STRICT_SAME_NAME)
     const { result } = register({
       items: [{ productCode: 'P2', quantity: '1' }],
@@ -464,7 +399,7 @@ describe('o que sobe ao registro e o e-mail seguem a configuração, não o nome
     const loose = await result
 
     expect(loose.typeName).toBe(strict.typeName)
-    expect(emailFor(LOOSE_SAME_NAME, loose)).toBe('Aviso 123/1\nAviso: cliente recusou')
-    expect(emailFor(LOOSE_SAME_NAME, loose)).not.toBe(emailFor(STRICT_SAME_NAME, strict))
+    expect(strict.referenceNumber).toBe(REFERENCE_NUMBER)
+    expect(loose.referenceNumber).toBeNull()
   })
 })

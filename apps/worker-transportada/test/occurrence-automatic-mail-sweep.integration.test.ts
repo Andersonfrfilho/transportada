@@ -4,6 +4,13 @@
  * Spec 248 T4.4b (RF2), contra Postgres real: a fila do varredor — o que entra (maduro, dentro da
  * janela, tipo que avisa, contratante casada, ainda sem aviso) e o que fica de fora, e a garantia de
  * que duas passadas viram um envio só.
+ *
+ * Spec 271: entra só a ocorrência cujo tipo escolheu, pela chave, um modelo utilizável no módulo de notificação
+ * (versão ativa mais alta, e-mail `pt-BR`, assunto preenchido) — sem ele a API pula e o varredor a
+ * revisitaria a cada batida até a janela fechar.
+ *
+ * Spec 272 (ADR-0110 §2): modelo com HTML entra; só o HTML inseguro (filtro grosso `UNSAFE_EMAIL_HTML_PATTERN`) fica de fora, e a
+ * tabela de casos da API confere, caso a caso, com o veredito do Postgres.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -17,7 +24,9 @@ import {
   OCCURRENCE_AUTOMATIC_MAIL_LOOKBACK_MILLISECONDS,
   OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION,
   OCCURRENCE_AUTOMATIC_MAIL_SWEEP_JOB,
+  UNSAFE_EMAIL_HTML_PATTERN,
 } from '../src/occurrence-automatic-mail-sweep/domain/occurrence-automatic-mail-sweep.constant.js'
+import { OCCURRENCE_MAIL_UNSAFE_HTML_CASES } from './fixtures/occurrence-mail-unsafe-html-cases.fixture.js'
 import { createDrizzleOccurrenceAutomaticMailQueue } from '../src/occurrence-automatic-mail-sweep/infrastructure/drizzle-occurrence-automatic-mail-queue.repository.js'
 
 const databaseUrl = process.env.DATABASE_URL
@@ -27,12 +36,35 @@ const NOW = new Date('2026-10-09T12:00:00.000Z')
 const SHA256 = 'd'.repeat(64)
 const MINUTE = 60_000
 
+type TemplateShape =
+  | 'emptySubject'
+  | 'html'
+  | 'inactive'
+  | 'none'
+  | 'newerVersionHtml'
+  | 'newerVersionUnsafe'
+  | 'otherChannel'
+  | 'otherCompanyOnly'
+  | 'otherLocale'
+  | 'safeEntityScheme'
+  | 'textLooksUnsafe'
+  | 'unsafeEvent'
+  | 'unsafeScheme'
+  | 'unsafeScript'
+  | 'usable'
+
 type Scenario = {
   readonly ageMilliseconds: number
   readonly alreadySent?: boolean
   readonly cancelled?: boolean
   readonly hasContractor?: boolean
+  /** Spec 271: o que o módulo de notificação tem para a chave escolhida no tipo; padrão `usable`. */
+  readonly template?: TemplateShape
   readonly typeEmailsContractor?: boolean
+  /** Spec 271: padrão `true`; `false` é o tipo sem modelo escolhido (chave nula). */
+  readonly typeHasKey?: boolean
+  /** Spec 271: quando a chave foi escolhida no tipo, em relação à ocorrência; padrão antes (`-MINUTE`). */
+  readonly typeSelectedOffsetMilliseconds?: number
 }
 
 const SCENARIOS = {
@@ -40,12 +72,30 @@ const SCENARIOS = {
   cancelled: { ageMilliseconds: 30 * MINUTE, cancelled: true },
   fresh: { ageMilliseconds: 2 * MINUTE },
   noContractor: { ageMilliseconds: 30 * MINUTE, hasContractor: false },
+  noKey: { ageMilliseconds: 30 * MINUTE, typeHasKey: false },
   older: { ageMilliseconds: 45 * MINUTE },
   ripe: { ageMilliseconds: 30 * MINUTE },
+  templateEmptySubject: { ageMilliseconds: 30 * MINUTE, template: 'emptySubject' },
+  templateHtml: { ageMilliseconds: 30 * MINUTE, template: 'html' },
+  templateInactive: { ageMilliseconds: 30 * MINUTE, template: 'inactive' },
+  templateMissing: { ageMilliseconds: 30 * MINUTE, template: 'none' },
+  templateNewerVersionHtml: { ageMilliseconds: 30 * MINUTE, template: 'newerVersionHtml' },
+  templateNewerVersionUnsafe: { ageMilliseconds: 30 * MINUTE, template: 'newerVersionUnsafe' },
+  templateSafeEntityScheme: { ageMilliseconds: 30 * MINUTE, template: 'safeEntityScheme' },
+  templateTextLooksUnsafe: { ageMilliseconds: 30 * MINUTE, template: 'textLooksUnsafe' },
+  templateUnsafeEvent: { ageMilliseconds: 30 * MINUTE, template: 'unsafeEvent' },
+  templateUnsafeScheme: { ageMilliseconds: 30 * MINUTE, template: 'unsafeScheme' },
+  templateUnsafeScript: { ageMilliseconds: 30 * MINUTE, template: 'unsafeScript' },
+  templateOfAnotherCompany: { ageMilliseconds: 30 * MINUTE, template: 'otherCompanyOnly' },
+  templateOtherChannel: { ageMilliseconds: 30 * MINUTE, template: 'otherChannel' },
+  templateOtherLocale: { ageMilliseconds: 30 * MINUTE, template: 'otherLocale' },
   tooOld: { ageMilliseconds: OCCURRENCE_AUTOMATIC_MAIL_LOOKBACK_MILLISECONDS + 60 * MINUTE },
   typeOff: { ageMilliseconds: 30 * MINUTE, typeEmailsContractor: false },
+  typeSelectedLater: { ageMilliseconds: 30 * MINUTE, typeSelectedOffsetMilliseconds: MINUTE },
 } as const satisfies Record<string, Scenario>
 type ScenarioName = keyof typeof SCENARIOS
+
+const USABLE_BODY = 'Ocorrência na nota {{numeroNota}}'
 
 describeDatabase('a fila do varredor de e-mail automático (integration)', () => {
   const companyId = crypto.randomUUID()
@@ -140,12 +190,22 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
       sql`insert into trip_documents (id, company_id, trip_id, nfe_document_id)
           values (${tripDocumentId}, ${company}, ${tripId}, ${documentId})`,
     )
-    await db.execute(
-      sql`insert into company_occurrence_types (id, company_id, name, stage, emails_contractor)
-          values (${typeId}, ${company}, ${`Prorrogação ${typeId}`}, 'delivery',
-            ${scenario.typeEmailsContractor ?? true})`,
-    )
     const createdAt = new Date(NOW.getTime() - scenario.ageMilliseconds)
+    const typeSelectedAt = new Date(
+      createdAt.getTime() + (scenario.typeSelectedOffsetMilliseconds ?? -MINUTE),
+    )
+    const hasKey = scenario.typeHasKey !== false
+    const key = `ocorrencia.${typeId}`
+    await db.execute(
+      sql`insert into company_occurrence_types
+            (id, company_id, name, stage, emails_contractor, contractor_notification_template_key,
+             contractor_notification_template_selected_at)
+          values (${typeId}, ${company}, ${`Prorrogação ${typeId}`}, 'delivery',
+            ${scenario.typeEmailsContractor ?? true},
+            ${hasKey ? key : null},
+            ${hasKey ? typeSelectedAt.toISOString() : null}::timestamptz)`,
+    )
+    if (hasKey) await seedTemplates({ company, key, shape: scenario.template ?? 'usable' })
     await db.execute(
       sql`insert into trip_document_occurrences
             (id, company_id, trip_document_id, stage, actor_user_id, occurrence_type_id, created_at,
@@ -159,6 +219,59 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     if (scenario.alreadySent === true) await recordSend(company, occurrenceId)
     ownIds.add(occurrenceId)
     return occurrenceId
+  }
+
+  async function insertTemplate(input: {
+    readonly active?: boolean
+    readonly body?: string
+    readonly channel?: string
+    readonly company: string
+    readonly key: string
+    readonly locale?: string
+    readonly subject?: string
+    readonly version?: number
+  }): Promise<void> {
+    await db.execute(
+      sql`insert into notification.templates (company_id, key, channel, locale, version, subject, body, active)
+          values (${input.company}, ${input.key}, ${input.channel ?? 'email'}, ${input.locale ?? 'pt-BR'},
+            ${input.version ?? 1}, ${input.subject ?? 'Ocorrência'}, ${input.body ?? USABLE_BODY},
+            ${input.active ?? true})`,
+    )
+  }
+
+  async function seedTemplates(input: {
+    readonly company: string
+    readonly key: string
+    readonly shape: TemplateShape
+  }): Promise<void> {
+    const { company, key, shape } = input
+    if (shape === 'none') return
+    if (shape === 'otherCompanyOnly') {
+      await insertTemplate({ company: otherCompanyId, key })
+      return
+    }
+    await insertTemplate({
+      company,
+      key,
+      ...(shape === 'emptySubject' ? { subject: '   ' } : {}),
+      ...(shape === 'html' ? { body: '<p>Olá {{contratante}}</p>' } : {}),
+      ...(shape === 'safeEntityScheme' ? { body: '<a href="java&#115;cript:x">a</a>' } : {}),
+      ...(shape === 'textLooksUnsafe'
+        ? { body: 'NF <{{numeroNota}}> online = sim, veja javascript:x' }
+        : {}),
+      ...(shape === 'unsafeEvent' ? { body: '<a href="#" onclick="x()">a</a>' } : {}),
+      ...(shape === 'unsafeScheme' ? { body: '<a href="javascript:x">a</a>' } : {}),
+      ...(shape === 'unsafeScript' ? { body: '<script>x</script>' } : {}),
+      ...(shape === 'inactive' ? { active: false } : {}),
+      ...(shape === 'otherChannel' ? { channel: 'inbox' } : {}),
+      ...(shape === 'otherLocale' ? { locale: 'en-US' } : {}),
+    })
+    if (shape === 'newerVersionUnsafe') {
+      await insertTemplate({ body: '<script>x</script>', company, key, version: 2 })
+    }
+    if (shape === 'newerVersionHtml') {
+      await insertTemplate({ body: '<b>nova</b>', company, key, version: 2 })
+    }
   }
 
   async function recordSend(company: string, occurrenceId: string): Promise<void> {
@@ -203,6 +316,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
       await db.execute(sql`delete from idempotency_records where company_id = ${id}`)
       await db.execute(sql`delete from trip_document_occurrences where company_id = ${id}`)
       await db.execute(sql`delete from company_occurrence_types where company_id = ${id}`)
+      await db.execute(sql`delete from notification.templates where company_id = ${id}`)
       await db.execute(sql`delete from trip_documents where company_id = ${id}`)
       await db.execute(sql`delete from trips where company_id = ${id}`)
       await db.execute(sql`delete from nfe_participants where company_id = ${id}`)
@@ -221,8 +335,67 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     const pending = await listOwn()
 
     expect(pending.map((item) => item.occurrenceId).sort()).toEqual(
-      [occurrenceIds.older, occurrenceIds.otherCompany, occurrenceIds.ripe].sort(),
+      [
+        occurrenceIds.older,
+        occurrenceIds.otherCompany,
+        occurrenceIds.ripe,
+        occurrenceIds.templateHtml,
+        occurrenceIds.templateNewerVersionHtml,
+        occurrenceIds.templateSafeEntityScheme,
+        occurrenceIds.templateTextLooksUnsafe,
+      ].sort(),
     )
+  })
+
+  it('leaves out a type with no key, and a key with no usable template in the notification module (spec 271)', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    for (const name of [
+      'noKey',
+      'templateEmptySubject',
+      'templateInactive',
+      'templateMissing',
+      'templateNewerVersionUnsafe',
+      'templateOfAnotherCompany',
+      'templateOtherChannel',
+      'templateOtherLocale',
+      'templateUnsafeEvent',
+      'templateUnsafeScheme',
+      'templateUnsafeScript',
+    ] as const) {
+      expect(listed).not.toContain(occurrenceIds[name])
+    }
+    expect(listed).toContain(occurrenceIds.ripe)
+  })
+
+  it('lets safe HTML through, including what only the API can judge (spec 272)', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    for (const name of [
+      'templateHtml',
+      'templateNewerVersionHtml',
+      'templateSafeEntityScheme',
+      'templateTextLooksUnsafe',
+    ] as const) {
+      expect(listed).toContain(occurrenceIds[name])
+    }
+  })
+
+  it('the coarse filter matches the copied case table, case by case, in Postgres (spec 272)', async () => {
+    expect(OCCURRENCE_MAIL_UNSAFE_HTML_CASES.length).toBeGreaterThan(0)
+    for (const entry of OCCURRENCE_MAIL_UNSAFE_HTML_CASES) {
+      const [row] = (await db.execute(
+        sql`select (${entry.html}::text ~* ${UNSAFE_EMAIL_HTML_PATTERN}) as blocked`,
+      )) as unknown as { blocked: boolean }[]
+      expect([entry.name, row?.blocked]).toEqual([entry.name, entry.worker === 'bloqueia'])
+    }
+  })
+
+  it('skips what was registered before the template was chosen on the type (spec 269, kept)', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    expect(listed).not.toContain(occurrenceIds.typeSelectedLater)
+    expect(listed).toContain(occurrenceIds.ripe)
   })
 
   it('returns the company of each occurrence and the oldest first', async () => {
@@ -272,7 +445,15 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     await routine.run(context)
 
     expect(sent.sort()).toEqual(
-      [occurrenceIds.older, occurrenceIds.otherCompany, occurrenceIds.ripe].sort(),
+      [
+        occurrenceIds.older,
+        occurrenceIds.otherCompany,
+        occurrenceIds.ripe,
+        occurrenceIds.templateHtml,
+        occurrenceIds.templateNewerVersionHtml,
+        occurrenceIds.templateSafeEntityScheme,
+        occurrenceIds.templateTextLooksUnsafe,
+      ].sort(),
     )
     expect(await listOwn()).toEqual([])
   })

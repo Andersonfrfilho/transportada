@@ -103,6 +103,7 @@ describe('tenant identity schema', () => {
       'user_id',
       'company_id',
       'status',
+      'job_title',
       'created_at',
       'updated_at',
     ])
@@ -150,7 +151,7 @@ describe('tenant identity schema', () => {
     ])
     expect(
       getTableConfig(userCompanyMemberships).checks.map((constraint) => constraint.name),
-    ).toEqual(['user_company_memberships_status_check'])
+    ).toEqual(['user_company_memberships_status_check', 'user_company_memberships_job_title_check'])
     expect(getTableConfig(membershipRoles).checks.map((constraint) => constraint.name)).toEqual([
       'membership_roles_role_check',
     ])
@@ -159,6 +160,7 @@ describe('tenant identity schema', () => {
     expect(checkSql(companies)).toEqual([`"companies"."status" in ('active', 'disabled')`])
     expect(checkSql(userCompanyMemberships)).toEqual([
       `"user_company_memberships"."status" in ('active', 'disabled')`,
+      `"user_company_memberships"."job_title" is null or char_length("user_company_memberships"."job_title") between 1 and 80`,
     ])
     expect(checkSql(membershipRoles)).toEqual([
       `"membership_roles"."role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor', 'automation')`,

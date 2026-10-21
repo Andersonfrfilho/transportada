@@ -1580,3 +1580,41 @@ export class TripStopHasDeliveredDocumentError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 276 T4: o tipo não aceita o mesmo pedido de novo na mesma nota enquanto o anterior está aberto. O id da
+ * ocorrência que já existe vai no detalhe, para a tela levar a ela.
+ */
+export class OccurrenceDuplicateRequestError extends ApiError {
+  public readonly existingOccurrenceId: string
+
+  public constructor(existingOccurrenceId: string) {
+    super({
+      code: 'TRIP_OCCURRENCE_DUPLICATE_REQUEST',
+      details: [{ field: 'occurrenceId', message: existingOccurrenceId }],
+      message: 'This note already has an open occurrence of this type.',
+      status: 409,
+    })
+    this.existingOccurrenceId = existingOccurrenceId
+  }
+}
+
+/**
+ * Spec 276 T5: a resposta automática à contratante aponta uma resposta rápida que não existe nesta empresa, não é do
+ * público da contratante ou está desativada.
+ */
+export class OccurrenceTypeAcknowledgementInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_ACKNOWLEDGEMENT_INVALID',
+      details: [
+        {
+          field: 'contractorReplyAcknowledgementQuickReplyId',
+          message: 'Choose an active contractor quick reply.',
+        },
+      ],
+      message: 'The automatic reply must be an active contractor quick reply of this company.',
+      status: 400,
+    })
+  }
+}

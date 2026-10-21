@@ -23,8 +23,10 @@ import {
   OCCURRENCE_CONVERSATION_MESSAGE_STATUSES,
   type ContractorMailRequest,
   type OccurrenceConversation,
+  type OccurrenceConversationCopyEntry,
   type OccurrenceConversationsView,
   type OccurrenceConversationMessage,
+  type OccurrenceMailCopyEntry,
   type OccurrenceMailPreview,
   type OccurrenceMailRecipient,
   type UnassignedCandidate,
@@ -85,6 +87,13 @@ export type OccurrenceConversationClient = Readonly<{
     participant: 'contractor' | 'driver'
     sizeBytes: number
   }) => Promise<Readonly<{ uploadId: string; uploadUrl: string }>>
+  /** Spec 274 D1: o chat da contratante vai por e-mail (`mode: 'chat'`), sem diálogo nem assunto. */
+  sendContractorChatMessage: (input: {
+    attachmentIds?: readonly string[]
+    body: string
+    idempotencyKey: string
+    occurrenceId: string
+  }) => Promise<SentMessageReceipt>
   /** Spec 183 T654 (RF21): à contratante pelo portal — o texto e, desde a T702b, os anexos. */
   sendContractorPortalMessage: (input: {
     attachmentIds?: readonly string[]
@@ -93,7 +102,7 @@ export type OccurrenceConversationClient = Readonly<{
     forwardAttachmentIds?: readonly string[]
     idempotencyKey: string
     occurrenceId: string
-  }) => Promise<void>
+  }) => Promise<SentMessageReceipt>
   /** Spec 248 T4.6: leva o boleto da contratante ao motorista pelo chat do app. */
   deliverContractorReplyToDriver: (input: {
     attachmentId: string
@@ -104,7 +113,7 @@ export type OccurrenceConversationClient = Readonly<{
     body: string
     idempotencyKey: string
     occurrenceId: string
-  }) => Promise<void>
+  }) => Promise<SentMessageReceipt>
   sendContractorMail: (input: {
     idempotencyKey: string
     occurrenceId: string
@@ -140,7 +149,21 @@ function isIdentity(value: unknown): boolean {
       typeof value.inactive === 'boolean'
     )
   }
+  if (value.kind === 'internal') {
+    return (
+      isString(value.name) && isString(value.userId) && typeof value.reachedContractor === 'boolean'
+    )
+  }
   return value.kind === 'unknown' && isRecord(value.suggestion)
+}
+
+function toCopy(value: unknown): readonly OccurrenceConversationCopyEntry[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry): OccurrenceConversationCopyEntry[] =>
+    isRecord(entry) && isString(entry.maskedEmail) && (entry.name === null || isString(entry.name))
+      ? [{ maskedEmail: entry.maskedEmail, name: entry.name }]
+      : [],
+  )
 }
 
 function toMessage(value: unknown): null | OccurrenceConversationMessage {
@@ -170,13 +193,18 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
         ),
       )
     : {}
+  const copy = toCopy(value.copy)
   return {
     attachments: toConversationAttachments(value.attachments),
     author,
     bodyText: value.bodyText,
     channel: value.channel,
+    ...(copy.length === 0 ? {} : { copy }),
     createdAt: value.createdAt,
     direction: value.direction,
+    ...(isString(value.emailFullText) && value.emailFullText.trim() !== ''
+      ? { emailFullText: value.emailFullText }
+      : {}),
     id: value.id,
     status: value.status,
     statusTimes,
@@ -263,6 +291,16 @@ function isRecipient(value: unknown): value is OccurrenceMailRecipient {
   )
 }
 
+function toCopyEntry(value: unknown): null | OccurrenceMailCopyEntry {
+  if (!isRecord(value) || !isString(value.userId) || !isString(value.name)) return null
+  if (!isString(value.maskedEmail)) return null
+  return { maskedEmail: value.maskedEmail, name: value.name, userId: value.userId }
+}
+
+function readCcSource(value: unknown): OccurrenceMailPreview['ccSource'] {
+  return value === 'company' || value === 'contractor' || value === 'occurrence_type' ? value : null
+}
+
 function readPreview(payload: unknown): OccurrenceMailPreview {
   const data = isRecord(payload) ? payload.data : undefined
   if (
@@ -276,10 +314,16 @@ function readPreview(payload: unknown): OccurrenceMailPreview {
   }
   return {
     bodyText: data.bodyText,
+    cc: Array.isArray(data.cc) ? data.cc.flatMap((entry) => toCopyEntry(entry) ?? []) : [],
+    ccSource: readCcSource(data.ccSource),
     contractorName: isString(data.contractorName) ? data.contractorName : '',
+    missingNotificationTemplate: data.missingNotificationTemplate === true,
     recipients: Array.isArray(data.recipients) ? data.recipients.filter(isRecipient) : [],
     subject: data.subject,
     suggested: data.suggested,
+    notificationTemplateKey: isString(data.notificationTemplateKey)
+      ? data.notificationTemplateKey
+      : null,
     text: data.text,
   }
 }
@@ -297,7 +341,7 @@ export async function requestJson(
   init?: Readonly<{
     body?: object
     headers?: Record<string, string>
-    method?: 'GET' | 'PATCH' | 'POST' | 'PUT'
+    method?: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
   }>,
 ): Promise<unknown> {
   const accessToken = await dependencies.getAccessToken()
@@ -384,6 +428,19 @@ const contractorReplyPath = (occurrenceId: string): string =>
 
 const occurrencePath = (occurrenceId: string): string =>
   `/trip-occurrences/${encodeURIComponent(occurrenceId)}/conversations`
+
+/** O recibo do envio: a API responde `{ data: { conversationMessageId } }`; sem ele (resposta antiga) o envio vale igual. */
+export type SentMessageReceipt = Readonly<{ conversationMessageId: null | string }>
+
+function readSentMessageReceipt(payload: unknown): SentMessageReceipt {
+  const data =
+    typeof payload === 'object' && payload !== null && 'data' in payload ? payload.data : undefined
+  const id =
+    typeof data === 'object' && data !== null && 'conversationMessageId' in data
+      ? data.conversationMessageId
+      : undefined
+  return { conversationMessageId: typeof id === 'string' && id !== '' ? id : null }
+}
 
 function readDeliveryKind(payload: unknown): 'already_delivered' | 'delivered' | 'skipped' {
   const data =
@@ -490,11 +547,13 @@ export function createOccurrenceConversationClient(
       return readDeliveryKind(payload)
     },
     async sendDriverAppMessage({ attachmentIds, body, idempotencyKey, occurrenceId }) {
-      await requestJson(dependencies, `${occurrencePath(occurrenceId)}/driver/messages`, {
-        body: withAttachments({ body, channel: 'app' }, attachmentIds),
-        headers: { 'idempotency-key': idempotencyKey },
-        method: 'POST',
-      })
+      return readSentMessageReceipt(
+        await requestJson(dependencies, `${occurrencePath(occurrenceId)}/driver/messages`, {
+          body: withAttachments({ body, channel: 'app' }, attachmentIds),
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        }),
+      )
     },
     async sendContractorPortalMessage({
       attachmentIds,
@@ -503,20 +562,31 @@ export function createOccurrenceConversationClient(
       idempotencyKey,
       occurrenceId,
     }) {
-      await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
-        body: withAttachments(
-          {
-            body,
-            channel: 'portal',
-            ...(forwardAttachmentIds === undefined || forwardAttachmentIds.length === 0
-              ? {}
-              : { forwardAttachmentIds }),
-          },
-          attachmentIds,
-        ),
-        headers: { 'idempotency-key': idempotencyKey },
-        method: 'POST',
-      })
+      return readSentMessageReceipt(
+        await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
+          body: withAttachments(
+            {
+              body,
+              channel: 'portal',
+              ...(forwardAttachmentIds === undefined || forwardAttachmentIds.length === 0
+                ? {}
+                : { forwardAttachmentIds }),
+            },
+            attachmentIds,
+          ),
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        }),
+      )
+    },
+    async sendContractorChatMessage({ attachmentIds = [], body, idempotencyKey, occurrenceId }) {
+      return readSentMessageReceipt(
+        await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
+          body: { attachmentIds, body, channel: 'email', mode: 'chat' },
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        }),
+      )
     },
     async sendContractorMail({ idempotencyKey, occurrenceId, request }) {
       const { attachmentIds = [], ...rest } = request

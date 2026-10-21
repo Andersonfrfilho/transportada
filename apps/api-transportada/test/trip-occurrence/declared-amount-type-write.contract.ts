@@ -27,7 +27,6 @@ const COMPANY = '00000000-0000-4000-8000-000000000001'
 const TYPE_ID = '00000000-0000-4000-8000-0000000000e1'
 const CONTRACTOR = '00000000-0000-4000-8000-0000000000c1'
 const NEEDS_ITEMS_CODE = 'OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS'
-const UNKNOWN_PLACEHOLDER = 'UNKNOWN_TEMPLATE_PLACEHOLDER'
 
 const TYPE_BODY = {
   emailTemplateKey: null,
@@ -53,14 +52,6 @@ async function statusOf(promise: Promise<unknown>): Promise<number | undefined> 
   return (error as { status?: number } | undefined)?.status
 }
 
-async function messageOf(promise: Promise<unknown>): Promise<string> {
-  const error: unknown = await promise.then(
-    () => undefined,
-    (reason: unknown) => reason,
-  )
-  return JSON.stringify(error)
-}
-
 describe('o PUT do catálogo aceita os campos novos do tipo (spec 247 RF1)', () => {
   test('aceita os seis campos e o mapper os repassa ao caso de uso', async () => {
     const body = await parseOccurrenceTypeRequest(
@@ -69,7 +60,6 @@ describe('o PUT do catálogo aceita os campos novos do tipo (spec 247 RF1)', () 
         declaredAmountLabel: 'Valor pago pela loja',
         declaredAmountMode: 'optional',
         declaredAmountScope: 'item',
-        emailItemLineTemplate: '{{codigoItem}} – {{item}} – {{valorItem}}',
         referenceNumberLabel: 'Número da NFD',
         referenceNumberMode: 'required',
       }),
@@ -79,7 +69,6 @@ describe('o PUT do catálogo aceita os campos novos do tipo (spec 247 RF1)', () 
       declaredAmountLabel: 'Valor pago pela loja',
       declaredAmountMode: 'optional',
       declaredAmountScope: 'item',
-      emailItemLineTemplate: '{{codigoItem}} – {{item}} – {{valorItem}}',
       referenceNumberLabel: 'Número da NFD',
       referenceNumberMode: 'required',
     })
@@ -92,7 +81,6 @@ describe('o PUT do catálogo aceita os campos novos do tipo (spec 247 RF1)', () 
       'declaredAmountLabel',
       'declaredAmountMode',
       'declaredAmountScope',
-      'emailItemLineTemplate',
       'referenceNumberLabel',
       'referenceNumberMode',
     ] as const) {
@@ -122,67 +110,6 @@ describe('o PUT do catálogo aceita os campos novos do tipo (spec 247 RF1)', () 
     )
 
     expect(body.referenceNumberLabel).toBe('Número da NFD')
-  })
-})
-
-describe('os marcadores são conferidos por contexto no cadastro (spec 247 CA04)', () => {
-  test('marcador de linha dentro do corpo e do assunto é recusado, com o nome do marcador', async () => {
-    const inBody = parseOccurrenceTypeRequest(
-      jsonRequest({ ...TYPE_BODY, emailBody: 'Total {{somaItem}}' }),
-    )
-    expect(await statusOf(inBody)).toBe(400)
-
-    const inSubject = parseOccurrenceTypeRequest(
-      jsonRequest({ ...TYPE_BODY, emailSubject: '{{linhasItens}}' }),
-    )
-    expect(await statusOf(inSubject)).toBe(400)
-    expect(
-      await messageOf(
-        parseOccurrenceTypeRequest(jsonRequest({ ...TYPE_BODY, emailSubject: '{{linhasItens}}' })),
-      ),
-    ).toContain(UNKNOWN_PLACEHOLDER)
-  })
-
-  test('{{linhasItens}} no corpo vale; na linha de item é recusado (recursão)', async () => {
-    const body = await parseOccurrenceTypeRequest(
-      jsonRequest({ ...TYPE_BODY, emailBody: 'Itens:\n{{linhasItens}}' }),
-    )
-    expect(body.emailBody).toBe('Itens:\n{{linhasItens}}')
-
-    const recursive = parseOccurrenceTypeRequest(
-      jsonRequest({ ...TYPE_BODY, emailItemLineTemplate: '{{codigoItem}} {{linhasItens}}' }),
-    )
-    expect(await statusOf(recursive)).toBe(400)
-  })
-
-  test('na linha de item valem os marcadores de linha e os de ocorrência; o desconhecido é 400', async () => {
-    const valid = await parseOccurrenceTypeRequest(
-      jsonRequest({
-        ...TYPE_BODY,
-        emailItemLineTemplate:
-          '{{codigoItem}} {{item}} {{quantidadeItem}}{{unidadeItem}} {{valorUnitarioItem}} {{somaItem}} {{valorItem}} {{observacao}}',
-      }),
-    )
-    expect(valid.emailItemLineTemplate).toContain('{{somaItem}}')
-
-    const unknown = parseOccurrenceTypeRequest(
-      jsonRequest({ ...TYPE_BODY, emailItemLineTemplate: '{{numeroNfd}}' }),
-    )
-    expect(await statusOf(unknown)).toBe(400)
-  })
-
-  test('a linha de item passa de 400 caracteres: 400', async () => {
-    expect(
-      await statusOf(
-        parseOccurrenceTypeRequest(
-          jsonRequest({ ...TYPE_BODY, emailItemLineTemplate: 'x'.repeat(401) }),
-        ),
-      ),
-    ).toBe(400)
-    const atLimit = await parseOccurrenceTypeRequest(
-      jsonRequest({ ...TYPE_BODY, emailItemLineTemplate: 'x'.repeat(400) }),
-    )
-    expect(atLimit.emailItemLineTemplate).toHaveLength(400)
   })
 })
 
@@ -276,8 +203,6 @@ type StoredType = Pick<
 
 const BASE_VALUES: SaveOccurrenceTypeValues = {
   active: true,
-  emailBody: '',
-  emailSubject: '',
   emailTemplateKey: null,
   name: 'Devolução parcial',
   notifies: false,
@@ -289,8 +214,6 @@ function buildRecord(): OccurrenceTypeRecord {
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TYPE_ID,
     name: 'Devolução parcial',
@@ -311,7 +234,10 @@ async function save(input: {
       saved.push(values)
       return buildRecord()
     },
-    templates: { hasActiveEmailTemplate: async () => true },
+    templates: {
+      findContractorTemplate: async () => null,
+      hasActiveEmailTemplate: async () => true,
+    },
     values: { ...BASE_VALUES, ...input.values },
   })
   return saved
@@ -428,24 +354,19 @@ describe('valor pago por item exige produtos, sobre o estado resultante (spec 24
     expect(saved[0]?.declaredAmountMode).toBeUndefined()
     expect(saved[0]?.declaredAmountScope).toBeUndefined()
     expect(saved[0]?.referenceNumberMode).toBeUndefined()
-    expect(saved[0]?.emailItemLineTemplate).toBeUndefined()
   })
 })
 
 describe('o aviso interno e o e-mail à contratante são independentes (spec 247 RF2, CA05)', () => {
-  test('salvar com email_template_key mantém assunto e corpo como vieram', async () => {
+  test('salvar com email_template_key grava a chave', async () => {
     const saved = await save({
       stored: null,
       values: {
-        emailBody: 'corpo do SAC',
-        emailSubject: 'assunto do SAC',
         emailTemplateKey: 'trip.ocorrencia-personalizada',
         occurrenceTypeId: null,
       },
     })
 
     expect(saved[0]?.emailTemplateKey).toBe('trip.ocorrencia-personalizada')
-    expect(saved[0]?.emailSubject).toBe('assunto do SAC')
-    expect(saved[0]?.emailBody).toBe('corpo do SAC')
   })
 })

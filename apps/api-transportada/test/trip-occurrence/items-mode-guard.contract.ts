@@ -40,8 +40,6 @@ function buildType(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeReco
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TIPO,
     name: 'Tipo',
@@ -87,19 +85,6 @@ describe('o registro do galpão recusa produto em tipo sem itens (spec 241 RF6)'
         findOccurrenceType: async () => buildType({ itemsMode: input.itemsMode }),
         listDocumentProducts: async () => PRODUCTS,
         listOccurrences: async () => [],
-        readTemplateValues: async () => ({
-          contractorName: '',
-          documentLabel: '883658/1',
-          driverName: '',
-          itemCode: '',
-          itemLabel: '',
-          itemQuantity: '',
-          note: '',
-          occurredOn: '03/09/2026',
-          recipientName: '',
-          stopLabel: '',
-          totalValue: '',
-        }),
         saveOccurrence: async (saved: { readonly typeName: string }) => {
           calls.push('saveOccurrence')
           return {

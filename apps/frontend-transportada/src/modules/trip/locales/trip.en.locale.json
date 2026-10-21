@@ -1116,7 +1116,20 @@
     "occurrenceTypeNameTaken": "An occurrence type with this name already exists. The name is unique across the company, in any stage (including receiving types, which this list does not show): choose another.",
     "occurrenceReferenceNumberRequired": "This occurrence type requires the customer document number. Fill it in instead of clearing it and save again. Nothing was saved.",
     "occurrenceDeclaredAmountRequired": "This occurrence type requires the amount paid. Fill it in (on the lines or on the occurrence, as the type asks) instead of clearing it and save again. Nothing was saved.",
-    "noteNumberNotFound": "No free note with this number in this company. Check the number or use the search."
+    "noteNumberNotFound": "No free note with this number in this company. Check the number or use the search.",
+    "occurrenceTypeContractorScopeEmpty": "Choose at least one contractor: a restricted type with no contractor would appear on no note. Nothing was saved.",
+    "occurrenceTypeContractorScopeNeedsDocument": "A stop-only type cannot be limited to contractors: a stop has no contractor. Nothing was saved.",
+    "occurrenceTypeContractorScopeInvalid": "The scope and the contractor list go together, and All contractors takes no list. Nothing was saved.",
+    "occurrenceTypeNotAvailableForContractor": "This type does not apply to the contractor of this note. Choose another type.",
+    "occurrenceDuplicateRequest": "This note already has this request in progress. Follow the existing occurrence.",
+    "occurrenceTypeContractorNotFound": "One of the chosen contractors no longer exists or is not from this company. Reload the list and choose again.",
+    "occurrenceContractorTemplateInvalid": "The chosen template cannot be used for the email to the contractor (missing, HTML, empty subject or variable outside the list). Choose another one. Nothing was saved.",
+    "occurrenceTypeWatcherNotFound": "One of the chosen watchers is no longer in the company list. Reload and choose again.",
+    "occurrenceTypeWatcherLimit": "A type takes at most 10 watchers in copy.",
+    "occurrenceTypeWatcherInactive": "Only an active watcher of the company list can be added to the type.",
+    "occurrenceTypeRecipientsRequireListedScope": "Recipients only exist on a type limited to contractors. Nothing was saved.",
+    "occurrenceTypeRecipientNotInScope": "One of the recipients is not an active contact of a contractor of this type. Reload the list and choose again.",
+    "occurrenceTypeContactNotFound": "One of the chosen contacts no longer exists. Reload the list and choose again."
   },
   "filters": {
     "active_one": "{{count}} active filter",
@@ -1378,12 +1391,8 @@
     "closeConfirmBody": "Closing now discards the photo and the note you filled in. Continue anyway?",
     "closeConfirmContinue": "Keep filling in",
     "closeConfirmDiscard": "Discard and close",
-    "copyEmail": "Copy email",
     "dialogTitle": "Separation occurrence — {{document}}",
     "dialogTitleFixed": "Separation occurrence",
-    "emailBody": "Email text",
-    "emailReady": "Email ready to send to the shipper — check it before sending.",
-    "emailSubject": "Email subject",
     "line": "{{type}} — {{moment}}",
     "none": "No occurrence registered.",
     "noteCounter": "{{used}} of {{limit}} characters",
@@ -1453,15 +1462,21 @@
       "box": "Box",
       "unit": "Piece"
     },
-    "singleItemHint": "This type only accepts one item — choosing another replaces it."
+    "singleItemHint": "This type only accepts one item — choosing another replaces it.",
+    "noTypesForDocument": "No warehouse occurrence type applies to the contractor of this note."
   },
   "occurrenceFeed": {
+    "missingTemplate": {
+      "badge": "Type without a notification template",
+      "open": "Open occurrence types"
+    },
     "columns": {
       "contractor": "Contracting party",
       "destination": "Delivery address",
       "invoiceValue": "Invoice value",
       "conversation": "Conversation",
       "createdAt": "Time",
+      "resolvedIn": "Resolved in",
       "driverName": "Driver",
       "invoice": "Invoice",
       "notified": "Notice",
@@ -1469,7 +1484,10 @@
       "stopLabel": "Stop",
       "takenBy": "Owner",
       "typeName": "Type",
-      "vehiclePlate": "Plate"
+      "vehiclePlate": "Plate / vehicle",
+      "client": "Customer",
+      "city": "Delivery city",
+      "cargo": "Weight / volumes"
     },
     "columnsMenu": {
       "moveDown": "Move down",
@@ -1513,7 +1531,8 @@
       "resolutionSummary": "{{count}} selected",
       "contractorReply": "Contractor reply",
       "contractorReplyOverdue": "Overdue only",
-      "contractorReplyOverdueHint": "Shows the occurrences whose contractor reply deadline has passed."
+      "contractorReplyOverdueHint": "Shows the occurrences whose contractor reply deadline has passed.",
+      "advanced": "Advanced filters"
     },
     "contractorReplyOverdue": "Overdue",
     "intro": "Everything that happened to the company trips' documents and stops, in a single list.",
@@ -1566,7 +1585,33 @@
       "list": "Occurrences",
       "newestFirst": "Newest first",
       "oldestFirst": "Oldest first"
-    }
+    },
+    "search": {
+      "label": "Search occurrences",
+      "placeholder": "Search by invoice, driver, plate, vehicle, company, city or status"
+    },
+    "copy": {
+      "copied": "Copied",
+      "plate": "Copy plate {{plate}}",
+      "invoice": "Copy invoice number {{invoice}}",
+      "contractorTaxId": "Copy the contractor tax ID",
+      "clientTaxId": "Copy the customer tax ID"
+    },
+    "cargo": {
+      "weight": "{{value}} kg",
+      "volumes_one": "{{value}} volume",
+      "volumes_other": "{{value}} volumes"
+    },
+    "resolutionSummary": {
+      "count_one": "{{count}} resolved",
+      "count_other": "{{count}} resolved",
+      "hint": "From registration to “Resolved”, resolved occurrences only",
+      "label": "Average resolution by occurrence type",
+      "lessThanMinute": "under 1 min",
+      "title": "Average resolution by type"
+    },
+    "groupCount_one": "{{count}} occurrence",
+    "groupCount_other": "{{count}} occurrences"
   },
   "pendingMeasurement": {
     "columns": {
@@ -2602,7 +2647,38 @@
       "cancelled": "Occurrence cancelled",
       "resolvedInternal": "Resolved by {{name}}: {{note}}",
       "resolvedAutomatic": "Resolved automatically when the case was closed",
-      "reopened": "Reopened by the driver {{name}}"
+      "resolvedOnDelivery": "Resolved automatically when the document was delivered to the driver",
+      "reopened": "Reopened by the driver {{name}}",
+      "contractorReply": "Contractor reply: {{status}}"
+    },
+    "stagesTitle": "Stages",
+    "stageRunning": "running for {{elapsed}}",
+    "stageLasted": "took {{elapsed}}",
+    "stage": {
+      "received": "Received",
+      "in_progress": "In progress",
+      "awaiting_contractor": "Waiting for the contractor",
+      "awaiting_operator": "Waiting for the operator",
+      "reply_received": "Reply received",
+      "delivered": "Delivered to the driver",
+      "reopened": "Reopened",
+      "resolved": "Resolved",
+      "cancelled": "Cancelled"
+    },
+    "stageReason": {
+      "document_not_confirmed": "the PDF does not look like this note's boleto",
+      "multiple_attachments": "more than one attachment arrived",
+      "no_accepted_attachment": "no accepted attachment"
+    },
+    "replyStatus": {
+      "awaiting_contractor": "waiting for the contractor",
+      "overdue": "contractor deadline passed",
+      "reply_received": "reply received",
+      "awaiting_operator": "waiting for operator approval",
+      "needs_operator": "needs the operator",
+      "delivered": "delivered to the driver",
+      "handled": "handled by the operator",
+      "cancelled": "cancelled"
     }
   },
   "occurrenceCancellation": {

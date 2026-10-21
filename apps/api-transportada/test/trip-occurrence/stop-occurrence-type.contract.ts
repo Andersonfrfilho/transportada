@@ -172,8 +172,6 @@ describe('o catálogo do motorista leva o stop_kind (spec 218 D2)', () => {
       active: true,
       allowsMultipleItems: true,
       attachmentMode: 'optional',
-      emailBody: '',
-      emailSubject: '',
       emailTemplateKey: null,
       id: CHARGE_TYPE_ID,
       name: 'Cobrança inesperada',

@@ -13,13 +13,13 @@ import {
   ResendProviderUnauthorizedError,
   ResendProviderUnreachableError,
 } from '../../src/contractor-mail/domain/resend-provider.error.js'
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../src/contractor-mail/domain/contractor-mail.constant.js'
 import { CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE } from '../../src/messaging/contractor-mail-outbound-envelope.schema.js'
 import type { ContractorMailOutboundEnvelopeV1 } from '../../src/messaging/contractor-mail-outbound-envelope.schema.js'
 import type {
   ContractorReplyForwardRecord,
   ContractorMailOutboundMessageRecord,
   ContractorMailOutboundSettingsRecord,
-  ContractorMailReferenceHeaders,
 } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
 
 const COMPANY_ID = crypto.randomUUID()
@@ -30,10 +30,16 @@ const REPLY_TOKEN_SECRET = 'a'.repeat(64)
 
 const MESSAGE: ContractorMailOutboundMessageRecord = {
   bodyHtml: null,
+  ccAddresses: [],
+  direction: 'outbound',
+  fromDisplayName: null,
+  hasInlineLogo: false,
   bodyText: 'Este é um e-mail de teste.',
+  fromAddress: 'ocorrencias@fernandes-transportadora.com.br',
   subject: 'Teste de configuração de e-mail com contratantes',
   threadId: THREAD_ID,
   toAddresses: ['admin@fernandes-transportadora.com.br'],
+  transport: 'resend',
 }
 
 const SETTINGS: ContractorMailOutboundSettingsRecord = {
@@ -63,12 +69,15 @@ function buildDependencies(input: {
   readonly forward?: ContractorReplyForwardRecord | undefined
   readonly objects?: ReadonlyMap<string, Uint8Array>
   readonly message?: ContractorMailOutboundMessageRecord
-  readonly referenceHeaders?: ContractorMailReferenceHeaders
+  readonly referenceIds?: readonly string[]
   readonly sendEmail: SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
   readonly settings?: ContractorMailOutboundSettingsRecord
 }): {
   readonly dependencies: SendContractorMailOutboundMessageDependencies
   readonly failedCalls: { readonly companyId: string; readonly messageId: string }[]
+  readonly sendCalls: Parameters<
+    SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+  >[0][]
   readonly sentCalls: {
     readonly companyId: string
     readonly messageId: string
@@ -77,6 +86,9 @@ function buildDependencies(input: {
 } {
   const sentCalls: { companyId: string; messageId: string; providerEmailId: string }[] = []
   const failedCalls: { companyId: string; messageId: string }[] = []
+  const sendCalls: Parameters<
+    SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+  >[0][] = []
   const message = input.message ?? MESSAGE
   const settings = input.settings ?? SETTINGS
 
@@ -93,14 +105,17 @@ function buildDependencies(input: {
       fetchReceivedEmail: async () => {
         throw new Error('not used by this contract')
       },
-      sendEmail: input.sendEmail,
+      sendEmail: async (request) => {
+        sendCalls.push(request)
+        return input.sendEmail(request)
+      },
     },
     repository: {
       async findContractorReplyForward() {
         return input.forward
       },
-      async findLastInboundReferenceHeaders() {
-        return input.referenceHeaders
+      async listThreadReferenceIds() {
+        return input.referenceIds ?? []
       },
       async findMessageById({ companyId, messageId }) {
         return companyId === COMPANY_ID && messageId === MESSAGE_ID ? message : undefined
@@ -126,7 +141,7 @@ function buildDependencies(input: {
     },
   }
 
-  return { dependencies, failedCalls, sentCalls }
+  return { dependencies, failedCalls, sendCalls, sentCalls }
 }
 
 describe('send contractor mail outbound message (spec 143, T009 — correção pós-entrega)', () => {
@@ -303,7 +318,7 @@ describe('send contractor mail outbound message (spec 143, T009 — correção p
       SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
     >[0][] = []
     const { dependencies } = buildDependencies({
-      referenceHeaders: { rfcMessageId: '<abc123@mail.example.com>' },
+      referenceIds: ['<abc123@mail.example.com>'],
       sendEmail: async (request) => {
         requests.push(request)
         return { id: 'resend-email-id-2' }
@@ -315,6 +330,27 @@ describe('send contractor mail outbound message (spec 143, T009 — correção p
     expect(requests[0]?.headers).toEqual({
       'In-Reply-To': '<abc123@mail.example.com>',
       References: '<abc123@mail.example.com>',
+    })
+  })
+
+  /** Spec 274 D7: a linha leva entrada e saída; `References` em ordem, `In-Reply-To` o mais novo. */
+  test('chains inbound and outbound ids into References and uses the latest as In-Reply-To', async () => {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const { dependencies } = buildDependencies({
+      referenceIds: ['<in1@x>', 'out1@resend.dev', '<in2@x>'],
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id-chain' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(requests[0]?.headers).toEqual({
+      'In-Reply-To': '<in2@x>',
+      References: '<in1@x> <out1@resend.dev> <in2@x>',
     })
   })
 
@@ -514,7 +550,7 @@ describe('o e-mail da conversa sai com os anexos (spec 183 T702e)', () => {
 })
 
 describe('o boleto levado a um terceiro sai sem thread de conversa (spec 248 T4.7)', () => {
-  const REFERENCE: ContractorMailReferenceHeaders = { rfcMessageId: '<contratante@mail.example>' }
+  const REFERENCE = '<contratante@mail.example>'
 
   async function sendAs(forward: ContractorReplyForwardRecord | undefined) {
     const requests: Parameters<
@@ -522,7 +558,7 @@ describe('o boleto levado a um terceiro sai sem thread de conversa (spec 248 T4.
     >[0][] = []
     const { dependencies, sentCalls } = buildDependencies({
       forward,
-      referenceHeaders: REFERENCE,
+      referenceIds: [REFERENCE],
       sendEmail: async (request) => {
         requests.push(request)
         return { id: 'resend-email-id' }
@@ -551,8 +587,46 @@ describe('o boleto levado a um terceiro sai sem thread de conversa (spec 248 T4.
     const { request } = await sendAs(undefined)
     expect(request?.replyTo?.endsWith(`@${SETTINGS.replyDomain}`)).toBe(true)
     expect(request?.headers).toEqual({
-      'In-Reply-To': REFERENCE.rfcMessageId,
-      References: REFERENCE.rfcMessageId,
+      'In-Reply-To': REFERENCE,
+      References: REFERENCE,
     })
+  })
+
+  /** Spec 267: a cópia sai no `cc`, deduplicada, e nunca repete quem já está no `to`. */
+  test('sends the stored copy as cc, deduplicated, and omits cc when there is none', async () => {
+    const withCopy = buildDependencies({
+      message: {
+        ...MESSAGE,
+        ccAddresses: ['Ana@Empresa.test', 'ana@empresa.test', 'bruno@empresa.test'],
+      },
+      sendEmail: async () => ({ id: 'email-cc' }),
+    })
+    await sendContractorMailOutboundMessage(buildEnvelope(), withCopy.dependencies)
+    expect(withCopy.sendCalls[0]?.cc).toEqual(['ana@empresa.test', 'bruno@empresa.test'])
+
+    const without = buildDependencies({ sendEmail: async () => ({ id: 'email-no-cc' }) })
+    await sendContractorMailOutboundMessage(buildEnvelope(), without.dependencies)
+    expect('cc' in (without.sendCalls[0] ?? {})).toBe(false)
+  })
+
+  /** Spec 267: o teto vale para To + Cc, conferido antes de escolher o transporte. */
+  test('refuses to + cc above the limit before sending, as a permanent failure', async () => {
+    const addresses = (prefix: string, count: number) =>
+      Array.from({ length: count }, (_, index) => `${prefix}${index}@exemplo.com.br`)
+    const { dependencies, failedCalls, sendCalls, sentCalls } = buildDependencies({
+      message: {
+        ...MESSAGE,
+        ccAddresses: addresses('cc', 1),
+        toAddresses: addresses('to', CONTRACTOR_MAIL_MAX_RECIPIENTS),
+      },
+      sendEmail: async () => ({ id: 'never' }),
+    })
+
+    const result = await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(result).toEqual({ outcome: 'failed', reason: 'invalid_recipients', threadId: THREAD_ID })
+    expect(failedCalls).toEqual([{ companyId: COMPANY_ID, messageId: MESSAGE_ID }])
+    expect(sendCalls).toEqual([])
+    expect(sentCalls).toEqual([])
   })
 })

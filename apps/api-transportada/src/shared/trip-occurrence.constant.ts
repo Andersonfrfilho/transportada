@@ -68,6 +68,26 @@ export const OCCURRENCE_MOMENTS = [
 export type OccurrenceMoment = (typeof OCCURRENCE_MOMENTS)[number]
 
 /**
+ * Spec 270 (ADR-0107): para quem o tipo vale. `all` é o padrão (toda contratante, e a nota sem
+ * contratante); `listed` guarda a lista numa tabela de ligação. Coluna explícita, não "lista não
+ * vazia": uma lista esvaziada por engano abriria o tipo para todos.
+ */
+export const OCCURRENCE_TYPE_CONTRACTOR_SCOPE = {
+  all: 'all',
+  listed: 'listed',
+} as const
+
+export const OCCURRENCE_TYPE_CONTRACTOR_SCOPES = [
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE.listed,
+] as const
+
+export type OccurrenceTypeContractorScope = (typeof OCCURRENCE_TYPE_CONTRACTOR_SCOPES)[number]
+
+/** Teto de contratantes numa lista (o `PUT` recusa mais que isso). */
+export const OCCURRENCE_TYPE_CONTRACTOR_SCOPE_MAX_CONTRACTORS = 200
+
+/**
  * Spec 246 (RF0b, T1b.2): a guarda de todo caso de uso que registra ocorrência. O momento é o **do
  * registro**, fixo por caso de uso, e a permissão continua sendo a da rota — é proibido decidir
  * permissão a partir dos momentos do tipo ("o tipo tem algum momento que o papel cobre").
@@ -233,10 +253,6 @@ export const OCCURRENCE_REFERENCE_NUMBER_PATTERN = '^[A-Za-z0-9 ./-]{1,30}$'
 
 /** Spec 247: o teto dos dois rótulos editáveis do tipo (`varchar(40)`). */
 export const OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH = 40
-
-/** Spec 079: os tetos do assunto e do corpo do e-mail à contratante (`varchar(200)` e texto). */
-export const OCCURRENCE_EMAIL_SUBJECT_MAX_LENGTH = 200
-export const OCCURRENCE_EMAIL_BODY_MAX_LENGTH = 4000
 
 /** Spec 247 (RF6): o teto do modelo de cada linha de item do e-mail. */
 export const OCCURRENCE_ITEM_LINE_TEMPLATE_MAX_LENGTH = 400

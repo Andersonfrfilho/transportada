@@ -17,6 +17,7 @@ import {
   OCCURRENCE_ITEMS_MODE,
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
+import type { DuplicateRequestPolicy } from '@/modules/trip/shared/occurrenceContractorReply.constant'
 import type { OccurrenceTypeEdit } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 import identityStyles from '@/modules/trip/styles/occurrenceTypeIdentity.module.css'
 import styles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
@@ -36,7 +37,8 @@ type OccurrenceTypeIdentityProps = Readonly<{
 /** Spec 246 T6.1: o primeiro bloco do tipo aberto, como no preview — nome, situação, devolução e fluxo juntos. */
 export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTypeIdentityProps) {
   const { t } = useTranslation('companySettings')
-  const { flowOptions, redeliveryPolicyOptions } = useOccurrenceTypeOptions()
+  const { duplicateRequestPolicyOptions, flowOptions, redeliveryPolicyOptions } =
+    useOccurrenceTypeOptions()
   const isDelivery = type.stage === TRIP_OCCURRENCE_STAGE.delivery
   const hasItems = type.itemsMode !== OCCURRENCE_ITEMS_MODE.off
 
@@ -90,6 +92,23 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
             />
           </div>
         ) : null}
+        {/* Spec 276 T4: só com a API que já manda o campo (a anterior recusaria o PUT). */}
+        {type.duplicateRequestPolicy === undefined ? null : (
+          <div className={identityStyles.identityField}>
+            <span aria-hidden="true" className={identityStyles.fieldLabel}>
+              {t('occurrenceTypeCatalog.duplicateRequestPolicy')}
+            </span>
+            <Select
+              ariaLabel={t('occurrenceTypeCatalog.duplicateRequestPolicy')}
+              disabled={disabled}
+              onChange={(value) =>
+                onEdit({ duplicateRequestPolicy: value as DuplicateRequestPolicy })
+              }
+              options={duplicateRequestPolicyOptions}
+              value={type.duplicateRequestPolicy}
+            />
+          </div>
+        )}
         {/* Spec 179 T401: só em tipo de rua — é o motorista quem tira a foto na hora. */}
         {isDelivery ? (
           <div className={identityStyles.identityField}>

@@ -123,6 +123,11 @@ async function readAllBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8Ar
   return new Uint8Array(await new Response(stream).arrayBuffer())
 }
 
+export type AttachedConversationBytes = {
+  readonly bytes: Uint8Array
+  readonly contentType: string
+}
+
 export async function attachConversationUploads(input: {
   readonly messageId: string
   /** Só para teste; em produção, 256 bits aleatórios. */
@@ -132,8 +137,10 @@ export async function attachConversationUploads(input: {
   readonly target: ConversationUploadTarget
   readonly transaction: ConversationAttachmentTransactionPort
   readonly uploadIds: readonly string[]
-}): Promise<void> {
-  if (input.uploadIds.length === 0) return
+}): Promise<ReadonlyMap<string, AttachedConversationBytes>> {
+  /** Spec 276 T2: the checked bytes, by stored object (the upload id), for whoever reads the content next. */
+  const attached = new Map<string, AttachedConversationBytes>()
+  if (input.uploadIds.length === 0) return attached
   const unique = new Set(input.uploadIds)
   if (
     unique.size !== input.uploadIds.length ||
@@ -171,6 +178,7 @@ export async function attachConversationUploads(input: {
    * seguem reenviáveis. Falha em apagar deixa um objeto que nada referencia — nunca o anexo errado.
    */
   await Promise.allSettled(stagingObjects.map((location) => input.storage.deleteObject(location)))
+  return attached
 
   async function attachOne(upload: PendingConversationUpload): Promise<void> {
     if (upload.expiresAt.getTime() <= input.now.getTime()) {
@@ -232,6 +240,7 @@ export async function attachConversationUploads(input: {
       sizeBytes: bytes.byteLength,
       uploadId: upload.id,
     })
+    attached.set(upload.id, { bytes, contentType: upload.declaredContentType })
   }
 }
 

@@ -10,7 +10,10 @@ import type {
   ContractorContactOccurrenceStage,
   ContractorContactType,
 } from '../../database/contractor-mail.schema.js'
+import type { MailCopyCandidates } from '../../contractor-mail/application/resolve-mail-copy.service.js'
+import type { ContractorMailTransport } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
+import type { OccurrenceMailItemRow } from '../domain/occurrence-mail-system-html.policy.js'
 import type {
   ContractorReplyConfiguration,
   ContractorReplyOverride,
@@ -21,9 +24,48 @@ import type {
 export type OccurrenceMailTarget = {
   readonly contractorId: string | null
   readonly contractorName: string
+  /** Spec 272 (D5): o CPF/CNPJ do emitente da nota, como gravado (sem pontuação); `null` sem documento. */
+  readonly contractorTaxId: string | null
   readonly kind: OccurrenceConversationKind
+  /** Spec 271: o tipo da ocorrência, de onde vêm a cópia e os destinatários escolhidos; `null` na ocorrência de parada. */
+  readonly occurrenceTypeId: null | string
   /** O grupo da ocorrência nos contatos (RF5): a de parada não tem etapa e é `stop`. */
   readonly stage: ContractorContactOccurrenceStage
+}
+
+/**
+ * Spec 272 (ADR-0110 §5, D5/D16): o que o e-mail em HTML diz da transportadora, de uma consulta só. `hasLogo` é só a
+ * existência da linha em `company_logos` — o conteúdo do logo nunca sobe com a leitura.
+ */
+export type CarrierIdentity = {
+  readonly city: string
+  /** O CNPJ como gravado, sem pontuação. */
+  readonly cnpj: string
+  readonly displayName: string
+  readonly hasLogo: boolean
+  readonly legalName: string
+  readonly state: string
+}
+
+/** Spec 272 (ADR-0110 §6): o operador que assina o envio manual; `jobTitle` já resolvido (cargo, senão papel). */
+export type OccurrenceOperatorSigner = {
+  readonly hasPicture?: boolean
+  readonly jobTitle?: string
+  readonly name: string
+}
+
+/**
+ * Spec 272 (ADR-0110 §3, D12): o que o renderer do e-mail HTML precisa do modelo e da nota. `values` são os valores da
+ * nota (spec 271) sem a identidade nem o assinante, que a composição acrescenta; `itemLines` são todas as linhas de
+ * `linhasItens` (sem o teto) e `itemRows` as mesmas, em colunas, para `{{tabelaItens}}`.
+ */
+export type OccurrenceMailHtmlSource = {
+  readonly bodyTemplate: string
+  readonly itemLines: readonly string[]
+  readonly itemRows: readonly OccurrenceMailItemRow[]
+  readonly itemsSum: string
+  readonly subjectTemplate: string
+  readonly values: Readonly<Record<string, string>>
 }
 
 /** Spec 183 T407: quem o diálogo oferece — ativos da contratante que recebem ocorrências. */
@@ -61,23 +103,39 @@ export type OccurrenceMailIdempotencyRecord = {
   readonly response: SendOccurrenceMailResult
 }
 
+/** O modelo do módulo de notificação (`notification.templates`) que o e-mail usou: a chave e a versão ativa no envio. */
+export type OccurrenceNotificationTemplate = {
+  readonly key: string
+  readonly version: number
+}
+
 export type RecordOccurrenceMailInput = {
   /** `null` só no aviso automático do tipo (spec 183 T802): ator `system`. */
   readonly actorUserId: null | string
   readonly bodyHtml: string
   readonly bodyText: string
+  /** Spec 267: a cópia resolvida (só usuário da empresa); vazia quando nenhuma lista vale. */
+  readonly ccAddresses: readonly string[]
   readonly companyId: string
   readonly contractorId: string
   readonly correlationId: string
   /** `true` na primeira mensagem: a thread da 143 nasce com o hash do token de resposta. */
   readonly createThread: boolean
   readonly fromAddress: string
+  /** Spec 272 (D8): o nome do "De" já saneado; `null` sem perfil fiscal (o worker segue como antes). */
+  readonly fromDisplayName: null | string
+  /** Spec 272 (D3/D9): o modelo usa `{{logoTransportadora}}` e há logo — o worker anexa a parte inline. */
+  readonly hasInlineLogo: boolean
   readonly occurrenceId: string
   readonly occurrenceKind: OccurrenceConversationKind
   readonly replyTokenHash: string
   readonly subject: string
+  /** Spec 271 (RF11): a chave e a versão do modelo do módulo de notificação que escreveu o e-mail; `null` só no reenvio de retorno sem original. */
+  readonly notificationTemplate: null | OccurrenceNotificationTemplate
   readonly threadId: string
   readonly toAddresses: readonly string[]
+  /** Spec 268: `sandbox_smtp` só fora de produção, sem Resend pronto e com o modo ligado. */
+  readonly transport: ContractorMailTransport
 }
 
 /** Spec 248: the type of the occurrence and the exception of its contractor, read in the send. */
@@ -96,11 +154,14 @@ export type OccurrenceMailTransactionPort = {
   findIdempotency(params: {
     readonly companyId: string
     readonly idempotencyKey: string
+    /** Spec 274 (D11): a operação da porta de entrada; ausente, a do diálogo. */
+    readonly operation?: string
   }): Promise<OccurrenceMailIdempotencyRecord | null>
   saveIdempotency(params: {
     readonly companyId: string
     readonly fingerprint: string
     readonly idempotencyKey: string
+    readonly operation?: string
     readonly response: SendOccurrenceMailResult
   }): Promise<void>
   findMailSettings(params: {
@@ -111,17 +172,60 @@ export type OccurrenceMailTransactionPort = {
     readonly companyId: string
     readonly contractorId: string
   }): Promise<readonly OccurrenceMailRecipientCandidate[]>
+  /** Spec 271 (D12/D13): os destinatários escolhidos no tipo da ocorrência; vazio é o `To` automático da etapa. */
+  findChosenOccurrenceRecipientIds(params: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+  }): Promise<readonly string[]>
   /** Contatos **ativos** desta contratante que recebem ocorrências; o resto não é achado. */
   findOccurrenceContacts(params: {
     readonly companyId: string
     readonly contactIds: readonly string[]
     readonly contractorId: string
   }): Promise<readonly OccurrenceMailContact[]>
-  findCarrierName(params: { readonly companyId: string }): Promise<string | undefined>
-  findOperatorName(params: {
+  /**
+   * Spec 271 (ADR-0108, D1/D9): o modelo do tipo desta ocorrência — a chave escolhida no tipo e a versão ativa mais
+   * alta (e-mail, pt-BR) no módulo de notificação; `null` é sem modelo utilizável (nenhum e-mail sai, nem à mão).
+   */
+  findOccurrenceNotificationTemplate(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<null | OccurrenceNotificationTemplate>
+  /**
+   * Spec 272 (ADR-0110 §1/§3): o modelo da chave e os valores da nota, para o caminho HTML; `null` quando o modelo não
+   * existe ou o corpo é texto (o caminho de texto de hoje).
+   */
+  findOccurrenceMailHtmlSource(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly templateKey: string
+  }): Promise<null | OccurrenceMailHtmlSource>
+  /** Spec 271 (RF11): o modelo da primeira mensagem de e-mail desta ocorrência, para o reenvio do retorno (248). */
+  findOriginalOccurrenceNotificationTemplate(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  }): Promise<null | OccurrenceNotificationTemplate>
+  /**
+   * Spec 274 (D6): o que o assunto do chat precisa — o último e-mail de **saída** da ocorrência que não é
+   * encaminhamento da 248 (`null` sem nenhum), o nome do tipo e o número da nota.
+   */
+  findChatMailSubjectFacts(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  }): Promise<{
+    readonly invoiceNumber: null | string
+    readonly lastOutboundSubject: null | string
+    readonly typeName: string
+  }>
+  /** Spec 272: nome de exibição, CNPJ, cidade, razão social e `hasLogo`; `undefined` sem perfil fiscal. */
+  findCarrierIdentity(params: { readonly companyId: string }): Promise<CarrierIdentity | undefined>
+  /** Spec 272: nome, cargo e papéis diretos do vínculo **ativo**, numa consulta; `undefined` fora da empresa. */
+  findOperatorSigner(params: {
     readonly companyId: string
     readonly userId: string
-  }): Promise<string | undefined>
+  }): Promise<OccurrenceOperatorSigner | undefined>
   /** A conversa com a contratante desta ocorrência; criada na primeira mensagem. */
   findOrCreateContractorConversation(params: {
     readonly companyId: string
@@ -145,6 +249,12 @@ export type OccurrenceMailTransactionPort = {
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind
   }): Promise<{ readonly id: string } | undefined>
+  /** Spec 267/271: as listas de responsáveis da empresa, da contratante e do tipo, com o endereço já resolvido. */
+  loadWatcherCandidates(params: {
+    readonly companyId: string
+    readonly contractorId: string
+    readonly occurrenceTypeId?: null | string
+  }): Promise<MailCopyCandidates>
   /** Thread (quando nova), mensagem da 143 e o evento de envio no outbox, na mesma transação. */
   recordMail(params: RecordOccurrenceMailInput): Promise<{ readonly messageId: string }>
   /** A mensagem da conversa nasce no status inicial do e-mail (`queued`, T402), com o horário. */
@@ -193,10 +303,11 @@ export type OccurrenceMailUnitOfWorkPort = {
   ): Promise<TResult>
 }
 
-/** O texto que o tipo da ocorrência oferece (spec 079); `null` no tipo sem e-mail. */
+/** O texto do modelo do tipo (spec 271) com os valores da nota; `null` quando o modelo não existe. */
 export type OccurrenceSuggestedMailPort = {
   readSuggestedMail(params: {
     readonly companyId: string
     readonly occurrenceId: string
+    readonly templateKey: string
   }): Promise<{ readonly bodyText: string; readonly subject: string } | null>
 }

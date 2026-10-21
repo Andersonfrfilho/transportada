@@ -34,6 +34,8 @@ export type ConversationMessageAuthorView =
       suggestion: ContractorSenderSuggestion
       unverified: boolean
     }>
+  /** Spec 267 RF9: o responsável da equipe que respondeu por e-mail. */
+  | Readonly<{ kind: 'internal'; name: string; reachedContractor: boolean }>
   /** Portal: o usuário da contratante (Fase 6b). */
   | Readonly<{ kind: 'contractorUser' }>
 
@@ -51,6 +53,9 @@ function describeAuthor(message: OccurrenceConversationMessage): ConversationMes
   if (author.kind === 'driver') return { kind: 'driver', name: author.name ?? '' }
   const { identity } = author
   if (identity === null) return { kind: 'contractorUser' }
+  if (identity.kind === 'internal') {
+    return { kind: 'internal', name: identity.name, reachedContractor: identity.reachedContractor }
+  }
   if (identity.kind === 'contact') {
     const { contact } = identity
     return {
@@ -128,6 +133,9 @@ export function buildContractorMailRequest(draft: ContractorMailDraft): Contract
     body: draft.body.trim(),
     channel: 'email',
     contactIds: [...draft.contactIds],
+    ...((draft.excludedWatcherUserIds ?? []).length === 0
+      ? {}
+      : { excludedWatcherUserIds: [...(draft.excludedWatcherUserIds ?? [])] }),
     subject: draft.subject.trim(),
   }
 }
@@ -155,6 +163,11 @@ export function validateDriverMessageDraft(
 /** Uma chave por mensagem escrita: reenviar a mesma depois de uma queda de rede não duplica. */
 export function createDriverMessageIdempotencyKey(randomId: () => string): string {
   return `driver-message:${randomId()}`
+}
+
+/** Spec 274 D11: a chave do chat da contratante por e-mail, uma por mensagem escrita. */
+export function createEmailMessageIdempotencyKey(randomId: () => string): string {
+  return `email-message:${randomId()}`
 }
 
 /** Spec 183 T654: a chave do envio à contratante pelo portal, uma por mensagem escrita. */

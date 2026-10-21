@@ -11,14 +11,25 @@ import {
 } from '../domain/trip.error.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT, OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
+  OccurrenceTypeContractorScope,
   OccurrenceTypeFlow,
   OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
+import { OccurrenceContractorTemplateInvalidError } from '../../occurrence-conversation/domain/occurrence-contractor-template.error.js'
+import {
+  assessContractorTemplate,
+  type ContractorTemplateContent,
+} from '../../occurrence-conversation/domain/occurrence-contractor-template.policy.js'
+import { OccurrenceTypeContractorScopeInvalidError } from '../domain/occurrence-type-contractor-scope.error.js'
+import {
+  assertOccurrenceTypeContractorScopeIsWritable,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE_ISSUE,
+} from '../domain/occurrence-type-contractor-scope.policy.js'
 import { assertDeclaredAmountHasItems } from '../domain/occurrence-declared-amount-shape.policy.js'
 import {
   assertItemsMinimumMatchesMode,
@@ -39,10 +50,16 @@ import type {
   ContractorReplyMode,
   ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
+  DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 
-/** O catálogo de templates da empresa, visto pelo único predicado que este cadastro precisa. */
+/** O catálogo de templates da empresa (módulo de notificação), visto pelo que este cadastro precisa dele. */
 export type OccurrenceEmailTemplateCatalogPort = {
+  /** Spec 271 (D1): a versão ativa mais alta (e-mail, pt-BR) da chave, da empresa; `null` quando não há. */
+  findContractorTemplate(input: {
+    readonly companyId: string
+    readonly key: string
+  }): Promise<ContractorTemplateContent | null>
   hasActiveEmailTemplate(input: {
     readonly companyId: string
     readonly templateKey: string
@@ -67,15 +84,14 @@ export type SaveOccurrenceTypeValues = {
   readonly iconName?: null | OccurrenceTypeIconName | undefined
   readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
-  /** Ausente é "não mexa"; `''` explícito apaga o texto (spec 247 RF2). */
-  readonly emailBody?: string | undefined
-  /** Spec 247 (RF6): o formato de cada linha de item do e-mail. Ausente é "não mexa". */
-  readonly emailItemLineTemplate?: string | undefined
   /** Spec 248 (RF1): o retorno da contratante. Ausente é "não mexa" — nunca o padrão da coluna. */
   readonly contractorReplyAlertIntervalMinutes?: number | undefined
   readonly contractorReplyAlertMaxCount?: number | undefined
   readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
+  readonly contractorReplyResolveOnDelivery?: boolean | undefined
+  readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+  readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined
   readonly driverReplyTemplate?: string | undefined
@@ -85,7 +101,27 @@ export type SaveOccurrenceTypeValues = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
   readonly emailsContractor?: boolean | undefined
-  readonly emailSubject?: string | undefined
+  /**
+   * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação que escreve o e-mail à contratante.
+   * Ausente é "não mexa"; `null` limpa. Conferida **antes** da transação: sem trava, e o envio reconfere.
+   */
+  readonly contractorNotificationTemplateKey?: null | string | undefined
+  /**
+   * Spec 271 (D10): os responsáveis em cópia do e-mail à contratante, da lista da empresa (267). Ausente é
+   * "não mexa"; `[]` limpa; vazio herda a lista da contratante e, depois, a da empresa.
+   */
+  readonly contractorMailWatcherUserIds?: readonly string[] | undefined
+  /**
+   * Spec 271 (D12): os destinatários do e-mail à contratante, contatos das contratantes da lista do tipo. Só em tipo
+   * `listed`. Ausente é "não mexa"; `[]` limpa; vazio é o `To` automático da etapa.
+   */
+  readonly contractorMailRecipientContactIds?: readonly string[] | undefined
+  /**
+   * Spec 270 (ADR-0107): para quem o tipo vale. Escopo e lista vão **juntos** (um sem o outro é 400);
+   * ausentes é "não mexa". `all` sem lista; `listed` com ao menos uma contratante da empresa.
+   */
+  readonly contractorIds?: readonly string[] | undefined
+  readonly contractorScope?: OccurrenceTypeContractorScope | undefined
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. Obrigatório na
@@ -140,6 +176,7 @@ export type SaveOccurrenceTypeValues = {
 export type CurrentOccurrenceTypeShape = Partial<
   Pick<
     OccurrenceTypeRecord,
+    | 'contractorScope'
     | 'declaredAmountMode'
     | 'declaredAmountScope'
     | 'flow'
@@ -179,6 +216,12 @@ export async function saveOccurrenceTypeWithTemplate(
   assertItemsOffHasNoRedeliveryPolicy({ stored, values })
   assertItemsMinimumMatchesMode({ stored, values })
   assertDeclaredAmountHasItems({ stored, values })
+  assertContractorScopeValues(values)
+  await assertContractorTemplateIsUsable({
+    companyId: input.companyId,
+    templates: input.templates,
+    values,
+  })
 
   const { emailTemplateKey } = values
   if (emailTemplateKey === null) return input.save(values)
@@ -190,6 +233,22 @@ export async function saveOccurrenceTypeWithTemplate(
   if (!exists) throw new OccurrenceEmailTemplateNotFoundError()
 
   return input.save(values)
+}
+
+/** Spec 271 (D5): chave presente é conferida na gravação — todos os problemas de uma vez, nunca o primeiro só. */
+async function assertContractorTemplateIsUsable(params: {
+  readonly companyId: string
+  readonly templates: OccurrenceEmailTemplateCatalogPort
+  readonly values: SaveOccurrenceTypeValues
+}): Promise<void> {
+  const key = params.values.contractorNotificationTemplateKey
+  if (key === undefined || key === null) return
+  const template = await params.templates.findContractorTemplate({
+    companyId: params.companyId,
+    key,
+  })
+  const problems = assessContractorTemplate({ key, template })
+  if (problems.length > 0) throw new OccurrenceContractorTemplateInvalidError(problems)
 }
 
 /** Uma leitura só do gravado, e só na edição que deixa algum campo ausente. */
@@ -244,4 +303,26 @@ function resolveMomentsChange(params: ResolveMomentsChangeParams): SaveOccurrenc
     throw new OccurrenceTypeMomentsStageConflictError()
   }
   return { ...values, moments: deriveOccurrenceMomentsFromStageAndFlow(nextPair) }
+}
+
+/**
+ * Spec 270 (D7): escopo e lista vão juntos; o par completo é validado com os momentos que vierem. O que
+ * depende do gravado (momentos só de parada num tipo já `listed`) é conferido na transação da gravação.
+ */
+function assertContractorScopeValues(values: SaveOccurrenceTypeValues): void {
+  const { contractorIds, contractorScope } = values
+  if (contractorScope === undefined && contractorIds === undefined) return
+  if (contractorScope === undefined || contractorIds === undefined) {
+    throw new OccurrenceTypeContractorScopeInvalidError([
+      {
+        field: contractorScope === undefined ? 'contractorScope' : 'contractorIds',
+        message: OCCURRENCE_TYPE_CONTRACTOR_SCOPE_ISSUE.listNotAllowed,
+      },
+    ])
+  }
+  assertOccurrenceTypeContractorScopeIsWritable({
+    contractorIds,
+    moments: values.moments ?? [OCCURRENCE_MOMENT.document],
+    scope: contractorScope,
+  })
 }

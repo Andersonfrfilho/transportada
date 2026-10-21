@@ -4,6 +4,7 @@
 import { z } from 'zod'
 
 import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import { OCCURRENCE_WATCHER_MAX_ACTIVE } from '../../contractor-mail/domain/occurrence-watcher.constant.js'
 import { invalidRequest, parseBody } from '../../http/request-parsing.service.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
@@ -109,6 +110,10 @@ const postAddressCorrectionMailSchema = z
       CONTRACTOR_MAIL_MAX_RECIPIENTS,
     ),
     contractorTaxId: buildTaxIdSchema(TAX_ID_PATTERN),
+    /** Spec 267 RF4: quem sai da cópia neste envio; o teto é o de responsáveis ativos por lista. */
+    excludedWatcherUserIds: uniqueArray(z.uuid(), 'excludedWatcherUserIds must not repeat an id')
+      .max(OCCURRENCE_WATCHER_MAX_ACTIVE)
+      .optional(),
     requestIds: uniqueArray(z.uuid(), 'requestIds must not repeat an id').optional(),
     /** Spec 150 T402 (RF15): ausente, vale o modelo padrão do tipo. */
     templateId: z.uuid().optional(),

@@ -19,7 +19,6 @@ import {
 } from '../shared/occurrenceProductSelection.service'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
-import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
 import {
   carriesOccurrenceItems,
@@ -52,11 +51,11 @@ import {
 import styles from '../styles/trip.module.css'
 
 type TripOccurrencesProps = Readonly<{
+  /** Spec 270: a lista de tipos é por nota e chega do servidor — enquanto carrega, o aviso de "nenhum tipo" espera. */
+  areTypesLoading?: boolean
   /** Spec 233 D8: só quem lê a frota abre `/ocorrencias/:id` — sem isso, o tipo sai como texto. */
   canOpenOccurrence?: boolean
   canRegister: boolean
-  /** O e-mail que o último registro produziu, para o operador conferir e enviar. */
-  email: null | Readonly<{ body: string; subject: string }>
   /**
    * Revisão de design spec 161: `SeparationOccurrenceDialog` hospeda este formulário dentro do
    * molde `.mdfeGateDialog`/`.mdfeGateFooter` (rodapé sticky) que todo outro diálogo de viagem usa;
@@ -117,8 +116,8 @@ type TripOccurrencesProps = Readonly<{
  */
 export function TripOccurrences({
   canOpenOccurrence = false,
+  areTypesLoading = false,
   canRegister,
-  email,
   isDialog = false,
   isRegistering,
   occurrences,
@@ -133,10 +132,13 @@ export function TripOccurrences({
   const formatMoment = useMomentFormatter()
 
   const [isOpen, setIsOpen] = useState(false)
-  const disponiveis = types.filter(
-    (type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.separation,
-  )
-  const [occurrenceTypeId, setOccurrenceTypeId] = useState(disponiveis[0]?.id ?? '')
+  /** Spec 270: o servidor já entrega só os tipos ativos do galpão que valem para a contratante da nota. */
+  const disponiveis = types
+  const [chosenTypeId, setOccurrenceTypeId] = useState('')
+  /** A lista chega depois de o formulário abrir (é por nota): sem escolha, vale o primeiro tipo oferecido. */
+  const occurrenceTypeId = disponiveis.some((type) => type.id === chosenTypeId)
+    ? chosenTypeId
+    : (disponiveis[0]?.id ?? '')
   const [productCodes, setProductCodes] = useState<readonly string[]>([])
   /**
    * Spec 166 RF4/RF7: quantidade e unidade por código de item marcado. Mapa em vez de lista
@@ -294,18 +296,9 @@ export function TripOccurrences({
           })}
         </ul>
       )}
-      {/*
-       * ⚠️ O e-mail volta **pronto para conferir e enviar**, não enviado: o destinatário é externo,
-       * e mandar em nome da transportadora é decisão que ainda não foi tomada. O que isto resolve é
-       * o retrabalho de escrever à mão — que é onde o número da nota entra trocado.
-       */}
-      {email === null ? null : (
-        <div className={styles.occurrenceForm}>
-          <p className={styles.hint}>{t('occurrence.emailReady')}</p>
-          <strong>{email.subject}</strong>
-          <pre className={styles.occurrenceEmail}>{email.body}</pre>
-        </div>
-      )}
+      {canRegister && !areTypesLoading && disponiveis.length === 0 ? (
+        <p className={styles.hint}>{t('occurrence.noTypesForDocument')}</p>
+      ) : null}
       {canRegister && disponiveis.length > 0 && !isOpen ? (
         <Button
           onClick={() => {

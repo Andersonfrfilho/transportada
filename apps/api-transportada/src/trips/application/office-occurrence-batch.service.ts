@@ -11,6 +11,8 @@ import {
   OFFICE_OCCURRENCE_BATCH_ITEM_OPERATION,
 } from '../domain/occurrence-batch.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
+import { OccurrenceTypeNotAvailableForContractorError } from '../domain/occurrence-type-contractor-scope.error.js'
+import { isOccurrenceTypeAvailableForNotes } from '../domain/occurrence-type-contractor-scope.policy.js'
 import { OccurrenceTypeNotFieldError, TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { toFieldTripTarget } from './field-trip-target.types.js'
 import type {
@@ -42,17 +44,32 @@ export async function performBatch(context: BatchContext): Promise<BatchOutcome>
     throw new OccurrenceTypeNotFieldError()
   }
 
-  const reachable = new Set(
-    await context.transaction.findReachableDocumentIds({
-      companyId: context.companyId,
-      documentIds: context.documentIds,
-      target: toFieldTripTarget({ target: context.target }),
-    }),
+  const reachable = new Map(
+    (
+      await context.transaction.findReachableDocumentIds({
+        companyId: context.companyId,
+        documentIds: context.documentIds,
+        target: toFieldTripTarget({ target: context.target }),
+      })
+    ).map((document) => [document.id, document.contractorId]),
   )
   const unreachable = context.documentIds.filter((documentId) => !reachable.has(documentId))
   if (unreachable.length > 0) {
     throw new TripDocumentNotReachableError({ unreachableDocumentIds: unreachable })
   }
+
+  /**
+   * Spec 270 (D6, R4): o lote é validado inteiro, antes do upload e de qualquer escrita — uma nota fora
+   * do escopo recusa o lote, e a resposta leva só os ids das notas recusadas.
+   */
+  const notAvailable = context.documentIds.filter(
+    (documentId) =>
+      !isOccurrenceTypeAvailableForNotes({
+        noteContractorIds: [reachable.get(documentId) ?? null],
+        type: occurrenceType,
+      }),
+  )
+  if (notAvailable.length > 0) throw new OccurrenceTypeNotAvailableForContractorError(notAvailable)
 
   const attachmentObjectId = await persistBatchAttachment(context)
   const items = await recordItems({ attachmentObjectId, context, occurrenceType })

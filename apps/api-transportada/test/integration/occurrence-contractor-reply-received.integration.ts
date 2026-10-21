@@ -11,7 +11,11 @@ import { and, eq } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypes,
+  companyQuickReplies,
+  contractorMailMessages,
+  contractorMailOutbox,
   contractors,
+  nfeDocuments,
   occurrenceContractorReplies,
   occurrenceContractorReplyDeliveries,
   occurrenceContractorReplyEvents,
@@ -20,13 +24,20 @@ import {
   occurrenceConversationMessages,
   storedObjects,
   tripDocumentOccurrences,
+  tripDocuments,
 } from '../../src/database/database.schema.js'
 import { createDrizzleContractorPortalConversationUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
 import { createSendAutomaticOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import { deliverContractorReplyToDriver } from '../../src/occurrence-conversation/infrastructure/contractor-reply-driver-delivery.support.js'
 import { deliverConversationAttachmentToDriver } from '../../src/occurrence-conversation/infrastructure/conversation-attachment-driver-delivery.support.js'
+import { tripOccurrenceResolutionEvents } from '../../src/database/occurrence-conversation.schema.js'
+import { buildOccurrenceTimeline } from '../../src/trips/domain/occurrence-timeline.policy.js'
+import { findTripOccurrenceTimelineSources } from '../../src/trips/infrastructure/trip-occurrence-timeline.query.js'
+import { queueContractorReplyAcknowledgement } from '../../src/occurrence-conversation/infrastructure/contractor-reply-acknowledgement.support.js'
 import { applyContractorReplyToMessage } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-contractor-reply.repository.js'
 import { createAutomaticOccurrenceMailReader } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
+import { extractPdfTextLayer } from '../../src/shared/pdf-text-layer.service.js'
+import { buildBoletoPdf, buildNotePdf } from '../fixtures/boleto-pdf.fixture.js'
 import {
   createOccurrenceMailUseCase,
   seedMailScenario,
@@ -42,7 +53,14 @@ import type { TestDatabase } from '../fixtures/trip-field-office-database.fixtur
 
 type Mode = 'forward_after_approval' | 'forward_automatic'
 
-async function openReply(database: TestDatabase, seeded: Seeded, mode: Mode) {
+async function openReply(
+  database: TestDatabase,
+  seeded: Seeded,
+  mode: Mode,
+  attachmentKind: 'boleto_pdf' | 'pdf' = 'pdf',
+  resolveOnDelivery = false,
+  acknowledgementQuickReplyId: null | string = null,
+) {
   const { companyId } = seeded.company
   const [occurrence] = await database.db
     .select({ typeId: tripDocumentOccurrences.occurrenceTypeId })
@@ -51,7 +69,10 @@ async function openReply(database: TestDatabase, seeded: Seeded, mode: Mode) {
   await database.db
     .update(companyOccurrenceTypes)
     .set({
+      contractorReplyAttachmentKind: attachmentKind,
       contractorReplyMode: mode,
+      contractorReplyAcknowledgementQuickReplyId: acknowledgementQuickReplyId,
+      contractorReplyResolveOnDelivery: resolveOnDelivery,
       contractorReplyWaitHours: 6,
       driverReplyTemplate: 'Segue o boleto prorrogado.',
       emailsContractor: true,
@@ -138,11 +159,50 @@ function apply(
     readonly companyId: string
     readonly conversationId: string
     readonly messageId: string
+    readonly readDocumentText?: (storedObjectId: string) => Promise<string>
   },
 ) {
   return database.db.transaction((transaction) =>
     applyContractorReplyToMessage(transaction, { ...input, now: new Date() }),
   )
+}
+
+/** Spec 276 T2: the number of the note the seeded occurrence sits on, as the boleto prints it. */
+async function noteNumberOf(database: TestDatabase, seeded: Seeded): Promise<string> {
+  const [row] = await database.db
+    .select({ number: nfeDocuments.number })
+    .from(tripDocumentOccurrences)
+    .innerJoin(
+      tripDocuments,
+      and(
+        eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
+        eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
+      ),
+    )
+    .innerJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.companyId, tripDocuments.companyId),
+        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+      ),
+    )
+    .where(eq(tripDocumentOccurrences.id, seeded.occurrenceId))
+  if (row === undefined) throw new Error('EXPECTED_NOTE')
+  return row.number
+}
+
+/** The PDF read by the same text reader the portal uses, keyed by the stored object of the attachment. */
+async function documentTextReader(
+  database: TestDatabase,
+  attachmentId: string,
+  pdf: Uint8Array,
+): Promise<(storedObjectId: string) => Promise<string>> {
+  const [attachment] = await database.db
+    .select({ storedObjectId: occurrenceConversationAttachments.storedObjectId })
+    .from(occurrenceConversationAttachments)
+    .where(eq(occurrenceConversationAttachments.id, attachmentId))
+  const text = await extractPdfTextLayer(pdf)
+  return async (storedObjectId) => (storedObjectId === attachment?.storedObjectId ? text : '')
 }
 
 async function replyOf(database: TestDatabase, companyId: string) {
@@ -158,6 +218,18 @@ async function replyOf(database: TestDatabase, companyId: string) {
     .where(eq(occurrenceContractorReplies.companyId, companyId))
   if (reply === undefined) throw new Error('EXPECTED_REPLY')
   return reply
+}
+
+function resolutionEventsOf(database: TestDatabase, occurrenceId: string) {
+  return database.db
+    .select({
+      actorKind: tripOccurrenceResolutionEvents.actorKind,
+      caseEventId: tripOccurrenceResolutionEvents.caseEventId,
+      contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
+      kind: tripOccurrenceResolutionEvents.kind,
+    })
+    .from(tripOccurrenceResolutionEvents)
+    .where(eq(tripOccurrenceResolutionEvents.documentOccurrenceId, occurrenceId))
 }
 
 function eventsOf(database: TestDatabase, replyId: string) {
@@ -205,6 +277,225 @@ describe('a resposta da contratante move o retorno (spec 248 T4.5, CA02)', () =>
             toStatus: 'awaiting_operator',
           },
         ])
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    '"Solicitado" sem anexo mantém o retorno aguardando; o "Segue" com o PDF depois é o aceito',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const conversationId = await openReply(database, seeded, 'forward_after_approval')
+        const requested = await receiveReply(database, {
+          companyId,
+          contentTypes: [],
+          conversationId,
+        })
+
+        await apply(database, { companyId, conversationId, messageId: requested.messageId })
+
+        const waiting = await replyOf(database, companyId)
+        expect(waiting).toMatchObject({
+          reason: null,
+          replyAttachmentId: null,
+          replyMessageId: null,
+          status: 'awaiting_contractor',
+        })
+        expect(await eventsOf(database, waiting.id)).toEqual([])
+
+        const sent = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+        await apply(database, { companyId, conversationId, messageId: sent.messageId })
+
+        expect(await replyOf(database, companyId)).toMatchObject({
+          reason: null,
+          replyAttachmentId: sent.attachmentIds[0],
+          replyMessageId: sent.messageId,
+          status: 'awaiting_operator',
+        })
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'boleto conferido (spec 276): o PDF que traz a linha e o número da nota é o aceito',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const conversationId = await openReply(
+          database,
+          seeded,
+          'forward_after_approval',
+          'boleto_pdf',
+        )
+        const sent = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+        const readDocumentText = await documentTextReader(
+          database,
+          sent.attachmentIds[0] ?? '',
+          buildBoletoPdf(await noteNumberOf(database, seeded)),
+        )
+
+        await apply(database, {
+          companyId,
+          conversationId,
+          messageId: sent.messageId,
+          readDocumentText,
+        })
+
+        expect(await replyOf(database, companyId)).toMatchObject({
+          reason: null,
+          replyAttachmentId: sent.attachmentIds[0],
+          replyMessageId: sent.messageId,
+          status: 'awaiting_operator',
+        })
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'boleto conferido (spec 276): o PDF da própria nota vai ao operador como documento não confirmado',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const conversationId = await openReply(database, seeded, 'forward_automatic', 'boleto_pdf')
+        const sent = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+        const readDocumentText = await documentTextReader(
+          database,
+          sent.attachmentIds[0] ?? '',
+          buildNotePdf(await noteNumberOf(database, seeded)),
+        )
+
+        const delivery = await apply(database, {
+          companyId,
+          conversationId,
+          messageId: sent.messageId,
+          readDocumentText,
+        })
+
+        expect(delivery).toBeUndefined()
+        const reply = await replyOf(database, companyId)
+        expect(reply).toMatchObject({
+          reason: 'document_not_confirmed',
+          replyAttachmentId: null,
+          replyMessageId: sent.messageId,
+          status: 'needs_operator',
+        })
+        expect(await eventsOf(database, reply.id)).toEqual([
+          {
+            actorKind: 'system',
+            actorUserId: null,
+            fromStatus: 'awaiting_contractor',
+            reason: 'document_not_confirmed',
+            toStatus: 'needs_operator',
+          },
+        ])
+        const deliveries = await database.db
+          .select({ id: occurrenceContractorReplyDeliveries.id })
+          .from(occurrenceContractorReplyDeliveries)
+          .where(eq(occurrenceContractorReplyDeliveries.replyId, reply.id))
+        expect(deliveries).toEqual([])
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'etapas (spec 276 T3): o retorno entra na linha do tempo e a ocorrência fica aguardando o operador',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const other = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const conversationId = await openReply(database, seeded, 'forward_automatic', 'boleto_pdf')
+        const sent = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+        await apply(database, {
+          companyId,
+          conversationId,
+          messageId: sent.messageId,
+          readDocumentText: await documentTextReader(
+            database,
+            sent.attachmentIds[0] ?? '',
+            buildNotePdf(await noteNumberOf(database, seeded)),
+          ),
+        })
+
+        const sources = await findTripOccurrenceTimelineSources(database.db, {
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        const timeline = buildOccurrenceTimeline({ sources: sources ?? [] })
+
+        expect(
+          timeline.events
+            .filter((event) => event.kind === 'contractor.reply')
+            .map((event) => event.kind === 'contractor.reply' && [event.toStatus, event.reason]),
+        ).toEqual([
+          ['awaiting_contractor', null],
+          ['needs_operator', 'document_not_confirmed'],
+        ])
+        expect(timeline.stages.map((stage) => stage.stage)).toEqual([
+          'received',
+          'awaiting_contractor',
+          'awaiting_operator',
+        ])
+        expect(timeline.stages.at(-1)).toMatchObject({
+          endedAt: null,
+          reason: 'document_not_confirmed',
+          terminal: false,
+        })
+        expect(timeline.timings.resolvedAt).toBeNull()
+
+        const foreign = await findTripOccurrenceTimelineSources(database.db, {
+          companyId: other.company.companyId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        expect(foreign).toBeNull()
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'boleto conferido (spec 276): sem leitor de texto, nada segue sozinho',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const conversationId = await openReply(database, seeded, 'forward_automatic', 'boleto_pdf')
+        const sent = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+
+        await apply(database, { companyId, conversationId, messageId: sent.messageId })
+
+        expect(await replyOf(database, companyId)).toMatchObject({
+          reason: 'document_not_confirmed',
+          status: 'needs_operator',
+        })
       })
     },
     30_000,
@@ -467,6 +758,64 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
         })
         expect(repeated).toBeUndefined()
         expect(await driverMessagesOf(database, companyId)).toHaveLength(1)
+        expect(await resolutionEventsOf(database, seeded.occurrenceId)).toEqual([])
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'fechar sozinha (spec 276 T3b): a entrega ao motorista deixa a ocorrência solucionada, uma vez',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+        const conversationId = await openReply(database, seeded, 'forward_automatic', 'pdf', true)
+        const received = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+
+        const delivery = await apply(database, {
+          companyId,
+          conversationId,
+          messageId: received.messageId,
+        })
+
+        expect(delivery).toMatchObject({ kind: 'delivered', resolvedOccurrence: true })
+        const { id: replyId } = await replyOf(database, companyId)
+        expect(await resolutionEventsOf(database, seeded.occurrenceId)).toEqual([
+          { actorKind: 'system', caseEventId: null, contractorReplyId: replyId, kind: 'resolved' },
+        ])
+
+        const again = await database.db.transaction((transaction) =>
+          deliverContractorReplyToDriver(transaction, {
+            actorUserId: null,
+            companyId,
+            now: new Date(),
+            replyId,
+            trigger: 'automatic',
+          }),
+        )
+        expect(again).toEqual({ kind: 'already_delivered' })
+        expect(await resolutionEventsOf(database, seeded.occurrenceId)).toHaveLength(1)
+
+        const sources = await findTripOccurrenceTimelineSources(database.db, {
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        const timeline = buildOccurrenceTimeline({ sources: sources ?? [] })
+        expect(timeline.stages.map((stage) => stage.stage).slice(-2)).toEqual([
+          'delivered',
+          'resolved',
+        ])
+        expect(timeline.timings.resolvedAt).not.toBeNull()
+        expect(timeline.events.at(-1)).toMatchObject({
+          kind: 'resolution.resolved',
+          phraseKey: 'contractor_reply_delivered',
+        })
       })
     },
     60_000,
@@ -622,6 +971,7 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
             deliverConversationAttachmentToDriver(transaction, {
               actorUserId: seeded.company.userId,
               attachmentId,
+              bodyText: 'Segue a requisição: Devolução',
               companyId,
               now: new Date(),
               occurrenceId,
@@ -638,7 +988,7 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
         expect(messages).toHaveLength(1)
         expect(messages[0]).toMatchObject({
           automatic: false,
-          bodyText: '',
+          bodyText: 'Segue a requisição: Devolução',
           channel: 'app',
           direction: 'outbound',
         })
@@ -657,6 +1007,200 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
             .from(occurrenceContractorReplyDeliveries)
             .where(eq(occurrenceContractorReplyDeliveries.companyId, companyId)),
         ).toEqual([])
+      })
+    },
+    60_000,
+  )
+})
+
+async function seedQuickReply(
+  database: TestDatabase,
+  companyId: string,
+  overrides: { readonly active?: boolean; readonly audience?: 'contractor' | 'driver' } = {},
+): Promise<string> {
+  const [row] = await database.db
+    .insert(companyQuickReplies)
+    .values({
+      active: overrides.active ?? true,
+      audience: overrides.audience ?? 'contractor',
+      bodyText: 'Recebido, obrigado.',
+      companyId,
+      position: 0,
+    })
+    .returning({ id: companyQuickReplies.id })
+  if (row === undefined) throw new Error('EXPECTED_QUICK_REPLY')
+  return row.id
+}
+
+function acknowledgementsOf(database: TestDatabase, companyId: string) {
+  return database.db
+    .select({
+      address: occurrenceContractorReplyDeliveries.address,
+      mailMessageId: occurrenceContractorReplyDeliveries.mailMessageId,
+      status: occurrenceContractorReplyDeliveries.status,
+      trigger: occurrenceContractorReplyDeliveries.trigger,
+    })
+    .from(occurrenceContractorReplyDeliveries)
+    .where(
+      and(
+        eq(occurrenceContractorReplyDeliveries.companyId, companyId),
+        eq(occurrenceContractorReplyDeliveries.target, 'contractor_acknowledgement'),
+      ),
+    )
+}
+
+describe('a resposta automática à contratante (spec 276 T5)', () => {
+  testWithPostgres(
+    'documento entregue ao motorista: a contratante recebe a resposta rápida do tipo, uma vez, na mesma thread',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+        const quickReplyId = await seedQuickReply(database, companyId)
+        const conversationId = await openReply(
+          database,
+          seeded,
+          'forward_automatic',
+          'pdf',
+          false,
+          quickReplyId,
+        )
+        const received = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+
+        const delivery = await apply(database, {
+          companyId,
+          conversationId,
+          messageId: received.messageId,
+        })
+
+        expect(delivery).toMatchObject({ kind: 'delivered' })
+        const [acknowledgement, ...others] = await acknowledgementsOf(database, companyId)
+        expect(others).toEqual([])
+        expect(acknowledgement).toMatchObject({ status: 'queued', trigger: 'automatic' })
+        const [mail] = await database.db
+          .select({
+            bodyText: contractorMailMessages.bodyText,
+            direction: contractorMailMessages.direction,
+            threadId: contractorMailMessages.threadId,
+            toAddresses: contractorMailMessages.toAddresses,
+          })
+          .from(contractorMailMessages)
+          .where(eq(contractorMailMessages.id, acknowledgement?.mailMessageId ?? ''))
+        expect(mail?.direction).toBe('outbound')
+        expect(mail?.toAddresses).toEqual(['compras@alfa.example.test'])
+        expect(mail?.bodyText.startsWith('Recebido, obrigado.')).toBe(true)
+        const threadMessages = await database.db
+          .select({ id: contractorMailMessages.id })
+          .from(contractorMailMessages)
+          .where(eq(contractorMailMessages.threadId, mail?.threadId ?? ''))
+        expect(threadMessages.length).toBeGreaterThan(1)
+        const outbox = await database.db
+          .select({ eventType: contractorMailOutbox.eventType })
+          .from(contractorMailOutbox)
+          .where(eq(contractorMailOutbox.messageId, acknowledgement?.mailMessageId ?? ''))
+        expect(outbox).toEqual([{ eventType: 'message.send.requested' }])
+        const chat = await database.db
+          .select({
+            automatic: occurrenceConversationMessages.automatic,
+            bodyText: occurrenceConversationMessages.bodyText,
+            channel: occurrenceConversationMessages.channel,
+          })
+          .from(occurrenceConversationMessages)
+          .where(
+            and(
+              eq(occurrenceConversationMessages.conversationId, conversationId),
+              eq(
+                occurrenceConversationMessages.mailMessageId,
+                acknowledgement?.mailMessageId ?? '',
+              ),
+            ),
+          )
+        expect(chat).toEqual([
+          { automatic: true, bodyText: 'Recebido, obrigado.', channel: 'email' },
+        ])
+
+        const { id: replyId } = await replyOf(database, companyId)
+        const again = await database.db.transaction((transaction) =>
+          queueContractorReplyAcknowledgement(transaction, { companyId, replyId }),
+        )
+        expect(again).toEqual({ kind: 'already_queued' })
+        expect(await acknowledgementsOf(database, companyId)).toHaveLength(1)
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'desligada, ou com a resposta rápida desativada, nada sai para a contratante',
+    async () => {
+      for (const quickReply of ['off', 'inactive'] as const) {
+        await withConversationDatabase(async (database) => {
+          const seeded = await seedMailScenario(database)
+          const { companyId } = seeded.company
+          await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+          const quickReplyId =
+            quickReply === 'off'
+              ? null
+              : await seedQuickReply(database, companyId, { active: false })
+          const conversationId = await openReply(
+            database,
+            seeded,
+            'forward_automatic',
+            'pdf',
+            false,
+            quickReplyId,
+          )
+          const received = await receiveReply(database, {
+            companyId,
+            contentTypes: ['application/pdf'],
+            conversationId,
+          })
+
+          const delivery = await apply(database, {
+            companyId,
+            conversationId,
+            messageId: received.messageId,
+          })
+
+          expect(delivery).toMatchObject({ kind: 'delivered' })
+          expect(await acknowledgementsOf(database, companyId)).toEqual([])
+        })
+      }
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'aguardando o operador aprovar, a contratante não recebe nada ainda',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+        const quickReplyId = await seedQuickReply(database, companyId)
+        const conversationId = await openReply(
+          database,
+          seeded,
+          'forward_after_approval',
+          'pdf',
+          false,
+          quickReplyId,
+        )
+        const received = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+
+        await apply(database, { companyId, conversationId, messageId: received.messageId })
+
+        expect((await replyOf(database, companyId)).status).toBe('awaiting_operator')
+        expect(await acknowledgementsOf(database, companyId)).toEqual([])
       })
     },
     60_000,

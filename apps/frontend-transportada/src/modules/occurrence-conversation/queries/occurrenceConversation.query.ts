@@ -11,6 +11,7 @@ import {
   type OccurrenceConversationClient,
 } from '../shared/occurrenceConversationClient.service'
 import { uploadConversationAttachments } from '../shared/conversationAttachment.service'
+import type { MessageForwardStep } from '../shared/messageForward.service'
 import type {
   ContractorMailRequest,
   OccurrenceConversationsView,
@@ -251,6 +252,48 @@ export function useSendDriverAppMessageMutation(occurrenceId: string) {
     mutationFn: (input: ConversationMessageDraft) =>
       sendWithAttachments(client, { ...input, occurrenceId, participant: 'driver' }),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    },
+  })
+}
+
+/** Encaminhar uma mensagem ao outro chat da ocorrência: os passos em ordem; as conversas e o feed relêem. */
+export function useForwardMessageMutation(occurrenceId: string) {
+  const queryClient = useQueryClient()
+  const client = getOccurrenceConversationClient()
+  return useMutation({
+    mutationFn: async (steps: readonly MessageForwardStep[]) => {
+      for (const step of steps) {
+        if (step.kind === 'deliver-attachment-to-driver') {
+          await client.deliverContractorReplyToDriver({
+            attachmentId: step.attachmentId,
+            occurrenceId,
+          })
+        } else if (step.kind === 'driver-text') {
+          await client.sendDriverAppMessage({
+            body: step.body,
+            idempotencyKey: step.idempotencyKey,
+            occurrenceId,
+          })
+        } else if (step.kind === 'contractor-chat') {
+          await client.sendContractorChatMessage({
+            body: step.body,
+            idempotencyKey: step.idempotencyKey,
+            occurrenceId,
+          })
+        } else {
+          await client.sendContractorPortalMessage({
+            body: step.body,
+            forwardAttachmentIds: step.forwardAttachmentIds,
+            idempotencyKey: step.idempotencyKey,
+            occurrenceId,
+          })
+        }
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: [CONTRACTOR_REPLY_QUERY_KEY] })
       void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
       void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
     },

@@ -190,6 +190,8 @@ export type TripOccurrenceFeedItem = Readonly<{
   id: string
   invoiceNumber: null | string
   invoiceSeries: null | string
+  /** Spec 269 D8: o tipo avisa a contratante e não há modelo efetivo. Ausente é API anterior ao campo. */
+  missingNotificationTemplate?: boolean
   notifies: boolean
   /** Spec 241 RF5: ausente é API anterior ao campo. */
   occurrenceTypeId?: null | string
@@ -204,7 +206,17 @@ export type TripOccurrenceFeedItem = Readonly<{
   /** Spec 241 RF5: o tipo **atual** carrega itens? Ausente é API anterior ao campo e lê `optional`. */
   typeItemsMode?: OccurrenceItemsMode | null
   typeName: string
+  /** Spec 277 RF2: a ficha do veículo da viagem; ausente é API anterior ao campo. `color` é o código do cadastro. */
+  vehicle?: TripOccurrenceVehicle
   vehiclePlate: string
+}>
+
+/** Spec 277 RF2: `modelYear` `null` é cadastro sem ano; `color` vazio é sem cor. */
+export type TripOccurrenceVehicle = Readonly<{
+  brand: string
+  color: string
+  model: string
+  modelYear: null | number
 }>
 
 export const OCCURRENCE_CONTRACTOR_CONVERSATION_STATES = ['none', 'awaiting', 'replied'] as const
@@ -241,6 +253,10 @@ export type TripOccurrenceDocument = Readonly<{
     state: string
   }> | null
   nfeDocumentId: string
+  /** Spec 277 RF2: o cliente (destinatário da nota); ausente é API anterior ao campo, `null` é nota sem destinatário. */
+  recipient?: null | Readonly<{ name: string; taxId: null | string }>
+  /** Spec 277 RF2: peso bruto (kg) e volumes da nota, strings decimais; ausente é API anterior ao campo. */
+  cargo?: Readonly<{ grossWeightKg: string; volumeCount: string }>
   totalValue: string
   /**
    * Spec 183 T702d: a nota **da viagem** (`trip_documents.id`), que a rota da foto da ocorrência pede
@@ -338,6 +354,8 @@ export type TripOccurrenceFeedFilters = Readonly<{
   /** Placas digitadas, separadas por vírgula — multi-valor por campo. */
   platesQuery: string
   stages: readonly TripOccurrenceFeedStage[]
+  /** Spec 277 RF1: a busca rápida; só viaja com 2 caracteres ou mais, depois de aparada. */
+  search: string
   /** Nomes de tipo (ou kind de parada), separados por vírgula. */
   typesQuery: string
 }>
@@ -349,6 +367,7 @@ export const EMPTY_TRIP_OCCURRENCE_FILTERS: TripOccurrenceFeedFilters = {
   createdFrom: '',
   createdUntil: '',
   platesQuery: '',
+  search: '',
   stages: TRIP_OCCURRENCE_STAGES,
   typesQuery: '',
 }
@@ -362,8 +381,12 @@ export const TRIP_OCCURRENCE_COLUMN_KEYS = [
   'stopLabel',
   'invoice',
   'contractor',
+  'client',
   'destination',
+  'city',
   'invoiceValue',
+  'cargo',
+  'resolvedIn',
   'conversation',
   'takenBy',
   'notified',
@@ -474,6 +497,15 @@ function parseListQuery(raw: string): readonly string[] {
     .filter((part) => part.length > 0)
 }
 
+/** Spec 277 RF1: a API recusa busca com menos de 2 ou mais de 80 caracteres — a tela nem pergunta. */
+export const TRIP_OCCURRENCE_SEARCH_MIN_LENGTH = 2
+export const TRIP_OCCURRENCE_SEARCH_MAX_LENGTH = 80
+
+export function normalizeTripOccurrenceSearch(value: string): null | string {
+  const trimmed = value.trim().slice(0, TRIP_OCCURRENCE_SEARCH_MAX_LENGTH).trim()
+  return trimmed.length >= TRIP_OCCURRENCE_SEARCH_MIN_LENGTH ? trimmed : null
+}
+
 /** Fim do dia inclusivo: o filtro "até 02/09" cobre o dia inteiro, não a meia-noite dele. */
 function toDayEnd(day: string): string {
   return `${day}T23:59:59.999Z`
@@ -505,6 +537,8 @@ export function serializeTripOccurrenceQuery(
   if (input.filters.createdUntil.length > 0) {
     search.set('createdUntil', toDayEnd(input.filters.createdUntil))
   }
+  const quickSearch = normalizeTripOccurrenceSearch(input.filters.search)
+  if (quickSearch !== null) search.set('search', quickSearch)
   const plates = parseListQuery(input.filters.platesQuery)
   if (plates.length > 0) search.set('plateIn', plates.join(','))
   const types = parseListQuery(input.filters.typesQuery)
@@ -604,11 +638,24 @@ export function resolveOccurrenceTypeLabel(
   return { labelKey: null, value: item.typeName }
 }
 
+/**
+ * Spec 277 RF3: o botão "Filtros avançados" conta só o que mora dentro dele. A busca e o andamento
+ * (os chips) ficam à vista, então não entram na conta do botão.
+ */
+export function countAdvancedTripOccurrenceFilters(filters: TripOccurrenceFeedFilters): number {
+  return (
+    countActiveTripOccurrenceFilters(filters) -
+    (normalizeTripOccurrenceSearch(filters.search) === null ? 0 : 1) -
+    (filters.resolutionStates.length === TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES.length ? 0 : 1)
+  )
+}
+
 export function countActiveTripOccurrenceFilters(filters: TripOccurrenceFeedFilters): number {
   const scalarFields = [
     filters.createdFrom,
     filters.createdUntil,
     filters.platesQuery,
+    normalizeTripOccurrenceSearch(filters.search) ?? '',
     filters.typesQuery,
   ]
   const stagesChanged = filters.stages.length === TRIP_OCCURRENCE_STAGES.length ? 0 : 1
@@ -624,4 +671,85 @@ export function countActiveTripOccurrenceFilters(filters: TripOccurrenceFeedFilt
     resolutionStatesChanged +
     contractorReplyChanged
   )
+}
+
+/** Spec 277 RF3: a ordem dos grupos da lista. "Em aberto" primeiro: é o que pede ação. */
+export const TRIP_OCCURRENCE_GROUP_ORDER = ['open', 'reopened', 'resolved', 'cancelled'] as const
+export type TripOccurrenceGroupState = (typeof TRIP_OCCURRENCE_GROUP_ORDER)[number]
+
+export type TripOccurrenceGroup = Readonly<{
+  items: readonly TripOccurrenceFeedItem[]
+  state: TripOccurrenceGroupState
+}>
+
+/**
+ * Spec 277 RF3: agrupa a lista por andamento sem mexer na ordem de dentro do grupo (a do servidor).
+ * Sem andamento no item é em aberto (266); grupo vazio não existe. O estado que o bundle não conhece
+ * cai em "em aberto" — nunca some da lista.
+ */
+export function groupTripOccurrencesByResolution(
+  items: readonly TripOccurrenceFeedItem[],
+): readonly TripOccurrenceGroup[] {
+  const groups = new Map<TripOccurrenceGroupState, TripOccurrenceFeedItem[]>()
+  for (const item of items) {
+    const raw = item.resolution?.state
+    const state = TRIP_OCCURRENCE_GROUP_ORDER.find((candidate) => candidate === raw) ?? 'open'
+    groups.set(state, [...(groups.get(state) ?? []), item])
+  }
+  return TRIP_OCCURRENCE_GROUP_ORDER.flatMap((state) => {
+    const grouped = groups.get(state)
+    return grouped === undefined ? [] : [{ items: grouped, state }]
+  })
+}
+
+export type OccurrenceVehicleCells = Readonly<{
+  /** "Volvo FH 540 · 2022"; vazio quando o cadastro não tem marca, modelo nem ano. */
+  description: string
+  /** O código da cor do cadastro, ou `''`. */
+  colorCode: string
+  plate: string
+}>
+
+/** Spec 277 RF2: placa, marca/modelo/ano e a cor. Cadastro incompleto imprime só o que existe, nunca "0" nem "null". */
+export function describeOccurrenceVehicleCells(
+  item: Pick<TripOccurrenceFeedItem, 'vehicle' | 'vehiclePlate'>,
+): OccurrenceVehicleCells {
+  const vehicle = item.vehicle
+  const name = [vehicle?.brand ?? '', vehicle?.model ?? ''].filter((part) => part.length > 0)
+  const year = vehicle?.modelYear ?? null
+  const description = [name.join(' '), year === null ? '' : String(year)]
+    .filter((part) => part.length > 0)
+    .join(' · ')
+  return { colorCode: vehicle?.color ?? '', description, plate: item.vehiclePlate }
+}
+
+export type OccurrenceClientCells = Readonly<{
+  city: string
+  name: string
+  taxId: string
+}>
+
+/** Spec 277 RF2: o cliente da nota e a cidade de entrega (`Cidade/UF`). Ausência é célula vazia. */
+export function describeOccurrenceClientCells(
+  document: null | TripOccurrenceDocument,
+): OccurrenceClientCells {
+  const destination = document?.destination ?? null
+  const city =
+    destination === null || destination.city.length === 0
+      ? ''
+      : destination.state.length === 0
+        ? destination.city
+        : `${destination.city}/${destination.state}`
+  return {
+    city,
+    name: document?.recipient?.name ?? destination?.recipientName ?? '',
+    taxId: document?.recipient?.taxId ?? '',
+  }
+}
+
+/** Spec 277 RF2: peso e volumes da nota; `null` quando a API não manda a carga (nota ausente ou API anterior). */
+export function describeOccurrenceCargoCells(
+  document: null | TripOccurrenceDocument,
+): null | Readonly<{ grossWeightKg: string; volumeCount: string }> {
+  return document?.cargo ?? null
 }

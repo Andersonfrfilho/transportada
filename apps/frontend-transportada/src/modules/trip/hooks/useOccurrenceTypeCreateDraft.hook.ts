@@ -7,13 +7,19 @@ import {
   OCCURRENCE_ATTACHMENT_MODE,
   OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_REDELIVERY_POLICY,
+  OCCURRENCE_TYPE_CONTRACTOR_SCOPE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
   OccurrenceAttachmentMode,
   OccurrenceItemsWriteMode,
   OccurrenceMoment,
   OccurrenceRedeliveryPolicy,
+  OccurrenceTypeContractorScope,
 } from '@/modules/trip/shared/occurrence.constant'
+import {
+  DUPLICATE_REQUEST_POLICY_FOR_NEW_TYPE,
+  type DuplicateRequestPolicy,
+} from '@/modules/trip/shared/occurrenceContractorReply.constant'
 import { OCCURRENCE_TEMPLATE_NONE } from '@/modules/trip/shared/occurrenceTemplate.service'
 
 export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
@@ -45,6 +51,15 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
   const [itemsMode, setItemsMode] = useState<OccurrenceItemsWriteMode>(
     OCCURRENCE_ITEMS_MODE.optional,
   )
+  /** Spec 270: o tipo novo nasce para todas as contratantes, como o de hoje. */
+  const [contractorScope, setContractorScope] = useState<OccurrenceTypeContractorScope>(
+    OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all,
+  )
+  const [contractorIds, setContractorIds] = useState<readonly string[]>([])
+  /** Spec 276 T4: o tipo novo nasce sem deixar pedir duas vezes a mesma coisa na mesma nota. */
+  const [duplicateRequestPolicy, setDuplicateRequestPolicy] = useState<DuplicateRequestPolicy>(
+    DUPLICATE_REQUEST_POLICY_FOR_NEW_TYPE,
+  )
   const isItemsOff = hasItemsModeSupport && itemsMode === OCCURRENCE_ITEMS_MODE.off
 
   function reset() {
@@ -59,11 +74,17 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
     setNoteMode(OCCURRENCE_ATTACHMENT_MODE.optional)
     setSignatureMode(OCCURRENCE_ATTACHMENT_MODE.off)
     setItemsMode(OCCURRENCE_ITEMS_MODE.optional)
+    setContractorScope(OCCURRENCE_TYPE_CONTRACTOR_SCOPE.all)
+    setContractorIds([])
+    setDuplicateRequestPolicy(DUPLICATE_REQUEST_POLICY_FOR_NEW_TYPE)
   }
 
   return {
     allowsMultipleItems,
     attachmentMode,
+    contractorIds,
+    contractorScope,
+    duplicateRequestPolicy,
     emailTemplateKey,
     isItemsOff,
     itemsMode,
@@ -76,6 +97,9 @@ export function useOccurrenceTypeCreateDraft(hasItemsModeSupport: boolean) {
     reset,
     setAllowsMultipleItems,
     setAttachmentMode,
+    setContractorIds,
+    setContractorScope,
+    setDuplicateRequestPolicy,
     setEmailTemplateKey,
     setItemsMode,
     setLeavesDocumentBehind,

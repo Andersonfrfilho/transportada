@@ -15,7 +15,13 @@ import {
   useOccurrenceConversationsQuery,
   useSendContractorPortalMessageMutation,
 } from '../queries/occurrenceConversation.query'
+import {
+  resolveContractorChatError,
+  resolveContractorComposer,
+} from '../shared/contractorChat.service'
 import { isForwardAlreadyDone } from '../shared/conversationAttachment.service'
+import { attachmentDownloadUrls } from '../shared/messageMenu.service'
+import type { OccurrenceThreadSendError } from '../shared/occurrenceThreadApi.service'
 import type {
   ContractorSenderSuggestion,
   OccurrenceConversation,
@@ -25,6 +31,8 @@ import type {
 import styles from '../styles/occurrenceConversation.module.css'
 import threadStyles from '../styles/occurrenceThread.module.css'
 import { useMinWidth } from '@/modules/shared/useMinWidth.hook'
+
+import { useConversationAlerts } from '../shared/useConversationAlerts.hook'
 
 import {
   conversationLayoutStorageKey,
@@ -37,12 +45,14 @@ import { ContractorReplyEmailActions } from './ContractorReplyEmailActions.compo
 import { ConversationColumn, ConversationLayoutSwitch } from './ConversationLayoutSwitch.component'
 import { OccurrenceConversationLegend } from './OccurrenceConversationLegend.component'
 import { ContractorReplyEmailHistory } from './ContractorReplyEmailHistory.component'
+import { OccurrenceMessageMenu } from './OccurrenceMessageMenu.component'
 import { OccurrenceThread } from './OccurrenceThread.component'
 import {
   OccurrenceThreadAttachments,
   type RenderAttachmentActions,
 } from './OccurrenceThreadAttachments.component'
 import { OccurrenceThreadFailures } from './OccurrenceThreadFailures.component'
+import { OccurrenceThreadSummary } from './OccurrenceThreadSummary.component'
 import { OccurrenceThreadSenders } from './OccurrenceThreadSenders.component'
 import { SendToContractorDialog } from './SendToContractorDialog.component'
 
@@ -167,6 +177,7 @@ function DriverConversationPanel({
 }>) {
   const { t } = useTranslation('occurrenceConversation')
   const messages = conversation?.messages ?? []
+  const attachmentUrls = attachmentDownloadUrls(messages)
   /** Spec 183 T702d: as ações só no arquivo que o motorista mandou. */
   const attachmentActions: RenderAttachmentActions = (attachment, message) => {
     if (message.direction !== 'inbound') return null
@@ -188,23 +199,40 @@ function DriverConversationPanel({
   return (
     <div className={threadStyles.panel}>
       {messages.length === 0 ? <p className={threadStyles.hint}>{t('driver.empty')}</p> : null}
-      <OccurrenceThreadFailures
-        canResend={canSend}
+      <OccurrenceThreadSummary
+        counterpartLabel={t('thread.driver.counterpart')}
         messages={messages}
-        occurrenceId={occurrenceId}
-        participant="driver"
-        portalAvailable={false}
       />
-      <OccurrenceThreadAttachments
-        messages={messages}
-        renderAttachmentActions={attachmentActions}
-      />
+      <div className={threadStyles.noticesArea}>
+        <OccurrenceThreadFailures
+          canResend={canSend}
+          messages={messages}
+          occurrenceId={occurrenceId}
+          participant="driver"
+          portalAvailable={false}
+        />
+        <OccurrenceThreadAttachments
+          messages={messages}
+          renderAttachmentActions={attachmentActions}
+        />
+      </div>
       <OccurrenceThread
         closedNotice={t('thread.closed.readOnly')}
         {...(companyId === undefined ? {} : { companyId })}
         counterpartLabel={t('thread.driver.counterpart')}
+        counterpartName={driverName}
         occurrenceId={occurrenceId}
         participant="driver"
+        renderMessageActions={(message) => (
+          <OccurrenceMessageMenu
+            attachmentUrls={attachmentUrls}
+            canForward={canSend}
+            from="driver"
+            message={message}
+            occurrenceId={occurrenceId}
+            portalAvailable={portalAvailable}
+          />
+        )}
         status={canSend ? 'open' : 'closed'}
         title={driverName === '' ? t('driver.title') : t('driver.withName', { name: driverName })}
       />
@@ -229,12 +257,10 @@ type ContractorConversationPanelProps = Readonly<{
 
 function resolveContractorClosedNotice(input: {
   canSend: boolean
-  canWrite: boolean
   t: (key: string) => string
 }): string {
   if (!input.canSend) return input.t('thread.closed.readOnly')
-  if (!input.canWrite) return input.t('thread.closed.noRecipient')
-  return input.t('thread.closed.noPortal')
+  return input.t('thread.closed.noRecipient')
 }
 
 function ContractorConversationPanel({
@@ -255,8 +281,10 @@ function ContractorConversationPanel({
   /** Spec 183 T703: o reenvio por e-mail leva o texto da mensagem que falhou ao diálogo. */
   const [mailBody, setMailBody] = useState<string | undefined>(undefined)
   const messages = conversation?.messages ?? []
-  const canWrite = canSend && hasDocument && contractorId !== null
-  const canWritePortal = canWrite && portalAvailable
+  const attachmentUrls = attachmentDownloadUrls(messages)
+  const { canWrite, status } = resolveContractorComposer({ canSend, contractorId, hasDocument })
+  /** Spec 274 D10: a última falha do envio do chat — o motivo e, sem destinatário, a saída pelo diálogo. */
+  const [sendError, setSendError] = useState<null | OccurrenceThreadSendError>(null)
 
   /**
    * Spec 248 T4.6/T4.7: o boleto que a contratante mandou segue ao motorista (quando há motorista) e, por
@@ -297,34 +325,39 @@ function ContractorConversationPanel({
         <p className={threadStyles.hint}>{t('contractor.empty')}</p>
       ) : null}
 
-      <OccurrenceThreadFailures
-        canResend={canWrite}
+      <OccurrenceThreadSummary
+        counterpartLabel={t('thread.contractor.counterpart')}
         messages={messages}
-        occurrenceId={occurrenceId}
-        onOpenMail={(message) => {
-          setMailBody(message.bodyText)
-          setSending(true)
-        }}
-        participant="contractor"
-        portalAvailable={portalAvailable}
       />
-      <OccurrenceThreadSenders
-        canManageContacts={canManageContacts && contractorId !== null}
-        messages={messages}
-        renderAddContact={renderAddContact}
-      />
-      {canSend ? (
-        <OccurrenceThreadAttachments
+      <div className={threadStyles.noticesArea}>
+        <OccurrenceThreadFailures
+          canResend={canWrite}
           messages={messages}
-          renderAttachmentActions={attachmentActions}
+          occurrenceId={occurrenceId}
+          onOpenMail={(message) => {
+            setMailBody(message.bodyText)
+            setSending(true)
+          }}
+          participant="contractor"
+          portalAvailable={portalAvailable}
         />
-      ) : null}
+        <OccurrenceThreadSenders
+          canManageContacts={canManageContacts && contractorId !== null}
+          messages={messages}
+          renderAddContact={renderAddContact}
+        />
+        {canSend ? (
+          <OccurrenceThreadAttachments
+            messages={messages}
+            renderAttachmentActions={attachmentActions}
+          />
+        ) : null}
+      </div>
 
       {canWrite || messages.length > 0 ? (
         <OccurrenceThread
           closedNotice={resolveContractorClosedNotice({
             canSend,
-            canWrite,
             t: (key) => t(key),
           })}
           {...(companyId === undefined ? {} : { companyId })}
@@ -340,8 +373,18 @@ function ContractorConversationPanel({
               }
             : {})}
           occurrenceId={occurrenceId}
+          onSendError={setSendError}
           participant="contractor"
-          status={canWritePortal ? 'open' : 'closed'}
+          renderMessageActions={(message) => (
+            <OccurrenceMessageMenu
+              attachmentUrls={attachmentUrls}
+              canForward={canSend && hasDriver}
+              from="contractor"
+              message={message}
+              occurrenceId={occurrenceId}
+            />
+          )}
+          status={status}
           title={
             contractorName === ''
               ? t('contractor.title')
@@ -349,6 +392,27 @@ function ContractorConversationPanel({
           }
         />
       ) : null}
+
+      {sendError === null ? null : (
+        <p className={threadStyles.error} role="alert">
+          {t(`thread.sendError.${resolveContractorChatError(sendError.code)}`)}{' '}
+          {resolveContractorChatError(sendError.code) === 'noRecipients' ? (
+            <Button
+              onClick={() => {
+                setMailBody(sendError.text)
+                setSending(true)
+                setSendError(null)
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="send" size="sm" />
+              {t('thread.sendError.openMail')}
+            </Button>
+          ) : null}
+        </p>
+      )}
 
       {canSend ? <ContractorReplyEmailHistory occurrenceId={occurrenceId} /> : null}
 
@@ -407,6 +471,10 @@ export function OccurrenceConversations({
 }: OccurrenceConversationsProps) {
   const { t } = useTranslation('occurrenceConversation')
   const [tab, setTab] = useState('contractor')
+  /** Minimizar é por conversa: cada coluna guarda o próprio estado. */
+  const [collapsed, setCollapsed] = useState({ contractor: false, driver: false })
+  const toggleCollapsed = (who: 'contractor' | 'driver') =>
+    setCollapsed((current) => ({ ...current, [who]: !current[who] }))
   const layoutStorageKey = conversationLayoutStorageKey(companyId)
   const [storedLayout, setStoredLayout] = useState(() =>
     readConversationLayout(getLayoutStorage(), layoutStorageKey),
@@ -432,6 +500,17 @@ export function OccurrenceConversations({
     (conversation) => conversation.participant === 'driver',
   )
   const driverUnread = driverConversation?.unreadCount ?? 0
+  /** À vista: coluna expandida (lado a lado) ou aba selecionada; no celular a aba de cima já escolheu a parte. */
+  const isOpen = (who: 'contractor' | 'driver') =>
+    participant !== undefined
+      ? participant === who
+      : layout === 'side-by-side'
+        ? !collapsed[who]
+        : tab === who
+  useConversationAlerts([
+    { isOpen: isOpen('contractor'), unread },
+    { isOpen: isOpen('driver'), unread: driverUnread },
+  ])
 
   if (query.isLoading) {
     return (
@@ -512,12 +591,30 @@ export function OccurrenceConversations({
   )
   /** Duas conversas ao mesmo tempo: o item enviado de uma coluna aparece na outra sem trocar de aba. */
   const columns = (
-    <div className={threadStyles.columns}>
-      <ConversationColumn participant="contractor" unreadCount={unread}>
+    <div
+      className={`${threadStyles.columns} ${
+        collapsed.contractor && !collapsed.driver && driverPanel !== null
+          ? threadStyles.columnsFirstCollapsed
+          : collapsed.driver && !collapsed.contractor
+            ? threadStyles.columnsSecondCollapsed
+            : ''
+      }`}
+    >
+      <ConversationColumn
+        collapsed={collapsed.contractor}
+        onToggleCollapsed={() => toggleCollapsed('contractor')}
+        participant="contractor"
+        unreadCount={unread}
+      >
         {contractorPanel}
       </ConversationColumn>
       {driverPanel === null ? null : (
-        <ConversationColumn participant="driver" unreadCount={driverUnread}>
+        <ConversationColumn
+          collapsed={collapsed.driver}
+          onToggleCollapsed={() => toggleCollapsed('driver')}
+          participant="driver"
+          unreadCount={driverUnread}
+        >
           {driverPanel}
         </ConversationColumn>
       )}

@@ -17,6 +17,8 @@ export const ADDRESS_CORRECTION_MAIL_MAX_CONTACTS = 50
 export type AddressCorrectionMailRequestBody = Readonly<{
   contactIds: readonly string[]
   contractorTaxId: string
+  /** Spec 267 RF4: quem o operador tirou da cópia neste envio; ausente quando ninguém saiu. */
+  excludedWatcherUserIds?: readonly string[]
   requestIds?: readonly string[]
   templateId?: string
 }>
@@ -31,6 +33,7 @@ export function buildAddressCorrectionMailRequestBody(
   input: Readonly<{
     contactIds: readonly string[]
     contractorTaxId: string
+    excludedWatcherUserIds?: readonly string[]
     requestIds?: readonly string[]
     templateId?: string
   }>,
@@ -38,6 +41,9 @@ export function buildAddressCorrectionMailRequestBody(
   return {
     contactIds: input.contactIds,
     contractorTaxId: input.contractorTaxId,
+    ...((input.excludedWatcherUserIds ?? []).length === 0
+      ? {}
+      : { excludedWatcherUserIds: input.excludedWatcherUserIds }),
     ...(input.requestIds === undefined ? {} : { requestIds: input.requestIds }),
     ...(input.templateId === undefined ? {} : { templateId: input.templateId }),
   }
@@ -133,6 +139,8 @@ const MAIL_ERROR_MESSAGE_KEY: Readonly<Record<string, string>> = {
   ADDRESS_CORRECTION_NO_ACTIVE_CONTACT: 'addressReport.correction.mail.error.noActiveContact',
   ADDRESS_CORRECTION_REQUEST_NOT_SENDABLE: 'addressReport.correction.mail.error.requestNotSendable',
   CONTRACTOR_MAIL_NOT_CONFIGURED: 'addressReport.correction.mail.error.mailNotConfigured',
+  /** Spec 267 RF7: To + Cc acima do teto do provedor. */
+  CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS: 'addressReport.correction.mail.error.tooManyRecipients',
   /** Spec 150 T401: remetente aceito na chave, mas o domínio ainda não verificou. */
   CONTRACTOR_MAIL_SENDING_NOT_VERIFIED: 'addressReport.correction.mail.error.sendingNotVerified',
   /** Spec 150 T402: sem modelo padrão do tipo, ou o modelo escolhido não serve mais. */
@@ -168,6 +176,7 @@ export function addressCorrectionMailErrorHasConfigurationShortcut(code: string)
 
 export type ResolveAddressCorrectionMailIdempotencyKeyResult = Readonly<{
   contactIds: readonly string[]
+  excludedWatcherIds: readonly string[]
   idempotencyKey: string
   templateId: string | null
 }>
@@ -185,25 +194,33 @@ export type ResolveAddressCorrectionMailIdempotencyKeyResult = Readonly<{
  */
 export function resolveAddressCorrectionMailIdempotencyKey(input: {
   readonly currentContactIds: readonly string[]
+  /** Spec 267: quem saiu da cópia entra na impressão digital do envio; mudar o conjunto pede chave nova. */
+  readonly currentExcludedWatcherIds?: readonly string[]
   readonly currentTemplateId: string | null
   readonly generateKey: () => string
   readonly previousContactIds: readonly string[] | null
+  readonly previousExcludedWatcherIds?: readonly string[]
   readonly previousIdempotencyKey: string
   readonly previousTemplateId: string | null
 }): ResolveAddressCorrectionMailIdempotencyKeyResult {
+  const currentExcluded = input.currentExcludedWatcherIds ?? []
+  const previousExcluded = input.previousExcludedWatcherIds ?? []
   if (
     input.previousContactIds !== null &&
     sameContactSelection(input.previousContactIds, input.currentContactIds) &&
+    sameContactSelection(previousExcluded, currentExcluded) &&
     input.previousTemplateId === input.currentTemplateId
   ) {
     return {
       contactIds: input.previousContactIds,
+      excludedWatcherIds: previousExcluded,
       idempotencyKey: input.previousIdempotencyKey,
       templateId: input.previousTemplateId,
     }
   }
   return {
     contactIds: input.currentContactIds,
+    excludedWatcherIds: currentExcluded,
     idempotencyKey: input.generateKey(),
     templateId: input.currentTemplateId,
   }

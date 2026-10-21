@@ -72,8 +72,21 @@ const workerEnvironmentSchema = z
     // Remetente e transporte juntos ou nenhum: com um só, o convite sai sem canal e o código morre
     // selado na linha do convite.
     EMAIL_FROM: optionalText(),
+    // Spec 268: opt-in, nunca em produção. Linhas `sandbox_smtp` do e-mail da contratante saem pelo SMTP_URL.
+    CONTRACTOR_MAIL_SANDBOX_SMTP: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     // Com a chave, o e-mail vai pela API HTTPS do Resend e o `SMTP_URL` é ignorado.
     RESEND_API_KEY: optionalText(),
+    // Desliga o Resend sem apagar a chave: o e-mail volta ao SMTP_URL (Mailpit no staging).
+    EMAIL_RESEND_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    // Lista de e-mails ou domínios (`@exemplo.com.br`) separados por vírgula. Declarada, o worker só
+    // entrega a quem estiver nela; ausente, não filtra (produção).
+    EMAIL_ALLOWED_RECIPIENTS: optionalText(),
     FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: z
       .enum(['true', 'false'])
       .default('false')
@@ -168,6 +181,35 @@ const workerEnvironmentSchema = z
       })
     }
 
+    if (environment.APP_ENV === 'production') {
+      if (!environment.EMAIL_RESEND_ENABLED) {
+        context.addIssue({
+          code: 'custom',
+          message: 'EMAIL_RESEND_ENABLED=false is forbidden in production',
+          path: ['EMAIL_RESEND_ENABLED'],
+        })
+      }
+      if (environment.EMAIL_ALLOWED_RECIPIENTS !== undefined) {
+        context.addIssue({
+          code: 'custom',
+          message: 'EMAIL_ALLOWED_RECIPIENTS is forbidden in production',
+          path: ['EMAIL_ALLOWED_RECIPIENTS'],
+        })
+      }
+    }
+
+    if (
+      !environment.EMAIL_RESEND_ENABLED &&
+      environment.SMTP_URL === undefined &&
+      environment.EMAIL_FROM !== undefined
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'EMAIL_RESEND_ENABLED=false requires SMTP_URL',
+        path: ['EMAIL_RESEND_ENABLED', 'SMTP_URL'],
+      })
+    }
+
     /**
      * `API_BASE_URL` sozinha não conta: ela serve também à baixa de comandos do WhatsApp e à marca
      * do e-mail. O MDF-e automático liga pelas credenciais do Keycloak, e declarada uma delas, as
@@ -185,6 +227,23 @@ const workerEnvironmentSchema = z
         message: 'The automatic MDF-e trigger requires every credential or none',
         path: [...MDFE_AUTO_ISSUE_KEYS],
       })
+    }
+
+    if (environment.CONTRACTOR_MAIL_SANDBOX_SMTP) {
+      if (environment.APP_ENV === 'production') {
+        context.addIssue({
+          code: 'custom',
+          message: 'The contractor mail sandbox is forbidden in production',
+          path: ['CONTRACTOR_MAIL_SANDBOX_SMTP'],
+        })
+      }
+      if (environment.SMTP_URL === undefined || environment.EMAIL_FROM === undefined) {
+        context.addIssue({
+          code: 'custom',
+          message: 'The contractor mail sandbox requires SMTP_URL and EMAIL_FROM',
+          path: ['SMTP_URL', 'EMAIL_FROM'],
+        })
+      }
     }
 
     if (environment.APP_ENV === 'production' && environment.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED) {
@@ -236,6 +295,12 @@ export function parseWorkerEnvironment(
     fuelPricePull: toFuelPricePull(result.data),
     ...(identityDocumentBackfill === undefined ? {} : { identityDocumentBackfill }),
     ...toEmailDelivery(result.data),
+    ...toEmailRecipientGuard(result.data),
+    ...((result.data.CONTRACTOR_MAIL_SANDBOX_SMTP || !result.data.EMAIL_RESEND_ENABLED) &&
+    result.data.SMTP_URL !== undefined &&
+    result.data.EMAIL_FROM !== undefined
+      ? { contractorMailSandbox: { from: result.data.EMAIL_FROM, smtpUrl: result.data.SMTP_URL } }
+      : {}),
     foundationSyntheticConsumerEnabled: result.data.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED,
     foundationSyntheticEffectDelayMs: result.data.FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS,
     logLevel: result.data.LOG_LEVEL,
@@ -420,15 +485,20 @@ function optionalText(): z.ZodType<string | undefined, string | undefined> {
 
 function toEmailDelivery(
   environment: Readonly<{
+    EMAIL_ALLOWED_RECIPIENTS?: string | undefined
     EMAIL_FROM?: string | undefined
+    EMAIL_RESEND_ENABLED: boolean
     RESEND_API_KEY?: string | undefined
     SMTP_URL?: string | undefined
   }>,
 ): { readonly emailDelivery?: EmailDeliveryEnvironment } {
   if (environment.EMAIL_FROM === undefined) return {}
-  if (environment.RESEND_API_KEY !== undefined) {
+  const allowedRecipients = parseAllowedRecipients(environment.EMAIL_ALLOWED_RECIPIENTS)
+  const filter = allowedRecipients === undefined ? {} : { allowedRecipients }
+  if (environment.RESEND_API_KEY !== undefined && environment.EMAIL_RESEND_ENABLED) {
     return {
       emailDelivery: {
+        ...filter,
         from: environment.EMAIL_FROM,
         transport: { apiKey: environment.RESEND_API_KEY, kind: 'resend' },
       },
@@ -437,8 +507,32 @@ function toEmailDelivery(
   if (environment.SMTP_URL === undefined) return {}
   return {
     emailDelivery: {
+      ...filter,
       from: environment.EMAIL_FROM,
       transport: { kind: 'smtp', smtpUrl: environment.SMTP_URL },
     },
   }
+}
+
+/** O e-mail da contratante não passa pelo `emailDelivery`: a trava chega a ele por aqui. */
+function toEmailRecipientGuard(
+  environment: Readonly<{
+    EMAIL_ALLOWED_RECIPIENTS?: string | undefined
+    EMAIL_RESEND_ENABLED: boolean
+  }>,
+): Pick<WorkerEnvironment, 'emailAllowedRecipients' | 'emailResendDisabled'> {
+  const allowedRecipients = parseAllowedRecipients(environment.EMAIL_ALLOWED_RECIPIENTS)
+  return {
+    ...(allowedRecipients === undefined ? {} : { emailAllowedRecipients: allowedRecipients }),
+    ...(environment.EMAIL_RESEND_ENABLED ? {} : { emailResendDisabled: true as const }),
+  }
+}
+
+function parseAllowedRecipients(raw: string | undefined): readonly string[] | undefined {
+  if (raw === undefined) return undefined
+  const entries = raw
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry !== '')
+  return entries.length === 0 ? undefined : entries
 }

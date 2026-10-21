@@ -1,0 +1,6 @@
+ALTER TABLE "company_occurrence_types" ADD COLUMN "contractor_reply_resolve_on_delivery" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "trip_occurrence_resolution_events" ADD COLUMN "contractor_reply_id" uuid;--> statement-breakpoint
+CREATE UNIQUE INDEX "trip_occurrence_resolution_events_contractor_reply_unique" ON "trip_occurrence_resolution_events" ("company_id","contractor_reply_id") WHERE "contractor_reply_id" is not null;--> statement-breakpoint
+ALTER TABLE "trip_occurrence_resolution_events" ADD CONSTRAINT "trip_occurrence_resolution_events_company_contractor_reply_fk" FOREIGN KEY ("company_id","contractor_reply_id") REFERENCES "occurrence_contractor_replies"("company_id","id") ON DELETE RESTRICT ON UPDATE CASCADE;--> statement-breakpoint
+ALTER TABLE "trip_occurrence_resolution_events" ADD CONSTRAINT "trip_occurrence_resolution_events_system_cause_check" CHECK (num_nonnulls("case_event_id", "contractor_reply_id") <= 1);--> statement-breakpoint
+ALTER TABLE "trip_occurrence_resolution_events" DROP CONSTRAINT "trip_occurrence_resolution_events_system_case_event_check", ADD CONSTRAINT "trip_occurrence_resolution_events_system_case_event_check" CHECK (("actor_kind" = 'system') = (num_nonnulls("case_event_id", "contractor_reply_id") = 1));

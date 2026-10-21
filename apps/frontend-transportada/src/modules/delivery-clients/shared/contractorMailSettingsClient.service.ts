@@ -5,12 +5,13 @@ import { readRetryAfterSecondsHeader } from '@/modules/shared/retryAfter.service
 
 import {
   checksFromApi,
-  nullableSettingsFromApi,
   settingsFromApi,
+  settingsReadFromApi,
   testEmailResultFromApi,
 } from './contractorMailSettingsResponse.validation'
 import type {
   ContractorMailCheckItem,
+  ContractorMailSettingsRead,
   ContractorMailSettingsSummary,
   ContractorMailTestEmailResult,
 } from './contractorMailSettings.types'
@@ -55,7 +56,7 @@ type ClientDependencies = Readonly<{
 
 export type ContractorMailSettingsClient = Readonly<{
   getChecks: () => Promise<readonly ContractorMailCheckItem[]>
-  getSettings: () => Promise<ContractorMailSettingsSummary | null>
+  getSettings: () => Promise<ContractorMailSettingsRead>
   saveSettings: (body: ContractorMailSettingsSaveBody) => Promise<ContractorMailSettingsSummary>
   sendTestEmail: () => Promise<ContractorMailTestEmailResult>
 }>
@@ -134,7 +135,7 @@ export function createContractorMailSettingsClient(
       )
     },
     async getSettings() {
-      return nullableSettingsFromApi(
+      return settingsReadFromApi(
         await request({ dependencies, method: 'GET', path: CONTRACTOR_MAIL_SETTINGS_PATH }),
       )
     },

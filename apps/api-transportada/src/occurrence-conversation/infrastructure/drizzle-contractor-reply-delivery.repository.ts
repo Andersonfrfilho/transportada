@@ -28,6 +28,10 @@ export function createDrizzleContractorReplyDeliveryUnitOfWork(
             const item = await findTripOccurrenceFeedItem(transaction, { companyId, occurrenceId })
             return item === null ? null : describeOccurrenceLabel(item)
           },
+          async findOccurrenceTypeName({ companyId, occurrenceId }) {
+            const item = await findTripOccurrenceFeedItem(transaction, { companyId, occurrenceId })
+            return item?.typeName ?? null
+          },
           async findReplyId({ companyId, occurrenceId }) {
             const [reply] = await transaction
               .select({ id: occurrenceContractorReplies.id })

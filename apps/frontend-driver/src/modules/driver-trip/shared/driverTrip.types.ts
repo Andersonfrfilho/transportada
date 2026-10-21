@@ -498,7 +498,6 @@ export type DriverOccurrenceType = Readonly<{
   declaredAmountMode?: ProofFieldRequirement
   declaredAmountScope?: string
   declaredAmountLabel?: string
-  emailItemLineTemplate?: string
   iconName?: null | string
 }>
 
@@ -529,7 +528,6 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly declaredAmountMode?: unknown
     readonly declaredAmountScope?: unknown
     readonly declaredAmountLabel?: unknown
-    readonly emailItemLineTemplate?: unknown
     readonly iconName?: unknown
   }
   /** Ausente é a API anterior; presente, só no vocabulário — valor desconhecido não vira "sem exigência". */
@@ -561,9 +559,7 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     (candidate.referenceNumberLabel === undefined ||
       typeof candidate.referenceNumberLabel === 'string') &&
     (candidate.declaredAmountLabel === undefined ||
-      typeof candidate.declaredAmountLabel === 'string') &&
-    (candidate.emailItemLineTemplate === undefined ||
-      typeof candidate.emailItemLineTemplate === 'string')
+      typeof candidate.declaredAmountLabel === 'string')
   const hasKnownIconName =
     candidate.iconName === undefined ||
     candidate.iconName === null ||

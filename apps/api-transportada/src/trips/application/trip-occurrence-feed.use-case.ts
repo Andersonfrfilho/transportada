@@ -87,12 +87,23 @@ export type TripOccurrenceFeedDocument = {
     readonly state: string
   } | null
   readonly nfeDocumentId: string
+  /** Spec 277 RF2: o destinatário (o cliente); `null` sem participante `recipient` na nota. */
+  readonly recipient: { readonly name: string; readonly taxId: null | string } | null
+  /** Spec 277 RF2: soma dos volumes da nota — peso bruto em kg e quantidade de volumes, strings decimais. */
+  readonly cargo: { readonly grossWeightKg: string; readonly volumeCount: string }
   readonly totalValue: string
   /** Spec 183 T702d: a nota **da viagem** — o caminho da rota de anexo da ocorrência (161). */
   readonly tripDocumentId: string
 }
 
 export type TripOccurrenceFeedResolutionView = FeedResolutionView
+
+/** Spec 277 RF5: uma linha da resolução média por tipo; `averageSeconds` é do registro até o último "resolvida". */
+export type TripOccurrenceResolutionSummaryItem = {
+  readonly averageSeconds: number
+  readonly resolvedCount: number
+  readonly typeName: string
+}
 
 export type TripOccurrenceFeedItem = {
   /** Spec 156 T9 (D3): nome de quem clicou, `null` sem vínculo ativo na empresa. */
@@ -124,6 +135,11 @@ export type TripOccurrenceFeedItem = {
   readonly id: string
   readonly invoiceNumber: null | string
   readonly invoiceSeries: null | string
+  /**
+   * Spec 269 (D8): o tipo avisa a contratante (`emails_contractor`) e não há modelo efetivo (exceção da
+   * contratante da nota ?? tipo) — "Tipo sem modelo de notificação". Calculado aqui; falso na parada.
+   */
+  readonly missingNotificationTemplate: boolean
   /** O tipo cadastrado avisa o embarcador quando a empresa ligou isso. Falso para parada. */
   readonly notifies: boolean
   /**
@@ -149,6 +165,13 @@ export type TripOccurrenceFeedItem = {
   /** Nome do tipo cadastrado, ou o `kind` do relato de parada. É o que a tela imprime. */
   readonly typeName: string
   readonly vehiclePlate: string
+  /** Spec 277 RF2: o resto da ficha do veículo da viagem; `modelYear` `null` quando o cadastro não tem ano. */
+  readonly vehicle: {
+    readonly brand: string
+    readonly color: string
+    readonly model: string
+    readonly modelYear: null | number
+  }
 }
 
 /** RF11: `'none'` é "sem tratativa" — a ocorrência não tem `trip_occurrence_cases`. */
@@ -166,6 +189,8 @@ export type TripOccurrenceFeedFilters = {
   readonly plateIn?: readonly string[]
   /** Spec 266: o andamento com o motorista. `open` é sem evento; `reopened` é o último evento `reopened`. */
   readonly resolutionStateIn?: readonly FeedResolutionStateFilter[]
+  /** Spec 277 RF1: texto livre, já aparado; casa em qualquer campo da linha (nota, motorista, veículo, empresas, cidade, andamento). */
+  readonly search?: string
   readonly stageIn?: readonly TripOccurrenceFeedStage[]
   readonly typeIn?: readonly string[]
 }

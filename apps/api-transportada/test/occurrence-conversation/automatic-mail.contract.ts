@@ -15,6 +15,7 @@ import {
   createSendAutomaticOccurrenceMailUseCase,
   type AutomaticOccurrenceMailPlan,
 } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
+import { OccurrenceMailTemplateMissingError } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import { ContractorMailNotConfiguredError } from '../../src/contractor-mail/domain/contractor-mail.error.js'
 import type { SendOccurrenceMailInput } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 
@@ -23,7 +24,9 @@ const OCCURRENCE_ID = '00000000-0000-4000-8000-000000180202'
 
 function plan(overrides: Partial<AutomaticOccurrenceMailPlan> = {}): AutomaticOccurrenceMailPlan {
   return {
+    chosenContactIds: [],
     emailsContractor: true,
+    isRegisteredBeforeTemplate: false,
     recipients: [
       {
         contactId: 'contact-email',
@@ -111,10 +114,30 @@ describe('o aviso automático à contratante (spec 183 T802)', () => {
     ])
   })
 
+  /** Spec 271 D13: o destinatário escolhido no tipo vence a etapa; sem nenhum que sobre, vale a regra de hoje. */
+  test('os destinatários escolhidos no tipo vão, ignorando a etapa deles', async () => {
+    const { run, sent } = setup({ plan: plan({ chosenContactIds: ['contact-other-stage'] }) })
+
+    expect(await run()).toMatchObject({ outcome: 'sent', recipientCount: 1 })
+    expect(sent[0]?.contactIds).toEqual(['contact-other-stage'])
+  })
+
+  test('escolhido sem e-mail não sobra: vale a regra da etapa, não "ninguém"', async () => {
+    const { run, sent } = setup({ plan: plan({ chosenContactIds: ['contact-whatsapp-only'] }) })
+
+    expect(await run()).toMatchObject({ outcome: 'sent' })
+    expect(sent[0]?.contactIds).toEqual(['contact-email', 'contact-whatsapp'])
+  })
+
   test.each([
     ['ocorrência de parada ou inexistente', null, 'not_document'],
     ['tipo sem o envio ligado', plan({ emailsContractor: false }), 'type_off'],
-    ['tipo sem texto de e-mail', plan({ suggested: null }), 'no_template'],
+    ['tipo sem modelo selecionado', plan({ suggested: null }), 'no_template_selected'],
+    [
+      'ocorrência registrada antes da escolha do modelo',
+      plan({ isRegisteredBeforeTemplate: true }),
+      'registered_before_template',
+    ],
     [
       'nenhum contato da etapa com e-mail',
       plan({
@@ -141,6 +164,12 @@ describe('o aviso automático à contratante (spec 183 T802)', () => {
     const { run } = setup({ fail: new ContractorMailNotConfiguredError(), plan: plan() })
 
     expect(await run()).toEqual({ outcome: 'skipped', reason: 'mail_not_ready' })
+  })
+
+  test('corrida: o modelo deixou de valer entre o plano e o envio (409) vira motivo, não falha', async () => {
+    const { run } = setup({ fail: new OccurrenceMailTemplateMissingError(), plan: plan() })
+
+    expect(await run()).toEqual({ outcome: 'skipped', reason: 'no_template_selected' })
   })
 
   test('outro erro sobe: o chamador registra e segue (falha não é "não configurado")', async () => {

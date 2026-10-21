@@ -50,7 +50,10 @@
     },
     "automatic": "Aviso automático do tipo de ocorrência",
     "unverified": "Remetente não confirmado",
-    "unverifiedHint": "O e-mail chegou sem assinatura do domínio do remetente: o endereço pode ter sido escrito por outra pessoa."
+    "unverifiedHint": "O e-mail chegou sem assinatura do domínio do remetente: o endereço pode ter sido escrito por outra pessoa.",
+    "copy": "Cópia",
+    "team": "Equipe",
+    "teamOnly": "só para a equipe — a contratante não recebeu"
   },
   "status": {
     "queued": "Na fila",
@@ -59,9 +62,11 @@
     "read": "Lido",
     "failed": "Falhou",
     "bounced": "Devolvido",
-    "times": "Horários da mensagem"
+    "times": "Horários da mensagem",
+    "readEmailHint": "Aberta pela contratante (pode não aparecer se o e-mail bloquear imagens)"
   },
   "dialog": {
+    "missingTemplate": "Tipo sem modelo de notificação: sem modelo o e-mail não sai, nem à mão. Escolha um modelo no tipo ou na exceção da contratante.",
     "title": "Enviar à contratante",
     "close": "Fechar",
     "loading": "Preparando o e-mail",
@@ -88,7 +93,14 @@
       "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "Um envio anterior já foi registrado. Envie de novo para mandar o texto atual.",
       "OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED": "Um dos anexos não é o que diz ser, ou os arquivos passam do total que um e-mail leva. Confira e tente de novo.",
       "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Não foi possível subir os anexos. Tente de novo em instantes.",
-      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez."
+      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez.",
+      "CONTRACTOR_MAIL_TOO_MANY_RECIPIENTS": "Destinatários e cópia passam do limite de um e-mail. Tire alguém da cópia ou desmarque contatos.",
+      "OCCURRENCE_CHAT_MAIL_NO_RECIPIENTS": "Nenhum contato desta contratante recebe e-mail agora. Confira o cadastro de contatos e tente de novo."
+    },
+    "copy": {
+      "label": "Cópia:",
+      "empty": "Nenhum responsável em cópia neste e-mail.",
+      "remove": "Tirar {{name}} da cópia deste e-mail"
     }
   },
   "unassigned": {
@@ -300,9 +312,14 @@
     }
   },
   "thread": {
+    "minimize": "Minimizar a conversa com {{name}}",
+    "expand": "Expandir a conversa com {{name}}",
     "newMessages_one": "{{count}} mensagem nova na conversa",
     "newMessages_other": "{{count}} mensagens novas na conversa",
     "contractorNewMessages": "Novas mensagens da contratante",
+    "contractorInputLabel": "Mensagem à contratante",
+    "contractorInputPlaceholder": "Escreva à contratante (sai por e-mail)",
+    "contractorQueued": "Na fila de envio",
     "via": "via {{channel}}",
     "unread_one": "{{count}} não lida",
     "unread_other": "{{count}} não lidas",
@@ -314,8 +331,7 @@
     },
     "closed": {
       "readOnly": "Você pode ler a conversa, mas não tem permissão para escrever.",
-      "noRecipient": "Sem nota ou sem contratante identificada, não há a quem escrever.",
-      "noPortal": "O portal da contratante não está aberto para esta ocorrência. Para escrever, use Enviar por e-mail."
+      "noRecipient": "Sem nota ou sem contratante identificada, não há a quem escrever."
     },
     "attachments": {
       "title": "Arquivos recebidos",
@@ -328,6 +344,31 @@
       "title": "Mensagem que não chegou",
       "resent": "Reenviada por {{channel}}.",
       "resendError": "Não foi possível reenviar. Tente de novo em instantes."
+    },
+    "sendError": {
+      "noRecipients": "Não há destinatário de e-mail para esta contratante. Use Enviar por e-mail para escolher quem recebe.",
+      "notConfigured": "O envio de e-mail desta contratante não está configurado. Configure a caixa de saída antes de escrever.",
+      "notVerified": "O envio de e-mail desta contratante ainda não foi verificado. Verifique a caixa de saída antes de escrever.",
+      "tooLarge": "A mensagem ficou grande demais para ir por e-mail. Reduza o texto ou os anexos e tente de novo.",
+      "chatUnavailable": "O e-mail padrão ainda não está disponível neste ambiente. Use Enviar por e-mail ou tente mais tarde.",
+      "rateLimited": "Muitas mensagens por e-mail em pouco tempo. Aguarde alguns minutos e tente de novo.",
+      "generic": "Não foi possível enviar a mensagem por e-mail. Tente de novo ou use Enviar por e-mail.",
+      "openMail": "Enviar por e-mail"
+    },
+    "summary": {
+      "title": "Resumo da conversa",
+      "count_one": "{{count}} mensagem",
+      "count_other": "{{count}} mensagens",
+      "last": "Última",
+      "byUs": "Nós",
+      "exchange": "Troca",
+      "sent_one": "{{count}} enviada",
+      "sent_other": "{{count}} enviadas",
+      "received_one": "{{count}} recebida",
+      "received_other": "{{count}} recebidas",
+      "files": "Arquivos",
+      "failed": "Falhas de envio",
+      "preview": "Última mensagem"
     }
   },
   "sendRecovery": {
@@ -369,7 +410,8 @@
     },
     "reason": {
       "no_accepted_attachment": "sem anexo aceito",
-      "multiple_attachments": "mais de um anexo"
+      "multiple_attachments": "mais de um anexo",
+      "document_not_confirmed": "o PDF não parece o boleto desta nota"
     },
     "alerts_one": "{{count}} alerta",
     "alerts_other": "{{count}} alertas",
@@ -450,7 +492,8 @@
         "attachment_too_large_for_email": "arquivo grande demais para e-mail",
         "send_failed": "falha no envio",
         "no_accepted_attachment": "sem anexo aceito",
-        "multiple_attachments": "mais de um anexo"
+        "multiple_attachments": "mais de um anexo",
+        "document_not_confirmed": "o PDF não parece o boleto desta nota"
       }
     },
     "hint": {
@@ -463,5 +506,52 @@
       "overdue": "A contratante passou do prazo sem responder. Vale ligar ou reenviar o pedido.",
       "reply_received": "A contratante respondeu com o boleto e ele está a caminho do motorista."
     }
+  },
+  "watchers": {
+    "title": "Responsáveis por ocorrências",
+    "description": "Os atendentes que vão em cópia em todo e-mail de ocorrência e de correção de endereço enviado às contratantes. Cada contratante pode ter a própria lista, que substitui esta.",
+    "loading": "Carregando os responsáveis",
+    "loadError": "Não foi possível carregar os responsáveis. Tente de novo em instantes.",
+    "empty": "Nenhum responsável cadastrado. Os e-mails saem sem cópia.",
+    "emptyContractor": "Nenhum responsável próprio desta contratante.",
+    "active": "Ativo",
+    "remove": "Remover",
+    "ineligible": "não elegível",
+    "noEmail": "Sem e-mail cadastrado",
+    "unknownUser": "Usuário sem vínculo",
+    "addLabel": "Adicionar responsável",
+    "addPlaceholder": "Escolha um usuário",
+    "noCandidates": "Nenhum usuário disponível",
+    "add": "Adicionar",
+    "limit": "A lista chegou ao limite: no máximo {{count}} responsáveis ativos e 30 no total. Desative ou remova alguém para adicionar outro.",
+    "source": {
+      "contractor": "Esta contratante usa a lista própria abaixo: ela substitui a da empresa.",
+      "company": "Nenhum ativo — vale a lista da empresa.",
+      "companyOverridden": "Nenhum ativo — vale a lista da empresa."
+    },
+    "removeDialog": {
+      "title": "Remover {{name}}?",
+      "body": "O responsável deixa de aparecer nesta lista. Para só pausar a cópia, desative em vez de remover.",
+      "cancel": "Cancelar",
+      "confirm": "Remover"
+    },
+    "error": {
+      "generic": "Não foi possível salvar. Tente de novo em instantes.",
+      "OCCURRENCE_WATCHER_NOT_ELIGIBLE": "Este usuário não pode ser responsável: precisa de vínculo ativo, de permissão para tratar ocorrências e de e-mail.",
+      "OCCURRENCE_WATCHER_LIST_TOO_LONG": "A lista chegou ao limite de responsáveis.",
+      "OCCURRENCE_WATCHER_NOT_FOUND": "Este responsável não está mais na lista.",
+      "CONTRACTOR_NOT_FOUND": "Contratante não encontrada."
+    }
+  },
+  "message": {
+    "options": "Opções da mensagem",
+    "copySelection": "Copiar seleção",
+    "download": "Baixar {{name}}",
+    "copy": "Copiar texto",
+    "copied": "Copiado",
+    "forwardToDriver": "Encaminhar ao motorista",
+    "forwardToContractor": "Encaminhar à contratante",
+    "forwarded": "Encaminhada",
+    "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
   }
 }

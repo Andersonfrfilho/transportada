@@ -84,11 +84,21 @@ function isTemplate(value: unknown): value is ContractorMailTemplate {
   )
 }
 
+function hasUnknownMailType(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.mailType === 'string' &&
+    !CONTRACTOR_MAIL_TEMPLATE_TYPES.includes(value.mailType as never)
+  )
+}
+
 export function catalogFromApi(payload: unknown): readonly MailTemplateCatalogEntry[] {
-  if (!isRecord(payload) || !Array.isArray(payload.data) || !payload.data.every(isCatalogEntry)) {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) {
     throw new ContractorMailTemplatesResponseError()
   }
-  return payload.data
+  const knownEntries = payload.data.filter((entry) => !hasUnknownMailType(entry))
+  if (!knownEntries.every(isCatalogEntry)) throw new ContractorMailTemplatesResponseError()
+  return knownEntries
 }
 
 export function templateFromApi(payload: unknown): ContractorMailTemplate {
@@ -99,10 +109,12 @@ export function templateFromApi(payload: unknown): ContractorMailTemplate {
 }
 
 export function templateListFromApi(payload: unknown): readonly ContractorMailTemplate[] {
-  if (!isRecord(payload) || !Array.isArray(payload.data) || !payload.data.every(isTemplate)) {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) {
     throw new ContractorMailTemplatesResponseError()
   }
-  return payload.data
+  const knownTemplates = payload.data.filter((template) => !hasUnknownMailType(template))
+  if (!knownTemplates.every(isTemplate)) throw new ContractorMailTemplatesResponseError()
+  return knownTemplates
 }
 
 export function previewFromApi(payload: unknown): MailTemplatePreviewResult {

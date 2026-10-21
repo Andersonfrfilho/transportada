@@ -89,6 +89,100 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
     ])
   })
 
+  test('lê o e-mail inteiro da resposta e descarta o vazio ou de outro tipo', async () => {
+    const client = createClient(
+      Response.json({
+        data: {
+          conversations: [
+            {
+              id: 'conversation-1',
+              messages: [
+                { ...OUTBOUND, emailFullText: 'Ok\n> antes', id: 'with-history' },
+                { ...OUTBOUND, emailFullText: '  ', id: 'blank' },
+                { ...OUTBOUND, emailFullText: 42, id: 'wrong-type' },
+              ],
+              participant: 'contractor',
+              status: 'open',
+              unreadCount: 0,
+            },
+          ],
+        },
+      }),
+    )
+
+    const { conversations } = await client.listConversations({ occurrenceId: OCCURRENCE_ID })
+    const [withHistory, blank, wrongType] = conversations[0]?.messages ?? []
+
+    expect(withHistory?.emailFullText).toBe('Ok\n> antes')
+    expect(blank).not.toHaveProperty('emailFullText')
+    expect(wrongType).not.toHaveProperty('emailFullText')
+  })
+
+  /** Spec 267 RF8/RF9: a cópia da mensagem de saída e o responsável que respondeu (interno) são lidos. */
+  test('lê a cópia da mensagem de saída e a identidade interna do responsável', async () => {
+    const client = createClient(
+      Response.json({
+        data: {
+          conversations: [
+            {
+              id: 'conversation-1',
+              messages: [
+                {
+                  ...OUTBOUND,
+                  copy: [
+                    { maskedEmail: 'a***@e***.test', name: 'Ana' },
+                    { maskedEmail: 'b***@e***.test', name: null },
+                    { broken: true },
+                  ],
+                  id: 'with-copy',
+                },
+                {
+                  ...OUTBOUND,
+                  author: {
+                    identity: {
+                      arrivedAs: 'ana@empresa.test',
+                      kind: 'internal',
+                      name: 'Ana',
+                      reachedContractor: false,
+                      userId: 'user-ana',
+                    },
+                    kind: 'contractor',
+                    userId: null,
+                  },
+                  direction: 'inbound',
+                  id: 'internal-reply',
+                  status: null,
+                },
+              ],
+              participant: 'contractor',
+              status: 'open',
+              unreadCount: 0,
+            },
+          ],
+        },
+      }),
+    )
+
+    const { conversations } = await client.listConversations({ occurrenceId: OCCURRENCE_ID })
+    const [withCopy, internal] = conversations[0]?.messages ?? []
+
+    expect(withCopy?.copy).toEqual([
+      { maskedEmail: 'a***@e***.test', name: 'Ana' },
+      { maskedEmail: 'b***@e***.test', name: null },
+    ])
+    expect(internal?.author).toEqual({
+      identity: {
+        arrivedAs: 'ana@empresa.test',
+        kind: 'internal',
+        name: 'Ana',
+        reachedContractor: false,
+        userId: 'user-ana',
+      },
+      kind: 'contractor',
+      userId: null,
+    })
+  })
+
   test('a leitura diz se o canal Portal está aberto (spec 183 T654)', async () => {
     const client = createClient(
       Response.json({ data: { contractorPortal: { available: true }, conversations: [] } }),
@@ -176,17 +270,86 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
       ],
       subject: 'Assunto',
       suggested: true,
+      notificationTemplateKey: 'ocorrencia.avaria',
       text: 'Texto\n\n—\nOperadora',
     }
     const client = createClient(Response.json({ data: preview }))
 
+    /** Spec 267: API antiga, sem a cópia — a prévia segue legível, com a lista vazia. */
     expect(await client.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toEqual({
       bodyText: 'Texto',
+      cc: [],
+      ccSource: null,
       contractorName: 'Contratante Alfa',
+      missingNotificationTemplate: false,
       recipients: preview.recipients,
       subject: 'Assunto',
       suggested: true,
+      notificationTemplateKey: 'ocorrencia.avaria',
       text: 'Texto\n\n—\nOperadora',
+    })
+  })
+
+  /** Spec 267 RF4: a cópia efetiva (nome e e-mail mascarado) e de qual lista ela veio. */
+  test('a prévia traz a cópia dos responsáveis e a lista de origem; entrada inválida some', async () => {
+    const client = createClient(
+      Response.json({
+        data: {
+          bodyText: 'Texto',
+          cc: [{ maskedEmail: 'a***@e***.test', name: 'Ana', userId: 'user-ana' }, { broken: 1 }],
+          ccSource: 'contractor',
+          contractorName: 'Contratante Alfa',
+          recipients: [],
+          subject: 'Assunto',
+          suggested: false,
+          text: 'Texto',
+        },
+      }),
+    )
+
+    expect(await client.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
+      cc: [{ maskedEmail: 'a***@e***.test', name: 'Ana', userId: 'user-ana' }],
+      ccSource: 'contractor',
+    })
+  })
+
+  /** Spec 271 T1.2: a cópia do tipo (`occurrence_type`) e a chave do modelo chegam; `templateId` some sem quebrar. */
+  test('a prévia aceita ccSource do tipo e a chave do modelo, sem templateId', async () => {
+    const client = createClient(
+      Response.json({
+        data: {
+          bodyText: 'Texto',
+          ccSource: 'occurrence_type',
+          contractorName: 'Contratante Alfa',
+          notificationTemplateKey: 'ocorrencia.avaria',
+          recipients: [],
+          subject: 'Assunto',
+          suggested: true,
+          text: 'Texto',
+        },
+      }),
+    )
+
+    expect(await client.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
+      ccSource: 'occurrence_type',
+      notificationTemplateKey: 'ocorrencia.avaria',
+    })
+  })
+
+  test('a prévia sem modelo efetivo traz a flag; API anterior sem os campos vira "tem modelo"', async () => {
+    const base = { bodyText: '', html: '', recipients: [], subject: '', suggested: false, text: '' }
+    const missing = createClient(
+      Response.json({ data: { ...base, missingNotificationTemplate: true } }),
+    )
+    const legacy = createClient(Response.json({ data: base }))
+
+    expect(await missing.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
+      missingNotificationTemplate: true,
+      notificationTemplateKey: null,
+    })
+    expect(await legacy.previewContractorMail({ occurrenceId: OCCURRENCE_ID })).toMatchObject({
+      missingNotificationTemplate: false,
+      notificationTemplateKey: null,
     })
   })
 
@@ -233,7 +396,7 @@ describe('ao motorista pelo app (spec 183 T603)', () => {
       requests,
     )
 
-    await client.sendDriverAppMessage({
+    const receipt = await client.sendDriverAppMessage({
       body: 'Pode aguardar na doca?',
       idempotencyKey: 'driver-message:key-0001',
       occurrenceId: OCCURRENCE_ID,
@@ -245,5 +408,17 @@ describe('ao motorista pelo app (spec 183 T603)', () => {
     )
     expect(request?.headers.get('idempotency-key')).toBe('driver-message:key-0001')
     expect(await request?.json()).toEqual({ body: 'Pode aguardar na doca?', channel: 'app' })
+    expect(receipt).toEqual({ conversationMessageId: 'message-9' })
+  })
+
+  test('resposta sem o id gravado (API antiga) ainda vale como enviada, sem recibo', async () => {
+    const client = createClient(Response.json({ data: {} }, { status: 202 }), [])
+    expect(
+      await client.sendDriverAppMessage({
+        body: 'Oi',
+        idempotencyKey: 'driver-message:key-0002',
+        occurrenceId: OCCURRENCE_ID,
+      }),
+    ).toEqual({ conversationMessageId: null })
   })
 })

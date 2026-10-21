@@ -2,8 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * O tipo de ocorrência passa a **selecionar** um template do módulo de notificações
- * (`email_template_key`), em vez de carregar o próprio assunto/corpo. A linha legada — só
- * `emailSubject`/`emailBody` — continua funcionando exatamente como antes.
+ * (`email_template_key`), em vez de carregar o próprio assunto/corpo.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -20,8 +19,6 @@ const BASE_VALUES = {
   active: true,
   allowsMultipleItems: true,
   attachmentMode: 'off' as const,
-  emailBody: 'corpo digitado',
-  emailSubject: 'assunto digitado',
   emailTemplateKey: null as null | string,
   name: 'Recusa total',
   notifies: true,
@@ -33,8 +30,6 @@ function buildType(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeReco
   return {
     active: true,
     allowsMultipleItems: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     id: TIPO,
     name: 'Recusa total',
@@ -54,21 +49,6 @@ function buildRepository(type: OccurrenceTypeRecord) {
     },
     async listOccurrences() {
       return []
-    },
-    async readTemplateValues() {
-      return {
-        contractorName: '',
-        documentLabel: '883658/1',
-        driverName: '',
-        itemCode: '',
-        itemLabel: '',
-        itemQuantity: '',
-        note: '',
-        occurredOn: '03/09/2026',
-        recipientName: '',
-        stopLabel: '',
-        totalValue: '',
-      }
     },
     async saveOccurrence(saved: { readonly typeName: string }) {
       return {
@@ -112,7 +92,7 @@ async function registrar(type: OccurrenceTypeRecord, notify: (call: object) => v
 }
 
 describe('gravação do tipo com template do módulo', () => {
-  test('key válida grava a key e mantém assunto/corpo — são dois canais (spec 247 RF2)', async () => {
+  test('key válida grava a key (spec 247 RF2)', async () => {
     let savedValues: Record<string, unknown> = {}
     const saved = await saveOccurrenceTypeWithTemplate({
       companyId: COMPANY,
@@ -121,13 +101,14 @@ describe('gravação do tipo com template do módulo', () => {
         savedValues = values
         return buildType({ emailTemplateKey: 'billing.invoice-due' })
       },
-      templates: { hasActiveEmailTemplate: async () => true },
+      templates: {
+        findContractorTemplate: async () => null,
+        hasActiveEmailTemplate: async () => true,
+      },
       values: { ...BASE_VALUES, emailTemplateKey: 'billing.invoice-due' },
     })
 
     expect(savedValues.emailTemplateKey).toBe('billing.invoice-due')
-    expect(savedValues.emailSubject).toBe('assunto digitado')
-    expect(savedValues.emailBody).toBe('corpo digitado')
     expect(saved.emailTemplateKey).toBe('billing.invoice-due')
   })
 
@@ -137,7 +118,10 @@ describe('gravação do tipo com template do módulo', () => {
         companyId: COMPANY,
         findCurrentType: async () => null,
         save: async () => buildType({}),
-        templates: { hasActiveEmailTemplate: async () => false },
+        templates: {
+          findContractorTemplate: async () => null,
+          hasActiveEmailTemplate: async () => false,
+        },
         values: { ...BASE_VALUES, emailTemplateKey: 'key.inexistente' },
       }),
     ).rejects.toBeInstanceOf(OccurrenceEmailTemplateNotFoundError)
@@ -145,31 +129,6 @@ describe('gravação do tipo com template do módulo', () => {
     const error = new OccurrenceEmailTemplateNotFoundError()
     expect(error.code).toBe('OCCURRENCE_EMAIL_TEMPLATE_NOT_FOUND')
     expect(error.status).toBe(422)
-  })
-
-  test('sem key o legado segue intacto: assunto/corpo gravados e catálogo não consultado', async () => {
-    let savedValues: Record<string, unknown> = {}
-    let consulted = false
-    await saveOccurrenceTypeWithTemplate({
-      companyId: COMPANY,
-      findCurrentType: async () => null,
-      save: async (values) => {
-        savedValues = values
-        return buildType({ emailBody: 'corpo digitado', emailSubject: 'assunto digitado' })
-      },
-      templates: {
-        hasActiveEmailTemplate: async () => {
-          consulted = true
-          return true
-        },
-      },
-      values: { ...BASE_VALUES },
-    })
-
-    expect(consulted).toBe(false)
-    expect(savedValues.emailTemplateKey).toBeNull()
-    expect(savedValues.emailSubject).toBe('assunto digitado')
-    expect(savedValues.emailBody).toBe('corpo digitado')
   })
 })
 
@@ -190,28 +149,5 @@ describe('aviso da ocorrência com template do módulo', () => {
 
     expect(calls).toHaveLength(1)
     expect(calls[0]?.templateKey).toBe(NOTIFICATION_TEMPLATE_KEY.TRIP_DELIVERY_OCCURRENCE)
-  })
-
-  /** Spec 247 RF2: a chave é do aviso interno; o e-mail à contratante usa o assunto/corpo do tipo. */
-  test('tipo com key e texto próprio devolve o e-mail montado do texto', async () => {
-    const registered = await registrar(
-      buildType({
-        emailBody: 'sobra legada',
-        emailSubject: 'sobra legada',
-        emailTemplateKey: 'trip.ocorrencia-personalizada',
-      }),
-      () => undefined,
-    )
-
-    expect(registered.email).toEqual({ body: 'sobra legada', subject: 'sobra legada' })
-  })
-
-  test('tipo com key e sem assunto não devolve e-mail montado', async () => {
-    const registered = await registrar(
-      buildType({ emailTemplateKey: 'trip.ocorrencia-personalizada' }),
-      () => undefined,
-    )
-
-    expect(registered.email).toBeNull()
   })
 })

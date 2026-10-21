@@ -291,6 +291,7 @@ import {
   sha256Hex,
 } from './trips/domain/occurrence-attachment.policy.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
+import { formatOccurrenceMoment } from './trips/domain/occurrence-mail-values.policy.js'
 import { correctOccurrenceItems } from './trips/application/correct-occurrence-items.use-case.js'
 import { reviewCanhotoProof } from './trips/application/review-canhoto-proof.use-case.js'
 import { cancelOccurrence } from './trips/application/cancel-occurrence.use-case.js'
@@ -304,6 +305,14 @@ import {
   OCCURRENCE_CANCELLATION_OPERATION,
   OCCURRENCE_CORRECTION_OPERATION,
 } from './trips/domain/occurrence-correction.policy.js'
+import { toContractorTemplateView } from './occurrence-conversation/domain/occurrence-contractor-template.policy.js'
+import { listOccurrenceTypeRecipientCandidates } from './trips/infrastructure/occurrence-type-mail-view.query.js'
+import { createOccurrenceTypeMailRoutes } from './trips/presentation/occurrence-type-mail.routes.js'
+import {
+  findActiveContractorTemplate,
+  listActiveContractorTemplates,
+} from './occurrence-conversation/infrastructure/notification-template.query.js'
+import { toOccurrenceTypeSettingsViews } from './trips/infrastructure/occurrence-type-contractors.query.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
 import {
@@ -321,7 +330,11 @@ import {
   listTripOccurrenceAttachmentLocations,
   listTripOccurrenceFeed,
 } from './trips/infrastructure/trip-occurrence-feed.query.js'
+import { summarizeTripOccurrenceResolution } from './trips/infrastructure/trip-occurrence-resolution-summary.query.js'
+import { createDriverOccurrenceNotifier } from './trips/application/driver-occurrence-notifier.service.js'
+import type { DriverOccurrenceNotifierPort } from './trips/application/driver-occurrence-notifier.service.js'
 import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
+import { createDriverOccurrenceNotificationReader } from './trips/infrastructure/driver-occurrence-notification.query.js'
 import { createStopOccurrenceNotifier } from './trips/infrastructure/stop-occurrence-notifier.gateway.js'
 import {
   findDeliveryProofsByTrip,
@@ -335,7 +348,6 @@ import {
   listTripOccurrences,
   readOccurrenceLabels,
   readOccurrenceLabelsForDocuments,
-  readOccurrenceTemplateValues,
   saveOccurrenceType,
 } from './trips/infrastructure/delivery-proof-read.support.js'
 import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
@@ -499,7 +511,10 @@ import { createOpenMySubjectConversationUseCase } from './occurrence-conversatio
 import { createDrizzleDriverSubjectUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation-subject.repository.js'
 import { createSendContractorPortalMessageUseCase } from './occurrence-conversation/application/contractor-portal-message.use-case.js'
 import { createContractorPortalNotifier } from './occurrence-conversation/infrastructure/contractor-portal-notifier.gateway.js'
-import { createDrizzleContractorPortalMessageUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
+import {
+  createDrizzleContractorPortalChatAudienceReader,
+  createDrizzleContractorPortalMessageUnitOfWork,
+} from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
 import { createQuickRepliesUseCase } from './occurrence-conversation/application/quick-replies.use-case.js'
 import { createDrizzleQuickRepliesUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-quick-replies.repository.js'
 import { createQuickReplyRoutes } from './occurrence-conversation/presentation/quick-replies.routes.js'
@@ -536,6 +551,9 @@ import {
   createSendDriverAppMessageUseCase,
 } from './occurrence-conversation/application/driver-conversation.use-case.js'
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
+import { createContractorPortalChatNotice } from './occurrence-conversation/application/contractor-portal-chat-notice.service.js'
+import { createSendOccurrenceChatMailUseCase } from './occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
+import type { ResolvedStandardEmailTemplate } from './occurrence-conversation/application/standard-email-renderer.port.js'
 import {
   createPublicRef,
   createSendOccurrenceMailUseCase,
@@ -599,9 +617,14 @@ import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
 import { createTripFieldOfficeRoutes } from './trips/presentation/trip-field-office.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from './trips/presentation/trip-field-office-occurrence.routes.js'
-import { createOccurrenceTypeEmailPreviewRoutes } from './trips/presentation/occurrence-type-email-preview.routes.js'
 import { createTripFieldDeliverySettingsRoutes } from './trips/presentation/trip-field-delivery-settings.routes.js'
 import { listFieldOccurrenceTypes } from './trips/application/list-field-occurrence-types.use-case.js'
+import { listOccurrenceTypesForNote } from './trips/infrastructure/occurrence-types-for-note.query.js'
+import { listSeparationOccurrenceTypes } from './trips/application/list-separation-occurrence-types.use-case.js'
+import {
+  findDocumentOccurrenceSubject,
+  readNoteContractorIds,
+} from './trips/infrastructure/document-occurrence-subject.query.js'
 import { registerOfficeDocumentOccurrences } from './trips/application/register-office-document-occurrences.use-case.js'
 import { DrizzleOfficeOccurrenceBatchUnitOfWork } from './trips/infrastructure/drizzle-office-occurrence-batch.repository.js'
 import { DrizzleFieldTripTargetRepository } from './trips/infrastructure/drizzle-field-trip-target.repository'
@@ -741,7 +764,10 @@ import { createCargoArrivalOccurrenceHttpRoutes } from './cargo-receiving/cargo-
 import { createCargoPreviewHttpRoutes } from './cargo-receiving/cargo-preview.composition.js'
 import { createContractorPreviewEmailHttpRoutes } from './cargo-receiving/contractor-preview-email.composition.js'
 import { CARGO_ARRIVAL_CHANNEL } from './shared/cargo-arrival.constant.js'
+import { extractPdfTextLayer } from './shared/pdf-text-layer.service.js'
 import { createContractorContactsUseCase } from './contractor-mail/application/contractor-contacts.use-case.js'
+import { createOccurrenceWatchersUseCase } from './contractor-mail/application/occurrence-watchers.use-case.js'
+import { DrizzleOccurrenceWatcherRepository } from './contractor-mail/infrastructure/drizzle-occurrence-watcher.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createContractorMailSettingsUseCase } from './contractor-mail/application/contractor-mail-settings.use-case.js'
 import { createProcessInboundEmailWebhookUseCase } from './contractor-mail/application/process-inbound-email-webhook.use-case.js'
@@ -751,6 +777,7 @@ import { DrizzleContractorMailRepository } from './contractor-mail/infrastructur
 import { createMxLookupGateway } from './contractor-mail/infrastructure/mx-lookup.gateway.js'
 import { createResendAccountGateway } from './contractor-mail/infrastructure/resend-account.gateway.js'
 import { createContractorContactRoutes } from './contractor-mail/presentation/contractor-contacts.routes.js'
+import { createOccurrenceWatchersRoutes } from './contractor-mail/presentation/occurrence-watchers.routes.js'
 import { createContractorMailSettingsRoutes } from './contractor-mail/presentation/contractor-mail-settings.routes.js'
 import { createContractorMailTemplatesUseCase } from './contractor-mail/application/contractor-mail-templates.use-case.js'
 import { DrizzleContractorMailTemplateRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-template.repository.js'
@@ -855,6 +882,8 @@ import { createCompanyGroupRoutes } from './identity/presentation/company-group.
 import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
 import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
+import { createWhiteLogoCache } from './occurrence-conversation/infrastructure/white-logo.gateway.js'
+import { createPublicMailAssetRoutes } from './occurrence-conversation/presentation/public-mail-assets.routes.js'
 import { createPublicUserPictureRoutes } from './identity/presentation/public-user-picture.routes.js'
 import { createPublicUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createFillProfilesFromRealmUseCase } from './identity/application/fill-profiles-from-realm.use-case.js'
@@ -917,6 +946,10 @@ import { createErrorTracker } from './observability/sentry.service'
 import { NOTIFICATION_DEFAULT_LOCALE } from './notification/notification.constant.js'
 import { createAutomaticManifestNotifier } from './mdfe-manifests/infrastructure/automatic-manifest-notifier.gateway.js'
 import type { AutomaticManifestNotifierPort } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case.js'
+import {
+  renderStandardEmail,
+  type StandardEmailTemplate,
+} from '@adatechnology/notification-contracts'
 import type { NotificationModule } from '@adatechnology/notification-module'
 import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
 import { NOTIFICATION_ROUTES_BASE_PATH } from './notification/notification.constant.js'
@@ -955,6 +988,8 @@ const API_VERSION = '0.1.0'
  * O aviso não leva anexo, então a storage dele recusa qualquer uso.
  */
 function buildSendAutomaticOccurrenceMailUseCase(input: {
+  readonly appBaseUrl: ApiEnvironment['appBaseUrl']
+  readonly contractorMailSandbox: ApiEnvironment['contractorMailSandbox']
   readonly database: ReturnType<typeof createDatabaseProvider>['db']
   readonly envelopeKeyRing: Parameters<typeof createSecretEnvelopeProvider>[0]
   readonly idempotencyHmacKey: Uint8Array
@@ -964,6 +999,10 @@ function buildSendAutomaticOccurrenceMailUseCase(input: {
   return createSendAutomaticOccurrenceMailUseCase({
     reader: createAutomaticOccurrenceMailReader(input.database),
     sendMail: createSendOccurrenceMailUseCase({
+      ...(input.appBaseUrl === undefined ? {} : { appBaseUrl: input.appBaseUrl }),
+      ...(input.contractorMailSandbox === undefined
+        ? {}
+        : { contractorMailSandbox: input.contractorMailSandbox }),
       fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
       logger: input.logger,
       secretService: createContractorMailCredentialSecretService({
@@ -1006,6 +1045,8 @@ export function bootstrap(): Bun.Server<undefined> {
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDatabaseProvider({ pool: config.databasePool, url: config.databaseUrl })
   const sendAutomaticOccurrenceMail = buildSendAutomaticOccurrenceMailUseCase({
+    appBaseUrl: config.appBaseUrl,
+    contractorMailSandbox: config.contractorMailSandbox,
     database: database.db,
     envelopeKeyRing: config.cryptography.envelopeKeyRing,
     idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
@@ -1096,6 +1137,19 @@ export function bootstrap(): Bun.Server<undefined> {
     ...(notificationQueue === undefined ? {} : { queue: notificationQueue }),
     whatsappDriver,
   })
+  /**
+   * Spec 275: o aviso interno da ocorrência que o motorista registra numa nota — app e WhatsApp, sempre, para os
+   * responsáveis (267/271) e quem despachou. Reverte o "sem notificador" da 079.
+   */
+  const driverOccurrenceNotifier = createDriverOccurrenceNotifier({
+    logger,
+    reader: createDriverOccurrenceNotificationReader(database.db),
+    send: (params) =>
+      notifications.useCases.sendNotification.execute({
+        ...params,
+        locale: NOTIFICATION_DEFAULT_LOCALE,
+      } as never),
+  })
   const automaticManifestNotifier = createAutomaticManifestNotifier({
     database: database.db,
     logger,
@@ -1156,8 +1210,7 @@ export function bootstrap(): Bun.Server<undefined> {
         repository: whatsappDriverTripRepository,
         scores: whatsappDriverScoreRepository,
       }),
-    listOccurrenceTypes: (input) =>
-      listOccurrenceTypes(database.db, { companyId: input.companyId }),
+    listOccurrenceTypes: (input) => listOccurrenceTypesForNote(database.db, input),
     registerOccurrence: async (input) => {
       const occurrence = await registerDriverOccurrence({
         ...input,
@@ -1175,6 +1228,7 @@ export function bootstrap(): Bun.Server<undefined> {
           findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
         },
+        notifier: driverOccurrenceNotifier,
         unitOfWork: whatsappDriverFieldReports,
       })
       /** Spec 183 T802: depois do commit, o aviso automático do tipo (se ligado). */
@@ -1287,8 +1341,7 @@ export function bootstrap(): Bun.Server<undefined> {
         repository: whatsappTripRouteRepository,
         tripId: input.tripId,
       }),
-    listOccurrenceTypes: (input) =>
-      listOccurrenceTypes(database.db, { companyId: input.companyId }),
+    listOccurrenceTypes: (input) => listOccurrenceTypesForNote(database.db, input),
     listWarehouseTrips: (input) =>
       listWarehouseTrips({
         companyId: input.companyId,
@@ -1331,16 +1384,16 @@ export function bootstrap(): Bun.Server<undefined> {
           companyId: input.companyId,
           documentId: input.documentId,
           note: input.note,
-          occurredOn: new Date().toLocaleDateString('pt-BR'),
+          occurredOn: formatOccurrenceMoment(new Date()),
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: '',
           /** O fluxo do WhatsApp não escolhe item: a ocorrência é sempre da nota inteira. */
           productCodes: [],
           repository: {
+            findDocumentContractor: (query) => findDocumentOccurrenceSubject(database.db, query),
             findOccurrenceType: (query) => findOccurrenceType(database.db, query),
             listDocumentProducts: (query) => listDocumentProducts(database.db, query),
             listOccurrences: (query) => listTripOccurrences(database.db, { ...query, logger }),
-            readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
             saveOccurrence: (query) =>
               persistSeparationOccurrenceWithAttachment({
                 attachment: query.attachment,
@@ -1421,7 +1474,6 @@ export function bootstrap(): Bun.Server<undefined> {
               id: attachment.id,
               position: attachment.position,
             })),
-            email: null,
           }
         },
       })
@@ -1639,11 +1691,14 @@ export function bootstrap(): Bun.Server<undefined> {
     routes: [
       ...createApplicationRoutes({
         apiPublicUrl: config.apiPublicUrl,
+        appBaseUrl: config.appBaseUrl,
         automaticOccurrenceMail,
+        driverOccurrenceNotifier,
         sendAutomaticOccurrenceMail,
         automaticManifestNotifier,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
         contractorMailRateLimit: config.contractorMailRateLimit,
+        contractorMailSandbox: config.contractorMailSandbox,
         database: database.db,
         notifications,
         envelopeKeyRing: config.cryptography.envelopeKeyRing,
@@ -1824,7 +1879,9 @@ function createAnonymousRoutes({
     readReportByToken: { execute: (input) => publicExtraChargeBatches.readReportByToken(input) },
   })
   // Sem raiz para servir, o produto entrega o padrão do app — não é caso de erro.
+  const whiteLogo = createWhiteLogoCache()
   const landingPublicRoutes = createLandingPublicRoutes({
+    whiteLogo,
     landingLogo: createLandingLogoUseCase({
       companyLogoRepository: new DrizzleCompanyLogoRepository(database),
       landingCompanyId: config.companyId,
@@ -1901,6 +1958,15 @@ function createAnonymousRoutes({
           repository: new DrizzleUserPictureRepository(database),
         }),
       }),
+      /**
+       * As imagens do e-mail da ocorrência (logo e foto de quem assina) por endereço estável, sem token: o cliente de
+       * e-mail da contratante abre `<img src>` sem login. Só leitura, e a foto exige vínculo ativo com a empresa.
+       */
+      ...createPublicMailAssetRoutes({
+        companyLogo: new DrizzleCompanyLogoRepository(database),
+        userPicture: new DrizzleUserPictureRepository(database),
+        whiteLogo,
+      }),
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,
       ...aggregateApplicationPublicRoutes,
@@ -1976,16 +2042,22 @@ function createAnonymousRoutes({
 type CreateApplicationRoutesParams = {
   /** Spec 183 T802: o aviso automático à contratante, chamado depois de cada registro. */
   readonly automaticOccurrenceMail: AutomaticOccurrenceMailHook
+  /** Spec 275: o aviso interno da ocorrência do motorista, o mesmo do WhatsApp. */
+  readonly driverOccurrenceNotifier: DriverOccurrenceNotifierPort
   /** Spec 248 T4.4b: o mesmo caso de uso, pela porta do robô da varredura. */
   readonly sendAutomaticOccurrenceMail: ReturnType<typeof createSendAutomaticOccurrenceMailUseCase>
   /** Endereço público desta instalação. Ausente, a foto é gravada e o atributo do realm não. */
   readonly apiPublicUrl: string | undefined
+  /** Spec 272 (D5): a origem do painel, para as marcas do rodapé do e-mail da ocorrência; ausente, só o texto. */
+  readonly appBaseUrl: ApiEnvironment['appBaseUrl']
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
   readonly automaticManifestNotifier: AutomaticManifestNotifierPort | undefined
   /** Spec 145 D14: a API reabre planta parada pelo mesmo lease que o worker deriva deste número. */
   readonly cargoLayoutTimeBudgetMs: number
   /** Spec 150 RF18: o teto do envio de correção e do e-mail de teste, do ambiente. */
   readonly contractorMailRateLimit: ApiEnvironment['contractorMailRateLimit']
+  /** Spec 268: o modo sandbox do e-mail da contratante; ausente em produção. */
+  readonly contractorMailSandbox: ApiEnvironment['contractorMailSandbox']
   readonly database: CompanySettingsDatabase
   /** O módulo de notificação, para o envio de teste do editor de template sair pelo caminho real. */
   readonly notifications: NotificationModule
@@ -2057,11 +2129,14 @@ async function readTripRouteGeometryStopsOrWarn(input: {
 
 function createApplicationRoutes({
   apiPublicUrl,
+  appBaseUrl,
   automaticOccurrenceMail,
+  driverOccurrenceNotifier,
   sendAutomaticOccurrenceMail,
   automaticManifestNotifier,
   cargoLayoutTimeBudgetMs,
   contractorMailRateLimit,
+  contractorMailSandbox,
   database,
   googleMapsApiKey,
   messaging,
@@ -2568,6 +2643,8 @@ function createApplicationRoutes({
     }),
     fingerprintService,
     newRef: createPublicRef,
+    /** Spec 276 T2: the boleto check reads the text layer the generator wrote, never OCR. */
+    readPdfText: extractPdfTextLayer,
     scopes: contractorPortalRepository,
     storage: storageGateway,
     unitOfWork: createDrizzleContractorPortalConversationUnitOfWork(database),
@@ -2770,6 +2847,11 @@ function createApplicationRoutes({
     getContractor: { execute: (input) => contractorRegistry.get(input) },
     repository: contractorMailRepository,
   })
+  /** Spec 267: os responsáveis por ocorrências (cópia no e-mail); a contratante é conferida antes de tudo. */
+  const occurrenceWatchers = createOccurrenceWatchersUseCase({
+    getContractor: { execute: (input) => contractorRegistry.get(input) },
+    repository: new DrizzleOccurrenceWatcherRepository(database),
+  })
   /** Spec 150 T402: a prévia de cada tipo usa os dados fictícios do desenho aprovado. */
   const contractorMailTemplates = createContractorMailTemplatesUseCase({
     previewRenderers: {
@@ -2791,6 +2873,8 @@ function createApplicationRoutes({
   const findAddressCorrectionRecipients = createFindAddressCorrectionRecipientsUseCase({
     contractorLookup: addressCorrectionRepository,
     listContacts: { execute: (input) => contractorContacts.list(input) },
+    logger,
+    watchers: new DrizzleOccurrenceWatcherRepository(database),
   })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
@@ -3048,6 +3132,7 @@ function createApplicationRoutes({
       mailRateLimit: contractorMailRateLimit,
       read: { execute: (input) => contractorMailSettings.read(input) },
       runChecks: { execute: (input) => contractorMailSettings.runChecks(input) },
+      sandboxEnabled: contractorMailSandbox !== undefined,
       save: { execute: (input) => contractorMailSettings.save(input) },
       sendTestEmail: { execute: (input) => sendContractorMailTestEmail.execute(input) },
     }),
@@ -3427,6 +3512,7 @@ function createApplicationRoutes({
       resendRequest: createResendContractorReplyRequestUseCase({
         reader: createDrizzleContractorReplyResendReader(database),
         sendMail: createSendOccurrenceMailUseCase({
+          ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
           fingerprintService,
           secretService: contractorMailCredentialSecretService,
           storage: storageGateway,
@@ -3509,6 +3595,7 @@ function createApplicationRoutes({
      * `occurrences.resolve` (o separador não alcança), com teto próprio no Postgres.
      */
     ...createOccurrenceConversationRoutes({
+      chatRateLimiter: new DrizzleRateLimiterRepository(database),
       listConversations: createListOccurrenceConversationsUseCase({
         reader: {
           findAttachments: (input) => readConversationAttachments(database, input),
@@ -3531,10 +3618,50 @@ function createApplicationRoutes({
         storage: storageGateway,
       }),
       previewMail: createPreviewOccurrenceMailUseCase({
+        ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
+        ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
+        logger,
         reader: createOccurrenceMailReader(database),
         suggestedMail: createOccurrenceSuggestedMailReader(database),
       }),
+      /**
+       * Spec 274 (ADR-0111): o chat por e-mail. O `renderer` é o `standardEmail.render` do `notification-module`
+       * (modelo da empresa ou o embutido, versão 0); o app só entrega texto, nunca HTML.
+       */
+      sendChatMail: createSendOccurrenceChatMailUseCase({
+        ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
+        ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
+        ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
+        fingerprintService,
+        logger,
+        portalNotice: createContractorPortalChatNotice({
+          audienceReader: createDrizzleContractorPortalChatAudienceReader(database),
+          notifier: createContractorPortalNotifier({
+            logger,
+            send: (params) =>
+              notifications.useCases.sendNotification.execute({
+                ...params,
+                locale: NOTIFICATION_DEFAULT_LOCALE,
+              } as never),
+          }),
+        }),
+        renderer: {
+          render: ({ input, template }) =>
+            renderStandardEmail({ input, template: template as unknown as StandardEmailTemplate }),
+          resolve: async ({ companyId }) =>
+            (await notifications.standardEmail.resolveTemplate({
+              companyId,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            })) as unknown as ResolvedStandardEmailTemplate,
+        },
+        secretService: contractorMailCredentialSecretService,
+        storage: storageGateway,
+        unitOfWork: new DrizzleOccurrenceMailRepository(database),
+      }),
       sendMail: createSendOccurrenceMailUseCase({
+        ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
+        ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
+        ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
         fingerprintService,
         secretService: contractorMailCredentialSecretService,
         storage: storageGateway,
@@ -3845,6 +3972,7 @@ function createApplicationRoutes({
       listContacts: { execute: (input) => contractorContacts.list(input) },
       updateContact: { execute: (input) => contractorContacts.update(input) },
     }),
+    ...createOccurrenceWatchersRoutes({ useCase: occurrenceWatchers }),
     ...createContractorDeliveryRoutes({
       listDeliveries: { execute: (input) => readContractorDeliveries(input) },
       readDeliveryLocation: { execute: (input) => readContractorDeliveryLocation(input) },
@@ -3966,6 +4094,21 @@ function createApplicationRoutes({
       saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
     }),
     /** Spec 218 RF-E1: composição pura — os mesmos repositórios das rotas acima, sem escrita. */
+    ...createOccurrenceTypeMailRoutes({
+      listContractorMailRecipientCandidates: {
+        execute: (input) =>
+          listOccurrenceTypeRecipientCandidates(database, {
+            companyId: input.context.companyId,
+            contractorIds: input.contractorIds,
+          }),
+      },
+      listContractorMailTemplates: {
+        execute: async (input) =>
+          (
+            await listActiveContractorTemplates(database, { companyId: input.context.companyId })
+          ).map(toContractorTemplateView),
+      },
+    }),
     ...createSettingsResolutionRoutes({
       readSettingsResolution: (input) =>
         readSettingsResolution({
@@ -4005,10 +4148,10 @@ function createApplicationRoutes({
       startFieldTrip: (input) =>
         startFieldTrip({ ...input, repository: currentDriverTripRepository }),
       /**
-       * Spec 079: o motorista registra a ocorrência do celular. **Sem notificador**: quem despachou
-       * a viagem é justamente quem receberia o aviso, e ele não precisa ser avisado de algo que o
-       * motorista acabou de contar por rádio. O aviso configurável é do registro feito no
-       * escritório.
+       * Spec 079: o motorista registra a ocorrência do celular. A spec 275 reverteu o "sem notificador" da 079: o
+       * registro do app **é** o relato (ninguém conta por rádio), e quem trata a ocorrência nem sempre é quem
+       * despachou. O aviso interno sai sempre, para os responsáveis (267/271) e quem despachou — sem olhar
+       * `notifies`, que segue sendo a escolha do registro do escritório.
        */
       registerDriverOccurrence: async (input) => {
         const occurrence = await registerDriverOccurrence({
@@ -4025,6 +4168,7 @@ function createApplicationRoutes({
             findReachableDocument: (query) => findDriverReachableDocument(database, query),
             listDocumentProducts: (query) => listDocumentProducts(database, query),
           },
+          notifier: driverOccurrenceNotifier,
           unitOfWork: driverFieldReports,
         })
         /** Spec 183 T802: o aviso automático à contratante é do tipo, não do canal de registro. */
@@ -4270,14 +4414,18 @@ function createApplicationRoutes({
         startFieldTrip({ ...input, repository: currentDriverTripRepository }),
       targets: fieldTripTargetRepository,
     }),
-    ...createOccurrenceTypeEmailPreviewRoutes(),
     ...createTripFieldOfficeOccurrenceRoutes({
       resolveClientIp,
-      listFieldOccurrenceTypes: (input) =>
+      listFieldOccurrenceTypes: async (input) =>
         listFieldOccurrenceTypes({
           companyId: input.companyId,
           contractorId: input.contractorId ?? null,
           moment: input.moment,
+          /** Spec 270 (D5): a contratante de cada nota, lida aqui — nota de outra empresa é 404. */
+          noteContractorIds: await readNoteContractorIds(database, {
+            companyId: input.companyId,
+            documentIds: input.documentIds ?? [],
+          }),
           overrides: {
             listOverridesForTypes: (query) =>
               occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
@@ -4324,7 +4472,24 @@ function createApplicationRoutes({
       setTripTrailer: { execute: (input) => trips.setTrailer(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       listOccurrenceTypes: {
-        execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
+        execute: async (input) =>
+          toOccurrenceTypeSettingsViews(database, {
+            companyId: input.context.companyId,
+            logger,
+            records: await listOccurrenceTypes(database, { companyId: input.context.companyId }),
+          }),
+      },
+      listSeparationOccurrenceTypes: {
+        execute: (input) =>
+          listSeparationOccurrenceTypes({
+            companyId: input.context.companyId,
+            documentId: input.documentId,
+            repository: {
+              findDocumentContractor: (query) => findDocumentOccurrenceSubject(database, query),
+              listOccurrenceTypes: (query) => listOccurrenceTypes(database, query),
+            },
+            tripId: input.tripId,
+          }),
       },
       listOccurrenceAttachmentOverrides: {
         execute: (input) =>
@@ -4376,14 +4541,21 @@ function createApplicationRoutes({
           }),
       },
       saveOccurrenceType: {
-        execute: (input) =>
-          saveOccurrenceTypeWithTemplate({
+        execute: async (input) => {
+          const saved = await saveOccurrenceTypeWithTemplate({
             companyId: input.context.companyId,
             findCurrentType: ({ companyId, occurrenceTypeId }) =>
               findOccurrenceType(database, { companyId, occurrenceTypeId }),
             save: (values) =>
-              saveOccurrenceType(database, { ...values, companyId: input.context.companyId }),
+              saveOccurrenceType(database, {
+                ...values,
+                actorUserId: input.context.userId,
+                companyId: input.context.companyId,
+                correlationId: input.correlationId,
+              }),
             templates: {
+              findContractorTemplate: async ({ companyId, key }) =>
+                findActiveContractorTemplate(database, { companyId, key }),
               /**
                * O predicado consulta o catálogo do módulo — a mesma fonte que a tela de templates
                * edita. Chave sem template ativo de e-mail é recusada na gravação, não no envio.
@@ -4397,7 +4569,14 @@ function createApplicationRoutes({
               },
             },
             values: toSaveOccurrenceTypeValues(input),
-          }),
+          })
+          const [view] = await toOccurrenceTypeSettingsViews(database, {
+            companyId: input.context.companyId,
+            logger,
+            records: [saved],
+          })
+          return view ?? saved
+        },
       },
       /**
        * Spec 156 T7b: mesma `anyPermission` da leitura de ocorrências (D11) — o anexo do lote sai
@@ -4440,6 +4619,10 @@ function createApplicationRoutes({
           listFeed: (query) => listTripOccurrenceFeed(database, query, { logger }),
         },
       }),
+      summarizeTripOccurrenceResolution: {
+        execute: (input) =>
+          summarizeTripOccurrenceResolution(database, { companyId: input.context.companyId }),
+      },
       readTripOccurrenceAttachments: createReadTripOccurrenceAttachmentsUseCase({
         downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
         reader: {
@@ -4513,16 +4696,17 @@ function createApplicationRoutes({
                   occurrenceTypeId: input.occurrenceTypeId,
                   /** A data que o modelo imprime é a de agora — a ocorrência é registrada quando
                    * acontece. */
-                  occurredOn: new Date().toLocaleDateString('pt-BR'),
+                  occurredOn: formatOccurrenceMoment(new Date()),
                   productCode: input.productCode,
                   productCodes: input.productCodes,
                   productQuantities: input.productQuantities,
                   productQuantityUnits: input.productQuantityUnits,
                   repository: {
+                    findDocumentContractor: (query) =>
+                      findDocumentOccurrenceSubject(database, query),
                     findOccurrenceType: (query) => findOccurrenceType(database, query),
                     listDocumentProducts: (query) => listDocumentProducts(database, query),
                     listOccurrences: (query) => listTripOccurrences(database, { ...query, logger }),
-                    readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
                     /**
                      * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem
                      * o original e a miniatura opcional e grava a linha de anexo, tudo na transação
@@ -4581,8 +4765,6 @@ function createApplicationRoutes({
                   id: attachment.id,
                   position: attachment.position,
                 })),
-                /** Reenvio não reconstrói o e-mail pronto — quem precisa dele releu no primeiro. */
-                email: null,
               }
             },
           }),

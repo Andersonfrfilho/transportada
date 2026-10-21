@@ -1,5 +1,7 @@
 {
-  "clientLink": { "label": "Ver cliente" },
+  "clientLink": {
+    "label": "Ver cliente"
+  },
   "title": "Clientes de entrega",
   "subtitle": "Todo destinatário vira cadastro sozinho quando a nota é importada. Aqui você preenche a regra de quem tem hora marcada ou cobra para receber — que é a minoria.",
   "tabs": {
@@ -79,7 +81,11 @@
         "templates": "Ir para Modelos"
       },
       "roundTripReady": "Respostas da contratante: configuradas. O envio não depende disso.",
-      "roundTripPending": "Respostas da contratante: ainda não configuradas. O envio não depende disso."
+      "roundTripPending": "Respostas da contratante: ainda não configuradas. O envio não depende disso.",
+      "occurrenceMail": {
+        "blocked": "Sem esta configuração nenhum e-mail de ocorrência sai para a contratante.",
+        "sandbox": "Ambiente de teste: os e-mails para a contratante vão para o Mailpit, não saem para a internet."
+      }
     }
   },
   "mailTemplates": {
@@ -140,6 +146,10 @@
   },
   "contractorContacts": {
     "title": "Contatos da contratante",
+    "cardTitle": "Contatos de ocorrência",
+    "cardHint": "Quem recebe o e-mail quando uma ocorrência desta contratante é registrada. Marque o tipo \"Ocorrências\" no contato.",
+    "cardLinkHint": "A lista de contatos de cada contratante fica na ficha dela, na aba Contratantes.",
+    "openContractors": "Abrir a aba Contratantes",
     "hint": "Quem recebe os avisos e conversa sobre as ocorrências, as cobranças e as faturas desta contratante — por e-mail e, com o aceite, por WhatsApp.",
     "contractorLabel": "Contratante",
     "contractorPlaceholder": "Escolha a contratante",

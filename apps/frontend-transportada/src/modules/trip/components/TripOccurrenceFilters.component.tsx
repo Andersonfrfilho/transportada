@@ -1,57 +1,54 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { CountBadge } from '@/components/ui/count-badge'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Tooltip } from '@/components/ui/tooltip'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
+import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
 import {
   TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
   TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES,
   TRIP_OCCURRENCE_STAGES,
+  type TripOccurrenceResolutionFilterValue,
 } from '../shared/tripOccurrenceFeed.service'
 import {
   describeTripOccurrenceFilterPills,
   type TripOccurrenceFilterPill,
 } from '../shared/tripOccurrenceFilterPills.service'
+import { TripOccurrenceSearchField } from './TripOccurrenceSearchField.component'
 import styles from '../styles/trip.module.css'
 
 type TripOccurrenceFiltersProps = Readonly<{ table: TripOccurrenceTableController }>
 
-export function TripOccurrenceFilters({ table }: TripOccurrenceFiltersProps) {
+/** Os campos que moram à vista (busca e chips): a tira de pílulas não os repete. */
+const VISIBLE_FILTER_FIELDS: readonly string[] = ['resolutionStates']
+
+/**
+ * Spec 277 RF3: o que fica atrás do botão "Filtros avançados". O painel nasce por clique, então
+ * rola e foca o primeiro campo (`useRevealedPanel`).
+ */
+function TripOccurrenceAdvancedFilters({ table }: TripOccurrenceFiltersProps) {
   const { t } = useTranslation('trip')
-
-  const descriptors = describeTripOccurrenceFilterPills({
-    filters: table.filters,
-    formatDay: formatCalendarDate,
-  })
-  const pills: readonly FilterPill[] = descriptors.map(toPill)
-
-  function toPill(descriptor: TripOccurrenceFilterPill): FilterPill {
-    const label = t(descriptor.labelKey)
-    const value =
-      descriptor.valueKeys === undefined
-        ? descriptor.value
-        : descriptor.valueKeys.map((key) => t(key)).join(', ')
-    return {
-      id: descriptor.field,
-      label,
-      onRemove: () => table.clearFilterField(descriptor.field),
-      removeLabel: t('filters.removeFilter', { field: label }),
-      value,
-    }
-  }
+  const { panelRef } = useRevealedPanel<HTMLDivElement>()
 
   return (
-    <section className={styles.panel} aria-labelledby="trip-occurrence-filters-title">
-      <h2 id="trip-occurrence-filters-title">{t('occurrenceFeed.filters.title')}</h2>
-
+    <div
+      aria-labelledby="trip-occurrence-advanced-title"
+      className={styles.occurrenceAdvanced}
+      id="trip-occurrence-advanced"
+      ref={panelRef}
+      role="group"
+    >
+      <h3 id="trip-occurrence-advanced-title">{t('occurrenceFeed.filters.advanced')}</h3>
       <div className={styles.fieldGrid}>
         <label>
           {t('occurrenceFeed.filters.stage')}
@@ -116,28 +113,6 @@ export function TripOccurrenceFilters({ table }: TripOccurrenceFiltersProps) {
           />
         </label>
         <label>
-          {t('occurrenceFeed.filters.resolution')}
-          <MultiSelect
-            ariaLabel={t('occurrenceFeed.filters.resolution')}
-            clearAllLabel={t('filters.clear')}
-            emptyLabel={t('occurrenceFeed.filters.resolutionEmpty')}
-            onChange={(values) =>
-              table.setResolutionStates(
-                TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES.filter((value) => values.includes(value)),
-              )
-            }
-            options={TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES.map((value) => ({
-              label: t(`occurrenceResolution.state.${value}`),
-              value,
-            }))}
-            placeholder={t('filters.all')}
-            removeLabel={t('occurrenceFeed.filters.removeResolution')}
-            searchPlaceholder={t('occurrenceFeed.filters.resolutionSearch')}
-            summaryLabel={(count) => t('occurrenceFeed.filters.resolutionSummary', { count })}
-            values={table.filters.resolutionStates}
-          />
-        </label>
-        <label>
           {t('occurrenceFeed.filters.createdRange')}
           <DateRangePicker
             ariaLabel={t('occurrenceFeed.filters.createdRange')}
@@ -163,6 +138,90 @@ export function TripOccurrenceFilters({ table }: TripOccurrenceFiltersProps) {
           </span>
         </Tooltip>
       </div>
+    </div>
+  )
+}
+
+export function TripOccurrenceFilters({ table }: TripOccurrenceFiltersProps) {
+  const { t } = useTranslation('trip')
+  const [isAdvancedOpen, setAdvancedOpen] = useState(false)
+
+  const descriptors = describeTripOccurrenceFilterPills({
+    filters: table.filters,
+    formatDay: formatCalendarDate,
+  }).filter((descriptor) => !VISIBLE_FILTER_FIELDS.includes(descriptor.field))
+  const pills: readonly FilterPill[] = descriptors.map(toPill)
+
+  function toPill(descriptor: TripOccurrenceFilterPill): FilterPill {
+    const label = t(descriptor.labelKey)
+    const value =
+      descriptor.valueKeys === undefined
+        ? descriptor.value
+        : descriptor.valueKeys.map((key) => t(key)).join(', ')
+    return {
+      id: descriptor.field,
+      label,
+      onRemove: () => table.clearFilterField(descriptor.field),
+      removeLabel: t('filters.removeFilter', { field: label }),
+      value,
+    }
+  }
+
+  function toggleResolutionState(state: TripOccurrenceResolutionFilterValue): void {
+    const selected = table.filters.resolutionStates
+    table.setResolutionStates(
+      selected.includes(state) ? selected.filter((value) => value !== state) : [...selected, state],
+    )
+  }
+
+  return (
+    <section className={styles.panel} aria-labelledby="trip-occurrence-filters-title">
+      <h2 className={styles.srOnly} id="trip-occurrence-filters-title">
+        {t('occurrenceFeed.filters.title')}
+      </h2>
+
+      <div className={styles.occurrenceSearchRow}>
+        <TripOccurrenceSearchField
+          onSearch={(value) => table.setTextFilter('search', value)}
+          value={table.filters.search}
+        />
+        <Button
+          aria-controls="trip-occurrence-advanced"
+          aria-expanded={isAdvancedOpen}
+          onClick={() => setAdvancedOpen(!isAdvancedOpen)}
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="filter" />
+          {t('occurrenceFeed.filters.advanced')}
+          <CountBadge count={table.advancedFilterCount} />
+        </Button>
+      </div>
+
+      <div
+        aria-label={t('occurrenceFeed.filters.resolution')}
+        className={styles.occurrenceStateChips}
+        role="group"
+      >
+        {TRIP_OCCURRENCE_RESOLUTION_FILTER_VALUES.map((state) => {
+          const isSelected = table.filters.resolutionStates.includes(state)
+          return (
+            <Button
+              aria-pressed={isSelected}
+              key={state}
+              onClick={() => toggleResolutionState(state)}
+              size="sm"
+              type="button"
+              variant={isSelected ? 'default' : 'secondary'}
+            >
+              {isSelected ? <Icon name="check" /> : null}
+              {t(`occurrenceResolution.state.${state}`)}
+            </Button>
+          )
+        })}
+      </div>
+
+      {isAdvancedOpen ? <TripOccurrenceAdvancedFilters table={table} /> : null}
 
       <FilterPills
         clearAllLabel={t('filters.clear')}

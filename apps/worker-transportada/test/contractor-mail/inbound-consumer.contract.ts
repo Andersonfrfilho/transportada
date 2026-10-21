@@ -173,6 +173,7 @@ describe('contractor mail inbound consumer (spec 143, T010)', () => {
           attachmentsLinked: 0,
           attachmentsSkipped: 0,
           companyId: COMPANY_ID,
+          dkimDiagnostic: { headerFromCount: 1, senderMatchesHeaderFrom: true, signatures: [] },
           dkimResult: 'aligned',
           eventId: expect.any(String),
           threadId: THREAD_ID,

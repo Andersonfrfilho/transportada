@@ -11,6 +11,7 @@ import {
   timestamp,
   unique,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core'
 
 export const IDENTITY_STATUSES = ['active', 'disabled'] as const
@@ -131,11 +132,17 @@ export const userCompanyMemberships = pgTable(
         onUpdate: 'cascade',
       }),
     status: text().$type<MembershipStatus>().notNull().default('active'),
+    /** Spec 272 (D10): cargo livre, saneado pela política; nulo quando não informado. */
+    jobTitle: varchar('job_title', { length: 80 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     check('user_company_memberships_status_check', sql`${table.status} in ('active', 'disabled')`),
+    check(
+      'user_company_memberships_job_title_check',
+      sql`${table.jobTitle} is null or char_length(${table.jobTitle}) between 1 and 80`,
+    ),
     unique('user_company_memberships_user_company_unique').on(table.userId, table.companyId),
     unique('user_company_memberships_id_company_id_unique').on(table.id, table.companyId),
     index('user_company_memberships_company_id_idx').on(table.companyId),

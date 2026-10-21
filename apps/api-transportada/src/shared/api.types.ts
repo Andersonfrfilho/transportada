@@ -21,6 +21,8 @@ export type DatabasePoolConfiguration = {
 }
 
 export type ApiEnvironment = {
+  /** Spec 272: origem do painel (marcas do rodapé do e-mail da ocorrência); ausente, o rodapé é só texto. */
+  readonly appBaseUrl?: string | undefined
   readonly appEnv: string
   /** Token do primeiro acesso (ADR-0022); ausente é rota morta, nunca rota aberta. */
   readonly bootstrapToken: string | undefined
@@ -35,6 +37,11 @@ export type ApiEnvironment = {
     readonly maxRequests: number
     readonly windowSeconds: number
   }
+  /**
+   * Spec 268: presente só com `CONTRACTOR_MAIL_SANDBOX_SMTP=true` (nunca em produção). O e-mail de ocorrência da
+   * contratante, sem o Resend pronto, é gravado para o SMTP do worker com este remetente.
+   */
+  readonly contractorMailSandbox?: { readonly fromAddress: string }
   readonly cryptography: CryptographicConfiguration
   readonly databaseUrl: string
   /** Spec 137: pool e tempos explícitos do Bun SQL; ver `database/database-client.service.ts`. */

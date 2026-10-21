@@ -32,6 +32,8 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
       state: 'SP',
     },
     nfeDocumentId: '00000000-0000-4000-8000-00000000b002',
+    recipient: { name: 'Destinatário Beta', taxId: '99888777000166' },
+    cargo: { grossWeightKg: '820.0000', volumeCount: '5.0000' },
     totalValue: '48320.0000',
     tripDocumentId: '00000000-0000-4000-8000-00000000b003',
   },
@@ -61,6 +63,7 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
   id: '00000000-0000-4000-8000-00000000d001',
   invoiceNumber: '4512',
   invoiceSeries: '1',
+  missingNotificationTemplate: false,
   notifies: false,
   occurrenceTypeId: '00000000-0000-4000-8000-00000000e001',
   onBehalfOfDriverName: null,
@@ -71,5 +74,6 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
   typeAllowsMultipleItems: true,
   typeItemsMode: 'optional',
   typeName: 'Cobrança inesperada',
+  vehicle: { brand: 'Volvo', color: 'branca', model: 'FH 540', modelYear: 2022 },
   vehiclePlate: 'ABC1D23',
 }

@@ -62,7 +62,8 @@
       "notOfDriver": "esta viagem foi transferida; peça ao escritório para registrar",
       "referenceNumberRequired": "o número do documento do cliente é exigido por este tipo de ocorrência",
       "stopNotReachable": "esta parada foi removida da viagem; peça ao escritório para registrar",
-      "tooLarge": "a foto passou do tamanho aceito pelo servidor"
+      "tooLarge": "a foto passou do tamanho aceito pelo servidor",
+      "typeNotAvailableForContractor": "este tipo de ocorrência não vale para a contratante desta nota; escolha outro tipo"
     },
     "discard": {
       "confirm": "Descartar mesmo assim",
@@ -424,6 +425,7 @@
     "rejected_other": "O escritório recusou {{count}} eventos. Veja em eventos pendentes.",
     "failed": "O envio falhou (sinal fraco). O app tenta de novo sozinho.",
     "open": "Ver histórico",
+    "progress": "Progresso da sincronização",
     "synced": "Sincronizado",
     "syncing_one": "Sincronizando evento…",
     "syncing_other": "Sincronizando {{count}} eventos…"
@@ -826,7 +828,8 @@
     "phrase": {
       "case_cancelled": "Tratativa cancelada pelo escritório",
       "case_closed": "Encerrada pelo escritório",
-      "case_returned_to_warehouse": "Mercadoria devolvida ao armazém"
+      "case_returned_to_warehouse": "Mercadoria devolvida ao armazém",
+      "contractor_reply_delivered": "O documento pedido à contratante chegou e foi enviado a você."
     },
     "share": {
       "sharing": "Preparando os documentos...",

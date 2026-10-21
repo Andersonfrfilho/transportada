@@ -20,6 +20,7 @@ import {
 } from '../shared/tripOccurrenceFeed.service'
 
 export const TRIP_OCCURRENCE_FEED_QUERY_KEY = 'trip-occurrence-feed'
+export const TRIP_OCCURRENCE_RESOLUTION_SUMMARY_QUERY_KEY = 'trip-occurrence-resolution-summary'
 export const TRIP_OCCURRENCE_ATTACHMENTS_QUERY_KEY = 'trip-occurrence-attachments'
 export const TRIP_OCCURRENCE_SETTLEMENT_QUERY_KEY = 'trip-occurrence-settlement'
 
@@ -137,5 +138,20 @@ export function useTripOccurrenceTimelineQuery(
     enabled: input.enabled,
     queryFn: () => client.readOccurrenceTimeline({ occurrenceId: input.occurrenceId }),
     queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY, 'timeline', input.companyId, input.occurrenceId],
+  })
+}
+
+/**
+ * Spec 277 RF5: a média some quando a leitura falha (API anterior à rota, sem rede): é um painel de
+ * apoio, não pode virar erro de página. Uma tentativa só — o `retry: false` global já vale.
+ */
+export function useTripOccurrenceResolutionSummaryQuery(
+  input: Readonly<{ companyId?: string; enabled: boolean }>,
+) {
+  const client = getTripOccurrenceFeedClient()
+  return useQuery({
+    enabled: input.enabled,
+    queryFn: () => client.readResolutionSummary(),
+    queryKey: [TRIP_OCCURRENCE_RESOLUTION_SUMMARY_QUERY_KEY, input.companyId],
   })
 }

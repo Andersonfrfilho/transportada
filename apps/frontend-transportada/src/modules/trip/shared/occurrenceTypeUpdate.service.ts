@@ -10,6 +10,7 @@ import {
   type OccurrenceMoment,
   type OccurrenceRedeliveryPolicy,
   type OccurrenceType,
+  type OccurrenceTypeContractorScope,
   type OccurrenceTypeFlow,
   type TripOccurrenceStage,
 } from '@/modules/trip/shared/occurrence.constant'
@@ -17,6 +18,7 @@ import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
+  DuplicateRequestPolicy,
   InformedEmailForwardMode,
   NoteRecipientForwardMode,
 } from '@/modules/trip/shared/occurrenceContractorReply.constant'
@@ -31,24 +33,30 @@ export type OccurrenceTypeSaveInput = Readonly<{
   declaredAmountLabel?: string | undefined
   declaredAmountMode?: OccurrenceAttachmentMode | undefined
   declaredAmountScope?: DeclaredAmountScope | undefined
-  /**
-   * Spec 247 RF2: o e-mail à contratante é independente do aviso interno. O `PUT` sem estes dois grava
-   * texto vazio, então toda edição de um tipo existente os leva como estão; a criação os omite.
-   */
-  emailBody?: string | undefined
-  /** Spec 247 RF6: o formato de cada linha de item — `undefined` é "não mexe". */
-  emailItemLineTemplate?: string | undefined
-  emailSubject?: string | undefined
+  /** Spec 271: o modelo de e-mail do módulo de notificação do e-mail à contratante — `null` limpa; `undefined` é "não mexe". */
+  contractorNotificationTemplateKey?: null | string | undefined
+  /** Spec 271: os responsáveis em cópia (da lista da empresa) — `[]` limpa; `undefined` é "não mexe". */
+  contractorMailWatcherUserIds?: readonly string[] | undefined
+  /** Spec 271: os destinatários (contatos das contratantes do tipo `listed`) — `[]` limpa; `undefined` é "não mexe". */
+  contractorMailRecipientContactIds?: readonly string[] | undefined
+  /** Spec 270: escopo e lista vão **juntos** (um sem o outro é 400); `undefined` nos dois é "não mexe". */
+  contractorIds?: readonly string[] | undefined
+  contractorScope?: OccurrenceTypeContractorScope | undefined
   /** Spec 183 T802: o aviso automático à contratante — `undefined` é "não mexe". */
   emailsContractor?: boolean | undefined
   /** Spec 248 RF1: o retorno da contratante — `undefined` é "não mexe". */
+  /** Spec 276 T5: `undefined` é "não mexe"; `null` desliga. */
+  contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   contractorReplyAlertIntervalMinutes?: number | undefined
   contractorReplyAlertMaxCount?: number | undefined
   contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   contractorReplyMode?: ContractorReplyMode | undefined
+  contractorReplyResolveOnDelivery?: boolean | undefined
   contractorReplyWaitHours?: null | number | undefined
   driverReplyTemplate?: string | undefined
+  /** Spec 276 T4: `undefined` é "não mexe". */
+  duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
   forwardEmailBody?: string | undefined
   forwardEmailSubject?: string | undefined
   forwardToInformedEmail?: InformedEmailForwardMode | undefined
@@ -95,21 +103,26 @@ export type OccurrenceTypeEdit = Readonly<
       | 'declaredAmountLabel'
       | 'declaredAmountMode'
       | 'declaredAmountScope'
-      | 'emailBody'
-      | 'emailItemLineTemplate'
+      | 'contractorIds'
+      | 'contractorMailRecipientContactIds'
+      | 'contractorMailWatcherUserIds'
+      | 'contractorNotificationTemplateKey'
+      | 'contractorReplyAcknowledgementQuickReplyId'
       | 'contractorReplyAlertIntervalMinutes'
       | 'contractorReplyAlertMaxCount'
       | 'contractorReplyAlertMode'
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'
+      | 'contractorReplyResolveOnDelivery'
+      | 'duplicateRequestPolicy'
       | 'contractorReplyWaitHours'
+      | 'contractorScope'
       | 'driverReplyTemplate'
       | 'emailsContractor'
       | 'forwardEmailBody'
       | 'forwardEmailSubject'
       | 'forwardToInformedEmail'
       | 'forwardToNoteRecipient'
-      | 'emailSubject'
       | 'emailTemplateKey'
       | 'flow'
       | 'iconName'
@@ -165,8 +178,6 @@ export function buildOccurrenceTypeUpdate(
     active: type.active,
     allowsMultipleItems: type.allowsMultipleItems,
     attachmentMode: type.attachmentMode,
-    emailBody: type.emailBody,
-    emailSubject: type.emailSubject,
     emailTemplateKey: type.emailTemplateKey,
     leavesDocumentBehind: type.leavesDocumentBehind,
     name: type.name,

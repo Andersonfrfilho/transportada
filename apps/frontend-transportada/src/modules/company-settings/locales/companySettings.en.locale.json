@@ -12,7 +12,8 @@
     "quickReplies": "Quick replies",
     "settingsResolution": "Check configuration",
     "businessCalendar": "Calendar",
-    "audioTranscription": "Audio transcription"
+    "audioTranscription": "Audio transcription",
+    "occurrenceWatchers": "Occurrence owners"
   },
   "entryKinds": {
     "title": "Entry kinds",
@@ -307,7 +308,7 @@
     "stageDelivery": "On the road",
     "notifies": "Notify when it happens",
     "active": "In use",
-    "emailTemplate": "Email template",
+    "emailTemplate": "Internal notice (email template)",
     "emailTemplateNone": "No email",
     "editTemplates": "Edit email templates",
     "withoutTemplate": "No email: this type is only logged on the trip.",
@@ -320,6 +321,12 @@
     "redeliveryPolicyUnset": "Unset (no case opens)",
     "redeliveryPolicyAllowed": "Allows redelivery",
     "redeliveryPolicyBlocked": "Blocks redelivery",
+    "duplicateRequestPolicy": "Repeated request on the same invoice",
+    "duplicateRequestPolicyOptions": {
+      "while_request_open": "Block while the request is open",
+      "until_resolved": "Block until the occurrence is resolved or cancelled",
+      "allow": "Always allow"
+    },
     "leavesDocumentBehind": "The trip leaves without the document",
     "leavesDocumentBehindHint": "Applies to a whole-document case. The document leaves the trip at dispatch.",
     "attachmentMode": "Proof photo",
@@ -361,7 +368,8 @@
       "readOnly": "No permission to change the exceptions.",
       "add": "Add exception",
       "remove": "Remove",
-      "removeOf": "Remove the exception of {{name}}"
+      "removeOf": "Remove the exception of {{name}}",
+      "noEffect": "This exception has no effect while the type does not apply to this contractor. It stays saved."
     },
     "identity": {
       "title": "Identification",
@@ -458,36 +466,98 @@
         "off": "{{field}}: off",
         "optional": "{{field}}: optional",
         "required": "{{field}}: required"
-      }
+      },
+      "contractorScope": "Only: {{names}}",
+      "contractorScopeMore": "Only: {{names}} and {{count}} more",
+      "contractorScopeTitle": "Only for: {{names}}"
     },
     "mail": {
       "title": "Contractor e-mail",
       "switch": "Send an e-mail to the invoice's contractor when registered",
-      "save": "Save e-mail",
-      "undo": "Undo",
-      "fields": {
-        "subject": "Subject",
-        "body": "Body",
-        "itemLine": "Line for each product"
+      "template": {
+        "label": "Template",
+        "none": "None",
+        "createInNotifications": "Create a template in Notifications",
+        "loading": "Loading the templates…",
+        "failed": "Could not load the templates. Try again shortly.",
+        "missing": "Type without a notification template: the email to the contractor is not sent. Choose a template.",
+        "unusable": "The template \"{{key}}\" cannot be used for the email to the contractor, so no email is sent: {{problems}}",
+        "previewTitle": "Preview · sample values",
+        "hint": "The email text is written in Notifications → Preferences, in a Portuguese email template. Here you only choose which one.",
+        "variablesTitle": "Variables the template accepts",
+        "suggestedTitle": "Suggested template (copy it in Notifications)",
+        "problems": {
+          "not_found": "There is no active Portuguese email template with this key.",
+          "system_key": "It is a system notice, with other variables.",
+          "unsafe_html": "The HTML body has active content (script, iframe, event, javascript: address or a variable inside a tag); the email is not sent.",
+          "missing_message_area": "The HTML template needs exactly one message area, between <!-- mensagem --> and <!-- /mensagem -->; the email is not sent.",
+          "empty_subject": "The subject is empty.",
+          "unknown_variables": "Variables outside the list come out empty: {{variables}}.",
+          "malformed_placeholder": "A {{ }} placeholder is malformed."
+        },
+        "variables": {
+          "numeroNota": "Invoice number with series.",
+          "numeroNotaSemSerie": "Invoice number without series.",
+          "razaoSocial": "Legal name of the invoice recipient.",
+          "valorNota": "Invoice total value.",
+          "contratante": "Contractor name.",
+          "motorista": "Driver of the trip.",
+          "parada": "The invoice's stop.",
+          "data": "Occurrence date.",
+          "observacao": "Registered note.",
+          "tipoOcorrencia": "Occurrence type name.",
+          "numeroReferencia": "Customer document number.",
+          "somaItens": "Sum of the item lines.",
+          "valorDeclarado": "Declared paid amount.",
+          "itens": "The items in one text, comma separated.",
+          "codigosItens": "The item codes, comma separated.",
+          "quantidadesItens": "The quantities, comma separated.",
+          "linhasItens": "One line per item: code – item – quantity unit – R$ value.",
+          "nomeExibicao": "Carrier display name.",
+          "cnpjTransportadora": "Carrier CNPJ, formatted.",
+          "cnpjContratante": "Contractor CPF or CNPJ; empty without a document.",
+          "assinaturaNome": "Name of who signs the e-mail, or the team.",
+          "assinaturaCargo": "Job title of who signs; empty without a title or role.",
+          "logoTransportadora": "Carrier logo, or its initials without a logo (system HTML).",
+          "tabelaItens": "Item table with the total, up to 200 lines (system HTML).",
+          "cidadeTransportadora": "Carrier city and state.",
+          "razaoSocialTransportadora": "Carrier legal name.",
+          "assinaturaIniciais": "Initials of who signs, or of the display name.",
+          "faixaResposta": "\"Reply to this e-mail\" strip, only when replies arrive (system HTML).",
+          "marcasRodape": "Footer marks: TransportAdA and Ada Technology (system HTML).",
+          "logoAssinatura": "Signature square: the carrier logo on the team signature, otherwise the initials (system HTML)."
+        }
       },
-      "markers": {
-        "subject": "Subject markers — tap one to insert it where the cursor is.",
-        "body": "Body markers — tap one to insert it where the cursor is.",
-        "itemLine": "Product line markers — tap one to insert it where the cursor is."
+      "watchers": {
+        "label": "In copy",
+        "placeholder": "Nobody: the contractor's list applies, else the company's",
+        "summary_one": "{{count}} watcher",
+        "summary_other": "{{count}} watchers",
+        "empty": "No active watcher in the company list.",
+        "clearAll": "Clear the choice",
+        "remove": "Remove {{name}}",
+        "search": "Search watcher",
+        "hint": "Up to {{max}} per type, from the company's watcher list. Empty: the invoice contractor's list applies and, without it, the company's.",
+        "inactive": "inactive in the company list",
+        "notEligible": "no permission or no email",
+        "failed": "Could not load the company watchers.",
+        "limit": "A type takes at most {{max}} watchers in copy: remove one to choose another."
       },
-      "markerOverflow": "The marker did not fit: this field is already at its {{max}}-character limit. Delete some text and try again.",
-      "unknownMarker_one": "This marker does not exist in this field: {{markers}}. Use one from the list below; nothing was saved.",
-      "unknownMarker_other": "These markers do not exist in this field: {{markers}}. Use the ones from the list below; nothing was saved.",
-      "preview": {
-        "title": "Preview · sample data",
-        "recipient": "To: the invoice contractor's contacts that receive occurrences",
-        "loading": "Generating the preview…",
-        "failed": "Could not generate the preview. What you typed is still here; try again shortly.",
-        "blocked": "Fix the marker to see the preview.",
-        "automatic": "Goes out automatically when the type is registered.",
-        "manual": "Off: the operator sends it from the occurrence conversation, if they want.",
-        "noSubject": "Without a subject the automatic e-mail does not go out.",
-        "linesWithoutItems": "This type has no products: wherever there is {{marker}} the e-mail goes out without lines."
+      "recipients": {
+        "label": "Recipients",
+        "placeholder": "Nobody: the contacts that receive occurrences of the stage go",
+        "summary_one": "{{count}} contact",
+        "summary_other": "{{count}} contacts",
+        "empty": "No active contact that receives occurrences on the type's contractors.",
+        "clearAll": "Clear the choice",
+        "remove": "Remove {{name}}",
+        "search": "Search contact",
+        "hint": "Contacts of this type's contractors. On an invoice, only those of its contractor go. Empty: the contacts that receive occurrences of the stage go.",
+        "inactive": "inactive",
+        "notEligible": "does not receive occurrences",
+        "failed": "Could not load the contractors' contacts.",
+        "leaving_one": "{{count}} contact chosen as recipient leaves the choice when you apply.",
+        "leaving_other": "{{count}} contacts chosen as recipients leave the choice when you apply."
       }
     },
     "moments": {
@@ -576,6 +646,7 @@
         "mode": "When the reply arrives",
         "attachmentKind": "Attachment that counts as the reply",
         "driverReplyTemplate": "Text sent to the driver",
+        "resolveOnDelivery": "Close the occurrence by itself after delivering to the driver",
         "waitHours": "Wait time (hours, empty = no deadline)",
         "alertMode": "If the contractor is late",
         "alertIntervalMinutes": "Repeat the alert every (minutes)",
@@ -583,7 +654,8 @@
         "forwardToNoteRecipient": "Send the boleto to the invoice customer email",
         "forwardToInformedEmail": "Forward the boleto to an informed email",
         "forwardEmailSubject": "Subject of the email to the third party",
-        "forwardEmailBody": "Text of the email to the third party"
+        "forwardEmailBody": "Text of the email to the third party",
+        "acknowledgement": "Automatic reply to the contractor"
       },
       "mode": {
         "off": "Only show the reply",
@@ -592,7 +664,8 @@
       },
       "attachmentKind": {
         "pdf": "PDF only",
-        "pdf_or_image": "PDF or image"
+        "pdf_or_image": "PDF or image",
+        "boleto_pdf": "Checked boleto PDF (payment line and note)"
       },
       "alertMode": {
         "off": "Do not alert",
@@ -617,6 +690,39 @@
         "maxCountOutOfRange": "Enter 1 to 96 alerts.",
         "automaticNeedsReply": "Automatic sending to the invoice customer requires the reply to be on.",
         "forwardNeedsText": "Write the subject and the text: the email to the third party is not sent without both."
+      },
+      "acknowledgement": {
+        "empty": "Add an active quick reply on the Contractor tab to pick it here.",
+        "hint": "Sent once per conversation, only when the document is confirmed and delivered to the driver without the operation stepping in.",
+        "inactive": "Deactivated quick reply",
+        "off": "Off"
+      }
+    },
+    "contractorScope": {
+      "title": "Applies to",
+      "options": {
+        "all": "All contractors",
+        "listed": "Only these contractors"
+      },
+      "pickerLabel": "Contractors of the type",
+      "placeholder": "Choose the contractors",
+      "searchPlaceholder": "Search by name or tax ID",
+      "empty": "No contractor found.",
+      "clearAll": "Clear contractors",
+      "remove": "Remove contractor {{label}}",
+      "summary_one": "{{count}} contractor",
+      "summary_other": "{{count}} contractors",
+      "inactive": "inactive",
+      "truncated": "The contractor list may be incomplete: only the first 3000 were loaded, and anyone left out cannot be chosen.",
+      "pending": "Change to Applies to not applied yet — click Apply for it to take effect.",
+      "apply": "Apply",
+      "undo": "Undo",
+      "note": "A restricted type is only offered, to the driver and to the office, on notes from a contractor in the list. A note from an unregistered contractor gets only the all-contractor types. What was already recorded stays visible.",
+      "stopOnly": "A stop has no contractor: this type applies to all of them.",
+      "stopAllContractors": "On a stop this type applies to all contractors; the restriction applies to records with a note.",
+      "problem": {
+        "empty": "Choose at least one contractor: with none the type would appear on no note, so nothing was saved.",
+        "needsDocument": "A stop-only type cannot be limited to contractors: a stop has no contractor. Nothing was saved."
       }
     }
   },

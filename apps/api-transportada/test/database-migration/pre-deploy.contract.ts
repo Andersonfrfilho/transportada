@@ -8,6 +8,7 @@ import { dirname, relative, resolve } from 'node:path'
 import { runAllDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { NOTIFICATION_SCHEMA } from '../../src/database/notification-migration.service.js'
 import { runPreDeploy } from '../../src/database/pre-deploy.service.js'
+import { seedStandardEmailTemplates } from '../../src/database/standard-email-template-seed.service.js'
 import { testWithPostgres, withDisposableDatabase } from './support.js'
 
 const APP_ROOT = new URL('../../', import.meta.url).pathname
@@ -46,6 +47,7 @@ describe('Pre-deploy da API', () => {
       migrationsChecked: 0,
       occurrenceTypes: 'skipped',
       provisioning: 'skipped',
+      standardEmailTemplates: 'skipped',
       templates: 'skipped',
     })
   })
@@ -67,6 +69,7 @@ describe('Pre-deploy da API', () => {
       migrationsChecked: 215,
       occurrenceTypes: 7,
       provisioning: 'ensured',
+      standardEmailTemplates: 'skipped',
       templates: 4,
     })
   })
@@ -146,6 +149,65 @@ describe('Pre-deploy da API', () => {
   })
 
   // Migration que falha não pode deixar o provisionamento rodar contra schema velho.
+  test('cadastra o modelo padrão de e-mail depois do provisionamento e reporta quantas gravou', async () => {
+    const order: string[] = []
+
+    const report = await runPreDeploy({
+      migrate: async () => {
+        order.push('migrate')
+      },
+      verifyMigrationsComplete: async () => 0,
+      provision: async () => {
+        order.push('provision')
+        return []
+      },
+      seedStandardEmailTemplates: async () => {
+        order.push('standard-email')
+        return { companies: 3, written: 2 }
+      },
+    })
+
+    expect(order).toEqual(['migrate', 'provision', 'standard-email'])
+    expect(report.standardEmailTemplates).toEqual({ companies: 3, written: 2 })
+  })
+
+  test('o modelo padrão de e-mail roda sem provisionamento (sem COMPANY_ID)', async () => {
+    const report = await runPreDeploy({
+      migrate: async () => undefined,
+      verifyMigrationsComplete: async () => 0,
+      provision: undefined,
+      seedStandardEmailTemplates: async () => ({ companies: 1, written: 1 }),
+    })
+
+    expect(report.standardEmailTemplates).toEqual({ companies: 1, written: 1 })
+  })
+
+  test('chama ensureTemplate uma vez por empresa, em série, e conta só as gravadas', async () => {
+    const events: string[] = []
+    let inFlight = 0
+    const written = new Set(['a', 'c'])
+
+    const fakeTransaction = { execute: async () => undefined }
+    const result = await seedStandardEmailTemplates({
+      database: {
+        transaction: async (work: (transaction: unknown) => Promise<unknown>) =>
+          work(fakeTransaction),
+      } as never,
+      listCompanyIds: async () => ['a', 'b', 'c'],
+      ensureTemplate: async ({ companyId }) => {
+        inFlight += 1
+        expect(inFlight).toBe(1)
+        events.push(companyId)
+        await Promise.resolve()
+        inFlight -= 1
+        return written.has(companyId)
+      },
+    })
+
+    expect(events).toEqual(['a', 'b', 'c'])
+    expect(result).toEqual({ companies: 3, written: 2 })
+  })
+
   test('migration que falha aborta antes de provisionar', async () => {
     let provisioned = false
 
@@ -230,6 +292,7 @@ describe('Pre-deploy da API', () => {
       migrationsChecked: 3,
       occurrenceTypes: 'skipped',
       provisioning: 'skipped',
+      standardEmailTemplates: 'skipped',
       templates: 'skipped',
     })
   })

@@ -8,6 +8,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   resolveOccurrenceResolutionState,
+  resolveSystemResolutionCausePhraseKey,
   resolveSystemResolutionPhraseKey,
 } from '../../src/trips/domain/occurrence-resolution.policy.js'
 import type { OccurrenceResolutionEventFact } from '../../src/trips/domain/occurrence-resolution.types.js'
@@ -157,5 +158,35 @@ describe('system resolution phrase key', () => {
   test('has no key for a status that is not terminal', () => {
     expect(resolveSystemResolutionPhraseKey('decided')).toBeUndefined()
     expect(resolveSystemResolutionPhraseKey('under_review')).toBeUndefined()
+  })
+})
+
+describe('system resolution caused by the contractor reply (spec 276 T3b)', () => {
+  test('the delivered reply has its own key; otherwise the case status decides', () => {
+    expect(
+      resolveSystemResolutionCausePhraseKey({
+        caseEventStatus: undefined,
+        causedByContractorReply: true,
+      }),
+    ).toBe('contractor_reply_delivered')
+    expect(resolveSystemResolutionCausePhraseKey({ caseEventStatus: 'closed' })).toBe('case_closed')
+    expect(resolveSystemResolutionCausePhraseKey({ caseEventStatus: undefined })).toBeUndefined()
+  })
+
+  test('the last resolution carries the cause', () => {
+    const state = resolveOccurrenceResolutionState({
+      cancelledAt: undefined,
+      events: [
+        event({
+          actorKind: 'system',
+          causedByContractorReply: true,
+          createdAt: '2026-10-20T10:00:00.000Z',
+          id: 'a',
+          note: undefined,
+        }),
+      ],
+    })
+    expect(state.state).toBe('resolved')
+    expect(state.lastResolution).toMatchObject({ causedByContractorReply: true })
   })
 })

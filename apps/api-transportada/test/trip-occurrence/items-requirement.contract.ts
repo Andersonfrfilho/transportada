@@ -65,8 +65,6 @@ function register(input: Registration) {
       findOccurrenceType: async () => ({
         active: true,
         allowsMultipleItems: true,
-        emailBody: '',
-        emailSubject: '',
         emailTemplateKey: null,
         id: TYPE_ID,
         name: 'Recusa total',

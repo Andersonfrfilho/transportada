@@ -31,8 +31,6 @@ const TEST_TIMEOUT_MS = 60_000
 function buildValues(overrides: Partial<SaveOccurrenceTypeValues> = {}): SaveOccurrenceTypeValues {
   return {
     active: true,
-    emailBody: '',
-    emailSubject: '',
     emailTemplateKey: null,
     flow: 'document',
     name: 'Devolução parcial',
@@ -52,7 +50,10 @@ function saveThroughUseCase(
     companyId,
     findCurrentType: (query) => findOccurrenceType(database.db, query),
     save: (toSave) => saveOccurrenceType(database.db, { ...toSave, companyId }),
-    templates: { hasActiveEmailTemplate: async () => true },
+    templates: {
+      findContractorTemplate: async () => null,
+      hasActiveEmailTemplate: async () => true,
+    },
     values,
   })
 }

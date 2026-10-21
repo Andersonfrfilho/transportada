@@ -5,6 +5,8 @@
  */
 export const SCENARIO_PREFIX = '[TESTE 248]'
 export const SCENARIO_BUCKET = 'teste-248'
+/** Spec 271: o modelo do e-mail à contratante mora em `notification.templates`; a chave leva o marcador. */
+export const SCENARIO_TEMPLATE_KEY_PREFIX = 'teste-248.'
 export const SCENARIO_IMPORT_KEY_PREFIX = 'teste-248-'
 export const SCENARIO_CONTRACTOR_TAX_ID = '11444777000161'
 export const SCENARIO_MAIL_DOMAIN = 'teste248.example.test'

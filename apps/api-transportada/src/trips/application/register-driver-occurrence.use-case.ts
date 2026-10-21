@@ -10,7 +10,11 @@
  * ativa dele, e quem o garante é a consulta, não a permissão.
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
-import { TripDocumentNotReachableError } from '../domain/trip.error.js'
+import { resolveDriverOccurrenceTemplateKey } from '../domain/occurrence-notification.policy.js'
+import {
+  OccurrenceDuplicateRequestError,
+  TripDocumentNotReachableError,
+} from '../domain/trip.error.js'
 import { assessDriverOccurrence } from './driver-occurrence-assessment.service.js'
 import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
 import { deriveFieldAuthorship } from './field-trip-target.types.js'
@@ -53,7 +57,7 @@ export async function registerDriverOccurrence(
    * arquitetura de 23/09). Reserva e escrita na **mesma transação** — o reenvio da fila offline
    * (Fase 3) não pode duplicar a ocorrência.
    */
-  return input.unitOfWork.execute((transaction) =>
+  const occurrence = await input.unitOfWork.execute((transaction) =>
     withFieldReport<DriverDocumentOccurrence>({
       guard: {
         actorUserId: input.actorUserId,
@@ -67,34 +71,39 @@ export async function registerDriverOccurrence(
         transaction,
       },
       perform: async () => {
-        const result = await transaction.saveDocumentOccurrence({
-          actorUserId: input.actorUserId,
-          attachmentObjectId: attachmentObjectIds[0] ?? null,
-          attachmentObjectIds,
-          authorship,
-          companyId: input.companyId,
-          declaredAmount,
-          documentId: input.documentId,
-          items: lines.map((line) => ({
-            declaredAmount: line.declaredAmount,
-            productCode: line.productCode,
-            quantity: line.quantity,
-            quantityUnit: line.quantityUnit,
-            unitValue: line.unitValue,
-          })),
-          locationStamp: resolveFieldTapLocationStamp({
-            location: input.location,
-            locator: input,
-          }),
-          note: input.note,
-          occurrenceTypeId: occurrenceType.id,
-          productCode: scope.productCode,
-          referenceNumber,
-          signatureObjectId,
-          stage: TRIP_OCCURRENCE_STAGE.delivery,
-          tripId,
-          typeName: occurrenceType.name,
-        })
+        const result = await saveOrRecallDuplicate(
+          () =>
+            transaction.saveDocumentOccurrence({
+              actorUserId: input.actorUserId,
+              attachmentObjectId: attachmentObjectIds[0] ?? null,
+              attachmentObjectIds,
+              authorship,
+              companyId: input.companyId,
+              declaredAmount,
+              documentId: input.documentId,
+              items: lines.map((line) => ({
+                declaredAmount: line.declaredAmount,
+                productCode: line.productCode,
+                quantity: line.quantity,
+                quantityUnit: line.quantityUnit,
+                unitValue: line.unitValue,
+              })),
+              locationStamp: resolveFieldTapLocationStamp({
+                location: input.location,
+                locator: input,
+              }),
+              note: input.note,
+              occurrenceTypeId: occurrenceType.id,
+              productCode: scope.productCode,
+              referenceNumber,
+              signatureObjectId,
+              stage: TRIP_OCCURRENCE_STAGE.delivery,
+              tripId,
+              typeName: occurrenceType.name,
+            }),
+          (occurrenceId) =>
+            transaction.findDocumentOccurrenceById({ companyId: input.companyId, occurrenceId }),
+        )
         if (result === null) throw new TripDocumentNotReachableError()
 
         return result
@@ -103,4 +112,40 @@ export async function registerDriverOccurrence(
         transaction.findDocumentOccurrenceById({ companyId: input.companyId, occurrenceId }),
     }),
   )
+
+  /**
+   * Spec 275 (D1): depois do commit, sempre — sem olhar `notifies`. O reenvio da mesma chave chega aqui de novo e a
+   * `dedupeKey` por ocorrência e destinatário segura a repetição. O aviso nunca derruba o registro (D6).
+   */
+  try {
+    await input.notifier?.notify({
+      companyId: input.companyId,
+      documentId: input.documentId,
+      occurrenceId: occurrence.id,
+      occurrenceTypeId: occurrenceType.id,
+      occurrenceTypeName: occurrenceType.name,
+      templateKey: resolveDriverOccurrenceTemplateKey(occurrenceType.emailTemplateKey),
+      tripId,
+    })
+  } catch {
+    // Engolido de propósito: a ocorrência já está gravada.
+  }
+
+  return occurrence
+}
+
+/**
+ * Spec 276 T4: o app não recebe erro pelo pedido repetido. A fila offline reenviaria para sempre o que o servidor recusa;
+ * em vez disso a resposta é a ocorrência que já está aberta, e a chave de idempotência passa a apontar para ela.
+ */
+async function saveOrRecallDuplicate(
+  save: () => Promise<DriverDocumentOccurrence | null>,
+  recall: (occurrenceId: string) => Promise<DriverDocumentOccurrence | null>,
+): Promise<DriverDocumentOccurrence | null> {
+  try {
+    return await save()
+  } catch (error) {
+    if (!(error instanceof OccurrenceDuplicateRequestError)) throw error
+    return recall(error.existingOccurrenceId)
+  }
 }

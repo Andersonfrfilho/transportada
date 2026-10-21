@@ -312,9 +312,11 @@ describe('process inbound email webhook use case (spec 143, T010)', () => {
  */
 describe('status do Resend no webhook (spec 183 T405)', () => {
   type AppliedStatus = Parameters<OccurrenceMailStatusPort['apply']>[0]
+  type RecordedRfcMessageId = Parameters<OccurrenceMailStatusPort['recordRfcMessageId']>[0]
 
   function buildUseCase(input: { readonly withStatusPort: boolean }) {
     const applied: AppliedStatus[] = []
+    const rfcMessageIds: RecordedRfcMessageId[] = []
     const { recordedEvents, repository } = buildRepository({ settings: SETTINGS })
     const useCase = createProcessInboundEmailWebhookUseCase({
       now: () => NOW,
@@ -324,12 +326,20 @@ describe('status do Resend no webhook (spec 183 T405)', () => {
         ? {
             occurrenceMailStatus: {
               apply: async (status: AppliedStatus) => void applied.push(status),
+              recordRfcMessageId: async (record: RecordedRfcMessageId) =>
+                void rfcMessageIds.push(record),
             },
           }
         : {}),
     })
-    const execute = (type: string) => {
-      const body = JSON.stringify({ data: { email_id: 'em_status' }, type })
+    const execute = (type: string, messageId?: string) => {
+      const body = JSON.stringify({
+        data: {
+          email_id: 'em_status',
+          ...(messageId === undefined ? {} : { message_id: messageId }),
+        },
+        type,
+      })
       return useCase.execute({
         correlationId: 'correlation-status',
         rawBody: body,
@@ -339,7 +349,7 @@ describe('status do Resend no webhook (spec 183 T405)', () => {
         webhookId: WEBHOOK_ID,
       })
     }
-    return { applied, execute, recordedEvents }
+    return { applied, execute, recordedEvents, rfcMessageIds }
   }
 
   test('entregue, devolvido, enviado e falho viram o status da mensagem, na empresa do webhook', async () => {
@@ -358,18 +368,62 @@ describe('status do Resend no webhook (spec 183 T405)', () => {
     expect(recordedEvents).toEqual([])
   })
 
-  test('aberto, clicado, atrasado e reclamação não são status da conversa (D7: e-mail não tem "lida")', async () => {
+  test('aberto vira "lida" (spec 274 D8); clicado, atrasado e reclamação seguem fora do status', async () => {
     const { applied, execute } = buildUseCase({ withStatusPort: true })
 
-    for (const type of [
-      'email.opened',
-      'email.clicked',
-      'email.delivery_delayed',
-      'email.complained',
-    ]) {
-      expect(await execute(type)).toEqual({ outcome: 'ignored' })
+    expect(await execute('email.opened')).toEqual({ outcome: 'accepted' })
+    expect(applied).toEqual([
+      { at: NOW, companyId: COMPANY_ID, incoming: 'read', providerEmailId: 'em_status' },
+    ])
+
+    for (const type of ['email.clicked', 'email.delivery_delayed', 'email.complained']) {
+      expect(await execute(type, '<ignorado@resend.dev>')).toEqual({ outcome: 'ignored' })
     }
-    expect(applied).toEqual([])
+    expect(applied).toHaveLength(1)
+  })
+
+  test('o message_id de sent, delivered e opened vai para rfc_message_id, normalizado com <>, na empresa do webhook (D7)', async () => {
+    const { execute, rfcMessageIds } = buildUseCase({ withStatusPort: true })
+
+    await execute('email.sent', 'abc123@email.amazonses.com')
+    await execute('email.delivered', '<abc123@email.amazonses.com>')
+    await execute('email.opened', '  <abc123@email.amazonses.com> ')
+
+    const expected = {
+      companyId: COMPANY_ID,
+      providerEmailId: 'em_status',
+      rfcMessageId: '<abc123@email.amazonses.com>',
+    }
+    expect(rfcMessageIds).toEqual([expected, expected, expected])
+  })
+
+  test('sem message_id (ou vazio) nada é gravado; o status segue; clicado e atrasado não gravam', async () => {
+    const { applied, execute, rfcMessageIds } = buildUseCase({ withStatusPort: true })
+
+    await execute('email.sent')
+    await execute('email.delivered', '   ')
+    await execute('email.delivery_delayed', '<x@y>')
+    await execute('email.clicked', '<x@y>')
+
+    expect(rfcMessageIds).toEqual([])
+    expect(applied.map((entry) => entry.incoming)).toEqual(['sent', 'delivered'])
+  })
+
+  test('message_id inválido (espaço, quebra de linha, colchete interno, acima de 255) não é gravado; o status segue (segurança M2)', async () => {
+    const { applied, execute, rfcMessageIds } = buildUseCase({ withStatusPort: true })
+
+    for (const invalid of [
+      '<a b@x>',
+      '<a@x>\r\nBcc: evil@x.test',
+      '<a<b@x>',
+      `<${'z'.repeat(256)}>`,
+    ]) {
+      await execute('email.sent', invalid)
+    }
+    await execute('email.sent', `<${'z'.repeat(255)}>`)
+
+    expect(rfcMessageIds.map((record) => record.rfcMessageId)).toEqual([`<${'z'.repeat(255)}>`])
+    expect(applied).toHaveLength(5)
   })
 
   test('sem a porta de status, o evento de status segue ignorado como antes', async () => {

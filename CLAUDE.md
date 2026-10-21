@@ -160,6 +160,27 @@ parada, lista, detalhe com documentos e compartilhar, chat travado até "Reabrir
 `conversations-ui` 0.11.0). A liberação gradual usa o `active` do tipo; em staging só "Prorrogação do boleto" está
 ativo. Detalhe em `apps/api-transportada/CLAUDE.md` § "Andamento da ocorrência".
 
+**O modelo do e-mail da ocorrência vem do módulo de notificação** (spec 271, ADR-0108; ainda não publicada, vai a `main` junto com 269 e 270). O texto à contratante é um
+modelo de e-mail de Notificações → Preferências (`{{camelCase}}`, lista fechada), escolhido **pela chave** no tipo (`contractor_notification_template_key`, sem FK); o mesmo bloco
+escolhe quem vai em cópia (responsáveis da empresa, até 10) e, no tipo de contratantes, os destinatários. A exceção por contratante **não** escolhe modelo. Sem modelo utilizável não sai
+e-mail, nem à mão. O módulo é só depósito e renderizador (nunca `sendNotification`); as escritas de modelo em `/v1/notification-templates*` exigem `settings.manage`. As colunas da 269
+saem só na migration B (destrutiva, com aprovação). Detalhe: `apps/api-transportada/CLAUDE.md` e `docs/ai-context/`.
+
+**E-mail em HTML vem do modelo do módulo de notificação** (spec 272, ADR-0110). O visual do e-mail da ocorrência
+mora no modelo HTML de Notificações; **proibido layout de e-mail em código** (cor ou tabela muda editando o modelo, sem deploy).
+Modelo novo = `.html` versionado em `apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates/` (assunto em
+`<!-- subject: … -->`, corpo editável na área `<!-- mensagem -->`), publicado por `apps/api-transportada/scripts/occurrence-mail-templates-publish.ts`
+(idempotente por chave; `differs` só com `--overwrite`; rodar em staging ou produção pede aprovação humana). O renderer da API escapa
+só os valores, valida o HTML (`unsafe_html`, `missing_message_area`) e gera o `text/plain`; as variáveis de HTML do sistema
+(`logoTransportadora`, `tabelaItens`, `marcasRodape`, `faixaResposta`) são montadas pela API. Regra global:
+`~/.claude/rules/rules/email-templates.md`.
+
+**O chat da contratante envia por e-mail** (spec 274, ADR-0111). O composer da aba Contratante fica sempre aberto, com ou
+sem portal, e cada mensagem sai pelo Resend da transportadora no modelo padrão de envio (`notification.standard-email`,
+cadastrado pelo SDK e editável em Notificações). O portal só avisa quem não está no e-mail. O "lida" do e-mail vem do pixel
+`email.opened` (revoga a 183 D7) e depende do rastreio configurado no domínio. Contrato e detalhe em
+`apps/api-transportada/CLAUDE.md` § "O chat da contratante envia por e-mail".
+
 **A NFS-e fala a Nota RP v3, mas a produção ainda está na v2** (spec 250, ADR 0098). A versão é gravada **por tentativa**
 (`providerApiVersion` no `provider_config`); `NFSE_PROVIDER_API_VERSION` (padrão `v2`) só diz qual versão a API grava na
 próxima emissão, e o worker obedece à tentativa. Notas emitidas fora do sistema (as de Ribeirão Preto) entram por

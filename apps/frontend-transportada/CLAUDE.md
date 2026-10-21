@@ -280,6 +280,15 @@ portal. Histórico: docs/ai-context § "A ocorrência tem duas conversas".
 - **O SDK não tem porta para ação por anexo, remetente nem reenvio por canal** (0.10.0): essas funções ficam nas
   faixas `OccurrenceThread{Attachments,Senders,Failures}` ao lado do fio, com ícone + palavra + cor.
   Quando o SDK ganhar o slot, as faixas viram o slot, sem mudar a regra.
+- **Opções por mensagem** (`OccurrenceMessageMenu`, no slot `renderMessageActions` do SDK): um botão de três pontos
+  (`more-vertical`) na linha da hora do balão abre um menu (`role="menu"`, portal com `useFloatingLayer`) com copiar
+  seleção, copiar texto, encaminhar e baixar cada arquivo — nada de ícone sempre à vista. Com mouse o botão só aparece
+  sob o ponteiro ou com foco no balão; no toque fica visível. "Copiar seleção" só existe com trecho selecionado dentro
+  do balão, lido no `pointerdown`/`keydown` do botão (no `click` a seleção já pode ter sumido). Itens puros em
+  `buildMessageMenuItems`. Da contratante ao motorista, cada arquivo vai pela entrega do boleto (o servidor põe "Segue
+  a requisição: <tipo>" quando não há retorno) e o texto pelo app; do motorista à contratante, pelo portal, ou só o
+  texto pelo chat por e-mail sem portal. Os passos são puros (`planMessageForward`), com a chave
+  `message-forward:<id da mensagem>`.
 - **Mensagem nova é anunciada a leitor de tela** pela região `aria-live` do próprio SDK (rótulo `newMessages`;
   `countNewIncomingMessages` segue no serviço). A leitura nunca para: com envio pendente, o refetch é rápido; sem
   nada pendente, cai para `CONVERSATION_IDLE_REFETCH_MS` (60 s); o fio relê a cada 20 s e ao voltar o foco.
@@ -604,8 +613,11 @@ histórico é a da linha do tempo (`OccurrenceTimeline`, `actor.name`).
 
 ## A devolução soma os itens no painel (spec 247)
 
-A aba Tipos configura número do documento do cliente, valor pago (modo, escopo, rótulo) e o e-mail à contratante; a **prévia vem do
-servidor** (`POST /company-settings/occurrence-types/email-preview`), nunca de uma segunda implementação no painel. A correção
+A aba Tipos configura número do documento do cliente e valor pago (modo, escopo, rótulo). ⚠️ O **e-mail à contratante não tem texto no tipo** (spec 269/271, ADR-0108): o texto é um modelo de e-mail do **módulo de notificação** (Notificações → Preferências); o
+tipo só **escolhe a chave** (`OccurrenceTypeContractorTemplateSelect`, lista só os utilizáveis), mais quem vai em cópia (responsáveis da empresa, até 10) e, no tipo `listed`, os
+destinatários — a exceção por contratante não escolhe modelo. A prévia é com valores de exemplo (interpolação `{{campo}}` local, paridade em `occurrence-type-mail-parity.contract.ts`).
+Sem modelo utilizável o envio não existe, nem à mão: feed e detalhe trazem `missingNotificationTemplate` (selo "Tipo sem modelo de notificação" com caminho até a aba Tipos), e o diálogo
+"Enviar à contratante" fica desabilitado. A correção
 (`TripOccurrenceCorrectionForm`) obedece `requirements` do **detalhe** da ocorrência (modo efetivo: `off` esconde, `required` sem
 "Limpar"), para não depender de `settings.manage`; `useOccurrenceTypeRecordConfig` é só fallback quando `requirements` falta.
 `occurrenceAmount.service.ts` espelha o cálculo da API (`bigint`; contrato `occurrence-amount-mirror.contract.ts`) e a soma da linha
@@ -614,3 +626,29 @@ O acerto da 164 sugere o valor pago, senão a soma, mas só onde há tratativa (
 Detalhe: docs/ai-context/frontend-transportada.md § "Spec 247".
 
 ⚠️ **O ícone do tipo é catálogo fechado** (spec 255): `occurrenceTypeIcon.constant.ts` é cópia por valor da API; ampliar exige API (migration) + esta cópia + `icon.tsx` + `frontend-driver`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 255".
+
+## Contatos de ocorrência na ficha e avisos do e-mail com contratantes (spec 268)
+
+A ficha da contratante (aba "Contratantes") tem a seção "Contatos de ocorrência": é o `ContractorContactsPanel` com
+`contractorId` fixo (sem seletor, sem listar contratantes), só para `settings.manage`. Na aba "E-mail com contratantes",
+`MailSendReadinessSummary` mostra "Sem esta configuração nenhum e-mail de ocorrência sai para a contratante." quando a
+configuração não está pronta, ou o aviso do Mailpit quando o `GET /contractor-mail-settings` traz `sandboxDelivery: true`
+(`settingsReadFromApi`: `sandboxDelivery` vem ao lado de `data`, que segue com as chaves exatas). A seção de contatos dessa aba
+tem um botão que abre a aba "Contratantes". Teste: `test/trip-hooks/contractor-mail-sandbox-panel.contract.ts` (roda no
+`test:hooks`, com o preload de DOM).
+
+## Os responsáveis vão em cópia no e-mail da contratante (spec 267)
+
+⚠️ O painel dos responsáveis (`OccurrenceWatchersPanel`, módulo `occurrence-conversation`) é **autocontido** e serve a dois
+lugares: a aba "Responsáveis por ocorrências" de Configurações (escopo `company`) e a ficha da contratante
+(`ContractorOccurrenceWatchers`, escopo `contractor`, logo depois dos contatos). Cada linha: nome, e-mail **mascarado**, interruptor
+Ativo/Inativo (`PATCH`) e "Remover" com confirmação na página (`OccurrenceWatcherRemoveDialog`, `role="alertdialog"`, nunca
+`window.confirm`); inelegível continua listado com o selo "não elegível". O cliente (`occurrenceWatchersClient`) fala com as rotas
+**por item** da API; o provider (`occurrenceWatchersClient.provider`) é o que os testes de DOM trocam
+(`test/trip-hooks/occurrenceWatchersHarness.helper.ts`, instalado por `installContractorDirectoryDouble`, porque a ficha monta o painel).
+Os diálogos de envio (`SendToContractorDialog`, `AddressCorrectionMailDialog`) mostram a "Cópia:" em chips removíveis
+(`MailCopyChips`, `modules/shared`): **não há campo para adicionar nem digitar endereço**; quem sai vai em `excludedWatcherUserIds`
+(só quando há remoção) e **entra na chave de idempotência** (outra remoção, outra chave). No histórico, a mensagem de saída ganha a
+linha "Cópia: …" e a resposta do responsável (`identity.kind === 'internal'`) vira "Nome · Equipe", com o selo "só para a equipe — a
+contratante não recebeu" quando `reachedContractor` é falso. Não houve fase de tolerância: a leitura do painel antigo ignora campo novo.
+Detalhe: `docs/ai-context/frontend-transportada.md`.

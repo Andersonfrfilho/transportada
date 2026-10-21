@@ -43,7 +43,6 @@ describe('driverTrip.types — tolerância aos campos da spec 247', () => {
       declaredAmountMode: 'optional',
       declaredAmountScope: 'item',
       declaredAmountLabel: 'Valor pago',
-      emailItemLineTemplate: '{{codigoItem}} – {{item}} – {{quantidadeItem}}{{unidadeItem}}',
     }
 
     expect(isDriverOccurrenceType(typeWithNewFields)).toBe(true)

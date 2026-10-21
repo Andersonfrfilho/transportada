@@ -7,6 +7,7 @@ import type {
   ContractorReplyMode,
   ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
+  DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
@@ -45,10 +46,12 @@ import { parseIdempotencyKey } from './me-trip.schema.js'
 import { parseTripOccurrenceFeedList } from './trip-occurrence-feed.schema.js'
 import type {
   ListTripOccurrenceFeedInput,
+  TripOccurrenceResolutionSummaryItem,
   ReadTripOccurrenceAttachmentsInput,
   TripOccurrenceAttachmentView,
   TripOccurrenceFeedPage,
 } from '../application/trip-occurrence-feed.use-case.js'
+import type { SeparationOccurrenceTypeView } from '../application/list-separation-occurrence-types.use-case.js'
 import type {
   OccurrenceTypeRecord,
   RegisteredOccurrence,
@@ -211,6 +214,8 @@ const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
 const TRIP_DELIVERY_PROOFS_PATH = `${TRIP_DETAIL_PATH}/delivery-proofs`
 const TRIP_DOCUMENT_PRODUCTS_PATH = `${TRIP_DOCUMENT_PATH}/products`
 const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
+/** Spec 270 (R6): os tipos do galpão para esta nota — o servidor filtra pela contratante dela. */
+const TRIP_DOCUMENT_OCCURRENCE_TYPES_PATH = `${TRIP_DOCUMENT_PATH}/occurrence-types`
 /**
  * Spec 079: a configuração do aviso é **da empresa**, não da viagem — ligar "recusa total" vale
  * para toda viagem, presente e futura. Pendurá-la numa viagem sugeriria um efeito local que ela
@@ -327,18 +332,20 @@ type SaveOccurrenceTypeInput = {
    */
   readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly context: CompanyContext
+  /** Spec 271 (D15): a correlação do pedido, para a auditoria do bloco de e-mail do tipo. */
+  readonly correlationId: string
   /** Spec 247 (RF1): o valor pago digitado; ausente é "não mexa" — ver o caso de uso. */
   readonly declaredAmountLabel?: string | undefined
   readonly iconName?: null | OccurrenceTypeIconName | undefined
   readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
-  readonly emailBody?: string | undefined
-  /** Spec 247 (RF6): o formato da linha de item; ausente é "não mexa". */
-  readonly emailItemLineTemplate?: string | undefined
   readonly contractorReplyAlertIntervalMinutes?: number | undefined
   readonly contractorReplyAlertMaxCount?: number | undefined
   readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
+  readonly contractorReplyResolveOnDelivery?: boolean | undefined
+  readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+  readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined
   readonly driverReplyTemplate?: string | undefined
@@ -348,7 +355,12 @@ type SaveOccurrenceTypeInput = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
-  readonly emailSubject?: string | undefined
+  /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
+  readonly contractorNotificationTemplateKey?: null | string | undefined
+  /** Spec 271 (D10): os responsáveis em cópia do tipo; ausente é "não mexa". */
+  readonly contractorMailWatcherUserIds?: readonly string[] | undefined
+  /** Spec 271 (D12): os destinatários do tipo, só em tipo `listed`; ausente é "não mexa". */
+  readonly contractorMailRecipientContactIds?: readonly string[] | undefined
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): obrigatório na criação, ausente na edição é "não mexa" — ver
@@ -454,6 +466,8 @@ const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
  * (nota e parada juntas), não de uma viagem. Leitura pura: v1 não tem "tratar".
  */
 const TRIP_OCCURRENCE_FEED_PATH = '/trip-occurrences'
+/** ⚠️ Fora de `/trip-occurrences/`: lá o `:id` do detalhe casaria o caminho (contrato de colisão da 266). */
+const TRIP_OCCURRENCE_RESOLUTION_SUMMARY_PATH = '/trip-occurrence-resolution-summary'
 const TRIP_OCCURRENCE_FEED_ATTACHMENTS_PATH = `${TRIP_OCCURRENCE_FEED_PATH}/:id/attachments`
 const TRIP_STOPS_ORDER_PATH = `${TRIP_STOPS_PATH}/order`
 /**
@@ -613,6 +627,13 @@ type Dependencies = {
   readonly listOccurrenceTypes: {
     execute(input: { readonly context: CompanyContext }): Promise<readonly OccurrenceTypeRecord[]>
   }
+  readonly listSeparationOccurrenceTypes: {
+    execute(input: {
+      readonly context: CompanyContext
+      readonly documentId: string
+      readonly tripId: string
+    }): Promise<readonly SeparationOccurrenceTypeView[]>
+  }
   readonly saveOccurrenceType: {
     execute(input: TenantInput<SaveOccurrenceTypeInput>): Promise<OccurrenceTypeRecord>
   }
@@ -638,6 +659,12 @@ type Dependencies = {
   }
   readonly listTripOccurrenceFeed: {
     execute(input: TenantInput<ListTripOccurrenceFeedInput>): Promise<TripOccurrenceFeedPage>
+  }
+  /** Spec 277 RF5: a resolução média por tipo, o mesmo dado da 276 somado. */
+  readonly summarizeTripOccurrenceResolution: {
+    execute(input: {
+      readonly context: CompanyContext
+    }): Promise<readonly TripOccurrenceResolutionSummaryItem[]>
   }
   readonly readTripOccurrenceAttachments: {
     execute(
@@ -1830,6 +1857,19 @@ export function createTripRoutes(
       pathname: TRIP_OCCURRENCE_FEED_PATH,
       policy: TRIP_READ_POLICY,
     }),
+    /** Mesma permissão do feed (TRIP_READ_POLICY). */
+    defineRoute<Record<string, never>>({
+      async handle({ context }): Promise<Response> {
+        const summary = await dependencies.summarizeTripOccurrenceResolution.execute({
+          context: context.scope,
+        })
+        return jsonResponse({ body: { data: summary }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: TRIP_OCCURRENCE_RESOLUTION_SUMMARY_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
     /** O anexo sai por URL assinada de vida curta — nunca bucket nem chave no corpo. */
     defineRoute<Omit<ReadTripOccurrenceAttachmentsInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
@@ -1899,6 +1939,24 @@ export function createTripRoutes(
       pathname: TRIP_DOCUMENT_OCCURRENCES_PATH,
       policy: TRIP_MANAGE_POLICY,
       rateLimit: REGISTER_OCCURRENCE_RATE_LIMIT,
+    }),
+    /** Spec 270 (R6): os tipos do galpão para uma nota; nota fora da viagem ou da empresa é 404. */
+    defineRoute<{ readonly documentId: string; readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const types = await dependencies.listSeparationOccurrenceTypes.execute({
+          context: context.scope,
+          documentId: input.documentId,
+          tripId: input.tripId,
+        })
+        return jsonResponse({ body: { data: types }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_DOCUMENT_OCCURRENCE_TYPES_PATH,
+      policy: TRIP_MANAGE_POLICY,
     }),
     /**
      * Spec 161 T7 (RF6): a segunda foto em diante, para uma ocorrência já registrada. 404 quando a
@@ -1993,8 +2051,8 @@ export function createTripRoutes(
         return jsonResponse({ body: { data: saved }, status: 200 })
       },
       method: 'PUT',
-      async parse({ request }) {
-        return parseOccurrenceTypeRequest(request)
+      async parse({ correlationId, request }) {
+        return { ...(await parseOccurrenceTypeRequest(request)), correlationId }
       },
       pathname: OCCURRENCE_TYPES_PATH,
       policy: SETTINGS_MANAGE_POLICY,

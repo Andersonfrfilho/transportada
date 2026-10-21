@@ -17,8 +17,6 @@ describe('tripResponse.validation — tolerância aos campos da spec 247', () =>
       name: 'Devolução parcial',
       active: true,
       stage: 'delivery',
-      emailBody: 'Corpo do e-mail',
-      emailSubject: 'Assunto',
       emailTemplateKey: null,
       notifies: false,
       redeliveryPolicy: 'unset',
@@ -42,8 +40,6 @@ describe('tripResponse.validation — tolerância aos campos da spec 247', () =>
       name: 'Devolução parcial',
       active: true,
       stage: 'delivery',
-      emailBody: 'Corpo do e-mail',
-      emailSubject: 'Assunto',
       emailTemplateKey: null,
       notifies: false,
       redeliveryPolicy: 'unset',
@@ -60,7 +56,6 @@ describe('tripResponse.validation — tolerância aos campos da spec 247', () =>
       declaredAmountMode: 'optional',
       declaredAmountScope: 'item',
       declaredAmountLabel: 'Valor pago',
-      emailItemLineTemplate: '{{codigoItem}} – {{item}} – {{quantidadeItem}}{{unidadeItem}}',
     }
 
     // Should not throw
@@ -74,8 +69,6 @@ describe('tripResponse.validation — tolerância aos campos da spec 247', () =>
       name: 'Devolução total',
       active: true,
       stage: 'delivery',
-      emailBody: 'Cliente devolveu.',
-      emailSubject: 'Devolução total',
       emailTemplateKey: null,
       notifies: false,
       redeliveryPolicy: 'unset',
@@ -94,6 +87,119 @@ describe('tripResponse.validation — tolerância aos campos da spec 247', () =>
     // Should not throw
     const result = adapters.occurrenceTypeFromApi(typeWithPartialNewFields)
     expect(result).toBeDefined()
+  })
+})
+
+/**
+ * Spec 269 T1.2 (ADR-0106): o painel tolera o tipo sem o texto de e-mail antigo e com o modelo escolhido
+ * antes de a API mudar. Etapa 1 (painel tolerante) da ADR-0081 §9.
+ */
+describe('tripResponse.validation — tolerância ao modelo de e-mail do tipo (spec 269)', () => {
+  const adapters = createTripResponseAdapters()
+  const typeWithoutLegacyEmailText = {
+    id: 'type-1',
+    name: 'Devolução parcial',
+    active: true,
+    stage: 'delivery',
+    emailTemplateKey: null,
+    notifies: false,
+  }
+
+  it('aceita tipo sem o texto antigo do e-mail', () => {
+    expect(adapters.occurrenceTypeFromApi(typeWithoutLegacyEmailText)).toBeDefined()
+  })
+
+  it('aceita tipo com contractorMailTemplateId', () => {
+    const result = adapters.occurrenceTypeFromApi({
+      ...typeWithoutLegacyEmailText,
+      contractorMailTemplateId: 'template-1',
+    })
+    expect(result).toBeDefined()
+  })
+
+  it('rollback da API: o texto antigo do e-mail ainda é aceito e não chega ao tipo', () => {
+    const result = adapters.occurrenceTypeFromApi({
+      ...typeWithoutLegacyEmailText,
+      emailBody: 'Corpo antigo',
+      emailItemLineTemplate: '{{item}}',
+      emailSubject: 'Assunto antigo',
+    })
+
+    expect(result).not.toHaveProperty('emailBody')
+    expect(result).not.toHaveProperty('emailSubject')
+    expect(result).not.toHaveProperty('emailItemLineTemplate')
+  })
+
+  it('aceita contractorMailTemplateId nulo', () => {
+    expect(
+      adapters.occurrenceTypeFromApi({
+        ...typeWithoutLegacyEmailText,
+        contractorMailTemplateId: null,
+      }),
+    ).toBeDefined()
+  })
+
+  it('continua exigindo o que sempre foi exigido', () => {
+    const withoutName: Record<string, unknown> = { ...typeWithoutLegacyEmailText }
+    delete withoutName.name
+    expect(() => adapters.occurrenceTypeFromApi(withoutName)).toThrow()
+  })
+})
+
+/**
+ * Spec 271 T1.1 (ADR-0108, ADR-0081 §9): o painel tolera o bloco novo "E-mail à contratante" do tipo
+ * antes de a API mandá-lo — modelo por chave, responsáveis em cópia, destinatários e o aviso de modelo ausente.
+ */
+describe('tripResponse.validation — tolerância ao bloco de e-mail à contratante do tipo (spec 271)', () => {
+  const adapters = createTripResponseAdapters()
+  const baseType = {
+    id: 'type-1',
+    name: 'Avaria',
+    active: true,
+    stage: 'delivery',
+    emailTemplateKey: null,
+    notifies: false,
+  }
+
+  it('aceita o tipo com as chaves novas e sem contractorMailTemplateId', () => {
+    const result = adapters.occurrenceTypeFromApi({
+      ...baseType,
+      contractorMailRecipients: [
+        {
+          contactId: 'contact-1',
+          contractorId: 'contractor-1',
+          email: 'a@example.com',
+          name: 'Carla',
+          receivesOccurrences: true,
+          status: 'active',
+        },
+      ],
+      contractorMailWatchers: [
+        { eligible: true, name: 'Davi', status: 'active', userId: 'user-1' },
+      ],
+      contractorNotificationTemplateKey: 'ocorrencia.avaria',
+      missingNotificationTemplate: false,
+    })
+
+    expect(result).toBeDefined()
+  })
+
+  it('aceita o tipo antigo, ainda com contractorMailTemplateId', () => {
+    expect(
+      adapters.occurrenceTypeFromApi({ ...baseType, contractorMailTemplateId: 'template-1' }),
+    ).toBeDefined()
+  })
+
+  it('aceita a chave do modelo nula', () => {
+    expect(
+      adapters.occurrenceTypeFromApi({ ...baseType, contractorNotificationTemplateKey: null }),
+    ).toBeDefined()
+  })
+
+  it('reprova a chave do modelo que não é texto', () => {
+    expect(() =>
+      adapters.occurrenceTypeFromApi({ ...baseType, contractorNotificationTemplateKey: 7 }),
+    ).toThrow()
   })
 })
 
