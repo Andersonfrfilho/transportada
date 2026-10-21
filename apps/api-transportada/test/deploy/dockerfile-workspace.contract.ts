@@ -73,3 +73,37 @@ describe('Dockerfile workspace manifests', () => {
     }
   })
 })
+
+/**
+ * A imagem de runtime da API não leva `scripts/` nem `src/occurrence-conversation`: o publicador dos modelos de
+ * e-mail (spec 272) só chega ao staging e à produção se for bundlado por `bun run build` e se os `.html` estiverem ao
+ * lado do `dist/`. Sem isto o comando falha com "Module not found" e ninguém consegue republicar os modelos.
+ */
+describe('publicador dos modelos de e-mail na imagem da API', () => {
+  const API_DIRECTORY = join(APPS_DIRECTORY, 'api-transportada')
+
+  test('o build bundla o publicador como entrypoint próprio', async () => {
+    const manifest = await Bun.file(join(API_DIRECTORY, 'package.json')).text()
+
+    expect(manifest).toContain('./src/cli/occurrence-mail-templates-publish.ts')
+  })
+
+  test('o Dockerfile copia os .html para dist/occurrence-mail-templates', async () => {
+    const dockerfile = await Bun.file(join(API_DIRECTORY, 'Dockerfile')).text()
+
+    expect(dockerfile).toContain(
+      'COPY apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates apps/api-transportada/dist/occurrence-mail-templates',
+    )
+  })
+
+  test('o publicador resolve os .html a partir de dist/cli, um nível acima', async () => {
+    const service = await Bun.file(
+      join(
+        API_DIRECTORY,
+        'src/occurrence-conversation/application/occurrence-mail-templates-publish.service.ts',
+      ),
+    ).text()
+
+    expect(service).toContain("new URL('../occurrence-mail-templates/', import.meta.url)")
+  })
+})

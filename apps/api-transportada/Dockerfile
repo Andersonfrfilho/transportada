@@ -30,6 +30,10 @@ COPY --from=production-dependencies /app/node_modules node_modules
 COPY --from=production-dependencies /app/apps/api-transportada/node_modules apps/api-transportada/node_modules
 COPY --from=build /app/apps/api-transportada/dist apps/api-transportada/dist
 COPY apps/api-transportada/package.json apps/api-transportada/package.json
+# spec 272: o publicador dos modelos de e-mail (`dist/cli/occurrence-mail-templates-publish.js`, também por
+# `bun run build`) lê os `.html` ao lado do `dist/`: o bundle resolve `../occurrence-mail-templates/` a partir de
+# `dist/cli/`. Roda por `railway ssh --service api -- bun ./dist/cli/occurrence-mail-templates-publish.js --company <uuid>`.
+COPY apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates apps/api-transportada/dist/occurrence-mail-templates
 # spec 162, RF08: CLI de importação do catálogo coletado — já bundlada por `bun run build`
 # (dist/cli/import-package-box-catalog.js, entrypoint próprio em src/cli). Nunca roda no CMD da
 # imagem; entra por `railway ssh --service api -- bun apps/api-transportada/dist/cli/import-package-box-catalog.js`.
