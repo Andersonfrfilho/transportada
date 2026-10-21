@@ -93,6 +93,8 @@ function toThreadAttachment(attachment: OccurrenceConversationAttachment): Parti
     kind: conversationAttachmentKind(attachment.contentType),
     mimeType: attachment.contentType,
     sizeBytes: attachment.sizeBytes,
+    ...(attachment.durationMs === undefined ? {} : { durationMs: attachment.durationMs }),
+    ...(attachment.transcription === undefined ? {} : { transcription: attachment.transcription }),
   }
 }
 
@@ -110,6 +112,10 @@ export function toThreadMessage(
     /** O SDK mostra o e-mail inteiro recolhido no balão, atrás do "ver histórico". */
     ...(message.emailFullText === undefined ? {} : { originalText: message.emailFullText }),
     ...(message.status === null ? {} : { status: message.status }),
+    /** "Dados da mensagem" do SDK: quando a outra ponta leu o que o escritório mandou. */
+    ...(message.direction === 'outbound' && message.statusTimes.read !== undefined
+      ? { readAt: message.statusTimes.read }
+      : {}),
     text: withCopyLine(message, labels),
   }
 }

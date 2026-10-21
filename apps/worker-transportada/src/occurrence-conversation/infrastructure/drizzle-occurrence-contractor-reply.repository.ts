@@ -12,6 +12,7 @@ import {
   occurrenceContractorReplies,
   occurrenceContractorReplyEvents,
 } from '../../database/occurrence-contractor-reply.schema.js'
+import type { ContractorReplyLogOutcome } from '../application/contractor-reply-log.port.js'
 import { checkBoletoDocument } from '../domain/contractor-reply-document.policy.js'
 import {
   decideContractorReply,
@@ -47,6 +48,8 @@ export async function applyContractorReplyToMessage(
      * checks the boleto and one PDF was accepted; absent, or empty, means the document is not confirmed.
      */
     readonly readDocumentText?: (storedObjectId: string) => Promise<string>
+    /** Spec 276: the outcome for the caller's log, called once. */
+    readonly report?: (outcome: ContractorReplyLogOutcome) => void
   },
 ): Promise<ContractorReplyAutomaticDelivery | undefined> {
   const { companyId } = params
@@ -65,7 +68,10 @@ export async function applyContractorReplyToMessage(
     )
     .for('update')
     .limit(1)
-  if (reply === undefined) return undefined
+  if (reply === undefined) {
+    params.report?.({ kind: 'no_reply' })
+    return undefined
+  }
 
   const attachments = await transaction
     .select({
@@ -84,21 +90,29 @@ export async function applyContractorReplyToMessage(
   const decisionInput = { attachments, reply: { config, status: reply.status } }
   /** As if the content were confirmed: says which single PDF the boleto check has to read, if any. */
   const firstDecision = decideContractorReply({ ...decisionInput, documentConfirmed: true })
-  const decision =
+  const documentChecked =
     firstDecision.kind === 'accept' && requiresContractorReplyDocumentCheck(config.attachmentKind)
-      ? decideContractorReply({
-          ...decisionInput,
-          documentConfirmed: await isBoletoConfirmed(transaction, {
-            companyId,
-            readDocumentText: params.readDocumentText,
-            replyId: reply.id,
-            storedObjectId: attachments.find(
-              (attachment) => attachment.id === firstDecision.attachmentId,
-            )?.storedObjectId,
-          }),
-        })
-      : firstDecision
-  if (decision.kind === 'ignore') return undefined
+  let documentTextRead = false
+  const decision = documentChecked
+    ? decideContractorReply({
+        ...decisionInput,
+        documentConfirmed: await isBoletoConfirmed(transaction, {
+          companyId,
+          onTextRead: (text) => {
+            documentTextRead = text.trim() !== ''
+          },
+          readDocumentText: params.readDocumentText,
+          replyId: reply.id,
+          storedObjectId: attachments.find(
+            (attachment) => attachment.id === firstDecision.attachmentId,
+          )?.storedObjectId,
+        }),
+      })
+    : firstDecision
+  if (decision.kind === 'ignore') {
+    params.report?.({ kind: 'ignored' })
+    return undefined
+  }
 
   const isAccepted = decision.kind === 'accept'
   const toStatus = isAccepted
@@ -131,8 +145,20 @@ export async function applyContractorReplyToMessage(
     toStatus,
   })
 
+  const report = (delivered: boolean) =>
+    params.report?.({
+      delivered,
+      documentChecked,
+      documentTextRead,
+      kind: 'applied',
+      reason,
+      toStatus,
+    })
   /** RF4/RF7: modo automático — a resposta aceita segue ao motorista na mesma transação (idempotente). */
-  if (toStatus !== 'reply_received') return undefined
+  if (toStatus !== 'reply_received') {
+    report(false)
+    return undefined
+  }
   const delivery = await deliverContractorReplyToDriver(transaction, {
     actorUserId: null,
     companyId,
@@ -146,6 +172,7 @@ export async function applyContractorReplyToMessage(
   if (delivery.kind === 'delivered') {
     await queueContractorReplyAcknowledgement(transaction, { companyId, replyId: reply.id })
   }
+  report(delivery.kind === 'delivered')
   return delivery.kind === 'delivered' ? delivery : undefined
 }
 
@@ -154,6 +181,7 @@ async function isBoletoConfirmed(
   transaction: OccurrenceConversationTransaction,
   params: {
     readonly companyId: string
+    readonly onTextRead: (text: string) => void
     readonly readDocumentText: ((storedObjectId: string) => Promise<string>) | undefined
     readonly replyId: string
     readonly storedObjectId: string | undefined
@@ -166,5 +194,6 @@ async function isBoletoConfirmed(
       ? Promise.resolve('')
       : readDocumentText(storedObjectId),
   ])
+  params.onTextRead(text)
   return checkBoletoDocument({ note, text }).confirmed
 }

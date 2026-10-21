@@ -7,6 +7,7 @@ import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
+import { formatPersonName } from '@/lib/personName'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { ContractorReplyPanel } from '@/modules/occurrence-conversation/components/ContractorReplyPanel.component'
 import { OccurrenceConversations } from '@/modules/occurrence-conversation/components/OccurrenceConversations.component'
@@ -27,7 +28,10 @@ import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionA
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceTripMap } from '../components/OccurrenceTripMap.component'
-import { OccurrenceAttachments } from '../components/TripOccurrenceTable.component'
+import {
+  OccurrenceAttachments,
+  resolveColorSwatch,
+} from '../components/TripOccurrenceTable.component'
 import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.query'
 import {
   buildOccurrenceDriverContact,
@@ -39,6 +43,8 @@ import {
   type OccurrenceDetailSection,
 } from '../shared/tripOccurrenceDetail.service'
 import {
+  describeOccurrenceCargoCells,
+  describeOccurrenceVehicleCells,
   formatOccurrenceInvoice,
   resolveOccurrenceTypeLabel,
   type TripOccurrenceDetail,
@@ -94,7 +100,10 @@ function OccurrenceAuthorship({ occurrence }: Readonly<{ occurrence: TripOccurre
   const channel = t(`occurrenceDetail.channel.${occurrence.channel}`, {
     defaultValue: occurrence.channel,
   })
-  const actor = occurrence.actorName ?? t('occurrenceDetail.unknownActor')
+  const actor =
+    occurrence.actorName === null
+      ? t('occurrenceDetail.unknownActor')
+      : formatPersonName(occurrence.actorName)
 
   return (
     <p className={styles.intro}>
@@ -202,7 +211,7 @@ function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurr
         <dl className={styles.occurrenceFacts}>
           <div>
             <dt>{t('occurrenceDetail.driver.name')}</dt>
-            <dd>{contact.name}</dd>
+            <dd>{formatPersonName(contact.name)}</dd>
           </div>
           <div>
             <dt>{t('occurrenceDetail.driver.phone')}</dt>
@@ -295,6 +304,64 @@ type OccurrenceSummaryPanelProps = Readonly<{
   permissions: readonly string[]
 }>
 
+/** Marca/modelo/ano e a cor do veículo da viagem; cadastro sem esses dados não imprime a linha. */
+function OccurrenceSummaryVehicle({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
+  const { t } = useTranslation('trip')
+  const cells = describeOccurrenceVehicleCells(occurrence)
+  const swatch = resolveColorSwatch(cells.colorCode)
+
+  return (
+    <>
+      {cells.description === '' ? null : (
+        <div>
+          <dt>{t('occurrenceDetail.summary.vehicleModel')}</dt>
+          <dd>{cells.description}</dd>
+        </div>
+      )}
+      {cells.colorCode === '' ? null : (
+        <div>
+          <dt>{t('occurrenceDetail.summary.vehicleColor')}</dt>
+          <dd>
+            {swatch === null ? null : (
+              <span
+                aria-hidden="true"
+                className={styles.occurrenceColorSwatch}
+                style={{ background: swatch }}
+              />
+            )}
+            {t(`colorOption.${cells.colorCode}`, { defaultValue: cells.colorCode, ns: 'fleet' })}
+          </dd>
+        </div>
+      )}
+    </>
+  )
+}
+
+const CARGO_NUMBER_FORMAT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 })
+
+/** Peso bruto e volumes da nota da ocorrência; sem nota (ou API sem a carga) a linha some. */
+function OccurrenceSummaryCargo({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
+  const { t } = useTranslation('trip')
+  const cargo = describeOccurrenceCargoCells(occurrence.document)
+  if (cargo === null) return null
+
+  return (
+    <div>
+      <dt>{t('occurrenceDetail.summary.cargo')}</dt>
+      <dd>
+        {t('occurrenceFeed.cargo.weight', {
+          value: CARGO_NUMBER_FORMAT.format(Number(cargo.grossWeightKg)),
+        })}
+        {' · '}
+        {t('occurrenceFeed.cargo.volumes', {
+          count: Number(cargo.volumeCount),
+          value: CARGO_NUMBER_FORMAT.format(Number(cargo.volumeCount)),
+        })}
+      </dd>
+    </div>
+  )
+}
+
 function OccurrenceSummaryPanel({
   companyId,
   occurrence,
@@ -326,10 +393,14 @@ function OccurrenceSummaryPanel({
           <dt>{t('occurrenceFeed.columns.vehiclePlate')}</dt>
           <dd>{occurrence.vehiclePlate}</dd>
         </div>
+        <OccurrenceSummaryVehicle occurrence={occurrence} />
+        <OccurrenceSummaryCargo occurrence={occurrence} />
         <div>
           <dt>{t('occurrenceFeed.columns.driverName')}</dt>
           <dd>
-            {occurrence.driverName === '' ? t('occurrenceDetail.noDriver') : occurrence.driverName}
+            {occurrence.driverName === ''
+              ? t('occurrenceDetail.noDriver')
+              : formatPersonName(occurrence.driverName)}
           </dd>
         </div>
         <div>

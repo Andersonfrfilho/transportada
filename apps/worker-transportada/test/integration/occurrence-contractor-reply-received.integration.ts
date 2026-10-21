@@ -299,6 +299,15 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
     ])
 
     expect(recorded.driverNotice).toBeUndefined()
+    /** Spec 276: o log diz por que parou — conferido, com texto lido, e recusado. */
+    expect(recorded.contractorReply).toEqual({
+      delivered: false,
+      documentChecked: true,
+      documentTextRead: true,
+      kind: 'applied',
+      reason: 'document_not_confirmed',
+      toStatus: 'needs_operator',
+    })
     expect(await replyOf(seeded)).toEqual({
       has_attachment: false,
       has_message: true,
@@ -319,8 +328,11 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
   it('boleto conferido (spec 276): PDF sem texto lido não segue sozinho', async () => {
     const seeded = await seed('forward_automatic', { attachmentKind: 'boleto_pdf' })
 
-    await recordReply(seeded, `re_${crypto.randomUUID()}`, [attachmentOf('application/pdf')])
+    const recorded = await recordReply(seeded, `re_${crypto.randomUUID()}`, [
+      attachmentOf('application/pdf'),
+    ])
 
+    expect(recorded.contractorReply).toMatchObject({ documentTextRead: false, kind: 'applied' })
     expect(await replyOf(seeded)).toMatchObject({
       reason: 'document_not_confirmed',
       status: 'needs_operator',
@@ -349,6 +361,7 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
     )
 
     expect(internal.driverNotice).toBeUndefined()
+    expect(internal.contractorReply).toEqual({ kind: 'company_user_sender' })
     expect((await replyOf(seeded))?.status).toBe('awaiting_contractor')
     expect(await eventsOf(seeded)).toEqual([])
     const [stored] = [

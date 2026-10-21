@@ -97,6 +97,10 @@ export async function startContractorMailInboundConsumer(params: {
               /** Spec 183 T702c1: só contagem; nome e tipo do arquivo nunca vão a log. */
               attachmentsLinked: result.attachments.linked,
               attachmentsSkipped: result.attachments.skipped,
+              /** Spec 276: status, motivo e entrega do retorno — sem endereço, texto nem anexo. */
+              ...(result.contractorReply === undefined
+                ? {}
+                : { contractorReply: result.contractorReply }),
               /** Veredito e motivo por assinatura, sem domínio nem endereço: diz por que não alinhou. */
               dkimDiagnostic: result.dkimDiagnostic,
               dkimResult: result.dkimResult,

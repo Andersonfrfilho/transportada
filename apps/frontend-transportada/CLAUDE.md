@@ -280,15 +280,14 @@ portal. Histórico: docs/ai-context § "A ocorrência tem duas conversas".
 - **O SDK não tem porta para ação por anexo, remetente nem reenvio por canal** (0.10.0): essas funções ficam nas
   faixas `OccurrenceThread{Attachments,Senders,Failures}` ao lado do fio, com ícone + palavra + cor.
   Quando o SDK ganhar o slot, as faixas viram o slot, sem mudar a regra.
-- **Opções por mensagem** (`OccurrenceMessageMenu`, no slot `renderMessageActions` do SDK): um botão de três pontos
-  (`more-vertical`) na linha da hora do balão abre um menu (`role="menu"`, portal com `useFloatingLayer`) com copiar
-  seleção, copiar texto, encaminhar e baixar cada arquivo — nada de ícone sempre à vista. Com mouse o botão só aparece
-  sob o ponteiro ou com foco no balão; no toque fica visível. "Copiar seleção" só existe com trecho selecionado dentro
-  do balão, lido no `pointerdown`/`keydown` do botão (no `click` a seleção já pode ter sumido). Itens puros em
-  `buildMessageMenuItems`. Da contratante ao motorista, cada arquivo vai pela entrega do boleto (o servidor põe "Segue
-  a requisição: <tipo>" quando não há retorno) e o texto pelo app; do motorista à contratante, pelo portal, ou só o
-  texto pelo chat por e-mail sem portal. Os passos são puros (`planMessageForward`), com a chave
-  `message-forward:<id da mensagem>`.
+- **Menu da mensagem é do SDK** (`messageMenu` do `ConversationThread`, conversations-ui 0.14): como no WhatsApp,
+  uma seta discreta no canto do balão (ao passar o mouse), o botão direito ou o toque longo abrem Copiar e Selecionar
+  mensagens; a seleção põe uma caixa por mensagem e troca o compositor por uma barra que copia com data, hora e autor.
+  O painel só acrescenta o que é dele (`useOccurrenceMessageMenu`): encaminhar ao outro chat (uma ou várias) e baixar
+  cada arquivo. Nada de reimplementar menu ou seleção no painel. Da contratante ao motorista, cada arquivo vai pela
+  entrega do boleto (o servidor põe "Segue a requisição: <tipo>" quando não há retorno) e o texto pelo app; do
+  motorista à contratante, pelo portal, ou só o texto pelo chat por e-mail sem portal. Os passos são puros
+  (`planMessageForward`), com a chave `message-forward:<id da mensagem>`.
 - **Mensagem nova é anunciada a leitor de tela** pela região `aria-live` do próprio SDK (rótulo `newMessages`;
   `countNewIncomingMessages` segue no serviço). A leitura nunca para: com envio pendente, o refetch é rápido; sem
   nada pendente, cai para `CONVERSATION_IDLE_REFETCH_MS` (60 s); o fio relê a cada 20 s e ao voltar o foco.

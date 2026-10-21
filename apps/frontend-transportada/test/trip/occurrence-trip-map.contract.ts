@@ -143,7 +143,7 @@ describe('o mapa da viagem na ocorrência: serviço puro', () => {
     expect(view({ items }).occurrenceState).toBe('not-found')
   })
 
-  it('cada pino leva ícone, selo de ordem, cor por tipo e dica com rótulo, hora e distância', () => {
+  it('cada pino leva ícone, selo de ordem, cor por tipo e dica com rótulo, hora, parada e distância', () => {
     const arrived = view().pins.find((pin) => pin.orderBadge === '1')
 
     expect(arrived?.glyph).toBe('map-pin')
@@ -151,6 +151,7 @@ describe('o mapa da viagem na ocorrência: serviço puro', () => {
     expect(arrived?.popup).toEqual([
       '1. eventTimeline.map.category.arrived',
       'm(2026-10-10T09:00:00.000Z)',
+      'occurrenceTripMap.stopPinLabel|{"label":"Loja B","sequence":2}',
       'occurrenceTripMap.distance.meters|{"distance":"35"}',
     ])
   })
@@ -168,7 +169,7 @@ describe('o mapa da viagem na ocorrência: serviço puro', () => {
       ],
     })
     expect(withoutDistance.entries[0]?.detail).toBeNull()
-    expect(withoutDistance.pins.find((pin) => pin.isHighlighted === true)?.popup).toHaveLength(2)
+    expect(withoutDistance.pins.find((pin) => pin.isHighlighted === true)?.popup).toHaveLength(3)
   })
 
   it('evento sem posição não vira pino e é nomeado com o motivo', () => {
@@ -199,7 +200,7 @@ describe('o mapa da viagem na ocorrência: serviço puro', () => {
     expect(view().entries.some((entry) => entry.id === 'status-1')).toBe(false)
   })
 
-  it('a parada da nota sai do evento, e é o único pino de parada com permissão', () => {
+  it('a parada da nota sai do evento, e todas as paradas com ponto entram no mapa', () => {
     const { noteStop, pins, stopCount } = view()
 
     expect(noteStop).toEqual({
@@ -207,9 +208,33 @@ describe('o mapa da viagem na ocorrência: serviço puro', () => {
       pinKey: 'occurrence-map-stop-stop-2',
       sequence: 2,
     })
-    expect(stopCount).toBe(1)
-    expect(pins.filter((pin) => pin.glyph === undefined).map((pin) => pin.label)).toEqual([
+    expect(stopCount).toBe(2)
+    const stopPins = pins.filter((pin) => pin.glyph === undefined)
+    expect(stopPins.map((pin) => pin.label)).toEqual(['Armazém A', 'Loja B'])
+    expect(stopPins.some((pin) => pin.isHighlighted === true)).toBe(false)
+  })
+
+  it('a dica da parada traz as notas vivas com destinatário e resume o excesso', () => {
+    const documents = [
+      { contact: { name: 'Mercado Bom Preço' }, nfeNumber: '104', releasedAt: null },
+      { contact: null, nfeNumber: '105', releasedAt: null },
+      { contact: { name: 'Loja Silva' }, nfeNumber: null, releasedAt: null },
+      { contact: null, nfeNumber: '107', releasedAt: null },
+      { contact: null, nfeNumber: '108', releasedAt: null },
+      { contact: null, nfeNumber: '999', releasedAt: '2026-10-10T08:00:00.000Z' },
+    ] as unknown as TripStopDetail['documents']
+    const { pins } = view({
+      items: [],
+      stops: [{ ...stop('stop-2', 2, 'Loja B', '-21.2'), documents }],
+    })
+
+    expect(pins[0]?.popup).toEqual([
+      'occurrenceTripMap.stopTitle|{"sequence":2}',
       'Loja B',
+      'occurrenceTripMap.stopDocument|{"name":"Mercado Bom Preço","number":"104"}',
+      'occurrenceTripMap.stopDocumentNumber|{"number":"105"}',
+      'Loja Silva',
+      'occurrenceTripMap.stopMoreDocuments|{"count":2}',
     ])
   })
 
@@ -265,7 +290,7 @@ describe('o mapa da viagem na ocorrência: serviço puro', () => {
   it('conta os eventos com pino à parte da parada: parada sozinha ainda é "nenhum evento com posição"', () => {
     expect(view().locatedCount).toBe(3)
     expect(view({ items: [] }).locatedCount).toBe(0)
-    expect(view({ items: [] }).pins).toHaveLength(1)
+    expect(view({ items: [] }).pins).toHaveLength(2)
     expect(view({ canViewEventLocation: false }).locatedCount).toBe(0)
   })
 

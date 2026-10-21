@@ -11,6 +11,7 @@ import {
 } from '../../database/contractor-mail.schema.js'
 import { storedObjects } from '../../database/nfe.schema.js'
 import type { StoredInboundAttachment } from '../../occurrence-conversation/application/inbound-mail-attachments.service.js'
+import type { ContractorReplyLogOutcome } from '../../occurrence-conversation/application/contractor-reply-log.port.js'
 import type { DriverReplyNotice } from '../../occurrence-conversation/application/driver-reply-notice.port.js'
 import {
   findOccurrenceConversationByThread,
@@ -95,6 +96,8 @@ export type ContractorMailInboundWorkerRepository = {
    * depois do commit; ausente quando nada foi entregue.
    */
   recordInboundMessage(input: RecordContractorMailInboundMessageInput): Promise<{
+    /** Spec 276: só para o log — o que o retorno da contratante fez com a mensagem. */
+    readonly contractorReply?: ContractorReplyLogOutcome | undefined
     readonly driverNotice?: DriverReplyNotice | undefined
     readonly id: string
     readonly linkedAttachments: number
@@ -242,6 +245,7 @@ export function createDrizzleContractorMailInboundWorkerRepository(
             threadId: input.threadId,
           })
           return {
+            contractorReply: linked.contractorReply,
             driverNotice: linked.driverNotice,
             id: message.id,
             linkedAttachments: linked.linkedAttachments,

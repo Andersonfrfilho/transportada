@@ -4,11 +4,17 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import type { AssemblyMapPoint } from './assemblyMap.service'
 import { OCCURRENCE_TRIP_MAP_STOP_PIN_KEY_PREFIX } from './occurrenceTripMap.constant'
 import { stopColorOf } from './stopColor.service'
-import type { TripStopDetail } from './trip.types'
+import type { TripDocumentDetail, TripStopDetail } from './trip.types'
+
+/** A dica não vira lista: passou disso, uma linha diz quantas notas faltam. */
+const STOP_POPUP_MAX_DOCUMENTS = 3
 
 export type OccurrenceTripMapStopsInput = Readonly<{
-  /** Sem `trip.event-location` o mapa mostra todas as paradas; com ela, só a da nota. */
-  drawAllStops: boolean
+  /**
+   * Sem `trip.event-location` o halo vai na parada da nota; com ela, o halo é da ocorrência e a
+   * parada da nota fica igual às outras. Todas as paradas com ponto são desenhadas nos dois casos.
+   */
+  highlightNoteStop: boolean
   /** A parada que a linha do tempo diz ser a da ocorrência (`stop.id`), quando ela veio. */
   noteStopId: null | string
   occurrence: Readonly<{ stopLabel: null | string; tripDocumentId: null | string }>
@@ -47,6 +53,27 @@ function findNoteStop(input: OccurrenceTripMapStopsInput): TripStopDetail | unde
     : stops.find((stop) => stop.label === occurrence.stopLabel)
 }
 
+/** Uma linha por nota viva da parada: número e destinatário, o que o escritório procura no pino. */
+function documentLines(stop: TripStopDetail, translate: Translate): readonly string[] {
+  const live = stop.documents.filter((document) => document.releasedAt === null)
+  const lines = live
+    .slice(0, STOP_POPUP_MAX_DOCUMENTS)
+    .map((document) => documentLine(document, translate))
+  const rest = live.length - STOP_POPUP_MAX_DOCUMENTS
+  return rest > 0
+    ? [...lines, translate('occurrenceTripMap.stopMoreDocuments', { count: rest })]
+    : lines
+}
+
+function documentLine(document: TripDocumentDetail, translate: Translate): string {
+  const number = document.nfeNumber ?? null
+  const name = document.contact?.name ?? null
+  if (number === null) return name ?? translate('occurrenceTripMap.stopDocumentWithoutNumber')
+  return name === null
+    ? translate('occurrenceTripMap.stopDocumentNumber', { number })
+    : translate('occurrenceTripMap.stopDocument', { name, number })
+}
+
 function buildStopPin(
   input: Readonly<{
     coordinates: Readonly<{ latitude: number; longitude: number }>
@@ -69,7 +96,7 @@ function buildStopPin(
     label: stop.label,
     ...coordinates,
     notes: [],
-    popup: [title, stop.label],
+    popup: [title, stop.label, ...documentLines(stop, translate)],
     sequence: stop.sequence,
     stopKey: `${OCCURRENCE_TRIP_MAP_STOP_PIN_KEY_PREFIX}${stop.id}`,
     x: coordinates.longitude,
@@ -88,13 +115,12 @@ export function resolveOccurrenceTripMapStops(
   const pins: AssemblyMapPoint[] = []
   for (const stop of [...input.stops].sort((first, second) => first.sequence - second.sequence)) {
     const isNote = stop.id === noteStop?.id
-    if (!input.drawAllStops && !isNote) continue
     const coordinates = coordinatesOf(stop)
     if (coordinates === null) continue
     pins.push(
       buildStopPin({
         coordinates,
-        isNote: input.drawAllStops && isNote,
+        isNote: input.highlightNoteStop && isNote,
         stop,
         translate: input.translate,
       }),

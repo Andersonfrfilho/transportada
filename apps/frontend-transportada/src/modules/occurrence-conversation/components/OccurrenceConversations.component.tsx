@@ -20,7 +20,8 @@ import {
   resolveContractorComposer,
 } from '../shared/contractorChat.service'
 import { isForwardAlreadyDone } from '../shared/conversationAttachment.service'
-import { attachmentDownloadUrls } from '../shared/messageMenu.service'
+import { attachmentDownloadUrls } from '../shared/occurrenceMessageMenu.service'
+import { useOccurrenceMessageMenu } from '../shared/useOccurrenceMessageMenu.hook'
 import type { OccurrenceThreadSendError } from '../shared/occurrenceThreadApi.service'
 import type {
   ContractorSenderSuggestion,
@@ -45,7 +46,6 @@ import { ContractorReplyEmailActions } from './ContractorReplyEmailActions.compo
 import { ConversationColumn, ConversationLayoutSwitch } from './ConversationLayoutSwitch.component'
 import { OccurrenceConversationLegend } from './OccurrenceConversationLegend.component'
 import { ContractorReplyEmailHistory } from './ContractorReplyEmailHistory.component'
-import { OccurrenceMessageMenu } from './OccurrenceMessageMenu.component'
 import { OccurrenceThread } from './OccurrenceThread.component'
 import {
   OccurrenceThreadAttachments,
@@ -178,6 +178,13 @@ function DriverConversationPanel({
   const { t } = useTranslation('occurrenceConversation')
   const messages = conversation?.messages ?? []
   const attachmentUrls = attachmentDownloadUrls(messages)
+  const messageMenu = useOccurrenceMessageMenu({
+    attachmentUrls,
+    canForward: canSend,
+    from: 'driver',
+    occurrenceId,
+    portalAvailable,
+  })
   /** Spec 183 T702d: as ações só no arquivo que o motorista mandou. */
   const attachmentActions: RenderAttachmentActions = (attachment, message) => {
     if (message.direction !== 'inbound') return null
@@ -204,6 +211,11 @@ function DriverConversationPanel({
         messages={messages}
       />
       <div className={threadStyles.noticesArea}>
+        {messageMenu.forwardFailed ? (
+          <p className={threadStyles.error} role="alert">
+            {t('message.forwardError')}
+          </p>
+        ) : null}
         <OccurrenceThreadFailures
           canResend={canSend}
           messages={messages}
@@ -223,16 +235,7 @@ function DriverConversationPanel({
         counterpartName={driverName}
         occurrenceId={occurrenceId}
         participant="driver"
-        renderMessageActions={(message) => (
-          <OccurrenceMessageMenu
-            attachmentUrls={attachmentUrls}
-            canForward={canSend}
-            from="driver"
-            message={message}
-            occurrenceId={occurrenceId}
-            portalAvailable={portalAvailable}
-          />
-        )}
+        messageMenu={messageMenu.options}
         status={canSend ? 'open' : 'closed'}
         title={driverName === '' ? t('driver.title') : t('driver.withName', { name: driverName })}
       />
@@ -282,6 +285,12 @@ function ContractorConversationPanel({
   const [mailBody, setMailBody] = useState<string | undefined>(undefined)
   const messages = conversation?.messages ?? []
   const attachmentUrls = attachmentDownloadUrls(messages)
+  const messageMenu = useOccurrenceMessageMenu({
+    attachmentUrls,
+    canForward: canSend && hasDriver,
+    from: 'contractor',
+    occurrenceId,
+  })
   const { canWrite, status } = resolveContractorComposer({ canSend, contractorId, hasDocument })
   /** Spec 274 D10: a última falha do envio do chat — o motivo e, sem destinatário, a saída pelo diálogo. */
   const [sendError, setSendError] = useState<null | OccurrenceThreadSendError>(null)
@@ -330,6 +339,11 @@ function ContractorConversationPanel({
         messages={messages}
       />
       <div className={threadStyles.noticesArea}>
+        {messageMenu.forwardFailed ? (
+          <p className={threadStyles.error} role="alert">
+            {t('message.forwardError')}
+          </p>
+        ) : null}
         <OccurrenceThreadFailures
           canResend={canWrite}
           messages={messages}
@@ -375,15 +389,7 @@ function ContractorConversationPanel({
           occurrenceId={occurrenceId}
           onSendError={setSendError}
           participant="contractor"
-          renderMessageActions={(message) => (
-            <OccurrenceMessageMenu
-              attachmentUrls={attachmentUrls}
-              canForward={canSend && hasDriver}
-              from="contractor"
-              message={message}
-              occurrenceId={occurrenceId}
-            />
-          )}
+          messageMenu={messageMenu.options}
           status={status}
           title={
             contractorName === ''
