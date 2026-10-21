@@ -130,10 +130,12 @@ function buildEventPin(
   input: Readonly<{
     entry: OccurrenceTripMapEntry
     located: Located
+    stops: readonly TripStopDetail[]
     translate: Translate
   }>,
 ): AssemblyMapPoint {
-  const { entry, located, translate } = input
+  const { entry, located, stops, translate } = input
+  const stopLine = stopLineOf(located.item, stops, translate)
   const title = entry.isThisOccurrence ? translate('occurrenceTripMap.thisOccurrence') : entry.label
   return {
     ariaLabel: translate('occurrenceTripMap.pinLabel', {
@@ -154,6 +156,7 @@ function buildEventPin(
     popup: [
       `${String(entry.order)}. ${title}`,
       entry.moment,
+      ...(stopLine === null ? [] : [stopLine]),
       ...(entry.detail === null ? [] : [entry.detail]),
     ],
     sequence: entry.order,
@@ -161,6 +164,19 @@ function buildEventPin(
     x: located.longitude,
     y: located.latitude,
   }
+}
+
+/** A parada do evento, pelo rótulo que a viagem já mostra; sem parada, o evento não ganha a linha. */
+function stopLineOf(
+  item: TripTimelineItem,
+  stops: readonly TripStopDetail[],
+  translate: Translate,
+): null | string {
+  if (item.stop === null) return null
+  const label = stops.find((stop) => stop.id === item.stop?.id)?.label ?? null
+  return label === null
+    ? translate('occurrenceTripMap.stopTitle', { sequence: item.stop.sequence })
+    : translate('occurrenceTripMap.stopPinLabel', { label, sequence: item.stop.sequence })
 }
 
 function buildEvents(input: OccurrenceTripMapInput) {
@@ -226,7 +242,7 @@ function resolveOccurrenceState(
 export function buildOccurrenceTripMapView(input: OccurrenceTripMapInput): OccurrenceTripMapView {
   const own = input.items.find((item) => isThisOccurrence(item, input.occurrence.id))
   const stops = resolveOccurrenceTripMapStops({
-    drawAllStops: !input.canViewEventLocation,
+    highlightNoteStop: !input.canViewEventLocation,
     noteStopId: own?.stop?.id ?? null,
     occurrence: input.occurrence,
     stops: input.stops,
@@ -252,7 +268,7 @@ export function buildOccurrenceTripMapView(input: OccurrenceTripMapInput): Occur
     const point = located[(entry.order ?? 0) - 1]
     return entry.order === null || point === undefined
       ? []
-      : [buildEventPin({ entry, located: point, translate: input.translate })]
+      : [buildEventPin({ entry, located: point, stops: input.stops, translate: input.translate })]
   })
   const categories = [
     ...new Set(entries.filter((entry) => entry.order !== null).map((entry) => entry.category)),
