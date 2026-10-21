@@ -25,6 +25,7 @@ import {
 } from '../../database/occurrence-conversation.schema.js'
 import type { StoredInboundAttachment } from '../application/inbound-mail-attachments.service.js'
 import type { DriverReplyNotice } from '../application/driver-reply-notice.port.js'
+import type { ContractorReplyLogOutcome } from '../application/contractor-reply-log.port.js'
 import { applyContractorReplyToMessage } from './drizzle-occurrence-contractor-reply.repository.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
 import { findOccurrenceLabel } from './occurrence-label.query.js'
@@ -62,6 +63,7 @@ export async function findOccurrenceConversationByThread(
 /**
  * Spec 267 RF9: o `From` é de um usuário da empresa com vínculo ativo (o responsável que respondeu a todos). Só vale com
  * DKIM alinhado — a mesma regra do contato —, senão um `From` forjado com o endereço dele passaria por interno.
+
  */
 async function isCompanyUserSender(
   transaction: OccurrenceConversationTransaction,
@@ -108,6 +110,8 @@ export async function recordOccurrenceConversationMailReply(
     readonly threadId: string
   },
 ): Promise<{
+  /** Spec 276: o que o retorno da contratante fez com esta mensagem, só para o log; ausente sem conversa. */
+  readonly contractorReply?: ContractorReplyLogOutcome | undefined
   readonly driverNotice: DriverReplyNotice | undefined
   readonly linkedAttachments: number
 }> {
@@ -159,14 +163,22 @@ export async function recordOccurrenceConversationMailReply(
   }
   /** O responsável não é "a resposta da contratante": não avança o retorno nem chega ao motorista (spec 267 RF9). */
   if (await isCompanyUserSender(transaction, input)) {
-    return { driverNotice: undefined, linkedAttachments: input.attachments.length }
+    return {
+      contractorReply: { kind: 'company_user_sender' },
+      driverNotice: undefined,
+      linkedAttachments: input.attachments.length,
+    }
   }
+  let contractorReply: ContractorReplyLogOutcome | undefined
   const delivery = await applyContractorReplyToMessage(transaction, {
     companyId: input.companyId,
     conversationId,
     messageId: message.id,
     now: new Date(),
     readDocumentText: async (storedObjectId) => textByStoredObject.get(storedObjectId) ?? '',
+    report: (outcome) => {
+      contractorReply = outcome
+    },
   })
   const driverNotice =
     delivery === undefined
@@ -182,7 +194,7 @@ export async function recordOccurrenceConversationMailReply(
           }),
           protocol: delivery.protocol,
         }
-  return { driverNotice, linkedAttachments: input.attachments.length }
+  return { contractorReply, driverNotice, linkedAttachments: input.attachments.length }
 }
 
 export async function applyOccurrenceConversationMailStatus(

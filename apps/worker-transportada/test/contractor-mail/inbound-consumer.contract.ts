@@ -182,6 +182,40 @@ describe('contractor mail inbound consumer (spec 143, T010)', () => {
     ])
   })
 
+  test('logs what the contractor reply did with the message (spec 276), without address or text', async () => {
+    const { calls, logger } = buildLogger()
+    const dependencies = buildDependenciesStub()
+    const outcome = {
+      delivered: false,
+      documentChecked: true,
+      documentTextRead: false,
+      kind: 'applied',
+      reason: 'document_not_confirmed',
+      toStatus: 'needs_operator',
+    } as const
+    const handler = await captureHandler({
+      dependencies: {
+        ...dependencies,
+        repository: {
+          ...dependencies.repository,
+          async recordInboundMessage() {
+            return { contractorReply: outcome, id: crypto.randomUUID(), linkedAttachments: 0 }
+          },
+        },
+      },
+      logger,
+    })
+
+    await handler({ payload: buildEnvelope() })
+
+    expect(calls).toEqual([
+      {
+        message: 'inbound_email_dkim_verified',
+        metadata: expect.objectContaining({ contractorReply: outcome }),
+      },
+    ])
+  })
+
   test('acks and logs inbound_email_token_unknown as a counter, without failing, when discarded', async () => {
     const { calls, logger } = buildLogger()
     const handler = await captureHandler({
