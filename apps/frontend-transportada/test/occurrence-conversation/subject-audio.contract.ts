@@ -135,20 +135,20 @@ describe('a leitura do áudio e da transcrição no painel (contract §1)', () =
     expect(message?.attachments[1]).toMatchObject({ transcription: READY })
   })
 
-  test('a guarda compartilhada e a tela antiga não ganham campo (ouro)', async () => {
+  /**
+   * Os tipos da ocorrência ganharam `durationMs` e `transcription` por decisão do Anderson em 21/10/2026: a API manda
+   * os campos na rota da ocorrência e o chat do painel é o SDK. A guarda compartilhada e a tela seguem sem eles.
+   */
+  test('a guarda compartilhada e a tela da ocorrência não ganham campo (ouro)', async () => {
     const guard = await readFile(
       new URL(`${MODULE}shared/conversationAttachment.service.ts`, import.meta.url),
-      'utf8',
-    )
-    const types = await readFile(
-      new URL(`${MODULE}shared/occurrenceConversation.types.ts`, import.meta.url),
       'utf8',
     )
     const oldScreen = await readFile(
       new URL(`${MODULE}components/OccurrenceConversations.component.tsx`, import.meta.url),
       'utf8',
     )
-    for (const source of [guard, types, oldScreen]) {
+    for (const source of [guard, oldScreen]) {
       expect(source).not.toMatch(/transcription|durationMs|audioRecording/u)
     }
   })

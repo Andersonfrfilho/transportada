@@ -5,6 +5,7 @@
  * `Idempotency-Key` do diálogo; o erro da API chega pelo `code`, nunca pelo texto.
  */
 import { isRecord, isString } from './occurrenceConversationGuards.validation'
+import { toAttachmentsWithAudioFields } from './audioAttachmentFields.service'
 import {
   readContractorReplyEmailOptions,
   readContractorReplyEmailOutcome,
@@ -13,10 +14,7 @@ import {
   type ContractorReplyEmailTarget,
 } from './contractorReplyEmail.service'
 
-import {
-  toConversationAttachments,
-  type ConversationAttachmentChannel,
-} from './conversationAttachment.service'
+import { type ConversationAttachmentChannel } from './conversationAttachment.service'
 
 import {
   OCCURRENCE_CONVERSATION_CHANNELS,
@@ -195,7 +193,8 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
     : {}
   const copy = toCopy(value.copy)
   return {
-    attachments: toConversationAttachments(value.attachments),
+    /** O áudio traz a duração e a transcrição (264); campo que o painel não conhece some, nunca o anexo. */
+    attachments: toAttachmentsWithAudioFields(value.attachments),
     author,
     bodyText: value.bodyText,
     channel: value.channel,

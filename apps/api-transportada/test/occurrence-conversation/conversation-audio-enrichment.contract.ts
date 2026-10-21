@@ -172,6 +172,8 @@ describe('onde a etapa vive (texto de fonte)', () => {
     'application/reply-my-subject-conversation.use-case.ts',
     'application/list-office-subject-messages.use-case.ts',
     'application/send-office-subject-message.use-case.ts',
+    /** A leitura do escritório na tela da ocorrência: o chat do painel é o SDK (21/10/2026). */
+    'application/read-occurrence-conversations.use-case.ts',
   ] as const
 
   test.each([...USE_CASES_WITH_ENRICHMENT])(

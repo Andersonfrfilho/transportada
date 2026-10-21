@@ -178,6 +178,51 @@ describe('o mapa da mensagem da ocorrência para o SDK', () => {
     expect(received).not.toHaveProperty('status')
   })
 
+  test('a hora da leitura da mensagem enviada vai como readAt, para os dados da mensagem; a recebida não ganha o campo', () => {
+    const read = '2026-09-24T14:24:00.000Z'
+    expect(
+      toThreadMessage(message({ status: 'read', statusTimes: { read } }), LABELS),
+    ).toMatchObject({
+      readAt: read,
+    })
+    expect(toThreadMessage(message({ status: 'delivered' }), LABELS)).not.toHaveProperty('readAt')
+    expect(
+      toThreadMessage(
+        message({ direction: 'inbound', status: null, statusTimes: { read } }),
+        LABELS,
+      ),
+    ).not.toHaveProperty('readAt')
+  })
+
+  test('o áudio chega ao SDK com a duração e a transcrição, que o SDK mostra, copia e baixa', () => {
+    const transcription = {
+      generatedAt: '2026-10-20T12:00:00.000Z',
+      status: 'ready',
+      text: 'Cheguei na doca.',
+    } as const
+    const mapped = toThreadMessage(
+      message({
+        attachments: [
+          {
+            contentType: 'audio/ogg',
+            durationMs: 12_000,
+            fileName: 'recado.ogg',
+            id: 'audio-1',
+            sizeBytes: 2048,
+            transcription,
+            url: 'https://files.example.test/recado.ogg',
+          },
+        ],
+      }),
+      LABELS,
+    )
+    expect(mapped.attachments[0]).toMatchObject({
+      durationMs: 12_000,
+      kind: 'audio',
+      transcription,
+    })
+  })
+
   test('o e-mail inteiro vai recolhido no balão; sem ele, o balão não ganha o campo', () => {
     const fullText =
       'Podem descarregar.\n\nEm ter., 20 de out. de 2026, Equipe escreveu:\n> Autorizam?'
