@@ -11,6 +11,7 @@ import type { SQL } from 'bun'
 import { expect } from 'bun:test'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { rollbackContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { expectQueryToFail, migrationsDirectory, readMigrationNames } from './support.js'
 
 const MIGRATION_SUFFIX = '_contractor_reply_boleto_check'
@@ -65,6 +66,8 @@ export async function assertContractorReplyBoletoCheck(
   expect(await readMigrationNames(database)).toContain(directory)
 
   await database`delete from company_occurrence_types where id = ${typeId}`
+  /** Spec 278: a migration mais nova alarga a mesma CHECK do evento; sai antes, e o reapply a devolve. */
+  await rollbackContractorReplyEventDocumentReasons(database, directories)
   expect(await runRollback(database, rollback)).toBeUndefined()
   expect(await readMigrationNames(database)).not.toContain(directory)
   await expectQueryToFail(insertBoletoType(probe, typeId), CHECK_VIOLATION, ATTACHMENT_KIND_CHECK)

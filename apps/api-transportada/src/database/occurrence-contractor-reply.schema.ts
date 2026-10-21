@@ -32,6 +32,7 @@ import {
   CONTRACTOR_REPLY_DELIVERY_TRIGGERS,
   CONTRACTOR_REPLY_EMAIL_ADDRESS_MAX_LENGTH,
   CONTRACTOR_REPLY_EMAIL_TARGETS,
+  CONTRACTOR_REPLY_EVENT_REASONS,
   CONTRACTOR_REPLY_HANDLED_NOTE_MAX_LENGTH,
   CONTRACTOR_REPLY_IDEMPOTENCY_KEY_MAX_LENGTH,
   CONTRACTOR_REPLY_REASONS,
@@ -55,9 +56,11 @@ import { inList } from './schema-check.constant.js'
 import { tripDocumentOccurrences } from './trip.schema.js'
 
 const raw = sql.raw
+/** Spec 278 D1: the history event also records the outcome of the boleto check (event-only reasons). */
 const DELIVERY_AND_REPLY_REASONS = [
   ...CONTRACTOR_REPLY_REASONS,
   ...CONTRACTOR_REPLY_DELIVERY_REASONS,
+  ...CONTRACTOR_REPLY_EVENT_REASONS,
 ] as const
 
 export const occurrenceContractorReplies = pgTable(

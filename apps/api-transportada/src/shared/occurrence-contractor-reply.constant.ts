@@ -86,6 +86,17 @@ export const CONTRACTOR_REPLY_REASONS = [
 ] as const
 export type ContractorReplyReason = (typeof CONTRACTOR_REPLY_REASONS)[number]
 
+/**
+ * Spec 278 D1: reasons only of the history event, never of the reply — the outcome of the boleto check.
+ * `document_confirmed` goes on the accepting transition; `document_without_text` on the move to the operator
+ * when the PDF gave no text (or there was no reader). The reply itself keeps `document_not_confirmed`.
+ */
+export const CONTRACTOR_REPLY_EVENT_REASONS = [
+  'document_confirmed',
+  'document_without_text',
+] as const
+export type ContractorReplyEventReason = (typeof CONTRACTOR_REPLY_EVENT_REASONS)[number]
+
 export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
   'driver_app_chat',
   'driver_whatsapp',

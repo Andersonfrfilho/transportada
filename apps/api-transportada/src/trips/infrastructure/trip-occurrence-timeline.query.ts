@@ -2,14 +2,15 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 183 RF19: os fatos crus da linha do tempo de uma ocorrência — o registro, as fotos, a
- * tratativa da spec 164, os e-mails à contratante da spec 143 e o retorno da contratante da 248. Quatro leituras fixas, toda uma com
+ * tratativa da spec 164, os e-mails à contratante da spec 143 e o retorno da contratante da 248 (com a
+ * conferência do boleto, a entrega ao motorista e a leitura dele, spec 278). Quatro leituras fixas, toda uma com
  * `company_id`: um degrau sem ele é o caminho pelo qual a tratativa de uma empresa aparece na tela
  * de outra.
  *
  * ⚠️ Do e-mail só saem direção, hora, entrega e interpretação — **nunca** endereço, assunto ou
  * corpo. Quem mostra a mensagem é a conversa (Fase 4), com a regra dela.
  */
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import {
   contractorMailMessages,
@@ -17,9 +18,14 @@ import {
 } from '../../database/contractor-mail.schema.js'
 import {
   occurrenceContractorReplies,
+  occurrenceContractorReplyDeliveries,
   occurrenceContractorReplyEvents,
 } from '../../database/occurrence-contractor-reply.schema.js'
-import { tripOccurrenceResolutionEvents } from '../../database/occurrence-conversation.schema.js'
+import {
+  occurrenceConversationMessages,
+  occurrenceConversations,
+  tripOccurrenceResolutionEvents,
+} from '../../database/occurrence-conversation.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import {
   tripDocumentOccurrenceAttachments,
@@ -28,6 +34,9 @@ import {
 } from '../../database/trip.schema.js'
 import type {
   OccurrenceTimelineActor,
+  OccurrenceTimelineDeliveryChannel,
+  OccurrenceTimelineDocumentCheckResult,
+  OccurrenceTimelineDocumentKind,
   OccurrenceTimelineSource,
 } from '../domain/occurrence-timeline.policy.js'
 import { resolveSystemResolutionCausePhraseKey } from '../domain/occurrence-resolution.policy.js'
@@ -222,10 +231,109 @@ async function listResolutionSources(
   })
 }
 
+/** Spec 278 D1: o motivo do evento que diz o resultado da conferência do boleto (276 T2). */
+const DOCUMENT_CHECK_RESULT_BY_REASON: Readonly<
+  Record<string, OccurrenceTimelineDocumentCheckResult>
+> = {
+  document_confirmed: 'confirmed',
+  document_not_confirmed: 'not_confirmed',
+  document_without_text: 'without_text',
+}
+
+/** Spec 278 D5: as entregas ao motorista; as por e-mail (cliente da nota, informado) e a resposta à contratante ficam fora. */
+const DRIVER_DELIVERY_CHANNEL: Readonly<Record<string, OccurrenceTimelineDeliveryChannel>> = {
+  driver_app_chat: 'app_chat',
+  driver_whatsapp: 'whatsapp',
+}
+
+function documentKindOf(config: Record<string, unknown>): OccurrenceTimelineDocumentKind {
+  return config.attachmentKind === 'boleto_pdf' ? 'boleto' : 'document'
+}
+
+/**
+ * Spec 278 D4/D5: cada tentativa de levar o documento ao motorista, na ordem, com o nome dele (da conversa que a
+ * entrega gravou) e a leitura (`status_times.read` da mensagem). Nunca o endereço nem o anexo.
+ */
+async function listDriverDeliverySources(
+  queryable: TripQueryable,
+  scope: Scope,
+  reply: { readonly documentKind: OccurrenceTimelineDocumentKind; readonly id: string },
+): Promise<readonly OccurrenceTimelineSource[]> {
+  const rows = await queryable
+    .select({
+      createdAt: occurrenceContractorReplyDeliveries.createdAt,
+      driverName: identityUserProfiles.name,
+      id: occurrenceContractorReplyDeliveries.id,
+      readAt: sql<null | string>`${occurrenceConversationMessages.statusTimes} ->> 'read'`,
+      reason: occurrenceContractorReplyDeliveries.reason,
+      status: occurrenceContractorReplyDeliveries.status,
+      target: occurrenceContractorReplyDeliveries.target,
+    })
+    .from(occurrenceContractorReplyDeliveries)
+    .leftJoin(
+      occurrenceConversationMessages,
+      and(
+        eq(occurrenceConversationMessages.companyId, occurrenceContractorReplyDeliveries.companyId),
+        eq(occurrenceConversationMessages.id, occurrenceContractorReplyDeliveries.driverMessageId),
+      ),
+    )
+    .leftJoin(
+      occurrenceConversations,
+      and(
+        eq(occurrenceConversations.companyId, occurrenceConversationMessages.companyId),
+        eq(occurrenceConversations.id, occurrenceConversationMessages.conversationId),
+      ),
+    )
+    .leftJoin(
+      identityUserProfiles,
+      eq(identityUserProfiles.userId, occurrenceConversations.driverUserId),
+    )
+    .where(
+      and(
+        eq(occurrenceContractorReplyDeliveries.companyId, scope.companyId),
+        eq(occurrenceContractorReplyDeliveries.replyId, reply.id),
+        inArray(occurrenceContractorReplyDeliveries.target, ['driver_app_chat', 'driver_whatsapp']),
+      ),
+    )
+    .orderBy(
+      asc(occurrenceContractorReplyDeliveries.createdAt),
+      asc(occurrenceContractorReplyDeliveries.id),
+    )
+
+  return rows.flatMap((row, index): OccurrenceTimelineSource[] => {
+    const driverName = row.driverName ?? null
+    const delivery: OccurrenceTimelineSource = {
+      actor: { kind: 'system', name: null },
+      attempt: index + 1,
+      channel: DRIVER_DELIVERY_CHANNEL[row.target] ?? 'app_chat',
+      documentKind: reply.documentKind,
+      driverName,
+      id: row.id,
+      kind: 'contractor.reply.delivery',
+      occurredAt: row.createdAt.toISOString(),
+      reason: row.reason ?? null,
+      status: row.status,
+    }
+    const readAt = row.status === 'sent' && row.readAt !== null ? Date.parse(row.readAt) : NaN
+    if (Number.isNaN(readAt)) return [delivery]
+    return [
+      delivery,
+      {
+        actor: { kind: 'driver', name: driverName },
+        documentKind: reply.documentKind,
+        id: row.id,
+        kind: 'contractor.reply.driver_read',
+        occurredAt: new Date(readAt).toISOString(),
+      },
+    ]
+  })
+}
+
 /**
  * Spec 276 T3: o retorno da contratante (248) — a abertura (`created_at` do retorno, que não grava evento)
  * e cada mudança de status. Só status, motivo e ator; nunca a nota do operador nem o anexo. Só a
- * ocorrência de nota abre retorno.
+ * ocorrência de nota abre retorno. Spec 278: também o resultado da conferência do boleto (o motivo do evento),
+ * as entregas ao motorista e a leitura dele.
  */
 async function listContractorReplySources(
   queryable: TripQueryable,
@@ -235,6 +343,7 @@ async function listContractorReplySources(
   if (item.source !== 'document') return []
   const replies = await queryable
     .select({
+      config: occurrenceContractorReplies.config,
       createdAt: occurrenceContractorReplies.createdAt,
       id: occurrenceContractorReplies.id,
     })
@@ -247,6 +356,8 @@ async function listContractorReplySources(
     )
   const [reply] = replies
   if (reply === undefined) return []
+  const documentKind = documentKindOf(reply.config)
+  const deliveries = listDriverDeliverySources(queryable, scope, { documentKind, id: reply.id })
   const rows = await queryable
     .select({
       actorKind: occurrenceContractorReplyEvents.actorKind,
@@ -275,6 +386,21 @@ async function listContractorReplySources(
     reason: null,
     toStatus: 'awaiting_contractor',
   }
+  const checks = rows.flatMap((row): OccurrenceTimelineSource[] => {
+    const result = row.reason === null ? undefined : DOCUMENT_CHECK_RESULT_BY_REASON[row.reason]
+    if (result === undefined) return []
+    return [
+      {
+        actor: { kind: 'system', name: null },
+        id: row.id,
+        invoiceNumber: item.invoiceNumber,
+        kind: 'contractor.reply.document',
+        occurredAt: row.createdAt.toISOString(),
+        result,
+        toStatus: row.toStatus,
+      },
+    ]
+  })
   return [
     opened,
     ...rows.map(
@@ -290,6 +416,8 @@ async function listContractorReplySources(
         toStatus: row.toStatus,
       }),
     ),
+    ...checks,
+    ...(await deliveries),
   ]
 }
 
@@ -308,6 +436,18 @@ async function listMailSources(
     .select({
       actorName: identityUserProfiles.name,
       actorUserId: contractorMailMessages.actorUserId,
+      /**
+       * Spec 278 D6: os anexos da mensagem da conversa (183) que este e-mail virou; `null` sem mensagem ligada.
+       * Toda leitura dentro da empresa do e-mail.
+       */
+      attachmentCount: sql<null | number>`(
+        select case when count(message.id) = 0 then null else count(attachment.id)::int end
+          from occurrence_conversation_messages message
+          left join occurrence_conversation_attachments attachment
+            on attachment.company_id = message.company_id and attachment.message_id = message.id
+         where message.company_id = ${contractorMailMessages.companyId}
+           and message.mail_message_id = ${contractorMailMessages.id}
+      )`,
       createdAt: contractorMailMessages.createdAt,
       deliveryStatus: contractorMailMessages.deliveryStatus,
       direction: contractorMailMessages.direction,
@@ -342,6 +482,7 @@ async function listMailSources(
           ? { kind: 'system', name: null }
           : { kind: 'operation', name: row.actorName ?? null }
         : { kind: 'contractor', name: null },
+      ...(outbound ? {} : { attachmentCount: row.attachmentCount ?? null }),
       deliveryStatus: row.deliveryStatus ?? null,
       id: row.id,
       interpretation: row.interpretation ?? null,

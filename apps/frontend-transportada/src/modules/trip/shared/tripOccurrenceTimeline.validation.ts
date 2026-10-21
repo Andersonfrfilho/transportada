@@ -7,6 +7,8 @@
  * Spec 266 T3.3: `resolution.resolved` e `resolution.reopened` entram na lista dos conhecidos.
  * Spec 276 T3: `contractor.reply` entra; as etapas e `resolvedAt` são tolerantes — etapa malformada ou de
  * nome desconhecido sai, e a resposta sem elas (API anterior) segue valendo.
+ * Spec 278: a conferência do boleto, a entrega ao motorista e a leitura dele entram, estritas como as demais; o
+ * `attachmentCount`/`awaitingAttachment` do e-mail recebido é opcional (API anterior).
  */
 import { isRecord, isString } from './tripGuards.validation'
 import {
@@ -39,6 +41,9 @@ const KNOWN_EVENT_KINDS: readonly OccurrenceTimelineEvent['kind'][] = [
   'resolution.resolved',
   'resolution.reopened',
   'contractor.reply',
+  'contractor.reply.document',
+  'contractor.reply.delivery',
+  'contractor.reply.driver_read',
 ]
 
 function isKnownEventKind(value: unknown): boolean {
@@ -74,6 +79,21 @@ function isEvent(value: unknown): value is OccurrenceTimelineEvent {
       return true
     case 'contractor.reply':
       return isNullableString(value.reason) && isString(value.toStatus)
+    case 'contractor.reply.document':
+      return (
+        isNullableString(value.invoiceNumber) && isString(value.result) && isString(value.toStatus)
+      )
+    case 'contractor.reply.delivery':
+      return (
+        typeof value.attempt === 'number' &&
+        isString(value.channel) &&
+        isString(value.documentKind) &&
+        isNullableString(value.driverName) &&
+        isNullableString(value.reason) &&
+        isString(value.status)
+      )
+    case 'contractor.reply.driver_read':
+      return isString(value.documentKind)
     default:
       return false
   }
