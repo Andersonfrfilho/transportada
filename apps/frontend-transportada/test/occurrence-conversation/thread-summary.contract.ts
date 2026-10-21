@@ -92,4 +92,16 @@ describe('resumo da conversa da ocorrência', () => {
     expect(panels.match(/<OccurrenceThreadSummary/g)?.length).toBe(2)
     expect(panels.match(/className=\{threadStyles\.noticesArea\}/g)?.length).toBe(2)
   })
+
+  test('o resumo começa recolhido', () => {
+    const component = readFileSync(
+      new URL(
+        '../../src/modules/occurrence-conversation/components/OccurrenceThreadSummary.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(component).toContain('useState(false)')
+    expect(component).not.toContain('useState(true)')
+  })
 })

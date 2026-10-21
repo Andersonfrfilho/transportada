@@ -15,14 +15,14 @@ type OccurrenceThreadSummaryProps = Readonly<{
 
 /**
  * O resumo recolhível no topo de cada conversa: quantas mensagens, de quem foi a última, arquivos e falhas de envio.
- * Fica fora da moldura de altura fixa do fio, então abrir ou fechar não mexe na rolagem das mensagens.
+ * Começa recolhido. Fica fora da moldura de altura fixa do fio, então abrir ou fechar não mexe na rolagem das mensagens.
  */
 export function OccurrenceThreadSummary({
   counterpartLabel,
   messages,
 }: OccurrenceThreadSummaryProps) {
   const { i18n, t } = useTranslation('occurrenceConversation')
-  const [isOpen, setOpen] = useState(true)
+  const [isOpen, setOpen] = useState(false)
   const bodyId = useId()
   if (messages.length === 0) return null
   const summary = summarizeOccurrenceThread(messages)
