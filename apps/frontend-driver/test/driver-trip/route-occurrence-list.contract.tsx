@@ -4,9 +4,7 @@ import { beforeAll, describe, expect, test } from 'bun:test'
 
 import type { RouteOccurrenceView } from '@/modules/driver-trip/hooks/useRouteOccurrenceEntries.hook'
 import { DriverRouteOccurrencesPage } from '@/modules/driver-trip/pages/DriverRouteOccurrences.page'
-import {
-  scopeRouteOccurrences,
-} from '@/modules/driver-trip/shared/routeOccurrenceView.service'
+import { scopeRouteOccurrences } from '@/modules/driver-trip/shared/routeOccurrenceView.service'
 import type { RouteOccurrenceEntry } from '@/modules/driver-trip/shared/routeOccurrenceView.types'
 import { i18n } from '@/modules/shared/i18n/i18n.service'
 

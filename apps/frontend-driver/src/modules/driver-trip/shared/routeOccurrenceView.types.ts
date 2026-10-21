@@ -102,4 +102,3 @@ export type ScopeRouteOccurrencesParams = Readonly<{
   entries: readonly RouteOccurrenceEntry[]
   scope: DriverOccurrenceListFilter
 }>
-
