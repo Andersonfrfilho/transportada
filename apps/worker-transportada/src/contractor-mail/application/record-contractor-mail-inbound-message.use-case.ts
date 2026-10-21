@@ -31,6 +31,7 @@ import type {
   CargoPreviewEmailIntakeResult,
 } from '../../cargo-preview-email/application/cargo-preview-email.types.js'
 import type { InboundConversationAttachmentsPort } from '../../occurrence-conversation/application/inbound-mail-attachments.service.js'
+import type { ContractorReplyLogOutcome } from '../../occurrence-conversation/application/contractor-reply-log.port.js'
 import type {
   DriverReplyNotice,
   DriverReplyNoticePort,
@@ -98,6 +99,8 @@ export type RecordContractorMailInboundMessageResult =
   | {
       /** Spec 183 T702c1: só contagem — o nome do arquivo nunca sai daqui. */
       readonly attachments: { readonly linked: number; readonly skipped: number }
+      /** Spec 276: só para log — o que o retorno da contratante fez com a mensagem (status, motivo, entrega). */
+      readonly contractorReply?: ContractorReplyLogOutcome | undefined
       /** Só para log: o que levou ao `dkimResult`, sem domínio nem endereço. */
       readonly dkimDiagnostic: {
         readonly headerFromCount: number
@@ -230,6 +233,9 @@ export async function recordContractorMailInboundMessage(
 
   return {
     attachments: { linked: recorded.linkedAttachments, skipped: attachments.skipped },
+    ...(recorded.contractorReply === undefined
+      ? {}
+      : { contractorReply: recorded.contractorReply }),
     dkimDiagnostic: {
       headerFromCount: verification.headerFrom.length,
       senderMatchesHeaderFrom: verification.headerFrom.some(
