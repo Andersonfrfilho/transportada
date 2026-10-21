@@ -28,7 +28,10 @@ import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionA
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceTripMap } from '../components/OccurrenceTripMap.component'
-import { OccurrenceAttachments, resolveColorSwatch } from '../components/TripOccurrenceTable.component'
+import {
+  OccurrenceAttachments,
+  resolveColorSwatch,
+} from '../components/TripOccurrenceTable.component'
 import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.query'
 import {
   buildOccurrenceDriverContact,
