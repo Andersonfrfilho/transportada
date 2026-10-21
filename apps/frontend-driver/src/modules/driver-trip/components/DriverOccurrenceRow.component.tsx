@@ -12,7 +12,6 @@ import type { OccurrenceShareController } from '../hooks/useOccurrenceShare.hook
 import { formatActivityTime } from '../shared/documentActivity.service'
 import type { DriverTripStop } from '../shared/driverTrip.types'
 import { shareRouteOccurrenceDocumentsById } from '../shared/routeOccurrenceDocuments.service'
-import { resolveRouteOccurrenceTarget } from '../shared/routeOccurrenceView.service'
 import type { RouteOccurrenceEntry } from '../shared/routeOccurrenceView.types'
 import styles from '../styles/routeOccurrence.module.css'
 import { DriverOccurrenceBadgeIcon } from './DriverOccurrenceBadgeIcon.component'
@@ -37,11 +36,10 @@ function buildRowLine(input: {
   return t('routeOccurrence.list.row.note', { label, number: entry.documentNumber, sequence })
 }
 
-/** Spec 266 RF4: a linha leva ao chat quando ele existe, senão ao detalhe; o compartilhar é um botão à parte. */
+/** A linha sempre leva ao detalhe (onde ficam os documentos); a conversa e o compartilhar são botões à parte. */
 export function DriverOccurrenceRow({ entry, shareController, stops }: DriverOccurrenceRowProps) {
   const { t } = useTranslation('driverTrip')
-  const target = resolveRouteOccurrenceTarget(entry)
-  const isChat = target.kind === 'conversation'
+  const hasChat = entry.source === 'server' && entry.hasConversation
   const typeName = entry.typeName ?? t('routeOccurrence.badge.unknownType')
   const hasDocuments = entry.source === 'server' && entry.hasDocument
 
@@ -54,21 +52,18 @@ export function DriverOccurrenceRow({ entry, shareController, stops }: DriverOcc
   }
 
   function handleOpen(): void {
-    if (target.kind === 'conversation') {
-      navigateToDriverConversation({
-        subjectId: target.subjectId,
-        subjectType: target.subjectType,
-      })
-      return
-    }
-    navigateToDriverOccurrence({ id: target.id, kind: target.occurrenceKind })
+    navigateToDriverOccurrence({ id: entry.id, kind: entry.kind })
+  }
+
+  function handleOpenChat(): void {
+    navigateToDriverConversation({ subjectId: entry.id, subjectType: 'occurrence' })
   }
 
   return (
     <div
       className={styles.row}
       data-resolved={entry.state === 'resolved' || entry.state === 'cancelled'}
-      data-target={target.kind}
+      data-target="detail"
     >
       <button className={styles.rowMain} type="button" onClick={handleOpen}>
         <DriverOccurrenceBadgeIcon entry={entry} isInteractive={false} />
@@ -79,18 +74,24 @@ export function DriverOccurrenceRow({ entry, shareController, stops }: DriverOcc
             <Icon name="clock" size="sm" /> {formatActivityTime(entry.recordedAt)}
           </span>
         </span>
-        <span
-          className={styles.rowAction}
-          title={t(
-            isChat ? 'routeOccurrence.list.row.opensChat' : 'routeOccurrence.list.row.opensDetail',
-          )}
-        >
-          <Icon name={isChat ? 'message' : 'document'} />
-          {isChat && entry.unreadCount > 0 ? (
-            <span className={styles.rowUnread}>{entry.unreadCount}</span>
-          ) : null}
+        <span className={styles.rowAction} title={t('routeOccurrence.list.row.opensDetail')}>
+          <Icon name="document" />
         </span>
       </button>
+      {hasChat ? (
+        <button
+          aria-label={t('routeOccurrence.list.row.opensChat')}
+          className={styles.rowChat}
+          title={t('routeOccurrence.list.row.opensChat')}
+          type="button"
+          onClick={handleOpenChat}
+        >
+          <Icon name="message" />
+          {entry.unreadCount > 0 ? (
+            <span className={styles.rowUnread}>{entry.unreadCount}</span>
+          ) : null}
+        </button>
+      ) : null}
       {hasDocuments ? (
         <button
           aria-label={t('routeOccurrence.list.row.share', { type: typeName })}

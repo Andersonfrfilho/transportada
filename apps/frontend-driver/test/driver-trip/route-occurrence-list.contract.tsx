@@ -5,7 +5,6 @@ import { beforeAll, describe, expect, test } from 'bun:test'
 import type { RouteOccurrenceView } from '@/modules/driver-trip/hooks/useRouteOccurrenceEntries.hook'
 import { DriverRouteOccurrencesPage } from '@/modules/driver-trip/pages/DriverRouteOccurrences.page'
 import {
-  resolveRouteOccurrenceTarget,
   scopeRouteOccurrences,
 } from '@/modules/driver-trip/shared/routeOccurrenceView.service'
 import type { RouteOccurrenceEntry } from '@/modules/driver-trip/shared/routeOccurrenceView.types'
@@ -148,23 +147,15 @@ describe('lista das ocorrências da rota (spec 266 T4.5)', () => {
     expect(html).toContain('NF 4821 · P2 · Mercado Sao Jorge')
   })
 
-  test('a linha vai ao chat quando ele existe e ao detalhe quando não existe', () => {
+  test('a linha sempre abre o detalhe e a conversa fica num botão à parte', () => {
     const withChat = entry({ hasConversation: true, id: 'occ-chat' })
     const withoutChat = entry({ id: 'occ-plain' })
     const queued = entry({ hasConversation: true, id: 'key-1', source: 'queue', state: 'queued' })
-    expect(resolveRouteOccurrenceTarget(withChat)).toEqual({
-      kind: 'conversation',
-      subjectId: 'occ-chat',
-      subjectType: 'occurrence',
-    })
-    expect(resolveRouteOccurrenceTarget(withoutChat)).toEqual({
-      id: 'occ-plain',
-      kind: 'detail',
-      occurrenceKind: 'document',
-    })
-    expect(resolveRouteOccurrenceTarget(queued).kind).toBe('detail')
+    expect(render({ entries: [withChat] })).toContain('Abre a conversa')
+    expect(render({ entries: [withoutChat] })).not.toContain('Abre a conversa')
+    expect(render({ entries: [queued] })).not.toContain('Abre a conversa')
     const html = render({ entries: [withChat, withoutChat] })
-    expect(html).toContain('data-target="conversation"')
+    expect(html).not.toContain('data-target="conversation"')
     expect(html).toContain('data-target="detail"')
   })
 
