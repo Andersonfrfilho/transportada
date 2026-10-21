@@ -3,8 +3,8 @@
  *
  * Spec 264 T2.3 (contract.md §5.2): etapa SEPARADA, depois de `signConversationAttachments`, que acrescenta
  * `durationMs` e `transcription` ao anexo de áudio das rotas por assunto. Nunca dentro de
- * `signConversationAttachments` nem de `readConversationAttachments`: as rotas antigas e o portal não ganham
- * os campos. Consultas por página: nenhuma sem áudio; com áudio, 1 (configuração) e, só se ligada, 1 (linhas).
+ * `signConversationAttachments` nem de `readConversationAttachments`: o app antigo e o portal não ganham os campos;
+ * a leitura do escritório na ocorrência chama esta etapa desde 21/10/2026 (o chat do painel é o SDK). Consultas por página: nenhuma sem áudio; com áudio, 1 (configuração) e, só se ligada, 1 (linhas).
  */
 import {
   resolveAudioDurationMs,
@@ -24,7 +24,10 @@ const AUDIO_CONTENT_TYPE_PREFIX = 'audio/'
 
 export type EnrichAudioAttachmentsParams = {
   readonly companyId: string
-  readonly reader: ConversationTranscriptionReadPort
+  readonly reader: Pick<
+    ConversationTranscriptionReadPort,
+    'findTranscriptionsByAttachmentIds' | 'readAudioTranscriptionEnabled'
+  >
   readonly records: readonly ConversationAttachmentRecord[]
   readonly views: ReadonlyMap<string, readonly ConversationAttachmentView[]>
 }

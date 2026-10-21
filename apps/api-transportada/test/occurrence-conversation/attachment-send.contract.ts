@@ -519,6 +519,10 @@ describe('a leitura do operador com anexo (spec 183 T702a)', () => {
         }),
       },
       storage,
+      transcriptions: {
+        findTranscriptionsByAttachmentIds: async () => new Map(),
+        readAudioTranscriptionEnabled: async () => true,
+      },
     })
 
     const view = await useCase.list({

@@ -5,8 +5,11 @@
  *
  * (1) A API não depende de `@adatechnology/conversation-contracts` em produção: o pacote é `devDependency` e só
  * `test/**` o importa (code-standart §13 — a paridade lê a fonte da verdade sem acoplar o deploy à versão).
- * (2) As rotas antigas da 183 (`/me/.../occurrences/**`, `/client/**`, tela antiga) não ganham `transcription`
- * nem `durationMs`: a forma do anexo delas segue com cinco campos, byte a byte.
+ * (2) As rotas antigas da 183 que o app antigo e o portal leem (`/me/.../occurrences/**`, `/client/**`) não ganham
+ * `transcription` nem `durationMs`: a forma do anexo delas segue com cinco campos, byte a byte.
+ * (3) A leitura do escritório na tela da ocorrência (`read-occurrence-conversations`) passou a levar a transcrição
+ * por decisão do Anderson em 21/10/2026: o chat da ocorrência no painel é o `ConversationThread` do SDK, que já
+ * mostra, copia e baixa a transcrição. Mesma etapa da 264 (`enrichAudioAttachments`), nada novo no cálculo.
  */
 import { readdir, readFile } from 'node:fs/promises'
 
@@ -27,7 +30,6 @@ const IMPORT_OF_PACKAGE =
 
 /** Os serializadores antigos: nada do que a 264 acrescenta pode aparecer neles. */
 const OLD_ROUTE_SOURCES = [
-  'occurrence-conversation/application/read-occurrence-conversations.use-case.ts',
   'occurrence-conversation/application/contractor-portal-conversation.use-case.ts',
   'occurrence-conversation/application/driver-conversation.use-case.ts',
 ] as const
@@ -97,25 +99,114 @@ describe('ouro das rotas antigas: sem transcription nem durationMs', () => {
       '[{"contentType":"audio/ogg","fileName":"recado.ogg","id":"attachment-1","sizeBytes":2048,"url":"https://s3.test/signed"}]',
     )
   })
+})
 
-  test('a leitura antiga da ocorrência (read-occurrence-conversations) sai byte a byte igual', async () => {
-    const reader: OccurrenceConversationReaderPort = {
-      findAttachments: async () => [AUDIO_RECORD as ConversationAttachmentRecord],
+describe('a leitura do escritório na ocorrência leva a transcrição do áudio', () => {
+  const AUDIO_RECORD = {
+    bucket: 'bucket',
+    contentType: 'audio/ogg',
+    durationMs: 12_000,
+    fileName: 'recado.ogg',
+    id: 'attachment-1',
+    messageId: 'message-1',
+    objectKey: 'key-1',
+    sizeBytes: 2048,
+  }
+  const PDF_RECORD = {
+    ...AUDIO_RECORD,
+    contentType: 'application/pdf',
+    durationMs: null,
+    fileName: 'a.pdf',
+    id: 'attachment-2',
+  }
+  const STORAGE = { createSignedDownload: async () => new URL('https://s3.test/signed') }
+  const ROW = {
+    audioDurationMs: null,
+    engine: 'whisper',
+    failureCode: null,
+    generatedAt: new Date('2026-10-20T12:00:00.000Z'),
+    language: 'pt',
+    maxDurationMs: null,
+    status: 'ready',
+    text: 'Cheguei na doca.',
+  }
+
+  function readerWith(records: readonly unknown[]): OccurrenceConversationReaderPort {
+    return {
+      findAttachments: async () => records,
       findConversations: async () => ({
-        conversations: [
-          {
-            id: 'conversation-1',
-            messages: [{ id: 'message-1' }],
-          },
-        ],
+        conversations: [{ id: 'conversation-1', messages: [{ id: 'message-1' }] }],
       }),
     } as unknown as OccurrenceConversationReaderPort
-    const useCase = createListOccurrenceConversationsUseCase({ reader, storage: STORAGE })
+  }
+
+  function transcriptionsWith(isEnabled: boolean, asked: string[][] = []) {
+    return {
+      findTranscriptionsByAttachmentIds: async (input: {
+        readonly attachmentIds: readonly string[]
+      }) => {
+        asked.push([...input.attachmentIds])
+        return new Map([['attachment-1', ROW]])
+      },
+      readAudioTranscriptionEnabled: async () => isEnabled,
+    }
+  }
+
+  test('o áudio sai com duração e a transcrição pronta; o resto do anexo segue igual', async () => {
+    const asked: string[][] = []
+    const useCase = createListOccurrenceConversationsUseCase({
+      reader: readerWith([AUDIO_RECORD]),
+      storage: STORAGE,
+      transcriptions: transcriptionsWith(true, asked),
+    })
 
     const view = await useCase.list({ companyId: 'company-1', occurrenceId: 'o', userId: 'u' })
 
+    expect(view.conversations[0]?.messages[0]?.attachments).toEqual([
+      {
+        contentType: 'audio/ogg',
+        durationMs: 12_000,
+        fileName: 'recado.ogg',
+        id: 'attachment-1',
+        sizeBytes: 2048,
+        transcription: {
+          engine: 'whisper',
+          generatedAt: '2026-10-20T12:00:00.000Z',
+          language: 'pt',
+          status: 'ready',
+          text: 'Cheguei na doca.',
+        },
+        url: 'https://s3.test/signed',
+      },
+    ])
+    expect(asked).toEqual([['attachment-1']])
+  })
+
+  test('empresa com a transcrição desligada não vê o texto', async () => {
+    const useCase = createListOccurrenceConversationsUseCase({
+      reader: readerWith([AUDIO_RECORD]),
+      storage: STORAGE,
+      transcriptions: transcriptionsWith(false),
+    })
+
+    const view = await useCase.list({ companyId: 'company-1', occurrenceId: 'o', userId: 'u' })
+
+    expect(JSON.stringify(view)).not.toContain('Cheguei na doca.')
+  })
+
+  test('página sem áudio não consulta a transcrição e sai byte a byte igual', async () => {
+    const asked: string[][] = []
+    const useCase = createListOccurrenceConversationsUseCase({
+      reader: readerWith([PDF_RECORD]),
+      storage: STORAGE,
+      transcriptions: transcriptionsWith(true, asked),
+    })
+
+    const view = await useCase.list({ companyId: 'company-1', occurrenceId: 'o', userId: 'u' })
+
+    expect(asked).toEqual([])
     expect(JSON.stringify(view)).toBe(
-      '{"conversations":[{"id":"conversation-1","messages":[{"id":"message-1","attachments":[{"contentType":"audio/ogg","fileName":"recado.ogg","id":"attachment-1","sizeBytes":2048,"url":"https://s3.test/signed"}]}]}]}',
+      '{"conversations":[{"id":"conversation-1","messages":[{"id":"message-1","attachments":[{"contentType":"application/pdf","fileName":"a.pdf","id":"attachment-2","sizeBytes":2048,"url":"https://s3.test/signed"}]}]}]}',
     )
   })
 })

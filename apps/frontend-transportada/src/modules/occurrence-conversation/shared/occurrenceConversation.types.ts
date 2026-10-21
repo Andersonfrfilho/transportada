@@ -4,6 +4,7 @@
  * conversations`, T404/T406). O autor da recebida da contratante traz a identidade casada com o
  * cadastro **na leitura** (RF16) — o endereço como chegou fica sempre ao lado.
  */
+import type { ParticipantTranscription } from '@adatechnology/conversation-contracts'
 import type {
   ContractorContactChannel,
   ContractorContactStatus,
@@ -83,9 +84,13 @@ export type OccurrenceConversationAuthor =
 /** Spec 183 T702b (RF10): o anexo da mensagem, com a URL temporária (cinco minutos) de leitura. */
 export type OccurrenceConversationAttachment = Readonly<{
   contentType: string
+  /** Só no áudio, quando a API mediu (spec 264). */
+  durationMs?: number
   fileName: string
   id: string
   sizeBytes: number
+  /** Só no áudio: o que foi dito, que o SDK mostra embaixo do player, copia e baixa (spec 264). */
+  transcription?: ParticipantTranscription
   url: string
 }>
 

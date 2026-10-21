@@ -15,10 +15,8 @@ import type {
 } from '../../database/occurrence-conversation.schema.js'
 
 import type { ContractorSenderIdentity } from '../domain/contractor-sender.policy.js'
-import type {
-  ConversationAttachmentRecord,
-  ConversationAttachmentView,
-} from './conversation-attachment.port.js'
+import type { ConversationAttachmentRecord } from './conversation-attachment.port.js'
+import type { SubjectAttachmentView } from './conversation-transcription.port.js'
 
 export type OccurrenceConversationMessageAuthor =
   /** Spec 183 T802: o aviso que o tipo da ocorrência mandou sozinho — sem autor humano. */
@@ -36,8 +34,11 @@ export type OccurrenceConversationMessageAuthor =
   | { readonly kind: 'driver'; readonly name: string | null; readonly userId: string }
 
 export type OccurrenceConversationMessageView = {
-  /** Spec 183 T702a (RF10): os anexos da mensagem, com a URL temporária de leitura. */
-  readonly attachments: readonly ConversationAttachmentView[]
+  /**
+   * Spec 183 T702a (RF10): os anexos da mensagem, com a URL temporária de leitura. O áudio traz `durationMs` e
+   * `transcription` (264) quando houver.
+   */
+  readonly attachments: readonly SubjectAttachmentView[]
   readonly author: OccurrenceConversationMessageAuthor
   readonly bodyText: string
   readonly channel: OccurrenceConversationChannel

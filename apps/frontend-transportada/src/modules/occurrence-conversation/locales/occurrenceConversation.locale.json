@@ -544,11 +544,7 @@
     }
   },
   "message": {
-    "options": "Opções da mensagem",
-    "copySelection": "Copiar seleção",
     "download": "Baixar {{name}}",
-    "copy": "Copiar texto",
-    "copied": "Copiado",
     "forwardToDriver": "Encaminhar ao motorista",
     "forwardToContractor": "Encaminhar à contratante",
     "forwarded": "Encaminhada",
