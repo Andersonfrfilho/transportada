@@ -125,7 +125,10 @@
       "infoReadAt": "Read",
       "infoSentAt": "Sent",
       "infoStatus": "Status",
-      "messageInfo": "Message info"
+      "messageInfo": "Message info",
+      "copyTranscription": "Copy transcription",
+      "downloadTranscription": "Download transcription",
+      "transcriptionPrefix": "Transcription"
     }
   },
   "error": {

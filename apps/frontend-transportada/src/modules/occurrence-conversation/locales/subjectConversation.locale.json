@@ -125,7 +125,10 @@
       "infoReadAt": "Lida",
       "infoSentAt": "Enviada",
       "infoStatus": "Situação",
-      "messageInfo": "Dados da mensagem"
+      "messageInfo": "Dados da mensagem",
+      "copyTranscription": "Copiar transcrição",
+      "downloadTranscription": "Baixar transcrição",
+      "transcriptionPrefix": "Transcrição"
     }
   },
   "error": {

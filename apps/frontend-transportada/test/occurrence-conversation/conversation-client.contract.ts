@@ -118,6 +118,63 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
     expect(wrongType).not.toHaveProperty('emailFullText')
   })
 
+  test('o áudio traz a duração e a transcrição; campo que o painel não conhece some, o anexo fica', async () => {
+    const audio = {
+      contentType: 'audio/ogg',
+      fileName: 'recado.ogg',
+      id: 'audio-1',
+      sizeBytes: 2048,
+      url: 'https://files.example.test/recado.ogg',
+    }
+    const client = createClient(
+      Response.json({
+        data: {
+          conversations: [
+            {
+              id: 'conversation-1',
+              messages: [
+                {
+                  ...OUTBOUND,
+                  attachments: [
+                    {
+                      ...audio,
+                      durationMs: 12_000,
+                      transcription: {
+                        generatedAt: '2026-10-20T12:00:00.000Z',
+                        status: 'ready',
+                        text: 'Cheguei na doca.',
+                      },
+                    },
+                    {
+                      ...audio,
+                      durationMs: -1,
+                      id: 'audio-2',
+                      transcription: { status: 'invented' },
+                    },
+                  ],
+                },
+              ],
+              participant: 'driver',
+              status: 'open',
+              unreadCount: 0,
+            },
+          ],
+        },
+      }),
+    )
+
+    const { conversations } = await client.listConversations({ occurrenceId: OCCURRENCE_ID })
+    const [ready, unknown] = conversations[0]?.messages[0]?.attachments ?? []
+
+    expect(ready).toMatchObject({
+      durationMs: 12_000,
+      transcription: { status: 'ready', text: 'Cheguei na doca.' },
+    })
+    expect(unknown).toMatchObject({ id: 'audio-2' })
+    expect(unknown).not.toHaveProperty('durationMs')
+    expect(unknown).not.toHaveProperty('transcription')
+  })
+
   /** Spec 267 RF8/RF9: a cópia da mensagem de saída e o responsável que respondeu (interno) são lidos. */
   test('lê a cópia da mensagem de saída e a identidade interna do responsável', async () => {
     const client = createClient(

@@ -455,6 +455,7 @@ import { createTripProofPdfGateway } from './trips/infrastructure/trip-proof-pdf
 import { createTripDocumentReportRoutes } from './trips/presentation/trip-document-report.routes.js'
 import { createOccurrenceAutomaticMailRoutes } from './occurrence-conversation/presentation/occurrence-automatic-mail.routes.js'
 import { createDeliverContractorReplyToDriverUseCase } from './occurrence-conversation/application/deliver-contractor-reply-to-driver.use-case.js'
+import { createConversationTranscriptionReadPort } from './occurrence-conversation/infrastructure/conversation-transcription.query.js'
 import { createDrizzleContractorReplyDeliveryUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-delivery.repository.js'
 import { createForwardContractorReplyByEmailUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-email.use-case.js'
 import {
@@ -3602,6 +3603,7 @@ function createApplicationRoutes({
           findConversations: (input) => findOccurrenceConversations(database, input),
         },
         storage: storageGateway,
+        transcriptions: createConversationTranscriptionReadPort(database),
       }),
       markRead: createMarkOccurrenceConversationReadUseCase({
         writer: { markRead: (input) => markOccurrenceConversationRead(database, input) },

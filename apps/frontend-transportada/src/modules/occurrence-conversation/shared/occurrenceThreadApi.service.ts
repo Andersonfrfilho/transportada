@@ -93,6 +93,8 @@ function toThreadAttachment(attachment: OccurrenceConversationAttachment): Parti
     kind: conversationAttachmentKind(attachment.contentType),
     mimeType: attachment.contentType,
     sizeBytes: attachment.sizeBytes,
+    ...(attachment.durationMs === undefined ? {} : { durationMs: attachment.durationMs }),
+    ...(attachment.transcription === undefined ? {} : { transcription: attachment.transcription }),
   }
 }
 
