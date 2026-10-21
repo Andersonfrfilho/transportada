@@ -2496,6 +2496,9 @@
     "summary": {
       "title": "Resumo",
       "openTrip": "Abrir viagem",
+      "vehicleModel": "Veículo",
+      "cargo": "Peso / volumes",
+      "vehicleColor": "Cor",
       "description": "Descrição"
     },
     "document": {
