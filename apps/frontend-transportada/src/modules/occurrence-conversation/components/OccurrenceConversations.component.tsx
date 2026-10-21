@@ -20,6 +20,7 @@ import {
   resolveContractorComposer,
 } from '../shared/contractorChat.service'
 import { isForwardAlreadyDone } from '../shared/conversationAttachment.service'
+import { attachmentDownloadUrls } from '../shared/messageMenu.service'
 import type { OccurrenceThreadSendError } from '../shared/occurrenceThreadApi.service'
 import type {
   ContractorSenderSuggestion,
@@ -44,7 +45,7 @@ import { ContractorReplyEmailActions } from './ContractorReplyEmailActions.compo
 import { ConversationColumn, ConversationLayoutSwitch } from './ConversationLayoutSwitch.component'
 import { OccurrenceConversationLegend } from './OccurrenceConversationLegend.component'
 import { ContractorReplyEmailHistory } from './ContractorReplyEmailHistory.component'
-import { OccurrenceMessageActions } from './OccurrenceMessageActions.component'
+import { OccurrenceMessageMenu } from './OccurrenceMessageMenu.component'
 import { OccurrenceThread } from './OccurrenceThread.component'
 import {
   OccurrenceThreadAttachments,
@@ -176,6 +177,7 @@ function DriverConversationPanel({
 }>) {
   const { t } = useTranslation('occurrenceConversation')
   const messages = conversation?.messages ?? []
+  const attachmentUrls = attachmentDownloadUrls(messages)
   /** Spec 183 T702d: as ações só no arquivo que o motorista mandou. */
   const attachmentActions: RenderAttachmentActions = (attachment, message) => {
     if (message.direction !== 'inbound') return null
@@ -222,7 +224,8 @@ function DriverConversationPanel({
         occurrenceId={occurrenceId}
         participant="driver"
         renderMessageActions={(message) => (
-          <OccurrenceMessageActions
+          <OccurrenceMessageMenu
+            attachmentUrls={attachmentUrls}
             canForward={canSend}
             from="driver"
             message={message}
@@ -278,6 +281,7 @@ function ContractorConversationPanel({
   /** Spec 183 T703: o reenvio por e-mail leva o texto da mensagem que falhou ao diálogo. */
   const [mailBody, setMailBody] = useState<string | undefined>(undefined)
   const messages = conversation?.messages ?? []
+  const attachmentUrls = attachmentDownloadUrls(messages)
   const { canWrite, status } = resolveContractorComposer({ canSend, contractorId, hasDocument })
   /** Spec 274 D10: a última falha do envio do chat — o motivo e, sem destinatário, a saída pelo diálogo. */
   const [sendError, setSendError] = useState<null | OccurrenceThreadSendError>(null)
@@ -372,7 +376,8 @@ function ContractorConversationPanel({
           onSendError={setSendError}
           participant="contractor"
           renderMessageActions={(message) => (
-            <OccurrenceMessageActions
+            <OccurrenceMessageMenu
+              attachmentUrls={attachmentUrls}
               canForward={canSend && hasDriver}
               from="contractor"
               message={message}

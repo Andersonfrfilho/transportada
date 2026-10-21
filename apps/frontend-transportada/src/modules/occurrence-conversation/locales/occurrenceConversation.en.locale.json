@@ -544,6 +544,9 @@
     }
   },
   "message": {
+    "options": "Message options",
+    "copySelection": "Copy selection",
+    "download": "Download {{name}}",
     "copy": "Copy text",
     "copied": "Copied",
     "forwardToDriver": "Forward to driver",

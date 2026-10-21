@@ -45,6 +45,7 @@ export type IconName =
   | 'message'
   | 'microphone'
   | 'money'
+  | 'more-vertical'
   | 'package'
   | 'page-first'
   | 'page-last'
@@ -179,6 +180,12 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   menu: ['M4 7h16', 'M4 12h16', 'M4 17h16'],
   /** Balão de conversa, com a ponta que aponta para quem fala: o vínculo de WhatsApp do perfil. */
   message: ['M4 5h16v11H9l-4 4v-4H4V5z'],
+  /** Três pontos em pé: abre as opções de um item sem ocupar a linha com cada ação. */
+  'more-vertical': [
+    'M11.2 5.5a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0',
+    'M11.2 12a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0',
+    'M11.2 18.5a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0',
+  ],
   money: [
     'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
     'M12 7v10',
