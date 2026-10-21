@@ -14,7 +14,6 @@ import type {
   RouteOccurrenceStopGroup,
   RouteOccurrenceStopLevelGroup,
   RouteOccurrenceStopReference,
-  RouteOccurrenceTarget,
   ScopeRouteOccurrencesParams,
 } from './routeOccurrenceView.types'
 
@@ -316,12 +315,4 @@ export function scopeRouteOccurrences(
   if (scope.stopId !== undefined)
     return entries.filter((entry) => entry.stopId === scope.stopId && entry.documentId === null)
   return entries
-}
-
-/** Spec 266 RF4: a linha leva ao chat quando ele existe; senão ao detalhe. Na fila ainda não há conversa. */
-export function resolveRouteOccurrenceTarget(entry: RouteOccurrenceEntry): RouteOccurrenceTarget {
-  if (entry.source === 'server' && entry.hasConversation) {
-    return { kind: 'conversation', subjectId: entry.id, subjectType: 'occurrence' }
-  }
-  return { id: entry.id, kind: 'detail', occurrenceKind: entry.kind }
 }

@@ -103,6 +103,3 @@ export type ScopeRouteOccurrencesParams = Readonly<{
   scope: DriverOccurrenceListFilter
 }>
 
-export type RouteOccurrenceTarget =
-  | Readonly<{ kind: 'conversation'; subjectId: string; subjectType: 'occurrence' }>
-  | Readonly<{ id: string; kind: 'detail'; occurrenceKind: RouteOccurrenceKind }>

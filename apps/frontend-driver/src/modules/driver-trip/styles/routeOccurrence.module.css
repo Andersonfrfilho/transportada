@@ -172,6 +172,7 @@
   text-align: center;
 }
 
+.rowChat,
 .rowShare {
   align-items: center;
   background: transparent;
@@ -187,7 +188,18 @@
   min-width: var(--touch-target);
 }
 
+.rowChat {
+  position: relative;
+}
+
+.rowChat .rowUnread {
+  position: absolute;
+  right: var(--space-1);
+  top: var(--space-1);
+}
+
 .rowMain:focus-visible,
+.rowChat:focus-visible,
 .rowShare:focus-visible,
 .headerBack:focus-visible,
 .filterButton:focus-visible {

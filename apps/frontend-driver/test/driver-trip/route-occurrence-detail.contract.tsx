@@ -224,6 +224,21 @@ describe('detalhe da ocorrência da rota (spec 266 T4.6)', () => {
     expect(html).toContain('Compartilhar os 2')
   })
 
+  test('resolvida: o boleto recebido pelo chat continua para ver e compartilhar', () => {
+    const html = render({
+      state: {
+        detail: buildDetail({
+          attachments: [{ ...FILE_PDF, messageId: 'm1' }],
+          state: 'resolved',
+        }),
+        entry: entry({ hasConversation: true, hasDocument: true, state: 'resolved' }),
+        status: 'ready',
+      },
+    })
+    expect(html).toContain('aria-label="Ver boleto.pdf"')
+    expect(html).toContain('aria-label="Compartilhar boleto.pdf"')
+  })
+
   test('com um só documento não há "Compartilhar os N"', () => {
     const html = render({
       state: {

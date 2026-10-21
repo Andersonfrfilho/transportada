@@ -131,7 +131,7 @@ function CopyValue({ label, value }: Readonly<{ label: string; value: string }>)
 }
 
 /** Código de cor do cadastro → amostra do token `--vehicle-color-*`; código desconhecido não pinta nada. */
-function resolveColorSwatch(code: string): null | string {
+export function resolveColorSwatch(code: string): null | string {
   return Object.hasOwn(VEHICLE_COLOR_SWATCH, code)
     ? VEHICLE_COLOR_SWATCH[code as VehicleColor]
     : null
