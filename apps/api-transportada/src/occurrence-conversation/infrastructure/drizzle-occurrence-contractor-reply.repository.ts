@@ -21,6 +21,7 @@ import { checkBoletoDocument } from '../domain/contractor-reply-document.policy.
 import {
   decideContractorReply,
   requiresContractorReplyDocumentCheck,
+  resolveContractorReplyEventReason,
 } from '../domain/contractor-reply.policy.js'
 import {
   deliverContractorReplyToDriver,
@@ -189,20 +190,25 @@ export async function applyContractorReplyToMessage(
   const decisionInput = { attachments, reply: { config, status: reply.status } }
   /** As if the content were confirmed: says which single PDF the boleto check has to read, if any. */
   const firstDecision = decideContractorReply({ ...decisionInput, documentConfirmed: true })
-  const decision =
+  const documentChecked =
     firstDecision.kind === 'accept' && requiresContractorReplyDocumentCheck(config.attachmentKind)
-      ? decideContractorReply({
-          ...decisionInput,
-          documentConfirmed: await isBoletoConfirmed(queryable, {
-            companyId,
-            readDocumentText: params.readDocumentText,
-            replyId: reply.id,
-            storedObjectId: attachments.find(
-              (attachment) => attachment.id === firstDecision.attachmentId,
-            )?.storedObjectId,
-          }),
-        })
-      : firstDecision
+  let documentTextRead = false
+  const decision = documentChecked
+    ? decideContractorReply({
+        ...decisionInput,
+        documentConfirmed: await isBoletoConfirmed(queryable, {
+          companyId,
+          onTextRead: (text) => {
+            documentTextRead = text.trim() !== ''
+          },
+          readDocumentText: params.readDocumentText,
+          replyId: reply.id,
+          storedObjectId: attachments.find(
+            (attachment) => attachment.id === firstDecision.attachmentId,
+          )?.storedObjectId,
+        }),
+      })
+    : firstDecision
   if (decision.kind === 'ignore') return undefined
 
   const isAccepted = decision.kind === 'accept'
@@ -231,7 +237,8 @@ export async function applyContractorReplyToMessage(
     actorKind: 'system',
     companyId,
     fromStatus: reply.status,
-    reason,
+    /** Spec 278 D1: o histórico guarda o resultado da conferência do boleto; o retorno, o motivo da decisão. */
+    reason: resolveContractorReplyEventReason({ decision, documentChecked, documentTextRead }),
     replyId: reply.id,
     toStatus,
   })
@@ -259,6 +266,7 @@ async function isBoletoConfirmed(
   queryable: TripQueryable,
   params: {
     readonly companyId: string
+    readonly onTextRead: (text: string) => void
     readonly readDocumentText: ((storedObjectId: string) => Promise<string>) | undefined
     readonly replyId: string
     readonly storedObjectId: string | undefined
@@ -271,5 +279,6 @@ async function isBoletoConfirmed(
       ? Promise.resolve('')
       : readDocumentText(storedObjectId),
   ])
+  params.onTextRead(text)
   return checkBoletoDocument({ note, text }).confirmed
 }

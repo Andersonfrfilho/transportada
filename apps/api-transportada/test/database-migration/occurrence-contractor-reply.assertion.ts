@@ -11,6 +11,7 @@ import type { SQL } from 'bun'
 import { expect } from 'bun:test'
 
 import { rollbackContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
+import { rollbackContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { rollbackContractorReplyResolveOnDelivery } from './contractor-reply-resolve-on-delivery.assertion.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { OCCURRENCE_CONTRACTOR_REPLY_TABLES, migrationsDirectory } from './support.js'
@@ -131,6 +132,7 @@ export async function assertOccurrenceContractorReplyRollback(
   expect(await readConstraintCount(database)).toBe(expectedConstraints)
   expect(await hasTriggerFunction(database)).toBe(true)
 
+  await rollbackContractorReplyEventDocumentReasons(database, probe.directories)
   await rollbackContractorReplyAcknowledgement(database, probe.directories)
   await rollbackContractorReplyResolveOnDelivery(database, probe.directories)
   await database.unsafe(rollback)

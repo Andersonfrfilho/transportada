@@ -2626,7 +2626,8 @@
     "filter": {
       "all": "All",
       "contractor": "Contracting party",
-      "driver": "Driver"
+      "driver": "Driver",
+      "automatic": "Automatic"
     },
     "actor": {
       "contractor": "Contracting party",
@@ -2657,7 +2658,35 @@
       "resolvedAutomatic": "Resolved automatically when the case was closed",
       "resolvedOnDelivery": "Resolved automatically when the document was delivered to the driver",
       "reopened": "Reopened by the driver {{name}}",
-      "contractorReply": "Contractor reply: {{status}}"
+      "contractorReply": "Contractor reply: {{status}}",
+      "documentConfirmed": "Boleto checked",
+      "documentNotConfirmed": "Boleto not confirmed",
+      "deliveredBoleto": "Boleto delivered to the driver",
+      "deliveredDocument": "Document delivered to the driver",
+      "deliveryFailed": "Delivery to the driver failed",
+      "deliveryPending": "Delivery to the driver pending",
+      "driverReadBoleto": "The driver read the boleto",
+      "driverReadDocument": "The driver read the document"
+    },
+    "detail": {
+      "documentConfirmed": "Payment line and note number {{note}} found in the PDF.",
+      "documentConfirmedWithoutNote": "Payment line and note number found in the PDF.",
+      "documentNotConfirmed": "The PDF lacks the payment line or the note number {{note}}.",
+      "documentNotConfirmedWithoutNote": "The PDF lacks the payment line or the note number.",
+      "documentWithoutText": "PDF without text to check.",
+      "deliveredAppChat": "Through the app chat, to {{name}}.",
+      "deliveredAppChatUnnamed": "Through the app chat.",
+      "deliveredWhatsapp": "Through WhatsApp, to {{name}}.",
+      "deliveredWhatsappUnnamed": "Through WhatsApp.",
+      "deliveryFailed": "{{reason}} · attempt {{attempt}}",
+      "deliveryAttempt": "Attempt {{attempt}}",
+      "awaitingAttachment": "No attachment. Still waiting for the boleto."
+    },
+    "deliveryReason": {
+      "driver_without_account": "The driver has no app access",
+      "driver_unreachable": "The driver could not be reached",
+      "whatsapp_window_closed": "The WhatsApp window is closed",
+      "send_failed": "Sending failed"
     },
     "stagesTitle": "Stages",
     "stageRunning": "running for {{elapsed}}",
@@ -2675,6 +2704,7 @@
     },
     "stageReason": {
       "document_not_confirmed": "the PDF does not look like this note's boleto",
+      "document_without_text": "the PDF has no text to check",
       "multiple_attachments": "more than one attachment arrived",
       "no_accepted_attachment": "no accepted attachment"
     },

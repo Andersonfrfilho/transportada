@@ -17,6 +17,7 @@ import { checkBoletoDocument } from '../domain/contractor-reply-document.policy.
 import {
   decideContractorReply,
   requiresContractorReplyDocumentCheck,
+  resolveContractorReplyEventReason,
   type ContractorReplyDecisionInput,
 } from '../domain/contractor-reply.policy.js'
 import { findContractorReplyDocumentNote } from './contractor-reply-document-note.support.js'
@@ -140,7 +141,8 @@ export async function applyContractorReplyToMessage(
     actorKind: 'system',
     companyId,
     fromStatus: reply.status,
-    reason,
+    /** Spec 278 D1: o histórico guarda o resultado da conferência do boleto; o retorno, o motivo da decisão. */
+    reason: resolveContractorReplyEventReason({ decision, documentChecked, documentTextRead }),
     replyId: reply.id,
     toStatus,
   })

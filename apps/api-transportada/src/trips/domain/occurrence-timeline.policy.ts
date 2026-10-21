@@ -7,7 +7,10 @@
  * **Leitura pura**: nada aqui decide a tratativa (spec 183 D4).
  */
 
-import { CONTRACTOR_REPLY_STATUSES } from '../../shared/occurrence-contractor-reply.constant.js'
+import {
+  CONTRACTOR_REPLY_STATUSES,
+  CONTRACTOR_REPLY_WAITING_STATUSES,
+} from '../../shared/occurrence-contractor-reply.constant.js'
 import type { SystemResolutionPhraseKey } from './occurrence-resolution.types.js'
 
 /** Os quatro atores, os mesmos dos balões das conversas — a cor é do ator, não do evento. */
@@ -17,6 +20,21 @@ export type OccurrenceTimelineActor = {
   readonly kind: OccurrenceTimelineActorKind
   readonly name: null | string
 }
+
+/** Spec 278 D1: o resultado da conferência do boleto, como a linha do tempo o mostra. */
+export const OCCURRENCE_TIMELINE_DOCUMENT_CHECK_RESULTS = [
+  'confirmed',
+  'not_confirmed',
+  'without_text',
+] as const
+export type OccurrenceTimelineDocumentCheckResult =
+  (typeof OCCURRENCE_TIMELINE_DOCUMENT_CHECK_RESULTS)[number]
+
+/** Spec 278: por onde o documento foi ao motorista. */
+export type OccurrenceTimelineDeliveryChannel = 'app_chat' | 'whatsapp'
+
+/** Spec 278: o que o retorno pede — o boleto conferido (`boleto_pdf`) ou outro documento. */
+export type OccurrenceTimelineDocumentKind = 'boleto' | 'document'
 
 type SourceBase = {
   readonly actor: OccurrenceTimelineActor
@@ -35,6 +53,16 @@ export type OccurrenceTimelineSource =
       readonly toStatus: string
     })
   | (SourceBase & {
+      /**
+       * Spec 278 D6: só na recebida — quantos anexos a mensagem da conversa (183) ligada a este e-mail trouxe;
+       * `null` sem mensagem ligada. Ausente vale `null`.
+       */
+      readonly attachmentCount?: null | number
+      /**
+       * Spec 278 D6: calculado aqui, nunca lido — o e-mail chegou sem anexo com o retorno da 248 ainda aguardando
+       * (a 276 T1 o ignora e o retorno segue esperando o documento). Só na recebida.
+       */
+      readonly awaitingAttachment?: boolean
       readonly deliveryStatus: null | string
       readonly interpretation: null | string
       readonly kind: 'contractor.mail.received' | 'contractor.mail.sent'
@@ -55,6 +83,34 @@ export type OccurrenceTimelineSource =
       readonly kind: 'contractor.reply'
       readonly reason: null | string
       readonly toStatus: string
+    })
+  /**
+   * Spec 278 D1: o resultado da conferência do boleto (276 T2), lido do motivo do evento do retorno. `toStatus` é
+   * o status a que o retorno foi com ela (ordena no mesmo instante); `invoiceNumber` é o número da nota.
+   */
+  | (SourceBase & {
+      readonly invoiceNumber: null | string
+      readonly kind: 'contractor.reply.document'
+      readonly result: OccurrenceTimelineDocumentCheckResult
+      readonly toStatus: string
+    })
+  /**
+   * Spec 278 D5: uma tentativa de entrega do documento ao motorista (app ou WhatsApp), na ordem do retorno.
+   * `driverName` é o motorista da conversa; nulo quando não houve mensagem (sem conta, por exemplo).
+   */
+  | (SourceBase & {
+      readonly attempt: number
+      readonly channel: OccurrenceTimelineDeliveryChannel
+      readonly documentKind: OccurrenceTimelineDocumentKind
+      readonly driverName: null | string
+      readonly kind: 'contractor.reply.delivery'
+      readonly reason: null | string
+      readonly status: string
+    })
+  /** Spec 278 D4: o motorista leu a mensagem que a entrega gravou (`status_times.read`). */
+  | (SourceBase & {
+      readonly documentKind: OccurrenceTimelineDocumentKind
+      readonly kind: 'contractor.reply.driver_read'
     })
 
 export type OccurrenceTimelineEvent = OccurrenceTimelineSource & {
@@ -121,6 +177,9 @@ const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> 
   'contractor.mail.received': 4,
   'contractor.mail.sent': 3,
   'contractor.reply': 5,
+  'contractor.reply.delivery': 5,
+  'contractor.reply.document': 5,
+  'contractor.reply.driver_read': 5,
   'occurrence.cancelled': 6,
   'occurrence.photo': 1,
   'occurrence.recorded': 0,
@@ -150,18 +209,39 @@ function replyStatusRank(status: string): number {
   return rank === -1 ? CONTRACTOR_REPLY_STATUSES.length : rank
 }
 
+/**
+ * O lugar de cada fato do retorno no mesmo instante: a conferência logo antes da transição que ela causou, a
+ * entrega logo antes de "entregue", a leitura depois. `undefined` fora do retorno.
+ */
+function replyGroupRank(source: OccurrenceTimelineSource): number | undefined {
+  const delivered = replyStatusRank('delivered') * 3
+  switch (source.kind) {
+    case 'contractor.reply.document':
+      return replyStatusRank(source.toStatus) * 3
+    case 'contractor.reply':
+      return replyStatusRank(source.toStatus) * 3 + 1
+    case 'contractor.reply.delivery':
+      return delivered
+    case 'contractor.reply.driver_read':
+      return delivered + 2
+    default:
+      return undefined
+  }
+}
+
 function compareSources(left: OccurrenceTimelineSource, right: OccurrenceTimelineSource): number {
   const byTime = Date.parse(left.occurredAt) - Date.parse(right.occurredAt)
   if (byTime !== 0) return byTime
   const byKind = KIND_PRIORITY[left.kind] - KIND_PRIORITY[right.kind]
   if (byKind !== 0) return byKind
   /**
-   * O retorno que recebe e entrega na mesma transação grava os dois eventos com o mesmo `now()`: a ordem é a do
-   * vocabulário (recebido antes de entregue), nunca a do id aleatório.
+   * O retorno que recebe e entrega na mesma transação grava os eventos com o mesmo `now()`: a ordem é a do
+   * vocabulário (conferido, recebido, entregue), nunca a do id aleatório.
    */
-  if (left.kind === 'contractor.reply' && right.kind === 'contractor.reply') {
-    const byStatus = replyStatusRank(left.toStatus) - replyStatusRank(right.toStatus)
-    if (byStatus !== 0) return byStatus
+  const leftRank = replyGroupRank(left)
+  const rightRank = replyGroupRank(right)
+  if (leftRank !== undefined && rightRank !== undefined && leftRank !== rightRank) {
+    return leftRank - rightRank
   }
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
 }
@@ -191,6 +271,9 @@ function mergePhotos(
 
 function isKeyEvent(source: OccurrenceTimelineSource): boolean {
   if (source.kind === 'occurrence.recorded') return true
+  /** Spec 278: o boleto conferido e o documento entregue ao motorista são marcos. */
+  if (source.kind === 'contractor.reply.document') return source.result === 'confirmed'
+  if (source.kind === 'contractor.reply.delivery') return source.status === 'sent'
   if (source.kind === 'resolution.resolved' || source.kind === 'resolution.reopened') return true
   return source.kind === 'case.transition' && source.toStatus === 'decided'
 }
@@ -278,6 +361,9 @@ function stageAfter(
         ? 'reply_received'
         : undefined
     case 'occurrence.photo':
+    case 'contractor.reply.delivery':
+    case 'contractor.reply.document':
+    case 'contractor.reply.driver_read':
       return undefined
   }
 }
@@ -306,8 +392,13 @@ function resolveStages(
           ? null
           : Math.max(0, Math.round((Date.parse(endedAt) - Date.parse(source.occurredAt)) / 1000)),
       endedAt,
+      /** Spec 278: só a ida ao operador tem motivo; o aceite guarda `document_confirmed`, que não é motivo de etapa. */
       reason:
-        stage === 'awaiting_operator' && source.kind === 'contractor.reply' ? source.reason : null,
+        stage === 'awaiting_operator' &&
+        source.kind === 'contractor.reply' &&
+        source.toStatus === 'needs_operator'
+          ? source.reason
+          : null,
       stage,
       startedAt: source.occurredAt,
       terminal: terminal && following === undefined,
@@ -315,10 +406,33 @@ function resolveStages(
   })
 }
 
+const WAITING_REPLY_STATUSES: ReadonlySet<string> = new Set(CONTRACTOR_REPLY_WAITING_STATUSES)
+
+/**
+ * Spec 278 D6: o e-mail recebido sem anexo enquanto o retorno aguardava — a 276 T1 o ignora, e o retorno segue
+ * esperando o documento. O status do retorno é o do último evento dele até ali (a abertura entra como aguardando).
+ */
+function markAwaitingAttachment(
+  ordered: readonly OccurrenceTimelineSource[],
+): readonly OccurrenceTimelineSource[] {
+  let replyStatus: string | undefined
+  return ordered.map((source) => {
+    if (source.kind === 'contractor.reply') replyStatus = source.toStatus
+    if (source.kind !== 'contractor.mail.received') return source
+    return {
+      ...source,
+      awaitingAttachment:
+        source.attachmentCount === 0 &&
+        replyStatus !== undefined &&
+        WAITING_REPLY_STATUSES.has(replyStatus),
+    }
+  })
+}
+
 export function buildOccurrenceTimeline(input: {
   readonly sources: readonly OccurrenceTimelineSource[]
 }): OccurrenceTimeline {
-  const ordered = mergePhotos([...input.sources].sort(compareSources))
+  const ordered = markAwaitingAttachment(mergePhotos([...input.sources].sort(compareSources)))
   const events = ordered.map((source, index): OccurrenceTimelineEvent => {
     const previous = index === 0 ? undefined : ordered[index - 1]
     return {

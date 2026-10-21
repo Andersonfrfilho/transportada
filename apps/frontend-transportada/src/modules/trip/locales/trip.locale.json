@@ -2626,7 +2626,8 @@
     "filter": {
       "all": "Tudo",
       "contractor": "Contratante",
-      "driver": "Motorista"
+      "driver": "Motorista",
+      "automatic": "Automático"
     },
     "actor": {
       "contractor": "Contratante",
@@ -2657,7 +2658,35 @@
       "resolvedAutomatic": "Resolvida automaticamente ao encerrar a tratativa",
       "resolvedOnDelivery": "Resolvida automaticamente ao entregar o documento ao motorista",
       "reopened": "Reaberta pelo motorista {{name}}",
-      "contractorReply": "Retorno da contratante: {{status}}"
+      "contractorReply": "Retorno da contratante: {{status}}",
+      "documentConfirmed": "Boleto conferido",
+      "documentNotConfirmed": "Boleto não conferido",
+      "deliveredBoleto": "Boleto entregue ao motorista",
+      "deliveredDocument": "Documento entregue ao motorista",
+      "deliveryFailed": "Falhou a entrega ao motorista",
+      "deliveryPending": "Entrega ao motorista aguardando",
+      "driverReadBoleto": "O motorista leu o boleto",
+      "driverReadDocument": "O motorista leu o documento"
+    },
+    "detail": {
+      "documentConfirmed": "Linha digitável e número da nota {{note}} encontrados no PDF.",
+      "documentConfirmedWithoutNote": "Linha digitável e número da nota encontrados no PDF.",
+      "documentNotConfirmed": "O PDF não traz a linha digitável ou o número da nota {{note}}.",
+      "documentNotConfirmedWithoutNote": "O PDF não traz a linha digitável ou o número da nota.",
+      "documentWithoutText": "PDF sem texto para conferir.",
+      "deliveredAppChat": "Pelo chat do app, para {{name}}.",
+      "deliveredAppChatUnnamed": "Pelo chat do app.",
+      "deliveredWhatsapp": "Pelo WhatsApp, para {{name}}.",
+      "deliveredWhatsappUnnamed": "Pelo WhatsApp.",
+      "deliveryFailed": "{{reason}} · tentativa {{attempt}}",
+      "deliveryAttempt": "Tentativa {{attempt}}",
+      "awaitingAttachment": "Sem anexo. Segue aguardando o boleto."
+    },
+    "deliveryReason": {
+      "driver_without_account": "O motorista não tem acesso ao app",
+      "driver_unreachable": "Não foi possível falar com o motorista",
+      "whatsapp_window_closed": "A janela do WhatsApp está fechada",
+      "send_failed": "O envio falhou"
     },
     "stagesTitle": "Etapas",
     "stageRunning": "em andamento há {{elapsed}}",
@@ -2675,6 +2704,7 @@
     },
     "stageReason": {
       "document_not_confirmed": "o PDF não parece o boleto desta nota",
+      "document_without_text": "o PDF não tem texto para conferir",
       "multiple_attachments": "chegou mais de um anexo",
       "no_accepted_attachment": "nenhum anexo aceito"
     },

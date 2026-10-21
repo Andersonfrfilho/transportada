@@ -285,6 +285,8 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
       reason: null,
       status: 'awaiting_operator',
     })
+    /** Spec 278 CA2: o acerto da conferência fica no histórico; o retorno não tem motivo. */
+    expect((await eventsOf(seeded)).map((event) => event.reason)).toEqual(['document_confirmed'])
   })
 
   it('boleto conferido (spec 276): o DANFE da nota vai ao operador como documento não confirmado', async () => {
@@ -337,6 +339,8 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
       reason: 'document_not_confirmed',
       status: 'needs_operator',
     })
+    /** Spec 278 CA2: sem texto lido, o histórico diz isso; o retorno segue com o motivo da decisão. */
+    expect((await eventsOf(seeded)).map((event) => event.reason)).toEqual(['document_without_text'])
   })
 
   /** Spec 267 RF9: o responsável em cópia que responde a todos entra na conversa, mas não é "a resposta da contratante". */

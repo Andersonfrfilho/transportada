@@ -15,6 +15,7 @@
 import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
+  ContractorReplyEventReason,
   ContractorReplyMode,
   ContractorReplyReason,
   ContractorReplyStatus,
@@ -120,6 +121,28 @@ export function decideContractorReply(
     kind: 'accept',
     nextStep: reply.config.mode === 'forward_automatic' ? 'deliver' : 'await_operator',
   }
+}
+
+/**
+ * Spec 278 D2: the reason the history event records. With the boleto check, the outcome of the check —
+ * `document_confirmed` when accepted, `document_without_text` when nothing was read; otherwise the reason of the
+ * decision (`null` on an accept). The reply row keeps the reason of the decision.
+ */
+export function resolveContractorReplyEventReason(input: {
+  readonly decision: Exclude<ContractorReplyDecision, { readonly kind: 'ignore' }>
+  readonly documentChecked: boolean
+  readonly documentTextRead: boolean
+}): ContractorReplyEventReason | ContractorReplyReason | null {
+  const { decision } = input
+  if (decision.kind === 'accept') return input.documentChecked ? 'document_confirmed' : null
+  if (
+    input.documentChecked &&
+    decision.reason === 'document_not_confirmed' &&
+    !input.documentTextRead
+  ) {
+    return 'document_without_text'
+  }
+  return decision.reason
 }
 
 export type ContractorReplyAlertInput = {

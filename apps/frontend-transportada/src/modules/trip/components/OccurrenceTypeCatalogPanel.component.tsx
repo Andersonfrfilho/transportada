@@ -26,6 +26,8 @@ import { OccurrenceTypeLoadState } from './OccurrenceTypeLoadState.component'
 
 export type OccurrenceTypeCatalogPanelProps = Readonly<{
   canManage: boolean
+  /** Spec 278 D7: a última edição de um tipo existente foi gravada; ausente é não confirmar. */
+  editSaved?: boolean
   isSaving: boolean
   /** Lista ainda não chegou ≠ lista vazia: o aviso de vazio só vale com `ready`. */
   loadStatus: OccurrenceTypeLoadStatus
@@ -54,6 +56,7 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
  */
 export function OccurrenceTypeCatalogPanel({
   canManage,
+  editSaved = false,
   isSaving,
   loadStatus,
   onRetry,
@@ -144,6 +147,12 @@ export function OccurrenceTypeCatalogPanel({
           {t('occurrenceTypeCatalog.created')}
         </p>
       )}
+
+      {editSaved && saveFeedbackKey === null ? (
+        <p className={styles.successNotice} role="status">
+          {t('occurrenceTypeCatalog.saved')}
+        </p>
+      ) : null}
 
       {types.length > 0 && visibleTypes.length === 0 ? (
         <OccurrenceTypeFilterEmpty
