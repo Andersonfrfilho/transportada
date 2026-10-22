@@ -1326,7 +1326,8 @@ describe('a linha do tempo mostra o automático (spec 278 CA4)', () => {
           ),
         })
         expect(delivered?.kind).toBe('delivered')
-        const readAt = '2026-10-21T12:00:00.000Z'
+        // Depois da entrega gravada agora: data fixa vira bomba-relógio quando o relógio passa dela.
+        const readAt = new Date(Date.now() + 60_000).toISOString()
         await database.db
           .update(occurrenceConversationMessages)
           .set({ status: 'read', statusTimes: { queued: readAt, read: readAt } })
