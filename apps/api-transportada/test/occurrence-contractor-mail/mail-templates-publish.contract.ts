@@ -59,12 +59,13 @@ describe('parseTemplateFile (spec 272 T4.3)', () => {
   })
 })
 
-describe('os cinco arquivos reais (spec 272 T4.3)', () => {
-  test('chave = ocorrencia. + nome do arquivo, e os cinco passam na validação', () => {
+describe('os arquivos reais (spec 272 T4.3)', () => {
+  test('chave = ocorrencia. + nome do arquivo, e todos passam na validação', () => {
     const templates = readOccurrenceMailTemplateFiles()
     expect(templates.map((template) => template.key).sort()).toEqual([
       'ocorrencia.avaria',
       'ocorrencia.devolucao',
+      'ocorrencia.devolucao-total',
       'ocorrencia.entrega-nao-realizada',
       'ocorrencia.prorrogacao-boleto',
       'ocorrencia.recusa',

@@ -29,6 +29,7 @@ const FILES: readonly TemplateFile[] = [
   { hasItems: false, key: 'ocorrencia.prorrogacao-boleto', name: 'prorrogacao-boleto' },
   { hasItems: true, key: 'ocorrencia.avaria', name: 'avaria' },
   { hasItems: true, key: 'ocorrencia.devolucao', name: 'devolucao' },
+  { hasItems: false, key: 'ocorrencia.devolucao-total', name: 'devolucao-total' },
   { hasItems: false, key: 'ocorrencia.entrega-nao-realizada', name: 'entrega-nao-realizada' },
   { hasItems: true, key: 'ocorrencia.recusa', name: 'recusa' },
 ]
