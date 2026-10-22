@@ -28,6 +28,7 @@ type TestDatabase = ReturnType<typeof createDrizzleProvider>
 const KEYS = [
   'ocorrencia.avaria',
   'ocorrencia.devolucao',
+  'ocorrencia.devolucao-total',
   'ocorrencia.entrega-nao-realizada',
   'ocorrencia.prorrogacao-boleto',
   'ocorrencia.recusa',
@@ -77,17 +78,23 @@ describe('publicar os modelos do e-mail de ocorrência (spec 272 T4.3)', () => {
         const { companyId, repository, run } = await setup(database)
 
         const dry = await run({ confirm: false })
-        expect(dry.entries.map((entry) => entry.verdict)).toEqual(Array(5).fill('create'))
+        expect(dry.entries.map((entry) => entry.verdict)).toEqual(Array(KEYS.length).fill('create'))
         expect(Object.values(await activeVersions(repository, companyId))).toEqual(
-          Array(5).fill(undefined),
+          Array(KEYS.length).fill(undefined),
         )
 
         await run({ confirm: true })
-        expect(Object.values(await activeVersions(repository, companyId))).toEqual(Array(5).fill(1))
+        expect(Object.values(await activeVersions(repository, companyId))).toEqual(
+          Array(KEYS.length).fill(1),
+        )
 
         const second = await run({ confirm: true })
-        expect(second.entries.map((entry) => entry.verdict)).toEqual(Array(5).fill('same'))
-        expect(Object.values(await activeVersions(repository, companyId))).toEqual(Array(5).fill(1))
+        expect(second.entries.map((entry) => entry.verdict)).toEqual(
+          Array(KEYS.length).fill('same'),
+        )
+        expect(Object.values(await activeVersions(repository, companyId))).toEqual(
+          Array(KEYS.length).fill(1),
+        )
       })
     },
   )
@@ -96,20 +103,20 @@ describe('publicar os modelos do e-mail de ocorrência (spec 272 T4.3)', () => {
     await withDisposableDatabase(async (database) => {
       const { companyId, repository, run } = await setup(database)
       const files = readOccurrenceMailTemplateFiles()
-      const recusa = files[4]!
-      const templates = [
-        ...files.slice(0, 4),
-        {
-          ...recusa,
-          body: recusa.body.replace('<!-- mensagem -->', '<script>x</script><!-- mensagem -->'),
-        },
-      ]
+      const templates = files.map((file) =>
+        file.key === 'ocorrencia.recusa'
+          ? {
+              ...file,
+              body: file.body.replace('<!-- mensagem -->', '<script>x</script><!-- mensagem -->'),
+            }
+          : file,
+      )
 
       const report = await run({ confirm: true, templates })
 
       expect(report.invalid.map((item) => item.key)).toEqual(['ocorrencia.recusa'])
       expect(Object.values(await activeVersions(repository, companyId))).toEqual(
-        Array(5).fill(undefined),
+        Array(KEYS.length).fill(undefined),
       )
     })
   })
