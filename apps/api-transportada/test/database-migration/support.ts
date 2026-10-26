@@ -200,6 +200,8 @@ export const DELIVERY_CLIENT_TABLES = [
   'municipal_holiday_rules',
   'state_holidays',
   'company_business_calendar_settings',
+  /** Spec 279 T1: os e-mails do cliente, por tipo. */
+  'delivery_client_emails',
 ] as const
 
 /**
