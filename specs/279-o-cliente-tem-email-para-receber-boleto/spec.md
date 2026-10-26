@@ -42,7 +42,7 @@ Resultado:
 created_at)`, chave estrangeira em `(company_id, tax_id)` de `delivery_clients`, único `(company_id, tax_id, purpose,
 lower(address))`, `purpose` (o **tipo** do e-mail) CHECK `('boleto','invoice','finance','general')` — boleto, nota fiscal, financeiro e geral —
   com o vocabulário numa constante só, e um e-mail pode existir em mais de um tipo (a unicidade inclui o tipo), endereço com o mesmo padrão e limite de 254 de `nfe_documents.recipient_email`.
-  Não vai coluna em `delivery_clients` porque são vários e porque o tipo é parte do modelo.
+  É **uma tabela genérica de e-mails do cliente**, nunca uma tabela só de boleto: outros tipos de ocorrência passam a ler o tipo que lhes cabe (o tipo da ocorrência aponta para o tipo do e-mail), sem tabela nova. Não vai coluna em `delivery_clients` porque são vários e porque o tipo é parte do modelo.
 - **D2 — Máximo.** 10 e-mails por cliente e tipo (`422 DELIVERY_CLIENT_EMAIL_LIMIT_REACHED`), para o cadastro não
   virar lista de transmissão.
 - **D3 — Reuso do trilho de envio.** O envio ao cliente é um novo alvo, `client_boleto_emails`, do mesmo
