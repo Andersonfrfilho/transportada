@@ -549,5 +549,40 @@
     "forwardToContractor": "Encaminhar à contratante",
     "forwarded": "Encaminhada",
     "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
+  },
+  "details": {
+    "open": "Ver detalhes",
+    "title": "Detalhes da ocorrência",
+    "close": "Fechar os detalhes",
+    "loading": "Carregando os detalhes da ocorrência",
+    "error": "Não foi possível carregar os detalhes da ocorrência.",
+    "noDriver": "Sem motorista",
+    "summary": {
+      "title": "Ocorrência",
+      "type": "Tipo",
+      "status": "Status",
+      "client": "Cliente",
+      "driver": "Motorista",
+      "note": "Nota",
+      "noNote": "Sem observação."
+    },
+    "timeline": {
+      "title": "Linha do tempo",
+      "empty": "Nenhum evento ainda.",
+      "error": "Não foi possível carregar a linha do tempo."
+    },
+    "boleto": {
+      "title": "Boleto",
+      "none": "A contratante ainda não mandou o boleto."
+    },
+    "clientEmails": {
+      "title": "E-mails do cliente",
+      "none": "O cliente não tem e-mail guardado.",
+      "noClient": "Esta ocorrência não tem cliente identificado pela nota.",
+      "error": "Não foi possível carregar os e-mails do cliente."
+    },
+    "sendState": {
+      "title": "Envio ao cliente"
+    }
   }
 }

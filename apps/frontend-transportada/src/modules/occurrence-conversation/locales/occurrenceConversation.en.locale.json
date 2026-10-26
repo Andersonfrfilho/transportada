@@ -549,5 +549,40 @@
     "forwardToContractor": "Forward to contractor",
     "forwarded": "Forwarded",
     "forwardError": "Could not forward. Try again shortly."
+  },
+  "details": {
+    "open": "View details",
+    "title": "Occurrence details",
+    "close": "Close details",
+    "loading": "Loading the occurrence details",
+    "error": "The occurrence details could not be loaded.",
+    "noDriver": "No driver",
+    "summary": {
+      "title": "Occurrence",
+      "type": "Type",
+      "status": "Status",
+      "client": "Client",
+      "driver": "Driver",
+      "note": "Note",
+      "noNote": "No remarks."
+    },
+    "timeline": {
+      "title": "Timeline",
+      "empty": "No events yet.",
+      "error": "The timeline could not be loaded."
+    },
+    "boleto": {
+      "title": "Boleto",
+      "none": "The contractor has not sent the boleto yet."
+    },
+    "clientEmails": {
+      "title": "Client e-mails",
+      "none": "The client has no saved e-mail.",
+      "noClient": "This occurrence has no client identified by the invoice.",
+      "error": "The client e-mails could not be loaded."
+    },
+    "sendState": {
+      "title": "Sending to the client"
+    }
   }
 }
