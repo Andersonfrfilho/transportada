@@ -1,0 +1,58 @@
+/* Spec 279 T4b: o cartão do e-mail escrito na conversa, no espaço do assunto. Celular primeiro: botões de toque
+ * inteiro, um abaixo do outro na tela estreita. */
+
+/* O pacote já desenha a moldura do espaço do assunto: aqui só a faixa à esquerda, sem segunda borda. */
+.card {
+  display: grid;
+  gap: var(--space-2);
+  padding-inline-start: var(--space-3);
+  border-inline-start: 0.25rem solid var(--color-copper);
+  color: var(--color-fog);
+}
+
+.cardAlert {
+  border-inline-start-color: var(--color-alert);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-size: 0.875rem;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-alert-ink);
+  font-size: 0.875rem;
+}
+
+.actions {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.actions button {
+  min-height: 2.75rem;
+}
+
+@media (min-width: 30rem) {
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}
+
+/* O cartão do e-mail em cima do "Ver detalhes", os dois no espaço do assunto. */
+.stack {
+  display: grid;
+  gap: var(--space-2);
+}

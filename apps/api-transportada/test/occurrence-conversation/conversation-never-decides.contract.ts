@@ -97,7 +97,10 @@ describe('a conversa nunca decide (spec 183 T504, D4)', () => {
             driverUserId: null,
           },
         }),
-        recordConversationMessage: async (input) => void writes.push(`message:${input.bodyText}`),
+        recordConversationMessage: async (input) => {
+          writes.push(`message:${input.bodyText}`)
+          return 'message-1'
+        },
         recordUnassigned: async (input) => void writes.push(`unassigned:${input.bodyText}`),
       },
       logger: { error: () => undefined, info: () => undefined, warn: () => undefined },

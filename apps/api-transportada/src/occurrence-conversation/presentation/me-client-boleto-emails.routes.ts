@@ -5,6 +5,9 @@
  * `trip.report`; o motorista é a ficha do vínculo do contexto e só a ocorrência da viagem dele é alcançada.
  * O motorista escolhe os já guardados por `emailId`, nunca por endereço; o endereço novo só entra no corpo do `POST`
  * e toda resposta leva a forma mascarada. Toda resposta é `no-store`.
+ *
+ * Spec 279 T4b (RF8): `GET .../detected` devolve o e-mail que ele escreveu na conversa e ainda não saiu (mascarado), e
+ * `POST .../detected/:messageId/send` leva o boleto a ele pelo cartão, com `save` para guardar no cadastro.
  */
 import { z } from 'zod'
 
@@ -24,6 +27,9 @@ const READ_POLICY = { permission: 'trip.read', scope: 'company' } as const
 const REPORT_POLICY = { permission: 'trip.report', scope: 'company' } as const
 const EMAILS_PATH = '/me/trips/current/occurrences/:id/client-boleto-emails'
 const SEND_PATH = `${EMAILS_PATH}/send`
+/** Spec 279 T4b (RF8): o e-mail que ele escreveu na conversa e o envio pelo cartão, por id da mensagem. */
+const DETECTED_PATH = `${EMAILS_PATH}/detected`
+const DETECTED_SEND_PATH = `${DETECTED_PATH}/:messageId/send`
 
 /** Cada envio pode escrever no trilho de e-mail: balde próprio, como o da resposta do motorista. */
 export const DRIVER_CLIENT_BOLETO_EMAIL_SEND_RATE_LIMIT = {
@@ -41,6 +47,11 @@ const SEND_BODY_SCHEMA = z
     newAddress: z.string().max(1000).optional(),
     save: z.boolean().optional(),
   })
+  .strict()
+  .readonly()
+
+const DETECTED_SEND_BODY_SCHEMA = z
+  .object({ idempotencyKey: z.string().max(200), save: z.boolean().optional() })
   .strict()
   .readonly()
 
@@ -133,6 +144,63 @@ export function createMeClientBoletoEmailsRoutes(dependencies: {
         }
       },
       pathname: SEND_PATH,
+      policy: REPORT_POLICY,
+      rateLimit: DRIVER_CLIENT_BOLETO_EMAIL_SEND_RATE_LIMIT,
+    }),
+    defineRoute<{ readonly occurrenceId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const data = await dependencies.clientBoletoEmails.detected({
+          companyId: context.scope.companyId,
+          driverId,
+          driverUserId: context.scope.userId,
+          occurrenceId: input.occurrenceId,
+        })
+        return jsonResponse({ data })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: DETECTED_PATH,
+      policy: READ_POLICY,
+    }),
+    defineRoute<{
+      readonly correlationId: string
+      readonly idempotencyKey: string
+      readonly messageId: string
+      readonly occurrenceId: string
+      readonly save: boolean
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const outcome = await dependencies.clientBoletoEmails.sendDetected({
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          driverId,
+          driverUserId: context.scope.userId,
+          idempotencyKey: input.idempotencyKey,
+          messageId: input.messageId,
+          occurrenceId: input.occurrenceId,
+          save: input.save,
+        })
+        const isQueued = outcome.results.some((result) => result.kind === 'queued')
+        return jsonResponse({ data: outcome }, isQueued ? 201 : 200)
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const occurrenceId = parseUuidPathIdentifier(pathParameters.id ?? '')
+        const messageId = parseUuidPathIdentifier(pathParameters.messageId ?? '')
+        const body = await parseBody(DETECTED_SEND_BODY_SCHEMA, request)
+        return {
+          correlationId,
+          idempotencyKey: parseIdempotencyKey(body.idempotencyKey),
+          messageId,
+          occurrenceId,
+          save: body.save ?? false,
+        }
+      },
+      pathname: DETECTED_SEND_PATH,
       policy: REPORT_POLICY,
       rateLimit: DRIVER_CLIENT_BOLETO_EMAIL_SEND_RATE_LIMIT,
     }),

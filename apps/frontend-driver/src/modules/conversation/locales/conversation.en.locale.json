@@ -147,5 +147,18 @@
     "stateUnknown": "Could not confirm whether the occurrence is resolved"
   },
   "subjectFallback": "Occurrence",
-  "title": "Conversations"
+  "title": "Conversations",
+  "detectedEmail": {
+    "question": "Send the boleto to {{address}}?",
+    "hint": "You wrote this e-mail in the conversation. Nothing is sent without your tap.",
+    "send": "Send",
+    "sendAndSave": "Send and save for the client",
+    "sending": "Sending…",
+    "sent": "Boleto sent to {{address}}.",
+    "savedNow": "The e-mail was saved for this client.",
+    "notSent": "It did not go out to {{address}}. The office was notified.",
+    "dismiss": "Close",
+    "failure": "Could not send right now. Try again.",
+    "offline": "No signal. Try again when you are back online."
+  }
 }

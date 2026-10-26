@@ -32,6 +32,7 @@ import type {
   ForwardContractorReplyByEmailUseCase,
   ForwardContractorReplyToClientInput,
 } from '../application/forward-contractor-reply-by-email.use-case.js'
+import type { DetectedClientEmailUseCase } from '../application/detected-client-email.use-case.js'
 import type { createResendContractorReplyRequestUseCase } from '../application/resend-contractor-reply-request.use-case.js'
 import { OCCURRENCE_CONVERSATION_RATE_LIMIT } from './occurrence-conversation.routes.js'
 
@@ -42,6 +43,11 @@ export const OCCURRENCE_CONTRACTOR_REPLY_EMAIL_DELIVERY_PATH =
 export const OCCURRENCE_CONTRACTOR_REPLY_EMAIL_OPTIONS_PATH =
   '/trip-occurrences/:id/contractor-reply/email-options'
 export const OCCURRENCE_CONTRACTOR_REPLY_PATH = '/trip-occurrences/:id/contractor-reply'
+/** Spec 279 T4b (RF8): o e-mail que o motorista escreveu na conversa e o envio pelo cartão do operador. */
+export const OCCURRENCE_CONTRACTOR_REPLY_DETECTED_EMAIL_PATH =
+  '/trip-occurrences/:id/contractor-reply/detected-client-email'
+export const OCCURRENCE_CONTRACTOR_REPLY_DETECTED_EMAIL_SEND_PATH =
+  '/trip-occurrences/:id/contractor-reply/detected-client-email/:messageId/send'
 export const OCCURRENCE_CONTRACTOR_REPLY_HANDLED_PATH =
   '/trip-occurrences/:id/contractor-reply/handled'
 export const OCCURRENCE_CONTRACTOR_REPLY_RESEND_REQUEST_PATH =
@@ -97,6 +103,8 @@ function assertEmailBodyFits(body: EmailBody): void {
   }
 }
 
+const DETECTED_SEND_BODY_SCHEMA = z.object({ save: z.boolean().optional() }).strict().readonly()
+
 const HANDLED_BODY_SCHEMA = z
   .object({ note: z.string().trim().min(1).max(CONTRACTOR_REPLY_HANDLED_NOTE_MAX_LENGTH) })
   .strict()
@@ -123,8 +131,64 @@ export type OccurrenceContractorReplyRoutesDependencies = {
     ReturnType<typeof createDeliverContractorReplyToDriverUseCase>,
     'deliver'
   >
+  /** Spec 279 T4b (RF8): o cartão do e-mail escrito pelo motorista; ausente, as duas rotas não existem. */
+  readonly detectedClientEmail?: Pick<DetectedClientEmailUseCase, 'readPending' | 'send'>
   readonly emailOptions: ContractorReplyEmailReaderPort
   readonly forwardByEmail: Pick<ForwardContractorReplyByEmailUseCase, 'forward' | 'forwardToClient'>
+}
+
+function createDetectedClientEmailRoutes(
+  detectedClientEmail: Pick<DetectedClientEmailUseCase, 'readPending' | 'send'>,
+): readonly ReturnType<typeof defineRoute>[] {
+  return [
+    defineRoute<{ readonly occurrenceId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const data = await detectedClientEmail.readPending({
+          companyId: context.scope.companyId,
+          occurrenceId: input.occurrenceId,
+        })
+        return jsonResponse({ data })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: OCCURRENCE_CONTRACTOR_REPLY_DETECTED_EMAIL_PATH,
+      policy: WRITE_POLICY,
+    }),
+    defineRoute<{
+      readonly correlationId: string
+      readonly idempotencyKey: string
+      readonly messageId: string
+      readonly occurrenceId: string
+      readonly save: boolean
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const outcome = await detectedClientEmail.send({
+          ...input,
+          actorUserId: context.scope.userId,
+          authorKind: 'office',
+          companyId: context.scope.companyId,
+        })
+        const isQueued = outcome.results.some((result) => result.kind === 'queued')
+        return jsonResponse({ data: outcome }, isQueued ? 201 : 200)
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseOptionalBody(DETECTED_SEND_BODY_SCHEMA, request)
+        return {
+          correlationId,
+          idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
+          messageId: parseUuidPathIdentifier(pathParameters.messageId ?? ''),
+          occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          save: body?.save ?? false,
+        }
+      },
+      pathname: OCCURRENCE_CONTRACTOR_REPLY_DETECTED_EMAIL_SEND_PATH,
+      policy: WRITE_POLICY,
+      rateLimit: OCCURRENCE_CONVERSATION_RATE_LIMIT,
+    }),
+  ]
 }
 
 type DriverDeliveryInput = {
@@ -142,6 +206,9 @@ export function createOccurrenceContractorReplyRoutes(
   dependencies: OccurrenceContractorReplyRoutesDependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
   return [
+    ...(dependencies.detectedClientEmail === undefined
+      ? []
+      : createDetectedClientEmailRoutes(dependencies.detectedClientEmail)),
     defineRoute<DriverDeliveryInput>({
       async handle({ context, input }): Promise<Response> {
         const outcome = await dependencies.deliverToDriver.deliver({
