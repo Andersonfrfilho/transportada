@@ -81,9 +81,10 @@ endpoints:
     interval: 2m
     conditions:
       - '[STATUS] == 200'
+      - '[BODY].dependencies.storage == up'
     alerts:
       - type: ntfy
-        description: a API de staging parou de responder no /health/ready
+        description: a API de staging parou de responder no /health/ready ou o bucket de objetos (uploads) caiu
         send-on-resolved: true
 
   # A variável guarda a URL do realm (`https://<host>/realms/<realm>`), e o caminho do documento de
@@ -121,9 +122,10 @@ endpoints:
     interval: 2m
     conditions:
       - '[STATUS] == 200'
+      - '[BODY].dependencies.storage == up'
     alerts:
       - type: ntfy
-        description: a API de production parou de responder no /health/ready
+        description: a API de production parou de responder no /health/ready ou o bucket de objetos (uploads) caiu
         send-on-resolved: true
 
   - name: keycloak

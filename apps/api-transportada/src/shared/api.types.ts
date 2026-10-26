@@ -174,6 +174,10 @@ export type StoppableServer = {
 export type HealthStatus = 'ok' | 'degraded'
 export type DependencyStatus = 'up' | 'down'
 
+export type StorageHealthPort = {
+  readonly health: () => Promise<{ readonly status: DependencyStatus }>
+}
+
 type HealthResponseBase = {
   /**
    * Spec 078: a revisão que subiu. `unknown` quando a variável não foi declarada — **nunca
@@ -195,6 +199,12 @@ export type ReadinessHealthResponse = HealthResponseBase & {
     readonly identity: DependencyStatus
     /** `down` enquanto a imagem carregar migration que o banco ainda não aplicou. */
     readonly migrations: DependencyStatus
+    /**
+     * Bucket de objetos (comprovantes, XMLs, PDFs). Ausente só onde nenhum bucket foi ligado à
+     * prontidão. Em 26/10/2026 as chaves do bucket de production venceram e todo upload devolveu
+     * 503 por horas com o painel verde: nada vigiava o bucket.
+     */
+    readonly storage?: DependencyStatus
   }
   readonly status: HealthStatus
 }
