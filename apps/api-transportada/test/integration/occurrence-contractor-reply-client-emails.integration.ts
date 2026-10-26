@@ -11,6 +11,7 @@ import { and, eq } from 'drizzle-orm'
 
 import {
   auditLogs,
+  companyOccurrenceTypes,
   contractorMailMessages,
   deliveryClientEmails,
   deliveryClients,
@@ -21,6 +22,8 @@ import {
 } from '../../src/database/database.schema.js'
 import { createForwardContractorReplyByEmailUseCase } from '../../src/occurrence-conversation/application/forward-contractor-reply-by-email.use-case.js'
 import type { ForwardContractorReplyToClientInput } from '../../src/occurrence-conversation/application/forward-contractor-reply-by-email.use-case.js'
+import type { ClientEmailType } from '../../src/shared/delivery-client-email.constant.js'
+import { OccurrenceClientEmailOffError } from '../../src/trips/domain/occurrence-client-email.error.js'
 import { ContractorReplyClientEmailNotFoundError } from '../../src/occurrence-conversation/domain/contractor-reply-email.error.js'
 import {
   createDrizzleContractorReplyEmailReader,
@@ -90,6 +93,25 @@ async function seedClient(database: TestDatabase, seeded: Seeded) {
   return { financeId: finance.id, invoiceId: invoice.id, ownerId: owner.id }
 }
 
+/** Spec 279 RF9: o tipo da ocorrência liga o envio ao cliente e diz o tipo de e-mail. */
+async function setClientEmailType(
+  database: TestDatabase,
+  seeded: Seeded,
+  clientEmailType: ClientEmailType,
+): Promise<void> {
+  const [occurrence] = await database.db
+    .select({ typeId: tripDocumentOccurrences.occurrenceTypeId })
+    .from(tripDocumentOccurrences)
+    .where(eq(tripDocumentOccurrences.id, seeded.occurrenceId))
+  if (occurrence?.typeId === null || occurrence?.typeId === undefined) {
+    throw new Error('EXPECTED_OCCURRENCE_TYPE')
+  }
+  await database.db
+    .update(companyOccurrenceTypes)
+    .set({ clientEmailType })
+    .where(eq(companyOccurrenceTypes.id, occurrence.typeId))
+}
+
 async function prepare(database: TestDatabase) {
   const seeded = await seedMailScenario(database)
   const { companyId } = seeded.company
@@ -99,6 +121,7 @@ async function prepare(database: TestDatabase) {
   })
   const received = await receivePdfReply(database, { companyId, conversationId })
   const client = await seedClient(database, seeded)
+  await setClientEmailType(database, seeded, 'boleto')
   const useCase = createForwardContractorReplyByEmailUseCase({
     unitOfWork: createDrizzleContractorReplyEmailUnitOfWork(database.db),
   })
@@ -236,13 +259,24 @@ describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, CA2)', () =>
   )
 
   testWithPostgres(
-    'emailId de outro tipo ou de outra empresa não envia, e a leitura mostra o cadastro mascarado',
+    'tipo off recusa, emailId de outro tipo ou de outra empresa não envia, e a leitura mostra o cadastro mascarado',
     async () => {
       await withConversationDatabase(async (database) => {
         const { client, companyId, seeded, useCase } = await prepare(database)
         await expect(
           useCase.forwardToClient(inputOf(seeded, { emailIds: [client.invoiceId] })),
         ).rejects.toBeInstanceOf(ContractorReplyClientEmailNotFoundError)
+
+        await setClientEmailType(database, seeded, 'off')
+        await expect(
+          useCase.forwardToClient(inputOf(seeded, { emailIds: [client.financeId] })),
+        ).rejects.toBeInstanceOf(OccurrenceClientEmailOffError)
+        const offOptions = await createDrizzleContractorReplyEmailReader(database.db).read({
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        expect(offOptions).toMatchObject({ clientEmailType: 'off', clientEmails: [] })
+        await setClientEmailType(database, seeded, 'boleto')
 
         const foreign = await seedMailScenario(database)
         const foreignClient = await seedClient(database, foreign)

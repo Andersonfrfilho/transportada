@@ -6,6 +6,7 @@
  */
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
 import type {
+  ClientEmailType,
   DeliveryClientEmailAuthorKind,
   DeliveryClientEmailPurpose,
 } from '../../shared/delivery-client-email.constant.js'
@@ -95,12 +96,19 @@ export type ContractorReplyEmailTransactionPort = {
     readonly occurrenceId: string
   }): Promise<ContractorReplyEmailAttachment | null>
   findCarrierName(params: { readonly companyId: string }): Promise<string | undefined>
+  /** Spec 279 RF9: o `client_email_type` do tipo da ocorrência (`off` quando o tipo não existe mais). */
+  findClientEmailType(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<ClientEmailType>
   /**
    * Spec 279 T3: o documento do destinatário da nota da ocorrência, só quando ele tem cadastro em
-   * `delivery_clients` da mesma empresa (é a chave dos e-mails guardados).
+   * `delivery_clients` da mesma empresa (é a chave dos e-mails guardados). Com `lock`, trava a linha do cliente
+   * (`FOR UPDATE`, a mesma trava do cadastro pelo painel), e é o que faz o limite de 10 por tipo valer sob concorrência.
    */
   findDeliveryClientTaxId(params: {
     readonly companyId: string
+    readonly lock: boolean
     readonly occurrenceId: string
   }): Promise<null | string>
   findDeliveryByKey(params: {
@@ -148,7 +156,9 @@ export type ContractorReplyEmailUnitOfWorkPort = {
 
 /** O que o painel precisa para oferecer os botões: nunca o endereço em claro. */
 export type ContractorReplyEmailOptions = {
-  /** Spec 279 T3 (RF4): os e-mails para boleto do cadastro do cliente, mascarados, escolhidos por `emailId`. */
+  /** Spec 279 RF9: o tipo de e-mail do cliente que o tipo da ocorrência usa; `off` não oferece o envio ao cliente. */
+  readonly clientEmailType: ClientEmailType
+  /** Spec 279 T3 (RF4): os e-mails do cadastro do cliente daquele tipo, mascarados, escolhidos por `emailId`. */
   readonly clientEmails: readonly {
     readonly addressMasked: string
     readonly emailId: string

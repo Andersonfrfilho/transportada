@@ -37,3 +37,42 @@ created_at, updated_at`. FK `(company_id, tax_id)` → `delivery_clients` (casca
   limite 10 inclusive com 14 inclusões simultâneas, duplicata, outra empresa, auditoria sem endereço em claro), no
   `test:integration` da API. `bun run test` 12550 pass / 0 fail; integração com Postgres 16 descartável 4 pass;
   `tsc --noEmit` e `eslint` verdes.
+
+## T3 — alvo `client_boleto_emails` no encaminhamento da 248 (26/10/2026)
+
+- Alvo novo em `CONTRACTOR_REPLY_DELIVERY_TARGETS` e `CONTRACTOR_REPLY_EMAIL_TARGETS` (cópia idêntica no worker, presa pelo
+  contrato de paridade), mais `CONTRACTOR_REPLY_MAIL_DELIVERY_TARGETS`. As listas SQL que eram literais
+  (`('note_recipient_email', 'informed_email')` no worker e na cadeia de assunto da API) passaram a vir da constante: o
+  status da entrega (`sent`/`failed`), o anexo pela entrega, o `Reply-To` e a exclusão da cadeia de `References` já valem
+  para o alvo novo sem lista a esquecer.
+- Migration `20261026204239_contractor_reply_client_boleto_emails`: alarga as CHECKs `target` e `address` da entrega.
+  `rollback.sql` recusa com entrega gravada nesse alvo. Asserção `contractor-reply-client-boleto-emails.assertion.ts`
+  (CHECKs alargadas, rollback estreita, reapply) roda antes da 276 T5, cujo rollback recria a CHECK do alvo; os rollbacks
+  da 248 desfazem esta primeiro. Linha real do alvo com endereço em `occurrence-contractor-reply-rows`.
+- Caso de uso: `forwardToClient` no mesmo `forward-contractor-reply-by-email` (RF3/RF4), com `emailIds`, `address` (novo)
+  e `save`. Na mesma transação e com o retorno travado: `client_email_type` do tipo (`resolveClientEmailPurpose` da T3b,
+  `409 OCCURRENCE_CLIENT_EMAIL_OFF`), texto do e-mail da cópia do retorno (248), anexo, cliente pelo destinatário da nota
+  (`nfe_participants.role = recipient` com cadastro em `delivery_clients`), e-mails do **tipo que o tipo da ocorrência
+  usa**. Um e-mail por endereço (sem repetir, sem distinguir caixa); chave de entrega por (retorno, anexo, endereço),
+  então repetir com outra `Idempotency-Key` devolve `already_queued`. O teto de 5 por ocorrência conta o pedido inteiro
+  (nada sai se não couber); PDF acima do limite grava `failed` por endereço.
+- Guardar (D4/D7): só com `save` e `address`; trava a linha do cliente (`FOR UPDATE`, a mesma do painel da T2), não
+  duplica (devolve o id existente), respeita o limite de 10 (`422 DELIVERY_CLIENT_EMAIL_LIMIT_REACHED`), grava
+  `created_by_kind` (`office` pelo painel; `driver` fica para a T4) e `audit_logs` `delivery-client-email.created` com o
+  endereço mascarado. Sem cadastro do cliente: `404 DELIVERY_CLIENT_NOT_FOUND` ao guardar e
+  `404 DELIVERY_CLIENT_EMAIL_NOT_FOUND` para `emailId` (inclusive de outro tipo, cliente ou empresa).
+- Rota do painel (RF4): o `POST /trip-occurrences/:id/contractor-reply/email-delivery` aceita `target: client_boleto_emails`
+  com `emailIds` (1 a 10) e/ou `address`, e `save`; `emailIds`/`save` em outro alvo e `save` sem `address` são `400`.
+  Resposta `{ results: [{ addressMasked, deliveryId, emailId, kind, reason }], savedEmailId }`, `201` se algum saiu.
+  `GET .../email-options` ganhou `clientEmailType` e `clientEmails` (mascarados, por `emailId`).
+- Decisão: com RF9 (T3b), quem liga o alvo do cliente é o `client_email_type` do tipo, não os modos
+  `forward_to_note_recipient`/`forward_to_informed_email` da 248 (D5 os citava para o motorista antes de existir o RF9).
+- Fica para depois: "Tentar de novo" de uma entrega `failed` (T6b) precisa de chave nova, porque a chave por endereço
+  devolve a falha gravada.
+- Testes: contrato `forward-contractor-reply-by-email.contract.ts` (19 casos da 279), integração da API
+  `occurrence-contractor-reply-client-emails.integration.ts` (envio por endereço e repetição, guardar com autor e auditoria
+  sem duplicar, tipo `off`, `emailId` de outro tipo e de outra empresa, leitura mascarada) no `test:integration`, e
+  integração do worker `occurrence-contractor-reply-email-delivery.integration.ts` (o alvo novo sai com o PDF, sem token,
+  e a entrega fecha `sent` ou `failed`). Com Postgres 16 descartável: contrato da API 12557 pass / 0 fail, migration 192
+  pass, integrações tocadas verdes; `tsc --noEmit` e `eslint` da API e do worker verdes. No worker, as falhas locais são
+  só de ambiente (leitor de código de barras, RabbitMQ e MinIO ausentes), nenhuma nos arquivos tocados.

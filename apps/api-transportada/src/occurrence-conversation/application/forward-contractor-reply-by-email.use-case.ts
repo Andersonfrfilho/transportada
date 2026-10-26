@@ -24,9 +24,10 @@ import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import { DeliveryClientNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
 import {
   DELIVERY_CLIENT_EMAIL_MAX_PER_PURPOSE,
-  DELIVERY_CLIENT_EMAIL_PURPOSE,
   type DeliveryClientEmailAuthorKind,
+  type DeliveryClientEmailPurpose,
 } from '../../shared/delivery-client-email.constant.js'
+import { resolveClientEmailPurpose } from '../../trips/domain/occurrence-client-email.policy.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { contractorReplyConfigurationSchema } from '../domain/contractor-reply-configuration.policy.js'
 import { parseContractorReplyEmailAddress } from '../domain/contractor-reply-email-address.policy.js'
@@ -72,12 +73,11 @@ export type ForwardContractorReplyByEmailInput = {
 }
 
 const CLIENT_TARGET = 'client_boleto_emails'
-const CLIENT_EMAIL_PURPOSE = DELIVERY_CLIENT_EMAIL_PURPOSE.BOLETO
 
 /** Spec 279 T3 (RF3/RF4): os e-mails guardados por `emailId` e, no máximo, um endereço novo. */
 export type ForwardContractorReplyToClientInput = {
   readonly actorUserId: string
-  /** O endereço novo; com `save`, entra no cadastro do cliente (tipo `boleto`). */
+  /** O endereço novo; com `save`, entra no cadastro do cliente, no tipo de e-mail que o tipo da ocorrência usa. */
   readonly address?: string
   readonly attachmentId?: string
   /** Quem guarda: o escritório pelo painel, o motorista pelo app (T4). */
@@ -177,7 +177,10 @@ function assertSameRequest(params: {
   }
 }
 
-/** Spec 279 D5: o cadastro do cliente vale quando o tipo liga um dos dois encaminhamentos da 248. */
+/**
+ * Quem liga cada alvo. O do cadastro do cliente é ligado pelo `client_email_type` do tipo (RF9, conferido antes, com
+ * `409 OCCURRENCE_CLIENT_EMAIL_OFF`); da cópia do retorno ele só exige o texto do e-mail (248), como os outros.
+ */
 function resolveForwardMode(params: {
   readonly configuration: {
     readonly forwardToInformedEmail: string
@@ -188,10 +191,7 @@ function resolveForwardMode(params: {
   const { configuration, target } = params
   if (target === 'informed_email') return configuration.forwardToInformedEmail
   if (target === 'note_recipient_email') return configuration.forwardToNoteRecipient
-  return configuration.forwardToInformedEmail === 'off' &&
-    configuration.forwardToNoteRecipient === 'off'
-    ? 'off'
-    : 'manual'
+  return 'manual'
 }
 
 function readForwardTexts(params: {
@@ -400,11 +400,12 @@ function pickSavedEmails(params: {
 async function saveNewAddress(params: {
   readonly address: string
   readonly input: ForwardContractorReplyToClientInput
+  readonly purpose: DeliveryClientEmailPurpose
   readonly saved: readonly ContractorReplyClientEmail[]
   readonly taxId: string
   readonly transaction: ContractorReplyEmailTransactionPort
 }): Promise<string> {
-  const { address, input, saved, taxId, transaction } = params
+  const { address, input, purpose, saved, taxId, transaction } = params
   const existing = saved.find((email) => email.address.toLowerCase() === address.toLowerCase())
   if (existing !== undefined) return existing.id
   if (saved.length >= DELIVERY_CLIENT_EMAIL_MAX_PER_PURPOSE) {
@@ -417,7 +418,7 @@ async function saveNewAddress(params: {
     companyId: input.companyId,
     correlationId: input.correlationId,
     occurrenceId: input.occurrenceId,
-    purpose: CLIENT_EMAIL_PURPOSE,
+    purpose,
     taxId,
   })
   return created.id
@@ -427,16 +428,18 @@ async function saveNewAddress(params: {
 async function resolveClientRecipients(params: {
   readonly input: ForwardContractorReplyToClientInput
   readonly newAddress: null | string
+  readonly purpose: DeliveryClientEmailPurpose
   readonly transaction: ContractorReplyEmailTransactionPort
 }): Promise<{
   readonly recipients: readonly ClientRecipient[]
   readonly savedEmailId: null | string
 }> {
-  const { input, newAddress, transaction } = params
+  const { input, newAddress, purpose, transaction } = params
   const needsClient = input.emailIds.length > 0 || input.save
   const taxId = needsClient
     ? await transaction.findDeliveryClientTaxId({
         companyId: input.companyId,
+        lock: input.save,
         occurrenceId: input.occurrenceId,
       })
     : null
@@ -449,13 +452,20 @@ async function resolveClientRecipients(params: {
       ? []
       : await transaction.listClientEmails({
           companyId: input.companyId,
-          purpose: CLIENT_EMAIL_PURPOSE,
+          purpose,
           taxId,
         })
   const picked = pickSavedEmails({ emailIds: input.emailIds, saved })
   let savedEmailId: null | string = null
   if (newAddress !== null && input.save && taxId !== null) {
-    savedEmailId = await saveNewAddress({ address: newAddress, input, saved, taxId, transaction })
+    savedEmailId = await saveNewAddress({
+      address: newAddress,
+      input,
+      purpose,
+      saved,
+      taxId,
+      transaction,
+    })
   }
   const all: ClientRecipient[] = [...picked]
   if (newAddress !== null) all.push({ address: newAddress, emailId: savedEmailId })
@@ -490,6 +500,7 @@ async function lockClientReply(params: {
   readonly transaction: ContractorReplyEmailTransactionPort
 }): Promise<{
   readonly attachment: { readonly id: string; readonly sizeBytes: number }
+  readonly purpose: DeliveryClientEmailPurpose
   readonly reply: ContractorReplyEmailReply
   readonly texts: { readonly body: string; readonly subject: string }
 }> {
@@ -497,12 +508,15 @@ async function lockClientReply(params: {
   const { companyId, occurrenceId } = input
   const reply = await transaction.lockReply({ companyId, occurrenceId })
   if (reply === null) throw new TripOccurrenceNotFoundError()
+  const purpose = resolveClientEmailPurpose(
+    await transaction.findClientEmailType({ companyId, occurrenceId }),
+  )
   const texts = readForwardTexts({ config: reply.config, target: CLIENT_TARGET })
   const attachmentId = input.attachmentId ?? reply.replyAttachmentId
   if (attachmentId === null) throw new ContractorReplyEmailAttachmentNotFoundError()
   const found = await transaction.findAttachment({ attachmentId, companyId, occurrenceId })
   if (found === null) throw new ContractorReplyEmailAttachmentNotFoundError()
-  return { attachment: { id: attachmentId, sizeBytes: found.sizeBytes }, reply, texts }
+  return { attachment: { id: attachmentId, sizeBytes: found.sizeBytes }, purpose, reply, texts }
 }
 
 async function executeForwardToClient(params: {
@@ -512,10 +526,11 @@ async function executeForwardToClient(params: {
 }): Promise<ForwardContractorReplyToClientOutcome> {
   const { input, newAddress, transaction } = params
   const { companyId } = input
-  const { attachment, reply, texts } = await lockClientReply({ input, transaction })
+  const { attachment, purpose, reply, texts } = await lockClientReply({ input, transaction })
   const { recipients, savedEmailId } = await resolveClientRecipients({
     input,
     newAddress,
+    purpose,
     transaction,
   })
 

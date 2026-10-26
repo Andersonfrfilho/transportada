@@ -13,6 +13,7 @@ import {
   CONTRACTOR_MAIL_OUTBOX_EVENT_TYPES,
   auditLogs,
   companyFiscalProfiles,
+  companyOccurrenceTypes,
   contractorMailMessages,
   contractorMailOutbox,
   contractorMailSettings,
@@ -29,7 +30,7 @@ import {
   tripDocumentOccurrences,
   tripDocuments,
 } from '../../database/database.schema.js'
-import { DELIVERY_CLIENT_EMAIL_PURPOSE } from '../../shared/delivery-client-email.constant.js'
+import { CLIENT_EMAIL_TYPE_OFF } from '../../shared/delivery-client-email.constant.js'
 import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import {
   CONTRACTOR_REPLY_EMAIL_MAX_PER_OCCURRENCE,
@@ -126,8 +127,29 @@ function createTransactionPort(transaction: TripQueryable): ContractorReplyEmail
       return resolveCompanyDisplayName(row)
     },
 
-    async findDeliveryClientTaxId({ companyId, occurrenceId }) {
+    async findClientEmailType({ companyId, occurrenceId }) {
       const [row] = await transaction
+        .select({ clientEmailType: companyOccurrenceTypes.clientEmailType })
+        .from(tripDocumentOccurrences)
+        .innerJoin(
+          companyOccurrenceTypes,
+          and(
+            eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
+            eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
+          ),
+        )
+        .where(
+          and(
+            eq(tripDocumentOccurrences.companyId, companyId),
+            eq(tripDocumentOccurrences.id, occurrenceId),
+          ),
+        )
+        .limit(1)
+      return row?.clientEmailType ?? CLIENT_EMAIL_TYPE_OFF
+    },
+
+    async findDeliveryClientTaxId({ companyId, lock, occurrenceId }) {
+      const query = transaction
         .select({ taxId: deliveryClients.taxId })
         .from(tripDocumentOccurrences)
         .innerJoin(
@@ -159,6 +181,7 @@ function createTransactionPort(transaction: TripQueryable): ContractorReplyEmail
           ),
         )
         .limit(1)
+      const [row] = lock ? await query.for('update', { of: deliveryClients }) : await query
       return row?.taxId ?? null
     },
 
@@ -411,15 +434,15 @@ export function createDrizzleContractorReplyEmailReader(
       if (reply === undefined) return null
       const parsed = contractorReplyConfigurationSchema.safeParse(reply.config)
       const noteAddress = await port.findNoteRecipientEmail({ companyId, occurrenceId })
-      const clientTaxId = await port.findDeliveryClientTaxId({ companyId, occurrenceId })
+      const clientEmailType = await port.findClientEmailType({ companyId, occurrenceId })
+      const clientTaxId =
+        clientEmailType === CLIENT_EMAIL_TYPE_OFF
+          ? null
+          : await port.findDeliveryClientTaxId({ companyId, lock: false, occurrenceId })
       const clientEmails =
-        clientTaxId === null
+        clientEmailType === CLIENT_EMAIL_TYPE_OFF || clientTaxId === null
           ? []
-          : await port.listClientEmails({
-              companyId,
-              purpose: DELIVERY_CLIENT_EMAIL_PURPOSE.BOLETO,
-              taxId: clientTaxId,
-            })
+          : await port.listClientEmails({ companyId, purpose: clientEmailType, taxId: clientTaxId })
       const deliveries = await database
         .select({
           address: occurrenceContractorReplyDeliveries.address,
@@ -441,6 +464,7 @@ export function createDrizzleContractorReplyEmailReader(
         )
         .orderBy(desc(occurrenceContractorReplyDeliveries.createdAt))
       return {
+        clientEmailType,
         clientEmails: clientEmails.map((email) => ({
           addressMasked: maskEmailAddress(email.address),
           emailId: email.id,

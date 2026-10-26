@@ -24,6 +24,8 @@ import {
 } from '../../src/occurrence-conversation/application/forward-contractor-reply-by-email.use-case.js'
 import { parseContractorReplyEmailAddress } from '../../src/occurrence-conversation/domain/contractor-reply-email-address.policy.js'
 import { DeliveryClientNotFoundError } from '../../src/delivery-clients/domain/delivery-client.error.js'
+import type { ClientEmailType } from '../../src/shared/delivery-client-email.constant.js'
+import { OccurrenceClientEmailOffError } from '../../src/trips/domain/occurrence-client-email.error.js'
 import {
   ContractorReplyClientEmailLimitReachedError,
   ContractorReplyClientEmailNotFoundError,
@@ -71,9 +73,12 @@ type World = {
   attachmentSize?: number
   /** Spec 279 T3: os e-mails para boleto do cadastro do cliente da nota. */
   clientEmails?: Array<{ address: string; id: string; label: string }>
+  /** Spec 279 RF9: o `client_email_type` do tipo da ocorrência (padrão do teste: `boleto`). */
+  clientEmailType?: ClientEmailType
+  listedPurposes?: string[]
   /** `null`: o destinatário da nota não tem cadastro de cliente de entrega. */
   clientTaxId?: null | string
-  savedEmails?: Array<{ address: string; authorKind: string; taxId: string }>
+  savedEmails?: Array<{ address: string; authorKind: string; purpose: string; taxId: string }>
   config?: unknown
   deliveries: Array<RecordContractorReplyEmailDeliveryParams & { id: string }>
   mails: RecordContractorReplyMailParams[]
@@ -119,9 +124,13 @@ function build(world: Partial<World> = {}) {
     findNoteRecipientEmail: async () =>
       state.noteEmail === undefined ? NOTE_EMAIL : state.noteEmail,
     findOccurrenceThreadId: async () => ('threadId' in state ? state.threadId : 'thread-1'),
-    listClientEmails: async () => state.clientEmails ?? [],
-    saveClientEmail: async ({ address, authorKind, taxId }) => {
-      state.savedEmails = [...(state.savedEmails ?? []), { address, authorKind, taxId }]
+    findClientEmailType: async () => state.clientEmailType ?? 'boleto',
+    listClientEmails: async ({ purpose }) => {
+      state.listedPurposes = [...(state.listedPurposes ?? []), purpose]
+      return state.clientEmails ?? []
+    },
+    saveClientEmail: async ({ address, authorKind, purpose, taxId }) => {
+      state.savedEmails = [...(state.savedEmails ?? []), { address, authorKind, purpose, taxId }]
       const id = `email-saved-${state.savedEmails.length}`
       state.clientEmails = [...(state.clientEmails ?? []), { address, id, label: '' }]
       return { id }
@@ -540,7 +549,12 @@ describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, D3)', () => 
       save: true,
     })
     expect(state.savedEmails).toEqual([
-      { address: 'novo@mercado.com.br', authorKind: 'driver', taxId: CLIENT_TAX_ID },
+      {
+        address: 'novo@mercado.com.br',
+        authorKind: 'driver',
+        purpose: 'boleto',
+        taxId: CLIENT_TAX_ID,
+      },
     ])
     expect(outcome.savedEmailId).toBe('email-saved-1')
     expect(outcome.results[0]).toMatchObject({ emailId: 'email-saved-1', kind: 'queued' })
@@ -595,24 +609,45 @@ describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, D3)', () => 
     expect(state.deliveries).toEqual([])
   })
 
-  test('com os dois encaminhamentos desligados no tipo, o cadastro do cliente também não envia', async () => {
+  test('tipo da ocorrência com client_email_type off: 409 e nada sai (RF9)', async () => {
+    const { state, useCase } = build({ clientEmailType: 'off', clientEmails: CLIENT_EMAILS })
+    await expect(useCase.forwardToClient(CLIENT_INPUT)).rejects.toBeInstanceOf(
+      OccurrenceClientEmailOffError,
+    )
+    expect(state.mails).toEqual([])
+    expect(state.deliveries).toEqual([])
+  })
+
+  test('o tipo de e-mail do cliente vem do tipo da ocorrência, na leitura e no cadastro', async () => {
+    const { state, useCase } = build({ clientEmailType: 'finance', clientEmails: [] })
+    await useCase.forwardToClient({
+      ...CLIENT_INPUT,
+      address: 'contas@mercado.com.br',
+      emailIds: [],
+      save: true,
+    })
+    expect(state.listedPurposes).toEqual(['finance'])
+    expect(state.savedEmails?.map((email) => email.purpose)).toEqual(['finance'])
+  })
+
+  test('com os encaminhamentos da 248 desligados, o tipo ligado ainda envia (RF9 manda)', async () => {
     const { state, useCase } = build({
       clientEmails: CLIENT_EMAILS,
       config: { ...CONFIG, forwardToInformedEmail: 'off', forwardToNoteRecipient: 'off' },
+    })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    expect(state.mails).toHaveLength(2)
+  })
+
+  test('sem o texto do e-mail na cópia do retorno, nada sai (248)', async () => {
+    const { state, useCase } = build({
+      clientEmails: CLIENT_EMAILS,
+      config: { ...CONFIG, forwardEmailBody: '' },
     })
     await expect(useCase.forwardToClient(CLIENT_INPUT)).rejects.toBeInstanceOf(
       ContractorReplyEmailForwardDisabledError,
     )
     expect(state.mails).toEqual([])
-  })
-
-  test('basta um dos encaminhamentos ligado (D5)', async () => {
-    const { state, useCase } = build({
-      clientEmails: CLIENT_EMAILS,
-      config: { ...CONFIG, forwardToInformedEmail: 'off' },
-    })
-    await useCase.forwardToClient(CLIENT_INPUT)
-    expect(state.mails).toHaveLength(2)
   })
 
   test('PDF acima do limite do e-mail falha por endereço sem sair', async () => {
