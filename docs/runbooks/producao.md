@@ -204,7 +204,7 @@ Sintoma: o gate passa e todos os jobs `deploy-*` caem no primeiro passo da CLI c
 ou não autorizado. Nada foi publicado (26/10/2026: o merge da #349 na main ficou sem subir).
 O `RAILWAY_TOKEN` é secret **do ambiente** do GitHub (`production` / `staging`), não do repositório.
 
-1. Railway → projeto → Settings → Tokens: gerar um *Project Token* do ambiente `production`.
+1. Railway → projeto → Settings → Tokens: gerar um _Project Token_ do ambiente `production`.
 2. GitHub → Settings → Environments → `production` → Secrets → atualizar `RAILWAY_TOKEN`.
 3. Refazer o run que falhou: `gh run rerun <id> --failed` (mantém o commit; o gate não roda de novo).
 4. Sem token à mão: `bash producao-reinicia-via-cli.sh` publica **só api e worker** (`railway up`,
