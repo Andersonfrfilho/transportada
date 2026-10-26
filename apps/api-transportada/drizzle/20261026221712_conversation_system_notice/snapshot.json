@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "de6b6b47-4cd9-4718-9bbf-58959295e93d",
+  "id": "9ae29924-7d66-419d-bfaa-ba64ca52479b",
   "prevIds": [
-    "bc06177c-ac96-42c7-ad9e-eafdac025fa1"
+    "1199bb1b-9d8d-4803-9e78-4f8445467d5e"
   ],
   "ddl": [
     {
@@ -30856,6 +30856,19 @@
       "generated": null,
       "identity": null,
       "name": "client_email_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'manual'",
+      "generated": null,
+      "identity": null,
+      "name": "client_email_send_mode",
       "entityType": "columns",
       "schema": "public",
       "table": "company_occurrence_types"
@@ -71441,6 +71454,13 @@
       "table": "company_occurrence_types"
     },
     {
+      "value": "\"client_email_send_mode\" in ('manual', 'automatic')",
+      "name": "company_occurrence_types_client_email_send_mode_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
       "value": "\"duplicate_request_policy\" in ('while_request_open', 'until_resolved', 'allow')",
       "name": "company_occurrence_types_duplicate_request_policy_check",
       "entityType": "checks",
@@ -73828,7 +73848,7 @@
       "table": "occurrence_contractor_reply_deliveries"
     },
     {
-      "value": "\"reason\" in ('driver_without_account', 'driver_unreachable', 'whatsapp_window_closed', 'note_without_recipient_email', 'attachment_too_large_for_email', 'send_failed')",
+      "value": "\"reason\" in ('driver_without_account', 'driver_unreachable', 'whatsapp_window_closed', 'note_without_recipient_email', 'attachment_too_large_for_email', 'send_failed', 'client_without_email')",
       "name": "occurrence_contractor_reply_deliveries_reason_check",
       "entityType": "checks",
       "schema": "public",
@@ -73877,7 +73897,7 @@
       "table": "occurrence_contractor_reply_events"
     },
     {
-      "value": "\"reason\" in ('no_accepted_attachment', 'multiple_attachments', 'document_not_confirmed', 'driver_without_account', 'driver_unreachable', 'whatsapp_window_closed', 'note_without_recipient_email', 'attachment_too_large_for_email', 'send_failed', 'document_confirmed', 'document_without_text')",
+      "value": "\"reason\" in ('no_accepted_attachment', 'multiple_attachments', 'document_not_confirmed', 'driver_without_account', 'driver_unreachable', 'whatsapp_window_closed', 'note_without_recipient_email', 'attachment_too_large_for_email', 'send_failed', 'client_without_email', 'document_confirmed', 'document_without_text')",
       "name": "occurrence_contractor_reply_events_reason_check",
       "entityType": "checks",
       "schema": "public",

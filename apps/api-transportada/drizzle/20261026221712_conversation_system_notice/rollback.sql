@@ -23,7 +23,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261026215546_conversation_system_notice';
+    WHERE "name" = '20261026221712_conversation_system_notice';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN
