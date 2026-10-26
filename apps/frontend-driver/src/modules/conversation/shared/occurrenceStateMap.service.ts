@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type {
+  DriverRouteOccurrence,
   RouteOccurrenceServerState,
   RouteOccurrencesQueryData,
 } from '@/modules/driver-trip/shared/driverRouteOccurrence.types'
@@ -12,6 +13,14 @@ export function buildOccurrenceStateMap(
 ): ReadonlyMap<string, RouteOccurrenceServerState> {
   if (data?.status !== 'loaded') return new Map()
   return new Map(data.occurrences.map((occurrence) => [occurrence.id, occurrence.state] as const))
+}
+
+/** A ocorrência inteira por id, para quem precisa de mais que o estado (o botão "Enviar ao cliente", spec 279). */
+export function buildOccurrenceMap(
+  data: RouteOccurrencesQueryData | undefined,
+): ReadonlyMap<string, DriverRouteOccurrence> {
+  if (data?.status !== 'loaded') return new Map()
+  return new Map(data.occurrences.map((occurrence) => [occurrence.id, occurrence] as const))
 }
 
 /** A mesma viagem que a tela da rota usa, para as duas telas dividirem a consulta (e o retrato offline). */

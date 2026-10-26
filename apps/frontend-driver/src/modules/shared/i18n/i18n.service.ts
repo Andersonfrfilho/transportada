@@ -8,6 +8,8 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
+import clientEmailLocale from '@/modules/client-email/locales/clientEmail.locale.json'
+import clientEmailEnglishLocale from '@/modules/client-email/locales/clientEmail.en.locale.json'
 import conversationLocale from '@/modules/conversation/locales/conversation.locale.json'
 import conversationEnglishLocale from '@/modules/conversation/locales/conversation.en.locale.json'
 import driverTripLocale from '@/modules/driver-trip/locales/driverTrip.locale.json'
@@ -21,11 +23,13 @@ void i18n.use(initReactI18next).init({
   lng: 'pt-BR',
   resources: {
     en: {
+      clientEmail: clientEmailEnglishLocale,
       conversation: conversationEnglishLocale,
       driverTrip: driverTripEnglishLocale,
       identity: identityEnglishLocale,
     },
     'pt-BR': {
+      clientEmail: clientEmailLocale,
       conversation: conversationLocale,
       driverTrip: driverTripLocale,
       identity: identityLocale,

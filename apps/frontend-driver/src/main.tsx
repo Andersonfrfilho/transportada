@@ -8,6 +8,7 @@ import { StrictMode, useEffect, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 
+import { useClientEmailOutboxFlush } from '@/modules/client-email/hooks/useClientEmailOutboxFlush.hook'
 import { useConversationOutboxFlush } from '@/modules/conversation/hooks/useConversationOutboxFlush.hook'
 import { DriverConversationsPage } from '@/modules/conversation/pages/DriverConversations.page'
 import { discardOrphanedConversationOutboxFor } from '@/modules/conversation/shared/driverConversationOutboxCleanup.service'
@@ -205,6 +206,7 @@ function DriverShell({ session }: DriverShellProps): ReactNode {
   const [section, setSection] = useState(() => resolveDriverRouteSection(window.location.pathname))
   const sessionExpiry = useSessionExpiry(session.canSync)
   useConversationOutboxFlush(session.canSync)
+  useClientEmailOutboxFlush(session.canSync)
 
   useEffect(() => subscribeDriverRoute(setSection), [])
 

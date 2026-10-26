@@ -1,0 +1,44 @@
+{
+  "add": {
+    "address": "Customer e-mail",
+    "button": "Add e-mail",
+    "invalid": "Check the e-mail: it must look like name@domain.com.",
+    "modeLabel": "What to do with this e-mail?",
+    "saveAndSend": "Send and save for the customer",
+    "sendOnly": "Only send"
+  },
+  "button": {
+    "ariaLabel": "Send the invoice to the customer · {{context}}",
+    "label": "Send to customer"
+  },
+  "error": {
+    "failed": "Could not send. Tap to try again.",
+    "invalid": "The API refused the e-mail. Check the address and try again.",
+    "unavailable": "This occurrence cannot be sent to the customer right now."
+  },
+  "pending": {
+    "discard": "Discard",
+    "failed": "A send was refused and did not go out.",
+    "queued_one": "{{count}} send queued — goes out when the signal is back.",
+    "queued_other": "{{count}} sends queued — go out when the signal is back.",
+    "retry": "Try again"
+  },
+  "result": {
+    "already_queued": "Already sent",
+    "failed": "Did not go out",
+    "queued": "Sent",
+    "queuedOffline": "Queued: the invoice goes to the chosen e-mail when the signal is back.",
+    "saved": "E-mail saved for the customer.",
+    "skipped": "Not sent"
+  },
+  "sheet": {
+    "cancel": "Close",
+    "empty": "This customer has no saved e-mail for the invoice yet. Add one.",
+    "limit": "Sent: {{sent}} of {{limit}}",
+    "offlineHint": "No signal: the send is queued and goes out when the connection is back.",
+    "savedTitle": "Customer e-mails",
+    "send": "Send invoice",
+    "sending": "Sending…",
+    "title": "Send the invoice to the customer"
+  }
+}

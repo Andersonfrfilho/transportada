@@ -14,8 +14,11 @@
 - [x] **T5** (sonnet) Painel: seção "E-mails do cliente" (por tipo) na tela do cliente e seletor no botão da ocorrência (RF5); prévia
       com print.
       Entregue: `DeliveryClientEmailsPanel` (tela do cliente), `ClientBoletoEmailAction` (linha e página da ocorrência), prévias de tela com o dono.
-- [ ] **T6** (sonnet) App do motorista: botão e folha "Enviar ao cliente" (RF6), fila offline com `idempotencyKey`; prévia
-      com print.
+- [x] **T6** (sonnet) App do motorista: botão e folha "Enviar ao cliente" (RF6), fila offline com `idempotencyKey`; prévia
+      com print. Módulo `client-email` do `frontend-driver`: o botão aparece na faixa da conversa, no cartão e no detalhe da
+      ocorrência quando o boleto chegou (`contractor_reply_delivered`) e some com `409`/`404` do `GET` (tipo `off`); a folha
+      lista os e-mails mascarados por `emailId`, tem "Adicionar e-mail" (só enviar / enviar e guardar) e, sem sinal, enfileira
+      em `transportada.driver-client-email-outbox` com a mesma `idempotencyKey`. Prints em `prints/`.
 - [x] **T3b** (sonnet) Campo `client_email_type` em `company_occurrence_types` (RF9): migration aditiva, validação, aba Tipos,
       API recusa o envio com `off`. Migration `20261026201500`; a recusa é `resolveClientEmailPurpose` (409
       `OCCURRENCE_CLIENT_EMAIL_OFF`), que a rota de envio da T2/T3 chama. `client_email_send_mode` fica para a T3c.

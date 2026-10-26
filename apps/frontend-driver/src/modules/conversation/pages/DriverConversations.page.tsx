@@ -12,6 +12,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ClientEmailSendButton } from '@/modules/client-email/components/ClientEmailSendButton.component'
+import { hasBoletoArrived } from '@/modules/client-email/shared/clientBoletoEmailVisibility.service'
 import { useDriverSession } from '@/modules/driver-trip/hooks/useDriverSession.hook'
 import { DriverBottomBar } from '@/modules/driver-trip/components/DriverBottomBar.component'
 import {
@@ -50,12 +52,16 @@ export function DriverConversationsPage() {
   const quickReplies = useDriverQuickReplies()
   const selected = parseDriverConversationSubject(useConversationPathname())
   const { canSync } = useDriverSession()
-  const { isSettled, stateByOccurrenceId } = useRouteOccurrenceStates(canSync)
+  const { isSettled, occurrenceById, stateByOccurrenceId } = useRouteOccurrenceStates(canSync)
   const isStateUnknown =
     selected !== undefined &&
     selected.subjectType === DRIVER_CONVERSATION_SUBJECT_TYPE &&
     isSettled &&
     !stateByOccurrenceId.has(selected.subjectId)
+  const selectedOccurrence =
+    selected?.subjectType === DRIVER_CONVERSATION_SUBJECT_TYPE
+      ? occurrenceById.get(selected.subjectId)
+      : undefined
   const { refusal } = useDriverConversationReopen({
     api,
     stateByOccurrenceId,
@@ -98,6 +104,15 @@ export function DriverConversationsPage() {
         <p role="alert" className={styles.outboxNotice}>
           {t(`reopen.refused.${refusal}`)}
         </p>
+      )}
+      {selectedOccurrence === undefined ? null : (
+        <div className={styles.clientEmailBar}>
+          <ClientEmailSendButton
+            contextLabel={selectedOccurrence.type.name}
+            hasBoleto={hasBoletoArrived(selectedOccurrence.resolution?.phraseKey)}
+            occurrenceId={selectedOccurrence.id}
+          />
+        </div>
       )}
       <main className={styles.conversationMain}>
         <Suspense

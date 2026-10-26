@@ -1,0 +1,189 @@
+/*
+ * Spec 279 (T6): o botão "Enviar ao cliente" e a folha dele. Alvo de toque de --touch-target, texto que quebra
+ * a palavra para não passar dos 375px, e a folha encosta no pé da tela no celular.
+ */
+.openButton {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--color-copper);
+  border-radius: 0;
+  color: var(--color-copper);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: var(--space-2);
+  justify-content: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+}
+
+.openButton:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}
+
+.backdrop {
+  align-items: flex-end;
+  background: color-mix(in srgb, var(--color-asphalt) 80%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  z-index: 80;
+}
+
+.sheet {
+  background: var(--color-graphite);
+  border-top: 2px solid var(--color-copper);
+  color: var(--color-fog);
+  display: grid;
+  gap: var(--space-3);
+  max-height: 90dvh;
+  max-width: 32rem;
+  overflow-y: auto;
+  padding: var(--space-4);
+  width: 100%;
+}
+
+.sheetHeader {
+  align-items: center;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.sheetTitle {
+  font-size: 1.05rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.sheetClose {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--color-fog);
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+}
+
+.legend {
+  color: var(--color-fog);
+  font-weight: 600;
+  padding: 0;
+}
+
+.savedList,
+.modeGroup {
+  border: 0;
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.savedItem,
+.modeItem {
+  align-items: center;
+  border: 1px solid var(--color-slate);
+  cursor: pointer;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: var(--touch-target);
+  padding: var(--space-2) var(--space-3);
+}
+
+.check {
+  height: var(--touch-target);
+  margin: 0;
+  width: 1.25rem;
+}
+
+.savedText {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.savedLabel {
+  color: var(--color-fog);
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.counter,
+.note {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.counter {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.addBox {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.addLabel {
+  font-weight: 600;
+}
+
+.addInput {
+  min-width: 0;
+}
+
+.error {
+  color: var(--color-alert);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.linkButton {
+  background: transparent;
+  border: 0;
+  color: var(--color-copper);
+  cursor: pointer;
+  font: inherit;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-2);
+  text-decoration: underline;
+}
+
+.resultList {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.resultItems {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.resultItem {
+  align-items: center;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: var(--touch-target);
+  overflow-wrap: anywhere;
+}
+
+.resultItem[data-kind='failed'],
+.resultItem[data-kind='skipped'] {
+  color: var(--color-alert);
+}
+
+.resultItem[data-kind='queued'] {
+  color: var(--color-ready);
+}

@@ -3,6 +3,8 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { ClientEmailSendButton } from '@/modules/client-email/components/ClientEmailSendButton.component'
+import { hasBoletoArrived } from '@/modules/client-email/shared/clientBoletoEmailVisibility.service'
 import {
   navigateToDriverConversation,
   navigateToDriverOccurrence,
@@ -91,6 +93,15 @@ export function DriverOccurrenceRow({ entry, shareController, stops }: DriverOcc
             <span className={styles.rowUnread}>{entry.unreadCount}</span>
           ) : null}
         </button>
+      ) : null}
+      {entry.source === 'server' ? (
+        <div className={styles.rowFooter}>
+          <ClientEmailSendButton
+            contextLabel={typeName}
+            hasBoleto={hasBoletoArrived(entry.resolutionPhraseKey)}
+            occurrenceId={entry.id}
+          />
+        </div>
       ) : null}
       {hasDocuments ? (
         <button
