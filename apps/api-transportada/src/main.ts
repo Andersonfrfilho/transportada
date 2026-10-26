@@ -979,6 +979,7 @@ import { createAggregateApplicationAttachmentReviewRoutes } from './fleet/presen
 import { createAggregateApplicationAttachmentReviewUseCase } from './fleet/application/aggregate-application-attachment-review.use-case.js'
 import { createDrizzleAggregateApplicationAttachmentReviewRepository } from './fleet/infrastructure/drizzle-aggregate-application-attachment-review.repository.js'
 import { startFieldTrip } from './trips/application/start-field-trip.use-case.js'
+import { listDriverOnRoadTripIds } from './trips/infrastructure/driver-on-road-trips.query.js'
 
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
@@ -1717,6 +1718,8 @@ export function bootstrap(): Bun.Server<undefined> {
         logger,
         audioTranscriptionMaxDurationMs: config.audioTranscriptionMaxDurationMs,
         nfseProviderApiVersion: config.nfseProviderApiVersion,
+        driverTripLockEnabled: config.driverTripLockEnabled,
+        driverTripLockMinScore: config.driverTripLockMinScore,
         postalCodeProviders: config.postalCodeProviders,
         resolveClientIp,
         routingMatrixUrl: config.routingMatrixUrl,
@@ -2086,6 +2089,9 @@ type CreateApplicationRoutesParams = {
   readonly audioTranscriptionMaxDurationMs: ApiEnvironment['audioTranscriptionMaxDurationMs']
   /** ADR 0098: a versão da API da Nota RP que as emissões novas gravam na tentativa. */
   readonly nfseProviderApiVersion: ApiEnvironment['nfseProviderApiVersion']
+  /** Trava de uma viagem por vez no pedido de prorrogação do motorista (flag e corte de nota). */
+  readonly driverTripLockEnabled: ApiEnvironment['driverTripLockEnabled']
+  readonly driverTripLockMinScore: ApiEnvironment['driverTripLockMinScore']
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
   readonly resolveClientIp: ClientIpResolver
   readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
@@ -2155,6 +2161,8 @@ function createApplicationRoutes({
   logger,
   audioTranscriptionMaxDurationMs,
   nfseProviderApiVersion,
+  driverTripLockEnabled,
+  driverTripLockMinScore,
   postalCodeProviders,
   resolveClientIp,
   routingMatrixUrl,
@@ -4177,6 +4185,20 @@ function createApplicationRoutes({
             listDocumentProducts: (query) => listDocumentProducts(database, query),
           },
           notifier: driverOccurrenceNotifier,
+          /** Trava de uma viagem por vez: só o pedido do motorista no app; o escritório não passa por aqui. */
+          tripLock: {
+            enabled: driverTripLockEnabled,
+            listOnRoadTripIds: (query) => listDriverOnRoadTripIds(database, query),
+            minimumScore: driverTripLockMinScore,
+            readScore: async (query) =>
+              (
+                await driverScoreRepository.readScores({
+                  companyId: query.companyId,
+                  driverIds: [query.driverId],
+                  now: new Date(),
+                })
+              ).get(query.driverId) ?? null,
+          },
           unitOfWork: driverFieldReports,
         })
         /** Spec 183 T802: o aviso automático à contratante é do tipo, não do canal de registro. */

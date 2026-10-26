@@ -174,6 +174,7 @@ import { ContractorMailInboundOutboxRelayService } from './contractor-mail/appli
 import { DrizzleContractorMailOutboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-outbox.repository.js'
 import { DrizzleContractorMailInboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-outbox.repository.js'
 import { createDrizzleCompanyLogoReader } from './contractor-mail/infrastructure/drizzle-company-logo.reader.js'
+import { toWhiteLogoPng } from './contractor-mail/infrastructure/white-logo.gateway.js'
 import { createDrizzleContractorMailOutboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
 import { createContractorMailOutboundAttachments } from './occurrence-conversation/infrastructure/drizzle-conversation-mail-attachments.repository.js'
 import { createCargoPreviewEmailIntake } from './cargo-preview-email/application/intake-cargo-preview-email.use-case.js'
@@ -1169,6 +1170,7 @@ export async function startWorkerRuntime(
           ? {}
           : { allowedRecipients: config.emailAllowedRecipients }),
         ...(config.emailResendDisabled === true ? { resendDisabled: true } : {}),
+        whiteLogo: toWhiteLogoPng,
         ...(config.contractorMailSandbox === undefined
           ? {}
           : {
