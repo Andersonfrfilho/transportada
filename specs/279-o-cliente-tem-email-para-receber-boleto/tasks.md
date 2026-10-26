@@ -3,7 +3,7 @@
 > Gate: typecheck + lint por app, script `test` de cada app tocada, integração da API com `--env-file` sem skip.
 > Modelo indicado por tarefa (regra do projeto: o coordenador abre cada etapa numa thread com o modelo da linha).
 
-- [ ] **T1** (opus) Migration `delivery_client_emails` + schema Drizzle + rollback; contrato vermelho (CA1) — `database/`,
+- [x] **T1** (opus) Migration `delivery_client_emails` + schema Drizzle + rollback; contrato vermelho (CA1) — `database/`,
       `drizzle/`, migration-test.
 - [ ] **T2** (sonnet) API do painel `delivery-clients/:taxId/emails` (RF1), validação, máscara, auditoria; integração CA1/CA4.
 - [ ] **T3** (opus) Novo alvo `client_boleto_emails` no `forward-contractor-reply-by-email` (D3) com `emailIds` e `save`;
