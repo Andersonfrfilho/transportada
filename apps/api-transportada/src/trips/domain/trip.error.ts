@@ -212,6 +212,20 @@ export class TripWithoutDriverError extends ApiError {
   }
 }
 
+/**
+ * Trava de uma viagem por vez: o motorista de nota abaixo do corte pede a prorrogação só na viagem
+ * que está andando; a nota boa libera as outras. O escritório nunca passa por aqui.
+ */
+export class DriverTripLockedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DRIVER_TRIP_LOCKED',
+      message: 'Finish the current trip before registering this request on another trip.',
+      status: 409,
+    })
+  }
+}
+
 /** ADR-0067 §2: o motorista escolhido precisa estar na tripulação desta viagem. */
 export class DriverNotOnTripError extends ApiError {
   public constructor() {

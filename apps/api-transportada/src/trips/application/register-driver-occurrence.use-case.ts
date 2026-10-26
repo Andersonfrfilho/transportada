@@ -11,13 +11,16 @@
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import { resolveDriverOccurrenceTemplateKey } from '../domain/occurrence-notification.policy.js'
+import { BILL_EXTENSION_OCCURRENCE_TYPE_NAME } from '../../shared/occurrence-type-catalog.constant.js'
+import { isDriverTripLocked } from '../domain/driver-trip-lock.policy.js'
 import {
+  DriverTripLockedError,
   OccurrenceDuplicateRequestError,
   TripDocumentNotReachableError,
 } from '../domain/trip.error.js'
 import { assessDriverOccurrence } from './driver-occurrence-assessment.service.js'
 import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
-import { deriveFieldAuthorship } from './field-trip-target.types.js'
+import { deriveFieldAuthorship, toFieldTripTarget } from './field-trip-target.types.js'
 import type { DriverDocumentOccurrence } from './driver-document-occurrence.types.js'
 import type { RegisterDriverOccurrenceInput } from './register-driver-occurrence.types.js'
 import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
@@ -50,6 +53,7 @@ export async function registerDriverOccurrence(
     signatureObjectId,
     tripId,
   } = await assessDriverOccurrence(input)
+  await assertDriverTripNotLocked({ input, tripId, typeName: occurrenceType.name })
   const authorship = deriveFieldAuthorship(input)
 
   /**
@@ -147,5 +151,41 @@ async function saveOrRecallDuplicate(
   } catch (error) {
     if (!(error instanceof OccurrenceDuplicateRequestError)) throw error
     return recall(error.existingOccurrenceId)
+  }
+}
+
+/**
+ * Trava de uma viagem por vez: só o pedido do motorista (`target.kind === 'driver'`) e só a prorrogação do
+ * boleto. O escritório (`target.kind === 'trip'`) nunca é travado. Flag desligada ou porta ausente: nada muda.
+ */
+export async function assertDriverTripNotLocked(params: {
+  readonly input: RegisterDriverOccurrenceInput
+  readonly tripId: string
+  readonly typeName: string
+}): Promise<void> {
+  const { input, tripId, typeName } = params
+  const { tripLock } = input
+  if (tripLock === undefined || !tripLock.enabled) return
+  if (typeName !== BILL_EXTENSION_OCCURRENCE_TYPE_NAME) return
+  const target = toFieldTripTarget(input)
+  if (target.kind !== 'driver') return
+
+  const onRoadTripIds = await tripLock.listOnRoadTripIds({
+    companyId: input.companyId,
+    driverId: target.driverId,
+  })
+  /** Sem outra viagem mais antiga na rua não há o que travar — e a nota não é lida à toa. */
+  if (onRoadTripIds.indexOf(tripId) <= 0) return
+  const score = await tripLock.readScore({ companyId: input.companyId, driverId: target.driverId })
+  if (
+    isDriverTripLocked({
+      enabled: tripLock.enabled,
+      minimumScore: tripLock.minimumScore,
+      onRoadTripIds,
+      score,
+      tripId,
+    })
+  ) {
+    throw new DriverTripLockedError()
   }
 }

@@ -147,6 +147,21 @@ done
 - `railway variables ... --skip-deploys` grava sem redeploy (o `railway-deploy.sh` usa para
   `DEPLOYED_REVISION`).
 
+### Flag da trava de uma viagem por vez (prorrogação do motorista)
+
+Só o serviço `api` lê. Padrão desligada; o escritório nunca é travado.
+
+```bash
+# ligar (corte de nota 70; ajuste o número se quiser outro)
+railway variables -s api -e production --set DRIVER_TRIP_LOCK_ENABLED=true --set DRIVER_TRIP_LOCK_MIN_SCORE=70
+# desligar
+railway variables -s api -e production --set DRIVER_TRIP_LOCK_ENABLED=false
+```
+
+Efeito (API reinicia ao mudar a variável): com `true`, o motorista com outra viagem mais antiga na rua
+e nota abaixo do corte (ou sem nota) recebe `409 DRIVER_TRIP_LOCKED` ao pedir "Cliente pediu prorrogação
+do boleto" numa viagem que não é a atual. Entra primeiro em staging; produção só com aval do Anderson.
+
 ## 4. Redeploy e reinício
 
 Ordem de preferência:
