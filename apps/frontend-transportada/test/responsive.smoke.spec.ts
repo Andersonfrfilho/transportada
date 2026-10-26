@@ -1616,6 +1616,37 @@ test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viag
   /** Registrado **depois**: a frota do mock de viagem é vazia, e aqui precisamos de veículo. */
   const routing = await mockMultiVehicleApi(page)
   await registerSuggestionValuationMock(page)
+  /**
+   * ⚠️ **A malha do IBGE é dublada.** O mapa da montagem só nasce com a cidade da nota desenhada,
+   * e o ponto vinha de `GET servicodados.ibge.gov.br/.../malhas/estados/SP` — a internet de verdade.
+   * Quando ela não respondia (26/10), a revisão mostrava "Sem cidade para desenhar ainda" e o gate
+   * caía em "Mapa da montagem", sem que nenhum código do repositório tivesse mudado.
+   */
+  await page.route('https://servicodados.ibge.gov.br/api/v3/malhas/estados/**', (route) =>
+    route.fulfill({
+      body: JSON.stringify({
+        features: [
+          {
+            geometry: {
+              coordinates: [
+                [
+                  [-47.1, -22.9],
+                  [-47.0, -22.9],
+                  [-47.0, -22.8],
+                  [-47.1, -22.8],
+                ],
+              ],
+              type: 'Polygon',
+            },
+            properties: { codarea: '3509502' },
+            type: 'Feature',
+          },
+        ],
+        type: 'FeatureCollection',
+      }),
+      contentType: 'application/json',
+    }),
+  )
   await loginAsLocalUser(page)
 
   await page.getByRole('button', { name: 'Montar roteiro' }).click()
