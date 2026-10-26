@@ -38,8 +38,8 @@ Resultado:
 ## Decisões
 
 - **D1 — Onde mora.** Tabela nova `delivery_client_emails (id, company_id, tax_id, purpose, address, label, created_by,
-  created_at)`, chave estrangeira em `(company_id, tax_id)` de `delivery_clients`, único `(company_id, tax_id, purpose,
-  lower(address))`, `purpose` CHECK `('boleto')`, endereço com o mesmo padrão e limite de 254 de `nfe_documents.recipient_email`.
+created_at)`, chave estrangeira em `(company_id, tax_id)` de `delivery_clients`, único `(company_id, tax_id, purpose,
+lower(address))`, `purpose` CHECK `('boleto')`, endereço com o mesmo padrão e limite de 254 de `nfe_documents.recipient_email`.
   Não vai coluna em `delivery_clients` porque são vários e porque a finalidade é parte do modelo.
 - **D2 — Máximo.** 10 e-mails por cliente e finalidade (`422 DELIVERY_CLIENT_EMAIL_LIMIT_REACHED`), para o cadastro não
   virar lista de transmissão.
@@ -65,7 +65,7 @@ Resultado:
 
 **Given** a contratante devolveu o boleto da prorrogação e o cliente tem um e-mail para boleto guardado **When** o
 motorista toca em "Enviar ao cliente" e confirma **Then** o PDF sai para esse e-mail e a conversa mostra "Enviado ao
-cliente (a***@...)".
+cliente (a\*\*\*@...)".
 
 **Given** o cliente não tem e-mail guardado **When** o motorista digita um e-mail e marca "Guardar para este cliente"
 **Then** o boleto sai e o e-mail passa a estar no cadastro do cliente.
@@ -86,7 +86,7 @@ muda, e o motorista e o painel passam a ver a mudança no próximo envio.
 - **RF2** `GET /me/trips/current/occurrences/:id/client-boleto-emails` devolve os e-mails guardados **mascarados** com um
   `emailId` opaco; o motorista escolhe por `emailId`, nunca por endereço, para os já guardados.
 - **RF3** `POST /me/trips/current/occurrences/:id/client-boleto-emails/send` com `{ emailIds?: string[], newAddress?: string,
-  save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado por endereço (mascarado).
+save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado por endereço (mascarado).
 - **RF4** `POST` do painel do encaminhamento da 248 aceita `emailIds` além de `address`/alvo da nota, com `save`.
 - **RF5** Painel: seção "E-mails para boleto" na tela do cliente; seletor múltiplo no botão da ocorrência.
 - **RF6** App do motorista: botão "Enviar ao cliente" na conversa da ocorrência com boleto, folha com a lista, campo de
