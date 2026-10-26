@@ -297,11 +297,15 @@ jobs:
           path: ~/.cache/ms-playwright
       - name: Install Playwright Chromium
         run: bun run --cwd apps/frontend-transportada playwright install chromium
-      # Espelho do apt que pendura uma conexão (26/10: 3,5 MB em 1m20s) estourava o teto do passo
-      # abaixo. Com 20s por conexão e 5 tentativas o apt larga a conexão presa e pede de novo.
-      - name: Teto de conexão do apt
+      # O espelho azure.archive.ubuntu.com da runner pendura: 26/10, 3,5 MB em 1m20s, e com timeout e
+      # retry curtos o apt só repete a lentidão (a #355 ainda estourou o teto abaixo). Aponta o apt
+      # para archive.ubuntu.com e mantém o teto por conexão.
+      - name: Espelho e teto de conexão do apt
         timeout-minutes: 1
-        run: printf 'Acquire::http::Timeout "20";\nAcquire::Retries "5";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-retry >/dev/null
+        run: |
+          printf 'Acquire::http::Timeout "20";\nAcquire::Retries "5";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-retry >/dev/null
+          sudo sed -i -E 's#(mirror\+file:/etc/apt/apt-mirrors\.txt|https?://azure\.archive\.ubuntu\.com/ubuntu/?)#http://archive.ubuntu.com/ubuntu/#' /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          grep -rhE '^(URIs|deb) ' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | head -5
       # Teto próprio: espelho pendurado vira passo vermelho em 5 minutos, com nome, em vez de gate
       # cancelado no fim do job sem dizer onde parou.
       - name: Bibliotecas de sistema do Chromium

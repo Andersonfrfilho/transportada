@@ -48,6 +48,7 @@
     "pdfjs-dist": "^6.2.108",
     "postal-mime": "2.7.6",
     "resend": "6.28.1",
+    "sharp": "0.33.5",
     "zod": "4.4.3"
   },
   "devDependencies": {

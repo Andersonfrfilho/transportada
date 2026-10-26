@@ -147,6 +147,21 @@ done
 - `railway variables ... --skip-deploys` grava sem redeploy (o `railway-deploy.sh` usa para
   `DEPLOYED_REVISION`).
 
+### Flag da trava de uma viagem por vez (prorrogação do motorista)
+
+Só o serviço `api` lê. Padrão desligada; o escritório nunca é travado.
+
+```bash
+# ligar (corte de nota 70; ajuste o número se quiser outro)
+railway variables -s api -e production --set DRIVER_TRIP_LOCK_ENABLED=true --set DRIVER_TRIP_LOCK_MIN_SCORE=70
+# desligar
+railway variables -s api -e production --set DRIVER_TRIP_LOCK_ENABLED=false
+```
+
+Efeito (API reinicia ao mudar a variável): com `true`, o motorista com outra viagem mais antiga na rua
+e nota abaixo do corte (ou sem nota) recebe `409 DRIVER_TRIP_LOCKED` ao pedir "Cliente pediu prorrogação
+do boleto" numa viagem que não é a atual. Entra primeiro em staging; produção só com aval do Anderson.
+
 ## 4. Redeploy e reinício
 
 Ordem de preferência:
@@ -236,6 +251,25 @@ Dois testes, ambos só leitura e sem imprimir segredo, de dentro do container da
 
 `LIST FALHOU` com `InvalidAccessKeyId`/`SignatureDoesNotMatch` = chaves não batem com o bucket
 (ver erros abaixo). `ENDPOINT INALCANÇÁVEL` = endpoint/rede.
+
+## 5.1 Conferir o envio de email de uma ocorrência (Resend)
+
+Somente leitura, sem precisar de `railway` logado. Pela ferramenta Resend MCP (a conta de produção
+envia por `nao-responda@fernandes-transportadora.com.br`, via Amazon SES `sa-east-1`):
+
+1. `list-emails` (mais recentes primeiro): cada ocorrência gera **1 email ao contratante** (assunto
+   do modelo, ex. `... — Pedido de prorrogação do boleto — NF <número>`) e **1 aviso interno por
+   usuário da equipe** (`Ocorrência na entrega da nota <número>`), todos com o mesmo horário.
+2. `get-email` no email do contratante: confira `To` (contratante), `CC` (equipe), `Reply-To`
+   (endereço `@resposta.fernandes-transportadora.com.br` da conversa), texto do modelo e `Status`
+   (`delivered`; `bounced`/`complained`/`delivery_delayed` pedem investigação).
+3. `list-sent-email-attachments`: o pedido de prorrogação leva **só o `logo.png`** (cid do cabeçalho);
+   não leva boleto, porque o boleto novo vem da contratante. Ocorrências com PDF/foto devem listar o
+   arquivo; ausência indica falha de leitura do bucket (ver seção 5).
+4. Se algo estiver errado, cruze com `railway logs -s worker -e production` (seção 1) no horário do
+   envio e com a ocorrência no banco (seção 2).
+
+Verificado em 26/10/2026 com a NF 914063/2 (Spani): entregue, destinatários e anexo corretos.
 
 ## 6. Erros que não devem se repetir
 
