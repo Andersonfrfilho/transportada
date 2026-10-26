@@ -218,7 +218,7 @@ resend-mail-gateway}.contract.ts`, `test/integration/contractor-mail-sandbox-out
 ## O logo e o remetente do e-mail da ocorrência (spec 272, ADR-0110)
 
 Mensagem `outbound` com `has_inline_logo = true` anexa o logo da empresa da própria mensagem como parte inline `cid:company-logo`
-(`company_logos`, `drizzle-company-logo.reader.ts`); sem logo, sai sem a parte. O "De" vem de `from_display_name`, saneado de novo
+(`company_logos`, `drizzle-company-logo.reader.ts`); o logo sai como silhueta branca em PNG (`white-logo.gateway.ts`, porque o cabeçalho é `#10222c`; se a conversão falhar, vai o original); sem logo, sai sem a parte. O "De" vem de `from_display_name`, saneado de novo
 (`sender-display-name.policy.ts`, cópia da API). A fila do automático filtra HTML inseguro por `UNSAFE_EMAIL_HTML_PATTERN` (filtro grosso).
 Detalhe: `docs/ai-context/worker-transportada.md` § "O logo embutido e o remetente do e-mail da ocorrência (spec 272)".
 

@@ -67,6 +67,8 @@ export type SendContractorMailOutboundMessageDependencies = {
   readonly attachments: ContractorMailOutboundAttachmentsPort
   /** Spec 272: o logo inline; sem leitor, a mensagem com `has_inline_logo` sai sem a parte (como logo ausente). */
   readonly companyLogo?: CompanyLogoReader
+  /** O cabeçalho do e-mail é escuro: converte o logo da empresa na silhueta branca. Ausente, vai o logo original. */
+  readonly whiteLogo?: (bytes: Uint8Array) => Promise<Uint8Array>
   /** Spec 272: só `messageId` e motivo vão a log (nunca endereço, nome ou corpo). */
   readonly logger?: WorkerLogger
   readonly mailGateway: ResendMailGateway
@@ -332,6 +334,17 @@ async function loadInlineLogo(input: {
     }
     return []
   }
+  const white = await toWhiteLogo({ dependencies, logo, messageId })
+  if (white !== undefined) {
+    return [
+      {
+        content: Buffer.from(white).toString('base64'),
+        contentId: COMPANY_LOGO_CONTENT_ID,
+        contentType: 'image/png',
+        fileName: 'logo.png',
+      },
+    ]
+  }
   return [
     {
       content: logo.contentBase64,
@@ -340,6 +353,28 @@ async function loadInlineLogo(input: {
       fileName: logo.mimeType === 'image/png' ? 'logo.png' : 'logo.jpg',
     },
   ]
+}
+
+/** Falha na conversão não derruba o envio: sai o logo original e o log leva só `messageId` e o motivo. */
+async function toWhiteLogo(input: {
+  readonly dependencies: SendContractorMailOutboundMessageDependencies
+  readonly logo: { readonly contentBase64: string }
+  readonly messageId: string
+}): Promise<Uint8Array | undefined> {
+  const { dependencies, logo, messageId } = input
+  if (dependencies.whiteLogo === undefined) return undefined
+  try {
+    return await dependencies.whiteLogo(Buffer.from(logo.contentBase64, 'base64'))
+  } catch {
+    if (dependencies.logger !== undefined) {
+      safeLogWarn({
+        logger: dependencies.logger,
+        message: 'contractor_mail_inline_logo_white_failed',
+        metadata: { messageId, reason: 'white_conversion_failed' },
+      })
+    }
+    return undefined
+  }
 }
 
 function keepAllowedRecipients(
