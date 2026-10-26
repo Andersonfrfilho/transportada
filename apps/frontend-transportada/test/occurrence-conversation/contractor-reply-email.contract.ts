@@ -432,6 +432,33 @@ describe('o estado do envio ao cliente por endereço (spec 279 T6b, RF12)', () =
     ).toEqual([])
   })
 
+  test('o envio automático sem e-mail no cadastro (T3c) vira uma linha "sem e-mail do cliente", sem botão', () => {
+    const skipped: ContractorReplyEmailDelivery = {
+      ...CLIENT_DELIVERY,
+      address: null,
+      addressMasked: null,
+      id: 'delivery-skip',
+      reason: 'client_without_email',
+      status: 'skipped',
+    }
+    expect(describeClientEmailSendState([skipped])).toEqual([
+      {
+        address: null,
+        at: '2026-10-26T20:00:00.000Z',
+        canRetry: false,
+        deliveryId: 'delivery-skip',
+        state: 'skipped',
+      },
+    ])
+    // o operador cadastrou o e-mail e enviou depois: a linha do endereço vale, a do "sem e-mail" sai
+    expect(
+      describeClientEmailSendState([
+        skipped,
+        { ...CLIENT_DELIVERY, createdAt: '2026-10-26T20:30:00.000Z', id: 'delivery-later' },
+      ]).map((item) => item.deliveryId),
+    ).toEqual(['delivery-later'])
+  })
+
   test('resposta antiga da API, sem endereço inteiro nem hora, ainda é lida', () => {
     const options = readContractorReplyEmailOptions({
       data: {

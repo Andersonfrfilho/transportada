@@ -268,16 +268,20 @@ export function createClientEmailIdempotencyKey(randomId: () => string): string 
 
 /** Spec 279 T6b (RF12): o estado de um endereço no envio ao cliente. `failed` com `canRetry` é a recusa do provedor. */
 export type ClientEmailSendStateItem = Readonly<{
-  address: string
+  /** `null` só no `skipped`: o cliente não tem e-mail do tipo e o envio automático não teve para quem ir. */
+  address: null | string
   canRetry: boolean
   deliveryId: string
   /** Quando saiu (`sent`) ou quando entrou na fila (`queued`, `failed`). */
   at: string
-  state: 'failed' | 'queued' | 'sent'
+  state: 'failed' | 'queued' | 'sent' | 'skipped'
 }>
 
 /** Só a recusa do provedor tenta de novo; PDF grande demais falharia igual, e a API também recusa. */
 const RETRYABLE_REASON = 'send_failed'
+
+/** Spec 279 T3c: o envio automático achou o cliente sem e-mail do tipo; a entrega pulada guarda o porquê. */
+const CLIENT_WITHOUT_EMAIL_REASON = 'client_without_email'
 
 /**
  * Uma linha por endereço, com a última tentativa (o "Tentar de novo" grava uma entrega nova e deixa a recusada no
@@ -287,50 +291,76 @@ export function describeClientEmailSendState(
   deliveries: readonly ContractorReplyEmailDelivery[],
 ): readonly ClientEmailSendStateItem[] {
   const latest = new Map<string, ContractorReplyEmailDelivery>()
+  let skipped: ContractorReplyEmailDelivery | undefined
   for (const delivery of deliveries) {
-    if (delivery.target !== CLIENT_BOLETO_EMAILS_TARGET || delivery.address === null) continue
+    if (delivery.target !== CLIENT_BOLETO_EMAILS_TARGET) continue
+    if (delivery.address === null) {
+      if (
+        delivery.status === 'skipped' &&
+        delivery.reason === CLIENT_WITHOUT_EMAIL_REASON &&
+        (skipped === undefined || delivery.createdAt > skipped.createdAt)
+      ) {
+        skipped = delivery
+      }
+      continue
+    }
     const key = delivery.address.toLowerCase()
     const current = latest.get(key)
     if (current === undefined || delivery.createdAt > current.createdAt) latest.set(key, delivery)
   }
-  return [...latest.values()]
-    .flatMap((delivery): ClientEmailSendStateItem[] => {
-      const { address } = delivery
-      if (address === null) return []
-      if (delivery.status === 'sent') {
-        return [
+  /** Vale só enquanto nenhum endereço foi tentado depois (o cadastro ganhou e-mail e o operador enviou). */
+  const skippedItems: ClientEmailSendStateItem[] =
+    skipped !== undefined &&
+    [...latest.values()].every((delivery) => delivery.createdAt < (skipped?.createdAt ?? ''))
+      ? [
           {
-            address,
-            at: delivery.sentAt ?? delivery.createdAt,
+            address: null,
+            at: skipped.createdAt,
             canRetry: false,
-            deliveryId: delivery.id,
-            state: 'sent',
+            deliveryId: skipped.id,
+            state: 'skipped',
           },
         ]
-      }
-      if (delivery.status === 'queued' || delivery.status === 'pending_window') {
-        return [
-          {
-            address,
-            at: delivery.createdAt,
-            canRetry: false,
-            deliveryId: delivery.id,
-            state: 'queued',
-          },
-        ]
-      }
-      if (delivery.status === 'failed') {
-        return [
-          {
-            address,
-            at: delivery.createdAt,
-            canRetry: delivery.reason === RETRYABLE_REASON,
-            deliveryId: delivery.id,
-            state: 'failed',
-          },
-        ]
-      }
-      return []
-    })
-    .toSorted((first, second) => first.at.localeCompare(second.at))
+      : []
+  const addressItems = [...latest.values()].flatMap((delivery): ClientEmailSendStateItem[] => {
+    const { address } = delivery
+    if (address === null) return []
+    if (delivery.status === 'sent') {
+      return [
+        {
+          address,
+          at: delivery.sentAt ?? delivery.createdAt,
+          canRetry: false,
+          deliveryId: delivery.id,
+          state: 'sent',
+        },
+      ]
+    }
+    if (delivery.status === 'queued' || delivery.status === 'pending_window') {
+      return [
+        {
+          address,
+          at: delivery.createdAt,
+          canRetry: false,
+          deliveryId: delivery.id,
+          state: 'queued',
+        },
+      ]
+    }
+    if (delivery.status === 'failed') {
+      return [
+        {
+          address,
+          at: delivery.createdAt,
+          canRetry: delivery.reason === RETRYABLE_REASON,
+          deliveryId: delivery.id,
+          state: 'failed',
+        },
+      ]
+    }
+    return []
+  })
+  return [...skippedItems, ...addressItems].toSorted((first, second) =>
+    first.at.localeCompare(second.at),
+  )
 }

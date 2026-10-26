@@ -11,6 +11,7 @@ import {
   useDriverRouteOccurrences,
 } from '@/modules/driver-trip/shared/useDriverRouteOccurrences.query'
 
+import { ClientEmailSendState } from './ClientEmailSendState.component'
 import { useDriverClientEmailsQuery } from '../shared/driverClientEmails.query'
 import styles from '../styles/occurrenceDetails.module.css'
 
@@ -19,8 +20,8 @@ type OccurrenceDetailsSheetProps = Readonly<{
   occurrenceId: string
   onClose: () => void
   /**
-   * Spec 279 T6b: o estado do envio ao cliente entra aqui depois da T6b; a T6c deixa o espaço. Sem nada, a seção
-   * não aparece.
+   * Spec 279 T6b: o estado do envio ao cliente. Sem nada passado, a folha mostra o que o servidor devolve dos
+   * envios (só leitura); sem envio nenhum, a seção não aparece.
    */
   sendState?: ReactNode
   trip: DriverTrip | undefined
@@ -110,7 +111,8 @@ export function OccurrenceDetailsSheet({
           t: tTrip,
         })
   const files = detailData?.attachments ?? []
-  const clientEmails = emails.data ?? []
+  const clientEmails = emails.data?.emails ?? []
+  const deliveries = emails.data?.deliveries ?? []
 
   return createPortal(
     <div className={styles.overlay}>
@@ -200,8 +202,10 @@ export function OccurrenceDetailsSheet({
                   )}
                 </Section>
               )}
-              {sendState === undefined ? null : (
-                <Section title={t('details.sendState.title')}>{sendState}</Section>
+              {sendState === undefined && deliveries.length === 0 ? null : (
+                <Section title={t('details.sendState.title')}>
+                  {sendState ?? <ClientEmailSendState deliveries={deliveries} />}
+                </Section>
               )}
             </>
           )}

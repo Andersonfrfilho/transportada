@@ -8,7 +8,10 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { parseDriverClientEmails } from '@/modules/conversation/shared/driverClientEmails.service'
+import {
+  parseDriverClientEmailDeliveries,
+  parseDriverClientEmails,
+} from '@/modules/conversation/shared/driverClientEmails.service'
 
 const MODULE = resolve(import.meta.dir, '../../src/modules/conversation')
 
@@ -58,7 +61,41 @@ describe('"Ver detalhes" na conversa do motorista (spec 279 RF13)', () => {
     const sheet = read('components/OccurrenceDetailsSheet.component.tsx')
     expect(sheet).not.toMatch(/useMutation|postJson|method: 'POST'/u)
     expect(sheet).toContain('sendState?: ReactNode')
-    expect(sheet).toContain('sendState === undefined ? null')
+    expect(sheet).toContain('sendState === undefined && deliveries.length === 0 ? null')
+  })
+
+  test('o estado do envio (T6b) lê Enviado, Na fila, Falhou e o "sem e-mail do cliente"; o malformado some', () => {
+    expect(
+      parseDriverClientEmailDeliveries({
+        data: {
+          deliveries: [
+            {
+              address: 'a@b.example.test',
+              id: 'd1',
+              sentAt: '2026-10-26T20:01:00.000Z',
+              status: 'sent',
+            },
+            { address: 'c@d.example.test', id: 'd2', sentAt: null, status: 'queued' },
+            { address: 'e@f.example.test', id: 'd3', sentAt: null, status: 'failed' },
+            { address: null, id: 'd4', sentAt: null, status: 'skipped' },
+            { address: 'x@y.example.test', id: 'd5', sentAt: null, status: 'robo' },
+            { address: 7, id: 'd6', sentAt: null, status: 'sent' },
+            { id: 'd7', status: 'sent' },
+          ],
+        },
+      }).map((delivery) => [delivery.id, delivery.status]),
+    ).toEqual([
+      ['d1', 'sent'],
+      ['d2', 'queued'],
+      ['d3', 'failed'],
+      ['d4', 'skipped'],
+    ])
+    expect(parseDriverClientEmailDeliveries({ data: {} })).toEqual([])
+  })
+
+  test('a folha não oferece "Tentar de novo": o botão é do escritório', () => {
+    const state = read('components/ClientEmailSendState.component.tsx')
+    expect(state).not.toMatch(/<button|Button|useMutation/u)
   })
 
   test('as duas línguas têm as mesmas chaves em `details`', () => {
