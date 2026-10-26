@@ -1,4 +1,37 @@
 {
+  "details": {
+    "open": "Ver detalhes",
+    "title": "Detalhes da ocorrência",
+    "close": "Fechar os detalhes",
+    "loading": "Carregando os detalhes…",
+    "unavailable": "Os detalhes desta ocorrência não estão disponíveis agora.",
+    "summary": {
+      "title": "Ocorrência",
+      "type": "Tipo",
+      "status": "Status",
+      "client": "Cliente",
+      "driver": "Motorista",
+      "recordedByMe": "Você",
+      "recordedByOffice": "Escritório",
+      "note": "Nota",
+      "noNote": "Sem observação."
+    },
+    "timeline": {
+      "title": "Andamento"
+    },
+    "boleto": {
+      "title": "Boleto e arquivos",
+      "none": "Nenhum arquivo ainda.",
+      "unnamed": "Arquivo"
+    },
+    "clientEmails": {
+      "title": "E-mails do cliente",
+      "none": "O cliente não tem e-mail guardado."
+    },
+    "sendState": {
+      "title": "Envio ao cliente"
+    }
+  },
   "groups": {
     "document": "Notas fiscais",
     "occurrence": "Ocorrências",

@@ -20,6 +20,7 @@ import {
 import { useOccurrenceThread } from '../shared/useOccurrenceThread.hook'
 import subjectStyles from '../styles/subjectConversation.module.css'
 import styles from '../styles/occurrenceThread.module.css'
+import { OccurrenceDetailsAction } from './OccurrenceDetailsAction.component'
 import { ParticipantAvatar, participantToneClass } from './ParticipantBadge.component'
 
 const THREAD_CHANNELS = {
@@ -47,7 +48,8 @@ type OccurrenceThreadProps = Readonly<{
 /**
  * Spec 263 D10 + a conversa da ocorrência: o fio das abas Contratante e Motorista é o `ConversationThread` do SDK na
  * visão do escritório — o mesmo desenho do app do motorista e da conversa por assunto. Mensagem minha é a que o
- * operador escreveu (`outbound`); o canal vai no nome; o envio, o áudio e as respostas rápidas são do SDK.
+ * operador escreveu (`outbound`); o canal vai no nome; o envio, o áudio e as respostas rápidas são do SDK. O cabeçalho
+ * leva "Ver detalhes" (spec 279 T6c, RF13): o detalhe da ocorrência sem sair da conversa.
  */
 export function OccurrenceThread({
   closedNotice,
@@ -92,7 +94,15 @@ export function OccurrenceThread({
         channels={[...THREAD_CHANNELS[participant]]}
         className={subjectStyles.conversationTheme ?? ''}
         counterpartLabel={counterpartLabel}
-        {...(headerActions === undefined ? {} : { headerActions })}
+        headerActions={
+          <>
+            {headerActions}
+            <OccurrenceDetailsAction
+              {...(companyId === undefined ? {} : { companyId })}
+              occurrenceId={occurrenceId}
+            />
+          </>
+        }
         labels={labels}
         locale={i18n.language}
         perspective="operator"
