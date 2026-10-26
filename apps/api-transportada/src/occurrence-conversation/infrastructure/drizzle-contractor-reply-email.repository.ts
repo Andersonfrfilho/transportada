@@ -30,7 +30,10 @@ import {
   tripDocumentOccurrences,
   tripDocuments,
 } from '../../database/database.schema.js'
-import { CLIENT_EMAIL_TYPE_OFF } from '../../shared/delivery-client-email.constant.js'
+import {
+  CLIENT_EMAIL_SEND_MODE_DEFAULT,
+  CLIENT_EMAIL_TYPE_OFF,
+} from '../../shared/delivery-client-email.constant.js'
 import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import {
   CONTRACTOR_REPLY_EMAIL_MAX_PER_OCCURRENCE,
@@ -411,6 +414,31 @@ export function createDrizzleContractorReplyEmailUnitOfWork(
   }
 }
 
+/** Spec 279 RF10: o modo de envio ao cliente do tipo da ocorrência (`manual` quando o tipo não existe mais). */
+async function findClientEmailSendMode(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceId: string },
+) {
+  const [row] = await queryable
+    .select({ clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode })
+    .from(tripDocumentOccurrences)
+    .innerJoin(
+      companyOccurrenceTypes,
+      and(
+        eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
+        eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, params.companyId),
+        eq(tripDocumentOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  return row?.clientEmailSendMode ?? CLIENT_EMAIL_SEND_MODE_DEFAULT
+}
+
 /** Leitura do painel: o retorno, a nota e as entregas por e-mail — endereço sempre mascarado. */
 export function createDrizzleContractorReplyEmailReader(
   database: Database,
@@ -435,6 +463,10 @@ export function createDrizzleContractorReplyEmailReader(
       const parsed = contractorReplyConfigurationSchema.safeParse(reply.config)
       const noteAddress = await port.findNoteRecipientEmail({ companyId, occurrenceId })
       const clientEmailType = await port.findClientEmailType({ companyId, occurrenceId })
+      const clientEmailSendMode = await findClientEmailSendMode(database, {
+        companyId,
+        occurrenceId,
+      })
       const clientTaxId =
         clientEmailType === CLIENT_EMAIL_TYPE_OFF
           ? null
@@ -464,6 +496,7 @@ export function createDrizzleContractorReplyEmailReader(
         )
         .orderBy(desc(occurrenceContractorReplyDeliveries.createdAt))
       return {
+        clientEmailSendMode,
         clientEmailType,
         clientEmails: clientEmails.map((email) => ({
           addressMasked: maskEmailAddress(email.address),

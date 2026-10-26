@@ -141,6 +141,8 @@ export const CONTRACTOR_REPLY_DELIVERY_REASONS = [
   'note_without_recipient_email',
   'attachment_too_large_for_email',
   'send_failed',
+  /** Spec 279 RF10: o envio automático ao cliente não achou e-mail do tipo no cadastro dele; nada saiu. */
+  'client_without_email',
 ] as const
 export type ContractorReplyDeliveryReason = (typeof CONTRACTOR_REPLY_DELIVERY_REASONS)[number]
 

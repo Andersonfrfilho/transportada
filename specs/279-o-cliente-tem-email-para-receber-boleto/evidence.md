@@ -76,3 +76,38 @@ created_at, updated_at`. FK `(company_id, tax_id)` → `delivery_clients` (casca
   e a entrega fecha `sent` ou `failed`). Com Postgres 16 descartável: contrato da API 12557 pass / 0 fail, migration 192
   pass, integrações tocadas verdes; `tsc --noEmit` e `eslint` da API e do worker verdes. No worker, as falhas locais são
   só de ambiente (leitor de código de barras, RabbitMQ e MinIO ausentes), nenhuma nos arquivos tocados.
+
+## T3c — envio automático ao cliente (26/10/2026)
+
+- Migration `20261026211723_client_email_send_mode`: coluna `client_email_send_mode` (`manual` padrão | `automatic`) em
+  `company_occurrence_types` com CHECK, sem UPDATE (nenhum tipo existente liga), e o motivo `client_without_email` nas
+  CHECKs de motivo da entrega e do histórico do retorno. `rollback.sql` recusa com linha gravada com esse motivo.
+  Vocabulário em `CLIENT_EMAIL_SEND_MODES` (`delivery-client-email.constant.ts`); o motivo na constante espelhada do
+  retorno (API = worker).
+- Cadastro do tipo: `clientEmailSendMode` no `PUT` do catálogo (ausente não mexe, fora da lista é 400), devolvido na
+  leitura; aba Tipos de `/ocorrencias` ganhou "Envio do boleto ao cliente" (Manual/Automático), visível só com o envio ao
+  cliente ligado. `GET .../email-options` devolve `clientEmailSendMode`.
+- Gatilho (RF10a): `contractor-reply-client-email-forward.support.ts`, SQL puro e byte a byte igual na API e no worker
+  (entrou no contrato de paridade), chamado logo depois do automático da 248 ao cliente da nota, quando o boleto é aceito
+  (`reply_received`, modo `forward_automatic`). Só age com `client_email_type <> off`, `client_email_send_mode =
+  automatic` e o assunto e o texto do e-mail preenchidos na cópia do retorno. Manda um e-mail a cada endereço do tipo
+  configurado no cadastro do cliente (destinatário da nota), gatilho `automatic`, sem usuário (o Sistema), mensagem da
+  143 + outbox + linha da entrega, no mesmo savepoint isolado da 248 (falha vira `failed / send_failed` e não desfaz o
+  retorno nem a entrega ao motorista).
+- Idempotência: a chave de cada endereço é a do envio manual da T3 (retorno, anexo, endereço), então o botão depois
+  devolve `already_queued` para quem já recebeu. Sem e-mail do tipo (ou sem cadastro), uma linha `skipped /
+  client_without_email` sem endereço, por (retorno, anexo). O teto de 5 por ocorrência da 248 vale: saem os primeiros do
+  cadastro até ele, o resto fica para o botão.
+- Decisão: o automático segue o ponto da 248 (aceite automático). No modo com aprovação do operador nada sai sozinho,
+  como o automático ao cliente da nota.
+- Fica para depois: RF10(b) (e-mail digitado na conversa sai sem cartão) depende da T4b; o painel ainda não mostra as
+  entregas do alvo do cliente nem o aviso "Sem e-mail do cliente para o boleto" (T5/T6b leem `client_without_email` em
+  `email-options.deliveries`).
+- Testes: integração da API `occurrence-contractor-reply-client-emails-auto.integration.ts` (envio por endereço do tipo
+  e não do outro tipo, repetição e botão depois sem duplicar, sem e-mail e sem cadastro, `manual`/`off`/com aprovação sem
+  envio, teto de 5) 5 pass; integração do worker `occurrence-contractor-reply-received.integration.ts` com dois casos
+  novos, 16 pass; migration (asserção `client-email-send-mode.assertion.ts`) 192 pass com Postgres 16 descartável;
+  contrato do tipo (`client-email-type-write.contract.ts`) e do painel. `bun run test`: API 12594 pass / 0 fail, painel
+  8524 + 1412 pass, worker 2824 pass com as 5 falhas só de ambiente (leitor de código de barras). `tsc` e `eslint` dos
+  arquivos tocados verdes nas três apps.
+
