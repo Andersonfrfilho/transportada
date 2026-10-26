@@ -76,3 +76,14 @@ export class ContractorReplyClientEmailLimitReachedError extends ApiError {
     })
   }
 }
+
+/** Spec 279 T4b (RF8): a mensagem não é da conversa do motorista nesta ocorrência ou não tem e-mail detectado. */
+export class DetectedClientEmailNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DETECTED_CLIENT_EMAIL_NOT_FOUND',
+      message: 'No detected e-mail was found in this message',
+      status: 404,
+    })
+  }
+}

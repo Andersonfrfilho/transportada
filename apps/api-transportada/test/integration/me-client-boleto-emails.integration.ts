@@ -26,6 +26,7 @@ import {
   createDrizzleContractorReplyEmailReader,
   createDrizzleContractorReplyEmailUnitOfWork,
 } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-reply-email.repository.js'
+import { createDetectedClientEmail } from '../../src/occurrence-conversation/infrastructure/detected-client-email.factory.js'
 import { createDrizzleDriverConversationUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
 import type { ClientEmailType } from '../../src/shared/delivery-client-email.constant.js'
 import { OccurrenceClientEmailOffError } from '../../src/trips/domain/occurrence-client-email.error.js'
@@ -43,6 +44,7 @@ import { testWithPostgres } from '../fixtures/trip-field-office-database.fixture
 import type { TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
 
 const CLIENT_TAX_ID = '12345678000188'
+const SILENT_LOGGER = { error: () => undefined, info: () => undefined, warn: () => undefined }
 const FINANCE_EMAIL = 'financeiro@mercado.example.test'
 const NEW_EMAIL = 'novo@mercado.example.test'
 
@@ -117,6 +119,7 @@ async function prepare(
   const client = await seedClient(database, seeded)
   await setClientEmailType(database, seeded, 'boleto')
   const useCase = createDriverClientBoletoEmailsUseCase({
+    detectedClientEmail: createDetectedClientEmail(database.db, SILENT_LOGGER),
     emailOptions: createDrizzleContractorReplyEmailReader(database.db),
     forwardByEmail: createForwardContractorReplyByEmailUseCase({
       unitOfWork: createDrizzleContractorReplyEmailUnitOfWork(database.db),

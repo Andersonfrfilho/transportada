@@ -265,6 +265,13 @@ export const occurrenceConversationMessages = pgTable(
     providerMessageId: text('provider_message_id'),
     /** Spec 263: o eco da `Idempotency-Key` do app (a fila offline não duplica na troca de rota). */
     clientMessageId: text('client_message_id'),
+    /**
+     * Spec 279 RF8 (T4b): o e-mail que o motorista escreveu na conversa da ocorrência depois do boleto aceito, achado
+     * pela extração única do domínio. Fica só no banco: log, evento e resposta levam a forma mascarada.
+     */
+    detectedEmail: varchar('detected_email', { length: 254 }),
+    /** Quando o boleto saiu para o e-mail detectado (toque no cartão, "1" no WhatsApp ou envio automático). */
+    detectedEmailSentAt: timestamp('detected_email_sent_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -356,6 +363,11 @@ export const occurrenceConversationMessages = pgTable(
     uniqueIndex('occurrence_conversation_messages_client_message_unique')
       .on(table.companyId, table.conversationId, table.direction, table.clientMessageId)
       .where(sql`${table.clientMessageId} is not null`),
+    /** Só a recebida tem e-mail detectado, e só o detectado pode ter saído. */
+    check(
+      'occurrence_conversation_messages_detected_email_check',
+      sql`(${table.detectedEmail} is null or ${table.direction} = 'inbound') and (${table.detectedEmailSentAt} is null or ${table.detectedEmail} is not null)`,
+    ),
     check(
       'occurrence_conversation_messages_body_length_check',
       sql`length(${table.bodyText}) <= 8000`,

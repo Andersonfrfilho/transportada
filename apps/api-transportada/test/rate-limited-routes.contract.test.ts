@@ -525,6 +525,17 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         },
         signature: 'POST /me/trips/current/occurrences/:id/client-boleto-emails/send',
       },
+      /** Spec 279 T4b: o cartão do e-mail escrito na conversa usa o mesmo balde do envio. */
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'driver-client-boleto-email-send',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature:
+          'POST /me/trips/current/occurrences/:id/client-boleto-emails/detected/:messageId/send',
+      },
     ])
   })
 
