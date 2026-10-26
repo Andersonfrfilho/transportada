@@ -18,7 +18,7 @@ endereço a cada vez, e esse endereço não é guardado. O motorista, que está 
 
 Resultado:
 
-1. O cadastro do **cliente de entrega** ganha **e-mails para boleto** (finalidade `boleto`): um ou vários, com rótulo
+1. O cadastro do **cliente de entrega** ganha **e-mails para boleto** (tipo `boleto`; o cadastro aceita outros tipos, ver D1): um ou vários, com rótulo
    opcional ("financeiro", "dono"). Fica no cadastro e serve a todo envio futuro.
 2. No painel, na ocorrência com o boleto aceito, o botão **"Enviar boleto ao cliente"** abre a lista dos e-mails do
    cadastro (marcados), mais o e-mail da nota, se houver, mais o campo "outro e-mail" com a opção **"Guardar no cadastro
@@ -32,16 +32,18 @@ Resultado:
 
 - Envio **automático** sem toque quando o motorista informa o e-mail (continua o `forward_to_note_recipient = automatic`
   da 248, só para o e-mail da nota). Se o dono quiser automático também para os e-mails do cadastro, é decisão nova.
-- Outras finalidades de e-mail do cliente (cobrança, NF-e): o modelo já nasce com `purpose`, mas só `boleto` tem tela.
+- Usar os tipos `invoice`, `finance` e `general` em outros fluxos: eles já são cadastráveis (D1), mas só `boleto` é lido por
+  um envio nesta spec.
 - E-mail do cliente na ocorrência de devolução (247).
 
 ## Decisões
 
 - **D1 — Onde mora.** Tabela nova `delivery_client_emails (id, company_id, tax_id, purpose, address, label, created_by,
 created_at)`, chave estrangeira em `(company_id, tax_id)` de `delivery_clients`, único `(company_id, tax_id, purpose,
-lower(address))`, `purpose` CHECK `('boleto')`, endereço com o mesmo padrão e limite de 254 de `nfe_documents.recipient_email`.
-  Não vai coluna em `delivery_clients` porque são vários e porque a finalidade é parte do modelo.
-- **D2 — Máximo.** 10 e-mails por cliente e finalidade (`422 DELIVERY_CLIENT_EMAIL_LIMIT_REACHED`), para o cadastro não
+lower(address))`, `purpose` (o **tipo** do e-mail) CHECK `('boleto','invoice','finance','general')` — boleto, nota fiscal, financeiro e geral —
+  com o vocabulário numa constante só, e um e-mail pode existir em mais de um tipo (a unicidade inclui o tipo), endereço com o mesmo padrão e limite de 254 de `nfe_documents.recipient_email`.
+  Não vai coluna em `delivery_clients` porque são vários e porque o tipo é parte do modelo.
+- **D2 — Máximo.** 10 e-mails por cliente e tipo (`422 DELIVERY_CLIENT_EMAIL_LIMIT_REACHED`), para o cadastro não
   virar lista de transmissão.
 - **D3 — Reuso do trilho de envio.** O envio ao cliente é um novo alvo, `client_boleto_emails`, do mesmo
   `forward-contractor-reply-by-email`: um e-mail por endereço, sem token de resposta, entrega em
@@ -82,13 +84,14 @@ muda, e o motorista e o painel passam a ver a mudança no próximo envio.
 
 ## Requisitos funcionais
 
-- **RF1** `GET/POST/PATCH/DELETE /delivery-clients/:taxId/emails?purpose=boleto` (painel), com limite e validação de D1/D2.
+- **RF1** `GET/POST/PATCH/DELETE /delivery-clients/:taxId/emails?type=boleto` (painel), com limite e validação de D1/D2.
 - **RF2** `GET /me/trips/current/occurrences/:id/client-boleto-emails` devolve os e-mails guardados **mascarados** com um
   `emailId` opaco; o motorista escolhe por `emailId`, nunca por endereço, para os já guardados.
 - **RF3** `POST /me/trips/current/occurrences/:id/client-boleto-emails/send` com `{ emailIds?: string[], newAddress?: string,
 save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado por endereço (mascarado).
 - **RF4** `POST` do painel do encaminhamento da 248 aceita `emailIds` além de `address`/alvo da nota, com `save`.
-- **RF5** Painel: seção "E-mails para boleto" na tela do cliente; seletor múltiplo no botão da ocorrência.
+- **RF5** Painel: seção "E-mails do cliente" na tela do cliente, agrupada por tipo, com seletor de tipo ao adicionar (o tipo
+  `boleto` vem selecionado quando se chega pelo botão do boleto); seletor múltiplo no botão da ocorrência.
 - **RF6** App do motorista: botão "Enviar ao cliente" na conversa da ocorrência com boleto, folha com a lista, campo de
   e-mail novo e "Guardar para este cliente".
 - **RF7** Linha do tempo (278): "Boleto enviado ao cliente" com o ator e o endereço mascarado.

@@ -9,7 +9,7 @@
 - [ ] **T3** (opus) Novo alvo `client_boleto_emails` no `forward-contractor-reply-by-email` (D3) com `emailIds` e `save`;
       paridade API/worker; integração CA2.
 - [ ] **T4** (sonnet) Rotas do motorista (RF2/RF3) com escopo de viagem/empresa e limite; integração CA3.
-- [ ] **T5** (sonnet) Painel: seção "E-mails para boleto" na tela do cliente e seletor no botão da ocorrência (RF5); prévia
+- [ ] **T5** (sonnet) Painel: seção "E-mails do cliente" (por tipo) na tela do cliente e seletor no botão da ocorrência (RF5); prévia
       com print.
 - [ ] **T6** (sonnet) App do motorista: botão e folha "Enviar ao cliente" (RF6), fila offline com `idempotencyKey`; prévia
       com print.
