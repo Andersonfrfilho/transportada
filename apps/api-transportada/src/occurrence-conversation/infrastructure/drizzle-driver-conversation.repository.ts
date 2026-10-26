@@ -28,7 +28,10 @@ import { OCCURRENCE_CONVERSATION_SUBJECT } from '../../shared/occurrence-convers
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
-import { systemNoticeField } from '../domain/occurrence-conversation-system-notice.policy.js'
+import {
+  describeSystemNoticeAuthor,
+  readSystemNotice,
+} from '../domain/occurrence-conversation-system-notice.policy.js'
 import { requireOccurrenceId } from '../domain/occurrence-subject.policy.js'
 import { describeOccurrenceLabel } from '../domain/occurrence-label.policy.js'
 import {
@@ -374,10 +377,14 @@ export function createTransactionPort(transaction: Transaction): DriverConversat
           asc(occurrenceConversationMessages.createdAt),
           asc(occurrenceConversationMessages.id),
         )
-      return rows.map(({ systemNotice, ...message }) => ({
-        ...message,
-        ...systemNoticeField(systemNotice),
-      }))
+      return rows.map(({ systemNotice, ...message }) => {
+        const notice = readSystemNotice(systemNotice)
+        return {
+          ...message,
+          authorName: describeSystemNoticeAuthor(notice, message.authorName),
+          ...(notice === undefined ? {} : { systemNotice: notice }),
+        }
+      })
     },
   }
 }

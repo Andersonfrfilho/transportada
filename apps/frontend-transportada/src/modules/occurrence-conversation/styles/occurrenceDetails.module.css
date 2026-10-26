@@ -144,3 +144,41 @@
   font-family: var(--font-utility);
   font-size: var(--field-font-size-compact);
 }
+
+/* Spec 279 T6b (RF12): o estado do envio ao cliente, uma linha por endereço. */
+.sendList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sendRow {
+  display: grid;
+  gap: var(--space-1);
+  padding-block-end: var(--space-2);
+  border-block-end: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+  overflow-wrap: anywhere;
+}
+
+.sendStateLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.sendStateSent {
+  color: var(--color-ready);
+}
+
+.sendStateQueued {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+}
+
+.sendStateFailed {
+  color: var(--color-alert);
+}

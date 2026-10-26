@@ -27,7 +27,7 @@ type OccurrenceDetailsPanelProps = Readonly<{
   companyId?: string
   occurrenceId: string
   /**
-   * Spec 279 T6b: o estado do envio ao cliente (Enviado/Falhou) entra aqui depois da T6b; a T6c deixa o espaço.
+   * Spec 279 T6b: o estado do envio ao cliente (Enviado/Falhou, com "Tentar de novo"), de `ClientEmailSendState`.
    * Sem nada, a seção não aparece.
    */
   sendState?: ReactNode

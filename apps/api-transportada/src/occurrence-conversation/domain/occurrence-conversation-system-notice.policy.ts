@@ -46,3 +46,20 @@ export function systemNoticeField(
   const systemNotice = readSystemNotice(raw)
   return systemNotice === undefined ? {} : { systemNotice }
 }
+
+const SYSTEM_AUTHOR_LABEL = 'Sistema'
+const SYSTEM_AUTHOR_SEPARATOR = ' · '
+
+/**
+ * Quem aparece como autor da linha do sistema no app do motorista: "Sistema" e, quando uma pessoa enviou, o nome dela
+ * ("Sistema · Marta"). O automático não tem nome. O app só desenha o autor que a API manda.
+ */
+export function describeSystemNoticeAuthor(
+  notice: OccurrenceConversationSystemNoticeView | undefined,
+  fallback: null | string,
+): null | string {
+  if (notice === undefined) return fallback
+  return notice.actorName === null
+    ? SYSTEM_AUTHOR_LABEL
+    : `${SYSTEM_AUTHOR_LABEL}${SYSTEM_AUTHOR_SEPARATOR}${notice.actorName}`
+}

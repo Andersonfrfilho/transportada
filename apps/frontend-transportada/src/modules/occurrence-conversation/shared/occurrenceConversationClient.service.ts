@@ -77,6 +77,11 @@ export type OccurrenceConversationClient = Readonly<{
     occurrenceId: string
     save?: boolean
   }) => Promise<ClientEmailSendOutcome>
+  /** Spec 279 T6b (RF12): "Tentar de novo" de uma entrega ao cliente que o provedor recusou; a API lê o endereço dela. */
+  retryContractorReplyClientDelivery: (input: {
+    deliveryId: string
+    occurrenceId: string
+  }) => Promise<ClientEmailSendOutcome>
   assignUnassigned: (input: { conversationId: string; unassignedId: string }) => Promise<void>
   listUnassigned: () => Promise<readonly UnassignedMessage[]>
   listConversations: (input: { occurrenceId: string }) => Promise<OccurrenceConversationsView>
@@ -176,6 +181,21 @@ function toCopy(value: unknown): readonly OccurrenceConversationCopyEntry[] {
   )
 }
 
+const SYSTEM_NOTICE_ACTOR_KINDS = ['driver', 'office', 'system'] as const
+
+/** Forma desconhecida some: a mensagem segue lida como a automática comum, nunca como balão enganoso. */
+function toSystemNotice(value: unknown): OccurrenceConversationMessage['systemNotice'] {
+  if (!isRecord(value) || value.kind !== 'client_boleto_email_sent') return undefined
+  const actorKind = SYSTEM_NOTICE_ACTOR_KINDS.find((known) => known === value.actorKind)
+  if (actorKind === undefined || !isString(value.deliveryId)) return undefined
+  return {
+    actorKind,
+    actorName: isString(value.actorName) && value.actorName !== '' ? value.actorName : null,
+    deliveryId: value.deliveryId,
+    kind: 'client_boleto_email_sent',
+  }
+}
+
 function toMessage(value: unknown): null | OccurrenceConversationMessage {
   if (
     !isRecord(value) ||
@@ -204,6 +224,7 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
       )
     : {}
   const copy = toCopy(value.copy)
+  const systemNotice = toSystemNotice(value.systemNotice)
   return {
     /** O áudio traz a duração e a transcrição (264); campo que o painel não conhece some, nunca o anexo. */
     attachments: toAttachmentsWithAudioFields(value.attachments),
@@ -219,6 +240,7 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
     id: value.id,
     status: value.status,
     statusTimes,
+    ...(systemNotice === undefined ? {} : { systemNotice }),
   }
 }
 
@@ -505,6 +527,14 @@ export function createOccurrenceConversationClient(
           headers: { 'idempotency-key': idempotencyKey },
           method: 'POST',
         },
+      )
+      return readClientEmailSendOutcome(payload)
+    },
+    async retryContractorReplyClientDelivery({ deliveryId, occurrenceId }) {
+      const payload = await requestJson(
+        dependencies,
+        `${contractorReplyPath(occurrenceId)}/email-deliveries/${encodeURIComponent(deliveryId)}/retry`,
+        { method: 'POST' },
       )
       return readClientEmailSendOutcome(payload)
     },

@@ -113,6 +113,16 @@ export type OccurrenceConversationMessage = Readonly<{
   id: string
   status: null | OccurrenceConversationMessageStatus
   statusTimes: Readonly<Record<string, string>>
+  /** Spec 279 T6b (RF12): presente só na mensagem do sistema ("Boleto enviado para o e-mail: …"). */
+  systemNotice?: OccurrenceConversationSystemNotice
+}>
+
+/** Quem enviou o boleto: a empresa, o motorista pelo app ou o Sistema (envio automático, sem nome). */
+export type OccurrenceConversationSystemNotice = Readonly<{
+  actorKind: 'driver' | 'office' | 'system'
+  actorName: null | string
+  deliveryId: string
+  kind: 'client_boleto_email_sent'
 }>
 
 export type OccurrenceConversation = Readonly<{

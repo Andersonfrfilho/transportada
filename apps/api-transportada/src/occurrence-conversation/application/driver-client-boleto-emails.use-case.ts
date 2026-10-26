@@ -28,10 +28,34 @@ export type DriverClientBoletoEmailsScope = {
   readonly occurrenceId: string
 }
 
+/**
+ * Spec 279 T6b (RF12): o estado do envio ao cliente. O motorista vê o endereço por inteiro porque a conversa dele já o
+ * mostra no aviso do sistema; a lista só traz o envio ao cliente, e nunca o motivo da recusa do provedor.
+ */
+export type DriverClientBoletoEmailDelivery = {
+  readonly address: string
+  readonly id: string
+  readonly sentAt: null | string
+  readonly status: 'failed' | 'queued' | 'sent'
+}
+
 export type DriverClientBoletoEmails = Pick<
   ContractorReplyEmailOptions,
   'clientEmailType' | 'clientEmails' | 'sentCount' | 'sentLimit'
->
+> & { readonly deliveries: readonly DriverClientBoletoEmailDelivery[] }
+
+const DRIVER_VISIBLE_DELIVERY_STATUSES = ['failed', 'queued', 'sent'] as const
+
+function toDriverDeliveries(
+  options: ContractorReplyEmailOptions,
+): readonly DriverClientBoletoEmailDelivery[] {
+  return options.deliveries.flatMap((delivery) => {
+    const status = DRIVER_VISIBLE_DELIVERY_STATUSES.find((known) => known === delivery.status)
+    if (delivery.target !== 'client_boleto_emails' || delivery.address === null) return []
+    if (status === undefined) return []
+    return [{ address: delivery.address, id: delivery.id, sentAt: delivery.sentAt, status }]
+  })
+}
 
 export type SendDriverClientBoletoEmailsInput = DriverClientBoletoEmailsScope & {
   readonly correlationId: string
@@ -75,6 +99,7 @@ export function createDriverClientBoletoEmailsUseCase(dependencies: {
       return {
         clientEmailType: options.clientEmailType,
         clientEmails: options.clientEmails,
+        deliveries: toDriverDeliveries(options),
         sentCount: options.sentCount,
         sentLimit: options.sentLimit,
       }

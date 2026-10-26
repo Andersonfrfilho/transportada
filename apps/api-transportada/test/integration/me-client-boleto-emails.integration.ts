@@ -170,6 +170,12 @@ describe('os e-mails do cliente para o boleto no app do motorista (spec 279 T4, 
         const sent = await useCase.send(sendOf(scope, { emailIds: [client.financeId] }))
         expect(sent.results).toMatchObject([{ emailId: client.financeId, kind: 'queued' }])
         expect(JSON.stringify(sent)).not.toContain(FINANCE_EMAIL)
+        /** Spec 279 T6b (RF12): o estado do envio chega ao motorista com o endereço que a conversa dele já mostra. */
+        const afterSend = await useCase.list(scope)
+        expect(afterSend.deliveries).toMatchObject([
+          { address: FINANCE_EMAIL, sentAt: null, status: 'queued' },
+        ])
+        expect(JSON.stringify(afterSend.clientEmails)).not.toContain(FINANCE_EMAIL)
 
         const withNew = await useCase.send(sendOf(scope, { newAddress: NEW_EMAIL, save: true }))
         expect(withNew.results).toMatchObject([{ kind: 'queued' }])
