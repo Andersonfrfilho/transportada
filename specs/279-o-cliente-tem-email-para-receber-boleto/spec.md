@@ -115,6 +115,11 @@ save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado p
   cliente" e o cartão da ocorrência têm "Adicionar e-mail": ele digita, a API valida, e ele escolhe **só enviar** ou **enviar
   e guardar para o cliente**. No painel, o botão da ocorrência e a seção da tela do cliente têm o mesmo "Adicionar e-mail"
   (com escolha do tipo). Vale com o tipo em `manual` ou `automatic`; o que o motorista adiciona aparece no painel e vice-versa.
+- **RF12** **Estado "Enviado" e aviso no chat.** Cada envio ao cliente (manual ou automático) grava na conversa da ocorrência
+  uma mensagem do sistema "Boleto enviado para o e-mail: fulano@mercado.com" (um por endereço, com a hora e quem enviou),
+  visível ao motorista e ao painel. A ocorrência no painel ganha o estado **Enviado** (com a lista dos endereços e a hora), e
+  **Falhou** com "Tentar de novo" quando o provedor recusa. O endereço aparece por inteiro só nesta mensagem e na tela, que
+  são da própria empresa; log, evento e resposta de listagem continuam mascarados.
 - **RF7** Linha do tempo (278): "Boleto enviado ao cliente" com o ator e o endereço mascarado.
 
 ## Requisitos não funcionais
