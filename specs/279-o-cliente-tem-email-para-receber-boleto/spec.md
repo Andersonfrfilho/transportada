@@ -94,6 +94,12 @@ save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado p
   `boleto` vem selecionado quando se chega pelo botão do boleto); seletor múltiplo no botão da ocorrência.
 - **RF6** App do motorista: botão "Enviar ao cliente" na conversa da ocorrência com boleto, folha com a lista, campo de
   e-mail novo e "Guardar para este cliente".
+- **RF8** **E-mail digitado na conversa.** Quando o motorista escreve na conversa da ocorrência (app ou WhatsApp) uma
+  mensagem com um endereço de e-mail válido, depois que o boleto já foi aceito, a API reconhece o endereço (função única de
+  extração, só o primeiro endereço válido, nunca de anexo) e marca a mensagem com `detected_email`. O motorista recebe, no
+  app, o cartão "Enviar o boleto para a\*\*\*@mercado.com?" com **Enviar** e **Enviar e guardar para o cliente**, e o painel
+  mostra o mesmo cartão ao operador na conversa. **Nada sai sem o toque**: reconhecer não é enviar. No WhatsApp, o motorista
+  confirma respondendo "1" ao aviso da API. O endereço detectado não vai em log nem em evento, só no banco.
 - **RF7** Linha do tempo (278): "Boleto enviado ao cliente" com o ator e o endereço mascarado.
 
 ## Requisitos não funcionais
