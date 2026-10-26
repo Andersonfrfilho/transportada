@@ -9,7 +9,10 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
-import { resolveFieldOccurrenceDialogMode } from '../shared/fieldOccurrenceBatch.service'
+import {
+  resolveFieldOccurrenceDialogFields,
+  resolveFieldOccurrenceDialogMode,
+} from '../shared/fieldOccurrenceBatch.service'
 import type { FieldOccurrenceType } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
@@ -69,13 +72,21 @@ export function FieldOccurrenceDialog({
   if (!isOpen) return null
 
   const mode = resolveFieldOccurrenceDialogMode(documentIds)
+  const fields = resolveFieldOccurrenceDialogFields(
+    types.find((type) => type.id === occurrenceTypeId),
+  )
   const canSubmit = occurrenceTypeId !== '' && !isSubmitting
 
   function handleSubmit(): void {
     if (!canSubmit) return
     const driverIdInput = driverId === '' ? {} : { driverId }
-    const fileInput = file === null ? {} : { file }
-    onSubmit({ note: note.trim(), occurrenceTypeId, ...driverIdInput, ...fileInput })
+    const fileInput = file === null || !fields.hasPhoto ? {} : { file }
+    onSubmit({
+      note: fields.hasNote ? note.trim() : '',
+      occurrenceTypeId,
+      ...driverIdInput,
+      ...fileInput,
+    })
   }
 
   return createPortal(
@@ -134,27 +145,33 @@ export function FieldOccurrenceDialog({
           </label>
         ) : null}
 
-        <label>
-          {t('fieldOccurrence.noteLabel')}
-          <textarea onChange={(event) => setNote(event.target.value)} value={note} />
-        </label>
+        {fields.hasNote ? (
+          <label>
+            {t('fieldOccurrence.noteLabel')}
+            <textarea onChange={(event) => setNote(event.target.value)} value={note} />
+          </label>
+        ) : null}
 
-        <FileField
-          accept="image/*"
-          actionLabel={t('fieldOccurrence.photoChoose')}
-          {...(file === null ? {} : { fileName: file.name })}
-          label={t('fieldOccurrence.photoLabel')}
-          onSelect={(selected) => setFile(selected ?? null)}
-          placeholder={t('fieldOccurrence.photoEmpty')}
-          resetAfterSelect
-        />
-        <p className={styles.hint}>{t('fieldOccurrence.photoHint')}</p>
-        {file === null ? null : (
-          <Button onClick={() => setFile(null)} size="sm" type="button" variant="ghost">
-            <Icon name="remove" />
-            {t('fieldOccurrence.photoRemove')}
-          </Button>
-        )}
+        {fields.hasPhoto ? (
+          <>
+            <FileField
+              accept="image/*"
+              actionLabel={t('fieldOccurrence.photoChoose')}
+              {...(file === null ? {} : { fileName: file.name })}
+              label={t('fieldOccurrence.photoLabel')}
+              onSelect={(selected) => setFile(selected ?? null)}
+              placeholder={t('fieldOccurrence.photoEmpty')}
+              resetAfterSelect
+            />
+            <p className={styles.hint}>{t('fieldOccurrence.photoHint')}</p>
+            {file === null ? null : (
+              <Button onClick={() => setFile(null)} size="sm" type="button" variant="ghost">
+                <Icon name="remove" />
+                {t('fieldOccurrence.photoRemove')}
+              </Button>
+            )}
+          </>
+        ) : null}
 
         <footer className={styles.mdfeGateFooter}>
           <Button onClick={onClose} size="sm" type="button" variant="ghost">
