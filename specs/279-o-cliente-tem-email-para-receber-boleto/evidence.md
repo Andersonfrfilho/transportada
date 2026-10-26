@@ -120,7 +120,7 @@ client_without_email` sem endereço, por (retorno, anexo). O teto de 5 por ocorr
   validador da 248 (`parseContractorReplyEmailAddress`); "1" sozinho é a confirmação do WhatsApp.
 - `createDetectedClientEmailUseCase`, chamado depois do commit da mensagem do motorista (app e WhatsApp, nunca no replay
   idempotente). Só age em conversa de ocorrência com o motorista, boleto aceito (`reply_attachment_id`) e
-  `client_email_type <> off`. `manual`: grava `detected_email` e, no WhatsApp, responde "Enviar o boleto para f***@m***.com?
+  `client_email_type <> off`. `manual`: grava `detected_email` e, no WhatsApp, responde "Enviar o boleto para f**_@m_**.com?
   Responda a esta mensagem com 1". `automatic` (RF10b): sai na hora, sem cartão. O envio é sempre `forwardToClient` da
   T3 (chave `detected-email:<mensagem>` no automático e no "1"), e o endereço só entra no cadastro com "Enviar e guardar".
   Falha nunca derruba a mensagem; o log leva só o nome do erro e nenhum endereço sai em claro.
