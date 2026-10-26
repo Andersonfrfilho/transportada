@@ -299,9 +299,13 @@ jobs:
         run: bun run --cwd apps/frontend-transportada playwright install chromium
       # Teto próprio: espelho pendurado vira passo vermelho em 5 minutos, com nome, em vez de gate
       # cancelado no fim do job sem dizer onde parou.
+      # Espelho do apt que pendura uma conexão (26/10: 3,5 MB em 1m20s) estourava o teto de 5 minutos.
+      # Timeout curto por conexão + tentativas: o apt desiste da conexão presa e pede de novo.
       - name: Bibliotecas de sistema do Chromium
-        timeout-minutes: 5
-        run: bun run --cwd apps/frontend-transportada playwright install-deps chromium
+        timeout-minutes: 8
+        run: |
+          printf 'Acquire::http::Timeout "20";\nAcquire::Retries "5";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-retry >/dev/null
+          bun run --cwd apps/frontend-transportada playwright install-deps chromium
       - run: make identity-bootstrap
       - name: Local authenticated smoke
         run: |
