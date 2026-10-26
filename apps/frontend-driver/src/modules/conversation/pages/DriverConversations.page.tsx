@@ -21,6 +21,7 @@ import {
   parseDriverConversationSubject,
 } from '@/modules/shared/driverRoute.service'
 
+import { DetectedClientEmailCard } from '../components/DetectedClientEmailCard.component'
 import { OccurrenceDetailsCard } from '../components/OccurrenceDetailsCard.component'
 import { OccurrenceDetailsSheet } from '../components/OccurrenceDetailsSheet.component'
 import { createComposerLockRenderer } from '../components/DriverComposerLock.component'
@@ -39,6 +40,7 @@ import { buildDriverSubjectGroups } from '../shared/driverSubjectGroups.constant
 import { renderDriverSubjectIcon } from '../shared/driverSubjectIcon.service'
 import { conversationSubjectKey } from '../shared/conversationSnapshot.service'
 import styles from '../styles/conversation.module.css'
+import detectedEmailStyles from '../styles/detectedClientEmail.module.css'
 
 const ParticipantConversations = lazy(async () => {
   const module = await import('@adatechnology/conversations-ui/participant')
@@ -140,7 +142,14 @@ export function DriverConversationsPage() {
             renderComposerLock={renderComposerLock}
             renderSubjectCard={(conversation) =>
               conversation.subjectType === DRIVER_CONVERSATION_SUBJECT_TYPE ? (
-                <OccurrenceDetailsCard onOpen={() => setDetailsFor(conversation.subjectId)} />
+                <div className={detectedEmailStyles.stack}>
+                  {/* Spec 279 T4b (RF8): o e-mail que ele escreveu na conversa, com o envio a um toque. */}
+                  <DetectedClientEmailCard
+                    canSync={canSync}
+                    occurrenceId={conversation.subjectId}
+                  />
+                  <OccurrenceDetailsCard onOpen={() => setDetailsFor(conversation.subjectId)} />
+                </div>
               ) : null
             }
             onBack={handleBack}

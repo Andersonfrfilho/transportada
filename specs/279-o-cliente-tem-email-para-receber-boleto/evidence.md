@@ -110,3 +110,31 @@ client_without_email` sem endereço, por (retorno, anexo). O teto de 5 por ocorr
   contrato do tipo (`client-email-type-write.contract.ts`) e do painel. `bun run test`: API 12594 pass / 0 fail, painel
   8524 + 1412 pass, worker 2824 pass com as 5 falhas só de ambiente (leitor de código de barras). `tsc` e `eslint` dos
   arquivos tocados verdes nas três apps.
+
+## T4b — e-mail digitado na conversa (26/10/2026)
+
+- Migration `20261026221939_conversation_message_detected_email`: `detected_email varchar(254)` e
+  `detected_email_sent_at` em `occurrence_conversation_messages`, com CHECK (enviado só com e-mail). `rollback.sql`
+  recusa com e-mail detectado gravado.
+- Domínio (`client-email-detection.policy.ts`): uma única extração, o primeiro endereço válido do texto pelo mesmo
+  validador da 248 (`parseContractorReplyEmailAddress`); "1" sozinho é a confirmação do WhatsApp.
+- `createDetectedClientEmailUseCase`, chamado depois do commit da mensagem do motorista (app e WhatsApp, nunca no replay
+  idempotente). Só age em conversa de ocorrência com o motorista, boleto aceito (`reply_attachment_id`) e
+  `client_email_type <> off`. `manual`: grava `detected_email` e, no WhatsApp, responde "Enviar o boleto para f***@m***.com?
+  Responda a esta mensagem com 1". `automatic` (RF10b): sai na hora, sem cartão. O envio é sempre `forwardToClient` da
+  T3 (chave `detected-email:<mensagem>` no automático e no "1"), e o endereço só entra no cadastro com "Enviar e guardar".
+  Falha nunca derruba a mensagem; o log leva só o nome do erro e nenhum endereço sai em claro.
+- Decisão: o automático e o "1" não guardam o endereço no cliente (`save:false`). Nenhum campo do tipo diz "guarda se o
+  tipo permitir"; guardar fica no toque explícito do cartão.
+- Limite: no WhatsApp a mensagem do motorista só chega à conversa citando uma nossa (regra atual de atribuição), então o
+  "1" precisa responder ao aviso.
+- Rotas: motorista `GET/POST /me/.../client-boleto-emails/detected[/:messageId/send]` (mesmo balde de rate limit);
+  painel `GET/POST /trip-occurrences/:id/contractor-reply/detected-client-email[/:messageId/send]` (`WRITE_POLICY`,
+  `idempotency-key`). 404 `DETECTED_CLIENT_EMAIL_NOT_FOUND`.
+- Telas: `DetectedClientEmailCard` no painel (avisos da conversa do motorista) e no app (`renderSubjectCard`), com
+  "Enviar" e "Enviar e guardar para o cliente", estados enviado/falhou. Prévias em
+  `/mnt/project-files/previews/email-digitado-t4b/`.
+- Testes: integração `detected-client-email.integration.ts` 4 pass (+ `me-client-boleto-emails` 8 pass); migration 231
+  pass com Postgres 16 descartável; contratos de detecção (mensagens reais, vários endereços, mascarado/inválido), hook
+  do WhatsApp, rate limit e painel/app. `bun run test`: API 12618 pass / 0 fail, painel 8551 + 1419 pass, motorista 2116
+  pass. `tsc`, `eslint` e `prettier` verdes nas três apps.

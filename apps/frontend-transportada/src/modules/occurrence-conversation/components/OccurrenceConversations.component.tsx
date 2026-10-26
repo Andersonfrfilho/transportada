@@ -51,6 +51,7 @@ import {
   OccurrenceThreadAttachments,
   type RenderAttachmentActions,
 } from './OccurrenceThreadAttachments.component'
+import { DetectedClientEmailCard } from './DetectedClientEmailCard.component'
 import { OccurrenceThreadFailures } from './OccurrenceThreadFailures.component'
 import { OccurrenceThreadSummary } from './OccurrenceThreadSummary.component'
 import { OccurrenceThreadSenders } from './OccurrenceThreadSenders.component'
@@ -216,6 +217,8 @@ function DriverConversationPanel({
             {t('message.forwardError')}
           </p>
         ) : null}
+        {/* Spec 279 T4b (RF8): o e-mail que o motorista escreveu na conversa, com o envio a um toque. */}
+        <DetectedClientEmailCard isEnabled={canSend} occurrenceId={occurrenceId} />
         <OccurrenceThreadFailures
           canResend={canSend}
           messages={messages}
