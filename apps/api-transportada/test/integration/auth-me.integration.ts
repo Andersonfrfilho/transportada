@@ -83,6 +83,8 @@ describe('GET /auth/me PostgreSQL isolation', () => {
           config: {
             apiPublicUrl: undefined,
             driverAddressLookupUrl: undefined,
+            driverTripLockEnabled: false,
+            driverTripLockMinScore: 70,
             appEnv: 'test',
             bootstrapToken: undefined,
             clientIpPolicy: { source: 'x-real-ip', trustedProxyHops: 1 },

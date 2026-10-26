@@ -220,6 +220,17 @@ const environmentSchema = z.object({
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.enum(NFSE_PROVIDER_API_VERSIONS).default(DEFAULT_NFSE_PROVIDER_API_VERSION),
   ),
+  // Trava de uma viagem por vez no pedido de prorrogação do motorista. Desligada por padrão; ligar é
+  // `true` e reiniciar a API. O corte é a nota do motorista (0-100): abaixo dele (ou sem nota), só a
+  // viagem em andamento. O escritório nunca é travado.
+  DRIVER_TRIP_LOCK_ENABLED: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.enum(['true', 'false']).default('false'),
+  ),
+  DRIVER_TRIP_LOCK_MIN_SCORE: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.coerce.number().min(0).max(100).default(70),
+  ),
   // Spec 264: teto de duração do áudio transcrito, só informado pela API (o worker aplica o mesmo valor).
   AUDIO_TRANSCRIPTION_MAX_DURATION_MS: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
@@ -469,6 +480,8 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     driverAddressLookupUrl: parsed.DRIVER_ADDRESS_LOOKUP_URL,
     audioTranscriptionMaxDurationMs: parsed.AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
+    driverTripLockEnabled: parsed.DRIVER_TRIP_LOCK_ENABLED === 'true',
+    driverTripLockMinScore: parsed.DRIVER_TRIP_LOCK_MIN_SCORE,
     nfseProviderApiVersion: parsed.NFSE_PROVIDER_API_VERSION,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,
