@@ -11,8 +11,9 @@
 - [x] **T4** (sonnet) Rotas do motorista (RF2/RF3) com escopo de viagem/empresa e limite; integração CA3. `GET` e `POST .../send`
       em `/me/trips/current/occurrences/:id/client-boleto-emails` (`me-client-boleto-emails.routes.ts`); o motorista só
       adiciona (RF11), editar e remover é do painel; recusa `409` com tipo `off` ou encaminhamento desligado (D5).
-- [ ] **T5** (sonnet) Painel: seção "E-mails do cliente" (por tipo) na tela do cliente e seletor no botão da ocorrência (RF5); prévia
+- [x] **T5** (sonnet) Painel: seção "E-mails do cliente" (por tipo) na tela do cliente e seletor no botão da ocorrência (RF5); prévia
       com print.
+      Entregue: `DeliveryClientEmailsPanel` (tela do cliente), `ClientBoletoEmailAction` (linha e página da ocorrência), prévias de tela com o dono.
 - [ ] **T6** (sonnet) App do motorista: botão e folha "Enviar ao cliente" (RF6), fila offline com `idempotencyKey`; prévia
       com print.
 - [x] **T3b** (sonnet) Campo `client_email_type` em `company_occurrence_types` (RF9): migration aditiva, validação, aba Tipos,

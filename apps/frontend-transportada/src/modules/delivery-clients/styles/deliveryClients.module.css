@@ -304,3 +304,81 @@
   border-top: 0;
   padding-top: 0;
 }
+
+/* Spec 279 T5: e-mails do cliente de entrega, agrupados por tipo. */
+.clientEmails {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.clientEmailsHead {
+  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.clientEmailsHead h3,
+.clientEmailGroup h4 {
+  margin: 0;
+}
+
+.clientEmailForm {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.clientEmailForm input {
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.clientEmailForm input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.clientEmailGroup {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.clientEmailList {
+  display: grid;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.clientEmailRow {
+  align-items: center;
+  border-bottom: 1px solid var(--color-graphite);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+}
+
+.clientEmailMain,
+.clientEmailActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.clientEmailMain {
+  overflow-wrap: anywhere;
+}

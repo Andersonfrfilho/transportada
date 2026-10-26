@@ -245,7 +245,8 @@
       "title": "Boleto enviado por e-mail",
       "target": {
         "note_recipient_email": "Cliente da nota",
-        "informed_email": "E-mail informado"
+        "informed_email": "E-mail informado",
+        "client_boleto_emails": "Cadastro do cliente"
       },
       "status": {
         "queued": "na fila",
@@ -549,6 +550,33 @@
     "forwardToContractor": "Encaminhar à contratante",
     "forwarded": "Encaminhada",
     "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
+  },
+  "clientEmail": {
+    "title": "Enviar ao cliente",
+    "hint": "O boleto vai em anexo, com o assunto e o texto do tipo da ocorrência. Sai um e-mail por endereço.",
+    "open": "Enviar ao cliente",
+    "add": "Adicionar e-mail",
+    "close": "Fechar",
+    "saved": "E-mails do cliente",
+    "noneSaved": "Este cliente ainda não tem e-mail guardado. Informe um abaixo.",
+    "otherAddress": "Outro e-mail",
+    "save": "Guardar no cadastro do cliente",
+    "cancel": "Cancelar",
+    "send": "Enviar",
+    "sending": "Enviando…",
+    "done": "Concluir",
+    "savedNow": "O e-mail ficou guardado no cadastro do cliente.",
+    "result": {
+      "queued": "na fila para envio",
+      "already_queued": "já enviado antes",
+      "skipped": "não enviado",
+      "failed": "falhou"
+    },
+    "failure": {
+      "off": "Este tipo de ocorrência não envia ao cliente. Confira a aba Tipos.",
+      "registryLimit": "O cliente já tem o máximo de e-mails guardados. Envie sem guardar ou remova algum na tela do cliente.",
+      "emailGone": "Um dos e-mails foi removido do cadastro. Feche e abra de novo."
+    }
   },
   "details": {
     "open": "Ver detalhes",

@@ -8,10 +8,13 @@ import { isRecord, isString } from './occurrenceConversationGuards.validation'
 import { toAttachmentsWithAudioFields } from './audioAttachmentFields.service'
 import {
   readContractorReplyEmailOptions,
+  readClientEmailSendOutcome,
   readContractorReplyEmailOutcome,
+  type ClientEmailSendOutcome,
   type ContractorReplyEmailOptions,
   type ContractorReplyEmailOutcome,
   type ContractorReplyEmailTarget,
+  CLIENT_BOLETO_EMAILS_TARGET,
 } from './contractorReplyEmail.service'
 
 import { type ConversationAttachmentChannel } from './conversationAttachment.service'
@@ -65,6 +68,15 @@ export type OccurrenceConversationClient = Readonly<{
   readContractorReplyEmailOptions: (input: {
     occurrenceId: string
   }) => Promise<ContractorReplyEmailOptions | null>
+  /** Spec 279 T3/T5: o boleto aos e-mails do cadastro do cliente e/ou a um novo (`save` o guarda). */
+  forwardContractorReplyToClient: (input: {
+    address?: string
+    attachmentId?: string
+    emailIds?: readonly string[]
+    idempotencyKey: string
+    occurrenceId: string
+    save?: boolean
+  }) => Promise<ClientEmailSendOutcome>
   assignUnassigned: (input: { conversationId: string; unassignedId: string }) => Promise<void>
   listUnassigned: () => Promise<readonly UnassignedMessage[]>
   listConversations: (input: { occurrenceId: string }) => Promise<OccurrenceConversationsView>
@@ -470,6 +482,31 @@ export function createOccurrenceConversationClient(
         },
       )
       return readContractorReplyEmailOutcome(payload)
+    },
+    async forwardContractorReplyToClient({
+      address,
+      attachmentId,
+      emailIds,
+      idempotencyKey,
+      occurrenceId,
+      save,
+    }) {
+      const payload = await requestJson(
+        dependencies,
+        `${contractorReplyPath(occurrenceId)}/email-delivery`,
+        {
+          body: {
+            target: CLIENT_BOLETO_EMAILS_TARGET,
+            ...(address === undefined ? {} : { address }),
+            ...(attachmentId === undefined ? {} : { attachmentId }),
+            ...(emailIds === undefined || emailIds.length === 0 ? {} : { emailIds }),
+            ...(save === true ? { save } : {}),
+          },
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        },
+      )
+      return readClientEmailSendOutcome(payload)
     },
     async readContractorReplyEmailOptions({ occurrenceId }) {
       const payload = await requestJson(

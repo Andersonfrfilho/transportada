@@ -574,3 +574,8 @@
   font-family: var(--font-utility);
   font-size: var(--field-font-size-compact);
 }
+
+/* Spec 279 T5: o botão do cliente na linha da lista não quebra a altura da linha. */
+.clientEmailRowButton {
+  white-space: nowrap;
+}

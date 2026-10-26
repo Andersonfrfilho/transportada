@@ -245,7 +245,8 @@
       "title": "Boleto sent by email",
       "target": {
         "note_recipient_email": "Invoice customer",
-        "informed_email": "Informed email"
+        "informed_email": "Informed email",
+        "client_boleto_emails": "Client record"
       },
       "status": {
         "queued": "queued",
@@ -549,6 +550,33 @@
     "forwardToContractor": "Forward to contractor",
     "forwarded": "Forwarded",
     "forwardError": "Could not forward. Try again shortly."
+  },
+  "clientEmail": {
+    "title": "Send to client",
+    "hint": "The boleto goes attached, with the subject and text of the occurrence type. One e-mail is sent per address.",
+    "open": "Send to client",
+    "add": "Add e-mail",
+    "close": "Close",
+    "saved": "Client e-mails",
+    "noneSaved": "This client has no saved e-mail yet. Enter one below.",
+    "otherAddress": "Another e-mail",
+    "save": "Save to the client record",
+    "cancel": "Cancel",
+    "send": "Send",
+    "sending": "Sending…",
+    "done": "Done",
+    "savedNow": "The e-mail was saved to the client record.",
+    "result": {
+      "queued": "queued to send",
+      "already_queued": "already sent before",
+      "skipped": "not sent",
+      "failed": "failed"
+    },
+    "failure": {
+      "off": "This occurrence type does not send to the client. Check the Types tab.",
+      "registryLimit": "The client already has the maximum number of saved e-mails. Send without saving or remove one on the client screen.",
+      "emailGone": "One of the e-mails was removed from the record. Close and open again."
+    }
   },
   "details": {
     "open": "View details",

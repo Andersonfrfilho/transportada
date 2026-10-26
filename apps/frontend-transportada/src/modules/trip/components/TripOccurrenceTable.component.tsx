@@ -12,6 +12,8 @@ import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
+import { ClientBoletoEmailAction } from '@/modules/occurrence-conversation/components/ClientBoletoEmailAction.component'
+import { isContractorReplyBoletoAccepted } from '@/modules/occurrence-conversation/shared/contractorReplyEmail.service'
 import { ContractorReplyBadge } from '@/modules/occurrence-conversation/components/ContractorReplyBadge.component'
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
@@ -614,6 +616,23 @@ export function TripOccurrenceTable({
                         <OccurrenceCell column={column} item={item} key={column} />
                       ))}
                       <td>
+                        {canResolveOccurrenceCases && item.contractorReply != null ? (
+                          /** O diálogo é portal, mas o clique sobe pela árvore do React até a linha. */
+                          <span
+                            className={styles.occurrenceClientEmail}
+                            onClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => event.stopPropagation()}
+                            role="presentation"
+                          >
+                            <ClientBoletoEmailAction
+                              isEnabled={isContractorReplyBoletoAccepted(
+                                item.contractorReply.status,
+                              )}
+                              occurrenceId={item.id}
+                              placement="row"
+                            />
+                          </span>
+                        ) : null}
                         <Button
                           onClick={() => table.toggleExpanded(item.id)}
                           size="sm"

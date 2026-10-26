@@ -9,7 +9,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  isContractorReplyBoletoAccepted,
   parseInformedAddress,
+  readClientEmailSendOutcome,
+  resolveClientEmailAction,
   readContractorReplyEmailOptions,
   readContractorReplyEmailOutcome,
   resolveEmailFailureKey,
@@ -20,6 +23,8 @@ import {
 import { createOccurrenceConversationClient } from '../../src/modules/occurrence-conversation/shared/occurrenceConversationClient.service'
 
 const OPTIONS: ContractorReplyEmailOptions = {
+  clientEmailType: 'off',
+  clientEmails: [],
   deliveries: [],
   forwardToInformedEmail: 'manual',
   forwardToNoteRecipient: 'manual',
@@ -219,5 +224,127 @@ describe('o cliente HTTP do envio por e-mail', () => {
       method: 'GET',
       url: 'https://api.example.test/trip-occurrences/occurrence-1/contractor-reply/email-options',
     })
+  })
+})
+
+describe('o envio ao cliente do cadastro (spec 279 T5)', () => {
+  const WIRE = {
+    clientEmailType: 'boleto',
+    clientEmails: [{ addressMasked: 'f***@m***.com', emailId: 'e-1', label: 'financeiro' }],
+    deliveries: [],
+    forwardToInformedEmail: 'manual',
+    forwardToNoteRecipient: 'manual',
+    noteRecipient: { addressMasked: null, isAvailable: false },
+    sentCount: 0,
+    sentLimit: 5,
+  }
+
+  test('as opções trazem o tipo e os e-mails mascarados com o emailId', () => {
+    const options = readContractorReplyEmailOptions({ data: WIRE })
+    expect(options?.clientEmailType).toBe('boleto')
+    expect(options?.clientEmails).toEqual(WIRE.clientEmails)
+  })
+
+  test('resposta sem os campos novos vira off e lista vazia: sem botão', () => {
+    const legacy: Record<string, unknown> = { ...WIRE }
+    delete legacy.clientEmailType
+    delete legacy.clientEmails
+    const options = readContractorReplyEmailOptions({ data: legacy })
+    expect(options?.clientEmailType).toBe('off')
+    expect(options?.clientEmails).toEqual([])
+    expect(options && resolveClientEmailAction(options)).toEqual({ kind: 'hidden' })
+  })
+
+  test('off esconde; sem e-mail guardado vira Adicionar e-mail; com e-mail vira Enviar', () => {
+    const base = readContractorReplyEmailOptions({ data: WIRE })
+    if (base === null) throw new Error('OPTIONS_NULL')
+    expect(resolveClientEmailAction({ ...base, clientEmailType: 'off' })).toEqual({
+      kind: 'hidden',
+    })
+    expect(resolveClientEmailAction({ ...base, clientEmails: [] })).toEqual({ kind: 'add' })
+    expect(resolveClientEmailAction(base)).toEqual({ kind: 'send' })
+  })
+
+  test('a entrega ao cliente do cadastro entra no histórico', () => {
+    const options = readContractorReplyEmailOptions({
+      data: {
+        ...WIRE,
+        deliveries: [
+          {
+            addressMasked: 'f***@m***.com',
+            createdAt: '2026-10-26T20:00:00.000Z',
+            id: 'd-1',
+            reason: null,
+            status: 'queued',
+            target: 'client_boleto_emails',
+          },
+        ],
+      },
+    })
+    expect(options?.deliveries).toHaveLength(1)
+  })
+
+  test('o resultado por endereço é lido; forma inesperada é erro, nunca enviado', () => {
+    expect(
+      readClientEmailSendOutcome({
+        data: {
+          results: [{ addressMasked: 'f***@m***.com', kind: 'queued', reason: null }],
+          savedEmailId: 'e-9',
+        },
+      }),
+    ).toEqual({
+      results: [{ addressMasked: 'f***@m***.com', kind: 'queued', reason: null }],
+      savedEmailId: 'e-9',
+    })
+    expect(() => readClientEmailSendOutcome({ data: { results: [{ kind: 'queued' }] } })).toThrow()
+    expect(() => readClientEmailSendOutcome({})).toThrow()
+  })
+
+  test('a linha só oferece o botão com o boleto aceito', () => {
+    expect(isContractorReplyBoletoAccepted('delivered')).toBe(true)
+    expect(isContractorReplyBoletoAccepted('reply_received')).toBe(true)
+    expect(isContractorReplyBoletoAccepted('awaiting_contractor')).toBe(false)
+    expect(isContractorReplyBoletoAccepted('needs_operator')).toBe(false)
+  })
+
+  test('o cliente HTTP manda o alvo do cliente com emailIds, o novo endereço e save', async () => {
+    const requests: Array<{ body: unknown; headers: Headers; url: string }> = []
+    const client = createOccurrenceConversationClient({
+      apiUrl: 'https://api.example.test',
+      fetch: async (request) => {
+        requests.push({
+          body: JSON.parse(await request.clone().text()),
+          headers: request.headers,
+          url: request.url,
+        })
+        return Response.json(
+          {
+            data: {
+              results: [{ addressMasked: 'n***@x.com', kind: 'queued', reason: null }],
+              savedEmailId: 'e-2',
+            },
+          },
+          { status: 201 },
+        )
+      },
+      getAccessToken: () => Promise.resolve('token'),
+    })
+    await client.forwardContractorReplyToClient({
+      address: 'novo@x.com',
+      emailIds: ['e-1'],
+      idempotencyKey: 'client-email:abc',
+      occurrenceId: 'occurrence-1',
+      save: true,
+    })
+    expect(requests[0]?.body).toEqual({
+      address: 'novo@x.com',
+      emailIds: ['e-1'],
+      save: true,
+      target: 'client_boleto_emails',
+    })
+    expect(requests[0]?.headers.get('idempotency-key')).toBe('client-email:abc')
+    expect(requests[0]?.url).toBe(
+      'https://api.example.test/trip-occurrences/occurrence-1/contractor-reply/email-delivery',
+    )
   })
 })
