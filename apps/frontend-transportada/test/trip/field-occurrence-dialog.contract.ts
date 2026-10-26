@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   isWithinFieldOccurrenceLimit,
   MAX_FIELD_OCCURRENCE_DOCUMENTS,
+  resolveFieldOccurrenceDialogFields,
   resolveFieldOccurrenceDialogMode,
 } from '../../src/modules/trip/shared/fieldOccurrenceBatch.service'
 
@@ -31,5 +32,38 @@ describe('limite do lote (spec 156 T7.3, mesmo teto da API)', () => {
 
   it('51 notas excede o limite', () => {
     expect(isWithinFieldOccurrenceLimit(MAX_FIELD_OCCURRENCE_DOCUMENTS + 1)).toBe(false)
+  })
+})
+
+describe('campos do diálogo por tipo (prorrogação do boleto não pede detalhes)', () => {
+  const base = { id: 'type-1', name: 'Prorrogação do boleto' }
+
+  it('sem tipo escolhido, só o seletor', () => {
+    expect(resolveFieldOccurrenceDialogFields(undefined)).toEqual({
+      hasNote: false,
+      hasPhoto: false,
+    })
+  })
+
+  it('tipo com observação e foto desligadas não mostra nenhum dos dois', () => {
+    expect(
+      resolveFieldOccurrenceDialogFields({ ...base, noteMode: 'off', photoMode: 'off' }),
+    ).toEqual({ hasNote: false, hasPhoto: false })
+  })
+
+  it('tipo com os dois opcionais mostra os dois', () => {
+    expect(
+      resolveFieldOccurrenceDialogFields({ ...base, noteMode: 'optional', photoMode: 'optional' }),
+    ).toEqual({ hasNote: true, hasPhoto: true })
+  })
+
+  it('API anterior, sem os modos, mantém o formulário de sempre', () => {
+    expect(resolveFieldOccurrenceDialogFields(base)).toEqual({ hasNote: true, hasPhoto: true })
+  })
+
+  it('sem photoMode, o attachmentMode decide a foto', () => {
+    expect(resolveFieldOccurrenceDialogFields({ ...base, attachmentMode: 'off' }).hasPhoto).toBe(
+      false,
+    )
   })
 })
