@@ -120,6 +120,11 @@ save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado p
   visível ao motorista e ao painel. A ocorrência no painel ganha o estado **Enviado** (com a lista dos endereços e a hora), e
   **Falhou** com "Tentar de novo" quando o provedor recusa. O endereço aparece por inteiro só nesta mensagem e na tela, que
   são da própria empresa; log, evento e resposta de listagem continuam mascarados.
+- **RF13** **"Ver detalhes da ocorrência" na conversa.** No cabeçalho da conversa da ocorrência (painel, portal da contratante
+  não, e app do motorista) há o botão "Ver detalhes", que abre a ocorrência com tipo, nota, cliente, motorista, status, linha
+  do tempo, boleto, e-mails do cliente e estado de envio (RF12), sem sair da conversa (painel de lado no desktop, folha no
+  celular). O conteúdo respeita a permissão de cada app: o motorista vê só o que já vê hoje da própria ocorrência. Conferido
+  em `staging`: o botão não existe hoje na conversa.
 - **RF7** Linha do tempo (278): "Boleto enviado ao cliente" com o ator e o endereço mascarado.
 
 ## Requisitos não funcionais

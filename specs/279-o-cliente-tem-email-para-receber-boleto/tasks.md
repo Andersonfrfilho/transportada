@@ -22,5 +22,7 @@
       reais ("manda pra x@y.com", vários endereços, endereço mascarado/inválido).
 - [ ] **T6b** (sonnet) Mensagem do sistema "Boleto enviado para o e-mail: …" na conversa e estado Enviado/Falhou no painel
       (RF12); teste de que log e evento não levam o endereço.
+- [ ] **T6c** (sonnet) Botão "Ver detalhes da ocorrência" no cabeçalho da conversa, no painel e no app do motorista (RF13);
+      prévia com print.
 - [ ] **T7** (haiku) Linha do tempo "Boleto enviado ao cliente" (RF7), docs (`CLAUDE.md` das apps, runbook se tocar produção),
       `evidence.md`.
