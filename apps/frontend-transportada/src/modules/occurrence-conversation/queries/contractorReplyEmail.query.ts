@@ -69,3 +69,20 @@ export function useForwardContractorReplyToClientMutation(occurrenceId: string) 
     },
   })
 }
+
+/** Spec 279 T6b (RF12): o "Tentar de novo" grava uma entrega nova; as opções, a conversa e o feed são relidos. */
+export function useRetryClientDeliveryMutation(occurrenceId: string) {
+  const queryClient = useQueryClient()
+  const client = getContractorReplyEmailClient()
+  return useMutation({
+    mutationFn: (input: Readonly<{ deliveryId: string }>) =>
+      client.retryContractorReplyClientDelivery({ ...input, occurrenceId }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: [CONTRACTOR_REPLY_EMAIL_OPTIONS_QUERY_KEY, occurrenceId],
+      })
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    },
+  })
+}

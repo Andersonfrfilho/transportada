@@ -26,7 +26,10 @@ import {
   CONVERSATION_PROTOCOL_UNIQUE_CONSTRAINT,
 } from '../domain/driver-subject-conversation.constant.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
-import { systemNoticeField } from '../domain/occurrence-conversation-system-notice.policy.js'
+import {
+  describeSystemNoticeAuthor,
+  readSystemNotice,
+} from '../domain/occurrence-conversation-system-notice.policy.js'
 import { createConversationTranscriptionReadPort } from './conversation-transcription.query.js'
 import { listSubjectConversationRows } from './driver-conversation-subject.query.js'
 import { findMySubjectByIdentity } from './driver-subject-lookup.query.js'
@@ -270,7 +273,14 @@ export function createDriverSubjectTransactionPort(
         .orderBy(desc(messages.createdAt), desc(messages.id))
         .limit(input.limit)
       return newestFirst
-        .map(({ systemNotice, ...message }) => ({ ...message, ...systemNoticeField(systemNotice) }))
+        .map(({ systemNotice, ...message }) => {
+          const notice = readSystemNotice(systemNotice)
+          return {
+            ...message,
+            authorName: describeSystemNoticeAuthor(notice, message.authorName),
+            ...(notice === undefined ? {} : { systemNotice: notice }),
+          }
+        })
         .toReversed()
     },
   }

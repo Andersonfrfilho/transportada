@@ -45,6 +45,8 @@ export type OccurrenceThreadAuthorLabels = Readonly<{
   copy: string
   driver: string
   operation: string
+  /** Spec 279 T6b (RF12): "Sistema" — o autor da linha "Boleto enviado para o e-mail: …"; com pessoa, "Sistema · Marta". */
+  system: string
   /** Spec 267 RF9: a marca do responsável que respondeu, e o selo de quando a contratante não recebeu. */
   team: string
   teamOnly: string
@@ -58,6 +60,10 @@ function describeAuthorName(
   labels: OccurrenceThreadAuthorLabels,
 ): string {
   const { author } = message
+  if (message.systemNotice !== undefined) {
+    const { actorName } = message.systemNotice
+    return actorName === null ? labels.system : `${labels.system}${AUTHOR_SEPARATOR}${actorName}`
+  }
   if (author.kind === 'automatic') return labels.automatic
   if (author.kind === 'operation') return author.name ?? labels.operation
   if (author.kind === 'driver') return author.name ?? labels.driver

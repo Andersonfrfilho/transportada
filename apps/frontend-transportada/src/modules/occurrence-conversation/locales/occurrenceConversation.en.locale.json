@@ -49,6 +49,7 @@
       "whatsapp": "WhatsApp"
     },
     "automatic": "Automatic notice from the occurrence type",
+    "system": "System",
     "unverified": "Sender not confirmed",
     "unverifiedHint": "The email arrived without the sender domain's signature: someone else may have written that address.",
     "copy": "Cc",
@@ -610,7 +611,17 @@
       "error": "The client e-mails could not be loaded."
     },
     "sendState": {
-      "title": "Sending to the client"
+      "title": "Sent to the client",
+      "none": "The boleto has not been sent to the client yet.",
+      "error": "Could not load the send status.",
+      "state": {
+        "sent": "Sent",
+        "queued": "Queued",
+        "failed": "Failed"
+      },
+      "retry": "Try again",
+      "retrying": "Sending…",
+      "retryError": "Could not try again. Check the company e-mail settings and try once more."
     }
   }
 }
