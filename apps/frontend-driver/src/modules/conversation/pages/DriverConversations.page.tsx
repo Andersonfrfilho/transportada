@@ -9,7 +9,7 @@ import type {
   ParticipantSubjectRef,
 } from '@adatechnology/conversations-ui/participant'
 import { useQueryClient } from '@tanstack/react-query'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useDriverSession } from '@/modules/driver-trip/hooks/useDriverSession.hook'
@@ -20,6 +20,8 @@ import {
   parseDriverConversationSubject,
 } from '@/modules/shared/driverRoute.service'
 
+import { OccurrenceDetailsCard } from '../components/OccurrenceDetailsCard.component'
+import { OccurrenceDetailsSheet } from '../components/OccurrenceDetailsSheet.component'
 import { createComposerLockRenderer } from '../components/DriverComposerLock.component'
 import { useConversationOutbox } from '../hooks/useConversationOutbox.hook'
 import { useConversationPathname } from '../hooks/useConversationPathname.hook'
@@ -50,7 +52,8 @@ export function DriverConversationsPage() {
   const quickReplies = useDriverQuickReplies()
   const selected = parseDriverConversationSubject(useConversationPathname())
   const { canSync } = useDriverSession()
-  const { isSettled, stateByOccurrenceId } = useRouteOccurrenceStates(canSync)
+  const { isSettled, stateByOccurrenceId, trip, tripId } = useRouteOccurrenceStates(canSync)
+  const [detailsFor, setDetailsFor] = useState<string | undefined>(undefined)
   const isStateUnknown =
     selected !== undefined &&
     selected.subjectType === DRIVER_CONVERSATION_SUBJECT_TYPE &&
@@ -120,12 +123,26 @@ export function DriverConversationsPage() {
             pendingMessages={pendingMessages}
             quickReplies={quickReplies}
             renderComposerLock={renderComposerLock}
+            renderSubjectCard={(conversation) =>
+              conversation.subjectType === DRIVER_CONVERSATION_SUBJECT_TYPE ? (
+                <OccurrenceDetailsCard onOpen={() => setDetailsFor(conversation.subjectId)} />
+              ) : null
+            }
             onBack={handleBack}
             onRetryPending={onRetryPending}
             onSelect={handleSelect}
           />
         </Suspense>
       </main>
+      {detailsFor === undefined ? null : (
+        <OccurrenceDetailsSheet
+          canSync={canSync}
+          occurrenceId={detailsFor}
+          onClose={() => setDetailsFor(undefined)}
+          trip={trip}
+          tripId={tripId}
+        />
+      )}
       <DriverBottomBar section="conversations" onSelect={navigateToDriverSection} />
     </div>
   )

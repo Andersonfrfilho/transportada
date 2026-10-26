@@ -1,0 +1,161 @@
+/* Spec 279 T6c: a folha com o detalhe da ocorrência, por cima da conversa. Celular primeiro; a partir de 48rem vira painel à direita. */
+
+.card {
+  display: flex;
+}
+
+.cardButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.overlay {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 70%, transparent);
+}
+
+.sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 88dvh;
+  border-block-start: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-fog);
+  background: var(--color-graphite);
+}
+
+@media (min-width: 48rem) {
+  .overlay {
+    justify-content: flex-end;
+  }
+
+  .sheet {
+    width: min(26rem, 90vw);
+    max-height: none;
+    height: 100%;
+    border-block-start: 0;
+    border-inline-start: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+.head h2 {
+  margin: 0;
+  font-size: 1.0625rem;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.scroll {
+  display: grid;
+  flex: 1;
+  gap: var(--space-4);
+  align-content: start;
+  min-height: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.section {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+}
+
+.facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.facts dt,
+.noteLabel,
+.hint,
+.labelNote,
+.timeline time {
+  color: var(--color-slate);
+  font-size: 0.8125rem;
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.noteLabel,
+.note,
+.hint {
+  margin: 0;
+}
+
+.note {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.list,
+.timeline {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.timeline li {
+  display: grid;
+  gap: 0.125rem;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 0.1875rem solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+}

@@ -577,5 +577,40 @@
       "registryLimit": "The client already has the maximum number of saved e-mails. Send without saving or remove one on the client screen.",
       "emailGone": "One of the e-mails was removed from the record. Close and open again."
     }
+  },
+  "details": {
+    "open": "View details",
+    "title": "Occurrence details",
+    "close": "Close details",
+    "loading": "Loading the occurrence details",
+    "error": "The occurrence details could not be loaded.",
+    "noDriver": "No driver",
+    "summary": {
+      "title": "Occurrence",
+      "type": "Type",
+      "status": "Status",
+      "client": "Client",
+      "driver": "Driver",
+      "note": "Note",
+      "noNote": "No remarks."
+    },
+    "timeline": {
+      "title": "Timeline",
+      "empty": "No events yet.",
+      "error": "The timeline could not be loaded."
+    },
+    "boleto": {
+      "title": "Boleto",
+      "none": "The contractor has not sent the boleto yet."
+    },
+    "clientEmails": {
+      "title": "Client e-mails",
+      "none": "The client has no saved e-mail.",
+      "noClient": "This occurrence has no client identified by the invoice.",
+      "error": "The client e-mails could not be loaded."
+    },
+    "sendState": {
+      "title": "Sending to the client"
+    }
   }
 }

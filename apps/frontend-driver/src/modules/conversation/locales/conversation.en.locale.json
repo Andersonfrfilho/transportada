@@ -1,4 +1,37 @@
 {
+  "details": {
+    "open": "View details",
+    "title": "Occurrence details",
+    "close": "Close details",
+    "loading": "Loading the details…",
+    "unavailable": "The details of this occurrence are not available right now.",
+    "summary": {
+      "title": "Occurrence",
+      "type": "Type",
+      "status": "Status",
+      "client": "Client",
+      "driver": "Driver",
+      "recordedByMe": "You",
+      "recordedByOffice": "Office",
+      "note": "Note",
+      "noNote": "No remarks."
+    },
+    "timeline": {
+      "title": "Progress"
+    },
+    "boleto": {
+      "title": "Boleto and files",
+      "none": "No files yet.",
+      "unnamed": "File"
+    },
+    "clientEmails": {
+      "title": "Client e-mails",
+      "none": "The client has no saved e-mail."
+    },
+    "sendState": {
+      "title": "Sending to the client"
+    }
+  },
   "groups": {
     "document": "Invoices",
     "occurrence": "Occurrences",

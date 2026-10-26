@@ -48,7 +48,7 @@ function handleBack(): void {
   window.history.back()
 }
 
-function buildTimelineLines(input: {
+export function buildTimelineLines(input: {
   readonly detail: DriverRouteOccurrenceDetail | undefined
   readonly entry: RouteOccurrenceEntry
   readonly t: TFunction<'driverTrip'>
