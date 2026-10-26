@@ -1030,6 +1030,9 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.clientEmailType === undefined
             ? {}
             : { clientEmailType: input.clientEmailType }),
+          ...(input.clientEmailSendMode === undefined
+            ? {}
+            : { clientEmailSendMode: input.clientEmailSendMode }),
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),

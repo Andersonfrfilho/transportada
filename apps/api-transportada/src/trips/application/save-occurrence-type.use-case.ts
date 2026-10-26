@@ -10,7 +10,10 @@ import {
   OccurrenceTypeLeavesDocumentBehindRequiresSeparationError,
 } from '../domain/trip.error.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
-import type { ClientEmailType } from '../../shared/delivery-client-email.constant.js'
+import type {
+  ClientEmailSendMode,
+  ClientEmailType,
+} from '../../shared/delivery-client-email.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import { OCCURRENCE_MOMENT, OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
 import type {
@@ -93,6 +96,7 @@ export type SaveOccurrenceTypeValues = {
   readonly contractorReplyResolveOnDelivery?: boolean | undefined
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
   readonly clientEmailType?: ClientEmailType | undefined
+  readonly clientEmailSendMode?: ClientEmailSendMode | undefined
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined

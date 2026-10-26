@@ -331,6 +331,12 @@
       "finance": "Finance e-mail",
       "general": "General e-mail"
     },
+    "clientEmailSendMode": "Boleto to client",
+    "clientEmailSendModeHint": "Manual: the boleto only goes out through the \"Send to client\" button. Automatic: once the boleto is accepted, it goes out on its own to every e-mail of this type in the client record (needs the e-mail subject and text filled in). With no e-mail on record, nothing is sent and the occurrence says so.",
+    "clientEmailSendModeOptions": {
+      "manual": "Manual",
+      "automatic": "Automatic"
+    },
     "duplicateRequestPolicy": "Repeated request on the same invoice",
     "duplicateRequestPolicyOptions": {
       "while_request_open": "Block while the request is open",

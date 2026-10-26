@@ -3,7 +3,10 @@
  *
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
-import type { ClientEmailType } from '../../shared/delivery-client-email.constant.js'
+import type {
+  ClientEmailSendMode,
+  ClientEmailType,
+} from '../../shared/delivery-client-email.constant.js'
 import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
@@ -208,6 +211,7 @@ export type OccurrenceTypeRecord = {
   readonly contractorReplyResolveOnDelivery?: boolean
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy
   readonly clientEmailType?: ClientEmailType
+  readonly clientEmailSendMode?: ClientEmailSendMode
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string
   readonly contractorReplyMode?: ContractorReplyMode
   readonly contractorReplyWaitHours?: null | number

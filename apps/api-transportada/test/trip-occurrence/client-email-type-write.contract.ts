@@ -2,7 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 279 T3b (RF9): o cadastro do tipo grava `clientEmailType` (`off` ou um tipo de e-mail do cliente), ausente é
- * "não mexa" e o vocabulário fora da lista é 400; `off` é o padrão e o envio ao cliente é recusado com 409.
+ * "não mexa" e o vocabulário fora da lista é 400; `off` é o padrão e o envio ao cliente é recusado com 409. Spec 279 T3c
+ * (RF10): o mesmo para `clientEmailSendMode` (`manual` padrão, `automatic`).
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -12,6 +13,8 @@ import type {
   CompanyContext,
 } from '../../src/identity/domain/tenant-context.js'
 import {
+  CLIENT_EMAIL_SEND_MODE_DEFAULT,
+  CLIENT_EMAIL_SEND_MODES,
   CLIENT_EMAIL_TYPE_DEFAULT,
   CLIENT_EMAIL_TYPES,
   DELIVERY_CLIENT_EMAIL_PURPOSES,
@@ -159,5 +162,38 @@ describe('o tipo "off" recusa o envio ao cliente com 409 (spec 279 RF9)', () => 
     expect(thrown).toBeInstanceOf(OccurrenceClientEmailOffError)
     expect((thrown as OccurrenceClientEmailOffError).status).toBe(409)
     expect((thrown as OccurrenceClientEmailOffError).code).toBe('OCCURRENCE_CLIENT_EMAIL_OFF')
+  })
+})
+
+describe('o cadastro do tipo aceita "clientEmailSendMode" (spec 279 RF10)', () => {
+  test('o vocabulário é "manual" e "automatic", e o padrão é "manual"', () => {
+    expect(CLIENT_EMAIL_SEND_MODES).toEqual(['manual', 'automatic'])
+    expect(CLIENT_EMAIL_SEND_MODE_DEFAULT).toBe('manual')
+  })
+
+  test.each([...CLIENT_EMAIL_SEND_MODES])('%s é aceito e chega ao caso de uso', async (mode) => {
+    const [saved] = await putThroughRoute({
+      ...baseBody(),
+      clientEmailSendMode: mode,
+      clientEmailType: 'boleto',
+    })
+    expect(saved?.clientEmailSendMode).toBe(mode)
+  })
+
+  test('ausente fica ausente — nunca liga o envio automático', async () => {
+    const parsed = await parseOccurrenceTypeRequest(putRequest(baseBody()))
+    expect('clientEmailSendMode' in parsed).toBe(false)
+    const [saved] = await putThroughRoute(baseBody())
+    expect(saved?.clientEmailSendMode).toBeUndefined()
+  })
+
+  test('valor fora da lista é 400', async () => {
+    const error = await parseOccurrenceTypeRequest(
+      putRequest({ ...baseBody(), clientEmailSendMode: 'sometimes' }),
+    ).then(
+      () => undefined,
+      (reason: unknown) => reason as Error & { status: number },
+    )
+    expect(error?.status).toBe(400)
   })
 })

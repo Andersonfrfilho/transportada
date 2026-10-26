@@ -20,7 +20,10 @@ import {
 import { z } from 'zod'
 
 import { REDELIVERY_POLICIES } from '../../database/trip.schema.js'
-import { CLIENT_EMAIL_TYPES } from '../../shared/delivery-client-email.constant.js'
+import {
+  CLIENT_EMAIL_SEND_MODES,
+  CLIENT_EMAIL_TYPES,
+} from '../../shared/delivery-client-email.constant.js'
 import { parseBody } from '../../http/request-parsing.service.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
@@ -491,6 +494,8 @@ const occurrenceTypeSchema = z
     duplicateRequestPolicy: z.enum(DUPLICATE_REQUEST_POLICIES).optional(),
     /** Spec 279 RF9: `off` ou o tipo de e-mail do cliente do botão "Enviar ao cliente"; ausente não mexe. */
     clientEmailType: z.enum(CLIENT_EMAIL_TYPES).optional(),
+    /** Spec 279 RF10: `manual` ou `automatic` (o boleto aceito sai sozinho ao cliente); ausente não mexe. */
+    clientEmailSendMode: z.enum(CLIENT_EMAIL_SEND_MODES).optional(),
     /** Spec 276 T5: `null` desliga; ausente não mexe. */
     contractorReplyAcknowledgementQuickReplyId: z.string().uuid().nullable().optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),

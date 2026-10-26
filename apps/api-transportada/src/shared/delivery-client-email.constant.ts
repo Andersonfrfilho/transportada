@@ -38,3 +38,11 @@ export const CLIENT_EMAIL_TYPES = [
 ] as const
 export type ClientEmailType = (typeof CLIENT_EMAIL_TYPES)[number]
 export const CLIENT_EMAIL_TYPE_DEFAULT: ClientEmailType = CLIENT_EMAIL_TYPE_OFF
+
+/**
+ * Spec 279 RF10: como o boleto aceito chega ao cliente. `manual` (padrão) só sai pelo botão; `automatic` sai sozinho, ao
+ * aceitar o boleto, a todos os e-mails do tipo configurado no cadastro do cliente. Só vale com `client_email_type <> off`.
+ */
+export const CLIENT_EMAIL_SEND_MODES = ['manual', 'automatic'] as const
+export type ClientEmailSendMode = (typeof CLIENT_EMAIL_SEND_MODES)[number]
+export const CLIENT_EMAIL_SEND_MODE_DEFAULT: ClientEmailSendMode = 'manual'

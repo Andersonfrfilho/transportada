@@ -15,6 +15,7 @@ import {
   type TripOccurrenceStage,
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
+  ClientEmailSendMode,
   ClientEmailType,
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
@@ -52,6 +53,8 @@ export type OccurrenceTypeSaveInput = Readonly<{
   contractorReplyAlertMaxCount?: number | undefined
   /** Spec 279 RF9: `undefined` é "não mexe". */
   clientEmailType?: ClientEmailType | undefined
+  /** Spec 279 RF10: `undefined` é "não mexe". */
+  clientEmailSendMode?: ClientEmailSendMode | undefined
   contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   contractorReplyMode?: ContractorReplyMode | undefined
@@ -114,6 +117,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'contractorReplyAlertIntervalMinutes'
       | 'contractorReplyAlertMaxCount'
       | 'clientEmailType'
+      | 'clientEmailSendMode'
       | 'contractorReplyAlertMode'
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'

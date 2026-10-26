@@ -9,7 +9,10 @@ import { describe, expect, it } from 'bun:test'
 import settingsEn from '@/modules/company-settings/locales/companySettings.en.locale.json'
 import settingsPt from '@/modules/company-settings/locales/companySettings.locale.json'
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
-import { CLIENT_EMAIL_TYPES } from '@/modules/trip/shared/occurrenceContractorReply.constant'
+import {
+  CLIENT_EMAIL_SEND_MODES,
+  CLIENT_EMAIL_TYPES,
+} from '@/modules/trip/shared/occurrenceContractorReply.constant'
 import { buildOccurrenceTypeUpdate } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 
 const TYPE = {
@@ -51,6 +54,34 @@ describe('envio ao cliente no tipo da ocorrência (spec 279 RF9)', () => {
       expect(locale.occurrenceTypeCatalog.clientEmailTypeHint).toBeString()
       for (const type of CLIENT_EMAIL_TYPES) {
         expect(locale.occurrenceTypeCatalog.clientEmailTypeOptions[type]).toBeString()
+      }
+    }
+  })
+})
+
+describe('envio automático ao cliente no tipo da ocorrência (spec 279 RF10)', () => {
+  it('o vocabulário é "manual" e "automatic"', () => {
+    expect(CLIENT_EMAIL_SEND_MODES).toEqual(['manual', 'automatic'])
+  })
+
+  it('a edição manda o modo escolhido e a de outro campo não mexe nele', () => {
+    expect(
+      buildOccurrenceTypeUpdate(
+        { ...TYPE, clientEmailSendMode: 'manual', clientEmailType: 'boleto' },
+        { clientEmailSendMode: 'automatic' },
+      ),
+    ).toMatchObject({ clientEmailSendMode: 'automatic', occurrenceTypeId: 'type-1' })
+    expect(buildOccurrenceTypeUpdate(TYPE, { name: 'Boleto' })).not.toHaveProperty(
+      'clientEmailSendMode',
+    )
+  })
+
+  it('o rótulo, a dica e cada opção existem nos dois idiomas', () => {
+    for (const locale of [settingsPt, settingsEn]) {
+      expect(locale.occurrenceTypeCatalog.clientEmailSendMode).toBeString()
+      expect(locale.occurrenceTypeCatalog.clientEmailSendModeHint).toBeString()
+      for (const mode of CLIENT_EMAIL_SEND_MODES) {
+        expect(locale.occurrenceTypeCatalog.clientEmailSendModeOptions[mode]).toBeString()
       }
     }
   })

@@ -18,6 +18,7 @@ import {
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
+  ClientEmailSendMode,
   ClientEmailType,
   DuplicateRequestPolicy,
 } from '@/modules/trip/shared/occurrenceContractorReply.constant'
@@ -41,6 +42,7 @@ type OccurrenceTypeIdentityProps = Readonly<{
 export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTypeIdentityProps) {
   const { t } = useTranslation('companySettings')
   const {
+    clientEmailSendModeOptions,
     clientEmailTypeOptions,
     duplicateRequestPolicyOptions,
     flowOptions,
@@ -129,6 +131,25 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
                 onChange={(value) => onEdit({ clientEmailType: value as ClientEmailType })}
                 options={clientEmailTypeOptions}
                 value={type.clientEmailType}
+              />
+            </Tooltip>
+          </div>
+        )}
+        {/* Spec 279 RF10: só com o envio ao cliente ligado e a API que já manda o campo. */}
+        {type.clientEmailSendMode === undefined ||
+        type.clientEmailType === undefined ||
+        type.clientEmailType === 'off' ? null : (
+          <div className={identityStyles.identityField}>
+            <span aria-hidden="true" className={identityStyles.fieldLabel}>
+              {t('occurrenceTypeCatalog.clientEmailSendMode')}
+            </span>
+            <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.clientEmailSendModeHint')}>
+              <Select
+                ariaLabel={t('occurrenceTypeCatalog.clientEmailSendMode')}
+                disabled={disabled}
+                onChange={(value) => onEdit({ clientEmailSendMode: value as ClientEmailSendMode })}
+                options={clientEmailSendModeOptions}
+                value={type.clientEmailSendMode}
               />
             </Tooltip>
           </div>

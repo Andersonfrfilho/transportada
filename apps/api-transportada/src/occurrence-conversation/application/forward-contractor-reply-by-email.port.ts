@@ -6,6 +6,7 @@
  */
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
 import type {
+  ClientEmailSendMode,
   ClientEmailType,
   DeliveryClientEmailAuthorKind,
   DeliveryClientEmailPurpose,
@@ -158,6 +159,8 @@ export type ContractorReplyEmailUnitOfWorkPort = {
 export type ContractorReplyEmailOptions = {
   /** Spec 279 RF9: o tipo de e-mail do cliente que o tipo da ocorrência usa; `off` não oferece o envio ao cliente. */
   readonly clientEmailType: ClientEmailType
+  /** Spec 279 RF10: `automatic` manda o boleto aceito sozinho aos e-mails do cliente; `manual` só pelo botão. */
+  readonly clientEmailSendMode: ClientEmailSendMode
   /** Spec 279 T3 (RF4): os e-mails do cadastro do cliente daquele tipo, mascarados, escolhidos por `emailId`. */
   readonly clientEmails: readonly {
     readonly addressMasked: string

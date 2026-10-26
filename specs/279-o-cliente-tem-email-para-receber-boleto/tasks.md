@@ -19,8 +19,10 @@
 - [x] **T3b** (sonnet) Campo `client_email_type` em `company_occurrence_types` (RF9): migration aditiva, validação, aba Tipos,
       API recusa o envio com `off`. Migration `20261026201500`; a recusa é `resolveClientEmailPurpose` (409
       `OCCURRENCE_CLIENT_EMAIL_OFF`), que a rota de envio da T2/T3 chama. `client_email_send_mode` fica para a T3c.
-- [ ] **T3c** (opus) Envio automático (RF10): `client_email_send_mode`, gatilho ao aceitar o boleto no worker/API com
-      paridade, idempotência, ator Sistema; integração do automático e do "sem e-mail".
+- [x] **T3c** (opus) Envio automático (RF10): `client_email_send_mode`, gatilho ao aceitar o boleto no worker/API com
+      paridade, idempotência, ator Sistema; integração do automático e do "sem e-mail". Migration `20261026211723`; o
+      gatilho é `queueContractorReplyToClientEmails` (arquivo idêntico nas duas apps). O RF10(b), e-mail digitado na
+      conversa sair sem cartão, fica com a T4b; o aviso "Sem e-mail do cliente para o boleto" na tela, com a T5/T6b.
 - [ ] **T4b** (opus) Reconhecer o e-mail na mensagem do motorista (RF8): extração única no domínio, `detected_email` na
       mensagem, cartão de confirmação no app e no painel, confirmação por "1" no WhatsApp; teste de contrato com mensagens
       reais ("manda pra x@y.com", vários endereços, endereço mascarado/inválido).
