@@ -15,6 +15,8 @@
       com print.
 - [ ] **T3b** (sonnet) Campo `client_email_type` em `company_occurrence_types` (RF9): migration aditiva, validação, aba Tipos,
       API recusa o envio com `off`.
+- [ ] **T3c** (opus) Envio automático (RF10): `client_email_send_mode`, gatilho ao aceitar o boleto no worker/API com
+      paridade, idempotência, ator Sistema; integração do automático e do "sem e-mail".
 - [ ] **T4b** (opus) Reconhecer o e-mail na mensagem do motorista (RF8): extração única no domínio, `detected_email` na
       mensagem, cartão de confirmação no app e no painel, confirmação por "1" no WhatsApp; teste de contrato com mensagens
       reais ("manda pra x@y.com", vários endereços, endereço mascarado/inválido).

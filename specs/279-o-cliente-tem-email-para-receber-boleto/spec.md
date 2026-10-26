@@ -30,8 +30,6 @@ Resultado:
 
 ## Fora do escopo
 
-- Envio **automático** sem toque quando o motorista informa o e-mail (continua o `forward_to_note_recipient = automatic`
-  da 248, só para o e-mail da nota). Se o dono quiser automático também para os e-mails do cadastro, é decisão nova.
 - Usar os tipos `invoice`, `finance` e `general` em outros fluxos: eles já são cadastráveis (D1), mas só `boleto` é lido por
   um envio nesta spec.
 - E-mail do cliente na ocorrência de devolução (247).
@@ -98,7 +96,7 @@ save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado p
   mensagem com um endereço de e-mail válido, depois que o boleto já foi aceito, a API reconhece o endereço (função única de
   extração, só o primeiro endereço válido, nunca de anexo) e marca a mensagem com `detected_email`. O motorista recebe, no
   app, o cartão "Enviar o boleto para a\*\*\*@mercado.com?" com **Enviar** e **Enviar e guardar para o cliente**, e o painel
-  mostra o mesmo cartão ao operador na conversa. **Nada sai sem o toque**: reconhecer não é enviar. No WhatsApp, o motorista
+  mostra o mesmo cartão ao operador na conversa. Com `client_email_send_mode = manual` (default), **nada sai sem o toque**: reconhecer não é enviar. Em `automatic`, vale o RF10. No WhatsApp, o motorista
   confirma respondendo "1" ao aviso da API. O endereço detectado não vai em log nem em evento, só no banco.
 - **RF9** **Botão fora da conversa, na ocorrência e no tipo.** (a) Na própria ocorrência (linha da lista e página do painel;
   cartão da ocorrência no app do motorista) há o botão "Enviar ao cliente", sem precisar abrir o chat; ele só aparece com o
@@ -106,6 +104,13 @@ save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado p
   (`off` ou um tipo de e-mail de D1) diz se o botão existe para aquele tipo e **qual tipo de e-mail do cliente** ele usa;
   `off` esconde o botão em todas as telas e rejeita o envio na API (`409`). Editável na aba Tipos de `/ocorrencias`,
   default `off`, e nenhuma migration liga isso em tipo existente.
+- **RF10** **Envio automático, por configuração do tipo.** O tipo ganha `client_email_send_mode` (`manual` · `automatic`,
+  default `manual`; só vale com `client_email_type <> 'off'`). Em `automatic`: (a) quando o boleto é aceito (276), o
+  sistema envia sozinho a **todos os e-mails do tipo configurado** que estão no cadastro do cliente, pelo trilho da D3,
+  idempotente por (retorno, anexo, endereço), com ator **Sistema** na linha do tempo; (b) o e-mail que o motorista digita na
+  conversa (RF8) sai **sem o cartão de confirmação**, com a regra de D4 (guarda no cadastro se o tipo permitir). Sem e-mail
+  cadastrado, nada sai e a ocorrência mostra "Sem e-mail do cliente para o boleto" ao operador. `automatic` exige o
+  texto do e-mail preenchido (248) e o tipo só liga explicitamente; nenhuma migration liga em tipo existente.
 - **RF7** Linha do tempo (278): "Boleto enviado ao cliente" com o ator e o endereço mascarado.
 
 ## Requisitos não funcionais
