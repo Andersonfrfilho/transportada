@@ -126,6 +126,6 @@ client_without_email` sem endereço, por (retorno, anexo). O teto de 5 por ocorr
   aparece, o "Sistema · nome" aparece no app do motorista e no menu do balão.
 - Testes: migração (`conversation-system-notice.assertion.ts`, `db:test` 231 pass, regenerada sobre a T3c); integração
   da API (retry, aviso, leituras, motorista com `deliveries` e o pulado); worker `occurrence-contractor-reply-email-
-  delivery` 13 pass; painel `bun run test` e `test:hooks` 1424 pass; motorista 2115 pass; API `bun run test` 12627 pass.
+delivery` 13 pass; painel `bun run test` e `test:hooks` 1424 pass; motorista 2115 pass; API `bun run test` 12627 pass.
   Falha conhecida que já existia: `driver-subject-conversation` "retarget" (unique de `trip_drivers`); worker: 5 do leitor
   de código de barras, só de ambiente.
