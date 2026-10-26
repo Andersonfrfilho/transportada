@@ -198,6 +198,20 @@ O `deploy-watchdog.yml` (10 em 10 min) já faz isso após 20 min. **Nunca cancel
 `in_progress`**: deixa os serviços em versões diferentes. Se não puder esperar, publique pela CLI
 (item 3).
 
+### Deploy falha em "Invalid RAILWAY_TOKEN" (token inválido)
+
+Sintoma: o gate passa e todos os jobs `deploy-*` caem no primeiro passo da CLI com token inválido
+ou não autorizado. Nada foi publicado (26/10/2026: o merge da #349 na main ficou sem subir).
+O `RAILWAY_TOKEN` é secret **do ambiente** do GitHub (`production` / `staging`), não do repositório.
+
+1. Railway → projeto → Settings → Tokens: gerar um *Project Token* do ambiente `production`.
+2. GitHub → Settings → Environments → `production` → Secrets → atualizar `RAILWAY_TOKEN`.
+3. Refazer o run que falhou: `gh run rerun <id> --failed` (mantém o commit; o gate não roda de novo).
+4. Sem token à mão: `bash producao-reinicia-via-cli.sh` publica **só api e worker** (`railway up`,
+   nessa ordem) a partir da main local. Front-end, driver, client e landing só sobem pelo workflow.
+5. Confirmar: `curl -s https://<domínio-da-api>/health/ready` com `migrations: up`. O Gatus não está
+   no `deploy.yml`; se ele mudou junto, publique-o depois da api (seção abaixo).
+
 ### Ordem de publicação: API antes do Gatus
 
 O Gatus monitora a API: publique a **api** (e confirme `health/ready`) antes de publicar/alterar o
