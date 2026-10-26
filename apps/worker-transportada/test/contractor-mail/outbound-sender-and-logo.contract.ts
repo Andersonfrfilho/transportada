@@ -55,6 +55,7 @@ type Harness = ReturnType<typeof build>
 function build(input: {
   readonly logo?: { contentBase64: string; mimeType: 'image/jpeg' | 'image/png' } | undefined
   readonly message: ContractorMailOutboundMessageRecord
+  readonly whiteLogo?: (bytes: Uint8Array) => Promise<Uint8Array>
 }) {
   const resendBodies: Record<string, unknown>[] = []
   const nodemailerMessages: Record<string, unknown>[] = []
@@ -81,6 +82,7 @@ function build(input: {
         logs.push({ message, metadata })
       },
     },
+    ...(input.whiteLogo === undefined ? {} : { whiteLogo: input.whiteLogo }),
     mailGateway: createResendMailGateway({
       fetch: async (_target, init) => {
         resendBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>)
@@ -198,6 +200,49 @@ describe('spec 272: logo inline por Content-ID (critério 5)', () => {
         content_id: 'company-logo',
         content_type: 'image/png',
         filename: 'logo.png',
+      },
+    ])
+  })
+
+  test('com conversor: o logo vai como silhueta branca em PNG', async () => {
+    const white = new Uint8Array([9, 9, 9])
+    const harness = build({
+      logo: { contentBase64: LOGO_BASE64, mimeType: 'image/jpeg' },
+      message: BASE,
+      whiteLogo: async () => white,
+    })
+    await run(harness)
+    expect(harness.resendBodies[0]?.attachments).toEqual([
+      {
+        content: Buffer.from(white).toString('base64'),
+        content_id: 'company-logo',
+        content_type: 'image/png',
+        filename: 'logo.png',
+      },
+    ])
+  })
+
+  test('conversor que falha: sai o logo original e o log não leva o conteúdo', async () => {
+    const harness = build({
+      logo: { contentBase64: LOGO_BASE64, mimeType: 'image/png' },
+      message: BASE,
+      whiteLogo: async () => {
+        throw new Error('imagem inválida')
+      },
+    })
+    await run(harness)
+    expect(harness.resendBodies[0]?.attachments).toEqual([
+      {
+        content: LOGO_BASE64,
+        content_id: 'company-logo',
+        content_type: 'image/png',
+        filename: 'logo.png',
+      },
+    ])
+    expect(harness.logs).toEqual([
+      {
+        message: 'contractor_mail_inline_logo_white_failed',
+        metadata: { messageId: MESSAGE_ID, reason: 'white_conversion_failed' },
       },
     ])
   })
