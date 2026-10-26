@@ -5,7 +5,9 @@
  */
 import { describe, expect, it } from 'bun:test'
 
+import type { DriverTrip } from '../../src/modules/driver-trip/shared/driverTrip.types'
 import {
+  collectBoletoAcceptedIds,
   hasBoletoArrived,
   isButtonHiddenByServer,
   looksLikeEmailAddress,
@@ -23,6 +25,31 @@ function flattenKeys(value: unknown, prefix = ''): readonly string[] {
 }
 
 describe('visibilidade do "Enviar ao cliente" no app do motorista (spec 279 T6)', () => {
+  it('o aceite do boleto é o mesmo do painel, lido da viagem', () => {
+    const trip = {
+      stops: [
+        {
+          documents: [
+            {
+              registeredOccurrences: [
+                { contractorReply: { status: 'reply_received' }, id: 'aceito' },
+                { contractorReply: { status: 'awaiting_contractor' }, id: 'esperando' },
+                { contractorReply: { status: 'delivered' }, id: 'entregue' },
+                { contractorReply: null, id: 'sem-retorno' },
+              ],
+            },
+            {},
+          ],
+        },
+      ],
+    } as unknown as DriverTrip
+    const accepted = collectBoletoAcceptedIds([trip])
+    expect([...accepted].toSorted()).toEqual(['aceito', 'entregue'])
+    expect(hasBoletoArrived(null, accepted, 'aceito')).toBe(true)
+    expect(hasBoletoArrived(null, accepted, 'esperando')).toBe(false)
+    expect(hasBoletoArrived(undefined, accepted, undefined)).toBe(false)
+  })
+
   it('só com o boleto entregue ao motorista', () => {
     expect(hasBoletoArrived('contractor_reply_delivered')).toBe(true)
     expect(hasBoletoArrived('case_closed')).toBe(false)

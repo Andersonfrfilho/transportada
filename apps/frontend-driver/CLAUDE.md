@@ -498,7 +498,7 @@ o modelo vem do `User-Agent` da API. Publicar depois da API (ADR-0081 §9). `tes
 
 Módulo `src/modules/client-email`: o motorista leva o boleto da contratante aos e-mails do cliente. O botão
 (`ClientEmailSendButton`) vive na faixa acima da conversa da ocorrência, no cartão da lista e no detalhe, e só existe
-quando o boleto chegou (`hasBoletoArrived`: frase `contractor_reply_delivered` da lista da rota). Quem decide se o _tipo_
+quando o boleto foi aceito — a regra do painel (`reply_received`, `awaiting_operator`, `delivered`, `handled`), lida do `registeredOccurrences[].contractorReply` da viagem (`collectBoletoAcceptedIds`), ou a frase `contractor_reply_delivered` da lista da rota. Quem decide se o _tipo_
 oferece o envio é a API: o `GET .../client-boleto-emails` responde `409` (tipo `off` ou encaminhamento desligado) ou `404`
 e o botão some; erro de rede não esconde, o motorista ainda enfileira. A folha (`ClientEmailSendSheet`, em portal no
 `body` — o cartão resolvido tem `opacity`, que prenderia o `fixed`) lista os e-mails mascarados por `emailId`, tem

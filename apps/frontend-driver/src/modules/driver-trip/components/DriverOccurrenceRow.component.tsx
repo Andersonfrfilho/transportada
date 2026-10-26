@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { ClientEmailSendButton } from '@/modules/client-email/components/ClientEmailSendButton.component'
-import { hasBoletoArrived } from '@/modules/client-email/shared/clientBoletoEmailVisibility.service'
 import {
   navigateToDriverConversation,
   navigateToDriverOccurrence,
@@ -98,7 +97,7 @@ export function DriverOccurrenceRow({ entry, shareController, stops }: DriverOcc
         <div className={styles.rowFooter}>
           <ClientEmailSendButton
             contextLabel={typeName}
-            hasBoleto={hasBoletoArrived(entry.resolutionPhraseKey)}
+            phraseKey={entry.resolutionPhraseKey}
             occurrenceId={entry.id}
           />
         </div>

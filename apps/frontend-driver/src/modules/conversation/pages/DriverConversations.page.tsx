@@ -13,7 +13,6 @@ import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ClientEmailSendButton } from '@/modules/client-email/components/ClientEmailSendButton.component'
-import { hasBoletoArrived } from '@/modules/client-email/shared/clientBoletoEmailVisibility.service'
 import { useDriverSession } from '@/modules/driver-trip/hooks/useDriverSession.hook'
 import { DriverBottomBar } from '@/modules/driver-trip/components/DriverBottomBar.component'
 import {
@@ -109,7 +108,7 @@ export function DriverConversationsPage() {
         <div className={styles.clientEmailBar}>
           <ClientEmailSendButton
             contextLabel={selectedOccurrence.type.name}
-            hasBoleto={hasBoletoArrived(selectedOccurrence.resolution?.phraseKey)}
+            phraseKey={selectedOccurrence.resolution?.phraseKey}
             occurrenceId={selectedOccurrence.id}
           />
         </div>

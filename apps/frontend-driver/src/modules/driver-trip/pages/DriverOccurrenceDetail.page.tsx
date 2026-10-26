@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { ClientEmailSendButton } from '@/modules/client-email/components/ClientEmailSendButton.component'
-import { hasBoletoArrived } from '@/modules/client-email/shared/clientBoletoEmailVisibility.service'
 import { getDriverConversationsApi } from '@/modules/conversation/shared/driverConversationsApiInstance.service'
 import {
   navigateToDriverConversation,
@@ -288,7 +287,7 @@ function ReadyDetail(props: DetailSectionProps) {
       {entry.source === 'server' ? (
         <ClientEmailSendButton
           contextLabel={entry.typeName ?? ''}
-          hasBoleto={hasBoletoArrived(entry.resolutionPhraseKey)}
+          phraseKey={entry.resolutionPhraseKey}
           occurrenceId={entry.id}
         />
       ) : null}
