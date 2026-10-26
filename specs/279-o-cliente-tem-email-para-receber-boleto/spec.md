@@ -139,5 +139,4 @@ save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado p
 
 ## Dúvidas
 
-- Nenhuma bloqueante. Pendente de confirmação do dono (não bloqueia): automático para os e-mails do cadastro (fora do
-  escopo acima) e se o motorista pode **remover** e-mail do cadastro (nesta spec ele só adiciona; remover é do painel).
+- Nenhuma bloqueante. Pendente de confirmação do dono (não bloqueia): se o motorista pode **remover** e-mail do cadastro (nesta spec ele só adiciona; remover é do painel).
