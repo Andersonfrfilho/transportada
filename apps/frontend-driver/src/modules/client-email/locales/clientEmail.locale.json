@@ -1,0 +1,44 @@
+{
+  "add": {
+    "address": "E-mail do cliente",
+    "button": "Adicionar e-mail",
+    "invalid": "Confira o e-mail: ele precisa ter o formato nome@dominio.com.",
+    "modeLabel": "O que fazer com este e-mail?",
+    "saveAndSend": "Enviar e guardar para o cliente",
+    "sendOnly": "Só enviar"
+  },
+  "button": {
+    "ariaLabel": "Enviar o boleto ao cliente · {{context}}",
+    "label": "Enviar ao cliente"
+  },
+  "error": {
+    "failed": "Não foi possível enviar. Toque para tentar de novo.",
+    "invalid": "A API recusou o e-mail. Confira o endereço e tente de novo.",
+    "unavailable": "Esta ocorrência não permite enviar ao cliente agora."
+  },
+  "pending": {
+    "discard": "Descartar",
+    "failed": "Um envio foi recusado e não saiu.",
+    "queued_one": "{{count}} envio na fila — sai quando o sinal voltar.",
+    "queued_other": "{{count}} envios na fila — saem quando o sinal voltar.",
+    "retry": "Tentar de novo"
+  },
+  "result": {
+    "already_queued": "Já tinha sido enviado",
+    "failed": "Não saiu",
+    "queued": "Enviado",
+    "queuedOffline": "Na fila: o boleto sai para o e-mail escolhido quando o sinal voltar.",
+    "saved": "E-mail guardado para o cliente.",
+    "skipped": "Não enviado"
+  },
+  "sheet": {
+    "cancel": "Fechar",
+    "empty": "Este cliente ainda não tem e-mail guardado para o boleto. Adicione um.",
+    "limit": "Enviados: {{sent}} de {{limit}}",
+    "offlineHint": "Sem sinal: o envio entra na fila e sai quando a conexão voltar.",
+    "savedTitle": "E-mails do cliente",
+    "send": "Enviar boleto",
+    "sending": "Enviando…",
+    "title": "Enviar o boleto ao cliente"
+  }
+}

@@ -493,3 +493,19 @@ Orçamento da redução: **8 s fixos** (`PROOF_PHOTO_REDUCTION_BUDGET_MS`; `..._
 guardada em `proofUploadProgress.service.ts` e lida por `useProofUploadStatus`. `processingState` `received`/`processing` na resposta mostra "Enviado, processando";
 sem o campo nada muda. Diagnóstico do upload: `step_timing`/`send_failed` em `upload_put` com `reportKind: 'proof'`, `photoBytes` (total) e `durationMs`;
 o modelo vem do `User-Agent` da API. Publicar depois da API (ADR-0081 §9). `test/driver-trip/proof-original-budget.contract.ts`, `proof-upload-progress.contract.ts`, `proof-original-parity.contract.ts`.
+
+## "Enviar ao cliente" (spec 279 T6)
+
+Módulo `src/modules/client-email`: o motorista leva o boleto da contratante aos e-mails do cliente. O botão
+(`ClientEmailSendButton`) vive na faixa acima da conversa da ocorrência, no cartão da lista e no detalhe, e só existe
+quando o boleto foi aceito — a regra do painel (`reply_received`, `awaiting_operator`, `delivered`, `handled`), lida do `registeredOccurrences[].contractorReply` da viagem (`collectBoletoAcceptedIds`), ou a frase `contractor_reply_delivered` da lista da rota. Quem decide se o _tipo_
+oferece o envio é a API: o `GET .../client-boleto-emails` responde `409` (tipo `off` ou encaminhamento desligado) ou `404`
+e o botão some; erro de rede não esconde, o motorista ainda enfileira. A folha (`ClientEmailSendSheet`, em portal no
+`body` — o cartão resolvido tem `opacity`, que prenderia o `fixed`) lista os e-mails mascarados por `emailId`, tem
+"Adicionar e-mail" com "Só enviar" / "Enviar e guardar para o cliente" e mostra o resultado por endereço. Sem sinal, ou
+com a rede caindo no meio, o pedido vai para a fila própria (`clientBoletoEmailOutbox`, IndexedDB
+`transportada.driver-client-email-outbox`) com a **mesma `idempotencyKey` em toda tentativa** — a API devolve
+`already_queued` em vez de mandar duas vezes; recusa (`4xx`) marca `failed` com "Tentar de novo"/"Descartar". A drenagem
+usa os gatilhos da fila de mensagens (`useClientEmailOutboxFlush`, montado na casca). O endereço novo só mora no aparelho
+até a fila entregar; log e resposta continuam mascarados. `test/client-email/*.contract.ts`; prints em
+`test/spec-279-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-279-prints.smoke.spec.ts`).

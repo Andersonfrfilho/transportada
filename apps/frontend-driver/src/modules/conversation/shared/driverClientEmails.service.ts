@@ -1,9 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { getDriverEnvironment } from '@/modules/shared/environment.config'
-import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
-
-import { CURRENT_TRIP_PATH } from './driverConversation.constant'
-import { createDriverConversationHttp } from './driverConversationsHttp.service'
+import { getClientBoletoEmailRuntime } from '@/modules/client-email/shared/clientBoletoEmailInstance.service'
 
 /** Spec 279 T6c (RF13): o e-mail do cliente guardado, sempre na forma mascarada (RF2). */
 export type DriverClientEmail = Readonly<{ addressMasked: string; emailId: string; label: string }>
@@ -31,16 +27,9 @@ export function parseDriverClientEmails(payload: unknown): readonly DriverClient
   return emails
 }
 
-/** `GET /me/trips/current/occurrences/:id/client-boleto-emails` (T4); a recusa (`409`, tipo `off`) vira erro. */
+/** `GET /me/trips/current/occurrences/:id/client-boleto-emails` (T4) pelo cliente único da T6; a recusa (`409`) vira erro. */
 export async function readDriverClientEmails(
   occurrenceId: string,
 ): Promise<readonly DriverClientEmail[]> {
-  const http = createDriverConversationHttp({
-    baseUrl: getDriverEnvironment().apiBaseUrl,
-    fetch: (request) => fetch(request),
-    getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
-  })
-  return parseDriverClientEmails(
-    await http.getJson(`${CURRENT_TRIP_PATH}/occurrences/${occurrenceId}/client-boleto-emails`),
-  )
+  return (await getClientBoletoEmailRuntime().api.list(occurrenceId)).clientEmails
 }
