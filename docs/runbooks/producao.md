@@ -82,16 +82,16 @@ Regras que já custaram tempo:
   (`railway ssh -p <id> -s api -e production ...`).
 - Consultas já prontas e testadas (cópias no projeto Claude, pasta `prorrogacao/`):
 
-| Script | O que faz | Tipo |
-| --- | --- | --- |
-| `producao-momentos-prorrogacao.sh` | momentos e config dos tipos de ocorrência ativos | leitura |
-| `producao-escopo-prorrogacao.sh` | escopo de contratantes do tipo de prorrogação e emitente da NF | leitura |
-| `producao-excecoes-prorrogacao.sh` | exceções por contratante/destinatário do tipo | leitura |
-| `producao-thiago-vs-andreia.sh` | papel e empresa de dois motoristas nas viagens | leitura |
-| `producao-ligar-office-prorrogacao.sh` | liga o momento `office` no tipo (1 linha, idempotente) | escrita |
-| `trip-stops-check.sh` / `trip-stops-fix-points.sh` | paradas sem coordenada / grava ponto manual (`--confirm`) | leitura / escrita |
-| `nfse/nfse-freight-rules-check.sh` | regras de frete vigentes e perfis de NFS-e | leitura |
-| `respostas-rapidas/producao-respostas-rapidas.sh` | cadastra respostas rápidas só em empresa sem nenhuma | escrita |
+| Script                                             | O que faz                                                      | Tipo              |
+| -------------------------------------------------- | -------------------------------------------------------------- | ----------------- |
+| `producao-momentos-prorrogacao.sh`                 | momentos e config dos tipos de ocorrência ativos               | leitura           |
+| `producao-escopo-prorrogacao.sh`                   | escopo de contratantes do tipo de prorrogação e emitente da NF | leitura           |
+| `producao-excecoes-prorrogacao.sh`                 | exceções por contratante/destinatário do tipo                  | leitura           |
+| `producao-thiago-vs-andreia.sh`                    | papel e empresa de dois motoristas nas viagens                 | leitura           |
+| `producao-ligar-office-prorrogacao.sh`             | liga o momento `office` no tipo (1 linha, idempotente)         | escrita           |
+| `trip-stops-check.sh` / `trip-stops-fix-points.sh` | paradas sem coordenada / grava ponto manual (`--confirm`)      | leitura / escrita |
+| `nfse/nfse-freight-rules-check.sh`                 | regras de frete vigentes e perfis de NFS-e                     | leitura           |
+| `respostas-rapidas/producao-respostas-rapidas.sh`  | cadastra respostas rápidas só em empresa sem nenhuma           | escrita           |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
 
@@ -134,7 +134,8 @@ for service in api worker; do
 done
 ```
 
-  (aspas simples no `--set` para o shell não expandir `${{ }}`.)
+(aspas simples no `--set` para o shell não expandir `${{ }}`.)
+
 - `OBJECT_STORAGE_FORCE_PATH_STYLE=false` é necessário: o endpoint é virtual-host
   (ver `docs/spec/railway.md`).
 - Se for inevitável gravar chave literal: peça cada valor com `read -rs`, recuse vazio/espaço/quebra
@@ -151,7 +152,7 @@ done
 Ordem de preferência:
 
 1. **Pelo workflow (caminho normal).** Push em `staging` publica staging; push em `main` publica
-   produção. Manual: Actions > Deploy > *Run workflow* com `environment=production`
+   produção. Manual: Actions > Deploy > _Run workflow_ com `environment=production`
    (`force_all` publica todos os serviços). Ordem interna: `gate` → `deploy-api` (migrations no
    pré-deploy) → `worker`/`cron` → frontends. **A api sempre sobe antes de quem depende dela.**
 2. **`railway redeploy`** (reinicia o último deployment, sem rebuild):
@@ -173,11 +174,10 @@ for service in api worker; do
 done
 ```
 
-   A api roda as migrations no pré-deploy; com a `main` já em produção elas não têm o que aplicar.
-   `railway up --ci` pode sair com erro ao perder o streaming do build mesmo com o deployment
-   criado: **o status do deployment é quem decide**
-   (`railway deployment list -s api -e production --json`).
-4. **Painel**: Deploy no serviço (api e worker), quando a CLI não aceita.
+A api roda as migrations no pré-deploy; com a `main` já em produção elas não têm o que aplicar.
+`railway up --ci` pode sair com erro ao perder o streaming do build mesmo com o deployment
+criado: **o status do deployment é quem decide**
+(`railway deployment list -s api -e production --json`). 4. **Painel**: Deploy no serviço (api e worker), quando a CLI não aceita.
 
 Depois de qualquer redeploy: `railway deployment list -s <serviço> -e production --json` até
 `SUCCESS` estável e `curl -s https://<domínio-da-api>/health/ready` com `migrations: up`.
@@ -203,8 +203,8 @@ O `deploy-watchdog.yml` (10 em 10 min) já faz isso após 20 min. **Nunca cancel
 O Gatus monitora a API: publique a **api** (e confirme `health/ready`) antes de publicar/alterar o
 **gatus** (`deploy/gatus`), senão o monitor novo nasce vermelho contra uma api ainda velha, ou
 aponta para endpoint que ainda não existe. Alterou os monitores junto com uma mudança da api:
-api primeiro, confere saúde, depois gatus. *(Regra recebida do Anderson; o `deploy.yml` hoje só
-codifica api → worker/cron — se o gatus entrar no pipeline, registrar aqui.)*
+api primeiro, confere saúde, depois gatus. _(Regra recebida do Anderson; o `deploy.yml` hoje só
+codifica api → worker/cron — se o gatus entrar no pipeline, registrar aqui.)_
 
 ## 5. Testar o bucket
 
@@ -221,17 +221,17 @@ Dois testes, ambos só leitura e sem imprimir segredo, de dentro do container da
 
 ## 6. Erros que não devem se repetir
 
-| Erro | Como evitar |
-| --- | --- |
-| Script com caminho do repositório fixo (`$HOME/personal/transportada`, `/mnt/c/...`), que não existia na máquina | `REPO="${REPO:-$(git rev-parse --show-toplevel)}"`, validar o arquivo-sentinela, abortar com mensagem. Máquina é Arch Linux |
-| `main` local desatualizada ao publicar com `railway up` | O script compara `HEAD` com `origin/main` e aborta; `git checkout main && git pull` antes |
-| Chaves `OBJECT_STORAGE_*` coladas à mão que **não batiam com o bucket** (e o nome do bucket tem hash) | Usar referências `${{transportada-production.X}}`; conferir `[texto]` vs `[REFERENCIA]`; testar com `producao-testa-bucket-como-a-api.sh` |
-| Colar duas chaves de uma vez / com espaço ou quebra de linha | Pedir uma por vez, recusar espaço e vazio antes de gravar (v2 do script) |
-| `railway redeploy` recusado por deploy antigo | Cair para `railway up` (item 3) ou painel; não repetir o redeploy |
-| Achar que o redeploy já aplicou as variáveis | Esperar `SUCCESS` estável e re-testar o bucket |
-| Deploy não rodou após o merge | Ver "Deploy travado"; checar Actions antes de supor que subiu |
-| Publicar gatus antes da api | Ordem acima |
-| Scripts em Windows/WSL, `zsh` ou com `nvm` fixo | Máquina é Arch; `#!/usr/bin/env bash` e `command -v railway` |
+| Erro                                                                                                             | Como evitar                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Script com caminho do repositório fixo (`$HOME/personal/transportada`, `/mnt/c/...`), que não existia na máquina | `REPO="${REPO:-$(git rev-parse --show-toplevel)}"`, validar o arquivo-sentinela, abortar com mensagem. Máquina é Arch Linux               |
+| `main` local desatualizada ao publicar com `railway up`                                                          | O script compara `HEAD` com `origin/main` e aborta; `git checkout main && git pull` antes                                                 |
+| Chaves `OBJECT_STORAGE_*` coladas à mão que **não batiam com o bucket** (e o nome do bucket tem hash)            | Usar referências `${{transportada-production.X}}`; conferir `[texto]` vs `[REFERENCIA]`; testar com `producao-testa-bucket-como-a-api.sh` |
+| Colar duas chaves de uma vez / com espaço ou quebra de linha                                                     | Pedir uma por vez, recusar espaço e vazio antes de gravar (v2 do script)                                                                  |
+| `railway redeploy` recusado por deploy antigo                                                                    | Cair para `railway up` (item 3) ou painel; não repetir o redeploy                                                                         |
+| Achar que o redeploy já aplicou as variáveis                                                                     | Esperar `SUCCESS` estável e re-testar o bucket                                                                                            |
+| Deploy não rodou após o merge                                                                                    | Ver "Deploy travado"; checar Actions antes de supor que subiu                                                                             |
+| Publicar gatus antes da api                                                                                      | Ordem acima                                                                                                                               |
+| Scripts em Windows/WSL, `zsh` ou com `nvm` fixo                                                                  | Máquina é Arch; `#!/usr/bin/env bash` e `command -v railway`                                                                              |
 
 ## 7. Manutenção deste runbook
 
