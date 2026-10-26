@@ -487,7 +487,9 @@ import { createResolveOccurrenceUseCase } from './trips/application/resolve-occu
 import { DrizzleOccurrenceResolutionUnitOfWork } from './trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
+import { createMeClientBoletoEmailsRoutes } from './occurrence-conversation/presentation/me-client-boleto-emails.routes.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
+import { createDriverClientBoletoEmailsUseCase } from './occurrence-conversation/application/driver-client-boleto-emails.use-case.js'
 import { createMeQuickReplyRoutes } from './occurrence-conversation/presentation/me-quick-replies.routes.js'
 import { createMeSubjectConversationRoutes } from './occurrence-conversation/presentation/me-subject-conversation.routes.js'
 import { createMeSubjectConversationWriteRoutes } from './occurrence-conversation/presentation/me-subject-conversation-write.routes.js'
@@ -3749,6 +3751,18 @@ function createApplicationRoutes({
         newId: () => crypto.randomUUID(),
         repository: createDrizzleConversationUploadRepository(database),
         storage: storageGateway,
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /** Spec 279 T4 (RF2/RF3): os e-mails do cliente para o boleto no `/me` do motorista, pelo trilho da 248. */
+    ...createMeClientBoletoEmailsRoutes({
+      clientBoletoEmails: createDriverClientBoletoEmailsUseCase({
+        emailOptions: createDrizzleContractorReplyEmailReader(database),
+        forwardByEmail: createForwardContractorReplyByEmailUseCase({
+          logger,
+          unitOfWork: createDrizzleContractorReplyEmailUnitOfWork(database),
+        }),
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),

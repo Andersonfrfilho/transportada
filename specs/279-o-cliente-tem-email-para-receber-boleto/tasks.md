@@ -8,7 +8,9 @@
 - [x] **T2** (sonnet) API do painel `delivery-clients/:taxId/emails` (RF1), validação, máscara, auditoria; integração CA1/CA4.
 - [x] **T3** (opus) Novo alvo `client_boleto_emails` no `forward-contractor-reply-by-email` (D3) com `emailIds` e `save`;
       paridade API/worker; integração CA2.
-- [ ] **T4** (sonnet) Rotas do motorista (RF2/RF3) com escopo de viagem/empresa e limite; integração CA3.
+- [x] **T4** (sonnet) Rotas do motorista (RF2/RF3) com escopo de viagem/empresa e limite; integração CA3. `GET` e `POST .../send`
+      em `/me/trips/current/occurrences/:id/client-boleto-emails` (`me-client-boleto-emails.routes.ts`); o motorista só
+      adiciona (RF11), editar e remover é do painel; recusa `409` com tipo `off` ou encaminhamento desligado (D5).
 - [ ] **T5** (sonnet) Painel: seção "E-mails do cliente" (por tipo) na tela do cliente e seletor no botão da ocorrência (RF5); prévia
       com print.
 - [ ] **T6** (sonnet) App do motorista: botão e folha "Enviar ao cliente" (RF6), fila offline com `idempotencyKey`; prévia
