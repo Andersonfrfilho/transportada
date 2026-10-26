@@ -30,6 +30,8 @@ tipo (spec 150 T401/T402, `resolveMailSendReadiness`). ⚠️ **Rota que dispara
 `rateLimit: { store: 'postgres', scope, maxRequests, windowSeconds }`** e aparece em
 `test/rate-limited-routes.contract.test.ts` — hoje só as duas de `contractor-mail` (spec 150 T406).
 
+**E-mails do cliente de entrega** (spec 279 T2): `GET|POST /delivery-clients/:taxId/emails` e `PATCH|DELETE …/:emailId` (`fleet.read`/`fleet.manage`), tipos em `shared/delivery-client-email.constant.ts`. A resposta só leva `addressMasked`; o endereço em claro fica no banco e no corpo do `POST`. A escrita trava o cliente (`FOR UPDATE`) para o limite de 10 por tipo (`422`) e a duplicata (`409`) valerem sob concorrência, e audita (`delivery-client-email.*`, endereço mascarado) na mesma transação. Detalhe: `specs/279-*/evidence.md` § T2.
+
 **O IP do cliente vem do salto conhecido** (ADR-0076 §6, spec 191): `createClientIpResolver` lê só o
 cabeçalho de `CLIENT_IP_SOURCE` — padrão `x-real-ip`, que o edge do Railway sobrescreve (medido).
 Nunca o começo de `x-forwarded-for`, que é do cliente; `cf-connecting-ip` só com Cloudflare
