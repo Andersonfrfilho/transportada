@@ -31,6 +31,7 @@ import {
   userCompanyMemberships,
 } from '../../database/database.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
+import { CONTRACTOR_REPLY_EMAIL_TARGETS } from '../../shared/occurrence-contractor-reply.constant.js'
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import {
   buildContractorMailValues,
@@ -119,7 +120,11 @@ async function findOccurrenceTarget(
   }
 }
 
-const FORWARD_TARGETS_SQL = sql`('note_recipient_email', 'informed_email')`
+/** Spec 279 T3: da constante, para o alvo novo do cadastro do cliente também ficar fora da cadeia. */
+const FORWARD_TARGETS_SQL = sql`(${sql.join(
+  CONTRACTOR_REPLY_EMAIL_TARGETS.map((target) => sql`${target}`),
+  sql`, `,
+)})`
 
 /**
  * Spec 274 (D6): o assunto do último e-mail de saída da ocorrência, sem o encaminhamento da 248 (mesma exclusão da

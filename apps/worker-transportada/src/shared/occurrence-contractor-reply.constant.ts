@@ -104,10 +104,23 @@ export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
   'informed_email',
   /** Spec 276 T5: a resposta automática à contratante (uma por conversa). Não leva o documento nem tira o token. */
   'contractor_acknowledgement',
+  /** Spec 279 D3: o boleto aos e-mails do cadastro do cliente de entrega (tipo `boleto`), um e-mail por endereço. */
+  'client_boleto_emails',
 ] as const
 export type ContractorReplyDeliveryTarget = (typeof CONTRACTOR_REPLY_DELIVERY_TARGETS)[number]
 
-export const CONTRACTOR_REPLY_EMAIL_TARGETS = ['note_recipient_email', 'informed_email'] as const
+/** Os encaminhamentos do boleto a um terceiro: sem token de resposta e com o anexo ligado pela entrega. */
+export const CONTRACTOR_REPLY_EMAIL_TARGETS = [
+  'note_recipient_email',
+  'informed_email',
+  'client_boleto_emails',
+] as const
+
+/** Spec 276 T5: as entregas por e-mail cujo status segue o da mensagem — os encaminhamentos e a resposta automática. */
+export const CONTRACTOR_REPLY_MAIL_DELIVERY_TARGETS = [
+  ...CONTRACTOR_REPLY_EMAIL_TARGETS,
+  'contractor_acknowledgement',
+] as const
 
 export const CONTRACTOR_REPLY_DELIVERY_TRIGGERS = ['automatic', 'operator'] as const
 export type ContractorReplyDeliveryTrigger = (typeof CONTRACTOR_REPLY_DELIVERY_TRIGGERS)[number]

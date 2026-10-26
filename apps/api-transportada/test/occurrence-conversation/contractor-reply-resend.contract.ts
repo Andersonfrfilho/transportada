@@ -223,7 +223,10 @@ describe('POST /trip-occurrences/:id/contractor-reply/resend-request (spec 248 R
       routes: createOccurrenceContractorReplyRoutes({
         deliverToDriver: { deliver: async () => ({ kind: 'already_delivered' }) },
         emailOptions: { read: async () => null },
-        forwardByEmail: { forward: async () => ({}) as never },
+        forwardByEmail: {
+          forward: async () => ({}) as never,
+          forwardToClient: async () => ({}) as never,
+        },
         markHandled: { markHandled: async () => ({ kind: 'handled' }) },
         readReply: createReadContractorReplyUseCase({
           reader: { findByOccurrence: async () => null },

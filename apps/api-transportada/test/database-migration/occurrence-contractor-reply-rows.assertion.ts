@@ -132,6 +132,12 @@ async function assertDeliveryConstraints(probe: Probe, replyId: string): Promise
     DELIVERIES,
     delivery({ address: 'someone@example.com', target: 'informed_email' }),
   )
+  /** Spec 279 T3: o alvo do cadastro do cliente leva o endereço como os outros encaminhamentos. */
+  await insertRow(
+    database,
+    DELIVERIES,
+    delivery({ address: 'financeiro@mercado.com.br', target: 'client_boleto_emails' }),
+  )
 
   const first = delivery({ idempotency_key: 'same-key-248' })
   await insertRow(database, DELIVERIES, first)

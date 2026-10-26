@@ -15,6 +15,7 @@ import {
   occurrenceConversationAttachments,
   occurrenceConversationMessages,
 } from '../../database/occurrence-conversation.schema.js'
+import { CONTRACTOR_REPLY_EMAIL_TARGETS } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { NfeStorageGateway } from '../../storage/infrastructure/nfe-storage-gateway.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -37,7 +38,10 @@ export function createContractorMailOutboundAttachments(dependencies: {
               on stored.company_id = attachment.company_id and stored.id = attachment.stored_object_id
             where delivery.company_id = ${companyId}::uuid
               and delivery.mail_message_id = ${messageId}::uuid
-              and delivery.target in ('note_recipient_email', 'informed_email')`,
+              and delivery.target in (${sql.join(
+                CONTRACTOR_REPLY_EMAIL_TARGETS.map((target) => sql`${target}`),
+                sql`, `,
+              )})`,
       )) as readonly Record<string, unknown>[]
       if (forwarded.length > 0) {
         return forwarded.map((row) => ({

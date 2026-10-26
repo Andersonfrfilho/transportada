@@ -16,6 +16,7 @@ import {
 } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import { JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import { DELIVERY_CLIENT_EMAIL_MAX_PER_PURPOSE } from '../../shared/delivery-client-email.constant.js'
 import {
   CONTRACTOR_REPLY_EMAIL_TARGETS,
   CONTRACTOR_REPLY_HANDLED_NOTE_MAX_LENGTH,
@@ -29,6 +30,7 @@ import type { ContractorReplyEmailReaderPort } from '../application/forward-cont
 import type {
   ForwardContractorReplyByEmailInput,
   ForwardContractorReplyByEmailUseCase,
+  ForwardContractorReplyToClientInput,
 } from '../application/forward-contractor-reply-by-email.use-case.js'
 import type { createResendContractorReplyRequestUseCase } from '../application/resend-contractor-reply-request.use-case.js'
 import { OCCURRENCE_CONVERSATION_RATE_LIMIT } from './occurrence-conversation.routes.js'
@@ -45,6 +47,8 @@ export const OCCURRENCE_CONTRACTOR_REPLY_HANDLED_PATH =
 export const OCCURRENCE_CONTRACTOR_REPLY_RESEND_REQUEST_PATH =
   '/trip-occurrences/:id/contractor-reply/resend-request'
 
+const CLIENT_TARGET = 'client_boleto_emails'
+
 const READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const WRITE_POLICY = { permission: 'occurrences.resolve', scope: 'company' } as const
 
@@ -55,10 +59,43 @@ const EMAIL_BODY_SCHEMA = z
   .object({
     address: z.string().max(1000).optional(),
     attachmentId: z.string().uuid().optional(),
+    /** Spec 279 T3 (RF4): só no alvo `client_boleto_emails` — os e-mails para boleto do cadastro do cliente. */
+    emailIds: z
+      .array(z.string().uuid())
+      .min(1)
+      .max(DELIVERY_CLIENT_EMAIL_MAX_PER_PURPOSE)
+      .optional(),
+    /** Spec 279 D4: guardar o endereço novo no cadastro do cliente; só com `address` e no alvo do cliente. */
+    save: z.boolean().optional(),
     target: z.enum(CONTRACTOR_REPLY_EMAIL_TARGETS),
   })
   .strict()
   .readonly()
+
+type EmailBody = z.infer<typeof EMAIL_BODY_SCHEMA>
+
+/** As combinações que o corpo não expressa: cada alvo aceita só os campos que usa. */
+function assertEmailBodyFits(body: EmailBody): void {
+  if (body.target === 'note_recipient_email' && body.address !== undefined) {
+    throw invalidRequest([
+      { field: 'address', message: 'The note recipient address comes from the note' },
+    ])
+  }
+  if (body.target !== CLIENT_TARGET) {
+    if (body.emailIds !== undefined || body.save !== undefined) {
+      throw invalidRequest([
+        { field: 'target', message: 'emailIds and save are only for the client e-mails target' },
+      ])
+    }
+    return
+  }
+  if (body.emailIds === undefined && body.address === undefined) {
+    throw invalidRequest([{ field: 'emailIds', message: 'Choose a saved e-mail or enter one' }])
+  }
+  if (body.save === true && body.address === undefined) {
+    throw invalidRequest([{ field: 'save', message: 'Only a new address can be saved' }])
+  }
+}
 
 const HANDLED_BODY_SCHEMA = z
   .object({ note: z.string().trim().min(1).max(CONTRACTOR_REPLY_HANDLED_NOTE_MAX_LENGTH) })
@@ -87,7 +124,7 @@ export type OccurrenceContractorReplyRoutesDependencies = {
     'deliver'
   >
   readonly emailOptions: ContractorReplyEmailReaderPort
-  readonly forwardByEmail: Pick<ForwardContractorReplyByEmailUseCase, 'forward'>
+  readonly forwardByEmail: Pick<ForwardContractorReplyByEmailUseCase, 'forward' | 'forwardToClient'>
 }
 
 type DriverDeliveryInput = {
@@ -95,7 +132,11 @@ type DriverDeliveryInput = {
   readonly occurrenceId: string
 }
 
-type EmailDeliveryInput = Omit<ForwardContractorReplyByEmailInput, 'actorUserId' | 'companyId'>
+type EmailDeliveryInput =
+  | Omit<ForwardContractorReplyByEmailInput, 'actorUserId' | 'companyId'>
+  | (Omit<ForwardContractorReplyToClientInput, 'actorUserId' | 'authorKind' | 'companyId'> & {
+      readonly target: typeof CLIENT_TARGET
+    })
 
 export function createOccurrenceContractorReplyRoutes(
   dependencies: OccurrenceContractorReplyRoutesDependencies,
@@ -126,14 +167,29 @@ export function createOccurrenceContractorReplyRoutes(
       policy: WRITE_POLICY,
       rateLimit: OCCURRENCE_CONVERSATION_RATE_LIMIT,
     }),
-    /** Spec 248 T4.7 (RF10/RF11): o boleto ao cliente da nota ou a um e-mail informado. */
+    /**
+     * Spec 248 T4.7 (RF10/RF11): o boleto ao cliente da nota ou a um e-mail informado. Spec 279 T3 (RF4): no alvo
+     * `client_boleto_emails`, aos e-mails do cadastro do cliente e a um novo, com o resultado por endereço.
+     */
     defineRoute<EmailDeliveryInput>({
       async handle({ context, input }): Promise<Response> {
-        const outcome = await dependencies.forwardByEmail.forward({
-          ...input,
-          actorUserId: context.scope.userId,
-          companyId: context.scope.companyId,
-        })
+        const actor = { actorUserId: context.scope.userId, companyId: context.scope.companyId }
+        if (input.target === CLIENT_TARGET) {
+          const outcome = await dependencies.forwardByEmail.forwardToClient({
+            ...(input.address === undefined ? {} : { address: input.address }),
+            ...(input.attachmentId === undefined ? {} : { attachmentId: input.attachmentId }),
+            ...actor,
+            authorKind: 'office',
+            correlationId: input.correlationId,
+            emailIds: input.emailIds,
+            idempotencyKey: input.idempotencyKey,
+            occurrenceId: input.occurrenceId,
+            save: input.save,
+          })
+          const isQueued = outcome.results.some((result) => result.kind === 'queued')
+          return jsonResponse({ data: outcome }, isQueued ? 201 : 200)
+        }
+        const outcome = await dependencies.forwardByEmail.forward({ ...input, ...actor })
         return jsonResponse({ data: outcome }, outcome.kind === 'queued' ? 201 : 200)
       },
       method: 'POST',
@@ -141,10 +197,18 @@ export function createOccurrenceContractorReplyRoutes(
         const occurrenceId = parseUuidPathIdentifier(pathParameters.id ?? '')
         const idempotencyKey = parseIdempotencyKey(request.headers.get('idempotency-key'))
         const body = await parseBody(EMAIL_BODY_SCHEMA, request)
-        if (body.target === 'note_recipient_email' && body.address !== undefined) {
-          throw invalidRequest([
-            { field: 'address', message: 'The note recipient address comes from the note' },
-          ])
+        assertEmailBodyFits(body)
+        if (body.target === CLIENT_TARGET) {
+          return {
+            ...(body.address === undefined ? {} : { address: body.address }),
+            ...(body.attachmentId === undefined ? {} : { attachmentId: body.attachmentId }),
+            correlationId,
+            emailIds: body.emailIds ?? [],
+            idempotencyKey,
+            occurrenceId,
+            save: body.save ?? false,
+            target: CLIENT_TARGET,
+          }
         }
         return {
           ...(body.address === undefined ? {} : { address: body.address }),

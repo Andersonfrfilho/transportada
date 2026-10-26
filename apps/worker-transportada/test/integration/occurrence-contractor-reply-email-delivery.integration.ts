@@ -89,8 +89,11 @@ describeDatabase('o boleto levado a um terceiro sai pelo worker (spec 248 T4.7)'
 
   async function seed(input: {
     readonly companyContact: boolean
+    /** Spec 279 T3: o alvo do cadastro do cliente segue o mesmo caminho dos encaminhamentos da 248. */
+    readonly target?: 'client_boleto_emails' | 'note_recipient_email'
     readonly uploadObject: boolean
   }): Promise<Seeded> {
+    const target = input.target ?? 'note_recipient_email'
     const companyId = crypto.randomUUID()
     const userId = crypto.randomUUID()
     const contractorId = crypto.randomUUID()
@@ -162,7 +165,7 @@ describeDatabase('o boleto levado a um terceiro sai pelo worker (spec 248 T4.7)'
       values (${forwardMailId}, ${companyId}, ${threadId}, 'outbound', ${userId}, 'ocorrencias@transportadora.example.test', 'Boleto prorrogado', array[${RECIPIENT}], 'Segue o boleto.', 'queued')`)
     await database.execute(sql`
       insert into occurrence_contractor_reply_deliveries (id, company_id, reply_id, target, trigger, status, address, attachment_id, mail_message_id, actor_user_id, idempotency_key)
-      values (${deliveryId}, ${companyId}, ${replyId}, 'note_recipient_email', 'operator', 'queued', ${RECIPIENT}, ${attachmentId}, ${forwardMailId}, ${userId}, ${`note_recipient_email:${deliveryId.replaceAll('-', '')}`})`)
+      values (${deliveryId}, ${companyId}, ${replyId}, ${target}, 'operator', 'queued', ${RECIPIENT}, ${attachmentId}, ${forwardMailId}, ${userId}, ${`${target}:${deliveryId.replaceAll('-', '')}`})`)
     if (input.companyContact) {
       await database.execute(sql`
         insert into company_contacts (company_id, kind, value, position)
@@ -251,6 +254,41 @@ describeDatabase('o boleto levado a um terceiro sai pelo worker (spec 248 T4.7)'
       sql`select delivery_status from contractor_mail_messages where id = ${seeded.mailMessageId}`,
     )
     expect(message?.delivery_status).toBe('sent')
+  })
+
+  it('alvo do cadastro do cliente (spec 279 T3): sai com o PDF, sem token, e a entrega fecha como sent', async () => {
+    const seeded = await seed({
+      companyContact: true,
+      target: 'client_boleto_emails',
+      uploadObject: true,
+    })
+
+    const { bodies, run } = send(seeded)
+    expect(await run).toMatchObject({ outcome: 'sent' })
+
+    expect(bodies[0]).toMatchObject({
+      attachments: [{ filename: 'boleto.pdf' }],
+      headers: {},
+      reply_to: COMPANY_CONTACT,
+      to: [RECIPIENT],
+    })
+    expect(JSON.stringify(bodies[0])).not.toContain('resposta.transportadora.example.test')
+    const delivery = await deliveryOf(seeded)
+    expect(delivery?.status).toBe('sent')
+    expect(delivery?.sent_at).not.toBeNull()
+  })
+
+  it('alvo do cadastro do cliente sem o PDF no bucket: a entrega falha com send_failed', async () => {
+    const seeded = await seed({
+      companyContact: false,
+      target: 'client_boleto_emails',
+      uploadObject: false,
+    })
+
+    const { bodies, run } = send(seeded)
+    expect(await run).toMatchObject({ outcome: 'failed', reason: 'attachment_unavailable' })
+    expect(bodies).toEqual([])
+    expect(await deliveryOf(seeded)).toMatchObject({ reason: 'send_failed', status: 'failed' })
   })
 
   it('empresa sem e-mail de contato: nenhum Reply-To', async () => {

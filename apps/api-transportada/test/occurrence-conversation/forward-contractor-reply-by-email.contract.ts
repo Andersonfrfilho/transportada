@@ -20,9 +20,15 @@ import type {
 import {
   createForwardContractorReplyByEmailUseCase,
   type ForwardContractorReplyByEmailInput,
+  type ForwardContractorReplyToClientInput,
 } from '../../src/occurrence-conversation/application/forward-contractor-reply-by-email.use-case.js'
 import { parseContractorReplyEmailAddress } from '../../src/occurrence-conversation/domain/contractor-reply-email-address.policy.js'
+import { DeliveryClientNotFoundError } from '../../src/delivery-clients/domain/delivery-client.error.js'
+import type { ClientEmailType } from '../../src/shared/delivery-client-email.constant.js'
+import { OccurrenceClientEmailOffError } from '../../src/trips/domain/occurrence-client-email.error.js'
 import {
+  ContractorReplyClientEmailLimitReachedError,
+  ContractorReplyClientEmailNotFoundError,
   ContractorReplyEmailAddressInvalidError,
   ContractorReplyEmailAttachmentNotFoundError,
   ContractorReplyEmailForwardDisabledError,
@@ -37,6 +43,13 @@ const ACTOR_ID = '33333333-3333-4333-8333-333333333333'
 const ATTACHMENT_ID = '44444444-4444-4444-8444-444444444444'
 const OTHER_ATTACHMENT_ID = '55555555-5555-4555-8555-555555555555'
 const NOTE_EMAIL = 'cliente@empresa.com.br'
+const CLIENT_TAX_ID = '12345678000199'
+const EMAIL_FINANCE_ID = '66666666-6666-4666-8666-666666666666'
+const EMAIL_OWNER_ID = '77777777-7777-4777-8777-777777777777'
+const CLIENT_EMAILS = [
+  { address: 'financeiro@mercado.com.br', id: EMAIL_FINANCE_ID, label: 'financeiro' },
+  { address: 'dono@mercado.com.br', id: EMAIL_OWNER_ID, label: 'dono' },
+]
 const MEGABYTE = 1024 * 1024
 
 const CONFIG = {
@@ -58,6 +71,14 @@ const CONFIG = {
 
 type World = {
   attachmentSize?: number
+  /** Spec 279 T3: os e-mails para boleto do cadastro do cliente da nota. */
+  clientEmails?: Array<{ address: string; id: string; label: string }>
+  /** Spec 279 RF9: o `client_email_type` do tipo da ocorrência (padrão do teste: `boleto`). */
+  clientEmailType?: ClientEmailType
+  listedPurposes?: string[]
+  /** `null`: o destinatário da nota não tem cadastro de cliente de entrega. */
+  clientTaxId?: null | string
+  savedEmails?: Array<{ address: string; authorKind: string; purpose: string; taxId: string }>
   config?: unknown
   deliveries: Array<RecordContractorReplyEmailDeliveryParams & { id: string }>
   mails: RecordContractorReplyMailParams[]
@@ -77,6 +98,8 @@ function build(world: Partial<World> = {}) {
     findAttachment: async () =>
       state.attachmentSize === -1 ? null : { sizeBytes: state.attachmentSize ?? MEGABYTE },
     findCarrierName: async () => 'Transportadora Teste',
+    findDeliveryClientTaxId: async () =>
+      state.clientTaxId === undefined ? CLIENT_TAX_ID : state.clientTaxId,
     findDeliveryByKey: async ({ idempotencyKey }) => {
       const found = state.deliveries.find((delivery) => delivery.idempotencyKey === idempotencyKey)
       return found === undefined
@@ -101,6 +124,17 @@ function build(world: Partial<World> = {}) {
     findNoteRecipientEmail: async () =>
       state.noteEmail === undefined ? NOTE_EMAIL : state.noteEmail,
     findOccurrenceThreadId: async () => ('threadId' in state ? state.threadId : 'thread-1'),
+    findClientEmailType: async () => state.clientEmailType ?? 'boleto',
+    listClientEmails: async ({ purpose }) => {
+      state.listedPurposes = [...(state.listedPurposes ?? []), purpose]
+      return state.clientEmails ?? []
+    },
+    saveClientEmail: async ({ address, authorKind, purpose, taxId }) => {
+      state.savedEmails = [...(state.savedEmails ?? []), { address, authorKind, purpose, taxId }]
+      const id = `email-saved-${state.savedEmails.length}`
+      state.clientEmails = [...(state.clientEmails ?? []), { address, id, label: '' }]
+      return { id }
+    },
     lockReply: async () =>
       state.replyExists === false
         ? null
@@ -391,5 +425,252 @@ describe('o endereço nunca sai em claro (spec 248 CA08)', () => {
     await useCase.forward(INFORMED_INPUT)
     const repeated = await useCase.forward(INFORMED_INPUT)
     expect(JSON.stringify(repeated)).not.toContain('financeiro@cliente.com.br')
+  })
+})
+
+const CLIENT_INPUT: ForwardContractorReplyToClientInput = {
+  actorUserId: ACTOR_ID,
+  authorKind: 'office',
+  companyId: COMPANY_ID,
+  correlationId: 'correlation-1',
+  emailIds: [EMAIL_FINANCE_ID, EMAIL_OWNER_ID],
+  idempotencyKey: 'key-1',
+  occurrenceId: OCCURRENCE_ID,
+  save: false,
+}
+
+describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, D3)', () => {
+  test('um e-mail por endereço escolhido, no trilho da 248, com o resultado mascarado', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    const outcome = await useCase.forwardToClient(CLIENT_INPUT)
+    expect(outcome).toEqual({
+      results: [
+        {
+          addressMasked: 'f***@m***.com.br',
+          deliveryId: 'delivery-1',
+          emailId: EMAIL_FINANCE_ID,
+          kind: 'queued',
+          reason: null,
+        },
+        {
+          addressMasked: 'd***@m***.com.br',
+          deliveryId: 'delivery-2',
+          emailId: EMAIL_OWNER_ID,
+          kind: 'queued',
+          reason: null,
+        },
+      ],
+      savedEmailId: null,
+    })
+    expect(state.mails.map((mail) => mail.toAddress)).toEqual([
+      'financeiro@mercado.com.br',
+      'dono@mercado.com.br',
+    ])
+    expect(state.mails[0]).toMatchObject({ subject: 'Boleto prorrogado', threadId: 'thread-1' })
+    expect(state.deliveries.map((delivery) => delivery.target)).toEqual([
+      'client_boleto_emails',
+      'client_boleto_emails',
+    ])
+    expect(state.deliveries.map((delivery) => delivery.mailMessageId)).toEqual(['mail-1', 'mail-2'])
+  })
+
+  test('o mesmo boleto ao mesmo endereço não sai de novo, mesmo com outra chave do cliente', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    const repeated = await useCase.forwardToClient({ ...CLIENT_INPUT, idempotencyKey: 'key-2' })
+    expect(repeated.results.map((result) => result.kind)).toEqual([
+      'already_queued',
+      'already_queued',
+    ])
+    expect(state.mails).toHaveLength(2)
+    expect(JSON.stringify(repeated)).not.toContain('mercado.com.br"')
+  })
+
+  test('outro anexo ao mesmo endereço é outro envio', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient({ ...CLIENT_INPUT, emailIds: [EMAIL_FINANCE_ID] })
+    await useCase.forwardToClient({
+      ...CLIENT_INPUT,
+      attachmentId: OTHER_ATTACHMENT_ID,
+      emailIds: [EMAIL_FINANCE_ID],
+    })
+    expect(state.mails).toHaveLength(2)
+  })
+
+  test('emailId de outro cliente, tipo ou empresa responde como inexistente e nada sai', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await expect(
+      useCase.forwardToClient({
+        ...CLIENT_INPUT,
+        emailIds: [EMAIL_FINANCE_ID, '88888888-8888-4888-8888-888888888888'],
+      }),
+    ).rejects.toBeInstanceOf(ContractorReplyClientEmailNotFoundError)
+    expect(state.mails).toEqual([])
+    expect(state.deliveries).toEqual([])
+  })
+
+  test('destinatário da nota sem cadastro: emailId não existe e guardar não tem onde', async () => {
+    const withIds = build({ clientEmails: CLIENT_EMAILS, clientTaxId: null })
+    await expect(withIds.useCase.forwardToClient(CLIENT_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyClientEmailNotFoundError,
+    )
+    const saving = build({ clientTaxId: null })
+    await expect(
+      saving.useCase.forwardToClient({
+        ...CLIENT_INPUT,
+        address: 'novo@mercado.com.br',
+        emailIds: [],
+        save: true,
+      }),
+    ).rejects.toBeInstanceOf(DeliveryClientNotFoundError)
+    expect(saving.state.mails).toEqual([])
+  })
+
+  test('endereço novo sem guardar sai e não entra no cadastro', async () => {
+    const { state, useCase } = build({ clientTaxId: null })
+    const outcome = await useCase.forwardToClient({
+      ...CLIENT_INPUT,
+      address: ' novo@mercado.com.br ',
+      emailIds: [],
+    })
+    expect(outcome.results).toEqual([expect.objectContaining({ emailId: null, kind: 'queued' })])
+    expect(outcome.savedEmailId).toBeNull()
+    expect(state.mails.map((mail) => mail.toAddress)).toEqual(['novo@mercado.com.br'])
+    expect(state.savedEmails).toBeUndefined()
+  })
+
+  test('endereço novo com save entra no cadastro com o autor e sai com o id guardado', async () => {
+    const { state, useCase } = build({ clientEmails: [] })
+    const outcome = await useCase.forwardToClient({
+      ...CLIENT_INPUT,
+      address: 'novo@mercado.com.br',
+      authorKind: 'driver',
+      emailIds: [],
+      save: true,
+    })
+    expect(state.savedEmails).toEqual([
+      {
+        address: 'novo@mercado.com.br',
+        authorKind: 'driver',
+        purpose: 'boleto',
+        taxId: CLIENT_TAX_ID,
+      },
+    ])
+    expect(outcome.savedEmailId).toBe('email-saved-1')
+    expect(outcome.results[0]).toMatchObject({ emailId: 'email-saved-1', kind: 'queued' })
+  })
+
+  test('endereço já guardado (outra caixa) não duplica, e não sai duas vezes', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    const outcome = await useCase.forwardToClient({
+      ...CLIENT_INPUT,
+      address: 'FINANCEIRO@mercado.com.br',
+      emailIds: [EMAIL_FINANCE_ID],
+      save: true,
+    })
+    expect(state.savedEmails).toBeUndefined()
+    expect(outcome.savedEmailId).toBe(EMAIL_FINANCE_ID)
+    expect(outcome.results).toHaveLength(1)
+    expect(state.mails).toHaveLength(1)
+  })
+
+  test('guardar o 11º e-mail do tipo é recusado e nada sai (D2)', async () => {
+    const full = Array.from({ length: 10 }, (_, index) => ({
+      address: `c${index}@mercado.com.br`,
+      id: `email-${index}`,
+      label: '',
+    }))
+    const { state, useCase } = build({ clientEmails: full })
+    await expect(
+      useCase.forwardToClient({
+        ...CLIENT_INPUT,
+        address: 'novo@mercado.com.br',
+        emailIds: [],
+        save: true,
+      }),
+    ).rejects.toBeInstanceOf(ContractorReplyClientEmailLimitReachedError)
+    expect(state.mails).toEqual([])
+  })
+
+  test('endereço novo inválido é recusado antes da transação', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await expect(
+      useCase.forwardToClient({ ...CLIENT_INPUT, address: 'a@b.com\r\nBcc: c@d.com' }),
+    ).rejects.toBeInstanceOf(ContractorReplyEmailAddressInvalidError)
+    expect(state.mails).toEqual([])
+  })
+
+  test('o teto de cinco por ocorrência conta o pedido inteiro: nada sai se não couber', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS, sentCount: 4 })
+    await expect(useCase.forwardToClient(CLIENT_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyEmailLimitReachedError,
+    )
+    expect(state.mails).toEqual([])
+    expect(state.deliveries).toEqual([])
+  })
+
+  test('tipo da ocorrência com client_email_type off: 409 e nada sai (RF9)', async () => {
+    const { state, useCase } = build({ clientEmailType: 'off', clientEmails: CLIENT_EMAILS })
+    await expect(useCase.forwardToClient(CLIENT_INPUT)).rejects.toBeInstanceOf(
+      OccurrenceClientEmailOffError,
+    )
+    expect(state.mails).toEqual([])
+    expect(state.deliveries).toEqual([])
+  })
+
+  test('o tipo de e-mail do cliente vem do tipo da ocorrência, na leitura e no cadastro', async () => {
+    const { state, useCase } = build({ clientEmailType: 'finance', clientEmails: [] })
+    await useCase.forwardToClient({
+      ...CLIENT_INPUT,
+      address: 'contas@mercado.com.br',
+      emailIds: [],
+      save: true,
+    })
+    expect(state.listedPurposes).toEqual(['finance'])
+    expect(state.savedEmails?.map((email) => email.purpose)).toEqual(['finance'])
+  })
+
+  test('com os encaminhamentos da 248 desligados, o tipo ligado ainda envia (RF9 manda)', async () => {
+    const { state, useCase } = build({
+      clientEmails: CLIENT_EMAILS,
+      config: { ...CONFIG, forwardToInformedEmail: 'off', forwardToNoteRecipient: 'off' },
+    })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    expect(state.mails).toHaveLength(2)
+  })
+
+  test('sem o texto do e-mail na cópia do retorno, nada sai (248)', async () => {
+    const { state, useCase } = build({
+      clientEmails: CLIENT_EMAILS,
+      config: { ...CONFIG, forwardEmailBody: '' },
+    })
+    await expect(useCase.forwardToClient(CLIENT_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyEmailForwardDisabledError,
+    )
+    expect(state.mails).toEqual([])
+  })
+
+  test('PDF acima do limite do e-mail falha por endereço sem sair', async () => {
+    const { state, useCase } = build({ attachmentSize: 11 * MEGABYTE, clientEmails: CLIENT_EMAILS })
+    const outcome = await useCase.forwardToClient(CLIENT_INPUT)
+    expect(outcome.results.map((result) => [result.kind, result.reason])).toEqual([
+      ['failed', 'attachment_too_large_for_email'],
+      ['failed', 'attachment_too_large_for_email'],
+    ])
+    expect(state.mails).toEqual([])
+  })
+
+  test('o log leva só endereços mascarados', async () => {
+    const { logs, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient({
+      ...CLIENT_INPUT,
+      address: 'novo@mercado.com.br',
+      save: true,
+    })
+    const serialized = JSON.stringify(logs)
+    expect(serialized).not.toContain('mercado.com.br"')
+    expect(serialized).not.toContain('financeiro@')
+    expect(serialized).not.toContain('novo@')
+    expect(serialized).toContain('f***@m***.com.br')
   })
 })
