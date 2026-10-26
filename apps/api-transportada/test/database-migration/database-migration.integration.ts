@@ -33,6 +33,7 @@ import { assertContractorReplyResolveOnDelivery } from './contractor-reply-resol
 import { assertContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { assertContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { assertDeliveryClientEmails } from './delivery-client-emails.assertion.js'
+import { assertOccurrenceTypeClientEmailType } from './occurrence-type-client-email-type.assertion.js'
 import { assertOccurrenceDuplicateRequestPolicy } from './occurrence-duplicate-request-policy.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
 import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
@@ -156,6 +157,13 @@ describe('Drizzle migration integration', () => {
          * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
+        /** Spec 279 T3b: coluna aditiva do tipo; a mais nova, antes do rollback da T1. */
+        await assertOccurrenceTypeClientEmailType({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
         /** Spec 279 T1: tabela nova e independente; o rollback e o reapply não tocam nas outras. */
         await assertDeliveryClientEmails({
           companyId: identityFixture.companyId,

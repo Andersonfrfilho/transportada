@@ -17,7 +17,10 @@ import {
   OCCURRENCE_ITEMS_MODE,
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
-import type { DuplicateRequestPolicy } from '@/modules/trip/shared/occurrenceContractorReply.constant'
+import type {
+  ClientEmailType,
+  DuplicateRequestPolicy,
+} from '@/modules/trip/shared/occurrenceContractorReply.constant'
 import type { OccurrenceTypeEdit } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 import identityStyles from '@/modules/trip/styles/occurrenceTypeIdentity.module.css'
 import styles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
@@ -37,8 +40,12 @@ type OccurrenceTypeIdentityProps = Readonly<{
 /** Spec 246 T6.1: o primeiro bloco do tipo aberto, como no preview — nome, situação, devolução e fluxo juntos. */
 export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTypeIdentityProps) {
   const { t } = useTranslation('companySettings')
-  const { duplicateRequestPolicyOptions, flowOptions, redeliveryPolicyOptions } =
-    useOccurrenceTypeOptions()
+  const {
+    clientEmailTypeOptions,
+    duplicateRequestPolicyOptions,
+    flowOptions,
+    redeliveryPolicyOptions,
+  } = useOccurrenceTypeOptions()
   const isDelivery = type.stage === TRIP_OCCURRENCE_STAGE.delivery
   const hasItems = type.itemsMode !== OCCURRENCE_ITEMS_MODE.off
 
@@ -107,6 +114,23 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
               options={duplicateRequestPolicyOptions}
               value={type.duplicateRequestPolicy}
             />
+          </div>
+        )}
+        {/* Spec 279 RF9: só com a API que já manda o campo (a anterior recusaria o PUT). */}
+        {type.clientEmailType === undefined ? null : (
+          <div className={identityStyles.identityField}>
+            <span aria-hidden="true" className={identityStyles.fieldLabel}>
+              {t('occurrenceTypeCatalog.clientEmailType')}
+            </span>
+            <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.clientEmailTypeHint')}>
+              <Select
+                ariaLabel={t('occurrenceTypeCatalog.clientEmailType')}
+                disabled={disabled}
+                onChange={(value) => onEdit({ clientEmailType: value as ClientEmailType })}
+                options={clientEmailTypeOptions}
+                value={type.clientEmailType}
+              />
+            </Tooltip>
           </div>
         )}
         {/* Spec 179 T401: só em tipo de rua — é o motorista quem tira a foto na hora. */}
