@@ -1065,6 +1065,8 @@ export function bootstrap(): Bun.Server<undefined> {
     database,
     identityReadiness: identityGateway,
     migrationStatus: new DrizzleMigrationStatusRepository({ database: database.db }),
+    /** Lazy: o gateway nasce mais adiante, e a prontidão só roda depois do boot. */
+    storage: { health: () => storageGateway.health() },
     /**
      * Spec 078: a revisão publicada, para o descompasso entre API e bundle deixar de ser mudo.
      * Ausente vira `unknown` no próprio serviço — nunca campo que some do corpo.
