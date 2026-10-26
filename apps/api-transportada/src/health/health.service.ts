@@ -9,6 +9,7 @@ import type {
   LivenessHealthResponse,
   MigrationStatusPort,
   ReadinessHealthResponse,
+  StorageHealthPort,
 } from '../shared/api.types'
 
 type HealthServiceParams = {
@@ -18,6 +19,8 @@ type HealthServiceParams = {
   readonly now?: () => Date
   /** Spec 137: janela de cada dependência na prontidão; acima dela a dependência é `down`. */
   readonly readinessTimeoutMs?: number
+  /** Ausente deixa o bucket fora da prontidão (fixtures sem bucket); `main.ts` sempre liga. */
+  readonly storage?: StorageHealthPort
   /** Spec 078: a revisão publicada; ausente vira `unknown`, nunca campo que some. */
   readonly revision?: string
 }
@@ -31,6 +34,7 @@ export class HealthService {
   private readonly now: () => Date
   private readonly readinessTimeoutMs: number
   private readonly revision: string
+  private readonly storage: StorageHealthPort | undefined
 
   public constructor({
     database,
@@ -39,6 +43,7 @@ export class HealthService {
     now = () => new Date(),
     readinessTimeoutMs = READINESS_CHECK_TIMEOUT_MS,
     revision = 'unknown',
+    storage,
   }: HealthServiceParams) {
     this.database = database
     this.identityReadiness = identityReadiness
@@ -46,6 +51,7 @@ export class HealthService {
     this.now = now
     this.readinessTimeoutMs = readinessTimeoutMs
     this.revision = revision
+    this.storage = storage
   }
 
   public live(): LivenessHealthResponse {
@@ -58,12 +64,18 @@ export class HealthService {
   }
 
   public async ready(): Promise<ReadinessHealthResponse> {
-    const [database, identity, migrations] = await Promise.all([
+    const [database, identity, migrations, storage] = await Promise.all([
       this.checkDatabase(),
       this.checkIdentity(),
       this.checkMigrations(),
+      this.checkStorage(),
     ])
-    const dependencies = { database, identity, migrations }
+    const dependencies = {
+      database,
+      identity,
+      migrations,
+      ...(storage === undefined ? {} : { storage }),
+    }
 
     return {
       dependencies,
@@ -87,6 +99,13 @@ export class HealthService {
       async () => ((await this.migrationStatus.countPending()) === 0 ? 'up' : 'down'),
       this.readinessTimeoutMs,
     )
+  }
+
+  /** O `health()` do provider exercita as credenciais de verdade: chave vencida vira `down`. */
+  private checkStorage(): Promise<DependencyStatus | undefined> {
+    const { storage } = this
+    if (storage === undefined) return Promise.resolve(undefined)
+    return settleWithin(async () => (await storage.health()).status, this.readinessTimeoutMs)
   }
 
   private checkIdentity(): Promise<DependencyStatus> {
