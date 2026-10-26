@@ -809,6 +809,9 @@ import {
   listContractorOccurrences,
 } from './contractor-portal/infrastructure/contractor-occurrence.query.js'
 import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
+import { createDeliveryClientEmailsUseCase } from './delivery-clients/application/delivery-client-emails.use-case.js'
+import { DrizzleDeliveryClientEmailRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-email.repository.js'
+import { createDeliveryClientEmailRoutes } from './delivery-clients/presentation/delivery-client-email.routes.js'
 import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
 import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
 import { createOccurrenceStatementUseCase } from './delivery-clients/application/occurrence-statement.use-case.js'
@@ -2268,6 +2271,9 @@ function createApplicationRoutes({
   })
   const deliveryClients = createDeliveryClientsUseCase({
     repository: new DrizzleDeliveryClientRepository(database),
+  })
+  const deliveryClientEmails = createDeliveryClientEmailsUseCase({
+    repository: new DrizzleDeliveryClientEmailRepository(database),
   })
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
@@ -4053,6 +4059,13 @@ function createApplicationRoutes({
       replaceExceptions: { execute: (input) => deliveryClients.replaceExceptions(input) },
       replaceWindows: { execute: (input) => deliveryClients.replaceWindows(input) },
       updateClient: { execute: (input) => deliveryClients.update(input) },
+    }),
+    ...createDeliveryClientEmailRoutes({
+      addEmail: { execute: (input) => deliveryClientEmails.add(input) },
+      listEmails: { execute: (input) => deliveryClientEmails.list(input) },
+      removeEmail: { execute: (input) => deliveryClientEmails.remove(input) },
+      resolveClientIp,
+      updateEmailLabel: { execute: (input) => deliveryClientEmails.updateLabel(input) },
     }),
     ...createFreightRegionRoutes({
       createRegion: { execute: (input) => freightRegions.create(input) },
