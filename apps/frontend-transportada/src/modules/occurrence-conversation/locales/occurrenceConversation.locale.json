@@ -619,6 +619,7 @@
         "queued": "Na fila",
         "failed": "Falhou"
       },
+      "clientWithoutEmail": "Sem e-mail do cliente para o boleto",
       "retry": "Tentar de novo",
       "retrying": "Enviando…",
       "retryError": "Não foi possível tentar de novo. Confira o e-mail da empresa e tente outra vez."

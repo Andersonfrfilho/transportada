@@ -7,7 +7,7 @@
  * encaminhamento desligado.
  */
 import { describe, expect } from 'bun:test'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypes,
@@ -200,6 +200,28 @@ describe('os e-mails do cliente para o boleto no app do motorista (spec 279 T4, 
           .from(deliveryClientEmails)
           .where(eq(deliveryClientEmails.companyId, companyId))
         expect(rows).toHaveLength(2)
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'o envio automático sem e-mail do cliente (T3c) aparece como pulado, sem endereço e sem o motivo da recusa',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, scope, useCase } = await prepare(database)
+        await database.db.execute(sql`
+          insert into occurrence_contractor_reply_deliveries
+            (company_id, reply_id, target, trigger, status, reason, attachment_id, actor_user_id, idempotency_key)
+          select r.company_id, r.id, 'client_boleto_emails', 'automatic', 'skipped', 'client_without_email',
+                 r.reply_attachment_id, null, 'skip-' || r.id::text
+          from occurrence_contractor_replies r
+          where r.company_id = ${companyId}::uuid`)
+        const listed = await useCase.list(scope)
+        expect(listed.deliveries).toMatchObject([
+          { address: null, sentAt: null, status: 'skipped' },
+        ])
+        expect(JSON.stringify(listed.deliveries)).not.toContain('client_without_email')
       })
     },
     60_000,

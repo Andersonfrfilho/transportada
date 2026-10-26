@@ -10,10 +10,30 @@ export type ClientBoletoEmailOption = Readonly<{
   label: string
 }>
 
-/** O que o `GET` devolve: só endereços mascarados, escolhidos por `emailId`. */
+/**
+ * Spec 279 T6b (RF12): o estado do envio por endereço. `skipped` (sem endereço) é o envio automático que não achou
+ * e-mail do cliente (T3c).
+ */
+export type ClientBoletoEmailDelivery = Readonly<{
+  address: null | string
+  id: string
+  sentAt: null | string
+  status: 'failed' | 'queued' | 'sent' | 'skipped'
+}>
+
+export const CLIENT_BOLETO_EMAIL_DELIVERY_STATUSES = [
+  'failed',
+  'queued',
+  'sent',
+  'skipped',
+] as const
+
+/** O que o `GET` devolve: endereços mascarados, escolhidos por `emailId`, e o estado do que já foi enviado. */
 export type ClientBoletoEmailOptions = Readonly<{
   clientEmailType: string
   clientEmails: readonly ClientBoletoEmailOption[]
+  /** Resposta anterior à T6b não traz o campo: vira lista vazia. */
+  deliveries: readonly ClientBoletoEmailDelivery[]
   sentCount: number
   sentLimit: number
 }>

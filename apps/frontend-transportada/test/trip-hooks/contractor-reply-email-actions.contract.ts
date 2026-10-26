@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test'
 
 import { OccurrenceConversationRequestError } from '../../src/modules/occurrence-conversation/shared/occurrenceConversationClient.service'
 import type {
+  ContractorReplyEmailDelivery,
   ContractorReplyEmailOptions,
   ContractorReplyEmailOutcome,
 } from '../../src/modules/occurrence-conversation/shared/contractorReplyEmail.service'
@@ -34,12 +35,14 @@ const fakes: {
   forward: (input: Record<string, unknown>) => Promise<ContractorReplyEmailOutcome>
   options: ContractorReplyEmailOptions | null
   reads: number
+  retried: Array<Record<string, unknown>>
   sent: Array<Record<string, unknown>>
   sentToClient: Array<Record<string, unknown>>
 } = {
   forward: () => Promise.resolve({ addressMasked: 'c***@d***.example.test', kind: 'queued' }),
   options: OPTIONS,
   reads: 0,
+  retried: [],
   sent: [],
   sentToClient: [],
 }
@@ -59,6 +62,12 @@ void mock.module(
           savedEmailId: input.save === true ? 'email-9' : null,
         })
       },
+      retryContractorReplyClientDelivery: (input: Record<string, unknown>) => {
+        fakes.retried.push(input)
+        return Promise.resolve({
+          results: [{ addressMasked: 'f***@m***.example.test', kind: 'queued', reason: null }],
+        })
+      },
       readContractorReplyEmailOptions: () => {
         fakes.reads += 1
         return Promise.resolve(fakes.options)
@@ -69,6 +78,9 @@ void mock.module(
 
 const { ClientBoletoEmailAction } = await import(
   '../../src/modules/occurrence-conversation/components/ClientBoletoEmailAction.component'
+)
+const { ClientEmailSendState } = await import(
+  '../../src/modules/occurrence-conversation/components/ClientEmailSendState.component'
 )
 const { ContractorReplyEmailActions } = await import(
   '../../src/modules/occurrence-conversation/components/ContractorReplyEmailActions.component'
@@ -366,5 +378,97 @@ describe('o botão Enviar ao cliente (spec 279 T5)', () => {
       save: true,
     })
     await waitFor(() => expect(text()).toContain('ficou guardado no cadastro do cliente'))
+  })
+})
+
+const CLIENT_DELIVERY: ContractorReplyEmailDelivery = {
+  address: 'financeiro@mercado.example.test',
+  addressMasked: 'f***@m***.example.test',
+  createdAt: '2026-10-26T20:00:00.000Z',
+  id: 'delivery-1',
+  reason: null,
+  sentAt: null,
+  status: 'queued',
+  target: 'client_boleto_emails',
+}
+
+function setDeliveries(deliveries: ContractorReplyEmailDelivery[]): void {
+  fakes.options = { ...OPTIONS, clientEmailType: 'boleto', deliveries }
+}
+
+async function mountSendState(isStandalone = false): Promise<void> {
+  await renderWithQueryClient(
+    createElement(ClientEmailSendState, { isStandalone, occurrenceId: 'occurrence-1' }),
+  )
+  await settle()
+}
+
+const retryButton = (): HTMLButtonElement | undefined =>
+  buttons().find((button) => /Tentar de novo/.test(button.textContent ?? ''))
+
+/** Spec 279 T6b (RF12): o estado do envio ao cliente montado de verdade — Enviado, Na fila, Falhou com "Tentar de novo" (só na recusa do provedor, mandando só o id) e a linha "sem e-mail do cliente" do envio automático (T3c). */
+describe('o estado do envio ao cliente (spec 279 T6b)', () => {
+  beforeEach(() => {
+    document.body.replaceChildren()
+    fakes.options = OPTIONS
+    fakes.retried = []
+  })
+
+  it('mostra o endereço inteiro com Enviado e Na fila, sem botão', async () => {
+    setDeliveries([
+      { ...CLIENT_DELIVERY, sentAt: '2026-10-26T20:01:00.000Z', status: 'sent' },
+      { ...CLIENT_DELIVERY, address: 'dono@mercado.example.test', id: 'delivery-2' },
+    ])
+    await mountSendState()
+    expect(text()).toContain('financeiro@mercado.example.test')
+    expect(text()).toContain('dono@mercado.example.test')
+    expect(text()).toContain('Enviado')
+    expect(text()).toContain('Na fila')
+    expect(retryButton()).toBeUndefined()
+  })
+
+  it('Falhou por recusa do provedor oferece "Tentar de novo" e manda só o id da entrega', async () => {
+    setDeliveries([{ ...CLIENT_DELIVERY, reason: 'send_failed', status: 'failed' }])
+    await mountSendState()
+    expect(text()).toContain('Falhou')
+    await act(async () => {
+      retryButton()?.click()
+      await Promise.resolve()
+    })
+    await settle()
+    expect(fakes.retried).toEqual([{ deliveryId: 'delivery-1', occurrenceId: 'occurrence-1' }])
+  })
+
+  it('anexo grande demais falha sem botão', async () => {
+    setDeliveries([
+      { ...CLIENT_DELIVERY, reason: 'attachment_too_large_for_email', status: 'failed' },
+    ])
+    await mountSendState()
+    expect(text()).toContain('Falhou')
+    expect(retryButton()).toBeUndefined()
+  })
+
+  it('o envio automático sem e-mail do cliente mostra o motivo, sem botão', async () => {
+    setDeliveries([
+      {
+        ...CLIENT_DELIVERY,
+        address: null,
+        addressMasked: null,
+        reason: 'client_without_email',
+        status: 'skipped',
+      },
+    ])
+    await mountSendState()
+    expect(text()).toContain('Sem e-mail do cliente para o boleto')
+    expect(retryButton()).toBeUndefined()
+  })
+
+  it('sem envio nenhum: o painel diz que ainda não enviou; a página da ocorrência esconde a seção', async () => {
+    setDeliveries([])
+    await mountSendState()
+    expect(text()).toContain('O boleto ainda não foi enviado ao cliente.')
+    document.body.replaceChildren()
+    await mountSendState(true)
+    expect(text()).toBe('')
   })
 })

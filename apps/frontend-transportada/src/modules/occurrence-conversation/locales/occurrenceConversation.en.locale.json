@@ -619,6 +619,7 @@
         "queued": "Queued",
         "failed": "Failed"
       },
+      "clientWithoutEmail": "No client e-mail for the boleto",
       "retry": "Try again",
       "retrying": "Sending…",
       "retryError": "Could not try again. Check the company e-mail settings and try once more."

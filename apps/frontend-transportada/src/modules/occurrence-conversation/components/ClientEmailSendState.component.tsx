@@ -25,6 +25,7 @@ const STATE_CLASS: Record<ClientEmailSendStateItem['state'], string> = {
   failed: styles.sendStateFailed ?? '',
   queued: styles.sendStateQueued ?? '',
   sent: styles.sendStateSent ?? '',
+  skipped: styles.sendStateFailed ?? '',
 }
 
 /**
@@ -56,11 +57,13 @@ export function ClientEmailSendState({
       <ul className={styles.sendList}>
         {items.map((item) => (
           <li className={styles.sendRow} key={item.deliveryId}>
-            <span>{item.address}</span>
+            <span>{item.address ?? t('details.sendState.clientWithoutEmail')}</span>
             <span className={styles.sendStateLine}>
-              <strong className={STATE_CLASS[item.state]}>
-                {t(`details.sendState.state.${item.state}`)}
-              </strong>
+              {item.state === 'skipped' ? null : (
+                <strong className={STATE_CLASS[item.state]}>
+                  {t(`details.sendState.state.${item.state}`)}
+                </strong>
+              )}
               <time dateTime={item.at}>{formatMoment(item.at)}</time>
               {item.canRetry ? (
                 <Button

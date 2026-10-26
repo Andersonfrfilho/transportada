@@ -29,8 +29,11 @@
 - [ ] **T4b** (opus) Reconhecer o e-mail na mensagem do motorista (RF8): extração única no domínio, `detected_email` na
       mensagem, cartão de confirmação no app e no painel, confirmação por "1" no WhatsApp; teste de contrato com mensagens
       reais ("manda pra x@y.com", vários endereços, endereço mascarado/inválido).
-- [ ] **T6b** (sonnet) Mensagem do sistema "Boleto enviado para o e-mail: …" na conversa e estado Enviado/Falhou no painel
-      (RF12); teste de que log e evento não levam o endereço.
+- [x] **T6b** (sonnet) Mensagem do sistema "Boleto enviado para o e-mail: …" na conversa e estado Enviado/Falhou no painel
+      (RF12); teste de que log e evento não levam o endereço. Coluna `system_notice` na mensagem da conversa (migração
+      aditiva), gravada pelo worker ao marcar a entrega `sent`; "Tentar de novo" (`POST …/email-deliveries/:id/retry`) com
+      chave nova por tentativa. Preenche o `sendState` do painel e do app do motorista, e mostra o `skipped /
+      client_without_email` da T3c. O SDK não tem linha de sistema: o aviso é um balão com autor "Sistema · nome".
 - [x] **T6c** (sonnet) Botão "Ver detalhes da ocorrência" no cabeçalho da conversa, no painel e no app do motorista (RF13);
       prévia com print. Painel: `OccurrenceDetailsAction` no `headerActions` do `OccurrenceThread` (ao lado no desktop, folha
       abaixo de 40rem). App do motorista: o SDK não tem slot no cabeçalho para a app, então o botão vai no cartão do assunto

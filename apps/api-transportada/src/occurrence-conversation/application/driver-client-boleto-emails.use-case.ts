@@ -30,13 +30,14 @@ export type DriverClientBoletoEmailsScope = {
 
 /**
  * Spec 279 T6b (RF12): o estado do envio ao cliente. O motorista vê o endereço por inteiro porque a conversa dele já o
- * mostra no aviso do sistema; a lista só traz o envio ao cliente, e nunca o motivo da recusa do provedor.
+ * mostra no aviso do sistema; a lista só traz o envio ao cliente, e nunca o motivo da recusa do provedor. `skipped`
+ * (sem endereço) é o envio automático que não achou e-mail do cliente (T3c): a única entrega pulada que aparece.
  */
 export type DriverClientBoletoEmailDelivery = {
-  readonly address: string
+  readonly address: null | string
   readonly id: string
   readonly sentAt: null | string
-  readonly status: 'failed' | 'queued' | 'sent'
+  readonly status: 'failed' | 'queued' | 'sent' | 'skipped'
 }
 
 export type DriverClientBoletoEmails = Pick<
@@ -44,14 +45,22 @@ export type DriverClientBoletoEmails = Pick<
   'clientEmailType' | 'clientEmails' | 'sentCount' | 'sentLimit'
 > & { readonly deliveries: readonly DriverClientBoletoEmailDelivery[] }
 
+const CLIENT_WITHOUT_EMAIL_REASON = 'client_without_email'
 const DRIVER_VISIBLE_DELIVERY_STATUSES = ['failed', 'queued', 'sent'] as const
 
 function toDriverDeliveries(
   options: ContractorReplyEmailOptions,
 ): readonly DriverClientBoletoEmailDelivery[] {
-  return options.deliveries.flatMap((delivery) => {
+  return options.deliveries.flatMap((delivery): readonly DriverClientBoletoEmailDelivery[] => {
+    if (delivery.target !== 'client_boleto_emails') return []
+    if (delivery.address === null) {
+      const isWithoutClientEmail =
+        delivery.status === 'skipped' && delivery.reason === CLIENT_WITHOUT_EMAIL_REASON
+      return isWithoutClientEmail
+        ? [{ address: null, id: delivery.id, sentAt: null, status: 'skipped' as const }]
+        : []
+    }
     const status = DRIVER_VISIBLE_DELIVERY_STATUSES.find((known) => known === delivery.status)
-    if (delivery.target !== 'client_boleto_emails' || delivery.address === null) return []
     if (status === undefined) return []
     return [{ address: delivery.address, id: delivery.id, sentAt: delivery.sentAt, status }]
   })
