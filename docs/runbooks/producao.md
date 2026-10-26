@@ -195,7 +195,8 @@ criado: **o status do deployment é quem decide**
 (`railway deployment list -s api -e production --json`). 4. **Painel**: Deploy no serviço (api e worker), quando a CLI não aceita.
 
 Depois de qualquer redeploy: `railway deployment list -s <serviço> -e production --json` até
-`SUCCESS` estável e `curl -s https://<domínio-da-api>/health/ready` com `migrations: up`.
+`SUCCESS` estável e `curl -s https://api.fernandes-transportadora.com.br/health/ready` com `migrations: up`
+(ou `bash /home/miyazaki/Documents/personal/ativada/producao-health-ready.sh`).
 
 ### Deploy travado (job sem runner)
 
@@ -212,6 +213,23 @@ gh workflow run Deploy -f environment=production    # só se for o commit mais n
 O `deploy-watchdog.yml` (10 em 10 min) já faz isso após 20 min. **Nunca cancele run com job
 `in_progress`**: deixa os serviços em versões diferentes. Se não puder esperar, publique pela CLI
 (item 3).
+
+### Deploy falha em "Invalid RAILWAY_TOKEN" (token inválido)
+
+Sintoma: o gate passa e todos os jobs `deploy-*` caem no primeiro passo da CLI com token inválido
+ou não autorizado. Nada foi publicado (26/10/2026: o merge da #349 na main ficou sem subir).
+O `RAILWAY_TOKEN` é secret **do ambiente** do GitHub (`production` / `staging`), não do repositório.
+
+1. Railway → projeto → Settings → Tokens: gerar um _Project Token_ do ambiente `production`.
+2. GitHub → Settings → Environments → `production` → Secrets → atualizar `RAILWAY_TOKEN`.
+   Atalho: `bash /home/miyazaki/Documents/personal/ativada/railway-define-tokens.sh` pede cada token
+   sem eco, confere no Railway (projeto e ambiente certos) antes de gravar com `gh secret set --env`
+   e refaz o run de produção. Enter vazio pula o ambiente.
+3. Refazer o run que falhou: `gh run rerun <id> --failed` (mantém o commit; o gate não roda de novo).
+4. Sem token à mão: `bash producao-reinicia-via-cli.sh` publica **só api e worker** (`railway up`,
+   nessa ordem) a partir da main local. Front-end, driver, client e landing só sobem pelo workflow.
+5. Confirmar: `curl -s https://<domínio-da-api>/health/ready` com `migrations: up`. O Gatus não está
+   no `deploy.yml`; se ele mudou junto, publique-o depois da api (seção abaixo).
 
 ### Ordem de publicação: API antes do Gatus
 
