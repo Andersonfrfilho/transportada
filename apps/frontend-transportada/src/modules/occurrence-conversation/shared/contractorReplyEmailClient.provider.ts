@@ -9,7 +9,9 @@ import {
 
 export type ContractorReplyEmailClient = Pick<
   OccurrenceConversationClient,
-  'forwardContractorReplyByEmail' | 'readContractorReplyEmailOptions'
+  | 'forwardContractorReplyByEmail'
+  | 'forwardContractorReplyToClient'
+  | 'readContractorReplyEmailOptions'
 >
 
 /** Spec 248 T4.7: o cliente ligado ao ambiente e ao token; os testes de DOM trocam este módulo. */

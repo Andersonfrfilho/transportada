@@ -14,9 +14,11 @@ import {
   describeContractorReplyState,
   describeResendAction,
 } from '../shared/contractorReply.service'
+import { isContractorReplyBoletoAccepted } from '../shared/contractorReplyEmail.service'
 import type { ContractorReplyView } from '../shared/contractorReply.types'
 import styles from '../styles/contractorReply.module.css'
 import conversationStyles from '../styles/occurrenceConversation.module.css'
+import { ClientBoletoEmailAction } from './ClientBoletoEmailAction.component'
 import { ContractorReplyHandledForm } from './ContractorReplyHandledForm.component'
 import { ContractorReplyResendAction } from './ContractorReplyResendAction.component'
 import { ContractorReplyTimeline } from './ContractorReplyTimeline.component'
@@ -171,6 +173,11 @@ export function ContractorReplyPanel({
           {canMarkContractorReplyHandled(reply.status) ? (
             <ContractorReplyHandledForm occurrenceId={occurrenceId} />
           ) : null}
+        </div>
+      ) : null}
+      {canResolve && isContractorReplyBoletoAccepted(reply.status) ? (
+        <div className={styles.actions}>
+          <ClientBoletoEmailAction occurrenceId={occurrenceId} placement="page" />
         </div>
       ) : null}
       <ContractorReplyTimeline deliveries={reply.deliveries} events={reply.events} />

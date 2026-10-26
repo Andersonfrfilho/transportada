@@ -274,5 +274,37 @@
     "open": "Add to contacts",
     "title": "Add to contacts",
     "close": "Close"
+  },
+  "clientEmails": {
+    "title": "Client e-mails",
+    "hint": "Where the boleto and other client notices can go. It stays on the client record and serves every future send, in the panel and in the driver app.",
+    "add": "Add e-mail",
+    "empty": "No e-mail saved for this client.",
+    "loading": "Loading e-mails…",
+    "purposeField": "Type",
+    "addressField": "E-mail",
+    "labelField": "Label (optional)",
+    "labelPlaceholder": "Finance, owner…",
+    "save": "Save",
+    "saveLabel": "Save label",
+    "cancel": "Cancel",
+    "editLabel": "Label",
+    "editLabelOf": "Edit the label of {{address}}",
+    "remove": "Remove",
+    "removeOf": "Remove {{address}}",
+    "confirmRemove": "Confirm removal",
+    "byDriver": "Driver",
+    "purpose": {
+      "boleto": "Boleto",
+      "invoice": "Invoice",
+      "finance": "Finance",
+      "general": "General"
+    },
+    "failure": {
+      "addressInvalid": "Enter a single e-mail address, with no comma, semicolon or space.",
+      "limitReached": "Limit of {{max}} e-mails per type reached.",
+      "load": "Could not load the client e-mails.",
+      "generic": "Could not save. Try again in a moment."
+    }
   }
 }
