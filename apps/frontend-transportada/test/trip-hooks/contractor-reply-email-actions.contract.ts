@@ -20,6 +20,8 @@ import { renderWithQueryClient, settle, waitFor } from './renderHook.helper'
 import '../../src/modules/shared/i18n/i18n.service'
 
 const OPTIONS: ContractorReplyEmailOptions = {
+  clientEmailType: 'off',
+  clientEmails: [],
   deliveries: [],
   forwardToInformedEmail: 'manual',
   forwardToNoteRecipient: 'manual',
@@ -31,11 +33,15 @@ const OPTIONS: ContractorReplyEmailOptions = {
 const fakes: {
   forward: (input: Record<string, unknown>) => Promise<ContractorReplyEmailOutcome>
   options: ContractorReplyEmailOptions | null
+  reads: number
   sent: Array<Record<string, unknown>>
+  sentToClient: Array<Record<string, unknown>>
 } = {
   forward: () => Promise.resolve({ addressMasked: 'c***@d***.example.test', kind: 'queued' }),
   options: OPTIONS,
+  reads: 0,
   sent: [],
+  sentToClient: [],
 }
 
 void mock.module(
@@ -46,11 +52,24 @@ void mock.module(
         fakes.sent.push(input)
         return fakes.forward(input)
       },
-      readContractorReplyEmailOptions: () => Promise.resolve(fakes.options),
+      forwardContractorReplyToClient: (input: Record<string, unknown>) => {
+        fakes.sentToClient.push(input)
+        return Promise.resolve({
+          results: [{ addressMasked: 'f***@m***.example.test', kind: 'queued', reason: null }],
+          savedEmailId: input.save === true ? 'email-9' : null,
+        })
+      },
+      readContractorReplyEmailOptions: () => {
+        fakes.reads += 1
+        return Promise.resolve(fakes.options)
+      },
     }),
   }),
 )
 
+const { ClientBoletoEmailAction } = await import(
+  '../../src/modules/occurrence-conversation/components/ClientBoletoEmailAction.component'
+)
 const { ContractorReplyEmailActions } = await import(
   '../../src/modules/occurrence-conversation/components/ContractorReplyEmailActions.component'
 )
@@ -228,5 +247,124 @@ describe('o boleto da contratante por e-mail (spec 248 T4.7)', () => {
     await click(buttonByText(/Enviar ao cliente da nota/u))
     await waitFor(() => expect(text()).toContain('passa de 10 MB'))
     expect(text()).not.toContain('Na fila')
+  })
+})
+
+async function mountAction(isEnabled = true): Promise<void> {
+  await renderWithQueryClient(
+    createElement(ClientBoletoEmailAction, {
+      isEnabled,
+      occurrenceId: 'occurrence-1',
+      placement: 'page',
+    }),
+  )
+  await settle()
+}
+
+async function typeClientAddress(value: string): Promise<void> {
+  const field = document.body.querySelector<HTMLInputElement>('input[type="text"]')
+  if (field === null) throw new Error('FIELD_NOT_FOUND')
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
+  await act(async () => {
+    descriptor?.set?.call(field, value)
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+    await Promise.resolve()
+  })
+}
+
+const CLIENT_OPTIONS: ContractorReplyEmailOptions = {
+  ...OPTIONS,
+  clientEmailType: 'boleto',
+  clientEmails: [
+    { addressMasked: 'f***@m***.example.test', emailId: 'email-1', label: 'financeiro' },
+    { addressMasked: 'd***@m***.example.test', emailId: 'email-2', label: '' },
+  ],
+}
+
+describe('o botão Enviar ao cliente (spec 279 T5)', () => {
+  beforeEach(() => {
+    document.body.replaceChildren()
+    fakes.options = CLIENT_OPTIONS
+    fakes.reads = 0
+    fakes.sentToClient = []
+  })
+
+  it('tipo off: nenhum botão', async () => {
+    fakes.options = { ...CLIENT_OPTIONS, clientEmailType: 'off' }
+    await mountAction()
+    expect(buttons()).toEqual([])
+  })
+
+  it('ocorrência sem retorno: nenhum botão', async () => {
+    fakes.options = null
+    await mountAction()
+    expect(buttons()).toEqual([])
+  })
+
+  it('boleto ainda não aceito (desligado): nem consulta a API', async () => {
+    await mountAction(false)
+    expect(buttons()).toEqual([])
+    expect(fakes.reads).toBe(0)
+  })
+
+  it('sem e-mail guardado o botão é Adicionar e-mail e o escritório digita o seu', async () => {
+    fakes.options = { ...CLIENT_OPTIONS, clientEmails: [] }
+    await mountAction()
+    await click(buttonByText(/Adicionar e-mail/u))
+
+    expect(text()).toContain('ainda não tem e-mail guardado')
+    expect(buttonByText(/^Enviar$/u).disabled).toBe(true)
+    await typeClientAddress('novo@mercado.example.test')
+    await click(buttonByText(/^Enviar$/u))
+
+    expect(fakes.sentToClient).toHaveLength(1)
+    expect(fakes.sentToClient[0]).toMatchObject({
+      address: 'novo@mercado.example.test',
+      save: false,
+    })
+    expect(String(fakes.sentToClient[0]?.idempotencyKey)).toMatch(/^client-email:/u)
+    await waitFor(() => expect(text()).toContain('f***@m***.example.test'))
+  })
+
+  it('com e-mails guardados vem tudo marcado e o envio vai por emailId, sem endereço', async () => {
+    await mountAction()
+    await click(buttonByText(/Enviar ao cliente/u))
+
+    expect(text()).toContain('f***@m***.example.test')
+    await click(buttonByText(/^Enviar$/u))
+
+    expect(fakes.sentToClient[0]).toMatchObject({ emailIds: ['email-1', 'email-2'] })
+    expect(fakes.sentToClient[0]).not.toHaveProperty('address')
+    await waitFor(() => expect(text()).toContain('na fila para envio'))
+  })
+
+  it('endereço novo inválido: a mensagem fica no campo e a API não é chamada', async () => {
+    await mountAction()
+    await click(buttonByText(/Enviar ao cliente/u))
+    await typeClientAddress('a@b.com,c@d.com')
+    await click(buttonByText(/^Enviar$/u))
+
+    expect(text()).toContain('Informe um endereço de e-mail só')
+    expect(fakes.sentToClient).toEqual([])
+  })
+
+  it('guardar no cadastro só vale com endereço novo e vai como save', async () => {
+    await mountAction()
+    await click(buttonByText(/Enviar ao cliente/u))
+    await typeClientAddress('novo@mercado.example.test')
+    const save = [
+      ...document.body.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+    ].find(
+      (box) => !box.disabled && box.closest('label')?.textContent?.includes('Guardar no cadastro'),
+    )
+    if (save === undefined) throw new Error('SAVE_NOT_FOUND')
+    await click(save)
+    await click(buttonByText(/^Enviar$/u))
+
+    expect(fakes.sentToClient[0]).toMatchObject({
+      address: 'novo@mercado.example.test',
+      save: true,
+    })
+    await waitFor(() => expect(text()).toContain('ficou guardado no cadastro do cliente'))
   })
 })

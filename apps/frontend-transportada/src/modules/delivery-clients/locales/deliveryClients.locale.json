@@ -274,5 +274,37 @@
     "open": "Adicionar aos contatos",
     "title": "Adicionar aos contatos",
     "close": "Fechar"
+  },
+  "clientEmails": {
+    "title": "E-mails do cliente",
+    "hint": "Para onde o boleto e os outros avisos do cliente podem ir. Fica no cadastro e serve a todo envio futuro, no painel e no app do motorista.",
+    "add": "Adicionar e-mail",
+    "empty": "Nenhum e-mail cadastrado para este cliente.",
+    "loading": "Carregando os e-mails…",
+    "purposeField": "Tipo",
+    "addressField": "E-mail",
+    "labelField": "Rótulo (opcional)",
+    "labelPlaceholder": "Financeiro, dono…",
+    "save": "Guardar",
+    "saveLabel": "Salvar rótulo",
+    "cancel": "Cancelar",
+    "editLabel": "Rótulo",
+    "editLabelOf": "Editar o rótulo de {{address}}",
+    "remove": "Remover",
+    "removeOf": "Remover {{address}}",
+    "confirmRemove": "Confirmar remoção",
+    "byDriver": "Motorista",
+    "purpose": {
+      "boleto": "Boleto",
+      "invoice": "Nota fiscal",
+      "finance": "Financeiro",
+      "general": "Geral"
+    },
+    "failure": {
+      "addressInvalid": "Informe um endereço de e-mail só, sem vírgula, ponto e vírgula nem espaço.",
+      "limitReached": "Limite de {{max}} e-mails por tipo atingido.",
+      "load": "Não foi possível carregar os e-mails do cliente.",
+      "generic": "Não foi possível salvar. Tente de novo em instantes."
+    }
   }
 }
