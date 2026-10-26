@@ -111,6 +111,10 @@ save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado p
   conversa (RF8) sai **sem o cartão de confirmação**, com a regra de D4 (guarda no cadastro se o tipo permitir). Sem e-mail
   cadastrado, nada sai e a ocorrência mostra "Sem e-mail do cliente para o boleto" ao operador. `automatic` exige o
   texto do e-mail preenchido (248) e o tipo só liga explicitamente; nenhuma migration liga em tipo existente.
+- **RF11** **Botão "Adicionar e-mail" para envio manual**, nos dois lados. No app do motorista, a folha do botão "Enviar ao
+  cliente" e o cartão da ocorrência têm "Adicionar e-mail": ele digita, a API valida, e ele escolhe **só enviar** ou **enviar
+  e guardar para o cliente**. No painel, o botão da ocorrência e a seção da tela do cliente têm o mesmo "Adicionar e-mail"
+  (com escolha do tipo). Vale com o tipo em `manual` ou `automatic`; o que o motorista adiciona aparece no painel e vice-versa.
 - **RF7** Linha do tempo (278): "Boleto enviado ao cliente" com o ator e o endereço mascarado.
 
 ## Requisitos não funcionais
