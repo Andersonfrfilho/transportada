@@ -206,6 +206,9 @@ O `RAILWAY_TOKEN` é secret **do ambiente** do GitHub (`production` / `staging`)
 
 1. Railway → projeto → Settings → Tokens: gerar um _Project Token_ do ambiente `production`.
 2. GitHub → Settings → Environments → `production` → Secrets → atualizar `RAILWAY_TOKEN`.
+   Atalho: `bash /home/miyazaki/Documents/personal/ativada/railway-define-tokens.sh` pede cada token
+   sem eco, confere no Railway (projeto e ambiente certos) antes de gravar com `gh secret set --env`
+   e refaz o run de produção. Enter vazio pula o ambiente.
 3. Refazer o run que falhou: `gh run rerun <id> --failed` (mantém o commit; o gate não roda de novo).
 4. Sem token à mão: `bash producao-reinicia-via-cli.sh` publica **só api e worker** (`railway up`,
    nessa ordem) a partir da main local. Front-end, driver, client e landing só sobem pelo workflow.
