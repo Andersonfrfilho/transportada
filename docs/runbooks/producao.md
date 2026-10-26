@@ -92,6 +92,7 @@ Regras que já custaram tempo:
 | `trip-stops-check.sh` / `trip-stops-fix-points.sh` | paradas sem coordenada / grava ponto manual (`--confirm`)      | leitura / escrita |
 | `nfse/nfse-freight-rules-check.sh`                 | regras de frete vigentes e perfis de NFS-e                     | leitura           |
 | `respostas-rapidas/producao-respostas-rapidas.sh`  | cadastra respostas rápidas só em empresa sem nenhuma           | escrita           |
+| `notas/producao-faixa-notas.sh [de] [ate]`         | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210) | leitura |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
 
