@@ -226,6 +226,7 @@ describe('POST /trip-occurrences/:id/contractor-reply/resend-request (spec 248 R
         forwardByEmail: {
           forward: async () => ({}) as never,
           forwardToClient: async () => ({}) as never,
+          retryToClient: async () => ({}) as never,
         },
         markHandled: { markHandled: async () => ({ kind: 'handled' }) },
         readReply: createReadContractorReplyUseCase({

@@ -31,8 +31,10 @@ import {
   ContractorReplyClientEmailNotFoundError,
   ContractorReplyEmailAddressInvalidError,
   ContractorReplyEmailAttachmentNotFoundError,
+  ContractorReplyEmailDeliveryNotFoundError,
   ContractorReplyEmailForwardDisabledError,
   ContractorReplyEmailLimitReachedError,
+  ContractorReplyEmailRetryNotAllowedError,
 } from '../../src/occurrence-conversation/domain/contractor-reply-email.error.js'
 import { OccurrenceConversationIdempotencyKeyReusedError } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import { TripOccurrenceNotFoundError } from '../../src/trips/domain/trip.error.js'
@@ -100,6 +102,19 @@ function build(world: Partial<World> = {}) {
     findCarrierName: async () => 'Transportadora Teste',
     findDeliveryClientTaxId: async () =>
       state.clientTaxId === undefined ? CLIENT_TAX_ID : state.clientTaxId,
+    findDeliveryById: async ({ deliveryId }) => {
+      const found = state.deliveries.find((delivery) => delivery.id === deliveryId)
+      return found === undefined
+        ? null
+        : {
+            address: found.address,
+            attachmentId: found.attachmentId,
+            id: found.id,
+            reason: found.reason,
+            status: found.status,
+            target: found.target,
+          }
+    },
     findDeliveryByKey: async ({ idempotencyKey }) => {
       const found = state.deliveries.find((delivery) => delivery.idempotencyKey === idempotencyKey)
       return found === undefined
@@ -672,5 +687,139 @@ describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, D3)', () => 
     expect(serialized).not.toContain('financeiro@')
     expect(serialized).not.toContain('novo@')
     expect(serialized).toContain('f***@m***.com.br')
+  })
+})
+
+const RETRY_INPUT = {
+  actorUserId: ACTOR_ID,
+  authorKind: 'office',
+  companyId: COMPANY_ID,
+  correlationId: 'correlation-2',
+  deliveryId: 'delivery-1',
+  occurrenceId: OCCURRENCE_ID,
+} as const
+
+/** O provedor recusou a primeira entrega: é o que o worker grava em `markMessageFailed`. */
+function refuseFirstDelivery(state: World): void {
+  const [first] = state.deliveries
+  if (first === undefined) throw new Error('EXPECTED_DELIVERY')
+  state.deliveries[0] = { ...first, reason: 'send_failed', status: 'failed' }
+}
+
+describe('Tentar de novo uma entrega recusada pelo provedor (spec 279 T6b, RF12)', () => {
+  test('a recusa ganha chave nova: sai de novo ao mesmo endereço, e só ele', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    refuseFirstDelivery(state)
+    const outcome = await useCase.retryToClient(RETRY_INPUT)
+    expect(outcome.results).toEqual([
+      {
+        addressMasked: 'f***@m***.com.br',
+        deliveryId: 'delivery-3',
+        emailId: null,
+        kind: 'queued',
+        reason: null,
+      },
+    ])
+    expect(state.mails.map((mail) => mail.toAddress)).toEqual([
+      'financeiro@mercado.com.br',
+      'dono@mercado.com.br',
+      'financeiro@mercado.com.br',
+    ])
+    const keys = state.deliveries.map((delivery) => delivery.idempotencyKey)
+    expect(new Set(keys).size).toBe(3)
+    expect(state.deliveries[2]).toMatchObject({
+      address: 'financeiro@mercado.com.br',
+      attachmentId: ATTACHMENT_ID,
+      target: 'client_boleto_emails',
+    })
+  })
+
+  test('o clique repetido no mesmo "Tentar de novo" não duplica', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    refuseFirstDelivery(state)
+    await useCase.retryToClient(RETRY_INPUT)
+    const repeated = await useCase.retryToClient(RETRY_INPUT)
+    expect(repeated.results.map((result) => result.kind)).toEqual(['already_queued'])
+    expect(state.mails).toHaveLength(3)
+  })
+
+  test('um novo envio ao endereço recusado devolve a última tentativa, sem sair', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient({ ...CLIENT_INPUT, emailIds: [EMAIL_FINANCE_ID] })
+    refuseFirstDelivery(state)
+    const again = await useCase.forwardToClient({
+      ...CLIENT_INPUT,
+      emailIds: [EMAIL_FINANCE_ID],
+      idempotencyKey: 'key-2',
+    })
+    expect(again.results.map((result) => [result.kind, result.reason])).toEqual([
+      ['failed', 'send_failed'],
+    ])
+    expect(state.mails).toHaveLength(1)
+  })
+
+  test('a recusa seguinte também pode ser tentada de novo, até o teto de tentativas', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient({ ...CLIENT_INPUT, emailIds: [EMAIL_FINANCE_ID] })
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      const last = state.deliveries.at(-1)
+      if (last === undefined) throw new Error('EXPECTED_DELIVERY')
+      state.deliveries[state.deliveries.length - 1] = {
+        ...last,
+        reason: 'send_failed',
+        status: 'failed',
+      }
+      const retried = await useCase.retryToClient({ ...RETRY_INPUT, deliveryId: last.id })
+      expect(retried.results.map((result) => result.kind)).toEqual(['queued'])
+    }
+    const last = state.deliveries.at(-1)
+    if (last === undefined) throw new Error('EXPECTED_DELIVERY')
+    state.deliveries[state.deliveries.length - 1] = {
+      ...last,
+      reason: 'send_failed',
+      status: 'failed',
+    }
+    await expect(
+      useCase.retryToClient({ ...RETRY_INPUT, deliveryId: last.id }),
+    ).rejects.toBeInstanceOf(ContractorReplyEmailLimitReachedError)
+  })
+
+  test('só a entrega recusada pelo provedor tenta de novo', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    await expect(useCase.retryToClient(RETRY_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyEmailRetryNotAllowedError,
+    )
+    const [first] = state.deliveries
+    if (first === undefined) throw new Error('EXPECTED_DELIVERY')
+    state.deliveries[0] = { ...first, reason: 'attachment_too_large_for_email', status: 'failed' }
+    await expect(useCase.retryToClient(RETRY_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyEmailRetryNotAllowedError,
+    )
+    expect(state.mails).toHaveLength(2)
+  })
+
+  test('entrega inexistente, de outro alvo ou sem endereço responde como inexistente', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await expect(useCase.retryToClient(RETRY_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyEmailDeliveryNotFoundError,
+    )
+    await useCase.forward(INFORMED_INPUT)
+    refuseFirstDelivery(state)
+    await expect(useCase.retryToClient(RETRY_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyEmailDeliveryNotFoundError,
+    )
+  })
+
+  test('o log e a resposta do "Tentar de novo" levam só a forma mascarada', async () => {
+    const { logs, state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    refuseFirstDelivery(state)
+    const outcome = await useCase.retryToClient(RETRY_INPUT)
+    expect(JSON.stringify(outcome)).not.toContain('financeiro@')
+    expect(JSON.stringify(logs)).not.toContain('financeiro@')
+    expect(JSON.stringify(logs)).toContain('f***@m***.com.br')
   })
 })

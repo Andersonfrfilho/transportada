@@ -28,6 +28,7 @@ import { OCCURRENCE_CONVERSATION_SUBJECT } from '../../shared/occurrence-convers
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import { systemNoticeField } from '../domain/occurrence-conversation-system-notice.policy.js'
 import { requireOccurrenceId } from '../domain/occurrence-subject.policy.js'
 import { describeOccurrenceLabel } from '../domain/occurrence-label.policy.js'
 import {
@@ -124,7 +125,7 @@ export function createTransactionPort(transaction: Transaction): DriverConversat
           ),
           occurrenceId: occurrenceConversations.occurrenceId,
           unreadCount:
-            sql<number>`count(*) filter (where ${occurrenceConversationMessages.direction} = 'outbound' and ${occurrenceConversationMessages.status} is distinct from 'read')`.mapWith(
+            sql<number>`count(*) filter (where ${occurrenceConversationMessages.direction} = 'outbound' and ${occurrenceConversationMessages.systemNotice} is null and ${occurrenceConversationMessages.status} is distinct from 'read')`.mapWith(
               Number,
             ),
         })
@@ -338,7 +339,7 @@ export function createTransactionPort(transaction: Transaction): DriverConversat
     },
 
     async listDriverMessages(input) {
-      return transaction
+      const rows = await transaction
         .select({
           authorName: authorProfile.name,
           bodyText: occurrenceConversationMessages.bodyText,
@@ -346,6 +347,7 @@ export function createTransactionPort(transaction: Transaction): DriverConversat
           direction: occurrenceConversationMessages.direction,
           id: occurrenceConversationMessages.id,
           status: occurrenceConversationMessages.status,
+          systemNotice: occurrenceConversationMessages.systemNotice,
         })
         .from(occurrenceConversationMessages)
         .innerJoin(
@@ -372,6 +374,10 @@ export function createTransactionPort(transaction: Transaction): DriverConversat
           asc(occurrenceConversationMessages.createdAt),
           asc(occurrenceConversationMessages.id),
         )
+      return rows.map(({ systemNotice, ...message }) => ({
+        ...message,
+        ...systemNoticeField(systemNotice),
+      }))
     },
   }
 }

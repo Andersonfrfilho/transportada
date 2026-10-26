@@ -29,6 +29,7 @@ import {
   type ContractorSenderCompanyUser,
   type ContractorSenderContact,
 } from '../domain/contractor-sender.policy.js'
+import { systemNoticeField } from '../domain/occurrence-conversation-system-notice.policy.js'
 import type {
   OccurrenceConversationMessageAuthor,
   OccurrenceConversationMessageView,
@@ -62,6 +63,7 @@ type MessageRow = {
   readonly senderAddress: null | string
   readonly status: OccurrenceConversationMessageView['status']
   readonly statusTimes: Record<string, string>
+  readonly systemNotice: unknown
 }
 
 function toAuthor(
@@ -155,6 +157,7 @@ async function readMessages(
       senderAddress: occurrenceConversationMessages.senderAddress,
       status: occurrenceConversationMessages.status,
       statusTimes: occurrenceConversationMessages.statusTimes,
+      systemNotice: occurrenceConversationMessages.systemNotice,
     })
     .from(occurrenceConversationMessages)
     .leftJoin(authorProfile, eq(authorProfile.userId, occurrenceConversationMessages.authorUserId))
@@ -340,6 +343,7 @@ export async function findOccurrenceConversations(
           id: row.id,
           status: row.status,
           statusTimes: row.statusTimes,
+          ...systemNoticeField(row.systemNotice),
         })),
         participant: conversation.participant,
         status: conversation.status,

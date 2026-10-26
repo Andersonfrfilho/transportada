@@ -60,6 +60,9 @@ const CLIENT_EMAIL_AUDIT_ACTION = 'delivery-client-email.created'
 const CLIENT_EMAIL_AUDIT_ENTITY_TYPE = 'delivery-client-email'
 const CLIENT_EMAIL_AUDIT_PERMISSION = 'occurrences.resolve'
 
+/** Spec 279: o alvo do envio ao cliente, o único cujo endereço a tela da empresa vê por inteiro (RF12). */
+const CLIENT_TARGET = 'client_boleto_emails'
+
 function isEmailTarget(target: string): target is ContractorReplyEmailTarget {
   return (CONTRACTOR_REPLY_EMAIL_TARGETS as readonly string[]).includes(target)
 }
@@ -186,6 +189,28 @@ function createTransactionPort(transaction: TripQueryable): ContractorReplyEmail
         .limit(1)
       const [row] = lock ? await query.for('update', { of: deliveryClients }) : await query
       return row?.taxId ?? null
+    },
+
+    async findDeliveryById({ companyId, deliveryId, replyId }) {
+      const [row] = await transaction
+        .select({
+          address: occurrenceContractorReplyDeliveries.address,
+          attachmentId: occurrenceContractorReplyDeliveries.attachmentId,
+          id: occurrenceContractorReplyDeliveries.id,
+          reason: occurrenceContractorReplyDeliveries.reason,
+          status: occurrenceContractorReplyDeliveries.status,
+          target: occurrenceContractorReplyDeliveries.target,
+        })
+        .from(occurrenceContractorReplyDeliveries)
+        .where(
+          and(
+            eq(occurrenceContractorReplyDeliveries.companyId, companyId),
+            eq(occurrenceContractorReplyDeliveries.id, deliveryId),
+            eq(occurrenceContractorReplyDeliveries.replyId, replyId),
+          ),
+        )
+        .limit(1)
+      return row ?? null
     },
 
     async findDeliveryByKey({ companyId, idempotencyKey }) {
@@ -481,6 +506,7 @@ export function createDrizzleContractorReplyEmailReader(
           createdAt: occurrenceContractorReplyDeliveries.createdAt,
           id: occurrenceContractorReplyDeliveries.id,
           reason: occurrenceContractorReplyDeliveries.reason,
+          sentAt: occurrenceContractorReplyDeliveries.sentAt,
           status: occurrenceContractorReplyDeliveries.status,
           target: occurrenceContractorReplyDeliveries.target,
         })
@@ -507,11 +533,13 @@ export function createDrizzleContractorReplyEmailReader(
           isEmailTarget(delivery.target)
             ? [
                 {
+                  address: delivery.target === CLIENT_TARGET ? delivery.address : null,
                   addressMasked:
                     delivery.address === null ? null : maskEmailAddress(delivery.address),
                   createdAt: delivery.createdAt.toISOString(),
                   id: delivery.id,
                   reason: delivery.reason,
+                  sentAt: delivery.sentAt?.toISOString() ?? null,
                   status: delivery.status,
                   target: delivery.target,
                 },

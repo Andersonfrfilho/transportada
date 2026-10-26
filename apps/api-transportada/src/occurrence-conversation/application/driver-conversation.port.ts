@@ -10,6 +10,7 @@ import type {
   ConversationAttachmentTransactionPort,
 } from './conversation-attachment.port.js'
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { OccurrenceConversationSystemNoticeView } from '../domain/occurrence-conversation-system-notice.policy.js'
 import type { OccurrenceResolutionEventFact } from '../../trips/domain/occurrence-resolution.types.js'
 import type { OccurrenceConversationSubjectType } from '../../shared/occurrence-conversation-subject.constant.js'
 import type {
@@ -25,6 +26,8 @@ export type DriverConversationMessageRecord = {
   readonly direction: 'inbound' | 'outbound'
   readonly id: string
   readonly status: null | OccurrenceConversationMessageStatus
+  /** Spec 279 T6b (RF12): presente só na mensagem do sistema — "Boleto enviado para o e-mail: …". */
+  readonly systemNotice?: OccurrenceConversationSystemNoticeView
 }
 
 export type DriverConversationIdempotencyRecord = {

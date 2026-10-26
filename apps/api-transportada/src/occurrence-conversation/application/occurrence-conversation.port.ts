@@ -14,6 +14,7 @@ import type {
   OccurrenceConversationStatus,
 } from '../../database/occurrence-conversation.schema.js'
 
+import type { OccurrenceConversationSystemNoticeView } from '../domain/occurrence-conversation-system-notice.policy.js'
 import type { ContractorSenderIdentity } from '../domain/contractor-sender.policy.js'
 import type { ConversationAttachmentRecord } from './conversation-attachment.port.js'
 import type { SubjectAttachmentView } from './conversation-transcription.port.js'
@@ -57,6 +58,8 @@ export type OccurrenceConversationMessageView = {
   readonly id: string
   readonly status: OccurrenceConversationMessageStatus | null
   readonly statusTimes: Readonly<Record<string, string>>
+  /** Spec 279 T6b (RF12): presente só na mensagem do sistema — "Boleto enviado para o e-mail: …". */
+  readonly systemNotice?: OccurrenceConversationSystemNoticeView
 }
 
 export type OccurrenceConversationView = {
