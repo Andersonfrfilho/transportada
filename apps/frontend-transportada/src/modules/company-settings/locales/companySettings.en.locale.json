@@ -322,6 +322,15 @@
     "redeliveryPolicyUnset": "Unset (no case opens)",
     "redeliveryPolicyAllowed": "Allows redelivery",
     "redeliveryPolicyBlocked": "Blocks redelivery",
+    "clientEmailType": "Send to client",
+    "clientEmailTypeHint": "Applies to the occurrence \"Send to client\" button. Off: the button is hidden and the API refuses the send. The other values pick which client e-mail type the button uses.",
+    "clientEmailTypeOptions": {
+      "off": "Off",
+      "boleto": "Boleto e-mail",
+      "invoice": "Invoice e-mail",
+      "finance": "Finance e-mail",
+      "general": "General e-mail"
+    },
     "duplicateRequestPolicy": "Repeated request on the same invoice",
     "duplicateRequestPolicyOptions": {
       "while_request_open": "Block while the request is open",

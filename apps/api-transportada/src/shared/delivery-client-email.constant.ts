@@ -26,3 +26,15 @@ export const DELIVERY_CLIENT_EMAIL_ADDRESS_PATTERN =
   '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$'
 export const DELIVERY_CLIENT_EMAIL_ADDRESS_MAX_LENGTH = 254
 export const DELIVERY_CLIENT_EMAIL_LABEL_MAX_LENGTH = 60
+
+/**
+ * Spec 279 RF9: o que o tipo da ocorrência diz sobre o botão "Enviar ao cliente" — `off` (padrão, sem botão e a API
+ * recusa com 409) ou o tipo de e-mail do cliente (D1) que o botão usa.
+ */
+export const CLIENT_EMAIL_TYPE_OFF = 'off'
+export const CLIENT_EMAIL_TYPES = [
+  CLIENT_EMAIL_TYPE_OFF,
+  ...DELIVERY_CLIENT_EMAIL_PURPOSES,
+] as const
+export type ClientEmailType = (typeof CLIENT_EMAIL_TYPES)[number]
+export const CLIENT_EMAIL_TYPE_DEFAULT: ClientEmailType = CLIENT_EMAIL_TYPE_OFF

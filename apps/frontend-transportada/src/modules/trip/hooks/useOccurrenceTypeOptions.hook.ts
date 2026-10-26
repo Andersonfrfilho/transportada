@@ -8,12 +8,16 @@ import {
   OCCURRENCE_REDELIVERY_POLICY,
   OCCURRENCE_TYPE_FLOWS,
 } from '@/modules/trip/shared/occurrence.constant'
-import { DUPLICATE_REQUEST_POLICIES } from '@/modules/trip/shared/occurrenceContractorReply.constant'
+import {
+  CLIENT_EMAIL_TYPES,
+  DUPLICATE_REQUEST_POLICIES,
+} from '@/modules/trip/shared/occurrenceContractorReply.constant'
 
 type SelectOption = Readonly<{ label: string; value: string }>
 
 type OccurrenceTypeOptions = Readonly<{
   attachmentModeOptions: readonly SelectOption[]
+  clientEmailTypeOptions: readonly SelectOption[]
   duplicateRequestPolicyOptions: readonly SelectOption[]
   flowOptions: readonly SelectOption[]
   redeliveryPolicyOptions: readonly SelectOption[]
@@ -37,6 +41,10 @@ export function useOccurrenceTypeOptions(): OccurrenceTypeOptions {
         value: OCCURRENCE_ATTACHMENT_MODE.required,
       },
     ],
+    clientEmailTypeOptions: CLIENT_EMAIL_TYPES.map((value) => ({
+      label: t(`occurrenceTypeCatalog.clientEmailTypeOptions.${value}`),
+      value,
+    })),
     duplicateRequestPolicyOptions: DUPLICATE_REQUEST_POLICIES.map((value) => ({
       label: t(`occurrenceTypeCatalog.duplicateRequestPolicyOptions.${value}`),
       value,

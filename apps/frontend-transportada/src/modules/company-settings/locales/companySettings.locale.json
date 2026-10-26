@@ -322,6 +322,15 @@
     "redeliveryPolicyUnset": "Indefinido (não abre tratativa)",
     "redeliveryPolicyAllowed": "Admite reentrega",
     "redeliveryPolicyBlocked": "Não admite reentrega",
+    "clientEmailType": "Envio ao cliente",
+    "clientEmailTypeHint": "Vale para o botão \"Enviar ao cliente\" da ocorrência. Desligado: o botão não aparece e a API recusa o envio. Os outros valores dizem qual tipo de e-mail do cliente o botão usa.",
+    "clientEmailTypeOptions": {
+      "off": "Desligado",
+      "boleto": "E-mail de boleto",
+      "invoice": "E-mail de nota fiscal",
+      "finance": "E-mail do financeiro",
+      "general": "E-mail geral"
+    },
     "duplicateRequestPolicy": "Pedido repetido na mesma nota",
     "duplicateRequestPolicyOptions": {
       "while_request_open": "Bloquear enquanto o pedido estiver aberto",

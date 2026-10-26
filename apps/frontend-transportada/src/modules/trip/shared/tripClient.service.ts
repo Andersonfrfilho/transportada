@@ -1027,6 +1027,9 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.driverReplyTemplate === undefined
             ? {}
             : { driverReplyTemplate: input.driverReplyTemplate }),
+          ...(input.clientEmailType === undefined
+            ? {}
+            : { clientEmailType: input.clientEmailType }),
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),

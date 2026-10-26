@@ -13,8 +13,9 @@
       com print.
 - [ ] **T6** (sonnet) App do motorista: botão e folha "Enviar ao cliente" (RF6), fila offline com `idempotencyKey`; prévia
       com print.
-- [ ] **T3b** (sonnet) Campo `client_email_type` em `company_occurrence_types` (RF9): migration aditiva, validação, aba Tipos,
-      API recusa o envio com `off`.
+- [x] **T3b** (sonnet) Campo `client_email_type` em `company_occurrence_types` (RF9): migration aditiva, validação, aba Tipos,
+      API recusa o envio com `off`. Migration `20261026201500`; a recusa é `resolveClientEmailPurpose` (409
+      `OCCURRENCE_CLIENT_EMAIL_OFF`), que a rota de envio da T2/T3 chama. `client_email_send_mode` fica para a T3c.
 - [ ] **T3c** (opus) Envio automático (RF10): `client_email_send_mode`, gatilho ao aceitar o boleto no worker/API com
       paridade, idempotência, ator Sistema; integração do automático e do "sem e-mail".
 - [ ] **T4b** (opus) Reconhecer o e-mail na mensagem do motorista (RF8): extração única no domínio, `detected_email` na

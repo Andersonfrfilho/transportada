@@ -10,6 +10,7 @@ import type {
   DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
+import type { ClientEmailType } from '../../shared/delivery-client-email.constant.js'
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type {
@@ -345,6 +346,7 @@ type SaveOccurrenceTypeInput = {
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   readonly contractorReplyResolveOnDelivery?: boolean | undefined
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+  readonly clientEmailType?: ClientEmailType | undefined
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined
