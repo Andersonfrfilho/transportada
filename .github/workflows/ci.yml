@@ -297,6 +297,11 @@ jobs:
           path: ~/.cache/ms-playwright
       - name: Install Playwright Chromium
         run: bun run --cwd apps/frontend-transportada playwright install chromium
+      # Espelho do apt que pendura uma conexão (26/10: 3,5 MB em 1m20s) estourava o teto do passo
+      # abaixo. Com 20s por conexão e 5 tentativas o apt larga a conexão presa e pede de novo.
+      - name: Teto de conexão do apt
+        timeout-minutes: 1
+        run: printf 'Acquire::http::Timeout "20";\nAcquire::Retries "5";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-retry >/dev/null
       # Teto próprio: espelho pendurado vira passo vermelho em 5 minutos, com nome, em vez de gate
       # cancelado no fim do job sem dizer onde parou.
       - name: Bibliotecas de sistema do Chromium
