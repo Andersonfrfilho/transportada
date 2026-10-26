@@ -49,6 +49,10 @@ railway logs -s api -e production --since "2026-10-26T14:00:00Z"   # a partir de
 - Logs do build/deploy de um deployment: `railway deployment list -s api -e production --json` e
   `railway logs -s api -e production --lines 100` (é o que o deploy faz ao falhar).
 - Alternativa sem CLI local: ferramenta Railway MCP `get-logs` / `get-deployment-diagnosis`.
+- Importação automática (DF-e) saudável: no `worker`, `get-logs` com `filter: distribution` mostra a
+  cada ~1h `nfe_distribution_pull_finished`. `status: "rate-limited"` com `fetched: 0` e `ultNsu`
+  igual a `maxNsu` significa que a SEFAZ não tem nota nova para o CNPJ; não é falha (conferido em
+  26/10/2026, `ultNsu` 54300). Ver também `nfe-distribution.md`.
 - Backup e restore: o resultado aparece como monitor `production_restore` no Gatus além do log.
 
 ## 2. Consultar o banco de produção
