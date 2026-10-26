@@ -28,8 +28,7 @@ Origem: investigação de 26/10/2026, em que o painel mostrou 246 notas na faixa
   quando alguém a procura.
 - **Pílula visível e removível** na linha das pílulas de filtro (spec 258), com texto fixo do padrão.
 - **"Mostrar tudo" vale para a sessão** e vive na URL como os demais filtros; o padrão volta ao reabrir a tela.
-- **Um mês = 30 dias corridos** a partir da **emissão** da nota (`issued_at`) e da **finalização** da viagem, em UTC.
-  [NEEDS CLARIFICATION: os 30 dias contam da emissão da nota, como entendi, ou da conclusão da viagem?]
+- **Um mês = 30 dias corridos contados de hoje**: a nota é "recente" quando `issued_at` é posterior a (agora − 30 dias), em UTC.
 
 ## Fora do escopo
 
