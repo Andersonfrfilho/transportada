@@ -46,6 +46,7 @@ export function useOccurrenceThread({
   const labels = useMemo<OccurrenceThreadAuthorLabels>(
     () => ({
       automatic: t('author.automatic'),
+      system: t('author.system'),
       channel: {
         app: t('thread.via', { channel: t('channel.app') }),
         email: t('thread.via', { channel: t('channel.email') }),

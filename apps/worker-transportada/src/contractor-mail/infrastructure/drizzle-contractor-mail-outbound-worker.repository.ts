@@ -13,6 +13,7 @@ import {
   CONTRACTOR_REPLY_EMAIL_TARGETS,
   CONTRACTOR_REPLY_MAIL_DELIVERY_TARGETS,
 } from '../../shared/occurrence-contractor-reply.constant.js'
+import { recordClientBoletoEmailSentNotice } from '../../occurrence-conversation/infrastructure/client-boleto-email-sent-notice.support.js'
 import { applyOccurrenceConversationMailStatus } from '../../occurrence-conversation/infrastructure/drizzle-occurrence-conversation-mail.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -218,6 +219,12 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
                 and target in ${MAIL_DELIVERY_TARGETS_SQL}
                 and status = 'queued'`,
         )
+        /** O e-mail já saiu: o aviso na conversa nunca desfaz o fechamento da entrega (savepoint, sem log do endereço). */
+        await transaction
+          .transaction((notice) =>
+            recordClientBoletoEmailSentNotice(notice, { companyId, mailMessageId: messageId }),
+          )
+          .catch(() => undefined)
       })
     },
 

@@ -112,6 +112,12 @@ export type ContractorReplyEmailTransactionPort = {
     readonly lock: boolean
     readonly occurrenceId: string
   }): Promise<null | string>
+  /** Spec 279 T6b: a entrega pelo id, só dentro do retorno travado; é de onde o "Tentar de novo" lê o endereço. */
+  findDeliveryById(params: {
+    readonly companyId: string
+    readonly deliveryId: string
+    readonly replyId: string
+  }): Promise<(ContractorReplyEmailDeliveryRecord & { readonly target: string }) | null>
   findDeliveryByKey(params: {
     readonly companyId: string
     readonly idempotencyKey: string
@@ -168,10 +174,16 @@ export type ContractorReplyEmailOptions = {
     readonly label: string
   }[]
   readonly deliveries: readonly {
+    /**
+     * Spec 279 T6b (RF12): o endereço por inteiro, só no envio ao cliente — a tela da própria empresa mostra o
+     * estado Enviado/Falhou por endereço. Os outros alvos seguem mascarados; `null` fora do envio ao cliente.
+     */
+    readonly address: null | string
     readonly addressMasked: null | string
     readonly createdAt: string
     readonly id: string
     readonly reason: ContractorReplyDeliveryReason | null
+    readonly sentAt: null | string
     readonly status: ContractorReplyDeliveryStatus
     readonly target: ContractorReplyEmailTarget
   }[]

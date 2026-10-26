@@ -49,6 +49,7 @@
       "whatsapp": "WhatsApp"
     },
     "automatic": "Aviso automático do tipo de ocorrência",
+    "system": "Sistema",
     "unverified": "Remetente não confirmado",
     "unverifiedHint": "O e-mail chegou sem assinatura do domínio do remetente: o endereço pode ter sido escrito por outra pessoa.",
     "copy": "Cópia",
@@ -610,7 +611,18 @@
       "error": "Não foi possível carregar os e-mails do cliente."
     },
     "sendState": {
-      "title": "Envio ao cliente"
+      "title": "Envio ao cliente",
+      "none": "O boleto ainda não foi enviado ao cliente.",
+      "error": "Não foi possível carregar o estado do envio.",
+      "state": {
+        "sent": "Enviado",
+        "queued": "Na fila",
+        "failed": "Falhou"
+      },
+      "clientWithoutEmail": "Sem e-mail do cliente para o boleto",
+      "retry": "Tentar de novo",
+      "retrying": "Enviando…",
+      "retryError": "Não foi possível tentar de novo. Confira o e-mail da empresa e tente outra vez."
     }
   },
   "detectedEmail": {

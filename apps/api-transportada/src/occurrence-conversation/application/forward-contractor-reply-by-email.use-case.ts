@@ -36,8 +36,10 @@ import {
   ContractorReplyClientEmailNotFoundError,
   ContractorReplyEmailAddressInvalidError,
   ContractorReplyEmailAttachmentNotFoundError,
+  ContractorReplyEmailDeliveryNotFoundError,
   ContractorReplyEmailForwardDisabledError,
   ContractorReplyEmailLimitReachedError,
+  ContractorReplyEmailRetryNotAllowedError,
 } from '../domain/contractor-reply-email.error.js'
 import { CONVERSATION_ATTACHMENT_LIMITS } from '../domain/conversation-attachment.policy.js'
 import { OccurrenceConversationIdempotencyKeyReusedError } from '../domain/occurrence-conversation.error.js'
@@ -90,6 +92,16 @@ export type ForwardContractorReplyToClientInput = {
   readonly save: boolean
 }
 
+/** Spec 279 T6b (RF12): "Tentar de novo" de uma entrega que o provedor recusou; o endereço e o anexo vêm dela. */
+export type RetryContractorReplyToClientInput = {
+  readonly actorUserId: string
+  readonly authorKind: DeliveryClientEmailAuthorKind
+  readonly companyId: string
+  readonly correlationId: string
+  readonly deliveryId: string
+  readonly occurrenceId: string
+}
+
 export type ForwardContractorReplyToClientResult = {
   readonly addressMasked: string
   readonly deliveryId: string
@@ -124,6 +136,9 @@ export type ForwardContractorReplyByEmailUseCase = Readonly<{
   ) => Promise<ForwardContractorReplyByEmailOutcome>
   forwardToClient: (
     input: ForwardContractorReplyToClientInput,
+  ) => Promise<ForwardContractorReplyToClientOutcome>
+  retryToClient: (
+    input: RetryContractorReplyToClientInput,
   ) => Promise<ForwardContractorReplyToClientOutcome>
 }>
 
@@ -247,13 +262,26 @@ export function createForwardContractorReplyByEmailUseCase(dependencies: {
     async forwardToClient(input) {
       const newAddress = resolveClientNewAddress(input)
       const outcome = await dependencies.unitOfWork.execute((transaction) =>
-        executeForwardToClient({ input, newAddress, transaction }),
+        executeForwardToClient({ input, newAddress, retry: false, transaction }),
       )
       dependencies.logger?.info('occurrence_contractor_reply_email_forward', {
         addressesMasked: outcome.results.map((result) => result.addressMasked),
         kinds: outcome.results.map((result) => result.kind),
         occurrenceId: input.occurrenceId,
         saved: outcome.savedEmailId !== null,
+        target: CLIENT_TARGET,
+      })
+      return outcome
+    },
+
+    async retryToClient(input) {
+      const outcome = await dependencies.unitOfWork.execute((transaction) =>
+        executeForwardToClient({ input, newAddress: null, retry: true, transaction }),
+      )
+      dependencies.logger?.info('occurrence_contractor_reply_email_retry', {
+        addressesMasked: outcome.results.map((result) => result.addressMasked),
+        kinds: outcome.results.map((result) => result.kind),
+        occurrenceId: input.occurrenceId,
         target: CLIENT_TARGET,
       })
       return outcome
@@ -371,17 +399,63 @@ function resolveClientNewAddress(input: ForwardContractorReplyToClientInput): nu
   return address
 }
 
-/** D3: a chave é do (retorno, anexo, endereço) — o mesmo boleto nunca sai duas vezes ao mesmo endereço. */
+/** Spec 279 T6b: o teto de tentativas por endereço; a primeira não conta, e cada "Tentar de novo" ganha a seguinte. */
+const CLIENT_DELIVERY_MAX_RETRIES = 5
+
+/**
+ * D3: a chave é do (retorno, anexo, endereço) — o mesmo boleto nunca sai duas vezes ao mesmo endereço. A primeira
+ * tentativa mantém a chave da T3 (a do envio automático, a do clique repetido e a do app na fila); cada "Tentar de
+ * novo" depois de uma recusa do provedor leva o número da tentativa, e assim ganha chave nova sem soltar a antiga.
+ */
 function deriveClientDeliveryKey(params: {
   readonly address: string
   readonly attachmentId: string
+  readonly attempt: number
   readonly replyId: string
 }): string {
+  const base = `${params.replyId}:${params.attachmentId}:${params.address.toLowerCase()}`
   const digest = createHash('sha256')
-    .update(`${params.replyId}:${params.attachmentId}:${params.address.toLowerCase()}`)
+    .update(params.attempt === 0 ? base : `${base}:retry:${params.attempt}`)
     .digest('hex')
     .slice(0, IDEMPOTENCY_DIGEST_LENGTH)
   return `${CLIENT_TARGET}:${digest}`
+}
+
+function isRetryable(delivery: ContractorReplyEmailDeliveryRecord): boolean {
+  return delivery.status === 'failed' && delivery.reason === 'send_failed'
+}
+
+/**
+ * A última tentativa do endereço. Sem `retry` ela volta como está (replay); com `retry` e recusada pelo provedor, a
+ * próxima tentativa é nova (`existing` nulo, chave seguinte) — e a que já está na fila ou saiu volta como está.
+ */
+async function planClientAttempt(params: {
+  readonly address: string
+  readonly attachmentId: string
+  readonly companyId: string
+  readonly replyId: string
+  readonly retry: boolean
+  readonly transaction: ContractorReplyEmailTransactionPort
+}): Promise<{
+  readonly existing: ContractorReplyEmailDeliveryRecord | null
+  readonly idempotencyKey: string
+}> {
+  const { address, attachmentId, companyId, replyId, retry, transaction } = params
+  const keyOf = (attempt: number) =>
+    deriveClientDeliveryKey({ address, attachmentId, attempt, replyId })
+  let attempt = 0
+  let latest: { existing: ContractorReplyEmailDeliveryRecord; idempotencyKey: string } | null = null
+  while (attempt <= CLIENT_DELIVERY_MAX_RETRIES) {
+    const idempotencyKey = keyOf(attempt)
+    const existing = await transaction.findDeliveryByKey({ companyId, idempotencyKey })
+    if (existing === null) break
+    latest = { existing, idempotencyKey }
+    attempt += 1
+  }
+  if (latest === null) return { existing: null, idempotencyKey: keyOf(0) }
+  if (!retry || !isRetryable(latest.existing)) return latest
+  if (attempt > CLIENT_DELIVERY_MAX_RETRIES) throw new ContractorReplyEmailLimitReachedError()
+  return { existing: null, idempotencyKey: keyOf(attempt) }
 }
 
 type ClientRecipient = { readonly address: string; readonly emailId: null | string }
@@ -519,17 +593,57 @@ async function lockClientReply(params: {
   return { attachment: { id: attachmentId, sizeBytes: found.sizeBytes }, purpose, reply, texts }
 }
 
+/**
+ * O "Tentar de novo": o retorno trava primeiro (é o que serializa as tentativas), a entrega recusada dá o endereço e o
+ * anexo, e o resto é o envio de sempre a esse único endereço — sem cadastrar nada e sem mexer nos outros.
+ */
+async function resolveRetryTarget(params: {
+  readonly input: RetryContractorReplyToClientInput
+  readonly transaction: ContractorReplyEmailTransactionPort
+}): Promise<{ readonly address: string; readonly attachmentId: string }> {
+  const { input, transaction } = params
+  const { companyId, deliveryId, occurrenceId } = input
+  const reply = await transaction.lockReply({ companyId, occurrenceId })
+  if (reply === null) throw new TripOccurrenceNotFoundError()
+  const failed = await transaction.findDeliveryById({ companyId, deliveryId, replyId: reply.id })
+  if (failed === null || failed.target !== CLIENT_TARGET || failed.address === null) {
+    throw new ContractorReplyEmailDeliveryNotFoundError()
+  }
+  if (!isRetryable(failed)) throw new ContractorReplyEmailRetryNotAllowedError()
+  return { address: failed.address, attachmentId: failed.attachmentId }
+}
+
 async function executeForwardToClient(params: {
-  readonly input: ForwardContractorReplyToClientInput
+  readonly input: ForwardContractorReplyToClientInput | RetryContractorReplyToClientInput
   readonly newAddress: null | string
+  readonly retry: boolean
   readonly transaction: ContractorReplyEmailTransactionPort
 }): Promise<ForwardContractorReplyToClientOutcome> {
-  const { input, newAddress, transaction } = params
+  const { newAddress, retry, transaction } = params
+  const retryTarget =
+    'deliveryId' in params.input
+      ? await resolveRetryTarget({ input: params.input, transaction })
+      : null
+  const input: ForwardContractorReplyToClientInput =
+    'deliveryId' in params.input
+      ? {
+          actorUserId: params.input.actorUserId,
+          address: retryTarget?.address ?? '',
+          attachmentId: retryTarget?.attachmentId ?? '',
+          authorKind: params.input.authorKind,
+          companyId: params.input.companyId,
+          correlationId: params.input.correlationId,
+          emailIds: [],
+          idempotencyKey: params.input.deliveryId,
+          occurrenceId: params.input.occurrenceId,
+          save: false,
+        }
+      : params.input
   const { companyId } = input
   const { attachment, purpose, reply, texts } = await lockClientReply({ input, transaction })
   const { recipients, savedEmailId } = await resolveClientRecipients({
     input,
-    newAddress,
+    newAddress: retryTarget === null ? newAddress : retryTarget.address,
     purpose,
     transaction,
   })
@@ -540,12 +654,14 @@ async function executeForwardToClient(params: {
     readonly recipient: ClientRecipient
   }[] = []
   for (const recipient of recipients) {
-    const idempotencyKey = deriveClientDeliveryKey({
+    const { existing, idempotencyKey } = await planClientAttempt({
       address: recipient.address,
       attachmentId: attachment.id,
+      companyId,
       replyId: reply.id,
+      retry,
+      transaction,
     })
-    const existing = await transaction.findDeliveryByKey({ companyId, idempotencyKey })
     planned.push({ existing, idempotencyKey, recipient })
   }
   const fresh = planned.filter((item) => item.existing === null)

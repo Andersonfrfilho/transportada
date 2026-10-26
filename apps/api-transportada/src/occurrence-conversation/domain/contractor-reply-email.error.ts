@@ -87,3 +87,25 @@ export class DetectedClientEmailNotFoundError extends ApiError {
     })
   }
 }
+
+/** Spec 279 T6b: a entrega a tentar de novo não existe nesta ocorrência (ou não é do envio ao cliente). */
+export class ContractorReplyEmailDeliveryNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_EMAIL_DELIVERY_NOT_FOUND',
+      message: 'The e-mail delivery was not found for this occurrence',
+      status: 404,
+    })
+  }
+}
+
+/** Spec 279 T6b: só a entrega que o provedor recusou tenta de novo; as outras já saíram ou nunca sairiam. */
+export class ContractorReplyEmailRetryNotAllowedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_EMAIL_RETRY_NOT_ALLOWED',
+      message: 'Only a delivery the provider refused can be retried',
+      status: 409,
+    })
+  }
+}

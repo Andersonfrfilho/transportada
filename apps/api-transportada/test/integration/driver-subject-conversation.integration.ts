@@ -13,6 +13,7 @@ import { eq } from 'drizzle-orm'
 import {
   companyOccurrenceTypes,
   fleetDrivers,
+  occurrenceConversationMessages,
   occurrenceConversationReads,
   occurrenceConversations,
   tripDocuments,
@@ -215,6 +216,23 @@ describe('a conversa por assunto do motorista contra Postgres (spec 263 T2.4)', 
           createdAt: at(3),
           direction: 'outbound',
         })
+        /** Spec 279 T6b: o aviso do sistema não é a última palavra da empresa nem conta como não lido. */
+        await database.db.insert(occurrenceConversationMessages).values({
+          automatic: true,
+          bodyText: 'Boleto enviado para o e-mail: financeiro@mercado.example.test',
+          channel: 'app',
+          companyId: company.companyId,
+          conversationId: occurrenceConversation.id,
+          createdAt: at(4),
+          direction: 'outbound',
+          status: 'delivered',
+          systemNotice: {
+            actorKind: 'office',
+            actorName: 'Marta Operadora',
+            deliveryId: crypto.randomUUID(),
+            kind: 'client_boleto_email_sent',
+          },
+        })
 
         const first = await harness.list.list({ ...actor, cursor: null })
         expect(first.nextCursor).toBeNull()
@@ -236,8 +254,10 @@ describe('a conversa por assunto do motorista contra Postgres (spec 263 T2.4)', 
           unreadCount: 0,
         })
         expect(occurrenceItem).toMatchObject({
+          awaitingDriver: true,
           channels: ['app'],
           lastMessagePreview: 'Caixa violada?',
+          unreadCount: 1,
           subjectLabel: expect.stringMatching(/^Caixa violada · NF /u),
         })
         expect(occurrenceItem).not.toHaveProperty('iconName')

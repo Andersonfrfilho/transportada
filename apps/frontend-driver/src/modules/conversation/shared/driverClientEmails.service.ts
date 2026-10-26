@@ -1,8 +1,17 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { ClientBoletoEmailDelivery } from '@/modules/client-email/shared/clientBoletoEmail.types'
 import { getClientBoletoEmailRuntime } from '@/modules/client-email/shared/clientBoletoEmailInstance.service'
 
 /** Spec 279 T6c (RF13): o e-mail do cliente guardado, sempre na forma mascarada (RF2). */
 export type DriverClientEmail = Readonly<{ addressMasked: string; emailId: string; label: string }>
+
+/** Spec 279 T6b (RF12): o estado do envio por endereço; só leitura, o "Tentar de novo" é do escritório. */
+export type DriverClientEmailDelivery = ClientBoletoEmailDelivery
+
+export type DriverClientEmailsView = Readonly<{
+  deliveries: readonly DriverClientEmailDelivery[]
+  emails: readonly DriverClientEmail[]
+}>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -30,6 +39,7 @@ export function parseDriverClientEmails(payload: unknown): readonly DriverClient
 /** `GET /me/trips/current/occurrences/:id/client-boleto-emails` (T4) pelo cliente único da T6; a recusa (`409`) vira erro. */
 export async function readDriverClientEmails(
   occurrenceId: string,
-): Promise<readonly DriverClientEmail[]> {
-  return (await getClientBoletoEmailRuntime().api.list(occurrenceId)).clientEmails
+): Promise<DriverClientEmailsView> {
+  const options = await getClientBoletoEmailRuntime().api.list(occurrenceId)
+  return { deliveries: options.deliveries, emails: options.clientEmails }
 }

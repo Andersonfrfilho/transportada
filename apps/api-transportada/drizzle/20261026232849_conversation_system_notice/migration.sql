@@ -1,0 +1,4 @@
+-- Spec 279 T6b (RF12): a mensagem do sistema da conversa. Coluna nula por padrao, sem UPDATE: nenhuma mensagem existente muda.
+ALTER TABLE "occurrence_conversation_messages" ADD COLUMN "system_notice" jsonb;--> statement-breakpoint
+CREATE UNIQUE INDEX "occurrence_conversation_messages_system_notice_delivery_unique" ON "occurrence_conversation_messages" ("company_id",("system_notice" ->> 'deliveryId')) WHERE "system_notice" is not null;--> statement-breakpoint
+ALTER TABLE "occurrence_conversation_messages" ADD CONSTRAINT "occurrence_conversation_messages_system_notice_check" CHECK ("system_notice" is null or (jsonb_typeof("system_notice") = 'object' and jsonb_exists("system_notice", 'kind') and "direction" = 'outbound' and "automatic"));

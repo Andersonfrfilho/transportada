@@ -7,7 +7,7 @@
  * encaminhamento desligado.
  */
 import { describe, expect } from 'bun:test'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypes,
@@ -173,6 +173,12 @@ describe('os e-mails do cliente para o boleto no app do motorista (spec 279 T4, 
         const sent = await useCase.send(sendOf(scope, { emailIds: [client.financeId] }))
         expect(sent.results).toMatchObject([{ emailId: client.financeId, kind: 'queued' }])
         expect(JSON.stringify(sent)).not.toContain(FINANCE_EMAIL)
+        /** Spec 279 T6b (RF12): o estado do envio chega ao motorista com o endereço que a conversa dele já mostra. */
+        const afterSend = await useCase.list(scope)
+        expect(afterSend.deliveries).toMatchObject([
+          { address: FINANCE_EMAIL, sentAt: null, status: 'queued' },
+        ])
+        expect(JSON.stringify(afterSend.clientEmails)).not.toContain(FINANCE_EMAIL)
 
         const withNew = await useCase.send(sendOf(scope, { newAddress: NEW_EMAIL, save: true }))
         expect(withNew.results).toMatchObject([{ kind: 'queued' }])
@@ -197,6 +203,28 @@ describe('os e-mails do cliente para o boleto no app do motorista (spec 279 T4, 
           .from(deliveryClientEmails)
           .where(eq(deliveryClientEmails.companyId, companyId))
         expect(rows).toHaveLength(2)
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'o envio automático sem e-mail do cliente (T3c) aparece como pulado, sem endereço e sem o motivo da recusa',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, scope, useCase } = await prepare(database)
+        await database.db.execute(sql`
+          insert into occurrence_contractor_reply_deliveries
+            (company_id, reply_id, target, trigger, status, reason, attachment_id, actor_user_id, idempotency_key)
+          select r.company_id, r.id, 'client_boleto_emails', 'automatic', 'skipped', 'client_without_email',
+                 r.reply_attachment_id, null, 'skip-' || r.id::text
+          from occurrence_contractor_replies r
+          where r.company_id = ${companyId}::uuid`)
+        const listed = await useCase.list(scope)
+        expect(listed.deliveries).toMatchObject([
+          { address: null, sentAt: null, status: 'skipped' },
+        ])
+        expect(JSON.stringify(listed.deliveries)).not.toContain('client_without_email')
       })
     },
     60_000,

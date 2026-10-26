@@ -33,10 +33,13 @@ export const CONTRACTOR_REPLY_EMAIL_ERROR = {
 } as const
 
 export type ContractorReplyEmailDelivery = Readonly<{
+  /** Spec 279 T6b (RF12): por inteiro, só no envio ao cliente (a tela da própria empresa); `null` nos outros alvos. */
+  address: null | string
   addressMasked: null | string
   createdAt: string
   id: string
   reason: null | string
+  sentAt: null | string
   status: DeliveryStatus
   target: ContractorReplyEmailDeliveryTarget
 }>
@@ -69,10 +72,19 @@ function isDelivery(value: unknown): value is ContractorReplyEmailDelivery {
     isString(value.id) &&
     isString(value.createdAt) &&
     (value.addressMasked === null || isString(value.addressMasked)) &&
+    (value.address === undefined || value.address === null || isString(value.address)) &&
+    (value.sentAt === undefined || value.sentAt === null || isString(value.sentAt)) &&
     (value.reason === null || isString(value.reason)) &&
     (DELIVERY_STATUSES as readonly unknown[]).includes(value.status) &&
     (DELIVERY_TARGETS as readonly unknown[]).includes(value.target)
   )
+}
+
+/** Resposta anterior à T6b não traz `address` nem `sentAt`: sem eles, a entrega só não mostra o endereço inteiro. */
+function withDeliveryDefaults(
+  delivery: ContractorReplyEmailDelivery,
+): ContractorReplyEmailDelivery {
+  return { ...delivery, address: delivery.address ?? null, sentAt: delivery.sentAt ?? null }
 }
 
 function isClientEmailOption(value: unknown): value is ClientEmailOption {
@@ -117,7 +129,7 @@ export function readContractorReplyEmailOptions(
     clientEmails: Array.isArray(data.clientEmails)
       ? data.clientEmails.filter(isClientEmailOption)
       : [],
-    deliveries: data.deliveries.filter(isDelivery),
+    deliveries: data.deliveries.filter(isDelivery).map(withDeliveryDefaults),
     forwardToInformedEmail: data.forwardToInformedEmail as 'manual' | 'off',
     forwardToNoteRecipient: data.forwardToNoteRecipient as 'automatic' | 'manual' | 'off',
     noteRecipient: {
@@ -252,4 +264,103 @@ export function isContractorReplyBoletoAccepted(status: string): boolean {
 /** Uma chave por tentativa; o envio seguinte (com outra escolha) ganha outra. */
 export function createClientEmailIdempotencyKey(randomId: () => string): string {
   return `client-email:${randomId()}`
+}
+
+/** Spec 279 T6b (RF12): o estado de um endereço no envio ao cliente. `failed` com `canRetry` é a recusa do provedor. */
+export type ClientEmailSendStateItem = Readonly<{
+  /** `null` só no `skipped`: o cliente não tem e-mail do tipo e o envio automático não teve para quem ir. */
+  address: null | string
+  canRetry: boolean
+  deliveryId: string
+  /** Quando saiu (`sent`) ou quando entrou na fila (`queued`, `failed`). */
+  at: string
+  state: 'failed' | 'queued' | 'sent' | 'skipped'
+}>
+
+/** Só a recusa do provedor tenta de novo; PDF grande demais falharia igual, e a API também recusa. */
+const RETRYABLE_REASON = 'send_failed'
+
+/** Spec 279 T3c: o envio automático achou o cliente sem e-mail do tipo; a entrega pulada guarda o porquê. */
+const CLIENT_WITHOUT_EMAIL_REASON = 'client_without_email'
+
+/**
+ * Uma linha por endereço, com a última tentativa (o "Tentar de novo" grava uma entrega nova e deixa a recusada no
+ * histórico). Fora o envio ao cliente e as entregas puladas (sem endereço), nada entra.
+ */
+export function describeClientEmailSendState(
+  deliveries: readonly ContractorReplyEmailDelivery[],
+): readonly ClientEmailSendStateItem[] {
+  const latest = new Map<string, ContractorReplyEmailDelivery>()
+  let skipped: ContractorReplyEmailDelivery | undefined
+  for (const delivery of deliveries) {
+    if (delivery.target !== CLIENT_BOLETO_EMAILS_TARGET) continue
+    if (delivery.address === null) {
+      if (
+        delivery.status === 'skipped' &&
+        delivery.reason === CLIENT_WITHOUT_EMAIL_REASON &&
+        (skipped === undefined || delivery.createdAt > skipped.createdAt)
+      ) {
+        skipped = delivery
+      }
+      continue
+    }
+    const key = delivery.address.toLowerCase()
+    const current = latest.get(key)
+    if (current === undefined || delivery.createdAt > current.createdAt) latest.set(key, delivery)
+  }
+  /** Vale só enquanto nenhum endereço foi tentado depois (o cadastro ganhou e-mail e o operador enviou). */
+  const skippedItems: ClientEmailSendStateItem[] =
+    skipped !== undefined &&
+    [...latest.values()].every((delivery) => delivery.createdAt < (skipped?.createdAt ?? ''))
+      ? [
+          {
+            address: null,
+            at: skipped.createdAt,
+            canRetry: false,
+            deliveryId: skipped.id,
+            state: 'skipped',
+          },
+        ]
+      : []
+  const addressItems = [...latest.values()].flatMap((delivery): ClientEmailSendStateItem[] => {
+    const { address } = delivery
+    if (address === null) return []
+    if (delivery.status === 'sent') {
+      return [
+        {
+          address,
+          at: delivery.sentAt ?? delivery.createdAt,
+          canRetry: false,
+          deliveryId: delivery.id,
+          state: 'sent',
+        },
+      ]
+    }
+    if (delivery.status === 'queued' || delivery.status === 'pending_window') {
+      return [
+        {
+          address,
+          at: delivery.createdAt,
+          canRetry: false,
+          deliveryId: delivery.id,
+          state: 'queued',
+        },
+      ]
+    }
+    if (delivery.status === 'failed') {
+      return [
+        {
+          address,
+          at: delivery.createdAt,
+          canRetry: delivery.reason === RETRYABLE_REASON,
+          deliveryId: delivery.id,
+          state: 'failed',
+        },
+      ]
+    }
+    return []
+  })
+  return [...skippedItems, ...addressItems].toSorted((first, second) =>
+    first.at.localeCompare(second.at),
+  )
 }

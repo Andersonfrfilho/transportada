@@ -35,6 +35,7 @@ const LABELS: OccurrenceThreadAuthorLabels = {
   copy: 'Cópia',
   driver: 'Motorista',
   operation: 'Operação',
+  system: 'Sistema',
   team: 'Equipe',
   teamOnly: 'só para a equipe — a contratante não recebeu',
   unverified: 'Remetente não confirmado',
@@ -324,6 +325,35 @@ describe('o mapa da mensagem da ocorrência para o SDK', () => {
     expect(internal(false)).toBe(
       'Ana · Equipe · só para a equipe — a contratante não recebeu · via E-mail',
     )
+  })
+
+  test('a linha do sistema (spec 279 T6b) tem o autor Sistema, com o nome de quem enviou quando há', () => {
+    const notice = {
+      actorKind: 'office',
+      actorName: 'Marta Operadora',
+      deliveryId: 'delivery-1',
+      kind: 'client_boleto_email_sent',
+    } as const
+    const sent = message({
+      author: { kind: 'automatic' },
+      bodyText: 'Boleto enviado para o e-mail: financeiro@mercado.example.test',
+      channel: 'app',
+      systemNotice: notice,
+    })
+    expect(toThreadMessage(sent, LABELS)).toMatchObject({
+      authorName: 'Sistema · Marta Operadora · via App',
+      text: 'Boleto enviado para o e-mail: financeiro@mercado.example.test',
+    })
+    expect(
+      toThreadMessage(
+        message({
+          author: { kind: 'automatic' },
+          channel: 'app',
+          systemNotice: { ...notice, actorKind: 'system', actorName: null },
+        }),
+        LABELS,
+      ).authorName,
+    ).toBe('Sistema · via App')
   })
 
   test('o aviso automático e o motorista têm nome; o anexo vira o formato do SDK', () => {

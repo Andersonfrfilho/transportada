@@ -29,7 +29,13 @@
       "none": "The client has no saved e-mail."
     },
     "sendState": {
-      "title": "Sending to the client"
+      "title": "Sending to the client",
+      "clientWithoutEmail": "No client e-mail for the boleto",
+      "state": {
+        "sent": "Sent",
+        "queued": "Queued",
+        "failed": "Failed"
+      }
     }
   },
   "groups": {

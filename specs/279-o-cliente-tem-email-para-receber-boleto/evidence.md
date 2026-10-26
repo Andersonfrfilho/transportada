@@ -138,3 +138,22 @@ client_without_email` sem endereço, por (retorno, anexo). O teto de 5 por ocorr
   pass com Postgres 16 descartável; contratos de detecção (mensagens reais, vários endereços, mascarado/inválido), hook
   do WhatsApp, rate limit e painel/app. `bun run test`: API 12618 pass / 0 fail, painel 8551 + 1419 pass, motorista 2116
   pass. `tsc`, `eslint` e `prettier` verdes nas três apps.
+
+## T6b — aviso "Boleto enviado para o e-mail" e estado Enviado/Falhou
+
+- Aviso: uma mensagem por endereço, gravada pelo worker na mesma transação que marca a entrega `sent` (savepoint: se o
+  aviso falhar, a entrega continua `sent`). Coluna `system_notice jsonb` (`kind`, `actorKind`, `actorName`, `deliveryId`),
+  CHECK de forma e índice único por entrega (a repetição do worker não duplica). Autor: Sistema quando não há usuário
+  (envio automático da T3c), senão "Sistema · nome" de quem mandou. O endereço inteiro vai só no texto da conversa e nas
+  telas; log e evento seguem mascarados. O aviso não conta como "aguardando o motorista" nem como não lida.
+- "Tentar de novo": só a recusa do provedor (`send_failed`); anexo grande demais não. Chave nova por tentativa
+  (`<chave da T3>:retry:n`, no máximo 5), sem mexer na chave da T3/T3c. Manda só o id da entrega; a API lê endereço e anexo.
+- Telas: `ClientEmailSendState` no painel (Enviado com hora, Na fila, Falhou com botão, "Sem e-mail do cliente para o
+  boleto") e leitura equivalente, sem botão, na folha do motorista. Prévias em `previews/emails-cliente-t6b/`.
+- Limite do SDK: sem tipo de mensagem de sistema, e o balão de saída do escritório não mostra o nome do autor; a hora
+  aparece, o "Sistema · nome" aparece no app do motorista e no menu do balão.
+- Testes: migração (`conversation-system-notice.assertion.ts`, `db:test` 231 pass, regenerada sobre a T3c); integração
+  da API (retry, aviso, leituras, motorista com `deliveries` e o pulado); worker `occurrence-contractor-reply-email-
+delivery` 13 pass; painel `bun run test` e `test:hooks` 1424 pass; motorista 2115 pass; API `bun run test` 12627 pass.
+  Falha conhecida que já existia: `driver-subject-conversation` "retarget" (unique de `trip_drivers`); worker: 5 do leitor
+  de código de barras, só de ambiente.

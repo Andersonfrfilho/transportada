@@ -6,8 +6,10 @@ import {
 import { DRIVER_CONVERSATION_ERROR } from '@/modules/conversation/shared/driverConversation.constant'
 
 import {
+  CLIENT_BOLETO_EMAIL_DELIVERY_STATUSES,
   CLIENT_BOLETO_EMAIL_RESULT_KINDS,
   CLIENT_BOLETO_EMAILS_PATH,
+  type ClientBoletoEmailDelivery,
   type ClientBoletoEmailOptions,
   type ClientBoletoEmailOutcome,
   type ClientBoletoEmailResultKind,
@@ -34,6 +36,25 @@ function isResultKind(value: unknown): value is ClientBoletoEmailResultKind {
   return (CLIENT_BOLETO_EMAIL_RESULT_KINDS as readonly unknown[]).includes(value)
 }
 
+/** Descarta o item malformado: o estado é leitura, e um item ruim não derruba a folha. */
+export function parseClientBoletoEmailDeliveries(
+  value: unknown,
+): readonly ClientBoletoEmailDelivery[] {
+  if (!Array.isArray(value)) return []
+  const deliveries: ClientBoletoEmailDelivery[] = []
+  for (const entry of value as readonly unknown[]) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const item = entry as Readonly<Record<string, unknown>>
+    const status = CLIENT_BOLETO_EMAIL_DELIVERY_STATUSES.find((known) => known === item.status)
+    const { address, sentAt } = item
+    if (typeof item.id !== 'string' || status === undefined) continue
+    if (address !== null && typeof address !== 'string') continue
+    if (sentAt !== null && typeof sentAt !== 'string') continue
+    deliveries.push({ address, id: item.id, sentAt, status })
+  }
+  return deliveries
+}
+
 export function parseClientBoletoEmailOptions(payload: unknown): ClientBoletoEmailOptions {
   const data = readData(payload)
   const { clientEmailType, clientEmails, sentCount, sentLimit } = data
@@ -58,6 +79,7 @@ export function parseClientBoletoEmailOptions(payload: unknown): ClientBoletoEma
       }
       return { addressMasked: option.addressMasked, emailId: option.emailId, label: option.label }
     }),
+    deliveries: parseClientBoletoEmailDeliveries(data.deliveries),
     sentCount,
     sentLimit,
   }

@@ -29,7 +29,13 @@
       "none": "O cliente não tem e-mail guardado."
     },
     "sendState": {
-      "title": "Envio ao cliente"
+      "title": "Envio ao cliente",
+      "clientWithoutEmail": "Sem e-mail do cliente para o boleto",
+      "state": {
+        "sent": "Enviado",
+        "queued": "Na fila",
+        "failed": "Falhou"
+      }
     }
   },
   "groups": {
