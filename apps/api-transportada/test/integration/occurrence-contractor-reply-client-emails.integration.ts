@@ -17,6 +17,8 @@ import {
   deliveryClients,
   nfeParticipants,
   occurrenceContractorReplyDeliveries,
+  occurrenceConversationMessages,
+  occurrenceConversations,
   tripDocumentOccurrences,
   tripDocuments,
 } from '../../src/database/database.schema.js'
@@ -24,7 +26,13 @@ import { createForwardContractorReplyByEmailUseCase } from '../../src/occurrence
 import type { ForwardContractorReplyToClientInput } from '../../src/occurrence-conversation/application/forward-contractor-reply-by-email.use-case.js'
 import type { ClientEmailType } from '../../src/shared/delivery-client-email.constant.js'
 import { OccurrenceClientEmailOffError } from '../../src/trips/domain/occurrence-client-email.error.js'
-import { ContractorReplyClientEmailNotFoundError } from '../../src/occurrence-conversation/domain/contractor-reply-email.error.js'
+import {
+  ContractorReplyClientEmailNotFoundError,
+  ContractorReplyEmailDeliveryNotFoundError,
+  ContractorReplyEmailRetryNotAllowedError,
+} from '../../src/occurrence-conversation/domain/contractor-reply-email.error.js'
+import { createDrizzleDriverConversationUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
+import { findOccurrenceConversations } from '../../src/occurrence-conversation/infrastructure/occurrence-conversation.query.js'
 import {
   createDrizzleContractorReplyEmailReader,
   createDrizzleContractorReplyEmailUnitOfWork,
@@ -302,6 +310,183 @@ describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, CA2)', () =>
           ]),
         )
         expect(JSON.stringify(options)).not.toContain(FINANCE_EMAIL)
+      })
+    },
+    90_000,
+  )
+})
+
+describe('estado Enviado/Falhou e "Tentar de novo" (spec 279 T6b, RF12)', () => {
+  async function deliveryRows(database: TestDatabase, companyId: string) {
+    return database.db
+      .select({
+        id: occurrenceContractorReplyDeliveries.id,
+        idempotencyKey: occurrenceContractorReplyDeliveries.idempotencyKey,
+        reason: occurrenceContractorReplyDeliveries.reason,
+        status: occurrenceContractorReplyDeliveries.status,
+        toAddresses: contractorMailMessages.toAddresses,
+      })
+      .from(occurrenceContractorReplyDeliveries)
+      .innerJoin(
+        contractorMailMessages,
+        eq(contractorMailMessages.id, occurrenceContractorReplyDeliveries.mailMessageId),
+      )
+      .where(
+        and(
+          eq(occurrenceContractorReplyDeliveries.companyId, companyId),
+          eq(occurrenceContractorReplyDeliveries.target, 'client_boleto_emails'),
+        ),
+      )
+      .orderBy(occurrenceContractorReplyDeliveries.createdAt)
+  }
+
+  testWithPostgres(
+    'a recusa do provedor vira Falhou, e o "Tentar de novo" sai de novo com chave nova, sem duplicar',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { client, companyId, seeded, useCase } = await prepare(database)
+        await useCase.forwardToClient(inputOf(seeded, { emailIds: [client.financeId] }))
+        const [first] = await deliveryRows(database, companyId)
+        if (first === undefined) throw new Error('EXPECTED_DELIVERY')
+
+        /** O que o worker grava quando o provedor recusa (`markMessageFailed`). */
+        await database.db
+          .update(occurrenceContractorReplyDeliveries)
+          .set({ reason: 'send_failed', status: 'failed' })
+          .where(eq(occurrenceContractorReplyDeliveries.id, first.id))
+        const options = await createDrizzleContractorReplyEmailReader(database.db).read({
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        expect(options?.deliveries).toMatchObject([
+          {
+            address: FINANCE_EMAIL,
+            addressMasked: 'f***@m***.example.test',
+            id: first.id,
+            reason: 'send_failed',
+            sentAt: null,
+            status: 'failed',
+            target: 'client_boleto_emails',
+          },
+        ])
+
+        const retry = {
+          actorUserId: seeded.company.userId,
+          authorKind: 'office',
+          companyId,
+          correlationId: 'correlation-retry',
+          deliveryId: first.id,
+          occurrenceId: seeded.occurrenceId,
+        } as const
+        const outcome = await useCase.retryToClient(retry)
+        expect(outcome.results).toMatchObject([{ kind: 'queued' }])
+        expect(JSON.stringify(outcome)).not.toContain(FINANCE_EMAIL)
+        const repeated = await useCase.retryToClient(retry)
+        expect(repeated.results).toMatchObject([{ kind: 'already_queued' }])
+
+        const rows = await deliveryRows(database, companyId)
+        expect(rows.map((row) => [row.status, row.toAddresses])).toEqual([
+          ['failed', [FINANCE_EMAIL]],
+          ['queued', [FINANCE_EMAIL]],
+        ])
+        expect(new Set(rows.map((row) => row.idempotencyKey)).size).toBe(2)
+
+        const queued = rows[1]
+        if (queued === undefined) throw new Error('EXPECTED_RETRY')
+        await expect(
+          useCase.retryToClient({ ...retry, deliveryId: queued.id }),
+        ).rejects.toBeInstanceOf(ContractorReplyEmailRetryNotAllowedError)
+        await expect(
+          useCase.retryToClient({ ...retry, deliveryId: crypto.randomUUID() }),
+        ).rejects.toBeInstanceOf(ContractorReplyEmailDeliveryNotFoundError)
+      })
+    },
+    90_000,
+  )
+
+  testWithPostgres(
+    'o aviso do sistema só nasce automático e de saída, sai nas leituras e não vira "aguardando o motorista"',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, seeded } = await prepare(database)
+        const [conversation] = await database.db
+          .insert(occurrenceConversations)
+          .values({
+            companyId,
+            driverUserId: seeded.company.userId,
+            occurrenceId: seeded.occurrenceId,
+            occurrenceKind: 'document',
+            participant: 'driver',
+          })
+          .returning({ id: occurrenceConversations.id })
+        if (conversation === undefined) throw new Error('EXPECTED_CONVERSATION')
+        const base = {
+          bodyText: `Boleto enviado para o e-mail: ${FINANCE_EMAIL}`,
+          channel: 'app',
+          companyId,
+          conversationId: conversation.id,
+          direction: 'outbound',
+          status: 'delivered',
+          systemNotice: {
+            actorKind: 'office',
+            actorName: 'Marta Operadora',
+            deliveryId: crypto.randomUUID(),
+            kind: 'client_boleto_email_sent',
+          },
+        } as const
+
+        const humanAuthored = database.db
+          .insert(occurrenceConversationMessages)
+          .values({ ...base, authorUserId: seeded.company.userId, automatic: false })
+        await expect(Promise.resolve(humanAuthored)).rejects.toThrow()
+        const inbound = database.db.insert(occurrenceConversationMessages).values({
+          ...base,
+          automatic: false,
+          direction: 'inbound',
+          driverUserId: seeded.company.userId,
+          status: null,
+        })
+        await expect(Promise.resolve(inbound)).rejects.toThrow()
+
+        await database.db
+          .insert(occurrenceConversationMessages)
+          .values({ ...base, automatic: true })
+        const duplicate = database.db
+          .insert(occurrenceConversationMessages)
+          .values({ ...base, automatic: true })
+        await expect(Promise.resolve(duplicate)).rejects.toThrow()
+
+        const view = await findOccurrenceConversations(database.db, {
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+          userId: seeded.company.userId,
+        })
+        const driverSide = view?.conversations.find((entry) => entry.participant === 'driver')
+        expect(driverSide?.messages).toMatchObject([
+          {
+            author: { kind: 'automatic' },
+            bodyText: `Boleto enviado para o e-mail: ${FINANCE_EMAIL}`,
+            systemNotice: {
+              actorKind: 'office',
+              actorName: 'Marta Operadora',
+              kind: 'client_boleto_email_sent',
+            },
+          },
+        ])
+        expect(driverSide?.unreadCount).toBe(0)
+
+        const driverMessages = await createDrizzleDriverConversationUnitOfWork(database.db).execute(
+          (transaction) =>
+            transaction.listDriverMessages({
+              companyId,
+              driverUserId: seeded.company.userId,
+              occurrenceId: seeded.occurrenceId,
+              occurrenceKind: 'document',
+            }),
+        )
+        expect(driverMessages).toMatchObject([
+          { direction: 'outbound', systemNotice: { actorKind: 'office' } },
+        ])
       })
     },
     90_000,

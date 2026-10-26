@@ -403,6 +403,11 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         rateLimit: bucket,
         signature: 'POST /trip-occurrences/:id/contractor-reply/email-delivery',
       },
+      /** Spec 279 T6b: o "Tentar de novo" manda e-mail, no mesmo balde. */
+      {
+        rateLimit: bucket,
+        signature: 'POST /trip-occurrences/:id/contractor-reply/email-deliveries/:deliveryId/retry',
+      },
       /** Spec 248 RF6: reenviar o pedido à contratante manda e-mail, no balde das mensagens da ocorrência. */
       {
         rateLimit: bucket,

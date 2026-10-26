@@ -12,6 +12,7 @@ import type {
   OccurrenceConversationMessageStatus,
 } from '../../database/occurrence-conversation.schema.js'
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { OccurrenceConversationSystemNoticeView } from '../domain/occurrence-conversation-system-notice.policy.js'
 import type { KeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type { OccurrenceConversationSubjectType } from '../../shared/occurrence-conversation-subject.constant.js'
 import type { EffectiveConversationStatus } from '../domain/conversation-effective-status.policy.js'
@@ -66,6 +67,8 @@ export type SubjectMessageRecord = {
   readonly direction: 'inbound' | 'outbound'
   readonly id: string
   readonly status: null | OccurrenceConversationMessageStatus
+  /** Spec 279 T6b (RF12): presente só na mensagem do sistema — "Boleto enviado para o e-mail: …". */
+  readonly systemNotice?: OccurrenceConversationSystemNoticeView
 }
 
 type DriverIdentity = {

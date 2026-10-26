@@ -39,6 +39,9 @@ export const OCCURRENCE_CONTRACTOR_REPLY_DRIVER_DELIVERY_PATH =
   '/trip-occurrences/:id/contractor-reply/driver-delivery'
 export const OCCURRENCE_CONTRACTOR_REPLY_EMAIL_DELIVERY_PATH =
   '/trip-occurrences/:id/contractor-reply/email-delivery'
+/** Spec 279 T6b (RF12): "Tentar de novo" de uma entrega ao cliente que o provedor recusou. */
+export const OCCURRENCE_CONTRACTOR_REPLY_EMAIL_RETRY_PATH =
+  '/trip-occurrences/:id/contractor-reply/email-deliveries/:deliveryId/retry'
 export const OCCURRENCE_CONTRACTOR_REPLY_EMAIL_OPTIONS_PATH =
   '/trip-occurrences/:id/contractor-reply/email-options'
 export const OCCURRENCE_CONTRACTOR_REPLY_PATH = '/trip-occurrences/:id/contractor-reply'
@@ -124,7 +127,10 @@ export type OccurrenceContractorReplyRoutesDependencies = {
     'deliver'
   >
   readonly emailOptions: ContractorReplyEmailReaderPort
-  readonly forwardByEmail: Pick<ForwardContractorReplyByEmailUseCase, 'forward' | 'forwardToClient'>
+  readonly forwardByEmail: Pick<
+    ForwardContractorReplyByEmailUseCase,
+    'forward' | 'forwardToClient' | 'retryToClient'
+  >
 }
 
 type DriverDeliveryInput = {
@@ -220,6 +226,37 @@ export function createOccurrenceContractorReplyRoutes(
         }
       },
       pathname: OCCURRENCE_CONTRACTOR_REPLY_EMAIL_DELIVERY_PATH,
+      policy: WRITE_POLICY,
+      rateLimit: OCCURRENCE_CONVERSATION_RATE_LIMIT,
+    }),
+    /**
+     * Spec 279 T6b (RF12): o endereço e o anexo vêm da entrega recusada, nunca do corpo. A tentativa nova ganha chave
+     * própria; o clique repetido encontra a que já está na fila. Sem `Idempotency-Key`: a entrega é a identidade.
+     */
+    defineRoute<{
+      readonly correlationId: string
+      readonly deliveryId: string
+      readonly occurrenceId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const outcome = await dependencies.forwardByEmail.retryToClient({
+          actorUserId: context.scope.userId,
+          authorKind: 'office',
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          deliveryId: input.deliveryId,
+          occurrenceId: input.occurrenceId,
+        })
+        const isQueued = outcome.results.some((result) => result.kind === 'queued')
+        return jsonResponse({ data: outcome }, isQueued ? 201 : 200)
+      },
+      method: 'POST',
+      parse: ({ correlationId, pathParameters }) => ({
+        correlationId,
+        deliveryId: parseUuidPathIdentifier(pathParameters.deliveryId ?? ''),
+        occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: OCCURRENCE_CONTRACTOR_REPLY_EMAIL_RETRY_PATH,
       policy: WRITE_POLICY,
       rateLimit: OCCURRENCE_CONVERSATION_RATE_LIMIT,
     }),

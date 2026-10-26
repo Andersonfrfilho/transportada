@@ -33,6 +33,7 @@ import { assertContractorReplyResolveOnDelivery } from './contractor-reply-resol
 import { assertContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { assertContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { assertDeliveryClientEmails } from './delivery-client-emails.assertion.js'
+import { assertConversationSystemNotice } from './conversation-system-notice.assertion.js'
 import { assertOccurrenceTypeClientEmailType } from './occurrence-type-client-email-type.assertion.js'
 import { assertClientEmailSendMode } from './client-email-send-mode.assertion.js'
 import { assertContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
@@ -159,7 +160,13 @@ describe('Drizzle migration integration', () => {
          * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
-        /** Spec 279 T3c: a mais nova; antes da T3 e da 278, cujos rollbacks recriam as CHECKs de motivo e de alvo. */
+        /** Spec 279 T6b: coluna aditiva da mensagem da conversa; a mais nova de todas. */
+        await assertConversationSystemNotice({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 279 T3c: antes da T3 e da 278, cujos rollbacks recriam as CHECKs de motivo e de alvo. */
         await assertClientEmailSendMode({
           companyId: identityFixture.companyId,
           connectionString,
