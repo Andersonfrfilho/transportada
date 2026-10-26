@@ -490,6 +490,7 @@ import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence
 import { createMeClientBoletoEmailsRoutes } from './occurrence-conversation/presentation/me-client-boleto-emails.routes.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
 import { createDriverClientBoletoEmailsUseCase } from './occurrence-conversation/application/driver-client-boleto-emails.use-case.js'
+import { createDetectedClientEmail } from './occurrence-conversation/infrastructure/detected-client-email.factory.js'
 import { createMeQuickReplyRoutes } from './occurrence-conversation/presentation/me-quick-replies.routes.js'
 import { createMeSubjectConversationRoutes } from './occurrence-conversation/presentation/me-subject-conversation.routes.js'
 import { createMeSubjectConversationWriteRoutes } from './occurrence-conversation/presentation/me-subject-conversation-write.routes.js'
@@ -1858,8 +1859,11 @@ function createAnonymousRoutes({
       buildMessageHook: (instance) =>
         createOccurrenceConversationWhatsAppHook({
           clock: () => new Date(),
+          /** Spec 279 T4b (RF8): o e-mail do motorista na conversa e o "1" que confirma, pelo mesmo número. */
+          detectedClientEmail: createDetectedClientEmail(database, logger),
           inbound: createDrizzleWhatsAppConversationInboundRepository(database),
           logger,
+          sendText: (to, body) => instance.module.channel.sendText(to, body),
           next: whatsappCommandHook(instance),
           rateLimiter: occurrenceConversationWhatsAppRateLimiter,
         }),
@@ -3554,6 +3558,8 @@ function createApplicationRoutes({
         }),
         unitOfWork: createDrizzleContractorReplyDeliveryUnitOfWork(database),
       }),
+      /** Spec 279 T4b (RF8): o cartão do e-mail que o motorista escreveu na conversa. */
+      detectedClientEmail: createDetectedClientEmail(database, logger),
       /** Spec 248 T4.7 (RF10–RF12): o mesmo boleto por e-mail ao cliente da nota ou a um endereço informado. */
       emailOptions: createDrizzleContractorReplyEmailReader(database),
       forwardByEmail: createForwardContractorReplyByEmailUseCase({
@@ -3739,6 +3745,7 @@ function createApplicationRoutes({
       }),
       reply: createReplyMyOccurrenceConversationUseCase({
         clock: () => new Date(),
+        detectedClientEmail: createDetectedClientEmail(database, logger),
         fingerprintService,
         logger,
         reopenNotifier: occurrenceResolutionNotifier,
@@ -3758,6 +3765,7 @@ function createApplicationRoutes({
     /** Spec 279 T4 (RF2/RF3): os e-mails do cliente para o boleto no `/me` do motorista, pelo trilho da 248. */
     ...createMeClientBoletoEmailsRoutes({
       clientBoletoEmails: createDriverClientBoletoEmailsUseCase({
+        detectedClientEmail: createDetectedClientEmail(database, logger),
         emailOptions: createDrizzleContractorReplyEmailReader(database),
         forwardByEmail: createForwardContractorReplyByEmailUseCase({
           logger,
@@ -3791,6 +3799,7 @@ function createApplicationRoutes({
     ...createMeSubjectConversationWriteRoutes({
       reply: createReplyMySubjectConversationUseCase({
         clock: () => new Date(),
+        detectedClientEmail: createDetectedClientEmail(database, logger),
         fingerprintService,
         logger,
         reopenNotifier: occurrenceResolutionNotifier,

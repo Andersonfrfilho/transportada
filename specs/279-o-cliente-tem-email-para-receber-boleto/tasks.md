@@ -26,9 +26,9 @@
       paridade, idempotência, ator Sistema; integração do automático e do "sem e-mail". Migration `20261026211723`; o
       gatilho é `queueContractorReplyToClientEmails` (arquivo idêntico nas duas apps). O RF10(b), e-mail digitado na
       conversa sair sem cartão, fica com a T4b; o aviso "Sem e-mail do cliente para o boleto" na tela, com a T5/T6b.
-- [ ] **T4b** (opus) Reconhecer o e-mail na mensagem do motorista (RF8): extração única no domínio, `detected_email` na
+- [x] **T4b** (opus) Reconhecer o e-mail na mensagem do motorista (RF8): extração única no domínio, `detected_email` na
       mensagem, cartão de confirmação no app e no painel, confirmação por "1" no WhatsApp; teste de contrato com mensagens
-      reais ("manda pra x@y.com", vários endereços, endereço mascarado/inválido).
+      reais ("manda pra x@y.com", vários endereços, endereço mascarado/inválido). Feito: evidência em `evidence.md` § T4b.
 - [x] **T6b** (sonnet) Mensagem do sistema "Boleto enviado para o e-mail: …" na conversa e estado Enviado/Falhou no painel
       (RF12); teste de que log e evento não levam o endereço. Coluna `system_notice` na mensagem da conversa (migração
       aditiva), gravada pelo worker ao marcar a entrega `sent`; "Tentar de novo" (`POST …/email-deliveries/:id/retry`) com

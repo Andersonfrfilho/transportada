@@ -624,5 +624,20 @@
       "retrying": "Sending…",
       "retryError": "Could not try again. Check the company e-mail settings and try once more."
     }
+  },
+  "detectedEmail": {
+    "title": "Client e-mail in the conversation",
+    "question": "Send the boleto to {{address}}?",
+    "hint": "The driver wrote this e-mail in the conversation. Nothing is sent without a tap.",
+    "send": "Send",
+    "sendAndSave": "Send and save for the client",
+    "sending": "Sending…",
+    "sent": "Boleto sent to {{address}}.",
+    "savedNow": "The e-mail was saved to the client's record.",
+    "notSent": "It did not go out to {{address}}. Check the boleto history.",
+    "dismiss": "Close",
+    "failure": {
+      "notFound": "This e-mail is no longer pending. The conversation was refreshed."
+    }
   }
 }

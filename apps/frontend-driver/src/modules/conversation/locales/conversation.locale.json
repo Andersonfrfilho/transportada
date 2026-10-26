@@ -153,5 +153,18 @@
     "stateUnknown": "Não foi possível confirmar se a ocorrência está resolvida"
   },
   "subjectFallback": "Ocorrência",
-  "title": "Conversas"
+  "title": "Conversas",
+  "detectedEmail": {
+    "question": "Enviar o boleto para {{address}}?",
+    "hint": "Você escreveu este e-mail na conversa. Nada sai sem o seu toque.",
+    "send": "Enviar",
+    "sendAndSave": "Enviar e guardar para o cliente",
+    "sending": "Enviando…",
+    "sent": "Boleto enviado para {{address}}.",
+    "savedNow": "O e-mail ficou guardado para este cliente.",
+    "notSent": "Não saiu para {{address}}. O escritório foi avisado.",
+    "dismiss": "Fechar",
+    "failure": "Não deu para enviar agora. Tente de novo.",
+    "offline": "Sem sinal. Tente de novo quando voltar a conexão."
+  }
 }

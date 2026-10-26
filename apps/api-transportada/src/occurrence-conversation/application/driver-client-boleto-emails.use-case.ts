@@ -6,11 +6,18 @@
  * viagem em que ele está na tripulação é alcançada; o tipo da ocorrência manda (`client_email_type`, 409 quando
  * `off`) e o encaminhamento da 248 precisa estar ligado. O motorista só adiciona: editar e remover é do painel.
  * O envio é o `forwardToClient` do trilho da 248, com o mesmo teto por ocorrência.
+ *
+ * Spec 279 T4b (RF8): o cartão do e-mail que o motorista escreveu na conversa passa pela mesma régua (tripulação, tipo
+ * ligado, encaminhamento ligado) antes de ler ou enviar.
  */
 import { CLIENT_EMAIL_TYPE_OFF } from '../../shared/delivery-client-email.constant.js'
 import { OccurrenceClientEmailOffError } from '../../trips/domain/occurrence-client-email.error.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { ContractorReplyEmailForwardDisabledError } from '../domain/contractor-reply-email.error.js'
+import type {
+  DetectedClientEmailUseCase,
+  PendingDetectedClientEmail,
+} from './detected-client-email.use-case.js'
 import type { DriverConversationUnitOfWorkPort } from './driver-conversation.port.js'
 import type {
   ContractorReplyEmailOptions,
@@ -74,12 +81,25 @@ export type SendDriverClientBoletoEmailsInput = DriverClientBoletoEmailsScope & 
   readonly save: boolean
 }
 
+export type SendDriverDetectedClientEmailInput = DriverClientBoletoEmailsScope & {
+  readonly correlationId: string
+  readonly idempotencyKey: string
+  readonly messageId: string
+  readonly save: boolean
+}
+
 export type DriverClientBoletoEmailsUseCase = Readonly<{
+  /** Spec 279 T4b (RF8): o cartão "Enviar o boleto para a***@…?" do e-mail que ele escreveu na conversa. */
+  detected: (input: DriverClientBoletoEmailsScope) => Promise<PendingDetectedClientEmail | null>
   list: (input: DriverClientBoletoEmailsScope) => Promise<DriverClientBoletoEmails>
   send: (input: SendDriverClientBoletoEmailsInput) => Promise<ForwardContractorReplyToClientOutcome>
+  sendDetected: (
+    input: SendDriverDetectedClientEmailInput,
+  ) => Promise<ForwardContractorReplyToClientOutcome>
 }>
 
 export function createDriverClientBoletoEmailsUseCase(dependencies: {
+  readonly detectedClientEmail: Pick<DetectedClientEmailUseCase, 'readPending' | 'send'>
   readonly emailOptions: ContractorReplyEmailReaderPort
   readonly forwardByEmail: Pick<ForwardContractorReplyByEmailUseCase, 'forwardToClient'>
   readonly unitOfWork: DriverConversationUnitOfWorkPort
@@ -103,6 +123,14 @@ export function createDriverClientBoletoEmailsUseCase(dependencies: {
   }
 
   return {
+    async detected(input) {
+      await readAllowedOptions(input)
+      return dependencies.detectedClientEmail.readPending({
+        companyId: input.companyId,
+        occurrenceId: input.occurrenceId,
+      })
+    },
+
     async list(input) {
       const options = await readAllowedOptions(input)
       return {
@@ -124,6 +152,20 @@ export function createDriverClientBoletoEmailsUseCase(dependencies: {
         correlationId: input.correlationId,
         emailIds: input.emailIds,
         idempotencyKey: input.idempotencyKey,
+        occurrenceId: input.occurrenceId,
+        save: input.save,
+      })
+    },
+
+    async sendDetected(input) {
+      await readAllowedOptions(input)
+      return dependencies.detectedClientEmail.send({
+        actorUserId: input.driverUserId,
+        authorKind: 'driver',
+        companyId: input.companyId,
+        correlationId: input.correlationId,
+        idempotencyKey: input.idempotencyKey,
+        messageId: input.messageId,
         occurrenceId: input.occurrenceId,
         save: input.save,
       })

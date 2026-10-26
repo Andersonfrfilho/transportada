@@ -21,6 +21,7 @@ import { WHATSAPP_COMMAND_RATE_LIMIT } from '../../whatsapp-commands/domain/what
 import { toWhatsAppPhoneKey } from '../../whatsapp-commands/domain/whatsapp-phone-key.policy.js'
 import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
 import { resolveWhatsAppAttribution } from '../domain/whatsapp-attribution.policy.js'
+import type { DetectedClientEmailUseCase } from './detected-client-email.use-case.js'
 import type { WhatsAppConversationInboundPort } from './whatsapp-conversation-inbound.port.js'
 
 const HANDLED: MessageHookOutcome = { outcome: 'handled' }
@@ -62,6 +63,15 @@ function readContextId(message: WhatsAppMessage): null | string {
 
 export function createOccurrenceConversationWhatsAppHook(deps: {
   readonly clock: () => Date
+  /**
+   * Spec 279 T4b (RF8): o e-mail que o motorista escreve na conversa da ocorrência e o "1" que confirma o envio. A
+   * resposta sai pelo mesmo número do módulo; ausente, o hook só grava a mensagem, como antes.
+   */
+  readonly detectedClientEmail?: Pick<DetectedClientEmailUseCase, 'onDriverMessage'>
+  readonly sendText?: (
+    to: string,
+    body: string,
+  ) => Promise<{ readonly externalMessageId: null | string }>
   readonly inbound: WhatsAppConversationInboundPort
   readonly logger: ApiLogger
   readonly next: Handler
@@ -100,12 +110,29 @@ export function createOccurrenceConversationWhatsAppHook(deps: {
           context.replyTo?.participant === 'driver' && attribution.via === 'reply'
             ? context.sender.driverUserId
             : null
-        await deps.inbound.recordConversationMessage({
+        const messageId = await deps.inbound.recordConversationMessage({
           ...common,
           conversationId: attribution.conversationId,
           driverUserId,
           senderAddress: driverUserId === null ? phone : null,
         })
+        const { detectedClientEmail, sendText } = deps
+        if (
+          messageId !== null &&
+          driverUserId !== null &&
+          detectedClientEmail !== undefined &&
+          sendText !== undefined
+        ) {
+          await detectedClientEmail.onDriverMessage({
+            bodyText: common.bodyText,
+            channel: { kind: 'whatsapp', send: (body) => sendText(phone, body) },
+            companyId: session.companyId,
+            conversationId: attribution.conversationId,
+            correlationId: `occurrence-conversation:${messageId}`,
+            driverUserId,
+            messageId,
+          })
+        }
         return HANDLED
       }
       if (attribution.kind === 'unassigned') {

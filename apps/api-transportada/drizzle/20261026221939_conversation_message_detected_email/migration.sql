@@ -1,0 +1,4 @@
+ALTER TABLE "occurrence_conversation_messages" ADD COLUMN "detected_email" varchar(254);--> statement-breakpoint
+ALTER TABLE "occurrence_conversation_messages" ADD COLUMN "detected_email_sent_at" timestamp with time zone;--> statement-breakpoint
+-- Spec 279 T4b (RF8): o e-mail que o motorista escreve na conversa da ocorrencia. Colunas nulas, sem UPDATE: nenhuma mensagem antiga muda.
+ALTER TABLE "occurrence_conversation_messages" ADD CONSTRAINT "occurrence_conversation_messages_detected_email_check" CHECK (("detected_email" is null or "direction" = 'inbound') and ("detected_email_sent_at" is null or "detected_email" is not null));

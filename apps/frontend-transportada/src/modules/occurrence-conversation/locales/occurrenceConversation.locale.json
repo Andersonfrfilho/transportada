@@ -624,5 +624,20 @@
       "retrying": "Enviando…",
       "retryError": "Não foi possível tentar de novo. Confira o e-mail da empresa e tente outra vez."
     }
+  },
+  "detectedEmail": {
+    "title": "E-mail do cliente na conversa",
+    "question": "Enviar o boleto para {{address}}?",
+    "hint": "O motorista escreveu este e-mail na conversa. Nada sai sem um toque.",
+    "send": "Enviar",
+    "sendAndSave": "Enviar e guardar para o cliente",
+    "sending": "Enviando…",
+    "sent": "Boleto enviado para {{address}}.",
+    "savedNow": "O e-mail ficou guardado no cadastro do cliente.",
+    "notSent": "Não saiu para {{address}}. Confira o histórico do boleto.",
+    "dismiss": "Fechar",
+    "failure": {
+      "notFound": "Este e-mail não está mais pendente. A conversa foi atualizada."
+    }
   }
 }

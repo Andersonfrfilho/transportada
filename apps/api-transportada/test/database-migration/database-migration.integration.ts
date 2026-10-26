@@ -36,6 +36,7 @@ import { assertDeliveryClientEmails } from './delivery-client-emails.assertion.j
 import { assertConversationSystemNotice } from './conversation-system-notice.assertion.js'
 import { assertOccurrenceTypeClientEmailType } from './occurrence-type-client-email-type.assertion.js'
 import { assertClientEmailSendMode } from './client-email-send-mode.assertion.js'
+import { assertConversationMessageDetectedEmail } from './conversation-message-detected-email.assertion.js'
 import { assertContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
 import { assertOccurrenceDuplicateRequestPolicy } from './occurrence-duplicate-request-policy.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
@@ -166,7 +167,13 @@ describe('Drizzle migration integration', () => {
           database,
           directories: migrationDirectories,
         })
-        /** Spec 279 T3c: antes da T3 e da 278, cujos rollbacks recriam as CHECKs de motivo e de alvo. */
+        /** Spec 279 T4b: colunas aditivas da mensagem da conversa; antes da T6b e da T3c. */
+        await assertConversationMessageDetectedEmail({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 279 T3c: a mais nova; antes da T3 e da 278, cujos rollbacks recriam as CHECKs de motivo e de alvo. */
         await assertClientEmailSendMode({
           companyId: identityFixture.companyId,
           connectionString,

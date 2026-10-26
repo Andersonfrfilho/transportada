@@ -33,6 +33,7 @@ import {
   requestConversationUpload,
   signConversationAttachments,
 } from './conversation-attachment.service.js'
+import type { DetectedClientEmailUseCase } from './detected-client-email.use-case.js'
 import type {
   DriverConversationNotifierPort,
   DriverConversationTransactionPort,
@@ -271,6 +272,8 @@ export function createMarkMyConversationReadUseCase(dependencies: {
 
 export function createReplyMyOccurrenceConversationUseCase(dependencies: {
   readonly clock: () => Date
+  /** Spec 279 T4b (RF8): o e-mail que o motorista escreve depois do boleto aceito; nunca derruba a resposta. */
+  readonly detectedClientEmail?: Pick<DetectedClientEmailUseCase, 'onDriverMessage'>
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly logger?: ApiLogger
   readonly reopenNotifier?: OccurrenceResolutionNotifierPort
@@ -385,6 +388,17 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
           companyId: input.companyId,
           messageId: executed.result.messageId,
           occurrenceId: input.occurrenceId,
+        })
+      }
+      if (!executed.replayed) {
+        await dependencies.detectedClientEmail?.onDriverMessage({
+          bodyText,
+          channel: { kind: 'app' },
+          companyId: input.companyId,
+          conversationId: executed.result.conversationId,
+          correlationId: `occurrence-conversation:${executed.result.messageId}`,
+          driverUserId: input.driverUserId,
+          messageId: executed.result.messageId,
         })
       }
       return executed.result

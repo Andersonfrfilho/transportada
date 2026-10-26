@@ -68,6 +68,7 @@ function createHook(
     },
     async recordConversationMessage(input) {
       recorded.push({ input, kind: 'conversation' })
+      return 'message-1'
     },
     async recordUnassigned(input) {
       recorded.push({ input, kind: 'unassigned' })

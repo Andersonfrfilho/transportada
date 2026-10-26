@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "9ae29924-7d66-419d-bfaa-ba64ca52479b",
+  "id": "990fe52b-4916-4d3b-a428-43a740eb60e6",
   "prevIds": [
-    "1199bb1b-9d8d-4803-9e78-4f8445467d5e"
+    "c8bab5d5-7fc6-4235-bc85-2007b9a982d9"
   ],
   "ddl": [
     {
@@ -39259,6 +39259,32 @@
       "table": "occurrence_conversation_messages"
     },
     {
+      "type": "varchar(254)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "detected_email",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "detected_email_sent_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
       "type": "jsonb",
       "typeSchema": null,
       "notNull": false,
@@ -73584,6 +73610,13 @@
     {
       "value": "\"client_message_id\" is null or (char_length(\"client_message_id\") between 16 and 256 and \"client_message_id\" ~ '^[A-Za-z0-9._:-]+$')",
       "name": "occurrence_conversation_messages_client_message_id_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "value": "(\"detected_email\" is null or \"direction\" = 'inbound') and (\"detected_email_sent_at\" is null or \"detected_email\" is not null)",
+      "name": "occurrence_conversation_messages_detected_email_check",
       "entityType": "checks",
       "schema": "public",
       "table": "occurrence_conversation_messages"
