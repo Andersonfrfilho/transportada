@@ -100,6 +100,12 @@ save?: boolean, idempotencyKey }`, pelo trilho de D3; resposta com o resultado p
   app, o cartão "Enviar o boleto para a\*\*\*@mercado.com?" com **Enviar** e **Enviar e guardar para o cliente**, e o painel
   mostra o mesmo cartão ao operador na conversa. **Nada sai sem o toque**: reconhecer não é enviar. No WhatsApp, o motorista
   confirma respondendo "1" ao aviso da API. O endereço detectado não vai em log nem em evento, só no banco.
+- **RF9** **Botão fora da conversa, na ocorrência e no tipo.** (a) Na própria ocorrência (linha da lista e página do painel;
+  cartão da ocorrência no app do motorista) há o botão "Enviar ao cliente", sem precisar abrir o chat; ele só aparece com o
+  boleto aceito. (b) O **tipo da ocorrência** passa a configurar isso, como o resto da 248: campo `client_email_type`
+  (`off` ou um tipo de e-mail de D1) diz se o botão existe para aquele tipo e **qual tipo de e-mail do cliente** ele usa;
+  `off` esconde o botão em todas as telas e rejeita o envio na API (`409`). Editável na aba Tipos de `/ocorrencias`,
+  default `off`, e nenhuma migration liga isso em tipo existente.
 - **RF7** Linha do tempo (278): "Boleto enviado ao cliente" com o ator e o endereço mascarado.
 
 ## Requisitos não funcionais
