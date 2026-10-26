@@ -180,7 +180,8 @@ criado: **o status do deployment é quem decide**
 (`railway deployment list -s api -e production --json`). 4. **Painel**: Deploy no serviço (api e worker), quando a CLI não aceita.
 
 Depois de qualquer redeploy: `railway deployment list -s <serviço> -e production --json` até
-`SUCCESS` estável e `curl -s https://<domínio-da-api>/health/ready` com `migrations: up`.
+`SUCCESS` estável e `curl -s https://api.fernandes-transportadora.com.br/health/ready` com `migrations: up`
+(ou `bash /home/miyazaki/Documents/personal/ativada/producao-health-ready.sh`).
 
 ### Deploy travado (job sem runner)
 
