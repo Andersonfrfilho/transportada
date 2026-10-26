@@ -82,17 +82,17 @@ Regras que já custaram tempo:
   (`railway ssh -p <id> -s api -e production ...`).
 - Consultas já prontas e testadas (cópias no projeto Claude, pasta `prorrogacao/`):
 
-| Script                                             | O que faz                                                      | Tipo              |
-| -------------------------------------------------- | -------------------------------------------------------------- | ----------------- |
-| `producao-momentos-prorrogacao.sh`                 | momentos e config dos tipos de ocorrência ativos               | leitura           |
-| `producao-escopo-prorrogacao.sh`                   | escopo de contratantes do tipo de prorrogação e emitente da NF | leitura           |
-| `producao-excecoes-prorrogacao.sh`                 | exceções por contratante/destinatário do tipo                  | leitura           |
-| `producao-thiago-vs-andreia.sh`                    | papel e empresa de dois motoristas nas viagens                 | leitura           |
-| `producao-ligar-office-prorrogacao.sh`             | liga o momento `office` no tipo (1 linha, idempotente)         | escrita           |
-| `trip-stops-check.sh` / `trip-stops-fix-points.sh` | paradas sem coordenada / grava ponto manual (`--confirm`)      | leitura / escrita |
-| `nfse/nfse-freight-rules-check.sh`                 | regras de frete vigentes e perfis de NFS-e                     | leitura           |
-| `respostas-rapidas/producao-respostas-rapidas.sh`  | cadastra respostas rápidas só em empresa sem nenhuma           | escrita           |
-| `notas/producao-faixa-notas.sh [de] [ate]`         | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210) | leitura |
+| Script                                             | O que faz                                                                                  | Tipo              |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
+| `producao-momentos-prorrogacao.sh`                 | momentos e config dos tipos de ocorrência ativos                                           | leitura           |
+| `producao-escopo-prorrogacao.sh`                   | escopo de contratantes do tipo de prorrogação e emitente da NF                             | leitura           |
+| `producao-excecoes-prorrogacao.sh`                 | exceções por contratante/destinatário do tipo                                              | leitura           |
+| `producao-thiago-vs-andreia.sh`                    | papel e empresa de dois motoristas nas viagens                                             | leitura           |
+| `producao-ligar-office-prorrogacao.sh`             | liga o momento `office` no tipo (1 linha, idempotente)                                     | escrita           |
+| `trip-stops-check.sh` / `trip-stops-fix-points.sh` | paradas sem coordenada / grava ponto manual (`--confirm`)                                  | leitura / escrita |
+| `nfse/nfse-freight-rules-check.sh`                 | regras de frete vigentes e perfis de NFS-e                                                 | leitura           |
+| `respostas-rapidas/producao-respostas-rapidas.sh`  | cadastra respostas rápidas só em empresa sem nenhuma                                       | escrita           |
+| `notas/producao-faixa-notas.sh [de] [ate]`         | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210) | leitura           |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
 
