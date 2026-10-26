@@ -50,3 +50,29 @@ export class ContractorReplyEmailAttachmentNotFoundError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 279 T3: um `emailId` que não é e-mail para boleto do cliente desta nota (outro cliente, outra empresa,
+ * outro tipo ou removido) responde como inexistente, e nada sai.
+ */
+export class ContractorReplyClientEmailNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERY_CLIENT_EMAIL_NOT_FOUND',
+      details: [{ field: 'emailIds', message: 'The e-mail was not found for this client' }],
+      message: 'The client e-mail was not found',
+      status: 404,
+    })
+  }
+}
+
+/** Spec 279 D2: guardar o endereço passaria de 10 e-mails do cliente no tipo; nada sai nem é guardado. */
+export class ContractorReplyClientEmailLimitReachedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERY_CLIENT_EMAIL_LIMIT_REACHED',
+      message: 'The client already has the maximum number of e-mails of this type',
+      status: 422,
+    })
+  }
+}

@@ -115,6 +115,9 @@ function build(overrides: {
         forward: () => {
           throw new Error('NOT_USED_BY_THIS_CONTRACT')
         },
+        forwardToClient: () => {
+          throw new Error('NOT_USED_BY_THIS_CONTRACT')
+        },
       },
       markHandled: createMarkContractorReplyHandledUseCase({ clock: () => NOW, writer }),
       readReply: createReadContractorReplyUseCase({ reader }),

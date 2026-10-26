@@ -11,6 +11,7 @@ import type { SQL } from 'bun'
 import { expect } from 'bun:test'
 
 import { rollbackContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
+import { rollbackContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
 import { rollbackContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { rollbackContractorReplyResolveOnDelivery } from './contractor-reply-resolve-on-delivery.assertion.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
@@ -42,6 +43,8 @@ async function assertDefaultsOnExistingType(
   const rollback = await Bun.file(
     join(migrationsDirectory.pathname, directory, 'rollback.sql'),
   ).text()
+
+  await rollbackContractorReplyClientBoletoEmails(database, directories)
 
   await rollbackContractorReplyEventDocumentReasons(database, directories)
   await rollbackContractorReplyAcknowledgement(database, directories)

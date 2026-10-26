@@ -34,6 +34,7 @@ import { assertContractorReplyAcknowledgement } from './contractor-reply-acknowl
 import { assertContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { assertDeliveryClientEmails } from './delivery-client-emails.assertion.js'
 import { assertOccurrenceTypeClientEmailType } from './occurrence-type-client-email-type.assertion.js'
+import { assertContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
 import { assertOccurrenceDuplicateRequestPolicy } from './occurrence-duplicate-request-policy.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
 import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
@@ -171,6 +172,12 @@ describe('Drizzle migration integration', () => {
           database,
           directories: migrationDirectories,
           userId: identityFixture.userId,
+        })
+        /** Spec 279 T3: antes da 276 T5, cujo rollback recria a CHECK do alvo sem o alvo do cliente. */
+        await assertContractorReplyClientBoletoEmails({
+          connectionString,
+          database,
+          directories: migrationDirectories,
         })
         /** Spec 278: a mais nova antes da 276 T2, que recria a mesma CHECK do evento no rollback. */
         await assertContractorReplyEventDocumentReasons({
