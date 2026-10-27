@@ -1,4 +1,3 @@
-
 # Evidência 283 — A conversa do cliente abre no chat da ocorrência
 
 ## T1 — Contrato antes (27/10/2026)
