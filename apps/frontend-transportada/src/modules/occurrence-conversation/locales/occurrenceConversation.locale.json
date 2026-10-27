@@ -2,7 +2,8 @@
   "tabs": {
     "ariaLabel": "Conversas da ocorrência",
     "contractor": "Contratante",
-    "driver": "Motorista"
+    "driver": "Motorista",
+    "client": "Cliente"
   },
   "contractor": {
     "title": "Conversa com a contratante",
@@ -292,7 +293,8 @@
   "participant": {
     "contractor": "Contratante",
     "driver": "Motorista",
-    "operator": "Operador"
+    "operator": "Operador",
+    "client": "Cliente"
   },
   "layout": {
     "label": "Exibição das conversas",
@@ -700,5 +702,35 @@
     "failure": {
       "notFound": "Este e-mail não está mais pendente. A conversa foi atualizada."
     }
+  },
+  "client": {
+    "channels": "Canais abertos com o cliente",
+    "thread": "Conversa com o cliente",
+    "empty": "Nenhuma mensagem ainda.",
+    "fromUs": "Nós",
+    "open": "Abrir conversa do cliente",
+    "close": "Recolher conversa do cliente",
+    "unread_one": "{{count}} nova",
+    "unread_other": "{{count}} novas",
+    "title": "Conversa com o cliente",
+    "status": {
+      "queued": "na fila",
+      "sent": "enviado",
+      "delivered": "entregue",
+      "read": "lido",
+      "replied": "respondeu",
+      "failed": "falhou"
+    },
+    "messageStatus": {
+      "queued": "na fila",
+      "sent": "enviado",
+      "delivered": "entregue",
+      "read": "lido",
+      "failed": "falhou",
+      "bounced": "devolvido"
+    },
+    "bySystem": "Sistema",
+    "sentNoText": "Mensagem enviada.",
+    "sentDocument": "Boleto enviado: {{name}}"
   }
 }

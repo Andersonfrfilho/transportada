@@ -2558,7 +2558,8 @@
       "ariaLabel": "Occurrence sections",
       "summary": "Summary",
       "contractor": "Contractor",
-      "driver": "Driver"
+      "driver": "Driver",
+      "client": "Client"
     },
     "correction": {
       "cancel": {
