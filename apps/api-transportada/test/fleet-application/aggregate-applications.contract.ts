@@ -163,4 +163,98 @@ describe('aggregate applications use case', () => {
       useCase.approve({ context: COMPANY_CONTEXT, id: applicationId }),
     ).rejects.toBeInstanceOf(AggregateApplicationRequiresManualDriverCreationError)
   })
+
+  describe('access for the approved driver', () => {
+    function buildWithAccount(execute: (input: Record<string, unknown>) => Promise<unknown>) {
+      const repository = new FakeAggregateApplicationRepository()
+      const calls: Record<string, unknown>[] = []
+      const useCase = createAggregateApplicationsUseCase({
+        account: {
+          async execute(input) {
+            calls.push(input as unknown as Record<string, unknown>)
+            await execute(input as unknown as Record<string, unknown>)
+            return { membershipId: crypto.randomUUID() }
+          },
+          sleep: async () => undefined,
+        },
+        companyGroupRepository: {
+          async listGroupUnits() {
+            return [{ cnpj: '12345678000195', companyId: UNIT_COMPANY_ID } as never]
+          },
+        },
+        landingCompanyId: UNIT_COMPANY_ID,
+        repository,
+      })
+      return { calls, repository, useCase }
+    }
+
+    async function approveOne(
+      repository: FakeAggregateApplicationRepository,
+      useCase: ReturnType<typeof buildWithAccount>['useCase'],
+      membershipId: string | null = null,
+    ) {
+      await useCase.submit({
+        companyId: UNIT_COMPANY_ID,
+        declaredData: {},
+        email: 'candidato@example.com',
+        name: 'Fulano de Tal',
+        phone: '11988887777',
+        taxId: '98765432100',
+      })
+      const id = repository.rows[0]?.id
+      if (id === undefined) throw new Error('application was not inserted')
+      const originalCreate = repository.createDriverAndApprove.bind(repository)
+      repository.createDriverAndApprove = async (input) => {
+        const approved = await originalCreate(input)
+        if (approved.driverId !== null) {
+          repository.accessTargetByDriverId.set(approved.driverId, {
+            email: 'candidato@example.com',
+            membershipId,
+            name: 'Fulano de Tal',
+            phone: '11988887777',
+            taxId: '98765432100',
+          })
+        }
+        return approved
+      }
+      await useCase.approve({ context: COMPANY_CONTEXT, id })
+      return id
+    }
+
+    test('approval invites the driver by the document so the invite links the record', async () => {
+      const { calls, repository, useCase } = buildWithAccount(async () => undefined)
+      await approveOne(repository, useCase)
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({
+        channel: 'email',
+        roles: ['aggregate'],
+        taxId: '98765432100',
+      })
+    })
+
+    test('a record that already has a user is not invited again', async () => {
+      const { calls, repository, useCase } = buildWithAccount(async () => undefined)
+      await approveOne(repository, useCase, crypto.randomUUID())
+
+      expect(calls).toHaveLength(0)
+    })
+
+    test('a failing invite is retried, never undoes the approval, and can be repeated later', async () => {
+      let failures = 3
+      const { calls, repository, useCase } = buildWithAccount(async () => {
+        if (failures > 0) {
+          failures -= 1
+          throw new Error('keycloak down')
+        }
+      })
+      const id = await approveOne(repository, useCase)
+
+      expect(calls).toHaveLength(3)
+      expect(repository.rows[0]?.status).toBe('approved')
+
+      await expect(useCase.retryAccess({ context: COMPANY_CONTEXT, id })).resolves.toBe('granted')
+      expect(calls).toHaveLength(4)
+    })
+  })
 })

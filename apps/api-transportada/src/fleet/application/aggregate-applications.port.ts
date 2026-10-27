@@ -31,6 +31,14 @@ export type AggregateApplicationSubmissionInput = Readonly<{
   taxId: string
 }>
 
+export type AggregateApplicationDriverAccessTarget = Readonly<{
+  email: string
+  membershipId: string | null
+  name: string
+  phone: string
+  taxId: string
+}>
+
 export type AggregateApplicationRepositoryPort = Readonly<{
   approve: (input: {
     readonly driverId: string
@@ -46,6 +54,11 @@ export type AggregateApplicationRepositoryPort = Readonly<{
     readonly taxId: string
   }) => Promise<AggregateApplication>
   findById: (input: { readonly id: string }) => Promise<AggregateApplication | null>
+  /** A ficha vista pelo convite: só o que ele precisa e se já há usuário amarrado a ela. */
+  findDriverAccessTarget: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<AggregateApplicationDriverAccessTarget | null>
   findDriverIdByTaxIdInCompanies: (input: {
     readonly companyIds: readonly string[]
     readonly taxId: string

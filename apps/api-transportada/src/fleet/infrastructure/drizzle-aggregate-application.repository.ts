@@ -40,6 +40,21 @@ export function createDrizzleAggregateApplicationRepository(
       return row === undefined ? null : toApplication(row)
     },
 
+    async findDriverAccessTarget({ companyId, driverId }) {
+      const [row] = await database
+        .select({
+          email: fleetDrivers.email,
+          membershipId: fleetDrivers.membershipId,
+          name: fleetDrivers.name,
+          phone: fleetDrivers.phone,
+          taxId: fleetDrivers.taxId,
+        })
+        .from(fleetDrivers)
+        .where(and(eq(fleetDrivers.companyId, companyId), eq(fleetDrivers.id, driverId)))
+        .limit(1)
+      return row ?? null
+    },
+
     async findDriverIdByTaxIdInCompanies({ companyIds, taxId }) {
       if (companyIds.length === 0) return null
       const [row] = await database

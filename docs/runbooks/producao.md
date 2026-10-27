@@ -96,6 +96,10 @@ Regras que já custaram tempo:
 | `trip-stops-check.sh` / `trip-stops-fix-points.sh` | paradas sem coordenada / grava ponto manual (`--confirm`)                                  | leitura / escrita |
 | `nfse/nfse-freight-rules-check.sh`                 | regras de frete vigentes e perfis de NFS-e                                                 | leitura           |
 | `respostas-rapidas/producao-respostas-rapidas.sh`  | cadastra respostas rápidas só em empresa sem nenhuma                                       | escrita           |
+| `cadastro-motorista/producao-motorista-sem-acesso.sh [cpf]` | ficha, usuário, convites e fila de envio de um CPF | leitura |
+| `cadastro-motorista/producao-cadastros-sem-acesso.sh` | fichas de motorista sem usuário e convites não aceitos | leitura |
+| `cadastro-motorista/producao-dados-para-convidar.sh` | CPF, e-mail e telefone das fichas sem usuário, para convidar | leitura |
+| `cadastro-motorista/producao-usuarios-sem-keycloak.sh` | confronta cada usuário do banco com o Keycloak (existe/habilitado) | leitura |
 | `notas/producao-faixa-notas.sh [de] [ate]`         | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210) | leitura           |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
@@ -275,6 +279,18 @@ envia por `nao-responda@fernandes-transportadora.com.br`, via Amazon SES `sa-eas
    envio e com a ocorrência no banco (seção 2).
 
 Verificado em 26/10/2026 com a NF 914063/2 (Spani): entregue, destinatários e anexo corretos.
+
+## 5.2 Motorista sem acesso ao app ("Sem vínculo")
+
+O app do motorista autentica só pelo Keycloak, e o usuário de lá só nasce pelo **convite** (Usuários
+> Convidar usuário, ou o cadastro manual em Motoristas). Candidatura de agregado aprovada gravava a
+ficha e as entregas, **mas não criava convite**: motorista ativo, "Acesso ao app: Sem vínculo" e sem
+como entrar (27/10/2026: Rogério, Reinaldo, João Guilherme e Helton). Diagnóstico: rode
+`producao-cadastros-sem-acesso.sh`; para ver quem está no banco mas ausente/desabilitado no Keycloak,
+`producao-usuarios-sem-keycloak.sh`. Correção manual: convidar com o **CPF igual ao da ficha** (só
+dígitos), que liga a ficha ao usuário sozinho. Convite "Convidado" com `expires_at` vencido e
+`delivered_at` vazio: usar "Reenviar". A aprovação passou a convidar sozinha (3 tentativas) e há
+`POST /aggregate-applications/:id/retry-access` para repetir.
 
 ## 6. Erros que não devem se repetir
 
