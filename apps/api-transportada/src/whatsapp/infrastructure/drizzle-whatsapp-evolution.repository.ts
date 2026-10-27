@@ -189,8 +189,16 @@ export class DrizzleWhatsAppEvolutionRepository implements WhatsAppEvolutionRepo
                 status: input.status,
                 updatedAt: sql`now()`,
                 version: sql`${whatsappEvolutionSettings.version} + 1`,
+                /**
+                 * Spec 281 T6: endereço, instância ou chave novos são outro Evolution, e o webhook de lá
+                 * ainda não aponta para nós; o próximo QR aponta de novo (o segredo é mantido).
+                 */
                 ...(input.resetConnection
-                  ? { connectionCheckedAt: null, connectionState: 'unknown' as const }
+                  ? {
+                      connectionCheckedAt: null,
+                      connectionState: 'unknown' as const,
+                      webhookRegisteredAt: null,
+                    }
                   : {}),
                 ...(input.secretEnvelope === undefined
                   ? {}

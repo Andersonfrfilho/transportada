@@ -78,3 +78,39 @@ Fatia mínima: só boleto, API (painel e app), staging. Sobre a T4 (configuraç�
   typecheck da CI não fecha (o mesmo bloqueio da T4).
 - Teste em staging com um número do dono (critério de aceite) depois da T3 (serviço Evolution) e da T4.
 - Linha do tempo da ocorrência (T9) e telas (T7/T8).
+
+## T6 — Webhook do Evolution: mensagem no fio e estado dos envios (27/10/2026)
+
+**O que mudou**
+
+- SDK (`adatechnology-packages` PR #150, changeset `minor`): o leitor do webhook diz de que chat veio a mensagem (pessoa,
+  grupo, status, `@lid` sem número, com o número real do `@lid` quando o Evolution manda), o id da mensagem citada e a
+  legenda de mídia; `evolutionWebhookInstance` e `setWebhook` (com cabeçalhos repetidos em toda entrega).
+- Migration aditiva `whatsapp_evolution_webhook`: `webhook_id` (uuid opaco, único, alvo da URL), `webhook_secret_envelope`
+  (segredo do cabeçalho, AAD próprio), `webhook_registered_at` e `last_webhook_at` em `whatsapp_evolution_settings`.
+- `POST /public/whatsapp-evolution/:webhookId`: o Evolution não assina o corpo, então a prova é o segredo por empresa no
+  cabeçalho `x-transportada-webhook-token`, comparado em tempo constante. Id desconhecido, envelope que não abre e segredo
+  errado dão o mesmo 401; só depois o corpo vira dado, e o `instance` do evento precisa ser o configurado.
+- Anti-replay pelo efeito: a mensagem grava uma vez só pelo `unique` do id do provedor no canal `whatsapp`, o status só
+  avança (`applyProviderMessageStatus` da 183) e a conexão é o último estado. Reentregar não cria nada novo.
+- Mensagem recebida (só chat de pessoa, nunca a própria): a resposta que cita o aviso "Boleto enviado por WhatsApp" entra
+  na conversa quando vem do mesmo número que recebeu o boleto (`system_notice.deliveryId` → `address` da entrega da T5);
+  motorista e contato com aceite como na Meta; o resto vai para "não atribuídas" (D6: nada é descartado), com teto por
+  número.
+- O webhook é apontado pela API no primeiro QR da instância ativa e de novo depois que endereço, instância ou chave mudam;
+  `POST /company-settings/whatsapp-evolution/webhook` (`settings.manage`) aponta de novo trocando o segredo.
+
+**Provas**
+
+- `test/whatsapp/evolution-webhook-use-case.contract.ts`: recusas baratas sem banco, as três recusas iguais, outra
+  instância, empresa desligada, mensagem e citação, própria/grupo/status ignorados, os quatro estados, conexão, corpo
+  inválido, registro com troca de segredo (o antigo deixa de abrir), erros tipados, o QR apontando uma vez, e **nenhum
+  log com segredo, número, texto, chave ou id do webhook**.
+- `test/occurrence-conversation/evolution-inbound.contract.ts`: a política (resposta de quem recebeu, outro número,
+  motorista, contato com uma e duas conversas, nada recusado), número inválido, teto por número, falha sem subir.
+- `test/whatsapp/evolution-webhook-routes.contract.ts`: rota anônima e opaca, 401 sem corpo, 200 para ignorado, a rota do
+  dono com `settings.manage` e `no-store`.
+- `test/integration/whatsapp-evolution-webhook.integration.ts` (Postgres): a resposta do cliente entra uma vez só pelas
+  duas grafias do nono dígito, outro número vai para não atribuídas, o aviso vai de `sent` a `read` sem voltar, outra
+  empresa não acha, e o ciclo do webhook (achar pelo id, guardar segredo, auditoria, conexão, troca de instância
+  desmarcando o registro).
