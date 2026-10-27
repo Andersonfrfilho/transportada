@@ -565,7 +565,10 @@ export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
  * não usa o valor (quem decide se a observação é obrigatória hoje é a app do motorista).
  */
 export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
+  /** Spec 281 T8b: pedir o contato do cliente ao motorista na abertura; esta tela só o tolera. */
+  'asksClientContact',
   'attachmentMode',
+  'clientChannel',
   /** Spec 247 TP.1 (ADR-0081 §9): os requisitos efetivos da devolução. */
   'declaredAmountLabel',
   'declaredAmountMode',
