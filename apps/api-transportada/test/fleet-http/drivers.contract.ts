@@ -633,4 +633,19 @@ describe('fleet drivers http contract', () => {
     expect((await responseApiError(response)).code).toBe('INVALID_REQUEST')
     expect(fixture.createDriverCalls).toEqual([])
   })
+
+  // O acesso ao app nasce pelo convite: a ficha sem usuário ganha o dela por este botão
+  test('grants app access to a driver record through the invite', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${DRIVER_PATH}/access` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { access: 'granted' } })
+    expect(fixture.grantDriverAccessCalls).toEqual([
+      { context: COMPANY_CONTEXT, correlationId: 'fleet-http-correlation', driverId: DRIVER_ID },
+    ])
+  })
 })

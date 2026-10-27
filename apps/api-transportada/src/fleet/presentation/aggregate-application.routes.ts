@@ -27,6 +27,7 @@ const FLEET_MANAGE_POLICY = { permission: 'fleet.manage', scope: 'company' } as 
 const ACCEPTED_STATUS = 202
 const APPLICATION_ID_PATH = `${API_AGGREGATE_APPLICATIONS_PATH}/:id`
 const APPROVE_PATH = `${APPLICATION_ID_PATH}/approve`
+const RETRY_ACCESS_PATH = `${APPLICATION_ID_PATH}/retry-access`
 const REJECT_PATH = `${APPLICATION_ID_PATH}/reject`
 const ONE_MINUTE_MS = 60_000
 /**
@@ -105,6 +106,19 @@ export function createAggregateApplicationRoutes(
       method: 'POST',
       parse: ({ pathParameters }) => ({ id: parseAggregateApplicationId(pathParameters) }),
       pathname: APPROVE_PATH,
+      policy: FLEET_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly id: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const access = await dependencies.aggregateApplications.retryAccess({
+          context: context.scope,
+          id: input.id,
+        })
+        return jsonResponse({ body: { data: { access } }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({ id: parseAggregateApplicationId(pathParameters) }),
+      pathname: RETRY_ACCESS_PATH,
       policy: FLEET_MANAGE_POLICY,
     }),
     defineRoute<{ readonly id: string; readonly rejectionReason: string }>({

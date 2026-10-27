@@ -12,7 +12,9 @@ import { DriverScoreBadge } from './DriverScoreBadge.component'
 type DriverListProps = Readonly<{
   canManageFleet: boolean
   drivers: readonly FleetDriverListItem[]
+  grantingDriverId?: string | undefined
   onEdit: (driver: FleetDriverDetail) => void
+  onGrantAccess: (driver: FleetDriverDetail) => void
   onToggleStatus: (driver: FleetDriverDetail) => void
   onViewVehicle: (vehicleId: string) => void
   vehiclesByDriverId: ReadonlyMap<string, readonly FleetDriverVehicleSummary[]>
@@ -49,7 +51,9 @@ function DriverVehicleCell({
 export function DriverList({
   canManageFleet,
   drivers,
+  grantingDriverId,
   onEdit,
+  onGrantAccess,
   onToggleStatus,
   onViewVehicle,
   vehiclesByDriverId,
@@ -117,6 +121,18 @@ export function DriverList({
                       <Icon name="edit" />
                       {t('edit')}
                     </Button>
+                    {driver.membershipId === null && driver.status === 'active' ? (
+                      <Button
+                        disabled={grantingDriverId !== undefined}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                        onClick={() => onGrantAccess(driver)}
+                      >
+                        <Icon name="send" />
+                        {t(grantingDriverId === driver.id ? 'grantAccessSending' : 'grantAccess')}
+                      </Button>
+                    ) : null}
                     <Button
                       size="sm"
                       type="button"

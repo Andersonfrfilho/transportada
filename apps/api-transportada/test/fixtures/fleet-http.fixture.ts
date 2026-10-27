@@ -30,6 +30,7 @@ type ExecuteCall = Record<string, unknown>
 
 type RouteDependencies = {
   readonly createDriver: { execute(input: ExecuteCall): Promise<typeof DRIVER> }
+  readonly grantDriverAccess: { execute(input: ExecuteCall): Promise<'granted'> }
   readonly driverAvailability: {
     execute(input: ExecuteCall): Promise<typeof DRIVER_AVAILABILITY>
   }
@@ -74,6 +75,7 @@ export const READ_ONLY_PERMISSIONS: CompanyContext['permissions'] = new Set(['fl
 
 export async function createFleetHttpFixture(params: CreateFixtureParams = {}): Promise<{
   readonly createDriverCalls: ExecuteCall[]
+  readonly grantDriverAccessCalls: ExecuteCall[]
   readonly createVehicleCalls: ExecuteCall[]
   readonly driverAvailabilityCalls: ExecuteCall[]
   readonly driverScoreCalls: ExecuteCall[]
@@ -87,6 +89,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
   readonly updateVehicleCalls: ExecuteCall[]
 }> {
   const createDriverCalls: ExecuteCall[] = []
+  const grantDriverAccessCalls: ExecuteCall[] = []
   const createVehicleCalls: ExecuteCall[] = []
   const driverAvailabilityCalls: ExecuteCall[] = []
   const driverScoreCalls: ExecuteCall[] = []
@@ -105,6 +108,12 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
         createDriverCalls.push(structuredClone(input))
         if (params.createDriverError) throw params.createDriverError
         return DRIVER
+      },
+    },
+    grantDriverAccess: {
+      async execute(input) {
+        grantDriverAccessCalls.push(structuredClone(input))
+        return 'granted'
       },
     },
     createVehicle: {
@@ -185,6 +194,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
 
   return {
     createDriverCalls,
+    grantDriverAccessCalls,
     createVehicleCalls,
     driverAvailabilityCalls,
     driverScoreCalls,

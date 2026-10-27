@@ -157,6 +157,11 @@ function FleetEditorPanel({
   )
 }
 
+type AccessNotice = Readonly<{
+  kind: 'already-linked' | 'error' | 'granted' | 'no-contact'
+  name: string
+}>
+
 export function FleetWorkspacePage() {
   const { t } = useTranslation('fleet')
   const authQuery = useAuthMeQuery()
@@ -164,6 +169,7 @@ export function FleetWorkspacePage() {
   const companyId = authQuery.data?.data.company.id
   const [driverFilters, setDriverFilters] = useState<FleetDriverFilters>({})
   const [editor, setEditor] = useState<FleetEditor>(null)
+  const [accessNotice, setAccessNotice] = useState<AccessNotice | null>(null)
   const [activeTab, setActiveTab] = useState<FleetTabId>(resolveInitialTab())
   const canManageSettings = permissions.includes(SETTINGS_MANAGE_PERMISSION)
   const settingsScope = resolveSettingsDataScope('fleet', activeTab)
@@ -283,6 +289,17 @@ export function FleetWorkspacePage() {
       membershipId: driver.membershipId,
       status: flipStatus(driver.status),
     })
+  }
+
+  function grantDriverAccess(driver: FleetDriverDetail): void {
+    setAccessNotice(null)
+    workspace.grantDriverAccessMutation.mutate(
+      { driverId: driver.id },
+      {
+        onError: () => setAccessNotice({ kind: 'error', name: driver.name }),
+        onSuccess: (access) => setAccessNotice({ kind: access, name: driver.name }),
+      },
+    )
   }
 
   function selectTab(id: string): void {
@@ -419,15 +436,33 @@ export function FleetWorkspacePage() {
             {...(companyId === undefined ? {} : { companyId })}
             isActive={activeTab === 'drivers'}
           />
+          {accessNotice === null ? null : (
+            <p
+              className={
+                accessNotice.kind === 'granted' || accessNotice.kind === 'already-linked'
+                  ? styles.fuelPriceStatusSuccess
+                  : styles.fuelPriceStatusError
+              }
+              role={accessNotice.kind === 'error' ? 'alert' : 'status'}
+            >
+              {t(`grantAccessResult.${accessNotice.kind}`, { name: accessNotice.name })}
+            </p>
+          )}
           <DriverPanel
             actions={{
               onEdit: (driver) => setEditor({ driver, kind: 'driver' }),
+              onGrantAccess: grantDriverAccess,
               onNew: () => setEditor({ kind: 'driver' }),
               onToggleStatus: toggleDriverStatus,
               onViewVehicle,
             }}
             canManageFleet={canManageFleet}
             filters={{ onChange: setDriverFilters, value: driverFilters }}
+            grantingDriverId={
+              workspace.grantDriverAccessMutation.isPending
+                ? workspace.grantDriverAccessMutation.variables.driverId
+                : undefined
+            }
             vehiclesByDriverId={vehiclesByDriverId}
             view={{
               status,
