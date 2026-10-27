@@ -49,6 +49,10 @@ railway logs -s api -e production --since "2026-10-26T14:00:00Z"   # a partir de
 - Logs do build/deploy de um deployment: `railway deployment list -s api -e production --json` e
   `railway logs -s api -e production --lines 100` (é o que o deploy faz ao falhar).
 - Alternativa sem CLI local: ferramenta Railway MCP `get-logs` / `get-deployment-diagnosis`.
+- Importação automática (DF-e) saudável: no `worker`, `get-logs` com `filter: distribution` mostra a
+  cada ~1h `nfe_distribution_pull_finished`. `status: "rate-limited"` com `fetched: 0` e `ultNsu`
+  igual a `maxNsu` significa que a SEFAZ não tem nota nova para o CNPJ; não é falha (conferido em
+  26/10/2026, `ultNsu` 54300). Ver também `nfe-distribution.md`.
 - Backup e restore: o resultado aparece como monitor `production_restore` no Gatus além do log.
 
 ## 2. Consultar o banco de produção
@@ -82,16 +86,17 @@ Regras que já custaram tempo:
   (`railway ssh -p <id> -s api -e production ...`).
 - Consultas já prontas e testadas (cópias no projeto Claude, pasta `prorrogacao/`):
 
-| Script                                             | O que faz                                                      | Tipo              |
-| -------------------------------------------------- | -------------------------------------------------------------- | ----------------- |
-| `producao-momentos-prorrogacao.sh`                 | momentos e config dos tipos de ocorrência ativos               | leitura           |
-| `producao-escopo-prorrogacao.sh`                   | escopo de contratantes do tipo de prorrogação e emitente da NF | leitura           |
-| `producao-excecoes-prorrogacao.sh`                 | exceções por contratante/destinatário do tipo                  | leitura           |
-| `producao-thiago-vs-andreia.sh`                    | papel e empresa de dois motoristas nas viagens                 | leitura           |
-| `producao-ligar-office-prorrogacao.sh`             | liga o momento `office` no tipo (1 linha, idempotente)         | escrita           |
-| `trip-stops-check.sh` / `trip-stops-fix-points.sh` | paradas sem coordenada / grava ponto manual (`--confirm`)      | leitura / escrita |
-| `nfse/nfse-freight-rules-check.sh`                 | regras de frete vigentes e perfis de NFS-e                     | leitura           |
-| `respostas-rapidas/producao-respostas-rapidas.sh`  | cadastra respostas rápidas só em empresa sem nenhuma           | escrita           |
+| Script                                             | O que faz                                                                                  | Tipo              |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
+| `producao-momentos-prorrogacao.sh`                 | momentos e config dos tipos de ocorrência ativos                                           | leitura           |
+| `producao-escopo-prorrogacao.sh`                   | escopo de contratantes do tipo de prorrogação e emitente da NF                             | leitura           |
+| `producao-excecoes-prorrogacao.sh`                 | exceções por contratante/destinatário do tipo                                              | leitura           |
+| `producao-thiago-vs-andreia.sh`                    | papel e empresa de dois motoristas nas viagens                                             | leitura           |
+| `producao-ligar-office-prorrogacao.sh`             | liga o momento `office` no tipo (1 linha, idempotente)                                     | escrita           |
+| `trip-stops-check.sh` / `trip-stops-fix-points.sh` | paradas sem coordenada / grava ponto manual (`--confirm`)                                  | leitura / escrita |
+| `nfse/nfse-freight-rules-check.sh`                 | regras de frete vigentes e perfis de NFS-e                                                 | leitura           |
+| `respostas-rapidas/producao-respostas-rapidas.sh`  | cadastra respostas rápidas só em empresa sem nenhuma                                       | escrita           |
+| `notas/producao-faixa-notas.sh [de] [ate]`         | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210) | leitura           |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
 
