@@ -85,7 +85,11 @@ export type OccurrenceConversationUnassignedChannel =
   (typeof OCCURRENCE_CONVERSATION_UNASSIGNED_CHANNELS)[number]
 
 /** Spec 279 T6b (RF12): quem enviou o boleto — a empresa, o motorista pelo app ou o Sistema (envio automático). */
-export const OCCURRENCE_CONVERSATION_SYSTEM_NOTICE_KINDS = ['client_boleto_email_sent'] as const
+export const OCCURRENCE_CONVERSATION_SYSTEM_NOTICE_KINDS = [
+  'client_boleto_email_sent',
+  /** Spec 281 T5: "Boleto enviado por WhatsApp: +55…"; a mensagem leva o `provider_message_id` do Evolution. */
+  'client_boleto_whatsapp_sent',
+] as const
 export const OCCURRENCE_CONVERSATION_SYSTEM_NOTICE_ACTOR_KINDS = [
   'driver',
   'office',

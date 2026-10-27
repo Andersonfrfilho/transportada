@@ -13,7 +13,8 @@
     "settingsResolution": "Check configuration",
     "businessCalendar": "Calendar",
     "audioTranscription": "Audio transcription",
-    "occurrenceWatchers": "Occurrence owners"
+    "occurrenceWatchers": "Occurrence owners",
+    "whatsapp": "WhatsApp"
   },
   "entryKinds": {
     "title": "Entry kinds",
@@ -794,6 +795,41 @@
       "off": "Off",
       "optional": "Optional",
       "required": "Required"
+    }
+  },
+  "whatsappEvolution": {
+    "kicker": "Free channel",
+    "title": "WhatsApp through Evolution",
+    "hint": "Connect the company number by scanning a QR code. Without a connected number, WhatsApp sending stays off and the system uses email.",
+    "baseUrlLabel": "Evolution address",
+    "baseUrlHint": "Full address, starting with https:// (or http:// on the Railway private network).",
+    "instanceLabel": "Instance name",
+    "apiKeyLabel": "Instance key",
+    "apiKeyKeep": "Saved. Leave empty to keep it.",
+    "dailyCapLabel": "Daily message cap",
+    "intervalLabel": "Minimum interval between sends (seconds)",
+    "risk": "Warning: Evolution uses the WhatsApp Web protocol, which Meta does not authorize. The number can be banned and a WhatsApp change can stop sending until the package is updated. It is a free option, not the guaranteed path: email stays the default and the fallback.",
+    "acknowledgeRisk": "I read the warning and accept the risk of the number being banned.",
+    "enabledLabel": "Turn on WhatsApp through Evolution",
+    "save": "Save settings",
+    "saved": "WhatsApp settings saved.",
+    "error": "Could not complete ({{code}}).",
+    "connection": {
+      "label": "Connection",
+      "state": {
+        "open": "connected",
+        "connecting": "waiting for the QR scan",
+        "close": "disconnected",
+        "unknown": "not checked yet"
+      },
+      "needsEnabled": "Save the settings with the key and turn the channel on to connect the number.",
+      "connect": "Connect number",
+      "qrAlt": "QR code to connect the number on WhatsApp",
+      "qrHint": "On the phone: WhatsApp, Linked devices, Link a device. The code renews itself until the number connects.",
+      "pairingCode": "Or type the pairing code: {{code}}",
+      "qrError": "Could not get the QR ({{code}}). Trying again.",
+      "closeQr": "Close QR",
+      "connected": "Number connected."
     }
   }
 }

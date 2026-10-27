@@ -68,7 +68,9 @@ function isEmailTarget(target: string): target is ContractorReplyEmailTarget {
   return (CONTRACTOR_REPLY_EMAIL_TARGETS as readonly string[]).includes(target)
 }
 
-function createTransactionPort(transaction: TripQueryable): ContractorReplyEmailTransactionPort {
+export function createContractorReplyEmailTransactionPort(
+  transaction: TripQueryable,
+): ContractorReplyEmailTransactionPort {
   return {
     async countEmailDeliveries({ companyId, replyId }) {
       const rows = await transaction
@@ -440,7 +442,9 @@ export function createDrizzleContractorReplyEmailUnitOfWork(
 ): ContractorReplyEmailUnitOfWorkPort {
   return {
     execute: (operation) =>
-      database.transaction((transaction) => operation(createTransactionPort(transaction))),
+      database.transaction((transaction) =>
+        operation(createContractorReplyEmailTransactionPort(transaction)),
+      ),
   }
 }
 
@@ -473,7 +477,7 @@ async function findClientEmailSendMode(
 export function createDrizzleContractorReplyEmailReader(
   database: Database,
 ): ContractorReplyEmailReaderPort {
-  const port = createTransactionPort(database)
+  const port = createContractorReplyEmailTransactionPort(database)
   return {
     async read({ companyId, occurrenceId }) {
       const [reply] = await database

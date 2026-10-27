@@ -119,7 +119,7 @@ export async function requestConversationUpload(input: {
   return { expiresAt: expiresAt.toISOString(), uploadId: id, uploadUrl: uploadUrl.toString() }
 }
 
-async function readAllBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+export async function readAllBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer())
 }
 

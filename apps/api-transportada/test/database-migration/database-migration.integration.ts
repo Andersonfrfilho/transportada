@@ -11,6 +11,7 @@ import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-
 import { assertDeliveryProofContractorOverridesBackfill } from './delivery-proof-contractor-overrides.assertion.js'
 import { assertDeliveryProofProcessing } from './delivery-proof-processing.assertion.js'
 import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.assertion.js'
+import { assertContractorReplyWhatsAppDelivery } from './contractor-reply-whatsapp-delivery.assertion.js'
 import { assertEventLocationWhatsappRollbackRefusesRecordedPoints } from './event-location-whatsapp-rollback.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
@@ -162,7 +163,13 @@ describe('Drizzle migration integration', () => {
          * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
-        /** Spec 281 T3b: renomeia a tabela da 279 T1 e acrescenta o canal; a mais nova de todas. */
+        /** Spec 281 T5: alvo, motivos e id do provedor do WhatsApp na entrega do retorno; a mais nova de todas. */
+        await assertContractorReplyWhatsAppDelivery({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 281 T3b: renomeia a tabela da 279 T1 e acrescenta o canal. */
         await assertDeliveryClientContacts({
           companyId: identityFixture.companyId,
           connectionString,
