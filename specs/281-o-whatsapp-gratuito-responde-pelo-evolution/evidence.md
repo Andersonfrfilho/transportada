@@ -214,3 +214,13 @@ Fatia mínima: só a linha do tempo, a documentação e o runbook; sem tela nova
 
 - Teste de aceite em staging (boleto a um número do dono, resposta no fio, queda caindo no e-mail): depende da T3.
 - A linha do tempo mostra o envio ao cliente quando houver tentativa gravada; a tela de envio (T7/T8) ainda não existe.
+
+## T8b (PR 2) — Cadastro de WhatsApp do cliente e contatos na página da ocorrência (27/10/2026)
+
+- API: `GET/POST /delivery-clients/:taxId/whatsapp` e `PATCH/DELETE .../:numberId` (leitura `fleet.read`, escrita `fleet.manage`).
+  Número vira E.164, só a forma mascarada sai, limite de 10, duplicata 409, outra empresa 404, auditoria sem o número.
+  Prova: `test/integration/delivery-client-whatsapp.integration.ts` (Postgres real) e `test/delivery-clients-http/whatsapp.contract.ts`.
+- Painel: `DeliveryClientWhatsAppPanel` no cadastro do cliente (listar, adicionar, editar rótulo e/ou número, remover) e a
+  mesma seção (e-mails + WhatsApp, `ClientContactsAction`) na página da ocorrência, para o escritório completar o contato
+  quando o motorista não informou. Sem `fleet.manage` fica só leitura. Prova: `test/delivery-clients/client-whatsapp.contract.ts`.
+- E-mail: o endereço segue sendo identidade (spec 279) — no painel troca-se o rótulo; trocar o endereço é remover e cadastrar.

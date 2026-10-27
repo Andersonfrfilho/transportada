@@ -306,5 +306,26 @@
       "load": "Não foi possível carregar os e-mails do cliente.",
       "generic": "Não foi possível salvar. Tente de novo em instantes."
     }
+  },
+  "clientWhatsApp": {
+    "title": "WhatsApp do cliente",
+    "hint": "Números que recebem o boleto e os avisos por WhatsApp. O cliente pode ter vários; ficam no cadastro e servem ao painel e ao app do motorista.",
+    "add": "Adicionar número",
+    "empty": "Nenhum WhatsApp cadastrado para este cliente.",
+    "loading": "Carregando os números…",
+    "numberField": "WhatsApp",
+    "labelField": "Rótulo (opcional)",
+    "keepNumber": "Vazio mantém o número",
+    "edit": "Editar",
+    "editOf": "Editar {{number}}",
+    "removeOf": "Remover {{number}}",
+    "saveEdit": "Salvar",
+    "failure": {
+      "numberInvalid": "Confira o número: ele precisa ter DDD, por exemplo (16) 99999-8888.",
+      "limitReached": "Limite de {{max}} números atingido.",
+      "duplicate": "Este número já está cadastrado para o cliente.",
+      "load": "Não foi possível carregar os números do cliente.",
+      "generic": "Não foi possível salvar. Tente de novo em instantes."
+    }
   }
 }
