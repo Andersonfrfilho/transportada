@@ -841,6 +841,9 @@ import { createDeliveryClientsUseCase } from './delivery-clients/application/del
 import { createDeliveryClientEmailsUseCase } from './delivery-clients/application/delivery-client-emails.use-case.js'
 import { DrizzleDeliveryClientEmailRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-email.repository.js'
 import { createDeliveryClientEmailRoutes } from './delivery-clients/presentation/delivery-client-email.routes.js'
+import { createDeliveryClientWhatsAppUseCase } from './delivery-clients/application/delivery-client-whatsapp.use-case.js'
+import { DrizzleDeliveryClientWhatsAppRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-whatsapp.repository.js'
+import { createDeliveryClientWhatsAppRoutes } from './delivery-clients/presentation/delivery-client-whatsapp.routes.js'
 import { createDriverClientContactsUseCase } from './delivery-clients/application/driver-client-contacts.use-case.js'
 import { DrizzleDriverClientContactRepository } from './delivery-clients/infrastructure/drizzle-driver-client-contacts.repository.js'
 import { createMeClientContactsRoutes } from './delivery-clients/presentation/me-client-contacts.routes.js'
@@ -2352,6 +2355,9 @@ function createApplicationRoutes({
   })
   const deliveryClientEmails = createDeliveryClientEmailsUseCase({
     repository: new DrizzleDeliveryClientEmailRepository(database),
+  })
+  const deliveryClientWhatsApp = createDeliveryClientWhatsAppUseCase({
+    repository: new DrizzleDeliveryClientWhatsAppRepository(database),
   })
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
@@ -4222,6 +4228,7 @@ function createApplicationRoutes({
       resolveClientIp,
       updateEmailLabel: { execute: (input) => deliveryClientEmails.updateLabel(input) },
     }),
+    ...createDeliveryClientWhatsAppRoutes({ numbers: deliveryClientWhatsApp, resolveClientIp }),
     ...createFreightRegionRoutes({
       createRegion: { execute: (input) => freightRegions.create(input) },
       deleteRegion: { execute: (input) => freightRegions.delete(input) },
