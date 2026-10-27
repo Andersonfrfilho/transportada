@@ -12,6 +12,6 @@ Nada começa com `[NEEDS CLARIFICATION]` aberto (spec.md § Dúvidas). Modelo po
 - [ ] **T4** (sonnet) API: configuração por empresa (RF2), chave cifrada, estado da conexão, QR, teto e intervalo; migration aditiva.
 - [x] **T5** (opus) API: envio de boleto por WhatsApp no trilho de 248/279 (RF3, RF5, RF6), idempotência, fallback, modelo `whatsapp`.
 - [ ] **T6** (opus) API: webhook assinado com anti-replay, mensagem entra no fio, fila de não atribuídas (RF4).
-- [ ] **T7** (sonnet) Painel: tela de configuração (QR, estado, aviso de risco RF7, provedor padrão) e botão "Enviar por WhatsApp".
+- [x] **T7** (sonnet) Painel: tela de configuração (QR, estado, aviso de risco RF7, provedor padrão) e botão "Enviar por WhatsApp".
 - [x] **T8** (sonnet) App do motorista: contatos do cliente na ocorrência com confirmação e `save` (RF10), "Enviar por WhatsApp" ao lado de "Enviar ao cliente", fila offline; prévia com print.
 - [ ] **T9** (haiku) Linha do tempo, docs (`CLAUDE.md` das apps), runbook de staging, `evidence.md`, teste de que log não leva dado.
