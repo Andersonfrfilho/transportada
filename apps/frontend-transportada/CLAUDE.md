@@ -388,6 +388,15 @@ evento **nem é lida** (`mode: 'stopsOnly'`, aviso claro); evento `restricted`/`
 motivo. Mesmo mapa (`AssemblyVectorMap`, lazy, `vectorBasemap.service`); ele ganhou `focusRequest`, `isEntryAnimated` e, por ponto,
 `color`/`popup`/`isHighlighted` (dica em texto puro). Contratos: `test/trip/occurrence-trip-map*.contract.ts(x)`.
 
+## O boleto por WhatsApp na linha do tempo (spec 281 T9)
+
+O evento `contractor.client.whatsapp` (uma tentativa de mandar o boleto ao cliente por WhatsApp) é lido em
+`tripOccurrenceTimeline.service.ts` e validado em `tripOccurrenceTimeline.validation.ts`. O título sai de
+`clientWhatsappSent` / `clientWhatsappFailed` / `clientWhatsappPending`; a linha de detalhe só existe na falha e usa
+`occurrenceTimeline.deliveryReason.*`, que tem a lista de motivos do cliente. Um motivo novo do lado da API entra nas duas
+listas (`OCCURRENCE_TIMELINE_DELIVERY_REASONS` e o locale), senão a falha cai sem linha de detalhe. Teste:
+`test/trip/occurrence-timeline-automatic.contract.ts`.
+
 ## Contratantes e perfil de recebimento (spec 237 T1.4)
 
 Aba "Contratantes" de `/clientes` (`delivery-clients`): ficha com dados do contratante e perfil de
