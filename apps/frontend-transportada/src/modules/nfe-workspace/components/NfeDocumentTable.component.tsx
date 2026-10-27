@@ -39,6 +39,7 @@ import {
 } from '../shared/viewPreferencesClient.service'
 import styles from '../styles/nfeWorkspace.module.css'
 import { NfeDocumentFilterPanel } from '@/modules/shared/nfe-filter/NfeDocumentFilterPanel.component'
+import { NfeSheetSelectionAction } from './NfeSheetSelectionAction.component'
 import { NfeTripReportExportAction } from './NfeTripReportExportAction.component'
 import { MultiVehicleSuggestionAction } from '@/modules/routing/components/MultiVehicleSuggestionAction.component'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
@@ -503,6 +504,10 @@ export function NfeDocumentTable({
         onClearAll={table.clearAllFilters}
         pills={pills}
       />
+
+      {cteEmission.canEmit && (
+        <NfeSheetSelectionAction documents={documents} onSelect={table.selectDocuments} />
+      )}
 
       {table.selectedCount === 0 && (
         <div className={styles.reportExportRow}>
