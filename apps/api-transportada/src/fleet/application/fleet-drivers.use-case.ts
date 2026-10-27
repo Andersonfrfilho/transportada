@@ -65,7 +65,28 @@ export type UpdateFleetDriverInput = {
   readonly status: FleetDriverStatus
 }
 
+export type GrantFleetDriverAccessInput = {
+  readonly context: FleetCompanyContext
+  readonly correlationId: string
+  readonly driverId: string
+}
+
+/**
+ * `granted`: o convite saiu agora. `already-linked`: a ficha já tem usuário. `no-contact`: sem
+ * e-mail nem telefone não há para onde mandar o código.
+ */
+export type FleetDriverAccessStatus = 'already-linked' | 'granted' | 'no-contact'
+
+const ACCESS_ATTEMPTS = 3
+const ACCESS_BACKOFF_MS = 500
+
 export type FleetDriversUseCase = {
+  /**
+   * O botão "Dar acesso" da lista: ficha ativa sem usuário (candidatura aprovada, ficha antiga,
+   * convite que falhou). O convite leva o CPF, que é o que o amarra à ficha. Falha depois de três
+   * tentativas sobe como erro, para a tela dizer que não deu — nunca "ok" em silêncio.
+   */
+  grantAccess(input: GrantFleetDriverAccessInput): Promise<FleetDriverAccessStatus>
   checkAvailability(input: CheckFleetDriverAvailabilityInput): Promise<FleetDriverAvailability>
   create(input: CreateFleetDriverInput): Promise<FleetDriver>
   list(input: ListFleetDriversInput): Promise<FleetDriverPage>
@@ -199,6 +220,39 @@ export function createFleetDriversUseCase(dependencies: {
       })
       await fillHomeCoordinate({ companyId, driverId: created.id })
       return created
+    },
+
+    async grantAccess(input) {
+      const companyId = input.context.companyId
+      const driver = await repository.findById({ companyId, driverId: input.driverId })
+      if (driver === null) throw new FleetDriverNotFoundError()
+      if (driver.membershipId !== null) return 'already-linked'
+      if (driver.email === '' && driver.phone === '') return 'no-contact'
+
+      const roles = [driver.canDrive ? 'driver' : 'helper'] as const
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          await account.execute({
+            ...resolveInvitationContact(driver),
+            context: { companyId },
+            correlationId: input.correlationId,
+            email: driver.email,
+            name: driver.name,
+            phone: driver.phone,
+            roles,
+            taxId: driver.taxId,
+          })
+          return 'granted'
+        } catch (error) {
+          dependencies.logger?.warn('driver_access_grant_failed', {
+            attempt,
+            driverId: input.driverId,
+            reason: error instanceof Error ? error.message : 'unknown',
+          })
+          if (attempt >= ACCESS_ATTEMPTS) throw error
+          await new Promise((resolve) => setTimeout(resolve, ACCESS_BACKOFF_MS * attempt))
+        }
+      }
     },
 
     async list(input) {

@@ -33,6 +33,9 @@ function createUseCaseStub(existing: readonly string[] = []): {
         stored.push(input.driver.taxId)
         return { ...input.driver, membershipId: null } as unknown as FleetDriver
       },
+      grantAccess: async () => {
+        throw new Error('the seed never grants access')
+      },
       list: async () => ({
         items: stored.map((taxId) => ({ taxId }) as unknown as FleetDriver),
         nextCursor: null,

@@ -289,8 +289,10 @@ como entrar (27/10/2026: Rogério, Reinaldo, João Guilherme e Helton). Diagnós
 `producao-cadastros-sem-acesso.sh`; para ver quem está no banco mas ausente/desabilitado no Keycloak,
 `producao-usuarios-sem-keycloak.sh`. Correção manual: convidar com o **CPF igual ao da ficha** (só
 dígitos), que liga a ficha ao usuário sozinho. Convite "Convidado" com `expires_at` vencido e
-`delivered_at` vazio: usar "Reenviar". A aprovação passou a convidar sozinha (3 tentativas) e há
-`POST /aggregate-applications/:id/retry-access` para repetir.
+`delivered_at` vazio: usar "Reenviar". A aprovação passou a convidar sozinha (3 tentativas), há
+`POST /aggregate-applications/:id/retry-access` para repetir e, na lista de Motoristas, o botão
+**Dar acesso** (`POST /fleet/drivers/:id/access`) em toda ficha ativa "Sem vínculo": é o conserto sem
+script nem produção.
 
 ## 6. Erros que não devem se repetir
 
