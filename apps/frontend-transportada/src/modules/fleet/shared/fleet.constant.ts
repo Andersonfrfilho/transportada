@@ -9,6 +9,7 @@ export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export function driverAccessPath(driverId: string): string {
   return `${FLEET_DRIVERS_PATH}/${driverId}/access`
 }
+export const DRIVER_ACCESS_REPORT_PATH = `${FLEET_DRIVERS_PATH}/access-report`
 export const DRIVER_AVAILABILITY_PATH = `${FLEET_DRIVERS_PATH}/availability`
 /** Spec 159 RF10: a nota e as penalidades vigentes de um motorista. */
 export function driverScorePath(driverId: string): string {

@@ -6,6 +6,7 @@ import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import {
   API_FLEET_CAPABILITIES_PATH,
   API_FLEET_DRIVER_ACCESS_PATH,
+  API_FLEET_DRIVER_ACCESS_REPORT_PATH,
   API_FLEET_DRIVER_SCORE_PATH,
   API_FLEET_DRIVER_VEHICLES_PATH,
   API_FLEET_DRIVERS_PATH,
@@ -23,6 +24,7 @@ import type {
   ListFleetDriverVehiclesInput,
   ReplaceFleetDriverVehiclesInput,
 } from '../application/fleet-driver-vehicles.use-case.js'
+import type { FleetDriverAccessRow } from '../application/fleet-driver-access-report.use-case.js'
 import type {
   CheckFleetDriverAvailabilityInput,
   CreateFleetDriverInput,
@@ -72,6 +74,9 @@ type Dependencies = {
   }
   readonly createVehicle: {
     execute(input: TenantInput<CreateFleetVehicleInput>): Promise<FleetVehicle>
+  }
+  readonly driverAccessReport: {
+    execute(input: { readonly context: CompanyContext }): Promise<readonly FleetDriverAccessRow[]>
   }
   readonly grantDriverAccess: {
     execute(input: TenantInput<GrantFleetDriverAccessInput>): Promise<FleetDriverAccessStatus>
@@ -197,6 +202,16 @@ export function createFleetRoutes(
       parse: ({ request }) => parseDriverAvailability(new URL(request.url)),
       pathname: DRIVER_AVAILABILITY_PATH,
       policy: FLEET_MANAGE_POLICY,
+    }),
+    defineRoute<Record<string, never>>({
+      async handle({ context }): Promise<Response> {
+        const rows = await dependencies.driverAccessReport.execute({ context: context.scope })
+        return jsonResponse({ body: { data: rows }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: API_FLEET_DRIVER_ACCESS_REPORT_PATH,
+      policy: FLEET_READ_POLICY,
     }),
     defineRoute<Omit<GrantFleetDriverAccessInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {

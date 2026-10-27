@@ -368,6 +368,18 @@ export type FleetDriverBody = Readonly<{
 /** O que o servidor respondeu ao pedido de acesso da ficha. */
 export type FleetDriverAccessStatus = 'already-linked' | 'granted' | 'no-contact'
 
+/** Ficha ativa que ainda não entra no app: sem usuário, convite aberto ou convite vencido. */
+export type FleetDriverAccessRow = Readonly<{
+  contact: string
+  deliveredAt: string | null
+  driverId: string
+  expiresAt: string | null
+  name: string
+  state: 'expired' | 'invited' | 'no-user'
+  taxId: string
+  userId: string | null
+}>
+
 export const FLEET_DRIVER_PROFILES = ['aggregate', 'driver', 'helper'] as const
 export type FleetDriverProfile = (typeof FLEET_DRIVER_PROFILES)[number]
 

@@ -12,6 +12,7 @@ import { CompanyUserTable } from '../components/CompanyUserTable.component'
 import { CompanyUserPermissionsDialog } from '../components/CompanyUserPermissionsDialog.component'
 import { CompanyUserRevealAllButton } from '../components/CompanyUserRevealAllButton.component'
 import { CompanyUserBulkRoleBar } from '../components/CompanyUserBulkRoleBar.component'
+import { DriverAccessReportPanel } from '../components/DriverAccessReportPanel.component'
 import { CompanyUserReconciliationPanel } from '../components/CompanyUserReconciliationPanel.component'
 import { readErrorCode, useUserAdministration } from '../hooks/useUserAdministration.hook'
 import styles from '../styles/userAdministration.module.css'
@@ -72,6 +73,16 @@ export function UserAdministrationPage() {
         onSynchronize={(targets) => screen.reconciliation.synchronizeMutation.mutate(targets)}
         onToggle={screen.toggleReconciliation}
       />
+
+      {screen.isReconciliationOpen ? (
+        <section className={styles.panel}>
+          <DriverAccessReportPanel
+            onResend={async (userId) => {
+              await users.resendInvitationMutation.mutateAsync({ userId })
+            }}
+          />
+        </section>
+      ) : null}
 
       <section className={styles.panel}>
         <div className={styles.panelHead}>

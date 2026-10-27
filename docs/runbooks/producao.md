@@ -293,7 +293,10 @@ O app do motorista autentica só pelo Keycloak, e o usuário de lá só nasce pe
 > `delivered_at` vazio: usar "Reenviar". A aprovação passou a convidar sozinha (3 tentativas), há
 > `POST /aggregate-applications/:id/retry-access` para repetir e, na lista de Motoristas, o botão
 > **Dar acesso** (`POST /fleet/drivers/:id/access`) em toda ficha ativa "Sem vínculo": é o conserto sem
-> script nem produção.
+> script nem produção. A conferência **Cadastros e acessos** (Usuários) também lista, abaixo da tabela,
+> toda ficha ativa que ainda não entra no app (`GET /fleet/drivers/access-report`: sem convite, convite
+> não usado ou vencido), com **Dar acesso** / **Reenviar convite** na própria linha; vazio = todo
+> motorista ativo já tem acesso.
 
 ## 6. Erros que não devem se repetir
 
