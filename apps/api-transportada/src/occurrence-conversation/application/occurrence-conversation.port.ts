@@ -10,9 +10,14 @@ import type {
   OccurrenceConversationChannel,
   OccurrenceConversationDirection,
   OccurrenceConversationMessageStatus,
-  OccurrenceConversationParticipant,
+  OccurrenceConversationAnyParticipant,
   OccurrenceConversationStatus,
 } from '../../database/occurrence-conversation.schema.js'
+
+import type {
+  ClientChannelView,
+  ClientDeliveryActorKind,
+} from '../domain/client-conversation.policy.js'
 
 import type { OccurrenceConversationSystemNoticeView } from '../domain/occurrence-conversation-system-notice.policy.js'
 import type { ContractorSenderIdentity } from '../domain/contractor-sender.policy.js'
@@ -33,6 +38,19 @@ export type OccurrenceConversationMessageAuthor =
       readonly userId: string | null
     }
   | { readonly kind: 'driver'; readonly name: string | null; readonly userId: string }
+  /** Spec 283 (RF3): quem respondeu na conversa do cliente — só o número, mascarado. */
+  | { readonly addressMasked: string; readonly kind: 'client' }
+
+/** Spec 283 (RF1): o envio que a mensagem da conversa do cliente conta. */
+export type ClientDeliveryView = {
+  readonly actorKind: ClientDeliveryActorKind
+  /** O nome do perfil de quem enviou; `null` no Sistema. */
+  readonly actorName: null | string
+  readonly deliveryId: string
+  /** O arquivo enviado (o boleto); `null` quando o anexo não está mais lá. */
+  readonly documentName: null | string
+  readonly recipientMasked: string
+}
 
 export type OccurrenceConversationMessageView = {
   /**
@@ -43,6 +61,8 @@ export type OccurrenceConversationMessageView = {
   readonly author: OccurrenceConversationMessageAuthor
   readonly bodyText: string
   readonly channel: OccurrenceConversationChannel
+  /** Spec 283: presente só na mensagem enviada da conversa do cliente. */
+  readonly clientDelivery?: ClientDeliveryView
   /**
    * Spec 267 RF8: quem foi em cópia no e-mail de saída — nome (do perfil, quando acha) e e-mail mascarado; o endereço
    * real nunca sai. Ausente na mensagem sem cópia.
@@ -62,10 +82,20 @@ export type OccurrenceConversationMessageView = {
   readonly systemNotice?: OccurrenceConversationSystemNoticeView
 }
 
+export type OccurrenceClientView = {
+  /** D4: a faixa "Canais abertos". */
+  readonly channels: readonly ClientChannelView[]
+  /** O nome do cadastro do cliente; `null` quando o cadastro não tem. */
+  readonly name: null | string
+  readonly taxIdMasked: string
+}
+
 export type OccurrenceConversationView = {
+  /** Spec 283: presente só na conversa do cliente. */
+  readonly client?: OccurrenceClientView
   readonly id: string
   readonly messages: readonly OccurrenceConversationMessageView[]
-  readonly participant: OccurrenceConversationParticipant
+  readonly participant: OccurrenceConversationAnyParticipant
   readonly status: OccurrenceConversationStatus
   /** RF15: recebidas depois da última que **este** usuário viu. */
   readonly unreadCount: number
@@ -84,6 +114,8 @@ export type OccurrenceConversationReaderPort = {
   /** `null` quando a ocorrência não existe **na empresa do contexto**. */
   findConversations(params: {
     readonly companyId: string
+    /** Spec 283 RF7: a conversa do cliente só para quem pode enviar ao cliente (`occurrences.resolve`). */
+    readonly includeClient?: boolean
     readonly occurrenceId: string
     readonly userId: string
   }): Promise<OccurrenceConversationsView | null>

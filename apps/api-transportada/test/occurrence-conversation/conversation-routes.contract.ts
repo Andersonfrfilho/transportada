@@ -319,12 +319,23 @@ describe('GET /trip-occurrences/:id/conversations (spec 183 T404)', () => {
       {
         input: {
           companyId: COMPANY_CONTEXT.companyId,
+          includeClient: false,
           occurrenceId: OCCURRENCE_ID,
           userId: COMPANY_CONTEXT.userId,
         },
         name: 'list',
       },
     ])
+  })
+
+  test('spec 283 RF7: a conversa do cliente só é pedida para quem tem occurrences.resolve', async () => {
+    const fixture = createFixture({
+      permissions: new Set(['fleet.read', 'occurrences.resolve'] as const),
+    })
+    await fixture.handle(
+      jsonRequest({ method: 'GET', path: `/trip-occurrences/${OCCURRENCE_ID}/conversations` }),
+    )
+    expect(fixture.calls).toMatchObject([{ input: { includeClient: true }, name: 'list' }])
   })
 
   test('só com trip.read é 403; ocorrência de outra empresa é 404', async () => {

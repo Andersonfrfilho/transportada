@@ -248,6 +248,8 @@ export function createOccurrenceConversationRoutes(
       async handle({ context, input }): Promise<Response> {
         const view = await dependencies.listConversations.list({
           companyId: context.scope.companyId,
+          /** Spec 283 RF7: o cliente só para quem pode enviar a ele. */
+          includeClient: context.scope.permissions.has(WRITE_POLICY.permission),
           occurrenceId: input.occurrenceId,
           userId: context.scope.userId,
         })

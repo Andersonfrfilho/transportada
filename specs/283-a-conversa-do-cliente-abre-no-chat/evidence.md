@@ -25,6 +25,51 @@ bun test ./test/occurrence-conversation/client-conversation-policy.contract.ts
  0 fail
 ```
 
+## T2 — API e migração aditiva (27/10/2026)
+
+**O que mudou**
+
+- Migration `20261027232931_occurrence_client_conversation` (gerada, com snapshot, e o gatilho escrito à mão):
+  - `occurrence_conversations`: participante `client` (CHECK só alargada), `client_tax_id` com a forma do CPF/CNPJ
+    alfanumérico, e a forma do `client` na CHECK de participante (só ocorrência de nota, sem contratante, motorista nem
+    referência do portal). O único `(company_id, occurrence_kind, occurrence_id, participant)` que já existia é o "por
+    ocorrência e contato" (D1): a nota tem um destinatário só.
+  - `occurrence_conversation_messages`: `client_delivery_id` (único por empresa, sem FK por causa do ciclo de módulos) e
+    `recipient_address`, com a CHECK de que só a enviada tem destino.
+  - Gatilho `occurrence_client_conversation_sync_trigger` (`AFTER INSERT OR UPDATE OF status` na entrega da 248): toda
+    entrega de alvo `client_boleto_emails`/`client_boleto_whatsapp` com destino abre (ou reaproveita) a conversa do
+    cliente e grava uma mensagem por entrega, com ator (o `actor_user_id` da entrega; sem ator é automática), canal,
+    destino e estado; `queued → sent | failed` acompanham a entrega só para a frente. Cobre todo caminho que grava a
+    entrega (painel, app do motorista, automático da API e do worker, reserva por e-mail) sem tocar no worker. O
+    corpo do e-mail vai junto; o do WhatsApp fica vazio (o painel mostra o arquivo pelo `clientDelivery`). Sem
+    cliente cadastrado a conversa não nasce. O bloco tem `EXCEPTION`: falha aqui nunca derruba o envio.
+  - Rollback: recusa com conversa do cliente gravada; senão tira gatilho, função, colunas e volta as CHECKs.
+- `applyProviderMessageStatus` (Meta, Evolution e Resend): a mensagem do cliente não guarda o id do provedor (o aviso do
+  motorista já o tem e o id é único no canal); ela é achada pela entrega — `provider_message_id` no WhatsApp, o id do
+  Resend do e-mail da entrega no e-mail — e avança junto (`delivered`, `read`, `bounced`).
+- `GET /v1/trip-occurrences/:id/conversations`: a conversa `client` só para quem tem `occurrences.resolve` (RF7), com
+  `client` (nome, documento mascarado, faixa de canais), `clientDelivery` na enviada e `author.kind = "client"` na
+  recebida. O aviso "Boleto enviado …" na conversa do motorista continua como estava.
+- Por que o e-mail do cliente **não** leva `mail_message_id` na mensagem: a thread do e-mail é a da contratante, e
+  `findOccurrenceConversationByThread` (worker) mandaria a resposta da contratante para a conversa do cliente.
+
+**Provas**
+
+- `test/integration/occurrence-client-conversation.integration.ts` (6, Postgres real): WhatsApp a dois números = uma
+  conversa e duas mensagens, repetido e refechamento não duplicam; Evolution `delivered`/`read` e envio que falhou na
+  faixa; e-mail na mesma conversa com o texto e o Resend avançando para `delivered`; sem `occurrences.resolve` a conversa
+  não sai e sem envio ela não existe; contato removido some da faixa; sem cliente cadastrado o envio segue e a conversa
+  não nasce. Nenhum número nem e-mail em claro na conversa do cliente.
+- `test/database-migration/occurrence-client-conversation.assertion.ts`: aplica, rollback, reaplica.
+- `test/occurrence-conversation/conversation-routes.contract.ts`: `includeClient` só com `occurrences.resolve`.
+- `occurrence-contractor-reply-client-whatsapp.integration.ts`: o aviso do motorista conferido só na conversa dele.
+
+```
+bun --env-file=../../.env.test test ./test/integration/occurrence-client-conversation.integration.ts   6 pass
+DRIZZLE_TEST_DATABASE_URL=… bun test ./test/database-migration.contract.test.ts                        192 pass
+bun test ./test/occurrence-conversation.contract.test.ts                                               876 pass
+```
+
 ## T4 — painel (coluna, faixa e aba do Cliente)
 
 Prints dos componentes reais (`ClientConversationPanel`, `ClientConversationStrip`, `ConversationColumn`, CSS e textos do
