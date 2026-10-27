@@ -5,7 +5,7 @@
  * valida antes de qualquer envio; quem digita "(16) 99999-8888", "16999998888" ou "+55 16 99999-8888" chega ao mesmo
  * `+5516999998888`. Número fora da forma nunca é enviado nem guardado. Fora da API ele só sai mascarado.
  */
-import { CONTRACTOR_REPLY_WHATSAPP_ADDRESS_PATTERN } from '../../shared/occurrence-contractor-reply.constant.js'
+import { DELIVERY_CLIENT_WHATSAPP_ADDRESS_PATTERN } from '../../shared/delivery-client-email.constant.js'
 
 const BRAZIL_COUNTRY_CODE = '55'
 /** O texto bruto só protege o parser; nenhum número com formatação passa disso. */
@@ -16,7 +16,7 @@ const NON_DIGITS = /\D/gu
 const LEADING_ZEROS = /^0+/u
 /** DDD de 11 a 99 e assinante de 8 dígitos (fixo) ou 9 começando por 9 (celular). */
 const BRAZIL_NATIONAL = /^[1-9][1-9](?:9\d{8}|[2-8]\d{7})$/u
-const E164 = new RegExp(CONTRACTOR_REPLY_WHATSAPP_ADDRESS_PATTERN, 'u')
+const E164 = new RegExp(DELIVERY_CLIENT_WHATSAPP_ADDRESS_PATTERN, 'u')
 const VISIBLE_DIGITS = 4
 
 /** `null` quando o texto não é um número de WhatsApp válido; senão o número em E.164. */

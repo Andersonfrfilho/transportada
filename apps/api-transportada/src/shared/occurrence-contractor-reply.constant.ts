@@ -4,8 +4,6 @@
  * Spec 248: the closed vocabularies and limits of the contractor reply. The schema builds every CHECK
  * from these, so a value written outside them fails in the database and not only in the use case.
  */
-import { DELIVERY_CLIENT_WHATSAPP_ADDRESS_PATTERN } from './delivery-client-email.constant.js'
-
 export const CONTRACTOR_REPLY_MODES = [
   'off',
   'forward_after_approval',
@@ -115,8 +113,6 @@ export type ContractorReplyDeliveryTarget = (typeof CONTRACTOR_REPLY_DELIVERY_TA
 
 /** Spec 281 T5: o envio do boleto por WhatsApp ao cliente; o `address` da entrega é o número em E.164. */
 export const CONTRACTOR_REPLY_WHATSAPP_TARGET = 'client_boleto_whatsapp'
-/** O mesmo padrão de `delivery_client_contacts` (281 T3b): `+`, país sem zero à esquerda, até 15 dígitos. */
-export const CONTRACTOR_REPLY_WHATSAPP_ADDRESS_PATTERN = DELIVERY_CLIENT_WHATSAPP_ADDRESS_PATTERN
 
 /** Os encaminhamentos do boleto a um terceiro: sem token de resposta e com o anexo ligado pela entrega. */
 export const CONTRACTOR_REPLY_EMAIL_TARGETS = [

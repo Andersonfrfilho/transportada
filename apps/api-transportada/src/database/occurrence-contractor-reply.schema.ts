@@ -39,7 +39,6 @@ import {
   CONTRACTOR_REPLY_REASONS,
   CONTRACTOR_REPLY_STATUSES,
   CONTRACTOR_REPLY_WAITING_STATUSES,
-  CONTRACTOR_REPLY_WHATSAPP_ADDRESS_PATTERN,
   CONTRACTOR_REPLY_WHATSAPP_TARGET,
   type ContractorReplyActorKind,
   type ContractorReplyDeliveryReason,
@@ -49,6 +48,7 @@ import {
   type ContractorReplyReason,
   type ContractorReplyStatus,
 } from '../shared/occurrence-contractor-reply.constant.js'
+import { DELIVERY_CLIENT_WHATSAPP_ADDRESS_PATTERN } from '../shared/delivery-client-email.constant.js'
 import { companies, identityUsers } from './identity.schema.js'
 import {
   occurrenceConversationAttachments,
@@ -266,7 +266,7 @@ export const occurrenceContractorReplyDeliveries = pgTable(
     ),
     check(
       'occurrence_contractor_reply_deliveries_address_check',
-      sql`${table.address} is null or (${table.target} in (${raw(inList(CONTRACTOR_REPLY_EMAIL_TARGETS))}) and char_length(${table.address}) between 1 and ${raw(String(CONTRACTOR_REPLY_EMAIL_ADDRESS_MAX_LENGTH))}) or (${table.target} = ${raw(`'${CONTRACTOR_REPLY_WHATSAPP_TARGET}'`)} and ${table.address} ~ ${raw(`'${CONTRACTOR_REPLY_WHATSAPP_ADDRESS_PATTERN}'`)})`,
+      sql`${table.address} is null or (${table.target} in (${raw(inList(CONTRACTOR_REPLY_EMAIL_TARGETS))}) and char_length(${table.address}) between 1 and ${raw(String(CONTRACTOR_REPLY_EMAIL_ADDRESS_MAX_LENGTH))}) or (${table.target} = ${raw(`'${CONTRACTOR_REPLY_WHATSAPP_TARGET}'`)} and ${table.address} ~ ${raw(`'${DELIVERY_CLIENT_WHATSAPP_ADDRESS_PATTERN}'`)})`,
     ),
     /** Spec 281 T5: o id do provedor só existe no envio por WhatsApp. */
     check(
