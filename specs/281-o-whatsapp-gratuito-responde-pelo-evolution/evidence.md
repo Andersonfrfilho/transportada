@@ -114,3 +114,33 @@ Fatia mínima: só boleto, API (painel e app), staging. Sobre a T4 (configuraç�
   duas grafias do nono dígito, outro número vai para não atribuídas, o aviso vai de `sent` a `read` sem voltar, outra
   empresa não acha, e o ciclo do webhook (achar pelo id, guardar segredo, auditoria, conexão, troca de instância
   desmarcando o registro).
+
+## T9 — Linha do tempo, docs e runbook de staging (27/10/2026)
+
+Fatia mínima: só a linha do tempo, a documentação e o runbook; sem tela nova (T7/T8).
+
+**O que mudou**
+
+- Linha do tempo da ocorrência (API): `contractor.client.whatsapp`, uma entrada por tentativa do alvo
+  `client_boleto_whatsapp`, na ordem do retorno. Status e motivo só: sem número, texto nem anexo. `sent` é marco; não
+  muda etapa. Consulta em `trip-occurrence-timeline.query.ts` (`listClientWhatsappSources`).
+- Painel: tipo lido e validado, títulos "Boleto enviado por WhatsApp", "Falhou o envio do boleto por WhatsApp" e
+  "Envio do boleto por WhatsApp aguardando" (pt-BR e en), motivos do cliente (`whatsapp_number_not_found`,
+  `whatsapp_disconnected`, `attachment_too_large_for_whatsapp`) com frase na linha de detalhe.
+- Docs: `apps/api-transportada/CLAUDE.md` (bullet da linha do tempo), `apps/frontend-transportada/CLAUDE.md` (seção nova).
+- Runbook de staging: `docs/runbooks/evolution-staging.md`. Descreve o estado atual: o serviço de staging ainda é a T3.
+
+**Provas**
+
+- `test/trip-occurrence/timeline-automatic.contract.ts` (API): ordem e ids, só `sent` é marco, a etapa não muda, e a
+  forma do evento tem só `actor, id, isKey, kind, occurredAt, reason, sincePreviousSeconds, status`. Sem número, texto nem
+  anexo por construção.
+- `test/trip/occurrence-timeline-automatic.contract.ts` (painel): títulos, detalhe só na falha com motivo conhecido, e as
+  chaves nos dois locales.
+- `bun test` das duas suítes (818 e 10 testes) passando; `tsc --noEmit` da API e do painel sem erro; prettier nos arquivos
+  alterados.
+
+**Pendente**
+
+- Teste de aceite em staging (boleto a um número do dono, resposta no fio, queda caindo no e-mail): depende da T3.
+- A linha do tempo mostra o envio ao cliente quando houver tentativa gravada; a tela de envio (T7/T8) ainda não existe.

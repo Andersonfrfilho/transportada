@@ -16,6 +16,7 @@ import {
   contractorMailMessages,
   contractorMailThreads,
 } from '../../database/contractor-mail.schema.js'
+import { CONTRACTOR_REPLY_WHATSAPP_TARGET } from '../../shared/occurrence-contractor-reply.constant.js'
 import {
   occurrenceContractorReplies,
   occurrenceContractorReplyDeliveries,
@@ -330,6 +331,46 @@ async function listDriverDeliverySources(
 }
 
 /**
+ * Spec 281 T9: cada tentativa do boleto por WhatsApp ao cliente, na ordem. Só status e motivo: o número (`address`),
+ * o texto e o anexo ficam na entrega e nunca saem daqui.
+ */
+async function listClientWhatsappSources(
+  queryable: TripQueryable,
+  scope: Scope,
+  replyId: string,
+): Promise<readonly OccurrenceTimelineSource[]> {
+  const rows = await queryable
+    .select({
+      createdAt: occurrenceContractorReplyDeliveries.createdAt,
+      id: occurrenceContractorReplyDeliveries.id,
+      reason: occurrenceContractorReplyDeliveries.reason,
+      status: occurrenceContractorReplyDeliveries.status,
+    })
+    .from(occurrenceContractorReplyDeliveries)
+    .where(
+      and(
+        eq(occurrenceContractorReplyDeliveries.companyId, scope.companyId),
+        eq(occurrenceContractorReplyDeliveries.replyId, replyId),
+        eq(occurrenceContractorReplyDeliveries.target, CONTRACTOR_REPLY_WHATSAPP_TARGET),
+      ),
+    )
+    .orderBy(
+      asc(occurrenceContractorReplyDeliveries.createdAt),
+      asc(occurrenceContractorReplyDeliveries.id),
+    )
+  return rows.map(
+    (row): OccurrenceTimelineSource => ({
+      actor: { kind: 'system', name: null },
+      id: row.id,
+      kind: 'contractor.client.whatsapp',
+      occurredAt: row.createdAt.toISOString(),
+      reason: row.reason ?? null,
+      status: row.status,
+    }),
+  )
+}
+
+/**
  * Spec 276 T3: o retorno da contratante (248) — a abertura (`created_at` do retorno, que não grava evento)
  * e cada mudança de status. Só status, motivo e ator; nunca a nota do operador nem o anexo. Só a
  * ocorrência de nota abre retorno. Spec 278: também o resultado da conferência do boleto (o motivo do evento),
@@ -358,6 +399,7 @@ async function listContractorReplySources(
   if (reply === undefined) return []
   const documentKind = documentKindOf(reply.config)
   const deliveries = listDriverDeliverySources(queryable, scope, { documentKind, id: reply.id })
+  const clientWhatsapp = listClientWhatsappSources(queryable, scope, reply.id)
   const rows = await queryable
     .select({
       actorKind: occurrenceContractorReplyEvents.actorKind,
@@ -418,6 +460,7 @@ async function listContractorReplySources(
     ),
     ...checks,
     ...(await deliveries),
+    ...(await clientWhatsapp),
   ]
 }
 
