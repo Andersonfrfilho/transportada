@@ -16,6 +16,7 @@ import {
   FOREIGN_KEY_VIOLATION,
   UNIQUE_VIOLATION,
 } from './business-calendar-constraints.assertion.js'
+import { rollbackDeliveryClientContacts } from './delivery-client-contacts.assertion.js'
 import { expectQueryToFail, migrationsDirectory, readMigrationNames } from './support.js'
 
 const MIGRATION_SUFFIX = '_delivery_client_emails'
@@ -71,6 +72,8 @@ export async function assertDeliveryClientEmails(probe: DeliveryClientEmailsProb
   if (directory === undefined || rollback === null) {
     throw new Error('delivery_client_emails is required')
   }
+  /** Spec 281 T3b renomeia esta tabela: volta à forma da 279 antes de provar a T1; o reapply do fim devolve as duas. */
+  await rollbackDeliveryClientContacts(database, directories)
   expect(await tableExists(database)).toBe(true)
 
   await database`

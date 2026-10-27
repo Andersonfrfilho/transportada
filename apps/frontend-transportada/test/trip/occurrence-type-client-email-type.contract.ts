@@ -2,7 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 279 T3b (RF9): "Envio ao cliente" no cadastro do tipo. Desligado de fábrica; a edição manda só o que mudou;
- * o rótulo e cada opção existem nos dois idiomas; a resposta da API com valor fora da lista é recusada.
+ * o rótulo e cada opção existem nos dois idiomas; a resposta da API com valor fora da lista é recusada. Spec 281 T3b
+ * (RF8): o mesmo para o canal com o cliente (`clientChannel`).
  */
 import { describe, expect, it } from 'bun:test'
 
@@ -10,9 +11,11 @@ import settingsEn from '@/modules/company-settings/locales/companySettings.en.lo
 import settingsPt from '@/modules/company-settings/locales/companySettings.locale.json'
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import {
+  CLIENT_CHANNELS,
   CLIENT_EMAIL_SEND_MODES,
   CLIENT_EMAIL_TYPES,
 } from '@/modules/trip/shared/occurrenceContractorReply.constant'
+import { hasValidContractorReplyTypeFields } from '@/modules/trip/shared/occurrenceContractorReply.validation'
 import { buildOccurrenceTypeUpdate } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 
 const TYPE = {
@@ -82,6 +85,35 @@ describe('envio automático ao cliente no tipo da ocorrência (spec 279 RF10)', 
       expect(locale.occurrenceTypeCatalog.clientEmailSendModeHint).toBeString()
       for (const mode of CLIENT_EMAIL_SEND_MODES) {
         expect(locale.occurrenceTypeCatalog.clientEmailSendModeOptions[mode]).toBeString()
+      }
+    }
+  })
+})
+
+describe('canal com o cliente no tipo da ocorrência (spec 281 RF8)', () => {
+  it('o vocabulário é o da API: "off", "email", "whatsapp" e "both"', () => {
+    expect(CLIENT_CHANNELS).toEqual(['off', 'email', 'whatsapp', 'both'])
+  })
+
+  it('a resposta aceita o canal ausente (API anterior) ou da lista, e recusa o resto', () => {
+    expect(hasValidContractorReplyTypeFields({})).toBe(true)
+    expect(hasValidContractorReplyTypeFields({ clientChannel: 'whatsapp' })).toBe(true)
+    expect(hasValidContractorReplyTypeFields({ clientChannel: 'sms' })).toBe(false)
+  })
+
+  it('a edição manda o canal escolhido e a de outro campo não mexe nele', () => {
+    expect(
+      buildOccurrenceTypeUpdate({ ...TYPE, clientChannel: 'email' }, { clientChannel: 'both' }),
+    ).toMatchObject({ clientChannel: 'both', occurrenceTypeId: 'type-1' })
+    expect(buildOccurrenceTypeUpdate(TYPE, { name: 'Boleto' })).not.toHaveProperty('clientChannel')
+  })
+
+  it('o rótulo, a dica e cada opção existem nos dois idiomas', () => {
+    for (const locale of [settingsPt, settingsEn]) {
+      expect(locale.occurrenceTypeCatalog.clientChannel).toBeString()
+      expect(locale.occurrenceTypeCatalog.clientChannelHint).toBeString()
+      for (const channel of CLIENT_CHANNELS) {
+        expect(locale.occurrenceTypeCatalog.clientChannelOptions[channel]).toBeString()
       }
     }
   })

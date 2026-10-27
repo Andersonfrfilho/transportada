@@ -199,9 +199,9 @@ async function listClientAddresses(
         join nfe_participants participant
           on participant.company_id = document.company_id and participant.document_id = document.nfe_document_id
          and participant.role = ${RECIPIENT_ROLE}
-        join delivery_client_emails email
+        join delivery_client_contacts email
           on email.company_id = participant.company_id and email.tax_id = participant.tax_id
-         and email.purpose = ${params.purpose}
+         and email.channel = 'email' and email.purpose = ${params.purpose}
         where occurrence.company_id = ${params.companyId}::uuid and occurrence.id = ${params.occurrenceId}::uuid
         order by email.created_at, email.id`,
   )

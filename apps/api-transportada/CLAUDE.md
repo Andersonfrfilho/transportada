@@ -32,6 +32,8 @@ tipo (spec 150 T401/T402, `resolveMailSendReadiness`). ⚠️ **Rota que dispara
 
 **E-mails do cliente de entrega** (spec 279 T2): `GET|POST /delivery-clients/:taxId/emails` e `PATCH|DELETE …/:emailId` (`fleet.read`/`fleet.manage`), tipos em `shared/delivery-client-email.constant.ts`. A resposta só leva `addressMasked`; o endereço em claro fica no banco e no corpo do `POST`. A escrita trava o cliente (`FOR UPDATE`) para o limite de 10 por tipo (`422`) e a duplicata (`409`) valerem sob concorrência, e audita (`delivery-client-email.*`, endereço mascarado) na mesma transação. Detalhe: `specs/279-*/evidence.md` § T2.
 
+**Contatos do cliente, uma tabela só** (spec 281 T3b): a tabela da 279 virou `delivery_client_contacts` (`channel` `email` | `whatsapp`, número em E.164, `source_occurrence_id`) e o tipo de ocorrência ganhou `client_channel` (`off`/`email`/`whatsapp`/`both`, padrão `email`: nada da 279 muda). ⚠️ `delivery_client_emails` agora é uma **visão** só das linhas `email`, para a API e o worker antigos atravessarem o deploy; código novo lê a tabela e filtra `channel = 'email'`, nunca a visão. Ela sai numa migration futura, depois que a 281 chegar à `main`. Detalhe: `specs/281-*/evidence.md` § T3b.
+
 **O IP do cliente vem do salto conhecido** (ADR-0076 §6, spec 191): `createClientIpResolver` lê só o
 cabeçalho de `CLIENT_IP_SOURCE` — padrão `x-real-ip`, que o edge do Railway sobrescreve (medido).
 Nunca o começo de `x-forwarded-for`, que é do cliente; `cf-connecting-ip` só com Cloudflare

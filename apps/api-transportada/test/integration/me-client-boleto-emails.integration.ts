@@ -11,7 +11,7 @@ import { and, eq, sql } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypes,
-  deliveryClientEmails,
+  deliveryClientContacts,
   deliveryClients,
   nfeParticipants,
   occurrenceContractorReplyDeliveries,
@@ -72,7 +72,7 @@ async function seedClient(database: TestDatabase, seeded: Seeded) {
     taxId: CLIENT_TAX_ID,
   })
   const [finance] = await database.db
-    .insert(deliveryClientEmails)
+    .insert(deliveryClientContacts)
     .values({
       address: FINANCE_EMAIL,
       companyId,
@@ -82,7 +82,7 @@ async function seedClient(database: TestDatabase, seeded: Seeded) {
       purpose: 'boleto',
       taxId: CLIENT_TAX_ID,
     })
-    .returning({ id: deliveryClientEmails.id })
+    .returning({ id: deliveryClientContacts.id })
   if (finance === undefined) throw new Error('EXPECTED_CLIENT_EMAIL')
   return { financeId: finance.id }
 }
@@ -184,12 +184,12 @@ describe('os e-mails do cliente para o boleto no app do motorista (spec 279 T4, 
         expect(withNew.results).toMatchObject([{ kind: 'queued' }])
         expect(withNew.savedEmailId).not.toBeNull()
         const saved = await database.db
-          .select({ createdByKind: deliveryClientEmails.createdByKind })
-          .from(deliveryClientEmails)
+          .select({ createdByKind: deliveryClientContacts.createdByKind })
+          .from(deliveryClientContacts)
           .where(
             and(
-              eq(deliveryClientEmails.companyId, companyId),
-              eq(deliveryClientEmails.address, NEW_EMAIL),
+              eq(deliveryClientContacts.companyId, companyId),
+              eq(deliveryClientContacts.address, NEW_EMAIL),
             ),
           )
         expect(saved).toEqual([{ createdByKind: 'driver' }])
@@ -199,9 +199,9 @@ describe('os e-mails do cliente para o boleto no app do motorista (spec 279 T4, 
         )
         expect(unsaved.savedEmailId).toBeNull()
         const rows = await database.db
-          .select({ id: deliveryClientEmails.id })
-          .from(deliveryClientEmails)
-          .where(eq(deliveryClientEmails.companyId, companyId))
+          .select({ id: deliveryClientContacts.id })
+          .from(deliveryClientContacts)
+          .where(eq(deliveryClientContacts.companyId, companyId))
         expect(rows).toHaveLength(2)
       })
     },

@@ -18,6 +18,7 @@ import {
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
+  ClientChannel,
   ClientEmailSendMode,
   ClientEmailType,
   DuplicateRequestPolicy,
@@ -42,6 +43,7 @@ type OccurrenceTypeIdentityProps = Readonly<{
 export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTypeIdentityProps) {
   const { t } = useTranslation('companySettings')
   const {
+    clientChannelOptions,
     clientEmailSendModeOptions,
     clientEmailTypeOptions,
     duplicateRequestPolicyOptions,
@@ -116,6 +118,23 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
               options={duplicateRequestPolicyOptions}
               value={type.duplicateRequestPolicy}
             />
+          </div>
+        )}
+        {/* Spec 281 RF8: só com a API que já manda o campo (a anterior recusaria o PUT). */}
+        {type.clientChannel === undefined ? null : (
+          <div className={identityStyles.identityField}>
+            <span aria-hidden="true" className={identityStyles.fieldLabel}>
+              {t('occurrenceTypeCatalog.clientChannel')}
+            </span>
+            <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.clientChannelHint')}>
+              <Select
+                ariaLabel={t('occurrenceTypeCatalog.clientChannel')}
+                disabled={disabled}
+                onChange={(value) => onEdit({ clientChannel: value as ClientChannel })}
+                options={clientChannelOptions}
+                value={type.clientChannel}
+              />
+            </Tooltip>
           </div>
         )}
         {/* Spec 279 RF9: só com a API que já manda o campo (a anterior recusaria o PUT). */}
