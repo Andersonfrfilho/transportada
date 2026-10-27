@@ -909,5 +909,13 @@
     "missing_proof": "Required photo never arrived"
   },
   "penaltyPoints": "−{{points}} points",
-  "penaltyMeta": "Invoice {{documentNumber}} · delivered on {{deliveredAt}} · expires on {{expiresAt}}"
+  "penaltyMeta": "Invoice {{documentNumber}} · delivered on {{deliveredAt}} · expires on {{expiresAt}}",
+  "grantAccess": "Grant access",
+  "grantAccessSending": "Sending…",
+  "grantAccessResult": {
+    "granted": "Invitation sent to {{name}}. They get the code, choose a password and sign in to the app.",
+    "already-linked": "{{name}} already has app access.",
+    "no-contact": "{{name}} has no email or phone on file. Complete the record and try again.",
+    "error": "Could not invite {{name}} right now. Try again shortly."
+  }
 }

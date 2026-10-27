@@ -3,6 +3,7 @@ import {
   DRIVER_BODY_KEYS,
   DRIVER_CREATE_BODY_KEYS,
   DRIVER_AVAILABILITY_PATH,
+  driverAccessPath,
   driverScorePath,
   FLEET_CAPABILITIES_PATH,
   FLEET_DRIVER_VEHICLE_LINKS_PATH,
@@ -39,6 +40,7 @@ import type {
   FleetVehicleFilters,
   FleetVehiclePage,
   FleetVehicleVersionInput,
+  FleetDriverAccessStatus,
 } from './fleet.types'
 import { isRecord, isString } from './fleetGuards.validation'
 import {
@@ -71,6 +73,8 @@ export type FleetClient = Readonly<{
   createVehicle: (input: FleetVehicleBody) => Promise<FleetVehicleDetail>
   deleteFreightRegion: (input: FreightRegionDeleteInput) => Promise<void>
   getFleetCapabilities: () => Promise<FleetCapabilities>
+  /** Cria o convite da ficha sem usuário (o acesso ao app do motorista nasce pelo convite). */
+  grantDriverAccess: (input: { driverId: string }) => Promise<FleetDriverAccessStatus>
   importFreightRegions: (input: FreightRegionImportInput) => Promise<FreightRegionImportSummary>
   listDriverRegions: (input: FleetDriverRegionsInput) => Promise<readonly FleetDriverCoverage[]>
   listDriverVehicles: (
@@ -258,6 +262,19 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
         method: 'DELETE',
         path: freightRegionPath(input.regionId),
       })
+    },
+    async grantDriverAccess(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: driverAccessPath(input.driverId),
+      })
+      const data = readEnvelopeData(response)
+      const access = isRecord(data) ? data.access : undefined
+      if (access === 'granted' || access === 'already-linked' || access === 'no-contact') {
+        return access
+      }
+      throw requestError(FLEET_ERROR.REQUEST_FAILED)
     },
     async getFleetCapabilities() {
       const response = await authorizedRequest({

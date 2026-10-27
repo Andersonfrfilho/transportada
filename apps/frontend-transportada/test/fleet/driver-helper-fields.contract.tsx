@@ -291,6 +291,7 @@ describe('a lista de motoristas marca quem só ajuda (spec 235 T9)', () => {
         drivers={[{ ...driver, score: null }]}
         vehiclesByDriverId={new Map()}
         onEdit={NOOP}
+        onGrantAccess={NOOP}
         onToggleStatus={NOOP}
         onViewVehicle={NOOP}
       />,
@@ -300,6 +301,34 @@ describe('a lista de motoristas marca quem só ajuda (spec 235 T9)', () => {
   it('o selo "Ajudante" aparece só com canDrive falso', () => {
     expect(renderList(driverDetail({ canDrive: false }))).toContain(ptLocale.helperBadge)
     expect(renderList(driverDetail({ canDrive: true }))).not.toContain(ptLocale.helperBadge)
+  })
+})
+
+describe('o botão "Dar acesso" aparece só para ficha ativa sem usuário', () => {
+  function renderManaged(driver: FleetDriverDetail): string {
+    return renderToStaticMarkup(
+      <DriverList
+        canManageFleet
+        drivers={[{ ...driver, score: null }]}
+        vehiclesByDriverId={new Map()}
+        onEdit={NOOP}
+        onGrantAccess={NOOP}
+        onToggleStatus={NOOP}
+        onViewVehicle={NOOP}
+      />,
+    )
+  }
+
+  it('sem usuário e ativa: o botão aparece; com usuário ou inativa: não', () => {
+    expect(renderManaged(driverDetail({ membershipId: null, status: 'active' }))).toContain(
+      ptLocale.grantAccess,
+    )
+    expect(
+      renderManaged(driverDetail({ membershipId: 'a'.repeat(8), status: 'active' })),
+    ).not.toContain(ptLocale.grantAccess)
+    expect(renderManaged(driverDetail({ membershipId: null, status: 'inactive' }))).not.toContain(
+      ptLocale.grantAccess,
+    )
   })
 })
 

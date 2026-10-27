@@ -365,6 +365,9 @@ export type FleetDriverBody = Readonly<{
  * não dirige (spec 235 D2) e não tem CNH. Cópia por
  * valor do catálogo da API: o bundle não carrega código dela, e a paridade é contrato de teste.
  */
+/** O que o servidor respondeu ao pedido de acesso da ficha. */
+export type FleetDriverAccessStatus = 'already-linked' | 'granted' | 'no-contact'
+
 export const FLEET_DRIVER_PROFILES = ['aggregate', 'driver', 'helper'] as const
 export type FleetDriverProfile = (typeof FLEET_DRIVER_PROFILES)[number]
 

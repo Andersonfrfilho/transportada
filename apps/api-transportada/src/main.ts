@@ -3463,6 +3463,7 @@ function createApplicationRoutes({
     }),
     ...createFleetRoutes({
       createDriver: { execute: (input) => fleetDrivers.create(input) },
+      grantDriverAccess: { execute: (input) => fleetDrivers.grantAccess(input) },
       createVehicle: { execute: (input) => fleetVehicles.create(input) },
       driverAvailability: { execute: (input) => fleetDrivers.checkAvailability(input) },
       driverVehicles: {
