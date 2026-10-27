@@ -12,7 +12,7 @@ import type { Locator, Page } from '@playwright/test'
 
 import { registerInstallationBrandMock } from './installation-brand-smoke.helper'
 import { registerNotificationMocks } from './notification-smoke.helper'
-import { DRIVER_DOCUMENT_ID, mockDriverTripApi } from './driver-trip-smoke.helper'
+import { mockDriverTripApi } from './driver-trip-smoke.helper'
 
 const PRINTS_DIRECTORY =
   process.env.PRINTS_DIRECTORY ??
@@ -54,13 +54,17 @@ function createContactsStore(initial: readonly Contact[]) {
             status,
           })
         const contactId = new URL(request.url()).pathname.split('/').at(-1) ?? ''
-        const body = request.postData() === null ? {} : JSON.parse(request.postData() ?? '{}')
+        const body = JSON.parse(request.postData() ?? '{}') as {
+          address: string
+          channel: Contact['channel']
+          label: string
+        }
         if (request.method() === 'GET') return json({ data: contacts })
         if (request.method() === 'POST') {
           sequence += 1
           const mask = (value: string, channel: string) =>
             channel === 'whatsapp'
-              ? `+55 (${value.replace(/\D/gu, '').slice(2, 4)}) *****-${value.slice(-4)}`
+              ? `+55 ••••${value.slice(-4)}`
               : `${value.slice(0, 1)}***@${value.split('@')[1]?.slice(0, 1)}***.${value.split('.').at(-1)}`
           const created: Contact = {
             addressMasked: mask(body.address, body.channel),
@@ -252,7 +256,7 @@ test('print: cliente sem contato pede o número na abertura e confirma antes de 
   await expect(section.getByTestId('client-contact-confirm')).toHaveText('+55 (16) 99999-1111')
   await shot(section, 't8b-confirmacao-375-light.png')
   await section.getByRole('button', { name: 'Confirmar e guardar' }).click()
-  await expect(section.getByText('+55 (16) *****-1111')).toBeVisible()
+  await expect(section.getByText('+55 ••••1111')).toBeVisible()
 })
 
 test('print: vários números e e-mails, o do escritório só leitura; editar e remover', async ({
@@ -283,6 +287,6 @@ test('print: vários números e e-mails, o do escritório só leitura; editar e 
   await section.getByRole('button', { name: /Remover o contato \+55/u }).click()
   await shot(section, 't8b-remover-375-dark.png')
   await section.getByRole('button', { exact: true, name: 'Remover' }).click()
-  await expect(section.getByText('+55 (16) *****-1111')).toHaveCount(0)
+  await expect(section.getByText('+55 ••••1111')).toHaveCount(0)
   expect(store.contacts).toHaveLength(2)
 })
