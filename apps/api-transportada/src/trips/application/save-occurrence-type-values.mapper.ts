@@ -25,6 +25,7 @@ export function toSaveOccurrenceTypeValues(
     duplicateRequestPolicy: input.duplicateRequestPolicy,
     clientEmailType: input.clientEmailType,
     clientEmailSendMode: input.clientEmailSendMode,
+    clientChannel: input.clientChannel,
     contractorReplyAcknowledgementQuickReplyId: input.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: input.contractorReplyMode,
     contractorReplyWaitHours: input.contractorReplyWaitHours,

@@ -12,6 +12,7 @@ import type {
   TripOccurrenceStage,
 } from './occurrence.constant'
 import type {
+  ClientChannel,
   ClientEmailSendMode,
   ClientEmailType,
   ContractorReplyAlertMode,
@@ -88,6 +89,8 @@ export type OccurrenceType = Readonly<{
   clientEmailType?: ClientEmailType
   /** Spec 279 RF10: `manual` ou `automatic`. Ausente é API anterior ao campo. */
   clientEmailSendMode?: ClientEmailSendMode
+  /** Spec 281 RF8: por qual canal a ocorrência fala com o cliente. Ausente é API anterior ao campo. */
+  clientChannel?: ClientChannel
   contractorReplyAlertMode?: ContractorReplyAlertMode
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   contractorReplyMode?: ContractorReplyMode

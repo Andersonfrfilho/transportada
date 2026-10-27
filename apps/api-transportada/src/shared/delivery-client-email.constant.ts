@@ -46,3 +46,32 @@ export const CLIENT_EMAIL_TYPE_DEFAULT: ClientEmailType = CLIENT_EMAIL_TYPE_OFF
 export const CLIENT_EMAIL_SEND_MODES = ['manual', 'automatic'] as const
 export type ClientEmailSendMode = (typeof CLIENT_EMAIL_SEND_MODES)[number]
 export const CLIENT_EMAIL_SEND_MODE_DEFAULT: ClientEmailSendMode = 'manual'
+
+/**
+ * Spec 281 D12: os contatos do cliente moram numa tabela só (`delivery_client_contacts`), um canal por linha. As linhas
+ * da 279 nasceram e-mail; o WhatsApp guarda o número em E.164 (`+5511987654321`), já normalizado pela API (D4).
+ */
+export const DELIVERY_CLIENT_CONTACT_CHANNEL = {
+  EMAIL: 'email',
+  WHATSAPP: 'whatsapp',
+} as const
+export const DELIVERY_CLIENT_CONTACT_CHANNELS = ['email', 'whatsapp'] as const
+export type DeliveryClientContactChannel = (typeof DELIVERY_CLIENT_CONTACT_CHANNELS)[number]
+export const DELIVERY_CLIENT_CONTACT_CHANNEL_DEFAULT: DeliveryClientContactChannel = 'email'
+
+/** E.164: `+`, país sem zero à esquerda, até 15 dígitos no total. Guarda de forma; quem normaliza é a API. */
+export const DELIVERY_CLIENT_WHATSAPP_ADDRESS_PATTERN = '^\\+[1-9][0-9]{7,14}$'
+
+/**
+ * Spec 281 D11 (RF8): por qual canal a ocorrência fala com o cliente — `off`, `email`, `whatsapp` ou `both`. O padrão é
+ * `email` para não mudar nada no que a 279 já faz: quem liga e desliga o e-mail continua sendo o `client_email_type`.
+ */
+export const CLIENT_CHANNEL = {
+  BOTH: 'both',
+  EMAIL: 'email',
+  OFF: 'off',
+  WHATSAPP: 'whatsapp',
+} as const
+export const CLIENT_CHANNELS = ['off', 'email', 'whatsapp', 'both'] as const
+export type ClientChannel = (typeof CLIENT_CHANNELS)[number]
+export const CLIENT_CHANNEL_DEFAULT: ClientChannel = 'email'

@@ -13,7 +13,7 @@ import {
   auditLogs,
   companyOccurrenceTypes,
   contractorMailMessages,
-  deliveryClientEmails,
+  deliveryClientContacts,
   deliveryClients,
   nfeParticipants,
   occurrenceContractorReplyDeliveries,
@@ -79,7 +79,7 @@ async function seedClient(database: TestDatabase, seeded: Seeded) {
     taxId: CLIENT_TAX_ID,
   })
   const emails = await database.db
-    .insert(deliveryClientEmails)
+    .insert(deliveryClientContacts)
     .values(
       [
         { address: FINANCE_EMAIL, label: 'financeiro', purpose: 'boleto' as const },
@@ -93,7 +93,7 @@ async function seedClient(database: TestDatabase, seeded: Seeded) {
         taxId: CLIENT_TAX_ID,
       })),
     )
-    .returning({ id: deliveryClientEmails.id, purpose: deliveryClientEmails.purpose })
+    .returning({ id: deliveryClientContacts.id, purpose: deliveryClientContacts.purpose })
   const [finance, owner, invoice] = emails
   if (finance === undefined || owner === undefined || invoice === undefined) {
     throw new Error('EXPECTED_CLIENT_EMAILS')
@@ -225,15 +225,15 @@ describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, CA2)', () =>
 
         const saved = await database.db
           .select({
-            address: deliveryClientEmails.address,
-            createdByKind: deliveryClientEmails.createdByKind,
-            id: deliveryClientEmails.id,
+            address: deliveryClientContacts.address,
+            createdByKind: deliveryClientContacts.createdByKind,
+            id: deliveryClientContacts.id,
           })
-          .from(deliveryClientEmails)
+          .from(deliveryClientContacts)
           .where(
             and(
-              eq(deliveryClientEmails.companyId, companyId),
-              eq(deliveryClientEmails.address, NEW_EMAIL),
+              eq(deliveryClientContacts.companyId, companyId),
+              eq(deliveryClientContacts.address, NEW_EMAIL),
             ),
           )
         expect(saved).toEqual([
@@ -257,9 +257,9 @@ describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, CA2)', () =>
         expect(again.savedEmailId).toBe(outcome.savedEmailId)
         expect(again.results).toMatchObject([{ kind: 'already_queued' }])
         const count = await database.db
-          .select({ id: deliveryClientEmails.id })
-          .from(deliveryClientEmails)
-          .where(eq(deliveryClientEmails.companyId, companyId))
+          .select({ id: deliveryClientContacts.id })
+          .from(deliveryClientContacts)
+          .where(eq(deliveryClientContacts.companyId, companyId))
         expect(count).toHaveLength(4)
       })
     },

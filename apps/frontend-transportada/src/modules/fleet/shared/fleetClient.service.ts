@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  DRIVER_ACCESS_REPORT_PATH,
   DRIVER_BODY_KEYS,
   DRIVER_CREATE_BODY_KEYS,
   DRIVER_AVAILABILITY_PATH,
@@ -40,6 +41,7 @@ import type {
   FleetVehicleFilters,
   FleetVehiclePage,
   FleetVehicleVersionInput,
+  FleetDriverAccessRow,
   FleetDriverAccessStatus,
 } from './fleet.types'
 import { isRecord, isString } from './fleetGuards.validation'
@@ -73,6 +75,8 @@ export type FleetClient = Readonly<{
   createVehicle: (input: FleetVehicleBody) => Promise<FleetVehicleDetail>
   deleteFreightRegion: (input: FreightRegionDeleteInput) => Promise<void>
   getFleetCapabilities: () => Promise<FleetCapabilities>
+  /** Fichas ativas que ainda não entram no app (a conferência de usuários não as enxerga). */
+  listDriverAccessReport: () => Promise<readonly FleetDriverAccessRow[]>
   /** Cria o convite da ficha sem usuário (o acesso ao app do motorista nasce pelo convite). */
   grantDriverAccess: (input: { driverId: string }) => Promise<FleetDriverAccessStatus>
   importFreightRegions: (input: FreightRegionImportInput) => Promise<FreightRegionImportSummary>
@@ -261,6 +265,33 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
         dependencies,
         method: 'DELETE',
         path: freightRegionPath(input.regionId),
+      })
+    },
+    async listDriverAccessReport() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: DRIVER_ACCESS_REPORT_PATH,
+      })
+      const data = readEnvelopeData(response)
+      if (!Array.isArray(data)) throw requestError(FLEET_ERROR.REQUEST_FAILED)
+      return data.flatMap((row): FleetDriverAccessRow[] => {
+        if (!isRecord(row)) return []
+        const { state } = row
+        if (state !== 'expired' && state !== 'invited' && state !== 'no-user') return []
+        if (typeof row.driverId !== 'string' || typeof row.name !== 'string') return []
+        return [
+          {
+            contact: typeof row.contact === 'string' ? row.contact : '',
+            deliveredAt: typeof row.deliveredAt === 'string' ? row.deliveredAt : null,
+            driverId: row.driverId,
+            expiresAt: typeof row.expiresAt === 'string' ? row.expiresAt : null,
+            name: row.name,
+            state,
+            taxId: typeof row.taxId === 'string' ? row.taxId : '',
+            userId: typeof row.userId === 'string' ? row.userId : null,
+          },
+        ]
       })
     },
     async grantDriverAccess(input) {

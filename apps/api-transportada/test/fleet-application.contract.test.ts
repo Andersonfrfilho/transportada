@@ -3,6 +3,7 @@
  */
 import './fleet-application/vehicles.contract.js'
 import './fleet-application/drivers.contract.js'
+import './fleet-application/driver-access-report.contract.js'
 import './fleet-application/driver-vehicles.contract.js'
 import './fleet-application/plate-lookup-removed.contract.js'
 import './fleet-application/local-fleet-seed.contract.js'
