@@ -298,6 +298,22 @@ O app do motorista autentica só pelo Keycloak, e o usuário de lá só nasce pe
 > não usado ou vencido), com **Dar acesso** / **Reenviar convite** na própria linha; vazio = todo
 > motorista ativo já tem acesso.
 
+## 5.3 Promoção staging → main com a spec 281 (WhatsApp pelo Evolution)
+
+Promoção de 27/10/2026 (PRs #377 a #387, #389, #391, parada por página #378). O que conferir:
+
+- **Migrations aditivas**, aplicadas no pré-deploy da api: `delivery_client_emails` vira
+  `delivery_client_contacts` (renomeada, com canal e visão `delivery_client_emails` para a api e o worker
+  antigos durante a troca de imagens), `whatsapp_evolution_settings` (tabela nova), colunas novas em
+  `occurrence_contractor_reply_deliveries` e `company_occurrence_types`. Conferir depois do deploy
+  `/health/ready` com `migrations: up`. A visão sai numa migration futura.
+- **WhatsApp pelo Evolution nasce desligado em produção.** Sem variável nova: a chave da instância vai
+  selada no banco (mesmo envelope do canal da Meta). Sem linha em `whatsapp_evolution_settings`, ou com
+  `status = 'disabled'`, nada é enviado; o padrão do tipo de ocorrência é `client_channel = 'email'`
+  (o que a 279 faz não muda). Ligar só com aval do Anderson, empresa por empresa, e só depois de um
+  Evolution real testado em staging (o serviço de staging ainda não subiu).
+- Não há serviço Evolution em produção; nenhuma ação de infraestrutura na promoção.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
