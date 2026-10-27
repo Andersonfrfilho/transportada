@@ -250,6 +250,7 @@
   "./test/integration/trip-timeline.integration.ts": 135,
   "./test/integration/trip-valuation-document-figures.integration.ts": 21,
   "./test/integration/whatsapp-channel.integration.ts": 3,
+  "./test/integration/whatsapp-evolution-settings.integration.ts": 3,
   "./test/integration/whatsapp-command-driver.integration.ts": 3,
   "./test/integration/whatsapp-command-repository.integration.ts": 17,
   "./test/integration/whatsapp-command-settlement.integration.ts": 4,

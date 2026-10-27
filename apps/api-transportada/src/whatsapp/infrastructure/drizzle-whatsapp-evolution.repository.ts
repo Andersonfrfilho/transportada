@@ -146,41 +146,58 @@ export class DrizzleWhatsAppEvolutionRepository implements WhatsAppEvolutionRepo
   public async save(input: WhatsAppEvolutionSaveRecord): Promise<WhatsAppEvolutionSummary> {
     return this.database.transaction(async (transaction) => {
       const acknowledgedAt = input.riskAcknowledgedBy === undefined ? null : new Date()
-      const [row] = await transaction
-        .insert(whatsappEvolutionSettings)
-        .values({
-          baseUrl: input.baseUrl,
-          companyId: input.companyId,
-          dailyCap: input.dailyCap,
-          defaultProvider: input.defaultProvider,
-          id: input.settingsId,
-          instanceName: input.instanceName,
-          minIntervalSeconds: input.minIntervalSeconds,
-          riskAcknowledgedAt: acknowledgedAt,
-          riskAcknowledgedBy: input.riskAcknowledgedBy ?? null,
-          secretEnvelope: input.secretEnvelope ?? {},
-          status: input.status,
-        })
-        .onConflictDoUpdate({
-          set: {
-            baseUrl: input.baseUrl,
-            dailyCap: input.dailyCap,
-            defaultProvider: input.defaultProvider,
-            instanceName: input.instanceName,
-            minIntervalSeconds: input.minIntervalSeconds,
-            riskAcknowledgedAt: sql`coalesce(${whatsappEvolutionSettings.riskAcknowledgedAt}, ${acknowledgedAt})`,
-            riskAcknowledgedBy: sql`coalesce(${whatsappEvolutionSettings.riskAcknowledgedBy}, ${input.riskAcknowledgedBy ?? null})`,
-            status: input.status,
-            updatedAt: sql`now()`,
-            version: sql`${whatsappEvolutionSettings.version} + 1`,
-            ...(input.resetConnection
-              ? { connectionCheckedAt: null, connectionState: 'unknown' as const }
-              : {}),
-            ...(input.secretEnvelope === undefined ? {} : { secretEnvelope: input.secretEnvelope }),
-          },
-          target: whatsappEvolutionSettings.companyId,
-        })
-        .returning({ ...SUMMARY_COLUMNS, hasKey: HAS_SEALED_KEY })
+      /**
+       * ⚠️ Nada de `INSERT ... ON CONFLICT`: o Postgres confere os CHECKs na linha **proposta** antes
+       * de cair no conflito, e regravar uma configuração `active` cujo aviso já foi lido propõe
+       * `active` sem `risk_acknowledged_at` (23514). Quem existe vira UPDATE; só a empresa nova insere.
+       */
+      const [existing] = await transaction
+        .select({ id: whatsappEvolutionSettings.id })
+        .from(whatsappEvolutionSettings)
+        .where(eq(whatsappEvolutionSettings.companyId, input.companyId))
+        .for('update')
+        .limit(1)
+
+      const [row] =
+        existing === undefined
+          ? await transaction
+              .insert(whatsappEvolutionSettings)
+              .values({
+                baseUrl: input.baseUrl,
+                companyId: input.companyId,
+                dailyCap: input.dailyCap,
+                defaultProvider: input.defaultProvider,
+                id: input.settingsId,
+                instanceName: input.instanceName,
+                minIntervalSeconds: input.minIntervalSeconds,
+                riskAcknowledgedAt: acknowledgedAt,
+                riskAcknowledgedBy: input.riskAcknowledgedBy ?? null,
+                secretEnvelope: input.secretEnvelope ?? {},
+                status: input.status,
+              })
+              .returning({ ...SUMMARY_COLUMNS, hasKey: HAS_SEALED_KEY })
+          : await transaction
+              .update(whatsappEvolutionSettings)
+              .set({
+                baseUrl: input.baseUrl,
+                dailyCap: input.dailyCap,
+                defaultProvider: input.defaultProvider,
+                instanceName: input.instanceName,
+                minIntervalSeconds: input.minIntervalSeconds,
+                riskAcknowledgedAt: sql`coalesce(${whatsappEvolutionSettings.riskAcknowledgedAt}, ${acknowledgedAt})`,
+                riskAcknowledgedBy: sql`coalesce(${whatsappEvolutionSettings.riskAcknowledgedBy}, ${input.riskAcknowledgedBy ?? null})`,
+                status: input.status,
+                updatedAt: sql`now()`,
+                version: sql`${whatsappEvolutionSettings.version} + 1`,
+                ...(input.resetConnection
+                  ? { connectionCheckedAt: null, connectionState: 'unknown' as const }
+                  : {}),
+                ...(input.secretEnvelope === undefined
+                  ? {}
+                  : { secretEnvelope: input.secretEnvelope }),
+              })
+              .where(eq(whatsappEvolutionSettings.companyId, input.companyId))
+              .returning({ ...SUMMARY_COLUMNS, hasKey: HAS_SEALED_KEY })
 
       if (row === undefined) throw new Error('whatsapp evolution settings upsert returned no row')
 
