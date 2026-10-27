@@ -173,6 +173,16 @@ import { createWhatsAppEvolutionUseCase } from './whatsapp/application/whatsapp-
 import { createWhatsAppEvolutionSecretService } from './whatsapp/application/whatsapp-evolution-secret.service'
 import { DrizzleWhatsAppEvolutionRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution.repository'
 import { createEvolutionConnectionGateway } from './whatsapp/infrastructure/evolution-connection.gateway'
+import { createEvolutionDocumentSender } from './whatsapp/infrastructure/evolution-document-sender.gateway.js'
+import { readAllBytes } from './occurrence-conversation/application/conversation-attachment.service.js'
+import { createForwardContractorReplyByWhatsAppUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-whatsapp.use-case.js'
+import {
+  createDrizzleContractorReplyWhatsAppCompletion,
+  createDrizzleContractorReplyWhatsAppReader,
+  createDrizzleContractorReplyWhatsAppUnitOfWork,
+} from './occurrence-conversation/infrastructure/drizzle-contractor-reply-whatsapp.repository.js'
+import { createOccurrenceContractorReplyWhatsAppRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply-whatsapp.routes.js'
+import { createMeClientBoletoWhatsAppRoutes } from './occurrence-conversation/presentation/me-client-boleto-whatsapp.routes.js'
 import { createWhatsAppChannelUseCase } from './whatsapp/application/whatsapp-channel.use-case'
 import { createWhatsAppChannelSecretService } from './whatsapp/application/whatsapp-channel-secret.service'
 import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository'
@@ -2922,13 +2932,30 @@ function createApplicationRoutes({
     repository: new DrizzleWhatsAppChannelRepository(database),
     secrets: createWhatsAppChannelSecretService({ envelopeProvider }),
   })
+  const whatsappEvolutionRepository = new DrizzleWhatsAppEvolutionRepository(database)
+  const whatsappEvolutionSecrets = createWhatsAppEvolutionSecretService({ envelopeProvider })
   const whatsappEvolution = createWhatsAppEvolutionUseCase({
     gateway: createEvolutionConnectionGateway(),
     newSettingsId: () => crypto.randomUUID(),
     now: () => new Date(),
-    repository: new DrizzleWhatsAppEvolutionRepository(database),
-    secrets: createWhatsAppEvolutionSecretService({ envelopeProvider }),
+    repository: whatsappEvolutionRepository,
+    secrets: whatsappEvolutionSecrets,
   })
+  /** Spec 281 T5: o boleto por WhatsApp (Evolution) ao cliente, no trilho da 248/279; painel e app usam o mesmo. */
+  const forwardContractorReplyByWhatsApp = createForwardContractorReplyByWhatsAppUseCase({
+    attachments: {
+      read: async (location) => readAllBytes(await storageGateway.getObjectStream(location)),
+    },
+    completion: createDrizzleContractorReplyWhatsAppCompletion(database),
+    logger,
+    now: () => new Date(),
+    sender: createEvolutionDocumentSender({
+      repository: whatsappEvolutionRepository,
+      secrets: whatsappEvolutionSecrets,
+    }),
+    unitOfWork: createDrizzleContractorReplyWhatsAppUnitOfWork(database),
+  })
+  const contractorReplyWhatsAppOptions = createDrizzleContractorReplyWhatsAppReader(database)
   const nfseProviderCredentials = createNfseProviderCredentialsUseCase({
     secretService: createNfseCredentialSecretService({ envelopeProvider }),
     unitOfWork: nfseProfileRepository,
@@ -3547,6 +3574,11 @@ function createApplicationRoutes({
     }),
     /** Spec 248 T4.4b: a porta do robô da varredura do aviso automático, só da permissão de serviço. */
     ...createOccurrenceAutomaticMailRoutes({ sendAutomaticMail: sendAutomaticOccurrenceMail }),
+    /** Spec 281 T5 (RF3/RF5): o mesmo boleto por WhatsApp (Evolution) ao cliente da nota, pelo painel. */
+    ...createOccurrenceContractorReplyWhatsAppRoutes({
+      forwardByWhatsApp: forwardContractorReplyByWhatsApp,
+      whatsappOptions: contractorReplyWhatsAppOptions,
+    }),
     /** Spec 248 T4.6 (RF7/RF9): o operador leva o boleto da contratante ao motorista, pelo chat do app. */
     ...createOccurrenceContractorReplyRoutes({
       markHandled: createMarkContractorReplyHandledUseCase({
@@ -3782,6 +3814,16 @@ function createApplicationRoutes({
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /** Spec 281 T5 (RF3): o boleto por WhatsApp ao cliente no `/me` do motorista, no mesmo trilho do painel. */
+    ...createMeClientBoletoWhatsAppRoutes({
+      findMyOccurrence: (input) =>
+        createDrizzleDriverConversationUnitOfWork(database).execute((transaction) =>
+          transaction.findMyOccurrence(input),
+        ),
+      forwardByWhatsApp: forwardContractorReplyByWhatsApp,
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      whatsappOptions: contractorReplyWhatsAppOptions,
     }),
     /** Spec 279 T4 (RF2/RF3): os e-mails do cliente para o boleto no `/me` do motorista, pelo trilho da 248. */
     ...createMeClientBoletoEmailsRoutes({

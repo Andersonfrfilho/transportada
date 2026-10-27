@@ -20,6 +20,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
@@ -38,6 +39,8 @@ import {
   CONTRACTOR_REPLY_REASONS,
   CONTRACTOR_REPLY_STATUSES,
   CONTRACTOR_REPLY_WAITING_STATUSES,
+  CONTRACTOR_REPLY_WHATSAPP_ADDRESS_PATTERN,
+  CONTRACTOR_REPLY_WHATSAPP_TARGET,
   type ContractorReplyActorKind,
   type ContractorReplyDeliveryReason,
   type ContractorReplyDeliveryStatus,
@@ -180,6 +183,11 @@ export const occurrenceContractorReplyDeliveries = pgTable(
     /** No foreign key: a contractor mail message requires a thread; decided in Phase 4 (T4.7). */
     mailMessageId: uuid('mail_message_id'),
     actorUserId: uuid('actor_user_id'),
+    /**
+     * Spec 281 T5: o id da mensagem no provedor (o `key.id` do Evolution), só no alvo `client_boleto_whatsapp` que saiu.
+     * É por ele que o webhook (T6) acha a entrega; único por empresa.
+     */
+    providerMessageId: text('provider_message_id'),
     idempotencyKey: varchar('idempotency_key', {
       length: CONTRACTOR_REPLY_IDEMPOTENCY_KEY_MAX_LENGTH,
     }).notNull(),
@@ -195,6 +203,9 @@ export const occurrenceContractorReplyDeliveries = pgTable(
       table.companyId,
       table.idempotencyKey,
     ),
+    uniqueIndex('occurrence_contractor_reply_deliveries_provider_message_unique')
+      .on(table.companyId, table.providerMessageId)
+      .where(sql`${table.providerMessageId} is not null`),
     index('occurrence_contractor_reply_deliveries_reply_idx').on(table.companyId, table.replyId),
     index('occurrence_contractor_reply_deliveries_pending_window_idx')
       .on(table.companyId, table.status)
@@ -255,7 +266,12 @@ export const occurrenceContractorReplyDeliveries = pgTable(
     ),
     check(
       'occurrence_contractor_reply_deliveries_address_check',
-      sql`${table.address} is null or (${table.target} in (${raw(inList(CONTRACTOR_REPLY_EMAIL_TARGETS))}) and char_length(${table.address}) between 1 and ${raw(String(CONTRACTOR_REPLY_EMAIL_ADDRESS_MAX_LENGTH))})`,
+      sql`${table.address} is null or (${table.target} in (${raw(inList(CONTRACTOR_REPLY_EMAIL_TARGETS))}) and char_length(${table.address}) between 1 and ${raw(String(CONTRACTOR_REPLY_EMAIL_ADDRESS_MAX_LENGTH))}) or (${table.target} = ${raw(`'${CONTRACTOR_REPLY_WHATSAPP_TARGET}'`)} and ${table.address} ~ ${raw(`'${CONTRACTOR_REPLY_WHATSAPP_ADDRESS_PATTERN}'`)})`,
+    ),
+    /** Spec 281 T5: o id do provedor só existe no envio por WhatsApp. */
+    check(
+      'occurrence_contractor_reply_deliveries_provider_message_check',
+      sql`${table.providerMessageId} is null or (${table.target} = ${raw(`'${CONTRACTOR_REPLY_WHATSAPP_TARGET}'`)} and char_length(${table.providerMessageId}) between 1 and 200)`,
     ),
     check(
       'occurrence_contractor_reply_deliveries_sent_at_check',

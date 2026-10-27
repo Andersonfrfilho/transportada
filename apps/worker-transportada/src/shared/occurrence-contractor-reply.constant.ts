@@ -106,6 +106,8 @@ export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
   'contractor_acknowledgement',
   /** Spec 279 D3: o boleto aos e-mails do cadastro do cliente de entrega (tipo `boleto`), um e-mail por endereço. */
   'client_boleto_emails',
+  /** Spec 281 T5 (D5): o boleto por WhatsApp (Evolution) aos números do cliente, um envio por número (E.164). */
+  'client_boleto_whatsapp',
 ] as const
 export type ContractorReplyDeliveryTarget = (typeof CONTRACTOR_REPLY_DELIVERY_TARGETS)[number]
 
@@ -143,6 +145,12 @@ export const CONTRACTOR_REPLY_DELIVERY_REASONS = [
   'send_failed',
   /** Spec 279 RF10: o envio automático ao cliente não achou e-mail do tipo no cadastro dele; nada saiu. */
   'client_without_email',
+  /** Spec 281 T5: o Evolution disse que o número não tem WhatsApp; a tela oferece o e-mail. */
+  'whatsapp_number_not_found',
+  /** Spec 281 T5 (RF5): a instância não estava conectada (ou caiu) na hora do envio; "Tentar de novo" vale. */
+  'whatsapp_disconnected',
+  /** Spec 281 T5: arquivo acima do teto do WhatsApp; recusado antes de chamar o Evolution. */
+  'attachment_too_large_for_whatsapp',
 ] as const
 export type ContractorReplyDeliveryReason = (typeof CONTRACTOR_REPLY_DELIVERY_REASONS)[number]
 

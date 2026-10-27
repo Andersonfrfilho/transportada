@@ -4,6 +4,8 @@
  * Spec 248: the closed vocabularies and limits of the contractor reply. The schema builds every CHECK
  * from these, so a value written outside them fails in the database and not only in the use case.
  */
+import { DELIVERY_CLIENT_WHATSAPP_ADDRESS_PATTERN } from './delivery-client-email.constant.js'
+
 export const CONTRACTOR_REPLY_MODES = [
   'off',
   'forward_after_approval',
@@ -106,8 +108,15 @@ export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
   'contractor_acknowledgement',
   /** Spec 279 D3: o boleto aos e-mails do cadastro do cliente de entrega (tipo `boleto`), um e-mail por endereço. */
   'client_boleto_emails',
+  /** Spec 281 T5 (D5): o boleto por WhatsApp (Evolution) aos números do cliente, um envio por número (E.164). */
+  'client_boleto_whatsapp',
 ] as const
 export type ContractorReplyDeliveryTarget = (typeof CONTRACTOR_REPLY_DELIVERY_TARGETS)[number]
+
+/** Spec 281 T5: o envio do boleto por WhatsApp ao cliente; o `address` da entrega é o número em E.164. */
+export const CONTRACTOR_REPLY_WHATSAPP_TARGET = 'client_boleto_whatsapp'
+/** O mesmo padrão de `delivery_client_contacts` (281 T3b): `+`, país sem zero à esquerda, até 15 dígitos. */
+export const CONTRACTOR_REPLY_WHATSAPP_ADDRESS_PATTERN = DELIVERY_CLIENT_WHATSAPP_ADDRESS_PATTERN
 
 /** Os encaminhamentos do boleto a um terceiro: sem token de resposta e com o anexo ligado pela entrega. */
 export const CONTRACTOR_REPLY_EMAIL_TARGETS = [
@@ -143,6 +152,12 @@ export const CONTRACTOR_REPLY_DELIVERY_REASONS = [
   'send_failed',
   /** Spec 279 RF10: o envio automático ao cliente não achou e-mail do tipo no cadastro dele; nada saiu. */
   'client_without_email',
+  /** Spec 281 T5: o Evolution disse que o número não tem WhatsApp; a tela oferece o e-mail. */
+  'whatsapp_number_not_found',
+  /** Spec 281 T5 (RF5): a instância não estava conectada (ou caiu) na hora do envio; "Tentar de novo" vale. */
+  'whatsapp_disconnected',
+  /** Spec 281 T5: arquivo acima do teto do WhatsApp; recusado antes de chamar o Evolution. */
+  'attachment_too_large_for_whatsapp',
 ] as const
 export type ContractorReplyDeliveryReason = (typeof CONTRACTOR_REPLY_DELIVERY_REASONS)[number]
 
