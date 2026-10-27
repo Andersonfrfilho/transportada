@@ -98,6 +98,10 @@ Ideias discutidas com o dono em 27/10/2026, registradas para não se perderem; n
   direcionamento (assunto, carteira do cliente, rodízio, assumir da fila); transferir é trocar o campo. Atendente usa o painel, nunca
   o app do WhatsApp (limite de aparelhos vinculados). Passar o cliente à atendente por link `wa.me` é opcional; atendente chamando
   cliente pelo WhatsApp pessoal fica fora (risco de ban, sem auditoria, LGPD).
+- **Dívida de migration: a visão `delivery_client_emails`.** A 279 já foi para a `main` com a tabela `delivery_client_emails`; a T3b
+  a generaliza em `delivery_client_contacts` e deixa `delivery_client_emails` como **visão de compatibilidade**, para a `main`
+  continuar lendo e escrevendo durante a transição. A visão precisa sair numa **migration futura, destrutiva e sob aprovação
+  humana**, depois que a 281 estiver na `main` e nada mais ler a visão antiga.
 
 ## Histórias priorizadas
 
