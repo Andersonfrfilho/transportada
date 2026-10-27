@@ -2520,3 +2520,27 @@
 .progressSegment[data-has-occurrence='true'] {
   background: var(--color-alert);
 }
+
+/* Pedido do motorista (27/10): ida e volta entre as paradas, uma por página. */
+.stopPager {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  /* Livra a faixa de sincronização fixa no topo ao rolar até a ida e volta. */
+  scroll-margin-top: 4rem;
+}
+
+.stopPager strong {
+  flex: 1;
+  text-align: center;
+}
+
+.stopPagerShowAll {
+  flex-basis: 100%;
+}
+
+.stopViewModeChoices {
+  display: grid;
+  gap: var(--space-3);
+}

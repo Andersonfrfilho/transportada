@@ -15,6 +15,7 @@ import { WhatsAppPhonePanel } from '@/modules/identity/components/WhatsAppPhoneP
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
 import { syncThemeColorMeta } from '@/modules/shared/colorTheme.service'
+import { useStopViewMode } from '../hooks/useStopViewMode.hook'
 import { useColorTheme } from '@/modules/shared/useColorTheme.hook'
 
 import { DriverLocationConsentCard } from '../components/DriverLocationConsentCard.component'
@@ -73,6 +74,7 @@ export function DriverProfilePage({
   const pendingProofCount = listProofPendingDocuments(snapshot).length
   const authMeQuery = useAuthMeQuery()
   const colorTheme = useColorTheme()
+  const stopViewMode = useStopViewMode()
 
   useEffect(() => {
     syncThemeColorMeta({ document, theme: colorTheme.theme })
@@ -192,6 +194,28 @@ export function DriverProfilePage({
           <Icon name={colorTheme.theme === 'dark' ? 'sun' : 'moon'} />
           {colorTheme.theme === 'dark' ? t('theme.useLight') : t('theme.useDark')}
         </Button>
+      </section>
+
+      <section className={styles.profileCard}>
+        <h2 className={styles.profileSectionTitle}>{t('paging.settingTitle')}</h2>
+        <p>{t('paging.settingHelp')}</p>
+        <div
+          className={styles.stopViewModeChoices}
+          role="group"
+          aria-label={t('paging.settingTitle')}
+        >
+          {(['paged', 'list'] as const).map((mode) => (
+            <Button
+              aria-pressed={stopViewMode.mode === mode}
+              key={mode}
+              type="button"
+              variant={stopViewMode.mode === mode ? 'default' : 'secondary'}
+              onClick={() => stopViewMode.setMode(mode)}
+            >
+              {t(`paging.mode.${mode}`)}
+            </Button>
+          ))}
+        </div>
       </section>
 
       <DriverLocationConsentCard />
