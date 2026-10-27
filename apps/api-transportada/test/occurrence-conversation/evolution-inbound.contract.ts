@@ -42,6 +42,7 @@ describe('política do Evolution', () => {
       resolveEvolutionAttribution({
         ...NOBODY,
         replyTo: driverReply,
+        replyToClientConversationId: null,
         replyToRecipientPhoneKey: '551699998888',
         senderPhoneKey: '551699998888',
       }),
@@ -53,11 +54,41 @@ describe('política do Evolution', () => {
     })
   })
 
+  test('spec 283 (RF3): com a conversa do cliente, a resposta de quem recebeu entra nela', () => {
+    expect(
+      resolveEvolutionAttribution({
+        ...NOBODY,
+        replyTo: driverReply,
+        replyToClientConversationId: 'conversation-client',
+        replyToRecipientPhoneKey: '551699998888',
+        senderPhoneKey: '551699998888',
+      }),
+    ).toEqual({
+      conversationId: 'conversation-client',
+      driverUserId: null,
+      kind: 'conversation',
+      via: 'recipient_reply',
+    })
+  })
+
+  test('spec 283: outro número citando o aviso não entra na conversa do cliente', () => {
+    expect(
+      resolveEvolutionAttribution({
+        ...NOBODY,
+        replyTo: driverReply,
+        replyToClientConversationId: 'conversation-client',
+        replyToRecipientPhoneKey: '551699998888',
+        senderPhoneKey: '551188887777',
+      }),
+    ).toEqual({ kind: 'unassigned', reason: 'not_a_contact' })
+  })
+
   test('outro número citando o mesmo aviso não entra na conversa', () => {
     expect(
       resolveEvolutionAttribution({
         ...NOBODY,
         replyTo: driverReply,
+        replyToClientConversationId: null,
         replyToRecipientPhoneKey: '551699998888',
         senderPhoneKey: '551188887777',
       }),
@@ -69,6 +100,7 @@ describe('política do Evolution', () => {
       resolveEvolutionAttribution({
         ...NOBODY,
         replyTo: driverReply,
+        replyToClientConversationId: null,
         replyToRecipientPhoneKey: null,
         sender: { contractorContacts: [], driverUserId: 'driver-1' },
         senderPhoneKey: '551699998888',
@@ -87,7 +119,13 @@ describe('política do Evolution', () => {
       driverUserId: null,
     }
     const one = [{ contractorId: 'contractor-1', conversationId: 'conversation-1' }]
-    const base = { replyTo: null, replyToRecipientPhoneKey: null, sender, senderPhoneKey: 'k' }
+    const base = {
+      replyTo: null,
+      replyToClientConversationId: null,
+      replyToRecipientPhoneKey: null,
+      sender,
+      senderPhoneKey: 'k',
+    }
 
     expect(resolveEvolutionAttribution({ ...base, openContractorConversations: one })).toEqual({
       conversationId: 'conversation-1',
@@ -107,7 +145,12 @@ describe('política do Evolution', () => {
   })
 
   test('motorista sem citar e número desconhecido vão para não atribuídas, nunca recusados', () => {
-    const base = { openContractorConversations: [], replyTo: null, replyToRecipientPhoneKey: null }
+    const base = {
+      openContractorConversations: [],
+      replyTo: null,
+      replyToClientConversationId: null,
+      replyToRecipientPhoneKey: null,
+    }
 
     expect(
       resolveEvolutionAttribution({
@@ -124,7 +167,11 @@ describe('política do Evolution', () => {
 })
 
 function createInbound(
-  options: { context?: WhatsAppAttributionInput; recipient?: null | string } = {},
+  options: {
+    clientConversationId?: null | string
+    context?: WhatsAppAttributionInput
+    recipient?: null | string
+  } = {},
 ) {
   const recorded: { kind: string; input: unknown }[] = []
   const loaded: unknown[] = []
@@ -134,7 +181,10 @@ function createInbound(
   const port: EvolutionConversationInboundPort = {
     async findReplyRecipient(input) {
       recipients.push(input)
-      return options.recipient ?? null
+      const address = options.recipient ?? null
+      return address === null
+        ? null
+        : { address, clientConversationId: options.clientConversationId ?? null }
     },
     async loadAttributionContext(input) {
       loaded.push(input)
@@ -295,6 +345,33 @@ describe('recebimento pelo Evolution', () => {
 
     expect(statuses).toEqual([
       { at: NOW, companyId: COMPANY_ID, incoming: 'delivered', providerMessageId: 'EVO-OUT-1' },
+    ])
+  })
+})
+
+describe('spec 283 (RF3): a resposta do cliente entra na conversa do cliente', () => {
+  test('citando o envio, do número que recebeu, grava na conversa do cliente com o número', async () => {
+    const { inbound, recorded } = createInbound({
+      clientConversationId: 'conversation-client',
+      context: { ...NOBODY, replyTo: driverReply },
+      recipient: `+${PHONE}`,
+    })
+
+    const outcome = await inbound.receiveMessage({
+      companyId: COMPANY_ID,
+      message: message({ replyTo: 'EVO-OUT-1' }),
+    })
+
+    expect(outcome).toBe('conversation')
+    expect(recorded).toMatchObject([
+      {
+        input: {
+          conversationId: 'conversation-client',
+          driverUserId: null,
+          senderAddress: PHONE,
+        },
+        kind: 'conversation',
+      },
     ])
   })
 })

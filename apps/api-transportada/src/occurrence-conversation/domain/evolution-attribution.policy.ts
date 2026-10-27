@@ -9,11 +9,15 @@
  *   número na entrega). É o caso do cliente do supermercado, que não é contato da contratante.
  * - **Nada é recusado.** O Evolution não tem o fluxo de comando da 144 nem o aceite da Meta: o que
  *   não casa com uma conversa vai para "não atribuídas" e o operador escolhe (D6: "não é descartado").
+ * - **Spec 283 (RF3): a resposta de quem recebeu entra na conversa do cliente** daquela entrega, quando ela existe
+ *   (o gatilho da T2 a cria no envio). Sem ela, segue na conversa da mensagem citada, como na 281.
  *   O teto por número no serviço é o que segura o abuso.
  */
 import type { WhatsAppAttributionInput } from './whatsapp-attribution.policy.js'
 
 export type EvolutionAttributionInput = WhatsAppAttributionInput & {
+  /** Spec 283: a conversa do cliente da entrega que a mensagem citada conta; `null` sem ela. */
+  readonly replyToClientConversationId: null | string
   /**
    * A chave do número (`toWhatsAppPhoneKey`) para o qual a mensagem citada foi entregue, quando ela é
    * um envio com entrega gravada (o boleto da T5); `null` sem citação ou sem entrega.
@@ -74,7 +78,7 @@ export function resolveEvolutionAttribution(
       input.replyToRecipientPhoneKey === input.senderPhoneKey
     ) {
       return {
-        conversationId: replyTo.conversationId,
+        conversationId: input.replyToClientConversationId ?? replyTo.conversationId,
         driverUserId: null,
         kind: 'conversation',
         via: 'recipient_reply',

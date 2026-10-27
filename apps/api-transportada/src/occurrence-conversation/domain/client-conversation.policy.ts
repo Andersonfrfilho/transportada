@@ -19,6 +19,7 @@
 import type { OccurrenceConversationMessageStatus } from '../../database/occurrence-conversation.schema.js'
 import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import type { ContractorReplyDeliveryStatus } from '../../shared/occurrence-contractor-reply.constant.js'
+import { toWhatsAppPhoneKey } from '../../whatsapp-commands/domain/whatsapp-phone-key.policy.js'
 import { maskClientWhatsAppNumber } from './contractor-reply-whatsapp-number.policy.js'
 
 export const CLIENT_CONVERSATION_PARTICIPANT = 'client'
@@ -72,9 +73,14 @@ export function maskClientAddress(channel: ClientConversationChannel, address: s
   return channel === 'whatsapp' ? maskClientWhatsAppNumber(address) : maskEmailAddress(address)
 }
 
-/** A mesma pessoa é o mesmo número em dígitos ou o mesmo e-mail sem caixa. */
+/**
+ * A mesma pessoa é o mesmo e-mail sem caixa ou o mesmo número pela chave do WhatsApp (`55` + DDD + oito últimos
+ * dígitos): o WhatsApp entrega o mesmo celular com e sem o nono dígito.
+ */
 export function clientAddressKey(channel: ClientConversationChannel, address: string): string {
-  return channel === 'whatsapp' ? address.replace(/\D/gu, '') : address.trim().toLowerCase()
+  return channel === 'whatsapp'
+    ? toWhatsAppPhoneKey(address.replace(/\D/gu, ''))
+    : address.trim().toLowerCase()
 }
 
 export type ClientChannelMessage = {

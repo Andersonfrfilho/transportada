@@ -7,6 +7,7 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import {
   occurrenceContractorReplyDeliveries,
@@ -16,6 +17,9 @@ import type { EvolutionConversationInboundPort } from '../application/evolution-
 import { createDrizzleWhatsAppConversationInboundRepository } from './drizzle-whatsapp-conversation-inbound.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
+
+/** Spec 283: a mensagem da conversa do cliente que conta a mesma entrega do aviso citado. */
+const clientMessage = alias(occurrenceConversationMessages, 'evolution_client_delivery_message')
 
 /** O `deliveryId` do aviso vem de jsonb: só vira `uuid` no SQL quando tem a forma de um. */
 const UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
@@ -29,12 +33,16 @@ export function createDrizzleEvolutionConversationInboundRepository(
     /**
      * O aviso de sistema que a T5 grava na conversa ("Boleto enviado por WhatsApp") leva o id do
      * Evolution em `provider_message_id` e a entrega em `system_notice.deliveryId`; a entrega guarda o
-     * número. Mensagem sem aviso, ou aviso sem entrega, não tem destinatário a comparar.
+     * número. Mensagem sem aviso, ou aviso sem entrega, não tem destinatário a comparar. Spec 283 (RF3): sai junto a
+     * conversa do cliente da mesma entrega, para onde a resposta de quem recebeu vai.
      */
     async findReplyRecipient({ companyId, replyToProviderMessageId }) {
       const deliveryId = sql`(${occurrenceConversationMessages.systemNotice} ->> 'deliveryId')`
       const [row] = await database
-        .select({ address: occurrenceContractorReplyDeliveries.address })
+        .select({
+          address: occurrenceContractorReplyDeliveries.address,
+          clientConversationId: clientMessage.conversationId,
+        })
         .from(occurrenceConversationMessages)
         .innerJoin(
           occurrenceContractorReplyDeliveries,
@@ -47,6 +55,13 @@ export function createDrizzleEvolutionConversationInboundRepository(
             sql`${occurrenceContractorReplyDeliveries.id} = ${deliveryId}::uuid`,
           ),
         )
+        .leftJoin(
+          clientMessage,
+          and(
+            eq(clientMessage.companyId, occurrenceContractorReplyDeliveries.companyId),
+            eq(clientMessage.clientDeliveryId, occurrenceContractorReplyDeliveries.id),
+          ),
+        )
         .where(
           and(
             eq(occurrenceConversationMessages.companyId, companyId),
@@ -56,7 +71,8 @@ export function createDrizzleEvolutionConversationInboundRepository(
           ),
         )
         .limit(1)
-      return row?.address ?? null
+      if (row?.address === null || row?.address === undefined) return null
+      return { address: row.address, clientConversationId: row.clientConversationId }
     },
   }
 }

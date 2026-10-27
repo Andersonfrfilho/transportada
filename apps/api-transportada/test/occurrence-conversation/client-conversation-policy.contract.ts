@@ -83,6 +83,8 @@ describe('o destino nunca sai em claro (RF7)', () => {
     expect(clientAddressKey('whatsapp', '+55 (16) 99999-1234')).toBe(
       clientAddressKey('whatsapp', NUMBER),
     )
+    /** O WhatsApp entrega o mesmo celular sem o nono dígito. */
+    expect(clientAddressKey('whatsapp', '551699991234')).toBe(clientAddressKey('whatsapp', NUMBER))
     expect(clientAddressKey('email', ' Financeiro@Mercado.com.br ')).toBe(
       clientAddressKey('email', EMAIL),
     )

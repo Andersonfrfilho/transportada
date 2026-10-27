@@ -32,12 +32,16 @@ const PHONE_DIGITS_PATTERN = /^[1-9]\d{9,14}$/u
 export type EvolutionConversationInboundPort = WhatsAppConversationInboundPort & {
   /**
    * O número (E.164) da entrega que a mensagem citada conta (`system_notice.deliveryId`, gravado pela
-   * T5), ou `null` quando a citada não é um envio com entrega.
+   * T5), ou `null` quando a citada não é um envio com entrega. Spec 283: com a conversa do cliente
+   * daquela entrega, quando ela existe.
    */
   findReplyRecipient(input: {
     readonly companyId: string
     readonly replyToProviderMessageId: string
-  }): Promise<null | string>
+  }): Promise<null | {
+    readonly address: string
+    readonly clientConversationId: null | string
+  }>
 }
 
 export type EvolutionInboundMessage = {
@@ -106,8 +110,9 @@ export function createEvolutionConversationInbound(deps: {
         ])
         const attribution = resolveEvolutionAttribution({
           ...context,
+          replyToClientConversationId: recipient?.clientConversationId ?? null,
           replyToRecipientPhoneKey:
-            recipient === null ? null : toWhatsAppPhoneKey(recipient.replace(/\D/gu, '')),
+            recipient === null ? null : toWhatsAppPhoneKey(recipient.address.replace(/\D/gu, '')),
           senderPhoneKey,
         })
         const common = {

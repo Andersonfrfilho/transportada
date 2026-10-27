@@ -70,6 +70,34 @@ DRIZZLE_TEST_DATABASE_URL=… bun test ./test/database-migration.contract.test.t
 bun test ./test/occurrence-conversation.contract.test.ts                                               876 pass
 ```
 
+## T3 — A resposta do cliente entra na conversa dele (27/10/2026)
+
+**O que mudou**
+
+- Webhook do Evolution (281 T6): `findReplyRecipient` devolve, junto do número da entrega citada, a conversa do cliente
+  daquela entrega; `resolveEvolutionAttribution` manda a resposta de quem recebeu (`recipient_reply`) para ela. Sem a
+  conversa do cliente (envio de antes da 283, ou sem cliente cadastrado), segue na conversa da mensagem citada, como
+  na 281. Outro número citando o envio continua em "não atribuídas".
+- "Não atribuídas": no WhatsApp, as candidatas passam a incluir as conversas do cliente (abertas pela mesma regra da
+  contratante) em que o número do remetente recebeu um envio ou é contato de WhatsApp do cliente. Cada candidata ganha
+  `participant` (`contractor` | `client`); na do cliente, `contractorName` leva o nome do cliente (o painel de hoje
+  segue lendo). Atribuir é a rota que já existia e passa a aceitar a conversa do cliente.
+- A faixa de canais casa o número pela chave do WhatsApp (`55` + DDD + oito últimos), como o resto do módulo: a resposta
+  sem o nono dígito marca "respondeu" no mesmo canal. Achado pelo teste de integração desta etapa.
+
+**Provas**
+
+- `test/occurrence-conversation/evolution-inbound.contract.ts`: com a conversa do cliente a resposta de quem recebeu
+  entra nela; outro número não; o serviço grava na conversa do cliente com o número como chegou.
+- `test/integration/occurrence-client-conversation.integration.ts` (+3, Postgres real): resposta citando o envio, do
+  mesmo celular sem o nono dígito, entra na conversa do cliente (`author.kind = "client"`, mascarado), conta como não
+  lida, marca "respondeu" e não entra na do motorista; sem citação vai para "não atribuídas" com a conversa do cliente
+  como candidata e a atribuição grava lá; número desconhecido não tem candidata.
+
+```
+bun --env-file=../../.env.test test ./test/integration/occurrence-client-conversation.integration.ts   9 pass
+bun test ./test/occurrence-conversation.contract.test.ts                                               879 pass
+```
 ## T4 — painel (coluna, faixa e aba do Cliente)
 
 Prints dos componentes reais (`ClientConversationPanel`, `ClientConversationStrip`, `ConversationColumn`, CSS e textos do
