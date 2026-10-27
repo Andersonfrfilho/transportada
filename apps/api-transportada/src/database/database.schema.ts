@@ -45,7 +45,7 @@ import {
   deliveryClients,
   municipalHolidays,
 } from './delivery-client.schema.js'
-import { deliveryClientEmails } from './delivery-client-email.schema.js'
+import { deliveryClientContacts } from './delivery-client-contact.schema.js'
 import { storedObjects } from './storage.schema.js'
 import {
   cteBatches,
@@ -265,7 +265,7 @@ export * from './client-delivery-address.schema.js'
 export * from './address-comparison.schema.js'
 export * from './address-correction.schema.js'
 export * from './delivery-client.schema.js'
-export * from './delivery-client-email.schema.js'
+export * from './delivery-client-contact.schema.js'
 export * from './contractor-receiving-profile.schema.js'
 export * from './cargo-arrival.schema.js'
 export * from './cargo-arrival-document.schema.js'
@@ -406,7 +406,7 @@ export const databaseSchema = {
   billingInvoices,
   companyRouteOptimizationSettings,
   contractors,
-  deliveryClientEmails,
+  deliveryClientContacts,
   deliveryClientExceptions,
   deliveryClientWindows,
   deliveryClients,

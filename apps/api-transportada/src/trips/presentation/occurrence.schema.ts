@@ -21,6 +21,7 @@ import { z } from 'zod'
 
 import { REDELIVERY_POLICIES } from '../../database/trip.schema.js'
 import {
+  CLIENT_CHANNELS,
   CLIENT_EMAIL_SEND_MODES,
   CLIENT_EMAIL_TYPES,
 } from '../../shared/delivery-client-email.constant.js'
@@ -496,6 +497,8 @@ const occurrenceTypeSchema = z
     clientEmailType: z.enum(CLIENT_EMAIL_TYPES).optional(),
     /** Spec 279 RF10: `manual` ou `automatic` (o boleto aceito sai sozinho ao cliente); ausente não mexe. */
     clientEmailSendMode: z.enum(CLIENT_EMAIL_SEND_MODES).optional(),
+    /** Spec 281 RF8: `off`, `email`, `whatsapp` ou `both` — por qual canal a ocorrência fala com o cliente; ausente não mexe. */
+    clientChannel: z.enum(CLIENT_CHANNELS).optional(),
     /** Spec 276 T5: `null` desliga; ausente não mexe. */
     contractorReplyAcknowledgementQuickReplyId: z.string().uuid().nullable().optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),

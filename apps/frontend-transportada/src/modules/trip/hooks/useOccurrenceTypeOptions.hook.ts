@@ -9,6 +9,7 @@ import {
   OCCURRENCE_TYPE_FLOWS,
 } from '@/modules/trip/shared/occurrence.constant'
 import {
+  CLIENT_CHANNELS,
   CLIENT_EMAIL_SEND_MODES,
   CLIENT_EMAIL_TYPES,
   DUPLICATE_REQUEST_POLICIES,
@@ -18,6 +19,7 @@ type SelectOption = Readonly<{ label: string; value: string }>
 
 type OccurrenceTypeOptions = Readonly<{
   attachmentModeOptions: readonly SelectOption[]
+  clientChannelOptions: readonly SelectOption[]
   clientEmailSendModeOptions: readonly SelectOption[]
   clientEmailTypeOptions: readonly SelectOption[]
   duplicateRequestPolicyOptions: readonly SelectOption[]
@@ -43,6 +45,10 @@ export function useOccurrenceTypeOptions(): OccurrenceTypeOptions {
         value: OCCURRENCE_ATTACHMENT_MODE.required,
       },
     ],
+    clientChannelOptions: CLIENT_CHANNELS.map((value) => ({
+      label: t(`occurrenceTypeCatalog.clientChannelOptions.${value}`),
+      value,
+    })),
     clientEmailSendModeOptions: CLIENT_EMAIL_SEND_MODES.map((value) => ({
       label: t(`occurrenceTypeCatalog.clientEmailSendModeOptions.${value}`),
       value,

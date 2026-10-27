@@ -33,6 +33,7 @@ import { assertContractorReplyResolveOnDelivery } from './contractor-reply-resol
 import { assertContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { assertContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { assertDeliveryClientEmails } from './delivery-client-emails.assertion.js'
+import { assertDeliveryClientContacts } from './delivery-client-contacts.assertion.js'
 import { assertConversationSystemNotice } from './conversation-system-notice.assertion.js'
 import { assertOccurrenceTypeClientEmailType } from './occurrence-type-client-email-type.assertion.js'
 import { assertClientEmailSendMode } from './client-email-send-mode.assertion.js'
@@ -161,7 +162,15 @@ describe('Drizzle migration integration', () => {
          * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
-        /** Spec 279 T6b: coluna aditiva da mensagem da conversa; a mais nova de todas. */
+        /** Spec 281 T3b: renomeia a tabela da 279 T1 e acrescenta o canal; a mais nova de todas. */
+        await assertDeliveryClientContacts({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        /** Spec 279 T6b: coluna aditiva da mensagem da conversa. */
         await assertConversationSystemNotice({
           connectionString,
           database,

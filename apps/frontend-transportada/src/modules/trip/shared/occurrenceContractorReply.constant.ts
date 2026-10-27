@@ -29,6 +29,13 @@ export type ClientEmailType = (typeof CLIENT_EMAIL_TYPES)[number]
 export const CLIENT_EMAIL_SEND_MODES = ['manual', 'automatic'] as const
 export type ClientEmailSendMode = (typeof CLIENT_EMAIL_SEND_MODES)[number]
 
+/**
+ * Spec 281 D11 (RF8): por qual canal a ocorrência fala com o cliente. `email` é o padrão da API (o que a 279 já faz);
+ * `whatsapp` e `both` passam a valer com o envio por WhatsApp (281 T5).
+ */
+export const CLIENT_CHANNELS = ['off', 'email', 'whatsapp', 'both'] as const
+export type ClientChannel = (typeof CLIENT_CHANNELS)[number]
+
 /** Spec 276 T2: `boleto_pdf` é o PDF conferido como boleto da nota (linha digitável e número ou valor). */
 export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image', 'boleto_pdf'] as const
 

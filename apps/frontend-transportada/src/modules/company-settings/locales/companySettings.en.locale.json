@@ -331,6 +331,14 @@
       "finance": "Finance e-mail",
       "general": "General e-mail"
     },
+    "clientChannel": "Client channel",
+    "clientChannelHint": "How the occurrence reaches the client. E-mail is the default and follows the e-mail type next to it. WhatsApp uses the client's number and, if it fails, the saved e-mail. Off sends nothing to the client.",
+    "clientChannelOptions": {
+      "off": "Off",
+      "email": "E-mail",
+      "whatsapp": "WhatsApp",
+      "both": "E-mail and WhatsApp"
+    },
     "clientEmailSendMode": "Boleto to client",
     "clientEmailSendModeHint": "Manual: the boleto only goes out through the \"Send to client\" button. Automatic: once the boleto is accepted, it goes out on its own to every e-mail of this type in the client record (needs the e-mail subject and text filled in). With no e-mail on record, nothing is sent and the occurrence says so.",
     "clientEmailSendModeOptions": {

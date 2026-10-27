@@ -40,6 +40,7 @@ import {
 } from '../../database/trip.schema.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type {
+  ClientChannel,
   ClientEmailSendMode,
   ClientEmailType,
 } from '../../shared/delivery-client-email.constant.js'
@@ -910,6 +911,7 @@ export async function findOccurrenceType(
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
       clientEmailType: companyOccurrenceTypes.clientEmailType,
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
+      clientChannel: companyOccurrenceTypes.clientChannel,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1093,6 +1095,7 @@ export async function listOccurrenceTypes(
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
       clientEmailType: companyOccurrenceTypes.clientEmailType,
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
+      clientChannel: companyOccurrenceTypes.clientChannel,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1364,6 +1367,7 @@ async function writeOccurrenceTypeRow(
     readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
     readonly clientEmailType?: ClientEmailType | undefined
     readonly clientEmailSendMode?: ClientEmailSendMode | undefined
+    readonly clientChannel?: ClientChannel | undefined
     readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
     readonly contractorReplyMode?: ContractorReplyMode | undefined
     readonly contractorReplyWaitHours?: null | number | undefined
@@ -1466,6 +1470,7 @@ async function writeOccurrenceTypeRow(
     ...(input.clientEmailSendMode === undefined
       ? {}
       : { clientEmailSendMode: input.clientEmailSendMode }),
+    ...(input.clientChannel === undefined ? {} : { clientChannel: input.clientChannel }),
     ...(input.contractorReplyAcknowledgementQuickReplyId === undefined
       ? {}
       : {
@@ -1587,6 +1592,7 @@ async function writeOccurrenceTypeRow(
     duplicateRequestPolicy: saved.duplicateRequestPolicy,
     clientEmailType: saved.clientEmailType,
     clientEmailSendMode: saved.clientEmailSendMode,
+    clientChannel: saved.clientChannel,
     contractorReplyAcknowledgementQuickReplyId: saved.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: saved.contractorReplyMode,
     contractorReplyWaitHours: saved.contractorReplyWaitHours,
