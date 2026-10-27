@@ -228,6 +228,10 @@ export const API_ME_WHATSAPP_PHONE_PATH = '/me/whatsapp-phone'
  */
 /** Spec 062: a credencial do WhatsApp mora perto do efeito — a aba de configuração da empresa. */
 export const API_WHATSAPP_CHANNEL_PATH = '/company-settings/whatsapp-channel'
+/** Spec 281 T4: o Evolution (WhatsApp gratuito) ao lado do canal da Meta; o QR e o estado ficam sob a mesma aba. */
+export const API_WHATSAPP_EVOLUTION_PATH = '/company-settings/whatsapp-evolution'
+export const API_WHATSAPP_EVOLUTION_CONNECTION_PATH = '/company-settings/whatsapp-evolution/connection'
+export const API_WHATSAPP_EVOLUTION_QR_PATH = '/company-settings/whatsapp-evolution/qr'
 export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
 export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
 /** Spec 164 T9: a tratativa que chegou ao contratante — no molde das duas rotas acima. */

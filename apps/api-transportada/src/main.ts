@@ -168,6 +168,11 @@ import { createNfseProviderCredentialRoutes } from './nfse-profiles/presentation
 import { createWhatsAppChannelRoutes } from './whatsapp/presentation/whatsapp-channel.routes'
 import { createMetaWhatsAppSendingChannel } from './whatsapp/infrastructure/meta-whatsapp-sending.gateway.js'
 import { createWhatsAppNotificationDriver } from './whatsapp/application/whatsapp-notification-driver.service.js'
+import { createWhatsAppEvolutionRoutes } from './whatsapp/presentation/whatsapp-evolution.routes'
+import { createWhatsAppEvolutionUseCase } from './whatsapp/application/whatsapp-evolution.use-case'
+import { createWhatsAppEvolutionSecretService } from './whatsapp/application/whatsapp-evolution-secret.service'
+import { DrizzleWhatsAppEvolutionRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution.repository'
+import { createEvolutionConnectionGateway } from './whatsapp/infrastructure/evolution-connection.gateway'
 import { createWhatsAppChannelUseCase } from './whatsapp/application/whatsapp-channel.use-case'
 import { createWhatsAppChannelSecretService } from './whatsapp/application/whatsapp-channel-secret.service'
 import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository'
@@ -2915,6 +2920,13 @@ function createApplicationRoutes({
     repository: new DrizzleWhatsAppChannelRepository(database),
     secrets: createWhatsAppChannelSecretService({ envelopeProvider }),
   })
+  const whatsappEvolution = createWhatsAppEvolutionUseCase({
+    gateway: createEvolutionConnectionGateway(),
+    newSettingsId: () => crypto.randomUUID(),
+    now: () => new Date(),
+    repository: new DrizzleWhatsAppEvolutionRepository(database),
+    secrets: createWhatsAppEvolutionSecretService({ envelopeProvider }),
+  })
   const nfseProviderCredentials = createNfseProviderCredentialsUseCase({
     secretService: createNfseCredentialSecretService({ envelopeProvider }),
     unitOfWork: nfseProfileRepository,
@@ -5468,6 +5480,12 @@ function createApplicationRoutes({
       readChannel: { execute: (input) => whatsappChannel.read(input) },
       removeChannel: { execute: (input) => whatsappChannel.remove(input) },
       saveChannel: { execute: (input) => whatsappChannel.save(input) },
+    }),
+    ...createWhatsAppEvolutionRoutes({
+      connection: { execute: (input) => whatsappEvolution.connection(input) },
+      qr: { execute: (input) => whatsappEvolution.qr(input) },
+      read: { execute: (input) => whatsappEvolution.read(input) },
+      save: { execute: (input) => whatsappEvolution.save(input) },
     }),
     ...createNfseProviderCredentialRoutes({
       readCredential: { execute: (input) => nfseProviderCredentials.read(input) },

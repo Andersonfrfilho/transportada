@@ -28,6 +28,7 @@ export const SETTINGS_PANELS = [
   'settingsResolution',
   'businessCalendar',
   'audioTranscription',
+  'whatsappEvolution',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -68,6 +69,7 @@ export type SettingsDataSource =
   | 'scheduledDistribution'
   | 'settingsResolution'
   | 'tollBoothCharges'
+  | 'whatsappEvolution'
 
 export type SettingsDataScope = Readonly<Record<SettingsDataSource, boolean>>
 
@@ -220,6 +222,11 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
    * da empresa inteira e fica ao lado do CRT, que é de onde a sugestão sai.
    */
   federalTaxes: { module: 'company-settings', source: 'federalTaxes', tab: 'taxes' },
+  /**
+   * Spec 281 T4 (RF2): o WhatsApp gratuito (Evolution) é do cadastro da empresa inteira — número, limites e QR —,
+   * então ganha aba própria de Configurações, só com `settings.manage`.
+   */
+  whatsappEvolution: { module: 'company-settings', source: 'whatsappEvolution', tab: 'whatsapp' },
 }
 
 export function settingsPanelsOf(
@@ -280,6 +287,7 @@ export function resolveSettingsDataScope(
     scheduledDistribution: sources.has('scheduledDistribution'),
     settingsResolution: sources.has('settingsResolution'),
     tollBoothCharges: sources.has('tollBoothCharges'),
+    whatsappEvolution: sources.has('whatsappEvolution'),
   }
 }
 
@@ -295,6 +303,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'settingsResolution',
   'businessCalendar',
   'audioTranscription',
+  'whatsapp',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]

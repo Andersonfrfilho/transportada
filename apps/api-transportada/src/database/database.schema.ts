@@ -178,6 +178,7 @@ import {
   contractorMailThreads,
 } from './contractor-mail.schema.js'
 import { whatsappChannels } from './whatsapp-channel.schema.js'
+import { whatsappEvolutionSettings } from './whatsapp-evolution.schema.js'
 import {
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
@@ -281,6 +282,7 @@ export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
 export * from './contractor-mail.schema.js'
 export * from './whatsapp-channel.schema.js'
+export * from './whatsapp-evolution.schema.js'
 export * from './user-whatsapp-phone.schema.js'
 export * from './whatsapp-flow-graph-version.schema.js'
 export * from './whatsapp-command.schema.js'
@@ -439,6 +441,7 @@ export const databaseSchema = {
   tripDispatchSnapshots,
   tripLocationPings,
   whatsappChannels,
+  whatsappEvolutionSettings,
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
   whatsappFlowGraphVersions,
