@@ -112,6 +112,35 @@ describe('WhatsApp (Evolution) settings panel (spec 281 T4)', () => {
     expect(submission).not.toHaveProperty('apiKey')
   })
 
+  test('the default provider is chosen on the screen and Evolution needs the channel on (P3)', () => {
+    const filled = {
+      ...WHATSAPP_EVOLUTION_DEFAULT_DRAFT,
+      acknowledgeRisk: true,
+      apiKey: 'chave',
+      baseUrl: 'https://evolution.exemplo.com',
+      instanceName: 'transportada',
+    }
+
+    expect(buildWhatsAppEvolutionSubmission(filled, null)).toMatchObject({
+      defaultProvider: 'meta',
+    })
+    expect(
+      buildWhatsAppEvolutionSubmission({ ...filled, defaultProvider: 'evolution' }, null),
+    ).toBeNull()
+    expect(
+      buildWhatsAppEvolutionSubmission(
+        { ...filled, defaultProvider: 'evolution', enabled: true },
+        null,
+      ),
+    ).toMatchObject({ defaultProvider: 'evolution', status: 'active' })
+    expect(
+      startWhatsAppEvolutionDraft({ ...STORED, defaultProvider: 'evolution' }).defaultProvider,
+    ).toBe('evolution')
+    for (const provider of WHATSAPP_DEFAULT_PROVIDERS) {
+      expect(Object.keys(pt.whatsappEvolution.provider)).toContain(provider)
+    }
+  })
+
   test('the response guards accept null settings and refuse a payload carrying a wrong state', () => {
     expect(isWhatsAppEvolutionResponse({ data: null })).toBe(true)
     expect(isWhatsAppEvolutionResponse({ data: STORED })).toBe(true)

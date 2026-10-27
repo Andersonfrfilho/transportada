@@ -579,6 +579,53 @@
       "emailGone": "Um dos e-mails foi removido do cadastro. Feche e abra de novo."
     }
   },
+  "clientWhatsApp": {
+    "title": "Enviar por WhatsApp",
+    "hint": "O boleto vai em anexo, com o texto do tipo da ocorrência, pelo número da empresa. Sai uma mensagem por número.",
+    "open": "Enviar por WhatsApp",
+    "close": "Fechar",
+    "saved": "Números do cliente",
+    "noneSaved": "Este cliente ainda não tem número guardado. Informe um abaixo.",
+    "otherNumber": "Outro número",
+    "numberPlaceholder": "(11) 91234-5678",
+    "save": "Guardar no cadastro do cliente",
+    "cancel": "Cancelar",
+    "send": "Enviar",
+    "sending": "Enviando…",
+    "done": "Concluir",
+    "savedNow": "O número ficou guardado no cadastro do cliente.",
+    "useEmail": "Use \"Enviar ao cliente\" para mandar o boleto por e-mail.",
+    "limitReached": "Esta ocorrência já atingiu o limite de envios por WhatsApp.",
+    "offline": {
+      "notConfigured": "O WhatsApp pelo Evolution não está configurado. Envie por e-mail.",
+      "disabled": "O WhatsApp pelo Evolution está desligado. Envie por e-mail.",
+      "disconnected": "O número da empresa está desconectado. Reconecte em Configurações ou envie por e-mail."
+    },
+    "result": {
+      "sent": "enviado",
+      "already_sent": "já enviado antes",
+      "in_progress": "já está sendo enviado",
+      "failed": "falhou"
+    },
+    "reason": {
+      "send_failed": "o WhatsApp recusou o envio",
+      "whatsapp_disconnected": "o número da empresa está desconectado",
+      "whatsapp_number_not_found": "este número não tem WhatsApp",
+      "attachment_too_large_for_whatsapp": "o arquivo é grande demais para o WhatsApp"
+    },
+    "failure": {
+      "off": "Este tipo de ocorrência não envia ao cliente por WhatsApp. Confira a aba Tipos.",
+      "keyReused": "Este pedido já foi usado com outra escolha. Feche e abra de novo.",
+      "numberInvalid": "Informe um número com DDD, por exemplo (11) 91234-5678.",
+      "numberGone": "Um dos números foi removido do cadastro. Feche e abra de novo.",
+      "registryLimit": "O cliente já tem o máximo de números guardados. Envie sem guardar ou remova algum na tela do cliente.",
+      "limitReached": "Esta ocorrência já atingiu o limite de envios por WhatsApp.",
+      "dailyCap": "A empresa atingiu o teto de mensagens do dia. Tente amanhã ou envie por e-mail.",
+      "resendNotAllowed": "Este envio não pode ser repetido.",
+      "unavailable": "O WhatsApp da empresa está indisponível agora. Envie por e-mail.",
+      "generic": "Não foi possível enviar por WhatsApp. Tente de novo ou envie por e-mail."
+    }
+  },
   "details": {
     "open": "Ver detalhes",
     "title": "Detalhes da ocorrência",
@@ -623,6 +670,20 @@
       "retry": "Tentar de novo",
       "retrying": "Enviando…",
       "retryError": "Não foi possível tentar de novo. Confira o e-mail da empresa e tente outra vez."
+    },
+    "whatsappState": {
+      "title": "Envio por WhatsApp",
+      "none": "O boleto ainda não foi enviado por WhatsApp.",
+      "error": "Não foi possível carregar o estado do envio por WhatsApp.",
+      "state": {
+        "sent": "Enviado",
+        "queued": "Na fila",
+        "failed": "Falhou"
+      },
+      "retry": "Tentar de novo",
+      "resend": "Reenviar",
+      "retrying": "Enviando…",
+      "retryError": "Não foi possível repetir o envio. Confira a conexão do WhatsApp ou envie por e-mail."
     }
   },
   "detectedEmail": {

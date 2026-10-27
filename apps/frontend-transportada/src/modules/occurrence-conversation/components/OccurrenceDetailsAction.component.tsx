@@ -10,6 +10,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import styles from '../styles/occurrenceDetails.module.css'
 import { ClientEmailSendState } from './ClientEmailSendState.component'
+import { ClientWhatsAppSendState } from './ClientWhatsAppSendState.component'
 import { OccurrenceDetailsPanel } from './OccurrenceDetailsPanel.component'
 
 type OccurrenceDetailsActionProps = Readonly<{
@@ -55,7 +56,12 @@ function DetailsSurface({
           <OccurrenceDetailsPanel
             {...(companyId === undefined ? {} : { companyId })}
             occurrenceId={occurrenceId}
-            sendState={<ClientEmailSendState occurrenceId={occurrenceId} />}
+            sendState={
+              <>
+                <ClientEmailSendState occurrenceId={occurrenceId} />
+                <ClientWhatsAppSendState occurrenceId={occurrenceId} />
+              </>
+            }
           />
         </div>
       </aside>

@@ -114,3 +114,39 @@ Fatia mínima: só boleto, API (painel e app), staging. Sobre a T4 (configuraç�
   duas grafias do nono dígito, outro número vai para não atribuídas, o aviso vai de `sent` a `read` sem voltar, outra
   empresa não acha, e o ciclo do webhook (achar pelo id, guardar segredo, auditoria, conexão, troca de instância
   desmarcando o registro).
+
+## T7 — Telas do painel: provedor padrão e "Enviar por WhatsApp" (27/10/2026)
+
+Fatia mínima: só boleto, painel, staging. A tela de configuração (QR, estado, aviso de risco RF7) já veio com a T4; faltava
+o provedor padrão (P3) e o botão de envio, que usam as rotas da T5.
+
+**O que mudou**
+
+- Configuração (aba WhatsApp): seletor "Provedor padrão dos envios novos" (Meta ou Evolution). O Evolution só pode ser o
+  padrão com o canal ligado, e o aviso de risco lido; desligar o canal ou o aviso volta o padrão para a Meta. Antes, a
+  tela só repassava o valor gravado.
+- `ClientBoletoWhatsAppAction`: botão "Enviar por WhatsApp" ao lado de "Enviar ao cliente" (página da ocorrência e
+  linha da lista). Só aparece com o tipo em `whatsapp` ou `both`; com o Evolution não configurado, desligado ou
+  desconectado, e com o teto da ocorrência atingido, fica à vista, desligado e com o motivo (RF5). Diálogo com os números
+  guardados (mascarados), "Outro número" com "Guardar no cadastro do cliente" (`save`) e resultado por número; número sem
+  WhatsApp, arquivo grande e instância caída apontam para o e-mail.
+- `ClientWhatsAppSendState`: estado por número (Enviado, Na fila, Falhou com o motivo), "Tentar de novo" só onde a
+  segunda tentativa pode dar certo e "Reenviar" no que já saiu; cada toque leva chave de idempotência nova. Aparece na
+  página da ocorrência e em "Ver detalhes".
+- Cliente HTTP: `readContractorReplyWhatsAppOptions`, `forwardContractorReplyToClientWhatsApp` e
+  `resendContractorReplyWhatsAppDelivery`, com leitura tolerante (resposta malformada vira `null`, nunca botão) e
+  textos pt-BR e en.
+
+**Provas**
+
+- `test/occurrence-conversation/contractor-reply-whatsapp.contract.ts`: vocabulário e todo código de erro da API com
+  texto, leitura tolerante das opções e do resultado, regra do número, botão por canal e por estado do Evolution, estado
+  por número e o cliente HTTP (chave no cabeçalho, número só no corpo, "Tentar de novo" sem corpo).
+- `test/company-settings/whatsapp-evolution-panel.contract.ts`: o provedor padrão sai do rascunho, e o Evolution sem o
+  canal ligado não forma configuração.
+- Prints: `previews/whatsapp-painel-t7/`.
+
+**Pendente**
+
+- Teste em staging com um número do dono (critério de aceite), depois de T3 e do pacote no npm (bloqueio do `NPM_TOKEN`).
+- Contatos do cliente na ocorrência no app do motorista (T8) e linha do tempo (T9).

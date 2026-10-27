@@ -811,6 +811,12 @@
     "risk": "Warning: Evolution uses the WhatsApp Web protocol, which Meta does not authorize. The number can be banned and a WhatsApp change can stop sending until the package is updated. It is a free option, not the guaranteed path: email stays the default and the fallback.",
     "acknowledgeRisk": "I read the warning and accept the risk of the number being banned.",
     "enabledLabel": "Turn on WhatsApp through Evolution",
+    "providerLabel": "Default provider for new sends",
+    "providerHint": "New sends use the chosen provider; old ones keep the provider they went out with. Evolution can only be the default while the channel is on.",
+    "provider": {
+      "meta": "Meta (official)",
+      "evolution": "Evolution (free)"
+    },
     "save": "Save settings",
     "saved": "WhatsApp settings saved.",
     "error": "Could not complete ({{code}}).",
