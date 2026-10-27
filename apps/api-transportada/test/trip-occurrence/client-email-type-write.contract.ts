@@ -229,3 +229,27 @@ describe('o cadastro do tipo aceita "clientChannel" (spec 281 RF8)', () => {
     expect(error?.status).toBe(400)
   })
 })
+
+describe('o cadastro do tipo aceita "asksClientContact" (spec 281 T8b)', () => {
+  test.each([true, false])('%s é aceito e chega ao caso de uso', async (asks) => {
+    const [saved] = await putThroughRoute({ ...baseBody(), asksClientContact: asks })
+    expect(saved?.asksClientContact).toBe(asks)
+  })
+
+  test('ausente fica ausente — o painel antigo não liga nem desliga o pedido', async () => {
+    const parsed = await parseOccurrenceTypeRequest(putRequest(baseBody()))
+    expect('asksClientContact' in parsed).toBe(false)
+    const [saved] = await putThroughRoute(baseBody())
+    expect(saved?.asksClientContact).toBeUndefined()
+  })
+
+  test('valor que não é booleano é 400', async () => {
+    const error = await parseOccurrenceTypeRequest(
+      putRequest({ ...baseBody(), asksClientContact: 'sim' }),
+    ).then(
+      () => undefined,
+      (reason: unknown) => reason as Error & { status: number },
+    )
+    expect(error?.status).toBe(400)
+  })
+})

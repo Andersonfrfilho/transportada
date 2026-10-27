@@ -499,6 +499,8 @@ const occurrenceTypeSchema = z
     clientEmailSendMode: z.enum(CLIENT_EMAIL_SEND_MODES).optional(),
     /** Spec 281 RF8: `off`, `email`, `whatsapp` ou `both` — por qual canal a ocorrência fala com o cliente; ausente não mexe. */
     clientChannel: z.enum(CLIENT_CHANNELS).optional(),
+    /** Spec 281 T8b: liga/desliga pedir o contato do cliente na abertura da ocorrência; ausente não mexe. */
+    asksClientContact: z.boolean().optional(),
     /** Spec 276 T5: `null` desliga; ausente não mexe. */
     contractorReplyAcknowledgementQuickReplyId: z.string().uuid().nullable().optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),
