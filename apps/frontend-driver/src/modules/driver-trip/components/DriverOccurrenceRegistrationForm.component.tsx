@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { ClientContactsSection } from '@/modules/client-contacts/components/ClientContactsSection.component'
+import { resolveAskedContactChannels } from '@/modules/client-contacts/shared/clientContactsRule.service'
 
 import { useOccurrenceRegistrationForm } from '../hooks/useOccurrenceRegistrationForm.hook'
 import { OccurrencePhotoField } from './OccurrencePhotoField.component'
@@ -58,6 +60,9 @@ export function DriverOccurrenceRegistrationForm({
   const requirements =
     selectedType === undefined ? undefined : resolveOccurrenceRequirements(selectedType)
   const photoLimit = visibility?.photoLimit ?? 1
+  /** Spec 281 T8b: o tipo pede o contato do cliente na abertura — o servidor resolveu, o app só mostra. */
+  const askedContactChannels =
+    selectedType === undefined ? [] : resolveAskedContactChannels(selectedType)
   const valueLabels = {
     declaredAmount:
       selectedType?.declaredAmountLabel ?? t('occurrenceRegistration.declaredAmount.defaultLabel'),
@@ -167,6 +172,9 @@ export function DriverOccurrenceRegistrationForm({
               previewUrl={form.signature.previewUrl}
             />
           ) : null}
+          {askedContactChannels.length === 0 ? null : (
+            <ClientContactsSection channels={askedContactChannels} documentId={document.id} />
+          )}
         </>
       )}
 

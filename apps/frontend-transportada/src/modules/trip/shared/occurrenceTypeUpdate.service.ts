@@ -58,6 +58,8 @@ export type OccurrenceTypeSaveInput = Readonly<{
   clientEmailSendMode?: ClientEmailSendMode | undefined
   /** Spec 281 RF8: `undefined` é "não mexe". */
   clientChannel?: ClientChannel | undefined
+  /** Spec 281 T8b: `undefined` é "não mexe". */
+  asksClientContact?: boolean | undefined
   contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   contractorReplyMode?: ContractorReplyMode | undefined
@@ -122,6 +124,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'clientEmailType'
       | 'clientEmailSendMode'
       | 'clientChannel'
+      | 'asksClientContact'
       | 'contractorReplyAlertMode'
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'

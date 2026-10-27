@@ -1071,6 +1071,15 @@ Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/eviden
   chat **da própria ocorrência** (vem do mesmo leitor do detalhe) e a `retention_until` não tiver vencido; senão 404
   `TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND`. O link nunca vai a log nem entra no retrato offline do app (só metadado).
 
+### Contato do cliente na abertura (spec 281 T8b)
+
+`company_occurrence_types.asks_client_contact` (padrão `false`) liga, por tipo, o pedido do contato do cliente ao motorista
+na abertura da ocorrência; o tipo do campo (`FieldOccurrenceType`) leva `asksClientContact` e `clientChannel`. As rotas
+`/me/trips/current/documents/:documentId/client-contacts` (`delivery-clients/presentation/me-client-contacts.routes.ts`,
+leitura `trip.read`, escrita `trip.report`) listam, incluem, editam e removem contatos do destinatário da nota, só para quem
+está na tripulação da viagem. Endereço normalizado (E.164 / e-mail) antes de gravar, só a forma mascarada sai, o motorista
+só mexe no que ele informou (`created_by_kind = driver` e o mesmo usuário), limite de 10 por canal e auditoria sem o endereço.
+
 ### Andamento da ocorrência (ADR-0105)
 
 - **Estado = último evento** de `trip_occurrence_resolution_events` (sem evento = `open`; `resolved` = `resolved`; `reopened` = `open`).

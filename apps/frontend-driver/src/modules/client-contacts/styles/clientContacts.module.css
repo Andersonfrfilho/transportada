@@ -1,0 +1,128 @@
+/*
+ * Spec 281 T8b: a seção de contatos do cliente na abertura da ocorrência. Cabe em 375px: o texto quebra a palavra e os
+ * botões de ação ficam em grade de duas colunas; o alvo de toque é o de 44px do design system.
+ */
+.section {
+  background: var(--color-surface-muted, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.title {
+  font-weight: 700;
+  margin: 0;
+}
+
+.note,
+.alert {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert {
+  color: var(--color-alert);
+  font-weight: 600;
+}
+
+.error {
+  color: var(--color-alert);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.list {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  align-items: center;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.itemText {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.itemMeta {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.itemActions {
+  align-items: center;
+  display: flex;
+  gap: var(--space-1);
+}
+
+.iconButton {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  height: var(--control-height);
+  justify-content: center;
+  width: var(--control-height);
+}
+
+.addRow,
+.actions {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.form,
+.confirm {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.fieldLabel {
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+}
+
+.channels {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.channelButton {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: inherit;
+  cursor: pointer;
+  min-height: var(--control-height);
+}
+
+.channelButton[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  font-weight: 700;
+}
+
+.confirmValue {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: center;
+}

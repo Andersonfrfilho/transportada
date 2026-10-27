@@ -14,4 +14,5 @@ Nada começa com `[NEEDS CLARIFICATION]` aberto (spec.md § Dúvidas). Modelo po
 - [ ] **T6** (opus) API: webhook assinado com anti-replay, mensagem entra no fio, fila de não atribuídas (RF4).
 - [ ] **T7** (sonnet) Painel: tela de configuração (QR, estado, aviso de risco RF7, provedor padrão) e botão "Enviar por WhatsApp".
 - [x] **T8** (sonnet) App do motorista: contatos do cliente na ocorrência com confirmação e `save` (RF10), "Enviar por WhatsApp" ao lado de "Enviar ao cliente", fila offline; prévia com print.
+- [x] **T8b** (sonnet) Contato do cliente já na abertura da ocorrência: chave `asks_client_contact` no tipo (painel, aba Tipos), rotas do motorista por nota para listar, incluir, editar e remover contatos (vários números e e-mails) e a seção no formulário do app, com confirmação. Cadastro do cliente no painel com WhatsApp: PR 2.
 - [ ] **T9** (haiku) Linha do tempo, docs (`CLAUDE.md` das apps), runbook de staging, `evidence.md`, teste de que log não leva dado.
