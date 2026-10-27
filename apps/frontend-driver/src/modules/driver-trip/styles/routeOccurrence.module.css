@@ -127,6 +127,8 @@
   border-top: 1px solid var(--color-slate);
   display: flex;
   flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   justify-content: flex-end;
   order: 99;
   padding: var(--space-2) var(--space-3);

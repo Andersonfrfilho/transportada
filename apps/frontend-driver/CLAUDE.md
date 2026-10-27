@@ -513,3 +513,18 @@ com a rede caindo no meio, o pedido vai para a fila própria (`clientBoletoEmail
 usa os gatilhos da fila de mensagens (`useClientEmailOutboxFlush`, montado na casca). O endereço novo só mora no aparelho
 até a fila entregar; log e resposta continuam mascarados. `test/client-email/*.contract.ts`; prints em
 `test/spec-279-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-279-prints.smoke.spec.ts`).
+
+## "Enviar por WhatsApp" (spec 281 T8)
+
+Módulo `src/modules/client-whatsapp`, irmão do `client-email`: o botão (`ClientWhatsAppSendButton`) fica ao lado do "Enviar ao
+cliente" nos mesmos três lugares e reaproveita a regra do boleto aceito (`hasBoletoArrived`). Quem decide é a API: o
+`GET .../client-boleto-whatsapp` responde `409`/`404` quando o `client_channel` do tipo não liga o WhatsApp, e o botão some; some
+também com `evolution.ready = false` (número da empresa desconectado), e o e-mail segue. A folha (`ClientWhatsAppSendSheet`,
+em portal no `body`, com o CSS da folha do e-mail) lista os números mascarados por `contactId` e o histórico de entregas; o
+número digitado passa pela **tela de confirmação** (número formatado, "Guardar este número para o cliente" = `save`) antes de
+sair — o app nunca manda o número sem esse passo. `parseClientWhatsAppNumber` é cópia por valor da política da API (teste de
+paridade lê o arquivo-fonte); a validação final é da API. Sem sinal, o pedido vai para a fila própria
+(`transportada.driver-client-whatsapp-outbox`) com a **mesma `idempotencyKey`** em toda tentativa; "Tentar de novo" de uma
+entrega que falhou (`POST .../deliveries/:id/resend`, chave nova por toque) só vale com sinal e só para `send_failed` e
+`whatsapp_disconnected` — número sem WhatsApp e arquivo grande apontam o e-mail. `test/client-whatsapp/*.contract.ts`; prints em
+`test/spec-281-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-281-prints.smoke.spec.ts`).
