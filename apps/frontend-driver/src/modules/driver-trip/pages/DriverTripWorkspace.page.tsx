@@ -1039,7 +1039,48 @@ export function DriverTripWorkspacePage() {
         )}
 
         {/* Spec 065 D1: o que ele leva na mão desde o despacho, e antes de existir MDF-e */}
-        {trip === undefined || isPagedView ? null : <DriverLoadSheet trip={trip} />}
+        {trip === undefined ? null : <DriverLoadSheet trip={trip} />}
+
+        {trip === undefined || trip.stops.length === 0 ? null : (
+          <div className={styles.stopSearch} role="search">
+            <Icon aria-hidden="true" name="search" />
+            <input
+              aria-label={t('search.placeholder')}
+              placeholder={t('search.placeholder')}
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+            {/*
+              A etiqueta da nota traz a chave de 44 dígitos em Code128 (e a NFC-e em QR): ler com a
+              câmera é digitar a chave inteira sem errar um dígito no caminhão.
+            */}
+            <Button
+              aria-label={t('search.scanTrigger')}
+              className={styles.stopSearchScan}
+              onClick={() => setIsScannerOpen(true)}
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="camera" />
+            </Button>
+          </div>
+        )}
+
+        <BarcodeScanner
+          closeLabel={t('search.scanClose')}
+          deniedMessage={t('search.scanDenied')}
+          isOpen={isScannerOpen}
+          onClose={() => setIsScannerOpen(false)}
+          onRead={(text) => {
+            setSearchTerm(text)
+            setIsScannerOpen(false)
+          }}
+          readingMessage={t('search.scanReading')}
+          startingMessage={t('search.scanStarting')}
+          title={t('search.scanTitle')}
+          unavailableMessage={t('search.scanUnavailable')}
+        />
 
         {trip !== undefined && isPagedView ? (
           <nav aria-label={t('paging.region')} className={styles.stopPager} ref={stopPagerRef}>
@@ -1106,47 +1147,6 @@ export function DriverTripWorkspacePage() {
             </Button>
           </div>
         ) : null}
-
-        {trip === undefined || trip.stops.length === 0 || isPagedView ? null : (
-          <div className={styles.stopSearch} role="search">
-            <Icon aria-hidden="true" name="search" />
-            <input
-              aria-label={t('search.placeholder')}
-              placeholder={t('search.placeholder')}
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-            />
-            {/*
-              A etiqueta da nota traz a chave de 44 dígitos em Code128 (e a NFC-e em QR): ler com a
-              câmera é digitar a chave inteira sem errar um dígito no caminhão.
-            */}
-            <Button
-              aria-label={t('search.scanTrigger')}
-              className={styles.stopSearchScan}
-              onClick={() => setIsScannerOpen(true)}
-              type="button"
-              variant="ghost"
-            >
-              <Icon name="camera" />
-            </Button>
-          </div>
-        )}
-
-        <BarcodeScanner
-          closeLabel={t('search.scanClose')}
-          deniedMessage={t('search.scanDenied')}
-          isOpen={isScannerOpen}
-          onClose={() => setIsScannerOpen(false)}
-          onRead={(text) => {
-            setSearchTerm(text)
-            setIsScannerOpen(false)
-          }}
-          readingMessage={t('search.scanReading')}
-          startingMessage={t('search.scanStarting')}
-          title={t('search.scanTitle')}
-          unavailableMessage={t('search.scanUnavailable')}
-        />
 
         {trip === undefined ? (
           snapshot?.isRegisteredDriver === false ? null : (
