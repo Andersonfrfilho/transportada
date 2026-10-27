@@ -5,6 +5,7 @@ Nada começa com `[NEEDS CLARIFICATION]` aberto (spec.md § Dúvidas). Modelo po
 - [ ] **T0** (opus) Fechar as dúvidas com o dono; ADR "WhatsApp não oficial como opção gratuita" (R1/R2) e levantamento da
       porta de WhatsApp do SDK e do `meta-whatsapp-module` (o que a porta já cobre).
 - [ ] **T1** (opus) Contrato do provedor com Evolution simulado, **antes** da implementação (RF1, paridade de estados).
+- [ ] **T1b** (opus) Roteador por custo e risco (D8/D9/D10): política como dado da empresa, orçamento, teto, aquecimento, disjuntor; contrato antes.
 - [ ] **T2** (sonnet) SDK: provedor `evolution` (`sendText`, `sendMedia`, `parseWebhook`, estados); changeset; publicar versão.
 - [ ] **T3** (sonnet) Infra: serviço Evolution em staging (Postgres/Redis próprios), chave global só no serviço; runbook.
 - [ ] **T4** (sonnet) API: configuração por empresa (RF2), chave cifrada, estado da conexão, QR, teto e intervalo; migration aditiva.

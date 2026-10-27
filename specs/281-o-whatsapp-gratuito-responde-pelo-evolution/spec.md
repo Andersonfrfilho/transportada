@@ -22,7 +22,8 @@ do provedor Meta. Com ele a empresa:
    por destino, idempotente, entrega registrada, ator auditado);
 2. **Recebe** a resposta do número no mesmo fio da conversa (como a contratante responde por e-mail na 143/274), com os
    estados enviada / entregue / lida;
-3. Escolhe, por empresa, **Meta oficial** ou **Evolution**, sem mudar nenhuma tela de quem envia.
+3. Escolhe, por empresa, **Meta oficial** ou **Evolution**, sem mudar nenhuma tela de quem envia;
+4. Deixa um **roteador** (D8/D9) escolher o canal mais barato e seguro por mensagem: e-mail, janela aberta, Evolution ou modelo Meta.
 
 ## Fora do escopo
 
@@ -50,6 +51,20 @@ do provedor Meta. Com ele a empresa:
 - **D6 — Resposta entra no fio.** O webhook do Evolution (assinado por segredo por empresa, com anti-replay) vira mensagem
   da conversa da ocorrência pelo número que casa com a contratante/cliente; número sem correspondência vai para a fila de
   "não atribuídas" já existente, não é descartado.
+- **D7 — O Evolution é o número que fala primeiro.** Pedido do dono (26/10/2026): o Evolution é o número para respostas e
+  fluxos que o sistema precisa **iniciar sem a pessoa ter chamado** (aviso ao motorista, atendente chamando o motorista,
+  lembrete, cobrança de documento). A Meta fica para o que ela faz melhor (janela de 24 h aberta, modelo aprovado, volume).
+- **D8 — Roteador por custo e risco, no SDK.** Uma política escolhe o canal de cada mensagem, nesta ordem, e para na primeira
+  que serve: (1) **e-mail** para cliente com e-mail e sem urgência (custo zero, sem risco); (2) **janela de 24 h aberta** (a
+  pessoa escreveu há pouco): mensagem livre, sem custo de modelo; (3) **motorista e atendente** (interno, opt-in, já tem o
+  número salvo): Evolution, risco baixo; (4) **cliente frio** (nunca escreveu): modelo aprovado da Meta, ou Evolution só
+  dentro do teto e com intervalo (R2). A tabela de regras é dado da empresa, não código.
+- **D9 — Teto e disjuntor.** Orçamento mensal por empresa (conta mensagens pagas e avisa a 80%); teto por número/dia;
+  aquecimento do número (volume sobe aos poucos nas primeiras semanas); pausa entre envios com variação; sem envio fora do
+  horário configurado; **disjuntor**: queda, bloqueio ou taxa de falha alta desliga o Evolution sozinho e manda para o
+  e-mail, com aviso ao dono.
+- **D10 — Abrir a janela.** O motorista entra pelo próprio app ("falar pelo WhatsApp", `wa.me` para o número da empresa) ou
+  responde um "OK" ao primeiro aviso; isso abre a janela, prova o opt-in e reduz o risco de ban.
 - **R1 — Não é oficial.** O Evolution (Baileys) fala o protocolo do WhatsApp Web, que a Meta **não autoriza**: o número pode
   ser banido, e uma mudança do WhatsApp pode quebrar o envio até o pacote atualizar. É uma opção gratuita, **não** o
   caminho garantido; o produto precisa dizer isso na tela de configuração e manter o e-mail como padrão e como reserva.
@@ -61,19 +76,23 @@ do provedor Meta. Com ele a empresa:
 ## Histórias priorizadas
 
 ### P1 — Enviar o boleto por WhatsApp
+
 **Given** a empresa com número Evolution conectado e uma ocorrência com boleto aceito **When** o operador ou o motorista
 escolhe "Enviar por WhatsApp" e informa (ou escolhe) o número **Then** o PDF e o texto do modelo saem desse número, a entrega
 fica registrada e aparece na linha do tempo; repetir o mesmo toque não duplica.
 
 ### P1 — Conectar o número
+
 **Given** o dono em Configurações **When** lê o QR code **Then** o estado vira "conectado"; se cair, a tela avisa e o envio
 cai para o e-mail.
 
 ### P2 — A resposta volta ao fio
+
 **Given** o cliente respondendo no WhatsApp **When** o webhook chega **Then** a mensagem aparece na conversa da ocorrência,
 sem duplicar se o webhook repetir.
 
 ### P3 — Escolher o provedor
+
 **Given** uma empresa com Meta e Evolution configurados **When** o dono escolhe o provedor padrão **Then** os envios novos
 usam o escolhido; os antigos mantêm o provedor com que saíram.
 
