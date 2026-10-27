@@ -2314,6 +2314,9 @@ function createApplicationRoutes({
     }),
   })
   const aggregateApplications = createAggregateApplicationsUseCase({
+    // `inviteCompanyUser` nasce adiante no mesmo escopo; só é chamado depois de tudo montado
+    account: { execute: (input) => inviteCompanyUser.execute(input) },
+    logger,
     companyGroupRepository: createDrizzleCompanyGroupRepository(database),
     landingCompanyId: undefined,
     repository: createDrizzleAggregateApplicationRepository(database),
