@@ -211,7 +211,7 @@ export function createFleetRoutes(
       method: 'GET',
       parse: () => ({}),
       pathname: API_FLEET_DRIVER_ACCESS_REPORT_PATH,
-      policy: FLEET_READ_POLICY,
+      policy: FLEET_MANAGE_POLICY,
     }),
     defineRoute<Omit<GrantFleetDriverAccessInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
