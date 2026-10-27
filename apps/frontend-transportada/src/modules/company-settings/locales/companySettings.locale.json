@@ -332,6 +332,14 @@
       "finance": "E-mail do financeiro",
       "general": "E-mail geral"
     },
+    "clientChannel": "Canal com o cliente",
+    "clientChannelHint": "Por onde a ocorrência fala com o cliente. E-mail é o padrão e segue o tipo de e-mail ao lado. WhatsApp usa o número do cliente e, se falhar, o e-mail guardado. Desligado não envia nada ao cliente.",
+    "clientChannelOptions": {
+      "off": "Desligado",
+      "email": "E-mail",
+      "whatsapp": "WhatsApp",
+      "both": "E-mail e WhatsApp"
+    },
     "clientEmailSendMode": "Envio do boleto ao cliente",
     "clientEmailSendModeHint": "Manual: o boleto só sai pelo botão \"Enviar ao cliente\". Automático: quando o boleto é aceito, sai sozinho para todos os e-mails desse tipo no cadastro do cliente (precisa do assunto e do texto do e-mail preenchidos). Sem e-mail cadastrado, nada sai e a ocorrência avisa.",
     "clientEmailSendModeOptions": {

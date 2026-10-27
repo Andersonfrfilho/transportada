@@ -12,7 +12,7 @@ import { and, eq } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypes,
-  deliveryClientEmails,
+  deliveryClientContacts,
   deliveryClients,
   nfeParticipants,
   occurrenceContractorReplyDeliveries,
@@ -172,9 +172,9 @@ async function clientDeliveries(database: TestDatabase, companyId: string) {
 
 async function savedAddresses(database: TestDatabase, companyId: string) {
   return database.db
-    .select({ address: deliveryClientEmails.address, kind: deliveryClientEmails.createdByKind })
-    .from(deliveryClientEmails)
-    .where(eq(deliveryClientEmails.companyId, companyId))
+    .select({ address: deliveryClientContacts.address, kind: deliveryClientContacts.createdByKind })
+    .from(deliveryClientContacts)
+    .where(eq(deliveryClientContacts.companyId, companyId))
 }
 
 describe('o e-mail escrito pelo motorista na conversa (spec 279 T4b, RF8)', () => {

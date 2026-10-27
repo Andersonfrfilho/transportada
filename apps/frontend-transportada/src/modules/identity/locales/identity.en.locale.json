@@ -589,7 +589,34 @@
       "running": "Cutting out…",
       "chosenAlt": "Image chosen for {{name}}"
     },
-    "columnTaxId": "Document"
+    "columnTaxId": "Document",
+    "accessReport": {
+      "title": "Drivers who cannot sign in to the app yet",
+      "intro": "Active driver records without access: no invite, an invite not used yet, or an expired invite. Accounts already activated are not listed.",
+      "allGood": "Every active driver already has app access.",
+      "loadError": "Could not load drivers without access. Try refreshing.",
+      "column": {
+        "driver": "Driver",
+        "taxId": "Tax ID",
+        "contact": "Contact",
+        "status": "Status",
+        "action": "Fix"
+      },
+      "state": {
+        "no-user": "No invite",
+        "invited": "Invite sent, not used",
+        "expired": "Invite expired"
+      },
+      "grant": "Grant access",
+      "resend": "Resend invite",
+      "result": {
+        "granted": "Invite sent to {{name}}. They get the code, choose a password and sign in to the app.",
+        "already-linked": "{{name}} already has app access.",
+        "no-contact": "{{name}} has no email or phone on the record. Complete the record and try again.",
+        "resent": "Invite resent to {{name}}.",
+        "error": "Could not invite {{name}} right now. Try again shortly."
+      }
+    }
   },
   "login": {
     "title": "Sign in",

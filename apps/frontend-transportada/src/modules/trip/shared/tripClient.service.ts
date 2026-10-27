@@ -1033,6 +1033,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.clientEmailSendMode === undefined
             ? {}
             : { clientEmailSendMode: input.clientEmailSendMode }),
+          ...(input.clientChannel === undefined ? {} : { clientChannel: input.clientChannel }),
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
