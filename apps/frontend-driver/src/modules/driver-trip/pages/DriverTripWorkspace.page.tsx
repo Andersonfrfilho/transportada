@@ -20,6 +20,13 @@ import { DriverManifestCard } from '../components/DriverManifestCard.component'
 import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice.component'
 import { useRouteOccurrenceEntries } from '../hooks/useRouteOccurrenceEntries.hook'
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
+import { useStopViewMode } from '../hooks/useStopViewMode.hook'
+import {
+  isPagedViewActive,
+  neighborStopId,
+  resolvePageStopId,
+  type StopPageOverride,
+} from '../shared/stopPaging.service'
 import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
 import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNotice.component'
 import { DriverTripSyncBanner } from '../components/DriverTripSyncBanner.component'
@@ -261,7 +268,36 @@ export function DriverTripWorkspacePage() {
   const currentStopId =
     trip === undefined ? undefined : findCurrentStop({ enRouteStopId, trip })?.id
   const stopExpansion = useStopExpansion(currentStopId)
-  const visibleStops = trip === undefined ? [] : filterStopsBySearchTerm(trip.stops, searchTerm)
+  /**
+   * Pedido do motorista (27/10): cada parada é uma página, com ida e volta — sem a lista inteira
+   * para a barra de rolagem subir e descer. A escolha é do motorista (Perfil). Derivado, nunca
+   * sincronizado por efeito (`stopPaging.service.ts`).
+   */
+  const stopViewMode = useStopViewMode()
+  const [pageOverride, setPageOverride] = useState<StopPageOverride | undefined>(undefined)
+  const [showListWhenCurrentWas, setShowListWhenCurrentWas] = useState<
+    { currentStopId: string | undefined } | undefined
+  >(undefined)
+  const isPagedView =
+    trip !== undefined &&
+    trip.stops.length > 0 &&
+    isPagedViewActive({
+      currentStopId,
+      mode: stopViewMode.mode,
+      searchTerm,
+      showListWhenCurrentWas,
+    })
+  const pageStopId =
+    trip === undefined || !isPagedView
+      ? undefined
+      : resolvePageStopId({ currentStopId, override: pageOverride, stops: trip.stops })
+  const allVisibleStops = trip === undefined ? [] : filterStopsBySearchTerm(trip.stops, searchTerm)
+  const visibleStops = isPagedView
+    ? allVisibleStops.filter((stop) => stop.id === pageStopId)
+    : allVisibleStops
+  function goToStopPage(stopId: string | undefined): void {
+    if (stopId !== undefined) setPageOverride({ stopId, whenCurrentWas: currentStopId })
+  }
   /**
    * Spec 206 D6: o alvo do atalho "Ir para a parada N" — rola até o cabeçalho da parada a caminho e
    * põe o foco nele (`scrollTo` + `focus()`, `web.md` §11.3). Um `Map` porque o registro é por
@@ -281,6 +317,10 @@ export function DriverTripWorkspacePage() {
   }
 
   function focusStop(stopId: string): void {
+    if (isPagedView) {
+      goToStopPage(stopId)
+      return
+    }
     const wasClosed = !stopExpansion.isOpen(stopId)
     if (wasClosed) stopExpansion.toggle(stopId)
     // A parada fechada abre nesta mesma passada de estado — o scroll/foco espera o React desenhar
@@ -992,9 +1032,75 @@ export function DriverTripWorkspacePage() {
         )}
 
         {/* Spec 065 D1: o que ele leva na mão desde o despacho, e antes de existir MDF-e */}
-        {trip === undefined ? null : <DriverLoadSheet trip={trip} />}
+        {trip === undefined || isPagedView ? null : <DriverLoadSheet trip={trip} />}
 
-        {trip === undefined || trip.stops.length === 0 ? null : (
+        {trip !== undefined && isPagedView ? (
+          <nav aria-label={t('paging.region')} className={styles.stopPager}>
+            <Button
+              aria-label={t('paging.previous')}
+              disabled={
+                neighborStopId({ direction: 'previous', stopId: pageStopId, stops: trip.stops }) ===
+                undefined
+              }
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                goToStopPage(
+                  neighborStopId({ direction: 'previous', stopId: pageStopId, stops: trip.stops }),
+                )
+              }
+            >
+              <Icon aria-hidden="true" name="chevron-left" />
+            </Button>
+            <strong aria-live="polite">
+              {t('paging.position', {
+                index: trip.stops.findIndex((stop) => stop.id === pageStopId) + 1,
+                total: trip.stops.length,
+              })}
+            </strong>
+            <Button
+              aria-label={t('paging.next')}
+              disabled={
+                neighborStopId({ direction: 'next', stopId: pageStopId, stops: trip.stops }) ===
+                undefined
+              }
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                goToStopPage(
+                  neighborStopId({ direction: 'next', stopId: pageStopId, stops: trip.stops }),
+                )
+              }
+            >
+              <Icon aria-hidden="true" name="chevron-right" />
+            </Button>
+            <Button
+              className={styles.stopPagerShowAll}
+              type="button"
+              variant="ghost"
+              onClick={() => setShowListWhenCurrentWas({ currentStopId })}
+            >
+              {t('paging.showAll', { count: trip.stops.length })}
+            </Button>
+          </nav>
+        ) : null}
+
+        {trip !== undefined &&
+        stopViewMode.mode === 'paged' &&
+        searchTerm === '' &&
+        !isPagedView ? (
+          <div className={styles.stopPager}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowListWhenCurrentWas(undefined)}
+            >
+              {t('paging.backToPage')}
+            </Button>
+          </div>
+        ) : null}
+
+        {trip === undefined || trip.stops.length === 0 || isPagedView ? null : (
           <div className={styles.stopSearch} role="search">
             <Icon aria-hidden="true" name="search" />
             <input
