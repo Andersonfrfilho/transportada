@@ -2,6 +2,7 @@
 import {
   WHATSAPP_EVOLUTION_DAILY_CAP_RANGE,
   WHATSAPP_EVOLUTION_MIN_INTERVAL_RANGE,
+  type WhatsAppDefaultProvider,
   type WhatsAppEvolutionSaveInput,
   type WhatsAppEvolutionSettings,
 } from './whatsappEvolution.validation'
@@ -13,6 +14,7 @@ export type WhatsAppEvolutionDraft = Readonly<{
   apiKey: string
   baseUrl: string
   dailyCap: string
+  defaultProvider: WhatsAppDefaultProvider
   enabled: boolean
   instanceName: string
   minIntervalSeconds: string
@@ -24,6 +26,8 @@ export const WHATSAPP_EVOLUTION_DEFAULT_DRAFT: WhatsAppEvolutionDraft = {
   apiKey: '',
   baseUrl: '',
   dailyCap: '50',
+  /** O e-mail e a Meta seguem como estão até o dono escolher o Evolution (spec 281 R1). */
+  defaultProvider: 'meta',
   enabled: false,
   instanceName: '',
   minIntervalSeconds: '15',
@@ -40,6 +44,7 @@ export function startWhatsAppEvolutionDraft(
     apiKey: '',
     baseUrl: stored.baseUrl,
     dailyCap: String(stored.dailyCap),
+    defaultProvider: stored.defaultProvider,
     enabled: stored.status === 'active',
     instanceName: stored.instanceName,
     minIntervalSeconds: String(stored.minIntervalSeconds),
@@ -74,14 +79,15 @@ export function buildWhatsAppEvolutionSubmission(
   if (baseUrl === '' || !INSTANCE_NAME.test(draft.instanceName.trim())) return null
   if (apiKey === '' && !hasStoredKey) return null
   if (draft.enabled && !draft.acknowledgeRisk) return null
+  // Spec 281 P3: o Evolution só vira o provedor padrão com o canal ligado e o aviso de risco lido.
+  if (draft.defaultProvider === 'evolution' && !draft.enabled) return null
 
   return {
     acknowledgeRisk: draft.acknowledgeRisk,
     ...(apiKey === '' ? {} : { apiKey }),
     baseUrl,
     dailyCap,
-    // O provedor padrão é decisão da T7; aqui a escolha anterior é mantida como está.
-    defaultProvider: stored?.defaultProvider ?? 'meta',
+    defaultProvider: draft.defaultProvider,
     instanceName: draft.instanceName.trim(),
     minIntervalSeconds,
     status: draft.enabled ? 'active' : 'disabled',

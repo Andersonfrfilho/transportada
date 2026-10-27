@@ -17,6 +17,13 @@ import {
   CLIENT_BOLETO_EMAILS_TARGET,
 } from './contractorReplyEmail.service'
 
+import {
+  readContractorReplyWhatsAppOptions,
+  readWhatsAppSendOutcome,
+  type ContractorReplyWhatsAppOptions,
+  type WhatsAppSendOutcome,
+} from './contractorReplyWhatsApp.service'
+
 import { type ConversationAttachmentChannel } from './conversationAttachment.service'
 
 import {
@@ -82,6 +89,25 @@ export type OccurrenceConversationClient = Readonly<{
     deliveryId: string
     occurrenceId: string
   }) => Promise<ClientEmailSendOutcome>
+  /** Spec 281 T7: o estado do envio por WhatsApp (Evolution) desta ocorrência; tudo mascarado. */
+  readContractorReplyWhatsAppOptions: (input: {
+    occurrenceId: string
+  }) => Promise<ContractorReplyWhatsAppOptions | null>
+  /** Spec 281 T7: o boleto aos números do cadastro do cliente e/ou a um novo (`save` o guarda). */
+  forwardContractorReplyToClientWhatsApp: (input: {
+    attachmentId?: string
+    contactIds?: readonly string[]
+    idempotencyKey: string
+    number?: string
+    occurrenceId: string
+    save?: boolean
+  }) => Promise<WhatsAppSendOutcome>
+  /** Spec 281 T7: "Tentar de novo" (falhou) e "Reenviar" (já saiu); o número e o anexo vêm da entrega. */
+  resendContractorReplyWhatsAppDelivery: (input: {
+    deliveryId: string
+    idempotencyKey: string
+    occurrenceId: string
+  }) => Promise<WhatsAppSendOutcome>
   assignUnassigned: (input: { conversationId: string; unassignedId: string }) => Promise<void>
   listUnassigned: () => Promise<readonly UnassignedMessage[]>
   listConversations: (input: { occurrenceId: string }) => Promise<OccurrenceConversationsView>
@@ -544,6 +570,45 @@ export function createOccurrenceConversationClient(
         `${contractorReplyPath(occurrenceId)}/email-options`,
       )
       return readContractorReplyEmailOptions(payload)
+    },
+    async readContractorReplyWhatsAppOptions({ occurrenceId }) {
+      const payload = await requestJson(
+        dependencies,
+        `${contractorReplyPath(occurrenceId)}/whatsapp-options`,
+      )
+      return readContractorReplyWhatsAppOptions(payload)
+    },
+    async forwardContractorReplyToClientWhatsApp({
+      attachmentId,
+      contactIds,
+      idempotencyKey,
+      number,
+      occurrenceId,
+      save,
+    }) {
+      const payload = await requestJson(
+        dependencies,
+        `${contractorReplyPath(occurrenceId)}/whatsapp-delivery`,
+        {
+          body: {
+            ...(attachmentId === undefined ? {} : { attachmentId }),
+            ...(contactIds === undefined || contactIds.length === 0 ? {} : { contactIds }),
+            ...(number === undefined ? {} : { number }),
+            ...(save === true ? { save } : {}),
+          },
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        },
+      )
+      return readWhatsAppSendOutcome(payload)
+    },
+    async resendContractorReplyWhatsAppDelivery({ deliveryId, idempotencyKey, occurrenceId }) {
+      const payload = await requestJson(
+        dependencies,
+        `${contractorReplyPath(occurrenceId)}/whatsapp-deliveries/${encodeURIComponent(deliveryId)}/resend`,
+        { headers: { 'idempotency-key': idempotencyKey }, method: 'POST' },
+      )
+      return readWhatsAppSendOutcome(payload)
     },
     async assignUnassigned({ conversationId, unassignedId }) {
       await requestJson(

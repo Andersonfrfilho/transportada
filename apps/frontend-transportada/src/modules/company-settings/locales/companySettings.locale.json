@@ -813,6 +813,12 @@
     "risk": "Atenção: o Evolution usa o protocolo do WhatsApp Web, que a Meta não autoriza. O número pode ser banido e uma mudança do WhatsApp pode parar o envio até o pacote ser atualizado. É uma opção gratuita, não o caminho garantido: o e-mail continua sendo o padrão e a reserva.",
     "acknowledgeRisk": "Li o aviso e aceito o risco de banimento do número.",
     "enabledLabel": "Ligar o WhatsApp pelo Evolution",
+    "providerLabel": "Provedor padrão dos envios novos",
+    "providerHint": "Os envios novos usam o provedor escolhido; os antigos mantêm o provedor com que saíram. O Evolution só pode ser o padrão com o canal ligado.",
+    "provider": {
+      "meta": "Meta (oficial)",
+      "evolution": "Evolution (gratuito)"
+    },
     "save": "Salvar configuração",
     "saved": "Configuração do WhatsApp salva.",
     "error": "Não foi possível concluir ({{code}}).",
