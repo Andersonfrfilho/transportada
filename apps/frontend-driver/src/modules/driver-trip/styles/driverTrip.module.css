@@ -2527,6 +2527,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+  /* Livra a faixa de sincronização fixa no topo ao rolar até a ida e volta. */
+  scroll-margin-top: 4rem;
 }
 
 .stopPager strong {

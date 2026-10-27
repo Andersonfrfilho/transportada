@@ -295,8 +295,15 @@ export function DriverTripWorkspacePage() {
   const visibleStops = isPagedView
     ? allVisibleStops.filter((stop) => stop.id === pageStopId)
     : allVisibleStops
+  const stopPagerRef = useRef<HTMLElement | null>(null)
   function goToStopPage(stopId: string | undefined): void {
-    if (stopId !== undefined) setPageOverride({ stopId, whenCurrentWas: currentStopId })
+    if (stopId === undefined) return
+    setPageOverride({ stopId, whenCurrentWas: currentStopId })
+    // A página nova abre no topo, com a ida e volta à vista: sem isto a rolagem da parada anterior
+    // era mantida e a tela "pulava" para o meio da parada nova (medido: 351px de salto).
+    requestAnimationFrame(() =>
+      stopPagerRef.current?.scrollIntoView({ behavior: resolveScrollBehavior(), block: 'start' }),
+    )
   }
   /**
    * Spec 206 D6: o alvo do atalho "Ir para a parada N" — rola até o cabeçalho da parada a caminho e
@@ -1035,7 +1042,7 @@ export function DriverTripWorkspacePage() {
         {trip === undefined || isPagedView ? null : <DriverLoadSheet trip={trip} />}
 
         {trip !== undefined && isPagedView ? (
-          <nav aria-label={t('paging.region')} className={styles.stopPager}>
+          <nav aria-label={t('paging.region')} className={styles.stopPager} ref={stopPagerRef}>
             <Button
               aria-label={t('paging.previous')}
               disabled={
