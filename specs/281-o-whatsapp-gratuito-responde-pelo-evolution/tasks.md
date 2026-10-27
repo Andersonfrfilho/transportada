@@ -9,7 +9,7 @@ Nada começa com `[NEEDS CLARIFICATION]` aberto (spec.md § Dúvidas). Modelo po
 - [ ] **T2** (sonnet) SDK: provedor `evolution` (`sendText`, `sendMedia`, `parseWebhook`, estados); changeset; publicar versão.
 - [ ] **T3** (sonnet) Infra: serviço Evolution em staging (Postgres/Redis próprios), chave global só no serviço; runbook.
 - [ ] **T4** (sonnet) API: configuração por empresa (RF2), chave cifrada, estado da conexão, QR, teto e intervalo; migration aditiva.
-- [ ] **T5** (opus) API: envio de boleto por WhatsApp no trilho de 248/279 (RF3, RF5, RF6), idempotência, fallback, modelo `whatsapp`.
+- [x] **T5** (opus) API: envio de boleto por WhatsApp no trilho de 248/279 (RF3, RF5, RF6), idempotência, fallback, modelo `whatsapp`.
 - [ ] **T6** (opus) API: webhook assinado com anti-replay, mensagem entra no fio, fila de não atribuídas (RF4).
 - [ ] **T7** (sonnet) Painel: tela de configuração (QR, estado, aviso de risco RF7, provedor padrão) e botão "Enviar por WhatsApp".
 - [ ] **T8** (sonnet) App do motorista: "Enviar por WhatsApp" ao lado de "Enviar ao cliente", com fila offline; prévia com print.

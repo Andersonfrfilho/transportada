@@ -64,9 +64,10 @@ const CONFIG = {
   waitHours: 6,
 }
 
-type Delivery = RecordContractorReplyWhatsAppDeliveryParams & {
+type Delivery = Omit<RecordContractorReplyWhatsAppDeliveryParams, 'reason' | 'status'> & {
   id: string
   providerMessageId: null | string
+  reason: RecordContractorReplyWhatsAppDeliveryParams['reason']
   status: 'failed' | 'queued' | 'sent'
 }
 
