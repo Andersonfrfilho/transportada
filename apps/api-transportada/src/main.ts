@@ -171,6 +171,15 @@ import { createWhatsAppNotificationDriver } from './whatsapp/application/whatsap
 import { createWhatsAppEvolutionRoutes } from './whatsapp/presentation/whatsapp-evolution.routes'
 import { createWhatsAppEvolutionUseCase } from './whatsapp/application/whatsapp-evolution.use-case'
 import { createWhatsAppEvolutionSecretService } from './whatsapp/application/whatsapp-evolution-secret.service'
+import { createWhatsAppEvolutionWebhookSecretService } from './whatsapp/application/whatsapp-evolution-webhook-secret.service.js'
+import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
+import { createDrizzleWhatsAppEvolutionWebhookRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution-webhook.repository.js'
+import {
+  createWhatsAppEvolutionPublicWebhookRoutes,
+  createWhatsAppEvolutionWebhookRoutes,
+} from './whatsapp/presentation/whatsapp-evolution-webhook.routes.js'
+import { createEvolutionConversationInbound } from './occurrence-conversation/application/evolution-conversation-inbound.service.js'
+import { createDrizzleEvolutionConversationInboundRepository } from './occurrence-conversation/infrastructure/drizzle-evolution-conversation-inbound.repository.js'
 import { DrizzleWhatsAppEvolutionRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution.repository'
 import { createEvolutionConnectionGateway } from './whatsapp/infrastructure/evolution-connection.gateway'
 import { createEvolutionDocumentSender } from './whatsapp/infrastructure/evolution-document-sender.gateway.js'
@@ -1815,6 +1824,35 @@ function createExtraChargeBatchToken(): string {
   return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
 }
 
+/**
+ * Spec 281 T6: o webhook do Evolution. A rota anônima (receber) e a do dono (apontar) montam o mesmo
+ * caso de uso; o limitador por número é de cada processo, como o da conversa na Meta.
+ */
+function createEvolutionWebhook(input: {
+  readonly apiPublicUrl: string | undefined
+  readonly database: Parameters<typeof applyProviderMessageStatus>[0]
+  readonly envelopeProvider: ReturnType<typeof createSecretEnvelopeProvider>
+  readonly logger: ApiLogger
+}) {
+  const { database, envelopeProvider, logger } = input
+  return createWhatsAppEvolutionWebhookUseCase({
+    apiKeySecrets: createWhatsAppEvolutionSecretService({ envelopeProvider }),
+    apiPublicUrl: input.apiPublicUrl,
+    gateway: createEvolutionConnectionGateway(),
+    inbound: createEvolutionConversationInbound({
+      applyStatus: (status) =>
+        applyProviderMessageStatus(database, { ...status, channel: 'whatsapp' }),
+      clock: () => new Date(),
+      inbound: createDrizzleEvolutionConversationInboundRepository(database),
+      logger,
+      rateLimiter: createRateLimiter(),
+    }),
+    logger,
+    repository: createDrizzleWhatsAppEvolutionWebhookRepository(database),
+    webhookSecrets: createWhatsAppEvolutionWebhookSecretService({ envelopeProvider }),
+  })
+}
+
 function createAnonymousRoutes({
   config,
   database,
@@ -1902,6 +1940,18 @@ function createAnonymousRoutes({
     verifyToken: config.whatsapp.webhook?.verifyToken,
   })
   /**
+   * Spec 281 T6 (RF4): a entrega do Evolution, uma URL por empresa (`webhookId` opaco) e o segredo no
+   * cabeçalho. Existe sempre, como a do e-mail de entrada: sem configuração ativa, ninguém a acha.
+   */
+  const whatsappEvolutionWebhookRoutes = createWhatsAppEvolutionPublicWebhookRoutes({
+    webhook: createEvolutionWebhook({
+      apiPublicUrl: config.apiPublicUrl,
+      database,
+      envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+      logger,
+    }),
+  })
+  /**
    * ADR-0048 §7: a página de repasse do contratante. Ela existe sempre — o token é a credencial, e
    * um lote só nasce quando alguém fecha um período, então não há superfície ociosa a esconder.
    */
@@ -1984,6 +2034,7 @@ function createAnonymousRoutes({
       ...nfseCallbackRoutes,
       ...contractorMailInboundWebhookRoutes,
       ...whatsappWebhookRoutes,
+      ...whatsappEvolutionWebhookRoutes,
       ...publicExtraChargeBatchRoutes,
       /**
        * O endereço público da foto de perfil. Ele existe sempre: o token é a credencial, e uma foto
@@ -2015,6 +2066,7 @@ function createAnonymousRoutes({
     ...nfseCallbackRoutes,
     ...contractorMailInboundWebhookRoutes,
     ...whatsappWebhookRoutes,
+    ...whatsappEvolutionWebhookRoutes,
     ...publicExtraChargeBatchRoutes,
     ...landingPublicRoutes,
     ...publicCnpjInfoRoutes,
@@ -2934,12 +2986,19 @@ function createApplicationRoutes({
   })
   const whatsappEvolutionRepository = new DrizzleWhatsAppEvolutionRepository(database)
   const whatsappEvolutionSecrets = createWhatsAppEvolutionSecretService({ envelopeProvider })
+  const whatsappEvolutionWebhook = createEvolutionWebhook({
+    apiPublicUrl,
+    database,
+    envelopeProvider,
+    logger,
+  })
   const whatsappEvolution = createWhatsAppEvolutionUseCase({
     gateway: createEvolutionConnectionGateway(),
     newSettingsId: () => crypto.randomUUID(),
     now: () => new Date(),
     repository: whatsappEvolutionRepository,
     secrets: whatsappEvolutionSecrets,
+    webhook: whatsappEvolutionWebhook,
   })
   /** Spec 281 T5: o boleto por WhatsApp (Evolution) ao cliente, no trilho da 248/279; painel e app usam o mesmo. */
   const forwardContractorReplyByWhatsApp = createForwardContractorReplyByWhatsAppUseCase({
@@ -5534,6 +5593,7 @@ function createApplicationRoutes({
       read: { execute: (input) => whatsappEvolution.read(input) },
       save: { execute: (input) => whatsappEvolution.save(input) },
     }),
+    ...createWhatsAppEvolutionWebhookRoutes({ webhook: whatsappEvolutionWebhook }),
     ...createNfseProviderCredentialRoutes({
       readCredential: { execute: (input) => nfseProviderCredentials.read(input) },
       saveCredential: { execute: (input) => nfseProviderCredentials.save(input) },

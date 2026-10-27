@@ -63,6 +63,17 @@ export function createWhatsAppEvolutionUseCase(dependencies: {
   readonly now: () => Date
   readonly repository: WhatsAppEvolutionRepositoryPort
   readonly secrets: WhatsAppEvolutionSecretService
+  /**
+   * Spec 281 T6: quem pede o QR está conectando o número, e é a hora de apontar o webhook (uma vez;
+   * falha só vai ao log). Ausente, o QR segue como na T4.
+   */
+  readonly webhook?: {
+    ensureRegistered(input: {
+      readonly actorUserId: string
+      readonly companyId: string
+      readonly correlationId: string
+    }): Promise<void>
+  }
 }): WhatsAppEvolutionUseCase {
   const { gateway, repository, secrets } = dependencies
 
@@ -110,6 +121,11 @@ export function createWhatsAppEvolutionUseCase(dependencies: {
         },
         companyId: context.companyId,
         state,
+      })
+      await dependencies.webhook?.ensureRegistered({
+        actorUserId: context.userId,
+        companyId: context.companyId,
+        correlationId,
       })
       if (state === 'open') {
         return { pairingCode: null, qrCode: null, refreshAfterSeconds: 0, state }

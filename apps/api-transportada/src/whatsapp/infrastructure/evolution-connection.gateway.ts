@@ -4,6 +4,7 @@
 import { EvolutionWhatsAppChannel } from '@adatechnology/evolution-whatsapp-provider'
 
 import type { WhatsAppEvolutionGatewayPort } from '../application/whatsapp-evolution.port.js'
+import type { WhatsAppEvolutionWebhookGatewayPort } from '../application/whatsapp-evolution-webhook.port.js'
 
 /**
  * Spec 281 T4: a única porta da API para o Evolution. O canal do SDK é criado por chamada, com a
@@ -11,7 +12,7 @@ import type { WhatsAppEvolutionGatewayPort } from '../application/whatsapp-evolu
  */
 export function createEvolutionConnectionGateway(
   dependencies: { readonly fetch?: typeof fetch } = {},
-): WhatsAppEvolutionGatewayPort {
+): WhatsAppEvolutionGatewayPort & WhatsAppEvolutionWebhookGatewayPort {
   const open = (input: { apiKey: string; baseUrl: string; instanceName: string }) =>
     new EvolutionWhatsAppChannel({
       apiKey: input.apiKey,
@@ -26,5 +27,8 @@ export function createEvolutionConnectionGateway(
       const qr = await open(input).getQrCode()
       return { pairingCode: qr.pairingCode, qrBase64: qr.base64 }
     },
+    /** Spec 281 T6: o Evolution passa a entregar mensagens e status na URL da empresa, com o segredo no cabeçalho. */
+    setWebhook: ({ headers, url, ...request }) =>
+      open(request).setWebhook({ headers: { ...headers }, url }),
   }
 }

@@ -90,3 +90,17 @@ export class WhatsAppEvolutionDisabledError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 281 T6: sem `API_PUBLIC_URL` a API não sabe o próprio endereço público, e apontar o webhook
+ * do Evolution para um endereço adivinhado (o `Host` atrás do proxy) faria as mensagens sumirem.
+ */
+export class WhatsAppEvolutionWebhookUrlMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'WHATSAPP_EVOLUTION_WEBHOOK_URL_MISSING',
+      message: 'The public API address is not configured, so the Evolution webhook cannot be set',
+      status: 503,
+    })
+  }
+}

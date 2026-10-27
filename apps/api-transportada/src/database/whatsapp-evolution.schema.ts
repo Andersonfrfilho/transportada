@@ -72,6 +72,17 @@ export const whatsappEvolutionSettings = pgTable(
     /** RF7: o dono leu o aviso de risco (R1) antes de ligar. */
     riskAcknowledgedAt: timestamp('risk_acknowledged_at', { withTimezone: true }),
     riskAcknowledgedBy: uuid('risk_acknowledged_by'),
+    /**
+     * Spec 281 T6 (RF4): o segmento opaco de `POST /public/whatsapp-evolution/<webhookId>`. Só acha a
+     * linha; quem prova que a entrega veio do Evolution é o segredo do cabeçalho.
+     */
+    webhookId: uuid('webhook_id').defaultRandom().notNull(),
+    /** O segredo do cabeçalho do webhook, selado com AAD próprio; nulo até o primeiro registro. */
+    webhookSecretEnvelope: jsonb('webhook_secret_envelope'),
+    /** Quando o webhook foi apontado para nós; volta a nulo quando endereço, instância ou chave mudam. */
+    webhookRegisteredAt: timestamp('webhook_registered_at', { withTimezone: true }),
+    /** A última entrega autenticada: o operador vê se o recebimento está vivo. */
+    lastWebhookAt: timestamp('last_webhook_at', { withTimezone: true }),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -85,6 +96,8 @@ export const whatsappEvolutionSettings = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
     unique('whatsapp_evolution_settings_company_id_unique').on(table.companyId),
+    /** Alvo da URL anônima do webhook: colisão apontaria a mensagem de uma empresa para outra. */
+    unique('whatsapp_evolution_settings_webhook_id_unique').on(table.webhookId),
     check(
       'whatsapp_evolution_settings_status_check',
       sql`${table.status} in (${sql.raw(inList(WHATSAPP_EVOLUTION_STATUSES))})`,
