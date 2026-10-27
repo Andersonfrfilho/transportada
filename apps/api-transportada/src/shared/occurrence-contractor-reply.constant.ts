@@ -86,6 +86,17 @@ export const CONTRACTOR_REPLY_REASONS = [
 ] as const
 export type ContractorReplyReason = (typeof CONTRACTOR_REPLY_REASONS)[number]
 
+/**
+ * Spec 278 D1: reasons only of the history event, never of the reply — the outcome of the boleto check.
+ * `document_confirmed` goes on the accepting transition; `document_without_text` on the move to the operator
+ * when the PDF gave no text (or there was no reader). The reply itself keeps `document_not_confirmed`.
+ */
+export const CONTRACTOR_REPLY_EVENT_REASONS = [
+  'document_confirmed',
+  'document_without_text',
+] as const
+export type ContractorReplyEventReason = (typeof CONTRACTOR_REPLY_EVENT_REASONS)[number]
+
 export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
   'driver_app_chat',
   'driver_whatsapp',
@@ -93,10 +104,23 @@ export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
   'informed_email',
   /** Spec 276 T5: a resposta automática à contratante (uma por conversa). Não leva o documento nem tira o token. */
   'contractor_acknowledgement',
+  /** Spec 279 D3: o boleto aos e-mails do cadastro do cliente de entrega (tipo `boleto`), um e-mail por endereço. */
+  'client_boleto_emails',
 ] as const
 export type ContractorReplyDeliveryTarget = (typeof CONTRACTOR_REPLY_DELIVERY_TARGETS)[number]
 
-export const CONTRACTOR_REPLY_EMAIL_TARGETS = ['note_recipient_email', 'informed_email'] as const
+/** Os encaminhamentos do boleto a um terceiro: sem token de resposta e com o anexo ligado pela entrega. */
+export const CONTRACTOR_REPLY_EMAIL_TARGETS = [
+  'note_recipient_email',
+  'informed_email',
+  'client_boleto_emails',
+] as const
+
+/** Spec 276 T5: as entregas por e-mail cujo status segue o da mensagem — os encaminhamentos e a resposta automática. */
+export const CONTRACTOR_REPLY_MAIL_DELIVERY_TARGETS = [
+  ...CONTRACTOR_REPLY_EMAIL_TARGETS,
+  'contractor_acknowledgement',
+] as const
 
 export const CONTRACTOR_REPLY_DELIVERY_TRIGGERS = ['automatic', 'operator'] as const
 export type ContractorReplyDeliveryTrigger = (typeof CONTRACTOR_REPLY_DELIVERY_TRIGGERS)[number]
@@ -117,6 +141,8 @@ export const CONTRACTOR_REPLY_DELIVERY_REASONS = [
   'note_without_recipient_email',
   'attachment_too_large_for_email',
   'send_failed',
+  /** Spec 279 RF10: o envio automático ao cliente não achou e-mail do tipo no cadastro dele; nada saiu. */
+  'client_without_email',
 ] as const
 export type ContractorReplyDeliveryReason = (typeof CONTRACTOR_REPLY_DELIVERY_REASONS)[number]
 

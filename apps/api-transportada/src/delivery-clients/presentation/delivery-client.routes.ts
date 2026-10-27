@@ -224,7 +224,7 @@ export function createDeliveryClientRoutes(
 }
 
 /** Documento fora de forma é **ausência**, não `400`: quem digitou errado procurou o que não existe. */
-function parseTaxIdPath(raw: string): string {
+export function parseTaxIdPath(raw: string): string {
   const taxId = normalizeTaxId(decodeURIComponent(raw))
   if (!TAX_ID_PATTERN.test(taxId)) throw new DeliveryClientNotFoundError()
   return taxId

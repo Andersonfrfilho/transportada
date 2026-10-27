@@ -140,7 +140,7 @@ export function createDrizzleWhatsAppConversationInboundRepository(
     },
 
     async recordConversationMessage(input) {
-      await database
+      const [inserted] = await database
         .insert(occurrenceConversationMessages)
         .values({
           bodyText: input.bodyText,
@@ -160,6 +160,8 @@ export function createDrizzleWhatsAppConversationInboundRepository(
             occurrenceConversationMessages.providerMessageId,
           ],
         })
+        .returning({ id: occurrenceConversationMessages.id })
+      return inserted?.id ?? null
     },
 
     async recordUnassigned(input) {

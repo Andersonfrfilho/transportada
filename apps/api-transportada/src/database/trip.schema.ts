@@ -28,6 +28,14 @@ import type {
   TripOccurrenceStage,
 } from '../shared/trip-occurrence.constant.js'
 import { TRIP_CREW_ROLES, type TripCrewRole } from '../shared/trip-crew-role.constant.js'
+import {
+  CLIENT_EMAIL_SEND_MODE_DEFAULT,
+  CLIENT_EMAIL_SEND_MODES,
+  CLIENT_EMAIL_TYPE_DEFAULT,
+  CLIENT_EMAIL_TYPES,
+  type ClientEmailSendMode,
+  type ClientEmailType,
+} from '../shared/delivery-client-email.constant.js'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -3147,6 +3155,16 @@ export const companyOccurrenceTypes = pgTable(
       .$type<DuplicateRequestPolicy>()
       .notNull()
       .default(DUPLICATE_REQUEST_POLICY_DEFAULT),
+    /** Spec 279 RF9: `off` ou o tipo de e-mail do cliente que o botão "Enviar ao cliente" usa. Desligado de fábrica. */
+    clientEmailType: varchar('client_email_type', { length: 16 })
+      .$type<ClientEmailType>()
+      .notNull()
+      .default(CLIENT_EMAIL_TYPE_DEFAULT),
+    /** Spec 279 RF10: `manual` (padrão) ou `automatic` — o boleto aceito sai sozinho aos e-mails do cliente. */
+    clientEmailSendMode: varchar('client_email_send_mode', { length: 16 })
+      .$type<ClientEmailSendMode>()
+      .notNull()
+      .default(CLIENT_EMAIL_SEND_MODE_DEFAULT),
     /** Sending the invoice to the e-mail of the note's customer is always an explicit choice. */
     forwardToNoteRecipient: varchar('forward_to_note_recipient', { length: 16 })
       .$type<ForwardToNoteRecipientMode>()
@@ -3266,6 +3284,14 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_contractor_reply_mode_check',
       sql`${table.contractorReplyMode} in (${raw(inList(CONTRACTOR_REPLY_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_client_email_type_check',
+      sql`${table.clientEmailType} in (${raw(inList(CLIENT_EMAIL_TYPES))})`,
+    ),
+    check(
+      'company_occurrence_types_client_email_send_mode_check',
+      sql`${table.clientEmailSendMode} in (${raw(inList(CLIENT_EMAIL_SEND_MODES))})`,
     ),
     check(
       'company_occurrence_types_duplicate_request_policy_check',

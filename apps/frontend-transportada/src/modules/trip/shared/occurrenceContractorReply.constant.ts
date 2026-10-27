@@ -15,6 +15,20 @@ export type DuplicateRequestPolicy = (typeof DUPLICATE_REQUEST_POLICIES)[number]
 /** O tipo novo nasce bloqueando; o padrão do banco (`allow`) é só para o tipo antigo que não pede nada. */
 export const DUPLICATE_REQUEST_POLICY_FOR_NEW_TYPE: DuplicateRequestPolicy = 'while_request_open'
 
+/**
+ * Spec 279 RF9: o que o tipo diz sobre o botão "Enviar ao cliente". `off` (padrão) esconde o botão; os outros são o
+ * tipo de e-mail do cliente que ele usa (mesmo vocabulário do cadastro do cliente, D1).
+ */
+export const CLIENT_EMAIL_TYPES = ['off', 'boleto', 'invoice', 'finance', 'general'] as const
+export type ClientEmailType = (typeof CLIENT_EMAIL_TYPES)[number]
+
+/**
+ * Spec 279 RF10: `manual` (padrão) só envia pelo botão; `automatic` manda o boleto aceito sozinho a todos os e-mails do
+ * tipo no cadastro do cliente. Só vale com `clientEmailType` diferente de `off`.
+ */
+export const CLIENT_EMAIL_SEND_MODES = ['manual', 'automatic'] as const
+export type ClientEmailSendMode = (typeof CLIENT_EMAIL_SEND_MODES)[number]
+
 /** Spec 276 T2: `boleto_pdf` é o PDF conferido como boleto da nota (linha digitável e número ou valor). */
 export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image', 'boleto_pdf'] as const
 

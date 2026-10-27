@@ -82,10 +82,11 @@ async function readRawRows(
     left join lateral (
       select m.created_at, left(m.body_text, ${DRIVER_SUBJECT_PREVIEW_LENGTH}) as preview, m.direction
       from occurrence_conversation_messages m
-      where m.company_id = c.company_id and m.conversation_id = c.id
+      where m.company_id = c.company_id and m.conversation_id = c.id and m.system_notice is null
       order by m.created_at desc, m.id desc limit 1) latest on true
     left join lateral (
-      select (count(*) filter (where m.direction = 'outbound' and m.status is distinct from 'read'))::int as unread,
+      select (count(*) filter (where m.direction = 'outbound' and m.system_notice is null
+          and m.status is distinct from 'read'))::int as unread,
         coalesce(string_agg(distinct m.channel, ','), '') as channels
       from occurrence_conversation_messages m
       where m.company_id = c.company_id and m.conversation_id = c.id) totals on true

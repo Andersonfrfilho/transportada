@@ -243,6 +243,15 @@ A ordem de migração de cada serviço, e por que apagar o arquivo primeiro derr
 `docs/spec/railway.md` § "Migrar um serviço". Duas coisas que o arquivo **não** pode fazer: registrar
 domínio próprio (cria-se no painel) e carregar segredo (as variáveis viram `preserve()`).
 
+## Produção: leia e atualize o runbook
+
+⚠️ **Toda sessão que for ler logs, consultar o banco, mexer em variáveis, redeployar ou testar o
+bucket em produção lê `docs/runbooks/producao.md` antes e o atualiza depois** (passo novo, comando
+que mudou, erro novo). Scripts que a sessão deixa para o Anderson rodar não fixam caminho do
+repositório (`REPO="${REPO:-$(git rev-parse --show-toplevel)}"`), valem para Arch Linux e vão em
+`/home/miyazaki/Documents/personal/ativada/`. Correção passa por `staging` primeiro; só bug crítico
+vai à `main`, por cherry-pick.
+
 ## Deploy trancado por job sem runner
 
 ⚠️ Um job pode nascer `queued` e nunca receber runner (lado do GitHub — duas vezes em 02/10/2026).

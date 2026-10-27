@@ -49,6 +49,7 @@
       "whatsapp": "WhatsApp"
     },
     "automatic": "Automatic notice from the occurrence type",
+    "system": "System",
     "unverified": "Sender not confirmed",
     "unverifiedHint": "The email arrived without the sender domain's signature: someone else may have written that address.",
     "copy": "Cc",
@@ -245,7 +246,8 @@
       "title": "Boleto sent by email",
       "target": {
         "note_recipient_email": "Invoice customer",
-        "informed_email": "Informed email"
+        "informed_email": "Informed email",
+        "client_boleto_emails": "Client record"
       },
       "status": {
         "queued": "queued",
@@ -549,5 +551,93 @@
     "forwardToContractor": "Forward to contractor",
     "forwarded": "Forwarded",
     "forwardError": "Could not forward. Try again shortly."
+  },
+  "clientEmail": {
+    "title": "Send to client",
+    "hint": "The boleto goes attached, with the subject and text of the occurrence type. One e-mail is sent per address.",
+    "open": "Send to client",
+    "add": "Add e-mail",
+    "close": "Close",
+    "saved": "Client e-mails",
+    "noneSaved": "This client has no saved e-mail yet. Enter one below.",
+    "otherAddress": "Another e-mail",
+    "save": "Save to the client record",
+    "cancel": "Cancel",
+    "send": "Send",
+    "sending": "Sending…",
+    "done": "Done",
+    "savedNow": "The e-mail was saved to the client record.",
+    "result": {
+      "queued": "queued to send",
+      "already_queued": "already sent before",
+      "skipped": "not sent",
+      "failed": "failed"
+    },
+    "failure": {
+      "off": "This occurrence type does not send to the client. Check the Types tab.",
+      "registryLimit": "The client already has the maximum number of saved e-mails. Send without saving or remove one on the client screen.",
+      "emailGone": "One of the e-mails was removed from the record. Close and open again."
+    }
+  },
+  "details": {
+    "open": "View details",
+    "title": "Occurrence details",
+    "close": "Close details",
+    "loading": "Loading the occurrence details",
+    "error": "The occurrence details could not be loaded.",
+    "noDriver": "No driver",
+    "summary": {
+      "title": "Occurrence",
+      "type": "Type",
+      "status": "Status",
+      "client": "Client",
+      "driver": "Driver",
+      "note": "Note",
+      "noNote": "No remarks."
+    },
+    "timeline": {
+      "title": "Timeline",
+      "empty": "No events yet.",
+      "error": "The timeline could not be loaded."
+    },
+    "boleto": {
+      "title": "Boleto",
+      "none": "The contractor has not sent the boleto yet."
+    },
+    "clientEmails": {
+      "title": "Client e-mails",
+      "none": "The client has no saved e-mail.",
+      "noClient": "This occurrence has no client identified by the invoice.",
+      "error": "The client e-mails could not be loaded."
+    },
+    "sendState": {
+      "title": "Sent to the client",
+      "none": "The boleto has not been sent to the client yet.",
+      "error": "Could not load the send status.",
+      "state": {
+        "sent": "Sent",
+        "queued": "Queued",
+        "failed": "Failed"
+      },
+      "clientWithoutEmail": "No client e-mail for the boleto",
+      "retry": "Try again",
+      "retrying": "Sending…",
+      "retryError": "Could not try again. Check the company e-mail settings and try once more."
+    }
+  },
+  "detectedEmail": {
+    "title": "Client e-mail in the conversation",
+    "question": "Send the boleto to {{address}}?",
+    "hint": "The driver wrote this e-mail in the conversation. Nothing is sent without a tap.",
+    "send": "Send",
+    "sendAndSave": "Send and save for the client",
+    "sending": "Sending…",
+    "sent": "Boleto sent to {{address}}.",
+    "savedNow": "The e-mail was saved to the client's record.",
+    "notSent": "It did not go out to {{address}}. Check the boleto history.",
+    "dismiss": "Close",
+    "failure": {
+      "notFound": "This e-mail is no longer pending. The conversation was refreshed."
+    }
   }
 }

@@ -13,7 +13,10 @@ export type WhatsAppConversationInboundPort = {
     readonly phone: string
     readonly replyToProviderMessageId: null | string
   }): Promise<WhatsAppAttributionInput>
-  /** Idempotente pelo id da Meta: a reentrega do webhook não duplica a mensagem. */
+  /**
+   * Idempotente pelo id da Meta: a reentrega do webhook não duplica a mensagem. Devolve o id da mensagem gravada
+   * agora, ou `null` na reentrega (spec 279 T4b: o e-mail da conversa é lido uma vez só).
+   */
   recordConversationMessage(input: {
     readonly bodyText: string
     readonly companyId: string
@@ -22,7 +25,7 @@ export type WhatsAppConversationInboundPort = {
     readonly providerMessageId: string
     readonly receivedAt: Date
     readonly senderAddress: null | string
-  }): Promise<void>
+  }): Promise<null | string>
   /** Idempotente pelo id da Meta. */
   recordUnassigned(input: {
     readonly bodyText: string

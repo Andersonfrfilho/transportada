@@ -13,6 +13,7 @@ import { createContractorPreviewEmailRoutes } from '../src/cargo-receiving/prese
 import { createHolidayProviderSettingsRoutes } from '../src/business-calendar/presentation/holiday-provider-settings.routes'
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
 import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/client-occurrence-conversation.routes'
+import { createMeClientBoletoEmailsRoutes } from '../src/occurrence-conversation/presentation/me-client-boleto-emails.routes.js'
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
 import { createOccurrenceContractorReplyRoutes } from '../src/occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
@@ -402,6 +403,11 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         rateLimit: bucket,
         signature: 'POST /trip-occurrences/:id/contractor-reply/email-delivery',
       },
+      /** Spec 279 T6b: o "Tentar de novo" manda e-mail, no mesmo balde. */
+      {
+        rateLimit: bucket,
+        signature: 'POST /trip-occurrences/:id/contractor-reply/email-deliveries/:deliveryId/retry',
+      },
       /** Spec 248 RF6: reenviar o pedido à contratante manda e-mail, no balde das mensagens da ocorrência. */
       {
         rateLimit: bucket,
@@ -499,6 +505,41 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
           windowSeconds: 300,
         },
         signature: 'POST /me/trips/current/occurrences/:id/messages',
+      },
+    ])
+  })
+
+  /** Spec 279 T4: enviar o boleto ao cliente pelo app do motorista tem balde próprio; listar segue sem teto. */
+  test('o envio do boleto ao cliente pelo motorista conta no Postgres', () => {
+    const routes = createMeClientBoletoEmailsRoutes(unusedDependencies() as never)
+
+    expect(
+      routes
+        .filter((route) => route.rateLimit !== undefined)
+        .map((route) => ({
+          rateLimit: route.rateLimit,
+          signature: `${route.method} ${route.pathname}`,
+        })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'driver-client-boleto-email-send',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /me/trips/current/occurrences/:id/client-boleto-emails/send',
+      },
+      /** Spec 279 T4b: o cartão do e-mail escrito na conversa usa o mesmo balde do envio. */
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'driver-client-boleto-email-send',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature:
+          'POST /me/trips/current/occurrences/:id/client-boleto-emails/detected/:messageId/send',
       },
     ])
   })
@@ -730,6 +771,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'identity/presentation/password-reset.routes.ts',
       'identity/presentation/user-activation.routes.ts',
       'occurrence-conversation/presentation/client-occurrence-conversation.routes.ts',
+      'occurrence-conversation/presentation/me-client-boleto-emails.routes.ts',
       'occurrence-conversation/presentation/me-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/me-subject-conversation.routes.ts',
       'occurrence-conversation/presentation/occurrence-conversation.routes.ts',

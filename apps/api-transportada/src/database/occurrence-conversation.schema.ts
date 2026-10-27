@@ -84,6 +84,21 @@ export const OCCURRENCE_CONVERSATION_UNASSIGNED_CHANNELS = ['email', 'whatsapp']
 export type OccurrenceConversationUnassignedChannel =
   (typeof OCCURRENCE_CONVERSATION_UNASSIGNED_CHANNELS)[number]
 
+/** Spec 279 T6b (RF12): quem enviou o boleto — a empresa, o motorista pelo app ou o Sistema (envio automático). */
+export const OCCURRENCE_CONVERSATION_SYSTEM_NOTICE_KINDS = ['client_boleto_email_sent'] as const
+export const OCCURRENCE_CONVERSATION_SYSTEM_NOTICE_ACTOR_KINDS = [
+  'driver',
+  'office',
+  'system',
+] as const
+export type OccurrenceConversationSystemNotice = {
+  readonly actorKind: (typeof OCCURRENCE_CONVERSATION_SYSTEM_NOTICE_ACTOR_KINDS)[number]
+  /** O nome do perfil de quem enviou, no momento do envio; `null` no Sistema. */
+  readonly actorName: null | string
+  readonly deliveryId: string
+  readonly kind: (typeof OCCURRENCE_CONVERSATION_SYSTEM_NOTICE_KINDS)[number]
+}
+
 export const occurrenceConversations = pgTable(
   'occurrence_conversations',
   {
@@ -265,6 +280,18 @@ export const occurrenceConversationMessages = pgTable(
     providerMessageId: text('provider_message_id'),
     /** Spec 263: o eco da `Idempotency-Key` do app (a fila offline não duplica na troca de rota). */
     clientMessageId: text('client_message_id'),
+    /**
+     * Spec 279 RF8 (T4b): o e-mail que o motorista escreveu na conversa da ocorrência depois do boleto aceito, achado
+     * pela extração única do domínio. Fica só no banco: log, evento e resposta levam a forma mascarada.
+     */
+    detectedEmail: varchar('detected_email', { length: 254 }),
+    /** Quando o boleto saiu para o e-mail detectado (toque no cartão, "1" no WhatsApp ou envio automático). */
+    detectedEmailSentAt: timestamp('detected_email_sent_at', { withTimezone: true }),
+    /**
+     * Spec 279 T6b (RF12): a mensagem do sistema da conversa — "Boleto enviado para o e-mail: …". Só nasce
+     * automática (sem autor humano); guarda quem enviou e a entrega que ela conta, para a tela não depender do texto.
+     */
+    systemNotice: jsonb('system_notice').$type<OccurrenceConversationSystemNotice>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -337,6 +364,13 @@ export const occurrenceConversationMessages = pgTable(
           and (${table.senderAddress} is null or ${table.channel} in ('email', 'whatsapp')))`,
     ),
     check(
+      'occurrence_conversation_messages_system_notice_check',
+      sql`${table.systemNotice} is null or (jsonb_typeof(${table.systemNotice}) = 'object' and jsonb_exists(${table.systemNotice}, 'kind') and ${table.direction} = 'outbound' and ${table.automatic})`,
+    ),
+    uniqueIndex('occurrence_conversation_messages_system_notice_delivery_unique')
+      .on(table.companyId, sql`(${table.systemNotice} ->> 'deliveryId')`)
+      .where(sql`${table.systemNotice} is not null`),
+    check(
       'occurrence_conversation_messages_status_check',
       sql`${table.status} is null or ${table.status} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_MESSAGE_STATUSES))})`,
     ),
@@ -356,6 +390,11 @@ export const occurrenceConversationMessages = pgTable(
     uniqueIndex('occurrence_conversation_messages_client_message_unique')
       .on(table.companyId, table.conversationId, table.direction, table.clientMessageId)
       .where(sql`${table.clientMessageId} is not null`),
+    /** Só a recebida tem e-mail detectado, e só o detectado pode ter saído. */
+    check(
+      'occurrence_conversation_messages_detected_email_check',
+      sql`(${table.detectedEmail} is null or ${table.direction} = 'inbound') and (${table.detectedEmailSentAt} is null or ${table.detectedEmail} is not null)`,
+    ),
     check(
       'occurrence_conversation_messages_body_length_check',
       sql`length(${table.bodyText}) <= 8000`,

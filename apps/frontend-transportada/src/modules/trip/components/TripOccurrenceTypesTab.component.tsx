@@ -15,13 +15,14 @@ type TripOccurrenceTypesTabProps = Readonly<{
  * aba está montada — `Tabs` monta só o painel ativo — e com `settings.manage`.
  */
 export function TripOccurrenceTypesTab({ canManage }: TripOccurrenceTypesTabProps) {
-  const { isSaving, query, saveMutation, saveType } = useOccurrenceTypeCatalogPanel({
+  const { editSaved, isSaving, query, saveMutation, saveType } = useOccurrenceTypeCatalogPanel({
     enabled: canManage,
   })
 
   return (
     <OccurrenceTypeCatalogPanel
       canManage={canManage}
+      editSaved={editSaved}
       isSaving={isSaving}
       loadStatus={canManage ? readOccurrenceTypeLoadStatus(query) : 'ready'}
       onRetry={() => void query.refetch()}

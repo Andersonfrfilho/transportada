@@ -50,3 +50,62 @@ export class ContractorReplyEmailAttachmentNotFoundError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 279 T3: um `emailId` que não é e-mail para boleto do cliente desta nota (outro cliente, outra empresa,
+ * outro tipo ou removido) responde como inexistente, e nada sai.
+ */
+export class ContractorReplyClientEmailNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERY_CLIENT_EMAIL_NOT_FOUND',
+      details: [{ field: 'emailIds', message: 'The e-mail was not found for this client' }],
+      message: 'The client e-mail was not found',
+      status: 404,
+    })
+  }
+}
+
+/** Spec 279 D2: guardar o endereço passaria de 10 e-mails do cliente no tipo; nada sai nem é guardado. */
+export class ContractorReplyClientEmailLimitReachedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERY_CLIENT_EMAIL_LIMIT_REACHED',
+      message: 'The client already has the maximum number of e-mails of this type',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 279 T4b (RF8): a mensagem não é da conversa do motorista nesta ocorrência ou não tem e-mail detectado. */
+export class DetectedClientEmailNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DETECTED_CLIENT_EMAIL_NOT_FOUND',
+      message: 'No detected e-mail was found in this message',
+      status: 404,
+    })
+  }
+}
+
+/** Spec 279 T6b: a entrega a tentar de novo não existe nesta ocorrência (ou não é do envio ao cliente). */
+export class ContractorReplyEmailDeliveryNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_EMAIL_DELIVERY_NOT_FOUND',
+      message: 'The e-mail delivery was not found for this occurrence',
+      status: 404,
+    })
+  }
+}
+
+/** Spec 279 T6b: só a entrega que o provedor recusou tenta de novo; as outras já saíram ou nunca sairiam. */
+export class ContractorReplyEmailRetryNotAllowedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_EMAIL_RETRY_NOT_ALLOWED',
+      message: 'Only a delivery the provider refused can be retried',
+      status: 409,
+    })
+  }
+}

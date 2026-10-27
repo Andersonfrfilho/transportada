@@ -285,6 +285,8 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
       reason: null,
       status: 'awaiting_operator',
     })
+    /** Spec 278 CA2: o acerto da conferência fica no histórico; o retorno não tem motivo. */
+    expect((await eventsOf(seeded)).map((event) => event.reason)).toEqual(['document_confirmed'])
   })
 
   it('boleto conferido (spec 276): o DANFE da nota vai ao operador como documento não confirmado', async () => {
@@ -337,6 +339,8 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
       reason: 'document_not_confirmed',
       status: 'needs_operator',
     })
+    /** Spec 278 CA2: sem texto lido, o histórico diz isso; o retorno segue com o motivo da decisão. */
+    expect((await eventsOf(seeded)).map((event) => event.reason)).toEqual(['document_without_text'])
   })
 
   /** Spec 267 RF9: o responsável em cópia que responde a todos entra na conversa, mas não é "a resposta da contratante". */
@@ -510,6 +514,81 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
         status: 'queued',
         subject: 'Boleto com novo vencimento',
         to_addresses: ['cliente@destino.example.test'],
+        trigger: 'automatic',
+      },
+    ])
+  })
+
+  /** Spec 279 RF10: o destinatário da nota com cadastro, os e-mails dele e o tipo em envio automático ao cliente. */
+  async function enableClientEmails(
+    seeded: Seeded,
+    emails: readonly { readonly address: string; readonly purpose: 'boleto' | 'invoice' }[],
+  ): Promise<void> {
+    const taxId = '12345678000188'
+    await database.execute(sql`
+      insert into nfe_participants (company_id, document_id, role, tax_id, legal_name)
+      select company_id, nfe_document_id, 'recipient', ${taxId}, 'Mercado Beta' from trip_documents
+      where company_id = ${seeded.companyId}`)
+    await database.execute(sql`
+      insert into delivery_clients (company_id, tax_id, display_name) values (${seeded.companyId}, ${taxId}, 'Mercado Beta')`)
+    for (const email of emails) {
+      await database.execute(sql`
+        insert into delivery_client_emails (company_id, tax_id, purpose, address, created_by_kind, created_by_user_id)
+        values (${seeded.companyId}, ${taxId}, ${email.purpose}, ${email.address}, 'office', ${crypto.randomUUID()})`)
+    }
+    await database.execute(sql`
+      update company_occurrence_types set client_email_type = 'boleto', client_email_send_mode = 'automatic'
+      where company_id = ${seeded.companyId}`)
+  }
+
+  async function clientDeliveriesOf(seeded: Seeded) {
+    const rows = await database.execute(sql`
+      select d.status, d.reason, d.trigger, d.address, d.actor_user_id, m.to_addresses,
+             (select count(*)::int from contractor_mail_outbox o where o.company_id = d.company_id and o.message_id = m.id) as outbox_events
+      from occurrence_contractor_reply_deliveries d
+      left join contractor_mail_messages m on m.company_id = d.company_id and m.id = d.mail_message_id
+      where d.company_id = ${seeded.companyId} and d.target = 'client_boleto_emails'
+      order by d.address`)
+    return [...rows]
+  }
+
+  it('spec 279 RF10: com o tipo em automático, o boleto vai a cada e-mail para boleto do cliente; a reentrega não repete', async () => {
+    const seeded = await seed('forward_automatic', { noteRecipientEmail: null })
+    await enableClientEmails(seeded, [
+      { address: 'financeiro@mercado.example.test', purpose: 'boleto' },
+      { address: 'dono@mercado.example.test', purpose: 'boleto' },
+      { address: 'nota@mercado.example.test', purpose: 'invoice' },
+    ])
+    const emailId = `re_${crypto.randomUUID()}`
+
+    await recordReply(seeded, emailId, [attachmentOf('application/pdf')])
+    await recordReply(seeded, emailId, [attachmentOf('application/pdf')])
+
+    expect(await clientDeliveriesOf(seeded)).toEqual(
+      ['dono@mercado.example.test', 'financeiro@mercado.example.test'].map((address) => ({
+        actor_user_id: null,
+        address,
+        outbox_events: 1,
+        reason: null,
+        status: 'queued',
+        to_addresses: [address],
+        trigger: 'automatic',
+      })),
+    )
+  })
+
+  it('spec 279 RF10: sem e-mail para boleto no cadastro, nada sai e fica "client_without_email"', async () => {
+    const seeded = await seed('forward_automatic', { noteRecipientEmail: null })
+    await enableClientEmails(seeded, [{ address: 'nota@mercado.example.test', purpose: 'invoice' }])
+
+    await recordReply(seeded, `re_${crypto.randomUUID()}`, [attachmentOf('application/pdf')])
+
+    expect(await clientDeliveriesOf(seeded)).toMatchObject([
+      {
+        address: null,
+        reason: 'client_without_email',
+        status: 'skipped',
+        to_addresses: null,
         trigger: 'automatic',
       },
     ])

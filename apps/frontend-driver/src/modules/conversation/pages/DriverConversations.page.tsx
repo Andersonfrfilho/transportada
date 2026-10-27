@@ -9,9 +9,10 @@ import type {
   ParticipantSubjectRef,
 } from '@adatechnology/conversations-ui/participant'
 import { useQueryClient } from '@tanstack/react-query'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ClientEmailSendButton } from '@/modules/client-email/components/ClientEmailSendButton.component'
 import { useDriverSession } from '@/modules/driver-trip/hooks/useDriverSession.hook'
 import { DriverBottomBar } from '@/modules/driver-trip/components/DriverBottomBar.component'
 import {
@@ -20,10 +21,14 @@ import {
   parseDriverConversationSubject,
 } from '@/modules/shared/driverRoute.service'
 
+import { DetectedClientEmailCard } from '../components/DetectedClientEmailCard.component'
+import { OccurrenceDetailsCard } from '../components/OccurrenceDetailsCard.component'
+import { OccurrenceDetailsSheet } from '../components/OccurrenceDetailsSheet.component'
 import { createComposerLockRenderer } from '../components/DriverComposerLock.component'
 import { useConversationOutbox } from '../hooks/useConversationOutbox.hook'
 import { useConversationPathname } from '../hooks/useConversationPathname.hook'
 import { useDriverConversationReopen } from '../hooks/useDriverConversationReopen.hook'
+import { useDriverMessageMenu } from '../hooks/useDriverMessageMenu.hook'
 import { useDriverQuickReplies } from '../hooks/useDriverQuickReplies.hook'
 import { useRouteOccurrenceStates } from '../hooks/useRouteOccurrenceStates.hook'
 import {
@@ -36,6 +41,7 @@ import { buildDriverSubjectGroups } from '../shared/driverSubjectGroups.constant
 import { renderDriverSubjectIcon } from '../shared/driverSubjectIcon.service'
 import { conversationSubjectKey } from '../shared/conversationSnapshot.service'
 import styles from '../styles/conversation.module.css'
+import detectedEmailStyles from '../styles/detectedClientEmail.module.css'
 
 const ParticipantConversations = lazy(async () => {
   const module = await import('@adatechnology/conversations-ui/participant')
@@ -48,14 +54,21 @@ export function DriverConversationsPage() {
   const api = getDriverConversationsApi()
   const { isOutboxFull, onRetryPending, pendingMessages } = useConversationOutbox(api)
   const quickReplies = useDriverQuickReplies()
+  const messageMenu = useDriverMessageMenu(api)
   const selected = parseDriverConversationSubject(useConversationPathname())
   const { canSync } = useDriverSession()
-  const { isSettled, stateByOccurrenceId } = useRouteOccurrenceStates(canSync)
+  const { isSettled, occurrenceById, stateByOccurrenceId, trip, tripId } =
+    useRouteOccurrenceStates(canSync)
+  const [detailsFor, setDetailsFor] = useState<string | undefined>(undefined)
   const isStateUnknown =
     selected !== undefined &&
     selected.subjectType === DRIVER_CONVERSATION_SUBJECT_TYPE &&
     isSettled &&
     !stateByOccurrenceId.has(selected.subjectId)
+  const selectedOccurrence =
+    selected?.subjectType === DRIVER_CONVERSATION_SUBJECT_TYPE
+      ? occurrenceById.get(selected.subjectId)
+      : undefined
   const { refusal } = useDriverConversationReopen({
     api,
     stateByOccurrenceId,
@@ -89,6 +102,11 @@ export function DriverConversationsPage() {
           {t('outboxFull')}
         </p>
       ) : null}
+      {messageMenu.notice === undefined ? null : (
+        <p role="status" className={styles.outboxNotice}>
+          {t(`share.${messageMenu.notice}`)}
+        </p>
+      )}
       {isStateUnknown ? (
         <p role="status" className={styles.outboxNotice}>
           {t('reopen.stateUnknown')}
@@ -98,6 +116,15 @@ export function DriverConversationsPage() {
         <p role="alert" className={styles.outboxNotice}>
           {t(`reopen.refused.${refusal}`)}
         </p>
+      )}
+      {selectedOccurrence === undefined ? null : (
+        <div className={styles.clientEmailBar}>
+          <ClientEmailSendButton
+            contextLabel={selectedOccurrence.type.name}
+            phraseKey={selectedOccurrence.resolution?.phraseKey}
+            occurrenceId={selectedOccurrence.id}
+          />
+        </div>
       )}
       <main className={styles.conversationMain}>
         <Suspense
@@ -114,18 +141,40 @@ export function DriverConversationsPage() {
             className={styles.conversationTheme ?? ''}
             labels={labels}
             locale={i18n.language}
+            messageMenu={messageMenu.options}
             renderSubjectIcon={renderDriverSubjectIcon}
             selected={selected}
             subjectGroups={subjectGroups}
             pendingMessages={pendingMessages}
             quickReplies={quickReplies}
             renderComposerLock={renderComposerLock}
+            renderSubjectCard={(conversation) =>
+              conversation.subjectType === DRIVER_CONVERSATION_SUBJECT_TYPE ? (
+                <div className={detectedEmailStyles.stack}>
+                  {/* Spec 279 T4b (RF8): o e-mail que ele escreveu na conversa, com o envio a um toque. */}
+                  <DetectedClientEmailCard
+                    canSync={canSync}
+                    occurrenceId={conversation.subjectId}
+                  />
+                  <OccurrenceDetailsCard onOpen={() => setDetailsFor(conversation.subjectId)} />
+                </div>
+              ) : null
+            }
             onBack={handleBack}
             onRetryPending={onRetryPending}
             onSelect={handleSelect}
           />
         </Suspense>
       </main>
+      {detailsFor === undefined ? null : (
+        <OccurrenceDetailsSheet
+          canSync={canSync}
+          occurrenceId={detailsFor}
+          onClose={() => setDetailsFor(undefined)}
+          trip={trip}
+          tripId={tripId}
+        />
+      )}
       <DriverBottomBar section="conversations" onSelect={navigateToDriverSection} />
     </div>
   )

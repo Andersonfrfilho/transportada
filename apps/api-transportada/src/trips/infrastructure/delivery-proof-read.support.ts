@@ -39,6 +39,10 @@ import {
   tripStops,
 } from '../../database/trip.schema.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
+import type {
+  ClientEmailSendMode,
+  ClientEmailType,
+} from '../../shared/delivery-client-email.constant.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
@@ -904,6 +908,8 @@ export async function findOccurrenceType(
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      clientEmailType: companyOccurrenceTypes.clientEmailType,
+      clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1085,6 +1091,8 @@ export async function listOccurrenceTypes(
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      clientEmailType: companyOccurrenceTypes.clientEmailType,
+      clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1354,6 +1362,8 @@ async function writeOccurrenceTypeRow(
     readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
     readonly contractorReplyResolveOnDelivery?: boolean | undefined
     readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+    readonly clientEmailType?: ClientEmailType | undefined
+    readonly clientEmailSendMode?: ClientEmailSendMode | undefined
     readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
     readonly contractorReplyMode?: ContractorReplyMode | undefined
     readonly contractorReplyWaitHours?: null | number | undefined
@@ -1452,6 +1462,10 @@ async function writeOccurrenceTypeRow(
     ...(input.duplicateRequestPolicy === undefined
       ? {}
       : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
+    ...(input.clientEmailType === undefined ? {} : { clientEmailType: input.clientEmailType }),
+    ...(input.clientEmailSendMode === undefined
+      ? {}
+      : { clientEmailSendMode: input.clientEmailSendMode }),
     ...(input.contractorReplyAcknowledgementQuickReplyId === undefined
       ? {}
       : {
@@ -1571,6 +1585,8 @@ async function writeOccurrenceTypeRow(
     contractorReplyAttachmentKind: saved.contractorReplyAttachmentKind,
     contractorReplyResolveOnDelivery: saved.contractorReplyResolveOnDelivery,
     duplicateRequestPolicy: saved.duplicateRequestPolicy,
+    clientEmailType: saved.clientEmailType,
+    clientEmailSendMode: saved.clientEmailSendMode,
     contractorReplyAcknowledgementQuickReplyId: saved.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: saved.contractorReplyMode,
     contractorReplyWaitHours: saved.contractorReplyWaitHours,

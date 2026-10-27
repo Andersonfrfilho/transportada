@@ -14,7 +14,9 @@ import {
   companyQuickReplies,
   contractorMailMessages,
   contractorMailOutbox,
+  contractorMailThreads,
   contractors,
+  identityUserProfiles,
   nfeDocuments,
   occurrenceContractorReplies,
   occurrenceContractorReplyDeliveries,
@@ -354,12 +356,23 @@ describe('a resposta da contratante move o retorno (spec 248 T4.5, CA02)', () =>
           readDocumentText,
         })
 
-        expect(await replyOf(database, companyId)).toMatchObject({
+        const reply = await replyOf(database, companyId)
+        expect(reply).toMatchObject({
           reason: null,
           replyAttachmentId: sent.attachmentIds[0],
           replyMessageId: sent.messageId,
           status: 'awaiting_operator',
         })
+        /** Spec 278 CA2: o acerto da conferência fica no histórico; o retorno não tem motivo. */
+        expect(await eventsOf(database, reply.id)).toEqual([
+          {
+            actorKind: 'system',
+            actorUserId: null,
+            fromStatus: 'awaiting_contractor',
+            reason: 'document_confirmed',
+            toStatus: 'awaiting_operator',
+          },
+        ])
       })
     },
     30_000,
@@ -492,10 +505,15 @@ describe('a resposta da contratante move o retorno (spec 248 T4.5, CA02)', () =>
 
         await apply(database, { companyId, conversationId, messageId: sent.messageId })
 
-        expect(await replyOf(database, companyId)).toMatchObject({
+        const reply = await replyOf(database, companyId)
+        expect(reply).toMatchObject({
           reason: 'document_not_confirmed',
           status: 'needs_operator',
         })
+        /** Spec 278 CA2: sem texto lido, o histórico diz isso; o retorno segue com o motivo da decisão. */
+        expect((await eventsOf(database, reply.id)).map((event) => event.reason)).toEqual([
+          'document_without_text',
+        ])
       })
     },
     30_000,
@@ -1201,6 +1219,232 @@ describe('a resposta automática à contratante (spec 276 T5)', () => {
 
         expect((await replyOf(database, companyId)).status).toBe('awaiting_operator')
         expect(await acknowledgementsOf(database, companyId)).toEqual([])
+      })
+    },
+    60_000,
+  )
+})
+
+/** Spec 278: o motorista com nome no cadastro, como a linha do tempo o mostra. */
+async function linkNamedDriver(database: TestDatabase, seeded: Seeded): Promise<string> {
+  const userId = await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+  await database.db.insert(identityUserProfiles).values({
+    contactAddress: 'motorista@example.test',
+    contactChannel: 'email',
+    email: 'motorista@example.test',
+    name: 'Motorista Sintético',
+    phone: '',
+    taxId: '',
+    userId,
+    username: `motorista-${userId.slice(0, 8)}`,
+  })
+  return userId
+}
+
+/** Spec 278 D6: o e-mail "Solicitado" como o worker o grava — a mensagem da 143 e a da conversa, sem anexo. */
+async function receiveMailWithoutAttachment(
+  database: TestDatabase,
+  seeded: Seeded,
+  conversationId: string,
+): Promise<string> {
+  const { companyId } = seeded.company
+  const [thread] = await database.db
+    .select({ id: contractorMailThreads.id })
+    .from(contractorMailThreads)
+    .where(
+      and(
+        eq(contractorMailThreads.companyId, companyId),
+        eq(contractorMailThreads.subjectId, seeded.occurrenceId),
+      ),
+    )
+  if (thread === undefined) throw new Error('EXPECTED_MAIL_THREAD')
+  const [mail] = await database.db
+    .insert(contractorMailMessages)
+    .values({
+      bodyText: 'Solicitado',
+      companyId,
+      direction: 'inbound',
+      fromAddress: 'compras@alfa.example.test',
+      interpretation: 'message',
+      subject: 'RE: ocorrência',
+      threadId: thread.id,
+      toAddresses: ['ocorrencias@example.test'],
+    })
+    .returning({ id: contractorMailMessages.id })
+  if (mail === undefined) throw new Error('EXPECTED_MAIL')
+  const [message] = await database.db
+    .insert(occurrenceConversationMessages)
+    .values({
+      bodyText: 'Solicitado',
+      channel: 'email',
+      companyId,
+      conversationId,
+      direction: 'inbound',
+      mailMessageId: mail.id,
+      senderAddress: 'compras@alfa.example.test',
+    })
+    .returning({ id: occurrenceConversationMessages.id })
+  if (message === undefined) throw new Error('EXPECTED_MESSAGE')
+  return message.id
+}
+
+async function timelineOf(database: TestDatabase, companyId: string, occurrenceId: string) {
+  const sources = await findTripOccurrenceTimelineSources(database.db, { companyId, occurrenceId })
+  return buildOccurrenceTimeline({ sources: sources ?? [] })
+}
+
+describe('a linha do tempo mostra o automático (spec 278 CA4)', () => {
+  testWithPostgres(
+    'boleto conferido, entregue ao motorista pelo app e lido por ele',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const other = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        await linkNamedDriver(database, seeded)
+        const conversationId = await openReply(database, seeded, 'forward_automatic', 'boleto_pdf')
+        const noteNumber = await noteNumberOf(database, seeded)
+        const requestedMessageId = await receiveMailWithoutAttachment(
+          database,
+          seeded,
+          conversationId,
+        )
+        await apply(database, { companyId, conversationId, messageId: requestedMessageId })
+        const sent = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+        const delivered = await apply(database, {
+          companyId,
+          conversationId,
+          messageId: sent.messageId,
+          readDocumentText: await documentTextReader(
+            database,
+            sent.attachmentIds[0] ?? '',
+            buildBoletoPdf(noteNumber),
+          ),
+        })
+        expect(delivered?.kind).toBe('delivered')
+        // Depois da entrega gravada agora: data fixa vira bomba-relógio quando o relógio passa dela.
+        const readAt = new Date(Date.now() + 60_000).toISOString()
+        await database.db
+          .update(occurrenceConversationMessages)
+          .set({ status: 'read', statusTimes: { queued: readAt, read: readAt } })
+          .where(eq(occurrenceConversationMessages.id, delivered?.driverMessageId ?? ''))
+
+        const timeline = await timelineOf(database, companyId, seeded.occurrenceId)
+
+        const received = timeline.events.find((event) => event.kind === 'contractor.mail.received')
+        expect(received).toMatchObject({ attachmentCount: 0, awaitingAttachment: true })
+        const check = timeline.events.find((event) => event.kind === 'contractor.reply.document')
+        expect(check).toMatchObject({
+          actor: { kind: 'system', name: null },
+          invoiceNumber: noteNumber,
+          isKey: true,
+          result: 'confirmed',
+          toStatus: 'reply_received',
+        })
+        const delivery = timeline.events.find((event) => event.kind === 'contractor.reply.delivery')
+        expect(delivery).toMatchObject({
+          actor: { kind: 'system', name: null },
+          attempt: 1,
+          channel: 'app_chat',
+          documentKind: 'boleto',
+          driverName: 'Motorista Sintético',
+          isKey: true,
+          reason: null,
+          status: 'sent',
+        })
+        const read = timeline.events.find((event) => event.kind === 'contractor.reply.driver_read')
+        expect(read).toMatchObject({
+          actor: { kind: 'driver', name: 'Motorista Sintético' },
+          documentKind: 'boleto',
+          occurredAt: readAt,
+        })
+        const automatic = timeline.events
+          .map((event) => event.kind)
+          .filter((kind) => kind.startsWith('contractor.reply.'))
+        expect(automatic).toEqual([
+          'contractor.reply.document',
+          'contractor.reply.delivery',
+          'contractor.reply.driver_read',
+        ])
+        expect(JSON.stringify(timeline)).not.toContain('example.test')
+
+        expect(
+          await findTripOccurrenceTimelineSources(database.db, {
+            companyId: other.company.companyId,
+            occurrenceId: seeded.occurrenceId,
+          }),
+        ).toBeNull()
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'motorista sem conta: a entrega falha com o motivo e a tentativa; nada de leitura',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const conversationId = await openReply(database, seeded, 'forward_automatic')
+        const sent = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+
+        await apply(database, { companyId, conversationId, messageId: sent.messageId })
+
+        const timeline = await timelineOf(database, companyId, seeded.occurrenceId)
+        expect(
+          timeline.events.filter((event) => event.kind === 'contractor.reply.delivery'),
+        ).toMatchObject([
+          {
+            attempt: 1,
+            documentKind: 'document',
+            driverName: null,
+            isKey: false,
+            reason: 'driver_without_account',
+            status: 'skipped',
+          },
+        ])
+        expect(timeline.events.some((event) => event.kind === 'contractor.reply.document')).toBe(
+          false,
+        )
+        expect(timeline.events.some((event) => event.kind === 'contractor.reply.driver_read')).toBe(
+          false,
+        )
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'PDF sem texto: "boleto não conferido" sem texto, e a etapa diz o motivo',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const conversationId = await openReply(database, seeded, 'forward_automatic', 'boleto_pdf')
+        const sent = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+
+        await apply(database, { companyId, conversationId, messageId: sent.messageId })
+
+        const timeline = await timelineOf(database, companyId, seeded.occurrenceId)
+        expect(
+          timeline.events.filter((event) => event.kind === 'contractor.reply.document'),
+        ).toMatchObject([{ isKey: false, result: 'without_text', toStatus: 'needs_operator' }])
+        expect(timeline.stages.at(-1)).toMatchObject({
+          reason: 'document_without_text',
+          stage: 'awaiting_operator',
+        })
       })
     },
     60_000,

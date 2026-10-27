@@ -89,6 +89,62 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
     ])
   })
 
+  test('a mensagem do sistema (spec 279 T6b) é lida com quem enviou; forma desconhecida some, a mensagem fica', async () => {
+    const notice = {
+      actorKind: 'driver' as const,
+      actorName: 'Marcos S.',
+      deliveryId: 'delivery-1',
+      kind: 'client_boleto_email_sent' as const,
+    }
+    const client = createClient(
+      Response.json({
+        data: {
+          conversations: [
+            {
+              id: 'conversation-1',
+              messages: [
+                {
+                  ...OUTBOUND,
+                  author: { kind: 'automatic' },
+                  bodyText: 'Boleto enviado para o e-mail: a@b.example.test',
+                  id: 'notice-1',
+                  systemNotice: notice,
+                },
+                {
+                  ...OUTBOUND,
+                  author: { kind: 'automatic' },
+                  id: 'notice-2',
+                  systemNotice: { kind: 'novo' },
+                },
+                {
+                  ...OUTBOUND,
+                  author: { kind: 'automatic' },
+                  id: 'notice-3',
+                  systemNotice: { ...notice, actorKind: 'robo' },
+                },
+                { ...OUTBOUND, id: 'plain' },
+              ],
+              participant: 'driver',
+              status: 'open',
+              unreadCount: 0,
+            },
+          ],
+        },
+      }),
+    )
+
+    const { conversations } = await client.listConversations({ occurrenceId: OCCURRENCE_ID })
+
+    expect(conversations[0]?.messages.map((message) => [message.id, message.systemNotice])).toEqual(
+      [
+        ['notice-1', notice],
+        ['notice-2', undefined],
+        ['notice-3', undefined],
+        ['plain', undefined],
+      ],
+    )
+  })
+
   test('lê o e-mail inteiro da resposta e descarta o vazio ou de outro tipo', async () => {
     const client = createClient(
       Response.json({

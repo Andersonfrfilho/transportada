@@ -84,6 +84,9 @@ export type ApiEnvironment = {
   /** Spec 264: teto de duração do áudio transcrito, informado em `GET /company-settings/audio-transcription`. */
   readonly audioTranscriptionMaxDurationMs: number
   readonly nfseCallbackBaseUrl: string | undefined
+  /** Trava de uma viagem por vez no pedido do motorista (nota abaixo do corte só pede na viagem atual). */
+  readonly driverTripLockEnabled: boolean
+  readonly driverTripLockMinScore: number
   /** Versão da API da Nota RP das emissões novas (ADR 0098); a tentativa guarda a que usou. */
   readonly nfseProviderApiVersion: NfseProviderApiVersion
   /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */

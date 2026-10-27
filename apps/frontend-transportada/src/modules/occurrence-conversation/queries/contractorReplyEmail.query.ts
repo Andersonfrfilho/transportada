@@ -43,3 +43,46 @@ export function useForwardContractorReplyByEmailMutation(occurrenceId: string) {
     },
   })
 }
+
+export type ForwardContractorReplyToClientInput = Readonly<{
+  address?: string
+  attachmentId?: string
+  emailIds?: readonly string[]
+  idempotencyKey: string
+  save?: boolean
+}>
+
+/** Spec 279 T5: o envio ao cliente grava delivery e, com `save`, o cadastro: as opções e o cadastro são relidos. */
+export function useForwardContractorReplyToClientMutation(occurrenceId: string) {
+  const queryClient = useQueryClient()
+  const client = getContractorReplyEmailClient()
+  return useMutation({
+    mutationFn: (input: ForwardContractorReplyToClientInput) =>
+      client.forwardContractorReplyToClient({ ...input, occurrenceId }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: [CONTRACTOR_REPLY_EMAIL_OPTIONS_QUERY_KEY, occurrenceId],
+      })
+      void queryClient.invalidateQueries({ queryKey: ['delivery-client-emails'] })
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    },
+  })
+}
+
+/** Spec 279 T6b (RF12): o "Tentar de novo" grava uma entrega nova; as opções, a conversa e o feed são relidos. */
+export function useRetryClientDeliveryMutation(occurrenceId: string) {
+  const queryClient = useQueryClient()
+  const client = getContractorReplyEmailClient()
+  return useMutation({
+    mutationFn: (input: Readonly<{ deliveryId: string }>) =>
+      client.retryContractorReplyClientDelivery({ ...input, occurrenceId }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: [CONTRACTOR_REPLY_EMAIL_OPTIONS_QUERY_KEY, occurrenceId],
+      })
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    },
+  })
+}

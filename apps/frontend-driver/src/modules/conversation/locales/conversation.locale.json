@@ -1,4 +1,43 @@
 {
+  "details": {
+    "open": "Ver detalhes",
+    "title": "Detalhes da ocorrência",
+    "close": "Fechar os detalhes",
+    "loading": "Carregando os detalhes…",
+    "unavailable": "Os detalhes desta ocorrência não estão disponíveis agora.",
+    "summary": {
+      "title": "Ocorrência",
+      "type": "Tipo",
+      "status": "Status",
+      "client": "Cliente",
+      "driver": "Motorista",
+      "recordedByMe": "Você",
+      "recordedByOffice": "Escritório",
+      "note": "Nota",
+      "noNote": "Sem observação."
+    },
+    "timeline": {
+      "title": "Andamento"
+    },
+    "boleto": {
+      "title": "Boleto e arquivos",
+      "none": "Nenhum arquivo ainda.",
+      "unnamed": "Arquivo"
+    },
+    "clientEmails": {
+      "title": "E-mails do cliente",
+      "none": "O cliente não tem e-mail guardado."
+    },
+    "sendState": {
+      "title": "Envio ao cliente",
+      "clientWithoutEmail": "Sem e-mail do cliente para o boleto",
+      "state": {
+        "sent": "Enviado",
+        "queued": "Na fila",
+        "failed": "Falhou"
+      }
+    }
+  },
   "groups": {
     "document": "Notas fiscais",
     "occurrence": "Ocorrências",
@@ -16,30 +55,41 @@
     "audioTooLarge": "Áudio grande demais para enviar.",
     "audioUnavailable": "Áudio indisponível",
     "back": "Voltar",
+    "cancelSelection": "Cancelar seleção",
     "channelApp": "App",
     "channelEmail": "E-mail",
     "channelPortal": "Portal",
     "channelWebchat": "Chat da web",
     "channelWhatsapp": "WhatsApp",
     "channelsGroup": "Canais desta conversa",
+    "closeMessageInfo": "Fechar os dados da mensagem",
     "closedNotice": "Esta conversa foi encerrada.",
     "collapseTranscription": "Recolher",
+    "conversationOptions": "Opções da conversa",
+    "copyMessage": "Copiar",
     "copyProtocol": "Copiar protocolo",
+    "copySelection": "Copiar",
     "discard": "Descartar",
     "discardAudio": "Descartar áudio",
     "downloadAttachment": "Baixar",
+    "downloadConversation": "Baixar conversa",
     "edit": "Editar",
     "emptyInbox": "Nenhuma conversa ainda",
     "emptyTranscription": "Nada foi dito no áudio",
     "filterAll": "Todas",
     "filtersGroup": "Filtrar por assunto",
     "inboxTitle": "Conversas",
+    "infoAuthor": "De",
+    "infoReadAt": "Lida em",
+    "infoSentAt": "Enviada em",
+    "infoStatus": "Situação",
     "loadError": "Não foi possível carregar. Tente de novo.",
     "loadMore": "Carregar mais",
     "loadOlder": "Mensagens anteriores",
     "loading": "Carregando…",
     "machineTranscription": "Transcrição gerada por máquina",
     "me": "Eu",
+    "messageInfo": "Dados da mensagem",
     "messageInputLabel": "Mensagem",
     "messageInputPlaceholder": "Escreva para o escritório",
     "messageOptions": "Opções da mensagem",
@@ -68,6 +118,9 @@
     "sectionAwaiting": "Espera sua resposta",
     "sectionClosed": "Encerradas",
     "sectionOther": "Outros",
+    "selectMessage": "Selecionar mensagem",
+    "selectMessages": "Selecionar mensagens",
+    "selectedCount": "{count} selecionadas",
     "send": "Enviar",
     "sendAudio": "Enviar áudio",
     "showFullTranscription": "Ver tudo",
@@ -114,5 +167,23 @@
     "stateUnknown": "Não foi possível confirmar se a ocorrência está resolvida"
   },
   "subjectFallback": "Ocorrência",
-  "title": "Conversas"
+  "title": "Conversas",
+  "detectedEmail": {
+    "question": "Enviar o boleto para {{address}}?",
+    "hint": "Você escreveu este e-mail na conversa. Nada sai sem o seu toque.",
+    "send": "Enviar",
+    "sendAndSave": "Enviar e guardar para o cliente",
+    "sending": "Enviando…",
+    "sent": "Boleto enviado para {{address}}.",
+    "savedNow": "O e-mail ficou guardado para este cliente.",
+    "notSent": "Não saiu para {{address}}. O escritório foi avisado.",
+    "dismiss": "Fechar",
+    "failure": "Não deu para enviar agora. Tente de novo.",
+    "offline": "Sem sinal. Tente de novo quando voltar a conexão."
+  },
+  "share": {
+    "item": "Compartilhar {{name}}",
+    "downloaded": "Arquivo baixado. Seu aparelho não compartilha arquivos direto.",
+    "failed": "Não foi possível compartilhar o arquivo. Tente de novo."
+  }
 }

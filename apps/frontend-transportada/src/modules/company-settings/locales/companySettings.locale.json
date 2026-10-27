@@ -292,6 +292,7 @@
     "hint": "Cada tipo declara em que momentos pode ser registrado e o que exige de prova. A exceção por CNPJ vence a regra geral: destinatário primeiro, depois contratante. O aviso ao contratante só sai nos tipos marcados.",
     "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
     "created": "Tipo criado. Configure o que ele exige e o e-mail abaixo.",
+    "saved": "Configuração salva. Vale para as próximas ocorrências.",
     "groupCount_one": "{{count}} tipo",
     "groupCount_other": "{{count}} tipos",
     "hiddenFields": {
@@ -321,6 +322,21 @@
     "redeliveryPolicyUnset": "Indefinido (não abre tratativa)",
     "redeliveryPolicyAllowed": "Admite reentrega",
     "redeliveryPolicyBlocked": "Não admite reentrega",
+    "clientEmailType": "Envio ao cliente",
+    "clientEmailTypeHint": "Vale para o botão \"Enviar ao cliente\" da ocorrência. Desligado: o botão não aparece e a API recusa o envio. Os outros valores dizem qual tipo de e-mail do cliente o botão usa.",
+    "clientEmailTypeOptions": {
+      "off": "Desligado",
+      "boleto": "E-mail de boleto",
+      "invoice": "E-mail de nota fiscal",
+      "finance": "E-mail do financeiro",
+      "general": "E-mail geral"
+    },
+    "clientEmailSendMode": "Envio do boleto ao cliente",
+    "clientEmailSendModeHint": "Manual: o boleto só sai pelo botão \"Enviar ao cliente\". Automático: quando o boleto é aceito, sai sozinho para todos os e-mails desse tipo no cadastro do cliente (precisa do assunto e do texto do e-mail preenchidos). Sem e-mail cadastrado, nada sai e a ocorrência avisa.",
+    "clientEmailSendModeOptions": {
+      "manual": "Manual",
+      "automatic": "Automático"
+    },
     "duplicateRequestPolicy": "Pedido repetido na mesma nota",
     "duplicateRequestPolicyOptions": {
       "while_request_open": "Bloquear enquanto o pedido estiver aberto",

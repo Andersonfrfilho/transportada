@@ -1,5 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  CLIENT_EMAIL_SEND_MODES,
+  CLIENT_EMAIL_TYPES,
   CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES_RANGE,
   CONTRACTOR_REPLY_ALERT_MAX_COUNT_RANGE,
   CONTRACTOR_REPLY_ALERT_MODES,
@@ -28,6 +30,10 @@ function allowingNull(check: FieldCheck): FieldCheck {
 }
 
 const TYPE_FIELD_CHECKS = {
+  /** Spec 279 RF9: `off` ou o tipo de e-mail do cliente. Aceito antes da API mandar. */
+  clientEmailType: (value: unknown) => isOneOf(value, CLIENT_EMAIL_TYPES),
+  /** Spec 279 RF10: `manual` ou `automatic`. Aceito antes da API mandar. */
+  clientEmailSendMode: (value: unknown) => isOneOf(value, CLIENT_EMAIL_SEND_MODES),
   /** Spec 276 T5: o id da resposta rápida da resposta automática, ou `null`. Aceito antes da API mandar. */
   contractorReplyAcknowledgementQuickReplyId: allowingNull(isString),
   contractorReplyAlertMaxCount: (value: unknown) =>

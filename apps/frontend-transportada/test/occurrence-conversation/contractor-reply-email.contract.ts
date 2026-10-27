@@ -9,17 +9,24 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  describeClientEmailSendState,
+  isContractorReplyBoletoAccepted,
   parseInformedAddress,
+  readClientEmailSendOutcome,
+  resolveClientEmailAction,
   readContractorReplyEmailOptions,
   readContractorReplyEmailOutcome,
   resolveEmailFailureKey,
   resolveInformedEmailAction,
   resolveNoteEmailAction,
+  type ContractorReplyEmailDelivery,
   type ContractorReplyEmailOptions,
 } from '../../src/modules/occurrence-conversation/shared/contractorReplyEmail.service'
 import { createOccurrenceConversationClient } from '../../src/modules/occurrence-conversation/shared/occurrenceConversationClient.service'
 
 const OPTIONS: ContractorReplyEmailOptions = {
+  clientEmailType: 'off',
+  clientEmails: [],
   deliveries: [],
   forwardToInformedEmail: 'manual',
   forwardToNoteRecipient: 'manual',
@@ -219,5 +226,293 @@ describe('o cliente HTTP do envio por e-mail', () => {
       method: 'GET',
       url: 'https://api.example.test/trip-occurrences/occurrence-1/contractor-reply/email-options',
     })
+  })
+})
+
+describe('o envio ao cliente do cadastro (spec 279 T5)', () => {
+  const WIRE = {
+    clientEmailType: 'boleto',
+    clientEmails: [{ addressMasked: 'f***@m***.com', emailId: 'e-1', label: 'financeiro' }],
+    deliveries: [],
+    forwardToInformedEmail: 'manual',
+    forwardToNoteRecipient: 'manual',
+    noteRecipient: { addressMasked: null, isAvailable: false },
+    sentCount: 0,
+    sentLimit: 5,
+  }
+
+  test('as opções trazem o tipo e os e-mails mascarados com o emailId', () => {
+    const options = readContractorReplyEmailOptions({ data: WIRE })
+    expect(options?.clientEmailType).toBe('boleto')
+    expect(options?.clientEmails).toEqual(WIRE.clientEmails)
+  })
+
+  test('resposta sem os campos novos vira off e lista vazia: sem botão', () => {
+    const legacy: Record<string, unknown> = { ...WIRE }
+    delete legacy.clientEmailType
+    delete legacy.clientEmails
+    const options = readContractorReplyEmailOptions({ data: legacy })
+    expect(options?.clientEmailType).toBe('off')
+    expect(options?.clientEmails).toEqual([])
+    expect(options && resolveClientEmailAction(options)).toEqual({ kind: 'hidden' })
+  })
+
+  test('off esconde; sem e-mail guardado vira Adicionar e-mail; com e-mail vira Enviar', () => {
+    const base = readContractorReplyEmailOptions({ data: WIRE })
+    if (base === null) throw new Error('OPTIONS_NULL')
+    expect(resolveClientEmailAction({ ...base, clientEmailType: 'off' })).toEqual({
+      kind: 'hidden',
+    })
+    expect(resolveClientEmailAction({ ...base, clientEmails: [] })).toEqual({ kind: 'add' })
+    expect(resolveClientEmailAction(base)).toEqual({ kind: 'send' })
+  })
+
+  test('a entrega ao cliente do cadastro entra no histórico', () => {
+    const options = readContractorReplyEmailOptions({
+      data: {
+        ...WIRE,
+        deliveries: [
+          {
+            addressMasked: 'f***@m***.com',
+            createdAt: '2026-10-26T20:00:00.000Z',
+            id: 'd-1',
+            reason: null,
+            status: 'queued',
+            target: 'client_boleto_emails',
+          },
+        ],
+      },
+    })
+    expect(options?.deliveries).toHaveLength(1)
+  })
+
+  test('o resultado por endereço é lido; forma inesperada é erro, nunca enviado', () => {
+    expect(
+      readClientEmailSendOutcome({
+        data: {
+          results: [{ addressMasked: 'f***@m***.com', kind: 'queued', reason: null }],
+          savedEmailId: 'e-9',
+        },
+      }),
+    ).toEqual({
+      results: [{ addressMasked: 'f***@m***.com', kind: 'queued', reason: null }],
+      savedEmailId: 'e-9',
+    })
+    expect(() => readClientEmailSendOutcome({ data: { results: [{ kind: 'queued' }] } })).toThrow()
+    expect(() => readClientEmailSendOutcome({})).toThrow()
+  })
+
+  test('a linha só oferece o botão com o boleto aceito', () => {
+    expect(isContractorReplyBoletoAccepted('delivered')).toBe(true)
+    expect(isContractorReplyBoletoAccepted('reply_received')).toBe(true)
+    expect(isContractorReplyBoletoAccepted('awaiting_contractor')).toBe(false)
+    expect(isContractorReplyBoletoAccepted('needs_operator')).toBe(false)
+  })
+
+  test('o cliente HTTP manda o alvo do cliente com emailIds, o novo endereço e save', async () => {
+    const requests: Array<{ body: unknown; headers: Headers; url: string }> = []
+    const client = createOccurrenceConversationClient({
+      apiUrl: 'https://api.example.test',
+      fetch: async (request) => {
+        requests.push({
+          body: JSON.parse(await request.clone().text()),
+          headers: request.headers,
+          url: request.url,
+        })
+        return Response.json(
+          {
+            data: {
+              results: [{ addressMasked: 'n***@x.com', kind: 'queued', reason: null }],
+              savedEmailId: 'e-2',
+            },
+          },
+          { status: 201 },
+        )
+      },
+      getAccessToken: () => Promise.resolve('token'),
+    })
+    await client.forwardContractorReplyToClient({
+      address: 'novo@x.com',
+      emailIds: ['e-1'],
+      idempotencyKey: 'client-email:abc',
+      occurrenceId: 'occurrence-1',
+      save: true,
+    })
+    expect(requests[0]?.body).toEqual({
+      address: 'novo@x.com',
+      emailIds: ['e-1'],
+      save: true,
+      target: 'client_boleto_emails',
+    })
+    expect(requests[0]?.headers.get('idempotency-key')).toBe('client-email:abc')
+    expect(requests[0]?.url).toBe(
+      'https://api.example.test/trip-occurrences/occurrence-1/contractor-reply/email-delivery',
+    )
+  })
+})
+
+const CLIENT_DELIVERY: ContractorReplyEmailDelivery = {
+  address: 'financeiro@mercado.example.test',
+  addressMasked: 'f***@m***.example.test',
+  createdAt: '2026-10-26T20:00:00.000Z',
+  id: 'delivery-1',
+  reason: null,
+  sentAt: null,
+  status: 'queued',
+  target: 'client_boleto_emails',
+}
+
+describe('o estado do envio ao cliente por endereço (spec 279 T6b, RF12)', () => {
+  test('Enviado leva a hora do envio; na fila, a hora em que entrou', () => {
+    expect(
+      describeClientEmailSendState([
+        { ...CLIENT_DELIVERY, sentAt: '2026-10-26T20:01:00.000Z', status: 'sent' },
+        {
+          ...CLIENT_DELIVERY,
+          address: 'dono@mercado.example.test',
+          createdAt: '2026-10-26T20:02:00.000Z',
+          id: 'delivery-2',
+        },
+      ]),
+    ).toEqual([
+      {
+        address: 'financeiro@mercado.example.test',
+        at: '2026-10-26T20:01:00.000Z',
+        canRetry: false,
+        deliveryId: 'delivery-1',
+        state: 'sent',
+      },
+      {
+        address: 'dono@mercado.example.test',
+        at: '2026-10-26T20:02:00.000Z',
+        canRetry: false,
+        deliveryId: 'delivery-2',
+        state: 'queued',
+      },
+    ])
+  })
+
+  test('a recusa do provedor oferece "Tentar de novo"; o anexo grande demais, não', () => {
+    const failed = describeClientEmailSendState([
+      { ...CLIENT_DELIVERY, reason: 'send_failed', status: 'failed' },
+      {
+        ...CLIENT_DELIVERY,
+        address: 'dono@mercado.example.test',
+        id: 'delivery-2',
+        reason: 'attachment_too_large_for_email',
+        status: 'failed',
+      },
+    ])
+    expect(failed.map((item) => [item.state, item.canRetry])).toEqual([
+      ['failed', true],
+      ['failed', false],
+    ])
+  })
+
+  test('depois do "Tentar de novo" vale a última tentativa do endereço, sem distinguir caixa', () => {
+    const items = describeClientEmailSendState([
+      { ...CLIENT_DELIVERY, reason: 'send_failed', status: 'failed' },
+      {
+        ...CLIENT_DELIVERY,
+        address: 'Financeiro@Mercado.example.test',
+        createdAt: '2026-10-26T20:05:00.000Z',
+        id: 'delivery-3',
+      },
+    ])
+    expect(items.map((item) => [item.deliveryId, item.state])).toEqual([['delivery-3', 'queued']])
+  })
+
+  test('só o envio ao cliente entra: o encaminhamento da nota e a entrega sem endereço ficam de fora', () => {
+    expect(
+      describeClientEmailSendState([
+        { ...CLIENT_DELIVERY, target: 'note_recipient_email' },
+        { ...CLIENT_DELIVERY, address: null, id: 'delivery-4', status: 'skipped' },
+        { ...CLIENT_DELIVERY, id: 'delivery-5', status: 'skipped' },
+      ]),
+    ).toEqual([])
+  })
+
+  test('o envio automático sem e-mail no cadastro (T3c) vira uma linha "sem e-mail do cliente", sem botão', () => {
+    const skipped: ContractorReplyEmailDelivery = {
+      ...CLIENT_DELIVERY,
+      address: null,
+      addressMasked: null,
+      id: 'delivery-skip',
+      reason: 'client_without_email',
+      status: 'skipped',
+    }
+    expect(describeClientEmailSendState([skipped])).toEqual([
+      {
+        address: null,
+        at: '2026-10-26T20:00:00.000Z',
+        canRetry: false,
+        deliveryId: 'delivery-skip',
+        state: 'skipped',
+      },
+    ])
+    // o operador cadastrou o e-mail e enviou depois: a linha do endereço vale, a do "sem e-mail" sai
+    expect(
+      describeClientEmailSendState([
+        skipped,
+        { ...CLIENT_DELIVERY, createdAt: '2026-10-26T20:30:00.000Z', id: 'delivery-later' },
+      ]).map((item) => item.deliveryId),
+    ).toEqual(['delivery-later'])
+  })
+
+  test('resposta antiga da API, sem endereço inteiro nem hora, ainda é lida', () => {
+    const options = readContractorReplyEmailOptions({
+      data: {
+        clientEmailType: 'boleto',
+        clientEmails: [],
+        deliveries: [
+          {
+            addressMasked: 'f***@m***.example.test',
+            createdAt: '2026-10-26T20:00:00.000Z',
+            id: 'delivery-1',
+            reason: null,
+            status: 'queued',
+            target: 'client_boleto_emails',
+          },
+        ],
+        forwardToInformedEmail: 'manual',
+        forwardToNoteRecipient: 'manual',
+        noteRecipient: { addressMasked: null, isAvailable: false },
+        sentCount: 0,
+        sentLimit: 5,
+      },
+    })
+    expect(options?.deliveries[0]).toMatchObject({ address: null, sentAt: null })
+    expect(describeClientEmailSendState(options?.deliveries ?? [])).toEqual([])
+  })
+
+  test('o cliente HTTP do "Tentar de novo" manda só o id da entrega, sem corpo e sem endereço', async () => {
+    const requests: Array<{ body: string; method: string; url: string }> = []
+    const client = createOccurrenceConversationClient({
+      apiUrl: 'https://api.example.test',
+      fetch: async (request) => {
+        requests.push({
+          body: await request.clone().text(),
+          method: request.method,
+          url: request.url,
+        })
+        return Response.json(
+          { data: { results: [{ addressMasked: 'f***@m***.com', kind: 'queued', reason: null }] } },
+          { status: 201 },
+        )
+      },
+      getAccessToken: () => Promise.resolve('token'),
+    })
+    const outcome = await client.retryContractorReplyClientDelivery({
+      deliveryId: 'delivery-1',
+      occurrenceId: 'occurrence-1',
+    })
+    expect(outcome.results.map((result) => result.kind)).toEqual(['queued'])
+    expect(requests).toEqual([
+      {
+        body: '',
+        method: 'POST',
+        url: 'https://api.example.test/trip-occurrences/occurrence-1/contractor-reply/email-deliveries/delivery-1/retry',
+      },
+    ])
   })
 })

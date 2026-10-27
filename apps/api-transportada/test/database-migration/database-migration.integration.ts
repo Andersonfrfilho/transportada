@@ -31,6 +31,13 @@ import { assertConversationEmailRead } from './conversation-email-read.assertion
 import { assertContractorReplyBoletoCheck } from './contractor-reply-boleto-check.assertion.js'
 import { assertContractorReplyResolveOnDelivery } from './contractor-reply-resolve-on-delivery.assertion.js'
 import { assertContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
+import { assertContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
+import { assertDeliveryClientEmails } from './delivery-client-emails.assertion.js'
+import { assertConversationSystemNotice } from './conversation-system-notice.assertion.js'
+import { assertOccurrenceTypeClientEmailType } from './occurrence-type-client-email-type.assertion.js'
+import { assertClientEmailSendMode } from './client-email-send-mode.assertion.js'
+import { assertConversationMessageDetectedEmail } from './conversation-message-detected-email.assertion.js'
+import { assertContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
 import { assertOccurrenceDuplicateRequestPolicy } from './occurrence-duplicate-request-policy.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
 import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
@@ -154,6 +161,52 @@ describe('Drizzle migration integration', () => {
          * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
+        /** Spec 279 T6b: coluna aditiva da mensagem da conversa; a mais nova de todas. */
+        await assertConversationSystemNotice({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 279 T4b: colunas aditivas da mensagem da conversa; antes da T6b e da T3c. */
+        await assertConversationMessageDetectedEmail({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 279 T3c: a mais nova; antes da T3 e da 278, cujos rollbacks recriam as CHECKs de motivo e de alvo. */
+        await assertClientEmailSendMode({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 279 T3b: coluna aditiva do tipo; a mais nova, antes do rollback da T1. */
+        await assertOccurrenceTypeClientEmailType({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 279 T1: tabela nova e independente; o rollback e o reapply não tocam nas outras. */
+        await assertDeliveryClientEmails({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        /** Spec 279 T3: antes da 276 T5, cujo rollback recria a CHECK do alvo sem o alvo do cliente. */
+        await assertContractorReplyClientBoletoEmails({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 278: a mais nova antes da 276 T2, que recria a mesma CHECK do evento no rollback. */
+        await assertContractorReplyEventDocumentReasons({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
         await assertContractorReplyBoletoCheck({
           companyId: identityFixture.companyId,
           connectionString,

@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test'
 
 import { OccurrenceConversationRequestError } from '../../src/modules/occurrence-conversation/shared/occurrenceConversationClient.service'
 import type {
+  ContractorReplyEmailDelivery,
   ContractorReplyEmailOptions,
   ContractorReplyEmailOutcome,
 } from '../../src/modules/occurrence-conversation/shared/contractorReplyEmail.service'
@@ -20,6 +21,8 @@ import { renderWithQueryClient, settle, waitFor } from './renderHook.helper'
 import '../../src/modules/shared/i18n/i18n.service'
 
 const OPTIONS: ContractorReplyEmailOptions = {
+  clientEmailType: 'off',
+  clientEmails: [],
   deliveries: [],
   forwardToInformedEmail: 'manual',
   forwardToNoteRecipient: 'manual',
@@ -31,11 +34,17 @@ const OPTIONS: ContractorReplyEmailOptions = {
 const fakes: {
   forward: (input: Record<string, unknown>) => Promise<ContractorReplyEmailOutcome>
   options: ContractorReplyEmailOptions | null
+  reads: number
+  retried: Array<Record<string, unknown>>
   sent: Array<Record<string, unknown>>
+  sentToClient: Array<Record<string, unknown>>
 } = {
   forward: () => Promise.resolve({ addressMasked: 'c***@d***.example.test', kind: 'queued' }),
   options: OPTIONS,
+  reads: 0,
+  retried: [],
   sent: [],
+  sentToClient: [],
 }
 
 void mock.module(
@@ -46,11 +55,33 @@ void mock.module(
         fakes.sent.push(input)
         return fakes.forward(input)
       },
-      readContractorReplyEmailOptions: () => Promise.resolve(fakes.options),
+      forwardContractorReplyToClient: (input: Record<string, unknown>) => {
+        fakes.sentToClient.push(input)
+        return Promise.resolve({
+          results: [{ addressMasked: 'f***@m***.example.test', kind: 'queued', reason: null }],
+          savedEmailId: input.save === true ? 'email-9' : null,
+        })
+      },
+      retryContractorReplyClientDelivery: (input: Record<string, unknown>) => {
+        fakes.retried.push(input)
+        return Promise.resolve({
+          results: [{ addressMasked: 'f***@m***.example.test', kind: 'queued', reason: null }],
+        })
+      },
+      readContractorReplyEmailOptions: () => {
+        fakes.reads += 1
+        return Promise.resolve(fakes.options)
+      },
     }),
   }),
 )
 
+const { ClientBoletoEmailAction } = await import(
+  '../../src/modules/occurrence-conversation/components/ClientBoletoEmailAction.component'
+)
+const { ClientEmailSendState } = await import(
+  '../../src/modules/occurrence-conversation/components/ClientEmailSendState.component'
+)
 const { ContractorReplyEmailActions } = await import(
   '../../src/modules/occurrence-conversation/components/ContractorReplyEmailActions.component'
 )
@@ -228,5 +259,216 @@ describe('o boleto da contratante por e-mail (spec 248 T4.7)', () => {
     await click(buttonByText(/Enviar ao cliente da nota/u))
     await waitFor(() => expect(text()).toContain('passa de 10 MB'))
     expect(text()).not.toContain('Na fila')
+  })
+})
+
+async function mountAction(isEnabled = true): Promise<void> {
+  await renderWithQueryClient(
+    createElement(ClientBoletoEmailAction, {
+      isEnabled,
+      occurrenceId: 'occurrence-1',
+      placement: 'page',
+    }),
+  )
+  await settle()
+}
+
+async function typeClientAddress(value: string): Promise<void> {
+  const field = document.body.querySelector<HTMLInputElement>('input[type="text"]')
+  if (field === null) throw new Error('FIELD_NOT_FOUND')
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
+  await act(async () => {
+    descriptor?.set?.call(field, value)
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+    await Promise.resolve()
+  })
+}
+
+const CLIENT_OPTIONS: ContractorReplyEmailOptions = {
+  ...OPTIONS,
+  clientEmailType: 'boleto',
+  clientEmails: [
+    { addressMasked: 'f***@m***.example.test', emailId: 'email-1', label: 'financeiro' },
+    { addressMasked: 'd***@m***.example.test', emailId: 'email-2', label: '' },
+  ],
+}
+
+describe('o botão Enviar ao cliente (spec 279 T5)', () => {
+  beforeEach(() => {
+    document.body.replaceChildren()
+    fakes.options = CLIENT_OPTIONS
+    fakes.reads = 0
+    fakes.sentToClient = []
+  })
+
+  it('tipo off: nenhum botão', async () => {
+    fakes.options = { ...CLIENT_OPTIONS, clientEmailType: 'off' }
+    await mountAction()
+    expect(buttons()).toEqual([])
+  })
+
+  it('ocorrência sem retorno: nenhum botão', async () => {
+    fakes.options = null
+    await mountAction()
+    expect(buttons()).toEqual([])
+  })
+
+  it('boleto ainda não aceito (desligado): nem consulta a API', async () => {
+    await mountAction(false)
+    expect(buttons()).toEqual([])
+    expect(fakes.reads).toBe(0)
+  })
+
+  it('sem e-mail guardado o botão é Adicionar e-mail e o escritório digita o seu', async () => {
+    fakes.options = { ...CLIENT_OPTIONS, clientEmails: [] }
+    await mountAction()
+    await click(buttonByText(/Adicionar e-mail/u))
+
+    expect(text()).toContain('ainda não tem e-mail guardado')
+    expect(buttonByText(/^Enviar$/u).disabled).toBe(true)
+    await typeClientAddress('novo@mercado.example.test')
+    await click(buttonByText(/^Enviar$/u))
+
+    expect(fakes.sentToClient).toHaveLength(1)
+    expect(fakes.sentToClient[0]).toMatchObject({
+      address: 'novo@mercado.example.test',
+      save: false,
+    })
+    expect(String(fakes.sentToClient[0]?.idempotencyKey)).toMatch(/^client-email:/u)
+    await waitFor(() => expect(text()).toContain('f***@m***.example.test'))
+  })
+
+  it('com e-mails guardados vem tudo marcado e o envio vai por emailId, sem endereço', async () => {
+    await mountAction()
+    await click(buttonByText(/Enviar ao cliente/u))
+
+    expect(text()).toContain('f***@m***.example.test')
+    await click(buttonByText(/^Enviar$/u))
+
+    expect(fakes.sentToClient[0]).toMatchObject({ emailIds: ['email-1', 'email-2'] })
+    expect(fakes.sentToClient[0]).not.toHaveProperty('address')
+    await waitFor(() => expect(text()).toContain('na fila para envio'))
+  })
+
+  it('endereço novo inválido: a mensagem fica no campo e a API não é chamada', async () => {
+    await mountAction()
+    await click(buttonByText(/Enviar ao cliente/u))
+    await typeClientAddress('a@b.com,c@d.com')
+    await click(buttonByText(/^Enviar$/u))
+
+    expect(text()).toContain('Informe um endereço de e-mail só')
+    expect(fakes.sentToClient).toEqual([])
+  })
+
+  it('guardar no cadastro só vale com endereço novo e vai como save', async () => {
+    await mountAction()
+    await click(buttonByText(/Enviar ao cliente/u))
+    await typeClientAddress('novo@mercado.example.test')
+    const save = [
+      ...document.body.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+    ].find(
+      (box) => !box.disabled && box.closest('label')?.textContent?.includes('Guardar no cadastro'),
+    )
+    if (save === undefined) throw new Error('SAVE_NOT_FOUND')
+    await click(save)
+    await click(buttonByText(/^Enviar$/u))
+
+    expect(fakes.sentToClient[0]).toMatchObject({
+      address: 'novo@mercado.example.test',
+      save: true,
+    })
+    await waitFor(() => expect(text()).toContain('ficou guardado no cadastro do cliente'))
+  })
+})
+
+const CLIENT_DELIVERY: ContractorReplyEmailDelivery = {
+  address: 'financeiro@mercado.example.test',
+  addressMasked: 'f***@m***.example.test',
+  createdAt: '2026-10-26T20:00:00.000Z',
+  id: 'delivery-1',
+  reason: null,
+  sentAt: null,
+  status: 'queued',
+  target: 'client_boleto_emails',
+}
+
+function setDeliveries(deliveries: ContractorReplyEmailDelivery[]): void {
+  fakes.options = { ...OPTIONS, clientEmailType: 'boleto', deliveries }
+}
+
+async function mountSendState(isStandalone = false): Promise<void> {
+  await renderWithQueryClient(
+    createElement(ClientEmailSendState, { isStandalone, occurrenceId: 'occurrence-1' }),
+  )
+  await settle()
+}
+
+const retryButton = (): HTMLButtonElement | undefined =>
+  buttons().find((button) => /Tentar de novo/.test(button.textContent ?? ''))
+
+/** Spec 279 T6b (RF12): o estado do envio ao cliente montado de verdade — Enviado, Na fila, Falhou com "Tentar de novo" (só na recusa do provedor, mandando só o id) e a linha "sem e-mail do cliente" do envio automático (T3c). */
+describe('o estado do envio ao cliente (spec 279 T6b)', () => {
+  beforeEach(() => {
+    document.body.replaceChildren()
+    fakes.options = OPTIONS
+    fakes.retried = []
+  })
+
+  it('mostra o endereço inteiro com Enviado e Na fila, sem botão', async () => {
+    setDeliveries([
+      { ...CLIENT_DELIVERY, sentAt: '2026-10-26T20:01:00.000Z', status: 'sent' },
+      { ...CLIENT_DELIVERY, address: 'dono@mercado.example.test', id: 'delivery-2' },
+    ])
+    await mountSendState()
+    expect(text()).toContain('financeiro@mercado.example.test')
+    expect(text()).toContain('dono@mercado.example.test')
+    expect(text()).toContain('Enviado')
+    expect(text()).toContain('Na fila')
+    expect(retryButton()).toBeUndefined()
+  })
+
+  it('Falhou por recusa do provedor oferece "Tentar de novo" e manda só o id da entrega', async () => {
+    setDeliveries([{ ...CLIENT_DELIVERY, reason: 'send_failed', status: 'failed' }])
+    await mountSendState()
+    expect(text()).toContain('Falhou')
+    await act(async () => {
+      retryButton()?.click()
+      await Promise.resolve()
+    })
+    await settle()
+    expect(fakes.retried).toEqual([{ deliveryId: 'delivery-1', occurrenceId: 'occurrence-1' }])
+  })
+
+  it('anexo grande demais falha sem botão', async () => {
+    setDeliveries([
+      { ...CLIENT_DELIVERY, reason: 'attachment_too_large_for_email', status: 'failed' },
+    ])
+    await mountSendState()
+    expect(text()).toContain('Falhou')
+    expect(retryButton()).toBeUndefined()
+  })
+
+  it('o envio automático sem e-mail do cliente mostra o motivo, sem botão', async () => {
+    setDeliveries([
+      {
+        ...CLIENT_DELIVERY,
+        address: null,
+        addressMasked: null,
+        reason: 'client_without_email',
+        status: 'skipped',
+      },
+    ])
+    await mountSendState()
+    expect(text()).toContain('Sem e-mail do cliente para o boleto')
+    expect(retryButton()).toBeUndefined()
+  })
+
+  it('sem envio nenhum: o painel diz que ainda não enviou; a página da ocorrência esconde a seção', async () => {
+    setDeliveries([])
+    await mountSendState()
+    expect(text()).toContain('O boleto ainda não foi enviado ao cliente.')
+    document.body.replaceChildren()
+    await mountSendState(true)
+    expect(text()).toBe('')
   })
 })

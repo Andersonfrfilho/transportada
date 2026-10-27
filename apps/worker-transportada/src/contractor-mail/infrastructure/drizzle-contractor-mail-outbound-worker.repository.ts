@@ -9,6 +9,11 @@ import {
   contractorMailSettings,
 } from '../../database/contractor-mail.schema.js'
 import type { ContractorMailTransport } from '../domain/contractor-mail.constant.js'
+import {
+  CONTRACTOR_REPLY_EMAIL_TARGETS,
+  CONTRACTOR_REPLY_MAIL_DELIVERY_TARGETS,
+} from '../../shared/occurrence-contractor-reply.constant.js'
+import { recordClientBoletoEmailSentNotice } from '../../occurrence-conversation/infrastructure/client-boleto-email-sent-notice.support.js'
 import { applyOccurrenceConversationMailStatus } from '../../occurrence-conversation/infrastructure/drizzle-occurrence-conversation-mail.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -53,9 +58,16 @@ export type ContractorReplyForwardRecord = {
   readonly replyToAddress: null | string
 }
 
-const FORWARD_TARGETS_SQL = sql`('note_recipient_email', 'informed_email')`
-/** Spec 276 T5: as entregas por e-mail cujo status segue o da mensagem — os encaminhamentos e a resposta automática. */
-const MAIL_DELIVERY_TARGETS_SQL = sql`('note_recipient_email', 'informed_email', 'contractor_acknowledgement')`
+/** Spec 279 T3: as listas vêm da constante espelhada da API, para um alvo novo nunca ficar fora do status. */
+function targetListSql(targets: readonly string[]) {
+  return sql`(${sql.join(
+    targets.map((target) => sql`${target}`),
+    sql`, `,
+  )})`
+}
+
+const FORWARD_TARGETS_SQL = targetListSql(CONTRACTOR_REPLY_EMAIL_TARGETS)
+const MAIL_DELIVERY_TARGETS_SQL = targetListSql(CONTRACTOR_REPLY_MAIL_DELIVERY_TARGETS)
 
 /**
  * O consumidor carrega a mensagem e a configuração — não mais a conversa (correção pós-entrega da
@@ -207,6 +219,12 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
                 and target in ${MAIL_DELIVERY_TARGETS_SQL}
                 and status = 'queued'`,
         )
+        /** O e-mail já saiu: o aviso na conversa nunca desfaz o fechamento da entrega (savepoint, sem log do endereço). */
+        await transaction
+          .transaction((notice) =>
+            recordClientBoletoEmailSentNotice(notice, { companyId, mailMessageId: messageId }),
+          )
+          .catch(() => undefined)
       })
     },
 

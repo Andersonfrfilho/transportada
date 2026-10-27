@@ -487,7 +487,10 @@ import { createResolveOccurrenceUseCase } from './trips/application/resolve-occu
 import { DrizzleOccurrenceResolutionUnitOfWork } from './trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
+import { createMeClientBoletoEmailsRoutes } from './occurrence-conversation/presentation/me-client-boleto-emails.routes.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
+import { createDriverClientBoletoEmailsUseCase } from './occurrence-conversation/application/driver-client-boleto-emails.use-case.js'
+import { createDetectedClientEmail } from './occurrence-conversation/infrastructure/detected-client-email.factory.js'
 import { createMeQuickReplyRoutes } from './occurrence-conversation/presentation/me-quick-replies.routes.js'
 import { createMeSubjectConversationRoutes } from './occurrence-conversation/presentation/me-subject-conversation.routes.js'
 import { createMeSubjectConversationWriteRoutes } from './occurrence-conversation/presentation/me-subject-conversation-write.routes.js'
@@ -809,6 +812,9 @@ import {
   listContractorOccurrences,
 } from './contractor-portal/infrastructure/contractor-occurrence.query.js'
 import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
+import { createDeliveryClientEmailsUseCase } from './delivery-clients/application/delivery-client-emails.use-case.js'
+import { DrizzleDeliveryClientEmailRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-email.repository.js'
+import { createDeliveryClientEmailRoutes } from './delivery-clients/presentation/delivery-client-email.routes.js'
 import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
 import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
 import { createOccurrenceStatementUseCase } from './delivery-clients/application/occurrence-statement.use-case.js'
@@ -979,6 +985,7 @@ import { createAggregateApplicationAttachmentReviewRoutes } from './fleet/presen
 import { createAggregateApplicationAttachmentReviewUseCase } from './fleet/application/aggregate-application-attachment-review.use-case.js'
 import { createDrizzleAggregateApplicationAttachmentReviewRepository } from './fleet/infrastructure/drizzle-aggregate-application-attachment-review.repository.js'
 import { startFieldTrip } from './trips/application/start-field-trip.use-case.js'
+import { listDriverOnRoadTripIds } from './trips/infrastructure/driver-on-road-trips.query.js'
 
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
@@ -1717,6 +1724,8 @@ export function bootstrap(): Bun.Server<undefined> {
         logger,
         audioTranscriptionMaxDurationMs: config.audioTranscriptionMaxDurationMs,
         nfseProviderApiVersion: config.nfseProviderApiVersion,
+        driverTripLockEnabled: config.driverTripLockEnabled,
+        driverTripLockMinScore: config.driverTripLockMinScore,
         postalCodeProviders: config.postalCodeProviders,
         resolveClientIp,
         routingMatrixUrl: config.routingMatrixUrl,
@@ -1850,8 +1859,11 @@ function createAnonymousRoutes({
       buildMessageHook: (instance) =>
         createOccurrenceConversationWhatsAppHook({
           clock: () => new Date(),
+          /** Spec 279 T4b (RF8): o e-mail do motorista na conversa e o "1" que confirma, pelo mesmo número. */
+          detectedClientEmail: createDetectedClientEmail(database, logger),
           inbound: createDrizzleWhatsAppConversationInboundRepository(database),
           logger,
+          sendText: (to, body) => instance.module.channel.sendText(to, body),
           next: whatsappCommandHook(instance),
           rateLimiter: occurrenceConversationWhatsAppRateLimiter,
         }),
@@ -2086,6 +2098,9 @@ type CreateApplicationRoutesParams = {
   readonly audioTranscriptionMaxDurationMs: ApiEnvironment['audioTranscriptionMaxDurationMs']
   /** ADR 0098: a versão da API da Nota RP que as emissões novas gravam na tentativa. */
   readonly nfseProviderApiVersion: ApiEnvironment['nfseProviderApiVersion']
+  /** Trava de uma viagem por vez no pedido de prorrogação do motorista (flag e corte de nota). */
+  readonly driverTripLockEnabled: ApiEnvironment['driverTripLockEnabled']
+  readonly driverTripLockMinScore: ApiEnvironment['driverTripLockMinScore']
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
   readonly resolveClientIp: ClientIpResolver
   readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
@@ -2155,6 +2170,8 @@ function createApplicationRoutes({
   logger,
   audioTranscriptionMaxDurationMs,
   nfseProviderApiVersion,
+  driverTripLockEnabled,
+  driverTripLockMinScore,
   postalCodeProviders,
   resolveClientIp,
   routingMatrixUrl,
@@ -2260,6 +2277,9 @@ function createApplicationRoutes({
   })
   const deliveryClients = createDeliveryClientsUseCase({
     repository: new DrizzleDeliveryClientRepository(database),
+  })
+  const deliveryClientEmails = createDeliveryClientEmailsUseCase({
+    repository: new DrizzleDeliveryClientEmailRepository(database),
   })
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
@@ -3538,6 +3558,8 @@ function createApplicationRoutes({
         }),
         unitOfWork: createDrizzleContractorReplyDeliveryUnitOfWork(database),
       }),
+      /** Spec 279 T4b (RF8): o cartão do e-mail que o motorista escreveu na conversa. */
+      detectedClientEmail: createDetectedClientEmail(database, logger),
       /** Spec 248 T4.7 (RF10–RF12): o mesmo boleto por e-mail ao cliente da nota ou a um endereço informado. */
       emailOptions: createDrizzleContractorReplyEmailReader(database),
       forwardByEmail: createForwardContractorReplyByEmailUseCase({
@@ -3723,6 +3745,7 @@ function createApplicationRoutes({
       }),
       reply: createReplyMyOccurrenceConversationUseCase({
         clock: () => new Date(),
+        detectedClientEmail: createDetectedClientEmail(database, logger),
         fingerprintService,
         logger,
         reopenNotifier: occurrenceResolutionNotifier,
@@ -3735,6 +3758,19 @@ function createApplicationRoutes({
         newId: () => crypto.randomUUID(),
         repository: createDrizzleConversationUploadRepository(database),
         storage: storageGateway,
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /** Spec 279 T4 (RF2/RF3): os e-mails do cliente para o boleto no `/me` do motorista, pelo trilho da 248. */
+    ...createMeClientBoletoEmailsRoutes({
+      clientBoletoEmails: createDriverClientBoletoEmailsUseCase({
+        detectedClientEmail: createDetectedClientEmail(database, logger),
+        emailOptions: createDrizzleContractorReplyEmailReader(database),
+        forwardByEmail: createForwardContractorReplyByEmailUseCase({
+          logger,
+          unitOfWork: createDrizzleContractorReplyEmailUnitOfWork(database),
+        }),
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
@@ -3763,6 +3799,7 @@ function createApplicationRoutes({
     ...createMeSubjectConversationWriteRoutes({
       reply: createReplyMySubjectConversationUseCase({
         clock: () => new Date(),
+        detectedClientEmail: createDetectedClientEmail(database, logger),
         fingerprintService,
         logger,
         reopenNotifier: occurrenceResolutionNotifier,
@@ -4046,6 +4083,13 @@ function createApplicationRoutes({
       replaceWindows: { execute: (input) => deliveryClients.replaceWindows(input) },
       updateClient: { execute: (input) => deliveryClients.update(input) },
     }),
+    ...createDeliveryClientEmailRoutes({
+      addEmail: { execute: (input) => deliveryClientEmails.add(input) },
+      listEmails: { execute: (input) => deliveryClientEmails.list(input) },
+      removeEmail: { execute: (input) => deliveryClientEmails.remove(input) },
+      resolveClientIp,
+      updateEmailLabel: { execute: (input) => deliveryClientEmails.updateLabel(input) },
+    }),
     ...createFreightRegionRoutes({
       createRegion: { execute: (input) => freightRegions.create(input) },
       deleteRegion: { execute: (input) => freightRegions.delete(input) },
@@ -4177,6 +4221,20 @@ function createApplicationRoutes({
             listDocumentProducts: (query) => listDocumentProducts(database, query),
           },
           notifier: driverOccurrenceNotifier,
+          /** Trava de uma viagem por vez: só o pedido do motorista no app; o escritório não passa por aqui. */
+          tripLock: {
+            enabled: driverTripLockEnabled,
+            listOnRoadTripIds: (query) => listDriverOnRoadTripIds(database, query),
+            minimumScore: driverTripLockMinScore,
+            readScore: async (query) =>
+              (
+                await driverScoreRepository.readScores({
+                  companyId: query.companyId,
+                  driverIds: [query.driverId],
+                  now: new Date(),
+                })
+              ).get(query.driverId) ?? null,
+          },
           unitOfWork: driverFieldReports,
         })
         /** Spec 183 T802: o aviso automático à contratante é do tipo, não do canal de registro. */

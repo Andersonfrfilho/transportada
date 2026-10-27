@@ -2361,12 +2361,12 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  flex-basis: 100%;
   gap: var(--space-2);
-  justify-content: flex-start;
+  margin-inline-start: auto;
   min-height: 44px;
   padding: 0;
   text-decoration: underline;
+  white-space: nowrap;
 }
 
 /* Spec 266: o alerta das ocorrências em aberto, ao lado da fila e do sino — vermelho porque pede ação. */

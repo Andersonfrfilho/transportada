@@ -89,8 +89,13 @@ describeDatabase('o boleto levado a um terceiro sai pelo worker (spec 248 T4.7)'
 
   async function seed(input: {
     readonly companyContact: boolean
+    /** Spec 279 T3: o alvo do cadastro do cliente segue o mesmo caminho dos encaminhamentos da 248. */
+    readonly target?: 'client_boleto_emails' | 'note_recipient_email'
+    /** Spec 279 T6b: quem enviou, com a conversa do motorista da ocorrência; ausente: a ocorrência não tem conversa. */
+    readonly driverConversation?: 'driver' | 'office' | 'system'
     readonly uploadObject: boolean
   }): Promise<Seeded> {
+    const target = input.target ?? 'note_recipient_email'
     const companyId = crypto.randomUUID()
     const userId = crypto.randomUUID()
     const contractorId = crypto.randomUUID()
@@ -160,9 +165,24 @@ describeDatabase('o boleto levado a um terceiro sai pelo worker (spec 248 T4.7)'
     await database.execute(sql`
       insert into contractor_mail_messages (id, company_id, thread_id, direction, actor_user_id, from_address, subject, to_addresses, body_text, delivery_status)
       values (${forwardMailId}, ${companyId}, ${threadId}, 'outbound', ${userId}, 'ocorrencias@transportadora.example.test', 'Boleto prorrogado', array[${RECIPIENT}], 'Segue o boleto.', 'queued')`)
+    const actor = input.driverConversation === 'system' ? null : userId
     await database.execute(sql`
       insert into occurrence_contractor_reply_deliveries (id, company_id, reply_id, target, trigger, status, address, attachment_id, mail_message_id, actor_user_id, idempotency_key)
-      values (${deliveryId}, ${companyId}, ${replyId}, 'note_recipient_email', 'operator', 'queued', ${RECIPIENT}, ${attachmentId}, ${forwardMailId}, ${userId}, ${`note_recipient_email:${deliveryId.replaceAll('-', '')}`})`)
+      values (${deliveryId}, ${companyId}, ${replyId}, ${target}, ${actor === null ? 'automatic' : 'operator'}, 'queued', ${RECIPIENT}, ${attachmentId}, ${forwardMailId}, ${actor}, ${`${target}:${deliveryId.replaceAll('-', '')}`})`)
+    if (input.driverConversation !== undefined) {
+      const driverUserId = input.driverConversation === 'driver' ? userId : crypto.randomUUID()
+      if (driverUserId !== userId) {
+        await database.execute(
+          sql`insert into identity_users (id, status) values (${driverUserId}, 'active')`,
+        )
+      }
+      await database.execute(sql`
+        insert into identity_user_profiles (user_id, name, username, contact_channel, contact_address)
+        values (${userId}, 'Marta Operadora', ${userId}, 'email', ${`${userId}@x.example.test`})`)
+      await database.execute(sql`
+        insert into occurrence_conversations (id, company_id, occurrence_kind, occurrence_id, participant, driver_user_id)
+        values (${crypto.randomUUID()}, ${companyId}, 'document', ${occurrenceId}, 'driver', ${driverUserId})`)
+    }
     if (input.companyContact) {
       await database.execute(sql`
         insert into company_contacts (company_id, kind, value, position)
@@ -251,6 +271,157 @@ describeDatabase('o boleto levado a um terceiro sai pelo worker (spec 248 T4.7)'
       sql`select delivery_status from contractor_mail_messages where id = ${seeded.mailMessageId}`,
     )
     expect(message?.delivery_status).toBe('sent')
+  })
+
+  it('alvo do cadastro do cliente (spec 279 T3): sai com o PDF, sem token, e a entrega fecha como sent', async () => {
+    const seeded = await seed({
+      companyContact: true,
+      target: 'client_boleto_emails',
+      uploadObject: true,
+    })
+
+    const { bodies, run } = send(seeded)
+    expect(await run).toMatchObject({ outcome: 'sent' })
+
+    expect(bodies[0]).toMatchObject({
+      attachments: [{ filename: 'boleto.pdf' }],
+      headers: {},
+      reply_to: COMPANY_CONTACT,
+      to: [RECIPIENT],
+    })
+    expect(JSON.stringify(bodies[0])).not.toContain('resposta.transportadora.example.test')
+    const delivery = await deliveryOf(seeded)
+    expect(delivery?.status).toBe('sent')
+    expect(delivery?.sent_at).not.toBeNull()
+  })
+
+  it('alvo do cadastro do cliente sem o PDF no bucket: a entrega falha com send_failed', async () => {
+    const seeded = await seed({
+      companyContact: false,
+      target: 'client_boleto_emails',
+      uploadObject: false,
+    })
+
+    const { bodies, run } = send(seeded)
+    expect(await run).toMatchObject({ outcome: 'failed', reason: 'attachment_unavailable' })
+    expect(bodies).toEqual([])
+    expect(await deliveryOf(seeded)).toMatchObject({ reason: 'send_failed', status: 'failed' })
+  })
+
+  async function noticesOf(seeded: Seeded) {
+    return database.execute<{
+      automatic: boolean
+      body_text: string
+      direction: string
+      system_notice: Record<string, string | null>
+    }>(
+      sql`select m.body_text, m.direction, m.automatic, m.system_notice
+            from occurrence_conversation_messages m
+           where m.company_id = ${seeded.companyId} and m.system_notice is not null`,
+    )
+  }
+
+  describe('o aviso na conversa do motorista (spec 279 T6b, RF12)', () => {
+    it('o e-mail do cliente que saiu grava "Boleto enviado para o e-mail: …" com quem enviou', async () => {
+      const seeded = await seed({
+        companyContact: false,
+        driverConversation: 'office',
+        target: 'client_boleto_emails',
+        uploadObject: true,
+      })
+      const { run } = send(seeded)
+      expect(await run).toMatchObject({ outcome: 'sent' })
+
+      const notices = await noticesOf(seeded)
+      expect(notices).toHaveLength(1)
+      expect(notices[0]).toMatchObject({
+        automatic: true,
+        body_text: `Boleto enviado para o e-mail: ${RECIPIENT}`,
+        direction: 'outbound',
+        system_notice: {
+          actorKind: 'office',
+          actorName: 'Marta Operadora',
+          deliveryId: seeded.deliveryId,
+          kind: 'client_boleto_email_sent',
+        },
+      })
+    })
+
+    it('quando o motorista envia pelo app, o aviso diz que foi ele', async () => {
+      const seeded = await seed({
+        companyContact: false,
+        driverConversation: 'driver',
+        target: 'client_boleto_emails',
+        uploadObject: true,
+      })
+      await send(seeded).run
+      expect((await noticesOf(seeded))[0]?.system_notice).toMatchObject({ actorKind: 'driver' })
+    })
+
+    it('o envio automático não tem nome: o ator é o Sistema', async () => {
+      const seeded = await seed({
+        companyContact: false,
+        driverConversation: 'system',
+        target: 'client_boleto_emails',
+        uploadObject: true,
+      })
+      await send(seeded).run
+      expect((await noticesOf(seeded))[0]?.system_notice).toMatchObject({
+        actorKind: 'system',
+        actorName: null,
+      })
+    })
+
+    it('fechar a entrega de novo não grava um segundo aviso', async () => {
+      const seeded = await seed({
+        companyContact: false,
+        driverConversation: 'office',
+        target: 'client_boleto_emails',
+        uploadObject: true,
+      })
+      await send(seeded).run
+      const repository = createDrizzleContractorMailOutboundWorkerRepository(database)
+      await repository.markMessageSent({
+        companyId: seeded.companyId,
+        messageId: seeded.mailMessageId,
+        providerEmailId: 'em_again',
+      })
+      expect(await noticesOf(seeded)).toHaveLength(1)
+    })
+
+    it('falha do provedor não grava aviso; a entrega fica failed para o "Tentar de novo"', async () => {
+      const seeded = await seed({
+        companyContact: false,
+        driverConversation: 'office',
+        target: 'client_boleto_emails',
+        uploadObject: false,
+      })
+      await send(seeded).run
+      expect(await noticesOf(seeded)).toEqual([])
+      expect(await deliveryOf(seeded)).toMatchObject({ reason: 'send_failed', status: 'failed' })
+    })
+
+    it('o encaminhamento à nota da 248 não grava aviso', async () => {
+      const seeded = await seed({
+        companyContact: false,
+        driverConversation: 'office',
+        target: 'note_recipient_email',
+        uploadObject: true,
+      })
+      await send(seeded).run
+      expect(await noticesOf(seeded)).toEqual([])
+    })
+
+    it('ocorrência sem conversa do motorista: o estado fica na entrega e nenhuma conversa nasce', async () => {
+      const seeded = await seed({
+        companyContact: false,
+        target: 'client_boleto_emails',
+        uploadObject: true,
+      })
+      await send(seeded).run
+      expect(await deliveryOf(seeded)).toMatchObject({ status: 'sent' })
+      expect(await noticesOf(seeded)).toEqual([])
+    })
   })
 
   it('empresa sem e-mail de contato: nenhum Reply-To', async () => {

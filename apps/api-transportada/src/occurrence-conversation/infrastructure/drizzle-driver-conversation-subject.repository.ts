@@ -26,6 +26,10 @@ import {
   CONVERSATION_PROTOCOL_UNIQUE_CONSTRAINT,
 } from '../domain/driver-subject-conversation.constant.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import {
+  describeSystemNoticeAuthor,
+  readSystemNotice,
+} from '../domain/occurrence-conversation-system-notice.policy.js'
 import { createConversationTranscriptionReadPort } from './conversation-transcription.query.js'
 import { listSubjectConversationRows } from './driver-conversation-subject.query.js'
 import { findMySubjectByIdentity } from './driver-subject-lookup.query.js'
@@ -255,6 +259,7 @@ export function createDriverSubjectTransactionPort(
           direction: messages.direction,
           id: messages.id,
           status: messages.status,
+          systemNotice: messages.systemNotice,
         })
         .from(messages)
         .leftJoin(authorProfile, eq(authorProfile.userId, messages.authorUserId))
@@ -267,7 +272,16 @@ export function createDriverSubjectTransactionPort(
         )
         .orderBy(desc(messages.createdAt), desc(messages.id))
         .limit(input.limit)
-      return newestFirst.toReversed()
+      return newestFirst
+        .map(({ systemNotice, ...message }) => {
+          const notice = readSystemNotice(systemNotice)
+          return {
+            ...message,
+            authorName: describeSystemNoticeAuthor(notice, message.authorName),
+            ...(notice === undefined ? {} : { systemNotice: notice }),
+          }
+        })
+        .toReversed()
     },
   }
 }

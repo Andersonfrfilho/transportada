@@ -9,5 +9,15 @@
   },
   "enabledPlugins": {
     "oh-my-claudecode@omc": true
+  },
+  "permissions": {
+    "allow": [
+      "mcp__Railway__list-variables",
+      "mcp__Railway__get-service-config",
+      "mcp__Railway__set-variables",
+      "mcp__Railway__restart-service",
+      "mcp__Railway__redeploy",
+      "mcp__Railway__get-bucket-credentials"
+    ]
   }
 }

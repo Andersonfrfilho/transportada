@@ -6513,3 +6513,9 @@ button.occurrenceCaseBadge {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* Spec 279 T5: o botão do cliente fica ao lado do "Abrir" na célula de ações da linha. */
+.occurrenceClientEmail {
+  display: inline-flex;
+  margin-right: var(--space-2);
+}

@@ -49,6 +49,7 @@
       "whatsapp": "WhatsApp"
     },
     "automatic": "Aviso automático do tipo de ocorrência",
+    "system": "Sistema",
     "unverified": "Remetente não confirmado",
     "unverifiedHint": "O e-mail chegou sem assinatura do domínio do remetente: o endereço pode ter sido escrito por outra pessoa.",
     "copy": "Cópia",
@@ -245,7 +246,8 @@
       "title": "Boleto enviado por e-mail",
       "target": {
         "note_recipient_email": "Cliente da nota",
-        "informed_email": "E-mail informado"
+        "informed_email": "E-mail informado",
+        "client_boleto_emails": "Cadastro do cliente"
       },
       "status": {
         "queued": "na fila",
@@ -549,5 +551,93 @@
     "forwardToContractor": "Encaminhar à contratante",
     "forwarded": "Encaminhada",
     "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
+  },
+  "clientEmail": {
+    "title": "Enviar ao cliente",
+    "hint": "O boleto vai em anexo, com o assunto e o texto do tipo da ocorrência. Sai um e-mail por endereço.",
+    "open": "Enviar ao cliente",
+    "add": "Adicionar e-mail",
+    "close": "Fechar",
+    "saved": "E-mails do cliente",
+    "noneSaved": "Este cliente ainda não tem e-mail guardado. Informe um abaixo.",
+    "otherAddress": "Outro e-mail",
+    "save": "Guardar no cadastro do cliente",
+    "cancel": "Cancelar",
+    "send": "Enviar",
+    "sending": "Enviando…",
+    "done": "Concluir",
+    "savedNow": "O e-mail ficou guardado no cadastro do cliente.",
+    "result": {
+      "queued": "na fila para envio",
+      "already_queued": "já enviado antes",
+      "skipped": "não enviado",
+      "failed": "falhou"
+    },
+    "failure": {
+      "off": "Este tipo de ocorrência não envia ao cliente. Confira a aba Tipos.",
+      "registryLimit": "O cliente já tem o máximo de e-mails guardados. Envie sem guardar ou remova algum na tela do cliente.",
+      "emailGone": "Um dos e-mails foi removido do cadastro. Feche e abra de novo."
+    }
+  },
+  "details": {
+    "open": "Ver detalhes",
+    "title": "Detalhes da ocorrência",
+    "close": "Fechar os detalhes",
+    "loading": "Carregando os detalhes da ocorrência",
+    "error": "Não foi possível carregar os detalhes da ocorrência.",
+    "noDriver": "Sem motorista",
+    "summary": {
+      "title": "Ocorrência",
+      "type": "Tipo",
+      "status": "Status",
+      "client": "Cliente",
+      "driver": "Motorista",
+      "note": "Nota",
+      "noNote": "Sem observação."
+    },
+    "timeline": {
+      "title": "Linha do tempo",
+      "empty": "Nenhum evento ainda.",
+      "error": "Não foi possível carregar a linha do tempo."
+    },
+    "boleto": {
+      "title": "Boleto",
+      "none": "A contratante ainda não mandou o boleto."
+    },
+    "clientEmails": {
+      "title": "E-mails do cliente",
+      "none": "O cliente não tem e-mail guardado.",
+      "noClient": "Esta ocorrência não tem cliente identificado pela nota.",
+      "error": "Não foi possível carregar os e-mails do cliente."
+    },
+    "sendState": {
+      "title": "Envio ao cliente",
+      "none": "O boleto ainda não foi enviado ao cliente.",
+      "error": "Não foi possível carregar o estado do envio.",
+      "state": {
+        "sent": "Enviado",
+        "queued": "Na fila",
+        "failed": "Falhou"
+      },
+      "clientWithoutEmail": "Sem e-mail do cliente para o boleto",
+      "retry": "Tentar de novo",
+      "retrying": "Enviando…",
+      "retryError": "Não foi possível tentar de novo. Confira o e-mail da empresa e tente outra vez."
+    }
+  },
+  "detectedEmail": {
+    "title": "E-mail do cliente na conversa",
+    "question": "Enviar o boleto para {{address}}?",
+    "hint": "O motorista escreveu este e-mail na conversa. Nada sai sem um toque.",
+    "send": "Enviar",
+    "sendAndSave": "Enviar e guardar para o cliente",
+    "sending": "Enviando…",
+    "sent": "Boleto enviado para {{address}}.",
+    "savedNow": "O e-mail ficou guardado no cadastro do cliente.",
+    "notSent": "Não saiu para {{address}}. Confira o histórico do boleto.",
+    "dismiss": "Fechar",
+    "failure": {
+      "notFound": "Este e-mail não está mais pendente. A conversa foi atualizada."
+    }
   }
 }

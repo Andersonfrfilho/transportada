@@ -21,6 +21,8 @@ export function useOccurrenceTypeCatalogPanel(input: Readonly<{ enabled: boolean
   const isSavingRef = useRef(false)
   const queuedByTypeId = useRef(new Map<string, OccurrenceTypeSaveInput>())
   const [hasQueued, setHasQueued] = useState(false)
+  /** Spec 278 D7: a última edição de um tipo existente foi gravada — a tela confirma até o próximo salvamento. */
+  const [editSaved, setEditSaved] = useState(false)
 
   const query = useQuery({
     enabled: input.enabled,
@@ -48,13 +50,16 @@ export function useOccurrenceTypeCatalogPanel(input: Readonly<{ enabled: boolean
     let next: OccurrenceTypeSaveInput | undefined = first
     try {
       while (next !== undefined) {
+        const isEdit = next.occurrenceTypeId !== null
         await saveMutation.mutateAsync(next)
         const [queuedKey, queued] = queuedByTypeId.current.entries().next().value ?? []
         if (queuedKey !== undefined) queuedByTypeId.current.delete(queuedKey)
         setHasQueued(queuedByTypeId.current.size > 0)
+        if (queued === undefined) setEditSaved(isEdit)
         next = queued
       }
     } catch {
+      setEditSaved(false)
       next = undefined
     } finally {
       isSavingRef.current = false
@@ -67,6 +72,7 @@ export function useOccurrenceTypeCatalogPanel(input: Readonly<{ enabled: boolean
    * conjunto acumulado, então a última entrada de cada tipo contém as anteriores e basta guardá-la.
    */
   function saveType(save: OccurrenceTypeSaveInput): void {
+    setEditSaved(false)
     const queueKey = save.occurrenceTypeId ?? NEW_TYPE_QUEUE_KEY
     if (isSavingRef.current && queueKey !== NEW_TYPE_QUEUE_KEY) {
       queuedByTypeId.current.set(queueKey, save)
@@ -77,5 +83,11 @@ export function useOccurrenceTypeCatalogPanel(input: Readonly<{ enabled: boolean
     void drain(save)
   }
 
-  return { isSaving: saveMutation.isPending || hasQueued, query, saveMutation, saveType }
+  return {
+    editSaved,
+    isSaving: saveMutation.isPending || hasQueued,
+    query,
+    saveMutation,
+    saveType,
+  }
 }

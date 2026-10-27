@@ -1,0 +1,184 @@
+/* Spec 279 T6c: o detalhe da ocorrência ao lado da conversa (desktop) ou em folha (celular, abaixo de 40rem). */
+
+.backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 70%, transparent);
+}
+
+.side,
+.sheet {
+  position: fixed;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.side {
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: min(26rem, 90vw);
+  border-inline-start: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+}
+
+.sheet {
+  inset-inline: 0;
+  bottom: 0;
+  max-height: 85dvh;
+  border-block-start: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+.head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  text-transform: uppercase;
+}
+
+.facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.facts dt {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-size: var(--field-font-size-compact);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.noteLabel {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-size: var(--field-font-size-compact);
+}
+
+.note {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.list,
+.timeline {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.timeline li {
+  display: grid;
+  gap: 0.125rem;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 0.1875rem solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+}
+
+.timeline time,
+.timelineActor,
+.labelNote {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+/* Spec 279 T6b (RF12): o estado do envio ao cliente, uma linha por endereço. */
+.sendList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sendRow {
+  display: grid;
+  gap: var(--space-1);
+  padding-block-end: var(--space-2);
+  border-block-end: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+  overflow-wrap: anywhere;
+}
+
+.sendStateLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.sendStateSent {
+  color: var(--color-ready);
+}
+
+.sendStateQueued {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+}
+
+.sendStateFailed {
+  color: var(--color-alert);
+}

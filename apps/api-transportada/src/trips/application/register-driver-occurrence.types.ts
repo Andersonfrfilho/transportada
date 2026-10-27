@@ -50,6 +50,23 @@ export type DriverOccurrenceReadPort = OccurrenceTypeOverridesReadPort &
     }): Promise<readonly (PricedDocumentProduct & { readonly description: string })[]>
   }
 
+/**
+ * Trava de uma viagem por vez (só o pedido do motorista no app). Ausente é sem trava: o escritório e os
+ * dublês de teste não passam. `enabled: false` é a flag desligada.
+ */
+export type DriverTripLockPort = {
+  readonly enabled: boolean
+  readonly minimumScore: number
+  listOnRoadTripIds(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<readonly string[]>
+  readScore(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<null | number>
+}
+
 /** Spec 247 (T4.4): um item marcado pelo motorista — código, quantidade e o valor pago opcional. */
 export type DriverOccurrenceItemInput = DriverOccurrenceItemRequest
 
@@ -98,5 +115,6 @@ export type RegisterDriverOccurrenceInput = FieldTripLocator & {
    * anexo de foto. Ausente é "sem assinatura", válido para todo tipo cuja assinatura não seja `required`.
    */
   readonly signatureObjectId?: string | null | undefined
+  readonly tripLock?: DriverTripLockPort | undefined
   readonly unitOfWork: DriverFieldReportUnitOfWork
 }

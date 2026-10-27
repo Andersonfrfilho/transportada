@@ -21,6 +21,7 @@ import { checkBoletoDocument } from '../domain/contractor-reply-document.policy.
 import {
   decideContractorReply,
   requiresContractorReplyDocumentCheck,
+  resolveContractorReplyEventReason,
 } from '../domain/contractor-reply.policy.js'
 import {
   deliverContractorReplyToDriver,
@@ -28,6 +29,7 @@ import {
 } from './contractor-reply-driver-delivery.support.js'
 import { findContractorReplyDocumentNote } from './contractor-reply-document-note.support.js'
 import { queueContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.support.js'
+import { queueContractorReplyToClientEmails } from './contractor-reply-client-email-forward.support.js'
 import { queueContractorReplyToNoteRecipient } from './contractor-reply-note-recipient-forward.support.js'
 
 export type ContractorReplyAutomaticDelivery = Extract<
@@ -189,20 +191,25 @@ export async function applyContractorReplyToMessage(
   const decisionInput = { attachments, reply: { config, status: reply.status } }
   /** As if the content were confirmed: says which single PDF the boleto check has to read, if any. */
   const firstDecision = decideContractorReply({ ...decisionInput, documentConfirmed: true })
-  const decision =
+  const documentChecked =
     firstDecision.kind === 'accept' && requiresContractorReplyDocumentCheck(config.attachmentKind)
-      ? decideContractorReply({
-          ...decisionInput,
-          documentConfirmed: await isBoletoConfirmed(queryable, {
-            companyId,
-            readDocumentText: params.readDocumentText,
-            replyId: reply.id,
-            storedObjectId: attachments.find(
-              (attachment) => attachment.id === firstDecision.attachmentId,
-            )?.storedObjectId,
-          }),
-        })
-      : firstDecision
+  let documentTextRead = false
+  const decision = documentChecked
+    ? decideContractorReply({
+        ...decisionInput,
+        documentConfirmed: await isBoletoConfirmed(queryable, {
+          companyId,
+          onTextRead: (text) => {
+            documentTextRead = text.trim() !== ''
+          },
+          readDocumentText: params.readDocumentText,
+          replyId: reply.id,
+          storedObjectId: attachments.find(
+            (attachment) => attachment.id === firstDecision.attachmentId,
+          )?.storedObjectId,
+        }),
+      })
+    : firstDecision
   if (decision.kind === 'ignore') return undefined
 
   const isAccepted = decision.kind === 'accept'
@@ -231,7 +238,8 @@ export async function applyContractorReplyToMessage(
     actorKind: 'system',
     companyId,
     fromStatus: reply.status,
-    reason,
+    /** Spec 278 D1: o histórico guarda o resultado da conferência do boleto; o retorno, o motivo da decisão. */
+    reason: resolveContractorReplyEventReason({ decision, documentChecked, documentTextRead }),
     replyId: reply.id,
     toStatus,
   })
@@ -247,6 +255,8 @@ export async function applyContractorReplyToMessage(
   })
   /** RF10: o mesmo boleto sai ao cliente da nota quando o tipo liga o envio automático; falha dele não desfaz nada acima. */
   await queueContractorReplyToNoteRecipient(queryable, { companyId, replyId: reply.id })
+  /** Spec 279 RF10: e aos e-mails do cadastro do cliente, quando o tipo liga o envio automático; mesma regra de falha. */
+  await queueContractorReplyToClientEmails(queryable, { companyId, replyId: reply.id })
   /** Spec 276 T5: entregue ao motorista, a contratante recebe a resposta rápida do tipo (uma por conversa), se ligada. */
   if (delivery.kind === 'delivered') {
     await queueContractorReplyAcknowledgement(queryable, { companyId, replyId: reply.id })
@@ -259,6 +269,7 @@ async function isBoletoConfirmed(
   queryable: TripQueryable,
   params: {
     readonly companyId: string
+    readonly onTextRead: (text: string) => void
     readonly readDocumentText: ((storedObjectId: string) => Promise<string>) | undefined
     readonly replyId: string
     readonly storedObjectId: string | undefined
@@ -271,5 +282,6 @@ async function isBoletoConfirmed(
       ? Promise.resolve('')
       : readDocumentText(storedObjectId),
   ])
+  params.onTextRead(text)
   return checkBoletoDocument({ note, text }).confirmed
 }

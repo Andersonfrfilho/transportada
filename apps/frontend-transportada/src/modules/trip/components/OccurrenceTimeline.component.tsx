@@ -12,6 +12,7 @@ import { useTripOccurrenceTimelineQuery } from '../queries/tripOccurrenceFeed.qu
 import { resolveOccurrenceCancellationMark } from '../shared/occurrenceCancellation.service'
 import {
   describeOccurrenceTimelineEvent,
+  describeOccurrenceTimelineEventDetail,
   filterOccurrenceTimelineEvents,
   formatOccurrenceElapsed,
   formatOccurrenceGap,
@@ -24,6 +25,7 @@ import {
   type OccurrenceTimelineDuration,
   type OccurrenceTimelineEvent,
   type OccurrenceTimelineFilter,
+  type OccurrenceTimelineSentence,
   type OccurrenceTimelineStage,
   type OccurrenceTimelineTone,
 } from '../shared/tripOccurrenceTimeline.service'
@@ -72,15 +74,26 @@ function TimingValue({
   )
 }
 
+/** `status` e `reason` chegam como chave de locale (o status é a da coluna da listagem): traduz aqui. */
+function translateSentenceValues(
+  sentence: OccurrenceTimelineSentence,
+  t: (key: string) => string,
+): Readonly<Record<string, number | string>> {
+  const values = { ...sentence.values }
+  for (const name of ['reason', 'status'] as const) {
+    const value = values[name]
+    if (typeof value === 'string') values[name] = t(value)
+  }
+  return values
+}
+
 function TimelineItem({ event }: Readonly<{ event: OccurrenceTimelineEvent }>) {
   const { t } = useTranslation('trip')
   const formatMoment = useMomentFormatter()
   const sentence = describeOccurrenceTimelineEvent(event)
-  /** O status da tratativa chega como chave de locale (a da coluna da listagem): traduz aqui. */
-  const values =
-    typeof sentence.values.status === 'string'
-      ? { ...sentence.values, status: t(sentence.values.status) }
-      : sentence.values
+  const values = translateSentenceValues(sentence, t)
+  /** Spec 278: a linha de detalhe do que o sistema fez (a conferência, a entrega, o e-mail sem anexo). */
+  const detail = describeOccurrenceTimelineEventDetail(event)
   const actor =
     event.actor.name === null
       ? t(`occurrenceTimeline.actor.${event.actor.kind}`)
@@ -120,6 +133,11 @@ function TimelineItem({ event }: Readonly<{ event: OccurrenceTimelineEvent }>) {
           ) : null}
           {t(sentence.key, values)}
         </p>
+        {detail === null ? null : (
+          <p className={styles.occurrenceTimelineNote}>
+            {t(detail.key, translateSentenceValues(detail, t))}
+          </p>
+        )}
         {event.kind === 'case.transition' && event.note.trim() !== '' ? (
           <p className={styles.occurrenceTimelineNote}>{event.note}</p>
         ) : null}

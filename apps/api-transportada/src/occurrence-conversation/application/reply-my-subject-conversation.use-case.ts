@@ -26,6 +26,7 @@ import {
   assertTripIsCurrent,
   recordOccurrenceReopened,
 } from './driver-occurrence-reopen.service.js'
+import type { DetectedClientEmailUseCase } from './detected-client-email.use-case.js'
 import { enrichAudioAttachments } from './conversation-audio-enrichment.service.js'
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
 import {
@@ -106,6 +107,8 @@ async function resolveConversationId(
 
 export function createReplyMySubjectConversationUseCase(dependencies: {
   readonly clock: () => Date
+  /** Spec 279 T4b (RF8): o e-mail que o motorista escreve na ocorrência depois do boleto aceito. */
+  readonly detectedClientEmail?: Pick<DetectedClientEmailUseCase, 'onDriverMessage'>
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly logger?: ApiLogger
   readonly reopenNotifier?: OccurrenceResolutionNotifierPort
@@ -201,6 +204,7 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
   return {
     async reply(input: ReplyMySubjectInput): Promise<ReplyMySubjectResult> {
       const bodyText = normalizeConversationMessageBody(input.bodyText, input.attachmentIds ?? [])
+      let stored: StoredReply | undefined
       const outcome = await dependencies.unitOfWork.execute(async (transaction) => {
         const subject = await findMySubjectOrFail(transaction, input)
         const executed = await replayOrRun<StoredReply>({
@@ -214,11 +218,23 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
           run: () => store(transaction, input, bodyText, subject),
           transaction,
         })
+        stored = executed.result
         return {
           message: await readMessage(transaction, input, executed.result),
           replayed: executed.replayed,
         }
       })
+      if (!outcome.replayed && stored !== undefined && isOccurrenceSubject(input.subjectType)) {
+        await dependencies.detectedClientEmail?.onDriverMessage({
+          bodyText,
+          channel: { kind: 'app' },
+          companyId: input.companyId,
+          conversationId: stored.conversationId,
+          correlationId: `occurrence-conversation:${stored.messageId}`,
+          driverUserId: input.driverUserId,
+          messageId: stored.messageId,
+        })
+      }
       if (input.reopen === true && !outcome.replayed) {
         void dependencies.reopenNotifier?.notifyReopened({
           companyId: input.companyId,

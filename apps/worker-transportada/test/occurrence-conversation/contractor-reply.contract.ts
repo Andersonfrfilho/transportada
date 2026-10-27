@@ -4,12 +4,14 @@
  * parity contract of the worker (`contractor-reply-parity.contract.ts`) holds both copies equal.
  *
  * Spec 248 CA03: the table of `decideContractorReply` (RF4) and `decideAlert` (RF5).
+ * Spec 278 CA1: the reason the history event records (`resolveContractorReplyEventReason`).
  */
 import { describe, expect, test } from 'bun:test'
 
 import {
   decideAlert,
   decideContractorReply,
+  resolveContractorReplyEventReason,
   type ContractorReplyAlertInput,
   type ContractorReplyDecision,
   type ContractorReplyDecisionInput,
@@ -510,5 +512,74 @@ describe('decideAlert (spec 248 RF5, CA05)', () => {
     const reply = alertReply({ deadlineAt: minutesBefore(900), status: 'reply_received' })
 
     expect(alertDecision(reply, null)).toEqual({ kind: 'none', reason: 'reply_arrived' })
+  })
+})
+
+describe('the reason of the history event (spec 278 CA1)', () => {
+  const ACCEPTED: ContractorReplyDecision = {
+    attachmentId: 'attachment-pdf',
+    kind: 'accept',
+    nextStep: 'deliver',
+  }
+  const NOT_CONFIRMED: ContractorReplyDecision = {
+    kind: 'needs_operator',
+    reason: 'document_not_confirmed',
+  }
+
+  test('a checked boleto that was accepted records document_confirmed', () => {
+    expect(
+      resolveContractorReplyEventReason({
+        decision: ACCEPTED,
+        documentChecked: true,
+        documentTextRead: true,
+      }),
+    ).toBe('document_confirmed')
+  })
+
+  test('a checked PDF with text that is not the boleto keeps document_not_confirmed', () => {
+    expect(
+      resolveContractorReplyEventReason({
+        decision: NOT_CONFIRMED,
+        documentChecked: true,
+        documentTextRead: true,
+      }),
+    ).toBe('document_not_confirmed')
+  })
+
+  test('a checked PDF without any text (or without a reader) records document_without_text', () => {
+    expect(
+      resolveContractorReplyEventReason({
+        decision: NOT_CONFIRMED,
+        documentChecked: true,
+        documentTextRead: false,
+      }),
+    ).toBe('document_without_text')
+  })
+
+  test('without the check the event keeps the reason of the decision', () => {
+    expect(
+      resolveContractorReplyEventReason({
+        decision: ACCEPTED,
+        documentChecked: false,
+        documentTextRead: false,
+      }),
+    ).toBeNull()
+    expect(
+      resolveContractorReplyEventReason({
+        decision: { kind: 'needs_operator', reason: 'multiple_attachments' },
+        documentChecked: false,
+        documentTextRead: false,
+      }),
+    ).toBe('multiple_attachments')
+  })
+
+  test('a checked reply that went to the operator for another reason keeps that reason', () => {
+    expect(
+      resolveContractorReplyEventReason({
+        decision: { kind: 'needs_operator', reason: 'no_accepted_attachment' },
+        documentChecked: true,
+        documentTextRead: false,
+      }),
+    ).toBe('no_accepted_attachment')
   })
 })

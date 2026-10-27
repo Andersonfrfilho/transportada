@@ -4,18 +4,26 @@ import { skipToken, useQuery } from '@tanstack/react-query'
 import { CURRENT_TRIP_QUERY_KEY } from '@/modules/driver-trip/hooks/useDriverTrip.hook'
 import { useDriverSession } from '@/modules/driver-trip/hooks/useDriverSession.hook'
 import { readStoredTripId } from '@/modules/driver-trip/hooks/useSelectedDriverTrip.hook'
-import type { RouteOccurrenceServerState } from '@/modules/driver-trip/shared/driverRouteOccurrence.types'
-import type { DriverTripSnapshot } from '@/modules/driver-trip/shared/driverTrip.types'
+import type {
+  DriverRouteOccurrence,
+  RouteOccurrenceServerState,
+} from '@/modules/driver-trip/shared/driverRouteOccurrence.types'
+import type { DriverTrip, DriverTripSnapshot } from '@/modules/driver-trip/shared/driverTrip.types'
 import { useDriverRouteOccurrences } from '@/modules/driver-trip/shared/useDriverRouteOccurrences.query'
 
 import {
+  buildOccurrenceMap,
   buildOccurrenceStateMap,
   resolveConversationTripId,
 } from '../shared/occurrenceStateMap.service'
 
 export type RouteOccurrenceStates = Readonly<{
+  /** A viagem que a conversa e a rota dividem; a folha de detalhes lê a ocorrência dela (spec 279 T6c). */
+  tripId: string | undefined
+  trip: DriverTrip | undefined
   /** A leitura terminou (ou nem vai acontecer) e ainda assim faltou o estado: a tela avisa em vez de travar. */
   isSettled: boolean
+  occurrenceById: ReadonlyMap<string, DriverRouteOccurrence>
   stateByOccurrenceId: ReadonlyMap<string, RouteOccurrenceServerState>
 }>
 
@@ -34,7 +42,10 @@ export function useRouteOccurrenceStates(canSync: boolean): RouteOccurrenceState
   const tripId = resolveConversationTripId({ selectedTripId: readStoredTripId(), trips })
   const query = useDriverRouteOccurrences({ canSync, tripId })
   return {
+    trip: trips.find((candidate) => candidate.id === tripId),
+    tripId,
     isSettled: query.status !== 'pending' || query.fetchStatus === 'idle',
+    occurrenceById: buildOccurrenceMap(query.data),
     stateByOccurrenceId: buildOccurrenceStateMap(query.data),
   }
 }
