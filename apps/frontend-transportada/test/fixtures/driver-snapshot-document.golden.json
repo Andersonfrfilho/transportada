@@ -31,7 +31,9 @@
       "name": "Tipo configurado",
       "referenceNumberLabel": "Número da NFD",
       "referenceNumberMode": "required",
-      "stopKind": null
+      "stopKind": null,
+      "asksClientContact": false,
+      "clientChannel": "email"
     }
   ],
   "proofPending": false,

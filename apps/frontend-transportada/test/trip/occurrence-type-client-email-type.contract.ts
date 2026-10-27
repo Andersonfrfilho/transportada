@@ -118,3 +118,27 @@ describe('canal com o cliente no tipo da ocorrência (spec 281 RF8)', () => {
     }
   })
 })
+
+describe('pedido de contato do cliente no tipo da ocorrência (spec 281 T8b)', () => {
+  it('a resposta aceita o campo ausente (API anterior) ou booleano, e recusa o resto', () => {
+    expect(hasValidContractorReplyTypeFields({})).toBe(true)
+    expect(hasValidContractorReplyTypeFields({ asksClientContact: true })).toBe(true)
+    expect(hasValidContractorReplyTypeFields({ asksClientContact: 'sim' })).toBe(false)
+  })
+
+  it('a edição manda o valor escolhido e a de outro campo não mexe nele', () => {
+    expect(
+      buildOccurrenceTypeUpdate({ ...TYPE, asksClientContact: false }, { asksClientContact: true }),
+    ).toMatchObject({ asksClientContact: true, occurrenceTypeId: 'type-1' })
+    expect(buildOccurrenceTypeUpdate(TYPE, { name: 'Boleto' })).not.toHaveProperty(
+      'asksClientContact',
+    )
+  })
+
+  it('o rótulo e a dica existem nos dois idiomas', () => {
+    for (const locale of [settingsPt, settingsEn]) {
+      expect(locale.occurrenceTypeCatalog.asksClientContact).toBeString()
+      expect(locale.occurrenceTypeCatalog.asksClientContactHint).toBeString()
+    }
+  })
+})

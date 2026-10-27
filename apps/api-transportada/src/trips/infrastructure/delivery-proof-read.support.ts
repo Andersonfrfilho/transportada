@@ -912,6 +912,7 @@ export async function findOccurrenceType(
       clientEmailType: companyOccurrenceTypes.clientEmailType,
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       clientChannel: companyOccurrenceTypes.clientChannel,
+      asksClientContact: companyOccurrenceTypes.asksClientContact,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1096,6 +1097,7 @@ export async function listOccurrenceTypes(
       clientEmailType: companyOccurrenceTypes.clientEmailType,
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       clientChannel: companyOccurrenceTypes.clientChannel,
+      asksClientContact: companyOccurrenceTypes.asksClientContact,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1368,6 +1370,7 @@ async function writeOccurrenceTypeRow(
     readonly clientEmailType?: ClientEmailType | undefined
     readonly clientEmailSendMode?: ClientEmailSendMode | undefined
     readonly clientChannel?: ClientChannel | undefined
+    readonly asksClientContact?: boolean | undefined
     readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
     readonly contractorReplyMode?: ContractorReplyMode | undefined
     readonly contractorReplyWaitHours?: null | number | undefined
@@ -1471,6 +1474,9 @@ async function writeOccurrenceTypeRow(
       ? {}
       : { clientEmailSendMode: input.clientEmailSendMode }),
     ...(input.clientChannel === undefined ? {} : { clientChannel: input.clientChannel }),
+    ...(input.asksClientContact === undefined
+      ? {}
+      : { asksClientContact: input.asksClientContact }),
     ...(input.contractorReplyAcknowledgementQuickReplyId === undefined
       ? {}
       : {
@@ -1593,6 +1599,7 @@ async function writeOccurrenceTypeRow(
     clientEmailType: saved.clientEmailType,
     clientEmailSendMode: saved.clientEmailSendMode,
     clientChannel: saved.clientChannel,
+    asksClientContact: saved.asksClientContact,
     contractorReplyAcknowledgementQuickReplyId: saved.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: saved.contractorReplyMode,
     contractorReplyWaitHours: saved.contractorReplyWaitHours,

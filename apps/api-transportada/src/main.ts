@@ -844,6 +844,9 @@ import { createDeliveryClientEmailRoutes } from './delivery-clients/presentation
 import { createDeliveryClientWhatsAppUseCase } from './delivery-clients/application/delivery-client-whatsapp.use-case.js'
 import { DrizzleDeliveryClientWhatsAppRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-whatsapp.repository.js'
 import { createDeliveryClientWhatsAppRoutes } from './delivery-clients/presentation/delivery-client-whatsapp.routes.js'
+import { createDriverClientContactsUseCase } from './delivery-clients/application/driver-client-contacts.use-case.js'
+import { DrizzleDriverClientContactRepository } from './delivery-clients/infrastructure/drizzle-driver-client-contacts.repository.js'
+import { createMeClientContactsRoutes } from './delivery-clients/presentation/me-client-contacts.routes.js'
 import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
 import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
 import { createOccurrenceStatementUseCase } from './delivery-clients/application/occurrence-statement.use-case.js'
@@ -3889,6 +3892,13 @@ function createApplicationRoutes({
       forwardByWhatsApp: forwardContractorReplyByWhatsApp,
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
       whatsappOptions: contractorReplyWhatsAppOptions,
+    }),
+    /** Spec 281 T8b (D13): contatos do cliente da nota na abertura da ocorrência. */
+    ...createMeClientContactsRoutes({
+      contacts: createDriverClientContactsUseCase({
+        repository: new DrizzleDriverClientContactRepository(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     /** Spec 279 T4 (RF2/RF3): os e-mails do cliente para o boleto no `/me` do motorista, pelo trilho da 248. */
     ...createMeClientBoletoEmailsRoutes({

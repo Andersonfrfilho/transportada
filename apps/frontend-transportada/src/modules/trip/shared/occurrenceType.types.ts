@@ -91,6 +91,8 @@ export type OccurrenceType = Readonly<{
   clientEmailSendMode?: ClientEmailSendMode
   /** Spec 281 RF8: por qual canal a ocorrência fala com o cliente. Ausente é API anterior ao campo. */
   clientChannel?: ClientChannel
+  /** Spec 281 T8b: o app do motorista pede o contato do cliente na abertura. Ausente é API anterior ao campo. */
+  asksClientContact?: boolean
   contractorReplyAlertMode?: ContractorReplyAlertMode
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   contractorReplyMode?: ContractorReplyMode
