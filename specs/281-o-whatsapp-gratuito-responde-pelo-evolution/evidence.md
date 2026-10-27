@@ -114,3 +114,37 @@ Fatia mínima: só boleto, API (painel e app), staging. Sobre a T4 (configuraç�
   duas grafias do nono dígito, outro número vai para não atribuídas, o aviso vai de `sent` a `read` sem voltar, outra
   empresa não acha, e o ciclo do webhook (achar pelo id, guardar segredo, auditoria, conexão, troca de instância
   desmarcando o registro).
+
+## T8 — "Enviar por WhatsApp" no app do motorista (27/10/2026)
+
+Fatia mínima: só boleto, staging. Sobre a T5 (rotas do motorista) e a T3b (contatos).
+
+**O que mudou**
+
+- Módulo `apps/frontend-driver/src/modules/client-whatsapp`, ao lado do `client-email`: botão "Enviar por WhatsApp" junto de
+  "Enviar ao cliente" (cartão da lista, detalhe e faixa da conversa), com a mesma regra de aparecer só com o boleto aceito.
+  O botão some quando a API recusa o `GET` (tipo sem WhatsApp, `409`/`404`) e quando o número da empresa não está
+  conectado (`evolution.ready = false`, RF5): o e-mail segue sozinho.
+- Folha com os números guardados (mascarados, por `contactId`), "Informar outro número" e **tela de confirmação** com o
+  número formatado (`+55 (16) 99999-7766`) antes de qualquer envio; só segue para a API depois do "Confirmar e enviar", e só
+  é guardado com a caixa "Guardar este número para o cliente" (`save`). A API valida e normaliza de novo (D4).
+- Estados: histórico de entregas da ocorrência (enviado, enviando, não saiu e o motivo em português) e resultado por número
+  (`sent`, `already_sent`, `in_progress`, `failed`). Falha que passa (`whatsapp_disconnected`, `send_failed`) oferece "Tentar
+  de novo"; número sem WhatsApp e arquivo grande mandam o motorista para o "Enviar ao cliente" por e-mail.
+- Fila offline própria (`transportada.driver-client-whatsapp-outbox`), com a **mesma `idempotencyKey` em toda tentativa**,
+  drenada nos gatilhos da fila de mensagens. O reenvio é decisão do motorista, só com sinal, com chave nova por toque.
+- API: nova rota do motorista `POST /me/trips/current/occurrences/:id/client-boleto-whatsapp/deliveries/:deliveryId/resend`
+  (corpo `{ idempotencyKey }`), a mesma conferência de "ocorrência da viagem dele" e o mesmo balde de envio do e-mail.
+
+**Provas**
+
+- `test/client-whatsapp/*.contract.ts` (app): cliente da API (corpo, máscara, motivo desconhecido vira genérico, resposta
+  inválida recusada), número (normalização, formatação e paridade com a expressão da API lendo o arquivo-fonte) e fila
+  offline (mesma chave, recusa vira `failed`, outra conta não entrega).
+- `rate-limited-routes.contract.test.ts` (API): envio e reenvio do motorista contam no balde do e-mail.
+- `test/spec-281-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-281-prints.smoke.spec.ts`): 8 cenários em
+  375 px com a API dublada; prints em `specs/281-.../prints/`.
+
+**Pendente**
+
+- Teste em staging com o número do dono (depende de T3, T4 e do pacote do Evolution no npm, como a T5).
