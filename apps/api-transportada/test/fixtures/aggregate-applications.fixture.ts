@@ -105,6 +105,16 @@ export class FakeAggregateApplicationRepository implements AggregateApplicationR
     return updated
   }
 
+  /** Ficha por id; o teste povoa e confere `membershipId` para simular quem já tem usuário. */
+  public readonly accessTargetByDriverId = new Map<
+    string,
+    { email: string; membershipId: string | null; name: string; phone: string; taxId: string }
+  >()
+
+  public async findDriverAccessTarget({ driverId }: { readonly driverId: string }) {
+    return this.accessTargetByDriverId.get(driverId) ?? null
+  }
+
   public async approve({ driverId, id }: { readonly driverId: string; readonly id: string }) {
     const row = this.mustFind(id)
     const updated: AggregateApplication = {

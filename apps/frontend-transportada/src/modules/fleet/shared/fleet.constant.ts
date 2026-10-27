@@ -6,6 +6,9 @@ export const FLEET_DRIVERS_PATH = '/fleet/drivers'
 /** Spec 081: o vínculo da empresa em pares — a fonte do pareamento da sugestão multi-veículo. */
 export const FLEET_DRIVER_VEHICLE_LINKS_PATH = '/fleet/driver-vehicles'
 export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
+export function driverAccessPath(driverId: string): string {
+  return `${FLEET_DRIVERS_PATH}/${driverId}/access`
+}
 export const DRIVER_AVAILABILITY_PATH = `${FLEET_DRIVERS_PATH}/availability`
 /** Spec 159 RF10: a nota e as penalidades vigentes de um motorista. */
 export function driverScorePath(driverId: string): string {

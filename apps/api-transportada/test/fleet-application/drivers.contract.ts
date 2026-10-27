@@ -13,6 +13,7 @@ import {
 } from '../fixtures/fleet-application.fixture'
 import {
   CREATE_DRIVER_BODY,
+  DRIVER,
   DRIVER_FIELDS,
   DRIVER_ID,
   DRIVER_INPUT,
@@ -407,5 +408,62 @@ describe('fleet drivers use case contract', () => {
     })
     expect(stub.conflictCalls).toEqual([])
     expect(contacts.calls).toEqual([])
+  })
+
+  describe('grant access to a record without a user', () => {
+    function build(current: Record<string, unknown>) {
+      const stub = createDriverRepositoryStub({ current: current as never })
+      const account = createDriverAccountStub()
+      const useCase = createFleetDriversUseCase({
+        account: account.account,
+        contacts: createDriverContactDirectoryStub().contacts,
+        repository: stub.repository,
+      })
+      return { account, useCase }
+    }
+
+    test('invites by the record document so the invite links the existing record', async () => {
+      const { account, useCase } = build({ ...DRIVER, membershipId: null })
+
+      const access = await useCase.grantAccess({
+        context: FLEET_CONTEXT,
+        correlationId: CORRELATION_ID,
+        driverId: DRIVER_ID,
+      })
+
+      expect(access).toBe('granted')
+      expect(account.calls).toHaveLength(1)
+      expect(account.calls[0]).toMatchObject({
+        channel: 'email',
+        roles: ['driver'],
+        taxId: DRIVER.taxId,
+      })
+    })
+
+    test('does not invite a record that already has a user', async () => {
+      const { account, useCase } = build({ ...DRIVER, membershipId: MEMBERSHIP_ID })
+
+      const access = await useCase.grantAccess({
+        context: FLEET_CONTEXT,
+        correlationId: CORRELATION_ID,
+        driverId: DRIVER_ID,
+      })
+
+      expect(access).toBe('already-linked')
+      expect(account.calls).toHaveLength(0)
+    })
+
+    test('says so when the record has nowhere to send the code', async () => {
+      const { account, useCase } = build({ ...DRIVER, email: '', membershipId: null, phone: '' })
+
+      const access = await useCase.grantAccess({
+        context: FLEET_CONTEXT,
+        correlationId: CORRELATION_ID,
+        driverId: DRIVER_ID,
+      })
+
+      expect(access).toBe('no-contact')
+      expect(account.calls).toHaveLength(0)
+    })
   })
 })
