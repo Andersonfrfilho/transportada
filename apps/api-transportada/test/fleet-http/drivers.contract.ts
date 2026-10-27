@@ -648,4 +648,16 @@ describe('fleet drivers http contract', () => {
       { context: COMPANY_CONTEXT, correlationId: 'fleet-http-correlation', driverId: DRIVER_ID },
     ])
   })
+
+  // A rota literal não pode ser engolida pela de ficha por id
+  test('serves the access report before the by-id route', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${FLEET_DRIVERS_PATH}/access-report` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: [] })
+  })
 })

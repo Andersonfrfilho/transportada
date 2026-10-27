@@ -365,6 +365,8 @@ import { createCteIssuanceRoutes } from './cte-issuance/presentation/cte-issuanc
 import { createFleetDriverVehiclesUseCase } from './fleet/application/fleet-driver-vehicles.use-case'
 import { createDriverHomeGeocoder } from './fleet/application/driver-home-geocoder.port.js'
 import { createPhotonDriverHomeGateway } from './fleet/infrastructure/photon-driver-home.gateway.js'
+import { createFleetDriverAccessReportUseCase } from './fleet/application/fleet-driver-access-report.use-case.js'
+import { createDrizzleFleetDriverAccessReportRepository } from './fleet/infrastructure/drizzle-fleet-driver-access-report.repository.js'
 import { createFleetDriversUseCase } from './fleet/application/fleet-drivers.use-case'
 import { createFleetDriverScoresUseCase } from './fleet/application/fleet-driver-scores.use-case'
 import type { FleetVehicleCatalogPort } from './fleet/application/fleet-vehicle-catalog.port'
@@ -3463,6 +3465,9 @@ function createApplicationRoutes({
     }),
     ...createFleetRoutes({
       createDriver: { execute: (input) => fleetDrivers.create(input) },
+      driverAccessReport: createFleetDriverAccessReportUseCase({
+        port: createDrizzleFleetDriverAccessReportRepository(database),
+      }),
       grantDriverAccess: { execute: (input) => fleetDrivers.grantAccess(input) },
       createVehicle: { execute: (input) => fleetVehicles.create(input) },
       driverAvailability: { execute: (input) => fleetDrivers.checkAvailability(input) },
