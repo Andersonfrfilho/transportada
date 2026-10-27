@@ -467,6 +467,45 @@ export default defineRailway((ctx) => {
   })
 
   /**
+   * Evolution API (spec 281): WhatsApp gratuito, **só em staging** até a decisão de produção. Banco e
+   * Redis são próprios dele — nunca os da aplicação. A chave global (`AUTHENTICATION_API_KEY`) mora só
+   * aqui e as variáveis são `preserve()`: o valor já está na Railway e não entra no repositório.
+   * Runbook: `docs/runbooks/evolution-staging.md`.
+   */
+  const evolutionVolume = volume('evolution-postgres-volume', { ...VOLUME, sizeMB: 1000 })
+  const evolutionPostgres = service('evolution-postgres', {
+    source: image('ghcr.io/railwayapp-templates/postgres-ssl:18'),
+    replicas: { sfo: 1 },
+    volumeMounts: { '/var/lib/postgresql/data': evolutionVolume },
+    env: {
+      PGDATA: preserve(),
+      POSTGRES_DB: preserve(),
+      POSTGRES_PASSWORD: preserve(),
+      POSTGRES_USER: preserve(),
+    },
+  })
+  const evolutionRedis = service('evolution-redis', {
+    source: image('redis:7-alpine'),
+    deploy: {
+      startCommand: `sh -c 'redis-server --requirepass "$REDIS_PASSWORD" --save "" --appendonly no'`,
+      restartPolicyType: 'ON_FAILURE',
+    },
+    replicas: { sfo: 1 },
+    env: { REDIS_PASSWORD: preserve() },
+  })
+  const evolutionApi = service('evolution-api', {
+    source: image('evoapicloud/evolution-api:v2.3.7'),
+    deploy: { healthcheckPath: '/', healthcheckTimeout: 120, restartPolicyType: 'ON_FAILURE' },
+    replicas: { sfo: 1 },
+    env: {
+      AUTHENTICATION_API_KEY: preserve(),
+      CACHE_REDIS_URI: preserve(),
+      DATABASE_CONNECTION_URI: preserve(),
+      SERVER_URL: preserve(),
+    },
+  })
+
+  /**
    * ⚠️ **O extrato é datado, e isso não é preciosismo.** A URL era `sudeste-latest.osm.pbf`, e
    * `-latest` não quer dizer "se atualiza": quer dizer **"seja qual for o arquivo do dia em que
    * alguém reconstruir"**. Uma reconstrução por motivo alheio — mudar o `PORT`, subir a versão do
@@ -762,7 +801,18 @@ export default defineRailway((ctx) => {
   return project('transportada', {
     resources: isProduction
       ? [...shared, backup, restoreTest, aggregateDocumentOcr, mapTiles, osrm]
-      : [...shared, aggregateDocumentOcr, mailpit, mapTiles, osrm, stagingRefresh],
+      : [
+          ...shared,
+          aggregateDocumentOcr,
+          mailpit,
+          mapTiles,
+          osrm,
+          stagingRefresh,
+          evolutionVolume,
+          evolutionPostgres,
+          evolutionRedis,
+          evolutionApi,
+        ],
   })
 })
 
