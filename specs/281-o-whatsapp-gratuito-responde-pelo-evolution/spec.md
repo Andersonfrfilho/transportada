@@ -85,6 +85,20 @@ created_via, source_occurrence_id, created_at)`: mesmo limite por cliente e tipo
 - **R3 — LGPD.** Número e conteúdo são dado pessoal e, no caso do boleto, fiscal: o arquivo sai por link assinado de vida
   curta que o **Evolution baixa**, nunca por URL pública duradoura; nada de número ou texto em log.
 
+## Futuro próximo (não faz parte desta entrega)
+
+Ideias discutidas com o dono em 27/10/2026, registradas para não se perderem; nada abaixo entra nas tasks agora:
+
+- **Sessão principal e extras.** O SDK trata o número como uma **sessão** (`sessionId`), com uma única **principal** por empresa
+  (a que faz todo envio iniciado pelo sistema); sessões extras de setor ou atendente, se um dia precisar, com a conversa presa à
+  sessão em que começou. Hoje só existe a principal.
+- **Modos por empresa.** Só Evolution, só Meta ou híbrido (o roteador da D8 escolhe), com reserva para a Meta desligada por padrão,
+  provedor fixado por tipo de ocorrência e teto mensal da Meta.
+- **Atendentes num número só.** Uma conversa por número de cliente com o campo "atendida por", fila de não atribuídas e regras de
+  direcionamento (assunto, carteira do cliente, rodízio, assumir da fila); transferir é trocar o campo. Atendente usa o painel, nunca
+  o app do WhatsApp (limite de aparelhos vinculados). Passar o cliente à atendente por link `wa.me` é opcional; atendente chamando
+  cliente pelo WhatsApp pessoal fica fora (risco de ban, sem auditoria, LGPD).
+
 ## Histórias priorizadas
 
 ### P1 — Enviar o boleto por WhatsApp
