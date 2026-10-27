@@ -27,15 +27,37 @@ Critério de aceite da etapa 1: subir o zip do lote gera 135 importadas e 264 du
 gera 0 importadas e 399 duplicadas. A verificação (e o runbook) entram como evidência desta spec. Se
 algum limite do expander recusar um zip real da Spani, ajustamos o limite, sem código novo de importação.
 
-## Etapas seguintes (specs próprias, cada uma com modelo indicado no tasks.md)
+## O fluxo completo, com confirmação a cada passo (decidido com Anderson em 27/10/2026)
 
-- 2. Selecionar pela planilha as notas para emitir CT-e e faturar (só o que consta na planilha).
-- 3. Emitir NFS-e apenas das notas de Ribeirão Preto.
-- 4. Enviar por email os XMLs em partes de 100, informando as partes, com a fatura e, no corpo, a tabela
-     das notas de Ribeirão. A Spani pede os XMLs fora do zip, mais o Excel, o PDF da fatura e a nota de
-     serviço de Ribeirão.
-- 5. Caixa de email da empresa que recebe os arquivos e responde a todos os envolvidos (no exemplo:
+Quando o email da semana chega, nada acontece sozinho: o sistema prepara cada passo e **pede
+confirmação numa tela** antes de agir. Os passos, em ordem:
+
+1. **Chegou o email** da Spani (zip + planilha): o sistema importa os XMLs sem duplicar (etapa 1) e lê
+   a planilha. Tela: resumo da importação e das notas da planilha.
+2. **Emitir CT-e e NFS-e das notas selecionadas** (só as que constam na planilha; NFS-e só de Ribeirão
+   Preto). Tela de confirmação com a lista, antes de emitir.
+3. **Fatura dos CT-e** emitidos. Tela de confirmação.
+4. **Enviar por email, respondendo a todos os envolvidos** do email original: os XMLs em partes de 100
+   (informando as partes), a fatura, a NFS-e (PDF) e a tabela das entregas municipais (Ribeirão) no corpo.
+   Tela de confirmação com destinatários, partes e anexos.
+
+Regras:
+
+- Isso vale **somente para o fluxo de pagamento da Spani**: faturamento configurado sempre para
+  **15 dias**. Outros contratantes não entram.
+- Haverá uma **página para criar essas automações** (contratante, gatilho "chegou email", passos,
+  prazo de faturamento, quem recebe), em vez de regra fixa no código. Nada de CNPJ ou nome da Spani
+  escrito no código.
+- Cada confirmação fica registrada (quem confirmou, quando, o que foi feito) na auditoria.
+
+## Etapas de entrega (specs próprias, cada uma com modelo indicado no tasks.md)
+
+- 2. Ler a planilha e selecionar as notas; emitir CT-e e NFS-e com confirmação.
+- 3. Fatura dos CT-e com confirmação.
+- 4. Envio por email em partes de 100, respondendo a todos, com fatura, NFS-e (PDF) e tabela de Ribeirão.
+- 5. Caixa de email da empresa que recebe os arquivos e dispara o fluxo (exemplo de destinatários:
      Michele, Gleidson, Deisy, procopioau e a caixa `ctezaragoza_ent`).
+- 6. Página para criar e editar as automações (contratante, prazo de 15 dias, passos).
 
 ## Dúvidas
 
