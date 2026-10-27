@@ -500,6 +500,7 @@ export function DriverTripWorkspacePage() {
           ownPendingCount={driverTrip.ownPendingCount}
           queuedCount={driverTrip.queuedCount}
           snapshot={snapshot}
+          stopViewMode={stopViewMode}
           trip={trip}
           onOpenPendingProofs={() => navigateToDriverSection('pending-proofs')}
           onOpenQueue={() => navigateToDriverSection('queue')}

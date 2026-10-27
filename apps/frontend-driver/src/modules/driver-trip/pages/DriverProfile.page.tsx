@@ -15,7 +15,6 @@ import { WhatsAppPhonePanel } from '@/modules/identity/components/WhatsAppPhoneP
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
 import { syncThemeColorMeta } from '@/modules/shared/colorTheme.service'
-import { useStopViewMode } from '../hooks/useStopViewMode.hook'
 import { useColorTheme } from '@/modules/shared/useColorTheme.hook'
 
 import { DriverLocationConsentCard } from '../components/DriverLocationConsentCard.component'
@@ -29,6 +28,7 @@ import {
 import { discardProofThumbnails } from '../shared/proofThumbnailArchive.service'
 import { signOutDriver } from '../shared/signOut.service'
 import { discardTripSnapshots } from '../shared/tripSnapshot.service'
+import type { StopViewMode } from '../shared/stopPaging.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverProfilePageProps = Readonly<{
@@ -43,6 +43,8 @@ type DriverProfilePageProps = Readonly<{
   ownPendingCount: number
   queuedCount: number
   snapshot: DriverTripSnapshot | undefined
+  /** A mesma instância da tela da viagem: dois `useState` guardariam cópias que não se falam. */
+  stopViewMode: Readonly<{ mode: StopViewMode; setMode: (mode: StopViewMode) => void }>
   /** RF12: a viagem escolhida na tela da viagem — o Perfil mostra a placa dela, não a de `trips[0]`. */
   trip: DriverTrip | undefined
 }>
@@ -66,6 +68,7 @@ export function DriverProfilePage({
   ownPendingCount,
   queuedCount,
   snapshot,
+  stopViewMode,
   trip,
 }: DriverProfilePageProps) {
   const { t } = useTranslation('driverTrip')
@@ -74,7 +77,6 @@ export function DriverProfilePage({
   const pendingProofCount = listProofPendingDocuments(snapshot).length
   const authMeQuery = useAuthMeQuery()
   const colorTheme = useColorTheme()
-  const stopViewMode = useStopViewMode()
 
   useEffect(() => {
     syncThemeColorMeta({ document, theme: colorTheme.theme })
