@@ -411,6 +411,10 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   `@adatechnology/conversations-ui/participant` (import dinâmico) e liga rota, adapter, tema, rótulos e ícones. Layout, busca,
   protocolo, canais e bolhas vêm do pacote; cópia da tela é regressão (ADR-0075 §7). Fixe `conversations-ui` e
   `conversation-contracts` em versão exata, e atualize as três apps juntas.
+- **Compartilhar o arquivo do chat.** O menu da mensagem do pacote (`messageMenu`, 0.14) ganha "Compartilhar <arquivo>" por anexo
+  (`useDriverMessageMenu`): reaproveita `shareDriverFiles` (spec 266), com o link assinado de `resolveAttachmentUrl` pedido na
+  hora do toque. Sem suporte a compartilhar arquivo, baixa e avisa; cancelar a folha não avisa. Fica ao lado de "Ver detalhes" e
+  "Enviar ao cliente" (spec 279), que são do cartão do assunto, não do balão.
 - **Rotas por assunto, com queda.** O adapter (`driverConversationsApi.service.ts`) fala com
   `/me/trips/current/conversations[/:subjectType/:subjectId/{messages,messages/read,uploads}]` e a resposta já traz
   `awaitingDriver` e o eco do `clientMessageId` — não há mais remendo no app. `driverConversationRoutes.service.ts` cai nas rotas de

@@ -28,6 +28,7 @@ import { createComposerLockRenderer } from '../components/DriverComposerLock.com
 import { useConversationOutbox } from '../hooks/useConversationOutbox.hook'
 import { useConversationPathname } from '../hooks/useConversationPathname.hook'
 import { useDriverConversationReopen } from '../hooks/useDriverConversationReopen.hook'
+import { useDriverMessageMenu } from '../hooks/useDriverMessageMenu.hook'
 import { useDriverQuickReplies } from '../hooks/useDriverQuickReplies.hook'
 import { useRouteOccurrenceStates } from '../hooks/useRouteOccurrenceStates.hook'
 import {
@@ -53,6 +54,7 @@ export function DriverConversationsPage() {
   const api = getDriverConversationsApi()
   const { isOutboxFull, onRetryPending, pendingMessages } = useConversationOutbox(api)
   const quickReplies = useDriverQuickReplies()
+  const messageMenu = useDriverMessageMenu(api)
   const selected = parseDriverConversationSubject(useConversationPathname())
   const { canSync } = useDriverSession()
   const { isSettled, occurrenceById, stateByOccurrenceId, trip, tripId } =
@@ -100,6 +102,11 @@ export function DriverConversationsPage() {
           {t('outboxFull')}
         </p>
       ) : null}
+      {messageMenu.notice === undefined ? null : (
+        <p role="status" className={styles.outboxNotice}>
+          {t(`share.${messageMenu.notice}`)}
+        </p>
+      )}
       {isStateUnknown ? (
         <p role="status" className={styles.outboxNotice}>
           {t('reopen.stateUnknown')}
@@ -134,6 +141,7 @@ export function DriverConversationsPage() {
             className={styles.conversationTheme ?? ''}
             labels={labels}
             locale={i18n.language}
+            messageMenu={messageMenu.options}
             renderSubjectIcon={renderDriverSubjectIcon}
             selected={selected}
             subjectGroups={subjectGroups}
