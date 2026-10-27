@@ -222,6 +222,17 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
             />
           </Tooltip>
         ) : null}
+        {/* Spec 281 T8b: só com a API que já manda o campo; pede o contato do cliente ao motorista ao abrir. */}
+        {type.asksClientContact === undefined || type.clientChannel === 'off' ? null : (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.asksClientContactHint')}>
+            <Checkbox
+              checked={type.asksClientContact}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.asksClientContact')}
+              onChange={(value) => onEdit({ asksClientContact: value })}
+            />
+          </Tooltip>
+        )}
       </div>
       <OccurrenceTypeHiddenFieldsHint isItemsOff={!hasItems} isSeparationOnlyHidden={isDelivery} />
     </section>

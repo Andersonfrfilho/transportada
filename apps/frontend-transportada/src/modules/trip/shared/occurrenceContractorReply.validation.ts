@@ -37,6 +37,8 @@ const TYPE_FIELD_CHECKS = {
   clientEmailSendMode: (value: unknown) => isOneOf(value, CLIENT_EMAIL_SEND_MODES),
   /** Spec 281 RF8: `off`, `email`, `whatsapp` ou `both`. Aceito antes da API mandar. */
   clientChannel: (value: unknown) => isOneOf(value, CLIENT_CHANNELS),
+  /** Spec 281 T8b: o pedido de contato na abertura é ligado ou desligado. Aceito antes da API mandar. */
+  asksClientContact: (value: unknown) => typeof value === 'boolean',
   /** Spec 276 T5: o id da resposta rápida da resposta automática, ou `null`. Aceito antes da API mandar. */
   contractorReplyAcknowledgementQuickReplyId: allowingNull(isString),
   contractorReplyAlertMaxCount: (value: unknown) =>

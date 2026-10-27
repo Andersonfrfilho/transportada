@@ -333,6 +333,8 @@
       "general": "General e-mail"
     },
     "clientChannel": "Client channel",
+    "asksClientContact": "Ask the driver for the client contact",
+    "asksClientContactHint": "When the invoice client has no saved contact for this channel, the driver app asks for the WhatsApp number or e-mail when the occurrence is opened, so the driver does not have to send it in the chat. A client can have several numbers and e-mails.",
     "clientChannelHint": "How the occurrence reaches the client. E-mail is the default and follows the e-mail type next to it. WhatsApp uses the client's number and, if it fails, the saved e-mail. Off sends nothing to the client.",
     "clientChannelOptions": {
       "off": "Off",

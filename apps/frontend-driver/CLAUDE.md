@@ -528,3 +528,14 @@ paridade lê o arquivo-fonte); a validação final é da API. Sem sinal, o pedid
 entrega que falhou (`POST .../deliveries/:id/resend`, chave nova por toque) só vale com sinal e só para `send_failed` e
 `whatsapp_disconnected` — número sem WhatsApp e arquivo grande apontam o e-mail. `test/client-whatsapp/*.contract.ts`; prints em
 `test/spec-281-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-281-prints.smoke.spec.ts`).
+
+## Contato do cliente na abertura (spec 281 T8b)
+
+Módulo `src/modules/client-contacts`. Quando o tipo escolhido traz `asksClientContact` e o `clientChannel` não é `off`, o
+formulário de ocorrência mostra `ClientContactsSection` (o app só lê o que o servidor resolveu: `resolveAskedContactChannels`).
+Os contatos são do **cliente da nota** (`/me/trips/current/documents/:documentId/client-contacts`): lista mascarada, vários
+números e e-mails; o do escritório (`editable: false`) é só leitura, o que o motorista informou ele edita e remove. Todo
+contato novo passa pela **tela de confirmação** (número formatado) antes de ir à API, que valida e normaliza. A escrita é
+**online, sem fila**: sem sinal a seção avisa e o registro da ocorrência segue. `DriverConversationHttp` ganhou `patchJson` e
+`deleteJson` (todo dublê do `http` em teste precisa dos dois). `test/client-contacts/*.contract.ts`; prints em
+`test/spec-281-t8b-prints.smoke.spec.ts` (fora da CI; o build do smoke precisa de `VITE_DRIVER_APP_URL=http://localhost:53112`).

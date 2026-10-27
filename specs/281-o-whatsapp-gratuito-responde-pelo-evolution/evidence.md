@@ -214,3 +214,39 @@ Fatia mínima: só a linha do tempo, a documentação e o runbook; sem tela nova
 
 - Teste de aceite em staging (boleto a um número do dono, resposta no fio, queda caindo no e-mail): depende da T3.
 - A linha do tempo mostra o envio ao cliente quando houver tentativa gravada; a tela de envio (T7/T8) ainda não existe.
+
+## T8b — Contato do cliente na abertura da ocorrência (27/10/2026)
+
+**Por quê.** O motorista não deve mandar o contato do cliente pelo chat: o pedido tem de aparecer na abertura da
+ocorrência, quando o cliente da nota não tem contato guardado, e ser configurável por tipo.
+
+**O que mudou**
+
+- Tipo: coluna `company_occurrence_types.asks_client_contact` (migration aditiva `20261027220459_asks_client_contact`,
+  padrão `false`, com rollback). A API grava e devolve o campo; o tipo lido pelo app leva `asksClientContact` e
+  `clientChannel`. No painel, aba Tipos de `/ocorrencias`, a caixa "Pedir o contato do cliente ao motorista" some com o
+  canal em "Desligado".
+- API do motorista, por nota (`documentId`, só da viagem dele): `GET/POST /me/trips/current/documents/:documentId/client-contacts`
+  e `PATCH/DELETE .../:contactId`. Número vira E.164 e e-mail é validado antes de guardar; só a forma mascarada sai; o
+  mesmo endereço devolve o existente (200); limite de 10 por canal; lock do cliente (`FOR UPDATE`). O motorista edita e
+  remove só o que ele mesmo informou (`editable`); o do escritório é só leitura. Auditoria sem o endereço em claro, com
+  `documentId` no metadado (a ocorrência ainda não existe na abertura, então `source_occurrence_id` fica nulo).
+- App do motorista: módulo `src/modules/client-contacts` — seção "Contato do cliente" no formulário de ocorrência quando
+  o tipo pede; lista, adicionar (canal pelo `clientChannel`), editar, remover e tela de confirmação antes de guardar. Sem
+  sinal a seção avisa e o registro da ocorrência segue (a escrita é online, sem fila, porque o contato só entra depois de
+  conferido).
+
+**Provas**
+
+- API: `test/integration/driver-client-contacts.integration.ts` (Postgres real: vários números e e-mails, normalização,
+  duplicata, edição, remoção, só o do motorista, limite por canal, nota alheia 404, auditoria sem endereço),
+  `test/delivery-clients/me-client-contacts.contract.ts`, `test/trip-occurrence/client-email-type-write.contract.ts` e a
+  asserção de migration `occurrence-type-asks-client-contact.assertion.ts`.
+- App: `test/client-contacts/client-contacts.contract.ts` (7 testes); painel: 3 testes novos em
+  `test/trip/occurrence-type-client-email-type.contract.ts`. Prints em `prints/t8b-*.png` (375 px, claro e escuro), de
+  `test/spec-281-t8b-prints.smoke.spec.ts`.
+
+**Pendente**
+
+- PR 2: o cadastro do cliente no painel (hoje só e-mail) ganha WhatsApp com listar, adicionar, editar e remover.
+- A sugestão, ao registrar a ocorrência, para ligar o contato informado à ocorrência (`source_occurrence_id`) não foi feita.

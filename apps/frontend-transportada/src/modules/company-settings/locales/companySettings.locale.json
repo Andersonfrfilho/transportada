@@ -333,6 +333,8 @@
       "general": "E-mail geral"
     },
     "clientChannel": "Canal com o cliente",
+    "asksClientContact": "Pedir o contato do cliente ao motorista",
+    "asksClientContactHint": "Quando o cliente da nota não tem contato guardado para este canal, o app do motorista pede o WhatsApp ou o e-mail na abertura da ocorrência, para ele não precisar mandar pelo chat. O cliente pode ter vários números e e-mails.",
     "clientChannelHint": "Por onde a ocorrência fala com o cliente. E-mail é o padrão e segue o tipo de e-mail ao lado. WhatsApp usa o número do cliente e, se falhar, o e-mail guardado. Desligado não envia nada ao cliente.",
     "clientChannelOptions": {
       "off": "Desligado",
