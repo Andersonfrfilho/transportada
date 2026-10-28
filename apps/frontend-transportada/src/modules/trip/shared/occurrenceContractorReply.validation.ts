@@ -39,6 +39,8 @@ const TYPE_FIELD_CHECKS = {
   clientChannel: (value: unknown) => isOneOf(value, CLIENT_CHANNELS),
   /** Spec 281 T8b: o pedido de contato na abertura é ligado ou desligado. Aceito antes da API mandar. */
   asksClientContact: (value: unknown) => typeof value === 'boolean',
+  /** O campo opcional "nova data de vencimento" no app do motorista. Aceito antes da API mandar. */
+  asksNewDueDate: (value: unknown) => typeof value === 'boolean',
   /** Spec 276 T5: o id da resposta rápida da resposta automática, ou `null`. Aceito antes da API mandar. */
   contractorReplyAcknowledgementQuickReplyId: allowingNull(isString),
   contractorReplyAlertMaxCount: (value: unknown) =>

@@ -1595,12 +1595,15 @@ function hasValidFieldOccurrenceTypeModes(value: Record<string, unknown>): boole
   const isFlowValid = value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)
   const isAsksClientContactValid =
     value.asksClientContact === undefined || typeof value.asksClientContact === 'boolean'
+  const isAsksNewDueDateValid =
+    value.asksNewDueDate === undefined || typeof value.asksNewDueDate === 'boolean'
   const isClientChannelValid =
     value.clientChannel === undefined ||
     isOneOf(value.clientChannel, ['off', 'email', 'whatsapp', 'both'] as const)
 
   return (
     isAsksClientContactValid &&
+    isAsksNewDueDateValid &&
     isClientChannelValid &&
     isEveryModeValid &&
     isPhotoMinimumValid &&
@@ -2044,6 +2047,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'missingNotificationTemplate',
         /** Spec 281 T8b: pedir o contato do cliente ao motorista na abertura, tolerado antes de a API mandá-lo. */
         'asksClientContact',
+        'asksNewDueDate',
         'clientChannel',
         /** Até a etapa B a API ainda pode mandar o texto antigo do e-mail (rollback da API): tolerado e ignorado. */
         'emailBody',

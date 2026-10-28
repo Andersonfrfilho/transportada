@@ -233,6 +233,17 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
             />
           </Tooltip>
         )}
+        {/* O app do motorista oferece o campo opcional "nova data de vencimento" (pedido de prorrogação do boleto). */}
+        {type.asksNewDueDate === undefined ? null : (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.asksNewDueDateHint')}>
+            <Checkbox
+              checked={type.asksNewDueDate}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.asksNewDueDate')}
+              onChange={(value) => onEdit({ asksNewDueDate: value })}
+            />
+          </Tooltip>
+        )}
       </div>
       <OccurrenceTypeHiddenFieldsHint isItemsOff={!hasItems} isSeparationOnlyHidden={isDelivery} />
     </section>

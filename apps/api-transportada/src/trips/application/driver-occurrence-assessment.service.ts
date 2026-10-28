@@ -25,6 +25,7 @@ import {
 } from '../domain/occurrence-items-mode.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import { assertOccurrenceTypeAvailableForContractor } from '../domain/occurrence-type-contractor-scope.policy.js'
+import { resolveNewDueDate } from '../domain/occurrence-new-due-date.policy.js'
 import { assertDriverOccurrenceRequirements } from '../domain/occurrence-requirement-guard.policy.js'
 import { resolveDocumentProductPricing } from '../domain/occurrence-product-pricing.policy.js'
 import type { OccurrenceRequirements } from '../domain/occurrence-requirements.policy.js'
@@ -45,6 +46,8 @@ export type DriverOccurrenceAssessment = {
   readonly declaredAmount: null | string
   /** Spec 247 (T4.4): as linhas a gravar, com preço e unidade da nota; vazia é nenhuma linha. */
   readonly lines: readonly DriverOccurrenceLine[]
+  /** A nova data de vencimento a gravar (`AAAA-MM-DD`); nula quando o tipo não a pede ou o motorista não a informou. */
+  readonly newDueDate: null | string
   readonly occurrenceType: OccurrenceTypeRecord
   /** O número do documento do cliente a gravar; nulo quando o modo efetivo é `off`. */
   readonly referenceNumber: null | string
@@ -258,6 +261,10 @@ export async function assessDriverOccurrence(
     attachmentObjectIds,
     declaredAmount,
     lines,
+    newDueDate: resolveNewDueDate({
+      asksNewDueDate: occurrenceType.asksNewDueDate === true,
+      value: input.newDueDate,
+    }),
     occurrenceType,
     referenceNumber,
     scope,

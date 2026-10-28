@@ -33,6 +33,7 @@
       "referenceNumberMode": "required",
       "stopKind": null,
       "asksClientContact": false,
+      "asksNewDueDate": false,
       "clientChannel": "email"
     }
   ],

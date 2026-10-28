@@ -336,6 +336,8 @@
     "clientChannel": "Canal com o cliente",
     "asksClientContact": "Pedir o contato do cliente ao motorista",
     "asksClientContactHint": "Quando o cliente da nota não tem contato guardado para este canal, o app do motorista pede o WhatsApp ou o e-mail na abertura da ocorrência, para ele não precisar mandar pelo chat. O cliente pode ter vários números e e-mails.",
+    "asksNewDueDate": "Pedir a nova data de vencimento ao motorista",
+    "asksNewDueDateHint": "O app do motorista mostra o campo opcional \"Nova data de vencimento\" ao abrir a ocorrência (por exemplo, quando o cliente pede a prorrogação do boleto). Se ele preencher, a data sai no e-mail à contratante; em branco, o e-mail sai como sempre.",
     "clientChannelHint": "Por onde a ocorrência fala com o cliente. E-mail é o padrão e segue o tipo de e-mail ao lado. WhatsApp usa o número do cliente e, se falhar, o e-mail guardado. Desligado não envia nada ao cliente.",
     "clientChannelOptions": {
       "off": "Desligado",
@@ -553,7 +555,9 @@
           "assinaturaIniciais": "Iniciais de quem assina, ou do nome de exibição.",
           "faixaResposta": "Faixa \"Responda este e-mail\", só quando a resposta chega (HTML do sistema).",
           "marcasRodape": "Marcas do rodapé: TransportAdA e Ada Technology (HTML do sistema).",
-          "logoAssinatura": "Quadrado da assinatura: o logo da transportadora na assinatura da equipe, senão as iniciais (HTML do sistema)."
+          "logoAssinatura": "Quadrado da assinatura: o logo da transportadora na assinatura da equipe, senão as iniciais (HTML do sistema).",
+          "novaDataVencimento": "Data de vencimento pedida pelo motorista (DD/MM/AAAA); vazia quando não informada.",
+          "avisoNovaData": "Parágrafo \"Nova data de vencimento solicitada: DD/MM/AAAA\", só quando o motorista informou a data (HTML do sistema)."
         }
       },
       "watchers": {

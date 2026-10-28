@@ -1037,6 +1037,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.asksClientContact === undefined
             ? {}
             : { asksClientContact: input.asksClientContact }),
+          ...(input.asksNewDueDate === undefined ? {} : { asksNewDueDate: input.asksNewDueDate }),
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),

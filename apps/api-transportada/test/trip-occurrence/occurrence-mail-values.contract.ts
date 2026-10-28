@@ -73,6 +73,7 @@ describe('valores do e-mail da ocorrência (spec 271 T2.2)', () => {
       linhasItens:
         '7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20\n7000002 02 – PRODUTO EXEMPLO B 1KG – 2,5 CX – R$ 10,00',
       motorista: 'Motorista Exemplo',
+      novaDataVencimento: '',
       numeroNota: '123456/1',
       numeroNotaSemSerie: '123456',
       numeroReferencia: '45029',

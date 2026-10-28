@@ -776,6 +776,7 @@ async function sendDocumentOccurrenceBody(input: {
       ...(report.declaredAmount === undefined ? {} : { declaredAmount: report.declaredAmount }),
       ...(report.items === undefined ? {} : { items: report.items }),
       location: report.location,
+      ...(report.newDueDate === undefined ? {} : { newDueDate: report.newDueDate }),
       note: report.note,
       occurrenceTypeId: report.occurrenceTypeId,
       productCode: report.productCode,

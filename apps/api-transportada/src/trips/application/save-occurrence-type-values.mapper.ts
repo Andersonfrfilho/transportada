@@ -27,6 +27,7 @@ export function toSaveOccurrenceTypeValues(
     clientEmailSendMode: input.clientEmailSendMode,
     clientChannel: input.clientChannel,
     asksClientContact: input.asksClientContact,
+    asksNewDueDate: input.asksNewDueDate,
     contractorReplyAcknowledgementQuickReplyId: input.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: input.contractorReplyMode,
     contractorReplyWaitHours: input.contractorReplyWaitHours,

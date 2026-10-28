@@ -142,3 +142,24 @@ describe('pedido de contato do cliente no tipo da ocorrência (spec 281 T8b)', (
     }
   })
 })
+
+describe('nova data de vencimento opcional no tipo da ocorrência', () => {
+  it('a resposta aceita o campo ausente (API anterior) ou booleano, e recusa o resto', () => {
+    expect(hasValidContractorReplyTypeFields({ asksNewDueDate: true })).toBe(true)
+    expect(hasValidContractorReplyTypeFields({ asksNewDueDate: 'sim' })).toBe(false)
+  })
+
+  it('a edição manda o valor escolhido e a de outro campo não mexe nele', () => {
+    expect(
+      buildOccurrenceTypeUpdate({ ...TYPE, asksNewDueDate: false }, { asksNewDueDate: true }),
+    ).toMatchObject({ asksNewDueDate: true, occurrenceTypeId: 'type-1' })
+    expect(buildOccurrenceTypeUpdate(TYPE, { name: 'Boleto' })).not.toHaveProperty('asksNewDueDate')
+  })
+
+  it('o rótulo e a dica existem nos dois idiomas', () => {
+    for (const locale of [settingsPt, settingsEn]) {
+      expect(locale.occurrenceTypeCatalog.asksNewDueDate).toBeString()
+      expect(locale.occurrenceTypeCatalog.asksNewDueDateHint).toBeString()
+    }
+  })
+})

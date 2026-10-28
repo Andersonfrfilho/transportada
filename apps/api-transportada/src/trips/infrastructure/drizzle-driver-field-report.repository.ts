@@ -1174,6 +1174,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     readonly documentId: string
     readonly items?: readonly DriverDocumentOccurrenceLineInput[]
     readonly locationStamp: EventLocationStampColumns
+    readonly newDueDate?: null | string
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
@@ -1194,6 +1195,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       declaredAmount: input.declaredAmount ?? null,
       documentId: input.documentId,
       locationStamp: input.locationStamp,
+      newDueDate: input.newDueDate ?? null,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,

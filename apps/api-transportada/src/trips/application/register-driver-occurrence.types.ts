@@ -99,6 +99,8 @@ export type RegisterDriverOccurrenceInput = FieldTripLocator & {
   /** Spec 196 T3.3: o ponto do toque; ausente é o aparelho que não mandou, e carimba `unavailable`. */
   readonly location?: ReportedLocation | null | undefined
   readonly note: string
+  /** A nova data de vencimento (`AAAA-MM-DD`); ausente é não informada, e o tipo que não a pede a descarta. */
+  readonly newDueDate?: string | undefined
   /**
    * Spec 275: o aviso interno ao painel (responsáveis + quem despachou), depois do commit. Ausente é o dublê de teste
    * que não avisa; a rota e o WhatsApp sempre passam.

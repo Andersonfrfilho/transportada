@@ -18,6 +18,7 @@ export function buildFieldOccurrenceType(
   const photoMode = overrides.photoMode ?? overrides.attachmentMode ?? 'off'
   return {
     asksClientContact: false,
+    asksNewDueDate: false,
     attachmentMode: photoMode,
     clientChannel: 'email',
     declaredAmountLabel: 'Valor pago',
