@@ -112,6 +112,13 @@ import {
 } from './companies/application/audio-transcription-settings.use-case.js'
 import { DrizzleAudioTranscriptionSettingsRepository } from './companies/infrastructure/drizzle-audio-transcription-settings.repository.js'
 import { createAudioTranscriptionSettingsRoutes } from './companies/presentation/audio-transcription-settings.routes.js'
+import {
+  createCreateContractorAutomationUseCase,
+  createListContractorAutomationsUseCase,
+  createUpdateContractorAutomationUseCase,
+} from './contractor-automations/application/contractor-automation.use-case.js'
+import { DrizzleContractorAutomationRepository } from './contractor-automations/infrastructure/drizzle-contractor-automation.repository.js'
+import { createContractorAutomationRoutes } from './contractor-automations/presentation/contractor-automation.routes.js'
 import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastructure/drizzle-location-retention-settings.repository.js'
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
 import { createLocationRetentionSettingsRoutes } from './companies/presentation/location-retention-settings.routes.js'
@@ -2378,6 +2385,9 @@ function createApplicationRoutes({
     maxDurationMs: audioTranscriptionMaxDurationMs,
     settings: new DrizzleAudioTranscriptionSettingsRepository(database),
   }
+  const contractorAutomationDependencies = {
+    automations: new DrizzleContractorAutomationRepository(database),
+  }
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
@@ -3371,6 +3381,12 @@ function createApplicationRoutes({
       get: createGetAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
       resolveClientIp,
       save: createSaveAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
+    }),
+    ...createContractorAutomationRoutes({
+      create: createCreateContractorAutomationUseCase(contractorAutomationDependencies),
+      list: createListContractorAutomationsUseCase(contractorAutomationDependencies),
+      resolveClientIp,
+      update: createUpdateContractorAutomationUseCase(contractorAutomationDependencies),
     }),
     ...createLocationRetentionSettingsRoutes({
       clear: createClearLocationRetentionSettingsUseCase(locationRetentionDependencies),

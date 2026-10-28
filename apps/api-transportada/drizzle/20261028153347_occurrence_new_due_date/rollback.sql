@@ -14,7 +14,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261028145835_occurrence_new_due_date';
+    WHERE "name" = '20261028153347_occurrence_new_due_date';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

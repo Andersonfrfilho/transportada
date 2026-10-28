@@ -14,7 +14,8 @@
     "businessCalendar": "Calendário",
     "audioTranscription": "Transcrição de áudios",
     "occurrenceWatchers": "Responsáveis por ocorrências",
-    "whatsapp": "WhatsApp"
+    "whatsapp": "WhatsApp",
+    "automations": "Automações"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -855,5 +856,45 @@
       "title": "Criar o número pelo portal"
     },
     "settingsTitle": "Configuração do canal"
+  },
+  "automations": {
+    "title": "Automações",
+    "subtitle": "O fluxo semanal de um contratante: o que chega por email, quem recebe e em quanto tempo vence a fatura. Cada passo ainda pede a sua confirmação.",
+    "loading": "Carregando as automações…",
+    "retry": "Tentar de novo",
+    "empty": "Nenhuma automação cadastrada.",
+    "summary_one": "{{count}} destinatário · fatura em {{days}} dias",
+    "summary_other": "{{count}} destinatários · fatura em {{days}} dias",
+    "on": "Ligada",
+    "off": "Desligada",
+    "edit": "Editar",
+    "new": "Nova automação",
+    "editing": "Editar automação",
+    "name": "Nome (o contratante)",
+    "recipients": "Destinatários do envio",
+    "recipientsHint": "Um email por linha. O envio responde para todos eles.",
+    "dueDays": "Prazo da fatura (dias)",
+    "partSize": "XMLs por email (até 100)",
+    "nfseCity": "Cidade da NFS-e (opcional)",
+    "xmlKind": "Segue por email somente o XML dos CT-e emitidos.",
+    "enabled": "Automação ligada",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "cancel": "Cancelar",
+    "formError": {
+      "name": "Informe o nome da automação.",
+      "billingDueDays": "O prazo da fatura vai de 1 a 120 dias.",
+      "partSize": "Cada email leva de 1 a 100 XMLs.",
+      "recipientFormat": "Há um email inválido na lista de destinatários.",
+      "recipientLimit": "No máximo 50 destinatários."
+    },
+    "error": {
+      "failed": "Não foi possível concluir. Tente de novo.",
+      "forbidden": "Você não tem permissão para as automações.",
+      "invalid": "Os dados não foram aceitos. Confira os campos.",
+      "unauthenticated": "Sua sessão expirou. Entre de novo.",
+      "notFound": "A automação não existe mais.",
+      "conflict": "Já existe uma automação com esse nome."
+    }
   }
 }

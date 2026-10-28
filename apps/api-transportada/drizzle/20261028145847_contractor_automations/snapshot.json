@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "e2cd322b-dc41-47d4-bd2c-6313f59c6180",
+  "id": "ea5e75ff-0e98-45a7-9183-734d2540fd3c",
   "prevIds": [
     "9a98b62f-4a28-4854-8d7b-6b7d2d6dd503"
   ],
@@ -1467,6 +1467,12 @@
     {
       "isRlsEnabled": false,
       "name": "company_audio_transcription_settings",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "contractor_automations",
       "entityType": "tables",
       "schema": "public"
     },
@@ -31192,19 +31198,6 @@
       "table": "company_occurrence_types"
     },
     {
-      "type": "boolean",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "false",
-      "generated": null,
-      "identity": null,
-      "name": "asks_new_due_date",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
       "type": "varchar(16)",
       "typeSchema": null,
       "notNull": true,
@@ -33046,19 +33039,6 @@
       "generated": null,
       "identity": null,
       "name": "reference_number",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "trip_document_occurrences"
-    },
-    {
-      "type": "date",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "requested_due_date",
       "entityType": "columns",
       "schema": "public",
       "table": "trip_document_occurrences"
@@ -41443,6 +41423,162 @@
       "entityType": "columns",
       "schema": "public",
       "table": "company_audio_transcription_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "15",
+      "generated": null,
+      "identity": null,
+      "name": "billing_due_days",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'cte'",
+      "generated": null,
+      "identity": null,
+      "name": "xml_kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "100",
+      "generated": null,
+      "identity": null,
+      "name": "part_size",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 1,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "recipients",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "nfse_city",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_automations"
     },
     {
       "nameExplicit": true,
@@ -59965,6 +60101,23 @@
       "table": "company_audio_transcription_settings"
     },
     {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "contractor_automations_company_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
       "columns": [
         "group_id",
         "permission"
@@ -62416,6 +62569,16 @@
       "name": "company_audio_transcription_settings_pkey",
       "schema": "public",
       "table": "company_audio_transcription_settings",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "contractor_automations_pkey",
+      "schema": "public",
+      "table": "contractor_automations",
       "entityType": "pks"
     },
     {
@@ -66116,6 +66279,18 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "name"
+      ],
+      "nullsNotDistinct": false,
+      "name": "contractor_automations_company_name_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_automations"
     },
     {
       "nameExplicit": false,
@@ -74597,6 +74772,41 @@
       "entityType": "checks",
       "schema": "public",
       "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "value": "length(btrim(\"name\")) between 1 and 120",
+      "name": "contractor_automations_name_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "value": "\"billing_due_days\" between 1 and 120",
+      "name": "contractor_automations_billing_due_days_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "value": "\"xml_kind\" in ('cte')",
+      "name": "contractor_automations_xml_kind_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "value": "\"part_size\" between 1 and 100",
+      "name": "contractor_automations_part_size_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_automations"
+    },
+    {
+      "value": "cardinality(\"recipients\") <= 50",
+      "name": "contractor_automations_recipients_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_automations"
     }
   ],
   "renames": []

@@ -14,7 +14,8 @@
     "businessCalendar": "Calendar",
     "audioTranscription": "Audio transcription",
     "occurrenceWatchers": "Occurrence owners",
-    "whatsapp": "WhatsApp"
+    "whatsapp": "WhatsApp",
+    "automations": "Automations"
   },
   "entryKinds": {
     "title": "Entry kinds",
@@ -855,5 +856,45 @@
       "title": "Create the number from the portal"
     },
     "settingsTitle": "Channel settings"
+  },
+  "automations": {
+    "title": "Automations",
+    "subtitle": "A contractor's weekly flow: what arrives by email, who receives the reply and when the invoice falls due. Each step still asks for your confirmation.",
+    "loading": "Loading automations…",
+    "retry": "Try again",
+    "empty": "No automations yet.",
+    "summary_one": "{{count}} recipient · invoice due in {{days}} days",
+    "summary_other": "{{count}} recipients · invoice due in {{days}} days",
+    "on": "On",
+    "off": "Off",
+    "edit": "Edit",
+    "new": "New automation",
+    "editing": "Edit automation",
+    "name": "Name (the contractor)",
+    "recipients": "Recipients of the send",
+    "recipientsHint": "One email per line. The send replies to all of them.",
+    "dueDays": "Invoice due (days)",
+    "partSize": "XMLs per email (up to 100)",
+    "nfseCity": "NFS-e city (optional)",
+    "xmlKind": "Only the XMLs of issued CT-e follow by email.",
+    "enabled": "Automation on",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "formError": {
+      "name": "Enter the automation name.",
+      "billingDueDays": "The invoice term is 1 to 120 days.",
+      "partSize": "Each email carries 1 to 100 XMLs.",
+      "recipientFormat": "There is an invalid email in the recipients.",
+      "recipientLimit": "At most 50 recipients."
+    },
+    "error": {
+      "failed": "Could not finish. Try again.",
+      "forbidden": "You are not allowed to manage automations.",
+      "invalid": "The data was not accepted. Check the fields.",
+      "unauthenticated": "Your session expired. Sign in again.",
+      "notFound": "The automation no longer exists.",
+      "conflict": "An automation with this name already exists."
+    }
   }
 }
