@@ -1,0 +1,53 @@
+{
+  "add": {
+    "email": "Informar e-mail do cliente",
+    "whatsapp": "Informar WhatsApp do cliente"
+  },
+  "channel": {
+    "email": "E-mail",
+    "whatsapp": "WhatsApp"
+  },
+  "confirm": {
+    "back": "Corrigir",
+    "email": "O cliente receberá neste e-mail. Confere?",
+    "save": "Confirmar e guardar",
+    "saving": "Guardando…",
+    "whatsapp": "O cliente receberá neste número. Confere?"
+  },
+  "edit": {
+    "aria": "Editar o contato {{contact}}"
+  },
+  "error": {
+    "duplicate": "Este contato já existe para o cliente.",
+    "failed": "Não foi possível guardar agora. Tente de novo.",
+    "invalid": "Confira o contato: o número precisa de DDD e o e-mail de um endereço completo.",
+    "limit": "Este cliente já tem o máximo de contatos deste tipo.",
+    "notFound": "Este contato não está mais disponível. Feche e abra a ocorrência de novo."
+  },
+  "form": {
+    "cancel": "Cancelar",
+    "channel": "Tipo de contato",
+    "email": "E-mail do cliente",
+    "emailPlaceholder": "nome@empresa.com.br",
+    "invalidEmail": "Digite um e-mail completo, como nome@empresa.com.br.",
+    "invalidWhatsapp": "Confira o número: ele precisa ter DDD, por exemplo (16) 99999-8888.",
+    "keepPlaceholder": "Deixe vazio para manter {{contact}}",
+    "label": "Quem é (opcional)",
+    "labelPlaceholder": "Ex.: recebimento",
+    "review": "Conferir",
+    "whatsapp": "WhatsApp do cliente",
+    "whatsappPlaceholder": "(16) 99999-8888"
+  },
+  "remove": {
+    "aria": "Remover o contato {{contact}}",
+    "confirm": "Remover",
+    "keep": "Manter"
+  },
+  "section": {
+    "loading": "Buscando os contatos do cliente…",
+    "none": "Este cliente não tem contato guardado. Informe aqui para a transportadora falar com ele, sem precisar mandar pelo chat.",
+    "office": "da transportadora",
+    "offline": "Sem sinal: informe o contato do cliente quando o sinal voltar. Você pode registrar a ocorrência assim mesmo.",
+    "title": "Contato do cliente"
+  }
+}

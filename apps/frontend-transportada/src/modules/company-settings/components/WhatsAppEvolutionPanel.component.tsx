@@ -4,16 +4,19 @@ import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
+import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import {
   buildWhatsAppEvolutionSubmission,
   startWhatsAppEvolutionDraft,
   type WhatsAppEvolutionDraft,
 } from '../shared/whatsappEvolutionForm.service'
-import type {
-  WhatsAppEvolutionQr,
-  WhatsAppEvolutionSaveInput,
-  WhatsAppEvolutionSettings,
+import {
+  WHATSAPP_DEFAULT_PROVIDERS,
+  type WhatsAppDefaultProvider,
+  type WhatsAppEvolutionQr,
+  type WhatsAppEvolutionSaveInput,
+  type WhatsAppEvolutionSettings,
 } from '../shared/whatsappEvolution.validation'
 import styles from '../styles/companySettings.module.css'
 
@@ -191,15 +194,35 @@ function WhatsAppEvolutionForm(props: WhatsAppEvolutionPanelProps) {
         disabled={props.disabled}
         label={t('whatsappEvolution.acknowledgeRisk')}
         onChange={(checked) =>
-          edit({ acknowledgeRisk: checked, enabled: checked && draft.enabled })
+          edit({
+            acknowledgeRisk: checked,
+            defaultProvider: checked && draft.enabled ? draft.defaultProvider : 'meta',
+            enabled: checked && draft.enabled,
+          })
         }
       />
       <Checkbox
         checked={draft.enabled}
         disabled={props.disabled || !draft.acknowledgeRisk}
         label={t('whatsappEvolution.enabledLabel')}
-        onChange={(checked) => edit({ enabled: checked })}
+        onChange={(checked) =>
+          edit({ defaultProvider: checked ? draft.defaultProvider : 'meta', enabled: checked })
+        }
       />
+      <label>
+        <span>{t('whatsappEvolution.providerLabel')}</span>
+        <Select
+          ariaLabel={t('whatsappEvolution.providerLabel')}
+          disabled={props.disabled}
+          options={WHATSAPP_DEFAULT_PROVIDERS.map((provider) => ({
+            label: t(`whatsappEvolution.provider.${provider}`),
+            value: provider,
+          }))}
+          value={draft.defaultProvider}
+          onChange={(value) => edit({ defaultProvider: value as WhatsAppDefaultProvider })}
+        />
+      </label>
+      <p className={styles.settingsFormNote}>{t('whatsappEvolution.providerHint')}</p>
       <div className={styles.settingsFormActions}>
         <button
           disabled={props.disabled || submission === null}

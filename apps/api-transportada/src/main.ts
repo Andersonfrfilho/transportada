@@ -183,6 +183,8 @@ import { createDrizzleEvolutionConversationInboundRepository } from './occurrenc
 import { DrizzleWhatsAppEvolutionRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution.repository'
 import { createEvolutionConnectionGateway } from './whatsapp/infrastructure/evolution-connection.gateway'
 import { createEvolutionDocumentSender } from './whatsapp/infrastructure/evolution-document-sender.gateway.js'
+import { createSendClientReplyUseCase } from './occurrence-conversation/application/send-client-reply.use-case.js'
+import { createDrizzleClientReplyRepository } from './occurrence-conversation/infrastructure/drizzle-client-reply.repository.js'
 import { readAllBytes } from './occurrence-conversation/application/conversation-attachment.service.js'
 import { createForwardContractorReplyByWhatsAppUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-whatsapp.use-case.js'
 import {
@@ -841,6 +843,12 @@ import { createDeliveryClientsUseCase } from './delivery-clients/application/del
 import { createDeliveryClientEmailsUseCase } from './delivery-clients/application/delivery-client-emails.use-case.js'
 import { DrizzleDeliveryClientEmailRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-email.repository.js'
 import { createDeliveryClientEmailRoutes } from './delivery-clients/presentation/delivery-client-email.routes.js'
+import { createDeliveryClientWhatsAppUseCase } from './delivery-clients/application/delivery-client-whatsapp.use-case.js'
+import { DrizzleDeliveryClientWhatsAppRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-whatsapp.repository.js'
+import { createDeliveryClientWhatsAppRoutes } from './delivery-clients/presentation/delivery-client-whatsapp.routes.js'
+import { createDriverClientContactsUseCase } from './delivery-clients/application/driver-client-contacts.use-case.js'
+import { DrizzleDriverClientContactRepository } from './delivery-clients/infrastructure/drizzle-driver-client-contacts.repository.js'
+import { createMeClientContactsRoutes } from './delivery-clients/presentation/me-client-contacts.routes.js'
 import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
 import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
 import { createOccurrenceStatementUseCase } from './delivery-clients/application/occurrence-statement.use-case.js'
@@ -2350,6 +2358,9 @@ function createApplicationRoutes({
   const deliveryClientEmails = createDeliveryClientEmailsUseCase({
     repository: new DrizzleDeliveryClientEmailRepository(database),
   })
+  const deliveryClientWhatsApp = createDeliveryClientWhatsAppUseCase({
+    repository: new DrizzleDeliveryClientWhatsAppRepository(database),
+  })
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
@@ -3770,6 +3781,15 @@ function createApplicationRoutes({
        * Spec 274 (ADR-0111): o chat por e-mail. O `renderer` é o `standardEmail.render` do `notification-module`
        * (modelo da empresa ou o embutido, versão 0); o app só entrega texto, nunca HTML.
        */
+      /** Spec 283 T5 (D6): a resposta do painel ao cliente pelo Evolution da empresa. */
+      sendClientReply: createSendClientReplyUseCase({
+        logger,
+        repository: createDrizzleClientReplyRepository(database),
+        sender: createEvolutionDocumentSender({
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
+      }),
       sendChatMail: createSendOccurrenceChatMailUseCase({
         ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
@@ -3883,6 +3903,13 @@ function createApplicationRoutes({
       forwardByWhatsApp: forwardContractorReplyByWhatsApp,
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
       whatsappOptions: contractorReplyWhatsAppOptions,
+    }),
+    /** Spec 281 T8b (D13): contatos do cliente da nota na abertura da ocorrência. */
+    ...createMeClientContactsRoutes({
+      contacts: createDriverClientContactsUseCase({
+        repository: new DrizzleDriverClientContactRepository(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     /** Spec 279 T4 (RF2/RF3): os e-mails do cliente para o boleto no `/me` do motorista, pelo trilho da 248. */
     ...createMeClientBoletoEmailsRoutes({
@@ -4212,6 +4239,7 @@ function createApplicationRoutes({
       resolveClientIp,
       updateEmailLabel: { execute: (input) => deliveryClientEmails.updateLabel(input) },
     }),
+    ...createDeliveryClientWhatsAppRoutes({ numbers: deliveryClientWhatsApp, resolveClientIp }),
     ...createFreightRegionRoutes({
       createRegion: { execute: (input) => freightRegions.create(input) },
       deleteRegion: { execute: (input) => freightRegions.delete(input) },

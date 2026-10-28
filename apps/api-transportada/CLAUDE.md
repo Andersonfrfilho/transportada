@@ -40,6 +40,8 @@ tipo (spec 150 T401/T402, `resolveMailSendReadiness`). ⚠️ **Rota que dispara
 
 **WhatsApp pelo Evolution — webhook** (spec 281 T6): `POST /public/whatsapp-evolution/:webhookId` (anônima, id opaco) recebe o Evolution da empresa. O Evolution **não assina o corpo**: a prova é o segredo por empresa no cabeçalho `x-transportada-webhook-token`, gerado pela API, selado em `whatsapp_evolution_settings.webhook_secret_envelope` (AAD `transportada:whatsapp-evolution-webhook:v1:…`, diferente do da chave) e comparado em tempo constante; id desconhecido, envelope que não abre e segredo errado dão o mesmo 401 sem corpo, e o resto é 200. Só depois disso o corpo vira dado, e o `instance` do evento tem de ser o configurado. Mensagem (`messages.upsert`, só chat de pessoa, nunca a própria) passa pela política `evolution-attribution.policy.ts`: resposta citando uma mensagem da conversa (motorista dela, contato com aceite, ou **o número a que a entrega do aviso foi feita** — `system_notice.deliveryId` → `occurrence_contractor_reply_deliveries.address`, gravado pela T5), única conversa aberta do contato, e todo o resto em `occurrence_conversation_unassigned` (nada é recusado; teto por número no serviço). Gravação idempotente pelo `unique` de `provider_message_id` no canal `whatsapp`, como a Meta. Status (`messages.update`: enviada/entregue/lida/falhou) vai por `applyProviderMessageStatus`, que só avança; conexão (`connection.update`) grava o último estado; toda entrega autenticada grava `last_webhook_at`. O webhook é apontado pela API (`setWebhook` do SDK) no primeiro QR da instância ativa e de novo depois que endereço, instância ou chave mudam; `POST /company-settings/whatsapp-evolution/webhook` (`settings.manage`) aponta de novo **trocando o segredo**. Sem `API_PUBLIC_URL` receber funciona, apontar é recusado (`WHATSAPP_EVOLUTION_WEBHOOK_URL_MISSING`). Log só com empresa, contagens e motivo.
 
+**Linha do tempo do boleto por WhatsApp** (spec 281 T9): cada tentativa do alvo `client_boleto_whatsapp` entra na linha do tempo da ocorrência como `contractor.client.whatsapp` (status e motivo, sem número, texto nem anexo). Ela não muda etapa; só `sent` é marco. A consulta é `listClientWhatsappSources` em `trip-occurrence-timeline.query.ts`, com o mesmo `reply_id` do retorno. O painel lê o tipo em `tripOccurrenceTimeline.service.ts`; o motivo de falha é o da lista de motivos do cliente, espelhada no painel.
+
 **O IP do cliente vem do salto conhecido** (ADR-0076 §6, spec 191): `createClientIpResolver` lê só o
 cabeçalho de `CLIENT_IP_SOURCE` — padrão `x-real-ip`, que o edge do Railway sobrescreve (medido).
 Nunca o começo de `x-forwarded-for`, que é do cliente; `cf-connecting-ip` só com Cloudflare
@@ -635,6 +637,11 @@ docs/ai-context § "A ocorrência tem duas conversas".
 - **Rotas que enviam declaram `rateLimit` no Postgres** e aparecem em
   `test/rate-limited-routes.contract.test.ts`: e-mail, app, portal, uploads e a resposta do
   motorista (`driver-occurrence-conversation-send`, 30/300 s).
+- **O cliente é o terceiro participante** (spec 283, contrato em `specs/283-*/contract.md`). A conversa `client` nasce
+  só pelo gatilho `occurrence_client_conversation_sync_trigger` na entrega da 248 (alvos `client_boleto_*`), uma
+  mensagem por entrega (`client_delivery_id`); nunca crie a conversa do cliente em código. Ela não guarda id de
+  provedor nem `mail_message_id` (a thread do e-mail é da contratante): o status chega pela entrega em
+  `applyProviderMessageStatus`. A leitura só a mostra com `occurrences.resolve`, sempre com destino mascarado.
 - Logs só com ids, códigos e contagens. Isolamento:
   `test/occurrence-conversation-schema/tenant-safety.contract.ts`.
 - **O motorista vê o estado do retorno da contratante na nota** (spec 248 T5.4): `GET /me/trips/current` traz `documents[].registeredOccurrences:
@@ -1068,6 +1075,15 @@ Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/eviden
 - **Link assinado sob demanda** (`.../:kind/:id/attachments/:objectId/url`, 5 min, `inline`): o `objectId` só assina se for foto, assinatura ou anexo do
   chat **da própria ocorrência** (vem do mesmo leitor do detalhe) e a `retention_until` não tiver vencido; senão 404
   `TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND`. O link nunca vai a log nem entra no retrato offline do app (só metadado).
+
+### Contato do cliente na abertura (spec 281 T8b)
+
+`company_occurrence_types.asks_client_contact` (padrão `false`) liga, por tipo, o pedido do contato do cliente ao motorista
+na abertura da ocorrência; o tipo do campo (`FieldOccurrenceType`) leva `asksClientContact` e `clientChannel`. As rotas
+`/me/trips/current/documents/:documentId/client-contacts` (`delivery-clients/presentation/me-client-contacts.routes.ts`,
+leitura `trip.read`, escrita `trip.report`) listam, incluem, editam e removem contatos do destinatário da nota, só para quem
+está na tripulação da viagem. Endereço normalizado (E.164 / e-mail) antes de gravar, só a forma mascarada sai, o motorista
+só mexe no que ele informou (`created_by_kind = driver` e o mesmo usuário), limite de 10 por canal e auditoria sem o endereço.
 
 ### Andamento da ocorrência (ADR-0105)
 

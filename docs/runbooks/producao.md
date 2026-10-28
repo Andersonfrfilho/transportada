@@ -298,6 +298,35 @@ O app do motorista autentica só pelo Keycloak, e o usuário de lá só nasce pe
 > não usado ou vencido), com **Dar acesso** / **Reenviar convite** na própria linha; vazio = todo
 > motorista ativo já tem acesso.
 
+## 5.3 Promoção staging → main com a spec 281 (WhatsApp pelo Evolution)
+
+Promoção de 27/10/2026 (PRs #377 a #387, #389, #391, parada por página #378). O que conferir:
+
+- **Migrations aditivas**, aplicadas no pré-deploy da api: `delivery_client_emails` vira
+  `delivery_client_contacts` (renomeada, com canal e visão `delivery_client_emails` para a api e o worker
+  antigos durante a troca de imagens), `whatsapp_evolution_settings` (tabela nova), colunas novas em
+  `occurrence_contractor_reply_deliveries` e `company_occurrence_types`. Conferir depois do deploy
+  `/health/ready` com `migrations: up`. A visão sai numa migration futura.
+- **WhatsApp pelo Evolution nasce desligado em produção.** Sem variável nova: a chave da instância vai
+  selada no banco (mesmo envelope do canal da Meta). Sem linha em `whatsapp_evolution_settings`, ou com
+  `status = 'disabled'`, nada é enviado; o padrão do tipo de ocorrência é `client_channel = 'email'`
+  (o que a 279 faz não muda). Ligar só com aval do Anderson, empresa por empresa, e só depois de um
+  Evolution real testado em staging (o serviço de staging ainda não subiu).
+- Não há serviço Evolution em produção; nenhuma ação de infraestrutura na promoção.
+
+**Resultado (28/10/2026):** `staging` → `main` pelo PR #397 (merge 4538804), deploy de produção verde
+(api, worker, cron, frontends) com `migrations` aplicadas. Dois avisos da promoção:
+
+- O deploy de **staging** parou em `Reconciliar realm` (`keycloak-reconcile.sh`): o service account
+  `transportada-admin` de staging estava só com `manage-realm` e `manage-users`; o script exige
+  `view-clients` e `manage-clients` de `realm-management`. O script é o mesmo da `main` e produção
+  passou nele; em staging é preciso conceder os dois papéis no console do Keycloak de staging e
+  reexecutar o deploy. Enquanto isso, o `Deploy API` de staging fica pulado.
+- Os serviços `osrm` e `map-tiles` de staging reportam `Deployment failed` pela integração do Railway
+  (não fazem parte da diferença da promoção e não são checks exigidos).
+- Push em `staging` durante a promoção cancela o gate em andamento (um por commit); combine antes de
+  mergear outras coisas na staging.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |

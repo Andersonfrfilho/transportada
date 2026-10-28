@@ -23,6 +23,8 @@ const WORKER_CLIENT_SECRET_PLACEHOLDER = '${KEYCLOAK_WORKER_CLIENT_SECRET}'
 const REALM_MANAGEMENT_CLIENT = 'realm-management'
 const MANAGE_REALM_ROLE = 'manage-realm'
 const MANAGE_USERS_ROLE = 'manage-users'
+const MANAGE_CLIENTS_ROLE = 'manage-clients'
+const VIEW_CLIENTS_ROLE = 'view-clients'
 const LOCAL_REALM_PATH = 'realm/transportada-local-realm.json'
 const DEPLOY_REALM_PATH = 'deploy/keycloak/realm.json'
 
@@ -30,11 +32,18 @@ const DEPLOY_REALM_PATH = 'deploy/keycloak/realm.json'
  * `manage-users` é o que a API precisa em toda instalação. `manage-realm` existe só no realm
  * publicado: `--import-realm` ignora realm que já subiu, então o passo "Reconciliar realm" do
  * deploy aplica o `loginTheme` com esta mesma credencial — sem o papel, o tema nunca alcança um
- * ambiente existente. O realm local não reconcilia nada, nasce do arquivo a cada container, e por
+ * ambiente existente. `view-clients` e `manage-clients` existem pelo mesmo motivo: `manage-realm` não
+ * cobre client, e o reconciliador do deploy (`keycloak-reconcile.sh`) para com 403 sem eles num realm
+ * reimportado (staging, 28/10/2026). O realm local não reconcilia nada, nasce do arquivo a cada container, e por
  * isso continua no mínimo. A lista é exaustiva nos dois: papel a mais aqui é privilégio a mais lá.
  */
 const SERVICE_ACCOUNT_CLIENT_ROLES: Readonly<Record<string, readonly string[]>> = {
-  [DEPLOY_REALM_PATH]: [MANAGE_REALM_ROLE, MANAGE_USERS_ROLE],
+  [DEPLOY_REALM_PATH]: [
+    MANAGE_CLIENTS_ROLE,
+    MANAGE_REALM_ROLE,
+    MANAGE_USERS_ROLE,
+    VIEW_CLIENTS_ROLE,
+  ],
   [LOCAL_REALM_PATH]: [MANAGE_USERS_ROLE],
 }
 const ENVIRONMENT_PLACEHOLDER = /^\$\{[A-Z0-9_]+\}$/

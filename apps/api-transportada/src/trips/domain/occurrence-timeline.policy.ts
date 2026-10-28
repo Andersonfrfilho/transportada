@@ -112,6 +112,15 @@ export type OccurrenceTimelineSource =
       readonly documentKind: OccurrenceTimelineDocumentKind
       readonly kind: 'contractor.reply.driver_read'
     })
+  /**
+   * Spec 281 T9: uma tentativa de mandar o boleto ao cliente por WhatsApp (o alvo `client_boleto_whatsapp`). Só o
+   * status e o motivo: nunca o número, o texto nem o anexo.
+   */
+  | (SourceBase & {
+      readonly kind: 'contractor.client.whatsapp'
+      readonly reason: null | string
+      readonly status: string
+    })
 
 export type OccurrenceTimelineEvent = OccurrenceTimelineSource & {
   readonly isKey: boolean
@@ -175,6 +184,7 @@ export type OccurrenceTimeline = {
 const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> = {
   'case.transition': 2,
   'contractor.mail.received': 4,
+  'contractor.client.whatsapp': 5,
   'contractor.mail.sent': 3,
   'contractor.reply': 5,
   'contractor.reply.delivery': 5,
@@ -274,6 +284,7 @@ function isKeyEvent(source: OccurrenceTimelineSource): boolean {
   /** Spec 278: o boleto conferido e o documento entregue ao motorista são marcos. */
   if (source.kind === 'contractor.reply.document') return source.result === 'confirmed'
   if (source.kind === 'contractor.reply.delivery') return source.status === 'sent'
+  if (source.kind === 'contractor.client.whatsapp') return source.status === 'sent'
   if (source.kind === 'resolution.resolved' || source.kind === 'resolution.reopened') return true
   return source.kind === 'case.transition' && source.toStatus === 'decided'
 }
@@ -364,6 +375,7 @@ function stageAfter(
     case 'contractor.reply.delivery':
     case 'contractor.reply.document':
     case 'contractor.reply.driver_read':
+    case 'contractor.client.whatsapp':
       return undefined
   }
 }

@@ -184,7 +184,8 @@ describe('o boleto por WhatsApp ao cliente (spec 281 T5)', () => {
     'um envio por número, com o id do provedor, aviso no chat do motorista e auditoria mascarada',
     async () => {
       await withConversationDatabase(async (database) => {
-        const { companyId, contactId, seeded, sends, useCase } = await prepare(database)
+        const { companyId, contactId, driverConversationId, seeded, sends, useCase } =
+          await prepare(database)
 
         const first = await useCase.forward(
           inputOf(seeded, { contactIds: [contactId], number: '(16) 99999-8888', save: true }),
@@ -253,7 +254,13 @@ describe('o boleto por WhatsApp ao cliente (spec 281 T5)', () => {
             systemNotice: occurrenceConversationMessages.systemNotice,
           })
           .from(occurrenceConversationMessages)
-          .where(eq(occurrenceConversationMessages.companyId, companyId))
+          .where(
+            and(
+              eq(occurrenceConversationMessages.companyId, companyId),
+              /** Spec 283: o envio também entra na conversa do cliente; o aviso é só o do motorista. */
+              eq(occurrenceConversationMessages.conversationId, driverConversationId),
+            ),
+          )
         const whatsappNotices = notices.filter((row) => row.channel === 'whatsapp')
         expect(whatsappNotices).toHaveLength(2)
         expect(whatsappNotices.map((row) => row.bodyText).toSorted()).toEqual([

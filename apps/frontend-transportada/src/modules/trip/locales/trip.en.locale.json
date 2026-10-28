@@ -2558,7 +2558,8 @@
       "ariaLabel": "Occurrence sections",
       "summary": "Summary",
       "contractor": "Contractor",
-      "driver": "Driver"
+      "driver": "Driver",
+      "client": "Client"
     },
     "correction": {
       "cancel": {
@@ -2666,7 +2667,10 @@
       "deliveryFailed": "Delivery to the driver failed",
       "deliveryPending": "Delivery to the driver pending",
       "driverReadBoleto": "The driver read the boleto",
-      "driverReadDocument": "The driver read the document"
+      "driverReadDocument": "The driver read the document",
+      "clientWhatsappSent": "Boleto sent by WhatsApp",
+      "clientWhatsappFailed": "Boleto sending by WhatsApp failed",
+      "clientWhatsappPending": "Boleto sending by WhatsApp pending"
     },
     "detail": {
       "documentConfirmed": "Payment line and note number {{note}} found in the PDF.",
@@ -2686,7 +2690,10 @@
       "driver_without_account": "The driver has no app access",
       "driver_unreachable": "The driver could not be reached",
       "whatsapp_window_closed": "The WhatsApp window is closed",
-      "send_failed": "Sending failed"
+      "send_failed": "Sending failed",
+      "whatsapp_number_not_found": "The number has no WhatsApp",
+      "whatsapp_disconnected": "WhatsApp was disconnected",
+      "attachment_too_large_for_whatsapp": "The file is too large for WhatsApp"
     },
     "stagesTitle": "Stages",
     "stageRunning": "running for {{elapsed}}",

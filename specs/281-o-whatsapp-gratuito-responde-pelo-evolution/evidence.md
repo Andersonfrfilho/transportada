@@ -114,3 +114,149 @@ Fatia mínima: só boleto, API (painel e app), staging. Sobre a T4 (configuraç�
   duas grafias do nono dígito, outro número vai para não atribuídas, o aviso vai de `sent` a `read` sem voltar, outra
   empresa não acha, e o ciclo do webhook (achar pelo id, guardar segredo, auditoria, conexão, troca de instância
   desmarcando o registro).
+
+## T7 — Telas do painel: provedor padrão e "Enviar por WhatsApp" (27/10/2026)
+
+Fatia mínima: só boleto, painel, staging. A tela de configuração (QR, estado, aviso de risco RF7) já veio com a T4; faltava
+o provedor padrão (P3) e o botão de envio, que usam as rotas da T5.
+
+**O que mudou**
+
+- Configuração (aba WhatsApp): seletor "Provedor padrão dos envios novos" (Meta ou Evolution). O Evolution só pode ser o
+  padrão com o canal ligado, e o aviso de risco lido; desligar o canal ou o aviso volta o padrão para a Meta. Antes, a
+  tela só repassava o valor gravado.
+- `ClientBoletoWhatsAppAction`: botão "Enviar por WhatsApp" ao lado de "Enviar ao cliente" (página da ocorrência e
+  linha da lista). Só aparece com o tipo em `whatsapp` ou `both`; com o Evolution não configurado, desligado ou
+  desconectado, e com o teto da ocorrência atingido, fica à vista, desligado e com o motivo (RF5). Diálogo com os números
+  guardados (mascarados), "Outro número" com "Guardar no cadastro do cliente" (`save`) e resultado por número; número sem
+  WhatsApp, arquivo grande e instância caída apontam para o e-mail.
+- `ClientWhatsAppSendState`: estado por número (Enviado, Na fila, Falhou com o motivo), "Tentar de novo" só onde a
+  segunda tentativa pode dar certo e "Reenviar" no que já saiu; cada toque leva chave de idempotência nova. Aparece na
+  página da ocorrência e em "Ver detalhes".
+- Cliente HTTP: `readContractorReplyWhatsAppOptions`, `forwardContractorReplyToClientWhatsApp` e
+  `resendContractorReplyWhatsAppDelivery`, com leitura tolerante (resposta malformada vira `null`, nunca botão) e
+  textos pt-BR e en.
+
+**Provas**
+
+- `test/occurrence-conversation/contractor-reply-whatsapp.contract.ts`: vocabulário e todo código de erro da API com
+  texto, leitura tolerante das opções e do resultado, regra do número, botão por canal e por estado do Evolution, estado
+  por número e o cliente HTTP (chave no cabeçalho, número só no corpo, "Tentar de novo" sem corpo).
+- `test/company-settings/whatsapp-evolution-panel.contract.ts`: o provedor padrão sai do rascunho, e o Evolution sem o
+  canal ligado não forma configuração.
+- Prints: `previews/whatsapp-painel-t7/`.
+
+**Pendente**
+
+- Teste em staging com um número do dono (critério de aceite), depois de T3 e do pacote no npm (bloqueio do `NPM_TOKEN`).
+- Contatos do cliente na ocorrência no app do motorista (T8) e linha do tempo (T9).
+
+## T8 — "Enviar por WhatsApp" no app do motorista (27/10/2026)
+
+Fatia mínima: só boleto, staging. Sobre a T5 (rotas do motorista) e a T3b (contatos).
+
+**O que mudou**
+
+- Módulo `apps/frontend-driver/src/modules/client-whatsapp`, ao lado do `client-email`: botão "Enviar por WhatsApp" junto de
+  "Enviar ao cliente" (cartão da lista, detalhe e faixa da conversa), com a mesma regra de aparecer só com o boleto aceito.
+  O botão some quando a API recusa o `GET` (tipo sem WhatsApp, `409`/`404`) e quando o número da empresa não está
+  conectado (`evolution.ready = false`, RF5): o e-mail segue sozinho.
+- Folha com os números guardados (mascarados, por `contactId`), "Informar outro número" e **tela de confirmação** com o
+  número formatado (`+55 (16) 99999-7766`) antes de qualquer envio; só segue para a API depois do "Confirmar e enviar", e só
+  é guardado com a caixa "Guardar este número para o cliente" (`save`). A API valida e normaliza de novo (D4).
+- Estados: histórico de entregas da ocorrência (enviado, enviando, não saiu e o motivo em português) e resultado por número
+  (`sent`, `already_sent`, `in_progress`, `failed`). Falha que passa (`whatsapp_disconnected`, `send_failed`) oferece "Tentar
+  de novo"; número sem WhatsApp e arquivo grande mandam o motorista para o "Enviar ao cliente" por e-mail.
+- Fila offline própria (`transportada.driver-client-whatsapp-outbox`), com a **mesma `idempotencyKey` em toda tentativa**,
+  drenada nos gatilhos da fila de mensagens. O reenvio é decisão do motorista, só com sinal, com chave nova por toque.
+- API: nova rota do motorista `POST /me/trips/current/occurrences/:id/client-boleto-whatsapp/deliveries/:deliveryId/resend`
+  (corpo `{ idempotencyKey }`), a mesma conferência de "ocorrência da viagem dele" e o mesmo balde de envio do e-mail.
+
+**Provas**
+
+- `test/client-whatsapp/*.contract.ts` (app): cliente da API (corpo, máscara, motivo desconhecido vira genérico, resposta
+  inválida recusada), número (normalização, formatação e paridade com a expressão da API lendo o arquivo-fonte) e fila
+  offline (mesma chave, recusa vira `failed`, outra conta não entrega).
+- `rate-limited-routes.contract.test.ts` (API): envio e reenvio do motorista contam no balde do e-mail.
+- `test/spec-281-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-281-prints.smoke.spec.ts`): 8 cenários em
+  375 px com a API dublada; prints em `specs/281-.../prints/`.
+
+**Pendente**
+
+- Teste em staging com o número do dono (depende de T3, T4 e do pacote do Evolution no npm, como a T5).
+
+## T9 — Linha do tempo, docs e runbook de staging (27/10/2026)
+
+Fatia mínima: só a linha do tempo, a documentação e o runbook; sem tela nova (T7/T8).
+
+**O que mudou**
+
+- Linha do tempo da ocorrência (API): `contractor.client.whatsapp`, uma entrada por tentativa do alvo
+  `client_boleto_whatsapp`, na ordem do retorno. Status e motivo só: sem número, texto nem anexo. `sent` é marco; não
+  muda etapa. Consulta em `trip-occurrence-timeline.query.ts` (`listClientWhatsappSources`).
+- Painel: tipo lido e validado, títulos "Boleto enviado por WhatsApp", "Falhou o envio do boleto por WhatsApp" e
+  "Envio do boleto por WhatsApp aguardando" (pt-BR e en), motivos do cliente (`whatsapp_number_not_found`,
+  `whatsapp_disconnected`, `attachment_too_large_for_whatsapp`) com frase na linha de detalhe.
+- Docs: `apps/api-transportada/CLAUDE.md` (bullet da linha do tempo), `apps/frontend-transportada/CLAUDE.md` (seção nova).
+- Runbook de staging: `docs/runbooks/evolution-staging.md`. Descreve o estado atual: o serviço de staging ainda é a T3.
+
+**Provas**
+
+- `test/trip-occurrence/timeline-automatic.contract.ts` (API): ordem e ids, só `sent` é marco, a etapa não muda, e a
+  forma do evento tem só `actor, id, isKey, kind, occurredAt, reason, sincePreviousSeconds, status`. Sem número, texto nem
+  anexo por construção.
+- `test/trip/occurrence-timeline-automatic.contract.ts` (painel): títulos, detalhe só na falha com motivo conhecido, e as
+  chaves nos dois locales.
+- `bun test` das duas suítes (818 e 10 testes) passando; `tsc --noEmit` da API e do painel sem erro; prettier nos arquivos
+  alterados.
+
+**Pendente**
+
+- Teste de aceite em staging (boleto a um número do dono, resposta no fio, queda caindo no e-mail): depende da T3.
+- A linha do tempo mostra o envio ao cliente quando houver tentativa gravada; a tela de envio (T7/T8) ainda não existe.
+
+## T8b (PR 2) — Cadastro de WhatsApp do cliente e contatos na página da ocorrência (27/10/2026)
+
+- API: `GET/POST /delivery-clients/:taxId/whatsapp` e `PATCH/DELETE .../:numberId` (leitura `fleet.read`, escrita `fleet.manage`).
+  Número vira E.164, só a forma mascarada sai, limite de 10, duplicata 409, outra empresa 404, auditoria sem o número.
+  Prova: `test/integration/delivery-client-whatsapp.integration.ts` (Postgres real) e `test/delivery-clients-http/whatsapp.contract.ts`.
+- Painel: `DeliveryClientWhatsAppPanel` no cadastro do cliente (listar, adicionar, editar rótulo e/ou número, remover) e a
+  mesma seção (e-mails + WhatsApp, `ClientContactsAction`) na página da ocorrência, para o escritório completar o contato
+  quando o motorista não informou. Sem `fleet.manage` fica só leitura. Prova: `test/delivery-clients/client-whatsapp.contract.ts`.
+- E-mail: o endereço segue sendo identidade (spec 279) — no painel troca-se o rótulo; trocar o endereço é remover e cadastrar.
+
+## T8b — Contato do cliente na abertura da ocorrência (27/10/2026)
+
+**Por quê.** O motorista não deve mandar o contato do cliente pelo chat: o pedido tem de aparecer na abertura da
+ocorrência, quando o cliente da nota não tem contato guardado, e ser configurável por tipo.
+
+**O que mudou**
+
+- Tipo: coluna `company_occurrence_types.asks_client_contact` (migration aditiva `20261027220459_asks_client_contact`,
+  padrão `false`, com rollback). A API grava e devolve o campo; o tipo lido pelo app leva `asksClientContact` e
+  `clientChannel`. No painel, aba Tipos de `/ocorrencias`, a caixa "Pedir o contato do cliente ao motorista" some com o
+  canal em "Desligado".
+- API do motorista, por nota (`documentId`, só da viagem dele): `GET/POST /me/trips/current/documents/:documentId/client-contacts`
+  e `PATCH/DELETE .../:contactId`. Número vira E.164 e e-mail é validado antes de guardar; só a forma mascarada sai; o
+  mesmo endereço devolve o existente (200); limite de 10 por canal; lock do cliente (`FOR UPDATE`). O motorista edita e
+  remove só o que ele mesmo informou (`editable`); o do escritório é só leitura. Auditoria sem o endereço em claro, com
+  `documentId` no metadado (a ocorrência ainda não existe na abertura, então `source_occurrence_id` fica nulo).
+- App do motorista: módulo `src/modules/client-contacts` — seção "Contato do cliente" no formulário de ocorrência quando
+  o tipo pede; lista, adicionar (canal pelo `clientChannel`), editar, remover e tela de confirmação antes de guardar. Sem
+  sinal a seção avisa e o registro da ocorrência segue (a escrita é online, sem fila, porque o contato só entra depois de
+  conferido).
+
+**Provas**
+
+- API: `test/integration/driver-client-contacts.integration.ts` (Postgres real: vários números e e-mails, normalização,
+  duplicata, edição, remoção, só o do motorista, limite por canal, nota alheia 404, auditoria sem endereço),
+  `test/delivery-clients/me-client-contacts.contract.ts`, `test/trip-occurrence/client-email-type-write.contract.ts` e a
+  asserção de migration `occurrence-type-asks-client-contact.assertion.ts`.
+- App: `test/client-contacts/client-contacts.contract.ts` (7 testes); painel: 3 testes novos em
+  `test/trip/occurrence-type-client-email-type.contract.ts`. Prints em `prints/t8b-*.png` (375 px, claro e escuro), de
+  `test/spec-281-t8b-prints.smoke.spec.ts`.
+
+**Pendente**
+
+- PR 2: o cadastro do cliente no painel (hoje só e-mail) ganha WhatsApp com listar, adicionar, editar e remover.
+- A sugestão, ao registrar a ocorrência, para ligar o contato informado à ocorrência (`source_occurrence_id`) não foi feita.

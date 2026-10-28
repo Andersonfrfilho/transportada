@@ -388,6 +388,15 @@ evento **nem é lida** (`mode: 'stopsOnly'`, aviso claro); evento `restricted`/`
 motivo. Mesmo mapa (`AssemblyVectorMap`, lazy, `vectorBasemap.service`); ele ganhou `focusRequest`, `isEntryAnimated` e, por ponto,
 `color`/`popup`/`isHighlighted` (dica em texto puro). Contratos: `test/trip/occurrence-trip-map*.contract.ts(x)`.
 
+## O boleto por WhatsApp na linha do tempo (spec 281 T9)
+
+O evento `contractor.client.whatsapp` (uma tentativa de mandar o boleto ao cliente por WhatsApp) é lido em
+`tripOccurrenceTimeline.service.ts` e validado em `tripOccurrenceTimeline.validation.ts`. O título sai de
+`clientWhatsappSent` / `clientWhatsappFailed` / `clientWhatsappPending`; a linha de detalhe só existe na falha e usa
+`occurrenceTimeline.deliveryReason.*`, que tem a lista de motivos do cliente. Um motivo novo do lado da API entra nas duas
+listas (`OCCURRENCE_TIMELINE_DELIVERY_REASONS` e o locale), senão a falha cai sem linha de detalhe. Teste:
+`test/trip/occurrence-timeline-automatic.contract.ts`.
+
 ## Contratantes e perfil de recebimento (spec 237 T1.4)
 
 Aba "Contratantes" de `/clientes` (`delivery-clients`): ficha com dados do contratante e perfil de
@@ -651,3 +660,19 @@ Os diálogos de envio (`SendToContractorDialog`, `AddressCorrectionMailDialog`) 
 linha "Cópia: …" e a resposta do responsável (`identity.kind === 'internal'`) vira "Nome · Equipe", com o selo "só para a equipe — a
 contratante não recebeu" quando `reachedContractor` é falso. Não houve fase de tolerância: a leitura do painel antigo ignora campo novo.
 Detalhe: `docs/ai-context/frontend-transportada.md`.
+
+## A conversa do cliente abre no chat da ocorrência (spec 283)
+
+A aba Cliente da ocorrência (`modules/occurrence-conversation/components/ClientConversationPanel`) é a conversa com o
+contratante que recebeu a nota. Não há tela própria: a coluna Cliente, a faixa de canais (`ClientChannelsStrip`), a faixa
+recolhida (`ClientConversationStrip`) e o composer (`ClientReplyComposer`) leem `clientConversation.service.ts` e
+`clientReply.service.ts`. O contrato da API está em `specs/283-*/contract.md`.
+
+- **Campo de resposta só para quem tem `occurrences.resolve`** (RF7). Quem só vê a ocorrência não recebe a conversa do
+  cliente, e o painel não depende de CSS para esconder o campo.
+- **Destino sempre mascarado.** A API devolve a forma mascarada do número e do e-mail; o painel não monta um destino a
+  partir de outro campo.
+- **Layout de três colunas** (D7). Em celular a conversa vira aba e a faixa fica recolhida. A prova é o print de 375 px
+  e de desktop em `specs/283-*/evidence.md`.
+- **Log sem dado do cliente.** O módulo não grava número ou e-mail em console nem em telemetria. A API tem o teste
+  `apps/api-transportada/test/occurrence-conversation/client-log-privacy.contract.ts`, que reprova log com esses campos crus.

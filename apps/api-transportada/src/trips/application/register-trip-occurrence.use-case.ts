@@ -214,6 +214,8 @@ export type OccurrenceTypeRecord = {
   readonly clientEmailType?: ClientEmailType
   readonly clientEmailSendMode?: ClientEmailSendMode
   readonly clientChannel?: ClientChannel
+  /** Spec 281 T8b: o app pede o contato do cliente na abertura; ausente é desligado. */
+  readonly asksClientContact?: boolean
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string
   readonly contractorReplyMode?: ContractorReplyMode
   readonly contractorReplyWaitHours?: null | number

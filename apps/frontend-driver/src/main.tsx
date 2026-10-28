@@ -9,6 +9,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 
 import { useClientEmailOutboxFlush } from '@/modules/client-email/hooks/useClientEmailOutboxFlush.hook'
+import { useClientWhatsAppOutboxFlush } from '@/modules/client-whatsapp/hooks/useClientWhatsAppOutboxFlush.hook'
 import { useConversationOutboxFlush } from '@/modules/conversation/hooks/useConversationOutboxFlush.hook'
 import { DriverConversationsPage } from '@/modules/conversation/pages/DriverConversations.page'
 import { discardOrphanedConversationOutboxFor } from '@/modules/conversation/shared/driverConversationOutboxCleanup.service'
@@ -207,6 +208,7 @@ function DriverShell({ session }: DriverShellProps): ReactNode {
   const sessionExpiry = useSessionExpiry(session.canSync)
   useConversationOutboxFlush(session.canSync)
   useClientEmailOutboxFlush(session.canSync)
+  useClientWhatsAppOutboxFlush(session.canSync)
 
   useEffect(() => subscribeDriverRoute(setSection), [])
 

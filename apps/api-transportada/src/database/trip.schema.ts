@@ -3176,6 +3176,11 @@ export const companyOccurrenceTypes = pgTable(
       .$type<ClientChannel>()
       .notNull()
       .default(CLIENT_CHANNEL_DEFAULT),
+    /**
+     * Spec 281 T8b (D13): o app do motorista pede, na abertura da ocorrência, o contato do cliente que falta (WhatsApp e/ou
+     * e-mail, conforme o `client_channel`). Padrão desligado: nenhum tipo existente muda.
+     */
+    asksClientContact: boolean('asks_client_contact').notNull().default(false),
     /** Sending the invoice to the e-mail of the note's customer is always an explicit choice. */
     forwardToNoteRecipient: varchar('forward_to_note_recipient', { length: 16 })
       .$type<ForwardToNoteRecipientMode>()
