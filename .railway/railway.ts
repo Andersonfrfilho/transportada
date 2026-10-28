@@ -143,6 +143,8 @@ export default defineRailway((ctx) => {
       ROUTING_MATRIX_URL: preserve(),
       SCHEDULED_DISTRIBUTION_CRON: preserve(),
       SENTRY_DSN: preserve(),
+      /** Segredo do Turnstile do formulário público; a API lê (environment.schema.ts). Sem a declaração o plano de produção apagava a variável. */
+      TURNSTILE_SECRET_KEY: preserve(),
       /** Spec 281 T4b: o Evolution do ambiente; com os dois a API cria a instância da empresa. */
       EVOLUTION_BASE_URL: preserve(),
       EVOLUTION_GLOBAL_API_KEY: preserve(),

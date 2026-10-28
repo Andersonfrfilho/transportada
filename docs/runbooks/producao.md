@@ -422,6 +422,15 @@ copiada nem impressa). A API cria a instância pelo portal (PR #404); o script
 `evolution-staging-instancia.sh` não é mais necessário. As duas variáveis constam no `railway.ts` como
 `preserve()` para um apply não as apagar.
 
+### Plano de produção contra o `railway.ts` (28/10/2026, somente leitura)
+
+`railway config plan` de produção contra a staging `cba0044` (já com os nomes de banco do #410): **0 serviços ou
+bancos apagados**, 16 mudanças e **1 `Delete`**: a variável `api.TURNSTILE_SECRET_KEY`, que existe em produção e
+a API lê, mas não estava no arquivo. Ela entrou como `preserve()`; o plano seguinte deve dar zero `Delete`.
+As demais mudanças são aditivas: `restartPolicyType: ON_FAILURE` nos serviços, `drainingSeconds: 600` no
+worker e seis variáveis `AUDIO_TRANSCRIPTION_*` do worker. **Nenhum apply foi rodado**; ele segue
+dependendo de novo plano sem `Delete` e da aprovação do Anderson.
+
 ### Recuperação dos usuários de staging (28/10/2026)
 
 O banco do Keycloak de staging foi apagado em 27/10 (ver incidente acima); o realm voltou sem usuários.
