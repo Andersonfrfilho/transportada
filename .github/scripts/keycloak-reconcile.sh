@@ -30,6 +30,24 @@ if [ -z "$base_url" ] || [ -z "$client_secret" ]; then
   exit 1
 fi
 
+# O deploy da identidade volta quando o Railway marca o serviço como `SUCCESS`, e isso acontece antes de o
+# Keycloak terminar de subir (28/10/2026: duas execuções seguidas receberam 502 no token, com o Keycloak ainda
+# no `Starting Container`). Sem esta espera, um deploy de identidade que dá certo reprova a API inteira, e
+# os jobs seguintes (worker, painel, motorista) ficam pulados com as migrations por rodar.
+readonly READY_TIMEOUT_SECONDS="${KEYCLOAK_READY_TIMEOUT_SECONDS:-300}"
+readonly READY_INTERVAL_SECONDS="${KEYCLOAK_READY_INTERVAL_SECONDS:-5}"
+waited=0
+until [ "$(curl --silent --output /dev/null --max-time 10 --write-out '%{http_code}' \
+  "$base_url/realms/$REALM/.well-known/openid-configuration" || true)" = 200 ]; do
+  if [ "$waited" -ge "$READY_TIMEOUT_SECONDS" ]; then
+    echo "::error::o keycloak do ambiente $TARGET_ENVIRONMENT não respondeu ao discovery do realm $REALM em ${READY_TIMEOUT_SECONDS}s"
+    exit 1
+  fi
+  echo "keycloak ainda não responde; nova tentativa em ${READY_INTERVAL_SECONDS}s"
+  sleep "$READY_INTERVAL_SECONDS"
+  waited=$((waited + READY_INTERVAL_SECONDS))
+done
+
 token="$(curl --silent --show-error --fail --max-time 30 \
   --request POST "$base_url/realms/$REALM/protocol/openid-connect/token" \
   --data grant_type=client_credentials \
