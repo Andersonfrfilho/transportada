@@ -1,6 +1,6 @@
 # ADR 0112 — WhatsApp não oficial (Evolution API) como opção gratuita
 
-- **Status:** proposta — aguarda o aceite do Anderson (T0 da spec 281, dúvida R1 em aberto).
+- **Status:** aceita pelo Anderson em 2026-10-28 (T0 da spec 281; risco R1 aceito).
 - **Data:** 2026-10-28
 - **Nasce da spec 281:** o Evolution API entra no SDK de notificação ao lado do provedor Meta, para quem não tem conta
   empresarial aprovada.
@@ -11,7 +11,7 @@
   do WhatsApp pode quebrar o envio até o pacote atualizar (spec 281 R1).
 - Número e conteúdo são dado pessoal e, no caso do boleto, fiscal (R3).
 
-## Decisão proposta
+## Decisão
 
 1. O Evolution é uma **opção gratuita por empresa, desligada por padrão**; o e-mail continua sendo o padrão e a reserva.
 2. A empresa só liga depois de ler o aviso de risco na tela de configuração (RF7) e marcar o aceite, que fica gravado.
