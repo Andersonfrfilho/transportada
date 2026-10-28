@@ -35,11 +35,15 @@ export function useWhatsAppEvolutionPanel(
   const queryKey = [WHATSAPP_EVOLUTION_QUERY_KEY, input.companyId] as const
 
   const query = useQuery({ enabled: input.enabled, queryFn: client.get, queryKey })
+  const provisionMutation = useMutation({
+    mutationFn: (acknowledgeRisk: boolean) => client.provision(acknowledgeRisk),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  })
   const saveMutation = useMutation({
     mutationFn: (body: WhatsAppEvolutionSaveInput) => client.save(body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
-  const stored = query.data
+  const stored = query.data?.settings
   const connectable = stored?.status === 'active' && stored.apiKeyConfigured
   // Com o QR aberto quem informa o estado é o próprio QR; fora dele, esta leitura periódica.
   const connectionQuery = useQuery({
@@ -70,5 +74,13 @@ export function useWhatsAppEvolutionPanel(
     refetchIntervalInBackground: false,
   })
 
-  return { connectionQuery, qrQuery, query, saveMutation }
+  return {
+    connectionQuery,
+    provisionMutation,
+    provisioningAvailable: query.data?.provisioningAvailable === true,
+    qrQuery,
+    query,
+    saveMutation,
+    stored,
+  }
 }

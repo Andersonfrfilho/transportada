@@ -140,6 +140,9 @@ export default defineRailway((ctx) => {
       ROUTING_MATRIX_URL: preserve(),
       SCHEDULED_DISTRIBUTION_CRON: preserve(),
       SENTRY_DSN: preserve(),
+      /** Spec 281 T4b: o Evolution do ambiente; com os dois a API cria a instância da empresa. */
+      EVOLUTION_BASE_URL: preserve(),
+      EVOLUTION_GLOBAL_API_KEY: preserve(),
       /** Os dois segredos do APP da Meta: sem os dois a rota do webhook nem é registrada (fail-closed). */
       WHATSAPP_APP_SECRET: preserve(),
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: preserve(),

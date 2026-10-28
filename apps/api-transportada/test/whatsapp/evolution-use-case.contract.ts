@@ -21,6 +21,7 @@ import {
   WhatsAppEvolutionDisabledError,
   WhatsAppEvolutionNotConfiguredError,
   WhatsAppEvolutionProviderNotEnabledError,
+  WhatsAppEvolutionProvisioningUnavailableError,
   WhatsAppEvolutionRiskNotAcknowledgedError,
   WhatsAppEvolutionUnavailableError,
   WhatsAppEvolutionUnreachableError,
@@ -98,6 +99,7 @@ async function buildFixture(
   input: {
     readonly existing?: WhatsAppEvolutionSummary | null
     readonly gatewayFails?: boolean
+    readonly provisioner?: 'fails' | 'ok'
     readonly state?: 'close' | 'connecting' | 'open'
     readonly status?: 'active' | 'disabled'
   } = {},
@@ -111,6 +113,7 @@ async function buildFixture(
   const saved: WhatsAppEvolutionSaveRecord[] = []
   const recorded: { audited: boolean; state: string }[] = []
   const qrAudits: string[] = []
+  const provisioned: string[] = []
   const gatewayCalls: { apiKey: string; baseUrl: string; instanceName: string; method: string }[] =
     []
 
@@ -154,11 +157,23 @@ async function buildFixture(
     gateway,
     newSettingsId: () => NEW_SETTINGS_ID,
     now: () => new Date('2026-10-27T12:00:00.000Z'),
+    ...(input.provisioner === undefined
+      ? {}
+      : {
+          provisioner: {
+            baseUrl: 'https://evolution.exemplo.com',
+            createInstance: async (request: { readonly instanceName: string }) => {
+              provisioned.push(request.instanceName)
+              if (input.provisioner === 'fails') throw new Error('boom: chave-global')
+              return { token: 'token-da-instancia' }
+            },
+          },
+        }),
     repository,
     secrets,
   })
 
-  return { gatewayCalls, qrAudits, recorded, saved, secrets, sealed, useCase }
+  return { gatewayCalls, provisioned, qrAudits, recorded, saved, secrets, sealed, useCase }
 }
 
 describe('a configuração do Evolution (spec 281 T4)', () => {
@@ -369,5 +384,70 @@ describe('a chave selada e o endereço (spec 281 T4)', () => {
     'não é url',
   ])('recusa %s', (raw) => {
     expect(() => normalizeEvolutionBaseUrl(raw)).toThrow(WhatsAppEvolutionBaseUrlRejectedError)
+  })
+})
+
+describe('criar a instância pelo portal (spec 281 T4b)', () => {
+  test('sem o Evolution do ambiente, a API não cria e a tela cai na digitação', async () => {
+    const fixture = await buildFixture({ existing: null })
+
+    expect(fixture.useCase.provisioningAvailable).toBe(false)
+    await expect(
+      fixture.useCase.provision({ acknowledgeRisk: true, context: CONTEXT, correlationId: 'c1' }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionProvisioningUnavailableError)
+  })
+
+  test('cria a instância, sela o token como chave da empresa e liga o canal', async () => {
+    const fixture = await buildFixture({ existing: null, provisioner: 'ok' })
+
+    await fixture.useCase.provision({
+      acknowledgeRisk: true,
+      context: CONTEXT,
+      correlationId: 'c1',
+    })
+
+    expect(fixture.provisioned).toEqual(['transportada-000000000000'])
+    const record = fixture.saved[0] as WhatsAppEvolutionSaveRecord
+    expect(record.status).toBe('active')
+    expect(record.baseUrl).toBe('https://evolution.exemplo.com')
+    const opened = await fixture.secrets.decrypt({
+      companyId: COMPANY_ID,
+      envelope: record.secretEnvelope as SecretEnvelopeV1,
+      settingsId: NEW_SETTINGS_ID,
+    })
+    expect(opened.apiKey).toBe('token-da-instancia')
+    expect(JSON.stringify(record.audit)).not.toContain('token-da-instancia')
+  })
+
+  test('exige o aviso de risco antes de criar qualquer coisa no Evolution', async () => {
+    const fixture = await buildFixture({ existing: null, provisioner: 'ok' })
+
+    await expect(
+      fixture.useCase.provision({ acknowledgeRisk: false, context: CONTEXT, correlationId: 'c1' }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionRiskNotAcknowledgedError)
+    expect(fixture.provisioned).toEqual([])
+  })
+
+  test('falha do Evolution vira 502 sem vazar a chave global', async () => {
+    const fixture = await buildFixture({ existing: null, provisioner: 'fails' })
+
+    await expect(
+      fixture.useCase.provision({ acknowledgeRisk: true, context: CONTEXT, correlationId: 'c1' }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionUnreachableError)
+    expect(fixture.saved).toEqual([])
+  })
+
+  test('já criada no mesmo Evolution: religa sem criar outra instância nem trocar a chave', async () => {
+    const fixture = await buildFixture({ provisioner: 'ok' })
+
+    await fixture.useCase.provision({
+      acknowledgeRisk: true,
+      context: CONTEXT,
+      correlationId: 'c1',
+    })
+
+    expect(fixture.provisioned).toEqual([])
+    expect(fixture.saved[0]?.status).toBe('active')
+    expect(fixture.saved[0]?.secretEnvelope).toBeUndefined()
   })
 })

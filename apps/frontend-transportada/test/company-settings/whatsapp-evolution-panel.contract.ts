@@ -11,6 +11,7 @@ import {
   startWhatsAppEvolutionDraft,
   WHATSAPP_EVOLUTION_DEFAULT_DRAFT,
 } from '../../src/modules/company-settings/shared/whatsappEvolutionForm.service'
+import { createWhatsAppEvolutionClient } from '../../src/modules/company-settings/shared/whatsappEvolutionClient.service'
 import {
   isWhatsAppEvolutionQrResponse,
   isWhatsAppEvolutionResponse,
@@ -172,5 +173,31 @@ describe('WhatsApp (Evolution) settings panel (spec 281 T4)', () => {
     )
     expect(panel).not.toMatch(/stored\??\.apiKey(?!Configured)/u)
     expect(panel).toContain('type="password"')
+  })
+
+  test('create and connect sends only the risk notice and reads the availability flag', async () => {
+    const requests: { body: string; method: string; url: string }[] = []
+    const client = createWhatsAppEvolutionClient({
+      apiBaseUrl: 'https://api.example',
+      fetch: async (request) => {
+        requests.push({ body: await request.text(), method: request.method, url: request.url })
+        return new Response(
+          JSON.stringify(
+            request.method === 'GET'
+              ? { data: null, provisioningAvailable: true }
+              : { data: STORED },
+          ),
+        )
+      },
+      getAccessToken: async () => 'token',
+    })
+
+    expect(await client.get()).toEqual({ provisioningAvailable: true, settings: null })
+    expect(await client.provision(true)).toEqual(STORED)
+    expect(requests[1]).toEqual({
+      body: '{"acknowledgeRisk":true}',
+      method: 'POST',
+      url: 'https://api.example/company-settings/whatsapp-evolution/provision',
+    })
   })
 })

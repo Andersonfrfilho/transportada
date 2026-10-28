@@ -410,7 +410,10 @@ export function CompanySettingsPage() {
     enabled: whatsappActive,
     qrEnabled: whatsappQrOpen,
   })
-  const whatsappError = whatsappPanel.query.error ?? whatsappPanel.saveMutation.error
+  const whatsappError =
+    whatsappPanel.query.error ??
+    whatsappPanel.saveMutation.error ??
+    whatsappPanel.provisionMutation.error
   const entryKindCatalogPanel = useCompanyEntryKindCatalogPanel({
     enabled: canManageSettings && activeTab === 'entryKinds',
   })
@@ -497,13 +500,21 @@ export function CompanySettingsPage() {
           stored: driverAllowancePanel.query.data,
         }}
         whatsappEvolution={{
-          disabled: !canManageSettings || whatsappPanel.saveMutation.isPending,
+          disabled:
+            !canManageSettings ||
+            whatsappPanel.saveMutation.isPending ||
+            whatsappPanel.provisionMutation.isPending,
           errorCode: whatsappError instanceof Error ? whatsappError.message : undefined,
           loading: whatsappPanel.query.isLoading,
           onEdit: () => {
-            if (whatsappPanel.saveMutation.isIdle) return
-            whatsappPanel.saveMutation.reset()
+            if (!whatsappPanel.saveMutation.isIdle) whatsappPanel.saveMutation.reset()
+            if (!whatsappPanel.provisionMutation.isIdle) whatsappPanel.provisionMutation.reset()
           },
+          onProvision: (acknowledgeRisk) => {
+            setWhatsappQrOpen(true)
+            whatsappPanel.provisionMutation.mutate(acknowledgeRisk)
+          },
+          provisioningAvailable: whatsappPanel.provisioningAvailable,
           connection: whatsappPanel.connectionQuery.data,
           connectionErrorCode:
             whatsappPanel.connectionQuery.error instanceof Error
@@ -519,7 +530,7 @@ export function CompanySettingsPage() {
           qrLoading: whatsappPanel.qrQuery.isLoading,
           qrOpen: whatsappQrOpen,
           saved: whatsappPanel.saveMutation.isSuccess,
-          stored: whatsappPanel.query.data,
+          stored: whatsappPanel.stored,
         }}
         entryKindCatalog={{
           canManage: canManageSettings,

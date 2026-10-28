@@ -30,7 +30,10 @@ export type WhatsAppEvolutionPanelProps = Readonly<{
   loading: boolean
   /** O resultado da última gravação deixa de descrever a tela no instante em que ela muda. */
   onEdit: () => void
+  onProvision: (acknowledgeRisk: boolean) => void
   onQrOpenChange: (open: boolean) => void
+  /** O ambiente cria a instância sozinho: a tela pede só o aviso de risco, sem endereço nem chave. */
+  provisioningAvailable: boolean
   onSave: (input: WhatsAppEvolutionSaveInput) => void
   qr: WhatsAppEvolutionQr | undefined
   qrErrorCode: string | undefined
@@ -128,6 +131,38 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
         </div>
       ) : null}
       {state === 'open' ? <p role="status">{t('whatsappEvolution.connection.connected')}</p> : null}
+    </div>
+  )
+}
+
+/** Spec 281 T4b: sem digitar endereço nem chave; a API cria a instância e o QR aparece em seguida. */
+function WhatsAppEvolutionProvision(props: WhatsAppEvolutionPanelProps) {
+  const { t } = useTranslation('companySettings')
+  const [acknowledged, setAcknowledged] = useState(false)
+
+  return (
+    <div className={styles.settingsFormFields}>
+      <p className={styles.settingsFormNote}>{t('whatsappEvolution.provision.hint')}</p>
+      <p className={styles.settingsFormNote} id="whatsapp-evolution-provision-risk">
+        {t('whatsappEvolution.risk')}
+      </p>
+      <Checkbox
+        ariaDescribedBy="whatsapp-evolution-provision-risk"
+        checked={acknowledged}
+        disabled={props.disabled}
+        label={t('whatsappEvolution.acknowledgeRisk')}
+        onChange={setAcknowledged}
+      />
+      <div className={styles.settingsFormActions}>
+        <button
+          disabled={props.disabled || !acknowledged}
+          type="button"
+          onClick={() => props.onProvision(acknowledged)}
+        >
+          <Icon name="link" />
+          {t('whatsappEvolution.provision.action')}
+        </button>
+      </div>
     </div>
   )
 }
@@ -280,7 +315,11 @@ export function WhatsAppEvolutionPanel(props: WhatsAppEvolutionPanelProps) {
         <WhatsAppEvolutionSkeleton />
       ) : (
         <>
-          <WhatsAppEvolutionForm key={props.stored?.updatedAt ?? 'new'} {...props} />
+          {props.provisioningAvailable && props.stored == null ? (
+            <WhatsAppEvolutionProvision {...props} />
+          ) : (
+            <WhatsAppEvolutionForm key={props.stored?.updatedAt ?? 'new'} {...props} />
+          )}
           <WhatsAppEvolutionConnectionStatus {...props} />
         </>
       )}

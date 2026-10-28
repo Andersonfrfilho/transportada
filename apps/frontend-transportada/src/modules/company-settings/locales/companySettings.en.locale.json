@@ -842,6 +842,10 @@
       "checkError": "Could not read the connection state ({{code}}).",
       "dropped": "The number is disconnected. Generate a new QR to reconnect; meanwhile sends fall back to email.",
       "reconnect": "Reconnect number"
+    },
+    "provision": {
+      "action": "Create and connect",
+      "hint": "This environment's Evolution creates the number's instance for you. Accept the notice and scan the QR with WhatsApp."
     }
   }
 }
