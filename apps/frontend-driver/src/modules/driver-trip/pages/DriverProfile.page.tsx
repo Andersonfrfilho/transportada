@@ -28,6 +28,7 @@ import {
 import { discardProofThumbnails } from '../shared/proofThumbnailArchive.service'
 import { signOutDriver } from '../shared/signOut.service'
 import { discardTripSnapshots } from '../shared/tripSnapshot.service'
+import type { StopViewMode } from '../shared/stopPaging.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverProfilePageProps = Readonly<{
@@ -42,6 +43,8 @@ type DriverProfilePageProps = Readonly<{
   ownPendingCount: number
   queuedCount: number
   snapshot: DriverTripSnapshot | undefined
+  /** A mesma instância da tela da viagem: dois `useState` guardariam cópias que não se falam. */
+  stopViewMode: Readonly<{ mode: StopViewMode; setMode: (mode: StopViewMode) => void }>
   /** RF12: a viagem escolhida na tela da viagem — o Perfil mostra a placa dela, não a de `trips[0]`. */
   trip: DriverTrip | undefined
 }>
@@ -65,6 +68,7 @@ export function DriverProfilePage({
   ownPendingCount,
   queuedCount,
   snapshot,
+  stopViewMode,
   trip,
 }: DriverProfilePageProps) {
   const { t } = useTranslation('driverTrip')
@@ -192,6 +196,28 @@ export function DriverProfilePage({
           <Icon name={colorTheme.theme === 'dark' ? 'sun' : 'moon'} />
           {colorTheme.theme === 'dark' ? t('theme.useLight') : t('theme.useDark')}
         </Button>
+      </section>
+
+      <section className={styles.profileCard}>
+        <h2 className={styles.profileSectionTitle}>{t('paging.settingTitle')}</h2>
+        <p>{t('paging.settingHelp')}</p>
+        <div
+          className={styles.stopViewModeChoices}
+          role="group"
+          aria-label={t('paging.settingTitle')}
+        >
+          {(['paged', 'list'] as const).map((mode) => (
+            <Button
+              aria-pressed={stopViewMode.mode === mode}
+              key={mode}
+              type="button"
+              variant={stopViewMode.mode === mode ? 'default' : 'secondary'}
+              onClick={() => stopViewMode.setMode(mode)}
+            >
+              {t(`paging.mode.${mode}`)}
+            </Button>
+          ))}
+        </div>
       </section>
 
       <DriverLocationConsentCard />

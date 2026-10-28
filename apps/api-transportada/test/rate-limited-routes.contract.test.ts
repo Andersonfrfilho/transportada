@@ -14,6 +14,7 @@ import { createHolidayProviderSettingsRoutes } from '../src/business-calendar/pr
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
 import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/client-occurrence-conversation.routes'
 import { createMeClientBoletoEmailsRoutes } from '../src/occurrence-conversation/presentation/me-client-boleto-emails.routes.js'
+import { createMeClientBoletoWhatsAppRoutes } from '../src/occurrence-conversation/presentation/me-client-boleto-whatsapp.routes.js'
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
 import { createOccurrenceContractorReplyRoutes } from '../src/occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
@@ -540,6 +541,36 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         },
         signature:
           'POST /me/trips/current/occurrences/:id/client-boleto-emails/detected/:messageId/send',
+      },
+    ])
+  })
+
+  /** Spec 281 T8: enviar e reenviar o boleto por WhatsApp pelo app dividem o balde do envio por e-mail; listar segue sem teto. */
+  test('o envio e o reenvio do boleto por WhatsApp pelo motorista contam no balde do e-mail', () => {
+    const routes = createMeClientBoletoWhatsAppRoutes(unusedDependencies() as never)
+    const rateLimit = {
+      maxRequests: 30,
+      scope: 'driver-client-boleto-email-send',
+      store: 'postgres',
+      windowSeconds: 300,
+    } as const
+
+    expect(
+      routes
+        .filter((route) => route.rateLimit !== undefined)
+        .map((route) => ({
+          rateLimit: route.rateLimit,
+          signature: `${route.method} ${route.pathname}`,
+        })),
+    ).toEqual([
+      {
+        rateLimit,
+        signature: 'POST /me/trips/current/occurrences/:id/client-boleto-whatsapp/send',
+      },
+      {
+        rateLimit,
+        signature:
+          'POST /me/trips/current/occurrences/:id/client-boleto-whatsapp/deliveries/:deliveryId/resend',
       },
     ])
   })

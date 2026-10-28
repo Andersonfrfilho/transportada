@@ -1,0 +1,53 @@
+{
+  "add": {
+    "email": "Add client e-mail",
+    "whatsapp": "Add client WhatsApp"
+  },
+  "channel": {
+    "email": "E-mail",
+    "whatsapp": "WhatsApp"
+  },
+  "confirm": {
+    "back": "Correct",
+    "email": "The client will receive it at this e-mail. Is it right?",
+    "save": "Confirm and save",
+    "saving": "Saving…",
+    "whatsapp": "The client will receive it at this number. Is it right?"
+  },
+  "edit": {
+    "aria": "Edit contact {{contact}}"
+  },
+  "error": {
+    "duplicate": "This contact already exists for the client.",
+    "failed": "Could not save right now. Try again.",
+    "invalid": "Check the contact: the number needs an area code and the e-mail a full address.",
+    "limit": "This client already has the maximum number of contacts of this kind.",
+    "notFound": "This contact is no longer available. Close and reopen the occurrence."
+  },
+  "form": {
+    "cancel": "Cancel",
+    "channel": "Contact type",
+    "email": "Client e-mail",
+    "emailPlaceholder": "name@company.com",
+    "invalidEmail": "Enter a full e-mail, like name@company.com.",
+    "invalidWhatsapp": "Check the number: it needs an area code, for example (16) 99999-8888.",
+    "keepPlaceholder": "Leave empty to keep {{contact}}",
+    "label": "Who is it (optional)",
+    "labelPlaceholder": "E.g. receiving",
+    "review": "Review",
+    "whatsapp": "Client WhatsApp",
+    "whatsappPlaceholder": "(16) 99999-8888"
+  },
+  "remove": {
+    "aria": "Remove contact {{contact}}",
+    "confirm": "Remove",
+    "keep": "Keep"
+  },
+  "section": {
+    "loading": "Looking up the client contacts…",
+    "none": "This client has no saved contact. Add one here so the carrier can reach them, without sending it in the chat.",
+    "office": "from the carrier",
+    "offline": "No signal: add the client contact when the signal returns. You can register the occurrence anyway.",
+    "title": "Client contact"
+  }
+}

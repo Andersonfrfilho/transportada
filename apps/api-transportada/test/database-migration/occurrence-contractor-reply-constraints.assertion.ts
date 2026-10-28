@@ -13,6 +13,7 @@ import { expect } from 'bun:test'
 import { rollbackContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { rollbackClientEmailSendMode } from './client-email-send-mode.assertion.js'
 import { rollbackContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
+import { rollbackContractorReplyWhatsAppDelivery } from './contractor-reply-whatsapp-delivery.assertion.js'
 import { rollbackContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { rollbackContractorReplyResolveOnDelivery } from './contractor-reply-resolve-on-delivery.assertion.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
@@ -45,6 +46,7 @@ async function assertDefaultsOnExistingType(
     join(migrationsDirectory.pathname, directory, 'rollback.sql'),
   ).text()
 
+  await rollbackContractorReplyWhatsAppDelivery(database, directories)
   await rollbackClientEmailSendMode(database, directories)
   await rollbackContractorReplyClientBoletoEmails(database, directories)
 

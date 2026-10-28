@@ -216,4 +216,57 @@ describe('a linha do tempo mostra o automático (spec 278 CA3)', () => {
       stage: 'awaiting_operator',
     })
   })
+
+  /** Spec 281 T9: o boleto ao cliente por WhatsApp entra na linha; marco só quando sai, e não muda a etapa. */
+  test('o boleto enviado ao cliente por WhatsApp entra na linha; só o enviado é marco e não muda a etapa', () => {
+    const client = (
+      id: string,
+      minutes: number,
+      status: string,
+      reason: null | string = null,
+    ): OccurrenceTimelineSource => ({
+      actor: SYSTEM,
+      id,
+      kind: 'contractor.client.whatsapp',
+      occurredAt: AT(minutes),
+      reason,
+      status,
+    })
+    const timeline = buildOccurrenceTimeline({
+      sources: [
+        RECORDED,
+        reply('reply-1', 5, 'awaiting_contractor'),
+        client('client-failed', 12, 'failed', 'whatsapp_disconnected'),
+        client('client-sent', 14, 'sent'),
+        client('client-pending', 15, 'queued'),
+      ],
+    })
+
+    expect(
+      timeline.events.flatMap((event) =>
+        event.kind === 'contractor.client.whatsapp'
+          ? [[event.id, event.status, event.reason, event.isKey]]
+          : [],
+      ),
+    ).toEqual([
+      ['contractor.client.whatsapp:client-failed', 'failed', 'whatsapp_disconnected', false],
+      ['contractor.client.whatsapp:client-sent', 'sent', null, true],
+      ['contractor.client.whatsapp:client-pending', 'queued', null, false],
+    ])
+    expect(timeline.stages.map((stage) => stage.stage)).toEqual(['received', 'awaiting_contractor'])
+    /** Log e linha não levam número, texto nem anexo: só o que o evento diz (status e motivo). */
+    const clientEvent = timeline.events.find((event) => event.kind === 'contractor.client.whatsapp')
+    expect(Object.keys(clientEvent ?? {}).sort()).toEqual(
+      [
+        'actor',
+        'id',
+        'isKey',
+        'kind',
+        'occurredAt',
+        'reason',
+        'sincePreviousSeconds',
+        'status',
+      ].sort(),
+    )
+  })
 })

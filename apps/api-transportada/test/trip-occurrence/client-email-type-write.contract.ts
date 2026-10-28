@@ -3,7 +3,8 @@
  *
  * Spec 279 T3b (RF9): o cadastro do tipo grava `clientEmailType` (`off` ou um tipo de e-mail do cliente), ausente é
  * "não mexa" e o vocabulário fora da lista é 400; `off` é o padrão e o envio ao cliente é recusado com 409. Spec 279 T3c
- * (RF10): o mesmo para `clientEmailSendMode` (`manual` padrão, `automatic`).
+ * (RF10): o mesmo para `clientEmailSendMode` (`manual` padrão, `automatic`). Spec 281 T3b (RF8): o mesmo para
+ * `clientChannel` (`email` padrão, `off`, `whatsapp`, `both`).
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -13,6 +14,8 @@ import type {
   CompanyContext,
 } from '../../src/identity/domain/tenant-context.js'
 import {
+  CLIENT_CHANNEL_DEFAULT,
+  CLIENT_CHANNELS,
   CLIENT_EMAIL_SEND_MODE_DEFAULT,
   CLIENT_EMAIL_SEND_MODES,
   CLIENT_EMAIL_TYPE_DEFAULT,
@@ -190,6 +193,59 @@ describe('o cadastro do tipo aceita "clientEmailSendMode" (spec 279 RF10)', () =
   test('valor fora da lista é 400', async () => {
     const error = await parseOccurrenceTypeRequest(
       putRequest({ ...baseBody(), clientEmailSendMode: 'sometimes' }),
+    ).then(
+      () => undefined,
+      (reason: unknown) => reason as Error & { status: number },
+    )
+    expect(error?.status).toBe(400)
+  })
+})
+
+describe('o cadastro do tipo aceita "clientChannel" (spec 281 RF8)', () => {
+  test('o vocabulário é "off", "email", "whatsapp" e "both", e o padrão é "email"', () => {
+    expect(CLIENT_CHANNELS).toEqual(['off', 'email', 'whatsapp', 'both'])
+    expect(CLIENT_CHANNEL_DEFAULT).toBe('email')
+  })
+
+  test.each([...CLIENT_CHANNELS])('%s é aceito e chega ao caso de uso', async (channel) => {
+    const [saved] = await putThroughRoute({ ...baseBody(), clientChannel: channel })
+    expect(saved?.clientChannel).toBe(channel)
+  })
+
+  test('ausente fica ausente — o painel antigo não desliga nem troca o canal', async () => {
+    const parsed = await parseOccurrenceTypeRequest(putRequest(baseBody()))
+    expect('clientChannel' in parsed).toBe(false)
+    const [saved] = await putThroughRoute(baseBody())
+    expect(saved?.clientChannel).toBeUndefined()
+  })
+
+  test('valor fora da lista é 400', async () => {
+    const error = await parseOccurrenceTypeRequest(
+      putRequest({ ...baseBody(), clientChannel: 'sms' }),
+    ).then(
+      () => undefined,
+      (reason: unknown) => reason as Error & { status: number },
+    )
+    expect(error?.status).toBe(400)
+  })
+})
+
+describe('o cadastro do tipo aceita "asksClientContact" (spec 281 T8b)', () => {
+  test.each([true, false])('%s é aceito e chega ao caso de uso', async (asks) => {
+    const [saved] = await putThroughRoute({ ...baseBody(), asksClientContact: asks })
+    expect(saved?.asksClientContact).toBe(asks)
+  })
+
+  test('ausente fica ausente — o painel antigo não liga nem desliga o pedido', async () => {
+    const parsed = await parseOccurrenceTypeRequest(putRequest(baseBody()))
+    expect('asksClientContact' in parsed).toBe(false)
+    const [saved] = await putThroughRoute(baseBody())
+    expect(saved?.asksClientContact).toBeUndefined()
+  })
+
+  test('valor que não é booleano é 400', async () => {
+    const error = await parseOccurrenceTypeRequest(
+      putRequest({ ...baseBody(), asksClientContact: 'sim' }),
     ).then(
       () => undefined,
       (reason: unknown) => reason as Error & { status: number },

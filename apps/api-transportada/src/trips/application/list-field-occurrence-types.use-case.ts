@@ -16,6 +16,10 @@
  * herda do tipo. `attachmentMode` segue no corpo, igual a `photoMode`, para o app que não o conhece.
  */
 import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
+import {
+  CLIENT_CHANNEL_DEFAULT,
+  type ClientChannel,
+} from '../../shared/delivery-client-email.constant.js'
 import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
@@ -61,6 +65,12 @@ export type FieldOccurrenceType = OccurrenceCoreRequirements & {
    * pronto (mesma filosofia de "server-driven UI").
    */
   readonly attachmentMode: DeliveryProofFieldMode
+  /**
+   * Spec 281 T8b (D13): o app pede, na abertura, o contato do cliente que falta — só quando o tipo liga o canal
+   * (`clientChannel` diferente de `off`) e o pedido. O app lê os dois como o servidor resolveu; quem cobra é a API.
+   */
+  readonly asksClientContact: boolean
+  readonly clientChannel: ClientChannel
   /**
    * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta — o app do
    * motorista usa este campo para rotear o registro (fase futura, RF-A5), sem decidir nada aqui.
@@ -193,6 +203,8 @@ function toFieldOccurrenceType(params: {
   return {
     ...pickCoreRequirements(requirements),
     attachmentMode: requirements.photoMode,
+    asksClientContact: type.asksClientContact === true,
+    clientChannel: type.clientChannel ?? CLIENT_CHANNEL_DEFAULT,
     iconName: type.iconName ?? null,
     declaredAmountLabel: requirements.declaredAmountLabel,
     declaredAmountMode: requirements.declaredAmountMode,

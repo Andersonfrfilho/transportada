@@ -802,3 +802,16 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* QR do WhatsApp: fundo branco fixo, porque o leitor do celular precisa de contraste claro mesmo no tema escuro. */
+.whatsappQr {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+
+.whatsappQrImage {
+  padding: var(--space-2);
+  border-radius: 8px;
+  background: #fff;
+}

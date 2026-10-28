@@ -16,6 +16,8 @@ export type IconName =
   | 'camera'
   | 'check'
   | 'chevron-down'
+  | 'chevron-left'
+  | 'chevron-right'
   | 'clipboard-list'
   | 'clock'
   | 'close'
@@ -64,6 +66,9 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   check: ['M5 13l4 4L19 7'],
   /** Só o gatilho de abrir/fechar: gira 180° via CSS quando a lista que ele controla está aberta. */
   'chevron-down': ['M6 9l6 6 6-6'],
+  /** Parada anterior / próxima: a ida e volta entre as páginas de parada. */
+  'chevron-left': ['M15 6l-6 6 6 6'],
+  'chevron-right': ['M9 6l6 6-6 6'],
   /** Prancheta com a lista: a contagem de notas do romaneio, ao lado do número. */
   'clipboard-list': ['M6 4h12v17H6z', 'M9 3h6v3H9z', 'M9 10h6', 'M9 14h4'],
   /** Relógio: o tempo que o roteiro leva, ao lado do número que o diz. */

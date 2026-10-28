@@ -4,6 +4,7 @@
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
 import type {
+  ClientChannel,
   ClientEmailSendMode,
   ClientEmailType,
 } from '../../shared/delivery-client-email.constant.js'
@@ -212,6 +213,9 @@ export type OccurrenceTypeRecord = {
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy
   readonly clientEmailType?: ClientEmailType
   readonly clientEmailSendMode?: ClientEmailSendMode
+  readonly clientChannel?: ClientChannel
+  /** Spec 281 T8b: o app pede o contato do cliente na abertura; ausente é desligado. */
+  readonly asksClientContact?: boolean
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string
   readonly contractorReplyMode?: ContractorReplyMode
   readonly contractorReplyWaitHours?: null | number

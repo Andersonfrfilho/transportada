@@ -579,6 +579,53 @@
       "emailGone": "One of the e-mails was removed from the record. Close and open again."
     }
   },
+  "clientWhatsApp": {
+    "title": "Send by WhatsApp",
+    "hint": "The boleto goes attached, with the occurrence type's text, from the company number. One message per number.",
+    "open": "Send by WhatsApp",
+    "close": "Close",
+    "saved": "Client numbers",
+    "noneSaved": "This client has no saved number yet. Enter one below.",
+    "otherNumber": "Another number",
+    "numberPlaceholder": "(11) 91234-5678",
+    "save": "Save to the client record",
+    "cancel": "Cancel",
+    "send": "Send",
+    "sending": "Sending…",
+    "done": "Done",
+    "savedNow": "The number was saved to the client record.",
+    "useEmail": "Use \"Send to client\" to send the boleto by email.",
+    "limitReached": "This occurrence reached its WhatsApp sending limit.",
+    "offline": {
+      "notConfigured": "WhatsApp through Evolution is not configured. Send by email.",
+      "disabled": "WhatsApp through Evolution is off. Send by email.",
+      "disconnected": "The company number is disconnected. Reconnect in Settings or send by email."
+    },
+    "result": {
+      "sent": "sent",
+      "already_sent": "already sent",
+      "in_progress": "already being sent",
+      "failed": "failed"
+    },
+    "reason": {
+      "send_failed": "WhatsApp refused the send",
+      "whatsapp_disconnected": "the company number is disconnected",
+      "whatsapp_number_not_found": "this number has no WhatsApp",
+      "attachment_too_large_for_whatsapp": "the file is too large for WhatsApp"
+    },
+    "failure": {
+      "off": "This occurrence type does not send to the client by WhatsApp. Check the Types tab.",
+      "keyReused": "This request was already used with another choice. Close and open again.",
+      "numberInvalid": "Enter a number with area code, for example (11) 91234-5678.",
+      "numberGone": "One of the numbers was removed from the record. Close and open again.",
+      "registryLimit": "The client already has the maximum number of saved numbers. Send without saving or remove one on the client screen.",
+      "limitReached": "This occurrence reached its WhatsApp sending limit.",
+      "dailyCap": "The company reached today's message cap. Try tomorrow or send by email.",
+      "resendNotAllowed": "This send cannot be repeated.",
+      "unavailable": "The company WhatsApp is unavailable right now. Send by email.",
+      "generic": "Could not send by WhatsApp. Try again or send by email."
+    }
+  },
   "details": {
     "open": "View details",
     "title": "Occurrence details",
@@ -623,6 +670,20 @@
       "retry": "Try again",
       "retrying": "Sending…",
       "retryError": "Could not try again. Check the company e-mail settings and try once more."
+    },
+    "whatsappState": {
+      "title": "WhatsApp send",
+      "none": "The boleto has not been sent by WhatsApp yet.",
+      "error": "Could not load the WhatsApp send state.",
+      "state": {
+        "sent": "Sent",
+        "queued": "Queued",
+        "failed": "Failed"
+      },
+      "retry": "Try again",
+      "resend": "Send again",
+      "retrying": "Sending…",
+      "retryError": "Could not repeat the send. Check the WhatsApp connection or send by email."
     }
   },
   "detectedEmail": {

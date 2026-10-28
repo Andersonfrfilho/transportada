@@ -306,5 +306,26 @@
       "load": "Could not load the client e-mails.",
       "generic": "Could not save. Try again in a moment."
     }
+  },
+  "clientWhatsApp": {
+    "title": "Client WhatsApp",
+    "hint": "Numbers that receive the boleto and notices by WhatsApp. A client can have several; they live in the registry and serve the panel and the driver app.",
+    "add": "Add number",
+    "empty": "No WhatsApp registered for this client.",
+    "loading": "Loading numbers…",
+    "numberField": "WhatsApp",
+    "labelField": "Label (optional)",
+    "keepNumber": "Empty keeps the number",
+    "edit": "Edit",
+    "editOf": "Edit {{number}}",
+    "removeOf": "Remove {{number}}",
+    "saveEdit": "Save",
+    "failure": {
+      "numberInvalid": "Check the number: it needs an area code, for example (16) 99999-8888.",
+      "limitReached": "Limit of {{max}} numbers reached.",
+      "duplicate": "This number is already registered for the client.",
+      "load": "Could not load the client numbers.",
+      "generic": "Could not save. Try again shortly."
+    }
   }
 }

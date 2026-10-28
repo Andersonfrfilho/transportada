@@ -589,7 +589,34 @@
       "running": "Recortando…",
       "chosenAlt": "Imagem escolhida para {{name}}"
     },
-    "columnTaxId": "Documento"
+    "columnTaxId": "Documento",
+    "accessReport": {
+      "title": "Motoristas que ainda não entram no app",
+      "intro": "Fichas ativas de motorista sem acesso: sem convite, com convite ainda não usado ou com convite vencido. Quem já ativou a conta não aparece aqui.",
+      "allGood": "Todo motorista ativo já tem acesso ao app.",
+      "loadError": "Não foi possível carregar os motoristas sem acesso. Tente atualizar.",
+      "column": {
+        "driver": "Motorista",
+        "taxId": "CPF",
+        "contact": "Contato",
+        "status": "Situação",
+        "action": "Conserto"
+      },
+      "state": {
+        "no-user": "Sem convite",
+        "invited": "Convite enviado, não usado",
+        "expired": "Convite vencido"
+      },
+      "grant": "Dar acesso",
+      "resend": "Reenviar convite",
+      "result": {
+        "granted": "Convite enviado para {{name}}. A pessoa recebe o código, escolhe a senha e entra no app.",
+        "already-linked": "{{name}} já tem acesso ao app.",
+        "no-contact": "{{name}} não tem e-mail nem telefone na ficha. Complete a ficha e tente de novo.",
+        "resent": "Convite reenviado para {{name}}.",
+        "error": "Não foi possível convidar {{name}} agora. Tente de novo em instantes."
+      }
+    }
   },
   "login": {
     "title": "Entrar",

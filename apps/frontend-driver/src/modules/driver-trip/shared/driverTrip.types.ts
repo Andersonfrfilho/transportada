@@ -1,5 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverTrip.types.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { CLIENT_CHANNEL_VALUES } from '@/modules/client-contacts/shared/clientContacts.types'
 import { hasValidContractorReplyFields } from './driverOccurrenceContractorReply.validation'
 
 /**
@@ -499,6 +500,9 @@ export type DriverOccurrenceType = Readonly<{
   declaredAmountScope?: string
   declaredAmountLabel?: string
   iconName?: null | string
+  /** Spec 281 T8b: o servidor pede o contato do cliente na abertura; ausente é API anterior ao campo. */
+  asksClientContact?: boolean
+  clientChannel?: 'both' | 'email' | 'off' | 'whatsapp'
 }>
 
 /** ⚠️ Cópia por valor de `OCCURRENCE_TYPE_FLOWS` (spec 218 D1). */
@@ -529,6 +533,8 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly declaredAmountScope?: unknown
     readonly declaredAmountLabel?: unknown
     readonly iconName?: unknown
+    readonly asksClientContact?: unknown
+    readonly clientChannel?: unknown
   }
   /** Ausente é a API anterior; presente, só no vocabulário — valor desconhecido não vira "sem exigência". */
   const hasKnownMode = [
@@ -564,6 +570,12 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     candidate.iconName === undefined ||
     candidate.iconName === null ||
     typeof candidate.iconName === 'string'
+  /** Spec 281 T8b: ausentes são a API anterior; presentes, só no vocabulário — valor estranho não liga o pedido. */
+  const hasKnownContactFields =
+    (candidate.asksClientContact === undefined ||
+      typeof candidate.asksClientContact === 'boolean') &&
+    (candidate.clientChannel === undefined ||
+      (CLIENT_CHANNEL_VALUES as readonly unknown[]).includes(candidate.clientChannel))
   return (
     typeof candidate.id === 'string' &&
     typeof candidate.name === 'string' &&
@@ -573,6 +585,7 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     hasKnownDeclaredAmountScope &&
     hasKnownNewFields &&
     hasKnownIconName &&
+    hasKnownContactFields &&
     hasValidContractorReplyFields(value as Readonly<Record<string, unknown>>)
   )
 }

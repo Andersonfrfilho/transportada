@@ -44,6 +44,7 @@ const KNOWN_EVENT_KINDS: readonly OccurrenceTimelineEvent['kind'][] = [
   'contractor.reply.document',
   'contractor.reply.delivery',
   'contractor.reply.driver_read',
+  'contractor.client.whatsapp',
 ]
 
 function isKnownEventKind(value: unknown): boolean {
@@ -94,6 +95,8 @@ function isEvent(value: unknown): value is OccurrenceTimelineEvent {
       )
     case 'contractor.reply.driver_read':
       return isString(value.documentKind)
+    case 'contractor.client.whatsapp':
+      return isNullableString(value.reason) && isString(value.status)
     default:
       return false
   }

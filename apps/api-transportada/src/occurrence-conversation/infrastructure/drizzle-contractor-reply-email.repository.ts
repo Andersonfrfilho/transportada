@@ -18,7 +18,7 @@ import {
   contractorMailOutbox,
   contractorMailSettings,
   contractorMailThreads,
-  deliveryClientEmails,
+  deliveryClientContacts,
   deliveryClients,
   nfeDocuments,
   nfeParticipants,
@@ -33,6 +33,7 @@ import {
 import {
   CLIENT_EMAIL_SEND_MODE_DEFAULT,
   CLIENT_EMAIL_TYPE_OFF,
+  DELIVERY_CLIENT_CONTACT_CHANNEL,
 } from '../../shared/delivery-client-email.constant.js'
 import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import {
@@ -67,7 +68,9 @@ function isEmailTarget(target: string): target is ContractorReplyEmailTarget {
   return (CONTRACTOR_REPLY_EMAIL_TARGETS as readonly string[]).includes(target)
 }
 
-function createTransactionPort(transaction: TripQueryable): ContractorReplyEmailTransactionPort {
+export function createContractorReplyEmailTransactionPort(
+  transaction: TripQueryable,
+): ContractorReplyEmailTransactionPort {
   return {
     async countEmailDeliveries({ companyId, replyId }) {
       const rows = await transaction
@@ -294,19 +297,20 @@ function createTransactionPort(transaction: TripQueryable): ContractorReplyEmail
     async listClientEmails({ companyId, purpose, taxId }) {
       return transaction
         .select({
-          address: deliveryClientEmails.address,
-          id: deliveryClientEmails.id,
-          label: deliveryClientEmails.label,
+          address: deliveryClientContacts.address,
+          id: deliveryClientContacts.id,
+          label: deliveryClientContacts.label,
         })
-        .from(deliveryClientEmails)
+        .from(deliveryClientContacts)
         .where(
           and(
-            eq(deliveryClientEmails.companyId, companyId),
-            eq(deliveryClientEmails.taxId, taxId),
-            eq(deliveryClientEmails.purpose, purpose),
+            eq(deliveryClientContacts.companyId, companyId),
+            eq(deliveryClientContacts.taxId, taxId),
+            eq(deliveryClientContacts.channel, DELIVERY_CLIENT_CONTACT_CHANNEL.EMAIL),
+            eq(deliveryClientContacts.purpose, purpose),
           ),
         )
-        .orderBy(asc(deliveryClientEmails.createdAt), asc(deliveryClientEmails.id))
+        .orderBy(asc(deliveryClientContacts.createdAt), asc(deliveryClientContacts.id))
     },
 
     async lockReply({ companyId, occurrenceId }) {
@@ -353,27 +357,30 @@ function createTransactionPort(transaction: TripQueryable): ContractorReplyEmail
     /** O único é sem caixa: um envio concorrente de outra ocorrência do mesmo cliente cai no `DO NOTHING`. */
     async saveClientEmail(params) {
       const [created] = await transaction
-        .insert(deliveryClientEmails)
+        .insert(deliveryClientContacts)
         .values({
           address: params.address,
+          channel: DELIVERY_CLIENT_CONTACT_CHANNEL.EMAIL,
           companyId: params.companyId,
           createdByKind: params.authorKind,
           createdByUserId: params.actorUserId,
           purpose: params.purpose,
+          sourceOccurrenceId: params.occurrenceId,
           taxId: params.taxId,
         })
         .onConflictDoNothing()
-        .returning({ id: deliveryClientEmails.id })
+        .returning({ id: deliveryClientContacts.id })
       if (created === undefined) {
         const [existing] = await transaction
-          .select({ id: deliveryClientEmails.id })
-          .from(deliveryClientEmails)
+          .select({ id: deliveryClientContacts.id })
+          .from(deliveryClientContacts)
           .where(
             and(
-              eq(deliveryClientEmails.companyId, params.companyId),
-              eq(deliveryClientEmails.taxId, params.taxId),
-              eq(deliveryClientEmails.purpose, params.purpose),
-              sql`lower(${deliveryClientEmails.address}) = lower(${params.address})`,
+              eq(deliveryClientContacts.companyId, params.companyId),
+              eq(deliveryClientContacts.taxId, params.taxId),
+              eq(deliveryClientContacts.channel, DELIVERY_CLIENT_CONTACT_CHANNEL.EMAIL),
+              eq(deliveryClientContacts.purpose, params.purpose),
+              sql`lower(${deliveryClientContacts.address}) = lower(${params.address})`,
             ),
           )
           .limit(1)
@@ -435,7 +442,9 @@ export function createDrizzleContractorReplyEmailUnitOfWork(
 ): ContractorReplyEmailUnitOfWorkPort {
   return {
     execute: (operation) =>
-      database.transaction((transaction) => operation(createTransactionPort(transaction))),
+      database.transaction((transaction) =>
+        operation(createContractorReplyEmailTransactionPort(transaction)),
+      ),
   }
 }
 
@@ -468,7 +477,7 @@ async function findClientEmailSendMode(
 export function createDrizzleContractorReplyEmailReader(
   database: Database,
 ): ContractorReplyEmailReaderPort {
-  const port = createTransactionPort(database)
+  const port = createContractorReplyEmailTransactionPort(database)
   return {
     async read({ companyId, occurrenceId }) {
       const [reply] = await database

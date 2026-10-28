@@ -65,6 +65,18 @@ do provedor Meta. Com ele a empresa:
   e-mail, com aviso ao dono.
 - **D10 — Abrir a janela.** O motorista entra pelo próprio app ("falar pelo WhatsApp", `wa.me` para o número da empresa) ou
   responde um "OK" ao primeiro aviso; isso abre a janela, prova o opt-in e reduz o risco de ban.
+- **D11 — O tipo de ocorrência decide o canal.** Pedido do dono (27/10/2026): uma coluna no tipo (`client_channel`:
+  `off`, `email`, `whatsapp`, `both`), no mesmo molde do `client_email_type` da 279; devolução nasce em `whatsapp`. A
+  configuração do tipo continua mandando; o app lê o que o servidor resolveu e o servidor recobra.
+- **D12 — Contatos do cliente, uma tabela só.** A `delivery_client_emails` da 279 D1 é generalizada para
+  `delivery_client_contacts (id, company_id, tax_id, channel email|whatsapp, purpose, address, label, created_by,
+created_via, source_occurrence_id, created_at)`: mesmo limite por cliente e tipo, mesma unicidade, `address` é e-mail ou
+  número E.164. A 279 passa a apontar para esta tabela (ela ainda não foi a `main`, então a troca é aditiva).
+- **D13 — O motorista completa o que falta, na ocorrência.** Com o canal do tipo ligado, o app mostra o número e o e-mail já
+  guardados (mascarados, marcados). O que falta aparece como campo **opcional**. O que ele informar passa por **tela de
+  confirmação** (número formatado) e só é guardado com `save = true`; o escritório pode editar ou remover. A API valida e
+  normaliza (D4); guarda quem informou (`created_by`, `created_via` = motorista ou escritório) e de qual ocorrência.
+- **D14 — Falha de WhatsApp cai no e-mail guardado**, com aviso; sem e-mail, o erro é tipado e a tela diz o que falta.
 - **R1 — Não é oficial.** O Evolution (Baileys) fala o protocolo do WhatsApp Web, que a Meta **não autoriza**: o número pode
   ser banido, e uma mudança do WhatsApp pode quebrar o envio até o pacote atualizar. É uma opção gratuita, **não** o
   caminho garantido; o produto precisa dizer isso na tela de configuração e manter o e-mail como padrão e como reserva.
@@ -72,6 +84,24 @@ do provedor Meta. Com ele a empresa:
   ou o escritório informou na hora; teto por número/dia e intervalo entre envios, configuráveis; nada de envio em massa.
 - **R3 — LGPD.** Número e conteúdo são dado pessoal e, no caso do boleto, fiscal: o arquivo sai por link assinado de vida
   curta que o **Evolution baixa**, nunca por URL pública duradoura; nada de número ou texto em log.
+
+## Futuro próximo (não faz parte desta entrega)
+
+Ideias discutidas com o dono em 27/10/2026, registradas para não se perderem; nada abaixo entra nas tasks agora:
+
+- **Sessão principal e extras.** O SDK trata o número como uma **sessão** (`sessionId`), com uma única **principal** por empresa
+  (a que faz todo envio iniciado pelo sistema); sessões extras de setor ou atendente, se um dia precisar, com a conversa presa à
+  sessão em que começou. Hoje só existe a principal.
+- **Modos por empresa.** Só Evolution, só Meta ou híbrido (o roteador da D8 escolhe), com reserva para a Meta desligada por padrão,
+  provedor fixado por tipo de ocorrência e teto mensal da Meta.
+- **Atendentes num número só.** Uma conversa por número de cliente com o campo "atendida por", fila de não atribuídas e regras de
+  direcionamento (assunto, carteira do cliente, rodízio, assumir da fila); transferir é trocar o campo. Atendente usa o painel, nunca
+  o app do WhatsApp (limite de aparelhos vinculados). Passar o cliente à atendente por link `wa.me` é opcional; atendente chamando
+  cliente pelo WhatsApp pessoal fica fora (risco de ban, sem auditoria, LGPD).
+- **Dívida de migration: a visão `delivery_client_emails`.** A 279 já foi para a `main` com a tabela `delivery_client_emails`; a T3b
+  a generaliza em `delivery_client_contacts` e deixa `delivery_client_emails` como **visão de compatibilidade**, para a `main`
+  continuar lendo e escrevendo durante a transição. A visão precisa sair numa **migration futura, destrutiva e sob aprovação
+  humana**, depois que a 281 estiver na `main` e nada mais ler a visão antiga.
 
 ## Histórias priorizadas
 
@@ -102,6 +132,9 @@ usam o escolhido; os antigos mantêm o provedor com que saíram.
   ou base64 de até 25 MB, o limite do chat), `parseWebhook`, mapeamento de estados (enviada, entregue, lida, falhou).
 - RF2 Configuração por empresa: provedor padrão, URL e chave da instância (cifrada), estado da conexão, QR code, teto
   diário e intervalo mínimo.
+- RF8 Coluna `client_channel` no tipo (D11), validação e aba Tipos; a API recusa o envio com `off` (409).
+- RF9 Tabela de contatos do cliente (D12) com CRUD no painel e rota do motorista restrita à viagem e à ocorrência dele; limite e validação como na 279 D2/D4.
+- RF10 Confirmação do contato novo e `save` no app do motorista (D13); idempotente por `idempotencyKey`.
 - RF3 Envio de boleto por WhatsApp reaproveitando o trilho de 248/279 (D5), com `idempotencyKey` e fila offline no app do
   motorista como no "Enviar ao cliente".
 - RF4 Webhook assinado e anti-replay em rota pública por empresa; mensagem recebida vira mensagem da conversa (D6).

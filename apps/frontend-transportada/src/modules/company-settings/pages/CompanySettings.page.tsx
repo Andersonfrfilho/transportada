@@ -22,6 +22,11 @@ import {
 } from '../components/DriverAllowancePanel.component'
 import { useDriverAllowancePanel } from '../hooks/useDriverAllowancePanel.hook'
 import {
+  WhatsAppEvolutionPanel,
+  type WhatsAppEvolutionPanelProps,
+} from '../components/WhatsAppEvolutionPanel.component'
+import { useWhatsAppEvolutionPanel } from '../hooks/useWhatsAppEvolutionPanel.hook'
+import {
   CompanyEntryKindCatalogPanel,
   type CompanyEntryKindCatalogPanelProps,
 } from '../components/CompanyEntryKindCatalogPanel.component'
@@ -127,6 +132,7 @@ type SettingsBodyProps = Readonly<{
   certificatePending: boolean
   contacts: ContactsSection
   driverAllowance: DriverAllowancePanelProps
+  whatsappEvolution: WhatsAppEvolutionPanelProps
   entryKindCatalog: CompanyEntryKindCatalogPanelProps
   federalTaxes: FederalTaxPanelProps
   initialValue: CompanySettingsUpdate | undefined
@@ -249,6 +255,7 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'company') return <CompanyTabPanel {...props} />
   if (tab === 'taxes') return <FederalTaxPanel {...props.federalTaxes} />
   if (tab === 'driverAllowance') return <DriverAllowancePanel {...props.driverAllowance} />
+  if (tab === 'whatsapp') return <WhatsAppEvolutionPanel {...props.whatsappEvolution} />
   if (tab === 'entryKinds') return <CompanyEntryKindCatalogPanel {...props.entryKindCatalog} />
   /** Spec 218 RF-E1/RF-E2: painel autocontido — busca os próprios dados, como o de ocorrência acima. */
   if (tab === 'settingsResolution')
@@ -395,6 +402,15 @@ export function CompanySettingsPage() {
   })
   const driverAllowanceError =
     driverAllowancePanel.saveMutation.error ?? driverAllowancePanel.clearMutation.error
+  const [whatsappQrOpen, setWhatsappQrOpen] = useState(false)
+  const whatsappActive = canManageSettings && activeTab === 'whatsapp'
+  const whatsappPanel = useWhatsAppEvolutionPanel({
+    ...(companyId === undefined ? {} : { companyId }),
+    /* Spec 281 T4: o endereço declarado do painel é a aba WhatsApp; o QR só é pedido com ela aberta e o botão apertado. */
+    enabled: whatsappActive,
+    qrEnabled: whatsappQrOpen,
+  })
+  const whatsappError = whatsappPanel.query.error ?? whatsappPanel.saveMutation.error
   const entryKindCatalogPanel = useCompanyEntryKindCatalogPanel({
     enabled: canManageSettings && activeTab === 'entryKinds',
   })
@@ -479,6 +495,26 @@ export function CompanySettingsPage() {
           onSave: (amount) => driverAllowancePanel.saveMutation.mutate(amount),
           saved: driverAllowancePanel.saveMutation.isSuccess,
           stored: driverAllowancePanel.query.data,
+        }}
+        whatsappEvolution={{
+          disabled: !canManageSettings || whatsappPanel.saveMutation.isPending,
+          errorCode: whatsappError instanceof Error ? whatsappError.message : undefined,
+          loading: whatsappPanel.query.isLoading,
+          onEdit: () => {
+            if (whatsappPanel.saveMutation.isIdle) return
+            whatsappPanel.saveMutation.reset()
+          },
+          onQrOpenChange: setWhatsappQrOpen,
+          onSave: (input) => whatsappPanel.saveMutation.mutate(input),
+          qr: whatsappPanel.qrQuery.data,
+          qrErrorCode:
+            whatsappPanel.qrQuery.error instanceof Error
+              ? whatsappPanel.qrQuery.error.message
+              : undefined,
+          qrLoading: whatsappPanel.qrQuery.isLoading,
+          qrOpen: whatsappQrOpen,
+          saved: whatsappPanel.saveMutation.isSuccess,
+          stored: whatsappPanel.query.data,
         }}
         entryKindCatalog={{
           canManage: canManageSettings,
