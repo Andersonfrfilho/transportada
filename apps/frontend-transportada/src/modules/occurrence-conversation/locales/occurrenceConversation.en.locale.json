@@ -2,7 +2,8 @@
   "tabs": {
     "ariaLabel": "Occurrence conversations",
     "contractor": "Contractor",
-    "driver": "Driver"
+    "driver": "Driver",
+    "client": "Client"
   },
   "contractor": {
     "title": "Conversation with the contractor",
@@ -292,7 +293,8 @@
   "participant": {
     "contractor": "Contractor",
     "driver": "Driver",
-    "operator": "Operator"
+    "operator": "Operator",
+    "client": "Client"
   },
   "layout": {
     "label": "How conversations are shown",
@@ -700,5 +702,35 @@
     "failure": {
       "notFound": "This e-mail is no longer pending. The conversation was refreshed."
     }
+  },
+  "client": {
+    "channels": "Channels opened with the client",
+    "thread": "Conversation with the client",
+    "empty": "No messages yet.",
+    "fromUs": "Us",
+    "open": "Open the client conversation",
+    "close": "Collapse the client conversation",
+    "unread_one": "{{count}} new",
+    "unread_other": "{{count}} new",
+    "title": "Conversation with the client",
+    "status": {
+      "queued": "queued",
+      "sent": "sent",
+      "delivered": "delivered",
+      "read": "read",
+      "replied": "replied",
+      "failed": "failed"
+    },
+    "messageStatus": {
+      "queued": "queued",
+      "sent": "sent",
+      "delivered": "delivered",
+      "read": "read",
+      "failed": "failed",
+      "bounced": "bounced"
+    },
+    "bySystem": "System",
+    "sentNoText": "Message sent.",
+    "sentDocument": "Boleto sent: {{name}}"
   }
 }

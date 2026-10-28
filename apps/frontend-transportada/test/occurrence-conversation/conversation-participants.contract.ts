@@ -31,7 +31,7 @@ describe('participante: ícone e cor próprios', () => {
     const tones = CONVERSATION_PARTICIPANTS.map((item) => PARTICIPANT_APPEARANCE[item].tone)
     expect(new Set(icons).size).toBe(CONVERSATION_PARTICIPANTS.length)
     expect(new Set(tones).size).toBe(CONVERSATION_PARTICIPANTS.length)
-    expect([...CONVERSATION_PARTICIPANTS]).toEqual(['contractor', 'driver', 'operator'])
+    expect([...CONVERSATION_PARTICIPANTS]).toEqual(['contractor', 'driver', 'client', 'operator'])
   })
 
   test('os ícones existem no catálogo e o CSS tem uma classe de tom por participante, só com tokens', async () => {
@@ -40,7 +40,7 @@ describe('participante: ícone e cor próprios', () => {
       expect(catalog).toContain(`'${PARTICIPANT_APPEARANCE[participant].icon}'`)
     }
     const css = await source('modules/occurrence-conversation/styles/occurrenceThread.module.css')
-    for (const tone of ['toneContractor', 'toneDriver', 'toneOperator']) {
+    for (const tone of ['toneContractor', 'toneDriver', 'toneClient', 'toneOperator']) {
       expect(css).toContain(`.${tone} {`)
     }
     expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b/u)

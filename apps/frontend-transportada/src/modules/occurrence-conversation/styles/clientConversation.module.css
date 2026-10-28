@@ -1,0 +1,120 @@
+/* Spec 283: a conversa do cliente. Só tokens; a cor do estado vem sempre com a palavra ao lado. */
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--chip-color, var(--color-slate));
+  border-radius: var(--space-2);
+  min-width: 0;
+}
+
+.tone_ok {
+  --chip-color: var(--color-ready);
+  --chip-ink: var(--color-ready-ink);
+}
+
+.tone_wait {
+  --chip-color: var(--color-copper);
+  --chip-ink: var(--color-copper-ink);
+}
+
+.tone_bad {
+  --chip-color: var(--color-alert);
+  --chip-ink: var(--color-alert);
+}
+
+.address {
+  overflow-wrap: anywhere;
+}
+
+.state {
+  color: var(--chip-ink);
+  font-weight: 600;
+}
+
+.thread {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.message {
+  display: grid;
+  gap: var(--space-1);
+  max-width: 85%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--space-3);
+  color: var(--color-fog);
+  overflow-wrap: anywhere;
+}
+
+.out {
+  justify-self: end;
+  background: var(--color-bubble-out);
+}
+
+.in {
+  justify-self: start;
+  background: color-mix(in srgb, var(--color-zone-3) 30%, var(--color-graphite));
+}
+
+.who,
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.8rem;
+}
+
+.system {
+  justify-self: center;
+  color: var(--color-slate-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-slate-muted);
+}
+
+/* A faixa recolhida (64–80 rem): cabeçalho com os canais sempre à vista; o corpo abre por clique. */
+.strip {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--space-3);
+  background: var(--color-graphite);
+}
+
+.stripHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.unread {
+  margin-inline-start: auto;
+}

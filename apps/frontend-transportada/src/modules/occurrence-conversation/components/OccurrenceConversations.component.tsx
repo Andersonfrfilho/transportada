@@ -33,6 +33,11 @@ import styles from '../styles/occurrenceConversation.module.css'
 import threadStyles from '../styles/occurrenceThread.module.css'
 import { useMinWidth } from '@/modules/shared/useMinWidth.hook'
 
+import {
+  findClientConversation,
+  resolveClientPlacement,
+  resolveColumnsGrid,
+} from '../shared/clientConversation.service'
 import { useConversationAlerts } from '../shared/useConversationAlerts.hook'
 
 import {
@@ -42,6 +47,8 @@ import {
   writeConversationLayout,
   type ConversationLayoutMode,
 } from '../shared/occurrenceConversationLayout.service'
+import { ClientConversationPanel } from './ClientConversationPanel.component'
+import { ClientConversationStrip } from './ClientConversationStrip.component'
 import { ContractorReplyEmailActions } from './ContractorReplyEmailActions.component'
 import { ConversationColumn, ConversationLayoutSwitch } from './ConversationLayoutSwitch.component'
 import { OccurrenceConversationLegend } from './OccurrenceConversationLegend.component'
@@ -459,7 +466,7 @@ type OccurrenceConversationsProps = Readonly<{
    * Spec 183 T801: no celular, a aba de cima (Contratante ou Motorista) já escolheu a parte — mostra
    * só aquela conversa, sem as abas internas.
    */
-  participant?: 'contractor' | 'driver'
+  participant?: 'client' | 'contractor' | 'driver'
 }>
 
 /**
@@ -481,8 +488,8 @@ export function OccurrenceConversations({
   const { t } = useTranslation('occurrenceConversation')
   const [tab, setTab] = useState('contractor')
   /** Minimizar é por conversa: cada coluna guarda o próprio estado. */
-  const [collapsed, setCollapsed] = useState({ contractor: false, driver: false })
-  const toggleCollapsed = (who: 'contractor' | 'driver') =>
+  const [collapsed, setCollapsed] = useState({ client: false, contractor: false, driver: false })
+  const toggleCollapsed = (who: 'client' | 'contractor' | 'driver') =>
     setCollapsed((current) => ({ ...current, [who]: !current[who] }))
   const layoutStorageKey = conversationLayoutStorageKey(companyId)
   const [storedLayout, setStoredLayout] = useState(() =>
@@ -492,6 +499,9 @@ export function OccurrenceConversations({
     isWide: useMinWidth('64rem'),
     stored: storedLayout,
   })
+  const isExtraWide = useMinWidth('80rem')
+  /** Spec 283 D7: a faixa do cliente (64–80 rem) começa recolhida e abre por clique. */
+  const [isClientStripOpen, setClientStripOpen] = useState(false)
   function handleLayoutChange(mode: ConversationLayoutMode): void {
     setStoredLayout(mode)
     writeConversationLayout(getLayoutStorage(), layoutStorageKey, mode)
@@ -510,15 +520,25 @@ export function OccurrenceConversations({
   )
   const driverUnread = driverConversation?.unreadCount ?? 0
   /** À vista: coluna expandida (lado a lado) ou aba selecionada; no celular a aba de cima já escolheu a parte. */
-  const isOpen = (who: 'contractor' | 'driver') =>
+  const clientConversation = findClientConversation(query.data?.conversations)
+  const clientUnread = clientConversation?.unreadCount ?? 0
+  const clientPlacement = resolveClientPlacement({
+    hasClientConversation: clientConversation !== undefined,
+    isWide: isExtraWide,
+    layout,
+  })
+  const isOpen = (who: 'client' | 'contractor' | 'driver') =>
     participant !== undefined
       ? participant === who
-      : layout === 'side-by-side'
-        ? !collapsed[who]
-        : tab === who
+      : who === 'client' && clientPlacement === 'strip'
+        ? isClientStripOpen
+        : layout === 'side-by-side'
+          ? !collapsed[who]
+          : tab === who
   useConversationAlerts([
     { isOpen: isOpen('contractor'), unread },
     { isOpen: isOpen('driver'), unread: driverUnread },
+    { isOpen: isOpen('client'), unread: clientUnread },
   ])
 
   if (query.isLoading) {
@@ -565,7 +585,13 @@ export function OccurrenceConversations({
       />
     )
 
+  const clientPanel =
+    clientConversation === undefined ? null : (
+      <ClientConversationPanel conversation={clientConversation} />
+    )
+
   /** Spec 183 T801: a aba de cima do celular já escolheu a parte. */
+  if (participant === 'client') return clientPanel
   if (participant === 'contractor') return contractorPanel
   if (participant === 'driver') {
     return driverPanel ?? <p className={styles.hint}>{t('driver.noDriver')}</p>
@@ -593,22 +619,40 @@ export function OccurrenceConversations({
                 panel: driverPanel,
               },
             ]),
+        ...(clientPanel === null
+          ? []
+          : [
+              {
+                ...(clientUnread > 0 ? { badge: t('client.unread', { count: clientUnread }) } : {}),
+                id: 'client',
+                label: t('tabs.client'),
+                panel: clientPanel,
+              },
+            ]),
       ]}
       onChange={setTab}
       value={tab}
     />
   )
-  /** Duas conversas ao mesmo tempo: o item enviado de uma coluna aparece na outra sem trocar de aba. */
+  /** Até três conversas ao mesmo tempo: o item enviado de uma coluna aparece nas outras sem trocar de aba. */
+  const hasClientColumn = clientPanel !== null && clientPlacement === 'column'
+  const visibleColumns = [
+    'contractor',
+    ...(driverPanel === null ? [] : (['driver'] as const)),
+    ...(hasClientColumn ? (['client'] as const) : []),
+  ] as const
+  const grid = resolveColumnsGrid(visibleColumns, collapsed)
+  const columnsClass = [
+    threadStyles.columns,
+    grid.count === 3 ? threadStyles.columnsThree : '',
+    grid.collapsedIndex === 1 ? threadStyles.columnsFirstCollapsed : '',
+    grid.collapsedIndex === 2 ? threadStyles.columnsSecondCollapsed : '',
+    grid.collapsedIndex === 3 ? threadStyles.columnsThirdCollapsed : '',
+  ]
+    .filter((name) => name !== '')
+    .join(' ')
   const columns = (
-    <div
-      className={`${threadStyles.columns} ${
-        collapsed.contractor && !collapsed.driver && driverPanel !== null
-          ? threadStyles.columnsFirstCollapsed
-          : collapsed.driver && !collapsed.contractor
-            ? threadStyles.columnsSecondCollapsed
-            : ''
-      }`}
-    >
+    <div className={columnsClass}>
       <ConversationColumn
         collapsed={collapsed.contractor}
         onToggleCollapsed={() => toggleCollapsed('contractor')}
@@ -627,14 +671,37 @@ export function OccurrenceConversations({
           {driverPanel}
         </ConversationColumn>
       )}
+      {hasClientColumn ? (
+        <ConversationColumn
+          collapsed={collapsed.client}
+          onToggleCollapsed={() => toggleCollapsed('client')}
+          participant="client"
+          unreadCount={clientUnread}
+        >
+          {clientPanel}
+        </ConversationColumn>
+      ) : null}
     </div>
   )
+  /** Spec 283 D7 (64–80 rem): as duas colunas ficam e o cliente é uma faixa recolhida abaixo, com os canais à vista. */
+  const clientStrip =
+    clientConversation === undefined || clientPlacement !== 'strip' ? null : (
+      <ClientConversationStrip
+        conversation={clientConversation}
+        isOpen={isClientStripOpen}
+        onToggle={() => setClientStripOpen((open) => !open)}
+        unreadCount={clientUnread}
+      >
+        <ClientConversationPanel conversation={clientConversation} hideChannels />
+      </ClientConversationStrip>
+    )
 
   return (
     <div className={threadStyles.panel}>
       <ConversationLayoutSwitch layout={layout} onChange={handleLayoutChange} />
       <OccurrenceConversationLegend />
       {layout === 'side-by-side' ? columns : tabs}
+      {clientStrip}
     </div>
   )
 }

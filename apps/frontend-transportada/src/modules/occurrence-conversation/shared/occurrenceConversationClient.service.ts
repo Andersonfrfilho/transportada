@@ -27,9 +27,13 @@ import {
 import { type ConversationAttachmentChannel } from './conversationAttachment.service'
 
 import {
+  OCCURRENCE_CLIENT_CHANNEL_STATUSES,
   OCCURRENCE_CONVERSATION_CHANNELS,
   OCCURRENCE_CONVERSATION_MESSAGE_STATUSES,
   type ContractorMailRequest,
+  type OccurrenceClientChannel,
+  type OccurrenceClientDelivery,
+  type OccurrenceClientChannelStatus,
   type OccurrenceConversation,
   type OccurrenceConversationCopyEntry,
   type OccurrenceConversationsView,
@@ -173,6 +177,7 @@ function includes<TValue extends string>(list: readonly TValue[], value: unknown
 function isAuthor(value: unknown): value is OccurrenceConversationMessage['author'] {
   if (!isRecord(value)) return false
   if (value.kind === 'automatic') return true
+  if (value.kind === 'client') return isString(value.addressMasked)
   if (value.kind === 'operation' || value.kind === 'driver') {
     return isString(value.userId) && (value.name === null || isString(value.name))
   }
@@ -251,6 +256,7 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
     : {}
   const copy = toCopy(value.copy)
   const systemNotice = toSystemNotice(value.systemNotice)
+  const clientDelivery = toClientDelivery(value.clientDelivery)
   return {
     /** O áudio traz a duração e a transcrição (264); campo que o painel não conhece some, nunca o anexo. */
     attachments: toAttachmentsWithAudioFields(value.attachments),
@@ -266,7 +272,45 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
     id: value.id,
     status: value.status,
     statusTimes,
+    ...(clientDelivery === undefined ? {} : { clientDelivery }),
     ...(systemNotice === undefined ? {} : { systemNotice }),
+  }
+}
+
+/** Spec 283 T1: o canal como a API manda (`channel`, `addressMasked`, `state`). Desconhecido some, nunca derruba a conversa. */
+function toClientChannel(value: unknown): readonly OccurrenceClientChannel[] {
+  if (
+    !isRecord(value) ||
+    (value.channel !== 'email' && value.channel !== 'whatsapp') ||
+    !isString(value.addressMasked) ||
+    !OCCURRENCE_CLIENT_CHANNEL_STATUSES.includes(value.state as OccurrenceClientChannelStatus)
+  ) {
+    return []
+  }
+  return [
+    {
+      kind: value.channel,
+      maskedAddress: value.addressMasked,
+      status: value.state as OccurrenceClientChannelStatus,
+    },
+  ]
+}
+
+function toClientDelivery(value: unknown): OccurrenceClientDelivery | undefined {
+  if (
+    !isRecord(value) ||
+    !isString(value.deliveryId) ||
+    !isString(value.recipientMasked) ||
+    !includes(SYSTEM_NOTICE_ACTOR_KINDS, value.actorKind)
+  ) {
+    return undefined
+  }
+  return {
+    actorKind: value.actorKind,
+    actorName: isString(value.actorName) ? value.actorName : null,
+    deliveryId: value.deliveryId,
+    documentName: isString(value.documentName) ? value.documentName : null,
+    recipientMasked: value.recipientMasked,
   }
 }
 
@@ -274,12 +318,25 @@ function toConversation(value: unknown): null | OccurrenceConversation {
   if (
     !isRecord(value) ||
     !isString(value.id) ||
-    (value.participant !== 'contractor' && value.participant !== 'driver') ||
+    (value.participant !== 'contractor' &&
+      value.participant !== 'driver' &&
+      value.participant !== 'client') ||
     !Array.isArray(value.messages)
   ) {
     return null
   }
+  const clientView = isRecord(value.client) ? value.client : {}
   return {
+    ...(value.participant === 'client'
+      ? {
+          client: {
+            channels: Array.isArray(clientView.channels)
+              ? clientView.channels.flatMap(toClientChannel)
+              : [],
+            name: isString(clientView.name) ? clientView.name : null,
+          },
+        }
+      : {}),
     id: value.id,
     messages: value.messages.flatMap((message) => toMessage(message) ?? []),
     participant: value.participant,
