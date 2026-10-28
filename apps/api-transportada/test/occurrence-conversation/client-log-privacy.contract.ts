@@ -10,8 +10,10 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 const CONVERSATION_DIR = join(import.meta.dir, '..', '..', 'src', 'occurrence-conversation')
-const LOG_CALL_PATTERN = /\b(?:logger|Logger)\??\.(?:info|warn|error|debug)\(|\bsafeLog(?:Info|Warn|Error)\(|\blog\(\s*\{/g
-const RAW_CLIENT_FIELD_PATTERN = /(?:^|[{,\s])(phone|phoneNumber|whatsappNumber|number|email|e-?mail|address|recipient|recipients|to|destination|body|text)\s*(?::|,|\})/gm
+const LOG_CALL_PATTERN =
+  /\b(?:logger|Logger)\??\.(?:info|warn|error|debug)\(|\bsafeLog(?:Info|Warn|Error)\(|\blog\(\s*\{/g
+const RAW_CLIENT_FIELD_PATTERN =
+  /(?:^|[{,\s])(phone|phoneNumber|whatsappNumber|number|email|e-?mail|address|recipient|recipients|to|destination|body|text)\s*(?::|,|\})/gm
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
@@ -34,7 +36,9 @@ function logCallArguments(source: string, start: number): string {
 }
 
 function logCallWindows(source: string): string[] {
-  return [...source.matchAll(LOG_CALL_PATTERN)].map((match) => logCallArguments(source, match.index + match[0].indexOf('(')))
+  return [...source.matchAll(LOG_CALL_PATTERN)].map((match) =>
+    logCallArguments(source, match.index + match[0].indexOf('(')),
+  )
 }
 
 function rawClientFields(window: string): string[] {
@@ -62,6 +66,8 @@ describe('log da conversa da ocorrência não leva dado do cliente', () => {
 
   test('o detector pega um campo cru e aceita o mascarado', () => {
     expect(rawClientFields("logger.info('x', { companyId, email })")).toEqual(['email'])
-    expect(rawClientFields("logger.info('x', { companyId, addressMasked: '****1234' })")).toEqual([])
+    expect(rawClientFields("logger.info('x', { companyId, addressMasked: '****1234' })")).toEqual(
+      [],
+    )
   })
 })
