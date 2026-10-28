@@ -223,6 +223,8 @@ export type MeTripDependencies = {
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    /** A nova data de vencimento (`AAAA-MM-DD`), opcional; só o tipo que a pede a grava. */
+    readonly newDueDate?: string | undefined
     /** Spec 247 (T4.4): o número do documento do cliente. */
     readonly referenceNumber?: string | undefined
     /** Spec 246 (RF9): a assinatura já confirmada — nunca o arquivo. */
@@ -676,6 +678,7 @@ export function createMeTripRoutes(
       readonly idempotencyKey: string
       readonly items?: readonly DriverOccurrenceItemInput[] | undefined
       readonly location: ReportedLocation | null
+      readonly newDueDate?: string | undefined
       readonly note: string
       readonly occurrenceTypeId: string
       readonly productCode: string
@@ -695,6 +698,7 @@ export function createMeTripRoutes(
           idempotencyKey: input.idempotencyKey,
           items: input.items,
           location: input.location,
+          newDueDate: input.newDueDate,
           note: input.note,
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: input.productCode,
@@ -715,6 +719,7 @@ export function createMeTripRoutes(
           idempotencyKey: parseIdempotencyKey(request),
           items: body.items,
           location: body.location,
+          newDueDate: body.newDueDate,
           note: body.note,
           occurrenceTypeId: body.occurrenceTypeId,
           productCode: body.productCode,

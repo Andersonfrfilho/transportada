@@ -406,6 +406,8 @@ export type DriverFieldReport =
        */
       declaredAmount?: string
       items?: readonly DriverOccurrenceItem[]
+      /** A nova data de vencimento (`AAAA-MM-DD`), opcional; só o tipo que a pede a manda. */
+      newDueDate?: string
       referenceNumber?: string
       /**
        * Spec 246 (RF9, 209 D1): a assinatura mora **no mesmo item** da foto — item novo multiplicaria
@@ -502,6 +504,8 @@ export type DriverOccurrenceType = Readonly<{
   iconName?: null | string
   /** Spec 281 T8b: o servidor pede o contato do cliente na abertura; ausente é API anterior ao campo. */
   asksClientContact?: boolean
+  /** O app mostra o campo opcional "nova data de vencimento"; ausente é API anterior ao campo. */
+  asksNewDueDate?: boolean
   clientChannel?: 'both' | 'email' | 'off' | 'whatsapp'
 }>
 
@@ -534,6 +538,7 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly declaredAmountLabel?: unknown
     readonly iconName?: unknown
     readonly asksClientContact?: unknown
+    readonly asksNewDueDate?: unknown
     readonly clientChannel?: unknown
   }
   /** Ausente é a API anterior; presente, só no vocabulário — valor desconhecido não vira "sem exigência". */
@@ -574,6 +579,7 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
   const hasKnownContactFields =
     (candidate.asksClientContact === undefined ||
       typeof candidate.asksClientContact === 'boolean') &&
+    (candidate.asksNewDueDate === undefined || typeof candidate.asksNewDueDate === 'boolean') &&
     (candidate.clientChannel === undefined ||
       (CLIENT_CHANNEL_VALUES as readonly unknown[]).includes(candidate.clientChannel))
   return (

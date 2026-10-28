@@ -70,6 +70,8 @@ export type FieldOccurrenceType = OccurrenceCoreRequirements & {
    * (`clientChannel` diferente de `off`) e o pedido. O app lê os dois como o servidor resolveu; quem cobra é a API.
    */
   readonly asksClientContact: boolean
+  /** O app oferece o campo opcional "nova data de vencimento" ao abrir a ocorrência (pedido de prorrogação do boleto). */
+  readonly asksNewDueDate: boolean
   readonly clientChannel: ClientChannel
   /**
    * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta — o app do
@@ -204,6 +206,7 @@ function toFieldOccurrenceType(params: {
     ...pickCoreRequirements(requirements),
     attachmentMode: requirements.photoMode,
     asksClientContact: type.asksClientContact === true,
+    asksNewDueDate: type.asksNewDueDate === true,
     clientChannel: type.clientChannel ?? CLIENT_CHANNEL_DEFAULT,
     iconName: type.iconName ?? null,
     declaredAmountLabel: requirements.declaredAmountLabel,

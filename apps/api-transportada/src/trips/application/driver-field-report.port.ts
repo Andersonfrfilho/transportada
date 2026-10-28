@@ -452,6 +452,8 @@ export type DriverFieldReportTransactionPort = {
     readonly items?: readonly DriverDocumentOccurrenceLineInput[]
     /** Spec 247 (T4.4): o número do documento do cliente; ausente/nulo é não informado. */
     readonly referenceNumber?: null | string
+    /** A nova data de vencimento (`AAAA-MM-DD`); ausente/nula é não informada. */
+    readonly newDueDate?: null | string
   }): Promise<null | DriverDocumentOccurrence>
   /** O reenvio da fila offline: a ocorrência de nota já gravada por esta chave. */
   findDocumentOccurrenceById(input: {

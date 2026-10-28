@@ -60,6 +60,8 @@ export type OccurrenceTypeSaveInput = Readonly<{
   clientChannel?: ClientChannel | undefined
   /** Spec 281 T8b: `undefined` é "não mexe". */
   asksClientContact?: boolean | undefined
+  /** `undefined` é "não mexe". */
+  asksNewDueDate?: boolean | undefined
   contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   contractorReplyMode?: ContractorReplyMode | undefined
@@ -125,6 +127,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'clientEmailSendMode'
       | 'clientChannel'
       | 'asksClientContact'
+      | 'asksNewDueDate'
       | 'contractorReplyAlertMode'
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'

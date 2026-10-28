@@ -335,6 +335,8 @@
     "clientChannel": "Client channel",
     "asksClientContact": "Ask the driver for the client contact",
     "asksClientContactHint": "When the invoice client has no saved contact for this channel, the driver app asks for the WhatsApp number or e-mail when the occurrence is opened, so the driver does not have to send it in the chat. A client can have several numbers and e-mails.",
+    "asksNewDueDate": "Ask the driver for the new due date",
+    "asksNewDueDateHint": "The driver app shows the optional \"New due date\" field when the occurrence is opened (for example, when the client asks to extend a bill). When filled in, the date goes in the e-mail to the contractor; when blank, the e-mail goes out as usual.",
     "clientChannelHint": "How the occurrence reaches the client. E-mail is the default and follows the e-mail type next to it. WhatsApp uses the client's number and, if it fails, the saved e-mail. Off sends nothing to the client.",
     "clientChannelOptions": {
       "off": "Off",
@@ -552,7 +554,9 @@
           "assinaturaIniciais": "Initials of who signs, or of the display name.",
           "faixaResposta": "\"Reply to this e-mail\" strip, only when replies arrive (system HTML).",
           "marcasRodape": "Footer marks: TransportAdA and Ada Technology (system HTML).",
-          "logoAssinatura": "Signature square: the carrier logo on the team signature, otherwise the initials (system HTML)."
+          "logoAssinatura": "Signature square: the carrier logo on the team signature, otherwise the initials (system HTML).",
+          "novaDataVencimento": "New due date requested by the driver (DD/MM/YYYY); empty when not given.",
+          "avisoNovaData": "Paragraph \"New due date requested: DD/MM/YYYY\", only when the driver gave the date (system HTML)."
         }
       },
       "watchers": {

@@ -12,18 +12,23 @@ import {
   type OccurrenceValues,
 } from '../shared/occurrenceDraftValues.service'
 import { maskMoneyInput } from '../shared/occurrenceMoneyMask.service'
+import { maskDateInput } from '../shared/occurrenceNewDueDate.service'
 import { resolveOccurrenceRequirements } from '../shared/occurrenceRequirements.service'
 
 /** Sem tipo escolhido ainda não há o que cobrar: o formulário nem mostra estes campos. */
 const NO_TYPE: DriverOccurrenceType = { id: '', name: '' }
 
 export type OccurrenceValuesForm = Readonly<{
+  /** O tipo pede o campo opcional "nova data de vencimento". */
+  asksNewDueDate: boolean
   declaredAmountText: string
   handleDeclaredAmountChange: (text: string) => void
   handleItemAmountChange: (input: { readonly code: string; readonly text: string }) => void
   handleItemQuantityChange: (input: { readonly code: string; readonly text: string }) => void
   handleItemToggle: (code: string) => void
+  handleNewDueDateChange: (text: string) => void
   handleReferenceNumberChange: (text: string) => void
+  newDueDateText: string
   referenceNumberText: string
   values: OccurrenceValues
 }>
@@ -40,12 +45,19 @@ export function useOccurrenceValues(params: {
   const [drafts, setDrafts] = useState<OccurrenceItemDrafts>({})
   const [referenceNumberText, setReferenceNumberText] = useState('')
   const [declaredAmountText, setDeclaredAmountText] = useState('')
+  const [newDueDateText, setNewDueDateText] = useState('')
+  const asksNewDueDate = params.type?.asksNewDueDate === true
 
   const values = evaluateOccurrenceValues({
+    asksNewDueDate,
     drafts,
     products: params.products,
     requirements: resolveOccurrenceRequirements(params.type ?? NO_TYPE),
-    texts: { declaredAmount: declaredAmountText, referenceNumber: referenceNumberText },
+    texts: {
+      declaredAmount: declaredAmountText,
+      newDueDate: newDueDateText,
+      referenceNumber: referenceNumberText,
+    },
   })
 
   function updateDraft(input: {
@@ -75,6 +87,7 @@ export function useOccurrenceValues(params: {
   }
 
   return {
+    asksNewDueDate,
     declaredAmountText,
     handleDeclaredAmountChange: (text) =>
       setDeclaredAmountText((previousText) => maskMoneyInput({ previousText, text })),
@@ -95,7 +108,9 @@ export function useOccurrenceValues(params: {
         }),
       }),
     handleItemToggle,
+    handleNewDueDateChange: (text) => setNewDueDateText(maskDateInput(text)),
     handleReferenceNumberChange: setReferenceNumberText,
+    newDueDateText,
     referenceNumberText,
     values,
   }

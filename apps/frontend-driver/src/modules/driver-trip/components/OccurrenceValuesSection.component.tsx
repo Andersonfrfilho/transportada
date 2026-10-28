@@ -69,6 +69,24 @@ export function OccurrenceValuesSection({
           />
         </div>
       ) : null}
+      {valuesForm.asksNewDueDate ? (
+        <div className={styles.block}>
+          <OccurrenceTextField
+            error={
+              valuesForm.values.facts.hasInvalidNewDueDate === true
+                ? t('occurrenceRegistration.newDueDate.invalid')
+                : undefined
+            }
+            hint={t('occurrenceRegistration.newDueDate.hint')}
+            inputMode="numeric"
+            label={t('occurrenceRegistration.newDueDate.label')}
+            maxLength={10}
+            onChange={valuesForm.handleNewDueDateChange}
+            placeholder={t('occurrenceRegistration.newDueDate.placeholder')}
+            value={valuesForm.newDueDateText}
+          />
+        </div>
+      ) : null}
       {visibility.rendersReferenceNumber ? (
         <div className={styles.block}>
           <OccurrenceTextField

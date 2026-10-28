@@ -567,6 +567,8 @@ export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
 export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   /** Spec 281 T8b: pedir o contato do cliente ao motorista na abertura; esta tela só o tolera. */
   'asksClientContact',
+  /** O campo opcional "nova data de vencimento" no app do motorista; esta tela só o tolera. */
+  'asksNewDueDate',
   'attachmentMode',
   'clientChannel',
   /** Spec 247 TP.1 (ADR-0081 §9): os requisitos efetivos da devolução. */

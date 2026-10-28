@@ -10,6 +10,7 @@ import { OCCURRENCE_AMOUNT_SCOPE, OCCURRENCE_FIELD_MODE } from './occurrenceValu
 export type OccurrenceMissingField =
   | 'declaredAmount'
   | 'itemDeclaredAmount'
+  | 'newDueDateInvalid'
   | 'note'
   | 'photo'
   | 'photoMinimum'
@@ -32,6 +33,8 @@ export type OccurrenceValuesFacts = Readonly<{
   hasInvalidItemQuantity: boolean
   /** O número do documento tem caractere ou tamanho que a API recusa — o campo guarda o texto e se marca. */
   hasInvalidReferenceNumber: boolean
+  /** A nova data de vencimento digitada está pela metade, não existe ou já passou; ausente é "nada de errado". */
+  hasInvalidNewDueDate?: boolean
   hasReferenceNumber: boolean
   /** Linhas a que falta o valor pago exigido (o tipo o exige, ou o preço varia na nota). */
   lineAmountMissingCount: number
@@ -157,6 +160,7 @@ export function listMissingOccurrenceRequirements(input: {
     ...(values.hasInvalidItemQuantity ? (['productQuantity'] as const) : []),
     ...listMissingAmountField({ requirements, values }),
     ...listMissingReferenceNumberField({ requirements, values }),
+    ...(values.hasInvalidNewDueDate === true ? (['newDueDateInvalid'] as const) : []),
     ...(requirements.noteMode === OCCURRENCE_FIELD_MODE.required && !facts.hasNote
       ? (['note'] as const)
       : []),

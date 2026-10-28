@@ -48,6 +48,8 @@ export type BuildOccurrenceMailSystemHtmlParams = {
   readonly itemRows: readonly OccurrenceMailItemRow[]
   /** A soma das linhas (`somaItens`, formatada); vazia, a linha de total não aparece. */
   readonly itemsSum: string
+  /** A nova data de vencimento pedida, `DD/MM/AAAA`; ausente ou vazia, o aviso não aparece. */
+  readonly newDueDate?: string | undefined
 }
 
 export type OccurrenceMailSystemHtml = {
@@ -142,6 +144,12 @@ function buildReplyStrip(hasReplyTo: boolean): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:10px 14px;background:${mist};border-left:3px solid ${copper};font-family:${OCCURRENCE_MAIL_FONT};font-size:12px;color:${ink}">${escapeMailHtml(OCCURRENCE_MAIL_REPLY_STRIP)}</td></tr></table>`
 }
 
+/** Só quando o motorista informou a data; o texto é fixo e a data é escapada como todo valor. */
+function buildNewDueDateNotice(newDueDate: string | undefined): string {
+  if (newDueDate === undefined || newDueDate === '') return ''
+  return `<p style="margin:0 0 14px;padding:8px 12px;background:${mist};border-left:3px solid ${copper};font-family:${OCCURRENCE_MAIL_FONT};font-size:14px;color:${ink}"><b>Nova data de vencimento solicitada: ${escapeMailHtml(newDueDate)}</b></p>`
+}
+
 function buildSignatureLogo(params: BuildOccurrenceMailSystemHtmlParams): string {
   if (!params.signerIsTeam && params.signerPictureUrl !== undefined) {
     return publicImage({
@@ -164,6 +172,7 @@ export function buildOccurrenceMailSystemHtml(
     /** O `cid:` só existe sem endereço público; com ele, o e-mail não leva a parte inline. */
     hasInlineLogo: params.hasLogo && params.logoUrl === undefined,
     systemHtml: {
+      avisoNovaData: buildNewDueDateNotice(params.newDueDate),
       faixaResposta: buildReplyStrip(params.hasReplyTo),
       logoAssinatura: buildSignatureLogo(params),
       logoTransportadora: buildLogo(params),

@@ -93,6 +93,8 @@ export type OccurrenceType = Readonly<{
   clientChannel?: ClientChannel
   /** Spec 281 T8b: o app do motorista pede o contato do cliente na abertura. Ausente é API anterior ao campo. */
   asksClientContact?: boolean
+  /** O app do motorista oferece o campo opcional "nova data de vencimento". Ausente é API anterior ao campo. */
+  asksNewDueDate?: boolean
   contractorReplyAlertMode?: ContractorReplyAlertMode
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   contractorReplyMode?: ContractorReplyMode
