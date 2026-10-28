@@ -3007,19 +3007,17 @@ function createApplicationRoutes({
     envelopeProvider,
     logger,
   })
+  /** Variável vazia (`.env.example`) ou endereço recusado desliga o "Criar e conectar"; nunca derruba a subida. */
+  const evolutionProvisioner = buildEvolutionProvisioner({
+    baseUrl: environment.EVOLUTION_BASE_URL,
+    globalApiKey: environment.EVOLUTION_GLOBAL_API_KEY,
+    logger,
+  })
   const whatsappEvolution = createWhatsAppEvolutionUseCase({
     gateway: createEvolutionConnectionGateway(),
     newSettingsId: () => crypto.randomUUID(),
     now: () => new Date(),
-    ...(environment.EVOLUTION_BASE_URL === undefined ||
-    environment.EVOLUTION_GLOBAL_API_KEY === undefined
-      ? {}
-      : {
-          provisioner: createEvolutionProvisioner({
-            baseUrl: normalizeEvolutionBaseUrl(environment.EVOLUTION_BASE_URL),
-            globalApiKey: environment.EVOLUTION_GLOBAL_API_KEY,
-          }),
-        }),
+    ...(evolutionProvisioner === undefined ? {} : { provisioner: evolutionProvisioner }),
     repository: whatsappEvolutionRepository,
     secrets: whatsappEvolutionSecrets,
     webhook: whatsappEvolutionWebhook,
@@ -5914,4 +5912,20 @@ function buildJobRunPublisher(
         topology: buildJobRunRabbitMqTopology({ queuePrefix: messaging.queuePrefix }),
       }),
   })
+}
+
+function buildEvolutionProvisioner(input: {
+  readonly baseUrl: string | undefined
+  readonly globalApiKey: string | undefined
+  readonly logger: { warn(message: string): void }
+}) {
+  const baseUrl = input.baseUrl?.trim()
+  const globalApiKey = input.globalApiKey?.trim()
+  if (!baseUrl || !globalApiKey) return undefined
+  try {
+    return createEvolutionProvisioner({ baseUrl: normalizeEvolutionBaseUrl(baseUrl), globalApiKey })
+  } catch {
+    input.logger.warn('evolution_provisioning_disabled_invalid_base_url')
+    return undefined
+  }
 }
