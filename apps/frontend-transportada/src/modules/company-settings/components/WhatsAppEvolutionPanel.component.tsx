@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { createWhatsAppQrObjectUrl } from '../shared/whatsappEvolutionQrImage.service'
 import {
   buildWhatsAppEvolutionSubmission,
   startWhatsAppEvolutionDraft,
@@ -63,8 +64,23 @@ const STATE_BADGE = {
   unknown: 'secondary',
 } as const
 
+/** `img-src` só admite `blob:`; o QR (data URL) vira URL de objeto e é liberada ao trocar ou sair. */
+function useQrObjectUrl(qrCode: string | null | undefined): string | null {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const created =
+      qrCode === null || qrCode === undefined ? null : createWhatsAppQrObjectUrl(qrCode)
+    setUrl(created)
+    return () => {
+      if (created !== null) URL.revokeObjectURL(created)
+    }
+  }, [qrCode])
+  return url
+}
+
 function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
   const { t } = useTranslation('companySettings')
+  const qrImageUrl = useQrObjectUrl(props.qr?.qrCode)
   const stored = props.stored
   if (stored === null || stored === undefined) return null
   // O estado da tela é o do QR quando ele já respondeu; senão, o último gravado.
@@ -120,12 +136,12 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
         ) : null}
         {props.qrOpen && state !== 'open' ? (
           <div className={styles.whatsappQr}>
-            {props.qr?.qrCode ? (
+            {qrImageUrl !== null ? (
               <img
                 alt={t('whatsappEvolution.connection.qrAlt')}
                 className={styles.whatsappQrImage}
                 height={240}
-                src={props.qr.qrCode}
+                src={qrImageUrl}
                 width={240}
               />
             ) : props.qrErrorCode === undefined ? (
