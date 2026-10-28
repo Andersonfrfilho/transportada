@@ -158,6 +158,7 @@
     "error": "Não foi possível enviar. Confira o sinal e tente de novo."
   },
   "quickReplies": {
+    "title": "Respostas rápidas",
     "pick": "Resposta rápida",
     "loading": "Carregando as respostas rápidas",
     "loadError": "Não foi possível carregar as respostas rápidas. Tente de novo em instantes.",

@@ -58,8 +58,8 @@ export function AudioTranscriptionSettingsPanel({
   if (!canManage) return null
 
   return (
-    <section aria-labelledby={titleId} className={styles.panel}>
-      <h3 id={titleId}>{t('audioTranscription.title')}</h3>
+    <section aria-labelledby={titleId} className={`${styles.panel} ${styles.settingsPanel}`}>
+      <h2 id={titleId}>{t('audioTranscription.title')}</h2>
       {query.isPending ? (
         <SkeletonGroup label={t('audioTranscription.loading')}>
           <Skeleton height="2rem" width="60%" />
