@@ -848,7 +848,10 @@
       "dropped": "The number is disconnected. Generate a new QR to reconnect; meanwhile sends fall back to email.",
       "reconnect": "Reconnect number",
       "title": "Number connection",
-      "qrWaiting": "Generating the QR code. This can take a few seconds."
+      "qrWaiting": "Generating the QR code. This can take a few seconds.",
+      "qrValidity": "This code is valid for about {{seconds}} s and renews itself. Scan it before it expires.",
+      "qrExpired": "This code has expired. Wait for the new code before scanning.",
+      "refreshQr": "Generate new QR"
     },
     "provision": {
       "action": "Create and connect",
