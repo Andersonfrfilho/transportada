@@ -842,7 +842,8 @@
       "checkError": "Could not read the connection state ({{code}}).",
       "dropped": "The number is disconnected. Generate a new QR to reconnect; meanwhile sends fall back to email.",
       "reconnect": "Reconnect number",
-      "title": "Number connection"
+      "title": "Number connection",
+      "qrWaiting": "Generating the QR code. This can take a few seconds."
     },
     "provision": {
       "action": "Create and connect",

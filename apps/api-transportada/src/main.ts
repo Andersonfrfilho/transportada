@@ -3015,6 +3015,7 @@ function createApplicationRoutes({
   })
   const whatsappEvolution = createWhatsAppEvolutionUseCase({
     gateway: createEvolutionConnectionGateway(),
+    logger,
     newSettingsId: () => crypto.randomUUID(),
     now: () => new Date(),
     ...(evolutionProvisioner === undefined ? {} : { provisioner: evolutionProvisioner }),

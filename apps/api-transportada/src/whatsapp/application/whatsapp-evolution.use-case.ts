@@ -24,6 +24,8 @@ import type { WhatsAppEvolutionSecretService } from './whatsapp-evolution-secret
 
 const SETTINGS_SAVED_ACTION = 'whatsapp-evolution.settings.saved'
 const CONNECTION_CHANGED_ACTION = 'whatsapp-evolution.connection.changed'
+const QR_EMPTY_ATTEMPTS = 3
+const QR_EMPTY_RETRY_MILLISECONDS = 2000
 const QR_REQUESTED_ACTION = 'whatsapp-evolution.qr.requested'
 
 /** O QR do WhatsApp vale poucas dezenas de segundos; a tela pede outro nesse ritmo até conectar. */
@@ -69,7 +71,10 @@ export type WhatsAppEvolutionUseCase = {
 
 export function createWhatsAppEvolutionUseCase(dependencies: {
   readonly gateway: WhatsAppEvolutionGatewayPort
+  readonly logger?: { warn(message: string, meta?: Record<string, unknown>): void }
   readonly newSettingsId: () => string
+  /** Pausa entre tentativas do QR; os testes a trocam por uma instantânea. */
+  readonly sleep?: (milliseconds: number) => Promise<void>
   readonly provisioner?: WhatsAppEvolutionProvisionerPort
   readonly now: () => Date
   readonly repository: WhatsAppEvolutionRepositoryPort
@@ -102,6 +107,10 @@ export function createWhatsAppEvolutionUseCase(dependencies: {
       request: { apiKey, baseUrl: credential.baseUrl, instanceName: credential.instanceName },
     }
   }
+
+  const sleep =
+    dependencies.sleep ??
+    ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
 
   const useCase: WhatsAppEvolutionUseCase = {
     provisioningAvailable: dependencies.provisioner !== undefined,
@@ -193,8 +202,19 @@ export function createWhatsAppEvolutionUseCase(dependencies: {
       let qr
       try {
         qr = await gateway.getQrCode(request)
+        // O Evolution gera o primeiro QR de forma assíncrona: o pedido que acorda a instância pode voltar vazio.
+        for (let attempt = 1; attempt < QR_EMPTY_ATTEMPTS && isEmptyQr(qr); attempt += 1) {
+          await sleep(QR_EMPTY_RETRY_MILLISECONDS)
+          qr = await gateway.getQrCode(request)
+        }
       } catch {
         throw new WhatsAppEvolutionUnreachableError()
+      }
+      if (isEmptyQr(qr)) {
+        dependencies.logger?.warn('whatsapp_evolution.qr_empty', {
+          companyId: context.companyId,
+          correlationId,
+        })
       }
       await repository.recordQrRequest({
         audit: { action: QR_REQUESTED_ACTION, actorUserId: context.userId, correlationId },
@@ -296,6 +316,10 @@ async function readState(
   } catch {
     throw new WhatsAppEvolutionUnreachableError()
   }
+}
+
+function isEmptyQr(qr: { pairingCode: string | null; qrBase64: string | null }): boolean {
+  return (qr.qrBase64 ?? '') === '' && (qr.pairingCode ?? '') === ''
 }
 
 function toDataUrl(base64: string | null): string | null {

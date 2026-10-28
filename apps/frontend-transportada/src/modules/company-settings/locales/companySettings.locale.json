@@ -842,7 +842,8 @@
       "checkError": "Não foi possível consultar o estado ({{code}}).",
       "dropped": "O número está desconectado. Gere um novo QR para reconectar; enquanto isso os envios caem para o e-mail.",
       "reconnect": "Reconectar número",
-      "title": "Conexão do número"
+      "title": "Conexão do número",
+      "qrWaiting": "Gerando o QR code. Pode levar alguns segundos."
     },
     "provision": {
       "action": "Criar e conectar",

@@ -128,8 +128,13 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
                 src={props.qr.qrCode}
                 width={240}
               />
-            ) : props.qrLoading ? (
-              <Skeleton height="240px" width="240px" />
+            ) : props.qrErrorCode === undefined ? (
+              <>
+                <Skeleton height="240px" width="240px" />
+                <p className={calendarStyles.hint} role="status">
+                  {t('whatsappEvolution.connection.qrWaiting')}
+                </p>
+              </>
             ) : null}
             {props.qr?.pairingCode ? (
               <p className={calendarStyles.hint}>
