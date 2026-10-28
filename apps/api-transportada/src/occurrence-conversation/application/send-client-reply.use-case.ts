@@ -21,10 +21,8 @@ import {
   maskClientAddress,
   resolveClientReplyTarget,
 } from '../domain/client-conversation.policy.js'
-import {
-  ClientReplyConfirmationRequiredError,
-  ContractorReplyWhatsAppOffError,
-} from '../domain/contractor-reply-whatsapp.error.js'
+import { ClientReplyConfirmationRequiredError } from '../domain/client-reply.error.js'
+import { ContractorReplyWhatsAppOffError } from '../domain/contractor-reply-whatsapp.error.js'
 import type {
   ClientReplyMessageStatus,
   ClientReplyRepositoryPort,

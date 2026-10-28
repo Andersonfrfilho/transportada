@@ -82,18 +82,3 @@ export class ContractorReplyWhatsAppResendNotAllowedError extends ApiError {
     })
   }
 }
-
-/**
- * Spec 283 T5 (D6): o primeiro envio do painel a um número pede confirmação. Nada sai; o número vai só mascarado, no
- * `message` do detalhe de `confirmNumber`, para a tela mostrar na pergunta.
- */
-export class ClientReplyConfirmationRequiredError extends ApiError {
-  public constructor(numberMasked: string) {
-    super({
-      code: 'OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED',
-      details: [{ field: 'confirmNumber', message: numberMasked }],
-      message: 'Confirm the number before the first reply to it',
-      status: 409,
-    })
-  }
-}
