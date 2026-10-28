@@ -327,6 +327,28 @@ Promoção de 27/10/2026 (PRs #377 a #387, #389, #391, parada por página #378).
 - Push em `staging` durante a promoção cancela o gate em andamento (um por commit); combine antes de
   mergear outras coisas na staging.
 
+## 5.4 Próxima promoção staging → main: conversa do cliente (spec 283) e Evolution
+
+Conferido em 28/10/2026 (revisão de `main...staging`: PRs #388, #398, #399, #400, #401, #402, #403, #404, #405, #372, #396).
+
+- **Uma migration nova, aditiva:** `20261027232931_occurrence_client_conversation` (colunas nulas
+  `client_delivery_id`, `recipient_address`, `client_tax_id`, índice único parcial, CHECKs que só aceitam mais e o
+  gatilho `occurrence_client_conversation_sync_trigger` em `occurrence_contractor_reply_deliveries`, que nunca derruba o
+  envio). Tem `rollback.sql`. Depois do deploy, `/health/ready` com `migrations: up`.
+- **Sem variável nova em produção.** `EVOLUTION_BASE_URL` e `EVOLUTION_GLOBAL_API_KEY` são opcionais e só existem em
+  staging; sem elas a tela de WhatsApp não oferece "Criar e conectar" (`provisioningAvailable: false`). Não criar essas
+  variáveis em produção sem aprovação do Anderson.
+- **WhatsApp continua desligado:** `whatsapp_evolution_settings.status` nasce `disabled`, `default_provider` nasce
+  `meta`, `client_channel` do tipo nasce `email`. A conversa do cliente (283) nasce no primeiro envio por e-mail ou
+  WhatsApp ao cliente, então em produção ela passa a aparecer já para os envios por e-mail (279).
+- **Realm do Keycloak:** `deploy/keycloak/realm.json` agora concede `view-clients` e `manage-clients` ao service
+  account; produção já passa no `keycloak-reconcile.sh`, nada a fazer lá.
+- **Staging (não bloqueia a promoção):** usuários do Keycloak de staging foram perdidos no incidente de 27/10 (voltam no
+  próximo `staging-refresh`); `osrm` e `map-tiles` de staging não rebuildam (o `wget` sumiu da imagem base
+  `planetiler:latest`).
+- **Pendências do Anderson antes de ligar WhatsApp em qualquer ambiente:** aceitar o ADR 0112 (risco do Evolution) e
+  testar o "Criar e conectar" com o Evolution real de staging.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
