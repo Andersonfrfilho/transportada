@@ -123,7 +123,8 @@
 }
 
 .form,
-.windowEditor {
+.windowEditor,
+.clientEmails {
   border: 1px solid var(--color-slate);
   border-radius: var(--space-2);
   display: grid;
@@ -306,9 +307,9 @@
 }
 
 /* Spec 279 T5: e-mails do cliente de entrega, agrupados por tipo. */
+/* Borda, raio e respiro vêm do grupo `.form, .windowEditor, .clientEmails` acima: o cartão igual ao dos vizinhos. */
 .clientEmails {
-  display: grid;
-  gap: var(--space-3);
+  align-content: start;
 }
 
 .clientEmailsHead {
