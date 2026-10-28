@@ -168,6 +168,7 @@ import { createNfseProviderCredentialRoutes } from './nfse-profiles/presentation
 import { createWhatsAppChannelRoutes } from './whatsapp/presentation/whatsapp-channel.routes'
 import { createMetaWhatsAppSendingChannel } from './whatsapp/infrastructure/meta-whatsapp-sending.gateway.js'
 import { createWhatsAppNotificationDriver } from './whatsapp/application/whatsapp-notification-driver.service.js'
+import { normalizeEvolutionBaseUrl } from './whatsapp/domain/evolution-base-url.policy'
 import { createWhatsAppEvolutionRoutes } from './whatsapp/presentation/whatsapp-evolution.routes'
 import { createWhatsAppEvolutionUseCase } from './whatsapp/application/whatsapp-evolution.use-case'
 import { createWhatsAppEvolutionSecretService } from './whatsapp/application/whatsapp-evolution-secret.service'
@@ -181,8 +182,13 @@ import {
 import { createEvolutionConversationInbound } from './occurrence-conversation/application/evolution-conversation-inbound.service.js'
 import { createDrizzleEvolutionConversationInboundRepository } from './occurrence-conversation/infrastructure/drizzle-evolution-conversation-inbound.repository.js'
 import { DrizzleWhatsAppEvolutionRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution.repository'
-import { createEvolutionConnectionGateway } from './whatsapp/infrastructure/evolution-connection.gateway'
+import {
+  createEvolutionConnectionGateway,
+  createEvolutionProvisioner,
+} from './whatsapp/infrastructure/evolution-connection.gateway'
 import { createEvolutionDocumentSender } from './whatsapp/infrastructure/evolution-document-sender.gateway.js'
+import { createSendClientReplyUseCase } from './occurrence-conversation/application/send-client-reply.use-case.js'
+import { createDrizzleClientReplyRepository } from './occurrence-conversation/infrastructure/drizzle-client-reply.repository.js'
 import { readAllBytes } from './occurrence-conversation/application/conversation-attachment.service.js'
 import { createForwardContractorReplyByWhatsAppUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-whatsapp.use-case.js'
 import {
@@ -3001,10 +3007,17 @@ function createApplicationRoutes({
     envelopeProvider,
     logger,
   })
+  /** Variável vazia (`.env.example`) ou endereço recusado desliga o "Criar e conectar"; nunca derruba a subida. */
+  const evolutionProvisioner = buildEvolutionProvisioner({
+    baseUrl: environment.EVOLUTION_BASE_URL,
+    globalApiKey: environment.EVOLUTION_GLOBAL_API_KEY,
+    logger,
+  })
   const whatsappEvolution = createWhatsAppEvolutionUseCase({
     gateway: createEvolutionConnectionGateway(),
     newSettingsId: () => crypto.randomUUID(),
     now: () => new Date(),
+    ...(evolutionProvisioner === undefined ? {} : { provisioner: evolutionProvisioner }),
     repository: whatsappEvolutionRepository,
     secrets: whatsappEvolutionSecrets,
     webhook: whatsappEvolutionWebhook,
@@ -3779,6 +3792,15 @@ function createApplicationRoutes({
        * Spec 274 (ADR-0111): o chat por e-mail. O `renderer` é o `standardEmail.render` do `notification-module`
        * (modelo da empresa ou o embutido, versão 0); o app só entrega texto, nunca HTML.
        */
+      /** Spec 283 T5 (D6): a resposta do painel ao cliente pelo Evolution da empresa. */
+      sendClientReply: createSendClientReplyUseCase({
+        logger,
+        repository: createDrizzleClientReplyRepository(database),
+        sender: createEvolutionDocumentSender({
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
+      }),
       sendChatMail: createSendOccurrenceChatMailUseCase({
         ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
@@ -5606,6 +5628,8 @@ function createApplicationRoutes({
     }),
     ...createWhatsAppEvolutionRoutes({
       connection: { execute: (input) => whatsappEvolution.connection(input) },
+      provision: { execute: (input) => whatsappEvolution.provision(input) },
+      provisioningAvailable: whatsappEvolution.provisioningAvailable,
       qr: { execute: (input) => whatsappEvolution.qr(input) },
       read: { execute: (input) => whatsappEvolution.read(input) },
       save: { execute: (input) => whatsappEvolution.save(input) },
@@ -5888,4 +5912,20 @@ function buildJobRunPublisher(
         topology: buildJobRunRabbitMqTopology({ queuePrefix: messaging.queuePrefix }),
       }),
   })
+}
+
+function buildEvolutionProvisioner(input: {
+  readonly baseUrl: string | undefined
+  readonly globalApiKey: string | undefined
+  readonly logger: { warn(message: string): void }
+}) {
+  const baseUrl = input.baseUrl?.trim()
+  const globalApiKey = input.globalApiKey?.trim()
+  if (!baseUrl || !globalApiKey) return undefined
+  try {
+    return createEvolutionProvisioner({ baseUrl: normalizeEvolutionBaseUrl(baseUrl), globalApiKey })
+  } catch {
+    input.logger.warn('evolution_provisioning_disabled_invalid_base_url')
+    return undefined
+  }
 }

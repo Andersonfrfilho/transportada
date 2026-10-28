@@ -17,6 +17,7 @@ import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import {
   API_WHATSAPP_EVOLUTION_CONNECTION_PATH,
   API_WHATSAPP_EVOLUTION_PATH,
+  API_WHATSAPP_EVOLUTION_PROVISION_PATH,
   API_WHATSAPP_EVOLUTION_QR_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
@@ -58,7 +59,19 @@ const saveSchema = z
 
 type ActorInput = { readonly correlationId: string }
 
+const provisionSchema = z.object({ acknowledgeRisk: z.boolean() }).strict()
+
 export type WhatsAppEvolutionRoutesDependencies = {
+  readonly provision: {
+    execute(
+      input: ActorInput & {
+        readonly acknowledgeRisk: boolean
+        readonly context: CompanyContext
+      },
+    ): Promise<WhatsAppEvolutionSummary>
+  }
+  /** O ambiente tem a chave global do Evolution: a tela oferece "Criar e conectar". */
+  readonly provisioningAvailable: boolean
   readonly connection: {
     execute(
       input: ActorInput & { readonly context: CompanyContext },
@@ -87,7 +100,10 @@ export function createWhatsAppEvolutionRoutes(
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {
         const settings = await dependencies.read.execute({ context: context.scope })
-        return jsonResponse(200, { data: settings === null ? null : serializeSettings(settings) })
+        return jsonResponse(200, {
+          data: settings === null ? null : serializeSettings(settings),
+          provisioningAvailable: dependencies.provisioningAvailable,
+        })
       },
       method: 'GET',
       parse: () => undefined,
@@ -130,6 +146,19 @@ export function createWhatsAppEvolutionRoutes(
       method: 'GET',
       parse: ({ correlationId }) => ({ correlationId }),
       pathname: API_WHATSAPP_EVOLUTION_CONNECTION_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<ActorInput & { readonly acknowledgeRisk: boolean }>({
+      async handle({ context, input }): Promise<Response> {
+        const settings = await dependencies.provision.execute({ context: context.scope, ...input })
+        return jsonResponse(200, { data: serializeSettings(settings) })
+      },
+      method: 'POST',
+      async parse({ correlationId, request }) {
+        const body = await parseBody(provisionSchema, request)
+        return { acknowledgeRisk: body.acknowledgeRisk, correlationId }
+      },
+      pathname: API_WHATSAPP_EVOLUTION_PROVISION_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
     defineRoute<ActorInput>({

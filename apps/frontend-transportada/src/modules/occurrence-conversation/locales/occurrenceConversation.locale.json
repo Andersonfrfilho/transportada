@@ -2,7 +2,8 @@
   "tabs": {
     "ariaLabel": "Conversas da ocorrência",
     "contractor": "Contratante",
-    "driver": "Motorista"
+    "driver": "Motorista",
+    "client": "Cliente"
   },
   "contractor": {
     "title": "Conversa com a contratante",
@@ -292,7 +293,8 @@
   "participant": {
     "contractor": "Contratante",
     "driver": "Motorista",
-    "operator": "Operador"
+    "operator": "Operador",
+    "client": "Cliente"
   },
   "layout": {
     "label": "Exibição das conversas",
@@ -699,6 +701,58 @@
     "dismiss": "Fechar",
     "failure": {
       "notFound": "Este e-mail não está mais pendente. A conversa foi atualizada."
+    }
+  },
+  "client": {
+    "channels": "Canais abertos com o cliente",
+    "thread": "Conversa com o cliente",
+    "empty": "Nenhuma mensagem ainda.",
+    "fromUs": "Nós",
+    "open": "Abrir conversa do cliente",
+    "close": "Recolher conversa do cliente",
+    "unread_one": "{{count}} nova",
+    "unread_other": "{{count}} novas",
+    "title": "Conversa com o cliente",
+    "status": {
+      "queued": "na fila",
+      "sent": "enviado",
+      "delivered": "entregue",
+      "read": "lido",
+      "replied": "respondeu",
+      "failed": "falhou"
+    },
+    "messageStatus": {
+      "queued": "na fila",
+      "sent": "enviado",
+      "delivered": "entregue",
+      "read": "lido",
+      "failed": "falhou",
+      "bounced": "devolvido"
+    },
+    "bySystem": "Sistema",
+    "sentNoText": "Mensagem enviada.",
+    "sentDocument": "Boleto enviado: {{name}}",
+    "reply": {
+      "noWhatsapp": "O cliente não responde por e-mail: a resposta só sai pelo WhatsApp, e nenhum número foi aberto ainda.",
+      "off": "O WhatsApp está desligado ou fora do ar. Use \"Enviar ao cliente\" por e-mail enquanto isso.",
+      "replyBy": "Responder por",
+      "message": "Mensagem ao cliente",
+      "hint": "Sai pelo WhatsApp para {{number}}.",
+      "confirm": "Confirme o número {{number}}: este é o primeiro envio do painel a ele.",
+      "confirmAndSend": "Confirmar e enviar",
+      "cancel": "Cancelar",
+      "send": "Enviar",
+      "sending": "Enviando…",
+      "error": {
+        "required": "Escreva a mensagem.",
+        "tooLong": "A mensagem passa de {{max}} caracteres."
+      },
+      "failure": {
+        "generic": "Não foi possível enviar. Tente de novo.",
+        "notFound": "Este número não está mais na conversa. Atualize a tela.",
+        "whatsappOff": "O WhatsApp está desligado para o cliente.",
+        "unavailable": "O WhatsApp está fora do ar agora."
+      }
     }
   }
 }

@@ -10,6 +10,8 @@ import { Tabs } from '@/components/ui/tabs'
 import { formatPersonName } from '@/lib/personName'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { ContractorReplyPanel } from '@/modules/occurrence-conversation/components/ContractorReplyPanel.component'
+import { useOccurrenceConversationsQuery } from '@/modules/occurrence-conversation/queries/occurrenceConversation.query'
+import { findClientConversation } from '@/modules/occurrence-conversation/shared/clientConversation.service'
 import { OccurrenceConversations } from '@/modules/occurrence-conversation/components/OccurrenceConversations.component'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
@@ -37,7 +39,7 @@ import {
   buildOccurrenceDriverContact,
   formatOccurrenceItemQuantity,
   formatOccurrenceQuantity,
-  OCCURRENCE_DETAIL_PHONE_TABS,
+  occurrenceDetailPhoneTabsFor,
   occurrenceDetailSectionsFor,
   type OccurrenceDetailPhoneTab,
   type OccurrenceDetailSection,
@@ -459,14 +461,21 @@ function OccurrenceDetailSections({
   const { t } = useTranslation('trip')
   const isWide = useMinWidth('40rem')
   const [phoneTab, setPhoneTab] = useState<OccurrenceDetailPhoneTab>('summary')
+  const conversationsQuery = useOccurrenceConversationsQuery({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: true,
+    occurrenceId: occurrence.id,
+  })
+  const hasClientConversation =
+    findClientConversation(conversationsQuery.data?.conversations) !== undefined
 
-  function conversations(participant?: 'contractor' | 'driver') {
+  function conversations(participant?: 'client' | 'contractor' | 'driver') {
     return (
       <section aria-labelledby="occurrence-conversations-title" className={styles.panel}>
         <div className={styles.panelHead}>
           <h2 id="occurrence-conversations-title">{t('occurrenceDetail.conversations.title')}</h2>
         </div>
-        {participant === 'driver' ? null : (
+        {participant === 'driver' || participant === 'client' ? null : (
           <ContractorReplyPanel
             canResolve={canResolveOccurrenceCases}
             {...(companyId === undefined ? {} : { companyId })}
@@ -545,6 +554,7 @@ function OccurrenceDetailSections({
         ) : null}
       </section>
     ),
+    clientConversation: () => conversations('client'),
     contractorConversation: () => conversations('contractor'),
     conversations: () => conversations(),
     document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,
@@ -584,7 +594,7 @@ function OccurrenceDetailSections({
     <div className={styles.occurrencePhoneTabs}>
       <Tabs
         ariaLabel={t('occurrenceDetail.phoneTabs.ariaLabel')}
-        items={OCCURRENCE_DETAIL_PHONE_TABS.map((tab) => ({
+        items={occurrenceDetailPhoneTabsFor(hasClientConversation).map((tab) => ({
           id: tab,
           label: t(`occurrenceDetail.phoneTabs.${tab}`),
           panel: deck(tab),

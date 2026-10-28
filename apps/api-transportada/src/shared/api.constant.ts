@@ -234,6 +234,8 @@ export const API_WHATSAPP_EVOLUTION_PATH = '/company-settings/whatsapp-evolution
 export const API_WHATSAPP_EVOLUTION_CONNECTION_PATH =
   '/company-settings/whatsapp-evolution/connection'
 export const API_WHATSAPP_EVOLUTION_QR_PATH = '/company-settings/whatsapp-evolution/qr'
+export const API_WHATSAPP_EVOLUTION_PROVISION_PATH =
+  '/company-settings/whatsapp-evolution/provision'
 /** Spec 281 T6: aponta (de novo) o webhook da instância para a API; o segredo nunca volta na resposta. */
 export const API_WHATSAPP_EVOLUTION_WEBHOOK_PATH = '/company-settings/whatsapp-evolution/webhook'
 /** Spec 281 T6 (RF4): a entrega do Evolution, uma URL por empresa pelo `webhookId` opaco. */

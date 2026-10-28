@@ -11,6 +11,7 @@ import {
   type ContractorReplyWhatsAppSenderPort,
   type ContractorReplyWhatsAppSendFailure,
 } from '../../occurrence-conversation/application/forward-contractor-reply-by-whatsapp.port.js'
+import type { ClientReplyWhatsAppSenderPort } from '../../occurrence-conversation/application/send-client-reply.port.js'
 import type { WhatsAppEvolutionRepositoryPort } from '../application/whatsapp-evolution.port.js'
 import type { WhatsAppEvolutionSecretService } from '../application/whatsapp-evolution-secret.service.js'
 
@@ -25,11 +26,15 @@ const SEND_TIMEOUT_MS = 60_000
  * - `401`/`403`/`404`, rede ou tempo esgotado: a instância não está lá para falar → `disconnected`;
  * - o resto (`5xx`, resposta estranha) → `failed`.
  */
-export function createEvolutionDocumentSender(dependencies: {
+type EvolutionSenderDependencies = {
   readonly fetch?: typeof fetch
   readonly repository: Pick<WhatsAppEvolutionRepositoryPort, 'findCredential'>
   readonly secrets: Pick<WhatsAppEvolutionSecretService, 'decrypt'>
-}): ContractorReplyWhatsAppSenderPort {
+}
+
+export function createEvolutionDocumentSender(
+  dependencies: EvolutionSenderDependencies,
+): ContractorReplyWhatsAppSenderPort & ClientReplyWhatsAppSenderPort {
   async function open(companyId: string): Promise<EvolutionWhatsAppChannel> {
     const credential = await dependencies.repository.findCredential({ companyId })
     if (credential === null || credential.status !== 'active') {
@@ -65,6 +70,17 @@ export function createEvolutionDocumentSender(dependencies: {
           mimeType: params.mimeType,
           to: params.number,
         })
+        return { providerMessageId: sent.externalMessageId }
+      } catch (error) {
+        throw new ContractorReplyWhatsAppSendError(classify(error))
+      }
+    },
+
+    /** Spec 283 T5 (D6): a resposta do painel ao cliente, só texto. */
+    async sendText(params) {
+      const channel = await open(params.companyId)
+      try {
+        const sent = await channel.sendText(params.number, params.body)
         return { providerMessageId: sent.externalMessageId }
       } catch (error) {
         throw new ContractorReplyWhatsAppSendError(classify(error))

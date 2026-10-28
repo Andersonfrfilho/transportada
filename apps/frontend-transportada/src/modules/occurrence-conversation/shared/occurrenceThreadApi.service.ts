@@ -67,6 +67,7 @@ function describeAuthorName(
   if (author.kind === 'automatic') return labels.automatic
   if (author.kind === 'operation') return author.name ?? labels.operation
   if (author.kind === 'driver') return author.name ?? labels.driver
+  if (author.kind === 'client') return author.addressMasked
   const { identity } = author
   if (identity === null) return labels.contractorUser
   if (identity.kind === 'internal') {

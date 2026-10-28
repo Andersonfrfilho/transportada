@@ -12,7 +12,11 @@ import { alias } from 'drizzle-orm/pg-core'
 import {
   contractorContacts,
   contractorMailMessages,
+  deliveryClientContacts,
+  deliveryClients,
   identityUserProfiles,
+  occurrenceContractorReplyDeliveries,
+  occurrenceConversationAttachments,
   occurrenceConversationMessages,
   occurrenceConversationReads,
   occurrenceConversations,
@@ -30,14 +34,28 @@ import {
   type ContractorSenderContact,
 } from '../domain/contractor-sender.policy.js'
 import { systemNoticeField } from '../domain/occurrence-conversation-system-notice.policy.js'
+import {
+  CLIENT_CONVERSATION_CHANNELS,
+  CLIENT_CONVERSATION_PARTICIPANT,
+  maskClientAddress,
+  resolveClientChannels,
+  type ClientConversationChannel,
+} from '../domain/client-conversation.policy.js'
+import { maskTaxId } from '../../trips/domain/delivery-proof-settings.policy.js'
+import { OCCURRENCE_CONVERSATION_PARTICIPANTS } from '../../database/occurrence-conversation.schema.js'
 import type {
   OccurrenceConversationMessageAuthor,
+  OccurrenceClientView,
   OccurrenceConversationMessageView,
   OccurrenceConversationsView,
 } from '../application/occurrence-conversation.port.js'
 
 const authorProfile = alias(identityUserProfiles, 'occurrence_conversation_author_profile')
 const driverProfile = alias(identityUserProfiles, 'occurrence_conversation_driver_profile')
+const clientDeliveryAttachment = alias(
+  occurrenceConversationAttachments,
+  'occurrence_conversation_client_delivery_attachment',
+)
 
 /** Uma conversa longa ainda cabe numa tela; paginação entra quando alguém chegar perto disto. */
 const MESSAGE_LIMIT = 1000
@@ -50,6 +68,8 @@ type MessageRow = {
   readonly ccAddresses: null | readonly string[]
   readonly toAddresses: null | readonly string[]
   readonly channel: OccurrenceConversationMessageView['channel']
+  readonly clientDeliveryId: null | string
+  readonly clientDocumentName: null | string
   readonly contractorContactId: null | string
   readonly conversationId: string
   readonly createdAt: Date
@@ -60,6 +80,7 @@ type MessageRow = {
   readonly fromDisplayName: null | string
   readonly id: string
   readonly mailBodyText: null | string
+  readonly recipientAddress: null | string
   readonly senderAddress: null | string
   readonly status: OccurrenceConversationMessageView['status']
   readonly statusTimes: Record<string, string>
@@ -68,6 +89,7 @@ type MessageRow = {
 
 function toAuthor(
   row: MessageRow,
+  participant: OccurrenceConversationsView['conversations'][number]['participant'],
   contractorId: null | string,
   contacts: readonly ContractorSenderContact[],
   companyUsers: readonly ContractorSenderCompanyUser[],
@@ -78,6 +100,14 @@ function toAuthor(
   }
   if (row.driverUserId !== null) {
     return { kind: 'driver', name: row.driverName, userId: row.driverUserId }
+  }
+  /** Spec 283 (RF3): na conversa do cliente, quem respondeu é o número — nunca um contato da contratante. */
+  if (participant === CLIENT_CONVERSATION_PARTICIPANT) {
+    return {
+      addressMasked:
+        row.senderAddress === null ? '' : maskClientAddress('whatsapp', row.senderAddress),
+      kind: 'client',
+    }
   }
   const identity =
     row.senderAddress === null || contractorId === null || row.channel === 'portal'
@@ -135,48 +165,83 @@ async function readMessages(
   conversationIds: readonly string[],
 ): Promise<readonly MessageRow[]> {
   if (conversationIds.length === 0) return []
-  return queryable
-    .select({
-      authorName: authorProfile.name,
-      authorUserId: occurrenceConversationMessages.authorUserId,
-      automatic: occurrenceConversationMessages.automatic,
-      bodyText: occurrenceConversationMessages.bodyText,
-      ccAddresses: contractorMailMessages.ccAddresses,
-      toAddresses: contractorMailMessages.toAddresses,
-      channel: occurrenceConversationMessages.channel,
-      contractorContactId: occurrenceConversationMessages.contractorContactId,
-      conversationId: occurrenceConversationMessages.conversationId,
-      createdAt: occurrenceConversationMessages.createdAt,
-      direction: occurrenceConversationMessages.direction,
-      dkimResult: contractorMailMessages.dkimResult,
-      driverName: driverProfile.name,
-      driverUserId: occurrenceConversationMessages.driverUserId,
-      fromDisplayName: contractorMailMessages.fromDisplayName,
-      id: occurrenceConversationMessages.id,
-      mailBodyText: contractorMailMessages.bodyText,
-      senderAddress: occurrenceConversationMessages.senderAddress,
-      status: occurrenceConversationMessages.status,
-      statusTimes: occurrenceConversationMessages.statusTimes,
-      systemNotice: occurrenceConversationMessages.systemNotice,
-    })
-    .from(occurrenceConversationMessages)
-    .leftJoin(authorProfile, eq(authorProfile.userId, occurrenceConversationMessages.authorUserId))
-    .leftJoin(driverProfile, eq(driverProfile.userId, occurrenceConversationMessages.driverUserId))
-    .leftJoin(
-      contractorMailMessages,
-      and(
-        eq(contractorMailMessages.companyId, occurrenceConversationMessages.companyId),
-        eq(contractorMailMessages.id, occurrenceConversationMessages.mailMessageId),
-      ),
-    )
-    .where(
-      and(
-        eq(occurrenceConversationMessages.companyId, companyId),
-        inArray(occurrenceConversationMessages.conversationId, [...conversationIds]),
-      ),
-    )
-    .orderBy(asc(occurrenceConversationMessages.createdAt), asc(occurrenceConversationMessages.id))
-    .limit(MESSAGE_LIMIT)
+  return (
+    queryable
+      .select({
+        authorName: authorProfile.name,
+        authorUserId: occurrenceConversationMessages.authorUserId,
+        automatic: occurrenceConversationMessages.automatic,
+        bodyText: occurrenceConversationMessages.bodyText,
+        ccAddresses: contractorMailMessages.ccAddresses,
+        toAddresses: contractorMailMessages.toAddresses,
+        channel: occurrenceConversationMessages.channel,
+        clientDeliveryId: occurrenceConversationMessages.clientDeliveryId,
+        clientDocumentName: clientDeliveryAttachment.fileName,
+        contractorContactId: occurrenceConversationMessages.contractorContactId,
+        conversationId: occurrenceConversationMessages.conversationId,
+        createdAt: occurrenceConversationMessages.createdAt,
+        direction: occurrenceConversationMessages.direction,
+        dkimResult: contractorMailMessages.dkimResult,
+        driverName: driverProfile.name,
+        driverUserId: occurrenceConversationMessages.driverUserId,
+        fromDisplayName: contractorMailMessages.fromDisplayName,
+        id: occurrenceConversationMessages.id,
+        mailBodyText: contractorMailMessages.bodyText,
+        recipientAddress: occurrenceConversationMessages.recipientAddress,
+        senderAddress: occurrenceConversationMessages.senderAddress,
+        status: occurrenceConversationMessages.status,
+        statusTimes: occurrenceConversationMessages.statusTimes,
+        systemNotice: occurrenceConversationMessages.systemNotice,
+      })
+      .from(occurrenceConversationMessages)
+      .leftJoin(
+        authorProfile,
+        eq(authorProfile.userId, occurrenceConversationMessages.authorUserId),
+      )
+      .leftJoin(
+        driverProfile,
+        eq(driverProfile.userId, occurrenceConversationMessages.driverUserId),
+      )
+      .leftJoin(
+        contractorMailMessages,
+        and(
+          eq(contractorMailMessages.companyId, occurrenceConversationMessages.companyId),
+          eq(contractorMailMessages.id, occurrenceConversationMessages.mailMessageId),
+        ),
+      )
+      /** Spec 283: o arquivo que a entrega ao cliente levou, pela entrega da mensagem. */
+      .leftJoin(
+        occurrenceContractorReplyDeliveries,
+        and(
+          eq(
+            occurrenceContractorReplyDeliveries.companyId,
+            occurrenceConversationMessages.companyId,
+          ),
+          eq(
+            occurrenceContractorReplyDeliveries.id,
+            occurrenceConversationMessages.clientDeliveryId,
+          ),
+        ),
+      )
+      .leftJoin(
+        clientDeliveryAttachment,
+        and(
+          eq(clientDeliveryAttachment.companyId, occurrenceContractorReplyDeliveries.companyId),
+          eq(clientDeliveryAttachment.id, occurrenceContractorReplyDeliveries.attachmentId),
+        ),
+      )
+      .where(
+        and(
+          eq(occurrenceConversationMessages.companyId, companyId),
+          inArray(occurrenceConversationMessages.conversationId, [...conversationIds]),
+        ),
+      )
+      .orderBy(
+        asc(occurrenceConversationMessages.createdAt),
+        asc(occurrenceConversationMessages.id),
+      )
+      .limit(MESSAGE_LIMIT)
+  )
 }
 
 /** Spec 267 RF8: a cópia só aparece na mensagem de saída; o do e-mail recebido é do remetente, não nosso. */
@@ -286,16 +351,102 @@ async function readCopyNames(
   return new Map(rows.map((row) => [row.address.toLowerCase(), row.name]))
 }
 
+/** Spec 283 (RF1): quem enviou ao cliente — o mesmo critério do aviso da 279 (o motorista da conversa dele). */
+function toClientDelivery(
+  row: MessageRow,
+  driverUserIds: ReadonlySet<string>,
+): Pick<OccurrenceConversationMessageView, 'clientDelivery' | 'recipientMasked'> {
+  if (row.recipientAddress === null) return {}
+  const channel: ClientConversationChannel = row.channel === 'email' ? 'email' : 'whatsapp'
+  if (row.clientDeliveryId === null) {
+    return { recipientMasked: maskClientAddress(channel, row.recipientAddress) }
+  }
+  return {
+    clientDelivery: {
+      actorKind:
+        row.authorUserId === null
+          ? 'system'
+          : driverUserIds.has(row.authorUserId)
+            ? 'driver'
+            : 'office',
+      actorName: row.authorUserId === null ? null : row.authorName,
+      deliveryId: row.clientDeliveryId,
+      documentName: row.clientDocumentName,
+      recipientMasked: maskClientAddress(channel, row.recipientAddress),
+    },
+  }
+}
+
+/** Spec 283 (D4): o nome do cliente e a faixa de canais — os contatos de agora, numa leitura só. */
+async function readClientView(
+  queryable: TripQueryable,
+  companyId: string,
+  taxId: string,
+  messages: readonly MessageRow[],
+): Promise<OccurrenceClientView> {
+  const [clients, contacts] = await Promise.all([
+    queryable
+      .select({ name: deliveryClients.displayName })
+      .from(deliveryClients)
+      .where(and(eq(deliveryClients.companyId, companyId), eq(deliveryClients.taxId, taxId)))
+      .limit(1),
+    queryable
+      .select({ address: deliveryClientContacts.address, channel: deliveryClientContacts.channel })
+      .from(deliveryClientContacts)
+      .where(
+        and(
+          eq(deliveryClientContacts.companyId, companyId),
+          eq(deliveryClientContacts.taxId, taxId),
+          inArray(deliveryClientContacts.channel, [...CLIENT_CONVERSATION_CHANNELS]),
+        ),
+      ),
+  ])
+  const name = clients[0]?.name.trim() ?? ''
+  return {
+    channels: resolveClientChannels({
+      contacts,
+      messages: messages.flatMap((row) => {
+        const address = row.direction === 'outbound' ? row.recipientAddress : row.senderAddress
+        if (address === null || (row.channel !== 'email' && row.channel !== 'whatsapp')) return []
+        return [
+          {
+            address,
+            channel: row.channel,
+            createdAt: row.createdAt.toISOString(),
+            deliveryId: row.clientDeliveryId,
+            direction: row.direction,
+            panelReply:
+              row.direction === 'outbound' &&
+              row.clientDeliveryId === null &&
+              row.authorUserId !== null,
+            status: row.status,
+          },
+        ]
+      }),
+    }),
+    name: name === '' ? null : name,
+    taxIdMasked: maskTaxId(taxId),
+  }
+}
+
 export async function findOccurrenceConversations(
   queryable: TripQueryable,
-  input: { readonly companyId: string; readonly occurrenceId: string; readonly userId: string },
+  input: {
+    readonly companyId: string
+    /** Spec 283 RF7: sem a permissão de enviar ao cliente, a conversa dele não sai. */
+    readonly includeClient?: boolean
+    readonly occurrenceId: string
+    readonly userId: string
+  },
 ): Promise<OccurrenceConversationsView | null> {
   const item = await findTripOccurrenceFeedItem(queryable, input)
   if (item === null) return null
 
   const conversations = await queryable
     .select({
+      clientTaxId: occurrenceConversations.clientTaxId,
       contractorId: occurrenceConversations.contractorId,
+      driverUserId: occurrenceConversations.driverUserId,
       id: occurrenceConversations.id,
       participant: occurrenceConversations.participant,
       status: occurrenceConversations.status,
@@ -306,6 +457,9 @@ export async function findOccurrenceConversations(
         eq(occurrenceConversations.companyId, input.companyId),
         eq(occurrenceConversations.occurrenceKind, item.source),
         eq(occurrenceConversations.occurrenceId, input.occurrenceId),
+        input.includeClient === true
+          ? undefined
+          : inArray(occurrenceConversations.participant, [...OCCURRENCE_CONVERSATION_PARTICIPANTS]),
       ),
     )
     .orderBy(asc(occurrenceConversations.participant))
@@ -313,6 +467,9 @@ export async function findOccurrenceConversations(
   const contractorIds = [
     ...new Set(conversations.flatMap((conversation) => conversation.contractorId ?? [])),
   ]
+  const driverUserIds = new Set(
+    conversations.flatMap((conversation) => conversation.driverUserId ?? []),
+  )
   const [messages, lastReads, contacts, portalAudience] = await Promise.all([
     readMessages(queryable, input.companyId, conversationIds),
     readLastReads(queryable, { ...input, conversationIds }),
@@ -320,22 +477,45 @@ export async function findOccurrenceConversations(
     item.source === 'document' ? findContractorPortalAudience(queryable, input) : null,
   ])
 
-  const [copyNames, companyUsers] = await Promise.all([
+  const [copyNames, companyUsers, clientViews] = await Promise.all([
     readCopyNames(queryable, input.companyId, messages),
     readCompanyUsersBySender(queryable, input.companyId, messages),
+    Promise.all(
+      conversations.flatMap((conversation) =>
+        conversation.clientTaxId === null
+          ? []
+          : [
+              readClientView(
+                queryable,
+                input.companyId,
+                conversation.clientTaxId,
+                messages.filter((message) => message.conversationId === conversation.id),
+              ).then((view) => [conversation.id, view] as const),
+            ],
+      ),
+    ).then((entries) => new Map(entries)),
   ])
 
   return {
     contractorPortal: { available: (portalAudience?.userIds.length ?? 0) > 0 },
     conversations: conversations.map((conversation) => {
       const own = messages.filter((message) => message.conversationId === conversation.id)
+      const client = clientViews.get(conversation.id)
       return {
+        ...(client === undefined ? {} : { client }),
         id: conversation.id,
         messages: own.map((row) => ({
           attachments: [],
-          author: toAuthor(row, conversation.contractorId, contacts, companyUsers),
+          author: toAuthor(
+            row,
+            conversation.participant,
+            conversation.contractorId,
+            contacts,
+            companyUsers,
+          ),
           bodyText: row.bodyText,
           channel: row.channel,
+          ...toClientDelivery(row, driverUserIds),
           ...toCopy(row, copyNames),
           createdAt: row.createdAt.toISOString(),
           direction: row.direction,

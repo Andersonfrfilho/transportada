@@ -15,6 +15,7 @@ import {
   clientMessageStatusFromDelivery,
   maskClientAddress,
   resolveClientChannels,
+  resolveClientReplyTarget,
   type ClientChannelMessage,
 } from '../../src/occurrence-conversation/domain/client-conversation.policy.js'
 
@@ -83,6 +84,8 @@ describe('o destino nunca sai em claro (RF7)', () => {
     expect(clientAddressKey('whatsapp', '+55 (16) 99999-1234')).toBe(
       clientAddressKey('whatsapp', NUMBER),
     )
+    /** O WhatsApp entrega o mesmo celular sem o nono dígito. */
+    expect(clientAddressKey('whatsapp', '551699991234')).toBe(clientAddressKey('whatsapp', NUMBER))
     expect(clientAddressKey('email', ' Financeiro@Mercado.com.br ')).toBe(
       clientAddressKey('email', EMAIL),
     )
@@ -112,6 +115,19 @@ describe('a faixa "Canais abertos" (D4)', () => {
       ['+55 ••••1234', 'read'],
       ['+55 ••••4321', 'delivered'],
     ])
+  })
+
+  test('dois envios no mesmo instante: a ordem não depende de quem o banco devolveu primeiro', () => {
+    const at = '2026-10-27T10:00:00.000Z'
+    const forward = resolveClientChannels({
+      contacts,
+      messages: [sent(NUMBER, at, 'read'), sent(OTHER_NUMBER, at, 'failed')],
+    })
+    const backward = resolveClientChannels({
+      contacts,
+      messages: [sent(OTHER_NUMBER, at, 'failed'), sent(NUMBER, at, 'read')],
+    })
+    expect(backward).toEqual(forward)
   })
 
   test('o WhatsApp cai e o e-mail de reserva envia: as duas entregas aparecem', () => {
@@ -182,5 +198,61 @@ describe('a faixa "Canais abertos" (D4)', () => {
     )
     expect(serialized).not.toContain('99999')
     expect(serialized).not.toContain('financeiro')
+  })
+})
+
+describe('"Responder por" (T5, D6)', () => {
+  const contacts = [
+    { address: NUMBER, channel: 'whatsapp' as const },
+    { address: EMAIL, channel: 'email' as const },
+  ]
+  const DELIVERY = '00000000-0000-4000-8000-000000283601'
+  const EMAIL_DELIVERY = '00000000-0000-4000-8000-000000283602'
+  const boleto = { ...sent(NUMBER, '2026-10-27T10:00:00.000Z'), deliveryId: DELIVERY }
+  const mail = {
+    ...sent(EMAIL, '2026-10-27T10:01:00.000Z', 'sent', 'email'),
+    deliveryId: EMAIL_DELIVERY,
+  }
+
+  test('o WhatsApp com entrega leva o alvo opaco; o e-mail não responde', () => {
+    const channels = resolveClientChannels({ contacts, messages: [boleto, mail] })
+    expect(channels.map((channel) => channel.replyTarget)).toEqual([
+      { confirmed: false, id: DELIVERY },
+      null,
+    ])
+  })
+
+  test('depois da primeira resposta do painel o número está confirmado', () => {
+    const panel = {
+      ...sent(NUMBER, '2026-10-27T10:05:00.000Z'),
+      deliveryId: null,
+      panelReply: true,
+    }
+    const channels = resolveClientChannels({ contacts, messages: [boleto, panel] })
+    expect(channels[0]?.replyTarget).toEqual({ confirmed: true, id: DELIVERY })
+    expect(
+      resolveClientReplyTarget({ contacts, messages: [boleto, panel], replyTargetId: DELIVERY }),
+    ).toEqual({ address: NUMBER, confirmed: true })
+  })
+
+  test('alvo de outra conversa, de e-mail ou de contato removido não responde', () => {
+    const messages = [boleto, mail]
+    expect(
+      resolveClientReplyTarget({ contacts, messages, replyTargetId: crypto.randomUUID() }),
+    ).toBeNull()
+    expect(
+      resolveClientReplyTarget({ contacts, messages, replyTargetId: EMAIL_DELIVERY }),
+    ).toBeNull()
+    expect(
+      resolveClientReplyTarget({
+        contacts: [{ address: EMAIL, channel: 'email' }],
+        messages,
+        replyTargetId: DELIVERY,
+      }),
+    ).toBeNull()
+    expect(resolveClientReplyTarget({ contacts, messages, replyTargetId: DELIVERY })).toEqual({
+      address: NUMBER,
+      confirmed: false,
+    })
   })
 })

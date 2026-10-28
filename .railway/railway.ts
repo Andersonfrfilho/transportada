@@ -105,6 +105,9 @@ export default defineRailway((ctx) => {
       /** Spec 268: o remetente do e-mail sandbox da contratante (o mesmo do worker); só é lido com o modo ligado. */
       EMAIL_FROM: preserve(),
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
+      /** Evolution (spec 281): só staging tem o serviço; a chave é referência à chave global dele. */
+      EVOLUTION_BASE_URL: preserve(),
+      EVOLUTION_GLOBAL_API_KEY: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       FLEET_VEHICLE_CATALOG_URL: preserve(),
       FRONTEND_ORIGIN: preserve(),
@@ -140,6 +143,9 @@ export default defineRailway((ctx) => {
       ROUTING_MATRIX_URL: preserve(),
       SCHEDULED_DISTRIBUTION_CRON: preserve(),
       SENTRY_DSN: preserve(),
+      /** Spec 281 T4b: o Evolution do ambiente; com os dois a API cria a instância da empresa. */
+      EVOLUTION_BASE_URL: preserve(),
+      EVOLUTION_GLOBAL_API_KEY: preserve(),
       /** Os dois segredos do APP da Meta: sem os dois a rota do webhook nem é registrada (fail-closed). */
       WHATSAPP_APP_SECRET: preserve(),
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: preserve(),
@@ -157,6 +163,9 @@ export default defineRailway((ctx) => {
     },
     replicas: { sfo: 1 },
     env: {
+      KEYCLOAK_TOKEN_URL: preserve(),
+      WORKER_CLIENT_ID: preserve(),
+      WORKER_CLIENT_SECRET: preserve(),
       ANEEL_BASE_URL: preserve(),
       ANEEL_TIMEOUT_MS: preserve(),
       ANP_BASE_URL: preserve(),
@@ -467,6 +476,71 @@ export default defineRailway((ctx) => {
   })
 
   /**
+   * Evolution API (spec 281): WhatsApp gratuito, **só em staging** até a decisão de produção. Banco e
+   * Redis são próprios dele — nunca os da aplicação. A chave global (`AUTHENTICATION_API_KEY`) mora só
+   * aqui e as variáveis são `preserve()`: o valor já está na Railway e não entra no repositório.
+   * Runbook: `docs/runbooks/evolution-staging.md`.
+   */
+  const evolutionVolume = volume('evolution-postgres-volume', { ...VOLUME, sizeMB: 1000 })
+  const evolutionPostgres = service('evolution-postgres', {
+    source: image('ghcr.io/railwayapp-templates/postgres-ssl:18'),
+    replicas: { sfo: 1 },
+    volumeMounts: { '/var/lib/postgresql/data': evolutionVolume },
+    env: {
+      PGDATA: preserve(),
+      POSTGRES_DB: preserve(),
+      POSTGRES_PASSWORD: preserve(),
+      POSTGRES_USER: preserve(),
+    },
+  })
+  const evolutionRedis = service('evolution-redis', {
+    source: image('redis:7-alpine'),
+    deploy: {
+      startCommand: `sh -c 'redis-server --requirepass "$REDIS_PASSWORD" --save "" --appendonly no'`,
+      restartPolicyType: 'ON_FAILURE',
+    },
+    replicas: { sfo: 1 },
+    env: { REDIS_PASSWORD: preserve() },
+  })
+  const evolutionApi = service('evolution-api', {
+    source: image('evoapicloud/evolution-api:v2.3.7'),
+    deploy: { healthcheckPath: '/', healthcheckTimeout: 120, restartPolicyType: 'ON_FAILURE' },
+    replicas: { sfo: 1 },
+    env: {
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: preserve(),
+      CACHE_LOCAL_ENABLED: preserve(),
+      CACHE_REDIS_ENABLED: preserve(),
+      CACHE_REDIS_PREFIX_KEY: preserve(),
+      CACHE_REDIS_SAVE_INSTANCES: preserve(),
+      CONFIG_SESSION_PHONE_CLIENT: preserve(),
+      CONFIG_SESSION_PHONE_NAME: preserve(),
+      DATABASE_CONNECTION_CLIENT_NAME: preserve(),
+      DATABASE_ENABLED: preserve(),
+      DATABASE_PROVIDER: preserve(),
+      DATABASE_SAVE_DATA_CHATS: preserve(),
+      DATABASE_SAVE_DATA_CONTACTS: preserve(),
+      DATABASE_SAVE_DATA_HISTORIC: preserve(),
+      DATABASE_SAVE_DATA_INSTANCE: preserve(),
+      DATABASE_SAVE_DATA_NEW_MESSAGE: preserve(),
+      DATABASE_SAVE_MESSAGE_UPDATE: preserve(),
+      DEL_INSTANCE: preserve(),
+      LANGUAGE: preserve(),
+      LOG_BAILEYS: preserve(),
+      LOG_LEVEL: preserve(),
+      QRCODE_LIMIT: preserve(),
+      S3_ENABLED: preserve(),
+      SERVER_PORT: preserve(),
+      SERVER_TYPE: preserve(),
+      TELEMETRY_ENABLED: preserve(),
+      WEBHOOK_GLOBAL_ENABLED: preserve(),
+      AUTHENTICATION_API_KEY: preserve(),
+      CACHE_REDIS_URI: preserve(),
+      DATABASE_CONNECTION_URI: preserve(),
+      SERVER_URL: preserve(),
+    },
+  })
+
+  /**
    * ⚠️ **O extrato é datado, e isso não é preciosismo.** A URL era `sudeste-latest.osm.pbf`, e
    * `-latest` não quer dizer "se atualiza": quer dizer **"seja qual for o arquivo do dia em que
    * alguém reconstruir"**. Uma reconstrução por motivo alheio — mudar o `PORT`, subir a versão do
@@ -762,7 +836,18 @@ export default defineRailway((ctx) => {
   return project('transportada', {
     resources: isProduction
       ? [...shared, backup, restoreTest, aggregateDocumentOcr, mapTiles, osrm]
-      : [...shared, aggregateDocumentOcr, mailpit, mapTiles, osrm, stagingRefresh],
+      : [
+          ...shared,
+          aggregateDocumentOcr,
+          mailpit,
+          mapTiles,
+          osrm,
+          stagingRefresh,
+          evolutionVolume,
+          evolutionPostgres,
+          evolutionRedis,
+          evolutionApi,
+        ],
   })
 })
 

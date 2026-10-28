@@ -3,12 +3,17 @@
 O Evolution é o gateway de WhatsApp gratuito (não oficial, risco de banimento: spec 281 R1). Este runbook cobre só o
 **staging**. Produção tem runbook próprio, e nada aqui vale para ela sem aprovação do dono.
 
-> Estado: o serviço Evolution de staging ainda não foi criado (spec 281 T3). Os passos abaixo valem depois dele.
+> Estado (28/10/2026): o serviço `evolution-api` (com `evolution-postgres` e `evolution-redis`) está declarado em
+> `.railway/railway.ts` só para staging. O "Criar e conectar" (PR #404) só foi testado com resposta simulada: o primeiro
+> teste real, com o número do dono, ainda não foi feito. Produção não tem Evolution.
 
 ## O que existe
 
 - **Serviço Evolution no Railway, no ambiente de staging.** Postgres e Redis próprios, nunca compartilhados com a API.
-- **Chave global** da instalação do Evolution: só no serviço Evolution. A API nunca a recebe.
+- **Chave global** da instalação do Evolution (`AUTHENTICATION_API_KEY`): mora no serviço Evolution. A API de **staging**
+  a recebe por referência (`EVOLUTION_GLOBAL_API_KEY=${{evolution-api.AUTHENTICATION_API_KEY}}`, com
+  `EVOLUTION_BASE_URL=http://evolution-api.railway.internal:8080`) só para criar a instância da empresa; nunca vai ao
+  banco, ao navegador nem a log. Sem as duas variáveis (caso de produção) a tela pede endereço e chave à mão.
 - **Chave de cada instância** (um número por empresa): guardada na API, cifrada por empresa (como `contractor_mail_settings`).
   Não existe em variável de ambiente.
 - **Webhook por empresa**: `POST /public/whatsapp-evolution/:webhookId`. O segredo fica no cabeçalho
@@ -21,6 +26,7 @@ Todas em `/company-settings/whatsapp-evolution`, com `settings.manage`:
 | Ação                                                                       | Rota                  |
 | -------------------------------------------------------------------------- | --------------------- |
 | Ler e gravar a configuração (URL, chave, provedor padrão, teto, intervalo) | `GET` e `PUT` na raiz |
+| Criar a instância pelo Evolution do ambiente ("Criar e conectar")          | `POST …/provision`    |
 | Estado da conexão (`open`, `connecting`, `close`)                          | `GET …/connection`    |
 | QR code para ligar o número                                                | `POST …/qr`           |
 | Apontar o webhook de novo (troca o segredo)                                | `POST …/webhook`      |
@@ -56,7 +62,8 @@ Todas em `/company-settings/whatsapp-evolution`, com `settings.manage`:
 
 ## O que nunca fazer
 
-- Não colocar a chave global em variável da API.
+- Não copiar o valor da chave global para variável da API: só a referência `${{evolution-api.AUTHENTICATION_API_KEY}}`, e só em staging.
+- Não rodar `railway config apply` sem `railway config plan` sem nenhum `Delete` (ver incidente de 27/10 em `producao.md`).
 - Não compartilhar o Postgres ou o Redis com outro ambiente.
 - Não ligar o Evolution em produção sem aprovação do dono.
 - Não colar número, texto ou chave em chat, log ou PR.

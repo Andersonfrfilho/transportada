@@ -95,7 +95,7 @@ export function isWhatsAppEvolutionSettings(value: unknown): value is WhatsAppEv
 /** Empresa sem configuração é `{ data: null }`, e a tela abre vazia. */
 export function isWhatsAppEvolutionResponse(
   value: unknown,
-): value is Readonly<{ data: WhatsAppEvolutionSettings | null }> {
+): value is Readonly<{ data: WhatsAppEvolutionSettings | null; provisioningAvailable?: boolean }> {
   return (
     isRecord(value) &&
     'data' in value &&

@@ -24,8 +24,13 @@ O contrato `test/keycloak-realm.contract.test.ts` falha se qualquer um desses
 pontos mudar, e falha também se algum segredo literal aparecer no JSON — realm
 versionado vai para o git, então segredo em claro ali é segredo queimado.
 
-`manage-users` é o único papel concedido. Não inclua `realm-admin` nem
-`manage-realm`: a API só cria e atualiza usuário.
+`manage-users` é o papel da API. O realm publicado traz também `manage-realm` (tema) e
+`view-clients` + `manage-clients` (o passo `keycloak-reconcile` do deploy lê e atualiza clients;
+sem eles responde 403 e a staging não publica). Não inclua `realm-admin`.
+
+Realm de staging reimportado sem esses papéis (28/10/2026, depois de o banco do Keycloak ser
+apagado)? Rode `ativada/keycloak-staging-papeis-admin.sh`: concede os dois papéis ao service account
+pelo admin temporário, sem imprimir segredo.
 
 ## Por que ambiente já criado não recebe o client sozinho
 

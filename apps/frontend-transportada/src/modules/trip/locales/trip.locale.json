@@ -2558,7 +2558,8 @@
       "ariaLabel": "Partes da ocorrência",
       "summary": "Resumo",
       "contractor": "Contratante",
-      "driver": "Motorista"
+      "driver": "Motorista",
+      "client": "Cliente"
     },
     "correction": {
       "cancel": {

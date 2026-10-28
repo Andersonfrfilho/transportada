@@ -314,6 +314,40 @@ Promoção de 27/10/2026 (PRs #377 a #387, #389, #391, parada por página #378).
   Evolution real testado em staging (o serviço de staging ainda não subiu).
 - Não há serviço Evolution em produção; nenhuma ação de infraestrutura na promoção.
 
+**Resultado (28/10/2026):** `staging` → `main` pelo PR #397 (merge 4538804), deploy de produção verde
+(api, worker, cron, frontends) com `migrations` aplicadas. Dois avisos da promoção:
+
+- O deploy de **staging** parou em `Reconciliar realm` (`keycloak-reconcile.sh`): o service account
+  `transportada-admin` de staging estava só com `manage-realm` e `manage-users`; o script exige
+  `view-clients` e `manage-clients` de `realm-management`. O script é o mesmo da `main` e produção
+  passou nele; em staging é preciso conceder os dois papéis no console do Keycloak de staging e
+  reexecutar o deploy. Enquanto isso, o `Deploy API` de staging fica pulado.
+- Os serviços `osrm` e `map-tiles` de staging reportam `Deployment failed` pela integração do Railway
+  (não fazem parte da diferença da promoção e não são checks exigidos).
+- Push em `staging` durante a promoção cancela o gate em andamento (um por commit); combine antes de
+  mergear outras coisas na staging.
+
+## 5.4 Próxima promoção staging → main: conversa do cliente (spec 283) e Evolution
+
+Conferido em 28/10/2026 (revisão de `main...staging`: PRs #388, #398, #399, #400, #401, #402, #403, #404, #405, #372, #396).
+
+- **Uma migration nova, aditiva:** `20261027232931_occurrence_client_conversation` (colunas nulas
+  `client_delivery_id`, `recipient_address`, `client_tax_id`, índice único parcial, CHECKs que só aceitam mais e o
+  gatilho `occurrence_client_conversation_sync_trigger` em `occurrence_contractor_reply_deliveries`, que nunca derruba o
+  envio). Tem `rollback.sql`. Depois do deploy, `/health/ready` com `migrations: up`.
+- **Sem variável nova em produção.** `EVOLUTION_BASE_URL` e `EVOLUTION_GLOBAL_API_KEY` são opcionais e só existem em
+  staging; sem elas a tela de WhatsApp não oferece "Criar e conectar" (`provisioningAvailable: false`). Não criar essas
+  variáveis em produção sem aprovação do Anderson.
+- **WhatsApp continua desligado:** `whatsapp_evolution_settings.status` nasce `disabled`, `default_provider` nasce
+  `meta`, `client_channel` do tipo nasce `email`. A conversa do cliente (283) nasce no primeiro envio por e-mail ou
+  WhatsApp ao cliente, então em produção ela passa a aparecer já para os envios por e-mail (279).
+- **Realm do Keycloak:** `deploy/keycloak/realm.json` agora concede `view-clients` e `manage-clients` ao service
+  account; produção já passa no `keycloak-reconcile.sh`, nada a fazer lá.
+- **Staging (não bloqueia a promoção):** usuários do Keycloak de staging foram perdidos no incidente de 27/10 (voltam no
+  próximo `staging-refresh`); `osrm` e `map-tiles` de staging não rebuildam (o `wget` sumiu da imagem base
+  `planetiler:latest`).
+- **Pendências do Anderson antes de ligar WhatsApp em qualquer ambiente:** testar o "Criar e conectar" com o Evolution real de staging (o ADR 0112 já foi aceito em 28/10).
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
@@ -334,3 +368,64 @@ Promoção de 27/10/2026 (PRs #377 a #387, #389, #391, parada por página #378).
   num PR de docs logo em seguida.
 - Documentação não é bug crítico: vai para `staging` e sobe para a `main` na próxima promoção, salvo
   pedido do Anderson.
+
+## Incidente de staging em 27/10/2026: `railway config apply` apagou o banco do Keycloak
+
+⚠️ **Nunca rode `railway config apply` sem ler o plano inteiro e sem `0 to destroy` para o que não é seu.**
+O apply de uma branch trabalhando no Evolution (PR #388) executou o plano completo do `.railway/railway.ts`,
+não só a criação dos serviços novos: apagou o serviço `Postgres-keycloak` (banco do Keycloak de staging, com
+o volume), 3 variáveis do worker (`KEYCLOAK_TOKEN_URL`, `WORKER_CLIENT_ID`, `WORKER_CLIENT_SECRET`) e 26 do
+`evolution-api`, e criou um `Postgres-q0RQ` vazio. O Keycloak de staging caiu (`connection to localhost:5432
+refused`). Produção não foi tocada.
+
+Causas: (1) variável não declarada no `env` de um serviço é tratada como "a apagar" (`variables: managed`);
+(2) serviço não declarado no arquivo é apagado; (3) o script de apoio perguntava "só cria?" e aplicava o que o
+plano trouxesse; (4) o plano mostrou 32 destruições e a confirmação foi dada mesmo assim.
+
+Recuperação (só variáveis, sem apply): `KC_DB_URL/USERNAME/PASSWORD` do `keycloak` por referência ao
+`Postgres-q0RQ` (o `--import-realm` recria o realm `transportada` em banco vazio); segredo novo
+`KEYCLOAK_WORKER_CLIENT_SECRET` no `keycloak`, referenciado como `WORKER_CLIENT_SECRET` no worker;
+variáveis do `evolution-api` restauradas. **Perdidos:** usuários e sessões do Keycloak de staging, até o
+próximo `staging-refresh`.
+
+Nota: o apply também gravou `NFSE_PROVIDER_API_VERSION=v3` no `api` de staging. Está certo: o Anderson
+confirmou em 28/10 que produção já usa `v3`, e o `railway.ts` declara `v3` nos dois ambientes.
+
+Regra daqui para frente: apply só depois de `railway config plan` com **nenhum** `Delete`; toda variável
+existente de serviço gerenciado entra no arquivo como `preserve()`; script que aplica não vai para a pasta
+`ativada`.
+
+### Evolution em staging: variáveis do `api` (28/10/2026)
+
+O `api` de staging recebe `EVOLUTION_BASE_URL=http://evolution-api.railway.internal:8080` e
+`EVOLUTION_GLOBAL_API_KEY=${{evolution-api.AUTHENTICATION_API_KEY}}` (referência: a chave global nunca é
+copiada nem impressa). A API cria a instância pelo portal (PR #404); o script
+`evolution-staging-instancia.sh` não é mais necessário. As duas variáveis constam no `railway.ts` como
+`preserve()` para um apply não as apagar.
+
+### Recuperação dos usuários de staging (28/10/2026)
+
+O banco do Keycloak de staging foi apagado em 27/10 (ver incidente acima); o realm voltou sem usuários.
+Recuperação feita por scripts em `ativada/`, todos **somente staging** (produção só lida, nunca escrita,
+nunca imprime hash) e sem `railway config apply`:
+
+1. `staging-recriar-usuarios.sh`: lê de staging quem tinha identidade no issuer, mostra a lista, cria as
+   contas no realm (sem senha), copia hash e histórico de senha (`credential`) do Keycloak de produção
+   casando por username, religa `external_identities` e reinicia o Keycloak.
+2. `staging-renomear-usuarios-uuid.sh`: troca username em UUID por `nome.sobrenome` com a regra do convite
+   (`generated-username.policy.ts`: sobrenomes anteriores, depois sufixo 2..99). `sub`, memberships e papéis
+   não mudam; só o login.
+3. `staging-corrigir-conferencia.sh`: recopia senha pelo username atual, apaga `external_identities` cujo
+   `sub` não existe mais no Keycloak, religa a conta de serviço do worker.
+4. `staging-fechar-pendencias.sh`: casa contas sem senha com a de produção por e-mail/CPF.
+5. `staging-criar-automation.sh`: cria a pessoa sintética `automation` (ADR-0047) em cada empresa ativa de
+   staging e liga a conta de serviço do worker. **Produção tem 0 memberships `automation`**: confirmar se as
+   rotinas que chamam a API pelo worker (MDF-e automático, baixa por WhatsApp, canhoto, e-mail de ocorrência)
+   estão ligadas lá antes de criar.
+6. `staging-conferir-usuarios.sh`: só leitura; confere existência, `sub`, `company_id`, senha igual à de
+   produção (md5 do hash) e a conta de serviço. Rodar antes de qualquer passo em produção.
+
+Pegadinhas: o token do admin do `master` dura 60 s (renovar a cada etapa); o arquivo copiado por
+`device_commit_files` pode chegar defasado, conferir `md5sum`; o Keycloak guarda a senha como hash, então "mesma
+senha" só se obtém copiando `credential`, nunca digitando. Contas sem usuário correspondente em produção
+(convidadas que nunca definiram senha, contas de teste) ficam sem senha em staging.

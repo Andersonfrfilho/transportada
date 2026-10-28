@@ -403,6 +403,7 @@ describe('Drizzle migrations', () => {
       '20261027190000_contractor_reply_whatsapp_delivery',
       '20261027190515_whatsapp_evolution_webhook',
       '20261027220459_asks_client_contact',
+      '20261027232931_occurrence_client_conversation',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

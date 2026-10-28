@@ -127,7 +127,11 @@ export function createDrizzleWhatsAppConversationInboundRepository(
       const [reply] = replies
       return {
         openContractorConversations,
-        replyTo: reply ?? null,
+        /** Spec 283: a mensagem do cliente não guarda id do provedor; a citação nunca cai nela. */
+        replyTo:
+          reply === undefined || reply.participant === 'client'
+            ? null
+            : { ...reply, participant: reply.participant },
         sender: {
           contractorContacts: contacts.map((contact) => ({
             contactId: contact.contactId,
