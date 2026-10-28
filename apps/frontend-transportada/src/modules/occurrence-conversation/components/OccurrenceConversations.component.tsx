@@ -587,7 +587,11 @@ export function OccurrenceConversations({
 
   const clientPanel =
     clientConversation === undefined ? null : (
-      <ClientConversationPanel conversation={clientConversation} />
+      <ClientConversationPanel
+        canReply={canSend}
+        conversation={clientConversation}
+        occurrenceId={occurrenceId}
+      />
     )
 
   /** Spec 183 T801: a aba de cima do celular já escolheu a parte. */
@@ -692,7 +696,12 @@ export function OccurrenceConversations({
         onToggle={() => setClientStripOpen((open) => !open)}
         unreadCount={clientUnread}
       >
-        <ClientConversationPanel conversation={clientConversation} hideChannels />
+        <ClientConversationPanel
+          canReply={canSend}
+          conversation={clientConversation}
+          hideChannels
+          occurrenceId={occurrenceId}
+        />
       </ClientConversationStrip>
     )
 

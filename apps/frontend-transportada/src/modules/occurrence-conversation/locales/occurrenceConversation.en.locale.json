@@ -731,6 +731,28 @@
     },
     "bySystem": "System",
     "sentNoText": "Message sent.",
-    "sentDocument": "Boleto sent: {{name}}"
+    "sentDocument": "Boleto sent: {{name}}",
+    "reply": {
+      "noWhatsapp": "The client does not reply by e-mail: replies only go out by WhatsApp, and no number has been opened yet.",
+      "off": "WhatsApp is off or down. Use \"Send to client\" by e-mail meanwhile.",
+      "replyBy": "Reply by",
+      "message": "Message to the client",
+      "hint": "Goes out by WhatsApp to {{number}}.",
+      "confirm": "Confirm the number {{number}}: this is the first send from the panel to it.",
+      "confirmAndSend": "Confirm and send",
+      "cancel": "Cancel",
+      "send": "Send",
+      "sending": "Sending…",
+      "error": {
+        "required": "Write the message.",
+        "tooLong": "The message is over {{max}} characters."
+      },
+      "failure": {
+        "generic": "Could not send. Try again.",
+        "notFound": "This number is no longer in the conversation. Refresh the screen.",
+        "whatsappOff": "WhatsApp is off for the client.",
+        "unavailable": "WhatsApp is down right now."
+      }
+    }
   }
 }

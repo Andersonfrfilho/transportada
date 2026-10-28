@@ -731,6 +731,28 @@
     },
     "bySystem": "Sistema",
     "sentNoText": "Mensagem enviada.",
-    "sentDocument": "Boleto enviado: {{name}}"
+    "sentDocument": "Boleto enviado: {{name}}",
+    "reply": {
+      "noWhatsapp": "O cliente não responde por e-mail: a resposta só sai pelo WhatsApp, e nenhum número foi aberto ainda.",
+      "off": "O WhatsApp está desligado ou fora do ar. Use \"Enviar ao cliente\" por e-mail enquanto isso.",
+      "replyBy": "Responder por",
+      "message": "Mensagem ao cliente",
+      "hint": "Sai pelo WhatsApp para {{number}}.",
+      "confirm": "Confirme o número {{number}}: este é o primeiro envio do painel a ele.",
+      "confirmAndSend": "Confirmar e enviar",
+      "cancel": "Cancelar",
+      "send": "Enviar",
+      "sending": "Enviando…",
+      "error": {
+        "required": "Escreva a mensagem.",
+        "tooLong": "A mensagem passa de {{max}} caracteres."
+      },
+      "failure": {
+        "generic": "Não foi possível enviar. Tente de novo.",
+        "notFound": "Este número não está mais na conversa. Atualize a tela.",
+        "whatsappOff": "O WhatsApp está desligado para o cliente.",
+        "unavailable": "O WhatsApp está fora do ar agora."
+      }
+    }
   }
 }
