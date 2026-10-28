@@ -367,6 +367,9 @@ Recuperação (só variáveis, sem apply): `KC_DB_URL/USERNAME/PASSWORD` do `key
 variáveis do `evolution-api` restauradas. **Perdidos:** usuários e sessões do Keycloak de staging, até o
 próximo `staging-refresh`.
 
+Nota: o apply também gravou `NFSE_PROVIDER_API_VERSION=v3` no `api` de staging. Está certo: o Anderson
+confirmou em 28/10 que produção já usa `v3`, e o `railway.ts` declara `v3` nos dois ambientes.
+
 Regra daqui para frente: apply só depois de `railway config plan` com **nenhum** `Delete`; toda variável
 existente de serviço gerenciado entra no arquivo como `preserve()`; script que aplica não vai para a pasta
 `ativada`.
