@@ -411,6 +411,10 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   `@adatechnology/conversations-ui/participant` (import dinâmico) e liga rota, adapter, tema, rótulos e ícones. Layout, busca,
   protocolo, canais e bolhas vêm do pacote; cópia da tela é regressão (ADR-0075 §7). Fixe `conversations-ui` e
   `conversation-contracts` em versão exata, e atualize as três apps juntas.
+- **Compartilhar o arquivo do chat.** O menu da mensagem do pacote (`messageMenu`, 0.14) ganha "Compartilhar <arquivo>" por anexo
+  (`useDriverMessageMenu`): reaproveita `shareDriverFiles` (spec 266), com o link assinado de `resolveAttachmentUrl` pedido na
+  hora do toque. Sem suporte a compartilhar arquivo, baixa e avisa; cancelar a folha não avisa. Fica ao lado de "Ver detalhes" e
+  "Enviar ao cliente" (spec 279), que são do cartão do assunto, não do balão.
 - **Rotas por assunto, com queda.** O adapter (`driverConversationsApi.service.ts`) fala com
   `/me/trips/current/conversations[/:subjectType/:subjectId/{messages,messages/read,uploads}]` e a resposta já traz
   `awaitingDriver` e o eco do `clientMessageId` — não há mais remendo no app. `driverConversationRoutes.service.ts` cai nas rotas de
@@ -509,3 +513,29 @@ com a rede caindo no meio, o pedido vai para a fila própria (`clientBoletoEmail
 usa os gatilhos da fila de mensagens (`useClientEmailOutboxFlush`, montado na casca). O endereço novo só mora no aparelho
 até a fila entregar; log e resposta continuam mascarados. `test/client-email/*.contract.ts`; prints em
 `test/spec-279-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-279-prints.smoke.spec.ts`).
+
+## "Enviar por WhatsApp" (spec 281 T8)
+
+Módulo `src/modules/client-whatsapp`, irmão do `client-email`: o botão (`ClientWhatsAppSendButton`) fica ao lado do "Enviar ao
+cliente" nos mesmos três lugares e reaproveita a regra do boleto aceito (`hasBoletoArrived`). Quem decide é a API: o
+`GET .../client-boleto-whatsapp` responde `409`/`404` quando o `client_channel` do tipo não liga o WhatsApp, e o botão some; some
+também com `evolution.ready = false` (número da empresa desconectado), e o e-mail segue. A folha (`ClientWhatsAppSendSheet`,
+em portal no `body`, com o CSS da folha do e-mail) lista os números mascarados por `contactId` e o histórico de entregas; o
+número digitado passa pela **tela de confirmação** (número formatado, "Guardar este número para o cliente" = `save`) antes de
+sair — o app nunca manda o número sem esse passo. `parseClientWhatsAppNumber` é cópia por valor da política da API (teste de
+paridade lê o arquivo-fonte); a validação final é da API. Sem sinal, o pedido vai para a fila própria
+(`transportada.driver-client-whatsapp-outbox`) com a **mesma `idempotencyKey`** em toda tentativa; "Tentar de novo" de uma
+entrega que falhou (`POST .../deliveries/:id/resend`, chave nova por toque) só vale com sinal e só para `send_failed` e
+`whatsapp_disconnected` — número sem WhatsApp e arquivo grande apontam o e-mail. `test/client-whatsapp/*.contract.ts`; prints em
+`test/spec-281-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-281-prints.smoke.spec.ts`).
+
+## Contato do cliente na abertura (spec 281 T8b)
+
+Módulo `src/modules/client-contacts`. Quando o tipo escolhido traz `asksClientContact` e o `clientChannel` não é `off`, o
+formulário de ocorrência mostra `ClientContactsSection` (o app só lê o que o servidor resolveu: `resolveAskedContactChannels`).
+Os contatos são do **cliente da nota** (`/me/trips/current/documents/:documentId/client-contacts`): lista mascarada, vários
+números e e-mails; o do escritório (`editable: false`) é só leitura, o que o motorista informou ele edita e remove. Todo
+contato novo passa pela **tela de confirmação** (número formatado) antes de ir à API, que valida e normaliza. A escrita é
+**online, sem fila**: sem sinal a seção avisa e o registro da ocorrência segue. `DriverConversationHttp` ganhou `patchJson` e
+`deleteJson` (todo dublê do `http` em teste precisa dos dois). `test/client-contacts/*.contract.ts`; prints em
+`test/spec-281-t8b-prints.smoke.spec.ts` (fora da CI; o build do smoke precisa de `VITE_DRIVER_APP_URL=http://localhost:53112`).

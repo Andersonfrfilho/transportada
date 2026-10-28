@@ -11,6 +11,7 @@ import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-
 import { assertDeliveryProofContractorOverridesBackfill } from './delivery-proof-contractor-overrides.assertion.js'
 import { assertDeliveryProofProcessing } from './delivery-proof-processing.assertion.js'
 import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.assertion.js'
+import { assertContractorReplyWhatsAppDelivery } from './contractor-reply-whatsapp-delivery.assertion.js'
 import { assertEventLocationWhatsappRollbackRefusesRecordedPoints } from './event-location-whatsapp-rollback.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
@@ -33,9 +34,12 @@ import { assertContractorReplyResolveOnDelivery } from './contractor-reply-resol
 import { assertContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { assertContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { assertDeliveryClientEmails } from './delivery-client-emails.assertion.js'
+import { assertDeliveryClientContacts } from './delivery-client-contacts.assertion.js'
 import { assertConversationSystemNotice } from './conversation-system-notice.assertion.js'
 import { assertOccurrenceTypeClientEmailType } from './occurrence-type-client-email-type.assertion.js'
 import { assertClientEmailSendMode } from './client-email-send-mode.assertion.js'
+import { assertOccurrenceTypeAsksClientContact } from './occurrence-type-asks-client-contact.assertion.js'
+import { assertOccurrenceClientConversation } from './occurrence-client-conversation.assertion.js'
 import { assertConversationMessageDetectedEmail } from './conversation-message-detected-email.assertion.js'
 import { assertContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
 import { assertOccurrenceDuplicateRequestPolicy } from './occurrence-duplicate-request-policy.assertion.js'
@@ -161,7 +165,34 @@ describe('Drizzle migration integration', () => {
          * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
-        /** Spec 279 T6b: coluna aditiva da mensagem da conversa; a mais nova de todas. */
+        /** Spec 283 T2: o participante `client` e o gatilho do envio; a mais nova de todas. */
+        await assertOccurrenceClientConversation({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 281 T8b: coluna aditiva do tipo, independente. */
+        await assertOccurrenceTypeAsksClientContact({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 281 T5: alvo, motivos e id do provedor do WhatsApp na entrega do retorno; a mais nova de todas. */
+        await assertContractorReplyWhatsAppDelivery({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 281 T3b: renomeia a tabela da 279 T1 e acrescenta o canal. */
+        await assertDeliveryClientContacts({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        /** Spec 279 T6b: coluna aditiva da mensagem da conversa. */
         await assertConversationSystemNotice({
           connectionString,
           database,

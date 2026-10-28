@@ -177,6 +177,8 @@ export const API_TOLL_BOOTH_RELOAD_PATH = '/toll-booths/reload'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
 /** Spec 159 RF10: a nota do motorista e as penalidades vigentes, `fleet.read` como a listagem. */
+export const API_FLEET_DRIVER_ACCESS_REPORT_PATH = `${API_FLEET_DRIVERS_PATH}/access-report`
+export const API_FLEET_DRIVER_ACCESS_PATH = `${API_FLEET_DRIVERS_PATH}/:id/access`
 export const API_FLEET_DRIVER_SCORE_PATH = `${API_FLEET_DRIVERS_PATH}/:id/score`
 export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
@@ -227,6 +229,15 @@ export const API_ME_WHATSAPP_PHONE_PATH = '/me/whatsapp-phone'
  */
 /** Spec 062: a credencial do WhatsApp mora perto do efeito — a aba de configuração da empresa. */
 export const API_WHATSAPP_CHANNEL_PATH = '/company-settings/whatsapp-channel'
+/** Spec 281 T4: o Evolution (WhatsApp gratuito) ao lado do canal da Meta; o QR e o estado ficam sob a mesma aba. */
+export const API_WHATSAPP_EVOLUTION_PATH = '/company-settings/whatsapp-evolution'
+export const API_WHATSAPP_EVOLUTION_CONNECTION_PATH =
+  '/company-settings/whatsapp-evolution/connection'
+export const API_WHATSAPP_EVOLUTION_QR_PATH = '/company-settings/whatsapp-evolution/qr'
+/** Spec 281 T6: aponta (de novo) o webhook da instância para a API; o segredo nunca volta na resposta. */
+export const API_WHATSAPP_EVOLUTION_WEBHOOK_PATH = '/company-settings/whatsapp-evolution/webhook'
+/** Spec 281 T6 (RF4): a entrega do Evolution, uma URL por empresa pelo `webhookId` opaco. */
+export const API_PUBLIC_WHATSAPP_EVOLUTION_WEBHOOK_PATH = '/public/whatsapp-evolution/:webhookId'
 export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
 export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
 /** Spec 164 T9: a tratativa que chegou ao contratante — no molde das duas rotas acima. */

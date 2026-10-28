@@ -1,0 +1,69 @@
+{
+  "add": {
+    "another": "Enviar a outro número",
+    "button": "Informar outro número",
+    "invalid": "Confira o número: ele precisa ter DDD, por exemplo (16) 99999-8888.",
+    "number": "WhatsApp do cliente",
+    "placeholder": "(16) 99999-8888"
+  },
+  "button": {
+    "ariaLabel": "Enviar o boleto ao cliente por WhatsApp · {{context}}",
+    "label": "Enviar por WhatsApp"
+  },
+  "confirm": {
+    "back": "Corrigir",
+    "question": "O boleto vai para este número. Confere?",
+    "save": "Guardar este número para o cliente",
+    "send": "Confirmar e enviar"
+  },
+  "error": {
+    "dailyCap": "A empresa atingiu o limite de mensagens do dia. Envie ao cliente por e-mail.",
+    "failed": "Não foi possível enviar. Toque para tentar de novo.",
+    "invalid": "A API recusou o número. Confira o DDD e tente de novo.",
+    "limit": "Este cliente já tem o máximo de números guardados.",
+    "unavailable": "Esta ocorrência não permite enviar por WhatsApp agora."
+  },
+  "history": {
+    "failed": "Não saiu",
+    "queued": "Enviando",
+    "sent": "Enviado",
+    "title": "Envios por WhatsApp",
+    "unknownNumber": "Número do cliente"
+  },
+  "pending": {
+    "discard": "Descartar",
+    "failed": "Um envio foi recusado e não saiu.",
+    "queued_one": "{{count}} envio na fila — sai quando o sinal voltar.",
+    "queued_other": "{{count}} envios na fila — saem quando o sinal voltar.",
+    "retry": "Tentar de novo"
+  },
+  "reason": {
+    "attachment_too_large_for_whatsapp": "o boleto é grande demais para o WhatsApp",
+    "send_failed": "o WhatsApp não aceitou agora",
+    "whatsapp_disconnected": "o WhatsApp da empresa está desconectado",
+    "whatsapp_number_not_found": "este número não tem WhatsApp"
+  },
+  "resend": {
+    "button": "Tentar de novo · {{number}}"
+  },
+  "result": {
+    "already_sent": "Já tinha sido enviado",
+    "failed": "Não saiu",
+    "in_progress": "Enviando agora",
+    "queuedOffline": "Na fila: o boleto sai pelo WhatsApp quando o sinal voltar.",
+    "saved": "Número guardado para o cliente.",
+    "sent": "Enviado",
+    "useEmail": "Use o \"Enviar ao cliente\" por e-mail para este cliente."
+  },
+  "sheet": {
+    "cancel": "Fechar",
+    "empty": "Este cliente ainda não tem WhatsApp guardado para o boleto. Informe um número.",
+    "limit": "Enviados: {{sent}} de {{limit}}",
+    "offlineHint": "Sem sinal: o envio entra na fila e sai quando a conexão voltar.",
+    "review": "Conferir o número",
+    "savedTitle": "WhatsApp do cliente",
+    "send": "Enviar boleto",
+    "sending": "Enviando…",
+    "title": "Enviar o boleto por WhatsApp"
+  }
+}

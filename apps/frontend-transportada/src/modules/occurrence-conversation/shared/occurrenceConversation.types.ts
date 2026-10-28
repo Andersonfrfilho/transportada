@@ -80,6 +80,8 @@ export type OccurrenceConversationAuthor =
       userId: null | string
     }>
   | Readonly<{ kind: 'driver'; name: null | string; userId: string }>
+  /** Spec 283: o cliente que respondeu pelo WhatsApp; só o número mascarado. */
+  | Readonly<{ addressMasked: string; kind: 'client' }>
 
 /** Spec 183 T702b (RF10): o anexo da mensagem, com a URL temporária (cinco minutos) de leitura. */
 export type OccurrenceConversationAttachment = Readonly<{
@@ -113,6 +115,10 @@ export type OccurrenceConversationMessage = Readonly<{
   id: string
   status: null | OccurrenceConversationMessageStatus
   statusTimes: Readonly<Record<string, string>>
+  /** Spec 283 T1: o envio que a mensagem conta, na conversa do cliente; ausente nas demais. */
+  clientDelivery?: OccurrenceClientDelivery
+  /** Spec 283 T5: o destino mascarado da mensagem que o painel mandou (sem `clientDelivery`); ausente nas demais. */
+  recipientMasked?: string
   /** Spec 279 T6b (RF12): presente só na mensagem do sistema ("Boleto enviado para o e-mail: …"). */
   systemNotice?: OccurrenceConversationSystemNotice
 }>
@@ -125,10 +131,42 @@ export type OccurrenceConversationSystemNotice = Readonly<{
   kind: 'client_boleto_email_sent'
 }>
 
+export type OccurrenceClientDelivery = Readonly<{
+  actorKind: 'driver' | 'office' | 'system'
+  actorName: null | string
+  deliveryId: string
+  documentName: null | string
+  recipientMasked: string
+}>
+
+/** Spec 283 D4: um canal aberto com o cliente — um número de WhatsApp ou um e-mail, com o destino já mascarado. */
+export type OccurrenceClientChannel = Readonly<{
+  kind: 'email' | 'whatsapp'
+  maskedAddress: string
+  /** Spec 283 T5: "Responder por". Só no WhatsApp; `null` no e-mail (o cliente não responde por e-mail). */
+  replyTarget: null | OccurrenceClientReplyTarget
+  status: OccurrenceClientChannelStatus
+}>
+
+/** O destino opaco da resposta: o painel nunca vê o número inteiro; `confirmed` é o D6 (primeiro envio confirma o número). */
+export type OccurrenceClientReplyTarget = Readonly<{ confirmed: boolean; id: string }>
+
+export const OCCURRENCE_CLIENT_CHANNEL_STATUSES = [
+  'queued',
+  'sent',
+  'delivered',
+  'read',
+  'replied',
+  'failed',
+] as const
+export type OccurrenceClientChannelStatus = (typeof OCCURRENCE_CLIENT_CHANNEL_STATUSES)[number]
+
 export type OccurrenceConversation = Readonly<{
+  /** Spec 283 D4: só na conversa do cliente (nome do cadastro e canais abertos); ausente nas demais. */
+  client?: Readonly<{ channels: readonly OccurrenceClientChannel[]; name: null | string }>
   id: string
   messages: readonly OccurrenceConversationMessage[]
-  participant: 'contractor' | 'driver'
+  participant: 'client' | 'contractor' | 'driver'
   status: string
   unreadCount: number
 }>

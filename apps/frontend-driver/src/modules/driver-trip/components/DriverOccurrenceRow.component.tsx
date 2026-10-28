@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { ClientEmailSendButton } from '@/modules/client-email/components/ClientEmailSendButton.component'
+import { ClientWhatsAppSendButton } from '@/modules/client-whatsapp/components/ClientWhatsAppSendButton.component'
 import {
   navigateToDriverConversation,
   navigateToDriverOccurrence,
@@ -96,6 +97,11 @@ export function DriverOccurrenceRow({ entry, shareController, stops }: DriverOcc
       {entry.source === 'server' ? (
         <div className={styles.rowFooter}>
           <ClientEmailSendButton
+            contextLabel={typeName}
+            phraseKey={entry.resolutionPhraseKey}
+            occurrenceId={entry.id}
+          />
+          <ClientWhatsAppSendButton
             contextLabel={typeName}
             phraseKey={entry.resolutionPhraseKey}
             occurrenceId={entry.id}

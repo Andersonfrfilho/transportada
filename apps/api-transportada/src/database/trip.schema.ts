@@ -29,10 +29,13 @@ import type {
 } from '../shared/trip-occurrence.constant.js'
 import { TRIP_CREW_ROLES, type TripCrewRole } from '../shared/trip-crew-role.constant.js'
 import {
+  CLIENT_CHANNEL_DEFAULT,
+  CLIENT_CHANNELS,
   CLIENT_EMAIL_SEND_MODE_DEFAULT,
   CLIENT_EMAIL_SEND_MODES,
   CLIENT_EMAIL_TYPE_DEFAULT,
   CLIENT_EMAIL_TYPES,
+  type ClientChannel,
   type ClientEmailSendMode,
   type ClientEmailType,
 } from '../shared/delivery-client-email.constant.js'
@@ -3165,6 +3168,19 @@ export const companyOccurrenceTypes = pgTable(
       .$type<ClientEmailSendMode>()
       .notNull()
       .default(CLIENT_EMAIL_SEND_MODE_DEFAULT),
+    /**
+     * Spec 281 D11 (RF8): por qual canal a ocorrência fala com o cliente — `off`, `email`, `whatsapp` ou `both`. Padrão
+     * `email`: o que a 279 já faz não muda (o `client_email_type` segue ligando o e-mail).
+     */
+    clientChannel: varchar('client_channel', { length: 16 })
+      .$type<ClientChannel>()
+      .notNull()
+      .default(CLIENT_CHANNEL_DEFAULT),
+    /**
+     * Spec 281 T8b (D13): o app do motorista pede, na abertura da ocorrência, o contato do cliente que falta (WhatsApp e/ou
+     * e-mail, conforme o `client_channel`). Padrão desligado: nenhum tipo existente muda.
+     */
+    asksClientContact: boolean('asks_client_contact').notNull().default(false),
     /** Sending the invoice to the e-mail of the note's customer is always an explicit choice. */
     forwardToNoteRecipient: varchar('forward_to_note_recipient', { length: 16 })
       .$type<ForwardToNoteRecipientMode>()
@@ -3292,6 +3308,10 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_client_email_send_mode_check',
       sql`${table.clientEmailSendMode} in (${raw(inList(CLIENT_EMAIL_SEND_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_client_channel_check',
+      sql`${table.clientChannel} in (${raw(inList(CLIENT_CHANNELS))})`,
     ),
     check(
       'company_occurrence_types_duplicate_request_policy_check',

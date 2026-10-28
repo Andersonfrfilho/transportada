@@ -86,17 +86,21 @@ Regras que já custaram tempo:
   (`railway ssh -p <id> -s api -e production ...`).
 - Consultas já prontas e testadas (cópias no projeto Claude, pasta `prorrogacao/`):
 
-| Script                                             | O que faz                                                                                  | Tipo              |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
-| `producao-momentos-prorrogacao.sh`                 | momentos e config dos tipos de ocorrência ativos                                           | leitura           |
-| `producao-escopo-prorrogacao.sh`                   | escopo de contratantes do tipo de prorrogação e emitente da NF                             | leitura           |
-| `producao-excecoes-prorrogacao.sh`                 | exceções por contratante/destinatário do tipo                                              | leitura           |
-| `producao-thiago-vs-andreia.sh`                    | papel e empresa de dois motoristas nas viagens                                             | leitura           |
-| `producao-ligar-office-prorrogacao.sh`             | liga o momento `office` no tipo (1 linha, idempotente)                                     | escrita           |
-| `trip-stops-check.sh` / `trip-stops-fix-points.sh` | paradas sem coordenada / grava ponto manual (`--confirm`)                                  | leitura / escrita |
-| `nfse/nfse-freight-rules-check.sh`                 | regras de frete vigentes e perfis de NFS-e                                                 | leitura           |
-| `respostas-rapidas/producao-respostas-rapidas.sh`  | cadastra respostas rápidas só em empresa sem nenhuma                                       | escrita           |
-| `notas/producao-faixa-notas.sh [de] [ate]`         | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210) | leitura           |
+| Script                                                      | O que faz                                                                                  | Tipo              |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
+| `producao-momentos-prorrogacao.sh`                          | momentos e config dos tipos de ocorrência ativos                                           | leitura           |
+| `producao-escopo-prorrogacao.sh`                            | escopo de contratantes do tipo de prorrogação e emitente da NF                             | leitura           |
+| `producao-excecoes-prorrogacao.sh`                          | exceções por contratante/destinatário do tipo                                              | leitura           |
+| `producao-thiago-vs-andreia.sh`                             | papel e empresa de dois motoristas nas viagens                                             | leitura           |
+| `producao-ligar-office-prorrogacao.sh`                      | liga o momento `office` no tipo (1 linha, idempotente)                                     | escrita           |
+| `trip-stops-check.sh` / `trip-stops-fix-points.sh`          | paradas sem coordenada / grava ponto manual (`--confirm`)                                  | leitura / escrita |
+| `nfse/nfse-freight-rules-check.sh`                          | regras de frete vigentes e perfis de NFS-e                                                 | leitura           |
+| `respostas-rapidas/producao-respostas-rapidas.sh`           | cadastra respostas rápidas só em empresa sem nenhuma                                       | escrita           |
+| `cadastro-motorista/producao-motorista-sem-acesso.sh [cpf]` | ficha, usuário, convites e fila de envio de um CPF                                         | leitura           |
+| `cadastro-motorista/producao-cadastros-sem-acesso.sh`       | fichas de motorista sem usuário e convites não aceitos                                     | leitura           |
+| `cadastro-motorista/producao-dados-para-convidar.sh`        | CPF, e-mail e telefone das fichas sem usuário, para convidar                               | leitura           |
+| `cadastro-motorista/producao-usuarios-sem-keycloak.sh`      | confronta cada usuário do banco com o Keycloak (existe/habilitado)                         | leitura           |
+| `notas/producao-faixa-notas.sh [de] [ate]`                  | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210) | leitura           |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
 
@@ -275,6 +279,53 @@ envia por `nao-responda@fernandes-transportadora.com.br`, via Amazon SES `sa-eas
    envio e com a ocorrência no banco (seção 2).
 
 Verificado em 26/10/2026 com a NF 914063/2 (Spani): entregue, destinatários e anexo corretos.
+
+## 5.2 Motorista sem acesso ao app ("Sem vínculo")
+
+O app do motorista autentica só pelo Keycloak, e o usuário de lá só nasce pelo **convite** (Usuários
+
+> Convidar usuário, ou o cadastro manual em Motoristas). Candidatura de agregado aprovada gravava a
+> ficha e as entregas, **mas não criava convite**: motorista ativo, "Acesso ao app: Sem vínculo" e sem
+> como entrar (27/10/2026: Rogério, Reinaldo, João Guilherme e Helton). Diagnóstico: rode
+> `producao-cadastros-sem-acesso.sh`; para ver quem está no banco mas ausente/desabilitado no Keycloak,
+> `producao-usuarios-sem-keycloak.sh`. Correção manual: convidar com o **CPF igual ao da ficha** (só
+> dígitos), que liga a ficha ao usuário sozinho. Convite "Convidado" com `expires_at` vencido e
+> `delivered_at` vazio: usar "Reenviar". A aprovação passou a convidar sozinha (3 tentativas), há
+> `POST /aggregate-applications/:id/retry-access` para repetir e, na lista de Motoristas, o botão
+> **Dar acesso** (`POST /fleet/drivers/:id/access`) em toda ficha ativa "Sem vínculo": é o conserto sem
+> script nem produção. A conferência **Cadastros e acessos** (Usuários) também lista, abaixo da tabela,
+> toda ficha ativa que ainda não entra no app (`GET /fleet/drivers/access-report`: sem convite, convite
+> não usado ou vencido), com **Dar acesso** / **Reenviar convite** na própria linha; vazio = todo
+> motorista ativo já tem acesso.
+
+## 5.3 Promoção staging → main com a spec 281 (WhatsApp pelo Evolution)
+
+Promoção de 27/10/2026 (PRs #377 a #387, #389, #391, parada por página #378). O que conferir:
+
+- **Migrations aditivas**, aplicadas no pré-deploy da api: `delivery_client_emails` vira
+  `delivery_client_contacts` (renomeada, com canal e visão `delivery_client_emails` para a api e o worker
+  antigos durante a troca de imagens), `whatsapp_evolution_settings` (tabela nova), colunas novas em
+  `occurrence_contractor_reply_deliveries` e `company_occurrence_types`. Conferir depois do deploy
+  `/health/ready` com `migrations: up`. A visão sai numa migration futura.
+- **WhatsApp pelo Evolution nasce desligado em produção.** Sem variável nova: a chave da instância vai
+  selada no banco (mesmo envelope do canal da Meta). Sem linha em `whatsapp_evolution_settings`, ou com
+  `status = 'disabled'`, nada é enviado; o padrão do tipo de ocorrência é `client_channel = 'email'`
+  (o que a 279 faz não muda). Ligar só com aval do Anderson, empresa por empresa, e só depois de um
+  Evolution real testado em staging (o serviço de staging ainda não subiu).
+- Não há serviço Evolution em produção; nenhuma ação de infraestrutura na promoção.
+
+**Resultado (28/10/2026):** `staging` → `main` pelo PR #397 (merge 4538804), deploy de produção verde
+(api, worker, cron, frontends) com `migrations` aplicadas. Dois avisos da promoção:
+
+- O deploy de **staging** parou em `Reconciliar realm` (`keycloak-reconcile.sh`): o service account
+  `transportada-admin` de staging estava só com `manage-realm` e `manage-users`; o script exige
+  `view-clients` e `manage-clients` de `realm-management`. O script é o mesmo da `main` e produção
+  passou nele; em staging é preciso conceder os dois papéis no console do Keycloak de staging e
+  reexecutar o deploy. Enquanto isso, o `Deploy API` de staging fica pulado.
+- Os serviços `osrm` e `map-tiles` de staging reportam `Deployment failed` pela integração do Railway
+  (não fazem parte da diferença da promoção e não são checks exigidos).
+- Push em `staging` durante a promoção cancela o gate em andamento (um por commit); combine antes de
+  mergear outras coisas na staging.
 
 ## 6. Erros que não devem se repetir
 

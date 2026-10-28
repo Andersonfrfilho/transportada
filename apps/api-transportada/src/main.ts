@@ -168,6 +168,32 @@ import { createNfseProviderCredentialRoutes } from './nfse-profiles/presentation
 import { createWhatsAppChannelRoutes } from './whatsapp/presentation/whatsapp-channel.routes'
 import { createMetaWhatsAppSendingChannel } from './whatsapp/infrastructure/meta-whatsapp-sending.gateway.js'
 import { createWhatsAppNotificationDriver } from './whatsapp/application/whatsapp-notification-driver.service.js'
+import { createWhatsAppEvolutionRoutes } from './whatsapp/presentation/whatsapp-evolution.routes'
+import { createWhatsAppEvolutionUseCase } from './whatsapp/application/whatsapp-evolution.use-case'
+import { createWhatsAppEvolutionSecretService } from './whatsapp/application/whatsapp-evolution-secret.service'
+import { createWhatsAppEvolutionWebhookSecretService } from './whatsapp/application/whatsapp-evolution-webhook-secret.service.js'
+import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
+import { createDrizzleWhatsAppEvolutionWebhookRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution-webhook.repository.js'
+import {
+  createWhatsAppEvolutionPublicWebhookRoutes,
+  createWhatsAppEvolutionWebhookRoutes,
+} from './whatsapp/presentation/whatsapp-evolution-webhook.routes.js'
+import { createEvolutionConversationInbound } from './occurrence-conversation/application/evolution-conversation-inbound.service.js'
+import { createDrizzleEvolutionConversationInboundRepository } from './occurrence-conversation/infrastructure/drizzle-evolution-conversation-inbound.repository.js'
+import { DrizzleWhatsAppEvolutionRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution.repository'
+import { createEvolutionConnectionGateway } from './whatsapp/infrastructure/evolution-connection.gateway'
+import { createEvolutionDocumentSender } from './whatsapp/infrastructure/evolution-document-sender.gateway.js'
+import { createSendClientReplyUseCase } from './occurrence-conversation/application/send-client-reply.use-case.js'
+import { createDrizzleClientReplyRepository } from './occurrence-conversation/infrastructure/drizzle-client-reply.repository.js'
+import { readAllBytes } from './occurrence-conversation/application/conversation-attachment.service.js'
+import { createForwardContractorReplyByWhatsAppUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-whatsapp.use-case.js'
+import {
+  createDrizzleContractorReplyWhatsAppCompletion,
+  createDrizzleContractorReplyWhatsAppReader,
+  createDrizzleContractorReplyWhatsAppUnitOfWork,
+} from './occurrence-conversation/infrastructure/drizzle-contractor-reply-whatsapp.repository.js'
+import { createOccurrenceContractorReplyWhatsAppRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply-whatsapp.routes.js'
+import { createMeClientBoletoWhatsAppRoutes } from './occurrence-conversation/presentation/me-client-boleto-whatsapp.routes.js'
 import { createWhatsAppChannelUseCase } from './whatsapp/application/whatsapp-channel.use-case'
 import { createWhatsAppChannelSecretService } from './whatsapp/application/whatsapp-channel-secret.service'
 import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository'
@@ -365,6 +391,8 @@ import { createCteIssuanceRoutes } from './cte-issuance/presentation/cte-issuanc
 import { createFleetDriverVehiclesUseCase } from './fleet/application/fleet-driver-vehicles.use-case'
 import { createDriverHomeGeocoder } from './fleet/application/driver-home-geocoder.port.js'
 import { createPhotonDriverHomeGateway } from './fleet/infrastructure/photon-driver-home.gateway.js'
+import { createFleetDriverAccessReportUseCase } from './fleet/application/fleet-driver-access-report.use-case.js'
+import { createDrizzleFleetDriverAccessReportRepository } from './fleet/infrastructure/drizzle-fleet-driver-access-report.repository.js'
 import { createFleetDriversUseCase } from './fleet/application/fleet-drivers.use-case'
 import { createFleetDriverScoresUseCase } from './fleet/application/fleet-driver-scores.use-case'
 import type { FleetVehicleCatalogPort } from './fleet/application/fleet-vehicle-catalog.port'
@@ -815,6 +843,12 @@ import { createDeliveryClientsUseCase } from './delivery-clients/application/del
 import { createDeliveryClientEmailsUseCase } from './delivery-clients/application/delivery-client-emails.use-case.js'
 import { DrizzleDeliveryClientEmailRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-email.repository.js'
 import { createDeliveryClientEmailRoutes } from './delivery-clients/presentation/delivery-client-email.routes.js'
+import { createDeliveryClientWhatsAppUseCase } from './delivery-clients/application/delivery-client-whatsapp.use-case.js'
+import { DrizzleDeliveryClientWhatsAppRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-whatsapp.repository.js'
+import { createDeliveryClientWhatsAppRoutes } from './delivery-clients/presentation/delivery-client-whatsapp.routes.js'
+import { createDriverClientContactsUseCase } from './delivery-clients/application/driver-client-contacts.use-case.js'
+import { DrizzleDriverClientContactRepository } from './delivery-clients/infrastructure/drizzle-driver-client-contacts.repository.js'
+import { createMeClientContactsRoutes } from './delivery-clients/presentation/me-client-contacts.routes.js'
 import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
 import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
 import { createOccurrenceStatementUseCase } from './delivery-clients/application/occurrence-statement.use-case.js'
@@ -1798,6 +1832,35 @@ function createExtraChargeBatchToken(): string {
   return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
 }
 
+/**
+ * Spec 281 T6: o webhook do Evolution. A rota anônima (receber) e a do dono (apontar) montam o mesmo
+ * caso de uso; o limitador por número é de cada processo, como o da conversa na Meta.
+ */
+function createEvolutionWebhook(input: {
+  readonly apiPublicUrl: string | undefined
+  readonly database: Parameters<typeof applyProviderMessageStatus>[0]
+  readonly envelopeProvider: ReturnType<typeof createSecretEnvelopeProvider>
+  readonly logger: ApiLogger
+}) {
+  const { database, envelopeProvider, logger } = input
+  return createWhatsAppEvolutionWebhookUseCase({
+    apiKeySecrets: createWhatsAppEvolutionSecretService({ envelopeProvider }),
+    apiPublicUrl: input.apiPublicUrl,
+    gateway: createEvolutionConnectionGateway(),
+    inbound: createEvolutionConversationInbound({
+      applyStatus: (status) =>
+        applyProviderMessageStatus(database, { ...status, channel: 'whatsapp' }),
+      clock: () => new Date(),
+      inbound: createDrizzleEvolutionConversationInboundRepository(database),
+      logger,
+      rateLimiter: createRateLimiter(),
+    }),
+    logger,
+    repository: createDrizzleWhatsAppEvolutionWebhookRepository(database),
+    webhookSecrets: createWhatsAppEvolutionWebhookSecretService({ envelopeProvider }),
+  })
+}
+
 function createAnonymousRoutes({
   config,
   database,
@@ -1885,6 +1948,18 @@ function createAnonymousRoutes({
     verifyToken: config.whatsapp.webhook?.verifyToken,
   })
   /**
+   * Spec 281 T6 (RF4): a entrega do Evolution, uma URL por empresa (`webhookId` opaco) e o segredo no
+   * cabeçalho. Existe sempre, como a do e-mail de entrada: sem configuração ativa, ninguém a acha.
+   */
+  const whatsappEvolutionWebhookRoutes = createWhatsAppEvolutionPublicWebhookRoutes({
+    webhook: createEvolutionWebhook({
+      apiPublicUrl: config.apiPublicUrl,
+      database,
+      envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+      logger,
+    }),
+  })
+  /**
    * ADR-0048 §7: a página de repasse do contratante. Ela existe sempre — o token é a credencial, e
    * um lote só nasce quando alguém fecha um período, então não há superfície ociosa a esconder.
    */
@@ -1967,6 +2042,7 @@ function createAnonymousRoutes({
       ...nfseCallbackRoutes,
       ...contractorMailInboundWebhookRoutes,
       ...whatsappWebhookRoutes,
+      ...whatsappEvolutionWebhookRoutes,
       ...publicExtraChargeBatchRoutes,
       /**
        * O endereço público da foto de perfil. Ele existe sempre: o token é a credencial, e uma foto
@@ -1998,6 +2074,7 @@ function createAnonymousRoutes({
     ...nfseCallbackRoutes,
     ...contractorMailInboundWebhookRoutes,
     ...whatsappWebhookRoutes,
+    ...whatsappEvolutionWebhookRoutes,
     ...publicExtraChargeBatchRoutes,
     ...landingPublicRoutes,
     ...publicCnpjInfoRoutes,
@@ -2281,6 +2358,9 @@ function createApplicationRoutes({
   const deliveryClientEmails = createDeliveryClientEmailsUseCase({
     repository: new DrizzleDeliveryClientEmailRepository(database),
   })
+  const deliveryClientWhatsApp = createDeliveryClientWhatsAppUseCase({
+    repository: new DrizzleDeliveryClientWhatsAppRepository(database),
+  })
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
@@ -2314,6 +2394,9 @@ function createApplicationRoutes({
     }),
   })
   const aggregateApplications = createAggregateApplicationsUseCase({
+    // `inviteCompanyUser` nasce adiante no mesmo escopo; só é chamado depois de tudo montado
+    account: { execute: (input) => inviteCompanyUser.execute(input) },
+    logger,
     companyGroupRepository: createDrizzleCompanyGroupRepository(database),
     landingCompanyId: undefined,
     repository: createDrizzleAggregateApplicationRepository(database),
@@ -2912,6 +2995,37 @@ function createApplicationRoutes({
     repository: new DrizzleWhatsAppChannelRepository(database),
     secrets: createWhatsAppChannelSecretService({ envelopeProvider }),
   })
+  const whatsappEvolutionRepository = new DrizzleWhatsAppEvolutionRepository(database)
+  const whatsappEvolutionSecrets = createWhatsAppEvolutionSecretService({ envelopeProvider })
+  const whatsappEvolutionWebhook = createEvolutionWebhook({
+    apiPublicUrl,
+    database,
+    envelopeProvider,
+    logger,
+  })
+  const whatsappEvolution = createWhatsAppEvolutionUseCase({
+    gateway: createEvolutionConnectionGateway(),
+    newSettingsId: () => crypto.randomUUID(),
+    now: () => new Date(),
+    repository: whatsappEvolutionRepository,
+    secrets: whatsappEvolutionSecrets,
+    webhook: whatsappEvolutionWebhook,
+  })
+  /** Spec 281 T5: o boleto por WhatsApp (Evolution) ao cliente, no trilho da 248/279; painel e app usam o mesmo. */
+  const forwardContractorReplyByWhatsApp = createForwardContractorReplyByWhatsAppUseCase({
+    attachments: {
+      read: async (location) => readAllBytes(await storageGateway.getObjectStream(location)),
+    },
+    completion: createDrizzleContractorReplyWhatsAppCompletion(database),
+    logger,
+    now: () => new Date(),
+    sender: createEvolutionDocumentSender({
+      repository: whatsappEvolutionRepository,
+      secrets: whatsappEvolutionSecrets,
+    }),
+    unitOfWork: createDrizzleContractorReplyWhatsAppUnitOfWork(database),
+  })
+  const contractorReplyWhatsAppOptions = createDrizzleContractorReplyWhatsAppReader(database)
   const nfseProviderCredentials = createNfseProviderCredentialsUseCase({
     secretService: createNfseCredentialSecretService({ envelopeProvider }),
     unitOfWork: nfseProfileRepository,
@@ -3460,6 +3574,10 @@ function createApplicationRoutes({
     }),
     ...createFleetRoutes({
       createDriver: { execute: (input) => fleetDrivers.create(input) },
+      driverAccessReport: createFleetDriverAccessReportUseCase({
+        port: createDrizzleFleetDriverAccessReportRepository(database),
+      }),
+      grantDriverAccess: { execute: (input) => fleetDrivers.grantAccess(input) },
       createVehicle: { execute: (input) => fleetVehicles.create(input) },
       driverAvailability: { execute: (input) => fleetDrivers.checkAvailability(input) },
       driverVehicles: {
@@ -3526,6 +3644,11 @@ function createApplicationRoutes({
     }),
     /** Spec 248 T4.4b: a porta do robô da varredura do aviso automático, só da permissão de serviço. */
     ...createOccurrenceAutomaticMailRoutes({ sendAutomaticMail: sendAutomaticOccurrenceMail }),
+    /** Spec 281 T5 (RF3/RF5): o mesmo boleto por WhatsApp (Evolution) ao cliente da nota, pelo painel. */
+    ...createOccurrenceContractorReplyWhatsAppRoutes({
+      forwardByWhatsApp: forwardContractorReplyByWhatsApp,
+      whatsappOptions: contractorReplyWhatsAppOptions,
+    }),
     /** Spec 248 T4.6 (RF7/RF9): o operador leva o boleto da contratante ao motorista, pelo chat do app. */
     ...createOccurrenceContractorReplyRoutes({
       markHandled: createMarkContractorReplyHandledUseCase({
@@ -3658,6 +3781,15 @@ function createApplicationRoutes({
        * Spec 274 (ADR-0111): o chat por e-mail. O `renderer` é o `standardEmail.render` do `notification-module`
        * (modelo da empresa ou o embutido, versão 0); o app só entrega texto, nunca HTML.
        */
+      /** Spec 283 T5 (D6): a resposta do painel ao cliente pelo Evolution da empresa. */
+      sendClientReply: createSendClientReplyUseCase({
+        logger,
+        repository: createDrizzleClientReplyRepository(database),
+        sender: createEvolutionDocumentSender({
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
+      }),
       sendChatMail: createSendOccurrenceChatMailUseCase({
         ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
@@ -3759,6 +3891,23 @@ function createApplicationRoutes({
         repository: createDrizzleConversationUploadRepository(database),
         storage: storageGateway,
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /** Spec 281 T5 (RF3): o boleto por WhatsApp ao cliente no `/me` do motorista, no mesmo trilho do painel. */
+    ...createMeClientBoletoWhatsAppRoutes({
+      findMyOccurrence: (input) =>
+        createDrizzleDriverConversationUnitOfWork(database).execute((transaction) =>
+          transaction.findMyOccurrence(input),
+        ),
+      forwardByWhatsApp: forwardContractorReplyByWhatsApp,
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      whatsappOptions: contractorReplyWhatsAppOptions,
+    }),
+    /** Spec 281 T8b (D13): contatos do cliente da nota na abertura da ocorrência. */
+    ...createMeClientContactsRoutes({
+      contacts: createDriverClientContactsUseCase({
+        repository: new DrizzleDriverClientContactRepository(database),
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
@@ -4090,6 +4239,7 @@ function createApplicationRoutes({
       resolveClientIp,
       updateEmailLabel: { execute: (input) => deliveryClientEmails.updateLabel(input) },
     }),
+    ...createDeliveryClientWhatsAppRoutes({ numbers: deliveryClientWhatsApp, resolveClientIp }),
     ...createFreightRegionRoutes({
       createRegion: { execute: (input) => freightRegions.create(input) },
       deleteRegion: { execute: (input) => freightRegions.delete(input) },
@@ -5465,6 +5615,13 @@ function createApplicationRoutes({
       removeChannel: { execute: (input) => whatsappChannel.remove(input) },
       saveChannel: { execute: (input) => whatsappChannel.save(input) },
     }),
+    ...createWhatsAppEvolutionRoutes({
+      connection: { execute: (input) => whatsappEvolution.connection(input) },
+      qr: { execute: (input) => whatsappEvolution.qr(input) },
+      read: { execute: (input) => whatsappEvolution.read(input) },
+      save: { execute: (input) => whatsappEvolution.save(input) },
+    }),
+    ...createWhatsAppEvolutionWebhookRoutes({ webhook: whatsappEvolutionWebhook }),
     ...createNfseProviderCredentialRoutes({
       readCredential: { execute: (input) => nfseProviderCredentials.read(input) },
       saveCredential: { execute: (input) => nfseProviderCredentials.save(input) },

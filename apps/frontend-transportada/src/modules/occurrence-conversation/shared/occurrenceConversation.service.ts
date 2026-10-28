@@ -18,6 +18,7 @@ export type ConversationMessageAuthorView =
   | Readonly<{ kind: 'automatic' }>
   | Readonly<{ kind: 'operation'; name: string }>
   | Readonly<{ kind: 'driver'; name: string }>
+  | Readonly<{ addressMasked: string; kind: 'client' }>
   | Readonly<{
       approvesCharges: boolean
       arrivedAs: string
@@ -43,7 +44,7 @@ export type ConversationMessageView = Readonly<{
   author: ConversationMessageAuthorView
   side: 'mine' | 'theirs'
   status: null | Readonly<{ at: null | string; value: OccurrenceConversationMessageStatus }>
-  tone: 'contractor' | 'driver' | 'outbound'
+  tone: 'client' | 'contractor' | 'driver' | 'outbound'
 }>
 
 function describeAuthor(message: OccurrenceConversationMessage): ConversationMessageAuthorView {
@@ -51,6 +52,7 @@ function describeAuthor(message: OccurrenceConversationMessage): ConversationMes
   if (author.kind === 'automatic') return { kind: 'automatic' }
   if (author.kind === 'operation') return { kind: 'operation', name: author.name ?? '' }
   if (author.kind === 'driver') return { kind: 'driver', name: author.name ?? '' }
+  if (author.kind === 'client') return { addressMasked: author.addressMasked, kind: 'client' }
   const { identity } = author
   if (identity === null) return { kind: 'contractorUser' }
   if (identity.kind === 'internal') {
@@ -88,7 +90,13 @@ export function describeConversationMessage(
       message.status === null
         ? null
         : { at: message.statusTimes[message.status] ?? null, value: message.status },
-    tone: isMine ? 'outbound' : message.author.kind === 'driver' ? 'driver' : 'contractor',
+    tone: isMine
+      ? 'outbound'
+      : message.author.kind === 'driver'
+        ? 'driver'
+        : message.author.kind === 'client'
+          ? 'client'
+          : 'contractor',
   }
 }
 

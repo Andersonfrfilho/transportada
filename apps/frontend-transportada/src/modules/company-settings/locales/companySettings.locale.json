@@ -13,7 +13,8 @@
     "settingsResolution": "Verificar configuração",
     "businessCalendar": "Calendário",
     "audioTranscription": "Transcrição de áudios",
-    "occurrenceWatchers": "Responsáveis por ocorrências"
+    "occurrenceWatchers": "Responsáveis por ocorrências",
+    "whatsapp": "WhatsApp"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -330,6 +331,16 @@
       "invoice": "E-mail de nota fiscal",
       "finance": "E-mail do financeiro",
       "general": "E-mail geral"
+    },
+    "clientChannel": "Canal com o cliente",
+    "asksClientContact": "Pedir o contato do cliente ao motorista",
+    "asksClientContactHint": "Quando o cliente da nota não tem contato guardado para este canal, o app do motorista pede o WhatsApp ou o e-mail na abertura da ocorrência, para ele não precisar mandar pelo chat. O cliente pode ter vários números e e-mails.",
+    "clientChannelHint": "Por onde a ocorrência fala com o cliente. E-mail é o padrão e segue o tipo de e-mail ao lado. WhatsApp usa o número do cliente e, se falhar, o e-mail guardado. Desligado não envia nada ao cliente.",
+    "clientChannelOptions": {
+      "off": "Desligado",
+      "email": "E-mail",
+      "whatsapp": "WhatsApp",
+      "both": "E-mail e WhatsApp"
     },
     "clientEmailSendMode": "Envio do boleto ao cliente",
     "clientEmailSendModeHint": "Manual: o boleto só sai pelo botão \"Enviar ao cliente\". Automático: quando o boleto é aceito, sai sozinho para todos os e-mails desse tipo no cadastro do cliente (precisa do assunto e do texto do e-mail preenchidos). Sem e-mail cadastrado, nada sai e a ocorrência avisa.",
@@ -786,6 +797,47 @@
       "off": "Desligado",
       "optional": "Opcional",
       "required": "Obrigatório"
+    }
+  },
+  "whatsappEvolution": {
+    "kicker": "Canal gratuito",
+    "title": "WhatsApp pelo Evolution",
+    "hint": "Conecte o número da empresa lendo um QR code. Sem número conectado, o envio por WhatsApp fica desligado e o sistema usa o e-mail.",
+    "baseUrlLabel": "Endereço do Evolution",
+    "baseUrlHint": "Endereço completo, começando com https:// (ou http:// na rede privada do Railway).",
+    "instanceLabel": "Nome da instância",
+    "apiKeyLabel": "Chave da instância",
+    "apiKeyKeep": "Gravada. Deixe vazio para manter.",
+    "dailyCapLabel": "Teto de mensagens por dia",
+    "intervalLabel": "Intervalo mínimo entre envios (segundos)",
+    "risk": "Atenção: o Evolution usa o protocolo do WhatsApp Web, que a Meta não autoriza. O número pode ser banido e uma mudança do WhatsApp pode parar o envio até o pacote ser atualizado. É uma opção gratuita, não o caminho garantido: o e-mail continua sendo o padrão e a reserva.",
+    "acknowledgeRisk": "Li o aviso e aceito o risco de banimento do número.",
+    "enabledLabel": "Ligar o WhatsApp pelo Evolution",
+    "providerLabel": "Provedor padrão dos envios novos",
+    "providerHint": "Os envios novos usam o provedor escolhido; os antigos mantêm o provedor com que saíram. O Evolution só pode ser o padrão com o canal ligado.",
+    "provider": {
+      "meta": "Meta (oficial)",
+      "evolution": "Evolution (gratuito)"
+    },
+    "save": "Salvar configuração",
+    "saved": "Configuração do WhatsApp salva.",
+    "error": "Não foi possível concluir ({{code}}).",
+    "connection": {
+      "label": "Conexão",
+      "state": {
+        "open": "conectado",
+        "connecting": "aguardando a leitura do QR",
+        "close": "desconectado",
+        "unknown": "ainda não verificada"
+      },
+      "needsEnabled": "Salve a configuração com a chave e ligue o canal para conectar o número.",
+      "connect": "Conectar número",
+      "qrAlt": "QR code para conectar o número no WhatsApp",
+      "qrHint": "No celular: WhatsApp, Aparelhos conectados, Conectar um aparelho. O código se renova sozinho até o número conectar.",
+      "pairingCode": "Ou digite o código de pareamento: {{code}}",
+      "qrError": "Não foi possível obter o QR ({{code}}). Tentando de novo.",
+      "closeQr": "Fechar QR",
+      "connected": "Número conectado."
     }
   }
 }

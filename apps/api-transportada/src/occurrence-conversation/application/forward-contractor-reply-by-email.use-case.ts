@@ -209,7 +209,7 @@ function resolveForwardMode(params: {
   return 'manual'
 }
 
-function readForwardTexts(params: {
+export function readForwardTexts(params: {
   readonly config: unknown
   readonly target: ContractorReplyEmailTarget
 }): { readonly body: string; readonly subject: string } {

@@ -11,6 +11,7 @@ import type {
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type {
+  ClientChannel,
   ClientEmailSendMode,
   ClientEmailType,
 } from '../../shared/delivery-client-email.constant.js'
@@ -351,6 +352,8 @@ type SaveOccurrenceTypeInput = {
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
   readonly clientEmailType?: ClientEmailType | undefined
   readonly clientEmailSendMode?: ClientEmailSendMode | undefined
+  readonly clientChannel?: ClientChannel | undefined
+  readonly asksClientContact?: boolean | undefined
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined

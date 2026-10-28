@@ -42,10 +42,12 @@ describe('o e-mail digitado na conversa no app do motorista (spec 279 T4b)', () 
       },
     }
     const api = createDriverDetectedClientEmailApi({
+      deleteJson: () => Promise.resolve({}),
       getJson: (path) => {
         calls.push(['GET', path])
         return Promise.resolve({ data: null })
       },
+      patchJson: () => Promise.resolve({}),
       postJson: (path, init) => {
         calls.push(['POST', path, init?.body])
         return Promise.resolve(reply)

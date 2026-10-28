@@ -23,6 +23,7 @@ import type {
   FleetDriverFilters,
   FleetDriverPage,
   FleetDriverRegionsInput,
+  FleetDriverAccessStatus,
   FleetDriverVehicleLink,
   FleetDriverVehiclePair,
   FleetDriverVehiclesInput,
@@ -48,6 +49,7 @@ export type FleetController = Readonly<{
   createDriver: (input: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   createVehicle: (input: FleetVehicleBody) => Promise<FleetVehicleDetail>
   getFleetCapabilities: () => Promise<FleetCapabilities>
+  grantDriverAccess: (input: { driverId: string }) => Promise<FleetDriverAccessStatus>
   listDriverRegions: (input: FleetDriverRegionsInput) => Promise<readonly FleetDriverCoverage[]>
   listDriverVehicles: (
     input: FleetDriverVehiclesInput,
@@ -84,6 +86,8 @@ export function createFleetController(input: ControllerInput): FleetController {
     createDriver: (body) => (canManageFleet ? input.client.createDriver(body) : forbidden()),
     createVehicle: (body) => (canManageFleet ? input.client.createVehicle(body) : forbidden()),
     getFleetCapabilities: () => (canReadFleet ? input.client.getFleetCapabilities() : forbidden()),
+    grantDriverAccess: (query) =>
+      canManageFleet ? input.client.grantDriverAccess(query) : forbidden(),
     listDriverRegions: (query) =>
       canReadFleet ? input.client.listDriverRegions(query) : forbidden(),
     listDriverVehicles: (query) =>
@@ -216,6 +220,10 @@ function useFleetMutations(
     createVehicleMutation: useMutation({
       mutationFn: input.controller.createVehicle,
       onSuccess: invalidateVehicles,
+    }),
+    grantDriverAccessMutation: useMutation({
+      mutationFn: input.controller.grantDriverAccess,
+      onSuccess: invalidateDrivers,
     }),
     updateDriverMutation: useMutation({
       mutationFn: input.controller.updateDriver,

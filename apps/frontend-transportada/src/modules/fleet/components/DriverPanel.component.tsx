@@ -26,11 +26,13 @@ const DRIVER_COLUMN_COUNT = 8
 type DriverPanelProps = Readonly<{
   actions: Readonly<{
     onEdit: (driver: FleetDriverDetail) => void
+    onGrantAccess: (driver: FleetDriverDetail) => void
     onNew: () => void
     onToggleStatus: (driver: FleetDriverDetail) => void
     onViewVehicle: (vehicleId: string) => void
   }>
   canManageFleet: boolean
+  grantingDriverId?: string | undefined
   filters: Readonly<{
     onChange: (value: FleetDriverFilters) => void
     value: FleetDriverFilters
@@ -77,6 +79,7 @@ function DriverPanelBody({
   actions,
   canManageFleet,
   filters,
+  grantingDriverId,
   vehiclesByDriverId,
   view,
 }: DriverPanelProps) {
@@ -99,8 +102,10 @@ function DriverPanelBody({
       <DriverList
         canManageFleet={canManageFleet}
         drivers={drivers}
+        grantingDriverId={grantingDriverId}
         vehiclesByDriverId={vehiclesByDriverId}
         onEdit={actions.onEdit}
+        onGrantAccess={actions.onGrantAccess}
         onToggleStatus={actions.onToggleStatus}
         onViewVehicle={actions.onViewVehicle}
       />

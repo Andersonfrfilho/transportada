@@ -17,12 +17,23 @@ import {
   CLIENT_BOLETO_EMAILS_TARGET,
 } from './contractorReplyEmail.service'
 
+import {
+  readContractorReplyWhatsAppOptions,
+  readWhatsAppSendOutcome,
+  type ContractorReplyWhatsAppOptions,
+  type WhatsAppSendOutcome,
+} from './contractorReplyWhatsApp.service'
+
 import { type ConversationAttachmentChannel } from './conversationAttachment.service'
 
 import {
+  OCCURRENCE_CLIENT_CHANNEL_STATUSES,
   OCCURRENCE_CONVERSATION_CHANNELS,
   OCCURRENCE_CONVERSATION_MESSAGE_STATUSES,
   type ContractorMailRequest,
+  type OccurrenceClientChannel,
+  type OccurrenceClientDelivery,
+  type OccurrenceClientChannelStatus,
   type OccurrenceConversation,
   type OccurrenceConversationCopyEntry,
   type OccurrenceConversationsView,
@@ -82,6 +93,25 @@ export type OccurrenceConversationClient = Readonly<{
     deliveryId: string
     occurrenceId: string
   }) => Promise<ClientEmailSendOutcome>
+  /** Spec 281 T7: o estado do envio por WhatsApp (Evolution) desta ocorrência; tudo mascarado. */
+  readContractorReplyWhatsAppOptions: (input: {
+    occurrenceId: string
+  }) => Promise<ContractorReplyWhatsAppOptions | null>
+  /** Spec 281 T7: o boleto aos números do cadastro do cliente e/ou a um novo (`save` o guarda). */
+  forwardContractorReplyToClientWhatsApp: (input: {
+    attachmentId?: string
+    contactIds?: readonly string[]
+    idempotencyKey: string
+    number?: string
+    occurrenceId: string
+    save?: boolean
+  }) => Promise<WhatsAppSendOutcome>
+  /** Spec 281 T7: "Tentar de novo" (falhou) e "Reenviar" (já saiu); o número e o anexo vêm da entrega. */
+  resendContractorReplyWhatsAppDelivery: (input: {
+    deliveryId: string
+    idempotencyKey: string
+    occurrenceId: string
+  }) => Promise<WhatsAppSendOutcome>
   assignUnassigned: (input: { conversationId: string; unassignedId: string }) => Promise<void>
   listUnassigned: () => Promise<readonly UnassignedMessage[]>
   listConversations: (input: { occurrenceId: string }) => Promise<OccurrenceConversationsView>
@@ -103,6 +133,14 @@ export type OccurrenceConversationClient = Readonly<{
     sizeBytes: number
   }) => Promise<Readonly<{ uploadId: string; uploadUrl: string }>>
   /** Spec 274 D1: o chat da contratante vai por e-mail (`mode: 'chat'`), sem diálogo nem assunto. */
+  /** Spec 283 T5 (D6): a resposta do painel ao cliente, só por WhatsApp; o número vai pelo `replyTargetId` da faixa. */
+  sendClientReply: (input: {
+    body: string
+    confirmNumber?: true
+    idempotencyKey: string
+    occurrenceId: string
+    replyTargetId: string
+  }) => Promise<ClientReplyReceipt>
   sendContractorChatMessage: (input: {
     attachmentIds?: readonly string[]
     body: string
@@ -147,6 +185,7 @@ function includes<TValue extends string>(list: readonly TValue[], value: unknown
 function isAuthor(value: unknown): value is OccurrenceConversationMessage['author'] {
   if (!isRecord(value)) return false
   if (value.kind === 'automatic') return true
+  if (value.kind === 'client') return isString(value.addressMasked)
   if (value.kind === 'operation' || value.kind === 'driver') {
     return isString(value.userId) && (value.name === null || isString(value.name))
   }
@@ -225,6 +264,7 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
     : {}
   const copy = toCopy(value.copy)
   const systemNotice = toSystemNotice(value.systemNotice)
+  const clientDelivery = toClientDelivery(value.clientDelivery)
   return {
     /** O áudio traz a duração e a transcrição (264); campo que o painel não conhece some, nunca o anexo. */
     attachments: toAttachmentsWithAudioFields(value.attachments),
@@ -240,7 +280,54 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
     id: value.id,
     status: value.status,
     statusTimes,
+    ...(clientDelivery === undefined ? {} : { clientDelivery }),
+    ...(isString(value.recipientMasked) ? { recipientMasked: value.recipientMasked } : {}),
     ...(systemNotice === undefined ? {} : { systemNotice }),
+  }
+}
+
+/** Spec 283 T1: o canal como a API manda (`channel`, `addressMasked`, `state`). Desconhecido some, nunca derruba a conversa. */
+function toClientChannel(value: unknown): readonly OccurrenceClientChannel[] {
+  if (
+    !isRecord(value) ||
+    (value.channel !== 'email' && value.channel !== 'whatsapp') ||
+    !isString(value.addressMasked) ||
+    !OCCURRENCE_CLIENT_CHANNEL_STATUSES.includes(value.state as OccurrenceClientChannelStatus)
+  ) {
+    return []
+  }
+  const target = value.replyTarget
+  return [
+    {
+      kind: value.channel,
+      maskedAddress: value.addressMasked,
+      replyTarget:
+        value.channel === 'whatsapp' &&
+        isRecord(target) &&
+        isString(target.id) &&
+        typeof target.confirmed === 'boolean'
+          ? { confirmed: target.confirmed, id: target.id }
+          : null,
+      status: value.state as OccurrenceClientChannelStatus,
+    },
+  ]
+}
+
+function toClientDelivery(value: unknown): OccurrenceClientDelivery | undefined {
+  if (
+    !isRecord(value) ||
+    !isString(value.deliveryId) ||
+    !isString(value.recipientMasked) ||
+    !includes(SYSTEM_NOTICE_ACTOR_KINDS, value.actorKind)
+  ) {
+    return undefined
+  }
+  return {
+    actorKind: value.actorKind,
+    actorName: isString(value.actorName) ? value.actorName : null,
+    deliveryId: value.deliveryId,
+    documentName: isString(value.documentName) ? value.documentName : null,
+    recipientMasked: value.recipientMasked,
   }
 }
 
@@ -248,12 +335,25 @@ function toConversation(value: unknown): null | OccurrenceConversation {
   if (
     !isRecord(value) ||
     !isString(value.id) ||
-    (value.participant !== 'contractor' && value.participant !== 'driver') ||
+    (value.participant !== 'contractor' &&
+      value.participant !== 'driver' &&
+      value.participant !== 'client') ||
     !Array.isArray(value.messages)
   ) {
     return null
   }
+  const clientView = isRecord(value.client) ? value.client : {}
   return {
+    ...(value.participant === 'client'
+      ? {
+          client: {
+            channels: Array.isArray(clientView.channels)
+              ? clientView.channels.flatMap(toClientChannel)
+              : [],
+            name: isString(clientView.name) ? clientView.name : null,
+          },
+        }
+      : {}),
     id: value.id,
     messages: value.messages.flatMap((message) => toMessage(message) ?? []),
     participant: value.participant,
@@ -463,6 +563,24 @@ const occurrencePath = (occurrenceId: string): string =>
   `/trip-occurrences/${encodeURIComponent(occurrenceId)}/conversations`
 
 /** O recibo do envio: a API responde `{ data: { conversationMessageId } }`; sem ele (resposta antiga) o envio vale igual. */
+export type ClientReplyReceipt = Readonly<{
+  messageId: string
+  replayed: boolean
+  status: 'failed' | 'sent'
+}>
+
+function readClientReplyReceipt(payload: unknown): ClientReplyReceipt {
+  const data = isRecord(payload) ? payload.data : undefined
+  if (
+    !isRecord(data) ||
+    !isString(data.messageId) ||
+    (data.status !== 'sent' && data.status !== 'failed')
+  ) {
+    throw new OccurrenceConversationRequestError(OCCURRENCE_CONVERSATION_ERROR.RESPONSE_INVALID)
+  }
+  return { messageId: data.messageId, replayed: data.replayed === true, status: data.status }
+}
+
 export type SentMessageReceipt = Readonly<{ conversationMessageId: null | string }>
 
 function readSentMessageReceipt(payload: unknown): SentMessageReceipt {
@@ -544,6 +662,45 @@ export function createOccurrenceConversationClient(
         `${contractorReplyPath(occurrenceId)}/email-options`,
       )
       return readContractorReplyEmailOptions(payload)
+    },
+    async readContractorReplyWhatsAppOptions({ occurrenceId }) {
+      const payload = await requestJson(
+        dependencies,
+        `${contractorReplyPath(occurrenceId)}/whatsapp-options`,
+      )
+      return readContractorReplyWhatsAppOptions(payload)
+    },
+    async forwardContractorReplyToClientWhatsApp({
+      attachmentId,
+      contactIds,
+      idempotencyKey,
+      number,
+      occurrenceId,
+      save,
+    }) {
+      const payload = await requestJson(
+        dependencies,
+        `${contractorReplyPath(occurrenceId)}/whatsapp-delivery`,
+        {
+          body: {
+            ...(attachmentId === undefined ? {} : { attachmentId }),
+            ...(contactIds === undefined || contactIds.length === 0 ? {} : { contactIds }),
+            ...(number === undefined ? {} : { number }),
+            ...(save === true ? { save } : {}),
+          },
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        },
+      )
+      return readWhatsAppSendOutcome(payload)
+    },
+    async resendContractorReplyWhatsAppDelivery({ deliveryId, idempotencyKey, occurrenceId }) {
+      const payload = await requestJson(
+        dependencies,
+        `${contractorReplyPath(occurrenceId)}/whatsapp-deliveries/${encodeURIComponent(deliveryId)}/resend`,
+        { headers: { 'idempotency-key': idempotencyKey }, method: 'POST' },
+      )
+      return readWhatsAppSendOutcome(payload)
     },
     async assignUnassigned({ conversationId, unassignedId }) {
       await requestJson(
@@ -640,6 +797,20 @@ export function createOccurrenceConversationClient(
             },
             attachmentIds,
           ),
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        }),
+      )
+    },
+    async sendClientReply({ body, confirmNumber, idempotencyKey, occurrenceId, replyTargetId }) {
+      return readClientReplyReceipt(
+        await requestJson(dependencies, `${occurrencePath(occurrenceId)}/client/messages`, {
+          body: {
+            body,
+            channel: 'whatsapp',
+            ...(confirmNumber === true ? { confirmNumber: true } : {}),
+            replyTargetId,
+          },
           headers: { 'idempotency-key': idempotencyKey },
           method: 'POST',
         }),

@@ -326,8 +326,12 @@ export type FleetDriverAccountPort = {
     readonly contact: string
     readonly context: { readonly companyId: string }
     readonly correlationId: string
+    /** Com CPF o convite se amarra à ficha que já existe (`linkFleetDriver`); sem ele nasce solto. */
+    readonly email?: string
     readonly name: string
+    readonly phone?: string
     readonly roles: readonly CompanyRole[]
+    readonly taxId?: string
   }): Promise<{ readonly membershipId: string }>
 }
 

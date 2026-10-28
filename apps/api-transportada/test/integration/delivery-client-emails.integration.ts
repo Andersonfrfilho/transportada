@@ -14,7 +14,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import {
   auditLogs,
   companies,
-  deliveryClientEmails,
+  deliveryClientContacts,
   deliveryClients,
   identityUsers,
   userCompanyMemberships,
@@ -154,7 +154,7 @@ describe('e-mails do cliente de entrega contra Postgres (spec 279 T2)', () => {
       expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(
         DELIVERY_CLIENT_EMAIL_MAX_PER_PURPOSE,
       )
-      const stored = await database.db.select().from(deliveryClientEmails)
+      const stored = await database.db.select().from(deliveryClientContacts)
       expect(stored).toHaveLength(DELIVERY_CLIENT_EMAIL_MAX_PER_PURPOSE)
     })
   })

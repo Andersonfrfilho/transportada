@@ -4,11 +4,12 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, count, eq, sql } from 'drizzle-orm'
 
-import { deliveryClientEmails } from '../../database/delivery-client-email.schema.js'
+import { deliveryClientContacts } from '../../database/delivery-client-contact.schema.js'
 import { deliveryClients } from '../../database/delivery-client.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import {
+  DELIVERY_CLIENT_CONTACT_CHANNEL,
   DELIVERY_CLIENT_EMAIL_MAX_PER_PURPOSE,
   type DeliveryClientEmailPurpose,
 } from '../../shared/delivery-client-email.constant.js'
@@ -24,7 +25,7 @@ import {
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
-type EmailRow = typeof deliveryClientEmails.$inferSelect
+type EmailRow = typeof deliveryClientContacts.$inferSelect
 
 const AUDIT_ENTITY_TYPE = 'delivery_client_email'
 const AUDIT_PERMISSION = 'fleet.manage'
@@ -55,14 +56,15 @@ export class DrizzleDeliveryClientEmailRepository implements DeliveryClientEmail
       if (!(await lockClient(transaction, actor.companyId, input.taxId))) return null
 
       const [duplicate] = await transaction
-        .select({ id: deliveryClientEmails.id })
-        .from(deliveryClientEmails)
+        .select({ id: deliveryClientContacts.id })
+        .from(deliveryClientContacts)
         .where(
           and(
-            eq(deliveryClientEmails.companyId, actor.companyId),
-            eq(deliveryClientEmails.taxId, input.taxId),
-            eq(deliveryClientEmails.purpose, input.purpose),
-            sql`lower(${deliveryClientEmails.address}) = lower(${input.address})`,
+            eq(deliveryClientContacts.companyId, actor.companyId),
+            eq(deliveryClientContacts.taxId, input.taxId),
+            isEmail(),
+            eq(deliveryClientContacts.purpose, input.purpose),
+            sql`lower(${deliveryClientContacts.address}) = lower(${input.address})`,
           ),
         )
         .limit(1)
@@ -70,12 +72,13 @@ export class DrizzleDeliveryClientEmailRepository implements DeliveryClientEmail
 
       const [total] = await transaction
         .select({ value: count() })
-        .from(deliveryClientEmails)
+        .from(deliveryClientContacts)
         .where(
           and(
-            eq(deliveryClientEmails.companyId, actor.companyId),
-            eq(deliveryClientEmails.taxId, input.taxId),
-            eq(deliveryClientEmails.purpose, input.purpose),
+            eq(deliveryClientContacts.companyId, actor.companyId),
+            eq(deliveryClientContacts.taxId, input.taxId),
+            isEmail(),
+            eq(deliveryClientContacts.purpose, input.purpose),
           ),
         )
       if ((total?.value ?? 0) >= DELIVERY_CLIENT_EMAIL_MAX_PER_PURPOSE) {
@@ -83,9 +86,10 @@ export class DrizzleDeliveryClientEmailRepository implements DeliveryClientEmail
       }
 
       const [created] = await transaction
-        .insert(deliveryClientEmails)
+        .insert(deliveryClientContacts)
         .values({
           address: input.address,
+          channel: DELIVERY_CLIENT_CONTACT_CHANNEL.EMAIL,
           companyId: actor.companyId,
           createdByKind: 'office',
           createdByUserId: actor.userId,
@@ -124,18 +128,21 @@ export class DrizzleDeliveryClientEmailRepository implements DeliveryClientEmail
 
     const rows = await this.database
       .select()
-      .from(deliveryClientEmails)
+      .from(deliveryClientContacts)
       .where(
         and(
-          eq(deliveryClientEmails.companyId, input.companyId),
-          eq(deliveryClientEmails.taxId, input.taxId),
-          ...(input.purpose === undefined ? [] : [eq(deliveryClientEmails.purpose, input.purpose)]),
+          eq(deliveryClientContacts.companyId, input.companyId),
+          eq(deliveryClientContacts.taxId, input.taxId),
+          isEmail(),
+          ...(input.purpose === undefined
+            ? []
+            : [eq(deliveryClientContacts.purpose, input.purpose)]),
         ),
       )
       .orderBy(
-        asc(deliveryClientEmails.purpose),
-        asc(deliveryClientEmails.createdAt),
-        asc(deliveryClientEmails.id),
+        asc(deliveryClientContacts.purpose),
+        asc(deliveryClientContacts.createdAt),
+        asc(deliveryClientContacts.id),
       )
 
     return rows.map(toEmail)
@@ -152,7 +159,7 @@ export class DrizzleDeliveryClientEmailRepository implements DeliveryClientEmail
       if (!(await lockClient(transaction, actor.companyId, input.taxId))) return false
 
       const [removed] = await transaction
-        .delete(deliveryClientEmails)
+        .delete(deliveryClientContacts)
         .where(emailMatch(input, actor.companyId))
         .returning()
       if (removed === undefined) return false
@@ -182,14 +189,14 @@ export class DrizzleDeliveryClientEmailRepository implements DeliveryClientEmail
 
       const [current] = await transaction
         .select()
-        .from(deliveryClientEmails)
+        .from(deliveryClientContacts)
         .where(emailMatch(input, actor.companyId))
         .limit(1)
       if (current === undefined) return null
       if (current.label === input.label) return toEmail(current)
 
       const [updated] = await transaction
-        .update(deliveryClientEmails)
+        .update(deliveryClientContacts)
         .set({ label: input.label, updatedAt: new Date() })
         .where(emailMatch(input, actor.companyId))
         .returning()
@@ -229,10 +236,16 @@ function emailMatch(
   companyId: string,
 ) {
   return and(
-    eq(deliveryClientEmails.companyId, companyId),
-    eq(deliveryClientEmails.taxId, input.taxId),
-    eq(deliveryClientEmails.id, input.emailId),
+    eq(deliveryClientContacts.companyId, companyId),
+    eq(deliveryClientContacts.taxId, input.taxId),
+    isEmail(),
+    eq(deliveryClientContacts.id, input.emailId),
   )
+}
+
+/** Spec 281 D12: a tabela guarda também o WhatsApp; esta tela é só de e-mail. */
+function isEmail() {
+  return eq(deliveryClientContacts.channel, DELIVERY_CLIENT_CONTACT_CHANNEL.EMAIL)
 }
 
 function snapshot(row: EmailRow) {

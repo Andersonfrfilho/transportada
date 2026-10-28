@@ -16,6 +16,23 @@ import type {
   AggregateApplication,
   AggregateApplicationRepositoryPort,
 } from './aggregate-applications.port.js'
+import type { FleetDriverAccountPort } from './fleet.port.js'
+
+/** Três tentativas: o Keycloak e a fila de convite falham por instante, e o operador não vê o motivo. */
+const ACCESS_ATTEMPTS = 3
+const ACCESS_BACKOFF_MS = 500
+
+/**
+ * `granted`: o convite foi criado agora. `already-linked`: a ficha já tem usuário. `no-contact`: sem
+ * e-mail nem telefone não há por onde mandar o código. `failed`: as tentativas acabaram — o
+ * operador repete pela rota `retry-access`.
+ */
+export type AggregateApplicationAccessStatus =
+  | 'already-linked'
+  | 'failed'
+  | 'granted'
+  | 'no-contact'
+  | 'not-available'
 
 export type SubmitAggregateApplicationInput = Readonly<{
   /** Rascunhos enviados antes do formulário. Ausente é o caso normal: anexar é opcional. */
@@ -29,6 +46,9 @@ export type SubmitAggregateApplicationInput = Readonly<{
 }>
 
 type Dependencies = {
+  /** Ausente (rota pública de candidatura, que nunca aprova): a aprovação não convida. */
+  readonly account?: FleetDriverAccountPort & { readonly sleep?: (ms: number) => Promise<void> }
+  readonly logger?: Readonly<{ warn: (message: string, meta?: Record<string, unknown>) => void }>
   readonly companyGroupRepository: CompanyGroupRepositoryPort
   readonly landingCompanyId: string | undefined
   readonly repository: AggregateApplicationRepositoryPort
@@ -40,6 +60,11 @@ export type AggregateApplicationsUseCase = Readonly<{
     readonly id: string
   }) => Promise<AggregateApplication>
   list: (input: { readonly context: CompanyContext }) => Promise<readonly AggregateApplication[]>
+  /** Refaz o convite de uma candidatura aprovada cuja ficha ainda não tem usuário. */
+  retryAccess: (input: {
+    readonly context: CompanyContext
+    readonly id: string
+  }) => Promise<AggregateApplicationAccessStatus>
   reject: (input: {
     readonly context: CompanyContext
     readonly id: string
@@ -79,6 +104,60 @@ export function createAggregateApplicationsUseCase(
       companyId: params.input.companyId,
       draftIds,
     })
+  }
+
+  const sleep =
+    dependencies.account?.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+
+  /**
+   * ⚠️ **Aprovar a ficha não dava login.** O app do motorista autentica só pelo Keycloak, e o
+   * usuário de lá só nasce pelo convite: a candidatura aprovada virava motorista ativo, com
+   * entregas, e sem como entrar. O convite liga a ficha pelo CPF (`linkFleetDriver`).
+   * A falha não desfaz a aprovação — a ficha já existe e as entregas dependem dela —, por isso
+   * devolve o estado e deixa a rota `retry-access` repetir.
+   */
+  async function ensureDriverAccess(input: {
+    readonly companyId: string
+    readonly correlationId: string
+    readonly driverId: string
+  }): Promise<AggregateApplicationAccessStatus> {
+    const account = dependencies.account
+    if (account === undefined) return 'not-available'
+
+    const target = await dependencies.repository.findDriverAccessTarget({
+      companyId: input.companyId,
+      driverId: input.driverId,
+    })
+    if (target === null) return 'failed'
+    if (target.membershipId !== null) return 'already-linked'
+
+    const channel = target.email === '' ? (target.phone === '' ? undefined : 'whatsapp') : 'email'
+    if (channel === undefined) return 'no-contact'
+
+    for (let attempt = 1; attempt <= ACCESS_ATTEMPTS; attempt += 1) {
+      try {
+        await account.execute({
+          channel,
+          contact: channel === 'email' ? target.email : target.phone,
+          context: { companyId: input.companyId },
+          correlationId: input.correlationId,
+          email: target.email,
+          name: target.name,
+          phone: target.phone,
+          roles: ['aggregate'],
+          taxId: target.taxId,
+        })
+        return 'granted'
+      } catch (error) {
+        dependencies.logger?.warn('aggregate_application_access_failed', {
+          attempt,
+          driverId: input.driverId,
+          reason: error instanceof Error ? error.message : 'unknown',
+        })
+        if (attempt < ACCESS_ATTEMPTS) await sleep(ACCESS_BACKOFF_MS * attempt)
+      }
+    }
+    return 'failed'
   }
 
   return {
@@ -151,12 +230,21 @@ export function createAggregateApplicationsUseCase(
       }
 
       if (application.duplicateDriverId !== null) {
-        return dependencies.repository.approve({ driverId: application.duplicateDriverId, id })
+        const approved = await dependencies.repository.approve({
+          driverId: application.duplicateDriverId,
+          id,
+        })
+        await ensureDriverAccess({
+          companyId: application.companyId,
+          correlationId: crypto.randomUUID(),
+          driverId: application.duplicateDriverId,
+        })
+        return approved
       }
       if (!CPF_PATTERN.test(application.taxId)) {
         throw new AggregateApplicationRequiresManualDriverCreationError()
       }
-      return dependencies.repository.createDriverAndApprove({
+      const approved = await dependencies.repository.createDriverAndApprove({
         companyId: application.companyId,
         declaredData: application.declaredData,
         email: application.email,
@@ -164,6 +252,24 @@ export function createAggregateApplicationsUseCase(
         name: application.name,
         phone: application.phone,
         taxId: application.taxId,
+      })
+      if (approved.driverId !== null) {
+        await ensureDriverAccess({
+          companyId: application.companyId,
+          correlationId: crypto.randomUUID(),
+          driverId: approved.driverId,
+        })
+      }
+      return approved
+    },
+
+    async retryAccess({ context, id }) {
+      const application = await findOwned({ companyId: context.companyId, id })
+      if (application.status !== 'approved' || application.driverId === null) return 'failed'
+      return ensureDriverAccess({
+        companyId: application.companyId,
+        correlationId: crypto.randomUUID(),
+        driverId: application.driverId,
       })
     },
 

@@ -336,6 +336,20 @@
     "recipient_absent": "Recipient absent",
     "recipient_refused": "Refused"
   },
+  "paging": {
+    "backToPage": "Back to the stop",
+    "mode": {
+      "list": "List of stops",
+      "paged": "One stop per page"
+    },
+    "next": "Next stop",
+    "position": "Stop {{index}} of {{total}}",
+    "previous": "Previous stop",
+    "region": "Move between stops",
+    "settingHelp": "Choose how to see the trip's stops on this device.",
+    "settingTitle": "Stops",
+    "showAll": "See all ({{count}})"
+  },
   "returnTitle": "Why was it not delivered?",
   "search": {
     "noResults": "No stops found for this search.",

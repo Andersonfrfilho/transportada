@@ -14,7 +14,7 @@ import {
   companyOccurrenceTypes,
   contractorMailMessages,
   contractorMailOutbox,
-  deliveryClientEmails,
+  deliveryClientContacts,
   deliveryClients,
   nfeParticipants,
   occurrenceContractorReplies,
@@ -95,7 +95,7 @@ async function seedClient(
   })
   if (emails.length === 0) return {}
   const rows = await database.db
-    .insert(deliveryClientEmails)
+    .insert(deliveryClientContacts)
     .values(
       emails.map((email) => ({
         ...email,
@@ -106,7 +106,7 @@ async function seedClient(
         taxId: CLIENT_TAX_ID,
       })),
     )
-    .returning({ address: deliveryClientEmails.address, id: deliveryClientEmails.id })
+    .returning({ address: deliveryClientContacts.address, id: deliveryClientContacts.id })
   return Object.fromEntries(rows.map((row) => [row.address, row.id]))
 }
 

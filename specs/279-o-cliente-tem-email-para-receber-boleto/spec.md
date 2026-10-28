@@ -28,6 +28,9 @@ Resultado:
    e-mail guardado, o motorista digita um; com e-mail guardado, é um toque.
 4. A tela do cliente (painel) lista, edita e remove esses e-mails.
 
+> **Nota (spec 281, 27/10/2026):** a tabela de D1 será generalizada para `delivery_client_contacts` (canal `email` ou
+> `whatsapp`) pela 281 D12, antes da 279 ir à `main`; o comportamento de e-mail desta spec não muda.
+
 ## Fora do escopo
 
 - Usar os tipos `invoice`, `finance` e `general` em outros fluxos: eles já são cadastráveis (D1), mas só `boleto` é lido por

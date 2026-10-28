@@ -16,6 +16,7 @@
         "@adatechnology/cargo-placement": "0.1.0",
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/drizzle-provider": "0.1.1",
+        "@adatechnology/evolution-whatsapp-provider": "0.2.0",
         "@adatechnology/fiscal-provider": "0.4.0",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/keycloak-admin": "1.0.1",
@@ -106,7 +107,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@adatechnology/conversation-contracts": "0.6.0",
-        "@adatechnology/conversations-ui": "0.11.0",
+        "@adatechnology/conversations-ui": "0.14.0",
         "@adatechnology/notification-client": "0.1.0-rc.3",
         "@adatechnology/notification-ui": "0.1.0-rc.9",
         "@tanstack/react-query": "5.90.20",
@@ -282,6 +283,8 @@
     "@adatechnology/drizzle-provider": ["@adatechnology/drizzle-provider@0.1.1", "", { "dependencies": { "drizzle-orm": "1.0.0-rc.4" } }, "sha512-w268VNzUIlsZHGu66mFooHtud3F//040sJyRWqmhnQPfPYzfZ6+wdhAQAe1g2d3Kyiy1gZHVkUFP+v4hbz4/NA=="],
 
     "@adatechnology/email-provider": ["@adatechnology/email-provider@0.1.0-rc.2", "", { "dependencies": { "@adatechnology/notification-contracts": "0.1.0-rc.2" }, "peerDependencies": { "@aws-sdk/client-sesv2": ">=3 <4", "nodemailer": ">=6.9.0 <10", "resend": ">=4 <7" }, "optionalPeers": ["@aws-sdk/client-sesv2", "nodemailer", "resend"] }, "sha512-W2dbLcUq/QF7xwv5cqACVNU7ZKauqLaSshhK+8q4rEZmmDRoxFLNgMQzbhbR8atADvr2dN4POTW3EbnxV/q7sA=="],
+
+    "@adatechnology/evolution-whatsapp-provider": ["@adatechnology/evolution-whatsapp-provider@0.2.0", "", {}, "sha512-sxNTmIVGH+nnZhfpnigshoRAwOURkNGzXuB5cqSWSOHCa7hdswlQoFF/Y40AhqdjRr9ApNl8Wl7d0xm8sm4wSw=="],
 
     "@adatechnology/fiscal-provider": ["@adatechnology/fiscal-provider@0.4.0", "", { "dependencies": { "fast-xml-parser": "^4.5.3", "node-forge": "^1.3.1", "pdfkit": "^0.19.1", "qrcode": "^1.5.4", "xml-crypto": "^6.0.1" } }, "sha512-kZDpmfV60Uc/wzzniculs3EPGspoWZbg3xOyJ8QpIEuXKw/9tQ0v5r6TIjUoUuaP7UK84ZnI49jYQdvcEU2G6Q=="],
 
@@ -2005,8 +2008,6 @@
 
     "@transportada/frontend-client/@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.10.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.6.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-nD7H73hTDtZXSNVHb8aoFYyPsnm/dHjZfUK+GtB3Y0LfMxlmVLa3OlhY6kTSQNQ8tu8TWPSwscgO4QgWsNPO+Q=="],
 
-    "@transportada/frontend-driver/@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.11.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.6.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-CRNlLpABOfryG17gVRT/hbLwt83hXLb1GvUsDsohNWND73Smy5fbp7jbRlLVePCl0qc0liBNFmo/x2Pae1nj1Q=="],
-
     "@transportada/frontend-driver/@adatechnology/notification-client": ["@adatechnology/notification-client@0.1.0-rc.3", "", { "dependencies": { "@adatechnology/notification-contracts": "0.1.0-rc.3" } }, "sha512-hCwvu+1SK5XIeBvASO6SgrfPeamP/t3RMEp5bCsumcAZ4L3lOetjDQRI6UHalzFA7UW6r+NtiYKzWsFPjrDfMw=="],
 
     "@transportada/frontend-driver/@adatechnology/notification-ui": ["@adatechnology/notification-ui@0.1.0-rc.9", "", { "dependencies": { "@adatechnology/notification-client": "0.1.0-rc.6", "@adatechnology/notification-contracts": "0.1.0-rc.6", "clsx": "^2.1.1", "lucide-react": "^1.21.0" }, "peerDependencies": { "@tanstack/react-query": "^5", "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-C8/Ex7HFsvBj1b0iIJ1Z6dOkMUNiXinuxOrMY6rKcFL/1QnQ8LUqEi5/OJGHYYrsluZO3/RnhqMiQlwNm1ybKA=="],
@@ -2070,8 +2071,6 @@
     "@adatechnology/notification-ui/@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@transportada/frontend-client/@adatechnology/conversations-ui/tailwind-merge": ["tailwind-merge@3.7.0", "", {}, "sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA=="],
-
-    "@transportada/frontend-driver/@adatechnology/conversations-ui/tailwind-merge": ["tailwind-merge@3.7.0", "", {}, "sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA=="],
 
     "@transportada/frontend-driver/@adatechnology/notification-client/@adatechnology/notification-contracts": ["@adatechnology/notification-contracts@0.1.0-rc.3", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-ign38pbiRTMMpx0uKUoNOOv1x90oR+6l2PKMbj7+7b69xb46wpRR2pQBhFOuFqg83RgUee331laZ0P4n1yJjTA=="],
 

@@ -941,5 +941,13 @@
     "missing_proof": "Foto obrigatória não chegou"
   },
   "penaltyPoints": "−{{points}} pontos",
-  "penaltyMeta": "Nota fiscal {{documentNumber}} · entregue em {{deliveredAt}} · expira em {{expiresAt}}"
+  "penaltyMeta": "Nota fiscal {{documentNumber}} · entregue em {{deliveredAt}} · expira em {{expiresAt}}",
+  "grantAccess": "Dar acesso",
+  "grantAccessSending": "Enviando…",
+  "grantAccessResult": {
+    "granted": "Convite enviado para {{name}}. A pessoa recebe o código, escolhe a senha e entra no app.",
+    "already-linked": "{{name}} já tem acesso ao app.",
+    "no-contact": "{{name}} não tem e-mail nem telefone na ficha. Complete a ficha e tente de novo.",
+    "error": "Não foi possível convidar {{name}} agora. Tente de novo em instantes."
+  }
 }

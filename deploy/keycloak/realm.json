@@ -137,7 +137,7 @@
       "enabled": true,
       "serviceAccountClientId": "transportada-admin",
       "clientRoles": {
-        "realm-management": ["manage-realm", "manage-users"]
+        "realm-management": ["manage-clients", "manage-realm", "manage-users", "view-clients"]
       }
     },
     {

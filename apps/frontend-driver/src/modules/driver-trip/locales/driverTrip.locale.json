@@ -374,6 +374,20 @@
     "recipient_absent": "Ausente",
     "recipient_refused": "Recusa"
   },
+  "paging": {
+    "backToPage": "Voltar à parada",
+    "mode": {
+      "list": "Lista de paradas",
+      "paged": "Uma parada por página"
+    },
+    "next": "Próxima parada",
+    "position": "Parada {{index}} de {{total}}",
+    "previous": "Parada anterior",
+    "region": "Navegar entre as paradas",
+    "settingHelp": "Escolha como ver as paradas da viagem neste aparelho.",
+    "settingTitle": "Paradas",
+    "showAll": "Ver todas ({{count}})"
+  },
   "returnTitle": "Por que não entregou?",
   "search": {
     "noResults": "Nenhuma parada encontrada para esta busca.",
