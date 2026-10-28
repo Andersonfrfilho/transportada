@@ -504,6 +504,11 @@ export function CompanySettingsPage() {
             if (whatsappPanel.saveMutation.isIdle) return
             whatsappPanel.saveMutation.reset()
           },
+          connection: whatsappPanel.connectionQuery.data,
+          connectionErrorCode:
+            whatsappPanel.connectionQuery.error instanceof Error
+              ? whatsappPanel.connectionQuery.error.message
+              : undefined,
           onQrOpenChange: setWhatsappQrOpen,
           onSave: (input) => whatsappPanel.saveMutation.mutate(input),
           qr: whatsappPanel.qrQuery.data,

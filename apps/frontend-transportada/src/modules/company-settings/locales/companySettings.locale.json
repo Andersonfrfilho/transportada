@@ -837,7 +837,11 @@
       "pairingCode": "Ou digite o código de pareamento: {{code}}",
       "qrError": "Não foi possível obter o QR ({{code}}). Tentando de novo.",
       "closeQr": "Fechar QR",
-      "connected": "Número conectado."
+      "connected": "Número conectado.",
+      "checkedAt": "Verificado às {{time}}",
+      "checkError": "Não foi possível consultar o estado ({{code}}).",
+      "dropped": "O número está desconectado. Gere um novo QR para reconectar; enquanto isso os envios caem para o e-mail.",
+      "reconnect": "Reconectar número"
     }
   }
 }

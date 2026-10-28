@@ -837,7 +837,11 @@
       "pairingCode": "Or type the pairing code: {{code}}",
       "qrError": "Could not get the QR ({{code}}). Trying again.",
       "closeQr": "Close QR",
-      "connected": "Number connected."
+      "connected": "Number connected.",
+      "checkedAt": "Checked at {{time}}",
+      "checkError": "Could not read the connection state ({{code}}).",
+      "dropped": "The number is disconnected. Generate a new QR to reconnect; meanwhile sends fall back to email.",
+      "reconnect": "Reconnect number"
     }
   }
 }

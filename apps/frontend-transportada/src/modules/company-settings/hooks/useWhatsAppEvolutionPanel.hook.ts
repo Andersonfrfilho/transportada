@@ -11,6 +11,8 @@ const WHATSAPP_EVOLUTION_QUERY_KEY = 'company-whatsapp-evolution'
 const WHATSAPP_EVOLUTION_QR_QUERY_KEY = 'company-whatsapp-evolution-qr'
 /** Sem a resposta do QR (erro), a tela tenta de novo neste ritmo em vez de parar. */
 const QR_RETRY_MILLISECONDS = 20_000
+/** Estado ao vivo: a tela relê a conexão neste ritmo para mostrar a queda sem recarregar. */
+const CONNECTION_POLL_MILLISECONDS = 30_000
 
 function getWhatsAppEvolutionClient() {
   return createWhatsAppEvolutionClient({
@@ -37,6 +39,16 @@ export function useWhatsAppEvolutionPanel(
     mutationFn: (body: WhatsAppEvolutionSaveInput) => client.save(body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
+  const stored = query.data
+  const connectable = stored?.status === 'active' && stored.apiKeyConfigured
+  // Com o QR aberto quem informa o estado é o próprio QR; fora dele, esta leitura periódica.
+  const connectionQuery = useQuery({
+    enabled: input.enabled && connectable && !input.qrEnabled,
+    queryFn: client.connection,
+    queryKey: [WHATSAPP_EVOLUTION_QUERY_KEY, 'connection', input.companyId] as const,
+    refetchInterval: CONNECTION_POLL_MILLISECONDS,
+    refetchIntervalInBackground: false,
+  })
   const qrQuery = useQuery({
     enabled: input.enabled && input.qrEnabled,
     gcTime: 0,
@@ -58,5 +70,5 @@ export function useWhatsAppEvolutionPanel(
     refetchIntervalInBackground: false,
   })
 
-  return { qrQuery, query, saveMutation }
+  return { connectionQuery, qrQuery, query, saveMutation }
 }

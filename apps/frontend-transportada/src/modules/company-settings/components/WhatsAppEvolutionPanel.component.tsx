@@ -14,6 +14,7 @@ import {
 import {
   WHATSAPP_DEFAULT_PROVIDERS,
   type WhatsAppDefaultProvider,
+  type WhatsAppEvolutionConnection,
   type WhatsAppEvolutionQr,
   type WhatsAppEvolutionSaveInput,
   type WhatsAppEvolutionSettings,
@@ -21,6 +22,9 @@ import {
 import styles from '../styles/companySettings.module.css'
 
 export type WhatsAppEvolutionPanelProps = Readonly<{
+  /** Leitura periódica do estado, fora do QR; é ela que mostra a queda. */
+  connection: WhatsAppEvolutionConnection | undefined
+  connectionErrorCode: string | undefined
   disabled: boolean
   errorCode: string | undefined
   loading: boolean
@@ -46,12 +50,15 @@ function WhatsAppEvolutionSkeleton() {
   )
 }
 
-function WhatsAppEvolutionConnection(props: WhatsAppEvolutionPanelProps) {
+function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
   const { t } = useTranslation('companySettings')
   const stored = props.stored
   if (stored === null || stored === undefined) return null
   // O estado da tela é o do QR quando ele já respondeu; senão, o último gravado.
-  const state = props.qr?.state ?? stored.connectionState
+  const state = props.qrOpen
+    ? (props.qr?.state ?? stored.connectionState)
+    : (props.connection?.state ?? stored.connectionState)
+  const checkedAt = props.connection?.checkedAt ?? stored.connectionCheckedAt
   const canConnect = stored.status === 'active' && stored.apiKeyConfigured
 
   return (
@@ -60,6 +67,21 @@ function WhatsAppEvolutionConnection(props: WhatsAppEvolutionPanelProps) {
         {t('whatsappEvolution.connection.label')}:{' '}
         {t(`whatsappEvolution.connection.state.${state}`)}
       </span>
+      {checkedAt === null ? null : (
+        <span className={styles.settingsFormOrigin}>
+          {t('whatsappEvolution.connection.checkedAt', {
+            time: new Date(checkedAt).toLocaleTimeString('pt-BR'),
+          })}
+        </span>
+      )}
+      {props.connectionErrorCode === undefined ? null : (
+        <p role="alert">
+          {t('whatsappEvolution.connection.checkError', { code: props.connectionErrorCode })}
+        </p>
+      )}
+      {canConnect && state === 'close' ? (
+        <p role="alert">{t('whatsappEvolution.connection.dropped')}</p>
+      ) : null}
       {canConnect ? null : (
         <p className={styles.settingsFormNote}>{t('whatsappEvolution.connection.needsEnabled')}</p>
       )}
@@ -67,7 +89,9 @@ function WhatsAppEvolutionConnection(props: WhatsAppEvolutionPanelProps) {
         <div className={styles.settingsFormActions}>
           <button type="button" onClick={() => props.onQrOpenChange(true)}>
             <Icon name="link" />
-            {t('whatsappEvolution.connection.connect')}
+            {state === 'close'
+              ? t('whatsappEvolution.connection.reconnect')
+              : t('whatsappEvolution.connection.connect')}
           </button>
         </div>
       ) : null}
@@ -257,7 +281,7 @@ export function WhatsAppEvolutionPanel(props: WhatsAppEvolutionPanelProps) {
       ) : (
         <>
           <WhatsAppEvolutionForm key={props.stored?.updatedAt ?? 'new'} {...props} />
-          <WhatsAppEvolutionConnection {...props} />
+          <WhatsAppEvolutionConnectionStatus {...props} />
         </>
       )}
       {props.saved ? <p role="status">{t('whatsappEvolution.saved')}</p> : null}
