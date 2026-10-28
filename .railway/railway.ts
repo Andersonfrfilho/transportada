@@ -42,18 +42,18 @@ export default defineRailway((ctx) => {
     checkSuites: false,
   })
 
-  const applicationDatabase = postgres(isProduction ? 'Postgres-FDoz' : 'Postgres', {
+  const applicationDatabase = postgres(isProduction ? 'postgres-app' : 'Postgres', {
     region: 'sfo',
   })
-  const identityDatabase = postgres(isProduction ? 'Postgres-Hqfu' : 'Postgres-q0RQ', {
+  const identityDatabase = postgres(isProduction ? 'postgres-keycloak' : 'Postgres-q0RQ', {
     region: 'sfo',
   })
   const applicationVolume = volume(
-    isProduction ? 'postgres-volume-Bi41' : 'postgres-volume',
+    isProduction ? 'postgres-volume-HrAw' : 'postgres-volume',
     VOLUME,
   )
   const identityVolume = volume(
-    isProduction ? 'postgres-volume-HrAw' : 'postgres-volume-2L8j',
+    isProduction ? 'postgres-volume-Bi41' : 'postgres-volume-2L8j',
     VOLUME,
   )
   const queueVolume = volume(isProduction ? 'rabbitmq-volume-V_YD' : 'rabbitmq-volume', VOLUME)
