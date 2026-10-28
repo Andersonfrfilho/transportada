@@ -429,3 +429,16 @@ Pegadinhas: o token do admin do `master` dura 60 s (renovar a cada etapa); o arq
 `device_commit_files` pode chegar defasado, conferir `md5sum`; o Keycloak guarda a senha como hash, então "mesma
 senha" só se obtém copiando `credential`, nunca digitando. Contas sem usuário correspondente em produção
 (convidadas que nunca definiram senha, contas de teste) ficam sem senha em staging.
+
+### Pessoa `automation` criada em produção (28/10/2026)
+
+Antes: 0 memberships com o papel `automation` em produção (nem em staging), então as rotinas do worker que
+chamam a API (MDF-e automático, baixa por WhatsApp, canhoto, e-mail automático de ocorrência) não tinham quem
+as autorizasse (ADR-0047). Rodado pelo Anderson: `producao-criar-automation.sh` (mostra o plano e exige
+digitar `producao`). Criou o `identity_user` sintético `18152f2a-d903-4a71-8b2f-4fb6783c658a`, a membership
+`automation` na única empresa ativa (`ce523659-5e30-4b13-96ce-8d603d8cb9e9`) e o vínculo
+`external_identities` com a conta de serviço do worker (`sub` `0c5fe9dc-d869-459e-b1ca-3161980f17d9`). Só
+INSERT no banco do app; Keycloak intocado. Reverter: apagar essa membership e o vínculo.
+
+`producao-renomear-usuarios-uuid.sh` rodou no mesmo dia e não achou nenhum username em UUID em
+`identity_user_profiles` de produção: nada foi alterado. (Os UUIDs vistos eram só de staging.)
