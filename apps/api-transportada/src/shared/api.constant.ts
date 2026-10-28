@@ -62,6 +62,8 @@ export const API_COMPANY_SETTINGS_AUDIO_TRANSCRIPTION_PATH = '/company-settings/
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
 /** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */
+/** Spec 285: a automação do fluxo semanal de um contratante (interruptor, destinatários, prazo da fatura). */
+export const API_CONTRACTOR_AUTOMATIONS_PATH = '/contractor-automations'
 export const API_COMPANY_CREW_SETTINGS_PATH = '/company-crew-settings'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'

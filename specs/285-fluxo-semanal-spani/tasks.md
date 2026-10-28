@@ -42,4 +42,5 @@ Referências: [spec.md](./spec.md) · [plan.md](./plan.md). Test-first. Uma etap
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T012 CRUD de automações e tela (`prints/5-automacoes.png`); sem nome ou CNPJ da Spani no código.
+- [x] T012a Cadastro na API: tabela `contractor_automations` + `GET/POST/PUT /contractor-automations` (interruptor, destinatários, `xmlKind`, prazo, partes), com contrato e integração em Postgres.
+- [ ] T012 Tela do CRUD de automações e tela (`prints/5-automacoes.png`); sem nome ou CNPJ da Spani no código.
