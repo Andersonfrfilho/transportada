@@ -52,3 +52,28 @@ os pontos 40, 64 e 80 rem.
 - Prova: `test/occurrence-conversation/client-reply.contract.ts` (chamada à API, códigos, rascunho, alvos).
 
 Dependência: a rota real vem da T3 (contrato em `contract.md`, PR #398).
+
+## T6 — CLAUDE.md, teste de log e prints (28/10/2026)
+
+**O que mudou**
+
+- `apps/frontend-transportada/CLAUDE.md`: seção "A conversa do cliente abre no chat da ocorrência (spec 283)" com o
+  que o painel faz (aba Cliente, campo de resposta só com `occurrences.resolve`, destino mascarado, layout de três colunas,
+  log sem dado do cliente).
+- `apps/api-transportada/test/occurrence-conversation/client-log-privacy.contract.ts` (ligado em
+  `occurrence-conversation.contract.test.ts`): lê as chamadas de log de `src/occurrence-conversation/` e reprova qualquer
+  uma que passe `phone`, `email`, `address`, `recipient(s)`, `to`, `destination`, `body` ou `text` cru. Campos mascarados
+  (`addressMasked`) passam.
+
+**Provas**
+
+```
+bun test ./test/occurrence-conversation/client-log-privacy.contract.ts
+ 3 pass
+ 0 fail
+```
+
+**Pendente**
+
+- Prints em 375 px e desktop: a API da conversa do cliente ainda não está na staging (#398 e #400 abertas). Os prints
+  saem quando ela estiver na staging, ou com dados locais se o deploy seguir travado.
