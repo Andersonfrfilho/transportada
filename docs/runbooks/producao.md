@@ -348,6 +348,17 @@ Conferido em 28/10/2026 (revisão de `main...staging`: PRs #388, #398, #399, #40
   `planetiler:latest`).
 - **Pendências do Anderson antes de ligar WhatsApp em qualquer ambiente:** testar o "Criar e conectar" com o Evolution real de staging (o ADR 0112 já foi aceito em 28/10).
 
+### Keycloak de produção: checar a saúde (somente leitura)
+
+Script `producao-keycloak-saude.sh` (na pasta `ativada` do Anderson, fora do repositório): mostra os deploys e as
+últimas 80 linhas de log do `keycloak`, e testa o discovery do realm, os certificados e o endpoint de token **sem
+credencial** (200 e 400/401 = de pé; 502/503 = fora do ar). Não troca variável nem redeploya.
+
+Caso de 28/10/2026 (promoção #408): `deploy-api` falhou duas vezes em "Reconciliar realm" com `curl 502` logo depois
+de "Deploy identity" dar sucesso. O passo de deploy só espera o Railway marcar `SUCCESS`; o `keycloak-reconcile.sh`
+não espera o Keycloak responder. Nesse caso a API, o worker e os frontends **não** sobem (os jobs seguintes ficam
+pulados) e as migrations não rodam. Não insistir em re-run: ler o log do `keycloak` primeiro.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
