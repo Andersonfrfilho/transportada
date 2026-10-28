@@ -314,6 +314,19 @@ Promoção de 27/10/2026 (PRs #377 a #387, #389, #391, parada por página #378).
   Evolution real testado em staging (o serviço de staging ainda não subiu).
 - Não há serviço Evolution em produção; nenhuma ação de infraestrutura na promoção.
 
+**Resultado (28/10/2026):** `staging` → `main` pelo PR #397 (merge 4538804), deploy de produção verde
+(api, worker, cron, frontends) com `migrations` aplicadas. Dois avisos da promoção:
+
+- O deploy de **staging** parou em `Reconciliar realm` (`keycloak-reconcile.sh`): o service account
+  `transportada-admin` de staging estava só com `manage-realm` e `manage-users`; o script exige
+  `view-clients` e `manage-clients` de `realm-management`. O script é o mesmo da `main` e produção
+  passou nele; em staging é preciso conceder os dois papéis no console do Keycloak de staging e
+  reexecutar o deploy. Enquanto isso, o `Deploy API` de staging fica pulado.
+- Os serviços `osrm` e `map-tiles` de staging reportam `Deployment failed` pela integração do Railway
+  (não fazem parte da diferença da promoção e não são checks exigidos).
+- Push em `staging` durante a promoção cancela o gate em andamento (um por commit); combine antes de
+  mergear outras coisas na staging.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
