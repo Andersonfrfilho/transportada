@@ -36,12 +36,16 @@ export type WhatsAppEvolutionPanelProps = Readonly<{
   onEdit: () => void
   onProvision: (acknowledgeRisk: boolean) => void
   onQrOpenChange: (open: boolean) => void
+  /** Pede um QR novo na hora, sem esperar a renovação automática. */
+  onQrRefresh: () => void
   /** O ambiente cria a instância sozinho: a tela pede só o aviso de risco, sem endereço nem chave. */
   provisioningAvailable: boolean
   onSave: (input: WhatsAppEvolutionSaveInput) => void
   qr: WhatsAppEvolutionQr | undefined
   qrErrorCode: string | undefined
   qrLoading: boolean
+  /** Instante (ms) em que o QR exibido foi recebido; a validade conta a partir dele. */
+  qrReceivedAt: number
   qrOpen: boolean
   saved: boolean
   stored: WhatsAppEvolutionSettings | null | undefined
@@ -76,6 +80,32 @@ function useQrObjectUrl(qrCode: string | null | undefined): string | null {
     }
   }, [qrCode])
   return url
+}
+
+/** O QR vale poucos segundos: a tela diz quanto resta e avisa quando o código na tela já não serve. */
+function WhatsAppEvolutionQrValidity(
+  props: Readonly<{ receivedAt: number; refreshAfterSeconds: number }>,
+) {
+  const { t } = useTranslation('companySettings')
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+  const remaining = Math.max(
+    0,
+    Math.ceil(props.receivedAt / 1000 + props.refreshAfterSeconds - now / 1000),
+  )
+
+  return remaining > 0 ? (
+    <p className={calendarStyles.hint} role="status">
+      {t('whatsappEvolution.connection.qrValidity', { seconds: remaining })}
+    </p>
+  ) : (
+    <p className={calendarStyles.refusal} role="alert">
+      {t('whatsappEvolution.connection.qrExpired')}
+    </p>
+  )
 }
 
 function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
@@ -152,6 +182,13 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
                 </p>
               </>
             ) : null}
+            {props.qr?.qrCode && qrImageUrl !== null ? (
+              <WhatsAppEvolutionQrValidity
+                key={props.qrReceivedAt}
+                receivedAt={props.qrReceivedAt}
+                refreshAfterSeconds={props.qr.refreshAfterSeconds}
+              />
+            ) : null}
             {props.qr?.pairingCode ? (
               <p className={calendarStyles.hint}>
                 {t('whatsappEvolution.connection.pairingCode', { code: props.qr.pairingCode })}
@@ -164,6 +201,10 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
               </p>
             )}
             <div className={calendarStyles.actions}>
+              <Button type="button" variant="secondary" onClick={props.onQrRefresh}>
+                <Icon name="refresh" />
+                {t('whatsappEvolution.connection.refreshQr')}
+              </Button>
               <Button type="button" variant="secondary" onClick={() => props.onQrOpenChange(false)}>
                 <Icon name="close" />
                 {t('whatsappEvolution.connection.closeQr')}

@@ -533,7 +533,9 @@ export function CompanySettingsPage() {
             whatsappPanel.qrQuery.error instanceof Error
               ? whatsappPanel.qrQuery.error.message
               : undefined,
+          onQrRefresh: () => void whatsappPanel.qrQuery.refetch(),
           qrLoading: whatsappPanel.qrQuery.isLoading,
+          qrReceivedAt: whatsappPanel.qrQuery.dataUpdatedAt,
           qrOpen: whatsappQrOpen,
           saved: whatsappPanel.saveMutation.isSuccess,
           stored: whatsappPanel.stored,

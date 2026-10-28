@@ -216,3 +216,14 @@ describe('imagem do QR (img-src não admite data:)', () => {
     expect(decodeWhatsAppQrPng('data:image/png;base64,@@@')).toBeNull()
   })
 })
+
+describe('validade do QR na tela', () => {
+  test('os dois idiomas dizem quanto resta, que venceu e oferecem gerar outro', () => {
+    for (const locale of [pt, en]) {
+      const connection = locale.whatsappEvolution.connection
+      expect(connection.qrValidity).toContain('{{seconds}}')
+      expect(connection.qrExpired.length).toBeGreaterThan(0)
+      expect(connection.refreshQr.length).toBeGreaterThan(0)
+    }
+  })
+})
