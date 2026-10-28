@@ -60,6 +60,17 @@ no corpo, a tabela das entregas municipais de Ribeirão Preto.
 **Given** uma caixa da empresa **When** chega o email da Spani **Then** o fluxo abre sozinho
 aguardando confirmação, e as respostas saem dessa caixa.
 
+## Decisões de 28/10/2026 (Anderson)
+
+- O envio leva **somente os XMLs dos CT-e emitidos**, e isso é **regra de configuração** da automação
+  (`xmlKind`), não do código. Hoje o único valor aceito é `cte`.
+- Os **destinatários** são configuração da automação, não vêm fixos nem só do email recebido.
+- A automação tem **interruptor de ligar/desligar** (`enabled`); nasce desligada. Desligada, o email da
+  semana não abre fluxo.
+- Cadastro entregue no PR de staging "automação do fluxo semanal": tabela `contractor_automations`,
+  `GET/POST /contractor-automations` e `PUT /contractor-automations/:id` (`settings.manage`, com
+  auditoria). Falta a página para editá-las e o fluxo que as usa.
+
 ## Requisitos funcionais
 
 - RF1 Cada passo grava confirmação na auditoria (quem, quando, o que foi feito, `traceId`).
