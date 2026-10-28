@@ -200,7 +200,7 @@ export function DriverProfilePage({
 
       <section className={styles.profileCard}>
         <h2 className={styles.profileSectionTitle}>{t('paging.settingTitle')}</h2>
-        <p>{t('paging.settingHelp')}</p>
+        <p className={styles.profileMeta}>{t('paging.settingHelp')}</p>
         <div
           className={styles.stopViewModeChoices}
           role="group"
@@ -209,6 +209,7 @@ export function DriverProfilePage({
           {(['paged', 'list'] as const).map((mode) => (
             <Button
               aria-pressed={stopViewMode.mode === mode}
+              className={styles.eventQueueOpenButton}
               key={mode}
               type="button"
               variant={stopViewMode.mode === mode ? 'default' : 'secondary'}
