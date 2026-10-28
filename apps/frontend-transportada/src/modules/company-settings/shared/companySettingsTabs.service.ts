@@ -29,6 +29,7 @@ export const SETTINGS_PANELS = [
   'businessCalendar',
   'audioTranscription',
   'whatsappEvolution',
+  'contractorAutomations',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -51,6 +52,7 @@ export type SettingsDataSource =
   | 'cargoSettings'
   | 'cargoVolumeFactors'
   | 'companyContacts'
+  | 'contractorAutomations'
   | 'companySettings'
   | 'contractorMailSettings'
   | 'deliveryProofSettings'
@@ -227,6 +229,12 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
    * então ganha aba própria de Configurações, só com `settings.manage`.
    */
   whatsappEvolution: { module: 'company-settings', source: 'whatsappEvolution', tab: 'whatsapp' },
+  /** Spec 285: o fluxo semanal do contratante — painel autocontido, aba própria de Configurações. */
+  contractorAutomations: {
+    module: 'company-settings',
+    source: 'contractorAutomations',
+    tab: 'automations',
+  },
 }
 
 export function settingsPanelsOf(
@@ -269,6 +277,7 @@ export function resolveSettingsDataScope(
     cargoSettings: sources.has('cargoSettings'),
     cargoVolumeFactors: sources.has('cargoVolumeFactors'),
     companyContacts: sources.has('companyContacts'),
+    contractorAutomations: sources.has('contractorAutomations'),
     companySettings: module === 'company-settings' || sources.has('companySettings'),
     contractorMailSettings: sources.has('contractorMailSettings'),
     deliveryProofSettings: sources.has('deliveryProofSettings'),
@@ -304,6 +313,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'businessCalendar',
   'audioTranscription',
   'whatsapp',
+  'automations',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]
