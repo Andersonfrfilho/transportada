@@ -318,3 +318,26 @@ O app do motorista autentica só pelo Keycloak, e o usuário de lá só nasce pe
   num PR de docs logo em seguida.
 - Documentação não é bug crítico: vai para `staging` e sobe para a `main` na próxima promoção, salvo
   pedido do Anderson.
+
+## Incidente de staging em 27/10/2026: `railway config apply` apagou o banco do Keycloak
+
+⚠️ **Nunca rode `railway config apply` sem ler o plano inteiro e sem `0 to destroy` para o que não é seu.**
+O apply de uma branch trabalhando no Evolution (PR #388) executou o plano completo do `.railway/railway.ts`,
+não só a criação dos serviços novos: apagou o serviço `Postgres-keycloak` (banco do Keycloak de staging, com
+o volume), 3 variáveis do worker (`KEYCLOAK_TOKEN_URL`, `WORKER_CLIENT_ID`, `WORKER_CLIENT_SECRET`) e 26 do
+`evolution-api`, e criou um `Postgres-q0RQ` vazio. O Keycloak de staging caiu (`connection to localhost:5432
+refused`). Produção não foi tocada.
+
+Causas: (1) variável não declarada no `env` de um serviço é tratada como "a apagar" (`variables: managed`);
+(2) serviço não declarado no arquivo é apagado; (3) o script de apoio perguntava "só cria?" e aplicava o que o
+plano trouxesse; (4) o plano mostrou 32 destruições e a confirmação foi dada mesmo assim.
+
+Recuperação (só variáveis, sem apply): `KC_DB_URL/USERNAME/PASSWORD` do `keycloak` por referência ao
+`Postgres-q0RQ` (o `--import-realm` recria o realm `transportada` em banco vazio); segredo novo
+`KEYCLOAK_WORKER_CLIENT_SECRET` no `keycloak`, referenciado como `WORKER_CLIENT_SECRET` no worker;
+variáveis do `evolution-api` restauradas. **Perdidos:** usuários e sessões do Keycloak de staging, até o
+próximo `staging-refresh`.
+
+Regra daqui para frente: apply só depois de `railway config plan` com **nenhum** `Delete`; toda variável
+existente de serviço gerenciado entra no arquivo como `preserve()`; script que aplica não vai para a pasta
+`ativada`.
