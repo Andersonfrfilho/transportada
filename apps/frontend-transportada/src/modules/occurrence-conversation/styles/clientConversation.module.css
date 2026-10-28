@@ -118,3 +118,51 @@
 .unread {
   margin-inline-start: auto;
 }
+
+/* Spec 283 T5: o campo de resposta. Mesmos tokens de campo e de aviso das outras conversas. */
+.composer {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+/* O mesmo campo das outras conversas: padding, borda e fundo do design system. */
+.field textarea {
+  width: 100%;
+  padding: var(--field-padding-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: inherit;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.notice,
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.notice {
+  color: var(--color-copper-ink);
+}
+
+.error {
+  color: var(--color-alert);
+}

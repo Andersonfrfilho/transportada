@@ -38,3 +38,17 @@ Gates: `tsc --noEmit`, `bun run test` do frontend (8613 + 1424 passam), eslint e
 
 A largura da terceira coluna é 80 rem (e não 90, como a primeira versão da spec): o contrato de responsividade só admite
 os pontos 40, 64 e 80 rem.
+
+## T5 — responder ao cliente pelo painel
+
+- Campo "Responder por" (números de WhatsApp da faixa, quem respondeu por último primeiro) e mensagem de 1 a 4000
+  caracteres; o número nunca vai no corpo, só o `replyTargetId`; `Idempotency-Key` por mensagem escrita, mantida ao
+  confirmar o número.
+- Primeiro envio a um número pede confirmação do número mascarado (D6); o 409
+  `OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED` abre o mesmo passo. WhatsApp desligado ou fora do ar
+  (`evolution.ready`, 409 `OCCURRENCE_CLIENT_WHATSAPP_OFF`, 503 `WHATSAPP_EVOLUTION_UNAVAILABLE`) desliga o campo e aponta
+  o envio por e-mail. Só quem pode enviar ao cliente (`occurrences.resolve`) vê o campo.
+- `prints/t5-confirmar-numero-dark.png` — o passo de confirmação do número (componente real em harness descartável).
+- Prova: `test/occurrence-conversation/client-reply.contract.ts` (chamada à API, códigos, rascunho, alvos).
+
+Dependência: a rota real vem da T3 (contrato em `contract.md`, PR #398).

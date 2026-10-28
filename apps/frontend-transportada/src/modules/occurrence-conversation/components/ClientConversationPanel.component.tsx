@@ -10,6 +10,7 @@ import type {
 } from '../shared/occurrenceConversation.types'
 import styles from '../styles/clientConversation.module.css'
 import { ClientChannelsStrip } from './ClientChannelsStrip.component'
+import { ClientReplyComposer } from './ClientReplyComposer.component'
 
 function ClientMessage({ message }: Readonly<{ message: OccurrenceConversationMessage }>) {
   const { i18n, t } = useTranslation('occurrenceConversation')
@@ -54,15 +55,20 @@ function ClientMessage({ message }: Readonly<{ message: OccurrenceConversationMe
 
 /**
  * Spec 283 D2/D4: a conversa do cliente na ocorrência — canais abertos no topo e os envios e respostas abaixo.
- * Nesta etapa é só leitura (responder pelo painel é a T5); nasce quando houve o primeiro envio ao cliente (D3).
+ * Responde pelo WhatsApp (T5); nasce quando houve o primeiro envio ao cliente (D3).
  */
 export function ClientConversationPanel({
+  canReply = false,
   conversation,
   hideChannels = false,
+  occurrenceId,
 }: Readonly<{
+  /** Spec 283 T5: quem já pode enviar ao cliente (`occurrences.resolve`) vê o campo de resposta. */
+  canReply?: boolean
   conversation: OccurrenceConversation
   /** A faixa recolhida já mostra os canais no cabeçalho. */
   hideChannels?: boolean
+  occurrenceId: string
 }>) {
   const { t } = useTranslation('occurrenceConversation')
   return (
@@ -77,6 +83,12 @@ export function ClientConversationPanel({
           ))}
         </ol>
       )}
+      {canReply ? (
+        <ClientReplyComposer
+          channels={conversation.client?.channels ?? []}
+          occurrenceId={occurrenceId}
+        />
+      ) : null}
     </div>
   )
 }

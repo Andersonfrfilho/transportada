@@ -133,6 +133,14 @@ export type OccurrenceConversationClient = Readonly<{
     sizeBytes: number
   }) => Promise<Readonly<{ uploadId: string; uploadUrl: string }>>
   /** Spec 274 D1: o chat da contratante vai por e-mail (`mode: 'chat'`), sem diálogo nem assunto. */
+  /** Spec 283 T5 (D6): a resposta do painel ao cliente, só por WhatsApp; o número vai pelo `replyTargetId` da faixa. */
+  sendClientReply: (input: {
+    body: string
+    confirmNumber?: true
+    idempotencyKey: string
+    occurrenceId: string
+    replyTargetId: string
+  }) => Promise<ClientReplyReceipt>
   sendContractorChatMessage: (input: {
     attachmentIds?: readonly string[]
     body: string
@@ -287,10 +295,18 @@ function toClientChannel(value: unknown): readonly OccurrenceClientChannel[] {
   ) {
     return []
   }
+  const target = value.replyTarget
   return [
     {
       kind: value.channel,
       maskedAddress: value.addressMasked,
+      replyTarget:
+        value.channel === 'whatsapp' &&
+        isRecord(target) &&
+        isString(target.id) &&
+        typeof target.confirmed === 'boolean'
+          ? { confirmed: target.confirmed, id: target.id }
+          : null,
       status: value.state as OccurrenceClientChannelStatus,
     },
   ]
@@ -546,6 +562,24 @@ const occurrencePath = (occurrenceId: string): string =>
   `/trip-occurrences/${encodeURIComponent(occurrenceId)}/conversations`
 
 /** O recibo do envio: a API responde `{ data: { conversationMessageId } }`; sem ele (resposta antiga) o envio vale igual. */
+export type ClientReplyReceipt = Readonly<{
+  messageId: string
+  replayed: boolean
+  status: 'failed' | 'sent'
+}>
+
+function readClientReplyReceipt(payload: unknown): ClientReplyReceipt {
+  const data = isRecord(payload) ? payload.data : undefined
+  if (
+    !isRecord(data) ||
+    !isString(data.messageId) ||
+    (data.status !== 'sent' && data.status !== 'failed')
+  ) {
+    throw new OccurrenceConversationRequestError(OCCURRENCE_CONVERSATION_ERROR.RESPONSE_INVALID)
+  }
+  return { messageId: data.messageId, replayed: data.replayed === true, status: data.status }
+}
+
 export type SentMessageReceipt = Readonly<{ conversationMessageId: null | string }>
 
 function readSentMessageReceipt(payload: unknown): SentMessageReceipt {
@@ -762,6 +796,20 @@ export function createOccurrenceConversationClient(
             },
             attachmentIds,
           ),
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        }),
+      )
+    },
+    async sendClientReply({ body, confirmNumber, idempotencyKey, occurrenceId, replyTargetId }) {
+      return readClientReplyReceipt(
+        await requestJson(dependencies, `${occurrencePath(occurrenceId)}/client/messages`, {
+          body: {
+            body,
+            channel: 'whatsapp',
+            ...(confirmNumber === true ? { confirmNumber: true } : {}),
+            replyTargetId,
+          },
           headers: { 'idempotency-key': idempotencyKey },
           method: 'POST',
         }),

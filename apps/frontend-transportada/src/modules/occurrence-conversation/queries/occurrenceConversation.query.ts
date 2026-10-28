@@ -202,6 +202,26 @@ export function useSendContractorPortalMessageMutation(occurrenceId: string) {
   })
 }
 
+/** Spec 283 T5: a resposta do painel ao cliente por WhatsApp; a conversa e o feed voltam a ser lidos. */
+export function useSendClientReplyMutation(occurrenceId: string) {
+  const queryClient = useQueryClient()
+  const client = getOccurrenceConversationClient()
+  return useMutation({
+    mutationFn: (
+      input: Readonly<{
+        body: string
+        confirmNumber?: true
+        idempotencyKey: string
+        replyTargetId: string
+      }>,
+    ) => client.sendClientReply({ ...input, occurrenceId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    },
+  })
+}
+
 /** Spec 248 T4.6: o boleto da contratante vai ao motorista; as duas conversas e o feed relêem. */
 export function useDeliverContractorReplyToDriverMutation(occurrenceId: string) {
   const queryClient = useQueryClient()

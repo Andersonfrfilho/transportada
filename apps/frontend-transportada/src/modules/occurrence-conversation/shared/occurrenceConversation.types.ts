@@ -141,8 +141,13 @@ export type OccurrenceClientDelivery = Readonly<{
 export type OccurrenceClientChannel = Readonly<{
   kind: 'email' | 'whatsapp'
   maskedAddress: string
+  /** Spec 283 T5: "Responder por". Só no WhatsApp; `null` no e-mail (o cliente não responde por e-mail). */
+  replyTarget: null | OccurrenceClientReplyTarget
   status: OccurrenceClientChannelStatus
 }>
+
+/** O destino opaco da resposta: o painel nunca vê o número inteiro; `confirmed` é o D6 (primeiro envio confirma o número). */
+export type OccurrenceClientReplyTarget = Readonly<{ confirmed: boolean; id: string }>
 
 export const OCCURRENCE_CLIENT_CHANNEL_STATUSES = [
   'queued',
