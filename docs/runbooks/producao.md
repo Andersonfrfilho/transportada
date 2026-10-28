@@ -348,6 +348,14 @@ Conferido em 28/10/2026 (revisão de `main...staging`: PRs #388, #398, #399, #40
   `planetiler:latest`).
 - **Pendências do Anderson antes de ligar WhatsApp em qualquer ambiente:** testar o "Criar e conectar" com o Evolution real de staging (o ADR 0112 já foi aceito em 28/10).
 
+**Resultado (28/10/2026, segunda promoção do dia):** PR #408 (merge 9b1761a). O deploy de produção ficou verde só na
+terceira tentativa dos jobs que falharam. As duas primeiras caíram em "Reconciliar realm" com `curl 502`: o Keycloak
+era redeployado e o reconcile pedia o token antes de ele terminar de subir (o log mostrava JGroups tentando falar com
+o nó antigo). Na terceira, com o Keycloak já estável (script de saúde: discovery 200, certs 200, token 401), passaram
+`deploy-api` (incluindo "Conferir migrations aplicadas" e "Conferir as origens do frontend"), `deploy-services`
+(worker e cron), `deploy-frontend`, `deploy-driver` e `mark-deployed`. Correção pendente: o `keycloak-reconcile.sh`
+deve esperar o Keycloak responder antes de pedir o token.
+
 ### Keycloak de produção: checar a saúde (somente leitura)
 
 Script `producao-keycloak-saude.sh` (na pasta `ativada` do Anderson, fora do repositório): mostra os deploys e as
