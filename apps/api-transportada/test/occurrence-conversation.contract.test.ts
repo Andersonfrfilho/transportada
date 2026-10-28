@@ -52,3 +52,4 @@ import './occurrence-conversation/forward-contractor-reply-by-whatsapp.contract.
 import './occurrence-conversation/client-email-detection.contract.js'
 import './occurrence-conversation/client-conversation-policy.contract.js'
 import './occurrence-conversation/client-log-privacy.contract.js'
+import './occurrence-conversation/send-client-reply.contract.js'

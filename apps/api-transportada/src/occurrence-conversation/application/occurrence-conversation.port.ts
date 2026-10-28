@@ -63,6 +63,8 @@ export type OccurrenceConversationMessageView = {
   readonly channel: OccurrenceConversationChannel
   /** Spec 283: presente só na mensagem enviada da conversa do cliente. */
   readonly clientDelivery?: ClientDeliveryView
+  /** Spec 283 T5: a resposta do painel ao cliente (sem entrega) leva só o destino mascarado. */
+  readonly recipientMasked?: string
   /**
    * Spec 267 RF8: quem foi em cópia no e-mail de saída — nome (do perfil, quando acha) e e-mail mascarado; o endereço
    * real nunca sai. Ausente na mensagem sem cópia.

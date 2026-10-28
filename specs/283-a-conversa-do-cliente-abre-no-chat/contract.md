@@ -140,14 +140,16 @@ que não conhece, então a API pode ir antes do painel.
 ```
 
 - **Confirmação do número (D6).** Se `replyTarget.confirmed` é `false` e o corpo não traz `confirmNumber: true`, a API
-  responde `409 OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED` com `details: { numberMasked: "+55 ••••1234" }` e não
+  responde `409 OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED` com
+  `details: [{ field: "confirmNumber", message: "+55 ••••1234" }]` (o número mascarado vai no `message`) e não
   envia nada. O painel mostra o número mascarado, o operador confirma e reenvia com a mesma `Idempotency-Key`.
 - **Sucesso:** `202 { "data": { "messageId": "uuid", "status": "sent" | "failed", "replayed": false } }`. A mensagem
   entra na conversa do cliente com `direction: "outbound"`, `channel: "whatsapp"`, `author` do operador (como hoje) e
-  `clientDelivery: null`; o destino vai em `recipientMasked` na própria mensagem. `delivered`/`read` chegam depois pelo
-  provedor, como nas entregas. Uma resposta do cliente citando esta mensagem entra na mesma conversa (RF3).
+  sem `clientDelivery`; o destino vai em `recipientMasked` na própria mensagem. Recusa do provedor responde `202` com
+  `status: "failed"`. `delivered`/`read` chegam depois pelo provedor, como nas entregas. Uma resposta do cliente citando esta mensagem entra na mesma conversa (RF3).
 - **WhatsApp desligado (D14 da 281):** `409 OCCURRENCE_CLIENT_WHATSAPP_OFF` (canal do cliente desligado na empresa) ou
-  `503 WHATSAPP_EVOLUTION_UNAVAILABLE` (instância fora do ar, como na 281 T5). Nada é gravado. O painel deixa o composer desligado,
+  `503 WHATSAPP_EVOLUTION_UNAVAILABLE` (instância fora do ar, como na 281 T5); sem Evolution configurado ou desativado
+  saem os mesmos `WHATSAPP_EVOLUTION_NOT_CONFIGURED` e `WHATSAPP_EVOLUTION_DISABLED` da 281. Nada é gravado. O painel deixa o composer desligado,
   avisa e oferece o e-mail guardado pela rota da 279. Para saber antes de digitar, o painel lê
   `GET /v1/trip-occurrences/:id/contractor-reply/whatsapp-options` (`evolution.ready`), que já existe.
 - `404` para ocorrência de outra empresa, ocorrência sem conversa do cliente ou `replyTargetId` que não é desta conversa

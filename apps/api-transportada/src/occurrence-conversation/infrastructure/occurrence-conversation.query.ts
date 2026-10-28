@@ -355,9 +355,12 @@ async function readCopyNames(
 function toClientDelivery(
   row: MessageRow,
   driverUserIds: ReadonlySet<string>,
-): Pick<OccurrenceConversationMessageView, 'clientDelivery'> {
-  if (row.clientDeliveryId === null || row.recipientAddress === null) return {}
+): Pick<OccurrenceConversationMessageView, 'clientDelivery' | 'recipientMasked'> {
+  if (row.recipientAddress === null) return {}
   const channel: ClientConversationChannel = row.channel === 'email' ? 'email' : 'whatsapp'
+  if (row.clientDeliveryId === null) {
+    return { recipientMasked: maskClientAddress(channel, row.recipientAddress) }
+  }
   return {
     clientDelivery: {
       actorKind:
@@ -410,7 +413,12 @@ async function readClientView(
             address,
             channel: row.channel,
             createdAt: row.createdAt.toISOString(),
+            deliveryId: row.clientDeliveryId,
             direction: row.direction,
+            panelReply:
+              row.direction === 'outbound' &&
+              row.clientDeliveryId === null &&
+              row.authorUserId !== null,
             status: row.status,
           },
         ]

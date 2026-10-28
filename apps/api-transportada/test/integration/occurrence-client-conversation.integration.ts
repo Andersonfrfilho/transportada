@@ -6,6 +6,9 @@
  * o reenvio reaproveitam a conversa (RF2); os estados avançam pela entrega e pelo provedor (RF5); a leitura só leva a
  * conversa a quem pode enviar ao cliente e nunca o destino em claro (RF7); sem cliente cadastrado, o envio segue e a
  * conversa não nasce (D3).
+ *
+ * Spec 283 T3: a resposta do WhatsApp que cita o envio, do número que o recebeu, entra na conversa do cliente (RF3); sem
+ * citação vai para "não atribuídas", que oferece a conversa do cliente para vincular.
  */
 import { describe, expect } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
@@ -32,6 +35,17 @@ import {
   createDrizzleContractorReplyWhatsAppCompletion,
   createDrizzleContractorReplyWhatsAppUnitOfWork,
 } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-reply-whatsapp.repository.js'
+import { createRateLimiter } from '../../src/http/rate-limiter.service.js'
+import { createEvolutionConversationInbound } from '../../src/occurrence-conversation/application/evolution-conversation-inbound.service.js'
+import { createAssignUnassignedMessageUseCase } from '../../src/occurrence-conversation/application/occurrence-conversation-unassigned.use-case.js'
+import { createDrizzleEvolutionConversationInboundRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-evolution-conversation-inbound.repository.js'
+import {
+  createDrizzleOccurrenceConversationUnassignedReader,
+  createDrizzleOccurrenceConversationUnassignedUnitOfWork,
+} from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
+import type { ApiLogger } from '../../src/shared/api.types.js'
+import { createSendClientReplyUseCase } from '../../src/occurrence-conversation/application/send-client-reply.use-case.js'
+import { createDrizzleClientReplyRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-client-reply.repository.js'
 import { applyProviderMessageStatus } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-message-status.repository.js'
 import { findOccurrenceConversations } from '../../src/occurrence-conversation/infrastructure/occurrence-conversation.query.js'
 import {
@@ -446,6 +460,285 @@ describe('a conversa do cliente nasce no envio (spec 283 T2)', () => {
         expect(outcome.results[0]?.kind).toBe('sent')
         expect(providerIds).toHaveLength(1)
         expect(await clientConversations(database, companyId)).toEqual([])
+      })
+    },
+    90_000,
+  )
+})
+
+function createInbound(database: TestDatabase) {
+  const silent = () => undefined
+  return createEvolutionConversationInbound({
+    applyStatus: async () => undefined,
+    clock: () => new Date(),
+    inbound: createDrizzleEvolutionConversationInboundRepository(database.db),
+    logger: { error: silent, info: silent, warn: silent } as unknown as ApiLogger,
+    rateLimiter: createRateLimiter(),
+  })
+}
+
+describe('a resposta do cliente entra na conversa dele (spec 283 T3)', () => {
+  testWithPostgres(
+    'citando o envio, do número que recebeu, entra na conversa do cliente e marca "respondeu" (RF3)',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, contacts, providerIds, seeded, whatsapp } = await prepare(database)
+        await whatsapp.forward(whatsappInput(seeded, { contactIds: [contacts?.savedId ?? ''] }))
+
+        const outcome = await createInbound(database).receiveMessage({
+          companyId,
+          message: {
+            /** O mesmo celular sem o nono dígito: a chave do WhatsApp casa as duas grafias. */
+            from: '551188887777',
+            providerMessageId: 'EVO-IN-283',
+            replyToProviderMessageId: providerIds[0] ?? '',
+            text: 'Recebi, obrigado',
+          },
+        })
+        expect(outcome).toBe('conversation')
+
+        const view = await findOccurrenceConversations(database.db, {
+          companyId,
+          includeClient: true,
+          occurrenceId: seeded.occurrenceId,
+          userId: seeded.company.userId,
+        })
+        const client = view?.conversations.find((entry) => entry.participant === 'client')
+        const driver = view?.conversations.find((entry) => entry.participant === 'driver')
+        expect(client?.messages.at(-1)).toMatchObject({
+          author: { addressMasked: '+55 ••••7777', kind: 'client' },
+          bodyText: 'Recebi, obrigado',
+          direction: 'inbound',
+        })
+        expect(client?.unreadCount).toBe(1)
+        expect(client?.client?.channels).toMatchObject([
+          { addressMasked: '+55 ••••7777', state: 'replied' },
+        ])
+        expect(driver?.messages.some((message) => message.direction === 'inbound')).toBe(false)
+      })
+    },
+    90_000,
+  )
+
+  testWithPostgres(
+    'sem citação vai para não atribuídas, com a conversa do cliente para vincular',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, contacts, seeded, whatsapp } = await prepare(database)
+        await whatsapp.forward(whatsappInput(seeded, { contactIds: [contacts?.savedId ?? ''] }))
+
+        const outcome = await createInbound(database).receiveMessage({
+          companyId,
+          message: {
+            from: '5511988887777',
+            providerMessageId: 'EVO-IN-283-B',
+            replyToProviderMessageId: null,
+            text: 'Qual o vencimento?',
+          },
+        })
+        expect(outcome).toBe('unassigned')
+
+        const [conversation] = await clientConversations(database, companyId)
+        const pending = await createDrizzleOccurrenceConversationUnassignedReader(
+          database.db,
+        ).listPending({ companyId })
+        expect(pending).toHaveLength(1)
+        expect(pending[0]?.candidates).toMatchObject([
+          {
+            contractorName: 'Mercado Beta',
+            conversationId: conversation?.id,
+            occurrenceId: seeded.occurrenceId,
+            occurrenceKind: 'document',
+            participant: 'client',
+          },
+        ])
+
+        const assigned = await createAssignUnassignedMessageUseCase({
+          clock: () => new Date(),
+          unitOfWork: createDrizzleOccurrenceConversationUnassignedUnitOfWork(database.db),
+        }).assign({
+          companyId,
+          conversationId: conversation?.id ?? '',
+          unassignedId: pending[0]?.id ?? '',
+          userId: seeded.company.userId,
+        })
+        expect(assigned.conversationId).toBe(conversation?.id ?? '')
+        const messages = await database.db
+          .select({
+            bodyText: occurrenceConversationMessages.bodyText,
+            direction: occurrenceConversationMessages.direction,
+          })
+          .from(occurrenceConversationMessages)
+          .where(eq(occurrenceConversationMessages.id, assigned.messageId))
+        expect(messages).toEqual([{ bodyText: 'Qual o vencimento?', direction: 'inbound' }])
+      })
+    },
+    90_000,
+  )
+
+  testWithPostgres(
+    'número que nunca recebeu nem é contato do cliente não tem a conversa do cliente como candidata',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, contacts, seeded, whatsapp } = await prepare(database)
+        await whatsapp.forward(whatsappInput(seeded, { contactIds: [contacts?.savedId ?? ''] }))
+        await createInbound(database).receiveMessage({
+          companyId,
+          message: {
+            from: '5521977776666',
+            providerMessageId: 'EVO-IN-283-C',
+            replyToProviderMessageId: null,
+            text: 'oi',
+          },
+        })
+        const pending = await createDrizzleOccurrenceConversationUnassignedReader(
+          database.db,
+        ).listPending({ companyId })
+        expect(pending).toHaveLength(1)
+        expect(pending[0]?.candidates).toEqual([])
+      })
+    },
+    90_000,
+  )
+})
+
+function createClientReply(database: TestDatabase) {
+  const sent: { body: string; number: string }[] = []
+  const silent = () => undefined
+  const useCase = createSendClientReplyUseCase({
+    logger: { warn: silent },
+    repository: createDrizzleClientReplyRepository(database.db),
+    sender: {
+      isConnected: async () => true,
+      sendText: async ({ body, number }) => {
+        sent.push({ body, number })
+        return { providerMessageId: `wamid-reply-${sent.length}` }
+      },
+    },
+  })
+  return { sent, useCase }
+}
+
+describe('o painel responde ao cliente (spec 283 T5)', () => {
+  testWithPostgres(
+    'pelo alvo da faixa: confirma no primeiro envio, grava na conversa do cliente e não repete a chave (D6)',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, contacts, seeded, whatsapp } = await prepare(database)
+        await whatsapp.forward(whatsappInput(seeded, { contactIds: [contacts?.savedId ?? ''] }))
+        const read = () =>
+          findOccurrenceConversations(database.db, {
+            companyId,
+            includeClient: true,
+            occurrenceId: seeded.occurrenceId,
+            userId: seeded.company.userId,
+          }).then((view) => view?.conversations.find((entry) => entry.participant === 'client'))
+
+        const before = await read()
+        const target = before?.client?.channels[0]?.replyTarget
+        expect(target).toMatchObject({ confirmed: false })
+        const { sent, useCase } = createClientReply(database)
+        const input = {
+          actorUserId: seeded.company.userId,
+          bodyText: 'Bom dia, o boleto segue acima.',
+          companyId,
+          confirmNumber: false,
+          correlationId: 'correlation-283-t5',
+          idempotencyKey: 'client-reply-283-0001',
+          occurrenceId: seeded.occurrenceId,
+          replyTargetId: target?.id ?? '',
+        }
+
+        await expect(useCase.send(input)).rejects.toMatchObject({
+          code: 'OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED',
+        })
+        expect(sent).toEqual([])
+
+        const result = await useCase.send({ ...input, confirmNumber: true })
+        expect(result).toMatchObject({ replayed: false, status: 'sent' })
+        expect(await useCase.send({ ...input, confirmNumber: true })).toEqual({
+          ...result,
+          replayed: true,
+        })
+        expect(sent).toEqual([{ body: input.bodyText, number: SAVED_NUMBER }])
+
+        const after = await read()
+        expect(after?.messages.at(-1)).toMatchObject({
+          author: { kind: 'operation' },
+          bodyText: input.bodyText,
+          channel: 'whatsapp',
+          direction: 'outbound',
+          id: result.messageId,
+          recipientMasked: '+55 ••••7777',
+          status: 'sent',
+        })
+        expect(after?.messages.at(-1)?.clientDelivery).toBeUndefined()
+        expect(after?.client?.channels[0]?.replyTarget).toEqual({
+          confirmed: true,
+          id: target?.id ?? '',
+        })
+        expect(JSON.stringify(after)).not.toContain('988887777')
+
+        /** Já confirmado: o segundo envio dispensa `confirmNumber`. */
+        await useCase.send({ ...input, idempotencyKey: 'client-reply-283-0002' })
+        expect(sent).toHaveLength(2)
+      })
+    },
+    90_000,
+  )
+
+  testWithPostgres(
+    'a resposta do cliente citando a mensagem do painel entra na conversa dele; o lido avança pelo provedor',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, contacts, seeded, whatsapp } = await prepare(database)
+        await whatsapp.forward(whatsappInput(seeded, { contactIds: [contacts?.savedId ?? ''] }))
+        const [conversation] = await clientConversations(database, companyId)
+        const view = await findOccurrenceConversations(database.db, {
+          companyId,
+          includeClient: true,
+          occurrenceId: seeded.occurrenceId,
+          userId: seeded.company.userId,
+        })
+        const target = view?.conversations.find((entry) => entry.participant === 'client')?.client
+          ?.channels[0]?.replyTarget
+        const { useCase } = createClientReply(database)
+        await useCase.send({
+          actorUserId: seeded.company.userId,
+          bodyText: 'Conseguiu abrir o boleto?',
+          companyId,
+          confirmNumber: true,
+          correlationId: 'correlation-283-t5b',
+          idempotencyKey: 'client-reply-283-0003',
+          occurrenceId: seeded.occurrenceId,
+          replyTargetId: target?.id ?? '',
+        })
+
+        await applyProviderMessageStatus(database.db, {
+          at: new Date(),
+          channel: 'whatsapp',
+          companyId,
+          incoming: 'read',
+          providerMessageId: 'wamid-reply-1',
+        })
+        const outcome = await createInbound(database).receiveMessage({
+          companyId,
+          message: {
+            from: '5511988887777',
+            providerMessageId: 'EVO-IN-283-T5',
+            replyToProviderMessageId: 'wamid-reply-1',
+            text: 'Consegui sim',
+          },
+        })
+        expect(outcome).toBe('conversation')
+
+        const messages = await clientMessages(database, conversation?.id ?? '')
+        expect(
+          messages.find((message) => message.providerMessageId === 'wamid-reply-1'),
+        ).toMatchObject({
+          status: 'read',
+        })
+        expect(messages.some((message) => message.bodyText === 'Consegui sim')).toBe(true)
       })
     },
     90_000,
