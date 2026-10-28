@@ -105,6 +105,9 @@ export default defineRailway((ctx) => {
       /** Spec 268: o remetente do e-mail sandbox da contratante (o mesmo do worker); só é lido com o modo ligado. */
       EMAIL_FROM: preserve(),
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
+      /** Evolution (spec 281): só staging tem o serviço; a chave é referência à chave global dele. */
+      EVOLUTION_BASE_URL: preserve(),
+      EVOLUTION_GLOBAL_API_KEY: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       FLEET_VEHICLE_CATALOG_URL: preserve(),
       FRONTEND_ORIGIN: preserve(),

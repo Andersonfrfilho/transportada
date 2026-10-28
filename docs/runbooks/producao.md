@@ -373,3 +373,11 @@ confirmou em 28/10 que produção já usa `v3`, e o `railway.ts` declara `v3` no
 Regra daqui para frente: apply só depois de `railway config plan` com **nenhum** `Delete`; toda variável
 existente de serviço gerenciado entra no arquivo como `preserve()`; script que aplica não vai para a pasta
 `ativada`.
+
+### Evolution em staging: variáveis do `api` (28/10/2026)
+
+O `api` de staging recebe `EVOLUTION_BASE_URL=http://evolution-api.railway.internal:8080` e
+`EVOLUTION_GLOBAL_API_KEY=${{evolution-api.AUTHENTICATION_API_KEY}}` (referência: a chave global nunca é
+copiada nem impressa). A API cria a instância pelo portal (PR #404); o script
+`evolution-staging-instancia.sh` não é mais necessário. As duas variáveis constam no `railway.ts` como
+`preserve()` para um apply não as apagar.
