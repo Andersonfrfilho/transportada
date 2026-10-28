@@ -48,7 +48,13 @@ export type ClientReplyFailure =
 export function resolveClientReplyFailure(error: unknown): ClientReplyFailure {
   const code = error instanceof Error ? error.message : ''
   if (code === 'OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED') return 'confirmation'
-  if (code === 'OCCURRENCE_CLIENT_WHATSAPP_OFF') return 'whatsappOff'
+  if (
+    code === 'OCCURRENCE_CLIENT_WHATSAPP_OFF' ||
+    code === 'WHATSAPP_EVOLUTION_NOT_CONFIGURED' ||
+    code === 'WHATSAPP_EVOLUTION_DISABLED'
+  ) {
+    return 'whatsappOff'
+  }
   if (code === 'WHATSAPP_EVOLUTION_UNAVAILABLE') return 'unavailable'
   if (code === 'NOT_FOUND' || code === 'OCCURRENCE_CLIENT_CONVERSATION_NOT_FOUND') return 'notFound'
   return 'generic'

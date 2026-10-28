@@ -281,6 +281,7 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
     status: value.status,
     statusTimes,
     ...(clientDelivery === undefined ? {} : { clientDelivery }),
+    ...(isString(value.recipientMasked) ? { recipientMasked: value.recipientMasked } : {}),
     ...(systemNotice === undefined ? {} : { systemNotice }),
   }
 }

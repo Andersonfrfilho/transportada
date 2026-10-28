@@ -72,6 +72,8 @@ describe('cada código da rota vira um aviso', () => {
     expect(code('OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED')).toBe('confirmation')
     expect(code('OCCURRENCE_CLIENT_WHATSAPP_OFF')).toBe('whatsappOff')
     expect(code('WHATSAPP_EVOLUTION_UNAVAILABLE')).toBe('unavailable')
+    expect(code('WHATSAPP_EVOLUTION_NOT_CONFIGURED')).toBe('whatsappOff')
+    expect(code('WHATSAPP_EVOLUTION_DISABLED')).toBe('whatsappOff')
     expect(code('OCCURRENCE_CONVERSATION_REQUEST_FAILED')).toBe('generic')
     expect(resolveClientReplyFailure('texto')).toBe('generic')
   })

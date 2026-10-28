@@ -236,6 +236,19 @@ describe('a resposta da API com a conversa do cliente', () => {
             status: null,
             statusTimes: {},
           },
+          {
+            attachments: [],
+            author: { kind: 'operation', name: 'Ana', userId: 'u1' },
+            bodyText: 'Bom dia, o boleto segue acima.',
+            channel: 'whatsapp',
+            clientDelivery: null,
+            createdAt: '2026-10-27T10:20:00.000Z',
+            direction: 'outbound',
+            id: 'm3',
+            recipientMasked: '+55 ••••1234',
+            status: 'sent',
+            statusTimes: {},
+          },
         ],
       }),
     )
@@ -260,6 +273,9 @@ describe('a resposta da API com a conversa do cliente', () => {
     })
     expect(client?.messages[0]?.clientDelivery?.documentName).toBe('boleto-nf-1234.pdf')
     expect(client?.messages[1]?.author).toEqual({ addressMasked: '+55 ••••1234', kind: 'client' })
+    /** A resposta do painel vem sem `clientDelivery` e com o destino mascarado na própria mensagem. */
+    expect(client?.messages[2]?.clientDelivery).toBeUndefined()
+    expect(client?.messages[2]?.recipientMasked).toBe('+55 ••••1234')
   })
 
   test('sem `client` na resposta, a conversa do cliente vem com lista vazia', async () => {

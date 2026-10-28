@@ -23,12 +23,15 @@ function ClientMessage({ message }: Readonly<{ message: OccurrenceConversationMe
   }
   const outbound = message.direction === 'outbound'
   const delivery = message.clientDelivery
+  const recipient = delivery?.recipientMasked ?? message.recipientMasked
   const author =
     message.author.kind === 'client'
       ? message.author.addressMasked
-      : delivery === undefined
-        ? t('client.fromUs')
-        : (delivery.actorName ?? t('client.bySystem'))
+      : delivery !== undefined
+        ? (delivery.actorName ?? t('client.bySystem'))
+        : message.author.kind === 'operation'
+          ? (message.author.name ?? t('client.fromUs'))
+          : t('client.fromUs')
   const body =
     message.bodyText.trim() !== ''
       ? message.bodyText
@@ -42,7 +45,7 @@ function ClientMessage({ message }: Readonly<{ message: OccurrenceConversationMe
         {t(`channel.${message.channel === 'whatsapp' ? 'whatsapp' : 'email'}`)}
         {' · '}
         {author}
-        {delivery === undefined ? '' : ` → ${delivery.recipientMasked}`}
+        {recipient === undefined ? '' : ` → ${recipient}`}
       </span>
       <span>{body}</span>
       <span className={styles.meta}>
