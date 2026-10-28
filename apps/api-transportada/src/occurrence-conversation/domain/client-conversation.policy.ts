@@ -91,6 +91,10 @@ export type ClientChannelMessage = {
   readonly direction: 'inbound' | 'outbound'
   /** Só a enviada tem estado. */
   readonly status: null | OccurrenceConversationMessageStatus
+  /** A entrega que a mensagem conta (envio do boleto); `null` na resposta do painel e na recebida. */
+  readonly deliveryId?: null | string
+  /** T5 (D6): enviada pelo painel na conversa do cliente, sem entrega — o número já foi confirmado. */
+  readonly panelReply?: boolean
 }
 
 export type ClientChannelView = {
@@ -99,6 +103,8 @@ export type ClientChannelView = {
   /** A última atividade do canal (envio ou resposta), ISO. */
   readonly lastActivityAt: string
   readonly state: ClientChannelState
+  /** T5 (D6): "Responder por". Só no WhatsApp com entrega; o `id` é a primeira entrega ao número, nunca o número. */
+  readonly replyTarget: null | { readonly confirmed: boolean; readonly id: string }
 }
 
 function toChannelState(status: OccurrenceConversationMessageStatus | null): ClientChannelState {
@@ -128,7 +134,9 @@ export function resolveClientChannels(input: {
     {
       address: string
       channel: ClientConversationChannel
+      confirmed: boolean
       first: string
+      firstDeliveryId: null | string
       last: string
       lastOutbound: ClientChannelMessage | null
       lastInboundAt: null | string
@@ -143,7 +151,9 @@ export function resolveClientChannels(input: {
     const entry = byAddress.get(key) ?? {
       address: message.address,
       channel: message.channel,
+      confirmed: false,
       first: message.createdAt,
+      firstDeliveryId: null,
       last: message.createdAt,
       lastInboundAt: null,
       lastOutbound: null,
@@ -151,6 +161,8 @@ export function resolveClientChannels(input: {
     entry.last = message.createdAt
     if (message.direction === 'outbound') entry.lastOutbound = message
     else entry.lastInboundAt = message.createdAt
+    entry.firstDeliveryId ??= message.deliveryId ?? null
+    if (message.panelReply === true) entry.confirmed = true
     byAddress.set(key, entry)
   }
   return (
@@ -168,8 +180,52 @@ export function resolveClientChannels(input: {
           addressMasked: maskClientAddress(entry.channel, entry.address),
           channel: entry.channel,
           lastActivityAt: entry.last,
+          replyTarget:
+            entry.channel === 'whatsapp' && entry.firstDeliveryId !== null
+              ? { confirmed: entry.confirmed, id: entry.firstDeliveryId }
+              : null,
           state: repliedAfterSend ? 'replied' : toChannelState(entry.lastOutbound?.status ?? null),
         }
       })
   )
+}
+
+/**
+ * T5 (D6): o número de "Responder por" a partir do `replyTargetId` da faixa. Só um canal de WhatsApp que ainda está
+ * na faixa (contato no cadastro) responde; outro id, de outra conversa ou de contato removido, é `null` (a rota
+ * responde 404 sem dizer qual).
+ */
+export function resolveClientReplyTarget(input: {
+  readonly contacts: readonly {
+    readonly address: string
+    readonly channel: ClientConversationChannel
+  }[]
+  readonly messages: readonly ClientChannelMessage[]
+  readonly replyTargetId: string
+}): null | { readonly address: string; readonly confirmed: boolean } {
+  const source = input.messages.find(
+    (message) =>
+      message.channel === 'whatsapp' &&
+      message.direction === 'outbound' &&
+      message.deliveryId === input.replyTargetId,
+  )
+  if (source === undefined) return null
+  const key = clientAddressKey('whatsapp', source.address)
+  const channel = resolveClientChannels(input).find(
+    (entry) =>
+      entry.channel === 'whatsapp' &&
+      entry.replyTarget !== null &&
+      entry.replyTarget.id === input.replyTargetId,
+  )
+  if (channel?.replyTarget === undefined || channel.replyTarget === null) return null
+  const latest = [...input.messages]
+    .filter(
+      (message) =>
+        message.channel === 'whatsapp' &&
+        message.direction === 'outbound' &&
+        clientAddressKey('whatsapp', message.address) === key,
+    )
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+    .at(-1)
+  return { address: latest?.address ?? source.address, confirmed: channel.replyTarget.confirmed }
 }

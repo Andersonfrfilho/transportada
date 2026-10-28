@@ -86,6 +86,21 @@ export function resolveEvolutionAttribution(
     }
   }
 
+  /** Spec 283 T5: a citada é a resposta do painel na conversa do cliente (sem aviso nem `replyTo` de participante). */
+  if (
+    replyTo === null &&
+    input.replyToClientConversationId !== null &&
+    input.replyToRecipientPhoneKey !== null &&
+    input.replyToRecipientPhoneKey === input.senderPhoneKey
+  ) {
+    return {
+      conversationId: input.replyToClientConversationId,
+      driverUserId: null,
+      kind: 'conversation',
+      via: 'recipient_reply',
+    }
+  }
+
   if (optedInContractorIds.size === 0) {
     return {
       kind: 'unassigned',

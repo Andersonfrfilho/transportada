@@ -44,6 +44,8 @@ import {
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
 } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
 import type { ApiLogger } from '../../src/shared/api.types.js'
+import { createSendClientReplyUseCase } from '../../src/occurrence-conversation/application/send-client-reply.use-case.js'
+import { createDrizzleClientReplyRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-client-reply.repository.js'
 import { applyProviderMessageStatus } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-message-status.repository.js'
 import { findOccurrenceConversations } from '../../src/occurrence-conversation/infrastructure/occurrence-conversation.query.js'
 import {
@@ -594,6 +596,149 @@ describe('a resposta do cliente entra na conversa dele (spec 283 T3)', () => {
         ).listPending({ companyId })
         expect(pending).toHaveLength(1)
         expect(pending[0]?.candidates).toEqual([])
+      })
+    },
+    90_000,
+  )
+})
+
+function createClientReply(database: TestDatabase) {
+  const sent: { body: string; number: string }[] = []
+  const silent = () => undefined
+  const useCase = createSendClientReplyUseCase({
+    logger: { warn: silent },
+    repository: createDrizzleClientReplyRepository(database.db),
+    sender: {
+      isConnected: async () => true,
+      sendText: async ({ body, number }) => {
+        sent.push({ body, number })
+        return { providerMessageId: `wamid-reply-${sent.length}` }
+      },
+    },
+  })
+  return { sent, useCase }
+}
+
+describe('o painel responde ao cliente (spec 283 T5)', () => {
+  testWithPostgres(
+    'pelo alvo da faixa: confirma no primeiro envio, grava na conversa do cliente e não repete a chave (D6)',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, contacts, seeded, whatsapp } = await prepare(database)
+        await whatsapp.forward(whatsappInput(seeded, { contactIds: [contacts?.savedId ?? ''] }))
+        const read = () =>
+          findOccurrenceConversations(database.db, {
+            companyId,
+            includeClient: true,
+            occurrenceId: seeded.occurrenceId,
+            userId: seeded.company.userId,
+          }).then((view) => view?.conversations.find((entry) => entry.participant === 'client'))
+
+        const before = await read()
+        const target = before?.client?.channels[0]?.replyTarget
+        expect(target).toMatchObject({ confirmed: false })
+        const { sent, useCase } = createClientReply(database)
+        const input = {
+          actorUserId: seeded.company.userId,
+          bodyText: 'Bom dia, o boleto segue acima.',
+          companyId,
+          confirmNumber: false,
+          correlationId: 'correlation-283-t5',
+          idempotencyKey: 'client-reply-283-0001',
+          occurrenceId: seeded.occurrenceId,
+          replyTargetId: target?.id ?? '',
+        }
+
+        await expect(useCase.send(input)).rejects.toMatchObject({
+          code: 'OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED',
+        })
+        expect(sent).toEqual([])
+
+        const result = await useCase.send({ ...input, confirmNumber: true })
+        expect(result).toMatchObject({ replayed: false, status: 'sent' })
+        expect(await useCase.send({ ...input, confirmNumber: true })).toEqual({
+          ...result,
+          replayed: true,
+        })
+        expect(sent).toEqual([{ body: input.bodyText, number: SAVED_NUMBER }])
+
+        const after = await read()
+        expect(after?.messages.at(-1)).toMatchObject({
+          author: { kind: 'operation' },
+          bodyText: input.bodyText,
+          channel: 'whatsapp',
+          direction: 'outbound',
+          id: result.messageId,
+          recipientMasked: '+55 ••••7777',
+          status: 'sent',
+        })
+        expect(after?.messages.at(-1)?.clientDelivery).toBeUndefined()
+        expect(after?.client?.channels[0]?.replyTarget).toEqual({
+          confirmed: true,
+          id: target?.id ?? '',
+        })
+        expect(JSON.stringify(after)).not.toContain('988887777')
+
+        /** Já confirmado: o segundo envio dispensa `confirmNumber`. */
+        await useCase.send({ ...input, idempotencyKey: 'client-reply-283-0002' })
+        expect(sent).toHaveLength(2)
+      })
+    },
+    90_000,
+  )
+
+  testWithPostgres(
+    'a resposta do cliente citando a mensagem do painel entra na conversa dele; o lido avança pelo provedor',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, contacts, seeded, whatsapp } = await prepare(database)
+        await whatsapp.forward(whatsappInput(seeded, { contactIds: [contacts?.savedId ?? ''] }))
+        const [conversation] = await clientConversations(database, companyId)
+        const view = await findOccurrenceConversations(database.db, {
+          companyId,
+          includeClient: true,
+          occurrenceId: seeded.occurrenceId,
+          userId: seeded.company.userId,
+        })
+        const target = view?.conversations.find((entry) => entry.participant === 'client')?.client
+          ?.channels[0]?.replyTarget
+        const { useCase } = createClientReply(database)
+        await useCase.send({
+          actorUserId: seeded.company.userId,
+          bodyText: 'Conseguiu abrir o boleto?',
+          companyId,
+          confirmNumber: true,
+          correlationId: 'correlation-283-t5b',
+          idempotencyKey: 'client-reply-283-0003',
+          occurrenceId: seeded.occurrenceId,
+          replyTargetId: target?.id ?? '',
+        })
+
+        await applyProviderMessageStatus(database.db, {
+          at: new Date(),
+          channel: 'whatsapp',
+          companyId,
+          incoming: 'read',
+          providerMessageId: 'wamid-reply-1',
+        })
+        const outcome = await createInbound(database).receiveMessage({
+          companyId,
+          message: {
+            from: '5511988887777',
+            providerMessageId: 'EVO-IN-283-T5',
+            replyToProviderMessageId: 'wamid-reply-1',
+            text: 'Consegui sim',
+          },
+        })
+        expect(outcome).toBe('conversation')
+
+        const messages = await clientMessages(database, conversation?.id ?? '')
+        expect(
+          messages.find((message) => message.providerMessageId === 'wamid-reply-1'),
+        ).toMatchObject({
+          status: 'read',
+        })
+        expect(messages.some((message) => message.bodyText === 'Consegui sim')).toBe(true)
       })
     },
     90_000,

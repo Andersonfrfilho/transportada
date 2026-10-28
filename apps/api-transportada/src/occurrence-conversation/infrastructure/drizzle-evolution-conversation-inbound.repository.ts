@@ -6,7 +6,7 @@
  * que se soma é o número a que a mensagem citada foi entregue.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
@@ -71,8 +71,29 @@ export function createDrizzleEvolutionConversationInboundRepository(
           ),
         )
         .limit(1)
-      if (row?.address === null || row?.address === undefined) return null
-      return { address: row.address, clientConversationId: row.clientConversationId }
+      if (row?.address !== null && row?.address !== undefined) {
+        return { address: row.address, clientConversationId: row.clientConversationId }
+      }
+      /** Spec 283 T5: a resposta do painel ao cliente é a própria mensagem da conversa dele, sem entrega. */
+      const [reply] = await database
+        .select({
+          address: occurrenceConversationMessages.recipientAddress,
+          conversationId: occurrenceConversationMessages.conversationId,
+        })
+        .from(occurrenceConversationMessages)
+        .where(
+          and(
+            eq(occurrenceConversationMessages.companyId, companyId),
+            eq(occurrenceConversationMessages.channel, 'whatsapp'),
+            eq(occurrenceConversationMessages.direction, 'outbound'),
+            eq(occurrenceConversationMessages.providerMessageId, replyToProviderMessageId),
+            isNull(occurrenceConversationMessages.clientDeliveryId),
+            isNotNull(occurrenceConversationMessages.recipientAddress),
+          ),
+        )
+        .limit(1)
+      if (reply?.address === null || reply?.address === undefined) return null
+      return { address: reply.address, clientConversationId: reply.conversationId }
     },
   }
 }

@@ -83,6 +83,30 @@ describe('política do Evolution', () => {
     ).toEqual({ kind: 'unassigned', reason: 'not_a_contact' })
   })
 
+  test('spec 283 T5: quem recebeu a resposta do painel responde citando ela e cai na conversa do cliente', () => {
+    expect(
+      resolveEvolutionAttribution({
+        ...NOBODY,
+        replyToClientConversationId: 'conversation-client',
+        replyToRecipientPhoneKey: '551699998888',
+        senderPhoneKey: '551699998888',
+      }),
+    ).toEqual({
+      conversationId: 'conversation-client',
+      driverUserId: null,
+      kind: 'conversation',
+      via: 'recipient_reply',
+    })
+    expect(
+      resolveEvolutionAttribution({
+        ...NOBODY,
+        replyToClientConversationId: 'conversation-client',
+        replyToRecipientPhoneKey: '551699998888',
+        senderPhoneKey: '551188887777',
+      }),
+    ).toEqual({ kind: 'unassigned', reason: 'not_a_contact' })
+  })
+
   test('outro número citando o mesmo aviso não entra na conversa', () => {
     expect(
       resolveEvolutionAttribution({

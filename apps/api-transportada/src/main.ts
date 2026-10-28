@@ -183,6 +183,8 @@ import { createDrizzleEvolutionConversationInboundRepository } from './occurrenc
 import { DrizzleWhatsAppEvolutionRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution.repository'
 import { createEvolutionConnectionGateway } from './whatsapp/infrastructure/evolution-connection.gateway'
 import { createEvolutionDocumentSender } from './whatsapp/infrastructure/evolution-document-sender.gateway.js'
+import { createSendClientReplyUseCase } from './occurrence-conversation/application/send-client-reply.use-case.js'
+import { createDrizzleClientReplyRepository } from './occurrence-conversation/infrastructure/drizzle-client-reply.repository.js'
 import { readAllBytes } from './occurrence-conversation/application/conversation-attachment.service.js'
 import { createForwardContractorReplyByWhatsAppUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-whatsapp.use-case.js'
 import {
@@ -3779,6 +3781,15 @@ function createApplicationRoutes({
        * Spec 274 (ADR-0111): o chat por e-mail. O `renderer` é o `standardEmail.render` do `notification-module`
        * (modelo da empresa ou o embutido, versão 0); o app só entrega texto, nunca HTML.
        */
+      /** Spec 283 T5 (D6): a resposta do painel ao cliente pelo Evolution da empresa. */
+      sendClientReply: createSendClientReplyUseCase({
+        logger,
+        repository: createDrizzleClientReplyRepository(database),
+        sender: createEvolutionDocumentSender({
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
+      }),
       sendChatMail: createSendOccurrenceChatMailUseCase({
         ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
         ...(appBaseUrl === undefined ? {} : { appBaseUrl }),

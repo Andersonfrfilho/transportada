@@ -109,6 +109,7 @@ function createFixture(params: {
       previewMail: { preview: record('preview') as never },
       requestUpload: { request: record('requestUpload') as never },
       sendChatMail: { send: record('sendChat') as never },
+      sendClientReply: { send: record('sendClient') as never },
       sendMail: { send: record('send') as never },
     }),
     tenantContext: { resolveCompany: async () => context },
@@ -559,5 +560,78 @@ describe('prévia e leitura (spec 183 T404)', () => {
         name: 'read',
       },
     ])
+  })
+})
+
+describe('POST .../client/messages, a resposta ao cliente (spec 283 T5, D6)', () => {
+  const REPLY_TARGET_ID = '00000000-0000-4000-8000-000000283501'
+
+  function clientRequest(body: unknown, key: null | string = 'client-reply-key-0001') {
+    const request = jsonRequest({
+      body,
+      method: 'POST',
+      path: `/trip-occurrences/${OCCURRENCE_ID}/conversations/client/messages`,
+    })
+    if (key !== null) request.headers.set('idempotency-key', key)
+    return request
+  }
+
+  test('envia pelo caso de uso com o texto aparado, o alvo, a chave e a correlação, e responde 202', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(
+      clientRequest({
+        body: '  Bom dia, segue o boleto.  ',
+        channel: 'whatsapp',
+        replyTargetId: REPLY_TARGET_ID,
+      }),
+    )
+
+    expect(response.status).toBe(202)
+    expect(fixture.calls).toEqual([
+      {
+        input: {
+          actorUserId: COMPANY_CONTEXT.userId,
+          bodyText: 'Bom dia, segue o boleto.',
+          companyId: COMPANY_CONTEXT.companyId,
+          confirmNumber: false,
+          correlationId: 'trip-http-correlation',
+          idempotencyKey: 'client-reply-key-0001',
+          occurrenceId: OCCURRENCE_ID,
+          replyTargetId: REPLY_TARGET_ID,
+        },
+        name: 'sendClient',
+      },
+    ])
+  })
+
+  test('o número nunca vem no corpo: número, e-mail, texto vazio, alvo que não é uuid ou sem chave é 400', async () => {
+    const fixture = createFixture({})
+    const base = { body: 'Oi', channel: 'whatsapp', replyTargetId: REPLY_TARGET_ID }
+    for (const body of [
+      { ...base, number: '+5516999991234' },
+      { ...base, channel: 'email' },
+      { ...base, body: '   ' },
+      { ...base, body: 'x'.repeat(4001) },
+      { ...base, replyTargetId: 'numero' },
+      { ...base, confirmNumber: 'sim' },
+    ]) {
+      expect((await fixture.handle(clientRequest(body))).status).toBe(400)
+    }
+    expect((await fixture.handle(clientRequest(base, null))).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('sem occurrences.resolve é 403, antes do caso de uso (RF7)', async () => {
+    const fixture = createFixture({ permissions: new Set(['fleet.read'] as const) })
+    const response = await fixture.handle(
+      clientRequest({
+        body: 'Oi',
+        channel: 'whatsapp',
+        confirmNumber: true,
+        replyTargetId: REPLY_TARGET_ID,
+      }),
+    )
+    expect(response.status).toBe(403)
+    expect(fixture.calls).toEqual([])
   })
 })

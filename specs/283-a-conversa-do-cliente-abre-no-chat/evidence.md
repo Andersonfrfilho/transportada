@@ -98,6 +98,42 @@ bun test ./test/occurrence-conversation.contract.test.ts                        
 bun --env-file=../../.env.test test ./test/integration/occurrence-client-conversation.integration.ts   9 pass
 bun test ./test/occurrence-conversation.contract.test.ts                                               879 pass
 ```
+
+## API da resposta ao cliente pelo painel (para a T5, D6, RF7)
+
+A T5 é do painel; a rota que ela chama não existia. Entrou junto da T3, como no contrato
+(§ "Responder ao cliente pelo painel"): `POST /v1/trip-occurrences/:id/conversations/client/messages`.
+
+- O número sai do `replyTarget.id` da faixa (a primeira entrega ao número), nunca do corpo; `.strict()` recusa `number`.
+- O primeiro envio do painel a um número pede `confirmNumber` (409 com o número mascarado); depois da primeira resposta o
+  canal fica `confirmed: true`.
+- WhatsApp desligado no tipo, Evolution sem configuração, desativado ou fora do ar: erro e nada gravado. A ordem é
+  conferir, perguntar ao Evolution, gravar `queued` (idempotente pela chave em `client_message_id`) e só então enviar.
+- A mensagem guarda o id do provedor: `delivered`/`read` avançam por `applyProviderMessageStatus`, e a resposta do
+  cliente citando ela entra na conversa do cliente (`findReplyRecipient` olha a mensagem do painel quando não há aviso).
+- Sem teto diário próprio: o envio é um a um, pelo operador, sob o limite da rota de conversa. O teto diário da 281
+  segue contando só as entregas do boleto.
+
+**Provas**
+
+- `test/occurrence-conversation/send-client-reply.contract.ts` (novo): envio ao número do alvo, confirmação, número já
+  confirmado, replay pela chave, os quatro "WhatsApp não serve" sem gravar, 404 sem dizer qual, recusa do provedor
+  vira `failed` com log só de ids.
+- `test/occurrence-conversation/conversation-routes.contract.ts`: 202 com o texto aparado; número, e-mail, texto
+  vazio ou acima de 4000, alvo não-uuid e falta da chave são 400; sem `occurrences.resolve` é 403.
+- `client-conversation-policy.contract.ts`: alvo opaco só no WhatsApp com entrega, confirmado depois da resposta do
+  painel, alvo de outra conversa, de e-mail ou de contato removido não responde.
+- `evolution-inbound.contract.ts`: citando a resposta do painel, do número que recebeu, entra na conversa do cliente;
+  outro número não.
+- `test/integration/occurrence-client-conversation.integration.ts` (+2, Postgres real): o fluxo inteiro com confirmação,
+  replay, `recipientMasked`, `confirmed` e sem número em claro; a resposta citando a mensagem do painel entra na
+  conversa do cliente e o lido avança pelo provedor.
+
+```
+bun --env-file=../../.env.test test ./test/integration/occurrence-client-conversation.integration.ts   11 pass
+bun test ./test/occurrence-conversation.contract.test.ts                                               894 pass
+```
+
 ## T4 — painel (coluna, faixa e aba do Cliente)
 
 Prints dos componentes reais (`ClientConversationPanel`, `ClientConversationStrip`, `ConversationColumn`, CSS e textos do

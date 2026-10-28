@@ -41,6 +41,8 @@ import type { createSendDriverAppMessageUseCase } from '../application/driver-co
 import type { createRequestOccurrenceConversationUploadUseCase } from '../application/occurrence-conversation-upload.use-case.js'
 import type { SendOccurrenceChatMailUseCase } from '../application/send-occurrence-chat-mail.use-case.js'
 import type { SendOccurrenceMailUseCase } from '../application/send-occurrence-mail.use-case.js'
+import type { SendClientReplyUseCase } from '../application/send-client-reply.use-case.js'
+import { CLIENT_CONVERSATION_PARTICIPANT } from '../domain/client-conversation.policy.js'
 import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
 import {
   OccurrenceChatMailRateLimitedError,
@@ -100,6 +102,9 @@ const operatorUploadSchema = z
 /** Spec 267: quantos chips da cópia o operador pode tirar — o teto de responsáveis ativos por lista. */
 const MAX_EXCLUDED_WATCHERS = OCCURRENCE_WATCHER_MAX_ACTIVE
 
+/** Spec 283 T5: o texto ao cliente; o WhatsApp aceita mais, mas a resposta do escritório é curta. */
+const CLIENT_REPLY_MAX_LENGTH = 4000
+
 /** O canal decide o corpo: lido primeiro, e o corpo do canal é conferido estrito depois. */
 const channelSchema = z.object({ channel: z.enum(OCCURRENCE_CONVERSATION_CHANNELS) }).passthrough()
 
@@ -153,6 +158,19 @@ const portalMessageSchema = z
   })
   .strict()
 
+/**
+ * Spec 283 T5 (D6): ao cliente pelo WhatsApp do número escolhido em "Responder por". O número nunca vem no corpo:
+ * só o `replyTargetId` da faixa. `confirmNumber` é obrigatório no primeiro envio do painel ao número (409 sem ele).
+ */
+const clientWhatsAppMessageSchema = z
+  .object({
+    body: z.string().trim().min(1).max(CLIENT_REPLY_MAX_LENGTH),
+    channel: z.literal('whatsapp'),
+    confirmNumber: z.boolean().optional(),
+    replyTargetId: z.string().uuid(),
+  })
+  .strict()
+
 const mailPreviewSchema = z
   .object({
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body).optional(),
@@ -173,6 +191,8 @@ export type OccurrenceConversationRoutesDependencies = {
   >
   /** Spec 274: o chat por e-mail; ausente, a variante `mode: 'chat'` responde como canal indisponível. */
   readonly sendChatMail?: SendOccurrenceChatMailUseCase
+  /** Spec 283 T5: a resposta ao cliente pelo WhatsApp; ausente, responde como canal indisponível. */
+  readonly sendClientReply?: SendClientReplyUseCase
   readonly sendMail: SendOccurrenceMailUseCase
   /** Spec 183 T601: ao motorista pelo app. */
   readonly sendDriverApp: Pick<ReturnType<typeof createSendDriverAppMessageUseCase>, 'send'>
@@ -194,6 +214,15 @@ function parseParticipant(value: string | undefined): OccurrenceConversationPart
 }
 
 type SendInput =
+  | {
+      readonly bodyText: string
+      readonly confirmNumber: boolean
+      readonly correlationId: string
+      readonly idempotencyKey: string
+      readonly kind: 'client'
+      readonly occurrenceId: string
+      readonly replyTargetId: string
+    }
   | {
       readonly attachmentIds: readonly string[]
       readonly bodyText: string
@@ -264,6 +293,22 @@ export function createOccurrenceConversationRoutes(
     }),
     defineRoute<SendInput>({
       async handle({ context, input }): Promise<Response> {
+        if (input.kind === 'client') {
+          if (dependencies.sendClientReply === undefined) {
+            throw new OccurrenceConversationChannelUnavailableError()
+          }
+          const result = await dependencies.sendClientReply.send({
+            actorUserId: context.scope.userId,
+            bodyText: input.bodyText,
+            companyId: context.scope.companyId,
+            confirmNumber: input.confirmNumber,
+            correlationId: input.correlationId,
+            idempotencyKey: input.idempotencyKey,
+            occurrenceId: input.occurrenceId,
+            replyTargetId: input.replyTargetId,
+          })
+          return jsonResponse({ data: result }, 202)
+        }
         if (input.kind === 'chat') {
           if (dependencies.sendChatMail === undefined) {
             throw new OccurrenceConversationChannelUnavailableError()
@@ -319,6 +364,22 @@ export function createOccurrenceConversationRoutes(
       method: 'POST',
       async parse({ correlationId, pathParameters, request }) {
         const occurrenceId = parseUuidPathIdentifier(pathParameters.id ?? '')
+        if (pathParameters.participant === CLIENT_CONVERSATION_PARTICIPANT) {
+          const idempotencyKey = parseIdempotencyKey(request.headers.get('idempotency-key'))
+          const body = clientWhatsAppMessageSchema.safeParse(
+            await parseBody(channelSchema, request),
+          )
+          if (!body.success) throw invalidRequest()
+          return {
+            bodyText: body.data.body,
+            confirmNumber: body.data.confirmNumber ?? false,
+            correlationId,
+            idempotencyKey,
+            kind: 'client' as const,
+            occurrenceId,
+            replyTargetId: body.data.replyTargetId,
+          }
+        }
         const participant = parseParticipant(pathParameters.participant)
         const idempotencyKey = parseIdempotencyKey(request.headers.get('idempotency-key'))
         const raw = await parseBody(channelSchema, request)
