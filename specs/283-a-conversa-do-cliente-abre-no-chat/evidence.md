@@ -182,7 +182,16 @@ bun test ./test/occurrence-conversation/client-log-privacy.contract.ts
  0 fail
 ```
 
-**Pendente**
+**Prints (fechados depois, com dados sintéticos)**
 
-- Prints em 375 px e desktop: a API da conversa do cliente ainda não está na staging (#398 e #400 abertas). Os prints
-  saem quando ela estiver na staging, ou com dados locais se o deploy seguir travado.
+- A staging não tinha conta de teste (o Keycloak de staging foi recriado) e o Docker não está disponível aqui, então
+  os prints saíram de um build local do painel, com as rotas da API mockadas e dados sintéticos
+  (`Mercado Sintético Ltda`, telefone e e-mail já mascarados).
+- O login é o `VITE_SMOKE_AUTH_BYPASS` que o build já aceita; nada disso entra no código do app.
+- `apps/frontend-transportada/test/spec-283-client-conversation-prints.smoke.spec.ts`: fora do smoke da CI, como os outros prints.
+- Arquivos em `/mnt/project-files/previews/conversa-cliente-t6/`:
+  - `conversa-cliente-375.png`: a aba Cliente em 375 px, com o canal do WhatsApp (respondeu) e o e-mail (entregue),
+    "Responder por" e o composer.
+  - `conversa-cliente-desktop-1440.png`: as três colunas em 1440 px; a coluna Cliente à direita.
+- Na captura de desktop aparece o aviso "Não foi possível carregar o retorno da contratante": é o mock da rota de
+  retorno da contratante, que não entra neste print.
