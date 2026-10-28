@@ -810,6 +810,27 @@
   justify-items: start;
 }
 
+/* Campos do canal: uma coluna no celular, duas a partir de 40rem (o endereço ocupa a linha toda). */
+.whatsappFields {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 40rem) {
+  .whatsappFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.whatsappState {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
 .whatsappQrImage {
   padding: var(--space-2);
   border-radius: 8px;

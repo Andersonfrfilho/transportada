@@ -511,8 +511,10 @@ export function CompanySettingsPage() {
             if (!whatsappPanel.provisionMutation.isIdle) whatsappPanel.provisionMutation.reset()
           },
           onProvision: (acknowledgeRisk) => {
-            setWhatsappQrOpen(true)
-            whatsappPanel.provisionMutation.mutate(acknowledgeRisk)
+            /* O QR só é pedido depois que a instância existe: pedir junto dava 404 (não configurado) no primeiro toque. */
+            whatsappPanel.provisionMutation.mutate(acknowledgeRisk, {
+              onSuccess: () => setWhatsappQrOpen(true),
+            })
           },
           provisioningAvailable: whatsappPanel.provisioningAvailable,
           connection: whatsappPanel.connectionQuery.data,
