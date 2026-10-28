@@ -356,6 +356,25 @@ o nó antigo). Na terceira, com o Keycloak já estável (script de saúde: disco
 (worker e cron), `deploy-frontend`, `deploy-driver` e `mark-deployed`. Correção pendente: o `keycloak-reconcile.sh`
 deve esperar o Keycloak responder antes de pedir o token.
 
+**Resultado (28/10/2026, terceira promoção do dia):** PR #424 (merge a1d37cb): QR do Evolution, visual, data de
+prorrogação, automações da Spani e o reconcile que espera o Keycloak (#420; o 502 do #408 não se repetiu). Duas
+migrations aditivas aplicadas (`contractor_automations`, `occurrence_new_due_date`; 336 migrations checadas). Os gates
+passaram, mas a Railway **pausou os deploys**: os builds da API e do cliente ficaram em `BUILDING` por ~20 min e
+`deploy-api`/`deploy-client` caíram por tempo esgotado ("api não estabilizou dentro do tempo limite"); um re-run
+imediato respondeu `Deploys have been paused temporarily` ao `railway up` e falhou de novo sem criar deployment. Os
+deployments travados terminaram sozinhos (API em `DEPLOYING` às 18:22 e `SUCCESS` às 18:43), então o re-run seguinte
+(`rerun-failed-jobs` no mesmo run, depois de a Railway liberar) completou worker, cron, painel, app do motorista,
+`mark-deployed` e as conferências. Regra: com `Deploys have been paused`, **não insistir**; olhar
+`mcp__Railway__list-deployments` (o deployment criado pode concluir sozinho) e só refazer os jobs falhos depois que
+nenhum deployment do serviço estiver em `BUILDING`/`DEPLOYING`/`QUEUED`. Enquanto isso a produção seguiu na versão
+antiga, sem queda.
+
+Passo manual pós-deploy (não é automático): publicar o modelo de e-mail `ocorrencia.prorrogacao-boleto` com
+`producao-publicar-modelo-prorrogacao.sh` (pasta `ativada`, fora do repositório): clona a `main` em diretório
+temporário, mostra o plano e só grava se digitar `producao`; precisa de `DATABASE_PUBLIC_URL` do `postgres-app` (sem
+TCP proxy ele para sem alterar nada). Depois, ligar "Pedir a nova data de vencimento" no tipo de prorrogação (aba
+Tipos de `/ocorrencias`). _Resultado desse passo: a registrar quando o Anderson rodar._
+
 ### Keycloak de produção: checar a saúde (somente leitura)
 
 Script `producao-keycloak-saude.sh` (na pasta `ativada` do Anderson, fora do repositório): mostra os deploys e as
