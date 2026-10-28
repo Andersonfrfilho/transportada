@@ -47,3 +47,13 @@ integração com banco para estado dos passos; smoke das telas.
 
 Tamanho dos anexos no email; regra da NFS-e de Ribeirão (emissão externa, spec 250); receber email
 (etapa 5) depende de domínio e provedor.
+
+## Envio por e-mail em partes: o que a leitura do código mostrou (28/10)
+
+- A API nunca envia e-mail: grava `contractor_mail_messages` + `contractor_mail_outbox` (`recordMailDelivery`) e o worker entrega pelo Resend. O envio das partes reaproveita esse caminho, uma mensagem por parte.
+- Limites do canal (`conversation-attachment.policy.ts`): 5 anexos por mensagem, 10 MB por arquivo, 25 MB no total, e `application/xml` **não** é tipo permitido. Decisão: cada parte vai como **um `.zip`** com até 100 XMLs de CT-e (`parte-01-de-04.zip`), mais a fatura e o PDF da NFS-e: 3 anexos. Exige liberar `application/zip` na política e montar o zip no servidor.
+- XML do CT-e: `cte_fiscal_documents.xml_object_id` (só `authorized`, sem cancelamento). Não há função "XML por id"; escrever uma, no mesmo molde de `cte-export-selection.query.ts`. NFS-e: `nfse_fiscal_documents.pdf_object_id` (pode ser nulo: o passo bloqueia e avisa).
+- Tabela de Ribeirão no corpo: nova variável de HTML do sistema (como `tabelaItens`) com modelo próprio em Notificações; proibido layout de e-mail em código.
+- Responder a todos: o canal só tem `To` + cc de usuários da empresa. Os destinatários da automação vão em `To`/`Cc` da mensagem; "responder a todos" depende do Reply-To da caixa da empresa (etapa 5).
+- Pendente de achar: onde o PDF da fatura é armazenado/gerado (`billing.schema.ts`).
+- Idempotência: uma chave por (execução, parte); reenviar uma parte reaproveita a chave e não duplica.
