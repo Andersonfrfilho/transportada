@@ -189,7 +189,7 @@ describe('WhatsApp (Evolution) settings panel (spec 281 T4)', () => {
           ),
         )
       },
-      getAccessToken: async () => 'token',
+      getAccessToken: () => Promise.resolve('token'),
     })
 
     expect(await client.get()).toEqual({ provisioningAvailable: true, settings: null })
