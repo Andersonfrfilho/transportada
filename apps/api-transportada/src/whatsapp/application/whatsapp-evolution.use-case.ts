@@ -8,6 +8,7 @@ import {
   WhatsAppEvolutionApiKeyRequiredError,
   WhatsAppEvolutionDisabledError,
   WhatsAppEvolutionNotConfiguredError,
+  WhatsAppEvolutionProvisioningUnavailableError,
   WhatsAppEvolutionProviderNotEnabledError,
   WhatsAppEvolutionRiskNotAcknowledgedError,
   WhatsAppEvolutionUnreachableError,
@@ -15,6 +16,7 @@ import {
 import type {
   SaveWhatsAppEvolutionValues,
   WhatsAppEvolutionGatewayPort,
+  WhatsAppEvolutionProvisionerPort,
   WhatsAppEvolutionRepositoryPort,
   WhatsAppEvolutionSummary,
 } from './whatsapp-evolution.port.js'
@@ -45,6 +47,14 @@ export type WhatsAppEvolutionUseCase = {
     readonly context: CompanyContext
     readonly correlationId: string
   }): Promise<WhatsAppEvolutionConnection>
+  /** Cria a instância pelo Evolution do ambiente e liga o canal, sem digitar endereço nem chave (T4b). */
+  provision(input: {
+    readonly acknowledgeRisk: boolean
+    readonly context: CompanyContext
+    readonly correlationId: string
+  }): Promise<WhatsAppEvolutionSummary>
+  /** A tela só oferece "Criar e conectar" quando o ambiente tem como criar. */
+  readonly provisioningAvailable: boolean
   qr(input: {
     readonly context: CompanyContext
     readonly correlationId: string
@@ -60,6 +70,7 @@ export type WhatsAppEvolutionUseCase = {
 export function createWhatsAppEvolutionUseCase(dependencies: {
   readonly gateway: WhatsAppEvolutionGatewayPort
   readonly newSettingsId: () => string
+  readonly provisioner?: WhatsAppEvolutionProvisionerPort
   readonly now: () => Date
   readonly repository: WhatsAppEvolutionRepositoryPort
   readonly secrets: WhatsAppEvolutionSecretService
@@ -92,7 +103,55 @@ export function createWhatsAppEvolutionUseCase(dependencies: {
     }
   }
 
-  return {
+  const useCase: WhatsAppEvolutionUseCase = {
+    provisioningAvailable: dependencies.provisioner !== undefined,
+
+    async provision({ acknowledgeRisk, context, correlationId }) {
+      const provisioner = dependencies.provisioner
+      if (provisioner === undefined) throw new WhatsAppEvolutionProvisioningUnavailableError()
+      const existing = await repository.find({ companyId: context.companyId })
+      if (existing?.apiKeyConfigured === true && existing.baseUrl === provisioner.baseUrl) {
+        // Já criada: religar não cria outra instância nem troca a chave.
+        return useCase.save({
+          context,
+          correlationId,
+          values: {
+            acknowledgeRisk,
+            baseUrl: existing.baseUrl,
+            dailyCap: existing.dailyCap,
+            defaultProvider: existing.defaultProvider,
+            instanceName: existing.instanceName,
+            minIntervalSeconds: existing.minIntervalSeconds,
+            status: 'active',
+          },
+        })
+      }
+      if (!acknowledgeRisk && existing?.riskAcknowledgedAt == null) {
+        throw new WhatsAppEvolutionRiskNotAcknowledgedError()
+      }
+      const instanceName = `transportada-${context.companyId.replaceAll('-', '').slice(0, 12)}`
+      let token: string
+      try {
+        ;({ token } = await provisioner.createInstance({ instanceName }))
+      } catch {
+        throw new WhatsAppEvolutionUnreachableError()
+      }
+      return useCase.save({
+        context,
+        correlationId,
+        values: {
+          acknowledgeRisk,
+          apiKey: token,
+          baseUrl: provisioner.baseUrl,
+          dailyCap: existing?.dailyCap ?? 50,
+          defaultProvider: existing?.defaultProvider ?? 'meta',
+          instanceName,
+          minIntervalSeconds: existing?.minIntervalSeconds ?? 15,
+          status: 'active',
+        },
+      })
+    },
+
     async connection({ context, correlationId }) {
       const { request } = await openCredential(context.companyId)
       const state = await readState(gateway, request)
@@ -225,6 +284,7 @@ export function createWhatsAppEvolutionUseCase(dependencies: {
       })
     },
   }
+  return useCase
 }
 
 async function readState(

@@ -14,6 +14,7 @@ import {
 import {
   WHATSAPP_DEFAULT_PROVIDERS,
   type WhatsAppDefaultProvider,
+  type WhatsAppEvolutionConnection,
   type WhatsAppEvolutionQr,
   type WhatsAppEvolutionSaveInput,
   type WhatsAppEvolutionSettings,
@@ -21,12 +22,18 @@ import {
 import styles from '../styles/companySettings.module.css'
 
 export type WhatsAppEvolutionPanelProps = Readonly<{
+  /** Leitura periódica do estado, fora do QR; é ela que mostra a queda. */
+  connection: WhatsAppEvolutionConnection | undefined
+  connectionErrorCode: string | undefined
   disabled: boolean
   errorCode: string | undefined
   loading: boolean
   /** O resultado da última gravação deixa de descrever a tela no instante em que ela muda. */
   onEdit: () => void
+  onProvision: (acknowledgeRisk: boolean) => void
   onQrOpenChange: (open: boolean) => void
+  /** O ambiente cria a instância sozinho: a tela pede só o aviso de risco, sem endereço nem chave. */
+  provisioningAvailable: boolean
   onSave: (input: WhatsAppEvolutionSaveInput) => void
   qr: WhatsAppEvolutionQr | undefined
   qrErrorCode: string | undefined
@@ -46,12 +53,15 @@ function WhatsAppEvolutionSkeleton() {
   )
 }
 
-function WhatsAppEvolutionConnection(props: WhatsAppEvolutionPanelProps) {
+function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
   const { t } = useTranslation('companySettings')
   const stored = props.stored
   if (stored === null || stored === undefined) return null
   // O estado da tela é o do QR quando ele já respondeu; senão, o último gravado.
-  const state = props.qr?.state ?? stored.connectionState
+  const state = props.qrOpen
+    ? (props.qr?.state ?? stored.connectionState)
+    : (props.connection?.state ?? stored.connectionState)
+  const checkedAt = props.connection?.checkedAt ?? stored.connectionCheckedAt
   const canConnect = stored.status === 'active' && stored.apiKeyConfigured
 
   return (
@@ -60,6 +70,21 @@ function WhatsAppEvolutionConnection(props: WhatsAppEvolutionPanelProps) {
         {t('whatsappEvolution.connection.label')}:{' '}
         {t(`whatsappEvolution.connection.state.${state}`)}
       </span>
+      {checkedAt === null ? null : (
+        <span className={styles.settingsFormOrigin}>
+          {t('whatsappEvolution.connection.checkedAt', {
+            time: new Date(checkedAt).toLocaleTimeString('pt-BR'),
+          })}
+        </span>
+      )}
+      {props.connectionErrorCode === undefined ? null : (
+        <p role="alert">
+          {t('whatsappEvolution.connection.checkError', { code: props.connectionErrorCode })}
+        </p>
+      )}
+      {canConnect && state === 'close' ? (
+        <p role="alert">{t('whatsappEvolution.connection.dropped')}</p>
+      ) : null}
       {canConnect ? null : (
         <p className={styles.settingsFormNote}>{t('whatsappEvolution.connection.needsEnabled')}</p>
       )}
@@ -67,7 +92,9 @@ function WhatsAppEvolutionConnection(props: WhatsAppEvolutionPanelProps) {
         <div className={styles.settingsFormActions}>
           <button type="button" onClick={() => props.onQrOpenChange(true)}>
             <Icon name="link" />
-            {t('whatsappEvolution.connection.connect')}
+            {state === 'close'
+              ? t('whatsappEvolution.connection.reconnect')
+              : t('whatsappEvolution.connection.connect')}
           </button>
         </div>
       ) : null}
@@ -104,6 +131,38 @@ function WhatsAppEvolutionConnection(props: WhatsAppEvolutionPanelProps) {
         </div>
       ) : null}
       {state === 'open' ? <p role="status">{t('whatsappEvolution.connection.connected')}</p> : null}
+    </div>
+  )
+}
+
+/** Spec 281 T4b: sem digitar endereço nem chave; a API cria a instância e o QR aparece em seguida. */
+function WhatsAppEvolutionProvision(props: WhatsAppEvolutionPanelProps) {
+  const { t } = useTranslation('companySettings')
+  const [acknowledged, setAcknowledged] = useState(false)
+
+  return (
+    <div className={styles.settingsFormFields}>
+      <p className={styles.settingsFormNote}>{t('whatsappEvolution.provision.hint')}</p>
+      <p className={styles.settingsFormNote} id="whatsapp-evolution-provision-risk">
+        {t('whatsappEvolution.risk')}
+      </p>
+      <Checkbox
+        ariaDescribedBy="whatsapp-evolution-provision-risk"
+        checked={acknowledged}
+        disabled={props.disabled}
+        label={t('whatsappEvolution.acknowledgeRisk')}
+        onChange={setAcknowledged}
+      />
+      <div className={styles.settingsFormActions}>
+        <button
+          disabled={props.disabled || !acknowledged}
+          type="button"
+          onClick={() => props.onProvision(acknowledged)}
+        >
+          <Icon name="link" />
+          {t('whatsappEvolution.provision.action')}
+        </button>
+      </div>
     </div>
   )
 }
@@ -256,8 +315,12 @@ export function WhatsAppEvolutionPanel(props: WhatsAppEvolutionPanelProps) {
         <WhatsAppEvolutionSkeleton />
       ) : (
         <>
-          <WhatsAppEvolutionForm key={props.stored?.updatedAt ?? 'new'} {...props} />
-          <WhatsAppEvolutionConnection {...props} />
+          {props.provisioningAvailable && props.stored == null ? (
+            <WhatsAppEvolutionProvision {...props} />
+          ) : (
+            <WhatsAppEvolutionForm key={props.stored?.updatedAt ?? 'new'} {...props} />
+          )}
+          <WhatsAppEvolutionConnectionStatus {...props} />
         </>
       )}
       {props.saved ? <p role="status">{t('whatsappEvolution.saved')}</p> : null}

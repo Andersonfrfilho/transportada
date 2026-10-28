@@ -15,6 +15,12 @@ const REQUEST_FAILED = 'WHATSAPP_EVOLUTION_REQUEST_FAILED'
 const NETWORK_ERROR = 'WHATSAPP_EVOLUTION_NETWORK_ERROR'
 const RESPONSE_INVALID = 'WHATSAPP_EVOLUTION_RESPONSE_INVALID'
 
+/** `provisioningAvailable`: o ambiente tem o Evolution e a API cria a instância ("Criar e conectar"). */
+export type WhatsAppEvolutionState = Readonly<{
+  provisioningAvailable: boolean
+  settings: WhatsAppEvolutionSettings | null
+}>
+
 type ClientDependencies = Readonly<{
   apiBaseUrl: string
   fetch: (request: Request) => Promise<Response>
@@ -31,14 +37,15 @@ export class WhatsAppEvolutionRequestError extends Error {
 
 export type WhatsAppEvolutionClient = Readonly<{
   connection: () => Promise<WhatsAppEvolutionConnection>
-  get: () => Promise<WhatsAppEvolutionSettings | null>
+  get: () => Promise<WhatsAppEvolutionState>
+  provision: (acknowledgeRisk: boolean) => Promise<WhatsAppEvolutionSettings>
   qr: () => Promise<WhatsAppEvolutionQr>
   save: (input: WhatsAppEvolutionSaveInput) => Promise<WhatsAppEvolutionSettings>
 }>
 
 async function send(
   input: Readonly<{
-    body?: WhatsAppEvolutionSaveInput
+    body?: WhatsAppEvolutionSaveInput | Readonly<{ acknowledgeRisk: boolean }>
     dependencies: ClientDependencies
     method: string
     path: string
@@ -97,6 +104,24 @@ export function createWhatsAppEvolutionClient(
         await send({ dependencies, method: 'GET', path: WHATSAPP_EVOLUTION_PATH }),
       )
       if (!isWhatsAppEvolutionResponse(body)) {
+        throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
+      }
+
+      return {
+        provisioningAvailable: body.provisioningAvailable === true,
+        settings: body.data,
+      }
+    },
+    async provision(acknowledgeRisk) {
+      const body = await readBody(
+        await send({
+          body: { acknowledgeRisk },
+          dependencies,
+          method: 'POST',
+          path: `${WHATSAPP_EVOLUTION_PATH}/provision`,
+        }),
+      )
+      if (!isWhatsAppEvolutionResponse(body) || body.data === null) {
         throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
       }
 

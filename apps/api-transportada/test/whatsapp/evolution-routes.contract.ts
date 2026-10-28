@@ -42,7 +42,13 @@ function createFixture(
     readonly summary?: WhatsAppEvolutionSummary | null
   } = {},
 ) {
-  const calls: Record<string, unknown[]> = { connection: [], qr: [], read: [], save: [] }
+  const calls: Record<string, unknown[]> = {
+    connection: [],
+    provision: [],
+    qr: [],
+    read: [],
+    save: [],
+  }
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
     frontendOrigins: [FRONTEND_ORIGIN],
@@ -51,6 +57,13 @@ function createFixture(
     router: createTestRouter({
       context: authenticatedContext(input.permissions ?? SETTINGS_PERMISSIONS),
       routes: createWhatsAppEvolutionRoutes({
+        provision: {
+          async execute(request) {
+            calls.provision?.push(structuredClone(request))
+            return SUMMARY
+          },
+        },
+        provisioningAvailable: true,
         connection: {
           async execute(request) {
             calls.connection?.push(structuredClone(request))
@@ -126,7 +139,31 @@ describe('as rotas do Evolution (spec 281 T4)', () => {
 
     const response = await fixture.handle(jsonRequest({ method: 'GET', path: PATH }))
 
-    expect(await response.json()).toEqual({ data: null })
+    expect(await response.json()).toEqual({ data: null, provisioningAvailable: true })
+  })
+
+  test('criar e conectar: corpo estrito, mesma permissão e nenhuma chave na resposta', async () => {
+    const fixture = createFixture()
+    const path = `${PATH}/provision`
+
+    const ok = await fixture.handle(
+      jsonRequest({ body: { acknowledgeRisk: true }, method: 'POST', path }),
+    )
+    expect(ok.status).toBe(200)
+    expect(fixture.calls.provision).toHaveLength(1)
+    expect(await ok.text()).not.toContain('secretEnvelope')
+
+    const extra = await fixture.handle(
+      jsonRequest({ body: { acknowledgeRisk: true, apiKey: 'x' }, method: 'POST', path }),
+    )
+    expect(extra.status).toBe(400)
+
+    const denied = createFixture({ permissions: new Set(['invoices.read'] as const) })
+    const forbidden = await denied.handle(
+      jsonRequest({ body: { acknowledgeRisk: true }, method: 'POST', path }),
+    )
+    expect(forbidden.status).toBe(403)
+    expect(denied.calls.provision).toHaveLength(0)
   })
 
   test('salva com a chave e não a devolve; sem a chave o campo não viaja', async () => {

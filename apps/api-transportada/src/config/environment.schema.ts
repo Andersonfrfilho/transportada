@@ -358,6 +358,13 @@ const environmentSchema = z.object({
    * Fail-closed por ausência: sem os dois, a rota do webhook **não é registrada** — publicar uma
    * rota pública que aceita qualquer corpo é pior que não ter webhook.
    */
+  /**
+   * Spec 281 T4b: o Evolution do ambiente. Com os dois, a API cria a instância da empresa sozinha
+   * ("Criar e conectar" na tela); sem um deles a tela cai na digitação manual. A chave é a **global**
+   * do serviço Evolution, só da API — nunca vai ao banco, ao navegador nem a log.
+   */
+  EVOLUTION_BASE_URL: optionalText(),
+  EVOLUTION_GLOBAL_API_KEY: optionalText(),
   WHATSAPP_APP_SECRET: optionalText(),
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: optionalText(),
   WHATSAPP_BASE_URL: z
