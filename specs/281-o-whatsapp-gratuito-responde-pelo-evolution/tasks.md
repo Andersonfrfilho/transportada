@@ -2,7 +2,7 @@
 
 Nada começa com `[NEEDS CLARIFICATION]` aberto (spec.md § Dúvidas). Modelo por etapa entre parênteses.
 
-- [ ] **T0** (opus) _Falta o ADR (proposta em `docs/adr/0112`, aguarda aceite do Anderson)._ Fechar as dúvidas com o dono; ADR "WhatsApp não oficial como opção gratuita" (R1/R2) e levantamento da
+- [x] **T0** (opus) _ADR 0112 aceita em 28/10/2026._ Fechar as dúvidas com o dono; ADR "WhatsApp não oficial como opção gratuita" (R1/R2) e levantamento da
       porta de WhatsApp do SDK e do `meta-whatsapp-module` (o que a porta já cobre).
 - [x] **T1** (opus) Contrato do provedor com Evolution simulado, **antes** da implementação (RF1, paridade de estados).
 - [ ] **T1b** (opus) _Adiada (fatia mínima do dono: só boleto, staging, e-mail de reserva; sem roteador)._ Roteador por custo e risco (D8/D9/D10): política como dado da empresa, orçamento, teto, aquecimento, disjuntor; contrato antes.

@@ -346,8 +346,7 @@ Conferido em 28/10/2026 (revisão de `main...staging`: PRs #388, #398, #399, #40
 - **Staging (não bloqueia a promoção):** usuários do Keycloak de staging foram perdidos no incidente de 27/10 (voltam no
   próximo `staging-refresh`); `osrm` e `map-tiles` de staging não rebuildam (o `wget` sumiu da imagem base
   `planetiler:latest`).
-- **Pendências do Anderson antes de ligar WhatsApp em qualquer ambiente:** aceitar o ADR 0112 (risco do Evolution) e
-  testar o "Criar e conectar" com o Evolution real de staging.
+- **Pendências do Anderson antes de ligar WhatsApp em qualquer ambiente:** testar o "Criar e conectar" com o Evolution real de staging (o ADR 0112 já foi aceito em 28/10).
 
 ## 6. Erros que não devem se repetir
 
