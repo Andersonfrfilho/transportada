@@ -114,6 +114,19 @@ describe('a faixa "Canais abertos" (D4)', () => {
     ])
   })
 
+  test('dois envios no mesmo instante: a ordem não depende de quem o banco devolveu primeiro', () => {
+    const at = '2026-10-27T10:00:00.000Z'
+    const forward = resolveClientChannels({
+      contacts,
+      messages: [sent(NUMBER, at, 'read'), sent(OTHER_NUMBER, at, 'failed')],
+    })
+    const backward = resolveClientChannels({
+      contacts,
+      messages: [sent(OTHER_NUMBER, at, 'failed'), sent(NUMBER, at, 'read')],
+    })
+    expect(backward).toEqual(forward)
+  })
+
   test('o WhatsApp cai e o e-mail de reserva envia: as duas entregas aparecem', () => {
     const channels = resolveClientChannels({
       contacts,

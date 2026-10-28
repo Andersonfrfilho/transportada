@@ -1,6 +1,6 @@
 # Contrato 283 — A conversa do cliente (T1)
 
-Contrato da API para o painel (T4/T5), escrito antes da implementação (T2/T3). Política pura e testes:
+Contrato da API para o painel (T4/T5), escrito antes da implementação (T2/T3; a rota de resposta, junto da T3). Política pura e testes:
 `apps/api-transportada/src/occurrence-conversation/domain/client-conversation.policy.ts` e
 `apps/api-transportada/test/occurrence-conversation/client-conversation-policy.contract.ts`.
 
@@ -52,12 +52,18 @@ que não conhece, então a API pode ir antes do painel.
               "addressMasked": "+55 ••••1234",
               "state": "replied", // queued | sent | delivered | read | replied | failed
               "lastActivityAt": "2026-10-27T10:10:00.000Z",
+              // T5: "Responder por". Só no WhatsApp; no e-mail é null (o cliente não responde por e-mail).
+              "replyTarget": {
+                "id": "uuid", // opaco: a primeira entrega a este número; o painel nunca vê o número inteiro
+                "confirmed": false, // true depois do primeiro envio do painel a este número (D6)
+              },
             },
             {
               "channel": "email",
               "addressMasked": "fi•••@mercado.com.br",
               "state": "sent",
               "lastActivityAt": "…",
+              "replyTarget": null,
             },
           ],
         },
@@ -113,6 +119,40 @@ que não conhece, então a API pode ir antes do painel.
   lendo). Atribuir é a rota que já existe (`POST /v1/occurrence-conversations/unassigned/:id/assign`, corpo
   `{ conversationId }`), e aceita a conversa do cliente.
 - E-mail do cliente não responde (fora do escopo): a conversa mostra só o enviado e o estado.
+
+## Responder ao cliente pelo painel (T5, D6, RF7)
+
+`POST /v1/trip-occurrences/:id/conversations/client/messages`, a rota de envio que já existe com `:participant = client`.
+
+- Permissão `occurrences.resolve` (quem já pode enviar ao cliente). A empresa vem do contexto; o número nunca vem no
+  corpo, só o `replyTarget.id` da faixa.
+- Cabeçalho `Idempotency-Key` obrigatório, como nas outras conversas: a mesma chave devolve a mesma mensagem, sem enviar
+  de novo.
+- Corpo (`.strict()`, campo a mais é 400):
+
+```jsonc
+{
+  "channel": "whatsapp", // só WhatsApp responde (D5)
+  "body": "Bom dia, o boleto segue acima.", // 1 a 4000 caracteres, sem espaço só
+  "replyTargetId": "uuid", // channels[].replyTarget.id
+  "confirmNumber": true, // obrigatório no primeiro envio do painel a este número; depois pode faltar
+}
+```
+
+- **Confirmação do número (D6).** Se `replyTarget.confirmed` é `false` e o corpo não traz `confirmNumber: true`, a API
+  responde `409 OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED` com `details: { numberMasked: "+55 ••••1234" }` e não
+  envia nada. O painel mostra o número mascarado, o operador confirma e reenvia com a mesma `Idempotency-Key`.
+- **Sucesso:** `202 { "data": { "messageId": "uuid", "status": "sent" | "failed", "replayed": false } }`. A mensagem
+  entra na conversa do cliente com `direction: "outbound"`, `channel: "whatsapp"`, `author` do operador (como hoje) e
+  `clientDelivery: null`; o destino vai em `recipientMasked` na própria mensagem. `delivered`/`read` chegam depois pelo
+  provedor, como nas entregas. Uma resposta do cliente citando esta mensagem entra na mesma conversa (RF3).
+- **WhatsApp desligado (D14 da 281):** `409 OCCURRENCE_CLIENT_WHATSAPP_OFF` (canal do cliente desligado na empresa) ou
+  `503 WHATSAPP_EVOLUTION_UNAVAILABLE` (instância fora do ar, como na 281 T5). Nada é gravado. O painel deixa o composer desligado,
+  avisa e oferece o e-mail guardado pela rota da 279. Para saber antes de digitar, o painel lê
+  `GET /v1/trip-occurrences/:id/contractor-reply/whatsapp-options` (`evolution.ready`), que já existe.
+- `404` para ocorrência de outra empresa, ocorrência sem conversa do cliente ou `replyTargetId` que não é desta conversa
+  (nunca diz qual). Contato removido do cadastro (o canal sumiu da faixa) também é `404`.
+- Log sem número nem texto (RF7).
 
 ## O que não muda
 

@@ -147,17 +147,23 @@ export function resolveClientChannels(input: {
     else entry.lastInboundAt = message.createdAt
     byAddress.set(key, entry)
   }
-  return [...byAddress.values()]
-    .sort((left, right) => left.first.localeCompare(right.first))
-    .map((entry) => {
-      const repliedAfterSend =
-        entry.lastInboundAt !== null &&
-        (entry.lastOutbound === null || entry.lastInboundAt >= entry.lastOutbound.createdAt)
-      return {
-        addressMasked: maskClientAddress(entry.channel, entry.address),
-        channel: entry.channel,
-        lastActivityAt: entry.last,
-        state: repliedAfterSend ? 'replied' : toChannelState(entry.lastOutbound?.status ?? null),
-      }
-    })
+  return (
+    [...byAddress.values()]
+      // Dois envios na mesma transacao tem o mesmo instante: o endereco desempata, para a faixa nao trocar de ordem.
+      .sort(
+        (left, right) =>
+          left.first.localeCompare(right.first) || left.address.localeCompare(right.address),
+      )
+      .map((entry) => {
+        const repliedAfterSend =
+          entry.lastInboundAt !== null &&
+          (entry.lastOutbound === null || entry.lastInboundAt >= entry.lastOutbound.createdAt)
+        return {
+          addressMasked: maskClientAddress(entry.channel, entry.address),
+          channel: entry.channel,
+          lastActivityAt: entry.last,
+          state: repliedAfterSend ? 'replied' : toChannelState(entry.lastOutbound?.status ?? null),
+        }
+      })
+  )
 }

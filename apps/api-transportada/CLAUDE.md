@@ -637,6 +637,11 @@ docs/ai-context § "A ocorrência tem duas conversas".
 - **Rotas que enviam declaram `rateLimit` no Postgres** e aparecem em
   `test/rate-limited-routes.contract.test.ts`: e-mail, app, portal, uploads e a resposta do
   motorista (`driver-occurrence-conversation-send`, 30/300 s).
+- **O cliente é o terceiro participante** (spec 283, contrato em `specs/283-*/contract.md`). A conversa `client` nasce
+  só pelo gatilho `occurrence_client_conversation_sync_trigger` na entrega da 248 (alvos `client_boleto_*`), uma
+  mensagem por entrega (`client_delivery_id`); nunca crie a conversa do cliente em código. Ela não guarda id de
+  provedor nem `mail_message_id` (a thread do e-mail é da contratante): o status chega pela entrega em
+  `applyProviderMessageStatus`. A leitura só a mostra com `occurrences.resolve`, sempre com destino mascarado.
 - Logs só com ids, códigos e contagens. Isolamento:
   `test/occurrence-conversation-schema/tenant-safety.contract.ts`.
 - **O motorista vê o estado do retorno da contratante na nota** (spec 248 T5.4): `GET /me/trips/current` traz `documents[].registeredOccurrences:
