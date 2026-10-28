@@ -234,8 +234,10 @@ describe('the panel wears its own layout, clears its banner and does not cut the
     const stylesheet = readFileSync(new URL(STYLES, import.meta.url), 'utf8')
 
     expect(panel).not.toContain('styles.federalTax')
-    expect(panel).toContain('styles.settingsFormFields')
-    expect(stylesheet).toContain('.settingsFormFields {')
+    // O painel veste o molde da aba Calendário (padrão visual das telas de Configurações).
+    expect(panel).toContain('styles.panel')
+    expect(panel).toContain('styles.block')
+    expect(panel).not.toContain('styles.settingsFormFields')
     expect(stylesheet).not.toContain('.federalTaxFields {')
   })
 

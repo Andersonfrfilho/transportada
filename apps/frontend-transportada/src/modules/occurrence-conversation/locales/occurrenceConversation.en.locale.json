@@ -158,6 +158,7 @@
     "error": "Could not send. Check the signal and try again."
   },
   "quickReplies": {
+    "title": "Quick replies",
     "pick": "Quick reply",
     "loading": "Loading quick replies",
     "loadError": "Could not load the quick replies. Try again in a moment.",

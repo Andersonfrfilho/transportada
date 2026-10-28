@@ -455,3 +455,20 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* Lista simples de itens de um bloco (espécies de lançamento): nome à esquerda, ação à direita. */
+.kindList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kindRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
