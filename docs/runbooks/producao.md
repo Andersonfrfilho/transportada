@@ -402,3 +402,30 @@ O `api` de staging recebe `EVOLUTION_BASE_URL=http://evolution-api.railway.inter
 copiada nem impressa). A API cria a instância pelo portal (PR #404); o script
 `evolution-staging-instancia.sh` não é mais necessário. As duas variáveis constam no `railway.ts` como
 `preserve()` para um apply não as apagar.
+
+### Recuperação dos usuários de staging (28/10/2026)
+
+O banco do Keycloak de staging foi apagado em 27/10 (ver incidente acima); o realm voltou sem usuários.
+Recuperação feita por scripts em `ativada/`, todos **somente staging** (produção só lida, nunca escrita,
+nunca imprime hash) e sem `railway config apply`:
+
+1. `staging-recriar-usuarios.sh`: lê de staging quem tinha identidade no issuer, mostra a lista, cria as
+   contas no realm (sem senha), copia hash e histórico de senha (`credential`) do Keycloak de produção
+   casando por username, religa `external_identities` e reinicia o Keycloak.
+2. `staging-renomear-usuarios-uuid.sh`: troca username em UUID por `nome.sobrenome` com a regra do convite
+   (`generated-username.policy.ts`: sobrenomes anteriores, depois sufixo 2..99). `sub`, memberships e papéis
+   não mudam; só o login.
+3. `staging-corrigir-conferencia.sh`: recopia senha pelo username atual, apaga `external_identities` cujo
+   `sub` não existe mais no Keycloak, religa a conta de serviço do worker.
+4. `staging-fechar-pendencias.sh`: casa contas sem senha com a de produção por e-mail/CPF.
+5. `staging-criar-automation.sh`: cria a pessoa sintética `automation` (ADR-0047) em cada empresa ativa de
+   staging e liga a conta de serviço do worker. **Produção tem 0 memberships `automation`**: confirmar se as
+   rotinas que chamam a API pelo worker (MDF-e automático, baixa por WhatsApp, canhoto, e-mail de ocorrência)
+   estão ligadas lá antes de criar.
+6. `staging-conferir-usuarios.sh`: só leitura; confere existência, `sub`, `company_id`, senha igual à de
+   produção (md5 do hash) e a conta de serviço. Rodar antes de qualquer passo em produção.
+
+Pegadinhas: o token do admin do `master` dura 60 s (renovar a cada etapa); o arquivo copiado por
+`device_commit_files` pode chegar defasado, conferir `md5sum`; o Keycloak guarda a senha como hash, então "mesma
+senha" só se obtém copiando `credential`, nunca digitando. Contas sem usuário correspondente em produção
+(convidadas que nunca definiram senha, contas de teste) ficam sem senha em staging.
