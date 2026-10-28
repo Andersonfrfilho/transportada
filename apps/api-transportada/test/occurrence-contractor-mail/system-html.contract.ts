@@ -234,8 +234,9 @@ describe('spec 272 D5/D15: faixaResposta', () => {
     expect(build({ hasReplyTo: false }).systemHtml.faixaResposta).toBe('')
   })
 
-  test('as cinco chaves do conjunto fechado, e só elas', () => {
+  test('as seis chaves do conjunto fechado, e só elas', () => {
     expect(Object.keys(build().systemHtml).sort()).toEqual([
+      'avisoNovaData',
       'faixaResposta',
       'logoAssinatura',
       'logoTransportadora',

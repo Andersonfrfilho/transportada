@@ -25,6 +25,7 @@ import {
   WhatsAppEvolutionPanel,
   type WhatsAppEvolutionPanelProps,
 } from '../components/WhatsAppEvolutionPanel.component'
+import { ContractorAutomationsPanel } from '../components/ContractorAutomationsPanel.component'
 import { useWhatsAppEvolutionPanel } from '../hooks/useWhatsAppEvolutionPanel.hook'
 import {
   CompanyEntryKindCatalogPanel,
@@ -256,6 +257,9 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'taxes') return <FederalTaxPanel {...props.federalTaxes} />
   if (tab === 'driverAllowance') return <DriverAllowancePanel {...props.driverAllowance} />
   if (tab === 'whatsapp') return <WhatsAppEvolutionPanel {...props.whatsappEvolution} />
+  /** Spec 285: painel autocontido — busca a própria configuração, só com `settings.manage`. */
+  if (tab === 'automations')
+    return <ContractorAutomationsPanel canManage={props.canManageSettings} />
   if (tab === 'entryKinds') return <CompanyEntryKindCatalogPanel {...props.entryKindCatalog} />
   /** Spec 218 RF-E1/RF-E2: painel autocontido — busca os próprios dados, como o de ocorrência acima. */
   if (tab === 'settingsResolution')
@@ -511,8 +515,10 @@ export function CompanySettingsPage() {
             if (!whatsappPanel.provisionMutation.isIdle) whatsappPanel.provisionMutation.reset()
           },
           onProvision: (acknowledgeRisk) => {
-            setWhatsappQrOpen(true)
-            whatsappPanel.provisionMutation.mutate(acknowledgeRisk)
+            /* O QR só é pedido depois que a instância existe: pedir junto dava 404 (não configurado) no primeiro toque. */
+            whatsappPanel.provisionMutation.mutate(acknowledgeRisk, {
+              onSuccess: () => setWhatsappQrOpen(true),
+            })
           },
           provisioningAvailable: whatsappPanel.provisioningAvailable,
           connection: whatsappPanel.connectionQuery.data,

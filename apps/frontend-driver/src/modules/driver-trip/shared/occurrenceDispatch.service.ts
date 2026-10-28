@@ -47,6 +47,7 @@ export type OccurrenceRegistrationHandlers = Readonly<{
     readonly extraPhotos?: readonly DriverOccurrencePhoto[]
     /** Spec 247: os produtos devolvidos, com quantidade em texto; ausente é a nota inteira. */
     readonly items?: readonly DriverOccurrenceItem[]
+    readonly newDueDate?: string
     readonly note: string
     readonly occurrenceTypeId: string
     readonly occurrenceTypeName: string
@@ -145,6 +146,7 @@ export function dispatchOccurrenceRegistration(input: {
     documentId: input.documentId,
     ...(effective.extraPhotos.length === 0 ? {} : { extraPhotos: effective.extraPhotos }),
     ...(payload?.items === undefined ? {} : { items: payload.items }),
+    ...(payload?.newDueDate === undefined ? {} : { newDueDate: payload.newDueDate }),
     note: effective.note,
     occurrenceTypeId: type.id,
     occurrenceTypeName: type.name,

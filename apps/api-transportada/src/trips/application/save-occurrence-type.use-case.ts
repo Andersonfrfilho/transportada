@@ -100,6 +100,7 @@ export type SaveOccurrenceTypeValues = {
   readonly clientEmailSendMode?: ClientEmailSendMode | undefined
   readonly clientChannel?: ClientChannel | undefined
   readonly asksClientContact?: boolean | undefined
+  readonly asksNewDueDate?: boolean | undefined
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined

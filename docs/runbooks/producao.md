@@ -348,6 +348,25 @@ Conferido em 28/10/2026 (revisão de `main...staging`: PRs #388, #398, #399, #40
   `planetiler:latest`).
 - **Pendências do Anderson antes de ligar WhatsApp em qualquer ambiente:** testar o "Criar e conectar" com o Evolution real de staging (o ADR 0112 já foi aceito em 28/10).
 
+**Resultado (28/10/2026, segunda promoção do dia):** PR #408 (merge 9b1761a). O deploy de produção ficou verde só na
+terceira tentativa dos jobs que falharam. As duas primeiras caíram em "Reconciliar realm" com `curl 502`: o Keycloak
+era redeployado e o reconcile pedia o token antes de ele terminar de subir (o log mostrava JGroups tentando falar com
+o nó antigo). Na terceira, com o Keycloak já estável (script de saúde: discovery 200, certs 200, token 401), passaram
+`deploy-api` (incluindo "Conferir migrations aplicadas" e "Conferir as origens do frontend"), `deploy-services`
+(worker e cron), `deploy-frontend`, `deploy-driver` e `mark-deployed`. Correção pendente: o `keycloak-reconcile.sh`
+deve esperar o Keycloak responder antes de pedir o token.
+
+### Keycloak de produção: checar a saúde (somente leitura)
+
+Script `producao-keycloak-saude.sh` (na pasta `ativada` do Anderson, fora do repositório): mostra os deploys e as
+últimas 80 linhas de log do `keycloak`, e testa o discovery do realm, os certificados e o endpoint de token **sem
+credencial** (200 e 400/401 = de pé; 502/503 = fora do ar). Não troca variável nem redeploya.
+
+Caso de 28/10/2026 (promoção #408): `deploy-api` falhou duas vezes em "Reconciliar realm" com `curl 502` logo depois
+de "Deploy identity" dar sucesso. O passo de deploy só espera o Railway marcar `SUCCESS`; o `keycloak-reconcile.sh`
+não espera o Keycloak responder. Nesse caso a API, o worker e os frontends **não** sobem (os jobs seguintes ficam
+pulados) e as migrations não rodam. Não insistir em re-run: ler o log do `keycloak` primeiro.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
@@ -403,6 +422,15 @@ copiada nem impressa). A API cria a instância pelo portal (PR #404); o script
 `evolution-staging-instancia.sh` não é mais necessário. As duas variáveis constam no `railway.ts` como
 `preserve()` para um apply não as apagar.
 
+### Plano de produção contra o `railway.ts` (28/10/2026, somente leitura)
+
+`railway config plan` de produção contra a staging `cba0044` (já com os nomes de banco do #410): **0 serviços ou
+bancos apagados**, 16 mudanças e **1 `Delete`**: a variável `api.TURNSTILE_SECRET_KEY`, que existe em produção e
+a API lê, mas não estava no arquivo. Ela entrou como `preserve()`; o plano seguinte deve dar zero `Delete`.
+As demais mudanças são aditivas: `restartPolicyType: ON_FAILURE` nos serviços, `drainingSeconds: 600` no
+worker e seis variáveis `AUDIO_TRANSCRIPTION_*` do worker. **Nenhum apply foi rodado**; ele segue
+dependendo de novo plano sem `Delete` e da aprovação do Anderson.
+
 ### Recuperação dos usuários de staging (28/10/2026)
 
 O banco do Keycloak de staging foi apagado em 27/10 (ver incidente acima); o realm voltou sem usuários.
@@ -429,3 +457,16 @@ Pegadinhas: o token do admin do `master` dura 60 s (renovar a cada etapa); o arq
 `device_commit_files` pode chegar defasado, conferir `md5sum`; o Keycloak guarda a senha como hash, então "mesma
 senha" só se obtém copiando `credential`, nunca digitando. Contas sem usuário correspondente em produção
 (convidadas que nunca definiram senha, contas de teste) ficam sem senha em staging.
+
+### Pessoa `automation` criada em produção (28/10/2026)
+
+Antes: 0 memberships com o papel `automation` em produção (nem em staging), então as rotinas do worker que
+chamam a API (MDF-e automático, baixa por WhatsApp, canhoto, e-mail automático de ocorrência) não tinham quem
+as autorizasse (ADR-0047). Rodado pelo Anderson: `producao-criar-automation.sh` (mostra o plano e exige
+digitar `producao`). Criou o `identity_user` sintético `18152f2a-d903-4a71-8b2f-4fb6783c658a`, a membership
+`automation` na única empresa ativa (`ce523659-5e30-4b13-96ce-8d603d8cb9e9`) e o vínculo
+`external_identities` com a conta de serviço do worker (`sub` `0c5fe9dc-d869-459e-b1ca-3161980f17d9`). Só
+INSERT no banco do app; Keycloak intocado. Reverter: apagar essa membership e o vínculo.
+
+`producao-renomear-usuarios-uuid.sh` rodou no mesmo dia e não achou nenhum username em UUID em
+`identity_user_profiles` de produção: nada foi alterado. (Os UUIDs vistos eram só de staging.)

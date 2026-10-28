@@ -12,6 +12,7 @@ import {
   WHATSAPP_EVOLUTION_DEFAULT_DRAFT,
 } from '../../src/modules/company-settings/shared/whatsappEvolutionForm.service'
 import { createWhatsAppEvolutionClient } from '../../src/modules/company-settings/shared/whatsappEvolutionClient.service'
+import { decodeWhatsAppQrPng } from '../../src/modules/company-settings/shared/whatsappEvolutionQrImage.service'
 import {
   isWhatsAppEvolutionQrResponse,
   isWhatsAppEvolutionResponse,
@@ -199,5 +200,19 @@ describe('WhatsApp (Evolution) settings panel (spec 281 T4)', () => {
       method: 'POST',
       url: 'https://api.example/company-settings/whatsapp-evolution/provision',
     })
+  })
+})
+
+describe('imagem do QR (img-src não admite data:)', () => {
+  test('converte o PNG em base64 para bytes', () => {
+    const bytes = decodeWhatsAppQrPng('data:image/png;base64,iVBORw0KGgo=')
+    expect(bytes).not.toBeNull()
+    expect(Array.from(bytes ?? [])).toEqual([137, 80, 78, 71, 13, 10, 26, 10])
+  })
+
+  test('recusa o que não é PNG em base64', () => {
+    expect(decodeWhatsAppQrPng('https://exemplo.test/qr.png')).toBeNull()
+    expect(decodeWhatsAppQrPng('data:image/svg+xml;base64,AAAA')).toBeNull()
+    expect(decodeWhatsAppQrPng('data:image/png;base64,@@@')).toBeNull()
   })
 })

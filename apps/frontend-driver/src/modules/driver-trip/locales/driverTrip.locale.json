@@ -674,6 +674,7 @@
     "missing": {
       "declaredAmount": "“{{label}}”",
       "itemDeclaredAmount": "“{{label}}” de cada produto marcado",
+      "newDueDateInvalid": "a nova data de vencimento (completa e a partir de hoje)",
       "note": "a observação",
       "photo": "a foto",
       "photoMinimum": "mais fotos (mínimo de {{count}})",
@@ -696,6 +697,12 @@
       "title": "Produtos da nota (obrigatório)"
     },
     "readyToRegister": "Tudo o que o tipo pede está preenchido.",
+    "newDueDate": {
+      "hint": "Se o cliente disse a data, digite só os números. Se não, deixe em branco.",
+      "invalid": "Digite uma data completa que ainda não passou, como 25/11/2026. Nada foi cortado: corrija ou apague o texto.",
+      "label": "Nova data de vencimento · opcional",
+      "placeholder": "dd/mm/aaaa"
+    },
     "referenceNumber": {
       "defaultLabel": "Número do documento do cliente",
       "optional": "{{label}} · opcional",

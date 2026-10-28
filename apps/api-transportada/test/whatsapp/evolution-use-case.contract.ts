@@ -98,6 +98,7 @@ const VALUES = {
 async function buildFixture(
   input: {
     readonly existing?: WhatsAppEvolutionSummary | null
+    readonly emptyQrs?: number
     readonly gatewayFails?: boolean
     readonly provisioner?: 'fails' | 'ok'
     readonly state?: 'close' | 'connecting' | 'open'
@@ -114,6 +115,7 @@ async function buildFixture(
   const recorded: { audited: boolean; state: string }[] = []
   const qrAudits: string[] = []
   const provisioned: string[] = []
+  const warnings: string[] = []
   const gatewayCalls: { apiKey: string; baseUrl: string; instanceName: string; method: string }[] =
     []
 
@@ -150,13 +152,18 @@ async function buildFixture(
     },
     getQrCode: async (request) => {
       gatewayCalls.push({ ...request, method: 'qr' })
+      if (gatewayCalls.filter((call) => call.method === 'qr').length <= (input.emptyQrs ?? 0)) {
+        return { pairingCode: null, qrBase64: null }
+      }
       return { pairingCode: 'ABCD-1234', qrBase64: 'iVBORw0KGgo=' }
     },
   }
   const useCase = createWhatsAppEvolutionUseCase({
     gateway,
+    logger: { warn: (message) => warnings.push(message) },
     newSettingsId: () => NEW_SETTINGS_ID,
     now: () => new Date('2026-10-27T12:00:00.000Z'),
+    sleep: async () => {},
     ...(input.provisioner === undefined
       ? {}
       : {
@@ -173,7 +180,17 @@ async function buildFixture(
     secrets,
   })
 
-  return { gatewayCalls, provisioned, qrAudits, recorded, saved, secrets, sealed, useCase }
+  return {
+    gatewayCalls,
+    provisioned,
+    warnings,
+    qrAudits,
+    recorded,
+    saved,
+    secrets,
+    sealed,
+    useCase,
+  }
 }
 
 describe('a configuração do Evolution (spec 281 T4)', () => {
@@ -384,6 +401,27 @@ describe('a chave selada e o endereço (spec 281 T4)', () => {
     'não é url',
   ])('recusa %s', (raw) => {
     expect(() => normalizeEvolutionBaseUrl(raw)).toThrow(WhatsAppEvolutionBaseUrlRejectedError)
+  })
+})
+
+describe('o QR que o Evolution ainda não gerou (spec 281 T4c)', () => {
+  test('tenta de novo até o QR existir', async () => {
+    const fixture = await buildFixture({ emptyQrs: 2, state: 'connecting' })
+
+    const result = await fixture.useCase.qr({ context: CONTEXT, correlationId: 'c1' })
+
+    expect(result.qrCode).toBe('data:image/png;base64,iVBORw0KGgo=')
+    expect(fixture.gatewayCalls.filter((call) => call.method === 'qr')).toHaveLength(3)
+    expect(fixture.warnings).toEqual([])
+  })
+
+  test('sem QR depois das tentativas, devolve vazio e registra no log', async () => {
+    const fixture = await buildFixture({ emptyQrs: 9, state: 'connecting' })
+
+    const result = await fixture.useCase.qr({ context: CONTEXT, correlationId: 'c1' })
+
+    expect(result.qrCode).toBeNull()
+    expect(fixture.warnings).toEqual(['whatsapp_evolution.qr_empty'])
   })
 })
 

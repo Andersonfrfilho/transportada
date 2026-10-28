@@ -600,6 +600,8 @@ export async function saveTripOccurrence(
     readonly declaredAmount?: null | string
     /** Spec 247 (T4.4): o número do documento do cliente; ausente/nulo grava nulo. */
     readonly referenceNumber?: null | string
+    /** A nova data de vencimento (`AAAA-MM-DD`) do pedido de prorrogação; ausente/nulo grava nulo. */
+    readonly newDueDate?: null | string
     /**
      * Spec 164 T4 (RF3): a política do tipo, copiada para a tratativa no registro. Ausente (ou
      * `'unset'`) é o produto de hoje — nenhuma tratativa nasce, nenhum caminho muda.
@@ -642,6 +644,7 @@ export async function saveTripOccurrence(
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
       referenceNumber: input.referenceNumber ?? null,
+      requestedDueDate: input.newDueDate ?? null,
       signatureObjectId: input.signatureObjectId ?? null,
       stage: input.stage,
       tripDocumentId: input.documentId,
@@ -913,6 +916,7 @@ export async function findOccurrenceType(
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       clientChannel: companyOccurrenceTypes.clientChannel,
       asksClientContact: companyOccurrenceTypes.asksClientContact,
+      asksNewDueDate: companyOccurrenceTypes.asksNewDueDate,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1098,6 +1102,7 @@ export async function listOccurrenceTypes(
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       clientChannel: companyOccurrenceTypes.clientChannel,
       asksClientContact: companyOccurrenceTypes.asksClientContact,
+      asksNewDueDate: companyOccurrenceTypes.asksNewDueDate,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1371,6 +1376,7 @@ async function writeOccurrenceTypeRow(
     readonly clientEmailSendMode?: ClientEmailSendMode | undefined
     readonly clientChannel?: ClientChannel | undefined
     readonly asksClientContact?: boolean | undefined
+    readonly asksNewDueDate?: boolean | undefined
     readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
     readonly contractorReplyMode?: ContractorReplyMode | undefined
     readonly contractorReplyWaitHours?: null | number | undefined
@@ -1477,6 +1483,7 @@ async function writeOccurrenceTypeRow(
     ...(input.asksClientContact === undefined
       ? {}
       : { asksClientContact: input.asksClientContact }),
+    ...(input.asksNewDueDate === undefined ? {} : { asksNewDueDate: input.asksNewDueDate }),
     ...(input.contractorReplyAcknowledgementQuickReplyId === undefined
       ? {}
       : {
@@ -1600,6 +1607,7 @@ async function writeOccurrenceTypeRow(
     clientEmailSendMode: saved.clientEmailSendMode,
     clientChannel: saved.clientChannel,
     asksClientContact: saved.asksClientContact,
+    asksNewDueDate: saved.asksNewDueDate,
     contractorReplyAcknowledgementQuickReplyId: saved.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: saved.contractorReplyMode,
     contractorReplyWaitHours: saved.contractorReplyWaitHours,
@@ -1745,6 +1753,7 @@ export async function readOccurrenceMailValues(
     occurredOn: input.occurredOn,
     recipientName: contato?.name ?? '',
     ...(stored?.referenceNumber == null ? {} : { referenceNumber: stored.referenceNumber }),
+    ...(stored?.requestedDueDate == null ? {} : { requestedDueDate: stored.requestedDueDate }),
     stopLabel: row?.stopLabel ?? '',
     totalValue: row?.totalValue ?? '',
   }

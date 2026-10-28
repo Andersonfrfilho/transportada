@@ -47,6 +47,7 @@ import {
   OCCURRENCE_TYPE_FLOWS,
 } from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
+import { isRealIsoDate } from '../domain/occurrence-new-due-date.policy.js'
 import {
   OFFICE_MULTIPART_FILE_FIELD,
   readOfficeMultipartFile,
@@ -99,6 +100,18 @@ const referenceNumberSchema = z
   .transform((value) => (value === '' ? undefined : value))
   .pipe(z.string().regex(new RegExp(OCCURRENCE_REFERENCE_NUMBER_PATTERN)).optional())
 
+/** A nova data de vencimento do pedido de prorrogação: vazio é "não informada"; presente, `AAAA-MM-DD` que existe. */
+const newDueDateSchema = z
+  .string()
+  .trim()
+  .transform((value) => (value === '' ? undefined : value))
+  .pipe(
+    z
+      .string()
+      .refine((value) => isRealIsoDate(value))
+      .optional(),
+  )
+
 /**
  * ⚠️ `stage` **não entra no corpo**: ele é derivado do tipo, e aceitá-lo do cliente deixaria quem
  * tem `trip.manage` declarar que uma ocorrência de rua é de galpão para caber na própria permissão.
@@ -144,6 +157,8 @@ const registerOccurrenceSchema = z
       .optional(),
     /** Spec 247 (T4.4): o número do documento do cliente. */
     referenceNumber: referenceNumberSchema.optional(),
+    /** A nova data de vencimento (pedido de prorrogação do boleto); só o tipo que a pede a grava. */
+    newDueDate: newDueDateSchema.optional(),
   })
   .strict()
   .superRefine(refineAttachmentSelection)
@@ -501,6 +516,8 @@ const occurrenceTypeSchema = z
     clientChannel: z.enum(CLIENT_CHANNELS).optional(),
     /** Spec 281 T8b: liga/desliga pedir o contato do cliente na abertura da ocorrência; ausente não mexe. */
     asksClientContact: z.boolean().optional(),
+    /** Liga/desliga o campo opcional "nova data de vencimento" no app do motorista; ausente não mexe. */
+    asksNewDueDate: z.boolean().optional(),
     /** Spec 276 T5: `null` desliga; ausente não mexe. */
     contractorReplyAcknowledgementQuickReplyId: z.string().uuid().nullable().optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),

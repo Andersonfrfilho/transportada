@@ -74,6 +74,8 @@ const DEFAULT_SPA_CLIENT_ATTRIBUTES: Readonly<Record<string, string>> = {
 }
 
 function startFakeKeycloak(input: {
+  /** Quantas respostas 502 o discovery dá antes de responder 200 (Keycloak ainda subindo); `Infinity` nunca sobe. */
+  readonly discoveryFailuresBeforeReady?: number
   readonly loginThemeInHtml: string | undefined
   readonly spaClient?: {
     readonly attributes?: Readonly<Record<string, string>>
@@ -114,11 +116,19 @@ function startFakeKeycloak(input: {
     readonly webOrigins: readonly string[]
   }[] = []
 
+  let discoveryFailuresLeft = input.discoveryFailuresBeforeReady ?? 0
   const server = Bun.serve({
     port: 0,
     async fetch(request) {
       const { pathname } = new URL(request.url)
 
+      if (pathname === `/realms/${REALM}/.well-known/openid-configuration`) {
+        if (discoveryFailuresLeft > 0) {
+          discoveryFailuresLeft -= 1
+          return new Response('bad gateway', { status: 502 })
+        }
+        return Response.json({ issuer: `/realms/${REALM}` })
+      }
       if (pathname.endsWith('/protocol/openid-connect/token')) {
         return Response.json({ access_token: ADMIN_TOKEN, expires_in: 60 })
       }
@@ -241,6 +251,8 @@ type RunResult = {
 }
 
 async function runReconcile(input: {
+  readonly discoveryFailuresBeforeReady?: number
+  readonly readyTimeoutSeconds?: number
   readonly storedEditUsernameAllowed?: boolean
   readonly storedRememberMe?: RememberMeSettings
   readonly loginThemeInHtml: string | undefined
@@ -266,6 +278,8 @@ async function runReconcile(input: {
       HOME: home,
       PATH: `${binaryDirectory}:${Bun.env.PATH ?? ''}`,
       TARGET_ENVIRONMENT: 'staging',
+      KEYCLOAK_READY_INTERVAL_SECONDS: '1',
+      KEYCLOAK_READY_TIMEOUT_SECONDS: String(input.readyTimeoutSeconds ?? 30),
     },
     stderr: 'pipe',
     stdout: 'pipe',
@@ -304,6 +318,35 @@ function buildWantedPostLogoutRedirectUris(webOrigins: readonly string[]): reado
  * cobra que a configuração de realm seja aplicada de verdade e conferida no ar.
  */
 describe('contrato de reconciliação do realm', () => {
+  /**
+   * 28/10/2026: o Railway marcou o deploy do Keycloak como `SUCCESS` e o reconcile pediu o token na hora,
+   * com o serviço ainda subindo — 502, API sem deploy. O passo espera o discovery do realm responder.
+   */
+  test('Keycloak ainda subindo: espera responder e reconcilia', async () => {
+    const result = await runReconcile({
+      discoveryFailuresBeforeReady: 2,
+      loginThemeInHtml: LOGIN_THEME,
+      storedLoginTheme: undefined,
+    })
+
+    expect(result.output).toContain('keycloak ainda não responde')
+    expect(result.writes).toEqual([LOGIN_THEME])
+    expect(result.exitCode).toBe(0)
+  })
+
+  test('Keycloak que não sobe no prazo reprova com uma mensagem que diz o motivo', async () => {
+    const result = await runReconcile({
+      discoveryFailuresBeforeReady: Number.POSITIVE_INFINITY,
+      loginThemeInHtml: LOGIN_THEME,
+      readyTimeoutSeconds: 2,
+      storedLoginTheme: undefined,
+    })
+
+    expect(result.exitCode).not.toBe(0)
+    expect(result.output).toContain('não respondeu ao discovery do realm')
+    expect(result.writes).toEqual([])
+  })
+
   /** O que o arquivo declara passa a valer no realm, em vez de ficar sendo um desejo. */
   test('realm sem tema recebe o nosso e o deploy segue', async () => {
     const result = await runReconcile({

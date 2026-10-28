@@ -253,3 +253,27 @@ describe('o cadastro do tipo aceita "asksClientContact" (spec 281 T8b)', () => {
     expect(error?.status).toBe(400)
   })
 })
+
+describe('o cadastro do tipo aceita "asksNewDueDate" (nova data de vencimento opcional)', () => {
+  test.each([true, false])('%s é aceito e chega ao caso de uso', async (asks) => {
+    const [saved] = await putThroughRoute({ ...baseBody(), asksNewDueDate: asks })
+    expect(saved?.asksNewDueDate).toBe(asks)
+  })
+
+  test('ausente fica ausente — o painel antigo não liga nem desliga o campo', async () => {
+    const parsed = await parseOccurrenceTypeRequest(putRequest(baseBody()))
+    expect('asksNewDueDate' in parsed).toBe(false)
+    const [saved] = await putThroughRoute(baseBody())
+    expect(saved?.asksNewDueDate).toBeUndefined()
+  })
+
+  test('valor que não é booleano é 400', async () => {
+    const error = await parseOccurrenceTypeRequest(
+      putRequest({ ...baseBody(), asksNewDueDate: 'sim' }),
+    ).then(
+      () => undefined,
+      (reason: unknown) => reason as Error & { status: number },
+    )
+    expect(error?.status).toBe(400)
+  })
+})

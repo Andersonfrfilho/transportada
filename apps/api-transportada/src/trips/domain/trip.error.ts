@@ -1522,6 +1522,18 @@ export class OccurrenceDeclaredAmountLevelConflictError extends ApiError {
 
 const REQUIRED_BY_OCCURRENCE_TYPE_MESSAGE = 'Required by the occurrence type.'
 
+/** A nova data de vencimento do pedido de prorrogação já passou: o motorista escolheu um dia anterior a hoje. */
+export class TripOccurrenceNewDueDateInPastError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_NEW_DUE_DATE_IN_PAST',
+      details: [{ field: 'newDueDate', message: 'The new due date cannot be in the past.' }],
+      message: 'The new due date cannot be in the past.',
+      status: 422,
+    })
+  }
+}
+
 /**
  * Spec 247 (RF14, CA06): o tipo **efetivo** da nota exige o número do documento do cliente e o
  * registro chegou sem ele. Código próprio, com o campo: a tela diz o que falta.

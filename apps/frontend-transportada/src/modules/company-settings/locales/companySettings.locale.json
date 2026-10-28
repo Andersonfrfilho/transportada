@@ -14,7 +14,8 @@
     "businessCalendar": "Calendário",
     "audioTranscription": "Transcrição de áudios",
     "occurrenceWatchers": "Responsáveis por ocorrências",
-    "whatsapp": "WhatsApp"
+    "whatsapp": "WhatsApp",
+    "automations": "Automações"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -335,6 +336,8 @@
     "clientChannel": "Canal com o cliente",
     "asksClientContact": "Pedir o contato do cliente ao motorista",
     "asksClientContactHint": "Quando o cliente da nota não tem contato guardado para este canal, o app do motorista pede o WhatsApp ou o e-mail na abertura da ocorrência, para ele não precisar mandar pelo chat. O cliente pode ter vários números e e-mails.",
+    "asksNewDueDate": "Pedir a nova data de vencimento ao motorista",
+    "asksNewDueDateHint": "O app do motorista mostra o campo opcional \"Nova data de vencimento\" ao abrir a ocorrência (por exemplo, quando o cliente pede a prorrogação do boleto). Se ele preencher, a data sai no e-mail à contratante; em branco, o e-mail sai como sempre.",
     "clientChannelHint": "Por onde a ocorrência fala com o cliente. E-mail é o padrão e segue o tipo de e-mail ao lado. WhatsApp usa o número do cliente e, se falhar, o e-mail guardado. Desligado não envia nada ao cliente.",
     "clientChannelOptions": {
       "off": "Desligado",
@@ -552,7 +555,9 @@
           "assinaturaIniciais": "Iniciais de quem assina, ou do nome de exibição.",
           "faixaResposta": "Faixa \"Responda este e-mail\", só quando a resposta chega (HTML do sistema).",
           "marcasRodape": "Marcas do rodapé: TransportAdA e Ada Technology (HTML do sistema).",
-          "logoAssinatura": "Quadrado da assinatura: o logo da transportadora na assinatura da equipe, senão as iniciais (HTML do sistema)."
+          "logoAssinatura": "Quadrado da assinatura: o logo da transportadora na assinatura da equipe, senão as iniciais (HTML do sistema).",
+          "novaDataVencimento": "Data de vencimento pedida pelo motorista (DD/MM/AAAA); vazia quando não informada.",
+          "avisoNovaData": "Parágrafo \"Nova data de vencimento solicitada: DD/MM/AAAA\", só quando o motorista informou a data (HTML do sistema)."
         }
       },
       "watchers": {
@@ -841,11 +846,55 @@
       "checkedAt": "Verificado às {{time}}",
       "checkError": "Não foi possível consultar o estado ({{code}}).",
       "dropped": "O número está desconectado. Gere um novo QR para reconectar; enquanto isso os envios caem para o e-mail.",
-      "reconnect": "Reconectar número"
+      "reconnect": "Reconectar número",
+      "title": "Conexão do número",
+      "qrWaiting": "Gerando o QR code. Pode levar alguns segundos."
     },
     "provision": {
       "action": "Criar e conectar",
-      "hint": "O Evolution deste ambiente cria a instância do número por você. Basta aceitar o aviso e ler o QR com o WhatsApp."
+      "hint": "O Evolution deste ambiente cria a instância do número por você. Basta aceitar o aviso e ler o QR com o WhatsApp.",
+      "title": "Criar o número pelo portal"
+    },
+    "settingsTitle": "Configuração do canal"
+  },
+  "automations": {
+    "title": "Automações",
+    "subtitle": "O fluxo semanal de um contratante: o que chega por email, quem recebe e em quanto tempo vence a fatura. Cada passo ainda pede a sua confirmação.",
+    "loading": "Carregando as automações…",
+    "retry": "Tentar de novo",
+    "empty": "Nenhuma automação cadastrada.",
+    "summary_one": "{{count}} destinatário · fatura em {{days}} dias",
+    "summary_other": "{{count}} destinatários · fatura em {{days}} dias",
+    "on": "Ligada",
+    "off": "Desligada",
+    "edit": "Editar",
+    "new": "Nova automação",
+    "editing": "Editar automação",
+    "name": "Nome (o contratante)",
+    "recipients": "Destinatários do envio",
+    "recipientsHint": "Um email por linha. O envio responde para todos eles.",
+    "dueDays": "Prazo da fatura (dias)",
+    "partSize": "XMLs por email (até 100)",
+    "nfseCity": "Cidade da NFS-e (opcional)",
+    "xmlKind": "Segue por email somente o XML dos CT-e emitidos.",
+    "enabled": "Automação ligada",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "cancel": "Cancelar",
+    "formError": {
+      "name": "Informe o nome da automação.",
+      "billingDueDays": "O prazo da fatura vai de 1 a 120 dias.",
+      "partSize": "Cada email leva de 1 a 100 XMLs.",
+      "recipientFormat": "Há um email inválido na lista de destinatários.",
+      "recipientLimit": "No máximo 50 destinatários."
+    },
+    "error": {
+      "failed": "Não foi possível concluir. Tente de novo.",
+      "forbidden": "Você não tem permissão para as automações.",
+      "invalid": "Os dados não foram aceitos. Confira os campos.",
+      "unauthenticated": "Sua sessão expirou. Entre de novo.",
+      "notFound": "A automação não existe mais.",
+      "conflict": "Já existe uma automação com esse nome."
     }
   }
 }

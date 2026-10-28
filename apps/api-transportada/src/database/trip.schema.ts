@@ -44,6 +44,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -2474,6 +2475,11 @@ export const tripDocumentOccurrences = pgTable(
      */
     referenceNumber: varchar('reference_number', { length: 30 }),
     /**
+     * A nova data de vencimento que o motorista informou (opcional; só o tipo com `asks_new_due_date` a aceita). Dia civil,
+     * sem hora; nulo é não informada.
+     */
+    requestedDueDate: date('requested_due_date', { mode: 'string' }),
+    /**
      * Spec 247 (RF9): o valor pago digitado pela ocorrência inteira (`declared_amount_scope =
      * 'occurrence'`). Dinheiro em `numeric`, nunca float; nulo cai na soma das linhas.
      */
@@ -3181,6 +3187,11 @@ export const companyOccurrenceTypes = pgTable(
      * e-mail, conforme o `client_channel`). Padrão desligado: nenhum tipo existente muda.
      */
     asksClientContact: boolean('asks_client_contact').notNull().default(false),
+    /**
+     * O app do motorista oferece o campo opcional "nova data de vencimento" ao abrir a ocorrência (pedido de prorrogação do
+     * boleto). Padrão desligado: nenhum tipo existente muda.
+     */
+    asksNewDueDate: boolean('asks_new_due_date').notNull().default(false),
     /** Sending the invoice to the e-mail of the note's customer is always an explicit choice. */
     forwardToNoteRecipient: varchar('forward_to_note_recipient', { length: 16 })
       .$type<ForwardToNoteRecipientMode>()

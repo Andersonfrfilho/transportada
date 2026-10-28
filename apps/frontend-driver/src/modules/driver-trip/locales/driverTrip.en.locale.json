@@ -656,6 +656,7 @@
     "missing": {
       "declaredAmount": "“{{label}}”",
       "itemDeclaredAmount": "“{{label}}” for each marked product",
+      "newDueDateInvalid": "the new due date (complete and from today on)",
       "note": "the note",
       "photo": "the photo",
       "photoMinimum": "more photos (at least {{count}})",
@@ -678,6 +679,12 @@
       "title": "Invoice products (required)"
     },
     "readyToRegister": "Everything the type asks for is filled in.",
+    "newDueDate": {
+      "hint": "If the client gave a date, type just the numbers. If not, leave it blank.",
+      "invalid": "Enter a complete date that has not passed yet, like 25/11/2026. Nothing was cut: fix or clear the text.",
+      "label": "New due date · optional",
+      "placeholder": "dd/mm/yyyy"
+    },
     "referenceNumber": {
       "defaultLabel": "Customer document number",
       "optional": "{{label}} · optional",
