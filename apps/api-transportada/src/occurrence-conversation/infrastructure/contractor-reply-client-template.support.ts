@@ -38,7 +38,7 @@ export type ResolveContractorReplyClientTextsResult =
       readonly source: 'legacy' | 'template'
       readonly texts: ContractorReplyClientTexts
     }
-  /** `legacy`: o tipo não escolheu modelo e o texto livre antigo está vazio; `template`: o modelo escolhido não serve. */
+  /** `legacy`: o tipo não escolheu modelo (sem fallback para o texto antigo, spec 286 T9); `template`: o modelo escolhido não serve. */
   | { readonly kind: 'template_missing'; readonly source: 'legacy' | 'template' }
 
 /** As variáveis que o modelo do boleto ao cliente pode usar; a que falta sai vazia (regra do módulo). */
@@ -79,18 +79,6 @@ function chosenCarrierName(input: {
   const tradeName = input.tradeName.trim()
   if (input.displayNameMode === 'legal_name') return legalName === '' ? tradeName : legalName
   return tradeName === '' ? legalName : tradeName
-}
-
-/** O texto livre copiado no retorno (248); sem assunto ou corpo não há texto. */
-export function readContractorReplyLegacyTexts(config: unknown): ContractorReplyClientTexts | null {
-  if (typeof config !== 'object' || config === null) return null
-  const fields = config as Record<string, unknown>
-  const body = typeof fields.forwardEmailBody === 'string' ? fields.forwardEmailBody.trim() : ''
-  const subject =
-    typeof fields.forwardEmailSubject === 'string'
-      ? fields.forwardEmailSubject.replace(WHITESPACE_RUN, ' ').trim()
-      : ''
-  return body === '' || subject === '' ? null : { body, subject }
 }
 
 /** A caixa do canal no tipo da ocorrência. */
@@ -161,18 +149,6 @@ async function readValues(
   }
 }
 
-function fromLegacy(
-  channel: ContractorReplyClientChannel,
-  config: unknown,
-): ResolveContractorReplyClientTextsResult {
-  const legacy = readContractorReplyLegacyTexts(config)
-  if (legacy === null) return { kind: 'template_missing', source: 'legacy' }
-  /** Antes da 286 a legenda do WhatsApp era o assunto e o corpo do e-mail; continua igual até o tipo ganhar modelo. */
-  const texts =
-    channel === 'whatsapp' ? { body: `${legacy.subject}\n\n${legacy.body}`, subject: '' } : legacy
-  return { kind: 'texts', source: 'legacy', texts }
-}
-
 /**
  * O assunto e o corpo do boleto ao cliente no canal, já com as variáveis. A escolha do modelo é do tipo **agora**
  * (não a cópia do retorno): trocar o modelo em Notificações vale para o próximo envio, sem deploy.
@@ -182,8 +158,6 @@ export async function resolveContractorReplyClientTexts(
   params: {
     readonly channel: ContractorReplyClientChannel
     readonly companyId: string
-    /** A configuração copiada no retorno (o texto livre antigo, da leitura tolerante). */
-    readonly config: unknown
     readonly occurrenceId: string
   },
 ): Promise<ResolveContractorReplyClientTextsResult> {
@@ -193,7 +167,8 @@ export async function resolveContractorReplyClientTexts(
     companyId,
     occurrenceId,
   })
-  if (setting === null || setting.templateKey === null) return fromLegacy(channel, params.config)
+  if (setting === null || setting.templateKey === null)
+    return { kind: 'template_missing', source: 'legacy' }
 
   const [template] = await rowsOf(
     runner,

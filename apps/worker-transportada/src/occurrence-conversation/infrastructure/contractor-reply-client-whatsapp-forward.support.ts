@@ -259,7 +259,6 @@ async function reserve(
   const resolved = await resolveContractorReplyClientTexts(runner, {
     channel: 'whatsapp',
     companyId,
-    config: reply?.config,
     occurrenceId,
   })
   if (resolved.kind === 'template_missing') return skip('template_missing')
@@ -622,7 +621,6 @@ async function prepareDispatch(
   const resolved = await resolveContractorReplyClientTexts(runner, {
     channel: 'whatsapp',
     companyId,
-    config: reply?.config,
     occurrenceId,
   })
   if (resolved.kind === 'template_missing') return { kind: 'failed', reason: 'template_missing' }
