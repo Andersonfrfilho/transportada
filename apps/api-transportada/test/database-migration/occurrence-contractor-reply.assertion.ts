@@ -19,6 +19,7 @@ import { rollbackContractorReplyWhatsAppDelivery } from './contractor-reply-what
 import { rollbackContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { rollbackContractorReplyResolveOnDelivery } from './contractor-reply-resolve-on-delivery.assertion.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { rollbackOccurrenceDropForwardEmail } from './occurrence-drop-forward-email.assertion.js'
 import { OCCURRENCE_CONTRACTOR_REPLY_TABLES, migrationsDirectory } from './support.js'
 
 const MIGRATION_SUFFIX = '_occurrence_contractor_reply'
@@ -58,7 +59,6 @@ export const OCCURRENCE_CONTRACTOR_REPLY_TYPE_CONSTRAINTS = [
   'company_occurrence_types_contractor_reply_requires_mail_check',
   'company_occurrence_types_contractor_reply_alert_wait_check',
   'company_occurrence_types_forward_automatic_needs_reply_check',
-  'company_occurrence_types_forward_needs_text_check',
 ] as const
 
 export const OCCURRENCE_CONTRACTOR_REPLY_OVERRIDE_CONSTRAINTS = [
@@ -133,6 +133,7 @@ export async function assertOccurrenceContractorReplyRollback(
   expect(await readConstraintCount(database)).toBe(expectedConstraints)
   expect(await hasTriggerFunction(database)).toBe(true)
 
+  await rollbackOccurrenceDropForwardEmail(database, probe.directories)
   await rollbackClientEmailFallbackFrom(database, probe.directories)
   await rollbackClientWhatsAppAutomatic(database, probe.directories)
   await rollbackContractorReplyWhatsAppDelivery(database, probe.directories)

@@ -25,23 +25,10 @@ import {
 } from './occurrence-contractor-reply.fixture.js'
 import { assertOccurrenceContractorReplyRows } from './occurrence-contractor-reply-rows.assertion.js'
 import { assertOccurrenceContractorReplyTypeConstraints } from './occurrence-contractor-reply-type.assertion.js'
-import { migrationsDirectory, readMigrationNames } from './support.js'
+import { rollbackOccurrenceDropForwardEmail } from './occurrence-drop-forward-email.assertion.js'
+import { migrationsDirectory } from './support.js'
 
 const MIGRATION_SUFFIX = '_occurrence_contractor_reply'
-const DROP_FORWARD_EMAIL_SUFFIX = '_occurrence_drop_forward_email'
-
-async function rollbackOccurrenceDropForwardEmail(
-  database: SQL,
-  directories: readonly string[],
-): Promise<void> {
-  const directory = directories.find((name) => name.endsWith(DROP_FORWARD_EMAIL_SUFFIX))
-  if (directory === undefined) return
-  if (!(await readMigrationNames(database)).includes(directory)) return
-  const rollback = await Bun.file(
-    join(migrationsDirectory.pathname, directory, 'rollback.sql'),
-  ).text()
-  await database.unsafe(rollback)
-}
 
 export type OccurrenceContractorReplyConstraintsProbe = Readonly<{
   companyId: string
