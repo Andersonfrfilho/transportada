@@ -241,6 +241,7 @@ import { DrizzleDocumentSelectionRepository } from './whatsapp-commands/infrastr
 import { DrizzleWhatsAppCommandRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-command.repository.js'
 import { createResolveWhatsAppActorUseCase } from './whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
 import { createInMemoryWhatsAppSharedLocationStore } from './whatsapp-commands/application/whatsapp-shared-location.service.js'
+import { createGraphBotSpeech } from './whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import { createModuleWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import { WHATSAPP_ROOT_FLOW_GRAPH_KEY } from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
 import { DrizzleWhatsAppPhoneRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-phone.repository.js'
@@ -1266,7 +1267,14 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappSharedLocations = createInMemoryWhatsAppSharedLocationStore({
     clock: () => new Date(),
   })
+  /** Spec 286 T8: as falas do bot saem do grafo raiz publicado (editor de fluxos), a cada mensagem. */
+  const whatsappBotSpeech = createGraphBotSpeech({
+    onReadError: (error) => logger.warn('whatsapp.bot_speech.read_failed', { error }),
+    repository: new FlowGraphRepository(database.db as never),
+    rootFlowKey: WHATSAPP_ROOT_FLOW_GRAPH_KEY,
+  })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
+    speech: whatsappBotSpeech,
     consumeSharedLocation: (key) => whatsappSharedLocations.consume(key),
     findCurrentTrip: (input) =>
       findCurrentDriverTrip({
@@ -1334,6 +1342,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappTripRouteRepository = new DrizzleTripRouteRepository(database.db)
   const whatsappWarehouseTripRepository = new DrizzleWarehouseTripRepository(database.db)
   const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
+    speech: whatsappBotSpeech,
     /**
      * Spec 161 T16 (RF20b): a chave de idempotência do WhatsApp é o **sha256 do arquivo
      * baixado** — nunca o `media-id` (muda a cada reenvio da mesma foto pelo operador) nem o
@@ -1629,6 +1638,7 @@ export function bootstrap(): Bun.Server<undefined> {
     resume: (input) => whatsappSelectionConfirmation.resume(input),
   })
   const issuanceWhatsAppFlowActions = createIssuanceWhatsAppFlowActions({
+    speech: whatsappBotSpeech,
     clock: () => new Date(),
     confirmSelection: (input) => whatsappSelectionConfirmation.confirm(input),
     listIssueDateEmitters: (input) => whatsappDocumentSelection.listIssueDateEmitters(input),

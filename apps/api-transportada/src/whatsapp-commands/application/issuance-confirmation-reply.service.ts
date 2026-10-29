@@ -22,23 +22,26 @@ import type {
   ConfirmDocumentSelectionOutcome,
   SupersededPreview,
 } from './confirm-document-selection.use-case.js'
+import { BOT_SPEECH_DEFAULTS, type BotSpeechKey } from '../domain/whatsapp-bot-speech.constant.js'
+import {
+  CATALOG_BOT_SPEECH,
+  createBotSayer,
+  type WhatsAppBotSpeechPort,
+} from './whatsapp-bot-speech.service.js'
 import { clearSelectionContext } from './issuance-flow-context.service.js'
 import { sendConfirmationList, sendVolumetryMessages } from './issuance-flow-prompt.service.js'
 import type { IssuanceStepFailure } from './issuance-journal.service.js'
 import type { WhatsAppAuthorizedActionInput } from './with-authorized-actor.service.js'
 
-export const ISSUANCE_DISPATCHED_MESSAGE =
-  'Enviado. Aviso quando a SEFAZ e a prefeitura responderem.'
-export const ISSUANCE_NOTHING_DISPATCHED_MESSAGE = 'Nenhum documento saiu.'
-export const ISSUANCE_FORBIDDEN_MESSAGE =
-  'Seu acesso não permite emitir todos os documentos desta prévia. Fale com o administrador.'
-export const ISSUANCE_IN_PROGRESS_MESSAGE =
-  'Este pedido já está sendo enviado. Aviso quando a SEFAZ e a prefeitura responderem.'
-export const ISSUANCE_ALREADY_DISPATCHED_MESSAGE = 'Este pedido já foi enviado.'
-export const ISSUANCE_NOT_FOUND_MESSAGE = 'Esse pedido não vale mais. Refaça a seleção.'
-export const ISSUANCE_EXPIRED_MESSAGE = 'Prévia expirada.'
-export const ISSUANCE_SUPERSEDED_MESSAGE =
-  'As notas mudaram desde a prévia, e nada foi emitido. Confira de novo:'
+/** Os padrões do código das falas da confirmação; o texto vivo é o do nó `fala_*` do grafo publicado. */
+export const ISSUANCE_DISPATCHED_MESSAGE = BOT_SPEECH_DEFAULTS.issuanceDispatched
+export const ISSUANCE_NOTHING_DISPATCHED_MESSAGE = BOT_SPEECH_DEFAULTS.issuanceNothingDispatched
+export const ISSUANCE_FORBIDDEN_MESSAGE = BOT_SPEECH_DEFAULTS.issuanceForbidden
+export const ISSUANCE_IN_PROGRESS_MESSAGE = BOT_SPEECH_DEFAULTS.issuanceInProgress
+export const ISSUANCE_ALREADY_DISPATCHED_MESSAGE = BOT_SPEECH_DEFAULTS.issuanceAlreadyDispatched
+export const ISSUANCE_NOT_FOUND_MESSAGE = BOT_SPEECH_DEFAULTS.issuanceNotFound
+export const ISSUANCE_EXPIRED_MESSAGE = BOT_SPEECH_DEFAULTS.issuanceExpired
+export const ISSUANCE_SUPERSEDED_MESSAGE = BOT_SPEECH_DEFAULTS.issuanceSuperseded
 
 const TO_MENU: FlowActionResult = { context: clearSelectionContext(), next: 'menu' }
 const TO_CRITERION: FlowActionResult = {
@@ -49,41 +52,52 @@ const TO_CRITERION: FlowActionResult = {
 export async function replyToConfirmation(
   input: WhatsAppAuthorizedActionInput,
   outcome: ConfirmDocumentSelectionOutcome,
+  speech: WhatsAppBotSpeechPort = CATALOG_BOT_SPEECH,
 ): Promise<FlowActionResult> {
-  const say = (body: string) => input.channel.sendText(input.session.whatsappNumber, body)
+  const sayKey = createBotSayer(speech)
+  const say = (key: BotSpeechKey) => sayKey(input, key)
   switch (outcome.kind) {
     case 'dispatched':
-      await say(
-        outcome.issued === 0 ? ISSUANCE_NOTHING_DISPATCHED_MESSAGE : ISSUANCE_DISPATCHED_MESSAGE,
-      )
-      if (outcome.failures.length > 0) await say(formatFailures(outcome.failures))
+      await say(outcome.issued === 0 ? 'issuanceNothingDispatched' : 'issuanceDispatched')
+      if (outcome.failures.length > 0) {
+        await sayKey(input, { text: await formatFailures(outcome.failures, input, speech) })
+      }
       return TO_MENU
     case 'forbidden':
-      await say(ISSUANCE_FORBIDDEN_MESSAGE)
+      await say('issuanceForbidden')
       return TO_MENU
     case 'in_progress':
-      await say(ISSUANCE_IN_PROGRESS_MESSAGE)
+      await say('issuanceInProgress')
       return TO_MENU
     case 'already_dispatched':
-      await say(ISSUANCE_ALREADY_DISPATCHED_MESSAGE)
+      await say('issuanceAlreadyDispatched')
       return TO_MENU
     case 'not_found':
-      await say(ISSUANCE_NOT_FOUND_MESSAGE)
+      await say('issuanceNotFound')
       return TO_CRITERION
     case 'expired':
-      return offerRedo(input)
+      return offerRedo(input, speech)
     case 'superseded':
-      await say(ISSUANCE_SUPERSEDED_MESSAGE)
-      return replyWithNewPreview(input, outcome.next)
+      await say('issuanceSuperseded')
+      return replyWithNewPreview(input, outcome.next, sayKey)
   }
 }
 
 /** "Prévia expirada" com a opção de refazer: o 🔁 cai no mesmo Voltar que recomeça o critério. */
-async function offerRedo(input: WhatsAppAuthorizedActionInput): Promise<FlowActionResult> {
+async function offerRedo(
+  input: WhatsAppAuthorizedActionInput,
+  speech: WhatsAppBotSpeechPort,
+): Promise<FlowActionResult> {
+  const companyId = input.actor.scope.companyId
   await input.channel.sendInteractiveList({
-    body: ISSUANCE_EXPIRED_MESSAGE,
+    body: await speech.text({ companyId, key: 'issuanceExpired' }),
     buttonLabel: WHATSAPP_LIST_BUTTON_TEXT,
-    rows: [{ id: ISSUANCE_BACK_ANSWER, title: '🔁 Refazer' }],
+    rows: [
+      {
+        id: ISSUANCE_BACK_ANSWER,
+        title: await speech.text({ companyId, key: 'issuanceRedoButton' }),
+      },
+    ],
     to: input.session.whatsappNumber,
   })
   return {
@@ -95,6 +109,7 @@ async function offerRedo(input: WhatsAppAuthorizedActionInput): Promise<FlowActi
 async function replyWithNewPreview(
   input: WhatsAppAuthorizedActionInput,
   next: SupersededPreview,
+  say: ReturnType<typeof createBotSayer>,
 ): Promise<FlowActionResult> {
   const to = input.session.whatsappNumber
   switch (next.kind) {
@@ -107,20 +122,28 @@ async function replyWithNewPreview(
       }
     case 'nothing_to_issue':
       await sendVolumetryMessages({ channel: input.channel, to, volumetry: next.volumetry })
-      await input.channel.sendText(to, 'Nenhuma dessas notas pode ser emitida agora.')
+      await say(input, 'issuanceNothingToIssue')
       return TO_CRITERION
     case 'no_membership':
       throw new WhatsAppCommandDeniedError('no_membership')
     default:
-      await input.channel.sendText(to, 'Refaça a seleção.')
+      await say(input, 'issuanceRedo')
       return TO_CRITERION
   }
 }
 
-function formatFailures(failures: readonly IssuanceStepFailure[]): string {
+async function formatFailures(
+  failures: readonly IssuanceStepFailure[],
+  input: WhatsAppAuthorizedActionInput,
+  speech: WhatsAppBotSpeechPort,
+): Promise<string> {
   const lines = failures.map(
     (failure) =>
       `• ${failure.label}: ${ISSUANCE_BLOCK_REASON_LABELS[failure.reason] ?? ISSUANCE_UNKNOWN_REASON_LABEL}`,
   )
-  return ['Não saiu na criação:', ...lines].join('\n')
+  const header = await speech.text({
+    companyId: input.actor.scope.companyId,
+    key: 'issuanceFailuresHeader',
+  })
+  return [header, ...lines].join('\n')
 }

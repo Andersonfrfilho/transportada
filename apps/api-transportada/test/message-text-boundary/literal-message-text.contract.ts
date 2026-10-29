@@ -12,15 +12,8 @@ const SRC = join(import.meta.dir, '..', '..', 'src')
 const SEND_CALL = /\b(?:sendText|sendMedia|sendMail)\(/g
 const LITERAL = /'[^'\n]*[\p{L}]{3,}[^'\n]*'|"[^"\n]*[\p{L}]{3,}[^"\n]*"|`[^`]*[\p{L}]{3,}[^`]*`/u
 
-/** Falas do bot de WhatsApp: saem do código na T8 (nós do grafo de conversa). Não cresce — só encolhe. */
-const BOT_LINES_UNTIL_T8 = [
-  'whatsapp-commands/application/issuance-confirmation-reply.service.ts',
-  'whatsapp-commands/application/register-driver-flow-actions.ts',
-  'whatsapp-commands/application/register-issuance-flow-actions.ts',
-  'whatsapp-commands/application/register-operator-trip-flow-actions.ts',
-]
-
-const EXCEPTIONS = new Set<string>(BOT_LINES_UNTIL_T8)
+/** Sem exceções: as falas do bot saíram do código na T8 (nós `fala_*` do grafo de conversa). Não cresce. */
+const EXCEPTIONS = new Set<string>()
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((name) => {

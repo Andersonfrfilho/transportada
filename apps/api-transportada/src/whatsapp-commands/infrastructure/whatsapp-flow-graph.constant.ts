@@ -3,6 +3,7 @@
  */
 import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 
+import { buildBotSpeechNodes } from '../domain/whatsapp-bot-speech.policy.js'
 import { DRIVER_RETURN_REASONS } from '../../trips/domain/driver-return-reason.policy.js'
 import {
   DRIVER_FLOW_ACTION_KIND,
@@ -69,6 +70,8 @@ export const WHATSAPP_ROOT_FLOW_GRAPH: FlowGraphData = {
     ...buildIssuanceFlowNodes(),
     ...buildDriverTripFlowNodes(),
     ...buildOperatorTripFlowNodes(),
+    /** Spec 286 T8 (RF7): as falas do bot, uma `directMessage` editável por nó. */
+    ...buildBotSpeechNodes(),
   },
   startNodeId: 'menu',
   version: 1,
