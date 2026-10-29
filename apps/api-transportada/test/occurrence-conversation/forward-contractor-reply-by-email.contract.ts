@@ -67,8 +67,6 @@ const CONFIG = {
   driverReplyChannel: 'app_chat',
   driverReplyTemplate: '',
   driverReplyWindowClosedAction: 'fallback_app_chat',
-  forwardEmailBody: 'Segue o boleto com o novo vencimento.',
-  forwardEmailSubject: 'Boleto prorrogado',
   forwardToInformedEmail: 'manual',
   forwardToNoteRecipient: 'manual',
   mode: 'forward_after_approval',

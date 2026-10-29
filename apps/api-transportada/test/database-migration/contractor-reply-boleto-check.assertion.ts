@@ -30,10 +30,9 @@ function insertBoletoType(probe: ContractorReplyBoletoCheckProbe, id: string) {
   return probe.database`
     insert into company_occurrence_types
       (id, company_id, name, stage, items_mode, redelivery_policy, emails_contractor,
-       contractor_reply_mode, contractor_reply_attachment_kind, driver_reply_template,
-       forward_email_subject, forward_email_body)
+       contractor_reply_mode, contractor_reply_attachment_kind, driver_reply_template)
     values (${id}, ${probe.companyId}, ${`Prova 276 ${id}`}, 'delivery', 'off', 'unset', true,
-       'forward_after_approval', 'boleto_pdf', 'Segue o boleto', 'Boleto', 'Segue o boleto')
+       'forward_after_approval', 'boleto_pdf', 'Segue o boleto')
   `
 }
 

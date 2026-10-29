@@ -15,7 +15,6 @@ import {
   OccurrenceTypeAcknowledgementInvalidError,
   OccurrenceTypeContractorReplyAlertNeedsWaitError,
   OccurrenceTypeContractorReplyNeedsMailError,
-  OccurrenceTypeForwardNeedsTextError,
 } from '../../src/trips/domain/trip.error.js'
 import { toSaveOccurrenceTypeValues } from '../../src/trips/application/save-occurrence-type-values.mapper.js'
 import { parseOccurrenceTypeRequest } from '../../src/trips/presentation/occurrence.schema.js'
@@ -47,8 +46,6 @@ const SAC_REPLY = {
 } as const
 
 const FORWARD = {
-  forwardEmailBody: 'Segue o boleto com o novo vencimento.',
-  forwardEmailSubject: 'Boleto prorrogado',
   forwardToInformedEmail: 'manual',
   forwardToNoteRecipient: 'manual',
 } as const
@@ -220,20 +217,6 @@ describe('o retorno da contratante no cadastro do tipo contra o Postgres (spec 2
         )
         for (const record of [read, listed]) expect(record).toMatchObject(FORWARD)
 
-        await expect(
-          save(
-            database,
-            companyId,
-            valuesFor({ ...SAC_REPLY, ...FORWARD, forwardEmailBody: '  ', name: 'Sem corpo' }),
-          ),
-        ).rejects.toBeInstanceOf(OccurrenceTypeForwardNeedsTextError)
-        await expect(
-          save(
-            database,
-            companyId,
-            valuesFor({ ...SAC_REPLY, ...FORWARD, forwardEmailSubject: '', name: 'Sem assunto' }),
-          ),
-        ).rejects.toBeInstanceOf(OccurrenceTypeForwardNeedsTextError)
         expect(
           await save(
             database,
@@ -245,7 +228,7 @@ describe('o retorno da contratante no cadastro do tipo contra o Postgres (spec 2
               name: 'Encaminhamento desligado',
             }),
           ),
-        ).toMatchObject({ forwardEmailBody: '', forwardEmailSubject: '' })
+        ).toMatchObject({ name: 'Encaminhamento desligado' })
       })
     },
     30_000,
@@ -256,8 +239,6 @@ describe('o retorno da contratante no cadastro do tipo contra o Postgres (spec 2
     async () => {
       expect(await parseBody({ ...SAC_REPLY, ...FORWARD })).toMatchObject(FORWARD)
       await expect(parseBody({ forwardToInformedEmail: 'automatic' })).rejects.toBeDefined()
-      await expect(parseBody({ forwardEmailSubject: 'a'.repeat(201) })).rejects.toBeDefined()
-      await expect(parseBody({ forwardEmailBody: 'a'.repeat(4001) })).rejects.toBeDefined()
     },
     30_000,
   )

@@ -104,8 +104,6 @@ export async function findContractorReplyConfiguration(
       driverReplyTemplate: type.driverReplyTemplate,
       driverReplyWindowClosedAction: type.driverReplyWindowClosedAction,
       emailsContractor: type.emailsContractor,
-      forwardEmailBody: type.forwardEmailBody,
-      forwardEmailSubject: type.forwardEmailSubject,
       forwardToInformedEmail: type.forwardToInformedEmail,
       forwardToNoteRecipient: type.forwardToNoteRecipient,
       mode: type.contractorReplyMode,

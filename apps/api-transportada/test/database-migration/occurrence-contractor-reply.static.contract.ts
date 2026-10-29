@@ -80,7 +80,7 @@ describe('the contractor reply enters additive (spec 248 T3.1)', () => {
     for (const name of names) {
       expect(name.length).toBeLessThanOrEqual(POSTGRES_IDENTIFIER_MAX_LENGTH)
     }
-    expect(OCCURRENCE_CONTRACTOR_REPLY_TYPE_COLUMNS).toHaveLength(13)
+    expect(OCCURRENCE_CONTRACTOR_REPLY_TYPE_COLUMNS).toHaveLength(11)
   })
 
   test('constant defaults on the type, nullable and default-free on the exception, CHECKs after, no UPDATE', async () => {

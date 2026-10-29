@@ -86,8 +86,6 @@ import {
   DRIVER_REPLY_CHANNELS,
   DRIVER_REPLY_TEMPLATE_MAX_LENGTH,
   DRIVER_REPLY_WINDOW_CLOSED_ACTIONS,
-  FORWARD_EMAIL_BODY_MAX_LENGTH,
-  FORWARD_EMAIL_SUBJECT_MAX_LENGTH,
   FORWARD_TO_INFORMED_EMAIL_MODES,
   FORWARD_TO_NOTE_RECIPIENT_MODES,
   type ContractorReplyAlertMode,
@@ -3203,8 +3201,6 @@ export const companyOccurrenceTypes = pgTable(
       .$type<ForwardToInformedEmailMode>()
       .notNull()
       .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.forwardToInformedEmail),
-    forwardEmailSubject: text('forward_email_subject').notNull().default(''),
-    forwardEmailBody: text('forward_email_body').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -3374,14 +3370,6 @@ export const companyOccurrenceTypes = pgTable(
       'company_occurrence_types_forward_to_informed_email_check',
       sql`${table.forwardToInformedEmail} in (${raw(inList(FORWARD_TO_INFORMED_EMAIL_MODES))})`,
     ),
-    check(
-      'company_occurrence_types_forward_email_subject_check',
-      sql`char_length(${table.forwardEmailSubject}) <= ${raw(String(FORWARD_EMAIL_SUBJECT_MAX_LENGTH))}`,
-    ),
-    check(
-      'company_occurrence_types_forward_email_body_check',
-      sql`char_length(${table.forwardEmailBody}) <= ${raw(String(FORWARD_EMAIL_BODY_MAX_LENGTH))}`,
-    ),
     /**
      * Spec 248: the four cross-field rules. They read only the type row; the contractor exception can
      * still change the effective mode, so the use cases validate the effective configuration too.
@@ -3397,10 +3385,6 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_forward_automatic_needs_reply_check',
       sql`${table.forwardToNoteRecipient} <> 'automatic' or ${table.contractorReplyMode} <> 'off'`,
-    ),
-    check(
-      'company_occurrence_types_forward_needs_text_check',
-      sql`(${table.forwardToNoteRecipient} = 'off' and ${table.forwardToInformedEmail} = 'off') or (btrim(${table.forwardEmailSubject}) <> '' and btrim(${table.forwardEmailBody}) <> '')`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
     check(

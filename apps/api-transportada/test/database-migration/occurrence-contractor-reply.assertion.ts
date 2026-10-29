@@ -33,8 +33,6 @@ export const OCCURRENCE_CONTRACTOR_REPLY_TYPE_COLUMNS = [
   'driver_reply_channel',
   'driver_reply_template',
   'driver_reply_window_closed_action',
-  'forward_email_body',
-  'forward_email_subject',
   'forward_to_informed_email',
   'forward_to_note_recipient',
 ] as const
@@ -57,8 +55,6 @@ export const OCCURRENCE_CONTRACTOR_REPLY_TYPE_CONSTRAINTS = [
   'company_occurrence_types_contractor_reply_alert_max_count_check',
   'company_occurrence_types_forward_to_note_recipient_check',
   'company_occurrence_types_forward_to_informed_email_check',
-  'company_occurrence_types_forward_email_subject_check',
-  'company_occurrence_types_forward_email_body_check',
   'company_occurrence_types_contractor_reply_requires_mail_check',
   'company_occurrence_types_contractor_reply_alert_wait_check',
   'company_occurrence_types_forward_automatic_needs_reply_check',
