@@ -250,6 +250,7 @@ function deliveriesOf(
     .select({
       actorUserId: occurrenceContractorReplyDeliveries.actorUserId,
       address: occurrenceContractorReplyDeliveries.address,
+      fallbackFrom: occurrenceContractorReplyDeliveries.fallbackFrom,
       reason: occurrenceContractorReplyDeliveries.reason,
       status: occurrenceContractorReplyDeliveries.status,
       trigger: occurrenceContractorReplyDeliveries.trigger,
@@ -420,6 +421,7 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
           {
             actorUserId: null,
             address: null,
+            fallbackFrom: null,
             reason: 'client_without_whatsapp',
             status: 'skipped',
             trigger: 'automatic',
@@ -429,6 +431,8 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
           {
             actorUserId: null,
             address: FINANCE_EMAIL,
+            /** Spec 286 (RF4): o painel mostra "Reserva do WhatsApp" por esta marca. */
+            fallbackFrom: 'whatsapp',
             reason: null,
             status: 'queued',
             trigger: 'automatic',
@@ -464,6 +468,8 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
           {
             actorUserId: null,
             address: FINANCE_EMAIL,
+            /** Spec 286 (RF4): o painel mostra "Reserva do WhatsApp" por esta marca. */
+            fallbackFrom: 'whatsapp',
             reason: null,
             status: 'queued',
             trigger: 'automatic',
@@ -484,7 +490,14 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
         await withConversationDatabase(async (database) => {
           const { companyId } = await prepare(database, scenario)
           expect(await deliveriesOf(database, companyId, 'client_boleto_whatsapp')).toEqual([
-            { actorUserId: null, address: null, reason, status: 'skipped', trigger: 'automatic' },
+            {
+              actorUserId: null,
+              address: null,
+              fallbackFrom: null,
+              reason,
+              status: 'skipped',
+              trigger: 'automatic',
+            },
           ])
           expect(await deliveriesOf(database, companyId, 'client_boleto_emails')).toEqual([])
         })
@@ -502,6 +515,12 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
           expect(await deliveriesOf(database, companyId, 'client_boleto_whatsapp')).toEqual([])
           const [mail] = await clientMailsOf(database, companyId)
           expect(mail?.toAddresses).toEqual([FINANCE_EMAIL])
+          /** O e-mail em automático é o envio do próprio canal, não a reserva do WhatsApp. */
+          expect(
+            (await deliveriesOf(database, companyId, 'client_boleto_emails')).map(
+              (row) => row.fallbackFrom,
+            ),
+          ).toEqual([null])
           expect(mail?.subject).toBe(`Boleto da NF ${noteNumber}`)
           /** O layout é o modelo padrão de e-mail das Notificações (o embutido, sem modelo da empresa). */
           expect(mail?.bodyHtml).toContain(STANDARD_EMAIL_PRODUCT_NOTE)

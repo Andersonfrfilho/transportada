@@ -130,6 +130,12 @@ export const CONTRACTOR_REPLY_MAIL_DELIVERY_TARGETS = [
 export const CONTRACTOR_REPLY_DELIVERY_TRIGGERS = ['automatic', 'operator'] as const
 export type ContractorReplyDeliveryTrigger = (typeof CONTRACTOR_REPLY_DELIVERY_TRIGGERS)[number]
 
+/** Spec 286 (RF4): o canal cuja falha levou a entrega automática a sair por outro; só a queda do WhatsApp para o e-mail. */
+export const CONTRACTOR_REPLY_DELIVERY_FALLBACK_SOURCES = ['whatsapp'] as const
+export type ContractorReplyFallbackFrom =
+  | (typeof CONTRACTOR_REPLY_DELIVERY_FALLBACK_SOURCES)[number]
+  | null
+
 export const CONTRACTOR_REPLY_DELIVERY_STATUSES = [
   'queued',
   'sent',

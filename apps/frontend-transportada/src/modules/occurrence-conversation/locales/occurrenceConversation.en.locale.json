@@ -674,6 +674,7 @@
         "automatic": "Automatic",
         "operator": "Operator"
       },
+      "whatsappFallback": "WhatsApp fallback",
       "clientWithoutEmail": "No client e-mail for the boleto",
       "retry": "Try again",
       "retrying": "Sending…",

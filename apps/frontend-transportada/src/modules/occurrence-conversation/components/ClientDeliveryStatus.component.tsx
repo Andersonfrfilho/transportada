@@ -9,6 +9,8 @@ import styles from '../styles/occurrenceDetails.module.css'
 type ClientDeliveryStatusProps = Readonly<{
   at: string
   channel: 'email' | 'whatsapp'
+  /** Spec 286 (RF4): o e-mail saiu como reserva do WhatsApp automático. */
+  isWhatsAppFallback?: boolean
   /** Quando ausente (API anterior), a linha não diz quem disparou. */
   trigger?: 'automatic' | 'operator' | undefined
   /** O ticket do SDK: o mesmo que a conversa usa. */
@@ -25,6 +27,7 @@ type ClientDeliveryStatusProps = Readonly<{
 export function ClientDeliveryStatus({
   at,
   channel,
+  isWhatsAppFallback = false,
   state,
   stateLabel,
   trigger,
@@ -40,6 +43,9 @@ export function ClientDeliveryStatus({
       {trigger === undefined ? null : (
         <span className={styles.hint}>{t(`details.${triggerScope}.trigger.${trigger}`)}</span>
       )}
+      {isWhatsAppFallback ? (
+        <span className={styles.hint}>{t('details.sendState.whatsappFallback')}</span>
+      ) : null}
     </>
   )
 }

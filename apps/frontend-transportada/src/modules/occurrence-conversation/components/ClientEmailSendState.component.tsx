@@ -11,6 +11,7 @@ import {
 } from '../queries/contractorReplyEmail.query'
 import {
   describeClientEmailSendState,
+  isWhatsAppFallback,
   type ClientEmailSendStateItem,
 } from '../shared/contractorReplyEmail.service'
 import styles from '../styles/occurrenceDetails.module.css'
@@ -45,6 +46,7 @@ export function ClientEmailSendState({
   const deliveries = query.data?.deliveries ?? []
   const items = describeClientEmailSendState(deliveries)
   const triggerOf = new Map(deliveries.map((delivery) => [delivery.id, delivery.trigger]))
+  const fallbackIds = new Set(deliveries.filter(isWhatsAppFallback).map((delivery) => delivery.id))
 
   if (query.isLoading) return isStandalone ? null : <Skeleton height="2rem" width="100%" />
   if (query.isError) return <p className={styles.hint}>{t('details.sendState.error')}</p>
@@ -72,6 +74,7 @@ export function ClientEmailSendState({
                   <ClientDeliveryStatus
                     at={item.at}
                     channel="email"
+                    isWhatsAppFallback={fallbackIds.has(item.deliveryId)}
                     state={item.state}
                     stateLabel={t(`details.sendState.state.${item.state}`)}
                     trigger={triggerOf.get(item.deliveryId)}
