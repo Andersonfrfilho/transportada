@@ -13,6 +13,7 @@ Não criar editor nem prévia novos: usar `NotificationSettingsWorkspace`, `Temp
 - [~] **T6** (sonnet) Correção de endereço e padrões semeados no módulo; sai o cadastro da 150 e a sintaxe `{snake_case}` (RF6, RF8).
   - Feito (RF6): modelo `correcao-endereco.padrao` no módulo (`{{camelCase}}`, `blocosEnderecos` montado pela API), publicado por `scripts/occurrence-mail-templates-publish.ts` (rodar em staging/produção pede aprovação humana); `GET /address-corrections/mail-template`; o envio, o diálogo e o resumo de prontidão leem do módulo; o painel de cadastro da 150 saiu da tela. O CRUD legado da 150 no backend segue até a etapa B (T9), porque a política de renderização é compartilhada com o e-mail de ocorrência; a prévia legada responde 410.
   - Falta (RF8): o texto semeado do editor do tipo de ocorrência (`occurrenceTypeMailTemplate.service.ts`, `occurrenceContractorReplyDraft.service.ts`) ainda mora no painel.
-- [ ] **T7** (sonnet) Teste de arquitetura que falha o CI com texto literal de mensagem fora de `notification/` (RF9), lista de exceções explícita.
+- [x] **T7** (sonnet) Teste de arquitetura que falha o CI com texto literal de mensagem fora de `notification/` (RF9), lista de exceções explícita.
+  - Feito: `apps/api-transportada/test/message-text-boundary/literal-message-text.contract.ts`; exceções = 4 arquivos de falas do bot até a T8, e a lista falha se um arquivo ali ficar limpo (só encolhe).
 - [ ] **T8** (sonnet, 2ª entrega) Falas do bot (~33 `sendText`) como nós do grafo no `FlowsWorkspace` do SDK de conversas (RF7).
 - [ ] **T9** (haiku) Etapa B (remover campos antigos) só com aprovação humana; docs, `CLAUDE.md`, runbook de staging, `evidence.md`.
