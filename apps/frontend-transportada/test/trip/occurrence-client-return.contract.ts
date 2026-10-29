@@ -8,6 +8,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type { ClientChannelTemplateChoice } from '@/modules/occurrence-conversation/shared/occurrenceTypeMail.types'
 import {
+  CLIENT_RETURN_SAMPLE_VALUES,
   isClientReturnChannelLocked,
   listClientReturnTemplates,
   resolveClientReturnProblem,
@@ -126,5 +127,21 @@ describe('o aviso do canal que não vai sair (spec 286 T4)', () => {
     expect(
       resolveClientReturnProblem({ channel: 'email', choices: [choice({ key: 'x' })], setting }),
     ).toBeNull()
+  })
+})
+
+describe('a prévia do boleto ao cliente (spec 286)', () => {
+  test('os exemplos cobrem os dados da transportadora do modelo do canal', () => {
+    for (const name of [
+      'razaoSocialTransportadora',
+      'cnpjTransportadora',
+      'cidadeTransportadora',
+      'enderecoTransportadora',
+      'telefoneTransportadora',
+      'emailTransportadora',
+    ]) {
+      expect(CLIENT_RETURN_SAMPLE_VALUES[name]).not.toBe('')
+      expect(CLIENT_RETURN_SAMPLE_VALUES[name]).toBeDefined()
+    }
   })
 })

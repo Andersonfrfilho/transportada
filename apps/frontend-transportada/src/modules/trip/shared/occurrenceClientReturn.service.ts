@@ -4,6 +4,7 @@
  * Spec 286 T4 (RF2): as regras puras do bloco "Retorno ao cliente" do tipo — quais modelos cada canal oferece, quando o
  * canal avisa que não vai sair e qual é a troca que a caixa, o modelo e o modo gravam. Sem DOM: o componente só desenha.
  */
+import { OCCURRENCE_MAIL_SAMPLE_VALUES } from '@/modules/occurrence-conversation/shared/occurrenceTypeMailTemplate.service'
 import type {
   ClientChannelTemplateChoice,
   ClientChannelTemplateProblemCode,
@@ -16,6 +17,18 @@ import type {
   ClientReturnMatrix,
   ClientReturnSendMode,
 } from './occurrenceContractorReply.constant'
+
+/**
+ * Os valores de exemplo da prévia do boleto ao cliente: os do e-mail de ocorrência mais os dados da transportadora que
+ * só o modelo do canal tem (`CONTRACTOR_REPLY_CLIENT_TEMPLATE_VARIABLES` da API).
+ */
+export const CLIENT_RETURN_SAMPLE_VALUES: Readonly<Record<string, string>> = {
+  ...OCCURRENCE_MAIL_SAMPLE_VALUES,
+  emailTransportadora: 'financeiro@transportadora.exemplo',
+  enderecoTransportadora: 'Rua Exemplo, 100 – Centro, Ribeirão Preto/SP – CEP 14010-000',
+  telefoneTransportadora: '(16) 3333-4444',
+  tipoOcorrencia: 'Prorrogação do boleto',
+}
 
 /** O que o `PUT` leva: só o canal que mudou, inteiro — o outro fica como está. */
 export type ClientReturnEdit = Readonly<{
