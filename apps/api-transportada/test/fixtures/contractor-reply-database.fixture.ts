@@ -154,3 +154,28 @@ export async function setNoteRecipientEmail(
     .set({ recipientEmail })
     .where(eq(nfeDocuments.companyId, companyId))
 }
+
+/**
+ * Spec 286 T9: o texto do boleto no canal sai do modelo escolhido no tipo, não do texto antigo. Semeia o modelo
+ * do canal e a linha de canal ligada a ele, como o cadastro faz.
+ */
+export async function seedContractorReplyChannelTemplate(
+  database: TestDatabase,
+  seeded: Seeded,
+  channel: 'email' | 'whatsapp',
+  body: string,
+): Promise<void> {
+  const { companyId } = seeded.company
+  const [occurrence] = await database.db
+    .select({ typeId: tripDocumentOccurrences.occurrenceTypeId })
+    .from(tripDocumentOccurrences)
+    .where(eq(tripDocumentOccurrences.id, seeded.occurrenceId))
+  const typeId = occurrence?.typeId ?? ''
+  const templateKey = `occurrence.client-reply.${typeId}`
+  await database.db.execute(sql`
+    insert into notification.templates (company_id, key, channel, locale, version, subject, body, active)
+    values (${companyId}, ${templateKey}, ${channel}, 'pt-BR', 1, '', ${body}, true)`)
+  await database.db.execute(sql`
+    insert into company_occurrence_type_client_channels (company_id, occurrence_type_id, channel, enabled, send_mode, template_key)
+    values (${companyId}, ${typeId}, ${channel}, true, 'automatic', ${templateKey})`)
+}

@@ -7,7 +7,7 @@
  * o número mascarado; o teto diário conta só o WhatsApp da empresa; as opções saem mascaradas.
  */
 import { describe, expect } from 'bun:test'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import {
   auditLogs,
@@ -34,6 +34,7 @@ import { findOccurrenceConversations } from '../../src/occurrence-conversation/i
 import type { ClientChannel } from '../../src/shared/delivery-client-email.constant.js'
 import {
   openReplyWithForward,
+  seedContractorReplyChannelTemplate,
   receivePdfReply,
 } from '../fixtures/contractor-reply-database.fixture.js'
 import {
@@ -105,23 +106,6 @@ async function setClientChannel(
     .where(eq(companyOccurrenceTypes.id, occurrence.typeId))
 }
 
-/** Spec 286 T9: o texto do WhatsApp sai do modelo escolhido no canal do tipo, não do texto antigo. */
-async function seedWhatsAppTemplate(database: TestDatabase, seeded: Seeded): Promise<void> {
-  const { companyId } = seeded.company
-  const [occurrence] = await database.db
-    .select({ typeId: tripDocumentOccurrences.occurrenceTypeId })
-    .from(tripDocumentOccurrences)
-    .where(eq(tripDocumentOccurrences.id, seeded.occurrenceId))
-  const typeId = occurrence?.typeId ?? ''
-  const templateKey = `occurrence.client-reply.${typeId}`
-  await database.db.execute(sql`
-    insert into notification.templates (company_id, key, channel, locale, version, subject, body, active)
-    values (${companyId}, ${templateKey}, 'whatsapp', 'pt-BR', 1, '', 'Segue o boleto prorrogado.', true)`)
-  await database.db.execute(sql`
-    insert into company_occurrence_type_client_channels (company_id, occurrence_type_id, channel, enabled, send_mode, template_key)
-    values (${companyId}, ${typeId}, 'whatsapp', true, 'automatic', ${templateKey})`)
-}
-
 async function prepare(database: TestDatabase, options: { readonly dailyCap?: number } = {}) {
   const seeded = await seedMailScenario(database)
   const { companyId, userId } = seeded.company
@@ -132,7 +116,12 @@ async function prepare(database: TestDatabase, options: { readonly dailyCap?: nu
   await receivePdfReply(database, { companyId, conversationId })
   const contactId = await seedClient(database, seeded)
   await setClientChannel(database, seeded, 'both')
-  await seedWhatsAppTemplate(database, seeded)
+  await seedContractorReplyChannelTemplate(
+    database,
+    seeded,
+    'whatsapp',
+    'Segue o boleto prorrogado.',
+  )
   await database.db.insert(whatsappEvolutionSettings).values({
     baseUrl: 'https://evolution.example.test',
     companyId,

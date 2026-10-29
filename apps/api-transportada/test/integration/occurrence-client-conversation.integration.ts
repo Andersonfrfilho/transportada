@@ -50,6 +50,7 @@ import { applyProviderMessageStatus } from '../../src/occurrence-conversation/in
 import { findOccurrenceConversations } from '../../src/occurrence-conversation/infrastructure/occurrence-conversation.query.js'
 import {
   openReplyWithForward,
+  seedContractorReplyChannelTemplate,
   receivePdfReply,
 } from '../fixtures/contractor-reply-database.fixture.js'
 import {
@@ -120,6 +121,12 @@ async function prepare(database: TestDatabase, options: { readonly withClient?: 
     note: 'off',
   })
   await receivePdfReply(database, { companyId, conversationId })
+  await seedContractorReplyChannelTemplate(
+    database,
+    seeded,
+    'whatsapp',
+    'Segue o boleto prorrogado.',
+  )
   const contacts = options.withClient === false ? null : await seedClient(database, seeded)
   const [occurrence] = await database.db
     .select({ typeId: tripDocumentOccurrences.occurrenceTypeId })
