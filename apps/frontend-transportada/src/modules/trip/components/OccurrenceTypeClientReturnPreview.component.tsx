@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { useInstallationBrand } from '@/modules/identity/queries/useInstallationBrand.query'
 import { NOTIFICATION_PRODUCT_NAME } from '@/modules/notification/shared/notificationCatalog.constant'
 import type { ClientChannelTemplateChoice } from '@/modules/occurrence-conversation/shared/occurrenceTypeMail.types'
-import { OCCURRENCE_MAIL_SAMPLE_VALUES } from '@/modules/occurrence-conversation/shared/occurrenceTypeMailTemplate.service'
+import { CLIENT_RETURN_SAMPLE_VALUES } from '@/modules/trip/shared/occurrenceClientReturn.service'
 import styles from '@/modules/trip/styles/occurrenceTypeMail.module.css'
 
 type OccurrenceTypeClientReturnPreviewProps = Readonly<{
@@ -54,7 +54,7 @@ export function OccurrenceTypeClientReturnPreview({
   const rendered = renderTemplate({
     body: choice.body,
     channel: choice.channel,
-    payload: OCCURRENCE_MAIL_SAMPLE_VALUES,
+    payload: CLIENT_RETURN_SAMPLE_VALUES,
     ...(choice.subject === null ? {} : { subject: choice.subject }),
   })
   const viewport = PREVIEW_VIEWPORT_BY_CHANNEL[choice.channel][0]
