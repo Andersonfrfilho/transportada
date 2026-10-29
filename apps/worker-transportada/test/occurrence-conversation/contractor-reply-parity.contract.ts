@@ -14,6 +14,7 @@ const MIRRORED_FILES = [
   'src/occurrence-conversation/infrastructure/contractor-reply-note-recipient-forward.support.ts',
   'src/occurrence-conversation/infrastructure/contractor-reply-client-email-forward.support.ts',
   'src/occurrence-conversation/infrastructure/contractor-reply-client-template.support.ts',
+  'src/occurrence-conversation/infrastructure/contractor-reply-client-email-layout.support.ts',
   'src/occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-forward.support.ts',
   'src/occurrence-conversation/infrastructure/contractor-reply-acknowledgement.support.ts',
   'src/shared/occurrence-contractor-reply.constant.ts',

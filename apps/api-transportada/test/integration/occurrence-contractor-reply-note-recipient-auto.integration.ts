@@ -143,7 +143,9 @@ describe('o boleto sai sozinho ao cliente da nota (spec 248 RF10, T4.7)', () => 
           subject: FORWARD_EMAIL_SUBJECT,
           toAddresses: [NOTE_EMAIL],
         })
-        expect(mail?.bodyHtml).toContain(`<p>${FORWARD_EMAIL_BODY}</p>`)
+        /** Spec 286: no modelo padrão de e-mail das Notificações, o texto num parágrafo do layout. */
+        expect(mail?.bodyHtml).toContain(`<p style="margin:0 0 14px">${FORWARD_EMAIL_BODY}</p>`)
+        expect(mail?.bodyHtml).toContain('Enviado pelo TransportAdA — uma solução Ada Technology')
         const outbox = await database.db
           .select({ eventType: contractorMailOutbox.eventType })
           .from(contractorMailOutbox)

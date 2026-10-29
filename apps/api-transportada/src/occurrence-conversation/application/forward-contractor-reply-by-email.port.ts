@@ -82,9 +82,19 @@ export type RecordContractorReplyMailParams = {
   readonly companyId: string
   readonly correlationId: string
   readonly fromAddress: string
+  /** O logo da empresa vai como parte inline (`cid:company-logo`) no layout. */
+  readonly hasInlineLogo: boolean
   readonly subject: string
   readonly threadId: string
   readonly toAddress: string
+}
+
+/** Spec 286: o e-mail já no modelo padrão de e-mail das Notificações (o mesmo layout do chat da contratante). */
+export type ContractorReplyLayoutMail = {
+  readonly hasInlineLogo: boolean
+  readonly html: string
+  readonly subject: string
+  readonly text: string
 }
 
 /** Spec 286 T3: o texto do boleto ao cliente no canal, do modelo do módulo escolhido no tipo (ou o texto livre antigo). */
@@ -106,7 +116,6 @@ export type ContractorReplyEmailTransactionPort = {
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<ContractorReplyEmailAttachment | null>
-  findCarrierName(params: { readonly companyId: string }): Promise<string | undefined>
   /** Spec 279 RF9: o `client_email_type` do tipo da ocorrência (`off` quando o tipo não existe mais). */
   findClientEmailType(params: {
     readonly companyId: string
@@ -151,6 +160,11 @@ export type ContractorReplyEmailTransactionPort = {
     readonly occurrenceId: string
   }): Promise<ContractorReplyEmailReply | null>
   /** Spec 286 T3: no WhatsApp o assunto vem vazio e o corpo é a legenda inteira. */
+  renderMail(params: {
+    readonly body: string
+    readonly companyId: string
+    readonly subject: string
+  }): Promise<ContractorReplyLayoutMail>
   resolveClientTexts(params: {
     readonly channel: 'email' | 'whatsapp'
     readonly companyId: string
