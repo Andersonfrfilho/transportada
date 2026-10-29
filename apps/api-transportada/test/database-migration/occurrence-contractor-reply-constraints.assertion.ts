@@ -25,9 +25,23 @@ import {
 } from './occurrence-contractor-reply.fixture.js'
 import { assertOccurrenceContractorReplyRows } from './occurrence-contractor-reply-rows.assertion.js'
 import { assertOccurrenceContractorReplyTypeConstraints } from './occurrence-contractor-reply-type.assertion.js'
-import { migrationsDirectory } from './support.js'
+import { migrationsDirectory, readMigrationNames } from './support.js'
 
 const MIGRATION_SUFFIX = '_occurrence_contractor_reply'
+const DROP_FORWARD_EMAIL_SUFFIX = '_occurrence_drop_forward_email'
+
+async function rollbackOccurrenceDropForwardEmail(
+  database: SQL,
+  directories: readonly string[],
+): Promise<void> {
+  const directory = directories.find((name) => name.endsWith(DROP_FORWARD_EMAIL_SUFFIX))
+  if (directory === undefined) return
+  if (!(await readMigrationNames(database)).includes(directory)) return
+  const rollback = await Bun.file(
+    join(migrationsDirectory.pathname, directory, 'rollback.sql'),
+  ).text()
+  await database.unsafe(rollback)
+}
 
 export type OccurrenceContractorReplyConstraintsProbe = Readonly<{
   companyId: string
@@ -48,6 +62,11 @@ async function assertDefaultsOnExistingType(
     join(migrationsDirectory.pathname, directory, 'rollback.sql'),
   ).text()
 
+  /**
+   * A drop de forward_email_* (286 etapa B) é a mais nova: desfaz-se primeiro. Sem isso, reaplicar a 248 recria a
+   * CHECK do texto do encaminhamento com a migration de drop já marcada como aplicada, e ela nunca roda de novo.
+   */
+  await rollbackOccurrenceDropForwardEmail(database, directories)
   await rollbackClientEmailFallbackFrom(database, directories)
   await rollbackClientWhatsAppAutomatic(database, directories)
   await rollbackContractorReplyWhatsAppDelivery(database, directories)
