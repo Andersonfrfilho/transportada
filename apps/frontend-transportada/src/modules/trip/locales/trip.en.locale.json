@@ -2297,6 +2297,8 @@
     }
   },
   "fieldOccurrence": {
+    "alreadyExisted": "This invoice already had an occurrence of this type, opened by the driver or the office. The new one was registered anyway; check that it is not a duplicate.",
+    "alreadyExisted_other": "{{count}} invoices already had an occurrence of this type, opened by the driver or the office. The new ones were registered anyway; check that none is a duplicate.",
     "batchSubmit": "Register on {{count}} document",
     "batchSubmit_other": "Register on {{count}} documents",
     "batchTitle": "Occurrence on {{count}} document",

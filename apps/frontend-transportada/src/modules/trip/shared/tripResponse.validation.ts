@@ -1173,14 +1173,20 @@ export function createTripResponseAdapters() {
     /** Spec 156 T7.3/T9: `POST .../field-occurrences` — na ordem do pedido, nunca `null`. */
     fieldOccurrenceBatchResultFromApi(
       input: unknown,
-    ): readonly Readonly<{ documentId: string; id: string }>[] {
+    ): readonly Readonly<{ documentId: string; existingOccurrenceId?: string; id: string }>[] {
       if (!isRecord(input) || !Array.isArray(input.items)) throw invalid()
       if (
         !input.items.every(
-          (item): item is Readonly<{ documentId: string; id: string }> =>
-            hasExactKeys(item, ['documentId', 'id']) &&
+          (
+            item,
+          ): item is Readonly<{ documentId: string; existingOccurrenceId?: string; id: string }> =>
+            hasKeys(item, {
+              allowed: ['documentId', 'existingOccurrenceId', 'id'],
+              required: ['documentId', 'id'],
+            }) &&
             isString(item.documentId) &&
-            isString(item.id),
+            isString(item.id) &&
+            (item.existingOccurrenceId === undefined || isString(item.existingOccurrenceId)),
         )
       ) {
         throw invalid()

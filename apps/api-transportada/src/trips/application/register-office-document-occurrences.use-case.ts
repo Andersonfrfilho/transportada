@@ -77,5 +77,14 @@ export async function registerOfficeDocumentOccurrences(
 
   await notifyCreated({ outcome, params })
 
-  return { items: outcome.items.map(({ documentId, id }) => ({ documentId, id })) }
+  return {
+    items: outcome.items.map(({ documentId, existingOccurrenceId, id }) => ({
+      documentId,
+      /** Só quando havia uma: a chave ausente mantém o formato antigo para o painel que ainda não a lê. */
+      ...(existingOccurrenceId === null || existingOccurrenceId === undefined
+        ? {}
+        : { existingOccurrenceId }),
+      id,
+    })),
+  }
 }
