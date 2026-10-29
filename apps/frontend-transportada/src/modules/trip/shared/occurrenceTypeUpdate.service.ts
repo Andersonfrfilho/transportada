@@ -18,6 +18,8 @@ import type {
   ClientChannel,
   ClientEmailSendMode,
   ClientEmailType,
+  ClientReturnChannel,
+  ClientReturnChannelSetting,
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
@@ -56,6 +58,13 @@ export type OccurrenceTypeSaveInput = Readonly<{
   clientEmailType?: ClientEmailType | undefined
   /** Spec 279 RF10: `undefined` é "não mexe". */
   clientEmailSendMode?: ClientEmailSendMode | undefined
+  /**
+   * Spec 286 (RF2): a matriz por canal. Cada canal mandado substitui o gravado inteiro; o ausente é "não mexe". Presente,
+   * vence `clientChannel`, que a API passa a derivar dela.
+   */
+  clientChannels?:
+    | Readonly<Partial<Record<ClientReturnChannel, ClientReturnChannelSetting>>>
+    | undefined
   /** Spec 281 RF8: `undefined` é "não mexe". */
   clientChannel?: ClientChannel | undefined
   /** Spec 281 T8b: `undefined` é "não mexe". */
@@ -126,6 +135,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'clientEmailType'
       | 'clientEmailSendMode'
       | 'clientChannel'
+      | 'clientChannels'
       | 'asksClientContact'
       | 'asksNewDueDate'
       | 'contractorReplyAlertMode'

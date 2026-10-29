@@ -1034,6 +1034,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             ? {}
             : { clientEmailSendMode: input.clientEmailSendMode }),
           ...(input.clientChannel === undefined ? {} : { clientChannel: input.clientChannel }),
+          ...(input.clientChannels === undefined ? {} : { clientChannels: input.clientChannels }),
           ...(input.asksClientContact === undefined
             ? {}
             : { asksClientContact: input.asksClientContact }),

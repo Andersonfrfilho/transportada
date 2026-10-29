@@ -7,12 +7,15 @@ import {
   type ClientDependencies,
 } from './occurrenceConversationClient.service'
 import type {
+  ClientChannelTemplateChoice,
+  ClientChannelTemplateProblemCode,
   ContractorMailTemplateChoice,
   ContractorTemplateProblem,
   OccurrenceTypeRecipientCandidate,
 } from './occurrenceTypeMail.types'
 
 const TEMPLATES_PATH = '/company-settings/occurrence-types/contractor-mail-templates'
+const CLIENT_CHANNEL_TEMPLATES_PATH = '/company-settings/occurrence-types/client-channel-templates'
 const RECIPIENT_CANDIDATES_PATH =
   '/company-settings/occurrence-types/contractor-mail-recipient-candidates'
 
@@ -27,6 +30,8 @@ const PROBLEM_CODES: readonly string[] = [
 ]
 
 export type OccurrenceTypeMailClient = Readonly<{
+  /** Spec 286 (RF2): os modelos por canal que a matriz "Retorno ao cliente" pode escolher. */
+  listClientChannelTemplates: () => Promise<readonly ClientChannelTemplateChoice[]>
   listRecipientCandidates: (
     input: Readonly<{ contractorIds: readonly string[] }>,
   ) => Promise<readonly OccurrenceTypeRecipientCandidate[]>
@@ -58,6 +63,43 @@ function toTemplate(value: unknown): ContractorMailTemplateChoice | null {
     body: value.body,
     key: value.key,
     problems: value.problems.flatMap((problem) => toProblem(problem) ?? []),
+    subject: value.subject,
+    usable: value.usable,
+    version: value.version,
+  }
+}
+
+const CLIENT_CHANNEL_PROBLEM_CODES: readonly string[] = [
+  'empty_body',
+  'empty_subject',
+  'not_found',
+  'system_key',
+]
+
+function toClientChannelTemplate(value: unknown): ClientChannelTemplateChoice | null {
+  if (
+    !isRecord(value) ||
+    (value.channel !== 'email' && value.channel !== 'whatsapp') ||
+    !isString(value.key) ||
+    !isString(value.body) ||
+    (value.subject !== null && !isString(value.subject)) ||
+    typeof value.version !== 'number' ||
+    typeof value.usable !== 'boolean' ||
+    !Array.isArray(value.problems)
+  ) {
+    return null
+  }
+  return {
+    body: value.body,
+    channel: value.channel,
+    key: value.key,
+    problems: value.problems.flatMap((problem) =>
+      isRecord(problem) &&
+      isString(problem.code) &&
+      CLIENT_CHANNEL_PROBLEM_CODES.includes(problem.code)
+        ? [{ code: problem.code as ClientChannelTemplateProblemCode }]
+        : [],
+    ),
     subject: value.subject,
     usable: value.usable,
     version: value.version,
@@ -99,6 +141,11 @@ export function createOccurrenceTypeMailClient(
   dependencies: ClientDependencies,
 ): OccurrenceTypeMailClient {
   return {
+    async listClientChannelTemplates() {
+      return readData(await requestJson(dependencies, CLIENT_CHANNEL_TEMPLATES_PATH)).flatMap(
+        (template) => toClientChannelTemplate(template) ?? [],
+      )
+    },
     async listRecipientCandidates({ contractorIds }) {
       if (contractorIds.length === 0) return []
       const query = new URLSearchParams({ contractorIds: contractorIds.join(',') }).toString()

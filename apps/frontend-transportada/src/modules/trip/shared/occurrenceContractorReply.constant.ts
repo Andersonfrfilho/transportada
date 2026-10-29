@@ -36,6 +36,23 @@ export type ClientEmailSendMode = (typeof CLIENT_EMAIL_SEND_MODES)[number]
 export const CLIENT_CHANNELS = ['off', 'email', 'whatsapp', 'both'] as const
 export type ClientChannel = (typeof CLIENT_CHANNELS)[number]
 
+/**
+ * Spec 286 (RF2): a matriz "Retorno ao cliente" do tipo — uma caixa por canal, com o modelo do módulo de Notificações
+ * (pela chave) e o modo de envio. Desligado é a caixa desmarcada; o modo diz só como sai quando está ligado. Canal novo
+ * (SMS etc.) entra como mais uma entrada de `CLIENT_RETURN_CHANNELS`.
+ */
+export const CLIENT_RETURN_CHANNELS = ['email', 'whatsapp'] as const
+export type ClientReturnChannel = (typeof CLIENT_RETURN_CHANNELS)[number]
+export const CLIENT_RETURN_SEND_MODES = ['manual', 'automatic'] as const
+export type ClientReturnSendMode = (typeof CLIENT_RETURN_SEND_MODES)[number]
+export type ClientReturnChannelSetting = Readonly<{
+  enabled: boolean
+  sendMode: ClientReturnSendMode
+  /** `null` é "sem modelo": o canal não sai e o editor avisa. */
+  templateKey: null | string
+}>
+export type ClientReturnMatrix = Readonly<Record<ClientReturnChannel, ClientReturnChannelSetting>>
+
 /** Spec 276 T2: `boleto_pdf` é o PDF conferido como boleto da nota (linha digitável e número ou valor). */
 export const CONTRACTOR_REPLY_ATTACHMENT_KINDS = ['pdf', 'pdf_or_image', 'boleto_pdf'] as const
 

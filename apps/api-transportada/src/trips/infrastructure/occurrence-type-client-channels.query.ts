@@ -4,6 +4,7 @@
  * Spec 286 T2 (RF2): leitura e escrita da matriz "Retorno ao cliente" do tipo de ocorrência, sempre pela empresa do
  * contexto. A leitura é em lote — uma consulta para N tipos —, e tipo sem linha lê o derivado dos campos antigos.
  */
+import { STANDARD_EMAIL_TEMPLATE_KEY } from '@adatechnology/notification-contracts'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { NOTIFICATION_SCHEMA } from '../../database/notification-migration.service.js'
@@ -18,7 +19,11 @@ import {
   type ClientEmailType,
 } from '../../shared/delivery-client-email.constant.js'
 import type { OccurrenceClientChannel } from '../../shared/occurrence-client-channel.constant.js'
-import type { ClientChannelTemplateContent } from '../domain/occurrence-client-channel-template.policy.js'
+import {
+  toClientChannelTemplateView,
+  type ClientChannelTemplateContent,
+  type ClientChannelTemplateView,
+} from '../domain/occurrence-client-channel-template.policy.js'
 import {
   OCCURRENCE_CLIENT_CHANNEL_ORDER,
   resolveClientChannelMatrix,
@@ -153,4 +158,36 @@ export async function findActiveClientChannelTemplate(
     order by t.version desc
     limit 1`)
   return row === undefined ? null : { body: row.body, subject: row.subject }
+}
+
+type ListedChannelTemplateRow = {
+  readonly body: string
+  readonly channel: OccurrenceClientChannel
+  readonly key: string
+  readonly subject: null | string
+  readonly version: number
+}
+
+/**
+ * Os modelos da lista do editor "Retorno ao cliente": a versão ativa mais alta de cada chave em cada canal da matriz,
+ * `pt-BR`, da empresa. O modelo padrão de e-mail (`notification.standard-email`, spec 274) tem tela própria e fica de
+ * fora; as outras chaves do sistema voltam e a política as marca `usable: false` / `system_key`, como na 271.
+ */
+export async function listActiveClientChannelTemplates(
+  queryable: TripQueryable,
+  params: { readonly companyId: string },
+): Promise<readonly ClientChannelTemplateView[]> {
+  const rows = await queryable.execute<ListedChannelTemplateRow>(sql`
+    select distinct on (t.channel, t.key) t.channel, t.key, t.version, t.subject, t.body
+    from ${sql.identifier(NOTIFICATION_SCHEMA)}.templates as t
+    where t.company_id = ${params.companyId}::uuid
+      and t.channel in (${sql.join(
+        OCCURRENCE_CLIENT_CHANNEL_ORDER.map((channel) => sql`${channel}`),
+        sql`, `,
+      )})
+      and t.locale = ${NOTIFICATION_DEFAULT_LOCALE}
+      and t.active
+      and t.key <> ${STANDARD_EMAIL_TEMPLATE_KEY}
+    order by t.channel, t.key, t.version desc`)
+  return rows.map((row) => toClientChannelTemplateView({ ...row, version: Number(row.version) }))
 }
