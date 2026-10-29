@@ -12,15 +12,24 @@
  */
 import {
   assessStandardEmailTemplate,
+  buildInitials,
+  escapeEmailHtml,
   htmlToPlainText,
+  renderEmailLogoHtml,
   renderStandardEmail,
   STANDARD_EMAIL_BUILTIN_TEMPLATE,
   STANDARD_EMAIL_CHANNEL,
   STANDARD_EMAIL_LOCALE,
   STANDARD_EMAIL_TEMPLATE_KEY,
+  STANDARD_EMAIL_THEME,
   type StandardEmailTemplate,
 } from '@adatechnology/notification-contracts'
 import { sql, type SQL } from 'drizzle-orm'
+
+import {
+  CONTRACTOR_REPLY_CLIENT_SYSTEM_HTML_VARIABLES,
+  isContractorReplyHtmlTemplate,
+} from './contractor-reply-client-template.support.js'
 
 export type ContractorReplyLayoutRunner = { execute(query: SQL): PromiseLike<unknown> }
 
@@ -43,6 +52,15 @@ const WHITESPACE_RUN = /\s+/gu
 const FIXED_WIDTH_ATTR = 'width="620"'
 const FIXED_WIDTH_STYLE = /(?<!max-)width:\s*620px/g
 const EMPTY_ROW = /<tr>\s*<td style="[^"]*">\s*<\/td>\s*<\/tr>/g
+
+/** A faixa e as marcas do rodapé com o mesmo texto do e-mail de ocorrência (272), cópia por valor. */
+const REPLY_STRIP =
+  '↩ Responda este e-mail: a resposta entra na conversa desta ocorrência e chega à equipe.'
+const SIGNATURE_SIZE = 40
+const SYSTEM_PLACEHOLDER = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/gu
+const SYSTEM_NAMES: ReadonlySet<string> = new Set(CONTRACTOR_REPLY_CLIENT_SYSTEM_HTML_VARIABLES)
+const { colors, font } = STANDARD_EMAIL_THEME
+const FOOTER_TEXT = `font-family:${font};font-size:11px;color:${colors.slate}`
 
 type Row = Record<string, unknown>
 
@@ -94,6 +112,31 @@ function makeFluid(html: string): string {
     .replace(EMPTY_ROW, '')
 }
 
+function systemHtmlFor(params: { readonly displayName: string; readonly hasLogo: boolean }) {
+  const { displayName, hasLogo } = params
+  const footerText = (value: string) =>
+    `<span style="${FOOTER_TEXT}">${escapeEmailHtml(value)}</span>`
+  const footerName = (value: string) => `<b style="${FOOTER_TEXT}">${escapeEmailHtml(value)}</b>`
+  return {
+    faixaResposta: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:10px 14px;background:${colors.mist};border-left:3px solid ${colors.copper};font-family:${font};font-size:12px;color:${colors.ink}">${escapeEmailHtml(REPLY_STRIP)}</td></tr></table>`,
+    logoAssinatura: hasLogo
+      ? `<img src="cid:${COMPANY_LOGO_CONTENT_ID}" alt="${escapeEmailHtml(displayName)}" width="${SIGNATURE_SIZE}" height="${SIGNATURE_SIZE}" style="display:block;border:0;width:${SIGNATURE_SIZE}px;height:${SIGNATURE_SIZE}px">`
+      : escapeEmailHtml(buildInitials(displayName)),
+    logoTransportadora: renderEmailLogoHtml({
+      displayName,
+      logo: hasLogo ? { contentId: COMPANY_LOGO_CONTENT_ID, kind: 'cid' } : { kind: 'initials' },
+    }),
+    marcasRodape: `${footerText('Enviado pelo ')}${footerName('TransportAdA')}${footerText(' — uma solução ')}${footerName('Ada Technology')}`,
+  } as Readonly<Record<string, string>>
+}
+
+/** O modelo HTML do canal já veio com os valores escapados; aqui entram só as chaves de HTML do sistema. */
+function fillSystemHtml(body: string, systemHtml: Readonly<Record<string, string>>): string {
+  return body.replace(SYSTEM_PLACEHOLDER, (match, name: string) =>
+    SYSTEM_NAMES.has(name) ? (systemHtml[name] ?? '') : match,
+  )
+}
+
 export async function buildContractorReplyLayoutMail(
   runner: ContractorReplyLayoutRunner,
   params: {
@@ -112,6 +155,16 @@ export async function buildContractorReplyLayoutMail(
   )
   const displayName = chosenCarrierName(carrier)
   const hasLogo = carrier?.has_logo === true
+  const subject = params.subject.replace(WHITESPACE_RUN, ' ').trim()
+  if (isContractorReplyHtmlTemplate(params.body)) {
+    const html = fillSystemHtml(params.body, systemHtmlFor({ displayName, hasLogo }))
+    return {
+      hasInlineLogo: hasLogo && html.includes(`cid:${COMPANY_LOGO_CONTENT_ID}`),
+      html,
+      subject,
+      text: htmlToPlainText(html).trim(),
+    }
+  }
   const rendered = renderStandardEmail({
     input: {
       attachments: (params.attachmentNames ?? []).map((name) => ({ name })),
@@ -128,7 +181,7 @@ export async function buildContractorReplyLayoutMail(
   return {
     hasInlineLogo: hasLogo,
     html: makeFluid(rendered.html),
-    subject: params.subject.replace(WHITESPACE_RUN, ' ').trim(),
+    subject,
     text: rendered.text,
   }
 }

@@ -67,6 +67,17 @@ COPY apps/api-transportada/src/whatsapp-commands/application/whatsapp-flow-graph
 COPY apps/api-transportada/src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.ts apps/api-transportada/src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.ts
 COPY apps/api-transportada/src/whatsapp-commands/infrastructure/whatsapp-flow-graph-publisher.factory.ts apps/api-transportada/src/whatsapp-commands/infrastructure/whatsapp-flow-graph-publisher.factory.ts
 COPY apps/api-transportada/src/whatsapp-commands/infrastructure/drizzle-whatsapp-flow-graph-history.repository.ts apps/api-transportada/src/whatsapp-commands/infrastructure/drizzle-whatsapp-flow-graph-history.repository.ts
+# Fechamento transitivo de imports do whatsapp-flow-graph.constant.ts (motivos de devolução do motorista).
+COPY apps/api-transportada/src/trips/application/dispatch-trip.use-case.ts apps/api-transportada/src/trips/application/dispatch-trip.use-case.ts
+COPY apps/api-transportada/src/trips/application/try-auto-dispatch-trip.use-case.ts apps/api-transportada/src/trips/application/try-auto-dispatch-trip.use-case.ts
+COPY apps/api-transportada/src/trips/domain/dispatch-readiness.policy.ts apps/api-transportada/src/trips/domain/dispatch-readiness.policy.ts
+COPY apps/api-transportada/src/trips/domain/driver-return-reason.policy.ts apps/api-transportada/src/trips/domain/driver-return-reason.policy.ts
+COPY apps/api-transportada/src/trips/domain/event-location-stamp.types.ts apps/api-transportada/src/trips/domain/event-location-stamp.types.ts
+COPY apps/api-transportada/src/trips/domain/occurrence-case-state.policy.ts apps/api-transportada/src/trips/domain/occurrence-case-state.policy.ts
+COPY apps/api-transportada/src/trips/domain/trip-field-channel.constant.ts apps/api-transportada/src/trips/domain/trip-field-channel.constant.ts
+COPY apps/api-transportada/src/trips/domain/trip-report.constant.ts apps/api-transportada/src/trips/domain/trip-report.constant.ts
+COPY apps/api-transportada/src/trips/domain/trip-state.policy.ts apps/api-transportada/src/trips/domain/trip-state.policy.ts
+COPY apps/api-transportada/src/trips/domain/trip.error.ts apps/api-transportada/src/trips/domain/trip.error.ts
 
 USER transportada
 WORKDIR /app/apps/api-transportada

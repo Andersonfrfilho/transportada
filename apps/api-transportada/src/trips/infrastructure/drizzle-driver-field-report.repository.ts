@@ -39,6 +39,8 @@ import type {
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
 import { saveTripOccurrence } from './delivery-proof-read.support.js'
+import { findDriverLockingOccurrence } from './occurrence-driver-lock.query.js'
+import { OccurrenceDuplicateRequestError } from '../domain/trip.error.js'
 import {
   insertOccurrenceProductRows,
   listOccurrenceProductLines,
@@ -1184,6 +1186,14 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     readonly tripId: string
     readonly typeName: string
   }): Promise<null | DriverDocumentOccurrence> {
+    /** O motorista só chega aqui pela fila/rota dele: a trava do tipo devolve a ocorrência que já existe. */
+    const locking = await findDriverLockingOccurrence(this.transaction, {
+      companyId: input.companyId,
+      documentId: input.documentId,
+      occurrenceTypeId: input.occurrenceTypeId,
+    })
+    if (locking !== null) throw new OccurrenceDuplicateRequestError(locking.id)
+
     const saved = await saveTripOccurrence(this.transaction, {
       actorUserId: input.actorUserId,
       attachmentObjectId: input.attachmentObjectId,

@@ -927,6 +927,7 @@ export async function findOccurrenceType(
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      driverLockMinutes: companyOccurrenceTypes.driverLockMinutes,
       clientEmailType: companyOccurrenceTypes.clientEmailType,
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       clientChannel: companyOccurrenceTypes.clientChannel,
@@ -1113,6 +1114,7 @@ export async function listOccurrenceTypes(
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      driverLockMinutes: companyOccurrenceTypes.driverLockMinutes,
       clientEmailType: companyOccurrenceTypes.clientEmailType,
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       clientChannel: companyOccurrenceTypes.clientChannel,
@@ -1470,6 +1472,7 @@ async function writeOccurrenceTypeRow(
     readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
     readonly contractorReplyResolveOnDelivery?: boolean | undefined
     readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+    readonly driverLockMinutes?: null | number | undefined
     readonly clientEmailType?: ClientEmailType | undefined
     readonly clientEmailSendMode?: ClientEmailSendMode | undefined
     readonly clientChannel?: ClientChannel | undefined
@@ -1573,6 +1576,9 @@ async function writeOccurrenceTypeRow(
     ...(input.duplicateRequestPolicy === undefined
       ? {}
       : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
+    ...(input.driverLockMinutes === undefined
+      ? {}
+      : { driverLockMinutes: input.driverLockMinutes }),
     ...(input.clientEmailType === undefined ? {} : { clientEmailType: input.clientEmailType }),
     ...(input.clientEmailSendMode === undefined
       ? {}
@@ -1701,6 +1707,7 @@ async function writeOccurrenceTypeRow(
     contractorReplyAttachmentKind: saved.contractorReplyAttachmentKind,
     contractorReplyResolveOnDelivery: saved.contractorReplyResolveOnDelivery,
     duplicateRequestPolicy: saved.duplicateRequestPolicy,
+    driverLockMinutes: saved.driverLockMinutes,
     clientEmailType: saved.clientEmailType,
     clientEmailSendMode: saved.clientEmailSendMode,
     clientChannel: saved.clientChannel,

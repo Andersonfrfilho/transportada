@@ -13,7 +13,7 @@
  * ⚠️ SQL puro, sem tabela importada, para viver idêntico na API e no worker (nenhuma app importa a outra); o
  * contrato `contractor-reply-parity.contract.ts` do worker compara os dois arquivos. Nenhum log aqui.
  */
-import { interpolateTemplate } from '@adatechnology/notification-contracts'
+import { interpolateEmailHtml, interpolateTemplate } from '@adatechnology/notification-contracts'
 import { sql, type SQL } from 'drizzle-orm'
 
 export type ContractorReplyClientTemplateRunner = {
@@ -41,14 +41,45 @@ export type ResolveContractorReplyClientTextsResult =
   /** `legacy`: o tipo não escolheu modelo (sem fallback para o texto antigo, spec 286 T9); `template`: o modelo escolhido não serve. */
   | { readonly kind: 'template_missing'; readonly source: 'legacy' | 'template' }
 
-/** As variáveis que o modelo do boleto ao cliente pode usar; a que falta sai vazia (regra do módulo). */
+/**
+ * As variáveis que o modelo do boleto ao cliente pode usar; a que falta sai vazia (regra do módulo). As da
+ * transportadora vêm do perfil fiscal, com os mesmos nomes do e-mail de ocorrência (272) onde já existiam.
+ */
 export const CONTRACTOR_REPLY_CLIENT_TEMPLATE_VARIABLES = [
+  'cidadeTransportadora',
+  'cnpjTransportadora',
+  'emailTransportadora',
+  'enderecoTransportadora',
   'nomeExibicao',
   'numeroNota',
   'numeroNotaSemSerie',
   'razaoSocial',
+  'razaoSocialTransportadora',
+  'telefoneTransportadora',
   'tipoOcorrencia',
 ] as const
+
+/**
+ * Modelo de e-mail em HTML no desenho do e-mail de ocorrência (272): a área `<!-- mensagem -->` o marca. Os valores
+ * entram escapados; as chaves de HTML do sistema ficam como estão, para o layout (`contractor-reply-client-email-layout`)
+ * preencher. Texto sem a área continua texto e entra no modelo padrão de e-mail.
+ */
+export const CONTRACTOR_REPLY_CLIENT_SYSTEM_HTML_VARIABLES = [
+  'faixaResposta',
+  'logoAssinatura',
+  'logoTransportadora',
+  'marcasRodape',
+] as const
+
+const MESSAGE_AREA = /<!--\s*mensagem\s*-->/u
+
+export function isContractorReplyHtmlTemplate(body: string): boolean {
+  return MESSAGE_AREA.test(body)
+}
+
+const KEEP_SYSTEM_PLACEHOLDERS: Readonly<Record<string, string>> = Object.fromEntries(
+  CONTRACTOR_REPLY_CLIENT_SYSTEM_HTML_VARIABLES.map((name) => [name, `{{${name}}}`]),
+)
 
 type Row = Record<string, unknown>
 
@@ -56,6 +87,10 @@ const NOTIFICATION_TEMPLATES = 'notification.templates'
 const TEMPLATE_LOCALE = 'pt-BR'
 const RECIPIENT_ROLE = 'recipient'
 const WHITESPACE_RUN = /\s+/gu
+const NON_DIGIT = /\D/gu
+/** CNPJ numérico ou alfanumérico (12 posições + 2 dígitos verificadores), como a máscara de `formatCnpjForDisplay`. */
+const CNPJ_SHAPE = /^[0-9A-Z]{12}[0-9]{2}$/u
+const POSTAL_CODE_SHAPE = /^\d{8}$/u
 
 async function rowsOf(
   runner: ContractorReplyClientTemplateRunner,
@@ -79,6 +114,51 @@ function chosenCarrierName(input: {
   const tradeName = input.tradeName.trim()
   if (input.displayNameMode === 'legal_name') return legalName === '' ? tradeName : legalName
   return tradeName === '' ? legalName : tradeName
+}
+
+/** `12.345.678/0001-95`; fora do formato, o texto como veio. */
+export function formatCarrierCnpj(value: string): string {
+  const compact = value.replace(/[^0-9A-Za-z]/gu, '').toUpperCase()
+  if (!CNPJ_SHAPE.test(compact)) return value.trim()
+  return `${compact.slice(0, 2)}.${compact.slice(2, 5)}.${compact.slice(5, 8)}/${compact.slice(8, 12)}-${compact.slice(12)}`
+}
+
+/** `(16) 3333-4444` ou `(16) 99999-8888`, com ou sem o 55; fora disso, o texto como veio. */
+export function formatCarrierPhone(value: string): string {
+  const digits = value.replace(NON_DIGIT, '')
+  const national = digits.length > 11 && digits.startsWith('55') ? digits.slice(2) : digits
+  if (national.length !== 10 && national.length !== 11) return value.trim()
+  const area = national.slice(0, 2)
+  const local = national.slice(2)
+  const split = local.length - 4
+  return `(${area}) ${local.slice(0, split)}-${local.slice(split)}`
+}
+
+/** `Rua X, 10, sala 2 – Centro, Ribeirão Preto/SP – CEP 14000-000`, pulando o que está vazio. */
+export function formatCarrierAddress(input: {
+  readonly city: string
+  readonly complement: string
+  readonly district: string
+  readonly number: string
+  readonly postalCode: string
+  readonly state: string
+  readonly street: string
+}): string {
+  const join = (parts: readonly string[], separator: string) =>
+    parts
+      .map((part) => part.trim())
+      .filter((part) => part !== '')
+      .join(separator)
+  const postal = input.postalCode.replace(NON_DIGIT, '')
+  const cep = POSTAL_CODE_SHAPE.test(postal) ? `CEP ${postal.slice(0, 5)}-${postal.slice(5)}` : ''
+  return join(
+    [
+      join([input.street, input.number, input.complement], ', '),
+      join([input.district, join([input.city, input.state], '/')], ', '),
+      cep,
+    ],
+    ' – ',
+  )
 }
 
 /** A caixa do canal no tipo da ocorrência. */
@@ -118,7 +198,9 @@ async function readValues(
     runner,
     sql`select note.number, note.series, recipient.legal_name as recipient_name,
                occurrence_type.name as type_name,
-               profile.trade_name, profile.legal_name, profile.display_name_mode
+               profile.trade_name, profile.legal_name, profile.display_name_mode,
+               profile.cnpj, profile.phone, profile.email, profile.street, profile.number as street_number,
+               profile.complement, profile.district, profile.city, profile.state, profile.postal_code
         from trip_document_occurrences occurrence
         left join company_occurrence_types occurrence_type
           on occurrence_type.company_id = occurrence.company_id
@@ -136,7 +218,20 @@ async function readValues(
   )
   const number = (text(row, 'number') ?? '').trim()
   const series = (text(row, 'series') ?? '').trim()
+  const field = (key: string) => (text(row, key) ?? '').trim()
   return {
+    cidadeTransportadora: [field('city'), field('state')].filter((part) => part !== '').join(' · '),
+    cnpjTransportadora: formatCarrierCnpj(field('cnpj')),
+    emailTransportadora: field('email'),
+    enderecoTransportadora: formatCarrierAddress({
+      city: field('city'),
+      complement: field('complement'),
+      district: field('district'),
+      number: field('street_number'),
+      postalCode: field('postal_code'),
+      state: field('state'),
+      street: field('street'),
+    }),
     nomeExibicao: chosenCarrierName({
       displayNameMode: text(row, 'display_name_mode'),
       legalName: text(row, 'legal_name') ?? '',
@@ -145,6 +240,8 @@ async function readValues(
     numeroNota: number === '' ? '' : series === '' ? number : `${number}/${series}`,
     numeroNotaSemSerie: number,
     razaoSocial: (text(row, 'recipient_name') ?? '').trim(),
+    razaoSocialTransportadora: field('legal_name'),
+    telefoneTransportadora: formatCarrierPhone(field('phone')),
     tipoOcorrencia: (text(row, 'type_name') ?? '').trim(),
   }
 }
@@ -180,7 +277,17 @@ export async function resolveContractorReplyClientTexts(
   )
   if (template === undefined) return { kind: 'template_missing', source: 'template' }
   const values = await readValues(runner, { companyId, occurrenceId })
-  const body = interpolateTemplate(text(template, 'body') ?? '', values).trim()
+  const rawBody = text(template, 'body') ?? ''
+  const body = (
+    channel === 'email' && isContractorReplyHtmlTemplate(rawBody)
+      ? interpolateEmailHtml({
+          systemHtml: KEEP_SYSTEM_PLACEHOLDERS,
+          systemHtmlNames: CONTRACTOR_REPLY_CLIENT_SYSTEM_HTML_VARIABLES,
+          template: rawBody,
+          values,
+        })
+      : interpolateTemplate(rawBody, values)
+  ).trim()
   const subject =
     channel === 'email'
       ? interpolateTemplate(text(template, 'subject') ?? '', values)

@@ -828,12 +828,8 @@ import { createResendAccountGateway } from './contractor-mail/infrastructure/res
 import { createContractorContactRoutes } from './contractor-mail/presentation/contractor-contacts.routes.js'
 import { createOccurrenceWatchersRoutes } from './contractor-mail/presentation/occurrence-watchers.routes.js'
 import { createContractorMailSettingsRoutes } from './contractor-mail/presentation/contractor-mail-settings.routes.js'
-import { createContractorMailTemplatesUseCase } from './contractor-mail/application/contractor-mail-templates.use-case.js'
-import { DrizzleContractorMailTemplateRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-template.repository.js'
-import { createContractorMailTemplateRoutes } from './contractor-mail/presentation/contractor-mail-templates.routes.js'
 import { createReadAddressCorrectionMailTemplateUseCase } from './address-correction/application/read-address-correction-mail-template.use-case.js'
 import { findActiveAddressCorrectionMailTemplate } from './address-correction/infrastructure/address-correction-mail-template.query.js'
-import { ContractorMailTemplateRetiredError } from './contractor-mail/domain/contractor-mail-template.error.js'
 import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/public-inbound-email.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
@@ -2994,15 +2990,6 @@ function createApplicationRoutes({
     getContractor: { execute: (input) => contractorRegistry.get(input) },
     repository: new DrizzleOccurrenceWatcherRepository(database),
   })
-  /** Spec 150 T402: o cadastro antigo; a 286 move o texto para o módulo de notificação e a prévia daqui fica aposentada (sai na etapa B). */
-  const contractorMailTemplates = createContractorMailTemplatesUseCase({
-    previewRenderers: {
-      address_correction: () => {
-        throw new ContractorMailTemplateRetiredError()
-      },
-    },
-    repository: new DrizzleContractorMailTemplateRepository(database),
-  })
   /** Spec 150 T304: a conversa, a mensagem e o outbox do pedido de correção, numa transação só. */
   const sendAddressCorrectionMail = createSendAddressCorrectionMailUseCase({
     fingerprintService,
@@ -3333,7 +3320,6 @@ function createApplicationRoutes({
       save: { execute: (input) => contractorMailSettings.save(input) },
       sendTestEmail: { execute: (input) => sendContractorMailTestEmail.execute(input) },
     }),
-    ...createContractorMailTemplateRoutes({ templates: contractorMailTemplates }),
     ...createTollBoothChargeRoutes({
       adjust: createAdjustTollBoothChargeUseCase({
         axleChargeGapCache: tollBoothAxleChargeGapCache,

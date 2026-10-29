@@ -40,6 +40,12 @@ export type OfficeOccurrenceBatchTransactionPort = Pick<
     readonly documentIds: readonly string[]
     readonly target: FieldTripTarget
   }): Promise<readonly ReachableBatchDocument[]>
+  /** A trava de motorista do tipo: a ocorrência recente do mesmo tipo na nota. O escritório não é travado, só avisado. */
+  findDriverLockingOccurrence(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly occurrenceTypeId: string
+  }): Promise<null | { readonly id: string }>
   saveDocumentOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId?: string | null
@@ -121,6 +127,8 @@ export type RegisterOfficeDocumentOccurrencesParams = {
 
 export type OfficeOccurrenceBatchItem = {
   readonly documentId: string
+  /** A ocorrência recente do mesmo tipo que já existia na nota quando esta foi registrada; `null` quando não havia. */
+  readonly existingOccurrenceId?: null | string
   readonly id: string
 }
 
