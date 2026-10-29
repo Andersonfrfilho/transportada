@@ -817,6 +817,23 @@ describe('Tentar de novo uma entrega recusada pelo provedor (spec 279 T6b, RF12)
     ).rejects.toBeInstanceOf(ContractorReplyEmailLimitReachedError)
   })
 
+  test('a entrega que já saiu pode ser reenviada, com chave nova e sem repetir enquanto a nova está na fila (spec 286 Q4)', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    const [first] = state.deliveries
+    if (first === undefined) throw new Error('EXPECTED_DELIVERY')
+    state.deliveries[0] = { ...first, status: 'sent' }
+
+    const resent = await useCase.retryToClient(RETRY_INPUT)
+    expect(resent.results.map((result) => result.kind)).toEqual(['queued'])
+    expect(state.deliveries).toHaveLength(3)
+    expect(new Set(state.deliveries.map((delivery) => delivery.idempotencyKey)).size).toBe(3)
+
+    const repeated = await useCase.retryToClient(RETRY_INPUT)
+    expect(repeated.results.map((result) => result.kind)).toEqual(['already_queued'])
+    expect(state.deliveries).toHaveLength(3)
+  })
+
   test('só a entrega recusada pelo provedor tenta de novo', async () => {
     const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
     await useCase.forwardToClient(CLIENT_INPUT)

@@ -403,6 +403,9 @@ async function mountSendState(isStandalone = false): Promise<void> {
   await settle()
 }
 
+const resendButtons = (): HTMLButtonElement[] =>
+  buttons().filter((button) => /Reenviar/.test(button.textContent ?? ''))
+
 const retryButton = (): HTMLButtonElement | undefined =>
   buttons().find((button) => /Tentar de novo/.test(button.textContent ?? ''))
 
@@ -414,7 +417,7 @@ describe('o estado do envio ao cliente (spec 279 T6b)', () => {
     fakes.retried = []
   })
 
-  it('mostra o endereço inteiro com Enviado e Na fila, sem botão', async () => {
+  it('mostra o endereço inteiro com Enviado e Na fila; só o enviado oferece Reenviar', async () => {
     setDeliveries([
       { ...CLIENT_DELIVERY, sentAt: '2026-10-26T20:01:00.000Z', status: 'sent' },
       { ...CLIENT_DELIVERY, address: 'dono@mercado.example.test', id: 'delivery-2' },
@@ -425,6 +428,28 @@ describe('o estado do envio ao cliente (spec 279 T6b)', () => {
     expect(text()).toContain('Enviado')
     expect(text()).toContain('Na fila')
     expect(retryButton()).toBeUndefined()
+    expect(resendButtons()).toHaveLength(1)
+  })
+
+  it('Reenviar do enviado manda só o id da entrega e o canal e o disparo aparecem (spec 286 T4)', async () => {
+    setDeliveries([
+      {
+        ...CLIENT_DELIVERY,
+        sentAt: '2026-10-26T20:01:00.000Z',
+        status: 'sent',
+        trigger: 'automatic',
+      },
+    ])
+    await mountSendState()
+    expect(document.querySelector('svg[aria-label]')).not.toBeNull()
+    expect(document.querySelector('.cv-status-ticks--sent')).not.toBeNull()
+    expect(text()).toContain('Automático')
+    await act(async () => {
+      resendButtons()[0]?.click()
+      await Promise.resolve()
+    })
+    await settle()
+    expect(fakes.retried).toEqual([{ deliveryId: 'delivery-1', occurrenceId: 'occurrence-1' }])
   })
 
   it('Falhou por recusa do provedor oferece "Tentar de novo" e manda só o id da entrega', async () => {

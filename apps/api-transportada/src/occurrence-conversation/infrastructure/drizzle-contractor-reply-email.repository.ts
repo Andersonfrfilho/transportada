@@ -526,6 +526,7 @@ export function createDrizzleContractorReplyEmailReader(
           sentAt: occurrenceContractorReplyDeliveries.sentAt,
           status: occurrenceContractorReplyDeliveries.status,
           target: occurrenceContractorReplyDeliveries.target,
+          trigger: occurrenceContractorReplyDeliveries.trigger,
         })
         .from(occurrenceContractorReplyDeliveries)
         .where(
@@ -559,6 +560,7 @@ export function createDrizzleContractorReplyEmailReader(
                   sentAt: delivery.sentAt?.toISOString() ?? null,
                   status: delivery.status,
                   target: delivery.target,
+                  trigger: delivery.trigger,
                 },
               ]
             : [],

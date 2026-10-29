@@ -442,6 +442,10 @@ function deriveClientDeliveryKey(params: {
   return `${CLIENT_TARGET}:${digest}`
 }
 
+function isResendable(delivery: ContractorReplyEmailDeliveryRecord): boolean {
+  return isRetryable(delivery) || delivery.status === 'sent'
+}
+
 function isRetryable(delivery: ContractorReplyEmailDeliveryRecord): boolean {
   return delivery.status === 'failed' && delivery.reason === 'send_failed'
 }
@@ -474,7 +478,7 @@ async function planClientAttempt(params: {
     attempt += 1
   }
   if (latest === null) return { existing: null, idempotencyKey: keyOf(0) }
-  if (!retry || !isRetryable(latest.existing)) return latest
+  if (!retry || !isResendable(latest.existing)) return latest
   if (attempt > CLIENT_DELIVERY_MAX_RETRIES) throw new ContractorReplyEmailLimitReachedError()
   return { existing: null, idempotencyKey: keyOf(attempt) }
 }
@@ -637,7 +641,7 @@ async function resolveRetryTarget(params: {
   if (failed === null || failed.target !== CLIENT_TARGET || failed.address === null) {
     throw new ContractorReplyEmailDeliveryNotFoundError()
   }
-  if (!isRetryable(failed)) throw new ContractorReplyEmailRetryNotAllowedError()
+  if (!isResendable(failed)) throw new ContractorReplyEmailRetryNotAllowedError()
   return { address: failed.address, attachmentId: failed.attachmentId }
 }
 

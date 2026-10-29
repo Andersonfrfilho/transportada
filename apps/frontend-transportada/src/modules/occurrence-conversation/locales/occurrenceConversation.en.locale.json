@@ -669,6 +669,11 @@
         "queued": "Queued",
         "failed": "Failed"
       },
+      "resend": "Resend",
+      "trigger": {
+        "automatic": "Automatic",
+        "operator": "Operator"
+      },
       "clientWithoutEmail": "No client e-mail for the boleto",
       "retry": "Try again",
       "retrying": "Sending…",
@@ -682,6 +687,10 @@
         "sent": "Sent",
         "queued": "Queued",
         "failed": "Failed"
+      },
+      "trigger": {
+        "automatic": "Automatic",
+        "operator": "Operator"
       },
       "retry": "Try again",
       "resend": "Send again",
