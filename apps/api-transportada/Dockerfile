@@ -60,6 +60,13 @@ COPY apps/api-transportada/src/occurrence-conversation/application apps/api-tran
 COPY apps/api-transportada/src/occurrence-conversation/domain apps/api-transportada/src/occurrence-conversation/domain
 COPY apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates
 COPY apps/api-transportada/scripts/occurrence-mail-templates-publish.ts apps/api-transportada/scripts/occurrence-mail-templates-publish.ts
+# Spec 286 T8: republicação do grafo raiz do WhatsApp (falas `fala_*` do bot), também via `railway ssh`.
+COPY apps/api-transportada/scripts/whatsapp-flow-publish.ts apps/api-transportada/scripts/whatsapp-flow-publish.ts
+COPY apps/api-transportada/src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.ts apps/api-transportada/src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.ts
+COPY apps/api-transportada/src/whatsapp-commands/application/whatsapp-flow-graph-publisher.port.ts apps/api-transportada/src/whatsapp-commands/application/whatsapp-flow-graph-publisher.port.ts
+COPY apps/api-transportada/src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.ts apps/api-transportada/src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.ts
+COPY apps/api-transportada/src/whatsapp-commands/infrastructure/whatsapp-flow-graph-publisher.factory.ts apps/api-transportada/src/whatsapp-commands/infrastructure/whatsapp-flow-graph-publisher.factory.ts
+COPY apps/api-transportada/src/whatsapp-commands/infrastructure/drizzle-whatsapp-flow-graph-history.repository.ts apps/api-transportada/src/whatsapp-commands/infrastructure/drizzle-whatsapp-flow-graph-history.repository.ts
 
 USER transportada
 WORKDIR /app/apps/api-transportada

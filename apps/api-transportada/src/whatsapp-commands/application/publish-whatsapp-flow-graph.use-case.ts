@@ -61,7 +61,9 @@ export async function previewWhatsAppFlowGraphPublication(input: {
 }): Promise<WhatsAppFlowGraphPublicationPreview> {
   const violations = validateFlowGraphForWhatsApp(input.graph)
   const current = await input.module.get(input.companyId, input.graph.key)
-  return { current, diff: diffWhatsAppFlowGraphs(current, input.graph), violations }
+  /** O diff mostra o que a publicação faria de fato: as falas editadas no editor ficam como estão. */
+  const diff = diffWhatsAppFlowGraphs(current, preserveEditedBotSpeech(current, input.graph))
+  return { current, diff, violations }
 }
 
 export type PublishWhatsAppFlowGraph = (

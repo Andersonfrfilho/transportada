@@ -57,7 +57,7 @@ describe('falas do bot como nós do grafo (spec 286 T8)', () => {
       },
     })
     const speech = createGraphBotSpeech({
-      repository: { create: async () => edited, get: async () => edited, save: async () => edited },
+      repository: { get: async () => edited },
       rootFlowKey: WHATSAPP_ROOT_FLOW_GRAPH_KEY,
     })
     expect(await speech.text({ companyId: 'c', key: 'tripUnavailable' })).toBe(
@@ -75,11 +75,7 @@ describe('falas do bot como nós do grafo (spec 286 T8)', () => {
     const errors: unknown[] = []
     const speech = createGraphBotSpeech({
       onReadError: (error) => errors.push(error),
-      repository: {
-        create: async () => graphWith({}),
-        get: async () => Promise.reject(new Error('db down')),
-        save: async () => graphWith({}),
-      },
+      repository: { get: async () => Promise.reject(new Error('db down')) },
       rootFlowKey: WHATSAPP_ROOT_FLOW_GRAPH_KEY,
     })
     expect(await speech.text({ companyId: 'c', key: 'driverNoActiveTrip' })).toBe(
