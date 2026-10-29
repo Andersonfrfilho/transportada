@@ -612,4 +612,56 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
     },
     TEST_TIMEOUT_MS,
   )
+  testWithPostgres(
+    'modelo de e-mail em HTML no desenho da ocorrência: valores escapados, HTML do sistema preenchido',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, seeded } = await prepare(database, { email: AUTOMATIC })
+        await database.db.execute(sql`
+          insert into company_fiscal_profiles
+            (company_id, legal_name, trade_name, cnpj, state_registration, municipal_registration,
+             tax_regime, rntrc, street, number, complement, district, city, state, postal_code,
+             city_ibge_code, phone, email)
+          values (
+            ${companyId}, 'Tapete & Cia <Ltda>', 'Tapete', '12345678000195', 'isento', '', '1', '',
+            'Rua da Empresa', '100', '', 'Centro', 'Ribeirão Preto', 'SP', '14010000', '3543402', '', ''
+          )
+          on conflict (company_id) do update set legal_name = excluded.legal_name
+        `)
+        await seedNotificationTemplate(database, {
+          body: [
+            '<table><tr><td>{{logoTransportadora}}</td><td>{{razaoSocialTransportadora}}</td></tr>',
+            '<tr><td><!-- mensagem --><p>Olá, <b>{{razaoSocial}}</b>!</p><!-- /mensagem --></td></tr>',
+            '<tr><td>{{faixaResposta}}</td><td>{{logoAssinatura}}</td><td>{{marcasRodape}}</td></tr></table>',
+          ].join(''),
+          companyId,
+          key: TEMPLATE_KEY,
+          subject: 'Boleto da NF {{numeroNotaSemSerie}}',
+          version: 2,
+        })
+        const result = await resolveContractorReplyClientTexts(database.db, {
+          channel: 'email',
+          companyId,
+          config: null,
+          occurrenceId: seeded.occurrenceId,
+        })
+        if (result.kind !== 'texts') throw new Error('EXPECTED_TEXTS')
+        const mail = await buildContractorReplyLayoutMail(database.db, {
+          body: result.texts.body,
+          companyId,
+          subject: result.texts.subject,
+        })
+        expect(mail.html).toContain('<p>Olá, <b>Mercado Beta</b>!</p>')
+        expect(mail.html).not.toContain('Tapete & Cia <Ltda>')
+        expect(mail.html).not.toContain('{{')
+        expect(mail.html).toContain('Responda este e-mail')
+        expect(mail.html).toContain('TransportAdA')
+        /** Fora do modelo padrão: o desenho é o do modelo do canal. */
+        expect(mail.html).not.toContain(STANDARD_EMAIL_PRODUCT_NOTE)
+        expect(mail.text).toContain('Olá, Mercado Beta!')
+        expect(mail.text).toContain('Tapete & Cia <Ltda>')
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
 })

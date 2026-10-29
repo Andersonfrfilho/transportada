@@ -13,7 +13,7 @@
  * ⚠️ SQL puro, sem tabela importada, para viver idêntico na API e no worker (nenhuma app importa a outra); o
  * contrato `contractor-reply-parity.contract.ts` do worker compara os dois arquivos. Nenhum log aqui.
  */
-import { interpolateTemplate } from '@adatechnology/notification-contracts'
+import { interpolateEmailHtml, interpolateTemplate } from '@adatechnology/notification-contracts'
 import { sql, type SQL } from 'drizzle-orm'
 
 export type ContractorReplyClientTemplateRunner = {
@@ -58,6 +58,28 @@ export const CONTRACTOR_REPLY_CLIENT_TEMPLATE_VARIABLES = [
   'telefoneTransportadora',
   'tipoOcorrencia',
 ] as const
+
+/**
+ * Modelo de e-mail em HTML no desenho do e-mail de ocorrência (272): a área `<!-- mensagem -->` o marca. Os valores
+ * entram escapados; as chaves de HTML do sistema ficam como estão, para o layout (`contractor-reply-client-email-layout`)
+ * preencher. Texto sem a área continua texto e entra no modelo padrão de e-mail.
+ */
+export const CONTRACTOR_REPLY_CLIENT_SYSTEM_HTML_VARIABLES = [
+  'faixaResposta',
+  'logoAssinatura',
+  'logoTransportadora',
+  'marcasRodape',
+] as const
+
+const MESSAGE_AREA = /<!--\s*mensagem\s*-->/u
+
+export function isContractorReplyHtmlTemplate(body: string): boolean {
+  return MESSAGE_AREA.test(body)
+}
+
+const KEEP_SYSTEM_PLACEHOLDERS: Readonly<Record<string, string>> = Object.fromEntries(
+  CONTRACTOR_REPLY_CLIENT_SYSTEM_HTML_VARIABLES.map((name) => [name, `{{${name}}}`]),
+)
 
 type Row = Record<string, unknown>
 
@@ -280,7 +302,17 @@ export async function resolveContractorReplyClientTexts(
   )
   if (template === undefined) return { kind: 'template_missing', source: 'template' }
   const values = await readValues(runner, { companyId, occurrenceId })
-  const body = interpolateTemplate(text(template, 'body') ?? '', values).trim()
+  const rawBody = text(template, 'body') ?? ''
+  const body = (
+    channel === 'email' && isContractorReplyHtmlTemplate(rawBody)
+      ? interpolateEmailHtml({
+          systemHtml: KEEP_SYSTEM_PLACEHOLDERS,
+          systemHtmlNames: CONTRACTOR_REPLY_CLIENT_SYSTEM_HTML_VARIABLES,
+          template: rawBody,
+          values,
+        })
+      : interpolateTemplate(rawBody, values)
+  ).trim()
   const subject =
     channel === 'email'
       ? interpolateTemplate(text(template, 'subject') ?? '', values)
