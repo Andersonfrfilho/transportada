@@ -381,6 +381,10 @@ pulados) e as migrations não rodam. Não insistir em re-run: ler o log do `keyc
 | Publicar gatus antes da api                                                                                      | Ordem acima                                                                                                                               |
 | Scripts em Windows/WSL, `zsh` ou com `nvm` fixo                                                                  | Máquina é Arch; `#!/usr/bin/env bash` e `command -v railway`                                                                              |
 
+- **"Não foi possível salvar" ao marcar como tratado um retorno `needs_operator` (29/10/2026).** Causa: o check
+  `occurrence_contractor_replies_reason_check` só admite `reason` em `needs_operator`, e `markHandled` mudava o status
+  para `handled` sem limpar o motivo (500). Corrigido zerando `reason` na mesma atualização.
+
 ## 7. Manutenção deste runbook
 
 - Passo novo, comando que mudou ou erro novo em produção → atualize este arquivo **no mesmo PR** ou
