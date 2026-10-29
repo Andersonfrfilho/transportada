@@ -106,7 +106,13 @@ function build(world: Partial<World> = {}) {
     countEmailDeliveries: async () => state.sentCount ?? 0,
     findAttachment: async () =>
       state.attachmentSize === -1 ? null : { sizeBytes: state.attachmentSize ?? MEGABYTE },
-    findCarrierName: async () => 'Transportadora Teste',
+    /** O layout real (modelo padrão das Notificações) vive na integração; aqui só a marca de que passou por ele. */
+    renderMail: async ({ body, subject }) => ({
+      hasInlineLogo: true,
+      html: `<!-- standard-email -->${body}`,
+      subject: subject.trim(),
+      text: `${body}\n\n--\nTransportadora Teste`,
+    }),
     findDeliveryClientTaxId: async () =>
       state.clientTaxId === undefined ? CLIENT_TAX_ID : state.clientTaxId,
     findDeliveryById: async ({ deliveryId }) => {
@@ -254,6 +260,9 @@ describe('enviar o boleto ao cliente da nota (spec 248 RF10)', () => {
     })
     expect(state.mails[0]?.bodyText).toContain('Segue o boleto com o novo vencimento.')
     expect(state.mails[0]?.bodyText).toContain('Transportadora Teste')
+    /** Spec 286: o e-mail sai no modelo padrão de e-mail, com o logo da empresa inline. */
+    expect(state.mails[0]?.bodyHtml).toStartWith('<!-- standard-email -->')
+    expect(state.mails[0]?.hasInlineLogo).toBe(true)
     expect(state.deliveries[0]).toMatchObject({
       address: NOTE_EMAIL,
       attachmentId: OTHER_ATTACHMENT_ID,

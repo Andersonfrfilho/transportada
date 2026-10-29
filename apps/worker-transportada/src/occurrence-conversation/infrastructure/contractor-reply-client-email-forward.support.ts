@@ -26,6 +26,7 @@ import { sql, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { CONVERSATION_ATTACHMENT_LIMITS } from '../domain/conversation-attachment.policy.js'
+import { buildContractorReplyLayoutMail } from './contractor-reply-client-email-layout.support.js'
 import {
   readContractorReplyClientChannel,
   resolveContractorReplyClientTexts,
@@ -69,7 +70,6 @@ const RECIPIENT_ROLE = 'recipient'
 const COUNTED_STATUSES = ['queued', 'sent'] as const
 const ADDRESS_MAX_LENGTH = 254
 const UNSAFE_ADDRESS_CHARACTERS = /[\r\n,;<>]/u
-const WHITESPACE_RUN = /\s+/gu
 const DIGEST_LENGTH = 32
 
 async function rowsOf(
@@ -85,53 +85,11 @@ function text(row: Row | undefined, key: string): string | null {
 }
 
 /** Mesma regra de `resolveCompanyDisplayName` da API, repetida porque este arquivo vive idêntico nas duas apps. */
-function chosenCarrierName(input: {
-  displayNameMode: null | string
-  legalName: string
-  tradeName: string
-}): string {
-  const legalName = input.legalName.trim()
-  const tradeName = input.tradeName.trim()
-  if (input.displayNameMode === 'legal_name') return legalName === '' ? tradeName : legalName
-  return tradeName === '' ? legalName : tradeName
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-}
-
 function parseAddress(raw: null | string): null | string {
   const address = (raw ?? '').trim()
   if (address === '' || address.length > ADDRESS_MAX_LENGTH) return null
   if (UNSAFE_ADDRESS_CHARACTERS.test(address)) return null
   return z.string().email().safeParse(address).success ? address : null
-}
-
-function buildMail(params: {
-  readonly body: string
-  readonly carrierName: string
-  readonly subject: string
-}) {
-  const signature = params.carrierName.trim()
-  const paragraphs = params.body
-    .split(/\n{2,}/u)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph !== '')
-    .map((paragraph) => `<p>${escapeHtml(paragraph).replaceAll('\n', '<br>')}</p>`)
-  const html = [
-    ...paragraphs,
-    ...(signature === '' ? [] : [`<p>--<br>${escapeHtml(signature)}</p>`]),
-  ].join('\n')
-  return {
-    html,
-    subject: params.subject.replace(WHITESPACE_RUN, ' ').trim(),
-    text: signature === '' ? params.body : `${params.body}\n\n--\n${signature}`,
-  }
 }
 
 /** D3: a mesma chave do envio manual (`deriveClientDeliveryKey` do caso de uso) — um boleto, um endereço, uma vez. */
@@ -231,6 +189,7 @@ async function prepareMail(
     readonly texts: { readonly body: string; readonly subject: string }
   },
 ): Promise<null | {
+  readonly hasInlineLogo: boolean
   readonly html: string
   readonly senderAddress: string
   readonly subject: string
@@ -252,17 +211,9 @@ async function prepareMail(
   const senderAddress = text(settings, 'sender_address')
   const threadId = text(thread, 'id')
   if (senderAddress === null || threadId === null) return null
-  const [carrier] = await rowsOf(
-    runner,
-    sql`select trade_name, legal_name, display_name_mode from company_fiscal_profiles where company_id = ${companyId}::uuid`,
-  )
-  const mail = buildMail({
+  const mail = await buildContractorReplyLayoutMail(runner, {
     body: texts.body,
-    carrierName: chosenCarrierName({
-      displayNameMode: text(carrier, 'display_name_mode'),
-      legalName: text(carrier, 'legal_name') ?? '',
-      tradeName: text(carrier, 'trade_name') ?? '',
-    }),
+    companyId,
     subject: texts.subject,
   })
   return { ...mail, senderAddress, threadId }
@@ -481,9 +432,10 @@ async function send(
     const [message] = await rowsOf(
       runner,
       sql`insert into contractor_mail_messages
-            (company_id, thread_id, direction, from_address, subject, to_addresses, body_text, body_html, delivery_status)
+            (company_id, thread_id, direction, from_address, subject, to_addresses, body_text, body_html,
+             has_inline_logo, delivery_status)
           values (${companyId}::uuid, ${mail.threadId}::uuid, 'outbound', ${mail.senderAddress}, ${mail.subject},
-                  ARRAY[${item.address}]::text[], ${mail.text}, ${mail.html}, 'queued')
+                  ARRAY[${item.address}]::text[], ${mail.text}, ${mail.html}, ${mail.hasInlineLogo}, 'queued')
           returning id`,
     )
     const messageId = text(message, 'id')

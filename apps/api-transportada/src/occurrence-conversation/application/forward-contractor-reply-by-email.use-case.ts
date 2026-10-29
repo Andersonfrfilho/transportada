@@ -44,7 +44,6 @@ import {
 } from '../domain/contractor-reply-email.error.js'
 import { CONVERSATION_ATTACHMENT_LIMITS } from '../domain/conversation-attachment.policy.js'
 import { OccurrenceConversationIdempotencyKeyReusedError } from '../domain/occurrence-conversation.error.js'
-import { buildOccurrenceMail } from '../domain/occurrence-mail.template.js'
 import type {
   ContractorReplyClientEmail,
   ContractorReplyEmailDeliveryRecord,
@@ -386,10 +385,9 @@ async function executeForward(params: {
   })
   if (threadId === undefined) throw new TripOccurrenceNotFoundError()
 
-  const mail = buildOccurrenceMail({
-    bodyText: texts.body,
-    carrierName: (await transaction.findCarrierName({ companyId })) ?? '',
-    operatorName: '',
+  const mail = await transaction.renderMail({
+    body: texts.body,
+    companyId,
     subject: texts.subject,
   })
   const recorded = await transaction.recordMail({
@@ -399,6 +397,7 @@ async function executeForward(params: {
     companyId,
     correlationId: input.correlationId,
     fromAddress: readiness.settings.senderAddress,
+    hasInlineLogo: mail.hasInlineLogo,
     subject: mail.subject,
     threadId,
     toAddress: address,
@@ -780,10 +779,9 @@ async function prepareClientMail(params: {
     occurrenceKind: reply.occurrenceKind,
   })
   if (threadId === undefined) throw new TripOccurrenceNotFoundError()
-  const mail = buildOccurrenceMail({
-    bodyText: texts.body,
-    carrierName: (await transaction.findCarrierName({ companyId })) ?? '',
-    operatorName: '',
+  const mail = await transaction.renderMail({
+    body: texts.body,
+    companyId,
     subject: texts.subject,
   })
   return {
@@ -794,6 +792,7 @@ async function prepareClientMail(params: {
       companyId,
       correlationId: input.correlationId,
       fromAddress: readiness.settings.senderAddress,
+      hasInlineLogo: mail.hasInlineLogo,
       subject: mail.subject,
       threadId,
     },

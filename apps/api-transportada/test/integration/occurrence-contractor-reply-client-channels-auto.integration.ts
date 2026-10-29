@@ -26,6 +26,12 @@ import {
   tripDocuments,
   whatsappEvolutionSettings,
 } from '../../src/database/database.schema.js'
+import {
+  STANDARD_EMAIL_BUILTIN_TEMPLATE,
+  STANDARD_EMAIL_TEMPLATE_KEY,
+} from '@adatechnology/notification-contracts'
+
+import { buildContractorReplyLayoutMail } from '../../src/occurrence-conversation/infrastructure/contractor-reply-client-email-layout.support.js'
 import { createForwardContractorReplyByWhatsAppUseCase } from '../../src/occurrence-conversation/application/forward-contractor-reply-by-whatsapp.use-case.js'
 import {
   dispatchContractorReplyClientWhatsApp,
@@ -58,6 +64,7 @@ const ENVELOPE = { algorithm: 'A256GCM', ciphertext: 'c', keyId: 'k', nonce: 'n'
 const TEMPLATE_KEY = 'boleto.cliente'
 const WHATSAPP_BODY = 'Olá, {{razaoSocial}}! Segue o boleto da NF {{numeroNotaSemSerie}}.'
 const EMAIL_SUBJECT = 'Boleto da NF {{numeroNotaSemSerie}}'
+const STANDARD_EMAIL_PRODUCT_NOTE = 'Enviado pelo TransportAdA — uma solução Ada Technology'
 const EMAIL_BODY = 'Olá, {{razaoSocial}}. O boleto segue em anexo.'
 
 type ChannelSetting = { readonly enabled: boolean; readonly sendMode: 'automatic' | 'manual' }
@@ -259,7 +266,9 @@ function deliveriesOf(
 async function clientMailsOf(database: TestDatabase, companyId: string) {
   return database.db
     .select({
+      bodyHtml: contractorMailMessages.bodyHtml,
       bodyText: contractorMailMessages.bodyText,
+      hasInlineLogo: contractorMailMessages.hasInlineLogo,
       subject: contractorMailMessages.subject,
       toAddresses: contractorMailMessages.toAddresses,
     })
@@ -494,6 +503,11 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
           const [mail] = await clientMailsOf(database, companyId)
           expect(mail?.toAddresses).toEqual([FINANCE_EMAIL])
           expect(mail?.subject).toBe(`Boleto da NF ${noteNumber}`)
+          /** O layout é o modelo padrão de e-mail das Notificações (o embutido, sem modelo da empresa). */
+          expect(mail?.bodyHtml).toContain(STANDARD_EMAIL_PRODUCT_NOTE)
+          expect(mail?.bodyHtml).toContain('Olá, Mercado Beta. O boleto segue em anexo.')
+          expect(mail?.bodyHtml).not.toContain('<p>--<br>')
+          expect(mail?.hasInlineLogo).toBe(false)
 
           const [reply] = await database.db
             .select({ id: occurrenceContractorReplies.id })
@@ -502,6 +516,32 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
           expect(reply).toBeDefined()
         })
       }
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'o e-mail usa o modelo padrão de e-mail da empresa, quando ela tem um utilizável',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await seedNotificationTemplate(database, {
+          body: `${STANDARD_EMAIL_BUILTIN_TEMPLATE.html}<!-- modelo da empresa -->`,
+          companyId: seeded.company.companyId,
+          key: STANDARD_EMAIL_TEMPLATE_KEY,
+          subject: null,
+        })
+        const mail = await buildContractorReplyLayoutMail(database.db, {
+          body: 'Segue o <b>boleto</b>.',
+          companyId: seeded.company.companyId,
+          subject: '  Boleto   da NF  ',
+        })
+        expect(mail.html).toContain('<!-- modelo da empresa -->')
+        /** O texto do modelo do canal entra como texto: a tag antiga não vira HTML no layout. */
+        expect(mail.html).not.toContain('<b>boleto</b>')
+        expect(mail.text).toContain('Segue o boleto.')
+        expect(mail.subject).toBe('Boleto da NF')
+      })
     },
     TEST_TIMEOUT_MS,
   )

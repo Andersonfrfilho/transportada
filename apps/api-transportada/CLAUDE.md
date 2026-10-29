@@ -1203,6 +1203,10 @@ Variáveis: `razaoSocial`, `nomeExibicao`, `numeroNota`, `numeroNotaSemSerie`, `
 - **Queda para e-mail (RF4)**: sem número (`client_without_whatsapp`), sem modelo, sem instância (`whatsapp_disconnected`) ou
   nenhum número recebeu → o motivo fica na linha do tempo e o boleto vai ao e-mail do cliente se a caixa do e-mail estiver
   ligada (mesmo em manual). Teste: `test/integration/occurrence-contractor-reply-client-channels-auto.integration.ts`.
+- **Layout do e-mail**: o boleto ao cliente e ao destinatário da nota (automático e botão) sai no modelo padrão de e-mail das
+  Notificações (`notification.standard-email`, o da empresa quando utilizável, senão o embutido do SDK), o mesmo visual do chat da
+  contratante: `contractor-reply-client-email-layout.support.ts` (espelhado no worker). O texto do modelo do canal entra como texto
+  (HTML antigo migrado vira texto); o logo vai inline (`has_inline_logo`) quando a empresa tem um. Proibido montar layout aqui.
 - **Limites conhecidos**: queda do processo entre a trava e o fechamento deixa a linha `queued` com `claimed_at` (sem varredura);
   `acceptsFreeText` do SDK 0.3.0 não é ligado aqui porque o TMS não usa driver Evolution no módulo (o módulo só guarda e
   renderiza; quem envia é o gateway Evolution da própria app).
