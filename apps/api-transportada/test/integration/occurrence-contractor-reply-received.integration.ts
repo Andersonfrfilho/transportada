@@ -926,6 +926,45 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
   )
 
   testWithPostgres(
+    'retorno travado pelo boleto (needs_operator): o operador entrega ao motorista e o motivo some',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+        const conversationId = await openReply(database, seeded, 'forward_after_approval')
+        const received = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+        await apply(database, { companyId, conversationId, messageId: received.messageId })
+        const reply = await replyOf(database, companyId)
+        await database.db
+          .update(occurrenceContractorReplies)
+          .set({ reason: 'document_not_confirmed', status: 'needs_operator' })
+          .where(eq(occurrenceContractorReplies.companyId, companyId))
+
+        const outcome = await database.db.transaction((transaction) =>
+          deliverContractorReplyToDriver(transaction, {
+            actorUserId: seeded.company.userId,
+            companyId,
+            now: new Date(),
+            replyId: reply.id,
+            trigger: 'operator',
+          }),
+        )
+        expect(outcome.kind).toBe('delivered')
+        expect(await replyOf(database, companyId)).toMatchObject({
+          reason: null,
+          status: 'delivered',
+        })
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
     'motorista sem conta: a entrega fica registrada como pulada e o retorno não muda',
     async () => {
       await withConversationDatabase(async (database) => {
