@@ -332,7 +332,8 @@ describe('contractor mail template routes (spec 150 T402)', () => {
     )
   })
 
-  test('previews an unsaved template with sample data, escaped, without saving it', async () => {
+  /** Spec 286 (RF6): o texto mudou para o módulo de notificação; a prévia do cadastro antigo está aposentada (410). */
+  test('the preview of the old registry is retired and saves nothing', async () => {
     const fixture = await createContractorMailTemplatesHttpFixture()
     const { closing, itemText, mailType, subject } = BASE_BODY
 
@@ -344,18 +345,14 @@ describe('contractor mail template routes (spec 150 T402)', () => {
       }),
     )
 
-    expect(response.status).toBe(200)
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    const body = (await response.json()) as {
-      readonly data: { readonly html: string; readonly subject: string; readonly text: string }
-    }
-    expect(body.data.subject).toBe('Correção de endereço de entrega — 2 clientes')
-    expect(body.data.html).toContain('&lt;b&gt;Olá&lt;/b&gt;, Comercial Exemplo Imp Exp Ltda')
-    expect(body.data.text).toContain('Motivo: localizado a 3,2 km do endereço informado.')
+    expect(response.status).toBe(410)
+    expect(((await response.json()) as ErrorBody).error.code).toBe(
+      'CONTRACTOR_MAIL_TEMPLATE_RETIRED',
+    )
     expect(fixture.repository.rows).toEqual([])
   })
 
-  test('previews a saved template by id, and refuses an invalid unsaved one with details', async () => {
+  test('the retired preview answers a saved template by id, and still refuses an invalid unsaved one with details', async () => {
     const fixture = await createContractorMailTemplatesHttpFixture()
     const created = await createTemplate(fixture)
 
@@ -387,7 +384,7 @@ describe('contractor mail template routes (spec 150 T402)', () => {
       }),
     )
 
-    expect(saved.status).toBe(200)
+    expect(saved.status).toBe(410)
     expect(invalid.status).toBe(400)
     expect(((await invalid.json()) as ErrorBody).error.details?.[0]?.field).toBe('subject')
     expect(mixed.status).toBe(400)

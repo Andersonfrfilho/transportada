@@ -13,12 +13,10 @@ import {
 import { buildAddressCorrectionMailRequestBody } from './addressCorrectionMail.service'
 import {
   mapAddressCorrectionMailSendResult,
-  mapAddressCorrectionMailTemplateList,
-  mapAddressCorrectionMailTemplatePreview,
+  mapAddressCorrectionMailTemplateState,
   mapAddressCorrectionRecipients,
   type AddressCorrectionMailSendResult,
-  type AddressCorrectionMailTemplate,
-  type AddressCorrectionMailTemplatePreview,
+  type AddressCorrectionMailTemplateState,
   type AddressCorrectionRecipients,
 } from './addressCorrectionMail.validation'
 import {
@@ -269,8 +267,6 @@ export type NfeWorkspaceClient = Readonly<{
   getAddressReport: () => Promise<AddressReport>
   getDistributionStatus: () => Promise<NfeDistributionStatus>
   getImportDetail: (input: Readonly<{ id: string }>) => Promise<NfeImportSummary>
-  /** `GET /contractor-mail-templates?mailType=address_correction` (spec 150, T405). */
-  listAddressCorrectionMailTemplates: () => Promise<readonly AddressCorrectionMailTemplate[]>
   listAddressCorrectionRequests: () => Promise<readonly AddressCorrectionRequestRecord[]>
   listDocuments: (
     input: Readonly<{ cursor: null | string; limit: number }>,
@@ -278,10 +274,8 @@ export type NfeWorkspaceClient = Readonly<{
   listImports: (
     input: Readonly<{ cursor: null | string; filters?: NfeImportFilters; limit: number }>,
   ) => Promise<NfeImportListPage>
-  /** `POST /contractor-mail-templates/preview` com `{templateId}` — sempre dados de exemplo. */
-  previewAddressCorrectionMailTemplate: (
-    input: Readonly<{ templateId: string }>,
-  ) => Promise<AddressCorrectionMailTemplatePreview>
+  /** `GET /address-correction-requests/mail-template` (spec 286): o estado do modelo do módulo de notificação e a prévia com dados de exemplo. */
+  readAddressCorrectionMailTemplate: () => Promise<AddressCorrectionMailTemplateState>
   reprocessImport: (
     input: Readonly<{ id: string; idempotencyKey: string }>,
   ) => Promise<NfeImportSummary>
@@ -297,7 +291,6 @@ export type NfeWorkspaceClient = Readonly<{
       excludedWatcherUserIds?: readonly string[]
       idempotencyKey: string
       requestIds?: readonly string[]
-      templateId?: string
     }>,
   ) => Promise<AddressCorrectionMailSendResult>
 }>
@@ -858,7 +851,6 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
               ? {}
               : { excludedWatcherUserIds: input.excludedWatcherUserIds }),
             ...(input.requestIds === undefined ? {} : { requestIds: input.requestIds }),
-            ...(input.templateId === undefined ? {} : { templateId: input.templateId }),
           }),
         ),
         headers: {
@@ -874,28 +866,16 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
     return result
   },
-  async listAddressCorrectionMailTemplates() {
+  async readAddressCorrectionMailTemplate() {
     const response = await requestJsonWithDetails({
       dependencies,
       init: { method: 'GET' },
-      path: '/contractor-mail-templates?mailType=address_correction',
+      path: '/address-correction-requests/mail-template',
     })
-    return mapAddressCorrectionMailTemplateList(response)
-  },
-  async previewAddressCorrectionMailTemplate(input) {
-    const response = await requestJsonWithDetails({
-      dependencies,
-      init: {
-        body: JSON.stringify({ templateId: input.templateId }),
-        headers: { 'content-type': 'application/json' },
-        method: 'POST',
-      },
-      path: '/contractor-mail-templates/preview',
-    })
-    const preview = mapAddressCorrectionMailTemplatePreview(response)
-    if (preview === null)
+    const state = mapAddressCorrectionMailTemplateState(response)
+    if (state === null)
       throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
-    return preview
+    return state
   },
   async downloadDocumentXml(input) {
     const request = await getAccessTokenRequest({

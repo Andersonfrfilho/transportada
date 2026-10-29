@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
 import {
   createBrowserWorkspaceNavigator,
   WORKSPACE_STORAGE_KEY,
@@ -23,5 +24,15 @@ export type { WorkspaceNavigator }
 export function navigateToDeliveryClients(navigator: WorkspaceNavigator): void {
   navigator.pushPath(DELIVERY_CLIENTS_MAIL_ROUTE)
   navigator.rememberWorkspace(DELIVERY_CLIENTS_WORKSPACE)
+  navigator.dispatchPopState()
+}
+
+/**
+ * Spec 286 (RF6): o texto do e-mail de correção mora em Notificações → Preferências; sem modelo (ou para editá-lo), o
+ * atalho leva para lá.
+ */
+export function navigateToNotificationSettings(navigator: WorkspaceNavigator): void {
+  navigator.pushPath(NOTIFICATION_SETTINGS_HREF)
+  navigator.rememberWorkspace('notification')
   navigator.dispatchPopState()
 }

@@ -4,3 +4,4 @@
 import './address-correction-mail/template.contract.js'
 import './address-correction-mail/send-mail-use-case.contract.js'
 import './address-correction-mail/find-recipients-use-case.contract.js'
+import './address-correction-mail/template-policy.contract.js'

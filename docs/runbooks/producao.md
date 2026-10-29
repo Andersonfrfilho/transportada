@@ -93,6 +93,7 @@ Regras que já custaram tempo:
 | `producao-excecoes-prorrogacao.sh`                          | exceções por contratante/destinatário do tipo                                              | leitura           |
 | `producao-thiago-vs-andreia.sh`                             | papel e empresa de dois motoristas nas viagens                                             | leitura           |
 | `producao-ligar-office-prorrogacao.sh`                      | liga o momento `office` no tipo (1 linha, idempotente)                                     | escrita           |
+| `producao-publicar-modelo-correcao-endereco.sh [--confirm]` | descobre a empresa e publica `correcao-endereco.padrao` no módulo de notificação (spec 286); sem `--confirm` só mostra o plano; `ENV_NAME=production` só com aprovação | escrita (idempotente por chave) |
 | `trip-stops-check.sh` / `trip-stops-fix-points.sh`          | paradas sem coordenada / grava ponto manual (`--confirm`)                                  | leitura / escrita |
 | `nfse/nfse-freight-rules-check.sh`                          | regras de frete vigentes e perfis de NFS-e                                                 | leitura           |
 | `respostas-rapidas/producao-respostas-rapidas.sh`           | cadastra respostas rápidas só em empresa sem nenhuma                                       | escrita           |

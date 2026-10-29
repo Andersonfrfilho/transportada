@@ -9,6 +9,7 @@ import type { RateLimitCeiling } from '../../http/rate-limiter.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import {
   API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH,
+  API_ADDRESS_CORRECTION_REQUESTS_MAIL_TEMPLATE_PATH,
   API_ADDRESS_CORRECTION_REQUESTS_PATH,
   API_ADDRESS_CORRECTION_REQUESTS_RECIPIENTS_PATH,
   CONTRACTOR_MAIL_RATE_LIMIT_SCOPE,
@@ -20,6 +21,10 @@ import type {
   AddressCorrectionRecipients,
   FindAddressCorrectionRecipientsUseCase,
 } from '../application/find-address-correction-recipients.use-case.js'
+import type {
+  AddressCorrectionMailTemplateState,
+  ReadAddressCorrectionMailTemplateUseCase,
+} from '../application/read-address-correction-mail-template.use-case.js'
 import type { SaveAddressCorrectionDraftUseCase } from '../application/save-address-correction-draft.use-case.js'
 import type { ListAddressCorrectionRequestsUseCase } from '../application/list-address-correction-requests.use-case.js'
 import type {
@@ -42,6 +47,8 @@ type Dependencies = Readonly<{
   listRequests: ListAddressCorrectionRequestsUseCase
   /** Spec 150 RF18: o teto do envio, vindo do ambiente. */
   mailRateLimit: RateLimitCeiling
+  /** Spec 286: o estado e a prévia do modelo do módulo de notificação. */
+  readMailTemplate: ReadAddressCorrectionMailTemplateUseCase
   saveDraft: SaveAddressCorrectionDraftUseCase
   sendMail: SendAddressCorrectionMailUseCase
 }>
@@ -58,7 +65,6 @@ type SendMailInput = Readonly<{
   excludedWatcherUserIds: readonly string[]
   idempotencyKey: string
   requestIds: readonly string[] | undefined
-  templateId: string | undefined
 }>
 
 type RecipientsInput = Readonly<{ contractorTaxId: string }>
@@ -118,7 +124,6 @@ export function createAddressCorrectionRoutes(
           excludedWatcherUserIds: input.excludedWatcherUserIds,
           idempotencyKey: input.idempotencyKey,
           requestIds: input.requestIds,
-          templateId: input.templateId,
         })
         return jsonResponse({ data: serializeSendAddressCorrectionMailResult(result) }, 202)
       },
@@ -132,7 +137,6 @@ export function createAddressCorrectionRoutes(
           excludedWatcherUserIds: body.excludedWatcherUserIds ?? [],
           idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
           requestIds: body.requestIds,
-          templateId: body.templateId,
         }
       },
       pathname: API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH,
@@ -142,6 +146,18 @@ export function createAddressCorrectionRoutes(
         scope: CONTRACTOR_MAIL_RATE_LIMIT_SCOPE,
         store: 'postgres',
       },
+    }),
+    defineRoute({
+      async handle({ context }): Promise<Response> {
+        const state = await dependencies.readMailTemplate.read({
+          companyId: context.scope.companyId,
+        })
+        return jsonResponse({ data: serializeMailTemplateState(state) })
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: API_ADDRESS_CORRECTION_REQUESTS_MAIL_TEMPLATE_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
     }),
     defineRoute<RecipientsInput>({
       async handle({ context, input }): Promise<Response> {
@@ -164,6 +180,17 @@ export function createAddressCorrectionRoutes(
 
 function jsonResponse(body: object, status = 200): Response {
   return new Response(JSON.stringify(body), { headers: NO_STORE_HEADERS, status })
+}
+
+function serializeMailTemplateState(state: AddressCorrectionMailTemplateState): object {
+  return {
+    key: state.key,
+    preview: state.preview,
+    problems: state.problems,
+    usable: state.usable,
+    variables: state.variables,
+    version: state.version,
+  }
 }
 
 function serializeSendAddressCorrectionMailResult(result: SendAddressCorrectionMailResult): object {

@@ -53,6 +53,13 @@ COPY apps/api-transportada/src/contractor-mail/domain apps/api-transportada/src/
 COPY apps/api-transportada/src/shared apps/api-transportada/src/shared
 # O pre-deploy semeia os templates de notificação: o texto do aviso vem do catálogo em código.
 COPY apps/api-transportada/src/notification apps/api-transportada/src/notification
+# Spec 286: o script de publicação dos modelos de e-mail (`railway ssh`, ação do operador) roda de dentro da imagem.
+COPY apps/api-transportada/src/address-correction/domain apps/api-transportada/src/address-correction/domain
+COPY apps/api-transportada/src/address-correction/address-correction-mail-templates apps/api-transportada/src/address-correction/address-correction-mail-templates
+COPY apps/api-transportada/src/occurrence-conversation/application apps/api-transportada/src/occurrence-conversation/application
+COPY apps/api-transportada/src/occurrence-conversation/domain apps/api-transportada/src/occurrence-conversation/domain
+COPY apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates
+COPY apps/api-transportada/scripts/occurrence-mail-templates-publish.ts apps/api-transportada/scripts/occurrence-mail-templates-publish.ts
 
 USER transportada
 WORKDIR /app/apps/api-transportada

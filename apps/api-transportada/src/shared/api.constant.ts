@@ -211,6 +211,9 @@ export const CONTRACTOR_MAIL_RATE_LIMIT_SCOPE = 'contractor-mail'
  */
 export const API_ADDRESS_CORRECTION_REQUESTS_RECIPIENTS_PATH =
   '/address-correction-requests/recipients'
+/** Spec 286 (RF6): o estado e a prévia do modelo do e-mail de correção, que mora no módulo de notificação. */
+export const API_ADDRESS_CORRECTION_REQUESTS_MAIL_TEMPLATE_PATH =
+  '/address-correction-requests/mail-template'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'

@@ -830,8 +830,9 @@ import { createContractorMailSettingsRoutes } from './contractor-mail/presentati
 import { createContractorMailTemplatesUseCase } from './contractor-mail/application/contractor-mail-templates.use-case.js'
 import { DrizzleContractorMailTemplateRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-template.repository.js'
 import { createContractorMailTemplateRoutes } from './contractor-mail/presentation/contractor-mail-templates.routes.js'
-import { buildAddressCorrectionMail } from './address-correction/domain/address-correction-mail.template.js'
-import { ADDRESS_CORRECTION_MAIL_SAMPLE } from './address-correction/domain/address-correction-mail-sample.constant.js'
+import { createReadAddressCorrectionMailTemplateUseCase } from './address-correction/application/read-address-correction-mail-template.use-case.js'
+import { findActiveAddressCorrectionMailTemplate } from './address-correction/infrastructure/address-correction-mail-template.query.js'
+import { ContractorMailTemplateRetiredError } from './contractor-mail/domain/contractor-mail-template.error.js'
 import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/public-inbound-email.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
@@ -2983,11 +2984,12 @@ function createApplicationRoutes({
     getContractor: { execute: (input) => contractorRegistry.get(input) },
     repository: new DrizzleOccurrenceWatcherRepository(database),
   })
-  /** Spec 150 T402: a prévia de cada tipo usa os dados fictícios do desenho aprovado. */
+  /** Spec 150 T402: o cadastro antigo; a 286 move o texto para o módulo de notificação e a prévia daqui fica aposentada (sai na etapa B). */
   const contractorMailTemplates = createContractorMailTemplatesUseCase({
     previewRenderers: {
-      address_correction: (template) =>
-        buildAddressCorrectionMail({ ...ADDRESS_CORRECTION_MAIL_SAMPLE, template }),
+      address_correction: () => {
+        throw new ContractorMailTemplateRetiredError()
+      },
     },
     repository: new DrizzleContractorMailTemplateRepository(database),
   })
@@ -2996,6 +2998,10 @@ function createApplicationRoutes({
     fingerprintService,
     secretService: contractorMailCredentialSecretService,
     unitOfWork: new DrizzleAddressCorrectionMailRepository(database),
+  })
+  /** Spec 286 (RF6): o estado e a prévia do modelo `correcao-endereco.padrao` do módulo de notificação. */
+  const readAddressCorrectionMailTemplate = createReadAddressCorrectionMailTemplateUseCase({
+    findTemplate: (params) => findActiveAddressCorrectionMailTemplate(database, params),
   })
   /**
    * Revisão final (item de segurança B3): resolve contratante + contatos ativos a partir do CNPJ
@@ -3655,6 +3661,7 @@ function createApplicationRoutes({
       findRecipients: findAddressCorrectionRecipients,
       listRequests: listAddressCorrectionRequests,
       mailRateLimit: contractorMailRateLimit,
+      readMailTemplate: readAddressCorrectionMailTemplate,
       saveDraft: saveAddressCorrectionDraft,
       sendMail: sendAddressCorrectionMail,
     }),

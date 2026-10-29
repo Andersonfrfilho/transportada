@@ -2,21 +2,24 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 272 T4.3 (ADR-0110 §13, D14): publica os cinco modelos `.html` do e-mail de ocorrência no módulo de
- * notificação. O arquivo é a fonte e o banco recebe versões — nunca `UPDATE`. O plano é `create` (sem ativa),
+ * notificação. A spec 286 (T6) soma o modelo `correcao-endereco.padrao`, com a régua dele (lista fechada própria). O arquivo é a fonte e o banco recebe versões — nunca `UPDATE`. O plano é `create` (sem ativa),
  * `same` (ativa igual, assunto e corpo) ou `differs` (ativa diferente: só com `--overwrite <chave>`, para não
  * apagar personalização feita na tela sem aviso). Um arquivo inválido recusa todos.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 
-import {
-  assessContractorTemplate,
-  type ContractorTemplateProblem,
-} from '../domain/occurrence-contractor-template.policy.js'
+import { ADDRESS_CORRECTION_MAIL_TEMPLATE_KEY } from '../../address-correction/domain/address-correction-mail-template.constant.js'
+import { assessAddressCorrectionTemplate } from '../../address-correction/domain/address-correction-mail-template.policy.js'
+import { assessContractorTemplate } from '../domain/occurrence-contractor-template.policy.js'
 
 export const OCCURRENCE_MAIL_TEMPLATE_CHANNEL = 'email'
 export const OCCURRENCE_MAIL_TEMPLATE_LOCALE = 'pt-BR'
 
 const TEMPLATES_DIR = new URL('../occurrence-mail-templates/', import.meta.url)
+const ADDRESS_CORRECTION_TEMPLATE_FILE = new URL(
+  '../../address-correction/address-correction-mail-templates/correcao-endereco.html',
+  import.meta.url,
+)
 const KEY_PREFIX = 'ocorrencia.'
 const SUBJECT_LINE_REGEX = /^<!-- subject: (.+) -->\r?\n/u
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
@@ -63,11 +66,13 @@ export type PublicationEntry = {
   readonly writtenVersion?: number
 }
 
+export type PublicationProblem = { readonly code: string }
+
 export type PublicationPlan = {
   readonly entries: readonly PublicationEntry[]
   readonly invalid: readonly {
     readonly key: string
-    readonly problems: readonly ContractorTemplateProblem[]
+    readonly problems: readonly PublicationProblem[]
   }[]
 }
 
@@ -88,6 +93,21 @@ export function readOccurrenceMailTemplateFiles(): readonly OccurrenceMailTempla
     }))
 }
 
+/** Spec 286 (T6): o modelo da correção de endereço, junto dos de ocorrência na mesma publicação. */
+export function readAddressCorrectionMailTemplateFile(): OccurrenceMailTemplateFile {
+  return {
+    ...parseTemplateFile(readFileSync(ADDRESS_CORRECTION_TEMPLATE_FILE, 'utf8')),
+    key: ADDRESS_CORRECTION_MAIL_TEMPLATE_KEY,
+  }
+}
+
+/** Cada família de modelo tem a sua régua de variáveis. */
+function assessTemplateFile(template: OccurrenceMailTemplateFile): readonly PublicationProblem[] {
+  return template.key === ADDRESS_CORRECTION_MAIL_TEMPLATE_KEY
+    ? assessAddressCorrectionTemplate(template)
+    : assessContractorTemplate({ key: template.key, template })
+}
+
 export function planOccurrenceMailTemplatePublication(params: {
   readonly active: ReadonlyMap<string, ActiveTemplate | undefined>
   readonly overwrite: readonly string[]
@@ -101,7 +121,7 @@ export function planOccurrenceMailTemplatePublication(params: {
   const invalid = templates
     .map((template) => ({
       key: template.key,
-      problems: assessContractorTemplate({ key: template.key, template }),
+      problems: assessTemplateFile(template),
     }))
     .filter((item) => item.problems.length > 0)
   if (invalid.length > 0) return { entries: [], invalid }
