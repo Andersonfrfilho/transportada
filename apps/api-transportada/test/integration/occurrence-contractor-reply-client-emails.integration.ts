@@ -7,7 +7,7 @@
  * outro cliente ou de outra empresa não envia; a leitura das opções traz o cadastro só mascarado.
  */
 import { describe, expect } from 'bun:test'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import {
   auditLogs,
@@ -120,6 +120,20 @@ async function setClientEmailType(
     .where(eq(companyOccurrenceTypes.id, occurrence.typeId))
 }
 
+/** Spec 286 T9: sem o texto antigo, o boleto ao cliente sai do modelo escolhido no canal de e-mail do tipo. */
+async function seedClientEmailTemplate(database: TestDatabase, seeded: Seeded): Promise<void> {
+  const { companyId } = seeded.company
+  const templateKey = 'occurrence.client-reply.teste'
+  await database.db.execute(sql`
+    insert into notification.templates (company_id, key, channel, locale, version, subject, body, active)
+    values (${companyId}, ${templateKey}, 'email', 'pt-BR', 1, 'Boleto com novo vencimento', 'Segue o boleto prorrogado.', true)`)
+  await database.db.execute(sql`
+    insert into company_occurrence_type_client_channels (company_id, occurrence_type_id, channel, enabled, send_mode, template_key)
+    select ${companyId}, occurrence.occurrence_type_id, 'email', true, 'manual', ${templateKey}
+    from trip_document_occurrences occurrence
+    where occurrence.id = ${seeded.occurrenceId}`)
+}
+
 async function prepare(database: TestDatabase) {
   const seeded = await seedMailScenario(database)
   const { companyId } = seeded.company
@@ -130,6 +144,7 @@ async function prepare(database: TestDatabase) {
   const received = await receivePdfReply(database, { companyId, conversationId })
   const client = await seedClient(database, seeded)
   await setClientEmailType(database, seeded, 'boleto')
+  await seedClientEmailTemplate(database, seeded)
   const useCase = createForwardContractorReplyByEmailUseCase({
     unitOfWork: createDrizzleContractorReplyEmailUnitOfWork(database.db),
   })
