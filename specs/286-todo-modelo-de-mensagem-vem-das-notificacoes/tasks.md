@@ -15,5 +15,6 @@ Não criar editor nem prévia novos: usar `NotificationSettingsWorkspace`, `Temp
   - Feito (RF8): o modelo "sugerido" fixo do editor do tipo (`OCCURRENCE_MAIL_SUGGESTED_TEMPLATE` e o bloco que o mostrava) saiu; a tela só oferece "Criar modelo em Notificações". Publicação em staging/produção: `scripts/ops/producao-publicar-modelo-correcao-endereco.sh` (runbook `producao.md` §2), com aprovação humana.
 - [x] **T7** (sonnet) Teste de arquitetura que falha o CI com texto literal de mensagem fora de `notification/` (RF9), lista de exceções explícita.
   - Feito: `apps/api-transportada/test/message-text-boundary/literal-message-text.contract.ts`; exceções = 4 arquivos de falas do bot até a T8, e a lista falha se um arquivo ali ficar limpo (só encolhe).
-- [ ] **T8** (sonnet, 2ª entrega) Falas do bot (~33 `sendText`) como nós do grafo no `FlowsWorkspace` do SDK de conversas (RF7).
+- [x] **T8** (sonnet, 2ª entrega) Falas do bot (~33 `sendText`) como nós `fala_*` do grafo raiz, editáveis no `FlowsWorkspace` do SDK de conversas (RF7).
+  - Feito: catálogo `whatsapp-bot-speech.constant.ts`, leitura do grafo publicado a cada mensagem (`createGraphBotSpeech`, recuo no padrão do código), republicação preserva o que o editor mudou; lista de exceções da T7 zerada. Fica para depois: mensagens vindas de políticas de outros módulos (`*_BLOCK_MESSAGES`, recusas de ocorrência, validação de resposta da emissão), ainda texto em código.
 - [ ] **T9** (haiku) Etapa B (remover campos antigos) só com aprovação humana; docs, `CLAUDE.md`, runbook de staging, `evidence.md`.

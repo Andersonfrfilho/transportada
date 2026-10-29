@@ -64,6 +64,12 @@ import {
   rejectListAnswer,
   WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
 } from './whatsapp-list-answer.service.js'
+import {
+  CATALOG_BOT_SPEECH,
+  createBotSayer,
+  type BotSpeechLine,
+  type WhatsAppBotSpeechPort,
+} from './whatsapp-bot-speech.service.js'
 import type {
   WhatsAppAuthorizedActionHandler,
   WhatsAppFlowActionDefinition,
@@ -77,6 +83,8 @@ type ReportOutcome = {
 }
 
 export type DriverFlowActionDependencies = {
+  /** Spec 286 T8: as falas vêm do grafo publicado; sem isto, o padrão do código. */
+  readonly speech?: WhatsAppBotSpeechPort
   /** Spec 196 T3.6: o ponto que o motorista mandou antes do toque; `null` é `unavailable`. */
   readonly consumeSharedLocation: WhatsAppSharedLocationStore['consume']
   readonly findCurrentTrip: (input: {
@@ -159,6 +167,8 @@ function toStepLabel(step: DriverFlowStep): string {
 export function createDriverWhatsAppFlowActions(
   deps: DriverFlowActionDependencies,
 ): readonly WhatsAppFlowActionDefinition[] {
+  const say = createBotSayer(deps.speech ?? CATALOG_BOT_SPEECH)
+
   /** Spec 225: a lista do app traz a concluída recente; a conversa só trabalha viagem em andamento. */
   async function findCurrentTrip(
     input: Parameters<DriverFlowActionDependencies['findCurrentTrip']>[0],
@@ -190,15 +200,12 @@ export function createDriverWhatsAppFlowActions(
       membershipId: actor.scope.membershipId,
     })
     if (!result.isRegisteredDriver) {
-      await channel.sendText(
-        session.whatsappNumber,
-        'Sua conta não está ligada a um cadastro de motorista. Fale com o escritório.',
-      )
+      await say({ actor, channel, session }, 'driverNotLinkedOffice')
       return { next: 'menu' }
     }
     const trip = result.trips[0]
     if (trip === undefined) {
-      await channel.sendText(session.whatsappNumber, 'Você não tem viagem em andamento.')
+      await say({ actor, channel, session }, 'driverNoActiveTrip')
       return { next: 'menu' }
     }
 
@@ -222,13 +229,13 @@ export function createDriverWhatsAppFlowActions(
 
     const trip = await findTripById({ actor, tripId })
     if (trip === undefined) {
-      await channel.sendText(session.whatsappNumber, 'Esta viagem não está mais disponível.')
+      await say({ actor, channel, session }, 'tripUnavailable')
       return { context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined }, next: 'menu' }
     }
 
     const documents = listOpenDocuments(trip)
     if (documents.length === 0) {
-      await channel.sendText(session.whatsappNumber, 'Não há notas pendentes nesta viagem.')
+      await say({ actor, channel, session }, 'driverNoPendingDocuments')
       return {
         context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined },
         next: DRIVER_FLOW_NODE.tripMenu,
@@ -270,7 +277,7 @@ export function createDriverWhatsAppFlowActions(
     const tripId = readStringContext(context, DRIVER_FLOW_CONTEXT_KEY.tripId)
     const trip = tripId === undefined ? undefined : await findTripById({ actor, tripId })
     if (trip === undefined) {
-      await channel.sendText(session.whatsappNumber, 'Esta viagem não está mais disponível.')
+      await say({ actor, channel, session }, 'tripUnavailable')
       return { context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined }, next: 'menu' }
     }
     const offered = trip.stops.some((stop) =>
@@ -319,10 +326,7 @@ export function createDriverWhatsAppFlowActions(
       membershipId: actor.scope.membershipId,
     })
     if (driverId === null) {
-      await channel.sendText(
-        session.whatsappNumber,
-        'Sua conta não está ligada a um cadastro de motorista.',
-      )
+      await say({ actor, channel, session }, 'driverNotLinked')
       return { context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined }, next: 'menu' }
     }
 
@@ -335,12 +339,12 @@ export function createDriverWhatsAppFlowActions(
         idempotencyKey: randomUUID(),
         location: consumeLocation({ actor, session }),
       })
-      await channel.sendText(
-        session.whatsappNumber,
-        outcome.alreadySettled ? 'Já estava registrada.' : 'Entrega registrada. ✅',
+      await say(
+        { actor, channel, session },
+        outcome.alreadySettled ? 'alreadyRegistered' : 'deliveryRegistered',
       )
     } catch (error) {
-      await channel.sendText(session.whatsappNumber, describeDocumentError(error))
+      await say({ actor, channel, session }, describeDocumentError(error))
     }
     return {
       context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined },
@@ -365,10 +369,7 @@ export function createDriverWhatsAppFlowActions(
       membershipId: actor.scope.membershipId,
     })
     if (driverId === null) {
-      await channel.sendText(
-        session.whatsappNumber,
-        'Sua conta não está ligada a um cadastro de motorista.',
-      )
+      await say({ actor, channel, session }, 'driverNotLinked')
       return { next: 'menu' }
     }
 
@@ -382,12 +383,12 @@ export function createDriverWhatsAppFlowActions(
         location: consumeLocation({ actor, session }),
         reason,
       })
-      await channel.sendText(
-        session.whatsappNumber,
-        outcome.alreadySettled ? 'Já estava registrada.' : 'Devolução registrada. ↩️',
+      await say(
+        { actor, channel, session },
+        outcome.alreadySettled ? 'alreadyRegistered' : 'returnRegistered',
       )
     } catch (error) {
-      await channel.sendText(session.whatsappNumber, describeDocumentError(error))
+      await say({ actor, channel, session }, describeDocumentError(error))
     }
     return { next: DRIVER_FLOW_NODE.tripMenu }
   }
@@ -404,10 +405,7 @@ export function createDriverWhatsAppFlowActions(
     })
     const options = catalog.filter(isOfferedToDriver)
     if (options.length === 0) {
-      await channel.sendText(
-        session.whatsappNumber,
-        'Ainda não há tipos de ocorrência cadastrados para a rua. Fale com o escritório.',
-      )
+      await say({ actor, channel, session }, 'driverNoStreetOccurrenceTypes')
       return {
         context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined },
         next: DRIVER_FLOW_NODE.tripMenu,
@@ -495,10 +493,9 @@ export function createDriverWhatsAppFlowActions(
 
     const note = answer === DRIVER_NOTE_SKIP_ANSWER ? '' : answer.trim()
     if (note.length > DRIVER_OCCURRENCE_NOTE_MAX_LENGTH) {
-      await channel.sendText(
-        session.whatsappNumber,
-        `Observação muito longa (máximo ${DRIVER_OCCURRENCE_NOTE_MAX_LENGTH} caracteres). Digite de novo ou toque em Pular.`,
-      )
+      await say({ actor, channel, session }, 'driverNoteTooLong', {
+        max: DRIVER_OCCURRENCE_NOTE_MAX_LENGTH,
+      })
       return { next: DRIVER_FLOW_NODE.notePrompt }
     }
 
@@ -507,10 +504,7 @@ export function createDriverWhatsAppFlowActions(
       membershipId: actor.scope.membershipId,
     })
     if (driverId === null) {
-      await channel.sendText(
-        session.whatsappNumber,
-        'Sua conta não está ligada a um cadastro de motorista.',
-      )
+      await say({ actor, channel, session }, 'driverNotLinked')
       return { next: 'menu' }
     }
 
@@ -526,15 +520,15 @@ export function createDriverWhatsAppFlowActions(
         occurrenceTypeId,
         productCode: '',
       })
-      await channel.sendText(session.whatsappNumber, 'Ocorrência registrada. ⚠️')
+      await say({ actor, channel, session }, 'occurrenceRegistered')
     } catch (error) {
       /** Spec 246 (RF13): exigência de campo que o canal não colhe vira a frase do campo que falta. */
       const refusal = describeOccurrenceRequirementRefusal(error)
       if (refusal !== undefined) {
-        await channel.sendText(session.whatsappNumber, refusal.message)
+        await say({ actor, channel, session }, { text: refusal.message })
         return { next: refusal.next }
       }
-      await channel.sendText(session.whatsappNumber, describeDocumentError(error))
+      await say({ actor, channel, session }, describeDocumentError(error))
     }
     return { next: DRIVER_FLOW_NODE.tripMenu }
   }
@@ -587,12 +581,12 @@ export function createDriverWhatsAppFlowActions(
 }
 
 /** Portão recusado (409) e nota inalcançável viram mensagem clara — nunca erro cru (D7). */
-function describeDocumentError(error: unknown): string {
+function describeDocumentError(error: unknown): BotSpeechLine {
   if (error instanceof TripStateTransitionNotAllowedError) {
-    return DRIVER_TRANSITION_BLOCK_MESSAGES[error.reason]
+    return { text: DRIVER_TRANSITION_BLOCK_MESSAGES[error.reason] }
   }
   if (error instanceof TripDocumentNotReachableError) {
-    return 'Essa nota não está mais disponível na sua viagem.'
+    return { key: 'driverDocumentNotReachable' }
   }
   throw error
 }

@@ -25,6 +25,7 @@ import {
   type IssuanceFlowActionDependencies,
   readContextString,
 } from './issuance-flow-context.service.js'
+import { CATALOG_BOT_SPEECH, createBotSayer } from './whatsapp-bot-speech.service.js'
 import { createIssuancePromptHandler } from './issuance-flow-prompt.service.js'
 import type {
   WhatsAppAuthorizedActionHandler,
@@ -67,6 +68,7 @@ export function createIssuanceWhatsAppFlowActions(
 }
 
 function createParamRouter(deps: IssuanceFlowActionDependencies): WhatsAppAuthorizedActionHandler {
+  const say = createBotSayer(deps.speech ?? CATALOG_BOT_SPEECH)
   return async ({ actor, channel, context, session }) => {
     const answer = readContextString(context, KEY.answer)
     const step = readContextString(context, KEY.step)
@@ -85,7 +87,7 @@ function createParamRouter(deps: IssuanceFlowActionDependencies): WhatsAppAuthor
       step,
     })
     if (verdict.kind === 'rejected') {
-      await channel.sendText(session.whatsappNumber, verdict.message)
+      await say({ actor, channel, session }, { text: verdict.message })
       return { context: { [KEY.answer]: undefined }, next: ISSUANCE_FLOW_NODE.prompt }
     }
     return {
@@ -107,8 +109,10 @@ function createParamRouter(deps: IssuanceFlowActionDependencies): WhatsAppAuthor
 function createConfirmRouter(
   deps: IssuanceFlowActionDependencies,
 ): WhatsAppAuthorizedActionHandler {
+  const speech = deps.speech ?? CATALOG_BOT_SPEECH
+  const say = createBotSayer(speech)
   return async (input) => {
-    const { channel, context, session } = input
+    const { context } = input
     const answer = readContextString(context, KEY.confirmAnswer)
     const requestId = readContextString(context, KEY.requestId)
     if (answer === ISSUANCE_BACK_ANSWER) {
@@ -116,12 +120,9 @@ function createConfirmRouter(
     }
     if (requestId !== undefined && answer === `${ISSUANCE_CONFIRM_ANSWER_PREFIX}${requestId}`) {
       const outcome = await deps.confirmSelection({ actor: input.actor, requestId })
-      return replyToConfirmation(input, outcome)
+      return replyToConfirmation(input, outcome, speech)
     }
-    await channel.sendText(
-      session.whatsappNumber,
-      'Toque em ✅ Confirmar ou 🔙 Voltar, na lista acima.',
-    )
+    await say(input, 'issuanceConfirmReminder')
     return { context: { [KEY.confirmAnswer]: undefined }, next: ISSUANCE_FLOW_NODE.confirmEntry }
   }
 }

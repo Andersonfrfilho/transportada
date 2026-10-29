@@ -3,6 +3,7 @@
  */
 import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 
+import { preserveEditedBotSpeech } from '../domain/whatsapp-bot-speech.policy.js'
 import {
   diffWhatsAppFlowGraphs,
   type WhatsAppFlowGraphDiff,
@@ -100,7 +101,9 @@ export function createPublishWhatsAppFlowGraphUseCase(dependencies: {
         return { graph: created, kind: 'created' }
       }
 
-      const diff = diffWhatsAppFlowGraphs(current, request.graph)
+      /** Spec 286 T8: o que o editor mudou nas falas do bot não volta ao padrão do código. */
+      const graph = preserveEditedBotSpeech(current, request.graph)
+      const diff = diffWhatsAppFlowGraphs(current, graph)
       if (diff.isEqual) return { graph: current, kind: 'unchanged' }
 
       /** A versão sobre a mesa (a que `save` está prestes a substituir) fica no histórico. */
@@ -112,7 +115,7 @@ export function createPublishWhatsAppFlowGraphUseCase(dependencies: {
       })
       const updated = await module.save(
         request.companyId,
-        { ...request.graph, version: current.version },
+        { ...graph, version: current.version },
         current.version,
       )
       return { diff, graph: updated, kind: 'updated' }
