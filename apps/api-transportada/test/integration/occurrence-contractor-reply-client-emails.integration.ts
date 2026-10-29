@@ -131,7 +131,9 @@ async function seedClientEmailTemplate(database: TestDatabase, seeded: Seeded): 
     insert into company_occurrence_type_client_channels (company_id, occurrence_type_id, channel, enabled, send_mode, template_key)
     select ${companyId}, occurrence.occurrence_type_id, 'email', true, 'manual', ${templateKey}
     from trip_document_occurrences occurrence
-    where occurrence.id = ${seeded.occurrenceId}`)
+    where occurrence.id = ${seeded.occurrenceId}
+    on conflict (company_id, occurrence_type_id, channel)
+      do update set enabled = true, send_mode = 'manual', template_key = excluded.template_key`)
 }
 
 async function prepare(database: TestDatabase) {
