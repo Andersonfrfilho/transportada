@@ -1,0 +1,2 @@
+ALTER TABLE "company_occurrence_types" ADD COLUMN "driver_lock_minutes" integer;--> statement-breakpoint
+ALTER TABLE "company_occurrence_types" ADD CONSTRAINT "company_occurrence_types_driver_lock_minutes_check" CHECK ("driver_lock_minutes" is null or "driver_lock_minutes" between 1 and 10080);

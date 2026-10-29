@@ -1,0 +1,20 @@
+📄 *Boleto atualizado — NF {{numeroNota}}*
+
+Olá, *{{razaoSocial}}*! 👋
+Aqui é a *{{nomeExibicao}}*, transportadora responsável pela sua entrega. 🚚
+
+Atendendo ao pedido de _{{tipoOcorrencia}}_, segue em anexo o *boleto atualizado*. 📎
+
+✅ *Antes de pagar, confira:*
+- 💰 o *valor*
+- 📅 a *data de vencimento*
+- 🏦 o *beneficiário*
+
+> Encontrou alguma divergência? É só responder esta mensagem. 💬
+
+🏢 *{{razaoSocialTransportadora}}*
+CNPJ `{{cnpjTransportadora}}`
+📞 {{telefoneTransportadora}}
+✉️ {{emailTransportadora}}
+
+_Obrigado pela parceria!_ 🤝
