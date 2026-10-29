@@ -940,8 +940,6 @@ export async function findOccurrenceType(
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
       forwardToNoteRecipient: companyOccurrenceTypes.forwardToNoteRecipient,
       forwardToInformedEmail: companyOccurrenceTypes.forwardToInformedEmail,
-      forwardEmailSubject: companyOccurrenceTypes.forwardEmailSubject,
-      forwardEmailBody: companyOccurrenceTypes.forwardEmailBody,
       /** Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. */
       flow: companyOccurrenceTypes.flow,
       /** Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa. */
@@ -1127,8 +1125,6 @@ export async function listOccurrenceTypes(
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
       forwardToNoteRecipient: companyOccurrenceTypes.forwardToNoteRecipient,
       forwardToInformedEmail: companyOccurrenceTypes.forwardToInformedEmail,
-      forwardEmailSubject: companyOccurrenceTypes.forwardEmailSubject,
-      forwardEmailBody: companyOccurrenceTypes.forwardEmailBody,
       flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
       itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
@@ -1609,10 +1605,6 @@ async function writeOccurrenceTypeRow(
     ...(input.forwardToInformedEmail === undefined
       ? {}
       : { forwardToInformedEmail: input.forwardToInformedEmail }),
-    ...(input.forwardEmailSubject === undefined
-      ? {}
-      : { forwardEmailSubject: input.forwardEmailSubject }),
-    ...(input.forwardEmailBody === undefined ? {} : { forwardEmailBody: input.forwardEmailBody }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
     ...(input.itemsMinimumCount === undefined
@@ -1719,8 +1711,6 @@ async function writeOccurrenceTypeRow(
     driverReplyTemplate: saved.driverReplyTemplate,
     forwardToNoteRecipient: saved.forwardToNoteRecipient,
     forwardToInformedEmail: saved.forwardToInformedEmail,
-    forwardEmailSubject: saved.forwardEmailSubject,
-    forwardEmailBody: saved.forwardEmailBody,
     flow: saved.flow,
     id: saved.id,
     itemsMinimumCount: saved.itemsMinimumCount,

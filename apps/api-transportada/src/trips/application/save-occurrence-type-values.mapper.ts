@@ -36,8 +36,6 @@ export function toSaveOccurrenceTypeValues(
     driverReplyTemplate: input.driverReplyTemplate,
     forwardToNoteRecipient: input.forwardToNoteRecipient,
     forwardToInformedEmail: input.forwardToInformedEmail,
-    forwardEmailSubject: input.forwardEmailSubject,
-    forwardEmailBody: input.forwardEmailBody,
     emailsContractor: input.emailsContractor,
     contractorNotificationTemplateKey: input.contractorNotificationTemplateKey,
     contractorMailWatcherUserIds: input.contractorMailWatcherUserIds,
