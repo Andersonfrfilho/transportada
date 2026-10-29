@@ -770,8 +770,6 @@ const REPLY_TYPE: StoredContractorReplyConfiguration['type'] = {
   driverReplyTemplate: 'Segue o boleto prorrogado.',
   driverReplyWindowClosedAction: 'fallback_app_chat',
   emailsContractor: true,
-  forwardEmailBody: '',
-  forwardEmailSubject: '',
   forwardToInformedEmail: 'off',
   forwardToNoteRecipient: 'off',
   mode: 'forward_automatic',

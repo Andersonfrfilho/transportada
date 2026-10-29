@@ -626,8 +626,6 @@ describe('a resposta pelo portal move o retorno (spec 248 T4.5, CA02)', () => {
             driverReplyChannel: 'app_chat',
             driverReplyTemplate: 'Segue o boleto prorrogado.',
             driverReplyWindowClosedAction: 'fallback_app_chat',
-            forwardEmailBody: '',
-            forwardEmailSubject: '',
             forwardToInformedEmail: 'off',
             forwardToNoteRecipient: 'off',
             mode: 'forward_automatic',

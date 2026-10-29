@@ -41,7 +41,6 @@ import { assertConversationSystemNotice } from './conversation-system-notice.ass
 import { assertOccurrenceTypeClientEmailType } from './occurrence-type-client-email-type.assertion.js'
 import { assertClientEmailSendMode } from './client-email-send-mode.assertion.js'
 import { assertOccurrenceTypeAsksClientContact } from './occurrence-type-asks-client-contact.assertion.js'
-import { assertOccurrenceTypeClientChannels } from './occurrence-type-client-channels.assertion.js'
 import { assertOccurrenceClientConversation } from './occurrence-client-conversation.assertion.js'
 import { assertConversationMessageDetectedEmail } from './conversation-message-detected-email.assertion.js'
 import { assertContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
@@ -176,13 +175,6 @@ describe('Drizzle migration integration', () => {
         })
         /** Spec 286 T3: a trava e os motivos do WhatsApp automático. */
         await assertClientWhatsAppAutomatic({
-          connectionString,
-          database,
-          directories: migrationDirectories,
-        })
-        /** Spec 286 T2: a matriz por canal do tipo e os modelos migrados do texto livre. */
-        await assertOccurrenceTypeClientChannels({
-          companyId: identityFixture.companyId,
           connectionString,
           database,
           directories: migrationDirectories,

@@ -12,4 +12,19 @@ ALTER TABLE "company_occurrence_types" ADD CONSTRAINT "company_occurrence_types_
 ALTER TABLE "company_occurrence_types" ADD CONSTRAINT "company_occurrence_types_forward_email_body_check" CHECK (char_length("forward_email_body") <= 4000);
 ALTER TABLE "company_occurrence_types" ADD CONSTRAINT "company_occurrence_types_forward_needs_text_check" CHECK (("forward_to_note_recipient" = 'off' and "forward_to_informed_email" = 'off') or (btrim("forward_email_subject") <> '' and btrim("forward_email_body") <> ''));
 
+DO $$
+DECLARE
+  deleted_migrations integer;
+BEGIN
+  DELETE FROM "drizzle"."__drizzle_migrations"
+    WHERE "name" = '20261029190000_occurrence_drop_forward_email';
+
+  GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
+  IF deleted_migrations <> 1 THEN
+    RAISE EXCEPTION 'Expected exactly one occurrence_drop_forward_email journal entry, removed %',
+      deleted_migrations;
+  END IF;
+END
+$$;
+
 COMMIT;

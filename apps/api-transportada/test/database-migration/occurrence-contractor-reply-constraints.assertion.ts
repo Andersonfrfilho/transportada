@@ -69,8 +69,7 @@ async function assertDefaultsOnExistingType(
     select contractor_reply_mode, contractor_reply_attachment_kind, driver_reply_channel,
       driver_reply_window_closed_action, driver_reply_template, contractor_reply_wait_hours,
       contractor_reply_alert_mode, contractor_reply_alert_interval_minutes,
-      contractor_reply_alert_max_count, forward_to_note_recipient, forward_to_informed_email,
-      forward_email_subject, forward_email_body
+      contractor_reply_alert_max_count, forward_to_note_recipient, forward_to_informed_email
     from company_occurrence_types where id = ${typeId}
   `) as Record<string, unknown>[]
   expect(stored).toEqual({
@@ -83,8 +82,6 @@ async function assertDefaultsOnExistingType(
     driver_reply_channel: 'app_chat',
     driver_reply_template: '',
     driver_reply_window_closed_action: 'fallback_app_chat',
-    forward_email_body: '',
-    forward_email_subject: '',
     forward_to_informed_email: 'off',
     forward_to_note_recipient: 'off',
   })
