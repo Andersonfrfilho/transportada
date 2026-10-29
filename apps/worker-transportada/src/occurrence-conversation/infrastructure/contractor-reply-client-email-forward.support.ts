@@ -32,6 +32,7 @@ import {
   resolveContractorReplyClientTexts,
 } from './contractor-reply-client-template.support.js'
 import {
+  type ContractorReplyFallbackFrom,
   CONTRACTOR_REPLY_EMAIL_MAX_PER_OCCURRENCE,
   CONTRACTOR_REPLY_EMAIL_TARGETS,
 } from '../../shared/occurrence-contractor-reply.constant.js'
@@ -128,6 +129,8 @@ async function recordDelivery(
     readonly address: null | string
     readonly attachmentId: string
     readonly companyId: string
+    /** Spec 286 (RF4): a entrega é a queda do WhatsApp que não saiu; `null` no envio do próprio e-mail. */
+    readonly fallbackFrom: ContractorReplyFallbackFrom
     readonly idempotencyKey: string
     readonly mailMessageId: null | string
     readonly reason: null | string
@@ -139,10 +142,10 @@ async function recordDelivery(
     runner,
     sql`insert into occurrence_contractor_reply_deliveries
           (company_id, reply_id, target, trigger, status, reason, attachment_id, address, mail_message_id,
-           actor_user_id, idempotency_key)
+           actor_user_id, idempotency_key, fallback_from)
         values (${params.companyId}::uuid, ${params.replyId}::uuid, ${TARGET}, 'automatic', ${params.status},
                 ${params.reason}, ${params.attachmentId}::uuid, ${params.address}, ${params.mailMessageId}::uuid, null,
-                ${params.idempotencyKey})`,
+                ${params.idempotencyKey}, ${params.fallbackFrom})`,
   )
 }
 
@@ -225,6 +228,7 @@ async function recordSkippedAttempt(
   params: {
     readonly attachmentId: string
     readonly companyId: string
+    readonly fallbackFrom: ContractorReplyFallbackFrom
     readonly reason: 'client_without_email' | 'template_missing'
     readonly replyId: string
   },
@@ -238,6 +242,7 @@ async function recordSkippedAttempt(
   )
   if (existing !== undefined) return
   await recordDelivery(runner, {
+    fallbackFrom: params.fallbackFrom,
     address: null,
     attachmentId,
     companyId,
@@ -323,6 +328,7 @@ async function queue(
     await recordSkippedAttempt(runner, {
       attachmentId,
       companyId,
+      fallbackFrom: params.fallbackFrom ?? null,
       reason: 'template_missing',
       replyId,
     })
@@ -335,6 +341,7 @@ async function queue(
     await recordSkippedAttempt(runner, {
       attachmentId,
       companyId,
+      fallbackFrom: params.fallbackFrom ?? null,
       reason: 'client_without_email',
       replyId,
     })
@@ -355,7 +362,16 @@ async function queue(
   }
   const tally = { alreadyQueued, failed: 0, overLimit: 0, queued: 0 }
   if (planned.length > 0)
-    await send(runner, { attachmentId, companyId, occurrenceId, planned, replyId, tally, texts })
+    await send(runner, {
+      attachmentId,
+      companyId,
+      fallbackFrom: params.fallbackFrom ?? null,
+      occurrenceId,
+      planned,
+      replyId,
+      tally,
+      texts,
+    })
   return { kind: 'processed', ...tally }
 }
 
@@ -366,6 +382,7 @@ async function send(
   params: {
     readonly attachmentId: string
     readonly companyId: string
+    readonly fallbackFrom: ContractorReplyFallbackFrom
     readonly occurrenceId: string
     readonly planned: readonly { readonly address: string; readonly idempotencyKey: string }[]
     readonly replyId: string
@@ -373,7 +390,8 @@ async function send(
     readonly texts: { readonly body: string; readonly subject: string }
   },
 ): Promise<void> {
-  const { attachmentId, companyId, occurrenceId, planned, replyId, tally, texts } = params
+  const { attachmentId, companyId, fallbackFrom, occurrenceId, planned, replyId, tally, texts } =
+    params
 
   const [attachment] = await rowsOf(
     runner,
@@ -383,6 +401,7 @@ async function send(
   if (Number(attachment?.size_bytes ?? 0) > CONVERSATION_ATTACHMENT_LIMITS.email.document) {
     for (const item of planned) {
       await recordDelivery(runner, {
+        fallbackFrom,
         address: item.address,
         attachmentId,
         companyId,
@@ -417,6 +436,7 @@ async function send(
   for (const item of sending) {
     if (mail === null) {
       await recordDelivery(runner, {
+        fallbackFrom,
         address: item.address,
         attachmentId,
         companyId,
@@ -447,6 +467,7 @@ async function send(
                   ${messageId}::uuid, '{}'::jsonb)`,
     )
     await recordDelivery(runner, {
+      fallbackFrom,
       address: item.address,
       attachmentId,
       companyId,

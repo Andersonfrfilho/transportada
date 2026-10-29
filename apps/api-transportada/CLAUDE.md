@@ -1203,6 +1203,9 @@ Variáveis: `razaoSocial`, `nomeExibicao`, `numeroNota`, `numeroNotaSemSerie`, `
 - **Queda para e-mail (RF4)**: sem número (`client_without_whatsapp`), sem modelo, sem instância (`whatsapp_disconnected`) ou
   nenhum número recebeu → o motivo fica na linha do tempo e o boleto vai ao e-mail do cliente se a caixa do e-mail estiver
   ligada (mesmo em manual). Teste: `test/integration/occurrence-contractor-reply-client-channels-auto.integration.ts`.
+- **Marca da reserva**: o e-mail que sai como queda do WhatsApp grava `fallback_from = 'whatsapp'` na entrega (migration
+  `20261029023933_client_email_fallback_from`, CHECK só no alvo `client_boleto_emails`); a leitura das entregas devolve
+  `fallbackFrom` e o painel mostra "Reserva do WhatsApp". O envio do próprio canal e o botão ficam com `null`.
 - **Layout do e-mail**: o boleto ao cliente e ao destinatário da nota (automático e botão) sai no modelo padrão de e-mail das
   Notificações (`notification.standard-email`, o da empresa quando utilizável, senão o embutido do SDK), o mesmo visual do chat da
   contratante: `contractor-reply-client-email-layout.support.ts` (espelhado no worker). O texto do modelo do canal entra como texto

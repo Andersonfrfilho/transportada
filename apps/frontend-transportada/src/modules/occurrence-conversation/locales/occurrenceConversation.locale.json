@@ -674,6 +674,7 @@
         "automatic": "Automático",
         "operator": "Operador"
       },
+      "whatsappFallback": "Reserva do WhatsApp",
       "clientWithoutEmail": "Sem e-mail do cliente para o boleto",
       "retry": "Tentar de novo",
       "retrying": "Enviando…",

@@ -509,6 +509,7 @@ export function createDrizzleContractorReplyEmailReader(
         .select({
           address: occurrenceContractorReplyDeliveries.address,
           createdAt: occurrenceContractorReplyDeliveries.createdAt,
+          fallbackFrom: occurrenceContractorReplyDeliveries.fallbackFrom,
           id: occurrenceContractorReplyDeliveries.id,
           reason: occurrenceContractorReplyDeliveries.reason,
           sentAt: occurrenceContractorReplyDeliveries.sentAt,
@@ -543,6 +544,7 @@ export function createDrizzleContractorReplyEmailReader(
                   addressMasked:
                     delivery.address === null ? null : maskEmailAddress(delivery.address),
                   createdAt: delivery.createdAt.toISOString(),
+                  fallbackFrom: delivery.fallbackFrom,
                   id: delivery.id,
                   reason: delivery.reason,
                   sentAt: delivery.sentAt?.toISOString() ?? null,

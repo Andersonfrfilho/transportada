@@ -16,6 +16,7 @@ import type {
   ContractorReplyDeliveryStatus,
   ContractorReplyDeliveryTarget,
   ContractorReplyDeliveryTrigger,
+  ContractorReplyFallbackFrom,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { OccurrenceMailSettings } from './occurrence-mail.port.js'
 
@@ -212,6 +213,8 @@ export type ContractorReplyEmailOptions = {
     readonly address: null | string
     readonly addressMasked: null | string
     readonly createdAt: string
+    /** Spec 286 (RF4): `whatsapp` quando o e-mail saiu como reserva do WhatsApp automático que não mandou. */
+    readonly fallbackFrom: ContractorReplyFallbackFrom
     readonly id: string
     readonly reason: ContractorReplyDeliveryReason | null
     readonly sentAt: null | string
