@@ -11,7 +11,6 @@ import type { IdempotencyFingerprintPort } from '../../companies/application/com
 import type { ProviderMatchLevel } from '../../database/address-comparison.schema.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { resolveMailCopy } from '../../contractor-mail/application/resolve-mail-copy.service.js'
-import { ContractorMailTemplateNotUsableError } from '../../contractor-mail/domain/contractor-mail-template.error.js'
 import { createMailSendReadinessError } from '../../contractor-mail/domain/contractor-mail.error.js'
 import { resolveMailSendReadiness } from '../../contractor-mail/domain/mail-send-readiness.policy.js'
 import {
@@ -19,6 +18,10 @@ import {
   hashReplyToken,
 } from '../../contractor-mail/domain/reply-token.policy.js'
 import { ADDRESS_CORRECTION_SEND_MAIL_OPERATION } from '../domain/address-correction-mail.constant.js'
+import {
+  assessAddressCorrectionTemplate,
+  blocksAddressCorrectionMailSend,
+} from '../domain/address-correction-mail-template.policy.js'
 import { buildAddressCorrectionMail } from '../domain/address-correction-mail.template.js'
 import type {
   AddressCorrectionMailItem,
@@ -55,8 +58,6 @@ export type SendAddressCorrectionMailInput = {
   readonly excludedWatcherUserIds?: readonly string[]
   readonly idempotencyKey: string
   readonly requestIds: readonly string[] | undefined
-  /** Spec 150 T402 (RF15): ausente, vale o modelo padrão do tipo. */
-  readonly templateId?: string | undefined
 }
 
 export type SendAddressCorrectionMailUseCase = Readonly<{
@@ -100,14 +101,12 @@ async function executeSend(params: {
   const excludedWatcherUserIds = [...new Set(input.excludedWatcherUserIds ?? [])].sort()
   const sortedRequestIdsMarker =
     input.requestIds === undefined ? NO_REQUEST_IDS_MARKER : [...input.requestIds].sort().join(',')
-  /** O modelo entra no fingerprint só quando escolhido: o envio pelo padrão mantém o de antes. */
   const fingerprint = await fingerprintService.create({
     fields: [
       companyId,
       contractor.id,
       [...dedupedContactIds].sort().join(','),
       sortedRequestIdsMarker,
-      ...(input.templateId === undefined ? [] : [`template:${input.templateId}`]),
       ...(excludedWatcherUserIds.length === 0
         ? []
         : [`excluded:${excludedWatcherUserIds.join(',')}`]),
@@ -125,20 +124,17 @@ async function executeSend(params: {
   }
 
   const settingsRow = await transaction.findMailSettings({ companyId })
-  const template = await transaction.findMailTemplate({
-    companyId,
-    ...(input.templateId === undefined ? {} : { templateId: input.templateId }),
+  const found = await transaction.findMailTemplate({ companyId })
+  /** Spec 286: o modelo é o do módulo de notificação; sem modelo que sirva (RF6, mesma régua da 271) o e-mail não sai. */
+  const usable =
+    found !== undefined && !blocksAddressCorrectionMailSend(assessAddressCorrectionTemplate(found))
+  const readiness = resolveMailSendReadiness({
+    settings: settingsRow,
+    template: usable ? { id: found.key } : null,
   })
-  const readiness = resolveMailSendReadiness({ settings: settingsRow, template: template ?? null })
-  if (!readiness.ready) {
-    /** O modelo escolhido não serve (arquivado, de outro tipo, de outra empresa): código próprio. */
-    if (readiness.reason === 'template_missing' && input.templateId !== undefined) {
-      throw new ContractorMailTemplateNotUsableError()
-    }
-    throw createMailSendReadinessError(readiness.reason)
-  }
+  if (!readiness.ready) throw createMailSendReadinessError(readiness.reason)
   const { settings } = readiness
-  const mailTemplate = template as AddressCorrectionMailTemplate
+  const mailTemplate = found as AddressCorrectionMailTemplate
   const secret = await secretService.decrypt({
     companyId,
     envelope: settings.secretEnvelope as SecretEnvelopeV1,
@@ -207,7 +203,8 @@ async function executeSend(params: {
     fromAddress: settings.senderAddress,
     replyTokenHash,
     subject: mail.subject,
-    templateId: mailTemplate.id,
+    templateKey: mailTemplate.key,
+    templateVersion: mailTemplate.version,
     threadId,
     toAddresses: recipientEmails,
   })
@@ -237,13 +234,13 @@ function buildMailParams(input: {
   readonly sendable: readonly AddressCorrectionRequest[]
   readonly template: AddressCorrectionMailTemplate
 }): BuildAddressCorrectionMailParams {
-  const { closing, intro, itemText, subject } = input.template
+  const { body, subject } = input.template
   return {
     carrierName: input.carrierName,
     contractorName: input.contractorName,
     items: input.sendable.map(toMailItem),
     operatorName: input.operatorName,
-    template: { closing, intro, itemText, subject },
+    template: { body, subject },
   }
 }
 

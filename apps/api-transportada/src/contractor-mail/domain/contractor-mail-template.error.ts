@@ -101,3 +101,17 @@ export class ContractorMailTemplateNotPersistedError extends DiagnosableError {
     super('Contractor mail template was not persisted')
   }
 }
+
+/**
+ * Spec 286 (RF6): o modelo do e-mail de correção de endereço mudou para o módulo de notificação; a prévia do cadastro
+ * antigo não renderiza mais. O cadastro sai na etapa B (destrutiva, com aprovação humana).
+ */
+export class ContractorMailTemplateRetiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_MAIL_TEMPLATE_RETIRED',
+      message: 'This mail template moved to the notification module',
+      status: 410,
+    })
+  }
+}

@@ -9,12 +9,13 @@ import { companies } from '../src/database/database.schema.js'
 import {
   parsePublishArguments,
   publishOccurrenceMailTemplates,
+  readAddressCorrectionMailTemplateFile,
   readOccurrenceMailTemplateFiles,
   type PublicationPlan,
 } from '../src/occurrence-conversation/application/occurrence-mail-templates-publish.service.js'
 
 /**
- * Spec 272 T4.3 (ADR-0110 §13, D14): grava os cinco modelos HTML do e-mail de ocorrência no módulo de
+ * Spec 272 T4.3 (ADR-0110 §13, D14): grava os modelos HTML do e-mail de ocorrência e o da correção de endereço (spec 286) no módulo de
  * notificação, uma versão nova por chave, nunca `UPDATE`. Sem `--confirm` só imprime o plano; `--confirm`
  * aplica só `create`; `differs` exige `--overwrite <chave>`. Em staging/produção é mudança de dados: pede
  * aprovação humana. Imprime só chaves, versões e o veredito.
@@ -42,7 +43,7 @@ async function main(): Promise<void> {
       confirm: options.confirm,
       overwrite: options.overwrite,
       repository: new TemplateRepository(provider.db as never),
-      templates: readOccurrenceMailTemplateFiles(),
+      templates: [...readOccurrenceMailTemplateFiles(), readAddressCorrectionMailTemplateFile()],
     })
 
     process.stdout.write(formatPlan(plan, options.confirm))

@@ -4,8 +4,7 @@
  * Spec 150 T402: rotas de modelos sobre o caso de uso de verdade e um repositório em memória que
  * respeita o tenant, o único por nome e o padrão único — o banco de verdade é provado na integração.
  */
-import { buildAddressCorrectionMail } from '../../src/address-correction/domain/address-correction-mail.template.js'
-import { ADDRESS_CORRECTION_MAIL_SAMPLE } from '../../src/address-correction/domain/address-correction-mail-sample.constant.js'
+import { ContractorMailTemplateRetiredError } from '../../src/contractor-mail/domain/contractor-mail-template.error.js'
 import type {
   ContractorMailTemplate,
   ContractorMailTemplateRepositoryPort,
@@ -153,8 +152,9 @@ export async function createContractorMailTemplatesHttpFixture(
   const repository = createInMemoryTemplateRepository(params.seed)
   const templates = createContractorMailTemplatesUseCase({
     previewRenderers: {
-      address_correction: (template) =>
-        buildAddressCorrectionMail({ ...ADDRESS_CORRECTION_MAIL_SAMPLE, template }),
+      address_correction: () => {
+        throw new ContractorMailTemplateRetiredError()
+      },
     },
     repository,
   })

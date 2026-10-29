@@ -4,25 +4,19 @@ import { describe, expect, test } from 'bun:test'
 import {
   ADDRESS_CORRECTION_MAIL_MAX_CONTACTS,
   activeAddressCorrectionMailContacts,
-  activeAddressCorrectionMailTemplates,
   addressCorrectionMailErrorHasConfigurationShortcut,
   addressCorrectionMailErrorMessageKey,
-  addressCorrectionMailTemplateIdForRequest,
   buildAddressCorrectionMailRequestBody,
   canConfirmAddressCorrectionMail,
-  defaultAddressCorrectionMailTemplateId,
   initialAddressCorrectionMailContactIds,
-  initialAddressCorrectionMailTemplateId,
   resolveAddressCorrectionMailIdempotencyKey,
 } from '../../src/modules/nfe-workspace/shared/addressCorrectionMail.service'
 import {
   mapAddressCorrectionMailContactList,
   mapAddressCorrectionMailContractor,
   mapAddressCorrectionMailSendResult,
-  mapAddressCorrectionMailTemplateList,
-  mapAddressCorrectionMailTemplatePreview,
+  mapAddressCorrectionMailTemplateState,
   type AddressCorrectionMailContact,
-  type AddressCorrectionMailTemplate,
 } from '../../src/modules/nfe-workspace/shared/addressCorrectionMail.validation'
 import { AddressCorrectionRequestError } from '../../src/modules/nfe-workspace/shared/addressCorrectionRequestError.service'
 import { createNfeWorkspaceClient } from '../../src/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
@@ -48,27 +42,6 @@ const INACTIVE_SUBSCRIBED: AddressCorrectionMailContact = {
   status: 'inactive',
 }
 
-const DEFAULT_TEMPLATE: AddressCorrectionMailTemplate = {
-  id: 'template-default',
-  isDefault: true,
-  name: 'Modelo padrão',
-  status: 'active',
-}
-
-const OTHER_ACTIVE_TEMPLATE: AddressCorrectionMailTemplate = {
-  id: 'template-other',
-  isDefault: false,
-  name: 'Modelo alternativo',
-  status: 'active',
-}
-
-const ARCHIVED_TEMPLATE: AddressCorrectionMailTemplate = {
-  id: 'template-archived',
-  isDefault: false,
-  name: 'Modelo arquivado',
-  status: 'archived',
-}
-
 describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
   test('sem requestIds monta o corpo completo', () => {
     expect(
@@ -90,20 +63,6 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
       contactIds: ['contact-1', 'contact-2'],
       contractorTaxId: '30290856000160',
       requestIds: ['request-1'],
-    })
-  })
-
-  test('com templateId monta o corpo com o modelo escolhido (T405)', () => {
-    expect(
-      buildAddressCorrectionMailRequestBody({
-        contactIds: ['contact-1'],
-        contractorTaxId: '30290856000160',
-        templateId: 'template-other',
-      }),
-    ).toEqual({
-      contactIds: ['contact-1'],
-      contractorTaxId: '30290856000160',
-      templateId: 'template-other',
     })
   })
 
@@ -146,64 +105,6 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     expect(canConfirmAddressCorrectionMail({ hasTemplate: false, selectedContactCount: 1 })).toBe(
       false,
     )
-  })
-
-  test('arquivado nunca entra na lista de modelos do seletor (RF15)', () => {
-    expect(
-      activeAddressCorrectionMailTemplates([
-        DEFAULT_TEMPLATE,
-        OTHER_ACTIVE_TEMPLATE,
-        ARCHIVED_TEMPLATE,
-      ]),
-    ).toEqual([DEFAULT_TEMPLATE, OTHER_ACTIVE_TEMPLATE])
-  })
-
-  test('seleção inicial do modelo: o padrão quando existe, o primeiro ativo quando não há padrão, nenhum sem modelo ativo', () => {
-    expect(initialAddressCorrectionMailTemplateId([OTHER_ACTIVE_TEMPLATE, DEFAULT_TEMPLATE])).toBe(
-      'template-default',
-    )
-    expect(initialAddressCorrectionMailTemplateId([OTHER_ACTIVE_TEMPLATE])).toBe('template-other')
-    expect(initialAddressCorrectionMailTemplateId([ARCHIVED_TEMPLATE])).toBeNull()
-    expect(initialAddressCorrectionMailTemplateId([])).toBeNull()
-  })
-
-  test('o modelo marcado como padrão é achado mesmo fora da primeira posição', () => {
-    expect(defaultAddressCorrectionMailTemplateId([OTHER_ACTIVE_TEMPLATE, DEFAULT_TEMPLATE])).toBe(
-      'template-default',
-    )
-    expect(defaultAddressCorrectionMailTemplateId([OTHER_ACTIVE_TEMPLATE])).toBeNull()
-  })
-
-  test('o templateId selecionado sempre viaja no corpo, mesmo quando é o padrão (T405 revertido)', () => {
-    // Decisão revertida na rodada de correção da Fase 4: a T402 assumia que o servidor resolveria
-    // "sem templateId" para o modelo marcado como padrão no momento do envio, mas a prévia que o
-    // operador confirma é sempre a do modelo **selecionado** na tela — se o padrão mudar entre a
-    // prévia e o envio (outra aba, outro operador), omitir o id manda o e-mail com um modelo
-    // diferente do que a prévia mostrou. Enviar sempre o id selecionado fecha esse descompasso.
-    expect(
-      addressCorrectionMailTemplateIdForRequest({
-        defaultTemplateId: 'template-default',
-        selectedTemplateId: 'template-default',
-      }),
-    ).toBe('template-default')
-    expect(
-      addressCorrectionMailTemplateIdForRequest({
-        defaultTemplateId: 'template-default',
-        selectedTemplateId: 'template-other',
-      }),
-    ).toBe('template-other')
-    expect(
-      addressCorrectionMailTemplateIdForRequest({
-        defaultTemplateId: null,
-        selectedTemplateId: null,
-      }),
-    ).toBeUndefined()
-    expect(
-      addressCorrectionMailTemplateIdForRequest({
-        defaultTemplateId: null,
-        selectedTemplateId: 'template-other',
-      }),
-    ).toBe('template-other')
   })
 
   test('só o contato ativo entra na lista marcável', () => {
@@ -256,9 +157,6 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     expect(addressCorrectionMailErrorMessageKey('CONTRACTOR_MAIL_TEMPLATE_MISSING')).toBe(
       'addressReport.correction.mail.error.templateMissing',
     )
-    expect(addressCorrectionMailErrorMessageKey('CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE')).toBe(
-      'addressReport.correction.mail.error.templateNotUsable',
-    )
     expect(addressCorrectionMailErrorMessageKey('IDEMPOTENCY_KEY_REUSED')).toBe(
       'addressReport.correction.mail.error.idempotencyReused',
     )
@@ -272,7 +170,7 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     )
   })
 
-  test('os quatro motivos de liberação (RF16/RF17) levam ao atalho de configuração, o resto não', () => {
+  test('os motivos de liberação (RF16/RF17) levam ao atalho de configuração, o resto não', () => {
     expect(
       addressCorrectionMailErrorHasConfigurationShortcut('CONTRACTOR_MAIL_NOT_CONFIGURED'),
     ).toBe(true)
@@ -281,9 +179,6 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     ).toBe(true)
     expect(
       addressCorrectionMailErrorHasConfigurationShortcut('CONTRACTOR_MAIL_TEMPLATE_MISSING'),
-    ).toBe(true)
-    expect(
-      addressCorrectionMailErrorHasConfigurationShortcut('CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE'),
     ).toBe(true)
     expect(addressCorrectionMailErrorHasConfigurationShortcut('IDEMPOTENCY_KEY_REUSED')).toBe(false)
     expect(
@@ -316,26 +211,37 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     expect(mapAddressCorrectionMailContractor({})).toBeNull()
   })
 
-  test('a lista de modelos ignora o registro que esta versão não reconhece', () => {
+  test('o estado do modelo do módulo exige a marca de utilizável e lê a prévia e os problemas', () => {
     expect(
-      mapAddressCorrectionMailTemplateList({
-        data: [
-          { id: 'template-default', isDefault: true, name: 'Padrão', status: 'active' },
-          { id: 'template-sem-status', isDefault: false, name: 'Sem status' },
-        ],
+      mapAddressCorrectionMailTemplateState({
+        data: {
+          key: 'correcao-endereco.padrao',
+          preview: { html: '<p>Olá</p>', subject: 'Correção de endereço', text: 'Olá' },
+          problems: [{ code: 'unknown_variables', variables: ['x'] }],
+          usable: true,
+          version: 3,
+        },
       }),
-    ).toEqual([{ id: 'template-default', isDefault: true, name: 'Padrão', status: 'active' }])
-    expect(mapAddressCorrectionMailTemplateList({})).toEqual([])
+    ).toEqual({
+      preview: { html: '<p>Olá</p>', subject: 'Correção de endereço', text: 'Olá' },
+      problemCodes: ['unknown_variables'],
+      usable: true,
+      version: 3,
+    })
+    expect(
+      mapAddressCorrectionMailTemplateState({
+        data: { preview: null, problems: [{ code: 'not_found' }], usable: false, version: null },
+      }),
+    ).toEqual({ preview: null, problemCodes: ['not_found'], usable: false, version: null })
   })
 
-  test('a prévia exige os três campos', () => {
+  test('o estado do modelo que esta versão não reconhece vira nulo, nunca "utilizável"', () => {
+    expect(mapAddressCorrectionMailTemplateState({})).toBeNull()
+    expect(mapAddressCorrectionMailTemplateState({ data: { problems: [] } })).toBeNull()
     expect(
-      mapAddressCorrectionMailTemplatePreview({
-        data: { html: '<p>Olá</p>', subject: 'Correção de endereço', text: 'Olá' },
+      mapAddressCorrectionMailTemplateState({
+        data: { preview: { subject: 'Só o assunto' }, problems: [], usable: true },
       }),
-    ).toEqual({ html: '<p>Olá</p>', subject: 'Correção de endereço', text: 'Olá' })
-    expect(
-      mapAddressCorrectionMailTemplatePreview({ data: { subject: 'Só o assunto' } }),
     ).toBeNull()
   })
 
@@ -462,7 +368,7 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     })
   })
 
-  test('o client monta o POST com o corpo levando o templateId escolhido (T405)', async () => {
+  test('o client lê o estado do modelo do módulo de notificação pelo GET', async () => {
     const requests: Request[] = []
     const client = createNfeWorkspaceClient({
       apiUrl: 'https://api.example.test',
@@ -472,10 +378,11 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
         return Promise.resolve(
           Response.json({
             data: {
-              messageId: 'message-1',
-              recipientCount: 1,
-              sentRequestIds: ['request-1'],
-              threadId: 'thread-1',
+              key: 'correcao-endereco.padrao',
+              preview: { html: '<p>Olá</p>', subject: 'Assunto', text: 'Olá' },
+              problems: [],
+              usable: true,
+              version: 2,
             },
           }),
         )
@@ -483,75 +390,35 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
       getAccessToken: () => Promise.resolve('synthetic-access-token'),
     })
 
-    await client.sendAddressCorrectionMail({
-      contactIds: ['contact-1'],
-      contractorTaxId: '30290856000160',
-      idempotencyKey: 'idempotency-key-0001',
-      templateId: 'template-other',
+    const state = await client.readAddressCorrectionMailTemplate()
+    expect(state).toEqual({
+      preview: { html: '<p>Olá</p>', subject: 'Assunto', text: 'Olá' },
+      problemCodes: [],
+      usable: true,
+      version: 2,
     })
-
-    const [request] = requests
-    if (request === undefined) throw new Error('ADDRESS_CORRECTION_MAIL_CONTRACT_REQUEST_MISSING')
-    expect(await request.clone().json()).toEqual({
-      contactIds: ['contact-1'],
-      contractorTaxId: '30290856000160',
-      templateId: 'template-other',
-    })
-  })
-
-  test('o client lista os modelos ativos e arquivados do tipo pelo GET filtrado', async () => {
-    const requests: Request[] = []
-    const client = createNfeWorkspaceClient({
-      apiUrl: 'https://api.example.test',
-      fetch: (input, init) => {
-        const request = new Request(input, init)
-        requests.push(request)
-        return Promise.resolve(
-          Response.json({
-            data: [{ id: 'template-default', isDefault: true, name: 'Padrão', status: 'active' }],
-          }),
-        )
-      },
-      getAccessToken: () => Promise.resolve('synthetic-access-token'),
-    })
-
-    const templates = await client.listAddressCorrectionMailTemplates()
-    expect(templates).toEqual([
-      { id: 'template-default', isDefault: true, name: 'Padrão', status: 'active' },
-    ])
 
     const [request] = requests
     if (request === undefined) throw new Error('ADDRESS_CORRECTION_MAIL_CONTRACT_REQUEST_MISSING')
     expect(request.method).toBe('GET')
-    expect(request.url).toBe(
-      'https://api.example.test/contractor-mail-templates?mailType=address_correction',
-    )
+    expect(request.url).toBe('https://api.example.test/address-correction-requests/mail-template')
   })
 
-  test('o client pede a prévia por templateId', async () => {
-    const requests: Request[] = []
+  test('o client recusa a resposta do modelo que não reconhece', async () => {
     const client = createNfeWorkspaceClient({
       apiUrl: 'https://api.example.test',
-      fetch: (input, init) => {
-        const request = new Request(input, init)
-        requests.push(request)
-        return Promise.resolve(
-          Response.json({ data: { html: '<p>Olá</p>', subject: 'Assunto', text: 'Olá' } }),
-        )
-      },
+      fetch: () => Promise.resolve(Response.json({ data: {} })),
       getAccessToken: () => Promise.resolve('synthetic-access-token'),
     })
 
-    const preview = await client.previewAddressCorrectionMailTemplate({
-      templateId: 'template-default',
-    })
-    expect(preview).toEqual({ html: '<p>Olá</p>', subject: 'Assunto', text: 'Olá' })
+    let caught: unknown
+    try {
+      await client.readAddressCorrectionMailTemplate()
+    } catch (error) {
+      caught = error
+    }
 
-    const [request] = requests
-    if (request === undefined) throw new Error('ADDRESS_CORRECTION_MAIL_CONTRACT_REQUEST_MISSING')
-    expect(request.method).toBe('POST')
-    expect(request.url).toBe('https://api.example.test/contractor-mail-templates/preview')
-    expect(await request.clone().json()).toEqual({ templateId: 'template-default' })
+    expect(caught).toBeInstanceOf(AddressCorrectionRequestError)
   })
 
   test('o client joga o erro com o código estável de um 409', async () => {
@@ -595,15 +462,13 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
  * de teste de hook neste repo (sem `renderHook`/`@testing-library/react`).
  */
 describe('chave de idempotência do envio (spec 150, revisão final / T405)', () => {
-  test('estável entre retries com a mesma seleção, em qualquer ordem, e o mesmo modelo', () => {
+  test('estável entre retries com a mesma seleção, em qualquer ordem', () => {
     const generateKey = () => 'should-not-be-called'
     const resolved = resolveAddressCorrectionMailIdempotencyKey({
       currentContactIds: ['contact-2', 'contact-1'],
-      currentTemplateId: null,
       generateKey,
       previousContactIds: ['contact-1', 'contact-2'],
       previousIdempotencyKey: 'key-from-open',
-      previousTemplateId: null,
     })
     expect(resolved.idempotencyKey).toBe('key-from-open')
   })
@@ -612,10 +477,8 @@ describe('chave de idempotência do envio (spec 150, revisão final / T405)', ()
   test('nova chave quando a cópia removida muda; estável quando é o mesmo conjunto, em qualquer ordem', () => {
     const base = {
       currentContactIds: ['contact-1'],
-      currentTemplateId: null,
       previousContactIds: ['contact-1'],
       previousIdempotencyKey: 'key-from-open',
-      previousTemplateId: null,
     }
 
     expect(
@@ -639,11 +502,9 @@ describe('chave de idempotência do envio (spec 150, revisão final / T405)', ()
   test('nova chave ao reabrir (sem seleção anterior)', () => {
     const resolved = resolveAddressCorrectionMailIdempotencyKey({
       currentContactIds: ['contact-1'],
-      currentTemplateId: null,
       generateKey: () => 'fresh-key-on-open',
       previousContactIds: null,
       previousIdempotencyKey: 'stale-key-from-last-session',
-      previousTemplateId: null,
     })
     expect(resolved.idempotencyKey).toBe('fresh-key-on-open')
   })
@@ -651,38 +512,21 @@ describe('chave de idempotência do envio (spec 150, revisão final / T405)', ()
   test('nova chave quando a seleção de contatos muda', () => {
     const resolved = resolveAddressCorrectionMailIdempotencyKey({
       currentContactIds: ['contact-1', 'contact-2'],
-      currentTemplateId: null,
       generateKey: () => 'fresh-key-on-change',
       previousContactIds: ['contact-1'],
       previousIdempotencyKey: 'key-from-open',
-      previousTemplateId: null,
     })
     expect(resolved.idempotencyKey).toBe('fresh-key-on-change')
     expect(resolved.contactIds).toEqual(['contact-1', 'contact-2'])
   })
 
-  test('nova chave quando o modelo escolhido muda, mesmo com os contatos iguais (T405)', () => {
-    const resolved = resolveAddressCorrectionMailIdempotencyKey({
-      currentContactIds: ['contact-1'],
-      currentTemplateId: 'template-other',
-      generateKey: () => 'fresh-key-on-template-change',
-      previousContactIds: ['contact-1'],
-      previousIdempotencyKey: 'key-from-open',
-      previousTemplateId: null,
-    })
-    expect(resolved.idempotencyKey).toBe('fresh-key-on-template-change')
-    expect(resolved.templateId).toBe('template-other')
-  })
-
-  test('a mesma seleção e o mesmo modelo não trocam a chave', () => {
+  test('a mesma seleção não troca a chave', () => {
     const generateKey = () => 'should-not-be-called'
     const resolved = resolveAddressCorrectionMailIdempotencyKey({
       currentContactIds: ['contact-1'],
-      currentTemplateId: 'template-other',
       generateKey,
       previousContactIds: ['contact-1'],
       previousIdempotencyKey: 'key-from-open',
-      previousTemplateId: 'template-other',
     })
     expect(resolved.idempotencyKey).toBe('key-from-open')
   })
