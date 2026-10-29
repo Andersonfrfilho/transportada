@@ -8,7 +8,7 @@
  * recebeu, o motivo fica na linha do tempo e o boleto cai para o e-mail do cliente (caixa do e-mail ligada).
  */
 import { describe, expect } from 'bun:test'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypeClientChannels,
@@ -31,6 +31,7 @@ import {
   STANDARD_EMAIL_TEMPLATE_KEY,
 } from '@adatechnology/notification-contracts'
 
+import { resolveContractorReplyClientTexts } from '../../src/occurrence-conversation/infrastructure/contractor-reply-client-template.support.js'
 import { buildContractorReplyLayoutMail } from '../../src/occurrence-conversation/infrastructure/contractor-reply-client-email-layout.support.js'
 import { createForwardContractorReplyByWhatsAppUseCase } from '../../src/occurrence-conversation/application/forward-contractor-reply-by-whatsapp.use-case.js'
 import {
@@ -560,6 +561,105 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
         expect(mail.html).not.toContain('<b>boleto</b>')
         expect(mail.text).toContain('Segue o boleto.')
         expect(mail.subject).toBe('Boleto da NF')
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+  testWithPostgres(
+    'o modelo do canal lê os dados da transportadora do perfil fiscal, formatados',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, seeded } = await prepare(database, { email: AUTOMATIC })
+        await database.db.execute(sql`
+          insert into company_fiscal_profiles
+            (company_id, legal_name, trade_name, cnpj, state_registration, municipal_registration,
+             tax_regime, rntrc, street, number, complement, district, city, state, postal_code,
+             city_ibge_code, phone, email)
+          values (
+            ${companyId}, 'Tapete Mágico Transportes Ltda', 'Tapete Mágico', '12345678000195',
+            'isento', '', '1', '', 'Rua da Empresa', '100', '', 'Centro', 'Ribeirão Preto', 'SP',
+            '14010000', '3543402', '1633334444', 'financeiro@tapete.example.test'
+          )
+          on conflict (company_id) do update set legal_name = excluded.legal_name,
+            cnpj = excluded.cnpj, street = excluded.street, number = excluded.number,
+            complement = excluded.complement, district = excluded.district, city = excluded.city,
+            state = excluded.state, postal_code = excluded.postal_code, phone = excluded.phone,
+            email = excluded.email
+        `)
+        await seedNotificationTemplate(database, {
+          body: '{{razaoSocialTransportadora}} · CNPJ {{cnpjTransportadora}}\n{{enderecoTransportadora}}\n{{telefoneTransportadora}} · {{emailTransportadora}} · {{cidadeTransportadora}}',
+          companyId,
+          key: TEMPLATE_KEY,
+          subject: 'Boleto da NF {{numeroNotaSemSerie}}',
+          version: 2,
+        })
+        const result = await resolveContractorReplyClientTexts(database.db, {
+          channel: 'email',
+          companyId,
+          config: null,
+          occurrenceId: seeded.occurrenceId,
+        })
+        expect(result).toMatchObject({ kind: 'texts', source: 'template' })
+        if (result.kind !== 'texts') throw new Error('EXPECTED_TEXTS')
+        expect(result.texts.body).toBe(
+          [
+            'Tapete Mágico Transportes Ltda · CNPJ 12.345.678/0001-95',
+            'Rua da Empresa, 100 – Centro, Ribeirão Preto/SP – CEP 14010-000',
+            '(16) 3333-4444 · financeiro@tapete.example.test · Ribeirão Preto · SP',
+          ].join('\n'),
+        )
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+  testWithPostgres(
+    'modelo de e-mail em HTML no desenho da ocorrência: valores escapados, HTML do sistema preenchido',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, seeded } = await prepare(database, { email: AUTOMATIC })
+        await database.db.execute(sql`
+          insert into company_fiscal_profiles
+            (company_id, legal_name, trade_name, cnpj, state_registration, municipal_registration,
+             tax_regime, rntrc, street, number, complement, district, city, state, postal_code,
+             city_ibge_code, phone, email)
+          values (
+            ${companyId}, 'Tapete & Cia <Ltda>', 'Tapete', '12345678000195', 'isento', '', '1', '',
+            'Rua da Empresa', '100', '', 'Centro', 'Ribeirão Preto', 'SP', '14010000', '3543402', '', ''
+          )
+          on conflict (company_id) do update set legal_name = excluded.legal_name
+        `)
+        await seedNotificationTemplate(database, {
+          body: [
+            '<table><tr><td>{{logoTransportadora}}</td><td>{{razaoSocialTransportadora}}</td></tr>',
+            '<tr><td><!-- mensagem --><p>Olá, <b>{{razaoSocial}}</b>!</p><!-- /mensagem --></td></tr>',
+            '<tr><td>{{faixaResposta}}</td><td>{{logoAssinatura}}</td><td>{{marcasRodape}}</td></tr></table>',
+          ].join(''),
+          companyId,
+          key: TEMPLATE_KEY,
+          subject: 'Boleto da NF {{numeroNotaSemSerie}}',
+          version: 2,
+        })
+        const result = await resolveContractorReplyClientTexts(database.db, {
+          channel: 'email',
+          companyId,
+          config: null,
+          occurrenceId: seeded.occurrenceId,
+        })
+        if (result.kind !== 'texts') throw new Error('EXPECTED_TEXTS')
+        const mail = await buildContractorReplyLayoutMail(database.db, {
+          body: result.texts.body,
+          companyId,
+          subject: result.texts.subject,
+        })
+        expect(mail.html).toContain('<p>Olá, <b>Mercado Beta</b>!</p>')
+        expect(mail.html).not.toContain('Tapete & Cia <Ltda>')
+        expect(mail.html).not.toContain('{{')
+        expect(mail.html).toContain('Responda este e-mail')
+        expect(mail.html).toContain('TransportAdA')
+        /** Fora do modelo padrão: o desenho é o do modelo do canal. */
+        expect(mail.html).not.toContain(STANDARD_EMAIL_PRODUCT_NOTE)
+        expect(mail.text).toContain('Olá, Mercado Beta!')
+        expect(mail.text).toContain('Tapete & Cia <Ltda>')
       })
     },
     TEST_TIMEOUT_MS,
