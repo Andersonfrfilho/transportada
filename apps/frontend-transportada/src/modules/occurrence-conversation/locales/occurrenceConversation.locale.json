@@ -669,6 +669,11 @@
         "queued": "Na fila",
         "failed": "Falhou"
       },
+      "resend": "Reenviar",
+      "trigger": {
+        "automatic": "Automático",
+        "operator": "Operador"
+      },
       "clientWithoutEmail": "Sem e-mail do cliente para o boleto",
       "retry": "Tentar de novo",
       "retrying": "Enviando…",
@@ -682,6 +687,10 @@
         "sent": "Enviado",
         "queued": "Na fila",
         "failed": "Falhou"
+      },
+      "trigger": {
+        "automatic": "Automático",
+        "operator": "Operador"
       },
       "retry": "Tentar de novo",
       "resend": "Reenviar",

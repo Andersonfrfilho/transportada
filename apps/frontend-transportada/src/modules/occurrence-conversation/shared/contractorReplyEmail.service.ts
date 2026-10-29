@@ -42,6 +42,8 @@ export type ContractorReplyEmailDelivery = Readonly<{
   sentAt: null | string
   status: DeliveryStatus
   target: ContractorReplyEmailDeliveryTarget
+  /** Spec 286 T4: quem disparou o envio; a API anterior não manda. */
+  trigger?: 'automatic' | 'operator'
 }>
 
 /** O que o servidor diz do retorno desta ocorrência; o endereço da nota só chega mascarado. */

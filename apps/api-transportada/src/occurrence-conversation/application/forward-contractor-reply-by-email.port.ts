@@ -15,6 +15,7 @@ import type {
   ContractorReplyDeliveryReason,
   ContractorReplyDeliveryStatus,
   ContractorReplyDeliveryTarget,
+  ContractorReplyDeliveryTrigger,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { OccurrenceMailSettings } from './occurrence-mail.port.js'
 
@@ -202,6 +203,8 @@ export type ContractorReplyEmailOptions = {
     readonly sentAt: null | string
     readonly status: ContractorReplyDeliveryStatus
     readonly target: ContractorReplyEmailTarget
+    /** Spec 286 T4 (RF4b): `automatic` ou `operator` — a lista "Envios ao cliente" diz quem disparou. */
+    readonly trigger: ContractorReplyDeliveryTrigger
   }[]
   readonly forwardToInformedEmail: 'manual' | 'off'
   readonly forwardToNoteRecipient: 'automatic' | 'manual' | 'off'
