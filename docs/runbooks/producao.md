@@ -407,6 +407,9 @@ Conferido na `main` (a1d37cb) e no Railway, sem escrever nada:
   tipos com canal whatsapp/both, `whatsapp_evolution_settings` por empresa, entregas por WhatsApp já registradas e os
   nomes das variáveis EVOLUTION*/WHATSAPP*). Esperado: nenhum tipo `whatsapp`/`both`, nenhuma linha `active`, nenhuma
   entrega `sent` por WhatsApp.
+- **Resultado do script (29/10/2026, Anderson):** nenhuma variável EVOLUTION*/WHATSAPP* no `api`; 16 tipos, todos
+  `client_channel = 'email'`; 0 linhas em `whatsapp_evolution_settings` e em `whatsapp_channels`; 0 entregas por
+  WhatsApp. Confirmado: nada em produção envia boleto ao WhatsApp do cliente.
 - **Para ligar no futuro:** só com aval do Anderson (seção 5.3/5.4).
 
 ## 6. Erros que não devem se repetir
