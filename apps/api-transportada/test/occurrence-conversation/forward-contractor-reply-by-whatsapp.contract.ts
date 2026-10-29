@@ -36,6 +36,11 @@ import {
   WhatsAppEvolutionDisabledError,
   WhatsAppEvolutionNotConfiguredError,
 } from '../../src/whatsapp/domain/whatsapp-evolution.error.js'
+import { ContractorReplyClientTemplateMissingError } from '../../src/occurrence-conversation/domain/contractor-reply-email.error.js'
+import {
+  createClientTextsResolver,
+  type ClientTextsTemplate,
+} from '../fixtures/contractor-reply-client-texts.fixture.js'
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const OCCURRENCE_ID = '22222222-2222-4222-8222-222222222222'
@@ -78,6 +83,8 @@ type World = {
   dailyCap?: number
   failure?: ContractorReplyWhatsAppSendFailure
   settings?: 'active' | 'disabled' | null
+  /** Spec 286 T3: o modelo do canal escolhido no tipo; ausente, o texto livre antigo. */
+  template?: ClientTextsTemplate
   todayCount?: number
 }
 
@@ -133,6 +140,7 @@ function build(world: World = {}) {
       occurrenceKind: 'document',
       replyAttachmentId: ATTACHMENT_ID,
     }),
+    resolveClientTexts: createClientTextsResolver(world.template),
     recordDelivery: async (params) => {
       const id = `delivery-${deliveries.length + 1}`
       deliveries.push({ ...params, id, providerMessageId: null })
@@ -250,6 +258,25 @@ describe('spec 281 T5: número do WhatsApp do cliente (D4)', () => {
     expect(startOfBrasiliaDay(new Date('2026-10-27T03:00:00.000Z')).toISOString()).toBe(
       '2026-10-27T03:00:00.000Z',
     )
+  })
+})
+
+describe('spec 286 T3: a legenda vem do modelo whatsapp do tipo', () => {
+  test('com modelo escolhido, a legenda é o corpo dele (sem o assunto do e-mail)', async () => {
+    const world = build({
+      template: { whatsapp: { body: 'Olá! Segue o boleto da NF 123/1.', subject: '' } },
+    })
+    await world.useCase.forward(input())
+    expect(world.sends.map((send) => send.caption)).toEqual(['Olá! Segue o boleto da NF 123/1.'])
+  })
+
+  test('modelo escolhido que não serve recusa com 409 e não reserva nada', async () => {
+    const world = build({ template: 'missing' })
+    await expect(world.useCase.forward(input())).rejects.toBeInstanceOf(
+      ContractorReplyClientTemplateMissingError,
+    )
+    expect(world.deliveries).toEqual([])
+    expect(world.sends).toEqual([])
   })
 })
 

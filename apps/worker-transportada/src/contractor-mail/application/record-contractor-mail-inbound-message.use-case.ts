@@ -32,6 +32,7 @@ import type {
 } from '../../cargo-preview-email/application/cargo-preview-email.types.js'
 import type { InboundConversationAttachmentsPort } from '../../occurrence-conversation/application/inbound-mail-attachments.service.js'
 import type { ContractorReplyLogOutcome } from '../../occurrence-conversation/application/contractor-reply-log.port.js'
+import type { ContractorReplyClientWhatsAppDispatcherPort } from '../../occurrence-conversation/application/contractor-reply-client-whatsapp.port.js'
 import type {
   DriverReplyNotice,
   DriverReplyNoticePort,
@@ -64,6 +65,8 @@ export type StoreRawEmailPort = {
 }
 
 export type RecordContractorMailInboundMessageDependencies = {
+  /** Spec 286 T3 (RF3): o boleto por WhatsApp ao cliente que a entrega automática reservou; depois do commit. */
+  readonly clientWhatsApp?: ContractorReplyClientWhatsAppDispatcherPort
   /** Spec 183 T702c1: os anexos do e-mail que viram anexo da mensagem da conversa. */
   readonly conversationAttachments: InboundConversationAttachmentsPort
   /** Spec 248 T4.6b: o aviso do sino do motorista quando a resposta é entregue sozinha; depois do commit. */
@@ -230,6 +233,9 @@ export async function recordContractorMailInboundMessage(
     await dependencies.conversationAttachments.discard(attachments.stored)
   }
   if (recorded.driverNotice !== undefined) await notifyDriver(dependencies, recorded.driverNotice)
+  if (recorded.contractorReply?.kind === 'applied') {
+    await dependencies.clientWhatsApp?.dispatch({ companyId })
+  }
 
   return {
     attachments: { linked: recorded.linkedAttachments, skipped: attachments.skipped },

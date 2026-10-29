@@ -26,8 +26,8 @@
         "@adatechnology/meta-whatsapp-module": "0.8.0",
         "@adatechnology/meta-whatsapp-provider": "0.4.0",
         "@adatechnology/module-http": "0.1.0-rc.3",
-        "@adatechnology/notification-contracts": "0.2.1",
-        "@adatechnology/notification-module": "0.2.2",
+        "@adatechnology/notification-contracts": "^0.3.0",
+        "@adatechnology/notification-module": "^0.3.0",
         "@adatechnology/object-storage-provider": "0.3.0",
         "@adatechnology/rabbitmq-provider": "0.1.1",
         "@adatechnology/secret-envelope": "0.1.0",
@@ -231,12 +231,13 @@
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/email-provider": "0.1.0-rc.2",
+        "@adatechnology/evolution-whatsapp-provider": "0.2.0",
         "@adatechnology/fiscal-provider": "0.4.0",
         "@adatechnology/keycloak-admin": "1.0.0-rc.3",
         "@adatechnology/logger": "0.1.0-rc.0",
         "@adatechnology/meta-whatsapp-provider": "0.4.0",
-        "@adatechnology/notification-contracts": "0.2.1",
-        "@adatechnology/notification-module": "0.2.2",
+        "@adatechnology/notification-contracts": "^0.3.0",
+        "@adatechnology/notification-module": "^0.3.0",
         "@adatechnology/object-storage-provider": "0.2.0-rc.0",
         "@adatechnology/rabbitmq-provider": "0.1.1",
         "@adatechnology/secret-envelope": "0.1.0",
@@ -310,9 +311,9 @@
 
     "@adatechnology/notification-client": ["@adatechnology/notification-client@0.2.0", "", { "dependencies": { "@adatechnology/notification-contracts": "0.2.0" } }, "sha512-2r2uHG70DYRlTsg6UIQVh9JSLECGx4WcBtndFCrtBe6Vi8/3LZ4aQi3fh1CVg88dYWnaA5kZHiFygOmpqnYMZQ=="],
 
-    "@adatechnology/notification-contracts": ["@adatechnology/notification-contracts@0.2.1", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-jWMs+jWHnB+hMxXObLvREkQPTdcJORCMrCJuEZnp93V+niLblx+kvD/RQrJ1aG8Lhwyj3mrQsChIF5bZD/tS3g=="],
+    "@adatechnology/notification-contracts": ["@adatechnology/notification-contracts@0.3.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-EV02BWP4ZgOunlLJOXBKCZskICj7X4fB5jH+MZEgLSqQncT3zkc8F+DDXHljbQnO7yWR0MgA8Lpev9V+aHyoyA=="],
 
-    "@adatechnology/notification-module": ["@adatechnology/notification-module@0.2.2", "", { "dependencies": { "@adatechnology/module-http": "0.1.1", "@adatechnology/notification-contracts": "0.2.1", "zod": "^3.24.1" }, "peerDependencies": { "drizzle-orm": ">=0.36.0 <2" } }, "sha512-NKR9hd1u+eB9jPNxXzRslKcrBPjNBR/hZQX85oL4nWaE/jCU2LRcOPuH/G+O904HuXwuEhXRizNn92WQHDD1BA=="],
+    "@adatechnology/notification-module": ["@adatechnology/notification-module@0.3.0", "", { "dependencies": { "@adatechnology/module-http": "0.1.1", "@adatechnology/notification-contracts": "0.3.0", "zod": "^3.24.1" }, "peerDependencies": { "drizzle-orm": ">=0.36.0 <2" } }, "sha512-ruXwMEJcsX0bcAXoJ37t9XIgnK1pYn24YXaCunePJHUJaBpa39/DsaCF1lebS61ppcvbkDjmu7Q9ufQTs84HHQ=="],
 
     "@adatechnology/notification-ui": ["@adatechnology/notification-ui@0.2.0", "", { "dependencies": { "@adatechnology/notification-client": "0.2.0", "@adatechnology/notification-contracts": "0.2.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0" }, "peerDependencies": { "@tanstack/react-query": "^5", "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-2FZTXZ7zW3e4gZnoMsfUMVdwKtiKNDXmOMyDTFmq7WmiZxirhA+go+m4bCXvqc6PP7uNaNyllOdWy2i9VLv9OA=="],
 

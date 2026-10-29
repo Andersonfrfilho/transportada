@@ -27,6 +27,7 @@ import { DeliveryClientNotFoundError } from '../../src/delivery-clients/domain/d
 import type { ClientEmailType } from '../../src/shared/delivery-client-email.constant.js'
 import { OccurrenceClientEmailOffError } from '../../src/trips/domain/occurrence-client-email.error.js'
 import {
+  ContractorReplyClientTemplateMissingError,
   ContractorReplyClientEmailLimitReachedError,
   ContractorReplyClientEmailNotFoundError,
   ContractorReplyEmailAddressInvalidError,
@@ -38,6 +39,10 @@ import {
 } from '../../src/occurrence-conversation/domain/contractor-reply-email.error.js'
 import { OccurrenceConversationIdempotencyKeyReusedError } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import { TripOccurrenceNotFoundError } from '../../src/trips/domain/trip.error.js'
+import {
+  createClientTextsResolver,
+  type ClientTextsTemplate,
+} from '../fixtures/contractor-reply-client-texts.fixture.js'
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const OCCURRENCE_ID = '22222222-2222-4222-8222-222222222222'
@@ -89,6 +94,8 @@ type World = {
   replyAttachmentId?: null | string
   replyExists?: boolean
   sentCount?: number
+  /** Spec 286 T3: o modelo do canal escolhido no tipo; ausente, o texto livre antigo. */
+  template?: ClientTextsTemplate
   threadId?: string | undefined
 }
 
@@ -160,6 +167,7 @@ function build(world: Partial<World> = {}) {
             replyAttachmentId:
               state.replyAttachmentId === undefined ? ATTACHMENT_ID : state.replyAttachmentId,
           },
+    resolveClientTexts: createClientTextsResolver(state.template),
     recordDelivery: async (params) => {
       const id = `delivery-${state.deliveries.length + 1}`
       state.deliveries.push({ ...params, id })
@@ -652,6 +660,29 @@ describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, D3)', () => 
     })
     await useCase.forwardToClient(CLIENT_INPUT)
     expect(state.mails).toHaveLength(2)
+  })
+
+  test('spec 286 T3: com modelo escolhido no tipo, o e-mail sai com o assunto e o corpo dele', async () => {
+    const { state, useCase } = build({
+      clientEmails: CLIENT_EMAILS,
+      template: { email: { body: 'Boleto da NF 123/1 em anexo.', subject: 'Seu boleto' } },
+    })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    expect(state.mails[0]?.subject).toBe('Seu boleto')
+    expect(state.mails[0]?.bodyText).toContain('Boleto da NF 123/1 em anexo.')
+    expect(state.mails[0]?.bodyText).not.toContain('Segue o boleto com o novo vencimento.')
+  })
+
+  test('spec 286 T3: modelo escolhido que não serve recusa com 409 e nada sai', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS, template: 'missing' })
+    await expect(useCase.forwardToClient(CLIENT_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyClientTemplateMissingError,
+    )
+    await expect(useCase.forward(NOTE_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyClientTemplateMissingError,
+    )
+    expect(state.mails).toEqual([])
+    expect(state.deliveries).toEqual([])
   })
 
   test('sem o texto do e-mail na cópia do retorno, nada sai (248)', async () => {

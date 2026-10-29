@@ -27,6 +27,7 @@ import {
 } from './contractor-reply-driver-delivery.support.js'
 import { queueContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.support.js'
 import { queueContractorReplyToClientEmails } from './contractor-reply-client-email-forward.support.js'
+import { reserveContractorReplyToClientWhatsApp } from './contractor-reply-client-whatsapp-forward.support.js'
 import { queueContractorReplyToNoteRecipient } from './contractor-reply-note-recipient-forward.support.js'
 import type { OccurrenceConversationTransaction } from './drizzle-occurrence-conversation-mail.repository.js'
 
@@ -173,6 +174,15 @@ export async function applyContractorReplyToMessage(
   await queueContractorReplyToNoteRecipient(transaction, { companyId, replyId: reply.id })
   /** Spec 279 RF10: e aos e-mails do cadastro do cliente, quando o tipo liga o envio automático; mesma regra de falha. */
   await queueContractorReplyToClientEmails(transaction, { companyId, replyId: reply.id })
+  /**
+   * Spec 286 T3 (RF3): e por WhatsApp a todos os números do cliente, quando a caixa do WhatsApp do tipo está em automático.
+   * Aqui só a reserva; o Evolution é chamado depois do commit (`dispatchContractorReplyClientWhatsApp`).
+   */
+  await reserveContractorReplyToClientWhatsApp(transaction, {
+    companyId,
+    now: params.now,
+    replyId: reply.id,
+  })
   /** Spec 276 T5: entregue ao motorista, a contratante recebe a resposta rápida do tipo (uma por conversa), se ligada. */
   if (delivery.kind === 'delivered') {
     await queueContractorReplyAcknowledgement(transaction, { companyId, replyId: reply.id })

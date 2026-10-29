@@ -86,6 +86,15 @@ export type RecordContractorReplyMailParams = {
   readonly toAddress: string
 }
 
+/** Spec 286 T3: o texto do boleto ao cliente no canal, do modelo do módulo escolhido no tipo (ou o texto livre antigo). */
+export type ContractorReplyClientTextsLookup =
+  /** `legacy`: o tipo não escolheu modelo e o texto livre antigo está vazio (o alvo segue "desligado", como na 248). */
+  | { readonly kind: 'template_missing'; readonly legacy: boolean }
+  | {
+      readonly kind: 'texts'
+      readonly texts: { readonly body: string; readonly subject: string }
+    }
+
 export type ContractorReplyEmailTransactionPort = {
   countEmailDeliveries(params: {
     readonly companyId: string
@@ -140,6 +149,13 @@ export type ContractorReplyEmailTransactionPort = {
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<ContractorReplyEmailReply | null>
+  /** Spec 286 T3: no WhatsApp o assunto vem vazio e o corpo é a legenda inteira. */
+  resolveClientTexts(params: {
+    readonly channel: 'email' | 'whatsapp'
+    readonly companyId: string
+    readonly config: unknown
+    readonly occurrenceId: string
+  }): Promise<ContractorReplyClientTextsLookup>
   /** Spec 279 T3: os e-mails do cliente de um tipo (no máximo 10, D2), na ordem do cadastro. */
   listClientEmails(params: {
     readonly companyId: string

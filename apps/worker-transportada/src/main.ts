@@ -192,6 +192,8 @@ import { startContractorMailOutboundConsumer } from './runtime/contractor-mail-o
 import { startContractorMailInboundConsumer } from './runtime/contractor-mail-inbound-consumer.service.js'
 import type { SendContractorMailOutboundMessageDependencies } from './contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import type { RecordContractorMailInboundMessageDependencies } from './contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
+import { createContractorReplyClientWhatsAppDispatcher } from './occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-dispatcher.adapter.js'
+import { createEvolutionClientDocumentSender } from './whatsapp/infrastructure/evolution-client-document-sender.gateway.js'
 import { createInboundConversationAttachmentStore } from './occurrence-conversation/application/inbound-mail-attachments.service.js'
 import { createOccurrenceConversationUploadExpireRoutine } from './occurrence-conversation-upload-expire/application/occurrence-conversation-upload-expire.routine.js'
 import { OCCURRENCE_CONVERSATION_UPLOAD_EXPIRE_JOB } from './occurrence-conversation-upload-expire/domain/occurrence-conversation-upload-expire.constant.js'
@@ -1193,6 +1195,19 @@ export async function startWorkerRuntime(
     contractorMailInboundConsumer = await contractorMailInboundStarter({
       config,
       dependencies: {
+        /** Spec 286 T3 (RF3/RF4): o boleto por WhatsApp ao cliente, pelo Evolution da empresa, depois do commit. */
+        clientWhatsApp: createContractorReplyClientWhatsAppDispatcher({
+          database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          logger,
+          readAttachment: async (location) =>
+            new Uint8Array(
+              await new Response(await storageGateway.getObjectStream(location)).arrayBuffer(),
+            ),
+          sender: createEvolutionClientDocumentSender({
+            envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+            runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          }),
+        }),
         /** Spec 183 T702c1: o anexo do e-mail recebido vira anexo da mensagem da conversa. */
         conversationAttachments: createInboundConversationAttachmentStore({
           bucket: storageBucket,
