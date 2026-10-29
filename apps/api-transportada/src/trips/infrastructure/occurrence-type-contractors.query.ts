@@ -8,6 +8,11 @@ import { and, asc, eq, inArray } from 'drizzle-orm'
 
 import { contractors } from '../../database/delivery-client.schema.js'
 import { companyOccurrenceTypeContractors } from '../../database/occurrence-type-contractor.schema.js'
+import type { OccurrenceClientChannelMatrix } from '../domain/occurrence-client-channels.policy.js'
+import {
+  readResolvedClientChannelMatrices,
+  type ClientChannelLegacyRecord,
+} from './occurrence-type-client-channels.query.js'
 import { companyOccurrenceTypes } from '../../database/trip.schema.js'
 import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
 import {
@@ -36,6 +41,8 @@ export type OccurrenceTypeContractorDetail = {
 }
 
 export type OccurrenceTypeContractorScopeView = {
+  /** Spec 286 (RF2): a matriz "Retorno ao cliente" resolvida (o gravado, ou o derivado dos campos antigos). */
+  readonly clientChannels: null | OccurrenceClientChannelMatrix
   readonly contractors: readonly OccurrenceTypeContractorDetail[]
   readonly contractorScope: OccurrenceTypeContractorScope
   /** Spec 271 (D12): os destinatários escolhidos no tipo `listed` (contatos das contratantes da lista). */
@@ -46,7 +53,7 @@ export type OccurrenceTypeContractorScopeView = {
   readonly missingNotificationTemplate: boolean
 }
 
-type ScopedRecord = {
+type ScopedRecord = ClientChannelLegacyRecord & {
   readonly contractorNotificationTemplateKey?: null | string | undefined
   readonly contractorScope?: OccurrenceTypeContractorScope | undefined
   readonly emailsContractor?: boolean | undefined
@@ -188,6 +195,11 @@ export async function toOccurrenceTypeSettingsViews<
       occurrenceTypeIds: typeIds,
     }),
   ])
+  /** Spec 286 (RF2): a matriz "Retorno ao cliente" de cada tipo, numa consulta para a lista inteira. */
+  const clientChannelsByType = await readResolvedClientChannelMatrices(queryable, {
+    companyId: params.companyId,
+    records: params.records,
+  })
   const missingTemplateTypeIds = await listTypesWithoutUsableTemplateOrEmpty(queryable, {
     companyId: params.companyId,
     ...(params.logger === undefined ? {} : { logger: params.logger }),
@@ -209,6 +221,7 @@ export async function toOccurrenceTypeSettingsViews<
           : [],
       contractorMailRecipients: recipientsByType.get(record.id) ?? [],
       contractorMailWatchers: watchersByType.get(record.id) ?? [],
+      clientChannels: clientChannelsByType.get(record.id) ?? null,
       contractorScope,
       missingNotificationTemplate: missingTemplateTypeIds.has(record.id),
     }

@@ -1171,6 +1171,23 @@ parametrizado (`notification-template.query.ts`, versão ativa mais alta) e usa 
   em `/v1/notification-templates*` exigem `settings.manage` (o módulo, sozinho, deixa qualquer membro).
 - Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O modelo do e-mail da ocorrência vem do módulo de notificação (spec 271)".
 
+## O retorno ao cliente do tipo é uma matriz por canal (spec 286 T2)
+
+O tipo **seleciona**, por canal, o modelo do módulo de notificação (`notification.templates`, a versão ativa mais alta da chave **no
+canal**, `pt-BR`) e o modo de envio; texto de mensagem não mora no tipo. Tabela filha `company_occurrence_type_client_channels` (um canal
+por linha, molde de `company_occurrence_type_moments`): `enabled` (a caixa), `send_mode` (`manual`/`automatic`) e `template_key` (sem FK).
+
+- **`PUT`**: `clientChannels: { email?, whatsapp? }`, cada canal inteiro (`enabled`, `sendMode`, `templateKey`); canal ausente não mexe.
+  Chave conferida **antes** da transação (400 `OCCURRENCE_CLIENT_CHANNEL_TEMPLATE_INVALID`, campo `clientChannels.<canal>.templateKey`:
+  `not_found`, `system_key`, `empty_subject` só no e-mail, `empty_body`). Com a matriz, `client_channel` e `client_email_send_mode` são
+  gravados **derivados** dela; e-mail ligado com `client_email_type = off` é 400 `OCCURRENCE_CLIENT_CHANNEL_EMAIL_TYPE_REQUIRED`.
+- **Painel antigo** (grava `clientChannel`/`clientEmailType`/`clientEmailSendMode`): liga e desliga as caixas pela regra de
+  `deriveClientChannelMatrixFromLegacy`, sem apagar o modelo nem o modo do WhatsApp. Tipo sem linha lê o derivado (leitura tolerante).
+- **Leitura**: `clientChannels` em `GET`/`PUT /company-settings/occurrence-types` (`toOccurrenceTypeSettingsViews`, lote).
+- **Migração (RF5)**: o texto livre `forward_email_subject`/`forward_email_body` de cada tipo virou o modelo `email`
+  `occurrence.client-reply.<id do tipo>` (e um `whatsapp` sem HTML quando o tipo falava por WhatsApp), apontado pelo canal. Os campos
+  antigos **seguem gravados e lidos pelo envio** até a T3 trocar o envio para o modelo; a etapa B (T9) os tira, com aprovação.
+
 ## E-mail da ocorrência em HTML (spec 272, ADR-0110)
 
 Emenda a ADR-0108 §3 e a D5 da 271: **corpo HTML deixa de ser recusado**; é recusado só o HTML inseguro. O desenho mora no modelo

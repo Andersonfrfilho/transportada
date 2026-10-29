@@ -39,6 +39,7 @@ import { assertConversationSystemNotice } from './conversation-system-notice.ass
 import { assertOccurrenceTypeClientEmailType } from './occurrence-type-client-email-type.assertion.js'
 import { assertClientEmailSendMode } from './client-email-send-mode.assertion.js'
 import { assertOccurrenceTypeAsksClientContact } from './occurrence-type-asks-client-contact.assertion.js'
+import { assertOccurrenceTypeClientChannels } from './occurrence-type-client-channels.assertion.js'
 import { assertOccurrenceClientConversation } from './occurrence-client-conversation.assertion.js'
 import { assertConversationMessageDetectedEmail } from './conversation-message-detected-email.assertion.js'
 import { assertContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
@@ -165,6 +166,13 @@ describe('Drizzle migration integration', () => {
          * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
+        /** Spec 286 T2: a matriz por canal do tipo e os modelos migrados do texto livre; a mais nova de todas. */
+        await assertOccurrenceTypeClientChannels({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
         /** Spec 283 T2: o participante `client` e o gatilho do envio; a mais nova de todas. */
         await assertOccurrenceClientConversation({
           connectionString,

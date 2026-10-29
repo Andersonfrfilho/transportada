@@ -350,6 +350,7 @@ import {
   listActiveContractorTemplates,
 } from './occurrence-conversation/infrastructure/notification-template.query.js'
 import { toOccurrenceTypeSettingsViews } from './trips/infrastructure/occurrence-type-contractors.query.js'
+import { findActiveClientChannelTemplate } from './trips/infrastructure/occurrence-type-client-channels.query.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
 import {
@@ -4800,6 +4801,8 @@ function createApplicationRoutes({
             templates: {
               findContractorTemplate: async ({ companyId, key }) =>
                 findActiveContractorTemplate(database, { companyId, key }),
+              findClientChannelTemplate: async ({ channel, companyId, key }) =>
+                findActiveClientChannelTemplate(database, { channel, companyId, key }),
               /**
                * O predicado consulta o catálogo do módulo — a mesma fonte que a tela de templates
                * edita. Chave sem template ativo de e-mail é recusada na gravação, não no envio.

@@ -9,6 +9,7 @@ import type {
   ForwardToNoteRecipientMode,
   DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
+import type { OccurrenceClientChannelMatrixChange } from '../domain/occurrence-client-channels.policy.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type {
   ClientChannel,
@@ -353,6 +354,8 @@ type SaveOccurrenceTypeInput = {
   readonly clientEmailType?: ClientEmailType | undefined
   readonly clientEmailSendMode?: ClientEmailSendMode | undefined
   readonly clientChannel?: ClientChannel | undefined
+  /** Spec 286 (RF2): a matriz por canal; canal ausente é "não mexa" e, presente, ela deriva `clientChannel`. */
+  readonly clientChannels?: OccurrenceClientChannelMatrixChange | undefined
   readonly asksClientContact?: boolean | undefined
   readonly asksNewDueDate?: boolean | undefined
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
