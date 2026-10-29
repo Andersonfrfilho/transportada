@@ -127,7 +127,6 @@ async function queue(
   const resolved = await resolveContractorReplyClientTexts(runner, {
     channel: 'email',
     companyId,
-    config: reply?.config,
     occurrenceId,
   })
   if (resolved.kind === 'template_missing') {

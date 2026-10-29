@@ -398,7 +398,7 @@ describe('limites e recusas', () => {
     await expect(off.useCase.forward(NOTE_INPUT)).rejects.toBeInstanceOf(
       ContractorReplyEmailForwardDisabledError,
     )
-    const noBody = build({ config: { ...CONFIG, forwardEmailBody: '  ' } })
+    const noBody = build({ template: 'none' })
     await expect(noBody.useCase.forward(NOTE_INPUT)).rejects.toBeInstanceOf(
       ContractorReplyEmailForwardDisabledError,
     )
@@ -694,10 +694,10 @@ describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, D3)', () => 
     expect(state.deliveries).toEqual([])
   })
 
-  test('sem o texto do e-mail na cópia do retorno, nada sai (248)', async () => {
+  test('sem modelo escolhido para o e-mail, nada sai (spec 286 T9: sem texto antigo)', async () => {
     const { state, useCase } = build({
       clientEmails: CLIENT_EMAILS,
-      config: { ...CONFIG, forwardEmailBody: '' },
+      template: 'none',
     })
     await expect(useCase.forwardToClient(CLIENT_INPUT)).rejects.toBeInstanceOf(
       ContractorReplyEmailForwardDisabledError,

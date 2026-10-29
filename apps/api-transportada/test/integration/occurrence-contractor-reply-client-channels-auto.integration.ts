@@ -596,7 +596,6 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
         const result = await resolveContractorReplyClientTexts(database.db, {
           channel: 'email',
           companyId,
-          config: null,
           occurrenceId: seeded.occurrenceId,
         })
         expect(result).toMatchObject({ kind: 'texts', source: 'template' })
@@ -642,7 +641,6 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
         const result = await resolveContractorReplyClientTexts(database.db, {
           channel: 'email',
           companyId,
-          config: null,
           occurrenceId: seeded.occurrenceId,
         })
         if (result.kind !== 'texts') throw new Error('EXPECTED_TEXTS')
