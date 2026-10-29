@@ -50,6 +50,7 @@ import type {
 import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import { contractorReplyConfigurationSchema } from '../domain/contractor-reply-configuration.policy.js'
 import { OCCURRENCE_THREAD_SUBJECT_TYPE } from '../domain/occurrence-conversation.constant.js'
+import { resolveContractorReplyClientTexts } from './contractor-reply-client-template.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -331,6 +332,13 @@ export function createContractorReplyEmailTransactionPort(
         .for('update')
       /** O retorno aponta para `trip_document_occurrences` por FK: é sempre ocorrência de nota. */
       return row === undefined ? null : { ...row, occurrenceKind: 'document' as const }
+    },
+
+    async resolveClientTexts(params) {
+      const resolved = await resolveContractorReplyClientTexts(transaction, params)
+      return resolved.kind === 'texts'
+        ? { kind: 'texts', texts: resolved.texts }
+        : { kind: 'template_missing', legacy: resolved.source === 'legacy' }
     },
 
     async recordDelivery(params) {

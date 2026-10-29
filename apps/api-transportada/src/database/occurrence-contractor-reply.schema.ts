@@ -193,6 +193,11 @@ export const occurrenceContractorReplyDeliveries = pgTable(
     }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     sentAt: timestamp('sent_at', { withTimezone: true }),
+    /**
+     * Spec 286 T3 (RF3): quem tomou para si a entrega automática por WhatsApp (`queued`), antes de chamar o Evolution.
+     * O `update … where claimed_at is null` é a trava: duas chamadas ao despacho nunca mandam o mesmo boleto duas vezes.
+     */
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
   },
   (table) => [
     unique('occurrence_contractor_reply_deliveries_company_id_id_unique').on(

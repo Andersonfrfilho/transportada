@@ -1188,6 +1188,25 @@ por linha, molde de `company_occurrence_type_moments`): `enabled` (a caixa), `se
   `occurrence.client-reply.<id do tipo>` (e um `whatsapp` sem HTML quando o tipo falava por WhatsApp), apontado pelo canal. Os campos
   antigos **seguem gravados e lidos pelo envio** até a T3 trocar o envio para o modelo; a etapa B (T9) os tira, com aprovação.
 
+## O boleto sai por canal, pelo modelo (spec 286 T3)
+
+O envio ao cliente lê o **modelo de cada canal** da matriz (`contractor-reply-client-template.support.ts`, espelhado no worker):
+tipo sem linha ou sem `template_key` segue nos `forwardEmail*` antigos (no WhatsApp a legenda é `assunto\n\ncorpo`); chave escolhida
+sem versão ativa → `template_missing` (entrega `skipped` no automático, 409 `CONTRACTOR_REPLY_CLIENT_TEMPLATE_MISSING` no botão).
+Variáveis: `razaoSocial`, `nomeExibicao`, `numeroNota`, `numeroNotaSemSerie`, `tipoOcorrencia`.
+
+- **WhatsApp automático** (canal ligado e `automatic`), em duas fases. **Reserva** na transação que entrega o boleto ao motorista
+  (savepoint `client_whatsapp_forward`): uma linha `queued`, gatilho `automatic`, sem usuário, por número `whatsapp`/`boleto` do
+  cadastro do cliente, com a **mesma chave** do botão (`client_boleto_whatsapp:` + sha256(`retorno:anexo:número`)) — o Reenviar
+  manual ao mesmo número faz replay. **Despacho** depois do commit (API: portal; worker: e-mail recebido), trava atômica em
+  `claimed_at` (dois despachos não mandam duas vezes); cada número enviado vira aviso do Sistema na conversa do motorista.
+- **Queda para e-mail (RF4)**: sem número (`client_without_whatsapp`), sem modelo, sem instância (`whatsapp_disconnected`) ou
+  nenhum número recebeu → o motivo fica na linha do tempo e o boleto vai ao e-mail do cliente se a caixa do e-mail estiver
+  ligada (mesmo em manual). Teste: `test/integration/occurrence-contractor-reply-client-channels-auto.integration.ts`.
+- **Limites conhecidos**: queda do processo entre a trava e o fechamento deixa a linha `queued` com `claimed_at` (sem varredura);
+  `acceptsFreeText` do SDK 0.3.0 não é ligado aqui porque o TMS não usa driver Evolution no módulo (o módulo só guarda e
+  renderiza; quem envia é o gateway Evolution da própria app).
+
 ## E-mail da ocorrência em HTML (spec 272, ADR-0110)
 
 Emenda a ADR-0108 §3 e a D5 da 271: **corpo HTML deixa de ser recusado**; é recusado só o HTML inseguro. O desenho mora no modelo

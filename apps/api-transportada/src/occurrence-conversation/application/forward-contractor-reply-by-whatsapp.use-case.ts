@@ -42,7 +42,7 @@ import {
   ContractorReplyWhatsAppOffError,
   ContractorReplyWhatsAppResendNotAllowedError,
 } from '../domain/contractor-reply-whatsapp.error.js'
-import { readForwardTexts } from './forward-contractor-reply-by-email.use-case.js'
+import { resolveForwardTexts } from './forward-contractor-reply-by-email.use-case.js'
 import {
   ContractorReplyWhatsAppSendError,
   type ContractorReplyWhatsAppAttachment,
@@ -70,9 +70,13 @@ const BRASILIA_OFFSET_MS = 3 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_FILE_NAME = 'boleto.pdf'
 
-/** "Tentar de novo" vale para o que pode dar certo na segunda; número sem WhatsApp e arquivo grande vão para o e-mail. */
+/**
+ * "Tentar de novo" vale para o que pode dar certo na segunda; número sem WhatsApp e arquivo grande vão para o e-mail.
+ * Spec 286 T3: o envio automático que parou sem modelo também vale, depois que o modelo for corrigido em Notificações.
+ */
 const RESENDABLE_FAILURES: readonly ContractorReplyDeliveryReason[] = [
   'send_failed',
+  'template_missing',
   'whatsapp_disconnected',
 ]
 
@@ -204,8 +208,9 @@ function replayed(params: {
   return { ...base, kind: 'failed', reason: existing.reason ?? 'send_failed' }
 }
 
+/** Spec 286 T3: a legenda é o corpo do modelo `whatsapp` (o texto livre antigo já vem como assunto + corpo). */
 function caption(texts: { readonly body: string; readonly subject: string }): string {
-  return `${texts.subject}\n\n${texts.body}`
+  return texts.body
 }
 
 export function createForwardContractorReplyByWhatsAppUseCase(dependencies: {
@@ -296,7 +301,14 @@ async function lockSendable(params: {
   const settings = await transaction.findEvolutionSettings({ companyId })
   if (settings === null) throw new WhatsAppEvolutionNotConfiguredError()
   if (settings.status !== 'active') throw new WhatsAppEvolutionDisabledError()
-  const texts = readForwardTexts({ config: reply.config, target: 'client_boleto_emails' })
+  const texts = await resolveForwardTexts({
+    channel: 'whatsapp',
+    companyId,
+    occurrenceId,
+    reply,
+    target: 'client_boleto_emails',
+    transaction,
+  })
   const attachmentId = params.attachmentId ?? reply.replyAttachmentId
   if (attachmentId === null) throw new ContractorReplyEmailAttachmentNotFoundError()
   const attachment = await transaction.findAttachment({ attachmentId, companyId, occurrenceId })

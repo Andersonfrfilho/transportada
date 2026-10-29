@@ -236,6 +236,8 @@ function createTransactionPort(transaction: TripQueryable): ContractorReplyWhats
 
     lockReply: (params) => email.lockReply(params),
 
+    resolveClientTexts: (params) => email.resolveClientTexts(params),
+
     async recordDelivery(params) {
       const [row] = await transaction
         .insert(occurrenceContractorReplyDeliveries)
@@ -448,6 +450,7 @@ export function createDrizzleContractorReplyWhatsAppReader(
             reason: occurrenceContractorReplyDeliveries.reason,
             sentAt: occurrenceContractorReplyDeliveries.sentAt,
             status: occurrenceContractorReplyDeliveries.status,
+            trigger: occurrenceContractorReplyDeliveries.trigger,
           })
           .from(occurrenceContractorReplyDeliveries)
           .where(
@@ -480,6 +483,7 @@ export function createDrizzleContractorReplyWhatsAppReader(
           reason: delivery.reason,
           sentAt: delivery.sentAt?.toISOString() ?? null,
           status: delivery.status,
+          trigger: delivery.trigger,
         })),
         evolution: {
           connectionState: evolution?.connectionState ?? null,

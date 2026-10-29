@@ -198,6 +198,7 @@ import { createSendClientReplyUseCase } from './occurrence-conversation/applicat
 import { createDrizzleClientReplyRepository } from './occurrence-conversation/infrastructure/drizzle-client-reply.repository.js'
 import { readAllBytes } from './occurrence-conversation/application/conversation-attachment.service.js'
 import { createForwardContractorReplyByWhatsAppUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-whatsapp.use-case.js'
+import { createContractorReplyClientWhatsAppDispatcher } from './occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-dispatcher.adapter.js'
 import {
   createDrizzleContractorReplyWhatsAppCompletion,
   createDrizzleContractorReplyWhatsAppReader,
@@ -2754,6 +2755,8 @@ function createApplicationRoutes({
   const fingerprintService = createIdempotencyFingerprintService({ key: idempotencyHmacKey })
   /** Spec 183 T651 (RF21): a conversa da contratante pelo portal, com o recorte da 164. */
   const contractorPortalConversation = createContractorPortalConversationUseCase({
+    /** Spec 286 T3: declarado mais abaixo, junto do Evolution; só é chamado depois da subida. */
+    clientWhatsApp: { dispatch: (params) => contractorReplyClientWhatsApp.dispatch(params) },
     clock: () => new Date(),
     /** Spec 248 T4.6b: the driver bell notice of the automatic delivery, after the commit. */
     deliveryNotifier: createContractorReplyDeliveryNotifier({
@@ -3049,6 +3052,17 @@ function createApplicationRoutes({
     unitOfWork: createDrizzleContractorReplyWhatsAppUnitOfWork(database),
   })
   const contractorReplyWhatsAppOptions = createDrizzleContractorReplyWhatsAppReader(database)
+  /** Spec 286 T3 (RF3/RF4): o boleto por WhatsApp que a entrega automática reservou, pelo mesmo Evolution. */
+  const contractorReplyClientWhatsApp = createContractorReplyClientWhatsAppDispatcher({
+    database,
+    logger,
+    readAttachment: async (location) =>
+      readAllBytes(await storageGateway.getObjectStream(location)),
+    sender: createEvolutionDocumentSender({
+      repository: whatsappEvolutionRepository,
+      secrets: whatsappEvolutionSecrets,
+    }),
+  })
   const nfseProviderCredentials = createNfseProviderCredentialsUseCase({
     secretService: createNfseCredentialSecretService({ envelopeProvider }),
     unitOfWork: nfseProfileRepository,

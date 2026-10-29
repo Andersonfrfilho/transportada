@@ -10,6 +10,9 @@
  * contrato `contractor-reply-parity.contract.ts` do worker compara os dois arquivos.
  * Falha do envio nunca desfaz o retorno: tudo roda num savepoint e o erro vira uma linha `failed`.
  * Nenhum log aqui: endereço, texto e anexo nunca saem do banco.
+ *
+ * Spec 286 T3: o texto é o modelo `email` do módulo de notificação escolhido no tipo (`contractor-reply-client-template`);
+ * sem modelo utilizável nada sai e fica `skipped / template_missing`.
  */
 import { createHash } from 'node:crypto'
 
@@ -17,6 +20,7 @@ import { sql, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { CONVERSATION_ATTACHMENT_LIMITS } from '../domain/conversation-attachment.policy.js'
+import { resolveContractorReplyClientTexts } from './contractor-reply-client-template.support.js'
 
 export type ContractorReplyNoteRecipientRunner = {
   execute(query: SQL): PromiseLike<unknown>
@@ -32,6 +36,7 @@ export type QueueContractorReplyToNoteRecipientResult =
         | 'attachment_too_large_for_email'
         | 'note_without_recipient_email'
         | 'send_failed'
+        | 'template_missing'
     }
 
 type Row = Record<string, unknown>
@@ -105,14 +110,9 @@ function buildMail(params: {
   }
 }
 
-function readTexts(config: unknown): { readonly body: string; readonly subject: string } | null {
-  if (typeof config !== 'object' || config === null) return null
-  const fields = config as Record<string, unknown>
-  if (fields.forwardToNoteRecipient !== 'automatic') return null
-  const body = typeof fields.forwardEmailBody === 'string' ? fields.forwardEmailBody.trim() : ''
-  const subject =
-    typeof fields.forwardEmailSubject === 'string' ? fields.forwardEmailSubject.trim() : ''
-  return body === '' || subject === '' ? null : { body, subject }
+function isAutomatic(config: unknown): boolean {
+  if (typeof config !== 'object' || config === null) return false
+  return (config as Record<string, unknown>).forwardToNoteRecipient === 'automatic'
 }
 
 function deriveIdempotencyKey(params: {
@@ -137,10 +137,9 @@ async function queue(
         where company_id = ${companyId}::uuid and id = ${replyId}::uuid
         for update`,
   )
-  const texts = readTexts(reply?.config)
   const attachmentId = text(reply, 'reply_attachment_id')
   const occurrenceId = text(reply, 'occurrence_id')
-  if (texts === null || attachmentId === null || occurrenceId === null)
+  if (!isAutomatic(reply?.config) || attachmentId === null || occurrenceId === null)
     return { kind: 'not_applicable' }
 
   const idempotencyKey = deriveIdempotencyKey({ attachmentId, replyId })
@@ -166,6 +165,23 @@ async function queue(
                   ${attachmentId}::uuid, ${outcome.address}, ${outcome.mailMessageId}::uuid, null, ${idempotencyKey})`,
     )
   }
+
+  const resolved = await resolveContractorReplyClientTexts(runner, {
+    channel: 'email',
+    companyId,
+    config: reply?.config,
+    occurrenceId,
+  })
+  if (resolved.kind === 'template_missing') {
+    await record({
+      address: null,
+      mailMessageId: null,
+      reason: 'template_missing',
+      status: 'skipped',
+    })
+    return { kind: 'skipped', reason: 'template_missing' }
+  }
+  const { texts } = resolved
 
   const [note] = await rowsOf(
     runner,

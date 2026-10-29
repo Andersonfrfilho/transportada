@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import type { SQL } from 'bun'
 import { expect } from 'bun:test'
 
+import { rollbackClientWhatsAppAutomatic } from './client-whatsapp-automatic.assertion.js'
 import { rollbackContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { rollbackClientEmailSendMode } from './client-email-send-mode.assertion.js'
 import { rollbackContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
@@ -46,6 +47,7 @@ async function assertDefaultsOnExistingType(
     join(migrationsDirectory.pathname, directory, 'rollback.sql'),
   ).text()
 
+  await rollbackClientWhatsAppAutomatic(database, directories)
   await rollbackContractorReplyWhatsAppDelivery(database, directories)
   await rollbackClientEmailSendMode(database, directories)
   await rollbackContractorReplyClientBoletoEmails(database, directories)
