@@ -23,7 +23,20 @@ import {
  *   bun run scripts/occurrence-mail-templates-publish.ts --company <uuid>
  *   bun run scripts/occurrence-mail-templates-publish.ts --company <uuid> --confirm [--overwrite <chave>]...
  */
+async function listCompanies(): Promise<void> {
+  const databaseUrl = process.env.DATABASE_URL ?? ''
+  if (databaseUrl.length === 0) throw new Error('DATABASE_URL ausente')
+  const provider = createDrizzleProvider({ connection: databaseUrl })
+  try {
+    const rows = await provider.db.select({ id: companies.id }).from(companies)
+    process.stdout.write(rows.map((row) => `${row.id}\n`).join(''))
+  } finally {
+    await provider.close()
+  }
+}
+
 async function main(): Promise<void> {
+  if (process.argv.includes('--list-companies')) return listCompanies()
   const options = parsePublishArguments(process.argv.slice(2))
 
   const databaseUrl = process.env.DATABASE_URL ?? ''
