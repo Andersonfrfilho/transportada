@@ -59,7 +59,8 @@ describe('"Ver detalhes" na conversa do motorista (spec 279 RF13)', () => {
     const sheet = read('components/OccurrenceDetailsSheet.component.tsx')
     expect(sheet).not.toMatch(/useMutation|postJson|method: 'POST'/u)
     expect(sheet).toContain('sendState?: ReactNode')
-    expect(sheet).toContain('sendState === undefined && deliveries.length === 0 ? null')
+    expect(sheet).toContain('sendState === undefined &&')
+    expect(sheet).toContain('whatsappDeliveries.length === 0')
   })
 
   test('o estado do envio (T6b) lê Enviado, Na fila, Falhou e o "sem e-mail do cliente"; o malformado some', () => {
@@ -87,9 +88,21 @@ describe('"Ver detalhes" na conversa do motorista (spec 279 RF13)', () => {
     expect(parseClientBoletoEmailDeliveries(undefined)).toEqual([])
   })
 
-  test('a folha não oferece "Tentar de novo": o botão é do escritório', () => {
-    const state = read('components/ClientEmailSendState.component.tsx')
-    expect(state).not.toMatch(/<button|Button|useMutation/u)
+  test('o e-mail segue sem "Tentar de novo": o botão é do escritório; o WhatsApp reenvia pela rota da 281 (spec 286 T5)', () => {
+    const email = read('components/ClientEmailSendState.component.tsx')
+    expect(email).not.toMatch(/<button|Button|useMutation/u)
+    const whatsapp = read('components/ClientWhatsAppSendState.component.tsx')
+    expect(whatsapp).toContain('useClientBoletoWhatsAppSend')
+    expect(whatsapp).toContain("t('details.sendState.resend')")
+    expect(whatsapp).not.toMatch(/useMutation|postJson/u)
+  })
+
+  test('o canal e o tique do envio vêm do SDK de conversas, nos dois canais (spec 286 T5)', () => {
+    const ticks = read('components/ClientDeliveryTicks.component.tsx')
+    expect(ticks).toContain("from '@adatechnology/conversations-ui'")
+    expect(ticks).toMatch(/<ChannelIcon[\s\S]*<StatusTicks/u)
+    expect(read('components/ClientEmailSendState.component.tsx')).toContain('channel="email"')
+    expect(read('components/ClientWhatsAppSendState.component.tsx')).toContain('channel="whatsapp"')
   })
 
   test('as duas línguas têm as mesmas chaves em `details`', () => {
