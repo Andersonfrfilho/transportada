@@ -405,6 +405,9 @@ pulados) e as migrations não rodam. Não insistir em re-run: ler o log do `keyc
 - **"Não foi possível salvar" ao marcar como tratado um retorno `needs_operator` (29/10/2026).** Causa: o check
   `occurrence_contractor_replies_reason_check` só admite `reason` em `needs_operator`, e `markHandled` mudava o status
   para `handled` sem limpar o motivo (500). Corrigido zerando `reason` na mesma atualização.
+- **"Não foi possível encaminhar" ao entregar ao motorista um retorno `needs_operator` (29/10/2026).** Mesma causa: a
+  entrega ao motorista (`contractor-reply-driver-delivery.support.ts`, API e worker) mudava o status para `delivered`
+  sem limpar `reason` e batia no mesmo check. Corrigido com `reason = null` na atualização.
 
 ## 7. Manutenção deste runbook
 
