@@ -103,6 +103,7 @@ Regras que já custaram tempo:
 | `cadastro-motorista/producao-dados-para-convidar.sh`        | CPF, e-mail e telefone das fichas sem usuário, para convidar                                                                                                                                                                                                                                   | leitura                         |
 | `cadastro-motorista/producao-usuarios-sem-keycloak.sh`      | confronta cada usuário do banco com o Keycloak (existe/habilitado)                                                                                                                                                                                                                             | leitura                         |
 | `notas/producao-faixa-notas.sh [de] [ate]`                  | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210)                                                                                                                                                                                                     | leitura                         |
+| `ops/producao-notificacoes-boleto-errado.sh`                | retornos travados por boleto errado, entregas, mensagens do motorista e notificações (48h) | leitura           |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
 
