@@ -64,12 +64,15 @@ export async function openReplyWithForward(
   await database.db.execute(sql`
     insert into notification.templates (company_id, key, channel, locale, version, subject, body, active)
     values (${companyId}, ${templateKey}, 'email', 'pt-BR', 1, ${FORWARD_EMAIL_SUBJECT}, ${FORWARD_EMAIL_BODY}, true)`)
-  await database.db.execute(sql`
-    delete from company_occurrence_type_client_channels
+  /** Só semeia o e-mail automático quando o teste ainda não escolheu o canal: o teste pode trazer o modo dele. */
+  const [existingEmail] = await database.db.execute(sql`
+    select 1 from company_occurrence_type_client_channels
     where company_id = ${companyId} and occurrence_type_id = ${occurrence?.typeId ?? ''} and channel = 'email'`)
-  await database.db.execute(sql`
-    insert into company_occurrence_type_client_channels (company_id, occurrence_type_id, channel, enabled, send_mode, template_key)
-    values (${companyId}, ${occurrence?.typeId ?? ''}, 'email', true, 'automatic', ${templateKey})`)
+  if (existingEmail === undefined) {
+    await database.db.execute(sql`
+      insert into company_occurrence_type_client_channels (company_id, occurrence_type_id, channel, enabled, send_mode, template_key)
+      values (${companyId}, ${occurrence?.typeId ?? ''}, 'email', true, 'automatic', ${templateKey})`)
+  }
   await createSendAutomaticOccurrenceMailUseCase({
     reader: createAutomaticOccurrenceMailReader(database.db),
     sendMail: createOccurrenceMailUseCase(database),
