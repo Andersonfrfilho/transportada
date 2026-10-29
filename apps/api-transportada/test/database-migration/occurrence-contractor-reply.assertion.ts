@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import type { SQL } from 'bun'
 import { expect } from 'bun:test'
 
+import { rollbackClientWhatsAppAutomatic } from './client-whatsapp-automatic.assertion.js'
 import { rollbackContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { rollbackClientEmailSendMode } from './client-email-send-mode.assertion.js'
 import { rollbackContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
@@ -135,6 +136,7 @@ export async function assertOccurrenceContractorReplyRollback(
   expect(await readConstraintCount(database)).toBe(expectedConstraints)
   expect(await hasTriggerFunction(database)).toBe(true)
 
+  await rollbackClientWhatsAppAutomatic(database, probe.directories)
   await rollbackContractorReplyWhatsAppDelivery(database, probe.directories)
   await rollbackClientEmailSendMode(database, probe.directories)
   await rollbackContractorReplyClientBoletoEmails(database, probe.directories)

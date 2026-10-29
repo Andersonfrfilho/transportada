@@ -13,6 +13,7 @@ import { assertDeliveryProofProcessing } from './delivery-proof-processing.asser
 import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.assertion.js'
 import { assertContractorReplyWhatsAppDelivery } from './contractor-reply-whatsapp-delivery.assertion.js'
 import { assertEventLocationWhatsappRollbackRefusesRecordedPoints } from './event-location-whatsapp-rollback.assertion.js'
+import { assertClientWhatsAppAutomatic } from './client-whatsapp-automatic.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
@@ -166,7 +167,13 @@ describe('Drizzle migration integration', () => {
          * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
-        /** Spec 286 T2: a matriz por canal do tipo e os modelos migrados do texto livre; a mais nova de todas. */
+        /** Spec 286 T3: a trava e os motivos do WhatsApp automático; a mais nova de todas. */
+        await assertClientWhatsAppAutomatic({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        /** Spec 286 T2: a matriz por canal do tipo e os modelos migrados do texto livre. */
         await assertOccurrenceTypeClientChannels({
           companyId: identityFixture.companyId,
           connectionString,
