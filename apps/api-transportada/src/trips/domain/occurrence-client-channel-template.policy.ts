@@ -40,3 +40,28 @@ export function assessClientChannelTemplate(params: {
     ...(template.body.trim() === '' ? [{ code: 'empty_body' } as const] : []),
   ]
 }
+
+/** Um modelo do módulo como o editor do tipo o lista para escolher num canal. */
+export type ClientChannelTemplateView = ClientChannelTemplateContent & {
+  readonly channel: OccurrenceClientChannel
+  readonly key: string
+  readonly problems: readonly ClientChannelTemplateProblem[]
+  readonly usable: boolean
+  readonly version: number
+}
+
+/** A mesma avaliação da gravação: o que o editor mostra como utilizável é o que a gravação aceita. */
+export function toClientChannelTemplateView(params: {
+  readonly body: string
+  readonly channel: OccurrenceClientChannel
+  readonly key: string
+  readonly subject: null | string
+  readonly version: number
+}): ClientChannelTemplateView {
+  const problems = assessClientChannelTemplate({
+    channel: params.channel,
+    key: params.key,
+    template: { body: params.body, subject: params.subject },
+  })
+  return { ...params, problems, usable: problems.length === 0 }
+}

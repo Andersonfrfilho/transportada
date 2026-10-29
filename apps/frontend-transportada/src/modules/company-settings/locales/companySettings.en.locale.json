@@ -756,6 +756,46 @@
         "empty": "Choose at least one contractor: with none the type would appear on no note, so nothing was saved.",
         "needsDocument": "A stop-only type cannot be limited to contractors: a stop has no contractor. Nothing was saved."
       }
+    },
+    "clientReturn": {
+      "title": "Client return",
+      "legend": "Channels through which the accepted invoice slip reaches the client. Each channel uses its own Notifications template.",
+      "channels": {
+        "email": "E-mail",
+        "whatsapp": "WhatsApp",
+        "sms": "SMS"
+      },
+      "soon": "Coming soon",
+      "locked": "Pick the client e-mail type this occurrence type uses above to turn this channel on.",
+      "template": {
+        "label": "Template (Notifications)",
+        "none": "None",
+        "subject": "Subject: {{subject}}",
+        "hint": {
+          "email": "E-mail template from the Notifications module.",
+          "whatsapp": "Plain text, no subject"
+        },
+        "failed": "Could not load the templates. Try again shortly."
+      },
+      "sendMode": {
+        "label": "Sending",
+        "manual": "Manual",
+        "automatic": "Automatic"
+      },
+      "problem": {
+        "missing": "{{channel}} is checked, but the type has no template on this channel: it will not be sent.",
+        "not_found": "The template chosen for {{channel}} no longer exists in Notifications: it will not be sent.",
+        "unusable": "The template chosen for {{channel}} does not work and will not be sent: {{problems}}",
+        "codes": {
+          "not_found": "There is no active Portuguese template with this key on this channel.",
+          "system_key": "It is a system notice with different variables.",
+          "empty_subject": "The subject is empty.",
+          "empty_body": "The body is empty."
+        }
+      },
+      "previewTitle": "Preview · sample values",
+      "attachmentName": "invoice-slip-123456.pdf",
+      "attachmentDetail": "PDF"
     }
   },
   "settingsResolution": {

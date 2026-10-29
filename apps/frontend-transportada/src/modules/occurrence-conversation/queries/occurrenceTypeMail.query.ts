@@ -15,6 +15,16 @@ export function useContractorMailTemplateChoicesQuery(input: Readonly<{ enabled:
   })
 }
 
+/** Spec 286 (RF2): os modelos do módulo por canal (e-mail, WhatsApp) que a matriz "Retorno ao cliente" pode escolher. */
+export function useClientChannelTemplateChoicesQuery(input: Readonly<{ enabled: boolean }>) {
+  const client = getOccurrenceTypeMailClient()
+  return useQuery({
+    enabled: input.enabled,
+    queryFn: () => client.listClientChannelTemplates(),
+    queryKey: [OCCURRENCE_TYPE_MAIL_QUERY_KEY, 'client-channel-templates'],
+  })
+}
+
 /** Os contatos das contratantes do tipo que podem ser destinatários; só com escopo `listed`. */
 export function useOccurrenceTypeRecipientCandidatesQuery(
   input: Readonly<{ contractorIds: readonly string[]; enabled: boolean }>,

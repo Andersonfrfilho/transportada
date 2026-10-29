@@ -9,6 +9,7 @@ import { mock } from 'bun:test'
 
 import type { OccurrenceTypeMailClient } from '@/modules/occurrence-conversation/shared/occurrenceTypeMailClient.service'
 import type {
+  ClientChannelTemplateChoice,
   ContractorMailTemplateChoice,
   OccurrenceTypeRecipientCandidate,
 } from '@/modules/occurrence-conversation/shared/occurrenceTypeMail.types'
@@ -17,6 +18,7 @@ import type { OccurrenceWatcherItem } from '@/modules/occurrence-conversation/sh
 import { installOccurrenceWatchersDouble, watcherFakes } from './occurrenceWatchersHarness.helper'
 
 export type MailChoiceFakes = {
+  clientChannelTemplates: readonly ClientChannelTemplateChoice[]
   candidates: readonly OccurrenceTypeRecipientCandidate[]
   candidateRequests: (readonly string[])[]
   templates: readonly ContractorMailTemplateChoice[]
@@ -24,6 +26,7 @@ export type MailChoiceFakes = {
 }
 
 export const mailChoiceFakes: MailChoiceFakes = {
+  clientChannelTemplates: [],
   candidateRequests: [],
   candidates: [],
   templates: [],
@@ -31,6 +34,7 @@ export const mailChoiceFakes: MailChoiceFakes = {
 }
 
 const typeMailClient: OccurrenceTypeMailClient = {
+  listClientChannelTemplates: () => Promise.resolve(mailChoiceFakes.clientChannelTemplates),
   listRecipientCandidates: ({ contractorIds }) => {
     mailChoiceFakes.candidateRequests.push(contractorIds)
     return Promise.resolve(mailChoiceFakes.candidates)
@@ -47,6 +51,7 @@ void mock.module(
 export function installMailChoiceDouble(input: Partial<MailChoiceFakes>): void {
   mailChoiceFakes.candidateRequests = []
   mailChoiceFakes.candidates = input.candidates ?? []
+  mailChoiceFakes.clientChannelTemplates = input.clientChannelTemplates ?? []
   mailChoiceFakes.templates = input.templates ?? []
   mailChoiceFakes.watchers = input.watchers ?? []
   /** A lista da empresa vem do duplo dos responsáveis (267), que dubla o provedor uma vez só. */

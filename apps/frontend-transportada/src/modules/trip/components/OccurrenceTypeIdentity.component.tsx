@@ -52,6 +52,7 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
   } = useOccurrenceTypeOptions()
   const isDelivery = type.stage === TRIP_OCCURRENCE_STAGE.delivery
   const hasItems = type.itemsMode !== OCCURRENCE_ITEMS_MODE.off
+  const hasClientReturnMatrix = type.clientChannels !== undefined && type.clientChannels !== null
 
   function handleNameCommit(input: HTMLInputElement) {
     const name = input.value.trim()
@@ -120,8 +121,8 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
             />
           </div>
         )}
-        {/* Spec 281 RF8: só com a API que já manda o campo (a anterior recusaria o PUT). */}
-        {type.clientChannel === undefined ? null : (
+        {/* Spec 281 RF8: só com a API que já manda o campo (a anterior recusaria o PUT). Com a matriz (286) o canal vem das caixas do bloco "Retorno ao cliente". */}
+        {type.clientChannel === undefined || hasClientReturnMatrix ? null : (
           <div className={identityStyles.identityField}>
             <span aria-hidden="true" className={identityStyles.fieldLabel}>
               {t('occurrenceTypeCatalog.clientChannel')}
@@ -157,7 +158,8 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
         {/* Spec 279 RF10: só com o envio ao cliente ligado e a API que já manda o campo. */}
         {type.clientEmailSendMode === undefined ||
         type.clientEmailType === undefined ||
-        type.clientEmailType === 'off' ? null : (
+        type.clientEmailType === 'off' ||
+        hasClientReturnMatrix ? null : (
           <div className={identityStyles.identityField}>
             <span aria-hidden="true" className={identityStyles.fieldLabel}>
               {t('occurrenceTypeCatalog.clientEmailSendMode')}

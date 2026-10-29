@@ -756,6 +756,46 @@
         "empty": "Escolha ao menos uma contratante: sem nenhuma o tipo não apareceria em nota nenhuma, então nada foi gravado.",
         "needsDocument": "Tipo só de parada não pode ser restrito a contratantes: a parada não tem contratante. Nada foi gravado."
       }
+    },
+    "clientReturn": {
+      "title": "Retorno ao cliente",
+      "legend": "Canais por onde o boleto aceito segue ao cliente. Cada canal usa o seu modelo do módulo de Notificações.",
+      "channels": {
+        "email": "E-mail",
+        "whatsapp": "WhatsApp",
+        "sms": "SMS"
+      },
+      "soon": "Em breve",
+      "locked": "Escolha acima o e-mail do cliente que o tipo usa para ligar este canal.",
+      "template": {
+        "label": "Modelo (Notificações)",
+        "none": "Nenhum",
+        "subject": "Assunto: {{subject}}",
+        "hint": {
+          "email": "Modelo de e-mail do módulo de Notificações.",
+          "whatsapp": "Texto puro, sem assunto"
+        },
+        "failed": "Não foi possível carregar os modelos. Tente de novo em instantes."
+      },
+      "sendMode": {
+        "label": "Envio",
+        "manual": "Manual",
+        "automatic": "Automático"
+      },
+      "problem": {
+        "missing": "{{channel}} marcado, mas o tipo está sem modelo neste canal: esse canal não será enviado.",
+        "not_found": "O modelo escolhido para {{channel}} não existe mais no módulo de Notificações: esse canal não será enviado.",
+        "unusable": "O modelo escolhido para {{channel}} não serve e esse canal não será enviado: {{problems}}",
+        "codes": {
+          "not_found": "Não existe modelo ativo em português com esta chave neste canal.",
+          "system_key": "É um aviso do sistema, com outras variáveis.",
+          "empty_subject": "O assunto está vazio.",
+          "empty_body": "O corpo está vazio."
+        }
+      },
+      "previewTitle": "Prévia · valores de exemplo",
+      "attachmentName": "boleto-nota-123456.pdf",
+      "attachmentDetail": "PDF"
     }
   },
   "settingsResolution": {

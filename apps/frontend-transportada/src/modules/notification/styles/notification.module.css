@@ -83,6 +83,7 @@
    * aparelho de tela escura já força branco por conta própria. Claro aqui deixava a hora em 1,12:1.
    */
   --adn-preview-status: #1c1c1e;
+  --adn-preview-wa-attachment: rgb(11 20 26 / 6%);
   --adn-preview-wa-header: #075e54;
   --adn-preview-wa-send: #dcf8c6;
   --adn-preview-wa-shadow: rgb(0 0 0 / 13%);

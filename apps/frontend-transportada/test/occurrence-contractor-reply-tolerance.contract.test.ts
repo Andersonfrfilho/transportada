@@ -123,6 +123,37 @@ describe('tolerância aos campos do retorno da contratante no tipo (spec 248 T1.
     ).toThrow()
   })
 
+  it('aceita a matriz "Retorno ao cliente" por canal (spec 286) e a lê inteira no tipo', () => {
+    const matrix = {
+      email: { enabled: true, sendMode: 'automatic', templateKey: 'boleto.prorrogado' },
+      whatsapp: { enabled: false, sendMode: 'manual', templateKey: null },
+    } as const
+    const [type] = adapters.occurrenceTypesFromApi([
+      buildOccurrenceType({ clientChannels: matrix }),
+    ])
+    expect(type?.clientChannels).toEqual(matrix)
+
+    const [withoutMatrix] = adapters.occurrenceTypesFromApi([
+      buildOccurrenceType({ clientChannels: null }),
+    ])
+    expect(withoutMatrix?.clientChannels).toBeNull()
+  })
+
+  it('recusa a matriz com canal faltando, modo fora do vocabulário ou chave que não é texto', () => {
+    const ok = { enabled: true, sendMode: 'manual', templateKey: 'a' }
+    for (const clientChannels of [
+      { email: ok },
+      { email: ok, whatsapp: { ...ok, sendMode: 'off' } },
+      { email: ok, whatsapp: { ...ok, templateKey: 7 } },
+      { email: ok, whatsapp: { ...ok, enabled: 'yes' } },
+      'both',
+    ]) {
+      expect(() =>
+        adapters.occurrenceTypesFromApi([buildOccurrenceType({ clientChannels })]),
+      ).toThrow()
+    }
+  })
+
   it('recusa campo do retorno fora do vocabulário ou da faixa', () => {
     expect(() =>
       adapters.occurrenceTypesFromApi([buildOccurrenceType({ contractorReplyMode: 'maybe' })]),

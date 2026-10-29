@@ -351,7 +351,10 @@ import {
   listActiveContractorTemplates,
 } from './occurrence-conversation/infrastructure/notification-template.query.js'
 import { toOccurrenceTypeSettingsViews } from './trips/infrastructure/occurrence-type-contractors.query.js'
-import { findActiveClientChannelTemplate } from './trips/infrastructure/occurrence-type-client-channels.query.js'
+import {
+  findActiveClientChannelTemplate,
+  listActiveClientChannelTemplates,
+} from './trips/infrastructure/occurrence-type-client-channels.query.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
 import {
@@ -4340,6 +4343,10 @@ function createApplicationRoutes({
     }),
     /** Spec 218 RF-E1: composição pura — os mesmos repositórios das rotas acima, sem escrita. */
     ...createOccurrenceTypeMailRoutes({
+      listClientChannelTemplates: {
+        execute: (input) =>
+          listActiveClientChannelTemplates(database, { companyId: input.context.companyId }),
+      },
       listContractorMailRecipientCandidates: {
         execute: (input) =>
           listOccurrenceTypeRecipientCandidates(database, {
