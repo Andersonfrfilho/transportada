@@ -9,7 +9,6 @@ import { Select } from '@/components/ui/select'
 import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
 import { useContractorMailTemplateChoicesQuery } from '@/modules/occurrence-conversation/queries/occurrenceTypeMail.query'
 import {
-  OCCURRENCE_MAIL_SUGGESTED_TEMPLATE,
   isHtmlMailBody,
   OCCURRENCE_MAIL_VARIABLE_NAMES,
   renderContractorMailPreview,
@@ -148,11 +147,6 @@ export function OccurrenceTypeContractorTemplateSelect({
             </li>
           ))}
         </ul>
-      </details>
-      <details className={styles.field}>
-        <summary>{t('occurrenceTypeCatalog.mail.template.suggestedTitle')}</summary>
-        <p className={styles.mailSubject}>{OCCURRENCE_MAIL_SUGGESTED_TEMPLATE.subject}</p>
-        <pre className={styles.mailBody}>{OCCURRENCE_MAIL_SUGGESTED_TEMPLATE.body}</pre>
       </details>
       <div className={styles.actions}>
         <Button

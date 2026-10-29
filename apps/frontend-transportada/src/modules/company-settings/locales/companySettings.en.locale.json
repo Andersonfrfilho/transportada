@@ -515,7 +515,6 @@
         "previewTitle": "Preview · sample values",
         "hint": "The email text is written in Notifications → Preferences, in a Portuguese email template. Here you only choose which one.",
         "variablesTitle": "Variables the template accepts",
-        "suggestedTitle": "Suggested template (copy it in Notifications)",
         "problems": {
           "not_found": "There is no active Portuguese email template with this key.",
           "system_key": "It is a system notice, with other variables.",

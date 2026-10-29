@@ -84,12 +84,6 @@ export const OCCURRENCE_MAIL_SAMPLE_VALUES: Readonly<Record<OccurrenceMailVariab
   valorNota: '7.840,64',
 }
 
-/** O modelo sugerido, para copiar no módulo de notificação (nunca semeado). */
-export const OCCURRENCE_MAIL_SUGGESTED_TEMPLATE = {
-  body: 'Olá, equipe {{contratante}},\n\nRegistramos {{tipoOcorrencia}} na nota {{numeroNota}} ({{razaoSocial}}) em {{data}}.\n\n{{observacao}}\n\n{{linhasItens}}\n\nQualquer dúvida, é só responder este e-mail.',
-  subject: 'Ocorrência na nota {{numeroNota}} — {{contratante}}',
-} as const
-
 /** O mesmo `{{ nome }}` do renderizador do módulo; a variável que falta sai vazia. */
 const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/gu
 

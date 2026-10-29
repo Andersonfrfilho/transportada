@@ -515,7 +515,6 @@
         "previewTitle": "Prévia · valores de exemplo",
         "hint": "O texto do e-mail é escrito em Notificações → Preferências, num modelo de e-mail em português. Aqui você só escolhe qual.",
         "variablesTitle": "Variáveis que o modelo aceita",
-        "suggestedTitle": "Modelo sugerido (copie em Notificações)",
         "problems": {
           "not_found": "Não existe modelo de e-mail ativo em português com esta chave.",
           "system_key": "É um aviso do sistema, com outras variáveis.",
