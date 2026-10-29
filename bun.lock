@@ -176,7 +176,7 @@
         "@adatechnology/image-cutout": "0.1.0-rc.2",
         "@adatechnology/notification-client": "0.2.0",
         "@adatechnology/notification-contracts": "0.3.0",
-        "@adatechnology/notification-ui": "0.3.0",
+        "@adatechnology/notification-ui": "0.4.0",
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
@@ -316,7 +316,7 @@
 
     "@adatechnology/notification-module": ["@adatechnology/notification-module@0.3.0", "", { "dependencies": { "@adatechnology/module-http": "0.1.1", "@adatechnology/notification-contracts": "0.3.0", "zod": "^3.24.1" }, "peerDependencies": { "drizzle-orm": ">=0.36.0 <2" } }, "sha512-ruXwMEJcsX0bcAXoJ37t9XIgnK1pYn24YXaCunePJHUJaBpa39/DsaCF1lebS61ppcvbkDjmu7Q9ufQTs84HHQ=="],
 
-    "@adatechnology/notification-ui": ["@adatechnology/notification-ui@0.3.0", "", { "dependencies": { "@adatechnology/notification-client": "0.2.2", "@adatechnology/notification-contracts": "0.3.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0" }, "peerDependencies": { "@tanstack/react-query": "^5", "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-cNBR3IGflWEhBl5A5ZQ4e8AnAH+xBDFBltzo0TUBPUNW217c5a66Mn8L4mYfjBoN7qGZdqUcqnxdcDJEGL5bYw=="],
+    "@adatechnology/notification-ui": ["@adatechnology/notification-ui@0.4.0", "", { "dependencies": { "@adatechnology/conversations-ui": "0.14.0", "@adatechnology/notification-client": "0.2.2", "@adatechnology/notification-contracts": "0.3.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0" }, "peerDependencies": { "@tanstack/react-query": "^5", "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-9EYGrbVY4NlhC/kFwCPy0vrr9Sf6phJ0g+BqUWPznf75Y+E3rFaA5fUxuWd+nAalYXSb9L/JfDYFtJfAOd8oKA=="],
 
     "@adatechnology/object-storage-provider": ["@adatechnology/object-storage-provider@0.3.0", "", { "dependencies": { "@aws-sdk/client-s3": "3.1091.0", "@aws-sdk/s3-request-presigner": "3.1091.0" } }, "sha512-YPg3GkdeetqI8QBIobmnNudwLafSSj8LXfzAEseksN6OPSkzcd2cQ5M0QCReCWDHv1ooFRrz3cqIQozMFSeQ3A=="],
 
