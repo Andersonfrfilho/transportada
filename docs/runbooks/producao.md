@@ -388,6 +388,27 @@ de "Deploy identity" dar sucesso. O passo de deploy só espera o Railway marcar 
 não espera o Keycloak responder. Nesse caso a API, o worker e os frontends **não** sobem (os jobs seguintes ficam
 pulados) e as migrations não rodam. Não insistir em re-run: ler o log do `keycloak` primeiro.
 
+## 5.5 Conferir que o boleto não vai ao WhatsApp do cliente (29/10/2026)
+
+Pedido do Anderson: em produção o boleto ainda **não** pode sair para o WhatsApp do cliente.
+
+Conferido na `main` (a1d37cb) e no Railway, sem escrever nada:
+
+- **Código:** o único caminho que manda boleto por WhatsApp ao cliente é `forward-contractor-reply-by-whatsapp.use-case.ts`
+  (`lockSendable`), acionado por clique do operador/motorista (painel e app), nunca pelo worker ou cron. Exige
+  `company_occurrence_types.client_channel` em `whatsapp` ou `both` **e** `whatsapp_evolution_settings.status = 'active'`;
+  senão lança `ContractorReplyWhatsAppOffError` / `WhatsAppEvolutionNotConfiguredError` / `WhatsAppEvolutionDisabledError`.
+  A resposta de texto ao cliente (`send-client-reply.use-case.ts`) tem a mesma trava. Padrões: `client_channel = 'email'`,
+  `status = 'disabled'`, `default_provider = 'meta'`.
+- **Railway:** o ambiente `production` não tem o serviço `evolution-api` (nem redis/postgres do Evolution); só existem
+  em staging. `EVOLUTION_BASE_URL` / `EVOLUTION_GLOBAL_API_KEY` não devem existir no `api` de produção.
+- **Falta confirmar no banco/variáveis** (o MCP do Railway bloqueou a leitura de variáveis e não há `railway` logado na
+  sessão): `bash /home/miyazaki/Documents/personal/ativada/producao-confere-boleto-whatsapp.sh` (somente leitura; lista
+  tipos com canal whatsapp/both, `whatsapp_evolution_settings` por empresa, entregas por WhatsApp já registradas e os
+  nomes das variáveis EVOLUTION*/WHATSAPP*). Esperado: nenhum tipo `whatsapp`/`both`, nenhuma linha `active`, nenhuma
+  entrega `sent` por WhatsApp.
+- **Para ligar no futuro:** só com aval do Anderson (seção 5.3/5.4).
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
