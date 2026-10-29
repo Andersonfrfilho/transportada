@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * A trava de motorista do tipo: nas `driver_lock_hours` horas depois de existir a mesma ocorrência do tipo na mesma nota
+ * A trava de motorista do tipo: nas `driver_lock_minutes` minutos depois de existir a mesma ocorrência do tipo na mesma nota
  * da viagem (feita por ele ou pelo escritório, aberta ou resolvida), o motorista não registra outra — o reenvio da fila
  * offline recebe a que já existe. Escopo é tipo + nota da viagem: a trava de uma nota não alcança as outras. O escritório
  * nunca é travado; usa a mesma consulta só para ser avisado.
@@ -23,7 +23,7 @@ export async function findDriverLockingOccurrence(
   },
 ): Promise<LockingOccurrence | null> {
   const [type] = await queryable
-    .select({ hours: companyOccurrenceTypes.driverLockHours })
+    .select({ minutes: companyOccurrenceTypes.driverLockMinutes })
     .from(companyOccurrenceTypes)
     .where(
       and(
@@ -32,7 +32,7 @@ export async function findDriverLockingOccurrence(
       ),
     )
     .limit(1)
-  if (type === undefined || type.hours === null) return null
+  if (type === undefined || type.minutes === null) return null
 
   await queryable.execute(
     sql`select pg_advisory_xact_lock(hashtextextended(${`occurrence-driver-lock:${input.companyId}:${input.documentId}:${input.occurrenceTypeId}`}, 0))`,
@@ -46,7 +46,7 @@ export async function findDriverLockingOccurrence(
         eq(tripDocumentOccurrences.tripDocumentId, input.documentId),
         eq(tripDocumentOccurrences.occurrenceTypeId, input.occurrenceTypeId),
         isNull(tripDocumentOccurrences.cancelledAt),
-        gte(tripDocumentOccurrences.createdAt, sql`now() - make_interval(hours => ${type.hours})`),
+        gte(tripDocumentOccurrences.createdAt, sql`now() - make_interval(mins => ${type.minutes})`),
       ),
     )
     .orderBy(desc(tripDocumentOccurrences.createdAt), desc(tripDocumentOccurrences.id))

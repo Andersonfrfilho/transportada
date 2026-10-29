@@ -211,8 +211,8 @@ export type OccurrenceTypeRecord = {
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   readonly contractorReplyResolveOnDelivery?: boolean
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy
-  /** Horas de trava do motorista; ausente ou nulo é sem trava. Opcional só para os dublês de teste. */
-  readonly driverLockHours?: null | number
+  /** Minutos de trava do motorista; ausente ou nulo é sem trava. Opcional só para os dublês de teste. */
+  readonly driverLockMinutes?: null | number
   readonly clientEmailType?: ClientEmailType
   readonly clientEmailSendMode?: ClientEmailSendMode
   readonly clientChannel?: ClientChannel

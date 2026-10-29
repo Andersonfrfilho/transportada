@@ -32,8 +32,8 @@ import { OccurrenceTypeHiddenFieldsHint } from './OccurrenceTypeHiddenFieldsHint
 import { OccurrenceTypeIconPicker } from './OccurrenceTypeIconPicker.component'
 
 const NAME_MAX_LENGTH = 60
-const DRIVER_LOCK_HOURS_OFF = 'off'
-const DRIVER_LOCK_HOURS_CHOICES = [6, 12, 24, 48, 72] as const
+const DRIVER_LOCK_MINUTES_OFF = 'off'
+const DRIVER_LOCK_MINUTES_CHOICES = [30, 60, 120, 360, 720, 1440, 2880, 4320] as const
 
 type OccurrenceTypeIdentityProps = Readonly<{
   disabled: boolean
@@ -124,37 +124,40 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
           </div>
         )}
         {/* Só com a API que já manda o campo (a anterior recusaria o PUT). O escritório nunca é travado. */}
-        {type.driverLockHours === undefined ? null : (
+        {type.driverLockMinutes === undefined ? null : (
           <div className={identityStyles.identityField}>
             <span aria-hidden="true" className={identityStyles.fieldLabel}>
-              {t('occurrenceTypeCatalog.driverLockHours')}
+              {t('occurrenceTypeCatalog.driverLockMinutes')}
             </span>
-            <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.driverLockHoursHint')}>
+            <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.driverLockMinutesHint')}>
               <Select
-                ariaLabel={t('occurrenceTypeCatalog.driverLockHours')}
+                ariaLabel={t('occurrenceTypeCatalog.driverLockMinutes')}
                 disabled={disabled}
                 onChange={(value) =>
                   onEdit({
-                    driverLockHours: value === DRIVER_LOCK_HOURS_OFF ? null : Number(value),
+                    driverLockMinutes: value === DRIVER_LOCK_MINUTES_OFF ? null : Number(value),
                   })
                 }
                 options={[
                   {
-                    label: t('occurrenceTypeCatalog.driverLockHoursOff'),
-                    value: DRIVER_LOCK_HOURS_OFF,
+                    label: t('occurrenceTypeCatalog.driverLockMinutesOff'),
+                    value: DRIVER_LOCK_MINUTES_OFF,
                   },
-                  ...[...new Set([...DRIVER_LOCK_HOURS_CHOICES, type.driverLockHours ?? 0])]
-                    .filter((hours) => hours > 0)
+                  ...[...new Set([...DRIVER_LOCK_MINUTES_CHOICES, type.driverLockMinutes ?? 0])]
+                    .filter((minutes) => minutes > 0)
                     .toSorted((left, right) => left - right)
-                    .map((hours) => ({
-                      label: t('occurrenceTypeCatalog.driverLockHoursOption', { count: hours }),
-                      value: String(hours),
+                    .map((minutes) => ({
+                      label: t('occurrenceTypeCatalog.driverLockMinutesOption', {
+                        count: minutes,
+                        hours: Math.round((minutes / 60) * 10) / 10,
+                      }),
+                      value: String(minutes),
                     })),
                 ]}
                 value={
-                  type.driverLockHours === null
-                    ? DRIVER_LOCK_HOURS_OFF
-                    : String(type.driverLockHours)
+                  type.driverLockMinutes === null
+                    ? DRIVER_LOCK_MINUTES_OFF
+                    : String(type.driverLockMinutes)
                 }
               />
             </Tooltip>

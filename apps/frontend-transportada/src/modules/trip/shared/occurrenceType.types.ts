@@ -108,7 +108,7 @@ export type OccurrenceType = Readonly<{
   /** Spec 276 T4: o pedido repetido na mesma nota. Ausente é API anterior ao campo. */
   duplicateRequestPolicy?: DuplicateRequestPolicy
   /** Horas em que o motorista fica travado depois de existir a mesma ocorrência do tipo na nota; `null` é sem trava. Ausente é API anterior ao campo. */
-  driverLockHours?: null | number
+  driverLockMinutes?: null | number
   forwardEmailBody?: string
   forwardEmailSubject?: string
   forwardToInformedEmail?: InformedEmailForwardMode

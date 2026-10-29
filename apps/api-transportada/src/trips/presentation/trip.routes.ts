@@ -351,7 +351,7 @@ type SaveOccurrenceTypeInput = {
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   readonly contractorReplyResolveOnDelivery?: boolean | undefined
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
-  readonly driverLockHours?: null | number | undefined
+  readonly driverLockMinutes?: null | number | undefined
   readonly clientEmailType?: ClientEmailType | undefined
   readonly clientEmailSendMode?: ClientEmailSendMode | undefined
   readonly clientChannel?: ClientChannel | undefined

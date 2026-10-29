@@ -91,22 +91,22 @@ describe('pedido repetido na mesma nota (spec 276 T4)', () => {
   })
 
   it('a edição manda a trava de motorista, ou null para desligar', () => {
-    expect(buildOccurrenceTypeUpdate(TYPE, { driverLockHours: 24 })).toMatchObject({
-      driverLockHours: 24,
+    expect(buildOccurrenceTypeUpdate(TYPE, { driverLockMinutes: 1440 })).toMatchObject({
+      driverLockMinutes: 1440,
     })
-    expect(buildOccurrenceTypeUpdate(TYPE, { driverLockHours: null })).toMatchObject({
-      driverLockHours: null,
+    expect(buildOccurrenceTypeUpdate(TYPE, { driverLockMinutes: null })).toMatchObject({
+      driverLockMinutes: null,
     })
     expect(buildOccurrenceTypeUpdate(TYPE, { name: 'Boleto' })).not.toHaveProperty(
-      'driverLockHours',
+      'driverLockMinutes',
     )
   })
 
   it('a trava de motorista e o aviso do escritório existem nos dois idiomas', () => {
     for (const locale of [settingsPt, settingsEn]) {
-      expect(locale.occurrenceTypeCatalog.driverLockHours).toBeString()
-      expect(locale.occurrenceTypeCatalog.driverLockHoursOff).toBeString()
-      expect(locale.occurrenceTypeCatalog.driverLockHoursOption).toContain('{{count}}')
+      expect(locale.occurrenceTypeCatalog.driverLockMinutes).toBeString()
+      expect(locale.occurrenceTypeCatalog.driverLockMinutesOff).toBeString()
+      expect(locale.occurrenceTypeCatalog.driverLockMinutesOption).toContain('{{count}}')
     }
     for (const locale of [tripPt, tripEn]) {
       expect(locale.fieldOccurrence.alreadyExisted).toBeString()

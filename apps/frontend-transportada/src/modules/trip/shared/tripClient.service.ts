@@ -1044,9 +1044,9 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
-          ...(input.driverLockHours === undefined
+          ...(input.driverLockMinutes === undefined
             ? {}
-            : { driverLockHours: input.driverLockHours }),
+            : { driverLockMinutes: input.driverLockMinutes }),
           ...(input.forwardToNoteRecipient === undefined
             ? {}
             : { forwardToNoteRecipient: input.forwardToNoteRecipient }),

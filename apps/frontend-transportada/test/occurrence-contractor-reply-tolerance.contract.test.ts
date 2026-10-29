@@ -154,16 +154,16 @@ describe('tolerância aos campos do retorno da contratante no tipo (spec 248 T1.
     }
   })
 
-  it('aceita a trava de motorista em horas ou nula, e recusa fora da faixa', () => {
-    for (const value of [1, 24, 168, null]) {
+  it('aceita a trava de motorista em minutos ou nula, e recusa fora da faixa', () => {
+    for (const value of [1, 1440, 10_080, null]) {
       const [type] = adapters.occurrenceTypesFromApi([
-        buildOccurrenceType({ driverLockHours: value }),
+        buildOccurrenceType({ driverLockMinutes: value }),
       ])
       expect(type?.id).toBe(TYPE_ID)
     }
-    for (const value of [0, 169, 1.5, '24']) {
+    for (const value of [0, 10_081, 1.5, '24']) {
       expect(() =>
-        adapters.occurrenceTypesFromApi([buildOccurrenceType({ driverLockHours: value })]),
+        adapters.occurrenceTypesFromApi([buildOccurrenceType({ driverLockMinutes: value })]),
       ).toThrow()
     }
   })

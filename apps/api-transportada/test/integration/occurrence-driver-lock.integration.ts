@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * A trava de motorista do tipo, contra Postgres real: nas horas da janela, depois de existir a ocorrência do tipo na
+ * A trava de motorista do tipo, contra Postgres real: dentro da janela, depois de existir a ocorrência do tipo na
  * nota (do escritório, aberta ou resolvida), o motorista recebe a que já existe e nada novo é gravado; o escritório
  * nunca é travado e vê o aviso; fora da janela, cancelada ou com o tipo sem trava, o motorista registra normalmente.
  */
@@ -35,15 +35,15 @@ type World = Readonly<{ company: Company; database: TestDatabase; trip: SeededTr
 
 const TEST_TIMEOUT_MS = 120_000
 
-async function seedType(world: World, driverLockHours: null | number): Promise<string> {
+async function seedType(world: World, driverLockMinutes: null | number): Promise<string> {
   const saved = await saveOccurrenceType(world.database.db, {
     active: true,
     allowsMultipleItems: true,
     companyId: world.company.companyId,
-    driverLockHours,
+    driverLockMinutes,
     emailTemplateKey: null,
     moments: ['separation', 'document', 'office'],
-    name: `Prorrogação do boleto ${driverLockHours ?? 'sem trava'}`,
+    name: `Prorrogação do boleto ${driverLockMinutes ?? 'sem trava'}`,
     notifies: false,
     occurrenceTypeId: null,
     stage: 'separation',
@@ -122,13 +122,13 @@ async function buildWorld(database: TestDatabase): Promise<World> {
   return { company, database, trip: await seedTrip(database, company, 'in_transit') }
 }
 
-describe('a trava de motorista do tipo (24 horas por tipo e nota)', () => {
+describe('a trava de motorista do tipo (1440 minutos por tipo e nota)', () => {
   testWithPostgres(
     'o escritório registrou antes: a fila do motorista recebe a do escritório e nada duplica',
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await buildWorld(database)
-        const typeId = await seedType(world, 24)
+        const typeId = await seedType(world, 1440)
 
         const office = await registerAsOffice(world, typeId)
         expect(office.status).toBe(201)
@@ -147,7 +147,7 @@ describe('a trava de motorista do tipo (24 horas por tipo e nota)', () => {
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await buildWorld(database)
-        const typeId = await seedType(world, 24)
+        const typeId = await seedType(world, 1440)
 
         const first = await registerAsDriver(world, typeId)
         await world.database.db.insert(tripOccurrenceResolutionEvents).values({
@@ -174,7 +174,7 @@ describe('a trava de motorista do tipo (24 horas por tipo e nota)', () => {
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await buildWorld(database)
-        const lockedType = await seedType(world, 24)
+        const lockedType = await seedType(world, 1440)
 
         const first = await registerAsDriver(world, lockedType)
         await ageOccurrence(world, first.id, 25)
@@ -207,7 +207,7 @@ describe('a trava de motorista do tipo (24 horas por tipo e nota)', () => {
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await buildWorld(database)
-        const typeId = await seedType(world, 24)
+        const typeId = await seedType(world, 1440)
 
         const [left, right] = await Promise.all([
           registerAsDriver(world, typeId),

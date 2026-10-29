@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "e6ee459e-c3c4-4e15-9b0a-84d0a66ebd43",
+  "id": "6d74366b-701a-4dcf-a7e5-1f86e876fba2",
   "prevIds": [
     "4f98944c-2a8d-4fb3-81bf-ea32c4e56ff7"
   ],
@@ -31159,7 +31159,7 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "driver_lock_hours",
+      "name": "driver_lock_minutes",
       "entityType": "columns",
       "schema": "public",
       "table": "company_occurrence_types"
@@ -72487,8 +72487,8 @@
       "table": "company_occurrence_types"
     },
     {
-      "value": "\"driver_lock_hours\" is null or \"driver_lock_hours\" between 1 and 168",
-      "name": "company_occurrence_types_driver_lock_hours_check",
+      "value": "\"driver_lock_minutes\" is null or \"driver_lock_minutes\" between 1 and 10080",
+      "name": "company_occurrence_types_driver_lock_minutes_check",
       "entityType": "checks",
       "schema": "public",
       "table": "company_occurrence_types"

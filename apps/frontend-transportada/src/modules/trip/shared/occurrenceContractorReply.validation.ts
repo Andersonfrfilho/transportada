@@ -80,8 +80,10 @@ const TYPE_FIELD_CHECKS = {
   driverReplyChannel: (value: unknown) => isOneOf(value, DRIVER_REPLY_CHANNELS),
   /** Spec 276 T4: a trava de pedido repetido. Aceita antes da API mandar. */
   duplicateRequestPolicy: (value: unknown) => isOneOf(value, DUPLICATE_REQUEST_POLICIES),
-  /** A trava de motorista do tipo, em horas (1 a 168) ou `null`. Aceita antes da API mandar. */
-  driverLockHours: allowingNull((value: unknown) => isIntegerInRange(value, { max: 168, min: 1 })),
+  /** A trava de motorista do tipo, em minutos (1 a 10080) ou `null`. Aceita antes da API mandar. */
+  driverLockMinutes: allowingNull((value: unknown) =>
+    isIntegerInRange(value, { max: 10_080, min: 1 }),
+  ),
   driverReplyTemplate: isString,
   driverReplyWindowClosedAction: (value: unknown) =>
     isOneOf(value, DRIVER_REPLY_WINDOW_CLOSED_ACTIONS),
