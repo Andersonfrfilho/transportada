@@ -108,10 +108,8 @@ function scenario(double: Partial<MailChoiceFakes>, body: () => Promise<void>) {
 async function mount(type: OccurrenceType): Promise<void> {
   mounted.push(
     await renderWithQueryClient(
-      createElement(
-        NotificationProvider,
-        { client: {} as NotificationClient },
-        createElement(OccurrenceTypeRow, {
+      createElement(NotificationProvider, {
+        children: createElement(OccurrenceTypeRow, {
           canManage: true,
           exceptions: EMPTY_EXCEPTIONS_STATE,
           isSaving: false,
@@ -119,7 +117,8 @@ async function mount(type: OccurrenceType): Promise<void> {
           templates: { options: [], status: 'ready' },
           type,
         }),
-      ),
+        client: {} as NotificationClient,
+      }),
     ),
   )
 }

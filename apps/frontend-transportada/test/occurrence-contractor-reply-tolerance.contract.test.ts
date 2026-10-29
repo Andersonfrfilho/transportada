@@ -127,7 +127,7 @@ describe('tolerância aos campos do retorno da contratante no tipo (spec 248 T1.
     const matrix = {
       email: { enabled: true, sendMode: 'automatic', templateKey: 'boleto.prorrogado' },
       whatsapp: { enabled: false, sendMode: 'manual', templateKey: null },
-    }
+    } as const
     const [type] = adapters.occurrenceTypesFromApi([
       buildOccurrenceType({ clientChannels: matrix }),
     ])
