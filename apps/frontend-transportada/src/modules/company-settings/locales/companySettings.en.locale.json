@@ -351,6 +351,10 @@
       "manual": "Manual",
       "automatic": "Automatic"
     },
+    "driverLockHours": "Lock the driver for",
+    "driverLockHoursHint": "Once an occurrence of this type exists on the invoice (from the driver or the office, open or resolved), the driver cannot register another within this period: if the network returns and the phone resends, nothing is duplicated. The office is never locked and sees a notice.",
+    "driverLockHoursOff": "No lock",
+    "driverLockHoursOption": "{{count}} hours",
     "duplicateRequestPolicy": "Repeated request on the same invoice",
     "duplicateRequestPolicyOptions": {
       "while_request_open": "Block while the request is open",

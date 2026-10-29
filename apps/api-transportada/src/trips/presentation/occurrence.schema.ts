@@ -526,6 +526,8 @@ const occurrenceTypeSchema = z
     contractorReplyResolveOnDelivery: z.boolean().optional(),
     /** Spec 276 T4: a trava de pedido repetido; ausente não mexe. */
     duplicateRequestPolicy: z.enum(DUPLICATE_REQUEST_POLICIES).optional(),
+    /** Horas em que o motorista fica travado depois de existir a mesma ocorrência do tipo na mesma nota da viagem; `null` desliga, ausente não mexe. */
+    driverLockHours: z.number().int().min(1).max(168).nullable().optional(),
     /** Spec 279 RF9: `off` ou o tipo de e-mail do cliente do botão "Enviar ao cliente"; ausente não mexe. */
     clientEmailType: z.enum(CLIENT_EMAIL_TYPES).optional(),
     /** Spec 279 RF10: `manual` ou `automatic` (o boleto aceito sai sozinho ao cliente); ausente não mexe. */

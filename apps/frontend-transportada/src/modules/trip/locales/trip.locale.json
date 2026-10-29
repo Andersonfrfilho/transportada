@@ -2297,6 +2297,8 @@
     }
   },
   "fieldOccurrence": {
+    "alreadyExisted": "Esta nota já tinha uma ocorrência deste tipo, aberta pelo motorista ou pelo escritório. A nova foi registrada mesmo assim; confira se não ficou duplicada.",
+    "alreadyExisted_other": "{{count}} notas já tinham uma ocorrência deste tipo, aberta pelo motorista ou pelo escritório. As novas foram registradas mesmo assim; confira se não ficaram duplicadas.",
     "batchSubmit": "Registrar em {{count}} nota",
     "batchSubmit_other": "Registrar em {{count}} notas",
     "batchTitle": "Ocorrência em {{count}} nota",

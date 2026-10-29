@@ -79,6 +79,8 @@ export type OccurrenceTypeSaveInput = Readonly<{
   driverReplyTemplate?: string | undefined
   /** Spec 276 T4: `undefined` é "não mexe". */
   duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+  /** `undefined` é "não mexe"; `null` desliga a trava de motorista. */
+  driverLockHours?: null | number | undefined
   forwardEmailBody?: string | undefined
   forwardEmailSubject?: string | undefined
   forwardToInformedEmail?: InformedEmailForwardMode | undefined
@@ -143,6 +145,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'contractorReplyMode'
       | 'contractorReplyResolveOnDelivery'
       | 'duplicateRequestPolicy'
+      | 'driverLockHours'
       | 'contractorReplyWaitHours'
       | 'contractorScope'
       | 'driverReplyTemplate'

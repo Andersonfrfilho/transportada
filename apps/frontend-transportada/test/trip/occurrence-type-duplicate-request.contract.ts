@@ -90,6 +90,29 @@ describe('pedido repetido na mesma nota (spec 276 T4)', () => {
     ).toMatchObject({ duplicateRequestPolicy: 'until_resolved', occurrenceTypeId: 'type-1' })
   })
 
+  it('a edição manda a trava de motorista, ou null para desligar', () => {
+    expect(buildOccurrenceTypeUpdate(TYPE, { driverLockHours: 24 })).toMatchObject({
+      driverLockHours: 24,
+    })
+    expect(buildOccurrenceTypeUpdate(TYPE, { driverLockHours: null })).toMatchObject({
+      driverLockHours: null,
+    })
+    expect(buildOccurrenceTypeUpdate(TYPE, { name: 'Boleto' })).not.toHaveProperty(
+      'driverLockHours',
+    )
+  })
+
+  it('a trava de motorista e o aviso do escritório existem nos dois idiomas', () => {
+    for (const locale of [settingsPt, settingsEn]) {
+      expect(locale.occurrenceTypeCatalog.driverLockHours).toBeString()
+      expect(locale.occurrenceTypeCatalog.driverLockHoursOff).toBeString()
+      expect(locale.occurrenceTypeCatalog.driverLockHoursOption).toContain('{{count}}')
+    }
+    for (const locale of [tripPt, tripEn]) {
+      expect(locale.fieldOccurrence.alreadyExisted).toBeString()
+    }
+  })
+
   it('a edição de outro campo não mexe na trava', () => {
     expect(buildOccurrenceTypeUpdate(TYPE, { name: 'Boleto' })).not.toHaveProperty(
       'duplicateRequestPolicy',

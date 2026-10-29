@@ -363,6 +363,8 @@ export function TripDetail({
   const proofBadgesQuery = useTripProofBadgesQuery(proofQueryInput)
   /** Revisão da 233 (A2): o raio vem da mesma consulta por viagem dos selos, não da rota por nota. */
   const proofRadiusQuery = useTripProofRadiusQuery(proofQueryInput)
+  /** Quantas notas do último registro do escritório já tinham uma ocorrência do tipo na janela de trava. */
+  const [fieldOccurrenceExistingCount, setFieldOccurrenceExistingCount] = useState(0)
   /**
    * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o
    * diálogo. As duas entradas passam pelo mesmo estado porque é o mesmo formulário.
@@ -990,6 +992,12 @@ export function TripDetail({
         </p>
       )}
 
+      {fieldOccurrenceExistingCount === 0 ? null : (
+        <p className={styles.alert} role="status">
+          {t('fieldOccurrence.alreadyExisted', { count: fieldOccurrenceExistingCount })}
+        </p>
+      )}
+
       {/* Spec 185 RF2/RF3: o desfecho do gatilho automático — sucesso muda de cor, bloqueio não. */}
       {autoDispatchFeedback === null ? null : (
         <p
@@ -1285,9 +1293,17 @@ export function TripDetail({
         }}
         onSubmit={(input) => {
           if (fieldOccurrenceDocumentIds === null) return
+          setFieldOccurrenceExistingCount(0)
           workspace.registerFieldOccurrencesMutation.mutate(
             { ...input, documentIds: fieldOccurrenceDocumentIds, tripId: trip.id },
-            { onSuccess: () => setFieldOccurrenceDocumentIds(null) },
+            {
+              onSuccess: (items) => {
+                setFieldOccurrenceDocumentIds(null)
+                setFieldOccurrenceExistingCount(
+                  items.filter((item) => item.existingOccurrenceId !== undefined).length,
+                )
+              },
+            },
           )
         }}
         types={fieldOccurrenceTypesQuery.data ?? []}

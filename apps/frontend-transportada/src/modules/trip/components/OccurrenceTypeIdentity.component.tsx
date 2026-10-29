@@ -32,6 +32,8 @@ import { OccurrenceTypeHiddenFieldsHint } from './OccurrenceTypeHiddenFieldsHint
 import { OccurrenceTypeIconPicker } from './OccurrenceTypeIconPicker.component'
 
 const NAME_MAX_LENGTH = 60
+const DRIVER_LOCK_HOURS_OFF = 'off'
+const DRIVER_LOCK_HOURS_CHOICES = [6, 12, 24, 48, 72] as const
 
 type OccurrenceTypeIdentityProps = Readonly<{
   disabled: boolean
@@ -119,6 +121,43 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
               options={duplicateRequestPolicyOptions}
               value={type.duplicateRequestPolicy}
             />
+          </div>
+        )}
+        {/* Só com a API que já manda o campo (a anterior recusaria o PUT). O escritório nunca é travado. */}
+        {type.driverLockHours === undefined ? null : (
+          <div className={identityStyles.identityField}>
+            <span aria-hidden="true" className={identityStyles.fieldLabel}>
+              {t('occurrenceTypeCatalog.driverLockHours')}
+            </span>
+            <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.driverLockHoursHint')}>
+              <Select
+                ariaLabel={t('occurrenceTypeCatalog.driverLockHours')}
+                disabled={disabled}
+                onChange={(value) =>
+                  onEdit({
+                    driverLockHours: value === DRIVER_LOCK_HOURS_OFF ? null : Number(value),
+                  })
+                }
+                options={[
+                  {
+                    label: t('occurrenceTypeCatalog.driverLockHoursOff'),
+                    value: DRIVER_LOCK_HOURS_OFF,
+                  },
+                  ...[...new Set([...DRIVER_LOCK_HOURS_CHOICES, type.driverLockHours ?? 0])]
+                    .filter((hours) => hours > 0)
+                    .toSorted((left, right) => left - right)
+                    .map((hours) => ({
+                      label: t('occurrenceTypeCatalog.driverLockHoursOption', { count: hours }),
+                      value: String(hours),
+                    })),
+                ]}
+                value={
+                  type.driverLockHours === null
+                    ? DRIVER_LOCK_HOURS_OFF
+                    : String(type.driverLockHours)
+                }
+              />
+            </Tooltip>
           </div>
         )}
         {/* Spec 281 RF8: só com a API que já manda o campo (a anterior recusaria o PUT). Com a matriz (286) o canal vem das caixas do bloco "Retorno ao cliente". */}

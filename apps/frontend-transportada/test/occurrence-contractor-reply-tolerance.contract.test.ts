@@ -154,6 +154,41 @@ describe('tolerância aos campos do retorno da contratante no tipo (spec 248 T1.
     }
   })
 
+  it('aceita a trava de motorista em horas ou nula, e recusa fora da faixa', () => {
+    for (const value of [1, 24, 168, null]) {
+      const [type] = adapters.occurrenceTypesFromApi([
+        buildOccurrenceType({ driverLockHours: value }),
+      ])
+      expect(type?.id).toBe(TYPE_ID)
+    }
+    for (const value of [0, 169, 1.5, '24']) {
+      expect(() =>
+        adapters.occurrenceTypesFromApi([buildOccurrenceType({ driverLockHours: value })]),
+      ).toThrow()
+    }
+  })
+
+  it('aceita o resultado do escritório com ou sem a ocorrência que já existia', () => {
+    expect(
+      adapters.fieldOccurrenceBatchResultFromApi({
+        items: [
+          { documentId: 'd1', id: 'o1' },
+          { documentId: 'd2', existingOccurrenceId: 'o0', id: 'o2' },
+        ],
+      }),
+    ).toHaveLength(2)
+    expect(() =>
+      adapters.fieldOccurrenceBatchResultFromApi({
+        items: [{ documentId: 'd1', existingOccurrenceId: 7, id: 'o1' }],
+      }),
+    ).toThrow()
+    expect(() =>
+      adapters.fieldOccurrenceBatchResultFromApi({
+        items: [{ documentId: 'd1', id: 'o1', token: 'x' }],
+      }),
+    ).toThrow()
+  })
+
   it('recusa campo do retorno fora do vocabulário ou da faixa', () => {
     expect(() =>
       adapters.occurrenceTypesFromApi([buildOccurrenceType({ contractorReplyMode: 'maybe' })]),

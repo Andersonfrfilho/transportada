@@ -351,6 +351,10 @@
       "manual": "Manual",
       "automatic": "Automático"
     },
+    "driverLockHours": "Travar o motorista por",
+    "driverLockHoursHint": "Depois que existir uma ocorrência deste tipo na nota (do motorista ou do escritório, aberta ou solucionada), o motorista não registra outra nesse prazo: se a rede voltar e o celular reenviar, nada é duplicado. O escritório nunca é travado e vê um aviso.",
+    "driverLockHoursOff": "Sem trava",
+    "driverLockHoursOption": "{{count}} horas",
     "duplicateRequestPolicy": "Pedido repetido na mesma nota",
     "duplicateRequestPolicyOptions": {
       "while_request_open": "Bloquear enquanto o pedido estiver aberto",

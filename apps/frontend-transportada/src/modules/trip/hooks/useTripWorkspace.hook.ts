@@ -174,7 +174,9 @@ export type TripController = Readonly<{
   /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences`, uma nota ou o lote da seleção. */
   registerFieldOccurrences: (
     input: RegisterFieldOccurrencesInput,
-  ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
+  ) => Promise<
+    readonly Readonly<{ documentId: string; existingOccurrenceId?: string; id: string }>[]
+  >
   /** Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery`, uma chamada por nota. */
   reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
   /** Spec 184 D5: `POST .../field-proof` — a foto da carga sobe depois da baixa da nota. */

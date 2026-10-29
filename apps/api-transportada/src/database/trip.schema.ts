@@ -3164,6 +3164,8 @@ export const companyOccurrenceTypes = pgTable(
       .$type<DuplicateRequestPolicy>()
       .notNull()
       .default(DUPLICATE_REQUEST_POLICY_DEFAULT),
+    /** Horas em que o motorista fica travado depois de existir (dele ou do escritório) a mesma ocorrência do tipo na mesma nota da viagem; nulo é sem trava. O escritório nunca é travado. */
+    driverLockHours: integer('driver_lock_hours'),
     /** Spec 279 RF9: `off` ou o tipo de e-mail do cliente que o botão "Enviar ao cliente" usa. Desligado de fábrica. */
     clientEmailType: varchar('client_email_type', { length: 16 })
       .$type<ClientEmailType>()
@@ -3323,6 +3325,10 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_client_channel_check',
       sql`${table.clientChannel} in (${raw(inList(CLIENT_CHANNELS))})`,
+    ),
+    check(
+      'company_occurrence_types_driver_lock_hours_check',
+      sql`${table.driverLockHours} is null or ${table.driverLockHours} between 1 and 168`,
     ),
     check(
       'company_occurrence_types_duplicate_request_policy_check',
