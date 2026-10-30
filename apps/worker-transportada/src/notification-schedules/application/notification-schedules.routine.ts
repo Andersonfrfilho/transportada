@@ -16,6 +16,7 @@ import {
 } from '../domain/notification-schedules-failure.policy.js'
 
 import type { SweepDueInvoices } from './sweep-due-invoices.use-case.js'
+import type { SweepExpiringCertificates } from './sweep-expiring-certificates.use-case.js'
 
 const COMPLETED_OUTCOME: JobOutcome = 'succeeded'
 const UNEXPECTED_OUTCOME: JobOutcome = 'unexpected_error'
@@ -31,6 +32,7 @@ export type NotificationSchedulesRoutineDependencies = {
   readonly now: () => Date
   readonly schedules: readonly NotificationScheduleRunner[]
   readonly sweep: SweepDueInvoices
+  readonly sweepCertificates: SweepExpiringCertificates
 }
 
 type CycleTally = {
@@ -60,9 +62,15 @@ type RunCycleParams = {
 }
 
 async function runCycle({ context, dependencies }: RunCycleParams): Promise<JobRoutineResult> {
-  const swept = await dependencies.sweep({ now: dependencies.now() })
+  const now = dependencies.now()
+  const swept = await dependencies.sweep({ now })
+  const sweptCertificates = await dependencies.sweepCertificates({ now })
 
-  const tally: CycleTally = { causes: [...swept.failures], failedCount: 0, ranCount: 0 }
+  const tally: CycleTally = {
+    causes: [...swept.failures, ...sweptCertificates.failures],
+    failedCount: 0,
+    ranCount: 0,
+  }
 
   for (const schedule of dependencies.schedules) {
     if (context.isStopRequested()) break
@@ -76,6 +84,7 @@ async function runCycle({ context, dependencies }: RunCycleParams): Promise<JobR
       correlationId: context.correlationId,
       dueInvoices: swept.sweptCount,
       executionId: context.executionId,
+      expiringCertificates: sweptCertificates.sweptCount,
       notified: swept.notifiedCount,
       schedulesFailed: tally.failedCount,
       schedulesRun: tally.ranCount,
@@ -83,7 +92,7 @@ async function runCycle({ context, dependencies }: RunCycleParams): Promise<JobR
   })
 
   return {
-    counters: buildCounters({ swept, tally }),
+    counters: buildCounters({ swept, sweptCertificates, tally }),
     outcome: resolveOutcome(tally),
   }
 }
@@ -122,13 +131,19 @@ async function runSchedule({
 
 type BuildCountersParams = {
   readonly swept: { readonly notifiedCount: number; readonly sweptCount: number }
+  readonly sweptCertificates: { readonly notifiedCount: number; readonly sweptCount: number }
   readonly tally: CycleTally
 }
 
-function buildCounters({ swept, tally }: BuildCountersParams): Readonly<Record<string, number>> {
+function buildCounters({
+  swept,
+  sweptCertificates,
+  tally,
+}: BuildCountersParams): Readonly<Record<string, number>> {
   const counters: Record<string, number> = {
     dueInvoices: swept.sweptCount,
-    notified: swept.notifiedCount,
+    expiringCertificates: sweptCertificates.sweptCount,
+    notified: swept.notifiedCount + sweptCertificates.notifiedCount,
     schedulesFailed: tally.failedCount,
     schedulesRun: tally.ranCount,
   }

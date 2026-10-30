@@ -244,8 +244,10 @@ import { createDrizzleEnergyTariffGateway } from './fuel-price-pull/infrastructu
 import { createDrizzleFuelReferenceGateway } from './fuel-price-pull/infrastructure/drizzle-fuel-reference.gateway.js'
 import { createNotificationSchedulesRoutine } from './notification-schedules/application/notification-schedules.routine.js'
 import { createSweepDueInvoices } from './notification-schedules/application/sweep-due-invoices.use-case.js'
+import { createSweepExpiringCertificates } from './notification-schedules/application/sweep-expiring-certificates.use-case.js'
 import { NOTIFICATION_SCHEDULES_JOB } from './notification-schedules/domain/notification-schedules.constant.js'
 import { createDueInvoicesQuery } from './notification-schedules/infrastructure/drizzle-due-invoices.query.js'
+import { createExpiringCertificatesQuery } from './notification-schedules/infrastructure/drizzle-expiring-certificates.query.js'
 import {
   createDrizzleNfseReconciliationSource,
   createDrizzleNfseReconciliationWriteBack,
@@ -1706,6 +1708,13 @@ export async function startWorkerRuntime(
             sweep: createSweepDueInvoices({
               logger,
               selectDueInvoices: createDueInvoicesQuery(
+                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              ),
+              send: (params) => notificationModule.useCases.sendNotification.execute(params),
+            }),
+            sweepCertificates: createSweepExpiringCertificates({
+              logger,
+              selectExpiringCertificates: createExpiringCertificatesQuery(
                 database.db as ReturnType<typeof createDrizzleProvider>['db'],
               ),
               send: (params) => notificationModule.useCases.sendNotification.execute(params),
