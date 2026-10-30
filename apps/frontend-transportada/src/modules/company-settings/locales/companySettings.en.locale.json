@@ -769,7 +769,6 @@
         "sms": "SMS"
       },
       "soon": "Coming soon",
-      "locked": "Pick the client e-mail type this occurrence type uses above to turn this channel on.",
       "template": {
         "label": "Template (Notifications)",
         "none": "None",

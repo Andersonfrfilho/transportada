@@ -132,8 +132,8 @@ export function applyLegacyFieldsToClientChannelMatrix(params: {
 
 /**
  * Os campos antigos que a matriz gravada impõe ao tipo: `client_channel` derivado e o modo do e-mail. O
- * `client_email_type` não é derivado (é qual e-mail do cliente, não se o canal liga): e-mail ligado com ele `off` é
- * recusado por quem grava, para a leitura antiga não divergir da matriz.
+ * `client_email_type` não é derivado (é qual e-mail do cliente, não se o canal liga): e-mail ligado com ele `off` leva
+ * o tipo ao padrão (boleto) em quem grava, para a leitura antiga não divergir da matriz e o e-mail não ficar travado.
  */
 export function deriveLegacyFieldsFromClientChannelMatrix(matrix: OccurrenceClientChannelMatrix): {
   readonly clientChannel: ClientChannel

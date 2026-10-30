@@ -43,6 +43,7 @@ import {
   CLIENT_CHANNEL_DEFAULT,
   CLIENT_EMAIL_SEND_MODE_DEFAULT,
   CLIENT_EMAIL_TYPE_DEFAULT,
+  DELIVERY_CLIENT_EMAIL_PURPOSE,
   type ClientChannel,
   type ClientEmailSendMode,
   type ClientEmailType,
@@ -146,7 +147,6 @@ import {
   mergeClientChannelMatrix,
   type OccurrenceClientChannelMatrixChange,
 } from '../domain/occurrence-client-channels.policy.js'
-import { OccurrenceClientChannelEmailTypeRequiredError } from '../domain/occurrence-client-channels.error.js'
 import {
   readResolvedClientChannelMatrices,
   writeOccurrenceTypeClientChannels,
@@ -1348,18 +1348,24 @@ async function syncOccurrenceTypeClientChannels(
   }
 
   const matrix = mergeClientChannelMatrix({ change: input.clientChannels, current })
-  if (isEmailEnabledWithoutClientEmailType({ clientEmailType: legacy.clientEmailType, matrix })) {
-    throw new OccurrenceClientChannelEmailTypeRequiredError()
-  }
+  /** O e-mail não depende de escolha prévia: ligado sem tipo de e-mail do cliente, o tipo passa a ser o padrão (boleto). */
+  const needsDefaultEmailType = isEmailEnabledWithoutClientEmailType({
+    clientEmailType: legacy.clientEmailType,
+    matrix,
+  })
   await writeOccurrenceTypeClientChannels(transaction, {
     companyId: input.companyId,
     matrix,
     occurrenceTypeId: saved.id,
   })
-  const derived = deriveLegacyFieldsFromClientChannelMatrix(matrix)
+  const derived = {
+    ...deriveLegacyFieldsFromClientChannelMatrix(matrix),
+    ...(needsDefaultEmailType ? { clientEmailType: DELIVERY_CLIENT_EMAIL_PURPOSE.BOLETO } : {}),
+  }
   if (
     derived.clientChannel === legacy.clientChannel &&
-    derived.clientEmailSendMode === legacy.clientEmailSendMode
+    derived.clientEmailSendMode === legacy.clientEmailSendMode &&
+    !needsDefaultEmailType
   ) {
     return saved
   }

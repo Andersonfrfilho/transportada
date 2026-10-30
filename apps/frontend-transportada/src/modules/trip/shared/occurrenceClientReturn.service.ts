@@ -11,7 +11,6 @@ import type {
 } from '@/modules/occurrence-conversation/shared/occurrenceTypeMail.types'
 
 import type {
-  ClientEmailType,
   ClientReturnChannel,
   ClientReturnChannelSetting,
   ClientReturnMatrix,
@@ -64,17 +63,6 @@ export function selectClientReturnSendMode(
   sendMode: ClientReturnSendMode,
 ): ClientReturnEdit {
   return buildClientReturnEdit(channel, { ...matrix[channel], sendMode })
-}
-
-/**
- * O e-mail do cliente sai do cadastro dele, pelo tipo de e-mail que o tipo de ocorrência escolhe: com `off` a API
- * recusa o e-mail ligado, então a caixa fica desligada até o tipo de e-mail ser escolhido.
- */
-export function isClientReturnChannelLocked(
-  channel: ClientReturnChannel,
-  clientEmailType: ClientEmailType | undefined,
-): boolean {
-  return channel === 'email' && clientEmailType === 'off'
 }
 
 /** Os modelos do canal, sem o aviso do sistema; o já escolhido continua na lista mesmo que tenha deixado de servir. */

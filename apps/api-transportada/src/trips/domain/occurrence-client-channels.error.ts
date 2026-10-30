@@ -28,18 +28,3 @@ export class OccurrenceClientChannelTemplateInvalidError extends ApiError {
     })
   }
 }
-
-/**
- * E-mail ligado na matriz com o tipo de e-mail do cliente desligado (`clientEmailType = off`): o painel e o app
- * publicados leriam o canal desligado. Escolha o tipo de e-mail junto.
- */
-export class OccurrenceClientChannelEmailTypeRequiredError extends ApiError {
-  public constructor() {
-    super({
-      code: 'OCCURRENCE_CLIENT_CHANNEL_EMAIL_TYPE_REQUIRED',
-      details: [{ field: 'clientEmailType', message: 'required_when_email_channel_enabled' }],
-      message: 'The email client channel needs a client email type.',
-      status: 400,
-    })
-  }
-}

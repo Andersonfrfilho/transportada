@@ -1,7 +1,6 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
@@ -16,7 +15,6 @@ import {
   type ClientReturnSendMode,
 } from '@/modules/trip/shared/occurrenceContractorReply.constant'
 import {
-  isClientReturnChannelLocked,
   listClientReturnTemplates,
   resolveClientReturnProblem,
   selectClientReturnSendMode,
@@ -50,23 +48,20 @@ export function OccurrenceTypeClientReturn({
 }: OccurrenceTypeClientReturnProps) {
   const matrix = type.clientChannels
   if (matrix === undefined || matrix === null) return null
-  return <ClientReturnFields disabled={disabled} matrix={matrix} onEdit={onEdit} type={type} />
+  return <ClientReturnFields disabled={disabled} matrix={matrix} onEdit={onEdit} />
 }
 
-type ClientReturnFieldsProps = OccurrenceTypeClientReturnProps &
+type ClientReturnFieldsProps = Omit<OccurrenceTypeClientReturnProps, 'type'> &
   Readonly<{ matrix: ClientReturnMatrix }>
 
 /** Separado para a lista de modelos só ser lida quando o tipo tem a matriz — API anterior não paga a consulta. */
-function ClientReturnFields({ disabled, matrix, onEdit, type }: ClientReturnFieldsProps) {
+function ClientReturnFields({ disabled, matrix, onEdit }: ClientReturnFieldsProps) {
   const { t } = useTranslation('companySettings')
-  const baseId = useId()
   const templatesQuery = useClientChannelTemplateChoicesQuery({ enabled: true })
   const choices = templatesQuery.data
 
   function renderRow(channel: ClientReturnChannel) {
     const setting = matrix[channel]
-    const rowId = `${baseId}-${channel}`
-    const isLocked = isClientReturnChannelLocked(channel, type.clientEmailType)
     const options = [
       { label: t('occurrenceTypeCatalog.clientReturn.template.none'), value: NO_TEMPLATE },
       ...listClientReturnTemplates(choices ?? [], channel, setting.templateKey).map((choice) => ({
@@ -92,9 +87,8 @@ function ClientReturnFields({ disabled, matrix, onEdit, type }: ClientReturnFiel
       <li className={styles.channelRow} key={channel}>
         <div className={styles.channelBox}>
           <Checkbox
-            {...(isLocked ? { ariaDescribedBy: `${rowId}-locked` } : {})}
             checked={setting.enabled}
-            disabled={disabled || isLocked}
+            disabled={disabled}
             label={channelLabel}
             onChange={(enabled) => onEdit(toggleClientReturnChannel(matrix, channel, enabled))}
           />
@@ -141,11 +135,6 @@ function ClientReturnFields({ disabled, matrix, onEdit, type }: ClientReturnFiel
             />
           </div>
         </div>
-        {isLocked ? (
-          <p className={styles.hint} id={`${rowId}-locked`}>
-            {t('occurrenceTypeCatalog.clientReturn.locked')}
-          </p>
-        ) : null}
         {problem === null ? null : (
           <p className={styles.alert} role="alert">
             {problem.kind === 'unusable'

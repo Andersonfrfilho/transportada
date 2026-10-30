@@ -769,7 +769,6 @@
         "sms": "SMS"
       },
       "soon": "Em breve",
-      "locked": "Escolha acima o e-mail do cliente que o tipo usa para ligar este canal.",
       "template": {
         "label": "Modelo (Notificações)",
         "none": "Nenhum",

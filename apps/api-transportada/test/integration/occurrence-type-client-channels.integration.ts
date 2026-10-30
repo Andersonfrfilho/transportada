@@ -14,7 +14,6 @@ import {
   type SaveOccurrenceTypeValues,
 } from '../../src/trips/application/save-occurrence-type.use-case.js'
 import {
-  OccurrenceClientChannelEmailTypeRequiredError,
   OccurrenceClientChannelTemplateInvalidError,
 } from '../../src/trips/domain/occurrence-client-channels.error.js'
 import {
@@ -157,7 +156,7 @@ describe('spec 286 T2: a matriz por canal do tipo de ocorrência', () => {
   )
 
   testWithPostgres(
-    'recusa modelo de outro canal, de outra empresa, e e-mail ligado sem tipo de e-mail do cliente',
+    'recusa modelo de outro canal e de outra empresa; e-mail ligado sem tipo de e-mail do cliente leva ao padrão',
     async () => {
       await withNotificationDatabase(async (database) => {
         const { companyId } = await seedCompany(database)
@@ -183,6 +182,7 @@ describe('spec 286 T2: a matriz por canal do tipo de ocorrência', () => {
         ).catch((error: unknown) => error)
         expect(wrongChannel).toBeInstanceOf(OccurrenceClientChannelTemplateInvalidError)
 
+        /** O e-mail não trava por falta do tipo de e-mail do cliente: ligado com `off`, o tipo vira o padrão (boleto). */
         const withoutEmailType = await save(
           database,
           companyId,
@@ -191,14 +191,12 @@ describe('spec 286 T2: a matriz por canal do tipo de ocorrência', () => {
             clientEmailType: 'off',
             occurrenceTypeId: created.id,
           }),
-        ).catch((error: unknown) => error)
-        expect(withoutEmailType).toBeInstanceOf(OccurrenceClientChannelEmailTypeRequiredError)
-
-        /** A recusa desfaz a transação inteira: nada mudou. */
+        )
+        expect(withoutEmailType.clientEmailType).toBe('boleto')
         expect((await readView(database, companyId, created.id))?.clientChannels?.email).toEqual({
-          enabled: false,
+          enabled: true,
           sendMode: 'manual',
-          templateKey: null,
+          templateKey: KEY,
         })
       })
     },
