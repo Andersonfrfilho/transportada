@@ -34,6 +34,7 @@ import { findOccurrenceConversations } from '../../src/occurrence-conversation/i
 import type { ClientChannel } from '../../src/shared/delivery-client-email.constant.js'
 import {
   openReplyWithForward,
+  seedContractorReplyChannelTemplate,
   receivePdfReply,
 } from '../fixtures/contractor-reply-database.fixture.js'
 import {
@@ -115,6 +116,12 @@ async function prepare(database: TestDatabase, options: { readonly dailyCap?: nu
   await receivePdfReply(database, { companyId, conversationId })
   const contactId = await seedClient(database, seeded)
   await setClientChannel(database, seeded, 'both')
+  await seedContractorReplyChannelTemplate(
+    database,
+    seeded,
+    'whatsapp',
+    'Segue o boleto prorrogado.',
+  )
   await database.db.insert(whatsappEvolutionSettings).values({
     baseUrl: 'https://evolution.example.test',
     companyId,
