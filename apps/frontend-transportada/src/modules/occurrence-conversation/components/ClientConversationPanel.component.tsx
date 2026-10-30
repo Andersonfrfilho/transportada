@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 
@@ -179,15 +180,18 @@ export function ClientConversationPanel({
         />
       </div>
       {status === 'open' && needsConfirmation ? (
-        <label className={styles.notice}>
-          <input
+        <div className={styles.notice}>
+          <Checkbox
             checked={isConfirmed}
-            onChange={(event) => setConfirmed(event.target.checked)}
-            type="checkbox"
+            label={
+              <>
+                <Icon name="alert" size="sm" />
+                {t('client.reply.confirm', { number: target.channel.maskedAddress })}
+              </>
+            }
+            onChange={setConfirmed}
           />
-          <Icon name="alert" size="sm" />
-          {t('client.reply.confirm', { number: target.channel.maskedAddress })}
-        </label>
+        </div>
       ) : null}
       {failure !== null && failure !== 'whatsappOff' && failure !== 'unavailable' ? (
         <p className={styles.error} role="alert">
