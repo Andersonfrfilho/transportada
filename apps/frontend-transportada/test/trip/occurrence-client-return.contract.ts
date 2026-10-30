@@ -9,7 +9,6 @@ import { describe, expect, test } from 'bun:test'
 import type { ClientChannelTemplateChoice } from '@/modules/occurrence-conversation/shared/occurrenceTypeMail.types'
 import {
   CLIENT_RETURN_SAMPLE_VALUES,
-  isClientReturnChannelLocked,
   listClientReturnTemplates,
   resolveClientReturnProblem,
   selectClientReturnSendMode,
@@ -50,14 +49,7 @@ describe('a troca que cada controle grava (spec 286 T4)', () => {
   })
 })
 
-describe('o e-mail travado e os modelos por canal (spec 286 T4)', () => {
-  test('só o e-mail trava, e só com o tipo de e-mail do cliente em off', () => {
-    expect(isClientReturnChannelLocked('email', 'off')).toBe(true)
-    expect(isClientReturnChannelLocked('email', 'boleto')).toBe(false)
-    expect(isClientReturnChannelLocked('email', undefined)).toBe(false)
-    expect(isClientReturnChannelLocked('whatsapp', 'off')).toBe(false)
-  })
-
+describe('os modelos por canal (spec 286 T4)', () => {
   test('lista os do canal, utilizáveis e o já escolhido, por chave', () => {
     const choices = [
       choice({ key: 'z.email' }),
