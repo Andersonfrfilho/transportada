@@ -13,9 +13,7 @@ import {
   saveOccurrenceTypeWithTemplate,
   type SaveOccurrenceTypeValues,
 } from '../../src/trips/application/save-occurrence-type.use-case.js'
-import {
-  OccurrenceClientChannelTemplateInvalidError,
-} from '../../src/trips/domain/occurrence-client-channels.error.js'
+import { OccurrenceClientChannelTemplateInvalidError } from '../../src/trips/domain/occurrence-client-channels.error.js'
 import {
   findOccurrenceType,
   saveOccurrenceType,
