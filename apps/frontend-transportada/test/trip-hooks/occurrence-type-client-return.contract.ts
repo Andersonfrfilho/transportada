@@ -331,13 +331,13 @@ describe('o bloco "Retorno ao cliente" do tipo (spec 286 T4, RF2)', () => {
   )
 
   test(
-    'e-mail com o tipo de e-mail do cliente em "off": a caixa fica travada, com o motivo',
+    'e-mail com o tipo de e-mail do cliente em "off": a caixa não fica travada, nenhum canal depende do outro',
     scenario({ clientChannelTemplates: CHOICES }, async () => {
       await mount(buildType({ clientEmailType: 'off' }))
 
-      expect(checkbox('E-mail').disabled).toBe(true)
+      expect(checkbox('E-mail').disabled).toBe(false)
       expect(checkbox('WhatsApp').disabled).toBe(false)
-      expect(blockText()).toContain('Escolha acima o e-mail do cliente')
+      expect(blockText()).not.toContain('Escolha acima o e-mail do cliente')
     }),
   )
 
