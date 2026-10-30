@@ -746,6 +746,7 @@
     "reply": {
       "noWhatsapp": "O cliente não responde por e-mail: a resposta só sai pelo WhatsApp, e nenhum número foi aberto ainda.",
       "off": "O WhatsApp está desligado ou fora do ar. Use \"Enviar ao cliente\" por e-mail enquanto isso.",
+      "noPermission": "Você não tem permissão para responder ao cliente. O histórico continua aqui.",
       "replyBy": "Responder por",
       "message": "Mensagem ao cliente",
       "hint": "Sai pelo WhatsApp para {{number}}.",

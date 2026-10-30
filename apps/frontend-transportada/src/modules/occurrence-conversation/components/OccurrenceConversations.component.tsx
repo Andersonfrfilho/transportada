@@ -589,6 +589,7 @@ export function OccurrenceConversations({
     clientConversation === undefined ? null : (
       <ClientConversationPanel
         canReply={canSend}
+        {...(companyId === undefined ? {} : { companyId })}
         conversation={clientConversation}
         occurrenceId={occurrenceId}
       />
@@ -698,6 +699,7 @@ export function OccurrenceConversations({
       >
         <ClientConversationPanel
           canReply={canSend}
+          {...(companyId === undefined ? {} : { companyId })}
           conversation={clientConversation}
           hideChannels
           occurrenceId={occurrenceId}
