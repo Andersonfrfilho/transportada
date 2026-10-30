@@ -106,8 +106,16 @@ Regras que já custaram tempo:
 | `cadastro-motorista/producao-dados-para-convidar.sh`        | CPF, e-mail e telefone das fichas sem usuário, para convidar                                                                                                                                                                                                                                   | leitura                         |
 | `cadastro-motorista/producao-usuarios-sem-keycloak.sh`      | confronta cada usuário do banco com o Keycloak (existe/habilitado)                                                                                                                                                                                                                             | leitura                         |
 | `notas/producao-faixa-notas.sh [de] [ate]`                  | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210)                                                                                                                                                                                                     | leitura                         |
+| `certificado/producao-certificado-validade.sh`               | validade dos certificados A1, execuções com `certificate_expired` e auditoria             | leitura           |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
+
+- **Aviso de certificado digital** (conferido em 30/10/2026): a rotina `notification.schedules.run` do
+  worker avisa por caixa de entrada e e-mail quem enviou o certificado ativo quando faltam 30, 15, 7, 3
+  e 1 dia e quando ele vence (modelos `fiscal.certificate-expiring` e `fiscal.certificate-expired`,
+  semeados pela API). Para ver se saiu: contador `expiringCertificates` e a mensagem
+  `certificate_expiry_swept` nos logs do `worker` (`get-logs` com `filter: certificate_expiry`). Antes
+  disso o único sinal era o motivo `certificate_expired` no cartão da importação automática.
 
 ## 3. Variáveis (conferir e trocar)
 

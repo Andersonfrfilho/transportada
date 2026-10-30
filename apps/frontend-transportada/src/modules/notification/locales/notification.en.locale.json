@@ -14,6 +14,7 @@
     "cteBatch": "CT-e issuance",
     "email": "Email",
     "emailHint": "Arrives with the system closed; depends on the address in your profile.",
+    "fiscal": "Tax and certificate",
     "identity": "Access and account",
     "inbox": "Inbox",
     "inboxHint": "Inside TransportAdA, under the header bell.",
