@@ -25,7 +25,7 @@ da ocorrência, com o que foi enviado, o estado de cada entrega, as respostas e 
 - **D2 — Participante `client`** ao lado de `contractor`, `driver` e `operator`: cor, ícone e nome próprios (nunca só a cor).
 - **D3 — Nasce no primeiro envio** ao cliente (WhatsApp ou e-mail) e só existe a partir daí; sem envio, a tela fica como está.
 - **D4 — Faixa "Canais abertos"**: cada número (mascarado) e cada e-mail, com estado (fila, enviado, entregue, lido, respondeu, falhou).
-- **D5 — Resposta só pelo WhatsApp.** O webhook (281 T6) que casa pelo aviso citado entra nesta conversa; sem citação continua em "não atribuídas", com ação "vincular a esta conversa".
+- **D5 — Resposta só pelo WhatsApp.** O webhook (281 T6) que casa pelo aviso citado entra nesta conversa; sem citação, a resposta de um número que já recebeu algo do painel entra na conversa do cliente mais recente dele (decisão do Anderson em 31/10/2026: o "obrigado" solto não pode sumir); número desconhecido continua em "não atribuídas", com ação "vincular a esta conversa".
 - **D6 — Responder pelo painel** é envio real: escolhe o número em "Responder por", confirma o número no primeiro envio e fica desligado com o WhatsApp desconectado (D14 da 281: cai no e-mail guardado, com aviso).
 - **D7 — Layout.** Tela larga (≥ 80 rem): terceira coluna à direita. Média (64–80 rem): duas colunas e o Cliente numa faixa recolhida abaixo, com canais e contagem à vista. Celular e modo abas: aba "Cliente" com contador, só quando a conversa existe. A preferência de layout do operador (lado a lado/abas) não muda.
 - **D8 — E-mail é canal, não conversa.** Não existe quarta coluna.
