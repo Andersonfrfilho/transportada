@@ -30,6 +30,31 @@ export function createEvolutionConnectionGateway(
       const qr = await open(input).getQrCode()
       return { pairingCode: qr.pairingCode, qrBase64: qr.base64 }
     },
+    async getOwnerNumber(input) {
+      const response = await (dependencies.fetch ?? fetch)(
+        `${input.baseUrl}/instance/fetchInstances?instanceName=${encodeURIComponent(input.instanceName)}`,
+        {
+          headers: { apikey: input.apiKey },
+          method: 'GET',
+          signal: AbortSignal.timeout(OWNER_TIMEOUT_MILLISECONDS),
+        },
+      )
+      if (response.status >= 300) return null
+      return readOwnerNumber((await response.json().catch(() => null)) as unknown)
+    },
+    /** Spec 281 (adendo): `DELETE /instance/logout/{instância}` com a chave da própria instância. */
+    async logout(input) {
+      const response = await (dependencies.fetch ?? fetch)(
+        `${input.baseUrl}/instance/logout/${encodeURIComponent(input.instanceName)}`,
+        {
+          headers: { apikey: input.apiKey },
+          method: 'DELETE',
+          signal: AbortSignal.timeout(OWNER_TIMEOUT_MILLISECONDS),
+        },
+      )
+      // 400/404: a instância já está desconectada; o estado final é o mesmo que se pediu.
+      if (response.status >= 500) throw new Error(`evolution logout failed (${response.status})`)
+    },
     /** Spec 281 T6: o Evolution passa a entregar mensagens e status na URL da empresa, com o segredo no cabeçalho. */
     setWebhook: ({ headers, url, ...request }) =>
       open(request).setWebhook({ headers: { ...headers }, url }),
@@ -37,6 +62,26 @@ export function createEvolutionConnectionGateway(
 }
 
 const PROVISION_TIMEOUT_MILLISECONDS = 15_000
+const OWNER_TIMEOUT_MILLISECONDS = 10_000
+
+/** `ownerJid` ("5516…@s.whatsapp.net") da instância; versões antigas usam `owner`. Só dígitos, ou `null`. */
+export function readOwnerNumber(value: unknown): null | string {
+  const list = Array.isArray(value) ? (value as unknown[]) : [value]
+  for (const item of list) {
+    if (typeof item !== 'object' || item === null) continue
+    const record = item as Record<string, unknown>
+    const instance =
+      typeof record.instance === 'object' && record.instance !== null
+        ? (record.instance as Record<string, unknown>)
+        : {}
+    for (const candidate of [record.ownerJid, record.owner, instance.owner, instance.ownerJid]) {
+      if (typeof candidate !== 'string') continue
+      const digits = candidate.split('@')[0]?.replace(/\D/gu, '') ?? ''
+      if (digits.length >= 10) return digits
+    }
+  }
+  return null
+}
 
 /**
  * Spec 281 T4b: cria a instância com a chave global (cabeçalho `apikey`, nunca em URL nem em log) e devolve o token dela.

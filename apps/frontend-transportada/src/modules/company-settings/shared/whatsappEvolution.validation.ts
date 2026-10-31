@@ -43,6 +43,8 @@ export type WhatsAppEvolutionQr = Readonly<{
 
 export type WhatsAppEvolutionConnection = Readonly<{
   checkedAt: string
+  /** O chip conectado, já mascarado pela API (`+55 ••••6772`); ausente sem conexão. */
+  ownerMasked?: string
   state: WhatsAppEvolutionConnectionState
 }>
 
@@ -122,6 +124,7 @@ export function isWhatsAppEvolutionConnectionResponse(
   if (!isRecord(value) || !isRecord(value.data)) return false
   return (
     typeof value.data.checkedAt === 'string' &&
+    (value.data.ownerMasked === undefined || typeof value.data.ownerMasked === 'string') &&
     isOneOf(WHATSAPP_EVOLUTION_CONNECTION_STATES, value.data.state)
   )
 }

@@ -39,6 +39,10 @@ export function useWhatsAppEvolutionPanel(
     mutationFn: (acknowledgeRisk: boolean) => client.provision(acknowledgeRisk),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
+  const disconnectMutation = useMutation({
+    mutationFn: () => client.disconnect(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [WHATSAPP_EVOLUTION_QUERY_KEY] }),
+  })
   const saveMutation = useMutation({
     mutationFn: (body: WhatsAppEvolutionSaveInput) => client.save(body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
@@ -76,6 +80,7 @@ export function useWhatsAppEvolutionPanel(
 
   return {
     connectionQuery,
+    disconnectMutation,
     provisionMutation,
     provisioningAvailable: query.data?.provisioningAvailable === true,
     qrQuery,

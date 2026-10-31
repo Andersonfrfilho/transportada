@@ -417,6 +417,7 @@ export function CompanySettingsPage() {
   const whatsappError =
     whatsappPanel.query.error ??
     whatsappPanel.saveMutation.error ??
+    whatsappPanel.disconnectMutation.error ??
     whatsappPanel.provisionMutation.error
   const entryKindCatalogPanel = useCompanyEntryKindCatalogPanel({
     enabled: canManageSettings && activeTab === 'entryKinds',
@@ -507,7 +508,8 @@ export function CompanySettingsPage() {
           disabled:
             !canManageSettings ||
             whatsappPanel.saveMutation.isPending ||
-            whatsappPanel.provisionMutation.isPending,
+            whatsappPanel.provisionMutation.isPending ||
+            whatsappPanel.disconnectMutation.isPending,
           errorCode: whatsappError instanceof Error ? whatsappError.message : undefined,
           loading: whatsappPanel.query.isLoading,
           onEdit: () => {
@@ -526,6 +528,11 @@ export function CompanySettingsPage() {
             whatsappPanel.connectionQuery.error instanceof Error
               ? whatsappPanel.connectionQuery.error.message
               : undefined,
+          disconnecting: whatsappPanel.disconnectMutation.isPending,
+          onDisconnect: () => {
+            setWhatsappQrOpen(false)
+            whatsappPanel.disconnectMutation.mutate()
+          },
           onQrOpenChange: setWhatsappQrOpen,
           onSave: (input) => whatsappPanel.saveMutation.mutate(input),
           qr: whatsappPanel.qrQuery.data,

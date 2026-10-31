@@ -201,6 +201,54 @@ describe('WhatsApp (Evolution) settings panel (spec 281 T4)', () => {
       url: 'https://api.example/company-settings/whatsapp-evolution/provision',
     })
   })
+
+  test('disconnect posts to the API and reads the masked number of the connection', async () => {
+    const requests: { method: string; url: string }[] = []
+    const client = createWhatsAppEvolutionClient({
+      apiBaseUrl: 'https://api.example',
+      fetch: (request) => {
+        requests.push({ method: request.method, url: request.url })
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: request.url.endsWith('/connection')
+                ? {
+                    checkedAt: '2026-10-31T12:00:00.000Z',
+                    ownerMasked: '+55 ••••6772',
+                    state: 'open',
+                  }
+                : { checkedAt: '2026-10-31T12:00:01.000Z', state: 'close' },
+            }),
+          ),
+        )
+      },
+      getAccessToken: () => Promise.resolve('token'),
+    })
+
+    expect((await client.connection()).ownerMasked).toBe('+55 ••••6772')
+    expect((await client.disconnect()).state).toBe('close')
+    expect(requests[1]).toEqual({
+      method: 'POST',
+      url: 'https://api.example/company-settings/whatsapp-evolution/disconnect',
+    })
+  })
+
+  test('the disconnect texts exist in pt and en', () => {
+    for (const locale of [pt, en]) {
+      const connection = (
+        locale as unknown as { whatsappEvolution: { connection: Record<string, string> } }
+      ).whatsappEvolution.connection
+      for (const key of [
+        'connectedNumber',
+        'disconnect',
+        'disconnectConfirm',
+        'disconnectConfirmAction',
+        'disconnectCancel',
+      ]) {
+        expect(connection[key]).toBeTruthy()
+      }
+    }
+  })
 })
 
 describe('imagem do QR (img-src não admite data:)', () => {
