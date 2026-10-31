@@ -784,6 +784,9 @@
         "manual": "Manual",
         "automatic": "Automatic"
       },
+      "sendNote": {
+        "manual": "{{channel}} is set to manual sending: it does not go out on its own, only from the button on the occurrence. Choose Automatic to send it by itself."
+      },
       "problem": {
         "missing": "{{channel}} is checked, but the type has no template on this channel: it will not be sent.",
         "not_found": "The template chosen for {{channel}} no longer exists in Notifications: it will not be sent.",

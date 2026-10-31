@@ -112,7 +112,10 @@ export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
 export type ContractorReplyDeliveryTarget = (typeof CONTRACTOR_REPLY_DELIVERY_TARGETS)[number]
 
 /** Spec 281 T5: o envio do boleto por WhatsApp ao cliente; o `address` da entrega é o número em E.164. */
-export const CONTRACTOR_REPLY_WHATSAPP_TARGET = 'client_boleto_whatsapp'
+export const CONTRACTOR_REPLY_WHATSAPP_TARGET = 'client_boleto_whatsapp' as const
+
+/** Spec 288: o envio do boleto por e-mail ao cliente; o `address` da entrega é o e-mail. */
+export const CONTRACTOR_REPLY_CLIENT_EMAIL_TARGET = 'client_boleto_emails' as const
 
 /** Os encaminhamentos do boleto a um terceiro: sem token de resposta e com o anexo ligado pela entrega. */
 export const CONTRACTOR_REPLY_EMAIL_TARGETS = [

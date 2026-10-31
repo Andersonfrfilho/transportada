@@ -2672,7 +2672,11 @@
       "driverReadDocument": "O motorista leu o documento",
       "clientWhatsappSent": "Boleto enviado por WhatsApp",
       "clientWhatsappFailed": "Falhou o envio do boleto por WhatsApp",
-      "clientWhatsappPending": "Envio do boleto por WhatsApp aguardando"
+      "clientWhatsappPending": "Envio do boleto por WhatsApp aguardando",
+      "clientEmailSent": "Boleto enviado por e-mail",
+      "clientEmailFailed": "Falhou o envio do boleto por e-mail",
+      "clientEmailSkipped": "Boleto não enviado por e-mail",
+      "clientEmailPending": "Envio do boleto por e-mail aguardando"
     },
     "detail": {
       "documentConfirmed": "Linha digitável e número da nota {{note}} encontrados no PDF.",
@@ -2695,7 +2699,11 @@
       "send_failed": "O envio falhou",
       "whatsapp_number_not_found": "O número não tem WhatsApp",
       "whatsapp_disconnected": "O WhatsApp estava desconectado",
-      "attachment_too_large_for_whatsapp": "O arquivo é grande demais para o WhatsApp"
+      "attachment_too_large_for_whatsapp": "O arquivo é grande demais para o WhatsApp",
+      "client_without_email": "O cliente não tem e-mail cadastrado para o boleto",
+      "client_without_whatsapp": "O cliente não tem WhatsApp cadastrado",
+      "template_missing": "O canal está ligado, mas sem modelo de mensagem",
+      "attachment_too_large_for_email": "O arquivo é grande demais para o e-mail"
     },
     "stagesTitle": "Etapas",
     "stageRunning": "em andamento há {{elapsed}}",

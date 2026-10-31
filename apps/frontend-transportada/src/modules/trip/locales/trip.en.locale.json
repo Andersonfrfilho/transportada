@@ -2672,7 +2672,11 @@
       "driverReadDocument": "The driver read the document",
       "clientWhatsappSent": "Boleto sent by WhatsApp",
       "clientWhatsappFailed": "Boleto sending by WhatsApp failed",
-      "clientWhatsappPending": "Boleto sending by WhatsApp pending"
+      "clientWhatsappPending": "Boleto sending by WhatsApp pending",
+      "clientEmailSent": "Boleto sent by e-mail",
+      "clientEmailFailed": "Boleto sending by e-mail failed",
+      "clientEmailSkipped": "Boleto not sent by e-mail",
+      "clientEmailPending": "Boleto sending by e-mail pending"
     },
     "detail": {
       "documentConfirmed": "Payment line and note number {{note}} found in the PDF.",
@@ -2695,7 +2699,11 @@
       "send_failed": "Sending failed",
       "whatsapp_number_not_found": "The number has no WhatsApp",
       "whatsapp_disconnected": "WhatsApp was disconnected",
-      "attachment_too_large_for_whatsapp": "The file is too large for WhatsApp"
+      "attachment_too_large_for_whatsapp": "The file is too large for WhatsApp",
+      "client_without_email": "The client has no e-mail registered for the boleto",
+      "client_without_whatsapp": "The client has no WhatsApp number registered",
+      "template_missing": "The channel is on but has no message template",
+      "attachment_too_large_for_email": "The file is too large for e-mail"
     },
     "stagesTitle": "Stages",
     "stageRunning": "running for {{elapsed}}",

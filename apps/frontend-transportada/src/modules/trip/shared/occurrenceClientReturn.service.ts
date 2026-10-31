@@ -105,3 +105,11 @@ export function resolveClientReturnProblem(input: {
   }
   return null
 }
+
+/**
+ * Spec 288: o canal ligado em envio manual não sai sozinho — só pelo botão da ocorrência. É o motivo mais comum de
+ * "o e-mail não saiu"; o editor avisa. `null` quando sai sozinho ou o canal está desligado.
+ */
+export function resolveClientReturnSendNote(setting: ClientReturnChannelSetting): 'manual' | null {
+  return setting.enabled && setting.sendMode === 'manual' ? 'manual' : null
+}

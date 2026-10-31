@@ -181,6 +181,45 @@ describe('spec 278: a linha do tempo mostra o automático', () => {
     )
   })
 
+  test('o boleto ao cliente por e-mail diz se saiu, se ficou de fora e por quê', () => {
+    const sent: OccurrenceTimelineEvent = {
+      ...BASE,
+      id: 'contractor.client.email:m1',
+      kind: 'contractor.client.email',
+      reason: null,
+      status: 'sent',
+    }
+    const skipped: OccurrenceTimelineEvent = {
+      ...sent,
+      reason: 'client_without_email',
+      status: 'skipped',
+    }
+
+    expect(describeOccurrenceTimelineEvent(sent).key).toBe(
+      'occurrenceTimeline.event.clientEmailSent',
+    )
+    expect(describeOccurrenceTimelineEvent(skipped).key).toBe(
+      'occurrenceTimeline.event.clientEmailSkipped',
+    )
+    expect(describeOccurrenceTimelineEvent({ ...sent, status: 'failed' }).key).toBe(
+      'occurrenceTimeline.event.clientEmailFailed',
+    )
+    expect(describeOccurrenceTimelineEvent({ ...sent, status: 'queued' }).key).toBe(
+      'occurrenceTimeline.event.clientEmailPending',
+    )
+    expect(describeOccurrenceTimelineEventDetail(sent)).toBeNull()
+    expect(describeOccurrenceTimelineEventDetail(skipped)).toEqual({
+      key: 'occurrenceTimeline.deliveryReason.client_without_email',
+      values: {},
+    })
+    expect(
+      describeOccurrenceTimelineEventDetail({ ...skipped, reason: 'template_missing' }),
+    ).toEqual({
+      key: 'occurrenceTimeline.deliveryReason.template_missing',
+      values: {},
+    })
+  })
+
   test('o boleto ao cliente por WhatsApp diz se saiu, se falhou e por que; a falha tem motivo conhecido', () => {
     const sent: OccurrenceTimelineEvent = {
       ...BASE,
