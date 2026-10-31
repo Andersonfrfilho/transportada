@@ -436,6 +436,8 @@ async function markFailed(
 async function markSent(
   runner: ContractorReplyClientWhatsAppRunner,
   params: {
+    /** O texto que saiu no WhatsApp: o balão da conversa do cliente mostra exatamente o que foi enviado. */
+    readonly caption: string
     readonly companyId: string
     readonly deliveryId: string
     readonly providerMessageId: null | string
@@ -450,6 +452,11 @@ async function markSent(
         returning id`,
   )
   if (closed.length === 0) return
+  await rowsOf(
+    runner,
+    sql`update occurrence_conversation_messages set body_text = ${params.caption}
+        where company_id = ${companyId}::uuid and client_delivery_id = ${deliveryId}::uuid and body_text = ''`,
+  )
   await rowsOf(
     runner,
     sql`insert into occurrence_conversation_messages
@@ -571,6 +578,7 @@ async function dispatchReply(
     // boleto duas vezes no WhatsApp do cliente.
     await dependencies.transaction((transaction) =>
       markSent(transaction, {
+        caption: prepared.caption,
         companyId,
         deliveryId: item.id,
         providerMessageId: sent.providerMessageId,

@@ -152,6 +152,8 @@ export type ContractorReplyWhatsAppCompletionPort = {
    * da ocorrência ("Boleto enviado por WhatsApp: …", canal `whatsapp`, com o id do provedor para o webhook da T6).
    */
   markSent(params: {
+    /** O texto que saiu: vai ao balão da conversa do cliente (o que foi enviado, não só o anexo). */
+    readonly caption: string
     readonly companyId: string
     readonly deliveryId: string
     readonly providerMessageId: null | string

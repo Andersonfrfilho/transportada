@@ -364,7 +364,7 @@ export function createDrizzleContractorReplyWhatsAppCompletion(
         )
     },
 
-    async markSent({ companyId, deliveryId, providerMessageId }) {
+    async markSent({ caption, companyId, deliveryId, providerMessageId }) {
       await database.transaction(async (transaction) => {
         const [closed] = await transaction
           .update(occurrenceContractorReplyDeliveries)
@@ -378,6 +378,10 @@ export function createDrizzleContractorReplyWhatsAppCompletion(
           )
           .returning({ id: occurrenceContractorReplyDeliveries.id })
         if (closed === undefined) return
+        await transaction.execute(
+          sql`update occurrence_conversation_messages set body_text = ${caption}
+              where company_id = ${companyId}::uuid and client_delivery_id = ${deliveryId}::uuid and body_text = ''`,
+        )
         await transaction.execute(
           sql`insert into occurrence_conversation_messages
                 (company_id, conversation_id, channel, direction, automatic, body_text, status, status_times,

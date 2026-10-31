@@ -634,6 +634,7 @@ async function deliver(params: {
     // Saiu: se o fechamento falhar, a entrega fica `queued` (em andamento) e nunca vira "Tentar de novo" — melhor
     // um estado parado do que o mesmo boleto duas vezes no WhatsApp do cliente.
     await dependencies.completion.markSent({
+      caption: reservation.caption,
       companyId,
       deliveryId: item.deliveryId,
       providerMessageId: sent.providerMessageId,
