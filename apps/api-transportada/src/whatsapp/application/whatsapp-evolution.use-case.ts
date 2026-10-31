@@ -3,6 +3,7 @@
  */
 import type { WhatsAppEvolutionConnectionState } from '../../database/whatsapp-evolution.schema.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import { maskClientWhatsAppNumber } from '../../occurrence-conversation/domain/contractor-reply-whatsapp-number.policy.js'
 import { normalizeEvolutionBaseUrl } from '../domain/evolution-base-url.policy.js'
 import {
   WhatsAppEvolutionApiKeyRequiredError,
@@ -26,6 +27,7 @@ const SETTINGS_SAVED_ACTION = 'whatsapp-evolution.settings.saved'
 const CONNECTION_CHANGED_ACTION = 'whatsapp-evolution.connection.changed'
 const QR_EMPTY_ATTEMPTS = 3
 const QR_EMPTY_RETRY_MILLISECONDS = 2000
+const DISCONNECTED_ACTION = 'whatsapp-evolution.disconnected'
 const QR_REQUESTED_ACTION = 'whatsapp-evolution.qr.requested'
 
 /** O QR do WhatsApp vale poucas dezenas de segundos; a tela pede outro nesse ritmo até conectar. */
@@ -33,6 +35,8 @@ export const WHATSAPP_EVOLUTION_QR_REFRESH_SECONDS = 20
 
 export type WhatsAppEvolutionConnection = {
   readonly checkedAt: string
+  /** O chip conectado, mascarado (`+55 ••••6772`); ausente sem conexão ou quando o Evolution não informa. */
+  readonly ownerMasked?: string
   readonly state: WhatsAppEvolutionConnectionState
 }
 
@@ -46,6 +50,11 @@ export type WhatsAppEvolutionQr = {
 
 export type WhatsAppEvolutionUseCase = {
   connection(input: {
+    readonly context: CompanyContext
+    readonly correlationId: string
+  }): Promise<WhatsAppEvolutionConnection>
+  /** Desfaz o pareamento do número para ligar outro; a instância e a configuração ficam. */
+  disconnect(input: {
     readonly context: CompanyContext
     readonly correlationId: string
   }): Promise<WhatsAppEvolutionConnection>
@@ -161,6 +170,21 @@ export function createWhatsAppEvolutionUseCase(dependencies: {
       })
     },
 
+    async disconnect({ context, correlationId }) {
+      const { request } = await openCredential(context.companyId)
+      try {
+        await gateway.logout(request)
+      } catch {
+        throw new WhatsAppEvolutionUnreachableError()
+      }
+      await repository.recordConnection({
+        audit: { action: DISCONNECTED_ACTION, actorUserId: context.userId, correlationId },
+        companyId: context.companyId,
+        state: 'close',
+      })
+      return { checkedAt: dependencies.now().toISOString(), state: 'close' }
+    },
+
     async connection({ context, correlationId }) {
       const { request } = await openCredential(context.companyId)
       const state = await readState(gateway, request)
@@ -173,7 +197,12 @@ export function createWhatsAppEvolutionUseCase(dependencies: {
         companyId: context.companyId,
         state,
       })
-      return { checkedAt: dependencies.now().toISOString(), state }
+      const owner = state === 'open' ? await readOwner(gateway, request) : null
+      return {
+        checkedAt: dependencies.now().toISOString(),
+        ...(owner === null ? {} : { ownerMasked: maskClientWhatsAppNumber(`+${owner}`) }),
+        state,
+      }
     },
 
     async qr({ context, correlationId }) {
@@ -315,6 +344,18 @@ async function readState(
     return await gateway.getConnectionState(request)
   } catch {
     throw new WhatsAppEvolutionUnreachableError()
+  }
+}
+
+/** O número é um enfeite da tela: falha ao lê-lo nunca derruba a leitura do estado. */
+async function readOwner(
+  gateway: WhatsAppEvolutionGatewayPort,
+  request: Parameters<WhatsAppEvolutionGatewayPort['getOwnerNumber']>[0],
+): Promise<null | string> {
+  try {
+    return await gateway.getOwnerNumber(request)
+  } catch {
+    return null
   }
 }
 

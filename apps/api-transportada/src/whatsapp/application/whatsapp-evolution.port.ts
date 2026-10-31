@@ -113,6 +113,10 @@ export type WhatsAppEvolutionGatewayPort = {
     input: EvolutionConnectionRequest,
   ): Promise<Exclude<WhatsAppEvolutionConnectionState, 'unknown'>>
   getQrCode(input: EvolutionConnectionRequest): Promise<EvolutionQrResult>
+  /** O número do chip conectado, só com dígitos (E.164 sem `+`); `null` quando o Evolution não o informa. */
+  getOwnerNumber(input: EvolutionConnectionRequest): Promise<null | string>
+  /** Desfaz o pareamento do número (o chip sai); a instância continua e gera QR novo. */
+  logout(input: EvolutionConnectionRequest): Promise<void>
 }
 
 /**

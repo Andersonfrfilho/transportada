@@ -16,6 +16,7 @@ import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import {
   API_WHATSAPP_EVOLUTION_CONNECTION_PATH,
+  API_WHATSAPP_EVOLUTION_DISCONNECT_PATH,
   API_WHATSAPP_EVOLUTION_PATH,
   API_WHATSAPP_EVOLUTION_PROVISION_PATH,
   API_WHATSAPP_EVOLUTION_QR_PATH,
@@ -73,6 +74,11 @@ export type WhatsAppEvolutionRoutesDependencies = {
   /** O ambiente tem a chave global do Evolution: a tela oferece "Criar e conectar". */
   readonly provisioningAvailable: boolean
   readonly connection: {
+    execute(
+      input: ActorInput & { readonly context: CompanyContext },
+    ): Promise<WhatsAppEvolutionConnection>
+  }
+  readonly disconnect: {
     execute(
       input: ActorInput & { readonly context: CompanyContext },
     ): Promise<WhatsAppEvolutionConnection>
@@ -159,6 +165,19 @@ export function createWhatsAppEvolutionRoutes(
         return { acknowledgeRisk: body.acknowledgeRisk, correlationId }
       },
       pathname: API_WHATSAPP_EVOLUTION_PROVISION_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<ActorInput>({
+      async handle({ context, input }): Promise<Response> {
+        const connection = await dependencies.disconnect.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse(200, { data: connection })
+      },
+      method: 'POST',
+      parse: ({ correlationId }) => ({ correlationId }),
+      pathname: API_WHATSAPP_EVOLUTION_DISCONNECT_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
     defineRoute<ActorInput>({

@@ -37,6 +37,7 @@ export class WhatsAppEvolutionRequestError extends Error {
 
 export type WhatsAppEvolutionClient = Readonly<{
   connection: () => Promise<WhatsAppEvolutionConnection>
+  disconnect: () => Promise<WhatsAppEvolutionConnection>
   get: () => Promise<WhatsAppEvolutionState>
   provision: (acknowledgeRisk: boolean) => Promise<WhatsAppEvolutionSettings>
   qr: () => Promise<WhatsAppEvolutionQr>
@@ -92,6 +93,16 @@ export function createWhatsAppEvolutionClient(
     async connection() {
       const body = await readBody(
         await send({ dependencies, method: 'GET', path: `${WHATSAPP_EVOLUTION_PATH}/connection` }),
+      )
+      if (!isWhatsAppEvolutionConnectionResponse(body)) {
+        throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
+      }
+
+      return body.data
+    },
+    async disconnect() {
+      const body = await readBody(
+        await send({ dependencies, method: 'POST', path: `${WHATSAPP_EVOLUTION_PATH}/disconnect` }),
       )
       if (!isWhatsAppEvolutionConnectionResponse(body)) {
         throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)

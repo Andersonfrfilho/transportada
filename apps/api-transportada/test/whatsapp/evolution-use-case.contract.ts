@@ -100,6 +100,7 @@ async function buildFixture(
     readonly existing?: WhatsAppEvolutionSummary | null
     readonly emptyQrs?: number
     readonly gatewayFails?: boolean
+    readonly owner?: string
     readonly provisioner?: 'fails' | 'ok'
     readonly state?: 'close' | 'connecting' | 'open'
     readonly status?: 'active' | 'disabled'
@@ -156,6 +157,14 @@ async function buildFixture(
         return { pairingCode: null, qrBase64: null }
       }
       return { pairingCode: 'ABCD-1234', qrBase64: 'iVBORw0KGgo=' }
+    },
+    getOwnerNumber: async (request) => {
+      gatewayCalls.push({ ...request, method: 'owner' })
+      return input.owner ?? null
+    },
+    logout: async (request) => {
+      gatewayCalls.push({ ...request, method: 'logout' })
+      if (input.gatewayFails === true) throw new Error('boom: https://evolution/secret')
     },
   }
   const useCase = createWhatsAppEvolutionUseCase({
@@ -306,11 +315,63 @@ describe('o QR e o estado da conexão (spec 281 T4)', () => {
     const result = await fixture.useCase.connection({ context: CONTEXT, correlationId: 'c1' })
 
     expect(result).toEqual({ checkedAt: '2026-10-27T12:00:00.000Z', state: 'open' })
-    expect(fixture.gatewayCalls).toEqual([
-      { apiKey: API_KEY, baseUrl: SUMMARY.baseUrl, instanceName: 'transportada', method: 'state' },
-    ])
+    expect(fixture.gatewayCalls.map((call) => call.method)).toEqual(['state', 'owner'])
+    expect(fixture.gatewayCalls[0]).toEqual({
+      apiKey: API_KEY,
+      baseUrl: SUMMARY.baseUrl,
+      instanceName: 'transportada',
+      method: 'state',
+    })
     expect(fixture.recorded).toEqual([{ audited: true, state: 'open' }])
     expect(JSON.stringify(result)).not.toContain(API_KEY)
+  })
+
+  test('conectado, mostra o número do chip mascarado, nunca inteiro', async () => {
+    const fixture = await buildFixture({ owner: '5516993056772', state: 'open' })
+
+    const result = await fixture.useCase.connection({ context: CONTEXT, correlationId: 'c1' })
+
+    expect(result.ownerMasked).toBe('+55 ••••6772')
+    expect(JSON.stringify(result)).not.toContain('993056772')
+  })
+
+  test('sem conexão não pergunta o número', async () => {
+    const fixture = await buildFixture({ owner: '5516993056772', state: 'close' })
+
+    const result = await fixture.useCase.connection({ context: CONTEXT, correlationId: 'c1' })
+
+    expect(result.ownerMasked).toBeUndefined()
+    expect(fixture.gatewayCalls.map((call) => call.method)).toEqual(['state'])
+  })
+
+  test('desconectar faz o logout com a chave aberta, grava "close" e audita', async () => {
+    const fixture = await buildFixture({ state: 'open' })
+
+    const result = await fixture.useCase.disconnect({ context: CONTEXT, correlationId: 'c1' })
+
+    expect(result).toEqual({ checkedAt: '2026-10-27T12:00:00.000Z', state: 'close' })
+    expect(fixture.gatewayCalls).toEqual([
+      { apiKey: API_KEY, baseUrl: SUMMARY.baseUrl, instanceName: 'transportada', method: 'logout' },
+    ])
+    expect(fixture.recorded).toEqual([{ audited: true, state: 'close' }])
+  })
+
+  test('desconectar sem configuração diz que falta configurar, sem chamar o Evolution', async () => {
+    const fixture = await buildFixture({ existing: null })
+
+    await expect(
+      fixture.useCase.disconnect({ context: CONTEXT, correlationId: 'c1' }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionNotConfiguredError)
+    expect(fixture.gatewayCalls).toEqual([])
+  })
+
+  test('falha do logout vira erro tipado e não grava estado', async () => {
+    const fixture = await buildFixture({ gatewayFails: true })
+
+    await expect(
+      fixture.useCase.disconnect({ context: CONTEXT, correlationId: 'c1' }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionUnreachableError)
+    expect(fixture.recorded).toEqual([])
   })
 
   test('o QR vem como imagem pronta, com a renovação, e o pedido é auditado sem o QR', async () => {
