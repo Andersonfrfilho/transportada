@@ -118,9 +118,13 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
   const stored = props.stored
   if (stored === null || stored === undefined) return null
   // O estado da tela é o do QR quando ele já respondeu; senão, o último gravado.
-  const state = props.qrOpen
-    ? (props.qr?.state ?? stored.connectionState)
-    : (props.connection?.state ?? stored.connectionState)
+  // 'open' vence: a leitura curta do estado enxerga a conexão antes do próximo QR.
+  const state =
+    props.connection?.state === 'open'
+      ? 'open'
+      : props.qrOpen
+        ? (props.qr?.state ?? stored.connectionState)
+        : (props.connection?.state ?? stored.connectionState)
   const checkedAt = props.connection?.checkedAt ?? stored.connectionCheckedAt
   const canConnect = stored.status === 'active' && stored.apiKeyConfigured
 

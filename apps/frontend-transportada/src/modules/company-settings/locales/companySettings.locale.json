@@ -897,7 +897,7 @@
       "title": "Conexão do número",
       "qrWaiting": "Gerando o QR code. Pode levar alguns segundos.",
       "qrValidity": "Este código vale por cerca de {{seconds}} s e se renova sozinho. Escaneie logo, antes de vencer.",
-      "qrExpired": "Este código venceu. Aguarde o novo código aparecer antes de escanear.",
+      "qrExpired": "Este código venceu. Clique em \"Gerar novo QR\" e escaneie o novo código.",
       "refreshQr": "Gerar novo QR"
     },
     "provision": {
