@@ -151,6 +151,7 @@ async function prepare(database: TestDatabase, options: { readonly dailyCap?: nu
     completion: createDrizzleContractorReplyWhatsAppCompletion(database.db),
     now: () => new Date(),
     sender: {
+      connectedNumber: async () => null,
       isConnected: async () => true,
       sendDocument: async ({ number }) => {
         sends.push(number)

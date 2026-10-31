@@ -890,6 +890,7 @@
       "dropped": "O número está desconectado. Gere um novo QR para reconectar; enquanto isso os envios caem para o e-mail.",
       "reconnect": "Reconectar número",
       "connectedNumber": "Número conectado: {{number}}.",
+      "reveal": "Revelar",
       "disconnect": "Desconectar número",
       "disconnectConfirm": "Desconectar este número do WhatsApp? Os envios caem para o e-mail até conectar outro número, e você poderá ler o QR de um novo chip.",
       "disconnectConfirmAction": "Sim, desconectar",

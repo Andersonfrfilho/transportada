@@ -5673,6 +5673,7 @@ function createApplicationRoutes({
     ...createWhatsAppEvolutionRoutes({
       connection: { execute: (input) => whatsappEvolution.connection(input) },
       disconnect: { execute: (input) => whatsappEvolution.disconnect(input) },
+      reveal: { execute: (input) => whatsappEvolution.revealOwner(input) },
       provision: { execute: (input) => whatsappEvolution.provision(input) },
       provisioningAvailable: whatsappEvolution.provisioningAvailable,
       qr: { execute: (input) => whatsappEvolution.qr(input) },

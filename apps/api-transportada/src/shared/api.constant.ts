@@ -237,6 +237,8 @@ export const API_WHATSAPP_EVOLUTION_CONNECTION_PATH =
   '/company-settings/whatsapp-evolution/connection'
 export const API_WHATSAPP_EVOLUTION_DISCONNECT_PATH =
   '/company-settings/whatsapp-evolution/disconnect'
+export const API_WHATSAPP_EVOLUTION_REVEAL_PATH =
+  '/company-settings/whatsapp-evolution/connection/reveal'
 export const API_WHATSAPP_EVOLUTION_QR_PATH = '/company-settings/whatsapp-evolution/qr'
 export const API_WHATSAPP_EVOLUTION_PROVISION_PATH =
   '/company-settings/whatsapp-evolution/provision'

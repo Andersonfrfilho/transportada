@@ -22,10 +22,15 @@ const DEFAULT_TEXTS = {
 export function createClientTextsResolver(
   template?: ClientTextsTemplate,
 ): ContractorReplyEmailTransactionPort['resolveClientTexts'] {
-  return async ({ channel }) => {
+  return async ({ channel, variableOverrides }) => {
     if (template === 'missing') return { kind: 'template_missing', legacy: false }
     if (template === 'none') return { kind: 'template_missing', legacy: true }
     const chosen = template?.[channel] ?? DEFAULT_TEXTS[channel]
-    return { kind: 'texts', texts: chosen }
+    // O modelo de verdade troca `{{variável}}` pelo valor; o dublê só honra as trocas pedidas.
+    const body = Object.entries(variableOverrides ?? {}).reduce(
+      (text, [name, value]) => text.replaceAll(`{{${name}}}`, value),
+      chosen.body,
+    )
+    return { kind: 'texts', texts: { ...chosen, body } }
   }
 }

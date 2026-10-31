@@ -48,6 +48,15 @@ export type WhatsAppEvolutionConnection = Readonly<{
   state: WhatsAppEvolutionConnectionState
 }>
 
+export type WhatsAppEvolutionOwnerReveal = Readonly<{ ownerNumber: string | null }>
+
+export function isWhatsAppEvolutionOwnerRevealResponse(
+  value: unknown,
+): value is Readonly<{ data: WhatsAppEvolutionOwnerReveal }> {
+  if (!isRecord(value) || !isRecord(value.data)) return false
+  return isNullableString(value.data.ownerNumber)
+}
+
 export type WhatsAppEvolutionSaveInput = Readonly<{
   acknowledgeRisk: boolean
   apiKey?: string

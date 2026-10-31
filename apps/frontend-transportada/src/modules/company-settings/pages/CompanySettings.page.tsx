@@ -531,8 +531,12 @@ export function CompanySettingsPage() {
           disconnecting: whatsappPanel.disconnectMutation.isPending,
           onDisconnect: () => {
             setWhatsappQrOpen(false)
+            whatsappPanel.revealMutation.reset()
             whatsappPanel.disconnectMutation.mutate()
           },
+          onReveal: () => whatsappPanel.revealMutation.mutate(),
+          revealedNumber: whatsappPanel.revealMutation.data?.ownerNumber ?? undefined,
+          revealing: whatsappPanel.revealMutation.isPending,
           onQrOpenChange: setWhatsappQrOpen,
           onSave: (input) => whatsappPanel.saveMutation.mutate(input),
           qr: whatsappPanel.qrQuery.data,

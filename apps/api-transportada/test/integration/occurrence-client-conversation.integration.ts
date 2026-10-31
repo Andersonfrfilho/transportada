@@ -159,6 +159,7 @@ async function prepare(database: TestDatabase, options: { readonly withClient?: 
     completion: createDrizzleContractorReplyWhatsAppCompletion(database.db),
     now: () => new Date(),
     sender: {
+      connectedNumber: async () => null,
       isConnected: async () => true,
       sendDocument: async ({ number }) => {
         if (failNumbers.has(number)) throw new Error('EVOLUTION_DOWN')

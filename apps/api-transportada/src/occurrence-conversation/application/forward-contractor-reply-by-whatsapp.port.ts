@@ -179,6 +179,8 @@ export class ContractorReplyWhatsAppSendError extends Error {
  * de envio sai como `ContractorReplyWhatsAppSendError`.
  */
 export type ContractorReplyWhatsAppSenderPort = {
+  /** O número do chip pareado (só dígitos, com o 55), ou `null` se o Evolution não informa; vira o 📞 da mensagem. */
+  connectedNumber(params: { readonly companyId: string }): Promise<null | string>
   isConnected(params: { readonly companyId: string }): Promise<boolean>
   sendDocument(params: {
     readonly bytes: Uint8Array

@@ -31,6 +31,10 @@ export type WhatsAppEvolutionPanelProps = Readonly<{
   connectionErrorCode: string | undefined
   disabled: boolean
   disconnecting: boolean
+  /** Pede o número do chip por inteiro; a API só o devolve a quem gerencia as configurações. */
+  onReveal: () => void
+  revealedNumber: string | undefined
+  revealing: boolean
   /** Desfaz o pareamento no Evolution; a instância fica livre para ler o QR de outro número. */
   onDisconnect: () => void
   errorCode: string | undefined
@@ -158,8 +162,21 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
             {props.connection?.ownerMasked === undefined
               ? t('whatsappEvolution.connection.connected')
               : t('whatsappEvolution.connection.connectedNumber', {
-                  number: props.connection.ownerMasked,
+                  number: props.revealedNumber ?? props.connection.ownerMasked,
                 })}
+            {props.connection?.ownerMasked === undefined ||
+            props.revealedNumber !== undefined ? null : (
+              <Button
+                disabled={props.revealing}
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={props.onReveal}
+              >
+                <Icon name="eye" />
+                {t('whatsappEvolution.connection.reveal')}
+              </Button>
+            )}
           </p>
         ) : null}
         {canConnect && state === 'open' ? (
