@@ -41,6 +41,17 @@ com o canal E-mail e os selos de estado.
 **Given** a conversa geral **When** carrega **Then** cada mensagem mostra o canal de que veio (WhatsApp, e-mail, app,
 portal), também na entrada.
 
+## Canais por participante (decisão do dono, 2026-10-31)
+
+Os canais **não são fixos por chat**: crescem com o tempo, então o seletor lê a lista de canais da conversa, nunca um
+conjunto escrito na tela.
+
+| Participante | Hoje | Previsto |
+| ------------ | ---- | -------- |
+| Cliente      | WhatsApp | WhatsApp, e-mail, app do cliente |
+| Contratante  | e-mail, portal | + app do cliente |
+| Motorista    | app do motorista | + WhatsApp |
+
 ## Requisitos funcionais
 
 - **RF1** `POST /occurrences/:id/client/messages` aceita `channel: 'whatsapp' | 'email'`. No e-mail não há
@@ -51,6 +62,8 @@ portal), também na entrada.
 - **RF3** Seletor "Enviar por" no `ConversationThread` das três abas; um canal só = sem seletor, só o rótulo.
 - **RF4** A escolha lembra o último canal usado na conversa; a resposta a uma mensagem recebida sugere o canal dela.
 - **RF5** Toda mensagem exibe o canal de origem; o contrato do canal já existe por mensagem (183 D2).
+- **RF6b** O catálogo de canais por participante é dado (constante única na API, devolvida na conversa); canal novo
+  entra sem mexer na tela do seletor.
 - **RF6** Nada de regra por nome de tipo ou de transportadora: o canal vem da configuração do tipo.
 
 ## Requisitos não funcionais
@@ -70,5 +83,4 @@ Contrato antes do código (API e painel); integração da rota nova com os dois 
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: motorista tem outro canal além do app? (WhatsApp do motorista entra no seletor?)]
 - [NEEDS CLARIFICATION: com os dois canais ligados e envio manual, o seletor permite "ambos" ou um por vez?]
