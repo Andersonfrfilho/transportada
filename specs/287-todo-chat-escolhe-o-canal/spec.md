@@ -4,13 +4,13 @@
 
 ## Specs do mesmo assunto (lidas)
 
-| Spec | O que já decidiu e esta spec usa |
-| ---- | -------------------------------- |
-| 183  | D2: o canal é **por mensagem**. D9: a conversa mostra a mensagem por qualquer canal. |
-| 274  | O chat da contratante envia por e-mail (modelo padrão `notification.standard-email`). |
-| 283  | Chat do cliente só por WhatsApp; **e-mail do cliente fora do escopo** (D4/T5). Esta spec revoga essa exclusão. |
-| 281/286 | Evolution e "Retorno ao cliente": matriz por canal (habilitado, off/manual/automático). |
-| 279  | E-mails do cadastro do cliente e envio do boleto por e-mail. |
+| Spec    | O que já decidiu e esta spec usa                                                                               |
+| ------- | -------------------------------------------------------------------------------------------------------------- |
+| 183     | D2: o canal é **por mensagem**. D9: a conversa mostra a mensagem por qualquer canal.                           |
+| 274     | O chat da contratante envia por e-mail (modelo padrão `notification.standard-email`).                          |
+| 283     | Chat do cliente só por WhatsApp; **e-mail do cliente fora do escopo** (D4/T5). Esta spec revoga essa exclusão. |
+| 281/286 | Evolution e "Retorno ao cliente": matriz por canal (habilitado, off/manual/automático).                        |
+| 279     | E-mails do cadastro do cliente e envio do boleto por e-mail.                                                   |
 
 ## Problema e resultado
 
@@ -29,15 +29,18 @@ Canais novos (SMS, Telegram). Mudar quem decide a tratativa (183 D4).
 ## Histórias priorizadas
 
 ### P1 — Cliente por e-mail
+
 **Given** o cliente com e-mail no cadastro (279) e o canal E-mail ligado no tipo **When** o operador escolhe "E-mail"
 no seletor e envia **Then** sai no modelo padrão (274) aos e-mails do cliente e o balão entra na conversa do cliente
 com o canal E-mail e os selos de estado.
 
 ### P1 — Cliente sem WhatsApp aberto
+
 **Given** só e-mail disponível **When** o operador abre o chat **Then** o composer está aberto no e-mail; o aviso
 "só sai pelo WhatsApp" some.
 
 ### P2 — Origem em toda mensagem
+
 **Given** a conversa geral **When** carrega **Then** cada mensagem mostra o canal de que veio (WhatsApp, e-mail, app,
 portal), também na entrada.
 
@@ -46,11 +49,11 @@ portal), também na entrada.
 Os canais **não são fixos por chat**: crescem com o tempo, então o seletor lê a lista de canais da conversa, nunca um
 conjunto escrito na tela.
 
-| Participante | Hoje | Previsto |
-| ------------ | ---- | -------- |
-| Cliente      | WhatsApp | WhatsApp, e-mail, app do cliente |
-| Contratante  | e-mail, portal | + app do cliente |
-| Motorista    | app do motorista | + WhatsApp |
+| Participante | Hoje             | Previsto                         |
+| ------------ | ---------------- | -------------------------------- |
+| Cliente      | WhatsApp         | WhatsApp, e-mail, app do cliente |
+| Contratante  | e-mail, portal   | + app do cliente                 |
+| Motorista    | app do motorista | + WhatsApp                       |
 
 ## Requisitos funcionais
 
