@@ -298,7 +298,8 @@
 
 .columnHeader {
   display: flex;
-  flex-wrap: wrap;
+  /* O botão é só o ícone (o nome fica no rótulo e na dica): o cabeçalho nunca quebra, igual nas três colunas. */
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
   padding-bottom: var(--space-2);
