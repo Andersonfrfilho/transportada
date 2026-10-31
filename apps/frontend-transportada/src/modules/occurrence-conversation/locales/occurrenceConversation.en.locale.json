@@ -746,6 +746,7 @@
     "reply": {
       "noWhatsapp": "The client does not reply by e-mail: replies only go out by WhatsApp, and no number has been opened yet.",
       "off": "WhatsApp is off or down. Use \"Send to client\" by e-mail meanwhile.",
+      "noPermission": "You do not have permission to reply to the client. The history stays here.",
       "replyBy": "Reply by",
       "message": "Message to the client",
       "hint": "Goes out by WhatsApp to {{number}}.",

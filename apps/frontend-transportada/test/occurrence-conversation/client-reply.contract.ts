@@ -13,6 +13,7 @@ import {
   resolveClientReplyFailure,
   validateClientReplyDraft,
 } from '@/modules/occurrence-conversation/shared/clientReply.service'
+import { toClientThreadMessage } from '@/modules/occurrence-conversation/shared/clientThreadApi.service'
 import { createOccurrenceConversationClient } from '@/modules/occurrence-conversation/shared/occurrenceConversationClient.service'
 import type { OccurrenceClientChannel } from '@/modules/occurrence-conversation/shared/occurrenceConversation.types'
 
@@ -164,12 +165,14 @@ describe('a chamada à API', () => {
 describe('o campo de resposta na tela', () => {
   test('o número nunca é montado no painel: só `replyTargetId`, e o texto é por locale', async () => {
     const composer = await source(
-      'modules/occurrence-conversation/components/ClientReplyComposer.component.tsx',
+      'modules/occurrence-conversation/components/ClientConversationPanel.component.tsx',
     )
-    expect(composer).toContain('replyTargetId: target.id')
-    expect(composer).toContain('confirmNumber: true')
+    expect(composer).toContain('ConversationThread')
     expect(composer).toContain('evolution.ready === false')
     expect(composer).toContain("t('client.reply.confirm'")
+    const api = await source('modules/occurrence-conversation/shared/clientThreadApi.service.ts')
+    expect(api).toContain('replyTargetId: target.id')
+    expect(api).toContain('confirmNumber: true')
     const pt = JSON.parse(
       await source('modules/occurrence-conversation/locales/occurrenceConversation.locale.json'),
     ) as { client: { reply: Record<string, unknown> } }
@@ -177,5 +180,79 @@ describe('o campo de resposta na tela', () => {
       await source('modules/occurrence-conversation/locales/occurrenceConversation.en.locale.json'),
     ) as { client: { reply: Record<string, unknown> } }
     expect(Object.keys(en.client.reply).sort()).toEqual(Object.keys(pt.client.reply).sort())
+  })
+})
+
+describe('o chat do cliente tem o mesmo desenho do chat do motorista', () => {
+  const labels = {
+    bySystem: 'Sistema',
+    channel: { app: 'app', email: 'e-mail', portal: 'portal', whatsapp: 'WhatsApp' },
+    fromUs: 'Nós',
+    sentDocument: (name: string) => `Boleto enviado: ${name}`,
+    sentNoText: 'Mensagem enviada.',
+  } as const
+  const base = {
+    attachments: [],
+    author: { kind: 'automatic' },
+    bodyText: '',
+    channel: 'whatsapp',
+    createdAt: '2026-10-30T20:36:00.000Z',
+    direction: 'outbound',
+    id: 'm1',
+    status: 'delivered',
+    statusTimes: {},
+  } as const
+
+  test('o envio do boleto vira balão com o arquivo, sem repetir o nome no texto', () => {
+    const message = toClientThreadMessage(
+      {
+        ...base,
+        attachments: [
+          {
+            contentType: 'application/pdf',
+            fileName: 'boleto.pdf',
+            id: 'a1',
+            sizeBytes: 4500,
+            url: 'https://x/a1',
+          },
+        ],
+        clientDelivery: {
+          actorKind: 'system',
+          actorName: null,
+          deliveryId: 'd1',
+          documentName: 'boleto.pdf',
+          recipientMasked: '+55 •••• 6772',
+        },
+      },
+      labels,
+    )
+    expect(message.attachments).toHaveLength(1)
+    expect(message.text).toBe('')
+    expect(message.authorName).toBe('Sistema · WhatsApp')
+  })
+
+  test('sem arquivo no balão, o texto diz qual boleto foi', () => {
+    const message = toClientThreadMessage(
+      {
+        ...base,
+        clientDelivery: {
+          actorKind: 'system',
+          actorName: null,
+          deliveryId: 'd1',
+          documentName: 'boleto.pdf',
+          recipientMasked: '+55 •••• 6772',
+        },
+      },
+      labels,
+    )
+    expect(message.text).toBe('Boleto enviado: boleto.pdf')
+  })
+
+  test('o texto escrito segue como veio, com a formatação do SDK (*negrito*, _itálico_)', () => {
+    const message = toClientThreadMessage(
+      { ...base, bodyText: 'Segue o *boleto* _prorrogado_ 😀' },
+      labels,
+    )
+    expect(message.text).toBe('Segue o *boleto* _prorrogado_ 😀')
   })
 })
