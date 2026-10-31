@@ -31,6 +31,14 @@ const PHONE_DIGITS_PATTERN = /^[1-9]\d{9,14}$/u
 
 export type EvolutionConversationInboundPort = WhatsAppConversationInboundPort & {
   /**
+   * A conversa do cliente para a qual o painel mais recentemente mandou algo por WhatsApp a este número (chave do
+   * número, `toWhatsAppPhoneKey`), ou `null`. É onde cai o "obrigado" de quem recebeu o boleto e não citou a mensagem.
+   */
+  findLatestClientConversation(input: {
+    readonly companyId: string
+    readonly phoneKey: string
+  }): Promise<null | string>
+  /**
    * O número (E.164) da entrega que a mensagem citada conta (`system_notice.deliveryId`, gravado pela
    * T5), ou `null` quando a citada não é um envio com entrega. Spec 283: com a conversa do cliente
    * daquela entrega, quando ela existe.
@@ -128,6 +136,24 @@ export function createEvolutionConversationInbound(deps: {
             conversationId: attribution.conversationId,
             driverUserId: attribution.driverUserId,
             senderAddress: attribution.driverUserId === null ? message.from : null,
+          })
+          return 'conversation'
+        }
+
+        /**
+         * Quem recebeu o boleto costuma responder sem citar ("obrigado"): sem atribuição por contato ou citação, a
+         * mensagem entra na conversa do cliente a que o painel escreveu por último para esse número.
+         */
+        const clientConversationId = await deps.inbound.findLatestClientConversation({
+          companyId,
+          phoneKey: senderPhoneKey,
+        })
+        if (clientConversationId !== null) {
+          await deps.inbound.recordConversationMessage({
+            ...common,
+            conversationId: clientConversationId,
+            driverUserId: null,
+            senderAddress: message.from,
           })
           return 'conversation'
         }
