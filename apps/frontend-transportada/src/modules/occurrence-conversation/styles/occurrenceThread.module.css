@@ -335,17 +335,17 @@
     grid-template-columns: var(--column-1) var(--column-2) var(--column-3);
   }
 
-  /* Uma conversa minimizada fica só com o cabeçalho; as outras ocupam o resto da largura. */
+  /* Uma conversa minimizada fica só com o cabeçalho; as outras ocupam todo o resto da largura (a trilha é só a do cabeçalho, sem faixa em branco). */
   .columnsFirstCollapsed {
-    --column-1: minmax(12rem, 20rem);
+    --column-1: max-content;
   }
 
   .columnsSecondCollapsed {
-    --column-2: minmax(12rem, 20rem);
+    --column-2: max-content;
   }
 
   .columnsThirdCollapsed {
-    --column-3: minmax(12rem, 20rem);
+    --column-3: max-content;
   }
 }
 
