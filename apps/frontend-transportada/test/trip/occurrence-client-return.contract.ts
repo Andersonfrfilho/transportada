@@ -11,6 +11,7 @@ import {
   CLIENT_RETURN_SAMPLE_VALUES,
   listClientReturnTemplates,
   resolveClientReturnProblem,
+  resolveClientReturnSendNote,
   selectClientReturnSendMode,
   selectClientReturnTemplate,
   toggleClientReturnChannel,
@@ -135,5 +136,14 @@ describe('a prévia do boleto ao cliente (spec 286)', () => {
       expect(CLIENT_RETURN_SAMPLE_VALUES[name]).not.toBe('')
       expect(CLIENT_RETURN_SAMPLE_VALUES[name]).toBeDefined()
     }
+  })
+})
+
+describe('o aviso de que o canal ligado não sai sozinho (spec 288)', () => {
+  test('ligado em manual: avisa que só sai pelo botão; automático e desligado não avisam', () => {
+    const on = { enabled: true, sendMode: 'manual', templateKey: 'x' } as const
+    expect(resolveClientReturnSendNote(on)).toBe('manual')
+    expect(resolveClientReturnSendNote({ ...on, sendMode: 'automatic' })).toBeNull()
+    expect(resolveClientReturnSendNote({ ...on, enabled: false })).toBeNull()
   })
 })

@@ -784,6 +784,9 @@
         "manual": "Manual",
         "automatic": "Automático"
       },
+      "sendNote": {
+        "manual": "{{channel}} está em envio manual: não sai sozinho, só pelo botão da ocorrência. Para sair sozinho, escolha Automático."
+      },
       "problem": {
         "missing": "{{channel}} marcado, mas o tipo está sem modelo neste canal: esse canal não será enviado.",
         "not_found": "O modelo escolhido para {{channel}} não existe mais no módulo de Notificações: esse canal não será enviado.",
