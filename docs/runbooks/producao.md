@@ -533,3 +533,13 @@ INSERT no banco do app; Keycloak intocado. Reverter: apagar essa membership e o 
 
 `producao-renomear-usuarios-uuid.sh` rodou no mesmo dia e não achou nenhum username em UUID em
 `identity_user_profiles` de produção: nada foi alterado. (Os UUIDs vistos eram só de staging.)
+
+### Staging: e-mail só chega a quem está em `EMAIL_ALLOWED_RECIPIENTS` (31/10/2026)
+
+O worker da **staging** descarta e-mail para endereço fora da variável `EMAIL_ALLOWED_RECIPIENTS` (separador vírgula;
+produção proíbe a variável, `environment.schema.ts`). Sintoma: log `contractor_mail_recipient_not_allowed`
+(`email_recipient_not_allowed`, `blocked: 1`) e o e-mail do cliente não chega. O MCP do Railway devolve só os **nomes**
+das variáveis, então gravar a variável por ele apagaria a lista: o passo é sempre ler o valor atual (`railway variables
+-s worker -e staging --json`) e acrescentar. Script deixado para o Anderson: `staging-allowlist-email.sh` em
+`/home/miyazaki/Documents/personal/ativada/` (grava a saída em `saidas/`, imprime só o caminho). Depois do redeploy do
+worker, "Tentar de novo" no e-mail que falhou. Endereço acrescentado em 31/10/2026: `andersonfrfilho@live.com`.
