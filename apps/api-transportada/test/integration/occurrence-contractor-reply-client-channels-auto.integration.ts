@@ -212,6 +212,7 @@ async function prepare(database: TestDatabase, scenario: Scenario = {}) {
 function fakeSender(behaviour: 'number_not_found' | 'ok' = 'ok') {
   const sends: { caption: string; number: string }[] = []
   const sender: ContractorReplyClientWhatsAppSender = {
+    connectedNumber: async () => null,
     isConnected: async () => true,
     sendDocument: async ({ caption, number }) => {
       if (behaviour === 'number_not_found') {

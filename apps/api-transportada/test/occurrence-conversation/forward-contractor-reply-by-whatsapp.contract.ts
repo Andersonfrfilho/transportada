@@ -78,6 +78,8 @@ type World = {
   attachmentSize?: number
   channel?: ClientChannel
   connected?: boolean
+  /** O número do chip pareado, só dígitos; ausente, o Evolution não informa. */
+  connectedNumber?: null | string
   dailyCap?: number
   failure?: ContractorReplyWhatsAppSendFailure
   settings?: 'active' | 'disabled' | null
@@ -173,6 +175,7 @@ function build(world: World = {}) {
     logger: { info: (event, fields) => logs.push({ event, ...fields }) },
     now: () => NOW,
     sender: {
+      connectedNumber: async () => world.connectedNumber ?? null,
       isConnected: async () => {
         connectionChecks += 1
         return world.connected ?? true
@@ -282,6 +285,27 @@ describe('spec 286 T3: a legenda vem do modelo whatsapp do tipo', () => {
 })
 
 describe('spec 281 T5: envio do boleto por WhatsApp', () => {
+  test('o telefone da mensagem é o do número conectado, não o do perfil fiscal', async () => {
+    const world = build({
+      connectedNumber: '5516993857105',
+      template: { whatsapp: { body: 'Fale conosco: {{telefoneTransportadora}}', subject: '' } },
+    })
+    await world.useCase.forward(input())
+
+    expect(world.sends.map((send) => send.caption)).toEqual(['Fale conosco: (16) 99385-7105'])
+  })
+
+  test('sem o número do Evolution a mensagem sai com o telefone do perfil', async () => {
+    const world = build({
+      template: { whatsapp: { body: 'Fale conosco: {{telefoneTransportadora}}', subject: '' } },
+    })
+    await world.useCase.forward(input())
+
+    expect(world.sends.map((send) => send.caption)).toEqual([
+      'Fale conosco: {{telefoneTransportadora}}',
+    ])
+  })
+
   test('o número digitado recebe o PDF e o texto do retorno; entrega fechada com o id do provedor', async () => {
     const world = build()
     const outcome = await world.useCase.forward(input())

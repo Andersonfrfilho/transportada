@@ -233,6 +233,26 @@ describe('WhatsApp (Evolution) settings panel (spec 281 T4)', () => {
     })
   })
 
+  test('reveal posts to the API and reads the full number', async () => {
+    const requests: { method: string; url: string }[] = []
+    const client = createWhatsAppEvolutionClient({
+      apiBaseUrl: 'https://api.example',
+      fetch: (request) => {
+        requests.push({ method: request.method, url: request.url })
+        return Promise.resolve(
+          new Response(JSON.stringify({ data: { ownerNumber: '+55 (16) 99385-7105' } })),
+        )
+      },
+      getAccessToken: () => Promise.resolve('token'),
+    })
+
+    expect((await client.reveal()).ownerNumber).toBe('+55 (16) 99385-7105')
+    expect(requests[0]).toEqual({
+      method: 'POST',
+      url: 'https://api.example/company-settings/whatsapp-evolution/connection/reveal',
+    })
+  })
+
   test('the disconnect texts exist in pt and en', () => {
     for (const locale of [pt, en]) {
       const connection = (
@@ -244,6 +264,7 @@ describe('WhatsApp (Evolution) settings panel (spec 281 T4)', () => {
         'disconnectConfirm',
         'disconnectConfirmAction',
         'disconnectCancel',
+        'reveal',
       ]) {
         expect(connection[key]).toBeTruthy()
       }

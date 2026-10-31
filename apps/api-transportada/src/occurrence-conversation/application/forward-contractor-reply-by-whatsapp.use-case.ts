@@ -42,6 +42,7 @@ import {
   ContractorReplyWhatsAppOffError,
   ContractorReplyWhatsAppResendNotAllowedError,
 } from '../domain/contractor-reply-whatsapp.error.js'
+import { formatCarrierPhone } from '../infrastructure/contractor-reply-client-template.support.js'
 import { resolveForwardTexts } from './forward-contractor-reply-by-email.use-case.js'
 import {
   ContractorReplyWhatsAppSendError,
@@ -258,8 +259,15 @@ export function createForwardContractorReplyByWhatsAppUseCase(dependencies: {
   return {
     async forward(input) {
       const newNumber = resolveNewNumber(input)
+      const variableOverrides = await connectedPhoneOverride(dependencies.sender, input.companyId)
       const reservation = await dependencies.unitOfWork.execute((transaction) =>
-        reserveForward({ input, newNumber, now: dependencies.now(), transaction }),
+        reserveForward({
+          input,
+          newNumber,
+          now: dependencies.now(),
+          transaction,
+          variableOverrides,
+        }),
       )
       const outcome = await send({ companyId: input.companyId, reservation })
       log('occurrence_contractor_reply_whatsapp_forward', input.occurrenceId, outcome)
@@ -267,14 +275,24 @@ export function createForwardContractorReplyByWhatsAppUseCase(dependencies: {
     },
 
     async resend(input) {
+      const variableOverrides = await connectedPhoneOverride(dependencies.sender, input.companyId)
       const reservation = await dependencies.unitOfWork.execute((transaction) =>
-        reserveResend({ input, now: dependencies.now(), transaction }),
+        reserveResend({ input, now: dependencies.now(), transaction, variableOverrides }),
       )
       const outcome = await send({ companyId: input.companyId, reservation })
       log('occurrence_contractor_reply_whatsapp_resend', input.occurrenceId, outcome)
       return outcome
     },
   }
+}
+
+/** O 📞 da mensagem é o do chip que a envia: o do Evolution conectado, não o do perfil fiscal. Sem resposta do Evolution, fica o do perfil. */
+async function connectedPhoneOverride(
+  sender: ContractorReplyWhatsAppSenderPort,
+  companyId: string,
+): Promise<Readonly<Record<string, string>> | undefined> {
+  const number = await sender.connectedNumber({ companyId }).catch(() => null)
+  return number === null ? undefined : { telefoneTransportadora: formatCarrierPhone(number) }
 }
 
 function resolveNewNumber(input: ForwardContractorReplyByWhatsAppInput): null | string {
@@ -290,6 +308,7 @@ async function lockSendable(params: {
   readonly companyId: string
   readonly occurrenceId: string
   readonly transaction: ContractorReplyWhatsAppTransactionPort
+  readonly variableOverrides: Readonly<Record<string, string>> | undefined
 }) {
   const { companyId, occurrenceId, transaction } = params
   const reply = await transaction.lockReply({ companyId, occurrenceId })
@@ -308,6 +327,9 @@ async function lockSendable(params: {
     reply,
     target: 'client_boleto_emails',
     transaction,
+    ...(params.variableOverrides === undefined
+      ? {}
+      : { variableOverrides: params.variableOverrides }),
   })
   const attachmentId = params.attachmentId ?? reply.replyAttachmentId
   if (attachmentId === null) throw new ContractorReplyEmailAttachmentNotFoundError()
@@ -453,14 +475,16 @@ async function reserveForward(params: {
   readonly newNumber: null | string
   readonly now: Date
   readonly transaction: ContractorReplyWhatsAppTransactionPort
+  readonly variableOverrides: Readonly<Record<string, string>> | undefined
 }): Promise<Reservation> {
-  const { input, newNumber, now, transaction } = params
+  const { input, newNumber, now, transaction, variableOverrides } = params
   const { companyId } = input
   const { attachment, attachmentId, reply, settings, texts } = await lockSendable({
     attachmentId: input.attachmentId,
     companyId,
     occurrenceId: input.occurrenceId,
     transaction,
+    variableOverrides,
   })
   const { recipients, savedContactId } = await resolveRecipients({ input, newNumber, transaction })
 
@@ -500,8 +524,9 @@ async function reserveResend(params: {
   readonly input: ResendContractorReplyByWhatsAppInput
   readonly now: Date
   readonly transaction: ContractorReplyWhatsAppTransactionPort
+  readonly variableOverrides: Readonly<Record<string, string>> | undefined
 }): Promise<Reservation> {
-  const { input, now, transaction } = params
+  const { input, now, transaction, variableOverrides } = params
   const { companyId, occurrenceId } = input
   const reply = await transaction.lockReply({ companyId, occurrenceId })
   if (reply === null) throw new TripOccurrenceNotFoundError()
@@ -542,6 +567,7 @@ async function reserveResend(params: {
     companyId,
     occurrenceId,
     transaction,
+    variableOverrides,
   })
   const attempts = await transaction.countDeliveries({
     address: source.address,

@@ -256,6 +256,8 @@ export async function resolveContractorReplyClientTexts(
     readonly channel: ContractorReplyClientChannel
     readonly companyId: string
     readonly occurrenceId: string
+    /** Valores que trocam os do cadastro, ex.: o telefone do número de WhatsApp conectado no lugar do telefone fiscal. */
+    readonly variableOverrides?: Readonly<Record<string, string>>
   },
 ): Promise<ResolveContractorReplyClientTextsResult> {
   const { channel, companyId, occurrenceId } = params
@@ -276,7 +278,10 @@ export async function resolveContractorReplyClientTexts(
         limit 1`,
   )
   if (template === undefined) return { kind: 'template_missing', source: 'template' }
-  const values = await readValues(runner, { companyId, occurrenceId })
+  const values = {
+    ...(await readValues(runner, { companyId, occurrenceId })),
+    ...params.variableOverrides,
+  }
   const rawBody = text(template, 'body') ?? ''
   const body = (
     channel === 'email' && isContractorReplyHtmlTemplate(rawBody)

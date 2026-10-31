@@ -48,6 +48,14 @@ export type WhatsAppEvolutionQr = {
   readonly state: WhatsAppEvolutionConnectionState
 }
 
+export type WhatsAppEvolutionOwnerReveal = { readonly ownerNumber: null | string }
+
+/** `5516993857105` → `+55 (16) 99385-7105`; fora do formato brasileiro, `+` e os dígitos. */
+function formatOwnerNumber(digits: string): string {
+  const match = /^55(\d{2})(\d{4,5})(\d{4})$/u.exec(digits)
+  return match === null ? `+${digits}` : `+55 (${match[1]}) ${match[2]}-${match[3]}`
+}
+
 export type WhatsAppEvolutionUseCase = {
   connection(input: {
     readonly context: CompanyContext
@@ -58,6 +66,11 @@ export type WhatsAppEvolutionUseCase = {
     readonly context: CompanyContext
     readonly correlationId: string
   }): Promise<WhatsAppEvolutionConnection>
+  /** Mostra o número do chip conectado por inteiro; só quem gerencia as configurações chega aqui, e a leitura nunca vai a log. */
+  revealOwner(input: {
+    readonly context: CompanyContext
+    readonly correlationId: string
+  }): Promise<WhatsAppEvolutionOwnerReveal>
   /** Cria a instância pelo Evolution do ambiente e liga o canal, sem digitar endereço nem chave (T4b). */
   provision(input: {
     readonly acknowledgeRisk: boolean
@@ -183,6 +196,12 @@ export function createWhatsAppEvolutionUseCase(dependencies: {
         state: 'close',
       })
       return { checkedAt: dependencies.now().toISOString(), state: 'close' }
+    },
+
+    async revealOwner({ context }) {
+      const { request } = await openCredential(context.companyId)
+      const owner = await readOwner(gateway, request)
+      return { ownerNumber: owner === null ? null : formatOwnerNumber(owner) }
     },
 
     async connection({ context, correlationId }) {

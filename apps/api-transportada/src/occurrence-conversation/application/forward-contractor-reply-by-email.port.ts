@@ -171,6 +171,7 @@ export type ContractorReplyEmailTransactionPort = {
     readonly companyId: string
     readonly config: unknown
     readonly occurrenceId: string
+    readonly variableOverrides?: Readonly<Record<string, string>>
   }): Promise<ContractorReplyClientTextsLookup>
   /** Spec 279 T3: os e-mails do cliente de um tipo (no máximo 10, D2), na ordem do cadastro. */
   listClientEmails(params: {

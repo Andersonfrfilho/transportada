@@ -45,6 +45,7 @@ export function useWhatsAppEvolutionPanel(
     mutationFn: () => client.disconnect(),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [WHATSAPP_EVOLUTION_QUERY_KEY] }),
   })
+  const revealMutation = useMutation({ mutationFn: () => client.reveal() })
   const saveMutation = useMutation({
     mutationFn: (body: WhatsAppEvolutionSaveInput) => client.save(body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
@@ -97,6 +98,7 @@ export function useWhatsAppEvolutionPanel(
     provisioningAvailable: query.data?.provisioningAvailable === true,
     qrQuery,
     query,
+    revealMutation,
     saveMutation,
     stored,
   }

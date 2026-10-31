@@ -28,6 +28,7 @@ import { sql, type SQL } from 'drizzle-orm'
 import { CONTRACTOR_REPLY_EMAIL_MAX_PER_OCCURRENCE } from '../../shared/occurrence-contractor-reply.constant.js'
 import { queueContractorReplyToClientEmails } from './contractor-reply-client-email-forward.support.js'
 import {
+  formatCarrierPhone,
   readContractorReplyClientChannel,
   resolveContractorReplyClientTexts,
 } from './contractor-reply-client-template.support.js'
@@ -57,6 +58,8 @@ export type ReserveContractorReplyToClientWhatsAppResult =
 
 /** O envio pelo Evolution da empresa; a falha traz `failure` (o motivo fechado do gateway da 281). */
 export type ContractorReplyClientWhatsAppSender = {
+  /** O número do chip pareado (só dígitos, com o 55), ou `null` se o Evolution não informa; vira o 📞 da mensagem. */
+  connectedNumber(params: { readonly companyId: string }): Promise<null | string>
   isConnected(params: { readonly companyId: string }): Promise<boolean>
   sendDocument(params: {
     readonly bytes: Uint8Array
@@ -630,15 +633,20 @@ async function prepareDispatch(
   )
   const occurrenceId = text(reply, 'occurrence_id')
   if (occurrenceId === null) return { kind: 'failed', reason: 'send_failed' }
+  const connected = await dependencies.sender.isConnected({ companyId }).catch(() => false)
+  if (!connected) return { kind: 'failed', reason: 'whatsapp_disconnected' }
+
+  // O telefone da mensagem é o do número que a envia, não o do perfil fiscal.
+  const owner = await dependencies.sender.connectedNumber({ companyId }).catch(() => null)
   const resolved = await resolveContractorReplyClientTexts(runner, {
     channel: 'whatsapp',
     companyId,
     occurrenceId,
+    ...(owner === null
+      ? {}
+      : { variableOverrides: { telefoneTransportadora: formatCarrierPhone(owner) } }),
   })
   if (resolved.kind === 'template_missing') return { kind: 'failed', reason: 'template_missing' }
-
-  const connected = await dependencies.sender.isConnected({ companyId }).catch(() => false)
-  if (!connected) return { kind: 'failed', reason: 'whatsapp_disconnected' }
 
   const files = new Map<string, PreparedFile>()
   try {

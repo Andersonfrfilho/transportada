@@ -335,6 +335,18 @@ describe('o QR e o estado da conexão (spec 281 T4)', () => {
     expect(JSON.stringify(result)).not.toContain('993056772')
   })
 
+  test('revelar mostra o número do chip por inteiro; sem número, nulo', async () => {
+    const withOwner = await buildFixture({ owner: '5516993857105', state: 'open' })
+    expect(await withOwner.useCase.revealOwner({ context: CONTEXT, correlationId: 'c1' })).toEqual({
+      ownerNumber: '+55 (16) 99385-7105',
+    })
+
+    const without = await buildFixture({ state: 'open' })
+    expect(await without.useCase.revealOwner({ context: CONTEXT, correlationId: 'c1' })).toEqual({
+      ownerNumber: null,
+    })
+  })
+
   test('sem conexão não pergunta o número', async () => {
     const fixture = await buildFixture({ owner: '5516993056772', state: 'close' })
 

@@ -890,6 +890,7 @@
       "dropped": "The number is disconnected. Generate a new QR to reconnect; meanwhile sends fall back to email.",
       "reconnect": "Reconnect number",
       "connectedNumber": "Connected number: {{number}}.",
+      "reveal": "Reveal",
       "disconnect": "Disconnect number",
       "disconnectConfirm": "Disconnect this number from WhatsApp? Sends fall back to e-mail until another number is connected, and you can scan the QR of a new SIM.",
       "disconnectConfirmAction": "Yes, disconnect",
