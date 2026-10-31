@@ -89,6 +89,7 @@ type World = {
 function build(world: World = {}) {
   const deliveries: Delivery[] = []
   const saved: Array<{ address: string; authorKind: string; taxId: string }> = []
+  const closedCaptions: string[] = []
   const sends: Array<{ caption: string; mimeType: string; number: string }> = []
   const logs: Array<Record<string, unknown>> = []
   let connectionChecks = 0
@@ -160,7 +161,8 @@ function build(world: World = {}) {
           found.reason = reason
         }
       },
-      markSent: async ({ deliveryId, providerMessageId }) => {
+      markSent: async ({ caption, deliveryId, providerMessageId }) => {
+        closedCaptions.push(caption)
         const found = deliveries.find((delivery) => delivery.id === deliveryId)
         if (found !== undefined && found.status === 'queued') {
           found.status = 'sent'
@@ -189,6 +191,7 @@ function build(world: World = {}) {
     deliveries,
     logs,
     saved,
+    closedCaptions,
     sends,
     useCase,
     world,
@@ -289,6 +292,10 @@ describe('spec 281 T5: envio do boleto por WhatsApp', () => {
         mimeType: 'application/pdf',
         number: NUMBER,
       },
+    ])
+    // O balão da conversa do cliente mostra o texto que saiu, não só o anexo.
+    expect(world.closedCaptions).toEqual([
+      'Boleto prorrogado\n\nSegue o boleto com o novo vencimento.',
     ])
     expect(outcome.results).toEqual([
       {
