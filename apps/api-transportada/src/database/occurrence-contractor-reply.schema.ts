@@ -30,6 +30,7 @@ import {
   CONTRACTOR_REPLY_DELIVERY_REASONS,
   CONTRACTOR_REPLY_DELIVERY_STATUSES,
   CONTRACTOR_REPLY_DELIVERY_TARGETS,
+  CONTRACTOR_REPLY_DELIVERY_FALLBACK_SOURCES,
   CONTRACTOR_REPLY_DELIVERY_TRIGGERS,
   CONTRACTOR_REPLY_EMAIL_ADDRESS_MAX_LENGTH,
   CONTRACTOR_REPLY_EMAIL_TARGETS,
@@ -45,6 +46,7 @@ import {
   type ContractorReplyDeliveryStatus,
   type ContractorReplyDeliveryTarget,
   type ContractorReplyDeliveryTrigger,
+  type ContractorReplyFallbackFrom,
   type ContractorReplyReason,
   type ContractorReplyStatus,
 } from '../shared/occurrence-contractor-reply.constant.js'
@@ -193,6 +195,18 @@ export const occurrenceContractorReplyDeliveries = pgTable(
     }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     sentAt: timestamp('sent_at', { withTimezone: true }),
+    /**
+     * Spec 286 T3 (RF3): quem tomou para si a entrega automática por WhatsApp (`queued`), antes de chamar o Evolution.
+     * O `update … where claimed_at is null` é a trava: duas chamadas ao despacho nunca mandam o mesmo boleto duas vezes.
+     */
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    /**
+     * Spec 286 (RF4): `whatsapp` quando o e-mail ao cliente saiu como queda do WhatsApp automático que não mandou;
+     * o painel mostra "reserva do WhatsApp". Só no alvo `client_boleto_emails`.
+     */
+    fallbackFrom: varchar('fallback_from', { length: 16 }).$type<
+      Exclude<ContractorReplyFallbackFrom, null>
+    >(),
   },
   (table) => [
     unique('occurrence_contractor_reply_deliveries_company_id_id_unique').on(
@@ -276,6 +290,10 @@ export const occurrenceContractorReplyDeliveries = pgTable(
     check(
       'occurrence_contractor_reply_deliveries_sent_at_check',
       sql`(${table.status} = 'sent') = (${table.sentAt} is not null)`,
+    ),
+    check(
+      'occurrence_contractor_reply_deliveries_fallback_from_check',
+      sql`${table.fallbackFrom} is null or (${table.fallbackFrom} in (${raw(inList(CONTRACTOR_REPLY_DELIVERY_FALLBACK_SOURCES))}) and ${table.target} = 'client_boleto_emails')`,
     ),
     check(
       'occurrence_contractor_reply_deliveries_actor_check',

@@ -108,13 +108,13 @@
   "unassigned": {
     "title_one": "{{count}} message without a conversation",
     "title_other": "{{count}} messages without a conversation",
-    "hint": "They came from a contractor contact without saying which occurrence they answer. Choose the conversation; the message goes there with the time it arrived.",
+    "hint": "They came from a contractor contact or a client without saying which occurrence they answer. Choose the conversation; the message goes there with the time it arrived.",
     "channel": {
       "whatsapp": "WhatsApp",
       "email": "Email"
     },
     "noText": "(message without text)",
-    "noCandidates": "No open conversation with this contractor. Open the conversation from the occurrence and come back.",
+    "noCandidates": "No open conversation for this number. Open the conversation from the occurrence and come back.",
     "choose": "Which conversation does it go to?",
     "lastOutbound": "Our last message ({{at}}): {{preview}}",
     "openOccurrence": "Open the occurrence",
@@ -669,6 +669,12 @@
         "queued": "Queued",
         "failed": "Failed"
       },
+      "resend": "Resend",
+      "trigger": {
+        "automatic": "Automatic",
+        "operator": "Operator"
+      },
+      "whatsappFallback": "WhatsApp fallback",
       "clientWithoutEmail": "No client e-mail for the boleto",
       "retry": "Try again",
       "retrying": "Sending…",
@@ -682,6 +688,10 @@
         "sent": "Sent",
         "queued": "Queued",
         "failed": "Failed"
+      },
+      "trigger": {
+        "automatic": "Automatic",
+        "operator": "Operator"
       },
       "retry": "Try again",
       "resend": "Send again",
@@ -736,6 +746,7 @@
     "reply": {
       "noWhatsapp": "The client does not reply by e-mail: replies only go out by WhatsApp, and no number has been opened yet.",
       "off": "WhatsApp is off or down. Use \"Send to client\" by e-mail meanwhile.",
+      "noPermission": "You do not have permission to reply to the client. The history stays here.",
       "replyBy": "Reply by",
       "message": "Message to the client",
       "hint": "Goes out by WhatsApp to {{number}}.",

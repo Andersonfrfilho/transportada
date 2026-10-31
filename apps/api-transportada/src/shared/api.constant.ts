@@ -124,9 +124,6 @@ export const API_CARGO_PREVIEW_PROPOSE_ARRIVAL_PATH = '/cargo-previews/:id/propo
 export const API_CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
 export const API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'
 export const API_CONTRACTOR_MAIL_TEST_EMAIL_PATH = '/contractor-mail-settings/test-email'
-export const API_CONTRACTOR_MAIL_TEMPLATES_PATH = '/contractor-mail-templates'
-export const API_CONTRACTOR_MAIL_TEMPLATES_CATALOG_PATH = '/contractor-mail-templates/catalog'
-export const API_CONTRACTOR_MAIL_TEMPLATES_PREVIEW_PATH = '/contractor-mail-templates/preview'
 /**
  * Spec 143 T010 (RF11): a terceira superfície anônima, e a primeira assinada — o `webhookId` opaco
  * acha a configuração da empresa, e a assinatura Svix é conferida contra o segredo dela.
@@ -211,6 +208,9 @@ export const CONTRACTOR_MAIL_RATE_LIMIT_SCOPE = 'contractor-mail'
  */
 export const API_ADDRESS_CORRECTION_REQUESTS_RECIPIENTS_PATH =
   '/address-correction-requests/recipients'
+/** Spec 286 (RF6): o estado e a prévia do modelo do e-mail de correção, que mora no módulo de notificação. */
+export const API_ADDRESS_CORRECTION_REQUESTS_MAIL_TEMPLATE_PATH =
+  '/address-correction-requests/mail-template'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'
@@ -235,6 +235,10 @@ export const API_WHATSAPP_CHANNEL_PATH = '/company-settings/whatsapp-channel'
 export const API_WHATSAPP_EVOLUTION_PATH = '/company-settings/whatsapp-evolution'
 export const API_WHATSAPP_EVOLUTION_CONNECTION_PATH =
   '/company-settings/whatsapp-evolution/connection'
+export const API_WHATSAPP_EVOLUTION_DISCONNECT_PATH =
+  '/company-settings/whatsapp-evolution/disconnect'
+export const API_WHATSAPP_EVOLUTION_REVEAL_PATH =
+  '/company-settings/whatsapp-evolution/connection/reveal'
 export const API_WHATSAPP_EVOLUTION_QR_PATH = '/company-settings/whatsapp-evolution/qr'
 export const API_WHATSAPP_EVOLUTION_PROVISION_PATH =
   '/company-settings/whatsapp-evolution/provision'

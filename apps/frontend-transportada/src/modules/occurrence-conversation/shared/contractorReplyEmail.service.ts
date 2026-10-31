@@ -42,6 +42,10 @@ export type ContractorReplyEmailDelivery = Readonly<{
   sentAt: null | string
   status: DeliveryStatus
   target: ContractorReplyEmailDeliveryTarget
+  /** Spec 286 (RF4): `whatsapp` quando o e-mail saiu como reserva do WhatsApp automático; a API anterior não manda. */
+  fallbackFrom?: 'whatsapp' | null
+  /** Spec 286 T4: quem disparou o envio; a API anterior não manda. */
+  trigger?: 'automatic' | 'operator'
 }>
 
 /** O que o servidor diz do retorno desta ocorrência; o endereço da nota só chega mascarado. */
@@ -264,6 +268,11 @@ export function isContractorReplyBoletoAccepted(status: string): boolean {
 /** Uma chave por tentativa; o envio seguinte (com outra escolha) ganha outra. */
 export function createClientEmailIdempotencyKey(randomId: () => string): string {
   return `client-email:${randomId()}`
+}
+
+/** Spec 286 (RF4): o e-mail que saiu porque o WhatsApp automático não mandou — a linha diz "Reserva do WhatsApp". */
+export function isWhatsAppFallback(delivery: ContractorReplyEmailDelivery): boolean {
+  return delivery.fallbackFrom === 'whatsapp'
 }
 
 /** Spec 279 T6b (RF12): o estado de um endereço no envio ao cliente. `failed` com `canRetry` é a recusa do provedor. */

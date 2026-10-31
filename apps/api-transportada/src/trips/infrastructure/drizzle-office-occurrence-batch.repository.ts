@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { findDriverLockingOccurrence } from './occurrence-driver-lock.query.js'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 
@@ -46,6 +47,7 @@ export class DrizzleOfficeOccurrenceBatchUnitOfWork implements OfficeOccurrenceB
       return operation({
         claim: (input) => fieldReports.claim(input),
         findDocumentOccurrence: (input) => findDocumentOccurrence(transaction, input),
+        findDriverLockingOccurrence: (input) => findDriverLockingOccurrence(transaction, input),
         findOccurrenceType: (input) => findOccurrenceType(transaction, input),
         findReachableDocumentIds: (input) => findReachableDocumentIds(transaction, input),
         recordOfficeAudit: (input) => fieldReports.recordOfficeAudit(input),

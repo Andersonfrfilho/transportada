@@ -13,8 +13,12 @@ import type {
 import type {
   ContractorReplyDeliveryReason,
   ContractorReplyDeliveryStatus,
+  ContractorReplyDeliveryTrigger,
 } from '../../shared/occurrence-contractor-reply.constant.js'
-import type { ContractorReplyEmailReply } from './forward-contractor-reply-by-email.port.js'
+import type {
+  ContractorReplyEmailReply,
+  ContractorReplyEmailTransactionPort,
+} from './forward-contractor-reply-by-email.port.js'
 
 export type ContractorReplyWhatsAppContact = {
   /** E.164, como o CHECK de `delivery_client_contacts` guarda. */
@@ -118,6 +122,8 @@ export type ContractorReplyWhatsAppTransactionPort = {
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<ContractorReplyEmailReply | null>
+  /** Spec 286 T3: a legenda do canal `whatsapp`, do modelo do módulo escolhido no tipo (ou o texto livre antigo). */
+  resolveClientTexts: ContractorReplyEmailTransactionPort['resolveClientTexts']
   /** Grava a entrega e o `audit_logs` (RF6, número mascarado) na mesma transação. */
   recordDelivery(
     params: RecordContractorReplyWhatsAppDeliveryParams,
@@ -146,6 +152,8 @@ export type ContractorReplyWhatsAppCompletionPort = {
    * da ocorrência ("Boleto enviado por WhatsApp: …", canal `whatsapp`, com o id do provedor para o webhook da T6).
    */
   markSent(params: {
+    /** O texto que saiu: vai ao balão da conversa do cliente (o que foi enviado, não só o anexo). */
+    readonly caption: string
     readonly companyId: string
     readonly deliveryId: string
     readonly providerMessageId: null | string
@@ -171,6 +179,8 @@ export class ContractorReplyWhatsAppSendError extends Error {
  * de envio sai como `ContractorReplyWhatsAppSendError`.
  */
 export type ContractorReplyWhatsAppSenderPort = {
+  /** O número do chip pareado (só dígitos, com o 55), ou `null` se o Evolution não informa; vira o 📞 da mensagem. */
+  connectedNumber(params: { readonly companyId: string }): Promise<null | string>
   isConnected(params: { readonly companyId: string }): Promise<boolean>
   sendDocument(params: {
     readonly bytes: Uint8Array
@@ -197,6 +207,8 @@ export type ContractorReplyWhatsAppOptions = {
     readonly reason: ContractorReplyDeliveryReason | null
     readonly sentAt: null | string
     readonly status: ContractorReplyDeliveryStatus
+    /** Spec 286 T3 (RF4b): `automatic` é o envio sozinho do Sistema; `operator`, o botão do painel ou do app. */
+    readonly trigger: ContractorReplyDeliveryTrigger
   }[]
   /** `ready` só com o Evolution ligado e o último estado lido `open`; senão a tela oferece o e-mail (RF5). */
   readonly evolution: {

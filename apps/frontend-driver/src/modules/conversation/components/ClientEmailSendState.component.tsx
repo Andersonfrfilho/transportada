@@ -5,6 +5,7 @@ import { formatActivityTime } from '@/modules/driver-trip/shared/documentActivit
 
 import type { DriverClientEmailDelivery } from '../shared/driverClientEmails.service'
 import styles from '../styles/occurrenceDetails.module.css'
+import { ClientDeliveryTicks } from './ClientDeliveryTicks.component'
 
 type ClientEmailSendStateProps = Readonly<{ deliveries: readonly DriverClientEmailDelivery[] }>
 
@@ -21,6 +22,11 @@ export function ClientEmailSendState({ deliveries }: ClientEmailSendStateProps) 
           <span>{delivery.address ?? t('details.sendState.clientWithoutEmail')}</span>
           {delivery.status === 'skipped' ? null : (
             <span className={styles.labelNote}>
+              <ClientDeliveryTicks
+                channel="email"
+                state={delivery.status}
+                stateLabel={t(`details.sendState.state.${delivery.status}`)}
+              />{' '}
               {t(`details.sendState.state.${delivery.status}`)}
               {delivery.sentAt === null ? '' : ` · ${formatActivityTime(delivery.sentAt)}`}
             </span>

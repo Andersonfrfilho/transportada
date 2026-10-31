@@ -15,7 +15,6 @@ import { ContractorContactsPanel } from '../components/ContractorContactsPanel.c
 import { ContractorDirectoryPanel } from '../components/ContractorDirectoryPanel.component'
 import { ContractorMailSettingsRequestError } from '../shared/contractorMailSettingsClient.service'
 import { ContractorMailSettingsPanel } from '../components/ContractorMailSettingsPanel.component'
-import { ContractorMailTemplatesPanel } from '../components/ContractorMailTemplatesPanel.component'
 import { DeliveryClientEmailsPanel } from '../components/DeliveryClientEmailsPanel.component'
 import { DeliveryClientWhatsAppPanel } from '../components/DeliveryClientWhatsAppPanel.component'
 import { DeliveryClientForm } from '../components/DeliveryClientForm.component'
@@ -123,7 +122,6 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
           testEmailPending={contractorMail.sendTestEmailMutation.isPending}
           testEmailSent={contractorMail.sendTestEmailMutation.isSuccess}
         />
-        <ContractorMailTemplatesPanel isDisabled={!canManageContractorMail} />
         <ContractorContactsPanel
           isDisabled={!canManageContractorMail}
           onOpenContractors={() => setActiveTab('contractors')}

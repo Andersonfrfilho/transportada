@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import {
   useContractorReplyWhatsAppOptionsQuery,
@@ -16,6 +15,7 @@ import {
   type WhatsAppSendStateItem,
 } from '../shared/contractorReplyWhatsApp.service'
 import styles from '../styles/occurrenceDetails.module.css'
+import { ClientDeliveryStatus } from './ClientDeliveryStatus.component'
 
 type ClientWhatsAppSendStateProps = Readonly<{
   /** Na página da ocorrência: sem envio nenhum a seção some e, com envio, ganha o título. */
@@ -39,11 +39,12 @@ export function ClientWhatsAppSendState({
   occurrenceId,
 }: ClientWhatsAppSendStateProps) {
   const { t } = useTranslation('occurrenceConversation')
-  const formatMoment = useMomentFormatter()
   const query = useContractorReplyWhatsAppOptionsQuery({ enabled: true, occurrenceId })
   const resend = useResendWhatsAppDeliveryMutation(occurrenceId)
   const [pendingDeliveryId, setPendingDeliveryId] = useState<null | string>(null)
-  const items = describeWhatsAppSendState(query.data?.deliveries ?? [])
+  const deliveries = query.data?.deliveries ?? []
+  const items = describeWhatsAppSendState(deliveries)
+  const triggerOf = new Map(deliveries.map((delivery) => [delivery.id, delivery.trigger]))
   const channel = query.data?.clientChannel
 
   if (query.isLoading) return isStandalone ? null : <Skeleton height="2rem" width="100%" />
@@ -69,7 +70,14 @@ export function ClientWhatsAppSendState({
               <strong className={STATE_CLASS[item.state]}>
                 {t(`details.whatsappState.state.${item.state}`)}
               </strong>
-              <time dateTime={item.at}>{formatMoment(item.at)}</time>
+              <ClientDeliveryStatus
+                at={item.at}
+                channel="whatsapp"
+                state={item.state}
+                stateLabel={t(`details.whatsappState.state.${item.state}`)}
+                trigger={triggerOf.get(item.deliveryId)}
+                triggerScope="whatsappState"
+              />
               {item.state === 'sent' || item.canRetry ? (
                 <Button
                   disabled={resend.isPending}

@@ -4,10 +4,11 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { navigateToNotificationSettings } from '@/modules/nfe-workspace/shared/deliveryClientsNavigation.service'
+import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { revealPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import { useContractorMailSettings } from '../hooks/useContractorMailSettings.hook'
-import { useContractorMailTemplates } from '../hooks/useContractorMailTemplates.hook'
 import {
   isMailRoundTripConfigured,
   mailSendReadinessReasonLocaleKey,
@@ -18,14 +19,16 @@ import {
 } from '../shared/mailSendReadiness.service'
 import styles from '../styles/contractorMailSettings.module.css'
 
-const SHORTCUT_TARGET_ELEMENT_ID: Readonly<Record<MailSendReadinessShortcutTarget, string>> = {
-  checklist: 'contractor-mail-checklist-section',
-  templates: 'contractor-mail-templates-section',
-}
-
-/** O mesmo gesto de rolar+focar de `useRevealedPanel` — aqui disparado por clique, não por montagem. */
-function revealShortcutTarget(target: MailSendReadinessShortcutTarget): void {
-  const element = document.getElementById(SHORTCUT_TARGET_ELEMENT_ID[target])
+/**
+ * A lista de verificação está nesta página: o mesmo gesto de rolar+focar de `useRevealedPanel`, disparado por clique.
+ * O modelo do e-mail mora em Notificações (spec 286): o atalho leva para lá.
+ */
+function followShortcut(target: MailSendReadinessShortcutTarget): void {
+  if (target === 'notifications') {
+    navigateToNotificationSettings(createBrowserWorkspaceNavigator())
+    return
+  }
+  const element = document.getElementById('contractor-mail-checklist-section')
   if (element !== null) revealPanel(element)
 }
 
@@ -45,22 +48,15 @@ export function MailSendReadinessSummary({
     ...(companyId === undefined ? {} : { companyId }),
     enabled,
   })
-  const catalog = useContractorMailTemplates({ enabled, mailType: undefined })
-  const mailType = catalog.catalogQuery.data?.[0]?.mailType
-  const templates = useContractorMailTemplates({
-    enabled: enabled && mailType !== undefined,
-    mailType,
-  })
 
   const isLoading =
     settings.settingsQuery.isLoading ||
     settings.checksQuery.isLoading ||
-    catalog.catalogQuery.isLoading ||
-    templates.templatesQuery.isLoading
+    settings.templateUsableQuery.isLoading
 
   if (!enabled) return null
 
-  if (isLoading || mailType === undefined) {
+  if (isLoading) {
     return (
       <section aria-labelledby="contractor-mail-readiness-title" className={styles.settingsPanel}>
         <h2 id="contractor-mail-readiness-title">{t('contractorMail.sendReadiness.title')}</h2>
@@ -73,9 +69,8 @@ export function MailSendReadinessSummary({
 
   const view = resolveMailSendReadinessView({
     checks: settings.checksQuery.data ?? [],
-    mailType,
     settings: settings.settingsQuery.data?.summary ?? null,
-    templates: templates.templatesQuery.data ?? [],
+    templateUsable: settings.templateUsableQuery.data === true,
   })
   const occurrenceMailNotice = resolveOccurrenceMailNotice({
     sandboxDelivery: settings.settingsQuery.data?.sandboxDelivery ?? false,
@@ -100,9 +95,7 @@ export function MailSendReadinessSummary({
           {' — '}
           <button
             className={styles.invalidField}
-            onClick={() =>
-              revealShortcutTarget(resolveMailSendReadinessShortcutTarget(view.reason))
-            }
+            onClick={() => followShortcut(resolveMailSendReadinessShortcutTarget(view.reason))}
             type="button"
           >
             {t(

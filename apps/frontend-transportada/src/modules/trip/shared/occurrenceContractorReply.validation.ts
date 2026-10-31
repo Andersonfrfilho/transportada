@@ -2,6 +2,8 @@
 import {
   CLIENT_CHANNELS,
   CLIENT_EMAIL_SEND_MODES,
+  CLIENT_RETURN_CHANNELS,
+  CLIENT_RETURN_SEND_MODES,
   CLIENT_EMAIL_TYPES,
   CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES_RANGE,
   CONTRACTOR_REPLY_ALERT_MAX_COUNT_RANGE,
@@ -30,7 +32,26 @@ function allowingNull(check: FieldCheck): FieldCheck {
   return (value) => value === null || check(value)
 }
 
+function isClientReturnSetting(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.enabled === 'boolean' &&
+    isOneOf(value.sendMode, CLIENT_RETURN_SEND_MODES) &&
+    (value.templateKey === null || isString(value.templateKey))
+  )
+}
+
+/** Spec 286 (RF2): a matriz traz os dois canais, cada um inteiro; qualquer outra forma reprova o tipo. */
+function isClientReturnMatrix(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    CLIENT_RETURN_CHANNELS.every((channel) => isClientReturnSetting(value[channel]))
+  )
+}
+
 const TYPE_FIELD_CHECKS = {
+  /** Spec 286 (RF2): a matriz por canal, ou `null` (API sem a matriz resolvida). Aceita antes da API mandar. */
+  clientChannels: allowingNull(isClientReturnMatrix),
   /** Spec 279 RF9: `off` ou o tipo de e-mail do cliente. Aceito antes da API mandar. */
   clientEmailType: (value: unknown) => isOneOf(value, CLIENT_EMAIL_TYPES),
   /** Spec 279 RF10: `manual` ou `automatic`. Aceito antes da API mandar. */
@@ -59,6 +80,10 @@ const TYPE_FIELD_CHECKS = {
   driverReplyChannel: (value: unknown) => isOneOf(value, DRIVER_REPLY_CHANNELS),
   /** Spec 276 T4: a trava de pedido repetido. Aceita antes da API mandar. */
   duplicateRequestPolicy: (value: unknown) => isOneOf(value, DUPLICATE_REQUEST_POLICIES),
+  /** A trava de motorista do tipo, em minutos (1 a 10080) ou `null`. Aceita antes da API mandar. */
+  driverLockMinutes: allowingNull((value: unknown) =>
+    isIntegerInRange(value, { max: 10_080, min: 1 }),
+  ),
   driverReplyTemplate: isString,
   driverReplyWindowClosedAction: (value: unknown) =>
     isOneOf(value, DRIVER_REPLY_WINDOW_CLOSED_ACTIONS),

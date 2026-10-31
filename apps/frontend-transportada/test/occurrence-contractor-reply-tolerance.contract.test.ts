@@ -123,6 +123,72 @@ describe('tolerância aos campos do retorno da contratante no tipo (spec 248 T1.
     ).toThrow()
   })
 
+  it('aceita a matriz "Retorno ao cliente" por canal (spec 286) e a lê inteira no tipo', () => {
+    const matrix = {
+      email: { enabled: true, sendMode: 'automatic', templateKey: 'boleto.prorrogado' },
+      whatsapp: { enabled: false, sendMode: 'manual', templateKey: null },
+    } as const
+    const [type] = adapters.occurrenceTypesFromApi([
+      buildOccurrenceType({ clientChannels: matrix }),
+    ])
+    expect(type?.clientChannels).toEqual(matrix)
+
+    const [withoutMatrix] = adapters.occurrenceTypesFromApi([
+      buildOccurrenceType({ clientChannels: null }),
+    ])
+    expect(withoutMatrix?.clientChannels).toBeNull()
+  })
+
+  it('recusa a matriz com canal faltando, modo fora do vocabulário ou chave que não é texto', () => {
+    const ok = { enabled: true, sendMode: 'manual', templateKey: 'a' }
+    for (const clientChannels of [
+      { email: ok },
+      { email: ok, whatsapp: { ...ok, sendMode: 'off' } },
+      { email: ok, whatsapp: { ...ok, templateKey: 7 } },
+      { email: ok, whatsapp: { ...ok, enabled: 'yes' } },
+      'both',
+    ]) {
+      expect(() =>
+        adapters.occurrenceTypesFromApi([buildOccurrenceType({ clientChannels })]),
+      ).toThrow()
+    }
+  })
+
+  it('aceita a trava de motorista em minutos ou nula, e recusa fora da faixa', () => {
+    for (const value of [1, 1440, 10_080, null]) {
+      const [type] = adapters.occurrenceTypesFromApi([
+        buildOccurrenceType({ driverLockMinutes: value }),
+      ])
+      expect(type?.id).toBe(TYPE_ID)
+    }
+    for (const value of [0, 10_081, 1.5, '24']) {
+      expect(() =>
+        adapters.occurrenceTypesFromApi([buildOccurrenceType({ driverLockMinutes: value })]),
+      ).toThrow()
+    }
+  })
+
+  it('aceita o resultado do escritório com ou sem a ocorrência que já existia', () => {
+    expect(
+      adapters.fieldOccurrenceBatchResultFromApi({
+        items: [
+          { documentId: 'd1', id: 'o1' },
+          { documentId: 'd2', existingOccurrenceId: 'o0', id: 'o2' },
+        ],
+      }),
+    ).toHaveLength(2)
+    expect(() =>
+      adapters.fieldOccurrenceBatchResultFromApi({
+        items: [{ documentId: 'd1', existingOccurrenceId: 7, id: 'o1' }],
+      }),
+    ).toThrow()
+    expect(() =>
+      adapters.fieldOccurrenceBatchResultFromApi({
+        items: [{ documentId: 'd1', id: 'o1', token: 'x' }],
+      }),
+    ).toThrow()
+  })
+
   it('recusa campo do retorno fora do vocabulário ou da faixa', () => {
     expect(() =>
       adapters.occurrenceTypesFromApi([buildOccurrenceType({ contractorReplyMode: 'maybe' })]),

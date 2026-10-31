@@ -34,6 +34,7 @@ import { findOccurrenceConversations } from '../../src/occurrence-conversation/i
 import type { ClientChannel } from '../../src/shared/delivery-client-email.constant.js'
 import {
   openReplyWithForward,
+  seedContractorReplyChannelTemplate,
   receivePdfReply,
 } from '../fixtures/contractor-reply-database.fixture.js'
 import {
@@ -115,6 +116,12 @@ async function prepare(database: TestDatabase, options: { readonly dailyCap?: nu
   await receivePdfReply(database, { companyId, conversationId })
   const contactId = await seedClient(database, seeded)
   await setClientChannel(database, seeded, 'both')
+  await seedContractorReplyChannelTemplate(
+    database,
+    seeded,
+    'whatsapp',
+    'Segue o boleto prorrogado.',
+  )
   await database.db.insert(whatsappEvolutionSettings).values({
     baseUrl: 'https://evolution.example.test',
     companyId,
@@ -144,6 +151,7 @@ async function prepare(database: TestDatabase, options: { readonly dailyCap?: nu
     completion: createDrizzleContractorReplyWhatsAppCompletion(database.db),
     now: () => new Date(),
     sender: {
+      connectedNumber: async () => null,
       isConnected: async () => true,
       sendDocument: async ({ number }) => {
         sends.push(number)
@@ -264,8 +272,8 @@ describe('o boleto por WhatsApp ao cliente (spec 281 T5)', () => {
         const whatsappNotices = notices.filter((row) => row.channel === 'whatsapp')
         expect(whatsappNotices).toHaveLength(2)
         expect(whatsappNotices.map((row) => row.bodyText).toSorted()).toEqual([
-          `Boleto enviado por WhatsApp: ${SAVED_NUMBER}`,
-          `Boleto enviado por WhatsApp: ${NEW_NUMBER}`,
+          `Boleto enviado por WhatsApp: (11) 98888-7777`,
+          `Boleto enviado por WhatsApp: (16) 99999-8888`,
         ])
         expect(
           whatsappNotices.every(

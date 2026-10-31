@@ -19,7 +19,6 @@ import {
 } from '../fixtures/fleet-http-payload.fixture.js'
 import { AddressCorrectionContractorNotFoundError } from '../../src/address-correction/domain/address-correction.error.js'
 import { ContractorMailTemplateMissingError } from '../../src/contractor-mail/domain/contractor-mail.error.js'
-import { ContractorMailTemplateNotUsableError } from '../../src/contractor-mail/domain/contractor-mail-template.error.js'
 
 const MAIL_PATH = '/address-correction-requests/mail'
 const CONTACT_ID = '00000000-0000-4000-8000-000000000b01'
@@ -89,8 +88,8 @@ describe('POST /address-correction-requests/mail http contract', () => {
     expect(fixture.sendMailCalls[0]?.requestIds).toEqual([ADDRESS_CORRECTION_REQUEST.id])
   })
 
-  /** Spec 150 T402 (RF15): o modelo escolhido na confirmação chega ao caso de uso. */
-  test('passes templateId through when the operator picks a template', async () => {
+  /** Spec 286: o modelo é o do módulo de notificação; o `templateId` do painel anterior é aceito e ignorado. */
+  test('accepts and ignores the templateId an older panel still sends', async () => {
     const fixture = await createAddressCorrectionHttpFixture()
     const templateId = '00000000-0000-4000-8000-000000000b30'
 
@@ -102,7 +101,7 @@ describe('POST /address-correction-requests/mail http contract', () => {
     )
 
     expect(response.status).toBe(202)
-    expect(fixture.sendMailCalls[0]?.templateId).toBe(templateId)
+    expect(fixture.sendMailCalls[0]).not.toHaveProperty('templateId')
   })
 
   /** Spec 267 RF4: o corpo só remove gente da cópia; `cc` livre segue 400. */
@@ -148,10 +147,9 @@ describe('POST /address-correction-requests/mail http contract', () => {
     expect(fixture.sendMailCalls).toEqual([])
   })
 
-  test('propagates TEMPLATE_MISSING and TEMPLATE_NOT_USABLE with their stable codes', async () => {
+  test('propagates TEMPLATE_MISSING with its stable code', async () => {
     for (const [error, code] of [
       [new ContractorMailTemplateMissingError(), 'CONTRACTOR_MAIL_TEMPLATE_MISSING'],
-      [new ContractorMailTemplateNotUsableError(), 'CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE'],
     ] as const) {
       const fixture = await createAddressCorrectionHttpFixture({ sendMailError: error })
 

@@ -39,10 +39,14 @@ import {
   tripStops,
 } from '../../database/trip.schema.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
-import type {
-  ClientChannel,
-  ClientEmailSendMode,
-  ClientEmailType,
+import {
+  CLIENT_CHANNEL_DEFAULT,
+  CLIENT_EMAIL_SEND_MODE_DEFAULT,
+  CLIENT_EMAIL_TYPE_DEFAULT,
+  DELIVERY_CLIENT_EMAIL_PURPOSE,
+  type ClientChannel,
+  type ClientEmailSendMode,
+  type ClientEmailType,
 } from '../../shared/delivery-client-email.constant.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
@@ -136,6 +140,17 @@ import {
   withOccurrenceTypeMoments,
 } from './occurrence-type-moments.query.js'
 import { deriveOccurrenceMomentsFromStageAndFlow } from '../domain/occurrence-moment.policy.js'
+import {
+  applyLegacyFieldsToClientChannelMatrix,
+  deriveLegacyFieldsFromClientChannelMatrix,
+  isEmailEnabledWithoutClientEmailType,
+  mergeClientChannelMatrix,
+  type OccurrenceClientChannelMatrixChange,
+} from '../domain/occurrence-client-channels.policy.js'
+import {
+  readResolvedClientChannelMatrices,
+  writeOccurrenceTypeClientChannels,
+} from './occurrence-type-client-channels.query.js'
 import {
   assertStoredOccurrenceTypeContractorScope,
   replaceOccurrenceTypeContractorScope,
@@ -912,6 +927,7 @@ export async function findOccurrenceType(
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      driverLockMinutes: companyOccurrenceTypes.driverLockMinutes,
       clientEmailType: companyOccurrenceTypes.clientEmailType,
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       clientChannel: companyOccurrenceTypes.clientChannel,
@@ -924,8 +940,6 @@ export async function findOccurrenceType(
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
       forwardToNoteRecipient: companyOccurrenceTypes.forwardToNoteRecipient,
       forwardToInformedEmail: companyOccurrenceTypes.forwardToInformedEmail,
-      forwardEmailSubject: companyOccurrenceTypes.forwardEmailSubject,
-      forwardEmailBody: companyOccurrenceTypes.forwardEmailBody,
       /** Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. */
       flow: companyOccurrenceTypes.flow,
       /** Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa. */
@@ -1098,6 +1112,7 @@ export async function listOccurrenceTypes(
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      driverLockMinutes: companyOccurrenceTypes.driverLockMinutes,
       clientEmailType: companyOccurrenceTypes.clientEmailType,
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       clientChannel: companyOccurrenceTypes.clientChannel,
@@ -1110,8 +1125,6 @@ export async function listOccurrenceTypes(
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
       forwardToNoteRecipient: companyOccurrenceTypes.forwardToNoteRecipient,
       forwardToInformedEmail: companyOccurrenceTypes.forwardToInformedEmail,
-      forwardEmailSubject: companyOccurrenceTypes.forwardEmailSubject,
-      forwardEmailBody: companyOccurrenceTypes.forwardEmailBody,
       flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
       itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
@@ -1203,6 +1216,8 @@ export async function saveOccurrenceType(
     /** Spec 271 (D10): os responsáveis em cópia do tipo, da lista da empresa; ausente é "não mexa". */
     readonly contractorMailWatcherUserIds?: readonly string[] | undefined
     readonly contractorScope?: OccurrenceTypeContractorScope | undefined
+    /** Spec 286 (RF2): a matriz por canal; canal ausente é "não mexa" e, presente, ela deriva `clientChannel`. */
+    readonly clientChannels?: OccurrenceClientChannelMatrixChange | undefined
     readonly moments?: readonly OccurrenceMoment[] | undefined
   },
 ): Promise<OccurrenceTypeRecord> {
@@ -1216,7 +1231,10 @@ export async function saveOccurrenceType(
             occurrenceTypeId: input.occurrenceTypeId,
           })
     await assertAcknowledgementQuickReply(transaction, input)
-    const saved = await writeOccurrenceTypeRow(transaction, input)
+    const saved = await syncOccurrenceTypeClientChannels(transaction, {
+      input,
+      saved: await writeOccurrenceTypeRow(transaction, input),
+    })
     const moments =
       input.moments ??
       (input.occurrenceTypeId === null ? deriveOccurrenceMomentsFromStageAndFlow(saved) : undefined)
@@ -1277,6 +1295,90 @@ export async function saveOccurrenceType(
     })
     return withContractors ?? withMoments ?? saved
   })
+}
+
+/**
+ * Spec 286 T2 (RF2): a matriz "Retorno ao cliente" na mesma transação do tipo. Com `clientChannels`, o canal mandado
+ * substitui o gravado e `client_channel`/`client_email_send_mode` passam a ser os derivados dela. Sem ela, a gravação do
+ * painel antigo (`clientChannel`, `clientEmailType`, `clientEmailSendMode`) liga e desliga as caixas sem perder o
+ * modelo. Todo tipo novo nasce com as linhas.
+ */
+async function syncOccurrenceTypeClientChannels(
+  transaction: TripQueryable,
+  params: {
+    readonly input: {
+      readonly clientChannel?: ClientChannel | undefined
+      readonly clientChannels?: OccurrenceClientChannelMatrixChange | undefined
+      readonly clientEmailSendMode?: ClientEmailSendMode | undefined
+      readonly clientEmailType?: ClientEmailType | undefined
+      readonly companyId: string
+      readonly occurrenceTypeId: null | string
+    }
+    readonly saved: OccurrenceTypeRecord
+  },
+): Promise<OccurrenceTypeRecord> {
+  const { input, saved } = params
+  const touchesLegacy =
+    input.clientChannel !== undefined ||
+    input.clientEmailType !== undefined ||
+    input.clientEmailSendMode !== undefined
+  const isCreate = input.occurrenceTypeId === null
+  if (input.clientChannels === undefined && !touchesLegacy && !isCreate) return saved
+
+  const legacy = {
+    clientChannel: saved.clientChannel ?? CLIENT_CHANNEL_DEFAULT,
+    clientEmailSendMode: saved.clientEmailSendMode ?? CLIENT_EMAIL_SEND_MODE_DEFAULT,
+    clientEmailType: saved.clientEmailType ?? CLIENT_EMAIL_TYPE_DEFAULT,
+  }
+  const [current] = (
+    await readResolvedClientChannelMatrices(transaction, {
+      companyId: input.companyId,
+      records: [{ ...legacy, id: saved.id }],
+    })
+  ).values()
+  if (current === undefined) return saved
+
+  if (input.clientChannels === undefined) {
+    await writeOccurrenceTypeClientChannels(transaction, {
+      companyId: input.companyId,
+      matrix: applyLegacyFieldsToClientChannelMatrix({ current, legacy }),
+      occurrenceTypeId: saved.id,
+    })
+    return saved
+  }
+
+  const matrix = mergeClientChannelMatrix({ change: input.clientChannels, current })
+  /** O e-mail não depende de escolha prévia: ligado sem tipo de e-mail do cliente, o tipo passa a ser o padrão (boleto). */
+  const needsDefaultEmailType = isEmailEnabledWithoutClientEmailType({
+    clientEmailType: legacy.clientEmailType,
+    matrix,
+  })
+  await writeOccurrenceTypeClientChannels(transaction, {
+    companyId: input.companyId,
+    matrix,
+    occurrenceTypeId: saved.id,
+  })
+  const derived = {
+    ...deriveLegacyFieldsFromClientChannelMatrix(matrix),
+    ...(needsDefaultEmailType ? { clientEmailType: DELIVERY_CLIENT_EMAIL_PURPOSE.BOLETO } : {}),
+  }
+  if (
+    derived.clientChannel === legacy.clientChannel &&
+    derived.clientEmailSendMode === legacy.clientEmailSendMode &&
+    !needsDefaultEmailType
+  ) {
+    return saved
+  }
+  await transaction
+    .update(companyOccurrenceTypes)
+    .set({ ...derived, updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(companyOccurrenceTypes.companyId, input.companyId),
+        eq(companyOccurrenceTypes.id, saved.id),
+      ),
+    )
+  return { ...saved, ...derived }
 }
 
 async function readMailSnapshotLocked(
@@ -1372,6 +1474,7 @@ async function writeOccurrenceTypeRow(
     readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
     readonly contractorReplyResolveOnDelivery?: boolean | undefined
     readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+    readonly driverLockMinutes?: null | number | undefined
     readonly clientEmailType?: ClientEmailType | undefined
     readonly clientEmailSendMode?: ClientEmailSendMode | undefined
     readonly clientChannel?: ClientChannel | undefined
@@ -1475,6 +1578,9 @@ async function writeOccurrenceTypeRow(
     ...(input.duplicateRequestPolicy === undefined
       ? {}
       : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
+    ...(input.driverLockMinutes === undefined
+      ? {}
+      : { driverLockMinutes: input.driverLockMinutes }),
     ...(input.clientEmailType === undefined ? {} : { clientEmailType: input.clientEmailType }),
     ...(input.clientEmailSendMode === undefined
       ? {}
@@ -1505,10 +1611,6 @@ async function writeOccurrenceTypeRow(
     ...(input.forwardToInformedEmail === undefined
       ? {}
       : { forwardToInformedEmail: input.forwardToInformedEmail }),
-    ...(input.forwardEmailSubject === undefined
-      ? {}
-      : { forwardEmailSubject: input.forwardEmailSubject }),
-    ...(input.forwardEmailBody === undefined ? {} : { forwardEmailBody: input.forwardEmailBody }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
     ...(input.itemsMinimumCount === undefined
@@ -1603,6 +1705,7 @@ async function writeOccurrenceTypeRow(
     contractorReplyAttachmentKind: saved.contractorReplyAttachmentKind,
     contractorReplyResolveOnDelivery: saved.contractorReplyResolveOnDelivery,
     duplicateRequestPolicy: saved.duplicateRequestPolicy,
+    driverLockMinutes: saved.driverLockMinutes,
     clientEmailType: saved.clientEmailType,
     clientEmailSendMode: saved.clientEmailSendMode,
     clientChannel: saved.clientChannel,
@@ -1614,8 +1717,6 @@ async function writeOccurrenceTypeRow(
     driverReplyTemplate: saved.driverReplyTemplate,
     forwardToNoteRecipient: saved.forwardToNoteRecipient,
     forwardToInformedEmail: saved.forwardToInformedEmail,
-    forwardEmailSubject: saved.forwardEmailSubject,
-    forwardEmailBody: saved.forwardEmailBody,
     flow: saved.flow,
     id: saved.id,
     itemsMinimumCount: saved.itemsMinimumCount,

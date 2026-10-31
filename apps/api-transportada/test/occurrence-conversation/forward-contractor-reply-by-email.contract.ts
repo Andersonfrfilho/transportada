@@ -27,6 +27,7 @@ import { DeliveryClientNotFoundError } from '../../src/delivery-clients/domain/d
 import type { ClientEmailType } from '../../src/shared/delivery-client-email.constant.js'
 import { OccurrenceClientEmailOffError } from '../../src/trips/domain/occurrence-client-email.error.js'
 import {
+  ContractorReplyClientTemplateMissingError,
   ContractorReplyClientEmailLimitReachedError,
   ContractorReplyClientEmailNotFoundError,
   ContractorReplyEmailAddressInvalidError,
@@ -38,6 +39,10 @@ import {
 } from '../../src/occurrence-conversation/domain/contractor-reply-email.error.js'
 import { OccurrenceConversationIdempotencyKeyReusedError } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import { TripOccurrenceNotFoundError } from '../../src/trips/domain/trip.error.js'
+import {
+  createClientTextsResolver,
+  type ClientTextsTemplate,
+} from '../fixtures/contractor-reply-client-texts.fixture.js'
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const OCCURRENCE_ID = '22222222-2222-4222-8222-222222222222'
@@ -62,8 +67,6 @@ const CONFIG = {
   driverReplyChannel: 'app_chat',
   driverReplyTemplate: '',
   driverReplyWindowClosedAction: 'fallback_app_chat',
-  forwardEmailBody: 'Segue o boleto com o novo vencimento.',
-  forwardEmailSubject: 'Boleto prorrogado',
   forwardToInformedEmail: 'manual',
   forwardToNoteRecipient: 'manual',
   mode: 'forward_after_approval',
@@ -89,6 +92,8 @@ type World = {
   replyAttachmentId?: null | string
   replyExists?: boolean
   sentCount?: number
+  /** Spec 286 T3: o modelo do canal escolhido no tipo; ausente, o texto livre antigo. */
+  template?: ClientTextsTemplate
   threadId?: string | undefined
 }
 
@@ -99,7 +104,13 @@ function build(world: Partial<World> = {}) {
     countEmailDeliveries: async () => state.sentCount ?? 0,
     findAttachment: async () =>
       state.attachmentSize === -1 ? null : { sizeBytes: state.attachmentSize ?? MEGABYTE },
-    findCarrierName: async () => 'Transportadora Teste',
+    /** O layout real (modelo padrão das Notificações) vive na integração; aqui só a marca de que passou por ele. */
+    renderMail: async ({ body, subject }) => ({
+      hasInlineLogo: true,
+      html: `<!-- standard-email -->${body}`,
+      subject: subject.trim(),
+      text: `${body}\n\n--\nTransportadora Teste`,
+    }),
     findDeliveryClientTaxId: async () =>
       state.clientTaxId === undefined ? CLIENT_TAX_ID : state.clientTaxId,
     findDeliveryById: async ({ deliveryId }) => {
@@ -160,6 +171,7 @@ function build(world: Partial<World> = {}) {
             replyAttachmentId:
               state.replyAttachmentId === undefined ? ATTACHMENT_ID : state.replyAttachmentId,
           },
+    resolveClientTexts: createClientTextsResolver(state.template),
     recordDelivery: async (params) => {
       const id = `delivery-${state.deliveries.length + 1}`
       state.deliveries.push({ ...params, id })
@@ -246,6 +258,9 @@ describe('enviar o boleto ao cliente da nota (spec 248 RF10)', () => {
     })
     expect(state.mails[0]?.bodyText).toContain('Segue o boleto com o novo vencimento.')
     expect(state.mails[0]?.bodyText).toContain('Transportadora Teste')
+    /** Spec 286: o e-mail sai no modelo padrão de e-mail, com o logo da empresa inline. */
+    expect(state.mails[0]?.bodyHtml).toStartWith('<!-- standard-email -->')
+    expect(state.mails[0]?.hasInlineLogo).toBe(true)
     expect(state.deliveries[0]).toMatchObject({
       address: NOTE_EMAIL,
       attachmentId: OTHER_ATTACHMENT_ID,
@@ -381,7 +396,7 @@ describe('limites e recusas', () => {
     await expect(off.useCase.forward(NOTE_INPUT)).rejects.toBeInstanceOf(
       ContractorReplyEmailForwardDisabledError,
     )
-    const noBody = build({ config: { ...CONFIG, forwardEmailBody: '  ' } })
+    const noBody = build({ template: 'none' })
     await expect(noBody.useCase.forward(NOTE_INPUT)).rejects.toBeInstanceOf(
       ContractorReplyEmailForwardDisabledError,
     )
@@ -654,10 +669,33 @@ describe('o boleto aos e-mails do cadastro do cliente (spec 279 T3, D3)', () => 
     expect(state.mails).toHaveLength(2)
   })
 
-  test('sem o texto do e-mail na cópia do retorno, nada sai (248)', async () => {
+  test('spec 286 T3: com modelo escolhido no tipo, o e-mail sai com o assunto e o corpo dele', async () => {
     const { state, useCase } = build({
       clientEmails: CLIENT_EMAILS,
-      config: { ...CONFIG, forwardEmailBody: '' },
+      template: { email: { body: 'Boleto da NF 123/1 em anexo.', subject: 'Seu boleto' } },
+    })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    expect(state.mails[0]?.subject).toBe('Seu boleto')
+    expect(state.mails[0]?.bodyText).toContain('Boleto da NF 123/1 em anexo.')
+    expect(state.mails[0]?.bodyText).not.toContain('Segue o boleto com o novo vencimento.')
+  })
+
+  test('spec 286 T3: modelo escolhido que não serve recusa com 409 e nada sai', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS, template: 'missing' })
+    await expect(useCase.forwardToClient(CLIENT_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyClientTemplateMissingError,
+    )
+    await expect(useCase.forward(NOTE_INPUT)).rejects.toBeInstanceOf(
+      ContractorReplyClientTemplateMissingError,
+    )
+    expect(state.mails).toEqual([])
+    expect(state.deliveries).toEqual([])
+  })
+
+  test('sem modelo escolhido para o e-mail, nada sai (spec 286 T9: sem texto antigo)', async () => {
+    const { state, useCase } = build({
+      clientEmails: CLIENT_EMAILS,
+      template: 'none',
     })
     await expect(useCase.forwardToClient(CLIENT_INPUT)).rejects.toBeInstanceOf(
       ContractorReplyEmailForwardDisabledError,
@@ -784,6 +822,23 @@ describe('Tentar de novo uma entrega recusada pelo provedor (spec 279 T6b, RF12)
     await expect(
       useCase.retryToClient({ ...RETRY_INPUT, deliveryId: last.id }),
     ).rejects.toBeInstanceOf(ContractorReplyEmailLimitReachedError)
+  })
+
+  test('a entrega que já saiu pode ser reenviada, com chave nova e sem repetir enquanto a nova está na fila (spec 286 Q4)', async () => {
+    const { state, useCase } = build({ clientEmails: CLIENT_EMAILS })
+    await useCase.forwardToClient(CLIENT_INPUT)
+    const [first] = state.deliveries
+    if (first === undefined) throw new Error('EXPECTED_DELIVERY')
+    state.deliveries[0] = { ...first, status: 'sent' }
+
+    const resent = await useCase.retryToClient(RETRY_INPUT)
+    expect(resent.results.map((result) => result.kind)).toEqual(['queued'])
+    expect(state.deliveries).toHaveLength(3)
+    expect(new Set(state.deliveries.map((delivery) => delivery.idempotencyKey)).size).toBe(3)
+
+    const repeated = await useCase.retryToClient(RETRY_INPUT)
+    expect(repeated.results.map((result) => result.kind)).toEqual(['already_queued'])
+    expect(state.deliveries).toHaveLength(3)
   })
 
   test('só a entrega recusada pelo provedor tenta de novo', async () => {

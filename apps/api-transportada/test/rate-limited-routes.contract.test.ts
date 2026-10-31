@@ -63,6 +63,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         findRecipients: unused,
         listRequests: unused,
         mailRateLimit: MAIL_RATE_LIMIT,
+        readMailTemplate: unused,
         saveDraft: unused,
         sendMail: unused,
       }),

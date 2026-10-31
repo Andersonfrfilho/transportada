@@ -156,6 +156,7 @@
   "./test/integration/occurrence-type-contractor-watchers.integration.ts": 40,
   "./test/integration/occurrence-type-declared-amount-write.integration.ts": 20,
   "./test/integration/occurrence-type-icon-write.integration.ts": 8,
+  "./test/integration/occurrence-type-client-channels.integration.ts": 8,
   "./test/integration/occurrence-type-icon.integration.ts": 3,
   "./test/integration/occurrence-type-items-mode.integration.ts": 14,
   "./test/integration/occurrence-type-leaves-document-behind.integration.ts": 11,

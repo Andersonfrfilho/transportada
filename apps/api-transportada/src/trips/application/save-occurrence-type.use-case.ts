@@ -9,6 +9,16 @@ import {
   OccurrenceEmailTemplateNotFoundError,
   OccurrenceTypeLeavesDocumentBehindRequiresSeparationError,
 } from '../domain/trip.error.js'
+import {
+  OCCURRENCE_CLIENT_CHANNEL_ORDER,
+  type OccurrenceClientChannelMatrixChange,
+} from '../domain/occurrence-client-channels.policy.js'
+import {
+  assessClientChannelTemplate,
+  type ClientChannelTemplateContent,
+} from '../domain/occurrence-client-channel-template.policy.js'
+import { OccurrenceClientChannelTemplateInvalidError } from '../domain/occurrence-client-channels.error.js'
+import type { OccurrenceClientChannel } from '../../shared/occurrence-client-channel.constant.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type {
   ClientChannel,
@@ -69,6 +79,15 @@ export type OccurrenceEmailTemplateCatalogPort = {
     readonly companyId: string
     readonly templateKey: string
   }): Promise<boolean>
+  /**
+   * Spec 286 (RF2): a versão ativa mais alta da chave **no canal** (pt-BR), da empresa; `null` quando não há. Ausente
+   * (dublê que não exercita a matriz) é "nenhum modelo": a chave mandada é recusada como `not_found`.
+   */
+  findClientChannelTemplate?(input: {
+    readonly channel: OccurrenceClientChannel
+    readonly companyId: string
+    readonly key: string
+  }): Promise<ClientChannelTemplateContent | null>
 }
 
 export type SaveOccurrenceTypeValues = {
@@ -96,9 +115,12 @@ export type SaveOccurrenceTypeValues = {
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   readonly contractorReplyResolveOnDelivery?: boolean | undefined
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+  readonly driverLockMinutes?: null | number | undefined
   readonly clientEmailType?: ClientEmailType | undefined
   readonly clientEmailSendMode?: ClientEmailSendMode | undefined
   readonly clientChannel?: ClientChannel | undefined
+  /** Spec 286 (RF2): a matriz por canal; canal ausente é "não mexa" e, presente, ela deriva `clientChannel`. */
+  readonly clientChannels?: OccurrenceClientChannelMatrixChange | undefined
   readonly asksClientContact?: boolean | undefined
   readonly asksNewDueDate?: boolean | undefined
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
@@ -233,6 +255,12 @@ export async function saveOccurrenceTypeWithTemplate(
     values,
   })
 
+  await assertClientChannelTemplatesAreUsable({
+    companyId: input.companyId,
+    templates: input.templates,
+    values,
+  })
+
   const { emailTemplateKey } = values
   if (emailTemplateKey === null) return input.save(values)
 
@@ -259,6 +287,34 @@ async function assertContractorTemplateIsUsable(params: {
   })
   const problems = assessContractorTemplate({ key, template })
   if (problems.length > 0) throw new OccurrenceContractorTemplateInvalidError(problems)
+}
+
+/**
+ * Spec 286 (RF2): cada canal mandado com chave tem de apontar para um modelo utilizável do módulo naquele canal — todos
+ * os problemas de todos os canais de uma vez. Chave nula é permitida (o canal fica sem modelo e não sai; o editor avisa).
+ */
+async function assertClientChannelTemplatesAreUsable(params: {
+  readonly companyId: string
+  readonly templates: OccurrenceEmailTemplateCatalogPort
+  readonly values: SaveOccurrenceTypeValues
+}): Promise<void> {
+  const change = params.values.clientChannels
+  if (change === undefined) return
+  const checks = await Promise.all(
+    OCCURRENCE_CLIENT_CHANNEL_ORDER.map(async (channel) => {
+      const key = change[channel]?.templateKey
+      if (key === undefined || key === null) return { channel, problems: [] }
+      const template =
+        (await params.templates.findClientChannelTemplate?.({
+          channel,
+          companyId: params.companyId,
+          key,
+        })) ?? null
+      return { channel, problems: assessClientChannelTemplate({ channel, key, template }) }
+    }),
+  )
+  const invalid = checks.filter((check) => check.problems.length > 0)
+  if (invalid.length > 0) throw new OccurrenceClientChannelTemplateInvalidError(invalid)
 }
 
 /** Uma leitura só do gravado, e só na edição que deixa algum campo ausente. */

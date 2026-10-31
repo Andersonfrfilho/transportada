@@ -30,18 +30,29 @@ export type WhatsAppEvolutionPanelProps = Readonly<{
   connection: WhatsAppEvolutionConnection | undefined
   connectionErrorCode: string | undefined
   disabled: boolean
+  disconnecting: boolean
+  /** Pede o número do chip por inteiro; a API só o devolve a quem gerencia as configurações. */
+  onReveal: () => void
+  revealedNumber: string | undefined
+  revealing: boolean
+  /** Desfaz o pareamento no Evolution; a instância fica livre para ler o QR de outro número. */
+  onDisconnect: () => void
   errorCode: string | undefined
   loading: boolean
   /** O resultado da última gravação deixa de descrever a tela no instante em que ela muda. */
   onEdit: () => void
   onProvision: (acknowledgeRisk: boolean) => void
   onQrOpenChange: (open: boolean) => void
+  /** Pede um QR novo na hora, sem esperar a renovação automática. */
+  onQrRefresh: () => void
   /** O ambiente cria a instância sozinho: a tela pede só o aviso de risco, sem endereço nem chave. */
   provisioningAvailable: boolean
   onSave: (input: WhatsAppEvolutionSaveInput) => void
   qr: WhatsAppEvolutionQr | undefined
   qrErrorCode: string | undefined
   qrLoading: boolean
+  /** Instante (ms) em que o QR exibido foi recebido; a validade conta a partir dele. */
+  qrReceivedAt: number
   qrOpen: boolean
   saved: boolean
   stored: WhatsAppEvolutionSettings | null | undefined
@@ -78,15 +89,46 @@ function useQrObjectUrl(qrCode: string | null | undefined): string | null {
   return url
 }
 
+/** O QR vale poucos segundos: a tela diz quanto resta e avisa quando o código na tela já não serve. */
+function WhatsAppEvolutionQrValidity(
+  props: Readonly<{ receivedAt: number; refreshAfterSeconds: number }>,
+) {
+  const { t } = useTranslation('companySettings')
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+  const remaining = Math.max(
+    0,
+    Math.ceil(props.receivedAt / 1000 + props.refreshAfterSeconds - now / 1000),
+  )
+
+  return remaining > 0 ? (
+    <p className={calendarStyles.hint} role="status">
+      {t('whatsappEvolution.connection.qrValidity', { seconds: remaining })}
+    </p>
+  ) : (
+    <p className={calendarStyles.refusal} role="alert">
+      {t('whatsappEvolution.connection.qrExpired')}
+    </p>
+  )
+}
+
 function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
   const { t } = useTranslation('companySettings')
   const qrImageUrl = useQrObjectUrl(props.qr?.qrCode)
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
   const stored = props.stored
   if (stored === null || stored === undefined) return null
   // O estado da tela é o do QR quando ele já respondeu; senão, o último gravado.
-  const state = props.qrOpen
-    ? (props.qr?.state ?? stored.connectionState)
-    : (props.connection?.state ?? stored.connectionState)
+  // 'open' vence: a leitura curta do estado enxerga a conexão antes do próximo QR.
+  const state =
+    props.connection?.state === 'open'
+      ? 'open'
+      : props.qrOpen
+        ? (props.qr?.state ?? stored.connectionState)
+        : (props.connection?.state ?? stored.connectionState)
   const checkedAt = props.connection?.checkedAt ?? stored.connectionCheckedAt
   const canConnect = stored.status === 'active' && stored.apiKeyConfigured
 
@@ -121,8 +163,64 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
         )}
         {state === 'open' ? (
           <p className={calendarStyles.status} role="status">
-            {t('whatsappEvolution.connection.connected')}
+            {props.connection?.ownerMasked === undefined
+              ? t('whatsappEvolution.connection.connected')
+              : t('whatsappEvolution.connection.connectedNumber', {
+                  number: props.revealedNumber ?? props.connection.ownerMasked,
+                })}
+            {props.connection?.ownerMasked === undefined ||
+            props.revealedNumber !== undefined ? null : (
+              <Button
+                disabled={props.revealing}
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={props.onReveal}
+              >
+                <Icon name="eye" />
+                {t('whatsappEvolution.connection.reveal')}
+              </Button>
+            )}
           </p>
+        ) : null}
+        {canConnect && state === 'open' ? (
+          confirmingDisconnect ? (
+            <div className={calendarStyles.actions}>
+              <p className={calendarStyles.routingNotice}>
+                {t('whatsappEvolution.connection.disconnectConfirm')}
+              </p>
+              <Button
+                disabled={props.disconnecting}
+                type="button"
+                onClick={() => {
+                  setConfirmingDisconnect(false)
+                  props.onDisconnect()
+                }}
+              >
+                <Icon name="close" />
+                {t('whatsappEvolution.connection.disconnectConfirmAction')}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setConfirmingDisconnect(false)}
+              >
+                {t('whatsappEvolution.connection.disconnectCancel')}
+              </Button>
+            </div>
+          ) : (
+            <div className={calendarStyles.actions}>
+              <Button
+                disabled={props.disconnecting}
+                type="button"
+                variant="secondary"
+                onClick={() => setConfirmingDisconnect(true)}
+              >
+                <Icon name="close" />
+                {t('whatsappEvolution.connection.disconnect')}
+              </Button>
+            </div>
+          )
         ) : null}
         {canConnect && state !== 'open' && !props.qrOpen ? (
           <div className={calendarStyles.actions}>
@@ -152,6 +250,13 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
                 </p>
               </>
             ) : null}
+            {props.qr?.qrCode && qrImageUrl !== null ? (
+              <WhatsAppEvolutionQrValidity
+                key={props.qrReceivedAt}
+                receivedAt={props.qrReceivedAt}
+                refreshAfterSeconds={props.qr.refreshAfterSeconds}
+              />
+            ) : null}
             {props.qr?.pairingCode ? (
               <p className={calendarStyles.hint}>
                 {t('whatsappEvolution.connection.pairingCode', { code: props.qr.pairingCode })}
@@ -164,6 +269,10 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
               </p>
             )}
             <div className={calendarStyles.actions}>
+              <Button type="button" variant="secondary" onClick={props.onQrRefresh}>
+                <Icon name="refresh" />
+                {t('whatsappEvolution.connection.refreshQr')}
+              </Button>
               <Button type="button" variant="secondary" onClick={() => props.onQrOpenChange(false)}>
                 <Icon name="close" />
                 {t('whatsappEvolution.connection.closeQr')}

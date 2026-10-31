@@ -210,6 +210,8 @@ describe('local Keycloak realm contract', () => {
       '127.0.0.1:${KEYCLOAK_MANAGEMENT_PORT}:9000',
       // ADR-0044 §2: a matriz de estrada é nossa, e ela responde só para a máquina local
       '127.0.0.1:${OSRM_PORT:-53005}:5000',
+      // Spec 281: Evolution local (opt-in), só para a máquina local
+      '127.0.0.1:${EVOLUTION_PORT:-58081}:8080',
     ])
   })
 

@@ -37,12 +37,8 @@ import {
 } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-reply-whatsapp.repository.js'
 import { createRateLimiter } from '../../src/http/rate-limiter.service.js'
 import { createEvolutionConversationInbound } from '../../src/occurrence-conversation/application/evolution-conversation-inbound.service.js'
-import { createAssignUnassignedMessageUseCase } from '../../src/occurrence-conversation/application/occurrence-conversation-unassigned.use-case.js'
 import { createDrizzleEvolutionConversationInboundRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-evolution-conversation-inbound.repository.js'
-import {
-  createDrizzleOccurrenceConversationUnassignedReader,
-  createDrizzleOccurrenceConversationUnassignedUnitOfWork,
-} from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
+import { createDrizzleOccurrenceConversationUnassignedReader } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
 import type { ApiLogger } from '../../src/shared/api.types.js'
 import { createSendClientReplyUseCase } from '../../src/occurrence-conversation/application/send-client-reply.use-case.js'
 import { createDrizzleClientReplyRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-client-reply.repository.js'
@@ -50,6 +46,7 @@ import { applyProviderMessageStatus } from '../../src/occurrence-conversation/in
 import { findOccurrenceConversations } from '../../src/occurrence-conversation/infrastructure/occurrence-conversation.query.js'
 import {
   openReplyWithForward,
+  seedContractorReplyChannelTemplate,
   receivePdfReply,
 } from '../fixtures/contractor-reply-database.fixture.js'
 import {
@@ -120,6 +117,12 @@ async function prepare(database: TestDatabase, options: { readonly withClient?: 
     note: 'off',
   })
   await receivePdfReply(database, { companyId, conversationId })
+  await seedContractorReplyChannelTemplate(
+    database,
+    seeded,
+    'whatsapp',
+    'Segue o boleto prorrogado.',
+  )
   const contacts = options.withClient === false ? null : await seedClient(database, seeded)
   const [occurrence] = await database.db
     .select({ typeId: tripDocumentOccurrences.occurrenceTypeId })
@@ -156,6 +159,7 @@ async function prepare(database: TestDatabase, options: { readonly withClient?: 
     completion: createDrizzleContractorReplyWhatsAppCompletion(database.db),
     now: () => new Date(),
     sender: {
+      connectedNumber: async () => null,
       isConnected: async () => true,
       sendDocument: async ({ number }) => {
         if (failNumbers.has(number)) throw new Error('EVOLUTION_DOWN')
@@ -521,7 +525,7 @@ describe('a resposta do cliente entra na conversa dele (spec 283 T3)', () => {
   )
 
   testWithPostgres(
-    'sem citação vai para não atribuídas, com a conversa do cliente para vincular',
+    'sem citar, do número que recebeu o envio, entra na conversa do cliente (não vai para não atribuídas)',
     async () => {
       await withConversationDatabase(async (database) => {
         const { companyId, contacts, seeded, whatsapp } = await prepare(database)
@@ -533,44 +537,29 @@ describe('a resposta do cliente entra na conversa dele (spec 283 T3)', () => {
             from: '5511988887777',
             providerMessageId: 'EVO-IN-283-B',
             replyToProviderMessageId: null,
-            text: 'Qual o vencimento?',
+            text: 'obrigado',
           },
         })
-        expect(outcome).toBe('unassigned')
+        expect(outcome).toBe('conversation')
 
         const [conversation] = await clientConversations(database, companyId)
-        const pending = await createDrizzleOccurrenceConversationUnassignedReader(
-          database.db,
-        ).listPending({ companyId })
-        expect(pending).toHaveLength(1)
-        expect(pending[0]?.candidates).toMatchObject([
-          {
-            contractorName: 'Mercado Beta',
-            conversationId: conversation?.id,
-            occurrenceId: seeded.occurrenceId,
-            occurrenceKind: 'document',
-            participant: 'client',
-          },
-        ])
-
-        const assigned = await createAssignUnassignedMessageUseCase({
-          clock: () => new Date(),
-          unitOfWork: createDrizzleOccurrenceConversationUnassignedUnitOfWork(database.db),
-        }).assign({
-          companyId,
-          conversationId: conversation?.id ?? '',
-          unassignedId: pending[0]?.id ?? '',
-          userId: seeded.company.userId,
-        })
-        expect(assigned.conversationId).toBe(conversation?.id ?? '')
         const messages = await database.db
           .select({
             bodyText: occurrenceConversationMessages.bodyText,
             direction: occurrenceConversationMessages.direction,
           })
           .from(occurrenceConversationMessages)
-          .where(eq(occurrenceConversationMessages.id, assigned.messageId))
-        expect(messages).toEqual([{ bodyText: 'Qual o vencimento?', direction: 'inbound' }])
+          .where(
+            and(
+              eq(occurrenceConversationMessages.conversationId, conversation?.id ?? ''),
+              eq(occurrenceConversationMessages.direction, 'inbound'),
+            ),
+          )
+        expect(messages).toEqual([{ bodyText: 'obrigado', direction: 'inbound' }])
+        const pending = await createDrizzleOccurrenceConversationUnassignedReader(
+          database.db,
+        ).listPending({ companyId })
+        expect(pending).toHaveLength(0)
       })
     },
     90_000,

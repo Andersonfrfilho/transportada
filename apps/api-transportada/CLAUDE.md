@@ -1171,6 +1171,49 @@ parametrizado (`notification-template.query.ts`, versão ativa mais alta) e usa 
   em `/v1/notification-templates*` exigem `settings.manage` (o módulo, sozinho, deixa qualquer membro).
 - Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O modelo do e-mail da ocorrência vem do módulo de notificação (spec 271)".
 
+## O retorno ao cliente do tipo é uma matriz por canal (spec 286 T2)
+
+O tipo **seleciona**, por canal, o modelo do módulo de notificação (`notification.templates`, a versão ativa mais alta da chave **no
+canal**, `pt-BR`) e o modo de envio; texto de mensagem não mora no tipo. Tabela filha `company_occurrence_type_client_channels` (um canal
+por linha, molde de `company_occurrence_type_moments`): `enabled` (a caixa), `send_mode` (`manual`/`automatic`) e `template_key` (sem FK).
+
+- **`PUT`**: `clientChannels: { email?, whatsapp? }`, cada canal inteiro (`enabled`, `sendMode`, `templateKey`); canal ausente não mexe.
+  Chave conferida **antes** da transação (400 `OCCURRENCE_CLIENT_CHANNEL_TEMPLATE_INVALID`, campo `clientChannels.<canal>.templateKey`:
+  `not_found`, `system_key`, `empty_subject` só no e-mail, `empty_body`). Com a matriz, `client_channel` e `client_email_send_mode` são
+  gravados **derivados** dela; e-mail ligado com `client_email_type = off` é 400 `OCCURRENCE_CLIENT_CHANNEL_EMAIL_TYPE_REQUIRED`.
+- **Painel antigo** (grava `clientChannel`/`clientEmailType`/`clientEmailSendMode`): liga e desliga as caixas pela regra de
+  `deriveClientChannelMatrixFromLegacy`, sem apagar o modelo nem o modo do WhatsApp. Tipo sem linha lê o derivado (leitura tolerante).
+- **Leitura**: `clientChannels` em `GET`/`PUT /company-settings/occurrence-types` (`toOccurrenceTypeSettingsViews`, lote).
+- **Migração (RF5)**: o texto livre `forward_email_subject`/`forward_email_body` de cada tipo virou o modelo `email`
+  `occurrence.client-reply.<id do tipo>` (e um `whatsapp` sem HTML quando o tipo falava por WhatsApp), apontado pelo canal. Os campos
+  antigos **seguem gravados e lidos pelo envio** até a T3 trocar o envio para o modelo; a etapa B (T9) os tira, com aprovação.
+
+## O boleto sai por canal, pelo modelo (spec 286 T3)
+
+O envio ao cliente lê o **modelo de cada canal** da matriz (`contractor-reply-client-template.support.ts`, espelhado no worker):
+tipo sem linha ou sem `template_key` segue nos `forwardEmail*` antigos (no WhatsApp a legenda é `assunto\n\ncorpo`); chave escolhida
+sem versão ativa → `template_missing` (entrega `skipped` no automático, 409 `CONTRACTOR_REPLY_CLIENT_TEMPLATE_MISSING` no botão).
+Variáveis: `razaoSocial`, `nomeExibicao`, `numeroNota`, `numeroNotaSemSerie`, `tipoOcorrencia`.
+
+- **WhatsApp automático** (canal ligado e `automatic`), em duas fases. **Reserva** na transação que entrega o boleto ao motorista
+  (savepoint `client_whatsapp_forward`): uma linha `queued`, gatilho `automatic`, sem usuário, por número `whatsapp`/`boleto` do
+  cadastro do cliente, com a **mesma chave** do botão (`client_boleto_whatsapp:` + sha256(`retorno:anexo:número`)) — o Reenviar
+  manual ao mesmo número faz replay. **Despacho** depois do commit (API: portal; worker: e-mail recebido), trava atômica em
+  `claimed_at` (dois despachos não mandam duas vezes); cada número enviado vira aviso do Sistema na conversa do motorista.
+- **Queda para e-mail (RF4)**: sem número (`client_without_whatsapp`), sem modelo, sem instância (`whatsapp_disconnected`) ou
+  nenhum número recebeu → o motivo fica na linha do tempo e o boleto vai ao e-mail do cliente se a caixa do e-mail estiver
+  ligada (mesmo em manual). Teste: `test/integration/occurrence-contractor-reply-client-channels-auto.integration.ts`.
+- **Marca da reserva**: o e-mail que sai como queda do WhatsApp grava `fallback_from = 'whatsapp'` na entrega (migration
+  `20261029023933_client_email_fallback_from`, CHECK só no alvo `client_boleto_emails`); a leitura das entregas devolve
+  `fallbackFrom` e o painel mostra "Reserva do WhatsApp". O envio do próprio canal e o botão ficam com `null`.
+- **Layout do e-mail**: o boleto ao cliente e ao destinatário da nota (automático e botão) sai no modelo padrão de e-mail das
+  Notificações (`notification.standard-email`, o da empresa quando utilizável, senão o embutido do SDK), o mesmo visual do chat da
+  contratante: `contractor-reply-client-email-layout.support.ts` (espelhado no worker). O texto do modelo do canal entra como texto
+  (HTML antigo migrado vira texto); o logo vai inline (`has_inline_logo`) quando a empresa tem um. Proibido montar layout aqui.
+- **Limites conhecidos**: queda do processo entre a trava e o fechamento deixa a linha `queued` com `claimed_at` (sem varredura);
+  `acceptsFreeText` do SDK 0.3.0 não é ligado aqui porque o TMS não usa driver Evolution no módulo (o módulo só guarda e
+  renderiza; quem envia é o gateway Evolution da própria app).
+
 ## E-mail da ocorrência em HTML (spec 272, ADR-0110)
 
 Emenda a ADR-0108 §3 e a D5 da 271: **corpo HTML deixa de ser recusado**; é recusado só o HTML inseguro. O desenho mora no modelo

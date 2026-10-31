@@ -121,6 +121,9 @@ function unitOfWork(world: World): RegisterOfficeDocumentOccurrencesParams['unit
         async findOccurrenceType() {
           return world.occurrenceType
         },
+        async findDriverLockingOccurrence() {
+          return null
+        },
         async findReachableDocumentIds(input) {
           return input.documentIds
             .filter((documentId) => world.reachable.has(documentId))

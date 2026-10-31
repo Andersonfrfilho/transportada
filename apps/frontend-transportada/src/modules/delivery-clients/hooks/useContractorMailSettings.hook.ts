@@ -7,6 +7,7 @@ import type { ContractorMailSettingsRead } from '../shared/contractorMailSetting
 
 const CONTRACTOR_MAIL_SETTINGS_QUERY_KEY = 'contractor-mail-settings'
 const CONTRACTOR_MAIL_CHECKS_QUERY_KEY = 'contractor-mail-settings-checks'
+const ADDRESS_CORRECTION_TEMPLATE_QUERY_KEY = 'address-correction-mail-template-usable'
 
 export function useContractorMailSettings(
   input: Readonly<{ companyId?: string; enabled: boolean }>,
@@ -26,6 +27,13 @@ export function useContractorMailSettings(
     enabled,
     queryFn: () => client.getChecks(),
     queryKey: checksKey,
+  })
+
+  /** Spec 286: o modelo do e-mail de correção vive em Notificações; aqui só se pergunta se ele serve. */
+  const templateUsableQuery = useQuery({
+    enabled,
+    queryFn: () => client.isAddressCorrectionTemplateUsable(),
+    queryKey: [ADDRESS_CORRECTION_TEMPLATE_QUERY_KEY, input.companyId] as const,
   })
 
   function invalidateChecks(): void {
@@ -55,5 +63,6 @@ export function useContractorMailSettings(
     saveMutation,
     sendTestEmailMutation,
     settingsQuery,
+    templateUsableQuery,
   }
 }

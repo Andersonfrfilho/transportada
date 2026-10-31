@@ -17,10 +17,13 @@ import {
   ISSUANCE_FLOW_CONTEXT_KEY as KEY,
   ISSUANCE_TRIP_WINDOW_DAYS,
 } from '../domain/whatsapp-issuance-flow.constant.js'
+import type { WhatsAppBotSpeechPort } from './whatsapp-bot-speech.service.js'
 
 const DAY_MS = 86_400_000
 
 export type IssuanceFlowActionDependencies = Readonly<{
+  /** Spec 286 T8: as falas vêm do grafo publicado; sem isto, o padrão do código. */
+  speech?: WhatsAppBotSpeechPort
   clock: () => Date
   confirmSelection: DocumentSelectionConfirmation['confirm']
   listIssueDateEmitters: DocumentSelectionRepositoryPort['listIssueDateEmitters']

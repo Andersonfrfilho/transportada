@@ -37,7 +37,7 @@ COMPOSE_BASE := docker compose --env-file $(ENV_FILE) -p $(COMPOSE_PROJECT_NAME)
 COMPOSE := KEYCLOAK_PORT=$(KEYCLOAK_PORT) KEYCLOAK_MANAGEMENT_PORT=$(KEYCLOAK_MANAGEMENT_PORT) $(COMPOSE_BASE)
 E2E_ENV_FILE ?= .env.test
 
-.PHONY: help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap storage-bootstrap up down ps dev check migration-test smoke smoke-health smoke-panel smoke-landing smoke-driver e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration map-mirror map-refresh test-worker-integration
+.PHONY: evolution-up evolution-down help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap storage-bootstrap up down ps dev check migration-test smoke smoke-health smoke-panel smoke-landing smoke-driver e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration map-mirror map-refresh test-worker-integration
 
 help: ## 📚 Lista os comandos disponíveis
 	@sed -n 's/^\([a-z][a-z-]*\):.*## \(.*\)$$/\1\t\2/p' $(MAKEFILE_LIST)
@@ -144,6 +144,13 @@ bench: up ## 🧪 Prepara a bancada local inteira (migrations, sementes e OSRM d
 
 routing-up: config ## 🗺️  Sobe o OSRM (exige o extract — ver docs/runbooks/osrm-extract.md)
 	@$(COMPOSE) --profile routing up -d --wait osrm
+
+evolution-up: config ## 💬 Sobe o Evolution local (WhatsApp) em 127.0.0.1:58081 — spec 281, para comparar com o Railway
+	@$(COMPOSE) --profile evolution up -d --wait postgres evolution
+	@echo "Evolution: http://127.0.0.1:$${EVOLUTION_PORT:-58081}  (EVOLUTION_BASE_URL e EVOLUTION_GLOBAL_API_KEY no .env)"
+
+evolution-down: config ## 💬 Encerra o Evolution local
+	@$(COMPOSE) --profile evolution stop evolution
 
 routing-down: config ## 🗺️  Encerra o OSRM sem derrubar o resto da infra
 	@$(COMPOSE) --profile routing stop osrm

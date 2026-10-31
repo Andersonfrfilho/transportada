@@ -13,6 +13,7 @@ import type {
 } from './occurrence.constant'
 import type {
   ClientChannel,
+  ClientReturnMatrix,
   ClientEmailSendMode,
   ClientEmailType,
   ContractorReplyAlertMode,
@@ -89,6 +90,8 @@ export type OccurrenceType = Readonly<{
   clientEmailType?: ClientEmailType
   /** Spec 279 RF10: `manual` ou `automatic`. Ausente é API anterior ao campo. */
   clientEmailSendMode?: ClientEmailSendMode
+  /** Spec 286 (RF2): a matriz "Retorno ao cliente" por canal; `null` ou ausente é API anterior (a tela antiga segue). */
+  clientChannels?: ClientReturnMatrix | null
   /** Spec 281 RF8: por qual canal a ocorrência fala com o cliente. Ausente é API anterior ao campo. */
   clientChannel?: ClientChannel
   /** Spec 281 T8b: o app do motorista pede o contato do cliente na abertura. Ausente é API anterior ao campo. */
@@ -104,6 +107,8 @@ export type OccurrenceType = Readonly<{
   driverReplyTemplate?: string
   /** Spec 276 T4: o pedido repetido na mesma nota. Ausente é API anterior ao campo. */
   duplicateRequestPolicy?: DuplicateRequestPolicy
+  /** Horas em que o motorista fica travado depois de existir a mesma ocorrência do tipo na nota; `null` é sem trava. Ausente é API anterior ao campo. */
+  driverLockMinutes?: null | number
   forwardEmailBody?: string
   forwardEmailSubject?: string
   forwardToInformedEmail?: InformedEmailForwardMode

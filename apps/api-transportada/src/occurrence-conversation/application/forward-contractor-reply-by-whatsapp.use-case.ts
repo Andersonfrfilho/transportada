@@ -42,7 +42,8 @@ import {
   ContractorReplyWhatsAppOffError,
   ContractorReplyWhatsAppResendNotAllowedError,
 } from '../domain/contractor-reply-whatsapp.error.js'
-import { readForwardTexts } from './forward-contractor-reply-by-email.use-case.js'
+import { formatCarrierPhone } from '../infrastructure/contractor-reply-client-template.support.js'
+import { resolveForwardTexts } from './forward-contractor-reply-by-email.use-case.js'
 import {
   ContractorReplyWhatsAppSendError,
   type ContractorReplyWhatsAppAttachment,
@@ -70,9 +71,13 @@ const BRASILIA_OFFSET_MS = 3 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_FILE_NAME = 'boleto.pdf'
 
-/** "Tentar de novo" vale para o que pode dar certo na segunda; número sem WhatsApp e arquivo grande vão para o e-mail. */
+/**
+ * "Tentar de novo" vale para o que pode dar certo na segunda; número sem WhatsApp e arquivo grande vão para o e-mail.
+ * Spec 286 T3: o envio automático que parou sem modelo também vale, depois que o modelo for corrigido em Notificações.
+ */
 const RESENDABLE_FAILURES: readonly ContractorReplyDeliveryReason[] = [
   'send_failed',
+  'template_missing',
   'whatsapp_disconnected',
 ]
 
@@ -204,8 +209,9 @@ function replayed(params: {
   return { ...base, kind: 'failed', reason: existing.reason ?? 'send_failed' }
 }
 
+/** Spec 286 T3: a legenda é o corpo do modelo `whatsapp` (o texto livre antigo já vem como assunto + corpo). */
 function caption(texts: { readonly body: string; readonly subject: string }): string {
-  return `${texts.subject}\n\n${texts.body}`
+  return texts.body
 }
 
 export function createForwardContractorReplyByWhatsAppUseCase(dependencies: {
@@ -253,8 +259,15 @@ export function createForwardContractorReplyByWhatsAppUseCase(dependencies: {
   return {
     async forward(input) {
       const newNumber = resolveNewNumber(input)
+      const variableOverrides = await connectedPhoneOverride(dependencies.sender, input.companyId)
       const reservation = await dependencies.unitOfWork.execute((transaction) =>
-        reserveForward({ input, newNumber, now: dependencies.now(), transaction }),
+        reserveForward({
+          input,
+          newNumber,
+          now: dependencies.now(),
+          transaction,
+          variableOverrides,
+        }),
       )
       const outcome = await send({ companyId: input.companyId, reservation })
       log('occurrence_contractor_reply_whatsapp_forward', input.occurrenceId, outcome)
@@ -262,14 +275,24 @@ export function createForwardContractorReplyByWhatsAppUseCase(dependencies: {
     },
 
     async resend(input) {
+      const variableOverrides = await connectedPhoneOverride(dependencies.sender, input.companyId)
       const reservation = await dependencies.unitOfWork.execute((transaction) =>
-        reserveResend({ input, now: dependencies.now(), transaction }),
+        reserveResend({ input, now: dependencies.now(), transaction, variableOverrides }),
       )
       const outcome = await send({ companyId: input.companyId, reservation })
       log('occurrence_contractor_reply_whatsapp_resend', input.occurrenceId, outcome)
       return outcome
     },
   }
+}
+
+/** O 📞 da mensagem é o do chip que a envia: o do Evolution conectado, não o do perfil fiscal. Sem resposta do Evolution, fica o do perfil. */
+async function connectedPhoneOverride(
+  sender: ContractorReplyWhatsAppSenderPort,
+  companyId: string,
+): Promise<Readonly<Record<string, string>> | undefined> {
+  const number = await sender.connectedNumber({ companyId }).catch(() => null)
+  return number === null ? undefined : { telefoneTransportadora: formatCarrierPhone(number) }
 }
 
 function resolveNewNumber(input: ForwardContractorReplyByWhatsAppInput): null | string {
@@ -285,6 +308,7 @@ async function lockSendable(params: {
   readonly companyId: string
   readonly occurrenceId: string
   readonly transaction: ContractorReplyWhatsAppTransactionPort
+  readonly variableOverrides: Readonly<Record<string, string>> | undefined
 }) {
   const { companyId, occurrenceId, transaction } = params
   const reply = await transaction.lockReply({ companyId, occurrenceId })
@@ -296,7 +320,17 @@ async function lockSendable(params: {
   const settings = await transaction.findEvolutionSettings({ companyId })
   if (settings === null) throw new WhatsAppEvolutionNotConfiguredError()
   if (settings.status !== 'active') throw new WhatsAppEvolutionDisabledError()
-  const texts = readForwardTexts({ config: reply.config, target: 'client_boleto_emails' })
+  const texts = await resolveForwardTexts({
+    channel: 'whatsapp',
+    companyId,
+    occurrenceId,
+    reply,
+    target: 'client_boleto_emails',
+    transaction,
+    ...(params.variableOverrides === undefined
+      ? {}
+      : { variableOverrides: params.variableOverrides }),
+  })
   const attachmentId = params.attachmentId ?? reply.replyAttachmentId
   if (attachmentId === null) throw new ContractorReplyEmailAttachmentNotFoundError()
   const attachment = await transaction.findAttachment({ attachmentId, companyId, occurrenceId })
@@ -441,14 +475,16 @@ async function reserveForward(params: {
   readonly newNumber: null | string
   readonly now: Date
   readonly transaction: ContractorReplyWhatsAppTransactionPort
+  readonly variableOverrides: Readonly<Record<string, string>> | undefined
 }): Promise<Reservation> {
-  const { input, newNumber, now, transaction } = params
+  const { input, newNumber, now, transaction, variableOverrides } = params
   const { companyId } = input
   const { attachment, attachmentId, reply, settings, texts } = await lockSendable({
     attachmentId: input.attachmentId,
     companyId,
     occurrenceId: input.occurrenceId,
     transaction,
+    variableOverrides,
   })
   const { recipients, savedContactId } = await resolveRecipients({ input, newNumber, transaction })
 
@@ -488,8 +524,9 @@ async function reserveResend(params: {
   readonly input: ResendContractorReplyByWhatsAppInput
   readonly now: Date
   readonly transaction: ContractorReplyWhatsAppTransactionPort
+  readonly variableOverrides: Readonly<Record<string, string>> | undefined
 }): Promise<Reservation> {
-  const { input, now, transaction } = params
+  const { input, now, transaction, variableOverrides } = params
   const { companyId, occurrenceId } = input
   const reply = await transaction.lockReply({ companyId, occurrenceId })
   if (reply === null) throw new TripOccurrenceNotFoundError()
@@ -530,6 +567,7 @@ async function reserveResend(params: {
     companyId,
     occurrenceId,
     transaction,
+    variableOverrides,
   })
   const attempts = await transaction.countDeliveries({
     address: source.address,
@@ -622,6 +660,7 @@ async function deliver(params: {
     // Saiu: se o fechamento falhar, a entrega fica `queued` (em andamento) e nunca vira "Tentar de novo" — melhor
     // um estado parado do que o mesmo boleto duas vezes no WhatsApp do cliente.
     await dependencies.completion.markSent({
+      caption: reservation.caption,
       companyId,
       deliveryId: item.deliveryId,
       providerMessageId: sent.providerMessageId,

@@ -29,6 +29,20 @@ export class ContractorReplyEmailForwardDisabledError extends ApiError {
   }
 }
 
+/**
+ * Spec 286 T3 (RF2): o canal ligado no tipo não tem modelo utilizável no módulo de notificação (a chave escolhida não
+ * existe mais, ou o assunto/corpo ficou vazio); aquele canal não sai, nem à mão (ADR-0108).
+ */
+export class ContractorReplyClientTemplateMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_CLIENT_TEMPLATE_MISSING',
+      message: 'The channel has no usable notification template for the client reply',
+      status: 409,
+    })
+  }
+}
+
 /** Teto de envios por ocorrência: 5 e-mails a terceiros, contados os que saíram ou estão na fila. */
 export class ContractorReplyEmailLimitReachedError extends ApiError {
   public constructor() {

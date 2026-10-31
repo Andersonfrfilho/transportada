@@ -23,6 +23,9 @@ novo. O que foi tentado e não funcionou entra na seção "Erros que não devem 
    um script `.sh` pronto, com tudo (inclusive o `railway ssh` e a consulta), em
    `/home/miyazaki/Documents/personal/ativada/` e passa só `bash /home/miyazaki/Documents/personal/ativada/<nome>.sh`.
    Nunca passar caminho que não exista na máquina dele.
+   **Saída grande vai para arquivo**: o script grava a saída completa em
+   `/home/miyazaki/Documents/personal/ativada/saidas/<nome>-<data>.json` e imprime só o caminho, para o Anderson não
+   copiar logs; a sessão lê o arquivo direto (`device_stage_files`).
 4. **Scripts não assumem onde o repositório está.** Use `REPO="${REPO:-$(git rev-parse --show-toplevel)}"`
    e aborte com mensagem clara se não achar `.github/scripts/railway-deploy.sh`. Nada de
    `cd "$HOME/personal/transportada"` fixo.
@@ -86,23 +89,33 @@ Regras que já custaram tempo:
   (`railway ssh -p <id> -s api -e production ...`).
 - Consultas já prontas e testadas (cópias no projeto Claude, pasta `prorrogacao/`):
 
-| Script                                                      | O que faz                                                                                  | Tipo              |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
-| `producao-momentos-prorrogacao.sh`                          | momentos e config dos tipos de ocorrência ativos                                           | leitura           |
-| `producao-escopo-prorrogacao.sh`                            | escopo de contratantes do tipo de prorrogação e emitente da NF                             | leitura           |
-| `producao-excecoes-prorrogacao.sh`                          | exceções por contratante/destinatário do tipo                                              | leitura           |
-| `producao-thiago-vs-andreia.sh`                             | papel e empresa de dois motoristas nas viagens                                             | leitura           |
-| `producao-ligar-office-prorrogacao.sh`                      | liga o momento `office` no tipo (1 linha, idempotente)                                     | escrita           |
-| `trip-stops-check.sh` / `trip-stops-fix-points.sh`          | paradas sem coordenada / grava ponto manual (`--confirm`)                                  | leitura / escrita |
-| `nfse/nfse-freight-rules-check.sh`                          | regras de frete vigentes e perfis de NFS-e                                                 | leitura           |
-| `respostas-rapidas/producao-respostas-rapidas.sh`           | cadastra respostas rápidas só em empresa sem nenhuma                                       | escrita           |
-| `cadastro-motorista/producao-motorista-sem-acesso.sh [cpf]` | ficha, usuário, convites e fila de envio de um CPF                                         | leitura           |
-| `cadastro-motorista/producao-cadastros-sem-acesso.sh`       | fichas de motorista sem usuário e convites não aceitos                                     | leitura           |
-| `cadastro-motorista/producao-dados-para-convidar.sh`        | CPF, e-mail e telefone das fichas sem usuário, para convidar                               | leitura           |
-| `cadastro-motorista/producao-usuarios-sem-keycloak.sh`      | confronta cada usuário do banco com o Keycloak (existe/habilitado)                         | leitura           |
-| `notas/producao-faixa-notas.sh [de] [ate]`                  | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210) | leitura           |
+| Script                                                      | O que faz                                                                                                                                                                                                                                                                                      | Tipo                            |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `producao-momentos-prorrogacao.sh`                          | momentos e config dos tipos de ocorrência ativos                                                                                                                                                                                                                                               | leitura                         |
+| `producao-escopo-prorrogacao.sh`                            | escopo de contratantes do tipo de prorrogação e emitente da NF                                                                                                                                                                                                                                 | leitura                         |
+| `producao-excecoes-prorrogacao.sh`                          | exceções por contratante/destinatário do tipo                                                                                                                                                                                                                                                  | leitura                         |
+| `producao-thiago-vs-andreia.sh`                             | papel e empresa de dois motoristas nas viagens                                                                                                                                                                                                                                                 | leitura                         |
+| `producao-ligar-office-prorrogacao.sh`                      | liga o momento `office` no tipo (1 linha, idempotente)                                                                                                                                                                                                                                         | escrita                         |
+| `producao-publicar-modelo-correcao-endereco.sh [--confirm]` | descobre a empresa e publica `correcao-endereco.padrao` no módulo de notificação (spec 286); sem `--confirm` só mostra o plano; `ENV_NAME=production` só com aprovação                                                                                                                         | escrita (idempotente por chave) |
+| `producao-publicar-falas-do-bot.sh [--confirm]`             | republica o grafo raiz do WhatsApp (`scripts/whatsapp-flow-publish.ts`, spec 286 T8) para os nós `fala_*` do bot existirem no editor de fluxos; sem `--confirm` só mostra o diff; preserva as falas já editadas; histórico gravado antes de substituir; `ENV_NAME=production` só com aprovação | escrita (idempotente)           |
+| `trip-stops-check.sh` / `trip-stops-fix-points.sh`          | paradas sem coordenada / grava ponto manual (`--confirm`)                                                                                                                                                                                                                                      | leitura / escrita               |
+| `nfse/nfse-freight-rules-check.sh`                          | regras de frete vigentes e perfis de NFS-e                                                                                                                                                                                                                                                     | leitura                         |
+| `respostas-rapidas/producao-respostas-rapidas.sh`           | cadastra respostas rápidas só em empresa sem nenhuma                                                                                                                                                                                                                                           | escrita                         |
+| `cadastro-motorista/producao-motorista-sem-acesso.sh [cpf]` | ficha, usuário, convites e fila de envio de um CPF                                                                                                                                                                                                                                             | leitura                         |
+| `cadastro-motorista/producao-cadastros-sem-acesso.sh`       | fichas de motorista sem usuário e convites não aceitos                                                                                                                                                                                                                                         | leitura                         |
+| `cadastro-motorista/producao-dados-para-convidar.sh`        | CPF, e-mail e telefone das fichas sem usuário, para convidar                                                                                                                                                                                                                                   | leitura                         |
+| `cadastro-motorista/producao-usuarios-sem-keycloak.sh`      | confronta cada usuário do banco com o Keycloak (existe/habilitado)                                                                                                                                                                                                                             | leitura                         |
+| `notas/producao-faixa-notas.sh [de] [ate]`                  | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210)                                                                                                                                                                                                     | leitura                         |
+| `certificado/producao-certificado-validade.sh`              | validade dos certificados A1, execuções com `certificate_expired` e auditoria                                                                                                                                                                                                                  | leitura                         |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
+
+- **Aviso de certificado digital** (conferido em 30/10/2026): a rotina `notification.schedules.run` do
+  worker avisa por caixa de entrada e e-mail quem enviou o certificado ativo quando faltam 30, 15, 7, 3
+  e 1 dia e quando ele vence (modelos `fiscal.certificate-expiring` e `fiscal.certificate-expired`,
+  semeados pela API). Para ver se saiu: contador `expiringCertificates` e a mensagem
+  `certificate_expiry_swept` nos logs do `worker` (`get-logs` com `filter: certificate_expiry`). Antes
+  disso o único sinal era o motivo `certificate_expired` no cartão da importação automática.
 
 ## 3. Variáveis (conferir e trocar)
 
@@ -356,6 +369,25 @@ o nó antigo). Na terceira, com o Keycloak já estável (script de saúde: disco
 (worker e cron), `deploy-frontend`, `deploy-driver` e `mark-deployed`. Correção pendente: o `keycloak-reconcile.sh`
 deve esperar o Keycloak responder antes de pedir o token.
 
+**Resultado (28/10/2026, terceira promoção do dia):** PR #424 (merge a1d37cb): QR do Evolution, visual, data de
+prorrogação, automações da Spani e o reconcile que espera o Keycloak (#420; o 502 do #408 não se repetiu). Duas
+migrations aditivas aplicadas (`contractor_automations`, `occurrence_new_due_date`; 336 migrations checadas). Os gates
+passaram, mas a Railway **pausou os deploys**: os builds da API e do cliente ficaram em `BUILDING` por ~20 min e
+`deploy-api`/`deploy-client` caíram por tempo esgotado ("api não estabilizou dentro do tempo limite"); um re-run
+imediato respondeu `Deploys have been paused temporarily` ao `railway up` e falhou de novo sem criar deployment. Os
+deployments travados terminaram sozinhos (API em `DEPLOYING` às 18:22 e `SUCCESS` às 18:43), então o re-run seguinte
+(`rerun-failed-jobs` no mesmo run, depois de a Railway liberar) completou worker, cron, painel, app do motorista,
+`mark-deployed` e as conferências. Regra: com `Deploys have been paused`, **não insistir**; olhar
+`mcp__Railway__list-deployments` (o deployment criado pode concluir sozinho) e só refazer os jobs falhos depois que
+nenhum deployment do serviço estiver em `BUILDING`/`DEPLOYING`/`QUEUED`. Enquanto isso a produção seguiu na versão
+antiga, sem queda.
+
+Passo manual pós-deploy (não é automático): publicar o modelo de e-mail `ocorrencia.prorrogacao-boleto` com
+`producao-publicar-modelo-prorrogacao.sh` (pasta `ativada`, fora do repositório): clona a `main` em diretório
+temporário, mostra o plano e só grava se digitar `producao`; precisa de `DATABASE_PUBLIC_URL` do `postgres-app` (sem
+TCP proxy ele para sem alterar nada). Depois, ligar "Pedir a nova data de vencimento" no tipo de prorrogação (aba
+Tipos de `/ocorrencias`). _Resultado desse passo: a registrar quando o Anderson rodar._
+
 ### Keycloak de produção: checar a saúde (somente leitura)
 
 Script `producao-keycloak-saude.sh` (na pasta `ativada` do Anderson, fora do repositório): mostra os deploys e as
@@ -366,6 +398,30 @@ Caso de 28/10/2026 (promoção #408): `deploy-api` falhou duas vezes em "Reconci
 de "Deploy identity" dar sucesso. O passo de deploy só espera o Railway marcar `SUCCESS`; o `keycloak-reconcile.sh`
 não espera o Keycloak responder. Nesse caso a API, o worker e os frontends **não** sobem (os jobs seguintes ficam
 pulados) e as migrations não rodam. Não insistir em re-run: ler o log do `keycloak` primeiro.
+
+## 5.5 Conferir que o boleto não vai ao WhatsApp do cliente (29/10/2026)
+
+Pedido do Anderson: em produção o boleto ainda **não** pode sair para o WhatsApp do cliente.
+
+Conferido na `main` (a1d37cb) e no Railway, sem escrever nada:
+
+- **Código:** o único caminho que manda boleto por WhatsApp ao cliente é `forward-contractor-reply-by-whatsapp.use-case.ts`
+  (`lockSendable`), acionado por clique do operador/motorista (painel e app), nunca pelo worker ou cron. Exige
+  `company_occurrence_types.client_channel` em `whatsapp` ou `both` **e** `whatsapp_evolution_settings.status = 'active'`;
+  senão lança `ContractorReplyWhatsAppOffError` / `WhatsAppEvolutionNotConfiguredError` / `WhatsAppEvolutionDisabledError`.
+  A resposta de texto ao cliente (`send-client-reply.use-case.ts`) tem a mesma trava. Padrões: `client_channel = 'email'`,
+  `status = 'disabled'`, `default_provider = 'meta'`.
+- **Railway:** o ambiente `production` não tem o serviço `evolution-api` (nem redis/postgres do Evolution); só existem
+  em staging. `EVOLUTION_BASE_URL` / `EVOLUTION_GLOBAL_API_KEY` não devem existir no `api` de produção.
+- **Falta confirmar no banco/variáveis** (o MCP do Railway bloqueou a leitura de variáveis e não há `railway` logado na
+  sessão): `bash /home/miyazaki/Documents/personal/ativada/producao-confere-boleto-whatsapp.sh` (somente leitura; lista
+  tipos com canal whatsapp/both, `whatsapp_evolution_settings` por empresa, entregas por WhatsApp já registradas e os
+  nomes das variáveis EVOLUTION*/WHATSAPP*). Esperado: nenhum tipo `whatsapp`/`both`, nenhuma linha `active`, nenhuma
+  entrega `sent` por WhatsApp.
+- **Resultado do script (29/10/2026, Anderson):** nenhuma variável EVOLUTION*/WHATSAPP* no `api`; 16 tipos, todos
+  `client_channel = 'email'`; 0 linhas em `whatsapp_evolution_settings` e em `whatsapp_channels`; 0 entregas por
+  WhatsApp. Confirmado: nada em produção envia boleto ao WhatsApp do cliente.
+- **Para ligar no futuro:** só com aval do Anderson (seção 5.3/5.4).
 
 ## 6. Erros que não devem se repetir
 
@@ -477,3 +533,13 @@ INSERT no banco do app; Keycloak intocado. Reverter: apagar essa membership e o 
 
 `producao-renomear-usuarios-uuid.sh` rodou no mesmo dia e não achou nenhum username em UUID em
 `identity_user_profiles` de produção: nada foi alterado. (Os UUIDs vistos eram só de staging.)
+
+### Staging: e-mail só chega a quem está em `EMAIL_ALLOWED_RECIPIENTS` (31/10/2026)
+
+O worker da **staging** descarta e-mail para endereço fora da variável `EMAIL_ALLOWED_RECIPIENTS` (separador vírgula;
+produção proíbe a variável, `environment.schema.ts`). Sintoma: log `contractor_mail_recipient_not_allowed`
+(`email_recipient_not_allowed`, `blocked: 1`) e o e-mail do cliente não chega. O MCP do Railway devolve só os **nomes**
+das variáveis, então gravar a variável por ele apagaria a lista: o passo é sempre ler o valor atual (`railway variables
+-s worker -e staging --json`) e acrescentar. Script deixado para o Anderson: `staging-allowlist-email.sh` em
+`/home/miyazaki/Documents/personal/ativada/` (grava a saída em `saidas/`, imprime só o caminho). Depois do redeploy do
+worker, "Tentar de novo" no e-mail que falhou. Endereço acrescentado em 31/10/2026: `andersonfrfilho@live.com`.

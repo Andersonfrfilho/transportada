@@ -427,7 +427,9 @@ export type TripClient = Readonly<{
    */
   registerFieldOccurrences: (
     input: RegisterFieldOccurrencesInput,
-  ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
+  ) => Promise<
+    readonly Readonly<{ documentId: string; existingOccurrenceId?: string; id: string }>[]
+  >
   /**
    * Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery` — uma chamada por nota,
    * multipart, com a própria `Idempotency-Key` (T6 evidence: `deliveredAt`, `receiverName`,
@@ -1034,6 +1036,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             ? {}
             : { clientEmailSendMode: input.clientEmailSendMode }),
           ...(input.clientChannel === undefined ? {} : { clientChannel: input.clientChannel }),
+          ...(input.clientChannels === undefined ? {} : { clientChannels: input.clientChannels }),
           ...(input.asksClientContact === undefined
             ? {}
             : { asksClientContact: input.asksClientContact }),
@@ -1041,6 +1044,9 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
+          ...(input.driverLockMinutes === undefined
+            ? {}
+            : { driverLockMinutes: input.driverLockMinutes }),
           ...(input.forwardToNoteRecipient === undefined
             ? {}
             : { forwardToNoteRecipient: input.forwardToNoteRecipient }),

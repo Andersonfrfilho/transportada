@@ -351,6 +351,10 @@
       "manual": "Manual",
       "automatic": "Automático"
     },
+    "driverLockMinutes": "Travar o motorista por",
+    "driverLockMinutesHint": "Depois que existir uma ocorrência deste tipo na nota (do motorista ou do escritório, aberta ou solucionada), o motorista não registra outra nesse prazo: se a rede voltar e o celular reenviar, nada é duplicado. O escritório nunca é travado e vê um aviso.",
+    "driverLockMinutesOff": "Sem trava",
+    "driverLockMinutesOption": "{{count}} minutos ({{hours}} h)",
     "duplicateRequestPolicy": "Pedido repetido na mesma nota",
     "duplicateRequestPolicyOptions": {
       "while_request_open": "Bloquear enquanto o pedido estiver aberto",
@@ -515,7 +519,6 @@
         "previewTitle": "Prévia · valores de exemplo",
         "hint": "O texto do e-mail é escrito em Notificações → Preferências, num modelo de e-mail em português. Aqui você só escolhe qual.",
         "variablesTitle": "Variáveis que o modelo aceita",
-        "suggestedTitle": "Modelo sugerido (copie em Notificações)",
         "problems": {
           "not_found": "Não existe modelo de e-mail ativo em português com esta chave.",
           "system_key": "É um aviso do sistema, com outras variáveis.",
@@ -756,6 +759,48 @@
         "empty": "Escolha ao menos uma contratante: sem nenhuma o tipo não apareceria em nota nenhuma, então nada foi gravado.",
         "needsDocument": "Tipo só de parada não pode ser restrito a contratantes: a parada não tem contratante. Nada foi gravado."
       }
+    },
+    "clientReturn": {
+      "title": "Retorno ao cliente",
+      "legend": "Canais por onde o boleto aceito segue ao cliente. Cada canal usa o seu modelo do módulo de Notificações.",
+      "channels": {
+        "email": "E-mail",
+        "whatsapp": "WhatsApp",
+        "sms": "SMS"
+      },
+      "soon": "Em breve",
+      "template": {
+        "label": "Modelo (Notificações)",
+        "none": "Nenhum",
+        "subject": "Assunto: {{subject}}",
+        "hint": {
+          "email": "Modelo de e-mail do módulo de Notificações.",
+          "whatsapp": "Texto puro, sem assunto"
+        },
+        "failed": "Não foi possível carregar os modelos. Tente de novo em instantes."
+      },
+      "sendMode": {
+        "label": "Envio",
+        "manual": "Manual",
+        "automatic": "Automático"
+      },
+      "sendNote": {
+        "manual": "{{channel}} está em envio manual: não sai sozinho, só pelo botão da ocorrência. Para sair sozinho, escolha Automático."
+      },
+      "problem": {
+        "missing": "{{channel}} marcado, mas o tipo está sem modelo neste canal: esse canal não será enviado.",
+        "not_found": "O modelo escolhido para {{channel}} não existe mais no módulo de Notificações: esse canal não será enviado.",
+        "unusable": "O modelo escolhido para {{channel}} não serve e esse canal não será enviado: {{problems}}",
+        "codes": {
+          "not_found": "Não existe modelo ativo em português com esta chave neste canal.",
+          "system_key": "É um aviso do sistema, com outras variáveis.",
+          "empty_subject": "O assunto está vazio.",
+          "empty_body": "O corpo está vazio."
+        }
+      },
+      "previewTitle": "Prévia · valores de exemplo",
+      "attachmentName": "boleto-nota-123456.pdf",
+      "attachmentDetail": "PDF"
     }
   },
   "settingsResolution": {
@@ -847,8 +892,17 @@
       "checkError": "Não foi possível consultar o estado ({{code}}).",
       "dropped": "O número está desconectado. Gere um novo QR para reconectar; enquanto isso os envios caem para o e-mail.",
       "reconnect": "Reconectar número",
+      "connectedNumber": "Número conectado: {{number}}.",
+      "reveal": "Revelar",
+      "disconnect": "Desconectar número",
+      "disconnectConfirm": "Desconectar este número do WhatsApp? Os envios caem para o e-mail até conectar outro número, e você poderá ler o QR de um novo chip.",
+      "disconnectConfirmAction": "Sim, desconectar",
+      "disconnectCancel": "Cancelar",
       "title": "Conexão do número",
-      "qrWaiting": "Gerando o QR code. Pode levar alguns segundos."
+      "qrWaiting": "Gerando o QR code. Pode levar alguns segundos.",
+      "qrValidity": "Este código vale por cerca de {{seconds}} s e se renova sozinho. Escaneie logo, antes de vencer.",
+      "qrExpired": "Este código venceu. Clique em \"Gerar novo QR\" e escaneie o novo código.",
+      "refreshQr": "Gerar novo QR"
     },
     "provision": {
       "action": "Criar e conectar",

@@ -382,6 +382,7 @@ function toCandidate(value: unknown): null | UnassignedCandidate {
         : null,
     occurrenceId: value.occurrenceId,
     occurrenceKind: value.occurrenceKind,
+    participant: value.participant === 'client' ? 'client' : 'contractor',
   }
 }
 

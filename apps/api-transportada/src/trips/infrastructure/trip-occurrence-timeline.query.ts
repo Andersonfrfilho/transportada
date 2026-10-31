@@ -16,7 +16,11 @@ import {
   contractorMailMessages,
   contractorMailThreads,
 } from '../../database/contractor-mail.schema.js'
-import { CONTRACTOR_REPLY_WHATSAPP_TARGET } from '../../shared/occurrence-contractor-reply.constant.js'
+import {
+  CONTRACTOR_REPLY_CLIENT_EMAIL_TARGET,
+  CONTRACTOR_REPLY_WHATSAPP_TARGET,
+  type ContractorReplyDeliveryTarget,
+} from '../../shared/occurrence-contractor-reply.constant.js'
 import {
   occurrenceContractorReplies,
   occurrenceContractorReplyDeliveries,
@@ -339,6 +343,33 @@ async function listClientWhatsappSources(
   scope: Scope,
   replyId: string,
 ): Promise<readonly OccurrenceTimelineSource[]> {
+  return listClientChannelSources(queryable, scope, replyId, {
+    kind: 'contractor.client.whatsapp',
+    target: CONTRACTOR_REPLY_WHATSAPP_TARGET,
+  })
+}
+
+/** Spec 288: o mesmo para o e-mail ao cliente, com as linhas `skipped` (o que ficou de fora e por quê). */
+function listClientEmailSources(
+  queryable: TripQueryable,
+  scope: Scope,
+  replyId: string,
+): Promise<readonly OccurrenceTimelineSource[]> {
+  return listClientChannelSources(queryable, scope, replyId, {
+    kind: 'contractor.client.email',
+    target: CONTRACTOR_REPLY_CLIENT_EMAIL_TARGET,
+  })
+}
+
+async function listClientChannelSources(
+  queryable: TripQueryable,
+  scope: Scope,
+  replyId: string,
+  channel: {
+    readonly kind: 'contractor.client.email' | 'contractor.client.whatsapp'
+    readonly target: ContractorReplyDeliveryTarget
+  },
+): Promise<readonly OccurrenceTimelineSource[]> {
   const rows = await queryable
     .select({
       createdAt: occurrenceContractorReplyDeliveries.createdAt,
@@ -351,7 +382,7 @@ async function listClientWhatsappSources(
       and(
         eq(occurrenceContractorReplyDeliveries.companyId, scope.companyId),
         eq(occurrenceContractorReplyDeliveries.replyId, replyId),
-        eq(occurrenceContractorReplyDeliveries.target, CONTRACTOR_REPLY_WHATSAPP_TARGET),
+        eq(occurrenceContractorReplyDeliveries.target, channel.target),
       ),
     )
     .orderBy(
@@ -362,7 +393,7 @@ async function listClientWhatsappSources(
     (row): OccurrenceTimelineSource => ({
       actor: { kind: 'system', name: null },
       id: row.id,
-      kind: 'contractor.client.whatsapp',
+      kind: channel.kind,
       occurredAt: row.createdAt.toISOString(),
       reason: row.reason ?? null,
       status: row.status,
@@ -400,6 +431,7 @@ async function listContractorReplySources(
   const documentKind = documentKindOf(reply.config)
   const deliveries = listDriverDeliverySources(queryable, scope, { documentKind, id: reply.id })
   const clientWhatsapp = listClientWhatsappSources(queryable, scope, reply.id)
+  const clientEmail = listClientEmailSources(queryable, scope, reply.id)
   const rows = await queryable
     .select({
       actorKind: occurrenceContractorReplyEvents.actorKind,
@@ -461,6 +493,7 @@ async function listContractorReplySources(
     ...checks,
     ...(await deliveries),
     ...(await clientWhatsapp),
+    ...(await clientEmail),
   ]
 }
 

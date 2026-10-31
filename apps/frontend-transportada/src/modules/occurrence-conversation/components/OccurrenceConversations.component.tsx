@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Tooltip } from '@/components/ui/tooltip'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
@@ -47,6 +48,8 @@ import {
   writeConversationLayout,
   type ConversationLayoutMode,
 } from '../shared/occurrenceConversationLayout.service'
+import { ClientBoletoEmailAction } from './ClientBoletoEmailAction.component'
+import { ClientBoletoWhatsAppAction } from './ClientBoletoWhatsAppAction.component'
 import { ClientConversationPanel } from './ClientConversationPanel.component'
 import { ClientConversationStrip } from './ClientConversationStrip.component'
 import { ContractorReplyEmailActions } from './ContractorReplyEmailActions.component'
@@ -318,6 +321,16 @@ function ContractorConversationPanel({
         {hasDriver ? (
           <SendToDriverAction attachmentId={attachment.id} occurrenceId={occurrenceId} />
         ) : null}
+        <ClientBoletoEmailAction
+          attachmentId={attachment.id}
+          occurrenceId={occurrenceId}
+          placement="page"
+        />
+        <ClientBoletoWhatsAppAction
+          attachmentId={attachment.id}
+          occurrenceId={occurrenceId}
+          placement="page"
+        />
         <ContractorReplyEmailActions attachmentId={attachment.id} occurrenceId={occurrenceId} />
       </>
     ) : null
@@ -389,10 +402,16 @@ function ContractorConversationPanel({
           {...(canWrite
             ? {
                 headerActions: (
-                  <Button onClick={() => setSending(true)} size="sm" type="button">
-                    <Icon name="send" size="sm" />
-                    {t('contractor.send')}
-                  </Button>
+                  <Tooltip label={t('contractor.send')}>
+                    <Button
+                      aria-label={t('contractor.send')}
+                      onClick={() => setSending(true)}
+                      size="sm"
+                      type="button"
+                    >
+                      <Icon name="send" size="sm" />
+                    </Button>
+                  </Tooltip>
                 ),
               }
             : {})}
@@ -589,6 +608,7 @@ export function OccurrenceConversations({
     clientConversation === undefined ? null : (
       <ClientConversationPanel
         canReply={canSend}
+        {...(companyId === undefined ? {} : { companyId })}
         conversation={clientConversation}
         occurrenceId={occurrenceId}
       />
@@ -698,6 +718,7 @@ export function OccurrenceConversations({
       >
         <ClientConversationPanel
           canReply={canSend}
+          {...(companyId === undefined ? {} : { companyId })}
           conversation={clientConversation}
           hideChannels
           occurrenceId={occurrenceId}

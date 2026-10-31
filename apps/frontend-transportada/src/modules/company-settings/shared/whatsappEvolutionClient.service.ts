@@ -1,9 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   isWhatsAppEvolutionConnectionResponse,
+  isWhatsAppEvolutionOwnerRevealResponse,
   isWhatsAppEvolutionQrResponse,
   isWhatsAppEvolutionResponse,
   type WhatsAppEvolutionConnection,
+  type WhatsAppEvolutionOwnerReveal,
   type WhatsAppEvolutionQr,
   type WhatsAppEvolutionSaveInput,
   type WhatsAppEvolutionSettings,
@@ -37,8 +39,11 @@ export class WhatsAppEvolutionRequestError extends Error {
 
 export type WhatsAppEvolutionClient = Readonly<{
   connection: () => Promise<WhatsAppEvolutionConnection>
+  disconnect: () => Promise<WhatsAppEvolutionConnection>
   get: () => Promise<WhatsAppEvolutionState>
   provision: (acknowledgeRisk: boolean) => Promise<WhatsAppEvolutionSettings>
+  /** O número do chip conectado por inteiro; a tela só pede quando o operador clica em "Revelar". */
+  reveal: () => Promise<WhatsAppEvolutionOwnerReveal>
   qr: () => Promise<WhatsAppEvolutionQr>
   save: (input: WhatsAppEvolutionSaveInput) => Promise<WhatsAppEvolutionSettings>
 }>
@@ -99,6 +104,16 @@ export function createWhatsAppEvolutionClient(
 
       return body.data
     },
+    async disconnect() {
+      const body = await readBody(
+        await send({ dependencies, method: 'POST', path: `${WHATSAPP_EVOLUTION_PATH}/disconnect` }),
+      )
+      if (!isWhatsAppEvolutionConnectionResponse(body)) {
+        throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
+      }
+
+      return body.data
+    },
     async get() {
       const body = await readBody(
         await send({ dependencies, method: 'GET', path: WHATSAPP_EVOLUTION_PATH }),
@@ -132,6 +147,20 @@ export function createWhatsAppEvolutionClient(
         await send({ dependencies, method: 'POST', path: `${WHATSAPP_EVOLUTION_PATH}/qr` }),
       )
       if (!isWhatsAppEvolutionQrResponse(body)) {
+        throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
+      }
+
+      return body.data
+    },
+    async reveal() {
+      const body = await readBody(
+        await send({
+          dependencies,
+          method: 'POST',
+          path: `${WHATSAPP_EVOLUTION_PATH}/connection/reveal`,
+        }),
+      )
+      if (!isWhatsAppEvolutionOwnerRevealResponse(body)) {
         throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
       }
 

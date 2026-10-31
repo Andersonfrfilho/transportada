@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
-import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { MailCopyChips } from '@/modules/shared/MailCopyChips.component'
 import { resolveRetryAfterMinutes } from '@/modules/shared/retryAfter.service'
@@ -18,6 +17,7 @@ import {
 import {
   createBrowserWorkspaceNavigator,
   navigateToDeliveryClients,
+  navigateToNotificationSettings,
 } from '../shared/deliveryClientsNavigation.service'
 import type { UseAddressCorrectionMailDialogResult } from '../hooks/useAddressCorrectionMailDialog.hook'
 import styles from '../styles/addressReport.module.css'
@@ -41,7 +41,9 @@ export function AddressCorrectionMailDialog({ dialog }: AddressCorrectionMailDia
   const hasNoActiveContact =
     !dialog.recipientsLoading && !dialog.recipientsFailed && dialog.contacts.length === 0
   const hasNoTemplate =
-    !dialog.templatesLoading && !dialog.templatesFailed && dialog.templates.length === 0
+    !dialog.templateLoading && !dialog.templateFailed && dialog.template?.usable !== true
+  /** Spec 286: sem modelo utilizável o conserto é em Notificações; o resto da configuração segue em Clientes. */
+  const isTemplateError = dialog.errorCode === 'CONTRACTOR_MAIL_TEMPLATE_MISSING'
   const hasConfigurationShortcut =
     dialog.errorCode !== null &&
     addressCorrectionMailErrorHasConfigurationShortcut(dialog.errorCode)
@@ -167,15 +169,15 @@ export function AddressCorrectionMailDialog({ dialog }: AddressCorrectionMailDia
             {t('addressReport.correction.mail.templateTitle')}
           </h3>
 
-          {dialog.templatesFailed ? (
+          {dialog.templateFailed ? (
             <p className={styles.mailWarning} role="alert">
               {t('addressReport.correction.mail.templateUnavailable')}
             </p>
           ) : null}
 
-          {dialog.templatesLoading ? (
+          {dialog.templateLoading ? (
             <SkeletonGroup label={t('addressReport.correction.mail.templateTitle')}>
-              <Skeleton height="var(--field-height)" variant="text" width="100%" />
+              <Skeleton height="12rem" variant="block" width="100%" />
             </SkeletonGroup>
           ) : null}
 
@@ -186,60 +188,36 @@ export function AddressCorrectionMailDialog({ dialog }: AddressCorrectionMailDia
                 size="sm"
                 type="button"
                 variant="ghost"
-                onClick={() => navigateToDeliveryClients(createBrowserWorkspaceNavigator())}
+                onClick={() => navigateToNotificationSettings(createBrowserWorkspaceNavigator())}
               >
-                {t('addressReport.correction.mail.openMailSettingsLink')}
+                {t('addressReport.correction.mail.openNotificationSettingsLink')}
               </Button>
             </p>
           ) : null}
 
-          {dialog.templates.length === 0 ? null : (
+          {dialog.template?.preview == null || dialog.templateLoading ? null : (
             <>
-              <Select
-                ariaLabel={t('addressReport.correction.mail.templateTitle')}
-                disabled={dialog.isSending || isFinished}
-                onChange={dialog.selectTemplate}
-                options={dialog.templates.map((template) => ({
-                  label: template.isDefault
-                    ? t('addressReport.correction.mail.templateDefaultOption', {
-                        name: template.name,
-                      })
-                    : template.name,
-                  value: template.id,
-                }))}
-                value={dialog.selectedTemplateId ?? ''}
-              />
-
               <p className={styles.mailExampleNotice}>
                 {t('addressReport.correction.mail.previewExample')}
               </p>
-
-              {dialog.previewLoading ? (
-                <SkeletonGroup label={t('addressReport.correction.mail.previewLoading')}>
-                  <Skeleton height="12rem" variant="block" width="100%" />
-                </SkeletonGroup>
-              ) : null}
-
-              {dialog.previewFailed ? (
-                <p className={styles.mailWarning} role="alert">
-                  {t('addressReport.correction.mail.previewUnavailable')}
-                </p>
-              ) : null}
-
-              {dialog.preview === undefined || dialog.previewLoading ? null : (
-                <>
-                  <p className={styles.mailNotice}>
-                    <strong>{t('addressReport.correction.mail.previewSubjectLabel')}</strong>{' '}
-                    {dialog.preview.subject}
-                  </p>
-                  <iframe
-                    className={styles.mailPreviewFrame}
-                    sandbox=""
-                    srcDoc={dialog.preview.html}
-                    title={t('addressReport.correction.mail.previewFrameTitle')}
-                  />
-                </>
-              )}
+              <p className={styles.mailNotice}>
+                <strong>{t('addressReport.correction.mail.previewSubjectLabel')}</strong>{' '}
+                {dialog.template.preview.subject}
+              </p>
+              <iframe
+                className={styles.mailPreviewFrame}
+                sandbox=""
+                srcDoc={dialog.template.preview.html}
+                title={t('addressReport.correction.mail.previewFrameTitle')}
+              />
+              <Button
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => navigateToNotificationSettings(createBrowserWorkspaceNavigator())}
+              >
+                {t('addressReport.correction.mail.editInNotificationSettings')}
+              </Button>
             </>
           )}
         </section>
@@ -257,9 +235,17 @@ export function AddressCorrectionMailDialog({ dialog }: AddressCorrectionMailDia
                 size="sm"
                 type="button"
                 variant="ghost"
-                onClick={() => navigateToDeliveryClients(createBrowserWorkspaceNavigator())}
+                onClick={() =>
+                  isTemplateError
+                    ? navigateToNotificationSettings(createBrowserWorkspaceNavigator())
+                    : navigateToDeliveryClients(createBrowserWorkspaceNavigator())
+                }
               >
-                {t('addressReport.correction.mail.openMailSettingsLink')}
+                {t(
+                  isTemplateError
+                    ? 'addressReport.correction.mail.openNotificationSettingsLink'
+                    : 'addressReport.correction.mail.openMailSettingsLink',
+                )}
               </Button>
             ) : null}
           </p>

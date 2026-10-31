@@ -29,6 +29,10 @@ import { parseBody } from '../../http/request-parsing.service.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { DECLARED_AMOUNT_DECIMAL } from '../../shared/money.constant.js'
+import {
+  OCCURRENCE_CLIENT_CHANNEL_SEND_MODES,
+  OCCURRENCE_CLIENT_CHANNEL_TEMPLATE_KEY_MAX_LENGTH,
+} from '../../shared/occurrence-client-channel.constant.js'
 import { OCCURRENCE_TYPE_ICON_NAMES } from '../../shared/trip-occurrence.constant.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
@@ -464,6 +468,20 @@ const requirementLabelSchema = z.string().trim().min(1).max(OCCURRENCE_REQUIREME
  * escondido aqui daria permissão por omissão. O `strict()` recusa campo a mais — inclusive
  * `companyId` vindo do cliente.
  */
+/** Spec 286 (RF2): um canal da matriz "Retorno ao cliente" — inteiro: o canal mandado substitui o gravado. */
+const occurrenceClientChannelSettingSchema = z
+  .object({
+    enabled: z.boolean(),
+    sendMode: z.enum(OCCURRENCE_CLIENT_CHANNEL_SEND_MODES),
+    templateKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(OCCURRENCE_CLIENT_CHANNEL_TEMPLATE_KEY_MAX_LENGTH)
+      .nullable(),
+  })
+  .strict()
+
 const occurrenceTypeSchema = z
   .object({
     active: z.boolean().default(true),
@@ -508,12 +526,26 @@ const occurrenceTypeSchema = z
     contractorReplyResolveOnDelivery: z.boolean().optional(),
     /** Spec 276 T4: a trava de pedido repetido; ausente não mexe. */
     duplicateRequestPolicy: z.enum(DUPLICATE_REQUEST_POLICIES).optional(),
+    /** Minutos em que o motorista fica travado depois de existir a mesma ocorrência do tipo na mesma nota da viagem; `null` desliga, ausente não mexe. */
+    driverLockMinutes: z.number().int().min(1).max(10_080).nullable().optional(),
     /** Spec 279 RF9: `off` ou o tipo de e-mail do cliente do botão "Enviar ao cliente"; ausente não mexe. */
     clientEmailType: z.enum(CLIENT_EMAIL_TYPES).optional(),
     /** Spec 279 RF10: `manual` ou `automatic` (o boleto aceito sai sozinho ao cliente); ausente não mexe. */
     clientEmailSendMode: z.enum(CLIENT_EMAIL_SEND_MODES).optional(),
     /** Spec 281 RF8: `off`, `email`, `whatsapp` ou `both` — por qual canal a ocorrência fala com o cliente; ausente não mexe. */
     clientChannel: z.enum(CLIENT_CHANNELS).optional(),
+    /**
+     * Spec 286 (RF2): a matriz "Retorno ao cliente", por canal (caixa, modo e chave do modelo do módulo). Canal ausente
+     * é "não mexa". Presente, ela vence `clientChannel`, que passa a ser gravado derivado dela; a chave é conferida na
+     * gravação (400 com todos os problemas).
+     */
+    clientChannels: z
+      .object({
+        email: occurrenceClientChannelSettingSchema.optional(),
+        whatsapp: occurrenceClientChannelSettingSchema.optional(),
+      })
+      .strict()
+      .optional(),
     /** Spec 281 T8b: liga/desliga pedir o contato do cliente na abertura da ocorrência; ausente não mexe. */
     asksClientContact: z.boolean().optional(),
     /** Liga/desliga o campo opcional "nova data de vencimento" no app do motorista; ausente não mexe. */

@@ -10,6 +10,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   describeClientEmailSendState,
+  isWhatsAppFallback,
   isContractorReplyBoletoAccepted,
   parseInformedAddress,
   readClientEmailSendOutcome,
@@ -361,6 +362,14 @@ const CLIENT_DELIVERY: ContractorReplyEmailDelivery = {
   status: 'queued',
   target: 'client_boleto_emails',
 }
+
+describe('o e-mail que saiu como reserva do WhatsApp (spec 286, RF4)', () => {
+  test('só a marca `whatsapp` diz reserva; a API anterior (sem o campo) e o envio próprio, não', () => {
+    expect(isWhatsAppFallback({ ...CLIENT_DELIVERY, fallbackFrom: 'whatsapp' })).toBe(true)
+    expect(isWhatsAppFallback({ ...CLIENT_DELIVERY, fallbackFrom: null })).toBe(false)
+    expect(isWhatsAppFallback(CLIENT_DELIVERY)).toBe(false)
+  })
+})
 
 describe('o estado do envio ao cliente por endereço (spec 279 T6b, RF12)', () => {
   test('Enviado leva a hora do envio; na fila, a hora em que entrou', () => {

@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { OccurrenceWatcherCandidate } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
-import type { MailTemplateContent } from '../../contractor-mail/domain/mail-template-catalog.constant.js'
 import type { AddressCorrectionRequest } from './address-correction.port.js'
 
 export type AddressCorrectionMailContractor = {
@@ -17,9 +16,12 @@ export type AddressCorrectionMailSettings = {
   readonly sendingVerifiedAt: Date | null
 }
 
-/** Spec 150 T402: o texto do modelo usado no envio; o layout do e-mail segue fixo. */
-export type AddressCorrectionMailTemplate = MailTemplateContent & {
-  readonly id: string
+/** Spec 286 (RF6): a versão ativa do modelo do módulo de notificação usada no envio. */
+export type AddressCorrectionMailTemplate = {
+  readonly body: string
+  readonly key: string
+  readonly subject: string
+  readonly version: number
 }
 
 export type AddressCorrectionMailContact = {
@@ -50,7 +52,8 @@ export type RecordAddressCorrectionMailInput = {
   readonly fromAddress: string
   readonly replyTokenHash: string
   readonly subject: string
-  readonly templateId: string
+  readonly templateKey: string
+  readonly templateVersion: number
   readonly threadId: string
   readonly toAddresses: readonly string[]
 }
@@ -86,13 +89,9 @@ export type AddressCorrectionMailTransactionPort = {
   findMailSettings(params: {
     readonly companyId: string
   }): Promise<AddressCorrectionMailSettings | undefined>
-  /**
-   * Modelo ativo de `address_correction` desta empresa: o `templateId` pedido, ou o padrão quando
-   * ele não vem. Arquivado, de outro tipo ou de outra empresa não é achado.
-   */
+  /** Spec 286: a versão ativa mais alta do modelo `correcao-endereco.padrao` (e-mail, pt-BR) desta empresa. */
   findMailTemplate(params: {
     readonly companyId: string
-    readonly templateId?: string
   }): Promise<AddressCorrectionMailTemplate | undefined>
   findOperatorName(params: {
     readonly companyId: string

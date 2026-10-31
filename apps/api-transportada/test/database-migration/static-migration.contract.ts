@@ -406,6 +406,11 @@ describe('Drizzle migrations', () => {
       '20261027232931_occurrence_client_conversation',
       '20261028145847_contractor_automations',
       '20261028153347_occurrence_new_due_date',
+      '20261029000937_occurrence_type_client_channels',
+      '20261029005751_client_whatsapp_automatic',
+      '20261029023933_client_email_fallback_from',
+      '20261029172646_occurrence_driver_lock',
+      '20261029190000_occurrence_drop_forward_email',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

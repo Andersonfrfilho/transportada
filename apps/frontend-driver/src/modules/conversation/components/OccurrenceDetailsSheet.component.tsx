@@ -11,7 +11,10 @@ import {
   useDriverRouteOccurrences,
 } from '@/modules/driver-trip/shared/useDriverRouteOccurrences.query'
 
+import { useClientBoletoWhatsApp } from '@/modules/client-whatsapp/hooks/useClientBoletoWhatsApp.hook'
+
 import { ClientEmailSendState } from './ClientEmailSendState.component'
+import { ClientWhatsAppSendState } from './ClientWhatsAppSendState.component'
 import { useDriverClientEmailsQuery } from '../shared/driverClientEmails.query'
 import styles from '../styles/occurrenceDetails.module.css'
 
@@ -75,6 +78,8 @@ export function OccurrenceDetailsSheet({
   })
   const detailData = detail.data?.status === 'loaded' ? detail.data.data : undefined
   const emails = useDriverClientEmailsQuery({ canSync, id: occurrenceId })
+  const whatsappDeliveries =
+    useClientBoletoWhatsApp({ isEnabled: canSync, occurrenceId }).options?.deliveries ?? []
   useEscapeToClose(onClose)
   useEffect(() => {
     closeRef.current?.focus()
@@ -202,9 +207,19 @@ export function OccurrenceDetailsSheet({
                   )}
                 </Section>
               )}
-              {sendState === undefined && deliveries.length === 0 ? null : (
+              {sendState === undefined &&
+              deliveries.length === 0 &&
+              whatsappDeliveries.length === 0 ? null : (
                 <Section title={t('details.sendState.title')}>
-                  {sendState ?? <ClientEmailSendState deliveries={deliveries} />}
+                  {sendState ?? (
+                    <>
+                      <ClientEmailSendState deliveries={deliveries} />
+                      <ClientWhatsAppSendState
+                        deliveries={whatsappDeliveries}
+                        occurrenceId={occurrenceId}
+                      />
+                    </>
+                  )}
                 </Section>
               )}
             </>

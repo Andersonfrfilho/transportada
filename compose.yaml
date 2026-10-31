@@ -124,6 +124,44 @@ services:
     volumes:
       - ./deploy/osrm/data:/data:ro
 
+  # Spec 281: Evolution API local, opt-in (`make evolution-up`). Existe para comparar o pareamento do
+  # WhatsApp a partir da máquina do desenvolvedor com o do Railway (IP de datacenter). Mesma imagem
+  # do staging. Banco: o próprio postgres, em schema `evolution`; sem Redis (cache local).
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    profiles: ['evolution']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_TYPE: http
+      SERVER_PORT: '8080'
+      SERVER_URL: http://127.0.0.1:${EVOLUTION_PORT:-58081}
+      AUTHENTICATION_API_KEY: ${EVOLUTION_GLOBAL_API_KEY:-evolution-local-key}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: 'false'
+      DATABASE_ENABLED: 'true'
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://transportada:transportada@postgres:5432/transportada?schema=evolution
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_local
+      DATABASE_SAVE_DATA_INSTANCE: 'true'
+      DATABASE_SAVE_DATA_NEW_MESSAGE: 'false'
+      DATABASE_SAVE_MESSAGE_UPDATE: 'false'
+      DATABASE_SAVE_DATA_CONTACTS: 'false'
+      DATABASE_SAVE_DATA_CHATS: 'false'
+      DATABASE_SAVE_DATA_HISTORIC: 'false'
+      CACHE_REDIS_ENABLED: 'false'
+      CACHE_LOCAL_ENABLED: 'true'
+      CONFIG_SESSION_PHONE_CLIENT: TransportadA
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: '30'
+      DEL_INSTANCE: 'false'
+      TELEMETRY_ENABLED: 'false'
+      WEBHOOK_GLOBAL_ENABLED: 'false'
+      LOG_LEVEL: ERROR,WARN,DEBUG,INFO,LOG,VERBOSE,DEBUG,DEBUG,DEBUG
+      LOG_BAILEYS: debug
+    ports:
+      - '127.0.0.1:${EVOLUTION_PORT:-58081}:8080'
+
 volumes:
   postgres_data:
   rabbitmq_data:

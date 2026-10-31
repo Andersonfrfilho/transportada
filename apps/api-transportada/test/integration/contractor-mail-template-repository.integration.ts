@@ -10,7 +10,6 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
-import { DrizzleAddressCorrectionMailRepository } from '../../src/address-correction/infrastructure/drizzle-address-correction-mail.repository.js'
 import {
   ContractorMailTemplateLimitReachedError,
   ContractorMailTemplateNameTakenError,
@@ -287,36 +286,6 @@ describeDatabase('modelos de e-mail por empresa (spec 150 T402)', () => {
       `),
     )
     expect(violatedForeignKeyConstraint(error)).toBe('contractor_mail_messages_template_fk')
-  })
-
-  test('o envio só acha modelo ativo, do tipo e da própria empresa', async () => {
-    const own = await create({ companyId: COMPANY_ID, name: 'Para o envio' })
-    const foreign = await create({ companyId: OTHER_COMPANY_ID, name: 'Para o envio de fora' })
-    const mail = new DrizzleAddressCorrectionMailRepository(db())
-
-    await mail.execute(async (transaction) => {
-      expect(
-        await transaction.findMailTemplate({ companyId: COMPANY_ID, templateId: own.id }),
-      ).toMatchObject({ id: own.id })
-      expect(
-        await transaction.findMailTemplate({ companyId: COMPANY_ID, templateId: foreign.id }),
-      ).toBeUndefined()
-      const byDefault = await transaction.findMailTemplate({ companyId: COMPANY_ID })
-      expect(byDefault).toBeDefined()
-    })
-
-    await templates().update({
-      actorUserId: ACTOR_USER_ID,
-      changes: { status: 'archived' },
-      companyId: COMPANY_ID,
-      expectedVersion: own.version,
-      templateId: own.id,
-    })
-    await mail.execute(async (transaction) => {
-      expect(
-        await transaction.findMailTemplate({ companyId: COMPANY_ID, templateId: own.id }),
-      ).toBeUndefined()
-    })
   })
 
   /**

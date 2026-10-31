@@ -115,7 +115,7 @@ const postAddressCorrectionMailSchema = z
       .max(OCCURRENCE_WATCHER_MAX_ACTIVE)
       .optional(),
     requestIds: uniqueArray(z.uuid(), 'requestIds must not repeat an id').optional(),
-    /** Spec 150 T402 (RF15): ausente, vale o modelo padrão do tipo. */
+    /** Spec 286: o modelo é o do módulo de notificação. Aceito e ignorado: o painel anterior ainda o manda. */
     templateId: z.uuid().optional(),
   })
   .strict()

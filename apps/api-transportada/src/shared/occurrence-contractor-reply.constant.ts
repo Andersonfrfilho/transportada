@@ -112,7 +112,10 @@ export const CONTRACTOR_REPLY_DELIVERY_TARGETS = [
 export type ContractorReplyDeliveryTarget = (typeof CONTRACTOR_REPLY_DELIVERY_TARGETS)[number]
 
 /** Spec 281 T5: o envio do boleto por WhatsApp ao cliente; o `address` da entrega é o número em E.164. */
-export const CONTRACTOR_REPLY_WHATSAPP_TARGET = 'client_boleto_whatsapp'
+export const CONTRACTOR_REPLY_WHATSAPP_TARGET = 'client_boleto_whatsapp' as const
+
+/** Spec 288: o envio do boleto por e-mail ao cliente; o `address` da entrega é o e-mail. */
+export const CONTRACTOR_REPLY_CLIENT_EMAIL_TARGET = 'client_boleto_emails' as const
 
 /** Os encaminhamentos do boleto a um terceiro: sem token de resposta e com o anexo ligado pela entrega. */
 export const CONTRACTOR_REPLY_EMAIL_TARGETS = [
@@ -129,6 +132,12 @@ export const CONTRACTOR_REPLY_MAIL_DELIVERY_TARGETS = [
 
 export const CONTRACTOR_REPLY_DELIVERY_TRIGGERS = ['automatic', 'operator'] as const
 export type ContractorReplyDeliveryTrigger = (typeof CONTRACTOR_REPLY_DELIVERY_TRIGGERS)[number]
+
+/** Spec 286 (RF4): o canal cuja falha levou a entrega automática a sair por outro; só a queda do WhatsApp para o e-mail. */
+export const CONTRACTOR_REPLY_DELIVERY_FALLBACK_SOURCES = ['whatsapp'] as const
+export type ContractorReplyFallbackFrom =
+  | (typeof CONTRACTOR_REPLY_DELIVERY_FALLBACK_SOURCES)[number]
+  | null
 
 export const CONTRACTOR_REPLY_DELIVERY_STATUSES = [
   'queued',
@@ -154,6 +163,10 @@ export const CONTRACTOR_REPLY_DELIVERY_REASONS = [
   'whatsapp_disconnected',
   /** Spec 281 T5: arquivo acima do teto do WhatsApp; recusado antes de chamar o Evolution. */
   'attachment_too_large_for_whatsapp',
+  /** Spec 286 T3 (RF3/RF4): o envio automático por WhatsApp não achou número do cliente no cadastro; cai para o e-mail. */
+  'client_without_whatsapp',
+  /** Spec 286 T3 (RF2): o canal ligado não tem modelo utilizável no módulo de notificação; aquele canal não sai. */
+  'template_missing',
 ] as const
 export type ContractorReplyDeliveryReason = (typeof CONTRACTOR_REPLY_DELIVERY_REASONS)[number]
 

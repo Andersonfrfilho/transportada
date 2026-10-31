@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { Tooltip } from '@/components/ui/tooltip'
 
 import type { ConversationParticipant } from '../shared/conversationParticipant.constant'
 import {
@@ -60,6 +61,8 @@ export function ConversationColumn({
 }>) {
   const { t } = useTranslation('occurrenceConversation')
   const bodyId = useId()
+  const name = t(`participant.${participant}`)
+  const toggleLabel = collapsed ? t('thread.expand', { name }) : t('thread.minimize', { name })
   return (
     <section className={`${styles.column} ${participantToneClass(participant)}`}>
       <header className={styles.columnHeader}>
@@ -70,20 +73,20 @@ export function ConversationColumn({
             {t('thread.unread', { count: unreadCount })}
           </span>
         ) : null}
-        <Button
-          aria-controls={bodyId}
-          aria-expanded={!collapsed}
-          className={styles.columnToggle}
-          onClick={onToggleCollapsed}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size="sm" />
-          {collapsed
-            ? t('thread.expand', { name: t(`participant.${participant}`) })
-            : t('thread.minimize', { name: t(`participant.${participant}`) })}
-        </Button>
+        <Tooltip label={toggleLabel}>
+          <Button
+            aria-controls={bodyId}
+            aria-expanded={!collapsed}
+            aria-label={toggleLabel}
+            className={styles.columnToggle}
+            onClick={onToggleCollapsed}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size="sm" />
+          </Button>
+        </Tooltip>
       </header>
       <div hidden={collapsed} id={bodyId}>
         {children}

@@ -24,12 +24,16 @@ export const NOTIFICATION_DEFAULT_TIMEZONE = 'America/Sao_Paulo'
 export const NOTIFICATION_CATEGORY = {
   BILLING: 'billing',
   CTE_BATCH: 'cte-batch',
+  FISCAL: 'fiscal',
   TRIP: 'trip',
 } as const
 
 export const NOTIFICATION_TEMPLATE_KEY = {
   BILLING_INVOICE_DUE: 'billing.invoice-due',
   CTE_BATCH_ISSUANCE_FAILED: 'cte-batch.issuance-failed',
+  /** O certificado digital vencendo ou vencido, disparado por `notification.schedules.run`. */
+  FISCAL_CERTIFICATE_EXPIRED: 'fiscal.certificate-expired',
+  FISCAL_CERTIFICATE_EXPIRING: 'fiscal.certificate-expiring',
   /** Spec 248 RF5: o alerta de retorno vencido, disparado por `occurrence.contractor-reply.alert`. */
   TRIP_OCCURRENCE_CONTRACTOR_REPLY_OVERDUE: 'trip.occurrence-contractor-reply-overdue',
   /** Spec 248 T4.6b: o aviso do boleto entregue ao motorista, o mesmo que a API manda no caminho do operador. */
@@ -39,6 +43,8 @@ export const NOTIFICATION_TEMPLATE_KEY = {
 export const NOTIFICATION_TEMPLATE_PLACEHOLDERS = {
   'billing.invoice-due': ['dueDate', 'invoiceNumber'],
   'cte-batch.issuance-failed': ['batchName', 'failedCount'],
+  'fiscal.certificate-expired': ['expiresAt'],
+  'fiscal.certificate-expiring': ['daysLeft', 'expiresAt'],
   'trip.occurrence-contractor-reply-overdue': ['alertNumber', 'occurrenceLabel'],
   'trip.conversation-message': ['occurrenceLabel'],
 } as const

@@ -32,6 +32,8 @@ import { OccurrenceTypeHiddenFieldsHint } from './OccurrenceTypeHiddenFieldsHint
 import { OccurrenceTypeIconPicker } from './OccurrenceTypeIconPicker.component'
 
 const NAME_MAX_LENGTH = 60
+const DRIVER_LOCK_MINUTES_OFF = 'off'
+const DRIVER_LOCK_MINUTES_CHOICES = [30, 60, 120, 360, 720, 1440, 2880, 4320] as const
 
 type OccurrenceTypeIdentityProps = Readonly<{
   disabled: boolean
@@ -52,6 +54,7 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
   } = useOccurrenceTypeOptions()
   const isDelivery = type.stage === TRIP_OCCURRENCE_STAGE.delivery
   const hasItems = type.itemsMode !== OCCURRENCE_ITEMS_MODE.off
+  const hasClientReturnMatrix = type.clientChannels !== undefined && type.clientChannels !== null
 
   function handleNameCommit(input: HTMLInputElement) {
     const name = input.value.trim()
@@ -120,8 +123,48 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
             />
           </div>
         )}
-        {/* Spec 281 RF8: só com a API que já manda o campo (a anterior recusaria o PUT). */}
-        {type.clientChannel === undefined ? null : (
+        {/* Só com a API que já manda o campo (a anterior recusaria o PUT). O escritório nunca é travado. */}
+        {type.driverLockMinutes === undefined ? null : (
+          <div className={identityStyles.identityField}>
+            <span aria-hidden="true" className={identityStyles.fieldLabel}>
+              {t('occurrenceTypeCatalog.driverLockMinutes')}
+            </span>
+            <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.driverLockMinutesHint')}>
+              <Select
+                ariaLabel={t('occurrenceTypeCatalog.driverLockMinutes')}
+                disabled={disabled}
+                onChange={(value) =>
+                  onEdit({
+                    driverLockMinutes: value === DRIVER_LOCK_MINUTES_OFF ? null : Number(value),
+                  })
+                }
+                options={[
+                  {
+                    label: t('occurrenceTypeCatalog.driverLockMinutesOff'),
+                    value: DRIVER_LOCK_MINUTES_OFF,
+                  },
+                  ...[...new Set([...DRIVER_LOCK_MINUTES_CHOICES, type.driverLockMinutes ?? 0])]
+                    .filter((minutes) => minutes > 0)
+                    .toSorted((left, right) => left - right)
+                    .map((minutes) => ({
+                      label: t('occurrenceTypeCatalog.driverLockMinutesOption', {
+                        count: minutes,
+                        hours: Math.round((minutes / 60) * 10) / 10,
+                      }),
+                      value: String(minutes),
+                    })),
+                ]}
+                value={
+                  type.driverLockMinutes === null
+                    ? DRIVER_LOCK_MINUTES_OFF
+                    : String(type.driverLockMinutes)
+                }
+              />
+            </Tooltip>
+          </div>
+        )}
+        {/* Spec 281 RF8: só com a API que já manda o campo (a anterior recusaria o PUT). Com a matriz (286) o canal vem das caixas do bloco "Retorno ao cliente". */}
+        {type.clientChannel === undefined || hasClientReturnMatrix ? null : (
           <div className={identityStyles.identityField}>
             <span aria-hidden="true" className={identityStyles.fieldLabel}>
               {t('occurrenceTypeCatalog.clientChannel')}
@@ -157,7 +200,8 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
         {/* Spec 279 RF10: só com o envio ao cliente ligado e a API que já manda o campo. */}
         {type.clientEmailSendMode === undefined ||
         type.clientEmailType === undefined ||
-        type.clientEmailType === 'off' ? null : (
+        type.clientEmailType === 'off' ||
+        hasClientReturnMatrix ? null : (
           <div className={identityStyles.identityField}>
             <span aria-hidden="true" className={identityStyles.fieldLabel}>
               {t('occurrenceTypeCatalog.clientEmailSendMode')}

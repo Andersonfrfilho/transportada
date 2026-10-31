@@ -342,6 +342,29 @@ describe('contractor mail inbound consumer (spec 143, T010)', () => {
     expect(disposition).toEqual({ type: 'retry' })
   })
 
+  test('logs only the class name and code of a transient failure, never its message', async () => {
+    const { calls, logger } = buildLogger()
+    const handler = await captureHandler({
+      dependencies: buildDependenciesStub({
+        fetchReceivedEmail: async () => {
+          throw Object.assign(new Error('falha com financeiro@contratante.com.br'), {
+            code: 'ECONNRESET',
+          })
+        },
+      }),
+      logger,
+    })
+
+    await handler({ payload: buildEnvelope() })
+
+    expect(calls[0]?.metadata).toMatchObject({
+      errorCode: 'ECONNRESET',
+      errorName: 'Error',
+      reason: 'transient',
+    })
+    expect(JSON.stringify(calls)).not.toContain('financeiro@contratante.com.br')
+  })
+
   test('never logs the recipient address, the subject or the body', async () => {
     const { calls, logger } = buildLogger()
     const handler = await captureHandler({ dependencies: buildDependenciesStub(), logger })

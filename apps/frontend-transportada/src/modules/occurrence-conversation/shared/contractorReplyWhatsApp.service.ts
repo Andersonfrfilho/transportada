@@ -48,6 +48,8 @@ export type WhatsAppDelivery = Readonly<{
   reason: null | string
   sentAt: null | string
   status: WhatsAppDeliveryStatus
+  /** Spec 286 T4: quem disparou o envio; a API anterior não manda. */
+  trigger?: 'automatic' | 'operator'
 }>
 
 export type ContractorReplyWhatsAppOptions = Readonly<{

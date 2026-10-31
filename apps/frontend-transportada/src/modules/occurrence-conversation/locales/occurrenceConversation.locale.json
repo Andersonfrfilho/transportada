@@ -108,13 +108,13 @@
   "unassigned": {
     "title_one": "{{count}} mensagem sem conversa",
     "title_other": "{{count}} mensagens sem conversa",
-    "hint": "Chegaram de um contato da contratante sem dizer a qual ocorrência respondem. Escolha a conversa; a mensagem entra lá com o horário em que chegou.",
+    "hint": "Chegaram de um contato da contratante ou de um cliente sem dizer a qual ocorrência respondem. Escolha a conversa; a mensagem entra lá com o horário em que chegou.",
     "channel": {
       "whatsapp": "WhatsApp",
       "email": "E-mail"
     },
     "noText": "(mensagem sem texto)",
-    "noCandidates": "Nenhuma conversa aberta com esta contratante. Abra a conversa pela ocorrência e volte aqui.",
+    "noCandidates": "Nenhuma conversa aberta para este número. Abra a conversa pela ocorrência e volte aqui.",
     "choose": "Em qual conversa ela entra?",
     "lastOutbound": "Nossa última mensagem ({{at}}): {{preview}}",
     "openOccurrence": "Abrir a ocorrência",
@@ -669,6 +669,12 @@
         "queued": "Na fila",
         "failed": "Falhou"
       },
+      "resend": "Reenviar",
+      "trigger": {
+        "automatic": "Automático",
+        "operator": "Operador"
+      },
+      "whatsappFallback": "Reserva do WhatsApp",
       "clientWithoutEmail": "Sem e-mail do cliente para o boleto",
       "retry": "Tentar de novo",
       "retrying": "Enviando…",
@@ -682,6 +688,10 @@
         "sent": "Enviado",
         "queued": "Na fila",
         "failed": "Falhou"
+      },
+      "trigger": {
+        "automatic": "Automático",
+        "operator": "Operador"
       },
       "retry": "Tentar de novo",
       "resend": "Reenviar",
@@ -736,6 +746,7 @@
     "reply": {
       "noWhatsapp": "O cliente não responde por e-mail: a resposta só sai pelo WhatsApp, e nenhum número foi aberto ainda.",
       "off": "O WhatsApp está desligado ou fora do ar. Use \"Enviar ao cliente\" por e-mail enquanto isso.",
+      "noPermission": "Você não tem permissão para responder ao cliente. O histórico continua aqui.",
       "replyBy": "Responder por",
       "message": "Mensagem ao cliente",
       "hint": "Sai pelo WhatsApp para {{number}}.",

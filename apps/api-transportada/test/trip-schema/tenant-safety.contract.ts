@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 import {
+  companyOccurrenceTypeClientChannels,
   companyOccurrenceTypeMoments,
   mdfeManifests,
   tripCargoLayouts,
@@ -60,6 +61,8 @@ const TRIP_TABLES = [
   { name: 'trip_occurrence_resolution_events', table: tripOccurrenceResolutionEvents },
   /** Spec 246 T1b.1: os momentos do tipo — quem registra o quê sai daqui, nunca de outra empresa. */
   { name: 'company_occurrence_type_moments', table: companyOccurrenceTypeMoments },
+  /** Spec 286 T2: a matriz "Retorno ao cliente" do tipo — nunca a chave de modelo de outra empresa. */
+  { name: 'company_occurrence_type_client_channels', table: companyOccurrenceTypeClientChannels },
 ] as const
 
 describe('trip tenant safety', () => {
