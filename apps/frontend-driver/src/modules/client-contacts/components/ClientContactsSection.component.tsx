@@ -9,6 +9,7 @@ import {
   parseClientWhatsAppNumber,
 } from '@/modules/client-whatsapp/shared/clientBoletoWhatsAppNumber.service'
 import { useIsOnline } from '@/modules/conversation/hooks/useIsOnline.hook'
+import { formatPhone } from '@/modules/shared/phone.service'
 
 import { useClientContacts } from '../hooks/useClientContacts.hook'
 import type { ClientContact, ClientContactChannel } from '../shared/clientContacts.types'
@@ -235,7 +236,13 @@ export function ClientContactsSection({ channels, documentId }: ClientContactsSe
                 inputMode={mode.draft.channel === 'whatsapp' ? 'tel' : 'email'}
                 onChange={(event) =>
                   setMode({
-                    draft: { ...mode.draft, address: event.target.value },
+                    draft: {
+                      ...mode.draft,
+                      address:
+                        mode.draft.channel === 'whatsapp'
+                          ? formatPhone(event.target.value)
+                          : event.target.value,
+                    },
                     kind: 'form',
                     showInvalid: false,
                   })
