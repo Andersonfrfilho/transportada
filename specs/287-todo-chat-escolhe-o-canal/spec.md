@@ -86,4 +86,25 @@ Contrato antes do código (API e painel); integração da rota nova com os dois 
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: com os dois canais ligados e envio manual, o seletor permite "ambos" ou um por vez?]
+- Decidido pelo dono em 2026-10-31: o seletor tem **E-mail, WhatsApp e Ambos**; escolher um canal envia só nele.
+
+## Desenho do e-mail ao cliente (2026-11-01)
+
+O envio de e-mail do chat da contratante grava o e-mail no **único fio da ocorrência** (`contractor_mail_threads`, único
+por `company_id + subject_type + subject_id`) e o token de resposta desse fio leva a resposta à conversa da contratante.
+Mandar ao cliente por esse fio faria a resposta dele cair no chat errado. Logo:
+
+1. **Fio próprio do cliente**: novos `subject_type` (`client_document_occurrence`, `client_stop_occurrence`) no CHECK de
+   `contractor_mail_threads` (migration aditiva, com `rollback.sql`), um fio por ocorrência e por participante, com token
+   próprio.
+2. **Resposta recebida**: o webhook de entrada acha o fio pelo hash do token e grava a mensagem na conversa do
+   participante **do fio** (cliente ou contratante), nunca por regra fixa.
+3. **Envio**: o mesmo pipeline do chat da contratante (modelo padrão 274, assinatura, Resend), com os e-mails do cadastro
+   do cliente (279) e o balão `email` gravado na conversa `client`.
+4. **Rota**: `POST /occurrences/:id/client/messages` aceita `channel: 'whatsapp' | 'email' | 'both'`; `both` grava um
+   balão por canal, com a mesma `Idempotency-Key` derivada por canal.
+5. **Painel**: o seletor "Enviar por" é do SDK (`conversations-ui`); aqui o painel passa a lista de canais e o canal
+   escolhido.
+
+Etapas: (1) migration do fio do cliente, (2) resposta recebida roteada por participante, (3) envio e rota com `channel`,
+(4) seletor no painel. Cada etapa sai para staging com contrato antes do código.
