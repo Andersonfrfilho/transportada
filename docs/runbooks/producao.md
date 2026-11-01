@@ -482,6 +482,12 @@ Estado: a 5.6 estava bloqueada; depois da promoção das specs 286/288/289 e do 
 - Na janela anônima e no relogin o app volta ao mesmo ponto; o servidor não guarda estado do formulário.
 - O teste enviou a mensagem a contatos reais: usar cliente/nota de teste com os contatos do Anderson.
 
+**Ícone do tipo (01/11/2026):** o tipo "Prorrogação do boleto" estava sem ícone (`icon_name` nulo), então o app do motorista
+não mostrava nada. Catálogo fechado do CHECK: `alert camera clipboard-list clock document invoice message money package
+truck`. Escolhido `invoice` (é o boleto). Aplicação por `scripts/ops/producao-icone-tipo-ocorrencia.sh` (sem `--confirm`
+só lista; com `--confirm` grava só `icon_name` e `updated_at`; `ENV_NAME=production` com aprovação). Também dá para
+trocar no painel (Tipos de ocorrência → "Ícone do tipo"). Ainda não confirmado se rodou: registrar aqui o resultado.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
