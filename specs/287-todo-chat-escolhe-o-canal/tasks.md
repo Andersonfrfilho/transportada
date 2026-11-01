@@ -7,4 +7,3 @@
 - [ ] T005 Linha ✉ do modelo omitida sem e-mail no perfil fiscal — API/worker — contrato
 - [ ] T006 Migration aditiva: `subject_type` do fio do cliente em `contractor_mail_threads` — `apps/api-transportada/drizzle` — migration + rollback + teste
 - [ ] T007 Webhook de resposta roteia pela conversa do participante do fio — API — contrato + integração
-
