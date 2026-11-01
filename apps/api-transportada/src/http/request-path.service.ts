@@ -19,6 +19,7 @@ import {
   API_NFE_DOCUMENTS_PATH,
   API_NFE_IMPORTS_PATH,
   API_OPERATIONS_JOBS_PATH,
+  API_OPERATIONS_SENT_MESSAGES_PATH,
   API_OPERATIONS_SUMMARY_PATH,
   API_OPERATIONS_TIMELINE_PATH,
   API_TRIPS_PATH,
@@ -61,6 +62,7 @@ export function isNoStorePath(pathname: string): boolean {
     pathname === API_OPERATIONS_SUMMARY_PATH ||
     pathname === API_OPERATIONS_TIMELINE_PATH ||
     pathname === API_OPERATIONS_JOBS_PATH ||
+    pathname === API_OPERATIONS_SENT_MESSAGES_PATH ||
     pathname === API_AUDIT_EVENTS_PATH ||
     pathname === API_NFE_IMPORTS_PATH ||
     pathname.startsWith(`${API_NFE_IMPORTS_PATH}/`) ||
