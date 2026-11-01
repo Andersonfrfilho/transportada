@@ -459,6 +459,13 @@ fica para o operador.
 - Depois: linha do tempo da ocorrência e `occurrence_contractor_reply_deliveries` (`trigger = automatic`); log do worker
   `occurrence_contractor_reply_whatsapp_automatic`.
 
+**Resultado (01/11/2026):** o gate reprovado era só a paridade do worker (corrigida no #475). A promoção foi feita por um
+commit fixo da staging (`b9d7b1b`, PR #481) em vez da branch `staging`, porque a spec 287 continuava recebendo merges
+(promover a branch levaria trabalho incompleto). Merge `5f01233`: Deploy da `main` verde (api com "Conferir migrations
+aplicadas" e "Conferir as origens do frontend", worker, cron, painel, motorista, client, landing). A 286/288 estão em
+produção com WhatsApp desligado. Teste instável visto no CI da staging: `trip-proof-pdf-end-to-end` compara com `999` e
+bate no id aleatório da viagem; um re-run passou. Regra: promover por commit fixo quando a staging estiver em movimento.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
