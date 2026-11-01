@@ -120,3 +120,9 @@ cliente (para mandar nos dois canais, escreve-se em cada conversa), e tira a dep
 - A conversa de e-mail do cliente usa o fio `client_*_occurrence` (migration T006) e a mensagem grava `channel = 'email'`.
 - A resposta recebida cai na conversa do **canal** por onde veio (RF5 vale por conversa).
 - RF1 passa a ser uma rota por conversa de canal; `channel: 'both'` sai do contrato.
+
+## Escopo ampliado (dono, 2026-11-01)
+
+- Vale para **todos** os chats: cliente, motorista (que também passa a poder iniciar conversa por WhatsApp) e contratante.
+- A separação por canal só aparece quando o participante tem **mais de um canal disponível**; com um só, o chat segue como hoje.
+- Deve ser possível **compartilhar/encaminhar uma mensagem de um canal para o outro** e **ver as conversas por canal lado a lado** (as colunas do painel já permitem várias abertas).
