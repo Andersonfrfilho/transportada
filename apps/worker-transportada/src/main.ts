@@ -193,6 +193,10 @@ import { startContractorMailInboundConsumer } from './runtime/contractor-mail-in
 import type { SendContractorMailOutboundMessageDependencies } from './contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import type { RecordContractorMailInboundMessageDependencies } from './contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
 import { createContractorReplyClientWhatsAppDispatcher } from './occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-dispatcher.adapter.js'
+import {
+  createDrizzleEvolutionSendSlotClaimer,
+  createEvolutionSendPacer,
+} from './whatsapp/infrastructure/evolution-send-pacer.js'
 import { createEvolutionClientDocumentSender } from './whatsapp/infrastructure/evolution-client-document-sender.gateway.js'
 import { createInboundConversationAttachmentStore } from './occurrence-conversation/application/inbound-mail-attachments.service.js'
 import { createOccurrenceConversationUploadExpireRoutine } from './occurrence-conversation-upload-expire/application/occurrence-conversation-upload-expire.routine.js'
@@ -1207,6 +1211,13 @@ export async function startWorkerRuntime(
             ),
           sender: createEvolutionClientDocumentSender({
             envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+            /** Spec 289: o intervalo entre envios do número; no worker espera até 2 min, depois cai no e-mail. */
+            pacer: createEvolutionSendPacer({
+              claimSlot: createDrizzleEvolutionSendSlotClaimer(
+                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              ),
+              maxWaitMs: 120_000,
+            }),
             runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
           }),
         }),

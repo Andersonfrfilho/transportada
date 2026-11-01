@@ -166,7 +166,7 @@ export type OccurrenceConversation = Readonly<{
   client?: Readonly<{ channels: readonly OccurrenceClientChannel[]; name: null | string }>
   id: string
   messages: readonly OccurrenceConversationMessage[]
-  participant: 'client' | 'contractor' | 'driver'
+  participant: 'client' | 'client_email' | 'contractor' | 'driver'
   status: string
   unreadCount: number
 }>

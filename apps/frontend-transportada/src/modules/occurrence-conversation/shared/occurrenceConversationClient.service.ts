@@ -141,6 +141,12 @@ export type OccurrenceConversationClient = Readonly<{
     occurrenceId: string
     replyTargetId: string
   }) => Promise<ClientReplyReceipt>
+  /** Spec 287: ao cliente por e-mail (modelo padrão); os destinatários são os e-mails cadastrados, nunca vêm do painel. */
+  sendClientEmail: (input: {
+    body: string
+    idempotencyKey: string
+    occurrenceId: string
+  }) => Promise<SentMessageReceipt>
   sendContractorChatMessage: (input: {
     attachmentIds?: readonly string[]
     body: string
@@ -337,7 +343,8 @@ function toConversation(value: unknown): null | OccurrenceConversation {
     !isString(value.id) ||
     (value.participant !== 'contractor' &&
       value.participant !== 'driver' &&
-      value.participant !== 'client') ||
+      value.participant !== 'client' &&
+      value.participant !== 'client_email') ||
     !Array.isArray(value.messages)
   ) {
     return null
@@ -812,6 +819,15 @@ export function createOccurrenceConversationClient(
             ...(confirmNumber === true ? { confirmNumber: true } : {}),
             replyTargetId,
           },
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        }),
+      )
+    },
+    async sendClientEmail({ body, idempotencyKey, occurrenceId }) {
+      return readSentMessageReceipt(
+        await requestJson(dependencies, `${occurrencePath(occurrenceId)}/client/messages`, {
+          body: { body, channel: 'email' },
           headers: { 'idempotency-key': idempotencyKey },
           method: 'POST',
         }),

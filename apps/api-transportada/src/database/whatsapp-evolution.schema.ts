@@ -62,8 +62,10 @@ export const whatsappEvolutionSettings = pgTable(
       .$type<WhatsAppDefaultProvider>()
       .notNull()
       .default('meta'),
-    dailyCap: integer('daily_cap').notNull().default(50),
+    dailyCap: integer('daily_cap').notNull().default(300),
     minIntervalSeconds: integer('min_interval_seconds').notNull().default(15),
+    /** Spec 289: o próximo instante em que o número pode enviar; cada envio reserva uma vaga `min_interval_seconds` adiante da anterior. */
+    nextSendAt: timestamp('next_send_at', { withTimezone: true }),
     connectionState: text('connection_state')
       .$type<WhatsAppEvolutionConnectionState>()
       .notNull()

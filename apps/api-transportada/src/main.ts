@@ -193,6 +193,8 @@ import {
   createEvolutionConnectionGateway,
   createEvolutionProvisioner,
 } from './whatsapp/infrastructure/evolution-connection.gateway'
+import { createEvolutionSendPacer } from './whatsapp/application/evolution-send-pacer.service.js'
+import { createDrizzleEvolutionSendSlotClaimer } from './whatsapp/infrastructure/drizzle-evolution-send-slot.js'
 import { createEvolutionDocumentSender } from './whatsapp/infrastructure/evolution-document-sender.gateway.js'
 import { createSendClientReplyUseCase } from './occurrence-conversation/application/send-client-reply.use-case.js'
 import { createDrizzleClientReplyRepository } from './occurrence-conversation/infrastructure/drizzle-client-reply.repository.js'
@@ -601,7 +603,10 @@ import {
 } from './occurrence-conversation/application/driver-conversation.use-case.js'
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
 import { createContractorPortalChatNotice } from './occurrence-conversation/application/contractor-portal-chat-notice.service.js'
-import { createSendOccurrenceChatMailUseCase } from './occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
+import {
+  createSendClientChatMailUseCase,
+  createSendOccurrenceChatMailUseCase,
+} from './occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
 import type { ResolvedStandardEmailTemplate } from './occurrence-conversation/application/standard-email-renderer.port.js'
 import {
   createPublicRef,
@@ -3020,6 +3025,11 @@ function createApplicationRoutes({
     secrets: createWhatsAppChannelSecretService({ envelopeProvider }),
   })
   const whatsappEvolutionRepository = new DrizzleWhatsAppEvolutionRepository(database)
+  /** Spec 289: o intervalo entre envios do número. Na API o envio é uma requisição: espera até 20 s, além disso recusa. */
+  const evolutionSendPacer = createEvolutionSendPacer({
+    claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
+    maxWaitMs: 20_000,
+  })
   const whatsappEvolutionSecrets = createWhatsAppEvolutionSecretService({ envelopeProvider })
   const whatsappEvolutionWebhook = createEvolutionWebhook({
     apiPublicUrl,
@@ -3052,6 +3062,7 @@ function createApplicationRoutes({
     logger,
     now: () => new Date(),
     sender: createEvolutionDocumentSender({
+      pacer: evolutionSendPacer,
       repository: whatsappEvolutionRepository,
       secrets: whatsappEvolutionSecrets,
     }),
@@ -3065,6 +3076,7 @@ function createApplicationRoutes({
     readAttachment: async (location) =>
       readAllBytes(await storageGateway.getObjectStream(location)),
     sender: createEvolutionDocumentSender({
+      pacer: evolutionSendPacer,
       repository: whatsappEvolutionRepository,
       secrets: whatsappEvolutionSecrets,
     }),
@@ -3835,9 +3847,30 @@ function createApplicationRoutes({
         logger,
         repository: createDrizzleClientReplyRepository(database),
         sender: createEvolutionDocumentSender({
+          pacer: evolutionSendPacer,
           repository: whatsappEvolutionRepository,
           secrets: whatsappEvolutionSecrets,
         }),
+      }),
+      /** Spec 287: o chat do cliente por e-mail: o mesmo envio e modelo padrão, para os e-mails do cliente. */
+      sendClientChatMail: createSendClientChatMailUseCase({
+        ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
+        ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
+        ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
+        fingerprintService,
+        logger,
+        renderer: {
+          render: ({ input, template }) =>
+            renderStandardEmail({ input, template: template as unknown as StandardEmailTemplate }),
+          resolve: async ({ companyId }) =>
+            (await notifications.standardEmail.resolveTemplate({
+              companyId,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            })) as unknown as ResolvedStandardEmailTemplate,
+        },
+        secretService: contractorMailCredentialSecretService,
+        storage: storageGateway,
+        unitOfWork: new DrizzleOccurrenceMailRepository(database),
       }),
       sendChatMail: createSendOccurrenceChatMailUseCase({
         ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),

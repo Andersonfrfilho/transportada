@@ -63,9 +63,15 @@ export type OccurrenceConversationParticipant =
  * nasce só do trilho de entrega (279/281 T5) e responde só pelo webhook (281 T6).
  */
 export const OCCURRENCE_CONVERSATION_CLIENT_PARTICIPANT = 'client'
+/**
+ * Spec 287: a conversa do cliente é uma por canal. `client` segue sendo a do WhatsApp (as linhas existentes não
+ * mudam); `client_email` é a do e-mail, com o mesmo `client_tax_id` e a mesma ocorrência de nota.
+ */
+export const OCCURRENCE_CONVERSATION_CLIENT_EMAIL_PARTICIPANT = 'client_email'
 export const OCCURRENCE_CONVERSATION_ALL_PARTICIPANTS = [
   ...OCCURRENCE_CONVERSATION_PARTICIPANTS,
   OCCURRENCE_CONVERSATION_CLIENT_PARTICIPANT,
+  OCCURRENCE_CONVERSATION_CLIENT_EMAIL_PARTICIPANT,
 ] as const
 export type OccurrenceConversationAnyParticipant =
   (typeof OCCURRENCE_CONVERSATION_ALL_PARTICIPANTS)[number]
@@ -262,7 +268,7 @@ export const occurrenceConversations = pgTable(
       'occurrence_conversations_participant_shape_check',
       sql`(${table.participant} = 'contractor' and ${table.contractorId} is not null and ${table.publicRef} is not null and ${table.driverUserId} is null and ${table.clientTaxId} is null)
         or (${table.participant} = 'driver' and ${table.driverUserId} is not null and ${table.contractorId} is null and ${table.publicRef} is null and ${table.clientTaxId} is null)
-        or (${table.participant} = 'client' and ${table.clientTaxId} is not null and ${table.occurrenceKind} = 'document' and ${table.contractorId} is null and ${table.driverUserId} is null and ${table.publicRef} is null)`,
+        or (${table.participant} in ('client', 'client_email') and ${table.clientTaxId} is not null and ${table.occurrenceKind} = 'document' and ${table.contractorId} is null and ${table.driverUserId} is null and ${table.publicRef} is null)`,
     ),
     check(
       'occurrence_conversations_client_tax_id_check',
