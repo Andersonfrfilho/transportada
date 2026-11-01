@@ -601,7 +601,10 @@ import {
 } from './occurrence-conversation/application/driver-conversation.use-case.js'
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
 import { createContractorPortalChatNotice } from './occurrence-conversation/application/contractor-portal-chat-notice.service.js'
-import { createSendOccurrenceChatMailUseCase } from './occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
+import {
+  createSendClientChatMailUseCase,
+  createSendOccurrenceChatMailUseCase,
+} from './occurrence-conversation/application/send-occurrence-chat-mail.use-case.js'
 import type { ResolvedStandardEmailTemplate } from './occurrence-conversation/application/standard-email-renderer.port.js'
 import {
   createPublicRef,
@@ -3838,6 +3841,26 @@ function createApplicationRoutes({
           repository: whatsappEvolutionRepository,
           secrets: whatsappEvolutionSecrets,
         }),
+      }),
+      /** Spec 287: o chat do cliente por e-mail: o mesmo envio e modelo padrão, para os e-mails do cliente. */
+      sendClientChatMail: createSendClientChatMailUseCase({
+        ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
+        ...(appBaseUrl === undefined ? {} : { appBaseUrl }),
+        ...(contractorMailSandbox === undefined ? {} : { contractorMailSandbox }),
+        fingerprintService,
+        logger,
+        renderer: {
+          render: ({ input, template }) =>
+            renderStandardEmail({ input, template: template as unknown as StandardEmailTemplate }),
+          resolve: async ({ companyId }) =>
+            (await notifications.standardEmail.resolveTemplate({
+              companyId,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            })) as unknown as ResolvedStandardEmailTemplate,
+        },
+        secretService: contractorMailCredentialSecretService,
+        storage: storageGateway,
+        unitOfWork: new DrizzleOccurrenceMailRepository(database),
       }),
       sendChatMail: createSendOccurrenceChatMailUseCase({
         ...(apiPublicUrl === undefined ? {} : { apiPublicUrl }),
