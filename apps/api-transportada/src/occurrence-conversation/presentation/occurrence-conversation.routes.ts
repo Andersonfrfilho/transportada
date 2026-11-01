@@ -171,6 +171,14 @@ const clientWhatsAppMessageSchema = z
   })
   .strict()
 
+/** Spec 287: ao cliente por e-mail. Os destinatários são os e-mails cadastrados do cliente: nunca vêm no corpo. */
+const clientEmailMessageSchema = z
+  .object({
+    body: z.string().trim().min(1).max(OCCURRENCE_MAIL_LIMITS.body),
+    channel: z.literal('email'),
+  })
+  .strict()
+
 const mailPreviewSchema = z
   .object({
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body).optional(),
@@ -193,6 +201,8 @@ export type OccurrenceConversationRoutesDependencies = {
   readonly sendChatMail?: SendOccurrenceChatMailUseCase
   /** Spec 283 T5: a resposta ao cliente pelo WhatsApp; ausente, responde como canal indisponível. */
   readonly sendClientReply?: SendClientReplyUseCase
+  /** Spec 287: ao cliente por e-mail; ausente, responde como canal indisponível. */
+  readonly sendClientChatMail?: SendOccurrenceChatMailUseCase
   readonly sendMail: SendOccurrenceMailUseCase
   /** Spec 183 T601: ao motorista pelo app. */
   readonly sendDriverApp: Pick<ReturnType<typeof createSendDriverAppMessageUseCase>, 'send'>
@@ -214,6 +224,13 @@ function parseParticipant(value: string | undefined): OccurrenceConversationPart
 }
 
 type SendInput =
+  | {
+      readonly bodyText: string
+      readonly correlationId: string
+      readonly idempotencyKey: string
+      readonly kind: 'client_email'
+      readonly occurrenceId: string
+    }
   | {
       readonly bodyText: string
       readonly confirmNumber: boolean
@@ -293,6 +310,25 @@ export function createOccurrenceConversationRoutes(
     }),
     defineRoute<SendInput>({
       async handle({ context, input }): Promise<Response> {
+        if (input.kind === 'client_email') {
+          if (dependencies.sendClientChatMail === undefined) {
+            throw new OccurrenceConversationChannelUnavailableError()
+          }
+          await assertChatMailWithinCeilings({
+            companyId: context.scope.companyId,
+            limiter: dependencies.chatRateLimiter,
+            occurrenceId: input.occurrenceId,
+          })
+          const result = await dependencies.sendClientChatMail.send({
+            actorUserId: context.scope.userId,
+            bodyText: input.bodyText,
+            companyId: context.scope.companyId,
+            correlationId: input.correlationId,
+            idempotencyKey: input.idempotencyKey,
+            occurrenceId: input.occurrenceId,
+          })
+          return jsonResponse({ data: result }, 202)
+        }
         if (input.kind === 'client') {
           if (dependencies.sendClientReply === undefined) {
             throw new OccurrenceConversationChannelUnavailableError()
@@ -366,9 +402,19 @@ export function createOccurrenceConversationRoutes(
         const occurrenceId = parseUuidPathIdentifier(pathParameters.id ?? '')
         if (pathParameters.participant === CLIENT_CONVERSATION_PARTICIPANT) {
           const idempotencyKey = parseIdempotencyKey(request.headers.get('idempotency-key'))
-          const body = clientWhatsAppMessageSchema.safeParse(
-            await parseBody(channelSchema, request),
-          )
+          const raw = await parseBody(channelSchema, request)
+          if (raw.channel === 'email') {
+            const email = clientEmailMessageSchema.safeParse(raw)
+            if (!email.success) throw invalidRequest()
+            return {
+              bodyText: email.data.body,
+              correlationId,
+              idempotencyKey,
+              kind: 'client_email' as const,
+              occurrenceId,
+            }
+          }
+          const body = clientWhatsAppMessageSchema.safeParse(raw)
           if (!body.success) throw invalidRequest()
           return {
             bodyText: body.data.body,
