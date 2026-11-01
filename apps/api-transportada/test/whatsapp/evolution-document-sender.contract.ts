@@ -108,3 +108,40 @@ describe('spec 281 T5: envio do documento pelo Evolution', () => {
     expect(await closed.sender.isConnected({ companyId: COMPANY_ID })).toBe(false)
   })
 })
+
+describe('Spec 289 — o envio espera a vaga do intervalo', () => {
+  test('o documento só vai ao Evolution depois de o pacer liberar, e vaga recusada vira `failed` sem chamar o provedor', async () => {
+    const order: string[] = []
+    const busy = createEvolutionDocumentSender({
+      fetch: (async () => {
+        order.push('fetch')
+        return new Response('{}', { status: 200 })
+      }) as unknown as typeof fetch,
+      pacer: {
+        wait: async () => {
+          order.push('wait')
+          throw new Error('busy')
+        },
+      },
+      repository: {
+        findCredential: async () => ({
+          baseUrl: 'https://evolution.exemplo.com',
+          companyId: COMPANY_ID,
+          envelope: ENVELOPE,
+          instanceName: 'empresa-1',
+          settingsId: 'settings-1',
+          status: 'active',
+        }),
+      },
+      secrets: { decrypt: async () => ({ apiKey: 'chave-da-instancia' }) },
+    })
+    let failure = ''
+    try {
+      await busy.sendDocument(SEND)
+    } catch (error) {
+      if (error instanceof ContractorReplyWhatsAppSendError) failure = error.failure
+    }
+    expect(failure).toBe('failed')
+    expect(order).toEqual(['wait'])
+  })
+})

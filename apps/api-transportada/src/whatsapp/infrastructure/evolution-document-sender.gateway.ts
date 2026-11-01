@@ -12,6 +12,7 @@ import {
   type ContractorReplyWhatsAppSendFailure,
 } from '../../occurrence-conversation/application/forward-contractor-reply-by-whatsapp.port.js'
 import type { ClientReplyWhatsAppSenderPort } from '../../occurrence-conversation/application/send-client-reply.port.js'
+import type { EvolutionSendPacer } from '../application/evolution-send-pacer.service.js'
 import type { WhatsAppEvolutionRepositoryPort } from '../application/whatsapp-evolution.port.js'
 import type { WhatsAppEvolutionSecretService } from '../application/whatsapp-evolution-secret.service.js'
 
@@ -28,6 +29,8 @@ const SEND_TIMEOUT_MS = 60_000
  */
 type EvolutionSenderDependencies = {
   readonly fetch?: typeof fetch
+  /** Spec 289: espaça os envios do número; ausente, o envio sai na hora (testes). */
+  readonly pacer?: EvolutionSendPacer
   readonly repository: Pick<WhatsAppEvolutionRepositoryPort, 'findCredential'>
   readonly secrets: Pick<WhatsAppEvolutionSecretService, 'decrypt'>
 }
@@ -59,6 +62,14 @@ export function createEvolutionDocumentSender(
     })
   }
 
+  async function pace(companyId: string): Promise<void> {
+    try {
+      await dependencies.pacer?.wait(companyId)
+    } catch {
+      throw new ContractorReplyWhatsAppSendError('failed')
+    }
+  }
+
   return {
     async connectedNumber({ companyId }) {
       const credential = await credentials(companyId)
@@ -72,6 +83,7 @@ export function createEvolutionDocumentSender(
 
     async sendDocument(params) {
       const channel = await open(params.companyId)
+      await pace(params.companyId)
       try {
         const sent = await channel.sendMedia({
           buffer: Buffer.from(params.bytes),
@@ -89,6 +101,7 @@ export function createEvolutionDocumentSender(
     /** Spec 283 T5 (D6): a resposta do painel ao cliente, só texto. */
     async sendText(params) {
       const channel = await open(params.companyId)
+      await pace(params.companyId)
       try {
         const sent = await channel.sendText(params.number, params.body)
         return { providerMessageId: sent.externalMessageId }

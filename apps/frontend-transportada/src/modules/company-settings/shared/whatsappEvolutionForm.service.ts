@@ -25,7 +25,7 @@ export const WHATSAPP_EVOLUTION_DEFAULT_DRAFT: WhatsAppEvolutionDraft = {
   acknowledgeRisk: false,
   apiKey: '',
   baseUrl: '',
-  dailyCap: '50',
+  dailyCap: '300',
   /** O e-mail e a Meta seguem como estão até o dono escolher o Evolution (spec 281 R1). */
   defaultProvider: 'meta',
   enabled: false,
