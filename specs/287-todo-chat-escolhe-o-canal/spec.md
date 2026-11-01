@@ -126,3 +126,9 @@ cliente (para mandar nos dois canais, escreve-se em cada conversa), e tira a dep
 - Vale para **todos** os chats: cliente, motorista (que também passa a poder iniciar conversa por WhatsApp) e contratante.
 - A separação por canal só aparece quando o participante tem **mais de um canal disponível**; com um só, o chat segue como hoje.
 - Deve ser possível **compartilhar/encaminhar uma mensagem de um canal para o outro** e **ver as conversas por canal lado a lado** (as colunas do painel já permitem várias abertas).
+
+## Layout no SDK (dono, 2026-11-01)
+
+- Os três chats lado a lado, com os canais como **abas** e o botão **▥** que divide o chat em painéis por canal (previews em `/mnt/project-files/mockups/conversa-por-canal-v3.html`), mais o minimizar e o encaminhar entre canais.
+- A **mecânica** (abas, divisão, encaminhar, só mostrar com mais de um canal) mora no SDK `conversations-ui` e é **customizável** (slots e tokens de tema). Os previews são só de comportamento: o visual vem do design system do TransportAdA, não do mockup.
+- Isso reabre a decisão anterior de "sem dependência de SDK": a parte de layout por canal vai ao SDK; a regra de envio por canal continua na API.
