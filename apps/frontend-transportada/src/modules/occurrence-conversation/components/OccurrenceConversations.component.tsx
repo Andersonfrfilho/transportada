@@ -39,6 +39,7 @@ import {
   resolveClientPlacement,
   resolveColumnsGrid,
 } from '../shared/clientConversation.service'
+import { findClientEmailConversation } from '../shared/clientChannelSplit.service'
 import { useConversationAlerts } from '../shared/useConversationAlerts.hook'
 
 import {
@@ -539,8 +540,14 @@ export function OccurrenceConversations({
   )
   const driverUnread = driverConversation?.unreadCount ?? 0
   /** À vista: coluna expandida (lado a lado) ou aba selecionada; no celular a aba de cima já escolheu a parte. */
-  const clientConversation = findClientConversation(query.data?.conversations)
-  const clientUnread = clientConversation?.unreadCount ?? 0
+  const emailConversation = findClientEmailConversation(query.data?.conversations)
+  /** Spec 287: a conversa do cliente existe também quando só o e-mail falou com ele. */
+  const clientConversation = findClientConversation(query.data?.conversations) ?? emailConversation
+  const clientUnread =
+    (clientConversation?.unreadCount ?? 0) +
+    (emailConversation !== undefined && emailConversation !== clientConversation
+      ? emailConversation.unreadCount
+      : 0)
   const clientPlacement = resolveClientPlacement({
     hasClientConversation: clientConversation !== undefined,
     isWide: isExtraWide,
@@ -610,6 +617,7 @@ export function OccurrenceConversations({
         canReply={canSend}
         {...(companyId === undefined ? {} : { companyId })}
         conversation={clientConversation}
+        {...(emailConversation === undefined ? {} : { emailConversation })}
         occurrenceId={occurrenceId}
       />
     )
@@ -720,6 +728,7 @@ export function OccurrenceConversations({
           canReply={canSend}
           {...(companyId === undefined ? {} : { companyId })}
           conversation={clientConversation}
+          {...(emailConversation === undefined ? {} : { emailConversation })}
           hideChannels
           occurrenceId={occurrenceId}
         />
