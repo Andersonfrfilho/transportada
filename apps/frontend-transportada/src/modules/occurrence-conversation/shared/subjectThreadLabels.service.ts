@@ -117,3 +117,13 @@ export function buildContractorThreadLabels(
     statusQueued: translate('thread.contractorQueued'),
   }
 }
+
+/** O fio do cliente: quem lê e quem espera é o cliente, não o app do motorista. */
+export function buildClientThreadLabels(
+  translate: SubjectThreadTranslate,
+): Partial<ParticipantConversationsLabels> {
+  return {
+    statusQueued: translate('thread.clientQueued'),
+    statusRead: translate('thread.clientRead'),
+  }
+}

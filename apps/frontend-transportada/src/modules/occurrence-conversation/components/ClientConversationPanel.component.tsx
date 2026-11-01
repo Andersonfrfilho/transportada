@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Tabs } from '@/components/ui/tabs'
@@ -28,7 +27,10 @@ import type { OccurrenceConversation } from '../shared/occurrenceConversation.ty
 import { SUBJECT_AUDIO_RECORDING_OPTIONS } from '../shared/subjectAudioRecording.service'
 import { toThreadQuickReplies } from '../shared/quickReplies.service'
 import { createRefreshSubscription } from '../shared/subjectThreadApi.service'
-import { buildSubjectThreadLabels } from '../shared/subjectThreadLabels.service'
+import {
+  buildClientThreadLabels,
+  buildSubjectThreadLabels,
+} from '../shared/subjectThreadLabels.service'
 import styles from '../styles/clientConversation.module.css'
 import subjectStyles from '../styles/subjectConversation.module.css'
 import threadStyles from '../styles/occurrenceThread.module.css'
@@ -133,7 +135,6 @@ function ClientWhatsAppPane({
         ? t('client.reply.off')
         : t('client.reply.noPermission')
   const status = canReply && targets.length > 0 && !isOff ? 'open' : 'closed'
-  const needsConfirmation = target !== undefined && !target.confirmed
 
   return (
     <div className={styles.panel}>
@@ -172,7 +173,10 @@ function ClientWhatsAppPane({
               occurrenceId={occurrenceId}
             />
           }
-          labels={buildSubjectThreadLabels((key) => tSubject(key), closedNotice)}
+          labels={{
+            ...buildSubjectThreadLabels((key) => tSubject(key), closedNotice),
+            ...buildClientThreadLabels((key) => t(key)),
+          }}
           locale={i18n.language}
           perspective="operator"
           quickReplies={threadQuickReplies}
@@ -188,25 +192,9 @@ function ClientWhatsAppPane({
           title={conversation.client?.name ?? t('client.title')}
         />
       </div>
-      {status === 'open' && needsConfirmation ? (
-        <div className={styles.notice}>
-          <Checkbox
-            checked={isConfirmed}
-            label={
-              <>
-                <Icon name="alert" size="sm" />
-                {t('client.reply.confirm', { number: target.channel.maskedAddress })}
-              </>
-            }
-            onChange={setConfirmed}
-          />
-        </div>
-      ) : null}
       {failure !== null && failure !== 'whatsappOff' && failure !== 'unavailable' ? (
         <p className={styles.error} role="alert">
-          {failure === 'confirmation'
-            ? t('client.reply.confirm', { number: target?.channel.maskedAddress ?? '' })
-            : t(`client.reply.failure.${failure}`)}
+          {t(`client.reply.failure.${failure}`)}
         </p>
       ) : null}
     </div>
@@ -290,7 +278,10 @@ function ClientEmailPane({
               occurrenceId={occurrenceId}
             />
           }
-          labels={buildSubjectThreadLabels((key) => tSubject(key), t('client.emailClosed'))}
+          labels={{
+            ...buildSubjectThreadLabels((key) => tSubject(key), t('client.emailClosed')),
+            ...buildClientThreadLabels((key) => t(key)),
+          }}
           locale={i18n.language}
           perspective="operator"
           quickReplies={threadQuickReplies}
