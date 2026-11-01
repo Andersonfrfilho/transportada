@@ -459,6 +459,29 @@ fica para o operador.
 - Depois: linha do tempo da ocorrência e `occurrence_contractor_reply_deliveries` (`trigger = automatic`); log do worker
   `occurrence_contractor_reply_whatsapp_automatic`.
 
+## 5.7 Teste real do boleto automático em produção (01/11/2026): deu certo
+
+Estado: a 5.6 estava bloqueada; depois da promoção das specs 286/288/289 e do Evolution de produção
+(`evolution-api|redis|postgres-production`), o Anderson testou pelo app do motorista (Prorrogação do boleto, NF
+907034/2, viagem `2b2ea116`) e confirmou que deu certo. Evidência nos logs (companyId da transportadora, tudo `UTC`):
+
+- 21:01 `POST .../client-contacts` 201 (duas vezes): o motorista digitou e-mail/WhatsApp do cliente.
+- 21:02:21 `POST .../documents/:id/occurrences` 201; 21:02:22 worker `contractor_mail_sent` (e-mail à contratante).
+- 21:04:51 resposta da contratante com PDF: `inbound_email_dkim_verified` com `contractorReply.kind=applied`,
+  `delivered=true`, `documentChecked=true`, `documentTextRead=true`, `toStatus=reply_received`.
+- 21:04:51 worker `occurrence_contractor_reply_whatsapp_automatic` com `sent=1`, `failed=0` (WhatsApp ao cliente pelo
+  Evolution); depois, webhooks `POST /public/whatsapp-evolution/<webhookId>` 200.
+- O e-mail ao cliente não tem linha própria nesses logs: conferir `occurrence_contractor_reply_deliveries` (canal `email`).
+
+**Armadilhas do teste (para o próximo):**
+
+- No app do motorista o formulário só pede e-mail/WhatsApp do cliente se o tipo tiver **"Pedir o contato do cliente ao
+  motorista"** marcado **e** o canal com o cliente diferente de desligado (`asksClientContact` e `clientChannel`).
+  Sem isso os campos não aparecem (foi o que aconteceu na primeira tentativa).
+- "Toque em Cheguei para liberar a entrega" é a trava normal até a chegada ser registrada (`/stops/:id/arrive`).
+- Na janela anônima e no relogin o app volta ao mesmo ponto; o servidor não guarda estado do formulário.
+- O teste enviou a mensagem a contatos reais: usar cliente/nota de teste com os contatos do Anderson.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
