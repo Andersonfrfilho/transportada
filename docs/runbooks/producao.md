@@ -423,6 +423,42 @@ Conferido na `main` (a1d37cb) e no Railway, sem escrever nada:
   WhatsApp. Confirmado: nada em produção envia boleto ao WhatsApp do cliente.
 - **Para ligar no futuro:** só com aval do Anderson (seção 5.3/5.4).
 
+## 5.6 Ligar o envio automático do boleto ao cliente em produção (01/11/2026)
+
+Levantamento só de leitura (código da `main` b76cb5a e Actions); nada foi alterado em produção.
+
+**Bloqueio: a spec 286 (matriz "Retorno ao cliente", WhatsApp automático, queda para e-mail) e a 288 ainda não estão em
+produção.** O push da promoção #445 na `main` (run 41249494222, 31/10 22:44Z) reprovou no gate (`quality-app
+(worker-transportada)`: teste `contractor reply parity`, `occurrence-contractor-reply.constant.ts` não é idêntico na api
+e no worker, a spec 288 acrescentou `CONTRACTOR_REPLY_CLIENT_EMAIL_TARGET` só na api) e todos os `deploy-*` foram
+pulados. Produção segue na `fa6d43f` (hotfix #451, 29/10), sem as migrations `20261029000937_occurrence_type_client_channels`,
+`20261029005751_client_whatsapp_automatic`, `20261029023933_client_email_fallback_from` e
+`20261029190000_occurrence_drop_forward_email`. Antes de testar: sincronizar o arquivo no worker (em `staging`, depois
+promoção) e conferir o `Deploy` verde e `/health/ready` com `migrations: up`.
+
+**Disparo:** o boleto só sai sozinho quando a contratante responde com o PDF e o worker o aceita: tipo com a resposta da
+contratante em encaminhar automaticamente, PDF conferido como boleto, sem anexo duplicado. Resposta vazia ou "document_not_confirmed"
+fica para o operador.
+
+**Checklist para testar (por canal):**
+
+- Tipo de ocorrência (ex. Prorrogação do boleto) → Retorno ao cliente: canal ligado, **modo Automático** e **modelo
+  escolhido** (sem modelo o canal não sai: `skipped / template_missing`).
+- E-mail: contato do cliente com finalidade `boleto` em `delivery_client_contacts`, casado pelo CNPJ do destinatário da nota.
+  Usa o mesmo caminho do e-mail de ocorrência (Resend da empresa, domínio verificado, ver 5.1): nada novo na infra.
+  **`EMAIL_ALLOWED_RECIPIENTS` é proibida em produção**: não há trava, o e-mail vai ao cliente de verdade. Para testar
+  com segurança, usar um cliente/nota de teste com o e-mail do Anderson.
+- WhatsApp: precisa de um **Evolution em produção**, que hoje **não existe** (só staging). Falta: serviço `evolution-api`
+  (+ redis/postgres) no `production`, `EVOLUTION_BASE_URL` e `EVOLUTION_GLOBAL_API_KEY` (referência) no `api` e no
+  `worker`, "Criar e conectar" e QR no painel (`whatsapp_evolution_settings.status = 'active'`, `daily_cap` > 0),
+  contato `whatsapp` finalidade `boleto` em E.164 (`+55...`). Sem instância ativa ou sem número, cai para o e-mail
+  (se ligado) e registra o motivo. Aprovação do Anderson antes de criar qualquer serviço ou variável.
+- Perfil fiscal da transportadora com e-mail e telefone (variáveis `emailTransportadora`, `telefoneTransportadora`
+  dos modelos).
+- O boleto de teste tem que ser real e conferido (o leitor de documento recusa PDF sem texto de boleto).
+- Depois: linha do tempo da ocorrência e `occurrence_contractor_reply_deliveries` (`trigger = automatic`); log do worker
+  `occurrence_contractor_reply_whatsapp_automatic`.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
