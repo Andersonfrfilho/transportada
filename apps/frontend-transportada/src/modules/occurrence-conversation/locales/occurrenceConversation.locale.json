@@ -325,6 +325,8 @@
     "contractorInputLabel": "Mensagem à contratante",
     "contractorInputPlaceholder": "Escreva à contratante (sai por e-mail)",
     "contractorQueued": "Na fila de envio",
+    "clientQueued": "Na fila de envio",
+    "clientRead": "Lida pelo cliente",
     "via": "via {{channel}}",
     "unread_one": "{{count}} não lida",
     "unread_other": "{{count}} não lidas",

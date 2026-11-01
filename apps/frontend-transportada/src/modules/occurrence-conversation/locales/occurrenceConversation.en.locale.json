@@ -325,6 +325,8 @@
     "contractorInputLabel": "Message to the contractor",
     "contractorInputPlaceholder": "Write to the contractor (sent by e-mail)",
     "contractorQueued": "Queued for sending",
+    "clientQueued": "Queued for sending",
+    "clientRead": "Read by the client",
     "via": "via {{channel}}",
     "unread_one": "{{count}} unread",
     "unread_other": "{{count}} unread",
