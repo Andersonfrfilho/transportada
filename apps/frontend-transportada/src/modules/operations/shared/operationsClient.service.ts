@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { sentMessagesFromApi, type SentMessages } from './sentMessages.service'
 import { createOperationsResponseAdapters } from './operationsResponse.validation'
 
 export type OperationsSummary = Readonly<{
@@ -121,6 +122,8 @@ type ClientDependencies = Readonly<{
 }>
 
 export type OperationsClient = Readonly<{
+  /** Spec 290: o quadro de mensagens enviadas no período. */
+  getSentMessages: (input: Readonly<{ from: string; to: string }>) => Promise<SentMessages>
   getSummary: (input: OperationsSummaryFilters) => Promise<OperationsSummary>
   listAuditEvents: (
     input: Readonly<{ limit?: number } & AuditEventFilters>,
@@ -262,6 +265,14 @@ export function createOperationsClient(dependencies: ClientDependencies): Operat
     },
     pauseJob: (input) => postJobScheduleControl({ dependencies, job: input.job, verb: 'pause' }),
     resumeJob: (input) => postJobScheduleControl({ dependencies, job: input.job, verb: 'resume' }),
+    async getSentMessages(input) {
+      return sentMessagesFromApi(
+        await authorizedGet({
+          dependencies,
+          path: `/operations/sent-messages?${createSearch(input)}`,
+        }),
+      )
+    },
     async getSummary(input) {
       return adapters.summaryFromApi(
         await authorizedGet({
