@@ -8,11 +8,11 @@ boleto; nenhuma spec agrega o envio. O painel de Operações (`OperationsDashboa
 
 ## Fontes (sem tabela nova, sem dupla contagem)
 
-| Categoria | Fonte | Canal | Subcategoria |
-|---|---|---|---|
-| `occurrence` | `occurrence_conversation_messages` com `direction = 'outbound'` | `channel` (whatsapp, email, portal) | tipo da ocorrência (`company_occurrence_types.name`, via `occurrence_id` + `occurrence_kind`) e `participant` (contractor, driver, client, client_email) |
-| `notification` | `notification.deliveries` (+ `notification.notifications.template_key`) | `channel` | `template_key` |
-| `access` | `password_reset_delivery_outbox`, `invitation_delivery_outbox` | email | `password_reset`, `invitation` |
+| Categoria      | Fonte                                                                   | Canal                               | Subcategoria                                                                                                                                             |
+| -------------- | ----------------------------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `occurrence`   | `occurrence_conversation_messages` com `direction = 'outbound'`         | `channel` (whatsapp, email, portal) | tipo da ocorrência (`company_occurrence_types.name`, via `occurrence_id` + `occurrence_kind`) e `participant` (contractor, driver, client, client_email) |
+| `notification` | `notification.deliveries` (+ `notification.notifications.template_key`) | `channel`                           | `template_key`                                                                                                                                           |
+| `access`       | `password_reset_delivery_outbox`, `invitation_delivery_outbox`          | email                               | `password_reset`, `invitation`                                                                                                                           |
 
 ⚠️ **O boleto ao cliente não entra pela tabela de entregas** (`occurrence_contractor_reply_deliveries`): cada entrega que sai grava a
 mensagem na conversa do cliente (`client_delivery_id`), então a fonte `occurrence` já a conta. Somar as duas contaria o boleto duas vezes.

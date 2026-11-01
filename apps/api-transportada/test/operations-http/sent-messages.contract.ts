@@ -31,10 +31,7 @@ const CONTEXT = {
   scope: { companyId: 'company-1', permissions: new Set(['operations.read']), userId: 'user-1' },
 } as never
 
-async function run(
-  route: ReturnType<typeof routesWith>[number],
-  query: string,
-): Promise<Response> {
+async function run(route: ReturnType<typeof routesWith>[number], query: string): Promise<Response> {
   return route.execute({
     context: CONTEXT,
     correlationId: 'corr-1',

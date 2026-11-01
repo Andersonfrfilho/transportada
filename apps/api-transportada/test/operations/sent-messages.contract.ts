@@ -142,7 +142,9 @@ describe('Spec 290 — sent messages use case', () => {
     const many = Array.from({ length: 80 }, (_, index) =>
       row({ count: 80 - index, subcategory: `tipo-${index}` }),
     )
-    const result = await build([source('a', [...many, row({ count: -3 }), row({ count: Number.NaN })])]).read({
+    const result = await build([
+      source('a', [...many, row({ count: -3 }), row({ count: Number.NaN })]),
+    ]).read({
       context: CONTEXT,
     })
     expect(result.bySubcategory).toHaveLength(50)
