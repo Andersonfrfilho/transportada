@@ -29,6 +29,7 @@ export type IconName =
   | 'link'
   | 'login'
   | 'logout'
+  | 'mail'
   | 'message'
   | 'money'
   | 'organization'
@@ -52,7 +53,7 @@ export type IconName =
 export type IconSize = 'md' | 'sm'
 
 export type IconProps = {
-  readonly className?: string
+  readonly className?: string | undefined
   readonly name: IconName
   readonly size?: IconSize
 }
@@ -92,6 +93,8 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
    */
   login: ['M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3', 'M14 16l4-4-4-4', 'M8 12h10'],
   logout: ['M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3', 'M10 16l4-4-4-4', 'M14 12H4'],
+  /** Envelope: o canal de e-mail, ao lado do balão de `message` (WhatsApp). */
+  mail: ['M3 6h18v12H3z', 'M3 7l9 6.5L21 7'],
   /** Balão de conversa, com a ponta que aponta para quem fala: o vínculo de WhatsApp do perfil. */
   message: ['M4 5h16v11H9l-4 4v-4H4V5z'],
   /** Mesmo traçado de `workspace-billing` do painel: a moeda com o cifrão. */
