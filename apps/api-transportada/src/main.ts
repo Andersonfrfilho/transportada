@@ -193,6 +193,8 @@ import {
   createEvolutionConnectionGateway,
   createEvolutionProvisioner,
 } from './whatsapp/infrastructure/evolution-connection.gateway'
+import { createEvolutionSendPacer } from './whatsapp/application/evolution-send-pacer.service.js'
+import { createDrizzleEvolutionSendSlotClaimer } from './whatsapp/infrastructure/drizzle-evolution-send-slot.js'
 import { createEvolutionDocumentSender } from './whatsapp/infrastructure/evolution-document-sender.gateway.js'
 import { createSendClientReplyUseCase } from './occurrence-conversation/application/send-client-reply.use-case.js'
 import { createDrizzleClientReplyRepository } from './occurrence-conversation/infrastructure/drizzle-client-reply.repository.js'
@@ -3023,6 +3025,11 @@ function createApplicationRoutes({
     secrets: createWhatsAppChannelSecretService({ envelopeProvider }),
   })
   const whatsappEvolutionRepository = new DrizzleWhatsAppEvolutionRepository(database)
+  /** Spec 289: o intervalo entre envios do número. Na API o envio é uma requisição: espera até 20 s, além disso recusa. */
+  const evolutionSendPacer = createEvolutionSendPacer({
+    claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
+    maxWaitMs: 20_000,
+  })
   const whatsappEvolutionSecrets = createWhatsAppEvolutionSecretService({ envelopeProvider })
   const whatsappEvolutionWebhook = createEvolutionWebhook({
     apiPublicUrl,
@@ -3055,6 +3062,7 @@ function createApplicationRoutes({
     logger,
     now: () => new Date(),
     sender: createEvolutionDocumentSender({
+      pacer: evolutionSendPacer,
       repository: whatsappEvolutionRepository,
       secrets: whatsappEvolutionSecrets,
     }),
@@ -3068,6 +3076,7 @@ function createApplicationRoutes({
     readAttachment: async (location) =>
       readAllBytes(await storageGateway.getObjectStream(location)),
     sender: createEvolutionDocumentSender({
+      pacer: evolutionSendPacer,
       repository: whatsappEvolutionRepository,
       secrets: whatsappEvolutionSecrets,
     }),
@@ -3838,6 +3847,7 @@ function createApplicationRoutes({
         logger,
         repository: createDrizzleClientReplyRepository(database),
         sender: createEvolutionDocumentSender({
+          pacer: evolutionSendPacer,
           repository: whatsappEvolutionRepository,
           secrets: whatsappEvolutionSecrets,
         }),

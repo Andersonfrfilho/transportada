@@ -20,6 +20,7 @@ import {
 import type { SecretEnvelopeProvider, SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import { sql, type SQL } from 'drizzle-orm'
 
+import type { EvolutionSendPacer } from './evolution-send-pacer.js'
 import type { ContractorReplyClientWhatsAppSender } from '../../occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-forward.support.js'
 
 /** O envio de um arquivo pode levar mais que o padrão de 15 s do SDK: o Evolution sobe o PDF ao WhatsApp antes de responder. */
@@ -41,6 +42,8 @@ type Runner = { execute(query: SQL): PromiseLike<unknown> }
 export function createEvolutionClientDocumentSender(dependencies: {
   readonly envelopeProvider: SecretEnvelopeProvider
   readonly fetch?: typeof fetch
+  /** Spec 289: espaça os envios do número; ausente, o envio sai na hora (testes). */
+  readonly pacer?: EvolutionSendPacer
   readonly runner: Runner
 }): ContractorReplyClientWhatsAppSender {
   async function decrypt(params: {
@@ -112,6 +115,11 @@ export function createEvolutionClientDocumentSender(dependencies: {
 
     async sendDocument(params) {
       const channel = await open(params.companyId)
+      try {
+        await dependencies.pacer?.wait(params.companyId)
+      } catch {
+        throw new EvolutionClientDocumentSendError('failed')
+      }
       try {
         const sent = await channel.sendMedia({
           buffer: Buffer.from(params.bytes),
