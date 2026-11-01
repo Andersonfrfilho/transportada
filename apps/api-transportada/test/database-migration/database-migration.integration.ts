@@ -14,6 +14,7 @@ import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.asse
 import { assertContractorReplyWhatsAppDelivery } from './contractor-reply-whatsapp-delivery.assertion.js'
 import { assertEventLocationWhatsappRollbackRefusesRecordedPoints } from './event-location-whatsapp-rollback.assertion.js'
 import { assertClientEmailFallbackFrom } from './client-email-fallback-from.assertion.js'
+import { assertClientEmailConversation } from './client-email-conversation.assertion.js'
 import { assertClientMailThread } from './client-mail-thread.assertion.js'
 import { assertClientWhatsAppAutomatic } from './client-whatsapp-automatic.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
@@ -168,6 +169,12 @@ describe('Drizzle migration integration', () => {
          * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
+        /** Spec 287: o participante `client_email`; a mais nova de todas. */
+        await assertClientEmailConversation({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
         /** Spec 287 T006: o fio de e-mail do cliente na CHECK do fio; a mais nova de todas. */
         await assertClientMailThread({
           connectionString,
