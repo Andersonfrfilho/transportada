@@ -108,3 +108,15 @@ Mandar ao cliente por esse fio faria a resposta dele cair no chat errado. Logo:
 
 Etapas: (1) migration do fio do cliente, (2) resposta recebida roteada por participante, (3) envio e rota com `channel`,
 (4) seletor no painel. Cada etapa sai para staging com contrato antes do código.
+
+## Conversa por canal (decisão do dono, 2026-11-01)
+
+O dono decidiu **separar a conversa do cliente por canal** e não juntar tudo em um chat com seletor: **Cliente · WhatsApp** e
+**Cliente · E-mail**, cada uma com o seu composer e o seu fio. Isso substitui o seletor "Enviar por" e o "Ambos" para o
+cliente (para mandar nos dois canais, escreve-se em cada conversa), e tira a dependência do SDK: cada conversa reaproveita o
+`ConversationThread` que já existe.
+
+- A conversa `client` do WhatsApp (283) segue como está.
+- A conversa de e-mail do cliente usa o fio `client_*_occurrence` (migration T006) e a mensagem grava `channel = 'email'`.
+- A resposta recebida cai na conversa do **canal** por onde veio (RF5 vale por conversa).
+- RF1 passa a ser uma rota por conversa de canal; `channel: 'both'` sai do contrato.
