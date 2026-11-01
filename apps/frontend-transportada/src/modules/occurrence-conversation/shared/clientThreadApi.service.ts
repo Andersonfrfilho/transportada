@@ -10,6 +10,11 @@ import type {
   ParticipantSendResult,
 } from '@adatechnology/conversations-ui/participant'
 
+import {
+  findClientEmailConversation,
+  selectClientChannelMessages,
+  type ClientChannelId,
+} from './clientChannelSplit.service'
 import { createClientReplyIdempotencyKey, type ClientReplyTarget } from './clientReply.service'
 import type { ConversationParticipant } from './conversationParticipant.constant'
 import type { OccurrenceConversationClient } from './occurrenceConversationClient.service'
@@ -70,10 +75,12 @@ export function toClientThreadMessage(
 
 export type ClientThreadClient = Pick<
   OccurrenceConversationClient,
-  'markConversationRead' | 'sendClientReply'
+  'markConversationRead' | 'sendClientEmail' | 'sendClientReply'
 >
 
 export type ClientThreadApiDependencies = Readonly<{
+  /** Spec 287: o canal desta conversa; ausente, a conversa do cliente inteira (um canal só, como antes). */
+  channel?: ClientChannelId
   client: ClientThreadClient
   labels: ClientThreadLabels
   occurrenceId: string
@@ -92,6 +99,7 @@ export function createClientThreadApi(
   dependencies: ClientThreadApiDependencies,
 ): ConversationThreadApi {
   const {
+    channel,
     client,
     labels,
     occurrenceId,
@@ -111,12 +119,16 @@ export function createClientThreadApi(
   return {
     async fetchMessages(_subject, params) {
       if (params?.before !== undefined) return []
-      const conversation = (await readConversations()).conversations.find(
-        (item) => item.participant === 'client',
-      )
+      const { conversations } = await readConversations()
+      const whatsapp = conversations.find((item) => item.participant === 'client')
+      const email = findClientEmailConversation(conversations)
+      const conversation = channel === 'email' ? (email ?? whatsapp) : whatsapp
       conversationId = conversation?.id ?? null
       unreadCount = conversation?.unreadCount ?? 0
-      const messages = conversation?.messages ?? []
+      const messages =
+        channel === undefined
+          ? (whatsapp?.messages ?? [])
+          : selectClientChannelMessages({ channel, client: whatsapp, email })
       for (const message of messages) {
         for (const attachment of message.attachments) {
           attachmentUrls.set(attachment.id, attachment.url)
@@ -149,8 +161,32 @@ export function createClientThreadApi(
     async sendMessage(input): Promise<ParticipantSendResult> {
       const { confirmed, target } = readReplyTarget()
       try {
-        if (target === undefined) throw new Error('NOT_FOUND')
         const body = (input.text ?? '').trim()
+        if (channel === 'email') {
+          const sent = await client.sendClientEmail({
+            body,
+            idempotencyKey: createClientReplyIdempotencyKey(() => input.clientMessageId),
+            occurrenceId,
+          })
+          onChanged()
+          onSendError(null)
+          if (sent.conversationMessageId !== null) {
+            clientMessageIds.set(sent.conversationMessageId, input.clientMessageId)
+          }
+          return {
+            message: {
+              attachments: [],
+              clientMessageId: input.clientMessageId,
+              createdAt: new Date().toISOString(),
+              direction: 'outbound',
+              id: sent.conversationMessageId ?? input.clientMessageId,
+              status: 'queued',
+              text: body,
+            },
+            outcome: 'sent',
+          }
+        }
+        if (target === undefined) throw new Error('NOT_FOUND')
         const receipt = await client.sendClientReply({
           body,
           ...(!target.confirmed && confirmed ? { confirmNumber: true as const } : {}),

@@ -765,6 +765,12 @@
         "whatsappOff": "O WhatsApp está desligado para o cliente.",
         "unavailable": "O WhatsApp está fora do ar agora."
       }
+    },
+    "emailClosed": "Você não tem permissão para enviar e-mail ao cliente.",
+    "split": {
+      "toggle": "Dividir por canal",
+      "back": "Voltar às abas",
+      "tabs": "Canais da conversa com o cliente"
     }
   }
 }
