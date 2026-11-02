@@ -512,6 +512,29 @@ redeployado. Nada disto veio da promoção #491: os deploys de `osrm-production`
 Ler o valor das variáveis exige script do Anderson (o classificador bloqueia a leitura de variáveis de produção pelo
 MCP).
 
+### Backup de produção parado de 22/10 a 02/11 (resolvido em 02/11/2026)
+
+- **Efeito:** o último backup bom antes disso foi o de 21/10 (`EXITED`); de 22/10 a 02/11 o cron `backup` terminou em
+  `CRASHED` todo dia (`curl: (55)` no upload) e **nenhum dump foi gravado nesses 12 dias**.
+- **Causa:** `BACKUP_S3_SECRET_ACCESS_KEY` (e a chave de acesso) no serviço `backup` não batiam com as credenciais atuais
+  do bucket de ops (`transportada-ops`). O bucket aceita os dois estilos de URL (path e virtual-host), então o estilo não era
+  o problema. As chaves do bucket mudaram e a cópia nas variáveis ficou velha.
+- **Correção:** `producao-backup-sincroniza-chaves.sh --aplicar` leu as credenciais com `railway bucket credentials --json`
+  (exige o projeto `transportada-ops` linkado no diretório de trabalho; não aceita `-p`) e gravou `BACKUP_S3_*` em `backup` e
+  `restore-test` com `railway variables --skip-deploys`. **`--skip-deploys` só vale no próximo deploy**: depois é preciso
+  redeployar ou rodar o cron de novo (`railway cron run --yes`).
+- **Prova:** três execuções fora do horário (10:59, 11:10 e 11:26 UTC) terminaram `EXITED`. `producao-backup-confere-dump.sh`
+  baixou o dump de `app` (17,3 MB), com `sha256` igual ao publicado e ao do `manifest.jsonl`, cabeçalho `Salted__` (cifrado);
+  o manifest registra 266 tabelas e a migration `20261101160000_whatsapp_send_pacing`.
+- **Ainda não provado:** restauração do dump. O cron `restore-test` (`0 7 5 * *`) usa as mesmas chaves e é quem prova.
+- **Scripts** (em `tmp/ops/`, ignorado pelo git; saídas em `tmp/ops/saidas/`): `producao-backup-diagnostico.sh` (logs, nomes
+  e tamanhos das variáveis, listagem do bucket), `producao-backup-sincroniza-chaves.sh` (dry-run por padrão),
+  `producao-backup-roda-agora.sh` (`--rodar`; `--redeploy-e-rodar`) e `producao-backup-confere-dump.sh` (tamanho real,
+  hash e manifest). Cron: `railway cron list --limit 30` e `railway cron run --yes`.
+- **Armadilha de diagnóstico:** a primeira listagem do diagnóstico mostrou dumps de 105 B por erro do parser (regex que
+  cruzava objetos); o tamanho real vem do `HEAD`/`Content-Length` ou do `manifest.jsonl`.
+- **Pendente:** alerta quando o `backup` cair (hoje só se descobre olhando o Railway).
+
 ## 5.9 Staging-refresh com recorte (spec 291)
 
 Não mexe em produção: lê o backup cifrado de sempre e só escreve em staging. Fica aqui porque é o
