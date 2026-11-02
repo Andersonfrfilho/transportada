@@ -486,7 +486,8 @@ Estado: a 5.6 estava bloqueada; depois da promoção das specs 286/288/289 e do 
 não mostrava nada. Catálogo fechado do CHECK: `alert camera clipboard-list clock document invoice message money package
 truck`. Escolhido `invoice` (é o boleto). Aplicação por `scripts/ops/producao-icone-tipo-ocorrencia.sh` (sem `--confirm`
 só lista; com `--confirm` grava só `icon_name` e `updated_at`; `ENV_NAME=production` com aprovação). Também dá para
-trocar no painel (Tipos de ocorrência → "Ícone do tipo"). Ainda não confirmado se rodou: registrar aqui o resultado.
+trocar no painel (Tipos de ocorrência → "Ícone do tipo"). Aplicado em produção em 02/11/2026: a 2ª execução já mostrou `icon_name = invoice` no "antes" (a 1ª gravou, mas o `railway ssh`
+calou com a saída em pipe `| tee`; por isso o script de `ativada/` usa `script` para dar terminal ao `railway`).
 
 ## 6. Erros que não devem se repetir
 
