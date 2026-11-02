@@ -2337,6 +2337,16 @@ Reavaliar a anonimização se algum dia staging for aberto a alguém de fora do 
 **Origem:** pedido de operação, 2026-08-25. O risco foi levantado e a cópia idêntica foi decidida
 conscientemente.
 
+**Atualização de 2026-11-02 — staging passa a receber só um recorte (spec 291).** A cópia deixou de ser
+a base inteira. O dump é restaurado num banco temporário dentro do mesmo Postgres de staging, recortado
+ali (`prune-source.sql`) e só então levado para staging. Cadastros e configuração vão inteiros; notas,
+viagens, entregas, ocorrências e boletos só dos últimos 60 dias (`STAGING_REFRESH_WINDOW_DAYS`);
+conversas, anexos, filas, auditoria e credenciais ficam de fora; e telefones e e-mails de motoristas,
+contratantes, destinatários e agregados viram fictícios (`@example.com`) **antes** de tocar a base de
+staging. Tabela sem política é esvaziada, e o contrato `staging-refresh-prune.contract.ts` quebra o CI
+quando uma tabela nova aparece sem decisão. Continua valendo que o nome e o CPF/CNPJ de destinatários
+das notas do recorte atravessam (são o conteúdo da massa de teste).
+
 ### 2026-09-25 — `style-src 'unsafe-inline'` na app do motorista (risco aceito)
 
 **Onde:** `apps/frontend-driver`, `src/modules/shared/contentSecurityPolicy.service.ts`
