@@ -345,7 +345,9 @@ describe('contrato do serviço staging-refresh', () => {
     expect(extract).toContain('pg_restore --data-only --table=realm -f -')
     expect(extract).not.toContain('--dbname')
     expect(extract).not.toContain('psql')
-    expect(script.split('pg_restore --dbname').length).toBe(2)
+    // Dois restores do banco da aplicação: o dump inteiro no banco temporário (spec 291) e o recortado
+    // em staging. Nenhum deles é o do Keycloak, que só passa por `extract_production_realm_users`.
+    expect(script.split('pg_restore --dbname').length).toBe(3)
     expect(functionBody(script, 'decrypt_verified_dump')).toContain('sha256sum -c')
   })
 

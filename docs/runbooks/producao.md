@@ -496,6 +496,62 @@ só lista; com `--confirm` grava só `icon_name` e `updated_at`; `ENV_NAME=produ
 trocar no painel (Tipos de ocorrência → "Ícone do tipo"). Aplicado em produção em 02/11/2026: a 2ª execução já mostrou `icon_name = invoice` no "antes" (a 1ª gravou, mas o `railway ssh`
 calou com a saída em pipe `| tee`; por isso o script de `ativada/` usa `script` para dar terminal ao `railway`).
 
+## 5.8 Serviços em crash no Railway (02/11/2026)
+
+Conferido pelo MCP do Railway (`get-status`, `list-deployments`, `get-logs`); nenhuma variável foi lida e nada foi
+redeployado. Nada disto veio da promoção #491: os deploys de `osrm-production` e `map-tiles-production` dela ficaram
+`SKIPPED` (os dois não rebuildam desde 28/09) e o `backup` do #491 terminou `SUCCESS`.
+
+| Ambiente | Serviço                                   | Estado                                                  | Causa                                                                                                                                                                                                                                                 |
+| -------- | ----------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| produção | `backup`                                  | `CRASHED` às 06:00 de 02/11 (some com o deploy do #491) | `curl: (55) Send failure: Connection reset by peer` no `dump_app` (upload do dump ao bucket, `backup.sh` linha ~125). O backup de 02/11 **não foi gravado**; o próximo é 06:00 de 03/11.                                                              |
+| produção | `osrm-production`, `map-tiles-production` | `FAILED` (build) desde 28/09                            | O build baixa o `.pbf` direto do Geofabrik (`sudeste-260914.osm.pbf`) e recebe **404**: o Geofabrik apaga os datados em poucos dias. A variável deveria apontar para o espelho no bucket (ver `osrm-extract.md`, "A variável aponta para o espelho"). |
+| staging  | `staging-refresh`                         | `CRASHED` no domingo 01/11 05:00                        | `staging_refresh_redeploy_not_configured`: faltam `RAILWAY_PROJECT_TOKEN`/`RAILWAY_API_TOKEN` ou `STAGING_API_SERVICE_ID` no serviço; a guarda de boot sai com 1 antes de tocar no banco.                                                             |
+| staging  | `osrm`, `map-tiles`                       | `FAILED` (build)                                        | Mesmo problema do `.pbf` (ver 5.4).                                                                                                                                                                                                                   |
+
+Ler o valor das variáveis exige script do Anderson (o classificador bloqueia a leitura de variáveis de produção pelo
+MCP).
+
+### Backup de produção parado de 22/10 a 02/11 (resolvido em 02/11/2026)
+
+- **Efeito:** o último backup bom antes disso foi o de 21/10 (`EXITED`); de 22/10 a 02/11 o cron `backup` terminou em
+  `CRASHED` todo dia (`curl: (55)` no upload) e **nenhum dump foi gravado nesses 12 dias**.
+- **Causa:** `BACKUP_S3_SECRET_ACCESS_KEY` (e a chave de acesso) no serviço `backup` não batiam com as credenciais atuais
+  do bucket de ops (`transportada-ops`). O bucket aceita os dois estilos de URL (path e virtual-host), então o estilo não era
+  o problema. As chaves do bucket mudaram e a cópia nas variáveis ficou velha.
+- **Correção:** `producao-backup-sincroniza-chaves.sh --aplicar` leu as credenciais com `railway bucket credentials --json`
+  (exige o projeto `transportada-ops` linkado no diretório de trabalho; não aceita `-p`) e gravou `BACKUP_S3_*` em `backup` e
+  `restore-test` com `railway variables --skip-deploys`. **`--skip-deploys` só vale no próximo deploy**: depois é preciso
+  redeployar ou rodar o cron de novo (`railway cron run --yes`).
+- **Prova:** três execuções fora do horário (10:59, 11:10 e 11:26 UTC) terminaram `EXITED`. `producao-backup-confere-dump.sh`
+  baixou o dump de `app` (17,3 MB), com `sha256` igual ao publicado e ao do `manifest.jsonl`, cabeçalho `Salted__` (cifrado);
+  o manifest registra 266 tabelas e a migration `20261101160000_whatsapp_send_pacing`.
+- **Ainda não provado:** restauração do dump. O cron `restore-test` (`0 7 5 * *`) usa as mesmas chaves e é quem prova.
+- **Scripts** (em `tmp/ops/`, ignorado pelo git; saídas em `tmp/ops/saidas/`): `producao-backup-diagnostico.sh` (logs, nomes
+  e tamanhos das variáveis, listagem do bucket), `producao-backup-sincroniza-chaves.sh` (dry-run por padrão),
+  `producao-backup-roda-agora.sh` (`--rodar`; `--redeploy-e-rodar`) e `producao-backup-confere-dump.sh` (tamanho real,
+  hash e manifest). Cron: `railway cron list --limit 30` e `railway cron run --yes`.
+- **Armadilha de diagnóstico:** a primeira listagem do diagnóstico mostrou dumps de 105 B por erro do parser (regex que
+  cruzava objetos); o tamanho real vem do `HEAD`/`Content-Length` ou do `manifest.jsonl`.
+- **Pendente:** alerta quando o `backup` cair (hoje só se descobre olhando o Railway).
+
+## 5.9 Staging-refresh com recorte (spec 291)
+
+Não mexe em produção: lê o backup cifrado de sempre e só escreve em staging. Fica aqui porque é o
+caminho de diagnóstico quando o refresh de domingo cai.
+
+- O job restaura o dump **inteiro** num banco temporário `staging_refresh_source` (no Postgres de
+  staging), roda `deploy/staging-refresh/prune-source.sql` nele e restaura em staging só o recorte.
+  O banco temporário é derrubado no fim e no `cleanup`.
+- Janela: `STAGING_REFRESH_WINDOW_DAYS` (padrão 60) no serviço `staging-refresh`.
+- Eventos de log em ordem: `staging_refresh_source_restored`, `staging_refresh_source_pruned`
+  (com `notes` e `trips` que sobraram), `staging_refresh_restored`. O aviso
+  `staging_refresh_unclassified_tables_emptied` lista tabela sem política (foi esvaziada).
+- Falhas conhecidas: `staging_refresh_failed` com `step: restore` e `permission denied to create
+database` = o usuário do Postgres de staging não tem `CREATEDB`; `staging_refresh_scrub_*_missing` =
+  coluna de contato renomeada (ajustar o `prune-source.sql`); `add constraint` falhando = recorte
+  deixou linha órfã (abrir a spec 291). Em todos, staging ainda está como estava antes do ciclo.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |

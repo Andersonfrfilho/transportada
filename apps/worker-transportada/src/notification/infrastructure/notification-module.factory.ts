@@ -15,6 +15,10 @@ import {
 import { createIdentityRecipientResolver } from './identity-recipient.resolver.js'
 import type { EmailDeliveryEnvironment } from '../../shared/worker.types.js'
 import { createWorkerEmailDriver } from './email-driver.factory.js'
+import {
+  createStandardEmailBrandingResolver,
+  withStandardEmailLayout,
+} from './standard-email-layout.driver.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -34,7 +38,12 @@ export function createWorkerNotificationModule(
   params: CreateWorkerNotificationModuleParams,
 ): NotificationModule {
   const emailDriver =
-    params.emailDelivery === undefined ? undefined : createWorkerEmailDriver(params.emailDelivery)
+    params.emailDelivery === undefined
+      ? undefined
+      : withStandardEmailLayout({
+          driver: createWorkerEmailDriver(params.emailDelivery),
+          resolveBranding: createStandardEmailBrandingResolver(params.db),
+        })
 
   return createNotificationModule({
     config: {
