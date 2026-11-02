@@ -45,7 +45,13 @@
   },
   "section": {
     "loading": "Looking up the client contacts…",
-    "none": "This client has no saved contact. Add one here so the carrier can reach them, without sending it in the chat.",
+    "noneBody": "This does not block the occurrence. If you leave it empty, just share the boleto with them when you arrive, straight from the app.",
+    "noneHint": {
+      "email": "If you have their e-mail, tap \"Add client e-mail\" so the carrier can send it.",
+      "whatsapp": "If you have their WhatsApp, tap \"Add client WhatsApp\" so the carrier can send it."
+    },
+    "noneHintBoth": "If you have their e-mail or WhatsApp, enter it below so the carrier can send it.",
+    "noneTitle": "This customer has no contact yet",
     "office": "from the carrier",
     "offline": "No signal: add the client contact when the signal returns. You can register the occurrence anyway.",
     "title": "Client contact"

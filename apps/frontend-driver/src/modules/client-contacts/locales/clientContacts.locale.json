@@ -45,7 +45,13 @@
   },
   "section": {
     "loading": "Buscando os contatos do cliente…",
-    "none": "Este cliente não tem contato guardado. Informe aqui para a transportadora falar com ele, sem precisar mandar pelo chat.",
+    "noneBody": "Isso não impede o registro. Se você não informar, é só compartilhar o boleto com ele quando chegar ao destino, direto pelo app.",
+    "noneHint": {
+      "email": "Se tiver o e-mail dele, toque em \"Informar e-mail do cliente\" para a transportadora enviar.",
+      "whatsapp": "Se tiver o WhatsApp dele, toque em \"Informar WhatsApp do cliente\" para a transportadora enviar."
+    },
+    "noneHintBoth": "Se tiver o e-mail ou o WhatsApp dele, informe abaixo para a transportadora enviar.",
+    "noneTitle": "Este cliente ainda não tem contato",
     "office": "da transportadora",
     "offline": "Sem sinal: informe o contato do cliente quando o sinal voltar. Você pode registrar a ocorrência assim mesmo.",
     "title": "Contato do cliente"

@@ -11,6 +11,7 @@ import {
   API_OPERATIONS_JOB_RUN_PATH,
   API_OPERATIONS_JOB_SCHEDULES_PATH,
   API_OPERATIONS_JOBS_PATH,
+  API_OPERATIONS_SENT_MESSAGES_PATH,
   API_OPERATIONS_SUMMARY_PATH,
   API_OPERATIONS_TIMELINE_PATH,
   HTTP_ERROR,
@@ -32,6 +33,11 @@ type WithContext<TInput> = TInput & {
 
 type SummaryInput = {
   readonly filters: Record<string, unknown>
+}
+
+type SentMessagesInput = {
+  readonly from?: Date | undefined
+  readonly to?: Date | undefined
 }
 
 type PageInput = SummaryInput & {
@@ -58,6 +64,14 @@ type Dependencies = {
     readonly listJobs: (input: WithContext<PageInput>) => Promise<Record<string, unknown>>
     readonly listTimeline: (input: WithContext<PageInput>) => Promise<Record<string, unknown>>
   }
+  /** Spec 290: o quadro de mensagens enviadas. Ausente, a rota não existe (testes de rota que não o usam). */
+  readonly sentMessages?: {
+    readonly read: (input: {
+      readonly context: CompanyContext
+      readonly from?: Date | undefined
+      readonly to?: Date | undefined
+    }) => Promise<Record<string, unknown>>
+  }
   /** Spec 161 T21: o botão de ligar/desligar cada rotina, ao lado do de rodar agora. */
   readonly jobSchedules: {
     readonly listSchedules: () => Promise<readonly Record<string, unknown>[]>
@@ -72,7 +86,22 @@ type Dependencies = {
 export function createOperationsRoutes(
   dependencies: Dependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
+  const sentMessages = dependencies.sentMessages
   return [
+    ...(sentMessages === undefined
+      ? []
+      : [
+          defineRoute<SentMessagesInput>({
+            async handle({ context, input }): Promise<Response> {
+              const result = await sentMessages.read({ context: context.scope, ...input })
+              return jsonResponse({ body: { data: result }, status: 200 })
+            },
+            method: 'GET',
+            parse: ({ request }) => parseSentMessagesWindow(new URL(request.url)),
+            pathname: API_OPERATIONS_SENT_MESSAGES_PATH,
+            policy: OPERATIONS_READ_POLICY,
+          }),
+        ]),
     defineRoute<SummaryInput>({
       async handle({ context, input }): Promise<Response> {
         const summary = await dependencies.operations.getSummary({
@@ -335,4 +364,22 @@ function sanitizeValue(value: unknown): unknown {
     output[key] = sanitizeValue(item)
   }
   return output
+}
+
+/** Spec 290: `from`/`to` em ISO-8601; um valor que não é data vira 400 em vez de a janela padrão. */
+function parseSentMessagesWindow(url: URL): SentMessagesInput {
+  const read = (name: string): Date | undefined => {
+    const value = url.searchParams.get(name)
+    if (value === null || value === '') return undefined
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      throw new ApiError({
+        code: 'SENT_MESSAGES_WINDOW_INVALID',
+        message: `The ${name} value is not a valid date`,
+        status: 400,
+      })
+    }
+    return date
+  }
+  return { from: read('from'), to: read('to') }
 }
