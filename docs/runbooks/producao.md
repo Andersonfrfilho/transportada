@@ -510,7 +510,7 @@ redeployado. Nada disto veio da promoção #491: os deploys de `osrm-production`
 | staging | `osrm`, `map-tiles` | `FAILED` (build) | Mesmo problema do `.pbf` (ver 5.4). |
 
 Ler o valor das variáveis exige script do Anderson (o classificador bloqueia a leitura de variáveis de produção pelo
-MCP). Ver os scripts deixados em `/home/miyazaki/Documents/personal/ativada/`.
+MCP).
 
 ## 6. Erros que não devem se repetir
 
