@@ -113,7 +113,7 @@ que não conhece, então a API pode ir antes do painel.
 - **Resposta do WhatsApp citando o envio (RF3, D5).** O webhook do Evolution (281 T6) casa a citação com a entrega
   (`provider_message_id`) e o número de quem respondeu com o número a que ela foi entregue: a mensagem entra **na
   conversa do cliente** (antes ia para a conversa do motorista), com o número que respondeu (`author.kind = "client"`).
-- **Sem citação ou de número desconhecido** continua em "não atribuídas". A fila passa a oferecer a conversa do cliente
+- **Sem citação**, de número que já recebeu algo do painel por WhatsApp, entra na conversa do cliente que o painel escreveu por último para ele (chave `55`+DDD+8 dígitos). **De número desconhecido** continua em "não atribuídas". A fila passa a oferecer a conversa do cliente
   como candidata ("vincular a esta conversa"): `GET /v1/occurrence-conversations/unassigned` traz, em cada candidata,
   `participant: "contractor" | "client"`; na do cliente, `contractorName` leva o nome do cliente (o painel de hoje segue
   lendo). Atribuir é a rota que já existe (`POST /v1/occurrence-conversations/unassigned/:id/assign`, corpo

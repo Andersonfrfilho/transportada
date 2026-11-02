@@ -132,6 +132,8 @@ function createFake(
     watcherTypeIds: [],
   }
   const transaction: OccurrenceMailTransactionPort = {
+    findClientEmailAudience: async () => null,
+    findOrCreateClientEmailConversation: async () => ({ id: 'client-email-conversation' }),
     attachments: {
       attachUpload: async (params) => void attached.push(params),
       lockPendingUploads: async (params) => {

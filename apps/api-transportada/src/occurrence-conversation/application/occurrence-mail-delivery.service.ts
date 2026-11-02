@@ -200,6 +200,8 @@ async function createResendDelivery(params: {
  * (ou o id da que será criada) e o transporte: Resend pronto → o token derivado; senão o sandbox.
  */
 export async function prepareMailDelivery(params: {
+  /** Spec 287: `client` usa a conversa de e-mail do cliente e o fio dele; o padrão é a contratante. */
+  readonly client?: { readonly taxId: string }
   readonly companyId: string
   readonly contractorId: string
   readonly occurrenceId: string
@@ -210,15 +212,28 @@ export async function prepareMailDelivery(params: {
   readonly transaction: OccurrenceMailTransactionPort
 }) {
   const { companyId, occurrenceId, occurrenceKind, transaction } = params
-  const conversation = await transaction.findOrCreateContractorConversation({
+  const audience = params.client === undefined ? undefined : ('client' as const)
+  const conversation =
+    params.client === undefined
+      ? await transaction.findOrCreateContractorConversation({
+          companyId,
+          contractorId: params.contractorId,
+          occurrenceId,
+          occurrenceKind,
+          publicRef: createPublicRef(),
+        })
+      : await transaction.findOrCreateClientEmailConversation({
+          clientTaxId: params.client.taxId,
+          companyId,
+          occurrenceId,
+        })
+  await transaction.lockOccurrenceThread({
     companyId,
-    contractorId: params.contractorId,
     occurrenceId,
-    occurrenceKind,
-    publicRef: createPublicRef(),
+    occurrenceKind: audience === undefined ? occurrenceKind : `client-${occurrenceKind}`,
   })
-  await transaction.lockOccurrenceThread({ companyId, occurrenceId, occurrenceKind })
   const existingThread = await transaction.findOccurrenceThread({
+    ...(audience === undefined ? {} : { audience }),
     companyId,
     occurrenceId,
     occurrenceKind,
@@ -265,6 +280,8 @@ export async function recordMailDelivery(params: {
   readonly recipients: readonly string[]
   readonly storage: ConversationAttachmentStoragePort
   readonly subject: string
+  /** Spec 287: `client` grava o fio do cliente. */
+  readonly threadAudience?: 'client'
   readonly threadExists: boolean
   readonly threadId: string
   readonly transaction: OccurrenceMailTransactionPort
@@ -290,6 +307,7 @@ export async function recordMailDelivery(params: {
     replyTokenHash: params.delivery.replyTokenHash,
     notificationTemplate: params.notificationTemplate,
     subject: params.subject,
+    ...(params.threadAudience === undefined ? {} : { threadAudience: params.threadAudience }),
     threadId: params.threadId,
     toAddresses: params.recipients,
     transport: params.delivery.transport,

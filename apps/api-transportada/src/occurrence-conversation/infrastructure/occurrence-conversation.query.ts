@@ -109,6 +109,14 @@ function toAuthor(
       kind: 'client',
     }
   }
+  /** Spec 287: na conversa de e-mail do cliente, quem respondeu é o endereço do cliente. */
+  if (participant === 'client_email') {
+    return {
+      addressMasked:
+        row.senderAddress === null ? '' : maskClientAddress('email', row.senderAddress),
+      kind: 'client',
+    }
+  }
   const identity =
     row.senderAddress === null || contractorId === null || row.channel === 'portal'
       ? null

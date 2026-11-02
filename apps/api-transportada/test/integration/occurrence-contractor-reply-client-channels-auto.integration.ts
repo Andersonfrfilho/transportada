@@ -212,6 +212,7 @@ async function prepare(database: TestDatabase, scenario: Scenario = {}) {
 function fakeSender(behaviour: 'number_not_found' | 'ok' = 'ok') {
   const sends: { caption: string; number: string }[] = []
   const sender: ContractorReplyClientWhatsAppSender = {
+    connectedNumber: async () => null,
     isConnected: async () => true,
     sendDocument: async ({ caption, number }) => {
       if (behaviour === 'number_not_found') {
@@ -345,8 +346,8 @@ describe('spec 286 T3: o boleto aceito sai sozinho por canal, pelo modelo do mó
         )
         expect(sentNotices.map((notice) => notice.bodyText).toSorted()).toEqual(
           [
-            `Boleto enviado por WhatsApp: ${OWNER_NUMBER}`,
-            `Boleto enviado por WhatsApp: ${FINANCE_NUMBER}`,
+            `Boleto enviado por WhatsApp: (11) 98888-7777`,
+            `Boleto enviado por WhatsApp: (16) 99999-8888`,
           ].toSorted(),
         )
 

@@ -80,6 +80,9 @@ export type OccurrenceTimelineEvent =
   /** Spec 281 T9: uma tentativa de mandar o boleto ao cliente por WhatsApp; só status e motivo. */
   | (EventBase &
       Readonly<{ kind: 'contractor.client.whatsapp'; reason: null | string; status: string }>)
+  /** Spec 288: o boleto ao cliente por e-mail, inclusive o que ficou de fora (`skipped`) e o motivo. */
+  | (EventBase &
+      Readonly<{ kind: 'contractor.client.email'; reason: null | string; status: string }>)
 
 export type OccurrenceTimelineTimings = Readonly<{
   contractorAskedAt: null | string
@@ -123,6 +126,11 @@ export const OCCURRENCE_TIMELINE_DELIVERY_REASONS = [
   'whatsapp_number_not_found',
   'whatsapp_disconnected',
   'attachment_too_large_for_whatsapp',
+  /** Spec 288: o que deixa o boleto ao cliente de fora, em qualquer canal (os da API para o cliente). */
+  'client_without_email',
+  'client_without_whatsapp',
+  'template_missing',
+  'attachment_too_large_for_email',
 ] as const
 
 export type OccurrenceTimelineStage = Readonly<{
@@ -276,6 +284,8 @@ export function describeOccurrenceTimelineEvent(
       }
     case 'contractor.client.whatsapp':
       return { key: `occurrenceTimeline.event.${clientWhatsappTitleKey(event)}`, values: {} }
+    case 'contractor.client.email':
+      return { key: `occurrenceTimeline.event.${clientEmailTitleKey(event)}`, values: {} }
   }
 }
 
@@ -288,6 +298,14 @@ function clientWhatsappTitleKey(
   return FAILED_DELIVERY_STATUSES.has(event.status)
     ? 'clientWhatsappFailed'
     : 'clientWhatsappPending'
+}
+
+function clientEmailTitleKey(
+  event: Extract<OccurrenceTimelineEvent, { kind: 'contractor.client.email' }>,
+): string {
+  if (event.status === 'sent') return 'clientEmailSent'
+  if (event.status === 'skipped') return 'clientEmailSkipped'
+  return event.status === 'failed' ? 'clientEmailFailed' : 'clientEmailPending'
 }
 
 function deliveryTitleKey(
@@ -323,7 +341,10 @@ function describeDeliveryDetail(
  * conhecido, a linha não diz nada a mais.
  */
 function describeClientWhatsappDetail(
-  event: Extract<OccurrenceTimelineEvent, { kind: 'contractor.client.whatsapp' }>,
+  event: Extract<
+    OccurrenceTimelineEvent,
+    { kind: 'contractor.client.email' | 'contractor.client.whatsapp' }
+  >,
 ): null | OccurrenceTimelineSentence {
   if (!FAILED_DELIVERY_STATUSES.has(event.status)) return null
   const reason = OCCURRENCE_TIMELINE_DELIVERY_REASONS.find((known) => known === event.reason)
@@ -353,6 +374,7 @@ export function describeOccurrenceTimelineEventDetail(
     case 'contractor.reply.delivery':
       return describeDeliveryDetail(event)
     case 'contractor.client.whatsapp':
+    case 'contractor.client.email':
       return describeClientWhatsappDetail(event)
     case 'contractor.mail.received':
       return event.awaitingAttachment === true

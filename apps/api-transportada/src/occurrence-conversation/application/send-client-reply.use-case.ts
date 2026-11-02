@@ -2,8 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 283 T5 (D6, RF7): o operador responde ao cliente pela conversa dele, no WhatsApp do número escolhido em
- * "Responder por". O número vem do `replyTargetId` da faixa, nunca do corpo; o primeiro envio a um número pede
- * `confirmNumber`. Com o WhatsApp desligado nada é gravado: a tela oferece o e-mail da 279.
+ * "Responder por". O número vem do `replyTargetId` da faixa, nunca do corpo; o envio sai direto, sem trava de confirmação
+ * (`confirmNumber` segue aceito e ignorado, por compatibilidade com o painel antigo). Com o WhatsApp desligado nada é gravado: a tela oferece o e-mail da 279.
  *
  * A ordem é ler e conferir, perguntar ao Evolution se está de pé, gravar `queued` (idempotente pela chave) e só então
  * enviar. Saiu e o fechamento falhou: a mensagem fica `queued` — melhor parada do que o mesmo texto duas vezes.
@@ -17,11 +17,7 @@ import {
   WhatsAppEvolutionNotConfiguredError,
   WhatsAppEvolutionUnavailableError,
 } from '../../whatsapp/domain/whatsapp-evolution.error.js'
-import {
-  maskClientAddress,
-  resolveClientReplyTarget,
-} from '../domain/client-conversation.policy.js'
-import { ClientReplyConfirmationRequiredError } from '../domain/client-reply.error.js'
+import { resolveClientReplyTarget } from '../domain/client-conversation.policy.js'
 import { ContractorReplyWhatsAppOffError } from '../domain/contractor-reply-whatsapp.error.js'
 import type {
   ClientReplyMessageStatus,
@@ -85,11 +81,6 @@ export function createSendClientReplyUseCase(dependencies: {
         replyTargetId: input.replyTargetId,
       })
       if (target === null) throw new TripOccurrenceNotFoundError()
-      if (!target.confirmed && !input.confirmNumber) {
-        throw new ClientReplyConfirmationRequiredError(
-          maskClientAddress('whatsapp', target.address),
-        )
-      }
 
       const connected = await sender.isConnected({ companyId }).catch(() => false)
       if (!connected) throw new WhatsAppEvolutionUnavailableError()

@@ -269,4 +269,40 @@ describe('a linha do tempo mostra o automático (spec 278 CA3)', () => {
       ].sort(),
     )
   })
+  /** Spec 288: o boleto ao cliente por e-mail entra na linha, inclusive o que ficou de fora e por quê. */
+  test('o boleto ao cliente por e-mail entra na linha com o motivo de não ter saído; só o enviado é marco', () => {
+    const client = (
+      id: string,
+      minutes: number,
+      status: string,
+      reason: null | string = null,
+    ): OccurrenceTimelineSource => ({
+      actor: SYSTEM,
+      id,
+      kind: 'contractor.client.email',
+      occurredAt: AT(minutes),
+      reason,
+      status,
+    })
+    const timeline = buildOccurrenceTimeline({
+      sources: [
+        RECORDED,
+        reply('reply-1', 5, 'awaiting_contractor'),
+        client('mail-skipped', 12, 'skipped', 'client_without_email'),
+        client('mail-sent', 14, 'sent'),
+      ],
+    })
+
+    expect(
+      timeline.events.flatMap((event) =>
+        event.kind === 'contractor.client.email'
+          ? [[event.id, event.status, event.reason, event.isKey]]
+          : [],
+      ),
+    ).toEqual([
+      ['contractor.client.email:mail-skipped', 'skipped', 'client_without_email', false],
+      ['contractor.client.email:mail-sent', 'sent', null, true],
+    ])
+    expect(timeline.stages.map((stage) => stage.stage)).toEqual(['received', 'awaiting_contractor'])
+  })
 })

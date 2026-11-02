@@ -93,7 +93,9 @@ export function resolveMessageSpeaker(
   return message.direction === 'outbound' ? 'operator' : participant
 }
 
-function toThreadAttachment(attachment: OccurrenceConversationAttachment): ParticipantAttachment {
+export function toThreadAttachment(
+  attachment: OccurrenceConversationAttachment,
+): ParticipantAttachment {
   return {
     filename: attachment.fileName,
     id: attachment.id,

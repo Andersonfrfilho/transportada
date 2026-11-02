@@ -43,6 +43,19 @@ function describeTransientFailure(error: unknown): string {
   return error instanceof CargoPreviewEmailDkimUnverifiableError ? 'dkim_unverifiable' : 'transient'
 }
 
+/**
+ * Só o nome da classe e o `code` (ex.: `ECONNREFUSED`, `23505`, `NoSuchBucket`) — nunca a mensagem,
+ * que pode carregar endereço, assunto ou trecho do corpo. Diz onde a falha transitória nasceu.
+ */
+function describeFailureOrigin(error: unknown): Record<string, string> {
+  if (!(error instanceof Error)) return {}
+  const code = (error as { code?: unknown }).code
+  return {
+    errorName: error.name,
+    ...(typeof code === 'string' || typeof code === 'number' ? { errorCode: String(code) } : {}),
+  }
+}
+
 function describePermanentFailure(error: unknown): string {
   if (error instanceof ResendProviderUnauthorizedError) return 'provider_unauthorized'
   if (error instanceof ResendDownloadHostNotAllowedError) return 'download_host_not_allowed'
@@ -122,7 +135,11 @@ export async function startContractorMailInboundConsumer(params: {
         safeLogError({
           logger: params.logger,
           message: 'inbound_email_webhook_rejected',
-          metadata: { ...baseMetadata, reason: describeTransientFailure(error) },
+          metadata: {
+            ...baseMetadata,
+            ...describeFailureOrigin(error),
+            reason: describeTransientFailure(error),
+          },
         })
         return { type: 'retry' }
       }

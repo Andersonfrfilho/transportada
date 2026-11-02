@@ -16,6 +16,7 @@ import { buildChatMailSubject } from '../domain/occurrence-chat-mail-subject.pol
 import { resolveOccurrenceRecipients } from '../domain/occurrence-contractor-recipients.policy.js'
 import {
   OCCURRENCE_MAIL_LIMITS,
+  SEND_CLIENT_CHAT_MAIL_OPERATION,
   SEND_OCCURRENCE_CHAT_MAIL_OPERATION,
 } from '../domain/occurrence-conversation.constant.js'
 import {
@@ -53,6 +54,7 @@ import {
   type OccurrenceMailSandbox,
 } from './occurrence-mail-delivery.service.js'
 import type {
+  OccurrenceMailTarget,
   OccurrenceMailUnitOfWorkPort,
   SendOccurrenceMailResult,
 } from './occurrence-mail.port.js'
@@ -81,7 +83,22 @@ type Executed = {
   readonly response: SendOccurrenceMailResult
 }
 
-export function createSendOccurrenceChatMailUseCase(dependencies: {
+/** Spec 287: o chat do cliente por e-mail: o mesmo envio, para os e-mails do cliente e na conversa `client_email`. */
+export function createSendClientChatMailUseCase(
+  dependencies: ChatMailDependencies,
+): SendOccurrenceChatMailUseCase {
+  return createChatMailUseCase(dependencies, 'client')
+}
+
+export function createSendOccurrenceChatMailUseCase(
+  dependencies: ChatMailDependencies,
+): SendOccurrenceChatMailUseCase {
+  return createChatMailUseCase(dependencies, 'contractor')
+}
+
+type ChatMailAudience = 'client' | 'contractor'
+
+type ChatMailDependencies = {
   /** A origem pública da API: o logo do cabeçalho vai branco por endereço estável; ausente, por `cid:`. */
   readonly apiPublicUrl?: string
   /** A origem do painel, para as marcas do rodapé; ausente, o rodapé sai só em texto. */
@@ -100,7 +117,12 @@ export function createSendOccurrenceChatMailUseCase(dependencies: {
   readonly secretService: ContractorMailCredentialSecretService
   readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: OccurrenceMailUnitOfWorkPort
-}): SendOccurrenceChatMailUseCase {
+}
+
+function createChatMailUseCase(
+  dependencies: ChatMailDependencies,
+  audience: ChatMailAudience,
+): SendOccurrenceChatMailUseCase {
   const now = dependencies.now ?? (() => new Date())
   return {
     send: async (input) => {
@@ -110,7 +132,9 @@ export function createSendOccurrenceChatMailUseCase(dependencies: {
       /** O texto só pode ir vazio com anexo (foto, arquivo ou áudio); a conversa grava o vazio como nos outros canais. */
       if (
         (bodyText === '' && (input.attachmentIds?.length ?? 0) === 0) ||
-        bodyText.length > OCCURRENCE_MAIL_LIMITS.body
+        bodyText.length > OCCURRENCE_MAIL_LIMITS.body ||
+        /** Spec 287: o e-mail ao cliente ainda não leva anexo (o upload é da conversa da contratante). */
+        (audience === 'client' && (input.attachmentIds?.length ?? 0) > 0)
       ) {
         throw new OccurrenceConversationMailInvalidError()
       }
@@ -119,6 +143,7 @@ export function createSendOccurrenceChatMailUseCase(dependencies: {
       const executed = await dependencies.unitOfWork.execute((transaction) =>
         executeChatSend({
           ...dependencies,
+          audience,
           bodyText,
           input,
           now: now(),
@@ -127,7 +152,7 @@ export function createSendOccurrenceChatMailUseCase(dependencies: {
           transaction,
         }),
       )
-      if (executed.mailAddresses.length > 0) {
+      if (audience === 'contractor' && executed.mailAddresses.length > 0) {
         try {
           await dependencies.portalNotice?.notify({
             companyId: input.companyId,
@@ -147,6 +172,7 @@ export function createSendOccurrenceChatMailUseCase(dependencies: {
 }
 
 async function executeChatSend(params: {
+  readonly audience: ChatMailAudience
   readonly apiPublicUrl?: string
   readonly appBaseUrl?: string
   readonly bodyText: string
@@ -172,17 +198,32 @@ async function executeChatSend(params: {
   if (target === null) throw new TripOccurrenceNotFoundError()
   if (target.contractorId === null) throw new OccurrenceConversationContractorUnknownError()
   const { contractorId } = target
+  const isClient = params.audience === 'client'
+  const operation = isClient ? SEND_CLIENT_CHAT_MAIL_OPERATION : SEND_OCCURRENCE_CHAT_MAIL_OPERATION
+  const clientAudience = isClient
+    ? await transaction.findClientEmailAudience({ companyId, occurrenceId: input.occurrenceId })
+    : null
+  if (isClient && (clientAudience === null || clientAudience.addresses.length === 0)) {
+    params.logger?.warn('occurrence_chat_mail_no_recipients', { occurrenceId: input.occurrenceId })
+    throw new OccurrenceChatMailNoRecipientsError()
+  }
 
   const fingerprint = await createMailFingerprint({
-    fields: [companyId, input.occurrenceId, 'chat', bodyText, [...attachmentIds].sort().join(',')],
+    fields: [
+      companyId,
+      input.occurrenceId,
+      isClient ? 'client-chat' : 'chat',
+      bodyText,
+      [...attachmentIds].sort().join(','),
+    ],
     fingerprintService: params.fingerprintService,
-    operation: SEND_OCCURRENCE_CHAT_MAIL_OPERATION,
+    operation,
   })
   const replay = await findMailReplay({
     companyId,
     fingerprint,
     idempotencyKey: input.idempotencyKey,
-    operation: SEND_OCCURRENCE_CHAT_MAIL_OPERATION,
+    operation,
     transaction,
   })
   if (replay !== null) return { mailAddresses: [], response: replay }
@@ -193,45 +234,17 @@ async function executeChatSend(params: {
     transaction,
   })
 
-  /** Os pré-marcados: a mesma regra da prévia (os escolhidos no tipo; sem escolha, os da etapa). */
-  const [candidates, chosenContactIds] = await Promise.all([
-    transaction.listOccurrenceRecipients({ companyId, contractorId }),
-    target.occurrenceTypeId === null
-      ? []
-      : transaction.findChosenOccurrenceRecipientIds({
+  const { copy, recipients } =
+    clientAudience === null
+      ? await resolveContractorRecipients({
+          contractorId,
+          logger: params.logger,
+          target,
+          transaction,
           companyId,
-          occurrenceTypeId: target.occurrenceTypeId,
-        }),
-  ])
-  const { contactIds } = resolveOccurrenceRecipients({
-    chosenContactIds,
-    contacts: candidates.map((candidate) => ({
-      email: candidate.email,
-      id: candidate.id,
-      occurrenceStages: candidate.occurrenceStages,
-    })),
-    stage: target.stage,
-  })
-  if (contactIds.length === 0) {
-    params.logger?.warn('occurrence_chat_mail_no_recipients', { occurrenceId: input.occurrenceId })
-    throw new OccurrenceChatMailNoRecipientsError()
-  }
-  const recipients = await resolveMailRecipients({
-    companyId,
-    contactIds,
-    contractorId,
-    transaction,
-  })
-  const copy = await resolveMailCc({
-    automatic: false,
-    companyId,
-    contractorId,
-    excludedUserIds: [],
-    logger: params.logger,
-    occurrenceTypeId: target.occurrenceTypeId,
-    recipients,
-    transaction,
-  })
+          occurrenceId: input.occurrenceId,
+        })
+      : { copy: [] as readonly string[], recipients: clientAudience.addresses }
 
   const carrier = await transaction.findCarrierIdentity({ companyId })
   const operator = await transaction.findOperatorSigner({
@@ -308,6 +321,7 @@ async function executeChatSend(params: {
   const subject = buildChatMailSubject({ ...facts, carrier })
 
   const { conversation, delivery, existingThread, threadId } = await prepareMailDelivery({
+    ...(clientAudience === null ? {} : { client: { taxId: clientAudience.taxId } }),
     companyId,
     contractorId,
     occurrenceId: input.occurrenceId,
@@ -344,6 +358,7 @@ async function executeChatSend(params: {
     recipients,
     storage: params.storage,
     subject,
+    ...(isClient ? { threadAudience: 'client' as const } : {}),
     threadExists: existingThread !== undefined,
     threadId,
     transaction,
@@ -352,7 +367,7 @@ async function executeChatSend(params: {
     companyId,
     fingerprint,
     idempotencyKey: input.idempotencyKey,
-    operation: SEND_OCCURRENCE_CHAT_MAIL_OPERATION,
+    operation,
     response,
     transaction,
   })
@@ -363,4 +378,56 @@ async function executeChatSend(params: {
     transport: delivery.transport,
   })
   return { mailAddresses: [...recipients, ...copy], response }
+}
+
+async function resolveContractorRecipients(params: {
+  readonly companyId: string
+  readonly contractorId: string
+  readonly logger: OccurrenceMailLogger | undefined
+  readonly occurrenceId: string
+  readonly target: OccurrenceMailTarget
+  readonly transaction: Parameters<Parameters<OccurrenceMailUnitOfWorkPort['execute']>[0]>[0]
+}): Promise<{ readonly copy: readonly string[]; readonly recipients: readonly string[] }> {
+  const { companyId, contractorId, target, transaction } = params
+  /** Os pré-marcados: a mesma regra da prévia (os escolhidos no tipo; sem escolha, os da etapa). */
+  const [candidates, chosenContactIds] = await Promise.all([
+    transaction.listOccurrenceRecipients({ companyId, contractorId }),
+    target.occurrenceTypeId === null
+      ? []
+      : transaction.findChosenOccurrenceRecipientIds({
+          companyId,
+          occurrenceTypeId: target.occurrenceTypeId,
+        }),
+  ])
+  const { contactIds } = resolveOccurrenceRecipients({
+    chosenContactIds,
+    contacts: candidates.map((candidate) => ({
+      email: candidate.email,
+      id: candidate.id,
+      occurrenceStages: candidate.occurrenceStages,
+    })),
+    stage: target.stage,
+  })
+  if (contactIds.length === 0) {
+    params.logger?.warn('occurrence_chat_mail_no_recipients', { occurrenceId: params.occurrenceId })
+    throw new OccurrenceChatMailNoRecipientsError()
+  }
+  const recipients = await resolveMailRecipients({
+    companyId,
+    contactIds,
+    contractorId,
+    transaction,
+  })
+  const copy = await resolveMailCc({
+    automatic: false,
+    companyId,
+    contractorId,
+    excludedUserIds: [],
+    logger: params.logger,
+    occurrenceTypeId: target.occurrenceTypeId,
+    recipients,
+    transaction,
+  })
+
+  return { copy, recipients }
 }

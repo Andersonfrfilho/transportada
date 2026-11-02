@@ -25,10 +25,11 @@ const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
  * notificação e a renderização não acha template nenhum. Quem trava isso é este contrato.
  */
 describe('contrato do catálogo de notificações', () => {
-  test('as categorias são as seis do produto e nada além', () => {
+  test('as categorias são as sete do produto e nada além', () => {
     expect(Object.values(NOTIFICATION_CATEGORY).toSorted()).toEqual([
       'billing',
       'cte-batch',
+      'fiscal',
       'identity',
       'mdfe',
       'nfse',

@@ -44,6 +44,8 @@ function createFixture(
 ) {
   const calls: Record<string, unknown[]> = {
     connection: [],
+    disconnect: [],
+    reveal: [],
     provision: [],
     qr: [],
     read: [],
@@ -68,6 +70,18 @@ function createFixture(
           async execute(request) {
             calls.connection?.push(structuredClone(request))
             return { checkedAt: '2026-10-27T12:00:00.000Z', state: 'close' }
+          },
+        },
+        disconnect: {
+          async execute(request) {
+            calls.disconnect?.push(structuredClone(request))
+            return { checkedAt: '2026-10-27T12:00:00.000Z', state: 'close' }
+          },
+        },
+        reveal: {
+          async execute(request) {
+            calls.reveal?.push(structuredClone(request))
+            return { ownerNumber: '+55 (16) 99385-7105' }
           },
         },
         qr: {
@@ -226,7 +240,36 @@ describe('as rotas do Evolution (spec 281 T4)', () => {
     expect((fixture.calls.qr?.[0] as { correlationId: string }).correlationId).toBe(CORRELATION_ID)
   })
 
-  test('exige settings.manage nas quatro', async () => {
+  test('desconectar passa o ator, responde sem cache e o estado final', async () => {
+    const fixture = createFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${PATH}/disconnect` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({
+      data: { checkedAt: '2026-10-27T12:00:00.000Z', state: 'close' },
+    })
+    expect((fixture.calls.disconnect?.[0] as { correlationId: string }).correlationId).toBe(
+      CORRELATION_ID,
+    )
+  })
+
+  test('revelar devolve o número inteiro sem cache', async () => {
+    const fixture = createFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${PATH}/connection/reveal` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({ data: { ownerNumber: '+55 (16) 99385-7105' } })
+  })
+
+  test('exige settings.manage nas seis', async () => {
     const fixture = createFixture({ permissions: new Set(['invoices.read'] as const) })
 
     for (const request of [
@@ -234,10 +277,14 @@ describe('as rotas do Evolution (spec 281 T4)', () => {
       jsonRequest({ body: BODY, method: 'PUT', path: PATH }),
       jsonRequest({ method: 'GET', path: `${PATH}/connection` }),
       jsonRequest({ method: 'POST', path: `${PATH}/qr` }),
+      jsonRequest({ method: 'POST', path: `${PATH}/disconnect` }),
+      jsonRequest({ method: 'POST', path: `${PATH}/connection/reveal` }),
     ]) {
       expect((await fixture.handle(request)).status).toBe(403)
     }
     expect(fixture.calls.read).toEqual([])
     expect(fixture.calls.qr).toEqual([])
+    expect(fixture.calls.disconnect).toEqual([])
+    expect(fixture.calls.reveal).toEqual([])
   })
 })

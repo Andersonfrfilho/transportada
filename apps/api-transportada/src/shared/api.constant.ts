@@ -235,6 +235,10 @@ export const API_WHATSAPP_CHANNEL_PATH = '/company-settings/whatsapp-channel'
 export const API_WHATSAPP_EVOLUTION_PATH = '/company-settings/whatsapp-evolution'
 export const API_WHATSAPP_EVOLUTION_CONNECTION_PATH =
   '/company-settings/whatsapp-evolution/connection'
+export const API_WHATSAPP_EVOLUTION_DISCONNECT_PATH =
+  '/company-settings/whatsapp-evolution/disconnect'
+export const API_WHATSAPP_EVOLUTION_REVEAL_PATH =
+  '/company-settings/whatsapp-evolution/connection/reveal'
 export const API_WHATSAPP_EVOLUTION_QR_PATH = '/company-settings/whatsapp-evolution/qr'
 export const API_WHATSAPP_EVOLUTION_PROVISION_PATH =
   '/company-settings/whatsapp-evolution/provision'
@@ -261,6 +265,8 @@ export const API_BILLING_INVOICE_PREVIEW_PATH = '/billing/invoices/preview'
 export const API_OPERATIONS_SUMMARY_PATH = '/operations/summary'
 export const API_OPERATIONS_TIMELINE_PATH = '/operations/timeline'
 export const API_OPERATIONS_JOBS_PATH = '/operations/jobs'
+/** Spec 290: o quadro de mensagens enviadas (contagens por canal e categoria). */
+export const API_OPERATIONS_SENT_MESSAGES_PATH = '/operations/sent-messages'
 /** Spec 072: o botão que o schema já previa — `origin: 'manual'` e o `409` do índice único. */
 export const API_OPERATIONS_JOB_RUN_PATH = '/operations/jobs/:job/run'
 /** Spec 161 T21: o relógio de cada rotina — habilitada ou não, e quem desligou. */

@@ -28,6 +28,7 @@ import { sql, type SQL } from 'drizzle-orm'
 import { CONTRACTOR_REPLY_EMAIL_MAX_PER_OCCURRENCE } from '../../shared/occurrence-contractor-reply.constant.js'
 import { queueContractorReplyToClientEmails } from './contractor-reply-client-email-forward.support.js'
 import {
+  formatCarrierPhone,
   readContractorReplyClientChannel,
   resolveContractorReplyClientTexts,
 } from './contractor-reply-client-template.support.js'
@@ -57,6 +58,8 @@ export type ReserveContractorReplyToClientWhatsAppResult =
 
 /** O envio pelo Evolution da empresa; a falha traz `failure` (o motivo fechado do gateway da 281). */
 export type ContractorReplyClientWhatsAppSender = {
+  /** O número do chip pareado (só dígitos, com o 55), ou `null` se o Evolution não informa; vira o 📞 da mensagem. */
+  connectedNumber(params: { readonly companyId: string }): Promise<null | string>
   isConnected(params: { readonly companyId: string }): Promise<boolean>
   sendDocument(params: {
     readonly bytes: Uint8Array
@@ -436,6 +439,8 @@ async function markFailed(
 async function markSent(
   runner: ContractorReplyClientWhatsAppRunner,
   params: {
+    /** O texto que saiu no WhatsApp: o balão da conversa do cliente mostra exatamente o que foi enviado. */
+    readonly caption: string
     readonly companyId: string
     readonly deliveryId: string
     readonly providerMessageId: null | string
@@ -452,11 +457,20 @@ async function markSent(
   if (closed.length === 0) return
   await rowsOf(
     runner,
+    sql`update occurrence_conversation_messages set body_text = ${params.caption}
+        where company_id = ${companyId}::uuid and client_delivery_id = ${deliveryId}::uuid and body_text = ''`,
+  )
+  await rowsOf(
+    runner,
     sql`insert into occurrence_conversation_messages
           (company_id, conversation_id, channel, direction, automatic, body_text, status, status_times,
            provider_message_id, system_notice)
         select d.company_id, c.id, 'whatsapp', 'outbound', true,
-               ${NOTICE_BODY_PREFIX} || d.address,
+               ${NOTICE_BODY_PREFIX} || case
+                 when d.address ~ '^[+]55[0-9]{10,11}$'
+                   then '(' || substr(d.address, 4, 2) || ') ' || substr(d.address, 6, length(d.address) - 9) || '-' || right(d.address, 4)
+                 else d.address
+               end,
                'sent',
                jsonb_build_object('sent', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
                d.provider_message_id,
@@ -567,6 +581,7 @@ async function dispatchReply(
     // boleto duas vezes no WhatsApp do cliente.
     await dependencies.transaction((transaction) =>
       markSent(transaction, {
+        caption: prepared.caption,
         companyId,
         deliveryId: item.id,
         providerMessageId: sent.providerMessageId,
@@ -618,15 +633,20 @@ async function prepareDispatch(
   )
   const occurrenceId = text(reply, 'occurrence_id')
   if (occurrenceId === null) return { kind: 'failed', reason: 'send_failed' }
+  const connected = await dependencies.sender.isConnected({ companyId }).catch(() => false)
+  if (!connected) return { kind: 'failed', reason: 'whatsapp_disconnected' }
+
+  // O telefone da mensagem é o do número que a envia, não o do perfil fiscal.
+  const owner = await dependencies.sender.connectedNumber({ companyId }).catch(() => null)
   const resolved = await resolveContractorReplyClientTexts(runner, {
     channel: 'whatsapp',
     companyId,
     occurrenceId,
+    ...(owner === null
+      ? {}
+      : { variableOverrides: { telefoneTransportadora: formatCarrierPhone(owner) } }),
   })
   if (resolved.kind === 'template_missing') return { kind: 'failed', reason: 'template_missing' }
-
-  const connected = await dependencies.sender.isConnected({ companyId }).catch(() => false)
-  if (!connected) return { kind: 'failed', reason: 'whatsapp_disconnected' }
 
   const files = new Map<string, PreparedFile>()
   try {

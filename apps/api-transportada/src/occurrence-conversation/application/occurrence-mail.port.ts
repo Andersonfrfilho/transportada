@@ -129,6 +129,8 @@ export type RecordOccurrenceMailInput = {
   readonly occurrenceId: string
   readonly occurrenceKind: OccurrenceConversationKind
   readonly replyTokenHash: string
+  /** Spec 287: `client` grava o fio do cliente (`client_*_occurrence`) em vez do da contratante. */
+  readonly threadAudience?: 'client'
   readonly subject: string
   /** Spec 271 (RF11): a chave e a versão do modelo do módulo de notificação que escreveu o e-mail; `null` só no reenvio de retorno sem original. */
   readonly notificationTemplate: null | OccurrenceNotificationTemplate
@@ -234,6 +236,17 @@ export type OccurrenceMailTransactionPort = {
     readonly occurrenceKind: OccurrenceConversationKind
     readonly publicRef: string
   }): Promise<{ readonly id: string }>
+  /** Spec 287: a conversa de e-mail do cliente (`client_email`) desta ocorrência de nota; criada na primeira mensagem. */
+  findOrCreateClientEmailConversation(params: {
+    readonly clientTaxId: string
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<{ readonly id: string }>
+  /** Spec 287: o cliente da nota (`tax_id` do destinatário) e os e-mails dele; `null` sem cliente cadastrado. */
+  findClientEmailAudience(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<null | { readonly addresses: readonly string[]; readonly taxId: string }>
   /** A thread da 143 do objeto; `undefined` antes da primeira mensagem. */
   /**
    * Spec 183 T903 (C3): trava a ocorrência na transação antes de procurar a thread — dois envios
@@ -245,6 +258,8 @@ export type OccurrenceMailTransactionPort = {
     readonly occurrenceKind: string
   }): Promise<void>
   findOccurrenceThread(params: {
+    /** Spec 287: `client` procura o fio do cliente, não o da contratante. */
+    readonly audience?: 'client'
     readonly companyId: string
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind

@@ -152,6 +152,8 @@ export type ContractorReplyWhatsAppCompletionPort = {
    * da ocorrência ("Boleto enviado por WhatsApp: …", canal `whatsapp`, com o id do provedor para o webhook da T6).
    */
   markSent(params: {
+    /** O texto que saiu: vai ao balão da conversa do cliente (o que foi enviado, não só o anexo). */
+    readonly caption: string
     readonly companyId: string
     readonly deliveryId: string
     readonly providerMessageId: null | string
@@ -177,6 +179,8 @@ export class ContractorReplyWhatsAppSendError extends Error {
  * de envio sai como `ContractorReplyWhatsAppSendError`.
  */
 export type ContractorReplyWhatsAppSenderPort = {
+  /** O número do chip pareado (só dígitos, com o 55), ou `null` se o Evolution não informa; vira o 📞 da mensagem. */
+  connectedNumber(params: { readonly companyId: string }): Promise<null | string>
   isConnected(params: { readonly companyId: string }): Promise<boolean>
   sendDocument(params: {
     readonly bytes: Uint8Array

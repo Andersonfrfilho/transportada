@@ -23,6 +23,8 @@ export const NOTIFICATION_SETTINGS_HREF = `${NOTIFICATION_WORKSPACE_HREF}/prefer
 
 export const NOTIFICATION_SETTINGS_CATEGORY_IDS = [
   'cte-batch',
+  // O certificado digital vencendo ou vencido: sem ele a importação e a emissão param.
+  'fiscal',
   'nfse',
   'billing',
   'identity',
@@ -70,7 +72,9 @@ export const NOTIFICATION_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
   alertNumber: '2',
   batchName: 'Lote CT-e julho',
   documentLabel: '883658/1',
+  daysLeft: '15',
   dueDate: '10/09/2026',
+  expiresAt: '10/11/2026',
   failedCount: '3',
   invoiceNumber: '1042',
   occurredAt: '03/09/2026 14h52',

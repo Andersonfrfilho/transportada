@@ -6,12 +6,13 @@
  * que se soma é o número a que a mensagem citada foi entregue.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
   occurrenceContractorReplyDeliveries,
   occurrenceConversationMessages,
+  occurrenceConversations,
 } from '../../database/database.schema.js'
 import type { EvolutionConversationInboundPort } from '../application/evolution-conversation-inbound.service.js'
 import { createDrizzleWhatsAppConversationInboundRepository } from './drizzle-whatsapp-conversation-inbound.repository.js'
@@ -29,6 +30,37 @@ export function createDrizzleEvolutionConversationInboundRepository(
 ): EvolutionConversationInboundPort {
   return {
     ...createDrizzleWhatsAppConversationInboundRepository(database),
+
+    /**
+     * A conversa do cliente do último envio do painel por WhatsApp a esse número. A chave é a do `toWhatsAppPhoneKey`
+     * (`55` + DDD + os oito últimos dígitos), então vale com e sem o nono dígito.
+     */
+    async findLatestClientConversation({ companyId, phoneKey }) {
+      const digits = sql`regexp_replace(${occurrenceConversationMessages.recipientAddress}, '[^0-9]', '', 'g')`
+      const [row] = await database
+        .select({ conversationId: occurrenceConversationMessages.conversationId })
+        .from(occurrenceConversationMessages)
+        .innerJoin(
+          occurrenceConversations,
+          and(
+            eq(occurrenceConversations.companyId, occurrenceConversationMessages.companyId),
+            eq(occurrenceConversations.id, occurrenceConversationMessages.conversationId),
+            eq(occurrenceConversations.participant, 'client'),
+          ),
+        )
+        .where(
+          and(
+            eq(occurrenceConversationMessages.companyId, companyId),
+            eq(occurrenceConversationMessages.channel, 'whatsapp'),
+            eq(occurrenceConversationMessages.direction, 'outbound'),
+            isNotNull(occurrenceConversationMessages.recipientAddress),
+            sql`left(${digits}, 4) || right(${digits}, 8) = ${phoneKey}`,
+          ),
+        )
+        .orderBy(desc(occurrenceConversationMessages.createdAt))
+        .limit(1)
+      return row?.conversationId ?? null
+    },
 
     /**
      * O aviso de sistema que a T5 grava na conversa ("Boleto enviado por WhatsApp") leva o id do

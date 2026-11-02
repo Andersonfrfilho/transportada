@@ -545,6 +545,9 @@ describe('as telas da ocorrência (texto de fonte)', () => {
     const screen = await source('components/OccurrenceConversations.component.tsx')
     expect(screen).toContain('<SendToDriverAction')
     expect(screen).toContain('<ContractorReplyEmailActions')
+    /** O envio ao cliente sai no modelo do módulo de Notificações (e-mail e WhatsApp), por arquivo recebido. */
+    expect(screen).toContain('<ClientBoletoEmailAction')
+    expect(screen).toContain('<ClientBoletoWhatsAppAction')
     expect(screen).toContain('<ForwardToContractorAction')
     expect(screen).toContain('<AddContractorContactAction')
     expect(screen).toContain('<OccurrenceThreadFailures')

@@ -30,6 +30,13 @@ export type WhatsAppEvolutionPanelProps = Readonly<{
   connection: WhatsAppEvolutionConnection | undefined
   connectionErrorCode: string | undefined
   disabled: boolean
+  disconnecting: boolean
+  /** Pede o número do chip por inteiro; a API só o devolve a quem gerencia as configurações. */
+  onReveal: () => void
+  revealedNumber: string | undefined
+  revealing: boolean
+  /** Desfaz o pareamento no Evolution; a instância fica livre para ler o QR de outro número. */
+  onDisconnect: () => void
   errorCode: string | undefined
   loading: boolean
   /** O resultado da última gravação deixa de descrever a tela no instante em que ela muda. */
@@ -111,12 +118,17 @@ function WhatsAppEvolutionQrValidity(
 function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
   const { t } = useTranslation('companySettings')
   const qrImageUrl = useQrObjectUrl(props.qr?.qrCode)
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
   const stored = props.stored
   if (stored === null || stored === undefined) return null
   // O estado da tela é o do QR quando ele já respondeu; senão, o último gravado.
-  const state = props.qrOpen
-    ? (props.qr?.state ?? stored.connectionState)
-    : (props.connection?.state ?? stored.connectionState)
+  // 'open' vence: a leitura curta do estado enxerga a conexão antes do próximo QR.
+  const state =
+    props.connection?.state === 'open'
+      ? 'open'
+      : props.qrOpen
+        ? (props.qr?.state ?? stored.connectionState)
+        : (props.connection?.state ?? stored.connectionState)
   const checkedAt = props.connection?.checkedAt ?? stored.connectionCheckedAt
   const canConnect = stored.status === 'active' && stored.apiKeyConfigured
 
@@ -151,8 +163,64 @@ function WhatsAppEvolutionConnectionStatus(props: WhatsAppEvolutionPanelProps) {
         )}
         {state === 'open' ? (
           <p className={calendarStyles.status} role="status">
-            {t('whatsappEvolution.connection.connected')}
+            {props.connection?.ownerMasked === undefined
+              ? t('whatsappEvolution.connection.connected')
+              : t('whatsappEvolution.connection.connectedNumber', {
+                  number: props.revealedNumber ?? props.connection.ownerMasked,
+                })}
+            {props.connection?.ownerMasked === undefined ||
+            props.revealedNumber !== undefined ? null : (
+              <Button
+                disabled={props.revealing}
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={props.onReveal}
+              >
+                <Icon name="eye" />
+                {t('whatsappEvolution.connection.reveal')}
+              </Button>
+            )}
           </p>
+        ) : null}
+        {canConnect && state === 'open' ? (
+          confirmingDisconnect ? (
+            <div className={calendarStyles.actions}>
+              <p className={calendarStyles.routingNotice}>
+                {t('whatsappEvolution.connection.disconnectConfirm')}
+              </p>
+              <Button
+                disabled={props.disconnecting}
+                type="button"
+                onClick={() => {
+                  setConfirmingDisconnect(false)
+                  props.onDisconnect()
+                }}
+              >
+                <Icon name="close" />
+                {t('whatsappEvolution.connection.disconnectConfirmAction')}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setConfirmingDisconnect(false)}
+              >
+                {t('whatsappEvolution.connection.disconnectCancel')}
+              </Button>
+            </div>
+          ) : (
+            <div className={calendarStyles.actions}>
+              <Button
+                disabled={props.disconnecting}
+                type="button"
+                variant="secondary"
+                onClick={() => setConfirmingDisconnect(true)}
+              >
+                <Icon name="close" />
+                {t('whatsappEvolution.connection.disconnect')}
+              </Button>
+            </div>
+          )
         ) : null}
         {canConnect && state !== 'open' && !props.qrOpen ? (
           <div className={calendarStyles.actions}>

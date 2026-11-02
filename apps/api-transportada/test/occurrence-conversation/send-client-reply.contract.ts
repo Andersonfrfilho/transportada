@@ -108,21 +108,11 @@ describe('a resposta do painel ao cliente (spec 283 T5)', () => {
     expect(fixture.texts).toEqual([{ body: INPUT.bodyText, companyId: COMPANY_ID, number: NUMBER }])
   })
 
-  test('primeiro envio sem confirmação: 409 com o número mascarado, nada gravado nem enviado', async () => {
+  test('primeiro envio a um número sai direto, sem pedir confirmação (Anderson, 2026-11-01)', async () => {
     const fixture = createFixture({})
-    let caught: unknown
-    try {
-      await fixture.useCase.send({ ...INPUT, confirmNumber: false })
-    } catch (error) {
-      caught = error
-    }
-    expect(caught).toMatchObject({
-      code: 'OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED',
-      details: [{ field: 'confirmNumber', message: '+55 ••••1234' }],
-      status: 409,
-    })
-    expect(fixture.events).toEqual([])
-    expect(fixture.texts).toEqual([])
+    const result = await fixture.useCase.send({ ...INPUT, confirmNumber: false })
+    expect(result.status).toBe('sent')
+    expect(fixture.texts).toHaveLength(1)
   })
 
   test('número já confirmado por uma resposta anterior dispensa a confirmação', async () => {

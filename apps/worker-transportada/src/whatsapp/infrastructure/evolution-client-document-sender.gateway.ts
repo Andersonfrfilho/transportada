@@ -20,6 +20,7 @@ import {
 import type { SecretEnvelopeProvider, SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import { sql, type SQL } from 'drizzle-orm'
 
+import type { EvolutionSendPacer } from './evolution-send-pacer.js'
 import type { ContractorReplyClientWhatsAppSender } from '../../occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-forward.support.js'
 
 /** O envio de um arquivo pode levar mais que o padrão de 15 s do SDK: o Evolution sobe o PDF ao WhatsApp antes de responder. */
@@ -41,6 +42,8 @@ type Runner = { execute(query: SQL): PromiseLike<unknown> }
 export function createEvolutionClientDocumentSender(dependencies: {
   readonly envelopeProvider: SecretEnvelopeProvider
   readonly fetch?: typeof fetch
+  /** Spec 289: espaça os envios do número; ausente, o envio sai na hora (testes). */
+  readonly pacer?: EvolutionSendPacer
   readonly runner: Runner
 }): ContractorReplyClientWhatsAppSender {
   async function decrypt(params: {
@@ -69,7 +72,7 @@ export function createEvolutionClientDocumentSender(dependencies: {
     }
   }
 
-  async function open(companyId: string): Promise<EvolutionWhatsAppChannel> {
+  async function credentials(companyId: string) {
     const rows = (await dependencies.runner.execute(
       sql`select id, base_url, instance_name, status, secret_envelope
           from whatsapp_evolution_settings where company_id = ${companyId}::uuid`,
@@ -85,16 +88,26 @@ export function createEvolutionClientDocumentSender(dependencies: {
       throw new EvolutionClientDocumentSendError('disconnected')
     }
     const apiKey = await decrypt({ companyId, envelope: row.secret_envelope, settingsId: row.id })
+    return { apiKey, baseUrl: row.base_url, instanceName: row.instance_name }
+  }
+
+  async function open(companyId: string): Promise<EvolutionWhatsAppChannel> {
+    const { apiKey, baseUrl, instanceName } = await credentials(companyId)
     return new EvolutionWhatsAppChannel({
       apiKey,
-      baseUrl: row.base_url,
-      instance: row.instance_name,
+      baseUrl,
+      instance: instanceName,
       timeoutMs: SEND_TIMEOUT_MS,
       ...(dependencies.fetch === undefined ? {} : { fetch: dependencies.fetch }),
     })
   }
 
   return {
+    async connectedNumber({ companyId }) {
+      const credential = await credentials(companyId)
+      return fetchOwnerNumber({ ...credential, fetch: dependencies.fetch ?? fetch })
+    },
+
     async isConnected({ companyId }) {
       const channel = await open(companyId)
       return (await channel.getConnectionState()) === 'open'
@@ -102,6 +115,11 @@ export function createEvolutionClientDocumentSender(dependencies: {
 
     async sendDocument(params) {
       const channel = await open(params.companyId)
+      try {
+        await dependencies.pacer?.wait(params.companyId)
+      } catch {
+        throw new EvolutionClientDocumentSendError('failed')
+      }
       try {
         const sent = await channel.sendMedia({
           buffer: Buffer.from(params.bytes),
@@ -126,4 +144,38 @@ function classify(error: unknown): SendFailure {
     return 'disconnected'
   }
   return 'failed'
+}
+
+/** `ownerJid` ("5516…@s.whatsapp.net") da instância; versões antigas usam `owner`. Só dígitos, ou `null`. */
+function readOwnerNumber(value: unknown): null | string {
+  const list = Array.isArray(value) ? (value as unknown[]) : [value]
+  for (const item of list) {
+    if (typeof item !== 'object' || item === null) continue
+    const record = item as Record<string, unknown>
+    const instance =
+      typeof record.instance === 'object' && record.instance !== null
+        ? (record.instance as Record<string, unknown>)
+        : {}
+    for (const candidate of [record.ownerJid, record.owner, instance.owner, instance.ownerJid]) {
+      if (typeof candidate !== 'string') continue
+      const digits = candidate.split('@')[0]?.replace(/\D/gu, '') ?? ''
+      if (digits.length >= 10) return digits
+    }
+  }
+  return null
+}
+
+/** O número do chip pareado: `GET /instance/fetchInstances` com a chave da própria instância. */
+async function fetchOwnerNumber(input: {
+  readonly apiKey: string
+  readonly baseUrl: string
+  readonly fetch: typeof fetch
+  readonly instanceName: string
+}): Promise<null | string> {
+  const response = await input.fetch(
+    `${input.baseUrl}/instance/fetchInstances?instanceName=${encodeURIComponent(input.instanceName)}`,
+    { headers: { apikey: input.apiKey }, method: 'GET', signal: AbortSignal.timeout(10_000) },
+  )
+  if (response.status >= 300) return null
+  return readOwnerNumber((await response.json().catch(() => null)) as unknown)
 }

@@ -9,6 +9,7 @@ import {
   parseClientWhatsAppNumber,
 } from '@/modules/client-whatsapp/shared/clientBoletoWhatsAppNumber.service'
 import { useIsOnline } from '@/modules/conversation/hooks/useIsOnline.hook'
+import { formatPhone } from '@/modules/shared/phone.service'
 
 import { useClientContacts } from '../hooks/useClientContacts.hook'
 import type { ClientContact, ClientContactChannel } from '../shared/clientContacts.types'
@@ -36,6 +37,9 @@ type Mode =
   | Readonly<{ contactId: string; kind: 'remove' }>
 
 const IDLE: Mode = { kind: 'idle' }
+
+/** E-mail e WhatsApp nunca dividem o mesmo símbolo: o envelope é o e-mail, o balão é o WhatsApp. */
+const CHANNEL_ICON = { email: 'mail', whatsapp: 'message' } as const
 
 function normalizeAddress(channel: ClientContactChannel, raw: string): null | string {
   return channel === 'whatsapp' ? parseClientWhatsAppNumber(raw) : parseClientEmail(raw)
@@ -117,12 +121,31 @@ export function ClientContactsSection({ channels, documentId }: ClientContactsSe
       ) : (
         <>
           {hasNone && mode.kind === 'idle' ? (
-            <p className={styles.alert}>{t('section.none')}</p>
+            <div className={styles.warning} role="status">
+              <Icon aria-hidden="true" name="alert" size="md" />
+              <div className={styles.warningText}>
+                <p className={styles.warningTitle}>{t('section.noneTitle')}</p>
+                <p className={styles.note}>{t('section.noneBody')}</p>
+                <p className={styles.note}>
+                  {t(
+                    channels.length > 1
+                      ? 'section.noneHintBoth'
+                      : `section.noneHint.${channels[0] ?? 'email'}`,
+                  )}
+                </p>
+              </div>
+            </div>
           ) : null}
           {visible.length > 0 ? (
             <ul className={styles.list}>
               {visible.map((contact) => (
                 <li className={styles.item} key={contact.contactId}>
+                  <Icon
+                    aria-hidden="true"
+                    className={styles.channelIcon}
+                    name={CHANNEL_ICON[contact.channel]}
+                    size="md"
+                  />
                   <span className={styles.itemText}>
                     <strong>{contact.addressMasked}</strong>
                     <span className={styles.itemMeta}>
@@ -220,6 +243,7 @@ export function ClientContactsSection({ channels, documentId }: ClientContactsSe
                       }
                       type="button"
                     >
+                      <Icon aria-hidden="true" name={CHANNEL_ICON[channel]} size="sm" />
                       {t(`channel.${channel}`)}
                     </button>
                   ))}
@@ -235,7 +259,13 @@ export function ClientContactsSection({ channels, documentId }: ClientContactsSe
                 inputMode={mode.draft.channel === 'whatsapp' ? 'tel' : 'email'}
                 onChange={(event) =>
                   setMode({
-                    draft: { ...mode.draft, address: event.target.value },
+                    draft: {
+                      ...mode.draft,
+                      address:
+                        mode.draft.channel === 'whatsapp'
+                          ? formatPhone(event.target.value)
+                          : event.target.value,
+                    },
                     kind: 'form',
                     showInvalid: false,
                   })
@@ -298,7 +328,7 @@ export function ClientContactsSection({ channels, documentId }: ClientContactsSe
                   type="button"
                   variant={hasNone ? 'default' : 'secondary'}
                 >
-                  <Icon aria-hidden="true" name="send" size="sm" />
+                  <Icon aria-hidden="true" name={CHANNEL_ICON[channel]} size="sm" />
                   {t(`add.${channel}`)}
                 </Button>
               ))}

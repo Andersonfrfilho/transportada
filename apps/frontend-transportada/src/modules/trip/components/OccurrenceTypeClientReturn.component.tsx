@@ -17,6 +17,7 @@ import {
 import {
   listClientReturnTemplates,
   resolveClientReturnProblem,
+  resolveClientReturnSendNote,
   selectClientReturnSendMode,
   selectClientReturnTemplate,
   toggleClientReturnChannel,
@@ -147,6 +148,11 @@ function ClientReturnFields({ disabled, matrix, onEdit }: ClientReturnFieldsProp
               : t(`occurrenceTypeCatalog.clientReturn.problem.${problem.kind}`, {
                   channel: channelLabel,
                 })}
+          </p>
+        )}
+        {resolveClientReturnSendNote(setting) === null ? null : (
+          <p className={styles.hint}>
+            {t('occurrenceTypeCatalog.clientReturn.sendNote.manual', { channel: channelLabel })}
           </p>
         )}
         {setting.enabled && selected !== undefined && selected.usable ? (

@@ -193,6 +193,10 @@ import { startContractorMailInboundConsumer } from './runtime/contractor-mail-in
 import type { SendContractorMailOutboundMessageDependencies } from './contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import type { RecordContractorMailInboundMessageDependencies } from './contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
 import { createContractorReplyClientWhatsAppDispatcher } from './occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-dispatcher.adapter.js'
+import {
+  createDrizzleEvolutionSendSlotClaimer,
+  createEvolutionSendPacer,
+} from './whatsapp/infrastructure/evolution-send-pacer.js'
 import { createEvolutionClientDocumentSender } from './whatsapp/infrastructure/evolution-client-document-sender.gateway.js'
 import { createInboundConversationAttachmentStore } from './occurrence-conversation/application/inbound-mail-attachments.service.js'
 import { createOccurrenceConversationUploadExpireRoutine } from './occurrence-conversation-upload-expire/application/occurrence-conversation-upload-expire.routine.js'
@@ -244,8 +248,10 @@ import { createDrizzleEnergyTariffGateway } from './fuel-price-pull/infrastructu
 import { createDrizzleFuelReferenceGateway } from './fuel-price-pull/infrastructure/drizzle-fuel-reference.gateway.js'
 import { createNotificationSchedulesRoutine } from './notification-schedules/application/notification-schedules.routine.js'
 import { createSweepDueInvoices } from './notification-schedules/application/sweep-due-invoices.use-case.js'
+import { createSweepExpiringCertificates } from './notification-schedules/application/sweep-expiring-certificates.use-case.js'
 import { NOTIFICATION_SCHEDULES_JOB } from './notification-schedules/domain/notification-schedules.constant.js'
 import { createDueInvoicesQuery } from './notification-schedules/infrastructure/drizzle-due-invoices.query.js'
+import { createExpiringCertificatesQuery } from './notification-schedules/infrastructure/drizzle-expiring-certificates.query.js'
 import {
   createDrizzleNfseReconciliationSource,
   createDrizzleNfseReconciliationWriteBack,
@@ -1205,6 +1211,13 @@ export async function startWorkerRuntime(
             ),
           sender: createEvolutionClientDocumentSender({
             envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+            /** Spec 289: o intervalo entre envios do número; no worker espera até 2 min, depois cai no e-mail. */
+            pacer: createEvolutionSendPacer({
+              claimSlot: createDrizzleEvolutionSendSlotClaimer(
+                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              ),
+              maxWaitMs: 120_000,
+            }),
             runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
           }),
         }),
@@ -1706,6 +1719,13 @@ export async function startWorkerRuntime(
             sweep: createSweepDueInvoices({
               logger,
               selectDueInvoices: createDueInvoicesQuery(
+                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              ),
+              send: (params) => notificationModule.useCases.sendNotification.execute(params),
+            }),
+            sweepCertificates: createSweepExpiringCertificates({
+              logger,
+              selectExpiringCertificates: createExpiringCertificatesQuery(
                 database.db as ReturnType<typeof createDrizzleProvider>['db'],
               ),
               send: (params) => notificationModule.useCases.sendNotification.execute(params),

@@ -280,6 +280,9 @@ export const CONTRACTOR_MAIL_THREAD_SUBJECT_TYPES = [
   'delivery_charge',
   'setup_test',
   'address_correction',
+  /** Spec 287: o fio do cliente (e-mail livre do chat do cliente); a resposta cai na conversa `client`, não na da contratante. */
+  'client_document_occurrence',
+  'client_stop_occurrence',
 ] as const
 export type ContractorMailThreadSubjectType = (typeof CONTRACTOR_MAIL_THREAD_SUBJECT_TYPES)[number]
 

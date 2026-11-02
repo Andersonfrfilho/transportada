@@ -109,6 +109,7 @@ function createFixture(params: {
       previewMail: { preview: record('preview') as never },
       requestUpload: { request: record('requestUpload') as never },
       sendChatMail: { send: record('sendChat') as never },
+      sendClientChatMail: { send: record('sendClientChat') as never },
       sendClientReply: { send: record('sendClient') as never },
       sendMail: { send: record('send') as never },
     }),
@@ -619,6 +620,35 @@ describe('POST .../client/messages, a resposta ao cliente (spec 283 T5, D6)', ()
     }
     expect((await fixture.handle(clientRequest(base, null))).status).toBe(400)
     expect(fixture.calls).toEqual([])
+  })
+
+  test('por e-mail (spec 287) envia pelo caso de uso do chat do cliente, sem alvo nem número no corpo', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(
+      clientRequest({ body: '  Segue o boleto.  ', channel: 'email' }),
+    )
+
+    expect(response.status).toBe(202)
+    expect(fixture.calls).toEqual([
+      {
+        input: {
+          actorUserId: COMPANY_CONTEXT.userId,
+          bodyText: 'Segue o boleto.',
+          companyId: COMPANY_CONTEXT.companyId,
+          correlationId: 'trip-http-correlation',
+          idempotencyKey: 'client-reply-key-0001',
+          occurrenceId: OCCURRENCE_ID,
+        },
+        name: 'sendClientChat',
+      },
+    ])
+    for (const body of [
+      { body: 'Oi', channel: 'email', address: 'x@y.test' },
+      { body: '   ', channel: 'email' },
+      { body: 'Oi', channel: 'email', attachmentIds: [] },
+    ]) {
+      expect((await fixture.handle(clientRequest(body))).status).toBe(400)
+    }
   })
 
   test('sem occurrences.resolve é 403, antes do caso de uso (RF7)', async () => {

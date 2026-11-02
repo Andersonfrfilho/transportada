@@ -122,6 +122,16 @@ export type OccurrenceTimelineSource =
       readonly status: string
     })
 
+  /**
+   * Spec 288: uma tentativa (ou a omissão registrada) do boleto ao cliente por e-mail (o alvo `client_boleto_emails`).
+   * Só status e motivo: nunca o endereço, o texto nem o anexo.
+   */
+  | (SourceBase & {
+      readonly kind: 'contractor.client.email'
+      readonly reason: null | string
+      readonly status: string
+    })
+
 export type OccurrenceTimelineEvent = OccurrenceTimelineSource & {
   readonly isKey: boolean
   /** `null` no primeiro evento; segundos inteiros desde o evento anterior. */
@@ -185,6 +195,7 @@ const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> 
   'case.transition': 2,
   'contractor.mail.received': 4,
   'contractor.client.whatsapp': 5,
+  'contractor.client.email': 5,
   'contractor.mail.sent': 3,
   'contractor.reply': 5,
   'contractor.reply.delivery': 5,
@@ -285,6 +296,7 @@ function isKeyEvent(source: OccurrenceTimelineSource): boolean {
   if (source.kind === 'contractor.reply.document') return source.result === 'confirmed'
   if (source.kind === 'contractor.reply.delivery') return source.status === 'sent'
   if (source.kind === 'contractor.client.whatsapp') return source.status === 'sent'
+  if (source.kind === 'contractor.client.email') return source.status === 'sent'
   if (source.kind === 'resolution.resolved' || source.kind === 'resolution.reopened') return true
   return source.kind === 'case.transition' && source.toStatus === 'decided'
 }
@@ -376,6 +388,7 @@ function stageAfter(
     case 'contractor.reply.document':
     case 'contractor.reply.driver_read':
     case 'contractor.client.whatsapp':
+    case 'contractor.client.email':
       return undefined
   }
 }

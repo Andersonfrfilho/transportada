@@ -219,6 +219,7 @@ export async function resolveForwardTexts(params: {
   readonly reply: ContractorReplyEmailReply
   readonly target: ContractorReplyEmailTarget
   readonly transaction: Pick<ContractorReplyEmailTransactionPort, 'resolveClientTexts'>
+  readonly variableOverrides?: Readonly<Record<string, string>>
 }): Promise<{ readonly body: string; readonly subject: string }> {
   const parsed = contractorReplyConfigurationSchema.safeParse(params.reply.config)
   if (!parsed.success) throw new ContractorReplyEmailForwardDisabledError()
@@ -230,6 +231,9 @@ export async function resolveForwardTexts(params: {
     companyId: params.companyId,
     config: params.reply.config,
     occurrenceId: params.occurrenceId,
+    ...(params.variableOverrides === undefined
+      ? {}
+      : { variableOverrides: params.variableOverrides }),
   })
   if (found.kind === 'template_missing') {
     if (found.legacy) throw new ContractorReplyEmailForwardDisabledError()

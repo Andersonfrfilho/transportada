@@ -1,0 +1,6 @@
+-- Spec 287: a conversa do cliente por canal. `client_email` e a conversa de e-mail; `client` segue sendo a do WhatsApp.
+-- Aditiva: so alarga as duas CHECKs; nenhuma linha existente muda.
+ALTER TABLE "occurrence_conversations" DROP CONSTRAINT "occurrence_conversations_participant_check", ADD CONSTRAINT "occurrence_conversations_participant_check" CHECK ("participant" in ('contractor', 'driver', 'client', 'client_email'));--> statement-breakpoint
+ALTER TABLE "occurrence_conversations" DROP CONSTRAINT "occurrence_conversations_participant_shape_check", ADD CONSTRAINT "occurrence_conversations_participant_shape_check" CHECK (("participant" = 'contractor' and "contractor_id" is not null and "public_ref" is not null and "driver_user_id" is null and "client_tax_id" is null)
+        or ("participant" = 'driver' and "driver_user_id" is not null and "contractor_id" is null and "public_ref" is null and "client_tax_id" is null)
+        or ("participant" in ('client', 'client_email') and "client_tax_id" is not null and "occurrence_kind" = 'document' and "contractor_id" is null and "driver_user_id" is null and "public_ref" is null));

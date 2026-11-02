@@ -78,6 +78,8 @@ type World = {
   attachmentSize?: number
   channel?: ClientChannel
   connected?: boolean
+  /** O número do chip pareado, só dígitos; ausente, o Evolution não informa. */
+  connectedNumber?: null | string
   dailyCap?: number
   failure?: ContractorReplyWhatsAppSendFailure
   settings?: 'active' | 'disabled' | null
@@ -89,6 +91,7 @@ type World = {
 function build(world: World = {}) {
   const deliveries: Delivery[] = []
   const saved: Array<{ address: string; authorKind: string; taxId: string }> = []
+  const closedCaptions: string[] = []
   const sends: Array<{ caption: string; mimeType: string; number: string }> = []
   const logs: Array<Record<string, unknown>> = []
   let connectionChecks = 0
@@ -160,7 +163,8 @@ function build(world: World = {}) {
           found.reason = reason
         }
       },
-      markSent: async ({ deliveryId, providerMessageId }) => {
+      markSent: async ({ caption, deliveryId, providerMessageId }) => {
+        closedCaptions.push(caption)
         const found = deliveries.find((delivery) => delivery.id === deliveryId)
         if (found !== undefined && found.status === 'queued') {
           found.status = 'sent'
@@ -171,6 +175,7 @@ function build(world: World = {}) {
     logger: { info: (event, fields) => logs.push({ event, ...fields }) },
     now: () => NOW,
     sender: {
+      connectedNumber: async () => world.connectedNumber ?? null,
       isConnected: async () => {
         connectionChecks += 1
         return world.connected ?? true
@@ -189,6 +194,7 @@ function build(world: World = {}) {
     deliveries,
     logs,
     saved,
+    closedCaptions,
     sends,
     useCase,
     world,
@@ -279,6 +285,27 @@ describe('spec 286 T3: a legenda vem do modelo whatsapp do tipo', () => {
 })
 
 describe('spec 281 T5: envio do boleto por WhatsApp', () => {
+  test('o telefone da mensagem é o do número conectado, não o do perfil fiscal', async () => {
+    const world = build({
+      connectedNumber: '5516993857105',
+      template: { whatsapp: { body: 'Fale conosco: {{telefoneTransportadora}}', subject: '' } },
+    })
+    await world.useCase.forward(input())
+
+    expect(world.sends.map((send) => send.caption)).toEqual(['Fale conosco: (16) 99385-7105'])
+  })
+
+  test('sem o número do Evolution a mensagem sai com o telefone do perfil', async () => {
+    const world = build({
+      template: { whatsapp: { body: 'Fale conosco: {{telefoneTransportadora}}', subject: '' } },
+    })
+    await world.useCase.forward(input())
+
+    expect(world.sends.map((send) => send.caption)).toEqual([
+      'Fale conosco: {{telefoneTransportadora}}',
+    ])
+  })
+
   test('o número digitado recebe o PDF e o texto do retorno; entrega fechada com o id do provedor', async () => {
     const world = build()
     const outcome = await world.useCase.forward(input())
@@ -289,6 +316,10 @@ describe('spec 281 T5: envio do boleto por WhatsApp', () => {
         mimeType: 'application/pdf',
         number: NUMBER,
       },
+    ])
+    // O balão da conversa do cliente mostra o texto que saiu, não só o anexo.
+    expect(world.closedCaptions).toEqual([
+      'Boleto prorrogado\n\nSegue o boleto com o novo vencimento.',
     ])
     expect(outcome.results).toEqual([
       {

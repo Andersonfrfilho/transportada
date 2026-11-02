@@ -106,8 +106,16 @@ Regras que já custaram tempo:
 | `cadastro-motorista/producao-dados-para-convidar.sh`        | CPF, e-mail e telefone das fichas sem usuário, para convidar                                                                                                                                                                                                                                   | leitura                         |
 | `cadastro-motorista/producao-usuarios-sem-keycloak.sh`      | confronta cada usuário do banco com o Keycloak (existe/habilitado)                                                                                                                                                                                                                             | leitura                         |
 | `notas/producao-faixa-notas.sh [de] [ate]`                  | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210)                                                                                                                                                                                                     | leitura                         |
+| `certificado/producao-certificado-validade.sh`              | validade dos certificados A1, execuções com `certificate_expired` e auditoria                                                                                                                                                                                                                  | leitura                         |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
+
+- **Aviso de certificado digital** (conferido em 30/10/2026): a rotina `notification.schedules.run` do
+  worker avisa por caixa de entrada e e-mail quem enviou o certificado ativo quando faltam 30, 15, 7, 3
+  e 1 dia e quando ele vence (modelos `fiscal.certificate-expiring` e `fiscal.certificate-expired`,
+  semeados pela API). Para ver se saiu: contador `expiringCertificates` e a mensagem
+  `certificate_expiry_swept` nos logs do `worker` (`get-logs` com `filter: certificate_expiry`). Antes
+  disso o único sinal era o motivo `certificate_expired` no cartão da importação automática.
 
 ## 3. Variáveis (conferir e trocar)
 
@@ -415,6 +423,135 @@ Conferido na `main` (a1d37cb) e no Railway, sem escrever nada:
   WhatsApp. Confirmado: nada em produção envia boleto ao WhatsApp do cliente.
 - **Para ligar no futuro:** só com aval do Anderson (seção 5.3/5.4).
 
+## 5.6 Ligar o envio automático do boleto ao cliente em produção (01/11/2026)
+
+Levantamento só de leitura (código da `main` b76cb5a e Actions); nada foi alterado em produção.
+
+**Bloqueio: a spec 286 (matriz "Retorno ao cliente", WhatsApp automático, queda para e-mail) e a 288 ainda não estão em
+produção.** O push da promoção #445 na `main` (run 41249494222, 31/10 22:44Z) reprovou no gate (`quality-app
+(worker-transportada)`: teste `contractor reply parity`, `occurrence-contractor-reply.constant.ts` não é idêntico na api
+e no worker, a spec 288 acrescentou `CONTRACTOR_REPLY_CLIENT_EMAIL_TARGET` só na api) e todos os `deploy-*` foram
+pulados. Produção segue na `fa6d43f` (hotfix #451, 29/10), sem as migrations `20261029000937_occurrence_type_client_channels`,
+`20261029005751_client_whatsapp_automatic`, `20261029023933_client_email_fallback_from` e
+`20261029190000_occurrence_drop_forward_email`. Antes de testar: sincronizar o arquivo no worker (em `staging`, depois
+promoção) e conferir o `Deploy` verde e `/health/ready` com `migrations: up`.
+
+**Disparo:** o boleto só sai sozinho quando a contratante responde com o PDF e o worker o aceita: tipo com a resposta da
+contratante em encaminhar automaticamente, PDF conferido como boleto, sem anexo duplicado. Resposta vazia ou "document_not_confirmed"
+fica para o operador.
+
+**Checklist para testar (por canal):**
+
+- Tipo de ocorrência (ex. Prorrogação do boleto) → Retorno ao cliente: canal ligado, **modo Automático** e **modelo
+  escolhido** (sem modelo o canal não sai: `skipped / template_missing`).
+- E-mail: contato do cliente com finalidade `boleto` em `delivery_client_contacts`, casado pelo CNPJ do destinatário da nota.
+  Usa o mesmo caminho do e-mail de ocorrência (Resend da empresa, domínio verificado, ver 5.1): nada novo na infra.
+  **`EMAIL_ALLOWED_RECIPIENTS` é proibida em produção**: não há trava, o e-mail vai ao cliente de verdade. Para testar
+  com segurança, usar um cliente/nota de teste com o e-mail do Anderson.
+- WhatsApp: precisa de um **Evolution em produção**, que hoje **não existe** (só staging). Falta: serviço `evolution-api`
+  (+ redis/postgres) no `production`, `EVOLUTION_BASE_URL` e `EVOLUTION_GLOBAL_API_KEY` (referência) no `api` e no
+  `worker`, "Criar e conectar" e QR no painel (`whatsapp_evolution_settings.status = 'active'`, `daily_cap` > 0),
+  contato `whatsapp` finalidade `boleto` em E.164 (`+55...`). Sem instância ativa ou sem número, cai para o e-mail
+  (se ligado) e registra o motivo. Aprovação do Anderson antes de criar qualquer serviço ou variável.
+- Perfil fiscal da transportadora com e-mail e telefone (variáveis `emailTransportadora`, `telefoneTransportadora`
+  dos modelos).
+- O boleto de teste tem que ser real e conferido (o leitor de documento recusa PDF sem texto de boleto).
+- Depois: linha do tempo da ocorrência e `occurrence_contractor_reply_deliveries` (`trigger = automatic`); log do worker
+  `occurrence_contractor_reply_whatsapp_automatic`.
+
+**Resultado (01/11/2026):** o gate reprovado era só a paridade do worker (corrigida no #475). A promoção foi feita por um
+commit fixo da staging (`b9d7b1b`, PR #481) em vez da branch `staging`, porque a spec 287 continuava recebendo merges
+(promover a branch levaria trabalho incompleto). Merge `5f01233`: Deploy da `main` verde (api com "Conferir migrations
+aplicadas" e "Conferir as origens do frontend", worker, cron, painel, motorista, client, landing). A 286/288 estão em
+produção com WhatsApp desligado. Teste instável visto no CI da staging: `trip-proof-pdf-end-to-end` compara com `999` e
+bate no id aleatório da viagem; um re-run passou. Regra: promover por commit fixo quando a staging estiver em movimento.
+
+## 5.7 Teste real do boleto automático em produção (01/11/2026): deu certo
+
+Estado: a 5.6 estava bloqueada; depois da promoção das specs 286/288/289 e do Evolution de produção
+(`evolution-api|redis|postgres-production`), o Anderson testou pelo app do motorista (Prorrogação do boleto, NF
+907034/2, viagem `2b2ea116`) e confirmou que deu certo. Evidência nos logs (companyId da transportadora, tudo `UTC`):
+
+- 21:01 `POST .../client-contacts` 201 (duas vezes): o motorista digitou e-mail/WhatsApp do cliente.
+- 21:02:21 `POST .../documents/:id/occurrences` 201; 21:02:22 worker `contractor_mail_sent` (e-mail à contratante).
+- 21:04:51 resposta da contratante com PDF: `inbound_email_dkim_verified` com `contractorReply.kind=applied`,
+  `delivered=true`, `documentChecked=true`, `documentTextRead=true`, `toStatus=reply_received`.
+- 21:04:51 worker `occurrence_contractor_reply_whatsapp_automatic` com `sent=1`, `failed=0` (WhatsApp ao cliente pelo
+  Evolution); depois, webhooks `POST /public/whatsapp-evolution/<webhookId>` 200.
+- O e-mail ao cliente não tem linha própria nesses logs: conferir `occurrence_contractor_reply_deliveries` (canal `email`).
+
+**Armadilhas do teste (para o próximo):**
+
+- No app do motorista o formulário só pede e-mail/WhatsApp do cliente se o tipo tiver **"Pedir o contato do cliente ao
+  motorista"** marcado **e** o canal com o cliente diferente de desligado (`asksClientContact` e `clientChannel`).
+  Sem isso os campos não aparecem (foi o que aconteceu na primeira tentativa).
+- "Toque em Cheguei para liberar a entrega" é a trava normal até a chegada ser registrada (`/stops/:id/arrive`).
+- Na janela anônima e no relogin o app volta ao mesmo ponto; o servidor não guarda estado do formulário.
+- O teste enviou a mensagem a contatos reais: usar cliente/nota de teste com os contatos do Anderson.
+
+**Ícone do tipo (01/11/2026):** o tipo "Prorrogação do boleto" estava sem ícone (`icon_name` nulo), então o app do motorista
+não mostrava nada. Catálogo fechado do CHECK: `alert camera clipboard-list clock document invoice message money package
+truck`. Escolhido `invoice` (é o boleto). Aplicação por `scripts/ops/producao-icone-tipo-ocorrencia.sh` (sem `--confirm`
+só lista; com `--confirm` grava só `icon_name` e `updated_at`; `ENV_NAME=production` com aprovação). Também dá para
+trocar no painel (Tipos de ocorrência → "Ícone do tipo"). Aplicado em produção em 02/11/2026: a 2ª execução já mostrou `icon_name = invoice` no "antes" (a 1ª gravou, mas o `railway ssh`
+calou com a saída em pipe `| tee`; por isso o script de `ativada/` usa `script` para dar terminal ao `railway`).
+
+## 5.8 Serviços em crash no Railway (02/11/2026)
+
+Conferido pelo MCP do Railway (`get-status`, `list-deployments`, `get-logs`); nenhuma variável foi lida e nada foi
+redeployado. Nada disto veio da promoção #491: os deploys de `osrm-production` e `map-tiles-production` dela ficaram
+`SKIPPED` (os dois não rebuildam desde 28/09) e o `backup` do #491 terminou `SUCCESS`.
+
+| Ambiente | Serviço                                   | Estado                                                  | Causa                                                                                                                                                                                                                                                 |
+| -------- | ----------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| produção | `backup`                                  | `CRASHED` às 06:00 de 02/11 (some com o deploy do #491) | `curl: (55) Send failure: Connection reset by peer` no `dump_app` (upload do dump ao bucket, `backup.sh` linha ~125). O backup de 02/11 **não foi gravado**; o próximo é 06:00 de 03/11.                                                              |
+| produção | `osrm-production`, `map-tiles-production` | `FAILED` (build) desde 28/09                            | O build baixa o `.pbf` direto do Geofabrik (`sudeste-260914.osm.pbf`) e recebe **404**: o Geofabrik apaga os datados em poucos dias. A variável deveria apontar para o espelho no bucket (ver `osrm-extract.md`, "A variável aponta para o espelho"). |
+| staging  | `staging-refresh`                         | `CRASHED` no domingo 01/11 05:00                        | `staging_refresh_redeploy_not_configured`: faltam `RAILWAY_PROJECT_TOKEN`/`RAILWAY_API_TOKEN` ou `STAGING_API_SERVICE_ID` no serviço; a guarda de boot sai com 1 antes de tocar no banco.                                                             |
+| staging  | `osrm`, `map-tiles`                       | `FAILED` (build)                                        | Mesmo problema do `.pbf` (ver 5.4).                                                                                                                                                                                                                   |
+
+Ler o valor das variáveis exige script do Anderson (o classificador bloqueia a leitura de variáveis de produção pelo
+MCP).
+
+### Backup de produção parado de 22/10 a 02/11 (resolvido em 02/11/2026)
+
+- **Efeito:** o último backup bom antes disso foi o de 21/10 (`EXITED`); de 22/10 a 02/11 o cron `backup` terminou em
+  `CRASHED` todo dia (`curl: (55)` no upload) e **nenhum dump foi gravado nesses 12 dias**.
+- **Causa:** `BACKUP_S3_SECRET_ACCESS_KEY` (e a chave de acesso) no serviço `backup` não batiam com as credenciais atuais
+  do bucket de ops (`transportada-ops`). O bucket aceita os dois estilos de URL (path e virtual-host), então o estilo não era
+  o problema. As chaves do bucket mudaram e a cópia nas variáveis ficou velha.
+- **Correção:** `producao-backup-sincroniza-chaves.sh --aplicar` leu as credenciais com `railway bucket credentials --json`
+  (exige o projeto `transportada-ops` linkado no diretório de trabalho; não aceita `-p`) e gravou `BACKUP_S3_*` em `backup` e
+  `restore-test` com `railway variables --skip-deploys`. **`--skip-deploys` só vale no próximo deploy**: depois é preciso
+  redeployar ou rodar o cron de novo (`railway cron run --yes`).
+- **Prova:** três execuções fora do horário (10:59, 11:10 e 11:26 UTC) terminaram `EXITED`. `producao-backup-confere-dump.sh`
+  baixou o dump de `app` (17,3 MB), com `sha256` igual ao publicado e ao do `manifest.jsonl`, cabeçalho `Salted__` (cifrado);
+  o manifest registra 266 tabelas e a migration `20261101160000_whatsapp_send_pacing`.
+- **Ainda não provado:** restauração do dump. O cron `restore-test` (`0 7 5 * *`) usa as mesmas chaves e é quem prova.
+- **Scripts** (em `tmp/ops/`, ignorado pelo git; saídas em `tmp/ops/saidas/`): `producao-backup-diagnostico.sh` (logs, nomes
+  e tamanhos das variáveis, listagem do bucket), `producao-backup-sincroniza-chaves.sh` (dry-run por padrão),
+  `producao-backup-roda-agora.sh` (`--rodar`; `--redeploy-e-rodar`) e `producao-backup-confere-dump.sh` (tamanho real,
+  hash e manifest). Cron: `railway cron list --limit 30` e `railway cron run --yes`.
+- **Armadilha de diagnóstico:** a primeira listagem do diagnóstico mostrou dumps de 105 B por erro do parser (regex que
+  cruzava objetos); o tamanho real vem do `HEAD`/`Content-Length` ou do `manifest.jsonl`.
+- **Pendente:** alerta quando o `backup` cair (hoje só se descobre olhando o Railway).
+
+## 5.9 Staging-refresh com recorte (spec 291)
+
+Não mexe em produção: lê o backup cifrado de sempre e só escreve em staging. Fica aqui porque é o
+caminho de diagnóstico quando o refresh de domingo cai.
+
+- O job restaura o dump **inteiro** num banco temporário `staging_refresh_source` (no Postgres de
+  staging), roda `deploy/staging-refresh/prune-source.sql` nele e restaura em staging só o recorte.
+  O banco temporário é derrubado no fim e no `cleanup`.
+- Janela: `STAGING_REFRESH_WINDOW_DAYS` (padrão 60) no serviço `staging-refresh`.
+- Eventos de log em ordem: `staging_refresh_source_restored`, `staging_refresh_source_pruned`
+  (com `notes` e `trips` que sobraram), `staging_refresh_restored`. O aviso
+  `staging_refresh_unclassified_tables_emptied` lista tabela sem política (foi esvaziada).
+- Falhas conhecidas: `staging_refresh_failed` com `step: restore` e `permission denied to create
+database` = o usuário do Postgres de staging não tem `CREATEDB`; `staging_refresh_scrub_*_missing` =
+  coluna de contato renomeada (ajustar o `prune-source.sql`); `add constraint` falhando = recorte
+  deixou linha órfã (abrir a spec 291). Em todos, staging ainda está como estava antes do ciclo.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
@@ -525,3 +662,13 @@ INSERT no banco do app; Keycloak intocado. Reverter: apagar essa membership e o 
 
 `producao-renomear-usuarios-uuid.sh` rodou no mesmo dia e não achou nenhum username em UUID em
 `identity_user_profiles` de produção: nada foi alterado. (Os UUIDs vistos eram só de staging.)
+
+### Staging: e-mail só chega a quem está em `EMAIL_ALLOWED_RECIPIENTS` (31/10/2026)
+
+O worker da **staging** descarta e-mail para endereço fora da variável `EMAIL_ALLOWED_RECIPIENTS` (separador vírgula;
+produção proíbe a variável, `environment.schema.ts`). Sintoma: log `contractor_mail_recipient_not_allowed`
+(`email_recipient_not_allowed`, `blocked: 1`) e o e-mail do cliente não chega. O MCP do Railway devolve só os **nomes**
+das variáveis, então gravar a variável por ele apagaria a lista: o passo é sempre ler o valor atual (`railway variables
+-s worker -e staging --json`) e acrescentar. Script deixado para o Anderson: `staging-allowlist-email.sh` em
+`/home/miyazaki/Documents/personal/ativada/` (grava a saída em `saidas/`, imprime só o caminho). Depois do redeploy do
+worker, "Tentar de novo" no e-mail que falhou. Endereço acrescentado em 31/10/2026: `andersonfrfilho@live.com`.

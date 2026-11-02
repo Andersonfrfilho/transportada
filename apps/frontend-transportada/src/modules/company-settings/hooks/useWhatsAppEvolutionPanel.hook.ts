@@ -13,6 +13,8 @@ const WHATSAPP_EVOLUTION_QR_QUERY_KEY = 'company-whatsapp-evolution-qr'
 const QR_RETRY_MILLISECONDS = 20_000
 /** Estado ao vivo: a tela relê a conexão neste ritmo para mostrar a queda sem recarregar. */
 const CONNECTION_POLL_MILLISECONDS = 30_000
+/** Com o QR na tela o número pode conectar a qualquer instante (e o Evolution reinicia o canal logo após a leitura): o estado é relido neste ritmo curto. */
+const CONNECTION_POLL_WITH_QR_MILLISECONDS = 3_000
 
 function getWhatsAppEvolutionClient() {
   return createWhatsAppEvolutionClient({
@@ -39,6 +41,11 @@ export function useWhatsAppEvolutionPanel(
     mutationFn: (acknowledgeRisk: boolean) => client.provision(acknowledgeRisk),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
+  const disconnectMutation = useMutation({
+    mutationFn: () => client.disconnect(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [WHATSAPP_EVOLUTION_QUERY_KEY] }),
+  })
+  const revealMutation = useMutation({ mutationFn: () => client.reveal() })
   const saveMutation = useMutation({
     mutationFn: (body: WhatsAppEvolutionSaveInput) => client.save(body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
@@ -47,10 +54,20 @@ export function useWhatsAppEvolutionPanel(
   const connectable = stored?.status === 'active' && stored.apiKeyConfigured
   // Com o QR aberto quem informa o estado é o próprio QR; fora dele, esta leitura periódica.
   const connectionQuery = useQuery({
-    enabled: input.enabled && connectable && !input.qrEnabled,
-    queryFn: client.connection,
+    enabled: input.enabled && connectable,
+    queryFn: async () => {
+      const connection = await client.connection()
+      // Conectou com o QR aberto: o estado gravado mudou, então a configuração é relida.
+      if (input.qrEnabled && connection.state === 'open') {
+        await queryClient.invalidateQueries({ queryKey })
+      }
+
+      return connection
+    },
     queryKey: [WHATSAPP_EVOLUTION_QUERY_KEY, 'connection', input.companyId] as const,
-    refetchInterval: CONNECTION_POLL_MILLISECONDS,
+    refetchInterval: input.qrEnabled
+      ? CONNECTION_POLL_WITH_QR_MILLISECONDS
+      : CONNECTION_POLL_MILLISECONDS,
     refetchIntervalInBackground: false,
   })
   const qrQuery = useQuery({
@@ -76,10 +93,12 @@ export function useWhatsAppEvolutionPanel(
 
   return {
     connectionQuery,
+    disconnectMutation,
     provisionMutation,
     provisioningAvailable: query.data?.provisioningAvailable === true,
     qrQuery,
     query,
+    revealMutation,
     saveMutation,
     stored,
   }

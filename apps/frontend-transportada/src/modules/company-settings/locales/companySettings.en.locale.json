@@ -784,6 +784,9 @@
         "manual": "Manual",
         "automatic": "Automatic"
       },
+      "sendNote": {
+        "manual": "{{channel}} is set to manual sending: it does not go out on its own, only from the button on the occurrence. Choose Automatic to send it by itself."
+      },
       "problem": {
         "missing": "{{channel}} is checked, but the type has no template on this channel: it will not be sent.",
         "not_found": "The template chosen for {{channel}} no longer exists in Notifications: it will not be sent.",
@@ -889,10 +892,16 @@
       "checkError": "Could not read the connection state ({{code}}).",
       "dropped": "The number is disconnected. Generate a new QR to reconnect; meanwhile sends fall back to email.",
       "reconnect": "Reconnect number",
+      "connectedNumber": "Connected number: {{number}}.",
+      "reveal": "Reveal",
+      "disconnect": "Disconnect number",
+      "disconnectConfirm": "Disconnect this number from WhatsApp? Sends fall back to e-mail until another number is connected, and you can scan the QR of a new SIM.",
+      "disconnectConfirmAction": "Yes, disconnect",
+      "disconnectCancel": "Cancel",
       "title": "Number connection",
       "qrWaiting": "Generating the QR code. This can take a few seconds.",
       "qrValidity": "This code is valid for about {{seconds}} s and renews itself. Scan it before it expires.",
-      "qrExpired": "This code has expired. Wait for the new code before scanning.",
+      "qrExpired": "This code expired. Click \"Generate new QR\" and scan the new code.",
       "refreshQr": "Generate new QR"
     },
     "provision": {

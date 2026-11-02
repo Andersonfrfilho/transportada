@@ -166,7 +166,7 @@ export type OccurrenceConversation = Readonly<{
   client?: Readonly<{ channels: readonly OccurrenceClientChannel[]; name: null | string }>
   id: string
   messages: readonly OccurrenceConversationMessage[]
-  participant: 'client' | 'contractor' | 'driver'
+  participant: 'client' | 'client_email' | 'contractor' | 'driver'
   status: string
   unreadCount: number
 }>
@@ -238,6 +238,8 @@ export type UnassignedCandidate = Readonly<{
   lastOutbound: null | Readonly<{ at: string; preview: string }>
   occurrenceId: string
   occurrenceKind: 'document' | 'stop'
+  /** Spec 283: de quem é a conversa candidata — a contratante ou o cliente da entrega. */
+  participant: 'client' | 'contractor'
 }>
 
 export type UnassignedMessage = Readonly<{

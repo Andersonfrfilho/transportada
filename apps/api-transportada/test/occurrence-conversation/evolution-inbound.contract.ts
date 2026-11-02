@@ -193,6 +193,7 @@ describe('política do Evolution', () => {
 function createInbound(
   options: {
     clientConversationId?: null | string
+    latestClientConversationId?: null | string
     context?: WhatsAppAttributionInput
     recipient?: null | string
   } = {},
@@ -203,6 +204,9 @@ function createInbound(
   const statuses: unknown[] = []
   const logs: unknown[] = []
   const port: EvolutionConversationInboundPort = {
+    async findLatestClientConversation() {
+      return options.latestClientConversationId ?? null
+    },
     async findReplyRecipient(input) {
       recipients.push(input)
       const address = options.recipient ?? null
@@ -326,6 +330,7 @@ describe('recebimento pelo Evolution', () => {
       },
       clock: () => NOW,
       inbound: {
+        findLatestClientConversation: async () => null,
         findReplyRecipient: async () => null,
         loadAttributionContext: async () => {
           throw new TypeError('db down')
@@ -397,5 +402,36 @@ describe('spec 283 (RF3): a resposta do cliente entra na conversa do cliente', (
         kind: 'conversation',
       },
     ])
+  })
+})
+
+describe('a resposta sem citar de quem recebeu o boleto', () => {
+  test('"obrigado" sem citar entra na conversa do cliente a que o painel escreveu por último', async () => {
+    const { inbound, recorded } = createInbound({
+      latestClientConversationId: 'client-conversation-9',
+    })
+
+    const outcome = await inbound.receiveMessage({ companyId: COMPANY_ID, message: message({}) })
+
+    expect(outcome).toBe('conversation')
+    expect(recorded).toEqual([
+      {
+        input: expect.objectContaining({
+          conversationId: 'client-conversation-9',
+          driverUserId: null,
+          senderAddress: PHONE,
+        }),
+        kind: 'conversation',
+      },
+    ])
+  })
+
+  test('número sem envio do painel segue para não atribuídas', async () => {
+    const { inbound, recorded } = createInbound()
+
+    const outcome = await inbound.receiveMessage({ companyId: COMPANY_ID, message: message({}) })
+
+    expect(outcome).toBe('unassigned')
+    expect(recorded.map((entry) => entry.kind)).toEqual(['unassigned'])
   })
 })

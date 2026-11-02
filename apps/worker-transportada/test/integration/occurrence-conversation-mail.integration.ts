@@ -123,6 +123,53 @@ describeDatabase('conversa da ocorrência pelo trilho de e-mail da 143 (spec 183
       .where(eq(occurrenceConversationMessages.companyId, companyId))
   }
 
+  it('a resposta do cliente entra na conversa de e-mail do cliente e não mexe no retorno da contratante (spec 287)', async () => {
+    const seeded = await seed({ withConversation: false })
+    const clientThreadId = crypto.randomUUID()
+    const clientMailMessageId = crypto.randomUUID()
+    const clientConversationId = crypto.randomUUID()
+    const occurrenceId = crypto.randomUUID()
+    const [contractor] = (await database.execute(
+      sql`select id from contractors where company_id = ${seeded.companyId}::uuid limit 1`,
+    )) as unknown as readonly { readonly id: string }[]
+    const [user] = (await database.execute(
+      sql`select actor_user_id as id from contractor_mail_messages where id = ${seeded.mailMessageId}::uuid`,
+    )) as unknown as readonly { readonly id: string }[]
+    await database.execute(sql`
+      insert into contractor_mail_threads (id, company_id, contractor_id, subject_type, subject_id, reply_token_hash)
+      values (${clientThreadId}, ${seeded.companyId}, ${contractor!.id}, 'client_document_occurrence', ${occurrenceId}, ${createHash('sha256').update(clientThreadId).digest('hex')})
+    `)
+    await database.execute(sql`
+      insert into contractor_mail_messages (id, company_id, thread_id, direction, actor_user_id, from_address, subject, to_addresses, body_text, delivery_status)
+      values (${clientMailMessageId}, ${seeded.companyId}, ${clientThreadId}, 'outbound', ${user!.id}, 'ocorrencias@transportadora.example.test', 'Boleto', array['financeiro@cliente.example.test'], 'Segue o boleto', 'queued')
+    `)
+    await database.execute(sql`
+      insert into occurrence_conversations (id, company_id, occurrence_kind, occurrence_id, participant, client_tax_id)
+      values (${clientConversationId}, ${seeded.companyId}, 'document', ${occurrenceId}, 'client_email', '11222333000181')
+    `)
+    await database.execute(sql`
+      insert into occurrence_conversation_messages (company_id, conversation_id, channel, direction, author_user_id, body_text, status, status_times, mail_message_id)
+      values (${seeded.companyId}, ${clientConversationId}, 'email', 'outbound', ${user!.id}, 'Segue o boleto', 'queued', '{"queued":"2026-11-01T12:00:00.000Z"}'::jsonb, ${clientMailMessageId})
+    `)
+
+    const recorded = await recordReply(
+      { ...seeded, threadId: clientThreadId },
+      `re_${crypto.randomUUID()}`,
+      'Pago, obrigado.',
+    )
+
+    const received = (await conversationMessages(seeded.companyId)).filter(
+      (message) => message.direction === 'inbound',
+    )
+    expect(received).toHaveLength(1)
+    expect(received[0]).toMatchObject({
+      bodyText: 'Pago, obrigado.',
+      channel: 'email',
+      conversationId: clientConversationId,
+    })
+    expect(recorded.driverNotice).toBeUndefined()
+  })
+
   it('a resposta da contratante vira mensagem recebida da conversa, uma vez só', async () => {
     const seeded = await seed({ withConversation: true })
     const providerEmailId = `re_${crypto.randomUUID()}`

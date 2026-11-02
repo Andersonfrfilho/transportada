@@ -53,5 +53,49 @@
     "enable": "Enable",
     "disable": "Disable",
     "pausedAt": "Disabled at {{pausedAt}}"
+  },
+  "sentMessages": {
+    "title": "Messages sent",
+    "period": {
+      "label": "Period",
+      "day": "24 hours",
+      "week": "7 days",
+      "month": "30 days"
+    },
+    "totalDetail": "messages in the period, {{failed}} failed ({{rate}}%)",
+    "empty": "No messages sent in this period.",
+    "error": "Could not load the sent messages.",
+    "unavailable": "No reading from: {{sources}}. The numbers below leave these out.",
+    "byChannel": "By channel",
+    "byCategory": "By category",
+    "bySubcategory": "Most sent",
+    "failedShort": "({{failed}} failed)",
+    "footnote": "Invitations and password resets count when handed to delivery; verification WhatsApp codes are not counted.",
+    "channel": {
+      "whatsapp": "WhatsApp",
+      "email": "Email",
+      "portal": "Portal",
+      "app": "App",
+      "push": "Push",
+      "in_app": "In app",
+      "sms": "SMS"
+    },
+    "category": {
+      "occurrence": "Occurrences",
+      "notification": "System notices",
+      "access": "Access (invitation and password)"
+    },
+    "audience": {
+      "client": "customer",
+      "contractor": "contractor",
+      "driver": "driver"
+    },
+    "subcategory": {
+      "sem_tipo": "No occurrence type",
+      "invitation": "Invitation",
+      "password_reset": "Password reset",
+      "note": "Invoice conversation",
+      "trip": "Trip conversation"
+    }
   }
 }
