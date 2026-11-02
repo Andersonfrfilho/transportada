@@ -42,6 +42,16 @@ REBIND_SQL_PATH="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/rebind-identiti
 readonly REBIND_SQL_PATH
 NEUTRALIZE_SQL_PATH="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/neutralize-external.sql"
 readonly NEUTRALIZE_SQL_PATH
+PRUNE_SQL_PATH="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/prune-source.sql"
+readonly PRUNE_SQL_PATH
+
+# Recorte (spec 291): o dump inteiro é restaurado neste banco **temporário**, recortado ali, e só o
+# recorte segue para staging. O nome é fixo e só este script o cria e o derruba.
+readonly SOURCE_DATABASE_NAME=staging_refresh_source
+# Quantos dias de notas, viagens, entregas, ocorrências, boletos e faturas atravessam. Opcional.
+WINDOW_DAYS="${STAGING_REFRESH_WINDOW_DAYS:-60}"
+SOURCE_DATABASE_CREATED=0
+PRUNED_DUMP_PATH=''
 
 CURRENT_STEP=boot
 WORK_DIRECTORY=''
@@ -57,11 +67,19 @@ on_error() {
 trap on_error ERR
 
 cleanup() {
+  drop_source_database
   [ -n "$WORK_DIRECTORY" ] && rm -rf "$WORK_DIRECTORY"
+  return 0
 }
 trap cleanup EXIT
 
 require_variables() {
+  case "$WINDOW_DAYS" in
+    '' | *[!0-9]* | 0)
+      log error staging_refresh_window_invalid ",\"windowDays\":\"${WINDOW_DAYS}\""
+      exit 1
+      ;;
+  esac
   local missing=() name
   for name in "${REQUIRED_VARIABLES[@]}"; do
     [ -n "${!name:-}" ] || missing+=("$name")
@@ -266,6 +284,9 @@ list_dump_schemas() {
 restore_over_staging() {
   local plain dump_schemas schemas
   plain="$(decrypt_verified_dump "$DUMP_PATH" "$CYCLE_SHA256")"
+  # Staging só é tocado depois: se o recorte falhar, a base de staging continua como estava.
+  build_pruned_dump "$plain"
+  plain="$PRUNED_DUMP_PATH"
 
   # Duas listas, de propósito: a do dump decide se o `public` precisa ser recriado aqui; a do drop é
   # ela mais o `public`. Uma lista só para as duas coisas deixou staging sem `public` no primeiro
@@ -290,6 +311,51 @@ SQL
   pg_restore --dbname "$STAGING_DATABASE_URL" --no-owner --no-privileges <"$plain"
   rm -f "$plain"
   log info staging_refresh_restored ",\"stamp\":\"${CYCLE_STAMP}\""
+}
+
+# O URL do banco temporário é o de staging com outro nome de banco: o último segmento do caminho.
+source_database_url() {
+  printf '%s' "$STAGING_DATABASE_URL" | sed -E "s#/[^/?]+(\?.*)?\$#/${SOURCE_DATABASE_NAME}\1#"
+}
+
+drop_source_database() {
+  [ "$SOURCE_DATABASE_CREATED" -eq 1 ] || return 0
+  psql "$STAGING_DATABASE_URL" --quiet \
+    --command "drop database if exists ${SOURCE_DATABASE_NAME} with (force)" >/dev/null 2>&1 \
+    || log warn staging_refresh_source_database_not_dropped ''
+  SOURCE_DATABASE_CREATED=0
+}
+
+# Produção não cabe inteira em staging e não deveria: o dump é restaurado num banco temporário, o
+# `prune-source.sql` deixa só o recorte (cadastros e configuração inteiros; as tabelas operacionais
+# dos últimos `WINDOW_DAYS` dias; conversas, anexos, filas e emissão fora; contatos fictícios), e o
+# que sai dali é um dump novo, que segue o caminho de sempre. Dado pessoal fora do recorte nunca toca
+# a base de staging. Deixa o caminho do dump recortado em `PRUNED_DUMP_PATH` (variável, não saída:
+# num `$(...)` o flag do banco temporário se perderia no subshell e o `cleanup` não o derrubaria). O
+# dump inteiro é apagado assim que o banco temporário o consome, para não somar três cópias no disco.
+build_pruned_dump() {
+  local full="$1" source_url pruned="${1%.*}-pruned.dump"
+  source_url="$(source_database_url)"
+
+  psql "$STAGING_DATABASE_URL" --quiet --set ON_ERROR_STOP=1 \
+    --command "drop database if exists ${SOURCE_DATABASE_NAME} with (force)" \
+    --command "create database ${SOURCE_DATABASE_NAME}" >/dev/null
+  SOURCE_DATABASE_CREATED=1
+
+  pg_restore --dbname "$source_url" --no-owner --no-privileges <"$full"
+  rm -f "$full"
+  log info staging_refresh_source_restored ''
+
+  psql "$source_url" --quiet --set ON_ERROR_STOP=1 --set window_days="$WINDOW_DAYS" \
+    --file "$PRUNE_SQL_PATH" >/dev/null
+  local notes trips
+  read -r notes trips <<<"$(psql "$source_url" --tuples-only --no-align --quiet --field-separator ' ' \
+    --command 'select (select count(*) from nfe_documents), (select count(*) from trips)')"
+  log info staging_refresh_source_pruned ",\"windowDays\":${WINDOW_DAYS},\"notes\":${notes},\"trips\":${trips}"
+
+  pg_dump --format=custom --no-owner --no-privileges --file "$pruned" "$source_url"
+  drop_source_database
+  PRUNED_DUMP_PATH="$pruned"
 }
 
 # Mesmo desenho do `s3_curl`: o client secret entra por stdin, porque em argv ele apareceria em

@@ -512,6 +512,23 @@ redeployado. Nada disto veio da promoção #491: os deploys de `osrm-production`
 Ler o valor das variáveis exige script do Anderson (o classificador bloqueia a leitura de variáveis de produção pelo
 MCP).
 
+## 5.9 Staging-refresh com recorte (spec 291)
+
+Não mexe em produção: lê o backup cifrado de sempre e só escreve em staging. Fica aqui porque é o
+caminho de diagnóstico quando o refresh de domingo cai.
+
+- O job restaura o dump **inteiro** num banco temporário `staging_refresh_source` (no Postgres de
+  staging), roda `deploy/staging-refresh/prune-source.sql` nele e restaura em staging só o recorte.
+  O banco temporário é derrubado no fim e no `cleanup`.
+- Janela: `STAGING_REFRESH_WINDOW_DAYS` (padrão 60) no serviço `staging-refresh`.
+- Eventos de log em ordem: `staging_refresh_source_restored`, `staging_refresh_source_pruned`
+  (com `notes` e `trips` que sobraram), `staging_refresh_restored`. O aviso
+  `staging_refresh_unclassified_tables_emptied` lista tabela sem política (foi esvaziada).
+- Falhas conhecidas: `staging_refresh_failed` com `step: restore` e `permission denied to create
+database` = o usuário do Postgres de staging não tem `CREATEDB`; `staging_refresh_scrub_*_missing` =
+  coluna de contato renomeada (ajustar o `prune-source.sql`); `add constraint` falhando = recorte
+  deixou linha órfã (abrir a spec 291). Em todos, staging ainda está como estava antes do ciclo.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
