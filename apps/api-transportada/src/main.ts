@@ -984,6 +984,8 @@ import { DrizzlePackageBoxMeasurementExportRepository } from './nfe-documents/in
 import { createPackageBoxRoutes } from './nfe-documents/presentation/package-box.routes'
 import { createPackageBoxMeasurementExportRoutes } from './nfe-documents/presentation/package-box-measurement-export.routes'
 import { createOperationsUseCase } from './operations/application/operations.use-case'
+import { createSentMessagesUseCase } from './operations/application/sent-messages.use-case.js'
+import { createDrizzleSentMessagesSources } from './operations/infrastructure/drizzle-sent-messages.sources.js'
 import { DrizzleOperationsRepository } from './operations/infrastructure/drizzle-operations.repository'
 import { createOperationsRoutes } from './operations/presentation/operations.routes'
 import { createGetViewPreferencesUseCase } from './view-preferences/application/get-view-preferences.use-case'
@@ -5750,6 +5752,11 @@ function createApplicationRoutes({
       }),
       jobSchedules: createJobScheduleControlUseCase({
         repository: createDrizzleJobScheduleControlRepository(database),
+      }),
+      /** Spec 290: o quadro de mensagens enviadas do painel de Operações. */
+      sentMessages: createSentMessagesUseCase({
+        now: () => new Date(),
+        sources: createDrizzleSentMessagesSources(database),
       }),
       operations: {
         getSummary: (input) => operations.getSummary(input),

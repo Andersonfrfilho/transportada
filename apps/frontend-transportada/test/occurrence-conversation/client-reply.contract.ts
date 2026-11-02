@@ -169,7 +169,7 @@ describe('o campo de resposta na tela', () => {
     )
     expect(composer).toContain('ConversationThread')
     expect(composer).toContain('evolution.ready === false')
-    expect(composer).toContain("t('client.reply.confirm'")
+    expect(composer).not.toContain("t('client.reply.confirm'")
     const api = await source('modules/occurrence-conversation/shared/clientThreadApi.service.ts')
     expect(api).toContain('replyTargetId: target.id')
     expect(api).toContain('confirmNumber: true')

@@ -638,14 +638,9 @@ describe('o painel responde ao cliente (spec 283 T5)', () => {
           replyTargetId: target?.id ?? '',
         }
 
-        await expect(useCase.send(input)).rejects.toMatchObject({
-          code: 'OCCURRENCE_CLIENT_REPLY_CONFIRMATION_REQUIRED',
-        })
-        expect(sent).toEqual([])
-
-        const result = await useCase.send({ ...input, confirmNumber: true })
+        const result = await useCase.send(input)
         expect(result).toMatchObject({ replayed: false, status: 'sent' })
-        expect(await useCase.send({ ...input, confirmNumber: true })).toEqual({
+        expect(await useCase.send(input)).toEqual({
           ...result,
           replayed: true,
         })

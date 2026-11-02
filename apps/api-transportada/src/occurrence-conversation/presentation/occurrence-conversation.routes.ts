@@ -160,7 +160,7 @@ const portalMessageSchema = z
 
 /**
  * Spec 283 T5 (D6): ao cliente pelo WhatsApp do número escolhido em "Responder por". O número nunca vem no corpo:
- * só o `replyTargetId` da faixa. `confirmNumber` é obrigatório no primeiro envio do painel ao número (409 sem ele).
+ * só o `replyTargetId` da faixa. `confirmNumber` é aceito e ignorado: o envio não pede confirmação.
  */
 const clientWhatsAppMessageSchema = z
   .object({
