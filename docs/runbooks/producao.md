@@ -107,6 +107,8 @@ Regras que já custaram tempo:
 | `cadastro-motorista/producao-usuarios-sem-keycloak.sh`      | confronta cada usuário do banco com o Keycloak (existe/habilitado)                                                                                                                                                                                                                             | leitura                         |
 | `notas/producao-faixa-notas.sh [de] [ate]`                  | notas existentes/faltando numa faixa e itens de importação sem nota (padrão 914060–918210)                                                                                                                                                                                                     | leitura                         |
 | `certificado/producao-certificado-validade.sh`              | validade dos certificados A1, execuções com `certificate_expired` e auditoria                                                                                                                                                                                                                  | leitura                         |
+| `ops/producao-devolucao-notas.sh`                           | vínculos, status da viagem e eventos de uma lista de NFs (03/11/2026)                                                                                                                                                                                                                          | leitura                         |
+| `ops/producao-soltar-notas-devolvidas.sh [--confirm]`       | solta (`released_at`) NFs devolvidas pelo escritório para entrarem em outra viagem; sem `--confirm` só simula                                                                                                                                                                                  | escrita                         |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
 
@@ -551,6 +553,16 @@ caminho de diagnóstico quando o refresh de domingo cai.
 database` = o usuário do Postgres de staging não tem `CREATEDB`; `staging_refresh_scrub_*_missing` =
   coluna de contato renomeada (ajustar o `prune-source.sql`); `add constraint` falhando = recorte
   deixou linha órfã (abrir a spec 291). Em todos, staging ainda está como estava antes do ciclo.
+
+## 5.10 NF devolvida pelo escritório continua presa na viagem (03/11/2026)
+
+Devolução feita pelo escritório (`field-return`) marcava a nota `returned` sem soltá-la (`released_at`
+vazio), então ela seguia "viva" na viagem antiga e não entrava em outra (índice
+`trip_documents_live_nfe_document_unique`). Caso: NFs 920141, 920142, 920144 e 920145, devolvidas "ausente"
+em 30/10 e viagem `completed`. Diagnóstico: `producao-devolucao-notas.sh`; correção de dados:
+`producao-soltar-notas-devolvidas.sh --confirm`. A devolução do escritório agora solta a nota por padrão.
+Executado em 03/11/2026 (8:37): 4 linhas atualizadas (`released_at`), as outras 5 NFs da lista nunca estiveram em viagem.
+Dica: o `railway ssh` precisa rodar de uma pasta ligada ao projeto (`cd` no repositório antes).
 
 ## 6. Erros que não devem se repetir
 

@@ -108,6 +108,8 @@ const officeReturnSchema = z
   .object({
     driverId: z.uuid().optional(),
     reason: z.enum(DRIVER_RETURN_REASONS),
+    /** Padrão `true`: a devolução do escritório solta a nota da viagem para ela poder seguir em outra. */
+    returnToWarehouse: z.boolean().optional(),
     /** ADR-0067 §3: ausente cai em "agora" — as mesmas travas valem, e "agora" sempre as cumpre. */
     returnedAt: deliveredAtSchema.optional(),
   })
@@ -117,6 +119,7 @@ const officeReturnSchema = z
 export async function parseOfficeFieldReturnRequest(request: Request): Promise<{
   readonly driverId: string | undefined
   readonly reason: (typeof DRIVER_RETURN_REASONS)[number]
+  readonly returnToWarehouse: boolean
   readonly returnedAt: Date | undefined
 }> {
   const body = await parseBody(officeReturnSchema, request)
@@ -124,6 +127,7 @@ export async function parseOfficeFieldReturnRequest(request: Request): Promise<{
   return {
     driverId: body.driverId,
     reason: body.reason,
+    returnToWarehouse: body.returnToWarehouse ?? true,
     returnedAt: body.returnedAt === undefined ? undefined : parseDeliveredAt(body.returnedAt),
   }
 }
