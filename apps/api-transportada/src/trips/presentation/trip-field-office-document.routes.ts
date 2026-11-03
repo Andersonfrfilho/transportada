@@ -78,6 +78,7 @@ export type TripFieldOfficeDocumentDependencies = {
   readonly reportReturn: (
     input: OfficeDocumentInput & {
       readonly reason: DriverReturnReason
+      readonly returnToWarehouse?: boolean
       readonly returnedAt: Date
     },
   ) => Promise<ReportDocumentOutcomeResult>
@@ -208,7 +209,11 @@ function createReturnRoute(
   dependencies: TripFieldOfficeDocumentDependencies,
 ): ReturnType<typeof defineRoute> {
   return defineRoute<
-    OfficeDocumentRequest & { readonly reason: DriverReturnReason; readonly returnedAt: Date }
+    OfficeDocumentRequest & {
+      readonly reason: DriverReturnReason
+      readonly returnToWarehouse: boolean
+      readonly returnedAt: Date
+    }
   >({
     async handle({ context, input }): Promise<Response> {
       const result = await dependencies.reportReturn({
@@ -220,6 +225,8 @@ function createReturnRoute(
           targets: dependencies.targets,
         })),
         reason: input.reason,
+        // Devolução do escritório é retorno físico: solta a nota para outra viagem (spec 260 NC1).
+        returnToWarehouse: input.returnToWarehouse,
         returnedAt: input.returnedAt,
       })
 
@@ -237,6 +244,7 @@ function createReturnRoute(
           resolveClientIp: dependencies.resolveClientIp,
         }),
         reason: body.reason,
+        returnToWarehouse: body.returnToWarehouse,
         returnedAt: body.returnedAt ?? new Date(),
       }
     },
