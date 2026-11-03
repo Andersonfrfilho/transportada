@@ -561,6 +561,7 @@ vazio), então ela seguia "viva" na viagem antiga e não entrava em outra (índi
 `trip_documents_live_nfe_document_unique`). Caso: NFs 920141, 920142, 920144 e 920145, devolvidas "ausente"
 em 30/10 e viagem `completed`. Diagnóstico: `producao-devolucao-notas.sh`; correção de dados:
 `producao-soltar-notas-devolvidas.sh --confirm`. A devolução do escritório agora solta a nota por padrão.
+Executado em 03/11/2026 (8:37): 4 linhas atualizadas (`released_at`), as outras 5 NFs da lista nunca estiveram em viagem.
 Dica: o `railway ssh` precisa rodar de uma pasta ligada ao projeto (`cd` no repositório antes).
 
 ## 6. Erros que não devem se repetir
