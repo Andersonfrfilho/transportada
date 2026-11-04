@@ -123,3 +123,43 @@ describe('spec 292 T7: pedir boleto de novo no grupo', () => {
     expect(resends).toHaveLength(1)
   })
 })
+
+describe('spec 292 T7: o diálogo do pedido fica no estado até ir à conversa', () => {
+  test('acrescenta a mensagem do membro e as respostas do bot, com teto de linhas', async () => {
+    const { withTranscript, GROUP_REQUEST_TRANSCRIPT_LIMIT } = await import(
+      '../../src/whatsapp/application/whatsapp-group-request.service.js'
+    )
+    const at = new Date('2026-11-04T15:32:00.000Z')
+    const first = withTranscript(
+      { step: 'x' },
+      {},
+      {
+        at,
+        message: { sender: '5516991225783', senderName: 'Andrew', text: '' },
+        replies: ['Qual nota?'],
+      },
+    )
+    expect(first).toEqual({
+      step: 'x',
+      transcript: [
+        {
+          at: at.toISOString(),
+          from: 'member',
+          name: 'Andrew',
+          number: '5516991225783',
+          text: '@bot',
+        },
+        { at: at.toISOString(), from: 'bot', text: 'Qual nota?' },
+      ],
+    })
+    let state: Readonly<Record<string, unknown>> = first
+    for (let index = 0; index < GROUP_REQUEST_TRANSCRIPT_LIMIT; index += 1) {
+      state = withTranscript(state, state, {
+        at,
+        message: { sender: '1', senderName: null, text: 'oi' },
+        replies: [],
+      })
+    }
+    expect((state.transcript as unknown[]).length).toBe(GROUP_REQUEST_TRANSCRIPT_LIMIT)
+  })
+})
