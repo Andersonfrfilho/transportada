@@ -126,6 +126,10 @@ export const GROUP_OCCURRENCE_TEXT = {
       '',
       'Sem o contato agora? Responda _continuar_ e o boleto volta aqui pelo grupo.',
     ].join('\n'),
+  askContactAgain: (known: boolean) =>
+    known
+      ? 'Responda *1* para usar o contato cadastrado, ou _continuar_ para o boleto voltar pelo grupo.'
+      : 'Se não tiver agora, responda _continuar_ e o boleto volta pelo grupo.',
   askContactKnown: (contacts: readonly GroupClientContact[]) =>
     [
       '📇 O cliente já tem contato cadastrado:',
@@ -189,7 +193,7 @@ function describeChannels(channels: readonly GroupClientContactChannel[]): strin
 }
 
 const REASON = {
-  contact: 'não entendi o contato: digite um telefone com DDD, um e-mail ou "continuar"',
+  contact: 'preciso de um telefone com DDD ou de um e-mail',
   collect: 'mande o que foi pedido, ou responda "pular" se o item não for obrigatório',
   confirm: 'responda 1 para sim ou 2 para não',
   document: 'não achei essa nota na viagem do motorista',
@@ -258,7 +262,6 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     }
     const type = typeHint === '' ? undefined : findTypeByName(types, typeHint)
     if (type !== undefined) return afterType(turn, next, type)
-    if (types.length === 1 && types[0] !== undefined) return afterType(turn, next, types[0])
     return continueWith(GROUP_OCCURRENCE_STEP.type, next, [GROUP_OCCURRENCE_TEXT.askType(types)])
   }
 
@@ -325,10 +328,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     if (channel === null || !channels.includes(channel) || ports.addClientContact === undefined) {
       return {
         kind: 'not_understood',
-        prompt:
-          known.length > 0
-            ? GROUP_OCCURRENCE_TEXT.askContactKnown(known)
-            : GROUP_OCCURRENCE_TEXT.askContact(channels),
+        prompt: GROUP_OCCURRENCE_TEXT.askContactAgain(known.length > 0),
         reason: REASON.contact,
       }
     }
@@ -342,10 +342,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     if (added.kind === 'refused') {
       return {
         kind: 'not_understood',
-        prompt:
-          known.length > 0
-            ? GROUP_OCCURRENCE_TEXT.askContactKnown(known)
-            : GROUP_OCCURRENCE_TEXT.askContact(channels),
+        prompt: GROUP_OCCURRENCE_TEXT.askContactAgain(known.length > 0),
         reason: added.reason,
       }
     }
