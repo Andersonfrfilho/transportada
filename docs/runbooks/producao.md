@@ -562,6 +562,11 @@ vazio), então ela seguia "viva" na viagem antiga e não entrava em outra (índi
 em 30/10 e viagem `completed`. Diagnóstico: `producao-devolucao-notas.sh`; correção de dados:
 `producao-soltar-notas-devolvidas.sh --confirm`. A devolução do escritório agora solta a nota por padrão.
 Executado em 03/11/2026 (8:37): 4 linhas atualizadas (`released_at`), as outras 5 NFs da lista nunca estiveram em viagem.
+Em 04/11/2026 mais duas, da mesma viagem e devolvidas em 30/10: 920247 e 920143, soltas com
+`producao-nota-devolvida.sh <NF...> [--confirm]` (lê e, com `--confirm`, solta por número).
+`producao-soltar-todas-devolvidas.sh [--confirm]` lista toda nota `returned` presa em viagem
+`completed`/`cancelled`; 906991 e 918100 (`establishment_closed`, 09/10 e 29/10) também foram soltas a pedido do
+Anderson; depois disso não restou nota devolvida presa em viagem encerrada. O WhatsApp e o app do motorista (sem "voltou ao barracão") ainda não soltam.
 Dica: o `railway ssh` precisa rodar de uma pasta ligada ao projeto (`cd` no repositório antes).
 
 ## 6. Erros que não devem se repetir
