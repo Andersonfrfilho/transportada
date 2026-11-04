@@ -247,6 +247,7 @@ import {
   createDriverWhatsAppFlowActions,
   type DriverFlowActionDependencies,
 } from './whatsapp-commands/application/register-driver-flow-actions.js'
+import type { WhatsAppDriverEventPorts } from './whatsapp-commands/application/whatsapp-driver-events.service.js'
 import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
 import { createIssuanceWhatsAppFlowActions } from './whatsapp-commands/application/register-issuance-flow-actions.js'
 import { createPreviewDocumentSelectionUseCase } from './whatsapp-commands/application/preview-document-selection.use-case.js'
@@ -1325,12 +1326,51 @@ export function bootstrap(): Bun.Server<undefined> {
     })
     return occurrence
   }
+  /**
+   * Spec 293 T11: as funções do app que os eventos do motorista pelo WhatsApp chamam — as mesmas das
+   * rotas `/me`, com `channel: 'whatsapp'`. O grupo (Evolution) e a conversa individual (Meta) passam
+   * pela camada `whatsapp-driver-events.service.ts` sobre estas portas; nenhum caminho paralelo.
+   */
+  const whatsappDriverEventPorts = {
+    registerOccurrence: registerWhatsAppDriverOccurrence,
+    reportArrival: (input) =>
+      reportStopArrival({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
+    reportDelivery: (input) =>
+      reportDocumentDelivery({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        resolveProofSettings: (settings) =>
+          whatsappDeliveryProofRepository.resolveProofFieldSettings(settings),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
+    reportDeparture: (input) =>
+      reportStopDeparture({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
+    reportReturn: (input) =>
+      reportDocumentReturn({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
+  } satisfies WhatsAppDriverEventPorts
   /** Spec 292 T5: o pedido no grupo do motorista registra pelo mesmo caminho do WhatsApp do motorista. */
   const whatsappGroupOccurrence = createGroupOccurrencePorts({
     database: database.db,
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
     logger,
-    registerOccurrence: registerWhatsAppDriverOccurrence,
+    registerOccurrence: whatsappDriverEventPorts.registerOccurrence,
+    speech: whatsappBotSpeech,
   })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     speech: whatsappBotSpeech,
@@ -1343,23 +1383,9 @@ export function bootstrap(): Bun.Server<undefined> {
         scores: whatsappDriverScoreRepository,
       }),
     listOccurrenceTypes: (input) => listOccurrenceTypesForNote(database.db, input),
-    registerOccurrence: registerWhatsAppDriverOccurrence,
-    reportDelivery: (input) =>
-      reportDocumentDelivery({
-        ...input,
-        channel: TRIP_FIELD_CHANNELS.whatsapp,
-        now: new Date(),
-        resolveProofSettings: (settings) =>
-          whatsappDeliveryProofRepository.resolveProofFieldSettings(settings),
-        unitOfWork: whatsappDriverFieldReports,
-      }),
-    reportReturn: (input) =>
-      reportDocumentReturn({
-        ...input,
-        channel: TRIP_FIELD_CHANNELS.whatsapp,
-        now: new Date(),
-        unitOfWork: whatsappDriverFieldReports,
-      }),
+    registerOccurrence: whatsappDriverEventPorts.registerOccurrence,
+    reportDelivery: whatsappDriverEventPorts.reportDelivery,
+    reportReturn: whatsappDriverEventPorts.reportReturn,
     resolveDriverId: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
   })
   /**

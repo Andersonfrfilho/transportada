@@ -8,29 +8,40 @@ import { fleetDrivers, userCompanyMemberships } from '../../database/database.sc
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
 import type { DriverTrip } from '../../trips/application/find-current-driver-trip.use-case.js'
 import type { TripOccurrence } from '../../trips/application/register-trip-occurrence.use-case.js'
-import {
-  TripDocumentNotReachableError,
-  TripStateTransitionNotAllowedError,
-} from '../../trips/domain/trip.error.js'
 import { listOccurrenceTypesForNote } from '../../trips/infrastructure/occurrence-types-for-note.query.js'
-import { describeOccurrenceRequirementRefusal } from '../../whatsapp-commands/application/driver-occurrence-refusal.service.js'
 import {
   type DriverFlowActionDependencies,
   isOfferedToDriver,
 } from '../../whatsapp-commands/application/register-driver-flow-actions.js'
 import {
-  DRIVER_FLOW_NODE,
-  DRIVER_TRANSITION_BLOCK_MESSAGES,
-} from '../../whatsapp-commands/domain/whatsapp-driver-flow.constant.js'
-import type { GroupOccurrenceFlowPorts } from '../application/whatsapp-group-occurrence-flow.service.js'
+  CATALOG_BOT_SPEECH,
+  renderBotSpeechLine,
+  type BotSpeechLine,
+  type WhatsAppBotSpeechPort,
+} from '../../whatsapp-commands/application/whatsapp-bot-speech.service.js'
+import {
+  describeWhatsAppDriverEventResult,
+  WHATSAPP_GROUP_EVENT_FAILED,
+} from '../../whatsapp-commands/application/whatsapp-driver-event-speech.service.js'
+import {
+  refuseWhatsAppDriverEvent,
+  registerWhatsAppDriverOccurrence,
+  WHATSAPP_DRIVER_EVENT,
+  type WhatsAppDriverEventResult,
+} from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
+import { BOT_SPEECH_DEFAULTS } from '../../whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
+import type {
+  GroupOccurrenceFlowPorts,
+  GroupOccurrenceRegistration,
+} from '../application/whatsapp-group-occurrence-flow.service.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
+/** Os padrões das falas de recusa do grupo (spec 293 T11: catálogo `group*` das falas do bot). */
 export const GROUP_OCCURRENCE_REFUSAL = {
-  documentGone: 'Essa nota não está mais disponível na viagem do motorista.',
-  failed: 'Não consegui registrar agora. Tente de novo em instantes ou registre pelo aplicativo.',
-  noAccess:
-    'O motorista deste grupo ainda não tem acesso ao aplicativo, e a ocorrência precisa ficar no nome dele. Cadastre o acesso ou registre pelo painel.',
+  documentGone: BOT_SPEECH_DEFAULTS.groupDocumentNotReachable,
+  failed: BOT_SPEECH_DEFAULTS.groupRegisterFailed,
+  noAccess: BOT_SPEECH_DEFAULTS.groupDriverWithoutAccess,
 } as const
 
 /**
@@ -49,8 +60,23 @@ export function createGroupOccurrencePorts(dependencies: {
   readonly registerOccurrence: (
     input: Parameters<DriverFlowActionDependencies['registerOccurrence']>[0],
   ) => Promise<TripOccurrence>
+  /** Spec 293 T11: as falas editáveis do grafo; sem isto, o padrão do código. */
+  readonly speech?: WhatsAppBotSpeechPort
 }): GroupOccurrenceFlowPorts {
   const terminal = new Set<string>(TRIP_TERMINAL_STATUSES)
+  const speech = dependencies.speech ?? CATALOG_BOT_SPEECH
+
+  async function refusedWith(
+    companyId: string,
+    line: BotSpeechLine,
+    retry: 'note' | 'type' | null,
+  ): Promise<GroupOccurrenceRegistration> {
+    return {
+      kind: 'refused',
+      message: await renderBotSpeechLine({ companyId, line, speech }),
+      retry,
+    }
+  }
 
   return {
     async listDriverDocuments({ companyId, driverId }) {
@@ -76,54 +102,52 @@ export function createGroupOccurrencePorts(dependencies: {
       return types.filter(isOfferedToDriver).map((type) => ({ id: type.id, name: type.name }))
     },
 
+    /**
+     * Spec 293 T11: pela camada comum dos eventos (a mesma do WhatsApp individual). A ocorrência fica
+     * no nome do motorista do grupo: sem conta ativa, recusa com a frase do grupo.
+     */
     async register(input) {
       const actorUserId = await findDriverUserId(dependencies.database, input)
+      let result: WhatsAppDriverEventResult
       if (actorUserId === null) {
-        return { kind: 'refused', message: GROUP_OCCURRENCE_REFUSAL.noAccess, retry: null }
-      }
-      try {
-        await dependencies.registerOccurrence({
-          actorUserId,
-          companyId: input.companyId,
-          documentId: input.documentId,
-          driverId: input.driverId,
-          idempotencyKey: input.idempotencyKey,
-          location: null,
-          note: input.note,
-          occurrenceTypeId: input.occurrenceTypeId,
-          productCode: '',
+        result = refuseWhatsAppDriverEvent(WHATSAPP_DRIVER_EVENT.occurrence, {
+          code: 'driver_without_access',
         })
-        return { kind: 'registered' }
-      } catch (error) {
-        const refusal = describeOccurrenceRequirementRefusal(error)
-        if (refusal !== undefined) {
-          return {
-            kind: 'refused',
-            message: refusal.message,
-            retry:
-              refusal.next === DRIVER_FLOW_NODE.notePrompt
-                ? 'note'
-                : refusal.next === DRIVER_FLOW_NODE.listOccurrenceTypes
-                  ? 'type'
-                  : null,
-          }
+      } else {
+        try {
+          result = await registerWhatsAppDriverOccurrence(dependencies, {
+            actorUserId,
+            companyId: input.companyId,
+            documentId: input.documentId,
+            driverId: input.driverId,
+            idempotencyKey: input.idempotencyKey,
+            location: null,
+            note: input.note,
+            occurrenceTypeId: input.occurrenceTypeId,
+          })
+        } catch (error) {
+          dependencies.logger?.warn('whatsapp_group_request.register_failed', {
+            companyId: input.companyId,
+            errorName: error instanceof Error ? error.name : typeof error,
+          })
+          return refusedWith(input.companyId, WHATSAPP_GROUP_EVENT_FAILED, null)
         }
-        if (error instanceof TripStateTransitionNotAllowedError) {
-          return {
-            kind: 'refused',
-            message: DRIVER_TRANSITION_BLOCK_MESSAGES[error.reason],
-            retry: null,
-          }
-        }
-        if (error instanceof TripDocumentNotReachableError) {
-          return { kind: 'refused', message: GROUP_OCCURRENCE_REFUSAL.documentGone, retry: null }
-        }
-        dependencies.logger?.warn('whatsapp_group_request.register_failed', {
-          companyId: input.companyId,
-          errorName: error instanceof Error ? error.name : typeof error,
-        })
-        return { kind: 'refused', message: GROUP_OCCURRENCE_REFUSAL.failed, retry: null }
       }
+      if (result.kind !== 'refused') return { kind: 'registered' }
+      const { refusal } = result
+      const retry =
+        refusal.code !== 'occurrence_requirement'
+          ? null
+          : refusal.field === 'note'
+            ? 'note'
+            : refusal.field === 'contractor_scope'
+              ? 'type'
+              : null
+      return refusedWith(
+        input.companyId,
+        describeWhatsAppDriverEventResult(result, { kind: 'group' }),
+        retry,
+      )
     },
   }
 }

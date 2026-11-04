@@ -94,3 +94,20 @@ export function createBotSayer(speech: WhatsAppBotSpeechPort) {
     })
   }
 }
+
+/**
+ * Spec 293 T11: a linha já decidida vira texto, para quem não fala pelo `say` (o grupo do motorista
+ * junta as respostas e as manda pela fila do Evolution).
+ */
+export async function renderBotSpeechLine(input: {
+  readonly companyId: string
+  readonly line: BotSpeechLine
+  readonly speech: WhatsAppBotSpeechPort
+}): Promise<string> {
+  if ('text' in input.line) return input.line.text
+  return input.speech.text({
+    companyId: input.companyId,
+    key: input.line.key,
+    ...(input.line.params === undefined ? {} : { params: input.line.params }),
+  })
+}

@@ -72,6 +72,27 @@ export const BOT_SPEECH_DEFAULTS = {
   returnRegistered: 'Devolução registrada. ↩️',
   driverDocumentNotReachable: 'Essa nota não está mais disponível na sua viagem.',
   tripUnavailable: 'Esta viagem não está mais disponível.',
+  /**
+   * Spec 293 T11: os eventos da entrega pela camada comum (`whatsapp-driver-events.service.ts`). As
+   * `group*` são a versão do grupo do motorista: só o número da nota, sem nome do cliente, endereço,
+   * documento nem valor (spec 292).
+   */
+  arrivalRegistered: 'Chegada registrada. 📍',
+  departureRegistered: 'Saída registrada. 🚚',
+  stopEnRoute:
+    'A parada {{sequence}} já está a caminho. Registre a chegada nela antes de sair para outra.',
+  stopNotReachable: 'Essa parada não está mais disponível na viagem.',
+  groupAlreadyRegistered: 'NF {{documentNumber}} já estava registrada.',
+  groupDeliveryRegistered: 'NF {{documentNumber}} entregue. ✅',
+  groupDeliveryStopCompleted: 'NF {{documentNumber}} entregue. Parada concluída. ✅',
+  groupDeliveryTripCompleted: 'NF {{documentNumber}} entregue. Viagem concluída. 🏁',
+  groupDocumentNotReachable: 'Essa nota não está mais disponível na viagem do motorista.',
+  groupDriverWithoutAccess:
+    'O motorista deste grupo ainda não tem acesso ao aplicativo, e o registro precisa ficar no nome dele. Cadastre o acesso ou registre pelo painel.',
+  groupOccurrenceRegistered: 'Ocorrência registrada na NF {{documentNumber}}. ⚠️',
+  groupRegisterFailed:
+    'Não consegui registrar agora. Tente de novo em instantes ou registre pelo aplicativo.',
+  groupReturnRegistered: 'NF {{documentNumber}} devolvida. ↩️',
 } as const
 
 export type BotSpeechKey = keyof typeof BOT_SPEECH_DEFAULTS
