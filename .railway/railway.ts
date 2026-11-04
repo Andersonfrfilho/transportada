@@ -238,6 +238,8 @@ export default defineRailway((ctx) => {
       WHATSAPP_PASSWORD_RESET_TEMPLATE: preserve(),
       /** Spec 292 T9: o token da rota interna que transcreve o áudio do bot (o mesmo da API) e `::` na rede IPv6. */
       BOT_AUDIO_TRANSCRIPTION_TOKEN: preserve(),
+      /** Spec 292 T9: o texto de contexto do whisper no áudio do bot (a grafia da marca). */
+      BOT_AUDIO_TRANSCRIPTION_PROMPT: preserve(),
       WORKER_HOSTNAME: preserve(),
       WORKER_PORT: preserve(),
       WORKER_PREFETCH: preserve(),

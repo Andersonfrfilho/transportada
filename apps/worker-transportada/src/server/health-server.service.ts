@@ -11,9 +11,29 @@ import {
   createBotAudioTranscriptionHandler,
 } from '../http/bot-audio-transcription-request-handler.service.js'
 import { createHealthRequestHandler } from '../http/health-request-handler.service.js'
-import type { WorkerEnvironment, WorkerLogger } from '../shared/worker.types.js'
+import type {
+  AudioTranscriptionEnvironment,
+  WorkerEnvironment,
+  WorkerLogger,
+} from '../shared/worker.types.js'
 
 const HEALTH_MAX_BODY_BYTES = 64 * 1024
+
+/** Spec 292 T9: o invólucro do whisper-cli com o texto de contexto, instalado na imagem do worker. */
+export const BOT_AUDIO_WHISPER_PROMPT_BINARY = '/usr/local/bin/whisper-cli-bot'
+
+/**
+ * O motor do áudio do bot: com `BOT_AUDIO_TRANSCRIPTION_PROMPT`, passa pelo invólucro, que chama o
+ * binário configurado com o prompt. A transcrição das conversas (áudio longo) segue sem ele.
+ */
+export function botAudioTranscriptionEnvironment(
+  environment: AudioTranscriptionEnvironment,
+  prompt: string | undefined,
+): AudioTranscriptionEnvironment {
+  return prompt === undefined
+    ? environment
+    : { ...environment, binaryPath: BOT_AUDIO_WHISPER_PROMPT_BINARY }
+}
 
 export function startHealthServer(params: {
   readonly config: WorkerEnvironment
@@ -56,7 +76,12 @@ function createBotAudio(params: {
     logger: params.logger,
     speechToText:
       params.speechToText ??
-      createWhisperLocalSpeechToText({ environment: config.audioTranscription }),
+      createWhisperLocalSpeechToText({
+        environment: botAudioTranscriptionEnvironment(
+          config.audioTranscription,
+          config.botAudioTranscriptionPrompt,
+        ),
+      }),
     token,
   })
 }

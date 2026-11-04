@@ -55,6 +55,9 @@ COPY --from=production-dependencies /app/apps/worker-transportada/node_modules a
 COPY --from=build /app/apps/worker-transportada/dist apps/worker-transportada/dist
 COPY apps/worker-transportada/package.json apps/worker-transportada/package.json
 COPY --from=whisper-build /usr/local/bin/whisper-cli /usr/local/bin/whisper-cli
+# Spec 292 T9: o whisper-cli do áudio do bot com o texto de contexto (BOT_AUDIO_TRANSCRIPTION_PROMPT).
+COPY apps/worker-transportada/bin/whisper-cli-bot.sh /usr/local/bin/whisper-cli-bot
+RUN chmod 0755 /usr/local/bin/whisper-cli-bot
 COPY --from=models /models/ggml-small-q5_1.bin /models/ggml-small-q5_1.bin
 
 USER transportada

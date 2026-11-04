@@ -4,6 +4,9 @@
  * Spec 292 T9: a rota interna que transcreve o áudio do bot do WhatsApp.
  */
 import { describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { SpeechToTextError } from '../src/conversation-audio-transcription/speech-to-text.error.js'
 import type { SpeechToText } from '../src/conversation-audio-transcription/speech-to-text.port.js'
@@ -11,6 +14,10 @@ import {
   BOT_AUDIO_TRANSCRIPTION_PATH,
   createBotAudioTranscriptionHandler,
 } from '../src/http/bot-audio-transcription-request-handler.service.js'
+import {
+  BOT_AUDIO_WHISPER_PROMPT_BINARY,
+  botAudioTranscriptionEnvironment,
+} from '../src/server/health-server.service.js'
 import type { WorkerLogger } from '../src/shared/worker.types.js'
 
 const TOKEN = 'x'.repeat(40)
@@ -121,5 +128,51 @@ describe('bot audio transcription route', () => {
     const responses = await Promise.all([1, 2, 3].map(() => handle(request(), server)))
     expect(responses.map((response) => response.status)).toEqual([200, 200, 200])
     expect(maxRunning).toBe(1)
+  })
+})
+
+describe('bot audio transcription prompt (whisper context)', () => {
+  const AUDIO_ENVIRONMENT = {
+    batchSize: 2,
+    binaryPath: 'whisper-cli',
+    language: 'pt',
+    maxDurationMilliseconds: 600_000,
+    modelPath: '/models/ggml-small-q5_1.bin',
+    recoveryWindowHours: 72,
+    threads: 2,
+    timeoutMilliseconds: 300_000,
+  }
+
+  test('with a prompt, only the bot route goes through the wrapper binary', () => {
+    expect(botAudioTranscriptionEnvironment(AUDIO_ENVIRONMENT, undefined)).toBe(AUDIO_ENVIRONMENT)
+    expect(botAudioTranscriptionEnvironment(AUDIO_ENVIRONMENT, 'Central Fernandes.')).toEqual({
+      ...AUDIO_ENVIRONMENT,
+      binaryPath: BOT_AUDIO_WHISPER_PROMPT_BINARY,
+    })
+  })
+
+  test('the wrapper appends the prompt (and a context that keeps it) to the real binary', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'whisper-bot-'))
+    const fake = join(directory, 'fake-whisper')
+    writeFileSync(fake, '#!/bin/sh\nfor a in "$@"; do printf "[%s]" "$a"; done\n', { mode: 0o755 })
+    const wrapper = join(import.meta.dir, '../bin/whisper-cli-bot.sh')
+    const run = async (prompt: string | undefined) => {
+      const child = Bun.spawn(['sh', wrapper, '--model', 'm', '--max-context', '0'], {
+        env: {
+          AUDIO_TRANSCRIPTION_BINARY_PATH: fake,
+          ...(prompt === undefined ? {} : { BOT_AUDIO_TRANSCRIPTION_PROMPT: prompt }),
+        },
+        stdout: 'pipe',
+      })
+      return new Response(child.stdout).text()
+    }
+    try {
+      expect(await run(undefined)).toBe('[--model][m][--max-context][0]')
+      expect(await run('Central Fernandes; nota "899877"')).toBe(
+        '[--model][m][--max-context][0][--max-context][96][--carry-initial-prompt][--prompt][Central Fernandes; nota "899877"]',
+      )
+    } finally {
+      rmSync(directory, { force: true, recursive: true })
+    }
   })
 })
