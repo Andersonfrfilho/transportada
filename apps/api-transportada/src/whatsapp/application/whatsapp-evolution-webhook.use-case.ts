@@ -269,6 +269,17 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
             media: groupMedia.get(event.externalMessageId) ?? null,
             senderLid: senderLids.get(event.externalMessageId) ?? null,
           })
+          // Por mensagem, para achar o porquê de um "3" marcado que não andou: só o desfecho e o formato,
+          // nunca o número de quem escreveu nem o texto.
+          logger.info('whatsapp_evolution.group_message', {
+            companyId,
+            correlationId,
+            hasMention: event.mentionedJids.length > 0,
+            hasText: event.text !== null,
+            isReply: event.replyToExternalMessageId !== null,
+            outcome,
+            providerMessageId: event.externalMessageId,
+          })
           if (outcome === 'admitted' || outcome === 'media') counts.group += 1
           else {
             counts.ignored += 1
