@@ -184,6 +184,16 @@ describe('grupo: saí e cheguei', () => {
     expect(await t.answer('ocorrência')).toEqual({ kind: 'done', replies: ['occ-start'] })
   })
 
+  test('menu: a frase inteira (texto ou áudio confirmado) vale como pedido direto', async () => {
+    const t = setup([])
+    await t.start('')
+    expect(await t.answer('ocorrência, prorrogação do boleto da nota 899877')).toEqual({
+      kind: 'done',
+      replies: ['occ-start'],
+    })
+    expect(t.occurrenceCalls).toEqual(['ocorrência, prorrogação do boleto da nota 899877'])
+  })
+
   test('o que não é comando segue para a ocorrência com o texto original', async () => {
     const t = setup([])
     await t.start('prorrogação do boleto 17234')

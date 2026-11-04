@@ -151,6 +151,8 @@ export default defineRailway((ctx) => {
       /** Spec 292 T9: a rota interna do worker que transcreve o áudio do bot; o token é referência ao do worker. */
       BOT_AUDIO_TRANSCRIPTION_TOKEN: preserve(),
       WORKER_INTERNAL_URL: preserve(),
+      /** Spec 292 T9: frase de chamada por áudio no grupo (ex.: "atendimento Fernandes"); vazia = desligada. */
+      WHATSAPP_BOT_WAKE_PHRASE: preserve(),
       /** Os dois segredos do APP da Meta: sem os dois a rota do webhook nem é registrada (fail-closed). */
       WHATSAPP_APP_SECRET: preserve(),
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: preserve(),

@@ -21,12 +21,18 @@ import {
   BOT_AUDIO_SPEECH,
   botAudioConfirmationText,
   createWhatsAppBotAudio,
+  joinSpokenNumbers,
 } from '../../src/whatsapp/application/whatsapp-bot-audio.service.js'
 import {
   createWorkerBotAudioTranscriber,
   readWorkerBotAudioTranscriberConfig,
 } from '../../src/whatsapp/infrastructure/worker-bot-audio-transcriber.gateway.js'
 import type { ApiLogger } from '../../src/shared/api.types.js'
+import {
+  matchWakePhrase,
+  parseWakePhrase,
+} from '../../src/whatsapp/domain/bot-wake-phrase.policy.js'
+import { downloadEvolutionMedia } from '../../src/whatsapp/infrastructure/evolution-media-download.gateway.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const DRIVER_ID = '00000000-0000-4000-8000-0000000000d1'
@@ -190,6 +196,53 @@ describe('áudio do bot: transcrição e confirmação', () => {
   })
 })
 
+describe('áudio do bot: download pelo Evolution', () => {
+  test('o Evolution ainda não gravou a mensagem: tenta de novo e baixa', async () => {
+    const waits: number[] = []
+    let calls = 0
+    const media = await downloadEvolutionMedia({
+      connection: async () => CONNECTION,
+      fetchMedia: async () => {
+        calls += 1
+        if (calls < 3) throw new Error('Message not found')
+        return AUDIO
+      },
+      providerMessageId: 'A1',
+      sleep: async (ms) => {
+        waits.push(ms)
+      },
+    })
+    expect(media).toEqual(AUDIO)
+    expect(waits).toEqual([1_000, 2_000])
+  })
+
+  test('desiste depois de 4 tentativas', async () => {
+    let calls = 0
+    await expect(
+      downloadEvolutionMedia({
+        connection: async () => CONNECTION,
+        fetchMedia: async () => {
+          calls += 1
+          throw new Error('Message not found')
+        },
+        providerMessageId: 'A1',
+        sleep: async () => undefined,
+      }),
+    ).rejects.toThrow()
+    expect(calls).toBe(4)
+  })
+})
+
+describe('áudio do bot: número falado', () => {
+  test('junta o separador de milhar que o whisper põe no número da nota', () => {
+    expect(joinSpokenNumbers('prorrogação do boleto da nota 899.877')).toBe(
+      'prorrogação do boleto da nota 899877',
+    )
+    expect(joinSpokenNumbers('nota 1 234 567 e 12 caixas')).toBe('nota 1234567 e 12 caixas')
+    expect(joinSpokenNumbers('nota 17234')).toBe('nota 17234')
+  })
+})
+
 describe('áudio do bot: transcritor do worker', () => {
   test('só existe com URL e token de 32+ caracteres', () => {
     expect(readWorkerBotAudioTranscriberConfig({})).toBeUndefined()
@@ -264,7 +317,9 @@ function groupMessage(overrides: Partial<EvolutionMessageEvent> = {}): Evolution
   }
 }
 
-function groupSetup(options: { openRequestOwner?: null | string } = {}) {
+function groupSetup(
+  options: { openRequestOwner?: null | string; transcript?: string; wakePhrase?: string } = {},
+) {
   const handled: AdmittedGroupMessage[] = []
   const replies: string[] = []
   const downloads: string[] = []
@@ -274,11 +329,14 @@ function groupSetup(options: { openRequestOwner?: null | string } = {}) {
   }
   const bot = createWhatsAppBotAudio<GroupAudioContext>({
     logger: logger(),
-    transcriber: { transcribe: async () => 'prorrogação de boleto nota 17234' },
+    transcriber: {
+      transcribe: async () => options.transcript ?? 'prorrogação de boleto nota 17234',
+    },
   })
   const inbound = createEvolutionGroupInbound({
     audio: {
       bot,
+      wakePhrase: parseWakePhrase(options.wakePhrase),
       download: async ({ providerMessageId }) => {
         downloads.push(providerMessageId)
         return AUDIO
@@ -389,5 +447,93 @@ describe('áudio do bot no grupo', () => {
     expect(
       readGroupAudio({ data: { key: { id: 'X' }, message: { conversation: 'oi' } } }).size,
     ).toBe(0)
+  })
+})
+
+describe('áudio do bot no grupo: frase de chamada', () => {
+  const PHRASE = parseWakePhrase('atendimento Fernandes')
+
+  test('casa com variações da transcrição e devolve o resto do pedido', () => {
+    expect(
+      matchWakePhrase(PHRASE, 'Atendimento Fernandes, prorrogação do boleto da nota 899877.'),
+    ).toBe('prorrogação do boleto da nota 899877')
+    expect(matchWakePhrase(PHRASE, 'Oi, atendimento da Fernandez, ocorrência nota 12')).toBe(
+      'Oi, ocorrência nota 12',
+    )
+    expect(matchWakePhrase(PHRASE, 'Atendimento Fernandes.')).toBe('')
+    expect(matchWakePhrase(PHRASE, 'fala Fernandes, chego em 10 minutos')).toBeNull()
+    expect(matchWakePhrase(PHRASE, 'atendimento ruim hoje')).toBeNull()
+    expect(matchWakePhrase(parseWakePhrase(''), 'atendimento Fernandes')).toBeNull()
+  })
+
+  test('áudio sem a frase é transcrito calado e descartado: nada responde, nada fica', async () => {
+    const { bot, downloads, handled, receive, replies } = groupSetup({
+      transcript: 'chego em dez minutos no cliente',
+      wakePhrase: 'atendimento Fernandes',
+    })
+    expect(await receive(groupMessage(), VOICE)).toBe('audio_listening')
+    await bot.idle()
+    expect(downloads).toEqual(['A1'])
+    expect(replies).toEqual([])
+    expect(handled).toEqual([])
+    expect(
+      bot.hasPending({ companyId: COMPANY_ID, conversation: `group:${GROUP}`, owner: DRIVER }),
+    ).toBe(false)
+  })
+
+  test('com a frase, pede confirmação do resto e o 1 abre o pedido como marcação', async () => {
+    const { bot, handled, receive, replies } = groupSetup({
+      transcript: 'Atendimento Fernandes, prorrogação do boleto da nota 899.877',
+      wakePhrase: 'atendimento Fernandes',
+    })
+    await receive(groupMessage(), VOICE)
+    await bot.idle()
+    expect(replies).toEqual([botAudioConfirmationText('prorrogação do boleto da nota 899877')])
+    expect(await receive(groupMessage({ externalMessageId: 'T1', text: '1' }))).toBe('admitted')
+    expect(handled[0]).toMatchObject({
+      text: 'prorrogação do boleto da nota 899877',
+      via: 'mention',
+    })
+  })
+
+  test('com a sessão aberta, o dono fala sem a frase e o áudio de outra pessoa nem é transcrito', async () => {
+    const { bot, downloads, receive, replies } = groupSetup({
+      openRequestOwner: DRIVER,
+      transcript: 'prorrogação do boleto da nota 899877',
+      wakePhrase: 'atendimento Fernandes',
+    })
+    expect(await receive(groupMessage(), VOICE)).toBe('audio')
+    await bot.idle()
+    expect(replies.at(-1)).toBe(botAudioConfirmationText('prorrogação do boleto da nota 899877'))
+    const before = replies.length
+    for (const quotedParticipant of [null, `${BOT}@s.whatsapp.net`]) {
+      expect(
+        await receive(groupMessage({ externalMessageId: 'S1', participant: SUPPORT }), {
+          ...VOICE,
+          quotedParticipant,
+        }),
+      ).toBe('not_addressed')
+    }
+    await bot.idle()
+    expect(downloads).toEqual(['A1'])
+    expect(replies).toHaveLength(before)
+  })
+
+  test('só a frase abre o menu, como o @bot sozinho', async () => {
+    const { bot, handled, receive } = groupSetup({
+      transcript: 'Atendimento Fernandes.',
+      wakePhrase: 'atendimento Fernandes',
+    })
+    await receive(groupMessage(), VOICE)
+    await bot.idle()
+    expect(handled[0]).toMatchObject({ text: '', via: 'mention' })
+  })
+
+  test('sem frase configurada ou áudio longo: nem transcreve', async () => {
+    const off = groupSetup()
+    expect(await off.receive(groupMessage(), VOICE)).toBe('not_addressed')
+    const long = groupSetup({ wakePhrase: 'atendimento Fernandes' })
+    expect(await long.receive(groupMessage(), { ...VOICE, seconds: 61 })).toBe('not_addressed')
+    expect([...off.downloads, ...long.downloads]).toEqual([])
   })
 })
