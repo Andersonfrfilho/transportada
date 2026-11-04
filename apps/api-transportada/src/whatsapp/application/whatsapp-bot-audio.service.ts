@@ -112,6 +112,26 @@ export type WhatsAppBotAudio<Context> = {
     readonly owner: string
   }): boolean
   receive(input: ReceiveBotAudioInput<Context>): Promise<void>
+  /**
+   * Spec 292 T9 (palavra de chamada): transcreve **calado** o áudio que ninguém endereçou ao bot e
+   * entrega o texto a `onText`, que decide se o chamaram. Falha, áudio mudo ou sem transcritor: nada
+   * acontece e nada é respondido. O texto não é guardado nem logado.
+   */
+  listen(input: {
+    readonly companyId: string
+    readonly download: () => Promise<{ readonly data: string; readonly mimeType: string }>
+    readonly mimeType: string
+    readonly onText: (text: string) => Promise<void>
+  }): void
+  /** Pede a confirmação de um texto já transcrito (o resto da frase depois da palavra de chamada). */
+  offer(input: {
+    readonly companyId: string
+    readonly context: Context
+    readonly conversation: string
+    readonly owner: string
+    readonly reply: (texts: readonly string[]) => Promise<void> | void
+    readonly text: string
+  }): Promise<void>
 }
 
 type Pending<Context> = {
@@ -202,7 +222,51 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
     await input.reply([botAudioConfirmationText(text)])
   }
 
+  function track(job: Promise<void>): void {
+    const tracked = job.finally(() => running.delete(tracked))
+    running.add(tracked)
+  }
+
   return {
+    listen(input) {
+      if (transcriber === undefined) return
+      track(
+        (async () => {
+          try {
+            const audio = await input.download()
+            const bytes = Uint8Array.from(Buffer.from(audio.data, 'base64'))
+            const mimeType =
+              audio.mimeType.split(';')[0]?.trim() || input.mimeType.split(';')[0]?.trim()
+            const text = joinSpokenNumbers(
+              (await transcriber.transcribe({ audio: bytes, mimeType: mimeType || 'audio/ogg' }))
+                .replace(/\s+/gu, ' ')
+                .trim(),
+            )
+            if (text === '' || /^\[.*\]$/u.test(text)) return
+            await input.onText(text)
+          } catch (error) {
+            logger.info('whatsapp_bot_audio.listen_failed', {
+              companyId: input.companyId,
+              errorName: error instanceof Error ? error.name : typeof error,
+            })
+          }
+        })(),
+      )
+    },
+    async offer({ companyId, context, conversation, owner, reply, text }) {
+      pending.set(keyOf(companyId, conversation), {
+        context,
+        expiresAt: clock() + PENDING_TTL_MS,
+        owner,
+        text,
+      })
+      logger.info('whatsapp_bot_audio.awaiting_confirmation', {
+        companyId,
+        characters: text.length,
+        wake: true,
+      })
+      await reply([botAudioConfirmationText(text)])
+    },
     answer({ companyId, conversation, owner, text }) {
       const key = keyOf(companyId, conversation)
       const entry = current(key, owner)

@@ -186,6 +186,14 @@ deploy no meio só faz a pessoa mandar de novo.
 - Logs (nunca texto, número nem grupo): API `whatsapp_bot_audio.awaiting_confirmation|download_failed|transcription_failed`;
   worker `bot_audio_transcription.completed|failed` (tamanho, duração e código).
 
+**Frase de chamada (sem `@`).** Com `WHATSAPP_BOT_WAKE_PHRASE` na `api` (ex.: `atendimento Fernandes`; é da
+instalação, nunca do código), um áudio de até 60 s no grupo que não é para o bot (sem pedido aberto e sem citar o
+bot) é transcrito **calado**. Sem a frase, é descartado: nada responde, o texto não é gravado nem logado (log só
+`whatsapp_bot_audio.listen_failed` em falha). Com a frase, o resto da fala vira o pedido: "Entendi assim: …" e
+1/2 como no `@bot`; só a frase abre o menu. A comparação tolera a transcrição (prefixo de 5 letras por palavra,
+"da/de/do" no meio: "atendimento da Fernandez" casa). O script `staging-frase-chamada-bot.sh` (pasta `tmp/ops/`)
+grava a variável na `api` de staging.
+
 Teste em staging: no grupo de teste, `@bot` por texto, depois um áudio "prorrogação de boleto da nota <número>";
 esperar o "Entendi assim", responder 1 e seguir o pedido. Repetir respondendo 2 (descarta) e com um áudio
 mudo (resposta de "não consegui entender").

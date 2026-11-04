@@ -190,6 +190,7 @@ import {
   type BotAudioTranscriberPort,
   createWhatsAppBotAudio,
 } from './whatsapp/application/whatsapp-bot-audio.service.js'
+import { parseWakePhrase } from './whatsapp/domain/bot-wake-phrase.policy.js'
 import { downloadEvolutionMedia } from './whatsapp/infrastructure/evolution-media-download.gateway.js'
 import {
   createWorkerBotAudioTranscriber,
@@ -2236,6 +2237,8 @@ function createEvolutionWebhook(input: {
               bot: groupAudio,
               download: downloadEvolutionMedia,
               reply: (reply) => groupReplies.send(reply),
+              // Spec 292 T9: a frase de chamada por voz da instalação ("atendimento Fernandes").
+              wakePhrase: parseWakePhrase(process.env.WHATSAPP_BOT_WAKE_PHRASE),
             },
           }),
       findGroupDriver: (lookup) => driverGroups.findDriverByGroup(lookup),

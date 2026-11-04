@@ -17,6 +17,7 @@
  */
 import type { EvolutionWebhookEvent } from '@adatechnology/evolution-whatsapp-provider'
 
+import { matchWakePhrase } from '../domain/bot-wake-phrase.policy.js'
 import { BOT_AUDIO_SPEECH } from './whatsapp-bot-audio.service.js'
 
 import {
@@ -29,6 +30,9 @@ import type {
   LazyEvolutionConnection,
 } from './evolution-group-identity.service.js'
 import type { WhatsAppBotAudio } from './whatsapp-bot-audio.service.js'
+
+/** Áudio não endereçado só é ouvido até 1 minuto: a chamada vem no começo, conversa longa é das pessoas. */
+const BOT_AUDIO_WAKE_MAX_SECONDS = 60
 
 export type EvolutionMessageEvent = Extract<EvolutionWebhookEvent, { type: 'message' }>
 
@@ -89,6 +93,11 @@ export type GroupAudioContext = {
 /** Spec 292 T9: o áudio do bot no grupo (transcrição e confirmação). Ausente, áudio é ignorado. */
 export type EvolutionGroupAudioPorts = {
   readonly bot: WhatsAppBotAudio<GroupAudioContext>
+  /**
+   * A frase de chamada por voz ("atendimento Fernandes"), já em palavras (`parseWakePhrase`). Vazia,
+   * o áudio que ninguém endereçou ao bot continua ignorado sem transcrever.
+   */
+  readonly wakePhrase?: readonly string[]
   download(input: {
     readonly connection: LazyEvolutionConnection
     readonly providerMessageId: string
@@ -134,6 +143,7 @@ export type EvolutionGroupInboundPorts = {
 export type EvolutionGroupInboundOutcome =
   | 'admitted'
   | 'audio'
+  | 'audio_listening'
   | 'media'
   | 'not_driver'
   | GroupMessageIgnoredReason
@@ -156,6 +166,66 @@ export function createEvolutionGroupInbound(
   dependencies: EvolutionGroupInboundPorts & { readonly identity: EvolutionGroupIdentity },
 ): EvolutionGroupInbound {
   const { identity } = dependencies
+
+  /**
+   * Spec 292 T9: áudio que ninguém endereçou ao bot. Com a frase de chamada configurada e até 1 minuto,
+   * é transcrito calado; sem a frase no texto, é descartado sem resposta e sem guardar nada. Com ela, o
+   * resto da frase vai para a confirmação (ou, vazio, abre o menu como o "@bot" sozinho).
+   */
+  function listenForWakePhrase(input: {
+    readonly audio: GroupAudio
+    readonly companyId: string
+    readonly connection: LazyEvolutionConnection
+    readonly driverId: string
+    readonly event: EvolutionMessageEvent
+    readonly groupJid: string
+    readonly ports: EvolutionGroupAudioPorts
+    readonly requestOwner: null | string
+    readonly sender: string
+  }): EvolutionGroupInboundOutcome {
+    const { audio, companyId, connection, event, groupJid, ports, sender } = input
+    const phrase = ports.wakePhrase ?? []
+    if (phrase.length === 0) return 'not_addressed'
+    if (audio.seconds !== null && audio.seconds > BOT_AUDIO_WAKE_MAX_SECONDS) return 'not_addressed'
+    ports.bot.listen({
+      companyId,
+      download: () => ports.download({ connection, providerMessageId: event.externalMessageId }),
+      mimeType: audio.mimeType,
+      onText: async (text) => {
+        const rest = matchWakePhrase(phrase, text)
+        if (rest === null) return
+        if (rest === '') {
+          const currentOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
+          await dependencies.handle({
+            companyId,
+            driverId: input.driverId,
+            groupJid,
+            providerMessageId: event.externalMessageId,
+            replyToProviderMessageId: event.replyToExternalMessageId,
+            requestOwner: currentOwner,
+            sender,
+            senderName: event.pushName,
+            text: '',
+            via: currentOwner === sender ? 'owner_reply' : 'mention',
+          })
+          return
+        }
+        await ports.bot.offer({
+          companyId,
+          context: {
+            driverId: input.driverId,
+            replyToProviderMessageId: event.replyToExternalMessageId,
+            senderName: event.pushName,
+          },
+          conversation: groupConversation(groupJid),
+          owner: sender,
+          reply: (texts) => ports.reply({ companyId, groupJid, texts }),
+          text: rest,
+        })
+      },
+    })
+    return 'audio_listening'
+  }
 
   async function receiveAudio(input: {
     readonly audio: GroupAudio
@@ -193,7 +263,9 @@ export function createEvolutionGroupInbound(
     }
     if (sender === '') return 'unknown_sender'
     const requestOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
-    if (requestOwner !== sender && !quotesBot) return 'not_addressed'
+    if (requestOwner !== sender && !quotesBot) {
+      return listenForWakePhrase({ ...input, requestOwner, sender })
+    }
     await ports.bot.receive({
       companyId,
       context: {
