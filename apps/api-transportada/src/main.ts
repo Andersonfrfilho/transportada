@@ -1454,7 +1454,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappGroupOccurrence = createGroupOccurrencePorts({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
     contacts: createDriverClientContactsUseCase({
-      repository: new DrizzleDriverClientContactRepository(database),
+      repository: new DrizzleDriverClientContactRepository(database.db),
     }),
     database: database.db,
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
