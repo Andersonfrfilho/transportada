@@ -181,21 +181,27 @@ describe('o motorista entrega pelo WhatsApp (spec 144 T015 AC7)', () => {
       expect(tripMenu?.body).toMatchObject({
         interactive: {
           action: {
-            buttons: [
-              { reply: { id: 'deliver' }, type: 'reply' },
-              { reply: { id: 'return' }, type: 'reply' },
-              { reply: { id: 'occurrence' }, type: 'reply' },
+            sections: [
+              {
+                rows: [
+                  { id: 'depart' },
+                  { id: 'arrive' },
+                  { id: 'deliver' },
+                  { id: 'return' },
+                  { id: 'occurrence' },
+                ],
+              },
             ],
           },
-          type: 'button',
+          type: 'list',
         },
       })
 
       await scenario.receive({
         from: world.phone,
         interactive: {
-          button_reply: { id: 'deliver', title: '📦 Entregar' },
-          type: 'button_reply',
+          list_reply: { id: 'deliver', title: '📦 Entregar' },
+          type: 'list_reply',
         },
         type: 'interactive',
       })
