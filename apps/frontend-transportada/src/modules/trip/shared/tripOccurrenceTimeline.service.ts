@@ -80,6 +80,8 @@ export type OccurrenceTimelineEvent =
   /** Spec 281 T9: uma tentativa de mandar o boleto ao cliente por WhatsApp; só status e motivo. */
   | (EventBase &
       Readonly<{ kind: 'contractor.client.whatsapp'; reason: null | string; status: string }>)
+  /** Spec 292 T7: o que o bot disse no grupo do WhatsApp do pedido; só o tipo do aviso. */
+  | (EventBase & Readonly<{ kind: 'group.boleto_return'; status: string }>)
   /** Spec 288: o boleto ao cliente por e-mail, inclusive o que ficou de fora (`skipped`) e o motivo. */
   | (EventBase &
       Readonly<{ kind: 'contractor.client.email'; reason: null | string; status: string }>)
@@ -286,6 +288,8 @@ export function describeOccurrenceTimelineEvent(
       return { key: `occurrenceTimeline.event.${clientWhatsappTitleKey(event)}`, values: {} }
     case 'contractor.client.email':
       return { key: `occurrenceTimeline.event.${clientEmailTitleKey(event)}`, values: {} }
+    case 'group.boleto_return':
+      return { key: `occurrenceTimeline.event.groupReturn.${event.status}`, values: {} }
   }
 }
 

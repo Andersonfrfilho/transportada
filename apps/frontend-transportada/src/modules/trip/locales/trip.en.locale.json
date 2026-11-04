@@ -2677,7 +2677,14 @@
       "clientEmailSent": "Boleto sent by e-mail",
       "clientEmailFailed": "Boleto sending by e-mail failed",
       "clientEmailSkipped": "Boleto not sent by e-mail",
-      "clientEmailPending": "Boleto sending by e-mail pending"
+      "clientEmailPending": "Boleto sending by e-mail pending",
+      "groupReturn": {
+        "posted_to_group": "Boleto posted to the WhatsApp group",
+        "sent_to_client": "Group told: boleto sent to the client",
+        "office": "Group told: boleto is with the office",
+        "overdue": "Group told: boleto overdue",
+        "failed": "Failed to reply in the WhatsApp group"
+      }
     },
     "detail": {
       "documentConfirmed": "Payment line and note number {{note}} found in the PDF.",
