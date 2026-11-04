@@ -31,6 +31,13 @@ import {
   WhatsAppEvolutionUnreachableError,
   WhatsAppEvolutionWebhookUrlMissingError,
 } from '../domain/whatsapp-evolution.error.js'
+import type { LazyEvolutionConnection } from './evolution-group-identity.service.js'
+import {
+  type EvolutionGroupInbound,
+  type EvolutionGroupInboundOutcome,
+  readGroupSenderLids,
+} from './evolution-group-inbound.service.js'
+import type { EvolutionConnectionRequest } from './whatsapp-evolution.port.js'
 import type { WhatsAppEvolutionSecretService } from './whatsapp-evolution-secret.service.js'
 import type {
   WhatsAppEvolutionWebhookGatewayPort,
@@ -84,6 +91,8 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
   readonly apiPublicUrl: string | undefined
   readonly apiKeySecrets: Pick<WhatsAppEvolutionSecretService, 'decrypt'>
   readonly gateway: WhatsAppEvolutionWebhookGatewayPort
+  /** Spec 292 T3: a mensagem de grupo (lista de permissão, marcação do bot, dono do pedido). */
+  readonly groupInbound: EvolutionGroupInbound
   readonly inbound: EvolutionConversationInbound
   readonly logger: ApiLogger
   readonly repository: WhatsAppEvolutionWebhookRepositoryPort
@@ -206,8 +215,26 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         return { outcome: 'ignored' }
       }
 
-      const counts = { conversation: 0, ignored: 0, statuses: 0, unassigned: 0 }
+      const counts = { conversation: 0, group: 0, ignored: 0, statuses: 0, unassigned: 0 }
+      const groupIgnored: Partial<
+        Record<Exclude<EvolutionGroupInboundOutcome, 'admitted'>, number>
+      > = {}
       let connectionState: 'close' | 'connecting' | 'open' | undefined
+      let senderLids: ReadonlyMap<string, string> | undefined
+      const connection = lazyConnection(async () => {
+        const registration = await repository.findRegistration({ companyId })
+        if (registration === null) throw new WhatsAppEvolutionNotConfiguredError()
+        const { apiKey } = await dependencies.apiKeySecrets.decrypt({
+          companyId,
+          envelope: registration.apiKeyEnvelope,
+          settingsId: registration.settingsId,
+        })
+        return {
+          apiKey,
+          baseUrl: registration.baseUrl,
+          instanceName: registration.instanceName,
+        }
+      })
       for (const event of parseEvolutionWebhook(payload)) {
         if (event.type === 'connection') {
           connectionState = event.state
@@ -230,8 +257,21 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
           })
           if (outcome === 'conversation' || outcome === 'unassigned') counts[outcome] += 1
           else counts.ignored += 1
+        } else if (event.type === 'message' && event.chat === 'group') {
+          senderLids ??= readGroupSenderLids(payload)
+          const outcome = await dependencies.groupInbound.receive({
+            companyId,
+            connection,
+            event,
+            senderLid: senderLids.get(event.externalMessageId) ?? null,
+          })
+          if (outcome === 'admitted') counts.group += 1
+          else {
+            counts.ignored += 1
+            groupIgnored[outcome] = (groupIgnored[outcome] ?? 0) + 1
+          }
         } else {
-          // A própria mensagem enviada pelo celular, grupo, status ou evento que não lemos.
+          // A própria mensagem enviada pelo celular, status ou evento que não lemos.
           counts.ignored += 1
         }
       }
@@ -240,7 +280,12 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         ...(connectionState === undefined ? {} : { connectionState }),
       })
 
-      logger.info(WHATSAPP_EVOLUTION_WEBHOOK_LOG.received, { companyId, correlationId, ...counts })
+      logger.info(WHATSAPP_EVOLUTION_WEBHOOK_LOG.received, {
+        companyId,
+        correlationId,
+        ...counts,
+        ...(Object.keys(groupIgnored).length === 0 ? {} : { groupIgnored }),
+      })
       return { outcome: 'accepted' }
     },
 
@@ -263,6 +308,15 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
 
 export function webhookUrl(apiPublicUrl: string, webhookId: string): string {
   return `${apiPublicUrl.replace(/\/+$/u, '')}${API_PUBLIC_WHATSAPP_EVOLUTION_WEBHOOK_PATH.replace(':webhookId', webhookId)}`
+}
+
+/** Abre a chave da instância uma vez por entrega, só se alguma mensagem de grupo precisar do Evolution. */
+function lazyConnection(open: () => Promise<EvolutionConnectionRequest>): LazyEvolutionConnection {
+  let pending: Promise<EvolutionConnectionRequest> | undefined
+  return () => {
+    pending ??= open()
+    return pending
+  }
 }
 
 /** Corpo que não é JSON vira `undefined`, e o leitor do SDK o devolve como evento ignorado. */

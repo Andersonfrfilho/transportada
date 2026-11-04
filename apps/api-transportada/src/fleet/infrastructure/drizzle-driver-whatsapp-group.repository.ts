@@ -50,6 +50,27 @@ export class DrizzleDriverWhatsappGroupRepository implements DriverWhatsappGroup
     return row === undefined ? null : { ...row, updatedAt: row.updatedAt.toISOString() }
   }
 
+  /**
+   * Spec 292 T3: a lista de permissão do webhook. O motorista dono do grupo nesta empresa, ou `null`;
+   * o mesmo `@g.us` em outra empresa não conta (a chave única é por empresa).
+   */
+  public async findDriverByGroup(input: {
+    readonly companyId: string
+    readonly groupJid: string
+  }): Promise<null | { readonly driverId: string }> {
+    const [row] = await this.database
+      .select({ driverId: fleetDriverWhatsappGroups.driverId })
+      .from(fleetDriverWhatsappGroups)
+      .where(
+        and(
+          eq(fleetDriverWhatsappGroups.companyId, input.companyId),
+          eq(fleetDriverWhatsappGroups.groupJid, input.groupJid),
+        ),
+      )
+      .limit(1)
+    return row ?? null
+  }
+
   public async listAssignments(input: {
     readonly companyId: string
   }): Promise<readonly DriverWhatsappGroupAssignment[]> {
