@@ -191,7 +191,8 @@ instalação, nunca do código), um áudio de até 60 s no grupo que não é par
 bot) é transcrito **calado**. Sem a frase, é descartado: nada responde, o texto não é gravado nem logado (log só
 `whatsapp_bot_audio.listen_failed` em falha). Com a frase, o resto da fala vira o pedido: "Entendi assim: …" e
 1/2 como no `@bot`; só a frase abre o menu. Com a sessão aberta, o bot ouve só o dono dela, sem a frase (inclusive o áudio
-mandado depois de escolher a opção no menu); áudio de outra pessoa nem é transcrito. A comparação tolera a transcrição (prefixo de 5 letras por palavra,
+mandado depois de escolher a opção no menu); áudio de outra pessoa nem é transcrito. Depois de um "2" (áudio descartado), quem respondeu pode reenviar
+em áudio ou texto sem a frase nem `@` por 5 minutos, uma vez (`BOT_AUDIO_RETRY_WINDOW_MS`). A comparação tolera a transcrição (prefixo de 5 letras por palavra,
 "da/de/do" no meio: "atendimento da Fernandez" casa). O script `staging-frase-chamada-bot.sh` (pasta `tmp/ops/`)
 grava a variável na `api` de staging.
 

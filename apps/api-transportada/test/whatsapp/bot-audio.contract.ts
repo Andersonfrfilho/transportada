@@ -11,6 +11,7 @@ import {
 } from '../../src/whatsapp/application/evolution-group-identity.service.js'
 import {
   type AdmittedGroupMessage,
+  BOT_AUDIO_RETRY_WINDOW_MS,
   createEvolutionGroupInbound,
   type EvolutionMessageEvent,
   type GroupAudio,
@@ -370,7 +371,12 @@ function groupMessage(overrides: Partial<EvolutionMessageEvent> = {}): Evolution
 }
 
 function groupSetup(
-  options: { openRequestOwner?: null | string; transcript?: string; wakePhrase?: string } = {},
+  options: {
+    now?: () => number
+    openRequestOwner?: null | string
+    transcript?: string
+    wakePhrase?: string
+  } = {},
 ) {
   const handled: AdmittedGroupMessage[] = []
   const replies: string[] = []
@@ -403,6 +409,7 @@ function groupSetup(
       handled.push(message)
     },
     identity: createEvolutionGroupIdentity({ gateway }),
+    ...(options.now === undefined ? {} : { now: options.now }),
   })
   const receive = (event: EvolutionMessageEvent, audio: GroupAudio | null = null) =>
     inbound.receive({
@@ -571,6 +578,42 @@ describe('áudio do bot no grupo: frase de chamada', () => {
     await bot.idle()
     expect(downloads).toEqual(['A1'])
     expect(replies).toHaveLength(before)
+  })
+
+  test('depois do "2", quem falou reenvia sem a frase (áudio ou texto) por 5 minutos; depois volta a exigir', async () => {
+    let clock = 0
+    const { bot, downloads, handled, receive, replies } = groupSetup({
+      now: () => clock,
+      transcript: 'Atendimento Fernandes, prorrogação da nota 899804',
+      wakePhrase: 'atendimento Fernandes',
+    })
+    await receive(groupMessage(), VOICE)
+    await bot.idle()
+    await receive(groupMessage({ externalMessageId: 'T1', text: '2' }))
+    expect(replies.at(-1)).toBe(BOT_AUDIO_SPEECH.discarded)
+
+    // Áudio de novo, sem a frase: ouvido com o "estou escutando" e a confirmação.
+    expect(await receive(groupMessage({ externalMessageId: 'A2' }), VOICE)).toBe('audio')
+    await bot.idle()
+    expect(downloads).toEqual(['A1', 'A2'])
+    expect(replies).toContain(BOT_AUDIO_SPEECH.received)
+    await receive(groupMessage({ externalMessageId: 'T2', text: '2' }))
+
+    // Por texto, sem marcar o bot: vale como marcação.
+    expect(
+      await receive(groupMessage({ externalMessageId: 'T3', text: 'prorrogação da nota 899877' })),
+    ).toBe('admitted')
+    expect(handled.at(-1)).toMatchObject({ text: 'prorrogação da nota 899877', via: 'mention' })
+
+    // A janela vale uma vez e expira: depois de 5 minutos o áudio sem a frase volta a ser calado.
+    await receive(groupMessage({ externalMessageId: 'A3' }), VOICE)
+    await bot.idle()
+    await receive(groupMessage({ externalMessageId: 'T4', text: '2' }))
+    clock += BOT_AUDIO_RETRY_WINDOW_MS + 1
+    expect(await receive(groupMessage({ externalMessageId: 'A4' }), VOICE)).toBe('audio_listening')
+    expect(await receive(groupMessage({ externalMessageId: 'T5', text: 'oi' }))).toBe(
+      'not_addressed',
+    )
   })
 
   test('só a frase abre o menu, como o @bot sozinho', async () => {
