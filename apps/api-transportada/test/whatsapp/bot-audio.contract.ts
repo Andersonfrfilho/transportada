@@ -32,7 +32,10 @@ import {
   matchWakePhrase,
   parseWakePhrase,
 } from '../../src/whatsapp/domain/bot-wake-phrase.policy.js'
-import { downloadEvolutionMedia } from '../../src/whatsapp/infrastructure/evolution-media-download.gateway.js'
+import {
+  downloadEvolutionMedia,
+  fetchMediaFromMessage,
+} from '../../src/whatsapp/infrastructure/evolution-media-download.gateway.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const DRIVER_ID = '00000000-0000-4000-8000-0000000000d1'
@@ -214,6 +217,55 @@ describe('áudio do bot: download pelo Evolution', () => {
     })
     expect(media).toEqual(AUDIO)
     expect(waits).toEqual([1_000, 2_000])
+  })
+
+  test('com a mensagem do webhook, pede a mídia com ela inteira e não procura pelo id', async () => {
+    const sent: unknown[] = []
+    const media = await downloadEvolutionMedia({
+      connection: async () => CONNECTION,
+      fetchMedia: async () => {
+        throw new Error('não devia pedir pelo id')
+      },
+      fetchRawMedia: async (message) => {
+        sent.push(message)
+        return AUDIO
+      },
+      providerMessageId: 'A1',
+      rawMessage: { key: { id: 'A1' }, message: { audioMessage: { mediaKey: 'k' } } },
+    })
+    expect(media).toEqual(AUDIO)
+    expect(sent).toEqual([{ key: { id: 'A1' }, message: { audioMessage: { mediaKey: 'k' } } }])
+  })
+
+  test('a mensagem inteira falhou: cai no pedido por id', async () => {
+    const media = await downloadEvolutionMedia({
+      connection: async () => CONNECTION,
+      fetchMedia: async () => AUDIO,
+      fetchRawMedia: async () => {
+        throw new Error('boom')
+      },
+      providerMessageId: 'A1',
+      rawMessage: { key: { id: 'A1' }, message: {} },
+    })
+    expect(media).toEqual(AUDIO)
+  })
+
+  test('o pedido com a mensagem vai ao Evolution com a chave e o corpo certos', async () => {
+    const calls: { body: unknown; headers: unknown; url: string }[] = []
+    const media = await fetchMediaFromMessage(
+      CONNECTION,
+      { key: { id: 'A1' }, message: { audioMessage: {} } },
+      (async (url: string, init: RequestInit) => {
+        calls.push({ body: JSON.parse(String(init.body)), headers: init.headers, url })
+        return Response.json({ base64: 'b64', mimetype: 'audio/ogg' })
+      }) as unknown as typeof fetch,
+    )
+    expect(media).toEqual({ data: 'b64', mimeType: 'audio/ogg' })
+    expect(calls[0]?.url).toBe('https://evolution.exemplo.com/chat/getBase64FromMediaMessage/x')
+    expect(calls[0]?.body).toEqual({
+      message: { key: { id: 'A1' }, message: { audioMessage: {} } },
+    })
+    expect(calls[0]?.headers).toMatchObject({ apikey: 'chave' })
   })
 
   test('desiste depois de 4 tentativas', async () => {
@@ -439,11 +491,13 @@ describe('áudio do bot no grupo', () => {
         },
       },
     })
-    expect(audio.get('A1')).toEqual({
+    expect(audio.get('A1')).toMatchObject({
       mimeType: 'audio/ogg; codecs=opus',
       quotedParticipant: `${BOT}@s.whatsapp.net`,
       seconds: 12,
     })
+    // A mensagem inteira vai junto: o Evolution baixa sem procurar no banco dele.
+    expect(audio.get('A1')?.rawMessage?.key).toEqual({ id: 'A1' })
     expect(
       readGroupAudio({ data: { key: { id: 'X' }, message: { conversation: 'oi' } } }).size,
     ).toBe(0)
