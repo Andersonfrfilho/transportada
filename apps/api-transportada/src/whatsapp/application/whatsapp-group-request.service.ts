@@ -112,6 +112,12 @@ export type WhatsAppGroupRequestSessions = {
   }): Promise<null | string>
   /** A porta `handle` da T3. */
   handle(message: AdmittedGroupMessage): Promise<void>
+  /** O dono compartilhou a localização com um pedido esperando por ela: avança o pedido. */
+  handleLocation(input: {
+    readonly companyId: string
+    readonly groupJid: string
+    readonly sender: string
+  }): Promise<boolean>
 }
 
 export function isCancelText(text: string): boolean {
@@ -133,7 +139,10 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
 }): WhatsAppGroupRequestSessions {
   const { flow, logger, replies, repository } = dependencies
 
-  const say = (message: AdmittedGroupMessage, texts: readonly string[]) => {
+  const say = (
+    message: Pick<AdmittedGroupMessage, 'companyId' | 'groupJid'>,
+    texts: readonly string[],
+  ) => {
     if (texts.length > 0) {
       replies.send({ companyId: message.companyId, groupJid: message.groupJid, texts })
     }
@@ -148,7 +157,10 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
 
   /** Aplica o que o fluxo devolveu: anda, conclui ou conta a tentativa. */
   async function apply(
-    message: AdmittedGroupMessage,
+    message: Pick<
+      AdmittedGroupMessage,
+      'companyId' | 'groupJid' | 'sender' | 'senderName' | 'text'
+    >,
     request: GroupRequest,
     outcome: GroupFlowOutcome,
   ): Promise<void> {
@@ -207,6 +219,26 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
     async findOpenOwner({ companyId, groupJid }) {
       const open = await repository.findOpen({ companyId, groupJid, now: dependencies.clock() })
       return open?.ownerNumber ?? null
+    },
+
+    async handleLocation({ companyId, groupJid, sender }) {
+      const open = await repository.findOpen({ companyId, groupJid, now: dependencies.clock() })
+      if (open === null || open.ownerNumber !== sender || flow.locationReceived === undefined) {
+        return false
+      }
+      const outcome = flow.locationReceived({
+        request: open,
+        sender,
+        senderName: null,
+        text: '',
+      })
+      if (outcome === null) return false
+      await apply(
+        { companyId, groupJid, sender, senderName: null, text: '📍 (localização)' },
+        open,
+        outcome,
+      )
+      return true
     },
 
     async handle(message) {

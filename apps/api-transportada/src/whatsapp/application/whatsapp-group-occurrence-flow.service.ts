@@ -154,7 +154,7 @@ export const GROUP_OCCURRENCE_TEXT = {
   ].join('\n'),
   askLocation: [
     '📍 Quer enviar a sua localização? (é opcional)',
-    'Compartilhe pelo clipe ➜ *Localização* e responda _enviei_, ou responda _pular_.',
+    'Compartilhe pelo clipe ➜ *Localização*, ou responda _pular_.',
   ].join('\n'),
   askType: (types: readonly GroupOccurrenceType[]) =>
     [
@@ -473,14 +473,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
               reason: REASON.location,
             }
           }
-          return continueWith(GROUP_OCCURRENCE_STEP.confirm, state, [
-            GROUP_OCCURRENCE_TEXT.confirm(
-              state.typeName ?? '',
-              state.documentNumber ?? '',
-              state.note ?? '',
-              state.contactMasked ?? '',
-            ),
-          ])
+          return confirmOutcome(state)
         }
         case GROUP_OCCURRENCE_STEP.confirm: {
           const answer = normalize(text)
@@ -503,7 +496,22 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     }
   }
 
+  const confirmOutcome = (state: FlowState): GroupFlowOutcome =>
+    continueWith(GROUP_OCCURRENCE_STEP.confirm, state, [
+      GROUP_OCCURRENCE_TEXT.confirm(
+        state.typeName ?? '',
+        state.documentNumber ?? '',
+        state.note ?? '',
+        state.contactMasked ?? '',
+      ),
+    ])
+
   return {
+    locationReceived(turn) {
+      if (turn.request.step !== GROUP_OCCURRENCE_STEP.location) return null
+      return confirmOutcome(turn.request.state as FlowState)
+    },
+
     async answer(turn) {
       const outcome = await answerStep(turn)
       // Quando outra pessoa responde pelo dono (marcando o bot), o grupo vê quem respondeu e o quê.
