@@ -17,6 +17,8 @@
  */
 import type { EvolutionWebhookEvent } from '@adatechnology/evolution-whatsapp-provider'
 
+import { BOT_AUDIO_SPEECH } from './whatsapp-bot-audio.service.js'
+
 import {
   decideGroupMessage,
   type GroupMessageIgnoredReason,
@@ -26,6 +28,7 @@ import type {
   EvolutionGroupIdentity,
   LazyEvolutionConnection,
 } from './evolution-group-identity.service.js'
+import type { WhatsAppBotAudio } from './whatsapp-bot-audio.service.js'
 
 export type EvolutionMessageEvent = Extract<EvolutionWebhookEvent, { type: 'message' }>
 
@@ -68,7 +71,41 @@ export type AdmittedGroupMedia = {
   readonly timestamp: null | number
 }
 
+/** Spec 292 T9: o áudio de voz que chegou ao grupo, lido do corpo cru (o SDK 0.3.0 só lê texto). */
+export type GroupAudio = {
+  readonly mimeType: string
+  /** Quem escreveu a mensagem citada pelo áudio (jid cru), ou `null` sem citação. */
+  readonly quotedParticipant: null | string
+  readonly seconds: null | number
+}
+
+/** O que o fluxo do grupo precisa para seguir quando quem mandou o áudio confirmar o texto. */
+export type GroupAudioContext = {
+  readonly driverId: string
+  readonly replyToProviderMessageId: null | string
+  readonly senderName: null | string
+}
+
+/** Spec 292 T9: o áudio do bot no grupo (transcrição e confirmação). Ausente, áudio é ignorado. */
+export type EvolutionGroupAudioPorts = {
+  readonly bot: WhatsAppBotAudio<GroupAudioContext>
+  download(input: {
+    readonly connection: LazyEvolutionConnection
+    readonly providerMessageId: string
+  }): Promise<{ readonly data: string; readonly mimeType: string }>
+  reply(input: {
+    readonly companyId: string
+    readonly groupJid: string
+    readonly texts: readonly string[]
+  }): void
+}
+
 export type EvolutionGroupInboundPorts = {
+  /**
+   * Spec 292 T9: o áudio de quem tem o pedido aberto no grupo (o bot está esperando a resposta dele)
+   * ou que responde (cita) uma mensagem do bot. Áudio entre as pessoas do grupo continua ignorado.
+   */
+  readonly audio?: EvolutionGroupAudioPorts
   /** O motorista cujo grupo é este, na empresa do webhook; `null` fora da lista de permissão. */
   findGroupDriver(input: {
     readonly companyId: string
@@ -96,12 +133,15 @@ export type EvolutionGroupInboundPorts = {
 
 export type EvolutionGroupInboundOutcome =
   | 'admitted'
+  | 'audio'
   | 'media'
   | 'not_driver'
   | GroupMessageIgnoredReason
 
 export type EvolutionGroupInbound = {
   receive(input: {
+    /** Spec 292 T9: o áudio de voz da mensagem, lido do corpo cru; `null` sem áudio. */
+    readonly audio?: GroupAudio | null
     readonly companyId: string
     readonly connection: LazyEvolutionConnection
     readonly event: EvolutionMessageEvent
@@ -117,13 +157,80 @@ export function createEvolutionGroupInbound(
 ): EvolutionGroupInbound {
   const { identity } = dependencies
 
+  async function receiveAudio(input: {
+    readonly audio: GroupAudio
+    readonly companyId: string
+    readonly connection: LazyEvolutionConnection
+    readonly driverId: string
+    readonly event: EvolutionMessageEvent
+    readonly groupJid: string
+    readonly ports: EvolutionGroupAudioPorts
+    readonly senderLid: null | string
+  }): Promise<EvolutionGroupInboundOutcome> {
+    const { audio, companyId, connection, event, groupJid, ports, senderLid } = input
+    let sender = event.participant
+    let quotesBot = false
+    try {
+      const botNumber = await identity.botNumber({ companyId, connection })
+      if (botNumber === null) return 'identity_unavailable'
+      const quoted = parseJid(audio.quotedParticipant)
+      const lids = [
+        ...(sender === '' && senderLid !== null ? [senderLid] : []),
+        ...(quoted?.server === 'lid' ? [quoted.digits] : []),
+      ]
+      const directory =
+        lids.length === 0
+          ? new Map<string, string>()
+          : await identity.lidDirectory({ companyId, connection, groupJid, lids })
+      if (sender === '' && senderLid !== null) sender = directory.get(senderLid) ?? ''
+      if (quoted !== null) {
+        const author = quoted.server === 'lid' ? directory.get(quoted.digits) : quoted.digits
+        quotesBot = author === botNumber
+      }
+      if (sender !== '' && sender === botNumber) return 'own_number'
+    } catch {
+      return 'identity_unavailable'
+    }
+    if (sender === '') return 'unknown_sender'
+    const requestOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
+    if (requestOwner !== sender && !quotesBot) return 'not_addressed'
+    await ports.bot.receive({
+      companyId,
+      context: {
+        driverId: input.driverId,
+        replyToProviderMessageId: event.replyToExternalMessageId,
+        senderName: event.pushName,
+      },
+      conversation: groupConversation(groupJid),
+      download: () => ports.download({ connection, providerMessageId: event.externalMessageId }),
+      mimeType: audio.mimeType,
+      owner: sender,
+      reply: (texts) => ports.reply({ companyId, groupJid, texts }),
+      seconds: audio.seconds,
+    })
+    return 'audio'
+  }
+
   return {
-    async receive({ companyId, connection, event, media = null, senderLid }) {
+    async receive({ audio = null, companyId, connection, event, media = null, senderLid }) {
       if (event.fromMe) return 'from_me'
       const groupJid = event.groupJid
       if (groupJid === null) return 'unknown_group'
       const owner = await dependencies.findGroupDriver({ companyId, groupJid })
       if (owner === null) return 'unknown_group'
+      if (audio !== null) {
+        if (dependencies.audio === undefined) return 'no_text'
+        return receiveAudio({
+          audio,
+          companyId,
+          connection,
+          driverId: owner.driverId,
+          event,
+          groupJid,
+          ports: dependencies.audio,
+          senderLid,
+        })
+      }
       const { handleMedia, isGroupDriver } = dependencies
       // Spec 293 T15: foto sem legenda e localização chegam sem texto; com legenda, a foto também é prova.
       if (media !== null && handleMedia !== undefined && isGroupDriver !== undefined) {
@@ -185,6 +292,42 @@ export function createEvolutionGroupInbound(
         return 'identity_unavailable'
       }
 
+      // Spec 292 T9: "1"/"2" de quem tem um áudio esperando confirmação vale antes de tudo.
+      const audioPorts = dependencies.audio
+      const conversation = groupConversation(groupJid)
+      if (
+        audioPorts !== undefined &&
+        sender !== '' &&
+        audioPorts.bot.hasPending({ companyId, conversation, owner: sender })
+      ) {
+        const answer = audioPorts.bot.answer({
+          companyId,
+          conversation,
+          owner: sender,
+          text: event.text.replace(/@\d+/gu, ' '),
+        })
+        if (answer.kind === 'discarded') {
+          audioPorts.reply({ companyId, groupJid, texts: [BOT_AUDIO_SPEECH.discarded] })
+          return 'admitted'
+        }
+        if (answer.kind === 'confirmed') {
+          const currentOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
+          await dependencies.handle({
+            companyId,
+            driverId: answer.context.driverId,
+            groupJid,
+            providerMessageId: event.externalMessageId,
+            replyToProviderMessageId: answer.context.replyToProviderMessageId,
+            requestOwner: currentOwner,
+            sender,
+            senderName: answer.context.senderName ?? event.pushName,
+            text: answer.text,
+            via: currentOwner === sender ? 'owner_reply' : 'mention',
+          })
+          return 'admitted'
+        }
+      }
+
       const requestOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
       const decision = decideGroupMessage({
         botLids,
@@ -213,6 +356,10 @@ export function createEvolutionGroupInbound(
       return 'admitted'
     },
   }
+}
+
+function groupConversation(groupJid: string): string {
+  return `group:${groupJid}`
 }
 
 function lidDigits(jids: readonly string[]): string[] {
@@ -248,6 +395,35 @@ export function readGroupSenderLids(payload: unknown): ReadonlyMap<string, strin
         break
       }
     }
+  }
+  return result
+}
+
+/**
+ * Spec 292 T9: o áudio de voz (`audioMessage`) de cada mensagem, por id, lido do corpo cru de
+ * `messages.upsert`, com os segundos e quem escreveu a mensagem citada (para saber se responde ao bot).
+ */
+export function readGroupAudio(payload: unknown): ReadonlyMap<string, GroupAudio> {
+  const result = new Map<string, GroupAudio>()
+  if (!isRecord(payload)) return result
+  const items: unknown[] = Array.isArray(payload.data) ? payload.data : [payload.data]
+  for (const item of items) {
+    if (!isRecord(item) || !isRecord(item.key) || !isRecord(item.message)) continue
+    const id = item.key.id
+    const audio = item.message.audioMessage
+    if (typeof id !== 'string' || !isRecord(audio)) continue
+    const context = isRecord(audio.contextInfo)
+      ? audio.contextInfo
+      : isRecord(item.contextInfo)
+        ? item.contextInfo
+        : null
+    const seconds = typeof audio.seconds === 'number' ? audio.seconds : Number(audio.seconds)
+    result.set(id, {
+      mimeType: typeof audio.mimetype === 'string' ? audio.mimetype : 'audio/ogg',
+      quotedParticipant:
+        context !== null && typeof context.participant === 'string' ? context.participant : null,
+      seconds: Number.isFinite(seconds) ? seconds : null,
+    })
   }
   return result
 }

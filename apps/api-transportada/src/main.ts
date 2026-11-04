@@ -182,7 +182,19 @@ import { createWhatsAppEvolutionSecretService } from './whatsapp/application/wha
 import { createWhatsAppEvolutionWebhookSecretService } from './whatsapp/application/whatsapp-evolution-webhook-secret.service.js'
 import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
 import { createEvolutionGroupIdentity } from './whatsapp/application/evolution-group-identity.service.js'
-import { createEvolutionGroupInbound } from './whatsapp/application/evolution-group-inbound.service.js'
+import {
+  createEvolutionGroupInbound,
+  type GroupAudioContext,
+} from './whatsapp/application/evolution-group-inbound.service.js'
+import {
+  type BotAudioTranscriberPort,
+  createWhatsAppBotAudio,
+} from './whatsapp/application/whatsapp-bot-audio.service.js'
+import { downloadEvolutionMedia } from './whatsapp/infrastructure/evolution-media-download.gateway.js'
+import {
+  createWorkerBotAudioTranscriber,
+  readWorkerBotAudioTranscriberConfig,
+} from './whatsapp/infrastructure/worker-bot-audio-transcriber.gateway.js'
 import {
   createGroupOccurrenceFlow,
   type GroupOccurrenceFlowPorts,
@@ -1908,6 +1920,8 @@ export function bootstrap(): Bun.Server<undefined> {
     logger,
     rateLimiter: createRateLimiter(),
     sharedLocations: whatsappSharedLocations,
+    /** Spec 292 T9: o áudio da conversa individual é transcrito pelo worker e confirmado. */
+    botAudio: createWhatsAppBotAudio<null>({ logger, transcriber: whatsappBotAudioTranscriber() }),
     /** Spec 293 T15: foto, localização e respostas da entrega em preparo na conversa individual. */
     deliveryProofs: {
       preparations: whatsappDriverCollections,
@@ -2190,12 +2204,29 @@ function createEvolutionWebhook(input: {
           },
           replies: groupReplies,
         })
+  /** Spec 292 T9: o áudio no grupo é transcrito pelo worker e confirmado antes de seguir o fluxo. */
+  const groupAudio =
+    groupSessions === undefined
+      ? undefined
+      : createWhatsAppBotAudio<GroupAudioContext>({
+          logger,
+          transcriber: whatsappBotAudioTranscriber(),
+        })
   return createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets,
     apiPublicUrl: input.apiPublicUrl,
     gateway,
     // Spec 292 T3: o grupo do motorista chega ao bot; T4/T5: a sessão do pedido e o fluxo.
     groupInbound: createEvolutionGroupInbound({
+      ...(groupAudio === undefined
+        ? {}
+        : {
+            audio: {
+              bot: groupAudio,
+              download: downloadEvolutionMedia,
+              reply: (reply) => groupReplies.send(reply),
+            },
+          }),
       findGroupDriver: (lookup) => driverGroups.findDriverByGroup(lookup),
       findOpenRequestOwner: (lookup) =>
         groupSessions?.findOpenOwner(lookup) ?? Promise.resolve(null),
@@ -2223,6 +2254,22 @@ function createEvolutionWebhook(input: {
     repository: createDrizzleWhatsAppEvolutionWebhookRepository(database),
     webhookSecrets: createWhatsAppEvolutionWebhookSecretService({ envelopeProvider }),
   })
+}
+
+/**
+ * Spec 292 T9: o transcritor do áudio do bot (a rota interna do worker), um por processo. Sem
+ * `WORKER_INTERNAL_URL` e `BOT_AUDIO_TRANSCRIPTION_TOKEN`, `undefined`: o bot responde que ainda não
+ * ouve áudio.
+ */
+let botAudioTranscriber: { readonly value: BotAudioTranscriberPort | undefined } | undefined
+function whatsappBotAudioTranscriber(): BotAudioTranscriberPort | undefined {
+  if (botAudioTranscriber === undefined) {
+    const config = readWorkerBotAudioTranscriberConfig(process.env)
+    botAudioTranscriber = {
+      value: config === undefined ? undefined : createWorkerBotAudioTranscriber(config),
+    }
+  }
+  return botAudioTranscriber.value
 }
 
 function createAnonymousRoutes({
