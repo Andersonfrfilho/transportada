@@ -10,6 +10,7 @@ import type { SecretEnvelopeProvider, SecretEnvelopeV1 } from '@adatechnology/se
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import type { EvolutionConversationInbound } from '../../src/occurrence-conversation/application/evolution-conversation-inbound.service.js'
 import type { ApiLogger } from '../../src/shared/api.types.js'
+import type { EvolutionGroupInbound } from '../../src/whatsapp/application/evolution-group-inbound.service.js'
 import { createWhatsAppEvolutionSecretService } from '../../src/whatsapp/application/whatsapp-evolution-secret.service.js'
 import type {
   WhatsAppEvolutionWebhookGatewayPort,
@@ -106,6 +107,8 @@ async function setup(
     deliveries: [] as unknown[],
     findCalls: 0,
     gatewayCalls: [] as Parameters<WhatsAppEvolutionWebhookGatewayPort['setWebhook']>[0][],
+    groupConnections: [] as unknown[],
+    groupMessages: [] as Parameters<EvolutionGroupInbound['receive']>[0][],
     logs: [] as LogEntry[],
     marked: [] as unknown[],
     messages: [] as Parameters<EvolutionConversationInbound['receiveMessage']>[0][],
@@ -166,6 +169,13 @@ async function setup(
       async setWebhook(input) {
         state.gatewayCalls.push(input)
         if (options.gatewayFails === true) throw new Error('evolution down')
+      },
+    },
+    groupInbound: {
+      async receive(input) {
+        state.groupMessages.push(input)
+        state.groupConnections.push(await input.connection())
+        return input.event.text === 'ignorar' ? 'not_addressed' : 'admitted'
       },
     },
     inbound: {
@@ -298,6 +308,55 @@ describe('webhook do Evolution: o que a entrega vira', () => {
       },
     ])
     expect(state.deliveries).toEqual([{ companyId: COMPANY_ID }])
+  })
+
+  test('spec 292 T3: a mensagem de grupo vai à porta do grupo, com o @lid de quem escreveu e a chave da instância', async () => {
+    const { state, useCase } = await setup()
+    const group = '120363000000000000@g.us'
+
+    await useCase.receive(
+      receiveWith({
+        rawBody: upsert([
+          {
+            key: { fromMe: false, id: 'G1', participant: '98765432101234@lid', remoteJid: group },
+            message: { conversation: 'texto do grupo secreto' },
+          },
+          {
+            key: {
+              fromMe: false,
+              id: 'G2',
+              participant: `${PHONE}@s.whatsapp.net`,
+              remoteJid: group,
+            },
+            message: { conversation: 'ignorar' },
+          },
+        ]),
+      }),
+    )
+
+    expect(state.messages).toEqual([])
+    expect(
+      state.groupMessages.map((item) => ({
+        companyId: item.companyId,
+        groupJid: item.event.groupJid,
+        id: item.event.externalMessageId,
+        senderLid: item.senderLid,
+      })),
+    ).toEqual([
+      { companyId: COMPANY_ID, groupJid: group, id: 'G1', senderLid: '98765432101234' },
+      { companyId: COMPANY_ID, groupJid: group, id: 'G2', senderLid: null },
+    ])
+    expect(state.groupConnections[0]).toEqual({
+      apiKey: API_KEY,
+      baseUrl: 'https://evolution.exemplo.com',
+      instanceName: 'transportada',
+    })
+    const received = state.logs.find((entry) => entry.message.endsWith('.received'))
+    expect(received?.fields).toMatchObject({ group: 1, groupIgnored: { not_addressed: 1 } })
+    const serialized = JSON.stringify(state.logs)
+    for (const forbidden of [group, PHONE, '98765432101234', API_KEY, 'texto do grupo secreto']) {
+      expect(serialized).not.toContain(forbidden)
+    }
   })
 
   test('as confirmações viram o status da mensagem, na empresa do webhook', async () => {

@@ -181,6 +181,8 @@ import { createWhatsAppEvolutionUseCase } from './whatsapp/application/whatsapp-
 import { createWhatsAppEvolutionSecretService } from './whatsapp/application/whatsapp-evolution-secret.service'
 import { createWhatsAppEvolutionWebhookSecretService } from './whatsapp/application/whatsapp-evolution-webhook-secret.service.js'
 import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
+import { createEvolutionGroupIdentity } from './whatsapp/application/evolution-group-identity.service.js'
+import { createEvolutionGroupInbound } from './whatsapp/application/evolution-group-inbound.service.js'
 import { createDrizzleWhatsAppEvolutionWebhookRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution-webhook.repository.js'
 import {
   createWhatsAppEvolutionPublicWebhookRoutes,
@@ -1876,10 +1878,25 @@ function createEvolutionWebhook(input: {
   readonly logger: ApiLogger
 }) {
   const { database, envelopeProvider, logger } = input
+  const gateway = createEvolutionConnectionGateway()
+  const driverGroups = new DrizzleDriverWhatsappGroupRepository(database)
   return createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets: createWhatsAppEvolutionSecretService({ envelopeProvider }),
     apiPublicUrl: input.apiPublicUrl,
-    gateway: createEvolutionConnectionGateway(),
+    gateway,
+    // Spec 292 T3: o grupo do motorista chega ao bot. A sessão do pedido (T4) ainda não existe: sem
+    // pedido aberto, e a mensagem aceita só é contada em log, sem número nem texto.
+    groupInbound: createEvolutionGroupInbound({
+      findGroupDriver: (lookup) => driverGroups.findDriverByGroup(lookup),
+      findOpenRequestOwner: async () => null,
+      handle: async (message) => {
+        logger.info('whatsapp_evolution.group.admitted', {
+          companyId: message.companyId,
+          via: message.via,
+        })
+      },
+      identity: createEvolutionGroupIdentity({ gateway }),
+    }),
     inbound: createEvolutionConversationInbound({
       applyStatus: (status) =>
         applyProviderMessageStatus(database, { ...status, channel: 'whatsapp' }),

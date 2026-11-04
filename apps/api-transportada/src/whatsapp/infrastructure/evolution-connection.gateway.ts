@@ -8,7 +8,12 @@ import type {
   WhatsAppEvolutionGatewayPort,
   WhatsAppEvolutionProvisionerPort,
 } from '../application/whatsapp-evolution.port.js'
+import type {
+  EvolutionGroupDirectoryGatewayPort,
+  EvolutionGroupParticipant,
+} from '../application/evolution-group-identity.service.js'
 import type { WhatsAppEvolutionWebhookGatewayPort } from '../application/whatsapp-evolution-webhook.port.js'
+import { parseJid } from '../domain/evolution-group-message.policy.js'
 
 /**
  * Spec 281 T4: a única porta da API para o Evolution. O canal do SDK é criado por chamada, com a
@@ -16,7 +21,9 @@ import type { WhatsAppEvolutionWebhookGatewayPort } from '../application/whatsap
  */
 export function createEvolutionConnectionGateway(
   dependencies: { readonly fetch?: typeof fetch } = {},
-): WhatsAppEvolutionGatewayPort & WhatsAppEvolutionWebhookGatewayPort {
+): EvolutionGroupDirectoryGatewayPort &
+  WhatsAppEvolutionGatewayPort &
+  WhatsAppEvolutionWebhookGatewayPort {
   const open = (input: { apiKey: string; baseUrl: string; instanceName: string }) =>
     new EvolutionWhatsAppChannel({
       apiKey: input.apiKey,
@@ -70,6 +77,23 @@ export function createEvolutionConnectionGateway(
         throw new Error(`evolution fetchAllGroups failed (${response.status})`)
       return readGroups((await response.json().catch(() => null)) as unknown)
     },
+    /**
+     * Spec 292 T3: `GET /group/participants/{instância}?groupJid=…`, para traduzir `@lid` em número.
+     * Falha de rede ou status ≥ 300 lança.
+     */
+    async listGroupParticipants({ groupJid, ...input }) {
+      const response = await (dependencies.fetch ?? fetch)(
+        `${input.baseUrl}/group/participants/${encodeURIComponent(input.instanceName)}?groupJid=${encodeURIComponent(groupJid)}`,
+        {
+          headers: { apikey: input.apiKey },
+          method: 'GET',
+          signal: AbortSignal.timeout(GROUPS_TIMEOUT_MILLISECONDS),
+        },
+      )
+      if (response.status >= 300)
+        throw new Error(`evolution group participants failed (${response.status})`)
+      return readGroupParticipants((await response.json().catch(() => null)) as unknown)
+    },
     /** Spec 281 T6: o Evolution passa a entregar mensagens e status na URL da empresa, com o segredo no cabeçalho. */
     setWebhook: ({ headers, url, ...request }) =>
       open(request).setWebhook({ headers: { ...headers }, url }),
@@ -96,6 +120,35 @@ export function readGroups(value: unknown): readonly EvolutionGroup[] {
   return [...byJid.values()].sort((left, right) =>
     left.name.localeCompare(right.name, 'pt-BR', { sensitivity: 'base' }),
   )
+}
+
+/**
+ * Spec 292 T3: cada participante do grupo vira o par `@lid` ↔ número (só dígitos). O formato muda entre
+ * versões do Evolution/Baileys: o `id` pode ser o `@lid` (com o número em `phoneNumber`/`jid`/`pn`) ou o
+ * número (com o `@lid` em `lid`). Lê todos os campos e classifica cada um pelo sufixo.
+ */
+export function readGroupParticipants(value: unknown): readonly EvolutionGroupParticipant[] {
+  const record =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
+  const list = Array.isArray(value)
+    ? (value as unknown[])
+    : Array.isArray(record.participants)
+      ? (record.participants as unknown[])
+      : []
+  const participants: EvolutionGroupParticipant[] = []
+  for (const item of list) {
+    if (typeof item !== 'object' || item === null) continue
+    const fields = item as Record<string, unknown>
+    let lid: null | string = null
+    let number: null | string = null
+    for (const candidate of [fields.id, fields.lid, fields.phoneNumber, fields.jid, fields.pn]) {
+      const parsed = parseJid(candidate)
+      if (parsed?.server === 'lid') lid ??= parsed.digits
+      else if (parsed?.server === 'user') number ??= parsed.digits
+    }
+    if (lid !== null || number !== null) participants.push({ lid, number })
+  }
+  return participants
 }
 
 /** `ownerJid` ("5516…@s.whatsapp.net") da instância; versões antigas usam `owner`. Só dígitos, ou `null`. */

@@ -53,6 +53,23 @@ Todas em `/company-settings/whatsapp-evolution`, com `settings.manage`:
 - Número banido ou instância bloqueada (estado `blocked`): desligar o envio por WhatsApp na configuração da empresa e avisar
   o dono.
 
+## Mensagens do grupo do motorista (spec 292 T3)
+
+O webhook passou a ler grupo. Só passa mensagem de grupo que está na ficha de um motorista (T1), que marca o bot ou
+que vem do dono de um pedido aberto (o pedido é da T4; até ela, nenhum pedido fica aberto). Grupo fora da ficha não gera
+nenhuma chamada ao Evolution.
+
+- Log da entrega: `whatsapp_evolution.webhook.received` com `group` (aceitas) e `groupIgnored` (contagem por motivo:
+  `unknown_group`, `not_addressed`, `no_text`, `unknown_sender`, `own_number`, `from_me`, `identity_unavailable`).
+- Log da aceita (até a T4): `whatsapp_evolution.group.admitted` com `via` (`mention` ou `owner_reply`). Sem número,
+  texto nem id de grupo em log.
+- Marcação por `@lid`: a API lê `GET /group/participants/{instância}?groupJid=…` para traduzir `@lid` em número
+  (cache de 5 min por grupo, releitura no máximo a cada 30 s quando aparece um `@lid` novo) e
+  `GET /instance/fetchInstances` para o número do bot (cache de 10 min).
+- `identity_unavailable` em sequência: o Evolution não respondeu a uma dessas duas leituras, ou não informou o número do
+  chip. Conferir o estado da conexão; a mensagem é descartada (porta fechada), não aceita sem saber quem escreveu.
+- `unknown_sender`: quem escreveu só veio como `@lid` e a lista de participantes não trouxe o número dele.
+
 ## Teste de aceite em staging (spec 281, critérios)
 
 1. Conectar o número do dono pelo QR.

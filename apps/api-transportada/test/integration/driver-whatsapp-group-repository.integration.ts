@@ -135,6 +135,35 @@ describe('grupo de WhatsApp do motorista, repositório (spec 292 T1)', () => {
   )
 
   testWithPostgres(
+    'spec 292 T3: a lista de permissão do webhook acha o motorista pelo grupo, só na empresa dele',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, first, groups } = await setUp(database)
+        const otherCompany = crypto.randomUUID()
+        await database.db.insert(companies).values({ id: otherCompany, status: 'active' })
+
+        expect(await groups.findDriverByGroup({ companyId, groupJid: GROUP_A })).toBeNull()
+        await groups.set({
+          actorUserId: ACTOR,
+          companyId,
+          correlationId: 'c',
+          driverId: first,
+          groupJid: GROUP_A,
+          groupName: '',
+        })
+
+        expect(await groups.findDriverByGroup({ companyId, groupJid: GROUP_A })).toEqual({
+          driverId: first,
+        })
+        expect(await groups.findDriverByGroup({ companyId, groupJid: GROUP_B })).toBeNull()
+        expect(
+          await groups.findDriverByGroup({ companyId: otherCompany, groupJid: GROUP_A }),
+        ).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
     'o banco recusa identificador que não é de grupo e apagar a ficha apaga o vínculo',
     async () => {
       await withDisposableDatabase(async (database) => {
