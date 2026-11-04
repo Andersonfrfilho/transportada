@@ -16,6 +16,7 @@ import { DriverClientEmailInvalidError } from '../../delivery-clients/domain/dri
 import { ContractorReplyWhatsAppNumberInvalidError } from '../../occurrence-conversation/domain/contractor-reply-whatsapp.error.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { TripOccurrence } from '../../trips/application/register-trip-occurrence.use-case.js'
+import { sameBrazilianPhone } from './whatsapp-group-delivery.adapter.js'
 import { listOccurrenceTypesForNote } from '../../trips/infrastructure/occurrence-types-for-note.query.js'
 import {
   type DriverFlowActionDependencies,
@@ -147,6 +148,13 @@ export function createGroupOccurrencePorts(dependencies: {
 
   return {
     ...contactPorts,
+    async isCrewMember({ companyId, phone }) {
+      const rows = await dependencies.database
+        .select({ phone: fleetDrivers.phone })
+        .from(fleetDrivers)
+        .where(eq(fleetDrivers.companyId, companyId))
+      return rows.some((row) => sameBrazilianPhone(row.phone, phone))
+    },
     async answerCollection({ companyId, driverId, text }) {
       const collections = dependencies.collections
       if (collections === undefined) return null
