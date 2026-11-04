@@ -51,6 +51,8 @@ import {
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
+import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
+import { reportStopDeparture } from '../../src/trips/application/report-stop-departure.use-case.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { createResolveWhatsAppActorUseCase } from '../../src/whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
 import { createDriverWhatsAppFlowActions } from '../../src/whatsapp-commands/application/register-driver-flow-actions.js'
@@ -620,6 +622,20 @@ async function buildScenario(db: Database, companyId: string) {
           findReachableDocument: (query) => findDriverReachableDocument(db, query),
           listDocumentProducts: (query) => listDocumentProducts(db, query),
         },
+        unitOfWork: driverFieldReports,
+      }),
+    reportArrival: (input) =>
+      reportStopArrival({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: driverFieldReports,
+      }),
+    reportDeparture: (input) =>
+      reportStopDeparture({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
         unitOfWork: driverFieldReports,
       }),
     reportDelivery: (input) =>
