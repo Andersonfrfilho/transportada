@@ -149,9 +149,17 @@ export const GROUP_OCCURRENCE_TEXT = {
   noDocuments: '🔎 Não encontrei notas na viagem em andamento do motorista deste grupo.',
   noTypes: '🚫 Não há tipo de ocorrência ativo para esta nota.',
   registered: (typeName: string, documentNumber: string, sentToClient = false) =>
-    sentToClient
-      ? `✅ Pronto! Registrei *${typeName}* na *NF ${documentNumber}*.\n📨 Assim que a contratante responder, o boleto segue para o contato do cliente e eu aviso aqui.`
-      : `✅ Pronto! Registrei *${typeName}* na *NF ${documentNumber}*.\n📨 Assim que a contratante responder com o boleto, eu envio por aqui.`,
+    [
+      '✅ *Ocorrência registrada!*',
+      `📄 NF ${documentNumber}`,
+      `⚠️ ${typeName}`,
+      '',
+      sentToClient
+        ? '📨 Assim que a contratante responder, o boleto segue para o contato do cliente e eu aviso aqui.'
+        : '📨 Assim que a contratante responder com o boleto, eu envio por aqui.',
+      '',
+      'Precisando de mais alguma coisa, é só me marcar. 🙂',
+    ].join('\n'),
 } as const
 
 function describeChannels(channels: readonly GroupClientContactChannel[]): string {
@@ -163,6 +171,8 @@ const REASON = {
   contact: 'não entendi o contato: digite um telefone com DDD, um e-mail ou "continuar"',
   confirm: 'responda 1 para sim ou 2 para não',
   document: 'não achei essa nota na viagem do motorista',
+  noteIsAnOption:
+    'isso parece a resposta de uma pergunta anterior; se for mesmo a observação, escreva com mais detalhe',
   noteTooLong: `a observação passa de ${GROUP_OCCURRENCE_NOTE_MAX_LENGTH} caracteres`,
   type: 'não achei esse tipo de ocorrência na lista',
 } as const
@@ -366,8 +376,8 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     return { kind: 'done', replies: [result.message] }
   }
 
-  return {
-    async answer(turn) {
+  async function answerStep(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
+    {
       const state = turn.request.state as FlowState
       const text = turn.text
 
@@ -406,6 +416,13 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
               reason: REASON.noteTooLong,
             }
           }
+          if (/^\d{1,2}$/u.test(text.trim())) {
+            return {
+              kind: 'not_understood',
+              prompt: GROUP_OCCURRENCE_TEXT.askNote,
+              reason: REASON.noteIsAnOption,
+            }
+          }
           const note = SKIP.has(normalize(text)) ? '' : text
           return continueWith(GROUP_OCCURRENCE_STEP.confirm, { ...state, note }, [
             GROUP_OCCURRENCE_TEXT.confirm(
@@ -434,6 +451,25 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
         default:
           return { kind: 'done', replies: [GROUP_OCCURRENCE_TEXT.declined] }
       }
+    }
+  }
+
+  return {
+    async answer(turn) {
+      const outcome = await answerStep(turn)
+      // Quando outra pessoa responde pelo dono (marcando o bot), o grupo vê quem respondeu e o quê.
+      if (
+        outcome.kind === 'continue' &&
+        turn.sender !== turn.request.ownerNumber &&
+        turn.text.length <= 40
+      ) {
+        const who = turn.senderName === null || turn.senderName === '' ? 'Alguém' : turn.senderName
+        return {
+          ...outcome,
+          replies: [`👤 *${who}* respondeu: _${turn.text}_`, ...outcome.replies],
+        }
+      }
+      return outcome
     },
 
     initialStep: GROUP_OCCURRENCE_STEP.start,

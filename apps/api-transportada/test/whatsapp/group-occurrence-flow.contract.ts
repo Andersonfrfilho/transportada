@@ -358,3 +358,45 @@ describe('fluxo do grupo: contato do cliente (spec 292 T6)', () => {
     })
   })
 })
+
+describe('fluxo do grupo: resposta de outra pessoa e observação', () => {
+  test('observação só com 1 ou 2 números é recusada (resposta de pergunta anterior)', async () => {
+    const flow = createGroupOccurrenceFlow({
+      async listDriverDocuments() {
+        return [NF1]
+      },
+      async listOccurrenceTypes() {
+        return [PRORROGACAO]
+      },
+      async register() {
+        return { kind: 'registered' }
+      },
+    })
+    const turn = {
+      request: {
+        attempts: 0,
+        companyId: COMPANY_ID,
+        driverId: DRIVER_ID,
+        expiresAt: new Date(),
+        groupJid: 'g@g.us',
+        id: 'R1',
+        ownerNumber: '5516',
+        state: { documentId: 'D1', documentNumber: '17234', typeId: 'T1', typeName: 'X' },
+        step: 'note',
+        version: 1n,
+      },
+      sender: '5516',
+      senderName: null,
+      text: '1',
+    }
+    expect(await flow.answer(turn)).toMatchObject({ kind: 'not_understood' })
+    const other = await flow.answer({
+      ...turn,
+      sender: '5599',
+      senderName: 'Anderson',
+      text: 'cliente pediu',
+    })
+    expect(other).toMatchObject({ kind: 'continue', step: 'confirm' })
+    expect((other as { replies: string[] }).replies[0]).toContain('Anderson')
+  })
+})
