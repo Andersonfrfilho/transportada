@@ -1398,7 +1398,9 @@ export function bootstrap(): Bun.Server<undefined> {
       }),
     listOccurrenceTypes: (input) => listOccurrenceTypesForNote(database.db, input),
     registerOccurrence: whatsappDriverEventPorts.registerOccurrence,
+    reportArrival: whatsappDriverEventPorts.reportArrival,
     reportDelivery: whatsappDriverEventPorts.reportDelivery,
+    reportDeparture: whatsappDriverEventPorts.reportDeparture,
     reportReturn: whatsappDriverEventPorts.reportReturn,
     resolveDriverId: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
   })

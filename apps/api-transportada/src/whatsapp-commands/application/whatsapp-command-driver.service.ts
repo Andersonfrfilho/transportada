@@ -35,6 +35,11 @@ import {
   WHATSAPP_SHARED_LOCATION_PERMISSION,
   WHATSAPP_SHARED_LOCATION_REPLY,
 } from '../domain/whatsapp-command.constant.js'
+import {
+  DRIVER_FLOW_CONTEXT_KEY,
+  DRIVER_FLOW_NODE,
+} from '../domain/whatsapp-driver-flow.constant.js'
+import { interpretWhatsAppDriverEventCommand } from '../domain/whatsapp-driver-event-command.policy.js'
 import { parseMenuPageNavigation } from '../domain/whatsapp-menu.policy.js'
 import { filterWhatsAppRootFlowGraph } from '../domain/whatsapp-root-menu.policy.js'
 import { WHATSAPP_PHONE_VERIFICATION_CODE_MESSAGE_PATTERN } from '../domain/whatsapp-phone-verification.constant.js'
@@ -232,6 +237,8 @@ async function advanceConversation(
   const graph = located?.graph ?? (await findRootGraph(turn, permissions))
   if (graph === undefined) return
 
+  if (await runDirectDriverCommand({ context, graph, located, permissions, turn })) return
+
   if (located === undefined) {
     await runWhatsAppFlow({
       cursor: {
@@ -284,6 +291,52 @@ async function advanceConversation(
     hopsLeft: WHATSAPP_MAX_CROSS_FLOW_HOPS,
     turn,
   })
+}
+
+/**
+ * Spec 293 T14: o comando direto do motorista ("saí", "cheguei", "entreguei 17234") no texto livre.
+ * Só vale onde o motorista não está respondendo outra pergunta (começo da conversa, menu raiz ou menu
+ * da viagem) — uma observação digitada de ocorrência nunca vira comando. O interpretador é o mesmo do
+ * grupo (`whatsapp-driver-event-command.policy.ts`); a `FlowAction` reconfere a permissão e o motorista.
+ */
+async function runDirectDriverCommand(input: {
+  readonly context: Record<string, unknown>
+  readonly graph: FlowGraphData
+  readonly located: { readonly node: FlowNodeData } | undefined
+  readonly permissions: ReadonlySet<string>
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { context, graph, located, permissions, turn } = input
+  if (!permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION)) return false
+  const text = turn.message.text?.body
+  if (text === undefined) return false
+  const nodeId = located?.node.id
+  if (
+    nodeId !== undefined &&
+    nodeId !== graph.startNodeId &&
+    nodeId !== DRIVER_FLOW_NODE.tripMenu
+  ) {
+    return false
+  }
+  // Grafo publicado antes da T14 não tem o nó: segue o fluxo de sempre até a republicação.
+  if (graph.nodes[DRIVER_FLOW_NODE.directCommand] === undefined) return false
+  const command = interpretWhatsAppDriverEventCommand(text)
+  if (command === undefined) return false
+
+  await runWhatsAppFlow({
+    cursor: {
+      context: {
+        ...withoutInvalidAttempts(context),
+        [DRIVER_FLOW_CONTEXT_KEY.directCommand]: command,
+      },
+      currentNodeId: DRIVER_FLOW_NODE.directCommand,
+      graph,
+      userAnswer: undefined,
+    },
+    hopsLeft: WHATSAPP_MAX_CROSS_FLOW_HOPS,
+    turn,
+  })
+  return true
 }
 
 async function locateNode(input: {

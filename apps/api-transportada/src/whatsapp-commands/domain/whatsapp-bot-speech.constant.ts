@@ -12,10 +12,17 @@ export const BOT_SPEECH_NODE_PREFIX = 'fala_'
 export const BOT_SPEECH_DEFAULTS = {
   alreadyRegistered: 'Já estava registrada.',
   deliveryRegistered: 'Entrega registrada. ✅',
+  driverDirectCancelled: 'Certo, nada foi registrado.',
+  driverDirectConfirm: '{{verb}} {{documents}}{{reason}}?',
+  driverDirectReturnOneAtATime: 'Devolva uma nota por vez. Mande "devolvi" e o número da nota.',
+  driverDocumentsNotOpen: 'Não achei estas notas abertas na sua viagem: {{numbers}}.',
   driverNoActiveTrip: 'Você não tem viagem em andamento.',
   driverNoPendingDocuments: 'Não há notas pendentes nesta viagem.',
+  driverNoStopToArrive: 'Não há parada pendente para registrar a chegada.',
+  driverNoStopToDepart: 'Não há parada pendente para sair.',
   driverNoStreetOccurrenceTypes:
     'Ainda não há tipos de ocorrência cadastrados para a rua. Fale com o escritório.',
+  driverDirectTooManyDocuments: 'Mande até 8 notas por mensagem.',
   driverNotLinked: 'Sua conta não está ligada a um cadastro de motorista.',
   driverNotLinkedOffice:
     'Sua conta não está ligada a um cadastro de motorista. Fale com o escritório.',

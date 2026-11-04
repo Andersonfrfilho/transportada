@@ -121,6 +121,7 @@ describe('WHATSAPP_ROOT_FLOW_GRAPH', () => {
   describe('pedido de geolocalização (spec 196 T3.8)', () => {
     const driverNodesThatAsk: readonly string[] = [
       DRIVER_FLOW_NODE.tripMenu,
+      DRIVER_FLOW_NODE.directConfirm,
       DRIVER_FLOW_NODE.returnReasonMenu,
       DRIVER_FLOW_NODE.noteEntry,
     ]

@@ -12,23 +12,35 @@
 import type { TripTransitionBlock } from '../../trips/domain/trip-state.policy.js'
 
 export const DRIVER_FLOW_ACTION_KIND = {
+  arrive: 'driver.arrive',
   completeOccurrence: 'driver.complete_occurrence',
   completeReturn: 'driver.complete_return',
   currentTrip: 'driver.current_trip',
+  depart: 'driver.depart',
+  directCommand: 'driver.direct_command',
+  directConfirmRouter: 'driver.direct_confirm_router',
   documentRouter: 'driver.document_router',
   listDocuments: 'driver.list_documents',
   listOccurrenceTypes: 'driver.list_occurrence_types',
+  listStops: 'driver.list_stops',
   notePrompt: 'driver.note_prompt',
   noteRouter: 'driver.note_router',
   occurrenceTypeRouter: 'driver.occurrence_type_router',
+  stopRouter: 'driver.stop_router',
 } as const
 
 export const DRIVER_FLOW_NODE = {
+  arrive: 'driver_arrive',
   currentTrip: 'driver_current_trip',
+  depart: 'driver_depart',
+  directCommand: 'driver_direct_command',
+  directConfirm: 'driver_direct_confirm',
+  directConfirmRouter: 'driver_direct_confirm_router',
   documentEntry: 'driver_document_entry',
   documentRouter: 'driver_document_router',
   listDocuments: 'driver_list_documents',
   listOccurrenceTypes: 'driver_list_occurrence_types',
+  listStops: 'driver_list_stops',
   noteEntry: 'driver_note_entry',
   notePrompt: 'driver_note_prompt',
   noteRouter: 'driver_note_router',
@@ -36,11 +48,20 @@ export const DRIVER_FLOW_NODE = {
   occurrenceTypeRouter: 'driver_occurrence_type_router',
   returnReasonMenu: 'driver_return_reason_menu',
   returnReasonRouter: 'driver_return_reason_router',
+  stopEntry: 'driver_stop_entry',
+  stopRouter: 'driver_stop_router',
   tripMenu: 'driver_trip_menu',
 } as const
 
 /** `deliver`/`return`/`occurrence` — nunca PII, só o passo escolhido no menu da viagem. */
 export const DRIVER_FLOW_CONTEXT_KEY = {
+  /** Spec 293 T14: o comando direto lido do texto (`kind`, `numbers`, `reason`) — sem PII. */
+  directCommand: 'driverDirectCommand',
+  directConfirmAnswer: 'driverDirectConfirmAnswer',
+  /** Ids opacos das notas aguardando o "1-Sim / 2-Não" do comando direto. */
+  directDocumentIds: 'driverDirectDocumentIds',
+  directEvent: 'driverDirectEvent',
+  directReason: 'driverDirectReason',
   documentAnswer: 'driverDocumentAnswer',
   documentId: 'driverDocumentId',
   listPage: 'driverListPage',
@@ -48,6 +69,7 @@ export const DRIVER_FLOW_CONTEXT_KEY = {
   occurrenceTypeAnswer: 'driverOccurrenceTypeAnswer',
   occurrenceTypeId: 'driverOccurrenceTypeId',
   returnReason: 'driverReturnReason',
+  stopAnswer: 'driverStopAnswer',
   tripId: 'driverTripId',
   tripMenuChoice: 'driverTripMenuChoice',
 } as const
@@ -57,10 +79,15 @@ export const DRIVER_LOCATION_REQUEST_TEXT =
   '📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.'
 
 export const DRIVER_FLOW_STEP = {
+  arrive: 'arrive',
   deliver: 'deliver',
+  depart: 'depart',
   occurrence: 'occurrence',
   return: 'return',
 } as const
+
+/** Spec 293 T14: respostas do "Confirma?" do comando direto (entregar/devolver sempre confirmam). */
+export const DRIVER_DIRECT_CONFIRM_ANSWER = { no: 'no', yes: 'yes' } as const
 
 export type DriverFlowStep = (typeof DRIVER_FLOW_STEP)[keyof typeof DRIVER_FLOW_STEP]
 

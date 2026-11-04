@@ -6,6 +6,7 @@ import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 import { buildBotSpeechNodes } from '../domain/whatsapp-bot-speech.policy.js'
 import { DRIVER_RETURN_REASONS } from '../../trips/domain/driver-return-reason.policy.js'
 import {
+  DRIVER_DIRECT_CONFIRM_ANSWER,
   DRIVER_FLOW_ACTION_KIND,
   DRIVER_FLOW_CONTEXT_KEY,
   DRIVER_FLOW_NODE,
@@ -141,7 +142,7 @@ function buildIssuanceFlowNodes(): FlowGraphData['nodes'] {
  * ocorrência. Toda lista dinâmica (notas, tipos de ocorrência) é mandada pela própria `FlowAction`
  * (`register-driver-flow-actions.ts`) — o nó `action` busca e envia, o `entrada_choice` que vem
  * depois só captura a resposta, e um segundo `action` (o "roteador") decide o próximo passo. Só o
- * menu da viagem (3 opções fixas) e a lista de motivos de devolução (5 motivos fixos) são opções
+ * menu da viagem (5 opções fixas) e a lista de motivos de devolução (5 motivos fixos) são opções
  * estáticas de verdade.
  */
 function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
@@ -155,14 +156,73 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
       contextKey: DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice,
       fallbackMessage: 'Toque numa das opções.',
       id: DRIVER_FLOW_NODE.tripMenu,
-      next: DRIVER_FLOW_NODE.listDocuments,
+      /** Spec 293 T14: saí e cheguei não escolhem nota; os outros três seguem para a lista de notas. */
+      next: {
+        byAnswer: {
+          arrive: DRIVER_FLOW_NODE.arrive,
+          depart: DRIVER_FLOW_NODE.depart,
+        },
+        default: DRIVER_FLOW_NODE.listDocuments,
+      },
       options: [
+        ['depart', '🚚 Saí para a entrega'],
+        ['arrive', '📍 Cheguei'],
         ['deliver', '📦 Entregar'],
         ['return', '↩️ Devolver'],
         ['occurrence', '⚠️ Ocorrência'],
       ],
       question: `O que você quer fazer com esta viagem?\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'menu',
+    },
+    [DRIVER_FLOW_NODE.depart]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.depart,
+      id: DRIVER_FLOW_NODE.depart,
+      type: 'action',
+    },
+    [DRIVER_FLOW_NODE.arrive]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.arrive,
+      id: DRIVER_FLOW_NODE.arrive,
+      type: 'action',
+    },
+    [DRIVER_FLOW_NODE.listStops]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.listStops,
+      id: DRIVER_FLOW_NODE.listStops,
+      type: 'action',
+    },
+    [DRIVER_FLOW_NODE.stopEntry]: {
+      contextKey: DRIVER_FLOW_CONTEXT_KEY.stopAnswer,
+      id: DRIVER_FLOW_NODE.stopEntry,
+      next: DRIVER_FLOW_NODE.stopRouter,
+      question: 'Toque numa parada da lista acima.',
+      type: 'entrada_choice',
+    },
+    [DRIVER_FLOW_NODE.stopRouter]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.stopRouter,
+      id: DRIVER_FLOW_NODE.stopRouter,
+      type: 'action',
+    },
+    /** Spec 293 T14: "entreguei 17234", "cheguei" digitados — o mesmo interpretador do grupo. */
+    [DRIVER_FLOW_NODE.directCommand]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.directCommand,
+      id: DRIVER_FLOW_NODE.directCommand,
+      type: 'action',
+    },
+    [DRIVER_FLOW_NODE.directConfirm]: {
+      contextKey: DRIVER_FLOW_CONTEXT_KEY.directConfirmAnswer,
+      fallbackMessage: 'Toque em Sim ou Não.',
+      id: DRIVER_FLOW_NODE.directConfirm,
+      next: DRIVER_FLOW_NODE.directConfirmRouter,
+      options: [
+        [DRIVER_DIRECT_CONFIRM_ANSWER.yes, '✅ Sim'],
+        [DRIVER_DIRECT_CONFIRM_ANSWER.no, '❌ Não'],
+      ],
+      question: `Confirma?\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
+      type: 'menu',
+    },
+    [DRIVER_FLOW_NODE.directConfirmRouter]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.directConfirmRouter,
+      id: DRIVER_FLOW_NODE.directConfirmRouter,
+      type: 'action',
     },
     [DRIVER_FLOW_NODE.listDocuments]: {
       actionKind: DRIVER_FLOW_ACTION_KIND.listDocuments,
