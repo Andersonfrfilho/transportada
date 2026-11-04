@@ -117,6 +117,14 @@ export type WhatsAppEvolutionGatewayPort = {
   getOwnerNumber(input: EvolutionConnectionRequest): Promise<null | string>
   /** Desfaz o pareamento do número (o chip sai); a instância continua e gera QR novo. */
   logout(input: EvolutionConnectionRequest): Promise<void>
+  /** Spec 292 T1: os grupos de que o número participa (sem os participantes). */
+  listGroups(input: EvolutionConnectionRequest): Promise<readonly EvolutionGroup[]>
+}
+
+/** Um grupo do WhatsApp como o Evolution o devolve: o identificador `@g.us` e o nome (rótulo). */
+export type EvolutionGroup = {
+  readonly groupJid: string
+  readonly name: string
 }
 
 /**

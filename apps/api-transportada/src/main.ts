@@ -432,6 +432,9 @@ import {
   createSetCrewSettingsUseCase,
 } from './fleet/application/crew-settings.use-case'
 import { DrizzleCrewSettingsRepository } from './fleet/infrastructure/drizzle-crew-settings.repository'
+import { createDriverWhatsappGroupUseCase } from './fleet/application/driver-whatsapp-group.use-case'
+import { DrizzleDriverWhatsappGroupRepository } from './fleet/infrastructure/drizzle-driver-whatsapp-group.repository'
+import { createDriverWhatsappGroupRoutes } from './fleet/presentation/driver-whatsapp-group.routes'
 import { createCompanyCrewSettingsRoutes } from './fleet/presentation/crew-settings.routes'
 import { createListPendingItemsUseCase } from './pending-items/application/list-pending-items.use-case.js'
 import { createFleetBodyTypePendingItemSource } from './pending-items/infrastructure/drizzle-fleet-body-type-pending-item.source.js'
@@ -3657,6 +3660,12 @@ function createApplicationRoutes({
     ...createCompanyCrewSettingsRoutes({
       get: createGetCrewSettingsUseCase({ crewSettings: crewSettingsRepository }),
       set: createSetCrewSettingsUseCase({ crewSettings: crewSettingsRepository }),
+    }),
+    ...createDriverWhatsappGroupRoutes({
+      useCase: createDriverWhatsappGroupUseCase({
+        listEvolutionGroups: (input) => whatsappEvolution.listGroups(input),
+        repository: new DrizzleDriverWhatsappGroupRepository(database),
+      }),
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
     ...createPendingItemsRoutes({

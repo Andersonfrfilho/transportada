@@ -73,6 +73,7 @@ import {
   aggregateAccounts,
   aggregateDocuments,
   fleetDriverVehicleAssignments,
+  fleetDriverWhatsappGroups,
   fleetDrivers,
   fleetVehicles,
 } from './fleet.schema.js'
@@ -333,6 +334,7 @@ export const databaseSchema = {
   fiscalSequences,
   fleetDriverRegions,
   fleetDriverVehicleAssignments,
+  fleetDriverWhatsappGroups,
   fleetDrivers,
   fleetVehicles,
   freightCalculations,
