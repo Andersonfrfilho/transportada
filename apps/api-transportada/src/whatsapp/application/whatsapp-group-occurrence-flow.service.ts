@@ -28,6 +28,7 @@ export const GROUP_OCCURRENCE_STEP = {
   confirm: 'confirm',
   contact: 'contact',
   document: 'document',
+  location: 'location',
   note: 'note',
   start: 'start',
   type: 'type',
@@ -150,8 +151,10 @@ export const GROUP_OCCURRENCE_TEXT = {
   askNote: [
     '📝 Quer acrescentar alguma observação?',
     'Escreva agora ou responda _pular_ para seguir sem.',
-    '',
-    '📍 Se quiser, compartilhe também a sua localização antes de confirmar (é opcional).',
+  ].join('\n'),
+  askLocation: [
+    '📍 Quer enviar a sua localização? (é opcional)',
+    'Compartilhe pelo clipe ➜ *Localização* e responda _enviei_, ou responda _pular_.',
   ].join('\n'),
   askType: (types: readonly GroupOccurrenceType[]) =>
     [
@@ -197,6 +200,7 @@ const REASON = {
   collect: 'mande o que foi pedido, ou responda "pular" se o item não for obrigatório',
   confirm: 'responda 1 para sim ou 2 para não',
   document: 'não achei essa nota na viagem do motorista',
+  location: 'responda _enviei_ depois de compartilhar a localização, ou _pular_',
   noteIsAnOption:
     'isso parece a resposta de uma pergunta anterior; se for mesmo a observação, escreva com mais detalhe',
   noteTooLong: `a observação passa de ${GROUP_OCCURRENCE_NOTE_MAX_LENGTH} caracteres`,
@@ -206,6 +210,7 @@ const REASON = {
 const YES = new Set(['1', 'sim', 's', 'confirmo', 'confirma', 'ok', 'pode'])
 const NO = new Set(['2', 'nao', 'n'])
 const SKIP = new Set(['pular', 'pula', 'sem', 'nao', 'continuar', 'seguir', '-'])
+const LOCATION_SENT = new Set(['enviei', 'enviado', 'mandei', 'mandado', 'pronto', 'ok'])
 const SKIP_CONTACT = new Set([
   'continuar',
   'pular',
@@ -455,11 +460,24 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
             }
           }
           const note = SKIP.has(normalize(text)) ? '' : text
-          return continueWith(GROUP_OCCURRENCE_STEP.confirm, { ...state, note }, [
+          return continueWith(GROUP_OCCURRENCE_STEP.location, { ...state, note }, [
+            GROUP_OCCURRENCE_TEXT.askLocation,
+          ])
+        }
+        case GROUP_OCCURRENCE_STEP.location: {
+          const answer = normalize(text)
+          if (!SKIP.has(answer) && !LOCATION_SENT.has(answer)) {
+            return {
+              kind: 'not_understood',
+              prompt: GROUP_OCCURRENCE_TEXT.askLocation,
+              reason: REASON.location,
+            }
+          }
+          return continueWith(GROUP_OCCURRENCE_STEP.confirm, state, [
             GROUP_OCCURRENCE_TEXT.confirm(
               state.typeName ?? '',
               state.documentNumber ?? '',
-              note,
+              state.note ?? '',
               state.contactMasked ?? '',
             ),
           ])
