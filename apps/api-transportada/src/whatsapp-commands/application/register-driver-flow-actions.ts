@@ -840,10 +840,11 @@ export function createDriverWhatsAppFlowActions(
         ? ` (${DRIVER_RETURN_REASON_LABELS[command.reason] ?? command.reason})`
         : ''
     const verb = command.kind === 'return' ? 'Devolver' : 'Entregar'
-    await channel.sendText(
-      session.whatsappNumber,
-      `${verb} ${documents.map((document) => `NF ${document.number}`).join(', ')}${reasonLabel}?`,
-    )
+    await say({ actor, channel, session }, 'driverDirectConfirm', {
+      documents: documents.map((document) => `NF ${document.number}`).join(', '),
+      reason: reasonLabel,
+      verb,
+    })
     return {
       context: {
         [DRIVER_FLOW_CONTEXT_KEY.directCommand]: undefined,
@@ -880,7 +881,7 @@ export function createDriverWhatsAppFlowActions(
       (event !== DRIVER_FLOW_STEP.deliver && event !== DRIVER_FLOW_STEP.return)
     ) {
       if (answer === DRIVER_DIRECT_CONFIRM_ANSWER.no) {
-        await say({ actor, channel, session }, { text: 'Certo, nada foi registrado.' })
+        await say({ actor, channel, session }, 'driverDirectCancelled')
       }
       return {
         context: cleared,

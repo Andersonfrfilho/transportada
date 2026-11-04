@@ -12,6 +12,8 @@ export const BOT_SPEECH_NODE_PREFIX = 'fala_'
 export const BOT_SPEECH_DEFAULTS = {
   alreadyRegistered: 'Já estava registrada.',
   deliveryRegistered: 'Entrega registrada. ✅',
+  driverDirectCancelled: 'Certo, nada foi registrado.',
+  driverDirectConfirm: '{{verb}} {{documents}}{{reason}}?',
   driverDirectReturnOneAtATime: 'Devolva uma nota por vez. Mande "devolvi" e o número da nota.',
   driverDocumentsNotOpen: 'Não achei estas notas abertas na sua viagem: {{numbers}}.',
   driverNoActiveTrip: 'Você não tem viagem em andamento.',
