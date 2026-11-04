@@ -201,6 +201,7 @@ import {
 } from './whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 import { createWhatsAppGroupRequestSessions } from './whatsapp/application/whatsapp-group-request.service.js'
 import { createEvolutionGroupReplySender } from './whatsapp/infrastructure/evolution-group-reply.gateway.js'
+import { startGroupRequestExpiryWatcher } from './whatsapp/infrastructure/whatsapp-group-request-expiry.watcher.js'
 import {
   createGroupDriverFlow,
   GROUP_DRIVER_STEP,
@@ -2164,6 +2165,16 @@ function createEvolutionWebhook(input: {
     }).sendText,
   })
   const groupRequests = createDrizzleWhatsAppGroupRequestRepository(database)
+  /** Spec 292 regra 5: o pedido que vence sem resposta é avisado (antes) e encerrado com aviso no grupo. */
+  if (input.groupOccurrence !== undefined) {
+    startGroupRequestExpiryWatcher({
+      database: database as unknown as Parameters<
+        typeof startGroupRequestExpiryWatcher
+      >[0]['database'],
+      logger,
+      replies: groupReplies,
+    })
+  }
   const groupSessions =
     input.groupOccurrence === undefined
       ? undefined
