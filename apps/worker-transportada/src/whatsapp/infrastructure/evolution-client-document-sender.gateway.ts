@@ -22,6 +22,7 @@ import { sql, type SQL } from 'drizzle-orm'
 
 import type { EvolutionSendPacer } from './evolution-send-pacer.js'
 import type { ContractorReplyClientWhatsAppSender } from '../../occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-forward.support.js'
+import type { GroupBoletoReturnSender } from '../../occurrence-conversation/infrastructure/whatsapp-group-boleto-return.support.js'
 
 /** O envio de um arquivo pode levar mais que o padrão de 15 s do SDK: o Evolution sobe o PDF ao WhatsApp antes de responder. */
 const SEND_TIMEOUT_MS = 60_000
@@ -45,7 +46,7 @@ export function createEvolutionClientDocumentSender(dependencies: {
   /** Spec 289: espaça os envios do número; ausente, o envio sai na hora (testes). */
   readonly pacer?: EvolutionSendPacer
   readonly runner: Runner
-}): ContractorReplyClientWhatsAppSender {
+}): ContractorReplyClientWhatsAppSender & Pick<GroupBoletoReturnSender, 'sendText'> {
   async function decrypt(params: {
     readonly companyId: string
     readonly envelope: unknown
@@ -128,6 +129,22 @@ export function createEvolutionClientDocumentSender(dependencies: {
           mimeType: params.mimeType,
           to: params.number,
         })
+        return { providerMessageId: sent.externalMessageId }
+      } catch (error) {
+        throw new EvolutionClientDocumentSendError(classify(error))
+      }
+    },
+
+    /** Spec 292 T7: o aviso do retorno do boleto ao grupo do pedido (o `@g.us` passa sem normalizar no SDK 0.3.0). */
+    async sendText(params) {
+      const channel = await open(params.companyId)
+      try {
+        await dependencies.pacer?.wait(params.companyId)
+      } catch {
+        throw new EvolutionClientDocumentSendError('failed')
+      }
+      try {
+        const sent = await channel.sendText(params.number, params.body)
         return { providerMessageId: sent.externalMessageId }
       } catch (error) {
         throw new EvolutionClientDocumentSendError(classify(error))

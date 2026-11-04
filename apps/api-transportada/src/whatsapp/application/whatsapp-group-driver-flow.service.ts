@@ -21,6 +21,7 @@ import {
   WHATSAPP_DRIVER_STOP_COMMAND,
   type WhatsAppDriverStopCommandEvent,
 } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
+import type { GroupBoletoResend } from './whatsapp-group-boleto-resend.service.js'
 import type { createGroupDeliveryFlow } from './whatsapp-group-delivery-flow.service.js'
 import type { createGroupStopFlow } from './whatsapp-group-stop-flow.service.js'
 import type {
@@ -66,6 +67,8 @@ export const GROUP_DRIVER_TEXT = {
 } as const
 
 export function createGroupDriverFlow(flows: {
+  /** Spec 292 T7: "pedir boleto de novo"; ausente, o texto segue para o fluxo de ocorrência como antes. */
+  readonly boletoResend?: GroupBoletoResend
   /** Spec 293 T15: ausente, "entreguei" segue para o fluxo de ocorrência como antes. */
   readonly delivery?: ReturnType<typeof createGroupDeliveryFlow>
   readonly occurrence: GroupRequestFlow
@@ -136,6 +139,10 @@ export function createGroupDriverFlow(flows: {
           state: {},
           step: GROUP_DRIVER_STEP.menu,
         }
+      }
+      const resend = flows.boletoResend?.interpret(turn.text) ?? null
+      if (resend !== null && flows.boletoResend !== undefined) {
+        return flows.boletoResend.run(turn, resend.documentNumber)
       }
       const command = interpretDriverStopCommand(turn.text)
       if (command !== null) {

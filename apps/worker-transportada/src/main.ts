@@ -194,6 +194,10 @@ import type { SendContractorMailOutboundMessageDependencies } from './contractor
 import type { RecordContractorMailInboundMessageDependencies } from './contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
 import { createContractorReplyClientWhatsAppDispatcher } from './occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-dispatcher.adapter.js'
 import {
+  chainContractorReplyDispatchers,
+  createWhatsAppGroupBoletoReturnDispatcher,
+} from './occurrence-conversation/infrastructure/whatsapp-group-boleto-return-dispatcher.adapter.js'
+import {
   createDrizzleEvolutionSendSlotClaimer,
   createEvolutionSendPacer,
 } from './whatsapp/infrastructure/evolution-send-pacer.js'
@@ -636,6 +640,28 @@ export async function startWorkerRuntime(
     connection: { connection: { TimeZone: 'UTC' }, url: config.databaseUrl },
   })
   const storageGateway = storageGatewayFactory({ environment })
+  /**
+   * Spec 292 T7: o boleto da contratante volta ao grupo de onde o pedido saiu. Depois do despacho do WhatsApp do
+   * cliente (resposta por e-mail) e na batida do alarme do retorno vencido.
+   */
+  const whatsappGroupBoletoReturns = createWhatsAppGroupBoletoReturnDispatcher({
+    database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    logger,
+    readAttachment: async (location) =>
+      new Uint8Array(
+        await new Response(await storageGateway.getObjectStream(location)).arrayBuffer(),
+      ),
+    sender: createEvolutionClientDocumentSender({
+      envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+      pacer: createEvolutionSendPacer({
+        claimSlot: createDrizzleEvolutionSendSlotClaimer(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        maxWaitMs: 120_000,
+      }),
+      runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    }),
+  })
   /** Um só para os dois gateways: limitadores separados somariam as chamadas ao mesmo CNPJ. */
   const nfseProviderV3Fetch = createRateLimitedFetch({
     clock: () => Date.now(),
@@ -1202,25 +1228,29 @@ export async function startWorkerRuntime(
       config,
       dependencies: {
         /** Spec 286 T3 (RF3/RF4): o boleto por WhatsApp ao cliente, pelo Evolution da empresa, depois do commit. */
-        clientWhatsApp: createContractorReplyClientWhatsAppDispatcher({
-          database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
-          logger,
-          readAttachment: async (location) =>
-            new Uint8Array(
-              await new Response(await storageGateway.getObjectStream(location)).arrayBuffer(),
-            ),
-          sender: createEvolutionClientDocumentSender({
-            envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
-            /** Spec 289: o intervalo entre envios do número; no worker espera até 2 min, depois cai no e-mail. */
-            pacer: createEvolutionSendPacer({
-              claimSlot: createDrizzleEvolutionSendSlotClaimer(
-                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        /** Spec 292 T7: e, logo depois, o retorno do boleto ao grupo do pedido (ele precisa saber se o cliente recebeu). */
+        clientWhatsApp: chainContractorReplyDispatchers(
+          createContractorReplyClientWhatsAppDispatcher({
+            database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            logger,
+            readAttachment: async (location) =>
+              new Uint8Array(
+                await new Response(await storageGateway.getObjectStream(location)).arrayBuffer(),
               ),
-              maxWaitMs: 120_000,
+            sender: createEvolutionClientDocumentSender({
+              envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+              /** Spec 289: o intervalo entre envios do número; no worker espera até 2 min, depois cai no e-mail. */
+              pacer: createEvolutionSendPacer({
+                claimSlot: createDrizzleEvolutionSendSlotClaimer(
+                  database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                ),
+                maxWaitMs: 120_000,
+              }),
+              runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
             }),
-            runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
           }),
-        }),
+          whatsappGroupBoletoReturns,
+        ),
         /** Spec 183 T702c1: o anexo do e-mail recebido vira anexo da mensagem da conversa. */
         conversationAttachments: createInboundConversationAttachmentStore({
           bucket: storageBucket,
@@ -1619,6 +1649,8 @@ export async function startWorkerRuntime(
            */
           ['occurrence.contractor-reply.alert' as const]:
             createOccurrenceContractorReplyAlertRoutine({
+              /** Spec 292 T7: o retorno que venceu (e o que ficou para trás) também avisa o grupo do pedido. */
+              afterCycle: () => whatsappGroupBoletoReturns.dispatch({}),
               errorTracker,
               logger,
               notifier: createContractorReplyAlertNotifier({

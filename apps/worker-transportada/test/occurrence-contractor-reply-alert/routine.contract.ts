@@ -39,6 +39,7 @@ const ALERTED: ApplyContractorReplyAlertResult = {
 type Harness = ReturnType<typeof buildHarness>
 
 function buildHarness(input: {
+  readonly afterCycle?: () => Promise<void>
   readonly apply?: (params: ApplyContractorReplyAlertParams) => ApplyContractorReplyAlertResult
   readonly notify?: (params: NotifyContractorReplyAlertParams) => void
   readonly replies: readonly DueContractorReply[]
@@ -51,6 +52,7 @@ function buildHarness(input: {
   const logs: { message: string; metadata: unknown }[] = []
 
   const routine = createOccurrenceContractorReplyAlertRoutine({
+    ...(input.afterCycle === undefined ? {} : { afterCycle: input.afterCycle }),
     errorTracker: { captureException: (error: unknown) => captured.push(error) },
     logger: {
       error: (message, metadata) => logs.push({ message, metadata }),
@@ -90,6 +92,21 @@ function buildHarness(input: {
 }
 
 describe('occurrence contractor reply alert routine', () => {
+  test('spec 292 T7: after the cycle the group return runs once; its failure goes to the tracker, not the outcome', async () => {
+    let calls = 0
+    const harness = buildHarness({
+      afterCycle: async () => {
+        calls += 1
+        throw new Error('group return failed')
+      },
+      replies: [buildReply(1)],
+    })
+    const result = await harness.run()
+    expect(calls).toBe(1)
+    expect(harness.captured).toHaveLength(1)
+    expect(result.outcome).toBe('succeeded')
+  })
+
   test('runs the alert under the reply own company and notifies the dispatcher with the alert number', async () => {
     const harness = buildHarness({ replies: [buildReply(0), buildReply(1)] })
 
