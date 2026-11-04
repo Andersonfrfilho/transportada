@@ -2498,7 +2498,8 @@
     "channel": {
       "driver_app": "app do motorista",
       "office": "escritório",
-      "whatsapp": "WhatsApp"
+      "whatsapp": "WhatsApp",
+      "whatsapp_group_bot": "WhatsApp, pelo bot do grupo"
     },
     "summary": {
       "title": "Resumo",

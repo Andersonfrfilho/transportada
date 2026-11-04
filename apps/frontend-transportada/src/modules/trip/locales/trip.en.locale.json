@@ -2498,7 +2498,8 @@
     "channel": {
       "driver_app": "driver app",
       "office": "office",
-      "whatsapp": "WhatsApp"
+      "whatsapp": "WhatsApp",
+      "whatsapp_group_bot": "WhatsApp, via the group bot"
     },
     "summary": {
       "title": "Summary",

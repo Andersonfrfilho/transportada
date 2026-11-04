@@ -174,6 +174,8 @@ const RESOLUTION_FILTER_QUERY_STATES: Readonly<
 }
 
 export type TripOccurrenceFeedItem = Readonly<{
+  /** Spec 292: aberta pelo bot no grupo do WhatsApp; ausente é API anterior ou outro canal. */
+  viaGroupBot?: boolean
   /** Spec 240 RF9: `null` é "não foi cancelada"; a cancelada continua na leitura, marcada. */
   cancellation?: null | OccurrenceCancellation
   case: null | TripOccurrenceCaseView
