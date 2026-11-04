@@ -263,7 +263,10 @@ export function createEvolutionGroupInbound(
     }
     if (sender === '') return 'unknown_sender'
     const requestOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
-    if (requestOwner !== sender && !quotesBot) {
+    // Com a sessão aberta, o bot só ouve o dono dela, sem frase de chamada; áudio de outra pessoa nem é
+    // transcrito. Sem sessão, só quem cita o bot ou diz a frase de chamada.
+    if (requestOwner !== null && requestOwner !== sender) return 'not_addressed'
+    if (requestOwner === null && !quotesBot) {
       return listenForWakePhrase({ ...input, requestOwner, sender })
     }
     await ports.bot.receive({

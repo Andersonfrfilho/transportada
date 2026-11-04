@@ -496,6 +496,29 @@ describe('áudio do bot no grupo: frase de chamada', () => {
     })
   })
 
+  test('com a sessão aberta, o dono fala sem a frase e o áudio de outra pessoa nem é transcrito', async () => {
+    const { bot, downloads, receive, replies } = groupSetup({
+      openRequestOwner: DRIVER,
+      transcript: 'prorrogação do boleto da nota 899877',
+      wakePhrase: 'atendimento Fernandes',
+    })
+    expect(await receive(groupMessage(), VOICE)).toBe('audio')
+    await bot.idle()
+    expect(replies.at(-1)).toBe(botAudioConfirmationText('prorrogação do boleto da nota 899877'))
+    const before = replies.length
+    for (const quotedParticipant of [null, `${BOT}@s.whatsapp.net`]) {
+      expect(
+        await receive(groupMessage({ externalMessageId: 'S1', participant: SUPPORT }), {
+          ...VOICE,
+          quotedParticipant,
+        }),
+      ).toBe('not_addressed')
+    }
+    await bot.idle()
+    expect(downloads).toEqual(['A1'])
+    expect(replies).toHaveLength(before)
+  })
+
   test('só a frase abre o menu, como o @bot sozinho', async () => {
     const { bot, handled, receive } = groupSetup({
       transcript: 'Atendimento Fernandes.',
