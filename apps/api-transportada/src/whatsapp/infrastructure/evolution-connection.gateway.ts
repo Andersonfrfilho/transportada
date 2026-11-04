@@ -4,6 +4,7 @@
 import { EvolutionWhatsAppChannel } from '@adatechnology/evolution-whatsapp-provider'
 
 import type {
+  EvolutionGroup,
   WhatsAppEvolutionGatewayPort,
   WhatsAppEvolutionProvisionerPort,
 } from '../application/whatsapp-evolution.port.js'
@@ -55,6 +56,20 @@ export function createEvolutionConnectionGateway(
       // 400/404: a instância já está desconectada; o estado final é o mesmo que se pediu.
       if (response.status >= 500) throw new Error(`evolution logout failed (${response.status})`)
     },
+    /** Spec 292 T1: `GET /group/fetchAllGroups/{instância}?getParticipants=false`; falha de rede ou status ≥ 300 lança. */
+    async listGroups(input) {
+      const response = await (dependencies.fetch ?? fetch)(
+        `${input.baseUrl}/group/fetchAllGroups/${encodeURIComponent(input.instanceName)}?getParticipants=false`,
+        {
+          headers: { apikey: input.apiKey },
+          method: 'GET',
+          signal: AbortSignal.timeout(GROUPS_TIMEOUT_MILLISECONDS),
+        },
+      )
+      if (response.status >= 300)
+        throw new Error(`evolution fetchAllGroups failed (${response.status})`)
+      return readGroups((await response.json().catch(() => null)) as unknown)
+    },
     /** Spec 281 T6: o Evolution passa a entregar mensagens e status na URL da empresa, com o segredo no cabeçalho. */
     setWebhook: ({ headers, url, ...request }) =>
       open(request).setWebhook({ headers: { ...headers }, url }),
@@ -63,6 +78,25 @@ export function createEvolutionConnectionGateway(
 
 const PROVISION_TIMEOUT_MILLISECONDS = 15_000
 const OWNER_TIMEOUT_MILLISECONDS = 10_000
+const GROUPS_TIMEOUT_MILLISECONDS = 30_000
+const GROUP_JID_PATTERN = /^[0-9]+(?:-[0-9]+)?@g\.us$/u
+
+/** Só o que é grupo de verdade (`…@g.us`), sem repetição, em ordem alfabética do nome; o resto da resposta é descartado. */
+export function readGroups(value: unknown): readonly EvolutionGroup[] {
+  if (!Array.isArray(value)) return []
+  const byJid = new Map<string, EvolutionGroup>()
+  for (const item of value as unknown[]) {
+    if (typeof item !== 'object' || item === null) continue
+    const record = item as Record<string, unknown>
+    const id = record.id
+    if (typeof id !== 'string' || !GROUP_JID_PATTERN.test(id)) continue
+    const subject = typeof record.subject === 'string' ? record.subject.trim() : ''
+    byJid.set(id, { groupJid: id, name: subject === '' ? id : subject })
+  }
+  return [...byJid.values()].sort((left, right) =>
+    left.name.localeCompare(right.name, 'pt-BR', { sensitivity: 'base' }),
+  )
+}
 
 /** `ownerJid` ("5516…@s.whatsapp.net") da instância; versões antigas usam `owner`. Só dígitos, ou `null`. */
 export function readOwnerNumber(value: unknown): null | string {

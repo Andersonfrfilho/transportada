@@ -179,6 +179,9 @@ export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const API_FLEET_DRIVER_ACCESS_REPORT_PATH = `${API_FLEET_DRIVERS_PATH}/access-report`
 export const API_FLEET_DRIVER_ACCESS_PATH = `${API_FLEET_DRIVERS_PATH}/:id/access`
 export const API_FLEET_DRIVER_SCORE_PATH = `${API_FLEET_DRIVERS_PATH}/:id/score`
+/** Spec 292 T1: o grupo de WhatsApp da ficha (GET `fleet.read`; PUT/DELETE `fleet.manage`) e a lista de grupos do Evolution. */
+export const API_FLEET_DRIVER_WHATSAPP_GROUP_PATH = `${API_FLEET_DRIVERS_PATH}/:id/whatsapp-group`
+export const API_FLEET_WHATSAPP_GROUPS_PATH = '/fleet/whatsapp-groups'
 export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'

@@ -140,6 +140,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('fiscal_sequences', 'empty', null),
   ('fleet_driver_regions', 'keep', null),
   ('fleet_driver_vehicle_assignments', 'keep', null),
+  ('fleet_driver_whatsapp_groups', 'keep', null),
   ('fleet_drivers', 'keep', null),
   ('fleet_vehicle_axles', 'keep', null),
   ('fleet_vehicles', 'keep', null),
