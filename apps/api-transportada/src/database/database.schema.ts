@@ -181,6 +181,10 @@ import {
 import { whatsappChannels } from './whatsapp-channel.schema.js'
 import { whatsappEvolutionSettings } from './whatsapp-evolution.schema.js'
 import {
+  whatsappGroupRequestMessages,
+  whatsappGroupRequests,
+} from './whatsapp-group-request.schema.js'
+import {
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
 } from './user-whatsapp-phone.schema.js'
@@ -285,6 +289,7 @@ export * from './client-portal.schema.js'
 export * from './contractor-mail.schema.js'
 export * from './whatsapp-channel.schema.js'
 export * from './whatsapp-evolution.schema.js'
+export * from './whatsapp-group-request.schema.js'
 export * from './user-whatsapp-phone.schema.js'
 export * from './whatsapp-flow-graph-version.schema.js'
 export * from './whatsapp-command.schema.js'
@@ -445,6 +450,8 @@ export const databaseSchema = {
   tripLocationPings,
   whatsappChannels,
   whatsappEvolutionSettings,
+  whatsappGroupRequestMessages,
+  whatsappGroupRequests,
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
   whatsappFlowGraphVersions,

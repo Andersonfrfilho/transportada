@@ -258,6 +258,7 @@
   "./test/integration/whatsapp-driver-flow-actions.integration.ts": 4,
   "./test/integration/whatsapp-evolution-settings.integration.ts": 3,
   "./test/integration/whatsapp-flow-graph-publish.integration.ts": 6,
+  "./test/integration/whatsapp-group-request-repository.integration.ts": 19,
   "./test/integration/whatsapp-issuance-confirm.integration.ts": 3,
   "./test/integration/whatsapp-issuance-preview.integration.ts": 3,
   "./test/integration/whatsapp-location-redact.integration.ts": 6,

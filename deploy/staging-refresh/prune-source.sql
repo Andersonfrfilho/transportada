@@ -277,6 +277,8 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('whatsapp_command_requests', 'empty', null),
   ('whatsapp_evolution_settings', 'keep', null),
   ('whatsapp_flow_graph_versions', 'keep', null),
+  ('whatsapp_group_request_messages', 'empty', null),
+  ('whatsapp_group_requests', 'empty', null),
   ('whatsapp_phone_verification_requests', 'empty', null),
   ('whatsapp_webhook_nonces', 'empty', null),
   ('notification.templates', 'keep', null),
