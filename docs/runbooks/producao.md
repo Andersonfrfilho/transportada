@@ -578,6 +578,14 @@ ocorrências de prorrogação em UTC e em Brasília e a lista de colunas `timest
 Medido em 04/11/2026: banco e container em UTC, nenhuma coluna sem fuso, `created_at` é `timestamptz`;
 a tela converte no navegador. As ocorrências de 03/11 13:32 e 13:31 foram de fato criadas na véspera.
 
+## 5.12 Ocorrência solucionada aparece "Em andamento" na linha do tempo (04/11/2026)
+
+Consulta: `ops/producao-ocorrencia-reaberta-04-11.sh` (somente leitura; ocorrência por janela de horário, com
+eventos de solução, da tratativa e do retorno da contratante). Causa: a operadora solucionou a ocorrência às 09:20 e,
+às 09:21, marcou o retorno da contratante (parado em `needs_operator` desde 29/10) como tratado; a linha do tempo
+traduzia `handled` em "Em andamento" mesmo depois de solucionada. Dado correto: a ocorrência segue solucionada
+(nenhum evento de reabertura), então não há dado a corrigir; era só a etapa derivada na leitura.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
