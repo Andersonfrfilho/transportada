@@ -195,7 +195,9 @@ mandado depois de escolher a opção no menu); áudio de outra pessoa nem é tra
 em áudio ou texto sem a frase nem `@` por 5 minutos, uma vez (`BOT_AUDIO_RETRY_WINDOW_MS`). A comparação tolera a transcrição (prefixo de 5 letras por palavra,
 "da/de/do" no meio: "atendimento da Fernandez" casa; uma letra errada no começo de cada palavra também, como
 "Hernandes" ou "tendimento"). Com o "Entendi assim" na tela, a resposta pode ser falada: um áudio curto que comece por
-"sim"/"um" confirma e "não"/"dois" descarta (outcome `audio_answer`); outra fala troca o texto pendente e pergunta de novo. O script `staging-frase-chamada-bot.sh` (pasta `tmp/ops/`)
+"sim"/"um" confirma e "não"/"dois" descarta (outcome `audio_answer`); outra fala troca o texto pendente e pergunta de novo. No worker, `BOT_AUDIO_TRANSCRIPTION_PROMPT` dá ao whisper um texto de
+contexto com a grafia da marca (passa pelo `bin/whisper-cli-bot.sh` da imagem, só na rota do bot; o script
+`staging-contexto-whisper-bot.sh` grava em staging). O script `staging-frase-chamada-bot.sh` (pasta `tmp/ops/`)
 grava a variável na `api` de staging.
 
 Teste em staging: no grupo de teste, `@bot` por texto, depois um áudio "prorrogação de boleto da nota <número>";
