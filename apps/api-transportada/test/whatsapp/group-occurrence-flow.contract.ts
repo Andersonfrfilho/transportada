@@ -201,6 +201,16 @@ describe('fluxo do grupo: pedido falado (áudio)', () => {
     expect(flow.registered[0]).toMatchObject({ documentId: 'D1', occurrenceTypeId: 'T1' })
   })
 
+  test('o áudio real das 18:20: nota em duplas e tipo na mesma frase pulam direto para a observação', async () => {
+    const flow = setup({ documents: [{ id: 'D9', number: '899877' }, NF1] })
+    expect(
+      await flow.start('eu preciso de uma prorrogação de boleto da nota 89, 98, 77'),
+    ).toMatchObject({ replies: [GROUP_OCCURRENCE_TEXT.askNote], step: GROUP_OCCURRENCE_STEP.note })
+    await flow.answer('pular')
+    await flow.answer('1')
+    expect(flow.registered[0]).toMatchObject({ documentId: 'D9', occurrenceTypeId: 'T1' })
+  })
+
   test('sem tipo no pedido, depois da nota ainda pergunta o tipo', async () => {
     const flow = setup({ documents: [NF1, NF2] })
     await flow.start('')
