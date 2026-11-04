@@ -569,6 +569,15 @@ Em 04/11/2026 mais duas, da mesma viagem e devolvidas em 30/10: 920247 e 920143,
 Anderson; depois disso não restou nota devolvida presa em viagem encerrada. O WhatsApp e o app do motorista (sem "voltou ao barracão") ainda não soltam.
 Dica: o `railway ssh` precisa rodar de uma pasta ligada ao projeto (`cd` no repositório antes).
 
+## 5.11 Conferir a hora gravada das ocorrências (04/11/2026)
+
+Somente leitura. Dúvida "a data/hora da ocorrência está errada": roda
+`bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-data-ocorrencias.sh`, que grava em
+`tmp/ops/saidas/` a hora do banco, o fuso do banco e do container da api, `created_at` das últimas
+ocorrências de prorrogação em UTC e em Brasília e a lista de colunas `timestamp without time zone`.
+Medido em 04/11/2026: banco e container em UTC, nenhuma coluna sem fuso, `created_at` é `timestamptz`;
+a tela converte no navegador. As ocorrências de 03/11 13:32 e 13:31 foram de fato criadas na véspera.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
