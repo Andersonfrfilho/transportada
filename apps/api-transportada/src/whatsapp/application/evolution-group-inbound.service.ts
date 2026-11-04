@@ -143,6 +143,15 @@ export type EvolutionGroupInboundPorts = {
    * ignorada como antes (`no_text`).
    */
   handleMedia?: (media: AdmittedGroupMedia) => Promise<void>
+  /**
+   * Spec 292 T9: a localização de quem tem o pedido aberto e não é o motorista do grupo (o
+   * operador que abriu o pedido) avança o passo da localização. `true` quando avançou.
+   */
+  advanceRequestLocation?: (input: {
+    readonly companyId: string
+    readonly groupJid: string
+    readonly sender: string
+  }) => Promise<boolean>
   /** Spec 293 T15: quem escreveu (só dígitos) é o motorista dono do grupo? */
   isGroupDriver?: (input: {
     readonly companyId: string
@@ -466,6 +475,13 @@ export function createEvolutionGroupInbound(
         }
         if (sender === '') return 'unknown_sender'
         if (!(await isGroupDriver({ companyId, driverId: owner.driverId, sender }))) {
+          // Não é prova de entrega, mas pode ser a resposta ao passo da localização do pedido dele.
+          if (
+            media.kind === 'location' &&
+            (await dependencies.advanceRequestLocation?.({ companyId, groupJid, sender })) === true
+          ) {
+            return 'media'
+          }
           return 'not_driver'
         }
         await handleMedia({
