@@ -157,7 +157,7 @@ describe('fluxo do grupo: guiado', () => {
     expect(flow.registered).toEqual([])
   })
 
-  test('com mais notas que a lista comporta, pede o número da nota', async () => {
+  test('com mais notas que a lista comporta, mostra as primeiras e aceita o número da nota', async () => {
     const documents = Array.from({ length: GROUP_DOCUMENT_LIST_LIMIT + 1 }, (_, index) => ({
       id: `D${index}`,
       number: String(1000 + index),
@@ -167,7 +167,7 @@ describe('fluxo do grupo: guiado', () => {
     expect(await flow.start('')).toMatchObject({
       replies: [GROUP_OCCURRENCE_TEXT.askDocument(documents)],
     })
-    expect(await flow.answer('3')).toMatchObject({ kind: 'not_understood' })
+    expect(GROUP_OCCURRENCE_TEXT.askDocument(documents)).toContain('E mais 1 nota(s)')
     expect(await flow.answer('1003')).toMatchObject({ kind: 'continue', step: 'type' })
   })
 })
