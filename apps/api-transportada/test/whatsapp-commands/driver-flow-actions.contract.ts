@@ -1148,3 +1148,94 @@ describe('o WhatsApp não colhe assinatura: o erro diz o campo que falta (spec 2
     expect(sent[0]).toMatchObject({ kind: 'list', rows: [{ id: OCCURRENCE_TYPE_ID }] })
   })
 })
+
+describe('spec 293 T15: a ocorrência que pede foto, número ou valor é colhida na conversa individual', () => {
+  test('com coleta aberta, o roteador da observação pede o que falta e não registra ainda', async () => {
+    const { channel, sent } = buildChannel()
+    const begun: unknown[] = []
+    let registered = false
+    const result = await callAction({
+      channel,
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.noteAnswer]: 'cliente devolveu',
+        [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeId]: OCCURRENCE_TYPE_ID,
+      },
+      deps: buildDeps({
+        occurrenceDrafts: {
+          answer: async () => null,
+          awaitingText: async () => false,
+          async begin(input) {
+            begun.push(input)
+            return {
+              awaitingText: false,
+              documentNumber: '1',
+              finished: false,
+              texts: ['Ocorrência da NF 1: mande 1 foto.'],
+            }
+          },
+          hasOpen: async () => true,
+          receiveLocation: async () => undefined,
+          receivePhoto: async () => null,
+          wantsPhoto: async () => true,
+        },
+        registerOccurrence: async () => {
+          registered = true
+          throw new Error('não deveria registrar')
+        },
+      }),
+      kind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
+    })
+
+    expect(registered).toBe(false)
+    expect(begun).toEqual([
+      {
+        actor: { actorUserId: USER_ID, companyId: COMPANY_ID, driverId: DRIVER_ID },
+        channel: 'individual',
+        documentId: DOCUMENT_ID,
+        documentNumber: '1',
+        location: null,
+        note: 'cliente devolveu',
+        occurrenceTypeId: OCCURRENCE_TYPE_ID,
+      },
+    ])
+    expect(sent.map((message) => message.body)).toEqual(['Ocorrência da NF 1: mande 1 foto.'])
+    expect(result).toMatchObject({ next: DRIVER_FLOW_NODE.tripMenu })
+  })
+
+  test('sem nada a colher (begin devolve null), registra como sempre', async () => {
+    let registered = 0
+    await callAction({
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.noteAnswer]: 'skip',
+        [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeId]: OCCURRENCE_TYPE_ID,
+      },
+      deps: buildDeps({
+        occurrenceDrafts: {
+          answer: async () => null,
+          awaitingText: async () => false,
+          begin: async () => null,
+          hasOpen: async () => false,
+          receiveLocation: async () => undefined,
+          receivePhoto: async () => null,
+          wantsPhoto: async () => false,
+        },
+        registerOccurrence: async () => {
+          registered += 1
+          return {
+            createdAt: NOW.toISOString(),
+            id: crypto.randomUUID(),
+            note: '',
+            occurrenceTypeId: OCCURRENCE_TYPE_ID,
+            productCode: '',
+            stage: 'delivery',
+            typeName: 'Recusa total',
+          }
+        },
+      }),
+      kind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
+    })
+    expect(registered).toBe(1)
+  })
+})

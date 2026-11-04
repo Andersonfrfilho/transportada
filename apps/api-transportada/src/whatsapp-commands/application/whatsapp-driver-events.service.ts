@@ -121,9 +121,20 @@ export type WhatsAppReturnEventInput = WhatsAppDocumentEventInput & {
   readonly reason: DriverReturnReason
 }
 
-export type WhatsAppOccurrenceEventInput = WhatsAppDocumentEventInput & {
-  readonly note: string
-  readonly occurrenceTypeId: string
+export type WhatsAppOccurrenceEventInput = WhatsAppDocumentEventInput &
+  WhatsAppOccurrenceCollectedFields & {
+    readonly note: string
+    readonly occurrenceTypeId: string
+  }
+
+/**
+ * Spec 293 T15: o que a ocorrência em coleta juntou (fotos já confirmadas como upload de ocorrência,
+ * número do documento do cliente e valor pago). Ausente é não colhido, como no app.
+ */
+export type WhatsAppOccurrenceCollectedFields = {
+  readonly attachmentObjectIds?: readonly string[] | undefined
+  readonly declaredAmount?: string | undefined
+  readonly referenceNumber?: string | undefined
 }
 
 type DocumentOutcome = {
@@ -135,17 +146,19 @@ type DocumentOutcome = {
 
 /** As funções do app, já com `channel: 'whatsapp'` e o relógio do servidor (composição em `main.ts`). */
 export type WhatsAppDriverEventPorts = {
-  readonly registerOccurrence: (input: {
-    readonly actorUserId: string
-    readonly companyId: string
-    readonly documentId: string
-    readonly driverId: string
-    readonly idempotencyKey: string
-    readonly location: ReportedLocation | null
-    readonly note: string
-    readonly occurrenceTypeId: string
-    readonly productCode: string
-  }) => Promise<unknown>
+  readonly registerOccurrence: (
+    input: WhatsAppOccurrenceCollectedFields & {
+      readonly actorUserId: string
+      readonly companyId: string
+      readonly documentId: string
+      readonly driverId: string
+      readonly idempotencyKey: string
+      readonly location: ReportedLocation | null
+      readonly note: string
+      readonly occurrenceTypeId: string
+      readonly productCode: string
+    },
+  ) => Promise<unknown>
   /** Chegar de novo não reescreve a hora (spec 057): o retorno não diz se já estava. */
   readonly reportArrival: (input: {
     readonly actorUserId: string
@@ -288,9 +301,23 @@ export async function registerWhatsAppDriverOccurrence(
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: '',
+      ...collectedFieldsOf(input),
     })
     return { event, kind: 'registered' }
   })
+}
+
+/** Só o que foi colhido: chave ausente é "não informado" (`exactOptionalPropertyTypes`). */
+function collectedFieldsOf(
+  input: WhatsAppOccurrenceCollectedFields,
+): WhatsAppOccurrenceCollectedFields {
+  return {
+    ...(input.attachmentObjectIds === undefined || input.attachmentObjectIds.length === 0
+      ? {}
+      : { attachmentObjectIds: input.attachmentObjectIds }),
+    ...(input.declaredAmount === undefined ? {} : { declaredAmount: input.declaredAmount }),
+    ...(input.referenceNumber === undefined ? {} : { referenceNumber: input.referenceNumber }),
+  }
 }
 
 /** Os cinco eventos amarrados às portas do app — o que grupo e individual recebem. */

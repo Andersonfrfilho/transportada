@@ -18,6 +18,7 @@ import {
   GROUP_OCCURRENCE_TEXT,
   type GroupDriverDocument,
   type GroupOccurrenceFlowPorts,
+  type GroupCollectionAnswer,
   type GroupOccurrenceRegistration,
   type GroupOccurrenceType,
 } from '../../src/whatsapp/application/whatsapp-group-occurrence-flow.service.js'
@@ -33,12 +34,16 @@ const NF2: GroupDriverDocument = { id: 'D2', number: '000899853' }
 function setup(
   options: {
     documents?: readonly GroupDriverDocument[]
+    collectionAnswer?: GroupCollectionAnswer | null
     registration?: GroupOccurrenceRegistration
     types?: readonly GroupOccurrenceType[]
   } = {},
 ) {
   const registered: Parameters<GroupOccurrenceFlowPorts['register']>[0][] = []
   const ports: GroupOccurrenceFlowPorts = {
+    async answerCollection() {
+      return options.collectionAnswer ?? null
+    },
     async listDriverDocuments({ driverId }) {
       expect(driverId).toBe(DRIVER_ID)
       return options.documents ?? [NF1, NF2]
@@ -113,6 +118,7 @@ describe('fluxo do grupo: guiado', () => {
       {
         companyId: COMPANY_ID,
         documentId: 'D2',
+        documentNumber: '000899853',
         driverId: DRIVER_ID,
         idempotencyKey: 'whatsapp-group-request:R1',
         note: 'cliente pediu mais 10 dias',
@@ -265,6 +271,47 @@ describe('fluxo do grupo: o que não pode', () => {
     expect(findTypeByName(types, 'RECUSA DO CLIENTE')?.id).toBe('T3')
     expect(findTypeByName(types, '')).toBeUndefined()
   })
+
+  test('spec 293 T15: tipo que pede número abre a coleta e o pedido segura a resposta em texto', async () => {
+    const flow = setup({
+      collectionAnswer: { awaitingText: false, replies: ['Número anotado.', 'Registrada.'] },
+      registration: {
+        awaitingText: true,
+        kind: 'collecting',
+        replies: ['Ocorrência da NF 17234: digite "Número do documento do cliente".'],
+      },
+    })
+    await flow.start('17234 avaria')
+    await flow.answer('pular')
+    expect(await flow.answer('sim')).toEqual({
+      kind: 'continue',
+      replies: ['Ocorrência da NF 17234: digite "Número do documento do cliente".'],
+      state: {},
+      step: GROUP_OCCURRENCE_STEP.collect,
+    })
+    expect(await flow.answer('DEV-123')).toEqual({
+      kind: 'done',
+      replies: ['Número anotado.', 'Registrada.'],
+    })
+  })
+
+  test('spec 293 T15: coleta que espera foto fecha o pedido (a foto chega sozinha); texto fora da coleta não é entendido', async () => {
+    const photo = setup({
+      registration: { awaitingText: false, kind: 'collecting', replies: ['Mande 1 foto.'] },
+    })
+    await photo.start('17234 avaria')
+    await photo.answer('pular')
+    expect(await photo.answer('sim')).toEqual({ kind: 'done', replies: ['Mande 1 foto.'] })
+
+    const lost = setup({
+      collectionAnswer: null,
+      registration: { awaitingText: true, kind: 'collecting', replies: ['Digite o valor.'] },
+    })
+    await lost.start('17234 avaria')
+    await lost.answer('pular')
+    await lost.answer('sim')
+    expect(await lost.answer('o que?')).toMatchObject({ kind: 'not_understood' })
+  })
 })
 
 describe('fluxo do grupo: contato do cliente (spec 292 T6)', () => {
@@ -294,6 +341,9 @@ describe('fluxo do grupo: contato do cliente (spec 292 T6)', () => {
   function build(known: readonly { addressMasked: string; channel: 'email' | 'whatsapp' }[]) {
     const added: { address: string; channel: string }[] = []
     const flow = createGroupOccurrenceFlow({
+      async answerCollection() {
+        return null
+      },
       async addClientContact(input) {
         if (input.address === 'ruim') return { kind: 'refused', reason: 'inválido' }
         added.push({ address: input.address, channel: input.channel })
@@ -362,6 +412,9 @@ describe('fluxo do grupo: contato do cliente (spec 292 T6)', () => {
 describe('fluxo do grupo: resposta de outra pessoa e observação', () => {
   test('observação só com 1 ou 2 números é recusada (resposta de pergunta anterior)', async () => {
     const flow = createGroupOccurrenceFlow({
+      async answerCollection() {
+        return null
+      },
       async listDriverDocuments() {
         return [NF1]
       },
@@ -397,6 +450,6 @@ describe('fluxo do grupo: resposta de outra pessoa e observação', () => {
       text: 'cliente pediu',
     })
     expect(other).toMatchObject({ kind: 'continue', step: 'confirm' })
-    expect((other as { replies: string[] }).replies[0]).toContain('Anderson')
+    expect((other as unknown as { replies: string[] }).replies[0]).toContain('Anderson')
   })
 })

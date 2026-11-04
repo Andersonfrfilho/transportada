@@ -37,6 +37,8 @@ import {
   WHATSAPP_DRIVER_EVENT,
   type WhatsAppDriverEventResult,
 } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
+import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
+import type { WhatsAppOccurrenceDrafts } from '../../whatsapp-commands/application/whatsapp-occurrence-draft.service.js'
 import { BOT_SPEECH_DEFAULTS } from '../../whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
 import type {
   GroupOccurrenceFlowPorts,
@@ -66,6 +68,14 @@ export function createGroupOccurrencePorts(dependencies: {
     readonly companyId: string
     readonly driverId: string
   }) => null | ReportedLocation
+  /**
+   * Spec 293 T15: a ocorrência em coleta (foto, número, valor pago) e a fachada que manda a resposta em
+   * texto para a coleta certa. Ausentes, o tipo que pede o que o WhatsApp não colhe é recusado como antes.
+   */
+  readonly collections?: {
+    readonly answers: WhatsAppDeliveryPreparations
+    readonly occurrences: WhatsAppOccurrenceDrafts
+  }
   readonly database: Database
   readonly listActiveTrips: (input: {
     readonly companyId: string
@@ -137,6 +147,24 @@ export function createGroupOccurrencePorts(dependencies: {
 
   return {
     ...contactPorts,
+    async answerCollection({ companyId, driverId, text }) {
+      const collections = dependencies.collections
+      if (collections === undefined) return null
+      const actorUserId = await findDriverUserId(dependencies.database, { companyId, driverId })
+      if (actorUserId === null) return null
+      // A coleta terminou (a foto fechou, ou o motorista cancelou pelo individual): o pedido fecha.
+      if (!(await collections.occurrences.hasOpen({ companyId, driverId }))) {
+        return { awaitingText: false, replies: [] }
+      }
+      const answered = await collections.answers.answer({
+        actor: { actorUserId, companyId, driverId },
+        text,
+      })
+      return answered === null
+        ? null
+        : { awaitingText: answered.awaitingText, replies: answered.texts }
+    },
+
     async listDriverDocuments({ companyId, driverId }) {
       const trips = await dependencies.listActiveTrips({ companyId, driverId })
       const seen = new Map<string, { id: string; number: string }>()
@@ -175,6 +203,22 @@ export function createGroupOccurrencePorts(dependencies: {
         })
       } else {
         try {
+          const collecting = await dependencies.collections?.occurrences.begin({
+            actor: { actorUserId, companyId: input.companyId, driverId: input.driverId },
+            channel: 'group',
+            documentId: input.documentId,
+            documentNumber: input.documentNumber,
+            location: null,
+            note: input.note,
+            occurrenceTypeId: input.occurrenceTypeId,
+          })
+          if (collecting !== undefined && collecting !== null) {
+            return {
+              awaitingText: collecting.awaitingText,
+              kind: 'collecting',
+              replies: collecting.texts,
+            }
+          }
           result = await registerWhatsAppDriverOccurrence(dependencies, {
             actorUserId,
             companyId: input.companyId,

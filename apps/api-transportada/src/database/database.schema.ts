@@ -185,6 +185,7 @@ import {
   whatsappGroupRequests,
 } from './whatsapp-group-request.schema.js'
 import { whatsappDeliveryPreparations } from './whatsapp-delivery-preparation.schema.js'
+import { whatsappOccurrenceDrafts } from './whatsapp-occurrence-draft.schema.js'
 import {
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
@@ -292,6 +293,7 @@ export * from './whatsapp-channel.schema.js'
 export * from './whatsapp-evolution.schema.js'
 export * from './whatsapp-group-request.schema.js'
 export * from './whatsapp-delivery-preparation.schema.js'
+export * from './whatsapp-occurrence-draft.schema.js'
 export * from './user-whatsapp-phone.schema.js'
 export * from './whatsapp-flow-graph-version.schema.js'
 export * from './whatsapp-command.schema.js'
@@ -455,6 +457,7 @@ export const databaseSchema = {
   whatsappGroupRequestMessages,
   whatsappGroupRequests,
   whatsappDeliveryPreparations,
+  whatsappOccurrenceDrafts,
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
   whatsappFlowGraphVersions,
