@@ -67,8 +67,8 @@ export function botAudioConfirmationText(text: string, details: readonly string[
     '',
     ...details.flatMap((detail) => [detail, '']),
     '👉 *Está certo?* Responda com o número:',
-    '1️⃣ *Sim*, pode seguir',
-    '2️⃣ *Não*, descartar',
+    '✅ *1 - Sim*, pode seguir',
+    '❌ *2 - Não*, descartar',
   ].join('\n')
 }
 
