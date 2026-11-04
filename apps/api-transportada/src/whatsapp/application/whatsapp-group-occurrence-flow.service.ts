@@ -230,6 +230,8 @@ type FlowState = {
   readonly knownContacts?: readonly GroupClientContact[] | undefined
   readonly note?: string | undefined
   readonly typeId?: string | undefined
+  /** O pedido como veio no início ("preciso de uma prorrogação de boleto"): pista do tipo depois da nota. */
+  readonly typeHint?: string | undefined
   readonly typeName?: string | undefined
   readonly types?: readonly GroupOccurrenceType[] | undefined
 }
@@ -258,6 +260,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
       documentId: document.id,
       documentNumber: document.number,
       documents: undefined,
+      typeHint: undefined,
       types,
     }
     const type = typeHint === '' ? undefined : findTypeByName(types, typeHint)
@@ -423,7 +426,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
               reason: REASON.document,
             }
           }
-          return afterDocument(turn, state, document, '')
+          return afterDocument(turn, state, document, state.typeHint ?? '')
         }
         case GROUP_OCCURRENCE_STEP.type: {
           const types = state.types ?? []
@@ -523,9 +526,12 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
       if (documents.length === 1 && documents[0] !== undefined) {
         return afterDocument(turn, {}, documents[0], turn.text)
       }
-      return continueWith(GROUP_OCCURRENCE_STEP.document, { documents }, [
-        GROUP_OCCURRENCE_TEXT.askDocument(documents),
-      ])
+      const typeHint = turn.text.trim()
+      return continueWith(
+        GROUP_OCCURRENCE_STEP.document,
+        typeHint === '' ? { documents } : { documents, typeHint },
+        [GROUP_OCCURRENCE_TEXT.askDocument(documents)],
+      )
     },
   }
 }
@@ -587,9 +593,13 @@ function normalize(text: string): string {
     .trim()
 }
 
+/**
+ * Os números do texto, e também os grupos de dígitos separados só por espaço, vírgula, ponto ou hífen
+ * juntos: a transcrição do áudio fala a nota em pedaços ("89, 98, 77" é a 899877).
+ */
 function tokensOf(text: string): string[] {
-  return text
-    .split(/[^0-9]+/u)
+  const groups = text.match(/\d+(?:[\s.,-]+\d+)+/gu) ?? []
+  return [...text.split(/[^0-9]+/u), ...groups.map((group) => group.replace(/\D/gu, ''))]
     .filter((token) => token !== '')
     .map((token) => token.replace(/^0+/u, ''))
 }

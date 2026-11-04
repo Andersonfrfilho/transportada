@@ -186,6 +186,38 @@ describe('fluxo do grupo: direto', () => {
   })
 })
 
+describe('fluxo do grupo: pedido falado (áudio)', () => {
+  test('o tipo dito antes da nota vale depois que a nota é escolhida', async () => {
+    const flow = setup({ documents: [NF1, NF2] })
+    expect(await flow.start('eu preciso de uma prorrogação de boleto')).toMatchObject({
+      step: GROUP_OCCURRENCE_STEP.document,
+    })
+    expect(await flow.answer('1')).toMatchObject({
+      replies: [GROUP_OCCURRENCE_TEXT.askNote],
+      step: GROUP_OCCURRENCE_STEP.note,
+    })
+    await flow.answer('pular')
+    await flow.answer('1')
+    expect(flow.registered[0]).toMatchObject({ documentId: 'D1', occurrenceTypeId: 'T1' })
+  })
+
+  test('sem tipo no pedido, depois da nota ainda pergunta o tipo', async () => {
+    const flow = setup({ documents: [NF1, NF2] })
+    await flow.start('')
+    expect(await flow.answer('1')).toMatchObject({ step: GROUP_OCCURRENCE_STEP.type })
+  })
+
+  test('a nota falada em pedaços ("899, 853") casa no pedido direto e na pergunta da nota', async () => {
+    expect(await setup().start('prorrogação do boleto da nota 899, 853')).toMatchObject({
+      replies: [GROUP_OCCURRENCE_TEXT.askNote],
+      step: GROUP_OCCURRENCE_STEP.note,
+    })
+    const flow = setup()
+    await flow.start('')
+    expect(await flow.answer('89, 98, 53.')).toMatchObject({ step: GROUP_OCCURRENCE_STEP.type })
+  })
+})
+
 describe('fluxo do grupo: o que não pode', () => {
   test('tipo fora da lista (desligado não vem na lista) não é aceito', async () => {
     const flow = setup({ types: [PRORROGACAO] })
