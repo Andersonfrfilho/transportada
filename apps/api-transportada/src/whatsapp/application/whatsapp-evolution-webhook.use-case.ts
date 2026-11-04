@@ -35,6 +35,7 @@ import type { LazyEvolutionConnection } from './evolution-group-identity.service
 import {
   type EvolutionGroupInbound,
   type EvolutionGroupInboundOutcome,
+  readGroupAudio,
   readGroupMedia,
   readGroupSenderLids,
 } from './evolution-group-inbound.service.js'
@@ -223,6 +224,7 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
       let connectionState: 'close' | 'connecting' | 'open' | undefined
       let senderLids: ReadonlyMap<string, string> | undefined
       let groupMedia: ReturnType<typeof readGroupMedia> | undefined
+      let groupAudio: ReturnType<typeof readGroupAudio> | undefined
       const connection = lazyConnection(async () => {
         const registration = await repository.findRegistration({ companyId })
         if (registration === null) throw new WhatsAppEvolutionNotConfiguredError()
@@ -262,14 +264,28 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         } else if (event.type === 'message' && event.chat === 'group') {
           senderLids ??= readGroupSenderLids(payload)
           groupMedia ??= readGroupMedia(payload)
+          groupAudio ??= readGroupAudio(payload)
           const outcome = await dependencies.groupInbound.receive({
+            audio: groupAudio.get(event.externalMessageId) ?? null,
             companyId,
             connection,
             event,
             media: groupMedia.get(event.externalMessageId) ?? null,
             senderLid: senderLids.get(event.externalMessageId) ?? null,
           })
-          if (outcome === 'admitted' || outcome === 'media') counts.group += 1
+          // Por mensagem, para achar o porquê de um "3" marcado que não andou: só o desfecho e o formato,
+          // nunca o número de quem escreveu nem o texto.
+          logger.info('whatsapp_evolution.group_message', {
+            companyId,
+            correlationId,
+            hasMention: event.mentionedJids.length > 0,
+            hasText: event.text !== null,
+            isReply: event.replyToExternalMessageId !== null,
+            outcome,
+            providerMessageId: event.externalMessageId,
+          })
+          if (outcome === 'admitted' || outcome === 'audio' || outcome === 'media')
+            counts.group += 1
           else {
             counts.ignored += 1
             groupIgnored[outcome] = (groupIgnored[outcome] ?? 0) + 1

@@ -99,9 +99,12 @@ function OccurrenceTypeTitle({ occurrence }: Readonly<{ occurrence: TripOccurren
 function OccurrenceAuthorship({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
   const { t } = useTranslation('trip')
   const formatMoment = useMomentFormatter()
-  const channel = t(`occurrenceDetail.channel.${occurrence.channel}`, {
-    defaultValue: occurrence.channel,
-  })
+  const channel =
+    occurrence.viaGroupBot === true
+      ? t('occurrenceDetail.channel.whatsapp_group_bot')
+      : t(`occurrenceDetail.channel.${occurrence.channel}`, {
+          defaultValue: occurrence.channel,
+        })
   const actor =
     occurrence.actorName === null
       ? t('occurrenceDetail.unknownActor')

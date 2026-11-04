@@ -148,6 +148,9 @@ export default defineRailway((ctx) => {
       /** Spec 281 T4b: o Evolution do ambiente; com os dois a API cria a instância da empresa. */
       EVOLUTION_BASE_URL: preserve(),
       EVOLUTION_GLOBAL_API_KEY: preserve(),
+      /** Spec 292 T9: a rota interna do worker que transcreve o áudio do bot; o token é referência ao do worker. */
+      BOT_AUDIO_TRANSCRIPTION_TOKEN: preserve(),
+      WORKER_INTERNAL_URL: preserve(),
       /** Os dois segredos do APP da Meta: sem os dois a rota do webhook nem é registrada (fail-closed). */
       WHATSAPP_APP_SECRET: preserve(),
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: preserve(),
@@ -231,6 +234,9 @@ export default defineRailway((ctx) => {
       WHATSAPP_CODE_TEMPLATE_LANGUAGE: preserve(),
       WHATSAPP_INVITATION_TEMPLATE: preserve(),
       WHATSAPP_PASSWORD_RESET_TEMPLATE: preserve(),
+      /** Spec 292 T9: o token da rota interna que transcreve o áudio do bot (o mesmo da API) e `::` na rede IPv6. */
+      BOT_AUDIO_TRANSCRIPTION_TOKEN: preserve(),
+      WORKER_HOSTNAME: preserve(),
       WORKER_PORT: preserve(),
       WORKER_PREFETCH: preserve(),
     },

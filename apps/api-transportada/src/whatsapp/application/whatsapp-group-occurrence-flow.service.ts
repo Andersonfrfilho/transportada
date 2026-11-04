@@ -26,6 +26,7 @@ import type {
 export const GROUP_OCCURRENCE_STEP = {
   collect: 'collect',
   confirm: 'confirm',
+  contact: 'contact',
   document: 'document',
   note: 'note',
   start: 'start',
@@ -37,7 +38,26 @@ export const GROUP_DOCUMENT_LIST_LIMIT = 8
 export const GROUP_OCCURRENCE_NOTE_MAX_LENGTH = 500
 
 export type GroupDriverDocument = { readonly id: string; readonly number: string }
-export type GroupOccurrenceType = { readonly id: string; readonly name: string }
+/** Canal do contato do cliente que o tipo pede (spec 281 T8b): e-mail e/ou WhatsApp. */
+export type GroupClientContactChannel = 'email' | 'whatsapp'
+
+export type GroupOccurrenceType = {
+  /** Os canais de contato do cliente que o tipo pede na abertura; ausente ou vazio é não pedir. */
+  readonly contactChannels?: readonly GroupClientContactChannel[] | undefined
+  readonly id: string
+  readonly name: string
+}
+
+/** Contato já cadastrado do cliente da nota, só em forma mascarada (nada em claro no grupo). */
+export type GroupClientContact = {
+  readonly addressMasked: string
+  readonly channel: GroupClientContactChannel
+}
+
+export type GroupClientContactAddResult =
+  | { readonly kind: 'added'; readonly contact: GroupClientContact }
+  /** `reason` já em frase para o grupo (número inválido, limite de contatos, cliente sem cadastro). */
+  | { readonly kind: 'refused'; readonly reason: string }
 
 export type GroupOccurrenceRegistration =
   | { readonly kind: 'registered' }
@@ -57,6 +77,20 @@ export type GroupCollectionAnswer = {
 }
 
 export type GroupOccurrenceFlowPorts = {
+  /** Spec 292 T6: guarda o contato digitado no cliente da nota (validado e normalizado pela API). */
+  addClientContact?(input: {
+    readonly address: string
+    readonly channel: GroupClientContactChannel
+    readonly companyId: string
+    readonly documentId: string
+    readonly driverId: string
+  }): Promise<GroupClientContactAddResult>
+  /** Spec 292 T6: os contatos que o cliente da nota já tem (mascarados); vazia é sem contato. */
+  listClientContacts?(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly driverId: string
+  }): Promise<readonly GroupClientContact[]>
   /** As notas das viagens ativas do motorista dono do grupo (regra 6: a nota está com ele). */
   listDriverDocuments(input: {
     readonly companyId: string
@@ -86,37 +120,81 @@ export type GroupOccurrenceFlowPorts = {
 }
 
 export const GROUP_OCCURRENCE_TEXT = {
+  askContact: (channels: readonly GroupClientContactChannel[]) =>
+    [
+      `📇 Para já enviarmos o boleto ao cliente, me passe ${describeChannels(channels)} dele.`,
+      '',
+      'Sem o contato agora? Responda _continuar_ e o boleto volta aqui pelo grupo.',
+    ].join('\n'),
+  askContactKnown: (contacts: readonly GroupClientContact[]) =>
+    [
+      '📇 O cliente já tem contato cadastrado:',
+      ...contacts.map((contact) => `• *${contact.addressMasked}*`),
+      '',
+      '*1* - Usar este contato',
+      'Ou digite outro (telefone com DDD ou e-mail)',
+      'Ou responda _continuar_ para seguir sem contato: nesse caso o boleto volta aqui pelo grupo.',
+    ].join('\n'),
   askDocument: (documents: readonly GroupDriverDocument[]) =>
     documents.length > GROUP_DOCUMENT_LIST_LIMIT
-      ? 'Qual nota? Responda com o número da nota.'
+      ? '📄 Em qual nota? Responda com o *número da nota*.'
       : [
-          'Qual nota? Responda com o número da opção ou da nota:',
-          ...documents.map((document, index) => `${index + 1}. NF ${document.number}`),
+          '📄 Em qual nota? Responda com o número da opção ou da nota:',
+          '',
+          ...documents.map((document, index) => `*${index + 1}* - NF ${document.number}`),
         ].join('\n'),
-  askNote:
-    'Quer acrescentar uma observação? Escreva o texto ou responda "pular" para seguir sem observação.',
+  askNote: [
+    '📝 Quer acrescentar alguma observação?',
+    'Escreva agora ou responda _pular_ para seguir sem.',
+    '',
+    '📍 Se quiser, compartilhe também a sua localização antes de confirmar (é opcional).',
+  ].join('\n'),
   askType: (types: readonly GroupOccurrenceType[]) =>
     [
-      'Qual ocorrência? Responda com o número ou o nome:',
-      ...types.map((type, index) => `${index + 1}. ${type.name}`),
+      '⚠️ Qual ocorrência você quer registrar? Responda com o número ou o nome:',
+      '',
+      ...types.map((type, index) => `*${index + 1}* - ${type.name}`),
     ].join('\n'),
-  confirm: (typeName: string, documentNumber: string, note: string) =>
+  confirm: (typeName: string, documentNumber: string, note: string, contact = '') =>
     [
-      `Confirma registrar "${typeName}" na NF ${documentNumber}?`,
-      ...(note === '' ? [] : [`Observação: ${note}`]),
-      'Responda 1 - Sim ou 2 - Não.',
+      `📋 Vou registrar *${typeName}* na *NF ${documentNumber}*.`,
+      ...(note === '' ? [] : [`📝 Observação: _${note}_`]),
+      ...(contact === '' ? [] : [`📇 Contato do cliente: *${contact}*`]),
+      '',
+      'Posso confirmar?',
+      '*1* - Sim ✅',
+      '*2* - Não ❌',
     ].join('\n'),
-  declined: 'Tudo bem, não registrei nada.',
-  noDocuments: 'Não encontrei notas na viagem em andamento do motorista deste grupo.',
-  noTypes: 'Não há tipo de ocorrência ativo para esta nota.',
-  registered: (typeName: string, documentNumber: string) =>
-    `Ocorrência "${typeName}" registrada na NF ${documentNumber}.`,
+  contactSaved: (masked: string) => `✅ Anotei o contato do cliente: *${masked}*.`,
+  declined: '👍 Tudo certo, não registrei nada.',
+  noDocuments: '🔎 Não encontrei notas na viagem em andamento do motorista deste grupo.',
+  noTypes: '🚫 Não há tipo de ocorrência ativo para esta nota.',
+  registered: (typeName: string, documentNumber: string, sentToClient = false) =>
+    [
+      '✅ *Ocorrência registrada!*',
+      `📄 NF ${documentNumber}`,
+      `⚠️ ${typeName}`,
+      '',
+      sentToClient
+        ? '📨 Assim que a contratante responder, o boleto segue para o contato do cliente e eu aviso aqui.'
+        : '📨 Assim que a contratante responder com o boleto, eu envio por aqui.',
+      '',
+      'Precisando de mais alguma coisa, é só me marcar. 🙂',
+    ].join('\n'),
 } as const
 
+function describeChannels(channels: readonly GroupClientContactChannel[]): string {
+  if (channels.length === 2) return 'o telefone (WhatsApp) ou o e-mail'
+  return channels[0] === 'whatsapp' ? 'o telefone (WhatsApp com DDD)' : 'o e-mail'
+}
+
 const REASON = {
+  contact: 'não entendi o contato: digite um telefone com DDD, um e-mail ou "continuar"',
   collect: 'mande o que foi pedido, ou responda "pular" se o item não for obrigatório',
   confirm: 'responda 1 para sim ou 2 para não',
   document: 'não achei essa nota na viagem do motorista',
+  noteIsAnOption:
+    'isso parece a resposta de uma pergunta anterior; se for mesmo a observação, escreva com mais detalhe',
   noteTooLong: `a observação passa de ${GROUP_OCCURRENCE_NOTE_MAX_LENGTH} caracteres`,
   type: 'não achei esse tipo de ocorrência na lista',
 } as const
@@ -124,12 +202,28 @@ const REASON = {
 const YES = new Set(['1', 'sim', 's', 'confirmo', 'confirma', 'ok', 'pode'])
 const NO = new Set(['2', 'nao', 'n'])
 const SKIP = new Set(['pular', 'pula', 'sem', 'nao', 'continuar', 'seguir', '-'])
+const SKIP_CONTACT = new Set([
+  'continuar',
+  'pular',
+  'pula',
+  'sem',
+  'sem contato',
+  'nao',
+  'seguir',
+  '-',
+])
+const EMAIL_PATTERN = /^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/u
 
 /** Vai ao `state` (jsonb) do pedido; `undefined` some na gravação. */
 type FlowState = {
   readonly documentId?: string | undefined
   readonly documentNumber?: string | undefined
+  readonly contactChannels?: readonly GroupClientContactChannel[] | undefined
+  /** O contato escolhido, já mascarado (só para repetir na confirmação). */
+  readonly contactMasked?: string | undefined
   readonly documents?: readonly GroupDriverDocument[] | undefined
+  /** Contatos já cadastrados oferecidos no passo `contact`. */
+  readonly knownContacts?: readonly GroupClientContact[] | undefined
   readonly note?: string | undefined
   readonly typeId?: string | undefined
   readonly typeName?: string | undefined
@@ -163,17 +257,101 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
       types,
     }
     const type = typeHint === '' ? undefined : findTypeByName(types, typeHint)
-    if (type !== undefined) return afterType(next, type)
-    if (types.length === 1 && types[0] !== undefined) return afterType(next, types[0])
+    if (type !== undefined) return afterType(turn, next, type)
+    if (types.length === 1 && types[0] !== undefined) return afterType(turn, next, types[0])
     return continueWith(GROUP_OCCURRENCE_STEP.type, next, [GROUP_OCCURRENCE_TEXT.askType(types)])
   }
 
-  function afterType(state: FlowState, type: GroupOccurrenceType): GroupFlowOutcome {
-    return continueWith(
-      GROUP_OCCURRENCE_STEP.note,
-      { ...state, typeId: type.id, typeName: type.name, types: undefined },
-      [GROUP_OCCURRENCE_TEXT.askNote],
-    )
+  async function afterType(
+    turn: GroupFlowTurn,
+    state: FlowState,
+    type: GroupOccurrenceType,
+  ): Promise<GroupFlowOutcome> {
+    const base: FlowState = {
+      ...state,
+      contactChannels: undefined,
+      contactMasked: undefined,
+      knownContacts: undefined,
+      typeId: type.id,
+      typeName: type.name,
+      types: undefined,
+    }
+    const channels = type.contactChannels ?? []
+    if (
+      channels.length === 0 ||
+      ports.addClientContact === undefined ||
+      ports.listClientContacts === undefined ||
+      state.documentId === undefined
+    ) {
+      return continueWith(GROUP_OCCURRENCE_STEP.note, base, [GROUP_OCCURRENCE_TEXT.askNote])
+    }
+    const known = (
+      await ports.listClientContacts({
+        companyId: turn.request.companyId,
+        documentId: state.documentId,
+        driverId: turn.request.driverId,
+      })
+    ).filter((contact) => channels.includes(contact.channel))
+    if (known.length > 0) {
+      return continueWith(
+        GROUP_OCCURRENCE_STEP.contact,
+        { ...base, contactChannels: channels, knownContacts: known },
+        [GROUP_OCCURRENCE_TEXT.askContactKnown(known)],
+      )
+    }
+    return continueWith(GROUP_OCCURRENCE_STEP.contact, { ...base, contactChannels: channels }, [
+      GROUP_OCCURRENCE_TEXT.askContact(channels),
+    ])
+  }
+
+  async function answerContact(turn: GroupFlowTurn, state: FlowState): Promise<GroupFlowOutcome> {
+    const channels = state.contactChannels ?? []
+    const known = state.knownContacts ?? []
+    const text = turn.text.trim()
+    const toNote = (next: FlowState, replies: readonly string[]) =>
+      continueWith(GROUP_OCCURRENCE_STEP.note, { ...next, knownContacts: undefined }, [
+        ...replies,
+        GROUP_OCCURRENCE_TEXT.askNote,
+      ])
+    if (SKIP_CONTACT.has(normalize(text))) return toNote(state, [])
+    if (known.length > 0 && normalize(text) === '1') {
+      return toNote({ ...state, contactMasked: known.map((c) => c.addressMasked).join(', ') }, [])
+    }
+    const channel: GroupClientContactChannel | null = EMAIL_PATTERN.test(text)
+      ? 'email'
+      : text.replace(/\D/gu, '').length >= 10 && !/[a-z@]/iu.test(text)
+        ? 'whatsapp'
+        : null
+    if (channel === null || !channels.includes(channel) || ports.addClientContact === undefined) {
+      return {
+        kind: 'not_understood',
+        prompt:
+          known.length > 0
+            ? GROUP_OCCURRENCE_TEXT.askContactKnown(known)
+            : GROUP_OCCURRENCE_TEXT.askContact(channels),
+        reason: REASON.contact,
+      }
+    }
+    const added = await ports.addClientContact({
+      address: text,
+      channel,
+      companyId: turn.request.companyId,
+      documentId: state.documentId ?? '',
+      driverId: turn.request.driverId,
+    })
+    if (added.kind === 'refused') {
+      return {
+        kind: 'not_understood',
+        prompt:
+          known.length > 0
+            ? GROUP_OCCURRENCE_TEXT.askContactKnown(known)
+            : GROUP_OCCURRENCE_TEXT.askContact(channels),
+        reason: added.reason,
+      }
+    }
+    return toNote({ ...state, contactMasked: added.contact.addressMasked }, [
+      GROUP_OCCURRENCE_TEXT.contactSaved(added.contact.addressMasked),
+    ])
   }
 
   async function register(turn: GroupFlowTurn, state: FlowState): Promise<GroupFlowOutcome> {
@@ -193,7 +371,13 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     if (result.kind === 'registered') {
       return {
         kind: 'done',
-        replies: [GROUP_OCCURRENCE_TEXT.registered(typeName, documentNumber)],
+        replies: [
+          GROUP_OCCURRENCE_TEXT.registered(
+            typeName,
+            documentNumber,
+            state.contactMasked !== undefined,
+          ),
+        ],
       }
     }
     if (result.kind === 'collecting') return collecting(result)
@@ -216,8 +400,8 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     return { kind: 'done', replies: [result.message] }
   }
 
-  return {
-    async answer(turn) {
+  async function answerStep(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
+    {
       const state = turn.request.state as FlowState
       const text = turn.text
 
@@ -254,8 +438,10 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
               reason: REASON.type,
             }
           }
-          return afterType(state, type)
+          return afterType(turn, state, type)
         }
+        case GROUP_OCCURRENCE_STEP.contact:
+          return answerContact(turn, state)
         case GROUP_OCCURRENCE_STEP.note: {
           if (text.length > GROUP_OCCURRENCE_NOTE_MAX_LENGTH) {
             return {
@@ -264,9 +450,21 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
               reason: REASON.noteTooLong,
             }
           }
+          if (/^\d{1,2}$/u.test(text.trim())) {
+            return {
+              kind: 'not_understood',
+              prompt: GROUP_OCCURRENCE_TEXT.askNote,
+              reason: REASON.noteIsAnOption,
+            }
+          }
           const note = SKIP.has(normalize(text)) ? '' : text
           return continueWith(GROUP_OCCURRENCE_STEP.confirm, { ...state, note }, [
-            GROUP_OCCURRENCE_TEXT.confirm(state.typeName ?? '', state.documentNumber ?? '', note),
+            GROUP_OCCURRENCE_TEXT.confirm(
+              state.typeName ?? '',
+              state.documentNumber ?? '',
+              note,
+              state.contactMasked ?? '',
+            ),
           ])
         }
         case GROUP_OCCURRENCE_STEP.confirm: {
@@ -279,6 +477,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
               state.typeName ?? '',
               state.documentNumber ?? '',
               state.note ?? '',
+              state.contactMasked ?? '',
             ),
             reason: REASON.confirm,
           }
@@ -286,6 +485,25 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
         default:
           return { kind: 'done', replies: [GROUP_OCCURRENCE_TEXT.declined] }
       }
+    }
+  }
+
+  return {
+    async answer(turn) {
+      const outcome = await answerStep(turn)
+      // Quando outra pessoa responde pelo dono (marcando o bot), o grupo vê quem respondeu e o quê.
+      if (
+        outcome.kind === 'continue' &&
+        turn.sender !== turn.request.ownerNumber &&
+        turn.text.length <= 40
+      ) {
+        const who = turn.senderName === null || turn.senderName === '' ? 'Alguém' : turn.senderName
+        return {
+          ...outcome,
+          replies: [`👤 *${who}* respondeu: _${turn.text}_`, ...outcome.replies],
+        }
+      }
+      return outcome
     },
 
     initialStep: GROUP_OCCURRENCE_STEP.start,

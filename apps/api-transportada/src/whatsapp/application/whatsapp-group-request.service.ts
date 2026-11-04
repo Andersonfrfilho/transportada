@@ -42,6 +42,7 @@ const CANCEL_WORDS = new Set(['cancelar', 'cancela', 'cancele', 'cancelado', 'sa
 
 export const GROUP_REQUEST_LOG = {
   abandoned: 'whatsapp_group_request.abandoned',
+  answered: 'whatsapp_group_request.answered',
   busy: 'whatsapp_group_request.busy',
   cancelled: 'whatsapp_group_request.cancelled',
   completed: 'whatsapp_group_request.completed',
@@ -206,6 +207,14 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       }
 
       const outcome = await flow.answer(turnOf(message, open))
+      logger.info(GROUP_REQUEST_LOG.answered, {
+        companyId,
+        isOwner,
+        outcome: outcome.kind,
+        requestId: open.id,
+        step: open.step,
+        via: message.via,
+      })
       if (outcome.kind === 'not_understood' && !isOwner) {
         // Outra pessoa marcou o bot sem responder a pergunta aberta: é uma chamada nova (regra 5).
         logger.info(GROUP_REQUEST_LOG.busy, { companyId })

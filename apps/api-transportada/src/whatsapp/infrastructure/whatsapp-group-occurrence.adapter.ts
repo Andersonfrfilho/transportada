@@ -7,6 +7,14 @@ import { and, eq } from 'drizzle-orm'
 import { fleetDrivers, userCompanyMemberships } from '../../database/database.schema.js'
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
 import type { DriverTrip } from '../../trips/application/find-current-driver-trip.use-case.js'
+import type { DriverClientContactsUseCase } from '../../delivery-clients/application/driver-client-contacts.use-case.js'
+import {
+  DeliveryClientEmailLimitReachedError,
+  DeliveryClientNotFoundError,
+} from '../../delivery-clients/domain/delivery-client.error.js'
+import { DriverClientEmailInvalidError } from '../../delivery-clients/domain/driver-client-contact.error.js'
+import { ContractorReplyWhatsAppNumberInvalidError } from '../../occurrence-conversation/domain/contractor-reply-whatsapp.error.js'
+import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { TripOccurrence } from '../../trips/application/register-trip-occurrence.use-case.js'
 import { listOccurrenceTypesForNote } from '../../trips/infrastructure/occurrence-types-for-note.query.js'
 import {
@@ -53,6 +61,13 @@ export const GROUP_OCCURRENCE_REFUSAL = {
  * autor é a conta dele, por isso motorista sem acesso ao app não registra pelo grupo.
  */
 export function createGroupOccurrencePorts(dependencies: {
+  /** Spec 292 T6: os contatos do cliente da nota (a mesma regra do app); sem isto o passo do contato some. */
+  readonly contacts?: DriverClientContactsUseCase
+  /** A localização que o motorista compartilhou no grupo há pouco (opcional); lida uma vez e esquecida. */
+  readonly consumeLocation?: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => null | ReportedLocation
   /**
    * Spec 293 T15: a ocorrência em coleta (foto, número, valor pago) e a fachada que manda a resposta em
    * texto para a coleta certa. Ausentes, o tipo que pede o que o WhatsApp não colhe é recusado como antes.
@@ -88,7 +103,50 @@ export function createGroupOccurrencePorts(dependencies: {
     }
   }
 
+  const contacts = dependencies.contacts
+  const contactPorts: Pick<GroupOccurrenceFlowPorts, 'addClientContact' | 'listClientContacts'> =
+    contacts === undefined
+      ? {}
+      : {
+          async addClientContact(input) {
+            const userId = await findDriverUserId(dependencies.database, input)
+            if (userId === null) return { kind: 'refused', reason: 'o motorista não tem acesso' }
+            try {
+              const { contact } = await contacts.add({
+                actor: { ...actorOf(input, userId) },
+                address: input.address,
+                channel: input.channel,
+                documentId: input.documentId,
+                label: 'Informado pelo grupo',
+              })
+              return {
+                contact: { addressMasked: contact.addressMasked, channel: input.channel },
+                kind: 'added',
+              }
+            } catch (error) {
+              return { kind: 'refused', reason: describeContactFailure(error) }
+            }
+          },
+          async listClientContacts(input) {
+            const userId = await findDriverUserId(dependencies.database, input)
+            if (userId === null) return []
+            try {
+              const list = await contacts.list({
+                actor: actorOf(input, userId),
+                documentId: input.documentId,
+              })
+              return list.map((contact) => ({
+                addressMasked: contact.addressMasked,
+                channel: contact.channel,
+              }))
+            } catch {
+              return []
+            }
+          },
+        }
+
   return {
+    ...contactPorts,
     async answerCollection({ companyId, driverId, text }) {
       const collections = dependencies.collections
       if (collections === undefined) return null
@@ -127,7 +185,9 @@ export function createGroupOccurrencePorts(dependencies: {
         companyId,
         documentId,
       })
-      return types.filter(isOfferedToDriver).map((type) => ({ id: type.id, name: type.name }))
+      return types
+        .filter(isOfferedToDriver)
+        .map((type) => ({ contactChannels: contactChannelsOf(type), id: type.id, name: type.name }))
     },
 
     /**
@@ -165,7 +225,7 @@ export function createGroupOccurrencePorts(dependencies: {
             documentId: input.documentId,
             driverId: input.driverId,
             idempotencyKey: input.idempotencyKey,
-            location: null,
+            location: dependencies.consumeLocation?.(input) ?? null,
             note: input.note,
             occurrenceTypeId: input.occurrenceTypeId,
           })
@@ -220,4 +280,45 @@ export async function findDriverUserId(
     )
     .limit(1)
   return row?.userId ?? null
+}
+
+/** Spec 281 T8b: o tipo pede o contato quando liga o pedido e o canal com o cliente não está desligado. */
+function contactChannelsOf(type: {
+  readonly asksClientContact?: boolean
+  readonly clientChannel?: string
+}): readonly ('email' | 'whatsapp')[] {
+  if (type.asksClientContact !== true) return []
+  switch (type.clientChannel ?? 'email') {
+    case 'off':
+      return []
+    case 'whatsapp':
+      return ['whatsapp']
+    case 'both':
+      return ['email', 'whatsapp']
+    default:
+      return ['email']
+  }
+}
+
+function actorOf(input: { readonly companyId: string; readonly driverId: string }, userId: string) {
+  return {
+    companyId: input.companyId,
+    correlationId: crypto.randomUUID(),
+    driverId: input.driverId,
+    userId,
+  }
+}
+
+function describeContactFailure(error: unknown): string {
+  if (error instanceof ContractorReplyWhatsAppNumberInvalidError) {
+    return 'esse telefone não parece válido (digite com DDD)'
+  }
+  if (error instanceof DriverClientEmailInvalidError) return 'esse e-mail não parece válido'
+  if (error instanceof DeliveryClientEmailLimitReachedError) {
+    return 'o cliente já tem o máximo de contatos cadastrados'
+  }
+  if (error instanceof DeliveryClientNotFoundError) {
+    return 'não achei o cadastro do cliente desta nota'
+  }
+  return 'não consegui guardar o contato agora'
 }

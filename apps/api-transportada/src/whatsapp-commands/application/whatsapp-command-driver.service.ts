@@ -66,6 +66,10 @@ import type {
   WhatsAppDeliveryPreparations,
 } from './whatsapp-delivery-preparation.service.js'
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
+import {
+  BOT_AUDIO_SPEECH,
+  type WhatsAppBotAudio,
+} from '../../whatsapp/application/whatsapp-bot-audio.service.js'
 import type {
   WhatsAppCommandSessionPort,
   WhatsAppFlowGraphProviderPort,
@@ -98,6 +102,11 @@ export type WhatsAppDeliveryProofIntake = {
 }
 
 export type WhatsAppCommandDriverDependencies = {
+  /**
+   * Spec 292 T9: o áudio na conversa individual vira texto (transcrito pelo worker) e só segue o fluxo
+   * depois do "1 - Sim". Ausente, áudio é tratado como qualquer outra mensagem fora do menu.
+   */
+  readonly botAudio?: WhatsAppBotAudio<null>
   readonly channel: ChannelAdapterInterface
   readonly clock: () => Date
   /** Spec 293 T15: ausente, foto e texto seguem o fluxo de sempre (sem entrega em preparo). */
@@ -153,7 +162,8 @@ export function createWhatsAppCommandDriver(
   }
 }
 
-async function dispatch(turn: WhatsAppCommandTurn): Promise<MessageHookOutcome> {
+async function dispatch(incoming: WhatsAppCommandTurn): Promise<MessageHookOutcome> {
+  let turn = incoming
   const { deps, session } = turn
   const limit = deps.rateLimiter.consume({
     key: `command:${buildLimitKey(turn)}`,
@@ -181,6 +191,10 @@ async function dispatch(turn: WhatsAppCommandTurn): Promise<MessageHookOutcome> 
     return HANDLED
   }
 
+  const audio = await acceptBotAudio(turn)
+  if (audio === 'handled') return HANDLED
+  turn = audio
+
   const proofActor = await resolveProofActor({ scope: actor.context.scope, turn })
   if (
     await acknowledgeSharedLocation({
@@ -195,6 +209,47 @@ async function dispatch(turn: WhatsAppCommandTurn): Promise<MessageHookOutcome> 
 
   await guardConversation(turn, () => advanceConversation(turn, actor.context.scope.permissions))
   return HANDLED
+}
+
+/**
+ * Spec 292 T9: o áudio do motorista. Chegou áudio: "recebi", e o texto vem depois para confirmar.
+ * Chegou "1"/"2" com áudio esperando: "1" troca a mensagem pelo texto do áudio e o turno segue como se
+ * ele tivesse digitado; "2" descarta. Outra mensagem descarta o áudio e segue normalmente.
+ */
+async function acceptBotAudio(turn: WhatsAppCommandTurn): Promise<'handled' | WhatsAppCommandTurn> {
+  const { botAudio } = turn.deps
+  if (botAudio === undefined) return turn
+  const { companyId } = turn.session
+  const conversation = `user:${turn.phone}`
+  const reply = async (texts: readonly string[]) => {
+    for (const body of texts) await turn.deps.sender.sendText({ body, to: turn.phone })
+  }
+  const audio = turn.message.audio
+  if (audio?.id !== undefined) {
+    const mediaId = audio.id
+    await botAudio.receive({
+      companyId,
+      context: null,
+      conversation,
+      download: () => turn.deps.channel.fetchMediaAsBase64(mediaId),
+      mimeType: audio.mime_type ?? 'audio/ogg',
+      owner: turn.phone,
+      reply,
+      seconds: null,
+    })
+    return 'handled'
+  }
+  const text = turn.message.text?.body
+  if (text === undefined || !botAudio.hasPending({ companyId, conversation, owner: turn.phone })) {
+    return turn
+  }
+  const answer = botAudio.answer({ companyId, conversation, owner: turn.phone, text })
+  if (answer.kind === 'discarded') {
+    await reply([BOT_AUDIO_SPEECH.discarded])
+    return 'handled'
+  }
+  if (answer.kind === 'none') return turn
+  return { ...turn, message: { ...turn.message, text: { body: answer.text }, type: 'text' } }
 }
 
 /**

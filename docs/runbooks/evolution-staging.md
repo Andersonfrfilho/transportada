@@ -157,6 +157,39 @@ select id, document_number, origin_channel, status, awaiting, jsonb_array_length
   from whatsapp_occurrence_drafts order by opened_at desc limit 20;
 ```
 
+## Áudio para o bot, no grupo e no individual (spec 292 T9)
+
+O motorista (ou quem está falando com o bot) pode mandar **áudio de voz** em vez de escrever. O bot responde na
+hora "🎙️ Estou escutando o seu áudio, só um momento", baixa o áudio do provedor, manda transcrever e mostra o texto:
+"Entendi assim: ... Está certo? 1 - Sim / 2 - Não". **Nada anda sem a confirmação**: "1" (ou sim/s/ok/confirmo)
+segue o fluxo como se a pessoa tivesse digitado aquele texto; "2" (ou não/n) descarta. Outra mensagem dela também
+descarta o áudio e segue normalmente. O áudio pendente vale 10 minutos e mora na memória da API (uma réplica): um
+deploy no meio só faz a pessoa mandar de novo.
+
+- **No grupo** o bot só ouve o áudio de quem tem o pedido aberto (o bot está esperando a resposta dela) ou o áudio
+  que **cita (responde) uma mensagem do bot**. Áudio entre as pessoas do grupo continua ignorado. Para começar um
+  pedido por áudio: marque o bot por texto (`@bot`) e mande o áudio em seguida, ou responda a uma mensagem do bot com
+  o áudio. Só quem mandou o áudio confirma.
+- **No individual** (Meta) todo áudio de número vinculado é ouvido.
+- Respostas de erro: mais de 2 minutos; sem transcritor configurado ("ainda não consigo ouvir áudio"); falha ao
+  baixar; falha ou fila cheia do worker; áudio sem fala (o whisper devolve `[BLANK_AUDIO]` ou vazio).
+- **Quem transcreve é o worker** (o `whisper-cli` e o modelo `ggml-small-q5_1` moram na imagem dele, ADR-0103), na
+  rota interna `POST /internal/bot-audio-transcriptions`: uma transcrição por vez, até 3 esperando (mais que isso,
+  503), corpo até 8 MB, nada gravado. A API chama por `WORKER_INTERNAL_URL` com `BOT_AUDIO_TRANSCRIPTION_TOKEN`
+  no `authorization`; sem o token certo a rota responde 404. Não há chave de provedor externo.
+- Variáveis (staging): no `worker`, `BOT_AUDIO_TRANSCRIPTION_TOKEN` (32+ caracteres) e `WORKER_HOSTNAME=::` (a rede
+  privada do Railway é IPv6; o padrão `0.0.0.0` não é alcançável por `worker.railway.internal`); na `api`,
+  `BOT_AUDIO_TRANSCRIPTION_TOKEN=${{worker.BOT_AUDIO_TRANSCRIPTION_TOKEN}}` e
+  `WORKER_INTERNAL_URL=http://${{worker.RAILWAY_PRIVATE_DOMAIN}}:<WORKER_PORT>`. O script
+  `staging-ligar-audio-bot.sh` (pasta `tmp/ops/` do Anderson) grava as quatro sem redeployar e confere que o token é
+  o mesmo nos dois sem imprimi-lo.
+- Logs (nunca texto, número nem grupo): API `whatsapp_bot_audio.awaiting_confirmation|download_failed|transcription_failed`;
+  worker `bot_audio_transcription.completed|failed` (tamanho, duração e código).
+
+Teste em staging: no grupo de teste, `@bot` por texto, depois um áudio "prorrogação de boleto da nota <número>";
+esperar o "Entendi assim", responder 1 e seguir o pedido. Repetir respondendo 2 (descarta) e com um áudio
+mudo (resposta de "não consegui entender").
+
 ## Teste de aceite em staging (spec 281, critérios)
 
 1. Conectar o número do dono pelo QR.

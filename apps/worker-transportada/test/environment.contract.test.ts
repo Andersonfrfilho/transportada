@@ -44,6 +44,7 @@ describe('worker environment contract', () => {
       foundationSyntheticConsumerEnabled: false,
       foundationSyntheticEffectDelayMs: 0,
       fuelPricePull: undefined,
+      hostname: '0.0.0.0',
       /** Spec 062 T005: sem segredo e sem template — o padrão é a versão da Graph API e mais nada. */
       whatsapp: {
         apiVersion: 'v23.0',
