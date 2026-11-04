@@ -153,7 +153,7 @@ export function createGroupOccurrencePorts(dependencies: {
 }
 
 /** A conta do motorista nesta empresa (vínculo ativo da ficha), ou `null`. */
-async function findDriverUserId(
+export async function findDriverUserId(
   database: Database,
   input: { readonly companyId: string; readonly driverId: string },
 ): Promise<null | string> {
