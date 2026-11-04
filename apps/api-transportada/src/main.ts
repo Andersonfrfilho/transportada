@@ -183,6 +183,14 @@ import { createWhatsAppEvolutionWebhookSecretService } from './whatsapp/applicat
 import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
 import { createEvolutionGroupIdentity } from './whatsapp/application/evolution-group-identity.service.js'
 import { createEvolutionGroupInbound } from './whatsapp/application/evolution-group-inbound.service.js'
+import {
+  createGroupOccurrenceFlow,
+  type GroupOccurrenceFlowPorts,
+} from './whatsapp/application/whatsapp-group-occurrence-flow.service.js'
+import { createWhatsAppGroupRequestSessions } from './whatsapp/application/whatsapp-group-request.service.js'
+import { createEvolutionGroupReplySender } from './whatsapp/infrastructure/evolution-group-reply.gateway.js'
+import { createDrizzleWhatsAppGroupRequestRepository } from './whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
+import { createGroupOccurrencePorts } from './whatsapp/infrastructure/whatsapp-group-occurrence.adapter.js'
 import { createDrizzleWhatsAppEvolutionWebhookRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution-webhook.repository.js'
 import {
   createWhatsAppEvolutionPublicWebhookRoutes,
@@ -235,7 +243,10 @@ import { createRateLimiter } from './http/rate-limiter.service.js'
 import { createRateLimitSubjectService } from './http/rate-limit-subject.service.js'
 import { DrizzleRateLimiterRepository } from './http/drizzle-rate-limiter.repository.js'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
-import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application/register-driver-flow-actions.js'
+import {
+  createDriverWhatsAppFlowActions,
+  type DriverFlowActionDependencies,
+} from './whatsapp-commands/application/register-driver-flow-actions.js'
 import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
 import { createIssuanceWhatsAppFlowActions } from './whatsapp-commands/application/register-issuance-flow-actions.js'
 import { createPreviewDocumentSelectionUseCase } from './whatsapp-commands/application/preview-document-selection.use-case.js'
@@ -1281,6 +1292,46 @@ export function bootstrap(): Bun.Server<undefined> {
     repository: new FlowGraphRepository(database.db as never),
     rootFlowKey: WHATSAPP_ROOT_FLOW_GRAPH_KEY,
   })
+  /**
+   * O registro de ocorrência dos dois WhatsApp do motorista (o chat da Meta e o grupo no Evolution,
+   * spec 292): a mesma `registerDriverOccurrence` do app, e depois do commit o aviso automático do tipo.
+   */
+  const registerWhatsAppDriverOccurrence = async (
+    input: Parameters<DriverFlowActionDependencies['registerOccurrence']>[0],
+  ) => {
+    const occurrence = await registerDriverOccurrence({
+      ...input,
+      channel: TRIP_FIELD_CHANNELS.whatsapp,
+      repository: {
+        findConfirmedUpload: (query) =>
+          whatsappOccurrenceUploadRepository.findConfirmedUpload(query),
+        findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+        /** Spec 246 (RF6): a exceção do tipo vale no WhatsApp como em qualquer canal. */
+        findOccurrenceTypeOverrides: (query) =>
+          new DrizzleOccurrenceAttachmentOverridesRepository(database.db).listOverridesForTypes({
+            companyId: query.companyId,
+            occurrenceTypeIds: [query.occurrenceTypeId],
+          }),
+        findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
+        listDocumentProducts: (query) => listDocumentProducts(database.db, query),
+      },
+      notifier: driverOccurrenceNotifier,
+      unitOfWork: whatsappDriverFieldReports,
+    })
+    /** Spec 183 T802: depois do commit, o aviso automático do tipo (se ligado). */
+    automaticOccurrenceMail.announce({
+      companyId: input.companyId,
+      occurrenceIds: [occurrence.id],
+    })
+    return occurrence
+  }
+  /** Spec 292 T5: o pedido no grupo do motorista registra pelo mesmo caminho do WhatsApp do motorista. */
+  const whatsappGroupOccurrence = createGroupOccurrencePorts({
+    database: database.db,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    registerOccurrence: registerWhatsAppDriverOccurrence,
+  })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     speech: whatsappBotSpeech,
     consumeSharedLocation: (key) => whatsappSharedLocations.consume(key),
@@ -1292,33 +1343,7 @@ export function bootstrap(): Bun.Server<undefined> {
         scores: whatsappDriverScoreRepository,
       }),
     listOccurrenceTypes: (input) => listOccurrenceTypesForNote(database.db, input),
-    registerOccurrence: async (input) => {
-      const occurrence = await registerDriverOccurrence({
-        ...input,
-        channel: TRIP_FIELD_CHANNELS.whatsapp,
-        repository: {
-          findConfirmedUpload: (query) =>
-            whatsappOccurrenceUploadRepository.findConfirmedUpload(query),
-          findOccurrenceType: (query) => findOccurrenceType(database.db, query),
-          /** Spec 246 (RF6): a exceção do tipo vale no WhatsApp como em qualquer canal. */
-          findOccurrenceTypeOverrides: (query) =>
-            new DrizzleOccurrenceAttachmentOverridesRepository(database.db).listOverridesForTypes({
-              companyId: query.companyId,
-              occurrenceTypeIds: [query.occurrenceTypeId],
-            }),
-          findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
-          listDocumentProducts: (query) => listDocumentProducts(database.db, query),
-        },
-        notifier: driverOccurrenceNotifier,
-        unitOfWork: whatsappDriverFieldReports,
-      })
-      /** Spec 183 T802: depois do commit, o aviso automático do tipo (se ligado). */
-      automaticOccurrenceMail.announce({
-        companyId: input.companyId,
-        occurrenceIds: [occurrence.id],
-      })
-      return occurrence
-    },
+    registerOccurrence: registerWhatsAppDriverOccurrence,
     reportDelivery: (input) =>
       reportDocumentDelivery({
         ...input,
@@ -1708,6 +1733,7 @@ export function bootstrap(): Bun.Server<undefined> {
       resolveClientIp,
       userModule,
       whatsappCommandHook,
+      whatsappGroupOccurrence,
     }),
     authentication,
     authorization: new AuthorizationService(),
@@ -1856,6 +1882,8 @@ type CreateAnonymousRoutesParams = {
   /** Ausente, a rota de cadastro de conta de agregado não é publicada — mesma regra do módulo. */
   readonly userModule: UserModule | undefined
   readonly whatsappCommandHook: WhatsAppCommandHookFactory
+  /** Spec 292 T5: o fluxo do pedido no grupo do motorista (só a entrega anônima do Evolution o usa). */
+  readonly whatsappGroupOccurrence: GroupOccurrenceFlowPorts
 }
 
 /** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
@@ -1875,25 +1903,50 @@ function createEvolutionWebhook(input: {
   readonly apiPublicUrl: string | undefined
   readonly database: Parameters<typeof applyProviderMessageStatus>[0]
   readonly envelopeProvider: ReturnType<typeof createSecretEnvelopeProvider>
+  /** Spec 292 T5: ausente (a instância da rota do dono, que só aponta o webhook), o grupo não abre pedido. */
+  readonly groupOccurrence?: GroupOccurrenceFlowPorts
   readonly logger: ApiLogger
 }) {
   const { database, envelopeProvider, logger } = input
   const gateway = createEvolutionConnectionGateway()
   const driverGroups = new DrizzleDriverWhatsappGroupRepository(database)
+  const apiKeySecrets = createWhatsAppEvolutionSecretService({ envelopeProvider })
+  /**
+   * Spec 292 T4: a sessão do pedido no grupo. A resposta sai pelo mesmo Evolution e no mesmo ritmo do
+   * número (spec 289), fora do webhook.
+   */
+  const groupSessions =
+    input.groupOccurrence === undefined
+      ? undefined
+      : createWhatsAppGroupRequestSessions({
+          clock: () => new Date(),
+          flow: createGroupOccurrenceFlow(input.groupOccurrence),
+          logger,
+          replies: createEvolutionGroupReplySender({
+            logger,
+            sendText: createEvolutionDocumentSender({
+              pacer: createEvolutionSendPacer({
+                claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
+                maxWaitMs: 120_000,
+              }),
+              repository: new DrizzleWhatsAppEvolutionRepository(database),
+              secrets: apiKeySecrets,
+            }).sendText,
+          }),
+          repository: createDrizzleWhatsAppGroupRequestRepository(database),
+        })
   return createWhatsAppEvolutionWebhookUseCase({
-    apiKeySecrets: createWhatsAppEvolutionSecretService({ envelopeProvider }),
+    apiKeySecrets,
     apiPublicUrl: input.apiPublicUrl,
     gateway,
-    // Spec 292 T3: o grupo do motorista chega ao bot. A sessão do pedido (T4) ainda não existe: sem
-    // pedido aberto, e a mensagem aceita só é contada em log, sem número nem texto.
+    // Spec 292 T3: o grupo do motorista chega ao bot; T4/T5: a sessão do pedido e o fluxo.
     groupInbound: createEvolutionGroupInbound({
       findGroupDriver: (lookup) => driverGroups.findDriverByGroup(lookup),
-      findOpenRequestOwner: async () => null,
+      findOpenRequestOwner: (lookup) =>
+        groupSessions?.findOpenOwner(lookup) ?? Promise.resolve(null),
       handle: async (message) => {
-        logger.info('whatsapp_evolution.group.admitted', {
-          companyId: message.companyId,
-          via: message.via,
-        })
+        if (groupSessions === undefined) return
+        await groupSessions.handle(message)
       },
       identity: createEvolutionGroupIdentity({ gateway }),
     }),
@@ -1918,6 +1971,7 @@ function createAnonymousRoutes({
   resolveClientIp,
   userModule,
   whatsappCommandHook,
+  whatsappGroupOccurrence,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
   /**
@@ -2006,6 +2060,7 @@ function createAnonymousRoutes({
       apiPublicUrl: config.apiPublicUrl,
       database,
       envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+      groupOccurrence: whatsappGroupOccurrence,
       logger,
     }),
   })

@@ -596,6 +596,6 @@ function describeDocumentError(error: unknown): BotSpeechLine {
  * (`registerDriverOccurrence`), momento `document` — a lista perde os tipos de parada, que o canal
  * nunca conseguiu registrar.
  */
-function isOfferedToDriver(type: OccurrenceTypeRecord): boolean {
+export function isOfferedToDriver(type: OccurrenceTypeRecord): boolean {
   return type.active && occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.document, type })
 }
