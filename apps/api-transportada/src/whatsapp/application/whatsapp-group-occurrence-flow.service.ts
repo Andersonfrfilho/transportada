@@ -35,7 +35,7 @@ export const GROUP_OCCURRENCE_STEP = {
 } as const
 
 /** Notas listadas por número de opção; acima disso o bot pede o número da nota. */
-export const GROUP_DOCUMENT_LIST_LIMIT = 8
+export const GROUP_DOCUMENT_LIST_LIMIT = 40
 export const GROUP_OCCURRENCE_NOTE_MAX_LENGTH = 500
 
 export type GroupDriverDocument = { readonly id: string; readonly number: string }
@@ -141,13 +141,19 @@ export const GROUP_OCCURRENCE_TEXT = {
       'Ou responda _continuar_ para seguir sem contato: nesse caso o boleto volta aqui pelo grupo.',
     ].join('\n'),
   askDocument: (documents: readonly GroupDriverDocument[]) =>
-    documents.length > GROUP_DOCUMENT_LIST_LIMIT
-      ? '📄 Em qual nota? Responda com o *número da nota*.'
-      : [
-          '📄 Em qual nota? Responda com o número da opção ou da nota:',
-          '',
-          ...documents.map((document, index) => `*${index + 1}* - NF ${document.number}`),
-        ].join('\n'),
+    [
+      '📄 Em qual nota? Responda com o número da opção ou da nota:',
+      '',
+      ...documents
+        .slice(0, GROUP_DOCUMENT_LIST_LIMIT)
+        .map((document, index) => `*${index + 1}* - NF ${document.number}`),
+      ...(documents.length > GROUP_DOCUMENT_LIST_LIMIT
+        ? [
+            '',
+            `E mais ${documents.length - GROUP_DOCUMENT_LIST_LIMIT} nota(s): digite o *número da nota*.`,
+          ]
+        : []),
+    ].join('\n'),
   askNote: [
     '📝 Quer acrescentar alguma observação?',
     'Escreva agora ou responda _pular_ para seguir sem.',
@@ -572,7 +578,7 @@ function pickDocument(
   if (digits === '') return undefined
   const byNumber = documents.find((document) => document.number.replace(/^0+/u, '') === digits)
   if (byNumber !== undefined) return byNumber
-  return documents.length <= GROUP_DOCUMENT_LIST_LIMIT ? pickOption(documents, text) : undefined
+  return pickOption(documents.slice(0, GROUP_DOCUMENT_LIST_LIMIT), text)
 }
 
 function pickOption<T>(options: readonly T[], text: string): T | undefined {
