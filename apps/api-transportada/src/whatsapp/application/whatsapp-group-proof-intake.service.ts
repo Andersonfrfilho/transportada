@@ -56,6 +56,12 @@ export type GroupProofIntakePorts = {
     readonly ownerNumber: string
   }) => Promise<void>
   readonly preparations: WhatsAppDeliveryPreparations
+  /** Um pedido do grupo esperando a localização (ocorrência) avança com ela; `true` se avançou. */
+  readonly advanceRequest?: (input: {
+    readonly companyId: string
+    readonly groupJid: string
+    readonly sender: string
+  }) => Promise<boolean>
   readonly rememberLocation: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -96,6 +102,12 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
         const location = toLocation(media.media, media.timestamp, clock())
         if (location === null) return
         ports.rememberLocation({ companyId, driverId, location })
+        const advanced = await ports.advanceRequest?.({
+          companyId,
+          groupJid: media.groupJid,
+          sender: media.sender,
+        })
+        if (advanced === true) return
         if (actorUserId === null) return say(media, [GROUP_PROOF_TEXT.locationKept])
         const reply = await ports.preparations.receiveLocation({
           actor: { actorUserId, companyId, driverId },

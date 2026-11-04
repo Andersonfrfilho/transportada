@@ -38,6 +38,59 @@ export const GROUP_REQUEST_TEXT = {
   notUnderstood: (reason: string, prompt: string) => `Não entendi: ${reason}. ${prompt}`,
 } as const
 
+/**
+ * Spec 292 T7: o diálogo do pedido, para a conversa da ocorrência mostrar o que se falou no grupo. Fica no `state`
+ * só até o pedido fechar e abrir ocorrência; a cópia para a conversa é da passada do retorno ao grupo
+ * (`syncWhatsAppGroupRequestTranscripts`). Teto de linhas e de tamanho: o resto não entra.
+ */
+export const GROUP_REQUEST_TRANSCRIPT_LIMIT = 60
+export const GROUP_REQUEST_TRANSCRIPT_TEXT_LIMIT = 2000
+
+export type GroupRequestTranscriptEntry = {
+  readonly at: string
+  readonly from: 'bot' | 'member'
+  readonly name?: string
+  /** Só dígitos; só de quem escreveu (`member`). */
+  readonly number?: string
+  readonly text: string
+}
+
+function transcriptOf(state: Readonly<Record<string, unknown>>): GroupRequestTranscriptEntry[] {
+  const value = state.transcript
+  return Array.isArray(value) ? (value as GroupRequestTranscriptEntry[]) : []
+}
+
+/** O estado com a mensagem do membro e as respostas do bot acrescentadas ao diálogo. */
+export function withTranscript(
+  state: Readonly<Record<string, unknown>>,
+  previous: Readonly<Record<string, unknown>>,
+  turn: {
+    readonly at: Date
+    readonly message: Pick<AdmittedGroupMessage, 'sender' | 'senderName' | 'text'>
+    readonly replies: readonly string[]
+  },
+): Readonly<Record<string, unknown>> {
+  const at = turn.at.toISOString()
+  const clip = (text: string) => text.slice(0, GROUP_REQUEST_TRANSCRIPT_TEXT_LIMIT)
+  const member: GroupRequestTranscriptEntry = {
+    at,
+    from: 'member',
+    ...(turn.message.senderName === null || turn.message.senderName === ''
+      ? {}
+      : { name: turn.message.senderName }),
+    number: turn.message.sender,
+    text: clip(turn.message.text === '' ? '@bot' : turn.message.text),
+  }
+  const transcript = [
+    ...transcriptOf(previous),
+    member,
+    ...turn.replies.map(
+      (text): GroupRequestTranscriptEntry => ({ at, from: 'bot', text: clip(text) }),
+    ),
+  ].slice(0, GROUP_REQUEST_TRANSCRIPT_LIMIT)
+  return { ...state, transcript }
+}
+
 const CANCEL_WORDS = new Set(['cancelar', 'cancela', 'cancele', 'cancelado', 'sair', 'parar'])
 
 export const GROUP_REQUEST_LOG = {
@@ -59,6 +112,12 @@ export type WhatsAppGroupRequestSessions = {
   }): Promise<null | string>
   /** A porta `handle` da T3. */
   handle(message: AdmittedGroupMessage): Promise<void>
+  /** O dono compartilhou a localização com um pedido esperando por ela: avança o pedido. */
+  handleLocation(input: {
+    readonly companyId: string
+    readonly groupJid: string
+    readonly sender: string
+  }): Promise<boolean>
 }
 
 export function isCancelText(text: string): boolean {
@@ -80,7 +139,10 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
 }): WhatsAppGroupRequestSessions {
   const { flow, logger, replies, repository } = dependencies
 
-  const say = (message: AdmittedGroupMessage, texts: readonly string[]) => {
+  const say = (
+    message: Pick<AdmittedGroupMessage, 'companyId' | 'groupJid'>,
+    texts: readonly string[],
+  ) => {
     if (texts.length > 0) {
       replies.send({ companyId: message.companyId, groupJid: message.groupJid, texts })
     }
@@ -95,7 +157,10 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
 
   /** Aplica o que o fluxo devolveu: anda, conclui ou conta a tentativa. */
   async function apply(
-    message: AdmittedGroupMessage,
+    message: Pick<
+      AdmittedGroupMessage,
+      'companyId' | 'groupJid' | 'sender' | 'senderName' | 'text'
+    >,
     request: GroupRequest,
     outcome: GroupFlowOutcome,
   ): Promise<void> {
@@ -103,11 +168,14 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
     const scope = { companyId: request.companyId, id: request.id, now, version: request.version }
     const log = { companyId: request.companyId, requestId: request.id }
 
+    const record = (state: Readonly<Record<string, unknown>>, replies: readonly string[]) =>
+      withTranscript(state, request.state, { at: now, message, replies })
+
     if (outcome.kind === 'continue') {
       const saved = await repository.update({
         ...scope,
         attempts: 0,
-        state: outcome.state,
+        state: record(outcome.state, outcome.replies),
         step: outcome.step,
       })
       if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, log)
@@ -118,7 +186,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
         ...scope,
         attempts: request.attempts,
         close: 'completed',
-        state: request.state,
+        state: record(request.state, outcome.replies),
         step: request.step,
       })
       if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, log)
@@ -132,7 +200,11 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       ...scope,
       attempts,
       ...(gaveUp ? { close: 'abandoned' as const } : {}),
-      state: request.state,
+      state: record(request.state, [
+        gaveUp
+          ? GROUP_REQUEST_TEXT.gaveUp
+          : GROUP_REQUEST_TEXT.notUnderstood(outcome.reason, outcome.prompt),
+      ]),
       step: request.step,
     })
     if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, log)
@@ -147,6 +219,26 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
     async findOpenOwner({ companyId, groupJid }) {
       const open = await repository.findOpen({ companyId, groupJid, now: dependencies.clock() })
       return open?.ownerNumber ?? null
+    },
+
+    async handleLocation({ companyId, groupJid, sender }) {
+      const open = await repository.findOpen({ companyId, groupJid, now: dependencies.clock() })
+      if (open === null || open.ownerNumber !== sender || flow.locationReceived === undefined) {
+        return false
+      }
+      const outcome = flow.locationReceived({
+        request: open,
+        sender,
+        senderName: null,
+        text: '',
+      })
+      if (outcome === null) return false
+      await apply(
+        { companyId, groupJid, sender, senderName: null, text: '📍 (localização)' },
+        open,
+        outcome,
+      )
+      return true
     },
 
     async handle(message) {

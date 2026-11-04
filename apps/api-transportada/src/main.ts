@@ -249,6 +249,7 @@ import { createDrizzleClientReplyRepository } from './occurrence-conversation/in
 import { readAllBytes } from './occurrence-conversation/application/conversation-attachment.service.js'
 import { createForwardContractorReplyByWhatsAppUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-whatsapp.use-case.js'
 import { createContractorReplyClientWhatsAppDispatcher } from './occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-dispatcher.adapter.js'
+import { syncWhatsAppGroupRequestTranscripts } from './occurrence-conversation/infrastructure/whatsapp-group-boleto-return.support.js'
 import {
   createWhatsAppGroupBoletoReturnDispatcher,
   withGroupBoletoReturn,
@@ -2207,6 +2208,7 @@ function createEvolutionWebhook(input: {
       ? undefined
       : createGroupProofIntake({
           ...input.groupDelivery.intake,
+          advanceRequest: (request) => groupSessions.handleLocation(request),
           openAnswerRequest: async (request) => {
             await groupRequests.open({
               ...request,
@@ -2247,6 +2249,16 @@ function createEvolutionWebhook(input: {
       handle: async (message) => {
         if (groupSessions === undefined) return
         await groupSessions.handle(message)
+        // Spec 292 T7: o pedido que abriu ocorrência leva o diálogo à conversa dela, fora do ritmo do webhook.
+        void syncWhatsAppGroupRequestTranscripts(database, {
+          companyId: message.companyId,
+          now: new Date(),
+        }).catch((error: unknown) =>
+          logger.warn('whatsapp_group_request.transcript_sync_failed', {
+            companyId: message.companyId,
+            errorName: error instanceof Error ? error.name : typeof error,
+          }),
+        )
       },
       ...(groupProofIntake === undefined || input.groupDelivery === undefined
         ? {}

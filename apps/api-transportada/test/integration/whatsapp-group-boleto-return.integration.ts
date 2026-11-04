@@ -18,6 +18,7 @@ import {
   GROUP_BOLETO_RETURN_MAX_ATTEMPTS,
   GROUP_BOLETO_RETURN_TEXT,
   maskGroupBoletoContact,
+  syncWhatsAppGroupRequestTranscripts,
   type GroupBoletoReturnSender,
 } from '../../src/occurrence-conversation/infrastructure/whatsapp-group-boleto-return.support.js'
 import { createGroupBoletoResendPorts } from '../../src/whatsapp/infrastructure/whatsapp-group-boleto-resend.adapter.js'
@@ -72,7 +73,13 @@ function pass(database: TestDatabase, sender: GroupBoletoReturnSender, companyId
  * A ocorrência registrada por um pedido do grupo: o pedido fechado e a chave dele em `trip_field_reports`, como o
  * fluxo do grupo grava. `linked: false` é a ocorrência registrada por outro caminho (app, painel).
  */
-async function prepare(database: TestDatabase, options: { readonly linked?: boolean } = {}) {
+async function prepare(
+  database: TestDatabase,
+  options: {
+    readonly linked?: boolean
+    readonly transcript?: readonly Record<string, string>[]
+  } = {},
+) {
   const seeded = await seedMailScenario(database)
   const { company } = seeded
   const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
@@ -86,7 +93,11 @@ async function prepare(database: TestDatabase, options: { readonly linked?: bool
       expiresAt: new Date(now.getTime() + 600_000),
       groupJid: GROUP,
       ownerNumber: '5516991225783',
-      state: { documentNumber: '899884', typeName: 'Prorrogação do boleto' },
+      state: {
+        documentNumber: '899884',
+        typeName: 'Prorrogação do boleto',
+        ...(options.transcript === undefined ? {} : { transcript: options.transcript }),
+      },
       status: 'completed',
       step: 'confirm',
       timeoutSeconds: 600,
@@ -288,6 +299,115 @@ describe('spec 292 T7: o boleto da contratante volta ao grupo do pedido', () => 
         const working = fakeSender()
         expect(await pass(database, working.sender, companyId)).toEqual({ failed: 0, sent: 0 })
         expect(working.sent).toEqual([])
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+})
+
+async function groupMessagesOf(database: TestDatabase, occurrenceId: string) {
+  return (await database.db.execute(sql`
+    select message.direction, message.automatic, message.sender_address, message.body_text
+      from occurrence_conversation_messages message
+      join occurrence_conversations conversation
+        on conversation.company_id = message.company_id and conversation.id = message.conversation_id
+     where conversation.occurrence_id = ${occurrenceId}::uuid and conversation.participant = 'driver'
+       and message.channel = 'whatsapp'
+     order by message.created_at, message.client_message_id`)) as unknown as readonly {
+    automatic: boolean
+    body_text: string
+    direction: string
+    sender_address: null | string
+  }[]
+}
+
+describe('spec 292 T7: ajustes do teste em staging (04/11)', () => {
+  testWithPostgres(
+    'retorno que andou há mais de 6 h não vira aviso atrasado no grupo (o caso da NF 899884)',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, conversationId } = await prepare(database)
+        await receivePdfReply(database, { companyId, conversationId })
+        await database.db.execute(
+          sql`update occurrence_contractor_replies set updated_at = now() - interval '7 hours'
+               where company_id = ${companyId}::uuid`,
+        )
+        const { sender, sent } = fakeSender()
+        expect(await pass(database, sender, companyId)).toEqual({ failed: 0, sent: 0 })
+        expect(sent).toEqual([])
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'ocorrência resolvida na entrega: o aviso fecha com "Ocorrência concluída"',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId, conversationId, seeded } = await prepare(database)
+        await receivePdfReply(database, { companyId, conversationId })
+        await database.db.execute(sql`
+          insert into trip_occurrence_resolution_events
+            (company_id, document_occurrence_id, kind, actor_kind, contractor_reply_id)
+          select company_id, occurrence_id, 'resolved', 'system', id
+            from occurrence_contractor_replies where company_id = ${companyId}::uuid`)
+        const { sender, sent } = fakeSender()
+        expect(await pass(database, sender, companyId)).toEqual({ failed: 0, sent: 1 })
+        expect(sent).toEqual([
+          {
+            caption: GROUP_BOLETO_RETURN_TEXT.document('899884', true),
+            kind: 'document',
+            number: GROUP,
+          },
+        ])
+        expect(GROUP_BOLETO_RETURN_TEXT.document('899884', true)).toContain('Ocorrência concluída')
+        expect(seeded.occurrenceId).not.toBe('')
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'o diálogo do grupo e o aviso do retorno entram na conversa do motorista, canal WhatsApp, uma vez',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const at = new Date().toISOString()
+        const { companyId, conversationId, seeded } = await prepare(database, {
+          transcript: [
+            {
+              at,
+              from: 'member',
+              name: 'Andrew',
+              number: '5516991225783',
+              text: 'prorrogar 899884',
+            },
+            { at, from: 'bot', text: 'Confirma? 1 - Sim 2 - Não' },
+            { at, from: 'member', name: 'Andrew', number: '5516991225783', text: '1' },
+            { at, from: 'bot', text: 'Ocorrência registrada!' },
+          ],
+        })
+        expect(await syncWhatsAppGroupRequestTranscripts(database.db, { now: new Date() })).toBe(4)
+        expect(await syncWhatsAppGroupRequestTranscripts(database.db, { now: new Date() })).toBe(0)
+
+        await receivePdfReply(database, { companyId, conversationId })
+        const { sender } = fakeSender()
+        expect(await pass(database, sender, companyId)).toEqual({ failed: 0, sent: 1 })
+
+        const messages = await groupMessagesOf(database, seeded.occurrenceId)
+        expect(messages.map((message) => [message.direction, message.body_text])).toEqual([
+          ['inbound', 'Andrew: prorrogar 899884'],
+          ['outbound', 'Confirma? 1 - Sim 2 - Não'],
+          ['inbound', 'Andrew: 1'],
+          ['outbound', 'Ocorrência registrada!'],
+          [
+            'outbound',
+            `${GROUP_BOLETO_RETURN_TEXT.document('899884')}\n\n(PDF do boleto enviado no grupo)`,
+          ],
+        ])
+        expect(messages[0]?.sender_address).toBe('+5516991225783')
+        expect(
+          messages.filter((message) => message.direction === 'outbound').every((m) => m.automatic),
+        ).toBe(true)
       })
     },
     TEST_TIMEOUT_MS,

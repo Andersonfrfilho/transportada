@@ -28,13 +28,14 @@ export const GROUP_OCCURRENCE_STEP = {
   confirm: 'confirm',
   contact: 'contact',
   document: 'document',
+  location: 'location',
   note: 'note',
   start: 'start',
   type: 'type',
 } as const
 
 /** Notas listadas por número de opção; acima disso o bot pede o número da nota. */
-export const GROUP_DOCUMENT_LIST_LIMIT = 8
+export const GROUP_DOCUMENT_LIST_LIMIT = 40
 export const GROUP_OCCURRENCE_NOTE_MAX_LENGTH = 500
 
 export type GroupDriverDocument = { readonly id: string; readonly number: string }
@@ -140,18 +141,26 @@ export const GROUP_OCCURRENCE_TEXT = {
       'Ou responda _continuar_ para seguir sem contato: nesse caso o boleto volta aqui pelo grupo.',
     ].join('\n'),
   askDocument: (documents: readonly GroupDriverDocument[]) =>
-    documents.length > GROUP_DOCUMENT_LIST_LIMIT
-      ? '📄 Em qual nota? Responda com o *número da nota*.'
-      : [
-          '📄 Em qual nota? Responda com o número da opção ou da nota:',
-          '',
-          ...documents.map((document, index) => `*${index + 1}* - NF ${document.number}`),
-        ].join('\n'),
+    [
+      '📄 Em qual nota? Responda com o número da opção ou da nota:',
+      '',
+      ...documents
+        .slice(0, GROUP_DOCUMENT_LIST_LIMIT)
+        .map((document, index) => `*${index + 1}* - NF ${document.number}`),
+      ...(documents.length > GROUP_DOCUMENT_LIST_LIMIT
+        ? [
+            '',
+            `E mais ${documents.length - GROUP_DOCUMENT_LIST_LIMIT} nota(s): digite o *número da nota*.`,
+          ]
+        : []),
+    ].join('\n'),
   askNote: [
     '📝 Quer acrescentar alguma observação?',
     'Escreva agora ou responda _pular_ para seguir sem.',
-    '',
-    '📍 Se quiser, compartilhe também a sua localização antes de confirmar (é opcional).',
+  ].join('\n'),
+  askLocation: [
+    '📍 Quer enviar a sua localização? (é opcional)',
+    'Compartilhe pelo clipe ➜ *Localização*, ou responda _pular_.',
   ].join('\n'),
   askType: (types: readonly GroupOccurrenceType[]) =>
     [
@@ -197,6 +206,7 @@ const REASON = {
   collect: 'mande o que foi pedido, ou responda "pular" se o item não for obrigatório',
   confirm: 'responda 1 para sim ou 2 para não',
   document: 'não achei essa nota na viagem do motorista',
+  location: 'responda _enviei_ depois de compartilhar a localização, ou _pular_',
   noteIsAnOption:
     'isso parece a resposta de uma pergunta anterior; se for mesmo a observação, escreva com mais detalhe',
   noteTooLong: `a observação passa de ${GROUP_OCCURRENCE_NOTE_MAX_LENGTH} caracteres`,
@@ -206,6 +216,7 @@ const REASON = {
 const YES = new Set(['1', 'sim', 's', 'confirmo', 'confirma', 'ok', 'pode'])
 const NO = new Set(['2', 'nao', 'n'])
 const SKIP = new Set(['pular', 'pula', 'sem', 'nao', 'continuar', 'seguir', '-'])
+const LOCATION_SENT = new Set(['enviei', 'enviado', 'mandei', 'mandado', 'pronto', 'ok'])
 const SKIP_CONTACT = new Set([
   'continuar',
   'pular',
@@ -458,14 +469,20 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
             }
           }
           const note = SKIP.has(normalize(text)) ? '' : text
-          return continueWith(GROUP_OCCURRENCE_STEP.confirm, { ...state, note }, [
-            GROUP_OCCURRENCE_TEXT.confirm(
-              state.typeName ?? '',
-              state.documentNumber ?? '',
-              note,
-              state.contactMasked ?? '',
-            ),
+          return continueWith(GROUP_OCCURRENCE_STEP.location, { ...state, note }, [
+            GROUP_OCCURRENCE_TEXT.askLocation,
           ])
+        }
+        case GROUP_OCCURRENCE_STEP.location: {
+          const answer = normalize(text)
+          if (!SKIP.has(answer) && !LOCATION_SENT.has(answer)) {
+            return {
+              kind: 'not_understood',
+              prompt: GROUP_OCCURRENCE_TEXT.askLocation,
+              reason: REASON.location,
+            }
+          }
+          return confirmOutcome(state)
         }
         case GROUP_OCCURRENCE_STEP.confirm: {
           const answer = normalize(text)
@@ -488,7 +505,22 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     }
   }
 
+  const confirmOutcome = (state: FlowState): GroupFlowOutcome =>
+    continueWith(GROUP_OCCURRENCE_STEP.confirm, state, [
+      GROUP_OCCURRENCE_TEXT.confirm(
+        state.typeName ?? '',
+        state.documentNumber ?? '',
+        state.note ?? '',
+        state.contactMasked ?? '',
+      ),
+    ])
+
   return {
+    locationReceived(turn) {
+      if (turn.request.step !== GROUP_OCCURRENCE_STEP.location) return null
+      return confirmOutcome(turn.request.state as FlowState)
+    },
+
     async answer(turn) {
       const outcome = await answerStep(turn)
       // Quando outra pessoa responde pelo dono (marcando o bot), o grupo vê quem respondeu e o quê.
@@ -552,7 +584,7 @@ function pickDocument(
   if (digits === '') return undefined
   const byNumber = documents.find((document) => document.number.replace(/^0+/u, '') === digits)
   if (byNumber !== undefined) return byNumber
-  return documents.length <= GROUP_DOCUMENT_LIST_LIMIT ? pickOption(documents, text) : undefined
+  return pickOption(documents.slice(0, GROUP_DOCUMENT_LIST_LIMIT), text)
 }
 
 function pickOption<T>(options: readonly T[], text: string): T | undefined {

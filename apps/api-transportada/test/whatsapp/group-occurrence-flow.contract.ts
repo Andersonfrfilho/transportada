@@ -78,6 +78,7 @@ function setup(
   }
   return {
     answer: async (text: string) => follow(await flow.answer(turn(text))),
+    locationReceived: () => flow.locationReceived?.(turn('')) ?? null,
     registered,
     start: async (text: string) => follow(await flow.start(turn(text))),
     step: () => request.step,
@@ -102,6 +103,10 @@ describe('fluxo do grupo: guiado', () => {
       replies: [GROUP_OCCURRENCE_TEXT.askNote],
     })
     expect(await flow.answer('cliente pediu mais 10 dias')).toMatchObject({
+      replies: [GROUP_OCCURRENCE_TEXT.askLocation],
+      step: GROUP_OCCURRENCE_STEP.location,
+    })
+    expect(await flow.answer('pular')).toMatchObject({
       replies: [
         GROUP_OCCURRENCE_TEXT.confirm(
           'Prorrogação do boleto',
@@ -134,6 +139,7 @@ describe('fluxo do grupo: guiado', () => {
     await flow.answer('899853')
     await flow.answer('2')
     await flow.answer('pular')
+    await flow.answer('pular')
     await flow.answer('1')
     expect(flow.registered[0]).toMatchObject({ documentId: 'D2', note: '', occurrenceTypeId: 'T2' })
   })
@@ -143,6 +149,7 @@ describe('fluxo do grupo: guiado', () => {
 
     await flow.start('17234 avaria')
     await flow.answer('pular')
+    await flow.answer('pular')
     expect(await flow.answer('2')).toEqual({
       kind: 'done',
       replies: [GROUP_OCCURRENCE_TEXT.declined],
@@ -150,7 +157,7 @@ describe('fluxo do grupo: guiado', () => {
     expect(flow.registered).toEqual([])
   })
 
-  test('com mais notas que a lista comporta, pede o número da nota', async () => {
+  test('com mais notas que a lista comporta, mostra as primeiras e aceita o número da nota', async () => {
     const documents = Array.from({ length: GROUP_DOCUMENT_LIST_LIMIT + 1 }, (_, index) => ({
       id: `D${index}`,
       number: String(1000 + index),
@@ -160,7 +167,7 @@ describe('fluxo do grupo: guiado', () => {
     expect(await flow.start('')).toMatchObject({
       replies: [GROUP_OCCURRENCE_TEXT.askDocument(documents)],
     })
-    expect(await flow.answer('3')).toMatchObject({ kind: 'not_understood' })
+    expect(GROUP_OCCURRENCE_TEXT.askDocument(documents)).toContain('E mais 1 nota(s)')
     expect(await flow.answer('1003')).toMatchObject({ kind: 'continue', step: 'type' })
   })
 })
@@ -173,6 +180,7 @@ describe('fluxo do grupo: direto', () => {
       replies: [GROUP_OCCURRENCE_TEXT.askNote],
       step: GROUP_OCCURRENCE_STEP.note,
     })
+    await flow.answer('pular')
     await flow.answer('pular')
     await flow.answer('1')
     expect(flow.registered[0]).toMatchObject({ documentId: 'D1', occurrenceTypeId: 'T1' })
@@ -197,6 +205,7 @@ describe('fluxo do grupo: pedido falado (áudio)', () => {
       step: GROUP_OCCURRENCE_STEP.note,
     })
     await flow.answer('pular')
+    await flow.answer('pular')
     await flow.answer('1')
     expect(flow.registered[0]).toMatchObject({ documentId: 'D1', occurrenceTypeId: 'T1' })
   })
@@ -206,6 +215,7 @@ describe('fluxo do grupo: pedido falado (áudio)', () => {
     expect(
       await flow.start('eu preciso de uma prorrogação de boleto da nota 89, 98, 77'),
     ).toMatchObject({ replies: [GROUP_OCCURRENCE_TEXT.askNote], step: GROUP_OCCURRENCE_STEP.note })
+    await flow.answer('pular')
     await flow.answer('pular')
     await flow.answer('1')
     expect(flow.registered[0]).toMatchObject({ documentId: 'D9', occurrenceTypeId: 'T1' })
@@ -225,6 +235,31 @@ describe('fluxo do grupo: pedido falado (áudio)', () => {
     const flow = setup()
     await flow.start('')
     expect(await flow.answer('89, 98, 53.')).toMatchObject({ step: GROUP_OCCURRENCE_STEP.type })
+  })
+})
+
+describe('fluxo do grupo: localização opcional', () => {
+  test('depois da observação o bot pergunta a localização num passo próprio e aceita pular ou enviei', async () => {
+    const flow = setup()
+    await flow.start('17234 avaria')
+    expect(await flow.answer('quebrou')).toMatchObject({
+      replies: [GROUP_OCCURRENCE_TEXT.askLocation],
+      step: GROUP_OCCURRENCE_STEP.location,
+    })
+    expect(await flow.answer('talvez')).toMatchObject({ kind: 'not_understood' })
+    expect(await flow.answer('enviei')).toMatchObject({ step: GROUP_OCCURRENCE_STEP.confirm })
+    expect(GROUP_OCCURRENCE_TEXT.askNote).not.toContain('📍')
+  })
+
+  test('a localização compartilhada avança o passo da localização sozinha; fora dele não faz nada', async () => {
+    const ports = setup()
+    await ports.start('17234 avaria')
+    expect(ports.locationReceived()).toBeNull()
+    await ports.answer('quebrou')
+    expect(ports.locationReceived()).toMatchObject({
+      kind: 'continue',
+      step: GROUP_OCCURRENCE_STEP.confirm,
+    })
   })
 })
 
@@ -277,6 +312,7 @@ describe('fluxo do grupo: o que não pode', () => {
     })
     await photo.start('17234 avaria')
     await photo.answer('pular')
+    await photo.answer('pular')
     expect(await photo.answer('sim')).toEqual({
       kind: 'done',
       replies: ['Essa ocorrência exige foto.'],
@@ -286,6 +322,7 @@ describe('fluxo do grupo: o que não pode', () => {
       registration: { kind: 'refused', message: 'Digite o que aconteceu.', retry: 'note' },
     })
     await note.start('17234 avaria')
+    await note.answer('pular')
     await note.answer('pular')
     expect(await note.answer('sim')).toMatchObject({
       kind: 'continue',
@@ -299,6 +336,7 @@ describe('fluxo do grupo: o que não pode', () => {
       registration: { kind: 'refused', message: 'Este tipo não vale.', retry: 'type' },
     })
     await flow.start('17234 avaria')
+    await flow.answer('pular')
     await flow.answer('pular')
     expect(await flow.answer('sim')).toMatchObject({
       replies: ['Este tipo não vale.', GROUP_OCCURRENCE_TEXT.askType([PRORROGACAO, RECUSA])],
@@ -325,6 +363,7 @@ describe('fluxo do grupo: o que não pode', () => {
     })
     await flow.start('17234 avaria')
     await flow.answer('pular')
+    await flow.answer('pular')
     expect(await flow.answer('sim')).toEqual({
       kind: 'continue',
       replies: ['Ocorrência da NF 17234: digite "Número do documento do cliente".'],
@@ -343,6 +382,7 @@ describe('fluxo do grupo: o que não pode', () => {
     })
     await photo.start('17234 avaria')
     await photo.answer('pular')
+    await photo.answer('pular')
     expect(await photo.answer('sim')).toEqual({ kind: 'done', replies: ['Mande 1 foto.'] })
 
     const lost = setup({
@@ -350,6 +390,7 @@ describe('fluxo do grupo: o que não pode', () => {
       registration: { awaitingText: true, kind: 'collecting', replies: ['Digite o valor.'] },
     })
     await lost.start('17234 avaria')
+    await lost.answer('pular')
     await lost.answer('pular')
     await lost.answer('sim')
     expect(await lost.answer('o que?')).toMatchObject({ kind: 'not_understood' })
@@ -493,7 +534,7 @@ describe('fluxo do grupo: resposta de outra pessoa e observação', () => {
       senderName: 'Anderson',
       text: 'cliente pediu',
     })
-    expect(other).toMatchObject({ kind: 'continue', step: 'confirm' })
+    expect(other).toMatchObject({ kind: 'continue', step: 'location' })
     expect((other as unknown as { replies: string[] }).replies[0]).toContain('Anderson')
   })
 })

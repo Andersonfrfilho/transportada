@@ -134,6 +134,18 @@ export function createGroupDriverFlow(flows: {
 
     initialStep: flows.occurrence.initialStep,
 
+    locationReceived(turn) {
+      const { step } = turn.request
+      if (
+        step === GROUP_DRIVER_STEP.menu ||
+        step.startsWith(GROUP_DRIVER_STEP.deliveryPrefix) ||
+        step.startsWith(GROUP_DRIVER_STEP.stopPrefix)
+      ) {
+        return null
+      }
+      return flows.occurrence.locationReceived?.(turn) ?? null
+    },
+
     async start(turn) {
       if (turn.text === '') {
         return {

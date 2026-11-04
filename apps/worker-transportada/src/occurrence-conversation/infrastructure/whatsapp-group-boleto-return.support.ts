@@ -62,6 +62,11 @@ export const GROUP_BOLETO_RETURN_LOOKBACK_DAYS = 14
 export const GROUP_BOLETO_RETURN_MAX_ATTEMPTS = 3
 /** Envio ao cliente pelo WhatsApp ainda `queued` há menos que isto: espera o despacho dele terminar. */
 export const GROUP_BOLETO_RETURN_CLIENT_WAIT_SECONDS = 600
+/**
+ * Só o retorno que andou há pouco: o que mudou antes disso (ex.: antes desta passada existir) não vira aviso atrasado
+ * no grupo. Foi o caso da NF 899884 em 04/11: entregue às 11:27, o PDF saiu no grupo às 15:35 com o primeiro deploy.
+ */
+export const GROUP_BOLETO_RETURN_FRESH_HOURS = 6
 const BATCH_LIMIT = 50
 const DEFAULT_FILE_NAME = 'boleto.pdf'
 
@@ -70,18 +75,22 @@ export const GROUP_BOLETO_RETURN_REQUEST_KEY_PREFIX = 'whatsapp-group-request:'
 export type GroupBoletoReturnNotice = 'delivered' | 'office' | 'overdue'
 
 export const GROUP_BOLETO_RETURN_TEXT = {
-  clientSent: (documentNumber: string, contacts: readonly string[]) =>
+  clientSent: (documentNumber: string, contacts: readonly string[], resolved = false) =>
     [
       `✅ *Boleto atualizado da NF ${documentNumber}*`,
       '',
       `A contratante respondeu e o boleto já foi enviado ao cliente: ${contacts.map((contact) => `*${contact}*`).join(', ')}.`,
       'Ele também está no chat da ocorrência no aplicativo.',
+      '',
+      closingLine(resolved),
     ].join('\n'),
-  document: (documentNumber: string) =>
+  document: (documentNumber: string, resolved = false) =>
     [
       `📄 *Boleto atualizado da NF ${documentNumber}*`,
       '',
       'A contratante respondeu. Segue o boleto para repassar ao cliente.',
+      '',
+      closingLine(resolved),
     ].join('\n'),
   office: (documentNumber: string) =>
     [
@@ -97,6 +106,13 @@ export const GROUP_BOLETO_RETURN_TEXT = {
       `Para pedir de novo à contratante, me marque e escreva: *pedir boleto de novo ${documentNumber}*`,
     ].join('\n'),
 } as const
+
+/** A última linha do aviso do boleto entregue: a ocorrência concluída, ou quem conclui. */
+function closingLine(resolved: boolean): string {
+  return resolved
+    ? '🏁 *Ocorrência concluída.* Precisando de mais alguma coisa, é só me marcar.'
+    : '📋 O escritório conclui a ocorrência.'
+}
 
 type Row = Record<string, unknown>
 
@@ -162,6 +178,8 @@ function noticeFor(params: {
 
 type Candidate = {
   readonly companyId: string
+  readonly driverId: string
+  readonly occurrenceId: string
   readonly documentNumber: string
   readonly groupJid: string
   readonly notice: GroupBoletoReturnNotice
@@ -178,9 +196,13 @@ async function listCandidates(
   const since = new Date(
     params.now.getTime() - GROUP_BOLETO_RETURN_LOOKBACK_DAYS * 86_400_000,
   ).toISOString()
+  const fresh = new Date(
+    params.now.getTime() - GROUP_BOLETO_RETURN_FRESH_HOURS * 3_600_000,
+  ).toISOString()
   const rows = await rowsOf(
     runner,
     sql`select request.id as request_id, request.company_id, request.group_jid, request.state,
+               request.driver_id::text as driver_id, report.result_id::text as occurrence_id,
                request.version::text as version, reply.id as reply_id, reply.status as reply_status,
                coalesce(nullif(request.state->>'documentNumber', ''), note.number, '') as document_number
           from whatsapp_group_requests request
@@ -200,6 +222,7 @@ async function listCandidates(
            and request.opened_at >= ${since}::timestamptz
            ${params.companyId === undefined ? sql`` : sql`and request.company_id = ${params.companyId}::uuid`}
            and reply.status in ('delivered', 'needs_operator', 'awaiting_operator', 'overdue')
+           and greatest(reply.updated_at, coalesce(reply.last_alert_at, reply.updated_at)) >= ${fresh}::timestamptz
            and coalesce(request.state->'boletoReturn'->>'status', '') <> 'failed'
            and request.state->'boletoReturn'->'notices'->>'delivered' is null
          order by request.opened_at
@@ -212,7 +235,11 @@ async function listCandidates(
     const replyId = text(row, 'reply_id')
     const requestId = text(row, 'request_id')
     const version = text(row, 'version')
+    const driverId = text(row, 'driver_id')
+    const occurrenceId = text(row, 'occurrence_id')
     if (
+      driverId === null ||
+      occurrenceId === null ||
       companyId === null ||
       groupJid === null ||
       replyId === null ||
@@ -226,6 +253,8 @@ async function listCandidates(
     if (notice === null) continue
     candidates.push({
       companyId,
+      driverId,
+      occurrenceId,
       documentNumber: text(row, 'document_number') ?? '',
       groupJid,
       notice,
@@ -340,6 +369,8 @@ export async function dispatchWhatsAppGroupBoletoReturns(
   params: { readonly companyId?: string; readonly now: Date },
 ): Promise<DispatchGroupBoletoReturnsResult> {
   const result = { failed: 0, sent: 0 }
+  // O diálogo do pedido entra na conversa antes do aviso do retorno: a conversa fica na ordem do grupo.
+  await syncWhatsAppGroupRequestTranscripts(dependencies.runner, params)
   for (const candidate of await listCandidates(dependencies.runner, params)) {
     const outcome = await returnOne(dependencies, { candidate, now: params.now })
     if (outcome === 'sent') result.sent += 1
@@ -356,8 +387,11 @@ async function returnOne(
   const { companyId, documentNumber, groupJid } = candidate
 
   let send: () => Promise<unknown>
+  /** O texto que fica na conversa da ocorrência (o PDF já está lá, entregue ao motorista). */
+  let recorded: string
   let outcome: GroupBoletoReturnState['outcome'] = candidate.state.outcome
   if (candidate.notice === 'delivered') {
+    const resolved = await isOccurrenceResolved(dependencies.runner, candidate)
     const deliveries = await clientDeliveriesOf(dependencies.runner, {
       companyId,
       now,
@@ -365,11 +399,18 @@ async function returnOne(
     })
     if (deliveries.kind === 'wait') return 'skipped'
     if (deliveries.contacts.length > 0) {
-      const body = GROUP_BOLETO_RETURN_TEXT.clientSent(documentNumber, deliveries.contacts)
+      const body = GROUP_BOLETO_RETURN_TEXT.clientSent(
+        documentNumber,
+        deliveries.contacts,
+        resolved,
+      )
+      recorded = body
       outcome = 'sent_to_client'
       send = () => dependencies.sender.sendText({ body, companyId, number: groupJid })
     } else {
       outcome = 'posted_to_group'
+      const caption = GROUP_BOLETO_RETURN_TEXT.document(documentNumber, resolved)
+      recorded = `${caption}\n\n(PDF do boleto enviado no grupo)`
       send = async () => {
         const file = await deliveredFileOf(dependencies, {
           companyId,
@@ -378,7 +419,7 @@ async function returnOne(
         if (file === null) throw new Error('GROUP_BOLETO_RETURN_FILE_NOT_FOUND')
         return dependencies.sender.sendDocument({
           bytes: file.bytes,
-          caption: GROUP_BOLETO_RETURN_TEXT.document(documentNumber),
+          caption,
           companyId,
           fileName: file.fileName,
           mimeType: file.contentType,
@@ -391,6 +432,7 @@ async function returnOne(
       candidate.notice === 'office'
         ? GROUP_BOLETO_RETURN_TEXT.office(documentNumber)
         : GROUP_BOLETO_RETURN_TEXT.overdue(documentNumber)
+    recorded = body
     send = () => dependencies.sender.sendText({ body, companyId, number: groupJid })
   }
 
@@ -431,5 +473,177 @@ async function returnOne(
     }
     return 'failed'
   }
+  await recordGroupMessages(dependencies.runner, {
+    companyId,
+    driverId: candidate.driverId,
+    entries: [{ at, key: `return:${candidate.notice}`, text: recorded }],
+    occurrenceId: candidate.occurrenceId,
+    requestId: candidate.requestId,
+  })
   return 'sent'
+}
+
+/** O andamento da ocorrência (spec 266): o último evento por `seq` é `resolved`. */
+async function isOccurrenceResolved(
+  runner: GroupBoletoReturnRunner,
+  params: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<boolean> {
+  const [latest] = await rowsOf(
+    runner,
+    sql`select kind from trip_occurrence_resolution_events
+         where company_id = ${params.companyId}::uuid
+           and document_occurrence_id = ${params.occurrenceId}::uuid
+         order by seq desc
+         limit 1`,
+  )
+  return text(latest, 'kind') === 'resolved'
+}
+
+type GroupConversationEntry = {
+  readonly at: string
+  /** Único no pedido: a mesma linha copiada duas vezes não duplica (`client_message_id`). */
+  readonly key: string
+  /** Ausente: o bot. Presente: quem escreveu no grupo (só dígitos). */
+  readonly number?: string
+  readonly text: string
+}
+
+/**
+ * Spec 292 T7: o que se falou no grupo vai à conversa do motorista na ocorrência, canal WhatsApp — o bot como enviada
+ * automática, o membro como recebida do número dele. Sem conta do motorista não há conversa: nada é gravado.
+ */
+async function recordGroupMessages(
+  runner: GroupBoletoReturnRunner,
+  params: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly entries: readonly GroupConversationEntry[]
+    readonly occurrenceId: string
+    readonly requestId: string
+  },
+): Promise<void> {
+  const { companyId } = params
+  if (params.entries.length === 0) return
+  const [driver] = await rowsOf(
+    runner,
+    sql`select membership.user_id::text as user_id
+          from fleet_drivers driver
+          join user_company_memberships membership
+            on membership.company_id = driver.company_id and membership.id = driver.membership_id
+           and membership.status = 'active'
+          join trip_document_occurrences occurrence
+            on occurrence.company_id = driver.company_id and occurrence.id = ${params.occurrenceId}::uuid
+         where driver.company_id = ${companyId}::uuid and driver.id = ${params.driverId}::uuid`,
+  )
+  const driverUserId = text(driver, 'user_id')
+  if (driverUserId === null) return
+  const [conversation] = await rowsOf(
+    runner,
+    sql`insert into occurrence_conversations (company_id, occurrence_kind, occurrence_id, participant, driver_user_id)
+        values (${companyId}::uuid, 'document', ${params.occurrenceId}::uuid, 'driver', ${driverUserId}::uuid)
+        on conflict (company_id, occurrence_kind, occurrence_id, participant)
+        do update set driver_user_id = occurrence_conversations.driver_user_id
+        returning id`,
+  )
+  const conversationId = text(conversation, 'id')
+  if (conversationId === null) return
+  for (const entry of params.entries) {
+    const clientMessageId = `whatsapp-group:${params.requestId}:${entry.key}`
+    if (entry.number === undefined) {
+      await rowsOf(
+        runner,
+        sql`insert into occurrence_conversation_messages
+              (company_id, conversation_id, channel, direction, automatic, body_text, status, status_times,
+               client_message_id, created_at)
+            values (${companyId}::uuid, ${conversationId}::uuid, 'whatsapp', 'outbound', true, ${entry.text},
+                    'sent', ${JSON.stringify({ sent: entry.at })}::jsonb, ${clientMessageId},
+                    ${entry.at}::timestamptz)
+            on conflict do nothing`,
+      )
+    } else {
+      await rowsOf(
+        runner,
+        sql`insert into occurrence_conversation_messages
+              (company_id, conversation_id, channel, direction, automatic, sender_address, body_text,
+               client_message_id, created_at)
+            values (${companyId}::uuid, ${conversationId}::uuid, 'whatsapp', 'inbound', false,
+                    ${`+${entry.number}`}, ${entry.text}, ${clientMessageId}, ${entry.at}::timestamptz)
+            on conflict do nothing`,
+      )
+    }
+  }
+}
+
+/**
+ * Spec 292 T7: o diálogo do pedido do grupo que abriu a ocorrência (`state.transcript`, gravado pela sessão do pedido)
+ * vai à conversa do motorista na ocorrência, do ponto em que parou (`state.transcriptSynced`).
+ */
+export async function syncWhatsAppGroupRequestTranscripts(
+  runner: GroupBoletoReturnRunner,
+  params: { readonly companyId?: string; readonly now: Date },
+): Promise<number> {
+  const since = new Date(
+    params.now.getTime() - GROUP_BOLETO_RETURN_LOOKBACK_DAYS * 86_400_000,
+  ).toISOString()
+  const rows = await rowsOf(
+    runner,
+    sql`select request.id::text as request_id, request.company_id::text as company_id,
+               request.driver_id::text as driver_id, report.result_id::text as occurrence_id,
+               request.state->'transcript' as transcript,
+               coalesce((request.state->>'transcriptSynced')::int, 0) as synced
+          from whatsapp_group_requests request
+          join trip_field_reports report
+            on report.company_id = request.company_id
+           and report.idempotency_key = ${GROUP_BOLETO_RETURN_REQUEST_KEY_PREFIX} || request.id::text
+           and report.result_id is not null
+          join trip_document_occurrences occurrence
+            on occurrence.company_id = report.company_id and occurrence.id = report.result_id
+         where request.status = 'completed'
+           and request.opened_at >= ${since}::timestamptz
+           ${params.companyId === undefined ? sql`` : sql`and request.company_id = ${params.companyId}::uuid`}
+           and jsonb_typeof(request.state->'transcript') = 'array'
+           and jsonb_array_length(request.state->'transcript') > coalesce((request.state->>'transcriptSynced')::int, 0)
+         limit ${BATCH_LIMIT}`,
+  )
+  let copied = 0
+  for (const row of rows) {
+    const requestId = text(row, 'request_id')
+    const companyId = text(row, 'company_id')
+    const driverId = text(row, 'driver_id')
+    const occurrenceId = text(row, 'occurrence_id')
+    const transcript = Array.isArray(row.transcript) ? (row.transcript as unknown[]) : []
+    const synced = Number(row.synced ?? 0)
+    if (requestId === null || companyId === null || driverId === null || occurrenceId === null) {
+      continue
+    }
+    const entries: GroupConversationEntry[] = []
+    transcript.forEach((item, index) => {
+      if (index < synced || typeof item !== 'object' || item === null) return
+      const entry = item as Record<string, unknown>
+      const body = typeof entry.text === 'string' ? entry.text : ''
+      const at = typeof entry.at === 'string' ? entry.at : params.now.toISOString()
+      const name = typeof entry.name === 'string' && entry.name !== '' ? entry.name : null
+      const number = typeof entry.number === 'string' ? entry.number.replace(/\D/gu, '') : ''
+      if (body === '') return
+      entries.push(
+        entry.from === 'member' && number.length >= 8
+          ? {
+              at,
+              key: `t${index}`,
+              number,
+              text: name === null ? body : `${name}: ${body}`,
+            }
+          : { at, key: `t${index}`, text: body },
+      )
+    })
+    await recordGroupMessages(runner, { companyId, driverId, entries, occurrenceId, requestId })
+    await rowsOf(
+      runner,
+      sql`update whatsapp_group_requests
+             set state = jsonb_set(state, '{transcriptSynced}', ${String(transcript.length)}::jsonb, true)
+           where company_id = ${companyId}::uuid and id = ${requestId}::uuid`,
+    )
+    copied += entries.length
+  }
+  return copied
 }

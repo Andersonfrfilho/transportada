@@ -80,6 +80,12 @@ export type GroupAudio = {
   readonly mimeType: string
   /** Quem escreveu a mensagem citada pelo áudio (jid cru), ou `null` sem citação. */
   readonly quotedParticipant: null | string
+  /**
+   * A mensagem como veio no webhook (`key` + `message`). O Evolution de staging não grava as
+   * mensagens, então pedir a mídia só pelo id volta "Message not found" para sempre (medido em
+   * 04/11/2026); com a mensagem inteira ele baixa e decifra sem ir ao banco.
+   */
+  readonly rawMessage?: { readonly key: unknown; readonly message: unknown }
   readonly seconds: null | number
 }
 
@@ -101,6 +107,7 @@ export type EvolutionGroupAudioPorts = {
   download(input: {
     readonly connection: LazyEvolutionConnection
     readonly providerMessageId: string
+    readonly rawMessage?: { readonly key: unknown; readonly message: unknown }
   }): Promise<{ readonly data: string; readonly mimeType: string }>
   reply(input: {
     readonly companyId: string
@@ -189,7 +196,12 @@ export function createEvolutionGroupInbound(
     if (audio.seconds !== null && audio.seconds > BOT_AUDIO_WAKE_MAX_SECONDS) return 'not_addressed'
     ports.bot.listen({
       companyId,
-      download: () => ports.download({ connection, providerMessageId: event.externalMessageId }),
+      download: () =>
+        ports.download({
+          connection,
+          providerMessageId: event.externalMessageId,
+          ...(audio.rawMessage === undefined ? {} : { rawMessage: audio.rawMessage }),
+        }),
       mimeType: audio.mimeType,
       onText: async (text) => {
         const rest = matchWakePhrase(phrase, text)
@@ -277,7 +289,12 @@ export function createEvolutionGroupInbound(
         senderName: event.pushName,
       },
       conversation: groupConversation(groupJid),
-      download: () => ports.download({ connection, providerMessageId: event.externalMessageId }),
+      download: () =>
+        ports.download({
+          connection,
+          providerMessageId: event.externalMessageId,
+          ...(audio.rawMessage === undefined ? {} : { rawMessage: audio.rawMessage }),
+        }),
       mimeType: audio.mimeType,
       owner: sender,
       reply: (texts) => ports.reply({ companyId, groupJid, texts }),
@@ -497,6 +514,7 @@ export function readGroupAudio(payload: unknown): ReadonlyMap<string, GroupAudio
       mimeType: typeof audio.mimetype === 'string' ? audio.mimetype : 'audio/ogg',
       quotedParticipant:
         context !== null && typeof context.participant === 'string' ? context.participant : null,
+      rawMessage: { key: item.key, message: item.message },
       seconds: Number.isFinite(seconds) ? seconds : null,
     })
   }
