@@ -114,8 +114,7 @@ obrigatório insiste. A localização é sempre só oferecida. Quando chega tudo
   `tenants/<empresa>/whatsapp-delivery-preparations/<preparação>/…`, apagadas depois da baixa.
 - Logs: `whatsapp_delivery_preparation.opened|completed|superseded|raced|attach_failed` e
   `whatsapp_group_proof.download_failed` (só empresa, preparação e motivo).
-- Ainda não existe (PR seguinte da T15): lembretes e prazo da entrega em preparo, alerta ao escritório, e a ocorrência
-  que exige foto/número/valor sendo colhida pelo WhatsApp.
+- Ainda não existe (próximo PR da T15): lembretes e prazo da entrega em preparo e alerta ao escritório.
 
 Conferir uma preparação em staging (sem dado de quem recebeu):
 
@@ -123,6 +122,39 @@ Conferir uma preparação em staging (sem dado de quem recebeu):
 select id, document_number, origin_channel, status, awaiting, jsonb_array_length(photos) as fotos,
        received_by is not null as tem_quem_recebeu, latitude is not null as tem_localizacao, opened_at, closed_at
   from whatsapp_delivery_preparations order by opened_at desc limit 20;
+```
+
+## A ocorrência que pede foto, número ou valor pelo WhatsApp (spec 293 T15)
+
+Antes, o tipo de ocorrência que exigia foto, número do documento do cliente ou valor pago era recusado no WhatsApp
+("registre pelo aplicativo"). Agora, depois da confirmação (grupo) ou da observação (individual), o bot abre a
+**ocorrência em coleta** e pede o que a exigência efetiva do tipo para aquela nota pede (tipo + exceção da
+contratante + exceção do destinatário, a mesma do app). Off não é pedido; opcional é oferecido uma vez e aceita
+"pular"; obrigatório insiste. Quando chega tudo, registra pela mesma `registerDriverOccurrence` do app, que confere
+de novo no servidor.
+
+- Assinatura, produtos e valor pago **por item** continuam só no app: obrigatórios, o bot responde com a recusa de
+  sempre e não abre coleta.
+- Uma coleta aberta por motorista. Escolher outra ocorrência substitui a anterior (`superseded`). "cancelar" fecha
+  sem registrar.
+- A foto (grupo ou individual) vai para a coleta quando ela está pedindo foto; senão, para a entrega em preparo.
+  Ela vira **upload confirmado de ocorrência** (`trip_occurrence_uploads`, mesma conferência do app); acima de 512 KiB
+  é reduzida a JPEG no servidor. Foto que a conferência recusa: o bot pede outra.
+- No grupo, a coleta que espera texto segura o pedido no passo `collect`; a que espera foto fecha o pedido e a foto
+  chega sozinha.
+- Erro que não é de negócio no registro: a coleta fica aberta e qualquer resposta tenta de novo com a mesma chave
+  (`whatsapp-occurrence-draft:<id>`).
+- Tabela `whatsapp_occurrence_drafts` (uma `open` por motorista). Logs:
+  `whatsapp_occurrence_draft.opened|completed|superseded|raced|photo_rejected|register_failed` (só empresa, coleta e
+  motivo; nunca observação, número ou valor).
+
+Para testar em staging: no cadastro do tipo (aba Tipos de `/ocorrencias`), deixar foto ou número como obrigatório, e
+registrar pelo `@bot` no grupo ou pela conversa individual.
+
+```sql
+select id, document_number, origin_channel, status, awaiting, jsonb_array_length(photos) as fotos,
+       reference_number is not null as tem_numero, declared_amount is not null as tem_valor, opened_at, closed_at
+  from whatsapp_occurrence_drafts order by opened_at desc limit 20;
 ```
 
 ## Teste de aceite em staging (spec 281, critérios)

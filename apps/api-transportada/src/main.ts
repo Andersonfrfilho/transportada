@@ -273,8 +273,16 @@ import {
 } from './whatsapp-commands/application/register-driver-flow-actions.js'
 import {
   deliverWhatsAppDriverDocument,
+  registerWhatsAppDriverOccurrence as registerWhatsAppDriverOccurrenceEvent,
   type WhatsAppDriverEventPorts,
 } from './whatsapp-commands/application/whatsapp-driver-events.service.js'
+import {
+  combineWhatsAppDriverCollections,
+  createWhatsAppOccurrenceDrafts,
+} from './whatsapp-commands/application/whatsapp-occurrence-draft.service.js'
+import { createDrizzleWhatsAppOccurrenceDraftRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-occurrence-draft.repository.js'
+import { createWhatsAppOccurrencePhotoStore } from './whatsapp-commands/infrastructure/whatsapp-occurrence-photo.adapter.js'
+import { createWhatsAppOccurrenceRequirementsReader } from './whatsapp-commands/infrastructure/whatsapp-occurrence-requirements.query.js'
 import { describeWhatsAppDriverEventResult } from './whatsapp-commands/application/whatsapp-driver-event-speech.service.js'
 import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
 import { createIssuanceWhatsAppFlowActions } from './whatsapp-commands/application/register-issuance-flow-actions.js'
@@ -1432,6 +1440,36 @@ export function bootstrap(): Bun.Server<undefined> {
     repository: createDrizzleWhatsAppDeliveryPreparationRepository(database.db),
     resolveSettings: (query) => whatsappDeliveryProofRepository.resolveProofFieldSettings(query),
   })
+  /**
+   * Spec 293 T15: a ocorrência em coleta (grupo e individual): o tipo que pede foto, número do documento
+   * do cliente ou valor pago colhe o que falta antes do registro, em vez de recusar.
+   */
+  const whatsappOccurrenceDrafts = createWhatsAppOccurrenceDrafts({
+    describeResult: ({ channel, companyId, documentNumber, result }) =>
+      renderBotSpeechLine({
+        companyId,
+        line: describeWhatsAppDriverEventResult(
+          result,
+          channel === 'group' ? { documentNumber, kind: 'group' } : { kind: 'driver' },
+        ),
+        speech: whatsappBotSpeech,
+      }),
+    logger,
+    register: (input) => registerWhatsAppDriverOccurrenceEvent(whatsappDriverEventPorts, input),
+    repository: createDrizzleWhatsAppOccurrenceDraftRepository(database.db),
+    resolveRequirements: createWhatsAppOccurrenceRequirementsReader(database.db),
+    storePhoto: createWhatsAppOccurrencePhotoStore({
+      bucket: whatsappStorageBucket,
+      database: database.db,
+      storage: whatsappStorageGateway,
+      uploads: whatsappOccurrenceUploadRepository,
+    }),
+  })
+  /** O que o motorista manda sem dizer para quê vai para a coleta certa (ocorrência ou entrega). */
+  const whatsappDriverCollections = combineWhatsAppDriverCollections({
+    deliveries: whatsappDeliveryPreparations,
+    occurrences: whatsappOccurrenceDrafts,
+  })
   /** Spec 293 T15: o ponto compartilhado no grupo espera o próximo evento do motorista, só em memória. */
   const whatsappGroupLocations = createInMemoryWhatsAppSharedLocationStore({
     clock: () => new Date(),
@@ -1445,13 +1483,14 @@ export function bootstrap(): Bun.Server<undefined> {
     database: database.db,
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
     logger,
-    preparations: whatsappDeliveryPreparations,
+    preparations: whatsappDriverCollections,
     rememberLocation: ({ location, ...key }) =>
       whatsappGroupLocations.remember({ ...groupLocationKey(key), location }),
     speech: whatsappBotSpeech,
   })
   /** Spec 292 T5: o pedido no grupo do motorista registra pelo mesmo caminho do WhatsApp do motorista. */
   const whatsappGroupOccurrence = createGroupOccurrencePorts({
+    collections: { answers: whatsappDriverCollections, occurrences: whatsappOccurrenceDrafts },
     database: database.db,
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
     logger,
@@ -1469,6 +1508,7 @@ export function bootstrap(): Bun.Server<undefined> {
   })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     deliveryPreparations: whatsappDeliveryPreparations,
+    occurrenceDrafts: whatsappOccurrenceDrafts,
     speech: whatsappBotSpeech,
     consumeSharedLocation: (key) => whatsappSharedLocations.consume(key),
     findCurrentTrip: (input) =>
@@ -1824,7 +1864,7 @@ export function bootstrap(): Bun.Server<undefined> {
     sharedLocations: whatsappSharedLocations,
     /** Spec 293 T15: foto, localização e respostas da entrega em preparo na conversa individual. */
     deliveryProofs: {
-      preparations: whatsappDeliveryPreparations,
+      preparations: whatsappDriverCollections,
       resolveDriver: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
     },
     resolveActor: createResolveWhatsAppActorUseCase({

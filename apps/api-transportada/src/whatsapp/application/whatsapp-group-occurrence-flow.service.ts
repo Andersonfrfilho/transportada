@@ -12,8 +12,9 @@
  *   pelo nome; o que faltar é perguntado.
  * - Listas e confirmação em texto numerado (o Evolution não tem botões); a resposta vale pelo número
  *   da opção ou pelo nome (spec 292, de-para).
- * - Tipo que exige o que o WhatsApp não colhe (foto, assinatura, produtos) volta com a frase do campo
- *   (`describeOccurrenceRequirementRefusal`), igual ao WhatsApp do motorista.
+ * - Spec 293 T15: tipo que pede foto, número do documento do cliente ou valor pago **não é recusado**:
+ *   o registro abre a ocorrência em coleta, o bot pede o que falta e o pedido fica no passo `collect`
+ *   até a coleta terminar. Assinatura e produtos continuam só no app e voltam com a frase do campo.
  * - Nada de nome de cliente nem valor no texto do grupo: só o número da nota.
  */
 import type {
@@ -23,6 +24,7 @@ import type {
 } from './whatsapp-group-request.port.js'
 
 export const GROUP_OCCURRENCE_STEP = {
+  collect: 'collect',
   confirm: 'confirm',
   document: 'document',
   note: 'note',
@@ -41,6 +43,18 @@ export type GroupOccurrenceRegistration =
   | { readonly kind: 'registered' }
   /** A recusa já em frase para o grupo; `retry` diz para onde voltar (observação ou tipo). */
   | { readonly kind: 'refused'; readonly message: string; readonly retry: 'note' | 'type' | null }
+  /** Spec 293 T15: a coleta abriu; `awaitingText` diz se a próxima resposta é em texto. */
+  | {
+      readonly awaitingText: boolean
+      readonly kind: 'collecting'
+      readonly replies: readonly string[]
+    }
+
+/** A resposta em texto à coleta em aberto; `null` quando o texto não é para ela. */
+export type GroupCollectionAnswer = {
+  readonly awaitingText: boolean
+  readonly replies: readonly string[]
+}
 
 export type GroupOccurrenceFlowPorts = {
   /** As notas das viagens ativas do motorista dono do grupo (regra 6: a nota está com ele). */
@@ -53,9 +67,16 @@ export type GroupOccurrenceFlowPorts = {
     readonly companyId: string
     readonly documentId: string
   }): Promise<readonly GroupOccurrenceType[]>
+  /** Spec 293 T15: a resposta à ocorrência em coleta (número, valor, "pular", "cancelar"). */
+  answerCollection(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly text: string
+  }): Promise<GroupCollectionAnswer | null>
   register(input: {
     readonly companyId: string
     readonly documentId: string
+    readonly documentNumber: string
     readonly driverId: string
     /** Por pedido: a confirmação repetida não registra duas vezes. */
     readonly idempotencyKey: string
@@ -93,6 +114,7 @@ export const GROUP_OCCURRENCE_TEXT = {
 } as const
 
 const REASON = {
+  collect: 'mande o que foi pedido, ou responda "pular" se o item não for obrigatório',
   confirm: 'responda 1 para sim ou 2 para não',
   document: 'não achei essa nota na viagem do motorista',
   noteTooLong: `a observação passa de ${GROUP_OCCURRENCE_NOTE_MAX_LENGTH} caracteres`,
@@ -162,6 +184,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     const result = await ports.register({
       companyId: turn.request.companyId,
       documentId,
+      documentNumber,
       driverId: turn.request.driverId,
       idempotencyKey: `whatsapp-group-request:${turn.request.id}`,
       note,
@@ -173,6 +196,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
         replies: [GROUP_OCCURRENCE_TEXT.registered(typeName, documentNumber)],
       }
     }
+    if (result.kind === 'collecting') return collecting(result)
     if (result.retry === 'note') {
       return continueWith(GROUP_OCCURRENCE_STEP.note, state, [result.message])
     }
@@ -198,6 +222,16 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
       const text = turn.text
 
       switch (turn.request.step) {
+        case GROUP_OCCURRENCE_STEP.collect: {
+          const answered = await ports.answerCollection({
+            companyId: turn.request.companyId,
+            driverId: turn.request.driverId,
+            text,
+          })
+          if (answered === null)
+            return { kind: 'not_understood', prompt: '', reason: REASON.collect }
+          return collecting(answered)
+        }
         case GROUP_OCCURRENCE_STEP.document: {
           const documents = state.documents ?? []
           const document = pickDocument(documents, text)
@@ -279,6 +313,13 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
       ])
     },
   }
+}
+
+/** A coleta que espera texto segura o pedido; a que espera foto (ou terminou) fecha, e a foto chega sozinha. */
+function collecting(answer: GroupCollectionAnswer): GroupFlowOutcome {
+  return answer.awaitingText
+    ? { kind: 'continue', replies: answer.replies, state: {}, step: GROUP_OCCURRENCE_STEP.collect }
+    : { kind: 'done', replies: answer.replies }
 }
 
 /** Número da nota (sem zeros à esquerda) vence; senão o número da opção, se a lista foi mostrada. */
