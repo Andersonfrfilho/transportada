@@ -193,7 +193,9 @@ bot) é transcrito **calado**. Sem a frase, é descartado: nada responde, o text
 1/2 como no `@bot`; só a frase abre o menu. Com a sessão aberta, o bot ouve só o dono dela, sem a frase (inclusive o áudio
 mandado depois de escolher a opção no menu); áudio de outra pessoa nem é transcrito. Depois de um "2" (áudio descartado), quem respondeu pode reenviar
 em áudio ou texto sem a frase nem `@` por 5 minutos, uma vez (`BOT_AUDIO_RETRY_WINDOW_MS`). A comparação tolera a transcrição (prefixo de 5 letras por palavra,
-"da/de/do" no meio: "atendimento da Fernandez" casa). O script `staging-frase-chamada-bot.sh` (pasta `tmp/ops/`)
+"da/de/do" no meio: "atendimento da Fernandez" casa; uma letra errada no começo de cada palavra também, como
+"Hernandes" ou "tendimento"). Com o "Entendi assim" na tela, a resposta pode ser falada: um áudio curto que comece por
+"sim"/"um" confirma e "não"/"dois" descarta (outcome `audio_answer`); outra fala troca o texto pendente e pergunta de novo. O script `staging-frase-chamada-bot.sh` (pasta `tmp/ops/`)
 grava a variável na `api` de staging.
 
 Teste em staging: no grupo de teste, `@bot` por texto, depois um áudio "prorrogação de boleto da nota <número>";

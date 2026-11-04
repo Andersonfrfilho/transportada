@@ -154,6 +154,7 @@ export type EvolutionGroupInboundPorts = {
 export type EvolutionGroupInboundOutcome =
   | 'admitted'
   | 'audio'
+  | 'audio_answer'
   | 'audio_listening'
   | 'media'
   | 'not_driver'
@@ -258,6 +259,105 @@ export function createEvolutionGroupInbound(
     return 'audio_listening'
   }
 
+  /**
+   * Spec 292 T9: a resposta ("1"/"2", digitada ou falada) a um áudio esperando confirmação. Devolve
+   * `true` quando consumiu a mensagem (confirmou ou descartou).
+   */
+  async function applyAudioAnswer(input: {
+    readonly companyId: string
+    readonly groupJid: string
+    readonly ports: EvolutionGroupAudioPorts
+    readonly providerMessageId: string
+    readonly pushName: null | string
+    readonly sender: string
+    readonly spoken: boolean
+    readonly text: string
+  }): Promise<boolean> {
+    const { companyId, groupJid, ports, sender } = input
+    const answer = ports.bot.answer({
+      companyId,
+      conversation: groupConversation(groupJid),
+      owner: sender,
+      spoken: input.spoken,
+      text: input.text,
+    })
+    if (answer.kind === 'discarded') {
+      retryUntil.set(retryKey(companyId, groupJid, sender), now() + BOT_AUDIO_RETRY_WINDOW_MS)
+      await ports.reply({ companyId, groupJid, texts: [BOT_AUDIO_SPEECH.discarded] })
+      return true
+    }
+    if (answer.kind !== 'confirmed') return false
+    const currentOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
+    await dependencies.handle({
+      companyId,
+      driverId: answer.context.driverId,
+      groupJid,
+      providerMessageId: input.providerMessageId,
+      replyToProviderMessageId: answer.context.replyToProviderMessageId,
+      requestOwner: currentOwner,
+      sender,
+      senderName: answer.context.senderName ?? input.pushName,
+      text: answer.text,
+      via: currentOwner === sender ? 'owner_reply' : 'mention',
+    })
+    return true
+  }
+
+  /**
+   * Spec 292 T9: áudio de quem tem outro áudio esperando confirmação. "Sim"/"Não" falado vale como
+   * "1"/"2"; qualquer outra fala substitui o texto pendente e pede a confirmação dele.
+   */
+  function listenForSpokenAnswer(input: {
+    readonly audio: GroupAudio
+    readonly companyId: string
+    readonly connection: LazyEvolutionConnection
+    readonly driverId: string
+    readonly event: EvolutionMessageEvent
+    readonly groupJid: string
+    readonly ports: EvolutionGroupAudioPorts
+    readonly sender: string
+  }): EvolutionGroupInboundOutcome {
+    const { audio, companyId, connection, event, groupJid, ports, sender } = input
+    ports.bot.listen({
+      companyId,
+      download: () =>
+        ports.download({
+          connection,
+          providerMessageId: event.externalMessageId,
+          ...(audio.rawMessage === undefined ? {} : { rawMessage: audio.rawMessage }),
+        }),
+      mimeType: audio.mimeType,
+      onText: async (text) => {
+        const handled = await applyAudioAnswer({
+          companyId,
+          groupJid,
+          ports,
+          providerMessageId: event.externalMessageId,
+          pushName: event.pushName,
+          sender,
+          spoken: true,
+          text,
+        })
+        if (handled) return
+        const phrase = ports.wakePhrase ?? []
+        const rest = phrase.length === 0 ? null : matchWakePhrase(phrase, text)
+        await ports.bot.offer({
+          companyId,
+          context: {
+            driverId: input.driverId,
+            replyToProviderMessageId: event.replyToExternalMessageId,
+            senderName: event.pushName,
+          },
+          conversation: groupConversation(groupJid),
+          owner: sender,
+          reply: (texts) => ports.reply({ companyId, groupJid, texts }),
+          text: rest === null || rest === '' ? text : rest,
+        })
+      },
+    })
+    return 'audio_answer'
+  }
+
   async function receiveAudio(input: {
     readonly audio: GroupAudio
     readonly companyId: string
@@ -293,6 +393,11 @@ export function createEvolutionGroupInbound(
       return 'identity_unavailable'
     }
     if (sender === '') return 'unknown_sender'
+    if (
+      ports.bot.hasPending({ companyId, conversation: groupConversation(groupJid), owner: sender })
+    ) {
+      return listenForSpokenAnswer({ ...input, sender })
+    }
     const requestOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
     // Com a sessão aberta, o bot só ouve o dono dela, sem frase de chamada; áudio de outra pessoa nem é
     // transcrito. Sem sessão, só quem cita o bot ou diz a frase de chamada.
@@ -411,33 +516,17 @@ export function createEvolutionGroupInbound(
         sender !== '' &&
         audioPorts.bot.hasPending({ companyId, conversation, owner: sender })
       ) {
-        const answer = audioPorts.bot.answer({
+        const handled = await applyAudioAnswer({
           companyId,
-          conversation,
-          owner: sender,
+          groupJid,
+          ports: audioPorts,
+          providerMessageId: event.externalMessageId,
+          pushName: event.pushName,
+          sender,
+          spoken: false,
           text: event.text.replace(/@\d+/gu, ' '),
         })
-        if (answer.kind === 'discarded') {
-          retryUntil.set(retryKey(companyId, groupJid, sender), now() + BOT_AUDIO_RETRY_WINDOW_MS)
-          audioPorts.reply({ companyId, groupJid, texts: [BOT_AUDIO_SPEECH.discarded] })
-          return 'admitted'
-        }
-        if (answer.kind === 'confirmed') {
-          const currentOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
-          await dependencies.handle({
-            companyId,
-            driverId: answer.context.driverId,
-            groupJid,
-            providerMessageId: event.externalMessageId,
-            replyToProviderMessageId: answer.context.replyToProviderMessageId,
-            requestOwner: currentOwner,
-            sender,
-            senderName: answer.context.senderName ?? event.pushName,
-            text: answer.text,
-            via: currentOwner === sender ? 'owner_reply' : 'mention',
-          })
-          return 'admitted'
-        }
+        if (handled) return 'admitted'
       }
 
       const requestOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })

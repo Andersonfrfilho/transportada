@@ -375,9 +375,12 @@ function groupSetup(
     now?: () => number
     openRequestOwner?: null | string
     transcript?: string
+    /** Uma transcrição por áudio, na ordem; a última se repete. */
+    transcripts?: readonly string[]
     wakePhrase?: string
   } = {},
 ) {
+  let heard = 0
   const handled: AdmittedGroupMessage[] = []
   const replies: string[] = []
   const downloads: string[] = []
@@ -388,7 +391,15 @@ function groupSetup(
   const bot = createWhatsAppBotAudio<GroupAudioContext>({
     logger: logger(),
     transcriber: {
-      transcribe: async () => options.transcript ?? 'prorrogação de boleto nota 17234',
+      transcribe: async () => {
+        const list = options.transcripts
+        if (list !== undefined && list.length > 0) {
+          const text = list[Math.min(heard, list.length - 1)] ?? ''
+          heard += 1
+          return text
+        }
+        return options.transcript ?? 'prorrogação de boleto nota 17234'
+      },
     },
   })
   const inbound = createEvolutionGroupInbound({
@@ -624,6 +635,69 @@ describe('áudio do bot no grupo: frase de chamada', () => {
     await receive(groupMessage(), VOICE)
     await bot.idle()
     expect(handled[0]).toMatchObject({ text: '', via: 'mention' })
+  })
+
+  test('casa mesmo com uma letra errada no começo de cada palavra (Hernandes, tendimento)', () => {
+    expect(matchWakePhrase(PHRASE, 'Atendimento Hernandes, prorrogação do boleto')).toBe(
+      'prorrogação do boleto',
+    )
+    expect(matchWakePhrase(PHRASE, 'Atendimento Ernandes, nota 12')).toBe('nota 12')
+    expect(matchWakePhrase(PHRASE, 'Tendimento Fernandes, nota 12')).toBe('nota 12')
+    expect(matchWakePhrase(PHRASE, 'atendimento ruim hoje')).toBeNull()
+    expect(matchWakePhrase(PHRASE, 'fala Fernandes, chego em 10')).toBeNull()
+  })
+
+  test('"sim" falado confirma o áudio pendente; "não" falado descarta', async () => {
+    const yes = groupSetup({
+      transcripts: [
+        'Atendimento Fernandes, prorrogação do boleto da nota 899877',
+        'Sim, pode seguir.',
+      ],
+      wakePhrase: 'atendimento Fernandes',
+    })
+    await yes.receive(groupMessage(), VOICE)
+    await yes.bot.idle()
+    expect(await yes.receive(groupMessage({ externalMessageId: 'A2' }), VOICE)).toBe('audio_answer')
+    await yes.bot.idle()
+    expect(yes.replies).toEqual([botAudioConfirmationText('prorrogação do boleto da nota 899877')])
+    expect(yes.handled).toHaveLength(1)
+    expect(yes.handled[0]).toMatchObject({
+      providerMessageId: 'A2',
+      text: 'prorrogação do boleto da nota 899877',
+      via: 'mention',
+    })
+
+    const no = groupSetup({
+      transcripts: ['Atendimento Fernandes, prorrogação do boleto', 'Não.'],
+      wakePhrase: 'atendimento Fernandes',
+    })
+    await no.receive(groupMessage(), VOICE)
+    await no.bot.idle()
+    expect(await no.receive(groupMessage({ externalMessageId: 'A2' }), VOICE)).toBe('audio_answer')
+    await no.bot.idle()
+    expect(no.replies.at(-1)).toBe(BOT_AUDIO_SPEECH.discarded)
+    expect(no.handled).toEqual([])
+  })
+
+  test('outra fala com o áudio pendente troca o texto e pede a confirmação de novo', async () => {
+    const { bot, handled, receive, replies } = groupSetup({
+      transcripts: [
+        'Atendimento Fernandes, prorrogação do boleto da nota 899804',
+        'Atendimento Fernandes, prorrogação do boleto da nota 899877',
+      ],
+      wakePhrase: 'atendimento Fernandes',
+    })
+    await receive(groupMessage(), VOICE)
+    await bot.idle()
+    expect(await receive(groupMessage({ externalMessageId: 'A2' }), VOICE)).toBe('audio_answer')
+    await bot.idle()
+    expect(replies).toEqual([
+      botAudioConfirmationText('prorrogação do boleto da nota 899804'),
+      botAudioConfirmationText('prorrogação do boleto da nota 899877'),
+    ])
+    expect(handled).toEqual([])
+    await receive(groupMessage({ externalMessageId: 'T1', text: '1' }))
+    expect(handled[0]).toMatchObject({ text: 'prorrogação do boleto da nota 899877' })
   })
 
   test('sem frase configurada ou áudio longo: nem transcreve', async () => {

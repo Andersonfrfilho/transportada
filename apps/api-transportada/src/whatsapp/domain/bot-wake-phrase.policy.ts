@@ -4,7 +4,9 @@
  * Spec 292 T9: a palavra de chamada do bot no áudio do grupo ("atendimento Fernandes"). A frase vem
  * da instalação (`WHATSAPP_BOT_WAKE_PHRASE`), nunca do código. A transcrição erra pouco, mas erra:
  * cada palavra da frase casa pelo começo (5 letras, ou a palavra inteira se for menor), na ordem, e
- * entre elas pode haver um "da/do/de/a/o". Acentos, caixa e pontuação não contam.
+ * entre elas pode haver um "da/do/de/a/o". Acentos, caixa e pontuação não contam. No começo cabe uma
+ * letra trocada, sobrando ou faltando ("Hernandes", "Ernandes", "tendimento"): a frase tem duas
+ * palavras, e as duas precisam casar.
  */
 
 const FILLERS = new Set(['a', 'o', 'da', 'do', 'de', 'das', 'dos'])
@@ -20,9 +22,33 @@ function words(text: string): string[] {
     .filter((word) => word !== '')
 }
 
+/** Distância de edição (Levenshtein) entre duas palavras curtas. */
+function distance(left: string, right: string): number {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index)
+  for (let i = 1; i <= left.length; i += 1) {
+    const row = [i]
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1
+      row[j] = Math.min(
+        (previous[j] ?? 0) + 1,
+        (row[j - 1] ?? 0) + 1,
+        (previous[j - 1] ?? 0) + cost,
+      )
+    }
+    previous = row
+  }
+  return previous[right.length] ?? 0
+}
+
 function sameWord(said: string, expected: string): boolean {
   const length = Math.min(PREFIX_LENGTH, expected.length)
-  return said.length >= length && said.slice(0, length) === expected.slice(0, length)
+  const head = expected.slice(0, length)
+  if (said.length >= length && said.slice(0, length) === head) return true
+  // Palavra curta da frase casa só por inteiro; a longa admite um erro no começo.
+  if (length < PREFIX_LENGTH || said.length < length - 1) return false
+  return [length - 1, length, length + 1].some(
+    (size) => said.length >= size && distance(said.slice(0, size), head) <= 1,
+  )
 }
 
 /** As palavras da frase de chamada; vazia (ou ausente) desliga a chamada por voz. */
