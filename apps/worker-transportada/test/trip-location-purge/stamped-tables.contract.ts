@@ -23,6 +23,8 @@ const EXPECTED_UNSTAMPED_TABLES = [
   'toll_booths',
   'trip_location_pings',
   'trip_stops',
+  'whatsapp_delivery_preparations',
+  'whatsapp_occurrence_drafts',
 ]
 
 function readExportedList(exportName: string): readonly Record<string, unknown>[] {

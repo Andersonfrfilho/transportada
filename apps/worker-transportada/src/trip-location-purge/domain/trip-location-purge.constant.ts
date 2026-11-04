@@ -62,6 +62,16 @@ export const TRIP_LOCATION_UNSTAMPED_TABLES = [
     reason: 'rastro ao vivo, com expurgo próprio de horas (ADR-0056 §2) que apaga a linha inteira',
   },
   {
+    table: 'whatsapp_delivery_preparations',
+    reason:
+      'a posição que o motorista compartilhou enquanto a entrega pelo WhatsApp está em preparo; a linha é de curta duração e o ponto vai ao evento da entrega, que o expurgo já varre',
+  },
+  {
+    table: 'whatsapp_occurrence_drafts',
+    reason:
+      'a posição que o motorista compartilhou enquanto a ocorrência pelo WhatsApp está em coleta; a linha é de curta duração e o ponto vai ao registro da ocorrência, que o expurgo já varre',
+  },
+  {
     table: 'fleet_drivers',
     reason:
       'coordenada da casa do motorista: cadastro que vale enquanto ele está na frota, e não o lugar onde ele esteve num instante — vive e morre com a ficha, não com prazo',
