@@ -191,8 +191,8 @@ describe('fluxo do grupo: o que não pode', () => {
     const flow = setup({ types: [PRORROGACAO] })
 
     await flow.start('17234')
-    // com um tipo só, ele é escolhido sozinho; num pedido direto com tipo desligado, o nome não casa
-    expect(flow.step()).toBe(GROUP_OCCURRENCE_STEP.note)
+    // mesmo com um tipo só, o bot pergunta o tipo: nada é escolhido sozinho depois da nota
+    expect(flow.step()).toBe(GROUP_OCCURRENCE_STEP.type)
 
     const other = setup({ types: [PRORROGACAO, RECUSA] })
     await other.start('17234 avaria')
@@ -402,6 +402,8 @@ describe('fluxo do grupo: contato do cliente (spec 292 T6)', () => {
     })
     expect(await flow.answer(turn({ state, step: 'contact' }, 'blabla'))).toMatchObject({
       kind: 'not_understood',
+      prompt: GROUP_OCCURRENCE_TEXT.askContactAgain(false),
+      reason: 'preciso de um telefone com DDD ou de um e-mail',
     })
     expect(await flow.answer(turn({ state, step: 'contact' }, 'ruim'))).toMatchObject({
       kind: 'not_understood',
