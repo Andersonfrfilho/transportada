@@ -95,10 +95,13 @@ export function createGroupDriverFlow(flows: {
     return withStopPrefix(await flows.stop.begin(turn, item.event, []))
   }
 
-  return {
+  const flow: GroupRequestFlow = {
     async answer(turn) {
       const { step } = turn.request
       if (step === GROUP_DRIVER_STEP.menu) {
+        // Spec 292 T9: a frase inteira no lugar da opção ("ocorrência, prorrogação do boleto da nota
+        // 899877", por texto ou pelo áudio confirmado) vale como o pedido direto, com nota e tipo.
+        if (isFreeSentence(turn.text)) return flow.start(turn)
         const item = pickMenuItem(menu, turn.text)
         if (item === undefined) {
           return {
@@ -163,6 +166,15 @@ export function createGroupDriverFlow(flows: {
       return flows.occurrence.start(turn)
     },
   }
+  return flow
+}
+
+/** Duas palavras ou mais com letras: uma frase, não o número ou o nome curto de uma opção. */
+function isFreeSentence(text: string): boolean {
+  const words = normalizeDriverCommandText(text)
+    .split(' ')
+    .filter((word) => /[a-z]/u.test(word))
+  return words.length >= 2
 }
 
 /** O número da opção, ou o nome dela ("cheguei", "entreguei", "ocorrência"). */

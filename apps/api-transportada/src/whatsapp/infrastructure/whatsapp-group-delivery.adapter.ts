@@ -1,7 +1,6 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { EvolutionWhatsAppChannel } from '@adatechnology/evolution-whatsapp-provider'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
@@ -18,6 +17,7 @@ import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/appli
 import type { GroupDeliveryFlowPorts } from '../application/whatsapp-group-delivery-flow.service.js'
 import type { GroupProofIntakePorts } from '../application/whatsapp-group-proof-intake.service.js'
 import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
+import { downloadEvolutionMedia } from './evolution-media-download.gateway.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -88,15 +88,9 @@ export function createGroupDeliveryWiring(dependencies: {
       withoutAccessText,
     },
     intake: {
-      async downloadMedia({ connection, providerMessageId }) {
-        const target = await connection()
-        return new EvolutionWhatsAppChannel({
-          apiKey: target.apiKey,
-          baseUrl: target.baseUrl,
-          instance: target.instanceName,
-          timeoutMs: 30_000,
-        }).fetchMediaAsBase64(providerMessageId)
-      },
+      // O Evolution avisa antes de gravar a mensagem: a foto pedida na hora pode não existir ainda.
+      downloadMedia: ({ connection, providerMessageId }) =>
+        downloadEvolutionMedia({ connection, providerMessageId }),
       findActorUserId,
       ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
       preparations: dependencies.preparations,

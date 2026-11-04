@@ -41,6 +41,14 @@ export const BOT_AUDIO_SPEECH = {
   unavailable: 'Por aqui eu ainda não consigo ouvir áudio. Escreva a mensagem, por favor.',
 } as const
 
+/**
+ * O whisper escreve número falado com separador de milhar ("899.877", "899 877"): o número da nota
+ * só casa sem eles. Junta grupos de 3 dígitos depois de um grupo de 1 a 3.
+ */
+export function joinSpokenNumbers(text: string): string {
+  return text.replace(/\b\d{1,3}(?:[. ]\d{3})+\b/gu, (number) => number.replace(/[. ]/gu, ''))
+}
+
 export function botAudioConfirmationText(text: string): string {
   const preview =
     text.length > MAX_CONFIRMATION_PREVIEW ? `${text.slice(0, MAX_CONFIRMATION_PREVIEW)}…` : text
@@ -160,9 +168,11 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
     const mimeType = audio.mimeType.split(';')[0]?.trim() || input.mimeType.split(';')[0]?.trim()
     let text: string
     try {
-      text = (await transcriber.transcribe({ audio: bytes, mimeType: mimeType || 'audio/ogg' }))
-        .replace(/\s+/gu, ' ')
-        .trim()
+      text = joinSpokenNumbers(
+        (await transcriber.transcribe({ audio: bytes, mimeType: mimeType || 'audio/ogg' }))
+          .replace(/\s+/gu, ' ')
+          .trim(),
+      )
     } catch (error) {
       logger.warn('whatsapp_bot_audio.transcription_failed', {
         bytes: bytes.length,

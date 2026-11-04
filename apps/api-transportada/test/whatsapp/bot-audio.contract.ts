@@ -21,12 +21,14 @@ import {
   BOT_AUDIO_SPEECH,
   botAudioConfirmationText,
   createWhatsAppBotAudio,
+  joinSpokenNumbers,
 } from '../../src/whatsapp/application/whatsapp-bot-audio.service.js'
 import {
   createWorkerBotAudioTranscriber,
   readWorkerBotAudioTranscriberConfig,
 } from '../../src/whatsapp/infrastructure/worker-bot-audio-transcriber.gateway.js'
 import type { ApiLogger } from '../../src/shared/api.types.js'
+import { downloadEvolutionMedia } from '../../src/whatsapp/infrastructure/evolution-media-download.gateway.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const DRIVER_ID = '00000000-0000-4000-8000-0000000000d1'
@@ -187,6 +189,53 @@ describe('áudio do bot: transcrição e confirmação', () => {
     expect(
       bot.answer({ companyId: COMPANY_ID, conversation: 'c', owner: DRIVER, text: '1' }),
     ).toEqual({ kind: 'none' })
+  })
+})
+
+describe('áudio do bot: download pelo Evolution', () => {
+  test('o Evolution ainda não gravou a mensagem: tenta de novo e baixa', async () => {
+    const waits: number[] = []
+    let calls = 0
+    const media = await downloadEvolutionMedia({
+      connection: async () => CONNECTION,
+      fetchMedia: async () => {
+        calls += 1
+        if (calls < 3) throw new Error('Message not found')
+        return AUDIO
+      },
+      providerMessageId: 'A1',
+      sleep: async (ms) => {
+        waits.push(ms)
+      },
+    })
+    expect(media).toEqual(AUDIO)
+    expect(waits).toEqual([1_000, 2_000])
+  })
+
+  test('desiste depois de 4 tentativas', async () => {
+    let calls = 0
+    await expect(
+      downloadEvolutionMedia({
+        connection: async () => CONNECTION,
+        fetchMedia: async () => {
+          calls += 1
+          throw new Error('Message not found')
+        },
+        providerMessageId: 'A1',
+        sleep: async () => undefined,
+      }),
+    ).rejects.toThrow()
+    expect(calls).toBe(4)
+  })
+})
+
+describe('áudio do bot: número falado', () => {
+  test('junta o separador de milhar que o whisper põe no número da nota', () => {
+    expect(joinSpokenNumbers('prorrogação do boleto da nota 899.877')).toBe(
+      'prorrogação do boleto da nota 899877',
+    )
+    expect(joinSpokenNumbers('nota 1 234 567 e 12 caixas')).toBe('nota 1234567 e 12 caixas')
+    expect(joinSpokenNumbers('nota 17234')).toBe('nota 17234')
   })
 })
 
