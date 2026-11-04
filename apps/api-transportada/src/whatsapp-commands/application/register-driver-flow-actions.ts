@@ -37,10 +37,6 @@ import {
   isDriverReturnReason,
   type DriverReturnReason,
 } from '../../trips/domain/driver-return-reason.policy.js'
-import {
-  TripDocumentNotReachableError,
-  TripStateTransitionNotAllowedError,
-} from '../../trips/domain/trip.error.js'
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
 import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
 import { occurrenceTypeAcceptsMoment } from '../../trips/domain/occurrence-moment.policy.js'
@@ -51,13 +47,18 @@ import {
   DRIVER_FLOW_STEP,
   DRIVER_NOTE_SKIP_ANSWER,
   DRIVER_OCCURRENCE_NOTE_MAX_LENGTH,
-  DRIVER_TRANSITION_BLOCK_MESSAGES,
   type DriverFlowStep,
 } from '../domain/whatsapp-driver-flow.constant.js'
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
 import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
-import { describeOccurrenceRequirementRefusal } from './driver-occurrence-refusal.service.js'
+import { occurrenceRequirementNextNode } from './driver-occurrence-refusal.service.js'
+import { describeWhatsAppDriverEventResult } from './whatsapp-driver-event-speech.service.js'
+import {
+  deliverWhatsAppDriverDocument,
+  registerWhatsAppDriverOccurrence,
+  returnWhatsAppDriverDocument,
+} from './whatsapp-driver-events.service.js'
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
 import {
@@ -67,7 +68,6 @@ import {
 import {
   CATALOG_BOT_SPEECH,
   createBotSayer,
-  type BotSpeechLine,
   type WhatsAppBotSpeechPort,
 } from './whatsapp-bot-speech.service.js'
 import type {
@@ -77,9 +77,17 @@ import type {
 
 const DRIVER_READ_POLICY = { permission: 'trip.read', scope: 'company' } as const
 const DRIVER_REPORT_POLICY = { permission: 'trip.report', scope: 'company' } as const
+/**
+ * Spec 293 T11: a plateia das falas dos eventos. Portão recusado (409) e nota inalcançável viram
+ * mensagem clara — nunca erro cru (D7).
+ */
+const DRIVER = { kind: 'driver' } as const
 
 type ReportOutcome = {
   readonly alreadySettled: boolean
+  readonly proofPending?: boolean
+  readonly stopCompleted?: boolean
+  readonly tripCompleted?: boolean
 }
 
 export type DriverFlowActionDependencies = {
@@ -330,22 +338,16 @@ export function createDriverWhatsAppFlowActions(
       return { context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined }, next: 'menu' }
     }
 
-    try {
-      const outcome = await deps.reportDelivery({
-        actorUserId: actor.scope.userId,
-        companyId: actor.scope.companyId,
-        documentId,
-        driverId,
-        idempotencyKey: randomUUID(),
-        location: consumeLocation({ actor, session }),
-      })
-      await say(
-        { actor, channel, session },
-        outcome.alreadySettled ? 'alreadyRegistered' : 'deliveryRegistered',
-      )
-    } catch (error) {
-      await say({ actor, channel, session }, describeDocumentError(error))
-    }
+    // Spec 293 T11: a mesma camada de eventos do grupo do motorista.
+    const result = await deliverWhatsAppDriverDocument(deps, {
+      actorUserId: actor.scope.userId,
+      companyId: actor.scope.companyId,
+      documentId,
+      driverId,
+      idempotencyKey: randomUUID(),
+      location: consumeLocation({ actor, session }),
+    })
+    await say({ actor, channel, session }, describeWhatsAppDriverEventResult(result, DRIVER))
     return {
       context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined },
       next: DRIVER_FLOW_NODE.tripMenu,
@@ -373,23 +375,16 @@ export function createDriverWhatsAppFlowActions(
       return { next: 'menu' }
     }
 
-    try {
-      const outcome = await deps.reportReturn({
-        actorUserId: actor.scope.userId,
-        companyId: actor.scope.companyId,
-        documentId,
-        driverId,
-        idempotencyKey: randomUUID(),
-        location: consumeLocation({ actor, session }),
-        reason,
-      })
-      await say(
-        { actor, channel, session },
-        outcome.alreadySettled ? 'alreadyRegistered' : 'returnRegistered',
-      )
-    } catch (error) {
-      await say({ actor, channel, session }, describeDocumentError(error))
-    }
+    const result = await returnWhatsAppDriverDocument(deps, {
+      actorUserId: actor.scope.userId,
+      companyId: actor.scope.companyId,
+      documentId,
+      driverId,
+      idempotencyKey: randomUUID(),
+      location: consumeLocation({ actor, session }),
+      reason,
+    })
+    await say({ actor, channel, session }, describeWhatsAppDriverEventResult(result, DRIVER))
     return { next: DRIVER_FLOW_NODE.tripMenu }
   }
 
@@ -508,27 +503,20 @@ export function createDriverWhatsAppFlowActions(
       return { next: 'menu' }
     }
 
-    try {
-      await deps.registerOccurrence({
-        actorUserId: actor.scope.userId,
-        companyId: actor.scope.companyId,
-        documentId,
-        driverId,
-        idempotencyKey: randomUUID(),
-        location: consumeLocation({ actor, session }),
-        note,
-        occurrenceTypeId,
-        productCode: '',
-      })
-      await say({ actor, channel, session }, 'occurrenceRegistered')
-    } catch (error) {
-      /** Spec 246 (RF13): exigência de campo que o canal não colhe vira a frase do campo que falta. */
-      const refusal = describeOccurrenceRequirementRefusal(error)
-      if (refusal !== undefined) {
-        await say({ actor, channel, session }, { text: refusal.message })
-        return { next: refusal.next }
-      }
-      await say({ actor, channel, session }, describeDocumentError(error))
+    const result = await registerWhatsAppDriverOccurrence(deps, {
+      actorUserId: actor.scope.userId,
+      companyId: actor.scope.companyId,
+      documentId,
+      driverId,
+      idempotencyKey: randomUUID(),
+      location: consumeLocation({ actor, session }),
+      note,
+      occurrenceTypeId,
+    })
+    await say({ actor, channel, session }, describeWhatsAppDriverEventResult(result, DRIVER))
+    /** Spec 246 (RF13): exigência de campo que o canal não colhe volta ao passo que a corrige. */
+    if (result.kind === 'refused' && result.refusal.code === 'occurrence_requirement') {
+      return { next: occurrenceRequirementNextNode(result.refusal.field) }
     }
     return { next: DRIVER_FLOW_NODE.tripMenu }
   }
@@ -578,17 +566,6 @@ export function createDriverWhatsAppFlowActions(
       policy: DRIVER_REPORT_POLICY,
     },
   ]
-}
-
-/** Portão recusado (409) e nota inalcançável viram mensagem clara — nunca erro cru (D7). */
-function describeDocumentError(error: unknown): BotSpeechLine {
-  if (error instanceof TripStateTransitionNotAllowedError) {
-    return { text: DRIVER_TRANSITION_BLOCK_MESSAGES[error.reason] }
-  }
-  if (error instanceof TripDocumentNotReachableError) {
-    return { key: 'driverDocumentNotReachable' }
-  }
-  throw error
 }
 
 /**
