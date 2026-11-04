@@ -62,6 +62,11 @@ import {
 } from './whatsapp-shared-location.service.js'
 import type { WhatsAppChoiceRenderer } from './whatsapp-choice-renderer.service.js'
 import type {
+  WhatsAppDeliveryPreparationReply,
+  WhatsAppDeliveryPreparations,
+} from './whatsapp-delivery-preparation.service.js'
+import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
+import type {
   WhatsAppCommandSessionPort,
   WhatsAppFlowGraphProviderPort,
   WhatsAppFlowInterpreterPort,
@@ -78,9 +83,25 @@ import {
 
 export type WhatsAppMessageHandler = NonNullable<MetaWhatsAppHooks['onMessageReceived']>
 
+/**
+ * Spec 293 T15: a entrega em preparo na conversa individual. A foto, a localização e as respostas em
+ * texto (quem recebeu, nome, "pular", 1/2) do motorista com preparação aberta vão para ela antes do
+ * menu; o resto segue o fluxo de sempre.
+ */
+export type WhatsAppDeliveryProofIntake = {
+  readonly preparations: WhatsAppDeliveryPreparations
+  /** O motorista (ficha) da conta que escreveu; `null` quando não é motorista. */
+  readonly resolveDriver: (input: {
+    readonly companyId: string
+    readonly membershipId: string
+  }) => Promise<null | string>
+}
+
 export type WhatsAppCommandDriverDependencies = {
   readonly channel: ChannelAdapterInterface
   readonly clock: () => Date
+  /** Spec 293 T15: ausente, foto e texto seguem o fluxo de sempre (sem entrega em preparo). */
+  readonly deliveryProofs?: WhatsAppDeliveryProofIntake
   readonly graphs: WhatsAppFlowGraphProviderPort
   readonly interpreter: WhatsAppFlowInterpreterPort
   readonly logger: ApiLogger
@@ -160,9 +181,17 @@ async function dispatch(turn: WhatsAppCommandTurn): Promise<MessageHookOutcome> 
     return HANDLED
   }
 
-  if (await acknowledgeSharedLocation({ permissions: actor.context.scope.permissions, turn })) {
+  const proofActor = await resolveProofActor({ scope: actor.context.scope, turn })
+  if (
+    await acknowledgeSharedLocation({
+      permissions: actor.context.scope.permissions,
+      proofActor,
+      turn,
+    })
+  ) {
     return HANDLED
   }
+  if (proofActor !== null && (await acceptDeliveryProof({ proofActor, turn }))) return HANDLED
 
   await guardConversation(turn, () => advanceConversation(turn, actor.context.scope.permissions))
   return HANDLED
@@ -175,9 +204,10 @@ async function dispatch(turn: WhatsAppCommandTurn): Promise<MessageHookOutcome> 
  */
 async function acknowledgeSharedLocation(input: {
   readonly permissions: ReadonlySet<string>
+  readonly proofActor: null | ProofActor
   readonly turn: WhatsAppCommandTurn
 }): Promise<boolean> {
-  const { permissions, turn } = input
+  const { permissions, proofActor, turn } = input
   const { sharedLocations } = turn.deps
   if (sharedLocations === undefined) return false
   if (!permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION)) return false
@@ -190,8 +220,100 @@ async function acknowledgeSharedLocation(input: {
     location,
     whatsappNumber: turn.session.whatsappNumber,
   })
+  // Spec 293 T15: a localização também completa a entrega em preparo que ainda não a tinha.
+  const reply =
+    proofActor === null
+      ? null
+      : await proofActor.intake.preparations.receiveLocation({ actor: proofActor.actor, location })
+  if (reply !== null && reply.texts.length > 0) {
+    await sendProofReply(turn, reply)
+    return true
+  }
   await turn.deps.sender.sendText({ body: WHATSAPP_SHARED_LOCATION_REPLY, to: turn.phone })
   return true
+}
+
+type ProofActor = {
+  readonly actor: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly driverId: string
+  }
+  readonly intake: WhatsAppDeliveryProofIntake
+}
+
+/** O motorista com entrega em preparo aberta; `null` sem a intake, sem ficha ou sem preparação. */
+async function resolveProofActor(input: {
+  readonly scope: {
+    readonly companyId: string
+    readonly membershipId: string
+    readonly permissions: ReadonlySet<string>
+    readonly userId: string
+  }
+  readonly turn: WhatsAppCommandTurn
+}): Promise<null | ProofActor> {
+  const intake = input.turn.deps.deliveryProofs
+  if (intake === undefined) return null
+  if (!input.scope.permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION)) return null
+  const driverId = await intake.resolveDriver({
+    companyId: input.scope.companyId,
+    membershipId: input.scope.membershipId,
+  })
+  if (driverId === null) return null
+  if (!(await intake.preparations.hasOpen({ companyId: input.scope.companyId, driverId })))
+    return null
+  return {
+    actor: { actorUserId: input.scope.userId, companyId: input.scope.companyId, driverId },
+    intake,
+  }
+}
+
+/**
+ * Spec 293 T15: a foto (baixada pelo canal, o mesmo `fetchMediaAsBase64` da foto do operador) e a
+ * resposta em texto à pergunta aberta. Texto que não é resposta (menu, comando) segue o fluxo.
+ */
+async function acceptDeliveryProof(input: {
+  readonly proofActor: ProofActor
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { proofActor, turn } = input
+  const { actor, intake } = proofActor
+  const image = extractWhatsAppIncomingImage(turn.message)
+  if (image !== undefined) {
+    let downloaded: { readonly data: string; readonly mimeType: string }
+    try {
+      downloaded = await turn.deps.channel.fetchMediaAsBase64(image.mediaId)
+    } catch {
+      await turn.deps.sender.sendText({
+        body: DELIVERY_PROOF_SPEECH.downloadFailed,
+        to: turn.phone,
+      })
+      return true
+    }
+    const reply = await intake.preparations.receivePhoto({
+      actor,
+      bytes: Uint8Array.from(Buffer.from(downloaded.data, 'base64')),
+      caption: turn.message.image?.caption ?? null,
+      mimeType: downloaded.mimeType.split(';')[0]?.trim() || image.mimeType,
+      providerMessageId: turn.message.id ?? image.mediaId,
+    })
+    if (reply === null) return false
+    await sendProofReply(turn, reply)
+    return true
+  }
+  const text = extractWhatsAppAnswer(turn.message)
+  if (text === undefined) return false
+  const reply = await intake.preparations.answer({ actor, strict: true, text })
+  if (reply === null) return false
+  await sendProofReply(turn, reply)
+  return true
+}
+
+async function sendProofReply(
+  turn: WhatsAppCommandTurn,
+  reply: WhatsAppDeliveryPreparationReply,
+): Promise<void> {
+  for (const body of reply.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
 }
 
 /**

@@ -92,6 +92,39 @@ depois (e-mail à contratante, retorno do boleto) é configuração do tipo.
   e nada é registrado.
 - As respostas no grupo respeitam o intervalo do número (spec 289) e saem fora do webhook.
 
+## A entrega com provas pelo grupo e pelo individual (spec 293 T15)
+
+`@bot entreguei 17234` (ou "Entreguei" no menu do `@bot`) **não dá a baixa na hora**: abre a entrega em preparo da
+nota e o bot pede o que a configuração do comprovante exige para aquela nota (Configurações → Comprovante, com a
+exceção da contratante e do destinatário). Desligado não é pedido; opcional é oferecido uma vez e aceita "pular";
+obrigatório insiste. A localização é sempre só oferecida. Quando chega tudo, o bot mostra o resumo e pede 1 (Sim) ou
+2 (Não); no Sim, dá a baixa pela mesma função do app (canal `whatsapp`) e anexa as fotos como comprovante.
+
+- Uma nota por vez no grupo (o lote e o "devolvi" são da T13). Na conversa individual (Meta), "Entregar" e
+  "entreguei 17234" abrem a mesma preparação: as provas valem num canal ou no outro, ligadas pela nota.
+- Foto e localização no grupo: só as do **motorista do grupo** contam, pelo telefone da ficha
+  (`fleet_drivers.phone`, com ou sem o nono dígito). Ficha sem telefone ou com outro número: a mídia é ignorada
+  (`groupIgnored.not_driver` no log do webhook). Foto só é baixada (`POST /chat/getBase64FromMediaMessage/{instância}`)
+  quando há entrega em preparo; legenda com o número da nota leva a foto para ela.
+- Localização compartilhada no grupo fica guardada em memória por pouco tempo e entra no próximo "saí", "cheguei" ou
+  "entreguei" do motorista; sem ela, o "saí"/"cheguei" registra `unavailable` e o bot dá a dica.
+- Assinatura obrigatória: o bot avisa que só no app e a nota segue em preparo (o app fecha normalmente).
+- Tabela `whatsapp_delivery_preparations` (uma `open` por nota; `completed`, `cancelled`, `superseded` quando a nota
+  fechou por outro caminho). Fotos pendentes no bucket privado em
+  `tenants/<empresa>/whatsapp-delivery-preparations/<preparação>/…`, apagadas depois da baixa.
+- Logs: `whatsapp_delivery_preparation.opened|completed|superseded|raced|attach_failed` e
+  `whatsapp_group_proof.download_failed` (só empresa, preparação e motivo).
+- Ainda não existe (PR seguinte da T15): lembretes e prazo da entrega em preparo, alerta ao escritório, e a ocorrência
+  que exige foto/número/valor sendo colhida pelo WhatsApp.
+
+Conferir uma preparação em staging (sem dado de quem recebeu):
+
+```sql
+select id, document_number, origin_channel, status, awaiting, jsonb_array_length(photos) as fotos,
+       received_by is not null as tem_quem_recebeu, latitude is not null as tem_localizacao, opened_at, closed_at
+  from whatsapp_delivery_preparations order by opened_at desc limit 20;
+```
+
 ## Teste de aceite em staging (spec 281, critérios)
 
 1. Conectar o número do dono pelo QR.

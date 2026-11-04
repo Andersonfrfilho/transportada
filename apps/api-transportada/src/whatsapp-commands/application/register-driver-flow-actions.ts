@@ -74,6 +74,7 @@ import {
 } from './whatsapp-driver-events.service.js'
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
+import type { WhatsAppDeliveryPreparations } from './whatsapp-delivery-preparation.service.js'
 import {
   rejectListAnswer,
   WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
@@ -104,6 +105,11 @@ type ReportOutcome = {
 }
 
 export type DriverFlowActionDependencies = {
+  /**
+   * Spec 293 T15: "Entregar" abre a entrega em preparo da nota (provas antes da baixa). Ausente, a
+   * baixa é direta, como antes.
+   */
+  readonly deliveryPreparations?: WhatsAppDeliveryPreparations
   /** Spec 286 T8: as falas vêm do grafo publicado; sem isto, o padrão do código. */
   readonly speech?: WhatsAppBotSpeechPort
   /** Spec 196 T3.6: o ponto que o motorista mandou antes do toque; `null` é `unavailable`. */
@@ -367,8 +373,12 @@ export function createDriverWhatsAppFlowActions(
     }
 
     const documentId = answer
-    if (step === DRIVER_FLOW_STEP.deliver)
-      return completeDelivery({ actor, channel, documentId, session })
+    if (step === DRIVER_FLOW_STEP.deliver) {
+      const documentNumber = trip.stops
+        .flatMap((stop) => stop.documents)
+        .find((document) => document.id === documentId)?.number
+      return completeDelivery({ actor, channel, documentId, documentNumber, session })
+    }
     if (step === DRIVER_FLOW_STEP.return) {
       return {
         context: {
@@ -391,6 +401,7 @@ export function createDriverWhatsAppFlowActions(
     readonly actor: Parameters<WhatsAppAuthorizedActionHandler>[0]['actor']
     readonly channel: ChannelAdapterInterface
     readonly documentId: string
+    readonly documentNumber?: string | undefined
     readonly session: Parameters<WhatsAppAuthorizedActionHandler>[0]['session']
   }): Promise<FlowActionResult> {
     const { actor, channel, documentId, session } = input
@@ -401,6 +412,23 @@ export function createDriverWhatsAppFlowActions(
     if (driverId === null) {
       await say({ actor, channel, session }, 'driverNotLinked')
       return { context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined }, next: 'menu' }
+    }
+
+    // Spec 293 T15: as provas antes da baixa — a mesma entrega em preparo do grupo.
+    if (deps.deliveryPreparations !== undefined && input.documentNumber !== undefined) {
+      const reply = await deps.deliveryPreparations.begin({
+        actor: { actorUserId: actor.scope.userId, companyId: actor.scope.companyId, driverId },
+        channel: 'individual',
+        documentId,
+        documentNumber: input.documentNumber.replace(/^0+(?=\d)/u, ''),
+        location: consumeLocation({ actor, session }),
+      })
+      for (const text of reply.texts) await say({ actor, channel, session }, { text })
+      // A resposta à pergunta da preparação vem antes do menu (`acceptDeliveryProof` no despachante).
+      return {
+        context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined },
+        next: DRIVER_FLOW_NODE.tripMenu,
+      }
     }
 
     // Spec 293 T11: a mesma camada de eventos do grupo do motorista.
@@ -904,6 +932,34 @@ export function createDriverWhatsAppFlowActions(
 
     // A localização é uma vez só para o lote inteiro.
     const location = consumeLocation({ actor, session })
+
+    // Spec 293 T15: "entreguei" abre a entrega em preparo de cada nota (provas antes da baixa).
+    const preparations = deps.deliveryPreparations
+    if (event === DRIVER_FLOW_STEP.deliver && preparations !== undefined) {
+      const trip = await findTripById({ actor, tripId })
+      const numbers = new Map(
+        (trip?.stops ?? []).flatMap((stop) =>
+          stop.documents.map((document) => [document.id, document.number] as const),
+        ),
+      )
+      for (const documentId of documentIds) {
+        const number = numbers.get(documentId)
+        if (number === undefined) continue
+        const reply = await preparations.begin({
+          actor: { actorUserId: actor.scope.userId, companyId: actor.scope.companyId, driverId },
+          channel: 'individual',
+          documentId,
+          documentNumber: number.replace(/^0+(?=\d)/u, ''),
+          location,
+        })
+        for (const text of reply.texts) await say({ actor, channel, session }, { text })
+      }
+      return {
+        context: { ...cleared, [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined },
+        next: DRIVER_FLOW_NODE.tripMenu,
+      }
+    }
+
     const results: WhatsAppDriverEventResult[] = []
     for (const documentId of documentIds) {
       const base = {

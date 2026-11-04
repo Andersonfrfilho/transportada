@@ -255,6 +255,7 @@
   "./test/integration/whatsapp-command-driver.integration.ts": 3,
   "./test/integration/whatsapp-command-repository.integration.ts": 17,
   "./test/integration/whatsapp-command-settlement.integration.ts": 4,
+  "./test/integration/whatsapp-delivery-preparation-repository.integration.ts": 4,
   "./test/integration/whatsapp-driver-flow-actions.integration.ts": 4,
   "./test/integration/whatsapp-evolution-settings.integration.ts": 3,
   "./test/integration/whatsapp-flow-graph-publish.integration.ts": 6,

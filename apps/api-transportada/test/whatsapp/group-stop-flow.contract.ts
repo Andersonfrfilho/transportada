@@ -171,7 +171,7 @@ describe('grupo: saí e cheguei', () => {
     const t = setup([stop('S1', 1, ['17234'])])
     expect(await t.start('')).toMatchObject({
       kind: 'continue',
-      replies: [GROUP_DRIVER_TEXT.menu],
+      replies: [GROUP_DRIVER_TEXT.menuWithoutDelivery],
       step: 'menu',
     })
     expect(await t.answer('2')).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })

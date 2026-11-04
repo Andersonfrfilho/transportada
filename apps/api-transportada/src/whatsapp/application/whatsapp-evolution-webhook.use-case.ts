@@ -35,6 +35,7 @@ import type { LazyEvolutionConnection } from './evolution-group-identity.service
 import {
   type EvolutionGroupInbound,
   type EvolutionGroupInboundOutcome,
+  readGroupMedia,
   readGroupSenderLids,
 } from './evolution-group-inbound.service.js'
 import type { EvolutionConnectionRequest } from './whatsapp-evolution.port.js'
@@ -221,6 +222,7 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
       > = {}
       let connectionState: 'close' | 'connecting' | 'open' | undefined
       let senderLids: ReadonlyMap<string, string> | undefined
+      let groupMedia: ReturnType<typeof readGroupMedia> | undefined
       const connection = lazyConnection(async () => {
         const registration = await repository.findRegistration({ companyId })
         if (registration === null) throw new WhatsAppEvolutionNotConfiguredError()
@@ -259,13 +261,15 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
           else counts.ignored += 1
         } else if (event.type === 'message' && event.chat === 'group') {
           senderLids ??= readGroupSenderLids(payload)
+          groupMedia ??= readGroupMedia(payload)
           const outcome = await dependencies.groupInbound.receive({
             companyId,
             connection,
             event,
+            media: groupMedia.get(event.externalMessageId) ?? null,
             senderLid: senderLids.get(event.externalMessageId) ?? null,
           })
-          if (outcome === 'admitted') counts.group += 1
+          if (outcome === 'admitted' || outcome === 'media') counts.group += 1
           else {
             counts.ignored += 1
             groupIgnored[outcome] = (groupIgnored[outcome] ?? 0) + 1

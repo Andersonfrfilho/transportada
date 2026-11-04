@@ -275,6 +275,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('whatsapp_channels', 'empty', null),
   ('whatsapp_command_documents', 'empty', null),
   ('whatsapp_command_requests', 'empty', null),
+  ('whatsapp_delivery_preparations', 'empty', null),
   ('whatsapp_evolution_settings', 'keep', null),
   ('whatsapp_flow_graph_versions', 'keep', null),
   ('whatsapp_group_request_messages', 'empty', null),
