@@ -189,6 +189,12 @@ import {
 } from './whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 import { createWhatsAppGroupRequestSessions } from './whatsapp/application/whatsapp-group-request.service.js'
 import { createEvolutionGroupReplySender } from './whatsapp/infrastructure/evolution-group-reply.gateway.js'
+import { createGroupDriverFlow } from './whatsapp/application/whatsapp-group-driver-flow.service.js'
+import {
+  createGroupStopFlow,
+  type GroupStopFlowPorts,
+} from './whatsapp/application/whatsapp-group-stop-flow.service.js'
+import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
 import { createDrizzleWhatsAppGroupRequestRepository } from './whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
 import { createGroupOccurrencePorts } from './whatsapp/infrastructure/whatsapp-group-occurrence.adapter.js'
 import { createDrizzleWhatsAppEvolutionWebhookRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution-webhook.repository.js'
@@ -1372,6 +1378,14 @@ export function bootstrap(): Bun.Server<undefined> {
     registerOccurrence: whatsappDriverEventPorts.registerOccurrence,
     speech: whatsappBotSpeech,
   })
+  /** Spec 293 T12: "saí" e "cheguei" no grupo, pelas mesmas portas do app. */
+  const whatsappGroupStop = createGroupStopPorts({
+    database: database.db,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    ports: whatsappDriverEventPorts,
+    speech: whatsappBotSpeech,
+  })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     speech: whatsappBotSpeech,
     consumeSharedLocation: (key) => whatsappSharedLocations.consume(key),
@@ -1760,6 +1774,7 @@ export function bootstrap(): Bun.Server<undefined> {
       userModule,
       whatsappCommandHook,
       whatsappGroupOccurrence,
+      whatsappGroupStop,
     }),
     authentication,
     authorization: new AuthorizationService(),
@@ -1910,6 +1925,7 @@ type CreateAnonymousRoutesParams = {
   readonly whatsappCommandHook: WhatsAppCommandHookFactory
   /** Spec 292 T5: o fluxo do pedido no grupo do motorista (só a entrega anônima do Evolution o usa). */
   readonly whatsappGroupOccurrence: GroupOccurrenceFlowPorts
+  readonly whatsappGroupStop: GroupStopFlowPorts
 }
 
 /** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
@@ -1931,6 +1947,8 @@ function createEvolutionWebhook(input: {
   readonly envelopeProvider: ReturnType<typeof createSecretEnvelopeProvider>
   /** Spec 292 T5: ausente (a instância da rota do dono, que só aponta o webhook), o grupo não abre pedido. */
   readonly groupOccurrence?: GroupOccurrenceFlowPorts
+  /** Spec 293 T12: o "saí"/"cheguei" do grupo; ausente, só a ocorrência atende. */
+  readonly groupStop?: GroupStopFlowPorts
   readonly logger: ApiLogger
 }) {
   const { database, envelopeProvider, logger } = input
@@ -1946,7 +1964,13 @@ function createEvolutionWebhook(input: {
       ? undefined
       : createWhatsAppGroupRequestSessions({
           clock: () => new Date(),
-          flow: createGroupOccurrenceFlow(input.groupOccurrence),
+          flow:
+            input.groupStop === undefined
+              ? createGroupOccurrenceFlow(input.groupOccurrence)
+              : createGroupDriverFlow({
+                  occurrence: createGroupOccurrenceFlow(input.groupOccurrence),
+                  stop: createGroupStopFlow(input.groupStop),
+                }),
           logger,
           replies: createEvolutionGroupReplySender({
             logger,
@@ -1998,6 +2022,7 @@ function createAnonymousRoutes({
   userModule,
   whatsappCommandHook,
   whatsappGroupOccurrence,
+  whatsappGroupStop,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
   /**
@@ -2087,6 +2112,7 @@ function createAnonymousRoutes({
       database,
       envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
       groupOccurrence: whatsappGroupOccurrence,
+      groupStop: whatsappGroupStop,
       logger,
     }),
   })
