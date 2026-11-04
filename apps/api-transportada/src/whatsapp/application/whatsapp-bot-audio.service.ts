@@ -92,6 +92,22 @@ function spokenAnswer(text: string): 'no' | 'unknown' | 'yes' {
   return 'unknown'
 }
 
+/**
+ * Spec 292 T9: a fala curta, sem número, que responde um passo do pedido ("pular", "continuar", "sim",
+ * "cancelar") segue sem confirmação. Número fica na confirmação: é onde a transcrição erra.
+ */
+export const BOT_AUDIO_QUICK_ANSWER_MAX_WORDS = 3
+
+export function botAudioQuickAnswer(text: string): null | string {
+  const cleaned = text
+    .replace(/[.!?,;:…]+/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+  if (cleaned === '' || /\d/u.test(cleaned)) return null
+  if (cleaned.split(' ').length > BOT_AUDIO_QUICK_ANSWER_MAX_WORDS) return null
+  return cleaned
+}
+
 export type BotAudioAnswer<Context> =
   | { readonly kind: 'confirmed'; readonly context: Context; readonly text: string }
   | { readonly kind: 'discarded' }
@@ -110,6 +126,11 @@ export type ReceiveBotAudioInput<Context> = {
   readonly reply: (texts: readonly string[]) => Promise<void> | void
   /** Segundos do áudio, quando o provedor informa. */
   readonly seconds: null | number
+  /**
+   * Spec 292 T9: o texto transcrito pode seguir sem confirmação? `true` quando quem chamou já o usou
+   * (a resposta curta a um passo do pedido); `false` pede o "1 - Sim / 2 - Não" de sempre.
+   */
+  readonly accept?: (text: string) => Promise<boolean>
 }
 
 export type WhatsAppBotAudio<Context> = {
@@ -225,6 +246,14 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
     if (text === '' || /^\[.*\]$/u.test(text)) {
       // O whisper marca silêncio e ruído entre colchetes ("[BLANK_AUDIO]", "[Música]").
       await input.reply([BOT_AUDIO_SPEECH.empty])
+      return
+    }
+    if (input.accept !== undefined && (await input.accept(text))) {
+      logger.info('whatsapp_bot_audio.accepted', {
+        bytes: bytes.length,
+        companyId: input.companyId,
+        characters: text.length,
+      })
       return
     }
     pending.set(key, {

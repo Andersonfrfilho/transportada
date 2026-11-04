@@ -21,6 +21,7 @@ import {
 import {
   BOT_AUDIO_SPEECH,
   botAudioConfirmationText,
+  botAudioQuickAnswer,
   createWhatsAppBotAudio,
   joinSpokenNumbers,
 } from '../../src/whatsapp/application/whatsapp-bot-audio.service.js'
@@ -445,6 +446,29 @@ describe('áudio do bot no grupo', () => {
     expect(await receive(groupMessage(), VOICE)).toBe('not_addressed')
     expect(downloads).toEqual([])
     expect(replies).toEqual([])
+  })
+
+  test('com o pedido aberto, resposta curta sem número vai direto ao passo, sem confirmação', async () => {
+    const { bot, handled, receive, replies } = groupSetup({
+      openRequestOwner: DRIVER,
+      transcript: 'PULAR.',
+    })
+    expect(await receive(groupMessage(), VOICE)).toBe('audio')
+    await bot.idle()
+    expect(replies).toEqual([BOT_AUDIO_SPEECH.received])
+    expect(handled).toHaveLength(1)
+    expect(handled[0]).toMatchObject({ sender: DRIVER, text: 'PULAR', via: 'owner_reply' })
+    expect(
+      bot.hasPending({ companyId: COMPANY_ID, conversation: `group:${GROUP}`, owner: DRIVER }),
+    ).toBe(false)
+  })
+
+  test('resposta curta só fica sem confirmação até 3 palavras e sem número', () => {
+    expect(botAudioQuickAnswer('Continuar.')).toBe('Continuar')
+    expect(botAudioQuickAnswer('Sim, pode seguir!')).toBe('Sim pode seguir')
+    expect(botAudioQuickAnswer('nota 899877')).toBeNull()
+    expect(botAudioQuickAnswer('o cliente pediu mais dez dias')).toBeNull()
+    expect(botAudioQuickAnswer(' . ')).toBeNull()
   })
 
   test('quem tem o pedido aberto manda áudio, confirma com 1 e o texto segue o fluxo', async () => {

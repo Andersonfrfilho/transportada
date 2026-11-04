@@ -18,7 +18,7 @@
 import type { EvolutionWebhookEvent } from '@adatechnology/evolution-whatsapp-provider'
 
 import { matchWakePhrase } from '../domain/bot-wake-phrase.policy.js'
-import { BOT_AUDIO_SPEECH } from './whatsapp-bot-audio.service.js'
+import { BOT_AUDIO_SPEECH, botAudioQuickAnswer } from './whatsapp-bot-audio.service.js'
 
 import {
   decideGroupMessage,
@@ -406,6 +406,28 @@ export function createEvolutionGroupInbound(
       return listenForWakePhrase({ ...input, requestOwner, sender })
     }
     await ports.bot.receive({
+      // Com o pedido aberto com quem fala, a resposta curta (sem número) vai direto ao passo.
+      ...(requestOwner === sender
+        ? {
+            accept: async (text: string) => {
+              const quick = botAudioQuickAnswer(text)
+              if (quick === null) return false
+              await dependencies.handle({
+                companyId,
+                driverId: input.driverId,
+                groupJid,
+                providerMessageId: event.externalMessageId,
+                replyToProviderMessageId: event.replyToExternalMessageId,
+                requestOwner,
+                sender,
+                senderName: event.pushName,
+                text: quick,
+                via: 'owner_reply',
+              })
+              return true
+            },
+          }
+        : {}),
       companyId,
       context: {
         driverId: input.driverId,
