@@ -74,6 +74,7 @@ import {
 } from './whatsapp-driver-events.service.js'
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
+import type { WhatsAppOccurrenceDrafts } from './whatsapp-occurrence-draft.service.js'
 import type { WhatsAppDeliveryPreparations } from './whatsapp-delivery-preparation.service.js'
 import {
   rejectListAnswer,
@@ -110,6 +111,11 @@ export type DriverFlowActionDependencies = {
    * baixa é direta, como antes.
    */
   readonly deliveryPreparations?: WhatsAppDeliveryPreparations
+  /**
+   * Spec 293 T15: o tipo que pede foto, número do documento do cliente ou valor pago abre a ocorrência
+   * em coleta em vez da recusa "registre pelo aplicativo". Ausente, a recusa de sempre.
+   */
+  readonly occurrenceDrafts?: WhatsAppOccurrenceDrafts
   /** Spec 286 T8: as falas vêm do grafo publicado; sem isto, o padrão do código. */
   readonly speech?: WhatsAppBotSpeechPort
   /** Spec 196 T3.6: o ponto que o motorista mandou antes do toque; `null` é `unavailable`. */
@@ -123,17 +129,10 @@ export type DriverFlowActionDependencies = {
     readonly companyId: string
     readonly documentId?: string | undefined
   }) => Promise<readonly OccurrenceTypeRecord[]>
-  readonly registerOccurrence: (input: {
-    readonly actorUserId: string
-    readonly companyId: string
-    readonly documentId: string
-    readonly driverId: string
-    readonly idempotencyKey: string
-    readonly location: ReportedLocation | null
-    readonly note: string
-    readonly occurrenceTypeId: string
-    readonly productCode: string
-  }) => Promise<TripOccurrence>
+  /** Spec 293 T15: com o que a ocorrência em coleta juntou (fotos, número, valor pago). */
+  readonly registerOccurrence: (
+    input: Parameters<WhatsAppDriverEventPorts['registerOccurrence']>[0],
+  ) => Promise<TripOccurrence>
   /** Spec 293 T14: "Cheguei" — a mesma função da rota `/me` (portas da camada T11). */
   readonly reportArrival: WhatsAppDriverEventPorts['reportArrival']
   /** Spec 293 T14: "Saí para a entrega". */
@@ -260,6 +259,22 @@ export function createDriverWhatsAppFlowActions(
         (trip) => !(TRIP_TERMINAL_STATUSES as readonly string[]).includes(trip.status),
       ),
     }
+  }
+
+  /** O número da nota como o motorista o vê (sem zeros à esquerda), da viagem em andamento. */
+  async function findDocumentNumber(
+    actor: Parameters<WhatsAppAuthorizedActionHandler>[0]['actor'],
+    documentId: string,
+  ): Promise<string | undefined> {
+    const result = await findCurrentTrip({
+      companyId: actor.scope.companyId,
+      membershipId: actor.scope.membershipId,
+    })
+    const number = result.trips
+      .flatMap((trip) => trip.stops)
+      .flatMap((stop) => stop.documents)
+      .find((document) => document.id === documentId)?.number
+    return number?.replace(/^0+(?=\d)/u, '')
   }
 
   /** Só as três ações do motorista chamam isto; a do operador não recebe o armazém. */
@@ -596,13 +611,40 @@ export function createDriverWhatsAppFlowActions(
       return { next: 'menu' }
     }
 
+    const location = consumeLocation({ actor, session })
+    // Spec 293 T15: o que o tipo pede e o WhatsApp colhe (foto, número, valor) é pedido antes do registro.
+    if (deps.occurrenceDrafts !== undefined) {
+      const documentNumber = await findDocumentNumber(actor, documentId)
+      const collecting =
+        documentNumber === undefined
+          ? null
+          : await deps.occurrenceDrafts.begin({
+              actor: {
+                actorUserId: actor.scope.userId,
+                companyId: actor.scope.companyId,
+                driverId,
+              },
+              channel: 'individual',
+              documentId,
+              documentNumber,
+              location,
+              note,
+              occurrenceTypeId,
+            })
+      if (collecting !== null) {
+        for (const text of collecting.texts) await say({ actor, channel, session }, { text })
+        // A resposta à coleta vem antes do menu (`acceptDeliveryProof` no despachante).
+        return { next: DRIVER_FLOW_NODE.tripMenu }
+      }
+    }
+
     const result = await registerWhatsAppDriverOccurrence(deps, {
       actorUserId: actor.scope.userId,
       companyId: actor.scope.companyId,
       documentId,
       driverId,
       idempotencyKey: randomUUID(),
-      location: consumeLocation({ actor, session }),
+      location,
       note,
       occurrenceTypeId,
     })

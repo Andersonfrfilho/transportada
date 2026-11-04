@@ -75,6 +75,7 @@ describe('pedido no grupo: autor da ocorrência (spec 292 T5)', () => {
           ports.register({
             companyId,
             documentId: crypto.randomUUID(),
+            documentNumber: '1',
             driverId,
             idempotencyKey: 'k',
             note: '',
