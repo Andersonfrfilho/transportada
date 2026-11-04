@@ -33,6 +33,8 @@ import type { WhatsAppBotAudio } from './whatsapp-bot-audio.service.js'
 
 /** Áudio não endereçado só é ouvido até 1 minuto: a chamada vem no começo, conversa longa é das pessoas. */
 const BOT_AUDIO_WAKE_MAX_SECONDS = 60
+/** Spec 292 T9: depois do "2", quanto tempo a pessoa pode reenviar sem a frase de chamada. */
+export const BOT_AUDIO_RETRY_WINDOW_MS = 5 * 60_000
 
 export type EvolutionMessageEvent = Extract<EvolutionWebhookEvent, { type: 'message' }>
 
@@ -122,6 +124,8 @@ export type EvolutionGroupInboundPorts = {
    * ou que responde (cita) uma mensagem do bot. Áudio entre as pessoas do grupo continua ignorado.
    */
   readonly audio?: EvolutionGroupAudioPorts
+  /** Para testes: o relógio da janela de reenvio depois do "2". */
+  readonly now?: () => number
   /** O motorista cujo grupo é este, na empresa do webhook; `null` fora da lista de permissão. */
   findGroupDriver(input: {
     readonly companyId: string
@@ -173,6 +177,21 @@ export function createEvolutionGroupInbound(
   dependencies: EvolutionGroupInboundPorts & { readonly identity: EvolutionGroupIdentity },
 ): EvolutionGroupInbound {
   const { identity } = dependencies
+  const now = dependencies.now ?? Date.now
+  /**
+   * Spec 292 T9: quem respondeu "2" a um áudio pode mandar de novo (áudio ou texto) sem repetir a frase
+   * de chamada nem marcar o bot, por alguns minutos: a resposta do descarte convida a isso.
+   */
+  const retryUntil = new Map<string, number>()
+  const retryKey = (companyId: string, groupJid: string, sender: string) =>
+    `${companyId}|${groupJid}|${sender}`
+  const takeRetry = (companyId: string, groupJid: string, sender: string): boolean => {
+    const key = retryKey(companyId, groupJid, sender)
+    const until = retryUntil.get(key)
+    if (until === undefined) return false
+    retryUntil.delete(key)
+    return until > now()
+  }
 
   /**
    * Spec 292 T9: áudio que ninguém endereçou ao bot. Com a frase de chamada configurada e até 1 minuto,
@@ -278,7 +297,7 @@ export function createEvolutionGroupInbound(
     // Com a sessão aberta, o bot só ouve o dono dela, sem frase de chamada; áudio de outra pessoa nem é
     // transcrito. Sem sessão, só quem cita o bot ou diz a frase de chamada.
     if (requestOwner !== null && requestOwner !== sender) return 'not_addressed'
-    if (requestOwner === null && !quotesBot) {
+    if (requestOwner === null && !quotesBot && !takeRetry(companyId, groupJid, sender)) {
       return listenForWakePhrase({ ...input, requestOwner, sender })
     }
     await ports.bot.receive({
@@ -399,6 +418,7 @@ export function createEvolutionGroupInbound(
           text: event.text.replace(/@\d+/gu, ' '),
         })
         if (answer.kind === 'discarded') {
+          retryUntil.set(retryKey(companyId, groupJid, sender), now() + BOT_AUDIO_RETRY_WINDOW_MS)
           audioPorts.reply({ companyId, groupJid, texts: [BOT_AUDIO_SPEECH.discarded] })
           return 'admitted'
         }
@@ -431,7 +451,31 @@ export function createEvolutionGroupInbound(
         sender,
         text: event.text,
       })
-      if (!decision.admitted) return decision.reason
+      if (!decision.admitted) {
+        // Texto de quem acabou de descartar um áudio, sem pedido aberto: vale como marcação.
+        if (
+          decision.reason === 'not_addressed' &&
+          requestOwner === null &&
+          sender !== '' &&
+          event.text.trim() !== '' &&
+          takeRetry(companyId, groupJid, sender)
+        ) {
+          await dependencies.handle({
+            companyId,
+            driverId: owner.driverId,
+            groupJid,
+            providerMessageId: event.externalMessageId,
+            replyToProviderMessageId: event.replyToExternalMessageId,
+            requestOwner,
+            sender,
+            senderName: event.pushName,
+            text: event.text.trim(),
+            via: 'mention',
+          })
+          return 'admitted'
+        }
+        return decision.reason
+      }
 
       await dependencies.handle({
         companyId,
