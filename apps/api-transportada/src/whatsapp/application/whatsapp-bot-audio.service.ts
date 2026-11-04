@@ -75,6 +75,23 @@ function normalizeAnswer(text: string): string {
     .replace(/^(1|2) (sim|nao)$/u, '$1')
 }
 
+/** Spec 292 T9: o "sim"/"não" falado chega como frase curta ("Sim, pode seguir.", "Um."): vale a primeira palavra. */
+const SPOKEN_YES = new Set([...YES, 'um', 'correto', 'exato', 'isso mesmo', 'segue', 'pode seguir'])
+const SPOKEN_NO = new Set([...NO, 'dois', 'errado', 'nao esta', 'descarta'])
+const SPOKEN_ANSWER_MAX_WORDS = 6
+
+function spokenAnswer(text: string): 'no' | 'unknown' | 'yes' {
+  const words = normalizeAnswer(text)
+    .split(' ')
+    .filter((word) => word !== '')
+  if (words.length === 0 || words.length > SPOKEN_ANSWER_MAX_WORDS) return 'unknown'
+  const first = words[0] ?? ''
+  const pair = words.slice(0, 2).join(' ')
+  if (SPOKEN_NO.has(first) || SPOKEN_NO.has(pair)) return 'no'
+  if (SPOKEN_YES.has(first) || SPOKEN_YES.has(pair)) return 'yes'
+  return 'unknown'
+}
+
 export type BotAudioAnswer<Context> =
   | { readonly kind: 'confirmed'; readonly context: Context; readonly text: string }
   | { readonly kind: 'discarded' }
@@ -103,6 +120,8 @@ export type WhatsAppBotAudio<Context> = {
     readonly companyId: string
     readonly conversation: string
     readonly owner: string
+    /** Resposta falada (áudio transcrito): aceita frase curta que comece por sim/não. */
+    readonly spoken?: boolean
     readonly text: string
   }): BotAudioAnswer<Context>
   /** Há áudio esperando a confirmação desta pessoa nesta conversa? */
@@ -267,11 +286,17 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
       })
       await reply([botAudioConfirmationText(text)])
     },
-    answer({ companyId, conversation, owner, text }) {
+    answer({ companyId, conversation, owner, spoken = false, text }) {
       const key = keyOf(companyId, conversation)
       const entry = current(key, owner)
       if (entry === undefined) return { kind: 'none' }
       pending.delete(key)
+      if (spoken) {
+        const said = spokenAnswer(text)
+        if (said === 'yes') return { context: entry.context, kind: 'confirmed', text: entry.text }
+        if (said === 'no') return { kind: 'discarded' }
+        return { kind: 'none' }
+      }
       const answer = normalizeAnswer(text)
       if (YES.has(answer)) return { context: entry.context, kind: 'confirmed', text: entry.text }
       if (NO.has(answer)) return { kind: 'discarded' }
