@@ -133,7 +133,7 @@ export const GROUP_OCCURRENCE_TEXT = {
       '',
       '*1* - Usar este contato',
       'Ou digite outro (telefone com DDD ou e-mail)',
-      'Ou responda _continuar_ para seguir sem contato',
+      'Ou responda _continuar_ para seguir sem contato: nesse caso o boleto volta aqui pelo grupo.',
     ].join('\n'),
   askDocument: (documents: readonly GroupDriverDocument[]) =>
     documents.length > GROUP_DOCUMENT_LIST_LIMIT
