@@ -106,6 +106,15 @@ export type EvolutionGroupAudioPorts = {
    * o áudio que ninguém endereçou ao bot continua ignorado sem transcrever.
    */
   readonly wakePhrase?: readonly string[]
+  /**
+   * Spec 292 T9: as linhas da nota falada no "Entendi assim" (cliente, valor, endereço, ou o aviso
+   * de que não bate com as notas do motorista). Ausente, a confirmação mostra só o texto.
+   */
+  readonly describeNotes?: (input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly text: string
+  }) => Promise<readonly string[]>
   download(input: {
     readonly connection: LazyEvolutionConnection
     readonly providerMessageId: string
@@ -250,6 +259,7 @@ export function createEvolutionGroupInbound(
             senderName: event.pushName,
           },
           conversation: groupConversation(groupJid),
+          ...notesOf(ports, companyId, input.driverId),
           owner: sender,
           reply: (texts) => ports.reply({ companyId, groupJid, texts }),
           text: rest,
@@ -349,6 +359,7 @@ export function createEvolutionGroupInbound(
             senderName: event.pushName,
           },
           conversation: groupConversation(groupJid),
+          ...notesOf(ports, companyId, input.driverId),
           owner: sender,
           reply: (texts) => ports.reply({ companyId, groupJid, texts }),
           text: rest === null || rest === '' ? text : rest,
@@ -435,6 +446,7 @@ export function createEvolutionGroupInbound(
         senderName: event.pushName,
       },
       conversation: groupConversation(groupJid),
+      ...notesOf(ports, companyId, input.driverId),
       download: () =>
         ports.download({
           connection,
@@ -716,4 +728,12 @@ export function readGroupMedia(payload: unknown): ReadonlyMap<string, GroupMedia
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+/** A nota falada na confirmação, quando a porta existe (`exactOptionalPropertyTypes`). */
+function notesOf(ports: EvolutionGroupAudioPorts, companyId: string, driverId: string) {
+  const describe = ports.describeNotes
+  return describe === undefined
+    ? {}
+    : { details: (text: string) => describe({ companyId, driverId, text }) }
 }

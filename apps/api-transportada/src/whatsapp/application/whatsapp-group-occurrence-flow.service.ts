@@ -38,7 +38,15 @@ export const GROUP_OCCURRENCE_STEP = {
 export const GROUP_DOCUMENT_LIST_LIMIT = 40
 export const GROUP_OCCURRENCE_NOTE_MAX_LENGTH = 500
 
-export type GroupDriverDocument = { readonly id: string; readonly number: string }
+export type GroupDriverDocument = {
+  readonly id: string
+  readonly number: string
+  /** Spec 292 T9: o que o "Entendi assim" do áudio mostra da nota falada. */
+  readonly address?: string
+  readonly recipientName?: string
+  readonly series?: string
+  readonly totalAmount?: string
+}
 /** Canal do contato do cliente que o tipo pede (spec 281 T8b): e-mail e/ou WhatsApp. */
 export type GroupClientContactChannel = 'email' | 'whatsapp'
 

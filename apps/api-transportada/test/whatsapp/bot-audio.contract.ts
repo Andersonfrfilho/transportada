@@ -35,6 +35,11 @@ import {
   parseWakePhrase,
 } from '../../src/whatsapp/domain/bot-wake-phrase.policy.js'
 import {
+  describeSpokenNotes,
+  formatSpokenNoteAmount,
+  spokenNoteNumbers,
+} from '../../src/whatsapp/domain/bot-spoken-note.policy.js'
+import {
   downloadEvolutionMedia,
   fetchMediaFromMessage,
 } from '../../src/whatsapp/infrastructure/evolution-media-download.gateway.js'
@@ -295,6 +300,50 @@ describe('áudio do bot: número falado', () => {
     expect(joinSpokenNumbers('nota 1 234 567 e 12 caixas')).toBe('nota 1234567 e 12 caixas')
     expect(joinSpokenNumbers('nota 17234')).toBe('nota 17234')
   })
+
+  test('junta a nota dita em pares e deixa quantidade, opção e dia como estão', () => {
+    expect(joinSpokenNumbers('prorrogação de boleto da nota 89, 98, 04')).toBe(
+      'prorrogação de boleto da nota 899804',
+    )
+    expect(joinSpokenNumbers('nota 89 98 77')).toBe('nota 899877')
+    expect(joinSpokenNumbers('nota 89-98-77')).toBe('nota 899877')
+    expect(joinSpokenNumbers('opção 1, 2')).toBe('opção 1, 2')
+    expect(joinSpokenNumbers('dia 10 e 15, 12 caixas')).toBe('dia 10 e 15, 12 caixas')
+  })
+})
+
+describe('áudio do bot: a nota falada na confirmação', () => {
+  const NOTES = [
+    {
+      address: 'Rua das Flores, 100 - Ribeirão Preto/SP',
+      number: '899877',
+      recipientName: 'MERCADO BOM PRECO',
+      series: '2',
+      totalAmount: '1234.5',
+    },
+    { address: '', number: '000899884', recipientName: '', series: '', totalAmount: '' },
+  ]
+
+  test('a nota que bate mostra cliente, valor e endereço, com o valor sem ponto flutuante', () => {
+    expect(describeSpokenNotes(NOTES, 'prorrogação do boleto da nota 899877')).toEqual([
+      '📄 *NF 899877/2*\n👤 MERCADO BOM PRECO\n💰 R$ 1.234,50\n📍 Rua das Flores, 100 - Ribeirão Preto/SP',
+    ])
+    expect(describeSpokenNotes(NOTES, 'nota 899884')).toEqual(['📄 *NF 899884*'])
+    expect(formatSpokenNoteAmount('1234567.891')).toBe('R$ 1.234.567,89')
+    expect(formatSpokenNoteAmount('0')).toBe('R$ 0,00')
+  })
+
+  test('a nota que não bate avisa e lista as notas do motorista; fala sem nota não muda nada', () => {
+    expect(describeSpokenNotes(NOTES, 'nota 899804')).toEqual([
+      '⚠️ Não achei a NF *899804* nas suas viagens em aberto.',
+      'Notas com você: 899877, 899884',
+    ])
+    expect(describeSpokenNotes([], 'nota 899804')).toEqual([
+      '⚠️ Não achei a NF *899804* nas suas viagens em aberto.',
+    ])
+    expect(describeSpokenNotes(NOTES, 'chego em 10 minutos')).toEqual([])
+    expect(spokenNoteNumbers('nota 89 e 1234 e 0899877')).toEqual(['899877'])
+  })
 })
 
 describe('áudio do bot: transcritor do worker', () => {
@@ -379,6 +428,8 @@ function groupSetup(
     /** Uma transcrição por áudio, na ordem; a última se repete. */
     transcripts?: readonly string[]
     wakePhrase?: string
+    /** As linhas da nota falada (`describeNotes`); ausente, a porta não existe. */
+    notes?: (text: string) => readonly string[]
   } = {},
 ) {
   let heard = 0
@@ -406,6 +457,15 @@ function groupSetup(
   const inbound = createEvolutionGroupInbound({
     audio: {
       bot,
+      ...(options.notes === undefined
+        ? {}
+        : {
+            describeNotes: async ({ text }: { text: string }) => {
+              const lines = options.notes?.(text) ?? []
+              if (lines.includes('boom')) throw new Error('boom')
+              return lines
+            },
+          }),
       wakePhrase: parseWakePhrase(options.wakePhrase),
       download: async ({ providerMessageId }) => {
         downloads.push(providerMessageId)
@@ -590,6 +650,26 @@ describe('áudio do bot no grupo: frase de chamada', () => {
       text: 'prorrogação do boleto da nota 899877',
       via: 'mention',
     })
+  })
+
+  test('a confirmação traz a nota falada; erro ao ler as notas só tira as linhas', async () => {
+    const { bot, receive, replies } = groupSetup({
+      notes: (text) => (text.includes('899804') ? ['⚠️ NF 899804'] : ['boom']),
+      transcripts: [
+        'Atendimento Fernandes, prorrogação do boleto da nota 89, 98, 04',
+        'Atendimento Fernandes, prorrogação do boleto da nota 899877',
+      ],
+      wakePhrase: 'atendimento Fernandes',
+    })
+    await receive(groupMessage(), VOICE)
+    await bot.idle()
+    expect(replies).toEqual([
+      botAudioConfirmationText('prorrogação do boleto da nota 899804', ['⚠️ NF 899804']),
+    ])
+    expect(replies[0]).toContain('⚠️ NF 899804\n\n👉 *Está certo?*')
+    await receive(groupMessage({ externalMessageId: 'A2' }), VOICE)
+    await bot.idle()
+    expect(replies.at(-1)).toBe(botAudioConfirmationText('prorrogação do boleto da nota 899877'))
   })
 
   test('com a sessão aberta, o dono fala sem a frase e o áudio de outra pessoa nem é transcrito', async () => {
