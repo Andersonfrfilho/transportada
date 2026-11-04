@@ -70,6 +70,28 @@ nenhuma chamada ao Evolution.
   chip. Conferir o estado da conexão; a mensagem é descartada (porta fechada), não aceita sem saber quem escreveu.
 - `unknown_sender`: quem escreveu só veio como `@lid` e a lista de participantes não trouxe o número dele.
 
+## O pedido no grupo do motorista (spec 292 T4/T5)
+
+Marcar o bot no grupo abre um pedido (um por vez por grupo; o dono é quem marcou). O bot pergunta a nota, o tipo de
+ocorrência, a observação e confirma; ao confirmar, registra pela mesma `registerDriverOccurrence` do WhatsApp do
+motorista, no nome do motorista do grupo. Só aparecem os tipos **ativos** do momento da nota, já filtrados pela
+contratante (a mesma lista do WhatsApp do motorista); tipo desligado não aparece nem casa pelo nome. O que vem
+depois (e-mail à contratante, retorno do boleto) é configuração do tipo.
+
+- Pedido direto: `@bot prorrogação do boleto 17234` acha a nota e o tipo; o resto é perguntado.
+- Sem marcar, só o dono responde. Outra pessoa responde pelo dono marcando o bot; marcação que não responde a
+  pergunta aberta recebe "Há um pedido em andamento".
+- `cancelar` (do dono ou de quem marca) encerra; 3 respostas que não cabem encerram e avisam o suporte.
+- Prazo sem resposta: `whatsapp_evolution_settings.group_request_timeout_seconds` (padrão 600, de 60 a 3600). Por
+  enquanto só por SQL em staging.
+- Tabelas: `whatsapp_group_requests` (status `open`/`completed`/`cancelled`/`expired`/`abandoned`) e
+  `whatsapp_group_request_messages` (cada mensagem aceita, uma vez por id do provedor, com quem respondeu e o passo).
+- Logs: `whatsapp_group_request.opened|busy|cancelled|completed|abandoned|duplicate|raced|reply_failed|register_failed`
+  (só empresa e pedido).
+- Motorista sem acesso ao app (ficha sem vínculo ativo): o bot responde que a ocorrência precisa ficar no nome dele
+  e nada é registrado.
+- As respostas no grupo respeitam o intervalo do número (spec 289) e saem fora do webhook.
+
 ## Teste de aceite em staging (spec 281, critérios)
 
 1. Conectar o número do dono pelo QR.

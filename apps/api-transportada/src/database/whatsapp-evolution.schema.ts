@@ -66,6 +66,8 @@ export const whatsappEvolutionSettings = pgTable(
     minIntervalSeconds: integer('min_interval_seconds').notNull().default(15),
     /** Spec 289: o próximo instante em que o número pode enviar; cada envio reserva uma vaga `min_interval_seconds` adiante da anterior. */
     nextSendAt: timestamp('next_send_at', { withTimezone: true }),
+    /** Spec 292 T4: tempo sem resposta até o pedido no grupo do motorista vencer (regra 5). */
+    groupRequestTimeoutSeconds: integer('group_request_timeout_seconds').notNull().default(600),
     connectionState: text('connection_state')
       .$type<WhatsAppEvolutionConnectionState>()
       .notNull()
@@ -127,6 +129,10 @@ export const whatsappEvolutionSettings = pgTable(
     check(
       'whatsapp_evolution_settings_min_interval_check',
       sql`${table.minIntervalSeconds} between ${sql.raw(String(WHATSAPP_EVOLUTION_MIN_INTERVAL_RANGE.min))} and ${sql.raw(String(WHATSAPP_EVOLUTION_MIN_INTERVAL_RANGE.max))}`,
+    ),
+    check(
+      'whatsapp_evolution_settings_group_request_timeout_check',
+      sql`${table.groupRequestTimeoutSeconds} between 60 and 3600`,
     ),
     /** Ligar sem ter lido o aviso de risco (RF7) não existe, nem por SQL direto. */
     check(
