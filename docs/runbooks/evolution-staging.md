@@ -99,6 +99,24 @@ depois (e-mail à contratante, retorno do boleto) é configuração do tipo.
 3. Responder no WhatsApp e confirmar que a resposta entra no fio da ocorrência.
 4. Derrubar a instância (pelo painel, não pela API) e confirmar que o envio cai para o e-mail com erro tipado.
 
+## Roteiro de teste do bot do motorista em staging (specs 292 e 293)
+
+O passo a passo completo está no projeto Claude (`grupo-whatsapp/roteiro-teste-staging.md`). O que cabe guardar aqui:
+
+- **Conferir o ambiente antes de testar:** `tmp/ops/staging-confere-roteiro-whatsapp.sh` (somente leitura; grava em
+  `tmp/ops/saidas/`). Mostra estado do Evolution e número do bot, canal da Meta, motoristas com grupo na ficha (vínculo
+  ativo e telefone verificado) e as viagens e notas abertas deles. Não imprime chave nem segredo.
+- **Grupo (Evolution):** marcar o bot escolhendo o contato na lista. `@bot saí`, `@bot cheguei [nota]`,
+  `@bot prorrogação do boleto 17234` (ou outro tipo ativo) e `@bot` sozinho para o menu numerado. Saí e cheguei
+  registram sem confirmação e exigem viagem despachada; ocorrência pergunta observação e pede `1` (Sim) para registrar.
+- **Individual só funciona pela Meta.** A mensagem individual que chega pelo Evolution vai apenas para a conversa da
+  ocorrência (`evolution-conversation-inbound.service.ts`, "sem fluxo de comando"); o fluxo de comandos do motorista
+  (spec 144, menu "Minha viagem" e comando direto da T14) roda só no módulo da Meta. Sem canal da Meta ativo em staging,
+  o individual não é testável. Com a Meta, o grafo precisa estar republicado
+  (`scripts-ops/producao-publicar-falas-do-bot.sh`, ambiente staging por padrão) para o menu de 5 opções e o comando
+  direto existirem.
+- **Entreguei com provas** (T15) só entra neste roteiro depois do deploy do PR #508 em staging.
+
 ## O que nunca fazer
 
 - Não copiar o valor da chave global para variável da API: só a referência `${{evolution-api.AUTHENTICATION_API_KEY}}`, e só em staging.
