@@ -85,29 +85,29 @@ describe('fluxo do grupo: guiado', () => {
 
     expect(await flow.start('')).toEqual({
       kind: 'continue',
-      replies: [
-        'Qual nota? Responda com o número da opção ou da nota:\n1. NF 17234\n2. NF 000899853',
-      ],
+      replies: [GROUP_OCCURRENCE_TEXT.askDocument([NF1, NF2])],
       state: { documents: [NF1, NF2] },
       step: GROUP_OCCURRENCE_STEP.document,
     })
     const types = await flow.answer('2')
     expect(types).toMatchObject({
-      replies: [
-        'Qual ocorrência? Responda com o número ou o nome:\n1. Prorrogação do boleto\n2. Avaria\n3. Recusa do cliente',
-      ],
+      replies: [GROUP_OCCURRENCE_TEXT.askType([PRORROGACAO, AVARIA, RECUSA])],
     })
     expect(await flow.answer('prorrogacao do boleto')).toMatchObject({
       replies: [GROUP_OCCURRENCE_TEXT.askNote],
     })
     expect(await flow.answer('cliente pediu mais 10 dias')).toMatchObject({
       replies: [
-        'Confirma registrar "Prorrogação do boleto" na NF 000899853?\nObservação: cliente pediu mais 10 dias\nResponda 1 - Sim ou 2 - Não.',
+        GROUP_OCCURRENCE_TEXT.confirm(
+          'Prorrogação do boleto',
+          '000899853',
+          'cliente pediu mais 10 dias',
+        ),
       ],
     })
     expect(await flow.answer('sim')).toEqual({
       kind: 'done',
-      replies: ['Ocorrência "Prorrogação do boleto" registrada na NF 000899853.'],
+      replies: [GROUP_OCCURRENCE_TEXT.registered('Prorrogação do boleto', '000899853')],
     })
     expect(flow.registered).toEqual([
       {
@@ -152,7 +152,7 @@ describe('fluxo do grupo: guiado', () => {
     const flow = setup({ documents })
 
     expect(await flow.start('')).toMatchObject({
-      replies: ['Qual nota? Responda com o número da nota.'],
+      replies: [GROUP_OCCURRENCE_TEXT.askDocument(documents)],
     })
     expect(await flow.answer('3')).toMatchObject({ kind: 'not_understood' })
     expect(await flow.answer('1003')).toMatchObject({ kind: 'continue', step: 'type' })
@@ -253,10 +253,7 @@ describe('fluxo do grupo: o que não pode', () => {
     await flow.start('17234 avaria')
     await flow.answer('pular')
     expect(await flow.answer('sim')).toMatchObject({
-      replies: [
-        'Este tipo não vale.',
-        'Qual ocorrência? Responda com o número ou o nome:\n1. Prorrogação do boleto\n2. Recusa do cliente',
-      ],
+      replies: ['Este tipo não vale.', GROUP_OCCURRENCE_TEXT.askType([PRORROGACAO, RECUSA])],
       step: GROUP_OCCURRENCE_STEP.type,
     })
   })
@@ -267,5 +264,97 @@ describe('fluxo do grupo: o que não pode', () => {
     expect(findTypeByName(types, 'prorrogação')).toBeUndefined()
     expect(findTypeByName(types, 'RECUSA DO CLIENTE')?.id).toBe('T3')
     expect(findTypeByName(types, '')).toBeUndefined()
+  })
+})
+
+describe('fluxo do grupo: contato do cliente (spec 292 T6)', () => {
+  const PEDE_CONTATO: GroupOccurrenceType = {
+    contactChannels: ['email', 'whatsapp'],
+    id: 'T1',
+    name: 'Prorrogação do boleto',
+  }
+  const turn = (request: Partial<GroupRequest>, text: string) => ({
+    request: {
+      attempts: 0,
+      companyId: COMPANY_ID,
+      driverId: DRIVER_ID,
+      expiresAt: new Date(),
+      groupJid: 'g@g.us',
+      id: 'R1',
+      ownerNumber: '5516',
+      state: {},
+      step: 'start',
+      version: 1n,
+      ...request,
+    },
+    sender: '5516',
+    senderName: null,
+    text,
+  })
+  function build(known: readonly { addressMasked: string; channel: 'email' | 'whatsapp' }[]) {
+    const added: { address: string; channel: string }[] = []
+    const flow = createGroupOccurrenceFlow({
+      async addClientContact(input) {
+        if (input.address === 'ruim') return { kind: 'refused', reason: 'inválido' }
+        added.push({ address: input.address, channel: input.channel })
+        return {
+          contact: { addressMasked: '(16) *****-0000', channel: input.channel },
+          kind: 'added',
+        }
+      },
+      async listClientContacts() {
+        return known
+      },
+      async listDriverDocuments() {
+        return [NF1]
+      },
+      async listOccurrenceTypes() {
+        return [PEDE_CONTATO]
+      },
+      async register() {
+        return { kind: 'registered' }
+      },
+    })
+    return { added, flow }
+  }
+
+  test('sem contato cadastrado, pede o contato e segue para a observação', async () => {
+    const { added, flow } = build([])
+    const started = await flow.start(turn({}, 'prorrogação do boleto 17234'))
+    expect(started).toMatchObject({ kind: 'continue', step: 'contact' })
+    const saved = await flow.answer(
+      turn(
+        { state: (started as { state: Record<string, unknown> }).state, step: 'contact' },
+        '16 99122-5783',
+      ),
+    )
+    expect(saved).toMatchObject({ kind: 'continue', step: 'note' })
+    expect(added).toEqual([{ address: '16 99122-5783', channel: 'whatsapp' }])
+  })
+
+  test('com contato cadastrado, oferece usar e "1" segue sem digitar', async () => {
+    const { added, flow } = build([{ addressMasked: 'c***@x.com', channel: 'email' }])
+    const started = await flow.start(turn({}, 'prorrogação do boleto 17234'))
+    expect(started).toMatchObject({ kind: 'continue', step: 'contact' })
+    const state = (started as { state: Record<string, unknown> }).state
+    const next = await flow.answer(turn({ state, step: 'contact' }, '1'))
+    expect(next).toMatchObject({ kind: 'continue', step: 'note' })
+    expect(added).toEqual([])
+  })
+
+  test('"continuar" segue sem contato; texto estranho ou recusado repete a pergunta', async () => {
+    const { flow } = build([])
+    const started = await flow.start(turn({}, 'prorrogação do boleto 17234'))
+    const state = (started as { state: Record<string, unknown> }).state
+    expect(await flow.answer(turn({ state, step: 'contact' }, 'continuar'))).toMatchObject({
+      kind: 'continue',
+      step: 'note',
+    })
+    expect(await flow.answer(turn({ state, step: 'contact' }, 'blabla'))).toMatchObject({
+      kind: 'not_understood',
+    })
+    expect(await flow.answer(turn({ state, step: 'contact' }, 'ruim'))).toMatchObject({
+      kind: 'not_understood',
+    })
   })
 })

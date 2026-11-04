@@ -1452,6 +1452,10 @@ export function bootstrap(): Bun.Server<undefined> {
   })
   /** Spec 292 T5: o pedido no grupo do motorista registra pelo mesmo caminho do WhatsApp do motorista. */
   const whatsappGroupOccurrence = createGroupOccurrencePorts({
+    consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
+    contacts: createDriverClientContactsUseCase({
+      repository: new DrizzleDriverClientContactRepository(database),
+    }),
     database: database.db,
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
     logger,
