@@ -167,6 +167,13 @@ export const OCCURRENCE_STAGES = [
 ] as const
 export type OccurrenceStage = (typeof OCCURRENCE_STAGES)[number]
 
+/** Os fatos que ainda mexem na etapa de uma ocorrência já solucionada. */
+const RESOLVED_STAGE_EXITS: ReadonlySet<OccurrenceTimelineSource['kind']> = new Set([
+  'occurrence.cancelled',
+  'resolution.reopened',
+  'resolution.resolved',
+])
+
 const TERMINAL_STAGES: ReadonlySet<OccurrenceStage> = new Set(['cancelled', 'resolved'])
 
 /**
@@ -402,6 +409,11 @@ function resolveStages(
     const current = started.at(-1)?.stage
     /** Depois de cancelada nada reabre a etapa: o cancelamento vence o histórico (spec 266). */
     if (current === 'cancelled') break
+    /**
+     * Depois de solucionada, só o motorista reabre (`resolution.reopened`): o retorno da contratante marcado como
+     * tratado, o e-mail e a tratativa seguem no histórico, mas não devolvem a etapa a "Em andamento".
+     */
+    if (current === 'resolved' && !RESOLVED_STAGE_EXITS.has(source.kind)) continue
     const next = stageAfter(source, current, hasContractorReply)
     if (next === undefined || next === current) continue
     started.push({ source, stage: next })

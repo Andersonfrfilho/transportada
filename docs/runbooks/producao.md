@@ -569,6 +569,14 @@ Em 04/11/2026 mais duas, da mesma viagem e devolvidas em 30/10: 920247 e 920143,
 Anderson; depois disso não restou nota devolvida presa em viagem encerrada. O WhatsApp e o app do motorista (sem "voltou ao barracão") ainda não soltam.
 Dica: o `railway ssh` precisa rodar de uma pasta ligada ao projeto (`cd` no repositório antes).
 
+## 5.11 Ocorrência solucionada aparece "Em andamento" na linha do tempo (04/11/2026)
+
+Consulta: `ops/producao-ocorrencia-reaberta-04-11.sh` (somente leitura; ocorrência por janela de horário, com
+eventos de solução, da tratativa e do retorno da contratante). Causa: a operadora solucionou a ocorrência às 09:20 e,
+às 09:21, marcou o retorno da contratante (parado em `needs_operator` desde 29/10) como tratado; a linha do tempo
+traduzia `handled` em "Em andamento" mesmo depois de solucionada. Dado correto: a ocorrência segue solucionada
+(nenhum evento de reabertura), então não há dado a corrigir; era só a etapa derivada na leitura.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
