@@ -4,6 +4,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
+import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { DriverTrip } from '../../trips/application/find-current-driver-trip.use-case.js'
 import {
   CATALOG_BOT_SPEECH,
@@ -30,13 +31,25 @@ import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
+/** Spec 293 T15: a oferta da localização (pendente da T12), dita quando o evento sai sem ela. */
+export const GROUP_STOP_LOCATION_HINT =
+  'Dica: compartilhe a localização aqui no grupo antes do próximo "saí", "cheguei" ou "entreguei" e ela entra no registro.'
+
 /**
  * Spec 293 T12: as portas do "saí"/"cheguei" no grupo, sobre a camada comum dos eventos. O evento fica
  * no nome do motorista do grupo (sem conta ativa no app, recusa com a frase do grupo). A hora do toque
- * é a da chegada da mensagem ao servidor; a localização vai `null` (grava `unavailable`).
+ * é a da chegada da mensagem ao servidor.
+ *
+ * Spec 293 T15: a localização que o motorista compartilhou no grupo há pouco entra no evento; sem ela
+ * grava `unavailable` (nunca segura o evento) e o bot oferece a localização para a próxima vez.
  */
 export function createGroupStopPorts(dependencies: {
   readonly clock?: () => Date
+  /** O ponto compartilhado no grupo, consumido por um evento só; ausente, sempre `null`. */
+  readonly consumeLocation?: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => null | ReportedLocation
   readonly database: Database
   readonly listActiveTrips: (input: {
     readonly companyId: string
@@ -74,15 +87,17 @@ export function createGroupStopPorts(dependencies: {
         input.event === WHATSAPP_DRIVER_STOP_COMMAND.depart
           ? WHATSAPP_DRIVER_EVENT.depart
           : WHATSAPP_DRIVER_EVENT.arrive
+      let location: null | ReportedLocation = null
       if (actorUserId === null) {
         result = refuseWhatsAppDriverEvent(event, { code: 'driver_without_access' })
       } else {
+        location = dependencies.consumeLocation?.(input) ?? null
         const eventInput = {
           actorUserId,
           companyId: input.companyId,
           driverId: input.driverId,
           idempotencyKey: input.idempotencyKey,
-          location: null,
+          location,
           sentAt: clock(),
           stopId: input.stopId,
         }
@@ -99,12 +114,15 @@ export function createGroupStopPorts(dependencies: {
           return { message: await say(input.companyId, WHATSAPP_GROUP_EVENT_FAILED) }
         }
       }
-      return {
-        message: await say(
-          input.companyId,
-          describeWhatsAppDriverEventResult(result, { kind: 'group' }),
-        ),
-      }
+      const message = await say(
+        input.companyId,
+        describeWhatsAppDriverEventResult(result, { kind: 'group' }),
+      )
+      const offerLocation =
+        dependencies.consumeLocation !== undefined &&
+        result.kind === 'registered' &&
+        location === null
+      return { message: offerLocation ? `${message}\n${GROUP_STOP_LOCATION_HINT}` : message }
     },
   }
 }
