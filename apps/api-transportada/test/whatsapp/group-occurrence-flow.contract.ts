@@ -78,6 +78,7 @@ function setup(
   }
   return {
     answer: async (text: string) => follow(await flow.answer(turn(text))),
+    locationReceived: () => flow.locationReceived?.(turn('')) ?? null,
     registered,
     start: async (text: string) => follow(await flow.start(turn(text))),
     step: () => request.step,
@@ -204,6 +205,17 @@ describe('fluxo do grupo: localização opcional', () => {
     expect(await flow.answer('talvez')).toMatchObject({ kind: 'not_understood' })
     expect(await flow.answer('enviei')).toMatchObject({ step: GROUP_OCCURRENCE_STEP.confirm })
     expect(GROUP_OCCURRENCE_TEXT.askNote).not.toContain('📍')
+  })
+
+  test('a localização compartilhada avança o passo da localização sozinha; fora dele não faz nada', async () => {
+    const ports = setup()
+    await ports.start('17234 avaria')
+    expect(ports.locationReceived()).toBeNull()
+    await ports.answer('quebrou')
+    expect(ports.locationReceived()).toMatchObject({
+      kind: 'continue',
+      step: GROUP_OCCURRENCE_STEP.confirm,
+    })
   })
 })
 

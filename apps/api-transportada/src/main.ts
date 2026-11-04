@@ -2207,6 +2207,7 @@ function createEvolutionWebhook(input: {
       ? undefined
       : createGroupProofIntake({
           ...input.groupDelivery.intake,
+          advanceRequest: (request) => groupSessions.handleLocation(request),
           openAnswerRequest: async (request) => {
             await groupRequests.open({
               ...request,
