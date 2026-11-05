@@ -86,6 +86,11 @@ export type GroupCollectionAnswer = {
 }
 
 export type GroupOccurrenceFlowPorts = {
+  /**
+   * Quem abriu o pedido é motorista ou ajudante da frota (o telefone bate com uma ficha)? Só a
+   * tripulação é perguntada pela localização; o atendimento pula o passo. Ausente, todos são.
+   */
+  isCrewMember?(input: { readonly companyId: string; readonly phone: string }): Promise<boolean>
   /** Spec 292 T6: guarda o contato digitado no cliente da nota (validado e normalizado pela API). */
   addClientContact?(input: {
     readonly address: string
@@ -477,6 +482,13 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
             }
           }
           const note = SKIP.has(normalize(text)) ? '' : text
+          const crew =
+            ports.isCrewMember === undefined ||
+            (await ports.isCrewMember({
+              companyId: turn.request.companyId,
+              phone: turn.request.ownerNumber,
+            }))
+          if (!crew) return confirmOutcome({ ...state, note })
           return continueWith(GROUP_OCCURRENCE_STEP.location, { ...state, note }, [
             GROUP_OCCURRENCE_TEXT.askLocation,
           ])

@@ -37,10 +37,21 @@ function setup(
     collectionAnswer?: GroupCollectionAnswer | null
     registration?: GroupOccurrenceRegistration
     types?: readonly GroupOccurrenceType[]
+    /** Quem abriu é tripulação (motorista/ajudante)? Ausente, a porta não existe. */
+    crew?: boolean
   } = {},
 ) {
+  const crewAsked: string[] = []
   const registered: Parameters<GroupOccurrenceFlowPorts['register']>[0][] = []
   const ports: GroupOccurrenceFlowPorts = {
+    ...(options.crew === undefined
+      ? {}
+      : {
+          async isCrewMember({ phone }: { readonly companyId: string; readonly phone: string }) {
+            crewAsked.push(phone)
+            return options.crew === true
+          },
+        }),
     async answerCollection() {
       return options.collectionAnswer ?? null
     },
@@ -77,6 +88,7 @@ function setup(
     return outcome
   }
   return {
+    crewAsked,
     answer: async (text: string) => follow(await flow.answer(turn(text))),
     locationReceived: () => flow.locationReceived?.(turn('')) ?? null,
     registered,
@@ -86,6 +98,33 @@ function setup(
 }
 
 describe('fluxo do grupo: guiado', () => {
+  test('quem abriu e não é motorista nem ajudante não é perguntado pela localização', async () => {
+    const office = setup({ crew: false })
+    await office.start('')
+    await office.answer('2')
+    await office.answer('prorrogacao do boleto')
+    expect(await office.answer('cliente pediu mais 10 dias')).toMatchObject({
+      replies: [
+        GROUP_OCCURRENCE_TEXT.confirm(
+          'Prorrogação do boleto',
+          '000899853',
+          'cliente pediu mais 10 dias',
+        ),
+      ],
+      step: GROUP_OCCURRENCE_STEP.confirm,
+    })
+    expect(office.crewAsked).toEqual(['5516988887777'])
+
+    const crew = setup({ crew: true })
+    await crew.start('')
+    await crew.answer('2')
+    await crew.answer('prorrogacao do boleto')
+    expect(await crew.answer('cliente pediu mais 10 dias')).toMatchObject({
+      replies: [GROUP_OCCURRENCE_TEXT.askLocation],
+      step: GROUP_OCCURRENCE_STEP.location,
+    })
+  })
+
   test('nota → tipo → observação → confirmação registra no nome do motorista do grupo', async () => {
     const flow = setup()
 
