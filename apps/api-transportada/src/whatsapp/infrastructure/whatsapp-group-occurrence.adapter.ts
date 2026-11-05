@@ -44,6 +44,7 @@ import { BOT_SPEECH_DEFAULTS } from '../../whatsapp-commands/domain/whatsapp-bot
 import type {
   GroupDriverDocument,
   GroupOccurrenceFlowPorts,
+  GroupOccurrenceNoteSummary,
   GroupOccurrenceRegistration,
 } from '../application/whatsapp-group-occurrence-flow.service.js'
 
@@ -274,6 +275,7 @@ export function createGroupOccurrencePorts(dependencies: {
           kind: 'registered',
           summary: await noteSummaryOf(dependencies.database, input).catch(() => ({
             clientName: '',
+            registeredAt: new Date().toISOString(),
             series: '',
           })),
         }
@@ -296,25 +298,42 @@ export function createGroupOccurrencePorts(dependencies: {
   }
 }
 
-/** A série e o destinatário da nota da viagem, para o resumo do registro no grupo; vazios quando não há. */
+/**
+ * O que a nota da viagem diz de si para o resumo do registro no grupo: série, destinatário (cliente), emitente
+ * (contratante, pelo nome do cadastro quando há) e valor total. Vazios quando não há.
+ */
 async function noteSummaryOf(
   database: Database,
   input: { readonly companyId: string; readonly documentId: string },
-): Promise<{ readonly clientName: string; readonly series: string }> {
+): Promise<GroupOccurrenceNoteSummary> {
   const [row] = (await database.execute(sql`
     select coalesce(note.series, '') as series,
+           note.total_value::text as total_value,
            coalesce((select coalesce(nullif(participant.legal_name, ''), nullif(participant.trade_name, ''))
                        from nfe_participants participant
                       where participant.company_id = note.company_id and participant.document_id = note.id
                         and participant.role = 'recipient'
-                      limit 1), '') as client_name
+                      limit 1), '') as client_name,
+           coalesce((select coalesce(nullif(trim(contractor.display_name), ''), nullif(participant.legal_name, ''),
+                                     nullif(participant.trade_name, ''))
+                       from nfe_participants participant
+                       left join contractors contractor
+                         on contractor.company_id = participant.company_id and contractor.tax_id = participant.tax_id
+                      where participant.company_id = note.company_id and participant.document_id = note.id
+                        and participant.role = 'emitter'
+                      limit 1), '') as contractor_name
       from trip_documents document
       join nfe_documents note on note.company_id = document.company_id and note.id = document.nfe_document_id
      where document.company_id = ${input.companyId}::uuid and document.id = ${input.documentId}::uuid
-     limit 1`)) as unknown as readonly { client_name?: unknown; series?: unknown }[]
+     limit 1`)) as unknown as readonly Record<string, unknown>[]
+  const textOf = (key: string) => (typeof row?.[key] === 'string' ? row[key].trim() : '')
+  const totalValue = textOf('total_value')
   return {
-    clientName: typeof row?.client_name === 'string' ? row.client_name.trim() : '',
-    series: typeof row?.series === 'string' ? row.series.trim() : '',
+    clientName: textOf('client_name'),
+    contractorName: textOf('contractor_name'),
+    registeredAt: new Date().toISOString(),
+    series: textOf('series'),
+    ...(totalValue === '' ? {} : { totalValue }),
   }
 }
 

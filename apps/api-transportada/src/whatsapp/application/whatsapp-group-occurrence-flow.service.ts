@@ -72,7 +72,43 @@ export type GroupClientContactAddResult =
 /** O que a nota diz de si para o resumo do registro: a série e o destinatário (vazios quando não se sabe). */
 export type GroupOccurrenceNoteSummary = {
   readonly clientName: string
+  /** A contratante da nota: o emitente, pelo nome do cadastro de contratantes quando há. */
+  readonly contractorName?: string
+  /** Quando ficou registrada (ISO); ausente, a linha some. */
+  readonly registeredAt?: string
   readonly series: string
+  /** Valor total da nota, em texto decimal do banco ("1234.50"); nunca float. */
+  readonly totalValue?: string
+}
+
+/** "1234.5" → "R$ 1.234,50", só com texto: dinheiro não passa por float. `null` quando não é um decimal. */
+export function formatGroupMoney(value: string): null | string {
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/u.exec(value.trim())
+  if (match === null) return null
+  const [, sign = '', whole = '0', fraction = ''] = match
+  let cents = BigInt(whole) * 100n + BigInt((fraction + '00').slice(0, 2))
+  // Meio para cima no terceiro dígito, como o resto do produto arredonda dinheiro.
+  if ((fraction[2] ?? '0') >= '5') cents += 1n
+  const reais = (cents / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/gu, '.')
+  return `${sign === '-' ? '-' : ''}R$ ${reais},${(cents % 100n).toString().padStart(2, '0')}`
+}
+
+/** "05/11/2026 às 21:43", no horário de Brasília. */
+export function formatGroupDateTime(iso: string): null | string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+    minute: '2-digit',
+    month: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+  }).formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((entry) => entry.type === type)?.value ?? ''
+  return `${part('day')}/${part('month')}/${part('year')} às ${part('hour')}:${part('minute')}`
 }
 
 export type GroupOccurrenceRegistration =
@@ -225,29 +261,46 @@ export const GROUP_OCCURRENCE_TEXT = {
    * Série, cliente, observação e contato só aparecem quando existem.
    */
   registered: (input: {
+    readonly address?: string
     readonly clientName?: string
     readonly contact?: string
+    readonly contractorName?: string
     readonly documentNumber: string
+    readonly location?: GroupSharedLocation
     readonly note?: string
+    readonly registeredAt?: string
     readonly sentToClient?: boolean
     readonly series?: string
+    readonly totalValue?: string
     readonly typeName: string
-  }) =>
-    [
+  }) => {
+    const when = input.registeredAt === undefined ? null : formatGroupDateTime(input.registeredAt)
+    const value = input.totalValue === undefined ? null : formatGroupMoney(input.totalValue)
+    const filled = (text: string | undefined) => (text ?? '').trim() !== ''
+    return [
       '✅ *Ocorrência registrada!*',
       '',
-      `📄 *NF ${input.documentNumber}${(input.series ?? '') === '' ? '' : `/${input.series}`}*`,
-      ...((input.clientName ?? '') === '' ? [] : [`👤 Cliente: *${input.clientName}*`]),
-      `⚠️ Ocorrência: ${input.typeName}`,
-      ...((input.note ?? '') === '' ? [] : [`📝 Observação: _${input.note}_`]),
-      ...((input.contact ?? '') === '' ? [] : [`📇 Contato do cliente: *${input.contact}*`]),
+      `📄 *NF ${input.documentNumber}${filled(input.series) ? `/${input.series}` : ''}*`,
+      ...(filled(input.contractorName) ? [`🏢 Contratante: *${input.contractorName}*`] : []),
+      ...(filled(input.clientName) ? [`👤 Cliente: *${input.clientName}*`] : []),
+      ...(filled(input.address) ? [`🏠 Endereço da nota: ${input.address}`] : []),
+      '',
+      `⚠️ Ocorrência: *${input.typeName}*`,
+      ...(when === null ? [] : [`🕒 Registrada em: ${when}`]),
+      ...(input.location === undefined
+        ? []
+        : [`📍 Local da ocorrência: ${mapsLink(input.location)}`]),
+      ...(filled(input.note) ? [`📝 Observação: _${input.note}_`] : []),
+      ...(filled(input.contact) ? [`📇 Contato do cliente: *${input.contact}*`] : []),
+      ...(value === null ? [] : [`💰 Valor da nota: *${value}*`]),
       '',
       input.sentToClient === true
         ? '📨 Assim que a contratante responder, o boleto segue para o contato do cliente e eu aviso aqui.'
         : '📨 Assim que a contratante responder com o boleto, eu envio por aqui.',
       '',
       'Precisando de mais alguma coisa, é só me marcar. 🙂',
-    ].join('\n'),
+    ].join('\n')
+  },
 } as const
 
 /** Spec 292 T9: o que o resumo mostra da nota (contratante, cliente, endereço, valor) e o local. */
@@ -476,6 +529,17 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
         kind: 'done',
         replies: [
           GROUP_OCCURRENCE_TEXT.registered({
+            ...(state.documentAddress === undefined ? {} : { address: state.documentAddress }),
+            ...(state.location === undefined ? {} : { location: state.location }),
+            ...(result.summary?.contractorName === undefined
+              ? {}
+              : { contractorName: result.summary.contractorName }),
+            ...(result.summary?.registeredAt === undefined
+              ? {}
+              : { registeredAt: result.summary.registeredAt }),
+            ...(result.summary?.totalValue === undefined
+              ? {}
+              : { totalValue: result.summary.totalValue }),
             clientName: result.summary?.clientName ?? '',
             contact: state.contactMasked ?? '',
             documentNumber,
