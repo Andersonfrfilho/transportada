@@ -21,7 +21,7 @@ chave é perder o dado). A feature começa na Fase 2.
       arquivo, nunca pela extensão. Aceite: JPEG chamado de `.pdf` é recusado.
 - [x] **T011** `GET .../content` sob `fleet.reveal`, devolvendo presigned URL de vida curta.
       Aceite: **contrato negativo** — `fleet.manage` sem `fleet.reveal` recebe 403.
-- [ ] **T012** Nome do objeto no bucket sem dado pessoal. Aceite: contrato que falha se CPF, nome ou
+- [x] **T012** Nome do objeto no bucket sem dado pessoal. Aceite: contrato que falha se CPF, nome ou
       número de CNH aparecerem na chave.
 
 ## Fase 3 — Leitura · 🤖 `sonnet`
