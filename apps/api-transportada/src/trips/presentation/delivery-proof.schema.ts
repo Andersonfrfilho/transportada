@@ -45,6 +45,7 @@ const CAPTURED_AT_FIELD = 'capturedAt'
 const VARIANT_FIELD = 'variant'
 /** Spec 205 RF3: o "Registrar entrega depois" — texto `true`/`false`, ausente ou vazio é `false`. */
 const LATE_REGISTRATION_FIELD = 'lateRegistration'
+const REPLACE_CANHOTO_FIELD = 'replaceCanhoto'
 /** Spec 234 D2: servidor − aparelho em ms, texto inteiro com sinal opcional. */
 const CLOCK_OFFSET_FIELD = 'clockOffsetMs'
 
@@ -188,7 +189,7 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
     capturedAt: location.capturedAt,
     ...(clockOffsetMs === undefined ? {} : { clockOffsetMs }),
     kind,
-    lateRegistration: parseLateRegistration(readOptionalField(form, LATE_REGISTRATION_FIELD)),
+    lateRegistration: parseBooleanField(readOptionalField(form, LATE_REGISTRATION_FIELD)),
     mimeType: file.type,
     position: location.position,
     receiverDocument: parseReceiverDocument(form.get(RECEIVER_DOCUMENT_FIELD)),
@@ -198,6 +199,9 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
       receivedByDetail: form.get(RECEIVED_BY_DETAIL_FIELD),
     }),
     receiverName: typeof receiverName === 'string' ? receiverName : '',
+    ...(parseBooleanField(readOptionalField(form, REPLACE_CANHOTO_FIELD))
+      ? { replaceCanhoto: true }
+      : {}),
     ...(thumbnail === undefined ? {} : { thumbnail }),
     variant,
   }
@@ -225,7 +229,7 @@ async function parseThumbnail(
 }
 
 /** O multipart só carrega texto: fora de `true`/`false` é `400`, nunca um booleano adivinhado. */
-function parseLateRegistration(value: unknown): boolean {
+function parseBooleanField(value: unknown): boolean {
   if (value === undefined || value === 'false') return false
   if (value === 'true') return true
 

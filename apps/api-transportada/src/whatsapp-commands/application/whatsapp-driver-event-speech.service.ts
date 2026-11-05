@@ -106,6 +106,8 @@ export function describeWhatsAppDriverEventRefusal(
       return { key: 'stopNotReachable' }
     case 'stop_en_route':
       return { key: 'stopEnRoute', params: { sequence: refusal.enRouteStopSequence } }
+    case 'stop_out_of_order':
+      return { text: describeOutOfOrderStop(refusal) }
     case 'transition_blocked': {
       const message = DRIVER_TRANSITION_BLOCK_MESSAGES[refusal.reason]
       const documentNumber = group ? audience.documentNumber : undefined
@@ -118,3 +120,13 @@ export function describeWhatsAppDriverEventRefusal(
 
 /** Erro que não é de negócio, no grupo: o pedido fecha com o convite a tentar de novo. */
 export const WHATSAPP_GROUP_EVENT_FAILED: BotSpeechLine = { key: 'groupRegisterFailed' }
+
+function describeOutOfOrderStop(refusal: {
+  readonly currentSequence: number | null
+  readonly nextSequence: number | null
+  readonly requestedSequence: number
+}): string {
+  const expected = refusal.currentSequence ?? refusal.nextSequence
+  const reference = expected === null ? 'a parada em andamento' : `a parada ${expected}`
+  return `Essa não é a parada em andamento: o roteiro pede ${reference}, e esta é a parada ${refusal.requestedSequence}. Fale com o escritório para registrar fora da ordem.`
+}

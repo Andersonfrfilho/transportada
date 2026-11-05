@@ -17,6 +17,7 @@ import type { CorrectedClock } from '../domain/occurred-at.policy.js'
 import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { AttachedCanhoto } from './canhoto-attachment.types.js'
 import type {
   DriverDocumentOccurrence,
   DriverDocumentOccurrenceLineInput,
@@ -373,6 +374,11 @@ export type DriverFieldReportTransactionPort = {
    * Spec 156 T15 M1: o comprovante já gravado daquele evento e tipo — o canal decide se o escritório
    * pode substituí-lo, e o objeto vai para a auditoria da substituição.
    */
+  /** Spec 294 RF26: o canhoto da empresa com a mesma imagem, ou `null`. */
+  findCanhotoByHash(input: {
+    readonly companyId: string
+    readonly sha256: string
+  }): Promise<AttachedCanhoto | null>
   findProofForEvent(input: {
     readonly companyId: string
     readonly eventId: string

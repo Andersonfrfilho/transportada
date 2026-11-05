@@ -36,6 +36,7 @@ import {
   TripStateTransitionNotAllowedError,
   TripStopNotReachableError,
 } from '../../trips/domain/trip.error.js'
+import { TripStopOutOfOrderError } from '../../trips/domain/stop-order.error.js'
 
 export const WHATSAPP_DRIVER_EVENT = {
   arrive: 'arrive',
@@ -70,6 +71,13 @@ export type WhatsAppDriverEventRefusal =
   | { readonly code: 'stop_not_reachable' }
   /** Uma parada a caminho por vez (spec 206 D4): a outra precisa chegar antes. */
   | { readonly code: 'stop_en_route'; readonly enRouteStopSequence: string }
+  /** Spec 294 RF25: a parada não é a em andamento nem a próxima do roteiro (a pergunta 1/2 vem na T4.10). */
+  | {
+      readonly code: 'stop_out_of_order'
+      readonly currentSequence: number | null
+      readonly nextSequence: number | null
+      readonly requestedSequence: number
+    }
   /** O portão de estado da nota/viagem (`checkTripDocumentTransition`). */
   | { readonly code: 'transition_blocked'; readonly reason: TripTransitionBlock }
   | { readonly code: 'occurrence_requirement'; readonly field: OccurrenceRequirementField }
@@ -345,6 +353,14 @@ export function classifyWhatsAppDriverEventError(
   if (error instanceof TripStopNotReachableError) return { code: 'stop_not_reachable' }
   if (error instanceof TripHasStopEnRouteError) {
     return { code: 'stop_en_route', enRouteStopSequence: error.enRouteStopSequence }
+  }
+  if (error instanceof TripStopOutOfOrderError) {
+    return {
+      code: 'stop_out_of_order',
+      currentSequence: error.violation.currentSequence,
+      nextSequence: error.violation.nextSequence,
+      requestedSequence: error.violation.requestedSequence,
+    }
   }
   const field = classifyOccurrenceRequirement(error)
   return field === undefined ? undefined : { code: 'occurrence_requirement', field }

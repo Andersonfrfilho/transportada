@@ -17,6 +17,8 @@ export type ReportStopArrivalInput = FieldTripLocator &
   EventClockFields & {
     readonly actorUserId: string
     readonly companyId: string
+    /** Spec 294 RF27: a tripulação confirmou gravar fora da ordem da parada; o escritório nunca manda. */
+    readonly confirmOutOfOrder?: boolean
     readonly idempotencyKey: string
     readonly location: ReportedLocation | null
     /** Quando a chegada aconteceu. O motorista manda agora; o escritório, a hora informada (A1). */

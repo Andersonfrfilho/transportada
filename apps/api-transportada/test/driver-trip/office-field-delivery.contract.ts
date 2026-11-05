@@ -633,6 +633,7 @@ describe('attach-delivery-proof: receiverName em kind photo nos dois canais (spe
       newProofId: () => 'proof-4',
       now: NOW,
       repository: {
+        findCanhotoByHash: () => Promise.resolve(null),
         findDeliveryEventId: async () => 'event-1',
         findDeliveryContext: async () => ({
           deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
@@ -678,6 +679,7 @@ describe('attach-delivery-proof: receiverName em kind photo nos dois canais (spe
       newProofId: () => 'proof-5',
       now: NOW,
       repository: {
+        findCanhotoByHash: () => Promise.resolve(null),
         findDeliveryEventId: async () => 'event-1',
         findDeliveryContext: async () => ({
           deliveredAt: new Date('2026-09-18T12:00:00.000Z'),

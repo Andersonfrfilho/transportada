@@ -85,3 +85,10 @@ export function describeStopReference(stop: WhatsAppStopCandidate): string {
   if (first === undefined) return `parada ${stop.sequence}`
   return rest.length === 0 ? `NF ${first.number}` : `NF ${first.number} e mais ${rest.length}`
 }
+
+/** A primeira parada pendente do roteiro — a "próxima" que o app oferece e o "saí" sugere. */
+export function findNextPendingStop<Stop extends WhatsAppStopCandidate>(
+  stops: readonly Stop[],
+): Stop | undefined {
+  return bySequence(stops.filter(isPending))[0]
+}

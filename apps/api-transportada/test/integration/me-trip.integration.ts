@@ -1001,6 +1001,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       }
       for (const [index, stopId] of world.stopIds.entries()) {
         await reportStopArrival({
+          confirmOutOfOrder: true, // chega em todas as paradas sem baixar nenhuma
           ...context,
           idempotencyKey: `chegada-sem-resto-${String(index)}`,
           location: null,
@@ -1071,6 +1072,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
 
         for (const [index, stopId] of world.stopIds.entries()) {
           await reportStopArrival({
+            confirmOutOfOrder: true, // chega em todas as paradas sem baixar nenhuma
             ...context,
             idempotencyKey: `chegada-pendente-${String(index)}`,
             location: null,
@@ -1967,6 +1969,7 @@ describe('o registro tardio pesa como foto atrasada (spec 205)', () => {
                 ? {}
                 : { lateRegistration: input.lateRegistration }),
               mimeType: 'image/jpeg',
+              replaceCanhoto: true, // as fotos seguintes substituem a anterior, confirmado (spec 294 RF26)
               position: { latitude: LOCATION.latitude, longitude: LOCATION.longitude },
               receiverDocument: '',
               receiverName: '',
@@ -1975,6 +1978,7 @@ describe('o registro tardio pesa como foto atrasada (spec 205)', () => {
 
         for (const [index, stopId] of world.stopIds.entries()) {
           await reportStopArrival({
+            confirmOutOfOrder: true, // chega em todas as paradas sem baixar nenhuma
             ...context,
             idempotencyKey: `chegada-tardia-${String(index)}`,
             location: LOCATION,

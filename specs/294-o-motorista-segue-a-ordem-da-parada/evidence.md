@@ -164,3 +164,27 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Testes: contratos `pending-items` (mescla, permissão por fonte, filtro de empresa/pendente, rotas 200/404/403/rota não-UUID) e integração
   `address-suggestion-pending-items` (5: lista por empresa, aplicar com trilha e auditoria, descartar, tenant 404 nas duas decisões, 409 sem segunda
   gravação). Contrato 13185/0, integração dos arquivos tocados 6/0, typecheck, lint e prettier verdes.
+
+## T3.3 — a API confere a ordem da parada e o canhoto repetido (RF25–RF27)
+
+- Ordem: `resolveStopOrderViolation` (política pura, só tripulação) lê `findNextStopCandidates` sob a trava das paradas (`assertStopInOrder`). Fora de ordem
+  = baixa/chegada/devolução de parada que não é a a caminho/chegada-e-aberta (quando existe uma), ou saída para outra que não a próxima pendente
+  (`findNextPendingStop`, a mesma escolha do "saí"). `409 TRIP_STOP_OUT_OF_ORDER` com `{ error, outOfOrder: { requestedStopId, requestedSequence,
+currentStopId|null, currentSequence|null, nextStopId|null, nextSequence|null } }` (`ApiError.extraBody`, não enumerável quando ausente). `confirmOutOfOrder: true`
+  no corpo de saída, chegada, entrega e devolução (`/me`) grava, com as regras de marcar junto. Reenvio (chave de idempotência) nunca dá 409; parada já fechada,
+  já chegada ou nota já baixada também não. Saída com OUTRA parada a caminho continua `TRIP_HAS_STOP_EN_ROUTE` (precede a conferência). Escritório (`target`) nunca é conferido.
+- Canhoto (`photo`) em todo canal: SHA-256 dos bytes; mesma imagem já anexada na empresa -> nada grava e a resposta é 200 `{ data: { duplicate: { documentId,
+attachedAt }, id, processingState, punctuality } }` (id do comprovante existente, para o app antigo seguir sem erro) no `/me` e `{ data: { duplicate } }` no
+  `field-proof` do escritório. Canhoto diferente sobre um que a nota já tem: tripulação `409 TRIP_CANHOTO_ALREADY_ATTACHED` sem `replaceCanhoto` (campo multipart);
+  sem canhoto na nota (spec 223) entra sem pergunta. Foto da carga nunca confere.
+- O hash já era gravado em `stored_objects.sha256` (por empresa): não há coluna nova, só o índice parcial `stored_objects_company_sha256_delivery_proof_idx`
+  (migration aditiva `20261105120144_canhoto_hash_index`, rollback incluso).
+- Escritório: a regra da T15 M1 foi mantida (troca o próprio canhoto; canhoto da tripulação continua `409 TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`). Na baixa do
+  escritório com canhoto junto, imagem repetida não grava o canhoto e a baixa segue com `proofPending` (sem campo de duplicado na resposta da baixa).
+- WhatsApp: `classifyWhatsAppDriverEventError` ganhou `stop_out_of_order` e o bot responde um texto simples (sem 1/2; vem na T4.10). O envio do canhoto pela entrega
+  em preparo usa o mesmo `attachDeliveryProof`: canhoto repetido não grava e a preparação não trata o `duplicate` ainda (T4.x).
+- App do motorista: o multipart do canhoto (`photo`) sempre manda `replaceCanhoto=true` (o "Substituir" da tela é a confirmação) até a T5.4; saída/chegada/baixa não
+  mandam `confirmOutOfOrder` ainda (T5.4) — um 409 fora de ordem cai no caminho genérico de recusa da fila, sem quebrar.
+- Testes: contratos `stop-order` (política, corpo do 409 e parse das rotas, anexo com doubles, recusa do WhatsApp; 15) e integração `stop-order-guard` (10: em ordem
+  intacto, saída fora de ordem 409 e confirmada, baixa/chegada fora de ordem, reenvio, escritório sem pergunta, sem canhoto, mesma imagem, canhoto diferente
+  409/replace, escritório troca e duplicado). Contrato 13200/0, migrations, integração dos arquivos tocados, typecheck, lint, prettier; app do motorista 2197/0.

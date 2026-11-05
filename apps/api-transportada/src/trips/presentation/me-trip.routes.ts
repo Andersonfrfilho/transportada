@@ -18,6 +18,7 @@ import {
   type DamdfeRenderResult,
   type MdfeDocumentDownload,
 } from '../../mdfe-manifests/application/read-mdfe-document.port.js'
+import type { CanhotoDuplicate } from '../application/canhoto-attachment.types.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import type { DriverDeliveryProofView } from '../application/read-driver-delivery-proof.use-case.js'
 import {
@@ -56,6 +57,7 @@ import {
   parseDocumentDeliveryRequest,
   parseDocumentReturnRequest,
   parseFieldReportRequest,
+  parseStopArrivalRequest,
   parseIdempotencyKey,
   parseStopOccurrenceRequest,
   type StopOccurrenceRequest,
@@ -134,6 +136,7 @@ type DriverActionInput = DriverContextInput & {
 /** Spec 205 RF1/RF2: a baixa da nota diz se veio pelo "Registrar entrega depois". */
 type DriverDocumentOutcomeInput = DriverActionInput &
   EventClockFields & {
+    readonly confirmOutOfOrder?: boolean
     readonly documentId: string
     readonly lateRegistration: boolean
   }
@@ -164,11 +167,16 @@ export type MeTripDependencies = {
     readonly recipientTaxId?: string | null
   }) => Promise<readonly FieldOccurrenceType[]>
   readonly reportArrival: (
-    input: DriverActionInput & EventClockFields & { readonly stopId: string },
+    input: DriverActionInput &
+      EventClockFields & { readonly confirmOutOfOrder?: boolean; readonly stopId: string },
   ) => Promise<ReportStopArrivalResult>
   /** Spec 206 D2: o primeiro toque em "Iniciar rota". */
   readonly reportDeparture: (
-    input: DriverActionInput & { readonly stopId: string; readonly tappedAt: Date },
+    input: DriverActionInput & {
+      readonly confirmOutOfOrder?: boolean
+      readonly stopId: string
+      readonly tappedAt: Date
+    },
   ) => Promise<ReportStopDepartureResult>
   /** Spec 206 D18: "Cancelar rota", a qualquer momento antes do Cheguei. */
   readonly cancelStopDeparture: (
@@ -261,6 +269,8 @@ export type MeTripDependencies = {
     },
   ) => Promise<{
     readonly id: string
+    /** Spec 294 RF26: a mesma imagem já era canhoto — nada foi gravado. */
+    readonly duplicate?: CanhotoDuplicate
     /** Spec 265 RF6: ausente (dublê antigo) é `ready`. */
     readonly processingState?: TripDeliveryProofProcessingState
     readonly punctuality: ProofPunctuality
@@ -423,6 +433,7 @@ export function createMeTripRoutes(
     ),
     defineRoute<
       EventClockFields & {
+        readonly confirmOutOfOrder?: boolean
         readonly idempotencyKey: string
         readonly location: ReportedLocation | null
         readonly stopId: string
@@ -444,7 +455,7 @@ export function createMeTripRoutes(
       },
       method: 'POST',
       async parse({ pathParameters, request }) {
-        const body = await parseFieldReportRequest(request)
+        const body = await parseStopArrivalRequest(request)
         return {
           ...body,
           idempotencyKey: parseIdempotencyKey(request),
@@ -455,6 +466,7 @@ export function createMeTripRoutes(
       policy: DRIVER_REPORT_POLICY,
     }),
     defineRoute<{
+      readonly confirmOutOfOrder?: boolean
       readonly idempotencyKey: string
       readonly location: ReportedLocation | null
       readonly stopId: string
@@ -465,6 +477,9 @@ export function createMeTripRoutes(
         const result = await dependencies.reportDeparture({
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
+          ...(input.confirmOutOfOrder === undefined
+            ? {}
+            : { confirmOutOfOrder: input.confirmOutOfOrder }),
           driverId,
           idempotencyKey: input.idempotencyKey,
           location: input.location,
@@ -481,6 +496,9 @@ export function createMeTripRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseDepartureRequest(request)
         return {
+          ...(body.confirmOutOfOrder === undefined
+            ? {}
+            : { confirmOutOfOrder: body.confirmOutOfOrder }),
           idempotencyKey: parseIdempotencyKey(request),
           location: body.location,
           stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
@@ -627,6 +645,20 @@ export function createMeTripRoutes(
           driverId,
           upload: input.upload,
         })
+
+        if (proof.duplicate !== undefined) {
+          return jsonResponse({
+            body: {
+              data: {
+                duplicate: proof.duplicate,
+                id: proof.id,
+                processingState: resolveDeliveryProofProcessingState(proof.processingState),
+                punctuality: proof.punctuality,
+              },
+            },
+            status: 200,
+          })
+        }
 
         return jsonResponse({
           body: {

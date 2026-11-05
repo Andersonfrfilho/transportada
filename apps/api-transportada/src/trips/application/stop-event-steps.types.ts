@@ -13,6 +13,8 @@ import type { OfficeAuditRequest } from './trip-field-office-audit.port.js'
 export type StopDepartureStepInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
+  /** Spec 294 RF27: a tripulação confirmou gravar fora da ordem da parada; o escritório nunca manda. */
+  readonly confirmOutOfOrder?: boolean
   readonly location: ReportedLocation | null
   readonly now: Date
   readonly stopId: string
@@ -23,6 +25,8 @@ export type StopArrivalStepInput = FieldTripLocator &
   EventClockFields & {
     readonly actorUserId: string
     readonly companyId: string
+    /** Spec 294 RF27: a tripulação confirmou gravar fora da ordem da parada; o escritório nunca manda. */
+    readonly confirmOutOfOrder?: boolean
     readonly location: ReportedLocation | null
     readonly now: Date
     readonly officeAudit?: OfficeAuditRequest

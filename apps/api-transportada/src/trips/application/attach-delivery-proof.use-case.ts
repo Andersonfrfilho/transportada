@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { createHash } from 'node:crypto'
+
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type { Coordinate } from '../../addresses/domain/coordinate-distance.js'
@@ -42,6 +44,7 @@ import {
   TripDeliveryProofRejectedError,
   TripDocumentNotReachableError,
 } from '../domain/trip.error.js'
+import { TripCanhotoAlreadyAttachedError } from '../domain/stop-order.error.js'
 import { TripDeliveryProofCargoLimitError } from '../domain/trip-field-office.error.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import {
@@ -54,6 +57,7 @@ import {
   EMPTY_RECEIVED_BY,
   type ReceivedByFields,
 } from '../domain/received-by.policy.js'
+import type { AttachedCanhoto, CanhotoDuplicate } from './canhoto-attachment.types.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
@@ -93,6 +97,8 @@ export type DeliveryProofUpload = {
    * comprovante sem o dado — nunca recusa (C1).
    */
   readonly receivedBy?: ReceivedByFields
+  /** Spec 294 RF26: a tripulação confirmou trocar o canhoto que a nota já tem; sem isso o canhoto diferente é 409. */
+  readonly replaceCanhoto?: boolean
   /** Nome de quem recebeu — na assinatura e, desde a spec 193 D4, também na foto do canhoto. */
   readonly receiverName: string
   /** Spec 220 RF17/RF19: miniatura gerada no cliente; ausente é o caso normal, nunca condição do comprovante. */
@@ -189,6 +195,11 @@ export type DeliveryProofPort = {
    * Spec 184 D3 / spec 220 RF08: quantos comprovantes daquele evento+tipo já existem — o teto de
    * cinco fotos da mercadoria vale para os dois canais.
    */
+  /** Spec 294 RF26: o canhoto da empresa com a mesma imagem, ou `null`. */
+  findCanhotoByHash(input: {
+    readonly companyId: string
+    readonly sha256: string
+  }): Promise<AttachedCanhoto | null>
   countProofsForEvent(input: {
     readonly companyId: string
     readonly eventId: string
@@ -273,9 +284,11 @@ export type AttachedDeliveryProof = {
   /** Spec 265 RF6: o estado do tratamento do arquivo que a resposta publica. */
   readonly processingState: TripDeliveryProofProcessingState
   readonly punctuality: ProofPunctuality
+  /** Spec 294 RF26: presente quando a mesma imagem já era canhoto — nada foi gravado e `id` é o comprovante que já existia. */
+  readonly duplicate?: CanhotoDuplicate
 }
 
-type AttachOutcome = 'received' | 'replayed' | 'stored'
+type AttachOutcome = 'duplicate' | 'received' | 'replayed' | 'stored'
 
 /**
  * Spec 057, P2 "o comprovante". Ele anexa **a uma entrega que já aconteceu**: a confirmação nunca
@@ -427,6 +440,8 @@ async function attachDeliveryProofUnlogged(
   }
 
   const authorship = deriveFieldAuthorship(input)
+  const duplicate = await resolveCanhotoConflict({ authorship, eventId, input })
+  if (duplicate !== undefined) return { outcome: 'duplicate', proof: duplicate }
   const isCargo = input.upload.kind === CARGO_PROOF_KIND
   // Só evita subir o objeto ao bucket à toa; o teto de verdade é conferido dentro do `saveProof`.
   if (isCargo) {
@@ -536,6 +551,43 @@ async function attachDeliveryProofUnlogged(
       punctuality,
     },
   }
+}
+
+/**
+ * Spec 294 RF26: só o canhoto (`photo`) é conferido. A mesma imagem já anexada na empresa não grava de novo;
+ * outro canhoto sobre um que a nota já tem só passa com `replaceCanhoto`. Nota entregue sem canhoto não tem o
+ * que trocar, e a foto entra como o canhoto que faltava.
+ */
+async function resolveCanhotoConflict(params: {
+  readonly authorship: FieldAuthorship
+  readonly eventId: string
+  readonly input: AttachDeliveryProofInput
+}): Promise<AttachedDeliveryProof | undefined> {
+  const { authorship, eventId, input } = params
+  if (input.upload.kind !== PHOTO_PROOF_KIND) return undefined
+
+  const found = await input.repository.findCanhotoByHash({
+    companyId: input.companyId,
+    sha256: createHash('sha256').update(input.upload.bytes).digest('hex'),
+  })
+  if (found !== null) {
+    return {
+      duplicate: { attachedAt: found.attachedAt, documentId: found.documentId },
+      id: found.proofId,
+      processingState: resolveDeliveryProofProcessingState(null),
+      punctuality: PROOF_PUNCTUALITY.notRequired,
+    }
+  }
+  if (authorship.channel === TRIP_FIELD_CHANNELS.office) return undefined
+  if (input.upload.replaceCanhoto === true) return undefined
+
+  const attached = await input.repository.countProofsForEvent({
+    companyId: input.companyId,
+    eventId,
+    kind: PHOTO_PROOF_KIND,
+  })
+  if (attached > 0) throw new TripCanhotoAlreadyAttachedError()
+  return undefined
 }
 
 function assertThumbnailAccepted(thumbnail: DeliveryProofUpload['thumbnail']): void {

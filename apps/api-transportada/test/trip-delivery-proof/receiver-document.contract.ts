@@ -51,6 +51,7 @@ function buildWorld(settings: Partial<DeliveryProofFieldSettings> = {}) {
   }> = []
 
   const repository: DeliveryProofPort = {
+    findCanhotoByHash: () => Promise.resolve(null),
     findDeliveryContext: () =>
       Promise.resolve({
         deliveredAt: new Date('2026-09-18T12:00:00.000Z'),

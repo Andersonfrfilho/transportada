@@ -48,6 +48,7 @@ import {
 } from '../domain/delivery-proof-settings.policy.js'
 import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
 import { DRIVER_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
+import { findCanhotoByHash } from './canhoto-duplicate.query.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -307,6 +308,10 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
       .limit(1)
 
     return record?.punctuality ?? null
+  }
+
+  public findCanhotoByHash(input: { readonly companyId: string; readonly sha256: string }) {
+    return findCanhotoByHash(this.database, input)
   }
 
   /** Spec 184 D3 / spec 220 RF08: o teto de cinco fotos da mercadoria por entrega. */

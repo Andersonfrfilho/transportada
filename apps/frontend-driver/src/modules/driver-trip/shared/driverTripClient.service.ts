@@ -468,6 +468,8 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       if (variant !== undefined) form.set('variant', variant)
       if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
       if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
+      // O "Substituir" da tela é a confirmação de trocar o canhoto; o diálogo do canhoto repetido é da spec 294 T5.4.
+      if (input.kind === 'photo') form.set('replaceCanhoto', 'true')
       if (input.receivedBy !== undefined) form.set('receivedBy', input.receivedBy)
       if (input.receivedByDetail !== undefined) form.set('receivedByDetail', input.receivedByDetail)
       if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)

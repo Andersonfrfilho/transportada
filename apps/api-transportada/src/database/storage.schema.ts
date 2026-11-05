@@ -91,6 +91,10 @@ export const storedObjects = pgTable(
     index('stored_objects_purpose_retention_idx')
       .on(table.purpose, table.retentionUntil)
       .where(sql`${table.status} <> 'deleted' and ${table.retentionUntil} is not null`),
+    /** Spec 294 RF26: o canhoto repetido é achado pelo hash do conteúdo, dentro da empresa. */
+    index('stored_objects_company_sha256_delivery_proof_idx')
+      .on(table.companyId, table.sha256)
+      .where(sql`${table.purpose} = 'delivery_proof'`),
     check('stored_objects_size_check', sql`${table.sizeBytes} >= 0`),
     check('stored_objects_sha256_check', sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
     check('stored_objects_status_check', sql`${table.status} in ('staging', 'final', 'deleted')`),

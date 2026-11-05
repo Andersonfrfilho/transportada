@@ -37,6 +37,8 @@ export type ReportDocumentOutcomeInput = FieldTripLocator &
   EventClockFields & {
     readonly actorUserId: string
     readonly companyId: string
+    /** Spec 294 RF27: a tripulação confirmou gravar fora da ordem da parada; o escritório nunca manda. */
+    readonly confirmOutOfOrder?: boolean
     readonly documentId: string
     readonly idempotencyKey: string
     /**

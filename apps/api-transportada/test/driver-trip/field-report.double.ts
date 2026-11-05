@@ -121,6 +121,7 @@ export function createFieldReportUnitOfWork(
   state: FieldReportState,
 ): DriverFieldReportUnitOfWork & { readonly state: FieldReportState } {
   const transaction: DriverFieldReportTransactionPort = {
+    findCanhotoByHash: () => Promise.resolve(null),
     claim: async (input): Promise<FieldReportClaim> => {
       state.calls.push('claim')
       const existing = state.reports.get(input.idempotencyKey)

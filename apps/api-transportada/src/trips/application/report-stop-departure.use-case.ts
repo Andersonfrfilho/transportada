@@ -11,6 +11,8 @@ const DEPART_OPERATION = 'stop.depart'
 export type ReportStopDepartureInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
+  /** Spec 294 RF27: a tripulação confirmou gravar fora da ordem da parada; o escritório nunca manda. */
+  readonly confirmOutOfOrder?: boolean
   readonly idempotencyKey: string
   readonly location: ReportedLocation | null
   /** A hora do servidor — usada em `en_route_since` e no evento. */

@@ -76,6 +76,7 @@ import { resolveEventLocationStamp } from '../domain/event-location-stamp.policy
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import { buildProofInsertValues, buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
 import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
+import { findCanhotoByHash } from './canhoto-duplicate.query.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
@@ -1057,6 +1058,10 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .limit(1)
 
     return record ?? null
+  }
+
+  public findCanhotoByHash(input: { readonly companyId: string; readonly sha256: string }) {
+    return findCanhotoByHash(this.transaction, input)
   }
 
   public async findProofForEvent(input: {

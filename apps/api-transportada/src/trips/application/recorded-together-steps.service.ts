@@ -16,6 +16,7 @@ import type {
 } from './driver-field-report.port.js'
 import { toFieldTripTarget } from './field-trip-target.types.js'
 import type { FieldAuthorship, FieldTripLocator } from './field-trip-target.types.js'
+import { assertStopInOrder } from './stop-order-guard.service.js'
 import { applyStopArrival, performStopArrival } from './stop-event-steps.service.js'
 import type { PerformStopArrivalParams } from './stop-event-steps.types.js'
 
@@ -23,6 +24,7 @@ export type SkippedStepsReport = FieldTripLocator &
   EventClockFields & {
     readonly actorUserId: string
     readonly companyId: string
+    readonly confirmOutOfOrder?: boolean
     readonly location: ReportedLocation | null
     readonly now: Date
   }
@@ -82,6 +84,15 @@ export async function recordSkippedSteps(params: RecordSkippedStepsParams): Prom
   const { stop: lockedStop } = await transaction.readDepartureDecision({
     companyId: report.companyId,
     stopId,
+    tripId: stop.tripId,
+  })
+  await assertStopInOrder({
+    authorship: authorship.channel,
+    companyId: report.companyId,
+    confirmOutOfOrder: report.confirmOutOfOrder,
+    requestedEvent,
+    requestedStopId: stopId,
+    transaction,
     tripId: stop.tripId,
   })
   const steps = resolveStopEventSequence({

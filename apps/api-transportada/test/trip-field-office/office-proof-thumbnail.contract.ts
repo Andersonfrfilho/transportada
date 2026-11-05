@@ -145,6 +145,7 @@ async function persistWith(thumbnail: { bytes: Uint8Array; mimeType: string } | 
   const storedKeys: string[] = []
   const saved: SavedProof[] = []
   const transaction = {
+    findCanhotoByHash: async () => null,
     findProofForEvent: async () => null,
     findProofIdByAttachmentKeyWithinTransaction: async () => null,
     saveDeliveryProofWithinTransaction: async (input: SavedProof) => {

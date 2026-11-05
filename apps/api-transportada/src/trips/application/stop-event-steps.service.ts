@@ -17,6 +17,7 @@ import type {
   PerformStopDepartureParams,
   StopDepartureStepResult,
 } from './stop-event-steps.types.js'
+import { assertStopInOrder } from './stop-order-guard.service.js'
 import { buildOfficeAuditEntry } from './trip-field-office-audit.port.js'
 
 const DISPATCHED_STATUS = 'dispatched'
@@ -78,6 +79,16 @@ export async function performStopDeparture(
       enRouteStopSequence: decision.enRouteStop.sequence,
     })
   }
+
+  await assertStopInOrder({
+    authorship: params.authorship.channel,
+    companyId: input.companyId,
+    confirmOutOfOrder: input.confirmOutOfOrder,
+    requestedEvent: 'departed',
+    requestedStopId: input.stopId,
+    transaction,
+    tripId: stop.tripId,
+  })
 
   return applyStopDeparture({ ...params, resolvedTappedAt, tripId: stop.tripId })
 }

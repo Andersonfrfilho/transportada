@@ -328,6 +328,7 @@ function buildProofWorld(input: {
 }) {
   const saved: SavedProof[] = []
   const repository: DeliveryProofPort = {
+    findCanhotoByHash: () => Promise.resolve(null),
     findDeliveryContext: async () => ({
       deliveredAt: DELIVERED_AT,
       deliveryEventPosition: STOP_POSITION,

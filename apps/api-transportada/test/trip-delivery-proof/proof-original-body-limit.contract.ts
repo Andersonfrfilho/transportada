@@ -65,6 +65,7 @@ function buildHandler() {
   const stored: string[] = []
   const saved: Parameters<DeliveryProofPort['saveProof']>[0][] = []
   const repository: DeliveryProofPort = {
+    findCanhotoByHash: () => Promise.resolve(null),
     findDeliveryContext: async () => ({
       deliveredAt: new Date('2026-09-26T12:00:00.000Z'),
       deliveryEventPosition: undefined,

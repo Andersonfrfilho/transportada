@@ -94,6 +94,7 @@ async function attachProof(
   form.set('file', new File([JPEG_BYTES], 'foto.jpg', { type: 'image/jpeg' }))
   form.set('kind', kind)
   form.set('attachmentKey', `${kind}-${crypto.randomUUID()}`)
+  form.set('replaceCanhoto', 'true') // a recaptura do teste é a troca confirmada (spec 294 RF26)
   const upload = await parseDeliveryProofUpload(
     new Request('http://localhost/me/trips/current/documents/x/proof', {
       body: form,
