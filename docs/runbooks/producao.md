@@ -684,8 +684,43 @@ Padrão é simulação; `--confirm` grava (produção ainda pede digitar `produc
 
 - **Staging:** usuário sintético criado e ligado a `service-account-transportada-worker`, com membership ativa e papel `automation` na empresa ativa (1 de 1).
   Verificação: o `worker` obteve token `client_credentials` e a rota `PATCH /trips/:id/documents/:documentId/proof/review/automatic` (UUIDs aleatórios, corpo inválido) respondeu 400 de validação, não 401/403.
-- **Produção (só leitura):** usuário `automation` ainda **não existe** (0 de 1 empresa ativa com o papel, sem vínculo em `external_identities`); client `transportada-worker` existe; client `transportada-worker-cnh-picture` e sua conta de serviço **não existem**.
-  Falta rodar o script em produção (com aval) e criar o client da CNH.
+- **Produção (só leitura, corrigido em 05/11 à tarde):** o usuário `automation` **existia** desde 28/10 (`18152f2a-…`, membership ativa
+  com o papel na única empresa), mas ligado ao subject errado, sem vínculo com a conta de serviço `service-account-transportada-worker`.
+  Por isso o script, que procura pelo subject da conta de serviço, o dava como ausente. Resolvido na seção 5.17.
+
+## 5.17 Credenciais de serviço em produção (05/11/2026)
+
+Com aval do dono ("Sim, promover e configurar"), depois do deploy da `main` (run 42047810579, commit 2db0003b8, PR #536, sucesso).
+MDF-e automático **continua desligado**: `MDFE_AUTO_ISSUE_ENABLED` ausente em `api` e `worker`; `SERVICE_CLIENT_IDS` ausente (vale o padrão).
+
+1. **Keycloak.** O papel de realm `transportada-service` **não existia em produção** (404): criado igual ao `realm.json` e ao
+   staging (só o nome, não composto, sem atributos) e dado a `service-account-transportada-worker` (`0c5fe9dc-…`). O mapper
+   `transportada-api-audience` do `transportada-worker` já existia. Depois, `producao-criar-cnh-picture-client.sh --confirm`:
+   client `transportada-worker-cnh-picture` `ac8b0cf1-6675-4f41-a8ff-73646f7f34bd`, conta de serviço `10625642-62d1-4e40-b1a3-fc1e5a8f1044`
+   só com `transportada-service`, mapper criado, variáveis `CNH_PICTURE_CLIENT_ID/SECRET` (worker) e `KEYCLOAK_CNH_PICTURE_CLIENT_SECRET`
+   (keycloak) gravadas com `--skip-deploys`.
+2. **Banco.** Em vez de rodar `producao-criar-automation.sh` (criaria um segundo usuário `automation`), um único INSERT em
+   `external_identities` ligou o subject `0c5fe9dc-…` (issuer = `KEYCLOAK_ISSUER`) ao usuário existente `18152f2a-…`; nenhum usuário
+   nem membership novos. O script em simulação passou a mostrar `userExisted: true`, `alreadyWithRole: 1`, `toCreate: []`.
+   `producao-criar-cnh-picture-service.sh --confirm`: usuário sintético `73788b9b-b303-4974-a242-ce2267742086`, 1 membership
+   `cnh-picture-service` (1 de 1 empresa ativa).
+3. **Worker.** `railway redeploy -s worker -e production -y` → `SUCCESS`. Boot: `worker_started`, `mdfe_auto_issue_disabled`, sem
+   `cnh_picture_disabled` (foto da CNH ligada).
+4. **Verificação** de dentro do worker, `x-company-id` = `ce523659-…`, sem imprimir token:
+   - `transportada-worker`: `typ=Bearer`, `aud=[transportada-api, account]`, `azp=transportada-worker`, sem `company_id`, papel
+     `transportada-service`. `PATCH /trips/:id/documents/:documentId/proof/review/automatic` (UUIDs aleatórios, corpo `{}`) → 400
+     `INVALID_REQUEST`; `POST /trips/:id/mdfe-manifests/automatic` → 404 `MDFE_AUTO_ISSUE_DISABLED` (nada emitido).
+   - `transportada-worker-cnh-picture`: `typ=Bearer`, `aud=transportada-api`, sem `company_id`, só `transportada-service`.
+     `PUT /fleet/driver-attachments/<uuid aleatório>/cnh-picture` com multipart `file` (WebP 1×1) → 404 `FLEET_DRIVER_ATTACHMENT_NOT_FOUND`.
+     Sem corpo a rota dá 400: o roteador autoriza antes do `parse`, então 400 também já prova que passou de 401/403.
+5. **Backfill da CNH em simulação** (`bun dist/cnh-face/cnh-picture-backfill.main.js --dry-run` no worker): `candidates 0`, `applied 0`,
+   `failed 0`, `keptExisting 0`, `objectMissing 0`, `skipped 0`. `--confirm` não foi rodado.
+
+**Limpeza pendente:** o usuário `automation` (`18152f2a-…`) mantém o vínculo antigo com o subject `706677ad-2659-435d-8e73-2c0c7248dcd4`,
+um usuário comum do Keycloak (username = id do usuário do app, sem `serviceAccountClientId`) criado em 28/10. Não concede nada: as
+quatro permissões do papel `automation` estão todas em `SERVICE_ONLY_PERMISSIONS` e token de gente não as usa (`isUsableBy`, emenda
+ADR-0047), e a membership não tem grupo nem permissão avulsa (só a linha do papel). Remover o vínculo e esse usuário do Keycloak
+numa próxima janela, com aval.
 
 ## 6. Erros que não devem se repetir
 
@@ -793,7 +828,8 @@ chamam a API (MDF-e automático, baixa por WhatsApp, canhoto, e-mail automático
 as autorizasse (ADR-0047). Rodado pelo Anderson: `producao-criar-automation.sh` (mostra o plano e exige
 digitar `producao`). Criou o `identity_user` sintético `18152f2a-d903-4a71-8b2f-4fb6783c658a`, a membership
 `automation` na única empresa ativa (`ce523659-5e30-4b13-96ce-8d603d8cb9e9`) e o vínculo
-`external_identities` com a conta de serviço do worker (`sub` `0c5fe9dc-d869-459e-b1ca-3161980f17d9`). Só
+`external_identities` com a conta de serviço do worker (`sub` `0c5fe9dc-d869-459e-b1ca-3161980f17d9`; **errado**: o vínculo
+gravado foi com `706677ad-…`, um usuário comum do Keycloak — corrigido em 05/11, seção 5.17). Só
 INSERT no banco do app; Keycloak intocado. Reverter: apagar essa membership e o vínculo.
 
 `producao-renomear-usuarios-uuid.sh` rodou no mesmo dia e não achou nenhum username em UUID em
