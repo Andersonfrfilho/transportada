@@ -116,6 +116,7 @@ export type WhatsAppGroupRequestSessions = {
   handleLocation(input: {
     readonly companyId: string
     readonly groupJid: string
+    readonly location?: { readonly latitude: number; readonly longitude: number }
     readonly sender: string
   }): Promise<boolean>
 }
@@ -221,12 +222,13 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       return open?.ownerNumber ?? null
     },
 
-    async handleLocation({ companyId, groupJid, sender }) {
+    async handleLocation({ companyId, groupJid, location, sender }) {
       const open = await repository.findOpen({ companyId, groupJid, now: dependencies.clock() })
       if (open === null || open.ownerNumber !== sender || flow.locationReceived === undefined) {
         return false
       }
       const outcome = flow.locationReceived({
+        ...(location === undefined ? {} : { location }),
         request: open,
         sender,
         senderName: null,

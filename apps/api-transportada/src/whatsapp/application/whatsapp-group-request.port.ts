@@ -80,6 +80,8 @@ export type GroupFlowTurn = {
   readonly senderName: null | string
   /** Sem a marcação do bot, sem espaços nas pontas. */
   readonly text: string
+  /** Spec 292 T9: a localização que o dono compartilhou (só em `locationReceived`). */
+  readonly location?: { readonly latitude: number; readonly longitude: number }
 }
 
 export type GroupFlowOutcome =

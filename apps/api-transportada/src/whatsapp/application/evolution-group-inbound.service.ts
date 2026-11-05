@@ -159,6 +159,7 @@ export type EvolutionGroupInboundPorts = {
   advanceRequestLocation?: (input: {
     readonly companyId: string
     readonly groupJid: string
+    readonly location?: { readonly latitude: number; readonly longitude: number }
     readonly sender: string
   }) => Promise<boolean>
   /** Spec 293 T15: quem escreveu (só dígitos) é o motorista dono do grupo? */
@@ -512,7 +513,12 @@ export function createEvolutionGroupInbound(
           // Não é prova de entrega, mas pode ser a resposta ao passo da localização do pedido dele.
           if (
             media.kind === 'location' &&
-            (await dependencies.advanceRequestLocation?.({ companyId, groupJid, sender })) === true
+            (await dependencies.advanceRequestLocation?.({
+              companyId,
+              groupJid,
+              location: { latitude: media.latitude, longitude: media.longitude },
+              sender,
+            })) === true
           ) {
             return 'media'
           }
