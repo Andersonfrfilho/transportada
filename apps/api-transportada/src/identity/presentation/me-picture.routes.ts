@@ -32,6 +32,7 @@ export function createMePictureRoutes(
             'cache-control': 'no-store',
             'content-type': picture.mimeType,
             etag: `"${picture.sha256}"`,
+            'x-content-type-options': 'nosniff',
           },
           status: 200,
         })
@@ -74,6 +75,7 @@ export function createMePictureRoutes(
       async handle({ context }): Promise<Response> {
         await dependencies.userPicture.remove({
           context: context.scope,
+          idempotent: true,
           userId: context.scope.userId,
         })
         return new Response(null, { headers: { 'cache-control': 'no-store' }, status: 204 })

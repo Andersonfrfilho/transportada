@@ -27,7 +27,15 @@ const NO_PERMISSIONS = new Set<never>()
 
 type StoredPicture = { readonly companyId: string; readonly userId: string }
 
-async function buildHarness() {
+type HarnessOptions = {
+  readonly context?: ReturnType<typeof authenticatedContext>
+}
+
+async function buildHarness(options: HarnessOptions = {}) {
+  const profilePictureCalls: {
+    readonly pictureUrl?: string | undefined
+    readonly userId: string
+  }[] = []
   const saved: StoredPicture[] = []
   const removed: StoredPicture[] = []
   const found: StoredPicture[] = []
@@ -47,11 +55,13 @@ async function buildHarness() {
       return null
     },
     async findIdentitySubject() {
-      return undefined
+      return 'keycloak-subject'
     },
     async remove(input: StoredPicture) {
       removed.push(input)
-      return saved.length > 0
+      const hadPicture = saved.length > 0
+      saved.length = 0
+      return hadPicture
     },
     async save(
       input: StoredPicture & {
@@ -75,7 +85,15 @@ async function buildHarness() {
   }
   const routes = module.createMePictureRoutes({
     userPicture: createUserPictureUseCase({
-      identityGateway: { async setProfilePicture() {} },
+      identityGateway: {
+        async setProfilePicture(input: {
+          readonly pictureUrl?: string | undefined
+          readonly userId: string
+        }) {
+          profilePictureCalls.push(input)
+        },
+      },
+      publicBaseUrl: 'https://api.test',
       repository,
     }),
   })
@@ -84,10 +102,14 @@ async function buildHarness() {
     frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
-    router: createTestRouter({ context: authenticatedContext(NO_PERMISSIONS), routes }),
+    router: createTestRouter({
+      context: options.context ?? authenticatedContext(NO_PERMISSIONS),
+      routes,
+    }),
   })
   return {
     found,
+    profilePictureCalls,
     handle: (request: Request) => handleRequest(request, { timeout() {} }),
     removed,
     saved,
@@ -192,6 +214,7 @@ describe('a própria foto de perfil (spec 295)', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(response.headers.get('content-type')).toBe('image/png')
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff')
     expect(harness.found.every((entry) => entry.userId === COMPANY_CONTEXT.userId)).toBe(true)
   })
 
@@ -211,4 +234,62 @@ describe('a própria foto de perfil (spec 295)', () => {
       { companyId: COMPANY_CONTEXT.companyId, userId: COMPANY_CONTEXT.userId },
     ])
   })
+
+  test('DELETE é idempotente: sem foto responde 204 e ainda zera o atributo do provedor', async () => {
+    const harness = await buildHarness()
+    await harness.handle(upload({ bytes: PNG }))
+    const remove = () =>
+      new Request(`${FRONTEND_ORIGIN}${PICTURE_PATH}`, {
+        headers: { origin: FRONTEND_ORIGIN },
+        method: 'DELETE',
+      })
+
+    const first = await harness.handle(remove())
+    const second = await harness.handle(remove())
+
+    expect([first.status, second.status]).toEqual([204, 204])
+    const calls = harness.profilePictureCalls
+    expect(calls.at(-1)).toEqual({ userId: 'keycloak-subject' })
+    expect(calls).toHaveLength(3)
+  })
+
+  const forbiddenContexts = [
+    [
+      'sem membership ativa (escopo de plataforma)',
+      () =>
+        ({
+          ...authenticatedContext(NO_PERMISSIONS),
+          scope: { kind: 'platform', userId: COMPANY_CONTEXT.userId },
+        }) as unknown as ReturnType<typeof authenticatedContext>,
+    ],
+    [
+      'service account',
+      () => {
+        const base = authenticatedContext(NO_PERMISSIONS)
+        return { ...base, identity: { ...base.identity, serviceAccount: true } }
+      },
+    ],
+  ] as const
+
+  for (const [label, makeContext] of forbiddenContexts) {
+    for (const method of ['GET', 'PUT', 'DELETE'] as const) {
+      test(`${method} ${label} recebe 403 e nada é lido nem gravado`, async () => {
+        const harness = await buildHarness({ context: makeContext() })
+        const request =
+          method === 'PUT'
+            ? upload({ bytes: PNG })
+            : new Request(`${FRONTEND_ORIGIN}${PICTURE_PATH}`, {
+                headers: { origin: FRONTEND_ORIGIN },
+                method,
+              })
+
+        const response = await harness.handle(request)
+
+        expect(response.status).toBe(403)
+        expect(harness.found).toHaveLength(0)
+        expect(harness.saved).toHaveLength(0)
+        expect(harness.removed).toHaveLength(0)
+      })
+    }
+  }
 })

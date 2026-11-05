@@ -57,11 +57,22 @@ export function useOwnPicture() {
     onSuccess: () => queryClient.setQueryData(OWN_PICTURE_QUERY_KEY, null),
   })
 
+  function resetMutations(): void {
+    replaceMutation.reset()
+    removeMutation.reset()
+  }
+
   return {
     errorCode: (replaceMutation.error ?? removeMutation.error)?.message,
     isBusy: replaceMutation.isPending || removeMutation.isPending,
     pictureUrl,
-    remove: () => removeMutation.mutate(),
-    replace: (file: Blob) => replaceMutation.mutate(file),
+    remove: () => {
+      resetMutations()
+      removeMutation.mutate()
+    },
+    replace: (file: Blob) => {
+      resetMutations()
+      replaceMutation.mutate(file)
+    },
   }
 }

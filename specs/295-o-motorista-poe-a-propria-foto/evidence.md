@@ -15,3 +15,11 @@
 - `typecheck`, `lint` limpos; `bun run build` ok (6 pass em `dist.contract`); prettier limpo.
 - CSP: `img-src` já inclui `blob:` e a origem da API — sem mudança.
 - `<input type="file" accept="image/*">` sem `capture`: o seletor do sistema oferece câmera e galeria; `capture` forçaria só a câmera.
+
+## Correções da revisão de código
+
+- `DELETE /me/picture` idempotente (`remove({ idempotent: true })` só na rota própria; a administrativa mantém 404); o atributo do
+  provedor é zerado também sem foto. GET `/me/picture` e da administrativa com `x-content-type-options: nosniff`.
+- Contrato: DELETE duas vezes → 204/204 com o atributo zerado; 403 em GET/PUT/DELETE sem membership ativa e com service account.
+- App do motorista: `useOwnPicture` zera as duas mutations ao iniciar trocar/remover (teste por contrato de fonte: sem DOM nesta app);
+  `OWN_PICTURE_PATH` exportada e usada nos testes.

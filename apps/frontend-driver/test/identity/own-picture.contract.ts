@@ -1,7 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, mock, test } from 'bun:test'
 
-import { createOwnPictureClient } from '../../src/modules/identity/shared/ownPictureClient.service'
+import {
+  createOwnPictureClient,
+  OWN_PICTURE_PATH,
+} from '../../src/modules/identity/shared/ownPictureClient.service'
 import {
   compressUserPicture,
   listPictureEncodeAttempts,
@@ -24,7 +29,7 @@ function createClient(respond: (request: Request) => Response) {
 }
 
 describe('cliente da própria foto (spec 295)', () => {
-  test('read devolve a imagem da rota /me/picture com o token do próprio motorista', async () => {
+  test('read devolve a imagem da rota própria de foto com o token do próprio motorista', async () => {
     let seen: Request | undefined
     const { client } = createClient((request) => {
       seen = request
@@ -34,7 +39,7 @@ describe('cliente da própria foto (spec 295)', () => {
     const picture = await client.read()
 
     expect(picture?.size).toBe(3)
-    expect(seen?.url).toBe(`${API_URL}/me/picture`)
+    expect(seen?.url).toBe(`${API_URL}${OWN_PICTURE_PATH}`)
     expect(seen?.headers.get('authorization')).toBe('Bearer access-token')
   })
 
@@ -55,7 +60,7 @@ describe('cliente da própria foto (spec 295)', () => {
     await client.replace(blob)
 
     expect(seen?.method).toBe('PUT')
-    expect(seen?.url).toBe(`${API_URL}/me/picture`)
+    expect(seen?.url).toBe(`${API_URL}${OWN_PICTURE_PATH}`)
     const fields = await seen?.formData()
     expect(fields?.get('file')).toBeInstanceOf(File)
     expect([...(fields?.keys() ?? [])]).toEqual(['file'])
@@ -85,6 +90,22 @@ describe('cliente da própria foto (spec 295)', () => {
     await client.remove()
 
     expect(seen?.method).toBe('DELETE')
+  })
+})
+
+describe('hook da própria foto (spec 295)', () => {
+  test('trocar ou remover zera os dois erros antes de começar', () => {
+    const source = readFileSync(
+      new URL('../../src/modules/identity/hooks/useOwnPicture.hook.ts', import.meta.url),
+      'utf8',
+    )
+
+    expect(source).toContain('replaceMutation.reset()')
+    expect(source).toContain('removeMutation.reset()')
+    expect(source).toMatch(/remove: \(\) => \{\s+resetMutations\(\)\s+removeMutation\.mutate\(\)/)
+    expect(source).toMatch(
+      /replace: \(file: Blob\) => \{\s+resetMutations\(\)\s+replaceMutation\.mutate\(file\)/,
+    )
   })
 })
 

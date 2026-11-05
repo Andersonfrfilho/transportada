@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-const OWN_PICTURE_PATH = '/me/picture'
+export const OWN_PICTURE_PATH = '/me/picture'
 const OWN_PICTURE_FORM_FIELD = 'file'
 export const OWN_PICTURE_REQUEST_FAILED = 'OWN_PICTURE_REQUEST_FAILED'
 
