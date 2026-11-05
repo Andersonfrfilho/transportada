@@ -740,6 +740,23 @@ da mesma parada, gravados só no rascunho local para comparar por igualdade, nun
 (fotos de comprovante + anexos de ocorrência). Nenhuma escrita; nada enviado a serviço externo; pasta apagada ao fim.
 ⚠️ O Docker Desktop não monta `/tmp` (pasta de rascunho): para testar em Alpine use `docker create` + `docker cp`.
 
+## 5.3 Pós-deploy da spec 294 em staging (2026-11-05)
+
+Deploy 42111238279 (commit 8375877f2, PR #541) em `success`; api, worker, cron, frontend e driver `SUCCESS`
+(`osrm` e `map-tiles` seguem `FAILED` em staging, alheios à 294).
+
+- **Grafo do WhatsApp (conversa individual):** `ENV_NAME=staging bash /home/miyazaki/Documents/personal/ativada/producao-publicar-falas-do-bot.sh`
+  (diff) e depois `--confirm`. Publicou a **versão 2** (a 1 ficou no histórico): 33 nós novos (`driver_*`, `attendant_*`,
+  `fala_*`), 0 removidos, 1 alterado (`driver_trip_menu`).
+- **OCR do canhoto:** `CANHOTO_OCR_ENABLED` não está definida no worker de staging; vale o padrão (ligado fora de
+  produção). Boot: `bot_canhoto_read.engine ready:true`. Memória (cgroup, limite 7629 MB): ocioso ~322 MB, pico
+  ~406 MB em uma leitura de PNG sintético por `POST /internal/bot-canhoto-reads` (200 em ~0,7 s, `markers: 0` —
+  a imagem sintética sem fonte na imagem Alpine não gera texto reconhecível, então o pico real com foto pode ser maior;
+  o código documenta ~740 MB). Medir de dentro: `railway ssh -s worker -e staging`, `/sys/fs/cgroup/memory.current|peak|max`;
+  `sharp` está em `/app/apps/worker-transportada/node_modules`, rode o script de lá com `bun`.
+- **Ligar em produção:** definir `CANHOTO_OCR_ENABLED=true` no `worker` **e** na `api` (mesma regra nos dois) e
+  redeployar; confirmar `engine ready:true` no log e reservar memória para ~740 MB por leitura. Exige aprovação.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
