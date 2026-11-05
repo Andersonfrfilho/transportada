@@ -611,6 +611,65 @@ o download usou `Bun.S3Client` com as `OBJECT_STORAGE_*` do próprio container, 
 arquivo na pasta temporária da sessão (nada impresso na tela), apagada ao fim. Nenhuma escrita em banco, bucket,
 variáveis ou Keycloak. Resultado em `specs/295-o-motorista-poe-a-propria-foto/spike-cnh.md`.
 
+## 5.15 Credencial da foto da CNH (spec 295)
+
+O worker grava a foto da CNH na API com credencial própria: client `transportada-worker-cnh-picture`
+(só `client_credentials`, papel de realm `transportada-service`, mapper de audiência `transportada-api`)
+e, no banco, uma pessoa sintética com o papel `cnh-picture-service` em cada empresa ativa. O
+`--import-realm` do Keycloak **ignora realm existente**: o `realm.json` não cria nada em staging nem em
+produção, então o client nasce pela API de administração. Nunca `railway config apply`.
+
+Feito em staging em 05/11/2026 (client `d99df407-9b16-484f-b85a-5abbf4c4bb42`, conta de serviço
+`19f27ebf-44f0-4ffd-9236-c205b796d3f6`, usuário sintético `e188c430-9c9c-45ae-9a5d-92e396a02f66`).
+Para repetir (produção: `ENV_NAME=production`; cada script pede ainda digitar `producao`):
+
+```bash
+cd /home/miyazaki/Documents/personal/ativada
+ENV_NAME=staging bash producao-criar-cnh-picture-client.sh            # simulação
+ENV_NAME=staging bash producao-criar-cnh-picture-client.sh --confirm  # client + mapper + papel + variáveis
+ENV_NAME=staging bash producao-criar-cnh-picture-service.sh           # simulação: contagens
+ENV_NAME=staging bash producao-criar-cnh-picture-service.sh --confirm # usuário, vínculo e memberships
+railway redeploy -s worker -e staging -y
+railway logs -s worker -e staging --since 10m | grep -E 'cnh_picture_disabled|worker_started'
+```
+
+- O primeiro grava, com `--skip-deploys` e sem imprimir o segredo (`railway variable set --stdin`):
+  `CNH_PICTURE_CLIENT_ID` e `CNH_PICTURE_CLIENT_SECRET` no `worker` e `KEYCLOAK_CNH_PICTURE_CLIENT_SECRET`
+  no `keycloak` (só para o `realm.json` bater num reimport). Mostra o sha256 truncado para comparar.
+- Ligado: o boot do worker **não** mostra `cnh_picture_disabled`. Backfill só em simulação sem aval:
+  `railway ssh -s worker -e staging -- bun dist/cnh-face/cnh-picture-backfill.main.js --dry-run`.
+- Até a branch `work/service-token` (ADR-0047, emenda 2026-11-05) a API recusava todo token de conta de
+  serviço em 401 (o verificador exigia `company_id`). Depois dela, o token do serviço passa **se** tiver
+  `aud=transportada-api`, o papel `transportada-service`, `azp` em `SERVICE_CLIENT_IDS` e nenhuma
+  `company_id`; e só alcança as permissões de serviço.
+
+### Passos manuais por ambiente para as chamadas worker→API (staging primeiro, produção com aval)
+
+O `realm.json` não chega a realm existente: tudo no Keycloak é pela tela ou pela API de administração.
+
+1. **Keycloak, os dois clients** (`transportada-worker` e `transportada-worker-cnh-picture`): Clients →
+   client → Client scopes → `<client>-dedicated` → Add mapper → By configuration → **Audience**. Nome
+   `transportada-api-audience`, _Included Client Audience_ `transportada-api`, _Add to access token_
+   **ligado**, _Add to ID token_ **desligado**. Staging: o do CNH já existe (05/11/2026), falta o do
+   `transportada-worker`. Produção: os dois.
+2. Conferir que `service-account-<client>` tem o papel de realm `transportada-service`, e o usuário
+   sintético a membership com o papel de serviço só nas empresas em que deve agir.
+3. Conferir um token sem imprimir o segredo: decodificar o payload e ver `aud` com `transportada-api`,
+   `azp` com o client, `typ=Bearer` e nenhuma `company_id`.
+4. **Variáveis**:
+
+   | Serviço  | Variável                  | Valor                                                                        |
+   | -------- | ------------------------- | ---------------------------------------------------------------------------- |
+   | `api`    | `SERVICE_CLIENT_IDS`      | opcional; ausente vale `transportada-worker,transportada-worker-cnh-picture` |
+   | `api`    | `MDFE_AUTO_ISSUE_ENABLED` | **`false`** (ou ausente) — ligar só com aval do dono                         |
+   | `worker` | `MDFE_AUTO_ISSUE_ENABLED` | **`false`** (ou ausente) — ligar só com aval do dono, junto com a API        |
+
+   Client de serviço novo entra em `SERVICE_CLIENT_IDS` **e** no realm; fora da lista, o token é 401.
+
+5. Depois do deploy, nos logs da API: chamadas do worker deixam de responder 401 (`UNAUTHENTICATED`); um
+   403 `FORBIDDEN` é membership faltando na empresa ou permissão que o serviço não tem; 404
+   `MDFE_AUTO_ISSUE_DISABLED` é o interruptor desligado (esperado).
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
@@ -624,6 +683,7 @@ variáveis ou Keycloak. Resultado em `specs/295-o-motorista-poe-a-propria-foto/s
 | Deploy não rodou após o merge                                                                                    | Ver "Deploy travado"; checar Actions antes de supor que subiu                                                                             |
 | Publicar gatus antes da api                                                                                      | Ordem acima                                                                                                                               |
 | Scripts em Windows/WSL, `zsh` ou com `nvm` fixo                                                                  | Máquina é Arch; `#!/usr/bin/env bash` e `command -v railway`                                                                              |
+| Esperar que o `realm.json` crie client novo num Keycloak já em uso                                               | O import ignora realm existente: criar pela API de administração (seção 5.15)                                                             |
 
 - **"Não foi possível salvar" ao marcar como tratado um retorno `needs_operator` (29/10/2026).** Causa: o check
   `occurrence_contractor_replies_reason_check` só admite `reason` em `needs_operator`, e `markHandled` mudava o status

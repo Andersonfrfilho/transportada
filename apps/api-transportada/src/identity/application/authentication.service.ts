@@ -21,15 +21,19 @@ const companyIdClaimSchema = z.string().uuid()
 
 type AuthenticationServiceParams = {
   readonly repository: ExternalIdentityRepositoryPort
+  /** ADR-0047, emenda 2026-11-05: os `azp` que podem falar como service account (`SERVICE_CLIENT_IDS`). */
+  readonly serviceClientIds: readonly string[]
   readonly verifier: AccessTokenVerifierPort
 }
 
 export class AuthenticationService implements AuthenticationPort {
   private readonly repository: ExternalIdentityRepositoryPort
+  private readonly serviceClientIds: ReadonlySet<string>
   private readonly verifier: AccessTokenVerifierPort
 
-  public constructor({ repository, verifier }: AuthenticationServiceParams) {
+  public constructor({ repository, serviceClientIds, verifier }: AuthenticationServiceParams) {
     this.repository = repository
+    this.serviceClientIds = new Set(serviceClientIds)
     this.verifier = verifier
   }
 
@@ -49,7 +53,21 @@ export class AuthenticationService implements AuthenticationPort {
       throw error
     }
 
+    /** Refresh e ID token também são JWT assinados pelo realm; só o access token abre a API. */
+    if (verifiedToken.claims.typ !== ACCESS_TOKEN_TYPE) {
+      throw unauthenticated()
+    }
+
     const serviceAccount = hasRealmRole(verifiedToken.claims, SERVICE_ACCOUNT_REALM_ROLE)
+    /**
+     * ADR-0047, emenda 2026-11-05: o papel de realm sozinho não basta. Service account é o token do
+     * papel **e** de um client da lista **e** sem empresa na claim; com o papel e qualquer outra
+     * forma, 401 — nunca cair no caminho de gente, que leria a empresa da claim.
+     */
+    if (serviceAccount && !this.isServiceClientToken(verifiedToken.claims)) {
+      throw unauthenticated()
+    }
+
     const companyIdResult = companyIdClaimSchema.safeParse(verifiedToken.claims.company_id)
     /**
      * ADR-0047 §3: o token do serviço **não** carrega empresa, e exigir a claim dele o deixaria de
@@ -77,7 +95,18 @@ export class AuthenticationService implements AuthenticationPort {
       userId: externalIdentity.userId,
     })
   }
+
+  private isServiceClientToken(claims: Readonly<Record<string, unknown>>): boolean {
+    return (
+      typeof claims.azp === 'string' &&
+      this.serviceClientIds.has(claims.azp) &&
+      claims.company_id === undefined
+    )
+  }
 }
+
+/** Keycloak grava `typ` no corpo: `Bearer` no access token, `Refresh` e `ID` nos outros dois. */
+const ACCESS_TOKEN_TYPE = 'Bearer'
 
 const PLATFORM_ADMIN_REALM_ROLE = 'platform-admin'
 /** ADR-0047 §2: o serviço entra pela mesma porta do `platform-admin`, com papel próprio. */

@@ -1247,6 +1247,7 @@ export function bootstrap(): Bun.Server<undefined> {
   })
   const authentication = new AuthenticationService({
     repository: new DrizzleExternalIdentityRepository(database.db),
+    serviceClientIds: config.serviceClientIds,
     verifier: identityGateway,
   })
   const healthService = new HealthService({
@@ -2063,6 +2064,7 @@ export function bootstrap(): Bun.Server<undefined> {
         nfseProviderApiVersion: config.nfseProviderApiVersion,
         driverTripLockEnabled: config.driverTripLockEnabled,
         driverTripLockMinScore: config.driverTripLockMinScore,
+        mdfeAutoIssueEnabled: config.mdfeAutoIssueEnabled,
         postalCodeProviders: config.postalCodeProviders,
         resolveClientIp,
         routingMatrixUrl: config.routingMatrixUrl,
@@ -2650,6 +2652,7 @@ type CreateApplicationRoutesParams = {
   /** Trava de uma viagem por vez no pedido de prorrogação do motorista (flag e corte de nota). */
   readonly driverTripLockEnabled: ApiEnvironment['driverTripLockEnabled']
   readonly driverTripLockMinScore: ApiEnvironment['driverTripLockMinScore']
+  readonly mdfeAutoIssueEnabled: ApiEnvironment['mdfeAutoIssueEnabled']
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
   readonly resolveClientIp: ClientIpResolver
   readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
@@ -2721,6 +2724,7 @@ function createApplicationRoutes({
   nfseProviderApiVersion,
   driverTripLockEnabled,
   driverTripLockMinScore,
+  mdfeAutoIssueEnabled,
   postalCodeProviders,
   resolveClientIp,
   routingMatrixUrl,
@@ -5960,6 +5964,7 @@ function createApplicationRoutes({
         reader: { listTripTimeline: (input) => listTripTimeline(database, input) },
       }),
       saveSchedule: { execute: (input) => tripStopSchedules.save(input) },
+      mdfeAutoIssueEnabled,
       issueManifestAutomatically: {
         execute: (input) =>
           issueTripManifestAutomatically({

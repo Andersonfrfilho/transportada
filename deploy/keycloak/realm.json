@@ -128,7 +128,21 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "redirectUris": [],
-      "webOrigins": []
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "transportada-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "included.client.audience": "transportada-api",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "transportada-worker-cnh-picture",
@@ -144,7 +158,21 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "redirectUris": [],
-      "webOrigins": []
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "transportada-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "included.client.audience": "transportada-api",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "users": [

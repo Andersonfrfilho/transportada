@@ -45,6 +45,7 @@ describe('worker environment contract', () => {
       foundationSyntheticEffectDelayMs: 0,
       fuelPricePull: undefined,
       hostname: '0.0.0.0',
+      mdfeAutoIssueEnabled: false,
       /** Spec 062 T005: sem segredo e sem template — o padrão é a versão da Graph API e mais nada. */
       whatsapp: {
         apiVersion: 'v23.0',
@@ -362,6 +363,47 @@ describe('worker environment contract', () => {
         WORKER_CLIENT_ID: 'transportada-worker',
       }),
     ).toThrow(WorkerConfigurationError)
+  })
+
+  /**
+   * O MDF-e automático é decisão fiscal do dono (emenda 2026-11-05 da ADR-0047): o crachá do worker
+   * serve também ao canhoto e à baixa do WhatsApp, então tê-lo não pode ligar a emissão. Nasce
+   * desligado, e ligado sem o crachá derruba o boot em vez de não emitir calado.
+   */
+  describe('o interruptor do MDF-e automático', () => {
+    const credentials = {
+      ...validEnvironment,
+      API_BASE_URL: 'https://api.staging.example.com',
+      KEYCLOAK_TOKEN_URL: 'https://keycloak.example.com/token',
+      WORKER_CLIENT_ID: 'transportada-worker',
+      WORKER_CLIENT_SECRET: 'secret-value',
+    }
+
+    test('com o crachá e sem o interruptor, nasce desligado', () => {
+      const environment = parseWorkerEnvironment(credentials)
+
+      expect(environment.mdfeAutoIssue).toBeDefined()
+      expect(environment.mdfeAutoIssueEnabled).toBe(false)
+    })
+
+    test('MDFE_AUTO_ISSUE_ENABLED=true com o crachá liga', () => {
+      expect(
+        parseWorkerEnvironment({ ...credentials, MDFE_AUTO_ISSUE_ENABLED: 'true' })
+          .mdfeAutoIssueEnabled,
+      ).toBe(true)
+    })
+
+    test('ligado sem o crachá derruba o boot', () => {
+      expect(() =>
+        parseWorkerEnvironment({ ...validEnvironment, MDFE_AUTO_ISSUE_ENABLED: 'true' }),
+      ).toThrow(WorkerConfigurationError)
+    })
+
+    test('valor fora de true/false derruba o boot', () => {
+      expect(() =>
+        parseWorkerEnvironment({ ...credentials, MDFE_AUTO_ISSUE_ENABLED: 'yes' }),
+      ).toThrow(WorkerConfigurationError)
+    })
   })
 
   describe('a credencial própria da foto da CNH', () => {

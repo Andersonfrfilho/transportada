@@ -3,7 +3,7 @@
  */
 import { z } from 'zod'
 
-import { COMPANY_ROLES } from '../../database/identity.schema.js'
+import { COMPANY_ROLES, INVITABLE_COMPANY_ROLES } from '../../database/identity.schema.js'
 import { CONTACT_CHANNELS } from '../../database/identity-user-profile.schema.js'
 import {
   parseBody,
@@ -22,10 +22,21 @@ import {
 
 const COMPANY_USER_LIST_QUERY_KEYS = new Set(['cursor', 'limit'])
 
+/**
+ * ADR-0047, emenda 2026-11-05: papel de serviço (`automation`, `cnh-picture-service`) não se dá a
+ * gente por nenhuma rota. Sem esta recusa, trocar papéis gravava o papel do worker numa pessoa, e o
+ * convite estourava 500 no CHECK de `user_invitation_roles`.
+ */
+const personRoleSchema = z
+  .enum(COMPANY_ROLES)
+  .refine((role) => INVITABLE_COMPANY_ROLES.includes(role), {
+    message: 'Role is reserved for service accounts.',
+  })
+
 /** `membership_roles` tem PK `(membership_id, role)`: papel repetido viraria 500 na escrita. */
 function buildCompanyRolesSchema() {
   return z
-    .array(z.enum(COMPANY_ROLES))
+    .array(personRoleSchema)
     .min(1)
     .transform((roles) => [...new Set(roles)])
 }
@@ -115,7 +126,7 @@ export const saveCompanyGroupSchema = z
     name: z.string().trim().min(1).max(80),
     permissions: z.array(companyPermissionSchema).max(120),
     /** Grupo sem papel é legítimo: ele pode conceder só permissões avulsas. */
-    roles: z.array(z.enum(COMPANY_ROLES)).max(COMPANY_ROLES.length),
+    roles: z.array(personRoleSchema).max(INVITABLE_COMPANY_ROLES.length),
   })
   .strict()
 export type SaveCompanyGroupBody = z.infer<typeof saveCompanyGroupSchema>
