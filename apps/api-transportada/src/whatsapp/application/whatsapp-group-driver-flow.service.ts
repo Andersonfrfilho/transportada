@@ -23,6 +23,7 @@ import {
 } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
 import type { GroupBoletoResend } from './whatsapp-group-boleto-resend.service.js'
 import type { createGroupDeliveryFlow } from './whatsapp-group-delivery-flow.service.js'
+import type { createGroupTripCloseFlow } from './whatsapp-group-trip-close-flow.service.js'
 import type { createGroupStopFlow } from './whatsapp-group-stop-flow.service.js'
 import type {
   GroupFlowOutcome,
@@ -31,6 +32,7 @@ import type {
 } from './whatsapp-group-request.port.js'
 
 export const GROUP_DRIVER_STEP = {
+  closePrefix: 'close.',
   deliveryPrefix: 'delivery.',
   menu: 'menu',
   stopPrefix: 'stop.',
@@ -73,6 +75,8 @@ export function createGroupDriverFlow(flows: {
   readonly delivery?: ReturnType<typeof createGroupDeliveryFlow>
   readonly occurrence: GroupRequestFlow
   readonly stop: ReturnType<typeof createGroupStopFlow>
+  /** Spec 294 RF21: "encerrar a rota" do atendente; ausente, o texto segue como antes. */
+  readonly tripClose?: ReturnType<typeof createGroupTripCloseFlow>
 }): GroupRequestFlow {
   const prefixed =
     (prefix: string) =>
@@ -80,7 +84,8 @@ export function createGroupDriverFlow(flows: {
       outcome.kind === 'continue' ? { ...outcome, step: `${prefix}${outcome.step}` } : outcome
   const withStopPrefix = prefixed(GROUP_DRIVER_STEP.stopPrefix)
   const withDeliveryPrefix = prefixed(GROUP_DRIVER_STEP.deliveryPrefix)
-  const { delivery } = flows
+  const { delivery, tripClose } = flows
+  const withClosePrefix = prefixed(GROUP_DRIVER_STEP.closePrefix)
   const menu = delivery === undefined ? MENU_WITHOUT_DELIVERY : GROUP_DRIVER_MENU
   const menuText =
     delivery === undefined ? GROUP_DRIVER_TEXT.menuWithoutDelivery : GROUP_DRIVER_TEXT.menu
@@ -123,6 +128,12 @@ export function createGroupDriverFlow(flows: {
           }),
         )
       }
+      if (tripClose !== undefined && step.startsWith(GROUP_DRIVER_STEP.closePrefix)) {
+        return tripClose.answer({
+          ...turn,
+          request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.closePrefix.length) },
+        })
+      }
       if (step.startsWith(GROUP_DRIVER_STEP.stopPrefix)) {
         return flows.stop.answer({
           ...turn,
@@ -139,6 +150,7 @@ export function createGroupDriverFlow(flows: {
       if (
         step === GROUP_DRIVER_STEP.menu ||
         step.startsWith(GROUP_DRIVER_STEP.deliveryPrefix) ||
+        step.startsWith(GROUP_DRIVER_STEP.closePrefix) ||
         step.startsWith(GROUP_DRIVER_STEP.stopPrefix)
       ) {
         return null
@@ -154,6 +166,9 @@ export function createGroupDriverFlow(flows: {
           state: {},
           step: GROUP_DRIVER_STEP.menu,
         }
+      }
+      if (tripClose?.matches(turn.text) === true) {
+        return withClosePrefix(await tripClose.begin(turn))
       }
       const resend = flows.boletoResend?.interpret(turn.text) ?? null
       if (resend !== null && flows.boletoResend !== undefined) {

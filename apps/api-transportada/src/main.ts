@@ -221,6 +221,14 @@ import {
   createGroupDeliveryWiring,
   type GroupDeliveryWiring,
 } from './whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
+import {
+  createGroupTripCloseFlow,
+  type GroupTripCloseFlowPorts,
+} from './whatsapp/application/whatsapp-group-trip-close-flow.service.js'
+import {
+  createWhatsAppGroupTripClosePorts,
+  type WhatsAppTripCloseBridge,
+} from './whatsapp/infrastructure/whatsapp-group-trip-close.adapter.js'
 import { createWhatsAppOfficeDelivery } from './whatsapp-commands/infrastructure/whatsapp-office-delivery.adapter.js'
 import {
   createAttendantFinder,
@@ -1597,16 +1605,29 @@ export function bootstrap(): Bun.Server<undefined> {
     companyId: input.companyId,
     whatsappNumber: `group-driver:${input.driverId}`,
   })
+  const whatsappResolveActor = createResolveWhatsAppActorUseCase({
+    memberships: new DrizzleMembershipRepository(database.db),
+    phones: new DrizzleWhatsAppPhoneRepository(database.db),
+    tenantContext,
+  })
   /** Spec 294 RF18: quem mandou no grupo — tripulação, atendente (usuário com a baixa do escritório) ou ninguém. */
   const whatsappSenderRole = createWhatsAppSenderRoleResolver({
     findAttendant: createAttendantFinder({
-      resolveActor: createResolveWhatsAppActorUseCase({
-        memberships: new DrizzleMembershipRepository(database.db),
-        phones: new DrizzleWhatsAppPhoneRepository(database.db),
-        tenantContext,
-      }),
+      resolveActor: whatsappResolveActor,
     }),
     isCrewMember: (input) => isCrewPhone(database.db, input),
+  })
+  /**
+   * Spec 294 RF21: "encerrar a rota" do atendente chama a MESMA função de `POST /trips/:id/close`. Ela nasce
+   * em `createApplicationRoutes`, depois deste bloco: a ponte é preenchida lá, antes de qualquer mensagem.
+   */
+  const whatsappTripCloseBridge: WhatsAppTripCloseBridge = {}
+  const whatsappGroupTripClose = createWhatsAppGroupTripClosePorts({
+    bridge: whatsappTripCloseBridge,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    resolveActor: whatsappResolveActor,
+    resolveSenderRole: whatsappSenderRole,
   })
   const whatsappGroupDelivery = createGroupDeliveryWiring({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
@@ -1616,6 +1637,7 @@ export function bootstrap(): Bun.Server<undefined> {
     preparations: whatsappDriverCollections,
     rememberLocation: ({ location, ...key }) =>
       whatsappGroupLocations.remember({ ...groupLocationKey(key), location }),
+    deliverAsAttendant: whatsappOfficeDelivery.deliver,
     resolveSenderRole: whatsappSenderRole,
     speech: whatsappBotSpeech,
   })
@@ -2037,6 +2059,7 @@ export function bootstrap(): Bun.Server<undefined> {
       whatsappGroupDelivery,
       whatsappGroupOccurrence,
       whatsappGroupStop,
+      whatsappGroupTripClose,
     }),
     authentication,
     authorization: new AuthorizationService(),
@@ -2108,6 +2131,7 @@ export function bootstrap(): Bun.Server<undefined> {
         driverOccurrenceNotifier,
         sendAutomaticOccurrenceMail,
         automaticManifestNotifier,
+        whatsappTripCloseBridge,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
         contractorMailRateLimit: config.contractorMailRateLimit,
         contractorMailSandbox: config.contractorMailSandbox,
@@ -2188,6 +2212,8 @@ type CreateAnonymousRoutesParams = {
   /** Spec 292 T5: o fluxo do pedido no grupo do motorista (só a entrega anônima do Evolution o usa). */
   readonly whatsappGroupOccurrence: GroupOccurrenceFlowPorts
   readonly whatsappGroupStop: GroupStopFlowPorts
+  /** Spec 294 RF21: "encerrar a rota" do atendente no grupo. */
+  readonly whatsappGroupTripClose: GroupTripCloseFlowPorts
   /** Spec 293 T15: a entrega em preparo no grupo; ausente, "entreguei" e as fotos não são atendidos. */
   readonly whatsappGroupDelivery: GroupDeliveryWiring
   /** Spec 292 T7: "pedir boleto de novo" no grupo. */
@@ -2215,6 +2241,8 @@ function createEvolutionWebhook(input: {
   readonly groupOccurrence?: GroupOccurrenceFlowPorts
   /** Spec 293 T12: o "saí"/"cheguei" do grupo; ausente, só a ocorrência atende. */
   readonly groupStop?: GroupStopFlowPorts
+  /** Spec 294 RF21: "encerrar a rota" do atendente; ausente, o texto segue como antes. */
+  readonly groupTripClose?: GroupTripCloseFlowPorts
   /** Spec 293 T15: "entreguei" e as provas (foto/localização) do grupo; ausente, não atendidos. */
   readonly groupDelivery?: GroupDeliveryWiring
   /** Spec 292 T7: "pedir boleto de novo" no grupo; ausente, o texto segue para a ocorrência. */
@@ -2268,6 +2296,9 @@ function createEvolutionWebhook(input: {
                     : { delivery: createGroupDeliveryFlow(input.groupDelivery.flow) }),
                   occurrence: createGroupOccurrenceFlow(input.groupOccurrence),
                   stop: createGroupStopFlow(input.groupStop),
+                  ...(input.groupTripClose === undefined
+                    ? {}
+                    : { tripClose: createGroupTripCloseFlow(input.groupTripClose) }),
                 }),
           logger,
           replies: groupReplies,
@@ -2397,6 +2428,7 @@ function createAnonymousRoutes({
   whatsappGroupDelivery,
   whatsappGroupOccurrence,
   whatsappGroupStop,
+  whatsappGroupTripClose,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
   /**
@@ -2489,6 +2521,7 @@ function createAnonymousRoutes({
       groupBoletoResend: whatsappGroupBoletoResend,
       groupOccurrence: whatsappGroupOccurrence,
       groupStop: whatsappGroupStop,
+      groupTripClose: whatsappGroupTripClose,
       logger,
     }),
   })
@@ -2669,6 +2702,8 @@ function createAnonymousRoutes({
 }
 
 type CreateApplicationRoutesParams = {
+  /** Spec 294 RF21: a ponte por onde o WhatsApp chega à função de encerrar viagem do painel. */
+  readonly whatsappTripCloseBridge: WhatsAppTripCloseBridge
   /** Spec 183 T802: o aviso automático à contratante, chamado depois de cada registro. */
   readonly automaticOccurrenceMail: AutomaticOccurrenceMailHook
   /** Spec 275: o aviso interno da ocorrência do motorista, o mesmo do WhatsApp. */
@@ -2760,6 +2795,7 @@ async function readTripRouteGeometryStopsOrWarn(input: {
 }
 
 function createApplicationRoutes({
+  whatsappTripCloseBridge,
   apiPublicUrl,
   appBaseUrl,
   automaticOccurrenceMail,
@@ -3424,6 +3460,8 @@ function createApplicationRoutes({
     repository: tripRepository,
     routeFreezer: tripRouteTollFreezer,
   })
+  /** Spec 294 RF21: o "encerrar a rota" do atendente pelo WhatsApp chama esta mesma função. */
+  whatsappTripCloseBridge.close = (input) => trips.close(input)
   const createTripMdfeManifest = createTripMdfeManifestUseCase({
     manifests: mdfeManifests,
     readiness: {

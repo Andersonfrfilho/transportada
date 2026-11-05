@@ -48,6 +48,8 @@ export function createGroupDeliveryWiring(dependencies: {
   readonly database: Database
   /** Spec 294 RF18: quem mandou — tripulação, atendente ou ninguém. */
   readonly resolveSenderRole: ResolveWhatsAppSenderRole
+  /** Spec 294 RF21: a baixa do atendente pelo escritório (lote, sem prova). */
+  readonly deliverAsAttendant: GroupDeliveryFlowPorts['deliverAsAttendant']
   readonly listActiveTrips: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -72,6 +74,9 @@ export function createGroupDeliveryWiring(dependencies: {
   return {
     flow: {
       consumeLocation: dependencies.consumeLocation,
+      ...(dependencies.deliverAsAttendant === undefined
+        ? {}
+        : { deliverAsAttendant: dependencies.deliverAsAttendant }),
       findActorUserId,
       async listOpenDocuments({ companyId, driverId }) {
         const trips = await dependencies.listActiveTrips({ companyId, driverId })

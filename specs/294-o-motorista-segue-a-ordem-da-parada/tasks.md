@@ -58,11 +58,11 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 - [ ] **T4.2** Linha "marquei junto" nas respostas de saí/cheguei/entreguei/devolvi (RF5).
 - [ ] **T4.3** Fluxo da próxima rota (grupo e individual), com abertura condicionada (RNF1). T0.4 verde.
 - [ ] **T4.4** "Cheguei" em parada não confiável pede a localização e chama a correção.
-- [ ] **T4.5** RF18–RF20: identificar quem mandou (tripulação × atendente × nenhum) no grupo e no individual; baixa do
+- [ ] **T4.5** (grupo feito, conversa individual pendente) RF18–RF20: identificar quem mandou (tripulação × atendente × nenhum) no grupo e no individual; baixa do
       atendente pelo caminho do escritório (`target`, autoria `office`, ator = usuário do atendente) com provas opcionais;
       corrigir a entrega em preparo do grupo que grava em nome do motorista. Contratos: atendente pula etapas sem marcar
       junto, tripulação marca junto, desconhecido é recusado.
-- [ ] **T4.6** RF21: atendente fecha no grupo e no individual — baixa de várias notas de uma vez e encerrar viagem
+- [ ] **T4.6** (grupo feito, conversa individual pendente) RF21: atendente fecha no grupo e no individual — baixa de várias notas de uma vez e encerrar viagem
       (mesmas funções do painel, `POST /trips/:id/close`), com confirmação. Contratos nos dois canais; tripulação
       continua uma nota por vez.
 - [ ] **T4.7** RF22: contratos de áudio para cada passo novo (próxima rota, marquei junto, escolha de parada/nota,

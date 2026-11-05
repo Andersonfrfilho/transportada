@@ -86,3 +86,34 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Contratos: `driver-events.contract.ts` (política), `group-stop-flow.contract.ts` (lista do saí/cheguei),
   `group-delivery-flow.contract.ts` (lista do entreguei).
 - Gates: typecheck e lint limpos; contrato da API → 13168 pass, 26 skip, 0 fail; prettier ok.
+
+## T4.5 (grupo) — quem mandou decide a regra; atendente baixa pelo escritório (RF18–RF20)
+
+- `createWhatsAppSenderRoleResolver` (tripulação × atendente × desconhecido): tripulação = telefone de motorista/ajudante
+  da frota (`isCrewPhone`, extraído do adaptador da ocorrência); atendente = `resolveWhatsAppActor` (spec 144) com a
+  permissão `trip.report-on-behalf`, a mesma da rota `field-delivery` (nenhuma permissão nova). Tripulação vence quando o
+  número é das duas coisas. Desconhecido: "Só a tripulação ou um atendente cadastrado registra a entrega." e nada é gravado.
+- RF20: a entrega em preparo do grupo deixou de gravar sempre no motorista dono do grupo: o ator vem do remetente.
+  Atendente = `{ actorUserId: usuário, driverId: motorista da viagem, attendant: true }`; a foto/localização dele também é
+  admitida (`isGroupDriver` aceita atendente) e a baixa/anexo vão pelas MESMAS funções do escritório
+  (`reportDocumentDelivery` com alvo `trip` resolvido, `reportFieldProof`), autoria `office`, auditoria
+  `trip_field_office.document_*` com origem `whatsapp`. Janela de horário informado: a da própria função (hora = agora).
+- RF19: comprovantes opcionais para o atendente: `required` vira `optional` em foto, mercadoria, quem recebeu e nome;
+  assinatura é ignorada (não existe no escritório). Sem canhoto, a baixa segue "conclui sem canhoto e cobra depois" (223).
+  Anexo recusado pela configuração do escritório cai no aviso "não consegui anexar" já existente.
+- Contratos: `test/whatsapp/group-sender-role.contract.ts` (papéis, permissão, fluxo do grupo por remetente, função do
+  escritório), `delivery-preparation.contract.ts` (tripulação não pula obrigatório; atendente pula tudo e a baixa leva
+  `attendant: true`).
+- Pendente: conversa individual (menu do operador, spec 144 — grafo publicado) para "dar baixa" do atendente.
+
+## T4.6 (grupo) — várias notas e encerrar a rota pelo atendente (RF21)
+
+- "entreguei 17234 17235": só o atendente (até 8 notas); baixa pelo escritório sem prova, resumo por situação (registrada,
+  canhoto pendente, já baixada, não encontrada, falhou). Tripulação segue "uma nota por vez".
+- "encerrar a rota/viagem": só o atendente; confirmação "1 - Sim / 2 - Não" com quantas notas seguem abertas; chama
+  `trips.close` (a função de `POST /trips/:id/close`) pela ponte `whatsappTripCloseBridge`, com o contexto do atendente,
+  motivo fixo e auditoria `whatsapp`. Quem confirma também precisa ser atendente. Mais de uma viagem ativa: manda ao painel.
+- Contrato: `test/whatsapp/group-attendant-close.contract.ts`.
+- Pendente: conversa individual (viagem pelo número da nota ou pela lista de viagens na rua).
+- Gates: typecheck e lint limpos; contrato da API sem falhas; prettier ok. Integração não rodada (outro worktree usava o
+  Postgres de teste).
