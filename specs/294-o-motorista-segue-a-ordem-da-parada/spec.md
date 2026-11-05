@@ -125,9 +125,15 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
     quando o item é opcional).
 - **RF23** — **Foto do canhoto dá a baixa.** Foto recebida sem "entreguei" passa pela leitura do código de barras
   que já existe (worker `canhoto-read`, specs 220/222: `readNumber`/`readDocumentId`), agora **antes** da baixa:
-  - casa com uma nota aberta da viagem de quem mandou → abre a entrega em preparo da nota com a foto como canhoto,
-    marca junto o que faltar (RF1) e, sem outra prova obrigatória pendente, dá a baixa e responde
-    "✅ NF 17234 entregue (li o canhoto)"; com prova pendente, pede só o que falta;
+  - **primeiro confere se é mesmo um canhoto** (a parte destacável assinada: "Recebemos de…", data de recebimento,
+    assinatura do recebedor), e não o corpo da DANFE, a mercadoria ou outra foto. Não é canhoto → "Essa foto não
+    parece um canhoto assinado. É foto da mercadoria? _1_ - Mercadoria / _2_ - É o canhoto / _3_ - Descartar"
+    (resposta também por áudio). O "2" do motorista vale, e a foto segue marcada para conferência do escritório
+    (`pending`, como a 222 faz com o que a máquina não aprova);
+  - é canhoto e casa com uma nota aberta da viagem de quem mandou → abre a entrega em preparo da nota com a foto
+    como canhoto, marca junto o que faltar (RF1) e **pede a localização** ("📍 Mande sua localização pelo clipe, ou
+    responda _pular_"; a compartilhada pouco antes vale sem perguntar). Sem outra prova obrigatória pendente, dá a
+    baixa e responde "✅ NF 17234 entregue (li o canhoto)"; com prova pendente, pede só o que falta;
   - várias fotos seguidas → cada canhoto lido baixa a sua nota (o "uma nota por vez" não vale para foto lida);
   - não leu, ou a nota não é da viagem → "De qual nota é este canhoto?" (resposta também por áudio). Nunca baixa
     por palpite;

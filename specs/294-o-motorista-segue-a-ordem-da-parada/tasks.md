@@ -65,7 +65,10 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       continua uma nota por vez.
 - [ ] **T4.7** RF22: contratos de áudio para cada passo novo (próxima rota, marquei junto, escolha de parada/nota,
       quem recebeu, pular, encerrar rota, atendente) no grupo e no individual; mídia pedida + áudio repete o pedido.
-- [ ] **T4.8** RF23: foto sem "entreguei" passa pela leitura do canhoto antes da baixa (worker `canhoto-read`);
+- [ ] **T4.8a 🧠** Spike (`opus`): como saber se a foto é um canhoto assinado — comparar OCR local no worker (marcas
+      "Recebemos de", "Data de recebimento", "Assinatura") × modelo de visão; custo por foto, tempo, acerto num lote real
+      de fotos de staging; decisão registrada no ADR 0113 ou ADR novo. Sem decisão, a T4.8 não começa.
+- [ ] **T4.8** RF23: foto sem "entreguei" → confere se é canhoto (T4.8a) → leitura do canhoto (worker `canhoto-read`) → pede localização;
       casou → entrega em preparo com o canhoto e baixa; não casou → pergunta a nota. Contratos: casou, várias fotos,
       ilegível, nota de outra viagem, atendente.
 - [ ] **T4.9** RF24: "Iniciar rota" e "Cheguei" pelo bot pedem localização opcional (pular falado vale; usa a
