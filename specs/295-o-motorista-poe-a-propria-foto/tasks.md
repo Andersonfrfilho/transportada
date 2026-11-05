@@ -3,19 +3,19 @@
 ## Fase 1 — API própria foto
 > 🤖 Modelo: `sonnet`
 
-- [ ] T1.1 Contrato `test/me-picture.contract.test.ts` (positivos + negativos: sem id externo, mime/tamanho/vazio → 400, 404 sem foto, 401) e registro no `package.json`.
-- [ ] T1.2 Constante, `me-picture.routes.ts` e montagem no `main.ts`.
+- [x] T1.1 Contrato `test/me-picture.contract.test.ts` (positivos + negativos: sem id externo, mime/tamanho/vazio → 400, 404 sem foto, 401) e registro no `package.json`.
+- [x] T1.2 Constante, `me-picture.routes.ts` e montagem no `main.ts`.
 
 ## Fase 2 — App do motorista
 > 🤖 Modelo: `sonnet`
 
-- [ ] T2.1 Teste de compressão/cliente + serviços copiados e cliente `/me/picture` + query.
-- [ ] T2.2 `DriverAvatar`, Perfil (trocar/remover), cabeçalho e conversas; locale pt/en; teste e build.
+- [x] T2.1 Teste de compressão/cliente + serviços copiados e cliente `/me/picture` + query.
+- [x] T2.2 `DriverAvatar`, Perfil (trocar/remover), cabeçalho e conversas; locale pt/en; teste e build.
 
 ## Fase 3 — Documentação viva
 > 🤖 Modelo: `haiku`
 
-- [ ] T3.1 Atualizar `apps/api-transportada/CLAUDE.md`, `apps/frontend-driver/CLAUDE.md` e o `CLAUDE.md` da raiz (uma linha).
+- [x] T3.1 Atualizar `apps/api-transportada/CLAUDE.md`, `apps/frontend-driver/CLAUDE.md` e o `CLAUDE.md` da raiz (uma linha).
 
 ## Fase 4 — Foto da CNH aplicada direto (espera o spike)
 > 🤖 Modelo: `opus` (T4.1 🧠), depois `sonnet`
