@@ -611,6 +611,39 @@ o download usou `Bun.S3Client` com as `OBJECT_STORAGE_*` do próprio container, 
 arquivo na pasta temporária da sessão (nada impresso na tela), apagada ao fim. Nenhuma escrita em banco, bucket,
 variáveis ou Keycloak. Resultado em `specs/295-o-motorista-poe-a-propria-foto/spike-cnh.md`.
 
+## 5.15 Credencial da foto da CNH (spec 295)
+
+O worker grava a foto da CNH na API com credencial própria: client `transportada-worker-cnh-picture`
+(só `client_credentials`, papel de realm `transportada-service`, mapper de audiência `transportada-api`)
+e, no banco, uma pessoa sintética com o papel `cnh-picture-service` em cada empresa ativa. O
+`--import-realm` do Keycloak **ignora realm existente**: o `realm.json` não cria nada em staging nem em
+produção, então o client nasce pela API de administração. Nunca `railway config apply`.
+
+Feito em staging em 05/11/2026 (client `d99df407-9b16-484f-b85a-5abbf4c4bb42`, conta de serviço
+`19f27ebf-44f0-4ffd-9236-c205b796d3f6`, usuário sintético `e188c430-9c9c-45ae-9a5d-92e396a02f66`).
+Para repetir (produção: `ENV_NAME=production`; cada script pede ainda digitar `producao`):
+
+```bash
+cd /home/miyazaki/Documents/personal/ativada
+ENV_NAME=staging bash producao-criar-cnh-picture-client.sh            # simulação
+ENV_NAME=staging bash producao-criar-cnh-picture-client.sh --confirm  # client + mapper + papel + variáveis
+ENV_NAME=staging bash producao-criar-cnh-picture-service.sh           # simulação: contagens
+ENV_NAME=staging bash producao-criar-cnh-picture-service.sh --confirm # usuário, vínculo e memberships
+railway redeploy -s worker -e staging -y
+railway logs -s worker -e staging --since 10m | grep -E 'cnh_picture_disabled|worker_started'
+```
+
+- O primeiro grava, com `--skip-deploys` e sem imprimir o segredo (`railway variable set --stdin`):
+  `CNH_PICTURE_CLIENT_ID` e `CNH_PICTURE_CLIENT_SECRET` no `worker` e `KEYCLOAK_CNH_PICTURE_CLIENT_SECRET`
+  no `keycloak` (só para o `realm.json` bater num reimport). Mostra o sha256 truncado para comparar.
+- Ligado: o boot do worker **não** mostra `cnh_picture_disabled`. Backfill só em simulação sem aval:
+  `railway ssh -s worker -e staging -- bun dist/cnh-face/cnh-picture-backfill.main.js --dry-run`.
+- ⚠️ **Em 05/11/2026 a API ainda recusa todo token de conta de serviço** (401 `UNAUTHENTICATED`, também
+  com `aud=transportada-api`): o verificador em `keycloak-jwt.gateway.ts` exige a claim `company_id`
+  (`requiredClaims`), que o token de serviço não tem (ADR-0047 §3). Vale também para o
+  `transportada-worker` (MDF-e automático, canhoto, e-mail automático, baixa por WhatsApp). Enquanto o
+  código não mudar, a foto da CNH não chega à API mesmo com tudo acima configurado.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
@@ -624,6 +657,7 @@ variáveis ou Keycloak. Resultado em `specs/295-o-motorista-poe-a-propria-foto/s
 | Deploy não rodou após o merge                                                                                    | Ver "Deploy travado"; checar Actions antes de supor que subiu                                                                             |
 | Publicar gatus antes da api                                                                                      | Ordem acima                                                                                                                               |
 | Scripts em Windows/WSL, `zsh` ou com `nvm` fixo                                                                  | Máquina é Arch; `#!/usr/bin/env bash` e `command -v railway`                                                                              |
+| Esperar que o `realm.json` crie client novo num Keycloak já em uso                                               | O import ignora realm existente: criar pela API de administração (seção 5.15)                                                              |
 
 - **"Não foi possível salvar" ao marcar como tratado um retorno `needs_operator` (29/10/2026).** Causa: o check
   `occurrence_contractor_replies_reason_check` só admite `reason` em `needs_operator`, e `markHandled` mudava o status
