@@ -10,7 +10,7 @@ chave é perder o dado). A feature começa na Fase 2.
 
 ## Fase 2 — Tabela e rotas · 🤖 `sonnet`
 
-- [ ] **T007** Contrato de isolamento multiempresa de `fleet_driver_attachments`, em
+- [x] **T007** Contrato de isolamento multiempresa de `fleet_driver_attachments`, em
       `test/fleet-schema/tenant-safety.contract.ts`. Aceite: FK composta com `company_id`; a FK
       simples reprova.
 - [ ] **T008** Migration da tabela, com índice único parcial de um documento vivo por tipo.
