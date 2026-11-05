@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CorrectionOrigin } from '../../database/geocoded-address-correction.schema.js'
 import type { GeocodingPrecision, GeocodingSource } from '../../database/geocoding.schema.js'
 
 /**
@@ -50,17 +51,29 @@ export type GeocodedAddressRepository = Readonly<{
  * ⚠️ **Coordenada e trilha numa transação só.** Em duas escritas, uma falha no meio deixaria o
  * endereço corrigido sem registro de quem o corrigiu — e o relatório da 084 mede exatamente isso.
  */
+export type GeocodedAddressCorrectionInput = {
+  readonly actorUserId: string
+  readonly addressKey: string
+  readonly companyId: string
+  readonly latitude: string
+  readonly longitude: string
+  /** Spec 294 (ADR-0113): a chegada do motorista grava `driver`/`driver`; o padrão é o pino do operador. */
+  readonly origin?: CorrectionOrigin
+  readonly source?: 'driver' | 'manual'
+}
+
+export type GeocodedAddressCorrectionResult = {
+  readonly applied: boolean
+  readonly previous: GeocodedAddressRecord | null
+}
+
 export type GeocodedAddressCorrectionRepository = Readonly<{
   /**
    * `applied: false` quando o banco recusou a escrita. Ele **precisa** existir: a rota devolvia
    * `200` com a coordenada nova enquanto o `where` do upsert descartava a atualização em silêncio,
    * e a resposta mentia.
    */
-  applyCorrection: (input: {
-    readonly actorUserId: string
-    readonly addressKey: string
-    readonly companyId: string
-    readonly latitude: string
-    readonly longitude: string
-  }) => Promise<{ readonly applied: boolean; readonly previous: GeocodedAddressRecord | null }>
+  applyCorrection: (
+    input: GeocodedAddressCorrectionInput,
+  ) => Promise<GeocodedAddressCorrectionResult>
 }>

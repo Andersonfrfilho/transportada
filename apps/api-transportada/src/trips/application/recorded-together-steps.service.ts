@@ -142,6 +142,15 @@ export async function performSequencedStopArrival(
     isOffice: false,
     stop: skipped.stop,
   })
+  if (input.location !== null) {
+    await transaction.correctAddressFromArrival({
+      actorUserId: input.actorUserId,
+      companyId: input.companyId,
+      eventId: event.id,
+      location: input.location,
+      stopId: input.stopId,
+    })
+  }
 
   return { id: event.id, recordedTogether: skipped.recordedTogether }
 }

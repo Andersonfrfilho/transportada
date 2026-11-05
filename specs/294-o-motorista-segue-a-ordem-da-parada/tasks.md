@@ -42,7 +42,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** `address-arrival-correction.policy.ts` (T0.3 verde) + aplicação com `origin: 'driver'` +
+- [x] **T3.1** `address-arrival-correction.policy.ts` (T0.3 verde) + aplicação com `origin: 'driver'` +
       sugestão. Evento na linha do tempo (RF16).
 - [ ] **T3.2** `GET /pending-items` com sugestões; aplicar/descartar com `settings.manage` (conferir a permissão
       do PATCH atual de endereço e usar a mesma). Contrato negativo de tenant.

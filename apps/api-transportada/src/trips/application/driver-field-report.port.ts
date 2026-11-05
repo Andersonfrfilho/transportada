@@ -415,6 +415,17 @@ export type DriverFieldReportTransactionPort = {
     readonly eventId: string
   }): Promise<readonly StopEventStep[]>
   /**
+   * Spec 294 RF14/RF15 (ADR-0113 §2): o ponto da chegada corrige o endereço da parada, vira sugestão
+   * ao escritório ou nada. Nunca falha a chegada: o erro fica contido e vai só ao log.
+   */
+  correctAddressFromArrival(input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly eventId: string
+    readonly location: ReportedLocation
+    readonly stopId: string
+  }): Promise<void>
+  /**
    * Spec 294 RF8: as paradas da viagem com o que a oferta da próxima mostra — duas leituras para a
    * viagem inteira (paradas com a coordenada e notas), nunca uma por parada.
    */

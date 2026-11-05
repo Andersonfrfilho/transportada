@@ -134,3 +134,20 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
   da leitura não mudou (25). O app do motorista valida à mão e ignora campos novos: sem mudança.
 - Contratos `stop-address-reliability`, `resolve-next-stop`; integração `next-stop-offer` (7). Contrato 13174/0, integração dos arquivos tocados 50/0,
   typecheck e lint verdes.
+
+## T3.1 — a chegada da tripulação corrige o endereço ou sugere ao escritório
+
+- `PerformSequencedStopArrival` chama `correctAddressFromArrival` (porta da transação de campo) após gravar a chegada, só para
+  motorista/ajudante com localização real; escritório e etapa marcada junto (localização nula) nunca chamam.
+- `arrival-address-correction.support.ts`: lê o endereço da parada + `geocoded_addresses`, roda `resolveAddressArrivalCorrection` e
+  `apply` → `applyGeocodedAddressCorrection` (extraída do repositório do `PATCH /geocoded-addresses/:key`, agora com `origin`/`source`
+  opcionais; a trilha `geocoded_address_corrections` com `origin 'driver'` já é o evento da linha do tempo 228), `suggest` → insere
+  `address_correction_suggestions` (`on conflict do nothing`, único por empresa + evento), `ignore` → nada.
+- Roda em savepoint dentro da transação da chegada: falha vira `address_correction.failed` (warn, só ids) e a chegada grava. Logs
+  `address_correction.applied|suggested|ignored|failed` sem coordenada. Chave `address-correction:<eventId>` vai no log; a idempotência real é o
+  `recall` da chave da chegada + o índice único da sugestão.
+- Migration aditiva `20261105112915_address_suggestion_address_key_without_fk`: removeu a FK `address_key` -> `geocoded_addresses` da sugestão,
+  porque endereço sem coordenada não tem linha lá e é exatamente o caso "sem coordenada -> sugestão". Rollback recoloca a FK.
+- Testes: integração `address-arrival-correction` (11: CEP 500 m aplica com trilha e evento driver, CEP 5 km sugere, confiável 200 m nada, confiável
+  500 m sugere sem sobrescrever, sem coordenada sugere sem distância, sem localização, escritório, marcada junto, reenvio, chegada repetida, falha isolada)
+  e contrato `arrival-address-correction-call`. Contrato 13177/0, integração dos arquivos tocados 28/0, typecheck, lint e prettier verdes.

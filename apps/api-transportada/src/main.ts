@@ -1360,6 +1360,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database.db,
     resolveStorageBucket(process.env),
+    logger,
   )
   const whatsappDeliveryProofRepository = new DrizzleDeliveryProofRepository(
     database.db,
@@ -2990,6 +2991,7 @@ function createApplicationRoutes({
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database,
     resolveStorageBucket(environment),
+    logger,
   )
   /**
    * Spec 161 T8: a reserva e a liquidação da chave para o galpão — cada chamada abre sua própria

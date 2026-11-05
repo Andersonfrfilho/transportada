@@ -20,7 +20,6 @@ import {
   ADDRESS_CORRECTION_SUGGESTION_STATUSES,
   type AddressCorrectionSuggestionStatus,
 } from '../shared/address-correction-suggestion.constant.js'
-import { geocodedAddresses } from './geocoding.schema.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { inList } from './schema-check.constant.js'
 import { tripStopEvents, tripStops } from './trip.schema.js'
@@ -29,7 +28,8 @@ import { tripStopEvents, tripStops } from './trip.schema.js'
  * ADR-0113 §2.5: o ponto da chegada do motorista que **não** pôde ser gravado direto (endereço sem
  * coordenada, fora da tolerância, ou confiável a mais de 300 m). O escritório aplica ou descarta em
  * `/pendencias`. `geocoded_addresses` é global; a sugestão não — carrega `company_id` e o painel só
- * lista a da empresa do token.
+ * lista a da empresa do token. `address_key` não é FK: endereço sem linha em `geocoded_addresses` (sem
+ * coordenada nenhuma) também gera sugestão.
  */
 export const addressCorrectionSuggestions = pgTable(
   'address_correction_suggestions',
@@ -59,13 +59,6 @@ export const addressCorrectionSuggestions = pgTable(
       columns: [table.companyId],
       foreignColumns: [companies.id],
       name: 'address_correction_suggestions_company_id_companies_id_fk',
-    })
-      .onDelete('restrict')
-      .onUpdate('cascade'),
-    foreignKey({
-      columns: [table.addressKey],
-      foreignColumns: [geocodedAddresses.addressKey],
-      name: 'address_correction_suggestions_address_key_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
