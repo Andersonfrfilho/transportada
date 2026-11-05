@@ -37,7 +37,10 @@ import { createAdatechnologyCteFiscalProvider } from './cte-issuance/infrastruct
 import { CteOutboxPublisherService } from './cte-issuance/application/cte-outbox-publisher.service.js'
 import { CteOutboxRelayService } from './cte-issuance/application/cte-outbox-relay.service.js'
 import { createCteIssuanceWorkerEffect } from './cte-issuance/application/cte-issuance-consumer.effect.js'
-import { createMdfeAutoIssueTrigger } from './mdfe-auto-issue/application/mdfe-auto-issue.service.js'
+import {
+  createMdfeAutoIssueTrigger,
+  selectMdfeAutoIssueTrigger,
+} from './mdfe-auto-issue/application/mdfe-auto-issue.service.js'
 import { createAutomaticManifestApiGateway } from './mdfe-auto-issue/infrastructure/automatic-manifest-api.gateway.js'
 import { createDrizzleTripByBatchItemRepository } from './mdfe-auto-issue/infrastructure/drizzle-trip-by-batch-item.repository.js'
 import { DrizzleCteBatchDocumentAuthorizationRepository } from './cte-issuance/infrastructure/drizzle-cte-batch-document-authorization.repository.js'
@@ -954,6 +957,24 @@ export async function startWorkerRuntime(
       bucket: storageBucket,
       gateway: storageGateway,
     })
+    const mdfeAutoIssueConfiguration = config.mdfeAutoIssue
+    const mdfeAutoIssue = selectMdfeAutoIssueTrigger({
+      create:
+        mdfeAutoIssueConfiguration === undefined
+          ? undefined
+          : () =>
+              createMdfeAutoIssueTrigger({
+                api: createAutomaticManifestApiGateway({
+                  configuration: mdfeAutoIssueConfiguration,
+                }),
+                logger,
+                trips: createDrizzleTripByBatchItemRepository(
+                  database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                ),
+              }),
+      enabled: config.mdfeAutoIssueEnabled,
+      logger,
+    })
     cteIssuanceConsumer = await cteIssuanceStarter({
       config,
       effect: createCteIssuanceWorkerEffect({
@@ -970,17 +991,7 @@ export async function startWorkerRuntime(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
         logger,
-        ...(config.mdfeAutoIssue === undefined
-          ? {}
-          : {
-              mdfeAutoIssue: createMdfeAutoIssueTrigger({
-                api: createAutomaticManifestApiGateway({ configuration: config.mdfeAutoIssue }),
-                logger,
-                trips: createDrizzleTripByBatchItemRepository(
-                  database.db as ReturnType<typeof createDrizzleProvider>['db'],
-                ),
-              }),
-            }),
+        ...(mdfeAutoIssue === undefined ? {} : { mdfeAutoIssue }),
         settledAttemptGuard: new DrizzleCteSettledAttemptRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),

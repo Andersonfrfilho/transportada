@@ -105,6 +105,12 @@ const workerEnvironmentSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    // Emenda 2026-11-05 da ADR-0047: emitir MDF-e sozinho é decisão fiscal do dono, e nasce
+    // desligado. O crachá do worker (abaixo) serve também ao canhoto e à baixa do WhatsApp.
+    MDFE_AUTO_ISSUE_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS: z.coerce.number().int().min(0).max(30_000).default(0),
     // Spec 071: o `tesseract-server` self-hosted que lê a CNH fotografada. Opcional, e a ausência é
     // silenciosa de propósito — leitura é conveniência para o operador, nunca porta de entrada, e um
@@ -262,6 +268,17 @@ const workerEnvironmentSchema = z
       })
     }
 
+    if (
+      environment.MDFE_AUTO_ISSUE_ENABLED &&
+      declaredAutoIssueKeys < MDFE_AUTO_ISSUE_KEYS.length
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'MDFE_AUTO_ISSUE_ENABLED=true requires the worker credentials',
+        path: ['MDFE_AUTO_ISSUE_ENABLED', ...MDFE_AUTO_ISSUE_KEYS],
+      })
+    }
+
     const declaredCnhPictureCredentials = [
       environment.CNH_PICTURE_CLIENT_ID,
       environment.CNH_PICTURE_CLIENT_SECRET,
@@ -355,6 +372,7 @@ export function parseWorkerEnvironment(
     logLevel: result.data.LOG_LEVEL,
     ...(cnhPicture === undefined ? {} : { cnhPicture }),
     ...(mdfeAutoIssue === undefined ? {} : { mdfeAutoIssue }),
+    mdfeAutoIssueEnabled: result.data.MDFE_AUTO_ISSUE_ENABLED,
     nfseProvider: {
       baseUrl: result.data.NFSE_PROVIDER_BASE_URL,
       callbackBaseUrl: result.data.NFSE_CALLBACK_BASE_URL,
