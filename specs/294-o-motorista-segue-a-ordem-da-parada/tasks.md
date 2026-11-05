@@ -67,9 +67,13 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       continua uma nota por vez.
 - [ ] **T4.7** RF22: contratos de áudio para cada passo novo (próxima rota, marquei junto, escolha de parada/nota,
       quem recebeu, pular, encerrar rota, atendente) no grupo e no individual; mídia pedida + áudio repete o pedido.
-- [ ] **T4.8a 🧠** Spike (`opus`): como saber se a foto é um canhoto assinado — comparar OCR local no worker (marcas
+- [x] **T4.8a 🧠** Spike (`opus`): como saber se a foto é um canhoto assinado — comparar OCR local no worker (marcas
       "Recebemos de", "Data de recebimento", "Assinatura") × modelo de visão; custo por foto, tempo, acerto num lote real
       de fotos de staging; decisão registrada no ADR 0113 ou ADR novo. Sem decisão, a T4.8 não começa.
+      Resultado (`spike-canhoto.md`, 05/11): 24 canhotos aprovados de produção + 32 negativos de staging. OCR local
+      (tesseract.js `por`, 2400 px) acertou 7/24 com 0/32 falso positivo (p50 3,5 s, p95 8 s); ≥ 2 marcas baixa, o
+      resto pergunta 1/2/3. Visão (`claude-haiku-5-5`) não medida (sem chave; ≈ US$ 0,0002/foto), pendente de decisão
+      LGPD. Assinatura por tinta e código de barras não servem como prova. Falta registrar no ADR.
 - [ ] **T4.8** RF23: foto sem "entreguei" → confere se é canhoto (T4.8a) → leitura do canhoto (worker `canhoto-read`) → pede localização;
       casou → entrega em preparo com o canhoto e baixa; não casou → pergunta a nota. Contratos: casou, várias fotos,
       ilegível, nota de outra viagem, atendente.
