@@ -76,3 +76,16 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Gates: `make migration-test` → 231 pass, 0 fail (migration + rollback); `bun run typecheck` e `bun run lint` limpos;
   prettier ok; contrato da API → só falham os 9 testes de `toll booth catalog repository`, que falham igual sem a
   mudança (preexistente, `disposable-database` "drop" no ambiente local).
+
+## T2.2 — passos de saída e chegada extraídos (sem mudança de comportamento)
+
+- Novos: `stop-event-steps.service.ts` (`performStopDeparture`, `applyStopDeparture`, `performStopArrival`,
+  `applyStopArrival`; `assertArrivalWithinWindow` e `shiftPendingStopsByDelay` privados) e
+  `stop-event-steps.types.ts`. Os use cases mantêm `deriveFieldAuthorship`, `unitOfWork.execute`, `withFieldReport`
+  e `recall`; o `perform` só chama o passo. Diff dos use cases = só remoção do código movido.
+- Gates (de `apps/api-transportada`): `bun run typecheck` limpo; `bun run lint` limpo; prettier ok;
+  contrato `bun --env-file=../../.env.test test --timeout 120000` → 13158 pass, 26 skip, 9 fail (só os 9 de
+  `toll booth catalog repository`, preexistentes); integração `bun --env-file=../../.env.test run test:integration`
+  → 1857 pass, 8 skip, 0 fail (332 arquivos, 3586 s).
+- Infra: `make e2e-up` falha no pull do MinIO (GHCR `unauthorized`); subiu-se só `postgres rabbitmq`
+  (`ENV_FILE=.env.test SERVICES="postgres rabbitmq" make up`), como a CI faz.
