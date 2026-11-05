@@ -207,6 +207,11 @@ export type DeliveryProofPort = {
     readonly kind: TripDeliveryProofKind
   }): Promise<number>
   saveProof(input: {
+    /**
+     * Spec 294 C5: o hash do conteúdo do canhoto, o mesmo da conferência de antes da gravação; presente, a transação
+     * trava por ele e relê — a mesma imagem gravada por outro pedido no meio vira `CanhotoDuplicateError`.
+     */
+    readonly canhotoSha256?: string
     readonly accuracyMeters: string | null
     readonly actorUserId: string
     readonly attachmentKey: string
@@ -537,6 +542,9 @@ async function attachDeliveryProofUnlogged(
     receiverName: carriesReceiverName ? input.upload.receiverName : '',
     receivedBy: receiver.receivedBy,
     receivedByDetail: receiver.receivedByDetail,
+    ...(input.upload.kind === PHOTO_PROOF_KIND
+      ? { canhotoSha256: createHash('sha256').update(input.upload.bytes).digest('hex') }
+      : {}),
     sha256: stored.sha256,
     sizeBytes: input.upload.bytes.byteLength,
     ...(thumbnail === undefined ? {} : { thumbnail }),

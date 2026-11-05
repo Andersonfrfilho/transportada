@@ -602,3 +602,11 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   `attachAnswered`. Se nem a foto da pergunta guarda, o bot pede a foto de novo (`storeFailedResend`). A troca de canhoto diferente (RF26, 1/2) segue na
   baixa: `receiveCanhotoPhoto` só guarda a foto e abre a preparação, não chama `attachProof`, então não há "já tinha canhoto" neste ponto.
 - `whatsapp-commands`: 697 pass / 0 fail (+2).
+
+### Suíte de integração completa da API e o ajuste da trava do C5
+
+- 1ª rodada completa (`bun --env-file=../../.env.test run test:integration`): 1928 pass / 7 fail / 8 skip (342 arquivos). Os 7 eram a trava do C5:
+  a releitura sob a trava usava o `sha256` devolvido pelo storage, e os dublês de storage de `me-trip` e `delivery-proofs-by-trip` devolvem um hash fixo
+  para fotos diferentes — viravam "duplicadas". A releitura passou a usar o mesmo hash da conferência de antes (`canhotoSha256`, do conteúdo enviado),
+  como em produção, onde os dois são iguais.
+- Depois do ajuste: `me-trip` + `delivery-proofs-by-trip` + `stop-order-guard` (inclui o teste da corrida do C5): 41 pass / 0 fail.
