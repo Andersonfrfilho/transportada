@@ -81,7 +81,7 @@ describe('distribution cursor route contract', () => {
       expect(
         forbiddenStatusOf(() =>
           authorization.authorize(
-            { identity: undefined, scope: COMPANY_CONTEXT } as never,
+            { identity: { serviceAccount: false }, scope: COMPANY_CONTEXT } as never,
             route.policy,
           ),
         ),

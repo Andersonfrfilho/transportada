@@ -66,6 +66,7 @@ import type {
 import type { CompanyAnyPermissionPolicy } from '../../identity/domain/authorization.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
+import { MdfeAutoIssueDisabledError } from '../domain/trip.error.js'
 import { OFFICE_REPORT_POLICY } from './trip-field-office.support.js'
 import {
   resolveTripAllowedActions,
@@ -716,6 +717,8 @@ type Dependencies = {
   /** D16/D18: o polling reabre o pedido parado ou falho além da espera. */
   readonly reopenCargoLayout: ReopenCargoLayoutUseCase
   readonly logger: ApiLogger
+  /** ADR-0047, emenda 2026-11-05: desligado, a rota automática responde 404 antes do caso de uso. */
+  readonly mdfeAutoIssueEnabled: boolean
   readonly issueManifestAutomatically: {
     execute(input: {
       readonly companyId: string
@@ -949,6 +952,7 @@ export function createTripRoutes(
     }),
     defineRoute<{ readonly correlationId: string; readonly tripId: string }>({
       async handle({ context, input }): Promise<Response> {
+        if (!dependencies.mdfeAutoIssueEnabled) throw new MdfeAutoIssueDisabledError()
         const result = await dependencies.issueManifestAutomatically.execute({
           companyId: context.scope.companyId,
           correlationId: input.correlationId,

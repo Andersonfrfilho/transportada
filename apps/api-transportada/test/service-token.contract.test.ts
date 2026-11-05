@@ -8,6 +8,7 @@ import { defineRoute } from '../src/http/router.service'
 import { AuthenticationService } from '../src/identity/application/authentication.service'
 import { TenantContextService } from '../src/identity/application/tenant-context.service'
 import { createKeycloakAccessTokenVerifier } from '../src/identity/infrastructure/keycloak-jwt.gateway'
+import { createTripRoutes } from '../src/trips/presentation/trip.routes'
 import { createHttpRouterFixture } from './fixtures/http-router.fixture'
 
 const AUDIENCE = 'transportada-api'
@@ -19,6 +20,9 @@ const HUMAN_USER_ID = '00000000-0000-4000-8000-0000000000a2'
 const MEMBER_COMPANY = '00000000-0000-4000-8000-0000000000c1'
 const FOREIGN_COMPANY = '00000000-0000-4000-8000-0000000000c2'
 const SERVICE_ROLE = 'transportada-service'
+const SERVICE_CLIENT_IDS = ['transportada-worker', 'transportada-worker-cnh-picture'] as const
+const TRIP_ID = '00000000-0000-4000-8000-0000000000e1'
+const AUTOMATIC_MANIFEST_PATH = `/trips/${TRIP_ID}/mdfe-manifests/automatic`
 
 /**
  * Em 05/11/2026 o staging mostrou que nenhuma chamada worker→API passava: o verificador exigia a
@@ -65,6 +69,7 @@ describe('service token contract (ADR-0047, emenda 2026-11-05)', () => {
       iss: issuer,
       realm_access: { roles: [SERVICE_ROLE] },
       sub: SERVICE_SUBJECT,
+      typ: 'Bearer',
       ...overrides,
     }
   }
@@ -77,11 +82,12 @@ describe('service token contract (ADR-0047, emenda 2026-11-05)', () => {
       iss: issuer,
       realm_access: { roles: ['company-admin'] },
       sub: HUMAN_SUBJECT,
+      typ: 'Bearer',
       ...overrides,
     }
   }
 
-  function createRouter() {
+  function createRouter(input: { readonly mdfeAutoIssueEnabled?: boolean } = {}) {
     const authentication = new AuthenticationService({
       repository: {
         async findActiveByIssuerAndSubject({ subject }) {
@@ -94,6 +100,7 @@ describe('service token contract (ADR-0047, emenda 2026-11-05)', () => {
           return null
         },
       },
+      serviceClientIds: SERVICE_CLIENT_IDS,
       verifier: createKeycloakAccessTokenVerifier({
         audience: AUDIENCE,
         issuer,
@@ -132,6 +139,25 @@ describe('service token contract (ADR-0047, emenda 2026-11-05)', () => {
         pathname: '/me/probe',
         policy: { membership: 'active', scope: 'company' },
       }),
+      defineRoute<Record<string, never>>({
+        async handle({ context }) {
+          return Response.json({ companyId: context.scope.companyId })
+        },
+        method: 'POST',
+        parse: () => ({}),
+        pathname: '/trips/probe/manage',
+        policy: { permission: 'trip.manage', scope: 'company' },
+      }),
+      ...createTripRoutes({
+        issueManifestAutomatically: {
+          async execute() {
+            return { status: 'issued' }
+          },
+        },
+        mdfeAutoIssueEnabled: input.mdfeAutoIssueEnabled ?? true,
+      } as never).filter(
+        (route) => route.method === 'POST' && route.pathname.endsWith('/automatic'),
+      ),
     ]
     return createHttpRouterFixture({
       authentication,
@@ -142,25 +168,31 @@ describe('service token contract (ADR-0047, emenda 2026-11-05)', () => {
   }
 
   async function call(input: {
-    readonly companyHeader?: string
+    readonly companyHeader?: string | readonly string[]
+    readonly mdfeAutoIssueEnabled?: boolean
     readonly method?: string
     readonly pathname?: string
     readonly token: string
   }): Promise<Response> {
     const pathname = input.pathname ?? '/trips/probe/mdfe-manifests/automatic'
     const method = input.method ?? 'POST'
-    const headers: Record<string, string> = { authorization: `Bearer ${input.token}` }
-    if (input.companyHeader !== undefined) headers['x-company-id'] = input.companyHeader
+    const headers = new Headers({ authorization: `Bearer ${input.token}` })
+    for (const value of [input.companyHeader ?? []].flat()) headers.append('x-company-id', value)
     try {
-      return await createRouter().handle({
+      const router = createRouter(
+        input.mdfeAutoIssueEnabled === undefined
+          ? {}
+          : { mdfeAutoIssueEnabled: input.mdfeAutoIssueEnabled },
+      )
+      return await router.handle({
         correlationId: 'service-token-contract',
         method,
         pathname,
         request: new Request(`http://localhost${pathname}`, { headers, method }),
       })
     } catch (error: unknown) {
-      const status = (error as { status?: unknown }).status
-      if (typeof status === 'number') return new Response(null, { status })
+      const { code, status } = error as { code?: unknown; status?: unknown }
+      if (typeof status === 'number') return Response.json({ error: { code } }, { status })
       throw error
     }
   }
@@ -190,13 +222,160 @@ describe('service token contract (ADR-0047, emenda 2026-11-05)', () => {
     expect(response.status).toBe(403)
   })
 
-  test('a company_id claim does not steer a service token: only the header does', async () => {
+  /** Fail-closed: com o papel e uma empresa na claim não é serviço nem gente — 401, nunca o caminho da claim. */
+  test('a service-role token carrying company_id is 401, in any company', async () => {
+    for (const companyHeader of [MEMBER_COMPANY, FOREIGN_COMPANY]) {
+      const response = await call({
+        companyHeader,
+        token: await sign(serviceClaims({ company_id: MEMBER_COMPANY })),
+      })
+
+      expect(response.status).toBe(401)
+    }
+  })
+
+  test.each([
+    ['from a client outside SERVICE_CLIENT_IDS', { azp: 'transportada-spa' }],
+    ['without azp', { azp: undefined }],
+    ['with a non-string azp', { azp: ['transportada-worker'] }],
+  ])('service-role token %s is 401', async (_name, overrides) => {
     const response = await call({
-      companyHeader: FOREIGN_COMPANY,
-      token: await sign(serviceClaims({ company_id: MEMBER_COMPANY })),
+      companyHeader: MEMBER_COMPANY,
+      token: await sign(serviceClaims(overrides)),
+    })
+
+    expect(response.status).toBe(401)
+  })
+
+  test('the CNH picture client is also a service client', async () => {
+    const response = await call({
+      companyHeader: MEMBER_COMPANY,
+      token: await sign(serviceClaims({ azp: 'transportada-worker-cnh-picture' })),
+    })
+
+    expect(response.status).toBe(200)
+  })
+
+  test.each([
+    ['a refresh token', 'Refresh'],
+    ['an ID token', 'ID'],
+    ['a token without typ', undefined],
+  ])('%s is never an access token: 401', async (_name, typ) => {
+    for (const claims of [serviceClaims({ typ }), humanClaims({ typ })]) {
+      const response = await call({ companyHeader: MEMBER_COMPANY, token: await sign(claims) })
+
+      expect(response.status).toBe(401)
+    }
+  })
+
+  test.each([
+    ['without aud', { aud: undefined }],
+    ['with another audience', { aud: 'account' }],
+    ['expired', { exp: nowSeconds() - 120 }],
+    ['from another issuer', { iss: 'http://127.0.0.1:1/realms/other' }],
+  ])('human token %s is 401', async (_name, overrides) => {
+    const response = await call({ token: await sign(humanClaims(overrides)) })
+
+    expect(response.status).toBe(401)
+  })
+
+  test('alg none is 401', async () => {
+    const header = base64Url(JSON.stringify({ alg: 'none', typ: 'JWT' }))
+    const payload = base64Url(JSON.stringify(serviceClaims()))
+
+    const response = await call({ companyHeader: MEMBER_COMPANY, token: `${header}.${payload}.` })
+
+    expect(response.status).toBe(401)
+  })
+
+  test('HS256 signed with the public key as secret is 401', async () => {
+    const publicJwk = JSON.stringify(
+      (
+        (await (await fetch(`${issuer}/protocol/openid-connect/certs`)).json()) as {
+          keys: unknown[]
+        }
+      ).keys[0],
+    )
+    const header = base64Url(JSON.stringify({ alg: 'HS256', kid: KEY_ID, typ: 'JWT' }))
+    const payload = base64Url(JSON.stringify(serviceClaims()))
+    const hmacKey = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(publicJwk),
+      { hash: 'SHA-256', name: 'HMAC' },
+      false,
+      ['sign'],
+    )
+    const signature = await crypto.subtle.sign(
+      'HMAC',
+      hmacKey,
+      new TextEncoder().encode(`${header}.${payload}`),
+    )
+
+    const response = await call({
+      companyHeader: MEMBER_COMPANY,
+      token: `${header}.${payload}.${base64Url(signature)}`,
+    })
+
+    expect(response.status).toBe(401)
+  })
+
+  test.each([
+    ['not a UUID', 'not-a-uuid'],
+    ['a SQL fragment', `${MEMBER_COMPANY}' or '1'='1`],
+    ['sent twice', [MEMBER_COMPANY, MEMBER_COMPANY]],
+    ['sent twice with different companies', [MEMBER_COMPANY, FOREIGN_COMPANY]],
+  ])('service token with an x-company-id header %s is 403', async (_name, companyHeader) => {
+    const response = await call({ companyHeader, token: await sign(serviceClaims()) })
+
+    expect(response.status).toBe(403)
+  })
+
+  test('service token on a human permission (trip.manage) is 403, even with the role', async () => {
+    const response = await call({
+      companyHeader: MEMBER_COMPANY,
+      pathname: '/trips/probe/manage',
+      token: await sign(serviceClaims()),
     })
 
     expect(response.status).toBe(403)
+  })
+
+  test('a person holding the automation role is 403 on service routes', async () => {
+    const response = await call({ token: await sign(humanClaims()) })
+
+    expect(response.status).toBe(403)
+  })
+
+  test('a person keeps human permissions on the same membership', async () => {
+    const response = await call({
+      pathname: '/trips/probe/manage',
+      token: await sign(humanClaims()),
+    })
+
+    expect(response.status).toBe(200)
+  })
+
+  test('automatic MDF-e answers 404 MDFE_AUTO_ISSUE_DISABLED while the switch is off', async () => {
+    const response = await call({
+      companyHeader: MEMBER_COMPANY,
+      mdfeAutoIssueEnabled: false,
+      pathname: AUTOMATIC_MANIFEST_PATH,
+      token: await sign(serviceClaims()),
+    })
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: { code: 'MDFE_AUTO_ISSUE_DISABLED' } })
+  })
+
+  test('automatic MDF-e reaches the use case only with the switch on', async () => {
+    const response = await call({
+      companyHeader: MEMBER_COMPANY,
+      mdfeAutoIssueEnabled: true,
+      pathname: AUTOMATIC_MANIFEST_PATH,
+      token: await sign(serviceClaims()),
+    })
+
+    expect(response.status).toBe(200)
   })
 
   test.each([
@@ -244,6 +423,7 @@ describe('service token contract (ADR-0047, emenda 2026-11-05)', () => {
   test('human token keeps working, and the company header never steers it', async () => {
     const response = await call({
       companyHeader: FOREIGN_COMPANY,
+      pathname: '/trips/probe/manage',
       token: await sign(humanClaims()),
     })
 

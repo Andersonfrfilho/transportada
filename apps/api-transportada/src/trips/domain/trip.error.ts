@@ -1644,3 +1644,18 @@ export class OccurrenceTypeAcknowledgementInvalidError extends ApiError {
     })
   }
 }
+
+/**
+ * ADR-0047, emenda 2026-11-05: o MDF-e automático é decisão fiscal do dono, e a API o recusa enquanto
+ * `MDFE_AUTO_ISSUE_ENABLED` estiver desligada. 404, como rota que não existe nesta instalação.
+ */
+export class MdfeAutoIssueDisabledError extends ApiError {
+  public constructor() {
+    super({
+      code: 'MDFE_AUTO_ISSUE_DISABLED',
+      message: 'Automatic MDF-e issuance is disabled in this installation.',
+      status: 404,
+    })
+    this.name = 'MdfeAutoIssueDisabledError'
+  }
+}

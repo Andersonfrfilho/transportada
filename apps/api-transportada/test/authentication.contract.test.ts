@@ -48,6 +48,41 @@ describe('authentication contract', () => {
     })
   })
 
+  /** ADR-0047, emenda 2026-11-05: chaves novas com padrão seguro — sem env, MDF-e desligado. */
+  test('SERVICE_CLIENT_IDS defaults to the worker clients, and MDF-e auto-issue defaults to off', () => {
+    const base = {
+      APP_ENV: 'test',
+      APP_PORT: '0',
+      DATABASE_URL: 'postgresql://transportada:transportada@localhost:55432/transportada',
+      FRONTEND_ORIGIN: 'http://localhost:53000',
+      KEYCLOAK_ADMIN_CLIENT_ID: 'transportada-admin-cli',
+      KEYCLOAK_ADMIN_CLIENT_SECRET: 'test-keycloak-admin-client-secret',
+      KEYCLOAK_AUDIENCE: 'transportada-api',
+      KEYCLOAK_ISSUER: ISSUER,
+      KEYCLOAK_JWKS_URI: `${ISSUER}/protocol/openid-connect/certs`,
+      LOG_LEVEL: 'error',
+      ...CRYPTOGRAPHIC_ENVIRONMENT,
+    }
+
+    const defaults = parseEnvironment(base)
+    expect(defaults.serviceClientIds).toEqual([
+      'transportada-worker',
+      'transportada-worker-cnh-picture',
+    ])
+    expect(defaults.mdfeAutoIssueEnabled).toBe(false)
+
+    const configured = parseEnvironment({
+      ...base,
+      MDFE_AUTO_ISSUE_ENABLED: 'true',
+      SERVICE_CLIENT_IDS: ' transportada-worker , ',
+    })
+    expect(configured.serviceClientIds).toEqual(['transportada-worker'])
+    expect(configured.mdfeAutoIssueEnabled).toBe(true)
+
+    expect(() => parseEnvironment({ ...base, SERVICE_CLIENT_IDS: 'worker one' })).toThrow()
+    expect(() => parseEnvironment({ ...base, MDFE_AUTO_ISSUE_ENABLED: 'yes' })).toThrow()
+  })
+
   test.each([
     null,
     '',
@@ -392,7 +427,9 @@ describe('authentication contract', () => {
    */
   test('recognizes a service account, and only it may arrive without a company claim', async () => {
     const service = createService({
-      verifier: verifiedTokenVerifier(undefined, ['transportada-service']),
+      verifier: verifiedTokenVerifier(undefined, ['transportada-service'], {
+        azp: 'transportada-worker',
+      }),
     })
 
     const identity = await service.authenticate(`Bearer ${TOKEN}`)
@@ -435,7 +472,11 @@ function createService({
   },
   verifier = verifiedTokenVerifier(COMPANY_ID),
 }: CreateServiceParams = {}): AuthenticationService {
-  return new AuthenticationService({ repository, verifier })
+  return new AuthenticationService({
+    repository,
+    serviceClientIds: ['transportada-worker'],
+    verifier,
+  })
 }
 
 function verifiedTokenVerifier(
@@ -449,6 +490,7 @@ function verifiedTokenVerifier(
       return {
         audience: 'transportada-api',
         claims: {
+          typ: 'Bearer',
           ...additionalClaims,
           company_id: companyIdClaim,
           iss: 'https://untrusted-claim.example',
