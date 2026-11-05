@@ -252,6 +252,7 @@ import {
   createGroupStopFlow,
   type GroupStopFlowPorts,
 } from './whatsapp/application/whatsapp-group-stop-flow.service.js'
+import { createWhatsAppOfficeStopEvents } from './whatsapp-commands/infrastructure/whatsapp-office-stop-events.adapter.js'
 import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
 import { createDrizzleWhatsAppGroupRequestRepository } from './whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
 import { createGroupOccurrencePorts } from './whatsapp/infrastructure/whatsapp-group-occurrence.adapter.js'
@@ -1681,7 +1682,21 @@ export function bootstrap(): Bun.Server<undefined> {
     hasLocation: (input) => whatsappGroupLocations.has(groupLocationKey(input)),
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
     logger,
+    officeStopEvents: createWhatsAppOfficeStopEvents({
+      reportArrival: (input) =>
+        reportStopArrival({
+          ...input,
+          location: null,
+          now: input.tappedAt,
+          recordedAt: new Date(),
+          unitOfWork: whatsappDriverFieldReports,
+        }),
+      reportDeparture: (input) =>
+        reportStopDeparture({ ...input, now: new Date(), unitOfWork: whatsappDriverFieldReports }),
+      targets: new DrizzleFieldTripTargetRepository(database.db),
+    }),
     ports: whatsappDriverEventPorts,
+    resolveSenderRole: whatsappSenderRole,
     speech: whatsappBotSpeech,
   })
   /** Spec 294: a oferta da próxima rota, o pedido de localização e as conferências da conversa individual. */

@@ -324,8 +324,7 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   vale para grupo e individual. Saída/chegada: grupo no passo `stop.confirm_order`; individual no pedido `out_of_order` do contexto
   (`WhatsAppDriverPrompts.recordStop`, também usado pelo "saí"/"cheguei" do grafo, pela oferta da próxima rota e pelo pedido de localização).
 - Atendente: a baixa dele vai pelo caminho do escritório (T4.5), que não passa pela ordem, então não recebe a pergunta.
-  **Lacuna conhecida:** "saí"/"cheguei" escritos por atendente no grupo ainda gravam com autoria `whatsapp` em nome do motorista (o fluxo de
-  paradas não olha o papel de quem mandou) e, fora de ordem, recebem a pergunta; resolver pede a chegada/saída pelo escritório no bot.
+  Lacuna fechada na correção de RF19 (abaixo): o atendente no grupo também segue o escritório no "saí"/"cheguei".
 - Contratos: `test/whatsapp-commands/out-of-order-prompt.contract.ts` (texto, individual, preparação) e
   `test/whatsapp/group-out-of-order.contract.ts` (grupo e adaptador); `test/stop-order/whatsapp-refusal.contract.ts` ajustado para os ids.
 - Gates: typecheck e lint limpos; contrato da API 13398 pass / 26 skip / 0 fail; integração (flow-actions, command-driver,
@@ -362,3 +361,15 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   integração (flow-actions, command-driver, preparation-repository, group-request-repository, group-occurrence-adapter) 18 pass; prettier ok.
 - **Grafo versionado (`whatsapp-flow-graph.constant.ts`) não mudou em nenhuma task desta leva**: a conversa individual usa o pedido no
   contexto da sessão e o despachante, sem nó novo. Não há `producao-publicar-falas-do-bot.sh` a rodar por causa das T4.2–T4.11.
+
+## Correção RF19 — saí e cheguei do atendente pelo caminho do escritório
+
+- Grupo: `createGroupStopFlow` resolve o papel do remetente (`resolveSenderRole`); atendente registra direto, sem pergunta de
+  localização, e `record` leva `attendant: { actorUserId }`. O adaptador (`createGroupStopPorts`, `officeStopEvents`) chama
+  `reportStopArrival`/`reportStopDeparture` com `target` resolvido (`createWhatsAppOfficeStopEvents`): autoria `office`, ator = atendente,
+  em nome do motorista da viagem, sem ordem da parada e sem etapa marcada junto. Chegada leva a trilha `trip_field_office.stop_arrive`
+  (origem `whatsapp`); a saída do escritório não tem trilha própria (a função não a aceita).
+- Conversa individual: o atendente que não é motorista não chega ao "saí"/"cheguei" do motorista, e quem é motorista e atendente é tripulação
+  (a tripulação vence); nada a mudar ali.
+- Leitura da T4.10 mantida: na saída fora de ordem, "2 - Não, a 4" registra a saída da parada 4.
+- Contrato: `test/whatsapp/group-attendant-stop.contract.ts`. Gates: typecheck e lint limpos; contrato da API 13463 pass / 26 skip / 0 fail.

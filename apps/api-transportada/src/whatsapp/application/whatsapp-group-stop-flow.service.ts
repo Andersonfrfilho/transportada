@@ -32,6 +32,7 @@ import {
 import { OUT_OF_ORDER_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { LOCATION_PROMPT_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
+import type { ResolveWhatsAppSenderRole } from './whatsapp-sender-role.service.js'
 
 export const GROUP_STOP_STEP = {
   choose: 'choose',
@@ -63,6 +64,8 @@ export type GroupStopFlowPorts = {
     readonly driverId: string
   }): Promise<readonly GroupStopCandidate[]>
   record(input: {
+    /** Spec 294 RF19: quem mandou é atendente; o registro vai pelo caminho do escritório (sem ordem, sem "junto"). */
+    readonly attendant?: { readonly actorUserId: string }
     readonly companyId: string
     /** Spec 294 RF25: o motorista confirmou gravar fora da ordem da parada. */
     readonly confirmOutOfOrder?: boolean
@@ -79,6 +82,8 @@ export type GroupStopFlowPorts = {
    * antes do "saí"/"cheguei" (como antes da 294).
    */
   hasLocation?(input: { readonly companyId: string; readonly driverId: string }): boolean
+  /** Spec 294 RF19: quem escreveu. Ausente, todo remetente é tratado como a tripulação (como antes da 294). */
+  resolveSenderRole?: ResolveWhatsAppSenderRole
   /** A frase de "já está a caminho da parada N" e afins, na plateia do grupo. */
   enRouteMessage(input: { readonly companyId: string; readonly sequence: string }): Promise<string>
 }
@@ -133,7 +138,13 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     documentNumber?: string,
     confirmOutOfOrder = false,
   ): Promise<GroupFlowOutcome> {
+    const role = await ports.resolveSenderRole?.({
+      companyId: turn.request.companyId,
+      phone: turn.sender,
+    })
+    const attendant = role?.kind === 'attendant' ? { actorUserId: role.actorUserId } : undefined
     const result = await ports.record({
+      ...(attendant === undefined ? {} : { attendant }),
       ...(confirmOutOfOrder ? { confirmOutOfOrder: true } : {}),
       companyId: turn.request.companyId,
       driverId: turn.request.driverId,
@@ -192,7 +203,13 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     isAddressReliable?: boolean,
   ): Promise<GroupFlowOutcome> {
     const { companyId, driverId } = turn.request
-    if (ports.hasLocation === undefined || ports.hasLocation({ companyId, driverId })) {
+    // O escritório não manda ponto: o atendente registra direto, sem a pergunta da localização.
+    const role = await ports.resolveSenderRole?.({ companyId, phone: turn.sender })
+    if (
+      role?.kind === 'attendant' ||
+      ports.hasLocation === undefined ||
+      ports.hasLocation({ companyId, driverId })
+    ) {
       return record(turn, event, stopId, documentNumber)
     }
     const state: FlowState = { locationFor: { documentNumber, event, stopId } }
