@@ -34,3 +34,17 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Verde: mesmo comando → 147 pass, 0 fail.
 - Gates em `apps/api-transportada`: `bun run typecheck` limpo; `bun run lint` limpo; `bun run test` → 13139 pass,
   35 skip, 0 fail; prettier nos arquivos alterados.
+
+## T0.3 — contrato e política da correção do endereço pela chegada
+
+- Contrato `apps/api-transportada/test/trips/address-arrival-correction.contract.ts`, importado por
+  `test/trips.contract.test.ts`.
+- Vermelho: `bun --env-file=../../.env.test test ./test/trips.contract.test.ts` → `Cannot find module
+  '../../src/trips/domain/address-arrival-correction.constant.js'` (0 pass, 1 fail, 1 error).
+- Política `src/trips/domain/address-arrival-correction.policy.ts` + `.constant.ts` (2000 / 15000 / 300 m);
+  distância por `distanceInMetres` de `src/addresses/domain/coordinate-distance.ts` (haversine existente).
+- Fronteira: a grade de 7 casas decimais não cai em exatamente N m, então o contrato acha o último ponto com
+  distância <= limite (apply/ignore) e o seguinte, > limite (suggest).
+- Verde: mesmo comando → 166 pass, 0 fail.
+- Gates em `apps/api-transportada`: `bun run typecheck` limpo; `bun run lint` limpo; `bun run test` → 13158 pass,
+  35 skip, 0 fail; prettier nos arquivos alterados.

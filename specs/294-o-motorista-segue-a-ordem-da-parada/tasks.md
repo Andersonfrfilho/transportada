@@ -12,8 +12,8 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       eventos de parada onde entra `recorded_together`. Aceite: ADR no índice, `grep -n "0113" docs/adr`.
 - [x] **T0.2** Contrato `test/trips/stop-event-sequence.contract.ts`: tabela estado × evento × autoria → etapas
       marcadas junto (RF1–RF4, RF7). Vermelho, depois verde com a política pura (mesma task; ver evidence.md).
-- [ ] **T0.3** Contrato `test/trips/address-arrival-correction.contract.ts`: precisão × distância →
-      `apply|suggest|ignore` (RF14, RF15). Vermelho.
+- [x] **T0.3** Contrato `test/trips/address-arrival-correction.contract.ts`: precisão × distância →
+      `apply|suggest|ignore` (RF14, RF15). Vermelho, depois verde com a política pura (mesma task; ver evidence.md).
 - [ ] **T0.4** (movida para T4.3) Contratos do bot: oferta da próxima rota (RF8–RF10) e matriz de não interferência (RNF1) com
       ocorrência aberta, entrega em preparo, escolha de parada e oferta. Vermelho. Registrar no `package.json`.
 
