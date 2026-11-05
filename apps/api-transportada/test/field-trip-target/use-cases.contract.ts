@@ -224,7 +224,9 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
       unitOfWork: office.unitOfWork,
     })
 
+    // Spec 294: a nota é lida de novo sob a trava das paradas.
     expect(office.lookups).toEqual([
+      { companyId: COMPANY_ID, documentId: DOCUMENT_ID, target: TRIP_TARGET },
       { companyId: COMPANY_ID, documentId: DOCUMENT_ID, target: TRIP_TARGET },
     ])
     expect(result.alreadySettled).toBe(false)

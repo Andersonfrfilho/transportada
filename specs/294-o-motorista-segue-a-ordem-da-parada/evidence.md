@@ -89,3 +89,25 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
   → 1857 pass, 8 skip, 0 fail (332 arquivos, 3586 s).
 - Infra: `make e2e-up` falha no pull do MinIO (GHCR `unauthorized`); subiu-se só `postgres rabbitmq`
   (`ENV_FILE=.env.test SERVICES="postgres rabbitmq" make up`), como a CI faz.
+
+## T2.3 — a API exige a ordem da parada da tripulação e marca junto a etapa pulada
+
+- Novo `recorded-together-steps.service.ts`: `recordSkippedSteps` (trava as paradas, lê a decisão sob a trava, aplica
+  `resolveStopEventSequence`, grava a saída marcada junto — `markTripOnDeliveryRoute` + `recordEvent` com
+  `recordedTogether`, sem `isDepartureTapStale`, sem 409, sem `markStopEnRoute` — e a chegada marcada junto por
+  `applyStopArrival`, que zera "a caminho" da viagem e não desloca a previsão) e `performSequencedStopArrival`
+  (escritório inalterado, `recordedTogether: []`). Relógio das etapas junto = o do evento pedido; `location: null`
+  nelas (decisão reversível: não dispara a correção de endereço, RF14).
+- Baixa (`document-outcome*.ts`): trava das paradas em todo canal e nota relida sob a trava (a baixa do motorista e a do
+  escritório na mesma nota se serializam: antes da releitura as duas gravavam `delivered`), transição calculada antes das
+  etapas (cancelada continua `TripStateTransitionNotAllowed`; `unchanged` não marca nada).
+- Reenvio: `findRecordedTogetherSteps` deriva `recordedTogether` das etapas da mesma parada com o mesmo `created_at`
+  do evento da chave (mesma transação). `recordEvent` aceita `recordedTogether`.
+- HTTP: chegada do motorista devolve `{ id, recordedTogether }`; baixa/devolução já devolvem o resultado inteiro.
+  Escritório sem mudança de corpo.
+- Efeito colateral aceito: chegada sem saída leva a viagem `dispatched` → `on_delivery_route` (como a saída real faria),
+  não mais a `in_transit`; três testes antigos (`me-trip` x2, `event-location-stamp`) ajustados a isso e à contagem de
+  eventos.
+- Testes: `test/integration/stop-event-sequence.integration.ts` (9: baixa 3 eventos/2 junto, chegada sem saída, parada já
+  chegada, escritório 1 evento, reenvio de baixa e de chegada, cancelada, corrida motorista × escritório, ajudante) e contrato
+  de rota (`clock-fields-schema.contract.ts`).

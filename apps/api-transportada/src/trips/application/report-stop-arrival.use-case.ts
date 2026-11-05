@@ -4,7 +4,10 @@
 import type { EventClockFields } from '../domain/occurred-at.policy.js'
 import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
 import { deriveFieldAuthorship, type FieldTripLocator } from './field-trip-target.types.js'
-import { performStopArrival } from './stop-event-steps.service.js'
+import {
+  performSequencedStopArrival,
+  type SequencedStopArrivalResult,
+} from './recorded-together-steps.service.js'
 import type { OfficeAuditRequest } from './trip-field-office-audit.port.js'
 import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
@@ -26,7 +29,7 @@ export type ReportStopArrivalInput = FieldTripLocator &
     readonly unitOfWork: DriverFieldReportUnitOfWork
   }
 
-export type ReportStopArrivalResult = { readonly id: string }
+export type ReportStopArrivalResult = SequencedStopArrivalResult
 
 /**
  * Spec 057, P1 "cheguei": um toque grava `arrived_at`, carimba a coordenada **se houver**, e leva a
@@ -50,8 +53,17 @@ export async function reportStopArrival(
         operation: resolveFieldReportOperation({ locator: input, operation: ARRIVE_OPERATION }),
         transaction,
       },
-      perform: () => performStopArrival({ authorship, input, transaction }),
-      recall: (eventId) => transaction.findEventById({ companyId: input.companyId, eventId }),
+      perform: () => performSequencedStopArrival({ authorship, input, transaction }),
+      recall: async (eventId) => {
+        const event = await transaction.findEventById({ companyId: input.companyId, eventId })
+        if (event === null) return null
+        const recordedTogether = await transaction.findRecordedTogetherSteps({
+          companyId: input.companyId,
+          eventId,
+        })
+
+        return { id: event.id, recordedTogether }
+      },
     }),
   )
 }

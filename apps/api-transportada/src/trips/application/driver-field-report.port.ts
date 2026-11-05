@@ -14,6 +14,7 @@ import type {
 } from '../../database/trip.schema.js'
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type { CorrectedClock } from '../domain/occurred-at.policy.js'
+import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type {
@@ -259,6 +260,8 @@ export type DriverFieldReportTransactionPort = {
     readonly occurredAt?: Date
     /** ADR-0067 §3: quando o registro foi gravado. Ausente cai no `defaultNow()`. */
     readonly recordedAt?: Date
+    /** ADR-0113 §1: a etapa pulada, gravada junto do evento pedido. Ausente cai no default `false`. */
+    readonly recordedTogether?: boolean
     /**
      * Spec 159 T11: o cadastro do motorista que reportou pelo app ou pelo WhatsApp — a nota lê
      * daqui, não do vínculo atual da conta. Ausente no escritório (ele usa `onBehalfOfDriverId`).
@@ -402,6 +405,14 @@ export type DriverFieldReportTransactionPort = {
     readonly companyId: string
     readonly eventId: string
   }): Promise<{ readonly id: string } | null>
+  /**
+   * Spec 294: o reenvio deriva as etapas marcadas junto do evento que a chave já liquidou — as da
+   * mesma parada gravadas na mesma transação (mesmo `created_at`), na ordem saída, chegada.
+   */
+  findRecordedTogetherSteps(input: {
+    readonly companyId: string
+    readonly eventId: string
+  }): Promise<readonly StopEventStep[]>
   /**
    * Spec 159 T11: o último evento daquele tipo da nota — o que o no-op idempotente devolve em vez de
    * gravar outro. `null` quando a nota foi resolvida sem evento (dado legado).

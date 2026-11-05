@@ -270,6 +270,7 @@ export function createFieldReportUnitOfWork(
       return occurrence
     },
     findEventById: async (input) => state.events.get(input.eventId) ?? null,
+    findRecordedTogetherSteps: async () => [],
     findOccurrenceById: async (input) => state.occurrences.get(input.occurrenceId) ?? null,
     saveDeliveryProofWithinTransaction: async (input) => {
       state.calls.push(`saveDeliveryProofWithinTransaction:${input.eventId}:${input.kind}`)

@@ -15,7 +15,10 @@ import {
   assertOfficeOutcomeAllowed,
   closeStopAndTrip,
   findReachableDocument,
+  lockTripStopsAndReread,
   recordOutcomeAudit,
+  recordStepsBeforeOutcome,
+  resolveOutcomeAlreadySettled,
   settleAndRecordEvent,
 } from './document-outcome-steps.service.js'
 import { deriveFieldAuthorship } from './field-trip-target.types.js'
@@ -83,9 +86,14 @@ function runOutcomeTransaction(input: {
 }
 
 async function performOutcome(context: OutcomeContext): Promise<ReportDocumentOutcomeResult> {
-  const document = await findReachableDocument(context)
+  const document = await lockTripStopsAndReread({
+    context,
+    document: await findReachableDocument(context),
+  })
   await assertOfficeOutcomeAllowed({ context, document })
-  const { alreadySettled, eventId } = await settleAndRecordEvent({ context, document })
+  const alreadySettled = resolveOutcomeAlreadySettled({ context, document })
+  const recordedTogether = await recordStepsBeforeOutcome({ alreadySettled, context, document })
+  const { eventId } = await settleAndRecordEvent({ alreadySettled, context, document })
   const proofId = await persistOfficeProofIfSent({ context, eventId })
   const { stopCompleted, tripCompleted } = await closeStopAndTrip({
     alreadySettled,
@@ -100,7 +108,15 @@ async function performOutcome(context: OutcomeContext): Promise<ReportDocumentOu
   })
   await recordOutcomeAudit({ context, document })
 
-  return { alreadySettled, id: eventId, proofId, proofPending, stopCompleted, tripCompleted }
+  return {
+    alreadySettled,
+    id: eventId,
+    proofId,
+    proofPending,
+    recordedTogether,
+    stopCompleted,
+    tripCompleted,
+  }
 }
 
 function persistOfficeProofIfSent(input: {
@@ -161,6 +177,10 @@ async function recallOutcome(input: {
     id: event.id,
     proofId,
     proofPending,
+    recordedTogether: await context.transaction.findRecordedTogetherSteps({
+      companyId: report.companyId,
+      eventId: event.id,
+    }),
     stopCompleted: false,
     tripCompleted: false,
   }

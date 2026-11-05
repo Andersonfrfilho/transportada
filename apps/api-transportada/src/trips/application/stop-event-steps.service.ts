@@ -136,7 +136,7 @@ export async function performStopArrival(
 export async function applyStopArrival(
   params: ApplyStopArrivalParams,
 ): Promise<{ readonly id: string }> {
-  const { authorship, input, isOffice, stop, transaction } = params
+  const { authorship, input, isOffice, recordedTogether, stop, transaction } = params
 
   // Chegar de novo na mesma parada não reescreve a hora: a primeira é a que aconteceu.
   if (stop.arrivedAt === null) {
@@ -157,7 +157,9 @@ export async function applyStopArrival(
      * paradas pendentes pela diferença entre o plano e a hora digitada dias depois inventaria
      * um atraso que ninguém viveu.
      */
-    if (!isOffice) await shiftPendingStopsByDelay({ ...params, isOffice, stop })
+    if (!isOffice && recordedTogether === undefined) {
+      await shiftPendingStopsByDelay({ ...params, isOffice, stop })
+    }
   }
   if (stop.tripStatus === DISPATCHED_STATUS) {
     await transaction.markTripInTransit({
@@ -187,12 +189,14 @@ export async function applyStopArrival(
     location: input.location,
     ...(isOffice
       ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
-      : resolveRecordedEventClock({
+      : (recordedTogether?.clock ??
+        resolveRecordedEventClock({
           clockOffsetMs: input.clockOffsetMs,
           hasLocation: input.location !== null,
           receivedAt: input.now,
           tappedAt: input.tappedAt,
-        })),
+        }))),
+    ...(recordedTogether === undefined ? {} : { recordedTogether: true }),
     stopId: input.stopId,
   })
 }

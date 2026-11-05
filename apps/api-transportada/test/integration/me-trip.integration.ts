@@ -177,7 +177,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         .set({ estimatedArrivalAt: plannedSecondArrival })
         .where(eq(tripStops.id, world.stopIds[1] ?? ''))
 
-      // 2. Cheguei na primeira parada — e a viagem sai de `dispatched` sozinha
+      // 2. Cheguei na primeira parada — a saída é marcada junto (spec 294) e a viagem sai de `dispatched`
       await reportStopArrival({
         ...context,
         idempotencyKey: 'chegada-1',
@@ -186,11 +186,11 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         stopId: world.stopIds[0] ?? '',
         unitOfWork,
       })
-      expect(await readTripStatus(database, world.tripId)).toBe('in_transit')
+      expect(await readTripStatus(database, world.tripId)).toBe('on_delivery_route')
 
       /**
-       * Spec 158 T4 (lacuna da T3): a chegada na primeira parada leva `dispatched → in_transit`
-       * por `markTripInTransit` (report-stop-arrival.use-case.ts) — canal/autoria de
+       * Spec 158 T4 (lacuna da T3): a chegada na primeira parada leva `dispatched` adiante — desde a
+       * spec 294 pela saída marcada junto (`on_delivery_route`) — canal/autoria de
        * `deriveFieldAuthorship` (motorista: `driver_app`, sem `onBehalfOfDriverId`) e
        * `occurred_at` igual ao `now` do caso de uso (ADR-0068 §"Consequências").
        */
@@ -203,7 +203,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         channel: 'driver_app',
         fromStatus: 'dispatched',
         onBehalfOfDriverId: null,
-        toStatus: 'in_transit',
+        toStatus: 'on_delivery_route',
       })
       expect(arrivalStatusEvent?.occurredAt.toISOString()).toBe(NOW.toISOString())
 
@@ -304,13 +304,15 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         .select()
         .from(tripStopEvents)
         .where(eq(tripStopEvents.companyId, world.companyId))
-      // Duas chegadas, duas entregas e um retorno — um evento por confirmação, nem um a mais
-      expect(events).toHaveLength(5)
+      // Duas chegadas, duas entregas e um retorno, mais as duas saídas marcadas junto (spec 294)
+      expect(events).toHaveLength(7)
       expect(events.filter((event) => event.latitude !== null)).toHaveLength(2)
       expect(events.filter((event) => event.kind === 'returned')).toHaveLength(1)
       // Spec 159 T11: o motorista que reportou fica no evento, não só no vínculo da conta
       expect(
-        events.filter((event) => event.kind !== 'arrived').map((event) => event.reportedByDriverId),
+        events
+          .filter((event) => event.kind !== 'arrived' && event.kind !== 'departed')
+          .map((event) => event.reportedByDriverId),
       ).toEqual([world.driverId, world.driverId, world.driverId])
 
       const occurrences = await database.db
@@ -356,7 +358,8 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         .select()
         .from(tripStopEvents)
         .where(eq(tripStopEvents.companyId, world.companyId))
-      expect(events).toHaveLength(1)
+      // Spec 294: a chegada e a saída marcada junto; o reenvio não grava mais nenhuma.
+      expect(events).toHaveLength(2)
 
       /** Spec 158 T4: repetir a chegada não grava um segundo `trip_status_events`. */
       const statusEvents = await database.db
@@ -364,7 +367,10 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         .from(tripStatusEvents)
         .where(eq(tripStatusEvents.tripId, world.tripId))
       expect(statusEvents).toHaveLength(1)
-      expect(statusEvents[0]).toMatchObject({ fromStatus: 'dispatched', toStatus: 'in_transit' })
+      expect(statusEvents[0]).toMatchObject({
+        fromStatus: 'dispatched',
+        toStatus: 'on_delivery_route',
+      })
     })
   })
 

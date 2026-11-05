@@ -3,6 +3,7 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import { inList } from '../../database/schema-check.constant.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
@@ -67,6 +68,7 @@ import {
 import { resolveEventLocationStamp } from '../domain/event-location-stamp.policy.js'
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import { buildProofInsertValues, buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
+import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
@@ -79,6 +81,9 @@ const FIELD_REPORTABLE_TRIP_STATUSES = TRIP_ON_ROAD_STATUSES
 
 /** ADR-0058 §3: o único passo que a baixa de uma nota deriva — concluir é pelas paradas. */
 const TRIP_ON_DELIVERY_ROUTE_STATUS = 'on_delivery_route' satisfies TripStatus
+
+/** A ordem da parada: a saída vem antes da chegada. */
+const RECORDED_TOGETHER_STEPS = ['departed', 'arrived'] as const satisfies readonly StopEventStep[]
 
 /** Nota entregue ou devolvida saiu do eixo do campo — é o que faz a parada poder fechar. */
 const SETTLED_DOCUMENT_STATUSES = [DELIVERED_DOCUMENT_STATUS, RETURNED_DOCUMENT_STATUS] as const
@@ -811,6 +816,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         occurredAt: input.correctedClock?.occurredAt ?? null,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }),
+        recordedTogether: input.recordedTogether ?? false,
         reportedByDriverId: input.reportedByDriverId ?? null,
         stopId: input.stopId,
         tappedAt: input.tappedAt ?? null,
@@ -1119,6 +1125,35 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .limit(1)
 
     return event ?? null
+  }
+
+  /** As etapas marcadas junto nascem na transação do evento pedido, então dividem o `created_at` dele. */
+  public async findRecordedTogetherSteps(input: {
+    readonly companyId: string
+    readonly eventId: string
+  }): Promise<readonly StopEventStep[]> {
+    const anchor = alias(tripStopEvents, 'anchor_event')
+    const rows = await this.transaction
+      .select({ kind: tripStopEvents.kind })
+      .from(tripStopEvents)
+      .innerJoin(
+        anchor,
+        and(
+          eq(anchor.companyId, tripStopEvents.companyId),
+          eq(anchor.stopId, tripStopEvents.stopId),
+          eq(anchor.createdAt, tripStopEvents.createdAt),
+        ),
+      )
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(anchor.id, input.eventId),
+          eq(tripStopEvents.recordedTogether, true),
+        ),
+      )
+    const kinds = new Set<string>(rows.map((row) => row.kind))
+
+    return RECORDED_TOGETHER_STEPS.filter((step) => kinds.has(step))
   }
 
   /** Mesmo desempate da nota do motorista e do snapshot: `created_at` e depois `id`. */

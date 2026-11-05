@@ -437,7 +437,10 @@ export function createMeTripRoutes(
           driverId,
         })
 
-        return jsonResponse({ body: { data: { id: result.id } }, status: 201 })
+        return jsonResponse({
+          body: { data: { id: result.id, recordedTogether: result.recordedTogether } },
+          status: 201,
+        })
       },
       method: 'POST',
       async parse({ pathParameters, request }) {

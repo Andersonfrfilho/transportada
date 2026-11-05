@@ -32,7 +32,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       e `db:generate` com `no_changes` depois.
 - [x] **T2.2 🧠** Extrair os `perform` de saída e chegada para `stop-event-steps.service.ts` **sem mudar
       comportamento**. Aceite: contrato + integração inteiros verdes, diff só de movimentação.
-- [ ] **T2.3** `stop-event-sequence.policy.ts` (T0.2 verde) e uso em chegada e baixa do motorista; resultado com
+- [x] **T2.3** `stop-event-sequence.policy.ts` (T0.2 verde) e uso em chegada e baixa do motorista; resultado com
       `recordedTogether`. Integração: 3 eventos em 1 transação, escritório 1, reenvio não duplica.
 - [ ] **T2.4** Estatísticas (tempo de serviço, permanência, deslocamento, previsão 109) ignoram
       `recorded_together`. Aceite: integração.

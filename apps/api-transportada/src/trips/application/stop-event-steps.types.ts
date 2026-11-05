@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { EventClockFields } from '../domain/occurred-at.policy.js'
+import type { EventClockFields, RecordedEventClock } from '../domain/occurred-at.policy.js'
 import type {
   DriverFieldReportTransactionPort,
   DriverStopReference,
@@ -51,5 +51,7 @@ export type PerformStopArrivalParams = {
 
 export type ApplyStopArrivalParams = PerformStopArrivalParams & {
   readonly isOffice: boolean
+  /** Spec 294: a chegada marcada junto leva a hora do evento pedido e não desloca a previsão. */
+  readonly recordedTogether?: { readonly clock: RecordedEventClock }
   readonly stop: DriverStopReference
 }
