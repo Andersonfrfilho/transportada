@@ -17,7 +17,7 @@ import {
 } from '../../src/modules/shared/workspaceAccess.service'
 
 /** Papéis que o painel de Acesso não oferece: o contratante tem fluxo próprio, e não se convida um robô. */
-const ROLES_OUTSIDE_THE_INVITE = ['contractor', 'automation'] as const
+const ROLES_OUTSIDE_THE_INVITE = ['contractor', 'automation', 'cnh-picture-service'] as const
 
 function readSource(path: string): string {
   return readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')

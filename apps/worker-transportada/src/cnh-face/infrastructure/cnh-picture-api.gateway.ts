@@ -5,7 +5,7 @@
  * e publica o atributo no Keycloak. Sem lógica de identidade aqui (spec 295 Fase 4).
  */
 import type { CnhProfilePicturePort } from '../application/cnh-face.port.js'
-import type { MdfeAutoIssueEnvironment } from '../../shared/worker.types.js'
+import type { CnhPictureEnvironment } from '../../shared/worker.types.js'
 
 /** Renova antes de expirar: relógio de máquina anda, e um token na borda vira 401 esporádico. */
 const TOKEN_EXPIRY_MARGIN_SECONDS = 30
@@ -24,7 +24,7 @@ export class CnhPictureApiError extends Error {
 }
 
 export type CreateCnhPictureApiGatewayParams = {
-  readonly configuration: MdfeAutoIssueEnvironment
+  readonly configuration: CnhPictureEnvironment
   readonly fetch?: typeof globalThis.fetch
   readonly now?: () => number
 }

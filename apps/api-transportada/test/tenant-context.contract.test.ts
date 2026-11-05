@@ -180,7 +180,6 @@ describe('tenant context contract', () => {
         'whatsapp.settle',
         'trip.canhoto-auto-review',
         'occurrence.automatic-mail',
-        'driver.cnh-picture',
       ])
     })
 

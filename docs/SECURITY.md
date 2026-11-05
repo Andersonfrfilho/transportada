@@ -25,7 +25,7 @@ cadastro; a proteção técnica é:
   em `apps/worker-transportada/assets/`), numa `worker_thread` sem rede e sem log; o documento só existe em memória.
 - **Log sem PII:** só o desfecho (`applied`, `kept_existing`, `skipped`, `failed`) e a causa genérica; nenhum
   identificador de pessoa, nota do detector por pessoa ou conteúdo.
-- **Rota de serviço:** `driver.cnh-picture` é só do papel `automation` (não concedível a grupo nem a pessoa); o alvo é o
+- **Rota de serviço:** `driver.cnh-picture` é só do papel `cnh-picture-service`, com client próprio no Keycloak (`transportada-worker-cnh-picture`); o `automation` do worker não a tem, então vazar uma credencial não dá a outra (não concedível a grupo nem a pessoa); o alvo é o
   anexo (a API resolve o usuário e a empresa vem do contexto), nunca um id enviado pelo robô.
 - **Backfill** (`bun run backfill:cnh-picture`): `--dry-run` por padrão (só contagens); `--confirm` grava e pede
   aprovação antes de rodar em staging ou produção.

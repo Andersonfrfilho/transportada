@@ -10,6 +10,7 @@ import type { CompanyRole } from '../../database/identity.schema.js'
 export const COMPANY_ROLE_LABELS = {
   aggregate: 'Agregado',
   automation: 'Automação',
+  'cnh-picture-service': 'Foto da CNH',
   'company-admin': 'Administrador',
   contractor: 'Contratante',
   driver: 'Motorista',

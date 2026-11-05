@@ -22,6 +22,8 @@ const COMPANY_ROLES = [
   'contractor',
   /** ADR-0047 §1: o papel do ator sintético. Não se convida um robô, e nenhuma tela o oferece. */
   'automation',
+  /** Spec 295: credencial própria da foto da CNH; nenhuma tela a oferece. */
+  'cnh-picture-service',
 ] as const
 export const COMPANY_PERMISSIONS = [
   'users.manage',

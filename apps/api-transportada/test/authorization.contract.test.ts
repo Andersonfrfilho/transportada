@@ -212,8 +212,8 @@ describe('authorization contract', () => {
         'whatsapp.settle',
         'trip.canhoto-auto-review',
         'occurrence.automatic-mail',
-        'driver.cnh-picture',
       ],
+      'cnh-picture-service': ['driver.cnh-picture'],
     })
   })
 
@@ -787,6 +787,16 @@ describe('permissão de serviço (spec 144 T014b)', () => {
     ])
   })
 
+  /** Spec 295: a credencial da foto da CNH alcança só a rota dela, e o `automation` não alcança a rota dela. */
+  test('o papel cnh-picture-service recebe só driver.cnh-picture, e o automation não a recebe', () => {
+    expect([...resolveCompanyPermissions({ granted: [], roles: ['cnh-picture-service'] })]).toEqual(
+      ['driver.cnh-picture'],
+    )
+    expect(
+      resolveCompanyPermissions({ granted: [], roles: ['automation'] }).has('driver.cnh-picture'),
+    ).toBe(false)
+  })
+
   test('permissão de serviço não é concedível, e a de pessoa continua sendo', () => {
     for (const permission of SERVICE_ONLY_PERMISSIONS) {
       expect(isGrantablePermission(permission)).toBe(false)
@@ -838,13 +848,12 @@ describe('permissão de serviço (spec 144 T014b)', () => {
       'whatsapp.settle',
       'trip.canhoto-auto-review',
       'occurrence.automatic-mail',
-      'driver.cnh-picture',
     ])
   })
 
   test('nenhum papel de gente concede permissão de serviço', () => {
     for (const [role, permissions] of Object.entries(COMPANY_ROLE_PERMISSIONS)) {
-      if (role === 'automation') continue
+      if (role === 'automation' || role === 'cnh-picture-service') continue
       const roleGrants = new Set<string>(permissions)
       for (const permission of SERVICE_ONLY_PERMISSIONS) {
         expect({ permission, role, granted: roleGrants.has(permission) }).toEqual({

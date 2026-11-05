@@ -299,8 +299,9 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'whatsapp.settle',
     'trip.canhoto-auto-review',
     'occurrence.automatic-mail',
-    'driver.cnh-picture',
   ]),
+  /** Spec 295: a credencial da foto da CNH alcança só esta rota; ela não herda nada do `automation`. */
+  'cnh-picture-service': Object.freeze(['driver.cnh-picture']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {

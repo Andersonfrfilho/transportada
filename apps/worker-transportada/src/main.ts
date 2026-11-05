@@ -1145,7 +1145,7 @@ export async function startWorkerRuntime(
         driverWriteBack: createDrizzleFleetDriverAttachmentWriteBackRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
-        ...(config.mdfeAutoIssue === undefined
+        ...(config.cnhPicture === undefined
           ? {}
           : {
               cnhPicture: {
@@ -1157,7 +1157,7 @@ export async function startWorkerRuntime(
                     metadata: { reason },
                   })
                 },
-                picture: createCnhPictureApiGateway({ configuration: config.mdfeAutoIssue }),
+                picture: createCnhPictureApiGateway({ configuration: config.cnhPicture }),
               },
             }),
       },
@@ -2223,6 +2223,9 @@ export async function startWorkerRuntime(
       ]),
     })
     runtimeShutdown.resolve(shutdown)
+    if (config.cnhPicture === undefined) {
+      safeLogInfo({ logger, message: 'cnh_picture_disabled', metadata: {} })
+    }
     safeLogInfo({
       logger,
       message: 'worker_started',

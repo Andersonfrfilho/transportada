@@ -46,8 +46,8 @@ export async function runCnhPictureBackfillFromEnvironment(params: {
   try {
     const source = createDrizzleCnhPictureBackfillRepository(database.db)
     if (params.mode === 'dry-run') return await runCnhPictureBackfill({ mode: 'dry-run', source })
-    if (config.mdfeAutoIssue === undefined) {
-      throw new Error('the worker service credentials are required to apply pictures')
+    if (config.cnhPicture === undefined) {
+      throw new Error('the CNH picture credential is required to apply pictures')
     }
     const logger = createLogger({
       logLevel: config.logLevel,
@@ -62,7 +62,7 @@ export async function runCnhPictureBackfillFromEnvironment(params: {
         onOutcome: ({ outcome, reason }) => {
           logger.info(`cnh_picture_backfill_${outcome}`, { reason })
         },
-        picture: createCnhPictureApiGateway({ configuration: config.mdfeAutoIssue }),
+        picture: createCnhPictureApiGateway({ configuration: config.cnhPicture }),
       },
       reader: createStorageAttachmentReaderGateway({ storage: storageGateway }),
       source,

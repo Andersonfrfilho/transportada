@@ -71,6 +71,8 @@ describe('tenant identity schema', () => {
       'contractor',
       // ADR-0047: o papel do serviço, não de gente — e ele não entra no CHECK de convite
       'automation',
+      // spec 295: credencial própria da foto da CNH, com uma permissão só
+      'cnh-picture-service',
     ])
     expect(COMPANY_ROLES).not.toContain('platform-admin')
   })
@@ -163,7 +165,7 @@ describe('tenant identity schema', () => {
       `"user_company_memberships"."job_title" is null or char_length("user_company_memberships"."job_title") between 1 and 80`,
     ])
     expect(checkSql(membershipRoles)).toEqual([
-      `"membership_roles"."role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor', 'automation')`,
+      `"membership_roles"."role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor', 'automation', 'cnh-picture-service')`,
     ])
   })
 

@@ -77,6 +77,14 @@ export type MdfeAutoIssueEnvironment = {
   readonly tokenUrl: string
 }
 
+/** Spec 295: o crachá só da foto da CNH (`driver.cnh-picture`); o segredo nunca sai daqui para log ou métrica. */
+export type CnhPictureEnvironment = {
+  readonly apiBaseUrl: string
+  readonly clientId: string
+  readonly clientSecret: string
+  readonly tokenUrl: string
+}
+
 export type WorkerEnvironment = {
   /**
    * O `tesseract-server` que lê a CNH fotografada do anexo da candidatura (spec 071). Ausente
@@ -118,6 +126,7 @@ export type WorkerEnvironment = {
   readonly nfseProvider: NfseProviderEnvironment
   readonly foundationSyntheticConsumerEnabled: boolean
   readonly foundationSyntheticEffectDelayMs: number
+  readonly cnhPicture?: CnhPictureEnvironment
   readonly mdfeAutoIssue?: MdfeAutoIssueEnvironment
   readonly logLevel: LogLevel
   /**

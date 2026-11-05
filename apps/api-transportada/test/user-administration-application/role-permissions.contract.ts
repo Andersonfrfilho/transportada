@@ -69,9 +69,12 @@ describe('matriz de papel e permissão', () => {
     for (const permission of SERVICE_ONLY_PERMISSIONS) {
       expect(matrix.permissions).not.toContain(permission)
     }
-    expect(matrix.roles.find((entry) => entry.role === 'automation')?.permissions).toEqual([
-      ...SERVICE_ONLY_PERMISSIONS,
-    ])
+    expect(matrix.roles.find((entry) => entry.role === 'automation')?.permissions).toEqual(
+      SERVICE_ONLY_PERMISSIONS.filter((permission) => permission !== 'driver.cnh-picture'),
+    )
+    expect(matrix.roles.find((entry) => entry.role === 'cnh-picture-service')?.permissions).toEqual(
+      ['driver.cnh-picture'],
+    )
   })
 })
 
