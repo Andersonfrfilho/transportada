@@ -61,3 +61,18 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Ajuste: `timeline.contract.ts` deixou de exigir recusa de origem `invented` (decisão da 294: tolerar).
 - Gates em `apps/frontend-transportada`: `bun run typecheck` limpo; `bun run lint` 0 errors (16 warnings
   antigos); `bun run test` → 8632 pass, 0 fail + 1438 pass, 0 fail; `bun run build` ok; prettier nos alterados.
+
+## T2.1 — migration A aditiva (`recorded_together`, `address_correction_suggestions`, fonte `driver`)
+
+- Migration `20261105023931_stop_event_recorded_together_and_address_suggestions` (com `rollback.sql`): coluna
+  `trip_stop_events.recorded_together boolean not null default false`; tabela `address_correction_suggestions`
+  (`company_id`, FK de membership, índice `(company_id, status, created_at)`, único parcial
+  `(company_id, trip_stop_event_id)`); `'driver'` entra em `GEOCODING_SOURCES` e os quatro CHECKs de fonte
+  (`geocoded_addresses`, `geocoded_address_corrections` previous/new, `client_delivery_addresses`) são alargados
+  aditivamente. `origin = 'driver'` já existia em `CORRECTION_ORIGINS`.
+- `db:generate` seguinte: `no_changes`. Sem rebase: `origin/staging` já era ancestral da branch.
+- Ajustes de contrato: lista de migrations (`static-migration.contract.ts`), política do staging-refresh
+  (`deploy/staging-refresh/prune-source.sql`: `keep`), e o teste "origem não é fonte" admite a sobreposição `driver`.
+- Gates: `make migration-test` → 231 pass, 0 fail (migration + rollback); `bun run typecheck` e `bun run lint` limpos;
+  prettier ok; contrato da API → só falham os 9 testes de `toll booth catalog repository`, que falham igual sem a
+  mudança (preexistente, `disposable-database` "drop" no ambiente local).

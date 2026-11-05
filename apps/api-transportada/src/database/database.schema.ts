@@ -158,6 +158,7 @@ import { geocodedAddressCorrections } from './geocoded-address-correction.schema
 import { clientDeliveryAddresses } from './client-delivery-address.schema.js'
 import { addressComparisons } from './address-comparison.schema.js'
 import { addressCorrectionRequests } from './address-correction.schema.js'
+import { addressCorrectionSuggestions } from './address-correction-suggestion.schema.js'
 import {
   companyRouteOptimizationSettings,
   driverAssignmentFeedback,
@@ -273,6 +274,7 @@ export * from './geocoded-address-correction.schema.js'
 export * from './client-delivery-address.schema.js'
 export * from './address-comparison.schema.js'
 export * from './address-correction.schema.js'
+export * from './address-correction-suggestion.schema.js'
 export * from './delivery-client.schema.js'
 export * from './delivery-client-contact.schema.js'
 export * from './contractor-receiving-profile.schema.js'
@@ -431,6 +433,7 @@ export const databaseSchema = {
   clientDeliveryAddresses,
   addressComparisons,
   addressCorrectionRequests,
+  addressCorrectionSuggestions,
   landingSettings,
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,

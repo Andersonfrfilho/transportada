@@ -28,7 +28,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 
 > 🤖 Modelo: `sonnet` (T2.2 é 🧠 — validar com `architect` em `opus` antes)
 
-- [ ] **T2.1** Migration A aditiva: `recorded_together`, `address_correction_suggestions`. `make migration-test`
+- [x] **T2.1** Migration A aditiva: `recorded_together`, `address_correction_suggestions`. `make migration-test`
       e `db:generate` com `no_changes` depois.
 - [ ] **T2.2 🧠** Extrair os `perform` de saída e chegada para `stop-event-steps.service.ts` **sem mudar
       comportamento**. Aceite: contrato + integração inteiros verdes, diff só de movimentação.
