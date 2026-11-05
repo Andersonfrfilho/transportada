@@ -30,7 +30,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 
 - [x] **T2.1** Migration A aditiva: `recorded_together`, `address_correction_suggestions`. `make migration-test`
       e `db:generate` com `no_changes` depois.
-- [ ] **T2.2 🧠** Extrair os `perform` de saída e chegada para `stop-event-steps.service.ts` **sem mudar
+- [x] **T2.2 🧠** Extrair os `perform` de saída e chegada para `stop-event-steps.service.ts` **sem mudar
       comportamento**. Aceite: contrato + integração inteiros verdes, diff só de movimentação.
 - [ ] **T2.3** `stop-event-sequence.policy.ts` (T0.2 verde) e uso em chegada e baixa do motorista; resultado com
       `recordedTogether`. Integração: 3 eventos em 1 transação, escritório 1, reenvio não duplica.
@@ -65,6 +65,11 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       continua uma nota por vez.
 - [ ] **T4.7** RF22: contratos de áudio para cada passo novo (próxima rota, marquei junto, escolha de parada/nota,
       quem recebeu, pular, encerrar rota, atendente) no grupo e no individual; mídia pedida + áudio repete o pedido.
+- [ ] **T4.8** RF23: foto sem "entreguei" passa pela leitura do canhoto antes da baixa (worker `canhoto-read`);
+      casou → entrega em preparo com o canhoto e baixa; não casou → pergunta a nota. Contratos: casou, várias fotos,
+      ilegível, nota de outra viagem, atendente.
+- [ ] **T4.9** RF24: "Iniciar rota" e "Cheguei" pelo bot pedem localização opcional (pular falado vale; usa a
+      compartilhada antes sem perguntar).
 
 ## Fase 5 — App do motorista
 

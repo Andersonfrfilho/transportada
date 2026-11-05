@@ -123,6 +123,19 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
     As exceções são só as mídias: foto do canhoto e da mercadoria, e a localização compartilhada. Quando o bot pede
     uma delas e chega áudio, ele repete o pedido dizendo que esse item vai por foto/localização ("pular" falado vale
     quando o item é opcional).
+- **RF23** — **Foto do canhoto dá a baixa.** Foto recebida sem "entreguei" passa pela leitura do código de barras
+  que já existe (worker `canhoto-read`, specs 220/222: `readNumber`/`readDocumentId`), agora **antes** da baixa:
+  - casa com uma nota aberta da viagem de quem mandou → abre a entrega em preparo da nota com a foto como canhoto,
+    marca junto o que faltar (RF1) e, sem outra prova obrigatória pendente, dá a baixa e responde
+    "✅ NF 17234 entregue (li o canhoto)"; com prova pendente, pede só o que falta;
+  - várias fotos seguidas → cada canhoto lido baixa a sua nota (o "uma nota por vez" não vale para foto lida);
+  - não leu, ou a nota não é da viagem → "De qual nota é este canhoto?" (resposta também por áudio). Nunca baixa
+    por palpite;
+  - atendente: mesma leitura, regra do escritório (RF19).
+- **RF24** — **Localização opcional no "Iniciar rota" e no "Cheguei"**, pelo bot: antes de registrar, o bot pede
+  "📍 Mande sua localização pelo clipe, ou responda _pular_" ("pular" falado vale). Localização compartilhada pouco
+  antes é usada sem perguntar de novo. Em endereço não confiável, o pedido do "Cheguei" diz que ela corrige o
+  endereço (RF14).
 - **RF20** — Corrige o defeito de hoje: no grupo, a entrega em preparo grava sempre em nome do motorista dono do
   grupo, mesmo quando quem mandou "entreguei" é o atendente.
 
