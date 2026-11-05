@@ -63,6 +63,8 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 - [ ] **T4.6** RF21: atendente fecha no grupo e no individual — baixa de várias notas de uma vez e encerrar viagem
       (mesmas funções do painel, `POST /trips/:id/close`), com confirmação. Contratos nos dois canais; tripulação
       continua uma nota por vez.
+- [ ] **T4.7** RF22: contratos de áudio para cada passo novo (próxima rota, marquei junto, escolha de parada/nota,
+      quem recebeu, pular, encerrar rota, atendente) no grupo e no individual; mídia pedida + áudio repete o pedido.
 
 ## Fase 5 — App do motorista
 

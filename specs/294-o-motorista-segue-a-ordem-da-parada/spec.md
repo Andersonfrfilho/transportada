@@ -113,6 +113,16 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
   - **encerrar a viagem/rota** (a mesma de `POST /trips/:id/close`, 223 RF8), com confirmação "1 - Sim / 2 - Não"
     listando quantas notas ainda estão abertas;
   - na conversa individual, a viagem é escolhida pelo número da nota ou pela lista de viagens na rua.
+- **RF22** — **Tudo por áudio, menos o comprovante.** Cada passo novo desta spec aceita resposta falada, para
+  tripulação e atendente, no grupo e no individual, pelo mesmo caminho de áudio que já existe
+  (`whatsapp-bot-audio.service.ts`: transcrição → "Entendi assim" → segue):
+  - comandos ("saí", "cheguei", "entreguei 17234", "encerrar a rota");
+  - escolhas numeradas ("um", "opção dois", "a nota dezessete mil duzentos e trinta e quatro" — `bot-spoken-note`);
+  - sim/não da próxima rota, do "marquei junto" e do encerramento;
+  - quem recebeu, nome de quem recebeu, "pular".
+    As exceções são só as mídias: foto do canhoto e da mercadoria, e a localização compartilhada. Quando o bot pede
+    uma delas e chega áudio, ele repete o pedido dizendo que esse item vai por foto/localização ("pular" falado vale
+    quando o item é opcional).
 - **RF20** — Corrige o defeito de hoje: no grupo, a entrega em preparo grava sempre em nome do motorista dono do
   grupo, mesmo quando quem mandou "entreguei" é o atendente.
 
