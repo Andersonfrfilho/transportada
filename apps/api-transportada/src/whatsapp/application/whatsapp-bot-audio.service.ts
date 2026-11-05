@@ -46,29 +46,49 @@ export const BOT_AUDIO_SPEECH = {
  * só casa sem eles. Junta grupos de 3 dígitos depois de um grupo de 1 a 3.
  */
 export function joinSpokenNumbers(text: string): string {
-  return (
-    text
-      .replace(/\b\d{1,3}(?:[. ]\d{3})+\b/gu, (number) => number.replace(/[. ]/gu, ''))
-      // A nota dita em pares ("89, 98, 77"): grupos curtos que juntos dão 5 dígitos ou mais.
-      .replace(/\b\d{1,3}(?:(?:,\s*|\s+|-)\d{1,3})+\b/gu, (run) => {
-        const digits = run.replace(/\D/gu, '')
-        return digits.length >= 5 ? digits : run
-      })
-  )
+  return text.replace(/\b\d{1,3}(?:[. ]\d{3})+\b/gu, (number) => number.replace(/[. ]/gu, ''))
 }
 
-export function botAudioConfirmationText(text: string, details: readonly string[] = []): string {
+/**
+ * A nota dita em pares ("89, 98, 04"): grupos curtos que juntos dão 5 dígitos ou mais viram um
+ * número só. Vale para o texto que segue ao fluxo; a confirmação mostra a fala como veio e a nota
+ * juntada no fim.
+ */
+export function joinSpokenNotePairs(text: string): string {
+  return text.replace(/\b\d{1,3}(?:(?:,\s*|\s+|-)\d{1,3})+\b/gu, (run) => {
+    const digits = run.replace(/\D/gu, '')
+    return digits.length >= 5 ? digits : run
+  })
+}
+
+/** As notas que só existem depois de juntar os pares ("89, 98, 04" → 899804). */
+function joinedNotes(heard: string, text: string): readonly string[] {
+  const before = new Set(heard.match(/\d+/gu) ?? [])
+  return [...new Set((text.match(/\d{5,}/gu) ?? []).filter((number) => !before.has(number)))]
+}
+
+/**
+ * O "Entendi assim": a fala como veio (`heard`), as opções e, no fim, o que o bot juntou e achou da
+ * nota (`details`). `text` é o que segue ao fluxo, com a nota em pares já juntada.
+ */
+export function botAudioConfirmationText(
+  text: string,
+  details: readonly string[] = [],
+  heard: string = text,
+): string {
   const preview =
-    text.length > MAX_CONFIRMATION_PREVIEW ? `${text.slice(0, MAX_CONFIRMATION_PREVIEW)}…` : text
+    heard.length > MAX_CONFIRMATION_PREVIEW ? `${heard.slice(0, MAX_CONFIRMATION_PREVIEW)}…` : heard
+  const joined = details.length > 0 ? [] : joinedNotes(heard, text)
+  const tail = [...joined.map((number) => `🔢 Nota: *${number}*`), ...details]
   return [
     '🎙️ *Entendi assim:*',
     '',
     `💬 _"${preview}"_`,
     '',
-    ...details.flatMap((detail) => [detail, '']),
     '👉 *Está certo?* Responda com o número:',
     '✅ *1 - Sim*, pode seguir',
     '❌ *2 - Não*, descartar',
+    ...tail.flatMap((line) => ['', line]),
   ].join('\n')
 }
 
@@ -282,6 +302,8 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
       })
       return
     }
+    const heard = text
+    text = joinSpokenNotePairs(heard)
     pending.set(key, {
       context: input.context,
       expiresAt: clock() + PENDING_TTL_MS,
@@ -293,7 +315,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
       companyId: input.companyId,
       characters: text.length,
     })
-    await input.reply([botAudioConfirmationText(text, await detailsOf(input.details, text))])
+    await input.reply([botAudioConfirmationText(text, await detailsOf(input.details, text), heard)])
   }
 
   function track(job: Promise<void>): void {
@@ -327,7 +349,8 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
         })(),
       )
     },
-    async offer({ companyId, context, conversation, details, owner, reply, text }) {
+    async offer({ companyId, context, conversation, details, owner, reply, text: heard }) {
+      const text = joinSpokenNotePairs(heard)
       pending.set(keyOf(companyId, conversation), {
         context,
         expiresAt: clock() + PENDING_TTL_MS,
@@ -339,7 +362,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
         characters: text.length,
         wake: true,
       })
-      await reply([botAudioConfirmationText(text, await detailsOf(details, text))])
+      await reply([botAudioConfirmationText(text, await detailsOf(details, text), heard)])
     },
     answer({ companyId, conversation, owner, spoken = false, text }) {
       const key = keyOf(companyId, conversation)

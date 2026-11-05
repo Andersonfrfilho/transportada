@@ -23,6 +23,7 @@ import {
   botAudioConfirmationText,
   botAudioQuickAnswer,
   createWhatsAppBotAudio,
+  joinSpokenNotePairs,
   joinSpokenNumbers,
 } from '../../src/whatsapp/application/whatsapp-bot-audio.service.js'
 import {
@@ -302,13 +303,20 @@ describe('áudio do bot: número falado', () => {
   })
 
   test('junta a nota dita em pares e deixa quantidade, opção e dia como estão', () => {
-    expect(joinSpokenNumbers('prorrogação de boleto da nota 89, 98, 04')).toBe(
+    expect(joinSpokenNotePairs('prorrogação de boleto da nota 89, 98, 04')).toBe(
       'prorrogação de boleto da nota 899804',
     )
-    expect(joinSpokenNumbers('nota 89 98 77')).toBe('nota 899877')
-    expect(joinSpokenNumbers('nota 89-98-77')).toBe('nota 899877')
-    expect(joinSpokenNumbers('opção 1, 2')).toBe('opção 1, 2')
-    expect(joinSpokenNumbers('dia 10 e 15, 12 caixas')).toBe('dia 10 e 15, 12 caixas')
+    expect(joinSpokenNotePairs('nota 89 98 77')).toBe('nota 899877')
+    expect(joinSpokenNotePairs('nota 89-98-77')).toBe('nota 899877')
+    expect(joinSpokenNotePairs('opção 1, 2')).toBe('opção 1, 2')
+    expect(joinSpokenNotePairs('dia 10 e 15, 12 caixas')).toBe('dia 10 e 15, 12 caixas')
+  })
+
+  test('a confirmação mostra a fala como veio e a nota juntada no fim', () => {
+    const shown = botAudioConfirmationText('nota 899804', [], 'nota 89, 98, 04')
+    expect(shown).toContain('💬 _"nota 89, 98, 04"_')
+    expect(shown.endsWith('❌ *2 - Não*, descartar\n\n🔢 Nota: *899804*')).toBe(true)
+    expect(botAudioConfirmationText('nota 899877')).not.toContain('🔢')
   })
 })
 
@@ -664,9 +672,14 @@ describe('áudio do bot no grupo: frase de chamada', () => {
     await receive(groupMessage(), VOICE)
     await bot.idle()
     expect(replies).toEqual([
-      botAudioConfirmationText('prorrogação do boleto da nota 899804', ['⚠️ NF 899804']),
+      botAudioConfirmationText(
+        'prorrogação do boleto da nota 899804',
+        ['⚠️ NF 899804'],
+        'prorrogação do boleto da nota 89, 98, 04',
+      ),
     ])
-    expect(replies[0]).toContain('⚠️ NF 899804\n\n👉 *Está certo?*')
+    expect(replies[0]).toContain('💬 _"prorrogação do boleto da nota 89, 98, 04"_')
+    expect(replies[0]?.endsWith('❌ *2 - Não*, descartar\n\n⚠️ NF 899804')).toBe(true)
     await receive(groupMessage({ externalMessageId: 'A2' }), VOICE)
     await bot.idle()
     expect(replies.at(-1)).toBe(botAudioConfirmationText('prorrogação do boleto da nota 899877'))
