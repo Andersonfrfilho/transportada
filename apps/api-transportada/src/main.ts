@@ -190,6 +190,10 @@ import {
   type BotAudioTranscriberPort,
   createWhatsAppBotAudio,
 } from './whatsapp/application/whatsapp-bot-audio.service.js'
+import {
+  describeSpokenNotes,
+  toSpokenNoteSummary,
+} from './whatsapp/domain/bot-spoken-note.policy.js'
 import { parseWakePhrase } from './whatsapp/domain/bot-wake-phrase.policy.js'
 import { downloadEvolutionMedia } from './whatsapp/infrastructure/evolution-media-download.gateway.js'
 import {
@@ -2237,6 +2241,8 @@ function createEvolutionWebhook(input: {
         : {
             audio: {
               bot: groupAudio,
+              // Spec 292 T9: o "Entendi assim" mostra a nota falada (cliente, valor, endereço).
+              ...spokenNotesPort(input.groupOccurrence),
               download: downloadEvolutionMedia,
               reply: (reply) => groupReplies.send(reply),
               // Spec 292 T9: a frase de chamada por voz da instalação ("atendimento Fernandes").
@@ -6471,5 +6477,21 @@ function buildEvolutionProvisioner(input: {
   } catch {
     input.logger.warn('evolution_provisioning_disabled_invalid_base_url')
     return undefined
+  }
+}
+
+/** Spec 292 T9: o "Entendi assim" do áudio mostra a nota falada, lida das viagens do motorista. */
+function spokenNotesPort(groupOccurrence: GroupOccurrenceFlowPorts | undefined) {
+  if (groupOccurrence === undefined) return {}
+  return {
+    describeNotes: async (lookup: {
+      readonly companyId: string
+      readonly driverId: string
+      readonly text: string
+    }) =>
+      describeSpokenNotes(
+        (await groupOccurrence.listDriverDocuments(lookup)).map(toSpokenNoteSummary),
+        lookup.text,
+      ),
   }
 }

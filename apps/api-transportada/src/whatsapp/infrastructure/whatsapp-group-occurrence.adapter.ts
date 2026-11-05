@@ -42,6 +42,7 @@ import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/appli
 import type { WhatsAppOccurrenceDrafts } from '../../whatsapp-commands/application/whatsapp-occurrence-draft.service.js'
 import { BOT_SPEECH_DEFAULTS } from '../../whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
 import type {
+  GroupDriverDocument,
   GroupOccurrenceFlowPorts,
   GroupOccurrenceRegistration,
 } from '../application/whatsapp-group-occurrence-flow.service.js'
@@ -175,13 +176,20 @@ export function createGroupOccurrencePorts(dependencies: {
 
     async listDriverDocuments({ companyId, driverId }) {
       const trips = await dependencies.listActiveTrips({ companyId, driverId })
-      const seen = new Map<string, { id: string; number: string }>()
+      const seen = new Map<string, GroupDriverDocument>()
       for (const trip of trips) {
         if (terminal.has(trip.status)) continue
         for (const stop of trip.stops) {
           for (const document of stop.documents) {
             if (!seen.has(document.id))
-              seen.set(document.id, { id: document.id, number: document.number })
+              seen.set(document.id, {
+                address: stop.label,
+                id: document.id,
+                number: document.number,
+                recipientName: document.recipientDisplayName || document.recipientName,
+                series: document.series,
+                totalAmount: document.totalAmount,
+              })
           }
         }
       }

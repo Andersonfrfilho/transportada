@@ -60,6 +60,7 @@ export type GroupProofIntakePorts = {
   readonly advanceRequest?: (input: {
     readonly companyId: string
     readonly groupJid: string
+    readonly location?: { readonly latitude: number; readonly longitude: number }
     readonly sender: string
   }) => Promise<boolean>
   readonly rememberLocation: (input: {
@@ -105,6 +106,7 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
         const advanced = await ports.advanceRequest?.({
           companyId,
           groupJid: media.groupJid,
+          location: { latitude: media.media.latitude, longitude: media.media.longitude },
           sender: media.sender,
         })
         if (advanced === true) return

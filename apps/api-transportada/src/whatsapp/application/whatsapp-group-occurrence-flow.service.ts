@@ -38,7 +38,15 @@ export const GROUP_OCCURRENCE_STEP = {
 export const GROUP_DOCUMENT_LIST_LIMIT = 40
 export const GROUP_OCCURRENCE_NOTE_MAX_LENGTH = 500
 
-export type GroupDriverDocument = { readonly id: string; readonly number: string }
+export type GroupDriverDocument = {
+  readonly id: string
+  readonly number: string
+  /** Spec 292 T9: o que o "Entendi assim" do áudio mostra da nota falada. */
+  readonly address?: string
+  readonly recipientName?: string
+  readonly series?: string
+  readonly totalAmount?: string
+}
 /** Canal do contato do cliente que o tipo pede (spec 281 T8b): e-mail e/ou WhatsApp. */
 export type GroupClientContactChannel = 'email' | 'whatsapp'
 
@@ -179,9 +187,21 @@ export const GROUP_OCCURRENCE_TEXT = {
       '',
       ...types.map((type, index) => `*${index + 1}* - ${type.name}`),
     ].join('\n'),
-  confirm: (typeName: string, documentNumber: string, note: string, contact = '') =>
+  confirm: (
+    typeName: string,
+    documentNumber: string,
+    note: string,
+    contact = '',
+    where: { readonly address?: string; readonly location?: GroupSharedLocation } = {},
+  ) =>
     [
       `📋 Vou registrar *${typeName}* na *NF ${documentNumber}*.`,
+      ...(where.address === undefined || where.address === ''
+        ? []
+        : [`🏠 Endereço da nota: ${where.address}`]),
+      ...(where.location === undefined
+        ? []
+        : [`📍 Local da ocorrência: ${mapsLink(where.location)}`]),
       ...(note === '' ? [] : [`📝 Observação: _${note}_`]),
       ...(contact === '' ? [] : [`📇 Contato do cliente: *${contact}*`]),
       '',
@@ -223,6 +243,14 @@ export const GROUP_OCCURRENCE_TEXT = {
     ].join('\n'),
 } as const
 
+/** Spec 292 T9: a localização que o motorista compartilhou no passo `location`. */
+export type GroupSharedLocation = { readonly latitude: number; readonly longitude: number }
+
+/** O ponto como link do Google Maps (o mesmo que o WhatsApp abre). */
+export function mapsLink({ latitude, longitude }: GroupSharedLocation): string {
+  return `https://maps.google.com/?q=${latitude.toFixed(6)},${longitude.toFixed(6)}`
+}
+
 function describeChannels(channels: readonly GroupClientContactChannel[]): string {
   if (channels.length === 2) return 'o telefone (WhatsApp) ou o e-mail'
   return channels[0] === 'whatsapp' ? 'o telefone (WhatsApp com DDD)' : 'o e-mail'
@@ -258,6 +286,8 @@ const EMAIL_PATTERN = /^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/u
 
 /** Vai ao `state` (jsonb) do pedido; `undefined` some na gravação. */
 type FlowState = {
+  /** Spec 292 T9: o endereço da parada da nota (só para o resumo). */
+  readonly documentAddress?: string | undefined
   readonly documentId?: string | undefined
   readonly documentNumber?: string | undefined
   readonly contactChannels?: readonly GroupClientContactChannel[] | undefined
@@ -266,6 +296,8 @@ type FlowState = {
   readonly documents?: readonly GroupDriverDocument[] | undefined
   /** Contatos já cadastrados oferecidos no passo `contact`. */
   readonly knownContacts?: readonly GroupClientContact[] | undefined
+  /** Spec 292 T9: a localização compartilhada no passo `location` (só para o resumo). */
+  readonly location?: GroupSharedLocation | undefined
   readonly note?: string | undefined
   readonly typeId?: string | undefined
   /** O pedido como veio no início ("preciso de uma prorrogação de boleto"): pista do tipo depois da nota. */
@@ -295,6 +327,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     if (types.length === 0) return { kind: 'done', replies: [GROUP_OCCURRENCE_TEXT.noTypes] }
     const next: FlowState = {
       ...state,
+      documentAddress: document.address === '' ? undefined : document.address,
       documentId: document.id,
       documentNumber: document.number,
       documents: undefined,
@@ -528,12 +561,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
           if (NO.has(answer)) return { kind: 'done', replies: [GROUP_OCCURRENCE_TEXT.declined] }
           return {
             kind: 'not_understood',
-            prompt: GROUP_OCCURRENCE_TEXT.confirm(
-              state.typeName ?? '',
-              state.documentNumber ?? '',
-              state.note ?? '',
-              state.contactMasked ?? '',
-            ),
+            prompt: confirmText(state),
             reason: REASON.confirm,
           }
         }
@@ -544,19 +572,15 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
   }
 
   const confirmOutcome = (state: FlowState): GroupFlowOutcome =>
-    continueWith(GROUP_OCCURRENCE_STEP.confirm, state, [
-      GROUP_OCCURRENCE_TEXT.confirm(
-        state.typeName ?? '',
-        state.documentNumber ?? '',
-        state.note ?? '',
-        state.contactMasked ?? '',
-      ),
-    ])
+    continueWith(GROUP_OCCURRENCE_STEP.confirm, state, [confirmText(state)])
 
   return {
     locationReceived(turn) {
       if (turn.request.step !== GROUP_OCCURRENCE_STEP.location) return null
-      return confirmOutcome(turn.request.state as FlowState)
+      const state = turn.request.state as FlowState
+      return confirmOutcome(
+        turn.location === undefined ? state : { ...state, location: turn.location },
+      )
     },
 
     async answer(turn) {
@@ -672,4 +696,18 @@ function tokensOf(text: string): string[] {
   return [...text.split(/[^0-9]+/u), ...groups.map((group) => group.replace(/\D/gu, ''))]
     .filter((token) => token !== '')
     .map((token) => token.replace(/^0+/u, ''))
+}
+
+/** O resumo para confirmar: tipo, nota, endereço da nota, local da ocorrência, observação, contato. */
+function confirmText(state: FlowState): string {
+  return GROUP_OCCURRENCE_TEXT.confirm(
+    state.typeName ?? '',
+    state.documentNumber ?? '',
+    state.note ?? '',
+    state.contactMasked ?? '',
+    {
+      ...(state.documentAddress === undefined ? {} : { address: state.documentAddress }),
+      ...(state.location === undefined ? {} : { location: state.location }),
+    },
+  )
 }

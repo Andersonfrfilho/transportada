@@ -18,7 +18,7 @@
 import type { EvolutionWebhookEvent } from '@adatechnology/evolution-whatsapp-provider'
 
 import { matchWakePhrase } from '../domain/bot-wake-phrase.policy.js'
-import { BOT_AUDIO_SPEECH } from './whatsapp-bot-audio.service.js'
+import { BOT_AUDIO_SPEECH, botAudioQuickAnswer } from './whatsapp-bot-audio.service.js'
 
 import {
   decideGroupMessage,
@@ -110,6 +110,15 @@ export type EvolutionGroupAudioPorts = {
    */
   readonly wakePhrase?: readonly string[]
   /**
+   * Spec 292 T9: as linhas da nota falada no "Entendi assim" (cliente, valor, endereço, ou o aviso
+   * de que não bate com as notas do motorista). Ausente, a confirmação mostra só o texto.
+   */
+  readonly describeNotes?: (input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly text: string
+  }) => Promise<readonly string[]>
+  /**
    * Diagnóstico de staging (`WHATSAPP_BOT_WAKE_DEBUG=true`): recebe o começo do que o whisper ouviu
    * quando a frase de chamada não casou. Ausente (o padrão, e sempre em produção), nada sai.
    */
@@ -158,6 +167,7 @@ export type EvolutionGroupInboundPorts = {
   advanceRequestLocation?: (input: {
     readonly companyId: string
     readonly groupJid: string
+    readonly location?: { readonly latitude: number; readonly longitude: number }
     readonly sender: string
   }) => Promise<boolean>
   /** Spec 293 T15: quem escreveu (só dígitos) é o motorista dono do grupo? */
@@ -270,6 +280,7 @@ export function createEvolutionGroupInbound(
             senderName: event.pushName,
           },
           conversation: groupConversation(groupJid),
+          ...notesOf(ports, companyId, input.driverId),
           owner: sender,
           reply: (texts) => ports.reply({ companyId, groupJid, texts }),
           text: rest,
@@ -369,6 +380,7 @@ export function createEvolutionGroupInbound(
             senderName: event.pushName,
           },
           conversation: groupConversation(groupJid),
+          ...notesOf(ports, companyId, input.driverId),
           owner: sender,
           reply: (texts) => ports.reply({ companyId, groupJid, texts }),
           text: rest === null || rest === '' ? text : rest,
@@ -426,6 +438,28 @@ export function createEvolutionGroupInbound(
       return listenForWakePhrase({ ...input, requestOwner, sender })
     }
     await ports.bot.receive({
+      // Com o pedido aberto com quem fala, a resposta curta (sem número) vai direto ao passo.
+      ...(requestOwner === sender
+        ? {
+            accept: async (text: string) => {
+              const quick = botAudioQuickAnswer(text)
+              if (quick === null) return false
+              await dependencies.handle({
+                companyId,
+                driverId: input.driverId,
+                groupJid,
+                providerMessageId: event.externalMessageId,
+                replyToProviderMessageId: event.replyToExternalMessageId,
+                requestOwner,
+                sender,
+                senderName: event.pushName,
+                text: quick,
+                via: 'owner_reply',
+              })
+              return true
+            },
+          }
+        : {}),
       companyId,
       context: {
         driverId: input.driverId,
@@ -433,6 +467,7 @@ export function createEvolutionGroupInbound(
         senderName: event.pushName,
       },
       conversation: groupConversation(groupJid),
+      ...notesOf(ports, companyId, input.driverId),
       download: () =>
         ports.download({
           connection,
@@ -489,7 +524,12 @@ export function createEvolutionGroupInbound(
           // Não é prova de entrega, mas pode ser a resposta ao passo da localização do pedido dele.
           if (
             media.kind === 'location' &&
-            (await dependencies.advanceRequestLocation?.({ companyId, groupJid, sender })) === true
+            (await dependencies.advanceRequestLocation?.({
+              companyId,
+              groupJid,
+              location: { latitude: media.latitude, longitude: media.longitude },
+              sender,
+            })) === true
           ) {
             return 'media'
           }
@@ -721,4 +761,12 @@ export function readGroupMedia(payload: unknown): ReadonlyMap<string, GroupMedia
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+/** A nota falada na confirmação, quando a porta existe (`exactOptionalPropertyTypes`). */
+function notesOf(ports: EvolutionGroupAudioPorts, companyId: string, driverId: string) {
+  const describe = ports.describeNotes
+  return describe === undefined
+    ? {}
+    : { details: (text: string) => describe({ companyId, driverId, text }) }
 }

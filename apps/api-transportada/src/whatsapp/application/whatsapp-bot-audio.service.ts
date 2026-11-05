@@ -28,17 +28,17 @@ const PENDING_TTL_MS = 10 * 60_000
 const MAX_CONFIRMATION_PREVIEW = 1_000
 
 export const BOT_AUDIO_SPEECH = {
-  discarded: 'Certo, descartei o áudio. Pode mandar de novo, em áudio ou por texto.',
+  discarded: '🗑️ Certo, descartei o áudio. Pode mandar de novo, em áudio ou por texto.',
   downloadFailed:
-    'Não consegui baixar o seu áudio. Pode mandar de novo ou escrever a mensagem, por favor?',
+    '⚠️ Não consegui baixar o seu áudio. Pode mandar de novo ou escrever a mensagem, por favor?',
   empty:
-    'Não consegui entender o áudio. Pode repetir falando mais perto do celular, ou escrever a mensagem?',
+    '🤔 Não consegui entender o áudio. Pode repetir falando mais perto do celular, ou escrever a mensagem?',
   failed:
-    'Não consegui transcrever o áudio agora. Pode mandar de novo daqui a pouco ou escrever a mensagem?',
+    '⚠️ Não consegui transcrever o áudio agora. Pode mandar de novo daqui a pouco ou escrever a mensagem?',
   received:
     '🎙️ Estou escutando o seu áudio, só um momento. Já te mostro o que entendi para você confirmar.',
-  tooLong: `O áudio passou de ${BOT_AUDIO_MAX_SECONDS / 60} minutos. Mande um áudio mais curto ou escreva a mensagem, por favor.`,
-  unavailable: 'Por aqui eu ainda não consigo ouvir áudio. Escreva a mensagem, por favor.',
+  tooLong: `⏱️ O áudio passou de ${BOT_AUDIO_MAX_SECONDS / 60} minutos. Mande um áudio mais curto ou escreva a mensagem, por favor.`,
+  unavailable: '✍️ Por aqui eu ainda não consigo ouvir áudio. Escreva a mensagem, por favor.',
 } as const
 
 /**
@@ -49,15 +49,46 @@ export function joinSpokenNumbers(text: string): string {
   return text.replace(/\b\d{1,3}(?:[. ]\d{3})+\b/gu, (number) => number.replace(/[. ]/gu, ''))
 }
 
-export function botAudioConfirmationText(text: string): string {
+/**
+ * A nota dita em pares ("89, 98, 04"): grupos curtos que juntos dão 5 dígitos ou mais viram um
+ * número só. Vale para o texto que segue ao fluxo; a confirmação mostra a fala como veio e a nota
+ * juntada no fim.
+ */
+export function joinSpokenNotePairs(text: string): string {
+  return text.replace(/\b\d{1,3}(?:(?:,\s*|\s+|-)\d{1,3})+\b/gu, (run) => {
+    const digits = run.replace(/\D/gu, '')
+    return digits.length >= 5 ? digits : run
+  })
+}
+
+/** As notas que só existem depois de juntar os pares ("89, 98, 04" → 899804). */
+function joinedNotes(heard: string, text: string): readonly string[] {
+  const before = new Set(heard.match(/\d+/gu) ?? [])
+  return [...new Set((text.match(/\d{5,}/gu) ?? []).filter((number) => !before.has(number)))]
+}
+
+/**
+ * O "Entendi assim": a fala como veio (`heard`), as opções e, no fim, o que o bot juntou e achou da
+ * nota (`details`). `text` é o que segue ao fluxo, com a nota em pares já juntada.
+ */
+export function botAudioConfirmationText(
+  text: string,
+  details: readonly string[] = [],
+  heard: string = text,
+): string {
   const preview =
-    text.length > MAX_CONFIRMATION_PREVIEW ? `${text.slice(0, MAX_CONFIRMATION_PREVIEW)}…` : text
+    heard.length > MAX_CONFIRMATION_PREVIEW ? `${heard.slice(0, MAX_CONFIRMATION_PREVIEW)}…` : heard
+  const joined = details.length > 0 ? [] : joinedNotes(heard, text)
+  const tail = [...joined.map((number) => `🔢 Nota: *${number}*`), ...details]
   return [
-    'Entendi assim:',
+    '🎙️ *Entendi assim:*',
     '',
-    `"${preview}"`,
+    `💬 _"${preview}"_`,
     '',
-    'Está certo? Responda *1 - Sim* para eu seguir com esse texto ou *2 - Não* para descartar.',
+    '👉 *Está certo?* Responda com o número ou por áudio ("sim" ou "não"):',
+    '✅ *1 - Sim*, pode seguir',
+    '❌ *2 - Não*, descartar',
+    ...tail.flatMap((line) => ['', line]),
   ].join('\n')
 }
 
@@ -92,6 +123,22 @@ function spokenAnswer(text: string): 'no' | 'unknown' | 'yes' {
   return 'unknown'
 }
 
+/**
+ * Spec 292 T9: a fala curta, sem número, que responde um passo do pedido ("pular", "continuar", "sim",
+ * "cancelar") segue sem confirmação. Número fica na confirmação: é onde a transcrição erra.
+ */
+export const BOT_AUDIO_QUICK_ANSWER_MAX_WORDS = 3
+
+export function botAudioQuickAnswer(text: string): null | string {
+  const cleaned = text
+    .replace(/[.!?,;:…]+/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+  if (cleaned === '' || /\d/u.test(cleaned)) return null
+  if (cleaned.split(' ').length > BOT_AUDIO_QUICK_ANSWER_MAX_WORDS) return null
+  return cleaned
+}
+
 export type BotAudioAnswer<Context> =
   | { readonly kind: 'confirmed'; readonly context: Context; readonly text: string }
   | { readonly kind: 'discarded' }
@@ -110,6 +157,13 @@ export type ReceiveBotAudioInput<Context> = {
   readonly reply: (texts: readonly string[]) => Promise<void> | void
   /** Segundos do áudio, quando o provedor informa. */
   readonly seconds: null | number
+  /**
+   * Spec 292 T9: o texto transcrito pode seguir sem confirmação? `true` quando quem chamou já o usou
+   * (a resposta curta a um passo do pedido); `false` pede o "1 - Sim / 2 - Não" de sempre.
+   */
+  readonly accept?: (text: string) => Promise<boolean>
+  /** Spec 292 T9: o que a confirmação mostra além do texto (a nota falada). Falha vira nada. */
+  readonly details?: (text: string) => Promise<readonly string[]>
 }
 
 export type WhatsAppBotAudio<Context> = {
@@ -150,7 +204,20 @@ export type WhatsAppBotAudio<Context> = {
     readonly owner: string
     readonly reply: (texts: readonly string[]) => Promise<void> | void
     readonly text: string
+    readonly details?: (text: string) => Promise<readonly string[]>
   }): Promise<void>
+}
+
+async function detailsOf(
+  details: ((text: string) => Promise<readonly string[]>) | undefined,
+  text: string,
+): Promise<readonly string[]> {
+  if (details === undefined) return []
+  try {
+    return await details(text)
+  } catch {
+    return []
+  }
 }
 
 type Pending<Context> = {
@@ -227,6 +294,16 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
       await input.reply([BOT_AUDIO_SPEECH.empty])
       return
     }
+    if (input.accept !== undefined && (await input.accept(text))) {
+      logger.info('whatsapp_bot_audio.accepted', {
+        bytes: bytes.length,
+        companyId: input.companyId,
+        characters: text.length,
+      })
+      return
+    }
+    const heard = text
+    text = joinSpokenNotePairs(heard)
     pending.set(key, {
       context: input.context,
       expiresAt: clock() + PENDING_TTL_MS,
@@ -238,7 +315,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
       companyId: input.companyId,
       characters: text.length,
     })
-    await input.reply([botAudioConfirmationText(text)])
+    await input.reply([botAudioConfirmationText(text, await detailsOf(input.details, text), heard)])
   }
 
   function track(job: Promise<void>): void {
@@ -272,7 +349,8 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
         })(),
       )
     },
-    async offer({ companyId, context, conversation, owner, reply, text }) {
+    async offer({ companyId, context, conversation, details, owner, reply, text: heard }) {
+      const text = joinSpokenNotePairs(heard)
       pending.set(keyOf(companyId, conversation), {
         context,
         expiresAt: clock() + PENDING_TTL_MS,
@@ -284,7 +362,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
         characters: text.length,
         wake: true,
       })
-      await reply([botAudioConfirmationText(text)])
+      await reply([botAudioConfirmationText(text, await detailsOf(details, text), heard)])
     },
     answer({ companyId, conversation, owner, spoken = false, text }) {
       const key = keyOf(companyId, conversation)

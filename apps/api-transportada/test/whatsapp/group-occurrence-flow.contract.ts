@@ -90,7 +90,11 @@ function setup(
   return {
     crewAsked,
     answer: async (text: string) => follow(await flow.answer(turn(text))),
-    locationReceived: () => flow.locationReceived?.(turn('')) ?? null,
+    locationReceived: (location?: { latitude: number; longitude: number }) =>
+      follow(
+        flow.locationReceived?.({ ...turn(''), ...(location === undefined ? {} : { location }) }) ??
+          ({ kind: 'done', replies: [] } as GroupFlowOutcome),
+      ),
     registered,
     start: async (text: string) => follow(await flow.start(turn(text))),
     step: () => request.step,
@@ -299,12 +303,43 @@ describe('fluxo do grupo: localização opcional', () => {
   test('a localização compartilhada avança o passo da localização sozinha; fora dele não faz nada', async () => {
     const ports = setup()
     await ports.start('17234 avaria')
-    expect(ports.locationReceived()).toBeNull()
+    expect(ports.locationReceived()).toEqual({ kind: 'done', replies: [] })
     await ports.answer('quebrou')
     expect(ports.locationReceived()).toMatchObject({
       kind: 'continue',
       step: GROUP_OCCURRENCE_STEP.confirm,
     })
+  })
+})
+
+describe('fluxo do grupo: o resumo para confirmar', () => {
+  const WITH_ADDRESS: GroupDriverDocument = {
+    address: 'Rua das Flores, 100 - Ribeirão Preto/SP',
+    id: 'D1',
+    number: '17234',
+  }
+
+  test('traz o endereço da nota e o local da ocorrência quando o motorista mandou a localização', async () => {
+    const flow = setup({ documents: [WITH_ADDRESS, NF2] })
+    await flow.start('17234 avaria')
+    await flow.answer('quebrou')
+    const outcome = flow.locationReceived({ latitude: -21.1775, longitude: -47.8103 })
+    expect(outcome.kind).toBe('continue')
+    const summary = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
+    expect(summary).toContain('🏠 Endereço da nota: Rua das Flores, 100 - Ribeirão Preto/SP')
+    expect(summary).toContain(
+      '📍 Local da ocorrência: https://maps.google.com/?q=-21.177500,-47.810300',
+    )
+  })
+
+  test('sem localização (pulou ou "enviei" sem mandar) o resumo não traz a linha do local', async () => {
+    const flow = setup({ documents: [WITH_ADDRESS, NF2] })
+    await flow.start('17234 avaria')
+    await flow.answer('quebrou')
+    const outcome = await flow.answer('pular')
+    const summary = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
+    expect(summary).toContain('🏠 Endereço da nota:')
+    expect(summary).not.toContain('📍')
   })
 })
 
