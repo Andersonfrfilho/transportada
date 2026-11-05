@@ -7,8 +7,8 @@
  * chegam como mídia, fora do pedido (`whatsapp-group-proof-intake.service.ts`); as respostas em texto
  * (quem recebeu, nome, "pular", 1/2 da confirmação) chegam por aqui.
  *
- * Uma nota por vez: o lote ("entreguei 17234 17235") e o "devolvi" são da T13. Nada de nome de cliente
- * no grupo: a nota é citada só pelo número.
+ * Uma nota por vez: o lote ("entreguei 17234 17235") e o "devolvi" são da T13. A nota é citada pelo número
+ * e pelo cliente (spec 294 RF17).
  */
 import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
@@ -16,7 +16,11 @@ import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.p
 
 export const GROUP_DELIVERY_STEP = { answer: 'answer', choose: 'choose' } as const
 
-export type GroupDeliveryDocument = { readonly id: string; readonly number: string }
+export type GroupDeliveryDocument = {
+  readonly id: string
+  readonly number: string
+  readonly recipientName?: string | undefined
+}
 
 export type GroupDeliveryFlowPorts = {
   /** A conta do motorista do grupo (o evento fica no nome dele); `null` sem acesso ao app. */
@@ -45,7 +49,7 @@ export const GROUP_DELIVERY_TEXT = {
       'Qual nota você entregou? Responda com o número da nota:',
       ...documents
         .slice(0, 8)
-        .map((document, index) => `${index + 1}. NF ${strip(document.number)}`),
+        .map((document, index) => `${index + 1}. ${describeDocument(document)}`),
     ].join('\n'),
   noDocuments: 'Não encontrei nota aberta na viagem do motorista deste grupo.',
   notFound: (number: string) =>
@@ -62,6 +66,11 @@ const REASON = {
 type FlowState = { readonly documents?: readonly GroupDeliveryDocument[] | undefined }
 
 const strip = (value: string) => value.replace(/^0+(?=\d)/u, '')
+
+function describeDocument(document: GroupDeliveryDocument): string {
+  const name = document.recipientName?.trim()
+  return name ? `NF ${strip(document.number)} · ${name}` : `NF ${strip(document.number)}`
+}
 
 export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
   async function actorOf(turn: GroupFlowTurn) {

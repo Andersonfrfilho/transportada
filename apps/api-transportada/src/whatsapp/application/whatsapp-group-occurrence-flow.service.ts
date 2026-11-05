@@ -15,7 +15,7 @@
  * - Spec 293 T15: tipo que pede foto, número do documento do cliente ou valor pago **não é recusado**:
  *   o registro abre a ocorrência em coleta, o bot pede o que falta e o pedido fica no passo `collect`
  *   até a coleta terminar. Assinatura e produtos continuam só no app e voltam com a frase do campo.
- * - Nada de nome de cliente nem valor no texto do grupo: só o número da nota.
+ * - Sem valor no texto do grupo: a nota vai pelo número.
  */
 import { formatSpokenNoteAmount } from '../domain/bot-spoken-note.policy.js'
 import type {

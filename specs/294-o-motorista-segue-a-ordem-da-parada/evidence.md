@@ -76,3 +76,13 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Gates: `make migration-test` → 231 pass, 0 fail (migration + rollback); `bun run typecheck` e `bun run lint` limpos;
   prettier ok; contrato da API → só falham os 9 testes de `toll booth catalog repository`, que falham igual sem a
   mudança (preexistente, `disposable-database` "drop" no ambiente local).
+
+## T4.1 — cliente nas listas de escolha do bot (RF17)
+
+- `describeStopReference` (grupo e individual) e `GROUP_DELIVERY_TEXT.askDocument` passam a citar a nota e o
+  cliente ("NF 17234 · Padaria Sol", "e mais N" para as outras notas da parada); sem nome, só a nota como antes.
+  O candidato de parada e o documento do grupo carregam `recipientName` (vem de `recipientDisplayName` da viagem).
+  Saíram das docstrings as sentenças "nada de nome de cliente"; a regra de não logar PII segue intacta.
+- Contratos: `driver-events.contract.ts` (política), `group-stop-flow.contract.ts` (lista do saí/cheguei),
+  `group-delivery-flow.contract.ts` (lista do entreguei).
+- Gates: typecheck e lint limpos; contrato da API → 13168 pass, 26 skip, 0 fail; prettier ok.

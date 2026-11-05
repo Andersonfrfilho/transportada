@@ -81,8 +81,8 @@ export const BOT_SPEECH_DEFAULTS = {
   tripUnavailable: 'Esta viagem não está mais disponível.',
   /**
    * Spec 293 T11: os eventos da entrega pela camada comum (`whatsapp-driver-events.service.ts`). As
-   * `group*` são a versão do grupo do motorista: só o número da nota, sem nome do cliente, endereço,
-   * documento nem valor (spec 292).
+   * `group*` são a versão do grupo do motorista: o número da nota (e o cliente nas listas de
+   * escolha, spec 294 RF17), sem documento nem valor (spec 292).
    */
   arrivalRegistered: 'Chegada registrada. 📍',
   departureRegistered: 'Saída registrada. 🚚',

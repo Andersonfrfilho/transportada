@@ -762,7 +762,7 @@ export function createDriverWhatsAppFlowActions(
     }
   }
 
-  /** Mais de uma parada possível: a lista, pelo número da primeira nota (sem dado do cliente). */
+  /** Mais de uma parada possível: a lista, pela primeira nota e pelo cliente (spec 294 RF17). */
   const listStops: WhatsAppAuthorizedActionHandler = async (input) => {
     const { actor, channel, context, session } = input
     const step = readStringContext(context, DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice)

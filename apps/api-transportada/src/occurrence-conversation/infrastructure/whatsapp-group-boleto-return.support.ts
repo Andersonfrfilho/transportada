@@ -16,7 +16,7 @@
  * O estado mora no próprio pedido (`whatsapp_group_requests.state.boletoReturn`), tomado por `version` antes de
  * chamar o Evolution: duas passadas ao mesmo tempo mandam uma vez só. Falha de envio conta tentativa e tenta de novo
  * na próxima passada, até `GROUP_BOLETO_RETURN_MAX_ATTEMPTS`; a ocorrência e a entrega ao motorista nunca dependem
- * disto. Nada de valor nem nome do cliente no texto do grupo, só o número da nota.
+ * disto. Nada de valor no texto do grupo, só o número da nota.
  *
  * ⚠️ SQL puro, sem tabela importada, para viver idêntico na API e no worker (nenhuma app importa a outra); o contrato
  * `contractor-reply-parity.contract.ts` do worker compara os dois arquivos. Nenhum log aqui.

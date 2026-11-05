@@ -14,7 +14,10 @@ import {
   type WhatsAppBotSpeechPort,
 } from '../../whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
-import type { GroupDeliveryFlowPorts } from '../application/whatsapp-group-delivery-flow.service.js'
+import type {
+  GroupDeliveryDocument,
+  GroupDeliveryFlowPorts,
+} from '../application/whatsapp-group-delivery-flow.service.js'
 import type { GroupProofIntakePorts } from '../application/whatsapp-group-proof-intake.service.js'
 import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
 import { downloadEvolutionMedia } from './evolution-media-download.gateway.js'
@@ -68,7 +71,7 @@ export function createGroupDeliveryWiring(dependencies: {
       findActorUserId,
       async listOpenDocuments({ companyId, driverId }) {
         const trips = await dependencies.listActiveTrips({ companyId, driverId })
-        const seen = new Map<string, { id: string; number: string }>()
+        const seen = new Map<string, GroupDeliveryDocument>()
         for (const trip of trips) {
           if (terminal.has(trip.status)) continue
           for (const stop of trip.stops) {
@@ -77,7 +80,11 @@ export function createGroupDeliveryWiring(dependencies: {
                 document.separationStatus !== 'delivered' &&
                 document.separationStatus !== 'returned'
               if (open && !seen.has(document.id)) {
-                seen.set(document.id, { id: document.id, number: document.number })
+                seen.set(document.id, {
+                  id: document.id,
+                  number: document.number,
+                  recipientName: document.recipientDisplayName,
+                })
               }
             }
           }

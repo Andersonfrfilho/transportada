@@ -53,7 +53,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 
 > 🤖 Modelo: `sonnet` (T4.1 → `haiku`)
 
-- [ ] **T4.1** (`haiku`) RF17: cliente nas listas de escolha e nos resumos; remover a proibição dos cabeçalhos de
+- [x] **T4.1** (`haiku`) RF17: cliente nas listas de escolha e nos resumos; remover a proibição dos cabeçalhos de
       `whatsapp-group-*-flow.service.ts` e `whatsapp-driver-stop.policy.ts`. Aceite: contratos do WhatsApp.
 - [ ] **T4.2** Linha "marquei junto" nas respostas de saí/cheguei/entreguei/devolvi (RF5).
 - [ ] **T4.3** Fluxo da próxima rota (grupo e individual), com abertura condicionada (RNF1). T0.4 verde.
