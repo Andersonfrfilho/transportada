@@ -157,6 +157,8 @@ export type DriverTripStop = Readonly<{
   /** Spec 252 (ADR-0100 §6): avisos de feriado para a parada. Acessório: ausente ou malformado vira lista vazia. */
   holidayWarnings?: readonly HolidayWarning[]
   id: string
+  /** Spec 294 RF12: `false` = sem localização certa no mapa; ausente (API antiga) não avisa. */
+  isAddressReliable?: boolean
   label: string
   latitude: string | null
   longitude: string | null

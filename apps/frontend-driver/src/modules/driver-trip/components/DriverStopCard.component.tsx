@@ -616,6 +616,11 @@ export function DriverStopCard({
            * tocava de novo. `isArrivalRecorded` é a mesma chegada que já libera as ações da parada:
            * conta o "Cheguei" ainda na fila.
            */}
+          {areFieldActionsHidden || isArrivalRecorded || stop.isAddressReliable !== false ? null : (
+            <p className={styles.proofPendingWarningLead} role="status">
+              {t('nextStop.unreliableAddress')}
+            </p>
+          )}
           {areFieldActionsHidden || isArrivalRecorded ? null : canReportArrival ? (
             <Button onClick={() => onArrive(stop.id)} type="button">
               <Icon name="check" />

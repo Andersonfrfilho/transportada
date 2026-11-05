@@ -301,6 +301,9 @@ function toStop(value: unknown): DriverTripStop {
     enRouteTappedAt: readNullableString(value.enRouteTappedAt),
     ...(holidayWarnings.length > 0 ? { holidayWarnings } : {}),
     id: readString(value.id),
+    ...(typeof value.isAddressReliable === 'boolean'
+      ? { isAddressReliable: value.isAddressReliable }
+      : {}),
     label: readString(value.label),
     latitude: readNullableString(value.latitude),
     schedule: toSchedule(value.schedule),

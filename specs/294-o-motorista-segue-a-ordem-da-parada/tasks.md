@@ -90,7 +90,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 
 - [x] **T5.1** Confirmação "Vamos marcar Cheguei junto" e aviso pós-baixa; "Registrar entrega depois" com
       etapas marcadas junto e placar como hoje.
-- [ ] **T5.2** Card da próxima parada com "Iniciar rota" e aviso de endereço não confiável; localização no
+- [x] **T5.2** Card da próxima parada com "Iniciar rota" e aviso de endereço não confiável; localização no
       "Cheguei" de parada não confiável.
 - [ ] **T5.3** Fila offline: "Cheguei" recusado/descartado não gera baixa sem chegada (RNF3).
 - [ ] **T5.4** RF27 no app: diálogo de fora de ordem (canhoto/entreguei de outra parada, iniciar rota fora da

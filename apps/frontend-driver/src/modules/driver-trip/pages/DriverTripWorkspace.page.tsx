@@ -31,7 +31,8 @@ import { DriverStopCard, type DriverProofAttachment } from '../components/Driver
 import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNotice.component'
 import { DriverTripSyncBanner } from '../components/DriverTripSyncBanner.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
-import { DriverRecordedTogetherNotice } from '../components/DriverRecordedTogetherNotice.component'
+import { isNextStopStillPending } from '../shared/fieldReportNotice.service'
+import { DriverFieldReportNotice } from '../components/DriverFieldReportNotice.component'
 import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
 import { DriverStalePendingNotice } from '../components/DriverStalePendingNotice.component'
@@ -965,11 +966,12 @@ export function DriverTripWorkspacePage() {
 
         {/* Spec 294 RF5: a etapa que a API marcou junto da baixa */}
         {driverTrip.fieldNotices.map((notice) => (
-          <DriverRecordedTogetherNotice
+          <DriverFieldReportNotice
+            isNextStopPending={isNextStopStillPending(snapshot?.trips ?? [], notice.nextStop?.id)}
             key={notice.key}
-            mode="done"
+            notice={notice}
             onDismiss={() => driverTrip.dismissFieldNotice(notice.key)}
-            steps={notice.recordedTogether}
+            onStartRoute={departStop}
           />
         ))}
 

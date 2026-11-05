@@ -1,4 +1,8 @@
 {
+  "addressCorrection": {
+    "applied": "Endereço atualizado com a sua localização. Obrigado!",
+    "suggested": "Enviamos a sua localização para o escritório conferir o endereço."
+  },
   "arrivalRequired": "Toque em Cheguei para liberar a entrega",
   "arrive": "Cheguei",
   "arrived": "Cheguei às {{time}}",
@@ -556,6 +560,13 @@
     "sendNow": "Enviar agora",
     "confirming": "Entrega registrada. Ela segue para o servidor assim que houver sinal, e a foto sobe logo depois. Não precisa tocar de novo.",
     "missingLead": "Para confirmar, falta: {{fields}}."
+  },
+  "nextStop": {
+    "documents": "Notas: {{numbers}}",
+    "notNow": "Agora não",
+    "start": "Iniciar rota",
+    "title": "Próxima parada: {{sequence}} de {{totalStops}}",
+    "unreliableAddress": "Este endereço está sem localização certa no mapa. Quando chegar, marque Cheguei e compartilhe a localização: o endereço é atualizado."
   },
   "notDelivered": {
     "returnToWarehouse": "Não entregue — volta ao barracão",

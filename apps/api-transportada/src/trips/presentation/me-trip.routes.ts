@@ -449,7 +449,15 @@ export function createMeTripRoutes(
         })
 
         return jsonResponse({
-          body: { data: { id: result.id, recordedTogether: result.recordedTogether } },
+          body: {
+            data: {
+              ...(result.addressCorrection === undefined
+                ? {}
+                : { addressCorrection: result.addressCorrection }),
+              id: result.id,
+              recordedTogether: result.recordedTogether,
+            },
+          },
           status: 201,
         })
       },

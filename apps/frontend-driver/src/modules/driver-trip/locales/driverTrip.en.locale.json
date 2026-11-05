@@ -1,4 +1,8 @@
 {
+  "addressCorrection": {
+    "applied": "Address updated with your location. Thank you!",
+    "suggested": "We sent your location to the office to check the address."
+  },
   "arrivalRequired": "Tap Arrived to unlock delivery",
   "arrive": "I arrived",
   "arrived": "Arrived at {{time}}",
@@ -538,6 +542,13 @@
     "sendNow": "Send now",
     "confirming": "Delivery recorded. It goes to the server as soon as there is signal, and the photo follows. No need to tap again.",
     "missingLead": "To confirm, add: {{fields}}."
+  },
+  "nextStop": {
+    "documents": "Invoices: {{numbers}}",
+    "notNow": "Not now",
+    "start": "Start route",
+    "title": "Next stop: {{sequence}} of {{totalStops}}",
+    "unreliableAddress": "This address has no precise location on the map. When you arrive, tap Arrived and share your location: the address is updated."
   },
   "notDelivered": {
     "returnToWarehouse": "Not delivered — back to the warehouse",

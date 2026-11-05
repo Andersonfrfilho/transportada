@@ -384,3 +384,16 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   junta os avisos (`fieldReportNotice.service.ts`) e a tela mostra "Marcamos Cheguei junto com esta baixa." com "Entendi".
 - Contrato: `test/driver-trip/recorded-together.contract.ts` (tabela de etapas, frases pt/en, resposta, cliente, avisos).
 - Gates: typecheck e lint limpos; `bun run test` 2212 pass / 0 fail; build ok.
+
+## T5.2 — card da próxima parada e endereço sem localização certa no app (RF11, RF12, RF14)
+
+- API: a resposta HTTP do "Cheguei" do motorista passa a levar `addressCorrection` (`applied`/`suggested`/`ignored`/`failed`; ausente sem ponto
+  e no reenvio). Contrato: `test/trip-http/arrival-address-correction-response.contract.ts`.
+- App: a resposta da baixa que fecha a parada traz `nextStop`; `DriverNextStopCard` mostra "Próxima parada: N de M", cliente, endereço, notas e
+  o "Iniciar rota" em destaque (mesma função do botão da parada, `departStop`), com "Agora não". A oferta some sozinha quando a parada já saiu,
+  chegou ou fechou no snapshot (`isNextStopStillPending`). O aviso de endereço sem localização certa (RF12) aparece no card e junto do botão
+  "Cheguei" da parada (`stop.isAddressReliable === false`; a API antiga, sem o campo, não avisa).
+- No "Cheguei" o ponto do aparelho já entra no toque (a leitura do carimbo do evento, `completeLocations`); nenhuma leitura nova. O resultado da
+  correção vira o aviso "Endereço atualizado..." ou "Enviamos a sua localização para o escritório conferir o endereço." (falha e "ignorado" ficam calados).
+- Contrato: `test/driver-trip/next-stop-card.contract.ts`.
+- Gates: typecheck e lint limpos (app e API); `bun run test` 2223 pass / 0 fail; build ok; contrato `trip-http` da API 350 pass.
