@@ -74,10 +74,13 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       (tesseract.js `por`, 2400 px) acertou 7/24 com 0/32 falso positivo (p50 3,5 s, p95 8 s); ≥ 2 marcas baixa, o
       resto pergunta 1/2/3. Visão (`claude-haiku-5-5`) não medida (sem chave; ≈ US$ 0,0002/foto), pendente de decisão
       LGPD. Assinatura por tinta e código de barras não servem como prova. Falta registrar no ADR.
-- [ ] **T4.8b 🧠** Spike (`opus`) das opções gratuitas — PaddleOCR ONNX + classificador próprio + Florence-2; decisão no ADR 0113.
-- [ ] **T4.8** RF23 (sem modelo pago, só opções gratuitas e locais; depende da T4.8b): foto sem "entreguei" → confere se é canhoto (T4.8a) → leitura do canhoto (worker `canhoto-read`) → pede localização;
-      casou → entrega em preparo com o canhoto e baixa; não casou → pergunta a nota. Contratos: casou, várias fotos,
-      ilegível, nota de outra viagem, atendente.
+- [x] **T4.8b 🧠** Spike (`opus`): reconhecer o canhoto e ler o número da NF só com opções gratuitas e locais (decisão do dono, 05/11:
+      nada de API paga nem serviço externo). PP-OCRv4 em `onnxruntime-web` WASM no worker: 99/110 canhotos de produção casam com a nota
+      certa, 0/49 negativos por acaso, p50 1,8 s (`spike-canhoto-gratuito.md`, ADR 0113 §5).
+- [x] **T4.8** RF23: foto sem "entreguei" → o worker lê o canhoto com OCR local e casa o número com as notas abertas de quem mandou →
+      casou exato: entrega em preparo com o canhoto, pede a localização opcional e baixa; aproximado: "é da NF X?" 1/2; ambíguo ou sem
+      número: "de qual nota é?"; menos de 2 marcas: "mercadoria / é o canhoto / descartar". Contratos: casou, várias fotos, ilegível,
+      leitor desligado, nota de outro motorista, repetida, um pedido por vez, atendente (`canhoto-recognition.contract.ts`).
 - [x] **T4.9** RF24: "Iniciar rota" e "Cheguei" pelo bot pedem localização opcional (pular falado vale; usa a
       compartilhada antes sem perguntar).
 - [x] **T4.10** RF25: conferência de fora de ordem (canhoto/entreguei de outra parada; iniciar rota que não é a

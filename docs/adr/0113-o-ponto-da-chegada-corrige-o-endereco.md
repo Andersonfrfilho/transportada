@@ -97,6 +97,25 @@ log sem PII (coordenada, endereço e nome nunca em log).
 4. Cada combinação (ocorrência aberta, entrega em preparo, escolha de parada, oferta da próxima rota) tem contrato de não
    interferência.
 
+### 5. A foto do canhoto se reconhece pelo número da nota, com OCR local (emenda de 05/11/2026)
+
+Spikes T4.8a e T4.8b (`specs/294-o-motorista-segue-a-ordem-da-parada/spike-canhoto*.md`). O dono decidiu em 05/11/2026:
+**nenhuma API paga nem serviço externo; a foto do canhoto não sai das nossas máquinas.** O modelo de visão hospedado
+da T4.8a está fora.
+
+1. O worker lê a foto com **PaddleOCR PP-OCRv4 (detecção + reconhecimento) em `onnxruntime-web` WASM** e `sharp`
+   (roda no Alpine; Apache-2.0/MIT; ~28 MB). O código de barras não serve: o canhoto destacado não o traz.
+2. A prova principal é o **número da nota**: os dígitos lidos casam com **uma** nota aberta da viagem de quem mandou →
+   é o canhoto dessa nota. Casamento só aproximado pede confirmação; ambíguo ou nenhum pergunta "De qual nota é este
+   canhoto?"; sem número e com menos de 2 marcas do canhoto ("Recebemos de", "Data de recebimento", assinatura...),
+   cai na pergunta do RF23 (mercadoria / é o canhoto / descartar). Nota de outra parada segue o RF25. Nunca baixa por
+   palpite e toda foto lida continua `pending` para o escritório (222).
+3. O texto reconhecido não é gravado em banco, log nem fila: só veredito, nota casada, tipo de casamento e tempo.
+4. Medido na T4.8b (110 canhotos aprovados de produção, 49 negativos): 99/110 casam com a nota certa, 1 com outra nota da
+   viagem, 0 negativo casa por acaso; p50 1,8 s, p95 4,7 s por foto numa thread.
+5. Classificador de imagem (MobileNetV3 + sonda) e Florence-2 ficam fora por ora: o primeiro não diz a nota e só foi
+   medido contra negativos fáceis; o segundo é lento e pesado para o worker.
+
 ## Consequências
 
 - A linha do tempo da parada passa a ter saída e chegada sempre que o motorista deu baixa, com "marcada junto" quando

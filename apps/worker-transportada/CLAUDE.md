@@ -60,6 +60,11 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   porque o `whisper-local` usa o timeout duas vezes; a trava é lote × lease. Falha de infraestrutura devolve a
   tentativa e repete em 30 min; desligamento devolve a linha em posse. A rotina nasce pausada e não é registrada sem
   modelo ou ferramenta. Detalhe: `docs/ai-context/worker-transportada.md` § "A rotina `conversation.audio.transcribe`".
+- **O canhoto da foto do bot é lido por OCR local numa thread permanente** (spec 294 T4.8, ADR 0113 §5): PP-OCRv4 em `onnxruntime-web`
+  WASM, modelos em `CANHOTO_OCR_MODEL_DIR` (baixados no `Dockerfile`), uma leitura por vez, prazo `CANHOTO_OCR_TIMEOUT_MS`, fila curta (cheia = 503).
+  Rota interna `POST /internal/bot-canhoto-reads` com o mesmo token do áudio do bot; devolve só marcas e notas casadas — **o texto lido nunca é
+  logado nem guardado**. `CANHOTO_OCR_ENABLED`: ligado fora de produção, desligado em produção (pico de ~740 MB). Núcleo em
+  `src/canhoto-ocr/`; a API decide o que fazer com o veredito.
 - **O áudio do bot do WhatsApp é transcrito na rota interna `POST /internal/bot-audio-transcriptions`** (spec 292 T9),
   no mesmo servidor do healthcheck, só com `BOT_AUDIO_TRANSCRIPTION_TOKEN` e a transcrição configurada (senão 404).
   Uma por vez, 3 na fila (depois 503), 8 MB, nada gravado e nada de texto em log. No Railway, `WORKER_HOSTNAME=::`.

@@ -23,6 +23,8 @@ export const CANHOTO_TEXT = {
   /** A mesma imagem já era canhoto: nada foi gravado. */
   duplicate: (input: { readonly attachedAt: Date; readonly documentNumber?: string | undefined }) =>
     `Esse canhoto já tinha chegado${input.documentNumber === undefined ? '' : `: NF ${input.documentNumber}`}, entregue às ${clockOf(input.attachedAt)}.`,
+  /** Spec 294 T4.8: o bot leu o número da nota na foto. */
+  read: (documentNumber: string) => `Li o canhoto da NF ${documentNumber}.`,
   notUnderstood: 'Responda 1 para trocar o canhoto ou 2 para descartar a foto.',
   replaced: (documentNumber: string) =>
     `Troquei o canhoto da NF ${documentNumber}. O escritório vai conferir.`,

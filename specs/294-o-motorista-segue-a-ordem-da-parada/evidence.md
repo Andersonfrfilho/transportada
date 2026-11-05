@@ -434,3 +434,44 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - `make migration-test`: 231 pass / 0 fail.
 - Integração completa da API (`bun --env-file=../../.env.test run test:integration`): 1900 pass, 8 skip, 0 fail, 337 arquivos, 4791 s. Nada ambiental falhou.
 - Docs: `apps/api-transportada/CLAUDE.md`, `docs/ai-context/api-transportada.md` e `frontend-transportada.md`, `CLAUDE.md` da raiz. Decisão do dono (2026-11-05): sem modelo de IA pago; T4.8/RF23 segue aberta só com opções gratuitas e locais (T4.8b).
+
+## T4.8 — o bot lê o canhoto da foto sem "entreguei" (RF23, ADR 0113 §5)
+
+- Worker (`src/canhoto-ocr/`): PP-OCRv4 detecção + reconhecimento em `onnxruntime-web` WASM (1 thread) numa `worker_thread` **permanente**: os
+  modelos carregam uma vez, a thread fica viva, **uma foto por vez** (concorrência 1), fila de 3 esperando (cheia = `busy`/503), prazo
+  `CANHOTO_OCR_TIMEOUT_MS` (padrão 30 s, inclui a carga dos modelos); estourou, a thread é encerrada e a próxima foto sobe outra. A thread é `unref`
+  (não segura o encerramento). Saída `{ markers, candidates: [{ documentId, match: 'exact' | 'near' }], ambiguous }` contra as notas abertas
+  mandadas pela API; o texto lido nunca sai da thread nem vai a log.
+- Rota interna `POST /internal/bot-canhoto-reads` (multipart: `image` + `candidates`), mesma prova de origem da rota do áudio do bot
+  (`BOT_AUDIO_TRANSCRIPTION_TOKEN`, 404 sem ele), no mesmo servidor do health; o teto do corpo agora é o maior entre as rotas ativas.
+- **Memória:** ~740 MB de pico por leitura (spike 294 T4.8b, RSS); a fila de uma por vez impede dois picos juntos. O `.railway/railway.ts` não declara
+  teto de memória por serviço (só `preserve()` de variáveis), então não há limite do plano para comparar daqui; **medir o RSS do worker no staging antes
+  de ligar em produção**. Por isso `CANHOTO_OCR_ENABLED` vale **ligado fora de produção e desligado em produção** (padrão no schema do worker e na
+  política da API, `isCanhotoOcrEnabled`); em produção liga-se com `CANHOTO_OCR_ENABLED=true` nos dois serviços. Desligado no worker, a rota não existe
+  (404): a API trata como "leitor ausente" e a foto segue calada como antes.
+- Modelos: baixados no `Dockerfile` do worker (estágio `canhoto-ocr-models`, sha256 conferido, ~15 MB) para `/models/canhoto-ocr`
+  (`CANHOTO_OCR_MODEL_DIR` no ENV da imagem); a thread entra no build (`canhoto-ocr.worker.ts` em `package.json`, guardado pelo contrato de entrypoints).
+  O helper de âncora de caminho da CNH (spec 295) não existe nesta branch: o diretório é fato da imagem por variável, como o modelo do whisper.
+- Verificado de ponta a ponta com os modelos reais (imagem sintética com as marcas e "017.234"): 5 marcas, casou exato com a nota 17234, 1,0 s na
+  primeira foto (carga dos modelos) e ~0,7 s nas seguintes na mesma thread.
+- API: `whatsapp-canhoto-recognition.service.ts` (decisão em `whatsapp-canhoto-recognition.policy.ts`, falas em `...-speech.constant.ts`) atrás da
+  fachada `combineWhatsAppDriverCollections` — os dois canais (grupo e individual) herdam: `acceptsUnsolicitedPhoto` deixa o canal baixar a foto
+  mesmo sem preparação (só com notas abertas do motorista e leitor ligado); `answer` responde às perguntas; `hasOpen`/`awaitingText` contam a
+  pergunta aberta (RNF1: a oferta da próxima rota não abre por cima). Nova tabela `whatsapp_canhoto_questions` (migration aditiva
+  `20261105144242_whatsapp_canhoto_questions`, rollback incluso; uma aberta por motorista; a foto espera no bucket privado e vence em 30 min;
+  política `empty` no staging-refresh). A leitura do OCR não é guardada.
+- Tabela do spike: exato único → `receiveCanhotoPhoto` (abre a preparação da nota, grava a foto como canhoto — `pending` para o escritório como
+  na 222 —, aplica o "marquei junto" e o resto pela baixa de sempre, pede a localização opcional); aproximado → "Este canhoto é da NF X? 1/2"
+  (2 → "de qual nota?"); ambíguo, ou sem número com ≥ 2 marcas → "De qual nota é este canhoto?" (número da opção, número da nota ou "descartar", também por
+  áudio); sem número e < 2 marcas → "Mercadoria / É o canhoto / Descartar"; imagem repetida (hash) → RF26 "Esse canhoto já tinha chegado", sem ler; nota de
+  outra parada → a baixa recusa por fora de ordem e a preparação pergunta o 1/2 do RF25 (o atendente, pelo caminho do escritório, sem pergunta). Leitor
+  cheio/falhou → "Não consegui ler a foto agora" + a pergunta 1/2/3, nunca baixa; rota ausente → foto calada.
+- Limites registrados: (1) nota **já entregue sem canhoto** (223) não é candidata do OCR — a foto cai na pergunta; (2) com uma preparação aberta, a
+  foto segue para ela como antes (não passa pelo OCR), então "várias fotos seguidas" baixam uma nota por vez depois da resposta da localização;
+  (3) a decisão de ligar em produção depende da medida de memória no staging.
+- **App do motorista (T5.4, "é canhoto?"):** não mostra aviso. O app já pergunta a nota antes da foto (o motorista escolheu), e ler pelo servidor custaria
+  um OCR síncrono de 1–5 s (até 30 s na primeira, com a carga dos modelos) e ~740 MB de pico dentro do upload do app. A confirmação humana continua sendo a
+  do escritório (`pending`, 222). Fica como está.
+- Contratos: `apps/worker-transportada/test/canhoto-ocr.contract.test.ts` (texto, thread, rota, ambiente),
+  `apps/api-transportada/test/whatsapp-commands/canhoto-recognition.contract.ts`, `test/whatsapp/worker-canhoto-reader.contract.ts`,
+  `test/integration/whatsapp-canhoto-question-repository.integration.ts`.

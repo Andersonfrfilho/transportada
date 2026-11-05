@@ -1,0 +1,474 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 294 T4.8 (RF23, ADR 0113 §5): a foto sem entrega em preparo é lida pelo OCR local do worker. Exato e único liga
+ * ao canhoto da nota (localização opcional, baixa); aproximado, ambíguo ou sem número pergunta; leitor desligado deixa a
+ * foto calada; um pedido por vez; o atendente segue o mesmo reconhecimento.
+ */
+import { describe, expect, test } from 'bun:test'
+
+import {
+  createWhatsAppCanhotoRecognition,
+  type WhatsAppCanhotoQuestion,
+  type WhatsAppCanhotoReaderPort,
+} from '../../src/whatsapp-commands/application/whatsapp-canhoto-recognition.service.js'
+import {
+  createWhatsAppDeliveryPreparations,
+  type WhatsAppDeliveryPreparation,
+  type WhatsAppDeliveryPreparationRepositoryPort,
+} from '../../src/whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
+import { combineWhatsAppDriverCollections } from '../../src/whatsapp-commands/application/whatsapp-occurrence-draft.service.js'
+import type {
+  WhatsAppDocumentEventInput,
+  WhatsAppDriverActor,
+} from '../../src/whatsapp-commands/application/whatsapp-driver-events.service.js'
+import { CANHOTO_RECOGNITION_SPEECH } from '../../src/whatsapp-commands/domain/whatsapp-canhoto-recognition-speech.constant.js'
+import { isCanhotoOcrEnabled } from '../../src/whatsapp-commands/domain/whatsapp-canhoto-ocr-enabled.policy.js'
+import {
+  DEFAULT_DELIVERY_PROOF_SETTINGS,
+  type DeliveryProofFieldSettings,
+} from '../../src/trips/domain/delivery-proof-settings.policy.js'
+
+const ACTOR: WhatsAppDriverActor = { actorUserId: 'U1', companyId: 'C1', driverId: 'D1' }
+const SETTINGS: DeliveryProofFieldSettings = {
+  ...DEFAULT_DELIVERY_PROOF_SETTINGS,
+  cargo: 'off',
+  photo: 'optional',
+  receivedBy: 'off',
+  receiverDocument: 'off',
+  receiverName: 'off',
+  signature: 'off',
+}
+const NOW = new Date('2026-11-05T15:00:00.000Z')
+const BYTES = new Uint8Array([1, 2, 3])
+
+type Verdict = Awaited<ReturnType<WhatsAppCanhotoReaderPort['read']>>
+const exact = (documentId: string): Verdict => ({
+  ambiguous: false,
+  candidates: [{ documentId, match: 'exact' }],
+  markers: 1,
+})
+
+function setup(
+  options: {
+    readonly duplicateOf?: string
+    readonly now?: () => Date
+    readonly read?: () => Promise<Verdict>
+    readonly stops?: boolean
+  } = {},
+) {
+  const rows = new Map<string, WhatsAppDeliveryPreparation & { status: string }>()
+  const questionRows = new Map<string, WhatsAppCanhotoQuestion & { status: string }>()
+  const delivered: WhatsAppDocumentEventInput[] = []
+  const attached: { readonly documentId: string; readonly kind: string }[] = []
+  const removed: string[] = []
+  let readCalls = 0
+  let sequence = 0
+
+  const repository: WhatsAppDeliveryPreparationRepositoryPort = {
+    async close({ id, status, version }) {
+      const row = rows.get(id)
+      if (row === undefined || row.status !== 'open' || row.version !== version) return false
+      rows.set(id, { ...row, awaiting: null, status, version: row.version + 1n })
+      return true
+    },
+    async findOpenByDocument({ documentId }) {
+      return (
+        [...rows.values()].find((r) => r.documentId === documentId && r.status === 'open') ?? null
+      )
+    },
+    async listOpenForDriver({ driverId }) {
+      return [...rows.values()].filter((r) => r.driverId === driverId && r.status === 'open')
+    },
+    async open(input) {
+      sequence += 1
+      const row = {
+        ...input,
+        awaiting: null,
+        id: `P${sequence}`,
+        location: null,
+        photos: [],
+        receivedBy: null,
+        receiverName: null,
+        skipped: [],
+        status: 'open',
+        version: 1n,
+      }
+      rows.set(row.id, row)
+      return row
+    },
+    async save({ changes, id, version }) {
+      const row = rows.get(id)
+      if (row === undefined || row.status !== 'open' || row.version !== version) return false
+      rows.set(id, { ...row, ...changes, version: row.version + 1n })
+      return true
+    },
+  }
+  const media = {
+    read: async () => BYTES,
+    remove: async ({ objectKey }: { readonly objectKey: string }) => {
+      removed.push(objectKey)
+    },
+    store: async ({
+      bytes,
+      preparationId,
+    }: {
+      readonly bytes: Uint8Array
+      readonly preparationId: string
+    }) => ({
+      objectKey: `${preparationId}/photo`,
+      sha256: 'abc',
+      sizeBytes: bytes.byteLength,
+    }),
+  }
+  const listStops = async () =>
+    options.stops === false
+      ? []
+      : [
+          {
+            arrivedAt: null,
+            completedAt: null,
+            documents: [
+              {
+                id: 'DOC-A',
+                number: '017234',
+                recipientName: 'Mercado Sul',
+                separationStatus: 'loaded',
+              },
+              { id: 'DOC-DONE', number: '1', separationStatus: 'delivered' },
+            ],
+            enRouteSince: null,
+            id: 'S1',
+            sequence: 1,
+          },
+          {
+            arrivedAt: null,
+            completedAt: null,
+            documents: [{ id: 'DOC-B', number: '17300', separationStatus: 'loaded' }],
+            enRouteSince: null,
+            id: 'S2',
+            sequence: 2,
+          },
+        ]
+  const preparations = createWhatsAppDeliveryPreparations({
+    attachProof: async (input) => {
+      attached.push({ documentId: input.documentId, kind: input.upload.kind })
+      return {}
+    },
+    deliver: async (input) => {
+      delivered.push(input)
+      return {
+        details: { proofPending: true, stopCompleted: false, tripCompleted: false },
+        event: 'deliver',
+        kind: 'registered',
+      }
+    },
+    describeResult: async ({ documentNumber }) => `entregue:${documentNumber}`,
+    listStops,
+    media,
+    repository,
+    resolveSettings: async () => SETTINGS,
+  })
+  const reader: WhatsAppCanhotoReaderPort = {
+    read: async () => {
+      readCalls += 1
+      return (options.read ?? (async () => exact('DOC-A')))()
+    },
+  }
+  const recognition = createWhatsAppCanhotoRecognition({
+    clock: options.now ?? (() => NOW),
+    ...(options.duplicateOf === undefined
+      ? {}
+      : {
+          findCanhotoByHash: async () => ({
+            attachedAt: new Date('2026-11-05T14:32:00.000Z'),
+            documentId: options.duplicateOf as string,
+          }),
+        }),
+    listStops,
+    media,
+    preparations,
+    questions: {
+      async close({ id, status }) {
+        const row = questionRows.get(id)
+        if (row !== undefined) questionRows.set(id, { ...row, status })
+      },
+      async findOpen({ driverId }) {
+        return (
+          [...questionRows.values()].find((q) => q.driverId === driverId && q.status === 'open') ??
+          null
+        )
+      },
+      async open(input) {
+        if (
+          [...questionRows.values()].some(
+            (q) => q.driverId === input.driverId && q.status === 'open',
+          )
+        ) {
+          return null
+        }
+        sequence += 1
+        const row = { ...input, id: `Q${sequence}`, openedAt: NOW, status: 'open' }
+        questionRows.set(row.id, row)
+        return row
+      },
+      async reframe({ candidates, id, kind }) {
+        const row = questionRows.get(id)
+        if (row !== undefined) questionRows.set(id, { ...row, candidates, kind })
+      },
+    },
+    reader,
+  })
+  const facade = combineWhatsAppDriverCollections({
+    canhoto: recognition,
+    deliveries: preparations,
+    occurrences: {
+      answer: async () => null,
+      awaitingText: async () => false,
+      hasOpen: async () => false,
+      receiveLocation: async () => null,
+      receivePhoto: async () => null,
+      wantsPhoto: async () => false,
+    } as never,
+  })
+  const photo = (actor: WhatsAppDriverActor = ACTOR, id = 'M1') =>
+    facade.receivePhoto({
+      actor,
+      bytes: BYTES,
+      caption: null,
+      channel: 'group',
+      mimeType: 'image/jpeg',
+      providerMessageId: id,
+    })
+  const answer = (text: string, actor: WhatsAppDriverActor = ACTOR) =>
+    facade.answer({ actor, text })
+  return {
+    answer,
+    attached,
+    delivered,
+    facade,
+    photo,
+    questionRows,
+    readCalls: () => readCalls,
+    removed,
+    rows,
+  }
+}
+
+describe('foto sem entrega em preparo: o canhoto lido liga à nota (spec 294 RF23)', () => {
+  test('número exato e único: abre a nota com o canhoto, pede a localização e baixa', async () => {
+    const t = setup()
+    const first = await t.photo()
+    expect(first?.texts[0]).toBe('Li o canhoto da NF 17234.')
+    expect(first?.texts.join('\n')).toContain('localização')
+    expect(t.rows.get('P1')?.photos.map((p) => p.kind)).toEqual(['photo'])
+    expect(t.questionRows.size).toBe(0)
+
+    const done = await t.answer('pular')
+    expect(done?.texts.some((text) => text.includes('Confirm') || text.includes('confirm'))).toBe(
+      true,
+    )
+    const finished = await t.answer('sim')
+    expect(finished?.texts.join(' ')).toContain('entregue:17234')
+    expect(t.delivered).toHaveLength(1)
+    expect(t.attached).toEqual([{ documentId: 'DOC-A', kind: 'photo' }])
+  })
+
+  test('várias fotos seguidas: cada canhoto lido abre a sua nota', async () => {
+    let next = 'DOC-A'
+    const t = setup({ read: async () => exact(next) })
+    await t.photo(ACTOR, 'M1')
+    await t.answer('pular')
+    await t.answer('sim')
+    next = 'DOC-B'
+    const second = await t.photo(ACTOR, 'M2')
+    expect(second?.texts[0]).toBe('Li o canhoto da NF 17300.')
+    expect(t.rows.get('P2')?.documentId).toBe('DOC-B')
+  })
+
+  test('o atendente passa pelo mesmo reconhecimento, com a baixa do escritório', async () => {
+    const attendant: WhatsAppDriverActor = { ...ACTOR, attendant: true }
+    const t = setup()
+    await t.photo(attendant)
+    await t.answer('pular', attendant)
+    await t.answer('sim', attendant)
+    expect(t.delivered[0]?.attendant).toBe(true)
+  })
+
+  test('a mesma imagem de antes: diz de qual nota e não lê nem grava', async () => {
+    const t = setup({ duplicateOf: 'DOC-A' })
+    const reply = await t.photo()
+    expect(reply?.texts).toEqual(['Esse canhoto já tinha chegado: NF 17234, entregue às 11:32.'])
+    expect(t.readCalls()).toBe(0)
+    expect(t.rows.size).toBe(0)
+  })
+})
+
+describe('o que não é exato pergunta, e nunca baixa por palpite', () => {
+  test('casamento aproximado pergunta "é da NF X?"; 1 liga, 2 pergunta de qual', async () => {
+    const near: Verdict = {
+      ambiguous: false,
+      candidates: [{ documentId: 'DOC-A', match: 'near' }],
+      markers: 0,
+    }
+    const t = setup({ read: async () => near })
+    const asked = await t.photo()
+    expect(asked?.texts[0]).toContain('Este canhoto é da NF 17234?')
+    expect(asked?.awaitingText).toBe(true)
+    expect(t.rows.size).toBe(0)
+
+    const other = await t.answer('2')
+    expect(other?.texts[0]).toContain('De qual nota é este canhoto?')
+    expect(other?.texts[0]).toContain('NF 17234 · Mercado Sul')
+    expect(other?.texts[0]).toContain('NF 17300')
+    const chosen = await t.answer('17300')
+    expect(chosen?.texts[0]).toBe('Li o canhoto da NF 17300.')
+    expect(t.rows.get('P2')?.documentId ?? t.rows.get('P3')?.documentId).toBe('DOC-B')
+    expect(t.removed.length).toBeGreaterThan(0)
+  })
+
+  test('casamento aproximado confirmado com "sim" liga à nota', async () => {
+    const near: Verdict = {
+      ambiguous: false,
+      candidates: [{ documentId: 'DOC-A', match: 'near' }],
+      markers: 0,
+    }
+    const t = setup({ read: async () => near })
+    await t.photo()
+    const reply = await t.answer('sim')
+    expect(reply?.texts[0]).toBe('Li o canhoto da NF 17234.')
+  })
+
+  test('ambíguo lista só as notas candidatas, por número da opção', async () => {
+    const both: Verdict = {
+      ambiguous: true,
+      candidates: [
+        { documentId: 'DOC-A', match: 'exact' },
+        { documentId: 'DOC-B', match: 'exact' },
+      ],
+      markers: 2,
+    }
+    const t = setup({ read: async () => both })
+    const asked = await t.photo()
+    expect(asked?.texts[0]).toContain('*1* - NF 17234')
+    expect(asked?.texts[0]).toContain('*2* - NF 17300')
+    expect(asked?.texts[0]).toContain('*3* - Descartar')
+    const chosen = await t.answer('2')
+    expect(chosen?.texts[0]).toBe('Li o canhoto da NF 17300.')
+  })
+
+  test('duas marcas e nenhum número legível: pergunta de qual nota com todas as abertas', async () => {
+    const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 3 }) })
+    const asked = await t.photo()
+    expect(asked?.texts[0]).toContain('De qual nota é este canhoto?')
+    expect(asked?.texts[0]).not.toContain('NF 1\n')
+  })
+
+  test('menos de duas marcas e sem número: "mercadoria / é o canhoto / descartar"', async () => {
+    const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 1 }) })
+    const asked = await t.photo()
+    expect(asked?.texts[0]).toContain('Essa foto não parece um canhoto assinado')
+    expect(asked?.texts[0]).toContain('*3* - Descartar')
+    expect((await t.answer('2'))?.texts[0]).toContain('De qual nota é este canhoto?')
+    expect((await t.answer('descartar'))?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.discarded])
+    expect(t.questionRows.size).toBe(1)
+    expect([...t.questionRows.values()][0]?.status).toBe('cancelled')
+  })
+
+  test('"1 - mercadoria" anota e descarta a foto; resposta que não entende repete a pergunta', async () => {
+    const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 0 }) })
+    await t.photo()
+    expect((await t.answer('talvez'))?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.notUnderstood])
+    expect((await t.answer('1'))?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.cargoNoted])
+    expect(t.rows.size).toBe(0)
+  })
+
+  test('na conversa individual, texto que não responde segue para o menu', async () => {
+    const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 0 }) })
+    await t.photo()
+    expect(await t.facade.answer({ actor: ACTOR, strict: true, text: 'menu' })).toBeNull()
+  })
+
+  test('nota de outro motorista (fora das abertas dele) nunca é candidata', async () => {
+    const foreign: Verdict = {
+      ambiguous: false,
+      candidates: [{ documentId: 'DOC-OTHER', match: 'exact' }],
+      markers: 0,
+    }
+    const t = setup({ read: async () => foreign })
+    const asked = await t.photo()
+    expect(asked?.texts[0]).toContain('não parece um canhoto')
+    expect(t.rows.size).toBe(0)
+  })
+})
+
+describe('leitor indisponível, um pedido por vez e prazo (RNF1)', () => {
+  test('rota ausente ou OCR desligado no worker: a foto segue calada', async () => {
+    const t = setup({
+      read: async () => {
+        throw Object.assign(new Error('unreachable'), { reason: 'unreachable' })
+      },
+    })
+    expect(await t.photo()).toBeNull()
+    expect(t.questionRows.size).toBe(0)
+  })
+
+  test('fila cheia ou falha do motor: avisa e cai na pergunta 1/2/3, sem baixar', async () => {
+    const t = setup({
+      read: async () => {
+        throw Object.assign(new Error('busy'), { reason: 'busy' })
+      },
+    })
+    const asked = await t.photo()
+    expect(asked?.texts[0]).toContain(CANHOTO_RECOGNITION_SPEECH.readerUnavailable)
+    expect(asked?.texts[0]).toContain('*1* - Mercadoria')
+    expect(t.rows.size).toBe(0)
+  })
+
+  test('com pergunta aberta, outra foto não abre outra: pede a resposta antes', async () => {
+    const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 0 }) })
+    await t.photo(ACTOR, 'M1')
+    const second = await t.photo(ACTOR, 'M2')
+    expect(second?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.busy])
+    expect(t.questionRows.size).toBe(1)
+    expect(t.readCalls()).toBe(1)
+  })
+
+  test('a pergunta aberta conta como pedido aberto para os canais e responde ao texto', async () => {
+    const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 0 }) })
+    expect(await t.facade.acceptsUnsolicitedPhoto?.(ACTOR)).toBe(true)
+    await t.photo()
+    expect(await t.facade.hasOpen(ACTOR)).toBe(true)
+    expect(await t.facade.awaitingText(ACTOR)).toBe(true)
+  })
+
+  test('sem nota aberta do motorista a foto segue calada e nem chega ao leitor', async () => {
+    const t = setup({ stops: false })
+    expect(await t.facade.acceptsUnsolicitedPhoto?.(ACTOR)).toBe(false)
+    expect(await t.photo()).toBeNull()
+    expect(t.readCalls()).toBe(0)
+  })
+
+  test('pergunta sem resposta por mais de 30 minutos vence e a foto é apagada', async () => {
+    let now = NOW
+    const t = setup({
+      now: () => now,
+      read: async () => ({ ambiguous: false, candidates: [], markers: 0 }),
+    })
+    await t.photo()
+    now = new Date(NOW.getTime() + 31 * 60 * 1000)
+    expect(await t.facade.hasOpen(ACTOR)).toBe(false)
+    expect(t.removed).toHaveLength(1)
+    expect(await t.answer('1')).toBeNull()
+  })
+})
+
+describe('o OCR liga por ambiente (spec 294 T4.8)', () => {
+  test('ligado fora de produção, desligado em produção, e a variável manda', () => {
+    expect(isCanhotoOcrEnabled({ APP_ENV: 'staging' })).toBe(true)
+    expect(isCanhotoOcrEnabled({})).toBe(true)
+    expect(isCanhotoOcrEnabled({ APP_ENV: 'production' })).toBe(false)
+    expect(isCanhotoOcrEnabled({ APP_ENV: 'production', CANHOTO_OCR_ENABLED: 'true' })).toBe(true)
+    expect(isCanhotoOcrEnabled({ APP_ENV: 'staging', CANHOTO_OCR_ENABLED: 'false' })).toBe(false)
+  })
+})

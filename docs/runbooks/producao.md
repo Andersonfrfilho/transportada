@@ -596,6 +596,14 @@ tela). Nenhuma escrita. 28 fotos de produção baixadas para a pasta de rascunho
 `pending`, 1 `rejected`), nenhuma `cargo`, nenhuma com `canhoto_read_source`; staging 23 `photo` + 9 anexos de
 ocorrência.
 
+Segunda amostra (spike T4.8b, `spike-canhoto-gratuito.md`, 05/11/2026), mesma forma de leitura (`select` em
+transação `read only` e `GET` no bucket de dentro da `api`, script em `spike-canhoto-gratuito/fetch-sample.mjs`): 111
+fotos `photo` (110 `approved` + 1 `rejected`, ordem por `md5(id)`), em 4 lotes de 28 pelo `railway ssh` (lote maior
+deixa a saída base64 em ~18 MB por chamada). Junto, o número da nota anexada e os números das notas da mesma viagem e
+da mesma parada, gravados só no rascunho local para comparar por igualdade, nunca impressos. Staging: 29 imagens
+(fotos de comprovante + anexos de ocorrência). Nenhuma escrita; nada enviado a serviço externo; pasta apagada ao fim.
+⚠️ O Docker Desktop não monta `/tmp` (pasta de rascunho): para testar em Alpine use `docker create` + `docker cp`.
+
 ## 5.13 Primeira publicação do fluxo da conversa individual do WhatsApp (05/11/2026)
 
 Depois da promoção #530, a simulação de `producao-publicar-falas-do-bot.sh` mostrou **"estado atual não publicado"**:
