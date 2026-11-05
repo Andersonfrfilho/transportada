@@ -34,6 +34,7 @@ create table refresh_work.policy (
 insert into refresh_work.policy (table_key, mode, date_column) values
   ('address_comparisons', 'keep', null),
   ('address_correction_requests', 'keep', null),
+  ('address_correction_suggestions', 'empty', null),
   ('aggregate_accounts', 'keep', null),
   ('aggregate_application_attachments', 'empty', null),
   ('aggregate_applications', 'keep', null),
@@ -274,6 +275,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('user_whatsapp_phones', 'keep', null),
   ('vehicle_volume_references', 'keep', null),
   ('view_preferences', 'keep', null),
+  ('whatsapp_canhoto_questions', 'empty', null),
   ('whatsapp_channels', 'empty', null),
   ('whatsapp_command_documents', 'empty', null),
   ('whatsapp_command_requests', 'empty', null),

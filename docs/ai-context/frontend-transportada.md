@@ -1707,3 +1707,7 @@ do "Vale para" o rascunho avisa quantos saem junto). A exceção por contratante
 `occurrenceTypeMail.query`). `missingNotificationTemplate` chega no feed, no detalhe e na prévia do diálogo (`notificationTemplateKey`, `ccSource` ganhou
 `occurrence_type`); `SendToContractorDialog` desabilita o envio e trata o 409 `OCCURRENCE_MAIL_TEMPLATE_MISSING`. Testes: `trip-hooks/occurrence-type-contractor-mail`
 (com `occurrenceTypeMailHarness.helper.ts`), `contractor-mail-missing-template`, `occurrence-missing-template-mark`.
+
+## Spec 294 T6.1 — sugestões de endereço do motorista em /pendencias
+
+`modules/pending-items`: item `addressSuggestedByDriver` com mapa (`AddressSuggestionMap`, reaproveita `AssemblyVectorMap`) do ponto atual x sugerido, distância, botões Aplicar/Descartar só com `trip.manage` (a lista pede `fleet.read`); decisão otimista com volta atrás em erro.

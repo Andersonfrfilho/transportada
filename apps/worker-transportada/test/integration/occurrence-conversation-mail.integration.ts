@@ -8,7 +8,7 @@
  */
 import { createHash } from 'node:crypto'
 
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, sql } from 'drizzle-orm'
 
@@ -32,6 +32,9 @@ type Seeded = {
 
 describeDatabase('conversa da ocorrência pelo trilho de e-mail da 143 (spec 183 T405)', () => {
   const provider = createDrizzleProvider({ connection: databaseUrl! })
+  afterAll(async () => {
+    await provider.close()
+  })
   const database = provider.db
   const inbound = createDrizzleContractorMailInboundWorkerRepository(database)
   const outbound = createDrizzleContractorMailOutboundWorkerRepository(database)

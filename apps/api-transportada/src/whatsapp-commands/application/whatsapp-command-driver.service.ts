@@ -39,6 +39,12 @@ import {
   DRIVER_FLOW_CONTEXT_KEY,
   DRIVER_FLOW_NODE,
 } from '../domain/whatsapp-driver-flow.constant.js'
+import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../../trips/domain/trip-permission.constant.js'
+import {
+  ATTENDANT_FLOW_CONTEXT_KEY,
+  ATTENDANT_FLOW_NODE,
+} from '../domain/whatsapp-attendant-flow.constant.js'
+import { interpretAttendantFieldCommand } from './register-attendant-field-flow-actions.js'
 import { interpretWhatsAppDriverEventCommand } from '../domain/whatsapp-driver-event-command.policy.js'
 import { parseMenuPageNavigation } from '../domain/whatsapp-menu.policy.js'
 import { filterWhatsAppRootFlowGraph } from '../domain/whatsapp-root-menu.policy.js'
@@ -65,6 +71,12 @@ import type {
   WhatsAppDeliveryPreparationReply,
   WhatsAppDeliveryPreparations,
 } from './whatsapp-delivery-preparation.service.js'
+import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
+import { DRIVER_PROMPT_CONTEXT_KEY } from '../domain/whatsapp-driver-prompt.policy.js'
+import {
+  buildRouteOfferReply,
+  type WhatsAppDriverPrompts,
+} from './whatsapp-driver-prompts.service.js'
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
 import {
   BOT_AUDIO_SPEECH,
@@ -111,6 +123,8 @@ export type WhatsAppCommandDriverDependencies = {
   readonly clock: () => Date
   /** Spec 293 T15: ausente, foto e texto seguem o fluxo de sempre (sem entrega em preparo). */
   readonly deliveryProofs?: WhatsAppDeliveryProofIntake
+  /** Spec 294 RF8: a oferta da próxima rota e as conferências do bot; ausente, a baixa responde como antes. */
+  readonly driverPrompts?: WhatsAppDriverPrompts
   readonly graphs: WhatsAppFlowGraphProviderPort
   readonly interpreter: WhatsAppFlowInterpreterPort
   readonly logger: ApiLogger
@@ -200,14 +214,18 @@ async function dispatch(incoming: WhatsAppCommandTurn): Promise<MessageHookOutco
     await acknowledgeSharedLocation({
       permissions: actor.context.scope.permissions,
       proofActor,
+      scope: actor.context.scope,
       turn,
     })
   ) {
     return HANDLED
   }
   if (proofActor !== null && (await acceptDeliveryProof({ proofActor, turn }))) return HANDLED
+  if (await acceptDriverPrompt({ scope: actor.context.scope, turn })) return HANDLED
 
-  await guardConversation(turn, () => advanceConversation(turn, actor.context.scope.permissions))
+  await guardConversation(turn, () =>
+    advanceConversation(turn, actor.context.scope.permissions, proofActor !== null),
+  )
   return HANDLED
 }
 
@@ -249,7 +267,11 @@ async function acceptBotAudio(turn: WhatsAppCommandTurn): Promise<'handled' | Wh
     return 'handled'
   }
   if (answer.kind === 'none') return turn
-  return { ...turn, message: { ...turn.message, text: { body: answer.text }, type: 'text' } }
+  return {
+    ...turn,
+    isFromAudio: true,
+    message: { ...turn.message, text: { body: answer.text }, type: 'text' },
+  }
 }
 
 /**
@@ -260,15 +282,19 @@ async function acceptBotAudio(turn: WhatsAppCommandTurn): Promise<'handled' | Wh
 async function acknowledgeSharedLocation(input: {
   readonly permissions: ReadonlySet<string>
   readonly proofActor: null | ProofActor
+  readonly scope: DriverPromptScope
   readonly turn: WhatsAppCommandTurn
 }): Promise<boolean> {
-  const { permissions, proofActor, turn } = input
+  const { permissions, proofActor, scope, turn } = input
   const { sharedLocations } = turn.deps
   if (sharedLocations === undefined) return false
   if (!permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION)) return false
 
   const location = extractWhatsAppIncomingLocation(turn.message, turn.deps.clock())
   if (location === undefined) return false
+
+  // Spec 294 RF24: com o pedido de localização do "saí"/"cheguei" em aberto, o ponto é dele e não fica lembrado.
+  if (await answerLocationPrompt({ location, scope, turn })) return true
 
   sharedLocations.remember({
     companyId: turn.session.companyId,
@@ -280,8 +306,8 @@ async function acknowledgeSharedLocation(input: {
     proofActor === null
       ? null
       : await proofActor.intake.preparations.receiveLocation({ actor: proofActor.actor, location })
-  if (reply !== null && reply.texts.length > 0) {
-    await sendProofReply(turn, reply)
+  if (reply !== null && reply.texts.length > 0 && proofActor !== null) {
+    await sendProofReply({ actor: proofActor.actor, intake: proofActor.intake, reply, turn })
     return true
   }
   await turn.deps.sender.sendText({ body: WHATSAPP_SHARED_LOCATION_REPLY, to: turn.phone })
@@ -315,8 +341,12 @@ async function resolveProofActor(input: {
     membershipId: input.scope.membershipId,
   })
   if (driverId === null) return null
-  if (!(await intake.preparations.hasOpen({ companyId: input.scope.companyId, driverId })))
-    return null
+  const scope = { companyId: input.scope.companyId, driverId }
+  // Spec 294 T4.8: a foto sem preparação aberta também entra, para o bot reconhecer o canhoto (só mensagem de imagem).
+  const mayRecognizePhoto =
+    extractWhatsAppIncomingImage(input.turn.message) !== undefined &&
+    (await intake.preparations.acceptsUnsolicitedPhoto?.(scope)) === true
+  if (!mayRecognizePhoto && !(await intake.preparations.hasOpen(scope))) return null
   return {
     actor: { actorUserId: input.scope.userId, companyId: input.scope.companyId, driverId },
     intake,
@@ -349,26 +379,165 @@ async function acceptDeliveryProof(input: {
       actor,
       bytes: Uint8Array.from(Buffer.from(downloaded.data, 'base64')),
       caption: turn.message.image?.caption ?? null,
+      channel: 'individual',
       mimeType: downloaded.mimeType.split(';')[0]?.trim() || image.mimeType,
       providerMessageId: turn.message.id ?? image.mediaId,
     })
     if (reply === null) return false
-    await sendProofReply(turn, reply)
+    await sendProofReply({ actor, intake, reply, turn })
     return true
   }
   const text = extractWhatsAppAnswer(turn.message)
   if (text === undefined) return false
   const reply = await intake.preparations.answer({ actor, strict: true, text })
-  if (reply === null) return false
-  await sendProofReply(turn, reply)
+  if (reply === null) {
+    // Spec 294 RF22: o bot pediu foto ou localização e veio áudio — repete o pedido dizendo que vai por mídia.
+    if (turn.isFromAudio !== true) return false
+    const again = await intake.preparations.repeatMediaRequest?.({ actor })
+    if (again === null || again === undefined) return false
+    await sendProofReply({ actor, intake, reply: again, turn })
+    return true
+  }
+  await sendProofReply({ actor, intake, reply, turn })
   return true
 }
 
-async function sendProofReply(
-  turn: WhatsAppCommandTurn,
-  reply: WhatsAppDeliveryPreparationReply,
-): Promise<void> {
+async function sendProofReply(input: {
+  readonly actor: ProofActor['actor']
+  readonly intake: WhatsAppDeliveryProofIntake
+  readonly reply: WhatsAppDeliveryPreparationReply
+  readonly turn: WhatsAppCommandTurn
+}): Promise<void> {
+  const { actor, intake, reply, turn } = input
   for (const body of reply.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
+  if (reply.routeContinuation !== undefined) {
+    await offerNextRoute({ actor, continuation: reply.routeContinuation, intake, turn })
+  }
+}
+
+/**
+ * Spec 294 RF8–RF10: a baixa que fechou a parada oferece a próxima rota. A pergunta só abre quando nada
+ * mais espera resposta deste motorista (RNF1); o pedido fica no contexto da sessão.
+ */
+async function offerNextRoute(input: {
+  readonly actor: ProofActor['actor']
+  readonly continuation: NonNullable<WhatsAppDeliveryPreparationReply['routeContinuation']>
+  readonly intake: WhatsAppDeliveryProofIntake
+  readonly turn: WhatsAppCommandTurn
+}): Promise<void> {
+  const { actor, continuation, intake, turn } = input
+  const { botAudio, driverPrompts, sessions } = turn.deps
+  if (driverPrompts === undefined) return
+  const { companyId } = turn.session
+  const position = await sessions.getContext(companyId, turn.phone)
+  const context = position?.context ?? {}
+  const offer = buildRouteOfferReply({
+    continuation,
+    gate: {
+      hasOpenCollection: await intake.preparations.hasOpen(actor),
+      hasOpenStopChoice: position?.currentNodeId === DRIVER_FLOW_NODE.stopEntry,
+      hasPendingAudio:
+        botAudio?.hasPending({
+          companyId,
+          conversation: `user:${turn.phone}`,
+          owner: turn.phone,
+        }) ?? false,
+      hasPendingPrompt: driverPrompts.pending(context) !== undefined,
+    },
+    now: turn.deps.clock(),
+  })
+  for (const body of offer.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
+  if (offer.prompt === undefined) return
+  await sessions.setState(
+    companyId,
+    turn.phone,
+    position?.currentState ?? turn.session.currentState,
+    {
+      ...context,
+      [DRIVER_PROMPT_CONTEXT_KEY]: offer.prompt,
+    },
+  )
+}
+
+type DriverPromptScope = {
+  readonly companyId: string
+  readonly membershipId: string
+  readonly permissions: ReadonlySet<string>
+  readonly userId: string
+}
+
+/** Spec 294 RF24: a localização compartilhada responde ao pedido de localização em aberto. */
+async function answerLocationPrompt(input: {
+  readonly location: ReportedLocation
+  readonly scope: DriverPromptScope
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { location, scope, turn } = input
+  const { deliveryProofs, driverPrompts, sessions } = turn.deps
+  if (driverPrompts === undefined || deliveryProofs === undefined) return false
+  const position = await sessions.getContext(scope.companyId, turn.phone)
+  const context = position?.context ?? {}
+  if (driverPrompts.pending(context) === undefined) return false
+  const driverId = await deliveryProofs.resolveDriver({
+    companyId: scope.companyId,
+    membershipId: scope.membershipId,
+  })
+  if (driverId === null) return false
+  const result = await driverPrompts.answerLocation({
+    actor: { actorUserId: scope.userId, companyId: scope.companyId, driverId },
+    context,
+    location,
+    whatsappNumber: turn.session.whatsappNumber,
+  })
+  if (result === null) return false
+  await sessions.setState(
+    scope.companyId,
+    turn.phone,
+    position?.currentState ?? turn.session.currentState,
+    result.context,
+  )
+  for (const body of result.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
+  return true
+}
+
+/**
+ * Spec 294 RNF1: a resposta ("1"/"2", digitada ou falada) ao pedido em aberto da conversa — a oferta da
+ * próxima rota. Só responde ao pedido; qualquer outra mensagem o encerra e segue o fluxo de sempre.
+ */
+async function acceptDriverPrompt(input: {
+  readonly scope: DriverPromptScope
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { scope, turn } = input
+  const { deliveryProofs, driverPrompts, sessions } = turn.deps
+  if (driverPrompts === undefined || deliveryProofs === undefined) return false
+  if (!scope.permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION)) return false
+  const text = extractWhatsAppAnswer(turn.message)
+  if (text === undefined) return false
+  const position = await sessions.getContext(scope.companyId, turn.phone)
+  const context = position?.context ?? {}
+  if (driverPrompts.pending(context) === undefined) return false
+  const driverId = await deliveryProofs.resolveDriver({
+    companyId: scope.companyId,
+    membershipId: scope.membershipId,
+  })
+  if (driverId === null) return false
+  const result = await driverPrompts.answer({
+    actor: { actorUserId: scope.userId, companyId: scope.companyId, driverId },
+    context,
+    text,
+    whatsappNumber: turn.session.whatsappNumber,
+  })
+  if (result === null) return false
+  await sessions.setState(
+    scope.companyId,
+    turn.phone,
+    position?.currentState ?? turn.session.currentState,
+    result.context,
+  )
+  if (!result.handled) return false
+  for (const body of result.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
+  return true
 }
 
 /**
@@ -407,6 +576,7 @@ async function guardConversation(
 async function advanceConversation(
   turn: WhatsAppCommandTurn,
   permissions: ReadonlySet<string>,
+  isRegisteredDriver: boolean,
 ): Promise<void> {
   const position = await turn.deps.sessions.getContext(turn.session.companyId, turn.phone)
   const context = position?.context ?? {}
@@ -415,6 +585,12 @@ async function advanceConversation(
   if (graph === undefined) return
 
   if (await runDirectDriverCommand({ context, graph, located, permissions, turn })) return
+  if (
+    !isRegisteredDriver &&
+    (await runAttendantFieldCommand({ context, graph, located, permissions, turn }))
+  ) {
+    return
+  }
 
   if (located === undefined) {
     await runWhatsAppFlow({
@@ -507,6 +683,45 @@ async function runDirectDriverCommand(input: {
         [DRIVER_FLOW_CONTEXT_KEY.directCommand]: command,
       },
       currentNodeId: DRIVER_FLOW_NODE.directCommand,
+      graph,
+      userAnswer: undefined,
+    },
+    hopsLeft: WHATSAPP_MAX_CROSS_FLOW_HOPS,
+    turn,
+  })
+  return true
+}
+
+/**
+ * Spec 294 RF21: o comando do atendente ("entreguei 17234 17235", "encerrar a rota") no texto livre.
+ * Mesmas condições do comando do motorista (só onde ninguém responde outra pergunta); a FlowAction
+ * reconfere a permissão da baixa do escritório. Quem é motorista cadastrado segue as regras de motorista.
+ */
+async function runAttendantFieldCommand(input: {
+  readonly context: Record<string, unknown>
+  readonly graph: FlowGraphData
+  readonly located: { readonly node: FlowNodeData } | undefined
+  readonly permissions: ReadonlySet<string>
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { context, graph, located, permissions, turn } = input
+  if (!permissions.has(TRIP_REPORT_ON_BEHALF_PERMISSION)) return false
+  const text = turn.message.text?.body
+  if (text === undefined) return false
+  const nodeId = located?.node.id
+  if (nodeId !== undefined && nodeId !== graph.startNodeId) return false
+  // Grafo publicado antes da spec 294 não tem o nó: segue o fluxo de sempre até a republicação.
+  if (graph.nodes[ATTENDANT_FLOW_NODE.fieldCommand] === undefined) return false
+  const command = interpretAttendantFieldCommand(text)
+  if (command === undefined) return false
+
+  await runWhatsAppFlow({
+    cursor: {
+      context: {
+        ...withoutInvalidAttempts(context),
+        [ATTENDANT_FLOW_CONTEXT_KEY.fieldCommand]: command,
+      },
+      currentNodeId: ATTENDANT_FLOW_NODE.fieldCommand,
       graph,
       userAnswer: undefined,
     },
@@ -652,7 +867,7 @@ async function verifyEntry(input: {
     await denyTurn({ reason: actor.reason, turn })
     return
   }
-  await advanceConversation(turn, actor.context.scope.permissions)
+  await advanceConversation(turn, actor.context.scope.permissions, false)
 }
 
 function readVerificationCode(message: WhatsAppCommandTurn['message']): string | undefined {

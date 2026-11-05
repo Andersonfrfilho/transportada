@@ -31,6 +31,8 @@ export type WhatsAppSharedLocationStore = {
   /** Devolve o ponto lembrado e o esquece: um ponto vale para um toque só. `null` se vencido. */
   consume(key: WhatsAppSharedLocationKey): ReportedLocation | null
   remember(input: WhatsAppSharedLocationKey & { readonly location: ReportedLocation }): void
+  /** Spec 294 RF24: há um ponto lembrado e valendo? Não o consome (o bot só pergunta quando não há). */
+  has(key: WhatsAppSharedLocationKey): boolean
   /** Quantos pontos estão guardados agora (vencidos e ainda não varridos incluídos). Sem coordenada. */
   size(): number
 }
@@ -81,6 +83,10 @@ export function createInMemoryWhatsAppSharedLocationStore(
       return entry !== undefined && entry.expiresAtMs > params.clock().getTime()
         ? entry.location
         : null
+    },
+    has(key) {
+      const entry = remembered.get(toMapKey(key))
+      return entry !== undefined && entry.expiresAtMs > params.clock().getTime()
     },
     remember({ location, ...key }) {
       const nowMs = params.clock().getTime()

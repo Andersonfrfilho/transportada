@@ -22,6 +22,8 @@ import type { WhatsAppFlowInterpreterPort } from './whatsapp-command-driver.port
 /** Uma mensagem em processamento: as dependências da empresa, o remetente e a sessão. */
 export type WhatsAppCommandTurn = {
   readonly deps: WhatsAppCommandDriverDependencies
+  /** Spec 294 RF22: o texto veio de um áudio confirmado ("1 - Sim"); o bot repete o pedido de mídia em vez de seguir. */
+  readonly isFromAudio?: boolean
   readonly maskedPhone: string
   readonly message: WhatsAppMessage
   readonly phone: string

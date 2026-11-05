@@ -12,6 +12,7 @@
  *   endereço, documento de quem recebeu nem valor (spec 292). A localização e as provas não são
  *   repetidas na resposta.
  */
+import type { StopEventStep } from '../../trips/domain/stop-event-sequence.policy.js'
 import type { BotSpeechKey } from '../domain/whatsapp-bot-speech.constant.js'
 import { DRIVER_TRANSITION_BLOCK_MESSAGES } from '../domain/whatsapp-driver-flow.constant.js'
 import type { BotSpeechLine } from './whatsapp-bot-speech.service.js'
@@ -24,7 +25,7 @@ import {
 } from './whatsapp-driver-events.service.js'
 
 export type WhatsAppDriverEventAudience =
-  | { readonly kind: 'driver' }
+  | { readonly documentNumber?: string; readonly kind: 'driver' }
   /** `documentNumber` é o número da NF (o único dado da nota que aparece no grupo). */
   | { readonly documentNumber?: string; readonly kind: 'group' }
 
@@ -62,8 +63,56 @@ const STOP_EVENTS: ReadonlySet<WhatsAppDriverEvent> = new Set([
   WHATSAPP_DRIVER_EVENT.depart,
 ])
 
+/** Spec 294 RF14: a chegada com ponto atualiza o endereço ou manda a sugestão ao escritório. */
+export const ADDRESS_CORRECTION_TEXT = {
+  applied: 'Endereço atualizado. ✅',
+  suggested: 'Enviei para o escritório conferir o endereço. 📬',
+} as const
+
+const STEP_WORDS = { arrived: 'a chegada', departed: 'a saída' } as const
+
+const COMPANION_WORDS: Readonly<Record<WhatsAppDriverEvent, string>> = {
+  arrive: 'a chegada',
+  depart: 'a saída',
+  deliver: 'a entrega',
+  occurrence: 'a ocorrência',
+  return: 'a devolução',
+}
+
+/** Spec 294 RF5: avisa a etapa que a API marcou junto — "Marquei a chegada junto com a entrega da NF 17234.". */
+export function describeRecordedTogether(input: {
+  readonly documentNumber?: string | undefined
+  readonly event: WhatsAppDriverEvent
+  readonly steps: readonly StopEventStep[]
+}): string | undefined {
+  if (input.steps.length === 0) return undefined
+  const marked = input.steps.map((step) => STEP_WORDS[step]).join(' e ')
+  const note = input.documentNumber === undefined ? '' : ` da NF ${input.documentNumber}`
+  return `Marquei ${marked} junto com ${COMPANION_WORDS[input.event]}${note}.`
+}
+
 /** A resposta ao evento, já na plateia certa. */
 export function describeWhatsAppDriverEventResult(
+  result: WhatsAppDriverEventResult,
+  audience: WhatsAppDriverEventAudience,
+): BotSpeechLine {
+  const line = describeMainLine(result, audience)
+  if (result.kind !== 'registered') return line
+  const together = describeRecordedTogether({
+    documentNumber: audience.documentNumber,
+    event: result.event,
+    steps: result.recordedTogether ?? [],
+  })
+  const after = [
+    ...(together === undefined ? [] : [together]),
+    ...(result.addressCorrection === undefined
+      ? []
+      : [ADDRESS_CORRECTION_TEXT[result.addressCorrection]]),
+  ]
+  return after.length === 0 ? line : { ...line, after }
+}
+
+function describeMainLine(
   result: WhatsAppDriverEventResult,
   audience: WhatsAppDriverEventAudience,
 ): BotSpeechLine {
@@ -106,6 +155,8 @@ export function describeWhatsAppDriverEventRefusal(
       return { key: 'stopNotReachable' }
     case 'stop_en_route':
       return { key: 'stopEnRoute', params: { sequence: refusal.enRouteStopSequence } }
+    case 'stop_out_of_order':
+      return { text: describeOutOfOrderStop(refusal) }
     case 'transition_blocked': {
       const message = DRIVER_TRANSITION_BLOCK_MESSAGES[refusal.reason]
       const documentNumber = group ? audience.documentNumber : undefined
@@ -118,3 +169,13 @@ export function describeWhatsAppDriverEventRefusal(
 
 /** Erro que não é de negócio, no grupo: o pedido fecha com o convite a tentar de novo. */
 export const WHATSAPP_GROUP_EVENT_FAILED: BotSpeechLine = { key: 'groupRegisterFailed' }
+
+function describeOutOfOrderStop(refusal: {
+  readonly currentSequence: number | null
+  readonly nextSequence: number | null
+  readonly requestedSequence: number
+}): string {
+  const expected = refusal.currentSequence ?? refusal.nextSequence
+  const reference = expected === null ? 'a parada em andamento' : `a parada ${expected}`
+  return `Essa não é a parada em andamento: o roteiro pede ${reference}, e esta é a parada ${refusal.requestedSequence}. Fale com o escritório para registrar fora da ordem.`
+}

@@ -14,9 +14,14 @@ import {
   type WhatsAppBotSpeechPort,
 } from '../../whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
-import type { GroupDeliveryFlowPorts } from '../application/whatsapp-group-delivery-flow.service.js'
+import type {
+  GroupDeliveryDocument,
+  GroupDeliveryFlowPorts,
+} from '../application/whatsapp-group-delivery-flow.service.js'
+import type { ResolveWhatsAppSenderRole } from '../application/whatsapp-sender-role.service.js'
 import type { GroupProofIntakePorts } from '../application/whatsapp-group-proof-intake.service.js'
 import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
+import { sameBrazilianPhone } from './whatsapp-group-sender.adapter.js'
 import { downloadEvolutionMedia } from './evolution-media-download.gateway.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -41,6 +46,10 @@ export type GroupDeliveryWiring = {
 export function createGroupDeliveryWiring(dependencies: {
   readonly consumeLocation: GroupDeliveryFlowPorts['consumeLocation']
   readonly database: Database
+  /** Spec 294 RF18: quem mandou — tripulação, atendente ou ninguém. */
+  readonly resolveSenderRole: ResolveWhatsAppSenderRole
+  /** Spec 294 RF21: a baixa do atendente pelo escritório (lote, sem prova). */
+  readonly deliverAsAttendant: GroupDeliveryFlowPorts['deliverAsAttendant']
   readonly listActiveTrips: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -65,10 +74,13 @@ export function createGroupDeliveryWiring(dependencies: {
   return {
     flow: {
       consumeLocation: dependencies.consumeLocation,
+      ...(dependencies.deliverAsAttendant === undefined
+        ? {}
+        : { deliverAsAttendant: dependencies.deliverAsAttendant }),
       findActorUserId,
       async listOpenDocuments({ companyId, driverId }) {
         const trips = await dependencies.listActiveTrips({ companyId, driverId })
-        const seen = new Map<string, { id: string; number: string }>()
+        const seen = new Map<string, GroupDeliveryDocument>()
         for (const trip of trips) {
           if (terminal.has(trip.status)) continue
           for (const stop of trip.stops) {
@@ -77,7 +89,11 @@ export function createGroupDeliveryWiring(dependencies: {
                 document.separationStatus !== 'delivered' &&
                 document.separationStatus !== 'returned'
               if (open && !seen.has(document.id)) {
-                seen.set(document.id, { id: document.id, number: document.number })
+                seen.set(document.id, {
+                  id: document.id,
+                  number: document.number,
+                  recipientName: document.recipientDisplayName,
+                })
               }
             }
           }
@@ -85,6 +101,7 @@ export function createGroupDeliveryWiring(dependencies: {
         return [...seen.values()]
       },
       preparations: dependencies.preparations,
+      resolveSenderRole: dependencies.resolveSenderRole,
       withoutAccessText,
     },
     intake: {
@@ -95,6 +112,7 @@ export function createGroupDeliveryWiring(dependencies: {
       ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
       preparations: dependencies.preparations,
       rememberLocation: dependencies.rememberLocation,
+      resolveSenderRole: dependencies.resolveSenderRole,
       withoutAccessText,
     },
     async isGroupDriver({ companyId, driverId, sender }) {
@@ -103,24 +121,14 @@ export function createGroupDeliveryWiring(dependencies: {
         .from(fleetDrivers)
         .where(and(eq(fleetDrivers.companyId, companyId), eq(fleetDrivers.id, driverId)))
         .limit(1)
-      return row !== undefined && sameBrazilianPhone(row.phone, sender)
+      if (row !== undefined && sameBrazilianPhone(row.phone, sender)) return true
+      // Spec 294 RF18: a mídia do atendente também é prova (baixa pelo escritório).
+      return (
+        (await dependencies.resolveSenderRole({ companyId, driverId, phone: sender })).kind ===
+        'attendant'
+      )
     },
   }
 }
 
-/**
- * O telefone da ficha (DDD + número, 10 ou 11 dígitos) e o número do WhatsApp (com o 55, e às vezes
- * sem o nono dígito, como o WhatsApp guarda os números antigos) são a mesma linha?
- */
-export function sameBrazilianPhone(registered: string, whatsapp: string): boolean {
-  const local = (value: string) => {
-    const digits = value.replace(/\D/gu, '')
-    const national = digits.length > 11 && digits.startsWith('55') ? digits.slice(2) : digits
-    // Sem o nono dígito: DDD + 8 dígitos. O celular com o 9 vira a mesma forma.
-    return national.length === 11 && national[2] === '9'
-      ? `${national.slice(0, 2)}${national.slice(3)}`
-      : national
-  }
-  const left = local(registered)
-  return left.length >= 10 && left === local(whatsapp)
-}
+export { sameBrazilianPhone }

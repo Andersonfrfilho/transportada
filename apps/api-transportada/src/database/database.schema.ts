@@ -162,6 +162,7 @@ import { geocodedAddressCorrections } from './geocoded-address-correction.schema
 import { clientDeliveryAddresses } from './client-delivery-address.schema.js'
 import { addressComparisons } from './address-comparison.schema.js'
 import { addressCorrectionRequests } from './address-correction.schema.js'
+import { addressCorrectionSuggestions } from './address-correction-suggestion.schema.js'
 import {
   companyRouteOptimizationSettings,
   driverAssignmentFeedback,
@@ -188,6 +189,7 @@ import {
   whatsappGroupRequestMessages,
   whatsappGroupRequests,
 } from './whatsapp-group-request.schema.js'
+import { whatsappCanhotoQuestions } from './whatsapp-canhoto-question.schema.js'
 import { whatsappDeliveryPreparations } from './whatsapp-delivery-preparation.schema.js'
 import { whatsappOccurrenceDrafts } from './whatsapp-occurrence-draft.schema.js'
 import {
@@ -277,6 +279,7 @@ export * from './geocoded-address-correction.schema.js'
 export * from './client-delivery-address.schema.js'
 export * from './address-comparison.schema.js'
 export * from './address-correction.schema.js'
+export * from './address-correction-suggestion.schema.js'
 export * from './delivery-client.schema.js'
 export * from './delivery-client-contact.schema.js'
 export * from './contractor-receiving-profile.schema.js'
@@ -296,6 +299,7 @@ export * from './contractor-mail.schema.js'
 export * from './whatsapp-channel.schema.js'
 export * from './whatsapp-evolution.schema.js'
 export * from './whatsapp-group-request.schema.js'
+export * from './whatsapp-canhoto-question.schema.js'
 export * from './whatsapp-delivery-preparation.schema.js'
 export * from './whatsapp-occurrence-draft.schema.js'
 export * from './user-whatsapp-phone.schema.js'
@@ -438,6 +442,7 @@ export const databaseSchema = {
   clientDeliveryAddresses,
   addressComparisons,
   addressCorrectionRequests,
+  addressCorrectionSuggestions,
   landingSettings,
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,
@@ -463,6 +468,7 @@ export const databaseSchema = {
   whatsappEvolutionSettings,
   whatsappGroupRequestMessages,
   whatsappGroupRequests,
+  whatsappCanhotoQuestions,
   whatsappDeliveryPreparations,
   whatsappOccurrenceDrafts,
   userWhatsAppPhones,

@@ -47,6 +47,8 @@ export const WHATSAPP_DELIVERY_BODY_SCHEMA = z
     number: z.string().max(100).optional(),
     /** Guardar o número novo no cadastro do cliente; só com `number`. */
     save: z.boolean().optional(),
+    /** Só guardar o número no cadastro, sem enviar o boleto; exige `number`. */
+    saveOnly: z.boolean().optional(),
   })
   .strict()
   .readonly()
@@ -55,7 +57,11 @@ export function assertWhatsAppBodyFits(body: {
   readonly contactIds?: readonly string[] | undefined
   readonly number?: string | undefined
   readonly save?: boolean | undefined
+  readonly saveOnly?: boolean | undefined
 }): void {
+  if (body.saveOnly === true && body.number === undefined) {
+    throw invalidRequest([{ field: 'saveOnly', message: 'Enter the number to save' }])
+  }
   if ((body.contactIds?.length ?? 0) === 0 && body.number === undefined) {
     throw invalidRequest([{ field: 'contactIds', message: 'Choose a saved number or enter one' }])
   }
@@ -92,6 +98,7 @@ export function createOccurrenceContractorReplyWhatsAppRoutes(dependencies: {
       readonly number?: string
       readonly occurrenceId: string
       readonly save: boolean
+      readonly saveOnly: boolean
     }>({
       async handle({ context, input }): Promise<Response> {
         const outcome = await dependencies.forwardByWhatsApp.forward({
@@ -105,6 +112,7 @@ export function createOccurrenceContractorReplyWhatsAppRoutes(dependencies: {
           ...(input.number === undefined ? {} : { number: input.number }),
           occurrenceId: input.occurrenceId,
           save: input.save,
+          ...(input.saveOnly ? { saveOnly: true } : {}),
         })
         return whatsappOutcomeResponse(outcome)
       },
@@ -122,6 +130,7 @@ export function createOccurrenceContractorReplyWhatsAppRoutes(dependencies: {
           ...(body.number === undefined ? {} : { number: body.number }),
           occurrenceId,
           save: body.save ?? false,
+          saveOnly: body.saveOnly ?? false,
         }
       },
       pathname: OCCURRENCE_CONTRACTOR_REPLY_WHATSAPP_DELIVERY_PATH,

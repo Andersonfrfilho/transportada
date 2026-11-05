@@ -14,6 +14,7 @@ import { createTripLocationPurgeRoutine } from '../src/trip-location-purge/appli
 import {
   buildLocatedEventRedactionStatement,
   createDrizzleCountEligibleCompanies,
+  createDrizzlePurgeAddressSuggestions,
   createDrizzleRedactDeliveryProofLocations,
   createDrizzleRedactDocumentOccurrenceLocations,
   createDrizzleRedactStatusEventLocations,
@@ -21,6 +22,7 @@ import {
   createDrizzleRedactTripLocations,
 } from '../src/trip-location-purge/infrastructure/drizzle-trip-location.repository.js'
 import type { JobRoutineContext } from '../src/job-run/application/job-routine.port.js'
+import { resolveAddressSuggestionPurgeCutoff } from '../src/trip-location-purge/domain/trip-location-purge.constant.js'
 import {
   tripDeliveryProofs,
   tripDocumentOccurrences,
@@ -86,6 +88,7 @@ function buildPurgeRoutine(db: Database, logger: unknown = SILENT_LOGGER) {
     countEligibleCompanies: createDrizzleCountEligibleCompanies(db),
     logger: logger as never,
     now: () => NOW,
+    purgeAddressSuggestions: async () => 0,
     purgeStalePings: async () => 0,
     redact: createDrizzleRedactTripLocations(db),
     redactDocumentOccurrenceLocations: createDrizzleRedactDocumentOccurrenceLocations(db),
@@ -216,6 +219,9 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
   })
 
   afterAll(async () => {
+    await db.execute(
+      sql`delete from address_correction_suggestions where company_id = ${companyId}`,
+    )
     await deleteRetentionSettings(db, companyId)
     await db.execute(sql`delete from trip_delivery_proofs where company_id = ${companyId}`)
     await db.execute(sql`delete from stored_objects where company_id = ${companyId}`)
@@ -227,6 +233,45 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
     await db.execute(sql`delete from identity_users where id = ${userId}`)
     await db.execute(sql`delete from companies where id = ${companyId}`)
     await provider.close()
+  })
+
+  test('spec 294 S4: a sugestão de endereço sai 90 dias depois da decisão, ou da criação se pendente', async () => {
+    const days = (count: number) =>
+      new Date(NOW.getTime() - count * DAY_IN_MILLISECONDS).toISOString()
+    const rows = [
+      { decidedAt: null, createdAt: days(91), id: crypto.randomUUID(), kept: false },
+      { decidedAt: null, createdAt: days(10), id: crypto.randomUUID(), kept: true },
+      { decidedAt: days(91), createdAt: days(100), id: crypto.randomUUID(), kept: false },
+      { decidedAt: days(10), createdAt: days(200), id: crypto.randomUUID(), kept: true },
+    ]
+    for (const row of rows) {
+      await db.execute(sql`
+        insert into address_correction_suggestions
+          (id, company_id, address_key, latitude, longitude, status, created_by_user_id,
+           decided_by_user_id, decided_at, created_at)
+        values (
+          ${row.id}, ${companyId}, ${`3550308|01001000|${row.id}`}, '-23.5505199', '-46.6333094',
+          ${row.decidedAt === null ? 'pending' : 'dismissed'}, ${userId},
+          ${row.decidedAt === null ? null : userId}, ${row.decidedAt}, ${row.createdAt}
+        )
+      `)
+    }
+
+    const purged = await createDrizzlePurgeAddressSuggestions(db)({
+      before: resolveAddressSuggestionPurgeCutoff(NOW),
+      limit: 500,
+    })
+
+    expect(purged).toBe(2)
+    const left = await db.execute(
+      sql`select id from address_correction_suggestions where company_id = ${companyId}`,
+    )
+    expect(left.map((row) => String(row.id)).toSorted()).toEqual(
+      rows
+        .filter((row) => row.kept)
+        .map((row) => row.id)
+        .toSorted(),
+    )
   })
 
   test('apaga a coordenada vencida e preserva o evento inteiro', async () => {

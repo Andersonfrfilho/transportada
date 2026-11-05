@@ -46,6 +46,7 @@ function buildRoutineWithFailingStatusEvents() {
       warn: () => undefined,
     },
     now: () => NOW,
+    purgeAddressSuggestions: async () => 0,
     purgeStalePings: async () => 0,
     redact: redactOnce('stopEvents', 4),
     redactDocumentOccurrenceLocations: redactOnce('documentOccurrences', 2),

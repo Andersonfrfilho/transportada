@@ -501,7 +501,9 @@ export function TripTimelineEntry({
                     title={
                       chip.id === 'late' && item.recordedAt !== null
                         ? t('eventTimeline.recordedAt', { moment: formatMoment(item.recordedAt) })
-                        : undefined
+                        : chip.id === 'together'
+                          ? t('eventTimeline.chip.recordedTogetherHint')
+                          : undefined
                     }
                     variant={chip.tone === 'copper' ? 'warning' : 'secondary'}
                   >

@@ -43,6 +43,7 @@ const NOT_CALLED = () => {
 function buildHandler() {
   const stored: string[] = []
   const repository: DeliveryProofPort = {
+    findCanhotoByHash: () => Promise.resolve(null),
     findDeliveryContext: async () => ({
       deliveredAt: new Date('2026-09-26T12:00:00.000Z'),
       deliveryEventPosition: undefined,

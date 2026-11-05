@@ -115,12 +115,29 @@ describe('interpretDriverStopCommand', () => {
 })
 
 describe('grupo: saí e cheguei', () => {
+  test('a lista de escolha traz o cliente junto da nota (spec 294 RF17)', async () => {
+    const named = (id: string, sequence: number, number: string, recipientName: string) =>
+      stop(id, sequence, [], {
+        documents: [{ number, recipientName, separationStatus: 'loaded' }],
+      })
+    const t = setup([
+      named('S1', 1, '17234', 'Padaria Sol'),
+      named('S2', 2, '17235', 'Mercado Lua'),
+    ])
+    const asked = await t.start('cheguei')
+    expect(asked).toMatchObject({ kind: 'continue' })
+    const text = asked.kind === 'continue' ? asked.replies.join('\n') : ''
+    expect(text).toContain('1. NF 17234 · Padaria Sol')
+    expect(text).toContain('2. NF 17235 · Mercado Lua')
+  })
+
   test('cheguei com uma parada só registra direto', async () => {
     const t = setup([stop('S1', 1, ['17234'])])
     expect(await t.start('cheguei')).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })
     expect(t.recorded).toEqual([
       {
         companyId: 'C',
+        documentNumber: '17234',
         driverId: 'D',
         event: 'arrive',
         idempotencyKey: 'whatsapp-group-request:R1',

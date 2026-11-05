@@ -5,6 +5,43 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-11-05 — spec 294 S4 — a sugestão de endereço guarda o ponto do motorista e quem a criou
+
+**Onde:** `address_correction_suggestions` (API, spec 294 RF14/RF15); expurgo no `trip.location.purge` do worker.
+
+**O achado:** a sugestão que a chegada da tripulação cria leva `latitude`/`longitude` do aparelho e `created_by_user_id`
+— onde uma pessoa estava num instante. Ela estava em `TRIP_LOCATION_UNSTAMPED_TABLES` como "endereço, não posição", sem
+prazo nenhum, e o refresh do staging a copiava inteira (`keep`).
+
+**O que passou a valer:** a linha inteira sai 90 dias depois da decisão (aplicada/descartada) ou da criação enquanto
+pendente (`ADDRESS_CORRECTION_SUGGESTION_MAX_AGE_DAYS`, `createDrizzlePurgeAddressSuggestions`), no mesmo ciclo do
+`trip.location.purge`, **fora** do interruptor da empresa (prazo do produto, como o rastro ao vivo). Uma pendente por
+endereço da empresa (a chegada seguinte atualiza a pendente), então a tabela não acumula pontos repetidos. O refresh do
+staging copia a tabela vazia (`prune-source.sql`, `empty`). O ponto aplicado direto ao cadastro (`geocoded_addresses`)
+é dado de endereço; o vínculo com o motorista fica só na trilha (`geocoded_address_corrections`, ADR-0081).
+Teste: `apps/worker-transportada/test/trip-location-purge/address-suggestions.contract.ts` e o caso de integração em
+`test/trip-location-purge.integration.test.ts`. **Desfecho:** fechado no próprio dia.
+
+### 2026-11-05 — spec 294 T4.8b — fotos de canhoto de produção usadas para medir e treinar um classificador local
+
+**Onde:** máquina do Anderson, pasta de rascunho da sessão; protótipo em
+`specs/294-o-motorista-segue-a-ordem-da-parada/spike-canhoto-gratuito/`. Nada nas apps.
+
+**O que foi feito:** 111 fotos de canhoto de produção (nome, documento e assinatura de recebedor) baixadas só para
+leitura, com o número das notas da viagem. Processadas **só localmente** (OCR PaddleOCR, MobileNetV3, Florence-2, todos
+rodando nesta máquina); nenhuma foto, texto ou vetor saiu para serviço externo. As fotos de produção não foram abertas
+para olhar; texto reconhecido e números nunca foram impressos nem gravados no repositório.
+
+**O que o "treino" deixou:** a opção B é uma sonda linear (1280 pesos + 1 viés) sobre a MobileNetV3 congelada,
+treinada **em memória** durante a validação cruzada; os pesos não foram salvos. Os vetores de 1280 posições por foto
+(arquivo de rascunho) foram apagados com as fotos, os modelos baixados e o ambiente Python em 05/11/2026. Um
+vetor de pooling global não permite reconstruir a imagem legível, mas como nem ele ficou, não há artefato derivado.
+
+**Para quando virar produção:** treinar com foto de produção de novo exige a mesma regra (local, apagar ao fim, só o
+modelo fica). Pesos de uma sonda linear ou de uma rede ajustada **não** guardam a imagem, mas uma rede ajustada com
+poucas fotos pode memorizar traços; antes de versionar um modelo treinado assim, registrar aqui o conjunto usado e a
+data. **Desfecho:** fechado no próprio dia — nada guardado.
+
 ### 2026-11-05 — spec 295 Fase 4 — a foto da CNH vira foto de perfil (mudança de finalidade)
 
 **Onde:** `worker-transportada` (`src/cnh-face/`, thread `cnh-face.worker.ts`), `api-transportada`

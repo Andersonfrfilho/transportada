@@ -13,6 +13,7 @@ import {
 } from '../../src/whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type {
   WhatsAppDocumentEventInput,
+  WhatsAppDriverActor,
   WhatsAppDriverEventResult,
 } from '../../src/whatsapp-commands/application/whatsapp-driver-events.service.js'
 import { resolveDeliveryProofChecklist } from '../../src/whatsapp-commands/domain/whatsapp-delivery-proof-checklist.policy.js'
@@ -21,7 +22,9 @@ import {
   type DeliveryProofFieldSettings,
 } from '../../src/trips/domain/delivery-proof-settings.policy.js'
 
-const ACTOR = { actorUserId: 'U1', companyId: 'C1', driverId: 'D1' }
+const ACTOR: WhatsAppDriverActor = { actorUserId: 'U1', companyId: 'C1', driverId: 'D1' }
+/** Spec 294 RF18: o atendente (usuário U9) dá a baixa em nome do motorista D1 pelo escritório. */
+const ATTENDANT: WhatsAppDriverActor = { ...ACTOR, actorUserId: 'U9', attendant: true }
 
 const settingsOf = (
   overrides: Partial<DeliveryProofFieldSettings>,
@@ -41,7 +44,11 @@ const OFF: DeliveryProofFieldSettings = {
   signature: 'off',
 }
 
-function setup(settings: DeliveryProofFieldSettings, deliverResult?: WhatsAppDriverEventResult) {
+function setup(
+  settings: DeliveryProofFieldSettings,
+  deliverResult?: WhatsAppDriverEventResult,
+  actor: WhatsAppDriverActor = ACTOR,
+) {
   const rows = new Map<string, WhatsAppDeliveryPreparation & { status: string }>()
   const objects = new Map<string, Uint8Array>()
   const delivered: WhatsAppDocumentEventInput[] = []
@@ -136,15 +143,15 @@ function setup(settings: DeliveryProofFieldSettings, deliverResult?: WhatsAppDri
 
   const photo = (id: string, caption: null | string = null) =>
     service.receivePhoto({
-      actor: ACTOR,
+      actor,
       bytes: new Uint8Array([1, 2, 3]),
       caption,
       mimeType: 'image/jpeg',
       providerMessageId: id,
     })
   const begin = (documentId = 'DOC1', documentNumber = '17234') =>
-    service.begin({ actor: ACTOR, channel: 'group', documentId, documentNumber, location: null })
-  const answer = (text: string, strict = false) => service.answer({ actor: ACTOR, strict, text })
+    service.begin({ actor, channel: 'group', documentId, documentNumber, location: null })
+  const answer = (text: string, strict = false) => service.answer({ actor, strict, text })
   const status = () => [...rows.values()].map((row) => row.status)
 
   return { answer, attached, begin, delivered, objects, photo, rows, service, status }
@@ -352,5 +359,62 @@ describe('entrega em preparo pelo WhatsApp', () => {
     const t = setup(OFF)
     expect(await t.photo('M1')).toBeNull()
     expect(await t.answer('1')).toBeNull()
+  })
+})
+
+describe('spec 294 RF19: baixa do atendente, comprovantes opcionais', () => {
+  const STRICT = {
+    ...OFF,
+    photo: 'required',
+    receivedBy: 'required',
+    receiverName: 'required',
+  } as const
+
+  test('a tripulação não pula o canhoto obrigatório', async () => {
+    const t = setup(STRICT)
+    await t.begin()
+    await t.answer('pular')
+    const refused = await t.answer('pular')
+    expect(refused?.texts.join('\n')).toContain('obrigatório')
+    expect(t.delivered).toHaveLength(0)
+  })
+
+  test('o atendente pula tudo, o bot oferece e a baixa sai pelo escritório com o usuário dele', async () => {
+    const t = setup(STRICT, undefined, ATTENDANT)
+    const opened = await t.begin()
+    expect(opened.texts.join('\n')).toContain('compartilhe a localização')
+    const afterLocation = await t.answer('pular')
+    expect(afterLocation?.texts.join('\n')).toContain('canhoto')
+    const afterPhoto = await t.answer('pular')
+    expect(afterPhoto?.texts.join('\n')).toContain('Confirma a entrega?')
+    const done = await t.answer('1')
+    expect(done).toMatchObject({ finished: true, texts: ['registered:17234'] })
+    expect(t.delivered).toHaveLength(1)
+    expect(t.delivered[0]).toMatchObject({
+      actorUserId: 'U9',
+      attendant: true,
+      documentId: 'DOC1',
+      driverId: 'D1',
+    })
+    expect(t.attached).toEqual([])
+  })
+
+  test('assinatura obrigatória não segura o atendente (no escritório não há assinatura)', async () => {
+    const t = setup({ ...OFF, signature: 'required' }, undefined, ATTENDANT)
+    await t.begin()
+    const confirm = await t.answer('pular')
+    expect(confirm?.texts.join('\n')).toContain('Confirma a entrega?')
+  })
+
+  test('o atendente que manda o canhoto o vê anexado como atendente', async () => {
+    const t = setup(STRICT, undefined, ATTENDANT)
+    await t.begin()
+    await t.answer('pular')
+    await t.photo('M1')
+    await t.answer('1')
+    await t.answer('Maria')
+    await t.answer('1')
+    expect(t.delivered[0]).toMatchObject({ attendant: true })
+    expect(t.attached).toHaveLength(1)
   })
 })

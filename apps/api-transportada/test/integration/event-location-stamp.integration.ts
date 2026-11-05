@@ -716,27 +716,30 @@ describe('CA01 — a ocorrência e a chegada/saída/devolução carimbam o ponto
 })
 
 describe('CA02 — a troca de status que o toque deriva não leva ponto (ADR-0081 §4)', () => {
-  testWithPostgres('a chegada leva a viagem a in_transit, e a troca fica null', async () => {
-    await withDisposableDatabase(async (database) => {
-      const world = await seedWorldAt(database, 'dispatched')
+  testWithPostgres(
+    'a chegada leva a viagem adiante (saída marcada junto, spec 294), e a troca fica null',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorldAt(database, 'dispatched')
 
-      await reportStopArrival({
-        actorUserId: world.driverUserId,
-        companyId: world.company.companyId,
-        driverId: world.company.firstDriverId,
-        idempotencyKey: 'chegada-deriva',
-        location: REPORTED_LOCATION,
-        now: NOW,
-        stopId: world.trip.stopId,
-        unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
+        await reportStopArrival({
+          actorUserId: world.driverUserId,
+          companyId: world.company.companyId,
+          driverId: world.company.firstDriverId,
+          idempotencyKey: 'chegada-deriva',
+          location: REPORTED_LOCATION,
+          now: NOW,
+          stopId: world.trip.stopId,
+          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
+        })
+
+        expectCaptured((await readStopEvents(world, 'arrived'))[0])
+        const derived = await readStatusEvents(world, 'on_delivery_route')
+        expect(derived).toHaveLength(1)
+        expectNotApplicable(derived[0])
       })
-
-      expectCaptured((await readStopEvents(world, 'arrived'))[0])
-      const derived = await readStatusEvents(world, 'in_transit')
-      expect(derived).toHaveLength(1)
-      expectNotApplicable(derived[0])
-    })
-  })
+    },
+  )
 
   testWithPostgres(
     'a entrega que fecha a viagem leva o ponto no evento da nota, e a conclusão fica null',

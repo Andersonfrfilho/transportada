@@ -17,6 +17,7 @@ import {
 } from '../application/whatsapp-command-driver.service.js'
 import type { WhatsAppFlowGraphProviderPort } from '../application/whatsapp-command-driver.port.js'
 import type { WhatsAppSharedLocationStore } from '../application/whatsapp-shared-location.service.js'
+import type { WhatsAppDriverPrompts } from '../application/whatsapp-driver-prompts.service.js'
 import type { WhatsAppDeliveryProofIntake } from '../application/whatsapp-command-driver.service.js'
 import {
   createWithAuthorizedActor,
@@ -50,6 +51,8 @@ export type CreateWhatsAppCommandHookFactoryParams = {
   readonly deliveryProofs?: WhatsAppDeliveryProofIntake
   /** Spec 292 T9: o áudio da conversa individual (transcrição e confirmação). */
   readonly botAudio?: WhatsAppBotAudio<null>
+  /** Spec 294: a oferta da próxima rota e as conferências do bot na conversa individual. */
+  readonly driverPrompts?: WhatsAppDriverPrompts
 }
 
 /**
@@ -85,6 +88,7 @@ export function createWhatsAppCommandHookFactory(
       ...(params.sharedLocations === undefined ? {} : { sharedLocations: params.sharedLocations }),
       ...(params.verifyPhone === undefined ? {} : { verifyPhone: params.verifyPhone }),
       ...(params.deliveryProofs === undefined ? {} : { deliveryProofs: params.deliveryProofs }),
+      ...(params.driverPrompts === undefined ? {} : { driverPrompts: params.driverPrompts }),
     })
   }
 }

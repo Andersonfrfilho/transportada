@@ -39,6 +39,7 @@ export type ForwardContractorReplyToClientWhatsAppInput = Readonly<{
   idempotencyKey: string
   number?: string
   save?: boolean
+  saveOnly?: boolean
 }>
 
 /** O envio grava a entrega e, com `save`, o cadastro: as opções, a conversa e o feed são relidos. */

@@ -1477,6 +1477,11 @@ export const tripStopEvents = pgTable(
      * real do registro.
      */
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * ADR-0113 §1: a etapa que o motorista pulou, gravada junto do evento pedido. Fica fora do tempo de
+     * serviço, da permanência e do deslocamento. Sem backfill: o default descreve o histórico.
+     */
+    recordedTogether: boolean('recorded_together').notNull().default(false),
   },
   (table) => [
     foreignKey({

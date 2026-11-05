@@ -14,3 +14,12 @@ describe('pending items controller contract', () => {
     ).toBe(false)
   })
 })
+
+describe('pending items address suggestion permission', () => {
+  test('decides driver address suggestions only with trip.manage', () => {
+    const decide = (permissions: readonly string[]) =>
+      createPendingItemsController({ permissions }).canDecideAddressSuggestions
+    expect(decide(['fleet.read'])).toBe(false)
+    expect(decide(['fleet.read', 'trip.manage'])).toBe(true)
+  })
+})

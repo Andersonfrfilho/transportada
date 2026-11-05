@@ -101,6 +101,7 @@ function buildFieldWorld() {
 function buildProofRepository() {
   const lookups: unknown[] = []
   const repository: DeliveryProofPort = {
+    findCanhotoByHash: () => Promise.resolve(null),
     findDeliveryContext: async () => ({
       deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
       deliveryEventPosition: undefined,
@@ -224,7 +225,9 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
       unitOfWork: office.unitOfWork,
     })
 
+    // Spec 294: a nota é lida de novo sob a trava das paradas.
     expect(office.lookups).toEqual([
+      { companyId: COMPANY_ID, documentId: DOCUMENT_ID, target: TRIP_TARGET },
       { companyId: COMPANY_ID, documentId: DOCUMENT_ID, target: TRIP_TARGET },
     ])
     expect(result.alreadySettled).toBe(false)

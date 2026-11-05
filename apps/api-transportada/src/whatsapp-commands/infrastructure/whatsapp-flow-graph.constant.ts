@@ -14,6 +14,12 @@ import {
   DRIVER_RETURN_REASON_LABELS,
 } from '../domain/whatsapp-driver-flow.constant.js'
 import {
+  ATTENDANT_CLOSE_ANSWER,
+  ATTENDANT_FLOW_ACTION_KIND,
+  ATTENDANT_FLOW_CONTEXT_KEY,
+  ATTENDANT_FLOW_NODE,
+} from '../domain/whatsapp-attendant-flow.constant.js'
+import {
   ISSUANCE_FLOW_ACTION_KIND,
   ISSUANCE_FLOW_CONTEXT_KEY,
   ISSUANCE_FLOW_NODE,
@@ -71,6 +77,7 @@ export const WHATSAPP_ROOT_FLOW_GRAPH: FlowGraphData = {
     ...buildIssuanceFlowNodes(),
     ...buildDriverTripFlowNodes(),
     ...buildOperatorTripFlowNodes(),
+    ...buildAttendantFieldFlowNodes(),
     /** Spec 286 T8 (RF7): as falas do bot, uma `directMessage` editável por nó. */
     ...buildBotSpeechNodes(),
   },
@@ -420,6 +427,50 @@ function buildOperatorTripFlowNodes(): FlowGraphData['nodes'] {
     [OPERATOR_FLOW_NODE.photoRouter]: {
       actionKind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
       id: OPERATOR_FLOW_NODE.photoRouter,
+      type: 'action',
+    },
+  }
+}
+
+/**
+ * Spec 294 RF21 — o atendente direto com o bot: o comando ("entreguei 17234 17235", "encerrar a rota")
+ * entra pelo nó `fieldCommand` (o despachante o grava no contexto, como o comando direto do motorista);
+ * a viagem a encerrar sai da lista das viagens na rua e a confirmação é "1 - Sim / 2 - Não".
+ */
+function buildAttendantFieldFlowNodes(): FlowGraphData['nodes'] {
+  return {
+    [ATTENDANT_FLOW_NODE.fieldCommand]: {
+      actionKind: ATTENDANT_FLOW_ACTION_KIND.fieldCommand,
+      id: ATTENDANT_FLOW_NODE.fieldCommand,
+      type: 'action',
+    },
+    [ATTENDANT_FLOW_NODE.tripEntry]: {
+      contextKey: ATTENDANT_FLOW_CONTEXT_KEY.tripAnswer,
+      id: ATTENDANT_FLOW_NODE.tripEntry,
+      next: ATTENDANT_FLOW_NODE.tripRouter,
+      question: 'Toque numa viagem da lista acima.',
+      type: 'entrada_choice',
+    },
+    [ATTENDANT_FLOW_NODE.tripRouter]: {
+      actionKind: ATTENDANT_FLOW_ACTION_KIND.tripRouter,
+      id: ATTENDANT_FLOW_NODE.tripRouter,
+      type: 'action',
+    },
+    [ATTENDANT_FLOW_NODE.closeMenu]: {
+      contextKey: ATTENDANT_FLOW_CONTEXT_KEY.closeAnswer,
+      fallbackMessage: 'Toque numa das opções.',
+      id: ATTENDANT_FLOW_NODE.closeMenu,
+      next: ATTENDANT_FLOW_NODE.closeRouter,
+      options: [
+        [ATTENDANT_CLOSE_ANSWER.confirm, '✅ 1 - Sim'],
+        [ATTENDANT_CLOSE_ANSWER.cancel, '❌ 2 - Não'],
+      ],
+      question: 'Encerrar a rota?',
+      type: 'menu',
+    },
+    [ATTENDANT_FLOW_NODE.closeRouter]: {
+      actionKind: ATTENDANT_FLOW_ACTION_KIND.closeRouter,
+      id: ATTENDANT_FLOW_NODE.closeRouter,
       type: 'action',
     },
   }

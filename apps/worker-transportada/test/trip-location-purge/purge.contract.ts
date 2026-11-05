@@ -40,6 +40,7 @@ function buildRoutine(
   return createTripLocationPurgeRoutine({
     countEligibleCompanies: async () => 1,
     logger: SILENT_LOGGER as never,
+    purgeAddressSuggestions: async () => 0,
     purgeStalePings: async () => 0,
     now: () => NOW,
     redact,

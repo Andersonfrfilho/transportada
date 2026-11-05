@@ -282,6 +282,10 @@ function createProofRoute(
         proof: input.proof,
       })
 
+      if (result.duplicate !== undefined) {
+        return officeJsonResponse({ body: { data: { duplicate: result.duplicate } }, status: 200 })
+      }
+
       return officeJsonResponse({ body: { data: { id: result.id } }, status: 201 })
     },
     method: 'POST',

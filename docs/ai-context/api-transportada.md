@@ -3929,3 +3929,7 @@ a 183 RF14, a 263 T5.2-C e a ADR-0073 (aviso do portal).
   e o `warn` parcial aparece. Usuário real do painel tem perfil; dublê de integração precisa semear `identity_user_profiles`.
 - **Testes:** `test/trip-occurrence/driver-notification.contract.ts` (caso de uso, serviço e a ligação no `main.ts`) e
   `test/integration/driver-occurrence-notification.integration.ts` (Postgres + migrations do módulo).
+
+## Spec 294 — a ordem da parada
+
+Ver `apps/api-transportada/CLAUDE.md` § "A ordem da parada (spec 294)" e `specs/294-o-motorista-segue-a-ordem-da-parada/evidence.md`. O painel lista as sugestões de endereço em `/pendencias` (`modules/pending-items`, mapa atual x sugerido, aplicar/descartar só com `trip.manage`).

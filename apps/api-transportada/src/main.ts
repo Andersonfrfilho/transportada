@@ -221,6 +221,32 @@ import {
   createGroupDeliveryWiring,
   type GroupDeliveryWiring,
 } from './whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
+import {
+  createGroupTripCloseFlow,
+  type GroupTripCloseFlowPorts,
+} from './whatsapp/application/whatsapp-group-trip-close-flow.service.js'
+import {
+  createWhatsAppGroupTripClosePorts,
+  type WhatsAppTripCloseBridge,
+  WHATSAPP_TRIP_CLOSE_AUDIT_ORIGIN,
+  WHATSAPP_TRIP_CLOSE_REASON,
+} from './whatsapp/infrastructure/whatsapp-group-trip-close.adapter.js'
+import { createAttendantFieldFlowActions } from './whatsapp-commands/application/register-attendant-field-flow-actions.js'
+import {
+  listAttendantRoadTrips,
+  listTripCloseDocuments,
+} from './whatsapp-commands/infrastructure/whatsapp-attendant-field.adapter.js'
+import { createWhatsAppOfficeDelivery } from './whatsapp-commands/infrastructure/whatsapp-office-delivery.adapter.js'
+import {
+  createAttendantFinder,
+  isCrewPhone,
+} from './whatsapp/infrastructure/whatsapp-group-sender.adapter.js'
+import { createWhatsAppSenderRoleResolver } from './whatsapp/application/whatsapp-sender-role.service.js'
+import { createWhatsAppCanhotoRecognition } from './whatsapp-commands/application/whatsapp-canhoto-recognition.service.js'
+import { isCanhotoOcrEnabled } from './whatsapp-commands/domain/whatsapp-canhoto-ocr-enabled.policy.js'
+import { createDrizzleWhatsAppCanhotoQuestionRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-canhoto-question.repository.js'
+import { startCanhotoQuestionExpiryWatcher } from './whatsapp-commands/infrastructure/whatsapp-canhoto-question-expiry.watcher.js'
+import { createWorkerCanhotoReader } from './whatsapp/infrastructure/worker-canhoto-reader.gateway.js'
 import { createWhatsAppDeliveryPreparations } from './whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { createWhatsAppPreparationProofAttacher } from './whatsapp-commands/infrastructure/whatsapp-delivery-preparation-proof.adapter.js'
 import {
@@ -231,6 +257,7 @@ import {
   createGroupStopFlow,
   type GroupStopFlowPorts,
 } from './whatsapp/application/whatsapp-group-stop-flow.service.js'
+import { createWhatsAppOfficeStopEvents } from './whatsapp-commands/infrastructure/whatsapp-office-stop-events.adapter.js'
 import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
 import { createDrizzleWhatsAppGroupRequestRepository } from './whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
 import { createGroupOccurrencePorts } from './whatsapp/infrastructure/whatsapp-group-occurrence.adapter.js'
@@ -295,6 +322,7 @@ import {
   createDriverWhatsAppFlowActions,
   type DriverFlowActionDependencies,
 } from './whatsapp-commands/application/register-driver-flow-actions.js'
+import { createWhatsAppDriverPrompts } from './whatsapp-commands/application/whatsapp-driver-prompts.service.js'
 import {
   deliverWhatsAppDriverDocument,
   registerWhatsAppDriverOccurrence as registerWhatsAppDriverOccurrenceEvent,
@@ -521,6 +549,9 @@ import { DrizzleDriverWhatsappGroupRepository } from './fleet/infrastructure/dri
 import { createDriverWhatsappGroupRoutes } from './fleet/presentation/driver-whatsapp-group.routes'
 import { createCompanyCrewSettingsRoutes } from './fleet/presentation/crew-settings.routes'
 import { createListPendingItemsUseCase } from './pending-items/application/list-pending-items.use-case.js'
+import { createAddressSuggestionPendingItemSource } from './pending-items/infrastructure/drizzle-address-correction-suggestion-pending-item.source.js'
+import { createAddressCorrectionSuggestionRoutes } from './address-correction-suggestions/presentation/address-correction-suggestion.routes.js'
+import { createDrizzleAddressCorrectionSuggestionDecisions } from './address-correction-suggestions/infrastructure/drizzle-address-correction-suggestion.repository.js'
 import { createFleetBodyTypePendingItemSource } from './pending-items/infrastructure/drizzle-fleet-body-type-pending-item.source.js'
 import { createPendingItemsRoutes } from './pending-items/presentation/pending-items.routes.js'
 import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
@@ -1369,6 +1400,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database.db,
     resolveStorageBucket(process.env),
+    logger,
   )
   const whatsappDeliveryProofRepository = new DrizzleDeliveryProofRepository(
     database.db,
@@ -1486,28 +1518,87 @@ export function bootstrap(): Bun.Server<undefined> {
    * do comprovante exige chegam antes da baixa; depois dela viram comprovante pelo mesmo
    * `attachDeliveryProof` do app, no canal `whatsapp`.
    */
-  const whatsappDeliveryPreparations = createWhatsAppDeliveryPreparations({
-    attachProof: createWhatsAppPreparationProofAttacher({
+  /**
+   * Spec 294 RF19: a baixa do atendente pelo WhatsApp usa as MESMAS funções das rotas `field-delivery` e
+   * `field-proof` do escritório (autoria `office`, em nome do motorista da viagem).
+   */
+  const whatsappOfficeProofAttachment = {
+    newObjectId: () => crypto.randomUUID(),
+    newProofId: () => crypto.randomUUID(),
+    resolveSettings: (settings: { readonly companyId: string; readonly documentId: string }) =>
+      whatsappDeliveryProofRepository.resolveProofFieldSettings(settings),
+    // O WhatsApp não colhe o documento de quem recebeu: nada a selar.
+    sealDocument: () => Promise.reject(new Error('whatsapp proofs carry no receiver document')),
+    storage: createDeliveryProofStorage({
       bucket: whatsappStorageBucket,
-      logger,
-      repository: whatsappDeliveryProofRepository,
       storage: whatsappStorageGateway,
     }),
-    deliver: (input) => deliverWhatsAppDriverDocument(whatsappDriverEventPorts, input),
+  }
+  const whatsappOfficeDelivery = createWhatsAppOfficeDelivery({
+    attachProof: (input) =>
+      reportFieldProof({
+        actorUserId: input.actorUserId,
+        attachment: whatsappOfficeProofAttachment,
+        companyId: input.companyId,
+        documentId: input.documentId,
+        idempotencyKey: input.idempotencyKey,
+        kind: input.kind,
+        officeAudit: input.officeAudit,
+        target: input.target,
+        unitOfWork: whatsappDriverFieldReports,
+        upload: input.proof,
+      }),
+    database: database.db,
+    reportDelivery: (input) =>
+      reportDocumentDelivery({
+        ...input,
+        location: null,
+        now: input.deliveredAt,
+        proof: { ...whatsappOfficeProofAttachment, upload: input.proof },
+        recordedAt: new Date(),
+        resolveProofSettings: (settings) =>
+          whatsappDeliveryProofRepository.resolveProofFieldSettings(settings),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
+    targets: new DrizzleFieldTripTargetRepository(database.db),
+  })
+  const whatsappDriverProofAttacher = createWhatsAppPreparationProofAttacher({
+    bucket: whatsappStorageBucket,
+    logger,
+    repository: whatsappDeliveryProofRepository,
+    storage: whatsappStorageGateway,
+  })
+  /** Spec 294 RF25: as paradas da viagem do motorista, para a pergunta de fora de ordem citar nota e cliente. */
+  const listWhatsAppDriverStops = async (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap((trip) => trip.stops)
+  const whatsappPreparationMedia = createWhatsAppDeliveryPreparationMedia({
+    bucket: whatsappStorageBucket,
+    storage: whatsappStorageGateway,
+  })
+  const whatsappDeliveryPreparations = createWhatsAppDeliveryPreparations({
+    findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
+    listStops: listWhatsAppDriverStops,
+    attachProof: (input) =>
+      input.attendant === true
+        ? whatsappOfficeDelivery.attachProof(input)
+        : whatsappDriverProofAttacher(input),
+    deliver: (input) =>
+      input.attendant === true
+        ? whatsappOfficeDelivery.deliver(input)
+        : deliverWhatsAppDriverDocument(whatsappDriverEventPorts, input),
     describeResult: ({ channel, companyId, documentNumber, result }) =>
       renderBotSpeechLine({
         companyId,
-        line: describeWhatsAppDriverEventResult(
-          result,
-          channel === 'group' ? { documentNumber, kind: 'group' } : { kind: 'driver' },
-        ),
+        line: describeWhatsAppDriverEventResult(result, {
+          documentNumber,
+          kind: channel === 'group' ? 'group' : 'driver',
+        }),
         speech: whatsappBotSpeech,
       }),
     logger,
-    media: createWhatsAppDeliveryPreparationMedia({
-      bucket: whatsappStorageBucket,
-      storage: whatsappStorageGateway,
-    }),
+    media: whatsappPreparationMedia,
     repository: createDrizzleWhatsAppDeliveryPreparationRepository(database.db),
     resolveSettings: (query) => whatsappDeliveryProofRepository.resolveProofFieldSettings(query),
   })
@@ -1519,10 +1610,10 @@ export function bootstrap(): Bun.Server<undefined> {
     describeResult: ({ channel, companyId, documentNumber, result }) =>
       renderBotSpeechLine({
         companyId,
-        line: describeWhatsAppDriverEventResult(
-          result,
-          channel === 'group' ? { documentNumber, kind: 'group' } : { kind: 'driver' },
-        ),
+        line: describeWhatsAppDriverEventResult(result, {
+          documentNumber,
+          kind: channel === 'group' ? 'group' : 'driver',
+        }),
         speech: whatsappBotSpeech,
       }),
     logger,
@@ -1537,7 +1628,34 @@ export function bootstrap(): Bun.Server<undefined> {
     }),
   })
   /** O que o motorista manda sem dizer para quê vai para a coleta certa (ocorrência ou entrega). */
+  /**
+   * Spec 294 T4.8 (RF23): a foto sem entrega em preparo é lida pelo OCR local do worker (a mesma rota interna e o mesmo token
+   * do áudio do bot). Sem `WORKER_INTERNAL_URL`/token, ou com `CANHOTO_OCR_ENABLED=false` (padrão em produção), não existe.
+   */
+  const whatsappCanhotoQuestions = createDrizzleWhatsAppCanhotoQuestionRepository(database.db)
+  /** Spec 294 S5: a pergunta do canhoto vence em 30 min e a foto sai do bucket — também com o OCR desligado depois. */
+  startCanhotoQuestionExpiryWatcher({
+    logger,
+    media: whatsappPreparationMedia,
+    questions: whatsappCanhotoQuestions,
+  })
+  const canhotoReaderConfig = isCanhotoOcrEnabled(process.env)
+    ? readWorkerBotAudioTranscriberConfig(process.env)
+    : undefined
+  const whatsappCanhotoRecognition =
+    canhotoReaderConfig === undefined
+      ? undefined
+      : createWhatsAppCanhotoRecognition({
+          findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
+          listStops: listWhatsAppDriverStops,
+          logger,
+          media: whatsappPreparationMedia,
+          preparations: whatsappDeliveryPreparations,
+          questions: whatsappCanhotoQuestions,
+          reader: createWorkerCanhotoReader(canhotoReaderConfig),
+        })
   const whatsappDriverCollections = combineWhatsAppDriverCollections({
+    canhoto: whatsappCanhotoRecognition,
     deliveries: whatsappDeliveryPreparations,
     occurrences: whatsappOccurrenceDrafts,
   })
@@ -1549,6 +1667,31 @@ export function bootstrap(): Bun.Server<undefined> {
     companyId: input.companyId,
     whatsappNumber: `group-driver:${input.driverId}`,
   })
+  const whatsappResolveActor = createResolveWhatsAppActorUseCase({
+    memberships: new DrizzleMembershipRepository(database.db),
+    phones: new DrizzleWhatsAppPhoneRepository(database.db),
+    tenantContext,
+  })
+  /** Spec 294 RF18: quem mandou no grupo — tripulação, atendente (usuário com a baixa do escritório) ou ninguém. */
+  const whatsappSenderRole = createWhatsAppSenderRoleResolver({
+    findAttendant: createAttendantFinder({
+      resolveActor: whatsappResolveActor,
+    }),
+    isCrewMember: (input) => isCrewPhone(database.db, input),
+  })
+  /**
+   * Spec 294 RF21: "encerrar a rota" do atendente chama a MESMA função de `POST /trips/:id/close`. Ela nasce
+   * em `createApplicationRoutes`, depois deste bloco: a ponte é preenchida lá, antes de qualquer mensagem.
+   */
+  const whatsappTripCloseBridge: WhatsAppTripCloseBridge = {}
+  const whatsappGroupTripClose = createWhatsAppGroupTripClosePorts({
+    bridge: whatsappTripCloseBridge,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    readCloseDocuments: (input) => listTripCloseDocuments(database.db, input),
+    resolveActor: whatsappResolveActor,
+    resolveSenderRole: whatsappSenderRole,
+  })
   const whatsappGroupDelivery = createGroupDeliveryWiring({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
     database: database.db,
@@ -1557,6 +1700,8 @@ export function bootstrap(): Bun.Server<undefined> {
     preparations: whatsappDriverCollections,
     rememberLocation: ({ location, ...key }) =>
       whatsappGroupLocations.remember({ ...groupLocationKey(key), location }),
+    deliverAsAttendant: whatsappOfficeDelivery.deliver,
+    resolveSenderRole: whatsappSenderRole,
     speech: whatsappBotSpeech,
   })
   /** Spec 292 T5: o pedido no grupo do motorista registra pelo mesmo caminho do WhatsApp do motorista. */
@@ -1576,13 +1721,37 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappGroupStop = createGroupStopPorts({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
     database: database.db,
+    hasLocation: (input) => whatsappGroupLocations.has(groupLocationKey(input)),
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
     logger,
+    officeStopEvents: createWhatsAppOfficeStopEvents({
+      reportArrival: (input) =>
+        reportStopArrival({
+          ...input,
+          location: null,
+          now: input.tappedAt,
+          recordedAt: new Date(),
+          unitOfWork: whatsappDriverFieldReports,
+        }),
+      reportDeparture: (input) =>
+        reportStopDeparture({ ...input, now: new Date(), unitOfWork: whatsappDriverFieldReports }),
+      targets: new DrizzleFieldTripTargetRepository(database.db),
+    }),
     ports: whatsappDriverEventPorts,
+    resolveSenderRole: whatsappSenderRole,
+    speech: whatsappBotSpeech,
+  })
+  /** Spec 294: a oferta da próxima rota, o pedido de localização e as conferências da conversa individual. */
+  const whatsappDriverPrompts = createWhatsAppDriverPrompts({
+    clock: () => new Date(),
+    listStops: listWhatsAppDriverStops,
+    ports: whatsappDriverEventPorts,
+    sharedLocations: whatsappSharedLocations,
     speech: whatsappBotSpeech,
   })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     deliveryPreparations: whatsappDeliveryPreparations,
+    driverPrompts: whatsappDriverPrompts,
     occurrenceDrafts: whatsappOccurrenceDrafts,
     speech: whatsappBotSpeech,
     consumeSharedLocation: (key) => whatsappSharedLocations.consume(key),
@@ -1613,6 +1782,22 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappTripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database.db)
   const whatsappTripRouteRepository = new DrizzleTripRouteRepository(database.db)
   const whatsappWarehouseTripRepository = new DrizzleWarehouseTripRepository(database.db)
+  /** Spec 294 RF21: o atendente direto com o bot — mesmas funções do escritório (baixa e encerrar viagem). */
+  const attendantWhatsAppFlowActions = createAttendantFieldFlowActions({
+    closeTrip: async ({ context, tripId }) => {
+      const close = whatsappTripCloseBridge.close
+      if (close === undefined) throw new Error('trip close is not available')
+      return close({
+        context,
+        correlationId: crypto.randomUUID(),
+        ipAddress: WHATSAPP_TRIP_CLOSE_AUDIT_ORIGIN,
+        reason: WHATSAPP_TRIP_CLOSE_REASON,
+        tripId,
+      })
+    },
+    deliverDocument: (input) => whatsappOfficeDelivery.deliverByDocument(input),
+    listRoadTrips: (input) => listAttendantRoadTrips(database.db, input),
+  })
   const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
     speech: whatsappBotSpeech,
     /**
@@ -1923,6 +2108,7 @@ export function bootstrap(): Bun.Server<undefined> {
     flowActions: [
       ...driverWhatsAppFlowActions,
       ...operatorWhatsAppFlowActions,
+      ...attendantWhatsAppFlowActions,
       ...issuanceWhatsAppFlowActions,
     ],
     /**
@@ -1944,6 +2130,8 @@ export function bootstrap(): Bun.Server<undefined> {
       preparations: whatsappDriverCollections,
       resolveDriver: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
     },
+    /** Spec 294 RF8: a oferta da próxima rota (e as conferências do bot) na conversa individual. */
+    driverPrompts: whatsappDriverPrompts,
     resolveActor: createResolveWhatsAppActorUseCase({
       memberships: new DrizzleMembershipRepository(database.db),
       phones: new DrizzleWhatsAppPhoneRepository(database.db),
@@ -1977,6 +2165,7 @@ export function bootstrap(): Bun.Server<undefined> {
       whatsappGroupDelivery,
       whatsappGroupOccurrence,
       whatsappGroupStop,
+      whatsappGroupTripClose,
     }),
     authentication,
     authorization: new AuthorizationService(),
@@ -2048,6 +2237,7 @@ export function bootstrap(): Bun.Server<undefined> {
         driverOccurrenceNotifier,
         sendAutomaticOccurrenceMail,
         automaticManifestNotifier,
+        whatsappTripCloseBridge,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
         contractorMailRateLimit: config.contractorMailRateLimit,
         contractorMailSandbox: config.contractorMailSandbox,
@@ -2129,6 +2319,8 @@ type CreateAnonymousRoutesParams = {
   /** Spec 292 T5: o fluxo do pedido no grupo do motorista (só a entrega anônima do Evolution o usa). */
   readonly whatsappGroupOccurrence: GroupOccurrenceFlowPorts
   readonly whatsappGroupStop: GroupStopFlowPorts
+  /** Spec 294 RF21: "encerrar a rota" do atendente no grupo. */
+  readonly whatsappGroupTripClose: GroupTripCloseFlowPorts
   /** Spec 293 T15: a entrega em preparo no grupo; ausente, "entreguei" e as fotos não são atendidos. */
   readonly whatsappGroupDelivery: GroupDeliveryWiring
   /** Spec 292 T7: "pedir boleto de novo" no grupo. */
@@ -2156,6 +2348,8 @@ function createEvolutionWebhook(input: {
   readonly groupOccurrence?: GroupOccurrenceFlowPorts
   /** Spec 293 T12: o "saí"/"cheguei" do grupo; ausente, só a ocorrência atende. */
   readonly groupStop?: GroupStopFlowPorts
+  /** Spec 294 RF21: "encerrar a rota" do atendente; ausente, o texto segue como antes. */
+  readonly groupTripClose?: GroupTripCloseFlowPorts
   /** Spec 293 T15: "entreguei" e as provas (foto/localização) do grupo; ausente, não atendidos. */
   readonly groupDelivery?: GroupDeliveryWiring
   /** Spec 292 T7: "pedir boleto de novo" no grupo; ausente, o texto segue para a ocorrência. */
@@ -2209,6 +2403,9 @@ function createEvolutionWebhook(input: {
                     : { delivery: createGroupDeliveryFlow(input.groupDelivery.flow) }),
                   occurrence: createGroupOccurrenceFlow(input.groupOccurrence),
                   stop: createGroupStopFlow(input.groupStop),
+                  ...(input.groupTripClose === undefined
+                    ? {}
+                    : { tripClose: createGroupTripCloseFlow(input.groupTripClose) }),
                 }),
           logger,
           replies: groupReplies,
@@ -2338,6 +2535,7 @@ function createAnonymousRoutes({
   whatsappGroupDelivery,
   whatsappGroupOccurrence,
   whatsappGroupStop,
+  whatsappGroupTripClose,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
   /**
@@ -2430,6 +2628,7 @@ function createAnonymousRoutes({
       groupBoletoResend: whatsappGroupBoletoResend,
       groupOccurrence: whatsappGroupOccurrence,
       groupStop: whatsappGroupStop,
+      groupTripClose: whatsappGroupTripClose,
       logger,
     }),
   })
@@ -2610,6 +2809,8 @@ function createAnonymousRoutes({
 }
 
 type CreateApplicationRoutesParams = {
+  /** Spec 294 RF21: a ponte por onde o WhatsApp chega à função de encerrar viagem do painel. */
+  readonly whatsappTripCloseBridge: WhatsAppTripCloseBridge
   /** Spec 183 T802: o aviso automático à contratante, chamado depois de cada registro. */
   readonly automaticOccurrenceMail: AutomaticOccurrenceMailHook
   /** Spec 275: o aviso interno da ocorrência do motorista, o mesmo do WhatsApp. */
@@ -2702,6 +2903,7 @@ async function readTripRouteGeometryStopsOrWarn(input: {
 }
 
 function createApplicationRoutes({
+  whatsappTripCloseBridge,
   apiPublicUrl,
   appBaseUrl,
   automaticOccurrenceMail,
@@ -2895,7 +3097,10 @@ function createApplicationRoutes({
   const driverScoreRepository = new DrizzleDriverScoreRepository(database)
   const crewSettingsRepository = new DrizzleCrewSettingsRepository(database)
   const pendingItems = createListPendingItemsUseCase({
-    sources: [createFleetBodyTypePendingItemSource({ database })],
+    sources: [
+      createFleetBodyTypePendingItemSource({ database }),
+      createAddressSuggestionPendingItemSource({ database }),
+    ],
   })
   const freightRegionRepository = new DrizzleFreightRegionRepository(database)
   const fleetDriverRegionRepository = new DrizzleFleetDriverRegionRepository(database)
@@ -3002,6 +3207,7 @@ function createApplicationRoutes({
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database,
     resolveStorageBucket(environment),
+    logger,
   )
   /**
    * Spec 161 T8: a reserva e a liquidação da chave para o galpão — cada chamada abre sua própria
@@ -3367,6 +3573,8 @@ function createApplicationRoutes({
     repository: tripRepository,
     routeFreezer: tripRouteTollFreezer,
   })
+  /** Spec 294 RF21: o "encerrar a rota" do atendente pelo WhatsApp chama esta mesma função. */
+  whatsappTripCloseBridge.close = (input) => trips.close(input)
   const createTripMdfeManifest = createTripMdfeManifestUseCase({
     manifests: mdfeManifests,
     readiness: {
@@ -4157,6 +4365,9 @@ function createApplicationRoutes({
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
     ...createPendingItemsRoutes({
       listPendingItems: { execute: (input) => pendingItems.execute(input) },
+    }),
+    ...createAddressCorrectionSuggestionRoutes({
+      decisions: createDrizzleAddressCorrectionSuggestionDecisions(database),
     }),
     ...createVehicleReferenceRoutes({
       vehicleReferences: new DrizzleVehicleReferenceRepository({ database }),

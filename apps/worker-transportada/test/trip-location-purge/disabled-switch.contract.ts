@@ -67,6 +67,7 @@ function buildRoutine(setup: RoutineSetup) {
       warn: () => undefined,
     },
     now: () => new Date('2026-09-30T09:00:00.000Z'),
+    purgeAddressSuggestions: async () => 0,
     purgeStalePings: async () => {
       calls.push('purgeStalePings')
       return calls.filter((name) => name === 'purgeStalePings').length === 1 ? 1 : 0
@@ -168,6 +169,7 @@ describe('sem empresa elegível o expurgo não toca as cinco tabelas (spec 239 D
           correlationId: CONTEXT.correlationId,
           executionId: CONTEXT.executionId,
           pingBatches: 1,
+          purgedAddressSuggestions: 0,
           purgedPings: 1,
         },
       },

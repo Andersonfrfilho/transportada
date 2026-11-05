@@ -193,6 +193,17 @@ const workerEnvironmentSchema = z
       (value) => value === undefined || value.length <= 300,
       'BOT_AUDIO_TRANSCRIPTION_PROMPT must have at most 300 characters',
     ),
+    /**
+     * Spec 294 T4.8: o OCR local do canhoto que o bot lê (ADR 0113 §5). Ausente, vale o padrão do ambiente: **ligado fora
+     * de produção, desligado em produção** (pico de ~740 MB de memória por leitura; liga-se com `true` depois do staging).
+     */
+    CANHOTO_OCR_ENABLED: optionalText().refine(
+      (value) => value === undefined || value === 'true' || value === 'false',
+      'CANHOTO_OCR_ENABLED must be true or false',
+    ),
+    /** Onde a imagem grava os modelos do PP-OCRv4 (Dockerfile). Ausente, o OCR não existe, ligado ou não. */
+    CANHOTO_OCR_MODEL_DIR: optionalText(),
+    CANHOTO_OCR_TIMEOUT_MS: z.coerce.number().int().min(5000).max(120_000).default(30_000),
     /** A rede privada do Railway é IPv6: lá vale `::` para a API alcançar a rota interna. */
     WORKER_HOSTNAME: optionalText(),
     WORKER_PORT: z.coerce.number().int().min(0).max(65_535).default(53_002),
@@ -391,6 +402,7 @@ export function parseWorkerEnvironment(
     ...(result.data.BOT_AUDIO_TRANSCRIPTION_PROMPT === undefined
       ? {}
       : { botAudioTranscriptionPrompt: result.data.BOT_AUDIO_TRANSCRIPTION_PROMPT }),
+    ...toCanhotoOcrEnvironment(result.data),
     hostname: result.data.WORKER_HOSTNAME ?? '0.0.0.0',
     port: result.data.WORKER_PORT,
     prefetch: result.data.WORKER_PREFETCH,
@@ -631,4 +643,23 @@ function parseAllowedRecipients(raw: string | undefined): readonly string[] | un
     .map((entry) => entry.trim().toLowerCase())
     .filter((entry) => entry !== '')
   return entries.length === 0 ? undefined : entries
+}
+
+/** Spec 294 T4.8: ligado fora de produção, desligado em produção; sem o diretório dos modelos, não existe. */
+function toCanhotoOcrEnvironment(
+  environment: Readonly<{
+    APP_ENV: string
+    CANHOTO_OCR_ENABLED: string | undefined
+    CANHOTO_OCR_MODEL_DIR: string | undefined
+    CANHOTO_OCR_TIMEOUT_MS: number
+  }>,
+): { readonly canhotoOcr?: NonNullable<WorkerEnvironment['canhotoOcr']> } {
+  const isEnabled = environment.CANHOTO_OCR_ENABLED ?? String(environment.APP_ENV !== 'production')
+  if (isEnabled !== 'true' || environment.CANHOTO_OCR_MODEL_DIR === undefined) return {}
+  return {
+    canhotoOcr: {
+      modelDirectory: environment.CANHOTO_OCR_MODEL_DIR,
+      timeoutMilliseconds: environment.CANHOTO_OCR_TIMEOUT_MS,
+    },
+  }
 }

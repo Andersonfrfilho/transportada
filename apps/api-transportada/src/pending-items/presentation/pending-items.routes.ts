@@ -60,6 +60,7 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
 
 function serializePendingItem(item: PendingItem): object {
   return {
+    ...(item.details === undefined ? {} : { details: item.details }),
     entityId: item.entityId,
     entityType: item.entityType,
     kind: item.kind,

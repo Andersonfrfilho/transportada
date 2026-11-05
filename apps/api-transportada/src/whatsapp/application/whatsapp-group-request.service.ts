@@ -178,6 +178,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
     request,
     sender: message.sender,
     senderName: message.senderName,
+    ...(message.sentAt === undefined ? {} : { sentAt: message.sentAt }),
     text: message.text,
   })
 
@@ -253,7 +254,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       if (open === null || open.ownerNumber !== sender || flow.locationReceived === undefined) {
         return false
       }
-      const outcome = flow.locationReceived({
+      const outcome = await flow.locationReceived({
         ...(location === undefined ? {} : { location }),
         request: open,
         sender,

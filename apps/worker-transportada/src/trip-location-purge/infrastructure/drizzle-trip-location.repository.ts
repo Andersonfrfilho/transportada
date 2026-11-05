@@ -18,6 +18,7 @@ import {
 } from '../../database/trip-execution.schema.js'
 import type {
   CountEligibleCompanies,
+  PurgeAddressSuggestions,
   PurgeStalePings,
   RedactDeliveryProofLocations,
   RedactDocumentOccurrenceLocations,
@@ -25,7 +26,10 @@ import type {
   RedactStopOccurrenceLocations,
   RedactTripLocations,
 } from '../application/trip-location.port.js'
-import { EXPIRED_LOCATION_STATE } from '../domain/trip-location-purge.constant.js'
+import {
+  ADDRESS_CORRECTION_SUGGESTIONS_TABLE,
+  EXPIRED_LOCATION_STATE,
+} from '../domain/trip-location-purge.constant.js'
 
 export type TripLocationDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -220,5 +224,37 @@ export function createDrizzlePurgeStalePings(database: TripLocationDatabase): Pu
     )
 
     return expired.length
+  }
+}
+
+/**
+ * Spec 294 S4: a sugestão de endereço sai inteira — o ponto e o autor são o dado pessoal, e sem eles a linha não serve.
+ * Pendente conta da criação; decidida, da decisão. O worker não tem o schema da tabela: a sentença é por nome.
+ */
+export function buildAddressSuggestionPurgeStatement(input: {
+  readonly before: Date
+  readonly limit: number
+}): SQL {
+  const table = sql.identifier(ADDRESS_CORRECTION_SUGGESTIONS_TABLE)
+  const before = timestamptzParameter(input.before)
+  return sql`
+    delete from ${table}
+    where id in (
+      select id from ${table}
+      where (status = 'pending' and created_at < ${before})
+         or (status <> 'pending' and decided_at < ${before})
+      order by created_at
+      limit ${input.limit}
+    )
+    returning id
+  `
+}
+
+export function createDrizzlePurgeAddressSuggestions(
+  database: TripLocationDatabase,
+): PurgeAddressSuggestions {
+  return async (input) => {
+    const rows = await database.execute(buildAddressSuggestionPurgeStatement(input))
+    return rows.length
   }
 }

@@ -157,6 +157,8 @@ export type DriverTripStop = Readonly<{
   /** Spec 252 (ADR-0100 §6): avisos de feriado para a parada. Acessório: ausente ou malformado vira lista vazia. */
   holidayWarnings?: readonly HolidayWarning[]
   id: string
+  /** Spec 294 RF12: `false` = sem localização certa no mapa; ausente (API antiga) não avisa. */
+  isAddressReliable?: boolean
   label: string
   latitude: string | null
   longitude: string | null
@@ -313,6 +315,8 @@ export type StopOccurrenceReportReference =
  */
 export type DriverFieldReport =
   | Readonly<{
+      /** Spec 294 RF27: o motorista confirmou gravar fora da ordem da rota (o 409 já foi perguntado). */
+      confirmOutOfOrder?: true
       idempotencyKey: string
       kind: 'arrive'
       location: DriverReportedLocation | null
@@ -324,6 +328,8 @@ export type DriverFieldReport =
    * concorrentes (D3); a data nasce no toque, nunca no envio.
    */
   | Readonly<{
+      /** Spec 294 RF27: o motorista confirmou gravar fora da ordem da rota (o 409 já foi perguntado). */
+      confirmOutOfOrder?: true
       idempotencyKey: string
       kind: 'depart'
       location: DriverReportedLocation | null
@@ -350,6 +356,8 @@ export type DriverFieldReport =
       tappedAt: string
     }>
   | Readonly<{
+      /** Spec 294 RF27: o motorista confirmou gravar fora da ordem da rota (o 409 já foi perguntado). */
+      confirmOutOfOrder?: true
       documentId: string
       idempotencyKey: string
       kind: 'deliver'
@@ -358,6 +366,8 @@ export type DriverFieldReport =
       location: DriverReportedLocation | null
     }>
   | Readonly<{
+      /** Spec 294 RF27: o motorista confirmou gravar fora da ordem da rota (o 409 já foi perguntado). */
+      confirmOutOfOrder?: true
       documentId: string
       idempotencyKey: string
       kind: 'return'

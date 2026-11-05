@@ -15,7 +15,7 @@
  * - Spec 293 T15: tipo que pede foto, número do documento do cliente ou valor pago **não é recusado**:
  *   o registro abre a ocorrência em coleta, o bot pede o que falta e o pedido fica no passo `collect`
  *   até a coleta terminar. Assinatura e produtos continuam só no app e voltam com a frase do campo.
- * - Nada de nome de cliente nem valor no texto do grupo: só o número da nota.
+ * - Sem valor no texto do grupo: a nota vai pelo número.
  */
 import { formatSpokenNoteAmount } from '../domain/bot-spoken-note.policy.js'
 import type {
@@ -138,7 +138,11 @@ export type GroupOccurrenceFlowPorts = {
    * Quem abriu o pedido é motorista ou ajudante da frota (o telefone bate com uma ficha)? Só a
    * tripulação é perguntada pela localização; o atendimento pula o passo. Ausente, todos são.
    */
-  isCrewMember?(input: { readonly companyId: string; readonly phone: string }): Promise<boolean>
+  isCrewMember?(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly phone: string
+  }): Promise<boolean>
   /** Spec 292 T6: guarda o contato digitado no cliente da nota (validado e normalizado pela API). */
   addClientContact?(input: {
     readonly address: string
@@ -633,6 +637,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
             ports.isCrewMember === undefined ||
             (await ports.isCrewMember({
               companyId: turn.request.companyId,
+              driverId: turn.request.driverId,
               phone: turn.request.ownerNumber,
             }))
           if (!crew) return confirmOutcome({ ...state, note })
