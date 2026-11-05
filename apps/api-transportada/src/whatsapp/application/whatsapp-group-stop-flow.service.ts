@@ -32,7 +32,11 @@ import {
 import { OUT_OF_ORDER_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { LOCATION_PROMPT_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
-import type { ResolveWhatsAppSenderRole } from './whatsapp-sender-role.service.js'
+import {
+  SENDER_NOT_ALLOWED_TEXT,
+  type ResolveWhatsAppSenderRole,
+  type WhatsAppSenderRole,
+} from './whatsapp-sender-role.service.js'
 
 export const GROUP_STOP_STEP = {
   choose: 'choose',
@@ -131,18 +135,36 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       ? resolveDepartureStop(stops)
       : resolveArrivalStop(stops)
 
-  async function record(
-    turn: GroupFlowTurn,
-    event: WhatsAppDriverStopCommandEvent,
-    stopId: string,
-    documentNumber?: string,
-    confirmOutOfOrder = false,
-  ): Promise<GroupFlowOutcome> {
+  /** Spec 294 S1: um papel por mensagem; sem a porta, todo remetente é a tripulação (como antes da 294). */
+  async function roleOf(turn: GroupFlowTurn): Promise<WhatsAppSenderRole> {
     const role = await ports.resolveSenderRole?.({
       companyId: turn.request.companyId,
+      driverId: turn.request.driverId,
       phone: turn.sender,
     })
-    const attendant = role?.kind === 'attendant' ? { actorUserId: role.actorUserId } : undefined
+    return role ?? { kind: 'crew' }
+  }
+
+  const refused = (): GroupFlowOutcome => ({ kind: 'done', replies: [SENDER_NOT_ALLOWED_TEXT] })
+  const refusedAnswer = (): GroupFlowOutcome => ({
+    kind: 'not_understood',
+    prompt: '',
+    reason: SENDER_NOT_ALLOWED_TEXT,
+  })
+
+  async function record(
+    turn: GroupFlowTurn,
+    role: WhatsAppSenderRole,
+    target: {
+      readonly confirmOutOfOrder?: boolean
+      readonly documentNumber?: string | undefined
+      readonly event: WhatsAppDriverStopCommandEvent
+      readonly stopId: string
+    },
+  ): Promise<GroupFlowOutcome> {
+    const { documentNumber, event, stopId } = target
+    const confirmOutOfOrder = target.confirmOutOfOrder === true
+    const attendant = role.kind === 'attendant' ? { actorUserId: role.actorUserId } : undefined
     const result = await ports.record({
       ...(attendant === undefined ? {} : { attendant }),
       ...(confirmOutOfOrder ? { confirmOutOfOrder: true } : {}),
@@ -175,15 +197,16 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
   /** "1" confirma fora da ordem; "2" descarta, ou na saída vai à próxima do roteiro; o resto repete a pergunta. */
   async function answerConfirmOrder(
     turn: GroupFlowTurn,
+    role: WhatsAppSenderRole,
     target: NonNullable<FlowState['outOfOrderFor']>,
   ): Promise<GroupFlowOutcome> {
     const choice = interpretDriverChoice(turn.text)
     if (choice === DRIVER_CHOICE.first) {
-      return record(turn, target.event, target.stopId, target.documentNumber, true)
+      return record(turn, role, { ...target, confirmOutOfOrder: true })
     }
     if (choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
       if (target.event === WHATSAPP_DRIVER_STOP_COMMAND.depart && target.nextStopId !== undefined) {
-        return record(turn, target.event, target.nextStopId)
+        return record(turn, role, { event: target.event, stopId: target.nextStopId })
       }
       return { kind: 'done', replies: [OUT_OF_ORDER_TEXT.discarded] }
     }
@@ -197,20 +220,23 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
   /** Spec 294 RF24: pede a localização opcional (se não há ponto recente) e só então registra. */
   async function recordOrAsk(
     turn: GroupFlowTurn,
-    event: WhatsAppDriverStopCommandEvent,
-    stopId: string,
-    documentNumber?: string,
-    isAddressReliable?: boolean,
+    role: WhatsAppSenderRole,
+    target: {
+      readonly documentNumber?: string | undefined
+      readonly event: WhatsAppDriverStopCommandEvent
+      readonly isAddressReliable?: boolean | undefined
+      readonly stopId: string
+    },
   ): Promise<GroupFlowOutcome> {
     const { companyId, driverId } = turn.request
+    const { documentNumber, event, isAddressReliable, stopId } = target
     // O escritório não manda ponto: o atendente registra direto, sem a pergunta da localização.
-    const role = await ports.resolveSenderRole?.({ companyId, phone: turn.sender })
     if (
-      role?.kind === 'attendant' ||
+      role.kind === 'attendant' ||
       ports.hasLocation === undefined ||
       ports.hasLocation({ companyId, driverId })
     ) {
-      return record(turn, event, stopId, documentNumber)
+      return record(turn, role, { documentNumber, event, stopId })
     }
     const state: FlowState = { locationFor: { documentNumber, event, stopId } }
     // Spec 294 RF14: "cheguei" numa parada sem localização certa diz que o ponto corrige o endereço.
@@ -228,6 +254,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
 
   async function afterResolution(
     turn: GroupFlowTurn,
+    role: WhatsAppSenderRole,
     event: WhatsAppDriverStopCommandEvent,
     resolution: WhatsAppStopResolution<GroupStopCandidate>,
     documentNumbers: readonly string[],
@@ -253,13 +280,12 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           ],
         }
       case 'single':
-        return recordOrAsk(
-          turn,
+        return recordOrAsk(turn, role, {
+          documentNumber: firstNumberOf(resolution.stop),
           event,
-          resolution.stop.id,
-          firstNumberOf(resolution.stop),
-          resolution.stop.isAddressReliable,
-        )
+          isAddressReliable: resolution.stop.isAddressReliable,
+          stopId: resolution.stop.id,
+        })
       case 'choose': {
         const mentioned = resolution.stops.filter((stop) =>
           stop.documents.some((document) =>
@@ -267,13 +293,12 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           ),
         )
         if (mentioned.length === 1 && mentioned[0] !== undefined) {
-          return recordOrAsk(
-            turn,
+          return recordOrAsk(turn, role, {
+            documentNumber: firstNumberOf(mentioned[0]),
             event,
-            mentioned[0].id,
-            firstNumberOf(mentioned[0]),
-            mentioned[0].isAddressReliable,
-          )
+            isAddressReliable: mentioned[0].isAddressReliable,
+            stopId: mentioned[0].id,
+          })
         }
         const state: FlowState = {
           event,
@@ -297,11 +322,12 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
   /** "pular" (falado ou digitado) registra sem ponto; o resto repete que o item vai por localização. */
   async function answerLocationStep(
     turn: GroupFlowTurn,
+    role: WhatsAppSenderRole,
     target: NonNullable<FlowState['locationFor']>,
   ): Promise<GroupFlowOutcome> {
     const choice = interpretDriverChoice(turn.text)
     if (choice === DRIVER_CHOICE.skip || choice === DRIVER_CHOICE.second) {
-      return record(turn, target.event, target.stopId, target.documentNumber)
+      return record(turn, role, target)
     }
     return {
       kind: 'not_understood',
@@ -317,30 +343,35 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       event: WhatsAppDriverStopCommandEvent,
       documentNumbers: readonly string[],
     ): Promise<GroupFlowOutcome> {
+      const role = await roleOf(turn)
+      if (role.kind === 'unknown') return refused()
       const stops = await ports.listStops({
         companyId: turn.request.companyId,
         driverId: turn.request.driverId,
       })
-      return afterResolution(turn, event, resolve(event, stops), documentNumbers)
+      return afterResolution(turn, role, event, resolve(event, stops), documentNumbers)
     },
 
     /** "1" na oferta da próxima rota: a saída da parada oferecida, pelo mesmo registro do "saí". */
-    departStop(turn: GroupFlowTurn, stop: GroupStopRoute): Promise<GroupFlowOutcome> {
-      return recordOrAsk(
-        turn,
-        WHATSAPP_DRIVER_STOP_COMMAND.depart,
-        stop.stopId,
-        stop.documentNumber,
-      )
+    async departStop(turn: GroupFlowTurn, stop: GroupStopRoute): Promise<GroupFlowOutcome> {
+      const role = await roleOf(turn)
+      if (role.kind === 'unknown') return refused()
+      return recordOrAsk(turn, role, {
+        documentNumber: stop.documentNumber,
+        event: WHATSAPP_DRIVER_STOP_COMMAND.depart,
+        stopId: stop.stopId,
+      })
     },
 
     async answer(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
+      const role = await roleOf(turn)
+      if (role.kind === 'unknown') return refusedAnswer()
       const state = turn.request.state as FlowState
       if (turn.request.step === GROUP_STOP_STEP.location && state.locationFor !== undefined) {
-        return answerLocationStep(turn, state.locationFor)
+        return answerLocationStep(turn, role, state.locationFor)
       }
       if (turn.request.step === GROUP_STOP_STEP.confirmOrder && state.outOfOrderFor !== undefined) {
-        return answerConfirmOrder(turn, state.outOfOrderFor)
+        return answerConfirmOrder(turn, role, state.outOfOrderFor)
       }
       const stops = state.stops ?? []
       const event = state.event ?? WHATSAPP_DRIVER_STOP_COMMAND.arrive
@@ -355,14 +386,21 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           reason: REASON.stop,
         }
       }
-      return recordOrAsk(turn, event, picked.id, picked.numbers[0], picked.isAddressReliable)
+      return recordOrAsk(turn, role, {
+        documentNumber: picked.numbers[0],
+        event,
+        isAddressReliable: picked.isAddressReliable,
+        stopId: picked.id,
+      })
     },
 
     /** A localização compartilhada chegou com o pedido de localização aberto: registra com ela (o ponto está lembrado). */
     async locationReceived(turn: GroupFlowTurn): Promise<GroupFlowOutcome | null> {
       const target = (turn.request.state as FlowState).locationFor
       if (turn.request.step !== GROUP_STOP_STEP.location || target === undefined) return null
-      return record(turn, target.event, target.stopId, target.documentNumber)
+      const role = await roleOf(turn)
+      if (role.kind === 'unknown') return refusedAnswer()
+      return record(turn, role, target)
     },
   }
 }

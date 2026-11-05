@@ -124,7 +124,8 @@ export function createGroupDeliveryWiring(dependencies: {
       if (row !== undefined && sameBrazilianPhone(row.phone, sender)) return true
       // Spec 294 RF18: a mídia do atendente também é prova (baixa pelo escritório).
       return (
-        (await dependencies.resolveSenderRole({ companyId, phone: sender })).kind === 'attendant'
+        (await dependencies.resolveSenderRole({ companyId, driverId, phone: sender })).kind ===
+        'attendant'
       )
     },
   }

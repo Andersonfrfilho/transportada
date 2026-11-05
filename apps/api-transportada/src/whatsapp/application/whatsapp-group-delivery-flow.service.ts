@@ -128,7 +128,7 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
   /** Tripulação baixa em nome do motorista do grupo; atendente, em nome dele pelo escritório (RF19/RF20). */
   async function actorOf(turn: GroupFlowTurn): Promise<'refused' | null | WhatsAppDriverActor> {
     const { companyId, driverId } = turn.request
-    const role = await ports.resolveSenderRole?.({ companyId, phone: turn.sender })
+    const role = await ports.resolveSenderRole?.({ companyId, driverId, phone: turn.sender })
     if (role?.kind === 'unknown') return 'refused'
     if (role?.kind === 'attendant') {
       return { actorUserId: role.actorUserId, attendant: true, companyId, driverId }

@@ -71,7 +71,7 @@ export function createGroupTripCloseFlow(ports: GroupTripCloseFlowPorts) {
 
     async begin(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
       const { companyId, driverId } = turn.request
-      const role = await ports.resolveSenderRole({ companyId, phone: turn.sender })
+      const role = await ports.resolveSenderRole({ companyId, driverId, phone: turn.sender })
       if (role.kind === 'unknown') return done(GROUP_TRIP_CLOSE_TEXT.unknownSender)
       if (role.kind === 'crew') return done(GROUP_TRIP_CLOSE_TEXT.attendantOnly)
       const trip = await ports.findActiveTrip({ companyId, driverId })
@@ -86,8 +86,8 @@ export function createGroupTripCloseFlow(ports: GroupTripCloseFlowPorts) {
     },
 
     async answer(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
-      const { companyId } = turn.request
-      const role = await ports.resolveSenderRole({ companyId, phone: turn.sender })
+      const { companyId, driverId } = turn.request
+      const role = await ports.resolveSenderRole({ companyId, driverId, phone: turn.sender })
       if (role.kind !== 'attendant') {
         return { kind: 'not_understood', prompt: '', reason: GROUP_TRIP_CLOSE_TEXT.attendantOnly }
       }

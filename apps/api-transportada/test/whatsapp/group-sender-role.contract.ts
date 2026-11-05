@@ -19,7 +19,9 @@ import {
   type WhatsAppSenderRolePorts,
 } from '../../src/whatsapp/application/whatsapp-sender-role.service.js'
 import {
+  brazilianPhoneCandidates,
   createAttendantFinder,
+  decideCrewPhoneMatch,
   sameBrazilianPhone,
 } from '../../src/whatsapp/infrastructure/whatsapp-group-sender.adapter.js'
 
@@ -29,22 +31,24 @@ const STRANGER_PHONE = '5511900000000'
 
 const ports: WhatsAppSenderRolePorts = {
   findAttendant: async ({ phone }) => (phone === ATTENDANT_PHONE ? { actorUserId: 'U9' } : null),
-  isCrewMember: async ({ phone }) => phone === CREW_PHONE,
+  isCrewMember: async ({ driverId, phone }) => driverId === 'D1' && phone === CREW_PHONE,
 }
 const resolveRole = createWhatsAppSenderRoleResolver(ports)
 
 describe('quem mandou: tripulação, atendente ou ninguém', () => {
   test('telefone de motorista ou ajudante da frota é tripulação', async () => {
-    expect(await resolveRole({ companyId: 'C1', phone: CREW_PHONE })).toEqual({ kind: 'crew' })
+    expect(await resolveRole({ companyId: 'C1', driverId: 'D1', phone: CREW_PHONE })).toEqual({
+      kind: 'crew',
+    })
   })
   test('usuário com a baixa do escritório é atendente, com o id do usuário', async () => {
-    expect(await resolveRole({ companyId: 'C1', phone: ATTENDANT_PHONE })).toEqual({
+    expect(await resolveRole({ companyId: 'C1', driverId: 'D1', phone: ATTENDANT_PHONE })).toEqual({
       actorUserId: 'U9',
       kind: 'attendant',
     })
   })
   test('qualquer outro número é desconhecido', async () => {
-    expect(await resolveRole({ companyId: 'C1', phone: STRANGER_PHONE })).toEqual({
+    expect(await resolveRole({ companyId: 'C1', driverId: 'D1', phone: STRANGER_PHONE })).toEqual({
       kind: 'unknown',
     })
   })
@@ -53,7 +57,24 @@ describe('quem mandou: tripulação, atendente ou ninguém', () => {
       findAttendant: async () => ({ actorUserId: 'U9' }),
       isCrewMember: async () => true,
     })
-    expect(await both({ companyId: 'C1', phone: CREW_PHONE })).toEqual({ kind: 'crew' })
+    expect(await both({ companyId: 'C1', driverId: 'D1', phone: CREW_PHONE })).toEqual({
+      kind: 'crew',
+    })
+  })
+  test('a tripulação é a do grupo: o motorista de outro grupo não é tripulação aqui (S2)', async () => {
+    expect(await resolveRole({ companyId: 'C1', driverId: 'D2', phone: CREW_PHONE })).toEqual({
+      kind: 'unknown',
+    })
+  })
+  test('o motorista de outro grupo que é atendente segue como atendente (S2)', async () => {
+    const asAttendant = createWhatsAppSenderRoleResolver({
+      findAttendant: async () => ({ actorUserId: 'U9' }),
+      isCrewMember: async ({ driverId }) => driverId === 'D1',
+    })
+    expect(await asAttendant({ companyId: 'C1', driverId: 'D2', phone: CREW_PHONE })).toEqual({
+      actorUserId: 'U9',
+      kind: 'attendant',
+    })
   })
   test('o telefone da ficha e o do WhatsApp se reconhecem com ou sem o nono dígito', () => {
     expect(sameBrazilianPhone('(16) 98888-7777', '551688887777')).toBe(true)
@@ -66,6 +87,45 @@ const authorized = (permissions: readonly string[]): ResolveWhatsAppActorResult 
     context: { scope: { kind: 'company', permissions: new Set(permissions), userId: 'U9' } },
     status: 'authorized',
   }) as unknown as ResolveWhatsAppActorResult
+
+describe('telefone da tripulação: exato primeiro, nono dígito só sem ambiguidade (S2)', () => {
+  test('o número do WhatsApp vira o exato e a forma com/sem o nono dígito', () => {
+    expect(brazilianPhoneCandidates('5516988887777')).toEqual({
+      alternate: '1688887777',
+      exact: '16988887777',
+    })
+    expect(brazilianPhoneCandidates('551688887777')).toEqual({
+      alternate: '16988887777',
+      exact: '1688887777',
+    })
+    expect(brazilianPhoneCandidates('551633334444')).toEqual({
+      alternate: null,
+      exact: '1633334444',
+    })
+    expect(brazilianPhoneCandidates('')).toEqual({ alternate: null, exact: '' })
+  })
+  test('a ficha com o número exato decide, mesmo havendo a forma alternativa de outra pessoa', () => {
+    const rows = [
+      { isCrew: false, phone: '1688887777' },
+      { isCrew: true, phone: '16988887777' },
+    ]
+    expect(decideCrewPhoneMatch(rows, '16988887777')).toBe(true)
+    expect(decideCrewPhoneMatch(rows, '1688887777')).toBe(false)
+  })
+  test('sem número exato, a forma alternativa vale só quando é de uma ficha só', () => {
+    expect(decideCrewPhoneMatch([{ isCrew: true, phone: '1688887777' }], '16988887777')).toBe(true)
+    expect(
+      decideCrewPhoneMatch(
+        [
+          { isCrew: true, phone: '1688887777' },
+          { isCrew: false, phone: '1688887777' },
+        ],
+        '16988887777',
+      ),
+    ).toBe(false)
+    expect(decideCrewPhoneMatch([], '16988887777')).toBe(false)
+  })
+})
 
 describe('atendente: telefone verificado, vínculo ativo e a permissão da baixa do escritório', () => {
   const find = (result: ResolveWhatsAppActorResult) =>

@@ -494,3 +494,18 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   dado de empresa. Decisão: é o **token do canal interno API→worker**, mantido por nome (renomear tocaria env, railway.ts e dois schemas, sem ganho de escopo; o nome
   antigo é o que está provisionado). Uma terceira rota interna, se vier, reusa o canal; se ganhar quem a chame que não seja a API, ganha token próprio.
 - **Migrations renomeadas na junção** (cadeia de snapshots do drizzle é linear): `20261105023931_stop_event…` → `20261105121000_…`, `20261105120144_canhoto_hash_index` → `20261105121100_…`, `20261105144242_whatsapp_canhoto_questions` → `20261105121200_…`, depois das migrations da 091/295 (a última, `20261105120600_cnh_picture_service_role`). Nenhuma estava em staging/produção; snapshots refeitos sobre a cadeia da staging, sem mudar o SQL.
+
+## T6.3 — correções da revisão final
+
+### S1/S2 — quem manda no grupo (fix(294) remetente)
+
+- S1: `saí`/`cheguei`, a oferta da próxima ("1"), as respostas (passo da localização, 1/2 da ordem, escolha da parada) e a localização recebida recusam o
+  número `unknown` com `SENDER_NOT_ALLOWED_TEXT`, como a entrega e o encerrar. O papel é resolvido **uma vez por mensagem** (`roleOf`) e passado adiante (L7).
+- S2: a tripulação é a do grupo. `ResolveWhatsAppSenderRole`/`isCrewMember` recebem o `driverId` dono do grupo; `isCrewPhone` busca no SQL só as fichas da
+  empresa com o número exato ou a forma com/sem o nono dígito (`phone in (…)`, a ficha já guarda só dígitos) e marca tripulação = a ficha do dono **ou** quem está
+  em `trip_drivers` de uma viagem não terminal em que o dono também está. Motorista Y no grupo de X → `unknown` (a não ser que seja atendente). Número exato
+  decide; a forma alternativa só vale quando casa com uma ficha só (`decideCrewPhoneMatch`). Sem índice novo: a busca filtra por `company_id` e o número.
+- Contratos: `test/whatsapp/group-sender-role.contract.ts` (+5), `test/whatsapp/group-attendant-stop.contract.ts` (+4). `whatsapp` + `whatsapp-commands`:
+  1119 pass / 0 fail.
+- Integração nova `test/integration/whatsapp-group-crew-phone.integration.ts` (registrada no `test:integration`): 3 pass / 0 fail (dono, ajudante da viagem,
+  outro motorista, viagem encerrada, outra empresa, nono dígito de outra ficha). `whatsapp-group-occurrence-adapter.integration.ts`: 1 pass.

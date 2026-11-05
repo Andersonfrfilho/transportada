@@ -2,7 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 294 RF18: **quem mandou decide a regra.** No grupo do motorista a baixa é da pessoa, não do canal:
- * tripulação (telefone de motorista ou ajudante da frota) segue as regras do motorista; atendente
+ * tripulação (o motorista do grupo ou um ajudante da viagem ativa dele — spec 294 S2: o motorista de outro grupo
+ * não é tripulação aqui) segue as regras do motorista; atendente
  * (telefone verificado de usuário com vínculo ativo e a permissão da baixa do escritório) segue as do
  * escritório; qualquer outro número não dá baixa.
  */
@@ -17,14 +18,18 @@ export type WhatsAppSenderRolePorts = {
     readonly companyId: string
     readonly phone: string
   }) => Promise<null | { readonly actorUserId: string }>
+  /** O número é do motorista dono do grupo (`driverId`) ou de quem está na viagem ativa dele? */
   readonly isCrewMember: (input: {
     readonly companyId: string
+    readonly driverId: string
     readonly phone: string
   }) => Promise<boolean>
 }
 
 export type ResolveWhatsAppSenderRole = (input: {
   readonly companyId: string
+  /** O motorista dono do grupo: a tripulação é a dele. */
+  readonly driverId: string
   readonly phone: string
 }) => Promise<WhatsAppSenderRole>
 
@@ -37,7 +42,7 @@ export function createWhatsAppSenderRoleResolver(
 ): ResolveWhatsAppSenderRole {
   return async (input) => {
     if (await ports.isCrewMember(input)) return { kind: 'crew' }
-    const attendant = await ports.findAttendant(input)
+    const attendant = await ports.findAttendant({ companyId: input.companyId, phone: input.phone })
     return attendant === null
       ? { kind: 'unknown' }
       : { actorUserId: attendant.actorUserId, kind: 'attendant' }

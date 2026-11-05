@@ -2,9 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { fleetDrivers } from '../../database/database.schema.js'
+import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
 import type {
   ResolveWhatsAppActorParams,
   ResolveWhatsAppActorResult,
@@ -31,16 +32,75 @@ export function sameBrazilianPhone(registered: string, whatsapp: string): boolea
   return left.length >= 10 && left === local(whatsapp)
 }
 
-/** O telefone é de motorista ou ajudante da frota da empresa? */
+const BRAZIL_COUNTRY_CODE = '55'
+const MOBILE_NINTH_DIGIT = '9'
+
+/** O número do WhatsApp na forma da ficha (DDD + número) e, para celular, a forma com/sem o nono dígito. */
+export function brazilianPhoneCandidates(whatsapp: string): {
+  readonly alternate: null | string
+  readonly exact: string
+} {
+  const digits = whatsapp.replace(/\D/gu, '')
+  const exact =
+    digits.length > 11 && digits.startsWith(BRAZIL_COUNTRY_CODE) ? digits.slice(2) : digits
+  if (exact.length === 11 && exact[2] === MOBILE_NINTH_DIGIT) {
+    return { alternate: `${exact.slice(0, 2)}${exact.slice(3)}`, exact }
+  }
+  // Celular antigo sem o nono dígito: o primeiro dígito do número local é 6 a 9.
+  if (exact.length === 10 && /^[6-9]$/u.test(exact[2] ?? '')) {
+    return { alternate: `${exact.slice(0, 2)}${MOBILE_NINTH_DIGIT}${exact.slice(2)}`, exact }
+  }
+  return { alternate: null, exact }
+}
+
+/**
+ * Spec 294 S2: a ficha com o número exato decide; a forma com/sem o nono dígito só vale quando é de uma ficha
+ * só — duas fichas no mesmo número alternativo seriam pessoas diferentes e o bot não adivinha.
+ */
+export function decideCrewPhoneMatch(
+  rows: readonly { readonly isCrew: boolean; readonly phone: string }[],
+  exact: string,
+): boolean {
+  const exactRows = rows.filter((row) => row.phone === exact)
+  if (exactRows.length > 0) return exactRows.some((row) => row.isCrew)
+  const [only, ...others] = rows
+  return only !== undefined && others.length === 0 && only.isCrew
+}
+
+/**
+ * Spec 294 S2: o número é do motorista dono do grupo ou de alguém da tripulação de uma viagem ativa dele? O
+ * motorista de outro grupo não é tripulação aqui. A busca é pelo telefone no SQL (a ficha guarda só dígitos),
+ * nunca a frota inteira por mensagem.
+ */
 export async function isCrewPhone(
   database: Database,
-  input: { readonly companyId: string; readonly phone: string },
+  input: { readonly companyId: string; readonly driverId: string; readonly phone: string },
 ): Promise<boolean> {
+  const { alternate, exact } = brazilianPhoneCandidates(input.phone)
+  if (exact.length < 10) return false
+  const phones = alternate === null ? [exact] : [exact, alternate]
+  const terminal = sql.join(
+    TRIP_TERMINAL_STATUSES.map((status) => sql`${status}`),
+    sql`, `,
+  )
+  // A coluna vai qualificada à mão: dentro do select de uma tabela só o Drizzle a escreve sem o nome da tabela.
   const rows = await database
-    .select({ phone: fleetDrivers.phone })
+    .select({
+      isCrew: sql<boolean>`(fleet_drivers.id = ${input.driverId} or exists (
+        select 1
+          from trip_drivers member
+          join trips trip on trip.company_id = member.company_id and trip.id = member.trip_id
+          join trip_drivers owner on owner.company_id = member.company_id and owner.trip_id = member.trip_id
+         where member.company_id = ${input.companyId}
+           and member.driver_id = fleet_drivers.id
+           and owner.driver_id = ${input.driverId}
+           and trip.status not in (${terminal})
+      ))`,
+      phone: fleetDrivers.phone,
+    })
     .from(fleetDrivers)
-    .where(eq(fleetDrivers.companyId, input.companyId))
-  return rows.some((row) => sameBrazilianPhone(row.phone, input.phone))
+    .where(and(eq(fleetDrivers.companyId, input.companyId), inArray(fleetDrivers.phone, phones)))
+  return decideCrewPhoneMatch(rows, exact)
 }
 
 /**

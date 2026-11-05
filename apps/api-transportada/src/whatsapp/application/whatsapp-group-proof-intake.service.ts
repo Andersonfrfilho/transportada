@@ -109,7 +109,7 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
   return {
     async handle(media: AdmittedGroupMedia): Promise<void> {
       const { companyId, driverId } = media
-      const role = await ports.resolveSenderRole?.({ companyId, phone: media.sender })
+      const role = await ports.resolveSenderRole?.({ companyId, driverId, phone: media.sender })
       const actor: null | WhatsAppDriverActor =
         role?.kind === 'attendant'
           ? { actorUserId: role.actorUserId, attendant: true, companyId, driverId }

@@ -13,10 +13,12 @@ import {
   type GroupStopFlowPorts,
 } from '../../src/whatsapp/application/whatsapp-group-stop-flow.service.js'
 import type { GroupRequest } from '../../src/whatsapp/application/whatsapp-group-request.port.js'
+import { SENDER_NOT_ALLOWED_TEXT } from '../../src/whatsapp/application/whatsapp-sender-role.service.js'
 import { createGroupStopPorts } from '../../src/whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
 
 const ATTENDANT = '5516911112222'
 const CREW = '5516988887777'
+const STRANGER = '5511900000000'
 
 const request = (): GroupRequest => ({
   attempts: 0,
@@ -39,6 +41,7 @@ const turn = (sender: string, text = 'saí') => ({
 
 function buildFlow() {
   const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
+  const roleCalls: unknown[] = []
   const flow = createGroupStopFlow({
     enRouteMessage: async () => 'a caminho',
     hasLocation: () => false,
@@ -57,10 +60,13 @@ function buildFlow() {
       recorded.push(input)
       return { message: 'ok' }
     },
-    resolveSenderRole: async ({ phone }) =>
-      phone === ATTENDANT ? { actorUserId: 'U-att', kind: 'attendant' } : { kind: 'crew' },
+    resolveSenderRole: async (input) => {
+      roleCalls.push(input)
+      if (input.phone === ATTENDANT) return { actorUserId: 'U-att', kind: 'attendant' }
+      return input.phone === CREW ? { kind: 'crew' } : { kind: 'unknown' }
+    },
   })
-  return { flow, recorded }
+  return { flow, recorded, roleCalls }
 }
 
 describe('grupo: saí e cheguei do atendente pelo escritório (RF19)', () => {
@@ -81,6 +87,36 @@ describe('grupo: saí e cheguei do atendente pelo escritório (RF19)', () => {
     expect(recorded).toHaveLength(0)
     await flow.begin(turn(CREW), 'depart', [])
     expect(recorded[0]?.attendant).toBeUndefined()
+  })
+})
+
+describe('grupo: número desconhecido não registra saí nem cheguei (S1)', () => {
+  test.each(['depart', 'arrive'] as const)('%s de desconhecido é recusado', async (event) => {
+    const { flow, recorded } = buildFlow()
+    const outcome = await flow.begin(turn(STRANGER), event, [])
+    expect(outcome).toEqual({ kind: 'done', replies: [SENDER_NOT_ALLOWED_TEXT] })
+    expect(recorded).toHaveLength(0)
+  })
+
+  test('desconhecido que responde "pular" na pergunta da localização não registra', async () => {
+    const { flow, recorded } = buildFlow()
+    const opened = await flow.begin(turn(CREW), 'arrive', [])
+    expect(opened).toMatchObject({ kind: 'continue', step: 'location' })
+    const state = (opened as { state: Record<string, unknown> }).state
+    const answer = await flow.answer({
+      request: { ...request(), state, step: 'location' },
+      sender: STRANGER,
+      senderName: null,
+      text: 'pular',
+    })
+    expect(answer).toMatchObject({ kind: 'not_understood', reason: SENDER_NOT_ALLOWED_TEXT })
+    expect(recorded).toHaveLength(0)
+  })
+
+  test('o papel de quem mandou é resolvido uma vez por mensagem, com o motorista do grupo', async () => {
+    const { flow, roleCalls } = buildFlow()
+    await flow.begin(turn(CREW), 'depart', [])
+    expect(roleCalls).toEqual([{ companyId: 'C1', driverId: 'D1', phone: CREW }])
   })
 })
 
