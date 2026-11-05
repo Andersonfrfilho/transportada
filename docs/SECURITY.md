@@ -5,6 +5,26 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-11-05 — spec 294 T4.8b — fotos de canhoto de produção usadas para medir e treinar um classificador local
+
+**Onde:** máquina do Anderson, pasta de rascunho da sessão; protótipo em
+`specs/294-o-motorista-segue-a-ordem-da-parada/spike-canhoto-gratuito/`. Nada nas apps.
+
+**O que foi feito:** 111 fotos de canhoto de produção (nome, documento e assinatura de recebedor) baixadas só para
+leitura, com o número das notas da viagem. Processadas **só localmente** (OCR PaddleOCR, MobileNetV3, Florence-2, todos
+rodando nesta máquina); nenhuma foto, texto ou vetor saiu para serviço externo. As fotos de produção não foram abertas
+para olhar; texto reconhecido e números nunca foram impressos nem gravados no repositório.
+
+**O que o "treino" deixou:** a opção B é uma sonda linear (1280 pesos + 1 viés) sobre a MobileNetV3 congelada,
+treinada **em memória** durante a validação cruzada; os pesos não foram salvos. Os vetores de 1280 posições por foto
+(arquivo de rascunho) foram apagados com as fotos, os modelos baixados e o ambiente Python em 05/11/2026. Um
+vetor de pooling global não permite reconstruir a imagem legível, mas como nem ele ficou, não há artefato derivado.
+
+**Para quando virar produção:** treinar com foto de produção de novo exige a mesma regra (local, apagar ao fim, só o
+modelo fica). Pesos de uma sonda linear ou de uma rede ajustada **não** guardam a imagem, mas uma rede ajustada com
+poucas fotos pode memorizar traços; antes de versionar um modelo treinado assim, registrar aqui o conjunto usado e a
+data. **Desfecho:** fechado no próprio dia — nada guardado.
+
 ### 2026-10-11 — spec 264 T0.3 — a transcrição de áudio vira dado pessoal novo: finalidade, retenção amarrada ao áudio e modelo próprio
 
 **Onde:** ainda não existe; é o desenho da spec 264 (D2, D10, D12, RF18) e da ADR-0103. Vai para a rotina de transcrição do `apps/worker-transportada`, para a tabela de texto com `company_id` (migration própria) e para as rotas `/me/trips/current/conversations/**` e `/trips/:tripId/conversations/**` de `apps/api-transportada`.
