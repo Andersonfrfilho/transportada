@@ -8,12 +8,15 @@ import { defineRoute } from '../../http/router.service.js'
 import {
   API_FLEET_DRIVER_ATTACHMENT_CONTENT_PATH,
   API_FLEET_DRIVER_ATTACHMENT_PATH,
+  API_FLEET_DRIVER_ATTACHMENT_SUGGESTION_PATH,
   API_FLEET_DRIVER_ATTACHMENTS_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
+import type { FleetDriverAttachmentDecision } from '../../database/fleet-driver-attachment.schema.js'
 import type { FleetDriverAttachmentUseCase } from '../application/fleet-driver-attachment.use-case.js'
 import { parseUuidPathIdentifier } from './fleet.schema.js'
 import {
+  parseDecideSuggestionRequest,
   parseUploadFleetDriverAttachmentRequest,
   type UploadFleetDriverAttachmentRequest,
 } from './fleet-driver-attachment.schema.js'
@@ -102,6 +105,36 @@ export function createFleetDriverAttachmentRoutes(
       }),
       pathname: API_FLEET_DRIVER_ATTACHMENT_CONTENT_PATH,
       policy: FLEET_REVEAL_POLICY,
+    }),
+    defineRoute<{
+      readonly attachmentId: string
+      readonly decision: FleetDriverAttachmentDecision
+      readonly driverId: string
+    }>({
+      /** Aceitar ou descartar a sugestão da leitura da CNH: some a leitura e fica a decisão. */
+      async handle({ context, input }): Promise<Response> {
+        const decided = await attachments.decideSuggestion({
+          attachmentId: input.attachmentId,
+          companyId: context.scope.companyId,
+          decidedBy: context.scope.userId,
+          decision: input.decision,
+          driverId: input.driverId,
+        })
+        return new Response(JSON.stringify({ data: decided }), {
+          headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
+          status: OK_STATUS,
+        })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        return {
+          attachmentId: parseUuidPathIdentifier(pathParameters.attachmentId ?? ''),
+          driverId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          ...(await parseDecideSuggestionRequest(request)),
+        }
+      },
+      pathname: API_FLEET_DRIVER_ATTACHMENT_SUGGESTION_PATH,
+      policy: FLEET_MANAGE_POLICY,
     }),
   ]
 }

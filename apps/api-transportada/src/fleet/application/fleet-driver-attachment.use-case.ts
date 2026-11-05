@@ -3,9 +3,15 @@
  */
 import { createHash, randomUUID } from 'node:crypto'
 
-import type { FleetDriverAttachmentType } from '../../database/fleet-driver-attachment.schema.js'
+import type {
+  FleetDriverAttachmentDecision,
+  FleetDriverAttachmentType,
+} from '../../database/fleet-driver-attachment.schema.js'
 import { AGGREGATE_STORAGE_PROVIDER } from '../domain/aggregate-storage.constant.js'
-import { FleetDriverAttachmentNotFoundError } from '../domain/fleet-driver-attachment.error.js'
+import {
+  FleetDriverAttachmentNotFoundError,
+  FleetDriverAttachmentSuggestionDecidedError,
+} from '../domain/fleet-driver-attachment.error.js'
 import {
   assertFleetDriverAttachmentUpload,
   buildFleetDriverAttachmentObjectKey,
@@ -37,6 +43,13 @@ export type FleetDriverAttachmentUseCase = Readonly<{
     readonly type: FleetDriverAttachmentType
     readonly uploadedBy: string
   }) => Promise<FleetDriverAttachment>
+  decideSuggestion: (input: {
+    readonly attachmentId: string
+    readonly companyId: string
+    readonly decidedBy: string
+    readonly decision: FleetDriverAttachmentDecision
+    readonly driverId: string
+  }) => Promise<{ readonly decision: FleetDriverAttachmentDecision }>
   remove: (input: {
     readonly attachmentId: string
     readonly companyId: string
@@ -126,6 +139,13 @@ export function createFleetDriverAttachmentUseCase(
         key: location.objectKey,
       })
       await dependencies.repository.remove({ attachmentId, companyId, driverId })
+    },
+
+    async decideSuggestion(input) {
+      const outcome = await dependencies.repository.decideSuggestion(input)
+      if (outcome === 'not_found') throw new FleetDriverAttachmentNotFoundError()
+      if (outcome === 'already_decided') throw new FleetDriverAttachmentSuggestionDecidedError()
+      return { decision: input.decision }
     },
 
     async reveal({ attachmentId, companyId, driverId }) {

@@ -12,6 +12,7 @@ import { createFleetDriverAttachmentUseCase } from '../../src/fleet/application/
 import {
   FleetDriverAttachmentInvalidUploadError,
   FleetDriverAttachmentNotFoundError,
+  FleetDriverAttachmentSuggestionDecidedError,
   FleetDriverAttachmentTypeTakenError,
 } from '../../src/fleet/domain/fleet-driver-attachment.error.js'
 import { FleetDriverNotFoundError } from '../../src/fleet/domain/fleet.error.js'
@@ -34,6 +35,7 @@ type Fixture = ReturnType<typeof buildFixture>
 function buildFixture(
   overrides: Readonly<{
     createError?: Error
+    decisionOutcome?: 'already_decided' | 'decided' | 'not_found'
     driverExists?: boolean
     location?: FleetDriverAttachmentLocation | null
     storeError?: Error
@@ -43,6 +45,7 @@ function buildFixture(
   const created: CreateFleetDriverAttachmentInput[] = []
   const stored: { readonly contentType: string; readonly key: string }[] = []
   const deletedKeys: string[] = []
+  const decisions: Parameters<FleetDriverAttachmentRepositoryPort['decideSuggestion']>[0][] = []
   const signed: { readonly expiresInSeconds: number; readonly key: string }[] = []
 
   const repository: FleetDriverAttachmentRepositoryPort = {
@@ -62,6 +65,11 @@ function buildFixture(
     },
     async findLocation() {
       return overrides.location === undefined ? LOCATION : overrides.location
+    },
+    async decideSuggestion(input) {
+      events.push('decide')
+      decisions.push(input)
+      return overrides.decisionOutcome ?? 'decided'
     },
     async remove() {
       events.push('remove-row')
@@ -87,7 +95,7 @@ function buildFixture(
       },
     },
   })
-  return { created, deletedKeys, events, signed, stored, useCase }
+  return { created, decisions, deletedKeys, events, signed, stored, useCase }
 }
 
 function attach(
@@ -237,5 +245,41 @@ describe('anexo do motorista — revelar', () => {
     ).rejects.toBeInstanceOf(FleetDriverAttachmentNotFoundError)
 
     expect(fixture.signed).toEqual([])
+  })
+})
+
+describe('anexo do motorista — decidir a sugestão da leitura', () => {
+  const decide = (fixture: Fixture, decision: 'accepted' | 'dismissed' = 'dismissed') =>
+    fixture.useCase.decideSuggestion({
+      attachmentId: ATTACHMENT_ID,
+      companyId: COMPANY_ID,
+      decidedBy: USER_ID,
+      decision,
+      driverId: DRIVER_ID,
+    })
+
+  test('registra a decisão de quem decidiu, na empresa e no motorista do anexo', async () => {
+    const fixture = buildFixture()
+
+    await decide(fixture, 'accepted')
+
+    expect(fixture.decisions).toEqual([
+      {
+        attachmentId: ATTACHMENT_ID,
+        companyId: COMPANY_ID,
+        decidedBy: USER_ID,
+        decision: 'accepted',
+        driverId: DRIVER_ID,
+      },
+    ])
+  })
+
+  test('anexo inexistente é 404, e decidir de novo é 409', async () => {
+    await expect(decide(buildFixture({ decisionOutcome: 'not_found' }))).rejects.toBeInstanceOf(
+      FleetDriverAttachmentNotFoundError,
+    )
+    await expect(
+      decide(buildFixture({ decisionOutcome: 'already_decided' })),
+    ).rejects.toBeInstanceOf(FleetDriverAttachmentSuggestionDecidedError)
   })
 })

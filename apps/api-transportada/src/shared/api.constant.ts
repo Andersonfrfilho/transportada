@@ -186,6 +186,7 @@ export const API_FLEET_WHATSAPP_GROUPS_PATH = '/fleet/whatsapp-groups'
 export const API_FLEET_DRIVER_ATTACHMENTS_PATH = `${API_FLEET_DRIVERS_PATH}/:id/attachments`
 export const API_FLEET_DRIVER_ATTACHMENT_PATH = `${API_FLEET_DRIVER_ATTACHMENTS_PATH}/:attachmentId`
 export const API_FLEET_DRIVER_ATTACHMENT_CONTENT_PATH = `${API_FLEET_DRIVER_ATTACHMENT_PATH}/content`
+export const API_FLEET_DRIVER_ATTACHMENT_SUGGESTION_PATH = `${API_FLEET_DRIVER_ATTACHMENT_PATH}/suggestion`
 export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'

@@ -28,7 +28,7 @@ chave é perder o dado). A feature começa na Fase 2.
 
 - [x] **T013** Fiação ao `document-extraction.gateway.ts`, com PDF em `worker_thread`.
 - [x] **T014** CNH por `extractCnhFields`; comprovante de endereço **sem parser** (D4).
-- [ ] **T015** `extracted_fields` zerado no **mesmo `UPDATE`** da decisão (D5). Aceite: contrato que
+- [x] **T015** `extracted_fields` zerado no **mesmo `UPDATE`** da decisão (D5). Aceite: contrato que
       falha se forem duas escritas.
 
 ## Fase 4 — Ficha · 🤖 `sonnet`

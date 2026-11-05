@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 
 import {
   fleetDriverAttachmentOutbox,
@@ -93,6 +93,28 @@ export function createDrizzleFleetDriverAttachmentRepository(
         }
         throw error
       }
+    },
+
+    async decideSuggestion({ attachmentId, companyId, decidedBy, decision, driverId }) {
+      const scope = and(
+        eq(fleetDriverAttachments.companyId, companyId),
+        eq(fleetDriverAttachments.driverId, driverId),
+        eq(fleetDriverAttachments.id, attachmentId),
+      )
+      // Uma escrita só: a decisão e o descarte da leitura saem juntos (D5).
+      const [decided] = await database
+        .update(fleetDriverAttachments)
+        .set({ decidedAt: new Date(), decidedBy, decision, extractedFields: null })
+        .where(and(scope, isNull(fleetDriverAttachments.decision)))
+        .returning({ id: fleetDriverAttachments.id })
+      if (decided !== undefined) return 'decided'
+
+      const [existing] = await database
+        .select({ id: fleetDriverAttachments.id })
+        .from(fleetDriverAttachments)
+        .where(scope)
+        .limit(1)
+      return existing === undefined ? 'not_found' : 'already_decided'
     },
 
     async driverExists({ companyId, driverId }) {

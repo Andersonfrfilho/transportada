@@ -6,7 +6,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -253,6 +253,126 @@ describe('anexo do motorista, contra Postgres (spec 091)', () => {
         ).rejects.toBeInstanceOf(FleetDriverAttachmentTypeTakenError)
 
         expect(await db.select().from(fleetDriverAttachmentOutbox)).toHaveLength(1)
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  /**
+   * D5 / T015: `extracted_fields` some no **mesmo** `UPDATE` que registra a decisão. Em duas escritas,
+   * uma falha no meio deixaria o dado pessoal para trás no caminho de erro — o menos observado.
+   */
+  testWithPostgres(
+    'decidir limpa os campos lidos e grava a decisão numa escrita só',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const created = await createDrizzleFleetDriverAttachmentRepository(db).create(
+          attachmentInput({ companyId, driverId, type: 'cnh' }),
+        )
+        await db
+          .update(fleetDriverAttachments)
+          .set({ extractedAt: new Date(), extractedFields: { licenseNumber: '01234567890' } })
+          .where(eq(fleetDriverAttachments.id, created.id))
+
+        const writes: string[] = []
+        const spied = new Proxy(db, {
+          get(target, property, receiver) {
+            if (
+              ['delete', 'execute', 'insert', 'transaction', 'update'].includes(String(property))
+            ) {
+              writes.push(String(property))
+            }
+            return Reflect.get(target, property, receiver) as unknown
+          },
+        })
+
+        const outcome = await createDrizzleFleetDriverAttachmentRepository(spied).decideSuggestion({
+          attachmentId: created.id,
+          companyId,
+          decidedBy: USER_ID,
+          decision: 'accepted',
+          driverId,
+        })
+
+        expect(outcome).toBe('decided')
+        expect(writes).toEqual(['update'])
+        const [row] = await db
+          .select()
+          .from(fleetDriverAttachments)
+          .where(eq(fleetDriverAttachments.id, created.id))
+        expect(row).toMatchObject({
+          decidedBy: USER_ID,
+          decision: 'accepted',
+          extractedFields: null,
+        })
+        expect(row?.decidedAt).not.toBeNull()
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  /** O banco é a última guarda: uma decisão com o dado pessoal ainda na linha nem chega a existir. */
+  testWithPostgres(
+    'o CHECK recusa decisão gravada sem limpar os campos lidos',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const created = await createDrizzleFleetDriverAttachmentRepository(db).create(
+          attachmentInput({ companyId, driverId, type: 'cnh' }),
+        )
+        await db
+          .update(fleetDriverAttachments)
+          .set({ extractedFields: { licenseNumber: '01234567890' } })
+          .where(eq(fleetDriverAttachments.id, created.id))
+
+        await expect(
+          db.execute(
+            sql`update fleet_driver_attachments set decision = 'dismissed', decided_by = ${USER_ID}, decided_at = now() where id = ${created.id}`,
+          ),
+        ).rejects.toThrow()
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'decidir de novo, ou em anexo de outro motorista ou empresa, não altera nada',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const otherCompanyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const otherDriverId = await seedDriver(db, companyId)
+        const repository = createDrizzleFleetDriverAttachmentRepository(db)
+        const created = await repository.create(
+          attachmentInput({ companyId, driverId, type: 'cnh' }),
+        )
+        const target = {
+          attachmentId: created.id,
+          companyId,
+          decidedBy: USER_ID,
+          decision: 'accepted',
+          driverId,
+        } as const
+
+        expect(await repository.decideSuggestion({ ...target, companyId: otherCompanyId })).toBe(
+          'not_found',
+        )
+        expect(await repository.decideSuggestion({ ...target, driverId: otherDriverId })).toBe(
+          'not_found',
+        )
+        expect(await repository.decideSuggestion(target)).toBe('decided')
+        expect(await repository.decideSuggestion({ ...target, decision: 'dismissed' })).toBe(
+          'already_decided',
+        )
+
+        const [row] = await db
+          .select({ decision: fleetDriverAttachments.decision })
+          .from(fleetDriverAttachments)
+        expect(row?.decision).toBe('accepted')
       })
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,

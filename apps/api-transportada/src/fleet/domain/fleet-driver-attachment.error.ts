@@ -34,3 +34,14 @@ export class FleetDriverAttachmentTypeTakenError extends ApiError {
     })
   }
 }
+
+/** A sugestão da leitura já foi decidida: decidir de novo não reabre o que foi descartado. */
+export class FleetDriverAttachmentSuggestionDecidedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_DRIVER_ATTACHMENT_SUGGESTION_DECIDED',
+      message: 'The suggestion for this document was already decided',
+      status: 409,
+    })
+  }
+}

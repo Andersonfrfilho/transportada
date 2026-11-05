@@ -4,11 +4,18 @@
 import { z } from 'zod'
 
 import {
+  FLEET_DRIVER_ATTACHMENT_DECISIONS,
   FLEET_DRIVER_ATTACHMENT_TYPES,
+  type FleetDriverAttachmentDecision,
   type FleetDriverAttachmentType,
 } from '../../database/fleet-driver-attachment.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import {
+  assertJsonContentType,
+  parseJson,
+  readBoundedRequestBody,
+} from '../../shared/request-body.service.js'
 
 /**
  * O teto é do **transporte**: o servidor recusa corpo acima de 2 MiB, e o multipart gasta parte disso
@@ -54,4 +61,15 @@ export async function parseUploadFleetDriverAttachmentRequest(
     fileName: file instanceof File ? file.name : '',
     type: fields.data.type,
   }
+}
+
+const decisionSchema = z.object({ decision: z.enum(FLEET_DRIVER_ATTACHMENT_DECISIONS) }).strict()
+
+export async function parseDecideSuggestionRequest(
+  request: Request,
+): Promise<{ readonly decision: FleetDriverAttachmentDecision }> {
+  assertJsonContentType(request.headers.get('content-type'))
+  const result = decisionSchema.safeParse(parseJson(await readBoundedRequestBody(request)))
+  if (!result.success) throw new ApiError(HTTP_ERROR.invalidRequest)
+  return result.data
 }

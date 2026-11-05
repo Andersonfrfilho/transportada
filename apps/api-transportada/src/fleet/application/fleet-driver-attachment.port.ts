@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { FleetDriverAttachmentType } from '../../database/fleet-driver-attachment.schema.js'
+import type {
+  FleetDriverAttachmentDecision,
+  FleetDriverAttachmentType,
+} from '../../database/fleet-driver-attachment.schema.js'
 
 export type FleetDriverAttachment = Readonly<{
   createdAt: string
@@ -35,6 +38,17 @@ export type CreateFleetDriverAttachmentInput = Readonly<{
 export type FleetDriverAttachmentRepositoryPort = Readonly<{
   /** Lança `FleetDriverNotFoundError` se o motorista não é desta empresa, e `...TypeTakenError` na corrida. */
   create: (input: CreateFleetDriverAttachmentInput) => Promise<FleetDriverAttachment>
+  /**
+   * Registra a decisão e **descarta** `extracted_fields` no mesmo `UPDATE` (D5): em duas escritas, uma
+   * falha no meio deixaria o dado pessoal para trás no caminho de erro.
+   */
+  decideSuggestion: (input: {
+    readonly attachmentId: string
+    readonly companyId: string
+    readonly decidedBy: string
+    readonly decision: FleetDriverAttachmentDecision
+    readonly driverId: string
+  }) => Promise<'already_decided' | 'decided' | 'not_found'>
   driverExists: (input: {
     readonly companyId: string
     readonly driverId: string

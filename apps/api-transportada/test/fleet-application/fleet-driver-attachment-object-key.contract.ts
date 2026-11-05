@@ -55,6 +55,9 @@ describe('chave do objeto do documento do motorista (spec 091 T012)', () => {
             uploadedBy: input.uploadedBy,
           }
         },
+        async decideSuggestion() {
+          return 'decided'
+        },
         async driverExists() {
           return true
         },

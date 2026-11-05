@@ -52,6 +52,10 @@ function createFixture(
     async remove(request) {
       calls.push({ input: { ...request }, kind: 'remove' })
     },
+    async decideSuggestion(request) {
+      calls.push({ input: { ...request }, kind: 'decide' })
+      return { decision: request.decision }
+    },
     async reveal(request) {
       calls.push({ input: { ...request }, kind: 'reveal' })
       return { url: 'https://bucket.example.test/signed?expires=300' }
@@ -238,6 +242,46 @@ describe('o conteúdo do documento do motorista (spec 091 T011)', () => {
       (await fixture.handle(jsonRequest({ method: 'DELETE', path: `${PATH}/${ATTACHMENT_ID}` })))
         .status,
     ).toBe(403)
+    expect(fixture.calls).toEqual([])
+  })
+})
+
+describe('a decisão sobre a sugestão da leitura (spec 091 T015)', () => {
+  const SUGGESTION_PATH = `${PATH}/${ATTACHMENT_ID}/suggestion`
+
+  test('fleet.manage decide, com o autor vindo do contexto autenticado', async () => {
+    const fixture = createFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ body: { decision: 'dismissed' }, method: 'POST', path: SUGGESTION_PATH }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await responseData(response)).toEqual({ decision: 'dismissed' })
+    expect(fixture.calls[0]?.input.decidedBy).toBeString()
+    expect(fixture.calls[0]?.input.driverId).toBe(DRIVER_ID)
+  })
+
+  test('quem só lê a frota não decide', async () => {
+    const fixture = createFixture({ permissions: READ_ONLY })
+
+    const response = await fixture.handle(
+      jsonRequest({ body: { decision: 'accepted' }, method: 'POST', path: SUGGESTION_PATH }),
+    )
+
+    expect(response.status).toBe(403)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('decisão fora da lista e campo extra são 400', async () => {
+    const fixture = createFixture()
+
+    for (const body of [{ decision: 'maybe' }, { decision: 'accepted', decidedBy: 'x' }, {}]) {
+      const response = await fixture.handle(
+        jsonRequest({ body, method: 'POST', path: SUGGESTION_PATH }),
+      )
+      expect(response.status).toBe(400)
+    }
     expect(fixture.calls).toEqual([])
   })
 })
