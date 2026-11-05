@@ -7,7 +7,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 
 > 🤖 Modelo: `sonnet` (T0.1 é 🧠 — `opus`)
 
-- [ ] **T0.1 🧠** ADR `0113-o-ponto-da-chegada-corrige-o-endereco.md` (substitui ADR-0080 em parte, revoga
+- [x] **T0.1 🧠** ADR `0113-o-ponto-da-chegada-corrige-o-endereco.md` (substitui ADR-0080 em parte, revoga
       205 D6 e 206 D6/D8 para o motorista). Conferir número livre em `origin/staging` e confirmar a tabela de
       eventos de parada onde entra `recorded_together`. Aceite: ADR no índice, `grep -n "0113" docs/adr`.
 - [ ] **T0.2** Contrato `test/trips/stop-event-sequence.contract.ts`: tabela estado × evento × autoria → etapas

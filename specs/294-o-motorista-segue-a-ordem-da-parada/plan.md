@@ -68,8 +68,8 @@
 
 ## Contratos/API/eventos
 
-- `trip_stop_events` (ou a tabela de eventos de campo em uso — confirmar na T0.1): coluna
-  `recorded_together boolean not null default false`.
+- `trip_stop_events` (confirmado na T0.1: saída, chegada e baixa do motorista gravam ali por `recordEvent`;
+  a baixa de campo não escreve em `trip_document_events`): coluna `recorded_together boolean not null default false`.
 - Resposta de `POST /me/trips/current/stops/:id/arrival|departure` e das baixas do motorista:
   `recordedTogether: string[]`; baixa também `nextStop: {…} | null`.
 - `address_correction_suggestions` (id uuid, company_id, address_key, stop_id, latitude, longitude,
