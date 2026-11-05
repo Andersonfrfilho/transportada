@@ -17,7 +17,7 @@ export const PERMISSION_GROUPS = [
   { key: 'freight', permissions: ['freight.simulate'] },
   // `whatsapp.settle` e `mdfe.auto-issue` ficam fora: são de máquina, e a API não os oferece (T014b).
   { key: 'billing', permissions: ['billing.create', 'billing.cancel', 'billing.read'] },
-  { key: 'fleet', permissions: ['fleet.read', 'fleet.manage'] },
+  { key: 'fleet', permissions: ['fleet.read', 'fleet.manage', 'fleet.reveal'] },
   {
     key: 'trip',
     permissions: [

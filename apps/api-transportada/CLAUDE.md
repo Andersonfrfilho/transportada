@@ -668,10 +668,8 @@ docs/ai-context § "A ocorrência tem duas conversas".
 ## Fleet — ficha do motorista e geocodificação
 
 **A ficha do motorista guarda dado de pessoa física que hoje ninguém lê** (`birth_date`,
-`license_number`, endereço residencial, trio do RG) — a ADR-0039 já decidiu criptografar esses campos
-(A256GCM, AAD `transportada:fleet-driver:v1:${companyId}:${driverId}`) e a execução **ainda não
-aconteceu**; quem for escrever leitor para um desses campos precisa abrir o envelope primeiro —
-confira a ADR antes. CNH é única por empresa só quando preenchida (índice parcial). Órgão do RG é
+`license_number`, endereço residencial, trio do RG) — fica em claro: a ADR-0039 (criptografar) foi **revogada** em 2026-11-05, porque perder a chave é
+perder o dado. Não propor cifra de coluna. CNH é única por empresa só quando preenchida (índice parcial). Órgão do RG é
 lista fechada `IDENTITY_DOCUMENT_ISSUERS`, cópia por valor API/frontend.
 
 **A nota do motorista é derivada na leitura, nunca gravada** (ADR-0070, spec 159):
@@ -705,6 +703,12 @@ provedores perdedores são abortados (`raceCompletePostalCodeSuggestion`); a v2 
 mesmo levando ~2 s. A busca textual ainda sai do navegador
 (Photon). **Cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`),
 casada por `normalizeVehicleCatalogName` para tolerar grafia divergente entre planilha e IBGE.
+
+### O documento do motorista (spec 091)
+
+`fleet_driver_attachments` guarda CNH, RG, comprovante de endereço e outros na ficha — **sem criptografia de aplicação** (ADR-0039 revogada em 2026-11-05); o arquivo vai ao bucket privado como os demais anexos. Rotas em `fleet/presentation/fleet-driver-attachment.routes.ts`: listar (`GET .../attachments`, `fleet.read`: tipo, data, quem anexou e `hasSuggestion`, nunca conteúdo), anexar/substituir (`POST`, `fleet.manage`, multipart, 1,5 MiB, tipo pela **assinatura**; nome ou tipo declarado que a contradiz é 400) e remover (`DELETE`, 204); abrir o arquivo é `GET .../content` sob **`fleet.reveal`** (link assinado de 300 s, só o `company-admin` a tem por papel). Um documento vivo por tipo e motorista (único parcial; `other` aceita vários), e anexar um tipo existente **substitui**: o objeto anterior sai do bucket antes da troca. A chave do objeto é só UUIDs (`tenants/<empresa>/fleet-driver-attachments/<motorista>/<tipo>/<objeto>`).
+
+A CNH é lida pelo **worker**, nunca na requisição (ADR-0053): o anexo grava `fleet_driver_attachment_outbox` na mesma transação, o worker lê (PDF em `worker_thread`, imagem pelo OCR) e grava `extracted_fields` + `extracted_at`. A leitura é **oferta**: `GET .../suggestion` (`fleet.manage`) devolve só `licenseNumber` e `licenseCategory`, e `POST .../suggestion` (`accepted`/`dismissed`) registra a decisão e zera `extracted_fields` no **mesmo** `UPDATE`. O ponto de encaixe para quem precisar reagir a uma CNH anexada (a spec 295, foto da CNH como foto de perfil) é o pedido `attachment.extraction.requested` dessa tabela de outbox, criado em `DrizzleFleetDriverAttachmentRepository.create` para `type = 'cnh'`; ainda não há trilha de auditoria (Fase 5, T020) nem descarte na remoção do motorista (T021).
 
 ## Carga: cubagem, capacidade e cargo placement — ver a referência
 
@@ -1314,3 +1318,7 @@ troca `_` por espaço. O item ganha `vehicle`, `document.recipient` e `document.
 `/trip-occurrences/` porque ali o `:id` do detalhe casaria o caminho): por tipo, `{ typeName, resolvedCount, averageSeconds }`, do
 registro até o **último** `resolved` (o `resolvedAt` da 276), só de quem está resolvida agora — reaberta, em aberto e cancelada
 ficam de fora. Nome do tipo como no feed (cadastrado, ou o `kind` da parada). `trip-occurrence-resolution-summary.query.ts`.
+
+**A pessoa troca a própria foto** (spec 295). `GET/PUT/DELETE /me/picture` (`me-picture.routes.ts`, política de membership ativa, travada a `/me/` pelo `membership-policy-lock`) reaproveitam `user-picture.use-case.ts`; o alvo é sempre `context.scope.userId`, a rota não tem id. Mesma validação da rota administrativa (assinatura, 256 KiB).
+
+**A foto da CNH vira foto inicial** (spec 295 Fase 4). `identity_user_pictures.origin` (`cnh|self|admin`; `PUT /me/picture` grava `self`, a rota administrativa `admin`, foto anterior à coluna é `admin`); `GET /me/picture` devolve `x-picture-origin` (exposto no CORS). `PUT /fleet/driver-attachments/:attachmentId/cnh-picture` é do robô do worker (permissão só-serviço `driver.cnh-picture`): resolve o usuário pelo anexo `cnh` e aplica com `saveFromCnh`, um `ON CONFLICT … WHERE origin = 'cnh'` — `self`/`admin` nunca são sobrescritos (`applied: false`). Contrato em `test/driver-cnh-picture.contract.ts`, SQL em `test/integration/user-picture-cnh-origin.integration.ts`.

@@ -273,6 +273,28 @@ describe('api nfe storage gateway contract', () => {
     expect(await readBytes(stream)).toEqual(XML_BYTES)
   })
 
+  /** O S3 responde 204 a `DeleteObject` de chave ausente: o gateway repassa, sem checar antes. */
+  test('deleteObject de chave ausente resolve e não consulta a existência antes', async () => {
+    const provider = createFakeStorageProvider()
+    const headCalls: string[] = []
+    const gateway = createNfeStorageGateway({
+      provider: {
+        ...provider,
+        async head(input) {
+          headCalls.push(input.key)
+          return provider.head(input)
+        },
+      },
+      stagingBucket: BUCKET,
+      finalBucket: BUCKET,
+    })
+
+    await expect(gateway.deleteObject({ bucket: BUCKET, key: 'tenants/x/ausente' })).resolves.toBe(
+      undefined,
+    )
+    expect(headCalls).toEqual([])
+  })
+
   test('supports head metadata for reconciliation and validation', async () => {
     const provider = createFakeStorageProvider()
     const gateway = createNfeStorageGateway({

@@ -4,3 +4,5 @@
 import './aggregate-attachment/envelope.contract.js'
 import './aggregate-attachment/extraction.contract.js'
 import './aggregate-attachment/document-extraction.contract.js'
+import './aggregate-attachment/fleet-driver-lane.contract.js'
+import './aggregate-attachment/fleet-driver-parity.contract.js'

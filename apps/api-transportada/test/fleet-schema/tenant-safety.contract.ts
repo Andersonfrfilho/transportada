@@ -10,6 +10,7 @@ import {
   companyFuelPrices,
   companyTollBoothCharges,
   energyTariffReferences,
+  fleetDriverAttachments,
   fleetDriverVehicleAssignments,
   fleetDrivers,
   fleetVehicles,
@@ -221,5 +222,47 @@ describe('fleet tenant safety', () => {
       onDelete: 'restrict',
       onUpdate: 'cascade',
     })
+  })
+
+  /**
+   * Spec 091 T007: o documento do motorista passa pelo tenant em **toda** FK. A FK simples
+   * `(driver_id)` aceitaria amarrar o anexo de uma empresa ao motorista de outra — o defeito que
+   * `contractor_portal_bindings` já evita.
+   */
+  test('makes a driver attachment unable to point at another tenant driver or object', () => {
+    const keys = foreignKeys(fleetDriverAttachments)
+
+    expect(keys).toContainEqual({
+      columns: ['company_id'],
+      foreignColumns: ['id'],
+      foreignTable: 'companies',
+      name: 'fleet_driver_attachments_company_id_companies_id_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    expect(keys).toContainEqual({
+      columns: ['company_id', 'driver_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'fleet_drivers',
+      name: 'fleet_driver_attachments_company_driver_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    expect(keys).toContainEqual({
+      columns: ['company_id', 'stored_object_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'stored_objects',
+      name: 'fleet_driver_attachments_company_stored_object_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
+
+  test('has no single-column foreign key that skips the tenant', () => {
+    const skipsTenant = foreignKeys(fleetDriverAttachments).filter(
+      (key) => key.columns.length === 1 && key.columns[0] !== 'company_id',
+    )
+
+    expect(skipsTenant).toEqual([])
   })
 })

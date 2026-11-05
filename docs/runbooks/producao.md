@@ -602,6 +602,15 @@ Resultado: empresa `ce523659-5e30-4b13-96ce-8d603d8cb9e9`, 118 nós, **versão 1
 "nenhuma mudança". ⚠️ Toda mudança em `whatsapp-flow-graph.constant.ts` que chega à `main` pede repetir os dois passos
 (sem isso o privado segue na versão anterior, sem erro).
 
+## 5.14 Spike da foto da CNH (spec 295 T4.1, 05/11/2026) — somente leitura
+
+Lido: contagens de `fleet_drivers`, `user_company_memberships`, `identity_user_pictures`, `aggregate_documents`,
+`aggregate_application_attachments` e `stored_objects`, e **um** PDF de CNH (o único de motorista sem foto) baixado do
+bucket. Como: `railway ssh -p <projeto> -s api -e production` com script em base64 (padrão da §2), `sql.begin('read only', …)`;
+o download usou `Bun.S3Client` com as `OBJECT_STORAGE_*` do próprio container, bytes em base64 no stdout direto para
+arquivo na pasta temporária da sessão (nada impresso na tela), apagada ao fim. Nenhuma escrita em banco, bucket,
+variáveis ou Keycloak. Resultado em `specs/295-o-motorista-poe-a-propria-foto/spike-cnh.md`.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |

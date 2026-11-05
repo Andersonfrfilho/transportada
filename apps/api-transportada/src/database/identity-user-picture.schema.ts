@@ -16,6 +16,15 @@ export type UserPictureMimeType = (typeof USER_PICTURE_MIME_TYPES)[number]
 /** 256 KiB, o mesmo teto do logotipo: retrato de avatar não chega perto disso depois de comprimido. */
 export const USER_PICTURE_MAX_BYTES = 262_144
 
+/**
+ * Quem pôs a foto. `cnh` (extraída do documento no cadastro) só vive até a pessoa ou o escritório
+ * trocar: nunca sobrescreve `self` nem `admin`. Foto anterior à coluna entra como `admin`.
+ */
+export const USER_PICTURE_ORIGINS = ['cnh', 'self', 'admin'] as const
+export type UserPictureOrigin = (typeof USER_PICTURE_ORIGINS)[number]
+
+const ORIGIN_LIST = sql.raw(USER_PICTURE_ORIGINS.map((origin) => `'${origin}'`).join(', '))
+
 const MIME_TYPE_LIST = sql.raw(USER_PICTURE_MIME_TYPES.map((type) => `'${type}'`).join(', '))
 
 export const identityUserPictures = pgTable(
@@ -36,6 +45,9 @@ export const identityUserPictures = pgTable(
      * Nulo em ficha anterior a esta coluna — o link nasce na primeira gravação depois dela.
      */
     publicToken: text('public_token').unique(),
+    origin: text().$type<UserPictureOrigin>().notNull().default('admin'),
+    /** Só a foto `cnh` usa: nulo = o atributo no provedor de identidade ainda não foi escrito. */
+    publishedAt: timestamp('published_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -45,6 +57,7 @@ export const identityUserPictures = pgTable(
       'identity_user_pictures_byte_size_check',
       sql`${table.byteSize} between 1 and ${sql.raw(String(USER_PICTURE_MAX_BYTES))}`,
     ),
+    check('identity_user_pictures_origin_check', sql`${table.origin} in (${ORIGIN_LIST})`),
     check('identity_user_pictures_sha256_check', sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
     /** Base64url de 32 bytes: 43 caracteres. Curto demais é adivinhável por varredura. */
     check(

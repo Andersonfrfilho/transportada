@@ -387,7 +387,7 @@ describe('API CORS contract', () => {
     )
 
     expect(allowed.headers.get('access-control-expose-headers')).toBe(
-      'Date, Retry-After, Content-Disposition',
+      'Date, Retry-After, Content-Disposition, X-Picture-Origin',
     )
     expect(disallowed.headers.has('access-control-expose-headers')).toBe(false)
     expect(noOrigin.headers.has('access-control-expose-headers')).toBe(false)

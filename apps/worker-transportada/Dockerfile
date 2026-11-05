@@ -53,6 +53,8 @@ RUN apk add --no-cache ffmpeg libstdc++ libgomp \
 COPY --from=production-dependencies /app/node_modules node_modules
 COPY --from=production-dependencies /app/apps/worker-transportada/node_modules apps/worker-transportada/node_modules
 COPY --from=build /app/apps/worker-transportada/dist apps/worker-transportada/dist
+# Spec 295: o detector de rosto da CNH (UltraFace RFB-320, MIT, 1,2 MB) é lido do disco pela thread; `dist/` não o leva.
+COPY apps/worker-transportada/assets apps/worker-transportada/assets
 COPY apps/worker-transportada/package.json apps/worker-transportada/package.json
 COPY --from=whisper-build /usr/local/bin/whisper-cli /usr/local/bin/whisper-cli
 # Spec 292 T9: o whisper-cli do áudio do bot com o texto de contexto (BOT_AUDIO_TRANSCRIPTION_PROMPT).

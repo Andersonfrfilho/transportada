@@ -933,6 +933,57 @@
   },
   "driverScoreColumn": "Nota",
   "driverScoreSectionTitle": "Nota do motorista",
+  "driverAttachments": {
+    "title": "Documentos do motorista",
+    "hint": "CNH, RG e comprovante de endereço anexados à ficha. A lista mostra que o documento existe; abrir o arquivo exige permissão própria.",
+    "empty": "Nenhum documento anexado.",
+    "loadError": "Não foi possível carregar os documentos deste motorista.",
+    "unknownUser": "usuário removido",
+    "meta": "anexado em {{date}} por {{name}}",
+    "typeLabel": "Tipo do documento",
+    "fileLabel": "Arquivo do documento",
+    "chooseFile": "Escolher arquivo",
+    "filePlaceholder": "PDF, JPG ou PNG, até 1,5 MB",
+    "fileHint": "O tipo é conferido pelo conteúdo do arquivo, não pelo nome. O arquivo é guardado em área privada.",
+    "attached": "Documento anexado.",
+    "removed": "Documento removido.",
+    "open": "Abrir",
+    "remove": "Remover",
+    "errors": {
+      "FLEET_DRIVER_ATTACHMENT_INVALID_UPLOAD": "Arquivo recusado: envie um PDF, JPG ou PNG cujo nome e tipo combinem com o conteúdo.",
+      "FLEET_DRIVER_ATTACHMENT_TYPE_TAKEN": "Este motorista já tem um documento deste tipo.",
+      "FLEET_DRIVER_ATTACHMENT_NOT_FOUND": "Documento não encontrado.",
+      "FLEET_DRIVER_NOT_FOUND": "Motorista não encontrado.",
+      "FORBIDDEN": "Sua conta não tem permissão para isto.",
+      "PAYLOAD_TOO_LARGE": "O arquivo passa de 1,5 MB.",
+      "default": "Não foi possível concluir. Tente de novo."
+    },
+    "suggestion": {
+      "hint": "A leitura da CNH sugere estes dados. Nada é gravado: usar preenche o formulário, e a ficha só muda quando você salvar.",
+      "nothingToOffer": "Nada a oferecer: os campos já estão preenchidos.",
+      "fields": {
+        "licenseNumber": "Número da CNH",
+        "licenseCategory": "Categoria da CNH"
+      },
+      "read": "lido: {{value}}",
+      "use": "Usar",
+      "filled": "Preenchido",
+      "matches": "confere com a ficha.",
+      "diverges": "a ficha tem {{current}} e a CNH lida diz {{read}}. Conferir o documento; a ficha não foi alterada.",
+      "saveHint": "Salve a ficha para gravar o que foi preenchido.",
+      "finish": "Concluir (descarta a leitura)",
+      "dismiss": "Descartar leitura"
+    },
+    "replaceFile": "Substituir arquivo",
+    "replaceHint": "Este motorista já tem esse documento: o anterior será apagado, inclusive do armazenamento, e não dá para desfazer.",
+    "replaced": "Documento substituído.",
+    "types": {
+      "cnh": "CNH",
+      "identity_document": "RG ou documento de identidade",
+      "address_proof": "Comprovante de endereço",
+      "other": "Outro documento"
+    }
+  },
   "driverWhatsappGroup": {
     "title": "Grupo do WhatsApp",
     "hint": "O grupo de suporte deste motorista. O bot do WhatsApp atende nele, e cada grupo pertence a um só motorista.",
