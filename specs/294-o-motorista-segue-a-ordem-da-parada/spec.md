@@ -123,7 +123,7 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
     As exceções são só as mídias: foto do canhoto e da mercadoria, e a localização compartilhada. Quando o bot pede
     uma delas e chega áudio, ele repete o pedido dizendo que esse item vai por foto/localização ("pular" falado vale
     quando o item é opcional).
-- **RF23** — **Foto do canhoto dá a baixa.** Foto recebida sem "entreguei" passa pela leitura do código de barras
+- **RF23** — **Decidido em 2026-11-05: sem modelo pago; só opções gratuitas e locais no worker (OCR local melhorado, classificador próprio, modelo de visão aberto pequeno). Spike em andamento.** **Foto do canhoto dá a baixa.** Foto recebida sem "entreguei" passa pela leitura do código de barras
   que já existe (worker `canhoto-read`, specs 220/222: `readNumber`/`readDocumentId`), agora **antes** da baixa:
   - **primeiro confere se é mesmo um canhoto** (a parte destacável assinada: "Recebemos de…", data de recebimento,
     assinatura do recebedor), e não o corpo da DANFE, a mercadoria ou outra foto. Não é canhoto → "Essa foto não

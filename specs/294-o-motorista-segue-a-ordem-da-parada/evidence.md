@@ -267,7 +267,7 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   notas, mapa pela coordenada do cadastro, aviso do RF12) e escolha em `whatsapp-driver-choice.policy.ts` ("1"/"2"/"um"/"dois"/
   "sim"/"não"/"pular", só fala curta).
 - Grupo: o mesmo pedido segue no passo `route.offer`; "1" chama `departStop` do fluxo das paradas (o registro do "saí", chave
-  `whatsapp-group-request:<pedido>`), "2" encerra com "Quando for, mande *saí*." e a despedida do #531 sai do pedido. Última
+  `whatsapp-group-request:<pedido>`), "2" encerra com "Quando for, mande _saí_." e a despedida do #531 sai do pedido. Última
   parada: "Rota concluída, todas as paradas fechadas." e o pedido fecha.
 - Individual: o pedido mora no contexto da sessão (`driverPrompt`: só `stopId`, número da nota e hora; vale 2 h) e é respondido no
   despachante antes do grafo (`acceptDriverPrompt`), depois da entrega em preparo e do áudio. Outra mensagem encerra o pedido e
@@ -315,8 +315,8 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - A recusa `stop_out_of_order` carrega os ids das paradas (`currentStopId`, `nextStopId`, `requestedStopId`) e os eventos
   (`reportArrival`/`reportDeparture`/`reportDelivery`, camada de eventos) aceitam `confirmOutOfOrder`. A pergunta mora em
   `whatsapp-driver-order.policy.ts`: "⚠️ Você iniciou a rota para a parada 3 (NF … — cliente), mas esta nota é da parada 5 (NF … — cliente).
-  *1* - Entreguei a parada 5 mesmo / *2* - Foi engano, descartar" (chegada: "Cheguei na parada 5 mesmo / Foi engano"); saída que não é a
-  próxima: "A próxima no roteiro é a parada 4 (…). Quer mesmo iniciar a parada 6? *1* - Sim, a 6 / *2* - Não, a 4".
+  _1_ - Entreguei a parada 5 mesmo / _2_ - Foi engano, descartar" (chegada: "Cheguei na parada 5 mesmo / Foi engano"); saída que não é a
+  próxima: "A próxima no roteiro é a parada 4 (…). Quer mesmo iniciar a parada 6? _1_ - Sim, a 6 / _2_ - Não, a 4".
 - "1" reenvia a mesma etapa com `confirmOutOfOrder: true`. "2": descarta (entrega, chegada) ou, na saída, **registra a saída da próxima do
   roteiro** (a leitura do rótulo "Não, a 4"; sem confirmar a 6). Resposta falada ("um", "dois", "sim", "não", "foi engano") vale; outra
   resposta repete a pergunta (grupo, 3 tentativas) ou tira o pedido de cena (individual).
@@ -336,7 +336,7 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   já tinha chegado: NF 17234, entregue às 11:32." (hora de Brasília; a nota vem da própria preparação ou da viagem do motorista; sem número
   conhecido, só "…já tinha chegado, entregue às HH:MM."). Nada é guardado: o objeto sai do bucket e a preparação segue pedindo o que faltava.
 - Outra foto de nota que já tem canhoto: a baixa passa, o anexo recebe `TRIP_CANHOTO_ALREADY_ATTACHED` e a preparação fica aberta
-  (`awaiting = 'replace_canhoto'`) com "*1* - Trocar o canhoto (vai para conferência do escritório) / *2* - Descartar". "1" (também "um",
+  (`awaiting = 'replace_canhoto'`) com "_1_ - Trocar o canhoto (vai para conferência do escritório) / _2_ - Descartar". "1" (também "um",
   "sim", "trocar") reenvia o anexo com `replaceCanhoto: true`; "2" (também "dois", "descartar") fecha como cancelada e mantém o canhoto.
 - Nota entregue sem canhoto: a API já anexa a foto como o canhoto que faltava; o bot não diz nada a mais.
 - Vale para grupo e individual (mesma preparação). Atendente segue pelo escritório (sem anexo do app).
@@ -420,3 +420,17 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - Contratos: `test/driver-trip/out-of-order-prompt.contract.ts`, `test/driver-trip/canhoto-replace-prompt.contract.ts`; o contrato antigo de
   `proof-accuracy-clamp` passou a provar que `replaceCanhoto` só sai com a confirmação.
 - Gates: typecheck e lint limpos; `bun run test` 2249 pass / 0 fail; build ok. pt e en para todos os textos.
+
+## T6.1 — sugestões de endereço do motorista em /pendencias (painel)
+
+- `modules/pending-items`: item `addressSuggestedByDriver` com mapa (`AddressSuggestionMap`, reaproveita `AssemblyVectorMap`) do ponto atual x sugerido, distância e parada; Aplicar/Descartar só com `trip.manage` (a lista pede `fleet.read`); decisão otimista com volta atrás em erro; locales pt/en.
+- A API passou a devolver `currentLatitude/currentLongitude` (junção com `geocoded_addresses`) em `details`, porque o painel precisa do ponto atual para comparar.
+- Contratos novos `test/pending-items/address-suggestion.contract.ts` (registrado no `pending-items.contract.test.ts`) e permissão em `controller.contract.ts`. Painel: typecheck, lint (0 erros), `bun run test` 8639 + 1438 pass / 0 fail, build ok.
+
+## T6.2 — gate completo (2026-11-05)
+
+- `make check` verde: 18, 13459 (API), 2863 (worker), 101, 8639 + 1438 (painel), 95, 2249, 133, 6 pass / 0 fail; build de todas as apps.
+- Correções reais do gate (paridade API x worker): `api.error.ts` (campo `extraBody`) e `whatsapp-group-boleto-return.support.ts` copiados byte a byte para o worker; `address_correction_suggestions` entrou em `TRIP_LOCATION_UNSTAMPED_TABLES` (endereço, não posição de pessoa; mesma razão de `geocoded_address_corrections`).
+- `make migration-test`: 231 pass / 0 fail.
+- Integração completa da API (`bun --env-file=../../.env.test run test:integration`): 1900 pass, 8 skip, 0 fail, 337 arquivos, 4791 s. Nada ambiental falhou.
+- Docs: `apps/api-transportada/CLAUDE.md`, `docs/ai-context/api-transportada.md` e `frontend-transportada.md`, `CLAUDE.md` da raiz. Decisão do dono (2026-11-05): sem modelo de IA pago; T4.8/RF23 segue aberta só com opções gratuitas e locais (T4.8b).

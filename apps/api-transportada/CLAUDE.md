@@ -1315,7 +1315,6 @@ troca `_` por espaço. O item ganha `vehicle`, `document.recipient` e `document.
 registro até o **último** `resolved` (o `resolvedAt` da 276), só de quem está resolvida agora — reaberta, em aberto e cancelada
 ficam de fora. Nome do tipo como no feed (cadastrado, ou o `kind` da parada). `trip-occurrence-resolution-summary.query.ts`.
 
-
 ## A ordem da parada (spec 294, ADR-0113)
 
 - **A tripulação segue a ordem da parada** (saiu, chegou, baixou): etapa pulada é **gravada junto** com o relógio do evento pedido e `recordedTogether` na resposta

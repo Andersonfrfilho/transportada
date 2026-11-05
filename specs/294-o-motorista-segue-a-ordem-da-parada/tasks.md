@@ -74,7 +74,8 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       (tesseract.js `por`, 2400 px) acertou 7/24 com 0/32 falso positivo (p50 3,5 s, p95 8 s); ≥ 2 marcas baixa, o
       resto pergunta 1/2/3. Visão (`claude-haiku-5-5`) não medida (sem chave; ≈ US$ 0,0002/foto), pendente de decisão
       LGPD. Assinatura por tinta e código de barras não servem como prova. Falta registrar no ADR.
-- [ ] **T4.8** RF23: foto sem "entreguei" → confere se é canhoto (T4.8a) → leitura do canhoto (worker `canhoto-read`) → pede localização;
+- [ ] **T4.8b 🧠** Spike (`opus`) das opções gratuitas — PaddleOCR ONNX + classificador próprio + Florence-2; decisão no ADR 0113.
+- [ ] **T4.8** RF23 (sem modelo pago, só opções gratuitas e locais; depende da T4.8b): foto sem "entreguei" → confere se é canhoto (T4.8a) → leitura do canhoto (worker `canhoto-read`) → pede localização;
       casou → entrega em preparo com o canhoto e baixa; não casou → pergunta a nota. Contratos: casou, várias fotos,
       ilegível, nota de outra viagem, atendente.
 - [x] **T4.9** RF24: "Iniciar rota" e "Cheguei" pelo bot pedem localização opcional (pular falado vale; usa a
@@ -94,14 +95,14 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       "Cheguei" de parada não confiável.
 - [x] **T5.3** Fila offline: "Cheguei" recusado/descartado não gera baixa sem chegada (RNF3).
 - [x] **T5.4** RF27 no app: diálogo de fora de ordem (canhoto/entreguei de outra parada, iniciar rota fora da
-      sequência), aviso de canhoto repetido e conferência "é canhoto?" na foto do canhoto.
+      sequência), aviso de canhoto repetido e conferência "é canhoto?" na foto do canhoto (a conferência "é canhoto?" depende da T4.8/T4.8b).
 
 ## Fase 6 — Painel e fechamento
 
 > 🤖 Modelo: `sonnet` (revisão → `code-reviewer` `sonnet`)
 
-- [ ] **T6.1** `/pendencias` com sugestão de endereço (mapa atual × sugerido), aplicar/descartar.
-- [ ] **T6.2** `make check`, integração da API, smoke; atualizar `apps/api-transportada/CLAUDE.md`,
+- [x] **T6.1** `/pendencias` com sugestão de endereço (mapa atual × sugerido), aplicar/descartar. Evidência: panel 8639+1438 pass, typecheck, lint e build verdes.
+- [x] **T6.2** `make check`, integração da API, smoke; atualizar `apps/api-transportada/CLAUDE.md`,
       `docs/ai-context/` e o `CLAUDE.md` da raiz (§14 do code-standart).
 - [ ] **T6.3** Revisão final e publicação em etapas: painel tolerante → API (com migration A) → bot e app.
 

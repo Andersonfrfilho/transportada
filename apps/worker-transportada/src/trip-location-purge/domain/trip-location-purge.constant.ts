@@ -54,6 +54,7 @@ export const TRIP_LOCATION_UNSTAMPED_TABLES = [
   { table: 'trip_stops', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   { table: 'client_delivery_addresses', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   { table: 'geocoded_addresses', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  { table: 'address_correction_suggestions', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   { table: 'geocoded_address_corrections', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   { table: 'municipality_centroids', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   { table: 'toll_booths', reason: ADDRESS_NOT_PERSON_POSITION_REASON },

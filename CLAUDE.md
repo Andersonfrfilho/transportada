@@ -181,6 +181,12 @@ cadastrado pelo SDK e editável em Notificações). O portal só avisa quem não
 `email.opened` (revoga a 183 D7) e depende do rastreio configurado no domínio. Contrato e detalhe em
 `apps/api-transportada/CLAUDE.md` § "O chat da contratante envia por e-mail".
 
+**O motorista segue a ordem da parada** (spec 294, ADR-0113; ainda não publicada). Saiu, chegou e baixou valem em ordem; a etapa pulada é marcada junto
+(`recordedTogether`) e o bot e o app avisam; fora de ordem pede confirmação (`409 TRIP_STOP_OUT_OF_ORDER` + `confirmOutOfOrder`) e canhoto repetido ou trocado também. A
+baixa devolve a próxima parada (`nextStop`) e a chegada em endereço sem ponto certo corrige a coordenada ou **sugere ao escritório** em `/pendencias` (aplicar/descartar, `trip.manage`).
+O atendente baixa pelo caminho do escritório. **A baixa por foto do canhoto (RF23/T4.8) não faz parte da entrega atual**: decisão do dono (2026-11-05), sem modelo de IA pago
+no produto, só opções gratuitas e locais no worker (spike T4.8b). Detalhe: `apps/api-transportada/CLAUDE.md` § "A ordem da parada" e `specs/294-*/`.
+
 **A NFS-e fala a Nota RP v3, mas a produção ainda está na v2** (spec 250, ADR 0098). A versão é gravada **por tentativa**
 (`providerApiVersion` no `provider_config`); `NFSE_PROVIDER_API_VERSION` (padrão `v2`) só diz qual versão a API grava na
 próxima emissão, e o worker obedece à tentativa. Notas emitidas fora do sistema (as de Ribeirão Preto) entram por
