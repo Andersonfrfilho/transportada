@@ -14,7 +14,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       marcadas junto (RF1–RF4, RF7). Vermelho, depois verde com a política pura (mesma task; ver evidence.md).
 - [x] **T0.3** Contrato `test/trips/address-arrival-correction.contract.ts`: precisão × distância →
       `apply|suggest|ignore` (RF14, RF15). Vermelho, depois verde com a política pura (mesma task; ver evidence.md).
-- [ ] **T0.4** (movida para T4.3) Contratos do bot: oferta da próxima rota (RF8–RF10) e matriz de não interferência (RNF1) com
+- [x] **T0.4** (movida para T4.3) Contratos do bot: oferta da próxima rota (RF8–RF10) e matriz de não interferência (RNF1) com
       ocorrência aberta, entrega em preparo, escolha de parada e oferta. Vermelho. Registrar no `package.json`.
 
 ## Fase 1 — Painel tolerante (vai a produção antes da API)
@@ -56,7 +56,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 - [x] **T4.1** (`haiku`) RF17: cliente nas listas de escolha e nos resumos; remover a proibição dos cabeçalhos de
       `whatsapp-group-*-flow.service.ts` e `whatsapp-driver-stop.policy.ts`. Aceite: contratos do WhatsApp.
 - [x] **T4.2** Linha "marquei junto" nas respostas de saí/cheguei/entreguei/devolvi (RF5).
-- [ ] **T4.3** Fluxo da próxima rota (grupo e individual), com abertura condicionada (RNF1). T0.4 verde.
+- [x] **T4.3** Fluxo da próxima rota (grupo e individual), com abertura condicionada (RNF1). T0.4 verde.
 - [ ] **T4.4** "Cheguei" em parada não confiável pede a localização e chama a correção.
 - [x] **T4.5** RF18–RF20: identificar quem mandou (tripulação × atendente × nenhum) no grupo e no individual; baixa do
       atendente pelo caminho do escritório (`target`, autoria `office`, ator = usuário do atendente) com provas opcionais;

@@ -15,7 +15,10 @@ import type {
   WhatsAppDriverEventResult,
 } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
 import type { WhatsAppDriverActor } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
-import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
+import type {
+  WhatsAppDeliveryPreparations,
+  WhatsAppRouteContinuation,
+} from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 import {
@@ -271,6 +274,14 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
     /** A resposta em texto a uma entrega em preparo (o roteador já conferiu que há uma esperando). */
     reply,
 
+    /** Há entrega ou ocorrência em coleta aberta deste motorista? (RNF1: a oferta da rota não pergunta por cima.) */
+    hasOpen(turn: GroupFlowTurn): Promise<boolean> {
+      return ports.preparations.hasOpen({
+        companyId: turn.request.companyId,
+        driverId: turn.request.driverId,
+      })
+    },
+
     /** Há entrega em preparo esperando resposta em texto deste motorista? */
     awaitingText(turn: GroupFlowTurn): Promise<boolean> {
       return ports.preparations.awaitingText({
@@ -287,11 +298,19 @@ function notUnderstood(): GroupFlowOutcome {
 
 function toOutcome(reply: {
   readonly awaitingText: boolean
+  readonly routeContinuation?: WhatsAppRouteContinuation
   readonly texts: readonly string[]
 }): GroupFlowOutcome {
-  return reply.awaitingText
-    ? { kind: 'continue', replies: reply.texts, state: {}, step: GROUP_DELIVERY_STEP.answer }
-    : { kind: 'done', replies: reply.texts }
+  if (reply.awaitingText) {
+    return { kind: 'continue', replies: reply.texts, state: {}, step: GROUP_DELIVERY_STEP.answer }
+  }
+  return {
+    kind: 'done',
+    replies: reply.texts,
+    ...(reply.routeContinuation === undefined
+      ? {}
+      : { routeContinuation: reply.routeContinuation }),
+  }
 }
 
 function pickDocument(

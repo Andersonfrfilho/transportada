@@ -61,6 +61,12 @@ import {
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
 import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
+import {
+  DRIVER_PROMPT_CONTEXT_KEY,
+  readDriverPrompt,
+} from '../domain/whatsapp-driver-prompt.policy.js'
+import type { RouteOfferStop } from '../domain/whatsapp-driver-route-offer.policy.js'
+import { buildRouteOfferReply } from './whatsapp-driver-prompts.service.js'
 import { occurrenceRequirementNextNode } from './driver-occurrence-refusal.service.js'
 import { describeWhatsAppDriverEventResult } from './whatsapp-driver-event-speech.service.js'
 import {
@@ -100,6 +106,7 @@ const DRIVER = { kind: 'driver' } as const
 
 type ReportOutcome = {
   readonly alreadySettled: boolean
+  readonly nextStop?: RouteOfferStop | null
   readonly proofPending?: boolean
   readonly stopCompleted?: boolean
   readonly tripCompleted?: boolean
@@ -468,6 +475,42 @@ export function createDriverWhatsAppFlowActions(
     }
   }
 
+  /**
+   * Spec 294 RF8–RF10: a baixa que fechou a parada oferece a próxima rota (ou diz que a rota fechou). O pedido
+   * fica no contexto da sessão e só nasce quando nada mais espera resposta deste motorista (RNF1).
+   */
+  async function offerNextRoute(input: {
+    readonly actor: Parameters<WhatsAppAuthorizedActionHandler>[0]['actor']
+    readonly channel: ChannelAdapterInterface
+    readonly context: Record<string, unknown>
+    readonly driverId: string
+    readonly result: WhatsAppDriverEventResult
+    readonly session: Parameters<WhatsAppAuthorizedActionHandler>[0]['session']
+  }): Promise<{ readonly context?: Record<string, unknown> }> {
+    const { actor, channel, context, driverId, result, session } = input
+    if (result.kind !== 'registered' || result.details?.stopCompleted !== true) return {}
+    const scope = { actorUserId: actor.scope.userId, companyId: actor.scope.companyId, driverId }
+    const offer = buildRouteOfferReply({
+      continuation: {
+        nextStop: result.details.nextStop ?? null,
+        tripCompleted: result.details.tripCompleted,
+      },
+      gate: {
+        hasOpenCollection:
+          (await deps.deliveryPreparations?.hasOpen(scope)) === true ||
+          (await deps.occurrenceDrafts?.hasOpen(scope)) === true,
+        hasOpenStopChoice: false,
+        hasPendingAudio: false,
+        hasPendingPrompt: readDriverPrompt(context, nowOf()) !== undefined,
+      },
+      now: nowOf(),
+    })
+    for (const text of offer.texts) await say({ actor, channel, session }, { text })
+    return offer.prompt === undefined
+      ? {}
+      : { context: { [DRIVER_PROMPT_CONTEXT_KEY]: offer.prompt } }
+  }
+
   const returnReasonRouter: WhatsAppAuthorizedActionHandler = async ({
     actor,
     channel,
@@ -499,7 +542,15 @@ export function createDriverWhatsAppFlowActions(
       reason,
     })
     await say({ actor, channel, session }, describeWhatsAppDriverEventResult(result, DRIVER))
-    return { next: DRIVER_FLOW_NODE.tripMenu }
+    const offered = await offerNextRoute({
+      actor,
+      channel,
+      context,
+      driverId,
+      result,
+      session,
+    })
+    return { ...offered, next: DRIVER_FLOW_NODE.tripMenu }
   }
 
   const listOccurrenceTypesAction: WhatsAppAuthorizedActionHandler = async ({

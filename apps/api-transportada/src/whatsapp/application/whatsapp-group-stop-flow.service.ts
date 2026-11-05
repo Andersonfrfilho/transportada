@@ -31,6 +31,12 @@ export const GROUP_STOP_STEP = { choose: 'choose' } as const
 
 export type GroupStopCandidate = WhatsAppStopCandidate
 
+/** A parada que a oferta da próxima rota guarda no pedido (só ids e o número da nota). */
+export type GroupStopRoute = {
+  readonly documentNumber?: string | undefined
+  readonly stopId: string
+}
+
 /** A resposta do registro já em frase para o grupo (a recusa também). */
 export type GroupStopRegistration = { readonly message: string }
 
@@ -167,6 +173,11 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
         driverId: turn.request.driverId,
       })
       return afterResolution(turn, event, resolve(event, stops), documentNumbers)
+    },
+
+    /** "1" na oferta da próxima rota: a saída da parada oferecida, pelo mesmo registro do "saí". */
+    departStop(turn: GroupFlowTurn, stop: GroupStopRoute): Promise<GroupFlowOutcome> {
+      return record(turn, WHATSAPP_DRIVER_STOP_COMMAND.depart, stop.stopId, stop.documentNumber)
     },
 
     async answer(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {

@@ -316,6 +316,7 @@ import {
   createDriverWhatsAppFlowActions,
   type DriverFlowActionDependencies,
 } from './whatsapp-commands/application/register-driver-flow-actions.js'
+import { createWhatsAppDriverPrompts } from './whatsapp-commands/application/whatsapp-driver-prompts.service.js'
 import {
   deliverWhatsAppDriverDocument,
   registerWhatsAppDriverOccurrence as registerWhatsAppDriverOccurrenceEvent,
@@ -1564,10 +1565,10 @@ export function bootstrap(): Bun.Server<undefined> {
     describeResult: ({ channel, companyId, documentNumber, result }) =>
       renderBotSpeechLine({
         companyId,
-        line: describeWhatsAppDriverEventResult(
-          result,
-          { documentNumber, kind: channel === 'group' ? 'group' : 'driver' },
-        ),
+        line: describeWhatsAppDriverEventResult(result, {
+          documentNumber,
+          kind: channel === 'group' ? 'group' : 'driver',
+        }),
         speech: whatsappBotSpeech,
       }),
     logger,
@@ -1586,10 +1587,10 @@ export function bootstrap(): Bun.Server<undefined> {
     describeResult: ({ channel, companyId, documentNumber, result }) =>
       renderBotSpeechLine({
         companyId,
-        line: describeWhatsAppDriverEventResult(
-          result,
-          { documentNumber, kind: channel === 'group' ? 'group' : 'driver' },
-        ),
+        line: describeWhatsAppDriverEventResult(result, {
+          documentNumber,
+          kind: channel === 'group' ? 'group' : 'driver',
+        }),
         speech: whatsappBotSpeech,
       }),
     logger,
@@ -2055,6 +2056,12 @@ export function bootstrap(): Bun.Server<undefined> {
       preparations: whatsappDriverCollections,
       resolveDriver: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
     },
+    /** Spec 294 RF8: a oferta da próxima rota (e as conferências do bot) na conversa individual. */
+    driverPrompts: createWhatsAppDriverPrompts({
+      clock: () => new Date(),
+      ports: whatsappDriverEventPorts,
+      speech: whatsappBotSpeech,
+    }),
     resolveActor: createResolveWhatsAppActorUseCase({
       memberships: new DrizzleMembershipRepository(database.db),
       phones: new DrizzleWhatsAppPhoneRepository(database.db),

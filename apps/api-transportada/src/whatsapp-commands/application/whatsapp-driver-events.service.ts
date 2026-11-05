@@ -37,6 +37,7 @@ import {
   TripStopNotReachableError,
 } from '../../trips/domain/trip.error.js'
 import { TripStopOutOfOrderError } from '../../trips/domain/stop-order.error.js'
+import type { RouteOfferStop } from '../domain/whatsapp-driver-route-offer.policy.js'
 import type { StopEventStep } from '../../trips/domain/stop-event-sequence.policy.js'
 
 export const WHATSAPP_DRIVER_EVENT = {
@@ -87,6 +88,8 @@ export type WhatsAppDriverEventRefusal =
 export type WhatsAppDocumentOutcomeDetails = {
   /** ADR-0070 §1: entregue, foto obrigatória e ainda sem foto. A T15 passa a colher antes da baixa. */
   readonly proofPending: boolean
+  /** Spec 294 RF8: a próxima parada pendente, só quando a baixa fechou a parada e a viagem segue. */
+  readonly nextStop?: RouteOfferStop | null
   readonly stopCompleted: boolean
   readonly tripCompleted: boolean
 }
@@ -155,6 +158,7 @@ export type WhatsAppOccurrenceCollectedFields = {
 
 type DocumentOutcome = {
   readonly alreadySettled: boolean
+  readonly nextStop?: RouteOfferStop | null
   readonly proofPending?: boolean
   readonly recordedTogether?: readonly StopEventStep[]
   readonly stopCompleted?: boolean
@@ -422,6 +426,7 @@ export function toWhatsAppDocumentResult(
   return withRecordedTogether(
     {
       details: {
+        nextStop: outcome.nextStop ?? null,
         proofPending: outcome.proofPending ?? false,
         stopCompleted: outcome.stopCompleted ?? false,
         tripCompleted: outcome.tripCompleted ?? false,

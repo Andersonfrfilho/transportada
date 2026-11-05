@@ -71,6 +71,11 @@ import type {
   WhatsAppDeliveryPreparationReply,
   WhatsAppDeliveryPreparations,
 } from './whatsapp-delivery-preparation.service.js'
+import { DRIVER_PROMPT_CONTEXT_KEY } from '../domain/whatsapp-driver-prompt.policy.js'
+import {
+  buildRouteOfferReply,
+  type WhatsAppDriverPrompts,
+} from './whatsapp-driver-prompts.service.js'
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
 import {
   BOT_AUDIO_SPEECH,
@@ -117,6 +122,8 @@ export type WhatsAppCommandDriverDependencies = {
   readonly clock: () => Date
   /** Spec 293 T15: ausente, foto e texto seguem o fluxo de sempre (sem entrega em preparo). */
   readonly deliveryProofs?: WhatsAppDeliveryProofIntake
+  /** Spec 294 RF8: a oferta da próxima rota e as conferências do bot; ausente, a baixa responde como antes. */
+  readonly driverPrompts?: WhatsAppDriverPrompts
   readonly graphs: WhatsAppFlowGraphProviderPort
   readonly interpreter: WhatsAppFlowInterpreterPort
   readonly logger: ApiLogger
@@ -212,6 +219,7 @@ async function dispatch(incoming: WhatsAppCommandTurn): Promise<MessageHookOutco
     return HANDLED
   }
   if (proofActor !== null && (await acceptDeliveryProof({ proofActor, turn }))) return HANDLED
+  if (await acceptDriverPrompt({ scope: actor.context.scope, turn })) return HANDLED
 
   await guardConversation(turn, () =>
     advanceConversation(turn, actor.context.scope.permissions, proofActor !== null),
@@ -288,8 +296,8 @@ async function acknowledgeSharedLocation(input: {
     proofActor === null
       ? null
       : await proofActor.intake.preparations.receiveLocation({ actor: proofActor.actor, location })
-  if (reply !== null && reply.texts.length > 0) {
-    await sendProofReply(turn, reply)
+  if (reply !== null && reply.texts.length > 0 && proofActor !== null) {
+    await sendProofReply({ actor: proofActor.actor, intake: proofActor.intake, reply, turn })
     return true
   }
   await turn.deps.sender.sendText({ body: WHATSAPP_SHARED_LOCATION_REPLY, to: turn.phone })
@@ -361,22 +369,116 @@ async function acceptDeliveryProof(input: {
       providerMessageId: turn.message.id ?? image.mediaId,
     })
     if (reply === null) return false
-    await sendProofReply(turn, reply)
+    await sendProofReply({ actor, intake, reply, turn })
     return true
   }
   const text = extractWhatsAppAnswer(turn.message)
   if (text === undefined) return false
   const reply = await intake.preparations.answer({ actor, strict: true, text })
   if (reply === null) return false
-  await sendProofReply(turn, reply)
+  await sendProofReply({ actor, intake, reply, turn })
   return true
 }
 
-async function sendProofReply(
-  turn: WhatsAppCommandTurn,
-  reply: WhatsAppDeliveryPreparationReply,
-): Promise<void> {
+async function sendProofReply(input: {
+  readonly actor: ProofActor['actor']
+  readonly intake: WhatsAppDeliveryProofIntake
+  readonly reply: WhatsAppDeliveryPreparationReply
+  readonly turn: WhatsAppCommandTurn
+}): Promise<void> {
+  const { actor, intake, reply, turn } = input
   for (const body of reply.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
+  if (reply.routeContinuation !== undefined) {
+    await offerNextRoute({ actor, continuation: reply.routeContinuation, intake, turn })
+  }
+}
+
+/**
+ * Spec 294 RF8–RF10: a baixa que fechou a parada oferece a próxima rota. A pergunta só abre quando nada
+ * mais espera resposta deste motorista (RNF1); o pedido fica no contexto da sessão.
+ */
+async function offerNextRoute(input: {
+  readonly actor: ProofActor['actor']
+  readonly continuation: NonNullable<WhatsAppDeliveryPreparationReply['routeContinuation']>
+  readonly intake: WhatsAppDeliveryProofIntake
+  readonly turn: WhatsAppCommandTurn
+}): Promise<void> {
+  const { actor, continuation, intake, turn } = input
+  const { botAudio, driverPrompts, sessions } = turn.deps
+  if (driverPrompts === undefined) return
+  const { companyId } = turn.session
+  const position = await sessions.getContext(companyId, turn.phone)
+  const context = position?.context ?? {}
+  const offer = buildRouteOfferReply({
+    continuation,
+    gate: {
+      hasOpenCollection: await intake.preparations.hasOpen(actor),
+      hasOpenStopChoice: position?.currentNodeId === DRIVER_FLOW_NODE.stopEntry,
+      hasPendingAudio:
+        botAudio?.hasPending({
+          companyId,
+          conversation: `user:${turn.phone}`,
+          owner: turn.phone,
+        }) ?? false,
+      hasPendingPrompt: driverPrompts.pending(context) !== undefined,
+    },
+    now: turn.deps.clock(),
+  })
+  for (const body of offer.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
+  if (offer.prompt === undefined) return
+  await sessions.setState(
+    companyId,
+    turn.phone,
+    position?.currentState ?? turn.session.currentState,
+    {
+      ...context,
+      [DRIVER_PROMPT_CONTEXT_KEY]: offer.prompt,
+    },
+  )
+}
+
+/**
+ * Spec 294 RNF1: a resposta ("1"/"2", digitada ou falada) ao pedido em aberto da conversa — a oferta da
+ * próxima rota. Só responde ao pedido; qualquer outra mensagem o encerra e segue o fluxo de sempre.
+ */
+async function acceptDriverPrompt(input: {
+  readonly scope: {
+    readonly companyId: string
+    readonly membershipId: string
+    readonly permissions: ReadonlySet<string>
+    readonly userId: string
+  }
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { scope, turn } = input
+  const { deliveryProofs, driverPrompts, sessions } = turn.deps
+  if (driverPrompts === undefined || deliveryProofs === undefined) return false
+  if (!scope.permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION)) return false
+  const text = extractWhatsAppAnswer(turn.message)
+  if (text === undefined) return false
+  const position = await sessions.getContext(scope.companyId, turn.phone)
+  const context = position?.context ?? {}
+  if (driverPrompts.pending(context) === undefined) return false
+  const driverId = await deliveryProofs.resolveDriver({
+    companyId: scope.companyId,
+    membershipId: scope.membershipId,
+  })
+  if (driverId === null) return false
+  const result = await driverPrompts.answer({
+    actor: { actorUserId: scope.userId, companyId: scope.companyId, driverId },
+    context,
+    text,
+  })
+  if (result === null) return false
+  await sessions.setState(
+    scope.companyId,
+    turn.phone,
+    position?.currentState ?? turn.session.currentState,
+    result.context,
+  )
+  if (!result.handled) return false
+  for (const body of result.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
+  return true
 }
 
 /**

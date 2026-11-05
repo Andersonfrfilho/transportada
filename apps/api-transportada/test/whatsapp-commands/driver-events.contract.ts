@@ -165,7 +165,7 @@ describe('camada de eventos do motorista no WhatsApp (spec 293 T11)', () => {
   test('entreguei devolve os detalhes da baixa; repetido é "já estava registrado"', async () => {
     const { calls, ports } = buildPorts()
     expect(await createWhatsAppDriverEvents(ports).deliver(documentInput)).toEqual({
-      details: { proofPending: true, stopCompleted: true, tripCompleted: false },
+      details: { nextStop: null, proofPending: true, stopCompleted: true, tripCompleted: false },
       event: 'deliver',
       kind: 'registered',
     })

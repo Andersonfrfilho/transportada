@@ -5,6 +5,7 @@
  * (o fluxo, T5) e por onde a resposta sai (o grupo, pelo Evolution).
  */
 import type { WhatsAppGroupRequestStatus } from '../../database/whatsapp-group-request.schema.js'
+import type { WhatsAppRouteContinuation } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 
 export type GroupRequest = {
   readonly attempts: number
@@ -93,7 +94,12 @@ export type GroupFlowOutcome =
       readonly step: string
     }
   /** O pedido terminou (concluído ou recusado com motivo): fecha como `completed`. */
-  | { readonly kind: 'done'; readonly replies: readonly string[] }
+  | {
+      readonly kind: 'done'
+      readonly replies: readonly string[]
+      /** Spec 294 RF8–RF10: a baixa fechou a parada; o roteador do grupo oferece a próxima rota. */
+      readonly routeContinuation?: WhatsAppRouteContinuation
+    }
   /** A resposta não cabe na pergunta aberta: o bot diz o motivo e repete a pergunta (regra 7). */
   | { readonly kind: 'not_understood'; readonly prompt: string; readonly reason: string }
 

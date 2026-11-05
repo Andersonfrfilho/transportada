@@ -259,3 +259,23 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - Contrato: `test/whatsapp-commands/recorded-together-speech.contract.ts` (frase, resultado, grupo e individual).
 - Gates: typecheck e lint limpos; contrato da API 13273 pass / 26 skip / 0 fail; integração (flow-actions, command-driver,
   group-occurrence-adapter) 10 pass; prettier ok.
+
+## T4.3 (+ T0.4) — a próxima rota, grupo e individual (RF8–RF10, RF12, RNF1)
+
+- A baixa que fecha a parada devolve `nextStop`/`tripCompleted` ao bot (`details` do resultado e `routeContinuation` da
+  resposta da entrega em preparo). Texto único em `whatsapp-driver-route-offer.policy.ts` (parada N de M, cliente, endereço,
+  notas, mapa pela coordenada do cadastro, aviso do RF12) e escolha em `whatsapp-driver-choice.policy.ts` ("1"/"2"/"um"/"dois"/
+  "sim"/"não"/"pular", só fala curta).
+- Grupo: o mesmo pedido segue no passo `route.offer`; "1" chama `departStop` do fluxo das paradas (o registro do "saí", chave
+  `whatsapp-group-request:<pedido>`), "2" encerra com "Quando for, mande *saí*." e a despedida do #531 sai do pedido. Última
+  parada: "Rota concluída, todas as paradas fechadas." e o pedido fecha.
+- Individual: o pedido mora no contexto da sessão (`driverPrompt`: só `stopId`, número da nota e hora; vale 2 h) e é respondido no
+  despachante antes do grafo (`acceptDriverPrompt`), depois da entrega em preparo e do áudio. Outra mensagem encerra o pedido e
+  segue o fluxo. "1" usa `departWhatsAppDriverStop` com chave `whatsapp-route-offer:<parada>:<hora da oferta>`. O "devolvi" do grafo
+  (`returnReasonRouter`) também oferece. **Não muda o grafo versionado**: nada a republicar para esta task.
+- RNF1: `canAskRouteOffer` (coleta aberta, escolha de parada, áudio pendente, outro pedido) é a única regra; bloqueada, a frase sai
+  sem pergunta e nada é gravado.
+- Contratos: `test/whatsapp-commands/route-offer.contract.ts` (texto, fala, individual, matriz, áudio) e
+  `test/whatsapp/group-route-offer.contract.ts` (grupo, matriz, áudio pendente pelo `evolution-group-inbound`).
+- Gates: typecheck e lint limpos; contrato da API 13323 pass / 26 skip / 0 fail; integração (flow-actions, command-driver,
+  preparation-repository, group-request-repository) 17 pass; prettier ok.

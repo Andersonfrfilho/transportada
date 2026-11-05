@@ -33,6 +33,7 @@ import {
   type DeliveryProofChecklist,
 } from '../domain/whatsapp-delivery-proof-checklist.policy.js'
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
+import type { RouteOfferStop } from '../domain/whatsapp-driver-route-offer.policy.js'
 import type {
   WhatsAppDocumentEventInput,
   WhatsAppDriverActor,
@@ -150,7 +151,14 @@ export type WhatsAppDeliveryPreparationReply = {
   readonly documentNumber: string
   /** A nota fechou (ou a preparação terminou): o canal não precisa segurar o pedido. */
   readonly finished: boolean
+  /** Spec 294 RF8–RF10: a baixa fechou a parada; o canal oferece a próxima rota ou diz que acabou. */
+  readonly routeContinuation?: WhatsAppRouteContinuation
   readonly texts: readonly string[]
+}
+
+export type WhatsAppRouteContinuation = {
+  readonly nextStop: RouteOfferStop | null
+  readonly tripCompleted: boolean
 }
 
 export type WhatsAppDeliveryPreparations = {
@@ -409,10 +417,13 @@ export function createWhatsAppDeliveryPreparations(
       photos: preparation.photos.length,
       preparationId: preparation.id,
     })
-    return finished(preparation, [
-      await describe(),
-      ...(attachFailed ? [DELIVERY_PROOF_SPEECH.attachFailed] : []),
-    ])
+    return {
+      ...finished(preparation, [
+        await describe(),
+        ...(attachFailed ? [DELIVERY_PROOF_SPEECH.attachFailed] : []),
+      ]),
+      ...routeContinuationOf(result),
+    }
   }
 
   async function removePhotos(preparation: WhatsAppDeliveryPreparation): Promise<void> {
@@ -702,6 +713,19 @@ function finished(
   texts: readonly string[],
 ): WhatsAppDeliveryPreparationReply {
   return { awaitingText: false, documentNumber: preparation.documentNumber, finished: true, texts }
+}
+
+/** Só a baixa que fechou a parada continua a rota (a próxima parada, ou a rota concluída). */
+function routeContinuationOf(result: WhatsAppDriverEventResult): {
+  readonly routeContinuation?: WhatsAppRouteContinuation
+} {
+  if (result.kind !== 'registered' || result.details?.stopCompleted !== true) return {}
+  return {
+    routeContinuation: {
+      nextStop: result.details.nextStop ?? null,
+      tripCompleted: result.details.tripCompleted,
+    },
+  }
 }
 
 function notUnderstood(
