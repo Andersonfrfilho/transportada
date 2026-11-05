@@ -151,3 +151,17 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Testes: integração `address-arrival-correction` (11: CEP 500 m aplica com trilha e evento driver, CEP 5 km sugere, confiável 200 m nada, confiável
   500 m sugere sem sobrescrever, sem coordenada sugere sem distância, sem localização, escritório, marcada junto, reenvio, chegada repetida, falha isolada)
   e contrato `arrival-address-correction-call`. Contrato 13177/0, integração dos arquivos tocados 28/0, typecheck, lint e prettier verdes.
+
+## T3.2 — sugestões de endereço do motorista nas pendências
+
+- `GET /pending-items` ganhou a fonte `addressSuggestedByDriver` (`trip.manage`, a permissão do `PATCH /geocoded-addresses/:addressKey`), só
+  pendentes da empresa do token, com `details` (endereço, ponto sugerido, distância, parada). Com mais de uma fonte permitida o caso de uso
+  mescla pelo cursor `createdAt::id` decrescente; com uma só a paginação segue a dela (itens passaram a levar `createdAt`, que a resposta HTTP não expõe).
+  A rota continua `fleet.read`: quem só tem `trip.manage` precisa de `fleet.read` para abrir a lista.
+- `POST /address-correction-suggestions/:suggestionId/apply|dismiss` (`trip.manage`): aplicar é `applyGeocodedAddressCorrection` com o ponto
+  sugerido, `origin 'operator'`, `source 'manual'`, ator = o operador (a trilha vira o evento 228); descartar só marca. Ambas travam a linha
+  (`for update`), gravam `decided_by/decided_at` e uma linha em `audit_logs` (`address_correction_suggestion.applied|dismissed`) na mesma transação.
+  Outra empresa ou inexistente: 404; já decidida: 409.
+- Testes: contratos `pending-items` (mescla, permissão por fonte, filtro de empresa/pendente, rotas 200/404/403/rota não-UUID) e integração
+  `address-suggestion-pending-items` (5: lista por empresa, aplicar com trilha e auditoria, descartar, tenant 404 nas duas decisões, 409 sem segunda
+  gravação). Contrato 13185/0, integração dos arquivos tocados 6/0, typecheck, lint e prettier verdes.

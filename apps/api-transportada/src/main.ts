@@ -514,6 +514,9 @@ import { DrizzleDriverWhatsappGroupRepository } from './fleet/infrastructure/dri
 import { createDriverWhatsappGroupRoutes } from './fleet/presentation/driver-whatsapp-group.routes'
 import { createCompanyCrewSettingsRoutes } from './fleet/presentation/crew-settings.routes'
 import { createListPendingItemsUseCase } from './pending-items/application/list-pending-items.use-case.js'
+import { createAddressSuggestionPendingItemSource } from './pending-items/infrastructure/drizzle-address-correction-suggestion-pending-item.source.js'
+import { createAddressCorrectionSuggestionRoutes } from './address-correction-suggestions/presentation/address-correction-suggestion.routes.js'
+import { createDrizzleAddressCorrectionSuggestionDecisions } from './address-correction-suggestions/infrastructure/drizzle-address-correction-suggestion.repository.js'
 import { createFleetBodyTypePendingItemSource } from './pending-items/infrastructure/drizzle-fleet-body-type-pending-item.source.js'
 import { createPendingItemsRoutes } from './pending-items/presentation/pending-items.routes.js'
 import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
@@ -2884,7 +2887,10 @@ function createApplicationRoutes({
   const driverScoreRepository = new DrizzleDriverScoreRepository(database)
   const crewSettingsRepository = new DrizzleCrewSettingsRepository(database)
   const pendingItems = createListPendingItemsUseCase({
-    sources: [createFleetBodyTypePendingItemSource({ database })],
+    sources: [
+      createFleetBodyTypePendingItemSource({ database }),
+      createAddressSuggestionPendingItemSource({ database }),
+    ],
   })
   const freightRegionRepository = new DrizzleFreightRegionRepository(database)
   const fleetDriverRegionRepository = new DrizzleFleetDriverRegionRepository(database)
@@ -4124,6 +4130,9 @@ function createApplicationRoutes({
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
     ...createPendingItemsRoutes({
       listPendingItems: { execute: (input) => pendingItems.execute(input) },
+    }),
+    ...createAddressCorrectionSuggestionRoutes({
+      decisions: createDrizzleAddressCorrectionSuggestionDecisions(database),
     }),
     ...createVehicleReferenceRoutes({
       vehicleReferences: new DrizzleVehicleReferenceRepository({ database }),

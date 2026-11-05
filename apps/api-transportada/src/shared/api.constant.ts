@@ -196,6 +196,11 @@ export const API_PENDING_ITEMS_PATH = '/pending-items'
 /** Não é rota de frota: os três formulários com campo de CEP — motorista, empresa e MDF-e — a usam. */
 export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_ADDRESS_REPORT_PATH = '/address-report'
+/** Spec 294 T3.2: o escritório decide o ponto da chegada que o motorista sugeriu. */
+export const API_ADDRESS_CORRECTION_SUGGESTION_APPLY_PATH =
+  '/address-correction-suggestions/:suggestionId/apply'
+export const API_ADDRESS_CORRECTION_SUGGESTION_DISMISS_PATH =
+  '/address-correction-suggestions/:suggestionId/dismiss'
 /** Spec 150: o pedido de correção de endereço à contratante. */
 export const API_ADDRESS_CORRECTION_REQUESTS_PATH = '/address-correction-requests'
 /** Spec 150 T304: o envio do e-mail de correção, completo ou unitário. */

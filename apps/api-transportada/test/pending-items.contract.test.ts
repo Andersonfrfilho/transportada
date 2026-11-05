@@ -4,3 +4,4 @@
 import './pending-items/domain.contract.js'
 import './pending-items/tenant-safety.contract.js'
 import './pending-items/route.contract.js'
+import './pending-items/suggestion-route.contract.js'
