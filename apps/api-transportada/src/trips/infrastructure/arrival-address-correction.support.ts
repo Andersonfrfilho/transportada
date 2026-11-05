@@ -15,7 +15,10 @@ import { tripStops } from '../../database/trip.schema.js'
 import { safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import { resolveAddressArrivalCorrection } from '../domain/address-arrival-correction.policy.js'
-import type { ReportedLocation } from '../application/driver-field-report.port.js'
+import type {
+  ArrivalAddressCorrectionOutcome,
+  ReportedLocation,
+} from '../application/driver-field-report.port.js'
 
 type ArrivalAddressCorrectionParams = {
   readonly actorUserId: string
@@ -91,7 +94,7 @@ export async function correctAddressFromArrival(input: {
   readonly logger: ApiLogger | undefined
   readonly params: ArrivalAddressCorrectionParams
   readonly transaction: GeocodedAddressCorrectionTransaction
-}): Promise<void> {
+}): Promise<ArrivalAddressCorrectionOutcome> {
   const { logger, params, transaction } = input
   const metadata = {
     companyId: params.companyId,
@@ -104,9 +107,11 @@ export async function correctAddressFromArrival(input: {
     if (logger !== undefined) {
       safeLogInfo({ logger, message: `${EVENT_PREFIX}.${outcome}`, metadata })
     }
+    return outcome
   } catch {
     if (logger !== undefined) {
       safeLogWarn({ logger, message: `${EVENT_PREFIX}.failed`, metadata })
     }
+    return 'failed'
   }
 }

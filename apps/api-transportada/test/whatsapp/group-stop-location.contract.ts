@@ -35,7 +35,7 @@ function request(step: string, state: Record<string, unknown> = {}): GroupReques
   }
 }
 
-function setup(options: { readonly hasLocation: boolean }) {
+function setup(options: { readonly hasLocation: boolean; readonly isAddressReliable?: boolean }) {
   const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
   const flow = createGroupDriverFlow({
     occurrence: {
@@ -53,6 +53,7 @@ function setup(options: { readonly hasLocation: boolean }) {
           documents: [{ number: '17234', separationStatus: 'loaded' }],
           enRouteSince: null,
           id: 'S1',
+          isAddressReliable: options.isAddressReliable ?? true,
           sequence: 1,
         },
       ],
@@ -158,5 +159,50 @@ describe('grupo: o pedido de localização do "saí" e do "cheguei" (RF24)', () 
     expect(t.recorded).toEqual([])
     await t.answer('pular')
     expect(t.recorded).toMatchObject([{ documentNumber: '17300', event: 'depart', stopId: 'S9' }])
+  })
+})
+
+describe('grupo: "cheguei" em parada sem localização certa corrige o endereço (RF14)', () => {
+  test('o pedido de localização explica que o ponto atualiza o endereço', async () => {
+    const t = setup({ hasLocation: false, isAddressReliable: false })
+    const asked = await t.start('cheguei')
+    expect(asked).toMatchObject({
+      kind: 'continue',
+      replies: [LOCATION_PROMPT_TEXT.askUnreliableAddress],
+    })
+    expect(LOCATION_PROMPT_TEXT.askUnreliableAddress).toContain('eu atualizo o endereço')
+  })
+
+  test('parada confiável e "saí" mantêm o pedido simples', async () => {
+    const reliable = setup({ hasLocation: false, isAddressReliable: true })
+    expect(await reliable.start('cheguei')).toMatchObject({ replies: [LOCATION_PROMPT_TEXT.ask] })
+    const departing = setup({ hasLocation: false, isAddressReliable: false })
+    expect(await departing.start('saí')).toMatchObject({ replies: [LOCATION_PROMPT_TEXT.ask] })
+  })
+
+  test('a localização compartilhada antes vale: registra direto e o ponto vai com o evento', async () => {
+    const t = setup({ hasLocation: true, isAddressReliable: false })
+    expect(await t.start('cheguei')).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })
+    expect(t.recorded).toHaveLength(1)
+  })
+
+  test('a resposta do registro leva "Endereço atualizado" ou "Enviei para o escritório conferir"', async () => {
+    const speech = await import(
+      '../../src/whatsapp-commands/application/whatsapp-driver-event-speech.service.js'
+    )
+    const { CATALOG_BOT_SPEECH, renderBotSpeechLine } = await import(
+      '../../src/whatsapp-commands/application/whatsapp-bot-speech.service.js'
+    )
+    const render = (addressCorrection: 'applied' | 'suggested') =>
+      renderBotSpeechLine({
+        companyId: 'C1',
+        line: speech.describeWhatsAppDriverEventResult(
+          { addressCorrection, event: 'arrive', kind: 'registered' },
+          { documentNumber: '17234', kind: 'group' },
+        ),
+        speech: CATALOG_BOT_SPEECH,
+      })
+    expect(await render('applied')).toBe('Chegada registrada. 📍\nEndereço atualizado. ✅')
+    expect(await render('suggested')).toContain('Enviei para o escritório conferir')
   })
 })

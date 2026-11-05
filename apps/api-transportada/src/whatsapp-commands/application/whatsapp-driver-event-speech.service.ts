@@ -63,6 +63,12 @@ const STOP_EVENTS: ReadonlySet<WhatsAppDriverEvent> = new Set([
   WHATSAPP_DRIVER_EVENT.depart,
 ])
 
+/** Spec 294 RF14: a chegada com ponto atualiza o endereço ou manda a sugestão ao escritório. */
+export const ADDRESS_CORRECTION_TEXT = {
+  applied: 'Endereço atualizado. ✅',
+  suggested: 'Enviei para o escritório conferir o endereço. 📬',
+} as const
+
 const STEP_WORDS = { arrived: 'a chegada', departed: 'a saída' } as const
 
 const COMPANION_WORDS: Readonly<Record<WhatsAppDriverEvent, string>> = {
@@ -97,7 +103,13 @@ export function describeWhatsAppDriverEventResult(
     event: result.event,
     steps: result.recordedTogether ?? [],
   })
-  return together === undefined ? line : { ...line, after: [together] }
+  const after = [
+    ...(together === undefined ? [] : [together]),
+    ...(result.addressCorrection === undefined
+      ? []
+      : [ADDRESS_CORRECTION_TEXT[result.addressCorrection]]),
+  ]
+  return after.length === 0 ? line : { ...line, after }
 }
 
 function describeMainLine(

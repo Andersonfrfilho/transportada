@@ -10,6 +10,7 @@ import type { EventClockFields, RecordedEventClock } from '../domain/occurred-at
 import { resolveStopEventSequence } from '../domain/stop-event-sequence.policy.js'
 import type { StopEventSequenceInput, StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import type {
+  ArrivalAddressCorrectionOutcome,
   DriverFieldReportTransactionPort,
   DriverStopReference,
   ReportedLocation,
@@ -39,6 +40,8 @@ export type RecordSkippedStepsParams = {
 }
 
 export type SequencedStopArrivalResult = {
+  /** Spec 294 RF14: o que a chegada com ponto fez pelo endereço; ausente quando não houve ponto (ou no reenvio). */
+  readonly addressCorrection?: ArrivalAddressCorrectionOutcome
   readonly id: string
   readonly recordedTogether: readonly StopEventStep[]
 }
@@ -153,15 +156,20 @@ export async function performSequencedStopArrival(
     isOffice: false,
     stop: skipped.stop,
   })
-  if (input.location !== null) {
-    await transaction.correctAddressFromArrival({
-      actorUserId: input.actorUserId,
-      companyId: input.companyId,
-      eventId: event.id,
-      location: input.location,
-      stopId: input.stopId,
-    })
-  }
+  const addressCorrection =
+    input.location === null
+      ? undefined
+      : await transaction.correctAddressFromArrival({
+          actorUserId: input.actorUserId,
+          companyId: input.companyId,
+          eventId: event.id,
+          location: input.location,
+          stopId: input.stopId,
+        })
 
-  return { id: event.id, recordedTogether: skipped.recordedTogether }
+  return {
+    ...(addressCorrection === undefined ? {} : { addressCorrection }),
+    id: event.id,
+    recordedTogether: skipped.recordedTogether,
+  }
 }

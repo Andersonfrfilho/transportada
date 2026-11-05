@@ -110,7 +110,7 @@ const locationMessage = () =>
     type: 'location',
   }) as unknown as WhatsAppMessage
 
-function createHarness(prompt?: Record<string, unknown>) {
+function createHarness(prompt?: Record<string, unknown>, arrivalOutcome: object = { id: 'e' }) {
   const sent: string[] = []
   const calls: { kind: string; input: Record<string, unknown> }[] = []
   let position: WhatsAppSessionPosition = {
@@ -156,7 +156,7 @@ function createHarness(prompt?: Record<string, unknown>) {
       ports: {
         reportArrival: async (input) => {
           calls.push({ input, kind: 'arrive' })
-          return { id: 'e' }
+          return arrivalOutcome
         },
         reportDeparture: async (input) => {
           calls.push({ input, kind: 'depart' })
@@ -252,7 +252,10 @@ describe('conversa individual: a resposta ao pedido de localização (RF24)', ()
 })
 
 describe('o "saí"/"cheguei" da conversa individual pede a localização (RF24)', () => {
-  function actionsHarness(options: { readonly withLocation: boolean }) {
+  function actionsHarness(options: {
+    readonly isAddressReliable?: boolean
+    readonly withLocation: boolean
+  }) {
     const sent: string[] = []
     const calls: string[] = []
     const sharedLocations = createInMemoryWhatsAppSharedLocationStore({ clock: () => NOW })
@@ -278,6 +281,7 @@ describe('o "saí"/"cheguei" da conversa individual pede a localização (RF24)'
               documents: [{ id: 'doc-1', number: '017234', separationStatus: 'loaded' }],
               enRouteSince: null,
               id: 'stop-1',
+              isAddressReliable: options.isAddressReliable ?? true,
               sequence: 1,
             },
           ],
@@ -364,5 +368,41 @@ describe('o "saí"/"cheguei" da conversa individual pede a localização (RF24)'
     await harness.run(DRIVER_FLOW_ACTION_KIND.arrive)
     expect(harness.calls).toEqual(['arrive'])
     expect(harness.sent).toEqual(['Chegada registrada. 📍'])
+  })
+
+  describe('"cheguei" em parada sem localização certa corrige o endereço (spec 294 RF14)', () => {
+    test('o pedido de localização explica que o ponto atualiza o endereço', async () => {
+      const harness = actionsHarness({ isAddressReliable: false, withLocation: false })
+      await harness.run(DRIVER_FLOW_ACTION_KIND.arrive)
+      expect(harness.sent).toEqual([LOCATION_PROMPT_TEXT.askUnreliableAddress])
+      expect(LOCATION_PROMPT_TEXT.askUnreliableAddress).toContain('eu atualizo o endereço')
+    })
+
+    test('parada confiável e "saí" não mudam o pedido', async () => {
+      const reliable = actionsHarness({ isAddressReliable: true, withLocation: false })
+      await reliable.run(DRIVER_FLOW_ACTION_KIND.arrive)
+      expect(reliable.sent).toEqual([LOCATION_PROMPT_TEXT.ask])
+      const departing = actionsHarness({ isAddressReliable: false, withLocation: false })
+      await departing.run(DRIVER_FLOW_ACTION_KIND.depart)
+      expect(departing.sent).toEqual([LOCATION_PROMPT_TEXT.ask])
+    })
+
+    test('a localização da chegada corrigiu o cadastro: a resposta diz "Endereço atualizado"', async () => {
+      const harness = createHarness(ARRIVE_PROMPT, { addressCorrection: 'applied', id: 'e' })
+      await harness.send(locationMessage())
+      expect(harness.sent).toEqual(['Chegada registrada. 📍\nEndereço atualizado. ✅'])
+    })
+
+    test('o ponto ficou longe do cadastro: a resposta diz que foi ao escritório conferir', async () => {
+      const harness = createHarness(ARRIVE_PROMPT, { addressCorrection: 'suggested', id: 'e' })
+      await harness.send(locationMessage())
+      expect(harness.sent[0]).toContain('Enviei para o escritório conferir')
+    })
+
+    test.each(['ignored', 'failed'])('"%s" não diz nada sobre o endereço', async (outcome) => {
+      const harness = createHarness(ARRIVE_PROMPT, { addressCorrection: outcome, id: 'e' })
+      await harness.send(locationMessage())
+      expect(harness.sent).toEqual(['Chegada registrada. 📍'])
+    })
   })
 })

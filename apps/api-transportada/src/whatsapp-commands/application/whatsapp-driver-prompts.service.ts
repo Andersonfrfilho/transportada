@@ -91,11 +91,13 @@ export type WhatsAppDriverPrompts = {
   ): Promise<null | WhatsAppDriverPromptResult>
   /** Spec 294 RF24: o pedido de localização do "saí"/"cheguei", ou `null` se um ponto recente já vale. */
   askLocation(input: {
+    readonly companyId: string
     readonly documentNumber?: string | undefined
     readonly event: 'arrive' | 'depart'
+    /** Spec 294 RF14: parada sem localização certa; o "cheguei" diz que o ponto corrige o endereço. */
+    readonly isAddressReliable?: boolean | undefined
     readonly stopId: string
     readonly whatsappNumber: string
-    readonly companyId: string
   }): null | RouteOfferReply
   /** O pedido em aberto desta conversa, se houver e não tiver vencido. */
   pending(context: Record<string, unknown>): DriverPrompt | undefined
@@ -115,8 +117,10 @@ export function createWhatsAppDriverPrompts(dependencies: {
   function locationPrompt(input: {
     readonly documentNumber?: string | undefined
     readonly event: 'arrive' | 'depart'
+    readonly isAddressReliable?: boolean | undefined
     readonly stopId: string
   }): RouteOfferReply {
+    const isUnreliable = input.event === 'arrive' && input.isAddressReliable === false
     return {
       prompt: {
         attempts: 0,
@@ -126,7 +130,7 @@ export function createWhatsAppDriverPrompts(dependencies: {
         offeredAt: clock().toISOString(),
         stopId: input.stopId,
       },
-      texts: [LOCATION_PROMPT_TEXT.ask],
+      texts: [isUnreliable ? LOCATION_PROMPT_TEXT.askUnreliableAddress : LOCATION_PROMPT_TEXT.ask],
     }
   }
 
@@ -135,6 +139,7 @@ export function createWhatsAppDriverPrompts(dependencies: {
     readonly companyId: string
     readonly documentNumber?: string | undefined
     readonly event: 'arrive' | 'depart'
+    readonly isAddressReliable?: boolean | undefined
     readonly stopId: string
     readonly whatsappNumber: string
   }): null | RouteOfferReply {

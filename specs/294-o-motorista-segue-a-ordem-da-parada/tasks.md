@@ -57,7 +57,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       `whatsapp-group-*-flow.service.ts` e `whatsapp-driver-stop.policy.ts`. Aceite: contratos do WhatsApp.
 - [x] **T4.2** Linha "marquei junto" nas respostas de saí/cheguei/entreguei/devolvi (RF5).
 - [x] **T4.3** Fluxo da próxima rota (grupo e individual), com abertura condicionada (RNF1). T0.4 verde.
-- [ ] **T4.4** "Cheguei" em parada não confiável pede a localização e chama a correção.
+- [x] **T4.4** "Cheguei" em parada não confiável pede a localização e chama a correção.
 - [x] **T4.5** RF18–RF20: identificar quem mandou (tripulação × atendente × nenhum) no grupo e no individual; baixa do
       atendente pelo caminho do escritório (`target`, autoria `office`, ator = usuário do atendente) com provas opcionais;
       corrigir a entrega em preparo do grupo que grava em nome do motorista. Contratos: atendente pula etapas sem marcar

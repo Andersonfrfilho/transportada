@@ -26,6 +26,9 @@ import type { NextStopCandidates } from './driver-next-stop.types.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
 import type { TripFieldOfficeAuditInput } from './trip-field-office-audit.port.js'
 
+/** Spec 294 RF14: o que a chegada com ponto fez pelo endereço — corrigiu, virou sugestão, nada, ou falhou (contida). */
+export type ArrivalAddressCorrectionOutcome = 'applied' | 'failed' | 'ignored' | 'suggested'
+
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
 export type ReportedLocation = {
   readonly accuracyMeters: string | null
@@ -430,7 +433,7 @@ export type DriverFieldReportTransactionPort = {
     readonly eventId: string
     readonly location: ReportedLocation
     readonly stopId: string
-  }): Promise<void>
+  }): Promise<ArrivalAddressCorrectionOutcome>
   /**
    * Spec 294 RF8: as paradas da viagem com o que a oferta da próxima mostra — duas leituras para a
    * viagem inteira (paradas com a coordenada e notas), nunca uma por parada.

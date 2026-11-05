@@ -233,3 +233,33 @@ describe('conversa individual: "cheguei" avisa a saída marcada junto', () => {
     ])
   })
 })
+
+describe('o resultado da chegada leva o que o ponto fez pelo endereço (spec 294 RF14)', () => {
+  const stopInput = {
+    actorUserId: 'u',
+    companyId: COMPANY_ID,
+    driverId: DRIVER_ID,
+    idempotencyKey: 'k',
+    location: null,
+    sentAt: NOW,
+    stopId: 's',
+  }
+  const portsFor = (outcome: unknown) =>
+    ({ reportArrival: async () => outcome }) as unknown as WhatsAppDriverEventPorts
+
+  test.each(['applied', 'suggested'])('"%s" chega ao resultado', async (addressCorrection) => {
+    const result = await arriveWhatsAppDriverStop(
+      portsFor({ addressCorrection, id: 'e', recordedTogether: [] }),
+      stopInput,
+    )
+    expect(result).toMatchObject({ addressCorrection, kind: 'registered' })
+  })
+
+  test.each(['ignored', 'failed', undefined])('"%s" não chega (nada a dizer)', async (value) => {
+    const result = await arriveWhatsAppDriverStop(
+      portsFor({ addressCorrection: value, id: 'e' }),
+      stopInput,
+    )
+    expect(result).not.toHaveProperty('addressCorrection')
+  })
+})

@@ -94,8 +94,13 @@ export type WhatsAppDocumentOutcomeDetails = {
   readonly tripCompleted: boolean
 }
 
+/** Spec 294 RF14: o que a chegada com ponto fez pelo endereço da parada. */
+export type WhatsAppAddressCorrection = 'applied' | 'suggested'
+
 export type WhatsAppDriverEventResult =
   | {
+      /** Só na chegada com localização: corrigiu o cadastro ou virou sugestão ao escritório. */
+      readonly addressCorrection?: WhatsAppAddressCorrection
       readonly details?: WhatsAppDocumentOutcomeDetails
       readonly event: WhatsAppDriverEvent
       readonly kind: 'registered'
@@ -267,7 +272,14 @@ export async function arriveWhatsAppDriverStop(
       stopId: input.stopId,
       tappedAt: input.sentAt,
     })
-    return withRecordedTogether({ event, kind: 'registered' }, readRecordedTogether(outcome))
+    const registered = withRecordedTogether(
+      { event, kind: 'registered' },
+      readRecordedTogether(outcome),
+    )
+    const addressCorrection = readAddressCorrection(outcome)
+    return addressCorrection === undefined || registered.kind !== 'registered'
+      ? registered
+      : { ...registered, addressCorrection }
   })
 }
 
@@ -446,6 +458,15 @@ function readRecordedTogether(outcome: unknown): readonly StopEventStep[] {
   return recordedTogether.filter(
     (step): step is StopEventStep => step === 'arrived' || step === 'departed',
   )
+}
+
+/** `ignored` e `failed` não dizem nada ao motorista: só o que mudou o cadastro ou foi ao escritório. */
+function readAddressCorrection(outcome: unknown): WhatsAppAddressCorrection | undefined {
+  if (typeof outcome !== 'object' || outcome === null) return undefined
+  const { addressCorrection } = outcome as { readonly addressCorrection?: unknown }
+  return addressCorrection === 'applied' || addressCorrection === 'suggested'
+    ? addressCorrection
+    : undefined
 }
 
 function withRecordedTogether(

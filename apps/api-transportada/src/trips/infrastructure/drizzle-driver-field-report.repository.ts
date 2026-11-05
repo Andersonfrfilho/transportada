@@ -121,7 +121,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
 
   public correctAddressFromArrival(
     params: Parameters<DriverFieldReportTransactionPort['correctAddressFromArrival']>[0],
-  ): Promise<void> {
+  ): ReturnType<DriverFieldReportTransactionPort['correctAddressFromArrival']> {
     return correctAddressFromArrival({
       logger: this.logger,
       params,

@@ -295,3 +295,17 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - Contratos: `test/whatsapp-commands/stop-location-prompt.contract.ts` e `test/whatsapp/group-stop-location.contract.ts`.
 - Gates: typecheck e lint limpos; contrato da API 13346 pass / 26 skip / 0 fail; integração (flow-actions, command-driver,
   group-occurrence-adapter) verde; prettier ok. Grafo versionado não mudou.
+
+## T4.4 — "Cheguei" em parada sem localização certa corrige o endereço (RF14)
+
+- API: o resultado da chegada da tripulação (`SequencedStopArrivalResult`) passa a expor `addressCorrection`
+  (`applied` | `suggested` | `ignored` | `failed`, vindo de `correctAddressFromArrival`, que antes devolvia `void`); ausente sem ponto.
+  A rota HTTP não o devolve ao app (T5.2 decide); falha continua contida na chegada.
+- Bot: `WhatsAppDriverEventResult.registered` leva `addressCorrection` (só `applied`/`suggested`); a fala acrescenta "Endereço atualizado. ✅" ou
+  "Enviei para o escritório conferir o endereço. 📬", nos dois canais. `WhatsAppStopCandidate.isAddressReliable` (opcional) chega ao bot pelo
+  snapshot da viagem; o "cheguei" numa parada não confiável pede a localização com "Este endereço está sem localização certa no mapa. Mande sua
+  localização pelo clipe que eu atualizo o endereço, ou responda _pular_". Com ponto compartilhado antes, não pergunta e a chegada já leva o ponto.
+- Contratos: `arrival-address-correction-call.contract.ts` (resultado, falha contida, sem cadastro), `recorded-together-speech.contract.ts`
+  (resultado do bot), `stop-location-prompt.contract.ts` e `group-stop-location.contract.ts` (pedido e resposta, grupo e individual).
+- Gates: typecheck e lint limpos; contrato da API 13363 pass / 26 skip / 0 fail; integração (`address-arrival-correction`,
+  `stop-order-guard`) 21 pass; prettier ok. Grafo versionado não mudou.

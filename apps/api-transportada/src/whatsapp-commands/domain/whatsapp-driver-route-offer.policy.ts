@@ -81,6 +81,9 @@ export function canAskRouteOffer(gate: RouteOfferGate): boolean {
 /** Spec 294 RF24: o pedido opcional de localização antes do "Iniciar rota" e do "Cheguei". */
 export const LOCATION_PROMPT_TEXT = {
   ask: '📍 Mande sua localização pelo clipe, ou responda _pular_',
+  /** Spec 294 RF14: "cheguei" numa parada sem localização certa — o ponto corrige o endereço. */
+  askUnreliableAddress:
+    '📍 Este endereço está sem localização certa no mapa. Mande sua localização pelo clipe que eu atualizo o endereço, ou responda _pular_',
   /** Pedido repetido: o item vai por localização, não por áudio nem por texto. */
   askAgain:
     'Esse item vai por localização: toque no clipe → Localização → Enviar localização atual, ou responda _pular_.',

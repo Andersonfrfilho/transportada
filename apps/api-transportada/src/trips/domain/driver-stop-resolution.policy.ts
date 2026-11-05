@@ -27,6 +27,8 @@ export type WhatsAppStopCandidate = {
   }[]
   readonly enRouteSince: string | null
   readonly id: string
+  /** Spec 294 RF12: endereço com coordenada e precisão que servem; ausente conta como confiável. */
+  readonly isAddressReliable?: boolean
   readonly sequence: number
 }
 

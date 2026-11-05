@@ -752,12 +752,14 @@ export function createDriverWhatsAppFlowActions(
   async function registerStopEvent(
     input: ActionInput & {
       readonly documentNumber?: string | undefined
+      readonly isAddressReliable?: boolean | undefined
       readonly step: StopStep
       readonly stopId: string
       readonly tripId: string
     },
   ): Promise<FlowActionResult> {
-    const { actor, channel, documentNumber, session, step, stopId, tripId } = input
+    const { actor, channel, documentNumber, isAddressReliable, session, step, stopId, tripId } =
+      input
     const driverId = await deps.resolveDriverId({
       companyId: actor.scope.companyId,
       membershipId: actor.scope.membershipId,
@@ -771,6 +773,7 @@ export function createDriverWhatsAppFlowActions(
       companyId: actor.scope.companyId,
       documentNumber,
       event: step,
+      isAddressReliable,
       stopId,
       whatsappNumber: session.whatsappNumber,
     })
@@ -825,6 +828,7 @@ export function createDriverWhatsAppFlowActions(
       return registerStopEvent({
         ...input,
         documentNumber: firstDocumentNumber(resolution.stop),
+        isAddressReliable: resolution.stop.isAddressReliable,
         stopId: resolution.stop.id,
         tripId: trip.id,
       })
@@ -919,6 +923,7 @@ export function createDriverWhatsAppFlowActions(
     return registerStopEvent({
       ...input,
       documentNumber: chosen === undefined ? undefined : firstDocumentNumber(chosen),
+      isAddressReliable: chosen?.isAddressReliable,
       step,
       stopId: answer,
       tripId,

@@ -93,6 +93,7 @@ type FlowState = {
   readonly stops?:
     | readonly {
         readonly id: string
+        readonly isAddressReliable?: boolean | undefined
         readonly label: string
         readonly numbers: readonly string[]
       }[]
@@ -128,15 +129,21 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     event: WhatsAppDriverStopCommandEvent,
     stopId: string,
     documentNumber?: string,
+    isAddressReliable?: boolean,
   ): Promise<GroupFlowOutcome> {
     const { companyId, driverId } = turn.request
     if (ports.hasLocation === undefined || ports.hasLocation({ companyId, driverId })) {
       return record(turn, event, stopId, documentNumber)
     }
     const state: FlowState = { locationFor: { documentNumber, event, stopId } }
+    // Spec 294 RF14: "cheguei" numa parada sem localização certa diz que o ponto corrige o endereço.
+    const isUnreliable =
+      event === WHATSAPP_DRIVER_STOP_COMMAND.arrive && isAddressReliable === false
     return {
       kind: 'continue',
-      replies: [LOCATION_PROMPT_TEXT.ask],
+      replies: [
+        isUnreliable ? LOCATION_PROMPT_TEXT.askUnreliableAddress : LOCATION_PROMPT_TEXT.ask,
+      ],
       state,
       step: GROUP_STOP_STEP.location,
     }
@@ -169,7 +176,13 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           ],
         }
       case 'single':
-        return recordOrAsk(turn, event, resolution.stop.id, firstNumberOf(resolution.stop))
+        return recordOrAsk(
+          turn,
+          event,
+          resolution.stop.id,
+          firstNumberOf(resolution.stop),
+          resolution.stop.isAddressReliable,
+        )
       case 'choose': {
         const mentioned = resolution.stops.filter((stop) =>
           stop.documents.some((document) =>
@@ -177,12 +190,19 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           ),
         )
         if (mentioned.length === 1 && mentioned[0] !== undefined) {
-          return recordOrAsk(turn, event, mentioned[0].id, firstNumberOf(mentioned[0]))
+          return recordOrAsk(
+            turn,
+            event,
+            mentioned[0].id,
+            firstNumberOf(mentioned[0]),
+            mentioned[0].isAddressReliable,
+          )
         }
         const state: FlowState = {
           event,
           stops: resolution.stops.map((stop) => ({
             id: stop.id,
+            isAddressReliable: stop.isAddressReliable,
             label: describeStopReference(stop),
             numbers: stop.documents.map((document) => document.number.replace(/^0+/u, '')),
           })),
@@ -255,7 +275,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           reason: REASON.stop,
         }
       }
-      return recordOrAsk(turn, event, picked.id, picked.numbers[0])
+      return recordOrAsk(turn, event, picked.id, picked.numbers[0], picked.isAddressReliable)
     },
 
     /** A localização compartilhada chegou com o pedido de localização aberto: registra com ela (o ponto está lembrado). */

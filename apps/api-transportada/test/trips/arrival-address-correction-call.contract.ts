@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test'
 
+import { correctAddressFromArrival } from '../../src/trips/infrastructure/arrival-address-correction.support.js'
 import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
 import { resolveFieldTripTarget } from '../../src/trips/application/resolve-field-trip-target.use-case.js'
 import {
@@ -58,12 +59,14 @@ describe('a chegada chama a correção de endereço (spec 294 T3.1)', () => {
     })
 
     expect(correctionCalls(state.calls)).toEqual([`correctAddressFromArrival:${result.id}`])
+    // RF14: o resultado diz o que o ponto fez pelo endereço, para o bot responder "Endereço atualizado".
+    expect(result.addressCorrection).toBe('applied')
   })
 
   it('tripulação sem localização: não chama', async () => {
     const { state, unitOfWork } = buildWorld()
 
-    await reportStopArrival({
+    const result = await reportStopArrival({
       actorUserId: ACTOR_USER_ID,
       companyId: COMPANY_ID,
       driverId: DRIVER_ID,
@@ -75,6 +78,7 @@ describe('a chegada chama a correção de endereço (spec 294 T3.1)', () => {
     })
 
     expect(correctionCalls(state.calls)).toEqual([])
+    expect(result.addressCorrection).toBeUndefined()
   })
 
   it('escritório, mesmo com localização: não chama', async () => {
@@ -102,5 +106,38 @@ describe('a chegada chama a correção de endereço (spec 294 T3.1)', () => {
     })
 
     expect(correctionCalls(state.calls)).toEqual([])
+  })
+})
+
+describe('o que a correção devolve (spec 294 RF14)', () => {
+  const params = {
+    actorUserId: ACTOR_USER_ID,
+    companyId: COMPANY_ID,
+    eventId: 'event-1',
+    location: LOCATION,
+    stopId: STOP_ID,
+  }
+
+  it('falha contida vira "failed", nunca erro da chegada', async () => {
+    const transaction = {
+      transaction: async () => Promise.reject(new Error('banco fora')),
+    } as never
+    expect(await correctAddressFromArrival({ logger: undefined, params, transaction })).toBe(
+      'failed',
+    )
+  })
+
+  it('parada sem endereço cadastrado vira "ignored"', async () => {
+    const savepoint = {
+      select: () => ({
+        from: () => ({ leftJoin: () => ({ where: () => ({ limit: async () => [] }) }) }),
+      }),
+    }
+    const transaction = {
+      transaction: async (work: (tx: unknown) => Promise<unknown>) => work(savepoint),
+    } as never
+    expect(await correctAddressFromArrival({ logger: undefined, params, transaction })).toBe(
+      'ignored',
+    )
   })
 })
