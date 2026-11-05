@@ -46,9 +46,9 @@ Três conceitos, para não misturar "a regra" com "o que vence":
    - gerado da recorrente, uma linha por competência (`recurring_expense_id` + `competence`
      únicos — idempotente);
    - **conta adicional**: lançada à mão, sem recorrente (`recurring_expense_id` nulo).
-   Campos: competência (mês), vencimento, valor previsto, valor pago, data do pagamento, status
-   (`open`, `paid`, `canceled`; **atrasado é derivado** de `open` + vencimento < hoje, não é
-   coluna), observação, anexo opcional (comprovante, no storage existente).
+     Campos: competência (mês), vencimento, valor previsto, valor pago, data do pagamento, status
+     (`open`, `paid`, `canceled`; **atrasado é derivado** de `open` + vencimento < hoje, não é
+     coluna), observação, anexo opcional (comprovante, no storage existente).
 
 Regras de domínio:
 
