@@ -156,6 +156,14 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
     _2_ - Descartar";
   - nota entregue **sem** canhoto (223, concluída sem canhoto e cobrada depois) → a foto entra como o canhoto que
     faltava, sem pergunta.
+- **RF27** — **Todas as proteções valem em todos os canais da tripulação** (app, grupo e individual), decidido em
+  2026-11-05. A regra mora na **API**, e os canais só mostram a pergunta:
+  - ordem e etapa marcada junto (RF1–RF6) — política na API;
+  - fora de ordem (RF25) — a API devolve `outOfOrder` (parada iniciada/chegada × parada da nota, próxima do roteiro)
+    e só grava com a confirmação explícita (`confirmOutOfOrder: true`); o app mostra o diálogo, o bot o 1/2;
+  - canhoto repetido (RF26) — hash do conteúdo checado na API antes de anexar, em qualquer canal;
+  - "é canhoto?" (RF23) — mesma conferência para a foto do canhoto enviada pelo app;
+  - localização opcional no "Iniciar rota" e no "Cheguei" (RF24) — o app já pede a do aparelho; o bot pede pelo clipe.
 - **RF20** — Corrige o defeito de hoje: no grupo, a entrega em preparo grava sempre em nome do motorista dono do
   grupo, mesmo quando quem mandou "entreguei" é o atendente.
 
