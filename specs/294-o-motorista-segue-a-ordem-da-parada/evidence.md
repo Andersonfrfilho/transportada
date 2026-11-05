@@ -17,3 +17,20 @@
   "Substituída em parte por: ADR-0113".
 - `npx prettier@3 --check` nos arquivos alterados → todos formatados.
 - `grep -n "0113" docs/adr -r` → `0113-…md:1` e `0080-…md:6`.
+
+## Desvio do plano — contratos vermelhos (T0.2, T0.3, T0.4)
+
+Contrato vermelho registrado no `package.json` quebraria o gate por task. Cada task de contrato escreve o contrato
+primeiro, roda vermelho (módulo ausente), e escreve na mesma task a política **pura** que o deixa verde, sem ligar
+em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o começo de T4.3.
+
+## T0.2 — contrato e política da ordem da parada
+
+- Contrato `apps/api-transportada/test/trips/stop-event-sequence.contract.ts`, importado por
+  `test/trips.contract.test.ts` (já listado no `package.json`).
+- Vermelho: `bun --env-file=../../.env.test test ./test/trips.contract.test.ts` → `Cannot find module
+  '../../src/trips/domain/stop-event-sequence.policy.js'` (0 pass, 1 fail, 1 error).
+- Política `src/trips/domain/stop-event-sequence.policy.ts` (reusa `TripFieldChannel`).
+- Verde: mesmo comando → 147 pass, 0 fail.
+- Gates em `apps/api-transportada`: `bun run typecheck` limpo; `bun run lint` limpo; `bun run test` → 13139 pass,
+  35 skip, 0 fail; prettier nos arquivos alterados.
