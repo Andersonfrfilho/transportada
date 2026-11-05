@@ -399,9 +399,8 @@ describe('vocabulário da spec 228 na linha do tempo', () => {
     ).toThrow()
   })
 
-  it('recusa origem fora do vocabulário, deslocamento que não é número e chave a mais', () => {
+  it('recusa deslocamento que não é número e chave a mais', () => {
     const invalidChanges = [
-      { displacementMeters: 45, origin: 'invented' },
       { displacementMeters: '45', origin: 'operator' },
       { displacementMeters: -1, origin: 'operator' },
       { displacementMeters: Number.NaN, origin: 'operator' },

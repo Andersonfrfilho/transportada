@@ -21,7 +21,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T1.1** Linha do tempo aceita `recordedTogether` e o evento "endereço corrigido pelo motorista" sem
+- [x] **T1.1** Linha do tempo aceita `recordedTogether` e o evento "endereço corrigido pelo motorista" sem
       quebrar quando ausentes. Aceite: testes do painel (script `test`).
 
 ## Fase 2 — API: ordem dos eventos

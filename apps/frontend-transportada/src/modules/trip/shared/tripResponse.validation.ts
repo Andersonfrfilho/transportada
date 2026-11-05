@@ -15,7 +15,6 @@ import {
 } from './occurrence.constant'
 import {
   TRIP_FIELD_CHANNELS,
-  TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS,
   TRIP_TIMELINE_KINDS,
   TRIP_TIMELINE_LOCATION_STATES,
 } from './trip.types'
@@ -1683,7 +1682,7 @@ function isTimelineLocation(value: unknown): value is TripTimelineLocation {
 function isTimelineAddressChange(value: unknown): value is TripTimelineAddressChange {
   return (
     hasExactKeys(value, TRIP_TIMELINE_ADDRESS_CHANGE_KEYS) &&
-    isOneOf(value.origin, TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS) &&
+    isString(value.origin) &&
     (value.displacementMeters === null || isNonNegativeFiniteNumber(value.displacementMeters))
   )
 }
@@ -1716,6 +1715,7 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
   }
   return (
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
+    (value.recordedTogether === undefined || isBoolean(value.recordedTogether)) &&
     hasAddressChangeForKind(value) &&
     hasCrewTransferForKind(value) &&
     hasDocumentReleaseForKind(value) &&

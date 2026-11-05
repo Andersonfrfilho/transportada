@@ -48,3 +48,16 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Verde: mesmo comando → 166 pass, 0 fail.
 - Gates em `apps/api-transportada`: `bun run typecheck` limpo; `bun run lint` limpo; `bun run test` → 13158 pass,
   35 skip, 0 fail; prettier nos arquivos alterados.
+
+## T1.1 — painel tolerante a `recordedTogether` e à origem da correção do endereço
+
+- Contrato `apps/frontend-transportada/test/trip/timeline-recorded-together-tolerance.contract.ts`, importado por
+  `test/trip.contract.test.ts` (já na lista do `package.json`): campo ausente, `true`, `false`, não booleano
+  (recusa), origem `driver`, origem desconhecida (rótulo neutro), kind desconhecido (descartado).
+- Vermelho: antes da implementação o chip `together` e a origem livre não existiam (falha de tipo/asserção).
+- `recordedTogether?: boolean` opcional no item (`TRIP_TIMELINE_ITEM_OPTIONAL_KEYS`); chip "Marcada junto" com
+  dica; `addressChange.origin` passou a texto livre na leitura, origem fora do vocabulário cai em
+  `origin.unknown`; `origin.driver` = "Endereço corrigido pela chegada do motorista".
+- Ajuste: `timeline.contract.ts` deixou de exigir recusa de origem `invented` (decisão da 294: tolerar).
+- Gates em `apps/frontend-transportada`: `bun run typecheck` limpo; `bun run lint` 0 errors (16 warnings
+  antigos); `bun run test` → 8632 pass, 0 fail + 1438 pass, 0 fail; `bun run build` ok; prettier nos alterados.

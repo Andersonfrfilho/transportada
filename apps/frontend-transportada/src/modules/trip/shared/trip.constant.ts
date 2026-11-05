@@ -627,6 +627,7 @@ export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
   /** Opcional enquanto a API anterior ao campo não o manda; depois da promoção vira obrigatório. */
   'isSystemActor',
   'lateRegistration',
+  'recordedTogether',
 ] as const
 
 /** A retirada da nota: chave exata, nenhuma opcional. */

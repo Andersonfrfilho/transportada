@@ -857,9 +857,10 @@
       },
       "origin": {
         "contractor": "Corrected by the contractor",
-        "driver": "Corrected by the driver",
+        "driver": "Address corrected by the driver's arrival",
         "operator": "Corrected by the office",
-        "refinement": "Precision refinement"
+        "refinement": "Precision refinement",
+        "unknown": "Unknown origin"
       }
     },
     "attachmentCount_one": "{{count}} photo attached",
@@ -952,6 +953,8 @@
     "chip": {
       "recordedLater": "recorded {{duration}} later",
       "recordedLaterUnknown": "recorded later",
+      "recordedTogether": "Marked together",
+      "recordedTogetherHint": "The driver skipped this step; it was recorded together with the next event.",
       "stop": "Stop {{sequence}}",
       "transition": "{{from}} → {{to}}"
     },
