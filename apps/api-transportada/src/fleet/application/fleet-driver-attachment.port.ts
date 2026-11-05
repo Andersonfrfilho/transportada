@@ -52,6 +52,11 @@ export type FleetDriverAttachmentRepositoryPort = Readonly<{
 }>
 
 export type FleetDriverAttachmentStoragePort = Readonly<{
+  createSignedDownload: (input: {
+    readonly bucket: string
+    readonly expiresInSeconds: number
+    readonly key: string
+  }) => Promise<URL>
   deleteObject: (input: { readonly bucket: string; readonly key: string }) => Promise<void>
   storeObject: (input: {
     readonly body: Uint8Array

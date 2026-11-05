@@ -25,6 +25,11 @@ const PATH = `/fleet/drivers/${DRIVER_ID}/attachments`
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34])
 const READ_ONLY: CompanyContext['permissions'] = new Set(['fleet.read'] as const)
 const MANAGE: CompanyContext['permissions'] = new Set(['fleet.read', 'fleet.manage'] as const)
+const REVEAL: CompanyContext['permissions'] = new Set([
+  'fleet.read',
+  'fleet.manage',
+  'fleet.reveal',
+] as const)
 
 function createFixture(
   input: {
@@ -46,6 +51,10 @@ function createFixture(
     },
     async remove(request) {
       calls.push({ input: { ...request }, kind: 'remove' })
+    },
+    async reveal(request) {
+      calls.push({ input: { ...request }, kind: 'reveal' })
+      return { url: 'https://bucket.example.test/signed?expires=300' }
     },
   }
   const handleRequest = createRequestHandler({
@@ -179,5 +188,55 @@ describe('as rotas do documento do motorista (spec 091 T010)', () => {
       input: { attachmentId: ATTACHMENT_ID, driverId: DRIVER_ID },
       kind: 'remove',
     })
+  })
+})
+
+describe('o conteúdo do documento do motorista (spec 091 T011)', () => {
+  const CONTENT_PATH = `${PATH}/${ATTACHMENT_ID}/content`
+
+  /** Contrato negativo: anexar não dá o direito de abrir — é a razão de `fleet.reveal` existir. */
+  test('fleet.manage sem fleet.reveal recebe 403 e nada é assinado', async () => {
+    const fixture = createFixture({ permissions: MANAGE })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: CONTENT_PATH }))
+
+    expect(response.status).toBe(403)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('quem só lê a frota também recebe 403', async () => {
+    const fixture = createFixture({ permissions: READ_ONLY })
+
+    expect((await fixture.handle(jsonRequest({ method: 'GET', path: CONTENT_PATH }))).status).toBe(
+      403,
+    )
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('fleet.reveal recebe a URL assinada, nunca o corpo, e sem cache', async () => {
+    const fixture = createFixture({ permissions: REVEAL })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: CONTENT_PATH }))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await responseData(response)).toEqual({
+      url: 'https://bucket.example.test/signed?expires=300',
+    })
+    expect(fixture.calls[0]).toMatchObject({
+      input: { attachmentId: ATTACHMENT_ID, driverId: DRIVER_ID },
+      kind: 'reveal',
+    })
+  })
+
+  test('a permissão de revelar não abre as rotas de escrita', async () => {
+    const fixture = createFixture({ permissions: new Set(['fleet.reveal'] as const) })
+
+    expect((await fixture.handle(uploadRequest({}))).status).toBe(403)
+    expect(
+      (await fixture.handle(jsonRequest({ method: 'DELETE', path: `${PATH}/${ATTACHMENT_ID}` })))
+        .status,
+    ).toBe(403)
+    expect(fixture.calls).toEqual([])
   })
 })

@@ -42,6 +42,7 @@ function buildFixture(
   const created: CreateFleetDriverAttachmentInput[] = []
   const stored: { readonly contentType: string; readonly key: string }[] = []
   const deletedKeys: string[] = []
+  const signed: { readonly expiresInSeconds: number; readonly key: string }[] = []
 
   const repository: FleetDriverAttachmentRepositoryPort = {
     async create(input) {
@@ -70,6 +71,10 @@ function buildFixture(
     bucket: 'bucket',
     repository,
     storage: {
+      async createSignedDownload(input) {
+        signed.push({ expiresInSeconds: input.expiresInSeconds, key: input.key })
+        return new URL('https://bucket.example.test/signed')
+      },
       async deleteObject({ key }) {
         events.push('delete-object')
         deletedKeys.push(key)
@@ -81,7 +86,7 @@ function buildFixture(
       },
     },
   })
-  return { created, deletedKeys, events, stored, useCase }
+  return { created, deletedKeys, events, signed, stored, useCase }
 }
 
 function attach(
@@ -200,5 +205,34 @@ describe('anexo do motorista — remover', () => {
     ).rejects.toBeInstanceOf(FleetDriverAttachmentNotFoundError)
 
     expect(fixture.events).toEqual([])
+  })
+})
+
+describe('anexo do motorista — revelar', () => {
+  test('assina o objeto do anexo por prazo curto e devolve só a URL', async () => {
+    const fixture = buildFixture()
+
+    const result = await fixture.useCase.reveal({
+      attachmentId: ATTACHMENT_ID,
+      companyId: COMPANY_ID,
+      driverId: DRIVER_ID,
+    })
+
+    expect(result).toEqual({ url: 'https://bucket.example.test/signed' })
+    expect(fixture.signed).toEqual([{ expiresInSeconds: 300, key: LOCATION.objectKey }])
+  })
+
+  test('anexo que não é deste motorista e empresa é 404 e nada é assinado', async () => {
+    const fixture = buildFixture({ location: null })
+
+    await expect(
+      fixture.useCase.reveal({
+        attachmentId: ATTACHMENT_ID,
+        companyId: COMPANY_ID,
+        driverId: DRIVER_ID,
+      }),
+    ).rejects.toBeInstanceOf(FleetDriverAttachmentNotFoundError)
+
+    expect(fixture.signed).toEqual([])
   })
 })

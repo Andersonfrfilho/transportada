@@ -1,10 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 091 R2: o documento do motorista na ficha da frota. Anexar e remover é `fleet.manage`.
+ * Spec 091 R2: o documento do motorista na ficha da frota. Anexar e remover é `fleet.manage`; abrir o
+ * arquivo é `fleet.reveal`, que nenhuma rota de escrita aceita no lugar de `fleet.manage`.
  */
 import { defineRoute } from '../../http/router.service.js'
 import {
+  API_FLEET_DRIVER_ATTACHMENT_CONTENT_PATH,
   API_FLEET_DRIVER_ATTACHMENT_PATH,
   API_FLEET_DRIVER_ATTACHMENTS_PATH,
   JSON_CONTENT_TYPE,
@@ -17,7 +19,9 @@ import {
 } from './fleet-driver-attachment.schema.js'
 
 const FLEET_MANAGE_POLICY = { permission: 'fleet.manage', scope: 'company' } as const
+const FLEET_REVEAL_POLICY = { permission: 'fleet.reveal', scope: 'company' } as const
 const CREATED_STATUS = 201
+const OK_STATUS = 200
 const NO_CONTENT_STATUS = 204
 
 type Dependencies = { readonly attachments: FleetDriverAttachmentUseCase }
@@ -67,6 +71,27 @@ export function createFleetDriverAttachmentRoutes(
       }),
       pathname: API_FLEET_DRIVER_ATTACHMENT_PATH,
       policy: FLEET_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly attachmentId: string; readonly driverId: string }>({
+      /** A URL assinada, e nunca o corpo: a API não serve o documento, e o link morre em minutos. */
+      async handle({ context, input }): Promise<Response> {
+        const revealed = await attachments.reveal({
+          attachmentId: input.attachmentId,
+          companyId: context.scope.companyId,
+          driverId: input.driverId,
+        })
+        return new Response(JSON.stringify({ data: revealed }), {
+          headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
+          status: OK_STATUS,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        attachmentId: parseUuidPathIdentifier(pathParameters.attachmentId ?? ''),
+        driverId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: API_FLEET_DRIVER_ATTACHMENT_CONTENT_PATH,
+      policy: FLEET_REVEAL_POLICY,
     }),
   ]
 }

@@ -23,6 +23,9 @@ type Dependencies = {
   readonly storage: FleetDriverAttachmentStoragePort
 }
 
+/** Vida curta: o link é uma credencial para o documento de uma pessoa, e não vira endereço. */
+const REVEAL_EXPIRY_SECONDS = 300
+
 export type FleetDriverAttachmentUseCase = Readonly<{
   attach: (input: {
     readonly bytes: Uint8Array
@@ -38,6 +41,11 @@ export type FleetDriverAttachmentUseCase = Readonly<{
     readonly companyId: string
     readonly driverId: string
   }) => Promise<void>
+  reveal: (input: {
+    readonly attachmentId: string
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<{ readonly url: string }>
 }>
 
 export function createFleetDriverAttachmentUseCase(
@@ -107,6 +115,22 @@ export function createFleetDriverAttachmentUseCase(
         key: location.objectKey,
       })
       await dependencies.repository.remove({ attachmentId, companyId, driverId })
+    },
+
+    async reveal({ attachmentId, companyId, driverId }) {
+      const location = await dependencies.repository.findLocation({
+        attachmentId,
+        companyId,
+        driverId,
+      })
+      if (location === null) throw new FleetDriverAttachmentNotFoundError()
+
+      const url = await dependencies.storage.createSignedDownload({
+        bucket: location.bucket,
+        expiresInSeconds: REVEAL_EXPIRY_SECONDS,
+        key: location.objectKey,
+      })
+      return { url: url.toString() }
     },
   }
 }
