@@ -106,21 +106,72 @@ function normalizeAnswer(text: string): string {
     .replace(/^(1|2) (sim|nao)$/u, '$1')
 }
 
-/** Spec 292 T9: o "sim"/"não" falado chega como frase curta ("Sim, pode seguir.", "Um."): vale a primeira palavra. */
-const SPOKEN_YES = new Set([...YES, 'um', 'correto', 'exato', 'isso mesmo', 'segue', 'pode seguir'])
-const SPOKEN_NO = new Set([...NO, 'dois', 'errado', 'nao esta', 'descarta'])
-const SPOKEN_ANSWER_MAX_WORDS = 6
+/**
+ * O "sim"/"não" falado só vale quando a fala inteira é uma resposta curta ("Sim, pode seguir.", "Um.",
+ * "Não descarta."). Fala longa, com palavra fora do vocabulário ou com sim e não juntos não responde:
+ * é um áudio novo ("não entendeu a palavra sim" não é um "sim").
+ */
+const SPOKEN_YES_WORDS = new Set([
+  '1',
+  'um',
+  'sim',
+  's',
+  'ok',
+  'isso',
+  'mesmo',
+  'certo',
+  'correto',
+  'exato',
+  'claro',
+  'confirmo',
+  'confirma',
+  'pode',
+  'seguir',
+  'segue',
+])
+const SPOKEN_NO_WORDS = new Set([
+  '2',
+  'dois',
+  'nao',
+  'n',
+  'errado',
+  'descarta',
+  'descartar',
+  'cancelar',
+])
+const SPOKEN_NEUTRAL_WORDS = new Set(['esta', 'e', 'o', 'a', 'por', 'favor'])
+const SPOKEN_STRONG_YES_WORDS = new Set([
+  '1',
+  'um',
+  'sim',
+  's',
+  'ok',
+  'isso',
+  'claro',
+  'exato',
+  'confirmo',
+])
+const SPOKEN_ANSWER_MAX_WORDS = 4
 
 function spokenAnswer(text: string): 'no' | 'unknown' | 'yes' {
   const words = normalizeAnswer(text)
     .split(' ')
     .filter((word) => word !== '')
   if (words.length === 0 || words.length > SPOKEN_ANSWER_MAX_WORDS) return 'unknown'
-  const first = words[0] ?? ''
-  const pair = words.slice(0, 2).join(' ')
-  if (SPOKEN_NO.has(first) || SPOKEN_NO.has(pair)) return 'no'
-  if (SPOKEN_YES.has(first) || SPOKEN_YES.has(pair)) return 'yes'
-  return 'unknown'
+  const known = (word: string) =>
+    SPOKEN_YES_WORDS.has(word) || SPOKEN_NO_WORDS.has(word) || SPOKEN_NEUTRAL_WORDS.has(word)
+  if (!words.every(known)) return 'unknown'
+  const hasNo = words.some((word) => SPOKEN_NO_WORDS.has(word))
+  const hasYes = words.some((word) => SPOKEN_YES_WORDS.has(word))
+  if (hasNo && !hasYes) return 'no'
+  if (hasYes && !hasNo) return 'yes'
+  if (!hasNo && !hasYes) return 'unknown'
+  // "Não está certo", "não pode seguir": a negação na frente vence as palavras de acerto fracas.
+  const negated =
+    words[0] === 'nao' &&
+    words.filter((word) => SPOKEN_NO_WORDS.has(word)).length === 1 &&
+    !words.some((word) => SPOKEN_STRONG_YES_WORDS.has(word))
+  return negated ? 'no' : 'unknown'
 }
 
 /**
@@ -178,6 +229,15 @@ export type WhatsAppBotAudio<Context> = {
     readonly spoken?: boolean
     readonly text: string
   }): BotAudioAnswer<Context>
+  /**
+   * "Cancelar" de quem falou: descarta o áudio pendente dele e marca as transcrições dele em andamento
+   * nesta conversa como descartadas (a que terminar depois não responde nada). `true` se havia algo.
+   */
+  cancel(input: {
+    readonly companyId: string
+    readonly conversation: string
+    readonly owner: string
+  }): boolean
   /** Há áudio esperando a confirmação desta pessoa nesta conversa? */
   hasPending(input: {
     readonly companyId: string
@@ -192,6 +252,8 @@ export type WhatsAppBotAudio<Context> = {
    */
   listen(input: {
     readonly companyId: string
+    readonly conversation: string
+    readonly owner: string
     readonly download: () => Promise<{ readonly data: string; readonly mimeType: string }>
     readonly mimeType: string
     readonly onText: (text: string) => Promise<void>
@@ -239,9 +301,31 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
   /** O áudio mais novo de cada conversa vence: o anterior que terminar depois é descartado. */
   const latest = new Map<string, number>()
   const running = new Set<Promise<void>>()
+  /** Transcrições em andamento e cancelamentos, por conversa e pessoa: o cancelamento vale para as que já saíram. */
+  const activeJobs = new Map<string, number>()
+  const cancelEpochs = new Map<string, number>()
   let sequence = 0
 
   const keyOf = (companyId: string, conversation: string) => `${companyId}:${conversation}`
+
+  /** Abre uma transcrição: `isCancelled()` vira `true` se a pessoa cancelar depois; `end()` fecha. */
+  function beginJob(ownerKey: string): {
+    readonly end: () => void
+    readonly isCancelled: () => boolean
+  } {
+    const epoch = cancelEpochs.get(ownerKey) ?? 0
+    activeJobs.set(ownerKey, (activeJobs.get(ownerKey) ?? 0) + 1)
+    return {
+      end: () => {
+        const left = (activeJobs.get(ownerKey) ?? 1) - 1
+        if (left <= 0) {
+          activeJobs.delete(ownerKey)
+          cancelEpochs.delete(ownerKey)
+        } else activeJobs.set(ownerKey, left)
+      },
+      isCancelled: () => (cancelEpochs.get(ownerKey) ?? 0) !== epoch,
+    }
+  }
 
   function current(key: string, owner: string): Pending<Context> | undefined {
     const entry = pending.get(key)
@@ -257,6 +341,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
     input: ReceiveBotAudioInput<Context>,
     key: string,
     ticket: number,
+    isCancelled: () => boolean,
   ): Promise<void> {
     if (transcriber === undefined) return
     let audio: { readonly data: string; readonly mimeType: string }
@@ -267,6 +352,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
         companyId: input.companyId,
         errorName: error instanceof Error ? error.name : typeof error,
       })
+      if (isCancelled()) return
       await input.reply([BOT_AUDIO_SPEECH.downloadFailed])
       return
     }
@@ -285,10 +371,11 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
         companyId: input.companyId,
         reason: error instanceof Error ? error.message : typeof error,
       })
+      if (isCancelled()) return
       await input.reply([BOT_AUDIO_SPEECH.failed])
       return
     }
-    if (latest.get(key) !== ticket) return
+    if (latest.get(key) !== ticket || isCancelled()) return
     if (text === '' || /^\[.*\]$/u.test(text)) {
       // O whisper marca silêncio e ruído entre colchetes ("[BLANK_AUDIO]", "[Música]").
       await input.reply([BOT_AUDIO_SPEECH.empty])
@@ -304,6 +391,8 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
     }
     const heard = text
     text = joinSpokenNotePairs(heard)
+    const shown = botAudioConfirmationText(text, await detailsOf(input.details, text), heard)
+    if (latest.get(key) !== ticket || isCancelled()) return
     pending.set(key, {
       context: input.context,
       expiresAt: clock() + PENDING_TTL_MS,
@@ -315,7 +404,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
       companyId: input.companyId,
       characters: text.length,
     })
-    await input.reply([botAudioConfirmationText(text, await detailsOf(input.details, text), heard)])
+    await input.reply([shown])
   }
 
   function track(job: Promise<void>): void {
@@ -326,6 +415,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
   return {
     listen(input) {
       if (transcriber === undefined) return
+      const job = beginJob(`${keyOf(input.companyId, input.conversation)}:${input.owner}`)
       track(
         (async () => {
           try {
@@ -338,13 +428,15 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
                 .replace(/\s+/gu, ' ')
                 .trim(),
             )
-            if (text === '' || /^\[.*\]$/u.test(text)) return
+            if (text === '' || /^\[.*\]$/u.test(text) || job.isCancelled()) return
             await input.onText(text)
           } catch (error) {
             logger.info('whatsapp_bot_audio.listen_failed', {
               companyId: input.companyId,
               errorName: error instanceof Error ? error.name : typeof error,
             })
+          } finally {
+            job.end()
           }
         })(),
       )
@@ -381,6 +473,15 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
       // Escreveu outra coisa: o áudio sai de cena e a mensagem segue como qualquer outra.
       return { kind: 'none' }
     },
+    cancel({ companyId, conversation, owner }) {
+      const key = keyOf(companyId, conversation)
+      const ownerKey = `${key}:${owner}`
+      const hadPending = current(key, owner) !== undefined
+      if (hadPending) pending.delete(key)
+      const inFlight = (activeJobs.get(ownerKey) ?? 0) > 0
+      if (inFlight) cancelEpochs.set(ownerKey, (cancelEpochs.get(ownerKey) ?? 0) + 1)
+      return hadPending || inFlight
+    },
     hasPending({ companyId, conversation, owner }) {
       return current(keyOf(companyId, conversation), owner) !== undefined
     },
@@ -401,8 +502,14 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
       sequence += 1
       const ticket = sequence
       latest.set(key, ticket)
-      await input.reply([BOT_AUDIO_SPEECH.received])
-      const job = transcribeAndAsk(input, key, ticket)
+      const guard = beginJob(`${key}:${input.owner}`)
+      try {
+        await input.reply([BOT_AUDIO_SPEECH.received])
+      } catch (error) {
+        guard.end()
+        throw error
+      }
+      const job = transcribeAndAsk(input, key, ticket, guard.isCancelled)
         .catch((error: unknown) => {
           logger.warn('whatsapp_bot_audio.failed', {
             companyId: input.companyId,
@@ -410,6 +517,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
           })
         })
         .finally(() => {
+          guard.end()
           running.delete(job)
           if (latest.get(key) === ticket) latest.delete(key)
         })
