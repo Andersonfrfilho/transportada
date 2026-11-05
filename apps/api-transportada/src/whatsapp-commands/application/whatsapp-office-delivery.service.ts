@@ -20,7 +20,8 @@ export type WhatsAppOfficeDeliveryPorts = {
     readonly actorUserId: string
     readonly companyId: string
     readonly documentId: string
-    readonly driverId: string
+    /** Ausente (conversa individual): o motorista efetivo da viagem da nota. */
+    readonly driverId?: string
     readonly idempotencyKey: string
   }) => Promise<{
     readonly alreadySettled: boolean
@@ -32,7 +33,10 @@ export type WhatsAppOfficeDeliveryPorts = {
 
 export async function deliverWhatsAppOfficeDocument(
   ports: WhatsAppOfficeDeliveryPorts,
-  input: WhatsAppDocumentEventInput,
+  input: Omit<WhatsAppDocumentEventInput, 'driverId' | 'location'> & {
+    readonly driverId?: string
+    readonly location?: WhatsAppDocumentEventInput['location']
+  },
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.deliver
   return settleWhatsAppDriverEvent(event, async () =>
@@ -42,7 +46,7 @@ export async function deliverWhatsAppOfficeDocument(
         actorUserId: input.actorUserId,
         companyId: input.companyId,
         documentId: input.documentId,
-        driverId: input.driverId,
+        ...(input.driverId === undefined ? {} : { driverId: input.driverId }),
         idempotencyKey: input.idempotencyKey,
       }),
     ),

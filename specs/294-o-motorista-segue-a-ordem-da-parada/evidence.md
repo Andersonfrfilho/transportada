@@ -117,3 +117,23 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Pendente: conversa individual (viagem pelo número da nota ou pela lista de viagens na rua).
 - Gates: typecheck e lint limpos; contrato da API sem falhas; prettier ok. Integração não rodada (outro worktree usava o
   Postgres de teste).
+
+## T4.5/T4.6 (conversa individual) — o atendente direto com o bot (RF18, RF19, RF21)
+
+- Ramo novo no grafo raiz (`buildAttendantFieldFlowNodes`): `attendant_field_command`, lista de viagens na rua
+  (`attendant_trip_entry/router`) e confirmação `✅ 1 - Sim / ❌ 2 - Não` (`attendant_close_menu/router`). O despachante
+  (`runAttendantFieldCommand`) leva o texto "entreguei 17234 17235" / "encerrar a rota [NF]" ao nó, só para quem tem
+  `trip.report-on-behalf` e não é motorista cadastrado (motorista segue as regras de motorista). Grafo publicado antes
+  da 294 não tem o nó e segue como antes até a republicação: **publicar o grafo** (`scripts/whatsapp-flow-publish.ts`) no
+  deploy, sob aprovação — não foi publicado em staging nem produção.
+- Baixa: acha as notas (NF) nas viagens na rua, mesmo de viagens diferentes, e baixa pela função do escritório
+  (`deliverByDocument`, motorista efetivo da viagem, autoria `office`, ator = usuário do atendente). Sem prova, "conclui sem
+  canhoto e cobra depois". Resumo por situação.
+- Encerrar: viagem pela NF ou pela lista das viagens na rua (várias viagens valem aqui); a mesma função de
+  `POST /trips/:id/close` pela ponte; confirmação diz quantas notas seguem abertas.
+- Contagem de notas abertas (grupo e individual): `countOpenTripDocumentsForClose` (`trip-close.policy.ts`), a regra do
+  servidor — nota liberada não conta. No grupo continua uma viagem ativa por motorista.
+- Contratos: `test/whatsapp-commands/attendant-field-actions.contract.ts` (comando, lote, encerrar por NF/lista/uma só,
+  confirmação, falha, nós do grafo) e `group-attendant-close.contract.ts` (contagem pela regra do servidor).
+- Gates: typecheck e lint limpos; contrato da API sem falhas; prettier ok. Integração: não rodada (suíte completa em
+  execução no worktree spec-294).

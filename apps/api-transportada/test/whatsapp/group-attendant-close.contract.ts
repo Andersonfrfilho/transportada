@@ -25,6 +25,7 @@ import {
   type GroupTripCloseFlowPorts,
 } from '../../src/whatsapp/application/whatsapp-group-trip-close-flow.service.js'
 import { createWhatsAppSenderRoleResolver } from '../../src/whatsapp/application/whatsapp-sender-role.service.js'
+import { createWhatsAppGroupTripClosePorts } from '../../src/whatsapp/infrastructure/whatsapp-group-trip-close.adapter.js'
 
 const CREW = '5516988887777'
 const ATTENDANT = '5516977776666'
@@ -259,5 +260,26 @@ describe('encerrar a rota (RF21)', () => {
   test('todas as notas fechadas: a pergunta diz isso', async () => {
     expect(GROUP_TRIP_CLOSE_TEXT.confirm(0)).toContain('Todas as notas já estão fechadas')
     expect(GROUP_TRIP_CLOSE_TEXT.confirm(1)).toContain('há 1 nota em aberto')
+  })
+})
+
+describe('contagem de notas abertas é a regra do servidor (trip-close.policy)', () => {
+  const ports = (documents: { releasedAt: null | string; separationStatus: string }[]) =>
+    createWhatsAppGroupTripClosePorts({
+      bridge: {},
+      listActiveTrips: async () => [{ id: 'T1', status: 'on_delivery_route', stops: [] } as never],
+      readCloseDocuments: async () => documents as never,
+      resolveActor: async () => ({ reason: 'unknown_phone', status: 'denied' }),
+      resolveSenderRole,
+    })
+
+  test('nota liberada e nota fechada não contam como abertas', async () => {
+    const result = await ports([
+      { releasedAt: null, separationStatus: 'loaded' },
+      { releasedAt: '2026-11-01T10:00:00.000Z', separationStatus: 'loaded' },
+      { releasedAt: null, separationStatus: 'delivered' },
+      { releasedAt: null, separationStatus: 'returned' },
+    ]).findActiveTrip({ companyId: 'C1', driverId: 'D1' })
+    expect(result).toEqual({ kind: 'one', openDocumentCount: 1, tripId: 'T1' })
   })
 })

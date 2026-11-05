@@ -15,6 +15,7 @@ import { resolveFieldTripTarget } from '../../trips/application/resolve-field-tr
 import { FIELD_TRIP_TARGET_KIND } from '../../trips/application/field-trip-target.types.js'
 import type { TripFieldOfficeDocumentDependencies } from '../../trips/presentation/trip-field-office-document.routes.js'
 import { TripDocumentNotReachableError } from '../../trips/domain/trip.error.js'
+import type { WhatsAppDriverEventResult } from '../application/whatsapp-driver-events.service.js'
 import {
   deliverWhatsAppOfficeDocument,
   type WhatsAppOfficeDeliveryPorts,
@@ -39,13 +40,20 @@ export function createWhatsAppOfficeDelivery(dependencies: {
 }): {
   readonly attachProof: WhatsAppDeliveryPreparationPorts['attachProof']
   readonly deliver: WhatsAppDeliveryPreparationPorts['deliver']
+  /** Conversa individual: sem motorista no pedido, vale o efetivo da viagem da nota. */
+  readonly deliverByDocument: (input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly documentId: string
+    readonly idempotencyKey: string
+  }) => Promise<WhatsAppDriverEventResult>
 } {
   async function resolveContext(input: {
     readonly action: string
     readonly actorUserId: string
     readonly companyId: string
     readonly documentId: string
-    readonly driverId: string
+    readonly driverId?: string
     readonly idempotencyKey: string
   }) {
     const [row] = await dependencies.database
@@ -59,7 +67,11 @@ export function createWhatsAppOfficeDelivery(dependencies: {
     const target = await resolveFieldTripTarget({
       companyId: input.companyId,
       repository: dependencies.targets,
-      target: { driverId: input.driverId, kind: FIELD_TRIP_TARGET_KIND.trip, tripId: row.tripId },
+      target: {
+        ...(input.driverId === undefined ? {} : { driverId: input.driverId }),
+        kind: FIELD_TRIP_TARGET_KIND.trip,
+        tripId: row.tripId,
+      },
     })
     return {
       actorUserId: input.actorUserId,
@@ -103,5 +115,6 @@ export function createWhatsAppOfficeDelivery(dependencies: {
         },
       }),
     deliver: (input) => deliverWhatsAppOfficeDocument(ports, input),
+    deliverByDocument: (input) => deliverWhatsAppOfficeDocument(ports, input),
   }
 }

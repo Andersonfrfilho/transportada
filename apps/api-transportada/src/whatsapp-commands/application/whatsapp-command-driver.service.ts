@@ -39,6 +39,12 @@ import {
   DRIVER_FLOW_CONTEXT_KEY,
   DRIVER_FLOW_NODE,
 } from '../domain/whatsapp-driver-flow.constant.js'
+import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../../trips/domain/trip-permission.constant.js'
+import {
+  ATTENDANT_FLOW_CONTEXT_KEY,
+  ATTENDANT_FLOW_NODE,
+} from '../domain/whatsapp-attendant-flow.constant.js'
+import { interpretAttendantFieldCommand } from './register-attendant-field-flow-actions.js'
 import { interpretWhatsAppDriverEventCommand } from '../domain/whatsapp-driver-event-command.policy.js'
 import { parseMenuPageNavigation } from '../domain/whatsapp-menu.policy.js'
 import { filterWhatsAppRootFlowGraph } from '../domain/whatsapp-root-menu.policy.js'
@@ -207,7 +213,9 @@ async function dispatch(incoming: WhatsAppCommandTurn): Promise<MessageHookOutco
   }
   if (proofActor !== null && (await acceptDeliveryProof({ proofActor, turn }))) return HANDLED
 
-  await guardConversation(turn, () => advanceConversation(turn, actor.context.scope.permissions))
+  await guardConversation(turn, () =>
+    advanceConversation(turn, actor.context.scope.permissions, proofActor !== null),
+  )
   return HANDLED
 }
 
@@ -407,6 +415,7 @@ async function guardConversation(
 async function advanceConversation(
   turn: WhatsAppCommandTurn,
   permissions: ReadonlySet<string>,
+  isRegisteredDriver: boolean,
 ): Promise<void> {
   const position = await turn.deps.sessions.getContext(turn.session.companyId, turn.phone)
   const context = position?.context ?? {}
@@ -415,6 +424,12 @@ async function advanceConversation(
   if (graph === undefined) return
 
   if (await runDirectDriverCommand({ context, graph, located, permissions, turn })) return
+  if (
+    !isRegisteredDriver &&
+    (await runAttendantFieldCommand({ context, graph, located, permissions, turn }))
+  ) {
+    return
+  }
 
   if (located === undefined) {
     await runWhatsAppFlow({
@@ -507,6 +522,45 @@ async function runDirectDriverCommand(input: {
         [DRIVER_FLOW_CONTEXT_KEY.directCommand]: command,
       },
       currentNodeId: DRIVER_FLOW_NODE.directCommand,
+      graph,
+      userAnswer: undefined,
+    },
+    hopsLeft: WHATSAPP_MAX_CROSS_FLOW_HOPS,
+    turn,
+  })
+  return true
+}
+
+/**
+ * Spec 294 RF21: o comando do atendente ("entreguei 17234 17235", "encerrar a rota") no texto livre.
+ * Mesmas condições do comando do motorista (só onde ninguém responde outra pergunta); a FlowAction
+ * reconfere a permissão da baixa do escritório. Quem é motorista cadastrado segue as regras de motorista.
+ */
+async function runAttendantFieldCommand(input: {
+  readonly context: Record<string, unknown>
+  readonly graph: FlowGraphData
+  readonly located: { readonly node: FlowNodeData } | undefined
+  readonly permissions: ReadonlySet<string>
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { context, graph, located, permissions, turn } = input
+  if (!permissions.has(TRIP_REPORT_ON_BEHALF_PERMISSION)) return false
+  const text = turn.message.text?.body
+  if (text === undefined) return false
+  const nodeId = located?.node.id
+  if (nodeId !== undefined && nodeId !== graph.startNodeId) return false
+  // Grafo publicado antes da spec 294 não tem o nó: segue o fluxo de sempre até a republicação.
+  if (graph.nodes[ATTENDANT_FLOW_NODE.fieldCommand] === undefined) return false
+  const command = interpretAttendantFieldCommand(text)
+  if (command === undefined) return false
+
+  await runWhatsAppFlow({
+    cursor: {
+      context: {
+        ...withoutInvalidAttempts(context),
+        [ATTENDANT_FLOW_CONTEXT_KEY.fieldCommand]: command,
+      },
+      currentNodeId: ATTENDANT_FLOW_NODE.fieldCommand,
       graph,
       userAnswer: undefined,
     },
@@ -652,7 +706,7 @@ async function verifyEntry(input: {
     await denyTurn({ reason: actor.reason, turn })
     return
   }
-  await advanceConversation(turn, actor.context.scope.permissions)
+  await advanceConversation(turn, actor.context.scope.permissions, false)
 }
 
 function readVerificationCode(message: WhatsAppCommandTurn['message']): string | undefined {

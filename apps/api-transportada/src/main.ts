@@ -228,7 +228,14 @@ import {
 import {
   createWhatsAppGroupTripClosePorts,
   type WhatsAppTripCloseBridge,
+  WHATSAPP_TRIP_CLOSE_AUDIT_ORIGIN,
+  WHATSAPP_TRIP_CLOSE_REASON,
 } from './whatsapp/infrastructure/whatsapp-group-trip-close.adapter.js'
+import { createAttendantFieldFlowActions } from './whatsapp-commands/application/register-attendant-field-flow-actions.js'
+import {
+  listAttendantRoadTrips,
+  listTripCloseDocuments,
+} from './whatsapp-commands/infrastructure/whatsapp-attendant-field.adapter.js'
 import { createWhatsAppOfficeDelivery } from './whatsapp-commands/infrastructure/whatsapp-office-delivery.adapter.js'
 import {
   createAttendantFinder,
@@ -1626,6 +1633,7 @@ export function bootstrap(): Bun.Server<undefined> {
     bridge: whatsappTripCloseBridge,
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
     logger,
+    readCloseDocuments: (input) => listTripCloseDocuments(database.db, input),
     resolveActor: whatsappResolveActor,
     resolveSenderRole: whatsappSenderRole,
   })
@@ -1695,6 +1703,22 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappTripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database.db)
   const whatsappTripRouteRepository = new DrizzleTripRouteRepository(database.db)
   const whatsappWarehouseTripRepository = new DrizzleWarehouseTripRepository(database.db)
+  /** Spec 294 RF21: o atendente direto com o bot — mesmas funções do escritório (baixa e encerrar viagem). */
+  const attendantWhatsAppFlowActions = createAttendantFieldFlowActions({
+    closeTrip: async ({ context, tripId }) => {
+      const close = whatsappTripCloseBridge.close
+      if (close === undefined) throw new Error('trip close is not available')
+      return close({
+        context,
+        correlationId: crypto.randomUUID(),
+        ipAddress: WHATSAPP_TRIP_CLOSE_AUDIT_ORIGIN,
+        reason: WHATSAPP_TRIP_CLOSE_REASON,
+        tripId,
+      })
+    },
+    deliverDocument: (input) => whatsappOfficeDelivery.deliverByDocument(input),
+    listRoadTrips: (input) => listAttendantRoadTrips(database.db, input),
+  })
   const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
     speech: whatsappBotSpeech,
     /**
@@ -2005,6 +2029,7 @@ export function bootstrap(): Bun.Server<undefined> {
     flowActions: [
       ...driverWhatsAppFlowActions,
       ...operatorWhatsAppFlowActions,
+      ...attendantWhatsAppFlowActions,
       ...issuanceWhatsAppFlowActions,
     ],
     /**

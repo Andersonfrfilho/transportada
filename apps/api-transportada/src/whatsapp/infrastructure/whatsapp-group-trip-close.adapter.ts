@@ -8,6 +8,10 @@
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { DriverTrip } from '../../trips/application/find-current-driver-trip.use-case.js'
+import {
+  countOpenTripDocumentsForClose,
+  type TripCloseDocumentState,
+} from '../../trips/domain/trip-close.policy.js'
 import type { CloseTripInput } from '../../trips/application/trip.use-case.js'
 import type {
   ResolveWhatsAppActorParams,
@@ -21,11 +25,9 @@ export type WhatsAppTripCloseBridge = {
   close?: (input: CloseTripInput) => Promise<unknown>
 }
 
-const CLOSE_REASON = 'Encerrada pelo atendente pelo WhatsApp.'
-const CLOSE_AUDIT_ORIGIN = 'whatsapp'
+export const WHATSAPP_TRIP_CLOSE_REASON = 'Encerrada pelo atendente pelo WhatsApp.'
+export const WHATSAPP_TRIP_CLOSE_AUDIT_ORIGIN = 'whatsapp'
 const CLOSE_FAILED = 'Não consegui encerrar a rota agora. Confira a viagem no painel.'
-
-const SETTLED_STATUSES = new Set(['delivered', 'returned'])
 
 export function createWhatsAppGroupTripClosePorts(dependencies: {
   readonly bridge: WhatsAppTripCloseBridge
@@ -35,6 +37,11 @@ export function createWhatsAppGroupTripClosePorts(dependencies: {
     readonly driverId: string
   }) => Promise<readonly DriverTrip[]>
   readonly logger?: Pick<ApiLogger, 'warn'>
+  /** As notas da viagem como a regra de encerrar as lê (inclusive as liberadas). */
+  readonly readCloseDocuments: (input: {
+    readonly companyId: string
+    readonly tripId: string
+  }) => Promise<readonly TripCloseDocumentState[]>
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
   readonly resolveSenderRole: ResolveWhatsAppSenderRole
 }): GroupTripCloseFlowPorts {
@@ -56,8 +63,8 @@ export function createWhatsAppGroupTripClosePorts(dependencies: {
         await close({
           context: resolved.context.scope,
           correlationId: crypto.randomUUID(),
-          ipAddress: CLOSE_AUDIT_ORIGIN,
-          reason: CLOSE_REASON,
+          ipAddress: WHATSAPP_TRIP_CLOSE_AUDIT_ORIGIN,
+          reason: WHATSAPP_TRIP_CLOSE_REASON,
           tripId,
         })
         return { kind: 'closed' }
@@ -77,9 +84,9 @@ export function createWhatsAppGroupTripClosePorts(dependencies: {
       const [only] = trips
       if (only === undefined) return { kind: 'none' }
       if (trips.length > 1) return { kind: 'many' }
-      const openDocumentCount = only.stops
-        .flatMap((stop) => stop.documents)
-        .filter((document) => !SETTLED_STATUSES.has(document.separationStatus)).length
+      const openDocumentCount = countOpenTripDocumentsForClose(
+        await dependencies.readCloseDocuments({ companyId, tripId: only.id }),
+      )
       return { kind: 'one', openDocumentCount, tripId: only.id }
     },
 
