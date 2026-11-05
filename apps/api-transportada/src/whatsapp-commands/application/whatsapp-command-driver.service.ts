@@ -71,6 +71,7 @@ import type {
   WhatsAppDeliveryPreparationReply,
   WhatsAppDeliveryPreparations,
 } from './whatsapp-delivery-preparation.service.js'
+import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import { DRIVER_PROMPT_CONTEXT_KEY } from '../domain/whatsapp-driver-prompt.policy.js'
 import {
   buildRouteOfferReply,
@@ -213,6 +214,7 @@ async function dispatch(incoming: WhatsAppCommandTurn): Promise<MessageHookOutco
     await acknowledgeSharedLocation({
       permissions: actor.context.scope.permissions,
       proofActor,
+      scope: actor.context.scope,
       turn,
     })
   ) {
@@ -276,15 +278,19 @@ async function acceptBotAudio(turn: WhatsAppCommandTurn): Promise<'handled' | Wh
 async function acknowledgeSharedLocation(input: {
   readonly permissions: ReadonlySet<string>
   readonly proofActor: null | ProofActor
+  readonly scope: DriverPromptScope
   readonly turn: WhatsAppCommandTurn
 }): Promise<boolean> {
-  const { permissions, proofActor, turn } = input
+  const { permissions, proofActor, scope, turn } = input
   const { sharedLocations } = turn.deps
   if (sharedLocations === undefined) return false
   if (!permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION)) return false
 
   const location = extractWhatsAppIncomingLocation(turn.message, turn.deps.clock())
   if (location === undefined) return false
+
+  // Spec 294 RF24: com o pedido de localização do "saí"/"cheguei" em aberto, o ponto é dele e não fica lembrado.
+  if (await answerLocationPrompt({ location, scope, turn })) return true
 
   sharedLocations.remember({
     companyId: turn.session.companyId,
@@ -437,17 +443,53 @@ async function offerNextRoute(input: {
   )
 }
 
+type DriverPromptScope = {
+  readonly companyId: string
+  readonly membershipId: string
+  readonly permissions: ReadonlySet<string>
+  readonly userId: string
+}
+
+/** Spec 294 RF24: a localização compartilhada responde ao pedido de localização em aberto. */
+async function answerLocationPrompt(input: {
+  readonly location: ReportedLocation
+  readonly scope: DriverPromptScope
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { location, scope, turn } = input
+  const { deliveryProofs, driverPrompts, sessions } = turn.deps
+  if (driverPrompts === undefined || deliveryProofs === undefined) return false
+  const position = await sessions.getContext(scope.companyId, turn.phone)
+  const context = position?.context ?? {}
+  if (driverPrompts.pending(context) === undefined) return false
+  const driverId = await deliveryProofs.resolveDriver({
+    companyId: scope.companyId,
+    membershipId: scope.membershipId,
+  })
+  if (driverId === null) return false
+  const result = await driverPrompts.answerLocation({
+    actor: { actorUserId: scope.userId, companyId: scope.companyId, driverId },
+    context,
+    location,
+    whatsappNumber: turn.session.whatsappNumber,
+  })
+  if (result === null) return false
+  await sessions.setState(
+    scope.companyId,
+    turn.phone,
+    position?.currentState ?? turn.session.currentState,
+    result.context,
+  )
+  for (const body of result.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
+  return true
+}
+
 /**
  * Spec 294 RNF1: a resposta ("1"/"2", digitada ou falada) ao pedido em aberto da conversa — a oferta da
  * próxima rota. Só responde ao pedido; qualquer outra mensagem o encerra e segue o fluxo de sempre.
  */
 async function acceptDriverPrompt(input: {
-  readonly scope: {
-    readonly companyId: string
-    readonly membershipId: string
-    readonly permissions: ReadonlySet<string>
-    readonly userId: string
-  }
+  readonly scope: DriverPromptScope
   readonly turn: WhatsAppCommandTurn
 }): Promise<boolean> {
   const { scope, turn } = input
@@ -468,6 +510,7 @@ async function acceptDriverPrompt(input: {
     actor: { actorUserId: scope.userId, companyId: scope.companyId, driverId },
     context,
     text,
+    whatsappNumber: turn.session.whatsappNumber,
   })
   if (result === null) return false
   await sessions.setState(

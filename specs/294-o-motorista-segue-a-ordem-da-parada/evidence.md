@@ -279,3 +279,19 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   `test/whatsapp/group-route-offer.contract.ts` (grupo, matriz, áudio pendente pelo `evolution-group-inbound`).
 - Gates: typecheck e lint limpos; contrato da API 13323 pass / 26 skip / 0 fail; integração (flow-actions, command-driver,
   preparation-repository, group-request-repository) 17 pass; prettier ok.
+
+## T4.9 — localização opcional no "Iniciar rota" e no "Cheguei" pelo bot (RF24)
+
+- Antes de registrar saí/cheguei (e a saída da oferta da próxima rota), o bot pergunta "📍 Mande sua localização pelo clipe, ou
+  responda _pular_" quando não há ponto recente. O ponto compartilhado antes vale sem perguntar (`WhatsAppSharedLocationStore.has`,
+  que não consome). "pular", "pula", "não" ou "2", digitados ou falados, registram sem ponto; a localização compartilhada registra
+  com ele. Outra resposta repete que o item vai por localização; no grupo, 3 respostas fora abandonam o pedido (regra do pedido), na
+  conversa individual o pedido some na 3ª (`DRIVER_PROMPT_MAX_ATTEMPTS`) sem registrar, e outro comando ("saí", "entreguei 17234")
+  tira o pedido de cena.
+- Grupo: passo `stop.location` do pedido aberto; `locationReceived` do fluxo (agora assíncrono) registra com o ponto lembrado pela
+  entrada de provas (`rememberLocation` vem antes de `advanceRequest`). Individual: pedido `location` no contexto da sessão, respondido
+  no despachante (`acceptDriverPrompt` para texto, `answerLocationPrompt` para a mensagem de localização, antes de lembrar o ponto).
+  Portas opcionais (`hasLocation`, `sharedLocations`, `driverPrompts`): ausentes, o comportamento é o de antes.
+- Contratos: `test/whatsapp-commands/stop-location-prompt.contract.ts` e `test/whatsapp/group-stop-location.contract.ts`.
+- Gates: typecheck e lint limpos; contrato da API 13346 pass / 26 skip / 0 fail; integração (flow-actions, command-driver,
+  group-occurrence-adapter) verde; prettier ok. Grafo versionado não mudou.

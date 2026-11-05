@@ -77,3 +77,12 @@ export function canAskRouteOffer(gate: RouteOfferGate): boolean {
     gate.hasPendingPrompt
   )
 }
+
+/** Spec 294 RF24: o pedido opcional de localização antes do "Iniciar rota" e do "Cheguei". */
+export const LOCATION_PROMPT_TEXT = {
+  ask: '📍 Mande sua localização pelo clipe, ou responda _pular_',
+  /** Pedido repetido: o item vai por localização, não por áudio nem por texto. */
+  askAgain:
+    'Esse item vai por localização: toque no clipe → Localização → Enviar localização atual, ou responda _pular_.',
+  gaveUp: 'Não recebi a localização nem o "pular", então não registrei. Mande de novo quando for.',
+} as const

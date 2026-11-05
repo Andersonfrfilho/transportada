@@ -51,6 +51,11 @@ export function createGroupStopPorts(dependencies: {
     readonly driverId: string
   }) => null | ReportedLocation
   readonly database: Database
+  /** Spec 294 RF24: há ponto compartilhado recente? Ausente, o bot não pede a localização. */
+  readonly hasLocation?: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => boolean
   readonly listActiveTrips: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -66,6 +71,7 @@ export function createGroupStopPorts(dependencies: {
     renderBotSpeechLine({ companyId, line, speech })
 
   return {
+    ...(dependencies.hasLocation === undefined ? {} : { hasLocation: dependencies.hasLocation }),
     enRouteMessage: ({ companyId, sequence }) =>
       say(
         companyId,

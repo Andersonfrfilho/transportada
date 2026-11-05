@@ -66,7 +66,10 @@ import {
   readDriverPrompt,
 } from '../domain/whatsapp-driver-prompt.policy.js'
 import type { RouteOfferStop } from '../domain/whatsapp-driver-route-offer.policy.js'
-import { buildRouteOfferReply } from './whatsapp-driver-prompts.service.js'
+import {
+  buildRouteOfferReply,
+  type WhatsAppDriverPrompts,
+} from './whatsapp-driver-prompts.service.js'
 import { occurrenceRequirementNextNode } from './driver-occurrence-refusal.service.js'
 import { describeWhatsAppDriverEventResult } from './whatsapp-driver-event-speech.service.js'
 import {
@@ -118,6 +121,11 @@ export type DriverFlowActionDependencies = {
    * baixa é direta, como antes.
    */
   readonly deliveryPreparations?: WhatsAppDeliveryPreparations
+  /**
+   * Spec 294 RF24: o pedido opcional de localização antes do "saí"/"cheguei". Ausente, o evento é registrado
+   * direto (com o ponto compartilhado antes, se houver).
+   */
+  readonly driverPrompts?: Pick<WhatsAppDriverPrompts, 'askLocation'>
   /**
    * Spec 293 T15: o tipo que pede foto, número do documento do cliente ou valor pago abre a ocorrência
    * em coleta em vez da recusa "registre pelo aplicativo". Ausente, a recusa de sempre.
@@ -757,6 +765,19 @@ export function createDriverWhatsAppFlowActions(
     if (driverId === null) {
       await say({ actor, channel, session }, 'driverNotLinked')
       return { next: 'menu' }
+    }
+
+    const ask = deps.driverPrompts?.askLocation({
+      companyId: actor.scope.companyId,
+      documentNumber,
+      event: step,
+      stopId,
+      whatsappNumber: session.whatsappNumber,
+    })
+    if (ask?.prompt !== undefined) {
+      for (const text of ask.texts) await say({ actor, channel, session }, { text })
+      const menu = backToTripMenu(tripId)
+      return { ...menu, context: { ...menu.context, [DRIVER_PROMPT_CONTEXT_KEY]: ask.prompt } }
     }
 
     const event = {

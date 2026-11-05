@@ -1671,13 +1671,22 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappGroupStop = createGroupStopPorts({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
     database: database.db,
+    hasLocation: (input) => whatsappGroupLocations.has(groupLocationKey(input)),
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
     logger,
     ports: whatsappDriverEventPorts,
     speech: whatsappBotSpeech,
   })
+  /** Spec 294: a oferta da próxima rota, o pedido de localização e as conferências da conversa individual. */
+  const whatsappDriverPrompts = createWhatsAppDriverPrompts({
+    clock: () => new Date(),
+    ports: whatsappDriverEventPorts,
+    sharedLocations: whatsappSharedLocations,
+    speech: whatsappBotSpeech,
+  })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     deliveryPreparations: whatsappDeliveryPreparations,
+    driverPrompts: whatsappDriverPrompts,
     occurrenceDrafts: whatsappOccurrenceDrafts,
     speech: whatsappBotSpeech,
     consumeSharedLocation: (key) => whatsappSharedLocations.consume(key),
@@ -2057,11 +2066,7 @@ export function bootstrap(): Bun.Server<undefined> {
       resolveDriver: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
     },
     /** Spec 294 RF8: a oferta da próxima rota (e as conferências do bot) na conversa individual. */
-    driverPrompts: createWhatsAppDriverPrompts({
-      clock: () => new Date(),
-      ports: whatsappDriverEventPorts,
-      speech: whatsappBotSpeech,
-    }),
+    driverPrompts: whatsappDriverPrompts,
     resolveActor: createResolveWhatsAppActorUseCase({
       memberships: new DrizzleMembershipRepository(database.db),
       phones: new DrizzleWhatsAppPhoneRepository(database.db),

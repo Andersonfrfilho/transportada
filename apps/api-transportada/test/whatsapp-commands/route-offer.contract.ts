@@ -249,6 +249,7 @@ function createHarness(options: HarnessOptions = {}) {
     driverPrompts: createWhatsAppDriverPrompts({
       clock: () => NOW,
       ports: {
+        reportArrival: async () => ({}),
         reportDeparture: async (input) => {
           departures.push(input)
           return { changed: true }

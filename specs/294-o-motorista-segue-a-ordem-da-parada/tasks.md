@@ -77,7 +77,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 - [ ] **T4.8** RF23: foto sem "entreguei" → confere se é canhoto (T4.8a) → leitura do canhoto (worker `canhoto-read`) → pede localização;
       casou → entrega em preparo com o canhoto e baixa; não casou → pergunta a nota. Contratos: casou, várias fotos,
       ilegível, nota de outra viagem, atendente.
-- [ ] **T4.9** RF24: "Iniciar rota" e "Cheguei" pelo bot pedem localização opcional (pular falado vale; usa a
+- [x] **T4.9** RF24: "Iniciar rota" e "Cheguei" pelo bot pedem localização opcional (pular falado vale; usa a
       compartilhada antes sem perguntar).
 - [ ] **T4.10** RF25: conferência de fora de ordem (canhoto/entreguei de outra parada; iniciar rota que não é a
       próxima), com 1/2 também por áudio; atendente sem pergunta.

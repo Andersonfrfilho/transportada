@@ -25,9 +25,14 @@ import {
   WHATSAPP_DRIVER_STOP_COMMAND,
   type WhatsAppDriverStopCommandEvent,
 } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
+import {
+  DRIVER_CHOICE,
+  interpretDriverChoice,
+} from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
+import { LOCATION_PROMPT_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 
-export const GROUP_STOP_STEP = { choose: 'choose' } as const
+export const GROUP_STOP_STEP = { choose: 'choose', location: 'location' } as const
 
 export type GroupStopCandidate = WhatsAppStopCandidate
 
@@ -56,6 +61,11 @@ export type GroupStopFlowPorts = {
     readonly idempotencyKey: string
     readonly stopId: string
   }): Promise<GroupStopRegistration>
+  /**
+   * Spec 294 RF24: há ponto compartilhado recente (não o consome)? Ausente, o bot não pede a localização
+   * antes do "saí"/"cheguei" (como antes da 294).
+   */
+  hasLocation?(input: { readonly companyId: string; readonly driverId: string }): boolean
   /** A frase de "já está a caminho da parada N" e afins, na plateia do grupo. */
   enRouteMessage(input: { readonly companyId: string; readonly sequence: string }): Promise<string>
 }
@@ -73,6 +83,12 @@ export const GROUP_STOP_TEXT = {
 const REASON = { stop: 'não achei essa parada na lista' } as const
 
 type FlowState = {
+  /** Spec 294 RF24: a parada que espera a localização (ou o "pular") antes de registrar. */
+  readonly locationFor?: {
+    readonly documentNumber?: string | undefined
+    readonly event: WhatsAppDriverStopCommandEvent
+    readonly stopId: string
+  }
   readonly event?: WhatsAppDriverStopCommandEvent | undefined
   readonly stops?:
     | readonly {
@@ -106,6 +122,26 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     return { kind: 'done', replies: [result.message] }
   }
 
+  /** Spec 294 RF24: pede a localização opcional (se não há ponto recente) e só então registra. */
+  async function recordOrAsk(
+    turn: GroupFlowTurn,
+    event: WhatsAppDriverStopCommandEvent,
+    stopId: string,
+    documentNumber?: string,
+  ): Promise<GroupFlowOutcome> {
+    const { companyId, driverId } = turn.request
+    if (ports.hasLocation === undefined || ports.hasLocation({ companyId, driverId })) {
+      return record(turn, event, stopId, documentNumber)
+    }
+    const state: FlowState = { locationFor: { documentNumber, event, stopId } }
+    return {
+      kind: 'continue',
+      replies: [LOCATION_PROMPT_TEXT.ask],
+      state,
+      step: GROUP_STOP_STEP.location,
+    }
+  }
+
   async function afterResolution(
     turn: GroupFlowTurn,
     event: WhatsAppDriverStopCommandEvent,
@@ -133,7 +169,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           ],
         }
       case 'single':
-        return record(turn, event, resolution.stop.id, firstNumberOf(resolution.stop))
+        return recordOrAsk(turn, event, resolution.stop.id, firstNumberOf(resolution.stop))
       case 'choose': {
         const mentioned = resolution.stops.filter((stop) =>
           stop.documents.some((document) =>
@@ -141,7 +177,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           ),
         )
         if (mentioned.length === 1 && mentioned[0] !== undefined) {
-          return record(turn, event, mentioned[0].id, firstNumberOf(mentioned[0]))
+          return recordOrAsk(turn, event, mentioned[0].id, firstNumberOf(mentioned[0]))
         }
         const state: FlowState = {
           event,
@@ -161,6 +197,22 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     }
   }
 
+  /** "pular" (falado ou digitado) registra sem ponto; o resto repete que o item vai por localização. */
+  async function answerLocationStep(
+    turn: GroupFlowTurn,
+    target: NonNullable<FlowState['locationFor']>,
+  ): Promise<GroupFlowOutcome> {
+    const choice = interpretDriverChoice(turn.text)
+    if (choice === DRIVER_CHOICE.skip || choice === DRIVER_CHOICE.second) {
+      return record(turn, target.event, target.stopId, target.documentNumber)
+    }
+    return {
+      kind: 'not_understood',
+      prompt: LOCATION_PROMPT_TEXT.askAgain,
+      reason: 'esse item vai por localização',
+    }
+  }
+
   return {
     /** O motorista pediu o evento (comando direto ou menu): resolve a parada e registra ou pergunta. */
     async begin(
@@ -177,11 +229,19 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
 
     /** "1" na oferta da próxima rota: a saída da parada oferecida, pelo mesmo registro do "saí". */
     departStop(turn: GroupFlowTurn, stop: GroupStopRoute): Promise<GroupFlowOutcome> {
-      return record(turn, WHATSAPP_DRIVER_STOP_COMMAND.depart, stop.stopId, stop.documentNumber)
+      return recordOrAsk(
+        turn,
+        WHATSAPP_DRIVER_STOP_COMMAND.depart,
+        stop.stopId,
+        stop.documentNumber,
+      )
     },
 
     async answer(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
       const state = turn.request.state as FlowState
+      if (turn.request.step === GROUP_STOP_STEP.location && state.locationFor !== undefined) {
+        return answerLocationStep(turn, state.locationFor)
+      }
       const stops = state.stops ?? []
       const event = state.event ?? WHATSAPP_DRIVER_STOP_COMMAND.arrive
       const picked = pickStop(stops, turn.text)
@@ -195,7 +255,14 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           reason: REASON.stop,
         }
       }
-      return record(turn, event, picked.id, picked.numbers[0])
+      return recordOrAsk(turn, event, picked.id, picked.numbers[0])
+    },
+
+    /** A localização compartilhada chegou com o pedido de localização aberto: registra com ela (o ponto está lembrado). */
+    async locationReceived(turn: GroupFlowTurn): Promise<GroupFlowOutcome | null> {
+      const target = (turn.request.state as FlowState).locationFor
+      if (turn.request.step !== GROUP_STOP_STEP.location || target === undefined) return null
+      return record(turn, target.event, target.stopId, target.documentNumber)
     },
   }
 }

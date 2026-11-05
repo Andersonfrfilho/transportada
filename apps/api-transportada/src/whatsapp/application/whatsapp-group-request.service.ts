@@ -253,7 +253,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       if (open === null || open.ownerNumber !== sender || flow.locationReceived === undefined) {
         return false
       }
-      const outcome = flow.locationReceived({
+      const outcome = await flow.locationReceived({
         ...(location === undefined ? {} : { location }),
         request: open,
         sender,

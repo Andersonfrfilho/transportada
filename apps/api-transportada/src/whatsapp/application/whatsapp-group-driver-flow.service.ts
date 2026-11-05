@@ -219,6 +219,13 @@ export function createGroupDriverFlow(flows: {
 
     locationReceived(turn) {
       const { step } = turn.request
+      // Spec 294 RF24: o pedido de localização do "saí"/"cheguei" é das paradas.
+      if (step.startsWith(GROUP_DRIVER_STEP.stopPrefix)) {
+        return flows.stop.locationReceived({
+          ...turn,
+          request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.stopPrefix.length) },
+        })
+      }
       if (
         step === GROUP_DRIVER_STEP.menu ||
         step.startsWith(GROUP_DRIVER_STEP.deliveryPrefix) ||

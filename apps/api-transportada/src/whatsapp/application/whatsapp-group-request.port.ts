@@ -108,7 +108,7 @@ export type GroupRequestFlow = {
   answer(turn: GroupFlowTurn): Promise<GroupFlowOutcome>
   readonly initialStep: string
   /** A localização compartilhada pelo dono do pedido: avança o passo que a espera, ou `null` se não há. */
-  locationReceived?(turn: GroupFlowTurn): GroupFlowOutcome | null
+  locationReceived?(turn: GroupFlowTurn): Promise<GroupFlowOutcome | null> | GroupFlowOutcome | null
   start(turn: GroupFlowTurn): Promise<GroupFlowOutcome>
 }
 
