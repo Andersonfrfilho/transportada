@@ -2645,6 +2645,30 @@ carrega continua sendo só o de **quem recebeu**.
 
 ## Fechados
 
+### 2026-11-05 — o token de service account era recusado em 401 antes do caminho do serviço (ADR-0047)
+
+**Onde:** `api-transportada`, `src/identity/infrastructure/keycloak-jwt.gateway.ts` (verificador) e
+`src/identity/application/authentication.service.ts`; consumidores no `worker-transportada` (MDF-e
+automático, revisão automática do canhoto, foto da CNH da spec 295, baixa do WhatsApp).
+
+**O que era:** o verificador exigia `requiredClaims: ['company_id']`. Token de `client_credentials` não
+carrega empresa (ADR-0047 §3), então toda chamada worker→API morria em 401 antes de
+`AuthenticationService` reconhecer o papel `transportada-service`. Não era brecha — falhava fechado —, mas
+escondia que nada automático chegava à API (0 MDF-e para 2437 CT-e autorizados em 60 dias). Os clients do
+worker também não tinham o mapper de audiência `transportada-api`, então o token seria recusado de novo
+pela audiência.
+
+**Corrigido:** o verificador exige assinatura, emissor, `aud`, `exp` e `sub` de todo token; `company_id`
+passou a ser exigido só em `AuthenticationService`, para todo token sem o papel de realm exato
+`transportada-service`. Para o serviço, a empresa vem só de `x-company-id` e precisa de membership ativa do
+usuário sintético (403 sem ela, 403 sem cabeçalho); rota de membership (`/me/...`) recusa serviço. Contrato
+com tokens assinados pelo verificador real em `test/service-token.contract.test.ts`. O MDF-e automático
+ganhou o interruptor `MDFE_AUTO_ISSUE_ENABLED` no worker, **desligado** por padrão (decisão do dono).
+
+**Pendente por ambiente (manual):** mapper de audiência `transportada-api` em cada client de serviço no
+Keycloak (`transportada-worker` ainda não tem em staging nem produção) e membership do usuário sintético
+por empresa. Passos na emenda 2026-11-05 da ADR-0047.
+
 ### 2026-09-25 — PUT tardio na URL de subida trocava a foto da ocorrência já conferida (spec 179)
 
 **Onde:** `api-transportada`, `trips/application/confirm-occurrence-upload.use-case.ts` e

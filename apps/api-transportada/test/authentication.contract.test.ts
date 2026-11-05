@@ -245,7 +245,7 @@ describe('authentication contract', () => {
     await expect(service.authenticate(`Bearer ${TOKEN}`)).rejects.toBe(unexpected)
   })
 
-  test('configures the Ada verifier from trusted values and requires company_id', async () => {
+  test('configures the Ada verifier from trusted values, leaving company_id to the service', async () => {
     let receivedConfig: unknown
     const verify = mock(async () => ({
       audience: 'transportada-api',
@@ -290,7 +290,6 @@ describe('authentication contract', () => {
       audience: 'transportada-api',
       issuer: ISSUER,
       jwksUri: `${ISSUER}/protocol/openid-connect/certs`,
-      requiredClaims: ['company_id'],
     })
   })
 

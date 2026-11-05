@@ -83,3 +83,48 @@ responde nada quando alguém pergunta por que aquele manifesto saiu.
 | Worker escreve direto no banco                | Duplica a montagem do manifesto — veículo, condutores, itens, municípios, totais. Regra fiscal duplicada diverge. |
 | Mover o domínio de manifesto para `packages/` | A regra do monorepo fala de **provider** compartilhado, não de domínio; e move superfície demais.                 |
 | Deixar manual                                 | O automático é o caminho normal desta operação (065 D2b); manual é o contorno.                                    |
+
+## Emenda 2026-11-05 — o verificador recusava o token do serviço antes de o caminho dele existir
+
+**O que se achou** (staging, 05/11/2026): `keycloak-jwt.gateway.ts` configurava o verificador com
+`requiredClaims: ['company_id']`. O §3 desta ADR diz que o token do serviço **não** carrega empresa — e
+`AuthenticationService` já tinha o caminho para isso —, mas o verificador recusava o token antes, com 401.
+Nenhuma chamada worker→API passou desde a 065: o MDF-e automático nunca emitiu (2437 CT-e autorizados e 0
+MDF-e em 60 dias), a revisão automática do canhoto nunca gravou e a foto da CNH (spec 295) não tinha como
+funcionar. O dublê do contrato de autenticação devolvia o token já verificado, então o teste nunca passou
+pelo verificador real.
+
+**A regra que passa a valer** (é a do §2 e §3, sem afrouxar nada):
+
+- **Todo token:** assinatura RS256 com `kid` do JWKS do realm, emissor, `aud=transportada-api`, `exp` e
+  `sub` — no verificador (`@adatechnology/keycloak-jwt`), sem exceção para serviço.
+- **`company_id`** sai do verificador e fica num lugar só, `AuthenticationService`: obrigatório (UUID) para
+  todo token **sem** o papel de realm exato `transportada-service`. Gente sem a claim continua 401.
+- **Service account** = papel de realm `transportada-service` (exato). A empresa vem **só** do cabeçalho
+  `x-company-id` — a claim, se vier, é ignorada — e precisa casar com uma membership ativa do usuário
+  sintético do serviço (`TenantContextService.resolveCompany`); sem cabeçalho ou sem membership, 403.
+- O serviço não passa por rota de membership (`/me/...`, política `membership`): 403
+  (`AuthorizationService`, spec 144 T005b).
+- Contrato com tokens **assinados de verdade** passando pelo verificador real:
+  `apps/api-transportada/test/service-token.contract.test.ts`.
+
+**O MDF-e automático ganhou interruptor, desligado** (decisão do dono): o crachá do worker serve também ao
+canhoto e à baixa do WhatsApp, então consertar a autenticação ligaria a emissão fiscal sozinha. O worker só
+monta o gatilho com `MDFE_AUTO_ISSUE_ENABLED=true` (padrão `false`; `true` sem as quatro variáveis do crachá
+derruba o boot). Desligado, o boot registra `mdfe_auto_issue_disabled` uma vez, sem dado de empresa.
+Ligar é decisão fiscal, pedida ao dono.
+
+**Para as chamadas de serviço funcionarem num ambiente** (passo manual no Keycloak, por ambiente):
+
+1. No realm do ambiente, em **Clients → `transportada-worker` → Client scopes → dedicated → Add mapper → By
+   configuration → Audience**: nome `transportada-api-audience`, _Included Client Audience_
+   `transportada-api`, _Add to access token_ ligado, _Add to ID token_ desligado. Repetir em
+   `transportada-worker-cnh-picture` se ainda não existir (staging já tem, desde 05/11/2026; o
+   `deploy/keycloak/realm.json` recebe o do CNH pelo commit `55682ed4d`, e precisa do mesmo bloco no
+   `transportada-worker`).
+2. Conferir que o usuário `service-account-<client>` tem o papel de realm `transportada-service`.
+3. Conferir que o usuário sintético do serviço tem membership ativa, com o papel de serviço (`automation`,
+   `cnh-picture-service`), **em cada empresa** em que ele deve agir — e em nenhuma outra.
+4. Pedir um token (`client_credentials`) e conferir, decodificando sem imprimir o segredo, que `aud`
+   contém `transportada-api` e `realm_access.roles` contém `transportada-service`.
+5. Só depois disso, e com aprovação do dono, `MDFE_AUTO_ISSUE_ENABLED=true` no worker.

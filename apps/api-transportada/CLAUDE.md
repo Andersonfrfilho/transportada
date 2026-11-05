@@ -309,6 +309,16 @@ empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `t
   juntos. `test/separator-role.contract.test.ts` lista as rotas alcançáveis por
   extenso — rota nova de frota/faturamento/CT-e reprova ali até decisão por escrito.
 
+- **Token de serviço não carrega `company_id`** (ADR-0047, emenda 2026-11-05). O verificador
+  (`keycloak-jwt.gateway.ts`) exige assinatura, emissor, `aud=transportada-api`, `exp` e `sub` de todo
+  token e **não** exige `company_id`; quem exige é `AuthenticationService`, para todo token sem o papel de
+  realm exato `transportada-service`. Serviço: empresa só por `x-company-id`, validada contra a membership
+  do usuário sintético (403 sem ela), e rota de membership recusa. Pôr `company_id` de volta no
+  `requiredClaims` derruba todas as chamadas do worker em 401 — foi o que aconteceu até 05/11/2026.
+  Contrato com JWT assinado de verdade: `test/service-token.contract.test.ts`. Num ambiente novo, cada
+  client de serviço precisa do mapper de audiência no Keycloak (passos na emenda). O MDF-e automático do
+  worker só liga com `MDFE_AUTO_ISSUE_ENABLED=true` (padrão `false`).
+
 ## A lista de viagens diz ocupação e lucro (spec 259)
 
 `GET /trips` traz `occupancy` e `amounts.costTotal/marginTotal/marginPercentage/hasGaps`, calculados **em lote por página** pela
