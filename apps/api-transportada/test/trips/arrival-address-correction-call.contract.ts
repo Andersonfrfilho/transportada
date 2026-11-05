@@ -81,6 +81,34 @@ describe('a chegada chama a correção de endereço (spec 294 T3.1)', () => {
     expect(correctionCalls(state.calls)).toEqual([`correctAddressFromArrival:${result.id}:late`])
   })
 
+  it('pelo WhatsApp: o ponto vai marcado como do WhatsApp; a mensagem velha, como tardia', async () => {
+    const { state, unitOfWork } = buildWorld()
+    const base = {
+      actorUserId: ACTOR_USER_ID,
+      channel: 'whatsapp' as const,
+      companyId: COMPANY_ID,
+      driverId: DRIVER_ID,
+      location: { ...LOCATION, accuracyMeters: null },
+      now: NOW,
+      stopId: STOP_ID,
+      unitOfWork,
+    }
+
+    const realTime = await reportStopArrival({ ...base, idempotencyKey: 'wa-1', tappedAt: NOW })
+    expect(correctionCalls(state.calls)).toEqual([
+      `correctAddressFromArrival:${realTime.id}:whatsapp`,
+    ])
+
+    const late = await reportStopArrival({
+      ...base,
+      idempotencyKey: 'wa-2',
+      tappedAt: new Date(NOW.getTime() - 2 * 60 * 60 * 1000),
+    })
+    expect(correctionCalls(state.calls)).toContain(
+      `correctAddressFromArrival:${late.id}:late:whatsapp`,
+    )
+  })
+
   it('tripulação sem localização: não chama', async () => {
     const { state, unitOfWork } = buildWorld()
 
@@ -134,6 +162,7 @@ describe('o que a correção devolve (spec 294 RF14)', () => {
     eventId: 'event-1',
     isLate: false,
     location: LOCATION,
+    locationSource: 'device' as const,
     stopId: STOP_ID,
   }
 

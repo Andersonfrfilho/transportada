@@ -178,6 +178,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
     request,
     sender: message.sender,
     senderName: message.senderName,
+    ...(message.sentAt === undefined ? {} : { sentAt: message.sentAt }),
     text: message.text,
   })
 

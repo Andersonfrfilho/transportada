@@ -584,3 +584,13 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - `bun run typecheck` (raiz): 0 erros. `make check`: exit 0 (lint 0 erros; contratos 13633 API, 2957, 101, 8657, 1438, 95, 2266 worker, 133, 6, 20 —
   todos 0 fail). `make migration-test`: 231 pass / 0 fail. `db:generate`: `no_changes`.
 - Integração rodada por arquivo tocado (listada em cada item acima); a suíte inteira de integração não foi rodada.
+
+### Ponto do WhatsApp em tempo real conta como o do app (fix(294) WhatsApp)
+
+- Decisão do dono (2026-11-05): a régua ganhou `locationSource` (`device`/`whatsapp`, pelo canal da chegada). O ponto do WhatsApp, sem precisão, vale
+  como preciso quando a mensagem é de tempo real: grava `street`/`driver` dentro de 2 km/15 km, fora vira sugestão. A regra de 50 m fica só para quem
+  informa precisão (app).
+- Tempo real no WhatsApp: o `messageTimestamp` do Evolution (`toMessageSentAt`) vai em `AdmittedGroupMessage.sentAt` → turno → `record` → `tappedAt`
+  da chegada; a API mede o atraso com o mesmo `isArrivalLate` (60 min). Sem a hora, vale como agora. A mensagem tardia não ganha o pedido de localização.
+- Contratos: `trips` + `driver-trip` 460 pass; `whatsapp` + `whatsapp-commands` 1133 pass. Integração `address-arrival-correction` 16 pass (+1:
+  ponto do WhatsApp tardio não faz nada, em tempo real grava `street`/`driver`). ADR 0113 §2 e spec RF14 atualizados.

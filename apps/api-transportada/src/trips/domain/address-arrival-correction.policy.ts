@@ -5,7 +5,8 @@
  * bloqueia o registro: a chegada grava sempre, a régua só decide o que o ponto faz no cadastro.
  *
  * 1. Chegada tardia → nada (nem sugestão).
- * 2. Preciso = `accuracyMeters` ≤ 50 m; só o ponto preciso grava direto.
+ * 2. Preciso = `accuracyMeters` ≤ 50 m quando a fonte informa a precisão (app); o ponto do WhatsApp não informa e, em
+ *    tempo real (a tardia já caiu na regra 1), vale como preciso. Só o ponto preciso grava direto.
  * 3. Sem coordenada atual (ou ponto ilegível) → sugestão.
  * 4. `postal_code`/`city`: dentro da tolerância e preciso → grava; dentro e impreciso → sugestão; fora → sugestão.
  * 5. Ponto de motorista (`source = driver`), 300 m: dentro, preciso e mais longe que a própria precisão → regrava;
@@ -33,7 +34,11 @@ export type AddressArrivalCorrectionInput = {
   readonly currentSource: GeocodingSource
   readonly driverPoint: Coordinate
   readonly isLate: boolean
+  /** `whatsapp`: o ponto compartilhado pelo clipe, sem precisão; `device`: o GPS do app, com ela. */
+  readonly locationSource: ArrivalLocationSource
 }
+
+export type ArrivalLocationSource = 'device' | 'whatsapp'
 
 export type AddressArrivalCorrectionResult = {
   readonly decision: AddressArrivalCorrectionDecision
@@ -60,7 +65,8 @@ export function resolveAddressArrivalCorrection(
   if (distanceMeters === null) return { decision: 'suggest', distanceMeters: null }
 
   const isAccurate =
-    accuracyMeters !== null && accuracyMeters <= ARRIVAL_CORRECTION_MAX_ACCURACY_METRES
+    input.locationSource === 'whatsapp' ||
+    (accuracyMeters !== null && accuracyMeters <= ARRIVAL_CORRECTION_MAX_ACCURACY_METRES)
   const isWithin = distanceMeters <= TOLERANCE_BY_PRECISION[currentPrecision]
   if (!TRUSTED_PRECISIONS.has(currentPrecision)) {
     return { decision: isWithin && isAccurate ? 'apply' : 'suggest', distanceMeters }
@@ -68,7 +74,7 @@ export function resolveAddressArrivalCorrection(
   if (!isAccurate) return { decision: 'ignore', distanceMeters }
   if (!isWithin) return { decision: 'suggest', distanceMeters }
   // Só o ponto do próprio motorista se refina, e só quando o novo é distinguível dele.
-  const isRefinement = input.currentSource === 'driver' && distanceMeters > accuracyMeters
+  const isRefinement = input.currentSource === 'driver' && distanceMeters > (accuracyMeters ?? 0)
   return { decision: isRefinement ? 'apply' : 'ignore', distanceMeters }
 }
 

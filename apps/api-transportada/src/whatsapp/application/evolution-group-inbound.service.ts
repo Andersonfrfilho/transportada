@@ -58,6 +58,14 @@ export type AdmittedGroupMessage = {
   /** Sem a marcação do bot; vazio quando só marcou (o pedido guiado). */
   readonly text: string
   readonly via: 'mention' | 'owner_reply'
+  /** Spec 294: a hora do WhatsApp (`messageTimestamp`); ausente vale como agora (tempo real). */
+  readonly sentAt?: Date | undefined
+}
+
+/** O `messageTimestamp` do Evolution (segundos) como data; inválido ou ausente, `undefined`. */
+export function toMessageSentAt(timestamp: null | number): Date | undefined {
+  if (timestamp === null || !Number.isFinite(timestamp) || timestamp <= 0) return undefined
+  return new Date(timestamp * 1000)
 }
 
 /**
@@ -674,6 +682,7 @@ export function createEvolutionGroupInbound(
             requestOwner,
             sender,
             senderName: event.pushName,
+            sentAt: toMessageSentAt(event.timestamp),
             text: event.text.trim(),
             via: 'mention',
           })
@@ -691,6 +700,7 @@ export function createEvolutionGroupInbound(
         requestOwner,
         sender: decision.sender,
         senderName: event.pushName,
+        sentAt: toMessageSentAt(event.timestamp),
         text: decision.text,
         via: decision.via,
       })

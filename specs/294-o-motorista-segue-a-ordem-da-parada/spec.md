@@ -78,13 +78,14 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
 - **RF14** — No "Cheguei" **em tempo real** de uma parada não confiável, o bot pede a localização se ela não veio antes
   (opcional: "pular" registra igual). Com o ponto:
   - **dentro da tolerância** do endereço atual (por precisão: `postal_code` 2 km, `city` 15 km) **e preciso** (precisão
-    do aparelho ≤ 50 m) → grava direto no cadastro (`geocoded_addresses`, `origin: 'driver'`, `precision: 'street'`,
+    do aparelho ≤ 50 m no app; o ponto do WhatsApp, sem precisão, vale em tempo real) → grava direto no cadastro (`geocoded_addresses`, `origin: 'driver'`, `precision: 'street'`,
     `source: 'driver'`) e as próximas viagens já saem com o mapa certo; o ponto do motorista segue refinável por outra
     chegada precisa (ADR-0113 §2);
   - **fora da tolerância**, impreciso, ou endereço sem coordenada → vira **sugestão** que o escritório confirma em
     `/pendencias` (uma pendente por endereço; a seguinte a atualiza);
-  - **chegada tardia** (fila offline entregue além do prazo da foto atrasada, spec 205/234, ou o "Registrar entrega
-    depois") → não pede localização e não corrige nem sugere. Nada sobre posição bloqueia o registro.
+  - **chegada tardia** (fila offline entregue além do prazo da foto atrasada, spec 205/234, o "Registrar entrega
+    depois", ou a mensagem do WhatsApp cuja hora `messageTimestamp` passa da mesma janela de 60 min; sem a hora, vale como
+    tempo real) → não pede localização e não corrige nem sugere. Nada sobre posição bloqueia o registro.
 - **RF15** — Endereço confiável (`rooftop`/`street`) de outra fonte não é sobrescrito pela chegada. Ponto preciso a mais
   de 300 m dele vira sugestão para o escritório (o motorista pode ter achado a entrada certa); ponto impreciso é ignorado.
 - **RF16** — Toda correção vira evento na linha do tempo da parada (228 estendida), com autor (motorista ou

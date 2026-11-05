@@ -59,7 +59,8 @@
 
 1. **Endereço não confiável** = sem coordenada, ou `precision` `postal_code` ou `city`.
 2. No "Cheguei" **em tempo real** da tripulação, com o ponto do motorista (emenda da revisão final, 2026-11-05 — "se
-   for tardio não pede"). **Preciso** = precisão do aparelho até **50 m**:
+   for tardio não pede"). **Preciso** = precisão do aparelho até **50 m** quando a fonte a informa (o app); o ponto
+   compartilhado pelo WhatsApp não traz precisão e, em tempo real, vale como preciso (decisão do dono, 2026-11-05):
 
    | Endereço atual                         | Ponto da chegada                               | Resultado                            |
    | -------------------------------------- | ---------------------------------------------- | ------------------------------------ |
@@ -77,8 +78,9 @@
    **Tardia** é a chegada que a fila offline do app entregou depois do prazo da foto atrasada (spec 159/205/234,
    `proofWindowMinutes` padrão, 60 min, entre o toque corrigido pelo desvio do relógio e o recebimento), e o "Registrar
    entrega depois" (205), que nem passa pela chegada. Tardia não pede localização nem mexe no endereço. **Nada sobre
-   posição bloqueia o registro**: a chegada grava sempre; a régua só decide o que o ponto faz no cadastro. O ponto do
-   WhatsApp não traz precisão, então no bot ele só vira sugestão.
+   posição bloqueia o registro**: a chegada grava sempre; a régua só decide o que o ponto faz no cadastro. No WhatsApp,
+   tardia é a mensagem cuja hora (`messageTimestamp` do Evolution) passa da mesma janela até o recebimento; sem a hora,
+   vale como tempo real. A mensagem tardia não ganha o pedido de localização.
 
 3. A gravação direta usa o mesmo caminho da correção do operador (084), com `origin = 'driver'`,
    `precision = 'street'` (nunca `rooftop`: o ponto do motorista continua refinável por outra chegada precisa),

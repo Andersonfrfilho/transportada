@@ -20,6 +20,7 @@ import {
   type WhatsAppStopCandidate,
   type WhatsAppStopResolution,
 } from '../../trips/domain/driver-stop-resolution.policy.js'
+import { isArrivalLate } from '../../trips/domain/address-arrival-correction.policy.js'
 import {
   normalizeDriverCommandText,
   WHATSAPP_DRIVER_STOP_COMMAND,
@@ -79,6 +80,8 @@ export type GroupStopFlowPorts = {
     readonly event: WhatsAppDriverStopCommandEvent
     /** Por pedido: a mesma mensagem repetida não grava duas vezes. */
     readonly idempotencyKey: string
+    /** Spec 294: a hora do WhatsApp da mensagem; a API mede por ela se o registro chegou tarde. */
+    readonly sentAt?: Date | undefined
     readonly stopId: string
   }): Promise<GroupStopRegistration>
   /**
@@ -86,6 +89,7 @@ export type GroupStopFlowPorts = {
    * antes do "saí"/"cheguei" (como antes da 294).
    */
   hasLocation?(input: { readonly companyId: string; readonly driverId: string }): boolean
+  readonly clock?: () => Date
   /** Spec 294 RF19: quem escreveu. Ausente, todo remetente é tratado como a tripulação (como antes da 294). */
   resolveSenderRole?: ResolveWhatsAppSenderRole
   /** A frase de "já está a caminho da parada N" e afins, na plateia do grupo. */
@@ -173,6 +177,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       documentNumber,
       event,
       idempotencyKey: `whatsapp-group-request:${turn.request.id}`,
+      ...(turn.sentAt === undefined ? {} : { sentAt: turn.sentAt }),
       stopId,
     })
     if (result.outOfOrder !== undefined) {
@@ -230,9 +235,12 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
   ): Promise<GroupFlowOutcome> {
     const { companyId, driverId } = turn.request
     const { documentNumber, event, isAddressReliable, stopId } = target
-    // O escritório não manda ponto: o atendente registra direto, sem a pergunta da localização.
+    // O escritório não manda ponto: o atendente registra direto, sem a pergunta da localização. A mensagem tardia
+    // (spec 294: além do prazo da foto atrasada) também não pede: ela não corrige endereço.
+    const receivedAt = (ports.clock ?? (() => new Date()))()
     if (
       role.kind === 'attendant' ||
+      isArrivalLate({ receivedAt, tappedAt: turn.sentAt }) ||
       ports.hasLocation === undefined ||
       ports.hasLocation({ companyId, driverId })
     ) {

@@ -166,7 +166,7 @@ export function createGroupStopPorts(dependencies: {
           driverId: input.driverId,
           idempotencyKey: input.idempotencyKey,
           location,
-          sentAt: clock(),
+          sentAt: input.sentAt ?? clock(),
           stopId: input.stopId,
         }
         try {

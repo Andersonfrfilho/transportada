@@ -13,6 +13,7 @@ import type {
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
+import type { ArrivalLocationSource } from '../domain/address-arrival-correction.policy.js'
 import type { CorrectedClock } from '../domain/occurred-at.policy.js'
 import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
@@ -434,6 +435,8 @@ export type DriverFieldReportTransactionPort = {
     /** Spec 294 S3: chegada tardia (fila offline além do prazo) não corrige nem sugere. */
     readonly isLate: boolean
     readonly location: ReportedLocation
+    /** Spec 294: o ponto do WhatsApp não traz precisão; em tempo real ele vale como o do app. */
+    readonly locationSource: ArrivalLocationSource
     readonly stopId: string
   }): Promise<ArrivalAddressCorrectionOutcome>
   /**

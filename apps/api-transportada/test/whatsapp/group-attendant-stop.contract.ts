@@ -39,10 +39,11 @@ const turn = (sender: string, text = 'saí') => ({
   text,
 })
 
-function buildFlow() {
+function buildFlow(clock?: () => Date) {
   const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
   const roleCalls: unknown[] = []
   const flow = createGroupStopFlow({
+    ...(clock === undefined ? {} : { clock }),
     enRouteMessage: async () => 'a caminho',
     hasLocation: () => false,
     listStops: async () => [
@@ -87,6 +88,30 @@ describe('grupo: saí e cheguei do atendente pelo escritório (RF19)', () => {
     expect(recorded).toHaveLength(0)
     await flow.begin(turn(CREW), 'depart', [])
     expect(recorded[0]?.attendant).toBeUndefined()
+  })
+})
+
+describe('grupo: a mensagem tardia do WhatsApp não pede localização (spec 294 RF14/RF24)', () => {
+  const NOW = new Date('2026-11-05T15:00:00.000Z')
+  const at = (minutesAgo: number) => new Date(NOW.getTime() - minutesAgo * 60_000)
+
+  test('cheguei enviado há mais de 60 min registra direto, levando a hora do WhatsApp', async () => {
+    const { flow, recorded } = buildFlow(() => NOW)
+    const outcome = await flow.begin({ ...turn(CREW, 'cheguei'), sentAt: at(61) }, 'arrive', [])
+    expect(outcome).toEqual({ kind: 'done', replies: ['ok'] })
+    expect(recorded[0]?.sentAt).toEqual(at(61))
+  })
+
+  test('cheguei em tempo real (ou sem a hora do WhatsApp) segue pedindo a localização', async () => {
+    const { flow, recorded } = buildFlow(() => NOW)
+    expect(
+      await flow.begin({ ...turn(CREW, 'cheguei'), sentAt: at(2) }, 'arrive', []),
+    ).toMatchObject({ kind: 'continue', step: 'location' })
+    expect(await flow.begin(turn(CREW, 'cheguei'), 'arrive', [])).toMatchObject({
+      kind: 'continue',
+      step: 'location',
+    })
+    expect(recorded).toHaveLength(0)
   })
 })
 
@@ -136,6 +161,7 @@ describe('grupo: o adaptador do atendente usa o caminho do escritório (RF19)', 
 
   function build() {
     const driverPath: string[] = []
+    const tappedAt: Date[] = []
     const officePath: Record<string, unknown>[] = []
     const ports = createGroupStopPorts({
       clock: () => new Date('2026-11-05T12:00:00.000Z'),
@@ -152,8 +178,9 @@ describe('grupo: o adaptador do atendente usa o caminho do escritório (RF19)', 
         },
       },
       ports: {
-        reportArrival: async () => {
+        reportArrival: async (input) => {
           driverPath.push('arrive')
+          tappedAt.push(input.tappedAt)
           return { id: 'e' }
         },
         reportDeparture: async () => {
@@ -162,7 +189,7 @@ describe('grupo: o adaptador do atendente usa o caminho do escritório (RF19)', 
         },
       },
     })
-    return { driverPath, officePath, ports }
+    return { driverPath, officePath, ports, tappedAt }
   }
   const base = {
     companyId: 'C1',
@@ -195,9 +222,17 @@ describe('grupo: o adaptador do atendente usa o caminho do escritório (RF19)', 
   )
 
   test('sem atendente, o registro é o da tripulação, no nome do motorista', async () => {
-    const { driverPath, officePath, ports } = build()
+    const { driverPath, officePath, ports, tappedAt } = build()
     await ports.record({ ...base, event: 'arrive' })
     expect(driverPath).toEqual(['arrive'])
     expect(officePath).toHaveLength(0)
+    expect(tappedAt).toEqual([new Date('2026-11-05T12:00:00.000Z')])
+  })
+
+  test('a hora do WhatsApp da mensagem vira a hora do toque (a API mede o atraso por ela)', async () => {
+    const { ports, tappedAt } = build()
+    const sentAt = new Date('2026-11-05T10:00:00.000Z')
+    await ports.record({ ...base, event: 'arrive', sentAt })
+    expect(tappedAt).toEqual([sentAt])
   })
 })

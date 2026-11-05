@@ -393,6 +393,39 @@ describe('o ponto da chegada corrige o endereço (spec 294 T3.1)', () => {
     },
   )
 
+  testWithPostgres(
+    'ponto do WhatsApp (sem precisão) em tempo real: grava direto; tardio: nada',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database, { precision: 'postal_code' })
+        const whatsappArrival = (key: string, tappedAt: Date) =>
+          reportStopArrival({
+            actorUserId: world.driverUserId,
+            channel: 'whatsapp',
+            companyId: world.company.companyId,
+            driverId: world.company.firstDriverId,
+            idempotencyKey: key,
+            location: { ...pointAt(NORTH_500_METRES), accuracyMeters: null },
+            now: new Date(),
+            stopId: world.trip.stopId,
+            tappedAt,
+            unitOfWork: unitOfWorkFor(world),
+          })
+
+        await whatsappArrival('wa-late', new Date(Date.now() - 2 * 60 * 60 * 1000))
+        expect((await readAddress(world))?.source).toBe('postal_code')
+        expect(await readSuggestions(world)).toEqual([])
+
+        await database.db
+          .update(tripStops)
+          .set({ arrivedAt: null })
+          .where(eq(tripStops.id, world.trip.stopId))
+        await whatsappArrival('wa-now', new Date())
+        expect(await readAddress(world)).toMatchObject({ precision: 'street', source: 'driver' })
+      })
+    },
+  )
+
   testWithPostgres('falha na correção: a chegada grava e o aviso leva só ids', async () => {
     await withDisposableDatabase(async (database) => {
       const world = await seedWorld(database, null)

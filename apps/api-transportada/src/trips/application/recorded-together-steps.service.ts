@@ -6,6 +6,7 @@
  */
 import { TripStopNotReachableError } from '../domain/trip.error.js'
 import { isArrivalLate } from '../domain/address-arrival-correction.policy.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { resolveRecordedEventClock } from '../domain/occurred-at.policy.js'
 import type { EventClockFields, RecordedEventClock } from '../domain/occurred-at.policy.js'
 import { resolveStopEventSequence } from '../domain/stop-event-sequence.policy.js'
@@ -170,6 +171,8 @@ export async function performSequencedStopArrival(
             tappedAt: input.tappedAt,
           }),
           location: input.location,
+          locationSource:
+            authorship.channel === TRIP_FIELD_CHANNELS.whatsapp ? 'whatsapp' : 'device',
           stopId: input.stopId,
         })
 

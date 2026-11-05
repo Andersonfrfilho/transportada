@@ -4,7 +4,8 @@
  * Spec 294 (RF14, RF15, revisão final S3/C3): a régua do ponto da chegada.
  *
  * 1. Chegada **tardia** (fila offline drenada depois do prazo da foto atrasada, spec 205/234) não corrige nem sugere.
- * 2. **Preciso** = `accuracyMeters` ≤ 50 m. Só o ponto preciso grava direto.
+ * 2. **Preciso** = `accuracyMeters` ≤ 50 m quando a fonte informa a precisão (app). O ponto do WhatsApp não informa:
+ *    em tempo real (a tardia já caiu na regra 1) ele vale como preciso. Só o ponto preciso grava direto.
  * 3. Sem coordenada atual (ou ponto ilegível): sugestão.
  * 4. `postal_code` (2 km) / `city` (15 km): dentro e preciso → grava (`street`, `driver`); dentro e impreciso → sugestão;
  *    fora → sugestão.
@@ -70,6 +71,7 @@ function decide(
     currentPrecision: 'postal_code',
     currentSource: 'postal_code',
     isLate: false,
+    locationSource: 'device',
     ...overrides,
   })
 }
@@ -222,6 +224,43 @@ describe('resolveAddressArrivalCorrection — a régua do endereço', () => {
         'ignore',
       )
     })
+  })
+})
+
+describe('ponto compartilhado pelo WhatsApp (sem precisão), em tempo real', () => {
+  const whatsapp = { accuracyMeters: null, locationSource: 'whatsapp' } as const
+
+  test('dentro de 2 km / 15 km grava direto; fora vira sugestão', () => {
+    for (const [precision, limit] of UNRELIABLE_ROWS) {
+      const base = { ...whatsapp, currentPrecision: precision, currentSource: precision }
+      expect(decide({ ...base, driverPoint: pointNorthOf(limit / 2) }).decision).toBe('apply')
+      expect(decide({ ...base, driverPoint: pointNorthOf(limit + 50) }).decision).toBe('suggest')
+    }
+  })
+
+  test('tardio não faz nada; confiável de outra fonte segue travado', () => {
+    expect(decide({ ...whatsapp, driverPoint: pointNorthOf(100), isLate: true }).decision).toBe(
+      'ignore',
+    )
+    expect(
+      decide({
+        ...whatsapp,
+        currentPrecision: 'rooftop',
+        currentSource: 'google',
+        driverPoint: pointNorthOf(100),
+      }).decision,
+    ).toBe('ignore')
+  })
+
+  test('o mesmo ponto de motorista de novo não regrava', () => {
+    expect(
+      decide({
+        ...whatsapp,
+        currentPrecision: 'street',
+        currentSource: 'driver',
+        driverPoint: ORIGIN,
+      }).decision,
+    ).toBe('ignore')
   })
 })
 

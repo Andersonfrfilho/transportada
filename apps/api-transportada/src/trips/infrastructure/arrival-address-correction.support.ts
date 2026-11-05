@@ -15,7 +15,10 @@ import { tripStops } from '../../database/trip.schema.js'
 import { safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import { ARRIVAL_CORRECTION_WRITTEN_PRECISION } from '../domain/address-arrival-correction.constant.js'
-import { resolveAddressArrivalCorrection } from '../domain/address-arrival-correction.policy.js'
+import {
+  resolveAddressArrivalCorrection,
+  type ArrivalLocationSource,
+} from '../domain/address-arrival-correction.policy.js'
 import type {
   ArrivalAddressCorrectionOutcome,
   ReportedLocation,
@@ -27,6 +30,7 @@ type ArrivalAddressCorrectionParams = {
   readonly eventId: string
   readonly isLate: boolean
   readonly location: ReportedLocation
+  readonly locationSource: ArrivalLocationSource
   readonly stopId: string
 }
 
@@ -65,6 +69,7 @@ async function resolveOutcome(
     currentSource: stop.source ?? 'city',
     driverPoint: { latitude: params.location.latitude, longitude: params.location.longitude },
     isLate: params.isLate,
+    locationSource: params.locationSource,
   })
   if (decision === 'ignore') return 'ignored'
 
