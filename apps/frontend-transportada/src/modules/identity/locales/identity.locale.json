@@ -368,6 +368,10 @@
         "label": "Administrar frota",
         "where": "Cadastrar e editar veículo, motorista, agregado e documentos."
       },
+      "fleet.reveal": {
+        "label": "Abrir documento do motorista",
+        "where": "Ficha do motorista: abrir ou baixar a CNH, o RG e o comprovante anexados. Cada abertura grava auditoria."
+      },
       "trip.read": {
         "label": "Ver viagens",
         "where": "Tela Viagens: roteiro, paradas e notas vinculadas."

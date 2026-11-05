@@ -52,6 +52,8 @@ describe('authorization contract', () => {
       'addresses.read',
       'fleet.read',
       'fleet.manage',
+      // Spec 091 D3: abrir o documento do motorista é permissão própria — nunca de carona com `fleet.manage`
+      'fleet.reveal',
       'mdfe.read',
       'mdfe.manage',
       'mdfe.issue',
@@ -112,6 +114,7 @@ describe('authorization contract', () => {
         'fleet.read',
         'trip.event-location',
         'fleet.manage',
+        'fleet.reveal',
         'mdfe.read',
         'mdfe.manage',
         'nfse.manage',
@@ -501,6 +504,22 @@ describe('authorization contract', () => {
     expect(permissions).not.toHaveProperty('add')
     expect(permissions).not.toHaveProperty('delete')
     expect(permissions).not.toHaveProperty('clear')
+  })
+
+  /**
+   * Spec 091 T009: `fleet.reveal` abre o documento do motorista (CNH, RG, comprovante). Quem anexa
+   * (`fleet.manage`) **não** a recebe de carona: só o `company-admin`, e os demais por grupo.
+   * A lista por extenso é de propósito — papel novo que a ganhar tem de aparecer aqui.
+   */
+  test('grants fleet.reveal to the company-admin only, and never with fleet.manage alone', () => {
+    const rolesWithReveal = Object.entries(COMPANY_ROLE_PERMISSIONS)
+      .filter(([, permissions]) => (permissions as readonly string[]).includes('fleet.reveal'))
+      .map(([role]) => role)
+
+    expect(rolesWithReveal).toEqual(['company-admin'])
+    expect(COMPANY_ROLE_PERMISSIONS.operator).toContain('fleet.manage')
+    expect(COMPANY_ROLE_PERMISSIONS.operator).not.toContain('fleet.reveal')
+    expect(resolveCompanyPermissions(['operator']).has('fleet.reveal')).toBe(false)
   })
 
   test('does not leak the mutable backing set through forEach', () => {

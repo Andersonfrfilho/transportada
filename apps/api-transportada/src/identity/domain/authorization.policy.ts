@@ -47,6 +47,13 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'addresses.read',
   'fleet.read',
   'fleet.manage',
+  /**
+   * Spec 091 D3: abrir o documento do motorista (CNH, RG, comprovante de endereço) é permissão
+   * própria, no molde de `users.reveal`. `fleet.manage` anexa e substitui; quem cuida da frota não
+   * baixa a CNH de todo motorista só por ter ganhado aquela permissão para outra finalidade.
+   * Toda abertura grava trilha de auditoria (`security.md` §10).
+   */
+  'fleet.reveal',
   'mdfe.read',
   'mdfe.manage',
   'mdfe.issue',
@@ -155,6 +162,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'fleet.read',
     'trip.event-location',
     'fleet.manage',
+    'fleet.reveal',
     'mdfe.read',
     'mdfe.manage',
     'nfse.manage',

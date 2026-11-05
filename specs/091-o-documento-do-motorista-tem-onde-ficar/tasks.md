@@ -14,7 +14,7 @@ chave é perder o dado). A feature começa na Fase 2.
       `test/fleet-schema/tenant-safety.contract.ts`. Aceite: FK composta com `company_id`; a FK
       simples reprova.
 - [x] **T008** Migration da tabela, com índice único parcial de um documento vivo por tipo.
-- [ ] **T009** `fleet.reveal` no catálogo e nos papéis (migration nos dois CHECKs). Aceite: o
+- [x] **T009** `fleet.reveal` no catálogo e nos papéis (migration nos dois CHECKs). Aceite: o
       contrato de papéis lista por extenso quem a recebe. ⚠️ Declarar que ela nasce **sem rota**
       até a T011.
 - [ ] **T010** `POST` e `DELETE` de anexo sob `fleet.manage`. Tipo decidido pela **assinatura** do

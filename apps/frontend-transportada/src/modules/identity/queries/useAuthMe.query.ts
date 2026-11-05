@@ -48,6 +48,8 @@ export const COMPANY_PERMISSIONS = [
   'addresses.read',
   'fleet.read',
   'fleet.manage',
+  /** Spec 091 D3: abrir o documento do motorista — anexar é `fleet.manage`, ver o arquivo é esta. */
+  'fleet.reveal',
   'mdfe.read',
   'mdfe.manage',
   'mdfe.issue',
