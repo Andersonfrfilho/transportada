@@ -193,6 +193,7 @@
       "change": "Change photo",
       "remove": "Remove photo",
       "busy": "Uploading photo…",
+      "cnhNote": "Photo taken from your driver license — tap to change",
       "error": "Could not save the photo. Try another image.",
       "tooLarge": "The photo is too large even after shrinking it. Choose another one.",
       "unsupported": "That image format is not accepted. Use JPG, PNG or WebP."

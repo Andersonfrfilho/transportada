@@ -207,6 +207,7 @@
       "change": "Trocar foto",
       "remove": "Remover foto",
       "busy": "Enviando a foto…",
+      "cnhNote": "Foto tirada da sua CNH — toque para trocar",
       "error": "Não foi possível salvar a foto. Tente outra imagem.",
       "tooLarge": "A foto é grande demais mesmo depois de reduzida. Escolha outra.",
       "unsupported": "Esse formato de imagem não é aceito. Use JPG, PNG ou WebP."

@@ -38,9 +38,49 @@ describe('cliente da própria foto (spec 295)', () => {
 
     const picture = await client.read()
 
-    expect(picture?.size).toBe(3)
+    expect(picture?.blob.size).toBe(3)
     expect(seen?.url).toBe(`${API_URL}${OWN_PICTURE_PATH}`)
     expect(seen?.headers.get('authorization')).toBe('Bearer access-token')
+  })
+
+  test.each([
+    ['cnh', 'cnh'],
+    ['self', 'self'],
+    ['admin', 'admin'],
+    ['valor desconhecido', undefined],
+    [null, undefined],
+  ] as const)('a origem %s do cabeçalho x-picture-origin vira %s', async (header, expected) => {
+    const { client } = createClient(
+      () =>
+        new Response(new Uint8Array([1]), {
+          headers: header === null ? {} : { 'x-picture-origin': header },
+        }),
+    )
+
+    expect((await client.read())?.origin).toBe(expected)
+  })
+
+  test('a nota da CNH aparece só enquanto a origem é cnh, em pt e en', () => {
+    const profile = readFileSync(
+      new URL('../../src/modules/driver-trip/pages/DriverProfile.page.tsx', import.meta.url),
+      'utf8',
+    )
+    const locales = ['driverTrip.locale.json', 'driverTrip.en.locale.json'].map(
+      (file) =>
+        JSON.parse(
+          readFileSync(
+            new URL(`../../src/modules/driver-trip/locales/${file}`, import.meta.url),
+            'utf8',
+          ),
+        ) as { profile: { picture: { cnhNote: string } } },
+    )
+
+    expect(profile).toMatch(/ownPicture\.origin === 'cnh'/)
+    expect(profile).toContain("t('profile.picture.cnhNote')")
+    expect(locales[0]?.profile.picture.cnhNote).toBe('Foto tirada da sua CNH — toque para trocar')
+    expect(locales[1]?.profile.picture.cnhNote).toBe(
+      'Photo taken from your driver license — tap to change',
+    )
   })
 
   test('sem foto (404) não é erro: devolve undefined e o app fica nas iniciais', async () => {

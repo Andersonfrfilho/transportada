@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 export const OWN_PICTURE_PATH = '/me/picture'
 const OWN_PICTURE_FORM_FIELD = 'file'
+const PICTURE_ORIGIN_HEADER = 'x-picture-origin'
+const PICTURE_ORIGINS = ['cnh', 'self', 'admin'] as const
 export const OWN_PICTURE_REQUEST_FAILED = 'OWN_PICTURE_REQUEST_FAILED'
 
 type ClientDependencies = Readonly<{
@@ -9,9 +11,21 @@ type ClientDependencies = Readonly<{
   getAccessToken: () => Promise<string>
 }>
 
+export type OwnPictureOrigin = (typeof PICTURE_ORIGINS)[number]
+
+export type OwnPicture = Readonly<{
+  blob: Blob
+  /** `undefined` quando a API não informa (ou informa valor que este app não conhece): sem nota. */
+  origin: OwnPictureOrigin | undefined
+}>
+
+function parsePictureOrigin(value: string | null): OwnPictureOrigin | undefined {
+  return PICTURE_ORIGINS.find((origin) => origin === value)
+}
+
 export type OwnPictureClient = Readonly<{
   /** `undefined` quando a pessoa não tem foto: o app fica nas iniciais. */
-  read: () => Promise<Blob | undefined>
+  read: () => Promise<OwnPicture | undefined>
   remove: () => Promise<void>
   replace: (picture: Blob) => Promise<void>
 }>
@@ -58,7 +72,10 @@ export function createOwnPictureClient(dependencies: ClientDependencies): OwnPic
       const response = await send({ method: 'GET' })
       if (response.status === 404) return undefined
       await assertOk(response)
-      return response.blob()
+      return {
+        blob: await response.blob(),
+        origin: parsePictureOrigin(response.headers.get(PICTURE_ORIGIN_HEADER)),
+      }
     },
     async remove() {
       await assertOk(await send({ method: 'DELETE' }))

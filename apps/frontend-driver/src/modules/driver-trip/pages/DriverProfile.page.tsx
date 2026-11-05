@@ -183,6 +183,15 @@ export function DriverProfilePage({
               </Button>
             )}
           </div>
+          {ownPicture.origin === 'cnh' && ownPicture.pictureUrl !== undefined ? (
+            <button
+              className={styles.profilePictureNote}
+              type="button"
+              onClick={() => pictureInputReference.current?.click()}
+            >
+              {t('profile.picture.cnhNote')}
+            </button>
+          ) : null}
           {ownPicture.errorCode === undefined ? null : (
             <p className={styles.profileMeta} role="alert">
               {t(PICTURE_ERROR_KEYS[ownPicture.errorCode] ?? 'profile.picture.error')}

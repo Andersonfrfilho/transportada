@@ -32,7 +32,7 @@ export function useOwnPicture() {
     queryKey: OWN_PICTURE_QUERY_KEY,
     staleTime: Infinity,
   })
-  const picture = query.data ?? undefined
+  const picture = query.data?.blob
   const pictureUrl = useMemo(
     () => (picture === undefined ? undefined : URL.createObjectURL(picture)),
     [picture],
@@ -65,6 +65,7 @@ export function useOwnPicture() {
   return {
     errorCode: (replaceMutation.error ?? removeMutation.error)?.message,
     isBusy: replaceMutation.isPending || removeMutation.isPending,
+    origin: query.data?.origin,
     pictureUrl,
     remove: () => {
       resetMutations()
