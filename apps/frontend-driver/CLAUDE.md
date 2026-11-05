@@ -541,3 +541,5 @@ contato novo passa pela **tela de confirmação** (número formatado) antes de i
 `test/spec-281-t8b-prints.smoke.spec.ts` (fora da CI; o build do smoke precisa de `VITE_DRIVER_APP_URL=http://localhost:53112`).
 
 **A própria foto** (spec 295): `useOwnPicture` lê `GET /me/picture` (vira `blob:`, já aceito no `img-src`), troca por `PUT` e remove por `DELETE`; compressão no aparelho em `userPictureCompression.service.ts` (cópia do painel). `DriverAvatar` mostra a foto no cabeçalho e no Perfil e volta às iniciais se faltar ou quebrar.
+
+**A nota da CNH** (spec 295 Fase 4): `GET /me/picture` traz `x-picture-origin`; `ownPictureClient` o lê (`cnh|self|admin`, desconhecido vira `undefined`) e, enquanto a origem é `cnh`, o Perfil mostra o botão "Foto tirada da sua CNH — toque para trocar", que abre o seletor. Trocar grava `self` e a nota some.

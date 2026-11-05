@@ -31,14 +31,16 @@ Consentimento decidido: aplicar direto, com origem (`cnh|self|admin`) e nota no 
       (CNH-e PDF, 1/1 extraído); 0 foto/digitalizado reais (sintético 9/12). O rosto da CNH-e está dentro da imagem do
       cartão: detecção também no PDF. Biblioteca: `onnxruntime-web` 1.23.2 (WASM, Alpine) + UltraFace RFB-320 + `pdfjs-dist`
       e `sharp` do worker. Protótipo em `apps/worker-transportada/spike/cnh-face/`. T4.2 rende só depois da 091 Fase 2.
-- [ ] T4.2 Coluna aditiva `origin` (`cnh|self|admin`, VARCHAR) + extração no cadastro (091/071); `cnh` nunca sobrescreve `self`/`admin`.
-- [ ] T4.3 App: nota "Foto tirada da sua CNH — toque para trocar" enquanto a origem é `cnh`.
+- [x] T4.2 Coluna aditiva `origin` (`cnh|self|admin`, VARCHAR) + extração no cadastro (091/071); `cnh` nunca sobrescreve `self`/`admin`.
+      Entregue em quatro commits `feat(295)`: origem + `x-picture-origin`; rota de serviço `driver.cnh-picture` na API; thread do worker +
+      gancho após a leitura da CNH (091); backfill idempotente (`backfill:cnh-picture`, dry-run por padrão). Detalhe em `evidence.md`.
+- [x] T4.3 App: nota "Foto tirada da sua CNH — toque para trocar" enquanto a origem é `cnh`.
 
 ## Prompt de execução
 
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/295-o-motorista-poe-a-propria-foto/ (leia spec.md, plan.md e tasks.md
-antes de começar). Uma task por vez, na ordem do tasks.md. Só as Fases 1 a 3.
+antes de começar). Uma task por vez, na ordem do tasks.md. Fases 1 a 4 (a 4 depois do spike).
 Modelos: Fases 1 e 2 → executor model=sonnet · Fase 3 → executor model=haiku · revisão final → code-reviewer model=sonnet.
 Escalada: gate falhou 2x → sobe um nível e registra em evidence.md.
 Cada task fecha com typecheck + lint + testes da app + commit isolado, evidência em evidence.md.

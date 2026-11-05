@@ -5,6 +5,36 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-11-05 — spec 295 Fase 4 — a foto da CNH vira foto de perfil (mudança de finalidade)
+
+**Onde:** `worker-transportada` (`src/cnh-face/`, thread `cnh-face.worker.ts`), `api-transportada`
+(`PUT /fleet/driver-attachments/:attachmentId/cnh-picture`, permissão de serviço `driver.cnh-picture`),
+tabela `identity_user_pictures` (coluna `origin`), app do motorista (Perfil).
+
+**O que é:** o rosto extraído da CNH anexada à ficha do motorista é **aplicado direto** como foto de perfil
+(decisão do dono, 2026-11-05; sem "sugerir e confirmar"). É mudança de **finalidade**: um documento de cadastro passa a
+alimentar uma foto exibida ao escritório e à contratante nas conversas. A base legal e a transparência são do
+cadastro; a proteção técnica é:
+
+- **Origem gravada** (`cnh|self|admin`). A CNH só entra sem foto ou sobre foto também da CNH, numa única instrução
+  `INSERT … ON CONFLICT … WHERE origin = 'cnh'`: envio próprio ou do escritório **nunca** é sobrescrito, nem numa corrida.
+- **Transparência no app:** enquanto a origem é `cnh`, o Perfil mostra "Foto tirada da sua CNH — toque para trocar";
+  trocar ou remover é um toque (`/me/picture`). Trocar muda a origem para `self`.
+- **Só rosto único, nota ≥ 0,98 e recorte ≥ 120 px**; o resto fica com as iniciais, sem nova tentativa.
+- **Sem serviço externo:** a detecção roda no worker (onnxruntime-web WASM, modelo UltraFace RFB-320 de 1,2 MB versionado
+  em `apps/worker-transportada/assets/`), numa `worker_thread` sem rede e sem log; o documento só existe em memória.
+- **Log sem PII:** só o desfecho (`applied`, `kept_existing`, `skipped`, `failed`) e a causa genérica; nenhum
+  identificador de pessoa, nota do detector por pessoa ou conteúdo.
+- **Rota de serviço:** `driver.cnh-picture` é só do papel `automation` (não concedível a grupo nem a pessoa); o alvo é o
+  anexo (a API resolve o usuário e a empresa vem do contexto), nunca um id enviado pelo robô.
+- **Backfill** (`bun run backfill:cnh-picture`): `--dry-run` por padrão (só contagens); `--confirm` grava e pede
+  aprovação antes de rodar em staging ou produção.
+
+**Risco:** a foto da CNH pode aparecer a quem a pessoa não esperava, e o Keycloak recebe o endereço público da foto
+(token imprevisível que gira a cada troca). A sensibilidade é a da foto de perfil, não a do documento.
+
+**Retenção:** a foto de perfil vive até a pessoa ou o escritório removê-la; remover a CNH da ficha não remove a foto.
+
 ### 2026-11-05 — spec 091 — documentos do motorista (CNH, RG, comprovante) sem criptografia de aplicação (decisão do dono)
 
 **Onde:** `api-transportada`, `GET/POST/DELETE /fleet/drivers/:id/attachments` e `GET .../:attachmentId/content`
