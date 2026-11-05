@@ -1,9 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   isDriverAttachmentListResponse,
+  isDriverAttachmentResponse,
+  isDriverAttachmentRevealResponse,
   type DriverAttachment,
+  type DriverAttachmentType,
 } from './driverAttachment.validation'
 import { driverAttachmentsPath } from './fleet.constant'
+
+const ATTACHMENT_FILE_FIELD = 'file'
+const ATTACHMENT_TYPE_FIELD = 'type'
 
 const REQUEST_FAILED = 'DRIVER_ATTACHMENT_REQUEST_FAILED'
 const NETWORK_ERROR = 'DRIVER_ATTACHMENT_NETWORK_ERROR'
@@ -25,6 +31,12 @@ export class DriverAttachmentRequestError extends Error {
 
 export type DriverAttachmentClient = Readonly<{
   list: (driverId: string) => Promise<readonly DriverAttachment[]>
+  /** `fleet.reveal`: o link assinado do arquivo, de vida curta. */
+  reveal: (input: Readonly<{ attachmentId: string; driverId: string }>) => Promise<string>
+  remove: (input: Readonly<{ attachmentId: string; driverId: string }>) => Promise<void>
+  upload: (
+    input: Readonly<{ driverId: string; file: File; type: DriverAttachmentType }>,
+  ) => Promise<DriverAttachment>
 }>
 
 export async function sendDriverAttachmentRequest(
@@ -75,6 +87,37 @@ export function createDriverAttachmentClient(
         path: driverAttachmentsPath(driverId),
       })
       if (!isDriverAttachmentListResponse(body)) {
+        throw new DriverAttachmentRequestError(RESPONSE_INVALID)
+      }
+      return body.data
+    },
+    async remove(input) {
+      await sendDriverAttachmentRequest(dependencies, {
+        method: 'DELETE',
+        path: `${driverAttachmentsPath(input.driverId)}/${input.attachmentId}`,
+      })
+    },
+    async reveal(input) {
+      const body = await sendDriverAttachmentRequest(dependencies, {
+        method: 'GET',
+        path: `${driverAttachmentsPath(input.driverId)}/${input.attachmentId}/content`,
+      })
+      if (!isDriverAttachmentRevealResponse(body)) {
+        throw new DriverAttachmentRequestError(RESPONSE_INVALID)
+      }
+      return body.data.url
+    },
+    async upload(input) {
+      const form = new FormData()
+      form.set(ATTACHMENT_TYPE_FIELD, input.type)
+      form.set(ATTACHMENT_FILE_FIELD, input.file)
+      // Sem `content-type`: o navegador monta o multipart com a fronteira dele.
+      const body = await sendDriverAttachmentRequest(dependencies, {
+        body: form,
+        method: 'POST',
+        path: driverAttachmentsPath(input.driverId),
+      })
+      if (!isDriverAttachmentResponse(body)) {
         throw new DriverAttachmentRequestError(RESPONSE_INVALID)
       }
       return body.data

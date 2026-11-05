@@ -19,6 +19,14 @@ export type DriverAttachment = Readonly<{
   uploadedBy: Readonly<{ id: string; name: null | string }>
 }>
 
+/**
+ * O teto do transporte da API (`FLEET_DRIVER_ATTACHMENT_MAX_BYTES`): conferir aqui poupa a ida, e a API
+ * recusa do mesmo jeito. Os dois números andam juntos.
+ */
+export const DRIVER_ATTACHMENT_MAX_BYTES = 1_572_864
+
+export const DRIVER_ATTACHMENT_ACCEPT = 'application/pdf,image/jpeg,image/png'
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -44,4 +52,18 @@ export function isDriverAttachmentListResponse(
   value: unknown,
 ): value is Readonly<{ data: readonly DriverAttachment[] }> {
   return isRecord(value) && Array.isArray(value.data) && value.data.every(isDriverAttachment)
+}
+
+/** `{ data: { url } }` — o link assinado de vida curta; nunca o corpo do arquivo. */
+export function isDriverAttachmentRevealResponse(
+  value: unknown,
+): value is Readonly<{ data: Readonly<{ url: string }> }> {
+  return isRecord(value) && isRecord(value.data) && typeof value.data.url === 'string'
+}
+
+/** `{ data: anexo }` — o que a API devolve ao anexar. */
+export function isDriverAttachmentResponse(
+  value: unknown,
+): value is Readonly<{ data: DriverAttachment }> {
+  return isRecord(value) && isDriverAttachment(value.data)
 }
