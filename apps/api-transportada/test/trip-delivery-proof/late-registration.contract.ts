@@ -217,6 +217,7 @@ describe('as rotas /me repassam lateRegistration (spec 205 RF1-RF3)', () => {
     const outcome = {
       alreadySettled: false,
       id: EVENT_ID,
+      nextStop: null,
       proofId: null,
       proofPending: false,
       recordedTogether: [] as const,

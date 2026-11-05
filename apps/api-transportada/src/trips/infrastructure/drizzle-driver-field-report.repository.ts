@@ -2,9 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
+import { geocodedAddresses } from '../../database/geocoding.schema.js'
+import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import { inList } from '../../database/schema-check.constant.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
@@ -37,7 +39,9 @@ import type {
   DriverDocumentOccurrence,
   DriverDocumentOccurrenceLineInput,
 } from '../application/driver-document-occurrence.types.js'
+import type { NextStopCandidates } from '../application/driver-next-stop.types.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
+import { resolveRecipientDisplayName } from '../domain/delivery-contact.policy.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
 import { saveTripOccurrence } from './delivery-proof-read.support.js'
 import { findDriverLockingOccurrence } from './occurrence-driver-lock.query.js'
@@ -50,6 +54,7 @@ import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
   DRIVER_RECEIVER_PROOF_KINDS,
+  RECIPIENT_PARTICIPANT_ROLE,
   RETURNED_DOCUMENT_STATUS,
 } from '../domain/delivery-event.constant.js'
 import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
@@ -1125,6 +1130,96 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .limit(1)
 
     return event ?? null
+  }
+
+  /**
+   * Duas leituras para a viagem inteira: as paradas com a coordenada (`geocoded_addresses`, pela
+   * `address_key`, que é a PK — o `left join` não multiplica parada) e as notas ainda na viagem com o
+   * destinatário. O destinatário da parada é o da primeira nota, na ordem do vínculo.
+   */
+  public async findNextStopCandidates(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<NextStopCandidates> {
+    const [stopRows, documentRows] = await Promise.all([
+      this.transaction
+        .select({
+          arrivedAt: tripStops.arrivedAt,
+          completedAt: tripStops.completedAt,
+          enRouteSince: tripStops.enRouteSince,
+          id: tripStops.id,
+          label: tripStops.label,
+          latitude: geocodedAddresses.latitude,
+          longitude: geocodedAddresses.longitude,
+          precision: geocodedAddresses.precision,
+          sequence: tripStops.sequence,
+        })
+        .from(tripStops)
+        .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
+        .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+        .orderBy(asc(tripStops.sequence)),
+      this.transaction
+        .select({
+          id: tripDocuments.id,
+          legalName: nfeParticipants.legalName,
+          number: nfeDocuments.number,
+          separationStatus: tripDocuments.separationStatus,
+          stopId: tripDocuments.stopId,
+          tradeName: nfeParticipants.tradeName,
+        })
+        .from(tripDocuments)
+        .leftJoin(
+          nfeDocuments,
+          and(
+            eq(nfeDocuments.companyId, tripDocuments.companyId),
+            eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+          ),
+        )
+        .leftJoin(
+          nfeParticipants,
+          and(
+            eq(nfeParticipants.companyId, tripDocuments.companyId),
+            eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
+            eq(nfeParticipants.role, RECIPIENT_PARTICIPANT_ROLE),
+          ),
+        )
+        .where(
+          and(
+            eq(tripDocuments.companyId, input.companyId),
+            eq(tripDocuments.tripId, input.tripId),
+            isNull(tripDocuments.releasedAt),
+          ),
+        )
+        .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id)),
+    ])
+
+    return {
+      stops: stopRows.map((stop) => {
+        const documents = documentRows.filter((document) => document.stopId === stop.id)
+        const [first] = documents
+        return {
+          address: stop.label,
+          arrivedAt: stop.arrivedAt?.toISOString() ?? null,
+          completedAt: stop.completedAt?.toISOString() ?? null,
+          documents: documents.map((document) => ({
+            id: document.id,
+            number: document.number ?? '',
+            separationStatus: document.separationStatus,
+          })),
+          enRouteSince: stop.enRouteSince?.toISOString() ?? null,
+          id: stop.id,
+          latitude: stop.latitude,
+          longitude: stop.longitude,
+          precision: stop.precision,
+          recipientName: resolveRecipientDisplayName({
+            legalName: first?.legalName ?? '',
+            tradeName: first?.tradeName ?? '',
+          }),
+          sequence: Number(stop.sequence),
+        }
+      }),
+      totalStops: stopRows.length,
+    }
   }
 
   /** As etapas marcadas junto nascem na transação do evento pedido, então dividem o `created_at` dele. */

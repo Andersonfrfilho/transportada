@@ -51,7 +51,7 @@ import {
   resolveArrivalStop,
   resolveDepartureStop,
   type WhatsAppStopCandidate,
-} from '../../src/whatsapp-commands/domain/whatsapp-driver-stop.policy.js'
+} from '../../src/trips/domain/driver-stop-resolution.policy.js'
 
 const ACTOR = {
   actorUserId: '00000000-0000-4000-8000-000000002931',

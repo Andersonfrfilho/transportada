@@ -19,7 +19,7 @@ import {
   resolveDepartureStop,
   type WhatsAppStopCandidate,
   type WhatsAppStopResolution,
-} from '../../whatsapp-commands/domain/whatsapp-driver-stop.policy.js'
+} from '../../trips/domain/driver-stop-resolution.policy.js'
 import {
   normalizeDriverCommandText,
   WHATSAPP_DRIVER_STOP_COMMAND,

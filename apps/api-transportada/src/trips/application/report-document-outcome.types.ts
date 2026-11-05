@@ -13,6 +13,7 @@ import type { DriverReturnReason } from '../domain/driver-return-reason.policy.j
 import type { EventClockFields } from '../domain/occurred-at.policy.js'
 import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import type { TripDocumentAction } from '../domain/trip-state.policy.js'
+import type { DriverNextStop } from './driver-next-stop.types.js'
 import type {
   DriverDocumentReference,
   DriverFieldReportTransactionPort,
@@ -85,6 +86,8 @@ export type ReportDocumentOutcomeResult = {
    */
   readonly alreadySettled: boolean
   readonly id: string
+  /** Spec 294 RF8: a próxima parada pendente, só quando a baixa do motorista fechou a parada e a viagem segue. */
+  readonly nextStop: DriverNextStop | null
   /** `null` quando não veio comprovante (motorista, ou escritório sem foto obrigatória). */
   readonly proofId: string | null
   /**

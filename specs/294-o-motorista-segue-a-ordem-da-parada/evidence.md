@@ -121,3 +121,16 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
   baixa, chegada, saída. Painel: `sortChronologically` do mapa desempata saída < chegada < resto.
 - Integração `stop-event-sequence` (10 pass), `trip-timeline` (46), `trip-valuation-document-figures` (7); contrato 13168/0; painel 1438/0;
   typecheck e lint verdes.
+
+## T2.5 — a baixa que fecha a parada devolve a próxima; o snapshot leva a precisão
+
+- `resolveDepartureStop` e o resto da política foram movidos para `trips/domain/driver-stop-resolution.policy.ts` (imports do bot atualizados);
+  `isStopAddressReliable` (`stop-address-reliability.policy.ts`): confiável só com coordenada e `rooftop`/`street`.
+- `reportDocumentDelivery`/`reportDocumentReturn` devolvem `nextStop` (id, sequence, totalStops, recipientName, address, documents,
+  coordinate, precision, isAddressReliable) quando a baixa do motorista/WhatsApp fecha a parada e a viagem segue; `null` na última parada,
+  na nota que não fecha a parada, no reenvio e no escritório (`serializeOutcome` não o inclui). Leitura: 2 consultas por baixa que fecha parada
+  (paradas+geocode, notas+destinatário), sem N+1.
+- `GET /me/trips/current`: cada parada ganhou `precision` e `isAddressReliable` (mesmo join de `geocoded_addresses`); a contagem de consultas
+  da leitura não mudou (25). O app do motorista valida à mão e ignora campos novos: sem mudança.
+- Contratos `stop-address-reliability`, `resolve-next-stop`; integração `next-stop-offer` (7). Contrato 13174/0, integração dos arquivos tocados 50/0,
+  typecheck e lint verdes.

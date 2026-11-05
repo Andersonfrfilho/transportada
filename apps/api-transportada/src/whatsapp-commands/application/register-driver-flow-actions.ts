@@ -46,7 +46,7 @@ import {
   resolveArrivalStop,
   resolveDepartureStop,
   type WhatsAppStopResolution,
-} from '../domain/whatsapp-driver-stop.policy.js'
+} from '../../trips/domain/driver-stop-resolution.policy.js'
 import {
   DRIVER_DIRECT_CONFIRM_ANSWER,
   DRIVER_FLOW_ACTION_KIND,

@@ -36,7 +36,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       `recordedTogether`. Integração: 3 eventos em 1 transação, escritório 1, reenvio não duplica.
 - [x] **T2.4** Estatísticas (tempo de serviço, permanência, deslocamento, previsão 109) ignoram
       `recorded_together`. Aceite: integração.
-- [ ] **T2.5** Baixa que fecha a parada devolve `nextStop`; snapshot do motorista leva `precision`.
+- [x] **T2.5** Baixa que fecha a parada devolve `nextStop`; snapshot do motorista leva `precision`.
 
 ## Fase 3 — API: endereço pela chegada
 

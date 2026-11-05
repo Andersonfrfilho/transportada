@@ -22,6 +22,7 @@ import {
   settleAndRecordEvent,
 } from './document-outcome-steps.service.js'
 import { deriveFieldAuthorship } from './field-trip-target.types.js'
+import { resolveNextStop } from './resolve-next-stop.service.js'
 import type {
   DocumentOutcomeParams,
   DocumentOutcomeSettings,
@@ -107,10 +108,20 @@ async function performOutcome(context: OutcomeContext): Promise<ReportDocumentOu
     transaction: context.transaction,
   })
   await recordOutcomeAudit({ context, document })
+  const nextStop =
+    stopCompleted && !tripCompleted && !context.isOffice
+      ? resolveNextStop(
+          await context.transaction.findNextStopCandidates({
+            companyId: context.params.input.companyId,
+            tripId: document.tripId,
+          }),
+        )
+      : null
 
   return {
     alreadySettled,
     id: eventId,
+    nextStop,
     proofId,
     proofPending,
     recordedTogether,
@@ -175,6 +186,7 @@ async function recallOutcome(input: {
   return {
     alreadySettled: true,
     id: event.id,
+    nextStop: null,
     proofId,
     proofPending,
     recordedTogether: await context.transaction.findRecordedTogetherSteps({

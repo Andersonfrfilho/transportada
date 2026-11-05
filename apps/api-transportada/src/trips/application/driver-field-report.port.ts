@@ -21,6 +21,7 @@ import type {
   DriverDocumentOccurrence,
   DriverDocumentOccurrenceLineInput,
 } from './driver-document-occurrence.types.js'
+import type { NextStopCandidates } from './driver-next-stop.types.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
 import type { TripFieldOfficeAuditInput } from './trip-field-office-audit.port.js'
 
@@ -413,6 +414,14 @@ export type DriverFieldReportTransactionPort = {
     readonly companyId: string
     readonly eventId: string
   }): Promise<readonly StopEventStep[]>
+  /**
+   * Spec 294 RF8: as paradas da viagem com o que a oferta da próxima mostra — duas leituras para a
+   * viagem inteira (paradas com a coordenada e notas), nunca uma por parada.
+   */
+  findNextStopCandidates(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<NextStopCandidates>
   /**
    * Spec 159 T11: o último evento daquele tipo da nota — o que o no-op idempotente devolve em vez de
    * gravar outro. `null` quando a nota foi resolvida sem evento (dado legado).
