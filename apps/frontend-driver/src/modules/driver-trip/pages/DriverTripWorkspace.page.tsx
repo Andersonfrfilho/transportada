@@ -31,6 +31,7 @@ import { DriverStopCard, type DriverProofAttachment } from '../components/Driver
 import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNotice.component'
 import { DriverTripSyncBanner } from '../components/DriverTripSyncBanner.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
+import { DriverRecordedTogetherNotice } from '../components/DriverRecordedTogetherNotice.component'
 import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
 import { DriverStalePendingNotice } from '../components/DriverStalePendingNotice.component'
@@ -961,6 +962,16 @@ export function DriverTripWorkspacePage() {
             onDiscard={() => void driverTrip.discardForeignPending()}
           />
         ) : null}
+
+        {/* Spec 294 RF5: a etapa que a API marcou junto da baixa */}
+        {driverTrip.fieldNotices.map((notice) => (
+          <DriverRecordedTogetherNotice
+            key={notice.key}
+            mode="done"
+            onDismiss={() => driverTrip.dismissFieldNotice(notice.key)}
+            steps={notice.recordedTogether}
+          />
+        ))}
 
         {/* Spec 217 (RF8, D6): a viagem que estava aqui e sumiu — reatribuição ou volta a draft */}
         {driverTrip.hasReassignedTripNotice ? (

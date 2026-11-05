@@ -88,7 +88,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** Confirmação "Vamos marcar Cheguei junto" e aviso pós-baixa; "Registrar entrega depois" com
+- [x] **T5.1** Confirmação "Vamos marcar Cheguei junto" e aviso pós-baixa; "Registrar entrega depois" com
       etapas marcadas junto e placar como hoje.
 - [ ] **T5.2** Card da próxima parada com "Iniciar rota" e aviso de endereço não confiável; localização no
       "Cheguei" de parada não confiável.

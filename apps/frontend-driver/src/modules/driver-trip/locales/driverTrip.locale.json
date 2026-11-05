@@ -485,6 +485,19 @@
     "dismiss": "Entendi",
     "notice": "Esta viagem não está mais com você — foi passada para outro motorista ou ajudante, ou voltou para o planejamento do escritório. O que você entregou e registrou fica com a viagem. Fale com o escritório se precisar de mais detalhes."
   },
+  "recordedTogether": {
+    "confirm": {
+      "arrived": "Vamos marcar Cheguei junto com esta baixa.",
+      "departed": "Vamos marcar Iniciar rota junto com este toque.",
+      "departedAndArrived": "Vamos marcar Iniciar rota e Cheguei junto com esta baixa."
+    },
+    "dismiss": "Entendi",
+    "notice": {
+      "arrived": "Marcamos Cheguei junto com esta baixa.",
+      "departed": "Marcamos Iniciar rota junto com este toque.",
+      "departedAndArrived": "Marcamos Iniciar rota e Cheguei junto com esta baixa."
+    }
+  },
   "serviceWorkerUpdate": {
     "apply": "Atualizar",
     "available": "Nova versão disponível.",

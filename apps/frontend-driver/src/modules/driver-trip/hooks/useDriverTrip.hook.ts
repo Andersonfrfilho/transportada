@@ -34,6 +34,12 @@ import {
   createIndexedDbTripSnapshotStore,
 } from '../shared/indexedDbQueue.service'
 import {
+  appendFieldReportNotices,
+  dismissFieldReportNotice,
+  toFieldReportNotice,
+  type FieldReportNotice,
+} from '../shared/fieldReportNotice.service'
+import {
   ATTACHMENT_QUEUE_LIMIT,
   applyAttachmentLocation,
   applyAttachmentReceiverFields,
@@ -212,6 +218,10 @@ export type DriverTripController = Readonly<{
    * leitura boa quando a releitura falhou com sessão viva. `undefined` com a leitura em dia.
    */
   dataSavedAt: string | undefined
+  /** Spec 294 RF5: some quando o motorista toca em "Entendi". */
+  dismissFieldNotice: (key: string) => void
+  /** Spec 294 RF5: os avisos pós-baixa (etapa marcada junto), do mais antigo ao mais novo. */
+  fieldNotices: readonly FieldReportNotice[]
   /** Spec 227: o recusado de negócio sai da fila só pela mão do motorista, com confirmação na tela. */
   discardRejected: (idempotencyKey: string) => Promise<void>
   /** `true` no boot sem rede — a faixa diz "sem conexão"; com sessão viva, "sem atualização". */
@@ -299,6 +309,7 @@ export function useDriverTrip(
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
+  const [fieldNotices, setFieldNotices] = useState<readonly FieldReportNotice[]>([])
   const [sentReportKeys, setSentReportKeys] = useState<ReadonlySet<string>>(new Set())
   const [pendingTotal, setPendingTotal] = useState(0)
   /** RF8/D6: fica `true` até o motorista dispensar — mesmo se a viagem seguinte também sumir. */
@@ -431,6 +442,8 @@ export function useDriverTrip(
       const client = getDriverTripClient()
       /** O que o servidor aceitou nesta drenagem, chave a chave — é isso que a tela chama de enviado. */
       const sentKeys: string[] = []
+      /** Spec 294 RF5: o que a API marcou junto de cada toque, para o aviso pós-baixa. */
+      const notices: FieldReportNotice[] = []
       /** 15/10: o histórico guarda o toque e o desfecho de cada item, para a tela "Enviados". */
       const queuedBefore = new Map(
         (await store.read()).map((item) => [item.report.idempotencyKey, item] as const),
@@ -450,7 +463,13 @@ export function useDriverTrip(
         ownerSubHash: session.subHash,
         send: async (stamped, options): Promise<AttachmentSendOutcome> => {
           try {
-            await client.send(stamped, options)
+            const response = await client.send(stamped, options)
+            const notice = toFieldReportNotice({
+              key: stamped.report.idempotencyKey,
+              kind: stamped.report.kind,
+              response,
+            })
+            if (notice !== undefined) notices.push(notice)
             sentKeys.push(stamped.report.idempotencyKey)
             remember(stamped.report.idempotencyKey, 'sent')
             return { kind: 'sent' }
@@ -545,10 +564,13 @@ export function useDriverTrip(
           .then(setSentHistory)
           .catch(() => undefined)
       }
-      return { ...result, sentKeys }
+      return { ...result, notices, sentKeys }
     },
     onSuccess: (result) => {
       void refreshQueueView()
+      if (result.notices.length > 0) {
+        setFieldNotices((current) => appendFieldReportNotices(current, result.notices))
+      }
       if (result.sentKeys.length > 0) {
         setSentReportKeys((current) => new Set([...current, ...result.sentKeys]))
       }
@@ -1039,6 +1061,10 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  function dismissFieldNotice(key: string): void {
+    setFieldNotices((current) => dismissFieldReportNotice(current, key))
+  }
+
   function dismissReassignedTripNotice(): void {
     setIsTripReassignedNoticeVisible(false)
   }
@@ -1056,7 +1082,9 @@ export function useDriverTrip(
     discardRejected,
     purgeSentHistoryOfTrip,
     discardUnverifiedPending: discardUnverified,
+    dismissFieldNotice,
     dismissReassignedTripNotice,
+    fieldNotices,
     foreignPendingCount,
     hasReassignedTripNotice: isTripReassignedNoticeVisible,
     isQueueLoading: queueView === undefined,

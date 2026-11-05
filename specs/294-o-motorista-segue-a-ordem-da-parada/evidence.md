@@ -373,3 +373,14 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   (a tripulação vence); nada a mudar ali.
 - Leitura da T4.10 mantida: na saída fora de ordem, "2 - Não, a 4" registra a saída da parada 4.
 - Contrato: `test/whatsapp/group-attendant-stop.contract.ts`. Gates: typecheck e lint limpos; contrato da API 13463 pass / 26 skip / 0 fail.
+
+## T5.1 — "Vamos marcar Cheguei junto" e o aviso pós-baixa no app (RF5, RF6)
+
+- `listStepsToRecordTogether` (`recordedTogether.service.ts`) espelha a política da API só para avisar antes do toque; a API decide.
+  O cartão da parada mostra "Vamos marcar Cheguei junto com esta baixa." (e "Iniciar rota e Cheguei", se a saída faltar) quando o
+  "Não entreguei" está aberto sem chegada e dentro da confirmação do "Registrar entrega depois" (RF6: o aviso do placar continua ali,
+  junto das etapas). O "Entreguei" segue liberado só pela chegada ou pelo registro tardio, como na 205.
+- `client.send` passou a devolver a resposta do toque (`parseFieldReportResponse`: `recordedTogether`, lista vazia na API antiga); a drenagem
+  junta os avisos (`fieldReportNotice.service.ts`) e a tela mostra "Marcamos Cheguei junto com esta baixa." com "Entendi".
+- Contrato: `test/driver-trip/recorded-together.contract.ts` (tabela de etapas, frases pt/en, resposta, cliente, avisos).
+- Gates: typecheck e lint limpos; `bun run test` 2212 pass / 0 fail; build ok.

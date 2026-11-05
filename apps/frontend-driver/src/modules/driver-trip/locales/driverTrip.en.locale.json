@@ -471,6 +471,19 @@
     "dismiss": "Got it",
     "notice": "This trip is no longer yours — it was passed to another driver or helper, or sent back to the office's planning. What you delivered and recorded remains with the trip. Contact the office if you need more detail."
   },
+  "recordedTogether": {
+    "confirm": {
+      "arrived": "We will mark Arrived together with this delivery.",
+      "departed": "We will mark Start route together with this tap.",
+      "departedAndArrived": "We will mark Start route and Arrived together with this delivery."
+    },
+    "dismiss": "Got it",
+    "notice": {
+      "arrived": "We marked Arrived together with this delivery.",
+      "departed": "We marked Start route together with this tap.",
+      "departedAndArrived": "We marked Start route and Arrived together with this delivery."
+    }
+  },
   "serviceWorkerUpdate": {
     "apply": "Update",
     "available": "New version available.",

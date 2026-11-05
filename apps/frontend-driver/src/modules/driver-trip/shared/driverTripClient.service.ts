@@ -71,6 +71,7 @@ import {
 } from './proofUploadProgress.service'
 import type { ProofUploadFailure } from './proofUploadProgress.service'
 import { sendFormWithUploadProgress, type UploadProgress } from './xhrMultipartTransport.service'
+import { parseFieldReportResponse, type FieldReportResponse } from './fieldReportResponse.service'
 import { withLegacyLocation, type DriverTripErrorDetail } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
@@ -336,7 +337,8 @@ export type DriverTripClient = Readonly<{
   readLocationConsent: () => Promise<LocationConsent>
   /** `stamp` é o carimbo do item da fila (spec 234 D2); só os `kind` de `CLOCK_FIELD_REPORT_KINDS` o levam. */
   /** `attempt` (spec 254) só rotula o diagnóstico; não muda o envio. */
-  send: (stamped: StampedReport, options?: SendOptions) => Promise<void>
+  /** Spec 294: devolve o que a API respondeu ao toque de campo (etapas marcadas junto); `undefined` nos demais itens. */
+  send: (stamped: StampedReport, options?: SendOptions) => Promise<FieldReportResponse | undefined>
   /** Spec 254: sem diagnóstico sobre si mesmo — o envio do diagnóstico nunca passa pelo coletor. */
   sendClientDiagnostics: (batch: DiagnosticsBatch) => Promise<DiagnosticsSendResult>
   /** A posição ao vivo. Sem id de viagem: o servidor resolve a viagem do motorista (ADR-0050 §5). */
@@ -652,7 +654,7 @@ async function sendReport(input: {
   readonly dependencies: ClientDependencies
   readonly options: SendOptions | undefined
   readonly stamped: StampedReport
-}): Promise<void> {
+}): Promise<FieldReportResponse | undefined> {
   const { dependencies, options, stamped } = input
   const { report: queuedReport, stamp } = stamped
   const report = withLegacyLocation(queuedReport)
@@ -666,7 +668,7 @@ async function sendReport(input: {
       },
       report,
     })
-    return
+    return undefined
   }
   if (report.kind === 'stopOccurrencePhoto') {
     await sendStopOccurrencePhoto({
@@ -679,7 +681,7 @@ async function sendReport(input: {
       report,
       stamp,
     })
-    return
+    return undefined
   }
   if (report.kind === 'proofReceiver') {
     await request({
@@ -689,15 +691,16 @@ async function sendReport(input: {
       method: 'PATCH',
       path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/proof/receiver`,
     })
-    return
+    return undefined
   }
-  await request({
+  const payload = await request({
     body: reportBody({ report, stamp }),
     dependencies,
     idempotencyKey: report.idempotencyKey,
     method: 'POST',
     path: reportPath(report),
   })
+  return parseFieldReportResponse(payload)
 }
 
 /**
