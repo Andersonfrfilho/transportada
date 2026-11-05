@@ -475,3 +475,10 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - Contratos: `apps/worker-transportada/test/canhoto-ocr.contract.test.ts` (texto, thread, rota, ambiente),
   `apps/api-transportada/test/whatsapp-commands/canhoto-recognition.contract.ts`, `test/whatsapp/worker-canhoto-reader.contract.ts`,
   `test/integration/whatsapp-canhoto-question-repository.integration.ts`.
+
+## Junção T4.8 + T6 (e51d8a592)
+
+- `bun run typecheck` (raiz, 7 apps): 0 erros no HEAD da junção; nenhum ajuste de código foi necessário.
+- `db:generate`: `no_changes`; ordem do journal consistente (`20261105144242_whatsapp_canhoto_questions` por último).
+- `make check`: exit 0, 0 fail. `make migration-test`: 231 pass / 0 fail.
+- Integração (9 arquivos: canhoto-question, driver-flow-actions, stop-event-sequence, stop-order-guard, next-stop-offer, pending-items, address-suggestion-pending-items, occurrence-draft, location-redact): 45 pass / 0 fail.
