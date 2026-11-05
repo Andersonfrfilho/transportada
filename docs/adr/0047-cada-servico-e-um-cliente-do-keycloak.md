@@ -97,12 +97,28 @@ pelo verificador real.
 **A regra que passa a valer** (é a do §2 e §3, sem afrouxar nada):
 
 - **Todo token:** assinatura RS256 com `kid` do JWKS do realm, emissor, `aud=transportada-api`, `exp` e
-  `sub` — no verificador (`@adatechnology/keycloak-jwt`), sem exceção para serviço.
+  `sub` — no verificador (`@adatechnology/keycloak-jwt`), sem exceção para serviço. `alg: none` e HS256
+  são 401. Em `AuthenticationService`, a claim `typ` precisa ser `Bearer` (o Keycloak grava `Refresh` e `ID`
+  nos outros dois JWT do realm): refresh e ID token não abrem a API.
 - **`company_id`** sai do verificador e fica num lugar só, `AuthenticationService`: obrigatório (UUID) para
   todo token **sem** o papel de realm exato `transportada-service`. Gente sem a claim continua 401.
-- **Service account** = papel de realm `transportada-service` (exato). A empresa vem **só** do cabeçalho
-  `x-company-id` — a claim, se vier, é ignorada — e precisa casar com uma membership ativa do usuário
-  sintético do serviço (`TenantContextService.resolveCompany`); sem cabeçalho ou sem membership, 403.
+- **Service account** = papel de realm `transportada-service` (exato) **e** `azp` na lista
+  `SERVICE_CLIENT_IDS` da API (padrão `transportada-worker,transportada-worker-cnh-picture`) **e** sem a
+  claim `company_id`. Token com o papel e qualquer outra forma é **401** — nunca cai no caminho de gente,
+  que leria a empresa da claim. `preferred_username` não entra na decisão. A empresa vem **só** do
+  cabeçalho `x-company-id` e precisa casar com uma membership ativa do usuário sintético do serviço
+  (`TenantContextService.resolveCompany`); sem cabeçalho, cabeçalho que não é UUID (inclusive repetido) ou
+  sem membership, 403.
+- **Permissão de máquina só para máquina, e vice-versa** (`AuthorizationService`): as permissões de
+  `SERVICE_ONLY_PERMISSIONS` (`mdfe.auto-issue`, `whatsapp.settle`, `trip.canhoto-auto-review`,
+  `occurrence.automatic-mail`, `driver.cnh-picture`) são 403 para gente, mesmo com o papel `automation`
+  dado por engano; e o service account recebe 403 em toda outra permissão (e em escopo de plataforma),
+  mesmo que a membership sintética tenha ganho um papel de gente.
+- **Papel de serviço não se dá a gente:** convite, troca de papéis, atribuição em lote e grupo recusam
+  `automation` e `cnh-picture-service` com 400 `INVALID_REQUEST` (antes, a troca gravava e o convite
+  estourava 500 no CHECK). A membership sintética não ganha papel de gente: a troca responde 409
+  `COMPANY_USER_IS_SERVICE_ACCOUNT`, e as escritas em lote (papéis, grupos, permissão avulsa) a deixam de
+  fora como deixam o id de outra empresa.
 - O serviço não passa por rota de membership (`/me/...`, política `membership`): 403
   (`AuthorizationService`, spec 144 T005b).
 - Contrato com tokens **assinados de verdade** passando pelo verificador real:
@@ -112,19 +128,24 @@ pelo verificador real.
 canhoto e à baixa do WhatsApp, então consertar a autenticação ligaria a emissão fiscal sozinha. O worker só
 monta o gatilho com `MDFE_AUTO_ISSUE_ENABLED=true` (padrão `false`; `true` sem as quatro variáveis do crachá
 derruba o boot). Desligado, o boot registra `mdfe_auto_issue_disabled` uma vez, sem dado de empresa.
-Ligar é decisão fiscal, pedida ao dono.
+A API tem a **mesma** chave, também `false` por padrão: desligada, `POST /trips/:id/mdfe-manifests/automatic`
+responde 404 `MDFE_AUTO_ISSUE_DISABLED` antes do caso de uso, mesmo que o worker a ligue por engano.
+Ligar é decisão fiscal, pedida ao dono, e vale nos dois serviços.
 
 **Para as chamadas de serviço funcionarem num ambiente** (passo manual no Keycloak, por ambiente):
 
 1. No realm do ambiente, em **Clients → `transportada-worker` → Client scopes → dedicated → Add mapper → By
    configuration → Audience**: nome `transportada-api-audience`, _Included Client Audience_
    `transportada-api`, _Add to access token_ ligado, _Add to ID token_ desligado. Repetir em
-   `transportada-worker-cnh-picture` se ainda não existir (staging já tem, desde 05/11/2026; o
-   `deploy/keycloak/realm.json` recebe o do CNH pelo commit `55682ed4d`, e precisa do mesmo bloco no
-   `transportada-worker`).
+   `transportada-worker-cnh-picture` se ainda não existir (staging já tem, desde 05/11/2026). Os dois
+   realms versionados (`deploy/keycloak/realm.json` e `realm/transportada-local-realm.json`) declaram o
+   bloco nos dois clients, preso por `test/keycloak-realm.contract.test.ts` — mas o import ignora realm
+   existente, então em staging e produção o passo é manual.
 2. Conferir que o usuário `service-account-<client>` tem o papel de realm `transportada-service`.
 3. Conferir que o usuário sintético do serviço tem membership ativa, com o papel de serviço (`automation`,
    `cnh-picture-service`), **em cada empresa** em que ele deve agir — e em nenhuma outra.
 4. Pedir um token (`client_credentials`) e conferir, decodificando sem imprimir o segredo, que `aud`
    contém `transportada-api` e `realm_access.roles` contém `transportada-service`.
-5. Só depois disso, e com aprovação do dono, `MDFE_AUTO_ISSUE_ENABLED=true` no worker.
+5. Na API, `SERVICE_CLIENT_IDS` só precisa existir se a lista mudar: o padrão já cobre os dois clients do
+   worker. Client de serviço novo entra na lista **e** no realm.
+6. Só depois disso, e com aprovação do dono, `MDFE_AUTO_ISSUE_ENABLED=true` no worker **e** na API.

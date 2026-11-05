@@ -311,13 +311,19 @@ empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `t
 
 - **Token de serviço não carrega `company_id`** (ADR-0047, emenda 2026-11-05). O verificador
   (`keycloak-jwt.gateway.ts`) exige assinatura, emissor, `aud=transportada-api`, `exp` e `sub` de todo
-  token e **não** exige `company_id`; quem exige é `AuthenticationService`, para todo token sem o papel de
-  realm exato `transportada-service`. Serviço: empresa só por `x-company-id`, validada contra a membership
-  do usuário sintético (403 sem ela), e rota de membership recusa. Pôr `company_id` de volta no
+  token e **não** exige `company_id`; quem exige é `AuthenticationService`, para todo token que não é
+  service account. Service account = papel de realm exato `transportada-service` **e** `azp` em
+  `SERVICE_CLIENT_IDS` (env da API, padrão os dois clients do worker) **e** sem `company_id`; papel com
+  outra forma é 401. `typ` precisa ser `Bearer`. Serviço: empresa só por `x-company-id`, validada contra
+  a membership do usuário sintético (403 sem ela), e rota de membership recusa. `AuthorizationService`
+  separa os lados: `SERVICE_ONLY_PERMISSIONS` só para serviço, serviço só para elas (403 nos dois
+  sentidos). Papel de serviço não se atribui a gente (`user-administration.schema.ts`, 400), e a
+  membership sintética não ganha papel de gente (409 `COMPANY_USER_IS_SERVICE_ACCOUNT`). Pôr `company_id` de volta no
   `requiredClaims` derruba todas as chamadas do worker em 401 — foi o que aconteceu até 05/11/2026.
   Contrato com JWT assinado de verdade: `test/service-token.contract.test.ts`. Num ambiente novo, cada
-  client de serviço precisa do mapper de audiência no Keycloak (passos na emenda). O MDF-e automático do
-  worker só liga com `MDFE_AUTO_ISSUE_ENABLED=true` (padrão `false`).
+  client de serviço precisa do mapper de audiência no Keycloak (passos na emenda). O MDF-e automático só
+  liga com `MDFE_AUTO_ISSUE_ENABLED=true` no worker **e** na API (padrão `false`; a rota responde 404
+  `MDFE_AUTO_ISSUE_DISABLED`).
 
 ## A lista de viagens diz ocupação e lucro (spec 259)
 

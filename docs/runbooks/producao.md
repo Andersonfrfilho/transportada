@@ -638,11 +638,37 @@ railway logs -s worker -e staging --since 10m | grep -E 'cnh_picture_disabled|wo
   no `keycloak` (só para o `realm.json` bater num reimport). Mostra o sha256 truncado para comparar.
 - Ligado: o boot do worker **não** mostra `cnh_picture_disabled`. Backfill só em simulação sem aval:
   `railway ssh -s worker -e staging -- bun dist/cnh-face/cnh-picture-backfill.main.js --dry-run`.
-- ⚠️ **Em 05/11/2026 a API ainda recusa todo token de conta de serviço** (401 `UNAUTHENTICATED`, também
-  com `aud=transportada-api`): o verificador em `keycloak-jwt.gateway.ts` exige a claim `company_id`
-  (`requiredClaims`), que o token de serviço não tem (ADR-0047 §3). Vale também para o
-  `transportada-worker` (MDF-e automático, canhoto, e-mail automático, baixa por WhatsApp). Enquanto o
-  código não mudar, a foto da CNH não chega à API mesmo com tudo acima configurado.
+- Até a branch `work/service-token` (ADR-0047, emenda 2026-11-05) a API recusava todo token de conta de
+  serviço em 401 (o verificador exigia `company_id`). Depois dela, o token do serviço passa **se** tiver
+  `aud=transportada-api`, o papel `transportada-service`, `azp` em `SERVICE_CLIENT_IDS` e nenhuma
+  `company_id`; e só alcança as permissões de serviço.
+
+### Passos manuais por ambiente para as chamadas worker→API (staging primeiro, produção com aval)
+
+O `realm.json` não chega a realm existente: tudo no Keycloak é pela tela ou pela API de administração.
+
+1. **Keycloak, os dois clients** (`transportada-worker` e `transportada-worker-cnh-picture`): Clients →
+   client → Client scopes → `<client>-dedicated` → Add mapper → By configuration → **Audience**. Nome
+   `transportada-api-audience`, _Included Client Audience_ `transportada-api`, _Add to access token_
+   **ligado**, _Add to ID token_ **desligado**. Staging: o do CNH já existe (05/11/2026), falta o do
+   `transportada-worker`. Produção: os dois.
+2. Conferir que `service-account-<client>` tem o papel de realm `transportada-service`, e o usuário
+   sintético a membership com o papel de serviço só nas empresas em que deve agir.
+3. Conferir um token sem imprimir o segredo: decodificar o payload e ver `aud` com `transportada-api`,
+   `azp` com o client, `typ=Bearer` e nenhuma `company_id`.
+4. **Variáveis**:
+
+   | Serviço  | Variável                  | Valor                                                                        |
+   | -------- | ------------------------- | ---------------------------------------------------------------------------- |
+   | `api`    | `SERVICE_CLIENT_IDS`      | opcional; ausente vale `transportada-worker,transportada-worker-cnh-picture` |
+   | `api`    | `MDFE_AUTO_ISSUE_ENABLED` | **`false`** (ou ausente) — ligar só com aval do dono                         |
+   | `worker` | `MDFE_AUTO_ISSUE_ENABLED` | **`false`** (ou ausente) — ligar só com aval do dono, junto com a API        |
+
+   Client de serviço novo entra em `SERVICE_CLIENT_IDS` **e** no realm; fora da lista, o token é 401.
+
+5. Depois do deploy, nos logs da API: chamadas do worker deixam de responder 401 (`UNAUTHENTICATED`); um
+   403 `FORBIDDEN` é membership faltando na empresa ou permissão que o serviço não tem; 404
+   `MDFE_AUTO_ISSUE_DISABLED` é o interruptor desligado (esperado).
 
 ## 6. Erros que não devem se repetir
 
@@ -657,7 +683,7 @@ railway logs -s worker -e staging --since 10m | grep -E 'cnh_picture_disabled|wo
 | Deploy não rodou após o merge                                                                                    | Ver "Deploy travado"; checar Actions antes de supor que subiu                                                                             |
 | Publicar gatus antes da api                                                                                      | Ordem acima                                                                                                                               |
 | Scripts em Windows/WSL, `zsh` ou com `nvm` fixo                                                                  | Máquina é Arch; `#!/usr/bin/env bash` e `command -v railway`                                                                              |
-| Esperar que o `realm.json` crie client novo num Keycloak já em uso                                               | O import ignora realm existente: criar pela API de administração (seção 5.15)                                                              |
+| Esperar que o `realm.json` crie client novo num Keycloak já em uso                                               | O import ignora realm existente: criar pela API de administração (seção 5.15)                                                             |
 
 - **"Não foi possível salvar" ao marcar como tratado um retorno `needs_operator` (29/10/2026).** Causa: o check
   `occurrence_contractor_replies_reason_check` só admite `reason` em `needs_operator`, e `markHandled` mudava o status
