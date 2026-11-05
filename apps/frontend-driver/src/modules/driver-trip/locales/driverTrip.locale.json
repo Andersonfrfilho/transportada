@@ -1,4 +1,14 @@
 {
+  "canhotoDuplicate": {
+    "dismiss": "Entendi",
+    "notice": "Esse canhoto já tinha chegado às {{time}}. Não gravamos de novo."
+  },
+  "canhotoReplace": {
+    "body": "Esta nota já tem um canhoto. Se trocar, o novo vai para conferência do escritório.",
+    "confirm": "Trocar o canhoto",
+    "keep": "Manter o que já tem",
+    "title": "Trocar o canhoto?"
+  },
   "addressCorrection": {
     "applied": "Endereço atualizado com a sua localização. Obrigado!",
     "suggested": "Enviamos a sua localização para o escritório conferir o endereço."
@@ -170,6 +180,20 @@
   "navigate": "Navegar",
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
   "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
+  "outOfOrder": {
+    "confirm": "Registrar mesmo assim",
+    "discard": "Foi engano, descartar",
+    "generic": "Este toque ({{kind}}) não é da parada em andamento nem da próxima do roteiro. Registrar mesmo assim?",
+    "kind": {
+      "arrive": "Cheguei",
+      "deliver": "Entreguei",
+      "depart": "Iniciar rota",
+      "return": "Não entreguei"
+    },
+    "title": "Fora da ordem da rota",
+    "withCurrent": "Você iniciou a rota para a parada {{current}}, mas este toque ({{kind}}) é da parada {{requested}}. Registrar mesmo assim?",
+    "withNext": "A próxima parada do roteiro é a {{next}}. Quer mesmo registrar {{kind}} na parada {{requested}}?"
+  },
   "pendingProofs": {
     "attach": "Anexar comprovante",
     "back": "Voltar",

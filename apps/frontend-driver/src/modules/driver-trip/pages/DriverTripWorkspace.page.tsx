@@ -32,6 +32,11 @@ import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNo
 import { DriverTripSyncBanner } from '../components/DriverTripSyncBanner.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { isNextStopStillPending } from '../shared/fieldReportNotice.service'
+import { DriverCanhotoDuplicateNotice } from '../components/DriverCanhotoDuplicateNotice.component'
+import { DriverCanhotoReplaceDialog } from '../components/DriverCanhotoReplaceDialog.component'
+import { DriverOutOfOrderDialog } from '../components/DriverOutOfOrderDialog.component'
+import { resolveCanhotoReplacePrompt } from '../shared/canhotoReplacePrompt.service'
+import { resolveOutOfOrderPrompt } from '../shared/outOfOrderPrompt.service'
 import { DriverFieldReportNotice } from '../components/DriverFieldReportNotice.component'
 import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
@@ -225,6 +230,8 @@ export function DriverTripWorkspacePage() {
   }
 
   const snapshot = driverTrip.snapshot
+  const outOfOrderPrompt = resolveOutOfOrderPrompt(driverTrip.queueView)
+  const canhotoReplacePrompt = resolveCanhotoReplacePrompt(driverTrip.queueView)
   /** RF12: com duas viagens ativas, a da tela é a escolhida — nunca mais `trips[0]` às cegas. */
   const {
     autoSwitchedTripId,
@@ -963,6 +970,32 @@ export function DriverTripWorkspacePage() {
             onDiscard={() => void driverTrip.discardForeignPending()}
           />
         ) : null}
+
+        {/* Spec 294 RF27: a API recusou o toque por fora de ordem; só grava com a confirmação */}
+        {outOfOrderPrompt === undefined ? null : (
+          <DriverOutOfOrderDialog
+            onConfirm={(key) => void driverTrip.confirmOutOfOrder(key)}
+            onDiscard={(key) => void driverTrip.discardRejected(key)}
+            prompt={outOfOrderPrompt}
+          />
+        )}
+
+        {/* Spec 294 RF26: a nota já tem outro canhoto; trocar pede confirmação */}
+        {canhotoReplacePrompt === undefined ? null : (
+          <DriverCanhotoReplaceDialog
+            onKeep={(key) => void driverTrip.keepCurrentCanhoto(key)}
+            onReplace={(key) => void driverTrip.confirmCanhotoReplace(key)}
+            prompt={canhotoReplacePrompt}
+          />
+        )}
+
+        {driverTrip.duplicateCanhotos.map((notice) => (
+          <DriverCanhotoDuplicateNotice
+            key={notice.documentId}
+            notice={notice}
+            onDismiss={() => driverTrip.dismissDuplicateCanhoto(notice.documentId)}
+          />
+        ))}
 
         {/* Spec 294 RF5: a etapa que a API marcou junto da baixa */}
         {driverTrip.fieldNotices.map((notice) => (

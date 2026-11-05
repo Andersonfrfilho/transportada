@@ -34,6 +34,17 @@ import {
   createIndexedDbTripSnapshotStore,
 } from '../shared/indexedDbQueue.service'
 import {
+  appendCanhotoDuplicateNotices,
+  collectCanhotoDuplicateNotices,
+  dismissCanhotoDuplicateNotice,
+  type CanhotoDuplicateNotice,
+} from '../shared/canhotoDuplicateNotice.service'
+import {
+  discardRefusedCanhoto,
+  markCanhotoReplaceConfirmed,
+} from '../shared/canhotoReplacePrompt.service'
+import { markOutOfOrderConfirmed } from '../shared/outOfOrderPrompt.service'
+import {
   appendFieldReportNotices,
   dismissFieldReportNotice,
   toFieldReportNotice,
@@ -218,6 +229,15 @@ export type DriverTripController = Readonly<{
    * leitura boa quando a releitura falhou com sessão viva. `undefined` com a leitura em dia.
    */
   dataSavedAt: string | undefined
+  /** Spec 294 RF26: "Trocar o canhoto" — reenvia a foto recusada com a confirmação. */
+  confirmCanhotoReplace: (eventKey: string) => Promise<void>
+  /** Spec 294 RF27: "Registrar mesmo assim" — reenvia o toque recusado com a confirmação. */
+  confirmOutOfOrder: (idempotencyKey: string) => Promise<void>
+  dismissDuplicateCanhoto: (documentId: string) => void
+  /** Spec 294 RF26: os canhotos que a API já tinha (mesma imagem), do mais antigo ao mais novo. */
+  duplicateCanhotos: readonly CanhotoDuplicateNotice[]
+  /** Spec 294 RF26: "Manter o que já tem" — a foto recusada sai do aparelho. */
+  keepCurrentCanhoto: (eventKey: string) => Promise<void>
   /** Spec 294 RF5: some quando o motorista toca em "Entendi". */
   dismissFieldNotice: (key: string) => void
   /** Spec 294 RF5: os avisos pós-baixa (etapa marcada junto), do mais antigo ao mais novo. */
@@ -309,6 +329,7 @@ export function useDriverTrip(
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
+  const [duplicateCanhotos, setDuplicateCanhotos] = useState<readonly CanhotoDuplicateNotice[]>([])
   const [fieldNotices, setFieldNotices] = useState<readonly FieldReportNotice[]>([])
   const [sentReportKeys, setSentReportKeys] = useState<ReadonlySet<string>>(new Set())
   const [pendingTotal, setPendingTotal] = useState(0)
@@ -525,6 +546,7 @@ export function useDriverTrip(
               ...(attachment.lateRegistration === undefined
                 ? {}
                 : { lateRegistration: attachment.lateRegistration }),
+              ...(attachment.replaceCanhoto === true ? { replaceCanhoto: true } : {}),
             })
             /**
              * Pedido do usuário (01/10): aceito o anexo, o original sai da fila — a miniatura fica
@@ -545,7 +567,11 @@ export function useDriverTrip(
               toProofSentHistoryEntry({ at: new Date().toISOString(), attachment }),
             )
             proofUploadProgress.accepted(progressKey, result.processingState)
-            return { kind: 'sent', punctuality: result.punctuality }
+            return {
+              ...(result.duplicate === undefined ? {} : { duplicate: result.duplicate }),
+              kind: 'sent',
+              punctuality: result.punctuality,
+            }
           } catch (error) {
             const failure = describeAttachmentFailure(error)
             if (failure === undefined) proofUploadProgress.clear(progressKey)
@@ -573,6 +599,10 @@ export function useDriverTrip(
       }
       if (result.sentKeys.length > 0) {
         setSentReportKeys((current) => new Set([...current, ...result.sentKeys]))
+      }
+      const duplicates = collectCanhotoDuplicateNotices(result.attachmentsSent)
+      if (duplicates.length > 0) {
+        setDuplicateCanhotos((current) => appendCanhotoDuplicateNotices(current, duplicates))
       }
       if (result.attachmentsSent.length > 0) {
         setProofOutcomeByDocumentId((current) => {
@@ -1061,6 +1091,29 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  /** Spec 294 RF27: "Registrar mesmo assim" — o toque volta à fila com a confirmação e sobe na ordem. */
+  async function confirmOutOfOrder(idempotencyKey: string): Promise<void> {
+    await store.update((items) => markOutOfOrderConfirmed(items, idempotencyKey))
+    await refreshQueueView()
+    requestDrain(undefined, 'immediate')
+  }
+
+  /** Spec 294 RF26: "Trocar o canhoto" — a foto volta com a confirmação; o servidor manda para conferência. */
+  async function confirmCanhotoReplace(eventKey: string): Promise<void> {
+    await attachmentStore.update({ eventKey, mutate: markCanhotoReplaceConfirmed })
+    await refreshQueueView()
+    requestDrain(undefined, 'immediate')
+  }
+
+  async function keepCurrentCanhoto(eventKey: string): Promise<void> {
+    await attachmentStore.update({ eventKey, mutate: discardRefusedCanhoto })
+    await refreshQueueView()
+  }
+
+  function dismissDuplicateCanhoto(documentId: string): void {
+    setDuplicateCanhotos((current) => dismissCanhotoDuplicateNotice(current, documentId))
+  }
+
   function dismissFieldNotice(key: string): void {
     setFieldNotices((current) => dismissFieldReportNotice(current, key))
   }
@@ -1082,9 +1135,14 @@ export function useDriverTrip(
     discardRejected,
     purgeSentHistoryOfTrip,
     discardUnverifiedPending: discardUnverified,
+    confirmCanhotoReplace,
+    confirmOutOfOrder,
+    dismissDuplicateCanhoto,
     dismissFieldNotice,
     dismissReassignedTripNotice,
+    duplicateCanhotos,
     fieldNotices,
+    keepCurrentCanhoto,
     foreignPendingCount,
     hasReassignedTripNotice: isTripReassignedNoticeVisible,
     isQueueLoading: queueView === undefined,

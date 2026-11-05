@@ -405,3 +405,18 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   reenviado sozinho) e a baixa seguinte sobe e gera o aviso "Marcamos Cheguei junto"; rede caída no "Cheguei" segura a baixa (a ordem não se
   inverte); descartado o "Cheguei" recusado, a baixa enfileirada segue; com o recusado à vista a tela continua liberando as notas.
 - Gates: typecheck e lint limpos; `bun run test` 2228 pass / 0 fail.
+
+## T5.4 — fora de ordem, canhoto trocado e canhoto repetido no app (RF25, RF26, RF27)
+
+- Fora de ordem: o `409 TRIP_STOP_OUT_OF_ORDER` (violação em `outOfOrder`, ao lado de `error`) vira `details` da recusa e segue pela fila de
+  recusados; `resolveOutOfOrderPrompt` abre `DriverOutOfOrderDialog` ("Você iniciou a rota para a parada N, mas este toque é da parada M" / "A próxima do
+  roteiro é a N") para chegada, saída, "Entreguei" e "Não entreguei". "Registrar mesmo assim" volta o item à fila com `confirmOutOfOrder: true`
+  (só neste toque) e sem a recusa; "Foi engano, descartar" usa o descarte de sempre. O corpo só leva a chave quando confirmada.
+- Canhoto: o app deixou de mandar `replaceCanhoto=true` às cegas. O `409 TRIP_CANHOTO_ALREADY_ATTACHED` fica como recusa do anexo e abre
+  "Trocar o canhoto?" (o novo vai para conferência do escritório); "Trocar" reenvia com `replaceCanhoto: true`, "Manter o que já tem" tira a foto do
+  aparelho. A resposta 200 com `duplicate` vira "Esse canhoto já tinha chegado às HH:MM." (a imagem não é gravada de novo).
+- Fora do escopo, registrado: a conferência "é canhoto?" na foto do app depende da decisão da T4.8 (OCR local x visão, spike em `spike-canhoto.md`); sem ela, o app
+  não confere.
+- Contratos: `test/driver-trip/out-of-order-prompt.contract.ts`, `test/driver-trip/canhoto-replace-prompt.contract.ts`; o contrato antigo de
+  `proof-accuracy-clamp` passou a provar que `replaceCanhoto` só sai com a confirmação.
+- Gates: typecheck e lint limpos; `bun run test` 2249 pass / 0 fail; build ok. pt e en para todos os textos.

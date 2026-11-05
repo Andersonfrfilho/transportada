@@ -1,4 +1,14 @@
 {
+  "canhotoDuplicate": {
+    "dismiss": "Got it",
+    "notice": "This receipt had already arrived at {{time}}. We did not save it again."
+  },
+  "canhotoReplace": {
+    "body": "This invoice already has a receipt. If you replace it, the new one goes to the office for review.",
+    "confirm": "Replace the receipt",
+    "keep": "Keep the current one",
+    "title": "Replace the receipt?"
+  },
   "addressCorrection": {
     "applied": "Address updated with your location. Thank you!",
     "suggested": "We sent your location to the office to check the address."
@@ -427,6 +437,20 @@
   "tripCompleted": "Trip completed. Good work.",
   "vehicle": "Vehicle {{plate}}",
   "proofPendingWarning": "Retaking it never helps: the worst photo counts. A photo sent much later counts as late, even if the device clock shows another time.",
+  "outOfOrder": {
+    "confirm": "Record anyway",
+    "discard": "Mistake, discard",
+    "generic": "This tap ({{kind}}) is neither for the stop in progress nor the next one on the route. Record anyway?",
+    "kind": {
+      "arrive": "Arrived",
+      "deliver": "Delivered",
+      "depart": "Start route",
+      "return": "Not delivered"
+    },
+    "title": "Out of route order",
+    "withCurrent": "You started the route to stop {{current}}, but this tap ({{kind}}) is for stop {{requested}}. Record anyway?",
+    "withNext": "The next stop on the route is {{next}}. Do you really want to record {{kind}} at stop {{requested}}?"
+  },
   "pendingProofs": {
     "attach": "Attach proof",
     "back": "Back",
