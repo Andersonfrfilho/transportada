@@ -2275,6 +2275,9 @@ function createEvolutionWebhook(input: {
             handleMedia: (media) => groupProofIntake.handle(media),
             isGroupDriver: input.groupDelivery.isGroupDriver,
           }),
+      ...(groupSessions === undefined
+        ? {}
+        : { advanceRequestLocation: (request) => groupSessions.handleLocation(request) }),
       identity: createEvolutionGroupIdentity({ gateway }),
     }),
     inbound: createEvolutionConversationInbound({

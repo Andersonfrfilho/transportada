@@ -282,6 +282,32 @@ describe('grupo: foto e localização do motorista', () => {
     expect(other.media).toEqual([])
   })
 
+  test('a localização de quem abriu o pedido (sem ser o motorista) responde o passo da localização', async () => {
+    const advanced: string[] = []
+    const receiver = (advances: boolean) =>
+      createEvolutionGroupInbound({
+        advanceRequestLocation: async ({ sender }) => {
+          advanced.push(sender)
+          return advances
+        },
+        findGroupDriver: async () => ({ driverId: 'D1' }),
+        findOpenRequestOwner: async () => null,
+        handle: async () => undefined,
+        handleMedia: async () => {
+          throw new Error('não é prova de entrega')
+        },
+        identity,
+        isGroupDriver: async () => false,
+      })
+    const location = { kind: 'location', latitude: -20.56, longitude: -47.36 } as const
+    const input = { companyId: 'C1', connection, event: event(), media: location, senderLid: null }
+    expect(await receiver(true).receive(input)).toBe('media')
+    expect(await receiver(false).receive(input)).toBe('not_driver')
+    const photo = { caption: null, kind: 'image', mimeType: 'image/jpeg' } as const
+    expect(await receiver(true).receive({ ...input, media: photo })).toBe('not_driver')
+    expect(advanced).toEqual(['5516988887777', '5516988887777'])
+  })
+
   function intake(options: { open?: boolean; failDownload?: boolean } = {}) {
     const fake = fakePreparations(options)
     const sent: string[][] = []
