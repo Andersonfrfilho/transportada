@@ -125,6 +125,8 @@ import { CargoLayoutOutboxRelayService } from './cargo-layout/application/cargo-
 import { DrizzleCargoLayoutOutboxRepository } from './cargo-layout/infrastructure/drizzle-cargo-layout-outbox.repository.js'
 import { createDrizzleFleetDriverAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-fleet-driver-attachment-write-back.repository.js'
 import { createDrizzleAggregateAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-write-back.repository.js'
+import { createThreadedCnhFaceGateway } from './cnh-face/infrastructure/threaded-cnh-face.gateway.js'
+import { createCnhPictureApiGateway } from './cnh-face/infrastructure/cnh-picture-api.gateway.js'
 import { createStorageAttachmentReaderGateway } from './aggregate-attachment/infrastructure/storage-attachment-reader.gateway.js'
 import { createCanhotoImageReader } from './canhoto-read/application/canhoto-image-reader.service.js'
 import { createCanhotoReadRoutine } from './canhoto-read/application/canhoto-read.routine.js'
@@ -1143,6 +1145,21 @@ export async function startWorkerRuntime(
         driverWriteBack: createDrizzleFleetDriverAttachmentWriteBackRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
+        ...(config.mdfeAutoIssue === undefined
+          ? {}
+          : {
+              cnhPicture: {
+                extractor: createThreadedCnhFaceGateway(),
+                onOutcome: ({ outcome, reason }) => {
+                  safeLogInfo({
+                    logger,
+                    message: `cnh_picture_${outcome}`,
+                    metadata: { reason },
+                  })
+                },
+                picture: createCnhPictureApiGateway({ configuration: config.mdfeAutoIssue }),
+              },
+            }),
       },
       logger,
       provider: aggregateAttachmentPublisher,

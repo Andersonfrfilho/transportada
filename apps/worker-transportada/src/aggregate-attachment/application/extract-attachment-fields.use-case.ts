@@ -1,6 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import {
+  applyCnhProfilePicture,
+  type CnhPictureDependencies,
+} from '../../cnh-face/application/apply-cnh-profile-picture.use-case.js'
 import type { AggregateAttachmentEnvelopeV1 } from '../../messaging/aggregate-attachment-envelope.schema.js'
 import type {
   AttachmentExtractionPort,
@@ -9,6 +13,8 @@ import type {
 } from './extract-attachment-fields.port.js'
 
 export type ExtractAttachmentFieldsDependencies = Readonly<{
+  /** Spec 295 Fase 4: o rosto da CNH da ficha vira foto de perfil; ausente (sem credencial da API) desliga. */
+  cnhPicture?: CnhPictureDependencies
   /** Onde a leitura do anexo da ficha do motorista é gravada; sem ele, a mensagem volta para retry. */
   driverWriteBack?: AttachmentWriteBackPort
   extraction: AttachmentExtractionPort
@@ -45,7 +51,19 @@ export async function extractAttachmentFields(
     extractedFields,
   })
 
+  if (envelope.payload.subject === 'fleet_driver' && type === 'cnh') {
+    await applyCnhPicture({ attachmentId, bytes, companyId: envelope.companyId }, dependencies)
+  }
+
   return 'extracted'
+}
+
+async function applyCnhPicture(
+  input: { readonly attachmentId: string; readonly bytes: Uint8Array; readonly companyId: string },
+  dependencies: ExtractAttachmentFieldsDependencies,
+): Promise<void> {
+  if (dependencies.cnhPicture === undefined) return
+  await applyCnhProfilePicture(input, dependencies.cnhPicture)
 }
 
 function resolveWriteBack(
