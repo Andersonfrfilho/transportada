@@ -6,7 +6,7 @@
  * Molde de `test/cte-issuance-write-back.integration.test.ts`: conecta direto no `DATABASE_URL`
  * compartilhado, sem banco descartável — as linhas usam ids aleatórios e não colidem entre execuções.
  */
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq, sql } from 'drizzle-orm'
 
@@ -23,6 +23,9 @@ const describeDatabase = databaseUrl ? describe : describe.skip
 
 describeDatabase('contractor mail outbound outbox repository (integration)', () => {
   const provider = createDrizzleProvider({ connection: databaseUrl! })
+  afterAll(async () => {
+    await provider.close()
+  })
   const database = provider.db
   const repository = new DrizzleContractorMailOutboundOutboxRepository(database)
 

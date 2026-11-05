@@ -9,7 +9,7 @@
  */
 import { createHash } from 'node:crypto'
 
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
@@ -53,6 +53,9 @@ function attachmentOf(contentType: string): Attachment {
 
 describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 T4.5)', () => {
   const provider = createDrizzleProvider({ connection: databaseUrl! })
+  afterAll(async () => {
+    await provider.close()
+  })
   const database = provider.db
   const inbound = createDrizzleContractorMailInboundWorkerRepository(database)
 
