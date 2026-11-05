@@ -170,7 +170,7 @@ export type EvolutionGroupInboundPorts = {
     readonly location?: { readonly latitude: number; readonly longitude: number }
     readonly sender: string
   }) => Promise<boolean>
-  /** Spec 293 T15: quem escreveu (só dígitos) é o motorista dono do grupo? */
+  /** Spec 293 T15: quem escreveu (só dígitos) é o motorista dono do grupo? Spec 294: ou um atendente. */
   isGroupDriver?: (input: {
     readonly companyId: string
     readonly driverId: string

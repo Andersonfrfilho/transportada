@@ -586,6 +586,16 @@ eventos de solução, da tratativa e do retorno da contratante). Causa: a operad
 traduzia `handled` em "Em andamento" mesmo depois de solucionada. Dado correto: a ocorrência segue solucionada
 (nenhum evento de reabertura), então não há dado a corrigir; era só a etapa derivada na leitura.
 
+## 5.13 Amostra de fotos de comprovante para spike (05/11/2026, somente leitura)
+
+Spike T4.8a da spec 294 (`specs/294-o-motorista-segue-a-ordem-da-parada/spike-canhoto.md`). Leitura só por
+`select` em `trip_delivery_proofs` × `stored_objects` e `GET` no bucket com o cliente S3 de dentro do container da
+`api` (padrão da §2, script em base64, saída por prefixo `__IMG__`, redirecionada para arquivo local — nunca para a
+tela). Nenhuma escrita. 28 fotos de produção baixadas para a pasta de rascunho da sessão, processadas **só localmente**
+(nenhum serviço externo) e apagadas ao fim. Contagem em 05/11: produção 383 fotos `photo` (213 `approved`, 169
+`pending`, 1 `rejected`), nenhuma `cargo`, nenhuma com `canhoto_read_source`; staging 23 `photo` + 9 anexos de
+ocorrência.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |

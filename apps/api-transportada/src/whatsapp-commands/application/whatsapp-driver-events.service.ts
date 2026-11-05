@@ -106,6 +106,11 @@ export type WhatsAppDriverEventResult =
 /** Quem lança: o motorista (ficha) e a conta dele, já resolvidos pelo canal. */
 export type WhatsAppDriverActor = {
   readonly actorUserId: string
+  /**
+   * Spec 294 RF18/RF19: quem manda é um atendente cadastrado, não o motorista. `actorUserId` é o
+   * usuário dele, `driverId` o motorista da viagem, e a baixa vai pelo caminho do escritório.
+   */
+  readonly attendant?: true
   readonly companyId: string
   readonly driverId: string
 }
@@ -229,7 +234,7 @@ export async function departWhatsAppDriverStop(
   input: WhatsAppStopEventInput,
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.depart
-  return settle(event, async () => {
+  return settleWhatsAppDriverEvent(event, async () => {
     const outcome = await ports.reportDeparture({
       ...actorOf(input),
       idempotencyKey: input.idempotencyKey,
@@ -246,7 +251,7 @@ export async function arriveWhatsAppDriverStop(
   input: WhatsAppStopEventInput,
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.arrive
-  return settle(event, async () => {
+  return settleWhatsAppDriverEvent(event, async () => {
     await ports.reportArrival({
       ...actorOf(input),
       idempotencyKey: input.idempotencyKey,
@@ -263,8 +268,8 @@ export async function deliverWhatsAppDriverDocument(
   input: WhatsAppDocumentEventInput,
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.deliver
-  return settle(event, async () =>
-    toDocumentResult(
+  return settleWhatsAppDriverEvent(event, async () =>
+    toWhatsAppDocumentResult(
       event,
       await ports.reportDelivery({
         ...actorOf(input),
@@ -281,8 +286,8 @@ export async function returnWhatsAppDriverDocument(
   input: WhatsAppReturnEventInput,
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.return
-  return settle(event, async () =>
-    toDocumentResult(
+  return settleWhatsAppDriverEvent(event, async () =>
+    toWhatsAppDocumentResult(
       event,
       await ports.reportReturn({
         ...actorOf(input),
@@ -300,7 +305,7 @@ export async function registerWhatsAppDriverOccurrence(
   input: WhatsAppOccurrenceEventInput,
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.occurrence
-  return settle(event, async () => {
+  return settleWhatsAppDriverEvent(event, async () => {
     await ports.registerOccurrence({
       ...actorOf(input),
       documentId: input.documentId,
@@ -392,7 +397,7 @@ function classifyOccurrenceRequirement(error: unknown): OccurrenceRequirementFie
   return undefined
 }
 
-async function settle(
+export async function settleWhatsAppDriverEvent(
   event: WhatsAppDriverEvent,
   run: () => Promise<WhatsAppDriverEventResult>,
 ): Promise<WhatsAppDriverEventResult> {
@@ -405,7 +410,7 @@ async function settle(
   }
 }
 
-function toDocumentResult(
+export function toWhatsAppDocumentResult(
   event: WhatsAppDriverEvent,
   outcome: DocumentOutcome,
 ): WhatsAppDriverEventResult {

@@ -25,8 +25,10 @@ import type {
   WhatsAppDeliveryPreparations,
 } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { DELIVERY_PROOF_SPEECH } from '../../whatsapp-commands/domain/whatsapp-delivery-proof-speech.constant.js'
+import type { WhatsAppDriverActor } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
 import type { AdmittedGroupMedia } from './evolution-group-inbound.service.js'
 import type { GroupReplySenderPort } from './whatsapp-group-request.port.js'
+import type { ResolveWhatsAppSenderRole } from './whatsapp-sender-role.service.js'
 
 /** A foto vinda do WhatsApp pode ir até o teto do `original` do comprovante (12 MiB). */
 const GROUP_PHOTO_MAX_BYTES = 12 * 1024 * 1024
@@ -69,6 +71,8 @@ export type GroupProofIntakePorts = {
     readonly location: ReportedLocation
   }) => void
   readonly replies: GroupReplySenderPort
+  /** Spec 294 RF18: a mídia do atendente vale como a do motorista, mas segue as regras do escritório. */
+  readonly resolveSenderRole?: ResolveWhatsAppSenderRole
   readonly withoutAccessText: (companyId: string) => Promise<string>
   readonly clock?: () => Date
 }
@@ -94,10 +98,22 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
     say(media, reply.texts)
   }
 
+  async function findCrewActor(key: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<null | WhatsAppDriverActor> {
+    const actorUserId = await ports.findActorUserId(key)
+    return actorUserId === null ? null : { actorUserId, ...key }
+  }
+
   return {
     async handle(media: AdmittedGroupMedia): Promise<void> {
       const { companyId, driverId } = media
-      const actorUserId = await ports.findActorUserId({ companyId, driverId })
+      const role = await ports.resolveSenderRole?.({ companyId, phone: media.sender })
+      const actor: null | WhatsAppDriverActor =
+        role?.kind === 'attendant'
+          ? { actorUserId: role.actorUserId, attendant: true, companyId, driverId }
+          : await findCrewActor({ companyId, driverId })
 
       if (media.media.kind === 'location') {
         const location = toLocation(media.media, media.timestamp, clock())
@@ -110,11 +126,8 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
           sender: media.sender,
         })
         if (advanced === true) return
-        if (actorUserId === null) return say(media, [GROUP_PROOF_TEXT.locationKept])
-        const reply = await ports.preparations.receiveLocation({
-          actor: { actorUserId, companyId, driverId },
-          location,
-        })
+        if (actor === null) return say(media, [GROUP_PROOF_TEXT.locationKept])
+        const reply = await ports.preparations.receiveLocation({ actor, location })
         if (reply === null) return say(media, [GROUP_PROOF_TEXT.locationKept])
         return settle(media, reply)
       }
@@ -122,7 +135,7 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
       // Foto sem entrega em preparo é conversa do grupo: o bot não baixa nem responde.
       const open = await ports.preparations.hasOpen({ companyId, driverId })
       if (!open) return
-      if (actorUserId === null) return say(media, [await ports.withoutAccessText(companyId)])
+      if (actor === null) return say(media, [await ports.withoutAccessText(companyId)])
 
       let downloaded: { readonly data: string; readonly mimeType: string }
       try {
@@ -143,7 +156,7 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
         return say(media, [GROUP_PROOF_TEXT.photoTooLarge])
 
       const reply = await ports.preparations.receivePhoto({
-        actor: { actorUserId, companyId, driverId },
+        actor,
         bytes,
         caption: media.media.caption,
         mimeType: downloaded.mimeType.split(';')[0]?.trim() || media.media.mimeType,

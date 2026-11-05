@@ -13,8 +13,8 @@
  * - Uma candidata só: `single` (o bot registra direto). Mais de uma: `choose`, com a primeira do
  *   roteiro em `suggested`. Nenhuma: `none`.
  *
- * A parada é apresentada pelo número da primeira nota (`describeStopReference`), nunca pelo nome do
- * destinatário nem pelo endereço — o texto pode ir ao grupo.
+ * A parada é apresentada pelo número da primeira nota e pelo nome do cliente (`describeStopReference`,
+ * spec 294 RF17): o grupo do motorista mostra o cliente.
  */
 
 export type WhatsAppStopCandidate = {
@@ -22,6 +22,7 @@ export type WhatsAppStopCandidate = {
   readonly completedAt: string | null
   readonly documents: readonly {
     readonly number: string
+    readonly recipientName?: string | undefined
     readonly separationStatus: string
   }[]
   readonly enRouteSince: string | null
@@ -79,11 +80,13 @@ export function resolveArrivalStop<Stop extends WhatsAppStopCandidate>(
   return toResolution(bySequence(stops.filter(isPending)))
 }
 
-/** "NF 17234" ou "NF 17234 e mais 2": o jeito de citar a parada sem dado do cliente. */
+/** "NF 17234 · Padaria Sol e mais 2": a nota, o cliente e quantas outras vão junto. */
 export function describeStopReference(stop: WhatsAppStopCandidate): string {
   const [first, ...rest] = stop.documents
   if (first === undefined) return `parada ${stop.sequence}`
-  return rest.length === 0 ? `NF ${first.number}` : `NF ${first.number} e mais ${rest.length}`
+  const name = first.recipientName?.trim()
+  const reference = name ? `NF ${first.number} · ${name}` : `NF ${first.number}`
+  return rest.length === 0 ? reference : `${reference} e mais ${rest.length}`
 }
 
 /** A primeira parada pendente do roteiro — a "próxima" que o app oferece e o "saí" sugere. */

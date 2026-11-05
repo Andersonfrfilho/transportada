@@ -458,8 +458,28 @@ describe('qual parada o saí e o cheguei miram (spec 293 T11)', () => {
     })
   })
 
-  test('a parada é citada pela nota, nunca pelo destinatário', () => {
+  test('a parada é citada pela nota e pelo cliente (spec 294 RF17)', () => {
     expect(describeStopReference(stop(1))).toBe('NF 17001')
+    expect(
+      describeStopReference(
+        stop(1, {
+          documents: [
+            { number: '17001', recipientName: 'Padaria Sol', separationStatus: 'loaded' },
+          ],
+        }),
+      ),
+    ).toBe('NF 17001 · Padaria Sol')
+    expect(
+      describeStopReference(
+        stop(1, {
+          documents: [
+            { number: '17001', recipientName: 'Padaria Sol', separationStatus: 'loaded' },
+            { number: '17002', recipientName: 'Padaria Sol', separationStatus: 'loaded' },
+            { number: '17003', recipientName: 'Padaria Sol', separationStatus: 'loaded' },
+          ],
+        }),
+      ),
+    ).toBe('NF 17001 · Padaria Sol e mais 2')
     expect(
       describeStopReference(
         stop(1, {

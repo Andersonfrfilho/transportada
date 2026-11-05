@@ -111,6 +111,7 @@ export type WhatsAppDeliveryPreparationPorts = {
   /** O `attachDeliveryProof` do app, com o canal `whatsapp`. */
   readonly attachProof: (input: {
     readonly actorUserId: string
+    readonly attendant?: true
     readonly companyId: string
     readonly documentId: string
     readonly driverId: string
@@ -224,11 +225,12 @@ export function createWhatsAppDeliveryPreparations(
 ): WhatsAppDeliveryPreparations {
   const { media, repository } = ports
 
-  async function checklistOf(preparation: WhatsAppDeliveryPreparation) {
-    const settings = await ports.resolveSettings({
+  async function checklistOf(preparation: WhatsAppDeliveryPreparation, actor: WhatsAppDriverActor) {
+    const resolved = await ports.resolveSettings({
       companyId: preparation.companyId,
       documentId: preparation.documentId,
     })
+    const settings = actor.attendant === true ? relaxSettingsForAttendant(resolved) : resolved
     return {
       checklist: resolveDeliveryProofChecklist({ collected: collectedOf(preparation), settings }),
       settings,
@@ -265,6 +267,7 @@ export function createWhatsAppDeliveryPreparations(
   /** Aplica uma mudança com a versão lida, relendo quando outra mensagem andou no meio. */
   async function mutate(
     initial: WhatsAppDeliveryPreparation,
+    actor: WhatsAppDriverActor,
     change: (
       preparation: WhatsAppDeliveryPreparation,
       checklist: DeliveryProofChecklist,
@@ -277,7 +280,7 @@ export function createWhatsAppDeliveryPreparations(
   ): Promise<WhatsAppDeliveryPreparationReply> {
     let preparation: null | WhatsAppDeliveryPreparation = initial
     for (let attempt = 0; attempt < MAX_RETRIES && preparation !== null; attempt += 1) {
-      const before = await checklistOf(preparation)
+      const before = await checklistOf(preparation, actor)
       const outcome = change(preparation, before.checklist)
       if ('reply' in outcome) {
         return {
@@ -332,7 +335,7 @@ export function createWhatsAppDeliveryPreparations(
     actor: WhatsAppDriverActor,
     preparation: WhatsAppDeliveryPreparation,
   ): Promise<WhatsAppDeliveryPreparationReply> {
-    const { checklist } = await checklistOf(preparation)
+    const { checklist } = await checklistOf(preparation, actor)
     if (!checklist.ready) {
       const step = nextStep(preparation, checklist)
       return {
@@ -376,6 +379,7 @@ export function createWhatsAppDeliveryPreparations(
         })
         await ports.attachProof({
           actorUserId: actor.actorUserId,
+          ...(actor.attendant === true ? { attendant: true as const } : {}),
           companyId: preparation.companyId,
           documentId: preparation.documentId,
           driverId: preparation.driverId,
@@ -433,7 +437,7 @@ export function createWhatsAppDeliveryPreparations(
         // A foto/localização em aberto aceita "pular" em texto quando o item é opcional.
         const skippable = preparations.find((item) => item.awaiting !== null)
         if (skippable === undefined || !SKIP_WORDS.has(normalizePreparationText(text))) return null
-        return skip(skippable)
+        return skip(skippable, actor)
       }
       const normalized = normalizePreparationText(text)
 
@@ -448,7 +452,7 @@ export function createWhatsAppDeliveryPreparations(
         }
         return refuse(preparation, DELIVERY_PROOF_SPEECH.confirmNotUnderstood)
       }
-      if (SKIP_WORDS.has(normalized)) return skip(preparation)
+      if (SKIP_WORDS.has(normalized)) return skip(preparation, actor)
 
       if (preparation.awaiting === DELIVERY_PROOF_ITEM.receivedBy) {
         const option = /^\d{1,2}$/u.test(normalized)
@@ -457,7 +461,7 @@ export function createWhatsAppDeliveryPreparations(
         if (option === undefined) {
           return refuse(preparation, DELIVERY_PROOF_SPEECH.receivedByNotUnderstood)
         }
-        return mutate(preparation, () => ({
+        return mutate(preparation, actor, () => ({
           ack: [DELIVERY_PROOF_SPEECH.received.receivedBy],
           changes: { receivedBy: option },
         }))
@@ -468,7 +472,7 @@ export function createWhatsAppDeliveryPreparations(
       if (!/\p{L}/u.test(name) || RESERVED_WORDS.has(normalized)) {
         return refuse(preparation, DELIVERY_PROOF_SPEECH.nameNotUnderstood)
       }
-      return mutate(preparation, () => ({
+      return mutate(preparation, actor, () => ({
         ack: [DELIVERY_PROOF_SPEECH.received.receiverName],
         changes: { receiverName: name },
       }))
@@ -507,7 +511,7 @@ export function createWhatsAppDeliveryPreparations(
           preparationId: preparation.id,
         })
       }
-      return mutate(preparation, (current) => ({
+      return mutate(preparation, actor, (current) => ({
         ack: [],
         changes: location !== null && current.location === null ? { location } : {},
       }))
@@ -525,7 +529,7 @@ export function createWhatsAppDeliveryPreparations(
           version: other.version,
         })
       }
-      return mutate(first, () => ({
+      return mutate(first, actor, () => ({
         ack: [DELIVERY_PROOF_SPEECH.received.location],
         changes: { location },
       }))
@@ -548,7 +552,7 @@ export function createWhatsAppDeliveryPreparations(
         return notUnderstood(preparation, DELIVERY_PROOF_SPEECH.duplicatePhoto)
       }
 
-      const { settings } = await checklistOf(preparation)
+      const { settings } = await checklistOf(preparation, actor)
       const kind = classifyPhoto(preparation, settings)
       if (kind === null) {
         return notUnderstood(
@@ -578,7 +582,7 @@ export function createWhatsAppDeliveryPreparations(
         sha256: stored.sha256,
         sizeBytes: stored.sizeBytes,
       }
-      return mutate(preparation, (current) => ({
+      return mutate(preparation, actor, (current) => ({
         ack: [DELIVERY_PROOF_SPEECH.received[kind]],
         // O canhoto é um só (o app troca pelo mais novo); a mercadoria soma até o teto.
         changes: {
@@ -591,8 +595,8 @@ export function createWhatsAppDeliveryPreparations(
     },
   }
 
-  function skip(preparation: WhatsAppDeliveryPreparation) {
-    return mutate(preparation, (current, checklist) => {
+  function skip(preparation: WhatsAppDeliveryPreparation, actor: WhatsAppDriverActor) {
+    return mutate(preparation, actor, (current, checklist) => {
       const question = checklist.next
       if (question === null || current.awaiting !== question.item) {
         return { reply: nextStep(current, checklist).texts }
@@ -610,6 +614,25 @@ export function createWhatsAppDeliveryPreparations(
         changes: { skipped: [...new Set([...current.skipped, question.item])] },
       }
     })
+  }
+}
+
+/**
+ * Spec 294 RF19: o atendente dá a baixa pelo escritório, onde o comprovante é opcional — o bot oferece
+ * cada item e aceita "pular" seja qual for a configuração; a assinatura não existe no WhatsApp.
+ */
+function relaxSettingsForAttendant(
+  settings: DeliveryProofFieldSettings,
+): DeliveryProofFieldSettings {
+  const soften = (mode: DeliveryProofFieldSettings['photo']) =>
+    mode === 'required' ? 'optional' : mode
+  return {
+    ...settings,
+    cargo: soften(settings.cargo),
+    photo: soften(settings.photo),
+    receivedBy: soften(settings.receivedBy),
+    receiverName: soften(settings.receiverName),
+    signature: 'off',
   }
 }
 

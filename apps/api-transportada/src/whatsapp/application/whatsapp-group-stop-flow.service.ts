@@ -8,7 +8,7 @@
  * - mais de uma candidata: o bot lista as paradas pelo número da primeira nota e o motorista escolhe
  *   pelo número da opção ou da nota; uma nota citada no comando ("cheguei 17234") já escolhe;
  * - "saí" com outra parada a caminho: o app recusa e o bot diz qual (`stop_en_route`);
- * - nada de nome de cliente nem endereço no grupo: a parada é citada só pelo número da nota.
+ * - a parada é citada pela nota e pelo cliente (spec 294 RF17).
  *
  * A localização não entra aqui: o Evolution só entrega texto ao grupo (spec 292 T3), então o evento
  * grava `unavailable`, como já ocorre sem a localização compartilhada.

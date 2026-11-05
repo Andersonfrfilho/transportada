@@ -91,7 +91,7 @@ function setupFlow(options: { awaitingText?: boolean; withoutAccess?: boolean } 
     consumeLocation: () => null,
     findActorUserId: async () => (options.withoutAccess === true ? null : 'U1'),
     listOpenDocuments: async () => [
-      { id: 'DOC1', number: '017234' },
+      { id: 'DOC1', number: '017234', recipientName: 'Padaria Sol' },
       { id: 'DOC2', number: '900' },
     ],
     preparations: fake.preparations,
@@ -141,19 +141,24 @@ describe('grupo: entreguei abre a entrega em preparo', () => {
     })
   })
 
-  test('sem a nota, lista as abertas só pelo número; responde pela opção', async () => {
+  test('sem a nota, lista as abertas com o cliente; responde pela opção', async () => {
     const t = setupFlow()
     const asked = await t.start('entreguei')
     expect(asked).toMatchObject({
       kind: 'continue',
       replies: [
         GROUP_DELIVERY_TEXT.askDocument([
-          { id: 'DOC1', number: '017234' },
+          { id: 'DOC1', number: '017234', recipientName: 'Padaria Sol' },
           { id: 'DOC2', number: '900' },
         ]),
       ],
       step: 'delivery.choose',
     })
+    expect(
+      GROUP_DELIVERY_TEXT.askDocument([
+        { id: 'DOC1', number: '017234', recipientName: 'Padaria Sol' },
+      ]),
+    ).toContain('1. NF 17234 · Padaria Sol')
     await t.answer('2')
     expect(t.calls[0]).toMatchObject({ input: { documentId: 'DOC2' }, method: 'begin' })
   })

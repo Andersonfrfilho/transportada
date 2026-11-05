@@ -188,3 +188,64 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - Testes: contratos `stop-order` (política, corpo do 409 e parse das rotas, anexo com doubles, recusa do WhatsApp; 15) e integração `stop-order-guard` (10: em ordem
   intacto, saída fora de ordem 409 e confirmada, baixa/chegada fora de ordem, reenvio, escritório sem pergunta, sem canhoto, mesma imagem, canhoto diferente
   409/replace, escritório troca e duplicado). Contrato 13200/0, migrations, integração dos arquivos tocados, typecheck, lint, prettier; app do motorista 2197/0.
+
+## T4.1 — cliente nas listas de escolha do bot (RF17)
+
+- `describeStopReference` (grupo e individual) e `GROUP_DELIVERY_TEXT.askDocument` passam a citar a nota e o
+  cliente ("NF 17234 · Padaria Sol", "e mais N" para as outras notas da parada); sem nome, só a nota como antes.
+  O candidato de parada e o documento do grupo carregam `recipientName` (vem de `recipientDisplayName` da viagem).
+  Saíram das docstrings as sentenças "nada de nome de cliente"; a regra de não logar PII segue intacta.
+- Contratos: `driver-events.contract.ts` (política), `group-stop-flow.contract.ts` (lista do saí/cheguei),
+  `group-delivery-flow.contract.ts` (lista do entreguei).
+- Gates: typecheck e lint limpos; contrato da API → 13168 pass, 26 skip, 0 fail; prettier ok.
+
+## T4.5 (grupo) — quem mandou decide a regra; atendente baixa pelo escritório (RF18–RF20)
+
+- `createWhatsAppSenderRoleResolver` (tripulação × atendente × desconhecido): tripulação = telefone de motorista/ajudante
+  da frota (`isCrewPhone`, extraído do adaptador da ocorrência); atendente = `resolveWhatsAppActor` (spec 144) com a
+  permissão `trip.report-on-behalf`, a mesma da rota `field-delivery` (nenhuma permissão nova). Tripulação vence quando o
+  número é das duas coisas. Desconhecido: "Só a tripulação ou um atendente cadastrado registra a entrega." e nada é gravado.
+- RF20: a entrega em preparo do grupo deixou de gravar sempre no motorista dono do grupo: o ator vem do remetente.
+  Atendente = `{ actorUserId: usuário, driverId: motorista da viagem, attendant: true }`; a foto/localização dele também é
+  admitida (`isGroupDriver` aceita atendente) e a baixa/anexo vão pelas MESMAS funções do escritório
+  (`reportDocumentDelivery` com alvo `trip` resolvido, `reportFieldProof`), autoria `office`, auditoria
+  `trip_field_office.document_*` com origem `whatsapp`. Janela de horário informado: a da própria função (hora = agora).
+- RF19: comprovantes opcionais para o atendente: `required` vira `optional` em foto, mercadoria, quem recebeu e nome;
+  assinatura é ignorada (não existe no escritório). Sem canhoto, a baixa segue "conclui sem canhoto e cobra depois" (223).
+  Anexo recusado pela configuração do escritório cai no aviso "não consegui anexar" já existente.
+- Contratos: `test/whatsapp/group-sender-role.contract.ts` (papéis, permissão, fluxo do grupo por remetente, função do
+  escritório), `delivery-preparation.contract.ts` (tripulação não pula obrigatório; atendente pula tudo e a baixa leva
+  `attendant: true`).
+- Pendente: conversa individual (menu do operador, spec 144 — grafo publicado) para "dar baixa" do atendente.
+
+## T4.6 (grupo) — várias notas e encerrar a rota pelo atendente (RF21)
+
+- "entreguei 17234 17235": só o atendente (até 8 notas); baixa pelo escritório sem prova, resumo por situação (registrada,
+  canhoto pendente, já baixada, não encontrada, falhou). Tripulação segue "uma nota por vez".
+- "encerrar a rota/viagem": só o atendente; confirmação "1 - Sim / 2 - Não" com quantas notas seguem abertas; chama
+  `trips.close` (a função de `POST /trips/:id/close`) pela ponte `whatsappTripCloseBridge`, com o contexto do atendente,
+  motivo fixo e auditoria `whatsapp`. Quem confirma também precisa ser atendente. Mais de uma viagem ativa: manda ao painel.
+- Contrato: `test/whatsapp/group-attendant-close.contract.ts`.
+- Pendente: conversa individual (viagem pelo número da nota ou pela lista de viagens na rua).
+- Gates: typecheck e lint limpos; contrato da API sem falhas; prettier ok. Integração não rodada (outro worktree usava o
+  Postgres de teste).
+
+## T4.5/T4.6 (conversa individual) — o atendente direto com o bot (RF18, RF19, RF21)
+
+- Ramo novo no grafo raiz (`buildAttendantFieldFlowNodes`): `attendant_field_command`, lista de viagens na rua
+  (`attendant_trip_entry/router`) e confirmação `✅ 1 - Sim / ❌ 2 - Não` (`attendant_close_menu/router`). O despachante
+  (`runAttendantFieldCommand`) leva o texto "entreguei 17234 17235" / "encerrar a rota [NF]" ao nó, só para quem tem
+  `trip.report-on-behalf` e não é motorista cadastrado (motorista segue as regras de motorista). Grafo publicado antes
+  da 294 não tem o nó e segue como antes até a republicação: **publicar o grafo** (`scripts/whatsapp-flow-publish.ts`) no
+  deploy, sob aprovação — não foi publicado em staging nem produção.
+- Baixa: acha as notas (NF) nas viagens na rua, mesmo de viagens diferentes, e baixa pela função do escritório
+  (`deliverByDocument`, motorista efetivo da viagem, autoria `office`, ator = usuário do atendente). Sem prova, "conclui sem
+  canhoto e cobra depois". Resumo por situação.
+- Encerrar: viagem pela NF ou pela lista das viagens na rua (várias viagens valem aqui); a mesma função de
+  `POST /trips/:id/close` pela ponte; confirmação diz quantas notas seguem abertas.
+- Contagem de notas abertas (grupo e individual): `countOpenTripDocumentsForClose` (`trip-close.policy.ts`), a regra do
+  servidor — nota liberada não conta. No grupo continua uma viagem ativa por motorista.
+- Contratos: `test/whatsapp-commands/attendant-field-actions.contract.ts` (comando, lote, encerrar por NF/lista/uma só,
+  confirmação, falha, nós do grafo) e `group-attendant-close.contract.ts` (contagem pela regra do servidor).
+- Gates: typecheck e lint limpos; contrato da API sem falhas; prettier ok. Integração: não rodada (suíte completa em
+  execução no worktree spec-294).
