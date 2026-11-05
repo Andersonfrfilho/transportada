@@ -34,6 +34,7 @@ export function createUserPictureRoutes(
             'cache-control': 'no-store',
             'content-type': picture.mimeType,
             etag: `"${picture.sha256}"`,
+            'x-content-type-options': 'nosniff',
           },
           status: 200,
         })

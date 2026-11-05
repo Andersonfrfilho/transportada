@@ -203,6 +203,14 @@
   "occurrenceSend": "Registrar",
   "profile": {
     "noTrip": "Sem viagem em andamento.",
+    "picture": {
+      "change": "Trocar foto",
+      "remove": "Remover foto",
+      "busy": "Enviando a foto…",
+      "error": "Não foi possível salvar a foto. Tente outra imagem.",
+      "tooLarge": "A foto é grande demais mesmo depois de reduzida. Escolha outra.",
+      "unsupported": "Esse formato de imagem não é aceito. Use JPG, PNG ou WebP."
+    },
     "queueEmpty": "Nada aguardando envio.",
     "queueTitle": "Fila de envio",
     "roles": {
@@ -211,12 +219,10 @@
       "unknown": "Sem papel de campo"
     },
     "score": "{{score}} de 100",
+    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega, ou sem a localização dela, ou não chega. Cada perda some depois de 90 dias.",
     "scoreNone": "Sem nota ainda — nenhuma entrega com foto obrigatória nos últimos 90 dias.",
     "scoreTitle": "Sua nota",
     "signOut": "Sair",
-    "vehicleTitle": "Veículo da viagem",
-    "whatsappTitle": "WhatsApp",
-    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega, ou sem a localização dela, ou não chega. Cada perda some depois de 90 dias.",
     "signOutPending": {
       "chatNotice_one": "{{count}} mensagem do chat ainda não foi enviada. Saindo agora, ela será descartada.",
       "chatNotice_other": "{{count}} mensagens do chat ainda não foram enviadas. Saindo agora, elas serão descartadas.",
@@ -225,7 +231,9 @@
       "notice_one": "{{count}} registro seu ainda não subiu. Saindo agora, ele fica no celular — envie antes ou descarte.",
       "notice_other": "{{count}} registros seus ainda não subiram. Saindo agora, eles ficam no celular — envie antes ou descarte.",
       "send": "Enviar agora"
-    }
+    },
+    "vehicleTitle": "Veículo da viagem",
+    "whatsappTitle": "WhatsApp"
   },
   "progress": {
     "label": "{{resolved}} de {{total}} paradas resolvidas",

@@ -9,7 +9,9 @@ import { NotificationBell } from '@adatechnology/notification-ui'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { DriverAvatar } from '@/modules/identity/components/DriverAvatar.component'
 import { InstallationBrandMark } from '@/modules/identity/components/InstallationBrandMark.component'
+import { useOwnPicture } from '@/modules/identity/hooks/useOwnPicture.hook'
 import { useInstallationBrandView } from '@/modules/identity/hooks/useInstallationBrandView.hook'
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
 import { navigateToDriverSection } from '@/modules/shared/driverRoute.service'
@@ -47,6 +49,7 @@ export function DriverShellHeader({
   const { t } = useTranslation('driverTrip')
   const brand = useInstallationBrandView()
   const profile = getKeycloakAuthProvider().getProfile()
+  const { pictureUrl } = useOwnPicture()
   const badge = formatQueueBadge(pendingCount)
 
   return (
@@ -77,10 +80,12 @@ export function DriverShellHeader({
         className={NOTIFICATION_BELL_CLASS}
         onClick={() => navigateToDriverSection('notifications')}
       />
-      {/* A API não expõe foto ao papel de campo hoje (a rota de foto é `users.manage`): iniciais. */}
-      <span aria-hidden="true" className={styles.driverAvatar}>
-        {profile.initials}
-      </span>
+      <DriverAvatar
+        className={styles.driverAvatar ?? ''}
+        imageClassName={styles.driverAvatarImage ?? ''}
+        initials={profile.initials}
+        pictureUrl={pictureUrl}
+      />
     </header>
   )
 }

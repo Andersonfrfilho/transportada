@@ -1030,6 +1030,7 @@ import { createDrizzleGroupAudit } from './identity/infrastructure/drizzle-group
 import { createCompanyGroupRoutes } from './identity/presentation/company-group.routes'
 import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
+import { createMePictureRoutes } from './identity/presentation/me-picture.routes.js'
 import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
 import { createWhiteLogoCache } from './occurrence-conversation/infrastructure/white-logo.gateway.js'
 import { createPublicMailAssetRoutes } from './occurrence-conversation/presentation/public-mail-assets.routes.js'
@@ -3746,6 +3747,12 @@ function createApplicationRoutes({
     readonly membershipId: string
   }) => currentDriverTripRepository.findDriverIdByMembership(input)
 
+  const userPictureUseCase = createUserPictureUseCase({
+    identityGateway: identityAccessGateway,
+    ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
+    repository: new DrizzleUserPictureRepository(database),
+  })
+
   return [
     ...createCompanySettingsRoutes({
       getSettings: createGetCompanySettingsUseCase({ repository: settingsRepository }),
@@ -6323,13 +6330,8 @@ function createApplicationRoutes({
         newDedupeKey: () => `template-test-${crypto.randomUUID()}`,
       }),
     }),
-    ...createUserPictureRoutes({
-      userPicture: createUserPictureUseCase({
-        identityGateway: identityAccessGateway,
-        ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
-        repository: new DrizzleUserPictureRepository(database),
-      }),
-    }),
+    ...createUserPictureRoutes({ userPicture: userPictureUseCase }),
+    ...createMePictureRoutes({ userPicture: userPictureUseCase }),
     ...createUserAdministrationRoutes({
       activate: createActivateCompanyUserUseCase({
         audit: groupAudit,

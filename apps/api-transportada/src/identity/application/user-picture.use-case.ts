@@ -28,7 +28,7 @@ type Target = { readonly context: { readonly companyId: string }; readonly userI
 export type UserPictureUseCase = {
   readonly find: (input: Target) => Promise<UserPicture>
   readonly findPublic: (input: { readonly publicToken: string }) => Promise<UserPicture>
-  readonly remove: (input: Target) => Promise<void>
+  readonly remove: (input: Target & { readonly idempotent?: boolean }) => Promise<void>
   readonly replace: (input: Target & { readonly bytes: Uint8Array }) => Promise<UserPictureMetadata>
 }
 
@@ -71,14 +71,14 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
       return picture
     },
 
-    remove: async ({ context, userId }) => {
+    remove: async ({ context, idempotent = false, userId }) => {
       const removed = await dependencies.repository.remove({
         companyId: context.companyId,
         userId,
       })
-      if (!removed) throw new UserPictureNotFoundError()
+      if (!removed && !idempotent) throw new UserPictureNotFoundError()
 
-      /** Avatar no token apontando para 404 é pior que avatar nenhum: o atributo sai junto. */
+      /** Avatar no token apontando para 404 é pior que avatar nenhum: o atributo sai junto, inclusive no idempotente (corrige claim de falha parcial). */
       await publishToRealm({ context, userId })
     },
 

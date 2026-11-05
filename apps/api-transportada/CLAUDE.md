@@ -1318,3 +1318,5 @@ troca `_` por espaço. O item ganha `vehicle`, `document.recipient` e `document.
 `/trip-occurrences/` porque ali o `:id` do detalhe casaria o caminho): por tipo, `{ typeName, resolvedCount, averageSeconds }`, do
 registro até o **último** `resolved` (o `resolvedAt` da 276), só de quem está resolvida agora — reaberta, em aberto e cancelada
 ficam de fora. Nome do tipo como no feed (cadastrado, ou o `kind` da parada). `trip-occurrence-resolution-summary.query.ts`.
+
+**A pessoa troca a própria foto** (spec 295). `GET/PUT/DELETE /me/picture` (`me-picture.routes.ts`, política de membership ativa, travada a `/me/` pelo `membership-policy-lock`) reaproveitam `user-picture.use-case.ts`; o alvo é sempre `context.scope.userId`, a rota não tem id. Mesma validação da rota administrativa (assinatura, 256 KiB).

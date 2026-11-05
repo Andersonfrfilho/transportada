@@ -15,6 +15,7 @@ import { describe, expect, test } from 'bun:test'
 import { HealthService } from '../../src/health/health.service.js'
 import { createRouter, defineRoute } from '../../src/http/router.service.js'
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
+import { createMePictureRoutes } from '../../src/identity/presentation/me-picture.routes.js'
 import { createWhatsAppPhoneRoutes } from '../../src/whatsapp-commands/presentation/whatsapp-phone.routes.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
 import { stubUserPictureExistence } from '../fixtures/user-picture-existence.fixture.js'
@@ -29,6 +30,7 @@ const MEMBERSHIP_POLICY_ALLOWLIST = [
 /** Onde o literal pode aparecer: a declaração do tipo e a única fábrica autorizada. */
 const MEMBERSHIP_POLICY_SOURCES = [
   'src/identity/domain/authorization.policy.ts',
+  'src/identity/presentation/me-picture.routes.ts',
   'src/whatsapp-commands/presentation/whatsapp-phone.routes.ts',
 ] as const
 
@@ -107,6 +109,19 @@ describe('a política de membership fica presa a /me/ (spec 144 T005b M2)', () =
       .sort()
 
     expect(signatures).toEqual([...MEMBERSHIP_POLICY_ALLOWLIST])
+  })
+
+  test('as rotas de foto própria (spec 295) são as três de /me/picture', () => {
+    const routes = createMePictureRoutes({
+      userPicture: {} as Parameters<typeof createMePictureRoutes>[0]['userPicture'],
+    })
+
+    const signatures = routes
+      .filter((route) => route.policy !== undefined && 'membership' in route.policy)
+      .map((route) => `${route.method} ${route.pathname}`)
+      .sort()
+
+    expect(signatures).toEqual(['DELETE /me/picture', 'GET /me/picture', 'PUT /me/picture'])
   })
 
   test('nenhum outro arquivo de src/ declara a política', async () => {

@@ -232,6 +232,7 @@ export const API_ME_CURRENT_TRIP_PATH = '/me/trips/current'
 export const API_ME_CLIENT_DIAGNOSTICS_PATH = '/me/client-diagnostics'
 export const API_ME_LOCATION_CONSENT_PATH = '/me/location-consent'
 export const API_ME_WHATSAPP_PHONE_PATH = '/me/whatsapp-phone'
+export const API_ME_PICTURE_PATH = '/me/picture'
 
 /**
  * ADR-0050 §4: o portal do contratante fala por `/client/me/*`, e nenhuma dessas rotas recebe id de
