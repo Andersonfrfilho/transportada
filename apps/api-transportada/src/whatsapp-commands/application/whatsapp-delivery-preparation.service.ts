@@ -223,6 +223,14 @@ export type WhatsAppDeliveryPreparations = {
   awaitingText(input: { readonly companyId: string; readonly driverId: string }): Promise<boolean>
   /** Há entrega em preparo aberta deste motorista? (o canal só baixa a foto quando há.) */
   hasOpen(input: { readonly companyId: string; readonly driverId: string }): Promise<boolean>
+  /**
+   * Spec 294 T4.8 (RF23): sem preparação aberta, a foto ainda vale ser baixada e lida (o bot reconhece o canhoto)?
+   * Ausente ou `false`, a foto sem preparação segue calada, como antes.
+   */
+  acceptsUnsolicitedPhoto?(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<boolean>
   /** A localização compartilhada vale para as preparações abertas que ainda não têm. */
   receiveLocation(input: {
     readonly actor: WhatsAppDriverActor
@@ -234,9 +242,23 @@ export type WhatsAppDeliveryPreparations = {
     readonly bytes: Uint8Array
     /** O texto da legenda: se citar o número de uma das notas em preparo, a foto vai para ela. */
     readonly caption: null | string
+    /** Spec 294 T4.8: o canal de onde a foto veio (a leitura do canhoto abre a preparação com ele). */
+    readonly channel?: WhatsAppDeliveryPreparationChannel
     readonly mimeType: string
     readonly providerMessageId: string
   }): Promise<null | WhatsAppDeliveryPreparationReply>
+  /**
+   * Spec 294 T4.8 (RF23): a foto que o bot leu e ligou à nota é o canhoto dela. Abre (ou retoma) a preparação da nota, grava
+   * a foto como canhoto (a mesma imagem repetida não grava, RF26) e diz o próximo passo (a localização opcional, depois a baixa).
+   */
+  receiveCanhotoPhoto?(input: {
+    readonly actor: WhatsAppDriverActor
+    readonly bytes: Uint8Array
+    readonly channel: WhatsAppDeliveryPreparationChannel
+    readonly document: { readonly id: string; readonly number: string }
+    readonly mimeType: string
+    readonly providerMessageId: string
+  }): Promise<WhatsAppDeliveryPreparationReply>
 }
 
 const LOG = {
@@ -269,7 +291,8 @@ const stripZeros = (value: string) => value.replace(/^0+(?=\d)/u, '')
 
 export function createWhatsAppDeliveryPreparations(
   ports: WhatsAppDeliveryPreparationPorts,
-): WhatsAppDeliveryPreparations {
+): WhatsAppDeliveryPreparations &
+  Required<Pick<WhatsAppDeliveryPreparations, 'receiveCanhotoPhoto'>> {
   const { media, repository } = ports
 
   async function checklistOf(preparation: WhatsAppDeliveryPreparation, actor: WhatsAppDriverActor) {
@@ -655,32 +678,37 @@ export function createWhatsAppDeliveryPreparations(
     },
 
     async begin({ actor, channel, documentId, documentNumber, location }) {
-      let preparation = await repository.findOpenByDocument({
-        companyId: actor.companyId,
-        documentId,
+      const preparation = await openPreparation({
+        actor,
+        channel,
+        document: { id: documentId, number: documentNumber },
       })
       if (preparation === null) {
-        preparation =
-          (await repository.open({
-            companyId: actor.companyId,
-            documentId,
-            documentNumber,
-            driverId: actor.driverId,
-            originChannel: channel,
-          })) ?? (await repository.findOpenByDocument({ companyId: actor.companyId, documentId }))
-        if (preparation === null) {
-          return { awaitingText: false, documentNumber, finished: true, texts: [] }
-        }
-        ports.logger?.info(LOG.opened, {
-          channel,
-          companyId: actor.companyId,
-          preparationId: preparation.id,
-        })
+        return { awaitingText: false, documentNumber, finished: true, texts: [] }
       }
       return mutate(preparation, actor, (current) => ({
         ack: [],
         changes: location !== null && current.location === null ? { location } : {},
       }))
+    },
+
+    async receiveCanhotoPhoto({ actor, bytes, channel, document, mimeType, providerMessageId }) {
+      const opened = await openPreparation({ actor, channel, document })
+      if (opened === null) {
+        return { awaitingText: false, documentNumber: document.number, finished: true, texts: [] }
+      }
+      if (opened.photos.some((photo) => photo.providerMessageId === providerMessageId)) {
+        return notUnderstood(opened, DELIVERY_PROOF_SPEECH.duplicatePhoto)
+      }
+      return storePhoto({
+        ack: CANHOTO_TEXT.read(opened.documentNumber),
+        actor,
+        bytes,
+        kind: 'photo',
+        mimeType,
+        preparation: opened,
+        providerMessageId,
+      })
     },
 
     async receiveLocation({ actor, location }) {
@@ -734,51 +762,95 @@ export function createWhatsAppDeliveryPreparations(
         )
       }
 
-      const stored = await media.store({
-        bytes,
-        companyId: preparation.companyId,
-        mimeType,
-        preparationId: preparation.id,
-      })
-      // Spec 294 RF26: a mesma imagem já era canhoto — nada é guardado, e o bot diz de qual nota.
-      const duplicate =
-        kind === 'photo'
-          ? await ports.findCanhotoByHash?.({
-              companyId: preparation.companyId,
-              sha256: stored.sha256,
-            })
-          : null
-      if (duplicate !== null && duplicate !== undefined) {
-        await media
-          .remove({ companyId: preparation.companyId, objectKey: stored.objectKey })
-          .catch(() => undefined)
-        return notUnderstood(
-          preparation,
-          CANHOTO_TEXT.duplicate({
-            attachedAt: duplicate.attachedAt,
-            documentNumber: await duplicateNumber(preparation, duplicate.documentId),
-          }),
-        )
-      }
-      const photo: WhatsAppDeliveryPreparationPhoto = {
-        kind,
-        mimeType,
-        objectKey: stored.objectKey,
-        providerMessageId,
-        sha256: stored.sha256,
-        sizeBytes: stored.sizeBytes,
-      }
-      return mutate(preparation, actor, (current) => ({
-        ack: [DELIVERY_PROOF_SPEECH.received[kind]],
-        // O canhoto é um só (o app troca pelo mais novo); a mercadoria soma até o teto.
-        changes: {
-          photos:
-            kind === 'photo'
-              ? [...current.photos.filter((item) => item.kind !== 'photo'), photo]
-              : [...current.photos, photo],
-        },
-      }))
+      return storePhoto({ actor, bytes, kind, mimeType, preparation, providerMessageId })
     },
+  }
+
+  /** A preparação aberta da nota, ou a que acabou de abrir; `null` quando a corrida não deixa achar nenhuma. */
+  async function openPreparation(input: {
+    readonly actor: WhatsAppDriverActor
+    readonly channel: WhatsAppDeliveryPreparationChannel
+    readonly document: { readonly id: string; readonly number: string }
+  }): Promise<null | WhatsAppDeliveryPreparation> {
+    const { actor, channel, document } = input
+    const scope = { companyId: actor.companyId, documentId: document.id }
+    const existing = await repository.findOpenByDocument(scope)
+    if (existing !== null) return existing
+    const preparation =
+      (await repository.open({
+        ...scope,
+        documentNumber: document.number,
+        driverId: actor.driverId,
+        originChannel: channel,
+      })) ?? (await repository.findOpenByDocument(scope))
+    if (preparation === null) return null
+    ports.logger?.info(LOG.opened, {
+      channel,
+      companyId: actor.companyId,
+      preparationId: preparation.id,
+    })
+    return preparation
+  }
+
+  /** Guarda a foto no bucket, barra o canhoto repetido (RF26) e soma a foto à preparação. */
+  async function storePhoto(input: {
+    readonly ack?: string
+    readonly actor: WhatsAppDriverActor
+    readonly bytes: Uint8Array
+    readonly kind: 'cargo' | 'photo'
+    readonly location?: null | ReportedLocation
+    readonly mimeType: string
+    readonly preparation: WhatsAppDeliveryPreparation
+    readonly providerMessageId: string
+  }): Promise<WhatsAppDeliveryPreparationReply> {
+    const { actor, bytes, kind, mimeType, preparation, providerMessageId } = input
+    const stored = await media.store({
+      bytes,
+      companyId: preparation.companyId,
+      mimeType,
+      preparationId: preparation.id,
+    })
+    // Spec 294 RF26: a mesma imagem já era canhoto — nada é guardado, e o bot diz de qual nota.
+    const duplicate =
+      kind === 'photo'
+        ? await ports.findCanhotoByHash?.({
+            companyId: preparation.companyId,
+            sha256: stored.sha256,
+          })
+        : null
+    if (duplicate !== null && duplicate !== undefined) {
+      await media
+        .remove({ companyId: preparation.companyId, objectKey: stored.objectKey })
+        .catch(() => undefined)
+      return notUnderstood(
+        preparation,
+        CANHOTO_TEXT.duplicate({
+          attachedAt: duplicate.attachedAt,
+          documentNumber: await duplicateNumber(preparation, duplicate.documentId),
+        }),
+      )
+    }
+    const photo: WhatsAppDeliveryPreparationPhoto = {
+      kind,
+      mimeType,
+      objectKey: stored.objectKey,
+      providerMessageId,
+      sha256: stored.sha256,
+      sizeBytes: stored.sizeBytes,
+    }
+    return mutate(preparation, actor, (current) => ({
+      ack: [input.ack ?? DELIVERY_PROOF_SPEECH.received[kind]],
+      // O canhoto é um só (o app troca pelo mais novo); a mercadoria soma até o teto.
+      changes: {
+        ...(input.location !== undefined && input.location !== null && current.location === null
+          ? { location: input.location }
+          : {}),
+        photos:
+          kind === 'photo'
+            ? [...current.photos.filter((item) => item.kind !== 'photo'), photo]
+            : [...current.photos, photo],
+      },
+    }))
   }
 
   /** O número da nota a que o canhoto repetido já pertence: a própria, ou a que a viagem do motorista conhece. */

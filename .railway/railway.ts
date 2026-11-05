@@ -151,6 +151,8 @@ export default defineRailway((ctx) => {
       /** Spec 292 T9: a rota interna do worker que transcreve o áudio do bot; o token é referência ao do worker. */
       BOT_AUDIO_TRANSCRIPTION_TOKEN: preserve(),
       WORKER_INTERNAL_URL: preserve(),
+      /** Spec 294 T4.8: liga o reconhecimento do canhoto pelo OCR do worker; vazio = ligado fora de produção, desligado em produção. */
+      CANHOTO_OCR_ENABLED: preserve(),
       /** Spec 292 T9: frase de chamada por áudio no grupo (ex.: "atendimento Fernandes"); vazia = desligada. */
       WHATSAPP_BOT_WAKE_PHRASE: preserve(),
       WHATSAPP_BOT_WAKE_DEBUG: preserve(),
@@ -241,6 +243,8 @@ export default defineRailway((ctx) => {
       BOT_AUDIO_TRANSCRIPTION_TOKEN: preserve(),
       /** Spec 292 T9: o texto de contexto do whisper no áudio do bot (a grafia da marca). */
       BOT_AUDIO_TRANSCRIPTION_PROMPT: preserve(),
+      /** Spec 294 T4.8: liga/desliga o OCR do canhoto do bot; vazio = ligado fora de produção, desligado em produção. */
+      CANHOTO_OCR_ENABLED: preserve(),
       WORKER_HOSTNAME: preserve(),
       WORKER_PORT: preserve(),
       WORKER_PREFETCH: preserve(),

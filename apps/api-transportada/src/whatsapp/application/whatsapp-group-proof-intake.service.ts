@@ -132,8 +132,11 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
         return settle(media, reply)
       }
 
-      // Foto sem entrega em preparo é conversa do grupo: o bot não baixa nem responde.
-      const open = await ports.preparations.hasOpen({ companyId, driverId })
+      // Foto sem entrega em preparo é conversa do grupo: o bot não baixa nem responde — salvo o reconhecimento do
+      // canhoto (spec 294 T4.8), que só liga com o OCR do worker e com notas abertas do motorista.
+      const open =
+        (await ports.preparations.hasOpen({ companyId, driverId })) ||
+        (await ports.preparations.acceptsUnsolicitedPhoto?.({ companyId, driverId })) === true
       if (!open) return
       if (actor === null) return say(media, [await ports.withoutAccessText(companyId)])
 
@@ -159,6 +162,7 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
         actor,
         bytes,
         caption: media.media.caption,
+        channel: 'group',
         mimeType: downloaded.mimeType.split(';')[0]?.trim() || media.media.mimeType,
         providerMessageId: media.providerMessageId,
       })

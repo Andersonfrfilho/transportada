@@ -242,6 +242,10 @@ import {
   isCrewPhone,
 } from './whatsapp/infrastructure/whatsapp-group-sender.adapter.js'
 import { createWhatsAppSenderRoleResolver } from './whatsapp/application/whatsapp-sender-role.service.js'
+import { createWhatsAppCanhotoRecognition } from './whatsapp-commands/application/whatsapp-canhoto-recognition.service.js'
+import { isCanhotoOcrEnabled } from './whatsapp-commands/domain/whatsapp-canhoto-ocr-enabled.policy.js'
+import { createDrizzleWhatsAppCanhotoQuestionRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-canhoto-question.repository.js'
+import { createWorkerCanhotoReader } from './whatsapp/infrastructure/worker-canhoto-reader.gateway.js'
 import { createWhatsAppDeliveryPreparations } from './whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { createWhatsAppPreparationProofAttacher } from './whatsapp-commands/infrastructure/whatsapp-delivery-preparation-proof.adapter.js'
 import {
@@ -1559,6 +1563,10 @@ export function bootstrap(): Bun.Server<undefined> {
     readonly companyId: string
     readonly driverId: string
   }) => (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap((trip) => trip.stops)
+  const whatsappPreparationMedia = createWhatsAppDeliveryPreparationMedia({
+    bucket: whatsappStorageBucket,
+    storage: whatsappStorageGateway,
+  })
   const whatsappDeliveryPreparations = createWhatsAppDeliveryPreparations({
     findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
     listStops: listWhatsAppDriverStops,
@@ -1580,10 +1588,7 @@ export function bootstrap(): Bun.Server<undefined> {
         speech: whatsappBotSpeech,
       }),
     logger,
-    media: createWhatsAppDeliveryPreparationMedia({
-      bucket: whatsappStorageBucket,
-      storage: whatsappStorageGateway,
-    }),
+    media: whatsappPreparationMedia,
     repository: createDrizzleWhatsAppDeliveryPreparationRepository(database.db),
     resolveSettings: (query) => whatsappDeliveryProofRepository.resolveProofFieldSettings(query),
   })
@@ -1613,7 +1618,27 @@ export function bootstrap(): Bun.Server<undefined> {
     }),
   })
   /** O que o motorista manda sem dizer para quê vai para a coleta certa (ocorrência ou entrega). */
+  /**
+   * Spec 294 T4.8 (RF23): a foto sem entrega em preparo é lida pelo OCR local do worker (a mesma rota interna e o mesmo token
+   * do áudio do bot). Sem `WORKER_INTERNAL_URL`/token, ou com `CANHOTO_OCR_ENABLED=false` (padrão em produção), não existe.
+   */
+  const canhotoReaderConfig = isCanhotoOcrEnabled(process.env)
+    ? readWorkerBotAudioTranscriberConfig(process.env)
+    : undefined
+  const whatsappCanhotoRecognition =
+    canhotoReaderConfig === undefined
+      ? undefined
+      : createWhatsAppCanhotoRecognition({
+          findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
+          listStops: listWhatsAppDriverStops,
+          logger,
+          media: whatsappPreparationMedia,
+          preparations: whatsappDeliveryPreparations,
+          questions: createDrizzleWhatsAppCanhotoQuestionRepository(database.db),
+          reader: createWorkerCanhotoReader(canhotoReaderConfig),
+        })
   const whatsappDriverCollections = combineWhatsAppDriverCollections({
+    canhoto: whatsappCanhotoRecognition,
     deliveries: whatsappDeliveryPreparations,
     occurrences: whatsappOccurrenceDrafts,
   })

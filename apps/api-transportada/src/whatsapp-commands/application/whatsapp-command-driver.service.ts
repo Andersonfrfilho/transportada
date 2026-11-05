@@ -341,8 +341,12 @@ async function resolveProofActor(input: {
     membershipId: input.scope.membershipId,
   })
   if (driverId === null) return null
-  if (!(await intake.preparations.hasOpen({ companyId: input.scope.companyId, driverId })))
-    return null
+  const scope = { companyId: input.scope.companyId, driverId }
+  // Spec 294 T4.8: a foto sem preparação aberta também entra, para o bot reconhecer o canhoto (só mensagem de imagem).
+  const mayRecognizePhoto =
+    extractWhatsAppIncomingImage(input.turn.message) !== undefined &&
+    (await intake.preparations.acceptsUnsolicitedPhoto?.(scope)) === true
+  if (!mayRecognizePhoto && !(await intake.preparations.hasOpen(scope))) return null
   return {
     actor: { actorUserId: input.scope.userId, companyId: input.scope.companyId, driverId },
     intake,
@@ -375,6 +379,7 @@ async function acceptDeliveryProof(input: {
       actor,
       bytes: Uint8Array.from(Buffer.from(downloaded.data, 'base64')),
       caption: turn.message.image?.caption ?? null,
+      channel: 'individual',
       mimeType: downloaded.mimeType.split(';')[0]?.trim() || image.mimeType,
       providerMessageId: turn.message.id ?? image.mediaId,
     })
