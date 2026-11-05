@@ -2247,6 +2247,15 @@ function createEvolutionWebhook(input: {
               reply: (reply) => groupReplies.send(reply),
               // Spec 292 T9: a frase de chamada por voz da instalação ("atendimento Fernandes").
               wakePhrase: parseWakePhrase(process.env.WHATSAPP_BOT_WAKE_PHRASE),
+              // Diagnóstico de staging: o começo do que o whisper ouviu quando a frase não casou.
+              ...(process.env.WHATSAPP_BOT_WAKE_DEBUG === 'true' &&
+              process.env.APP_ENV !== 'production'
+                ? {
+                    onWakeMissed: (heard: string) => {
+                      logger.info('whatsapp_bot_audio.wake_missed', { heard })
+                    },
+                  }
+                : {}),
             },
           }),
       findGroupDriver: (lookup) => driverGroups.findDriverByGroup(lookup),
