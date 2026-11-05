@@ -272,7 +272,7 @@ export function createFieldReportUnitOfWork(
     },
     findEventById: async (input) => state.events.get(input.eventId) ?? null,
     correctAddressFromArrival: async (input) => {
-      state.calls.push(`correctAddressFromArrival:${input.eventId}`)
+      state.calls.push(`correctAddressFromArrival:${input.eventId}${input.isLate ? ':late' : ''}`)
       return 'applied'
     },
     findNextStopCandidates: async () => ({ stops: [], totalStops: 0 }),

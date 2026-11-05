@@ -59,6 +59,8 @@ export type GeocodedAddressCorrectionInput = {
   readonly longitude: string
   /** Spec 294 (ADR-0113): a chegada do motorista grava `driver`/`driver`; o padrão é o pino do operador. */
   readonly origin?: CorrectionOrigin
+  /** Spec 294 S3: a chegada grava `street` (refinável); o pino do operador segue `rooftop`. */
+  readonly precision?: 'rooftop' | 'street'
   readonly source?: 'driver' | 'manual'
 }
 

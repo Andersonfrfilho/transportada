@@ -41,6 +41,7 @@ export async function applyGeocodedAddressCorrection(
   input: GeocodedAddressCorrectionInput,
 ): Promise<GeocodedAddressCorrectionResult> {
   const source = input.source ?? 'manual'
+  const precision = input.precision ?? 'rooftop'
   const [previous] = await transaction
     .select({
       addressKey: geocodedAddresses.addressKey,
@@ -68,7 +69,7 @@ export async function applyGeocodedAddressCorrection(
       externalPlaceId: '',
       latitude: input.latitude,
       longitude: input.longitude,
-      precision: 'rooftop',
+      precision,
       source,
     })
     .onConflictDoUpdate({
@@ -96,7 +97,7 @@ export async function applyGeocodedAddressCorrection(
     companyId: input.companyId,
     newLatitude: input.latitude,
     newLongitude: input.longitude,
-    newPrecision: 'rooftop',
+    newPrecision: precision,
     newSource: source,
     origin: input.origin ?? 'operator',
     ...(previous === undefined

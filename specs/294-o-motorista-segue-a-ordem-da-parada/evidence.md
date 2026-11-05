@@ -509,3 +509,24 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   1119 pass / 0 fail.
 - Integração nova `test/integration/whatsapp-group-crew-phone.integration.ts` (registrada no `test:integration`): 3 pass / 0 fail (dono, ajudante da viagem,
   outro motorista, viagem encerrada, outra empresa, nono dígito de outra ficha). `whatsapp-group-occurrence-adapter.integration.ts`: 1 pass.
+
+### S3/C3, C-L8, S9 — a régua do ponto da chegada (fix(294) correção de endereço)
+
+- Decisão do dono (2026-11-05): mantém 2 km/15 km com trava; "se for tardio não pede". A régua inteira está no cabeçalho de
+  `address-arrival-correction.policy.ts` e no contrato `test/trips/address-arrival-correction.contract.ts` (23 casos): tardia → nada; preciso = ≤ 50 m;
+  `postal_code`/`city` dentro e preciso → grava; dentro e impreciso/fora → sugestão; ponto de motorista refina dentro de 300 m quando preciso e mais
+  longe que a própria precisão; confiável de outra fonte nunca é regravado; fora de 300 m só sugere com ponto preciso (C-L8).
+- **Tardia** reaproveita o prazo da foto atrasada (`DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS.proofWindowMinutes`, 60 min) entre o `tappedAt`
+  corrigido por `clockOffsetMs` e o recebimento (`isArrivalLate`). O "Registrar entrega depois" (205) usa `/deliver` e nunca chamou a correção. A regra
+  de 5 min do `capturedAt` não entrou: o corte de tardio a substitui.
+- A chegada grava `precision = 'street'`, `source = 'driver'` (`ARRIVAL_CORRECTION_WRITTEN_PRECISION`; `applyGeocodedAddressCorrection` ganhou
+  `precision` opcional, o operador segue `rooftop`).
+- S9: índice parcial único `(company_id, address_key) where status = 'pending'` (migration aditiva `20261105164056_address_suggestion_pending_unique`,
+  com rollback) e `onConflictDoUpdate` na pendente. `db:generate`: `no_changes`.
+- Crew do grupo: o ponto do WhatsApp não traz precisão, então no bot ele só sugere; a chegada do escritório/atendente nunca chama a correção.
+- Contratos `trips` + `driver-trip`: 456 pass / 0 fail (inclui o caso tardio do `reportStopArrival`). Integração
+  `address-arrival-correction.integration.ts`: 15 pass / 0 fail (+4: impreciso vira sugestão, tardia não corrige, refino do ponto do motorista,
+  pendente atualizada).
+- Não feito: o bot não sabe se a mensagem chegou atrasada (o turno do grupo não carrega a hora do WhatsApp); o pedido de localização do bot é sempre o
+  do "cheguei" em tempo real. ADR-0113 §2 e spec RF14/RF15/RF24 atualizados.
+- `address-suggestion-pending-items` + `stop-event-sequence` (integração): 15 pass / 0 fail. Migration/cadeia/pendências/roteamento (contrato): 222 pass.

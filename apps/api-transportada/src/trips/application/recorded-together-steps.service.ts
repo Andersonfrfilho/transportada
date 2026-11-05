@@ -5,6 +5,7 @@
  * ordem da tripulação tem as anteriores marcadas junto, na mesma transação do evento pedido.
  */
 import { TripStopNotReachableError } from '../domain/trip.error.js'
+import { isArrivalLate } from '../domain/address-arrival-correction.policy.js'
 import { resolveRecordedEventClock } from '../domain/occurred-at.policy.js'
 import type { EventClockFields, RecordedEventClock } from '../domain/occurred-at.policy.js'
 import { resolveStopEventSequence } from '../domain/stop-event-sequence.policy.js'
@@ -163,6 +164,11 @@ export async function performSequencedStopArrival(
           actorUserId: input.actorUserId,
           companyId: input.companyId,
           eventId: event.id,
+          isLate: isArrivalLate({
+            clockOffsetMs: input.clockOffsetMs,
+            receivedAt: input.now,
+            tappedAt: input.tappedAt,
+          }),
           location: input.location,
           stopId: input.stopId,
         })

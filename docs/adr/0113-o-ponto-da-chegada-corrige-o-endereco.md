@@ -58,23 +58,36 @@
 ### 2. A chegada corrige o endereço não confiável; o resto vira sugestão
 
 1. **Endereço não confiável** = sem coordenada, ou `precision` `postal_code` ou `city`.
-2. No "Cheguei" de parada não confiável, com o ponto do motorista:
+2. No "Cheguei" **em tempo real** da tripulação, com o ponto do motorista (emenda da revisão final, 2026-11-05 — "se
+   for tardio não pede"). **Preciso** = precisão do aparelho até **50 m**:
 
-   | Endereço atual                 | Ponto da chegada             | Resultado                            |
-   | ------------------------------ | ---------------------------- | ------------------------------------ |
-   | `postal_code`                  | até **2 km** do ponto atual  | grava direto em `geocoded_addresses` |
-   | `city`                         | até **15 km** do ponto atual | grava direto em `geocoded_addresses` |
-   | `postal_code` / `city`         | fora da tolerância           | sugestão ao escritório               |
-   | sem coordenada                 | qualquer                     | sugestão ao escritório               |
-   | confiável (`rooftop`/`street`) | a mais de **300 m**          | sugestão ao escritório               |
-   | confiável (`rooftop`/`street`) | até 300 m                    | nada                                 |
+   | Endereço atual                         | Ponto da chegada                               | Resultado                            |
+   | -------------------------------------- | ---------------------------------------------- | ------------------------------------ |
+   | qualquer                               | chegada **tardia** (abaixo)                    | nada — nem correção, nem sugestão    |
+   | `postal_code`                          | até **2 km** do ponto atual, preciso           | grava direto em `geocoded_addresses` |
+   | `city`                                 | até **15 km** do ponto atual, preciso          | grava direto em `geocoded_addresses` |
+   | `postal_code` / `city`                 | dentro da tolerância e impreciso, ou fora dela | sugestão ao escritório               |
+   | sem coordenada                         | qualquer                                       | sugestão ao escritório               |
+   | ponto de motorista (`source = driver`) | até 300 m, preciso e mais longe que a precisão | regrava (refina)                     |
+   | ponto de motorista (`source = driver`) | até 300 m sem isso                             | nada                                 |
+   | confiável de outra fonte               | até 300 m                                      | nada                                 |
+   | confiável (qualquer fonte)             | a mais de **300 m**, preciso                   | sugestão ao escritório               |
+   | confiável (qualquer fonte)             | a mais de 300 m, impreciso                     | nada                                 |
+
+   **Tardia** é a chegada que a fila offline do app entregou depois do prazo da foto atrasada (spec 159/205/234,
+   `proofWindowMinutes` padrão, 60 min, entre o toque corrigido pelo desvio do relógio e o recebimento), e o "Registrar
+   entrega depois" (205), que nem passa pela chegada. Tardia não pede localização nem mexe no endereço. **Nada sobre
+   posição bloqueia o registro**: a chegada grava sempre; a régua só decide o que o ponto faz no cadastro. O ponto do
+   WhatsApp não traz precisão, então no bot ele só vira sugestão.
 
 3. A gravação direta usa o mesmo caminho da correção do operador (084), com `origin = 'driver'`,
-   `precision = 'rooftop'`, `source = 'driver'`, trilha em `geocoded_address_corrections` e evento na linha do tempo da
-   parada (228 estendida). As próximas viagens para o mesmo endereço já saem com o ponto novo.
-4. **Endereço confiável nunca é sobrescrito** pela chegada.
+   `precision = 'street'` (nunca `rooftop`: o ponto do motorista continua refinável por outra chegada precisa),
+   `source = 'driver'`, trilha em `geocoded_address_corrections` e evento na linha do tempo da parada (228 estendida). As
+   próximas viagens para o mesmo endereço já saem com o ponto novo.
+4. **Endereço confiável de outra fonte nunca é sobrescrito** pela chegada (o pino manual nem pelo upsert).
 5. A sugestão vai para `address_correction_suggestions` (com `company_id`) e aparece em `/pendencias`, onde o escritório
-   aplica ou descarta. Correção idempotente pela chave `address-correction:<eventId>`.
+   aplica ou descarta. Uma pendente por (empresa, endereço): a chegada seguinte atualiza a pendente em vez de somar
+   outra. Coordenada e autor saem pela purga de localização (90 dias da decisão, ou da criação se pendente). Correção idempotente pela chave `address-correction:<eventId>`.
 6. **Escopo do dado:** `geocoded_addresses` é global, então a correção direta vale para todas as empresas do ambiente.
    Isso é aceitável porque a distribuição é um deploy por transportadora (ADR-0021). A sugestão carrega `company_id` e o
    painel só lista as da empresa do token.

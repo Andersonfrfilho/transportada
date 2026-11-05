@@ -95,6 +95,10 @@ export const addressCorrectionSuggestions = pgTable(
       table.status,
       table.createdAt,
     ),
+    /** Spec 294 S9: uma sugestão pendente por endereço da empresa; a chegada seguinte atualiza a pendente. */
+    uniqueIndex('address_correction_suggestions_company_address_pending_unique')
+      .on(table.companyId, table.addressKey)
+      .where(sql`${table.status} = 'pending'`),
     uniqueIndex('address_correction_suggestions_company_event_unique')
       .on(table.companyId, table.tripStopEventId)
       .where(sql`${table.tripStopEventId} is not null`),

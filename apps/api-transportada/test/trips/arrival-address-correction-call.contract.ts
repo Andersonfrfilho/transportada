@@ -63,6 +63,24 @@ describe('a chegada chama a correção de endereço (spec 294 T3.1)', () => {
     expect(result.addressCorrection).toBe('applied')
   })
 
+  it('chegada tardia da fila offline (além do prazo da foto atrasada): chama marcada como tardia', async () => {
+    const { state, unitOfWork } = buildWorld()
+
+    const result = await reportStopArrival({
+      actorUserId: ACTOR_USER_ID,
+      companyId: COMPANY_ID,
+      driverId: DRIVER_ID,
+      idempotencyKey: 'crew-arrival-late',
+      location: LOCATION,
+      now: NOW,
+      stopId: STOP_ID,
+      tappedAt: new Date(NOW.getTime() - 2 * 60 * 60 * 1000),
+      unitOfWork,
+    })
+
+    expect(correctionCalls(state.calls)).toEqual([`correctAddressFromArrival:${result.id}:late`])
+  })
+
   it('tripulação sem localização: não chama', async () => {
     const { state, unitOfWork } = buildWorld()
 
@@ -114,6 +132,7 @@ describe('o que a correção devolve (spec 294 RF14)', () => {
     actorUserId: ACTOR_USER_ID,
     companyId: COMPANY_ID,
     eventId: 'event-1',
+    isLate: false,
     location: LOCATION,
     stopId: STOP_ID,
   }

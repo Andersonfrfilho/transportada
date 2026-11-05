@@ -5,7 +5,7 @@
  * vira sugestão ao escritório ou nada. A trilha em `geocoded_address_corrections` já é o evento da
  * linha do tempo da parada (228). Roda num savepoint: uma falha aqui nunca derruba a chegada.
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { applyGeocodedAddressCorrection } from '../../routing/infrastructure/drizzle-geocoded-address-correction.repository.js'
 import type { GeocodedAddressCorrectionTransaction } from '../../routing/infrastructure/drizzle-geocoded-address-correction.repository.js'
@@ -14,6 +14,7 @@ import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { tripStops } from '../../database/trip.schema.js'
 import { safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { ApiLogger } from '../../shared/api.types.js'
+import { ARRIVAL_CORRECTION_WRITTEN_PRECISION } from '../domain/address-arrival-correction.constant.js'
 import { resolveAddressArrivalCorrection } from '../domain/address-arrival-correction.policy.js'
 import type {
   ArrivalAddressCorrectionOutcome,
@@ -24,6 +25,7 @@ type ArrivalAddressCorrectionParams = {
   readonly actorUserId: string
   readonly companyId: string
   readonly eventId: string
+  readonly isLate: boolean
   readonly location: ReportedLocation
   readonly stopId: string
 }
@@ -42,6 +44,7 @@ async function resolveOutcome(
       latitude: geocodedAddresses.latitude,
       longitude: geocodedAddresses.longitude,
       precision: geocodedAddresses.precision,
+      source: geocodedAddresses.source,
     })
     .from(tripStops)
     .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
@@ -53,10 +56,15 @@ async function resolveOutcome(
     stop.latitude !== null && stop.longitude !== null
       ? { latitude: stop.latitude, longitude: stop.longitude }
       : null
+  const accuracy =
+    params.location.accuracyMeters === null ? null : Number(params.location.accuracyMeters)
   const { decision, distanceMeters } = resolveAddressArrivalCorrection({
+    accuracyMeters: accuracy !== null && Number.isFinite(accuracy) ? accuracy : null,
     currentCoordinate,
     currentPrecision: stop.precision ?? 'city',
+    currentSource: stop.source ?? 'city',
     driverPoint: { latitude: params.location.latitude, longitude: params.location.longitude },
+    isLate: params.isLate,
   })
   if (decision === 'ignore') return 'ignored'
 
@@ -68,24 +76,29 @@ async function resolveOutcome(
       latitude: params.location.latitude,
       longitude: params.location.longitude,
       origin: 'driver',
+      precision: ARRIVAL_CORRECTION_WRITTEN_PRECISION,
       source: 'driver',
     })
     return applied ? 'applied' : 'ignored'
   }
 
+  // S9: uma sugestão pendente por endereço da empresa — a chegada nova atualiza a que o escritório ainda não decidiu.
+  const suggestion = {
+    createdByUserId: params.actorUserId,
+    distanceMeters: distanceMeters === null ? null : Math.round(distanceMeters),
+    latitude: params.location.latitude,
+    longitude: params.location.longitude,
+    tripStopEventId: params.eventId,
+    tripStopId: params.stopId,
+  }
   await transaction
     .insert(addressCorrectionSuggestions)
-    .values({
-      addressKey: stop.addressKey,
-      companyId: params.companyId,
-      createdByUserId: params.actorUserId,
-      distanceMeters: distanceMeters === null ? null : Math.round(distanceMeters),
-      latitude: params.location.latitude,
-      longitude: params.location.longitude,
-      tripStopEventId: params.eventId,
-      tripStopId: params.stopId,
+    .values({ ...suggestion, addressKey: stop.addressKey, companyId: params.companyId })
+    .onConflictDoUpdate({
+      set: { ...suggestion, updatedAt: sql`now()` },
+      target: [addressCorrectionSuggestions.companyId, addressCorrectionSuggestions.addressKey],
+      targetWhere: sql`${addressCorrectionSuggestions.status} = 'pending'`,
     })
-    .onConflictDoNothing()
   return 'suggested'
 }
 

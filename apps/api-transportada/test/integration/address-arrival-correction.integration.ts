@@ -81,24 +81,34 @@ function unitOfWorkFor(world: World): DrizzleDriverFieldReportUnitOfWork {
   })
 }
 
-function pointAt(latitude: number) {
+function pointAt(latitude: number, accuracyMeters = '8') {
   return {
-    accuracyMeters: '8',
+    accuracyMeters,
     capturedAt: new Date().toISOString(),
     latitude: latitude.toFixed(7),
     longitude: BASE_LONGITUDE.toFixed(7),
   }
 }
 
-function arrive(world: World, input: { readonly key?: string; readonly latitude: number | null }) {
+function arrive(
+  world: World,
+  input: {
+    readonly accuracyMeters?: string
+    readonly key?: string
+    readonly latitude: number | null
+    readonly stopId?: string
+    readonly tappedAt?: Date
+  },
+) {
   return reportStopArrival({
+    ...(input.tappedAt === undefined ? {} : { tappedAt: input.tappedAt }),
     actorUserId: world.driverUserId,
     companyId: world.company.companyId,
     driverId: world.company.firstDriverId,
     idempotencyKey: input.key ?? crypto.randomUUID(),
-    location: input.latitude === null ? null : pointAt(input.latitude),
+    location: input.latitude === null ? null : pointAt(input.latitude, input.accuracyMeters),
     now: new Date(),
-    stopId: world.trip.stopId,
+    stopId: input.stopId ?? world.trip.stopId,
     unitOfWork: unitOfWorkFor(world),
   })
 }
@@ -137,7 +147,7 @@ describe('o ponto da chegada corrige o endereço (spec 294 T3.1)', () => {
 
         const address = await readAddress(world)
         expect(address?.source).toBe('driver')
-        expect(address?.precision).toBe('rooftop')
+        expect(address?.precision).toBe('street')
         expect(Number(address?.latitude)).toBeCloseTo(NORTH_500_METRES, 6)
         const corrections = await readCorrections(world)
         expect(corrections).toHaveLength(1)
@@ -303,6 +313,82 @@ describe('o ponto da chegada corrige o endereço (spec 294 T3.1)', () => {
 
         expect(await readCorrections(world)).toHaveLength(1)
         expect(await readSuggestions(world)).toEqual([])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'CEP e ponto a 500 m com precisão ruim (> 50 m): sugestão, o cadastro não muda (S3)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database, { precision: 'postal_code' })
+
+        await arrive(world, { accuracyMeters: '120', latitude: NORTH_500_METRES })
+
+        expect((await readAddress(world))?.source).toBe('postal_code')
+        expect(await readSuggestions(world)).toHaveLength(1)
+        expect(await readCorrections(world)).toEqual([])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'chegada tardia da fila offline: a chegada grava, sem correção nem sugestão (S3)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database, { precision: 'postal_code' })
+
+        const result = await arrive(world, {
+          latitude: NORTH_500_METRES,
+          tappedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        })
+
+        expect(result.id).toBeString()
+        expect((await readAddress(world))?.source).toBe('postal_code')
+        expect(await readSuggestions(world)).toEqual([])
+        expect(await readCorrections(world)).toEqual([])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'ponto gravado pelo motorista se refina com outra chegada precisa (S3)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database, { precision: 'postal_code' })
+        await arrive(world, { latitude: NORTH_500_METRES })
+        await database.db
+          .update(tripStops)
+          .set({ arrivedAt: null })
+          .where(eq(tripStops.id, world.trip.stopId))
+
+        await arrive(world, { latitude: NORTH_500_METRES + 0.0009 })
+
+        const address = await readAddress(world)
+        expect(address).toMatchObject({ precision: 'street', source: 'driver' })
+        expect(Number(address?.latitude)).toBeCloseTo(NORTH_500_METRES + 0.0009, 6)
+        expect(await readCorrections(world)).toHaveLength(2)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'duas sugestões do mesmo endereço: a pendente é atualizada, não duplicada (S9)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database, { precision: 'postal_code' })
+
+        await arrive(world, { latitude: NORTH_5_KILOMETRES })
+        await database.db
+          .update(tripStops)
+          .set({ arrivedAt: null })
+          .where(eq(tripStops.id, world.trip.stopId))
+        const second = await arrive(world, { latitude: NORTH_5_KILOMETRES + 0.001 })
+
+        const suggestions = await readSuggestions(world)
+        expect(suggestions).toHaveLength(1)
+        expect(suggestions[0]?.tripStopEventId).toBe(second.id)
+        expect(Number(suggestions[0]?.latitude)).toBeCloseTo(NORTH_5_KILOMETRES + 0.001, 6)
       })
     },
   )

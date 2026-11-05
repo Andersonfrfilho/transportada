@@ -75,13 +75,18 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
   próxima rota (bot e app) avisa: "Este endereço está sem localização certa no mapa. Quando chegar, marque Cheguei
   e compartilhe a localização: eu atualizo o endereço."
 - **RF13** — A `precision` passa a chegar ao snapshot da viagem do motorista e às portas do bot (hoje não chega).
-- **RF14** — No "Cheguei" de uma parada não confiável, o bot pede a localização se ela não veio antes. Com o ponto:
-  - **dentro da tolerância** do endereço atual (por precisão: `postal_code` 2 km, `city` 15 km; sem coordenada
-    nenhuma não há com o que comparar, e o ponto vira sugestão) → grava direto no cadastro (`geocoded_addresses`, `origin: 'driver'`,
-    `precision: 'rooftop'`, `source: 'driver'`) e as próximas viagens já saem com o mapa certo;
-  - **fora da tolerância** → vira **sugestão** que o escritório confirma em `/pendencias`.
-- **RF15** — Endereço confiável (`rooftop`/`street`) não é sobrescrito pela chegada. Ponto a mais de 300 m dele
-  vira sugestão para o escritório (o motorista pode ter achado a entrada certa).
+- **RF14** — No "Cheguei" **em tempo real** de uma parada não confiável, o bot pede a localização se ela não veio antes
+  (opcional: "pular" registra igual). Com o ponto:
+  - **dentro da tolerância** do endereço atual (por precisão: `postal_code` 2 km, `city` 15 km) **e preciso** (precisão
+    do aparelho ≤ 50 m) → grava direto no cadastro (`geocoded_addresses`, `origin: 'driver'`, `precision: 'street'`,
+    `source: 'driver'`) e as próximas viagens já saem com o mapa certo; o ponto do motorista segue refinável por outra
+    chegada precisa (ADR-0113 §2);
+  - **fora da tolerância**, impreciso, ou endereço sem coordenada → vira **sugestão** que o escritório confirma em
+    `/pendencias` (uma pendente por endereço; a seguinte a atualiza);
+  - **chegada tardia** (fila offline entregue além do prazo da foto atrasada, spec 205/234, ou o "Registrar entrega
+    depois") → não pede localização e não corrige nem sugere. Nada sobre posição bloqueia o registro.
+- **RF15** — Endereço confiável (`rooftop`/`street`) de outra fonte não é sobrescrito pela chegada. Ponto preciso a mais
+  de 300 m dele vira sugestão para o escritório (o motorista pode ter achado a entrada certa); ponto impreciso é ignorado.
 - **RF16** — Toda correção vira evento na linha do tempo da parada (228 estendida), com autor (motorista ou
   operador que confirmou).
 
@@ -138,7 +143,7 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
   - não leu, ou a nota não é da viagem → "De qual nota é este canhoto?" (resposta também por áudio). Nunca baixa
     por palpite;
   - atendente: mesma leitura, regra do escritório (RF19).
-- **RF24** — **Localização opcional no "Iniciar rota" e no "Cheguei"**, pelo bot: antes de registrar, o bot pede
+- **RF24** — **Localização opcional no "Iniciar rota" e no "Cheguei"** em tempo real (registro tardio não pede, RF14), pelo bot: antes de registrar, o bot pede
   "📍 Mande sua localização pelo clipe, ou responda _pular_" ("pular" falado vale). Localização compartilhada pouco
   antes é usada sem perguntar de novo. Em endereço não confiável, o pedido do "Cheguei" diz que ela corrige o
   endereço (RF14).

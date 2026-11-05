@@ -431,6 +431,8 @@ export type DriverFieldReportTransactionPort = {
     readonly actorUserId: string
     readonly companyId: string
     readonly eventId: string
+    /** Spec 294 S3: chegada tardia (fila offline além do prazo) não corrige nem sugere. */
+    readonly isLate: boolean
     readonly location: ReportedLocation
     readonly stopId: string
   }): Promise<ArrivalAddressCorrectionOutcome>
