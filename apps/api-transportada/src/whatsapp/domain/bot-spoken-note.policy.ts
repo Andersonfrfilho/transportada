@@ -10,6 +10,8 @@
 /** O que a confirmação mostra de uma nota das viagens em aberto do motorista do grupo. */
 export type SpokenNoteSummary = {
   readonly address: string
+  /** A contratante (emitente) da nota; vazia quando não se sabe. */
+  readonly contractor?: string
   readonly number: string
   readonly recipientName: string
   readonly series: string
@@ -51,6 +53,11 @@ export function formatSpokenNoteAmount(value: string): string {
 }
 
 /** Os números de nota que a fala traz (já com os pares juntados por `joinSpokenNumbers`). */
+/** A nota das viagens do motorista que a fala cita (para buscar só o que vai aparecer). */
+export function isSpokenNote(note: { readonly number: string }, text: string): boolean {
+  return spokenNoteNumbers(text).includes(withoutLeadingZeros(note.number))
+}
+
 export function spokenNoteNumbers(text: string): readonly string[] {
   return [
     ...new Set(
@@ -79,6 +86,7 @@ export function describeSpokenNotes(
     lines.push(
       [
         `📄 *NF ${withoutLeadingZeros(note.number)}${note.series === '' ? '' : `/${note.series}`}*`,
+        ...((note.contractor ?? '') === '' ? [] : [`🏢 ${note.contractor ?? ''}`]),
         ...(note.recipientName === '' ? [] : [`👤 ${note.recipientName}`]),
         ...(amount === '' ? [] : [`💰 ${amount}`]),
         ...(note.address === '' ? [] : [`📍 ${note.address}`]),

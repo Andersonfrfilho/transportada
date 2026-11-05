@@ -17,6 +17,7 @@
  *   até a coleta terminar. Assinatura e produtos continuam só no app e voltam com a frase do campo.
  * - Nada de nome de cliente nem valor no texto do grupo: só o número da nota.
  */
+import { formatSpokenNoteAmount } from '../domain/bot-spoken-note.policy.js'
 import type {
   GroupFlowOutcome,
   GroupFlowTurn,
@@ -92,6 +93,11 @@ export type GroupCollectionAnswer = {
 }
 
 export type GroupOccurrenceFlowPorts = {
+  /** Spec 292 T9: o nome da contratante (emitente) da nota, para o resumo; vazio quando não há. */
+  noteContractor?(input: {
+    readonly companyId: string
+    readonly documentId: string
+  }): Promise<string>
   /**
    * Quem abriu o pedido é motorista ou ajudante da frota (o telefone bate com uma ficha)? Só a
    * tripulação é perguntada pela localização; o atendimento pula o passo. Ausente, todos são.
@@ -192,18 +198,19 @@ export const GROUP_OCCURRENCE_TEXT = {
     documentNumber: string,
     note: string,
     contact = '',
-    where: { readonly address?: string; readonly location?: GroupSharedLocation } = {},
+    where: GroupConfirmDetails = {},
   ) =>
     [
       `📋 Vou registrar *${typeName}* na *NF ${documentNumber}*.`,
-      ...(where.address === undefined || where.address === ''
-        ? []
-        : [`🏠 Endereço da nota: ${where.address}`]),
+      ...(present(where.contractor) ? [`🏢 Contratante: ${where.contractor}`] : []),
+      ...(present(where.client) ? [`👤 Cliente: ${where.client}`] : []),
+      ...(present(where.address) ? [`🏠 Endereço da nota: ${where.address}`] : []),
       ...(where.location === undefined
         ? []
         : [`📍 Local da ocorrência: ${mapsLink(where.location)}`]),
       ...(note === '' ? [] : [`📝 Observação: _${note}_`]),
       ...(contact === '' ? [] : [`📇 Contato do cliente: *${contact}*`]),
+      ...(present(where.amount) ? [`💰 Valor da nota: *${where.amount}*`] : []),
       '',
       'Posso confirmar?',
       '*1* - Sim ✅',
@@ -242,6 +249,18 @@ export const GROUP_OCCURRENCE_TEXT = {
       'Precisando de mais alguma coisa, é só me marcar. 🙂',
     ].join('\n'),
 } as const
+
+/** Spec 292 T9: o que o resumo mostra da nota (contratante, cliente, endereço, valor) e o local. */
+export type GroupConfirmDetails = {
+  readonly address?: string
+  /** Já formatado ("R$ 33.480,00"). */
+  readonly amount?: string
+  readonly client?: string
+  readonly contractor?: string
+  readonly location?: GroupSharedLocation
+}
+
+const present = (value: string | undefined): value is string => value !== undefined && value !== ''
 
 /** Spec 292 T9: a localização que o motorista compartilhou no passo `location`. */
 export type GroupSharedLocation = { readonly latitude: number; readonly longitude: number }
@@ -288,6 +307,10 @@ const EMAIL_PATTERN = /^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/u
 type FlowState = {
   /** Spec 292 T9: o endereço da parada da nota (só para o resumo). */
   readonly documentAddress?: string | undefined
+  /** Spec 292 T9: o valor (decimal em texto), o cliente e a contratante da nota, para o resumo. */
+  readonly documentAmount?: string | undefined
+  readonly documentClient?: string | undefined
+  readonly documentContractor?: string | undefined
   readonly documentId?: string | undefined
   readonly documentNumber?: string | undefined
   readonly contactChannels?: readonly GroupClientContactChannel[] | undefined
@@ -325,9 +348,18 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
       documentId: document.id,
     })
     if (types.length === 0) return { kind: 'done', replies: [GROUP_OCCURRENCE_TEXT.noTypes] }
+    const contractor =
+      ports.noteContractor === undefined
+        ? ''
+        : await ports
+            .noteContractor({ companyId: turn.request.companyId, documentId: document.id })
+            .catch(() => '')
     const next: FlowState = {
       ...state,
       documentAddress: document.address === '' ? undefined : document.address,
+      documentAmount: document.totalAmount === '' ? undefined : document.totalAmount,
+      documentClient: document.recipientName === '' ? undefined : document.recipientName,
+      documentContractor: contractor === '' ? undefined : contractor,
       documentId: document.id,
       documentNumber: document.number,
       documents: undefined,
@@ -707,6 +739,11 @@ function confirmText(state: FlowState): string {
     state.contactMasked ?? '',
     {
       ...(state.documentAddress === undefined ? {} : { address: state.documentAddress }),
+      ...(state.documentAmount === undefined
+        ? {}
+        : { amount: formatSpokenNoteAmount(state.documentAmount) }),
+      ...(state.documentClient === undefined ? {} : { client: state.documentClient }),
+      ...(state.documentContractor === undefined ? {} : { contractor: state.documentContractor }),
       ...(state.location === undefined ? {} : { location: state.location }),
     },
   )
