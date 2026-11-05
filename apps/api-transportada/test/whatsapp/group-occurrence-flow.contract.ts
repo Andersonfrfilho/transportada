@@ -39,6 +39,8 @@ function setup(
     types?: readonly GroupOccurrenceType[]
     /** Quem abriu é tripulação (motorista/ajudante)? Ausente, a porta não existe. */
     crew?: boolean
+    /** O nome da contratante da nota; ausente, a porta não existe. */
+    contractor?: string
   } = {},
 ) {
   const crewAsked: string[] = []
@@ -52,6 +54,9 @@ function setup(
             return options.crew === true
           },
         }),
+    ...(options.contractor === undefined
+      ? {}
+      : { noteContractor: async () => options.contractor ?? '' }),
     async answerCollection() {
       return options.collectionAnswer ?? null
     },
@@ -330,6 +335,23 @@ describe('fluxo do grupo: o resumo para confirmar', () => {
     expect(summary).toContain(
       '📍 Local da ocorrência: https://maps.google.com/?q=-21.177500,-47.810300',
     )
+  })
+
+  test('traz contratante, cliente e o valor da nota por último', async () => {
+    const flow = setup({
+      contractor: 'DISTRIBUIDORA EXEMPLO LTDA',
+      documents: [
+        { ...WITH_ADDRESS, recipientName: 'DEPOSITO 2 IRMAOS', totalAmount: '33480' },
+        NF2,
+      ],
+    })
+    await flow.start('17234 avaria')
+    await flow.answer('quebrou')
+    const outcome = await flow.answer('pular')
+    const summary = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
+    expect(summary).toContain('🏢 Contratante: DISTRIBUIDORA EXEMPLO LTDA')
+    expect(summary).toContain('👤 Cliente: DEPOSITO 2 IRMAOS')
+    expect(summary).toContain('💰 Valor da nota: *R$ 33.480,00*\n\nPosso confirmar?')
   })
 
   test('sem localização (pulou ou "enviei" sem mandar) o resumo não traz a linha do local', async () => {

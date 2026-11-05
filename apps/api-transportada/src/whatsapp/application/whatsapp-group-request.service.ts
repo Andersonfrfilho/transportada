@@ -16,6 +16,7 @@
  *
  * ⚠️ Nada de número nem texto em log: só empresa, pedido e motivo.
  */
+import { botFarewell, botGreeting } from '../domain/bot-greeting.policy.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { AdmittedGroupMessage } from './evolution-group-inbound.service.js'
 import type {
@@ -121,6 +122,30 @@ export type WhatsAppGroupRequestSessions = {
   }): Promise<boolean>
 }
 
+/** Spec 292 T9: o pedido aberto começa cumprimentando quem chamou, pela hora de Brasília. */
+function greeted(
+  outcome: GroupFlowOutcome,
+  senderName: null | string,
+  now: Date,
+): GroupFlowOutcome {
+  const greeting = botGreeting(now, senderName)
+  if (outcome.kind === 'not_understood') {
+    return { ...outcome, prompt: `${greeting}\n\n${outcome.prompt}` }
+  }
+  const [first, ...rest] = outcome.replies
+  return {
+    ...outcome,
+    replies: first === undefined ? [greeting] : [`${greeting}\n\n${first}`, ...rest],
+  }
+}
+
+/** E termina se despedindo, na última mensagem do pedido. */
+function withFarewell(replies: readonly string[], now: Date): readonly string[] {
+  const last = replies.at(-1)
+  if (last === undefined) return replies
+  return [...replies.slice(0, -1), `${last}\n\n${botFarewell(now)}`]
+}
+
 export function isCancelText(text: string): boolean {
   const normalized = text
     .normalize('NFD')
@@ -183,16 +208,17 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       return say(message, outcome.replies)
     }
     if (outcome.kind === 'done') {
+      const closing = withFarewell(outcome.replies, now)
       const saved = await repository.update({
         ...scope,
         attempts: request.attempts,
         close: 'completed',
-        state: record(request.state, outcome.replies),
+        state: record(request.state, closing),
         step: request.step,
       })
       if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, log)
       logger.info(GROUP_REQUEST_LOG.completed, log)
-      return say(message, outcome.replies)
+      return say(message, closing)
     }
 
     const attempts = request.attempts + 1
@@ -279,7 +305,8 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
         }
         await link(request)
         logger.info(GROUP_REQUEST_LOG.opened, { companyId, requestId: request.id })
-        return apply(message, request, await flow.start(turnOf(message, request)))
+        const started = await flow.start(turnOf(message, request))
+        return apply(message, request, greeted(started, message.senderName, dependencies.clock()))
       }
 
       await link(open)

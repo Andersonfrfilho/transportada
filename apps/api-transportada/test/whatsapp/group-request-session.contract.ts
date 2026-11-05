@@ -4,6 +4,7 @@
  * Spec 292 T4: a sessão do pedido no grupo do motorista — abrir, um por vez, cancelar, tentativas,
  * reentrega e quem pode responder pelo dono.
  */
+import { botFarewell, botGreeting } from '../../src/whatsapp/domain/bot-greeting.policy.js'
 import { describe, expect, test } from 'bun:test'
 
 import type { ApiLogger } from '../../src/shared/api.types.js'
@@ -169,6 +170,9 @@ function setup() {
   }
 }
 
+/** 09:00 em Brasília, sem nome do WhatsApp. */
+const HELLO = 'Bom dia! 👋'
+
 function silentLogger(): ApiLogger {
   return { error: () => undefined, info: () => undefined, warn: () => undefined }
 }
@@ -178,12 +182,12 @@ describe('pedido no grupo: abrir e responder', () => {
     const { memory, message, said, sent, sessions } = setup()
 
     await sessions.handle(message({ text: '' }))
-    expect(await said()).toEqual(['Qual a nota?'])
+    expect(await said()).toEqual([`${HELLO}\n\nQual a nota?`])
     expect(memory.requests).toHaveLength(1)
     expect(await sessions.findOpenOwner({ companyId: COMPANY_ID, groupJid: GROUP })).toBe(DRIVER)
 
     await sessions.handle(message({ text: '17234', via: 'owner_reply' }))
-    expect(await said()).toEqual(['Nota 17234 ok.'])
+    expect(await said()).toEqual(['Nota 17234 ok.\n\nTenha um bom dia! ☀️'])
     expect(memory.requests[0]?.status).toBe('completed')
     expect(sent).toEqual([])
   })
@@ -194,7 +198,7 @@ describe('pedido no grupo: abrir e responder', () => {
 
     await sessions.handle(call)
     await sessions.handle(call)
-    expect(await said()).toEqual(['Qual a nota?'])
+    expect(await said()).toEqual([`${HELLO}\n\nQual a nota?`])
     expect(memory.requests).toHaveLength(1)
   })
 
@@ -256,13 +260,25 @@ describe('pedido no grupo: um por vez', () => {
   })
 })
 
+describe('pedido no grupo: cumprimenta pela hora de Brasília', () => {
+  test('bom dia, boa tarde e boa noite pela hora do motorista, com o primeiro nome', () => {
+    expect(botGreeting(new Date('2026-11-04T12:00:00Z'), 'Anderson Fernandes')).toBe(
+      'Bom dia, Anderson! 👋',
+    )
+    expect(botGreeting(new Date('2026-11-04T18:00:00Z'), '🚚 Zé')).toBe('Boa tarde, Zé! 👋')
+    expect(botGreeting(new Date('2026-11-05T00:47:00Z'), null)).toBe('Boa noite! 👋')
+    expect(botGreeting(new Date('2026-11-04T07:59:00Z'), '')).toBe('Boa noite! 👋')
+    expect(botFarewell(new Date('2026-11-05T00:47:00Z'))).toBe('Tenha uma boa noite! 🌙')
+  })
+})
+
 describe('pedido no grupo: cancelar e tentativas', () => {
   test('o dono cancela sem marcar; quem marca o bot também cancela', async () => {
     const { memory, message, said, sessions } = setup()
 
     await sessions.handle(message({ text: '' }))
     await sessions.handle(message({ text: 'Cancelar', via: 'owner_reply' }))
-    expect(await said()).toEqual(['Qual a nota?', GROUP_REQUEST_TEXT.cancelled])
+    expect(await said()).toEqual([`${HELLO}\n\nQual a nota?`, GROUP_REQUEST_TEXT.cancelled])
     expect(memory.requests[0]?.status).toBe('cancelled')
 
     await sessions.handle(message({ text: '' }))

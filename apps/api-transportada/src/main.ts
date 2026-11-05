@@ -192,6 +192,7 @@ import {
 } from './whatsapp/application/whatsapp-bot-audio.service.js'
 import {
   describeSpokenNotes,
+  isSpokenNote,
   toSpokenNoteSummary,
 } from './whatsapp/domain/bot-spoken-note.policy.js'
 import { parseWakePhrase } from './whatsapp/domain/bot-wake-phrase.policy.js'
@@ -6490,7 +6491,21 @@ function spokenNotesPort(groupOccurrence: GroupOccurrenceFlowPorts | undefined) 
       readonly text: string
     }) =>
       describeSpokenNotes(
-        (await groupOccurrence.listDriverDocuments(lookup)).map(toSpokenNoteSummary),
+        await Promise.all(
+          (await groupOccurrence.listDriverDocuments(lookup)).map(async (document) => {
+            const summary = toSpokenNoteSummary(document)
+            // A contratante só da nota citada: é uma consulta por nota.
+            if (
+              groupOccurrence.noteContractor === undefined ||
+              !isSpokenNote(document, lookup.text)
+            )
+              return summary
+            const contractor = await groupOccurrence
+              .noteContractor({ companyId: lookup.companyId, documentId: document.id })
+              .catch(() => '')
+            return { ...summary, contractor }
+          }),
+        ),
         lookup.text,
       ),
   }

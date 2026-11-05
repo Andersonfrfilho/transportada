@@ -196,6 +196,22 @@ export function createGroupOccurrencePorts(dependencies: {
       return [...seen.values()]
     },
 
+    /** Spec 292 T9: a contratante é o emitente da nota (ADR-0048 §1), pelo nome do cadastro se houver. */
+    async noteContractor({ companyId, documentId }) {
+      const [row] = (await dependencies.database.execute(sql`
+        select coalesce(nullif(contractor.display_name, ''), nullif(emitter.trade_name, ''),
+                        nullif(emitter.legal_name, ''), '') as name
+          from trip_documents document
+          join nfe_participants emitter
+            on emitter.company_id = document.company_id and emitter.document_id = document.nfe_document_id
+           and emitter.role = 'emitter'
+          left join contractors contractor
+            on contractor.company_id = emitter.company_id and contractor.tax_id = emitter.tax_id
+         where document.company_id = ${companyId}::uuid and document.id = ${documentId}::uuid
+         limit 1`)) as unknown as readonly { name?: unknown }[]
+      return typeof row?.name === 'string' ? row.name.trim() : ''
+    },
+
     async listOccurrenceTypes({ companyId, documentId }) {
       const types = await listOccurrenceTypesForNote(dependencies.database, {
         companyId,

@@ -314,7 +314,7 @@ describe('áudio do bot: número falado', () => {
 
   test('a confirmação mostra a fala como veio e a nota juntada no fim', () => {
     const shown = botAudioConfirmationText('nota 899804', [], 'nota 89, 98, 04')
-    expect(shown).toContain('💬 _"nota 89, 98, 04"_')
+    expect(shown).toContain('💬 _“nota 89, 98, 04”_')
     expect(shown.endsWith('❌ *2 - Não*, descartar\n\n🔢 Nota: *899804*')).toBe(true)
     expect(botAudioConfirmationText('nota 899877')).not.toContain('🔢')
   })
@@ -337,6 +337,9 @@ describe('áudio do bot: a nota falada na confirmação', () => {
       '📄 *NF 899877/2*\n👤 MERCADO BOM PRECO\n💰 R$ 1.234,50\n📍 Rua das Flores, 100 - Ribeirão Preto/SP',
     ])
     expect(describeSpokenNotes(NOTES, 'nota 899884')).toEqual(['📄 *NF 899884*'])
+    expect(
+      describeSpokenNotes([{ ...NOTES[1]!, contractor: 'DISTRIBUIDORA EXEMPLO' }], 'nota 899884'),
+    ).toEqual(['📄 *NF 899884*\n🏢 DISTRIBUIDORA EXEMPLO'])
     expect(formatSpokenNoteAmount('1234567.891')).toBe('R$ 1.234.567,89')
     expect(formatSpokenNoteAmount('0')).toBe('R$ 0,00')
   })
@@ -682,7 +685,7 @@ describe('áudio do bot no grupo: frase de chamada', () => {
         'prorrogação do boleto da nota 89, 98, 04',
       ),
     ])
-    expect(replies[0]).toContain('💬 _"prorrogação do boleto da nota 89, 98, 04"_')
+    expect(replies[0]).toContain('💬 _“prorrogação do boleto da nota 89, 98, 04”_')
     expect(replies[0]?.endsWith('❌ *2 - Não*, descartar\n\n⚠️ NF 899804')).toBe(true)
     await receive(groupMessage({ externalMessageId: 'A2' }), VOICE)
     await bot.idle()
