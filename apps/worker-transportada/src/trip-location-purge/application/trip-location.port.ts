@@ -50,3 +50,6 @@ export type RedactDeliveryProofLocations = (input: RedactTripLocationsInput) => 
 export type RedactStatusEventLocations = (input: RedactTripLocationsInput) => Promise<number>
 export type RedactStopOccurrenceLocations = (input: RedactTripLocationsInput) => Promise<number>
 export type RedactDocumentOccurrenceLocations = (input: RedactTripLocationsInput) => Promise<number>
+
+/** Spec 294 S4: apaga a sugestão de endereço vencida (pendente pela criação, decidida pela decisão). */
+export type PurgeAddressSuggestions = (input: PurgeStalePingsInput) => Promise<number>

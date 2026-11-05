@@ -34,7 +34,7 @@ create table refresh_work.policy (
 insert into refresh_work.policy (table_key, mode, date_column) values
   ('address_comparisons', 'keep', null),
   ('address_correction_requests', 'keep', null),
-  ('address_correction_suggestions', 'keep', null),
+  ('address_correction_suggestions', 'empty', null),
   ('aggregate_accounts', 'keep', null),
   ('aggregate_application_attachments', 'empty', null),
   ('aggregate_applications', 'keep', null),

@@ -10,6 +10,7 @@ import { safeLogError, safeLogInfo } from '../../logging/safe-logger.service.js'
 import type { JobOutcome } from '../../shared/job-catalog.constant.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 import {
+  resolveAddressSuggestionPurgeCutoff,
   resolveTrackingPurgeCutoff,
   TRIP_DELIVERY_PROOFS_TABLE,
   TRIP_DOCUMENT_OCCURRENCES_TABLE,
@@ -22,6 +23,7 @@ import {
 } from '../domain/trip-location-purge.constant.js'
 import type {
   CountEligibleCompanies,
+  PurgeAddressSuggestions,
   PurgeStalePings,
   RedactDeliveryProofLocations,
   RedactDocumentOccurrenceLocations,
@@ -43,6 +45,8 @@ export type TripLocationPurgeRoutineDependencies = {
   readonly countEligibleCompanies: CountEligibleCompanies
   readonly logger: WorkerLogger
   readonly now: () => Date
+  /** Spec 294 S4: a sugestão de endereço, com prazo próprio de 90 dias. */
+  readonly purgeAddressSuggestions: PurgeAddressSuggestions
   /** ADR-0056 §2: o rastro ao vivo, com prazo próprio e muito mais curto que o da coordenada. */
   readonly purgeStalePings: PurgeStalePings
   readonly redact: RedactTripLocations
@@ -114,10 +118,15 @@ async function runCycle(input: {
    * em casa e nunca esperou configuração. Ele **não** depende de a viagem fechar — `purgeByTrip` já cobre
    * o fechamento, e o que sobra é a viagem que ninguém fechou.
    */
-  const { batches: pingBatches, purged: purgedPings } = await purgeStalePingsLoop({
+  const { batches: pingBatches, purged: purgedPings } = await purgeInBatches({
+    before: resolveTrackingPurgeCutoff(now),
     context,
-    dependencies,
-    now,
+    purge: dependencies.purgeStalePings,
+  })
+  const { purged: purgedAddressSuggestions } = await purgeInBatches({
+    before: resolveAddressSuggestionPurgeCutoff(now),
+    context,
+    purge: dependencies.purgeAddressSuggestions,
   })
 
   /** Fica registrado antes da contagem: se ela lançar, o ciclo falha mas os pings já apagados não somem do log. */
@@ -128,6 +137,7 @@ async function runCycle(input: {
       correlationId: context.correlationId,
       executionId: context.executionId,
       pingBatches,
+      purgedAddressSuggestions,
       purgedPings,
     },
   })
@@ -213,21 +223,18 @@ async function runCycle(input: {
   }
 }
 
-async function purgeStalePingsLoop(input: {
+/** Os prazos fixos (rastro ao vivo, sugestão de endereço): apaga em lotes tudo o que é anterior a `before`. */
+async function purgeInBatches(input: {
+  readonly before: Date
   readonly context: JobRoutineContext
-  readonly dependencies: TripLocationPurgeRoutineDependencies
-  readonly now: Date
+  readonly purge: PurgeStalePings
 }): Promise<{ readonly batches: number; readonly purged: number }> {
-  const { context, dependencies, now } = input
-  const cutoff = resolveTrackingPurgeCutoff(now)
+  const { before, context, purge } = input
   let purged = 0
   let batches = 0
 
   while (batches < TRIP_LOCATION_PURGE_MAX_BATCHES && !context.isStopRequested()) {
-    const purgedInBatch = await dependencies.purgeStalePings({
-      before: cutoff,
-      limit: TRIP_LOCATION_PURGE_BATCH_SIZE,
-    })
+    const purgedInBatch = await purge({ before, limit: TRIP_LOCATION_PURGE_BATCH_SIZE })
     if (purgedInBatch === 0) break
     purged += purgedInBatch
     batches += 1

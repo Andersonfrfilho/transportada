@@ -5,6 +5,23 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-11-05 — spec 294 S4 — a sugestão de endereço guarda o ponto do motorista e quem a criou
+
+**Onde:** `address_correction_suggestions` (API, spec 294 RF14/RF15); expurgo no `trip.location.purge` do worker.
+
+**O achado:** a sugestão que a chegada da tripulação cria leva `latitude`/`longitude` do aparelho e `created_by_user_id`
+— onde uma pessoa estava num instante. Ela estava em `TRIP_LOCATION_UNSTAMPED_TABLES` como "endereço, não posição", sem
+prazo nenhum, e o refresh do staging a copiava inteira (`keep`).
+
+**O que passou a valer:** a linha inteira sai 90 dias depois da decisão (aplicada/descartada) ou da criação enquanto
+pendente (`ADDRESS_CORRECTION_SUGGESTION_MAX_AGE_DAYS`, `createDrizzlePurgeAddressSuggestions`), no mesmo ciclo do
+`trip.location.purge`, **fora** do interruptor da empresa (prazo do produto, como o rastro ao vivo). Uma pendente por
+endereço da empresa (a chegada seguinte atualiza a pendente), então a tabela não acumula pontos repetidos. O refresh do
+staging copia a tabela vazia (`prune-source.sql`, `empty`). O ponto aplicado direto ao cadastro (`geocoded_addresses`)
+é dado de endereço; o vínculo com o motorista fica só na trilha (`geocoded_address_corrections`, ADR-0081).
+Teste: `apps/worker-transportada/test/trip-location-purge/address-suggestions.contract.ts` e o caso de integração em
+`test/trip-location-purge.integration.test.ts`. **Desfecho:** fechado no próprio dia.
+
 ### 2026-11-05 — spec 294 T4.8b — fotos de canhoto de produção usadas para medir e treinar um classificador local
 
 **Onde:** máquina do Anderson, pasta de rascunho da sessão; protótipo em

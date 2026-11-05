@@ -530,3 +530,13 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - Não feito: o bot não sabe se a mensagem chegou atrasada (o turno do grupo não carrega a hora do WhatsApp); o pedido de localização do bot é sempre o
   do "cheguei" em tempo real. ADR-0113 §2 e spec RF14/RF15/RF24 atualizados.
 - `address-suggestion-pending-items` + `stop-event-sequence` (integração): 15 pass / 0 fail. Migration/cadeia/pendências/roteamento (contrato): 222 pass.
+
+### S4 — LGPD da sugestão de endereço (fix(294) expurgo)
+
+- `trip.location.purge` ganhou `purgeAddressSuggestions` (obrigatório na rotina, ligado no `main.ts`): apaga a linha inteira 90 dias depois da decisão,
+  ou da criação se pendente, em lotes, fora do interruptor da empresa. O log `trip_location_purge_pings_finished` conta `purgedAddressSuggestions`.
+- `address_correction_suggestions` segue fora das tabelas carimbadas, com o motivo do prazo próprio; refresh do staging copia vazia (`empty`).
+  `docs/SECURITY.md`: achado de 2026-11-05 registrado e fechado.
+- Contrato novo `test/trip-location-purge/address-suggestions.contract.ts` (5 casos): `trip-location-purge.contract.test.ts` 54 pass / 0 fail.
+- Integração (banco do worker migrado com a API, como o `make worker-integration`): `trip-location-purge.integration.test.ts` 13 pass / 0 fail
+  (+1: pendente velha e decidida velha saem; pendente nova e decidida há 10 dias ficam). `deploy.contract` da API: 212 pass.
