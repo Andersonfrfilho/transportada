@@ -578,3 +578,9 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   a substring e passava. O script voltou à ordem da staging (todos os entrypoints antes das flags, mais o `canhoto-ocr.worker.ts`), e o contrato
   passou a exigir os entrypoints antes da primeira flag. `build-entrypoints.contract.test.ts`: 6 pass / 0 fail; `bun run build` com `--outdir` de
   rascunho gera `cnh-face/cnh-picture-backfill.main.js`, `cnh-face/infrastructure/` e `canhoto-ocr/infrastructure/canhoto-ocr.worker.js`.
+
+### Gates finais da T6.3 (revisão)
+
+- `bun run typecheck` (raiz): 0 erros. `make check`: exit 0 (lint 0 erros; contratos 13633 API, 2957, 101, 8657, 1438, 95, 2266 worker, 133, 6, 20 —
+  todos 0 fail). `make migration-test`: 231 pass / 0 fail. `db:generate`: `no_changes`.
+- Integração rodada por arquivo tocado (listada em cada item acima); a suíte inteira de integração não foi rodada.
