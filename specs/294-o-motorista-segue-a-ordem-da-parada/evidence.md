@@ -146,8 +146,7 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Roda em savepoint dentro da transação da chegada: falha vira `address_correction.failed` (warn, só ids) e a chegada grava. Logs
   `address_correction.applied|suggested|ignored|failed` sem coordenada. Chave `address-correction:<eventId>` vai no log; a idempotência real é o
   `recall` da chave da chegada + o índice único da sugestão.
-- Migration aditiva `20261105112915_address_suggestion_address_key_without_fk`: removeu a FK `address_key` -> `geocoded_addresses` da sugestão,
-  porque endereço sem coordenada não tem linha lá e é exatamente o caso "sem coordenada -> sugestão". Rollback recoloca a FK.
+- A FK `address_key` -> `geocoded_addresses` da sugestão foi removida da migration da T2.1 (branch não publicada): endereço sem coordenada não tem linha lá.
 - Testes: integração `address-arrival-correction` (11: CEP 500 m aplica com trilha e evento driver, CEP 5 km sugere, confiável 200 m nada, confiável
   500 m sugere sem sobrescrever, sem coordenada sugere sem distância, sem localização, escritório, marcada junto, reenvio, chegada repetida, falha isolada)
   e contrato `arrival-address-correction-call`. Contrato 13177/0, integração dos arquivos tocados 28/0, typecheck, lint e prettier verdes.

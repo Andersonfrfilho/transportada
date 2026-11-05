@@ -56720,23 +56720,6 @@
     {
       "nameExplicit": true,
       "columns": [
-        "address_key"
-      ],
-      "schemaTo": "public",
-      "tableTo": "geocoded_addresses",
-      "columnsTo": [
-        "address_key"
-      ],
-      "onUpdate": "CASCADE",
-      "onDelete": "RESTRICT",
-      "name": "address_correction_suggestions_address_key_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "address_correction_suggestions"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
         "trip_stop_id"
       ],
       "schemaTo": "public",
