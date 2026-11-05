@@ -555,3 +555,19 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   (415 `UNSUPPORTED_MEDIA_TYPE`), e a API só manda ao worker JPEG/PNG/WebP pelos bytes (`detectDeliveryProofMimeType`; o resto cai na pergunta).
 - Worker `canhoto-ocr.contract.test.ts`: 23 pass / 0 fail (+ prontidão, carga que nunca termina, fila global e por empresa, 415, chave da fila,
   teto de pixels com PNG de 41 MP, imagem truncada). API `whatsapp` + `whatsapp-commands`: 1123 pass / 0 fail.
+
+### C2, C5, S5 — a foto do canhoto não se perde, não duplica e não fica no bucket (fix(294) canhoto)
+
+- C2: a resposta à pergunta liga a foto à nota **antes** de fechar a pergunta e apagar o objeto (`attachAnswered`). Falhou ao guardar (erro do
+  bucket ou preparação que não abriu) → a pergunta segue aberta com a foto e o bot diz `storeFailed` ("responda de novo"); a foto sumiu do bucket →
+  fecha e pede a foto de novo (`photoLost`); a mesma imagem já anexada → fecha e diz de qual nota (RF26). A troca de um canhoto diferente (RF26, 1/2)
+  continua na baixa, como antes.
+- C5: `saveProof` toma `pg_advisory_xact_lock(hashtext('canhoto:' || empresa || ':' || sha256))` na transação do canhoto e relê pelo hash sob a trava
+  (excluindo o próprio evento: a recaptura do mesmo evento segue sendo o upsert da mesma linha); achou → `CanhotoDuplicateError` → o caso de uso
+  responde `duplicate`. Limite: o objeto já subido ao bucket pelo segundo pedido fica órfão (o caso de uso não tem `remove`; mesma situação de qualquer
+  falha depois do upload).
+- S5: `startCanhotoQuestionExpiryWatcher` (molde do vigia do pedido do grupo, a cada 60 s, sempre ligado no `main.ts`) cancela em lote as perguntas
+  abertas há mais de 30 min (`expireOpen`: `update … returning`, uma réplica por pergunta) e apaga a foto de cada uma (`allSettled`; só contagem no log).
+- Contratos `whatsapp-commands`: 695 pass / 0 fail (+2 C2, +3 vigia). Integração: `stop-order-guard` + `delivery-proof-canhoto-review` +
+  `delivery-proof-original` 30 pass / 0 fail (novo: duas anexações simultâneas da mesma imagem → um canhoto, o outro `duplicate`; vermelho antes da
+  trava: 2 gravados); `whatsapp-canhoto-question-repository` 4 pass / 0 fail (novo: vencida cancelada uma vez, recente aberta).

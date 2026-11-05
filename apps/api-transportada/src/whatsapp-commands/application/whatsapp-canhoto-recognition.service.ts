@@ -75,6 +75,11 @@ export type WhatsAppCanhotoQuestionRepositoryPort = {
       readonly sizeBytes: number
     },
   ): Promise<null | WhatsAppCanhotoQuestion>
+  /** Spec 294 S5: cancela as abertas desde antes de `before` e devolve a foto de cada uma (o vigia apaga). */
+  expireOpen(input: {
+    readonly before: Date
+    readonly limit: number
+  }): Promise<readonly { readonly companyId: string; readonly objectKey: string }[]>
   /** O "não, é de outra" e o "é o canhoto" trocam a pergunta sobre a mesma foto. */
   reframe(input: {
     readonly candidates: readonly WhatsAppCanhotoQuestionCandidate[]
@@ -144,6 +149,7 @@ export type WhatsAppCanhotoRecognition = {
 
 const LOG = {
   asked: 'whatsapp_canhoto_recognition.asked',
+  attachFailed: 'whatsapp_canhoto_recognition.attach_failed',
   attached: 'whatsapp_canhoto_recognition.attached',
   readFailed: 'whatsapp_canhoto_recognition.read_failed',
 } as const
@@ -346,19 +352,52 @@ export function createWhatsAppCanhotoRecognition(
     }
     const note = answer.kind === 'note' ? answer.note : fromCandidate(question.candidates[0])
     if (note === undefined) return null
-    const bytes = await media.read({ companyId: question.companyId, objectKey: question.objectKey })
-    await close('completed')
-    return (
-      (await duplicateReply({ bytes, companyId: actor.companyId, notes: [note] })) ??
-      attach({
-        actor,
-        bytes,
-        channel: question.originChannel,
-        mimeType: question.mimeType,
-        note,
-        providerMessageId: question.providerMessageId,
+    return attachAnswered({ actor, close, note, question })
+  }
+
+  /**
+   * Spec 294 C2: a foto vai para a nota **antes** de a pergunta fechar e o objeto sair do bucket. Falhou ao guardar, a
+   * pergunta segue aberta com a foto e o motorista responde de novo (ou ela vence no prazo); nunca some calada.
+   */
+  async function attachAnswered(input: {
+    readonly actor: WhatsAppDriverActor
+    readonly close: (status: 'cancelled' | 'completed') => Promise<void>
+    readonly note: OpenNote
+    readonly question: WhatsAppCanhotoQuestion
+  }): Promise<WhatsAppDeliveryPreparationReply> {
+    const { actor, close, note, question } = input
+    const bytes = await media
+      .read({ companyId: question.companyId, objectKey: question.objectKey })
+      .catch(() => null)
+    if (bytes === null) {
+      await close('cancelled')
+      return reply([CANHOTO_RECOGNITION_SPEECH.photoLost])
+    }
+    const duplicate = await duplicateReply({ bytes, companyId: actor.companyId, notes: [note] })
+    if (duplicate !== null) {
+      await close('completed')
+      return duplicate
+    }
+    const attached = await attach({
+      actor,
+      bytes,
+      channel: question.originChannel,
+      mimeType: question.mimeType,
+      note,
+      providerMessageId: question.providerMessageId,
+    }).catch((error: unknown) => {
+      ports.logger?.warn(LOG.attachFailed, {
+        companyId: actor.companyId,
+        errorName: error instanceof Error ? error.name : typeof error,
       })
-    )
+      return null
+    })
+    // Sem fala nenhuma, a preparação da nota não abriu: a foto não foi a lugar nenhum.
+    if (attached === null || attached.texts.length === 0) {
+      return reply([CANHOTO_RECOGNITION_SPEECH.storeFailed], { awaitingText: true })
+    }
+    await close('completed')
+    return attached
   }
 
   return {

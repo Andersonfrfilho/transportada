@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, lte, sql } from 'drizzle-orm'
 
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import { whatsappCanhotoQuestions } from '../../database/whatsapp-canhoto-question.schema.js'
@@ -44,6 +44,32 @@ export function createDrizzleWhatsAppCanhotoQuestionRepository(
         .update(whatsappCanhotoQuestions)
         .set({ closedAt: sql`now()`, status: input.status })
         .where(and(openOf(input.companyId), eq(whatsappCanhotoQuestions.id, input.id)))
+    },
+
+    async expireOpen(input) {
+      const due = database
+        .select({ id: whatsappCanhotoQuestions.id })
+        .from(whatsappCanhotoQuestions)
+        .where(
+          and(
+            eq(whatsappCanhotoQuestions.status, 'open'),
+            lte(whatsappCanhotoQuestions.openedAt, input.before),
+          ),
+        )
+        .limit(input.limit)
+      return database
+        .update(whatsappCanhotoQuestions)
+        .set({ closedAt: sql`now()`, status: 'cancelled' })
+        .where(
+          and(
+            eq(whatsappCanhotoQuestions.status, 'open'),
+            inArray(whatsappCanhotoQuestions.id, due),
+          ),
+        )
+        .returning({
+          companyId: whatsappCanhotoQuestions.companyId,
+          objectKey: whatsappCanhotoQuestions.objectKey,
+        })
     },
 
     async findOpen(input) {

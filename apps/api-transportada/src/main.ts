@@ -245,6 +245,7 @@ import { createWhatsAppSenderRoleResolver } from './whatsapp/application/whatsap
 import { createWhatsAppCanhotoRecognition } from './whatsapp-commands/application/whatsapp-canhoto-recognition.service.js'
 import { isCanhotoOcrEnabled } from './whatsapp-commands/domain/whatsapp-canhoto-ocr-enabled.policy.js'
 import { createDrizzleWhatsAppCanhotoQuestionRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-canhoto-question.repository.js'
+import { startCanhotoQuestionExpiryWatcher } from './whatsapp-commands/infrastructure/whatsapp-canhoto-question-expiry.watcher.js'
 import { createWorkerCanhotoReader } from './whatsapp/infrastructure/worker-canhoto-reader.gateway.js'
 import { createWhatsAppDeliveryPreparations } from './whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { createWhatsAppPreparationProofAttacher } from './whatsapp-commands/infrastructure/whatsapp-delivery-preparation-proof.adapter.js'
@@ -1631,6 +1632,13 @@ export function bootstrap(): Bun.Server<undefined> {
    * Spec 294 T4.8 (RF23): a foto sem entrega em preparo é lida pelo OCR local do worker (a mesma rota interna e o mesmo token
    * do áudio do bot). Sem `WORKER_INTERNAL_URL`/token, ou com `CANHOTO_OCR_ENABLED=false` (padrão em produção), não existe.
    */
+  const whatsappCanhotoQuestions = createDrizzleWhatsAppCanhotoQuestionRepository(database.db)
+  /** Spec 294 S5: a pergunta do canhoto vence em 30 min e a foto sai do bucket — também com o OCR desligado depois. */
+  startCanhotoQuestionExpiryWatcher({
+    logger,
+    media: whatsappPreparationMedia,
+    questions: whatsappCanhotoQuestions,
+  })
   const canhotoReaderConfig = isCanhotoOcrEnabled(process.env)
     ? readWorkerBotAudioTranscriberConfig(process.env)
     : undefined
@@ -1643,7 +1651,7 @@ export function bootstrap(): Bun.Server<undefined> {
           logger,
           media: whatsappPreparationMedia,
           preparations: whatsappDeliveryPreparations,
-          questions: createDrizzleWhatsAppCanhotoQuestionRepository(database.db),
+          questions: whatsappCanhotoQuestions,
           reader: createWorkerCanhotoReader(canhotoReaderConfig),
         })
   const whatsappDriverCollections = combineWhatsAppDriverCollections({

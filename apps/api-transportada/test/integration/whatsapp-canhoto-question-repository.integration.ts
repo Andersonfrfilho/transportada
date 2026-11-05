@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm'
 import { createDatabaseProvider } from '../../src/database/database-client.service.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { tripDocuments } from '../../src/database/database.schema.js'
+import { whatsappCanhotoQuestions } from '../../src/database/whatsapp-canhoto-question.schema.js'
 import { createDrizzleWhatsAppCanhotoQuestionRepository } from '../../src/whatsapp-commands/infrastructure/drizzle-whatsapp-canhoto-question.repository.js'
 import { seedCargoTenants } from '../fixtures/cargo-arrival-database.fixture.js'
 import { COMPANY_CONTEXT } from '../fixtures/freight-region-http.fixture.js'
@@ -75,6 +76,31 @@ describe('pergunta do canhoto, repositório (spec 294 T4.8)', () => {
         await questions.close({ companyId, id: opened.id, status: 'completed' })
         expect(await questions.findOpen({ companyId, driverId })).toBeNull()
         expect(await questions.open(input(companyId, driverId))).not.toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'S5: a vencida é cancelada uma vez e devolve a foto; a recente segue aberta',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, driverId, questions } = await setUp(database)
+        const other = await seedDriverAccount(database, companyId)
+        const old = await questions.open(input(companyId, driverId))
+        const fresh = await questions.open(input(companyId, other.driverId))
+        if (old === null || fresh === null) throw new Error('not opened')
+        await database.db
+          .update(whatsappCanhotoQuestions)
+          .set({ openedAt: new Date(Date.now() - 31 * 60 * 1000) })
+          .where(eq(whatsappCanhotoQuestions.id, old.id))
+
+        const before = new Date(Date.now() - 30 * 60 * 1000)
+        const expired = await questions.expireOpen({ before, limit: 10 })
+
+        expect(expired).toEqual([{ companyId, objectKey: old.objectKey }])
+        expect(await questions.expireOpen({ before, limit: 10 })).toEqual([])
+        expect(await questions.findOpen({ companyId, driverId })).toBeNull()
+        expect(await questions.findOpen({ companyId, driverId: other.driverId })).not.toBeNull()
       })
     },
   )

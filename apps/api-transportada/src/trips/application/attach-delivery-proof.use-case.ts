@@ -58,6 +58,7 @@ import {
   type ReceivedByFields,
 } from '../domain/received-by.policy.js'
 import type { AttachedCanhoto, CanhotoDuplicate } from './canhoto-attachment.types.js'
+import { CanhotoDuplicateError } from './canhoto-duplicate.error.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
@@ -503,7 +504,7 @@ async function attachDeliveryProofUnlogged(
       })
     : EMPTY_RECEIVED_BY
 
-  const proof = await input.repository.saveProof({
+  const saved = input.repository.saveProof({
     accuracyMeters: input.upload.position?.accuracyMeters?.toFixed(2) ?? null,
     actorUserId: input.actorUserId,
     attachmentKey: input.upload.attachmentKey,
@@ -540,6 +541,14 @@ async function attachDeliveryProofUnlogged(
     sizeBytes: input.upload.bytes.byteLength,
     ...(thumbnail === undefined ? {} : { thumbnail }),
   })
+  // Spec 294 C5: a mesma imagem gravada por outro pedido enquanto este subia — a trava do hash acha a primeira.
+  const proof = await saved.catch((error: unknown) => {
+    if (error instanceof CanhotoDuplicateError) return error
+    throw error
+  })
+  if (proof instanceof CanhotoDuplicateError) {
+    return { outcome: 'duplicate', proof: toDuplicateProof(proof.found) }
+  }
 
   const isOriginal = file.variant === 'original'
 
@@ -570,14 +579,7 @@ async function resolveCanhotoConflict(params: {
     companyId: input.companyId,
     sha256: createHash('sha256').update(input.upload.bytes).digest('hex'),
   })
-  if (found !== null) {
-    return {
-      duplicate: { attachedAt: found.attachedAt, documentId: found.documentId },
-      id: found.proofId,
-      processingState: resolveDeliveryProofProcessingState(null),
-      punctuality: PROOF_PUNCTUALITY.notRequired,
-    }
-  }
+  if (found !== null) return toDuplicateProof(found)
   if (authorship.channel === TRIP_FIELD_CHANNELS.office) return undefined
   if (input.upload.replaceCanhoto === true) return undefined
 
@@ -588,6 +590,15 @@ async function resolveCanhotoConflict(params: {
   })
   if (attached > 0) throw new TripCanhotoAlreadyAttachedError()
   return undefined
+}
+
+function toDuplicateProof(found: AttachedCanhoto): AttachedDeliveryProof {
+  return {
+    duplicate: { attachedAt: found.attachedAt, documentId: found.documentId },
+    id: found.proofId,
+    processingState: resolveDeliveryProofProcessingState(null),
+    punctuality: PROOF_PUNCTUALITY.notRequired,
+  }
 }
 
 function assertThumbnailAccepted(thumbnail: DeliveryProofUpload['thumbnail']): void {

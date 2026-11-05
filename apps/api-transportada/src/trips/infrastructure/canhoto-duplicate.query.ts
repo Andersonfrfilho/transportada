@@ -3,7 +3,7 @@
  *
  * Spec 294 RF26: a mesma imagem (SHA-256 do conteúdo) já anexada como canhoto de alguma nota da empresa.
  */
-import { and, desc, eq, isNotNull } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, ne } from 'drizzle-orm'
 
 import { storedObjects } from '../../database/storage.schema.js'
 import { tripDeliveryProofs, tripStopEvents } from '../../database/trip.schema.js'
@@ -13,7 +13,12 @@ import type { TripQueryable } from './trip-queryable.type.js'
 
 export async function findCanhotoByHash(
   executor: TripQueryable,
-  input: { readonly companyId: string; readonly sha256: string },
+  input: {
+    readonly companyId: string
+    /** A recaptura do mesmo evento é correção da mesma linha (upsert), não um segundo canhoto. */
+    readonly excludeStopEventId?: string
+    readonly sha256: string
+  },
 ): Promise<AttachedCanhoto | null> {
   const [record] = await executor
     .select({
@@ -44,6 +49,9 @@ export async function findCanhotoByHash(
         eq(storedObjects.sha256, input.sha256),
         eq(storedObjects.purpose, 'delivery_proof'),
         isNotNull(tripStopEvents.tripDocumentId),
+        input.excludeStopEventId === undefined
+          ? undefined
+          : ne(tripDeliveryProofs.stopEventId, input.excludeStopEventId),
       ),
     )
     .orderBy(desc(tripDeliveryProofs.createdAt))

@@ -381,6 +381,24 @@ describe('o canhoto repetido na API (spec 294 RF26)', () => {
   )
 
   testWithPostgres(
+    'C5: a mesma imagem em duas notas ao mesmo tempo grava um canhoto só; o outro responde duplicate',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+
+        const results = await Promise.all([
+          attach(world, { bytes: jpegBytes(9), documentId: world.firstDocumentId }),
+          attach(world, { bytes: jpegBytes(9), documentId: world.secondDocumentId }),
+        ])
+
+        expect(results.filter((result) => result.duplicate === undefined)).toHaveLength(1)
+        expect(results.filter((result) => result.duplicate !== undefined)).toHaveLength(1)
+        expect(await countCanhotos(world)).toBe(1)
+      })
+    },
+  )
+
+  testWithPostgres(
     'a mesma imagem em outra nota responde duplicate e não grava de novo',
     async () => {
       await withDisposableDatabase(async (database) => {

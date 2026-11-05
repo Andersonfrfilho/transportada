@@ -23,6 +23,8 @@ export const CANHOTO_RECOGNITION_SPEECH = {
   discarded: 'Certo, descartei a foto.',
   expired: 'A pergunta sobre a foto venceu e ela foi descartada. Mande a foto de novo.',
   notUnderstood: 'Não entendi. Responda com o número da opção.',
+  /** Spec 294 C2: a foto da pergunta não está mais guardada. */
+  photoLost: 'Não encontrei mais a foto. Mande a foto do canhoto de novo, por favor.',
   photoKind: (prefix?: string): string =>
     [
       ...(prefix === undefined ? [] : [prefix]),
@@ -32,4 +34,6 @@ export const CANHOTO_RECOGNITION_SPEECH = {
       '*3* - Descartar',
     ].join('\n'),
   readerUnavailable: 'Não consegui ler a foto agora.',
+  /** Spec 294 C2: a foto não foi para a nota; a pergunta segue aberta com ela. */
+  storeFailed: 'Não consegui guardar a foto na nota agora. Responda de novo daqui a pouco.',
 } as const

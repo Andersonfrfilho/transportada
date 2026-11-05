@@ -52,6 +52,10 @@ const exact = (documentId: string): Verdict => ({
 function setup(
   options: {
     readonly duplicateOf?: string
+    /** C2: quantas gravações da foto na preparação falham antes de passar. */
+    readonly failPreparationStores?: number
+    /** C2: a foto da pergunta sumiu do bucket. */
+    readonly lostQuestionPhoto?: boolean
     readonly now?: () => Date
     readonly read?: (input: Parameters<WhatsAppCanhotoReaderPort['read']>[0]) => Promise<Verdict>
     readonly stops?: boolean
@@ -64,6 +68,7 @@ function setup(
   const removed: string[] = []
   let readCalls = 0
   let sequence = 0
+  let failPreparationStores = options.failPreparationStores ?? 0
 
   const repository: WhatsAppDeliveryPreparationRepositoryPort = {
     async close({ id, status, version }) {
@@ -105,7 +110,10 @@ function setup(
     },
   }
   const media = {
-    read: async () => BYTES,
+    read: async () => {
+      if (options.lostQuestionPhoto === true) throw new Error('NoSuchKey')
+      return BYTES
+    },
     remove: async ({ objectKey }: { readonly objectKey: string }) => {
       removed.push(objectKey)
     },
@@ -115,11 +123,17 @@ function setup(
     }: {
       readonly bytes: Uint8Array
       readonly preparationId: string
-    }) => ({
-      objectKey: `${preparationId}/photo`,
-      sha256: 'abc',
-      sizeBytes: bytes.byteLength,
-    }),
+    }) => {
+      if (preparationId.startsWith('P') && failPreparationStores > 0) {
+        failPreparationStores -= 1
+        throw new Error('bucket fora')
+      }
+      return {
+        objectKey: `${preparationId}/photo`,
+        sha256: 'abc',
+        sizeBytes: bytes.byteLength,
+      }
+    },
   }
   const listStops = async () =>
     options.stops === false
@@ -193,6 +207,7 @@ function setup(
         const row = questionRows.get(id)
         if (row !== undefined) questionRows.set(id, { ...row, status })
       },
+      expireOpen: async () => [],
       async findOpen({ driverId }) {
         return (
           [...questionRows.values()].find((q) => q.driverId === driverId && q.status === 'open') ??
@@ -399,6 +414,37 @@ describe('o que não é exato pergunta, e nunca baixa por palpite', () => {
     const asked = await t.photo()
     expect(asked?.texts[0]).toContain('não parece um canhoto')
     expect(t.rows.size).toBe(0)
+  })
+})
+
+describe('C2: a resposta só fecha a pergunta depois de a foto ir para a nota', () => {
+  const near: Verdict = {
+    ambiguous: false,
+    candidates: [{ documentId: 'DOC-A', match: 'near' }],
+    markers: 0,
+  }
+
+  test('falha ao guardar: a pergunta segue aberta com a foto, e a resposta seguinte liga à nota', async () => {
+    const t = setup({ failPreparationStores: 1, read: async () => near })
+    await t.photo()
+    const failed = await t.answer('sim')
+    expect(failed?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.storeFailed])
+    expect(failed?.awaitingText).toBe(true)
+    expect([...t.questionRows.values()][0]?.status).toBe('open')
+    expect(t.removed).toEqual([])
+
+    const retried = await t.answer('sim')
+    expect(retried?.texts[0]).toBe('Li o canhoto da NF 17234.')
+    expect([...t.questionRows.values()][0]?.status).toBe('completed')
+    expect(t.removed).toHaveLength(1)
+  })
+
+  test('a foto da pergunta sumiu do bucket: fecha e pede a foto de novo, nunca calado', async () => {
+    const t = setup({ lostQuestionPhoto: true, read: async () => near })
+    await t.photo()
+    const reply = await t.answer('sim')
+    expect(reply?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.photoLost])
+    expect([...t.questionRows.values()][0]?.status).toBe('cancelled')
   })
 })
 
