@@ -138,6 +138,8 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('extra_charge_batches', 'window', 'created_at'),
   ('fiscal_sequence_reservations', 'empty', null),
   ('fiscal_sequences', 'empty', null),
+  ('fleet_driver_attachment_outbox', 'empty', null),
+  ('fleet_driver_attachments', 'empty', null),
   ('fleet_driver_regions', 'keep', null),
   ('fleet_driver_vehicle_assignments', 'keep', null),
   ('fleet_driver_whatsapp_groups', 'keep', null),

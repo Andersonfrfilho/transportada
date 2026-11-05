@@ -129,6 +129,22 @@
       "serviceAccountsEnabled": true,
       "redirectUris": [],
       "webOrigins": []
+    },
+    {
+      "clientId": "transportada-worker-cnh-picture",
+      "name": "TransportAdA CNH picture service account",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_CNH_PICTURE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "redirectUris": [],
+      "webOrigins": []
     }
   ],
   "users": [
@@ -144,6 +160,12 @@
       "username": "service-account-transportada-worker",
       "enabled": true,
       "serviceAccountClientId": "transportada-worker",
+      "realmRoles": ["transportada-service"]
+    },
+    {
+      "username": "service-account-transportada-worker-cnh-picture",
+      "enabled": true,
+      "serviceAccountClientId": "transportada-worker-cnh-picture",
       "realmRoles": ["transportada-service"]
     }
   ],

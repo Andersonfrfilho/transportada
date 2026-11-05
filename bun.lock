@@ -252,6 +252,7 @@
         "fflate": "0.8.3",
         "mailauth": "5.0.3",
         "nodemailer": "^7.0.9",
+        "onnxruntime-web": "1.23.2",
         "pdfjs-dist": "^6.2.108",
         "postal-mime": "2.7.6",
         "resend": "6.28.1",

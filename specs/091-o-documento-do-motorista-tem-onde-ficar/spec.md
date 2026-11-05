@@ -42,11 +42,8 @@ documento. A cifra da ADR-0039 não é hipótese: ela tem alvo hoje.
 
 ## Decisões
 
-- **D1 — A ADR-0039 vem antes, e esta spec não a contorna.** O anexo entra depois de os campos de
-  texto do motorista estarem cifrados, ou junto, no mesmo envelope
-  (`transportada:fleet-driver:v1:${companyId}:${driverId}`). O que não pode acontecer é o documento
-  entrar antes: seria a terceira cópia do mesmo CPF em claro — a coluna, o payload do MDF-e e agora
-  o arquivo — com a diferença de que arquivo não se migra com um `UPDATE`.
+- **D1 — Revogada em 2026-11-05.** A ADR-0039 foi revogada pelo dono (perder a chave é perder o dado):
+  nada se criptografa, e o anexo não espera cifra nenhuma.
 - **D2 — A tabela é nova, não a da candidatura.** `aggregate_application_attachments` é amarrada a
   `draft_id`/`application_id` e ao fluxo anônimo; generalizá-la faria uma tabela responder por dois
   ciclos de vida com prazos diferentes. Nasce `fleet_driver_attachments`, com `company_id` e
@@ -70,8 +67,7 @@ documento. A cifra da ADR-0039 não é hipótese: ela tem alvo hoje.
 
 ## Fora do escopo
 
-- Executar a ADR-0039. Ela é pré-requisito (D1) e tem trabalho próprio; esta spec depende dela, não
-  a contém.
+- Criptografar a ficha (ADR-0039 revogada em 2026-11-05).
 - Anexo na landing — já existe (spec 071) e não muda.
 - Aviso de CNH a vencer. `NOTIFICATION_TEMPLATE_KEY` não tem chave de habilitação, e o trilho é
   feature separada, como o `CLAUDE.md` já registra.
@@ -161,7 +157,6 @@ campo novo que nascer nativo.
 
 ## Critérios de aceite
 
-- [ ] ADR-0039 executada, ou o envelope desta feature escrito no mesmo AAD (D1)
 - [ ] `fleet.reveal` no catálogo, nos papéis, e **nenhuma** rota de conteúdo sem ela
 - [ ] Contrato de isolamento multiempresa em `test/fleet-schema/tenant-safety.contract.ts`
 - [ ] Contrato negativo: `fleet.manage` sem `fleet.reveal` recebe 403 no conteúdo
@@ -178,10 +173,7 @@ campo novo que nascer nativo.
   `membership_roles.role` e `user_invitation_roles.role`.
 - **O documento vive enquanto a ficha viver.** Sai com o motorista, na mesma transação. ⚠️ Isso
   significa **na prática indefinidamente**, porque ficha de motorista é desativada, não removida —
-  a consequência fica registrada aqui e em `docs/SECURITY.md`, e é a mesma que a 071 assumiu. É
-  também mais uma razão para a cifra da ADR-0039 vir antes (D1), não depois.
-- **A ADR-0039 é a primeira etapa deste trabalho**, não um pré-requisito externo. O `plan.md`
-  começa por ela.
+  a consequência fica registrada aqui e em `docs/SECURITY.md`, e é a mesma que a 071 assumiu.
 
 ⚠️ **Adiado, não resolvido:** anexo de candidatura aprovada **não** vira anexo do motorista criado a
 partir dela. Medido: 0 candidaturas nesta instalação, então não há o que migrar hoje, e construir a

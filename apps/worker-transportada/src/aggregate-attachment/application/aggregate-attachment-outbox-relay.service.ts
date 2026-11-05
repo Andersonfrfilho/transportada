@@ -4,6 +4,7 @@
 import {
   AGGREGATE_ATTACHMENT_EVENT_TYPE,
   type AggregateAttachmentEnvelopeV1,
+  type AggregateAttachmentSubject,
 } from '../../messaging/aggregate-attachment-envelope.schema.js'
 import type { AggregateAttachmentOutboxClaimedEntry } from '../infrastructure/drizzle-aggregate-attachment-outbox.repository.js'
 
@@ -40,17 +41,21 @@ export class AggregateAttachmentOutboxRelayService {
   readonly #publisher: Publisher
   readonly #repository: Repository
   readonly #retryPolicy: RetryPolicy
+  readonly #subject: AggregateAttachmentSubject | undefined
 
   constructor(dependencies: {
     readonly clock: Clock
     readonly publisher: Publisher
     readonly repository: Repository
     readonly retryPolicy: RetryPolicy
+    /** De quem é a fila que este relay drena; ausente é a da candidatura, que não leva o campo. */
+    readonly subject?: AggregateAttachmentSubject
   }) {
     this.#clock = dependencies.clock
     this.#publisher = dependencies.publisher
     this.#repository = dependencies.repository
     this.#retryPolicy = dependencies.retryPolicy
+    this.#subject = dependencies.subject
   }
 
   async relayDueEntries(params: {
@@ -81,6 +86,7 @@ export class AggregateAttachmentOutboxRelayService {
               attachmentId: entry.attachmentId,
               bucket: entry.bucket,
               objectKey: entry.objectKey,
+              ...(this.#subject === undefined ? {} : { subject: this.#subject }),
               type: entry.type,
             },
             type: AGGREGATE_ATTACHMENT_EVENT_TYPE.EXTRACTION_REQUESTED,

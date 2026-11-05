@@ -151,6 +151,10 @@ import {
   aggregateAttachmentOutbox,
   aggregateApplications,
 } from './aggregate-application.schema.js'
+import {
+  fleetDriverAttachmentOutbox,
+  fleetDriverAttachments,
+} from './fleet-driver-attachment.schema.js'
 import { geocodedAddresses } from './geocoding.schema.js'
 import { municipalityCentroids } from './municipality-centroid.schema.js'
 import { geocodingRefinementRequests } from './geocoding-refinement.schema.js'
@@ -300,6 +304,7 @@ export * from './whatsapp-command.schema.js'
 export * from './route-suggestion.schema.js'
 export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
+export * from './fleet-driver-attachment.schema.js'
 export * from './identity-user-picture.schema.js'
 
 export const databaseSchema = {
@@ -344,6 +349,8 @@ export const databaseSchema = {
   fleetDriverRegions,
   fleetDriverVehicleAssignments,
   fleetDriverWhatsappGroups,
+  fleetDriverAttachmentOutbox,
+  fleetDriverAttachments,
   fleetDrivers,
   fleetVehicles,
   freightCalculations,

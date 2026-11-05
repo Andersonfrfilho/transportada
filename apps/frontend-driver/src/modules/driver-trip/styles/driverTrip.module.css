@@ -1005,7 +1005,33 @@
   font-weight: 700;
   height: var(--space-10);
   justify-content: center;
+  overflow: hidden;
   width: var(--space-10);
+}
+
+.driverAvatarImage {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.profilePictureActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.profilePictureNote {
+  background: none;
+  border: 0;
+  color: var(--color-slate);
+  cursor: pointer;
+  font: inherit;
+  margin: 0;
+  min-height: 2.75rem;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
 }
 
 .driverAvatarLarge {

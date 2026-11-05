@@ -418,6 +418,11 @@ describe('Drizzle migrations', () => {
       '20261104032208_whatsapp_group_requests',
       '20261104133105_whatsapp_delivery_preparations',
       '20261104140742_whatsapp_occurrence_drafts',
+      '20261105035107_fleet_driver_attachments',
+      '20261105041500_fleet_driver_attachment_outbox',
+      '20261105113107_user_picture_origin',
+      '20261105115421_user_picture_published_at',
+      '20261105120600_cnh_picture_service_role',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

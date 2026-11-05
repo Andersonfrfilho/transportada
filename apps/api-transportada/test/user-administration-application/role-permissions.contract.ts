@@ -69,9 +69,12 @@ describe('matriz de papel e permissão', () => {
     for (const permission of SERVICE_ONLY_PERMISSIONS) {
       expect(matrix.permissions).not.toContain(permission)
     }
-    expect(matrix.roles.find((entry) => entry.role === 'automation')?.permissions).toEqual([
-      ...SERVICE_ONLY_PERMISSIONS,
-    ])
+    expect(matrix.roles.find((entry) => entry.role === 'automation')?.permissions).toEqual(
+      SERVICE_ONLY_PERMISSIONS.filter((permission) => permission !== 'driver.cnh-picture'),
+    )
+    expect(matrix.roles.find((entry) => entry.role === 'cnh-picture-service')?.permissions).toEqual(
+      ['driver.cnh-picture'],
+    )
   })
 })
 
@@ -107,6 +110,7 @@ describe('concessão de permissão de serviço', () => {
         'mdfe.auto-issue',
         'trip.canhoto-auto-review',
         'occurrence.automatic-mail',
+        'driver.cnh-picture',
       ],
       roles: [],
     })
@@ -117,6 +121,7 @@ describe('concessão de permissão de serviço', () => {
       'permissions.2',
       'permissions.3',
       'permissions.4',
+      'permissions.5',
     ])
   })
 

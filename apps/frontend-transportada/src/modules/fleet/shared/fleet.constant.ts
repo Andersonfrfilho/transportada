@@ -32,7 +32,12 @@ export const FLEET_WHATSAPP_GROUPS_PATH = '/fleet/whatsapp-groups'
 export function driverWhatsappGroupPath(driverId: string): string {
   return `${FLEET_DRIVERS_PATH}/${driverId}/whatsapp-group`
 }
+/** Spec 091: o documento do motorista (CNH, RG, comprovante) — listar `fleet.read`, anexar `fleet.manage`, abrir `fleet.reveal`. */
+export function driverAttachmentsPath(driverId: string): string {
+  return `${FLEET_DRIVERS_PATH}/${driverId}/attachments`
+}
 export const FLEET_READ_PERMISSION = 'fleet.read'
+export const FLEET_REVEAL_PERMISSION = 'fleet.reveal'
 export const FLEET_MANAGE_PERMISSION = 'fleet.manage'
 
 export const FLEET_ERROR = {

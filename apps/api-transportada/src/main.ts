@@ -510,6 +510,13 @@ import {
 } from './fleet/application/crew-settings.use-case'
 import { DrizzleCrewSettingsRepository } from './fleet/infrastructure/drizzle-crew-settings.repository'
 import { createDriverWhatsappGroupUseCase } from './fleet/application/driver-whatsapp-group.use-case'
+import { createFleetDriverAttachmentUseCase } from './fleet/application/fleet-driver-attachment.use-case.js'
+import { createDrizzleFleetDriverAttachmentAudit } from './fleet/infrastructure/drizzle-fleet-driver-attachment-audit.gateway.js'
+import { createDrizzleFleetDriverAttachmentRepository } from './fleet/infrastructure/drizzle-fleet-driver-attachment.repository.js'
+import { createFleetDriverAttachmentRoutes } from './fleet/presentation/fleet-driver-attachment.routes.js'
+import { createApplyDriverCnhPictureUseCase } from './fleet/application/apply-driver-cnh-picture.use-case.js'
+import { createDrizzleDriverCnhPictureLookupRepository } from './fleet/infrastructure/drizzle-driver-cnh-picture-lookup.repository.js'
+import { createFleetDriverCnhPictureRoutes } from './fleet/presentation/fleet-driver-cnh-picture.routes.js'
 import { DrizzleDriverWhatsappGroupRepository } from './fleet/infrastructure/drizzle-driver-whatsapp-group.repository'
 import { createDriverWhatsappGroupRoutes } from './fleet/presentation/driver-whatsapp-group.routes'
 import { createCompanyCrewSettingsRoutes } from './fleet/presentation/crew-settings.routes'
@@ -1026,6 +1033,7 @@ import { createDrizzleGroupAudit } from './identity/infrastructure/drizzle-group
 import { createCompanyGroupRoutes } from './identity/presentation/company-group.routes'
 import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
+import { createMePictureRoutes } from './identity/presentation/me-picture.routes.js'
 import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
 import { createWhiteLogoCache } from './occurrence-conversation/infrastructure/white-logo.gateway.js'
 import { createPublicMailAssetRoutes } from './occurrence-conversation/presentation/public-mail-assets.routes.js'
@@ -3742,6 +3750,13 @@ function createApplicationRoutes({
     readonly membershipId: string
   }) => currentDriverTripRepository.findDriverIdByMembership(input)
 
+  const userPictureUseCase = createUserPictureUseCase({
+    identityGateway: identityAccessGateway,
+    logger,
+    ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
+    repository: new DrizzleUserPictureRepository(database),
+  })
+
   return [
     ...createCompanySettingsRoutes({
       getSettings: createGetCompanySettingsUseCase({ repository: settingsRepository }),
@@ -4117,6 +4132,22 @@ function createApplicationRoutes({
       useCase: createDriverWhatsappGroupUseCase({
         listEvolutionGroups: (input) => whatsappEvolution.listGroups(input),
         repository: new DrizzleDriverWhatsappGroupRepository(database),
+      }),
+    }),
+    ...createFleetDriverAttachmentRoutes({
+      resolveClientIp,
+      attachments: createFleetDriverAttachmentUseCase({
+        audit: createDrizzleFleetDriverAttachmentAudit(database),
+        bucket: storageBucket,
+        logger,
+        repository: createDrizzleFleetDriverAttachmentRepository(database),
+        storage: storageGateway,
+      }),
+    }),
+    ...createFleetDriverCnhPictureRoutes({
+      applyDriverCnhPicture: createApplyDriverCnhPictureUseCase({
+        lookup: createDrizzleDriverCnhPictureLookupRepository(database),
+        userPicture: userPictureUseCase,
       }),
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
@@ -6309,13 +6340,8 @@ function createApplicationRoutes({
         newDedupeKey: () => `template-test-${crypto.randomUUID()}`,
       }),
     }),
-    ...createUserPictureRoutes({
-      userPicture: createUserPictureUseCase({
-        identityGateway: identityAccessGateway,
-        ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
-        repository: new DrizzleUserPictureRepository(database),
-      }),
-    }),
+    ...createUserPictureRoutes({ userPicture: userPictureUseCase }),
+    ...createMePictureRoutes({ userPicture: userPictureUseCase }),
     ...createUserAdministrationRoutes({
       activate: createActivateCompanyUserUseCase({
         audit: groupAudit,

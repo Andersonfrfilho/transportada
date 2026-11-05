@@ -28,6 +28,12 @@ export const LOCAL_SERVICE_IDENTITY_USER_ID = '00000000-0000-4000-8000-000000000
 export const LOCAL_SERVICE_EXTERNAL_IDENTITY_ID = '00000000-0000-4000-8000-000000000007'
 export const LOCAL_SERVICE_MEMBERSHIP_ID = '00000000-0000-4000-8000-000000000008'
 
+/** Spec 295: o ator do client `transportada-worker-cnh-picture` do realm local. */
+export const LOCAL_CNH_PICTURE_KEYCLOAK_SUBJECT = '00000000-0000-4000-8000-000000000011'
+export const LOCAL_CNH_PICTURE_IDENTITY_USER_ID = '00000000-0000-4000-8000-000000000012'
+export const LOCAL_CNH_PICTURE_EXTERNAL_IDENTITY_ID = '00000000-0000-4000-8000-000000000013'
+export const LOCAL_CNH_PICTURE_MEMBERSHIP_ID = '00000000-0000-4000-8000-000000000014'
+
 export type LocalSeedActor = {
   readonly contactAddress: string
   readonly externalIdentityId: string
@@ -67,5 +73,14 @@ export const LOCAL_SEED_ACTORS: readonly LocalSeedActor[] = [
     roles: ['automation'],
     subject: LOCAL_SERVICE_KEYCLOAK_SUBJECT,
     userId: LOCAL_SERVICE_IDENTITY_USER_ID,
+  },
+  {
+    contactAddress: 'foto-cnh@local.test',
+    externalIdentityId: LOCAL_CNH_PICTURE_EXTERNAL_IDENTITY_ID,
+    membershipId: LOCAL_CNH_PICTURE_MEMBERSHIP_ID,
+    name: 'Foto da CNH local',
+    roles: ['cnh-picture-service'],
+    subject: LOCAL_CNH_PICTURE_KEYCLOAK_SUBJECT,
+    userId: LOCAL_CNH_PICTURE_IDENTITY_USER_ID,
   },
 ]

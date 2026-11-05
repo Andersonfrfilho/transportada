@@ -364,6 +364,43 @@ describe('worker environment contract', () => {
     ).toThrow(WorkerConfigurationError)
   })
 
+  describe('a credencial própria da foto da CNH', () => {
+    const complete = {
+      ...validEnvironment,
+      API_BASE_URL: 'https://api.staging.example.com',
+      CNH_PICTURE_CLIENT_ID: 'transportada-worker-cnh-picture',
+      CNH_PICTURE_CLIENT_SECRET: 'secret-value',
+      KEYCLOAK_TOKEN_URL: 'https://keycloak.example.com/token',
+    }
+
+    test('completa liga a foto, sem tocar no crachá do MDF-e', () => {
+      const environment = parseWorkerEnvironment(complete)
+
+      expect(environment.cnhPicture).toEqual({
+        apiBaseUrl: 'https://api.staging.example.com',
+        clientId: 'transportada-worker-cnh-picture',
+        clientSecret: 'secret-value',
+        tokenUrl: 'https://keycloak.example.com/token',
+      })
+      expect(environment.mdfeAutoIssue).toBeUndefined()
+    })
+
+    test('ausente desliga a foto sem derrubar o boot', () => {
+      expect(parseWorkerEnvironment(validEnvironment).cnhPicture).toBeUndefined()
+    })
+
+    test.each([
+      ['só o id', { CNH_PICTURE_CLIENT_SECRET: undefined }],
+      ['só o segredo', { CNH_PICTURE_CLIENT_ID: undefined }],
+      ['sem o endereço do token', { KEYCLOAK_TOKEN_URL: undefined }],
+      ['sem o endereço da API', { API_BASE_URL: undefined }],
+    ])('%s derruba o boot', (_name, override) => {
+      expect(() => parseWorkerEnvironment({ ...complete, ...override })).toThrow(
+        WorkerConfigurationError,
+      )
+    })
+  })
+
   test('does not expose connection credentials in configuration errors', () => {
     const secret = 'do-not-leak'
 

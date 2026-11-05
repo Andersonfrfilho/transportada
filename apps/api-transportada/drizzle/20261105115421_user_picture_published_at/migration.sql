@@ -1,0 +1,1 @@
+ALTER TABLE "identity_user_pictures" ADD COLUMN "published_at" timestamp with time zone;

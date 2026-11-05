@@ -1,0 +1,3 @@
+-- Spec 295: papel `cnh-picture-service`, a credencial própria da foto da CNH. Só alarga os CHECKs de papel (aditiva).
+ALTER TABLE "company_group_roles" DROP CONSTRAINT "company_group_roles_role_check", ADD CONSTRAINT "company_group_roles_role_check" CHECK ("role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor', 'automation', 'cnh-picture-service'));--> statement-breakpoint
+ALTER TABLE "membership_roles" DROP CONSTRAINT "membership_roles_role_check", ADD CONSTRAINT "membership_roles_role_check" CHECK ("role" in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor', 'automation', 'cnh-picture-service'));
