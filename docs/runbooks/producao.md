@@ -238,6 +238,17 @@ O `deploy-watchdog.yml` (10 em 10 min) já faz isso após 20 min. **Nunca cancel
 `in_progress`**: deixa os serviços em versões diferentes. Se não puder esperar, publique pela CLI
 (item 3).
 
+### Só o `mark-deployed` fica vermelho (05/11/2026)
+
+Sintoma: todos os `deploy-*` verdes e só o `mark-deployed` falha no passo "Avançar o marco", com
+`remote: fatal error in commit_refs` / `[remote rejected] HEAD -> refs/deploy/production/api`. É erro do lado
+do GitHub ao gravar a ref do marco; **o código já está no ar** (conferir `deployment list` do Railway em
+`SUCCESS`). Foi o caso do run da promoção #543 (`2c33b1d`), e o do hotfix #537 também terminou vermelho.
+O run pode não aceitar `gh run rerun --failed` ("cannot be retried"). Efeito: o marco fica no commit antigo e o
+próximo push de `main` volta a considerar os mesmos alvos como alterados (publica de novo, sem dano). Se
+quiser avançar o marco à mão: `git push --force origin <sha-da-main>:refs/deploy/production/<alvo>` para cada
+alvo (`api frontend landing client driver worker cron`).
+
 ### Deploy falha em "Invalid RAILWAY_TOKEN" (token inválido)
 
 Sintoma: o gate passa e todos os jobs `deploy-*` caem no primeiro passo da CLI com token inválido
