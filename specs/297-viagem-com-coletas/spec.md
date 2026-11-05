@@ -114,8 +114,8 @@ coleta, desce na entrega) e o aviso quando o pico ultrapassa a capacidade.
   spec 257 (acrescentar nota a viagem que já saiu) e registro em evento.
 - RF6. Registro de coleta pelo motorista: novo tipo em `trip_stop_events` (`pickup_completed`),
   mesmo carimbo de local do toque de entrega; prova = foto(s); sem canhoto assinado obrigatório.
-- RF7. Ocorrência de coleta: reaproveita `trip_stop_occurrences` com tipos próprios do catálogo de
-  ocorrências (escopo "coleta"), sem criar um segundo sistema de ocorrências.
+- RF7. Ocorrências da coleta: ver a seção própria abaixo. Resumo: reaproveitam o catálogo de tipos
+  (`company_occurrence_types`) e `trip_stop_occurrences`, sem segundo sistema de ocorrências.
 - RF8. Capacidade/peso: `trip-occupancy`, `trip-cargo-weight` e o `cargo layout` passam a calcular
   ocupação **por trecho do roteiro**; carga de coleta só conta a partir da parada de coleta.
 - RF9. Encerramento (`trip-close.policy.ts`) recusa viagem com item `collected` sem destino final.
@@ -125,6 +125,48 @@ coleta, desce na entrega) e o aviso quando o pico ultrapassa a capacidade.
   perguntas segue o `whatsapp-occurrence-draft` já existente.
 - RF12. Notificação ao cliente: mensagem "carga coletada" pelo módulo de notificações (286); nenhum
   modelo fixo no código.
+
+## Ocorrências da coleta
+
+Hoje há dois fluxos no catálogo de tipos (`flow`): **nota** (`trip_document_occurrences`, ligada a
+uma nota) e **parada** (`trip_stop_occurrences`, ligada a uma parada, spec 218). A ocorrência de coleta
+é de **parada** — a carga nem sempre tem nota — mas pode apontar um item esperado
+(`trip_pickup_items`) quando o problema é com um volume específico.
+
+**Proposta:** novo valor de `flow`, `pickup` (CHECK do catálogo ganha o valor), para o tipo de
+ocorrência aparecer só onde faz sentido: o motorista numa parada de coleta não vê "cliente recusou
+a entrega", e na entrega não vê "carga não estava pronta". A empresa edita os tipos no catálogo que
+já existe (escopo por contratante da spec de tipos incluído), e o SAC cadastra os seus.
+
+Tipos iniciais semeados (editáveis pela empresa):
+
+| Tipo                           | Efeito na carga esperada                       | Pede foto |
+| ------------------------------ | ---------------------------------------------- | --------- |
+| Carga não estava pronta        | continua `pending`; coleta pode ser reagendada | opcional  |
+| Ninguém no local / fechado     | continua `pending`                             | sim       |
+| Volume faltando ou a menos     | item vira `collected` parcial; divergência     | sim       |
+| Volume avariado                | coleta com ressalva; item marcado com avaria   | sim       |
+| Carga sem nota / nota errada   | coleta segue; item fica "aguardando nota"      | sim       |
+| Carga não cabe no veículo      | item `not_collected`; aviso de capacidade      | opcional  |
+| Coleta recusada pelo motorista | item `not_collected`                           | sim       |
+
+Regras:
+
+- Mesma mecânica de hoje: texto curto, foto, distância até a parada (ADR-0057), carimbo de local
+  (ADR-0081) e canal (app, escritório em nome do motorista, WhatsApp). Nada novo a construir no
+  registro; o que muda é o `flow` e o efeito na carga.
+- **Efeito na carga é por tipo**, em coluna do catálogo (nunca deduzido do nome): `keeps_pending`,
+  `partial`, `not_collected`, `waiting_invoice`. A empresa não consegue criar tipo de coleta sem
+  escolher o efeito.
+- Resolução no escritório: a ocorrência de coleta abre caso (`trip_occurrence_cases`) como as de
+  entrega, com as saídas **reagendar coleta** (cria nova coleta em outra viagem, a carga esperada
+  muda de viagem), **cancelar coleta** e **seguir sem a carga**.
+- Notificação ao contratante (módulo 286): o contratante da coleta recebe o aviso pelo modelo do tipo;
+  sem modelo cadastrado, nada sai.
+- A coleta que fecha com ocorrência **não bloqueia** a viagem: a parada fecha (`completed_at`) com a
+  ocorrência registrada, para a rota seguir.
+- Relatório da viagem e linha do tempo mostram a ocorrência na parada de coleta, como mostram nas
+  entregas.
 
 ## Requisitos não funcionais
 
@@ -177,3 +219,6 @@ coleta, desce na entrega) e o aviso quando o pico ultrapassa a capacidade.
    como parada operacional? _(Recomendo só operacional; custo da viagem já cobre o km rodado.)_
 7. **Fiscal:** hoje existe CT-e com "retira" (`pickup_indicator`). A coleta que você imagina é essa
    retirada, ou outra coisa? Vai exigir MDF-e com mais de um município de carregamento?
+8. **Ocorrências da coleta:** a lista de tipos iniciais da seção "Ocorrências da coleta" está
+   completa? Falta algum, ou sobra? E quem resolve no escritório é o mesmo SAC das ocorrências de
+   entrega? _(Recomendo o mesmo fluxo e a mesma equipe.)_

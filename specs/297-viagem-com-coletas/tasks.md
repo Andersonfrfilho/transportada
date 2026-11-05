@@ -39,7 +39,9 @@ abaixo são o desenho provisório e podem mudar com elas.
 
 - [ ] **T3.1** `pickup_completed` em `trip_stop_events` com carimbo de local; conferência de volumes.
 - [ ] **T3.2** Tela de coleta no app do motorista; compatibilidade com app antigo (T0.2).
-- [ ] **T3.3** Ocorrência de coleta (tipos no catálogo, escopo "coleta").
+- [ ] **T3.3** Ocorrência de coleta: `flow: pickup` no catálogo, coluna de efeito na carga, semeadura
+      dos tipos iniciais, registro no app e no WhatsApp; contrato antes.
+- [ ] **T3.4** Caso de ocorrência de coleta no escritório: reagendar, cancelar, seguir sem a carga.
 
 ## Fase 4 — Painel do escritório
 
