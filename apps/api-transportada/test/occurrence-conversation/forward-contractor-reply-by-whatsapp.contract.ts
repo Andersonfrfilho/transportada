@@ -285,6 +285,18 @@ describe('spec 286 T3: a legenda vem do modelo whatsapp do tipo', () => {
 })
 
 describe('spec 281 T5: envio do boleto por WhatsApp', () => {
+  test('só guardar: o número entra no cadastro e nada é enviado nem gravado como entrega', async () => {
+    const world = build()
+    const outcome = await world.useCase.forward(input({ save: true, saveOnly: true }))
+
+    expect(outcome).toEqual({ results: [], savedContactId: 'contact-new' })
+    expect(world.saved).toEqual([
+      { address: NUMBER, authorKind: 'office', taxId: '12345678000199' },
+    ])
+    expect(world.sends).toEqual([])
+    expect(world.deliveries).toEqual([])
+  })
+
   test('o telefone da mensagem é o do número conectado, não o do perfil fiscal', async () => {
     const world = build({
       connectedNumber: '5516993857105',

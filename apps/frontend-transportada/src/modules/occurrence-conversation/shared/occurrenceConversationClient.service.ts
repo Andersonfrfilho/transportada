@@ -105,6 +105,8 @@ export type OccurrenceConversationClient = Readonly<{
     number?: string
     occurrenceId: string
     save?: boolean
+    /** Só guarda o número no cadastro do cliente, sem enviar. */
+    saveOnly?: boolean
   }) => Promise<WhatsAppSendOutcome>
   /** Spec 281 T7: "Tentar de novo" (falhou) e "Reenviar" (já saiu); o número e o anexo vêm da entrega. */
   resendContractorReplyWhatsAppDelivery: (input: {
@@ -685,6 +687,7 @@ export function createOccurrenceConversationClient(
       number,
       occurrenceId,
       save,
+      saveOnly,
     }) {
       const payload = await requestJson(
         dependencies,
@@ -695,6 +698,7 @@ export function createOccurrenceConversationClient(
             ...(contactIds === undefined || contactIds.length === 0 ? {} : { contactIds }),
             ...(number === undefined ? {} : { number }),
             ...(save === true ? { save } : {}),
+            ...(saveOnly === true ? { saveOnly } : {}),
           },
           headers: { 'idempotency-key': idempotencyKey },
           method: 'POST',

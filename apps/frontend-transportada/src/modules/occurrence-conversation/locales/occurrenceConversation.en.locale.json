@@ -594,6 +594,7 @@
     "otherNumber": "Another number",
     "numberPlaceholder": "(11) 91234-5678",
     "save": "Save to the client record",
+    "saveOnly": "Only save the number",
     "cancel": "Cancel",
     "send": "Send",
     "sending": "Sending…",
