@@ -596,6 +596,22 @@ tela). Nenhuma escrita. 28 fotos de produção baixadas para a pasta de rascunho
 `pending`, 1 `rejected`), nenhuma `cargo`, nenhuma com `canhoto_read_source`; staging 23 `photo` + 9 anexos de
 ocorrência.
 
+## 5.13 Primeira publicação do fluxo da conversa individual do WhatsApp (05/11/2026)
+
+Depois da promoção #530, a simulação de `producao-publicar-falas-do-bot.sh` mostrou **"estado atual não publicado"**:
+produção nunca tinha tido o grafo `transportada_root` publicado, então a conversa individual com o bot (menu do
+motorista com saí/cheguei/entregar/ocorrência, menu do operador, emissão) não estava ativa — o grupo não depende dele.
+Com aprovação do Anderson, publicado em 05/11/2026:
+
+```bash
+ENV_NAME=production bash /home/miyazaki/Documents/personal/ativada/producao-publicar-falas-do-bot.sh            # diff
+ENV_NAME=production bash /home/miyazaki/Documents/personal/ativada/producao-publicar-falas-do-bot.sh --confirm  # publica
+```
+
+Resultado: empresa `ce523659-5e30-4b13-96ce-8d603d8cb9e9`, 118 nós, **versão 1**; a simulação seguinte deu
+"nenhuma mudança". ⚠️ Toda mudança em `whatsapp-flow-graph.constant.ts` que chega à `main` pede repetir os dois passos
+(sem isso o privado segue na versão anterior, sem erro).
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |

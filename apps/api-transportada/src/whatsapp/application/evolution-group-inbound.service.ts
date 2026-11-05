@@ -19,6 +19,7 @@ import type { EvolutionWebhookEvent } from '@adatechnology/evolution-whatsapp-pr
 
 import { matchWakePhrase } from '../domain/bot-wake-phrase.policy.js'
 import { BOT_AUDIO_SPEECH, botAudioQuickAnswer } from './whatsapp-bot-audio.service.js'
+import { isCancelText } from './whatsapp-group-request.service.js'
 
 import {
   decideGroupMessage,
@@ -243,6 +244,8 @@ export function createEvolutionGroupInbound(
     if (audio.seconds !== null && audio.seconds > BOT_AUDIO_WAKE_MAX_SECONDS) return 'not_addressed'
     ports.bot.listen({
       companyId,
+      conversation: groupConversation(groupJid),
+      owner: sender,
       download: () =>
         ports.download({
           connection,
@@ -288,6 +291,29 @@ export function createEvolutionGroupInbound(
       },
     })
     return 'audio_listening'
+  }
+
+  /**
+   * "Cancelar" encerra também o que é do áudio: a confirmação pendente e as transcrições em andamento
+   * de quem falou. Sem pedido aberto, é só isso que há para cancelar: avisa e não abre pedido novo.
+   * Devolve `true` quando consumiu a mensagem.
+   */
+  async function cancelPendingAudio(input: {
+    readonly companyId: string
+    readonly groupJid: string
+    readonly ports: EvolutionGroupAudioPorts
+    readonly sender: string
+  }): Promise<boolean> {
+    const { companyId, groupJid, ports, sender } = input
+    const cancelled = ports.bot.cancel({
+      companyId,
+      conversation: groupConversation(groupJid),
+      owner: sender,
+    })
+    if (!cancelled) return false
+    if ((await dependencies.findOpenRequestOwner({ companyId, groupJid })) !== null) return false
+    await ports.reply({ companyId, groupJid, texts: [BOT_AUDIO_SPEECH.discarded] })
+    return true
   }
 
   /**
@@ -351,6 +377,8 @@ export function createEvolutionGroupInbound(
     const { audio, companyId, connection, event, groupJid, ports, sender } = input
     ports.bot.listen({
       companyId,
+      conversation: groupConversation(groupJid),
+      owner: sender,
       download: () =>
         ports.download({
           connection,
@@ -359,6 +387,12 @@ export function createEvolutionGroupInbound(
         }),
       mimeType: audio.mimeType,
       onText: async (text) => {
+        if (
+          isCancelText(text) &&
+          (await cancelPendingAudio({ companyId, groupJid, ports, sender }))
+        ) {
+          return
+        }
         const handled = await applyAudioAnswer({
           companyId,
           groupJid,
@@ -444,6 +478,13 @@ export function createEvolutionGroupInbound(
             accept: async (text: string) => {
               const quick = botAudioQuickAnswer(text)
               if (quick === null) return false
+              if (isCancelText(quick)) {
+                ports.bot.cancel({
+                  companyId,
+                  conversation: groupConversation(groupJid),
+                  owner: sender,
+                })
+              }
               await dependencies.handle({
                 companyId,
                 driverId: input.driverId,
@@ -578,6 +619,14 @@ export function createEvolutionGroupInbound(
       // Spec 292 T9: "1"/"2" de quem tem um áudio esperando confirmação vale antes de tudo.
       const audioPorts = dependencies.audio
       const conversation = groupConversation(groupJid)
+      if (
+        audioPorts !== undefined &&
+        sender !== '' &&
+        isCancelText(event.text.replace(/@\d+/gu, ' ')) &&
+        (await cancelPendingAudio({ companyId, groupJid, ports: audioPorts, sender }))
+      ) {
+        return 'admitted'
+      }
       if (
         audioPorts !== undefined &&
         sender !== '' &&
