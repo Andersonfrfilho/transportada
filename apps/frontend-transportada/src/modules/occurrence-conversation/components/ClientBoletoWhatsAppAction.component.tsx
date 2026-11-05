@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
+import { formatPhone } from '@/modules/shared/phone.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import {
@@ -73,18 +74,20 @@ function ClientBoletoWhatsAppDialog({
   const typed = number.trim()
   const hasChoice = selectedIds.length > 0 || typed !== ''
 
-  function submit(): void {
+  function submit(mode: 'save' | 'send' = 'send'): void {
     const parsed = typed === '' ? undefined : parseInformedWhatsAppNumber(typed)
     if (parsed === null) {
       setNumberErrorKey('numberInvalid')
       return
     }
     setNumberErrorKey(null)
+    const isSaveOnly = mode === 'save'
     send.mutate(
       {
-        ...(parsed === undefined ? {} : { number: parsed, save: shouldSave }),
+        ...(parsed === undefined ? {} : { number: parsed, save: shouldSave || isSaveOnly }),
+        ...(isSaveOnly ? { saveOnly: true } : {}),
         ...(attachmentId === undefined ? {} : { attachmentId }),
-        contactIds: selectedIds,
+        contactIds: isSaveOnly ? [] : selectedIds,
         idempotencyKey,
       },
       {
@@ -172,7 +175,7 @@ function ClientBoletoWhatsAppDialog({
                 inputMode="tel"
                 maxLength={100}
                 onChange={(event) => {
-                  setNumber(event.target.value)
+                  setNumber(formatPhone(event.target.value))
                   setNumberErrorKey(null)
                 }}
                 placeholder={t('clientWhatsApp.numberPlaceholder')}
@@ -199,6 +202,14 @@ function ClientBoletoWhatsAppDialog({
             <div className={styles.footer}>
               <Button onClick={onClose} type="button" variant="ghost">
                 {t('clientWhatsApp.cancel')}
+              </Button>
+              <Button
+                disabled={send.isPending || typed === ''}
+                onClick={() => submit('save')}
+                type="button"
+                variant="secondary"
+              >
+                {t('clientWhatsApp.saveOnly')}
               </Button>
               <Button disabled={send.isPending || !hasChoice} type="submit">
                 <Icon name="send" size="sm" />

@@ -594,6 +594,7 @@
     "otherNumber": "Outro número",
     "numberPlaceholder": "(11) 91234-5678",
     "save": "Guardar no cadastro do cliente",
+    "saveOnly": "Só guardar o número",
     "cancel": "Cancelar",
     "send": "Enviar",
     "sending": "Enviando…",

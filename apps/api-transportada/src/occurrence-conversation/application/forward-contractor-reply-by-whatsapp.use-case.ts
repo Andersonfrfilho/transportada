@@ -107,6 +107,8 @@ export type ForwardContractorReplyByWhatsAppInput = {
   readonly number?: string
   readonly occurrenceId: string
   readonly save: boolean
+  /** Só guarda o número no cadastro do cliente: nada é enviado e nenhuma entrega é gravada. Exige `number` e `save`. */
+  readonly saveOnly?: boolean
 }
 
 /** "Tentar de novo" e "Reenviar": o número e o anexo vêm da entrega, nunca do corpo. */
@@ -259,6 +261,14 @@ export function createForwardContractorReplyByWhatsAppUseCase(dependencies: {
   return {
     async forward(input) {
       const newNumber = resolveNewNumber(input)
+      if (input.saveOnly === true) {
+        const { savedContactId } = await dependencies.unitOfWork.execute((transaction) =>
+          resolveRecipients({ input: { ...input, save: true }, newNumber, transaction }),
+        )
+        const outcome = { results: [], savedContactId }
+        log('occurrence_contractor_reply_whatsapp_save_only', input.occurrenceId, outcome)
+        return outcome
+      }
       const variableOverrides = await connectedPhoneOverride(dependencies.sender, input.companyId)
       const reservation = await dependencies.unitOfWork.execute((transaction) =>
         reserveForward({
