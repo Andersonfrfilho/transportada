@@ -35,3 +35,50 @@ export async function discardRejectedQueueItem(input: {
         : attachments.filter((attachment) => attachment.rejectionCause === undefined),
   })
 }
+
+/** Tipos de item que o motorista pode cancelar enquanto ainda estão só no aparelho. */
+const CANCELLABLE_QUEUED_KINDS: ReadonlySet<string> = new Set([
+  'documentOccurrence',
+  'occurrence',
+  'stopOccurrencePhoto',
+])
+
+/** Ocorrência ainda na fila (aguardando ou com falha de tentativa) — o servidor nunca a recebeu. */
+export function isQueuedOccurrenceCancellable(input: {
+  readonly kind: string
+  readonly state: string
+}): boolean {
+  return (
+    CANCELLABLE_QUEUED_KINDS.has(input.kind) &&
+    (input.state === 'queued' || input.state === 'failed')
+  )
+}
+
+/**
+ * O atendimento já resolveu a ocorrência e o motorista não quer mais enviá-la: sai da fila só ela,
+ * com as fotos/anexos dela. Item de outro tipo (entrega, chegada, rota) nunca é removido por aqui.
+ * Devolve `true` quando algo saiu.
+ */
+export async function cancelQueuedOccurrence(input: {
+  readonly attachmentStore: AttachmentStore
+  readonly idempotencyKey: string
+  readonly store: OfflineQueueStore
+}): Promise<boolean> {
+  let isRemoved = false
+  await input.store.update((items) =>
+    items.filter((item) => {
+      const isTarget =
+        item.report.idempotencyKey === input.idempotencyKey &&
+        CANCELLABLE_QUEUED_KINDS.has(item.report.kind)
+      if (isTarget) isRemoved = true
+      return !isTarget
+    }),
+  )
+  if (isRemoved) {
+    await input.attachmentStore.update({
+      eventKey: input.idempotencyKey,
+      mutate: () => [],
+    })
+  }
+  return isRemoved
+}
