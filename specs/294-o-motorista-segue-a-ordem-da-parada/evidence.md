@@ -610,3 +610,4 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   para fotos diferentes — viravam "duplicadas". A releitura passou a usar o mesmo hash da conferência de antes (`canhotoSha256`, do conteúdo enviado),
   como em produção, onde os dois são iguais.
 - Depois do ajuste: `me-trip` + `delivery-proofs-by-trip` + `stop-order-guard` (inclui o teste da corrida do C5): 41 pass / 0 fail.
+- `make check` final: exit 0, todas as suítes 0 fail.
