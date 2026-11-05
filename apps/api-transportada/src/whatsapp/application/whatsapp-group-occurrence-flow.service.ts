@@ -60,8 +60,14 @@ export type GroupClientContactAddResult =
   /** `reason` já em frase para o grupo (número inválido, limite de contatos, cliente sem cadastro). */
   | { readonly kind: 'refused'; readonly reason: string }
 
+/** O que a nota diz de si para o resumo do registro: a série e o destinatário (vazios quando não se sabe). */
+export type GroupOccurrenceNoteSummary = {
+  readonly clientName: string
+  readonly series: string
+}
+
 export type GroupOccurrenceRegistration =
-  | { readonly kind: 'registered' }
+  | { readonly kind: 'registered'; readonly summary?: GroupOccurrenceNoteSummary }
   /** A recusa já em frase para o grupo; `retry` diz para onde voltar (observação ou tipo). */
   | { readonly kind: 'refused'; readonly message: string; readonly retry: 'note' | 'type' | null }
   /** Spec 293 T15: a coleta abriu; `awaitingText` diz se a próxima resposta é em texto. */
@@ -187,13 +193,29 @@ export const GROUP_OCCURRENCE_TEXT = {
   declined: '👍 Tudo certo, não registrei nada.',
   noDocuments: '🔎 Não encontrei notas na viagem em andamento do motorista deste grupo.',
   noTypes: '🚫 Não há tipo de ocorrência ativo para esta nota.',
-  registered: (typeName: string, documentNumber: string, sentToClient = false) =>
+  /**
+   * O resumo completo do que ficou registrado (pedido do Anderson em 04/11: o mesmo capricho do modelo do cliente).
+   * Série, cliente, observação e contato só aparecem quando existem.
+   */
+  registered: (input: {
+    readonly clientName?: string
+    readonly contact?: string
+    readonly documentNumber: string
+    readonly note?: string
+    readonly sentToClient?: boolean
+    readonly series?: string
+    readonly typeName: string
+  }) =>
     [
       '✅ *Ocorrência registrada!*',
-      `📄 NF ${documentNumber}`,
-      `⚠️ ${typeName}`,
       '',
-      sentToClient
+      `📄 *NF ${input.documentNumber}${(input.series ?? '') === '' ? '' : `/${input.series}`}*`,
+      ...((input.clientName ?? '') === '' ? [] : [`👤 Cliente: *${input.clientName}*`]),
+      `⚠️ Ocorrência: ${input.typeName}`,
+      ...((input.note ?? '') === '' ? [] : [`📝 Observação: _${input.note}_`]),
+      ...((input.contact ?? '') === '' ? [] : [`📇 Contato do cliente: *${input.contact}*`]),
+      '',
+      input.sentToClient === true
         ? '📨 Assim que a contratante responder, o boleto segue para o contato do cliente e eu aviso aqui.'
         : '📨 Assim que a contratante responder com o boleto, eu envio por aqui.',
       '',
@@ -388,11 +410,15 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
       return {
         kind: 'done',
         replies: [
-          GROUP_OCCURRENCE_TEXT.registered(
-            typeName,
+          GROUP_OCCURRENCE_TEXT.registered({
+            clientName: result.summary?.clientName ?? '',
+            contact: state.contactMasked ?? '',
             documentNumber,
-            state.contactMasked !== undefined,
-          ),
+            note,
+            sentToClient: state.contactMasked !== undefined,
+            series: result.summary?.series ?? '',
+            typeName,
+          }),
         ],
       }
     }
