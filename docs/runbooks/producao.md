@@ -740,7 +740,7 @@ da mesma parada, gravados só no rascunho local para comparar por igualdade, nun
 (fotos de comprovante + anexos de ocorrência). Nenhuma escrita; nada enviado a serviço externo; pasta apagada ao fim.
 ⚠️ O Docker Desktop não monta `/tmp` (pasta de rascunho): para testar em Alpine use `docker create` + `docker cp`.
 
-## 5.3 Pós-deploy da spec 294 em staging (2026-11-05)
+## 5.19 Pós-deploy da spec 294 em staging (2026-11-05)
 
 Deploy 42111238279 (commit 8375877f2, PR #541) em `success`; api, worker, cron, frontend e driver `SUCCESS`
 (`osrm` e `map-tiles` seguem `FAILED` em staging, alheios à 294).
@@ -756,6 +756,24 @@ Deploy 42111238279 (commit 8375877f2, PR #541) em `success`; api, worker, cron, 
   `sharp` está em `/app/apps/worker-transportada/node_modules`, rode o script de lá com `bun`.
 - **Ligar em produção:** definir `CANHOTO_OCR_ENABLED=true` no `worker` **e** na `api` (mesma regra nos dois) e
   redeployar; confirmar `engine ready:true` no log e reservar memória para ~740 MB por leitura. Exige aprovação.
+
+## 5.20 Spec 294 em produção e leitura do canhoto ligada (05/11/2026)
+
+- Promoção #543 (`2c33b1d94`). O job `mark-deployed` falhou na 1ª tentativa por erro do GitHub ao gravar
+  `refs/deploy/production/api` ("fatal error in commit_refs"); os serviços já estavam no ar. `gh run rerun <id> --failed`
+  resolveu (2ª tentativa `success`).
+- Grafo da conversa individual republicado: `ENV_NAME=production producao-publicar-falas-do-bot.sh` (diff: 5 nós
+  `attendant_*` adicionados) e `--confirm` → **versão 2**; a simulação seguinte deu "nenhuma mudança".
+- **A leitura do canhoto não subiu só com `CANHOTO_OCR_ENABLED=true`.** A rota do worker só existe com o token do canal
+  interno API→worker, que produção nunca teve (a transcrição de áudio do bot também não estava configurada). Configurado:
+  - `BOT_AUDIO_TRANSCRIPTION_TOKEN` (64 hex, gerado com `openssl rand -hex 32` direto nas variáveis, sem aparecer) no
+    `worker` e na `api` — o mesmo valor nos dois (conferido por hash);
+  - `WORKER_INTERNAL_URL=http://worker.railway.internal:8080` na `api`;
+  - `railway redeploy -s worker` e `-s api` (produção).
+- Conferido: log do worker `bot_canhoto_read.engine {"ready":true}` (23:28 UTC); da `api`, `POST
+$WORKER_INTERNAL_URL/internal/bot-canhoto-reads` com o token e corpo vazio → **400** (token aceito; sem token a rota
+  não existiria → 404). Efeito colateral desejado: a transcrição dos áudios do bot passa a funcionar em produção.
+- Memória (medida em staging, imagem sintética 3000×4000): pico 774 MB; worker de produção ~285 MB ocioso, limite 8 GB.
 
 ## 6. Erros que não devem se repetir
 
