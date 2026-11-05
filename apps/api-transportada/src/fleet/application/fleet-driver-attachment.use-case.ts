@@ -22,6 +22,7 @@ import type {
   FleetDriverAttachmentListItem,
   FleetDriverAttachmentRepositoryPort,
   FleetDriverAttachmentStoragePort,
+  FleetDriverAttachmentSuggestionFields,
 } from './fleet-driver-attachment.port.js'
 
 type Dependencies = {
@@ -55,6 +56,11 @@ export type FleetDriverAttachmentUseCase = Readonly<{
     readonly companyId: string
     readonly driverId: string
   }) => Promise<readonly FleetDriverAttachmentListItem[]>
+  readSuggestion: (input: {
+    readonly attachmentId: string
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<{ readonly fields: FleetDriverAttachmentSuggestionFields | null }>
   remove: (input: {
     readonly attachmentId: string
     readonly companyId: string
@@ -158,6 +164,12 @@ export function createFleetDriverAttachmentUseCase(
         throw new FleetDriverNotFoundError()
       }
       return dependencies.repository.list({ companyId, driverId })
+    },
+
+    async readSuggestion(input) {
+      const read = await dependencies.repository.readSuggestion(input)
+      if (!read.isFound) throw new FleetDriverAttachmentNotFoundError()
+      return { fields: read.fields }
     },
 
     async reveal({ attachmentId, companyId, driverId }) {

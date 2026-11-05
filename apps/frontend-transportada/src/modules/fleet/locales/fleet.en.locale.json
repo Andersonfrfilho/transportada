@@ -926,6 +926,22 @@
       "PAYLOAD_TOO_LARGE": "The file is over 1.5 MB.",
       "default": "Could not complete. Try again."
     },
+    "suggestion": {
+      "hint": "Reading the license suggests this data. Nothing is saved: using a value fills the form, and the record only changes when you save.",
+      "nothingToOffer": "Nothing to offer: the fields are already filled in.",
+      "fields": {
+        "licenseNumber": "License number",
+        "licenseCategory": "License category"
+      },
+      "read": "read: {{value}}",
+      "use": "Use",
+      "filled": "Filled in",
+      "matches": "matches the record.",
+      "diverges": "the record says {{current}} and the scanned license says {{read}}. Check the document; the record was not changed.",
+      "saveHint": "Save the record to keep what was filled in.",
+      "finish": "Finish (discards the reading)",
+      "dismiss": "Discard reading"
+    },
     "types": {
       "cnh": "Driver license",
       "identity_document": "ID document",

@@ -156,5 +156,29 @@ export function createFleetDriverAttachmentRoutes(
       pathname: API_FLEET_DRIVER_ATTACHMENTS_PATH,
       policy: FLEET_READ_POLICY,
     }),
+    defineRoute<{ readonly attachmentId: string; readonly driverId: string }>({
+      /**
+       * `fleet.manage`, e não `fleet.read`: o que foi lido é o número da CNH. Só os campos que a ficha
+       * sabe receber saem, e o preenchimento continua sendo do operador — esta rota nunca grava.
+       */
+      async handle({ context, input }): Promise<Response> {
+        const suggestion = await attachments.readSuggestion({
+          attachmentId: input.attachmentId,
+          companyId: context.scope.companyId,
+          driverId: input.driverId,
+        })
+        return new Response(JSON.stringify({ data: suggestion }), {
+          headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
+          status: OK_STATUS,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        attachmentId: parseUuidPathIdentifier(pathParameters.attachmentId ?? ''),
+        driverId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: API_FLEET_DRIVER_ATTACHMENT_SUGGESTION_PATH,
+      policy: FLEET_MANAGE_POLICY,
+    }),
   ]
 }

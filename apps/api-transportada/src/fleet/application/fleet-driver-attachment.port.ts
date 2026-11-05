@@ -23,6 +23,18 @@ export type FleetDriverAttachmentListItem = Readonly<{
   uploadedBy: Readonly<{ id: string; name: string | null }>
 }>
 
+/** Só o que a ficha do motorista sabe receber. A leitura guarda mais (o nome), e isso não sai. */
+export type FleetDriverAttachmentSuggestionFields = Readonly<{
+  licenseCategory: string | null
+  licenseNumber: string | null
+}>
+
+export type FleetDriverAttachmentSuggestionRead = Readonly<{
+  /** `null` quando não houve leitura, nada foi reconhecido ou o operador já decidiu. */
+  fields: FleetDriverAttachmentSuggestionFields | null
+  isFound: boolean
+}>
+
 export type FleetDriverAttachmentLocation = Readonly<{
   bucket: string
   objectKey: string
@@ -73,6 +85,11 @@ export type FleetDriverAttachmentRepositoryPort = Readonly<{
     readonly companyId: string
     readonly driverId: string
   }) => Promise<readonly FleetDriverAttachmentListItem[]>
+  readSuggestion: (input: {
+    readonly attachmentId: string
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<FleetDriverAttachmentSuggestionRead>
   /** Tira a linha e marca o objeto como apagado, juntos. */
   remove: (input: {
     readonly attachmentId: string

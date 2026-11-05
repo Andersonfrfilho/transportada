@@ -69,6 +69,9 @@ describe('chave do objeto do documento do motorista (spec 091 T012)', () => {
         async list() {
           return []
         },
+        async readSuggestion() {
+          return { fields: null, isFound: false }
+        },
         async remove() {
           return false
         },

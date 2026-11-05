@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type {
   CreateFleetDriverAttachmentInput,
+  FleetDriverAttachmentSuggestionRead,
   FleetDriverAttachmentListItem,
   FleetDriverAttachmentLocation,
   FleetDriverAttachmentRepositoryPort,
@@ -39,12 +40,18 @@ const LISTED_ITEM: FleetDriverAttachmentListItem = {
   uploadedBy: { id: USER_ID, name: 'Ana Operadora' },
 }
 
+const SUGGESTION: FleetDriverAttachmentSuggestionRead = {
+  fields: { licenseCategory: 'D', licenseNumber: '01234567890' },
+  isFound: true,
+}
+
 type Fixture = ReturnType<typeof buildFixture>
 
 function buildFixture(
   overrides: Readonly<{
     createError?: Error
     decisionOutcome?: 'already_decided' | 'decided' | 'not_found'
+    suggestion?: FleetDriverAttachmentSuggestionRead
     driverExists?: boolean
     location?: FleetDriverAttachmentLocation | null
     storeError?: Error
@@ -83,6 +90,9 @@ function buildFixture(
     },
     async list() {
       return listed
+    },
+    async readSuggestion() {
+      return overrides.suggestion === undefined ? SUGGESTION : overrides.suggestion
     },
     async remove() {
       events.push('remove-row')
@@ -312,5 +322,29 @@ describe('anexo do motorista — listar', () => {
     await expect(
       fixture.useCase.list({ companyId: COMPANY_ID, driverId: DRIVER_ID }),
     ).rejects.toBeInstanceOf(FleetDriverNotFoundError)
+  })
+})
+
+describe('anexo do motorista — ler a sugestão da CNH', () => {
+  const read = (fixture: Fixture) =>
+    fixture.useCase.readSuggestion({
+      attachmentId: ATTACHMENT_ID,
+      companyId: COMPANY_ID,
+      driverId: DRIVER_ID,
+    })
+
+  test('devolve os campos lidos que a ficha sabe receber', async () => {
+    expect(await read(buildFixture())).toEqual({
+      fields: { licenseCategory: 'D', licenseNumber: '01234567890' },
+    })
+  })
+
+  test('sem leitura, ou já decidida, devolve campos nulos — e anexo alheio é 404', async () => {
+    expect(await read(buildFixture({ suggestion: { fields: null, isFound: true } }))).toEqual({
+      fields: null,
+    })
+    await expect(
+      read(buildFixture({ suggestion: { fields: null, isFound: false } })),
+    ).rejects.toBeInstanceOf(FleetDriverAttachmentNotFoundError)
   })
 })

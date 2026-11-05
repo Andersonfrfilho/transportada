@@ -36,7 +36,7 @@ chave é perder o dado). A feature começa na Fase 2.
 - [x] **T016** Lista de anexos na ficha sob `fleet.read` — tipo, data e quem anexou, sem conteúdo.
 - [x] **T017** Anexar e substituir com `FileField`. Aceite: `test/design-system/file-field.contract.ts`
       continua verde sem exceção nova.
-- [ ] **T018** Sugestão de preenchimento da CNH: oferta campo a campo, só campo vazio, divergência
+- [x] **T018** Sugestão de preenchimento da CNH: oferta campo a campo, só campo vazio, divergência
       avisa e não corrige. Aceite: contrato dos três guardas, no molde da spec 071.
 - [ ] **T019** Substituir apaga o objeto anterior **do bucket**. Aceite: verificado contra o bucket,
       não contra a tabela.

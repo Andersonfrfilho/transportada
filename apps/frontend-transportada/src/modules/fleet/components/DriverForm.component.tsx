@@ -127,7 +127,16 @@ export function DriverForm({
 
       {driver === undefined || !hasLicense ? null : <DriverScoreSection driverId={driver.id} />}
       {driver === undefined ? null : <DriverWhatsappGroupSection driverId={driver.id} />}
-      {driver === undefined ? null : <DriverAttachmentsSection driverId={driver.id} />}
+      {driver === undefined ? null : (
+        <DriverAttachmentsSection
+          driverId={driver.id}
+          licenseFields={{
+            licenseCategory: form.state.licenseCategory,
+            licenseNumber: form.state.licenseNumber,
+          }}
+          onFillLicenseField={(field, value) => form.patch({ [field]: value })}
+        />
+      )}
 
       <fieldset className={styles.fieldGroup}>
         <legend>{t(hasLicense ? 'driverIdentityLegend' : 'driverIdentityLegendHelper')}</legend>

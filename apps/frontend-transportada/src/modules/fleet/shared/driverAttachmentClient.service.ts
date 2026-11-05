@@ -3,7 +3,10 @@ import {
   isDriverAttachmentListResponse,
   isDriverAttachmentResponse,
   isDriverAttachmentRevealResponse,
+  isDriverAttachmentSuggestionResponse,
   type DriverAttachment,
+  type DriverAttachmentSuggestion,
+  type DriverAttachmentSuggestionDecision,
   type DriverAttachmentType,
 } from './driverAttachment.validation'
 import { driverAttachmentsPath } from './fleet.constant'
@@ -30,7 +33,19 @@ export class DriverAttachmentRequestError extends Error {
 }
 
 export type DriverAttachmentClient = Readonly<{
+  /** Aceitar ou descartar a leitura da CNH: a leitura some do servidor, e a ficha não muda. */
+  decideSuggestion: (
+    input: Readonly<{
+      attachmentId: string
+      decision: DriverAttachmentSuggestionDecision
+      driverId: string
+    }>,
+  ) => Promise<void>
   list: (driverId: string) => Promise<readonly DriverAttachment[]>
+  /** `fleet.manage`: o que a leitura do servidor achou na CNH, só os campos que a ficha recebe. */
+  readSuggestion: (
+    input: Readonly<{ attachmentId: string; driverId: string }>,
+  ) => Promise<DriverAttachmentSuggestion>
   /** `fleet.reveal`: o link assinado do arquivo, de vida curta. */
   reveal: (input: Readonly<{ attachmentId: string; driverId: string }>) => Promise<string>
   remove: (input: Readonly<{ attachmentId: string; driverId: string }>) => Promise<void>
@@ -87,6 +102,24 @@ export function createDriverAttachmentClient(
         path: driverAttachmentsPath(driverId),
       })
       if (!isDriverAttachmentListResponse(body)) {
+        throw new DriverAttachmentRequestError(RESPONSE_INVALID)
+      }
+      return body.data
+    },
+    async decideSuggestion(input) {
+      await sendDriverAttachmentRequest(dependencies, {
+        body: JSON.stringify({ decision: input.decision }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+        path: `${driverAttachmentsPath(input.driverId)}/${input.attachmentId}/suggestion`,
+      })
+    },
+    async readSuggestion(input) {
+      const body = await sendDriverAttachmentRequest(dependencies, {
+        method: 'GET',
+        path: `${driverAttachmentsPath(input.driverId)}/${input.attachmentId}/suggestion`,
+      })
+      if (!isDriverAttachmentSuggestionResponse(body)) {
         throw new DriverAttachmentRequestError(RESPONSE_INVALID)
       }
       return body.data

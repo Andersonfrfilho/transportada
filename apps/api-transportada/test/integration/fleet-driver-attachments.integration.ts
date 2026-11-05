@@ -439,4 +439,46 @@ describe('anexo do motorista, contra Postgres (spec 091)', () => {
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,
   )
+
+  /**
+   * T018: a sugestão devolve só os campos que a ficha sabe receber — a leitura guarda também o nome,
+   * e ele não tem consumidor, então não sai. Decidida, a leitura já não existe mais.
+   */
+  testWithPostgres(
+    'a sugestão devolve só número e categoria, e some com a decisão',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const otherCompanyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const repository = createDrizzleFleetDriverAttachmentRepository(db)
+        const created = await repository.create(
+          attachmentInput({ companyId, driverId, type: 'cnh' }),
+        )
+        const target = { attachmentId: created.id, companyId, driverId }
+
+        expect(await repository.readSuggestion(target)).toEqual({ fields: null, isFound: true })
+
+        await db
+          .update(fleetDriverAttachments)
+          .set({
+            extractedAt: new Date(),
+            extractedFields: { licenseCategory: 'D', licenseNumber: '01234567890', name: 'Maria' },
+          })
+          .where(eq(fleetDriverAttachments.id, created.id))
+        expect(await repository.readSuggestion(target)).toEqual({
+          fields: { licenseCategory: 'D', licenseNumber: '01234567890' },
+          isFound: true,
+        })
+        expect(await repository.readSuggestion({ ...target, companyId: otherCompanyId })).toEqual({
+          fields: null,
+          isFound: false,
+        })
+
+        await repository.decideSuggestion({ ...target, decidedBy: USER_ID, decision: 'accepted' })
+        expect(await repository.readSuggestion(target)).toEqual({ fields: null, isFound: true })
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
 })

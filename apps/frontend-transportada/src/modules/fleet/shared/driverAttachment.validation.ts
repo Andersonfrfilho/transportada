@@ -67,3 +67,28 @@ export function isDriverAttachmentResponse(
 ): value is Readonly<{ data: DriverAttachment }> {
   return isRecord(value) && isDriverAttachment(value.data)
 }
+
+/** O que a ficha sabe receber da leitura da CNH; `fields` é nulo sem leitura ou depois da decisão. */
+export type DriverAttachmentSuggestion = Readonly<{
+  fields: Readonly<{ licenseCategory: null | string; licenseNumber: null | string }> | null
+}>
+
+export type DriverAttachmentSuggestionDecision = 'accepted' | 'dismissed'
+
+function isNullableString(value: unknown): value is null | string {
+  return value === null || typeof value === 'string'
+}
+
+/** `{ data: { fields: { licenseNumber, licenseCategory } | null } }`. */
+export function isDriverAttachmentSuggestionResponse(
+  value: unknown,
+): value is Readonly<{ data: DriverAttachmentSuggestion }> {
+  if (!isRecord(value) || !isRecord(value.data)) return false
+  const fields = value.data.fields
+  if (fields === null) return true
+  return (
+    isRecord(fields) &&
+    isNullableString(fields.licenseCategory) &&
+    isNullableString(fields.licenseNumber)
+  )
+}

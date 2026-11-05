@@ -958,6 +958,22 @@
       "PAYLOAD_TOO_LARGE": "O arquivo passa de 1,5 MB.",
       "default": "Não foi possível concluir. Tente de novo."
     },
+    "suggestion": {
+      "hint": "A leitura da CNH sugere estes dados. Nada é gravado: usar preenche o formulário, e a ficha só muda quando você salvar.",
+      "nothingToOffer": "Nada a oferecer: os campos já estão preenchidos.",
+      "fields": {
+        "licenseNumber": "Número da CNH",
+        "licenseCategory": "Categoria da CNH"
+      },
+      "read": "lido: {{value}}",
+      "use": "Usar",
+      "filled": "Preenchido",
+      "matches": "confere com a ficha.",
+      "diverges": "a ficha tem {{current}} e a CNH lida diz {{read}}. Conferir o documento; a ficha não foi alterada.",
+      "saveHint": "Salve a ficha para gravar o que foi preenchido.",
+      "finish": "Concluir (descarta a leitura)",
+      "dismiss": "Descartar leitura"
+    },
     "types": {
       "cnh": "CNH",
       "identity_document": "RG ou documento de identidade",

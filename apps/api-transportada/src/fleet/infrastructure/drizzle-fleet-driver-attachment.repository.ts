@@ -11,7 +11,10 @@ import {
 } from '../../database/database.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
-import type { FleetDriverAttachmentRepositoryPort } from '../application/fleet-driver-attachment.port.js'
+import type {
+  FleetDriverAttachmentRepositoryPort,
+  FleetDriverAttachmentSuggestionFields,
+} from '../application/fleet-driver-attachment.port.js'
 import { FleetDriverAttachmentTypeTakenError } from '../domain/fleet-driver-attachment.error.js'
 import { FLEET_DRIVER_ATTACHMENT_READABLE_TYPES } from '../domain/fleet-driver-attachment.policy.js'
 import { FleetDriverNotFoundError } from '../domain/fleet.error.js'
@@ -185,6 +188,26 @@ export function createDrizzleFleetDriverAttachmentRepository(
       }))
     },
 
+    async readSuggestion({ attachmentId, companyId, driverId }) {
+      const [row] = await database
+        .select({
+          decision: fleetDriverAttachments.decision,
+          extractedFields: fleetDriverAttachments.extractedFields,
+        })
+        .from(fleetDriverAttachments)
+        .where(
+          and(
+            eq(fleetDriverAttachments.companyId, companyId),
+            eq(fleetDriverAttachments.driverId, driverId),
+            eq(fleetDriverAttachments.id, attachmentId),
+          ),
+        )
+        .limit(1)
+      if (row === undefined) return { fields: null, isFound: false }
+      if (row.decision !== null) return { fields: null, isFound: true }
+      return { fields: pickSuggestionFields(row.extractedFields), isFound: true }
+    },
+
     async remove({ attachmentId, companyId, driverId }) {
       return database.transaction(async (transaction) => {
         const [row] = await transaction
@@ -210,4 +233,22 @@ export function createDrizzleFleetDriverAttachmentRepository(
       })
     },
   }
+}
+
+function readText(source: Record<string, unknown>, key: string): string | null {
+  const value = source[key]
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+/** A leitura é `jsonb` livre; daqui só sai o que a ficha sabe receber, e só se for texto. */
+function pickSuggestionFields(
+  extractedFields: unknown,
+): FleetDriverAttachmentSuggestionFields | null {
+  if (typeof extractedFields !== 'object' || extractedFields === null) return null
+  const source = extractedFields as Record<string, unknown>
+  const fields = {
+    licenseCategory: readText(source, 'licenseCategory'),
+    licenseNumber: readText(source, 'licenseNumber'),
+  }
+  return fields.licenseCategory === null && fields.licenseNumber === null ? null : fields
 }

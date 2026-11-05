@@ -8,7 +8,10 @@ import {
   createDriverAttachmentClient,
   type DriverAttachmentClient,
 } from '../shared/driverAttachmentClient.service'
-import type { DriverAttachmentType } from '../shared/driverAttachment.validation'
+import type {
+  DriverAttachmentSuggestionDecision,
+  DriverAttachmentType,
+} from '../shared/driverAttachment.validation'
 
 const DRIVER_ATTACHMENTS_QUERY_KEY = 'fleet-driver-attachments'
 
@@ -52,4 +55,43 @@ export function useDriverAttachments(
   })
 
   return { listQuery, removeMutation, revealMutation, uploadMutation }
+}
+
+const DRIVER_ATTACHMENT_SUGGESTION_QUERY_KEY = 'fleet-driver-attachment-suggestion'
+
+/**
+ * Spec 091 T018: a leitura da CNH, só para `fleet.manage` (`enabled`). Decidir descarta a leitura no
+ * servidor, então as duas chaves são invalidadas: a lista (o aviso some) e a própria sugestão.
+ */
+export function useDriverAttachmentSuggestion(
+  input: Readonly<{
+    attachmentId: string
+    client?: DriverAttachmentClient
+    driverId: string
+    enabled: boolean
+  }>,
+) {
+  const queryClient = useQueryClient()
+  const client = input.client ?? createClient()
+  const suggestionQuery = useQuery({
+    enabled: input.enabled,
+    queryFn: () =>
+      client.readSuggestion({ attachmentId: input.attachmentId, driverId: input.driverId }),
+    queryKey: [DRIVER_ATTACHMENT_SUGGESTION_QUERY_KEY, input.driverId, input.attachmentId] as const,
+  })
+  const decideMutation = useMutation({
+    mutationFn: (decision: DriverAttachmentSuggestionDecision) =>
+      client.decideSuggestion({
+        attachmentId: input.attachmentId,
+        decision,
+        driverId: input.driverId,
+      }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: [DRIVER_ATTACHMENT_SUGGESTION_QUERY_KEY] }),
+        queryClient.invalidateQueries({ queryKey: [DRIVER_ATTACHMENTS_QUERY_KEY, input.driverId] }),
+      ]),
+  })
+
+  return { decideMutation, suggestionQuery }
 }

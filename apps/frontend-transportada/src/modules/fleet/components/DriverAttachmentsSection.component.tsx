@@ -15,18 +15,32 @@ import {
   DRIVER_ATTACHMENT_TYPES,
   type DriverAttachmentType,
 } from '../shared/driverAttachment.validation'
+import type { LicenseSuggestionField } from '../shared/driverLicenseSuggestion.service'
 import { FLEET_MANAGE_PERMISSION, FLEET_REVEAL_PERMISSION } from '../shared/fleet.constant'
 import styles from '../styles/fleet.module.css'
+import {
+  DriverLicenseSuggestion,
+  type DriverLicenseFields,
+} from './DriverLicenseSuggestion.component'
 import { FleetFeedback } from './FleetFeedback.component'
 
-type DriverAttachmentsSectionProps = Readonly<{ driverId: string }>
+type DriverAttachmentsSectionProps = Readonly<{
+  driverId: string
+  /** O que o formulário da ficha tem agora nos campos da habilitação: a oferta só preenche os vazios. */
+  licenseFields: DriverLicenseFields
+  onFillLicenseField: (field: LicenseSuggestionField, value: string) => void
+}>
 
 /**
  * Spec 091: os documentos da ficha do motorista. A lista mostra tipo, data e quem anexou — saber que o
  * documento existe não é ver o documento. Anexar e remover é `fleet.manage`; abrir o arquivo é
  * `fleet.reveal`, e a tela só oferece o que a conta pode fazer.
  */
-export function DriverAttachmentsSection({ driverId }: DriverAttachmentsSectionProps) {
+export function DriverAttachmentsSection({
+  driverId,
+  licenseFields,
+  onFillLicenseField,
+}: DriverAttachmentsSectionProps) {
   const { i18n, t } = useTranslation('fleet')
   const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'pt-BR', {
     dateStyle: 'short',
@@ -127,6 +141,14 @@ export function DriverAttachmentsSection({ driverId }: DriverAttachmentsSectionP
                   </button>
                 ) : null}
               </span>
+              {canManage && attachment.hasSuggestion ? (
+                <DriverLicenseSuggestion
+                  attachmentId={attachment.id}
+                  current={licenseFields}
+                  driverId={driverId}
+                  onFill={onFillLicenseField}
+                />
+              ) : null}
             </li>
           ))}
         </ul>

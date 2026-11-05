@@ -68,6 +68,10 @@ function createFixture(
         },
       ]
     },
+    async readSuggestion(request) {
+      calls.push({ input: { ...request }, kind: 'readSuggestion' })
+      return { fields: { licenseCategory: 'D', licenseNumber: '01234567890' } }
+    },
     async reveal(request) {
       calls.push({ input: { ...request }, kind: 'reveal' })
       return { url: 'https://bucket.example.test/signed?expires=300' }
@@ -326,5 +330,33 @@ describe('a lista de documentos da ficha do motorista (spec 091 T016)', () => {
 
     expect((await fixture.handle(jsonRequest({ method: 'GET', path: PATH }))).status).toBe(403)
     expect(fixture.calls).toEqual([])
+  })
+})
+
+describe('a sugestão de preenchimento da CNH (spec 091 T018)', () => {
+  const SUGGESTION_PATH = `${PATH}/${ATTACHMENT_ID}/suggestion`
+
+  test('fleet.manage lê os campos sugeridos, e só os que a ficha sabe receber', async () => {
+    const fixture = createFixture()
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: SUGGESTION_PATH }))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await responseData(response)).toEqual({
+      fields: { licenseCategory: 'D', licenseNumber: '01234567890' },
+    })
+  })
+
+  /** O que foi lido é o número da CNH: não vai para quem só lê a lista, e abrir o arquivo não o dá. */
+  test('quem só lê a frota, ou só revela, não lê a sugestão', async () => {
+    for (const permissions of [READ_ONLY, new Set(['fleet.read', 'fleet.reveal'] as const)]) {
+      const fixture = createFixture({ permissions })
+
+      expect(
+        (await fixture.handle(jsonRequest({ method: 'GET', path: SUGGESTION_PATH }))).status,
+      ).toBe(403)
+      expect(fixture.calls).toEqual([])
+    }
   })
 })
