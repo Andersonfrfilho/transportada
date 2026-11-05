@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { createMdfeAutoIssueTrigger } from '../../src/mdfe-auto-issue/application/mdfe-auto-issue.service.js'
+import {
+  createMdfeAutoIssueTrigger,
+  selectMdfeAutoIssueTrigger,
+} from '../../src/mdfe-auto-issue/application/mdfe-auto-issue.service.js'
 import { createAutomaticManifestApiGateway } from '../../src/mdfe-auto-issue/infrastructure/automatic-manifest-api.gateway.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
@@ -69,6 +72,53 @@ describe('mdfe auto issue trigger contract', () => {
         .trigger({ batchItemId: BATCH_ITEM_ID, companyId: COMPANY_ID })
         .then(() => 'resolved'),
     ).toBe('resolved')
+  })
+})
+
+/** Emenda 2026-11-05 da ADR-0047: emitir MDF-e sozinho é decisão fiscal, e nasce desligado. */
+describe('mdfe auto issue switch contract', () => {
+  function recordingLogger() {
+    const infos: Array<{ readonly message: string; readonly metadata: unknown }> = []
+    return {
+      infos,
+      logger: {
+        debug() {},
+        error() {},
+        info(message: string, metadata?: unknown) {
+          infos.push({ message, metadata })
+        },
+        warn() {},
+      },
+    }
+  }
+
+  const trigger = { async trigger() {} }
+
+  test('off: no trigger is built, and one info line says so without tenant data', () => {
+    const { infos, logger } = recordingLogger()
+    let built = 0
+
+    const selected = selectMdfeAutoIssueTrigger({
+      create: () => {
+        built += 1
+        return trigger
+      },
+      enabled: false,
+      logger,
+    })
+
+    expect(selected).toBeUndefined()
+    expect(built).toBe(0)
+    expect(infos).toEqual([{ message: 'mdfe_auto_issue_disabled', metadata: {} }])
+  })
+
+  test('on: the trigger is built and nothing is logged', () => {
+    const { infos, logger } = recordingLogger()
+
+    const selected = selectMdfeAutoIssueTrigger({ create: () => trigger, enabled: true, logger })
+
+    expect(selected).toBe(trigger)
+    expect(infos).toEqual([])
   })
 })
 

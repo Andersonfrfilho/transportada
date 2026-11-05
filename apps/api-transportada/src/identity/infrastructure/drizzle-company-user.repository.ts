@@ -43,6 +43,7 @@ import {
   DuplicateUsernameError,
 } from '../domain/company-user.error.js'
 import { buildCompanyAdministratorFilters } from './drizzle-invitation.repository.js'
+import { membershipHasNoServiceRole } from './service-membership.condition.js'
 import type {
   CompanyUserPage,
   CompanyUserRecord,
@@ -657,6 +658,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
           eq(userCompanyMemberships.companyId, input.companyId),
           inArray(userCompanyMemberships.userId, [...input.userIds]),
           isRealPerson(),
+          membershipHasNoServiceRole(),
         ),
       )
     if (memberships.length === 0) return { affectedUserIds: [] }

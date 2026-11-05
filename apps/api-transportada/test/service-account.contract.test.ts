@@ -20,7 +20,8 @@ const CLAIM_COMPANY = '00000000-0000-4000-8000-0000000000bb'
 describe('service account routing contract', () => {
   test('the company header steers a service token and is ignored for a human one', async () => {
     const seen: string[] = []
-    const routes = [
+    /** Cada lado na permissão que lhe cabe: serviço só alcança permissão de serviço (emenda 2026-11-05). */
+    const routes = (serviceAccount: boolean) => [
       defineRoute<Record<string, never>>({
         async handle({ context }) {
           seen.push(context.scope.companyId)
@@ -29,7 +30,9 @@ describe('service account routing contract', () => {
         method: 'GET',
         parse: () => ({}),
         pathname: '/probe',
-        policy: { permission: 'fleet.read', scope: 'company' },
+        policy: serviceAccount
+          ? ({ permission: 'mdfe.auto-issue', scope: 'company' } as const)
+          : ({ permission: 'fleet.read', scope: 'company' } as const),
       }),
     ]
 
@@ -37,14 +40,14 @@ describe('service account routing contract', () => {
       const router = createHttpRouterFixture({
         authentication: identity(serviceAccount),
         healthService: healthService(),
-        routes,
+        routes: routes(serviceAccount),
         tenantContext: new TenantContextService({
           repository: {
             async findActiveByUserAndCompany() {
               return {
                 grantedPermissions: [],
                 membershipId: '00000000-0000-4000-8000-000000000004',
-                roles: ['company-admin'],
+                roles: [serviceAccount ? 'automation' : 'company-admin'],
               }
             },
           },

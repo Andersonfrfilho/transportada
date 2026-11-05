@@ -20,6 +20,8 @@ import {
 import { parseCryptographicConfiguration } from './cryptographic-configuration.schema'
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
+const DEFAULT_SERVICE_CLIENT_IDS = 'transportada-worker,transportada-worker-cnh-picture'
+const CLIENT_ID_PATTERN = /^[A-Za-z0-9._-]{1,255}$/
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /** Spec 191: o mesmo intervalo do teto do e-mail com contratantes, para toda rota com teto no env. */
@@ -226,6 +228,33 @@ const environmentSchema = z.object({
   DRIVER_TRIP_LOCK_ENABLED: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.enum(['true', 'false']).default('false'),
+  ),
+  /**
+   * ADR-0047, emenda 2026-11-05: emitir MDF-e sozinho é decisão fiscal do dono. A API recusa a rota
+   * automática enquanto a chave estiver desligada, mesmo que o worker a ligue por engano.
+   */
+  MDFE_AUTO_ISSUE_ENABLED: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.enum(['true', 'false']).default('false'),
+  ),
+  /**
+   * ADR-0047, emenda 2026-11-05: o papel de realm sozinho não faz um service account — o `azp` do
+   * token precisa estar nesta lista. Não é segredo: o padrão são os dois clients do worker.
+   */
+  SERVICE_CLIENT_IDS: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z
+      .string()
+      .default(DEFAULT_SERVICE_CLIENT_IDS)
+      .transform((value) =>
+        value
+          .split(',')
+          .map((clientId) => clientId.trim())
+          .filter((clientId) => clientId !== ''),
+      )
+      .refine((clientIds) => clientIds.every((clientId) => CLIENT_ID_PATTERN.test(clientId)), {
+        message: 'SERVICE_CLIENT_IDS must be a comma-separated list of Keycloak client ids',
+      }),
   ),
   DRIVER_TRIP_LOCK_MIN_SCORE: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
@@ -489,6 +518,8 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     driverTripLockEnabled: parsed.DRIVER_TRIP_LOCK_ENABLED === 'true',
     driverTripLockMinScore: parsed.DRIVER_TRIP_LOCK_MIN_SCORE,
+    mdfeAutoIssueEnabled: parsed.MDFE_AUTO_ISSUE_ENABLED === 'true',
+    serviceClientIds: parsed.SERVICE_CLIENT_IDS,
     nfseProviderApiVersion: parsed.NFSE_PROVIDER_API_VERSION,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,

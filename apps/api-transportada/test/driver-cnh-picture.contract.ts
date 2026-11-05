@@ -93,7 +93,7 @@ function buildHarness(options: HarnessOptions = {}) {
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router: createTestRouter({
-      context: authenticatedContext(options.permissions ?? SERVICE_PERMISSIONS),
+      context: serviceContext(options.permissions ?? SERVICE_PERMISSIONS),
       routes: createFleetDriverCnhPictureRoutes({ applyDriverCnhPicture }),
     }),
   })
@@ -104,6 +104,15 @@ function buildHarness(options: HarnessOptions = {}) {
     markedPublished,
     realmCalls,
     warnings,
+  }
+}
+
+/** Emenda 2026-11-05 da ADR-0047: a rota é de serviço, então quem chama é o token do serviço. */
+function serviceContext(permissions: Parameters<typeof authenticatedContext>[0]) {
+  const context = authenticatedContext(permissions)
+  return {
+    ...context,
+    identity: { ...context.identity, companyIdClaim: null, serviceAccount: true },
   }
 }
 

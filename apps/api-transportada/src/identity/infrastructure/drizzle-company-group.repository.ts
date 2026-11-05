@@ -20,6 +20,7 @@ import type {
   GroupMembershipChange,
   SaveCompanyGroupInput,
 } from '../application/company-group.port.js'
+import { membershipHasNoServiceRole } from './service-membership.condition.js'
 
 type IdentityDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -312,6 +313,7 @@ export class DrizzleCompanyGroupRepository implements CompanyGroupRepositoryPort
         and(
           eq(userCompanyMemberships.companyId, input.companyId),
           inArray(userCompanyMemberships.userId, [...input.userIds]),
+          membershipHasNoServiceRole(),
         ),
       )
   }
