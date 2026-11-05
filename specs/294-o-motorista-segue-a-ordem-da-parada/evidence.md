@@ -344,3 +344,21 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - Contrato: `test/whatsapp-commands/canhoto-duplicate-prompt.contract.ts`.
 - Gates: typecheck e lint limpos; contrato da API 13413 pass / 26 skip / 0 fail; integração (preparation-repository, flow-actions,
   command-driver) 12 pass; prettier ok. Grafo versionado não mudou.
+
+## T4.7 — áudio em todo passo novo (RF22)
+
+- Grupo: a resposta curta sem número ("um", "dois", "sim", "não", "pular", "agora não", "foi engano", "descartar", "trocar") vai direto ao
+  passo do pedido aberto (caminho `botAudioQuickAnswer` que já existia); frase longa e número (a nota falada) passam pelo "Entendi assim".
+  `interpretDriverChoice` só aceita fala curta com palavras do vocabulário: "não entendi a palavra sim" não responde.
+- Individual: todo áudio passa pelo "Entendi assim"; confirmado, o texto falado responde ao pedido em aberto (oferta da rota, localização,
+  fora de ordem) e à preparação (confirmação, fora de ordem, troca do canhoto).
+- Mídia: pediu foto ou localização e chegou áudio → `repeatMediaRequest` da preparação repete o pedido com "Esse item vai por foto: tire a foto e
+  envie aqui…" / "Esse item vai por localização…" e o que falta (grupo: `not_understood` com o motivo; individual: só quando o texto veio de
+  áudio confirmado, `WhatsAppCommandTurn.isFromAudio`, senão o texto digitado segue o fluxo). "pular" falado vale quando o item é opcional;
+  o pedido de localização do saí/cheguei repete "Esse item vai por localização…" em qualquer fala que não seja "pular".
+- Contratos: `test/whatsapp/audio-new-steps.contract.ts` (entrada do grupo, cada passo, mídia) e
+  `test/whatsapp-commands/audio-new-steps.contract.ts` (individual com o áudio real, mídia).
+- Gates: typecheck e lint limpos; contrato da API 13456 pass / 26 skip / 0 fail (0 falhas, nenhuma das 9 conhecidas do pedágio apareceu);
+  integração (flow-actions, command-driver, preparation-repository, group-request-repository, group-occurrence-adapter) 18 pass; prettier ok.
+- **Grafo versionado (`whatsapp-flow-graph.constant.ts`) não mudou em nenhuma task desta leva**: a conversa individual usa o pedido no
+  contexto da sessão e o despachante, sem nó novo. Não há `producao-publicar-falas-do-bot.sh` a rodar por causa das T4.2–T4.11.

@@ -212,6 +212,13 @@ export type WhatsAppDeliveryPreparations = {
     readonly strict?: boolean
     readonly text: string
   }): Promise<null | WhatsAppDeliveryPreparationReply>
+  /**
+   * Spec 294 RF22: o bot pediu foto ou localização e chegou áudio (ou texto): repete o pedido dizendo que esse item vai
+   * por foto/localização. `null` quando nenhuma preparação espera mídia.
+   */
+  repeatMediaRequest?(input: {
+    readonly actor: WhatsAppDriverActor
+  }): Promise<null | WhatsAppDeliveryPreparationReply>
   /** Há preparação aberta esperando texto? O canal usa para decidir se o texto é para cá. */
   awaitingText(input: { readonly companyId: string; readonly driverId: string }): Promise<boolean>
   /** Há entrega em preparo aberta deste motorista? (o canal só baixa a foto quando há.) */
@@ -619,6 +626,24 @@ export function createWhatsAppDeliveryPreparations(
       }))
     },
 
+    async repeatMediaRequest({ actor }) {
+      const preparations = await openFor(actor)
+      const waiting = preparations.find((item) => isMediaQuestion(item.awaiting))
+      if (waiting === undefined) return null
+      const { checklist } = await checklistOf(waiting, actor)
+      return {
+        awaitingText: false,
+        documentNumber: waiting.documentNumber,
+        finished: false,
+        texts: [
+          waiting.awaiting === DELIVERY_PROOF_ITEM.location
+            ? MEDIA_REQUEST_TEXT.location
+            : MEDIA_REQUEST_TEXT.photo,
+          ...nextStep(waiting, checklist).texts,
+        ],
+      }
+    },
+
     async awaitingText({ companyId, driverId }) {
       const preparations = await repository.listOpenForDriver({ companyId, driverId })
       return preparations.some((item) => isTextQuestion(item.awaiting))
@@ -860,6 +885,22 @@ function summarize(preparation: WhatsAppDeliveryPreparation): readonly string[] 
       : []),
     ...(preparation.location !== null ? ['localização'] : []),
   ]
+}
+
+/** Spec 294 RF22: o que o bot diz quando pediu mídia e veio áudio. */
+export const MEDIA_REQUEST_TEXT = {
+  location:
+    'Esse item vai por localização: toque no clipe e envie a localização (ou responda "pular").',
+  photo: 'Esse item vai por foto: tire a foto e envie aqui (ou responda "pular", se for opcional).',
+} as const
+
+/** Foto e localização chegam como mídia; áudio não as substitui. */
+function isMediaQuestion(awaiting: null | string): boolean {
+  return (
+    awaiting === DELIVERY_PROOF_ITEM.photo ||
+    awaiting === DELIVERY_PROOF_ITEM.cargo ||
+    awaiting === DELIVERY_PROOF_ITEM.location
+  )
 }
 
 /** As perguntas respondidas em texto. Foto e localização chegam como mídia. */

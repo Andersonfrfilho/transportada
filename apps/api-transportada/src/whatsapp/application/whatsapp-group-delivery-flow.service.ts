@@ -216,7 +216,12 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
     }
     if (actor === null) return notUnderstood()
     const answered = await ports.preparations.answer({ actor, text: turn.text })
-    return answered === null ? notUnderstood() : toOutcome(answered)
+    if (answered !== null) return toOutcome(answered)
+    // Spec 294 RF22: pediu foto ou localização e veio fala: o pedido é repetido dizendo que o item vai por mídia.
+    const again = await ports.preparations.repeatMediaRequest?.({ actor })
+    if (again === null || again === undefined) return notUnderstood()
+    const [reason = REASON.answer, ...prompt] = again.texts
+    return { kind: 'not_understood', prompt: prompt.join('\n'), reason }
   }
 
   return {

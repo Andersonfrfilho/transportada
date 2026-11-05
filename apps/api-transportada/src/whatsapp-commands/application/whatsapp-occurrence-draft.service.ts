@@ -579,6 +579,7 @@ export function combineWhatsAppDriverCollections(input: {
     async awaitingText(scope) {
       return (await occurrences.awaitingText(scope)) || deliveries.awaitingText(scope)
     },
+    repeatMediaRequest: async (request) => (await deliveries.repeatMediaRequest?.(request)) ?? null,
     begin: (request) => deliveries.begin(request),
     async hasOpen(scope) {
       return (await occurrences.hasOpen(scope)) || deliveries.hasOpen(scope)

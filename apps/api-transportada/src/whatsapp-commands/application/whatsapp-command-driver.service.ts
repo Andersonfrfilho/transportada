@@ -267,7 +267,11 @@ async function acceptBotAudio(turn: WhatsAppCommandTurn): Promise<'handled' | Wh
     return 'handled'
   }
   if (answer.kind === 'none') return turn
-  return { ...turn, message: { ...turn.message, text: { body: answer.text }, type: 'text' } }
+  return {
+    ...turn,
+    isFromAudio: true,
+    message: { ...turn.message, text: { body: answer.text }, type: 'text' },
+  }
 }
 
 /**
@@ -381,7 +385,14 @@ async function acceptDeliveryProof(input: {
   const text = extractWhatsAppAnswer(turn.message)
   if (text === undefined) return false
   const reply = await intake.preparations.answer({ actor, strict: true, text })
-  if (reply === null) return false
+  if (reply === null) {
+    // Spec 294 RF22: o bot pediu foto ou localização e veio áudio — repete o pedido dizendo que vai por mídia.
+    if (turn.isFromAudio !== true) return false
+    const again = await intake.preparations.repeatMediaRequest?.({ actor })
+    if (again === null || again === undefined) return false
+    await sendProofReply({ actor, intake, reply: again, turn })
+    return true
+  }
   await sendProofReply({ actor, intake, reply, turn })
   return true
 }

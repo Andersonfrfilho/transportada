@@ -65,7 +65,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
 - [x] **T4.6** RF21: atendente fecha no grupo e no individual — baixa de várias notas de uma vez e encerrar viagem
       (mesmas funções do painel, `POST /trips/:id/close`), com confirmação. Contratos nos dois canais; tripulação
       continua uma nota por vez.
-- [ ] **T4.7** RF22: contratos de áudio para cada passo novo (próxima rota, marquei junto, escolha de parada/nota,
+- [x] **T4.7** RF22: contratos de áudio para cada passo novo (próxima rota, marquei junto, escolha de parada/nota,
       quem recebeu, pular, encerrar rota, atendente) no grupo e no individual; mídia pedida + áudio repete o pedido.
 - [x] **T4.8a 🧠** Spike (`opus`): como saber se a foto é um canhoto assinado — comparar OCR local no worker (marcas
       "Recebemos de", "Data de recebimento", "Assinatura") × modelo de visão; custo por foto, tempo, acerto num lote real
