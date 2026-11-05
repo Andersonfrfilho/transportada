@@ -77,7 +77,7 @@ import {
   discardOwnPending,
   partitionPendingByOwner,
 } from '../shared/queueOwner.service'
-import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
+import { cancelQueuedOccurrence, discardRejectedQueueItem } from '../shared/queueDiscard.service'
 import {
   appendSentHistory,
   purgeTripSentHistory,
@@ -213,6 +213,7 @@ export type DriverTripController = Readonly<{
    */
   dataSavedAt: string | undefined
   /** Spec 227: o recusado de negócio sai da fila só pela mão do motorista, com confirmação na tela. */
+  cancelQueuedOccurrence: (idempotencyKey: string) => Promise<void>
   discardRejected: (idempotencyKey: string) => Promise<void>
   /** `true` no boot sem rede — a faixa diz "sem conexão"; com sessão viva, "sem atualização". */
   isOfflineBoot: boolean
@@ -1021,6 +1022,33 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  /** O motorista desiste de enviar a ocorrência que ainda está na fila (o atendimento já resolveu). */
+  async function cancelQueuedOccurrenceItem(idempotencyKey: string): Promise<void> {
+    const queued = (await store.read()).find(
+      (item) => item.report.idempotencyKey === idempotencyKey,
+    )
+    const isRemoved = await cancelQueuedOccurrence({ attachmentStore, idempotencyKey, store })
+    if (isRemoved && queued !== undefined) {
+      await sentHistoryStore
+        .update((current) =>
+          appendSentHistory({
+            additions: [
+              toSentHistoryEntry({
+                at: new Date().toISOString(),
+                item: queued,
+                result: 'discarded',
+              }),
+            ],
+            current,
+            nowMs: Date.now(),
+          }),
+        )
+        .then(setSentHistory)
+        .catch(() => undefined)
+    }
+    await refreshQueueView()
+  }
+
   /** "Sair" com pendência própria (segurança M2): o item e o dado saem do aparelho. */
   async function discardOwn(): Promise<void> {
     await discardOwnPending({ attachmentStore, ownerSubHash: session.subHash, store })
@@ -1053,6 +1081,7 @@ export function useDriverTrip(
     confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,
+    cancelQueuedOccurrence: cancelQueuedOccurrenceItem,
     discardRejected,
     purgeSentHistoryOfTrip,
     discardUnverifiedPending: discardUnverified,
