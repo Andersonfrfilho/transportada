@@ -586,24 +586,6 @@ eventos de solução, da tratativa e do retorno da contratante). Causa: a operad
 traduzia `handled` em "Em andamento" mesmo depois de solucionada. Dado correto: a ocorrência segue solucionada
 (nenhum evento de reabertura), então não há dado a corrigir; era só a etapa derivada na leitura.
 
-## 5.13 Amostra de fotos de comprovante para spike (05/11/2026, somente leitura)
-
-Spike T4.8a da spec 294 (`specs/294-o-motorista-segue-a-ordem-da-parada/spike-canhoto.md`). Leitura só por
-`select` em `trip_delivery_proofs` × `stored_objects` e `GET` no bucket com o cliente S3 de dentro do container da
-`api` (padrão da §2, script em base64, saída por prefixo `__IMG__`, redirecionada para arquivo local — nunca para a
-tela). Nenhuma escrita. 28 fotos de produção baixadas para a pasta de rascunho da sessão, processadas **só localmente**
-(nenhum serviço externo) e apagadas ao fim. Contagem em 05/11: produção 383 fotos `photo` (213 `approved`, 169
-`pending`, 1 `rejected`), nenhuma `cargo`, nenhuma com `canhoto_read_source`; staging 23 `photo` + 9 anexos de
-ocorrência.
-
-Segunda amostra (spike T4.8b, `spike-canhoto-gratuito.md`, 05/11/2026), mesma forma de leitura (`select` em
-transação `read only` e `GET` no bucket de dentro da `api`, script em `spike-canhoto-gratuito/fetch-sample.mjs`): 111
-fotos `photo` (110 `approved` + 1 `rejected`, ordem por `md5(id)`), em 4 lotes de 28 pelo `railway ssh` (lote maior
-deixa a saída base64 em ~18 MB por chamada). Junto, o número da nota anexada e os números das notas da mesma viagem e
-da mesma parada, gravados só no rascunho local para comparar por igualdade, nunca impressos. Staging: 29 imagens
-(fotos de comprovante + anexos de ocorrência). Nenhuma escrita; nada enviado a serviço externo; pasta apagada ao fim.
-⚠️ O Docker Desktop não monta `/tmp` (pasta de rascunho): para testar em Alpine use `docker create` + `docker cp`.
-
 ## 5.13 Primeira publicação do fluxo da conversa individual do WhatsApp (05/11/2026)
 
 Depois da promoção #530, a simulação de `producao-publicar-falas-do-bot.sh` mostrou **"estado atual não publicado"**:
@@ -739,6 +721,24 @@ um usuário comum do Keycloak (username = id do usuário do app, sem `serviceAcc
 quatro permissões do papel `automation` estão todas em `SERVICE_ONLY_PERMISSIONS` e token de gente não as usa (`isUsableBy`, emenda
 ADR-0047), e a membership não tem grupo nem permissão avulsa (só a linha do papel). Remover o vínculo e esse usuário do Keycloak
 numa próxima janela, com aval.
+
+## 5.18 Amostra de fotos de comprovante para spike (05/11/2026, somente leitura)
+
+Spike T4.8a da spec 294 (`specs/294-o-motorista-segue-a-ordem-da-parada/spike-canhoto.md`). Leitura só por
+`select` em `trip_delivery_proofs` × `stored_objects` e `GET` no bucket com o cliente S3 de dentro do container da
+`api` (padrão da §2, script em base64, saída por prefixo `__IMG__`, redirecionada para arquivo local — nunca para a
+tela). Nenhuma escrita. 28 fotos de produção baixadas para a pasta de rascunho da sessão, processadas **só localmente**
+(nenhum serviço externo) e apagadas ao fim. Contagem em 05/11: produção 383 fotos `photo` (213 `approved`, 169
+`pending`, 1 `rejected`), nenhuma `cargo`, nenhuma com `canhoto_read_source`; staging 23 `photo` + 9 anexos de
+ocorrência.
+
+Segunda amostra (spike T4.8b, `spike-canhoto-gratuito.md`, 05/11/2026), mesma forma de leitura (`select` em
+transação `read only` e `GET` no bucket de dentro da `api`, script em `spike-canhoto-gratuito/fetch-sample.mjs`): 111
+fotos `photo` (110 `approved` + 1 `rejected`, ordem por `md5(id)`), em 4 lotes de 28 pelo `railway ssh` (lote maior
+deixa a saída base64 em ~18 MB por chamada). Junto, o número da nota anexada e os números das notas da mesma viagem e
+da mesma parada, gravados só no rascunho local para comparar por igualdade, nunca impressos. Staging: 29 imagens
+(fotos de comprovante + anexos de ocorrência). Nenhuma escrita; nada enviado a serviço externo; pasta apagada ao fim.
+⚠️ O Docker Desktop não monta `/tmp` (pasta de rascunho): para testar em Alpine use `docker create` + `docker cp`.
 
 ## 6. Erros que não devem se repetir
 
