@@ -14,8 +14,8 @@ import { inList } from './schema-check.constant.js'
 export const GEOCODING_PRECISIONS = ['rooftop', 'street', 'postal_code', 'city'] as const
 export type GeocodingPrecision = (typeof GEOCODING_PRECISIONS)[number]
 
-/** A cascata da ADR-0044 §3, da melhor para a pior. `manual` sempre vence. */
-export const GEOCODING_SOURCES = ['manual', 'google', 'postal_code', 'city'] as const
+/** A cascata da ADR-0044 §3, da melhor para a pior. `manual` sempre vence; `driver` é o ponto da chegada (ADR-0113). */
+export const GEOCODING_SOURCES = ['manual', 'driver', 'google', 'postal_code', 'city'] as const
 export type GeocodingSource = (typeof GEOCODING_SOURCES)[number]
 
 /**

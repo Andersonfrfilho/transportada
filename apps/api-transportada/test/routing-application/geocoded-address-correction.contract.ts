@@ -94,6 +94,6 @@ describe('correção de coordenada com trilha (spec 084, G1)', () => {
 
   /** A origem é `operator`: quem chega por esta rota tem `trip.manage`, não é motorista nem cliente. */
   test('a origem registrada é o operador', () => {
-    expect(REPOSITORIO).toContain("origin: 'operator'")
+    expect(REPOSITORIO).toContain("origin: input.origin ?? 'operator'")
   })
 })

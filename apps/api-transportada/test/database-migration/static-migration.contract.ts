@@ -423,6 +423,10 @@ describe('Drizzle migrations', () => {
       '20261105113107_user_picture_origin',
       '20261105115421_user_picture_published_at',
       '20261105120600_cnh_picture_service_role',
+      '20261105121000_stop_event_recorded_together_and_address_suggestions',
+      '20261105121100_canhoto_hash_index',
+      '20261105121200_whatsapp_canhoto_questions',
+      '20261105164056_address_suggestion_pending_unique',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

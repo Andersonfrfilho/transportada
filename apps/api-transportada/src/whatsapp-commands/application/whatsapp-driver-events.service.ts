@@ -36,6 +36,9 @@ import {
   TripStateTransitionNotAllowedError,
   TripStopNotReachableError,
 } from '../../trips/domain/trip.error.js'
+import { TripStopOutOfOrderError } from '../../trips/domain/stop-order.error.js'
+import type { RouteOfferStop } from '../domain/whatsapp-driver-route-offer.policy.js'
+import type { StopEventStep } from '../../trips/domain/stop-event-sequence.policy.js'
 
 export const WHATSAPP_DRIVER_EVENT = {
   arrive: 'arrive',
@@ -70,6 +73,16 @@ export type WhatsAppDriverEventRefusal =
   | { readonly code: 'stop_not_reachable' }
   /** Uma parada a caminho por vez (spec 206 D4): a outra precisa chegar antes. */
   | { readonly code: 'stop_en_route'; readonly enRouteStopSequence: string }
+  /** Spec 294 RF25: a parada não é a em andamento nem a próxima do roteiro (a pergunta 1/2 vem na T4.10). */
+  | {
+      readonly code: 'stop_out_of_order'
+      readonly currentSequence: number | null
+      readonly currentStopId: string | null
+      readonly nextSequence: number | null
+      readonly nextStopId: string | null
+      readonly requestedSequence: number
+      readonly requestedStopId: string
+    }
   /** O portão de estado da nota/viagem (`checkTripDocumentTransition`). */
   | { readonly code: 'transition_blocked'; readonly reason: TripTransitionBlock }
   | { readonly code: 'occurrence_requirement'; readonly field: OccurrenceRequirementField }
@@ -78,15 +91,24 @@ export type WhatsAppDriverEventRefusal =
 export type WhatsAppDocumentOutcomeDetails = {
   /** ADR-0070 §1: entregue, foto obrigatória e ainda sem foto. A T15 passa a colher antes da baixa. */
   readonly proofPending: boolean
+  /** Spec 294 RF8: a próxima parada pendente, só quando a baixa fechou a parada e a viagem segue. */
+  readonly nextStop?: RouteOfferStop | null
   readonly stopCompleted: boolean
   readonly tripCompleted: boolean
 }
 
+/** Spec 294 RF14: o que a chegada com ponto fez pelo endereço da parada. */
+export type WhatsAppAddressCorrection = 'applied' | 'suggested'
+
 export type WhatsAppDriverEventResult =
   | {
+      /** Só na chegada com localização: corrigiu o cadastro ou virou sugestão ao escritório. */
+      readonly addressCorrection?: WhatsAppAddressCorrection
       readonly details?: WhatsAppDocumentOutcomeDetails
       readonly event: WhatsAppDriverEvent
       readonly kind: 'registered'
+      /** Spec 294 RF5: as etapas da parada que a API marcou junto deste evento; ausente é nenhuma. */
+      readonly recordedTogether?: readonly StopEventStep[]
     }
   | { readonly event: WhatsAppDriverEvent; readonly kind: 'already_registered' }
   | {
@@ -98,11 +120,18 @@ export type WhatsAppDriverEventResult =
 /** Quem lança: o motorista (ficha) e a conta dele, já resolvidos pelo canal. */
 export type WhatsAppDriverActor = {
   readonly actorUserId: string
+  /**
+   * Spec 294 RF18/RF19: quem manda é um atendente cadastrado, não o motorista. `actorUserId` é o
+   * usuário dele, `driverId` o motorista da viagem, e a baixa vai pelo caminho do escritório.
+   */
+  readonly attendant?: true
   readonly companyId: string
   readonly driverId: string
 }
 
 type EventBase = WhatsAppDriverActor & {
+  /** Spec 294 RF25: o motorista confirmou gravar fora da ordem da parada (o 409 já foi perguntado). */
+  readonly confirmOutOfOrder?: boolean
   /** Por pedido do canal: a mesma confirmação repetida não grava duas vezes. */
   readonly idempotencyKey: string
   /** O ponto compartilhado pelo motorista; `null` grava `unavailable` (nunca segura o evento). */
@@ -139,7 +168,9 @@ export type WhatsAppOccurrenceCollectedFields = {
 
 type DocumentOutcome = {
   readonly alreadySettled: boolean
+  readonly nextStop?: RouteOfferStop | null
   readonly proofPending?: boolean
+  readonly recordedTogether?: readonly StopEventStep[]
   readonly stopCompleted?: boolean
   readonly tripCompleted?: boolean
 }
@@ -159,10 +190,11 @@ export type WhatsAppDriverEventPorts = {
       readonly productCode: string
     },
   ) => Promise<unknown>
-  /** Chegar de novo não reescreve a hora (spec 057): o retorno não diz se já estava. */
+  /** Chegar de novo não reescreve a hora (spec 057): o retorno não diz se já estava. Lê `recordedTogether` (294). */
   readonly reportArrival: (input: {
     readonly actorUserId: string
     readonly companyId: string
+    readonly confirmOutOfOrder?: boolean
     readonly driverId: string
     readonly idempotencyKey: string
     readonly location: ReportedLocation | null
@@ -172,6 +204,7 @@ export type WhatsAppDriverEventPorts = {
   readonly reportDelivery: (input: {
     readonly actorUserId: string
     readonly companyId: string
+    readonly confirmOutOfOrder?: boolean
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
@@ -181,6 +214,7 @@ export type WhatsAppDriverEventPorts = {
   readonly reportDeparture: (input: {
     readonly actorUserId: string
     readonly companyId: string
+    readonly confirmOutOfOrder?: boolean
     readonly driverId: string
     readonly idempotencyKey: string
     readonly location: ReportedLocation | null
@@ -221,9 +255,10 @@ export async function departWhatsAppDriverStop(
   input: WhatsAppStopEventInput,
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.depart
-  return settle(event, async () => {
+  return settleWhatsAppDriverEvent(event, async () => {
     const outcome = await ports.reportDeparture({
       ...actorOf(input),
+      ...confirmationOf(input),
       idempotencyKey: input.idempotencyKey,
       location: input.location,
       stopId: input.stopId,
@@ -238,15 +273,23 @@ export async function arriveWhatsAppDriverStop(
   input: WhatsAppStopEventInput,
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.arrive
-  return settle(event, async () => {
-    await ports.reportArrival({
+  return settleWhatsAppDriverEvent(event, async () => {
+    const outcome = await ports.reportArrival({
       ...actorOf(input),
+      ...confirmationOf(input),
       idempotencyKey: input.idempotencyKey,
       location: input.location,
       stopId: input.stopId,
       tappedAt: input.sentAt,
     })
-    return { event, kind: 'registered' }
+    const registered = withRecordedTogether(
+      { event, kind: 'registered' },
+      readRecordedTogether(outcome),
+    )
+    const addressCorrection = readAddressCorrection(outcome)
+    return addressCorrection === undefined || registered.kind !== 'registered'
+      ? registered
+      : { ...registered, addressCorrection }
   })
 }
 
@@ -255,11 +298,12 @@ export async function deliverWhatsAppDriverDocument(
   input: WhatsAppDocumentEventInput,
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.deliver
-  return settle(event, async () =>
-    toDocumentResult(
+  return settleWhatsAppDriverEvent(event, async () =>
+    toWhatsAppDocumentResult(
       event,
       await ports.reportDelivery({
         ...actorOf(input),
+        ...confirmationOf(input),
         documentId: input.documentId,
         idempotencyKey: input.idempotencyKey,
         location: input.location,
@@ -273,8 +317,8 @@ export async function returnWhatsAppDriverDocument(
   input: WhatsAppReturnEventInput,
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.return
-  return settle(event, async () =>
-    toDocumentResult(
+  return settleWhatsAppDriverEvent(event, async () =>
+    toWhatsAppDocumentResult(
       event,
       await ports.reportReturn({
         ...actorOf(input),
@@ -292,7 +336,7 @@ export async function registerWhatsAppDriverOccurrence(
   input: WhatsAppOccurrenceEventInput,
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.occurrence
-  return settle(event, async () => {
+  return settleWhatsAppDriverEvent(event, async () => {
     await ports.registerOccurrence({
       ...actorOf(input),
       documentId: input.documentId,
@@ -346,6 +390,17 @@ export function classifyWhatsAppDriverEventError(
   if (error instanceof TripHasStopEnRouteError) {
     return { code: 'stop_en_route', enRouteStopSequence: error.enRouteStopSequence }
   }
+  if (error instanceof TripStopOutOfOrderError) {
+    return {
+      code: 'stop_out_of_order',
+      currentSequence: error.violation.currentSequence,
+      currentStopId: error.violation.currentStopId,
+      nextSequence: error.violation.nextSequence,
+      nextStopId: error.violation.nextStopId,
+      requestedSequence: error.violation.requestedSequence,
+      requestedStopId: error.violation.requestedStopId,
+    }
+  }
   const field = classifyOccurrenceRequirement(error)
   return field === undefined ? undefined : { code: 'occurrence_requirement', field }
 }
@@ -376,7 +431,7 @@ function classifyOccurrenceRequirement(error: unknown): OccurrenceRequirementFie
   return undefined
 }
 
-async function settle(
+export async function settleWhatsAppDriverEvent(
   event: WhatsAppDriverEvent,
   run: () => Promise<WhatsAppDriverEventResult>,
 ): Promise<WhatsAppDriverEventResult> {
@@ -389,20 +444,57 @@ async function settle(
   }
 }
 
-function toDocumentResult(
+export function toWhatsAppDocumentResult(
   event: WhatsAppDriverEvent,
   outcome: DocumentOutcome,
 ): WhatsAppDriverEventResult {
   if (outcome.alreadySettled) return { event, kind: 'already_registered' }
-  return {
-    details: {
-      proofPending: outcome.proofPending ?? false,
-      stopCompleted: outcome.stopCompleted ?? false,
-      tripCompleted: outcome.tripCompleted ?? false,
+  return withRecordedTogether(
+    {
+      details: {
+        nextStop: outcome.nextStop ?? null,
+        proofPending: outcome.proofPending ?? false,
+        stopCompleted: outcome.stopCompleted ?? false,
+        tripCompleted: outcome.tripCompleted ?? false,
+      },
+      event,
+      kind: 'registered',
     },
-    event,
-    kind: 'registered',
-  }
+    outcome.recordedTogether ?? [],
+  )
+}
+
+/** O retorno de `reportArrival` é solto (porta antiga): confere o formato em vez de confiar nele. */
+function readRecordedTogether(outcome: unknown): readonly StopEventStep[] {
+  if (typeof outcome !== 'object' || outcome === null) return []
+  const { recordedTogether } = outcome as { readonly recordedTogether?: unknown }
+  if (!Array.isArray(recordedTogether)) return []
+  return recordedTogether.filter(
+    (step): step is StopEventStep => step === 'arrived' || step === 'departed',
+  )
+}
+
+/** `ignored` e `failed` não dizem nada ao motorista: só o que mudou o cadastro ou foi ao escritório. */
+function readAddressCorrection(outcome: unknown): WhatsAppAddressCorrection | undefined {
+  if (typeof outcome !== 'object' || outcome === null) return undefined
+  const { addressCorrection } = outcome as { readonly addressCorrection?: unknown }
+  return addressCorrection === 'applied' || addressCorrection === 'suggested'
+    ? addressCorrection
+    : undefined
+}
+
+function withRecordedTogether(
+  result: Extract<WhatsAppDriverEventResult, { kind: 'registered' }>,
+  steps: readonly StopEventStep[],
+): WhatsAppDriverEventResult {
+  return steps.length === 0 ? result : { ...result, recordedTogether: steps }
+}
+
+/** Só a confirmação explícita vai à API; ausente é "pergunte" (`exactOptionalPropertyTypes`). */
+function confirmationOf(input: { readonly confirmOutOfOrder?: boolean }): {
+  readonly confirmOutOfOrder?: true
+} {
+  return input.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}
 }
 
 function actorOf(input: WhatsAppDriverActor): WhatsAppDriverActor {

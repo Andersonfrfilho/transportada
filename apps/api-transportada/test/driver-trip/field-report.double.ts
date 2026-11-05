@@ -121,6 +121,7 @@ export function createFieldReportUnitOfWork(
   state: FieldReportState,
 ): DriverFieldReportUnitOfWork & { readonly state: FieldReportState } {
   const transaction: DriverFieldReportTransactionPort = {
+    findCanhotoByHash: () => Promise.resolve(null),
     claim: async (input): Promise<FieldReportClaim> => {
       state.calls.push('claim')
       const existing = state.reports.get(input.idempotencyKey)
@@ -270,6 +271,14 @@ export function createFieldReportUnitOfWork(
       return occurrence
     },
     findEventById: async (input) => state.events.get(input.eventId) ?? null,
+    correctAddressFromArrival: async (input) => {
+      const late = input.isLate ? ':late' : ''
+      const source = input.locationSource === 'whatsapp' ? ':whatsapp' : ''
+      state.calls.push(`correctAddressFromArrival:${input.eventId}${late}${source}`)
+      return 'applied'
+    },
+    findNextStopCandidates: async () => ({ stops: [], totalStops: 0 }),
+    findRecordedTogetherSteps: async () => [],
     findOccurrenceById: async (input) => state.occurrences.get(input.occurrenceId) ?? null,
     saveDeliveryProofWithinTransaction: async (input) => {
       state.calls.push(`saveDeliveryProofWithinTransaction:${input.eventId}:${input.kind}`)

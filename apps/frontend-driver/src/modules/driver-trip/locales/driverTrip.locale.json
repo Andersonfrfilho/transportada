@@ -1,4 +1,18 @@
 {
+  "canhotoDuplicate": {
+    "dismiss": "Entendi",
+    "notice": "Esse canhoto já tinha chegado às {{time}}. Não gravamos de novo."
+  },
+  "canhotoReplace": {
+    "body": "Esta nota já tem um canhoto. Se trocar, o novo vai para conferência do escritório.",
+    "confirm": "Trocar o canhoto",
+    "keep": "Manter o que já tem",
+    "title": "Trocar o canhoto?"
+  },
+  "addressCorrection": {
+    "applied": "Endereço atualizado com a sua localização. Obrigado!",
+    "suggested": "Enviamos a sua localização para o escritório conferir o endereço."
+  },
   "arrivalRequired": "Toque em Cheguei para liberar a entrega",
   "arrive": "Cheguei",
   "arrived": "Cheguei às {{time}}",
@@ -172,6 +186,20 @@
   "navigate": "Navegar",
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
   "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
+  "outOfOrder": {
+    "confirm": "Registrar mesmo assim",
+    "discard": "Foi engano, descartar",
+    "generic": "Este toque ({{kind}}) não é da parada em andamento nem da próxima do roteiro. Registrar mesmo assim?",
+    "kind": {
+      "arrive": "Cheguei",
+      "deliver": "Entreguei",
+      "depart": "Iniciar rota",
+      "return": "Não entreguei"
+    },
+    "title": "Fora da ordem da rota",
+    "withCurrent": "Você iniciou a rota para a parada {{current}}, mas este toque ({{kind}}) é da parada {{requested}}. Registrar mesmo assim?",
+    "withNext": "A próxima parada do roteiro é a {{next}}. Quer mesmo registrar {{kind}} na parada {{requested}}?"
+  },
   "pendingProofs": {
     "attach": "Anexar comprovante",
     "back": "Voltar",
@@ -500,6 +528,19 @@
     "dismiss": "Entendi",
     "notice": "Esta viagem não está mais com você — foi passada para outro motorista ou ajudante, ou voltou para o planejamento do escritório. O que você entregou e registrou fica com a viagem. Fale com o escritório se precisar de mais detalhes."
   },
+  "recordedTogether": {
+    "confirm": {
+      "arrived": "Vamos marcar Cheguei junto com esta baixa.",
+      "departed": "Vamos marcar Iniciar rota junto com este toque.",
+      "departedAndArrived": "Vamos marcar Iniciar rota e Cheguei junto com esta baixa."
+    },
+    "dismiss": "Entendi",
+    "notice": {
+      "arrived": "Marcamos Cheguei junto com esta baixa.",
+      "departed": "Marcamos Iniciar rota junto com este toque.",
+      "departedAndArrived": "Marcamos Iniciar rota e Cheguei junto com esta baixa."
+    }
+  },
   "serviceWorkerUpdate": {
     "apply": "Atualizar",
     "available": "Nova versão disponível.",
@@ -558,6 +599,13 @@
     "sendNow": "Enviar agora",
     "confirming": "Entrega registrada. Ela segue para o servidor assim que houver sinal, e a foto sobe logo depois. Não precisa tocar de novo.",
     "missingLead": "Para confirmar, falta: {{fields}}."
+  },
+  "nextStop": {
+    "documents": "Notas: {{numbers}}",
+    "notNow": "Agora não",
+    "start": "Iniciar rota",
+    "title": "Próxima parada: {{sequence}} de {{totalStops}}",
+    "unreliableAddress": "Este endereço está sem localização certa no mapa. Quando chegar, marque Cheguei e compartilhe a localização: o endereço é atualizado."
   },
   "notDelivered": {
     "returnToWarehouse": "Não entregue — volta ao barracão",

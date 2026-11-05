@@ -12,7 +12,7 @@ import {
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
-import { geocodedAddresses } from '../../database/geocoding.schema.js'
+import { geocodedAddresses, type GeocodingPrecision } from '../../database/geocoding.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
 import {
   nfeDocuments,
@@ -87,6 +87,7 @@ import {
   RECIPIENT_PARTICIPANT_ROLE,
   REQUIRED_PROOF_FIELD_MODE,
 } from '../domain/delivery-event.constant.js'
+import { isStopAddressReliable } from '../domain/stop-address-reliability.policy.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripDatabase } from './trip-queryable.type.js'
@@ -949,6 +950,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         label: tripStops.label,
         latitude: geocodedAddresses.latitude,
         longitude: geocodedAddresses.longitude,
+        precision: geocodedAddresses.precision,
         sequence: tripStops.sequence,
         tripId: tripStops.tripId,
       })
@@ -1043,6 +1045,7 @@ type StopRow = {
   readonly label: string
   readonly latitude: string | null
   readonly longitude: string | null
+  readonly precision: GeocodingPrecision | null
   readonly sequence: bigint
   readonly tripId: string
 }
@@ -1089,8 +1092,10 @@ function toDriverStop(
     enRouteTappedAt: stop.enRouteTappedAt?.toISOString() ?? null,
     id: stop.id,
     label: stop.label,
+    isAddressReliable: isStopAddressReliable(stop),
     latitude: stop.latitude,
     longitude: stop.longitude,
+    precision: stop.precision,
     schedule: schedulesByStop.get(stop.id) ?? null,
     sequence: Number(stop.sequence),
   }

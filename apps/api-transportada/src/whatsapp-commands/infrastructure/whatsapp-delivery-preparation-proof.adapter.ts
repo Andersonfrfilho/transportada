@@ -48,6 +48,7 @@ export function createWhatsAppPreparationProofAttacher(deps: {
         receiverDocument: '',
         receivedBy: { receivedBy: input.upload.receivedBy, receivedByDetail: null },
         receiverName: input.upload.receiverName,
+        ...(input.upload.replaceCanhoto === true ? { replaceCanhoto: true } : {}),
         variant: 'original',
       },
     })

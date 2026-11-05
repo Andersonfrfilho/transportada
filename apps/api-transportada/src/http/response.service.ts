@@ -75,6 +75,7 @@ export function createErrorResponse({
     logRejectedFields({ correlationId, error, logger })
     return jsonResponse({
       body: {
+        ...error.extraBody,
         error: {
           code: error.code,
           correlationId,
@@ -145,7 +146,7 @@ function knownErrorResponse({ correlationId, error }: KnownErrorResponseParams):
 }
 
 type JsonResponseParams = {
-  readonly body: ErrorResponse
+  readonly body: ErrorResponse & Readonly<Record<string, unknown>>
   readonly headers?: Readonly<Record<string, string>>
   readonly status: number
 }

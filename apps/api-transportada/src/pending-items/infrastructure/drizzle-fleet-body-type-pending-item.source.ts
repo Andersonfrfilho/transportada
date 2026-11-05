@@ -66,6 +66,7 @@ export function createFleetBodyTypePendingItemSource(dependencies: {
       const last = pageRows.at(-1)
       return {
         items: pageRows.map((row) => ({
+          createdAt: row.createdAt,
           entityId: row.id,
           entityType: 'vehicle' as const,
           kind: 'vehicleBodyTypeMissing' as const,

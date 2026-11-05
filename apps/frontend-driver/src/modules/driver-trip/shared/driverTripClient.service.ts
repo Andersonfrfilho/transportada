@@ -71,6 +71,7 @@ import {
 } from './proofUploadProgress.service'
 import type { ProofUploadFailure } from './proofUploadProgress.service'
 import { sendFormWithUploadProgress, type UploadProgress } from './xhrMultipartTransport.service'
+import { parseFieldReportResponse, type FieldReportResponse } from './fieldReportResponse.service'
 import { withLegacyLocation, type DriverTripErrorDetail } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
@@ -287,10 +288,14 @@ export type DriverTripClient = Readonly<{
     receivedByDetail?: string
     receiverDocument?: string
     receiverName?: string
+    /** Spec 294 RF26: o motorista confirmou trocar o canhoto que a nota já tem. */
+    replaceCanhoto?: boolean
     /** Spec 220 RF17: a miniatura do comprovante — opcional, nunca condição para o anexo subir. */
     thumbnail?: File
   }) => Promise<
     Readonly<{
+      /** Spec 294 RF26: a mesma imagem já tinha chegado — nada foi gravado de novo; `attachedAt` é quando chegou. */
+      duplicate?: Readonly<{ attachedAt: string }>
       id: string
       /** Spec 265 RF6/RF10: só `received`/`processing` aparecem; `ready` e a API antiga (sem o campo) são `undefined`. */
       processingState?: ProofProcessingState
@@ -336,7 +341,8 @@ export type DriverTripClient = Readonly<{
   readLocationConsent: () => Promise<LocationConsent>
   /** `stamp` é o carimbo do item da fila (spec 234 D2); só os `kind` de `CLOCK_FIELD_REPORT_KINDS` o levam. */
   /** `attempt` (spec 254) só rotula o diagnóstico; não muda o envio. */
-  send: (stamped: StampedReport, options?: SendOptions) => Promise<void>
+  /** Spec 294: devolve o que a API respondeu ao toque de campo (etapas marcadas junto); `undefined` nos demais itens. */
+  send: (stamped: StampedReport, options?: SendOptions) => Promise<FieldReportResponse | undefined>
   /** Spec 254: sem diagnóstico sobre si mesmo — o envio do diagnóstico nunca passa pelo coletor. */
   sendClientDiagnostics: (batch: DiagnosticsBatch) => Promise<DiagnosticsSendResult>
   /** A posição ao vivo. Sem id de viagem: o servidor resolve a viagem do motorista (ADR-0050 §5). */
@@ -396,8 +402,17 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
   const clockFields = buildClockFields({ kind: report.kind, stamp })
   switch (report.kind) {
     case 'arrive':
-      return JSON.stringify({ location: report.location, ...clockFields })
+      return JSON.stringify({
+        ...confirmationFields(report),
+        location: report.location,
+        ...clockFields,
+      })
     case 'depart':
+      return JSON.stringify({
+        ...confirmationFields(report),
+        location: report.location,
+        tappedAt: report.tappedAt,
+      })
     case 'cancelDeparture':
       return JSON.stringify({ location: report.location, tappedAt: report.tappedAt })
     case 'dispatch':
@@ -405,6 +420,7 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
     case 'deliver':
       return JSON.stringify({
         ...clockFields,
+        ...confirmationFields(report),
         location: report.location,
         ...(shouldSendLateRegistration({
           isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
@@ -416,6 +432,7 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
     case 'return':
       return JSON.stringify({
         ...clockFields,
+        ...confirmationFields(report),
         location: report.location,
         reason: report.reason,
         ...(report.returnToWarehouse === true ? { returnToWarehouse: true } : {}),
@@ -435,6 +452,13 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
         ...stopOccurrenceReference(report),
       })
   }
+}
+
+/** Spec 294 RF27: só entra o que o motorista confirmou; a API recusa a chave fora das quatro rotas da ordem. */
+function confirmationFields(report: {
+  readonly confirmOutOfOrder?: true
+}): Readonly<{ confirmOutOfOrder: true }> | Record<string, never> {
+  return report.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}
 }
 
 /**
@@ -468,6 +492,9 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       if (variant !== undefined) form.set('variant', variant)
       if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
       if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
+      // Spec 294 RF26/RF27: trocar o canhoto só com a confirmação do motorista (o 409 já foi perguntado).
+      if (input.kind === 'photo' && input.replaceCanhoto === true)
+        form.set('replaceCanhoto', 'true')
       if (input.receivedBy !== undefined) form.set('receivedBy', input.receivedBy)
       if (input.receivedByDetail !== undefined) form.set('receivedByDetail', input.receivedByDetail)
       if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
@@ -650,7 +677,7 @@ async function sendReport(input: {
   readonly dependencies: ClientDependencies
   readonly options: SendOptions | undefined
   readonly stamped: StampedReport
-}): Promise<void> {
+}): Promise<FieldReportResponse | undefined> {
   const { dependencies, options, stamped } = input
   const { report: queuedReport, stamp } = stamped
   const report = withLegacyLocation(queuedReport)
@@ -664,7 +691,7 @@ async function sendReport(input: {
       },
       report,
     })
-    return
+    return undefined
   }
   if (report.kind === 'stopOccurrencePhoto') {
     await sendStopOccurrencePhoto({
@@ -677,7 +704,7 @@ async function sendReport(input: {
       report,
       stamp,
     })
-    return
+    return undefined
   }
   if (report.kind === 'proofReceiver') {
     await request({
@@ -687,15 +714,16 @@ async function sendReport(input: {
       method: 'PATCH',
       path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/proof/receiver`,
     })
-    return
+    return undefined
   }
-  await request({
+  const payload = await request({
     body: reportBody({ report, stamp }),
     dependencies,
     idempotencyKey: report.idempotencyKey,
     method: 'POST',
     path: reportPath(report),
   })
+  return parseFieldReportResponse(payload)
 }
 
 /**
@@ -1177,6 +1205,7 @@ async function requestFile(
 }
 
 function toProofAttachResult(payload: unknown): Readonly<{
+  duplicate?: Readonly<{ attachedAt: string }>
   id: string
   processingState?: ProofProcessingState
   punctuality: ProofPunctuality
@@ -1197,11 +1226,19 @@ function toProofAttachResult(payload: unknown): Readonly<{
   }
 
   const processingState = readProofProcessingState(record.processingState)
+  const duplicate = readCanhotoDuplicate(record.duplicate)
   return {
+    ...(duplicate === undefined ? {} : { duplicate }),
     id: record.id,
     ...(processingState === undefined ? {} : { processingState }),
     punctuality: record.punctuality as ProofPunctuality,
   }
+}
+
+function readCanhotoDuplicate(value: unknown): Readonly<{ attachedAt: string }> | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const attachedAt = (value as { readonly attachedAt?: unknown }).attachedAt
+  return typeof attachedAt === 'string' ? { attachedAt } : undefined
 }
 
 function readFileName(disposition: string | null, fallback: string): string {
@@ -1381,7 +1418,7 @@ async function request(
    * saiu da sua viagem", e trocá-lo por um genérico apagaria a única explicação que o motorista tem.
    */
   if (!response.ok) {
-    const details = readErrorDetails(payload)
+    const details = readErrorDetails(payload) ?? readOutOfOrderDetails(payload)
     throw new DriverTripRequestError({
       code: readErrorCode(payload),
       ...(details === undefined ? {} : { details }),
@@ -1443,6 +1480,22 @@ function readErrorCode(payload: unknown): string {
   if (typeof payload !== 'object' || payload === null) return 'REQUEST_FAILED'
   const error = (payload as { readonly error?: { readonly code?: unknown } }).error
   return typeof error?.code === 'string' ? error.code : 'REQUEST_FAILED'
+}
+
+/**
+ * Spec 294 RF27: o `409 TRIP_STOP_OUT_OF_ORDER` traz `outOfOrder` ao lado de `error`. Vira `details` (campo/texto)
+ * para seguir pela mesma fila e pela mesma tela de recusas que o `409 TRIP_HAS_STOP_EN_ROUTE`.
+ */
+function readOutOfOrderDetails(payload: unknown): readonly DriverTripErrorDetail[] | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const violation = (payload as { readonly outOfOrder?: unknown }).outOfOrder
+  if (typeof violation !== 'object' || violation === null) return undefined
+  const details = Object.entries(violation as Record<string, unknown>).flatMap(([field, value]) =>
+    typeof value === 'string' || typeof value === 'number'
+      ? [{ field, message: String(value) }]
+      : [],
+  )
+  return details.length > 0 ? details : undefined
 }
 
 /** Spec 206 D9: `error.details` — ausente na maioria das recusas, presente no `TRIP_HAS_STOP_EN_ROUTE`. */

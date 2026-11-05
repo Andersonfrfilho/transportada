@@ -3,6 +3,10 @@
 - **Estado:** aceita (2026-09-25, spec 195), com as quatro perguntas respondidas pelo usuário no
   mesmo dia: (a) `/ocorrencias`, (b) `occurrences.resolve`, (c) o escritório também registra, com pino
   arrastado (§6), (d) a descartada pode ser reaberta (§8).
+- **Substituída em parte por:** [ADR-0113](0113-o-ponto-da-chegada-corrige-o-endereco.md) (2026-11-05,
+  spec 294) — §1: o ponto da **chegada** do motorista em endereço não confiável grava direto em
+  `geocoded_addresses` dentro da tolerância; fora dela, vira sugestão. O relato "Endereço incorreto" e o pino
+  do escritório seguem esta ADR.
 - **Data:** 2026-09-25
 - **Decisores:** usuário, em 2026-09-25: _"botão de endereço incorreto para adicionar um evento de
   correção na página de aviso, e também precisa pegar o ponto de onde foi feito o evento"_. O resto é

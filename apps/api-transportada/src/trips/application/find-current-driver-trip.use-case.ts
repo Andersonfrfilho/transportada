@@ -19,6 +19,7 @@
  * **O que isto não é:** substituto da DANFE impressa. A DANFE que acompanha a mercadoria é a que o
  * emitente imprimiu e mandou na caixa; isto é a cópia digital, para conferência e consulta.
  */
+import type { GeocodingPrecision } from '../../database/geocoding.schema.js'
 import type { HolidayWarning } from '../../business-calendar/domain/holiday-warning.policy.js'
 import type { DriverScorePort } from '../../fleet/application/driver-score.port.js'
 import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
@@ -125,9 +126,13 @@ export type DriverTripStop = {
    */
   readonly holidayWarnings?: readonly HolidayWarning[]
   readonly id: string
+  /** Spec 294 RF12/RF13: sem coordenada, ou com precisão de CEP/município — o app avisa antes da rota. */
+  readonly isAddressReliable: boolean
   readonly label: string
   readonly latitude: string | null
   readonly longitude: string | null
+  /** Spec 294 RF13: a precisão da coordenada em `geocoded_addresses`; `null` sem coordenada. */
+  readonly precision: GeocodingPrecision | null
   /** `null` quando a parada não exige agendamento — que é o caso da maioria. */
   readonly schedule: DriverStopSchedule | null
   readonly sequence: number

@@ -16,6 +16,7 @@ import {
   createEvolutionGroupInbound,
   type EvolutionMessageEvent,
   readGroupSenderLids,
+  toMessageSentAt,
 } from '../../src/whatsapp/application/evolution-group-inbound.service.js'
 import {
   decideGroupMessage,
@@ -171,10 +172,18 @@ describe('grupo do motorista: marcação do bot', () => {
         requestOwner: null,
         sender: DRIVER,
         senderName: 'Motorista',
+        sentAt: new Date(1_000),
         text: 'prorrogação de boleto 17234',
         via: 'mention',
       },
     ])
+  })
+
+  test('spec 294: a hora do WhatsApp (messageTimestamp, segundos) vai junto; ausente, a mensagem é de agora', () => {
+    expect(toMessageSentAt(1_793_900_000)).toEqual(new Date(1_793_900_000_000))
+    expect(toMessageSentAt(null)).toBeUndefined()
+    expect(toMessageSentAt(0)).toBeUndefined()
+    expect(toMessageSentAt(Number.NaN)).toBeUndefined()
   })
 
   test('marcar o bot pelo @lid casa pelo participante do grupo (o SDK só casa por número)', async () => {

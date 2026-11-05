@@ -37,6 +37,8 @@ const eventClockFields = {
   tappedAt: z.iso.datetime().optional(),
 }
 
+const confirmOutOfOrderField = { confirmOutOfOrder: z.boolean().optional() }
+
 const reportSchema = z.object({ ...eventClockFields, location: locationSchema.nullish() }).strict()
 
 /**
@@ -45,14 +47,23 @@ const reportSchema = z.object({ ...eventClockFields, location: locationSchema.nu
  * `400`: a sonda de deploy da T2.6 prova a rota existindo justamente por essa recusa.
  */
 const departureSchema = z
-  .object({ location: locationSchema.nullish(), tappedAt: z.iso.datetime() })
+  .object({
+    ...confirmOutOfOrderField,
+    location: locationSchema.nullish(),
+    tappedAt: z.iso.datetime(),
+  })
   .strict()
 
+const arrivalSchema = reportSchema.extend(confirmOutOfOrderField).strict()
+
 /** Só a baixa da nota aceita o registro tardio — a chegada continua recusando o campo. */
-const deliverySchema = reportSchema.extend({ lateRegistration: lateRegistrationSchema }).strict()
+const deliverySchema = reportSchema
+  .extend({ ...confirmOutOfOrderField, lateRegistration: lateRegistrationSchema })
+  .strict()
 
 const returnSchema = z
   .object({
+    ...confirmOutOfOrderField,
     ...eventClockFields,
     lateRegistration: lateRegistrationSchema,
     location: locationSchema.nullish(),
@@ -139,6 +150,12 @@ export function parseIdempotencyKey(request: Request): string {
  * vale. Spec 234 R3: `tappedAt` em ano impossível (`0000-01-01` passa no ISO) é descartado — o
  * Postgres recusaria o ano 0 (`22008`) e o app reenviaria para sempre; o relógio nunca derruba o evento.
  */
+function toOutOfOrderConfirmation(body: { readonly confirmOutOfOrder?: boolean | undefined }): {
+  readonly confirmOutOfOrder?: boolean
+} {
+  return body.confirmOutOfOrder === undefined ? {} : { confirmOutOfOrder: body.confirmOutOfOrder }
+}
+
 function toEventClock(body: {
   readonly clockOffsetMs?: number | undefined
   readonly tappedAt?: string | undefined
@@ -162,18 +179,39 @@ export async function parseFieldReportRequest(
 }
 
 /** Spec 206 D2/D18: `depart` e `cancel-departure` reusam o mesmo parser. */
+export async function parseStopArrivalRequest(request: Request): Promise<
+  {
+    readonly confirmOutOfOrder?: boolean
+    readonly location: ReportedLocation | null
+  } & EventClockFields
+> {
+  const body = await parseOptionalBody(arrivalSchema, request)
+
+  return {
+    ...toEventClock(body),
+    ...toOutOfOrderConfirmation(body),
+    location: toReportedLocation(body.location),
+  }
+}
+
 export async function parseDepartureRequest(request: Request): Promise<{
+  readonly confirmOutOfOrder?: boolean
   readonly location: ReportedLocation | null
   readonly tappedAt: Date
 }> {
   const body = await parseBody(departureSchema, request)
 
-  return { location: toReportedLocation(body.location), tappedAt: new Date(body.tappedAt) }
+  return {
+    ...toOutOfOrderConfirmation(body),
+    location: toReportedLocation(body.location),
+    tappedAt: new Date(body.tappedAt),
+  }
 }
 
 /** Spec 205 RF1: o corpo do `/deliver` — o da chegada mais o registro tardio. */
 export async function parseDocumentDeliveryRequest(request: Request): Promise<
   {
+    readonly confirmOutOfOrder?: boolean
     readonly lateRegistration: boolean
     readonly location: ReportedLocation | null
   } & EventClockFields
@@ -182,6 +220,7 @@ export async function parseDocumentDeliveryRequest(request: Request): Promise<
 
   return {
     ...toEventClock(body),
+    ...toOutOfOrderConfirmation(body),
     lateRegistration: body.lateRegistration ?? false,
     location: toReportedLocation(body.location),
   }
@@ -189,6 +228,7 @@ export async function parseDocumentDeliveryRequest(request: Request): Promise<
 
 export async function parseDocumentReturnRequest(request: Request): Promise<
   {
+    readonly confirmOutOfOrder?: boolean
     readonly lateRegistration: boolean
     readonly location: ReportedLocation | null
     readonly reason: (typeof DRIVER_RETURN_REASONS)[number]
@@ -199,6 +239,7 @@ export async function parseDocumentReturnRequest(request: Request): Promise<
 
   return {
     ...toEventClock(body),
+    ...toOutOfOrderConfirmation(body),
     lateRegistration: body.lateRegistration ?? false,
     location: toReportedLocation(body.location),
     reason: body.reason,

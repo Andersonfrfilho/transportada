@@ -11,7 +11,9 @@ import type {
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
 import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
 import type { EventClockFields } from '../domain/occurred-at.policy.js'
+import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import type { TripDocumentAction } from '../domain/trip-state.policy.js'
+import type { DriverNextStop } from './driver-next-stop.types.js'
 import type {
   DriverDocumentReference,
   DriverFieldReportTransactionPort,
@@ -35,6 +37,8 @@ export type ReportDocumentOutcomeInput = FieldTripLocator &
   EventClockFields & {
     readonly actorUserId: string
     readonly companyId: string
+    /** Spec 294 RF27: a tripulação confirmou gravar fora da ordem da parada; o escritório nunca manda. */
+    readonly confirmOutOfOrder?: boolean
     readonly documentId: string
     readonly idempotencyKey: string
     /**
@@ -84,6 +88,8 @@ export type ReportDocumentOutcomeResult = {
    */
   readonly alreadySettled: boolean
   readonly id: string
+  /** Spec 294 RF8: a próxima parada pendente, só quando a baixa do motorista fechou a parada e a viagem segue. */
+  readonly nextStop: DriverNextStop | null
   /** `null` quando não veio comprovante (motorista, ou escritório sem foto obrigatória). */
   readonly proofId: string | null
   /**
@@ -91,6 +97,8 @@ export type ReportDocumentOutcomeResult = {
    * diz que ela ainda não chegou, para a tela avisar sem bloquear. Sempre `false` num `return`.
    */
   readonly proofPending: boolean
+  /** Spec 294: as etapas da parada marcadas junto desta baixa; vazio no escritório e quando nada faltava. */
+  readonly recordedTogether: readonly StopEventStep[]
   /** Para a tela do motorista saber que a parada fechou sem precisar recarregar a viagem inteira. */
   readonly stopCompleted: boolean
   readonly tripCompleted: boolean

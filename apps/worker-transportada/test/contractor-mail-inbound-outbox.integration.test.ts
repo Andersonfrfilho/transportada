@@ -6,7 +6,7 @@
  * Molde de `test/contractor-mail-outbound-outbox.integration.test.ts` (T009), sobre
  * `contractor_inbound_email_outbox` — a tabela que a API grava (webhook aceito) e este trilho lê.
  */
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
@@ -19,6 +19,9 @@ const describeDatabase = databaseUrl ? describe : describe.skip
 
 describeDatabase('contractor mail inbound outbox repository (integration)', () => {
   const provider = createDrizzleProvider({ connection: databaseUrl! })
+  afterAll(async () => {
+    await provider.close()
+  })
   const database = provider.db
   const repository = new DrizzleContractorMailInboundOutboxRepository(database)
 

@@ -222,7 +222,11 @@ describe('a fila offline reenvia, e o servidor não duplica', () => {
     const second = await reportStopArrival(arrivalInput(world, 'chave-do-aparelho'))
 
     expect(second.id).toBe(first.id)
-    expect(world.state.calls.filter((call) => call.startsWith('recordEvent'))).toHaveLength(1)
+    const recordedEvents = (calls: readonly string[]) =>
+      calls.filter((call) => call.startsWith('recordEvent'))
+    // Spec 294: a chegada sem saída grava duas (a saída marcada junto); o reenvio não grava mais.
+    expect(recordedEvents(callsAfterFirst)).toHaveLength(2)
+    expect(recordedEvents(world.state.calls)).toHaveLength(2)
     expect(callsAfterFirst).toContain(`markStopArrived:${STOP_ID}`)
   })
 

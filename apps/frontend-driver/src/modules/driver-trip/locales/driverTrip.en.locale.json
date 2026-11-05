@@ -1,4 +1,18 @@
 {
+  "canhotoDuplicate": {
+    "dismiss": "Got it",
+    "notice": "This receipt had already arrived at {{time}}. We did not save it again."
+  },
+  "canhotoReplace": {
+    "body": "This invoice already has a receipt. If you replace it, the new one goes to the office for review.",
+    "confirm": "Replace the receipt",
+    "keep": "Keep the current one",
+    "title": "Replace the receipt?"
+  },
+  "addressCorrection": {
+    "applied": "Address updated with your location. Thank you!",
+    "suggested": "We sent your location to the office to check the address."
+  },
   "arrivalRequired": "Tap Arrived to unlock delivery",
   "arrive": "I arrived",
   "arrived": "Arrived at {{time}}",
@@ -438,6 +452,20 @@
   "tripCompleted": "Trip completed. Good work.",
   "vehicle": "Vehicle {{plate}}",
   "proofPendingWarning": "Retaking it never helps: the worst photo counts. A photo sent much later counts as late, even if the device clock shows another time.",
+  "outOfOrder": {
+    "confirm": "Record anyway",
+    "discard": "Mistake, discard",
+    "generic": "This tap ({{kind}}) is neither for the stop in progress nor the next one on the route. Record anyway?",
+    "kind": {
+      "arrive": "Arrived",
+      "deliver": "Delivered",
+      "depart": "Start route",
+      "return": "Not delivered"
+    },
+    "title": "Out of route order",
+    "withCurrent": "You started the route to stop {{current}}, but this tap ({{kind}}) is for stop {{requested}}. Record anyway?",
+    "withNext": "The next stop on the route is {{next}}. Do you really want to record {{kind}} at stop {{requested}}?"
+  },
   "pendingProofs": {
     "attach": "Attach proof",
     "back": "Back",
@@ -485,6 +513,19 @@
   "reassignedTrip": {
     "dismiss": "Got it",
     "notice": "This trip is no longer yours — it was passed to another driver or helper, or sent back to the office's planning. What you delivered and recorded remains with the trip. Contact the office if you need more detail."
+  },
+  "recordedTogether": {
+    "confirm": {
+      "arrived": "We will mark Arrived together with this delivery.",
+      "departed": "We will mark Start route together with this tap.",
+      "departedAndArrived": "We will mark Start route and Arrived together with this delivery."
+    },
+    "dismiss": "Got it",
+    "notice": {
+      "arrived": "We marked Arrived together with this delivery.",
+      "departed": "We marked Start route together with this tap.",
+      "departedAndArrived": "We marked Start route and Arrived together with this delivery."
+    }
   },
   "serviceWorkerUpdate": {
     "apply": "Update",
@@ -540,6 +581,13 @@
     "sendNow": "Send now",
     "confirming": "Delivery recorded. It goes to the server as soon as there is signal, and the photo follows. No need to tap again.",
     "missingLead": "To confirm, add: {{fields}}."
+  },
+  "nextStop": {
+    "documents": "Invoices: {{numbers}}",
+    "notNow": "Not now",
+    "start": "Start route",
+    "title": "Next stop: {{sequence}} of {{totalStops}}",
+    "unreliableAddress": "This address has no precise location on the map. When you arrive, tap Arrived and share your location: the address is updated."
   },
   "notDelivered": {
     "returnToWarehouse": "Not delivered — back to the warehouse",

@@ -97,10 +97,12 @@ function setup(
   return {
     crewAsked,
     answer: async (text: string) => follow(await flow.answer(turn(text))),
-    locationReceived: (location?: { latitude: number; longitude: number }) =>
+    locationReceived: async (location?: { latitude: number; longitude: number }) =>
       follow(
-        flow.locationReceived?.({ ...turn(''), ...(location === undefined ? {} : { location }) }) ??
-          ({ kind: 'done', replies: [] } as GroupFlowOutcome),
+        (await flow.locationReceived?.({
+          ...turn(''),
+          ...(location === undefined ? {} : { location }),
+        })) ?? ({ kind: 'done', replies: [] } as GroupFlowOutcome),
       ),
     registered,
     start: async (text: string) => follow(await flow.start(turn(text))),
@@ -310,9 +312,9 @@ describe('fluxo do grupo: localização opcional', () => {
   test('a localização compartilhada avança o passo da localização sozinha; fora dele não faz nada', async () => {
     const ports = setup()
     await ports.start('17234 avaria')
-    expect(ports.locationReceived()).toEqual({ kind: 'done', replies: [] })
+    expect(await ports.locationReceived()).toEqual({ kind: 'done', replies: [] })
     await ports.answer('quebrou')
-    expect(ports.locationReceived()).toMatchObject({
+    expect(await ports.locationReceived()).toMatchObject({
       kind: 'continue',
       step: GROUP_OCCURRENCE_STEP.confirm,
     })
@@ -330,7 +332,7 @@ describe('fluxo do grupo: o resumo para confirmar', () => {
     const flow = setup({ documents: [WITH_ADDRESS, NF2] })
     await flow.start('17234 avaria')
     await flow.answer('quebrou')
-    const outcome = flow.locationReceived({ latitude: -21.1775, longitude: -47.8103 })
+    const outcome = await flow.locationReceived({ latitude: -21.1775, longitude: -47.8103 })
     expect(outcome.kind).toBe('continue')
     const summary = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
     expect(summary).toContain('🏠 Endereço da nota: Rua das Flores, 100 - Ribeirão Preto/SP')

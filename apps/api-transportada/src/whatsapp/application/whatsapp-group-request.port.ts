@@ -5,6 +5,7 @@
  * (o fluxo, T5) e por onde a resposta sai (o grupo, pelo Evolution).
  */
 import type { WhatsAppGroupRequestStatus } from '../../database/whatsapp-group-request.schema.js'
+import type { WhatsAppRouteContinuation } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 
 export type GroupRequest = {
   readonly attempts: number
@@ -80,6 +81,8 @@ export type GroupFlowTurn = {
   readonly senderName: null | string
   /** Sem a marcação do bot, sem espaços nas pontas. */
   readonly text: string
+  /** Spec 294: a hora do WhatsApp da mensagem; ausente vale como agora. */
+  readonly sentAt?: Date | undefined
   /** Spec 292 T9: a localização que o dono compartilhou (só em `locationReceived`). */
   readonly location?: { readonly latitude: number; readonly longitude: number }
 }
@@ -93,7 +96,12 @@ export type GroupFlowOutcome =
       readonly step: string
     }
   /** O pedido terminou (concluído ou recusado com motivo): fecha como `completed`. */
-  | { readonly kind: 'done'; readonly replies: readonly string[] }
+  | {
+      readonly kind: 'done'
+      readonly replies: readonly string[]
+      /** Spec 294 RF8–RF10: a baixa fechou a parada; o roteador do grupo oferece a próxima rota. */
+      readonly routeContinuation?: WhatsAppRouteContinuation
+    }
   /** A resposta não cabe na pergunta aberta: o bot diz o motivo e repete a pergunta (regra 7). */
   | { readonly kind: 'not_understood'; readonly prompt: string; readonly reason: string }
 
@@ -102,7 +110,7 @@ export type GroupRequestFlow = {
   answer(turn: GroupFlowTurn): Promise<GroupFlowOutcome>
   readonly initialStep: string
   /** A localização compartilhada pelo dono do pedido: avança o passo que a espera, ou `null` se não há. */
-  locationReceived?(turn: GroupFlowTurn): GroupFlowOutcome | null
+  locationReceived?(turn: GroupFlowTurn): Promise<GroupFlowOutcome | null> | GroupFlowOutcome | null
   start(turn: GroupFlowTurn): Promise<GroupFlowOutcome>
 }
 

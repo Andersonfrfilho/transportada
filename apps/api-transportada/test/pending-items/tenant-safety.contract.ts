@@ -5,6 +5,7 @@ import { and } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
 
+import { buildAddressSuggestionPendingItemFilters } from '../../src/pending-items/infrastructure/drizzle-address-correction-suggestion-pending-item.source.js'
 import { buildFleetBodyTypePendingItemFilters } from '../../src/pending-items/infrastructure/drizzle-fleet-body-type-pending-item.source.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000811'
@@ -47,5 +48,19 @@ describe('pending items fleet body type query tenant safety', () => {
     expect(query.sql).toContain('"fleet_vehicles"."body_type" = $')
     expect(query.sql).toContain('"fleet_vehicles"."status" = $')
     expect(query.params).toEqual([COMPANY_ID, 'tractor_unit', '00', 'active'])
+  })
+})
+
+describe('pending items address suggestion query tenant safety (spec 294 T3.2)', () => {
+  test('scopes the page by company and only pending suggestions, with or without a cursor', () => {
+    for (const cursor of [null, CURSOR]) {
+      const query = toSql(
+        buildAddressSuggestionPendingItemFilters({ companyId: COMPANY_ID, cursor }),
+      )
+
+      expect(query.sql).toContain('"address_correction_suggestions"."company_id" = $')
+      expect(query.sql).toContain('"address_correction_suggestions"."status" = $')
+      expect(query.params.slice(0, 2)).toEqual([COMPANY_ID, 'pending'])
+    }
   })
 })

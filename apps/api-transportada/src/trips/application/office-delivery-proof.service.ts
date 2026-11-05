@@ -5,10 +5,13 @@
  * depois dela (`field-proof`) —, sempre dentro da transação da ação. Um lugar só para as duas rotas
  * validarem, subirem, selarem e gravarem o comprovante do mesmo jeito.
  */
+import { createHash } from 'node:crypto'
+
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import {
   CARGO_PROOF_KIND,
+  PHOTO_PROOF_KIND,
   TRIP_DELIVERY_PROOF_CARGO_LIMIT,
   type OfficeProofKind,
 } from '../domain/delivery-event.constant.js'
@@ -31,6 +34,7 @@ import {
   TripDeliveryProofCargoLimitError,
 } from '../domain/trip-field-office.error.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
+import type { CanhotoDuplicate } from './canhoto-attachment.types.js'
 import type { DriverFieldReportTransactionPort } from './driver-field-report.port.js'
 import type { FieldAuthorship } from './field-trip-target.types.js'
 import type { RemovableObjectStoragePort } from './stored-object-cleanup.service.js'
@@ -72,6 +76,8 @@ export type OfficeDeliveryProofAttachment = {
 }
 
 export type OfficeProofPersistResult = {
+  /** Spec 294 RF26: a mesma imagem já era canhoto — nada foi gravado e `id` é o comprovante que já existia. */
+  readonly duplicate?: CanhotoDuplicate
   readonly id: string
   /** Spec 156 T15 M1: o objeto do comprovante do escritório que este substituiu — vai para a auditoria. */
   readonly replacedObjectId: string | null
@@ -142,6 +148,20 @@ export async function persistOfficeProof(
       kind,
     })
     if (existingId !== null) return { id: existingId, replacedObjectId: null }
+  }
+
+  if (kind === PHOTO_PROOF_KIND) {
+    const found = await transaction.findCanhotoByHash({
+      companyId,
+      sha256: createHash('sha256').update(upload.bytes).digest('hex'),
+    })
+    if (found !== null) {
+      return {
+        duplicate: { attachedAt: found.attachedAt, documentId: found.documentId },
+        id: found.proofId,
+        replacedObjectId: null,
+      }
+    }
   }
 
   let replacedObjectId: string | null = null

@@ -147,6 +147,8 @@ export type WorkerEnvironment = {
   readonly botAudioTranscriptionToken?: string
   /** Spec 292 T9: o texto de contexto do whisper no áudio do bot; presente, liga o invólucro com prompt. */
   readonly botAudioTranscriptionPrompt?: string
+  /** Spec 294 T4.8: o OCR local do canhoto do bot; ausente, a rota interna não existe. */
+  readonly canhotoOcr?: { readonly modelDirectory: string; readonly timeoutMilliseconds: number }
   readonly hostname: string
   readonly port: number
   readonly prefetch: number

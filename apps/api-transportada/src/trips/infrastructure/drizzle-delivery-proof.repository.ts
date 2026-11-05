@@ -48,6 +48,8 @@ import {
 } from '../domain/delivery-proof-settings.policy.js'
 import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
 import { DRIVER_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
+import { CanhotoDuplicateError } from '../application/canhoto-duplicate.error.js'
+import { findCanhotoByHash } from './canhoto-duplicate.query.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -309,6 +311,10 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     return record?.punctuality ?? null
   }
 
+  public findCanhotoByHash(input: { readonly companyId: string; readonly sha256: string }) {
+    return findCanhotoByHash(this.database, input)
+  }
+
   /** Spec 184 D3 / spec 220 RF08: o teto de cinco fotos da mercadoria por entrega. */
   public async countProofsForEvent(input: {
     readonly companyId: string
@@ -334,6 +340,13 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     return this.database.transaction(async (transaction) => {
       const { cargoLimit } = input
       if (cargoLimit !== undefined) await assertCargoRoom(transaction, { ...input, cargoLimit })
+      if (input.canhotoSha256 !== undefined) {
+        await assertCanhotoNotStored(transaction, {
+          companyId: input.companyId,
+          eventId: input.eventId,
+          sha256: input.canhotoSha256,
+        })
+      }
       await transaction.insert(storedObjects).values({
         bucket: this.bucket,
         companyId: input.companyId,
@@ -437,7 +450,27 @@ async function assertCargoRoom(
   if ((record?.total ?? 0) >= input.cargoLimit) throw new TripDeliveryProofCargoLimitError()
 }
 
+/**
+ * Spec 294 C5: dois pedidos com a mesma imagem passavam juntos pela conferência do hash (fora da transação) e gravavam
+ * dois canhotos. A trava transacional por empresa + hash serializa os dois, e a releitura sob a trava acha o primeiro.
+ */
+async function assertCanhotoNotStored(
+  transaction: TripQueryable,
+  input: { readonly companyId: string; readonly eventId: string; readonly sha256: string },
+): Promise<void> {
+  await transaction.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`canhoto:${input.companyId}:${input.sha256}`}))`,
+  )
+  const found = await findCanhotoByHash(transaction, {
+    companyId: input.companyId,
+    excludeStopEventId: input.eventId,
+    sha256: input.sha256,
+  })
+  if (found !== null) throw new CanhotoDuplicateError(found)
+}
+
 type SaveProofInput = {
+  readonly canhotoSha256?: string
   /** Foto da mercadoria: o teto conferido dentro da transação, depois da trava do evento. */
   readonly cargoLimit?: number
   /** ADR-0070 §4: precisão declarada pelo aparelho, já em texto decimal (coluna `numeric`). */

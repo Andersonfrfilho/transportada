@@ -79,7 +79,8 @@ export async function persistDeliveryProof(input: {
     transaction: input.transaction,
     upload: { ...upload, receivedBy },
   })
-  return persisted.id
+  // Spec 294 RF26: a mesma imagem já era canhoto de outra nota — nada foi gravado, e a baixa segue com a pendência.
+  return persisted.duplicate === undefined ? persisted.id : null
 }
 
 /**

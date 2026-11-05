@@ -51,7 +51,7 @@ import {
   resolveArrivalStop,
   resolveDepartureStop,
   type WhatsAppStopCandidate,
-} from '../../src/whatsapp-commands/domain/whatsapp-driver-stop.policy.js'
+} from '../../src/trips/domain/driver-stop-resolution.policy.js'
 
 const ACTOR = {
   actorUserId: '00000000-0000-4000-8000-000000002931',
@@ -165,7 +165,7 @@ describe('camada de eventos do motorista no WhatsApp (spec 293 T11)', () => {
   test('entreguei devolve os detalhes da baixa; repetido é "já estava registrado"', async () => {
     const { calls, ports } = buildPorts()
     expect(await createWhatsAppDriverEvents(ports).deliver(documentInput)).toEqual({
-      details: { proofPending: true, stopCompleted: true, tripCompleted: false },
+      details: { nextStop: null, proofPending: true, stopCompleted: true, tripCompleted: false },
       event: 'deliver',
       kind: 'registered',
     })
@@ -458,8 +458,28 @@ describe('qual parada o saí e o cheguei miram (spec 293 T11)', () => {
     })
   })
 
-  test('a parada é citada pela nota, nunca pelo destinatário', () => {
+  test('a parada é citada pela nota e pelo cliente (spec 294 RF17)', () => {
     expect(describeStopReference(stop(1))).toBe('NF 17001')
+    expect(
+      describeStopReference(
+        stop(1, {
+          documents: [
+            { number: '17001', recipientName: 'Padaria Sol', separationStatus: 'loaded' },
+          ],
+        }),
+      ),
+    ).toBe('NF 17001 · Padaria Sol')
+    expect(
+      describeStopReference(
+        stop(1, {
+          documents: [
+            { number: '17001', recipientName: 'Padaria Sol', separationStatus: 'loaded' },
+            { number: '17002', recipientName: 'Padaria Sol', separationStatus: 'loaded' },
+            { number: '17003', recipientName: 'Padaria Sol', separationStatus: 'loaded' },
+          ],
+        }),
+      ),
+    ).toBe('NF 17001 · Padaria Sol e mais 2')
     expect(
       describeStopReference(
         stop(1, {

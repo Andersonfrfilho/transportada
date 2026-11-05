@@ -91,7 +91,8 @@ describe('correção humana de coordenada (spec 084, RF4)', () => {
    */
   test('a origem da correção é eixo próprio, não se confunde com a fonte da coordenada', () => {
     expect([...CORRECTION_ORIGINS]).toEqual(['contractor', 'driver', 'operator'])
-    for (const origin of CORRECTION_ORIGINS) {
+    // `driver` é a única sobreposição deliberada (ADR-0113 §2.3): o ponto da chegada grava os dois eixos
+    for (const origin of ['contractor', 'operator'] as const) {
       expect([...GEOCODING_SOURCES]).not.toContain(origin as never)
     }
   })

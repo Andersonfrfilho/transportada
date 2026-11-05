@@ -200,6 +200,8 @@ export async function readStopDwellsByTrip(
       and(
         eq(tripStopEvents.companyId, tripStops.companyId),
         eq(tripStopEvents.stopId, tripStops.id),
+        /** Spec 294 RF2: etapa marcada junto não mede espera — o instante é o da baixa, não o do fato. */
+        eq(tripStopEvents.recordedTogether, false),
         inArray(tripStopEvents.kind, [...DWELL_EVENT_KINDS]),
       ),
     )

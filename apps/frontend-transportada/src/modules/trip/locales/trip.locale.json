@@ -857,9 +857,10 @@
       },
       "origin": {
         "contractor": "Corrigido pelo contratante",
-        "driver": "Corrigido pelo motorista",
+        "driver": "Endereço corrigido pela chegada do motorista",
         "operator": "Corrigido pelo escritório",
-        "refinement": "Refino de precisão"
+        "refinement": "Refino de precisão",
+        "unknown": "Origem não identificada"
       }
     },
     "attachmentCount_one": "{{count}} foto anexada",
@@ -952,6 +953,8 @@
     "chip": {
       "recordedLater": "registrado {{duration}} depois",
       "recordedLaterUnknown": "registrado depois",
+      "recordedTogether": "Marcada junto",
+      "recordedTogetherHint": "O motorista pulou esta etapa; ela foi registrada junto com o evento seguinte.",
       "stop": "Parada {{sequence}}",
       "transition": "{{from}} → {{to}}"
     },

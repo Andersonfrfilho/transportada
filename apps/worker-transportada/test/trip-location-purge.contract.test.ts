@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import './trip-location-purge/address-suggestions.contract.js'
 import './trip-location-purge/batch-ceiling.contract.js'
 import './trip-location-purge/purge.contract.js'
 import './trip-location-purge/schema-parity.contract.js'

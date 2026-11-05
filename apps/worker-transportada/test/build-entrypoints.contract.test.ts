@@ -51,8 +51,10 @@ describe('worker build entrypoints contract', () => {
     const mainModules = await listMainModules(SOURCE_DIRECTORY, './src/')
 
     expect(mainModules).toContain(RUNTIME_ENTRYPOINT)
+    // Spec 294 C9: o entrypoint vem antes das flags — depois de `--root ./src` ele só entra por acaso do parser.
+    const entrypoints = buildScript.split(' --')[0] ?? ''
     for (const module of mainModules) {
-      expect(buildScript).toContain(module)
+      expect(entrypoints).toContain(module)
     }
   })
 

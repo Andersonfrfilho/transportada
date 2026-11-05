@@ -21,8 +21,19 @@ import {
   WHATSAPP_DRIVER_STOP_COMMAND,
   type WhatsAppDriverStopCommandEvent,
 } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
+import {
+  interpretDriverChoice,
+  DRIVER_CHOICE,
+} from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
+import {
+  canAskRouteOffer,
+  describeRouteOffer,
+  ROUTE_OFFER_TEXT,
+} from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
+import type { WhatsAppRouteContinuation } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type { GroupBoletoResend } from './whatsapp-group-boleto-resend.service.js'
 import type { createGroupDeliveryFlow } from './whatsapp-group-delivery-flow.service.js'
+import type { createGroupTripCloseFlow } from './whatsapp-group-trip-close-flow.service.js'
 import type { createGroupStopFlow } from './whatsapp-group-stop-flow.service.js'
 import type {
   GroupFlowOutcome,
@@ -31,10 +42,22 @@ import type {
 } from './whatsapp-group-request.port.js'
 
 export const GROUP_DRIVER_STEP = {
+  closePrefix: 'close.',
   deliveryPrefix: 'delivery.',
   menu: 'menu',
+  routePrefix: 'route.',
   stopPrefix: 'stop.',
 } as const
+
+/** Spec 294 RF8: o passo que espera o "1 - Sim, iniciar rota / 2 - Agora não" da próxima parada. */
+export const GROUP_ROUTE_STEP = { offer: 'offer' } as const
+
+type RouteOfferState = {
+  readonly routeOffer?: {
+    readonly documentNumber?: string | undefined
+    readonly stopId: string
+  }
+}
 
 type MenuItem =
   | {
@@ -73,6 +96,8 @@ export function createGroupDriverFlow(flows: {
   readonly delivery?: ReturnType<typeof createGroupDeliveryFlow>
   readonly occurrence: GroupRequestFlow
   readonly stop: ReturnType<typeof createGroupStopFlow>
+  /** Spec 294 RF21: "encerrar a rota" do atendente; ausente, o texto segue como antes. */
+  readonly tripClose?: ReturnType<typeof createGroupTripCloseFlow>
 }): GroupRequestFlow {
   const prefixed =
     (prefix: string) =>
@@ -80,7 +105,59 @@ export function createGroupDriverFlow(flows: {
       outcome.kind === 'continue' ? { ...outcome, step: `${prefix}${outcome.step}` } : outcome
   const withStopPrefix = prefixed(GROUP_DRIVER_STEP.stopPrefix)
   const withDeliveryPrefix = prefixed(GROUP_DRIVER_STEP.deliveryPrefix)
-  const { delivery } = flows
+  const { delivery, tripClose } = flows
+  const withClosePrefix = prefixed(GROUP_DRIVER_STEP.closePrefix)
+  /** Spec 294 RF8–RF10: a baixa que fechou a parada oferece a próxima rota no mesmo pedido (RNF1). */
+  async function settleDelivery(
+    turn: GroupFlowTurn,
+    outcome: GroupFlowOutcome,
+  ): Promise<GroupFlowOutcome> {
+    if (outcome.kind !== 'done' || outcome.routeContinuation === undefined) return outcome
+    const { nextStop, tripCompleted } =
+      outcome.routeContinuation satisfies WhatsAppRouteContinuation
+    if (tripCompleted) {
+      return { kind: 'done', replies: [...outcome.replies, ROUTE_OFFER_TEXT.routeCompleted] }
+    }
+    if (nextStop === null) return { kind: 'done', replies: outcome.replies }
+    const asks = canAskRouteOffer({
+      hasOpenCollection: delivery === undefined ? false : await delivery.hasOpen(turn),
+      hasOpenStopChoice: false,
+      hasPendingAudio: false,
+      hasPendingPrompt: false,
+    })
+    if (!asks) {
+      return {
+        kind: 'done',
+        replies: [...outcome.replies, describeRouteOffer(nextStop, { asks: false })],
+      }
+    }
+    const state: RouteOfferState = {
+      routeOffer: { documentNumber: nextStop.documents[0]?.number, stopId: nextStop.id },
+    }
+    return {
+      kind: 'continue',
+      replies: [...outcome.replies, describeRouteOffer(nextStop, { asks: true })],
+      state,
+      step: `${GROUP_DRIVER_STEP.routePrefix}${GROUP_ROUTE_STEP.offer}`,
+    }
+  }
+
+  async function answerRouteOffer(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
+    const stop = (turn.request.state as RouteOfferState).routeOffer
+    const choice = interpretDriverChoice(turn.text)
+    if (stop === undefined || choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
+      return { kind: 'done', replies: [ROUTE_OFFER_TEXT.declined] }
+    }
+    if (choice === DRIVER_CHOICE.first) {
+      return withStopPrefix(await flows.stop.departStop(turn, stop))
+    }
+    return {
+      kind: 'not_understood',
+      prompt: ROUTE_OFFER_TEXT.options.join('\n'),
+      reason: 'responda 1 para iniciar a rota ou 2 para agora não',
+    }
+  }
+
   const menu = delivery === undefined ? MENU_WITHOUT_DELIVERY : GROUP_DRIVER_MENU
   const menuText =
     delivery === undefined ? GROUP_DRIVER_TEXT.menuWithoutDelivery : GROUP_DRIVER_TEXT.menu
@@ -90,7 +167,7 @@ export function createGroupDriverFlow(flows: {
     if (item.kind === 'deliver') {
       return delivery === undefined
         ? flows.occurrence.start({ ...turn, text: '' })
-        : withDeliveryPrefix(await delivery.begin(turn, []))
+        : settleDelivery(turn, withDeliveryPrefix(await delivery.begin(turn, [])))
     }
     return withStopPrefix(await flows.stop.begin(turn, item.event, []))
   }
@@ -113,15 +190,21 @@ export function createGroupDriverFlow(flows: {
         return choose(turn, item)
       }
       if (delivery !== undefined && step.startsWith(GROUP_DRIVER_STEP.deliveryPrefix)) {
-        return withDeliveryPrefix(
-          await delivery.answer({
-            ...turn,
-            request: {
-              ...turn.request,
-              step: step.slice(GROUP_DRIVER_STEP.deliveryPrefix.length),
-            },
-          }),
-        )
+        const answered = await delivery.answer({
+          ...turn,
+          request: {
+            ...turn.request,
+            step: step.slice(GROUP_DRIVER_STEP.deliveryPrefix.length),
+          },
+        })
+        return settleDelivery(turn, withDeliveryPrefix(answered))
+      }
+      if (step.startsWith(GROUP_DRIVER_STEP.routePrefix)) return answerRouteOffer(turn)
+      if (tripClose !== undefined && step.startsWith(GROUP_DRIVER_STEP.closePrefix)) {
+        return tripClose.answer({
+          ...turn,
+          request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.closePrefix.length) },
+        })
       }
       if (step.startsWith(GROUP_DRIVER_STEP.stopPrefix)) {
         return flows.stop.answer({
@@ -136,9 +219,18 @@ export function createGroupDriverFlow(flows: {
 
     locationReceived(turn) {
       const { step } = turn.request
+      // Spec 294 RF24: o pedido de localização do "saí"/"cheguei" é das paradas.
+      if (step.startsWith(GROUP_DRIVER_STEP.stopPrefix)) {
+        return flows.stop.locationReceived({
+          ...turn,
+          request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.stopPrefix.length) },
+        })
+      }
       if (
         step === GROUP_DRIVER_STEP.menu ||
         step.startsWith(GROUP_DRIVER_STEP.deliveryPrefix) ||
+        step.startsWith(GROUP_DRIVER_STEP.closePrefix) ||
+        step.startsWith(GROUP_DRIVER_STEP.routePrefix) ||
         step.startsWith(GROUP_DRIVER_STEP.stopPrefix)
       ) {
         return null
@@ -155,6 +247,9 @@ export function createGroupDriverFlow(flows: {
           step: GROUP_DRIVER_STEP.menu,
         }
       }
+      if (tripClose?.matches(turn.text) === true) {
+        return withClosePrefix(await tripClose.begin(turn))
+      }
       const resend = flows.boletoResend?.interpret(turn.text) ?? null
       if (resend !== null && flows.boletoResend !== undefined) {
         return flows.boletoResend.run(turn, resend.documentNumber)
@@ -165,14 +260,18 @@ export function createGroupDriverFlow(flows: {
       }
       if (delivery !== undefined) {
         const event = interpretWhatsAppDriverEventCommand(turn.text)
-        if (event?.kind === 'deliver')
-          return withDeliveryPrefix(await delivery.begin(turn, event.numbers))
-        if (event?.kind === 'too_many_documents')
+        if (event?.kind === 'deliver') {
+          return settleDelivery(turn, withDeliveryPrefix(await delivery.begin(turn, event.numbers)))
+        }
+        if (event?.kind === 'too_many_documents') {
           return withDeliveryPrefix(await delivery.begin(turn, ['', '']))
+        }
         // "@bot 1", "@bot pular": a resposta a uma entrega em preparo, depois que o pedido venceu.
         if (await delivery.awaitingText(turn)) {
           const answered = await delivery.reply(turn)
-          if (answered.kind !== 'not_understood') return withDeliveryPrefix(answered)
+          if (answered.kind !== 'not_understood') {
+            return settleDelivery(turn, withDeliveryPrefix(answered))
+          }
         }
       }
       return flows.occurrence.start(turn)

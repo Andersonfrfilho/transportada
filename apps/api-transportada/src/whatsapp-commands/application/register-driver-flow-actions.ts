@@ -46,7 +46,7 @@ import {
   resolveArrivalStop,
   resolveDepartureStop,
   type WhatsAppStopResolution,
-} from '../domain/whatsapp-driver-stop.policy.js'
+} from '../../trips/domain/driver-stop-resolution.policy.js'
 import {
   DRIVER_DIRECT_CONFIRM_ANSWER,
   DRIVER_FLOW_ACTION_KIND,
@@ -61,6 +61,15 @@ import {
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
 import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
+import {
+  DRIVER_PROMPT_CONTEXT_KEY,
+  readDriverPrompt,
+} from '../domain/whatsapp-driver-prompt.policy.js'
+import type { RouteOfferStop } from '../domain/whatsapp-driver-route-offer.policy.js'
+import {
+  buildRouteOfferReply,
+  type WhatsAppDriverPrompts,
+} from './whatsapp-driver-prompts.service.js'
 import { occurrenceRequirementNextNode } from './driver-occurrence-refusal.service.js'
 import { describeWhatsAppDriverEventResult } from './whatsapp-driver-event-speech.service.js'
 import {
@@ -100,6 +109,7 @@ const DRIVER = { kind: 'driver' } as const
 
 type ReportOutcome = {
   readonly alreadySettled: boolean
+  readonly nextStop?: RouteOfferStop | null
   readonly proofPending?: boolean
   readonly stopCompleted?: boolean
   readonly tripCompleted?: boolean
@@ -111,6 +121,11 @@ export type DriverFlowActionDependencies = {
    * baixa é direta, como antes.
    */
   readonly deliveryPreparations?: WhatsAppDeliveryPreparations
+  /**
+   * Spec 294 RF24: o pedido opcional de localização antes do "saí"/"cheguei". Ausente, o evento é registrado
+   * direto (com o ponto compartilhado antes, se houver).
+   */
+  readonly driverPrompts?: Pick<WhatsAppDriverPrompts, 'askLocation' | 'recordStop'>
   /**
    * Spec 293 T15: o tipo que pede foto, número do documento do cliente ou valor pago abre a ocorrência
    * em coleta em vez da recusa "registre pelo aplicativo". Ausente, a recusa de sempre.
@@ -188,6 +203,12 @@ function readStringContext(context: Record<string, unknown>, key: string): strin
 function sameDocumentNumber(left: string, right: string): boolean {
   const strip = (value: string) => value.trim().replace(/^0+(?=\d)/u, '')
   return strip(left) === strip(right)
+}
+
+function firstDocumentNumber(stop: {
+  readonly documents: readonly { readonly number: string }[]
+}): string | undefined {
+  return stop.documents[0]?.number.replace(/^0+(?=\d)/u, '')
 }
 
 function readStringList(context: Record<string, unknown>, key: string): readonly string[] {
@@ -462,6 +483,42 @@ export function createDriverWhatsAppFlowActions(
     }
   }
 
+  /**
+   * Spec 294 RF8–RF10: a baixa que fechou a parada oferece a próxima rota (ou diz que a rota fechou). O pedido
+   * fica no contexto da sessão e só nasce quando nada mais espera resposta deste motorista (RNF1).
+   */
+  async function offerNextRoute(input: {
+    readonly actor: Parameters<WhatsAppAuthorizedActionHandler>[0]['actor']
+    readonly channel: ChannelAdapterInterface
+    readonly context: Record<string, unknown>
+    readonly driverId: string
+    readonly result: WhatsAppDriverEventResult
+    readonly session: Parameters<WhatsAppAuthorizedActionHandler>[0]['session']
+  }): Promise<{ readonly context?: Record<string, unknown> }> {
+    const { actor, channel, context, driverId, result, session } = input
+    if (result.kind !== 'registered' || result.details?.stopCompleted !== true) return {}
+    const scope = { actorUserId: actor.scope.userId, companyId: actor.scope.companyId, driverId }
+    const offer = buildRouteOfferReply({
+      continuation: {
+        nextStop: result.details.nextStop ?? null,
+        tripCompleted: result.details.tripCompleted,
+      },
+      gate: {
+        hasOpenCollection:
+          (await deps.deliveryPreparations?.hasOpen(scope)) === true ||
+          (await deps.occurrenceDrafts?.hasOpen(scope)) === true,
+        hasOpenStopChoice: false,
+        hasPendingAudio: false,
+        hasPendingPrompt: readDriverPrompt(context, nowOf()) !== undefined,
+      },
+      now: nowOf(),
+    })
+    for (const text of offer.texts) await say({ actor, channel, session }, { text })
+    return offer.prompt === undefined
+      ? {}
+      : { context: { [DRIVER_PROMPT_CONTEXT_KEY]: offer.prompt } }
+  }
+
   const returnReasonRouter: WhatsAppAuthorizedActionHandler = async ({
     actor,
     channel,
@@ -493,7 +550,15 @@ export function createDriverWhatsAppFlowActions(
       reason,
     })
     await say({ actor, channel, session }, describeWhatsAppDriverEventResult(result, DRIVER))
-    return { next: DRIVER_FLOW_NODE.tripMenu }
+    const offered = await offerNextRoute({
+      actor,
+      channel,
+      context,
+      driverId,
+      result,
+      session,
+    })
+    return { ...offered, next: DRIVER_FLOW_NODE.tripMenu }
   }
 
   const listOccurrenceTypesAction: WhatsAppAuthorizedActionHandler = async ({
@@ -686,12 +751,15 @@ export function createDriverWhatsAppFlowActions(
   /** Spec 293 T14: o `saí`/`cheguei` pela mesma camada de eventos do grupo (T11). */
   async function registerStopEvent(
     input: ActionInput & {
+      readonly documentNumber?: string | undefined
+      readonly isAddressReliable?: boolean | undefined
       readonly step: StopStep
       readonly stopId: string
       readonly tripId: string
     },
   ): Promise<FlowActionResult> {
-    const { actor, channel, session, step, stopId, tripId } = input
+    const { actor, channel, documentNumber, isAddressReliable, session, step, stopId, tripId } =
+      input
     const driverId = await deps.resolveDriverId({
       companyId: actor.scope.companyId,
       membershipId: actor.scope.membershipId,
@@ -699,6 +767,42 @@ export function createDriverWhatsAppFlowActions(
     if (driverId === null) {
       await say({ actor, channel, session }, 'driverNotLinked')
       return { next: 'menu' }
+    }
+
+    const ask = deps.driverPrompts?.askLocation({
+      companyId: actor.scope.companyId,
+      documentNumber,
+      event: step,
+      isAddressReliable,
+      stopId,
+      whatsappNumber: session.whatsappNumber,
+    })
+    if (ask?.prompt !== undefined) {
+      for (const text of ask.texts) await say({ actor, channel, session }, { text })
+      const menu = backToTripMenu(tripId)
+      return { ...menu, context: { ...menu.context, [DRIVER_PROMPT_CONTEXT_KEY]: ask.prompt } }
+    }
+
+    // Spec 294 RF25: a recusa de fora de ordem vira a pergunta 1/2 (pedido no contexto da sessão).
+    if (deps.driverPrompts !== undefined) {
+      const recorded = await deps.driverPrompts.recordStop({
+        actor: { actorUserId: actor.scope.userId, companyId: actor.scope.companyId, driverId },
+        context: input.context,
+        documentNumber,
+        event: step,
+        idempotencyKey: randomUUID(),
+        location: consumeLocation({ actor, session }),
+        stopId,
+      })
+      for (const text of recorded.texts) await say({ actor, channel, session }, { text })
+      const menu = backToTripMenu(tripId)
+      return {
+        ...menu,
+        context: {
+          ...menu.context,
+          [DRIVER_PROMPT_CONTEXT_KEY]: recorded.context[DRIVER_PROMPT_CONTEXT_KEY],
+        },
+      }
     }
 
     const event = {
@@ -714,7 +818,13 @@ export function createDriverWhatsAppFlowActions(
       step === DRIVER_FLOW_STEP.depart
         ? await departWhatsAppDriverStop(deps, event)
         : await arriveWhatsAppDriverStop(deps, event)
-    await say({ actor, channel, session }, describeWhatsAppDriverEventResult(result, DRIVER))
+    await say(
+      { actor, channel, session },
+      describeWhatsAppDriverEventResult(result, {
+        ...(documentNumber === undefined ? {} : { documentNumber }),
+        kind: 'driver',
+      }),
+    )
     return backToTripMenu(tripId)
   }
 
@@ -737,7 +847,13 @@ export function createDriverWhatsAppFlowActions(
       return backToTripMenu(trip.id)
     }
     if (resolution.kind === 'single') {
-      return registerStopEvent({ ...input, stopId: resolution.stop.id, tripId: trip.id })
+      return registerStopEvent({
+        ...input,
+        documentNumber: firstDocumentNumber(resolution.stop),
+        isAddressReliable: resolution.stop.isAddressReliable,
+        stopId: resolution.stop.id,
+        tripId: trip.id,
+      })
     }
     return {
       context: {
@@ -762,7 +878,7 @@ export function createDriverWhatsAppFlowActions(
     }
   }
 
-  /** Mais de uma parada possível: a lista, pelo número da primeira nota (sem dado do cliente). */
+  /** Mais de uma parada possível: a lista, pela primeira nota e pelo cliente (spec 294 RF17). */
   const listStops: WhatsAppAuthorizedActionHandler = async (input) => {
     const { actor, channel, context, session } = input
     const step = readStringContext(context, DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice)
@@ -825,7 +941,15 @@ export function createDriverWhatsAppFlowActions(
         session,
       })
     }
-    return registerStopEvent({ ...input, step, stopId: answer, tripId })
+    const chosen = trip.stops.find((stop) => stop.id === answer)
+    return registerStopEvent({
+      ...input,
+      documentNumber: chosen === undefined ? undefined : firstDocumentNumber(chosen),
+      isAddressReliable: chosen?.isAddressReliable,
+      step,
+      stopId: answer,
+      tripId,
+    })
   }
 
   /**

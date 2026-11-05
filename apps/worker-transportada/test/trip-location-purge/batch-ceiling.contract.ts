@@ -72,6 +72,7 @@ async function runCycle(buildRedactor: (name: RedactorName) => RedactTripLocatio
       warn: () => undefined,
     },
     now: () => NOW,
+    purgeAddressSuggestions: async () => 0,
     purgeStalePings: async () => 0,
     ...redactors,
   }

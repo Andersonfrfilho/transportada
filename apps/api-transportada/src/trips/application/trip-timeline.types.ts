@@ -70,13 +70,12 @@ export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, numb
   'trip.created': -1,
   'stop.arrived': 0,
   /**
-   * Spec 206 D12: **0**, o mesmo de `stop.arrived`. O cursor compara a prioridade como `::int`
-   * (`trip-timeline-condition.helper.ts:43`), então não cabe fração, e renumerar a tabela quebraria
-   * cursor em voo. Com 0 a saída fica abaixo da troca de status que ela provoca (7) — efeito acima da
-   * causa (158 D8). O empate com `stop.arrived` só ocorreria no mesmo microssegundo, e a trava das
-   * paradas serializa os dois; se ocorresse, o `id` desempata.
+   * Spec 206 D12 + spec 294: **-1**, abaixo de `stop.arrived` (0). Etapas marcadas junto nascem na mesma
+   * transação e empatam em instante; lida de cima para baixo (decrescente), a lista mostra baixa,
+   * chegada, saída — então a saída é a mais baixa (só `trip.created` empata com ela, e nascer e sair no
+   * mesmo microssegundo não ocorre). Continua abaixo da troca de status que ela provoca (7).
    */
-  'stop.departed': 0,
+  'stop.departed': -1,
   'stop.departure_cancelled': 0,
   'stop.occurrence': 1,
   'document.occurrence': 2,

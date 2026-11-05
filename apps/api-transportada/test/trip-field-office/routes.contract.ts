@@ -234,7 +234,7 @@ describe('a chegada do escritório (spec 156 T5)', () => {
     const [, , arriveRoute] = createTripFieldOfficeRoutes({
       reportArrival: async (input) => {
         arrivalCalls.push(input)
-        return { id: 'event-1' }
+        return { id: 'event-1', recordedTogether: [] }
       },
       reportOccurrence: NOT_CALLED,
       attachProof: NOT_CALLED,

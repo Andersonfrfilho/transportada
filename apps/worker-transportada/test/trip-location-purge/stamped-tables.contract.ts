@@ -15,6 +15,7 @@ const EXPECTED_STAMPED_TABLES = [
 ]
 
 const EXPECTED_UNSTAMPED_TABLES = [
+  'address_correction_suggestions',
   'client_delivery_addresses',
   'fleet_drivers',
   'geocoded_address_corrections',

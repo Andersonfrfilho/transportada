@@ -13,15 +13,22 @@ import type {
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
+import type { ArrivalLocationSource } from '../domain/address-arrival-correction.policy.js'
 import type { CorrectedClock } from '../domain/occurred-at.policy.js'
+import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { AttachedCanhoto } from './canhoto-attachment.types.js'
 import type {
   DriverDocumentOccurrence,
   DriverDocumentOccurrenceLineInput,
 } from './driver-document-occurrence.types.js'
+import type { NextStopCandidates } from './driver-next-stop.types.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
 import type { TripFieldOfficeAuditInput } from './trip-field-office-audit.port.js'
+
+/** Spec 294 RF14: o que a chegada com ponto fez pelo endereço — corrigiu, virou sugestão, nada, ou falhou (contida). */
+export type ArrivalAddressCorrectionOutcome = 'applied' | 'failed' | 'ignored' | 'suggested'
 
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
 export type ReportedLocation = {
@@ -259,6 +266,8 @@ export type DriverFieldReportTransactionPort = {
     readonly occurredAt?: Date
     /** ADR-0067 §3: quando o registro foi gravado. Ausente cai no `defaultNow()`. */
     readonly recordedAt?: Date
+    /** ADR-0113 §1: a etapa pulada, gravada junto do evento pedido. Ausente cai no default `false`. */
+    readonly recordedTogether?: boolean
     /**
      * Spec 159 T11: o cadastro do motorista que reportou pelo app ou pelo WhatsApp — a nota lê
      * daqui, não do vínculo atual da conta. Ausente no escritório (ele usa `onBehalfOfDriverId`).
@@ -369,6 +378,11 @@ export type DriverFieldReportTransactionPort = {
    * Spec 156 T15 M1: o comprovante já gravado daquele evento e tipo — o canal decide se o escritório
    * pode substituí-lo, e o objeto vai para a auditoria da substituição.
    */
+  /** Spec 294 RF26: o canhoto da empresa com a mesma imagem, ou `null`. */
+  findCanhotoByHash(input: {
+    readonly companyId: string
+    readonly sha256: string
+  }): Promise<AttachedCanhoto | null>
   findProofForEvent(input: {
     readonly companyId: string
     readonly eventId: string
@@ -402,6 +416,37 @@ export type DriverFieldReportTransactionPort = {
     readonly companyId: string
     readonly eventId: string
   }): Promise<{ readonly id: string } | null>
+  /**
+   * Spec 294: o reenvio deriva as etapas marcadas junto do evento que a chave já liquidou — as da
+   * mesma parada gravadas na mesma transação (mesmo `created_at`), na ordem saída, chegada.
+   */
+  findRecordedTogetherSteps(input: {
+    readonly companyId: string
+    readonly eventId: string
+  }): Promise<readonly StopEventStep[]>
+  /**
+   * Spec 294 RF14/RF15 (ADR-0113 §2): o ponto da chegada corrige o endereço da parada, vira sugestão
+   * ao escritório ou nada. Nunca falha a chegada: o erro fica contido e vai só ao log.
+   */
+  correctAddressFromArrival(input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly eventId: string
+    /** Spec 294 S3: chegada tardia (fila offline além do prazo) não corrige nem sugere. */
+    readonly isLate: boolean
+    readonly location: ReportedLocation
+    /** Spec 294: o ponto do WhatsApp não traz precisão; em tempo real ele vale como o do app. */
+    readonly locationSource: ArrivalLocationSource
+    readonly stopId: string
+  }): Promise<ArrivalAddressCorrectionOutcome>
+  /**
+   * Spec 294 RF8: as paradas da viagem com o que a oferta da próxima mostra — duas leituras para a
+   * viagem inteira (paradas com a coordenada e notas), nunca uma por parada.
+   */
+  findNextStopCandidates(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<NextStopCandidates>
   /**
    * Spec 159 T11: o último evento daquele tipo da nota — o que o no-op idempotente devolve em vez de
    * gravar outro. `null` quando a nota foi resolvida sem evento (dado legado).

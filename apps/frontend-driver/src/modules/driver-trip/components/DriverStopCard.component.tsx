@@ -86,6 +86,9 @@ import {
   type EventQueueItemView,
 } from '../shared/eventQueueView.service'
 import { canOfferLateRegistration } from '../shared/lateRegistration.service'
+import type { StopEventStep } from '../shared/fieldReportResponse.service'
+import { listStepsToRecordTogether } from '../shared/recordedTogether.service'
+import { DriverRecordedTogetherNotice } from './DriverRecordedTogetherNotice.component'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
 import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
 import type { RouteOccurrenceStopGroup } from '../shared/routeOccurrenceView.types'
@@ -415,6 +418,13 @@ export function DriverStopCard({
     return undefined
   }, [isArrivalRecorded])
   const offersLateRegistration = canOfferLateRegistration({ canActOnDocuments, stop })
+  /** Spec 294 RF3/RF5: sem chegada, a baixa marca "Cheguei" (e a saída, se faltar) junto — o aviso vem antes do toque. */
+  const stepsTogether = listStepsToRecordTogether({
+    isArrived: isArrivalRecorded,
+    isCompleted,
+    isEnRoute: (stop.enRouteSince ?? null) !== null,
+    requestedEvent: 'delivered',
+  })
 
   function handleConfirmLateRegistration(): void {
     setIsLateRegistration(true)
@@ -606,6 +616,11 @@ export function DriverStopCard({
            * tocava de novo. `isArrivalRecorded` é a mesma chegada que já libera as ações da parada:
            * conta o "Cheguei" ainda na fila.
            */}
+          {areFieldActionsHidden || isArrivalRecorded || stop.isAddressReliable !== false ? null : (
+            <p className={styles.proofPendingWarningLead} role="status">
+              {t('nextStop.unreliableAddress')}
+            </p>
+          )}
           {areFieldActionsHidden || isArrivalRecorded ? null : canReportArrival ? (
             <Button onClick={() => onArrive(stop.id)} type="button">
               <Icon name="check" />
@@ -729,6 +744,7 @@ export function DriverStopCard({
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
               queueView={queueView}
               returnActivity={returnActivityByDocumentId.get(document.id)}
+              stepsTogether={stepsTogether}
               stop={stop}
             />
           ))}
@@ -741,6 +757,7 @@ export function DriverStopCard({
          */}
         {areFieldActionsHidden || !offersLateRegistration ? null : isConfirmingLateRegistration ? (
           <div role="alertdialog">
+            <DriverRecordedTogetherNotice mode="confirm" steps={stepsTogether} />
             <p role="alert">{t('lateRegistration.warning')}</p>
             <div className={styles.actions}>
               <Button onClick={handleConfirmLateRegistration} type="button">
@@ -813,6 +830,8 @@ type DocumentRowProps = Readonly<{
   queueView: readonly EventQueueItemView[]
   /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", mesmo retorno de fila da entrega. */
   returnActivity: DocumentReturnActivityView | undefined
+  /** Spec 294 RF5: as etapas que a baixa desta parada marcaria junto (vazio com a chegada já registrada). */
+  stepsTogether: readonly StopEventStep[]
   /** A configuração de comprovante antiga (da parada) e o destino da ocorrência de parada. */
   stop: DriverTripStop
 }>
@@ -857,6 +876,7 @@ function DocumentRow({
   onRetryOccurrenceTypes,
   queueView,
   returnActivity,
+  stepsTogether,
   stop,
 }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
@@ -1055,6 +1075,9 @@ function DocumentRow({
         <div className={styles.proofPendingWarning} role="status">
           <p className={styles.proofPendingWarningLead}>{t('locationOffWarning')}</p>
         </div>
+      ) : null}
+      {isLateRegistration || openReturn ? (
+        <DriverRecordedTogetherNotice mode="confirm" steps={stepsTogether} />
       ) : null}
       <div className={styles.actions}>
         {canActOnDocuments ? (

@@ -284,6 +284,7 @@ import { createWhatsAppCommandSettlementApiGateway } from './whatsapp-command-se
 import { TRIP_LOCATION_PURGE_JOB } from './trip-location-purge/domain/trip-location-purge.constant.js'
 import {
   createDrizzleCountEligibleCompanies,
+  createDrizzlePurgeAddressSuggestions,
   createDrizzlePurgeStalePings,
   createDrizzleRedactDeliveryProofLocations,
   createDrizzleRedactDocumentOccurrenceLocations,
@@ -1503,6 +1504,9 @@ export async function startWorkerRuntime(
               }),
           [TRIP_LOCATION_PURGE_JOB]: createTripLocationPurgeRoutine({
             countEligibleCompanies: createDrizzleCountEligibleCompanies(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            purgeAddressSuggestions: createDrizzlePurgeAddressSuggestions(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
             purgeStalePings: createDrizzlePurgeStalePings(

@@ -445,7 +445,8 @@ export type TripTimelineAddressChangeOrigin = (typeof TRIP_TIMELINE_ADDRESS_CHAN
 /** `displacementMeters` é `null` sem ponto anterior e no refino. */
 export type TripTimelineAddressChange = Readonly<{
   displacementMeters: null | number
-  origin: TripTimelineAddressChangeOrigin
+  /** Spec 294: texto livre na leitura — origem que este painel não conhece cai num rótulo neutro. */
+  origin: string
 }>
 
 export const TRIP_TIMELINE_CREW_ROLES = ['driver', 'helper'] as const
@@ -506,6 +507,8 @@ export type TripTimelineItem = Readonly<{
   kind: TripTimelineKind
   /** Spec 205 RF8: baixa registrada depois ("registrar entrega depois"). Ausente na API anterior. */
   lateRegistration?: boolean
+  /** Spec 294 RF2: etapa que o motorista pulou, registrada junto do evento seguinte. Ausente na API anterior. */
+  recordedTogether?: boolean
   /** Spec 196 RF9/RF10: sempre presente — `null` quando o toque não carimbou (T6.4). */
   location: null | TripTimelineLocation
   locationState: null | TripTimelineLocationState

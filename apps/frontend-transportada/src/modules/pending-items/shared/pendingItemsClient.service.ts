@@ -1,14 +1,37 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { createPendingItemPageAdapter } from './pendingItemsResponse.validation'
 
-export type PendingItemKind = 'vehicleBodyTypeMissing'
+export type PendingItemKind = 'addressSuggestedByDriver' | 'vehicleBodyTypeMissing'
 
-export type PendingItem = Readonly<{
+export type GeoPoint = Readonly<{ latitude: number; longitude: number }>
+
+export type AddressSuggestionDetails = Readonly<{
+  addressKey: string
+  /** O ponto gravado hoje para o endereço; `null` quando ele ainda não tinha coordenada. */
+  current: GeoPoint | null
+  distanceMeters: null | number
+  suggested: GeoPoint
+  tripStopId: null | string
+}>
+
+export type VehiclePendingItem = Readonly<{
   entityId: string
   entityType: 'vehicle'
-  kind: PendingItemKind
+  kind: 'vehicleBodyTypeMissing'
   label: string
 }>
+
+export type AddressSuggestionPendingItem = Readonly<{
+  details: AddressSuggestionDetails
+  entityId: string
+  entityType: 'addressSuggestion'
+  kind: 'addressSuggestedByDriver'
+  label: string
+}>
+
+export type PendingItem = AddressSuggestionPendingItem | VehiclePendingItem
+
+export type AddressSuggestionDecision = 'apply' | 'dismiss'
 
 export type PendingItemPage = Readonly<{
   items: readonly PendingItem[]
@@ -25,6 +48,9 @@ export type PendingItemsClient = Readonly<{
   listPendingItems: (
     input: Readonly<{ cursor?: null | string; limit?: number }>,
   ) => Promise<PendingItemPage>
+  decideAddressSuggestion: (
+    input: Readonly<{ decision: AddressSuggestionDecision; suggestionId: string }>,
+  ) => Promise<void>
 }>
 
 function requestError(code: string): Error {
@@ -40,8 +66,12 @@ function createSearch(input: Record<string, string | number | null | undefined>)
   return search.toString()
 }
 
-async function authorizedGet(
-  input: Readonly<{ dependencies: ClientDependencies; path: string }>,
+async function authorizedRequest(
+  input: Readonly<{
+    dependencies: ClientDependencies
+    method: 'GET' | 'POST'
+    path: string
+  }>,
 ): Promise<unknown> {
   const accessToken = await input.dependencies.getAccessToken()
   let response: Response
@@ -50,7 +80,7 @@ async function authorizedGet(
       new Request(`${input.dependencies.apiUrl}${input.path}`, {
         cache: 'no-store',
         headers: { authorization: `Bearer ${accessToken}` },
-        method: 'GET',
+        method: input.method,
       }),
     )
   } catch {
@@ -73,6 +103,16 @@ export function flattenPendingItemPages(pages: readonly PendingItemPage[]): read
   return pages.flatMap((page) => page.items)
 }
 
+/** Decisão otimista: a sugestão decidida sai da lista na hora, em todas as páginas já lidas. */
+export function removePendingItemFromPages(
+  input: Readonly<{ entityId: string; pages: readonly PendingItemPage[] }>,
+): readonly PendingItemPage[] {
+  return input.pages.map((page) => ({
+    ...page,
+    items: page.items.filter((item) => item.entityId !== input.entityId),
+  }))
+}
+
 /** O cursor de "carregar mais" é sempre o da **última** página lida, nunca o das anteriores. */
 export function lastPendingItemsCursor(pages: readonly PendingItemPage[]): null | string {
   return pages.at(-1)?.nextCursor ?? null
@@ -81,10 +121,18 @@ export function lastPendingItemsCursor(pages: readonly PendingItemPage[]): null 
 export function createPendingItemsClient(dependencies: ClientDependencies): PendingItemsClient {
   const adapters = createPendingItemPageAdapter()
   return {
+    async decideAddressSuggestion(input) {
+      await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `/address-correction-suggestions/${encodeURIComponent(input.suggestionId)}/${input.decision}`,
+      })
+    },
     async listPendingItems(input) {
       return adapters.pageFromApi(
-        await authorizedGet({
+        await authorizedRequest({
           dependencies,
+          method: 'GET',
           path: `/pending-items?${createSearch({ cursor: input.cursor, limit: input.limit })}`,
         }),
       )

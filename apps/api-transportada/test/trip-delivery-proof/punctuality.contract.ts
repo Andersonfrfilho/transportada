@@ -367,6 +367,7 @@ describe('o veredito alcança a foto da mercadoria (spec 220 RF10, RF12)', () =>
     readonly settings: Partial<DeliveryProofFieldSettings>
   }) {
     const repository: DeliveryProofPort = {
+      findCanhotoByHash: () => Promise.resolve(null),
       findDeliveryContext: async () => ({
         deliveredAt: CARGO_DELIVERED_AT,
         deliveryEventPosition: DELIVERY_POSITION,
@@ -438,6 +439,7 @@ describe('cada foto da mercadoria guarda o próprio veredito (spec 220 RF10)', (
     readonly settings: Partial<DeliveryProofFieldSettings>
   }) {
     const repository: DeliveryProofPort = {
+      findCanhotoByHash: () => Promise.resolve(null),
       findDeliveryContext: async () => ({
         deliveredAt: DELIVERED_AT,
         deliveryEventPosition: DELIVERY_POSITION,
@@ -513,6 +515,7 @@ describe('cada foto da mercadoria guarda o próprio veredito (spec 220 RF10)', (
 describe('o teto de cinco fotos da mercadoria vale para o motorista (spec 220 RF08)', () => {
   function attachWithCount(input: { readonly count: number; readonly kind: 'cargo' | 'photo' }) {
     const repository: DeliveryProofPort = {
+      findCanhotoByHash: () => Promise.resolve(null),
       countProofsForEvent: async () => input.count,
       findDeliveryContext: async () => ({
         deliveredAt: new Date('2026-09-25T12:00:00.000Z'),
@@ -543,6 +546,8 @@ describe('o teto de cinco fotos da mercadoria vale para o motorista (spec 220 RF
         bytes: new Uint8Array(16),
         capturedAt: undefined,
         kind: input.kind,
+        // Spec 294 RF26: o canhoto sobre outro da nota só entra com a confirmação; aqui o que se prova é a contagem.
+        replaceCanhoto: true,
         mimeType: 'image/jpeg',
         position: undefined,
         receiverDocument: '',

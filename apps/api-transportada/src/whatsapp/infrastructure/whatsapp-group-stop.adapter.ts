@@ -25,9 +25,23 @@ import {
   type WhatsAppDriverEventPorts,
   type WhatsAppDriverEventResult,
 } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
+import {
+  describeOutOfOrderViolation,
+  toOrderStopLabel,
+} from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { WHATSAPP_DRIVER_STOP_COMMAND } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
 import type { GroupStopFlowPorts } from '../application/whatsapp-group-stop-flow.service.js'
 import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
+
+export type OfficeStopEventInput = {
+  readonly actorUserId: string
+  readonly companyId: string
+  readonly driverId: string
+  readonly idempotencyKey: string
+  readonly stopId: string
+  readonly tappedAt: Date
+  readonly tripId: string
+}
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -51,12 +65,26 @@ export function createGroupStopPorts(dependencies: {
     readonly driverId: string
   }) => null | ReportedLocation
   readonly database: Database
+  /** Spec 294 RF24: há ponto compartilhado recente? Ausente, o bot não pede a localização. */
+  readonly hasLocation?: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => boolean
   readonly listActiveTrips: (input: {
     readonly companyId: string
     readonly driverId: string
   }) => Promise<readonly DriverTrip[]>
+  /**
+   * Spec 294 RF19: "saí"/"cheguei" do atendente pelo caminho do escritório (alvo da viagem, autoria `office`, ator = o
+   * atendente, em nome do motorista da viagem). Ausente, o atendente cai no caminho da tripulação.
+   */
+  readonly officeStopEvents?: {
+    readonly arrive: (input: OfficeStopEventInput) => Promise<unknown>
+    readonly depart: (input: OfficeStopEventInput) => Promise<{ readonly changed: boolean }>
+  }
   readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
   readonly ports: Pick<WhatsAppDriverEventPorts, 'reportArrival' | 'reportDeparture'>
+  readonly resolveSenderRole?: GroupStopFlowPorts['resolveSenderRole']
   readonly speech?: WhatsAppBotSpeechPort
 }): GroupStopFlowPorts {
   const terminal = new Set<string>(TRIP_TERMINAL_STATUSES)
@@ -65,7 +93,31 @@ export function createGroupStopPorts(dependencies: {
   const say = (companyId: string, line: BotSpeechLine) =>
     renderBotSpeechLine({ companyId, line, speech })
 
+  const listOpenStops = async ({
+    companyId,
+    driverId,
+  }: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => {
+    const trips = await dependencies.listActiveTrips({ companyId, driverId })
+    return trips.filter((trip) => !terminal.has(trip.status)).flatMap((trip) => trip.stops)
+  }
+
+  const findTripIdOfStop = async (input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly stopId: string
+  }) => {
+    const trips = await dependencies.listActiveTrips(input)
+    return trips.find((trip) => trip.stops.some((stop) => stop.id === input.stopId))?.id
+  }
+
   return {
+    ...(dependencies.resolveSenderRole === undefined
+      ? {}
+      : { resolveSenderRole: dependencies.resolveSenderRole }),
+    ...(dependencies.hasLocation === undefined ? {} : { hasLocation: dependencies.hasLocation }),
     enRouteMessage: ({ companyId, sequence }) =>
       say(
         companyId,
@@ -75,37 +127,53 @@ export function createGroupStopPorts(dependencies: {
         ),
       ),
 
-    async listStops({ companyId, driverId }) {
-      const trips = await dependencies.listActiveTrips({ companyId, driverId })
-      return trips.filter((trip) => !terminal.has(trip.status)).flatMap((trip) => trip.stops)
-    },
+    listStops: (input) => listOpenStops(input),
 
     async record(input) {
-      const actorUserId = await findDriverUserId(dependencies.database, input)
+      const attendantTripId =
+        input.attendant === undefined || dependencies.officeStopEvents === undefined
+          ? undefined
+          : await findTripIdOfStop(input)
+      const office = dependencies.officeStopEvents
+      const attendant = input.attendant
+      const isOffice =
+        attendantTripId !== undefined && office !== undefined && attendant !== undefined
+      const actorUserId = isOffice
+        ? attendant.actorUserId
+        : await findDriverUserId(dependencies.database, input)
       let result: WhatsAppDriverEventResult
       const event =
         input.event === WHATSAPP_DRIVER_STOP_COMMAND.depart
           ? WHATSAPP_DRIVER_EVENT.depart
           : WHATSAPP_DRIVER_EVENT.arrive
       let location: null | ReportedLocation = null
+      const eventPorts = isOffice
+        ? {
+            reportArrival: (event: Parameters<typeof dependencies.ports.reportArrival>[0]) =>
+              office.arrive({ ...event, tripId: attendantTripId }),
+            reportDeparture: (event: Parameters<typeof dependencies.ports.reportDeparture>[0]) =>
+              office.depart({ ...event, tripId: attendantTripId }),
+          }
+        : dependencies.ports
       if (actorUserId === null) {
         result = refuseWhatsAppDriverEvent(event, { code: 'driver_without_access' })
       } else {
-        location = dependencies.consumeLocation?.(input) ?? null
+        location = isOffice ? null : (dependencies.consumeLocation?.(input) ?? null)
         const eventInput = {
           actorUserId,
+          ...(input.confirmOutOfOrder === true && !isOffice ? { confirmOutOfOrder: true } : {}),
           companyId: input.companyId,
           driverId: input.driverId,
           idempotencyKey: input.idempotencyKey,
           location,
-          sentAt: clock(),
+          sentAt: input.sentAt ?? clock(),
           stopId: input.stopId,
         }
         try {
           result =
             event === WHATSAPP_DRIVER_EVENT.depart
-              ? await departWhatsAppDriverStop(dependencies.ports, eventInput)
-              : await arriveWhatsAppDriverStop(dependencies.ports, eventInput)
+              ? await departWhatsAppDriverStop(eventPorts, eventInput)
+              : await arriveWhatsAppDriverStop(eventPorts, eventInput)
         } catch (error) {
           dependencies.logger?.warn('whatsapp_group_request.stop_register_failed', {
             companyId: input.companyId,
@@ -114,9 +182,28 @@ export function createGroupStopPorts(dependencies: {
           return { message: await say(input.companyId, WHATSAPP_GROUP_EVENT_FAILED) }
         }
       }
+      if (result.kind === 'refused' && result.refusal.code === 'stop_out_of_order') {
+        const stops = await listOpenStops(input)
+        return {
+          message: describeOutOfOrderViolation({
+            event: input.event === WHATSAPP_DRIVER_STOP_COMMAND.depart ? 'depart' : 'arrive',
+            labels: new Map(stops.map((stop) => [stop.id, toOrderStopLabel(stop)] as const)),
+            violation: result.refusal,
+          }),
+          outOfOrder: {
+            ...(result.refusal.nextStopId === null
+              ? {}
+              : { nextStopId: result.refusal.nextStopId }),
+            stopId: result.refusal.requestedStopId,
+          },
+        }
+      }
       const message = await say(
         input.companyId,
-        describeWhatsAppDriverEventResult(result, { kind: 'group' }),
+        describeWhatsAppDriverEventResult(result, {
+          ...(input.documentNumber === undefined ? {} : { documentNumber: input.documentNumber }),
+          kind: 'group',
+        }),
       )
       const offerLocation =
         dependencies.consumeLocation !== undefined &&

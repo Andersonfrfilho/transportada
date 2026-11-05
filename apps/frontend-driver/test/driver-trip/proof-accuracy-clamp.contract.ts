@@ -117,4 +117,28 @@ describe('PROOF_PUNCTUALITY_VALUES tem uma fonte só (T11, item 9)', () => {
       "export type DriverProofOutcome = 'count-limit' | 'queued' | 'size-limit'",
     )
   })
+
+  it('o canhoto só leva replaceCanhoto com a confirmação do motorista (spec 294 RF26, T5.4)', async () => {
+    const requests: Request[] = []
+    const client = createCapturingClient(requests)
+    const file = new File([new Uint8Array(4)], 'canhoto.jpg', { type: 'image/jpeg' })
+
+    await client.attachProof({ documentId: 'document-1', file, kind: 'photo' })
+    await client.attachProof({
+      documentId: 'document-1',
+      file,
+      kind: 'photo',
+      replaceCanhoto: true,
+    })
+    await client.attachProof({
+      documentId: 'document-1',
+      file,
+      kind: 'cargo',
+      replaceCanhoto: true,
+    })
+
+    expect((await requests[0]?.formData())?.has('replaceCanhoto')).toBe(false)
+    expect((await requests[1]?.formData())?.get('replaceCanhoto')).toBe('true')
+    expect((await requests[2]?.formData())?.has('replaceCanhoto')).toBe(false)
+  })
 })

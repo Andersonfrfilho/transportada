@@ -20,6 +20,7 @@ import type { WhatsAppDeliveryPreparationChannel } from '../../database/whatsapp
 import type { WhatsAppOccurrenceDraftPhoto } from '../../database/whatsapp-occurrence-draft.schema.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
+import type { WhatsAppCanhotoRecognition } from './whatsapp-canhoto-recognition.service.js'
 import type { OccurrenceRequirements } from '../../trips/domain/occurrence-requirements.policy.js'
 import {
   OCCURRENCE_DRAFT_ITEM,
@@ -564,12 +565,18 @@ function finished(
  * canais (grupo e individual) só conhecem esta fachada, com a forma da entrega em preparo.
  */
 export function combineWhatsAppDriverCollections(input: {
+  /** Spec 294 T4.8: o reconhecimento do canhoto da foto sem preparação (ausente = foto calada, como antes). */
+  readonly canhoto?: WhatsAppCanhotoRecognition | undefined
   readonly deliveries: WhatsAppDeliveryPreparations
   readonly occurrences: WhatsAppOccurrenceDrafts
 }): WhatsAppDeliveryPreparations {
-  const { deliveries, occurrences } = input
+  const { canhoto, deliveries, occurrences } = input
   return {
     async answer(request) {
+      if (canhoto !== undefined && (await canhoto.hasOpenQuestion(request.actor))) {
+        const answered = await canhoto.answer(request)
+        if (answered !== null) return answered
+      }
       if (await occurrences.hasOpen(request.actor)) {
         const answered = await occurrences.answer(request)
         if (answered !== null) return answered
@@ -577,11 +584,23 @@ export function combineWhatsAppDriverCollections(input: {
       return deliveries.answer(request)
     },
     async awaitingText(scope) {
-      return (await occurrences.awaitingText(scope)) || deliveries.awaitingText(scope)
+      return (
+        (await occurrences.awaitingText(scope)) ||
+        (await deliveries.awaitingText(scope)) ||
+        (canhoto?.hasOpenQuestion(scope) ?? false)
+      )
     },
+    async acceptsUnsolicitedPhoto(scope) {
+      return canhoto?.canReceivePhoto(scope) ?? false
+    },
+    repeatMediaRequest: async (request) => (await deliveries.repeatMediaRequest?.(request)) ?? null,
     begin: (request) => deliveries.begin(request),
     async hasOpen(scope) {
-      return (await occurrences.hasOpen(scope)) || deliveries.hasOpen(scope)
+      return (
+        (await occurrences.hasOpen(scope)) ||
+        (await deliveries.hasOpen(scope)) ||
+        (canhoto?.hasOpenQuestion(scope) ?? false)
+      )
     },
     async receiveLocation(request) {
       await occurrences.receiveLocation(request)
@@ -592,7 +611,15 @@ export function combineWhatsAppDriverCollections(input: {
         const received = await occurrences.receivePhoto(request)
         if (received !== null) return received
       }
-      return deliveries.receivePhoto(request)
+      const received = await deliveries.receivePhoto(request)
+      if (received !== null || canhoto === undefined) return received
+      return canhoto.receivePhoto({
+        actor: request.actor,
+        bytes: request.bytes,
+        channel: request.channel ?? 'group',
+        mimeType: request.mimeType,
+        providerMessageId: request.providerMessageId,
+      })
     },
   }
 }
