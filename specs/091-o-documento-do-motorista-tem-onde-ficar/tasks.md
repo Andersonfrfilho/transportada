@@ -38,7 +38,7 @@ chave é perder o dado). A feature começa na Fase 2.
       continua verde sem exceção nova.
 - [x] **T018** Sugestão de preenchimento da CNH: oferta campo a campo, só campo vazio, divergência
       avisa e não corrige. Aceite: contrato dos três guardas, no molde da spec 071.
-- [ ] **T019** Substituir apaga o objeto anterior **do bucket**. Aceite: verificado contra o bucket,
+- [x] **T019** Substituir apaga o objeto anterior **do bucket**. Aceite: verificado contra o bucket,
       não contra a tabela.
 
 ## Fase 5 — Auditoria e descarte · 🤖 `sonnet` (remoção revisada por `opus` 🧠)

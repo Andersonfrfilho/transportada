@@ -12,6 +12,7 @@ import {
 import {
   DRIVER_ATTACHMENT_TYPES,
   isDriverAttachmentListResponse,
+  willReplaceAttachment,
 } from '@/modules/fleet/shared/driverAttachment.validation'
 import { DRIVER_ATTACHMENT_MAX_BYTES } from '@/modules/fleet/shared/driverAttachment.validation'
 import { FLEET_REVEAL_PERMISSION } from '@/modules/fleet/shared/fleet.constant'
@@ -128,5 +129,25 @@ describe('documentos na ficha do motorista (spec 091 T016)', () => {
 
   it('o teto de envio acompanha o da API (1,5 MiB)', () => {
     expect(DRIVER_ATTACHMENT_MAX_BYTES).toBe(1_572_864)
+  })
+
+  /** Spec 091 T019: anexar um tipo que a ficha já tem substitui — e a tela avisa antes, em vez de depois. */
+  it('anexar um tipo já presente é substituição; o outro nunca substitui nada', () => {
+    const attachments = [ATTACHMENT]
+
+    expect(willReplaceAttachment(attachments, 'cnh')).toBe(true)
+    expect(willReplaceAttachment(attachments, 'address_proof')).toBe(false)
+    expect(willReplaceAttachment([{ ...ATTACHMENT, type: 'other' }], 'other')).toBe(false)
+    expect(willReplaceAttachment([], 'cnh')).toBe(false)
+  })
+
+  it('o aviso de que o anterior será apagado existe nos dois idiomas', () => {
+    for (const locale of [ptLocale, enLocale]) {
+      const block = (locale as unknown as { driverAttachments: Record<string, string> })
+        .driverAttachments
+      expect(block.replaceHint).toBeString()
+      expect(block.replaceFile).toBeString()
+      expect(block.replaced).toBeString()
+    }
   })
 })

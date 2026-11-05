@@ -15,6 +15,7 @@ import {
 import {
   assertFleetDriverAttachmentUpload,
   buildFleetDriverAttachmentObjectKey,
+  isSingleDocumentType,
 } from '../domain/fleet-driver-attachment.policy.js'
 import { FleetDriverNotFoundError } from '../domain/fleet.error.js'
 import type {
@@ -112,6 +113,18 @@ export function createFleetDriverAttachmentUseCase(
       })
 
       try {
+        // Trocar o documento: o anterior sai do bucket **antes** da troca. Se o banco falhar depois, a
+        // linha aponta para nada e repetir o pedido fecha o ciclo; no sentido contrário sobraria objeto
+        // sem dono, e ninguém o procuraria.
+        const previous = isSingleDocumentType(type)
+          ? await dependencies.repository.findByType({ companyId, driverId, type })
+          : null
+        if (previous !== null) {
+          await dependencies.storage.deleteObject({
+            bucket: previous.location.bucket,
+            key: previous.location.objectKey,
+          })
+        }
         return await dependencies.repository.create({
           bucket: dependencies.bucket,
           companyId,
@@ -120,6 +133,7 @@ export function createFleetDriverAttachmentUseCase(
           mimeType,
           objectKey: key,
           provider: AGGREGATE_STORAGE_PROVIDER,
+          ...(previous === null ? {} : { replaceAttachmentId: previous.id }),
           sha256,
           sizeBytes: bytes.byteLength,
           storedObjectId,
@@ -127,7 +141,8 @@ export function createFleetDriverAttachmentUseCase(
           uploadedBy,
         })
       } catch (error: unknown) {
-        // Quem perde a corrida apaga o que acabou de subir: objeto sem linha é PII que ninguém acha.
+        // Quem perde a corrida, ou não consegue apagar o anterior, apaga o que acabou de subir: objeto
+        // sem linha é PII que ninguém acha.
         await Promise.allSettled([
           dependencies.storage.deleteObject({ bucket: dependencies.bucket, key }),
         ])

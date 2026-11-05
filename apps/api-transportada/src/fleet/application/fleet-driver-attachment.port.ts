@@ -42,6 +42,8 @@ export type FleetDriverAttachmentLocation = Readonly<{
 }>
 
 export type CreateFleetDriverAttachmentInput = Readonly<{
+  /** O documento do mesmo tipo que esta troca substitui: sai na mesma transação em que o novo entra. */
+  replaceAttachmentId?: string
   bucket: string
   companyId: string
   /** Viaja para o pedido de leitura: é por ele que o rastro do upload alcança o worker. */
@@ -75,6 +77,12 @@ export type FleetDriverAttachmentRepositoryPort = Readonly<{
     readonly companyId: string
     readonly driverId: string
   }) => Promise<boolean>
+  /** O documento vivo deste tipo, se houver — é o que uma troca substitui. */
+  findByType: (input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly type: FleetDriverAttachmentType
+  }) => Promise<Readonly<{ id: string; location: FleetDriverAttachmentLocation }> | null>
   /** Onde o arquivo mora, para quem precisa apagá-lo ou entregá-lo; `null` se não é deste motorista e empresa. */
   findLocation: (input: {
     readonly attachmentId: string

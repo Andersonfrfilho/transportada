@@ -40,6 +40,14 @@ export function createDrizzleFleetDriverAttachmentRepository(
             .limit(1)
           if (driver === undefined) throw new FleetDriverNotFoundError()
 
+          if (input.replaceAttachmentId !== undefined) {
+            await removeAttachmentRows(transaction, {
+              attachmentId: input.replaceAttachmentId,
+              companyId: input.companyId,
+              driverId: input.driverId,
+            })
+          }
+
           await transaction.insert(storedObjects).values({
             bucket: input.bucket,
             companyId: input.companyId,
@@ -209,28 +217,44 @@ export function createDrizzleFleetDriverAttachmentRepository(
     },
 
     async remove({ attachmentId, companyId, driverId }) {
-      return database.transaction(async (transaction) => {
-        const [row] = await transaction
-          .delete(fleetDriverAttachments)
-          .where(
-            and(
-              eq(fleetDriverAttachments.companyId, companyId),
-              eq(fleetDriverAttachments.driverId, driverId),
-              eq(fleetDriverAttachments.id, attachmentId),
-            ),
-          )
-          .returning({ storedObjectId: fleetDriverAttachments.storedObjectId })
-        if (row === undefined) return false
+      return database.transaction(async (transaction) =>
+        removeAttachmentRows(transaction, { attachmentId, companyId, driverId }),
+      )
+    },
 
-        const now = new Date()
-        await transaction
-          .update(storedObjects)
-          .set({ deletedAt: now, status: 'deleted', updatedAt: now })
-          .where(
-            and(eq(storedObjects.companyId, companyId), eq(storedObjects.id, row.storedObjectId)),
-          )
-        return true
-      })
+    async findByType({ companyId, driverId, type }) {
+      const [row] = await database
+        .select({
+          bucket: storedObjects.bucket,
+          id: fleetDriverAttachments.id,
+          objectKey: storedObjects.objectKey,
+          storedObjectId: storedObjects.id,
+        })
+        .from(fleetDriverAttachments)
+        .innerJoin(
+          storedObjects,
+          and(
+            eq(storedObjects.companyId, fleetDriverAttachments.companyId),
+            eq(storedObjects.id, fleetDriverAttachments.storedObjectId),
+          ),
+        )
+        .where(
+          and(
+            eq(fleetDriverAttachments.companyId, companyId),
+            eq(fleetDriverAttachments.driverId, driverId),
+            eq(fleetDriverAttachments.type, type),
+          ),
+        )
+        .limit(1)
+      if (row === undefined) return null
+      return {
+        id: row.id,
+        location: {
+          bucket: row.bucket,
+          objectKey: row.objectKey,
+          storedObjectId: row.storedObjectId,
+        },
+      }
     },
   }
 }
@@ -251,4 +275,49 @@ function pickSuggestionFields(
     licenseNumber: readText(source, 'licenseNumber'),
   }
   return fields.licenseCategory === null && fields.licenseNumber === null ? null : fields
+}
+
+type Transaction = Parameters<Parameters<AggregateDocumentDatabase['transaction']>[0]>[0]
+
+/**
+ * Tira a linha do anexo e marca o objeto como apagado, juntos. O pedido de leitura da CNH sai antes: a
+ * FK do outbox é `restrict`, e um evento para anexo que já não existe não tem o que ler.
+ */
+async function removeAttachmentRows(
+  transaction: Transaction,
+  input: { readonly attachmentId: string; readonly companyId: string; readonly driverId: string },
+): Promise<boolean> {
+  const scope = and(
+    eq(fleetDriverAttachments.companyId, input.companyId),
+    eq(fleetDriverAttachments.driverId, input.driverId),
+    eq(fleetDriverAttachments.id, input.attachmentId),
+  )
+  const [attachment] = await transaction
+    .select({ storedObjectId: fleetDriverAttachments.storedObjectId })
+    .from(fleetDriverAttachments)
+    .where(scope)
+    .limit(1)
+  if (attachment === undefined) return false
+
+  await transaction
+    .delete(fleetDriverAttachmentOutbox)
+    .where(
+      and(
+        eq(fleetDriverAttachmentOutbox.companyId, input.companyId),
+        eq(fleetDriverAttachmentOutbox.attachmentId, input.attachmentId),
+      ),
+    )
+  await transaction.delete(fleetDriverAttachments).where(scope)
+
+  const now = new Date()
+  await transaction
+    .update(storedObjects)
+    .set({ deletedAt: now, status: 'deleted', updatedAt: now })
+    .where(
+      and(
+        eq(storedObjects.companyId, input.companyId),
+        eq(storedObjects.id, attachment.storedObjectId),
+      ),
+    )
+  return true
 }

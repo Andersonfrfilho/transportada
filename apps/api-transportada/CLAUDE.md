@@ -704,6 +704,12 @@ mesmo levando ~2 s. A busca textual ainda sai do navegador
 (Photon). **Cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`),
 casada por `normalizeVehicleCatalogName` para tolerar grafia divergente entre planilha e IBGE.
 
+### O documento do motorista (spec 091)
+
+`fleet_driver_attachments` guarda CNH, RG, comprovante de endereço e outros na ficha — **sem criptografia de aplicação** (ADR-0039 revogada em 2026-11-05); o arquivo vai ao bucket privado como os demais anexos. Rotas em `fleet/presentation/fleet-driver-attachment.routes.ts`: listar (`GET .../attachments`, `fleet.read`: tipo, data, quem anexou e `hasSuggestion`, nunca conteúdo), anexar/substituir (`POST`, `fleet.manage`, multipart, 1,5 MiB, tipo pela **assinatura**; nome ou tipo declarado que a contradiz é 400) e remover (`DELETE`, 204); abrir o arquivo é `GET .../content` sob **`fleet.reveal`** (link assinado de 300 s, só o `company-admin` a tem por papel). Um documento vivo por tipo e motorista (único parcial; `other` aceita vários), e anexar um tipo existente **substitui**: o objeto anterior sai do bucket antes da troca. A chave do objeto é só UUIDs (`tenants/<empresa>/fleet-driver-attachments/<motorista>/<tipo>/<objeto>`).
+
+A CNH é lida pelo **worker**, nunca na requisição (ADR-0053): o anexo grava `fleet_driver_attachment_outbox` na mesma transação, o worker lê (PDF em `worker_thread`, imagem pelo OCR) e grava `extracted_fields` + `extracted_at`. A leitura é **oferta**: `GET .../suggestion` (`fleet.manage`) devolve só `licenseNumber` e `licenseCategory`, e `POST .../suggestion` (`accepted`/`dismissed`) registra a decisão e zera `extracted_fields` no **mesmo** `UPDATE`. O ponto de encaixe para quem precisar reagir a uma CNH anexada (a spec 295, foto da CNH como foto de perfil) é o pedido `attachment.extraction.requested` dessa tabela de outbox, criado em `DrizzleFleetDriverAttachmentRepository.create` para `type = 'cnh'`; ainda não há trilha de auditoria (Fase 5, T020) nem descarte na remoção do motorista (T021).
+
 ## Carga: cubagem, capacidade e cargo placement — ver a referência
 
 **As regras de cubagem/capacidade do veículo e o algoritmo de arrumação de caixas no baú (specs 075,

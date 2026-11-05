@@ -80,6 +80,9 @@ function buildFixture(
     async driverExists() {
       return overrides.driverExists ?? true
     },
+    async findByType() {
+      return null
+    },
     async findLocation() {
       return overrides.location === undefined ? LOCATION : overrides.location
     },

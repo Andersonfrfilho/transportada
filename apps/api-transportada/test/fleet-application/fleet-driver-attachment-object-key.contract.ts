@@ -63,6 +63,9 @@ describe('chave do objeto do documento do motorista (spec 091 T012)', () => {
         async driverExists() {
           return true
         },
+        async findByType() {
+          return null
+        },
         async findLocation() {
           return null
         },

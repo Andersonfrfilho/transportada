@@ -974,6 +974,9 @@
       "finish": "Concluir (descarta a leitura)",
       "dismiss": "Descartar leitura"
     },
+    "replaceFile": "Substituir arquivo",
+    "replaceHint": "Este motorista já tem esse documento: o anterior será apagado, inclusive do armazenamento, e não dá para desfazer.",
+    "replaced": "Documento substituído.",
     "types": {
       "cnh": "CNH",
       "identity_document": "RG ou documento de identidade",

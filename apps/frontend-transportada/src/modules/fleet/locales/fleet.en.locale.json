@@ -942,6 +942,9 @@
       "finish": "Finish (discards the reading)",
       "dismiss": "Discard reading"
     },
+    "replaceFile": "Replace file",
+    "replaceHint": "This driver already has this document: the previous one will be deleted, including from storage, and this cannot be undone.",
+    "replaced": "Document replaced.",
     "types": {
       "cnh": "Driver license",
       "identity_document": "ID document",

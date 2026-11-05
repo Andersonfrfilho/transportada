@@ -92,3 +92,14 @@ export function isDriverAttachmentSuggestionResponse(
     isNullableString(fields.licenseNumber)
   )
 }
+
+/**
+ * Anexar um tipo que a ficha já tem **substitui**: o documento anterior sai da lista e do bucket.
+ * `other` é a exceção — aceita vários, e nunca troca nada.
+ */
+export function willReplaceAttachment(
+  attachments: readonly DriverAttachment[],
+  type: DriverAttachmentType,
+): boolean {
+  return type !== 'other' && attachments.some((attachment) => attachment.type === type)
+}

@@ -330,10 +330,13 @@ describe('anexo do motorista, contra Postgres (spec 091)', () => {
           .set({ extractedFields: { licenseNumber: '01234567890' } })
           .where(eq(fleetDriverAttachments.id, created.id))
 
+        // `db.execute` é um thenable do drizzle, não uma `Promise`: o `async` o torna uma, para o `rejects`.
         await expect(
-          db.execute(
-            sql`update fleet_driver_attachments set decision = 'dismissed', decided_by = ${USER_ID}, decided_at = now() where id = ${created.id}`,
-          ),
+          (async () => {
+            await db.execute(
+              sql`update fleet_driver_attachments set decision = 'dismissed', decided_by = ${USER_ID}, decided_at = now() where id = ${created.id}`,
+            )
+          })(),
         ).rejects.toThrow()
       })
     },
@@ -477,6 +480,86 @@ describe('anexo do motorista, contra Postgres (spec 091)', () => {
 
         await repository.decideSuggestion({ ...target, decidedBy: USER_ID, decision: 'accepted' })
         expect(await repository.readSuggestion(target)).toEqual({ fields: null, isFound: true })
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  /**
+   * T019: trocar o documento tira a linha antiga **e** o objeto dela da contagem (`status = deleted`),
+   * e remover uma CNH — que tem pedido de leitura na fila — não esbarra na FK do outbox.
+   */
+  testWithPostgres(
+    'substituir tira a linha, o pedido de leitura e o objeto anteriores, e deixa só os novos',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const repository = createDrizzleFleetDriverAttachmentRepository(db)
+        const first = await repository.create(attachmentInput({ companyId, driverId, type: 'cnh' }))
+        const second = attachmentInput({ companyId, driverId, type: 'cnh' })
+
+        const replaced = await repository.create({ ...second, replaceAttachmentId: first.id })
+
+        const rows = await db.select().from(fleetDriverAttachments)
+        expect(rows.map((row) => row.id)).toEqual([replaced.id])
+        const events = await db.select().from(fleetDriverAttachmentOutbox)
+        expect(events.map((event) => event.attachmentId)).toEqual([replaced.id])
+        const objects = await db.select().from(storedObjects)
+        expect(
+          objects.filter((object) => object.status === 'final').map((object) => object.id),
+        ).toEqual([second.storedObjectId])
+        expect(objects.filter((object) => object.status === 'deleted')).toHaveLength(1)
+        expect((await repository.findByType({ companyId, driverId, type: 'cnh' }))?.id).toBe(
+          replaced.id,
+        )
+        expect(await repository.findByType({ companyId, driverId, type: 'other' })).toBeNull()
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'remover uma CNH com pedido de leitura na fila não esbarra na FK',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const repository = createDrizzleFleetDriverAttachmentRepository(db)
+        const created = await repository.create(
+          attachmentInput({ companyId, driverId, type: 'cnh' }),
+        )
+
+        expect(await repository.remove({ attachmentId: created.id, companyId, driverId })).toBe(
+          true,
+        )
+
+        expect(await db.select().from(fleetDriverAttachments)).toEqual([])
+        expect(await db.select().from(fleetDriverAttachmentOutbox)).toEqual([])
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'substituir não apaga o anexo de outro motorista nem de outra empresa',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const otherCompanyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const otherDriverId = await seedDriver(db, otherCompanyId)
+        const repository = createDrizzleFleetDriverAttachmentRepository(db)
+        const foreign = await repository.create(
+          attachmentInput({ companyId: otherCompanyId, driverId: otherDriverId, type: 'cnh' }),
+        )
+
+        await repository.create({
+          ...attachmentInput({ companyId, driverId, type: 'cnh' }),
+          replaceAttachmentId: foreign.id,
+        })
+
+        expect(await db.select().from(fleetDriverAttachments)).toHaveLength(2)
       })
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,

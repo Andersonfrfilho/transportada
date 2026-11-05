@@ -14,6 +14,7 @@ import {
   DRIVER_ATTACHMENT_MAX_BYTES,
   DRIVER_ATTACHMENT_TYPES,
   type DriverAttachmentType,
+  willReplaceAttachment,
 } from '../shared/driverAttachment.validation'
 import type { LicenseSuggestionField } from '../shared/driverLicenseSuggestion.service'
 import { FLEET_MANAGE_PERMISSION, FLEET_REVEAL_PERMISSION } from '../shared/fleet.constant'
@@ -55,6 +56,7 @@ export function DriverAttachmentsSection({
   })
   const attachments = listQuery.data ?? []
   const isBusy = uploadMutation.isPending || removeMutation.isPending
+  const isReplacement = willReplaceAttachment(attachments, type)
 
   function errorText(error: unknown): string {
     const code = error instanceof Error ? error.message : ''
@@ -73,7 +75,11 @@ export function DriverAttachmentsSection({
       { file, type },
       {
         onError: (error) => setNotice({ isError: true, text: errorText(error) }),
-        onSuccess: () => setNotice({ isError: false, text: t('driverAttachments.attached') }),
+        onSuccess: () =>
+          setNotice({
+            isError: false,
+            text: t(isReplacement ? 'driverAttachments.replaced' : 'driverAttachments.attached'),
+          }),
       },
     )
   }
@@ -170,14 +176,18 @@ export function DriverAttachmentsSection({
           />
           <FileField
             accept={DRIVER_ATTACHMENT_ACCEPT}
-            actionLabel={t('driverAttachments.chooseFile')}
+            actionLabel={t(
+              isReplacement ? 'driverAttachments.replaceFile' : 'driverAttachments.chooseFile',
+            )}
             disabled={isBusy}
             label={t('driverAttachments.fileLabel')}
             placeholder={t('driverAttachments.filePlaceholder')}
             resetAfterSelect
             onSelect={handleSelect}
           />
-          <small className={styles.fieldHint}>{t('driverAttachments.fileHint')}</small>
+          <small className={styles.fieldHint}>
+            {t(isReplacement ? 'driverAttachments.replaceHint' : 'driverAttachments.fileHint')}
+          </small>
         </div>
       ) : null}
 
