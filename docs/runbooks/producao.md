@@ -670,6 +670,13 @@ O `realm.json` não chega a realm existente: tudo no Keycloak é pela tela ou pe
    403 `FORBIDDEN` é membership faltando na empresa ou permissão que o serviço não tem; 404
    `MDFE_AUTO_ISSUE_DISABLED` é o interruptor desligado (esperado).
 
+**05/11/2026, staging: audiência do `transportada-worker`.** Mapper `transportada-api-audience` criado no client
+`transportada-worker` (API de administração). Tokens dos dois clients: `typ=Bearer`, `aud=transportada-api`, sem
+`company_id`, papel `transportada-service`. `PUT /fleet/driver-attachments/<uuid aleatório>/cnh-picture` com
+`x-company-id`: client da CNH 404 `FLEET_DRIVER_ATTACHMENT_NOT_FOUND` (autenticou e autorizou); `transportada-worker`
+**401**, porque a conta de serviço dele não tem linha em `external_identities` (0) — falta o usuário sintético
+`automation`. `MDFE_AUTO_ISSUE_ENABLED` ausente em `api` e `worker`. Backfill da CNH em simulação: tudo zero.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
