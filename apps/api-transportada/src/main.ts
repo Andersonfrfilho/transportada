@@ -3752,6 +3752,7 @@ function createApplicationRoutes({
 
   const userPictureUseCase = createUserPictureUseCase({
     identityGateway: identityAccessGateway,
+    logger,
     ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
     repository: new DrizzleUserPictureRepository(database),
   })

@@ -118,6 +118,7 @@ function createUseCase(params: UseCaseParams = {}) {
       async findIdentitySubject() {
         return 'subject' in params ? params.subject : SUBJECT
       },
+      async markPublished() {},
       async remove() {
         return true
       },

@@ -4,6 +4,8 @@
  * Uma thread por documento, com teto de tempo: thread reaproveitada guardaria estado de pdf.js e do
  * modelo entre pessoas diferentes, e subir uma custa ~0,2 s (spike 295), irrisório para um evento por cadastro.
  */
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Worker } from 'node:worker_threads'
 
@@ -12,35 +14,51 @@ import type { CnhFaceResult } from '../domain/cnh-face.types.js'
 
 const EXTRACTION_TIMEOUT_MS = 30_000
 
-/** Em desenvolvimento a thread roda de `src/*.ts`; empacotado, este código é `dist/main.js` (ver `threaded-extraction.gateway.ts`). */
-const WORKER_URL = import.meta.url.endsWith('.ts')
-  ? new URL('./cnh-face.worker.ts', import.meta.url)
-  : new URL('./cnh-face/infrastructure/cnh-face.worker.js', import.meta.url)
+/** Onde o `bun build --root ./src` grava a thread, relativo a `dist/`. */
+const BUNDLED_WORKER_PATH = './cnh-face/infrastructure/cnh-face.worker.js'
+const MODEL_RELATIVE_PATH = join('assets', 'ultraface-rfb-320.onnx')
 
-/** `apps/worker-transportada/assets/`: de `src/cnh-face/infrastructure/` são três níveis; de `dist/main.js`, um. */
-const MODEL_URL = new URL(
-  import.meta.url.endsWith('.ts')
-    ? '../../../assets/ultraface-rfb-320.onnx'
-    : '../assets/ultraface-rfb-320.onnx',
-  import.meta.url,
-)
+/**
+ * Um ponto de apoio só: a pasta do pacote do worker, achada subindo até a que tem `assets/` com o modelo.
+ * `import.meta.url` muda conforme o empacotado (`dist/main.js`, `dist/cnh-face/*.main.js`, `src/*.ts`), a raiz não.
+ */
+export function resolveCnhFacePaths(moduleUrl: string): {
+  readonly modelPath: string
+  readonly workerPath: string
+} {
+  const modulePath = fileURLToPath(moduleUrl)
+  let directory = dirname(modulePath)
+  for (;;) {
+    const modelPath = join(directory, MODEL_RELATIVE_PATH)
+    if (existsSync(modelPath)) {
+      const workerPath = modulePath.endsWith('.ts')
+        ? join(dirname(modulePath), 'cnh-face.worker.ts')
+        : join(directory, 'dist', BUNDLED_WORKER_PATH)
+      return { modelPath, workerPath }
+    }
+    const parent = dirname(directory)
+    if (parent === directory) throw new Error('cnh face model directory not found')
+    directory = parent
+  }
+}
 
 type WorkerMessage =
   | { readonly ok: true; readonly result: CnhFaceResult }
   | { readonly ok: false; readonly reason: string }
 
 export function resolveCnhFaceModelPath(): string {
-  return fileURLToPath(MODEL_URL)
+  return resolveCnhFacePaths(import.meta.url).modelPath
 }
 
 export function createThreadedCnhFaceGateway(
   params: { readonly modelPath?: string } = {},
 ): CnhFaceExtractionPort {
-  const modelPath = params.modelPath ?? resolveCnhFaceModelPath()
+  const paths = resolveCnhFacePaths(import.meta.url)
+  const modelPath = params.modelPath ?? paths.modelPath
   return {
     extract: (bytes) =>
       new Promise((resolve, reject) => {
-        const worker = new Worker(WORKER_URL, { workerData: { bytes, modelPath } })
+        const worker = new Worker(paths.workerPath, { workerData: { bytes, modelPath } })
         const timer = setTimeout(() => {
           void worker.terminate()
           reject(new Error('cnh face extraction timed out'))

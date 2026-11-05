@@ -126,6 +126,18 @@ export class DrizzleUserPictureRepository
     return row?.subject
   }
 
+  public async markPublished(input: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<void> {
+    if (!(await this.belongsToCompany(input))) return
+
+    await this.database
+      .update(identityUserPictures)
+      .set({ publishedAt: new Date() })
+      .where(eq(identityUserPictures.userId, input.userId))
+  }
+
   public async remove(input: {
     readonly companyId: string
     readonly userId: string
@@ -189,6 +201,7 @@ export class DrizzleUserPictureRepository
           mimeType: input.mimeType,
           origin: input.origin,
           publicToken,
+          publishedAt: null,
           sha256: input.sha256,
           updatedAt,
         },

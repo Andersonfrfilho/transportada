@@ -46,6 +46,8 @@ export const identityUserPictures = pgTable(
      */
     publicToken: text('public_token').unique(),
     origin: text().$type<UserPictureOrigin>().notNull().default('admin'),
+    /** Só a foto `cnh` usa: nulo = o atributo no provedor de identidade ainda não foi escrito. */
+    publishedAt: timestamp('published_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

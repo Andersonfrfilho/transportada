@@ -33,3 +33,7 @@
 ## Fase 4 (CNH)
 
 Spike com `opus` antes de qualquer código; ver `tasks.md`. Coluna `origin` aditiva; `cnh` nunca sobrescreve `self`/`admin`.
+
+## Decisão de desempenho
+
+Modelo e WASM carregam a cada mensagem (~0,2 s): aceito no volume atual (um evento por cadastro de CNH). Thread persistente só se o volume crescer; ela guardaria estado de pdf.js e do modelo entre pessoas, por isso não entra agora.

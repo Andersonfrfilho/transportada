@@ -62,3 +62,9 @@ Merge verificado antes de seguir: `tsc` limpo, contrato da API 13183 pass / 0 fa
 - **LGPD.** Entrada em `docs/SECURITY.md` (mudança de finalidade: documento de cadastro → foto de perfil).
 - Pendente para publicar: aplicar a migration, ligar o crachá de serviço do worker (`mdfeAutoIssue`) — sem ele não há foto —
   e rodar o backfill com aprovação.
+
+## Correções da revisão (fix 295)
+
+- Caminhos da thread e do modelo: `resolveCnhFacePaths` sobe até a pasta com `assets/`; contrato monta o layout `src/`, `dist/main.js` e `dist/cnh-face/*.main.js`. `bun run build` + `dist/cnh-face/cnh-picture-backfill.main.js` em dry-run contra Postgres descartável migrado: `{"candidates":0,...,"mode":"dry-run"}`.
+- Publicação no Keycloak: `identity_user_pictures.published_at` (aditiva); `replaceFromCnh` devolve `published`, a rota responde 200 com `published:false` e aviso só com ids; o backfill relista fotos `cnh` não publicadas de quem já tem conta no provedor.
+- `bun.lock` volta ao da base, só com `onnxruntime-web`; `bun install --frozen-lockfile` passa.

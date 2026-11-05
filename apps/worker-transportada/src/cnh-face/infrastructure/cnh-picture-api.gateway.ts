@@ -31,7 +31,8 @@ export type CreateCnhPictureApiGatewayParams = {
 
 function toApiError(status: number): CnhPictureApiError {
   if (status === 401 || status === 403) return new CnhPictureApiError('api_unauthorized', status)
-  if (status === 400 || status === 404) return new CnhPictureApiError('rejected', status)
+  if (status === 400 || status === 404 || status === 413 || status === 415)
+    return new CnhPictureApiError('rejected', status)
   return new CnhPictureApiError('api_unreachable', status)
 }
 

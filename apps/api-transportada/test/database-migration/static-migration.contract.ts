@@ -421,6 +421,7 @@ describe('Drizzle migrations', () => {
       '20261105035107_fleet_driver_attachments',
       '20261105041500_fleet_driver_attachment_outbox',
       '20261105113107_user_picture_origin',
+      '20261105115421_user_picture_published_at',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

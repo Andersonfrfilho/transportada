@@ -26,10 +26,13 @@ export function createFleetDriverCnhPictureRoutes(dependencies: {
           bytes: input.bytes,
           companyId: context.scope.companyId,
         })
-        return new Response(JSON.stringify({ data: { applied: result.applied } }), {
-          headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
-          status: 200,
-        })
+        return new Response(
+          JSON.stringify({ data: { applied: result.applied, published: result.published } }),
+          {
+            headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
+            status: 200,
+          },
+        )
       },
       method: 'PUT',
       async parse({ pathParameters, request }) {

@@ -48,7 +48,8 @@ export async function applyCnhProfilePicture(
     return applied
       ? report(CNH_PICTURE_OUTCOMES.APPLIED, 'extracted')
       : report(CNH_PICTURE_OUTCOMES.KEPT_EXISTING, 'not_applied')
-  } catch {
-    return report(CNH_PICTURE_OUTCOMES.FAILED, 'error')
+  } catch (error) {
+    /** Só o nome: a mensagem do pdf.js e da API pode citar conteúdo do documento. */
+    return report(CNH_PICTURE_OUTCOMES.FAILED, error instanceof Error ? error.name : 'unknown')
   }
 }

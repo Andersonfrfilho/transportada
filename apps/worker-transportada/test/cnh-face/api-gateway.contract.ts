@@ -69,6 +69,8 @@ describe('a porta da API da foto da CNH', () => {
     [401, 'api_unauthorized'],
     [403, 'api_unauthorized'],
     [404, 'rejected'],
+    [413, 'rejected'],
+    [415, 'rejected'],
     [500, 'api_unreachable'],
   ] as const)('status %i vira %s', async (status, reason) => {
     const { fetch } = buildFetch(() => new Response(null, { status }))

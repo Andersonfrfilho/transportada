@@ -20,6 +20,7 @@ type Dependencies = {
    * proxy o `Host` é o do proxy, e o realm guardaria uma URL interna que ninguém alcança. Ausente,
    * a foto é gravada aqui e o atributo não é escrito.
    */
+  readonly logger?: { readonly warn: (message: string, meta?: Record<string, unknown>) => void }
   readonly publicBaseUrl?: string
   readonly repository: UserPictureRepositoryPort
 }
@@ -30,10 +31,13 @@ export type UserPictureUseCase = {
   readonly find: (input: Target) => Promise<UserPicture>
   readonly findPublic: (input: { readonly publicToken: string }) => Promise<UserPicture>
   readonly remove: (input: Target & { readonly idempotent?: boolean }) => Promise<void>
-  /** Sem foto, ou foto anterior também da CNH; `undefined` quando `self`/`admin` já existe. */
+  /**
+   * Sem foto, ou foto anterior também da CNH; `undefined` quando `self`/`admin` já existe.
+   * `published: false` = a foto está salva mas o atributo no provedor ainda não; o backfill refaz.
+   */
   readonly replaceFromCnh: (
     input: Target & { readonly bytes: Uint8Array },
-  ) => Promise<UserPictureMetadata | undefined>
+  ) => Promise<{ readonly published: boolean } | undefined>
   readonly replace: (
     input: Target & {
       readonly bytes: Uint8Array
@@ -47,23 +51,30 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
    * O provedor é sistema de fora, e ele cai. A foto já está gravada quando esta chamada acontece:
    * derrubar a resposta faria o operador subir de novo a mesma imagem, que já está lá.
    */
-  async function publishToRealm(input: Target & { readonly pictureUrl?: string }): Promise<void> {
-    if (dependencies.publicBaseUrl === undefined) return
+  async function publishToRealm(
+    input: Target & { readonly pictureUrl?: string },
+  ): Promise<boolean> {
+    if (dependencies.publicBaseUrl === undefined) return true
 
     const subject = await dependencies.repository.findIdentitySubject({
       companyId: input.context.companyId,
       userId: input.userId,
     })
     /** Quem ainda não tem conta no provedor tem foto aqui; o atributo fica para quando tiver. */
-    if (subject === undefined) return
+    if (subject === undefined) return false
 
     try {
       await dependencies.identityGateway.setProfilePicture({
         pictureUrl: input.pictureUrl,
         userId: subject,
       })
+      return true
     } catch {
-      /* O erro do provedor não desfaz a escrita que já valeu. */
+      dependencies.logger?.warn('user_picture.publish_failed', {
+        companyId: input.context.companyId,
+        userId: input.userId,
+      })
+      return false
     }
   }
 
@@ -77,8 +88,8 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
    */
   async function publishSaved(
     input: Target & { readonly saved: UserPictureMetadata },
-  ): Promise<void> {
-    await publishToRealm({
+  ): Promise<boolean> {
+    return publishToRealm({
       context: input.context,
       ...(input.saved.publicToken === null
         ? {}
@@ -133,8 +144,10 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
       })
       if (saved === null) return undefined
 
-      await publishSaved({ context, saved, userId })
-      return saved
+      const published = await publishSaved({ context, saved, userId })
+      if (published)
+        await dependencies.repository.markPublished({ companyId: context.companyId, userId })
+      return { published }
     },
   }
 }

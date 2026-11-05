@@ -55,6 +55,11 @@ export type UserPictureRepositoryPort = {
     readonly companyId: string
     readonly userId: string
   }) => Promise<string | undefined>
+  /** Marca a foto da CNH como publicada no provedor; `saveFromCnh` a deixa pendente de novo a cada troca. */
+  readonly markPublished: (input: {
+    readonly companyId: string
+    readonly userId: string
+  }) => Promise<void>
   readonly remove: (input: {
     readonly companyId: string
     readonly userId: string

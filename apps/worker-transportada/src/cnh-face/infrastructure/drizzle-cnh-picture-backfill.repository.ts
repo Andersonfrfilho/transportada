@@ -16,7 +16,9 @@ type PendingRow = {
 }
 
 /**
- * Tabelas que a API cria e o worker não modela (`fleet_drivers`, `stored_objects`, `identity_user_pictures`):
+ * Pendente = sem foto, ou foto da CNH ainda não publicada no provedor (e o usuário já tem conta lá): o mesmo
+ * passe refaz a publicação.
+ * Tabelas que a API cria e o worker não modela (`fleet_drivers`, `stored_objects`, `identity_user_pictures`, `external_identities`):
  * SQL direto, com a paridade de nomes cobrada em `test/cnh-face/backfill.contract.ts`.
  */
 export function createDrizzleCnhPictureBackfillRepository(
@@ -35,8 +37,17 @@ export function createDrizzleCnhPictureBackfillRepository(
               on object.company_id = attachment.company_id and object.id = attachment.stored_object_id
             where attachment.type = 'cnh'
               and object.status = 'final'
-              and not exists (
-                select 1 from identity_user_pictures picture where picture.user_id = membership.user_id
+              and (
+                not exists (
+                  select 1 from identity_user_pictures picture where picture.user_id = membership.user_id
+                )
+                or exists (
+                  select 1 from identity_user_pictures picture
+                  join external_identities identity on identity.user_id = picture.user_id
+                  where picture.user_id = membership.user_id
+                    and picture.origin = 'cnh'
+                    and picture.published_at is null
+                )
               )
               and (${afterAttachmentId ?? null}::uuid is null or attachment.id > ${afterAttachmentId ?? null}::uuid)
             order by attachment.id

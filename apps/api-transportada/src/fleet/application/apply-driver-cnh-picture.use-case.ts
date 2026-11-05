@@ -23,7 +23,7 @@ export type ApplyDriverCnhPictureParams = {
 
 export type ApplyDriverCnhPictureUseCase = (
   params: ApplyDriverCnhPictureParams,
-) => Promise<{ readonly applied: boolean }>
+) => Promise<{ readonly applied: boolean; readonly published: boolean }>
 
 /** Spec 295 Fase 4: a foto da CNH nunca sobrescreve a que a pessoa ou o escritório puseram. */
 export function createApplyDriverCnhPictureUseCase(dependencies: {
@@ -33,13 +33,13 @@ export function createApplyDriverCnhPictureUseCase(dependencies: {
   return async ({ attachmentId, bytes, companyId }) => {
     const driver = await dependencies.lookup.findDriverUser({ attachmentId, companyId })
     if (driver === undefined) throw new FleetDriverAttachmentNotFoundError()
-    if (driver.userId === undefined) return { applied: false }
+    if (driver.userId === undefined) return { applied: false, published: false }
 
     const saved = await dependencies.userPicture.replaceFromCnh({
       bytes,
       context: { companyId },
       userId: driver.userId,
     })
-    return { applied: saved !== undefined }
+    return { applied: saved !== undefined, published: saved?.published ?? false }
   }
 }

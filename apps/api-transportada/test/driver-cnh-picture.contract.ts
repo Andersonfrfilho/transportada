@@ -33,6 +33,7 @@ type HarnessOptions = {
   readonly lookup?: { readonly userId: string | undefined } | undefined
   /** Nulo = a foto atual é `self`/`admin` e a CNH não pode sobrescrever. */
   readonly saveFromCnhResult?: 'saved' | 'blocked'
+  readonly publish?: 'fail' | 'no_subject'
   readonly permissions?: ReturnType<typeof authenticatedContext>['scope']['permissions']
 }
 
@@ -40,6 +41,8 @@ function buildHarness(options: HarnessOptions = {}) {
   const lookups: { attachmentId: string; companyId: string }[] = []
   const cnhSaves: { companyId: string; userId: string }[] = []
   const realmCalls: unknown[] = []
+  const markedPublished: { companyId: string; userId: string }[] = []
+  const warnings: { message: string; meta: unknown }[] = []
   const repository = {
     async saveFromCnh(input: { companyId: string; userId: string }) {
       cnhSaves.push({ companyId: input.companyId, userId: input.userId })
@@ -54,13 +57,22 @@ function buildHarness(options: HarnessOptions = {}) {
           }
     },
     async findIdentitySubject() {
-      return 'keycloak-subject'
+      return options.publish === 'no_subject' ? undefined : 'keycloak-subject'
+    },
+    async markPublished(input: { companyId: string; userId: string }) {
+      markedPublished.push(input)
     },
   } as unknown as UserPictureRepositoryPort
   const userPicture = createUserPictureUseCase({
     identityGateway: {
       async setProfilePicture(input) {
         realmCalls.push(input)
+        if (options.publish === 'fail') throw new Error('keycloak down')
+      },
+    },
+    logger: {
+      warn(message: string, meta?: unknown) {
+        warnings.push({ message, meta })
       },
     },
     publicBaseUrl: 'https://api.test',
@@ -89,7 +101,9 @@ function buildHarness(options: HarnessOptions = {}) {
     cnhSaves,
     handle: (request: Request) => handleRequest(request, { timeout() {} }),
     lookups,
+    markedPublished,
     realmCalls,
+    warnings,
   }
 }
 
@@ -113,7 +127,7 @@ describe('a foto da CNH do motorista (spec 295 fase 4)', () => {
     const response = await harness.handle(upload())
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { applied: true } })
+    expect(await response.json()).toEqual({ data: { applied: true, published: true } })
     expect(harness.lookups).toEqual([
       { attachmentId: ATTACHMENT_ID, companyId: COMPANY_CONTEXT.companyId },
     ])
@@ -121,6 +135,32 @@ describe('a foto da CNH do motorista (spec 295 fase 4)', () => {
       { companyId: COMPANY_CONTEXT.companyId, userId: LINKED_USER_ID },
     ])
     expect(harness.realmCalls).toHaveLength(1)
+    expect(harness.markedPublished).toEqual([
+      { companyId: COMPANY_CONTEXT.companyId, userId: LINKED_USER_ID },
+    ])
+  })
+
+  test('provedor de identidade fora do ar: a foto fica salva, responde 200 com published=false e só ids no aviso', async () => {
+    const harness = buildHarness({ publish: 'fail' })
+
+    const response = await harness.handle(upload())
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { applied: true, published: false } })
+    expect(harness.cnhSaves).toHaveLength(1)
+    expect(harness.markedPublished).toHaveLength(0)
+    expect(harness.warnings).toHaveLength(1)
+    expect(JSON.stringify(harness.warnings)).not.toContain('keycloak down')
+  })
+
+  test('usuário sem conta no provedor: salva, published=false e fica pendente para o backfill', async () => {
+    const harness = buildHarness({ publish: 'no_subject' })
+
+    const response = await harness.handle(upload())
+
+    expect(await response.json()).toEqual({ data: { applied: true, published: false } })
+    expect(harness.markedPublished).toHaveLength(0)
+    expect(harness.realmCalls).toHaveLength(0)
   })
 
   test('foto self ou admin já existente: não aplica, não toca o provedor e responde applied=false', async () => {
@@ -129,7 +169,7 @@ describe('a foto da CNH do motorista (spec 295 fase 4)', () => {
     const response = await harness.handle(upload())
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { applied: false } })
+    expect(await response.json()).toEqual({ data: { applied: false, published: false } })
     expect(harness.realmCalls).toHaveLength(0)
   })
 
@@ -138,7 +178,7 @@ describe('a foto da CNH do motorista (spec 295 fase 4)', () => {
 
     const response = await harness.handle(upload())
 
-    expect(await response.json()).toEqual({ data: { applied: false } })
+    expect(await response.json()).toEqual({ data: { applied: false, published: false } })
     expect(harness.cnhSaves).toHaveLength(0)
   })
 

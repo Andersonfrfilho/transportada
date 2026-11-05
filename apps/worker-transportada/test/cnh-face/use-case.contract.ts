@@ -105,7 +105,7 @@ describe('aplicar a foto da CNH', () => {
       const harness = buildHarness(failure)
 
       expect(await applyCnhProfilePicture(REQUEST, harness.dependencies)).toBe('failed')
-      expect(harness.reports).toEqual([{ outcome: 'failed', reason: 'error' }])
+      expect(harness.reports).toEqual([{ outcome: 'failed', reason: 'Error' }])
     }
   })
 })
