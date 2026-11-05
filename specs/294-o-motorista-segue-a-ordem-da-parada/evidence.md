@@ -397,3 +397,11 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   correção vira o aviso "Endereço atualizado..." ou "Enviamos a sua localização para o escritório conferir o endereço." (falha e "ignorado" ficam calados).
 - Contrato: `test/driver-trip/next-stop-card.contract.ts`.
 - Gates: typecheck e lint limpos (app e API); `bun run test` 2223 pass / 0 fail; build ok; contrato `trip-http` da API 350 pass.
+
+## T5.3 — fila offline: "Cheguei" recusado não deixa a baixa sem chegada (RNF3)
+
+- Nenhuma mudança de código: a regra mora na API (a baixa marca a chegada junto) e a drenagem já seguia depois de uma recusa. O contrato
+  `test/driver-trip/offline-arrival-refused.contract.ts` a prende com a fila real: "Cheguei" recusado fica à vista como recusado (nunca é
+  reenviado sozinho) e a baixa seguinte sobe e gera o aviso "Marcamos Cheguei junto"; rede caída no "Cheguei" segura a baixa (a ordem não se
+  inverte); descartado o "Cheguei" recusado, a baixa enfileirada segue; com o recusado à vista a tela continua liberando as notas.
+- Gates: typecheck e lint limpos; `bun run test` 2228 pass / 0 fail.
