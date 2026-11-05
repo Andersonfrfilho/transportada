@@ -97,7 +97,17 @@ function findAnchorKey(
 }
 
 function sortChronologically(items: readonly TripTimelineItem[]): readonly TripTimelineItem[] {
-  return [...items].sort((first, second) => first.occurredAt.localeCompare(second.occurredAt))
+  return [...items].sort(
+    (first, second) =>
+      first.occurredAt.localeCompare(second.occurredAt) || stepOrder(first) - stepOrder(second),
+  )
+}
+
+// Etapas marcadas junto empatam em instante: saída, chegada, depois o resto.
+function stepOrder(item: TripTimelineItem): number {
+  if (item.kind === 'stop.departed') return 0
+  if (item.kind === 'stop.arrived') return 1
+  return 2
 }
 
 /**

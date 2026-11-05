@@ -34,7 +34,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       comportamento**. Aceite: contrato + integração inteiros verdes, diff só de movimentação.
 - [x] **T2.3** `stop-event-sequence.policy.ts` (T0.2 verde) e uso em chegada e baixa do motorista; resultado com
       `recordedTogether`. Integração: 3 eventos em 1 transação, escritório 1, reenvio não duplica.
-- [ ] **T2.4** Estatísticas (tempo de serviço, permanência, deslocamento, previsão 109) ignoram
+- [x] **T2.4** Estatísticas (tempo de serviço, permanência, deslocamento, previsão 109) ignoram
       `recorded_together`. Aceite: integração.
 - [ ] **T2.5** Baixa que fecha a parada devolve `nextStop`; snapshot do motorista leva `precision`.
 

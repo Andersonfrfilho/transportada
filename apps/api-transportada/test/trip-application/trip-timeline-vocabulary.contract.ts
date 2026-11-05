@@ -42,7 +42,7 @@ describe('vocabulário da linha do tempo (spec 228 T1.1)', () => {
       'document.status_changed': 5,
       'stop.address_corrected': 2,
       'stop.arrived': 0,
-      'stop.departed': 0,
+      'stop.departed': -1,
       'stop.departure_cancelled': 0,
       'stop.occurrence': 1,
       'trip.created': -1,

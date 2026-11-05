@@ -8,6 +8,8 @@ import { describe, expect } from 'bun:test'
 import { and, asc, eq } from 'drizzle-orm'
 
 import { tripStopEvents, tripStops, trips, tripDrivers } from '../../src/database/trip.schema.js'
+import { readStopDwellsByTrip } from '../../src/trips/infrastructure/trip-valuation-batch.support.js'
+import { listTripTimeline } from '../../src/trips/infrastructure/trip-timeline.query.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import { TripStateTransitionNotAllowedError } from '../../src/trips/domain/trip.error.js'
 import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
@@ -287,4 +289,57 @@ describe('a ordem da parada na API (spec 294 T2.3)', () => {
       expect((await readEvents(world)).filter((event) => event.recordedTogether)).toHaveLength(2)
     })
   })
+
+  testWithPostgres(
+    'etapas marcadas junto não medem espera, não deslocam a previsão e a linha do tempo as ordena',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const plannedAt = new Date('2026-09-18T10:00:00.000Z')
+        const pendingStopId = crypto.randomUUID()
+        await database.db
+          .update(tripStops)
+          .set({ estimatedArrivalAt: new Date('2026-09-18T08:00:00.000Z') })
+          .where(eq(tripStops.id, world.trip.stopId))
+        await database.db.insert(tripStops).values({
+          addressKey: `3550308|01001000|${pendingStopId}`,
+          arrivedAt: null,
+          companyId: world.company.companyId,
+          estimatedArrivalAt: plannedAt,
+          id: pendingStopId,
+          label: 'Outro, 200',
+          sequence: 2n,
+          tripId: world.trip.tripId,
+        })
+
+        await deliver(world, { key: 'delivery-without-arrival' })
+
+        const [pending] = await database.db
+          .select({ estimatedArrivalAt: tripStops.estimatedArrivalAt })
+          .from(tripStops)
+          .where(eq(tripStops.id, pendingStopId))
+        expect(pending?.estimatedArrivalAt?.toISOString()).toBe(plannedAt.toISOString())
+
+        const dwells = await readStopDwellsByTrip(database.db, {
+          companyId: world.company.companyId,
+          tripIds: [world.trip.tripId],
+        })
+        expect(dwells.get(world.trip.tripId)?.map((stop) => stop.dwellBasis)).toEqual([
+          'unknown',
+          'unknown',
+        ])
+
+        const timeline = await listTripTimeline(database.db, {
+          companyId: world.company.companyId,
+          cursor: null,
+          limit: 50,
+          tripId: world.trip.tripId,
+        })
+        const stopKinds = timeline.items
+          .map((item) => item.kind)
+          .filter((kind) => kind.startsWith('stop.') || kind === 'document.delivered')
+        expect(stopKinds.reverse()).toEqual(['stop.departed', 'stop.arrived', 'document.delivered'])
+      })
+    },
+  )
 })

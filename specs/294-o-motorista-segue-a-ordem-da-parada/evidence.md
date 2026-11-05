@@ -111,3 +111,13 @@ em use case (isso fica em T2.3/T3.1). T0.4 (contratos do bot) foi movida para o 
 - Testes: `test/integration/stop-event-sequence.integration.ts` (9: baixa 3 eventos/2 junto, chegada sem saída, parada já
   chegada, escritório 1 evento, reenvio de baixa e de chegada, cancelada, corrida motorista × escritório, ajudante) e contrato
   de rota (`clock-fields-schema.contract.ts`).
+
+## T2.4 — estatísticas ignoram etapa marcada junto; linha do tempo desempata
+
+- Espera (spec 232): `readStopDwells` e `readStopDwellsByTrip` juntam só eventos com `recorded_together = false`. Amostras de
+  tempo de serviço (`service-time.policy.ts`) e de deslocamento (206 D11) não têm consumidor de `trip_stop_events` hoje: nada a filtrar.
+- Previsão 109: T2.3 já pulava `shiftPendingStopsByDelay` com `recordedTogether`; agora há integração (parada pendente intacta).
+- Desempate: `stop.departed` passou a prioridade -1 (< `stop.arrived` 0 < `document.delivered` 4); a lista decrescente mostra
+  baixa, chegada, saída. Painel: `sortChronologically` do mapa desempata saída < chegada < resto.
+- Integração `stop-event-sequence` (10 pass), `trip-timeline` (46), `trip-valuation-document-figures` (7); contrato 13168/0; painel 1438/0;
+  typecheck e lint verdes.
