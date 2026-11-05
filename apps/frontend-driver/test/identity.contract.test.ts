@@ -2,4 +2,5 @@
 import './identity/driver-authorization.contract'
 import './identity/keycloak-auth-provider.contract'
 import './identity/login-hint-client.contract'
+import './identity/own-picture.contract'
 import './identity/smoke-auth-bypass.contract'
