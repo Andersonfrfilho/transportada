@@ -20,6 +20,7 @@ import {
 import { FleetDriverNotFoundError } from '../domain/fleet.error.js'
 import type {
   FleetDriverAttachment,
+  FleetDriverAttachmentAuditPort,
   FleetDriverAttachmentListItem,
   FleetDriverAttachmentRepositoryPort,
   FleetDriverAttachmentStoragePort,
@@ -27,17 +28,23 @@ import type {
 } from './fleet-driver-attachment.port.js'
 
 type Dependencies = {
+  readonly audit: FleetDriverAttachmentAuditPort
   readonly bucket: string
+  readonly logger: { readonly warn: (message: string, meta: Record<string, unknown>) => void }
   readonly repository: FleetDriverAttachmentRepositoryPort
   readonly storage: FleetDriverAttachmentStoragePort
 }
 
 /** Vida curta: o link é uma credencial para o documento de uma pessoa, e não vira endereço. */
 const REVEAL_EXPIRY_SECONDS = 300
+const OBJECT_CLEANUP_FAILED_LOG = 'fleet driver attachment object cleanup failed'
+
+type AuditContext = Readonly<{ actorUserId: string; clientIp: string; correlationId: string }>
 
 export type FleetDriverAttachmentUseCase = Readonly<{
   attach: (input: {
     readonly bytes: Uint8Array
+    readonly clientIp: string
     readonly companyId: string
     readonly correlationId: string
     readonly declaredMimeType: string
@@ -62,16 +69,20 @@ export type FleetDriverAttachmentUseCase = Readonly<{
     readonly companyId: string
     readonly driverId: string
   }) => Promise<{ readonly fields: FleetDriverAttachmentSuggestionFields | null }>
-  remove: (input: {
-    readonly attachmentId: string
-    readonly companyId: string
-    readonly driverId: string
-  }) => Promise<void>
-  reveal: (input: {
-    readonly attachmentId: string
-    readonly companyId: string
-    readonly driverId: string
-  }) => Promise<{ readonly url: string }>
+  remove: (
+    input: AuditContext & {
+      readonly attachmentId: string
+      readonly companyId: string
+      readonly driverId: string
+    },
+  ) => Promise<void>
+  reveal: (
+    input: AuditContext & {
+      readonly attachmentId: string
+      readonly companyId: string
+      readonly driverId: string
+    },
+  ) => Promise<{ readonly url: string }>
 }>
 
 export function createFleetDriverAttachmentUseCase(
@@ -80,6 +91,7 @@ export function createFleetDriverAttachmentUseCase(
   return {
     async attach({
       bytes,
+      clientIp,
       companyId,
       correlationId,
       declaredMimeType,
@@ -93,6 +105,9 @@ export function createFleetDriverAttachmentUseCase(
         throw new FleetDriverNotFoundError()
       }
 
+      const previous = isSingleDocumentType(type)
+        ? await dependencies.repository.findByType({ companyId, driverId, type })
+        : null
       const storedObjectId = randomUUID()
       const key = buildFleetDriverAttachmentObjectKey({
         companyId,
@@ -112,20 +127,9 @@ export function createFleetDriverAttachmentUseCase(
         sha256,
       })
 
+      let attachment: FleetDriverAttachment
       try {
-        // Trocar o documento: o anterior sai do bucket **antes** da troca. Se o banco falhar depois, a
-        // linha aponta para nada e repetir o pedido fecha o ciclo; no sentido contrário sobraria objeto
-        // sem dono, e ninguém o procuraria.
-        const previous = isSingleDocumentType(type)
-          ? await dependencies.repository.findByType({ companyId, driverId, type })
-          : null
-        if (previous !== null) {
-          await dependencies.storage.deleteObject({
-            bucket: previous.location.bucket,
-            key: previous.location.objectKey,
-          })
-        }
-        return await dependencies.repository.create({
+        attachment = await dependencies.repository.create({
           bucket: dependencies.bucket,
           companyId,
           correlationId,
@@ -141,16 +145,32 @@ export function createFleetDriverAttachmentUseCase(
           uploadedBy,
         })
       } catch (error: unknown) {
-        // Quem perde a corrida, ou não consegue apagar o anterior, apaga o que acabou de subir: objeto
-        // sem linha é PII que ninguém acha.
-        await Promise.allSettled([
-          dependencies.storage.deleteObject({ bucket: dependencies.bucket, key }),
-        ])
+        // A troca é uma transação: se ela falha, o anterior segue de pé e só o objeto novo é descartado.
+        await discardObject(dependencies, { bucket: dependencies.bucket, key })
         throw error
       }
+
+      // Depois do commit: objeto anterior sem linha é órfão tolerável; linha sem objeto não é.
+      if (previous !== null) {
+        await discardObject(dependencies, {
+          bucket: previous.location.bucket,
+          key: previous.location.objectKey,
+        })
+      }
+      await dependencies.audit.record({
+        action: previous === null ? 'attached' : 'replaced',
+        actorUserId: uploadedBy,
+        attachmentId: attachment.id,
+        clientIp,
+        companyId,
+        correlationId,
+        driverId,
+        type,
+      })
+      return attachment
     },
 
-    async remove({ attachmentId, companyId, driverId }) {
+    async remove({ actorUserId, attachmentId, clientIp, companyId, correlationId, driverId }) {
       const location = await dependencies.repository.findLocation({
         attachmentId,
         companyId,
@@ -158,13 +178,22 @@ export function createFleetDriverAttachmentUseCase(
       })
       if (location === null) throw new FleetDriverAttachmentNotFoundError()
 
-      // O bucket antes da linha: se o banco falhar depois, a linha aponta para nada e repetir o
-      // pedido fecha o ciclo. No sentido contrário sobraria objeto sem dono, e ninguém o procuraria.
-      await dependencies.storage.deleteObject({
-        bucket: location.bucket,
-        key: location.objectKey,
+      // A linha primeiro: objeto sem linha é órfão tolerável, linha sem objeto é documento que a tela
+      // mostra e ninguém abre.
+      if (!(await dependencies.repository.remove({ attachmentId, companyId, driverId }))) {
+        throw new FleetDriverAttachmentNotFoundError()
+      }
+      await discardObject(dependencies, { bucket: location.bucket, key: location.objectKey })
+      await dependencies.audit.record({
+        action: 'removed',
+        actorUserId,
+        attachmentId,
+        clientIp,
+        companyId,
+        correlationId,
+        driverId,
+        type: location.type,
       })
-      await dependencies.repository.remove({ attachmentId, companyId, driverId })
     },
 
     async decideSuggestion(input) {
@@ -187,7 +216,7 @@ export function createFleetDriverAttachmentUseCase(
       return { fields: read.fields }
     },
 
-    async reveal({ attachmentId, companyId, driverId }) {
+    async reveal({ actorUserId, attachmentId, clientIp, companyId, correlationId, driverId }) {
       const location = await dependencies.repository.findLocation({
         attachmentId,
         companyId,
@@ -195,12 +224,42 @@ export function createFleetDriverAttachmentUseCase(
       })
       if (location === null) throw new FleetDriverAttachmentNotFoundError()
 
+      const objectLocation = { bucket: location.bucket, key: location.objectKey }
+      if ((await dependencies.storage.headObject(objectLocation)) === undefined) {
+        throw new FleetDriverAttachmentNotFoundError()
+      }
+
+      // Antes de assinar: se a trilha falha, o link não sai.
+      await dependencies.audit.record({
+        action: 'revealed',
+        actorUserId,
+        attachmentId,
+        clientIp,
+        companyId,
+        correlationId,
+        driverId,
+        type: location.type,
+      })
       const url = await dependencies.storage.createSignedDownload({
-        bucket: location.bucket,
+        ...objectLocation,
         expiresInSeconds: REVEAL_EXPIRY_SECONDS,
-        key: location.objectKey,
       })
       return { url: url.toString() }
     },
+  }
+}
+
+/** Melhor esforço: o banco já decidiu, e um objeto que sobra é só espaço — o log leva ids, nunca o conteúdo. */
+async function discardObject(
+  dependencies: Dependencies,
+  location: { readonly bucket: string; readonly key: string },
+): Promise<void> {
+  try {
+    await dependencies.storage.deleteObject(location)
+  } catch {
+    dependencies.logger.warn(OBJECT_CLEANUP_FAILED_LOG, {
+      bucket: location.bucket,
+      objectKey: location.key,
+    })
   }
 }

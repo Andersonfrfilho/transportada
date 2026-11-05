@@ -43,7 +43,7 @@ chave é perder o dado). A feature começa na Fase 2.
 
 ## Fase 5 — Auditoria e descarte · 🤖 `sonnet` (remoção revisada por `opus` 🧠)
 
-- [ ] **T020** Trilha em anexar, substituir, remover e revelar.
+- [x] **T020** Trilha em anexar, substituir, remover e revelar.
 - [ ] **T021** Remover motorista apaga os objetos na mesma transação. Aceite: falha na remoção do
       objeto **falha a transação**; órfão é o defeito que esta task existe para impedir.
 - [ ] **T022** Smoke ponta a ponta: anexar, ver na lista, revelar, substituir, remover.

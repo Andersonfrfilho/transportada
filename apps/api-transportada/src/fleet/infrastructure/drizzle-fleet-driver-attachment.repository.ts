@@ -144,6 +144,7 @@ export function createDrizzleFleetDriverAttachmentRepository(
           bucket: storedObjects.bucket,
           objectKey: storedObjects.objectKey,
           storedObjectId: storedObjects.id,
+          type: fleetDriverAttachments.type,
         })
         .from(fleetDriverAttachments)
         .innerJoin(
@@ -229,6 +230,7 @@ export function createDrizzleFleetDriverAttachmentRepository(
           id: fleetDriverAttachments.id,
           objectKey: storedObjects.objectKey,
           storedObjectId: storedObjects.id,
+          type: fleetDriverAttachments.type,
         })
         .from(fleetDriverAttachments)
         .innerJoin(
@@ -253,6 +255,7 @@ export function createDrizzleFleetDriverAttachmentRepository(
           bucket: row.bucket,
           objectKey: row.objectKey,
           storedObjectId: row.storedObjectId,
+          type: row.type,
         },
       }
     },

@@ -10,17 +10,21 @@ import { eq, sql } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
+  auditLogs,
   companies,
   fleetDriverAttachmentOutbox,
   fleetDriverAttachments,
   fleetDrivers,
   identityUserProfiles,
   identityUsers,
+  userCompanyMemberships,
   storedObjects,
 } from '../../src/database/database.schema.js'
 import type { FleetDriverAttachmentType } from '../../src/database/fleet-driver-attachment.schema.js'
 import { FleetDriverAttachmentTypeTakenError } from '../../src/fleet/domain/fleet-driver-attachment.error.js'
 import { FleetDriverNotFoundError } from '../../src/fleet/domain/fleet.error.js'
+import { createFleetDriverAttachmentUseCase } from '../../src/fleet/application/fleet-driver-attachment.use-case.js'
+import { createDrizzleFleetDriverAttachmentAudit } from '../../src/fleet/infrastructure/drizzle-fleet-driver-attachment-audit.gateway.js'
 import { createDrizzleFleetDriverAttachmentRepository } from '../../src/fleet/infrastructure/drizzle-fleet-driver-attachment.repository.js'
 import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 
@@ -560,6 +564,118 @@ describe('anexo do motorista, contra Postgres (spec 091)', () => {
         })
 
         expect(await db.select().from(fleetDriverAttachments)).toHaveLength(2)
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  /** T019/P4: o banco recusa a troca (objeto já existe), e o anterior — linha e objeto — fica. */
+  testWithPostgres(
+    'troca que falha no banco preserva a linha e o objeto anteriores e apaga só o novo',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const bucket = new Set<string>()
+        const repository = createDrizzleFleetDriverAttachmentRepository(db)
+        const baseCreate = repository.create
+        let failNextCreate = false
+        const useCase = createFleetDriverAttachmentUseCase({
+          audit: createDrizzleFleetDriverAttachmentAudit(db),
+          bucket: 'test-bucket',
+          logger: { warn() {} },
+          repository: {
+            ...repository,
+            async create(input) {
+              if (!failNextCreate) return baseCreate(input)
+              // Mesma `stored_objects.id` do anterior: a PK viola dentro da transação, depois do DELETE.
+              const [existing] = await db.select().from(storedObjects)
+              return baseCreate({ ...input, storedObjectId: existing?.id ?? input.storedObjectId })
+            },
+          },
+          storage: {
+            async createSignedDownload() {
+              return new URL('https://bucket.example.test/signed')
+            },
+            async deleteObject({ key }) {
+              bucket.delete(key)
+            },
+            async headObject({ key }) {
+              return bucket.has(key) ? {} : undefined
+            },
+            async storeObject({ key }) {
+              bucket.add(key)
+              return {}
+            },
+          },
+        })
+        const upload = () =>
+          useCase.attach({
+            bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]),
+            clientIp: '203.0.113.9',
+            companyId,
+            correlationId: 'correlation-091',
+            declaredMimeType: 'application/pdf',
+            driverId,
+            fileName: 'cnh.pdf',
+            type: 'cnh',
+            uploadedBy: USER_ID,
+          })
+        await db.insert(identityUsers).values({ id: USER_ID })
+        await db
+          .insert(userCompanyMemberships)
+          .values({ companyId, id: crypto.randomUUID(), status: 'active', userId: USER_ID })
+
+        await upload()
+        const [previousObject] = await db.select().from(storedObjects)
+        failNextCreate = true
+        await expect(upload()).rejects.toThrow()
+
+        const rows = await db.select().from(fleetDriverAttachments)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]?.storedObjectId).toBe(previousObject?.id ?? 'missing')
+        expect([...bucket]).toEqual([previousObject?.objectKey ?? 'missing'])
+        expect((await db.select().from(storedObjects))[0]?.status).toBe('final')
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'a trilha grava ator, alvo, tipo e IP — e nenhum conteúdo do documento',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        await db.insert(identityUsers).values({ id: USER_ID })
+        await db
+          .insert(userCompanyMemberships)
+          .values({ companyId, id: crypto.randomUUID(), status: 'active', userId: USER_ID })
+        const attachmentId = crypto.randomUUID()
+
+        await createDrizzleFleetDriverAttachmentAudit(db).record({
+          action: 'revealed',
+          actorUserId: USER_ID,
+          attachmentId,
+          clientIp: '203.0.113.9',
+          companyId,
+          correlationId: 'correlation-091',
+          driverId,
+          type: 'cnh',
+        })
+
+        const [entry] = await db.select().from(auditLogs)
+        expect(entry).toMatchObject({
+          action: 'fleet-driver-attachment.revealed',
+          actorUserId: USER_ID,
+          companyId,
+          entityId: attachmentId,
+          permission: 'fleet.reveal',
+          targetId: driverId,
+          targetType: 'fleet-driver',
+        })
+        expect(entry?.metadata).toEqual({ clientIp: '203.0.113.9', documentType: 'cnh' })
+        expect(entry?.createdAt).toBeInstanceOf(Date)
       })
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,

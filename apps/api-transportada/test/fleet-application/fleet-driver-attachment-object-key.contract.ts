@@ -47,7 +47,9 @@ describe('chave do objeto do documento do motorista (spec 091 T012)', () => {
   test('o que o use case grava no bucket não carrega CPF, nome, CNH nem o nome do arquivo', async () => {
     const keys: string[] = []
     const useCase = createFleetDriverAttachmentUseCase({
+      audit: { async record() {} },
       bucket: 'bucket',
+      logger: { warn() {} },
       repository: {
         async create(input) {
           return {
@@ -80,6 +82,9 @@ describe('chave do objeto do documento do motorista (spec 091 T012)', () => {
         },
       },
       storage: {
+        async headObject() {
+          return {}
+        },
         async createSignedDownload() {
           return new URL('https://bucket.example.test/signed')
         },
@@ -92,6 +97,7 @@ describe('chave do objeto do documento do motorista (spec 091 T012)', () => {
 
     await useCase.attach({
       bytes: PDF_BYTES,
+      clientIp: '203.0.113.9',
       companyId: COMPANY_ID,
       correlationId: 'correlation-091',
       declaredMimeType: 'application/pdf',

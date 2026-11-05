@@ -511,6 +511,7 @@ import {
 import { DrizzleCrewSettingsRepository } from './fleet/infrastructure/drizzle-crew-settings.repository'
 import { createDriverWhatsappGroupUseCase } from './fleet/application/driver-whatsapp-group.use-case'
 import { createFleetDriverAttachmentUseCase } from './fleet/application/fleet-driver-attachment.use-case.js'
+import { createDrizzleFleetDriverAttachmentAudit } from './fleet/infrastructure/drizzle-fleet-driver-attachment-audit.gateway.js'
 import { createDrizzleFleetDriverAttachmentRepository } from './fleet/infrastructure/drizzle-fleet-driver-attachment.repository.js'
 import { createFleetDriverAttachmentRoutes } from './fleet/presentation/fleet-driver-attachment.routes.js'
 import { DrizzleDriverWhatsappGroupRepository } from './fleet/infrastructure/drizzle-driver-whatsapp-group.repository'
@@ -4123,8 +4124,11 @@ function createApplicationRoutes({
       }),
     }),
     ...createFleetDriverAttachmentRoutes({
+      resolveClientIp,
       attachments: createFleetDriverAttachmentUseCase({
+        audit: createDrizzleFleetDriverAttachmentAudit(database),
         bucket: storageBucket,
+        logger,
         repository: createDrizzleFleetDriverAttachmentRepository(database),
         storage: storageGateway,
       }),

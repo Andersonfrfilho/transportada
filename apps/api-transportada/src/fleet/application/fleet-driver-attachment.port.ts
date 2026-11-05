@@ -39,6 +39,25 @@ export type FleetDriverAttachmentLocation = Readonly<{
   bucket: string
   objectKey: string
   storedObjectId: string
+  type: FleetDriverAttachmentType
+}>
+
+export type FleetDriverAttachmentAuditAction = 'attached' | 'removed' | 'replaced' | 'revealed'
+
+/** Ator, alvo, IP e instante — nunca o conteúdo do documento (`security.md` §10). */
+export type FleetDriverAttachmentAuditInput = Readonly<{
+  action: FleetDriverAttachmentAuditAction
+  actorUserId: string
+  attachmentId: string
+  clientIp: string
+  companyId: string
+  correlationId: string
+  driverId: string
+  type: FleetDriverAttachmentType
+}>
+
+export type FleetDriverAttachmentAuditPort = Readonly<{
+  record: (input: FleetDriverAttachmentAuditInput) => Promise<void>
 }>
 
 export type CreateFleetDriverAttachmentInput = Readonly<{
@@ -107,6 +126,7 @@ export type FleetDriverAttachmentRepositoryPort = Readonly<{
 }>
 
 export type FleetDriverAttachmentStoragePort = Readonly<{
+  headObject: (input: { readonly bucket: string; readonly key: string }) => Promise<unknown>
   createSignedDownload: (input: {
     readonly bucket: string
     readonly expiresInSeconds: number

@@ -21,6 +21,7 @@ import {
 
 const DRIVER_ID = '00000000-0000-4000-8000-0000000000d1'
 const ATTACHMENT_ID = '00000000-0000-4000-8000-0000000000e1'
+const CLIENT_IP = '203.0.113.9'
 const PATH = `/fleet/drivers/${DRIVER_ID}/attachments`
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34])
 const READ_ONLY: CompanyContext['permissions'] = new Set(['fleet.read'] as const)
@@ -84,7 +85,7 @@ function createFixture(
     requestTimeoutSeconds: 10,
     router: createTestRouter({
       context: authenticatedContext(input.permissions ?? MANAGE),
-      routes: createFleetDriverAttachmentRoutes({ attachments }),
+      routes: createFleetDriverAttachmentRoutes({ attachments, resolveClientIp: () => CLIENT_IP }),
     }),
   })
   return { calls, handle: (request: Request) => handleRequest(request, { timeout() {} }) }
@@ -206,7 +207,12 @@ describe('as rotas do documento do motorista (spec 091 T010)', () => {
     expect(response.status).toBe(204)
     expect(await response.text()).toBe('')
     expect(fixture.calls[0]).toMatchObject({
-      input: { attachmentId: ATTACHMENT_ID, driverId: DRIVER_ID },
+      input: {
+        attachmentId: ATTACHMENT_ID,
+        clientIp: CLIENT_IP,
+        correlationId: CORRELATION_ID,
+        driverId: DRIVER_ID,
+      },
       kind: 'remove',
     })
   })
@@ -245,7 +251,12 @@ describe('o conteúdo do documento do motorista (spec 091 T011)', () => {
       url: 'https://bucket.example.test/signed?expires=300',
     })
     expect(fixture.calls[0]).toMatchObject({
-      input: { attachmentId: ATTACHMENT_ID, driverId: DRIVER_ID },
+      input: {
+        attachmentId: ATTACHMENT_ID,
+        clientIp: CLIENT_IP,
+        correlationId: CORRELATION_ID,
+        driverId: DRIVER_ID,
+      },
       kind: 'reveal',
     })
   })

@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type {
   CreateFleetDriverAttachmentInput,
+  FleetDriverAttachmentAuditInput,
   FleetDriverAttachmentSuggestionRead,
   FleetDriverAttachmentListItem,
   FleetDriverAttachmentLocation,
@@ -30,7 +31,10 @@ const LOCATION: FleetDriverAttachmentLocation = {
   bucket: 'bucket',
   objectKey: 'tenants/x/fleet-driver-attachments/y/cnh/z',
   storedObjectId: '00000000-0000-4000-8000-0000000000f1',
+  type: 'cnh',
 }
+const CLIENT_IP = '203.0.113.9'
+const AUDIT_CONTEXT = { actorUserId: USER_ID, clientIp: CLIENT_IP, correlationId: CORRELATION_ID }
 
 const LISTED_ITEM: FleetDriverAttachmentListItem = {
   createdAt: '2026-11-05T00:00:00.000Z',
@@ -50,10 +54,13 @@ type Fixture = ReturnType<typeof buildFixture>
 function buildFixture(
   overrides: Readonly<{
     createError?: Error
+    deleteError?: Error
     decisionOutcome?: 'already_decided' | 'decided' | 'not_found'
     suggestion?: FleetDriverAttachmentSuggestionRead
     driverExists?: boolean
     location?: FleetDriverAttachmentLocation | null
+    objectMissing?: boolean
+    removeResult?: boolean
     storeError?: Error
   }> = {},
 ) {
@@ -63,6 +70,8 @@ function buildFixture(
   const deletedKeys: string[] = []
   const listed: FleetDriverAttachmentListItem[] = [LISTED_ITEM]
   const decisions: Parameters<FleetDriverAttachmentRepositoryPort['decideSuggestion']>[0][] = []
+  const audited: FleetDriverAttachmentAuditInput[] = []
+  const warnings: Record<string, unknown>[] = []
   const signed: { readonly expiresInSeconds: number; readonly key: string }[] = []
 
   const repository: FleetDriverAttachmentRepositoryPort = {
@@ -99,13 +108,23 @@ function buildFixture(
     },
     async remove() {
       events.push('remove-row')
-      return true
+      return overrides.removeResult ?? true
     },
   }
   const useCase = createFleetDriverAttachmentUseCase({
+    audit: {
+      async record(input) {
+        events.push(`audit-${input.action}`)
+        audited.push(input)
+      },
+    },
     bucket: 'bucket',
+    logger: { warn: (_message, meta) => void warnings.push(meta) },
     repository,
     storage: {
+      async headObject() {
+        return overrides.objectMissing === true ? undefined : {}
+      },
       async createSignedDownload(input) {
         signed.push({ expiresInSeconds: input.expiresInSeconds, key: input.key })
         return new URL('https://bucket.example.test/signed')
@@ -113,6 +132,7 @@ function buildFixture(
       async deleteObject({ key }) {
         events.push('delete-object')
         deletedKeys.push(key)
+        if (overrides.deleteError !== undefined) throw overrides.deleteError
       },
       async storeObject(input) {
         events.push('store')
@@ -121,7 +141,7 @@ function buildFixture(
       },
     },
   })
-  return { created, decisions, deletedKeys, events, signed, stored, useCase }
+  return { audited, created, decisions, deletedKeys, events, signed, stored, useCase, warnings }
 }
 
 function attach(
@@ -130,6 +150,7 @@ function attach(
 ) {
   return fixture.useCase.attach({
     bytes: PDF_BYTES,
+    clientIp: CLIENT_IP,
     companyId: COMPANY_ID,
     correlationId: CORRELATION_ID,
     declaredMimeType: 'application/pdf',
@@ -151,7 +172,7 @@ describe('anexo do motorista — anexar', () => {
       fileName: 'foto.jpg',
     })
 
-    expect(fixture.events).toEqual(['store', 'create'])
+    expect(fixture.events).toEqual(['store', 'create', 'audit-attached'])
     expect(fixture.stored[0]?.contentType).toBe('image/jpeg')
     expect(fixture.created[0]).toMatchObject({
       companyId: COMPANY_ID,
@@ -217,58 +238,94 @@ describe('anexo do motorista — anexar', () => {
 })
 
 describe('anexo do motorista — remover', () => {
-  test('apaga o objeto do bucket antes de tirar a linha', async () => {
-    const fixture = buildFixture()
-
-    await fixture.useCase.remove({
+  const remove = (fixture: Fixture) =>
+    fixture.useCase.remove({
+      ...AUDIT_CONTEXT,
       attachmentId: ATTACHMENT_ID,
       companyId: COMPANY_ID,
       driverId: DRIVER_ID,
     })
 
-    expect(fixture.events).toEqual(['delete-object', 'remove-row'])
+  test('tira a linha primeiro, depois o objeto do bucket, e grava a trilha', async () => {
+    const fixture = buildFixture()
+
+    await remove(fixture)
+
+    expect(fixture.events).toEqual(['remove-row', 'delete-object', 'audit-removed'])
     expect(fixture.deletedKeys).toEqual([LOCATION.objectKey])
+    expect(fixture.audited[0]).toMatchObject({
+      ...AUDIT_CONTEXT,
+      attachmentId: ATTACHMENT_ID,
+      driverId: DRIVER_ID,
+      type: 'cnh',
+    })
+  })
+
+  test('bucket fora do ar não desfaz a remoção: loga só ids e segue', async () => {
+    const fixture = buildFixture({ deleteError: new Error('bucket fora do ar') })
+
+    await remove(fixture)
+
+    expect(fixture.warnings).toEqual([{ bucket: 'bucket', objectKey: LOCATION.objectKey }])
+    expect(fixture.events).toEqual(['remove-row', 'delete-object', 'audit-removed'])
   })
 
   test('anexo que não é deste motorista e empresa é 404 e não apaga nada', async () => {
     const fixture = buildFixture({ location: null })
 
-    await expect(
-      fixture.useCase.remove({
-        attachmentId: ATTACHMENT_ID,
-        companyId: COMPANY_ID,
-        driverId: DRIVER_ID,
-      }),
-    ).rejects.toBeInstanceOf(FleetDriverAttachmentNotFoundError)
+    await expect(remove(fixture)).rejects.toBeInstanceOf(FleetDriverAttachmentNotFoundError)
 
     expect(fixture.events).toEqual([])
+  })
+
+  test('linha que sumiu na corrida é 404 e o objeto não é tocado', async () => {
+    const fixture = buildFixture({ removeResult: false })
+
+    await expect(remove(fixture)).rejects.toBeInstanceOf(FleetDriverAttachmentNotFoundError)
+
+    expect(fixture.events).toEqual(['remove-row'])
   })
 })
 
 describe('anexo do motorista — revelar', () => {
-  test('assina o objeto do anexo por prazo curto e devolve só a URL', async () => {
-    const fixture = buildFixture()
-
-    const result = await fixture.useCase.reveal({
+  const reveal = (fixture: Fixture) =>
+    fixture.useCase.reveal({
+      ...AUDIT_CONTEXT,
       attachmentId: ATTACHMENT_ID,
       companyId: COMPANY_ID,
       driverId: DRIVER_ID,
     })
 
+  test('audita e então assina o objeto por prazo curto, devolvendo só a URL', async () => {
+    const fixture = buildFixture()
+
+    const result = await reveal(fixture)
+
     expect(result).toEqual({ url: 'https://bucket.example.test/signed' })
     expect(fixture.signed).toEqual([{ expiresInSeconds: 300, key: LOCATION.objectKey }])
+    expect(fixture.events).toEqual(['audit-revealed'])
+    expect(fixture.audited[0]).toMatchObject({
+      ...AUDIT_CONTEXT,
+      action: 'revealed',
+      attachmentId: ATTACHMENT_ID,
+      driverId: DRIVER_ID,
+      type: 'cnh',
+    })
   })
 
-  test('anexo que não é deste motorista e empresa é 404 e nada é assinado', async () => {
+  test('anexo que não é deste motorista e empresa é 404, sem assinar nem auditar', async () => {
     const fixture = buildFixture({ location: null })
 
-    await expect(
-      fixture.useCase.reveal({
-        attachmentId: ATTACHMENT_ID,
-        companyId: COMPANY_ID,
-        driverId: DRIVER_ID,
-      }),
-    ).rejects.toBeInstanceOf(FleetDriverAttachmentNotFoundError)
+    await expect(reveal(fixture)).rejects.toBeInstanceOf(FleetDriverAttachmentNotFoundError)
+
+    expect(fixture.signed).toEqual([])
+    expect(fixture.audited).toEqual([])
+  })
+
+  test('objeto que sumiu do bucket é 404, e não um link morto', async () => {
+    const fixture = buildFixture({ objectMissing: true })
+
+    await expect(reveal(fixture)).rejects.toBeInstanceOf(FleetDriverAttachmentNotFoundError)
 
     expect(fixture.signed).toEqual([])
   })

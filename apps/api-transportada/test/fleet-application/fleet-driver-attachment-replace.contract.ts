@@ -25,11 +25,16 @@ type Row = Readonly<{ id: string; key: string; type: string }>
 
 /** O bucket e a tabela em memória, para a asserção olhar os dois lados. */
 function buildWorld(
-  options: Readonly<{ createError?: Error; failDeletingOldObject?: boolean }> = {},
+  options: Readonly<{
+    createError?: Error
+    createErrorOnSecondCall?: Error
+    failDeletingOldObject?: boolean
+  }> = {},
 ) {
   const bucket = new Set<string>()
   const rows: Row[] = []
   const events: string[] = []
+  const warnings: Record<string, unknown>[] = []
   let sequence = 0
   let firstStoredKey = ''
 
@@ -37,6 +42,12 @@ function buildWorld(
     async create(input: CreateFleetDriverAttachmentInput): Promise<FleetDriverAttachment> {
       events.push('create')
       if (options.createError !== undefined) throw options.createError
+      if (
+        options.createErrorOnSecondCall !== undefined &&
+        events.filter((event) => event === 'create').length > 1
+      ) {
+        throw options.createErrorOnSecondCall
+      }
       if (input.replaceAttachmentId !== undefined) {
         const index = rows.findIndex((row) => row.id === input.replaceAttachmentId)
         if (index >= 0) rows.splice(index, 1)
@@ -58,7 +69,12 @@ function buildWorld(
         ? null
         : {
             id: row.id,
-            location: { bucket: BUCKET, objectKey: row.key, storedObjectId: `object-${row.id}` },
+            location: {
+              bucket: BUCKET,
+              objectKey: row.key,
+              storedObjectId: `object-${row.id}`,
+              type: 'cnh',
+            },
           }
     },
     async findLocation() {
@@ -75,9 +91,18 @@ function buildWorld(
     },
   }
   const useCase = createFleetDriverAttachmentUseCase({
+    audit: {
+      async record(input) {
+        events.push(`audit-${input.action}`)
+      },
+    },
     bucket: BUCKET,
+    logger: { warn: (_message, meta) => void warnings.push(meta) },
     repository,
     storage: {
+      async headObject() {
+        return {}
+      },
       async createSignedDownload() {
         return new URL('https://bucket.example.test/signed')
       },
@@ -97,12 +122,13 @@ function buildWorld(
     },
   })
 
-  return { bucket, events, rows, useCase }
+  return { bucket, events, rows, useCase, warnings }
 }
 
 function attach(world: ReturnType<typeof buildWorld>, type: 'cnh' | 'other' = 'cnh') {
   return world.useCase.attach({
     bytes: PDF_BYTES,
+    clientIp: '203.0.113.9',
     companyId: COMPANY_ID,
     correlationId: 'correlation-091',
     declaredMimeType: 'application/pdf',
@@ -128,14 +154,19 @@ describe('substituir o documento do motorista (spec 091 T019)', () => {
     expect([...world.bucket]).toEqual(world.rows.map((row) => row.key))
   })
 
-  test('o novo sobe antes de o antigo sair: se o envio falha, o documento antigo continua', async () => {
+  test('a troca confirma no banco antes de apagar o antigo, e só então audita', async () => {
     const world = buildWorld()
     await attach(world)
 
     const events = world.events.length
     await attach(world)
 
-    expect(world.events.slice(events)).toEqual(['store', 'delete-object', 'create'])
+    expect(world.events.slice(events)).toEqual([
+      'store',
+      'create',
+      'delete-object',
+      'audit-replaced',
+    ])
   })
 
   test('só o outro aceita vários: substituir não vale para ele', async () => {
@@ -157,16 +188,30 @@ describe('substituir o documento do motorista (spec 091 T019)', () => {
     expect(world.bucket.size).toBe(0)
   })
 
-  /** Apagar o antigo falhou: nada trocou, e o objeto novo não fica sozinho no bucket. */
-  test('falha ao apagar o anterior desfaz o novo e a troca não acontece', async () => {
-    const world = buildWorld({ failDeletingOldObject: true })
+  /** O banco falhou na troca: a transação desfez, então anterior (linha e objeto) segue de pé. */
+  test('falha do banco na troca apaga só o objeto novo e preserva o anterior', async () => {
+    const world = buildWorld({ createErrorOnSecondCall: new Error('banco fora do ar') })
     await attach(world)
     const previousKey = [...world.bucket][0]
 
-    await expect(attach(world)).rejects.toThrow('bucket fora do ar')
+    await expect(attach(world)).rejects.toThrow('banco fora do ar')
 
     expect(world.rows).toHaveLength(1)
     expect([...world.bucket]).toEqual([previousKey ?? 'missing'])
     expect(world.rows[0]?.key).toBe(previousKey ?? 'missing')
+  })
+
+  /** Apagar o antigo falhou depois do commit: a troca vale, sobra um órfão e o log leva só a chave. */
+  test('falha ao apagar o anterior não desfaz a troca: loga e segue', async () => {
+    const world = buildWorld({ failDeletingOldObject: true })
+    await attach(world)
+    const previousKey = [...world.bucket][0] ?? 'missing'
+
+    await attach(world)
+
+    expect(world.rows).toHaveLength(1)
+    expect(world.rows[0]?.key).not.toBe(previousKey)
+    expect(world.bucket.has(previousKey)).toBe(true)
+    expect(world.warnings).toEqual([{ bucket: BUCKET, objectKey: previousKey }])
   })
 })

@@ -28,15 +28,19 @@ const CREATED_STATUS = 201
 const OK_STATUS = 200
 const NO_CONTENT_STATUS = 204
 
-type Dependencies = { readonly attachments: FleetDriverAttachmentUseCase }
+type Dependencies = {
+  readonly attachments: FleetDriverAttachmentUseCase
+  readonly resolveClientIp: (request: Request) => string
+}
 
 export function createFleetDriverAttachmentRoutes(
   dependencies: Dependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
-  const { attachments } = dependencies
+  const { attachments, resolveClientIp } = dependencies
   return [
     defineRoute<
       UploadFleetDriverAttachmentRequest & {
+        readonly clientIp: string
         readonly correlationId: string
         readonly driverId: string
       }
@@ -44,6 +48,7 @@ export function createFleetDriverAttachmentRoutes(
       async handle({ context, input }): Promise<Response> {
         const attachment = await attachments.attach({
           bytes: input.bytes,
+          clientIp: input.clientIp,
           companyId: context.scope.companyId,
           correlationId: input.correlationId,
           declaredMimeType: input.declaredMimeType,
@@ -61,6 +66,7 @@ export function createFleetDriverAttachmentRoutes(
       async parse({ correlationId, pathParameters, request }) {
         const driverId = parseUuidPathIdentifier(pathParameters.id ?? '')
         return {
+          clientIp: resolveClientIp(request),
           correlationId,
           driverId,
           ...(await parseUploadFleetDriverAttachmentRequest(request)),
@@ -69,29 +75,47 @@ export function createFleetDriverAttachmentRoutes(
       pathname: API_FLEET_DRIVER_ATTACHMENTS_PATH,
       policy: FLEET_MANAGE_POLICY,
     }),
-    defineRoute<{ readonly attachmentId: string; readonly driverId: string }>({
+    defineRoute<{
+      readonly attachmentId: string
+      readonly clientIp: string
+      readonly correlationId: string
+      readonly driverId: string
+    }>({
       async handle({ context, input }): Promise<Response> {
         await attachments.remove({
+          actorUserId: context.scope.userId,
           attachmentId: input.attachmentId,
+          clientIp: input.clientIp,
           companyId: context.scope.companyId,
+          correlationId: input.correlationId,
           driverId: input.driverId,
         })
         return new Response(null, { status: NO_CONTENT_STATUS })
       },
       method: 'DELETE',
-      parse: ({ pathParameters }) => ({
+      parse: ({ correlationId, pathParameters, request }) => ({
         attachmentId: parseUuidPathIdentifier(pathParameters.attachmentId ?? ''),
+        clientIp: resolveClientIp(request),
+        correlationId,
         driverId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: API_FLEET_DRIVER_ATTACHMENT_PATH,
       policy: FLEET_MANAGE_POLICY,
     }),
-    defineRoute<{ readonly attachmentId: string; readonly driverId: string }>({
+    defineRoute<{
+      readonly attachmentId: string
+      readonly clientIp: string
+      readonly correlationId: string
+      readonly driverId: string
+    }>({
       /** A URL assinada, e nunca o corpo: a API não serve o documento, e o link morre em minutos. */
       async handle({ context, input }): Promise<Response> {
         const revealed = await attachments.reveal({
+          actorUserId: context.scope.userId,
           attachmentId: input.attachmentId,
+          clientIp: input.clientIp,
           companyId: context.scope.companyId,
+          correlationId: input.correlationId,
           driverId: input.driverId,
         })
         return new Response(JSON.stringify({ data: revealed }), {
@@ -100,8 +124,10 @@ export function createFleetDriverAttachmentRoutes(
         })
       },
       method: 'GET',
-      parse: ({ pathParameters }) => ({
+      parse: ({ correlationId, pathParameters, request }) => ({
         attachmentId: parseUuidPathIdentifier(pathParameters.attachmentId ?? ''),
+        clientIp: resolveClientIp(request),
+        correlationId,
         driverId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: API_FLEET_DRIVER_ATTACHMENT_CONTENT_PATH,
