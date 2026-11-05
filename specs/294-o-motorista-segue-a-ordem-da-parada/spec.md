@@ -34,7 +34,7 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
 
 ### Ordem dos eventos
 
-- **RF1** — Para o motorista (`authorship` `driver_app` ou `whatsapp`), a parada só aceita o evento seguinte da
+- **RF1** — Para quem está na rua — **motorista e ajudante** (`authorship` `driver_app` ou `whatsapp`; o ajudante entra pelo mesmo `/me/trips/current/*` com o próprio `driverId` e papel `helper` em `trip_drivers`), a parada só aceita o evento seguinte da
   sequência `departed → arrived → delivered|returned`. Evento fora de ordem **marca junto** as etapas que faltam,
   na mesma transação e sob a mesma chave de idempotência do evento pedido.
 - **RF2** — A etapa marcada junto:
