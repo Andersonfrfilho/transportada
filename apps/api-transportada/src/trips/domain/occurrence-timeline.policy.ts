@@ -113,6 +113,11 @@ export type OccurrenceTimelineSource =
       readonly kind: 'contractor.reply.driver_read'
     })
   /**
+   * Spec 292 T7: o que o bot disse no grupo do WhatsApp onde o pedido foi aberto. `status` é um de
+   * `posted_to_group`, `sent_to_client`, `office`, `overdue` ou `failed`; nunca o texto nem o número.
+   */
+  | (SourceBase & { readonly kind: 'group.boleto_return'; readonly status: string })
+  /**
    * Spec 281 T9: uma tentativa de mandar o boleto ao cliente por WhatsApp (o alvo `client_boleto_whatsapp`). Só o
    * status e o motivo: nunca o número, o texto nem o anexo.
    */
@@ -167,6 +172,13 @@ export const OCCURRENCE_STAGES = [
 ] as const
 export type OccurrenceStage = (typeof OCCURRENCE_STAGES)[number]
 
+/** Os fatos que ainda mexem na etapa de uma ocorrência já solucionada. */
+const RESOLVED_STAGE_EXITS: ReadonlySet<OccurrenceTimelineSource['kind']> = new Set([
+  'occurrence.cancelled',
+  'resolution.reopened',
+  'resolution.resolved',
+])
+
 const TERMINAL_STAGES: ReadonlySet<OccurrenceStage> = new Set(['cancelled', 'resolved'])
 
 /**
@@ -201,6 +213,7 @@ const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> 
   'contractor.reply.delivery': 5,
   'contractor.reply.document': 5,
   'contractor.reply.driver_read': 5,
+  'group.boleto_return': 5,
   'occurrence.cancelled': 6,
   'occurrence.photo': 1,
   'occurrence.recorded': 0,
@@ -297,6 +310,7 @@ function isKeyEvent(source: OccurrenceTimelineSource): boolean {
   if (source.kind === 'contractor.reply.delivery') return source.status === 'sent'
   if (source.kind === 'contractor.client.whatsapp') return source.status === 'sent'
   if (source.kind === 'contractor.client.email') return source.status === 'sent'
+  if (source.kind === 'group.boleto_return') return source.status === 'posted_to_group'
   if (source.kind === 'resolution.resolved' || source.kind === 'resolution.reopened') return true
   return source.kind === 'case.transition' && source.toStatus === 'decided'
 }
@@ -389,6 +403,7 @@ function stageAfter(
     case 'contractor.reply.driver_read':
     case 'contractor.client.whatsapp':
     case 'contractor.client.email':
+    case 'group.boleto_return':
       return undefined
   }
 }
@@ -402,6 +417,11 @@ function resolveStages(
     const current = started.at(-1)?.stage
     /** Depois de cancelada nada reabre a etapa: o cancelamento vence o histórico (spec 266). */
     if (current === 'cancelled') break
+    /**
+     * Depois de solucionada, só o motorista reabre (`resolution.reopened`): o retorno da contratante marcado como
+     * tratado, o e-mail e a tratativa seguem no histórico, mas não devolvem a etapa a "Em andamento".
+     */
+    if (current === 'resolved' && !RESOLVED_STAGE_EXITS.has(source.kind)) continue
     const next = stageAfter(source, current, hasContractorReply)
     if (next === undefined || next === current) continue
     started.push({ source, stage: next })

@@ -17,12 +17,14 @@ import {
 } from '../application/whatsapp-command-driver.service.js'
 import type { WhatsAppFlowGraphProviderPort } from '../application/whatsapp-command-driver.port.js'
 import type { WhatsAppSharedLocationStore } from '../application/whatsapp-shared-location.service.js'
+import type { WhatsAppDeliveryProofIntake } from '../application/whatsapp-command-driver.service.js'
 import {
   createWithAuthorizedActor,
   registerWhatsAppFlowActions,
   type WhatsAppFlowActionDefinition,
 } from '../application/with-authorized-actor.service.js'
 import { createMetaWhatsAppMessageSender } from './meta-whatsapp-message-sender.gateway.js'
+import type { WhatsAppBotAudio } from '../../whatsapp/application/whatsapp-bot-audio.service.js'
 
 export type WhatsAppCommandHookInstance = {
   readonly accessToken: string
@@ -44,6 +46,10 @@ export type CreateWhatsAppCommandHookFactoryParams = {
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
   readonly sharedLocations?: WhatsAppSharedLocationStore
   readonly verifyPhone?: VerifyWhatsAppPhone
+  /** Spec 293 T15: as provas da entrega em preparo que chegam na conversa individual. */
+  readonly deliveryProofs?: WhatsAppDeliveryProofIntake
+  /** Spec 292 T9: o áudio da conversa individual (transcrição e confirmação). */
+  readonly botAudio?: WhatsAppBotAudio<null>
 }
 
 /**
@@ -66,6 +72,7 @@ export function createWhatsAppCommandHookFactory(
       withAuthorizedActor,
     })
     return createWhatsAppCommandDriver({
+      ...(params.botAudio === undefined ? {} : { botAudio: params.botAudio }),
       channel: module.channel,
       clock: params.clock,
       graphs: params.graphs,
@@ -77,6 +84,7 @@ export function createWhatsAppCommandHookFactory(
       sessions: module.conversations.repository,
       ...(params.sharedLocations === undefined ? {} : { sharedLocations: params.sharedLocations }),
       ...(params.verifyPhone === undefined ? {} : { verifyPhone: params.verifyPhone }),
+      ...(params.deliveryProofs === undefined ? {} : { deliveryProofs: params.deliveryProofs }),
     })
   }
 }

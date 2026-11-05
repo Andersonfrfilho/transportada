@@ -44,6 +44,7 @@ describe('worker environment contract', () => {
       foundationSyntheticConsumerEnabled: false,
       foundationSyntheticEffectDelayMs: 0,
       fuelPricePull: undefined,
+      hostname: '0.0.0.0',
       /** Spec 062 T005: sem segredo e sem template — o padrão é a versão da Graph API e mais nada. */
       whatsapp: {
         apiVersion: 'v23.0',
@@ -74,6 +75,25 @@ describe('worker environment contract', () => {
     expect(
       parseWorkerEnvironment({ ...validEnvironment, SENTRY_DSN: '  ' }).sentryDsn,
     ).toBeUndefined()
+  })
+
+  test('BOT_AUDIO_TRANSCRIPTION_PROMPT: vazio some, até 300 caracteres vale, acima falha o boot', () => {
+    expect(
+      parseWorkerEnvironment({ ...validEnvironment, BOT_AUDIO_TRANSCRIPTION_PROMPT: ' ' })
+        .botAudioTranscriptionPrompt,
+    ).toBeUndefined()
+    expect(
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        BOT_AUDIO_TRANSCRIPTION_PROMPT: 'Central Fernandes.',
+      }).botAudioTranscriptionPrompt,
+    ).toBe('Central Fernandes.')
+    expect(() =>
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        BOT_AUDIO_TRANSCRIPTION_PROMPT: 'a'.repeat(301),
+      }),
+    ).toThrow(WorkerConfigurationError)
   })
 
   test('SENTRY_DSN preenchido e torto falha o boot em vez de sumir', () => {

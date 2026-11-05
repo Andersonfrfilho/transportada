@@ -562,7 +562,29 @@ vazio), então ela seguia "viva" na viagem antiga e não entrava em outra (índi
 em 30/10 e viagem `completed`. Diagnóstico: `producao-devolucao-notas.sh`; correção de dados:
 `producao-soltar-notas-devolvidas.sh --confirm`. A devolução do escritório agora solta a nota por padrão.
 Executado em 03/11/2026 (8:37): 4 linhas atualizadas (`released_at`), as outras 5 NFs da lista nunca estiveram em viagem.
+Em 04/11/2026 mais duas, da mesma viagem e devolvidas em 30/10: 920247 e 920143, soltas com
+`producao-nota-devolvida.sh <NF...> [--confirm]` (lê e, com `--confirm`, solta por número).
+`producao-soltar-todas-devolvidas.sh [--confirm]` lista toda nota `returned` presa em viagem
+`completed`/`cancelled`; 906991 e 918100 (`establishment_closed`, 09/10 e 29/10) também foram soltas a pedido do
+Anderson; depois disso não restou nota devolvida presa em viagem encerrada. O WhatsApp e o app do motorista (sem "voltou ao barracão") ainda não soltam.
 Dica: o `railway ssh` precisa rodar de uma pasta ligada ao projeto (`cd` no repositório antes).
+
+## 5.11 Conferir a hora gravada das ocorrências (04/11/2026)
+
+Somente leitura. Dúvida "a data/hora da ocorrência está errada": roda
+`bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-data-ocorrencias.sh`, que grava em
+`tmp/ops/saidas/` a hora do banco, o fuso do banco e do container da api, `created_at` das últimas
+ocorrências de prorrogação em UTC e em Brasília e a lista de colunas `timestamp without time zone`.
+Medido em 04/11/2026: banco e container em UTC, nenhuma coluna sem fuso, `created_at` é `timestamptz`;
+a tela converte no navegador. As ocorrências de 03/11 13:32 e 13:31 foram de fato criadas na véspera.
+
+## 5.12 Ocorrência solucionada aparece "Em andamento" na linha do tempo (04/11/2026)
+
+Consulta: `ops/producao-ocorrencia-reaberta-04-11.sh` (somente leitura; ocorrência por janela de horário, com
+eventos de solução, da tratativa e do retorno da contratante). Causa: a operadora solucionou a ocorrência às 09:20 e,
+às 09:21, marcou o retorno da contratante (parado em `needs_operator` desde 29/10) como tratado; a linha do tempo
+traduzia `handled` em "Em andamento" mesmo depois de solucionada. Dado correto: a ocorrência segue solucionada
+(nenhum evento de reabertura), então não há dado a corrigir; era só a etapa derivada na leitura.
 
 ## 6. Erros que não devem se repetir
 

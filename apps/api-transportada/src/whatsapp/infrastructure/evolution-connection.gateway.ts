@@ -4,10 +4,16 @@
 import { EvolutionWhatsAppChannel } from '@adatechnology/evolution-whatsapp-provider'
 
 import type {
+  EvolutionGroup,
   WhatsAppEvolutionGatewayPort,
   WhatsAppEvolutionProvisionerPort,
 } from '../application/whatsapp-evolution.port.js'
+import type {
+  EvolutionGroupDirectoryGatewayPort,
+  EvolutionGroupParticipant,
+} from '../application/evolution-group-identity.service.js'
 import type { WhatsAppEvolutionWebhookGatewayPort } from '../application/whatsapp-evolution-webhook.port.js'
+import { parseJid } from '../domain/evolution-group-message.policy.js'
 
 /**
  * Spec 281 T4: a única porta da API para o Evolution. O canal do SDK é criado por chamada, com a
@@ -15,7 +21,9 @@ import type { WhatsAppEvolutionWebhookGatewayPort } from '../application/whatsap
  */
 export function createEvolutionConnectionGateway(
   dependencies: { readonly fetch?: typeof fetch } = {},
-): WhatsAppEvolutionGatewayPort & WhatsAppEvolutionWebhookGatewayPort {
+): EvolutionGroupDirectoryGatewayPort &
+  WhatsAppEvolutionGatewayPort &
+  WhatsAppEvolutionWebhookGatewayPort {
   const open = (input: { apiKey: string; baseUrl: string; instanceName: string }) =>
     new EvolutionWhatsAppChannel({
       apiKey: input.apiKey,
@@ -55,6 +63,37 @@ export function createEvolutionConnectionGateway(
       // 400/404: a instância já está desconectada; o estado final é o mesmo que se pediu.
       if (response.status >= 500) throw new Error(`evolution logout failed (${response.status})`)
     },
+    /** Spec 292 T1: `GET /group/fetchAllGroups/{instância}?getParticipants=false`; falha de rede ou status ≥ 300 lança. */
+    async listGroups(input) {
+      const response = await (dependencies.fetch ?? fetch)(
+        `${input.baseUrl}/group/fetchAllGroups/${encodeURIComponent(input.instanceName)}?getParticipants=false`,
+        {
+          headers: { apikey: input.apiKey },
+          method: 'GET',
+          signal: AbortSignal.timeout(GROUPS_TIMEOUT_MILLISECONDS),
+        },
+      )
+      if (response.status >= 300)
+        throw new Error(`evolution fetchAllGroups failed (${response.status})`)
+      return readGroups((await response.json().catch(() => null)) as unknown)
+    },
+    /**
+     * Spec 292 T3: `GET /group/participants/{instância}?groupJid=…`, para traduzir `@lid` em número.
+     * Falha de rede ou status ≥ 300 lança.
+     */
+    async listGroupParticipants({ groupJid, ...input }) {
+      const response = await (dependencies.fetch ?? fetch)(
+        `${input.baseUrl}/group/participants/${encodeURIComponent(input.instanceName)}?groupJid=${encodeURIComponent(groupJid)}`,
+        {
+          headers: { apikey: input.apiKey },
+          method: 'GET',
+          signal: AbortSignal.timeout(GROUPS_TIMEOUT_MILLISECONDS),
+        },
+      )
+      if (response.status >= 300)
+        throw new Error(`evolution group participants failed (${response.status})`)
+      return readGroupParticipants((await response.json().catch(() => null)) as unknown)
+    },
     /** Spec 281 T6: o Evolution passa a entregar mensagens e status na URL da empresa, com o segredo no cabeçalho. */
     setWebhook: ({ headers, url, ...request }) =>
       open(request).setWebhook({ headers: { ...headers }, url }),
@@ -63,6 +102,54 @@ export function createEvolutionConnectionGateway(
 
 const PROVISION_TIMEOUT_MILLISECONDS = 15_000
 const OWNER_TIMEOUT_MILLISECONDS = 10_000
+const GROUPS_TIMEOUT_MILLISECONDS = 30_000
+const GROUP_JID_PATTERN = /^[0-9]+(?:-[0-9]+)?@g\.us$/u
+
+/** Só o que é grupo de verdade (`…@g.us`), sem repetição, em ordem alfabética do nome; o resto da resposta é descartado. */
+export function readGroups(value: unknown): readonly EvolutionGroup[] {
+  if (!Array.isArray(value)) return []
+  const byJid = new Map<string, EvolutionGroup>()
+  for (const item of value as unknown[]) {
+    if (typeof item !== 'object' || item === null) continue
+    const record = item as Record<string, unknown>
+    const id = record.id
+    if (typeof id !== 'string' || !GROUP_JID_PATTERN.test(id)) continue
+    const subject = typeof record.subject === 'string' ? record.subject.trim() : ''
+    byJid.set(id, { groupJid: id, name: subject === '' ? id : subject })
+  }
+  return [...byJid.values()].sort((left, right) =>
+    left.name.localeCompare(right.name, 'pt-BR', { sensitivity: 'base' }),
+  )
+}
+
+/**
+ * Spec 292 T3: cada participante do grupo vira o par `@lid` ↔ número (só dígitos). O formato muda entre
+ * versões do Evolution/Baileys: o `id` pode ser o `@lid` (com o número em `phoneNumber`/`jid`/`pn`) ou o
+ * número (com o `@lid` em `lid`). Lê todos os campos e classifica cada um pelo sufixo.
+ */
+export function readGroupParticipants(value: unknown): readonly EvolutionGroupParticipant[] {
+  const record =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
+  const list = Array.isArray(value)
+    ? (value as unknown[])
+    : Array.isArray(record.participants)
+      ? (record.participants as unknown[])
+      : []
+  const participants: EvolutionGroupParticipant[] = []
+  for (const item of list) {
+    if (typeof item !== 'object' || item === null) continue
+    const fields = item as Record<string, unknown>
+    let lid: null | string = null
+    let number: null | string = null
+    for (const candidate of [fields.id, fields.lid, fields.phoneNumber, fields.jid, fields.pn]) {
+      const parsed = parseJid(candidate)
+      if (parsed?.server === 'lid') lid ??= parsed.digits
+      else if (parsed?.server === 'user') number ??= parsed.digits
+    }
+    if (lid !== null || number !== null) participants.push({ lid, number })
+  }
+  return participants
+}
 
 /** `ownerJid` ("5516…@s.whatsapp.net") da instância; versões antigas usam `owner`. Só dígitos, ou `null`. */
 export function readOwnerNumber(value: unknown): null | string {

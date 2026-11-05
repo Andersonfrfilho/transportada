@@ -15,6 +15,7 @@ import {
   WhatsAppEvolutionUnreachableError,
 } from '../domain/whatsapp-evolution.error.js'
 import type {
+  EvolutionGroup,
   SaveWhatsAppEvolutionValues,
   WhatsAppEvolutionGatewayPort,
   WhatsAppEvolutionProvisionerPort,
@@ -66,6 +67,8 @@ export type WhatsAppEvolutionUseCase = {
     readonly context: CompanyContext
     readonly correlationId: string
   }): Promise<WhatsAppEvolutionConnection>
+  /** Spec 292 T1: os grupos do número conectado, para a ficha do motorista escolher; Evolution fora do ar é 502. */
+  listGroups(input: { readonly companyId: string }): Promise<readonly EvolutionGroup[]>
   /** Mostra o número do chip conectado por inteiro; só quem gerencia as configurações chega aqui, e a leitura nunca vai a log. */
   revealOwner(input: {
     readonly context: CompanyContext
@@ -196,6 +199,16 @@ export function createWhatsAppEvolutionUseCase(dependencies: {
         state: 'close',
       })
       return { checkedAt: dependencies.now().toISOString(), state: 'close' }
+    },
+
+    async listGroups({ companyId }) {
+      const { credential, request } = await openCredential(companyId)
+      if (credential.status !== 'active') throw new WhatsAppEvolutionDisabledError()
+      try {
+        return await gateway.listGroups(request)
+      } catch {
+        throw new WhatsAppEvolutionUnreachableError()
+      }
     },
 
     async revealOwner({ context }) {

@@ -132,6 +132,11 @@ export type WorkerEnvironment = {
     readonly invitationTemplate: string | undefined
     readonly passwordResetTemplate: string | undefined
   }
+  /** Spec 292 T9: o token da rota interna de transcrição do áudio do bot; ausente, a rota não existe. */
+  readonly botAudioTranscriptionToken?: string
+  /** Spec 292 T9: o texto de contexto do whisper no áudio do bot; presente, liga o invólucro com prompt. */
+  readonly botAudioTranscriptionPrompt?: string
+  readonly hostname: string
   readonly port: number
   readonly prefetch: number
   readonly queuePrefix: string

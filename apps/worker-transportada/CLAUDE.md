@@ -60,6 +60,9 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   porque o `whisper-local` usa o timeout duas vezes; a trava é lote × lease. Falha de infraestrutura devolve a
   tentativa e repete em 30 min; desligamento devolve a linha em posse. A rotina nasce pausada e não é registrada sem
   modelo ou ferramenta. Detalhe: `docs/ai-context/worker-transportada.md` § "A rotina `conversation.audio.transcribe`".
+- **O áudio do bot do WhatsApp é transcrito na rota interna `POST /internal/bot-audio-transcriptions`** (spec 292 T9),
+  no mesmo servidor do healthcheck, só com `BOT_AUDIO_TRANSCRIPTION_TOKEN` e a transcrição configurada (senão 404).
+  Uma por vez, 3 na fila (depois 503), 8 MB, nada gravado e nada de texto em log. No Railway, `WORKER_HOSTNAME=::`.
 - **A planta do baú é calculada aqui** (ADR-0063, spec 145) — consumidor `CargoLayoutConsumer`
   reclama pedidos por hash, executa `@adatechnology/cargo-placement` em `new Worker()` com orçamento
   `CARGO_LAYOUT_TIME_BUDGET_MS` (padrão 120s, escada 120/240/480 em retry), prefetch 1, schema estrito

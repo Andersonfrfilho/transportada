@@ -181,6 +181,59 @@ import { createWhatsAppEvolutionUseCase } from './whatsapp/application/whatsapp-
 import { createWhatsAppEvolutionSecretService } from './whatsapp/application/whatsapp-evolution-secret.service'
 import { createWhatsAppEvolutionWebhookSecretService } from './whatsapp/application/whatsapp-evolution-webhook-secret.service.js'
 import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
+import { createEvolutionGroupIdentity } from './whatsapp/application/evolution-group-identity.service.js'
+import {
+  createEvolutionGroupInbound,
+  type GroupAudioContext,
+} from './whatsapp/application/evolution-group-inbound.service.js'
+import {
+  type BotAudioTranscriberPort,
+  createWhatsAppBotAudio,
+} from './whatsapp/application/whatsapp-bot-audio.service.js'
+import {
+  describeSpokenNotes,
+  isSpokenNote,
+  toSpokenNoteSummary,
+} from './whatsapp/domain/bot-spoken-note.policy.js'
+import { parseWakePhrase } from './whatsapp/domain/bot-wake-phrase.policy.js'
+import { downloadEvolutionMedia } from './whatsapp/infrastructure/evolution-media-download.gateway.js'
+import {
+  createWorkerBotAudioTranscriber,
+  readWorkerBotAudioTranscriberConfig,
+} from './whatsapp/infrastructure/worker-bot-audio-transcriber.gateway.js'
+import {
+  createGroupOccurrenceFlow,
+  type GroupOccurrenceFlowPorts,
+} from './whatsapp/application/whatsapp-group-occurrence-flow.service.js'
+import { createWhatsAppGroupRequestSessions } from './whatsapp/application/whatsapp-group-request.service.js'
+import { createEvolutionGroupReplySender } from './whatsapp/infrastructure/evolution-group-reply.gateway.js'
+import { startGroupRequestExpiryWatcher } from './whatsapp/infrastructure/whatsapp-group-request-expiry.watcher.js'
+import {
+  createGroupDriverFlow,
+  GROUP_DRIVER_STEP,
+} from './whatsapp/application/whatsapp-group-driver-flow.service.js'
+import {
+  createGroupDeliveryFlow,
+  GROUP_DELIVERY_STEP,
+} from './whatsapp/application/whatsapp-group-delivery-flow.service.js'
+import { createGroupProofIntake } from './whatsapp/application/whatsapp-group-proof-intake.service.js'
+import {
+  createGroupDeliveryWiring,
+  type GroupDeliveryWiring,
+} from './whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
+import { createWhatsAppDeliveryPreparations } from './whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
+import { createWhatsAppPreparationProofAttacher } from './whatsapp-commands/infrastructure/whatsapp-delivery-preparation-proof.adapter.js'
+import {
+  createDrizzleWhatsAppDeliveryPreparationRepository,
+  createWhatsAppDeliveryPreparationMedia,
+} from './whatsapp-commands/infrastructure/drizzle-whatsapp-delivery-preparation.repository.js'
+import {
+  createGroupStopFlow,
+  type GroupStopFlowPorts,
+} from './whatsapp/application/whatsapp-group-stop-flow.service.js'
+import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
+import { createDrizzleWhatsAppGroupRequestRepository } from './whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
+import { createGroupOccurrencePorts } from './whatsapp/infrastructure/whatsapp-group-occurrence.adapter.js'
 import { createDrizzleWhatsAppEvolutionWebhookRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution-webhook.repository.js'
 import {
   createWhatsAppEvolutionPublicWebhookRoutes,
@@ -201,6 +254,11 @@ import { createDrizzleClientReplyRepository } from './occurrence-conversation/in
 import { readAllBytes } from './occurrence-conversation/application/conversation-attachment.service.js'
 import { createForwardContractorReplyByWhatsAppUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-whatsapp.use-case.js'
 import { createContractorReplyClientWhatsAppDispatcher } from './occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-dispatcher.adapter.js'
+import { syncWhatsAppGroupRequestTranscripts } from './occurrence-conversation/infrastructure/whatsapp-group-boleto-return.support.js'
+import {
+  createWhatsAppGroupBoletoReturnDispatcher,
+  withGroupBoletoReturn,
+} from './occurrence-conversation/infrastructure/whatsapp-group-boleto-return-dispatcher.adapter.js'
 import {
   createDrizzleContractorReplyWhatsAppCompletion,
   createDrizzleContractorReplyWhatsAppReader,
@@ -233,7 +291,23 @@ import { createRateLimiter } from './http/rate-limiter.service.js'
 import { createRateLimitSubjectService } from './http/rate-limit-subject.service.js'
 import { DrizzleRateLimiterRepository } from './http/drizzle-rate-limiter.repository.js'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
-import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application/register-driver-flow-actions.js'
+import {
+  createDriverWhatsAppFlowActions,
+  type DriverFlowActionDependencies,
+} from './whatsapp-commands/application/register-driver-flow-actions.js'
+import {
+  deliverWhatsAppDriverDocument,
+  registerWhatsAppDriverOccurrence as registerWhatsAppDriverOccurrenceEvent,
+  type WhatsAppDriverEventPorts,
+} from './whatsapp-commands/application/whatsapp-driver-events.service.js'
+import {
+  combineWhatsAppDriverCollections,
+  createWhatsAppOccurrenceDrafts,
+} from './whatsapp-commands/application/whatsapp-occurrence-draft.service.js'
+import { createDrizzleWhatsAppOccurrenceDraftRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-occurrence-draft.repository.js'
+import { createWhatsAppOccurrencePhotoStore } from './whatsapp-commands/infrastructure/whatsapp-occurrence-photo.adapter.js'
+import { createWhatsAppOccurrenceRequirementsReader } from './whatsapp-commands/infrastructure/whatsapp-occurrence-requirements.query.js'
+import { describeWhatsAppDriverEventResult } from './whatsapp-commands/application/whatsapp-driver-event-speech.service.js'
 import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
 import { createIssuanceWhatsAppFlowActions } from './whatsapp-commands/application/register-issuance-flow-actions.js'
 import { createPreviewDocumentSelectionUseCase } from './whatsapp-commands/application/preview-document-selection.use-case.js'
@@ -243,7 +317,10 @@ import { DrizzleDocumentSelectionRepository } from './whatsapp-commands/infrastr
 import { DrizzleWhatsAppCommandRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-command.repository.js'
 import { createResolveWhatsAppActorUseCase } from './whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
 import { createInMemoryWhatsAppSharedLocationStore } from './whatsapp-commands/application/whatsapp-shared-location.service.js'
-import { createGraphBotSpeech } from './whatsapp-commands/application/whatsapp-bot-speech.service.js'
+import {
+  createGraphBotSpeech,
+  renderBotSpeechLine,
+} from './whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import { createModuleWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import { WHATSAPP_ROOT_FLOW_GRAPH_KEY } from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
 import { DrizzleWhatsAppPhoneRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-phone.repository.js'
@@ -432,6 +509,9 @@ import {
   createSetCrewSettingsUseCase,
 } from './fleet/application/crew-settings.use-case'
 import { DrizzleCrewSettingsRepository } from './fleet/infrastructure/drizzle-crew-settings.repository'
+import { createDriverWhatsappGroupUseCase } from './fleet/application/driver-whatsapp-group.use-case'
+import { DrizzleDriverWhatsappGroupRepository } from './fleet/infrastructure/drizzle-driver-whatsapp-group.repository'
+import { createDriverWhatsappGroupRoutes } from './fleet/presentation/driver-whatsapp-group.routes'
 import { createCompanyCrewSettingsRoutes } from './fleet/presentation/crew-settings.routes'
 import { createListPendingItemsUseCase } from './pending-items/application/list-pending-items.use-case.js'
 import { createFleetBodyTypePendingItemSource } from './pending-items/infrastructure/drizzle-fleet-body-type-pending-item.source.js'
@@ -519,6 +599,11 @@ import {
 } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-read.repository.js'
 import { createResendContractorReplyRequestUseCase } from './occurrence-conversation/application/resend-contractor-reply-request.use-case.js'
 import { createDrizzleContractorReplyResendReader } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-resend.repository.js'
+import {
+  createGroupBoletoResend,
+  type GroupBoletoResendPorts,
+} from './whatsapp/application/whatsapp-group-boleto-resend.service.js'
+import { createGroupBoletoResendPorts } from './whatsapp/infrastructure/whatsapp-group-boleto-resend.adapter.js'
 import { createOccurrenceContractorReplyRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
@@ -1045,42 +1130,61 @@ import { listDriverOnRoadTripIds } from './trips/infrastructure/driver-on-road-t
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
 
-/**
- * Spec 183 T802: o caso de uso do aviso automático à contratante, montado uma vez e compartilhado
- * pelo gancho dos registros de ocorrência e pela rota do robô da varredura (spec 248 T4.4b).
- * O aviso não leva anexo, então a storage dele recusa qualquer uso.
- */
-function buildSendAutomaticOccurrenceMailUseCase(input: {
+type NoAttachmentOccurrenceMailInput = {
   readonly appBaseUrl: ApiEnvironment['appBaseUrl']
   readonly contractorMailSandbox: ApiEnvironment['contractorMailSandbox']
   readonly database: ReturnType<typeof createDatabaseProvider>['db']
   readonly envelopeKeyRing: Parameters<typeof createSecretEnvelopeProvider>[0]
   readonly idempotencyHmacKey: Uint8Array
   readonly logger: ReturnType<typeof createApiLogger>
-}): ReturnType<typeof createSendAutomaticOccurrenceMailUseCase> {
-  const noAttachmentStorage = () => Promise.reject(new Error('AUTOMATIC_MAIL_HAS_NO_ATTACHMENT'))
+}
+
+/**
+ * Spec 183 T802: o caso de uso do aviso automático à contratante, montado uma vez e compartilhado
+ * pelo gancho dos registros de ocorrência e pela rota do robô da varredura (spec 248 T4.4b).
+ * O aviso não leva anexo, então a storage dele recusa qualquer uso.
+ */
+function buildSendAutomaticOccurrenceMailUseCase(
+  input: NoAttachmentOccurrenceMailInput,
+): ReturnType<typeof createSendAutomaticOccurrenceMailUseCase> {
   return createSendAutomaticOccurrenceMailUseCase({
     reader: createAutomaticOccurrenceMailReader(input.database),
-    sendMail: createSendOccurrenceMailUseCase({
-      ...(input.appBaseUrl === undefined ? {} : { appBaseUrl: input.appBaseUrl }),
-      ...(input.contractorMailSandbox === undefined
-        ? {}
-        : { contractorMailSandbox: input.contractorMailSandbox }),
-      fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
-      logger: input.logger,
-      secretService: createContractorMailCredentialSecretService({
-        envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
-      }),
-      storage: {
-        createSignedDownload: noAttachmentStorage,
-        createSignedUpload: noAttachmentStorage,
-        getObjectStream: noAttachmentStorage,
-        deleteObject: noAttachmentStorage,
-        headObject: noAttachmentStorage,
-        storeObject: noAttachmentStorage,
-      },
-      unitOfWork: new DrizzleOccurrenceMailRepository(input.database),
+    sendMail: buildNoAttachmentOccurrenceMail(input),
+  })
+}
+
+/**
+ * Spec 292 T7: o "Reenviar o pedido à contratante" (spec 248 RF6) que o "pedir boleto de novo" do grupo usa. Também
+ * não leva anexo: o pedido volta com o texto fixo e o pedido original embaixo.
+ */
+function buildGroupBoletoResendUseCase(input: NoAttachmentOccurrenceMailInput) {
+  return createResendContractorReplyRequestUseCase({
+    reader: createDrizzleContractorReplyResendReader(input.database),
+    sendMail: buildNoAttachmentOccurrenceMail(input),
+  })
+}
+
+function buildNoAttachmentOccurrenceMail(input: NoAttachmentOccurrenceMailInput) {
+  const noAttachmentStorage = () => Promise.reject(new Error('AUTOMATIC_MAIL_HAS_NO_ATTACHMENT'))
+  return createSendOccurrenceMailUseCase({
+    ...(input.appBaseUrl === undefined ? {} : { appBaseUrl: input.appBaseUrl }),
+    ...(input.contractorMailSandbox === undefined
+      ? {}
+      : { contractorMailSandbox: input.contractorMailSandbox }),
+    fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
+    logger: input.logger,
+    secretService: createContractorMailCredentialSecretService({
+      envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
     }),
+    storage: {
+      createSignedDownload: noAttachmentStorage,
+      createSignedUpload: noAttachmentStorage,
+      getObjectStream: noAttachmentStorage,
+      deleteObject: noAttachmentStorage,
+      headObject: noAttachmentStorage,
+      storeObject: noAttachmentStorage,
+    },
+    unitOfWork: new DrizzleOccurrenceMailRepository(input.database),
   })
 }
 
@@ -1114,6 +1218,20 @@ export function bootstrap(): Bun.Server<undefined> {
     envelopeKeyRing: config.cryptography.envelopeKeyRing,
     idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
     logger,
+  })
+  /** Spec 292 T7: "pedir boleto de novo" no grupo, pelo mesmo reenvio do painel. */
+  const groupBoletoResendUseCase = buildGroupBoletoResendUseCase({
+    appBaseUrl: config.appBaseUrl,
+    contractorMailSandbox: config.contractorMailSandbox,
+    database: database.db,
+    envelopeKeyRing: config.cryptography.envelopeKeyRing,
+    idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
+    logger,
+  })
+  const whatsappGroupBoletoResend = createGroupBoletoResendPorts({
+    database: database.db,
+    logger,
+    resend: (input) => groupBoletoResendUseCase.resend(input),
   })
   const automaticOccurrenceMail = createAutomaticOccurrenceMailHook({
     logger,
@@ -1276,7 +1394,187 @@ export function bootstrap(): Bun.Server<undefined> {
     repository: new FlowGraphRepository(database.db as never),
     rootFlowKey: WHATSAPP_ROOT_FLOW_GRAPH_KEY,
   })
+  /**
+   * O registro de ocorrência dos dois WhatsApp do motorista (o chat da Meta e o grupo no Evolution,
+   * spec 292): a mesma `registerDriverOccurrence` do app, e depois do commit o aviso automático do tipo.
+   */
+  const registerWhatsAppDriverOccurrence = async (
+    input: Parameters<DriverFlowActionDependencies['registerOccurrence']>[0],
+  ) => {
+    const occurrence = await registerDriverOccurrence({
+      ...input,
+      channel: TRIP_FIELD_CHANNELS.whatsapp,
+      repository: {
+        findConfirmedUpload: (query) =>
+          whatsappOccurrenceUploadRepository.findConfirmedUpload(query),
+        findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+        /** Spec 246 (RF6): a exceção do tipo vale no WhatsApp como em qualquer canal. */
+        findOccurrenceTypeOverrides: (query) =>
+          new DrizzleOccurrenceAttachmentOverridesRepository(database.db).listOverridesForTypes({
+            companyId: query.companyId,
+            occurrenceTypeIds: [query.occurrenceTypeId],
+          }),
+        findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
+        listDocumentProducts: (query) => listDocumentProducts(database.db, query),
+      },
+      notifier: driverOccurrenceNotifier,
+      unitOfWork: whatsappDriverFieldReports,
+    })
+    /** Spec 183 T802: depois do commit, o aviso automático do tipo (se ligado). */
+    automaticOccurrenceMail.announce({
+      companyId: input.companyId,
+      occurrenceIds: [occurrence.id],
+    })
+    return occurrence
+  }
+  /** O bucket privado do WhatsApp: fotos da entrega em preparo (spec 293 T15), notas e NFS-e (spec 144). */
+  const whatsappStorageBucket = resolveStorageBucket(process.env)
+  const whatsappStorageGateway = createNfeStorageGatewayFromEnvironment({
+    environment: process.env,
+    finalBucket: whatsappStorageBucket,
+    stagingBucket: whatsappStorageBucket,
+  })
+  /**
+   * Spec 293 T11: as funções do app que os eventos do motorista pelo WhatsApp chamam — as mesmas das
+   * rotas `/me`, com `channel: 'whatsapp'`. O grupo (Evolution) e a conversa individual (Meta) passam
+   * pela camada `whatsapp-driver-events.service.ts` sobre estas portas; nenhum caminho paralelo.
+   */
+  const whatsappDriverEventPorts = {
+    registerOccurrence: registerWhatsAppDriverOccurrence,
+    reportArrival: (input) =>
+      reportStopArrival({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
+    reportDelivery: (input) =>
+      reportDocumentDelivery({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        resolveProofSettings: (settings) =>
+          whatsappDeliveryProofRepository.resolveProofFieldSettings(settings),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
+    reportDeparture: (input) =>
+      reportStopDeparture({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
+    reportReturn: (input) =>
+      reportDocumentReturn({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
+  } satisfies WhatsAppDriverEventPorts
+  /**
+   * Spec 293 T15: a entrega em preparo pelo WhatsApp (grupo e individual): as provas que a configuração
+   * do comprovante exige chegam antes da baixa; depois dela viram comprovante pelo mesmo
+   * `attachDeliveryProof` do app, no canal `whatsapp`.
+   */
+  const whatsappDeliveryPreparations = createWhatsAppDeliveryPreparations({
+    attachProof: createWhatsAppPreparationProofAttacher({
+      bucket: whatsappStorageBucket,
+      logger,
+      repository: whatsappDeliveryProofRepository,
+      storage: whatsappStorageGateway,
+    }),
+    deliver: (input) => deliverWhatsAppDriverDocument(whatsappDriverEventPorts, input),
+    describeResult: ({ channel, companyId, documentNumber, result }) =>
+      renderBotSpeechLine({
+        companyId,
+        line: describeWhatsAppDriverEventResult(
+          result,
+          channel === 'group' ? { documentNumber, kind: 'group' } : { kind: 'driver' },
+        ),
+        speech: whatsappBotSpeech,
+      }),
+    logger,
+    media: createWhatsAppDeliveryPreparationMedia({
+      bucket: whatsappStorageBucket,
+      storage: whatsappStorageGateway,
+    }),
+    repository: createDrizzleWhatsAppDeliveryPreparationRepository(database.db),
+    resolveSettings: (query) => whatsappDeliveryProofRepository.resolveProofFieldSettings(query),
+  })
+  /**
+   * Spec 293 T15: a ocorrência em coleta (grupo e individual): o tipo que pede foto, número do documento
+   * do cliente ou valor pago colhe o que falta antes do registro, em vez de recusar.
+   */
+  const whatsappOccurrenceDrafts = createWhatsAppOccurrenceDrafts({
+    describeResult: ({ channel, companyId, documentNumber, result }) =>
+      renderBotSpeechLine({
+        companyId,
+        line: describeWhatsAppDriverEventResult(
+          result,
+          channel === 'group' ? { documentNumber, kind: 'group' } : { kind: 'driver' },
+        ),
+        speech: whatsappBotSpeech,
+      }),
+    logger,
+    register: (input) => registerWhatsAppDriverOccurrenceEvent(whatsappDriverEventPorts, input),
+    repository: createDrizzleWhatsAppOccurrenceDraftRepository(database.db),
+    resolveRequirements: createWhatsAppOccurrenceRequirementsReader(database.db),
+    storePhoto: createWhatsAppOccurrencePhotoStore({
+      bucket: whatsappStorageBucket,
+      database: database.db,
+      storage: whatsappStorageGateway,
+      uploads: whatsappOccurrenceUploadRepository,
+    }),
+  })
+  /** O que o motorista manda sem dizer para quê vai para a coleta certa (ocorrência ou entrega). */
+  const whatsappDriverCollections = combineWhatsAppDriverCollections({
+    deliveries: whatsappDeliveryPreparations,
+    occurrences: whatsappOccurrenceDrafts,
+  })
+  /** Spec 293 T15: o ponto compartilhado no grupo espera o próximo evento do motorista, só em memória. */
+  const whatsappGroupLocations = createInMemoryWhatsAppSharedLocationStore({
+    clock: () => new Date(),
+  })
+  const groupLocationKey = (input: { readonly companyId: string; readonly driverId: string }) => ({
+    companyId: input.companyId,
+    whatsappNumber: `group-driver:${input.driverId}`,
+  })
+  const whatsappGroupDelivery = createGroupDeliveryWiring({
+    consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
+    database: database.db,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    preparations: whatsappDriverCollections,
+    rememberLocation: ({ location, ...key }) =>
+      whatsappGroupLocations.remember({ ...groupLocationKey(key), location }),
+    speech: whatsappBotSpeech,
+  })
+  /** Spec 292 T5: o pedido no grupo do motorista registra pelo mesmo caminho do WhatsApp do motorista. */
+  const whatsappGroupOccurrence = createGroupOccurrencePorts({
+    consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
+    contacts: createDriverClientContactsUseCase({
+      repository: new DrizzleDriverClientContactRepository(database.db),
+    }),
+    collections: { answers: whatsappDriverCollections, occurrences: whatsappOccurrenceDrafts },
+    database: database.db,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    registerOccurrence: whatsappDriverEventPorts.registerOccurrence,
+    speech: whatsappBotSpeech,
+  })
+  /** Spec 293 T12: "saí" e "cheguei" no grupo, pelas mesmas portas do app. */
+  const whatsappGroupStop = createGroupStopPorts({
+    consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
+    database: database.db,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    ports: whatsappDriverEventPorts,
+    speech: whatsappBotSpeech,
+  })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
+    deliveryPreparations: whatsappDeliveryPreparations,
+    occurrenceDrafts: whatsappOccurrenceDrafts,
     speech: whatsappBotSpeech,
     consumeSharedLocation: (key) => whatsappSharedLocations.consume(key),
     findCurrentTrip: (input) =>
@@ -1287,49 +1585,11 @@ export function bootstrap(): Bun.Server<undefined> {
         scores: whatsappDriverScoreRepository,
       }),
     listOccurrenceTypes: (input) => listOccurrenceTypesForNote(database.db, input),
-    registerOccurrence: async (input) => {
-      const occurrence = await registerDriverOccurrence({
-        ...input,
-        channel: TRIP_FIELD_CHANNELS.whatsapp,
-        repository: {
-          findConfirmedUpload: (query) =>
-            whatsappOccurrenceUploadRepository.findConfirmedUpload(query),
-          findOccurrenceType: (query) => findOccurrenceType(database.db, query),
-          /** Spec 246 (RF6): a exceção do tipo vale no WhatsApp como em qualquer canal. */
-          findOccurrenceTypeOverrides: (query) =>
-            new DrizzleOccurrenceAttachmentOverridesRepository(database.db).listOverridesForTypes({
-              companyId: query.companyId,
-              occurrenceTypeIds: [query.occurrenceTypeId],
-            }),
-          findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
-          listDocumentProducts: (query) => listDocumentProducts(database.db, query),
-        },
-        notifier: driverOccurrenceNotifier,
-        unitOfWork: whatsappDriverFieldReports,
-      })
-      /** Spec 183 T802: depois do commit, o aviso automático do tipo (se ligado). */
-      automaticOccurrenceMail.announce({
-        companyId: input.companyId,
-        occurrenceIds: [occurrence.id],
-      })
-      return occurrence
-    },
-    reportDelivery: (input) =>
-      reportDocumentDelivery({
-        ...input,
-        channel: TRIP_FIELD_CHANNELS.whatsapp,
-        now: new Date(),
-        resolveProofSettings: (settings) =>
-          whatsappDeliveryProofRepository.resolveProofFieldSettings(settings),
-        unitOfWork: whatsappDriverFieldReports,
-      }),
-    reportReturn: (input) =>
-      reportDocumentReturn({
-        ...input,
-        channel: TRIP_FIELD_CHANNELS.whatsapp,
-        now: new Date(),
-        unitOfWork: whatsappDriverFieldReports,
-      }),
+    registerOccurrence: whatsappDriverEventPorts.registerOccurrence,
+    reportArrival: whatsappDriverEventPorts.reportArrival,
+    reportDelivery: whatsappDriverEventPorts.reportDelivery,
+    reportDeparture: whatsappDriverEventPorts.reportDeparture,
+    reportReturn: whatsappDriverEventPorts.reportReturn,
     resolveDriverId: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
   })
   /**
@@ -1571,12 +1831,6 @@ export function bootstrap(): Bun.Server<undefined> {
    * rotas de notas e de NFS-e montam em `createApplicationRoutes` (a mesma ordem de construção da
    * T016): a classificação passa pelo `mapSummary` da listagem, e a prévia de NFS-e é a do painel.
    */
-  const whatsappStorageBucket = resolveStorageBucket(process.env)
-  const whatsappStorageGateway = createNfeStorageGatewayFromEnvironment({
-    environment: process.env,
-    finalBucket: whatsappStorageBucket,
-    stagingBucket: whatsappStorageBucket,
-  })
   const whatsappNfeDocuments = new DrizzleNfeDocumentRepository(database.db, whatsappStorageGateway)
   const whatsappNfseInvoiceRepository = new DrizzleNfseInvoiceRepository(database.db)
   const whatsappNfseInvoices = createNfseInvoiceUseCase({
@@ -1674,6 +1928,13 @@ export function bootstrap(): Bun.Server<undefined> {
     logger,
     rateLimiter: createRateLimiter(),
     sharedLocations: whatsappSharedLocations,
+    /** Spec 292 T9: o áudio da conversa individual é transcrito pelo worker e confirmado. */
+    botAudio: createWhatsAppBotAudio<null>({ logger, transcriber: whatsappBotAudioTranscriber() }),
+    /** Spec 293 T15: foto, localização e respostas da entrega em preparo na conversa individual. */
+    deliveryProofs: {
+      preparations: whatsappDriverCollections,
+      resolveDriver: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
+    },
     resolveActor: createResolveWhatsAppActorUseCase({
       memberships: new DrizzleMembershipRepository(database.db),
       phones: new DrizzleWhatsAppPhoneRepository(database.db),
@@ -1703,6 +1964,10 @@ export function bootstrap(): Bun.Server<undefined> {
       resolveClientIp,
       userModule,
       whatsappCommandHook,
+      whatsappGroupBoletoResend,
+      whatsappGroupDelivery,
+      whatsappGroupOccurrence,
+      whatsappGroupStop,
     }),
     authentication,
     authorization: new AuthorizationService(),
@@ -1851,6 +2116,13 @@ type CreateAnonymousRoutesParams = {
   /** Ausente, a rota de cadastro de conta de agregado não é publicada — mesma regra do módulo. */
   readonly userModule: UserModule | undefined
   readonly whatsappCommandHook: WhatsAppCommandHookFactory
+  /** Spec 292 T5: o fluxo do pedido no grupo do motorista (só a entrega anônima do Evolution o usa). */
+  readonly whatsappGroupOccurrence: GroupOccurrenceFlowPorts
+  readonly whatsappGroupStop: GroupStopFlowPorts
+  /** Spec 293 T15: a entrega em preparo no grupo; ausente, "entreguei" e as fotos não são atendidos. */
+  readonly whatsappGroupDelivery: GroupDeliveryWiring
+  /** Spec 292 T7: "pedir boleto de novo" no grupo. */
+  readonly whatsappGroupBoletoResend: GroupBoletoResendPorts
 }
 
 /** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
@@ -1870,13 +2142,151 @@ function createEvolutionWebhook(input: {
   readonly apiPublicUrl: string | undefined
   readonly database: Parameters<typeof applyProviderMessageStatus>[0]
   readonly envelopeProvider: ReturnType<typeof createSecretEnvelopeProvider>
+  /** Spec 292 T5: ausente (a instância da rota do dono, que só aponta o webhook), o grupo não abre pedido. */
+  readonly groupOccurrence?: GroupOccurrenceFlowPorts
+  /** Spec 293 T12: o "saí"/"cheguei" do grupo; ausente, só a ocorrência atende. */
+  readonly groupStop?: GroupStopFlowPorts
+  /** Spec 293 T15: "entreguei" e as provas (foto/localização) do grupo; ausente, não atendidos. */
+  readonly groupDelivery?: GroupDeliveryWiring
+  /** Spec 292 T7: "pedir boleto de novo" no grupo; ausente, o texto segue para a ocorrência. */
+  readonly groupBoletoResend?: GroupBoletoResendPorts
   readonly logger: ApiLogger
 }) {
   const { database, envelopeProvider, logger } = input
+  const gateway = createEvolutionConnectionGateway()
+  const driverGroups = new DrizzleDriverWhatsappGroupRepository(database)
+  const apiKeySecrets = createWhatsAppEvolutionSecretService({ envelopeProvider })
+  /**
+   * Spec 292 T4: a sessão do pedido no grupo. A resposta sai pelo mesmo Evolution e no mesmo ritmo do
+   * número (spec 289), fora do webhook.
+   */
+  const groupReplies = createEvolutionGroupReplySender({
+    logger,
+    sendText: createEvolutionDocumentSender({
+      pacer: createEvolutionSendPacer({
+        claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
+        maxWaitMs: 120_000,
+      }),
+      repository: new DrizzleWhatsAppEvolutionRepository(database),
+      secrets: apiKeySecrets,
+    }).sendText,
+  })
+  const groupRequests = createDrizzleWhatsAppGroupRequestRepository(database)
+  /** Spec 292 regra 5: o pedido que vence sem resposta é avisado (antes) e encerrado com aviso no grupo. */
+  if (input.groupOccurrence !== undefined) {
+    startGroupRequestExpiryWatcher({
+      database: database as unknown as Parameters<
+        typeof startGroupRequestExpiryWatcher
+      >[0]['database'],
+      logger,
+      replies: groupReplies,
+    })
+  }
+  const groupSessions =
+    input.groupOccurrence === undefined
+      ? undefined
+      : createWhatsAppGroupRequestSessions({
+          clock: () => new Date(),
+          flow:
+            input.groupStop === undefined
+              ? createGroupOccurrenceFlow(input.groupOccurrence)
+              : createGroupDriverFlow({
+                  ...(input.groupBoletoResend === undefined
+                    ? {}
+                    : { boletoResend: createGroupBoletoResend(input.groupBoletoResend) }),
+                  ...(input.groupDelivery === undefined
+                    ? {}
+                    : { delivery: createGroupDeliveryFlow(input.groupDelivery.flow) }),
+                  occurrence: createGroupOccurrenceFlow(input.groupOccurrence),
+                  stop: createGroupStopFlow(input.groupStop),
+                }),
+          logger,
+          replies: groupReplies,
+          repository: groupRequests,
+        })
+  /**
+   * Spec 293 T15: a foto e a localização do motorista no grupo. Quando a entrega em preparo passa a
+   * esperar texto, abre o pedido no passo da resposta, para ele responder sem marcar o bot.
+   */
+  const groupProofIntake =
+    input.groupDelivery === undefined || groupSessions === undefined
+      ? undefined
+      : createGroupProofIntake({
+          ...input.groupDelivery.intake,
+          advanceRequest: (request) => groupSessions.handleLocation(request),
+          openAnswerRequest: async (request) => {
+            await groupRequests.open({
+              ...request,
+              now: new Date(),
+              step: `${GROUP_DRIVER_STEP.deliveryPrefix}${GROUP_DELIVERY_STEP.answer}`,
+            })
+          },
+          replies: groupReplies,
+        })
+  /** Spec 292 T9: o áudio no grupo é transcrito pelo worker e confirmado antes de seguir o fluxo. */
+  const groupAudio =
+    groupSessions === undefined
+      ? undefined
+      : createWhatsAppBotAudio<GroupAudioContext>({
+          logger,
+          transcriber: whatsappBotAudioTranscriber(),
+        })
   return createWhatsAppEvolutionWebhookUseCase({
-    apiKeySecrets: createWhatsAppEvolutionSecretService({ envelopeProvider }),
+    apiKeySecrets,
     apiPublicUrl: input.apiPublicUrl,
-    gateway: createEvolutionConnectionGateway(),
+    gateway,
+    // Spec 292 T3: o grupo do motorista chega ao bot; T4/T5: a sessão do pedido e o fluxo.
+    groupInbound: createEvolutionGroupInbound({
+      ...(groupAudio === undefined
+        ? {}
+        : {
+            audio: {
+              bot: groupAudio,
+              // Spec 292 T9: o "Entendi assim" mostra a nota falada (cliente, valor, endereço).
+              ...spokenNotesPort(input.groupOccurrence),
+              download: downloadEvolutionMedia,
+              reply: (reply) => groupReplies.send(reply),
+              // Spec 292 T9: a frase de chamada por voz da instalação ("atendimento Fernandes").
+              wakePhrase: parseWakePhrase(process.env.WHATSAPP_BOT_WAKE_PHRASE),
+              // Diagnóstico de staging: o começo do que o whisper ouviu quando a frase não casou.
+              ...(process.env.WHATSAPP_BOT_WAKE_DEBUG === 'true' &&
+              process.env.APP_ENV !== 'production'
+                ? {
+                    onWakeMissed: (heard: string) => {
+                      logger.info('whatsapp_bot_audio.wake_missed', { heard })
+                    },
+                  }
+                : {}),
+            },
+          }),
+      findGroupDriver: (lookup) => driverGroups.findDriverByGroup(lookup),
+      findOpenRequestOwner: (lookup) =>
+        groupSessions?.findOpenOwner(lookup) ?? Promise.resolve(null),
+      handle: async (message) => {
+        if (groupSessions === undefined) return
+        await groupSessions.handle(message)
+        // Spec 292 T7: o pedido que abriu ocorrência leva o diálogo à conversa dela, fora do ritmo do webhook.
+        void syncWhatsAppGroupRequestTranscripts(database, {
+          companyId: message.companyId,
+          now: new Date(),
+        }).catch((error: unknown) =>
+          logger.warn('whatsapp_group_request.transcript_sync_failed', {
+            companyId: message.companyId,
+            errorName: error instanceof Error ? error.name : typeof error,
+          }),
+        )
+      },
+      ...(groupProofIntake === undefined || input.groupDelivery === undefined
+        ? {}
+        : {
+            handleMedia: (media) => groupProofIntake.handle(media),
+            isGroupDriver: input.groupDelivery.isGroupDriver,
+          }),
+      ...(groupSessions === undefined
+        ? {}
+        : { advanceRequestLocation: (request) => groupSessions.handleLocation(request) }),
+      identity: createEvolutionGroupIdentity({ gateway }),
+    }),
     inbound: createEvolutionConversationInbound({
       applyStatus: (status) =>
         applyProviderMessageStatus(database, { ...status, channel: 'whatsapp' }),
@@ -1891,6 +2301,22 @@ function createEvolutionWebhook(input: {
   })
 }
 
+/**
+ * Spec 292 T9: o transcritor do áudio do bot (a rota interna do worker), um por processo. Sem
+ * `WORKER_INTERNAL_URL` e `BOT_AUDIO_TRANSCRIPTION_TOKEN`, `undefined`: o bot responde que ainda não
+ * ouve áudio.
+ */
+let botAudioTranscriber: { readonly value: BotAudioTranscriberPort | undefined } | undefined
+function whatsappBotAudioTranscriber(): BotAudioTranscriberPort | undefined {
+  if (botAudioTranscriber === undefined) {
+    const config = readWorkerBotAudioTranscriberConfig(process.env)
+    botAudioTranscriber = {
+      value: config === undefined ? undefined : createWorkerBotAudioTranscriber(config),
+    }
+  }
+  return botAudioTranscriber.value
+}
+
 function createAnonymousRoutes({
   config,
   database,
@@ -1898,6 +2324,10 @@ function createAnonymousRoutes({
   resolveClientIp,
   userModule,
   whatsappCommandHook,
+  whatsappGroupBoletoResend,
+  whatsappGroupDelivery,
+  whatsappGroupOccurrence,
+  whatsappGroupStop,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
   /**
@@ -1986,6 +2416,10 @@ function createAnonymousRoutes({
       apiPublicUrl: config.apiPublicUrl,
       database,
       envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+      groupDelivery: whatsappGroupDelivery,
+      groupBoletoResend: whatsappGroupBoletoResend,
+      groupOccurrence: whatsappGroupOccurrence,
+      groupStop: whatsappGroupStop,
       logger,
     }),
   })
@@ -2773,7 +3207,13 @@ function createApplicationRoutes({
   /** Spec 183 T651 (RF21): a conversa da contratante pelo portal, com o recorte da 164. */
   const contractorPortalConversation = createContractorPortalConversationUseCase({
     /** Spec 286 T3: declarado mais abaixo, junto do Evolution; só é chamado depois da subida. */
-    clientWhatsApp: { dispatch: (params) => contractorReplyClientWhatsApp.dispatch(params) },
+    clientWhatsApp: {
+      /** Spec 292 T7: e, logo depois, o retorno do boleto ao grupo do pedido. */
+      dispatch: async (params) => {
+        await contractorReplyClientWhatsApp.dispatch(params)
+        void whatsappGroupBoletoReturns.dispatch(params)
+      },
+    },
     clock: () => new Date(),
     /** Spec 248 T4.6b: the driver bell notice of the automatic delivery, after the commit. */
     deliveryNotifier: createContractorReplyDeliveryNotifier({
@@ -3073,6 +3513,21 @@ function createApplicationRoutes({
   const contractorReplyWhatsAppOptions = createDrizzleContractorReplyWhatsAppReader(database)
   /** Spec 286 T3 (RF3/RF4): o boleto por WhatsApp que a entrega automática reservou, pelo mesmo Evolution. */
   const contractorReplyClientWhatsApp = createContractorReplyClientWhatsAppDispatcher({
+    database,
+    logger,
+    readAttachment: async (location) =>
+      readAllBytes(await storageGateway.getObjectStream(location)),
+    sender: createEvolutionDocumentSender({
+      pacer: evolutionSendPacer,
+      repository: whatsappEvolutionRepository,
+      secrets: whatsappEvolutionSecrets,
+    }),
+  })
+  /**
+   * Spec 292 T7: o boleto da contratante volta ao grupo de onde o pedido saiu (PDF, ou o aviso de que o cliente
+   * recebeu). Roda depois do despacho do WhatsApp do cliente e depois da entrega do operador ao motorista.
+   */
+  const whatsappGroupBoletoReturns = createWhatsAppGroupBoletoReturnDispatcher({
     database,
     logger,
     readAttachment: async (location) =>
@@ -3658,6 +4113,12 @@ function createApplicationRoutes({
       get: createGetCrewSettingsUseCase({ crewSettings: crewSettingsRepository }),
       set: createSetCrewSettingsUseCase({ crewSettings: crewSettingsRepository }),
     }),
+    ...createDriverWhatsappGroupRoutes({
+      useCase: createDriverWhatsappGroupUseCase({
+        listEvolutionGroups: (input) => whatsappEvolution.listGroups(input),
+        repository: new DrizzleDriverWhatsappGroupRepository(database),
+      }),
+    }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
     ...createPendingItemsRoutes({
       listPendingItems: { execute: (input) => pendingItems.execute(input) },
@@ -3732,18 +4193,22 @@ function createApplicationRoutes({
           unitOfWork: new DrizzleOccurrenceMailRepository(database),
         }),
       }),
-      deliverToDriver: createDeliverContractorReplyToDriverUseCase({
-        clock: () => new Date(),
-        notifier: createDriverConversationNotifier({
-          logger,
-          send: (params) =>
-            notifications.useCases.sendNotification.execute({
-              ...params,
-              locale: NOTIFICATION_DEFAULT_LOCALE,
-            } as never),
+      /** Spec 292 T7: a entrega do operador ao motorista também devolve o boleto ao grupo do pedido. */
+      deliverToDriver: withGroupBoletoReturn(
+        createDeliverContractorReplyToDriverUseCase({
+          clock: () => new Date(),
+          notifier: createDriverConversationNotifier({
+            logger,
+            send: (params) =>
+              notifications.useCases.sendNotification.execute({
+                ...params,
+                locale: NOTIFICATION_DEFAULT_LOCALE,
+              } as never),
+          }),
+          unitOfWork: createDrizzleContractorReplyDeliveryUnitOfWork(database),
         }),
-        unitOfWork: createDrizzleContractorReplyDeliveryUnitOfWork(database),
-      }),
+        whatsappGroupBoletoReturns,
+      ),
       /** Spec 279 T4b (RF8): o cartão do e-mail que o motorista escreveu na conversa. */
       detectedClientEmail: createDetectedClientEmail(database, logger),
       /** Spec 248 T4.7 (RF10–RF12): o mesmo boleto por e-mail ao cliente da nota ou a um endereço informado. */
@@ -6013,5 +6478,35 @@ function buildEvolutionProvisioner(input: {
   } catch {
     input.logger.warn('evolution_provisioning_disabled_invalid_base_url')
     return undefined
+  }
+}
+
+/** Spec 292 T9: o "Entendi assim" do áudio mostra a nota falada, lida das viagens do motorista. */
+function spokenNotesPort(groupOccurrence: GroupOccurrenceFlowPorts | undefined) {
+  if (groupOccurrence === undefined) return {}
+  return {
+    describeNotes: async (lookup: {
+      readonly companyId: string
+      readonly driverId: string
+      readonly text: string
+    }) =>
+      describeSpokenNotes(
+        await Promise.all(
+          (await groupOccurrence.listDriverDocuments(lookup)).map(async (document) => {
+            const summary = toSpokenNoteSummary(document)
+            // A contratante só da nota citada: é uma consulta por nota.
+            if (
+              groupOccurrence.noteContractor === undefined ||
+              !isSpokenNote(document, lookup.text)
+            )
+              return summary
+            const contractor = await groupOccurrence
+              .noteContractor({ companyId: lookup.companyId, documentId: document.id })
+              .catch(() => '')
+            return { ...summary, contractor }
+          }),
+        ),
+        lookup.text,
+      ),
   }
 }

@@ -12,10 +12,17 @@ export const BOT_SPEECH_NODE_PREFIX = 'fala_'
 export const BOT_SPEECH_DEFAULTS = {
   alreadyRegistered: 'Já estava registrada.',
   deliveryRegistered: 'Entrega registrada. ✅',
+  driverDirectCancelled: 'Certo, nada foi registrado.',
+  driverDirectConfirm: '{{verb}} {{documents}}{{reason}}?',
+  driverDirectReturnOneAtATime: 'Devolva uma nota por vez. Mande "devolvi" e o número da nota.',
+  driverDocumentsNotOpen: 'Não achei estas notas abertas na sua viagem: {{numbers}}.',
   driverNoActiveTrip: 'Você não tem viagem em andamento.',
   driverNoPendingDocuments: 'Não há notas pendentes nesta viagem.',
+  driverNoStopToArrive: 'Não há parada pendente para registrar a chegada.',
+  driverNoStopToDepart: 'Não há parada pendente para sair.',
   driverNoStreetOccurrenceTypes:
     'Ainda não há tipos de ocorrência cadastrados para a rua. Fale com o escritório.',
+  driverDirectTooManyDocuments: 'Mande até 8 notas por mensagem.',
   driverNotLinked: 'Sua conta não está ligada a um cadastro de motorista.',
   driverNotLinkedOffice:
     'Sua conta não está ligada a um cadastro de motorista. Fale com o escritório.',
@@ -72,6 +79,27 @@ export const BOT_SPEECH_DEFAULTS = {
   returnRegistered: 'Devolução registrada. ↩️',
   driverDocumentNotReachable: 'Essa nota não está mais disponível na sua viagem.',
   tripUnavailable: 'Esta viagem não está mais disponível.',
+  /**
+   * Spec 293 T11: os eventos da entrega pela camada comum (`whatsapp-driver-events.service.ts`). As
+   * `group*` são a versão do grupo do motorista: só o número da nota, sem nome do cliente, endereço,
+   * documento nem valor (spec 292).
+   */
+  arrivalRegistered: 'Chegada registrada. 📍',
+  departureRegistered: 'Saída registrada. 🚚',
+  stopEnRoute:
+    'A parada {{sequence}} já está a caminho. Registre a chegada nela antes de sair para outra.',
+  stopNotReachable: 'Essa parada não está mais disponível na viagem.',
+  groupAlreadyRegistered: 'NF {{documentNumber}} já estava registrada.',
+  groupDeliveryRegistered: 'NF {{documentNumber}} entregue. ✅',
+  groupDeliveryStopCompleted: 'NF {{documentNumber}} entregue. Parada concluída. ✅',
+  groupDeliveryTripCompleted: 'NF {{documentNumber}} entregue. Viagem concluída. 🏁',
+  groupDocumentNotReachable: 'Essa nota não está mais disponível na viagem do motorista.',
+  groupDriverWithoutAccess:
+    'O motorista deste grupo ainda não tem acesso ao aplicativo, e o registro precisa ficar no nome dele. Cadastre o acesso ou registre pelo painel.',
+  groupOccurrenceRegistered: 'Ocorrência registrada na NF {{documentNumber}}. ⚠️',
+  groupRegisterFailed:
+    'Não consegui registrar agora. Tente de novo em instantes ou registre pelo aplicativo.',
+  groupReturnRegistered: 'NF {{documentNumber}} devolvida. ↩️',
 } as const
 
 export type BotSpeechKey = keyof typeof BOT_SPEECH_DEFAULTS

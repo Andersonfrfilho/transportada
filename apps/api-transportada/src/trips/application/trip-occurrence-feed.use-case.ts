@@ -155,6 +155,8 @@ export type TripOccurrenceFeedItem = {
   /** Spec 156 T9 (D3): só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
   readonly onBehalfOfDriverName: string | null
   readonly source: 'document' | 'stop'
+  /** Spec 292: aberta pelo bot no grupo do WhatsApp (o canal segue `whatsapp`). */
+  readonly viaGroupBot?: boolean
   readonly stage: null | TripOccurrenceStage
   readonly stopLabel: null | string
   readonly tripId: string

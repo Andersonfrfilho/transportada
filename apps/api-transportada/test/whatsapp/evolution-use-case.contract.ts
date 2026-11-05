@@ -166,6 +166,11 @@ async function buildFixture(
       gatewayCalls.push({ ...request, method: 'logout' })
       if (input.gatewayFails === true) throw new Error('boom: https://evolution/secret')
     },
+    listGroups: async (request) => {
+      gatewayCalls.push({ ...request, method: 'groups' })
+      if (input.gatewayFails === true) throw new Error('boom: https://evolution/secret')
+      return [{ groupJid: '120363000000000001@g.us', name: 'Motorista João' }]
+    },
   }
   const useCase = createWhatsAppEvolutionUseCase({
     gateway,
@@ -384,6 +389,29 @@ describe('o QR e o estado da conexão (spec 281 T4)', () => {
       fixture.useCase.disconnect({ context: CONTEXT, correlationId: 'c1' }),
     ).rejects.toBeInstanceOf(WhatsAppEvolutionUnreachableError)
     expect(fixture.recorded).toEqual([])
+  })
+
+  test('listar grupos abre a chave, chama o Evolution e devolve identificador e nome', async () => {
+    const fixture = await buildFixture({ state: 'open' })
+
+    const groups = await fixture.useCase.listGroups({ companyId: COMPANY_ID })
+
+    expect(groups).toEqual([{ groupJid: '120363000000000001@g.us', name: 'Motorista João' }])
+    expect(fixture.gatewayCalls).toEqual([
+      { apiKey: API_KEY, baseUrl: SUMMARY.baseUrl, instanceName: 'transportada', method: 'groups' },
+    ])
+  })
+
+  test('listar grupos sem configuração, desligado ou com o Evolution fora vira erro tipado', async () => {
+    await expect(
+      (await buildFixture({ existing: null })).useCase.listGroups({ companyId: COMPANY_ID }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionNotConfiguredError)
+    await expect(
+      (await buildFixture({ status: 'disabled' })).useCase.listGroups({ companyId: COMPANY_ID }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionDisabledError)
+    await expect(
+      (await buildFixture({ gatewayFails: true })).useCase.listGroups({ companyId: COMPANY_ID }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionUnreachableError)
   })
 
   test('o QR vem como imagem pronta, com a renovação, e o pedido é auditado sem o QR', async () => {

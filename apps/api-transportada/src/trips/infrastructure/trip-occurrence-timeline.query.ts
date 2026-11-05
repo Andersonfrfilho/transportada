@@ -568,18 +568,70 @@ async function listMailSources(
   })
 }
 
+/**
+ * Spec 292 T7: as respostas do bot no grupo do WhatsApp onde o pedido foi aberto. O vínculo é a chave
+ * `whatsapp-group-request:<id>` em `trip_field_reports`; o que o bot disse fica em
+ * `whatsapp_group_requests.state.boletoReturn`. Só o tipo do aviso e a hora, nunca o texto nem o número.
+ */
+async function listGroupBoletoReturnSources(
+  queryable: TripQueryable,
+  scope: Scope,
+): Promise<readonly OccurrenceTimelineSource[]> {
+  const rows = (await queryable.execute(
+    sql`select request.state -> 'boletoReturn' as boleto_return
+        from trip_field_reports report
+        join whatsapp_group_requests request
+          on request.company_id = report.company_id
+         and report.idempotency_key = 'whatsapp-group-request:' || request.id::text
+        where report.company_id = ${scope.companyId}::uuid
+          and report.result_id = ${scope.occurrenceId}::uuid
+        limit 1`,
+  )) as readonly { boleto_return?: unknown }[]
+  const state = rows[0]?.boleto_return
+  if (typeof state !== 'object' || state === null) return []
+  const { lastFailedAt, notices, outcome, status } = state as {
+    lastFailedAt?: unknown
+    notices?: Record<string, unknown>
+    outcome?: unknown
+    status?: unknown
+  }
+  const system = { kind: 'system', name: null } as const
+  const found: OccurrenceTimelineSource[] = []
+  const add = (key: string, at: unknown, name: string) => {
+    if (typeof at === 'string' && !Number.isNaN(Date.parse(at))) {
+      found.push({
+        actor: system,
+        id: `${scope.occurrenceId}:group:${key}`,
+        kind: 'group.boleto_return',
+        occurredAt: new Date(at).toISOString(),
+        status: name,
+      })
+    }
+  }
+  add(
+    'delivered',
+    notices?.delivered,
+    outcome === 'sent_to_client' ? 'sent_to_client' : 'posted_to_group',
+  )
+  add('office', notices?.office, 'office')
+  add('overdue', notices?.overdue, 'overdue')
+  if (status === 'failed') add('failed', lastFailedAt, 'failed')
+  return found
+}
+
 export async function findTripOccurrenceTimelineSources(
   queryable: TripQueryable,
   scope: Scope,
 ): Promise<readonly OccurrenceTimelineSource[] | null> {
   const item = await findTripOccurrenceFeedItem(queryable, scope)
   if (item === null) return null
-  const [photos, caseEvents, mails, resolutions, replies] = await Promise.all([
+  const [photos, caseEvents, mails, resolutions, replies, groupReturns] = await Promise.all([
     listPhotoSources(queryable, scope, item),
     listCaseSources(queryable, scope),
     listMailSources(queryable, scope, item),
     listResolutionSources(queryable, scope, item),
     listContractorReplySources(queryable, scope, item),
+    listGroupBoletoReturnSources(queryable, scope),
   ])
   const recorded: OccurrenceTimelineSource = {
     actor: recordingActor(item),
@@ -599,5 +651,14 @@ export async function findTripOccurrenceTimelineSources(
             reason: item.cancellation.reason,
           },
         ]
-  return [recorded, ...photos, ...caseEvents, ...mails, ...replies, ...cancelled, ...resolutions]
+  return [
+    recorded,
+    ...photos,
+    ...caseEvents,
+    ...mails,
+    ...replies,
+    ...groupReturns,
+    ...cancelled,
+    ...resolutions,
+  ]
 }

@@ -157,6 +157,24 @@ const workerEnvironmentSchema = z
     SENTRY_DSN: optionalUrl(),
     SMTP_URL: optionalUrl(),
     SENTRY_ENVIRONMENT: optionalText(),
+    /**
+     * Spec 292 T9: o token da rota interna que transcreve o áudio do bot do WhatsApp. Ausente (ou sem
+     * a transcrição configurada), a rota não existe. A API manda o mesmo valor.
+     */
+    BOT_AUDIO_TRANSCRIPTION_TOKEN: optionalText().refine(
+      (value) => value === undefined || value.length >= 32,
+      'BOT_AUDIO_TRANSCRIPTION_TOKEN must have at least 32 characters',
+    ),
+    /**
+     * Spec 292 T9: o texto de contexto do whisper no áudio do bot (a grafia da marca e da frase de
+     * chamada). Lido pelo `bin/whisper-cli-bot.sh` da imagem; aqui só liga o invólucro.
+     */
+    BOT_AUDIO_TRANSCRIPTION_PROMPT: optionalText().refine(
+      (value) => value === undefined || value.length <= 300,
+      'BOT_AUDIO_TRANSCRIPTION_PROMPT must have at most 300 characters',
+    ),
+    /** A rede privada do Railway é IPv6: lá vale `::` para a API alcançar a rota interna. */
+    WORKER_HOSTNAME: optionalText(),
     WORKER_PORT: z.coerce.number().int().min(0).max(65_535).default(53_002),
     WORKER_PREFETCH: z.coerce.number().int().min(1).max(100).default(1),
   })
@@ -317,6 +335,13 @@ export function parseWorkerEnvironment(
       invitationTemplate: result.data.WHATSAPP_INVITATION_TEMPLATE,
       passwordResetTemplate: result.data.WHATSAPP_PASSWORD_RESET_TEMPLATE,
     },
+    ...(result.data.BOT_AUDIO_TRANSCRIPTION_TOKEN === undefined
+      ? {}
+      : { botAudioTranscriptionToken: result.data.BOT_AUDIO_TRANSCRIPTION_TOKEN }),
+    ...(result.data.BOT_AUDIO_TRANSCRIPTION_PROMPT === undefined
+      ? {}
+      : { botAudioTranscriptionPrompt: result.data.BOT_AUDIO_TRANSCRIPTION_PROMPT }),
+    hostname: result.data.WORKER_HOSTNAME ?? '0.0.0.0',
     port: result.data.WORKER_PORT,
     prefetch: result.data.WORKER_PREFETCH,
     queuePrefix: result.data.QUEUE_PREFIX,

@@ -38,6 +38,7 @@ import {
   tripStopOccurrences,
   tripStops,
   trips,
+  tripFieldReports,
 } from '../../database/trip.schema.js'
 import type {
   RedeliveryPolicy,
@@ -882,6 +883,25 @@ async function toFeedItems(
     }),
   ])
 
+  /** Spec 292: as ocorrências abertas pelo bot no grupo do WhatsApp (a chave do pedido do grupo). */
+  const groupBotRows =
+    rows.length === 0
+      ? []
+      : await queryable
+          .select({ resultId: tripFieldReports.resultId })
+          .from(tripFieldReports)
+          .where(
+            and(
+              eq(tripFieldReports.companyId, companyId),
+              inArray(
+                tripFieldReports.resultId,
+                rows.map((row) => row.id),
+              ),
+              sql`${tripFieldReports.idempotencyKey} like 'whatsapp-group-request:%'`,
+            ),
+          )
+  const viaGroupBotIds = new Set(groupBotRows.map((row) => row.resultId))
+
   /** Spec 266: o andamento da página inteira, em lote. */
   const resolutions = await listFeedResolutionViews(queryable, {
     companyId,
@@ -910,6 +930,7 @@ async function toFeedItems(
       contractorReply: row.source === 'document' ? (contractorReplies.get(row.id) ?? null) : null,
       conversation: conversations.get(`${row.source}:${row.id}`) ?? EMPTY_CONVERSATION_SUMMARY,
       resolution: resolutions.get(row.id) ?? null,
+      viaGroupBot: viaGroupBotIds.has(row.id),
       createdAt: row.createdAt.toISOString(),
       document:
         nfeDocumentId === null || totalValue === null || tripDocumentId === null
