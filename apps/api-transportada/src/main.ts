@@ -1566,7 +1566,7 @@ export function bootstrap(): Bun.Server<undefined> {
         companyId,
         line: describeWhatsAppDriverEventResult(
           result,
-          channel === 'group' ? { documentNumber, kind: 'group' } : { kind: 'driver' },
+          { documentNumber, kind: channel === 'group' ? 'group' : 'driver' },
         ),
         speech: whatsappBotSpeech,
       }),
@@ -1588,7 +1588,7 @@ export function bootstrap(): Bun.Server<undefined> {
         companyId,
         line: describeWhatsAppDriverEventResult(
           result,
-          channel === 'group' ? { documentNumber, kind: 'group' } : { kind: 'driver' },
+          { documentNumber, kind: channel === 'group' ? 'group' : 'driver' },
         ),
         speech: whatsappBotSpeech,
       }),

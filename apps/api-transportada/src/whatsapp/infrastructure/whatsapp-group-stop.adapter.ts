@@ -116,7 +116,10 @@ export function createGroupStopPorts(dependencies: {
       }
       const message = await say(
         input.companyId,
-        describeWhatsAppDriverEventResult(result, { kind: 'group' }),
+        describeWhatsAppDriverEventResult(result, {
+          ...(input.documentNumber === undefined ? {} : { documentNumber: input.documentNumber }),
+          kind: 'group',
+        }),
       )
       const offerLocation =
         dependencies.consumeLocation !== undefined &&

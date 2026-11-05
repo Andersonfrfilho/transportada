@@ -190,6 +190,12 @@ function sameDocumentNumber(left: string, right: string): boolean {
   return strip(left) === strip(right)
 }
 
+function firstDocumentNumber(stop: {
+  readonly documents: readonly { readonly number: string }[]
+}): string | undefined {
+  return stop.documents[0]?.number.replace(/^0+(?=\d)/u, '')
+}
+
 function readStringList(context: Record<string, unknown>, key: string): readonly string[] {
   const value = context[key]
   return Array.isArray(value)
@@ -686,12 +692,13 @@ export function createDriverWhatsAppFlowActions(
   /** Spec 293 T14: o `saí`/`cheguei` pela mesma camada de eventos do grupo (T11). */
   async function registerStopEvent(
     input: ActionInput & {
+      readonly documentNumber?: string | undefined
       readonly step: StopStep
       readonly stopId: string
       readonly tripId: string
     },
   ): Promise<FlowActionResult> {
-    const { actor, channel, session, step, stopId, tripId } = input
+    const { actor, channel, documentNumber, session, step, stopId, tripId } = input
     const driverId = await deps.resolveDriverId({
       companyId: actor.scope.companyId,
       membershipId: actor.scope.membershipId,
@@ -714,7 +721,13 @@ export function createDriverWhatsAppFlowActions(
       step === DRIVER_FLOW_STEP.depart
         ? await departWhatsAppDriverStop(deps, event)
         : await arriveWhatsAppDriverStop(deps, event)
-    await say({ actor, channel, session }, describeWhatsAppDriverEventResult(result, DRIVER))
+    await say(
+      { actor, channel, session },
+      describeWhatsAppDriverEventResult(result, {
+        ...(documentNumber === undefined ? {} : { documentNumber }),
+        kind: 'driver',
+      }),
+    )
     return backToTripMenu(tripId)
   }
 
@@ -737,7 +750,12 @@ export function createDriverWhatsAppFlowActions(
       return backToTripMenu(trip.id)
     }
     if (resolution.kind === 'single') {
-      return registerStopEvent({ ...input, stopId: resolution.stop.id, tripId: trip.id })
+      return registerStopEvent({
+        ...input,
+        documentNumber: firstDocumentNumber(resolution.stop),
+        stopId: resolution.stop.id,
+        tripId: trip.id,
+      })
     }
     return {
       context: {
@@ -825,7 +843,14 @@ export function createDriverWhatsAppFlowActions(
         session,
       })
     }
-    return registerStopEvent({ ...input, step, stopId: answer, tripId })
+    const chosen = trip.stops.find((stop) => stop.id === answer)
+    return registerStopEvent({
+      ...input,
+      documentNumber: chosen === undefined ? undefined : firstDocumentNumber(chosen),
+      step,
+      stopId: answer,
+      tripId,
+    })
   }
 
   /**

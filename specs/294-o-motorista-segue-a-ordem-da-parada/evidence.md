@@ -249,3 +249,13 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   confirmação, falha, nós do grafo) e `group-attendant-close.contract.ts` (contagem pela regra do servidor).
 - Gates: typecheck e lint limpos; contrato da API sem falhas; prettier ok. Integração: não rodada (suíte completa em
   execução no worktree spec-294).
+
+## T4.2 — "marquei junto" nas respostas do bot (RF5)
+
+- Resultado do evento (`WhatsAppDriverEventResult.registered`) ganha `recordedTogether` (lido do retorno de `reportArrival`
+  e da baixa); `BotSpeechLine` ganha `after` (linhas depois da fala principal, resolvidas em `say` e `renderBotSpeechLine`).
+  `describeRecordedTogether` produz "Marquei a chegada junto com a entrega da NF 17234." (saí+cheguei: "a saída e a chegada").
+  Grupo e individual falam a mesma frase; o "cheguei" cita a primeira nota da parada. Sem etapa marcada junto, a resposta é a de sempre.
+- Contrato: `test/whatsapp-commands/recorded-together-speech.contract.ts` (frase, resultado, grupo e individual).
+- Gates: typecheck e lint limpos; contrato da API 13273 pass / 26 skip / 0 fail; integração (flow-actions, command-driver,
+  group-occurrence-adapter) 10 pass; prettier ok.

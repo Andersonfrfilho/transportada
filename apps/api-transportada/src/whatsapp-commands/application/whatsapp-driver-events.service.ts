@@ -37,6 +37,7 @@ import {
   TripStopNotReachableError,
 } from '../../trips/domain/trip.error.js'
 import { TripStopOutOfOrderError } from '../../trips/domain/stop-order.error.js'
+import type { StopEventStep } from '../../trips/domain/stop-event-sequence.policy.js'
 
 export const WHATSAPP_DRIVER_EVENT = {
   arrive: 'arrive',
@@ -95,6 +96,8 @@ export type WhatsAppDriverEventResult =
       readonly details?: WhatsAppDocumentOutcomeDetails
       readonly event: WhatsAppDriverEvent
       readonly kind: 'registered'
+      /** Spec 294 RF5: as etapas da parada que a API marcou junto deste evento; ausente é nenhuma. */
+      readonly recordedTogether?: readonly StopEventStep[]
     }
   | { readonly event: WhatsAppDriverEvent; readonly kind: 'already_registered' }
   | {
@@ -153,6 +156,7 @@ export type WhatsAppOccurrenceCollectedFields = {
 type DocumentOutcome = {
   readonly alreadySettled: boolean
   readonly proofPending?: boolean
+  readonly recordedTogether?: readonly StopEventStep[]
   readonly stopCompleted?: boolean
   readonly tripCompleted?: boolean
 }
@@ -172,7 +176,7 @@ export type WhatsAppDriverEventPorts = {
       readonly productCode: string
     },
   ) => Promise<unknown>
-  /** Chegar de novo não reescreve a hora (spec 057): o retorno não diz se já estava. */
+  /** Chegar de novo não reescreve a hora (spec 057): o retorno não diz se já estava. Lê `recordedTogether` (294). */
   readonly reportArrival: (input: {
     readonly actorUserId: string
     readonly companyId: string
@@ -252,14 +256,14 @@ export async function arriveWhatsAppDriverStop(
 ): Promise<WhatsAppDriverEventResult> {
   const event = WHATSAPP_DRIVER_EVENT.arrive
   return settleWhatsAppDriverEvent(event, async () => {
-    await ports.reportArrival({
+    const outcome = await ports.reportArrival({
       ...actorOf(input),
       idempotencyKey: input.idempotencyKey,
       location: input.location,
       stopId: input.stopId,
       tappedAt: input.sentAt,
     })
-    return { event, kind: 'registered' }
+    return withRecordedTogether({ event, kind: 'registered' }, readRecordedTogether(outcome))
   })
 }
 
@@ -415,15 +419,35 @@ export function toWhatsAppDocumentResult(
   outcome: DocumentOutcome,
 ): WhatsAppDriverEventResult {
   if (outcome.alreadySettled) return { event, kind: 'already_registered' }
-  return {
-    details: {
-      proofPending: outcome.proofPending ?? false,
-      stopCompleted: outcome.stopCompleted ?? false,
-      tripCompleted: outcome.tripCompleted ?? false,
+  return withRecordedTogether(
+    {
+      details: {
+        proofPending: outcome.proofPending ?? false,
+        stopCompleted: outcome.stopCompleted ?? false,
+        tripCompleted: outcome.tripCompleted ?? false,
+      },
+      event,
+      kind: 'registered',
     },
-    event,
-    kind: 'registered',
-  }
+    outcome.recordedTogether ?? [],
+  )
+}
+
+/** O retorno de `reportArrival` é solto (porta antiga): confere o formato em vez de confiar nele. */
+function readRecordedTogether(outcome: unknown): readonly StopEventStep[] {
+  if (typeof outcome !== 'object' || outcome === null) return []
+  const { recordedTogether } = outcome as { readonly recordedTogether?: unknown }
+  if (!Array.isArray(recordedTogether)) return []
+  return recordedTogether.filter(
+    (step): step is StopEventStep => step === 'arrived' || step === 'departed',
+  )
+}
+
+function withRecordedTogether(
+  result: Extract<WhatsAppDriverEventResult, { kind: 'registered' }>,
+  steps: readonly StopEventStep[],
+): WhatsAppDriverEventResult {
+  return steps.length === 0 ? result : { ...result, recordedTogether: steps }
 }
 
 function actorOf(input: WhatsAppDriverActor): WhatsAppDriverActor {

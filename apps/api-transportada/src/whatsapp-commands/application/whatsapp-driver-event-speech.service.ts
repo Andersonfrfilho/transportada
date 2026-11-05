@@ -12,6 +12,7 @@
  *   endereço, documento de quem recebeu nem valor (spec 292). A localização e as provas não são
  *   repetidas na resposta.
  */
+import type { StopEventStep } from '../../trips/domain/stop-event-sequence.policy.js'
 import type { BotSpeechKey } from '../domain/whatsapp-bot-speech.constant.js'
 import { DRIVER_TRANSITION_BLOCK_MESSAGES } from '../domain/whatsapp-driver-flow.constant.js'
 import type { BotSpeechLine } from './whatsapp-bot-speech.service.js'
@@ -24,7 +25,7 @@ import {
 } from './whatsapp-driver-events.service.js'
 
 export type WhatsAppDriverEventAudience =
-  | { readonly kind: 'driver' }
+  | { readonly documentNumber?: string; readonly kind: 'driver' }
   /** `documentNumber` é o número da NF (o único dado da nota que aparece no grupo). */
   | { readonly documentNumber?: string; readonly kind: 'group' }
 
@@ -62,8 +63,44 @@ const STOP_EVENTS: ReadonlySet<WhatsAppDriverEvent> = new Set([
   WHATSAPP_DRIVER_EVENT.depart,
 ])
 
+const STEP_WORDS = { arrived: 'a chegada', departed: 'a saída' } as const
+
+const COMPANION_WORDS: Readonly<Record<WhatsAppDriverEvent, string>> = {
+  arrive: 'a chegada',
+  depart: 'a saída',
+  deliver: 'a entrega',
+  occurrence: 'a ocorrência',
+  return: 'a devolução',
+}
+
+/** Spec 294 RF5: avisa a etapa que a API marcou junto — "Marquei a chegada junto com a entrega da NF 17234.". */
+export function describeRecordedTogether(input: {
+  readonly documentNumber?: string | undefined
+  readonly event: WhatsAppDriverEvent
+  readonly steps: readonly StopEventStep[]
+}): string | undefined {
+  if (input.steps.length === 0) return undefined
+  const marked = input.steps.map((step) => STEP_WORDS[step]).join(' e ')
+  const note = input.documentNumber === undefined ? '' : ` da NF ${input.documentNumber}`
+  return `Marquei ${marked} junto com ${COMPANION_WORDS[input.event]}${note}.`
+}
+
 /** A resposta ao evento, já na plateia certa. */
 export function describeWhatsAppDriverEventResult(
+  result: WhatsAppDriverEventResult,
+  audience: WhatsAppDriverEventAudience,
+): BotSpeechLine {
+  const line = describeMainLine(result, audience)
+  if (result.kind !== 'registered') return line
+  const together = describeRecordedTogether({
+    documentNumber: audience.documentNumber,
+    event: result.event,
+    steps: result.recordedTogether ?? [],
+  })
+  return together === undefined ? line : { ...line, after: [together] }
+}
+
+function describeMainLine(
   result: WhatsAppDriverEventResult,
   audience: WhatsAppDriverEventAudience,
 ): BotSpeechLine {

@@ -137,6 +137,7 @@ describe('grupo: saí e cheguei', () => {
     expect(t.recorded).toEqual([
       {
         companyId: 'C',
+        documentNumber: '17234',
         driverId: 'D',
         event: 'arrive',
         idempotencyKey: 'whatsapp-group-request:R1',

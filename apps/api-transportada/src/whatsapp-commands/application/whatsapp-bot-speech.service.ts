@@ -61,9 +61,16 @@ export async function sendBotSpeech(input: {
 }
 
 /** Uma fala já decidida: chave do catálogo, ou texto pronto que veio de uma política de outro módulo. */
-export type BotSpeechLine =
+export type BotSpeechLine = (
   | { readonly key: BotSpeechKey; readonly params?: BotSpeechParams }
   | { readonly text: string }
+) & {
+  /** Linhas que a resposta leva depois da fala principal (spec 294: "marquei junto", oferta, avisos). */
+  readonly after?: readonly string[]
+}
+
+const withAfter = (body: string, after: readonly string[] | undefined): string =>
+  after === undefined || after.length === 0 ? body : [body, ...after].join('\n')
 
 type BotSpeechContext = {
   readonly actor: { readonly scope: { readonly companyId: string } }
@@ -81,17 +88,18 @@ export function createBotSayer(speech: WhatsAppBotSpeechPort) {
     const resolved: BotSpeechLine =
       typeof line === 'string' ? { key: line, ...(params === undefined ? {} : { params }) } : line
     if ('text' in resolved) {
-      await context.channel.sendText(context.session.whatsappNumber, resolved.text)
+      await context.channel.sendText(
+        context.session.whatsappNumber,
+        withAfter(resolved.text, resolved.after),
+      )
       return
     }
-    await sendBotSpeech({
-      channel: context.channel,
+    const body = await speech.text({
       companyId: context.actor.scope.companyId,
       key: resolved.key,
       ...(resolved.params === undefined ? {} : { params: resolved.params }),
-      speech,
-      to: context.session.whatsappNumber,
     })
+    await context.channel.sendText(context.session.whatsappNumber, withAfter(body, resolved.after))
   }
 }
 
@@ -104,10 +112,11 @@ export async function renderBotSpeechLine(input: {
   readonly line: BotSpeechLine
   readonly speech: WhatsAppBotSpeechPort
 }): Promise<string> {
-  if ('text' in input.line) return input.line.text
-  return input.speech.text({
+  if ('text' in input.line) return withAfter(input.line.text, input.line.after)
+  const body = await input.speech.text({
     companyId: input.companyId,
     key: input.line.key,
     ...(input.line.params === undefined ? {} : { params: input.line.params }),
   })
+  return withAfter(body, input.line.after)
 }

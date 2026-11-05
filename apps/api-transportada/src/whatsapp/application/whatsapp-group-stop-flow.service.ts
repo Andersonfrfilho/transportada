@@ -43,6 +43,8 @@ export type GroupStopFlowPorts = {
   record(input: {
     readonly companyId: string
     readonly driverId: string
+    /** A primeira nota da parada: "Marquei a saída junto com a chegada da NF X" (spec 294 RF5). */
+    readonly documentNumber?: string | undefined
     readonly event: WhatsAppDriverStopCommandEvent
     /** Por pedido: a mesma mensagem repetida não grava duas vezes. */
     readonly idempotencyKey: string
@@ -85,10 +87,12 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     turn: GroupFlowTurn,
     event: WhatsAppDriverStopCommandEvent,
     stopId: string,
+    documentNumber?: string,
   ): Promise<GroupFlowOutcome> {
     const result = await ports.record({
       companyId: turn.request.companyId,
       driverId: turn.request.driverId,
+      documentNumber,
       event,
       idempotencyKey: `whatsapp-group-request:${turn.request.id}`,
       stopId,
@@ -123,7 +127,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           ],
         }
       case 'single':
-        return record(turn, event, resolution.stop.id)
+        return record(turn, event, resolution.stop.id, firstNumberOf(resolution.stop))
       case 'choose': {
         const mentioned = resolution.stops.filter((stop) =>
           stop.documents.some((document) =>
@@ -131,7 +135,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           ),
         )
         if (mentioned.length === 1 && mentioned[0] !== undefined) {
-          return record(turn, event, mentioned[0].id)
+          return record(turn, event, mentioned[0].id, firstNumberOf(mentioned[0]))
         }
         const state: FlowState = {
           event,
@@ -180,10 +184,13 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           reason: REASON.stop,
         }
       }
-      return record(turn, event, picked.id)
+      return record(turn, event, picked.id, picked.numbers[0])
     },
   }
 }
+
+const firstNumberOf = (stop: GroupStopCandidate): string | undefined =>
+  stop.documents[0]?.number.replace(/^0+/u, '')
 
 function pickStop<Stop extends { readonly id: string; readonly numbers: readonly string[] }>(
   stops: readonly Stop[],
