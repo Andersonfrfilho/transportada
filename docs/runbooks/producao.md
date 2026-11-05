@@ -879,3 +879,21 @@ das variáveis, então gravar a variável por ele apagaria a lista: o passo é s
 -s worker -e staging --json`) e acrescentar. Script deixado para o Anderson: `staging-allowlist-email.sh` em
 `/home/miyazaki/Documents/personal/ativada/` (grava a saída em `saidas/`, imprime só o caminho). Depois do redeploy do
 worker, "Tentar de novo" no e-mail que falhou. Endereço acrescentado em 31/10/2026: `andersonfrfilho@live.com`.
+
+### Memória da leitura do canhoto e chave ligada em produção (05/11/2026)
+
+OCR do canhoto (spec 294 T4.8, `POST /internal/bot-canhoto-reads` no worker). Medido na **staging** com imagem sintética
+(JPEG 3000x4000, ~1,9 MB, inclinada, com ruído, texto do canhoto e assinatura riscada, gerada na máquina local com Pillow e
+fonte Liberation Sans; a imagem Alpine do worker não tem fontes, então não se gera a imagem lá dentro). A imagem vai por
+base64 no stdin de `railway ssh -s worker -e staging -- sh` e um script `bun` dentro do container chama a rota em
+`http://[::1]:$PORT` com `BOT_AUDIO_TRANSCRIPTION_TOKEN` do próprio ambiente (nunca impresso), lendo `memory.current`
+e `memory.peak` do cgroup a cada 200 ms.
+
+- 5 leituras em sequência: `markers=2`, casamento exato da NF 123456, 200 em todas; latência 2,6 s (1ª), depois 1,6 a 1,9 s.
+- 2 simultâneas: uma 200 (1,7 s), a outra 503 `BUSY` em 0,2 s (regra da fila).
+- Memória do worker de staging (OCR carregado): ocioso 451 a 469 MB, durante a leitura até 722 MB, `memory.peak` 774 MB.
+- Limite (cgroup `memory.max`) 8000 MB em staging e em produção. Produção ociosa (OCR desligado): 285 MB, pico histórico 361 MB.
+- Conta: (774 + 285) x 1,3 = ~1,4 GB, contra 8 GB. Folga larga, liberado.
+
+Produção: `CANHOTO_OCR_ENABLED=true` gravada em `worker` e `api` com `railway variables --set ... --skip-deploys`
+(sem redeploy; vale quando a spec 294 for promovida e os serviços subirem). Reverter: `--set CANHOTO_OCR_ENABLED=false`.
