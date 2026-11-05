@@ -10,6 +10,8 @@ import type { MdfeAutoIssueEnvironment } from '../../shared/worker.types.js'
 /** Renova antes de expirar: relógio de máquina anda, e um token na borda vira 401 esporádico. */
 const TOKEN_EXPIRY_MARGIN_SECONDS = 30
 const WEBP_MIME_TYPE = 'image/webp'
+/** Espelho de `API_FLEET_DRIVER_ATTACHMENT_CNH_PICTURE_PATH` da API; `test/cnh-face/backfill.contract.ts` cobra a paridade. */
+export const CNH_PICTURE_API_PATH_TEMPLATE = '/fleet/driver-attachments/:attachmentId/cnh-picture'
 
 export class CnhPictureApiError extends Error {
   public constructor(
@@ -79,7 +81,7 @@ export function createCnhPictureApiGateway(
       const form = new FormData()
       form.set('file', new File([new Uint8Array(image)], 'rosto.webp', { type: WEBP_MIME_TYPE }))
       const response = await send(
-        `${input.configuration.apiBaseUrl.replace(/\/$/, '')}/fleet/driver-attachments/${attachmentId}/cnh-picture`,
+        `${input.configuration.apiBaseUrl.replace(/\/$/, '')}${CNH_PICTURE_API_PATH_TEMPLATE.replace(':attachmentId', attachmentId)}`,
         {
           body: form,
           headers: { authorization: `Bearer ${await accessToken()}`, 'x-company-id': companyId },
