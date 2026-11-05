@@ -30,6 +30,10 @@ export type UserPictureUseCase = {
   readonly find: (input: Target) => Promise<UserPicture>
   readonly findPublic: (input: { readonly publicToken: string }) => Promise<UserPicture>
   readonly remove: (input: Target & { readonly idempotent?: boolean }) => Promise<void>
+  /** Sem foto, ou foto anterior também da CNH; `undefined` quando `self`/`admin` já existe. */
+  readonly replaceFromCnh: (
+    input: Target & { readonly bytes: Uint8Array },
+  ) => Promise<UserPictureMetadata | undefined>
   readonly replace: (
     input: Target & {
       readonly bytes: Uint8Array
@@ -63,6 +67,28 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
     }
   }
 
+  /**
+   * O provedor guarda o **endereço público** da foto, e não o conteúdo nem a rota autenticada.
+   * A rota autenticada não servia a consumidor nenhum do lado de lá (`<img src>` não manda
+   * `Authorization`), e o conteúdo inteiro no atributo pesa centenas de kilobytes por pessoa.
+   *
+   * O token gira a cada gravação: o endereço da foto anterior deixa de abrir, que é a única
+   * revogação que um link sem login admite.
+   */
+  async function publishSaved(
+    input: Target & { readonly saved: UserPictureMetadata },
+  ): Promise<void> {
+    await publishToRealm({
+      context: input.context,
+      ...(input.saved.publicToken === null
+        ? {}
+        : {
+            pictureUrl: `${dependencies.publicBaseUrl ?? ''}/public/company-users/${input.saved.publicToken}/picture`,
+          }),
+      userId: input.userId,
+    })
+  }
+
   return {
     find: async ({ context, userId }) => {
       const picture = await dependencies.repository.find({ companyId: context.companyId, userId })
@@ -89,41 +115,25 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
     },
 
     replace: async ({ bytes, context, origin, userId }) => {
-      const mimeType = assertUserPictureBytes(bytes)
-      const content = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
       const saved = await dependencies.repository.save({
-        byteSize: content.byteLength,
+        ...describePicture(bytes),
         companyId: context.companyId,
-        contentBase64: content.toString('base64'),
-        mimeType,
         origin,
-        sha256: createHash('sha256').update(content).digest('hex'),
         userId,
       })
+      await publishSaved({ context, saved, userId })
+      return saved
+    },
 
-      /**
-       * O provedor guarda a **imagem**, não um endereço para ela. A URL anterior apontava para a
-       * nossa rota autenticada, e nenhum consumidor do lado de lá conseguia buscá-la: `<img src>`
-       * não manda `Authorization`. Como `data:` URI, quem lê o atributo tem a foto na mão.
-       */
-      /**
-       * O provedor guarda o **endereço público** da foto, e não o conteúdo nem a rota autenticada.
-       * A rota autenticada não servia a consumidor nenhum do lado de lá (`<img src>` não manda
-       * `Authorization`), e o conteúdo inteiro no atributo pesa centenas de kilobytes por pessoa.
-       *
-       * O token gira a cada gravação: o endereço da foto anterior deixa de abrir, que é a única
-       * revogação que um link sem login admite.
-       */
-      await publishToRealm({
-        context,
-        ...(saved.publicToken === null
-          ? {}
-          : {
-              pictureUrl: `${dependencies.publicBaseUrl ?? ''}/public/company-users/${saved.publicToken}/picture`,
-            }),
+    replaceFromCnh: async ({ bytes, context, userId }) => {
+      const saved = await dependencies.repository.saveFromCnh({
+        ...describePicture(bytes),
+        companyId: context.companyId,
         userId,
       })
+      if (saved === null) return undefined
 
+      await publishSaved({ context, saved, userId })
       return saved
     },
   }
@@ -143,5 +153,16 @@ export function createPublicUserPictureUseCase(dependencies: {
       if (picture === null) throw new UserPictureNotFoundError()
       return picture
     },
+  }
+}
+
+function describePicture(bytes: Uint8Array) {
+  const mimeType = assertUserPictureBytes(bytes)
+  const content = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  return {
+    byteSize: content.byteLength,
+    contentBase64: content.toString('base64'),
+    mimeType,
+    sha256: createHash('sha256').update(content).digest('hex'),
   }
 }

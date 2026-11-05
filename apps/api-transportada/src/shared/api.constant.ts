@@ -187,6 +187,9 @@ export const API_FLEET_DRIVER_ATTACHMENTS_PATH = `${API_FLEET_DRIVERS_PATH}/:id/
 export const API_FLEET_DRIVER_ATTACHMENT_PATH = `${API_FLEET_DRIVER_ATTACHMENTS_PATH}/:attachmentId`
 export const API_FLEET_DRIVER_ATTACHMENT_CONTENT_PATH = `${API_FLEET_DRIVER_ATTACHMENT_PATH}/content`
 export const API_FLEET_DRIVER_ATTACHMENT_SUGGESTION_PATH = `${API_FLEET_DRIVER_ATTACHMENT_PATH}/suggestion`
+/** Spec 295 Fase 4: só o robô do worker (`driver.cnh-picture`) entrega o rosto extraído da CNH. */
+export const API_FLEET_DRIVER_ATTACHMENT_CNH_PICTURE_PATH =
+  '/fleet/driver-attachments/:attachmentId/cnh-picture'
 export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'

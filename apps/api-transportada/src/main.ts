@@ -514,6 +514,9 @@ import { createFleetDriverAttachmentUseCase } from './fleet/application/fleet-dr
 import { createDrizzleFleetDriverAttachmentAudit } from './fleet/infrastructure/drizzle-fleet-driver-attachment-audit.gateway.js'
 import { createDrizzleFleetDriverAttachmentRepository } from './fleet/infrastructure/drizzle-fleet-driver-attachment.repository.js'
 import { createFleetDriverAttachmentRoutes } from './fleet/presentation/fleet-driver-attachment.routes.js'
+import { createApplyDriverCnhPictureUseCase } from './fleet/application/apply-driver-cnh-picture.use-case.js'
+import { createDrizzleDriverCnhPictureLookupRepository } from './fleet/infrastructure/drizzle-driver-cnh-picture-lookup.repository.js'
+import { createFleetDriverCnhPictureRoutes } from './fleet/presentation/fleet-driver-cnh-picture.routes.js'
 import { DrizzleDriverWhatsappGroupRepository } from './fleet/infrastructure/drizzle-driver-whatsapp-group.repository'
 import { createDriverWhatsappGroupRoutes } from './fleet/presentation/driver-whatsapp-group.routes'
 import { createCompanyCrewSettingsRoutes } from './fleet/presentation/crew-settings.routes'
@@ -4138,6 +4141,12 @@ function createApplicationRoutes({
         logger,
         repository: createDrizzleFleetDriverAttachmentRepository(database),
         storage: storageGateway,
+      }),
+    }),
+    ...createFleetDriverCnhPictureRoutes({
+      applyDriverCnhPicture: createApplyDriverCnhPictureUseCase({
+        lookup: createDrizzleDriverCnhPictureLookupRepository(database),
+        userPicture: userPictureUseCase,
       }),
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),

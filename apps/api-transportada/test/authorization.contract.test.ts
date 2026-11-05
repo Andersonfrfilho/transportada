@@ -79,6 +79,7 @@ describe('authorization contract', () => {
       'trip.canhoto-auto-review',
       // Spec 248 T4.4b: o aviso automático da ocorrência, do serviço e de uma rota só
       'occurrence.automatic-mail',
+      'driver.cnh-picture',
       // Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`
       'cargo.measure',
       // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
@@ -211,6 +212,7 @@ describe('authorization contract', () => {
         'whatsapp.settle',
         'trip.canhoto-auto-review',
         'occurrence.automatic-mail',
+        'driver.cnh-picture',
       ],
     })
   })
@@ -458,6 +460,7 @@ describe('authorization contract', () => {
         permission !== 'whatsapp.settle' &&
         permission !== 'trip.canhoto-auto-review' &&
         permission !== 'occurrence.automatic-mail' &&
+        permission !== 'driver.cnh-picture' &&
         permission !== 'deliveries.track' &&
         permission !== 'charges.decide' &&
         permission !== 'occurrences.decide',
@@ -780,6 +783,7 @@ describe('permissão de serviço (spec 144 T014b)', () => {
       'whatsapp.settle',
       'trip.canhoto-auto-review',
       'occurrence.automatic-mail',
+      'driver.cnh-picture',
     ])
   })
 
@@ -834,6 +838,7 @@ describe('permissão de serviço (spec 144 T014b)', () => {
       'whatsapp.settle',
       'trip.canhoto-auto-review',
       'occurrence.automatic-mail',
+      'driver.cnh-picture',
     ])
   })
 

@@ -129,6 +129,7 @@ describe('paridade com o catálogo da API', () => {
       'whatsapp.settle',
       'trip.canhoto-auto-review',
       'occurrence.automatic-mail',
+      'driver.cnh-picture',
     ])
     for (const permission of serviceOnly) {
       expect({ grouped: grouped.has(permission), permission }).toEqual({

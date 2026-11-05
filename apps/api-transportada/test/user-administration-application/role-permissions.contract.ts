@@ -107,6 +107,7 @@ describe('concessão de permissão de serviço', () => {
         'mdfe.auto-issue',
         'trip.canhoto-auto-review',
         'occurrence.automatic-mail',
+        'driver.cnh-picture',
       ],
       roles: [],
     })
@@ -117,6 +118,7 @@ describe('concessão de permissão de serviço', () => {
       'permissions.2',
       'permissions.3',
       'permissions.4',
+      'permissions.5',
     ])
   })
 

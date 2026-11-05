@@ -60,6 +60,13 @@ export type UserPictureRepositoryPort = {
     readonly userId: string
   }) => Promise<boolean>
   readonly save: (input: SaveUserPictureInput) => Promise<UserPictureMetadata>
+  /**
+   * A foto da CNH só entra se a pessoa não tem foto ou a atual também veio da CNH — decidido numa
+   * única instrução, para que um envio próprio concorrente nunca seja sobrescrito. Nulo = não aplicou.
+   */
+  readonly saveFromCnh: (
+    input: Omit<SaveUserPictureInput, 'origin'>,
+  ) => Promise<UserPictureMetadata | null>
 }
 
 /**

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, type SQL } from 'drizzle-orm'
 
 import {
   externalIdentities,
@@ -141,6 +141,26 @@ export class DrizzleUserPictureRepository
   }
 
   public async save(input: SaveUserPictureInput): Promise<UserPictureMetadata> {
+    const saved = await this.upsert(input, undefined)
+    if (saved === undefined) throw new UserPictureNotFoundError()
+
+    return saved
+  }
+
+  /** `setWhere` torna o conflito condicional: foto `self`/`admin` já existente não é tocada, nem numa corrida. */
+  public async saveFromCnh(
+    input: Omit<SaveUserPictureInput, 'origin'>,
+  ): Promise<UserPictureMetadata | null> {
+    return (
+      (await this.upsert({ ...input, origin: 'cnh' }, eq(identityUserPictures.origin, 'cnh'))) ??
+      null
+    )
+  }
+
+  private async upsert(
+    input: SaveUserPictureInput,
+    setWhere: SQL | undefined,
+  ): Promise<UserPictureMetadata | undefined> {
     /** Vínculo de outra empresa não vira foto: sem o portão, o id bastaria para escrever lá. */
     if (!(await this.belongsToCompany(input))) throw new UserPictureNotFoundError()
 
@@ -173,6 +193,7 @@ export class DrizzleUserPictureRepository
           updatedAt,
         },
         target: identityUserPictures.userId,
+        ...(setWhere === undefined ? {} : { setWhere }),
       })
       .returning({
         byteSize: identityUserPictures.byteSize,
@@ -181,7 +202,6 @@ export class DrizzleUserPictureRepository
         sha256: identityUserPictures.sha256,
         updatedAt: identityUserPictures.updatedAt,
       })
-    if (row === undefined) throw new UserPictureNotFoundError()
 
     return row
   }

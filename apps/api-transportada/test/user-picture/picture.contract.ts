@@ -121,6 +121,9 @@ function createUseCase(params: UseCaseParams = {}) {
       async remove() {
         return true
       },
+      async saveFromCnh() {
+        return null
+      },
       async save(input) {
         saved.push({ userId: input.userId })
         return {

@@ -105,6 +105,11 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    */
   'occurrence.automatic-mail',
   /**
+   * Spec 295 Fase 4: o rosto extraído da CNH vira foto de perfil, também do **serviço** e de uma rota só.
+   * O robô entrega a imagem; a API resolve o usuário pelo anexo e decide se aplica.
+   */
+  'driver.cnh-picture',
+  /**
    * Spec 085 G005: medir a caixa de papelão é trabalho de galpão, e tem permissão própria.
    * `settings.manage` entregaria de carona o preço do combustível, a tabela de frete e a credencial
    * da prefeitura — quem confere caixa não administra nada disso.
@@ -294,6 +299,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'whatsapp.settle',
     'trip.canhoto-auto-review',
     'occurrence.automatic-mail',
+    'driver.cnh-picture',
   ]),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
@@ -401,6 +407,7 @@ export const SERVICE_ONLY_PERMISSIONS = [
   'whatsapp.settle',
   'trip.canhoto-auto-review',
   'occurrence.automatic-mail',
+  'driver.cnh-picture',
 ] as const
 
 /** O que grupo e concessão avulsa podem dar: permissão da empresa, e não de serviço. */
