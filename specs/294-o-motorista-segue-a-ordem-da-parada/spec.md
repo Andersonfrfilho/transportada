@@ -106,6 +106,13 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
     "pular" em todos, seja qual for a configuração da nota; a baixa sem canhoto segue como "conclui sem canhoto e
     cobra depois" (223);
   - mesma janela de horário informado do escritório (`assertInformedTimeWithinWindow`).
+- **RF21** — O atendente fecha pelos **dois** caminhos — no grupo do motorista e direto com o bot (conversa
+  individual, o menu do operador da spec 144) — com as mesmas ações do painel, pelas mesmas funções:
+  - baixa de uma nota ou de **várias de uma vez** ("entreguei 17234 17235"; o "uma nota por vez" do grupo vale só
+    para a tripulação);
+  - **encerrar a viagem/rota** (a mesma de `POST /trips/:id/close`, 223 RF8), com confirmação "1 - Sim / 2 - Não"
+    listando quantas notas ainda estão abertas;
+  - na conversa individual, a viagem é escolhida pelo número da nota ou pela lista de viagens na rua.
 - **RF20** — Corrige o defeito de hoje: no grupo, a entrega em preparo grava sempre em nome do motorista dono do
   grupo, mesmo quando quem mandou "entreguei" é o atendente.
 

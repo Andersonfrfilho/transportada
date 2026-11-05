@@ -60,6 +60,9 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       atendente pelo caminho do escritório (`target`, autoria `office`, ator = usuário do atendente) com provas opcionais;
       corrigir a entrega em preparo do grupo que grava em nome do motorista. Contratos: atendente pula etapas sem marcar
       junto, tripulação marca junto, desconhecido é recusado.
+- [ ] **T4.6** RF21: atendente fecha no grupo e no individual — baixa de várias notas de uma vez e encerrar viagem
+      (mesmas funções do painel, `POST /trips/:id/close`), com confirmação. Contratos nos dois canais; tripulação
+      continua uma nota por vez.
 
 ## Fase 5 — App do motorista
 
