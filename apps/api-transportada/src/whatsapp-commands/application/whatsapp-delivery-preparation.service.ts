@@ -33,14 +33,24 @@ import {
   type DeliveryProofChecklist,
 } from '../domain/whatsapp-delivery-proof-checklist.policy.js'
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
+import {
+  describeOutOfOrderViolation,
+  OUT_OF_ORDER_TEXT,
+  toOrderStopLabel,
+} from '../domain/whatsapp-driver-order.policy.js'
+import { DRIVER_CHOICE, interpretDriverChoice } from '../domain/whatsapp-driver-choice.policy.js'
+import type { WhatsAppStopCandidate } from '../../trips/domain/driver-stop-resolution.policy.js'
 import type { RouteOfferStop } from '../domain/whatsapp-driver-route-offer.policy.js'
 import type {
   WhatsAppDocumentEventInput,
   WhatsAppDriverActor,
+  WhatsAppDriverEventRefusal,
   WhatsAppDriverEventResult,
 } from './whatsapp-driver-events.service.js'
 
 export const DELIVERY_PREPARATION_AWAITING_CONFIRM = 'confirm'
+/** Spec 294 RF25: a API recusou a baixa por fora de ordem; espera o "1 - Entreguei mesmo / 2 - Foi engano". */
+export const DELIVERY_PREPARATION_AWAITING_OUT_OF_ORDER = 'out_of_order'
 
 export type WhatsAppDeliveryPreparation = {
   readonly awaiting: null | string
@@ -135,6 +145,14 @@ export type WhatsAppDeliveryPreparationPorts = {
     readonly documentNumber: string
     readonly result: WhatsAppDriverEventResult
   }) => Promise<string>
+  /**
+   * Spec 294 RF25: as paradas da viagem do motorista, para a pergunta de fora de ordem citar nota e cliente.
+   * Ausente, a pergunta cita só a sequência.
+   */
+  readonly listStops?: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<readonly WhatsAppStopCandidate[]>
   readonly logger?: Pick<ApiLogger, 'info' | 'warn'>
   readonly media: WhatsAppDeliveryPreparationMediaPort
   readonly repository: WhatsAppDeliveryPreparationRepositoryPort
@@ -339,9 +357,28 @@ export function createWhatsAppDeliveryPreparations(
     }
   }
 
+  /** A pergunta do fora de ordem, com nota e cliente das paradas quando a viagem é conhecida. */
+  async function describeOutOfOrder(
+    preparation: WhatsAppDeliveryPreparation,
+    refusal: Extract<WhatsAppDriverEventRefusal, { code: 'stop_out_of_order' }>,
+  ): Promise<string> {
+    const stops =
+      (await ports.listStops?.({
+        companyId: preparation.companyId,
+        driverId: preparation.driverId,
+      })) ?? []
+    return describeOutOfOrderViolation({
+      documentNumber: preparation.documentNumber,
+      event: 'deliver',
+      labels: new Map(stops.map((stop) => [stop.id, toOrderStopLabel(stop)] as const)),
+      violation: refusal,
+    })
+  }
+
   async function complete(
     actor: WhatsAppDriverActor,
     preparation: WhatsAppDeliveryPreparation,
+    confirmOutOfOrder = false,
   ): Promise<WhatsAppDeliveryPreparationReply> {
     const { checklist } = await checklistOf(preparation, actor)
     if (!checklist.ready) {
@@ -355,6 +392,7 @@ export function createWhatsAppDeliveryPreparations(
     }
     const result = await ports.deliver({
       ...actor,
+      ...(confirmOutOfOrder ? { confirmOutOfOrder: true } : {}),
       documentId: preparation.documentId,
       idempotencyKey: `whatsapp-delivery-preparation:${preparation.id}`,
       location: preparation.location,
@@ -366,6 +404,28 @@ export function createWhatsAppDeliveryPreparations(
         documentNumber: preparation.documentNumber,
         result,
       })
+    if (
+      result.kind === 'refused' &&
+      result.refusal.code === 'stop_out_of_order' &&
+      !confirmOutOfOrder
+    ) {
+      // Spec 294 RF25: a preparação segue aberta, com as provas, esperando o 1/2.
+      await repository.save({
+        changes: {
+          ...changesOf(preparation),
+          awaiting: DELIVERY_PREPARATION_AWAITING_OUT_OF_ORDER,
+        },
+        companyId: preparation.companyId,
+        id: preparation.id,
+        version: preparation.version,
+      })
+      return {
+        awaitingText: true,
+        documentNumber: preparation.documentNumber,
+        finished: false,
+        texts: [await describeOutOfOrder(preparation, result.refusal)],
+      }
+    }
     if (result.kind === 'refused') {
       // A nota saiu do alcance (devolvida, entregue pelo app, viagem trocada): a preparação perde o objeto.
       await repository.close({ ...scopeOf(preparation), status: 'superseded' })
@@ -452,9 +512,22 @@ export function createWhatsAppDeliveryPreparations(
       }
       const normalized = normalizePreparationText(text)
 
+      if (preparation.awaiting === DELIVERY_PREPARATION_AWAITING_OUT_OF_ORDER) {
+        const choice = interpretDriverChoice(text)
+        if (choice === DRIVER_CHOICE.first) return complete(actor, preparation, true)
+        if (choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
+          await repository.close({ ...scopeOf(preparation), status: 'cancelled' })
+          await removePhotos(preparation)
+          return finished(preparation, [OUT_OF_ORDER_TEXT.discarded])
+        }
+        return refuse(preparation, OUT_OF_ORDER_TEXT.notUnderstood)
+      }
       if (preparation.awaiting === DELIVERY_PREPARATION_AWAITING_CONFIRM) {
-        if (YES_WORDS.has(normalized)) return complete(actor, preparation)
-        if (NO_WORDS.has(normalized)) {
+        const choice = interpretDriverChoice(text)
+        if (YES_WORDS.has(normalized) || choice === DRIVER_CHOICE.first) {
+          return complete(actor, preparation)
+        }
+        if (NO_WORDS.has(normalized) || choice === DRIVER_CHOICE.second) {
           await repository.close({ ...scopeOf(preparation), status: 'cancelled' })
           await removePhotos(preparation)
           return finished(preparation, [
@@ -699,6 +772,7 @@ function summarize(preparation: WhatsAppDeliveryPreparation): readonly string[] 
 function isTextQuestion(awaiting: null | string): boolean {
   return (
     awaiting === DELIVERY_PREPARATION_AWAITING_CONFIRM ||
+    awaiting === DELIVERY_PREPARATION_AWAITING_OUT_OF_ORDER ||
     awaiting === DELIVERY_PROOF_ITEM.receivedBy ||
     awaiting === DELIVERY_PROOF_ITEM.receiverName
   )

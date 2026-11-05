@@ -27,7 +27,18 @@ const FIRST_WORDS = new Set([
 ])
 const SECOND_WORDS = new Set(['2', 'dois', 'duas', 'nao', 'n', 'segunda', 'engano'])
 const SKIP_WORDS = new Set(['pular', 'pula', 'pulo'])
-const NEUTRAL_WORDS = new Set(['opcao', 'numero', 'a', 'o', 'e', 'por', 'favor', 'mesmo', 'agora'])
+const NEUTRAL_WORDS = new Set([
+  'opcao',
+  'numero',
+  'a',
+  'o',
+  'e',
+  'por',
+  'favor',
+  'mesmo',
+  'agora',
+  'foi',
+])
 const MAX_WORDS = 4
 
 /** `undefined` quando a fala não é uma resposta curta ao "1 / 2" (ou ao "pular"). */

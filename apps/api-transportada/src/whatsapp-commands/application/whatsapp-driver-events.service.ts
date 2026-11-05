@@ -77,8 +77,11 @@ export type WhatsAppDriverEventRefusal =
   | {
       readonly code: 'stop_out_of_order'
       readonly currentSequence: number | null
+      readonly currentStopId: string | null
       readonly nextSequence: number | null
+      readonly nextStopId: string | null
       readonly requestedSequence: number
+      readonly requestedStopId: string
     }
   /** O portão de estado da nota/viagem (`checkTripDocumentTransition`). */
   | { readonly code: 'transition_blocked'; readonly reason: TripTransitionBlock }
@@ -127,6 +130,8 @@ export type WhatsAppDriverActor = {
 }
 
 type EventBase = WhatsAppDriverActor & {
+  /** Spec 294 RF25: o motorista confirmou gravar fora da ordem da parada (o 409 já foi perguntado). */
+  readonly confirmOutOfOrder?: boolean
   /** Por pedido do canal: a mesma confirmação repetida não grava duas vezes. */
   readonly idempotencyKey: string
   /** O ponto compartilhado pelo motorista; `null` grava `unavailable` (nunca segura o evento). */
@@ -189,6 +194,7 @@ export type WhatsAppDriverEventPorts = {
   readonly reportArrival: (input: {
     readonly actorUserId: string
     readonly companyId: string
+    readonly confirmOutOfOrder?: boolean
     readonly driverId: string
     readonly idempotencyKey: string
     readonly location: ReportedLocation | null
@@ -198,6 +204,7 @@ export type WhatsAppDriverEventPorts = {
   readonly reportDelivery: (input: {
     readonly actorUserId: string
     readonly companyId: string
+    readonly confirmOutOfOrder?: boolean
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
@@ -207,6 +214,7 @@ export type WhatsAppDriverEventPorts = {
   readonly reportDeparture: (input: {
     readonly actorUserId: string
     readonly companyId: string
+    readonly confirmOutOfOrder?: boolean
     readonly driverId: string
     readonly idempotencyKey: string
     readonly location: ReportedLocation | null
@@ -250,6 +258,7 @@ export async function departWhatsAppDriverStop(
   return settleWhatsAppDriverEvent(event, async () => {
     const outcome = await ports.reportDeparture({
       ...actorOf(input),
+      ...confirmationOf(input),
       idempotencyKey: input.idempotencyKey,
       location: input.location,
       stopId: input.stopId,
@@ -267,6 +276,7 @@ export async function arriveWhatsAppDriverStop(
   return settleWhatsAppDriverEvent(event, async () => {
     const outcome = await ports.reportArrival({
       ...actorOf(input),
+      ...confirmationOf(input),
       idempotencyKey: input.idempotencyKey,
       location: input.location,
       stopId: input.stopId,
@@ -293,6 +303,7 @@ export async function deliverWhatsAppDriverDocument(
       event,
       await ports.reportDelivery({
         ...actorOf(input),
+        ...confirmationOf(input),
         documentId: input.documentId,
         idempotencyKey: input.idempotencyKey,
         location: input.location,
@@ -383,8 +394,11 @@ export function classifyWhatsAppDriverEventError(
     return {
       code: 'stop_out_of_order',
       currentSequence: error.violation.currentSequence,
+      currentStopId: error.violation.currentStopId,
       nextSequence: error.violation.nextSequence,
+      nextStopId: error.violation.nextStopId,
       requestedSequence: error.violation.requestedSequence,
+      requestedStopId: error.violation.requestedStopId,
     }
   }
   const field = classifyOccurrenceRequirement(error)
@@ -474,6 +488,13 @@ function withRecordedTogether(
   steps: readonly StopEventStep[],
 ): WhatsAppDriverEventResult {
   return steps.length === 0 ? result : { ...result, recordedTogether: steps }
+}
+
+/** Só a confirmação explícita vai à API; ausente é "pergunte" (`exactOptionalPropertyTypes`). */
+function confirmationOf(input: { readonly confirmOutOfOrder?: boolean }): {
+  readonly confirmOutOfOrder?: true
+} {
+  return input.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}
 }
 
 function actorOf(input: WhatsAppDriverActor): WhatsAppDriverActor {

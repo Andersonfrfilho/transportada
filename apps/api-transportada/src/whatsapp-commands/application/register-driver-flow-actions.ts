@@ -125,7 +125,7 @@ export type DriverFlowActionDependencies = {
    * Spec 294 RF24: o pedido opcional de localização antes do "saí"/"cheguei". Ausente, o evento é registrado
    * direto (com o ponto compartilhado antes, se houver).
    */
-  readonly driverPrompts?: Pick<WhatsAppDriverPrompts, 'askLocation'>
+  readonly driverPrompts?: Pick<WhatsAppDriverPrompts, 'askLocation' | 'recordStop'>
   /**
    * Spec 293 T15: o tipo que pede foto, número do documento do cliente ou valor pago abre a ocorrência
    * em coleta em vez da recusa "registre pelo aplicativo". Ausente, a recusa de sempre.
@@ -781,6 +781,28 @@ export function createDriverWhatsAppFlowActions(
       for (const text of ask.texts) await say({ actor, channel, session }, { text })
       const menu = backToTripMenu(tripId)
       return { ...menu, context: { ...menu.context, [DRIVER_PROMPT_CONTEXT_KEY]: ask.prompt } }
+    }
+
+    // Spec 294 RF25: a recusa de fora de ordem vira a pergunta 1/2 (pedido no contexto da sessão).
+    if (deps.driverPrompts !== undefined) {
+      const recorded = await deps.driverPrompts.recordStop({
+        actor: { actorUserId: actor.scope.userId, companyId: actor.scope.companyId, driverId },
+        context: input.context,
+        documentNumber,
+        event: step,
+        idempotencyKey: randomUUID(),
+        location: consumeLocation({ actor, session }),
+        stopId,
+      })
+      for (const text of recorded.texts) await say({ actor, channel, session }, { text })
+      const menu = backToTripMenu(tripId)
+      return {
+        ...menu,
+        context: {
+          ...menu.context,
+          [DRIVER_PROMPT_CONTEXT_KEY]: recorded.context[DRIVER_PROMPT_CONTEXT_KEY],
+        },
+      }
     }
 
     const event = {

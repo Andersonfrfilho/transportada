@@ -1553,7 +1553,13 @@ export function bootstrap(): Bun.Server<undefined> {
     repository: whatsappDeliveryProofRepository,
     storage: whatsappStorageGateway,
   })
+  /** Spec 294 RF25: as paradas da viagem do motorista, para a pergunta de fora de ordem citar nota e cliente. */
+  const listWhatsAppDriverStops = async (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap((trip) => trip.stops)
   const whatsappDeliveryPreparations = createWhatsAppDeliveryPreparations({
+    listStops: listWhatsAppDriverStops,
     attachProof: (input) =>
       input.attendant === true
         ? whatsappOfficeDelivery.attachProof(input)
@@ -1680,6 +1686,7 @@ export function bootstrap(): Bun.Server<undefined> {
   /** Spec 294: a oferta da próxima rota, o pedido de localização e as conferências da conversa individual. */
   const whatsappDriverPrompts = createWhatsAppDriverPrompts({
     clock: () => new Date(),
+    listStops: listWhatsAppDriverStops,
     ports: whatsappDriverEventPorts,
     sharedLocations: whatsappSharedLocations,
     speech: whatsappBotSpeech,

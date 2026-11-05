@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 294 RF27: enquanto a pergunta 1/2 do bot não existe (T4.10), fora de ordem vira uma frase clara.
+ * Spec 294 RF27: o 409 de fora de ordem vira recusa com os ids das paradas (a pergunta 1/2 é do T4.10); sem a pergunta, uma frase clara.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -25,8 +25,11 @@ describe('o WhatsApp diante do 409 de fora de ordem (spec 294 RF27)', () => {
     expect(refusal).toEqual({
       code: 'stop_out_of_order',
       currentSequence: 3,
+      currentStopId: 'stop-3',
       nextSequence: 3,
+      nextStopId: 'stop-3',
       requestedSequence: 5,
+      requestedStopId: 'stop-5',
     })
     if (refusal === undefined) throw new Error('EXPECTED_REFUSAL')
 

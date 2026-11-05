@@ -25,6 +25,10 @@ import {
   type WhatsAppDriverEventPorts,
   type WhatsAppDriverEventResult,
 } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
+import {
+  describeOutOfOrderViolation,
+  toOrderStopLabel,
+} from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { WHATSAPP_DRIVER_STOP_COMMAND } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
 import type { GroupStopFlowPorts } from '../application/whatsapp-group-stop-flow.service.js'
 import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
@@ -70,6 +74,17 @@ export function createGroupStopPorts(dependencies: {
   const say = (companyId: string, line: BotSpeechLine) =>
     renderBotSpeechLine({ companyId, line, speech })
 
+  const listOpenStops = async ({
+    companyId,
+    driverId,
+  }: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => {
+    const trips = await dependencies.listActiveTrips({ companyId, driverId })
+    return trips.filter((trip) => !terminal.has(trip.status)).flatMap((trip) => trip.stops)
+  }
+
   return {
     ...(dependencies.hasLocation === undefined ? {} : { hasLocation: dependencies.hasLocation }),
     enRouteMessage: ({ companyId, sequence }) =>
@@ -81,10 +96,7 @@ export function createGroupStopPorts(dependencies: {
         ),
       ),
 
-    async listStops({ companyId, driverId }) {
-      const trips = await dependencies.listActiveTrips({ companyId, driverId })
-      return trips.filter((trip) => !terminal.has(trip.status)).flatMap((trip) => trip.stops)
-    },
+    listStops: (input) => listOpenStops(input),
 
     async record(input) {
       const actorUserId = await findDriverUserId(dependencies.database, input)
@@ -100,6 +112,7 @@ export function createGroupStopPorts(dependencies: {
         location = dependencies.consumeLocation?.(input) ?? null
         const eventInput = {
           actorUserId,
+          ...(input.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}),
           companyId: input.companyId,
           driverId: input.driverId,
           idempotencyKey: input.idempotencyKey,
@@ -118,6 +131,22 @@ export function createGroupStopPorts(dependencies: {
             errorName: error instanceof Error ? error.name : typeof error,
           })
           return { message: await say(input.companyId, WHATSAPP_GROUP_EVENT_FAILED) }
+        }
+      }
+      if (result.kind === 'refused' && result.refusal.code === 'stop_out_of_order') {
+        const stops = await listOpenStops(input)
+        return {
+          message: describeOutOfOrderViolation({
+            event: input.event === WHATSAPP_DRIVER_STOP_COMMAND.depart ? 'depart' : 'arrive',
+            labels: new Map(stops.map((stop) => [stop.id, toOrderStopLabel(stop)] as const)),
+            violation: result.refusal,
+          }),
+          outOfOrder: {
+            ...(result.refusal.nextStopId === null
+              ? {}
+              : { nextStopId: result.refusal.nextStopId }),
+            stopId: result.refusal.requestedStopId,
+          },
         }
       }
       const message = await say(

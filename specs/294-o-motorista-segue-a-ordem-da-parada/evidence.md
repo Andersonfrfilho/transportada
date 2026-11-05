@@ -309,3 +309,24 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   (resultado do bot), `stop-location-prompt.contract.ts` e `group-stop-location.contract.ts` (pedido e resposta, grupo e individual).
 - Gates: typecheck e lint limpos; contrato da API 13363 pass / 26 skip / 0 fail; integração (`address-arrival-correction`,
   `stop-order-guard`) 21 pass; prettier ok. Grafo versionado não mudou.
+
+## T4.10 — conferência de fora de ordem pelo bot (RF25)
+
+- A recusa `stop_out_of_order` carrega os ids das paradas (`currentStopId`, `nextStopId`, `requestedStopId`) e os eventos
+  (`reportArrival`/`reportDeparture`/`reportDelivery`, camada de eventos) aceitam `confirmOutOfOrder`. A pergunta mora em
+  `whatsapp-driver-order.policy.ts`: "⚠️ Você iniciou a rota para a parada 3 (NF … — cliente), mas esta nota é da parada 5 (NF … — cliente).
+  *1* - Entreguei a parada 5 mesmo / *2* - Foi engano, descartar" (chegada: "Cheguei na parada 5 mesmo / Foi engano"); saída que não é a
+  próxima: "A próxima no roteiro é a parada 4 (…). Quer mesmo iniciar a parada 6? *1* - Sim, a 6 / *2* - Não, a 4".
+- "1" reenvia a mesma etapa com `confirmOutOfOrder: true`. "2": descarta (entrega, chegada) ou, na saída, **registra a saída da próxima do
+  roteiro** (a leitura do rótulo "Não, a 4"; sem confirmar a 6). Resposta falada ("um", "dois", "sim", "não", "foi engano") vale; outra
+  resposta repete a pergunta (grupo, 3 tentativas) ou tira o pedido de cena (individual).
+- Entrega: a preparação (`awaiting = 'out_of_order'`, coluna de texto livre, sem migration) fica aberta com as provas e responde ao 1/2 —
+  vale para grupo e individual. Saída/chegada: grupo no passo `stop.confirm_order`; individual no pedido `out_of_order` do contexto
+  (`WhatsAppDriverPrompts.recordStop`, também usado pelo "saí"/"cheguei" do grafo, pela oferta da próxima rota e pelo pedido de localização).
+- Atendente: a baixa dele vai pelo caminho do escritório (T4.5), que não passa pela ordem, então não recebe a pergunta.
+  **Lacuna conhecida:** "saí"/"cheguei" escritos por atendente no grupo ainda gravam com autoria `whatsapp` em nome do motorista (o fluxo de
+  paradas não olha o papel de quem mandou) e, fora de ordem, recebem a pergunta; resolver pede a chegada/saída pelo escritório no bot.
+- Contratos: `test/whatsapp-commands/out-of-order-prompt.contract.ts` (texto, individual, preparação) e
+  `test/whatsapp/group-out-of-order.contract.ts` (grupo e adaptador); `test/stop-order/whatsapp-refusal.contract.ts` ajustado para os ids.
+- Gates: typecheck e lint limpos; contrato da API 13398 pass / 26 skip / 0 fail; integração (flow-actions, command-driver,
+  preparation-repository, stop-order-guard) 22 pass; prettier ok. Grafo versionado não mudou.

@@ -29,10 +29,15 @@ import {
   DRIVER_CHOICE,
   interpretDriverChoice,
 } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
+import { OUT_OF_ORDER_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { LOCATION_PROMPT_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 
-export const GROUP_STOP_STEP = { choose: 'choose', location: 'location' } as const
+export const GROUP_STOP_STEP = {
+  choose: 'choose',
+  confirmOrder: 'confirm_order',
+  location: 'location',
+} as const
 
 export type GroupStopCandidate = WhatsAppStopCandidate
 
@@ -42,8 +47,14 @@ export type GroupStopRoute = {
   readonly stopId: string
 }
 
-/** A resposta do registro já em frase para o grupo (a recusa também). */
-export type GroupStopRegistration = { readonly message: string }
+/**
+ * A resposta do registro já em frase para o grupo (a recusa também). `outOfOrder` (spec 294 RF25): a API recusou por fora
+ * de ordem e `message` é a pergunta 1/2; `stopId` é a parada pedida e `nextStopId` a próxima do roteiro (na saída).
+ */
+export type GroupStopRegistration = {
+  readonly message: string
+  readonly outOfOrder?: { readonly nextStopId?: string; readonly stopId: string }
+}
 
 export type GroupStopFlowPorts = {
   /** As paradas das viagens ativas do motorista dono do grupo. */
@@ -53,6 +64,8 @@ export type GroupStopFlowPorts = {
   }): Promise<readonly GroupStopCandidate[]>
   record(input: {
     readonly companyId: string
+    /** Spec 294 RF25: o motorista confirmou gravar fora da ordem da parada. */
+    readonly confirmOutOfOrder?: boolean
     readonly driverId: string
     /** A primeira nota da parada: "Marquei a saída junto com a chegada da NF X" (spec 294 RF5). */
     readonly documentNumber?: string | undefined
@@ -83,6 +96,13 @@ export const GROUP_STOP_TEXT = {
 const REASON = { stop: 'não achei essa parada na lista' } as const
 
 type FlowState = {
+  /** Spec 294 RF25: a parada que a API recusou por fora de ordem e a próxima do roteiro, esperando o 1/2. */
+  readonly outOfOrderFor?: {
+    readonly documentNumber?: string | undefined
+    readonly event: WhatsAppDriverStopCommandEvent
+    readonly nextStopId?: string | undefined
+    readonly stopId: string
+  }
   /** Spec 294 RF24: a parada que espera a localização (ou o "pular") antes de registrar. */
   readonly locationFor?: {
     readonly documentNumber?: string | undefined
@@ -111,8 +131,10 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     event: WhatsAppDriverStopCommandEvent,
     stopId: string,
     documentNumber?: string,
+    confirmOutOfOrder = false,
   ): Promise<GroupFlowOutcome> {
     const result = await ports.record({
+      ...(confirmOutOfOrder ? { confirmOutOfOrder: true } : {}),
       companyId: turn.request.companyId,
       driverId: turn.request.driverId,
       documentNumber,
@@ -120,7 +142,45 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       idempotencyKey: `whatsapp-group-request:${turn.request.id}`,
       stopId,
     })
+    if (result.outOfOrder !== undefined) {
+      const state: FlowState = {
+        outOfOrderFor: {
+          documentNumber,
+          event,
+          nextStopId: result.outOfOrder.nextStopId,
+          stopId: result.outOfOrder.stopId,
+        },
+      }
+      return {
+        kind: 'continue',
+        replies: [result.message],
+        state,
+        step: GROUP_STOP_STEP.confirmOrder,
+      }
+    }
     return { kind: 'done', replies: [result.message] }
+  }
+
+  /** "1" confirma fora da ordem; "2" descarta, ou na saída vai à próxima do roteiro; o resto repete a pergunta. */
+  async function answerConfirmOrder(
+    turn: GroupFlowTurn,
+    target: NonNullable<FlowState['outOfOrderFor']>,
+  ): Promise<GroupFlowOutcome> {
+    const choice = interpretDriverChoice(turn.text)
+    if (choice === DRIVER_CHOICE.first) {
+      return record(turn, target.event, target.stopId, target.documentNumber, true)
+    }
+    if (choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
+      if (target.event === WHATSAPP_DRIVER_STOP_COMMAND.depart && target.nextStopId !== undefined) {
+        return record(turn, target.event, target.nextStopId)
+      }
+      return { kind: 'done', replies: [OUT_OF_ORDER_TEXT.discarded] }
+    }
+    return {
+      kind: 'not_understood',
+      prompt: OUT_OF_ORDER_TEXT.notUnderstood,
+      reason: 'responda 1 ou 2',
+    }
   }
 
   /** Spec 294 RF24: pede a localização opcional (se não há ponto recente) e só então registra. */
@@ -261,6 +321,9 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       const state = turn.request.state as FlowState
       if (turn.request.step === GROUP_STOP_STEP.location && state.locationFor !== undefined) {
         return answerLocationStep(turn, state.locationFor)
+      }
+      if (turn.request.step === GROUP_STOP_STEP.confirmOrder && state.outOfOrderFor !== undefined) {
+        return answerConfirmOrder(turn, state.outOfOrderFor)
       }
       const stops = state.stops ?? []
       const event = state.event ?? WHATSAPP_DRIVER_STOP_COMMAND.arrive
