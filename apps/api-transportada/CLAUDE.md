@@ -668,10 +668,8 @@ docs/ai-context § "A ocorrência tem duas conversas".
 ## Fleet — ficha do motorista e geocodificação
 
 **A ficha do motorista guarda dado de pessoa física que hoje ninguém lê** (`birth_date`,
-`license_number`, endereço residencial, trio do RG) — a ADR-0039 já decidiu criptografar esses campos
-(A256GCM, AAD `transportada:fleet-driver:v1:${companyId}:${driverId}`) e a execução **ainda não
-aconteceu**; quem for escrever leitor para um desses campos precisa abrir o envelope primeiro —
-confira a ADR antes. CNH é única por empresa só quando preenchida (índice parcial). Órgão do RG é
+`license_number`, endereço residencial, trio do RG) — fica em claro: a ADR-0039 (criptografar) foi **revogada** em 2026-11-05, porque perder a chave é
+perder o dado. Não propor cifra de coluna. CNH é única por empresa só quando preenchida (índice parcial). Órgão do RG é
 lista fechada `IDENTITY_DOCUMENT_ISSUERS`, cópia por valor API/frontend.
 
 **A nota do motorista é derivada na leitura, nunca gravada** (ADR-0070, spec 159):

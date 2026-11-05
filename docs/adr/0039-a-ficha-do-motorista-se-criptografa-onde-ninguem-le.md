@@ -1,6 +1,7 @@
 # ADR 0039 — A ficha do motorista se criptografa onde ninguém lê
 
-- Status: aceito
+- Status: **revogada** (2026-11-05)
+- **Revogada em 2026-11-05 pelo dono:** não se criptografa campo na aplicação — perder a chave de aplicação é perder o dado. A ficha do motorista fica em claro no banco; a proteção é banco privado, acesso mínimo e nenhum PII em log (`~/.claude/rules/rules/security.md` §5).
 - Data: 2026-08-20
 - Decisores: mantenedor do projeto e revisão Opus
 - Fecha a decisão 3 da spec 046 (T009) e o achado "data de nascimento do motorista em claro" de

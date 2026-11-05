@@ -2216,7 +2216,9 @@ feature.
 tem exposição pública e o acesso é só pela rede interna; nenhum destes campos vai para log, e
 nenhum aparece em nome de objeto no bucket. O backup é criptografado antes do upload.
 
-**Decisão (2026-08-20):** a **ADR-0039** decidiu, status `aceito`, e **não está executada**. A leitura
+**Revisão (2026-11-05):** a ADR-0039 foi **revogada** pelo dono — perder a chave de aplicação é perder o dado. O achado fica aceito como risco: a ficha segue em claro, protegida por banco privado, acesso mínimo e nenhum PII em log.
+
+**Decisão (2026-08-20, revogada):** a **ADR-0039** decidiu, status `aceito`, e **não está executada**. A leitura
 coluna por coluna mostrou que a tabela não tem uma resposta só, e que o campo mais sensível é o único
 que não dá para proteger: `birth_date`, `license_number`, o endereço e o telefone vão para um envelope
 A256GCM único, com AAD por motorista e índice cego com HMAC para a CNH continuar única por empresa —

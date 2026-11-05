@@ -3,22 +3,10 @@
 Uma task por vez. Task só fecha com evidência em `evidence.md`. Teste de aceite antes da
 implementação.
 
-## Fase 1 — ADR-0039 · 🤖 `opus` 🧠
+## Fase 1 — removida
 
-- [ ] **T001** Contrato do envelope: cifrar e decifrar com o AAD certo, e **recusar** com AAD de
-      outra empresa ou outro motorista. Verificação: `bun test`. Aceite: o contrato falha se o AAD
-      for montado com valor fixo.
-- [ ] **T002** Migration de expansão — colunas cifradas ao lado das em claro, mais o índice cego
-      HMAC da CNH. Verificação: `make migration-test`. Aceite: migration e rollback num Postgres
-      descartável.
-- [ ] **T003** Escrita dupla e backfill das treze colunas. Aceite: toda linha existente lida de
-      volta idêntica ao que estava em claro.
-- [ ] **T004** Leitura passa a vir do envelope. Verificação: `bun run --cwd apps/api-transportada test`.
-- [ ] **T005** Migration de contração — derruba as treze colunas em claro. ⚠️ **Destrutiva**: exige
-      backup verificado e aprovação humana registrada. Aceite: `rollback.sql` ao lado, e ele devolve
-      as colunas sem os valores (documentado).
-- [ ] **T006** Atualizar a ADR-0039 para `executado` com a data, e o `CLAUDE.md` — hoje ele diz "já
-      decidiu criptografar e ainda não foi executada" em dois lugares.
+T001–T006 (criptografar a ficha, ADR-0039) saíram: ADR revogada pelo dono em 2026-11-05 (perder a
+chave é perder o dado). A feature começa na Fase 2.
 
 ## Fase 2 — Tabela e rotas · 🤖 `sonnet`
 
