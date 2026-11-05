@@ -106,6 +106,8 @@ describe('sugestões de endereço do motorista nas pendências (spec 294 T3.2)',
       expect(page.items[0]).toMatchObject({
         details: {
           addressKey: mine.addressKey,
+          currentLatitude: '-23.5500000',
+          currentLongitude: '-46.6300000',
           distanceMeters: 1_400,
           latitude: SUGGESTED_LATITUDE,
           longitude: SUGGESTED_LONGITUDE,

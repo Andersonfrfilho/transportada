@@ -8,7 +8,12 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { buildFleetVehicleRoute } from '@/modules/fleet/shared/fleetRoute.service'
 
 import { usePendingItems } from '../hooks/usePendingItems.hook'
-import type { PendingItem } from '../shared/pendingItemsClient.service'
+import { AddressSuggestionMap } from '../components/AddressSuggestionMap.component'
+import type {
+  AddressSuggestionDecision,
+  AddressSuggestionPendingItem,
+  PendingItem,
+} from '../shared/pendingItemsClient.service'
 import styles from '../styles/pendingItems.module.css'
 
 const PENDING_ITEMS_SKELETON_ROW_COUNT = 4
@@ -64,9 +69,22 @@ export function PendingItemsWorkspacePage() {
         <>
           <ul className={styles.list}>
             {workspace.items.map((item) => (
-              <PendingItemRow item={item} key={`${item.kind}-${item.entityId}`} />
+              <PendingItemRow
+                canDecide={workspace.controller.canDecideAddressSuggestions}
+                isDeciding={workspace.decisionMutation.isPending}
+                item={item}
+                key={`${item.kind}-${item.entityId}`}
+                onDecide={(decision) =>
+                  workspace.decisionMutation.mutate({ decision, suggestionId: item.entityId })
+                }
+              />
             ))}
           </ul>
+          {workspace.decisionMutation.isError ? (
+            <p className={styles.boundary} role="alert">
+              {t('status.decisionError')}
+            </p>
+          ) : null}
           {workspace.nextCursor === null ? null : (
             <Button onClick={workspace.goToNextPage} type="button" variant="ghost">
               <Icon name="page-next" />
@@ -79,8 +97,26 @@ export function PendingItemsWorkspacePage() {
   )
 }
 
-function PendingItemRow({ item }: Readonly<{ item: PendingItem }>) {
+type PendingItemRowProps = Readonly<{
+  canDecide: boolean
+  isDeciding: boolean
+  item: PendingItem
+  onDecide: (decision: AddressSuggestionDecision) => void
+}>
+
+function PendingItemRow({ canDecide, isDeciding, item, onDecide }: PendingItemRowProps) {
   const { t } = useTranslation('pendingItems')
+
+  if (item.kind === 'addressSuggestedByDriver') {
+    return (
+      <AddressSuggestionRow
+        canDecide={canDecide}
+        isDeciding={isDeciding}
+        item={item}
+        onDecide={onDecide}
+      />
+    )
+  }
 
   return (
     <li className={styles.row}>
@@ -88,6 +124,45 @@ function PendingItemRow({ item }: Readonly<{ item: PendingItem }>) {
       <a className={styles.link} href={buildFleetVehicleRoute(item.entityId)}>
         {t('actions.openVehicle')}
       </a>
+    </li>
+  )
+}
+
+function AddressSuggestionRow({
+  canDecide,
+  isDeciding,
+  item,
+  onDecide,
+}: Omit<PendingItemRowProps, 'item'> & Readonly<{ item: AddressSuggestionPendingItem }>) {
+  const { t } = useTranslation('pendingItems')
+  const { distanceMeters } = item.details
+
+  return (
+    <li className={styles.suggestion}>
+      <div className={styles.suggestionHeader}>
+        <span>{t(`items.${item.kind}`, { address: item.label })}</span>
+        <span>
+          {distanceMeters === null
+            ? t('distanceUnknown')
+            : t('distance', { meters: distanceMeters })}
+        </span>
+      </div>
+      <AddressSuggestionMap details={item.details} label={item.label} />
+      {canDecide ? (
+        <div className={styles.suggestionActions}>
+          <Button disabled={isDeciding} onClick={() => onDecide('apply')} type="button">
+            {t('actions.apply')}
+          </Button>
+          <Button
+            disabled={isDeciding}
+            onClick={() => onDecide('dismiss')}
+            type="button"
+            variant="ghost"
+          >
+            {t('actions.dismiss')}
+          </Button>
+        </div>
+      ) : null}
     </li>
   )
 }

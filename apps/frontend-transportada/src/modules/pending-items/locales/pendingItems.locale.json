@@ -7,14 +7,27 @@
   },
   "status": {
     "loading": "Carregando pendências",
-    "error": "Falha ao carregar as pendências"
+    "error": "Falha ao carregar as pendências",
+    "decisionError": "Não foi possível registrar a decisão. A sugestão voltou para a lista."
   },
   "empty": "Nenhuma pendência.",
   "items": {
-    "vehicleBodyTypeMissing": "Veículo {{plate}} sem carroceria informada"
+    "vehicleBodyTypeMissing": "Veículo {{plate}} sem carroceria informada",
+    "addressSuggestedByDriver": "Endereço sugerido pelo motorista: {{address}}"
   },
   "actions": {
     "openVehicle": "Abrir ficha",
-    "loadMore": "Carregar mais"
-  }
+    "loadMore": "Carregar mais",
+    "apply": "Aplicar",
+    "dismiss": "Descartar"
+  },
+  "map": {
+    "current": "Ponto atual",
+    "suggested": "Ponto sugerido",
+    "noCurrent": "Endereço sem ponto gravado",
+    "loading": "Carregando mapa",
+    "unavailable": "Mapa indisponível."
+  },
+  "distance": "{{meters}} m do ponto atual",
+  "distanceUnknown": "Sem ponto atual para comparar"
 }

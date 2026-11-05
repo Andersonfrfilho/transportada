@@ -5,6 +5,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, lt, or, type SQL } from 'drizzle-orm'
 
 import { addressCorrectionSuggestions } from '../../database/address-correction-suggestion.schema.js'
+import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { tripStops } from '../../database/trip.schema.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type {
@@ -50,6 +51,8 @@ export function createAddressSuggestionPendingItemSource(dependencies: {
         .select({
           addressKey: addressCorrectionSuggestions.addressKey,
           createdAt: addressCorrectionSuggestions.createdAt,
+          currentLatitude: geocodedAddresses.latitude,
+          currentLongitude: geocodedAddresses.longitude,
           distanceMeters: addressCorrectionSuggestions.distanceMeters,
           id: addressCorrectionSuggestions.id,
           label: tripStops.label,
@@ -64,6 +67,10 @@ export function createAddressSuggestionPendingItemSource(dependencies: {
             eq(tripStops.id, addressCorrectionSuggestions.tripStopId),
             eq(tripStops.companyId, addressCorrectionSuggestions.companyId),
           ),
+        )
+        .leftJoin(
+          geocodedAddresses,
+          eq(geocodedAddresses.addressKey, addressCorrectionSuggestions.addressKey),
         )
         .where(
           and(
@@ -86,6 +93,8 @@ export function createAddressSuggestionPendingItemSource(dependencies: {
           createdAt: row.createdAt,
           details: {
             addressKey: row.addressKey,
+            currentLatitude: row.currentLatitude,
+            currentLongitude: row.currentLongitude,
             distanceMeters: row.distanceMeters,
             latitude: row.latitude,
             longitude: row.longitude,

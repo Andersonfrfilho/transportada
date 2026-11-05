@@ -1314,3 +1314,21 @@ troca `_` por espaço. O item ganha `vehicle`, `document.recipient` e `document.
 `/trip-occurrences/` porque ali o `:id` do detalhe casaria o caminho): por tipo, `{ typeName, resolvedCount, averageSeconds }`, do
 registro até o **último** `resolved` (o `resolvedAt` da 276), só de quem está resolvida agora — reaberta, em aberto e cancelada
 ficam de fora. Nome do tipo como no feed (cadastrado, ou o `kind` da parada). `trip-occurrence-resolution-summary.query.ts`.
+
+
+## A ordem da parada (spec 294, ADR-0113)
+
+- **A tripulação segue a ordem da parada** (saiu, chegou, baixou): etapa pulada é **gravada junto** com o relógio do evento pedido e `recordedTogether` na resposta
+  (`recorded-together-steps.service.ts`); a etapa junto leva `location: null` e nunca dispara correção de endereço. Reenvio (chave de idempotência) devolve o mesmo
+  `recordedTogether`. Escritório (`target`) nunca é conferido nem marca junto. Estatísticas ignoram etapa marcada junto; a linha do tempo desempata.
+- **Fora de ordem** (`resolveStopOrderViolation`, só tripulação, sob a trava das paradas): `409 TRIP_STOP_OUT_OF_ORDER` com `outOfOrder { requested*, current*, next* }`;
+  `confirmOutOfOrder: true` no corpo de saída, chegada, entrega e devolução (`/me`) grava. Reenvio, parada fechada ou nota já baixada nunca dão 409.
+- **`nextStop`**: a baixa que fecha a parada devolve a próxima; o snapshot do app leva a precisão do endereço.
+- **Correção do endereço pela chegada**: chegada real da tripulação roda `resolveAddressArrivalCorrection` em savepoint (falha vira `address_correction.failed`, a chegada grava).
+  Aplica direto (trilha `geocoded_address_corrections` com `origin 'driver'`) ou sugere (`address_correction_suggestions`, único por empresa + evento). Sugestão aparece em
+  `GET /pending-items` (`addressSuggestedByDriver`, `trip.manage`, com `currentLatitude/currentLongitude`, ponto sugerido e distância); `POST /address-correction-suggestions/:id/apply|dismiss`
+  (`trip.manage`, auditado; 404 outra empresa, 409 já decidida).
+- **Canhoto fora de ordem ou repetido**: SHA-256 da imagem por empresa (`stored_objects.sha256`); repetida = 200 `{ duplicate }` sem gravar; canhoto diferente sobre o existente =
+  `409 TRIP_CANHOTO_ALREADY_ATTACHED` sem `replaceCanhoto`. Escritório mantém a regra anterior (troca o próprio; o da tripulação é `TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`).
+- **Atendente**: baixa, saída e chegada do atendente vão pelo caminho do escritório (RF19), sem conferência de ordem.
+- Foto de canhoto dando a baixa (RF23) usa só opções gratuitas e locais no worker; sem modelo de IA pago no produto.
