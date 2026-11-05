@@ -32,4 +32,4 @@
 
 ## Fase 4 (CNH)
 
-Spike com `opus` antes de qualquer código; ver `tasks.md`. Bloqueada por `[NEEDS CLARIFICATION]` da spec.
+Spike com `opus` antes de qualquer código; ver `tasks.md`. Coluna `origin` aditiva; `cnh` nunca sobrescreve `self`/`admin`.

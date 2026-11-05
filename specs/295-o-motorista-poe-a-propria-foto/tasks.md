@@ -17,14 +17,14 @@
 
 - [ ] T3.1 Atualizar `apps/api-transportada/CLAUDE.md`, `apps/frontend-driver/CLAUDE.md` e o `CLAUDE.md` da raiz (uma linha).
 
-## Fase 4 — Foto sugerida da CNH (BLOQUEADA, não implementar)
+## Fase 4 — Foto da CNH aplicada direto (espera o spike)
 > 🤖 Modelo: `opus` (T4.1 🧠), depois `sonnet`
 
-⚠️ `[NEEDS CLARIFICATION]` modo de consentimento (sugerir e confirmar × aplicar direto). Sem resposta, parar.
+Consentimento decidido: aplicar direto, com origem (`cnh|self|admin`) e nota no Perfil. Implementar só depois do resultado do T4.1.
 
 - [ ] T4.1 🧠 Spike: extrair o rosto de amostras reais de CNH em staging (PDF digital e foto), medir taxa de sucesso, escolher biblioteca compatível com Bun, sem serviço externo. Depende da 048.
-- [ ] T4.2 Tabela aditiva de sugestão pendente + extração no cadastro (091/071).
-- [ ] T4.3 App: confirmar ou trocar no primeiro acesso; painel mostra a sugestão.
+- [ ] T4.2 Coluna aditiva `origin` (`cnh|self|admin`, VARCHAR) + extração no cadastro (091/071); `cnh` nunca sobrescreve `self`/`admin`.
+- [ ] T4.3 App: nota "Foto tirada da sua CNH — toque para trocar" enquanto a origem é `cnh`.
 
 ## Prompt de execução
 
@@ -34,5 +34,5 @@ antes de começar). Uma task por vez, na ordem do tasks.md. Só as Fases 1 a 3.
 Modelos: Fases 1 e 2 → executor model=sonnet · Fase 3 → executor model=haiku · revisão final → code-reviewer model=sonnet.
 Escalada: gate falhou 2x → sobe um nível e registra em evidence.md.
 Cada task fecha com typecheck + lint + testes da app + commit isolado, evidência em evidence.md.
-Pare e pergunte antes de: deploy, migration destrutiva, qualquer [NEEDS CLARIFICATION] (a Fase 4 não entra).
+Pare e pergunte antes de: deploy, migration destrutiva, qualquer [NEEDS CLARIFICATION] (a Fase 4 não entra: espera o spike).
 ```

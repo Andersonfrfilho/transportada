@@ -30,18 +30,23 @@ motorista (`apps/frontend-driver`), e ela aparece no lugar das iniciais.
 
 - Foto de outros participantes nas conversas do app (o pacote só entrega o nome do autor ao renderizador).
 - Recorte/edição de imagem no app.
-- Fase 4 (foto sugerida da CNH): ver RF10, **não implementada nesta entrega**.
+- Fase 4 (foto da CNH, RF10 a RF13): **não implementada nesta entrega**; começa pelo spike.
 
-## Foto sugerida da CNH (Fase 4 — bloqueada)
+## Foto da CNH como foto inicial (Fase 4 — aguarda o spike)
 
+- **Decisão do dono (2026-11-05):** a foto extraída da CNH é **aplicada direto** como foto de perfil no cadastro, e o
+  motorista a troca no app (a auto-troca desta spec). Não há modo "sugerir e confirmar".
 - **RF10** No cadastro do motorista, extrair o rosto da CNH já guardada (specs 091, 071; usuário criado pela 049) e gravá-lo
-  como **sugestão pendente**. O motorista confirma ou troca no app no primeiro acesso; o painel mostra a sugestão aos
-  administradores. CNH-e em PDF traz o rosto como objeto de imagem (extração sem detecção facial); foto da CNH física exige
-  detecção e recorte (menos confiável).
-- **LGPD:** é mudança de finalidade (documento de cadastro → foto exibida ao escritório e a contratantes nas conversas).
-  Por isso é sugerida e confirmada, nunca aplicada em silêncio.
-- **[NEEDS CLARIFICATION]** Modo de consentimento: "sugerir e o motorista confirma" (recomendado) ou "aplicar direto".
-  Também depende das amostras de CNH da spec 048 (também com pergunta aberta). **A Fase 4 não é implementada sem resposta.**
+  como foto de perfil com `origin = 'cnh'`. CNH-e em PDF traz o rosto como objeto de imagem (extração sem detecção facial);
+  foto da CNH física exige detecção e recorte (menos confiável).
+- **RF11** A foto guarda a origem (`cnh` | `self` | `admin`), coluna aditiva. Envio próprio grava `self`; envio do administrador, `admin`.
+- **RF12** Foto de origem `self` ou `admin` **nunca** é sobrescrita por uma da CNH.
+- **RF13** Transparência: enquanto a origem é `cnh`, o Perfil do app mostra "Foto tirada da sua CNH — toque para trocar"
+  (`GET /me/picture` passa a expor a origem em cabeçalho/metadado quando a fase entrar).
+- **LGPD:** é mudança de finalidade (documento de cadastro → foto exibida ao escritório e a contratantes nas conversas); a
+  mitigação é a nota do RF13 e a troca/remoção a um toque. Registrar em `docs/SECURITY.md` ao implementar.
+- O spike (T4.1, `opus`) precede tudo: amostras reais de staging (PDF digital e fotografada), taxa de sucesso, biblioteca
+  compatível com Bun, sem serviço externo. A implementação espera o resultado; depende também da 048 (amostras de CNH).
 
 ## Aceite
 
