@@ -3,6 +3,7 @@
  */
 import { createHash } from 'node:crypto'
 
+import type { UserPictureOrigin } from '../../database/identity-user-picture.schema.js'
 import { UserPictureNotFoundError } from '../domain/user-picture.error.js'
 import { assertUserPictureBytes } from '../domain/user-picture.policy.js'
 import type {
@@ -29,7 +30,12 @@ export type UserPictureUseCase = {
   readonly find: (input: Target) => Promise<UserPicture>
   readonly findPublic: (input: { readonly publicToken: string }) => Promise<UserPicture>
   readonly remove: (input: Target & { readonly idempotent?: boolean }) => Promise<void>
-  readonly replace: (input: Target & { readonly bytes: Uint8Array }) => Promise<UserPictureMetadata>
+  readonly replace: (
+    input: Target & {
+      readonly bytes: Uint8Array
+      readonly origin: Exclude<UserPictureOrigin, 'cnh'>
+    },
+  ) => Promise<UserPictureMetadata>
 }
 
 export function createUserPictureUseCase(dependencies: Dependencies): UserPictureUseCase {
@@ -82,7 +88,7 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
       await publishToRealm({ context, userId })
     },
 
-    replace: async ({ bytes, context, userId }) => {
+    replace: async ({ bytes, context, origin, userId }) => {
       const mimeType = assertUserPictureBytes(bytes)
       const content = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
       const saved = await dependencies.repository.save({
@@ -90,6 +96,7 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
         companyId: context.companyId,
         contentBase64: content.toString('base64'),
         mimeType,
+        origin,
         sha256: createHash('sha256').update(content).digest('hex'),
         userId,
       })

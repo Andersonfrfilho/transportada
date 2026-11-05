@@ -309,7 +309,9 @@ export const HTTP_OPTIONS_METHOD = 'OPTIONS'
 export const CORS_ALLOW_HEADERS = 'Authorization'
 export const CORS_MAX_AGE_SECONDS = 300
 /** `Date` (relógio do motorista), `Retry-After` (o 429 do painel) e `Content-Disposition` (nome do download) não são legíveis entre origens. */
-export const CORS_EXPOSE_HEADERS = 'Date, Retry-After, Content-Disposition'
+/** Quem pôs a foto de perfil (`cnh|self|admin`); o app do motorista lê para a nota da CNH (spec 295). */
+export const PICTURE_ORIGIN_HEADER = 'x-picture-origin'
+export const CORS_EXPOSE_HEADERS = `Date, Retry-After, Content-Disposition, X-Picture-Origin`
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
 /**
  * Teto do corpo das demais rotas no servidor (`Bun.serve`) — o que vale para toda rota que não tem teto

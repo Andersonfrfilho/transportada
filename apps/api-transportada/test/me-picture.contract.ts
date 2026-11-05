@@ -37,6 +37,7 @@ async function buildHarness(options: HarnessOptions = {}) {
     readonly userId: string
   }[] = []
   const saved: StoredPicture[] = []
+  const savedOrigins: string[] = []
   const removed: StoredPicture[] = []
   const found: StoredPicture[] = []
   const repository = {
@@ -47,6 +48,7 @@ async function buildHarness(options: HarnessOptions = {}) {
         : {
             bytes: Buffer.from(PNG),
             mimeType: 'image/png' as const,
+            origin: 'self' as const,
             publicToken: null,
             sha256: 'a'.repeat(64),
           }
@@ -65,12 +67,14 @@ async function buildHarness(options: HarnessOptions = {}) {
     },
     async save(
       input: StoredPicture & {
+        readonly origin: string
         readonly byteSize: number
         readonly mimeType: string
         readonly sha256: string
       },
     ) {
       saved.push({ companyId: input.companyId, userId: input.userId })
+      savedOrigins.push(input.origin)
       return {
         byteSize: input.byteSize,
         mimeType: input.mimeType,
@@ -113,6 +117,7 @@ async function buildHarness(options: HarnessOptions = {}) {
     handle: (request: Request) => handleRequest(request, { timeout() {} }),
     removed,
     saved,
+    savedOrigins,
   }
 }
 
@@ -141,6 +146,19 @@ describe('a própria foto de perfil (spec 295)', () => {
     expect(harness.saved).toEqual([
       { companyId: COMPANY_CONTEXT.companyId, userId: COMPANY_CONTEXT.userId },
     ])
+  })
+
+  test('PUT grava a origem `self` e GET a expõe no cabeçalho x-picture-origin', async () => {
+    const harness = await buildHarness()
+
+    await harness.handle(upload({ bytes: PNG }))
+    const response = await harness.handle(
+      new Request(`${FRONTEND_ORIGIN}${PICTURE_PATH}`, { headers: { origin: FRONTEND_ORIGIN } }),
+    )
+
+    expect(harness.savedOrigins).toEqual(['self'])
+    expect(response.headers.get('x-picture-origin')).toBe('self')
+    expect(response.headers.get('access-control-expose-headers')).toContain('X-Picture-Origin')
   })
 
   test('campo de usuário no corpo é ignorado: ninguém aponta a foto de outra pessoa', async () => {

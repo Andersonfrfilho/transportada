@@ -49,6 +49,7 @@ export function createUserPictureRoutes(
         const picture = await dependencies.userPicture.replace({
           bytes: input.bytes,
           context: context.scope,
+          origin: 'admin',
           userId: input.userId,
         })
         return jsonResponse({ body: { data: serialize(picture) }, status: 200 })

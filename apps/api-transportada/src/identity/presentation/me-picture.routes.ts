@@ -2,7 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { defineRoute } from '../../http/router.service.js'
-import { API_ME_PICTURE_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import {
+  API_ME_PICTURE_PATH,
+  JSON_CONTENT_TYPE,
+  PICTURE_ORIGIN_HEADER,
+} from '../../shared/api.constant.js'
 import type { UserPictureUseCase } from '../application/user-picture.use-case.js'
 import { parseUserPictureUpload } from './user-picture.schema.js'
 
@@ -33,6 +37,7 @@ export function createMePictureRoutes(
             'content-type': picture.mimeType,
             etag: `"${picture.sha256}"`,
             'x-content-type-options': 'nosniff',
+            [PICTURE_ORIGIN_HEADER]: picture.origin,
           },
           status: 200,
         })
@@ -47,6 +52,7 @@ export function createMePictureRoutes(
         const picture = await dependencies.userPicture.replace({
           bytes: input.bytes,
           context: context.scope,
+          origin: 'self',
           userId: context.scope.userId,
         })
         return new Response(

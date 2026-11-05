@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { UserPictureMimeType } from '../../database/identity-user-picture.schema.js'
+import type {
+  UserPictureMimeType,
+  UserPictureOrigin,
+} from '../../database/identity-user-picture.schema.js'
 
 export type UserPictureMetadata = {
   readonly byteSize: number
@@ -15,6 +18,7 @@ export type UserPictureMetadata = {
 export type UserPicture = {
   readonly bytes: Buffer
   readonly mimeType: UserPictureMimeType
+  readonly origin: UserPictureOrigin
   /** O endereço público desta versão. Nulo em foto gravada antes de a coluna existir. */
   readonly publicToken: string | null
   readonly sha256: string
@@ -25,6 +29,7 @@ export type SaveUserPictureInput = {
   readonly companyId: string
   readonly contentBase64: string
   readonly mimeType: UserPictureMimeType
+  readonly origin: UserPictureOrigin
   readonly sha256: string
   readonly userId: string
 }

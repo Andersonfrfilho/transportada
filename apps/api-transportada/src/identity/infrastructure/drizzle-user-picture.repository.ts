@@ -56,6 +56,7 @@ export class DrizzleUserPictureRepository
       .select({
         contentBase64: identityUserPictures.contentBase64,
         mimeType: identityUserPictures.mimeType,
+        origin: identityUserPictures.origin,
         publicToken: identityUserPictures.publicToken,
         sha256: identityUserPictures.sha256,
       })
@@ -71,6 +72,7 @@ export class DrizzleUserPictureRepository
     return {
       bytes: Buffer.from(row.contentBase64, 'base64'),
       mimeType: row.mimeType,
+      origin: row.origin,
       publicToken: row.publicToken,
       sha256: row.sha256,
     }
@@ -87,6 +89,7 @@ export class DrizzleUserPictureRepository
       .select({
         contentBase64: identityUserPictures.contentBase64,
         mimeType: identityUserPictures.mimeType,
+        origin: identityUserPictures.origin,
         publicToken: identityUserPictures.publicToken,
         sha256: identityUserPictures.sha256,
       })
@@ -98,6 +101,7 @@ export class DrizzleUserPictureRepository
     return {
       bytes: Buffer.from(row.contentBase64, 'base64'),
       mimeType: row.mimeType,
+      origin: row.origin,
       publicToken: row.publicToken,
       sha256: row.sha256,
     }
@@ -152,6 +156,7 @@ export class DrizzleUserPictureRepository
         byteSize: input.byteSize,
         contentBase64: input.contentBase64,
         mimeType: input.mimeType,
+        origin: input.origin,
         publicToken,
         sha256: input.sha256,
         updatedAt,
@@ -162,6 +167,7 @@ export class DrizzleUserPictureRepository
           byteSize: input.byteSize,
           contentBase64: input.contentBase64,
           mimeType: input.mimeType,
+          origin: input.origin,
           publicToken,
           sha256: input.sha256,
           updatedAt,
