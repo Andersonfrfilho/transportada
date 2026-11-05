@@ -78,6 +78,12 @@
       "tooLarge": "the photo is larger than the server accepts",
       "typeNotAvailableForContractor": "this occurrence type does not apply to the contractor of this note; choose another type"
     },
+    "cancel": {
+      "confirm": "Cancel anyway",
+      "keep": "Keep",
+      "open": "Cancel sending",
+      "warning": "This occurrence has not been sent yet. Cancelling deletes it (and its photos) from the phone and it will not be recorded."
+    },
     "discard": {
       "confirm": "Discard anyway",
       "keep": "Keep",
