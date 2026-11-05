@@ -13,6 +13,8 @@ import type {
 import {
   createGroupOccurrenceFlow,
   findTypeByName,
+  formatGroupDateTime,
+  formatGroupMoney,
   GROUP_DOCUMENT_LIST_LIMIT,
   GROUP_OCCURRENCE_STEP,
   GROUP_OCCURRENCE_TEXT,
@@ -616,5 +618,57 @@ describe('fluxo do grupo: resposta de outra pessoa e observação', () => {
     })
     expect(other).toMatchObject({ kind: 'continue', step: 'location' })
     expect((other as unknown as { replies: string[] }).replies[0]).toContain('Anderson')
+  })
+})
+
+describe('fluxo do grupo: o resumo do registro (pedido do Anderson em 05/11)', () => {
+  test('traz contratante, cliente, endereço, data, local, observação, contato e o valor por último', () => {
+    const text = GROUP_OCCURRENCE_TEXT.registered({
+      address: 'Rua A, 10 - Centro, Franca/SP',
+      clientName: 'DEPOSITO DE BEBIDAS 2 IRMAOS LTDA',
+      contact: '(16) •••••-6772',
+      contractorName: 'DISTRIBUIDORA EXEMPLO LTDA',
+      documentNumber: '899884',
+      location: { latitude: -20.5673309, longitude: -47.3604555 },
+      note: 'cliente pediu mais 10 dias',
+      registeredAt: '2026-11-05T00:42:00.000Z',
+      sentToClient: true,
+      series: '2',
+      totalValue: '1234.5',
+      typeName: 'Prorrogação do boleto',
+    })
+    const lines = text.split('\n')
+    expect(lines).toContain('📄 *NF 899884/2*')
+    expect(lines).toContain('🏢 Contratante: *DISTRIBUIDORA EXEMPLO LTDA*')
+    expect(lines).toContain('👤 Cliente: *DEPOSITO DE BEBIDAS 2 IRMAOS LTDA*')
+    expect(lines).toContain('🏠 Endereço da nota: Rua A, 10 - Centro, Franca/SP')
+    expect(lines).toContain('🕒 Registrada em: 04/11/2026 às 21:42')
+    expect(lines).toContain(
+      '📍 Local da ocorrência: https://maps.google.com/?q=-20.567331,-47.360456',
+    )
+    expect(lines).toContain('📇 Contato do cliente: *(16) •••••-6772*')
+    // O valor é a última linha do resumo, antes do que acontece agora.
+    const value = lines.indexOf('💰 Valor da nota: *R$ 1.234,50*')
+    expect(value).toBeGreaterThan(lines.indexOf('📇 Contato do cliente: *(16) •••••-6772*'))
+    expect(lines[value + 1]).toBe('')
+  })
+
+  test('sem os dados da nota, as linhas somem', () => {
+    const text = GROUP_OCCURRENCE_TEXT.registered({
+      documentNumber: '899884',
+      typeName: 'Prorrogação do boleto',
+    })
+    expect(text).not.toContain('Contratante')
+    expect(text).not.toContain('Valor')
+    expect(text).not.toContain('Registrada em')
+  })
+
+  test('dinheiro em texto, sem float, meio para cima', () => {
+    expect(formatGroupMoney('0')).toBe('R$ 0,00')
+    expect(formatGroupMoney('1234567.891')).toBe('R$ 1.234.567,89')
+    expect(formatGroupMoney('10.005')).toBe('R$ 10,01')
+    expect(formatGroupMoney('99.995')).toBe('R$ 100,00')
+    expect(formatGroupMoney('abc')).toBeNull()
+    expect(formatGroupDateTime('x')).toBeNull()
   })
 })

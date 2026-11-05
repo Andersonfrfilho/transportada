@@ -84,7 +84,12 @@ describe('pedido no grupo: autor da ocorrência (spec 292 T5)', () => {
 
         expect(await register(withAccount.id)).toEqual({
           kind: 'registered',
-          summary: { clientName: '', series: '' },
+          summary: {
+            clientName: '',
+            contractorName: '',
+            registeredAt: expect.any(String),
+            series: '',
+          },
         })
         expect(calls).toEqual([{ actorUserId: userId, driverId: withAccount.id }])
 
