@@ -42,6 +42,8 @@ export const STORAGE_OBJECT_PURPOSES = [
   'occurrence_conversation_attachment',
   /** Spec 220 RF17: a miniatura do comprovante de entrega, gerada no cliente junto do original. */
   'trip_delivery_proof_thumbnail',
+  /** Spec 091: o documento do motorista (CNH etc.) anexado à ficha da frota. */
+  'fleet_driver_attachment',
 ] as const
 export type StorageObjectPurpose = (typeof STORAGE_OBJECT_PURPOSES)[number]
 
