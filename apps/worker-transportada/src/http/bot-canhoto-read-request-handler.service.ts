@@ -7,7 +7,8 @@
  * resposta é só o veredito (marcas e notas casadas). Nada é gravado e o texto lido nunca sai da thread.
  *
  * Mesma prova de origem da rota do áudio do bot (`BOT_AUDIO_TRANSCRIPTION_TOKEN`, comparado em tempo
- * constante; sem ele, 404). Uma leitura por vez; fila curta cheia, 503.
+ * constante; sem ele, 404). Uma leitura por vez; fila curta cheia (ou motor ainda carregando), 503 na hora. Spec 294 S6:
+ * só JPEG/PNG pelos bytes chega ao decodificador; o resto é 415.
  *
  * ⚠️ Nunca loga foto, texto nem número de nota: só tamanho, duração e código de falha.
  */
@@ -20,6 +21,7 @@ import {
   type CanhotoOcrReaderPort,
 } from '../canhoto-ocr/application/canhoto-ocr-reader.port.js'
 import { CANHOTO_OCR_MAX_IMAGE_BYTES } from '../canhoto-ocr/domain/canhoto-ocr.constant.js'
+import { imageMimeType } from '../aggregate-attachment/infrastructure/document-signature.js'
 import { safeLogInfo, safeLogWarn } from '../logging/safe-logger.service.js'
 import type { RequestTimeoutPort, WorkerLogger } from '../shared/worker.types.js'
 
@@ -27,6 +29,7 @@ export const BOT_CANHOTO_READ_PATH = '/internal/bot-canhoto-reads'
 /** O teto do Bun é 255 s; a leitura tem o próprio prazo (`CANHOTO_OCR_TIMEOUT_MS`). */
 const REQUEST_TIMEOUT_SECONDS = 120
 const MAX_CANDIDATES = 60
+const queueKeySchema = z.string().min(1).max(64).optional()
 
 const candidatesSchema = z
   .array(
@@ -59,16 +62,27 @@ export function createBotCanhotoReadHandler(
     const candidates = candidatesSchema.safeParse(
       safeJson(typeof form?.get('candidates') === 'string' ? String(form?.get('candidates')) : ''),
     )
-    if (!candidates.success) return json({ error: { code: 'INVALID_REQUEST' } }, 400)
+    const queueKeyField = form?.get('queueKey')
+    const queueKey = queueKeySchema.safeParse(
+      typeof queueKeyField === 'string' ? queueKeyField : undefined,
+    )
+    if (!candidates.success || !queueKey.success) {
+      return json({ error: { code: 'INVALID_REQUEST' } }, 400)
+    }
     if (image.size === 0) return json({ error: { code: 'EMPTY_IMAGE' } }, 400)
     if (image.size > CANHOTO_OCR_MAX_IMAGE_BYTES) return json({ error: { code: 'TOO_LARGE' } }, 413)
+    const bytes = new Uint8Array(await image.arrayBuffer())
+    if (imageMimeType(bytes) === undefined) {
+      return json({ error: { code: 'UNSUPPORTED_MEDIA_TYPE' } }, 415)
+    }
 
     server.timeout(request, REQUEST_TIMEOUT_SECONDS)
     const startedAt = Date.now()
     try {
       const result = await reader.read({
-        bytes: new Uint8Array(await image.arrayBuffer()),
+        bytes,
         candidates: candidates.data,
+        queueKey: queueKey.data,
       })
       safeLogInfo({
         logger,

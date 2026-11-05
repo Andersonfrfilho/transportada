@@ -40,7 +40,7 @@ const SETTINGS: DeliveryProofFieldSettings = {
   signature: 'off',
 }
 const NOW = new Date('2026-11-05T15:00:00.000Z')
-const BYTES = new Uint8Array([1, 2, 3])
+const BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])
 
 type Verdict = Awaited<ReturnType<WhatsAppCanhotoReaderPort['read']>>
 const exact = (documentId: string): Verdict => ({
@@ -53,7 +53,7 @@ function setup(
   options: {
     readonly duplicateOf?: string
     readonly now?: () => Date
-    readonly read?: () => Promise<Verdict>
+    readonly read?: (input: Parameters<WhatsAppCanhotoReaderPort['read']>[0]) => Promise<Verdict>
     readonly stops?: boolean
   } = {},
 ) {
@@ -170,9 +170,9 @@ function setup(
     resolveSettings: async () => SETTINGS,
   })
   const reader: WhatsAppCanhotoReaderPort = {
-    read: async () => {
+    read: async (input) => {
       readCalls += 1
-      return (options.read ?? (async () => exact('DOC-A')))()
+      return (options.read ?? (async () => exact('DOC-A')))(input)
     },
   }
   const recognition = createWhatsAppCanhotoRecognition({
@@ -231,10 +231,10 @@ function setup(
       wantsPhoto: async () => false,
     } as never,
   })
-  const photo = (actor: WhatsAppDriverActor = ACTOR, id = 'M1') =>
+  const photo = (actor: WhatsAppDriverActor = ACTOR, id = 'M1', bytes = BYTES) =>
     facade.receivePhoto({
       actor,
-      bytes: BYTES,
+      bytes,
       caption: null,
       channel: 'group',
       mimeType: 'image/jpeg',
@@ -413,16 +413,51 @@ describe('leitor indisponível, um pedido por vez e prazo (RNF1)', () => {
     expect(t.questionRows.size).toBe(0)
   })
 
-  test('fila cheia ou falha do motor: avisa e cai na pergunta 1/2/3, sem baixar', async () => {
+  test('S7: leitor ocupado (fila cheia ou carregando) pergunta de qual nota, sem baixar', async () => {
     const t = setup({
       read: async () => {
         throw Object.assign(new Error('busy'), { reason: 'busy' })
       },
     })
     const asked = await t.photo()
-    expect(asked?.texts[0]).toContain(CANHOTO_RECOGNITION_SPEECH.readerUnavailable)
-    expect(asked?.texts[0]).toContain('*1* - Mercadoria')
+    expect(asked?.texts[0]).toContain('De qual nota é este canhoto?')
+    expect(asked?.texts[0]).toContain('NF 17234 · Mercado Sul')
+    expect(asked?.awaitingText).toBe(true)
     expect(t.rows.size).toBe(0)
+    expect((await t.answer('17234'))?.texts[0]).toBe('Li o canhoto da NF 17234.')
+  })
+
+  test('C1: falha do motor, prazo estourado ou rede: avisa e cai na pergunta 1/2/3, nunca calado', async () => {
+    for (const reason of ['failed', 'timeout']) {
+      const t = setup({
+        read: async () => {
+          throw Object.assign(new Error(reason), { reason })
+        },
+      })
+      const asked = await t.photo()
+      expect(asked?.texts[0]).toContain(CANHOTO_RECOGNITION_SPEECH.readerUnavailable)
+      expect(asked?.texts[0]).toContain('*1* - Mercadoria')
+      expect(t.rows.size).toBe(0)
+    }
+  })
+
+  test('S7: o leitor recebe a empresa como chave da fila', async () => {
+    const keys: (string | undefined)[] = []
+    const t = setup({
+      read: async (input) => {
+        keys.push(input.queueKey)
+        return exact('DOC-A')
+      },
+    })
+    await t.photo()
+    expect(keys).toEqual(['C1'])
+  })
+
+  test('S6: o que não é JPEG, PNG ou WebP pelos bytes nem vai ao leitor e cai na pergunta', async () => {
+    const t = setup()
+    const asked = await t.photo(ACTOR, 'M1', new Uint8Array([0x25, 0x50, 0x44, 0x46]))
+    expect(t.readCalls()).toBe(0)
+    expect(asked?.texts[0]).toContain(CANHOTO_RECOGNITION_SPEECH.readerUnavailable)
   })
 
   test('com pergunta aberta, outra foto não abre outra: pede a resposta antes', async () => {

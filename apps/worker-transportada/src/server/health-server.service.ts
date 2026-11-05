@@ -18,6 +18,7 @@ import {
   createBotCanhotoReadHandler,
 } from '../http/bot-canhoto-read-request-handler.service.js'
 import { createHealthRequestHandler } from '../http/health-request-handler.service.js'
+import { safeLogInfo } from '../logging/safe-logger.service.js'
 import type {
   AudioTranscriptionEnvironment,
   WorkerEnvironment,
@@ -113,16 +114,17 @@ function createBotCanhoto(params: {
   const token = params.config.botAudioTranscriptionToken
   const { canhotoOcr } = params.config
   if (token === undefined || canhotoOcr === undefined) return undefined
-  return createBotCanhotoReadHandler({
-    logger: params.logger,
-    reader:
-      params.canhotoOcrReader ??
-      createThreadedCanhotoOcrReader({
-        modelDirectory: canhotoOcr.modelDirectory,
-        timeoutMilliseconds: canhotoOcr.timeoutMilliseconds,
-      }),
-    token,
+  const reader =
+    params.canhotoOcrReader ??
+    createThreadedCanhotoOcrReader({
+      modelDirectory: canhotoOcr.modelDirectory,
+      timeoutMilliseconds: canhotoOcr.timeoutMilliseconds,
+    })
+  // Spec 294 C6: os modelos carregam no boot; até lá a rota responde 503 e a API pergunta a nota.
+  void reader.start?.().then((ready) => {
+    safeLogInfo({ logger: params.logger, message: 'bot_canhoto_read.engine', metadata: { ready } })
   })
+  return createBotCanhotoReadHandler({ logger: params.logger, reader, token })
 }
 
 function safePathname(url: string): string {

@@ -13,8 +13,14 @@ import type { WhatsAppCanhotoReaderPort } from '../../whatsapp-commands/applicat
 import type { WorkerBotAudioTranscriberConfig } from './worker-bot-audio-transcriber.gateway.js'
 
 const READ_PATH = '/internal/bot-canhoto-reads'
-/** O prazo do worker (30 s com a carga dos modelos) mais a fila curta de uma leitura por vez. */
-const DEFAULT_TIMEOUT_MS = 60_000
+/**
+ * Spec 294 C1: o worker atende uma lendo e uma esperando (o resto é 503 na hora), 30 s cada; a carga dos modelos não
+ * entra (até ela terminar, 503). Duas leituras mais a folga do envio da foto.
+ */
+export const BOT_CANHOTO_READ_DEFAULT_TIMEOUT_MS = 75_000
+/** Spec 294 C1: só a rota ausente (OCR desligado no worker) deixa a foto calada; o resto cai numa pergunta. */
+const ROUTE_ABSENT_STATUS = 404
+const BUSY_STATUS = 503
 
 export class BotCanhotoReadError extends Error {
   override readonly name = 'BotCanhotoReadError'
@@ -37,24 +43,28 @@ export function createWorkerCanhotoReader(
 ): WhatsAppCanhotoReaderPort {
   const url = `${config.baseUrl.replace(/\/+$/u, '')}${READ_PATH}`
   return {
-    async read({ bytes, candidates }) {
+    async read({ bytes, candidates, queueKey }) {
       const form = new FormData()
       form.set('image', new Blob([new Uint8Array(bytes)]))
       form.set('candidates', JSON.stringify(candidates))
+      form.set('queueKey', queueKey)
       let response: Response
       try {
         response = await fetchImpl(url, {
           body: form,
           headers: { authorization: `Bearer ${config.token}` },
           method: 'POST',
-          signal: AbortSignal.timeout(config.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+          signal: AbortSignal.timeout(config.timeoutMs ?? BOT_CANHOTO_READ_DEFAULT_TIMEOUT_MS),
         })
       } catch {
-        throw new BotCanhotoReadError('unreachable')
+        // Rede ou prazo: o worker existe e falhou nesta foto — a foto vai para a pergunta, nunca some.
+        throw new BotCanhotoReadError('failed')
       }
-      if (response.status === 503) throw new BotCanhotoReadError('busy')
+      if (response.status === BUSY_STATUS) throw new BotCanhotoReadError('busy')
       if (!response.ok) {
-        throw new BotCanhotoReadError(response.status === 404 ? 'unreachable' : 'failed')
+        throw new BotCanhotoReadError(
+          response.status === ROUTE_ABSENT_STATUS ? 'unreachable' : 'failed',
+        )
       }
       const parsed = verdictSchema.safeParse(await response.json().catch(() => null))
       if (!parsed.success) throw new BotCanhotoReadError('failed')

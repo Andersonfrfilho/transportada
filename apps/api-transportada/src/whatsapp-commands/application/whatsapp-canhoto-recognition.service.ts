@@ -21,6 +21,7 @@ import type {
 import type { WhatsAppDeliveryPreparationChannel } from '../../database/whatsapp-delivery-preparation.schema.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { WhatsAppStopCandidate } from '../../trips/domain/driver-stop-resolution.policy.js'
+import { detectDeliveryProofMimeType } from '../../trips/domain/delivery-proof.policy.js'
 import { CANHOTO_RECOGNITION_SPEECH } from '../domain/whatsapp-canhoto-recognition-speech.constant.js'
 import {
   decideCanhotoRecognition,
@@ -84,13 +85,16 @@ export type WhatsAppCanhotoQuestionRepositoryPort = {
 }
 
 /**
- * O leitor do worker. Rejeita quando a fila está cheia, o prazo estoura ou a rota não responde; rejeitar com
- * `{ reason: 'unreachable' }` (rota ausente, OCR desligado no worker) deixa a foto calada, como antes da 294.
+ * O leitor do worker. Rejeita com `{ reason }`: `unreachable` (rota ausente, OCR desligado no worker) deixa a foto
+ * calada, como antes da 294; `busy` (fila cheia, motor carregando) pergunta de qual nota; qualquer outra falha (prazo,
+ * rede, motor) cai na pergunta "mercadoria / é o canhoto / descartar". Spec 294 C1: nunca calado por falha.
  */
 export type WhatsAppCanhotoReaderPort = {
   read(input: {
     readonly bytes: Uint8Array
     readonly candidates: readonly { readonly documentId: string; readonly number: string }[]
+    /** Spec 294 S7: a empresa; o worker atende uma foto por vez por chave. */
+    readonly queueKey: string
   }): Promise<CanhotoReadVerdict>
 }
 
@@ -207,11 +211,14 @@ export function createWhatsAppCanhotoRecognition(
     ])
   }
 
+  /** `disabled`: o worker não tem a rota; `busy`: fila cheia; `undefined`: falhou (prazo, rede, motor, não é imagem). */
   async function readVerdict(input: {
     readonly actor: WhatsAppDriverActor
     readonly bytes: Uint8Array
     readonly notes: readonly OpenNote[]
-  }): Promise<'disabled' | CanhotoReadVerdict | undefined> {
+  }): Promise<'busy' | 'disabled' | CanhotoReadVerdict | undefined> {
+    // Spec 294 S6: só imagem pelos bytes vai ao decodificador do worker.
+    if (detectDeliveryProofMimeType(input.bytes) === null) return undefined
     try {
       return await ports.reader.read({
         bytes: input.bytes,
@@ -219,14 +226,17 @@ export function createWhatsAppCanhotoRecognition(
           documentId: note.documentId,
           number: note.documentNumber,
         })),
+        queueKey: input.actor.companyId,
       })
     } catch (error) {
-      if ((error as { readonly reason?: unknown }).reason === 'unreachable') return 'disabled'
+      const reason = (error as { readonly reason?: unknown }).reason
+      if (reason === 'unreachable') return 'disabled'
       ports.logger?.warn(LOG.readFailed, {
         companyId: input.actor.companyId,
         errorName: error instanceof Error ? error.name : typeof error,
+        reason: typeof reason === 'string' ? reason : 'unknown',
       })
-      return undefined
+      return reason === 'busy' ? 'busy' : undefined
     }
   }
 
@@ -388,9 +398,18 @@ export function createWhatsAppCanhotoRecognition(
 
       const read = await readVerdict({ actor, bytes, notes })
       if (read === 'disabled') return null
+      const common = { actor, bytes, channel, mimeType, providerMessageId }
+      if (read === 'busy') {
+        const listed = notes.slice(0, MAX_LISTED_NOTES)
+        return ask({
+          ...common,
+          candidates: listed,
+          kind: 'choose_note',
+          text: CANHOTO_RECOGNITION_SPEECH.chooseNote(listed),
+        })
+      }
       const verdict = read
       const decision = decideCanhotoRecognition({ notes, verdict })
-      const common = { actor, bytes, channel, mimeType, providerMessageId }
       if (decision.kind === 'attach') return attach({ ...common, note: decision.note })
       if (decision.kind === 'confirm_note') {
         return ask({

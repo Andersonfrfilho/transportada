@@ -12,6 +12,7 @@ import { env as onnxEnvironment, InferenceSession, Tensor } from 'onnxruntime-we
 import sharp from 'sharp'
 
 import { CANHOTO_OCR_LONG_SIDE, CANHOTO_OCR_MODEL_FILES } from '../domain/canhoto-ocr.constant.js'
+import { openCanhotoImage } from './canhoto-image.decoder.js'
 import { detectTextBoxes } from './paddle-ocr-detector.js'
 import { recognizeLines } from './paddle-ocr-recognizer.js'
 import type { OcrEngine, OcrLine, RawImage, TextBox } from './paddle-ocr.types.js'
@@ -83,7 +84,7 @@ async function levelImage(
 
 /** As linhas lidas, na ordem da página. Nada é gravado nem logado aqui. */
 export async function readOcrLines(engine: OcrEngine, bytes: Uint8Array): Promise<OcrLine[]> {
-  const oriented = await sharp(bytes)
+  const oriented = await openCanhotoImage(bytes)
     .rotate()
     .resize(CANHOTO_OCR_LONG_SIDE, CANHOTO_OCR_LONG_SIDE, {
       fit: 'inside',

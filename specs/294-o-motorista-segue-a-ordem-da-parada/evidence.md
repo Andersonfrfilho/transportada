@@ -540,3 +540,18 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - Contrato novo `test/trip-location-purge/address-suggestions.contract.ts` (5 casos): `trip-location-purge.contract.test.ts` 54 pass / 0 fail.
 - Integração (banco do worker migrado com a API, como o `make worker-integration`): `trip-location-purge.integration.test.ts` 13 pass / 0 fail
   (+1: pendente velha e decidida velha saem; pendente nova e decidida há 10 dias ficam). `deploy.contract` da API: 212 pass.
+
+### C1, C6, S6, S7 — a leitura do canhoto nunca cala por falha (fix(294) OCR)
+
+- C1: o gateway da API só trata a rota ausente (404) como `unreachable` (foto calada, OCR desligado); 503 é `busy`; rede, prazo, 415 e o resto
+  são `failed` → pergunta "mercadoria / é o canhoto / descartar". Prazo da API `BOT_CANHOTO_READ_DEFAULT_TIMEOUT_MS = 75 s` = uma lendo + uma
+  esperando no worker (30 s cada) + folga; a carga dos modelos não conta (até ela terminar, 503).
+- S7: o worker atende uma lendo e uma esperando (`CANHOTO_OCR_MAX_PENDING = 2`) e uma por empresa (`queueKey` = `companyId`, enviado pela API);
+  o resto é 503 na hora. Na API, `busy` abre a pergunta "De qual nota é este canhoto?" com as notas abertas (nunca silêncio).
+- C6: `start()` sobe a thread no boot (`health-server.service.ts`) e a thread avisa `{ ready: true }` depois de carregar os modelos, com prazo
+  próprio de 120 s (`CANHOTO_OCR_READY_TIMEOUT_MILLISECONDS`), separado do prazo da leitura. Até pronta, toda leitura é `busy` na hora; a thread
+  trocada depois de um prazo estourado carrega de novo antes de ler.
+- S6: `openCanhotoImage` = `sharp(bytes, { limitInputPixels: 40_000_000, failOn: 'error' })`; a rota do worker só aceita JPEG/PNG pelos bytes
+  (415 `UNSUPPORTED_MEDIA_TYPE`), e a API só manda ao worker JPEG/PNG/WebP pelos bytes (`detectDeliveryProofMimeType`; o resto cai na pergunta).
+- Worker `canhoto-ocr.contract.test.ts`: 23 pass / 0 fail (+ prontidão, carga que nunca termina, fila global e por empresa, 415, chave da fila,
+  teto de pixels com PNG de 41 MP, imagem truncada). API `whatsapp` + `whatsapp-commands`: 1123 pass / 0 fail.

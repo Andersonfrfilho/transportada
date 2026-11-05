@@ -62,7 +62,9 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   tentativa e repete em 30 min; desligamento devolve a linha em posse. A rotina nasce pausada e não é registrada sem
   modelo ou ferramenta. Detalhe: `docs/ai-context/worker-transportada.md` § "A rotina `conversation.audio.transcribe`".
 - **O canhoto da foto do bot é lido por OCR local numa thread permanente** (spec 294 T4.8, ADR 0113 §5): PP-OCRv4 em `onnxruntime-web`
-  WASM, modelos em `CANHOTO_OCR_MODEL_DIR` (baixados no `Dockerfile`), uma leitura por vez, prazo `CANHOTO_OCR_TIMEOUT_MS`, fila curta (cheia = 503).
+  WASM, modelos em `CANHOTO_OCR_MODEL_DIR` (baixados no `Dockerfile`) e carregados **no boot** (prazo próprio de 120 s; até lá 503), uma leitura
+  por vez, prazo `CANHOTO_OCR_TIMEOUT_MS`, uma esperando e uma por empresa (o resto = 503 na hora; a API então pergunta a nota). Só JPEG/PNG pelos
+  bytes (senão 415), teto de 40 MP antes de decodificar (`openCanhotoImage`).
   Rota interna `POST /internal/bot-canhoto-reads` com o mesmo token do áudio do bot; devolve só marcas e notas casadas — **o texto lido nunca é
   logado nem guardado**. `CANHOTO_OCR_ENABLED`: ligado fora de produção, desligado em produção (pico de ~740 MB). Núcleo em
   `src/canhoto-ocr/`; a API decide o que fazer com o veredito.

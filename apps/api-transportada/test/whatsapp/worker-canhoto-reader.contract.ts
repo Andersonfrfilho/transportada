@@ -6,6 +6,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  BOT_CANHOTO_READ_DEFAULT_TIMEOUT_MS,
   BotCanhotoReadError,
   createWorkerCanhotoReader,
 } from '../../src/whatsapp/infrastructure/worker-canhoto-reader.gateway.js'
@@ -24,7 +25,7 @@ function reader(respond: (request: Request) => Response | Promise<Response>) {
 }
 
 const read = (r: ReturnType<typeof createWorkerCanhotoReader>) =>
-  r.read({ bytes: new Uint8Array([1, 2, 3]), candidates: CANDIDATES })
+  r.read({ bytes: new Uint8Array([1, 2, 3]), candidates: CANDIDATES, queueKey: 'C1' })
 
 describe('worker canhoto reader gateway', () => {
   test('posts the photo and the open notes with the bearer token and returns the verdict', async () => {
@@ -41,9 +42,10 @@ describe('worker canhoto reader gateway', () => {
     const form = await request?.formData()
     expect(JSON.parse(String(form?.get('candidates')))).toEqual(CANDIDATES)
     expect(form?.get('image')).toBeInstanceOf(Blob)
+    expect(form?.get('queueKey')).toBe('C1')
   })
 
-  test('maps 503 to busy, 404 and network failure to unreachable, and the rest to failed', async () => {
+  test('C1: only the absent route (404) is unreachable; 503 is busy; network, timeout and the rest are failed', async () => {
     const reasonOf = async (response: () => Response) => {
       const t = reader(response)
       return read(t.reader).catch((error: BotCanhotoReadError) => error.reason)
@@ -55,6 +57,19 @@ describe('worker canhoto reader gateway', () => {
     const down = createWorkerCanhotoReader(CONFIG, (async () => {
       throw new Error('ECONNREFUSED')
     }) as unknown as typeof globalThis.fetch)
-    expect(await read(down).catch((error: BotCanhotoReadError) => error.reason)).toBe('unreachable')
+    expect(await read(down).catch((error: BotCanhotoReadError) => error.reason)).toBe('failed')
+    expect(await reasonOf(() => new Response('', { status: 415 }))).toBe('failed')
+    const slow = createWorkerCanhotoReader(
+      { ...CONFIG, timeoutMs: 20 },
+      ((_url: unknown, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+        })) as unknown as typeof globalThis.fetch,
+    )
+    expect(await read(slow).catch((error: BotCanhotoReadError) => error.reason)).toBe('failed')
+  })
+
+  test('C1: the default deadline covers the worker queue (one reading + one waiting at 30 s each)', () => {
+    expect(BOT_CANHOTO_READ_DEFAULT_TIMEOUT_MS).toBeGreaterThan(2 * 30_000)
   })
 })

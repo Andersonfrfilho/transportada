@@ -4,12 +4,15 @@
  * Spec 294 T4.8: o OCR local do canhoto que o bot lê (ADR 0113 §5).
  */
 import { afterEach, describe, expect, test } from 'bun:test'
+import sharp from 'sharp'
 
 import {
   CanhotoOcrError,
   type CanhotoOcrReaderPort,
 } from '../src/canhoto-ocr/application/canhoto-ocr-reader.port.js'
 import { evaluateCanhotoText } from '../src/canhoto-ocr/domain/canhoto-ocr-match.policy.js'
+import { CANHOTO_OCR_MAX_INPUT_PIXELS } from '../src/canhoto-ocr/domain/canhoto-ocr.constant.js'
+import { openCanhotoImage } from '../src/canhoto-ocr/infrastructure/canhoto-image.decoder.js'
 import { createThreadedCanhotoOcrReader } from '../src/canhoto-ocr/infrastructure/threaded-canhoto-ocr.reader.js'
 import { parseWorkerEnvironment } from '../src/config/environment.schema.js'
 import {
@@ -19,6 +22,7 @@ import {
 import type { WorkerLogger } from '../src/shared/worker.types.js'
 
 const TOKEN = 'x'.repeat(40)
+const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])
 const server = { timeout: () => undefined }
 const candidates = [
   { documentId: 'doc-a', number: '17234' },
@@ -87,21 +91,39 @@ describe('canhoto text evaluation', () => {
 describe('threaded canhoto reader', () => {
   const readers: CanhotoOcrReaderPort[] = []
   const workerUrl = new URL('./fixtures/canhoto-ocr-fake.worker.ts', import.meta.url)
-  const create = (timeoutMilliseconds = 3000) => {
+  const create = (
+    options: {
+      readonly fake?: { readonly neverReady?: boolean; readonly readyDelayMilliseconds?: number }
+      readonly readyTimeoutMilliseconds?: number
+      readonly timeoutMilliseconds?: number
+    } = {},
+  ) => {
     const reader = createThreadedCanhotoOcrReader({
       modelDirectory: '/unused',
-      timeoutMilliseconds,
+      readyTimeoutMilliseconds: options.readyTimeoutMilliseconds ?? 3000,
+      timeoutMilliseconds: options.timeoutMilliseconds ?? 3000,
+      workerData: { fake: options.fake ?? {} },
       workerUrl,
     })
     readers.push(reader)
     return reader
   }
+  const started = async (options: Parameters<typeof create>[0] = {}) => {
+    const reader = create(options)
+    expect(await reader.start?.()).toBe(true)
+    return reader
+  }
+  const reasonOf = (promise: Promise<unknown>) =>
+    promise.then(
+      () => 'read',
+      (error: unknown) => (error instanceof CanhotoOcrError ? error.reason : 'other'),
+    )
   afterEach(async () => {
     await Promise.all(readers.splice(0).map((reader) => reader.close()))
   })
 
   test('answers from one live thread, one photo at a time', async () => {
-    const reader = create()
+    const reader = await started()
     const results = await Promise.all([
       reader.read({ bytes: new Uint8Array([1, 4]), candidates }),
       reader.read({ bytes: new Uint8Array([1, 5]), candidates }),
@@ -109,34 +131,66 @@ describe('threaded canhoto reader', () => {
     expect(results.map((result) => result.markers)).toEqual([4, 5])
   })
 
+  test('C6: until the engine is loaded, a read is busy at once; once ready, it reads', async () => {
+    const reader = create({ fake: { readyDelayMilliseconds: 200 } })
+    const ready = reader.start?.()
+    expect(await reasonOf(reader.read({ bytes: new Uint8Array([1]), candidates }))).toBe('busy')
+    expect(await ready).toBe(true)
+    expect((await reader.read({ bytes: new Uint8Array([1, 6]), candidates })).markers).toBe(6)
+  })
+
+  test('C6: a read without start warms the thread up and answers busy, never waits for the load', async () => {
+    const reader = create({ fake: { readyDelayMilliseconds: 100 } })
+    expect(await reasonOf(reader.read({ bytes: new Uint8Array([1]), candidates }))).toBe('busy')
+    await Bun.sleep(250)
+    expect((await reader.read({ bytes: new Uint8Array([1, 3]), candidates })).markers).toBe(3)
+  })
+
+  test('C6: an engine that never loads hits the readiness deadline and stays busy', async () => {
+    const reader = create({ fake: { neverReady: true }, readyTimeoutMilliseconds: 200 })
+    expect(await reader.start?.()).toBe(false)
+    expect(await reasonOf(reader.read({ bytes: new Uint8Array([1]), candidates }))).toBe('busy')
+  })
+
   test('an engine failure rejects as engine_failed and the next photo still reads', async () => {
-    const reader = create()
-    await expect(reader.read({ bytes: new Uint8Array([3]), candidates })).rejects.toMatchObject({
-      reason: 'engine_failed',
-    })
+    const reader = await started()
+    expect(await reasonOf(reader.read({ bytes: new Uint8Array([3]), candidates }))).toBe(
+      'engine_failed',
+    )
     expect((await reader.read({ bytes: new Uint8Array([1, 2]), candidates })).markers).toBe(2)
   })
 
-  test('a stuck read hits the deadline, the thread is replaced, and the next photo reads', async () => {
-    const reader = create(300)
-    await expect(reader.read({ bytes: new Uint8Array([2]), candidates })).rejects.toMatchObject({
-      reason: 'timeout',
-    })
+  test('a stuck read hits the deadline; the replacement thread loads again before reading', async () => {
+    const reader = await started({ timeoutMilliseconds: 300 })
+    expect(await reasonOf(reader.read({ bytes: new Uint8Array([2]), candidates }))).toBe('timeout')
+    expect(await reasonOf(reader.read({ bytes: new Uint8Array([1]), candidates }))).toBe('busy')
+    expect(await reader.start?.()).toBe(true)
     expect((await reader.read({ bytes: new Uint8Array([1, 7]), candidates })).markers).toBe(7)
   })
 
-  test('a long queue is refused as busy instead of growing', async () => {
-    const reader = create(400)
-    const stuck = Array.from({ length: 5 }, () =>
-      reader.read({ bytes: new Uint8Array([2]), candidates }).catch((error: unknown) => error),
-    )
-    const refused = await reader
-      .read({ bytes: new Uint8Array([1]), candidates })
-      .catch((e: unknown) => e)
-    expect(refused).toBeInstanceOf(CanhotoOcrError)
-    expect((refused as CanhotoOcrError).reason).toBe('busy')
+  test('S7: one reading and one waiting at most; the next is busy at once', async () => {
+    const reader = await started({ timeoutMilliseconds: 400 })
+    const stuck = [
+      reasonOf(reader.read({ bytes: new Uint8Array([2]), candidates, queueKey: 'C1' })),
+      reasonOf(reader.read({ bytes: new Uint8Array([2]), candidates, queueKey: 'C2' })),
+    ]
+    const startedAt = Date.now()
+    expect(
+      await reasonOf(reader.read({ bytes: new Uint8Array([1]), candidates, queueKey: 'C3' })),
+    ).toBe('busy')
+    expect(Date.now() - startedAt).toBeLessThan(100)
     await reader.close()
     await Promise.all(stuck)
+  })
+
+  test('S7: a company waits behind its own photo — the second one of the same company is busy', async () => {
+    const reader = await started({ timeoutMilliseconds: 400 })
+    const stuck = reasonOf(reader.read({ bytes: new Uint8Array([2]), candidates, queueKey: 'C1' }))
+    expect(
+      await reasonOf(reader.read({ bytes: new Uint8Array([1]), candidates, queueKey: 'C1' })),
+    ).toBe('busy')
+    await reader.close()
+    await stuck
   })
 })
 
@@ -148,11 +202,17 @@ function createLogger(lines: unknown[]): WorkerLogger {
 }
 
 function multipart(
-  init: { candidates?: string; image?: Uint8Array<ArrayBuffer>; token?: null | string } = {},
+  init: {
+    candidates?: string
+    image?: Uint8Array<ArrayBuffer>
+    queueKey?: string
+    token?: null | string
+  } = {},
 ) {
   const form = new FormData()
-  form.set('image', new Blob([init.image ?? new Uint8Array([1, 2, 3])], { type: 'image/jpeg' }))
+  form.set('image', new Blob([init.image ?? JPEG_BYTES], { type: 'image/jpeg' }))
   form.set('candidates', init.candidates ?? JSON.stringify(candidates))
+  if (init.queueKey !== undefined) form.set('queueKey', init.queueKey)
   const headers: Record<string, string> = {}
   if (init.token !== null) headers.authorization = `Bearer ${init.token ?? TOKEN}`
   return new Request(`http://worker${BOT_CANHOTO_READ_PATH}`, {
@@ -219,6 +279,47 @@ describe('bot canhoto read route', () => {
     expect((await handle(plain, server)).status).toBe(400)
   })
 
+  test('S6: only a JPEG or PNG by its bytes reaches the decoder; anything else is 415', async () => {
+    let reads = 0
+    const handle = createBotCanhotoReadHandler({
+      logger: createLogger([]),
+      reader: {
+        close: async () => undefined,
+        read: async () => {
+          reads += 1
+          return verdict
+        },
+      },
+      token: TOKEN,
+    })
+    const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])
+    const response = await handle(multipart({ image: pdf }), server)
+    expect(response.status).toBe(415)
+    expect(await response.json()).toEqual({ error: { code: 'UNSUPPORTED_MEDIA_TYPE' } })
+    expect(reads).toBe(0)
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    expect((await handle(multipart({ image: png }), server)).status).toBe(200)
+  })
+
+  test('S7: the queue key (the company) goes to the reader; a long one is refused', async () => {
+    const keys: (string | undefined)[] = []
+    const handle = createBotCanhotoReadHandler({
+      logger: createLogger([]),
+      reader: {
+        close: async () => undefined,
+        read: async (params) => {
+          keys.push(params.queueKey)
+          return verdict
+        },
+      },
+      token: TOKEN,
+    })
+    expect((await handle(multipart({ queueKey: 'company-1' }), server)).status).toBe(200)
+    expect((await handle(multipart(), server)).status).toBe(200)
+    expect(keys).toEqual(['company-1', undefined])
+    expect((await handle(multipart({ queueKey: 'k'.repeat(65) }), server)).status).toBe(400)
+  })
+
   test('maps a busy queue to 503 and an engine failure to 502', async () => {
     const busy = createBotCanhotoReadHandler({
       logger: createLogger([]),
@@ -234,6 +335,27 @@ describe('bot canhoto read route', () => {
     const response = await failed(multipart(), server)
     expect(response.status).toBe(502)
     expect(await response.json()).toEqual({ error: { code: 'READ_FAILED', reason: 'timeout' } })
+  })
+})
+
+describe('canhoto image decode limits (S6)', () => {
+  test('an image above the pixel ceiling is refused before it is decoded', async () => {
+    const huge = await sharp({
+      create: { background: '#ffffff', channels: 3, height: 6400, width: 6400 },
+    })
+      .png({ compressionLevel: 1 })
+      .toBuffer()
+    expect(CANHOTO_OCR_MAX_INPUT_PIXELS).toBe(40_000_000)
+    await expect(openCanhotoImage(huge).toBuffer()).rejects.toThrow(/pixel limit/u)
+  })
+
+  test('a truncated image fails instead of decoding half of it', async () => {
+    const jpeg = await sharp({
+      create: { background: '#ffffff', channels: 3, height: 64, width: 64 },
+    })
+      .jpeg()
+      .toBuffer()
+    await expect(openCanhotoImage(jpeg.subarray(0, jpeg.length / 2)).toBuffer()).rejects.toThrow()
   })
 })
 

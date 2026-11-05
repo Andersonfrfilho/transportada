@@ -19,10 +19,13 @@ export type CanhotoOcrThreadRequest = Readonly<{
 export type CanhotoOcrThreadResponse = Readonly<
   { id: number; ok: true; result: CanhotoOcrResult } | { id: number; ok: false }
 >
+/** Spec 294 C6: a thread avisa uma vez, quando os modelos terminaram de carregar. */
+export type CanhotoOcrThreadReady = Readonly<{ ready: true }>
 
 if (parentPort !== null) {
   const port = parentPort
   const engine = await loadOcrEngine((workerData as { modelDirectory: string }).modelDirectory)
+  port.postMessage({ ready: true } satisfies CanhotoOcrThreadReady)
   port.on('message', (request: CanhotoOcrThreadRequest) => {
     void readOcrLines(engine, request.bytes)
       .then((lines) =>
