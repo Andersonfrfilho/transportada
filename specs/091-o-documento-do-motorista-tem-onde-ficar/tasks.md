@@ -17,7 +17,7 @@ chave é perder o dado). A feature começa na Fase 2.
 - [x] **T009** `fleet.reveal` no catálogo e nos papéis (migration nos dois CHECKs). Aceite: o
       contrato de papéis lista por extenso quem a recebe. ⚠️ Declarar que ela nasce **sem rota**
       até a T011.
-- [ ] **T010** `POST` e `DELETE` de anexo sob `fleet.manage`. Tipo decidido pela **assinatura** do
+- [x] **T010** `POST` e `DELETE` de anexo sob `fleet.manage`. Tipo decidido pela **assinatura** do
       arquivo, nunca pela extensão. Aceite: JPEG chamado de `.pdf` é recusado.
 - [ ] **T011** `GET .../content` sob `fleet.reveal`, devolvendo presigned URL de vida curta.
       Aceite: **contrato negativo** — `fleet.manage` sem `fleet.reveal` recebe 403.
