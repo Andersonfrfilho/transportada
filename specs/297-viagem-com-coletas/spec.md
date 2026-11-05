@@ -1,4 +1,4 @@
-# Feature 296 — Viagem com coletas
+# Feature 297 — Viagem com coletas
 
 > Nasce de um pedido de Anderson (05/11/2026): _"um módulo de viagem que necessita coletas"_. **Esta é
 > uma proposta de desenho** — o que está marcado `[NEEDS CLARIFICATION]` precisa dele antes de
