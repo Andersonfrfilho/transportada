@@ -5,6 +5,31 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-11-05 — spec 091 — documentos do motorista (CNH, RG, comprovante) sem criptografia de aplicação (decisão do dono)
+
+**Onde:** `api-transportada`, `GET/POST/DELETE /fleet/drivers/:id/attachments` e `GET .../:attachmentId/content`
+(`fleet/application/fleet-driver-attachment.use-case.ts`), tabela `fleet_driver_attachments`.
+
+**O que é:** o arquivo do documento fica no bucket como está. Por decisão do dono (2026-11-05, ADR-0039 revogada:
+perder a chave é perder o dado), **não há criptografia de aplicação**. A proteção é:
+
+- **Bucket privado**, chave do objeto sem dado pessoal (nem CPF, nem nome, nem número da CNH).
+- **`fleet.reveal` só para o conteúdo:** `fleet.read` e `fleet.manage` listam e gerenciam, mas não abrem o arquivo.
+  A entrega é presigned URL de **300 s** com `cache-control: no-store`.
+- **Trilha de auditoria** em anexar, substituir, remover e revelar (ator, alvo, IP, instante; nunca o conteúdo).
+  Revelar grava antes de assinar: se a trilha falha, o link não sai.
+
+**Retenção:** o documento vive enquanto a ficha do motorista viver. **Desativar a ficha não apaga os documentos**
+(a ficha é desativada, não removida; as FKs são `restrict`). Hoje não existe remoção física de motorista; quando
+existir, deve chamar `discardDriverAttachments`, que tira linhas e outbox numa transação e apaga os objetos do bucket
+só depois do commit, em melhor esforço (órfão logado com bucket e chave).
+
+**Risco:** quem tiver acesso direto ao bucket (credencial vazada, operador de infraestrutura) lê o documento em claro.
+
+**Mitigação:** credencial do bucket por ambiente, sem compartilhar entre staging e produção; bucket sem acesso público.
+
+**Origem:** spec 091 (T021, T023). Registrado em 2026-11-05.
+
 ### 2026-10-11 — spec 264 T0.3 — a transcrição de áudio vira dado pessoal novo: finalidade, retenção amarrada ao áudio e modelo próprio
 
 **Onde:** ainda não existe; é o desenho da spec 264 (D2, D10, D12, RF18) e da ADR-0103. Vai para a rotina de transcrição do `apps/worker-transportada`, para a tabela de texto com `company_id` (migration própria) e para as rotas `/me/trips/current/conversations/**` e `/trips/:tripId/conversations/**` de `apps/api-transportada`.

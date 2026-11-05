@@ -46,6 +46,6 @@ chave é perder o dado). A feature começa na Fase 2.
 - [x] **T020** Trilha em anexar, substituir, remover e revelar.
 - [x] **T021** Remover motorista apaga os objetos na mesma transação. Aceite: falha na remoção do
       objeto **falha a transação**; órfão é o defeito que esta task existe para impedir.
-- [ ] **T022** Smoke ponta a ponta: anexar, ver na lista, revelar, substituir, remover.
-- [ ] **T023** `docs/SECURITY.md` registra que o documento vive enquanto a ficha viver — e que ficha
+- [x] **T022** Smoke ponta a ponta: anexar, ver na lista, revelar, substituir, remover.
+- [x] **T023** `docs/SECURITY.md` registra que o documento vive enquanto a ficha viver — e que ficha
       é desativada, não removida.
