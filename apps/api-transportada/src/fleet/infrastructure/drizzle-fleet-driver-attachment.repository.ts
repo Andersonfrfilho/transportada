@@ -3,16 +3,22 @@
  */
 import { and, eq } from 'drizzle-orm'
 
-import { fleetDriverAttachments, fleetDrivers } from '../../database/database.schema.js'
+import {
+  fleetDriverAttachmentOutbox,
+  fleetDriverAttachments,
+  fleetDrivers,
+} from '../../database/database.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import type { FleetDriverAttachmentRepositoryPort } from '../application/fleet-driver-attachment.port.js'
 import { FleetDriverAttachmentTypeTakenError } from '../domain/fleet-driver-attachment.error.js'
+import { FLEET_DRIVER_ATTACHMENT_READABLE_TYPES } from '../domain/fleet-driver-attachment.policy.js'
 import { FleetDriverNotFoundError } from '../domain/fleet.error.js'
 import type { AggregateDocumentDatabase } from './drizzle-aggregate-document.repository.js'
 
 const STORAGE_PURPOSE = 'fleet_driver_attachment'
 const TYPE_UNIQUE = 'fleet_driver_attachments_company_driver_type_unique'
+const EXTRACTION_REQUESTED_EVENT = 'attachment.extraction.requested'
 
 export function createDrizzleFleetDriverAttachmentRepository(
   database: AggregateDocumentDatabase,
@@ -59,6 +65,25 @@ export function createDrizzleFleetDriverAttachmentRepository(
               uploadedBy: fleetDriverAttachments.uploadedBy,
             })
           if (row === undefined) throw new Error('fleet driver attachment not created')
+
+          /**
+           * O pedido de leitura na **mesma transação** do anexo (ADR-0053): anexo sem evento é CNH que
+           * nunca será lida, e evento sem anexo aponta para o nada. O payload leva **referência**.
+           */
+          if (FLEET_DRIVER_ATTACHMENT_READABLE_TYPES.includes(input.type)) {
+            await transaction.insert(fleetDriverAttachmentOutbox).values({
+              attachmentId: row.id,
+              companyId: input.companyId,
+              correlationId: input.correlationId,
+              eventType: EXTRACTION_REQUESTED_EVENT,
+              payload: {
+                attachmentId: row.id,
+                bucket: input.bucket,
+                objectKey: input.objectKey,
+                type: input.type,
+              },
+            })
+          }
 
           return { ...row, createdAt: row.createdAt.toISOString() }
         })

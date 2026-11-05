@@ -19,6 +19,7 @@ import { FleetDriverNotFoundError } from '../../src/fleet/domain/fleet.error.js'
 const COMPANY_ID = '00000000-0000-4000-8000-0000000000c1'
 const DRIVER_ID = '00000000-0000-4000-8000-0000000000d1'
 const USER_ID = '00000000-0000-4000-8000-0000000000a1'
+const CORRELATION_ID = 'correlation-091'
 const ATTACHMENT_ID = '00000000-0000-4000-8000-0000000000e1'
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34])
 const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10])
@@ -96,6 +97,7 @@ function attach(
   return fixture.useCase.attach({
     bytes: PDF_BYTES,
     companyId: COMPANY_ID,
+    correlationId: CORRELATION_ID,
     declaredMimeType: 'application/pdf',
     driverId: DRIVER_ID,
     fileName: 'cnh.pdf',
@@ -119,6 +121,7 @@ describe('anexo do motorista — anexar', () => {
     expect(fixture.stored[0]?.contentType).toBe('image/jpeg')
     expect(fixture.created[0]).toMatchObject({
       companyId: COMPANY_ID,
+      correlationId: CORRELATION_ID,
       driverId: DRIVER_ID,
       mimeType: 'image/jpeg',
       type: 'cnh',

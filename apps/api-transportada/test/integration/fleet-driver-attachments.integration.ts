@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
   companies,
+  fleetDriverAttachmentOutbox,
   fleetDriverAttachments,
   fleetDrivers,
   storedObjects,
@@ -62,6 +63,7 @@ function attachmentInput(input: {
   return {
     bucket: 'test-bucket',
     companyId: input.companyId,
+    correlationId: 'correlation-091',
     driverId: input.driverId,
     mimeType: 'application/pdf',
     objectKey: `tenants/${input.companyId}/fleet-driver-attachments/${input.driverId}/${input.type}/${storedObjectId}`,
@@ -187,6 +189,70 @@ describe('anexo do motorista, contra Postgres (spec 091)', () => {
           .where(eq(storedObjects.purpose, 'fleet_driver_attachment'))
         expect(object?.status).toBe('deleted')
         expect(object?.deletedAt).not.toBeNull()
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  /**
+   * ADR-0053: a API nunca lê o documento na requisição. A linha do anexo e o pedido de leitura saem
+   * na mesma transação, e só a CNH é lida (D4) — os outros tipos não ganham pedido nenhum.
+   */
+  testWithPostgres(
+    'a CNH nasce com o pedido de leitura na mesma transação, e os outros tipos não',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const repository = createDrizzleFleetDriverAttachmentRepository(db)
+        const cnh = attachmentInput({ companyId, driverId, type: 'cnh' })
+
+        const created = await repository.create(cnh)
+        for (const type of ['address_proof', 'identity_document', 'other'] as const) {
+          await repository.create(attachmentInput({ companyId, driverId, type }))
+        }
+
+        const events = await db.select().from(fleetDriverAttachmentOutbox)
+        expect(events).toHaveLength(1)
+        expect(events[0]).toMatchObject({
+          attachmentId: created.id,
+          companyId,
+          correlationId: 'correlation-091',
+          eventType: 'attachment.extraction.requested',
+          payload: {
+            attachmentId: created.id,
+            bucket: 'test-bucket',
+            objectKey: cnh.objectKey,
+            type: 'cnh',
+          },
+          publishedAt: null,
+        })
+        // O payload é referência: nenhum byte do documento viaja na fila.
+        expect(Object.keys(events[0]?.payload as object).sort()).toEqual([
+          'attachmentId',
+          'bucket',
+          'objectKey',
+          'type',
+        ])
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'a corrida perdida do mesmo tipo não deixa pedido de leitura órfão',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const repository = createDrizzleFleetDriverAttachmentRepository(db)
+
+        await repository.create(attachmentInput({ companyId, driverId, type: 'cnh' }))
+        await expect(
+          repository.create(attachmentInput({ companyId, driverId, type: 'cnh' })),
+        ).rejects.toBeInstanceOf(FleetDriverAttachmentTypeTakenError)
+
+        expect(await db.select().from(fleetDriverAttachmentOutbox)).toHaveLength(1)
       })
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,

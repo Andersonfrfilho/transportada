@@ -46,9 +46,15 @@ function parsePayload(
 
 export class DrizzleAggregateAttachmentOutboxRepository {
   readonly #database: Database
+  readonly #outbox: typeof aggregateAttachmentOutbox
 
-  constructor(database: Database) {
+  /** A fila da ficha do motorista (spec 091) tem a mesma forma e outra tabela: só ela muda aqui. */
+  constructor(
+    database: Database,
+    outbox: typeof aggregateAttachmentOutbox = aggregateAttachmentOutbox,
+  ) {
     this.#database = database
+    this.#outbox = outbox
   }
 
   async claimDueEntries(params: {
@@ -60,39 +66,36 @@ export class DrizzleAggregateAttachmentOutboxRepository {
     return this.#database.transaction(async (transaction) => {
       const rows = await transaction
         .select({
-          attachmentId: aggregateAttachmentOutbox.attachmentId,
-          companyId: aggregateAttachmentOutbox.companyId,
-          correlationId: aggregateAttachmentOutbox.correlationId,
-          eventId: aggregateAttachmentOutbox.eventId,
-          eventType: aggregateAttachmentOutbox.eventType,
-          occurredAt: aggregateAttachmentOutbox.createdAt,
-          payload: aggregateAttachmentOutbox.payload,
+          attachmentId: this.#outbox.attachmentId,
+          companyId: this.#outbox.companyId,
+          correlationId: this.#outbox.correlationId,
+          eventId: this.#outbox.eventId,
+          eventType: this.#outbox.eventType,
+          occurredAt: this.#outbox.createdAt,
+          payload: this.#outbox.payload,
         })
-        .from(aggregateAttachmentOutbox)
+        .from(this.#outbox)
         .where(
           and(
-            isNull(aggregateAttachmentOutbox.publishedAt),
-            lte(aggregateAttachmentOutbox.nextAttemptAt, params.now),
-            or(
-              isNull(aggregateAttachmentOutbox.claimOwner),
-              lte(aggregateAttachmentOutbox.claimExpiresAt, params.now),
-            ),
+            isNull(this.#outbox.publishedAt),
+            lte(this.#outbox.nextAttemptAt, params.now),
+            or(isNull(this.#outbox.claimOwner), lte(this.#outbox.claimExpiresAt, params.now)),
           ),
         )
-        .orderBy(asc(aggregateAttachmentOutbox.createdAt), asc(aggregateAttachmentOutbox.id))
+        .orderBy(asc(this.#outbox.createdAt), asc(this.#outbox.id))
         .limit(params.limit)
         .for('update', { skipLocked: true })
 
       if (rows.length === 0) return []
 
       await transaction
-        .update(aggregateAttachmentOutbox)
+        .update(this.#outbox)
         .set({
           claimExpiresAt: new Date(params.now.getTime() + params.leaseMs),
           claimOwner: params.claimOwner,
           updatedAt: params.now,
         })
-        .where(inOutboxRows(rows))
+        .where(inOutboxRows(this.#outbox, rows))
 
       return rows.map((row) => {
         const payload = parsePayload(row.payload)
@@ -122,7 +125,7 @@ export class DrizzleAggregateAttachmentOutboxRepository {
     readonly publishedAt: Date
   }): Promise<void> {
     await this.#database
-      .update(aggregateAttachmentOutbox)
+      .update(this.#outbox)
       .set({
         claimExpiresAt: null,
         claimOwner: null,
@@ -131,10 +134,10 @@ export class DrizzleAggregateAttachmentOutboxRepository {
       })
       .where(
         and(
-          eq(aggregateAttachmentOutbox.companyId, params.companyId),
-          eq(aggregateAttachmentOutbox.eventId, params.eventId),
-          eq(aggregateAttachmentOutbox.claimOwner, params.claimOwner),
-          isNull(aggregateAttachmentOutbox.publishedAt),
+          eq(this.#outbox.companyId, params.companyId),
+          eq(this.#outbox.eventId, params.eventId),
+          eq(this.#outbox.claimOwner, params.claimOwner),
+          isNull(this.#outbox.publishedAt),
         ),
       )
   }
@@ -142,20 +145,17 @@ export class DrizzleAggregateAttachmentOutboxRepository {
 
 type OutboxRow = typeof aggregateAttachmentOutbox.$inferSelect
 
-function inOutboxRows(rows: readonly Pick<OutboxRow, 'companyId' | 'eventId'>[]) {
+function inOutboxRows(
+  outbox: typeof aggregateAttachmentOutbox,
+  rows: readonly Pick<OutboxRow, 'companyId' | 'eventId'>[],
+) {
   const [firstRow, ...otherRows] = rows
   if (firstRow === undefined) throw new Error('At least one outbox row is required')
 
   return or(
-    and(
-      eq(aggregateAttachmentOutbox.companyId, firstRow.companyId),
-      eq(aggregateAttachmentOutbox.eventId, firstRow.eventId),
-    ),
+    and(eq(outbox.companyId, firstRow.companyId), eq(outbox.eventId, firstRow.eventId)),
     ...otherRows.map((row) =>
-      and(
-        eq(aggregateAttachmentOutbox.companyId, row.companyId),
-        eq(aggregateAttachmentOutbox.eventId, row.eventId),
-      ),
+      and(eq(outbox.companyId, row.companyId), eq(outbox.eventId, row.eventId)),
     ),
   )
 }

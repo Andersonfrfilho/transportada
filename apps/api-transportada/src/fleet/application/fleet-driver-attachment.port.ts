@@ -19,6 +19,8 @@ export type FleetDriverAttachmentLocation = Readonly<{
 export type CreateFleetDriverAttachmentInput = Readonly<{
   bucket: string
   companyId: string
+  /** Viaja para o pedido de leitura: é por ele que o rastro do upload alcança o worker. */
+  correlationId: string
   driverId: string
   mimeType: string
   objectKey: string

@@ -4,10 +4,14 @@
 import { describe, expect, test } from 'bun:test'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 
-import { fleetDriverAttachments } from '../../src/database/database.schema.js'
+import {
+  fleetDriverAttachmentOutbox,
+  fleetDriverAttachments,
+} from '../../src/database/database.schema.js'
 import {
   checkSqlByName,
   columnNames,
+  foreignKeys,
   indexColumnsByName,
   uniqueIndexWhereSqlByName,
 } from '../fiscal-schema/support.js'
@@ -57,5 +61,24 @@ describe('fleet driver attachments schema', () => {
     expect(names).not.toContain('expires_at')
     expect(names).not.toContain('content')
     expect(names).not.toContain('bytes')
+  })
+
+  /** A linha do outbox não pode apontar para o anexo de outra empresa: a FK é composta. */
+  test('o pedido de leitura aponta para o anexo pela empresa e leva referência, nunca o arquivo', () => {
+    expect(getTableConfig(fleetDriverAttachmentOutbox).name).toBe('fleet_driver_attachment_outbox')
+    expect(foreignKeys(fleetDriverAttachmentOutbox)).toContainEqual({
+      columns: ['company_id', 'attachment_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'fleet_driver_attachments',
+      name: 'fleet_driver_attachment_outbox_company_attachment_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    expect(columnNames(fleetDriverAttachmentOutbox)).not.toContain('actor_user_id')
+    expect(
+      checkSqlByName(fleetDriverAttachmentOutbox)[
+        'fleet_driver_attachment_outbox_event_type_check'
+      ],
+    ).toContain("'attachment.extraction.requested'")
   })
 })

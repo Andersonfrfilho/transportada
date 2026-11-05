@@ -129,6 +129,7 @@ describe('as rotas do documento do motorista (spec 091 T010)', () => {
     expect(call?.companyId).not.toBe('00000000-0000-4000-8000-00000000beef')
     expect(call?.uploadedBy).not.toBe('00000000-0000-4000-8000-00000000beef')
     expect(call?.fileName).toBe('cnh.pdf')
+    expect(call?.correlationId).toBe(CORRELATION_ID)
   })
 
   test('tipo fora da lista e arquivo ausente são 400, e identificador malformado não casa rota', async () => {

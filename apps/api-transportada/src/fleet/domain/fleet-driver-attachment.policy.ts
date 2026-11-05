@@ -14,6 +14,13 @@ const EXTENSIONS_BY_MIME_TYPE: Readonly<Record<AggregateDocumentMimeType, readon
   'image/png': ['png'],
 }
 
+/**
+ * Só a CNH é lida pelo servidor (D4). Comprovante de endereço não tem parser: conta de luz, água e
+ * telefone não têm layout que se ancore, e um parser genérico seria palpite com aparência de leitura.
+ * O RG e o `other` ficam fora pelo mesmo motivo — ninguém prometeu ler.
+ */
+export const FLEET_DRIVER_ATTACHMENT_READABLE_TYPES: readonly FleetDriverAttachmentType[] = ['cnh']
+
 export type FleetDriverAttachmentUploadInput = Readonly<{
   bytes: Uint8Array
   declaredMimeType: string

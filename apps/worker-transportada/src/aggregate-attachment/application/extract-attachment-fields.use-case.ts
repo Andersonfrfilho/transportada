@@ -9,6 +9,8 @@ import type {
 } from './extract-attachment-fields.port.js'
 
 export type ExtractAttachmentFieldsDependencies = Readonly<{
+  /** Onde a leitura do anexo da ficha do motorista é gravada; sem ele, a mensagem volta para retry. */
+  driverWriteBack?: AttachmentWriteBackPort
   extraction: AttachmentExtractionPort
   reader: AttachmentObjectReaderPort
   writeBack: AttachmentWriteBackPort
@@ -37,11 +39,23 @@ export async function extractAttachmentFields(
 
   const extractedFields = await dependencies.extraction.extract({ bytes, type })
 
-  await dependencies.writeBack.saveExtractedFields({
+  await resolveWriteBack(envelope, dependencies).saveExtractedFields({
     attachmentId,
     companyId: envelope.companyId,
     extractedFields,
   })
 
   return 'extracted'
+}
+
+function resolveWriteBack(
+  envelope: AggregateAttachmentEnvelopeV1,
+  dependencies: ExtractAttachmentFieldsDependencies,
+): AttachmentWriteBackPort {
+  if (envelope.payload.subject !== 'fleet_driver') return dependencies.writeBack
+  // Gravar a leitura do motorista na tabela da candidatura seria escrever em linha de outra pessoa.
+  if (dependencies.driverWriteBack === undefined) {
+    throw new Error('fleet driver attachment write-back is not configured')
+  }
+  return dependencies.driverWriteBack
 }

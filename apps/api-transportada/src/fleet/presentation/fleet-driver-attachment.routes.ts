@@ -31,11 +31,17 @@ export function createFleetDriverAttachmentRoutes(
 ): readonly ReturnType<typeof defineRoute>[] {
   const { attachments } = dependencies
   return [
-    defineRoute<UploadFleetDriverAttachmentRequest & { readonly driverId: string }>({
+    defineRoute<
+      UploadFleetDriverAttachmentRequest & {
+        readonly correlationId: string
+        readonly driverId: string
+      }
+    >({
       async handle({ context, input }): Promise<Response> {
         const attachment = await attachments.attach({
           bytes: input.bytes,
           companyId: context.scope.companyId,
+          correlationId: input.correlationId,
           declaredMimeType: input.declaredMimeType,
           driverId: input.driverId,
           fileName: input.fileName,
@@ -48,9 +54,13 @@ export function createFleetDriverAttachmentRoutes(
         })
       },
       method: 'POST',
-      async parse({ pathParameters, request }) {
+      async parse({ correlationId, pathParameters, request }) {
         const driverId = parseUuidPathIdentifier(pathParameters.id ?? '')
-        return { driverId, ...(await parseUploadFleetDriverAttachmentRequest(request)) }
+        return {
+          correlationId,
+          driverId,
+          ...(await parseUploadFleetDriverAttachmentRequest(request)),
+        }
       },
       pathname: API_FLEET_DRIVER_ATTACHMENTS_PATH,
       policy: FLEET_MANAGE_POLICY,

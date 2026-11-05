@@ -151,7 +151,10 @@ import {
   aggregateAttachmentOutbox,
   aggregateApplications,
 } from './aggregate-application.schema.js'
-import { fleetDriverAttachments } from './fleet-driver-attachment.schema.js'
+import {
+  fleetDriverAttachmentOutbox,
+  fleetDriverAttachments,
+} from './fleet-driver-attachment.schema.js'
 import { geocodedAddresses } from './geocoding.schema.js'
 import { municipalityCentroids } from './municipality-centroid.schema.js'
 import { geocodingRefinementRequests } from './geocoding-refinement.schema.js'
@@ -346,6 +349,7 @@ export const databaseSchema = {
   fleetDriverRegions,
   fleetDriverVehicleAssignments,
   fleetDriverWhatsappGroups,
+  fleetDriverAttachmentOutbox,
   fleetDriverAttachments,
   fleetDrivers,
   fleetVehicles,

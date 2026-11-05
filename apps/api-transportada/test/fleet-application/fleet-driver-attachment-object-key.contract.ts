@@ -79,6 +79,7 @@ describe('chave do objeto do documento do motorista (spec 091 T012)', () => {
     await useCase.attach({
       bytes: PDF_BYTES,
       companyId: COMPANY_ID,
+      correlationId: 'correlation-091',
       declaredMimeType: 'application/pdf',
       driverId: DRIVER_ID,
       fileName: `CNH ${DRIVER_NAME} ${DRIVER_TAX_ID} ${DRIVER_LICENSE_NUMBER}.pdf`,

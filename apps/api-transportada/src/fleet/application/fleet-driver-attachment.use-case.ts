@@ -30,6 +30,7 @@ export type FleetDriverAttachmentUseCase = Readonly<{
   attach: (input: {
     readonly bytes: Uint8Array
     readonly companyId: string
+    readonly correlationId: string
     readonly declaredMimeType: string
     readonly driverId: string
     readonly fileName: string
@@ -52,7 +53,16 @@ export function createFleetDriverAttachmentUseCase(
   dependencies: Dependencies,
 ): FleetDriverAttachmentUseCase {
   return {
-    async attach({ bytes, companyId, declaredMimeType, driverId, fileName, type, uploadedBy }) {
+    async attach({
+      bytes,
+      companyId,
+      correlationId,
+      declaredMimeType,
+      driverId,
+      fileName,
+      type,
+      uploadedBy,
+    }) {
       const mimeType = assertFleetDriverAttachmentUpload({ bytes, declaredMimeType, fileName })
       if (!(await dependencies.repository.driverExists({ companyId, driverId }))) {
         throw new FleetDriverNotFoundError()
@@ -81,6 +91,7 @@ export function createFleetDriverAttachmentUseCase(
         return await dependencies.repository.create({
           bucket: dependencies.bucket,
           companyId,
+          correlationId,
           driverId,
           mimeType,
           objectKey: key,
