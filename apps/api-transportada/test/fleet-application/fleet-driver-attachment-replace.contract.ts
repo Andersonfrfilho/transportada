@@ -86,6 +86,9 @@ function buildWorld(
     async readSuggestion() {
       return { fields: null, isFound: false }
     },
+    async removeAllForDriver() {
+      return []
+    },
     async remove() {
       return false
     },

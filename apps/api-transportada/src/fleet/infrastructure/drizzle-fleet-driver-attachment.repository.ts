@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
 import {
   fleetDriverAttachmentOutbox,
@@ -221,6 +221,71 @@ export function createDrizzleFleetDriverAttachmentRepository(
       return database.transaction(async (transaction) =>
         removeAttachmentRows(transaction, { attachmentId, companyId, driverId }),
       )
+    },
+
+    async removeAllForDriver({ companyId, driverId }) {
+      return database.transaction(async (transaction) => {
+        const rows = await transaction
+          .select({
+            attachmentId: fleetDriverAttachments.id,
+            bucket: storedObjects.bucket,
+            objectKey: storedObjects.objectKey,
+            storedObjectId: storedObjects.id,
+            type: fleetDriverAttachments.type,
+          })
+          .from(fleetDriverAttachments)
+          .innerJoin(
+            storedObjects,
+            and(
+              eq(storedObjects.companyId, fleetDriverAttachments.companyId),
+              eq(storedObjects.id, fleetDriverAttachments.storedObjectId),
+            ),
+          )
+          .where(
+            and(
+              eq(fleetDriverAttachments.companyId, companyId),
+              eq(fleetDriverAttachments.driverId, driverId),
+            ),
+          )
+        if (rows.length === 0) return []
+
+        await transaction.delete(fleetDriverAttachmentOutbox).where(
+          and(
+            eq(fleetDriverAttachmentOutbox.companyId, companyId),
+            inArray(
+              fleetDriverAttachmentOutbox.attachmentId,
+              rows.map((row) => row.attachmentId),
+            ),
+          ),
+        )
+        await transaction
+          .delete(fleetDriverAttachments)
+          .where(
+            and(
+              eq(fleetDriverAttachments.companyId, companyId),
+              eq(fleetDriverAttachments.driverId, driverId),
+            ),
+          )
+        const now = new Date()
+        await transaction
+          .update(storedObjects)
+          .set({ deletedAt: now, status: 'deleted', updatedAt: now })
+          .where(
+            and(
+              eq(storedObjects.companyId, companyId),
+              inArray(
+                storedObjects.id,
+                rows.map((row) => row.storedObjectId),
+              ),
+            ),
+          )
+        return rows.map(({ bucket, objectKey, storedObjectId, type }) => ({
+          bucket,
+          objectKey,
+          storedObjectId,
+          type,
+        }))
+      })
     },
 
     async findByType({ companyId, driverId, type }) {

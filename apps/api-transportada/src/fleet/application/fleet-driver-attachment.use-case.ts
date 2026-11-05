@@ -60,6 +60,11 @@ export type FleetDriverAttachmentUseCase = Readonly<{
     readonly decision: FleetDriverAttachmentDecision
     readonly driverId: string
   }) => Promise<{ readonly decision: FleetDriverAttachmentDecision }>
+  /** Para quem remove a ficha: linhas na transação, objetos do bucket só depois do commit. */
+  discardDriverAttachments: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<void>
   list: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -194,6 +199,13 @@ export function createFleetDriverAttachmentUseCase(
         driverId,
         type: location.type,
       })
+    },
+
+    async discardDriverAttachments({ companyId, driverId }) {
+      const locations = await dependencies.repository.removeAllForDriver({ companyId, driverId })
+      for (const location of locations) {
+        await discardObject(dependencies, { bucket: location.bucket, key: location.objectKey })
+      }
     },
 
     async decideSuggestion(input) {

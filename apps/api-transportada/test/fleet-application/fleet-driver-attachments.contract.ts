@@ -106,6 +106,9 @@ function buildFixture(
     async readSuggestion() {
       return overrides.suggestion === undefined ? SUGGESTION : overrides.suggestion
     },
+    async removeAllForDriver() {
+      return []
+    },
     async remove() {
       events.push('remove-row')
       return overrides.removeResult ?? true

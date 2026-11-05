@@ -50,6 +50,7 @@ function createFixture(
         uploadedBy: request.uploadedBy,
       }
     },
+    async discardDriverAttachments() {},
     async remove(request) {
       calls.push({ input: { ...request }, kind: 'remove' })
     },

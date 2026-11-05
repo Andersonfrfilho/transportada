@@ -680,4 +680,80 @@ describe('anexo do motorista, contra Postgres (spec 091)', () => {
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,
   )
+
+  /** T021: o descarte do motorista tira linhas e outbox na transação; o bucket só depois, e sem lançar. */
+  testWithPostgres(
+    'descartar o motorista apaga linhas, outbox e objetos; falha no banco não toca no bucket',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const otherDriverId = await seedDriver(db, companyId)
+        const bucket = new Set<string>()
+        const repository = createDrizzleFleetDriverAttachmentRepository(db)
+        const warnings: Record<string, unknown>[] = []
+        let shouldFailRepository = false
+        const useCase = createFleetDriverAttachmentUseCase({
+          audit: createDrizzleFleetDriverAttachmentAudit(db),
+          bucket: 'test-bucket',
+          logger: {
+            warn(_message, meta) {
+              warnings.push(meta)
+            },
+          },
+          repository: {
+            ...repository,
+            async removeAllForDriver(input) {
+              if (shouldFailRepository) throw new Error('database down')
+              return repository.removeAllForDriver(input)
+            },
+          },
+          storage: {
+            async createSignedDownload() {
+              return new URL('https://bucket.example.test/signed')
+            },
+            async deleteObject({ key }) {
+              if (key.includes('/other/')) throw new Error('bucket down')
+              bucket.delete(key)
+            },
+            async headObject({ key }) {
+              return bucket.has(key) ? {} : undefined
+            },
+            async storeObject({ key }) {
+              bucket.add(key)
+              return {}
+            },
+          },
+        })
+        const cnh = attachmentInput({ companyId, driverId, type: 'cnh' })
+        const other = {
+          ...attachmentInput({ companyId, driverId, type: 'other' }),
+          objectKey: `tenants/${companyId}/other/${crypto.randomUUID()}`,
+        }
+        const kept = attachmentInput({ companyId, driverId: otherDriverId, type: 'cnh' })
+        for (const input of [cnh, other, kept]) {
+          await repository.create(input)
+          bucket.add(input.objectKey)
+        }
+
+        shouldFailRepository = true
+        await expect(useCase.discardDriverAttachments({ companyId, driverId })).rejects.toThrow()
+        expect(bucket.size).toBe(3)
+        expect(await db.select().from(fleetDriverAttachments)).toHaveLength(3)
+
+        shouldFailRepository = false
+        await useCase.discardDriverAttachments({ companyId, driverId })
+
+        const rows = await db.select().from(fleetDriverAttachments)
+        expect(rows.map((row) => row.driverId)).toEqual([otherDriverId])
+        expect(bucket.has(cnh.objectKey)).toBe(false)
+        expect(bucket.has(kept.objectKey)).toBe(true)
+        expect(bucket.has(other.objectKey)).toBe(true)
+        expect(warnings).toEqual([{ bucket: 'test-bucket', objectKey: other.objectKey }])
+        const objects = await db.select().from(storedObjects)
+        expect(objects.filter((object) => object.status === 'deleted')).toHaveLength(2)
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
 })

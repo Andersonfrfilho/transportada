@@ -117,6 +117,14 @@ export type FleetDriverAttachmentRepositoryPort = Readonly<{
     readonly companyId: string
     readonly driverId: string
   }) => Promise<FleetDriverAttachmentSuggestionRead>
+  /**
+   * Tira de uma vez linhas, outbox e marca dos objetos de todos os documentos do motorista, numa transação,
+   * e devolve onde estavam os arquivos para o chamador apagá-los depois do commit.
+   */
+  removeAllForDriver: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<readonly FleetDriverAttachmentLocation[]>
   /** Tira a linha e marca o objeto como apagado, juntos. */
   remove: (input: {
     readonly attachmentId: string

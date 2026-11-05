@@ -77,6 +77,9 @@ describe('chave do objeto do documento do motorista (spec 091 T012)', () => {
         async readSuggestion() {
           return { fields: null, isFound: false }
         },
+        async removeAllForDriver() {
+          return []
+        },
         async remove() {
           return false
         },
