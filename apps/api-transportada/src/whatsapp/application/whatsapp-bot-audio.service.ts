@@ -85,7 +85,7 @@ export function botAudioConfirmationText(
     '',
     `💬 _"${preview}"_`,
     '',
-    '👉 *Está certo?* Responda com o número:',
+    '👉 *Está certo?* Responda com o número ou por áudio ("sim" ou "não"):',
     '✅ *1 - Sim*, pode seguir',
     '❌ *2 - Não*, descartar',
     ...tail.flatMap((line) => ['', line]),
