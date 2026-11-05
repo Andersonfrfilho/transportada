@@ -677,6 +677,16 @@ O `realm.json` não chega a realm existente: tudo no Keycloak é pela tela ou pe
 **401**, porque a conta de serviço dele não tem linha em `external_identities` (0) — falta o usuário sintético
 `automation`. `MDFE_AUTO_ISSUE_ENABLED` ausente em `api` e `worker`. Backfill da CNH em simulação: tudo zero.
 
+## 5.16 Usuário `automation` (ADR-0047) em staging e estado de produção (05/11/2026)
+
+`/home/miyazaki/Documents/personal/ativada/producao-criar-automation.sh` agora aceita `ENV_NAME=staging|production` (padrão `staging`).
+Padrão é simulação; `--confirm` grava (produção ainda pede digitar `producao`). Roda dentro do container da `api` (bun), como o script da CNH.
+
+- **Staging:** usuário sintético criado e ligado a `service-account-transportada-worker`, com membership ativa e papel `automation` na empresa ativa (1 de 1).
+  Verificação: o `worker` obteve token `client_credentials` e a rota `PATCH /trips/:id/documents/:documentId/proof/review/automatic` (UUIDs aleatórios, corpo inválido) respondeu 400 de validação, não 401/403.
+- **Produção (só leitura):** usuário `automation` ainda **não existe** (0 de 1 empresa ativa com o papel, sem vínculo em `external_identities`); client `transportada-worker` existe; client `transportada-worker-cnh-picture` e sua conta de serviço **não existem**.
+  Falta rodar o script em produção (com aval) e criar o client da CNH.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
