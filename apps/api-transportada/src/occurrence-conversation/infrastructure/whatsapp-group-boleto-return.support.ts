@@ -63,10 +63,13 @@ export const GROUP_BOLETO_RETURN_MAX_ATTEMPTS = 3
 /** Envio ao cliente pelo WhatsApp ainda `queued` há menos que isto: espera o despacho dele terminar. */
 export const GROUP_BOLETO_RETURN_CLIENT_WAIT_SECONDS = 600
 /**
- * Só o retorno que andou há pouco: o que mudou antes disso (ex.: antes desta passada existir) não vira aviso atrasado
- * no grupo. Foi o caso da NF 899884 em 04/11: entregue às 11:27, o PDF saiu no grupo às 15:35 com o primeiro deploy.
+ * Só o retorno que **andou há pouco**: a mudança de estado do retorno (o evento em `occurrence_contractor_reply_events`,
+ * não o `updated_at`) tem de ser destes minutos e posterior ao pedido do grupo. O que andou antes não vira aviso
+ * atrasado no próximo envio. Foram os casos de 04/11: a NF 899884 entregue às 11:27 saiu no grupo às 15:35, e às 20:43
+ * uma resposta só da 899884 levou junto os avisos já velhos das 899877 e 899875 (a batida do alarme está pausada em
+ * staging, então o que sobrava ia no próximo evento). Uma tentativa que falhou ainda tem esta janela para sair.
  */
-export const GROUP_BOLETO_RETURN_FRESH_HOURS = 6
+export const GROUP_BOLETO_RETURN_FRESH_MINUTES = 30
 const BATCH_LIMIT = 50
 const DEFAULT_FILE_NAME = 'boleto.pdf'
 
@@ -74,44 +77,88 @@ export const GROUP_BOLETO_RETURN_REQUEST_KEY_PREFIX = 'whatsapp-group-request:'
 
 export type GroupBoletoReturnNotice = 'delivered' | 'office' | 'overdue'
 
+/** O resumo da nota que abre cada aviso ao grupo (pedido do Anderson em 04/11: o mesmo capricho do modelo do cliente). */
+export type GroupBoletoReturnSummary = {
+  /** Razão social (ou fantasia) do destinatário da nota; vazio quando a nota não traz. */
+  readonly clientName: string
+  readonly documentNumber: string
+  /** Série da nota; vazio quando não se sabe. */
+  readonly series: string
+  /** O tipo da ocorrência ("Prorrogação do boleto"); vazio quando não se sabe. */
+  readonly typeName: string
+}
+
+/** "NF 899884/2", ou "NF 899884" sem série. */
+function noteLabel(summary: GroupBoletoReturnSummary): string {
+  return summary.series === ''
+    ? `NF ${summary.documentNumber}`
+    : `NF ${summary.documentNumber}/${summary.series}`
+}
+
+function summaryLines(summary: GroupBoletoReturnSummary): readonly string[] {
+  return [
+    ...(summary.clientName === '' ? [] : [`👤 Cliente: *${summary.clientName}*`]),
+    ...(summary.typeName === '' ? [] : [`⚠️ Ocorrência: ${summary.typeName}`]),
+  ]
+}
+
+const CHECK_BEFORE_PAYING = [
+  '✅ Antes de pagar, o cliente deve conferir:',
+  '- 💰 o valor',
+  '- 📅 a data de vencimento',
+  '- 🏦 o beneficiário',
+] as const
+
 export const GROUP_BOLETO_RETURN_TEXT = {
-  clientSent: (documentNumber: string, contacts: readonly string[], resolved = false) =>
+  clientSent: (summary: GroupBoletoReturnSummary, contacts: readonly string[], resolved = false) =>
     [
-      `✅ *Boleto atualizado da NF ${documentNumber}*`,
+      `📄 *Boleto atualizado — ${noteLabel(summary)}*`,
       '',
-      `A contratante respondeu e o boleto já foi enviado ao cliente: ${contacts.map((contact) => `*${contact}*`).join(', ')}.`,
-      'Ele também está no chat da ocorrência no aplicativo.',
+      ...summaryLines(summary),
+      '',
+      `📨 A contratante respondeu e o boleto já foi enviado ao cliente: ${contacts.map((contact) => `*${contact}*`).join(', ')}.`,
+      '📱 Ele também está no chat da ocorrência no aplicativo.',
+      '',
+      ...CHECK_BEFORE_PAYING,
       '',
       closingLine(resolved),
     ].join('\n'),
-  document: (documentNumber: string, resolved = false) =>
+  document: (summary: GroupBoletoReturnSummary, resolved = false) =>
     [
-      `📄 *Boleto atualizado da NF ${documentNumber}*`,
+      `📄 *Boleto atualizado — ${noteLabel(summary)}*`,
       '',
-      'A contratante respondeu. Segue o boleto para repassar ao cliente.',
+      ...summaryLines(summary),
+      '',
+      '📎 A contratante respondeu. Segue em anexo o boleto atualizado para repassar ao cliente.',
+      '',
+      ...CHECK_BEFORE_PAYING,
       '',
       closingLine(resolved),
     ].join('\n'),
-  office: (documentNumber: string) =>
+  office: (summary: GroupBoletoReturnSummary) =>
     [
-      `🔎 *NF ${documentNumber}: a contratante respondeu*`,
+      `🔎 *${noteLabel(summary)}: a contratante respondeu*`,
+      '',
+      ...summaryLines(summary),
       '',
       'O escritório vai conferir o arquivo antes de liberar. Assim que liberarem, o boleto vem para cá.',
     ].join('\n'),
-  overdue: (documentNumber: string) =>
+  overdue: (summary: GroupBoletoReturnSummary) =>
     [
-      `⏳ *NF ${documentNumber}: o boleto ainda não chegou*`,
+      `⏳ *${noteLabel(summary)}: o boleto ainda não chegou*`,
+      '',
+      ...summaryLines(summary),
       '',
       'A contratante não respondeu no prazo e o escritório já foi avisado.',
-      `Para pedir de novo à contratante, me marque e escreva: *pedir boleto de novo ${documentNumber}*`,
+      `Para pedir de novo à contratante, me marque e escreva: *pedir boleto de novo ${summary.documentNumber}*`,
     ].join('\n'),
 } as const
 
 /** A última linha do aviso do boleto entregue: a ocorrência concluída, ou quem conclui. */
 function closingLine(resolved: boolean): string {
   return resolved
-    ? '🏁 *Ocorrência concluída.* Precisando de mais alguma coisa, é só me marcar.'
-    : '📋 O escritório conclui a ocorrência.'
+    ? '🏁 *Ocorrência concluída.* Precisando de mais alguma coisa, é só me marcar. 🙂'
+    : '📋 O escritório conclui a ocorrência. Precisando de mais alguma coisa, é só me marcar. 🙂'
 }
 
 type Row = Record<string, unknown>
@@ -180,9 +227,9 @@ type Candidate = {
   readonly companyId: string
   readonly driverId: string
   readonly occurrenceId: string
-  readonly documentNumber: string
   readonly groupJid: string
   readonly notice: GroupBoletoReturnNotice
+  readonly summary: GroupBoletoReturnSummary
   readonly replyId: string
   readonly requestId: string
   readonly state: BoletoReturnState
@@ -197,14 +244,23 @@ async function listCandidates(
     params.now.getTime() - GROUP_BOLETO_RETURN_LOOKBACK_DAYS * 86_400_000,
   ).toISOString()
   const fresh = new Date(
-    params.now.getTime() - GROUP_BOLETO_RETURN_FRESH_HOURS * 3_600_000,
+    params.now.getTime() - GROUP_BOLETO_RETURN_FRESH_MINUTES * 60_000,
   ).toISOString()
   const rows = await rowsOf(
     runner,
     sql`select request.id as request_id, request.company_id, request.group_jid, request.state,
                request.driver_id::text as driver_id, report.result_id::text as occurrence_id,
                request.version::text as version, reply.id as reply_id, reply.status as reply_status,
-               coalesce(nullif(request.state->>'documentNumber', ''), note.number, '') as document_number
+               coalesce(nullif(request.state->>'documentNumber', ''), note.number, '') as document_number,
+               coalesce(note.series, '') as series,
+               coalesce(nullif(request.state->>'typeName', ''), kind.name, '') as type_name,
+               coalesce(
+                 (select coalesce(nullif(participant.legal_name, ''), nullif(participant.trade_name, ''))
+                    from nfe_participants participant
+                   where participant.company_id = note.company_id and participant.document_id = note.id
+                     and participant.role = 'recipient'
+                   limit 1),
+                 '') as client_name
           from whatsapp_group_requests request
           join trip_field_reports report
             on report.company_id = request.company_id
@@ -218,11 +274,28 @@ async function listCandidates(
             on document.company_id = occurrence.company_id and document.id = occurrence.trip_document_id
           left join nfe_documents note
             on note.company_id = document.company_id and note.id = document.nfe_document_id
+          left join company_occurrence_types kind
+            on kind.company_id = occurrence.company_id and kind.id = occurrence.occurrence_type_id
          where request.status = 'completed'
            and request.opened_at >= ${since}::timestamptz
            ${params.companyId === undefined ? sql`` : sql`and request.company_id = ${params.companyId}::uuid`}
            and reply.status in ('delivered', 'needs_operator', 'awaiting_operator', 'overdue')
-           and greatest(reply.updated_at, coalesce(reply.last_alert_at, reply.updated_at)) >= ${fresh}::timestamptz
+           -- O retorno andou para o estado de agora há pouco e depois do pedido: aviso velho não pega carona.
+           and exists (
+                 select 1 from occurrence_contractor_reply_events event
+                  where event.company_id = reply.company_id and event.reply_id = reply.id
+                    and event.to_status = reply.status
+                    and event.created_at >= ${fresh}::timestamptz
+                    and event.created_at >= request.opened_at)
+           -- Um aviso por ocorrência: só o pedido mais novo do grupo que aponta para ela.
+           and not exists (
+                 select 1 from whatsapp_group_requests newer
+                   join trip_field_reports newer_report
+                     on newer_report.company_id = newer.company_id
+                    and newer_report.idempotency_key = ${GROUP_BOLETO_RETURN_REQUEST_KEY_PREFIX} || newer.id::text
+                  where newer.company_id = request.company_id
+                    and newer_report.result_id = report.result_id
+                    and newer.opened_at > request.opened_at)
            and coalesce(request.state->'boletoReturn'->>'status', '') <> 'failed'
            and request.state->'boletoReturn'->'notices'->>'delivered' is null
          order by request.opened_at
@@ -255,9 +328,14 @@ async function listCandidates(
       companyId,
       driverId,
       occurrenceId,
-      documentNumber: text(row, 'document_number') ?? '',
       groupJid,
       notice,
+      summary: {
+        clientName: (text(row, 'client_name') ?? '').trim(),
+        documentNumber: text(row, 'document_number') ?? '',
+        series: (text(row, 'series') ?? '').trim(),
+        typeName: (text(row, 'type_name') ?? '').trim(),
+      },
       replyId,
       requestId,
       state,
@@ -384,7 +462,7 @@ async function returnOne(
   params: { readonly candidate: Candidate; readonly now: Date },
 ): Promise<'failed' | 'sent' | 'skipped'> {
   const { candidate, now } = params
-  const { companyId, documentNumber, groupJid } = candidate
+  const { companyId, groupJid, summary } = candidate
 
   let send: () => Promise<unknown>
   /** O texto que fica na conversa da ocorrência (o PDF já está lá, entregue ao motorista). */
@@ -399,17 +477,13 @@ async function returnOne(
     })
     if (deliveries.kind === 'wait') return 'skipped'
     if (deliveries.contacts.length > 0) {
-      const body = GROUP_BOLETO_RETURN_TEXT.clientSent(
-        documentNumber,
-        deliveries.contacts,
-        resolved,
-      )
+      const body = GROUP_BOLETO_RETURN_TEXT.clientSent(summary, deliveries.contacts, resolved)
       recorded = body
       outcome = 'sent_to_client'
       send = () => dependencies.sender.sendText({ body, companyId, number: groupJid })
     } else {
       outcome = 'posted_to_group'
-      const caption = GROUP_BOLETO_RETURN_TEXT.document(documentNumber, resolved)
+      const caption = GROUP_BOLETO_RETURN_TEXT.document(summary, resolved)
       recorded = `${caption}\n\n(PDF do boleto enviado no grupo)`
       send = async () => {
         const file = await deliveredFileOf(dependencies, {
@@ -430,8 +504,8 @@ async function returnOne(
   } else {
     const body =
       candidate.notice === 'office'
-        ? GROUP_BOLETO_RETURN_TEXT.office(documentNumber)
-        : GROUP_BOLETO_RETURN_TEXT.overdue(documentNumber)
+        ? GROUP_BOLETO_RETURN_TEXT.office(summary)
+        : GROUP_BOLETO_RETURN_TEXT.overdue(summary)
     recorded = body
     send = () => dependencies.sender.sendText({ body, companyId, number: groupJid })
   }

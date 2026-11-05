@@ -82,7 +82,10 @@ describe('pedido no grupo: autor da ocorrência (spec 292 T5)', () => {
             occurrenceTypeId: crypto.randomUUID(),
           })
 
-        expect(await register(withAccount.id)).toEqual({ kind: 'registered' })
+        expect(await register(withAccount.id)).toEqual({
+          kind: 'registered',
+          summary: { clientName: '', series: '' },
+        })
         expect(calls).toEqual([{ actorUserId: userId, driverId: withAccount.id }])
 
         expect(await register(withoutAccount.id)).toEqual({

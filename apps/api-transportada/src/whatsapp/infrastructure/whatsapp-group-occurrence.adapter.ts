@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { fleetDrivers, userCompanyMemberships } from '../../database/database.schema.js'
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
@@ -237,7 +237,15 @@ export function createGroupOccurrencePorts(dependencies: {
           return refusedWith(input.companyId, WHATSAPP_GROUP_EVENT_FAILED, null)
         }
       }
-      if (result.kind !== 'refused') return { kind: 'registered' }
+      if (result.kind !== 'refused') {
+        return {
+          kind: 'registered',
+          summary: await noteSummaryOf(dependencies.database, input).catch(() => ({
+            clientName: '',
+            series: '',
+          })),
+        }
+      }
       const { refusal } = result
       const retry =
         refusal.code !== 'occurrence_requirement'
@@ -253,6 +261,28 @@ export function createGroupOccurrencePorts(dependencies: {
         retry,
       )
     },
+  }
+}
+
+/** A série e o destinatário da nota da viagem, para o resumo do registro no grupo; vazios quando não há. */
+async function noteSummaryOf(
+  database: Database,
+  input: { readonly companyId: string; readonly documentId: string },
+): Promise<{ readonly clientName: string; readonly series: string }> {
+  const [row] = (await database.execute(sql`
+    select coalesce(note.series, '') as series,
+           coalesce((select coalesce(nullif(participant.legal_name, ''), nullif(participant.trade_name, ''))
+                       from nfe_participants participant
+                      where participant.company_id = note.company_id and participant.document_id = note.id
+                        and participant.role = 'recipient'
+                      limit 1), '') as client_name
+      from trip_documents document
+      join nfe_documents note on note.company_id = document.company_id and note.id = document.nfe_document_id
+     where document.company_id = ${input.companyId}::uuid and document.id = ${input.documentId}::uuid
+     limit 1`)) as unknown as readonly { client_name?: unknown; series?: unknown }[]
+  return {
+    clientName: typeof row?.client_name === 'string' ? row.client_name.trim() : '',
+    series: typeof row?.series === 'string' ? row.series.trim() : '',
   }
 }
 

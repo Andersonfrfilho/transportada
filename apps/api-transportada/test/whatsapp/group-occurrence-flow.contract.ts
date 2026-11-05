@@ -117,7 +117,13 @@ describe('fluxo do grupo: guiado', () => {
     })
     expect(await flow.answer('sim')).toEqual({
       kind: 'done',
-      replies: [GROUP_OCCURRENCE_TEXT.registered('Prorrogação do boleto', '000899853')],
+      replies: [
+        GROUP_OCCURRENCE_TEXT.registered({
+          documentNumber: '000899853',
+          note: 'cliente pediu mais 10 dias',
+          typeName: 'Prorrogação do boleto',
+        }),
+      ],
     })
     expect(flow.registered).toEqual([
       {
