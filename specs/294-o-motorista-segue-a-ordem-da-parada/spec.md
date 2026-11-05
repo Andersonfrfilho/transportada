@@ -142,6 +142,20 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
   "📍 Mande sua localização pelo clipe, ou responda _pular_" ("pular" falado vale). Localização compartilhada pouco
   antes é usada sem perguntar de novo. Em endereço não confiável, o pedido do "Cheguei" diz que ela corrige o
   endereço (RF14).
+- **RF25** — **Fora de ordem é conferido, não aceito calado** (tripulação; o atendente segue RF19 sem pergunta):
+  - canhoto ou "entreguei" de nota de **outra** parada que não a iniciada/chegada → "⚠️ Você iniciou a rota para a
+    parada 3 (NF 17234 — cliente), mas este canhoto é da NF 17300, da parada 5 (cliente). _1_ - Entreguei a parada 5
+    mesmo / _2_ - Foi engano, descartar". "1" registra a parada 5 com as etapas marcadas junto (RF1) e avisa que a 3
+    segue aberta; "2" descarta e não grava nada;
+  - "Iniciar rota" (pela oferta da próxima rota ou pelo comando) para uma parada que não é a próxima do roteiro →
+    "A próxima no roteiro é a parada 4 (cliente). Quer mesmo iniciar a parada 6? _1_ - Sim, a 6 / _2_ - Não, a 4".
+- **RF26** — **Canhoto repetido não grava duas vezes:**
+  - a mesma imagem (hash do conteúdo, como o "Essa foto já tinha chegado" da entrega em preparo) → "Esse canhoto
+    já tinha chegado: NF 17234, entregue às 14:32." e nada é gravado;
+  - outra foto de nota já entregue **com** canhoto → "_1_ - Trocar o canhoto (vai para conferência do escritório) /
+    _2_ - Descartar";
+  - nota entregue **sem** canhoto (223, concluída sem canhoto e cobrada depois) → a foto entra como o canhoto que
+    faltava, sem pergunta.
 - **RF20** — Corrige o defeito de hoje: no grupo, a entrega em preparo grava sempre em nome do motorista dono do
   grupo, mesmo quando quem mandou "entreguei" é o atendente.
 
