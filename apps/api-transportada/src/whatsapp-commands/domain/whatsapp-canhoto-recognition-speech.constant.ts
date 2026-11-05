@@ -36,4 +36,8 @@ export const CANHOTO_RECOGNITION_SPEECH = {
   readerUnavailable: 'Não consegui ler a foto agora.',
   /** Spec 294 C2: a foto não foi para a nota; a pergunta segue aberta com ela. */
   storeFailed: 'Não consegui guardar a foto na nota agora. Responda de novo daqui a pouco.',
+  /** Spec 294 C2: o canhoto lido direto não foi para a nota; a foto ficou guardada na pergunta. */
+  storeFailedKept: 'Não consegui guardar a foto na nota agora; ela ficou guardada.',
+  /** Spec 294 C2: nem a foto da pergunta guardou. */
+  storeFailedResend: 'Não consegui guardar a foto. Mande de novo, por favor.',
 } as const

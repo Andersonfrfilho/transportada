@@ -54,6 +54,8 @@ function setup(
     readonly duplicateOf?: string
     /** C2: quantas gravações da foto na preparação falham antes de passar. */
     readonly failPreparationStores?: number
+    /** C2: o bucket fora de vez (nem a foto da pergunta guarda). */
+    readonly failAllStores?: boolean
     /** C2: a foto da pergunta sumiu do bucket. */
     readonly lostQuestionPhoto?: boolean
     readonly now?: () => Date
@@ -124,6 +126,7 @@ function setup(
       readonly bytes: Uint8Array
       readonly preparationId: string
     }) => {
+      if (options.failAllStores === true) throw new Error('bucket fora')
       if (preparationId.startsWith('P') && failPreparationStores > 0) {
         failPreparationStores -= 1
         throw new Error('bucket fora')
@@ -445,6 +448,27 @@ describe('C2: a resposta só fecha a pergunta depois de a foto ir para a nota', 
     const reply = await t.answer('sim')
     expect(reply?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.photoLost])
     expect([...t.questionRows.values()][0]?.status).toBe('cancelled')
+  })
+})
+
+describe('C2: canhoto lido direto que não consegue ir para a nota', () => {
+  test('falha ao guardar: a foto fica numa pergunta "é da NF X?", e o "sim" liga à nota', async () => {
+    const t = setup({ failPreparationStores: 1 })
+    const asked = await t.photo()
+    expect(asked?.texts[0]).toContain(CANHOTO_RECOGNITION_SPEECH.storeFailedKept)
+    expect(asked?.texts[0]).toContain('Este canhoto é da NF 17234?')
+    expect(asked?.awaitingText).toBe(true)
+    expect([...t.questionRows.values()][0]?.status).toBe('open')
+
+    expect((await t.answer('sim'))?.texts[0]).toBe('Li o canhoto da NF 17234.')
+    expect([...t.questionRows.values()][0]?.status).toBe('completed')
+  })
+
+  test('bucket fora de vez: pede a foto de novo, nunca calado e sem pergunta órfã', async () => {
+    const t = setup({ failAllStores: true })
+    const reply = await t.photo()
+    expect(reply?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.storeFailedResend])
+    expect(t.questionRows.size).toBe(0)
   })
 })
 

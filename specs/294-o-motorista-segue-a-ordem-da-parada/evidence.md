@@ -594,3 +594,11 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   da chegada; a API mede o atraso com o mesmo `isArrivalLate` (60 min). Sem a hora, vale como agora. A mensagem tardia não ganha o pedido de localização.
 - Contratos: `trips` + `driver-trip` 460 pass; `whatsapp` + `whatsapp-commands` 1133 pass. Integração `address-arrival-correction` 16 pass (+1:
   ponto do WhatsApp tardio não faz nada, em tempo real grava `street`/`driver`). ADR 0113 §2 e spec RF14 atualizados.
+
+### C2 no caminho direto — canhoto lido que não vai para a nota (fix(294) canhoto direto)
+
+- `attachRead`: o canhoto lido com número exato que falha ao ir para a nota (erro do bucket ou preparação que não abriu) não some: a foto fica numa
+  pergunta `confirm_note` ("Não consegui guardar a foto na nota agora; ela ficou guardada." + "Este canhoto é da NF X?"), e o "sim" tenta de novo pelo
+  `attachAnswered`. Se nem a foto da pergunta guarda, o bot pede a foto de novo (`storeFailedResend`). A troca de canhoto diferente (RF26, 1/2) segue na
+  baixa: `receiveCanhotoPhoto` só guarda a foto e abre a preparação, não chama `attachProof`, então não há "já tinha canhoto" neste ponto.
+- `whatsapp-commands`: 697 pass / 0 fail (+2).

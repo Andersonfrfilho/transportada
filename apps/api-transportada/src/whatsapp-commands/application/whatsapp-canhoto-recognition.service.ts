@@ -266,6 +266,32 @@ export function createWhatsAppCanhotoRecognition(
     })
   }
 
+  /**
+   * Spec 294 C2: o canhoto lido direto. Se ele não vai para a nota, a foto não some: fica numa pergunta "é da NF X?" (o
+   * "sim" tenta de novo); sem nem isso, o bot pede a foto de novo.
+   */
+  async function attachRead(
+    input: Parameters<typeof attach>[0],
+  ): Promise<WhatsAppDeliveryPreparationReply> {
+    const attached = await attach(input).catch((error: unknown) => {
+      ports.logger?.warn(LOG.attachFailed, {
+        companyId: input.actor.companyId,
+        errorName: error instanceof Error ? error.name : typeof error,
+      })
+      return null
+    })
+    if (attached !== null && attached.texts.length > 0) return attached
+    return ask({
+      ...input,
+      candidates: [input.note],
+      kind: 'confirm_note',
+      text: [
+        CANHOTO_RECOGNITION_SPEECH.storeFailedKept,
+        CANHOTO_RECOGNITION_SPEECH.confirmNote(input.note),
+      ].join('\n'),
+    }).catch(() => reply([CANHOTO_RECOGNITION_SPEECH.storeFailedResend]))
+  }
+
   /** A foto espera a resposta no bucket privado; a pergunta é uma por motorista. */
   async function ask(input: {
     readonly actor: WhatsAppDriverActor
@@ -449,7 +475,7 @@ export function createWhatsAppCanhotoRecognition(
       }
       const verdict = read
       const decision = decideCanhotoRecognition({ notes, verdict })
-      if (decision.kind === 'attach') return attach({ ...common, note: decision.note })
+      if (decision.kind === 'attach') return attachRead({ ...common, note: decision.note })
       if (decision.kind === 'confirm_note') {
         return ask({
           ...common,
