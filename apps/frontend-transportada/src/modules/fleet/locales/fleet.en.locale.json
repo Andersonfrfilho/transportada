@@ -901,6 +901,20 @@
   },
   "driverScoreColumn": "Score",
   "driverScoreSectionTitle": "Driver score",
+  "driverAttachments": {
+    "title": "Driver documents",
+    "hint": "License, ID and proof of address attached to the record. The list shows that a document exists; opening the file needs its own permission.",
+    "empty": "No document attached.",
+    "loadError": "Could not load this driver's documents.",
+    "unknownUser": "removed user",
+    "meta": "attached on {{date}} by {{name}}",
+    "types": {
+      "cnh": "Driver license",
+      "identity_document": "ID document",
+      "address_proof": "Proof of address",
+      "other": "Other document"
+    }
+  },
   "driverWhatsappGroup": {
     "title": "WhatsApp group",
     "hint": "This driver's support group. The WhatsApp bot answers in it, and each group belongs to a single driver.",

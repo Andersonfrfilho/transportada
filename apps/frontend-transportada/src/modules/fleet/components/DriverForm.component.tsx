@@ -45,6 +45,7 @@ import { DriverHelperFields } from './DriverHelperFields.component'
 import { DriverLinkedAddressFields } from './DriverLinkedAddressFields.component'
 import { DriverPersonalFields } from './DriverPersonalFields.component'
 import { DriverScoreSection } from './DriverScoreSection.component'
+import { DriverAttachmentsSection } from './DriverAttachmentsSection.component'
 import { DriverWhatsappGroupSection } from './DriverWhatsappGroupSection.component'
 import { DriverVehicleLinkField } from './DriverVehicleLinkField.component'
 import { FleetFeedback } from './FleetFeedback.component'
@@ -126,6 +127,7 @@ export function DriverForm({
 
       {driver === undefined || !hasLicense ? null : <DriverScoreSection driverId={driver.id} />}
       {driver === undefined ? null : <DriverWhatsappGroupSection driverId={driver.id} />}
+      {driver === undefined ? null : <DriverAttachmentsSection driverId={driver.id} />}
 
       <fieldset className={styles.fieldGroup}>
         <legend>{t(hasLicense ? 'driverIdentityLegend' : 'driverIdentityLegendHelper')}</legend>

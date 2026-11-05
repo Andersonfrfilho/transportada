@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type {
   CreateFleetDriverAttachmentInput,
+  FleetDriverAttachmentListItem,
   FleetDriverAttachmentLocation,
   FleetDriverAttachmentRepositoryPort,
 } from '../../src/fleet/application/fleet-driver-attachment.port.js'
@@ -30,6 +31,14 @@ const LOCATION: FleetDriverAttachmentLocation = {
   storedObjectId: '00000000-0000-4000-8000-0000000000f1',
 }
 
+const LISTED_ITEM: FleetDriverAttachmentListItem = {
+  createdAt: '2026-11-05T00:00:00.000Z',
+  hasSuggestion: true,
+  id: ATTACHMENT_ID,
+  type: 'cnh',
+  uploadedBy: { id: USER_ID, name: 'Ana Operadora' },
+}
+
 type Fixture = ReturnType<typeof buildFixture>
 
 function buildFixture(
@@ -45,6 +54,7 @@ function buildFixture(
   const created: CreateFleetDriverAttachmentInput[] = []
   const stored: { readonly contentType: string; readonly key: string }[] = []
   const deletedKeys: string[] = []
+  const listed: FleetDriverAttachmentListItem[] = [LISTED_ITEM]
   const decisions: Parameters<FleetDriverAttachmentRepositoryPort['decideSuggestion']>[0][] = []
   const signed: { readonly expiresInSeconds: number; readonly key: string }[] = []
 
@@ -70,6 +80,9 @@ function buildFixture(
       events.push('decide')
       decisions.push(input)
       return overrides.decisionOutcome ?? 'decided'
+    },
+    async list() {
+      return listed
     },
     async remove() {
       events.push('remove-row')
@@ -281,5 +294,23 @@ describe('anexo do motorista — decidir a sugestão da leitura', () => {
     await expect(
       decide(buildFixture({ decisionOutcome: 'already_decided' })),
     ).rejects.toBeInstanceOf(FleetDriverAttachmentSuggestionDecidedError)
+  })
+})
+
+describe('anexo do motorista — listar', () => {
+  test('lista os anexos do motorista da empresa', async () => {
+    const fixture = buildFixture()
+
+    expect(await fixture.useCase.list({ companyId: COMPANY_ID, driverId: DRIVER_ID })).toEqual([
+      LISTED_ITEM,
+    ])
+  })
+
+  test('motorista de outra empresa é 404, não lista vazia', async () => {
+    const fixture = buildFixture({ driverExists: false })
+
+    await expect(
+      fixture.useCase.list({ companyId: COMPANY_ID, driverId: DRIVER_ID }),
+    ).rejects.toBeInstanceOf(FleetDriverNotFoundError)
   })
 })

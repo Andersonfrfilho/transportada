@@ -933,6 +933,20 @@
   },
   "driverScoreColumn": "Nota",
   "driverScoreSectionTitle": "Nota do motorista",
+  "driverAttachments": {
+    "title": "Documentos do motorista",
+    "hint": "CNH, RG e comprovante de endereço anexados à ficha. A lista mostra que o documento existe; abrir o arquivo exige permissão própria.",
+    "empty": "Nenhum documento anexado.",
+    "loadError": "Não foi possível carregar os documentos deste motorista.",
+    "unknownUser": "usuário removido",
+    "meta": "anexado em {{date}} por {{name}}",
+    "types": {
+      "cnh": "CNH",
+      "identity_document": "RG ou documento de identidade",
+      "address_proof": "Comprovante de endereço",
+      "other": "Outro documento"
+    }
+  },
   "driverWhatsappGroup": {
     "title": "Grupo do WhatsApp",
     "hint": "O grupo de suporte deste motorista. O bot do WhatsApp atende nele, e cada grupo pertence a um só motorista.",

@@ -19,6 +19,7 @@ import {
 import { FleetDriverNotFoundError } from '../domain/fleet.error.js'
 import type {
   FleetDriverAttachment,
+  FleetDriverAttachmentListItem,
   FleetDriverAttachmentRepositoryPort,
   FleetDriverAttachmentStoragePort,
 } from './fleet-driver-attachment.port.js'
@@ -50,6 +51,10 @@ export type FleetDriverAttachmentUseCase = Readonly<{
     readonly decision: FleetDriverAttachmentDecision
     readonly driverId: string
   }) => Promise<{ readonly decision: FleetDriverAttachmentDecision }>
+  list: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<readonly FleetDriverAttachmentListItem[]>
   remove: (input: {
     readonly attachmentId: string
     readonly companyId: string
@@ -146,6 +151,13 @@ export function createFleetDriverAttachmentUseCase(
       if (outcome === 'not_found') throw new FleetDriverAttachmentNotFoundError()
       if (outcome === 'already_decided') throw new FleetDriverAttachmentSuggestionDecidedError()
       return { decision: input.decision }
+    },
+
+    async list({ companyId, driverId }) {
+      if (!(await dependencies.repository.driverExists({ companyId, driverId }))) {
+        throw new FleetDriverNotFoundError()
+      }
+      return dependencies.repository.list({ companyId, driverId })
     },
 
     async reveal({ attachmentId, companyId, driverId }) {

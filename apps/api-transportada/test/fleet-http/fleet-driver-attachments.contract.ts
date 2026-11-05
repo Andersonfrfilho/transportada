@@ -56,6 +56,18 @@ function createFixture(
       calls.push({ input: { ...request }, kind: 'decide' })
       return { decision: request.decision }
     },
+    async list(request) {
+      calls.push({ input: { ...request }, kind: 'list' })
+      return [
+        {
+          createdAt: '2026-11-05T00:00:00.000Z',
+          hasSuggestion: true,
+          id: ATTACHMENT_ID,
+          type: 'cnh',
+          uploadedBy: { id: '00000000-0000-4000-8000-0000000000a1', name: 'Ana Operadora' },
+        },
+      ]
+    },
     async reveal(request) {
       calls.push({ input: { ...request }, kind: 'reveal' })
       return { url: 'https://bucket.example.test/signed?expires=300' }
@@ -282,6 +294,37 @@ describe('a decisão sobre a sugestão da leitura (spec 091 T015)', () => {
       )
       expect(response.status).toBe(400)
     }
+    expect(fixture.calls).toEqual([])
+  })
+})
+
+describe('a lista de documentos da ficha do motorista (spec 091 T016)', () => {
+  test('fleet.read lista tipo, data e quem anexou — e nada do conteúdo', async () => {
+    const fixture = createFixture({ permissions: READ_ONLY })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: PATH }))
+
+    expect(response.status).toBe(200)
+    const items = await responseData<readonly Record<string, unknown>[]>(response)
+    expect(items).toHaveLength(1)
+    expect(Object.keys(items[0] ?? {}).sort()).toEqual([
+      'createdAt',
+      'hasSuggestion',
+      'id',
+      'type',
+      'uploadedBy',
+    ])
+    // Saber que o documento existe não é ver o documento: nenhum campo lido, chave ou bucket.
+    const serialized = JSON.stringify(items)
+    for (const forbidden of ['extractedFields', 'objectKey', 'bucket', 'licenseNumber', 'url']) {
+      expect(serialized).not.toContain(forbidden)
+    }
+  })
+
+  test('sem fleet.read nem a lista aparece', async () => {
+    const fixture = createFixture({ permissions: new Set(['fleet.reveal'] as const) })
+
+    expect((await fixture.handle(jsonRequest({ method: 'GET', path: PATH }))).status).toBe(403)
     expect(fixture.calls).toEqual([])
   })
 })

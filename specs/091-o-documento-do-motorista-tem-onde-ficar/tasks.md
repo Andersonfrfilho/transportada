@@ -33,7 +33,7 @@ chave é perder o dado). A feature começa na Fase 2.
 
 ## Fase 4 — Ficha · 🤖 `sonnet`
 
-- [ ] **T016** Lista de anexos na ficha sob `fleet.read` — tipo, data e quem anexou, sem conteúdo.
+- [x] **T016** Lista de anexos na ficha sob `fleet.read` — tipo, data e quem anexou, sem conteúdo.
 - [ ] **T017** Anexar e substituir com `FileField`. Aceite: `test/design-system/file-field.contract.ts`
       continua verde sem exceção nova.
 - [ ] **T018** Sugestão de preenchimento da CNH: oferta campo a campo, só campo vazio, divergência

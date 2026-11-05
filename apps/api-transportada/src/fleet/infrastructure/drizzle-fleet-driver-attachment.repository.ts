@@ -1,12 +1,13 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 
 import {
   fleetDriverAttachmentOutbox,
   fleetDriverAttachments,
   fleetDrivers,
+  identityUserProfiles,
 } from '../../database/database.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
@@ -150,6 +151,38 @@ export function createDrizzleFleetDriverAttachmentRepository(
         )
         .limit(1)
       return row ?? null
+    },
+
+    async list({ companyId, driverId }) {
+      const rows = await database
+        .select({
+          createdAt: fleetDriverAttachments.createdAt,
+          // Só o aviso: o que foi lido não sai por esta lista, que é de `fleet.read`.
+          hasSuggestion: sql<boolean>`(${fleetDriverAttachments.extractedFields} is not null)`,
+          id: fleetDriverAttachments.id,
+          type: fleetDriverAttachments.type,
+          uploadedById: fleetDriverAttachments.uploadedBy,
+          uploadedByName: identityUserProfiles.name,
+        })
+        .from(fleetDriverAttachments)
+        .leftJoin(
+          identityUserProfiles,
+          eq(identityUserProfiles.userId, fleetDriverAttachments.uploadedBy),
+        )
+        .where(
+          and(
+            eq(fleetDriverAttachments.companyId, companyId),
+            eq(fleetDriverAttachments.driverId, driverId),
+          ),
+        )
+        .orderBy(asc(fleetDriverAttachments.createdAt), asc(fleetDriverAttachments.id))
+      return rows.map((row) => ({
+        createdAt: row.createdAt.toISOString(),
+        hasSuggestion: row.hasSuggestion,
+        id: row.id,
+        type: row.type,
+        uploadedBy: { id: row.uploadedById, name: row.uploadedByName },
+      }))
     },
 
     async remove({ attachmentId, companyId, driverId }) {

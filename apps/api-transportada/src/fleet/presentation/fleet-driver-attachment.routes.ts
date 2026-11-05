@@ -21,6 +21,7 @@ import {
   type UploadFleetDriverAttachmentRequest,
 } from './fleet-driver-attachment.schema.js'
 
+const FLEET_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const FLEET_MANAGE_POLICY = { permission: 'fleet.manage', scope: 'company' } as const
 const FLEET_REVEAL_POLICY = { permission: 'fleet.reveal', scope: 'company' } as const
 const CREATED_STATUS = 201
@@ -135,6 +136,25 @@ export function createFleetDriverAttachmentRoutes(
       },
       pathname: API_FLEET_DRIVER_ATTACHMENT_SUGGESTION_PATH,
       policy: FLEET_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly driverId: string }>({
+      /** `fleet.read`: que o documento existe, de que tipo e de quem — nunca o conteúdo. */
+      async handle({ context, input }): Promise<Response> {
+        const items = await attachments.list({
+          companyId: context.scope.companyId,
+          driverId: input.driverId,
+        })
+        return new Response(JSON.stringify({ data: items }), {
+          headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
+          status: OK_STATUS,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        driverId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: API_FLEET_DRIVER_ATTACHMENTS_PATH,
+      policy: FLEET_READ_POLICY,
     }),
   ]
 }

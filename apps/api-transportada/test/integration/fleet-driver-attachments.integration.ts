@@ -14,6 +14,8 @@ import {
   fleetDriverAttachmentOutbox,
   fleetDriverAttachments,
   fleetDrivers,
+  identityUserProfiles,
+  identityUsers,
   storedObjects,
 } from '../../src/database/database.schema.js'
 import type { FleetDriverAttachmentType } from '../../src/database/fleet-driver-attachment.schema.js'
@@ -373,6 +375,66 @@ describe('anexo do motorista, contra Postgres (spec 091)', () => {
           .select({ decision: fleetDriverAttachments.decision })
           .from(fleetDriverAttachments)
         expect(row?.decision).toBe('accepted')
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'lista só os anexos do motorista da empresa, com quem anexou e se há sugestão, sem conteúdo',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const otherCompanyId = await seedCompany(db)
+        const driverId = await seedDriver(db, companyId)
+        const otherDriverId = await seedDriver(db, companyId)
+        const foreignDriverId = await seedDriver(db, otherCompanyId)
+        await db.insert(identityUsers).values({ id: USER_ID })
+        await db.insert(identityUserProfiles).values({
+          contactAddress: 'ana@example.test',
+          contactChannel: 'email',
+          name: 'Ana Operadora',
+          userId: USER_ID,
+          username: 'ana.operadora',
+        })
+        const repository = createDrizzleFleetDriverAttachmentRepository(db)
+        const cnh = await repository.create(attachmentInput({ companyId, driverId, type: 'cnh' }))
+        await repository.create(attachmentInput({ companyId, driverId, type: 'address_proof' }))
+        await repository.create(
+          attachmentInput({ companyId, driverId: otherDriverId, type: 'cnh' }),
+        )
+        await repository.create(
+          attachmentInput({ companyId: otherCompanyId, driverId: foreignDriverId, type: 'cnh' }),
+        )
+        await db
+          .update(fleetDriverAttachments)
+          .set({ extractedAt: new Date(), extractedFields: { licenseNumber: '01234567890' } })
+          .where(eq(fleetDriverAttachments.id, cnh.id))
+
+        const listed = await repository.list({ companyId, driverId })
+
+        expect(listed.map((item) => item.type).sort()).toEqual(['address_proof', 'cnh'])
+        const listedCnh = listed.find((item) => item.type === 'cnh')
+        expect(listedCnh).toMatchObject({
+          hasSuggestion: true,
+          id: cnh.id,
+          uploadedBy: { id: USER_ID, name: 'Ana Operadora' },
+        })
+        expect(listed.find((item) => item.type === 'address_proof')?.hasSuggestion).toBe(false)
+        expect(JSON.stringify(listed)).not.toContain('01234567890')
+
+        await repository.decideSuggestion({
+          attachmentId: cnh.id,
+          companyId,
+          decidedBy: USER_ID,
+          decision: 'dismissed',
+          driverId,
+        })
+        expect(
+          (await repository.list({ companyId, driverId })).find((item) => item.type === 'cnh')
+            ?.hasSuggestion,
+        ).toBe(false)
+        expect(await repository.list({ companyId: otherCompanyId, driverId })).toEqual([])
       })
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,

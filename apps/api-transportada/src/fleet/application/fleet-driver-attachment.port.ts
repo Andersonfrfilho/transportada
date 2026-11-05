@@ -13,6 +13,16 @@ export type FleetDriverAttachment = Readonly<{
   uploadedBy: string
 }>
 
+/** O que a ficha mostra sob `fleet.read`: que o documento existe, de que tipo, quando e de quem. Sem conteúdo. */
+export type FleetDriverAttachmentListItem = Readonly<{
+  createdAt: string
+  /** Há leitura da CNH ainda por decidir. É só o aviso: o que foi lido não sai por esta lista. */
+  hasSuggestion: boolean
+  id: string
+  type: FleetDriverAttachmentType
+  uploadedBy: Readonly<{ id: string; name: string | null }>
+}>
+
 export type FleetDriverAttachmentLocation = Readonly<{
   bucket: string
   objectKey: string
@@ -59,6 +69,10 @@ export type FleetDriverAttachmentRepositoryPort = Readonly<{
     readonly companyId: string
     readonly driverId: string
   }) => Promise<FleetDriverAttachmentLocation | null>
+  list: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<readonly FleetDriverAttachmentListItem[]>
   /** Tira a linha e marca o objeto como apagado, juntos. */
   remove: (input: {
     readonly attachmentId: string

@@ -26,7 +26,9 @@ function expectNoPersonalData(key: string): void {
   for (const personal of [DRIVER_TAX_ID, DRIVER_LICENSE_NUMBER, 'maria', 'silva']) {
     expect(normalized).not.toContain(personal)
   }
-  expect(DRIVER_NAME.split(' ').some((part) => normalized.includes(part.toLowerCase()))).toBe(false)
+  // Partículas curtas ("da", "de") colidem com hexadecimal de UUID por acaso: só o nome próprio conta.
+  const nameParts = DRIVER_NAME.split(' ').filter((part) => part.length > 3)
+  expect(nameParts.some((part) => normalized.includes(part.toLowerCase()))).toBe(false)
 }
 
 describe('chave do objeto do documento do motorista (spec 091 T012)', () => {
@@ -63,6 +65,9 @@ describe('chave do objeto do documento do motorista (spec 091 T012)', () => {
         },
         async findLocation() {
           return null
+        },
+        async list() {
+          return []
         },
         async remove() {
           return false
