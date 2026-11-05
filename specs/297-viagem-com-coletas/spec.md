@@ -138,16 +138,16 @@ coleta, desce na entrega) e o aviso quando o pico ultrapassa a capacidade.
 
 ## Casos extremos e falhas
 
-| Caso                                                              | Comportamento esperado                                                       |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Coleta sem nota ainda no momento de coletar                       | Registra o item (`trip_pickup_items`); nota entra depois; entrega só com nota |
-| Coletou volumes a menos/mais que o esperado                       | Conferência registra o divergente; o escritório vê divergência, não bloqueia |
-| Baú estoura capacidade no pico                                    | Aviso na montagem (não bloqueia — igual ao aviso atual de peso)             |
-| Coleta cancelada com a viagem já na rua                           | Parada vira `cancelled` por evento; carga esperada volta a `pending` solta   |
-| Motorista chega e a carga não está pronta                         | Ocorrência de coleta; viagem continua; coleta pode ser reagendada            |
-| Viagem cancelada com carga já `collected`                         | Recusa até a carga ser devolvida/registrada (carga de terceiro não some)     |
-| Coleta e entrega no mesmo endereço                                | Duas paradas distintas com a mesma `address_key` (tipos diferentes)          |
-| Mudança de tripulação (transferCrew) depois de coletar            | Carga `collected` acompanha a viagem; nada muda por causa da troca           |
+| Caso                                                   | Comportamento esperado                                                        |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Coleta sem nota ainda no momento de coletar            | Registra o item (`trip_pickup_items`); nota entra depois; entrega só com nota |
+| Coletou volumes a menos/mais que o esperado            | Conferência registra o divergente; o escritório vê divergência, não bloqueia  |
+| Baú estoura capacidade no pico                         | Aviso na montagem (não bloqueia — igual ao aviso atual de peso)               |
+| Coleta cancelada com a viagem já na rua                | Parada vira `cancelled` por evento; carga esperada volta a `pending` solta    |
+| Motorista chega e a carga não está pronta              | Ocorrência de coleta; viagem continua; coleta pode ser reagendada             |
+| Viagem cancelada com carga já `collected`              | Recusa até a carga ser devolvida/registrada (carga de terceiro não some)      |
+| Coleta e entrega no mesmo endereço                     | Duas paradas distintas com a mesma `address_key` (tipos diferentes)           |
+| Mudança de tripulação (transferCrew) depois de coletar | Carga `collected` acompanha a viagem; nada muda por causa da troca            |
 
 ## Critérios de aceite
 
