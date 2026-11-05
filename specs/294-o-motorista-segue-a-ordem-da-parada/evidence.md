@@ -571,3 +571,10 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - Contratos `whatsapp-commands`: 695 pass / 0 fail (+2 C2, +3 vigia). Integração: `stop-order-guard` + `delivery-proof-canhoto-review` +
   `delivery-proof-original` 30 pass / 0 fail (novo: duas anexações simultâneas da mesma imagem → um canhoto, o outro `duplicate`; vermelho antes da
   trava: 2 gravados); `whatsapp-canhoto-question-repository` 4 pass / 0 fail (novo: vencida cancelada uma vez, recente aberta).
+
+### C9 — entrypoints do build do worker (fix(294) build)
+
+- A junção com a 295 deixou `cnh-picture-backfill.main.ts` e `cnh-face.worker.ts` **depois** de `--root ./src` no `build`; o contrato só procurava
+  a substring e passava. O script voltou à ordem da staging (todos os entrypoints antes das flags, mais o `canhoto-ocr.worker.ts`), e o contrato
+  passou a exigir os entrypoints antes da primeira flag. `build-entrypoints.contract.test.ts`: 6 pass / 0 fail; `bun run build` com `--outdir` de
+  rascunho gera `cnh-face/cnh-picture-backfill.main.js`, `cnh-face/infrastructure/` e `canhoto-ocr/infrastructure/canhoto-ocr.worker.js`.
