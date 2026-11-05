@@ -91,6 +91,24 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
   saí/cheguei, "Qual nota você entregou?") passam a trazer o cliente junto do número da nota. Os cabeçalhos e
   comentários que proíbem isso saem do código.
 
+### Quem fala com o bot decide a regra (decidido em 2026-11-05)
+
+- **RF18** — No WhatsApp a regra é da **pessoa**, não do canal. O bot identifica quem mandou:
+  - **tripulação** — telefone de motorista ou ajudante da frota (`isCrewMember`, grupo) ou o motorista da conversa
+    individual → regras do motorista (RF1–RF6, provas que o comprovante da nota exige);
+  - **atendente** — telefone verificado de um usuário com vínculo ativo na empresa (`resolveWhatsAppActor`, spec 144)
+    e permissão de baixa do escritório → regras do **escritório**;
+  - **nenhum dos dois** → o bot não dá baixa ("Só a tripulação ou um atendente cadastrado registra a entrega.").
+- **RF19** — Baixa do atendente pelo WhatsApp (grupo ou individual) vai pelo caminho do escritório (`target`,
+  autoria `office`, ator = o usuário do atendente, em nome do motorista da viagem, auditoria com o canal WhatsApp):
+  - pula etapas sem marcar nada junto (RF7);
+  - comprovantes **opcionais**: o bot oferece foto do canhoto, foto da mercadoria e quem recebeu, mas aceita
+    "pular" em todos, seja qual for a configuração da nota; a baixa sem canhoto segue como "conclui sem canhoto e
+    cobra depois" (223);
+  - mesma janela de horário informado do escritório (`assertInformedTimeWithinWindow`).
+- **RF20** — Corrige o defeito de hoje: no grupo, a entrega em preparo grava sempre em nome do motorista dono do
+  grupo, mesmo quando quem mandou "entreguei" é o atendente.
+
 ## Requisitos não funcionais
 
 - **RNF1 — Um fluxo do bot não atrapalha o outro.**
