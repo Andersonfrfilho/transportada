@@ -34,6 +34,9 @@ import type { WhatsAppBotAudio } from './whatsapp-bot-audio.service.js'
 /** Áudio não endereçado só é ouvido até 1 minuto: a chamada vem no começo, conversa longa é das pessoas. */
 const BOT_AUDIO_WAKE_MAX_SECONDS = 60
 /** Spec 292 T9: depois do "2", quanto tempo a pessoa pode reenviar sem a frase de chamada. */
+/** O diagnóstico da frase de chamada loga só o começo da fala: a frase vem no começo. */
+export const BOT_AUDIO_WAKE_DEBUG_CHARACTERS = 60
+
 export const BOT_AUDIO_RETRY_WINDOW_MS = 5 * 60_000
 
 export type EvolutionMessageEvent = Extract<EvolutionWebhookEvent, { type: 'message' }>
@@ -106,6 +109,11 @@ export type EvolutionGroupAudioPorts = {
    * o áudio que ninguém endereçou ao bot continua ignorado sem transcrever.
    */
   readonly wakePhrase?: readonly string[]
+  /**
+   * Diagnóstico de staging (`WHATSAPP_BOT_WAKE_DEBUG=true`): recebe o começo do que o whisper ouviu
+   * quando a frase de chamada não casou. Ausente (o padrão, e sempre em produção), nada sai.
+   */
+  readonly onWakeMissed?: (heard: string) => void
   download(input: {
     readonly connection: LazyEvolutionConnection
     readonly providerMessageId: string
@@ -225,7 +233,10 @@ export function createEvolutionGroupInbound(
       mimeType: audio.mimeType,
       onText: async (text) => {
         const rest = matchWakePhrase(phrase, text)
-        if (rest === null) return
+        if (rest === null) {
+          ports.onWakeMissed?.(text.slice(0, BOT_AUDIO_WAKE_DEBUG_CHARACTERS))
+          return
+        }
         if (rest === '') {
           const currentOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
           await dependencies.handle({

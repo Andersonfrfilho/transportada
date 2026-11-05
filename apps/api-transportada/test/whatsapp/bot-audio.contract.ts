@@ -381,6 +381,7 @@ function groupSetup(
   } = {},
 ) {
   let heard = 0
+  const missed: string[] = []
   const handled: AdmittedGroupMessage[] = []
   const replies: string[] = []
   const downloads: string[] = []
@@ -406,6 +407,9 @@ function groupSetup(
     audio: {
       bot,
       wakePhrase: parseWakePhrase(options.wakePhrase),
+      onWakeMissed: (text) => {
+        missed.push(text)
+      },
       download: async ({ providerMessageId }) => {
         downloads.push(providerMessageId)
         return AUDIO
@@ -430,7 +434,7 @@ function groupSetup(
       event,
       senderLid: null,
     })
-  return { bot, downloads, handled, receive, replies }
+  return { bot, downloads, handled, missed, receive, replies }
 }
 
 const VOICE: GroupAudio = {
@@ -698,6 +702,24 @@ describe('áudio do bot no grupo: frase de chamada', () => {
     expect(handled).toEqual([])
     await receive(groupMessage({ externalMessageId: 'T1', text: '1' }))
     expect(handled[0]).toMatchObject({ text: 'prorrogação do boleto da nota 899877' })
+  })
+
+  test('diagnóstico: sem a frase, entrega só o começo do que ouviu; com a frase, nada', async () => {
+    const miss = groupSetup({
+      transcript: `Chego em dez minutos ${'x'.repeat(80)}`,
+      wakePhrase: 'Central Fernandes',
+    })
+    await miss.receive(groupMessage(), VOICE)
+    await miss.bot.idle()
+    expect(miss.missed).toEqual([`Chego em dez minutos ${'x'.repeat(39)}`])
+    expect(miss.replies).toEqual([])
+    const hit = groupSetup({
+      transcript: 'Central Fernandes, nota 12',
+      wakePhrase: 'Central Fernandes',
+    })
+    await hit.receive(groupMessage(), VOICE)
+    await hit.bot.idle()
+    expect(hit.missed).toEqual([])
   })
 
   test('sem frase configurada ou áudio longo: nem transcreve', async () => {

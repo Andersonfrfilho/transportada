@@ -153,6 +153,7 @@ export default defineRailway((ctx) => {
       WORKER_INTERNAL_URL: preserve(),
       /** Spec 292 T9: frase de chamada por áudio no grupo (ex.: "atendimento Fernandes"); vazia = desligada. */
       WHATSAPP_BOT_WAKE_PHRASE: preserve(),
+      WHATSAPP_BOT_WAKE_DEBUG: preserve(),
       /** Os dois segredos do APP da Meta: sem os dois a rota do webhook nem é registrada (fail-closed). */
       WHATSAPP_APP_SECRET: preserve(),
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: preserve(),
