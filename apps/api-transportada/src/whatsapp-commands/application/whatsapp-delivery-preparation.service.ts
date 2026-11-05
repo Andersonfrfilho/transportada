@@ -33,6 +33,8 @@ import {
   type DeliveryProofChecklist,
 } from '../domain/whatsapp-delivery-proof-checklist.policy.js'
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
+import { CANHOTO_TEXT } from '../domain/whatsapp-driver-canhoto.policy.js'
+import { TripCanhotoAlreadyAttachedError } from '../../trips/domain/stop-order.error.js'
 import {
   describeOutOfOrderViolation,
   OUT_OF_ORDER_TEXT,
@@ -51,6 +53,8 @@ import type {
 export const DELIVERY_PREPARATION_AWAITING_CONFIRM = 'confirm'
 /** Spec 294 RF25: a API recusou a baixa por fora de ordem; espera o "1 - Entreguei mesmo / 2 - Foi engano". */
 export const DELIVERY_PREPARATION_AWAITING_OUT_OF_ORDER = 'out_of_order'
+/** Spec 294 RF26: a nota já tem outro canhoto; espera o "1 - Trocar / 2 - Descartar". */
+export const DELIVERY_PREPARATION_AWAITING_REPLACE_CANHOTO = 'replace_canhoto'
 
 export type WhatsAppDeliveryPreparation = {
   readonly awaiting: null | string
@@ -132,6 +136,8 @@ export type WhatsAppDeliveryPreparationPorts = {
       readonly kind: 'cargo' | 'photo'
       readonly mimeType: string
       readonly receivedBy: null | ReceivedBy
+      /** Spec 294 RF26: o motorista confirmou trocar o canhoto que a nota já tem (vai para conferência). */
+      readonly replaceCanhoto?: boolean
       readonly receiverName: string
     }
   }) => Promise<unknown>
@@ -145,6 +151,14 @@ export type WhatsAppDeliveryPreparationPorts = {
     readonly documentNumber: string
     readonly result: WhatsAppDriverEventResult
   }) => Promise<string>
+  /**
+   * Spec 294 RF26: o canhoto da empresa com a mesma imagem (hash do conteúdo). Ausente, a foto repetida só é
+   * barrada pela API na hora de anexar.
+   */
+  readonly findCanhotoByHash?: (input: {
+    readonly companyId: string
+    readonly sha256: string
+  }) => Promise<null | { readonly attachedAt: Date; readonly documentId: string }>
   /**
    * Spec 294 RF25: as paradas da viagem do motorista, para a pergunta de fora de ordem citar nota e cliente.
    * Ausente, a pergunta cita só a sequência.
@@ -378,8 +392,9 @@ export function createWhatsAppDeliveryPreparations(
   async function complete(
     actor: WhatsAppDriverActor,
     preparation: WhatsAppDeliveryPreparation,
-    confirmOutOfOrder = false,
+    confirmations: { readonly outOfOrder?: boolean; readonly replaceCanhoto?: boolean } = {},
   ): Promise<WhatsAppDeliveryPreparationReply> {
+    const confirmOutOfOrder = confirmations.outOfOrder === true
     const { checklist } = await checklistOf(preparation, actor)
     if (!checklist.ready) {
       const step = nextStep(preparation, checklist)
@@ -439,6 +454,7 @@ export function createWhatsAppDeliveryPreparations(
     }
 
     let attachFailed = false
+    let needsReplace = false
     for (const [index, photo] of preparation.photos.entries()) {
       try {
         const bytes = await media.read({
@@ -457,10 +473,18 @@ export function createWhatsAppDeliveryPreparations(
             kind: photo.kind,
             mimeType: photo.mimeType,
             receivedBy: photo.kind === 'photo' ? preparation.receivedBy : null,
+            ...(photo.kind === 'photo' && confirmations.replaceCanhoto === true
+              ? { replaceCanhoto: true }
+              : {}),
             receiverName: photo.kind === 'photo' ? (preparation.receiverName ?? '') : '',
           },
         })
       } catch (error) {
+        // Spec 294 RF26: a nota já tem outro canhoto — a troca só vale com a confirmação.
+        if (error instanceof TripCanhotoAlreadyAttachedError) {
+          needsReplace = true
+          continue
+        }
         attachFailed = true
         ports.logger?.warn(LOG.attachFailed, {
           companyId: preparation.companyId,
@@ -468,6 +492,23 @@ export function createWhatsAppDeliveryPreparations(
           kind: photo.kind,
           preparationId: preparation.id,
         })
+      }
+    }
+    if (needsReplace) {
+      await repository.save({
+        changes: {
+          ...changesOf(preparation),
+          awaiting: DELIVERY_PREPARATION_AWAITING_REPLACE_CANHOTO,
+        },
+        companyId: preparation.companyId,
+        id: preparation.id,
+        version: preparation.version,
+      })
+      return {
+        awaitingText: true,
+        documentNumber: preparation.documentNumber,
+        finished: false,
+        texts: [CANHOTO_TEXT.replaceQuestion(preparation.documentNumber)],
       }
     }
     await repository.close({ ...scopeOf(preparation), status: 'completed' })
@@ -480,6 +521,9 @@ export function createWhatsAppDeliveryPreparations(
     return {
       ...finished(preparation, [
         await describe(),
+        ...(confirmations.replaceCanhoto === true && !attachFailed
+          ? [CANHOTO_TEXT.replaced(preparation.documentNumber)]
+          : []),
         ...(attachFailed ? [DELIVERY_PROOF_SPEECH.attachFailed] : []),
       ]),
       ...routeContinuationOf(result),
@@ -514,13 +558,26 @@ export function createWhatsAppDeliveryPreparations(
 
       if (preparation.awaiting === DELIVERY_PREPARATION_AWAITING_OUT_OF_ORDER) {
         const choice = interpretDriverChoice(text)
-        if (choice === DRIVER_CHOICE.first) return complete(actor, preparation, true)
+        if (choice === DRIVER_CHOICE.first)
+          return complete(actor, preparation, { outOfOrder: true })
         if (choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
           await repository.close({ ...scopeOf(preparation), status: 'cancelled' })
           await removePhotos(preparation)
           return finished(preparation, [OUT_OF_ORDER_TEXT.discarded])
         }
         return refuse(preparation, OUT_OF_ORDER_TEXT.notUnderstood)
+      }
+      if (preparation.awaiting === DELIVERY_PREPARATION_AWAITING_REPLACE_CANHOTO) {
+        const choice = interpretDriverChoice(text)
+        if (choice === DRIVER_CHOICE.first) {
+          return complete(actor, preparation, { replaceCanhoto: true })
+        }
+        if (choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
+          await repository.close({ ...scopeOf(preparation), status: 'cancelled' })
+          await removePhotos(preparation)
+          return finished(preparation, [CANHOTO_TEXT.kept(preparation.documentNumber)])
+        }
+        return refuse(preparation, CANHOTO_TEXT.notUnderstood)
       }
       if (preparation.awaiting === DELIVERY_PREPARATION_AWAITING_CONFIRM) {
         const choice = interpretDriverChoice(text)
@@ -658,6 +715,26 @@ export function createWhatsAppDeliveryPreparations(
         mimeType,
         preparationId: preparation.id,
       })
+      // Spec 294 RF26: a mesma imagem já era canhoto — nada é guardado, e o bot diz de qual nota.
+      const duplicate =
+        kind === 'photo'
+          ? await ports.findCanhotoByHash?.({
+              companyId: preparation.companyId,
+              sha256: stored.sha256,
+            })
+          : null
+      if (duplicate !== null && duplicate !== undefined) {
+        await media
+          .remove({ companyId: preparation.companyId, objectKey: stored.objectKey })
+          .catch(() => undefined)
+        return notUnderstood(
+          preparation,
+          CANHOTO_TEXT.duplicate({
+            attachedAt: duplicate.attachedAt,
+            documentNumber: await duplicateNumber(preparation, duplicate.documentId),
+          }),
+        )
+      }
       const photo: WhatsAppDeliveryPreparationPhoto = {
         kind,
         mimeType,
@@ -677,6 +754,23 @@ export function createWhatsAppDeliveryPreparations(
         },
       }))
     },
+  }
+
+  /** O número da nota a que o canhoto repetido já pertence: a própria, ou a que a viagem do motorista conhece. */
+  async function duplicateNumber(
+    preparation: WhatsAppDeliveryPreparation,
+    documentId: string,
+  ): Promise<string | undefined> {
+    if (documentId === preparation.documentId) return preparation.documentNumber
+    const stops =
+      (await ports.listStops?.({
+        companyId: preparation.companyId,
+        driverId: preparation.driverId,
+      })) ?? []
+    const number = stops
+      .flatMap((stop) => stop.documents)
+      .find((document) => document.id === documentId)?.number
+    return number === undefined ? undefined : stripZeros(number)
   }
 
   function skip(preparation: WhatsAppDeliveryPreparation, actor: WhatsAppDriverActor) {
@@ -773,6 +867,7 @@ function isTextQuestion(awaiting: null | string): boolean {
   return (
     awaiting === DELIVERY_PREPARATION_AWAITING_CONFIRM ||
     awaiting === DELIVERY_PREPARATION_AWAITING_OUT_OF_ORDER ||
+    awaiting === DELIVERY_PREPARATION_AWAITING_REPLACE_CANHOTO ||
     awaiting === DELIVERY_PROOF_ITEM.receivedBy ||
     awaiting === DELIVERY_PROOF_ITEM.receiverName
   )

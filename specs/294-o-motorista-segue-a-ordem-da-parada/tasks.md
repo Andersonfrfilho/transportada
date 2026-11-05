@@ -81,7 +81,7 @@ Teste que mexe em `test/integration/**` fecha com `bun --env-file=../../.env.tes
       compartilhada antes sem perguntar).
 - [x] **T4.10** RF25: conferência de fora de ordem (canhoto/entreguei de outra parada; iniciar rota que não é a
       próxima), com 1/2 também por áudio; atendente sem pergunta.
-- [ ] **T4.11** RF26: canhoto repetido (mesma imagem, nota já com canhoto → trocar/descartar, nota sem canhoto →
+- [x] **T4.11** RF26: canhoto repetido (mesma imagem, nota já com canhoto → trocar/descartar, nota sem canhoto →
       completa).
 
 ## Fase 5 — App do motorista

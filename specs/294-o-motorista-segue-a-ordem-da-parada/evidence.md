@@ -330,3 +330,17 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   `test/whatsapp/group-out-of-order.contract.ts` (grupo e adaptador); `test/stop-order/whatsapp-refusal.contract.ts` ajustado para os ids.
 - Gates: typecheck e lint limpos; contrato da API 13398 pass / 26 skip / 0 fail; integração (flow-actions, command-driver,
   preparation-repository, stop-order-guard) 22 pass; prettier ok. Grafo versionado não mudou.
+
+## T4.11 — canhoto repetido pelo bot (RF26)
+
+- Mesma imagem (hash do conteúdo): a preparação confere ao receber a foto (`findCanhotoByHash`, o repositório do app) e responde "Esse canhoto
+  já tinha chegado: NF 17234, entregue às 11:32." (hora de Brasília; a nota vem da própria preparação ou da viagem do motorista; sem número
+  conhecido, só "…já tinha chegado, entregue às HH:MM."). Nada é guardado: o objeto sai do bucket e a preparação segue pedindo o que faltava.
+- Outra foto de nota que já tem canhoto: a baixa passa, o anexo recebe `TRIP_CANHOTO_ALREADY_ATTACHED` e a preparação fica aberta
+  (`awaiting = 'replace_canhoto'`) com "*1* - Trocar o canhoto (vai para conferência do escritório) / *2* - Descartar". "1" (também "um",
+  "sim", "trocar") reenvia o anexo com `replaceCanhoto: true`; "2" (também "dois", "descartar") fecha como cancelada e mantém o canhoto.
+- Nota entregue sem canhoto: a API já anexa a foto como o canhoto que faltava; o bot não diz nada a mais.
+- Vale para grupo e individual (mesma preparação). Atendente segue pelo escritório (sem anexo do app).
+- Contrato: `test/whatsapp-commands/canhoto-duplicate-prompt.contract.ts`.
+- Gates: typecheck e lint limpos; contrato da API 13413 pass / 26 skip / 0 fail; integração (preparation-repository, flow-actions,
+  command-driver) 12 pass; prettier ok. Grafo versionado não mudou.

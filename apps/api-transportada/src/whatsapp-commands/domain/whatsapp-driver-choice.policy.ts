@@ -24,8 +24,20 @@ const FIRST_WORDS = new Set([
   'pode',
   'quero',
   'primeira',
+  'trocar',
+  'troca',
 ])
-const SECOND_WORDS = new Set(['2', 'dois', 'duas', 'nao', 'n', 'segunda', 'engano'])
+const SECOND_WORDS = new Set([
+  '2',
+  'dois',
+  'duas',
+  'nao',
+  'n',
+  'segunda',
+  'engano',
+  'descartar',
+  'descarta',
+])
 const SKIP_WORDS = new Set(['pular', 'pula', 'pulo'])
 const NEUTRAL_WORDS = new Set([
   'opcao',

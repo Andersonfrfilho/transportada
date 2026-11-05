@@ -21,6 +21,8 @@ export type WhatsAppStopCandidate = {
   readonly arrivedAt: string | null
   readonly completedAt: string | null
   readonly documents: readonly {
+    /** Spec 294 RF26: o id da nota, para dizer a qual nota o canhoto repetido já pertence; ausente em dublê. */
+    readonly id?: string | undefined
     readonly number: string
     readonly recipientName?: string | undefined
     readonly separationStatus: string

@@ -1559,6 +1559,7 @@ export function bootstrap(): Bun.Server<undefined> {
     readonly driverId: string
   }) => (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap((trip) => trip.stops)
   const whatsappDeliveryPreparations = createWhatsAppDeliveryPreparations({
+    findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
     listStops: listWhatsAppDriverStops,
     attachProof: (input) =>
       input.attendant === true
