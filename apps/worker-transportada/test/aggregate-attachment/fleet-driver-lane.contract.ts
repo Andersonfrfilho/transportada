@@ -7,6 +7,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { AggregateAttachmentOutboxRelayService } from '../../src/aggregate-attachment/application/aggregate-attachment-outbox-relay.service.js'
+import { startAggregateAttachmentConsumer } from '../../src/runtime/aggregate-attachment-consumer.service.js'
 import { extractAttachmentFields } from '../../src/aggregate-attachment/application/extract-attachment-fields.use-case.js'
 import {
   AGGREGATE_ATTACHMENT_EVENT_TYPE,
@@ -148,5 +149,52 @@ describe('relay — o subject viaja no envelope', () => {
   test('o relay da ficha do motorista marca a fila; o da candidatura não muda o envelope', async () => {
     expect((await relayOne('fleet_driver'))?.payload.subject).toBe('fleet_driver')
     expect(Object.keys((await relayOne())?.payload ?? {})).not.toContain('subject')
+  })
+})
+
+describe('anexo que já não existe — a mensagem não volta para sempre', () => {
+  /** Remover ou substituir o documento apaga o objeto; o pedido de leitura em voo não tem mais o que ler. */
+  test('objeto ausente fecha a mensagem com ack, loga só ids e não grava nada', async () => {
+    const calls: string[] = []
+    const infos: { message: string; metadata: unknown }[] = []
+    let handler:
+      | ((input: { payload: AggregateAttachmentEnvelopeV1 }) => Promise<unknown>)
+      | undefined
+    await startAggregateAttachmentConsumer({
+      config: {} as never,
+      dependencies: {
+        driverWriteBack: buildWriteBack('driver', calls),
+        extraction,
+        reader: { read: async () => undefined },
+        writeBack: buildWriteBack('application', calls),
+      },
+      logger: {
+        error() {},
+        info: (message: string, metadata: unknown) => void infos.push({ message, metadata }),
+        warn() {},
+      } as never,
+      provider: {
+        consume: async (options: { handler: typeof handler }) => {
+          handler = options.handler
+          return {} as never
+        },
+      } as never,
+    })
+    const envelope = buildEnvelope('fleet_driver')
+
+    const result = await handler?.({ payload: envelope })
+
+    expect(result).toEqual({ type: 'ack' })
+    expect(calls).toEqual([])
+    expect(infos).toEqual([
+      {
+        message: 'aggregate_attachment_extraction_object_missing',
+        metadata: {
+          attachmentId: ATTACHMENT_ID,
+          companyId: COMPANY_ID,
+          eventId: envelope.eventId,
+        },
+      },
+    ])
   })
 })

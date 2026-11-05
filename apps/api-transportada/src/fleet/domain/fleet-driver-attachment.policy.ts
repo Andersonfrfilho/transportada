@@ -14,16 +14,16 @@ const EXTENSIONS_BY_MIME_TYPE: Readonly<Record<AggregateDocumentMimeType, readon
   'image/png': ['png'],
 }
 
-/**
- * Só a CNH é lida pelo servidor (D4). Comprovante de endereço não tem parser: conta de luz, água e
- * telefone não têm layout que se ancore, e um parser genérico seria palpite com aparência de leitura.
- * O RG e o `other` ficam fora pelo mesmo motivo — ninguém prometeu ler.
- */
 /** Um documento vivo por tipo e motorista; `other` aceita vários e, por isso, nunca é substituído. */
 export function isSingleDocumentType(type: FleetDriverAttachmentType): boolean {
   return type !== 'other'
 }
 
+/**
+ * Só a CNH é lida pelo servidor (D4). Comprovante de endereço não tem parser: conta de luz, água e
+ * telefone não têm layout que se ancore, e um parser genérico seria palpite com aparência de leitura.
+ * O RG e o `other` ficam fora pelo mesmo motivo — ninguém prometeu ler.
+ */
 export const FLEET_DRIVER_ATTACHMENT_READABLE_TYPES: readonly FleetDriverAttachmentType[] = ['cnh']
 
 export type FleetDriverAttachmentUploadInput = Readonly<{
