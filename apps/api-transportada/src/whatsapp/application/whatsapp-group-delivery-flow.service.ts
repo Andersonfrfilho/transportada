@@ -10,9 +10,14 @@
  * Uma nota por vez: o lote ("entreguei 17234 17235") e o "devolvi" são da T13. A nota é citada pelo número
  * e pelo cliente (spec 294 RF17).
  */
+import type { WhatsAppDriverActor } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
 import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
+import {
+  SENDER_NOT_ALLOWED_TEXT,
+  type ResolveWhatsAppSenderRole,
+} from './whatsapp-sender-role.service.js'
 
 export const GROUP_DELIVERY_STEP = { answer: 'answer', choose: 'choose' } as const
 
@@ -39,6 +44,11 @@ export type GroupDeliveryFlowPorts = {
     readonly driverId: string
   }) => Promise<readonly GroupDeliveryDocument[]>
   readonly preparations: WhatsAppDeliveryPreparations
+  /**
+   * Spec 294 RF18: quem mandou — tripulação, atendente ou ninguém. Ausente, todo remetente conta como
+   * tripulação (o comportamento de antes da 294).
+   */
+  readonly resolveSenderRole?: ResolveWhatsAppSenderRole
   /** A frase do grupo para motorista sem acesso ao app (catálogo editável). */
   readonly withoutAccessText: (companyId: string) => Promise<string>
 }
@@ -73,14 +83,26 @@ function describeDocument(document: GroupDeliveryDocument): string {
 }
 
 export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
-  async function actorOf(turn: GroupFlowTurn) {
+  /** Tripulação baixa em nome do motorista do grupo; atendente, em nome dele pelo escritório (RF19/RF20). */
+  async function actorOf(turn: GroupFlowTurn): Promise<'refused' | null | WhatsAppDriverActor> {
     const { companyId, driverId } = turn.request
+    const role = await ports.resolveSenderRole?.({ companyId, phone: turn.sender })
+    if (role?.kind === 'unknown') return 'refused'
+    if (role?.kind === 'attendant') {
+      return { actorUserId: role.actorUserId, attendant: true, companyId, driverId }
+    }
     const actorUserId = await ports.findActorUserId({ companyId, driverId })
     return actorUserId === null ? null : { actorUserId, companyId, driverId }
   }
 
+  const refusedOutcome = (): GroupFlowOutcome => ({
+    kind: 'done',
+    replies: [SENDER_NOT_ALLOWED_TEXT],
+  })
+
   async function prepare(turn: GroupFlowTurn, document: GroupDeliveryDocument) {
     const actor = await actorOf(turn)
+    if (actor === 'refused') return refusedOutcome()
     if (actor === null) {
       return {
         kind: 'done',
@@ -99,6 +121,9 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
 
   async function reply(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
     const actor = await actorOf(turn)
+    if (actor === 'refused') {
+      return { kind: 'not_understood', prompt: '', reason: SENDER_NOT_ALLOWED_TEXT }
+    }
     if (actor === null) return notUnderstood()
     const answered = await ports.preparations.answer({ actor, text: turn.text })
     return answered === null ? notUnderstood() : toOutcome(answered)
@@ -107,6 +132,7 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
   return {
     /** "entreguei" (com ou sem a nota), pelo comando direto ou pelo menu. */
     async begin(turn: GroupFlowTurn, numbers: readonly string[]): Promise<GroupFlowOutcome> {
+      if ((await actorOf(turn)) === 'refused') return refusedOutcome()
       if (numbers.length > 1) return { kind: 'done', replies: [GROUP_DELIVERY_TEXT.oneAtATime] }
       const documents = await ports.listOpenDocuments({
         companyId: turn.request.companyId,

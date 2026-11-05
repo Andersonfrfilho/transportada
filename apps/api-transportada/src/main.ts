@@ -221,6 +221,12 @@ import {
   createGroupDeliveryWiring,
   type GroupDeliveryWiring,
 } from './whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
+import { createWhatsAppOfficeDelivery } from './whatsapp-commands/infrastructure/whatsapp-office-delivery.adapter.js'
+import {
+  createAttendantFinder,
+  isCrewPhone,
+} from './whatsapp/infrastructure/whatsapp-group-sender.adapter.js'
+import { createWhatsAppSenderRoleResolver } from './whatsapp/application/whatsapp-sender-role.service.js'
 import { createWhatsAppDeliveryPreparations } from './whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { createWhatsAppPreparationProofAttacher } from './whatsapp-commands/infrastructure/whatsapp-delivery-preparation-proof.adapter.js'
 import {
@@ -1477,14 +1483,65 @@ export function bootstrap(): Bun.Server<undefined> {
    * do comprovante exige chegam antes da baixa; depois dela viram comprovante pelo mesmo
    * `attachDeliveryProof` do app, no canal `whatsapp`.
    */
-  const whatsappDeliveryPreparations = createWhatsAppDeliveryPreparations({
-    attachProof: createWhatsAppPreparationProofAttacher({
+  /**
+   * Spec 294 RF19: a baixa do atendente pelo WhatsApp usa as MESMAS funções das rotas `field-delivery` e
+   * `field-proof` do escritório (autoria `office`, em nome do motorista da viagem).
+   */
+  const whatsappOfficeProofAttachment = {
+    newObjectId: () => crypto.randomUUID(),
+    newProofId: () => crypto.randomUUID(),
+    resolveSettings: (settings: { readonly companyId: string; readonly documentId: string }) =>
+      whatsappDeliveryProofRepository.resolveProofFieldSettings(settings),
+    // O WhatsApp não colhe o documento de quem recebeu: nada a selar.
+    sealDocument: () => Promise.reject(new Error('whatsapp proofs carry no receiver document')),
+    storage: createDeliveryProofStorage({
       bucket: whatsappStorageBucket,
-      logger,
-      repository: whatsappDeliveryProofRepository,
       storage: whatsappStorageGateway,
     }),
-    deliver: (input) => deliverWhatsAppDriverDocument(whatsappDriverEventPorts, input),
+  }
+  const whatsappOfficeDelivery = createWhatsAppOfficeDelivery({
+    attachProof: (input) =>
+      reportFieldProof({
+        actorUserId: input.actorUserId,
+        attachment: whatsappOfficeProofAttachment,
+        companyId: input.companyId,
+        documentId: input.documentId,
+        idempotencyKey: input.idempotencyKey,
+        kind: input.kind,
+        officeAudit: input.officeAudit,
+        target: input.target,
+        unitOfWork: whatsappDriverFieldReports,
+        upload: input.proof,
+      }),
+    database: database.db,
+    reportDelivery: (input) =>
+      reportDocumentDelivery({
+        ...input,
+        location: null,
+        now: input.deliveredAt,
+        proof: { ...whatsappOfficeProofAttachment, upload: input.proof },
+        recordedAt: new Date(),
+        resolveProofSettings: (settings) =>
+          whatsappDeliveryProofRepository.resolveProofFieldSettings(settings),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
+    targets: new DrizzleFieldTripTargetRepository(database.db),
+  })
+  const whatsappDriverProofAttacher = createWhatsAppPreparationProofAttacher({
+    bucket: whatsappStorageBucket,
+    logger,
+    repository: whatsappDeliveryProofRepository,
+    storage: whatsappStorageGateway,
+  })
+  const whatsappDeliveryPreparations = createWhatsAppDeliveryPreparations({
+    attachProof: (input) =>
+      input.attendant === true
+        ? whatsappOfficeDelivery.attachProof(input)
+        : whatsappDriverProofAttacher(input),
+    deliver: (input) =>
+      input.attendant === true
+        ? whatsappOfficeDelivery.deliver(input)
+        : deliverWhatsAppDriverDocument(whatsappDriverEventPorts, input),
     describeResult: ({ channel, companyId, documentNumber, result }) =>
       renderBotSpeechLine({
         companyId,
@@ -1540,6 +1597,17 @@ export function bootstrap(): Bun.Server<undefined> {
     companyId: input.companyId,
     whatsappNumber: `group-driver:${input.driverId}`,
   })
+  /** Spec 294 RF18: quem mandou no grupo — tripulação, atendente (usuário com a baixa do escritório) ou ninguém. */
+  const whatsappSenderRole = createWhatsAppSenderRoleResolver({
+    findAttendant: createAttendantFinder({
+      resolveActor: createResolveWhatsAppActorUseCase({
+        memberships: new DrizzleMembershipRepository(database.db),
+        phones: new DrizzleWhatsAppPhoneRepository(database.db),
+        tenantContext,
+      }),
+    }),
+    isCrewMember: (input) => isCrewPhone(database.db, input),
+  })
   const whatsappGroupDelivery = createGroupDeliveryWiring({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
     database: database.db,
@@ -1548,6 +1616,7 @@ export function bootstrap(): Bun.Server<undefined> {
     preparations: whatsappDriverCollections,
     rememberLocation: ({ location, ...key }) =>
       whatsappGroupLocations.remember({ ...groupLocationKey(key), location }),
+    resolveSenderRole: whatsappSenderRole,
     speech: whatsappBotSpeech,
   })
   /** Spec 292 T5: o pedido no grupo do motorista registra pelo mesmo caminho do WhatsApp do motorista. */
