@@ -21,8 +21,8 @@ motorista (`apps/frontend-driver`), e ela aparece no lugar das iniciais.
 - **RF4** O usuário vem **só** do token (`context.scope.userId`); nenhuma rota `/me/picture` aceita id no caminho ou no corpo.
 - **RF5** Mesma validação da administração (assinatura do conteúdo, 256 KiB, png/jpeg/webp): reaproveita o caso de uso.
 - **RF6** No app: "Trocar foto" no Perfil (câmera ou galeria), compressão no aparelho antes de enviar, "Remover foto".
-- **RF7** A foto aparece no cabeçalho, no Perfil e nas mensagens do próprio motorista nas conversas; sem foto ou com
-  imagem quebrada, voltam as iniciais.
+- **RF7** A foto aparece no cabeçalho e no Perfil; sem foto ou com imagem quebrada, voltam as iniciais. Nas conversas o
+  pacote `conversations-ui` só desenha avatar de **outros** autores (nunca o das mensagens próprias), então não há o que trocar lá.
 - **RF8** Depois do envio a foto aparece sem sair e entrar de novo.
 - **RF9** Textos em pt e en.
 

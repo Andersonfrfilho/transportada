@@ -1005,7 +1005,20 @@
   font-weight: 700;
   height: var(--space-10);
   justify-content: center;
+  overflow: hidden;
   width: var(--space-10);
+}
+
+.driverAvatarImage {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.profilePictureActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .driverAvatarLarge {

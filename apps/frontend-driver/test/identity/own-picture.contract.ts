@@ -46,7 +46,6 @@ describe('cliente da própria foto (spec 295)', () => {
 
   test('replace envia multipart com o campo file por PUT, sem id de ninguém', async () => {
     let seen: Request | undefined
-    let fields: FormData | undefined
     const { client } = createClient((request) => {
       seen = request
       return new Response('{}', { status: 200 })
@@ -57,7 +56,7 @@ describe('cliente da própria foto (spec 295)', () => {
 
     expect(seen?.method).toBe('PUT')
     expect(seen?.url).toBe(`${API_URL}/me/picture`)
-    fields = await seen?.formData()
+    const fields = await seen?.formData()
     expect(fields?.get('file')).toBeInstanceOf(File)
     expect([...(fields?.keys() ?? [])]).toEqual(['file'])
   })
@@ -70,9 +69,10 @@ describe('cliente da própria foto (spec 295)', () => {
         }),
     )
 
-    await expect(client.replace(new Blob([new Uint8Array([1])]))).rejects.toThrow(
-      'USER_PICTURE_TOO_LARGE',
-    )
+    const failure = client.replace(new Blob([new Uint8Array([1])]))
+
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(failure).rejects.toThrow('USER_PICTURE_TOO_LARGE')
   })
 
   test('remove usa DELETE e aceita 204', async () => {
