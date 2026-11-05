@@ -65,6 +65,12 @@
       "tooLarge": "a foto passou do tamanho aceito pelo servidor",
       "typeNotAvailableForContractor": "este tipo de ocorrência não vale para a contratante desta nota; escolha outro tipo"
     },
+    "cancel": {
+      "confirm": "Cancelar mesmo assim",
+      "keep": "Manter",
+      "open": "Cancelar envio",
+      "warning": "Esta ocorrência ainda não foi enviada. Cancelar apaga ela (e as fotos) do aparelho e ela não será registrada."
+    },
     "discard": {
       "confirm": "Descartar mesmo assim",
       "keep": "Manter",

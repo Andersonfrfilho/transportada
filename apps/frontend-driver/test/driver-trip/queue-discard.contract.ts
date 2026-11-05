@@ -9,7 +9,11 @@ import type {
   OfflineQueueStore,
   QueuedReport,
 } from '@/modules/driver-trip/shared/offlineQueue.service'
-import { discardRejectedQueueItem } from '@/modules/driver-trip/shared/queueDiscard.service'
+import {
+  cancelQueuedOccurrence,
+  discardRejectedQueueItem,
+  isQueuedOccurrenceCancellable,
+} from '@/modules/driver-trip/shared/queueDiscard.service'
 
 const NOW = '2026-09-25T12:00:00.000Z'
 
@@ -122,5 +126,54 @@ describe('descartar o recusado da fila antiga', () => {
 
     expect(store.items()).toHaveLength(1)
     expect(attachmentStore.entries().get('chave-1')).toHaveLength(1)
+  })
+})
+
+describe('cancelar a ocorrência que ainda está na fila', () => {
+  function occurrence(key: string): QueuedReport {
+    return {
+      attempts: 0,
+      createdAt: NOW,
+      report: { idempotencyKey: key, kind: 'occurrence' } as unknown as QueuedReport['report'],
+    }
+  }
+
+  it('remove só a ocorrência escolhida, com os anexos dela', async () => {
+    const store = createMemoryQueue([occurrence('oc-1'), occurrence('oc-2'), delivery('entrega-1')])
+    const attachmentStore = createMemoryAttachments([
+      ['oc-1', [photo('foto-1')]],
+      ['oc-2', [photo('foto-2')]],
+    ])
+    const removed = await cancelQueuedOccurrence({
+      attachmentStore,
+      idempotencyKey: 'oc-1',
+      store,
+    })
+    expect(removed).toBe(true)
+    expect(store.items().map((item) => item.report.idempotencyKey)).toEqual(['oc-2', 'entrega-1'])
+    expect([...attachmentStore.entries().keys()]).toEqual(['oc-2'])
+  })
+
+  it('nunca remove entrega nem outro tipo de item', async () => {
+    const store = createMemoryQueue([delivery('entrega-1')])
+    const attachmentStore = createMemoryAttachments([['entrega-1', [photo('foto-1')]]])
+    const removed = await cancelQueuedOccurrence({
+      attachmentStore,
+      idempotencyKey: 'entrega-1',
+      store,
+    })
+    expect(removed).toBe(false)
+    expect(store.items()).toHaveLength(1)
+    expect(attachmentStore.entries().size).toBe(1)
+  })
+
+  it('só oferece cancelar ocorrência na fila ou com falha', () => {
+    expect(isQueuedOccurrenceCancellable({ kind: 'occurrence', state: 'queued' })).toBe(true)
+    expect(isQueuedOccurrenceCancellable({ kind: 'documentOccurrence', state: 'failed' })).toBe(
+      true,
+    )
+    expect(isQueuedOccurrenceCancellable({ kind: 'occurrence', state: 'rejected' })).toBe(false)
+    expect(isQueuedOccurrenceCancellable({ kind: 'occurrence', state: 'unverified' })).toBe(false)
+    expect(isQueuedOccurrenceCancellable({ kind: 'deliver', state: 'queued' })).toBe(false)
   })
 })
