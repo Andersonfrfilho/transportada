@@ -71,6 +71,7 @@ type UseCaseParams = Readonly<{
   picture?: {
     readonly bytes: Buffer
     readonly mimeType: 'image/png'
+    readonly origin: 'admin'
     readonly publicToken: string | null
     readonly sha256: string
   } | null
@@ -97,6 +98,7 @@ function createUseCase(params: UseCaseParams = {}) {
           ? {
               bytes: Buffer.from([1]),
               mimeType: 'image/png' as const,
+              origin: 'admin' as const,
               publicToken: PUBLIC_TOKEN,
               sha256: 'a'.repeat(64),
             }
@@ -107,6 +109,7 @@ function createUseCase(params: UseCaseParams = {}) {
           ? {
               bytes: Buffer.from([1]),
               mimeType: 'image/png' as const,
+              origin: 'admin' as const,
               publicToken: PUBLIC_TOKEN,
               sha256: 'a'.repeat(64),
             }
@@ -115,8 +118,12 @@ function createUseCase(params: UseCaseParams = {}) {
       async findIdentitySubject() {
         return 'subject' in params ? params.subject : SUBJECT
       },
+      async markPublished() {},
       async remove() {
         return true
+      },
+      async saveFromCnh() {
+        return null
       },
       async save(input) {
         saved.push({ userId: input.userId })
@@ -143,7 +150,7 @@ describe('gravar a foto', () => {
   test('grava a imagem e publica o endereço público dela no provedor', async () => {
     const { realm, saved, useCase } = createUseCase({ publicBaseUrl: 'https://api.test' })
 
-    await useCase.replace({ bytes: PNG, context: CONTEXT, userId: USER_ID })
+    await useCase.replace({ bytes: PNG, context: CONTEXT, origin: 'admin', userId: USER_ID })
 
     expect(saved).toEqual([{ userId: USER_ID }])
     expect(realm).toEqual([
@@ -162,7 +169,7 @@ describe('gravar a foto', () => {
   test('sem endereço público configurado, grava a foto e não escreve no provedor', async () => {
     const { realm, saved, useCase } = createUseCase()
 
-    await useCase.replace({ bytes: JPEG, context: CONTEXT, userId: USER_ID })
+    await useCase.replace({ bytes: JPEG, context: CONTEXT, origin: 'admin', userId: USER_ID })
 
     expect(saved).toHaveLength(1)
     expect(realm).toEqual([])
@@ -175,7 +182,7 @@ describe('gravar a foto', () => {
       subject: undefined,
     })
 
-    await useCase.replace({ bytes: WEBP, context: CONTEXT, userId: USER_ID })
+    await useCase.replace({ bytes: WEBP, context: CONTEXT, origin: 'admin', userId: USER_ID })
 
     expect(saved).toHaveLength(1)
     expect(realm).toEqual([])
@@ -191,7 +198,12 @@ describe('gravar a foto', () => {
       realmFails: true,
     })
 
-    const result = await useCase.replace({ bytes: PNG, context: CONTEXT, userId: USER_ID })
+    const result = await useCase.replace({
+      bytes: PNG,
+      context: CONTEXT,
+      origin: 'admin',
+      userId: USER_ID,
+    })
 
     expect(saved).toHaveLength(1)
     expect(result.mimeType).toBe('image/png')

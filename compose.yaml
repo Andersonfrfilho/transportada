@@ -68,6 +68,7 @@ services:
       KC_HTTP_MANAGEMENT_PORT: '9000'
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
       KEYCLOAK_WORKER_CLIENT_SECRET: ${KEYCLOAK_WORKER_CLIENT_SECRET}
+      KEYCLOAK_CNH_PICTURE_CLIENT_SECRET: ${KEYCLOAK_CNH_PICTURE_CLIENT_SECRET}
       KEYCLOAK_LOCAL_USER_PASSWORD: ${KEYCLOAK_LOCAL_USER_PASSWORD}
       # O tema de login lê isto para trocar o ícone da aba fora de produção, como a app faz.
       # ⚠️ Ausente, o Keycloak deixa o literal `${env.…}` na propriedade e o tema cai em produção —

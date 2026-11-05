@@ -87,6 +87,13 @@ export type ApiEnvironment = {
   /** Trava de uma viagem por vez no pedido do motorista (nota abaixo do corte só pede na viagem atual). */
   readonly driverTripLockEnabled: boolean
   readonly driverTripLockMinScore: number
+  /**
+   * ADR-0047, emenda 2026-11-05: o MDF-e automático só existe com esta chave ligada, nos dois lados
+   * (API e worker). Desligada, `POST /trips/:id/mdfe-manifests/automatic` responde 404.
+   */
+  readonly mdfeAutoIssueEnabled: boolean
+  /** ADR-0047, emenda 2026-11-05: os `azp` dos clients que podem falar como service account. */
+  readonly serviceClientIds: readonly string[]
   /** Versão da API da Nota RP das emissões novas (ADR 0098); a tentativa guarda a que usou. */
   readonly nfseProviderApiVersion: NfseProviderApiVersion
   /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */

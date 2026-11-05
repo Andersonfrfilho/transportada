@@ -52,6 +52,8 @@ describe('authorization contract', () => {
       'addresses.read',
       'fleet.read',
       'fleet.manage',
+      // Spec 091 D3: abrir o documento do motorista é permissão própria — nunca de carona com `fleet.manage`
+      'fleet.reveal',
       'mdfe.read',
       'mdfe.manage',
       'mdfe.issue',
@@ -77,6 +79,7 @@ describe('authorization contract', () => {
       'trip.canhoto-auto-review',
       // Spec 248 T4.4b: o aviso automático da ocorrência, do serviço e de uma rota só
       'occurrence.automatic-mail',
+      'driver.cnh-picture',
       // Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`
       'cargo.measure',
       // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
@@ -112,6 +115,7 @@ describe('authorization contract', () => {
         'fleet.read',
         'trip.event-location',
         'fleet.manage',
+        'fleet.reveal',
         'mdfe.read',
         'mdfe.manage',
         'nfse.manage',
@@ -209,6 +213,7 @@ describe('authorization contract', () => {
         'trip.canhoto-auto-review',
         'occurrence.automatic-mail',
       ],
+      'cnh-picture-service': ['driver.cnh-picture'],
     })
   })
 
@@ -455,6 +460,7 @@ describe('authorization contract', () => {
         permission !== 'whatsapp.settle' &&
         permission !== 'trip.canhoto-auto-review' &&
         permission !== 'occurrence.automatic-mail' &&
+        permission !== 'driver.cnh-picture' &&
         permission !== 'deliveries.track' &&
         permission !== 'charges.decide' &&
         permission !== 'occurrences.decide',
@@ -501,6 +507,22 @@ describe('authorization contract', () => {
     expect(permissions).not.toHaveProperty('add')
     expect(permissions).not.toHaveProperty('delete')
     expect(permissions).not.toHaveProperty('clear')
+  })
+
+  /**
+   * Spec 091 T009: `fleet.reveal` abre o documento do motorista (CNH, RG, comprovante). Quem anexa
+   * (`fleet.manage`) **não** a recebe de carona: só o `company-admin`, e os demais por grupo.
+   * A lista por extenso é de propósito — papel novo que a ganhar tem de aparecer aqui.
+   */
+  test('grants fleet.reveal to the company-admin only, and never with fleet.manage alone', () => {
+    const rolesWithReveal = Object.entries(COMPANY_ROLE_PERMISSIONS)
+      .filter(([, permissions]) => (permissions as readonly string[]).includes('fleet.reveal'))
+      .map(([role]) => role)
+
+    expect(rolesWithReveal).toEqual(['company-admin'])
+    expect(COMPANY_ROLE_PERMISSIONS.operator).toContain('fleet.manage')
+    expect(COMPANY_ROLE_PERMISSIONS.operator).not.toContain('fleet.reveal')
+    expect(resolveCompanyPermissions(['operator']).has('fleet.reveal')).toBe(false)
   })
 
   test('does not leak the mutable backing set through forEach', () => {
@@ -761,7 +783,18 @@ describe('permissão de serviço (spec 144 T014b)', () => {
       'whatsapp.settle',
       'trip.canhoto-auto-review',
       'occurrence.automatic-mail',
+      'driver.cnh-picture',
     ])
+  })
+
+  /** Spec 295: a credencial da foto da CNH alcança só a rota dela, e o `automation` não alcança a rota dela. */
+  test('o papel cnh-picture-service recebe só driver.cnh-picture, e o automation não a recebe', () => {
+    expect([...resolveCompanyPermissions({ granted: [], roles: ['cnh-picture-service'] })]).toEqual(
+      ['driver.cnh-picture'],
+    )
+    expect(
+      resolveCompanyPermissions({ granted: [], roles: ['automation'] }).has('driver.cnh-picture'),
+    ).toBe(false)
   })
 
   test('permissão de serviço não é concedível, e a de pessoa continua sendo', () => {
@@ -820,7 +853,7 @@ describe('permissão de serviço (spec 144 T014b)', () => {
 
   test('nenhum papel de gente concede permissão de serviço', () => {
     for (const [role, permissions] of Object.entries(COMPANY_ROLE_PERMISSIONS)) {
-      if (role === 'automation') continue
+      if (role === 'automation' || role === 'cnh-picture-service') continue
       const roleGrants = new Set<string>(permissions)
       for (const permission of SERVICE_ONLY_PERMISSIONS) {
         expect({ permission, role, granted: roleGrants.has(permission) }).toEqual({

@@ -20,6 +20,9 @@ const EXPECTED_ROLES = [
 const ADMIN_CLIENT_ID = 'transportada-admin'
 const ADMIN_CLIENT_SECRET_PLACEHOLDER = '${KEYCLOAK_ADMIN_CLIENT_SECRET}'
 const WORKER_CLIENT_SECRET_PLACEHOLDER = '${KEYCLOAK_WORKER_CLIENT_SECRET}'
+const WORKER_CLIENT_ID = 'transportada-worker'
+const CNH_PICTURE_CLIENT_ID = 'transportada-worker-cnh-picture'
+const CNH_PICTURE_CLIENT_SECRET_PLACEHOLDER = '${KEYCLOAK_CNH_PICTURE_CLIENT_SECRET}'
 const REALM_MANAGEMENT_CLIENT = 'realm-management'
 const MANAGE_REALM_ROLE = 'manage-realm'
 const MANAGE_USERS_ROLE = 'manage-users'
@@ -403,9 +406,56 @@ describe('Keycloak Admin API service account contract', () => {
     for (const realm of await readEveryRealm()) {
       const secrets = collectSecretValues(realm)
 
-      expect(secrets).toEqual([ADMIN_CLIENT_SECRET_PLACEHOLDER, WORKER_CLIENT_SECRET_PLACEHOLDER])
+      expect(secrets).toEqual([
+        ADMIN_CLIENT_SECRET_PLACEHOLDER,
+        WORKER_CLIENT_SECRET_PLACEHOLDER,
+        CNH_PICTURE_CLIENT_SECRET_PLACEHOLDER,
+      ])
       for (const secret of secrets) {
         expect(secret).toMatch(ENVIRONMENT_PLACEHOLDER)
+      }
+    }
+  })
+
+  /** Spec 295: a foto da CNH tem credencial própria; é o papel do banco, e não o client, que limita o que ela alcança. */
+  test('declares a dedicated confidential client credentials-only for the CNH picture', async () => {
+    for (const realm of await readEveryRealm()) {
+      const client = realm.clients.find((candidate) => candidate.clientId === CNH_PICTURE_CLIENT_ID)
+      const serviceAccount = realm.users.find(
+        (candidate) => candidate.serviceAccountClientId === CNH_PICTURE_CLIENT_ID,
+      )
+
+      expect(client).toMatchObject({
+        directAccessGrantsEnabled: false,
+        implicitFlowEnabled: false,
+        publicClient: false,
+        serviceAccountsEnabled: true,
+        standardFlowEnabled: false,
+      })
+      expect(serviceAccount?.realmRoles).toEqual(['transportada-service'])
+      expect(serviceAccount?.clientRoles ?? {}).toEqual({})
+    }
+  })
+
+  /**
+   * ADR-0047, emenda 2026-11-05: a API exige `aud=transportada-api`, e o token de `client_credentials`
+   * só a carrega pelo mapper. Sem ele no `transportada-worker`, MDF-e, canhoto, e-mail automático e
+   * baixa do WhatsApp recebem 401 — a mesma forma do bloco da foto da CNH, só no access token.
+   */
+  test('both worker clients add the API audience to the access token only', async () => {
+    for (const realm of await readEveryRealm()) {
+      for (const clientId of [WORKER_CLIENT_ID, CNH_PICTURE_CLIENT_ID]) {
+        const mapper = findMapper(findClient(realm, clientId), 'transportada-api-audience')
+
+        expect(mapper).toMatchObject({
+          protocol: 'openid-connect',
+          protocolMapper: 'oidc-audience-mapper',
+        })
+        expect(mapper.config).toMatchObject({
+          'access.token.claim': 'true',
+          'id.token.claim': 'false',
+          'included.client.audience': 'transportada-api',
+        })
       }
     }
   })

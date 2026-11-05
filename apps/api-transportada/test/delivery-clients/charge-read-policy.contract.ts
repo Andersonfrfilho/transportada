@@ -38,6 +38,7 @@ const REFUSED_ROLES: readonly CompanyRole[] = [
   'fiscal',
   'contractor',
   'automation',
+  'cnh-picture-service',
 ]
 
 function unusedDependencies(): unknown {

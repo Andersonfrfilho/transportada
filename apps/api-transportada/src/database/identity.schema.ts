@@ -53,6 +53,12 @@ export const COMPANY_ROLES = [
    * Ele **não** entra no CHECK de `user_invitation_roles`: não se convida um robô.
    */
   'automation',
+  /**
+   * Spec 295: o serviço da foto da CNH, com credencial própria no Keycloak e **uma** permissão
+   * (`driver.cnh-picture`). Fora do papel `automation` de propósito: um vazamento da credencial da foto
+   * não pode emitir MDF-e nem liquidar pedido. Também não entra no CHECK do convite.
+   */
+  'cnh-picture-service',
 ] as const
 export type CompanyRole = (typeof COMPANY_ROLES)[number]
 
@@ -62,7 +68,7 @@ export type CompanyRole = (typeof COMPANY_ROLES)[number]
  * `COMPANY_ROLES` inteiro deixaria alguém convidar uma pessoa para o papel do worker, com a
  * permissão que dispara emissão fiscal.
  */
-export const SERVICE_COMPANY_ROLES: readonly CompanyRole[] = ['automation']
+export const SERVICE_COMPANY_ROLES: readonly CompanyRole[] = ['automation', 'cnh-picture-service']
 
 export const INVITABLE_COMPANY_ROLES = COMPANY_ROLES.filter(
   (role) => !SERVICE_COMPANY_ROLES.includes(role),
@@ -167,7 +173,7 @@ export const membershipRoles = pgTable(
     check(
       'membership_roles_role_check',
       // `automation` é o papel do service account (ADR-0047) — cabe aqui e **não** no CHECK do convite
-      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor', 'automation')`,
+      sql`${table.role} in ('company-admin', 'finance', 'fiscal', 'operator', 'viewer', 'driver', 'aggregate', 'separator', 'helper', 'contractor', 'automation', 'cnh-picture-service')`,
     ),
     primaryKey({
       columns: [table.membershipId, table.role],

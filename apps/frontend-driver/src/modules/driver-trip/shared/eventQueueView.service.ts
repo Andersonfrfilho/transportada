@@ -7,6 +7,7 @@ import {
   type DriverTripErrorDetail,
   type QueuedReport,
 } from './offlineQueue.service'
+import { isQueuedOccurrenceCancellable } from './queueDiscard.service'
 import { resolveRejectionCauseCode } from './rejectionCauseLabel.service'
 
 /** Spec 206 RF8b: só este código dispara o motivo e o atalho — qualquer outra recusa fica genérica. */
@@ -229,6 +230,11 @@ export function isEventQueueItemDiscardable(item: EventQueueItemView): boolean {
     item.attachmentRejectionCause !== undefined &&
     isBusinessRejectionCause(item.attachmentRejectionCause)
   return isEventDiscardable || isAttachmentDiscardable
+}
+
+/** O motorista pode cancelar o envio: ocorrência que só existe no aparelho (não recusada). */
+export function isEventQueueItemCancellable(item: EventQueueItemView): boolean {
+  return isQueuedOccurrenceCancellable({ kind: item.kind, state: item.status.state })
 }
 
 /**

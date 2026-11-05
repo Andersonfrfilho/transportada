@@ -901,6 +901,57 @@
   },
   "driverScoreColumn": "Score",
   "driverScoreSectionTitle": "Driver score",
+  "driverAttachments": {
+    "title": "Driver documents",
+    "hint": "License, ID and proof of address attached to the record. The list shows that a document exists; opening the file needs its own permission.",
+    "empty": "No document attached.",
+    "loadError": "Could not load this driver's documents.",
+    "unknownUser": "removed user",
+    "meta": "attached on {{date}} by {{name}}",
+    "typeLabel": "Document type",
+    "fileLabel": "Document file",
+    "chooseFile": "Choose file",
+    "filePlaceholder": "PDF, JPG or PNG, up to 1.5 MB",
+    "fileHint": "The type is checked against the file contents, not its name. The file is kept in a private area.",
+    "attached": "Document attached.",
+    "removed": "Document removed.",
+    "open": "Open",
+    "remove": "Remove",
+    "errors": {
+      "FLEET_DRIVER_ATTACHMENT_INVALID_UPLOAD": "File refused: send a PDF, JPG or PNG whose name and type match its contents.",
+      "FLEET_DRIVER_ATTACHMENT_TYPE_TAKEN": "This driver already has a document of this type.",
+      "FLEET_DRIVER_ATTACHMENT_NOT_FOUND": "Document not found.",
+      "FLEET_DRIVER_NOT_FOUND": "Driver not found.",
+      "FORBIDDEN": "Your account is not allowed to do this.",
+      "PAYLOAD_TOO_LARGE": "The file is over 1.5 MB.",
+      "default": "Could not complete. Try again."
+    },
+    "suggestion": {
+      "hint": "Reading the license suggests this data. Nothing is saved: using a value fills the form, and the record only changes when you save.",
+      "nothingToOffer": "Nothing to offer: the fields are already filled in.",
+      "fields": {
+        "licenseNumber": "License number",
+        "licenseCategory": "License category"
+      },
+      "read": "read: {{value}}",
+      "use": "Use",
+      "filled": "Filled in",
+      "matches": "matches the record.",
+      "diverges": "the record says {{current}} and the scanned license says {{read}}. Check the document; the record was not changed.",
+      "saveHint": "Save the record to keep what was filled in.",
+      "finish": "Finish (discards the reading)",
+      "dismiss": "Discard reading"
+    },
+    "replaceFile": "Replace file",
+    "replaceHint": "This driver already has this document: the previous one will be deleted, including from storage, and this cannot be undone.",
+    "replaced": "Document replaced.",
+    "types": {
+      "cnh": "Driver license",
+      "identity_document": "ID document",
+      "address_proof": "Proof of address",
+      "other": "Other document"
+    }
+  },
   "driverWhatsappGroup": {
     "title": "WhatsApp group",
     "hint": "This driver's support group. The WhatsApp bot answers in it, and each group belongs to a single driver.",

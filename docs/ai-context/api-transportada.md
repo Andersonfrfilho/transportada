@@ -279,7 +279,8 @@ consequências que ficam escritas para não serem redescobertas:
   mude do outro. Dentro da API não há cópia: o CHECK do banco e o `z.enum` da rota saem da mesma
   constante. Sigla fora da lista vira ausência, não erro. O trio aparece nas duas fichas (`DriverForm` e `DriverQuickCreateDialog`) porque as duas
   renderizam `DriverPersonalFields`.
-- **A ADR-0039 já decidiu criptografar esses campos, e ainda não foi executada.** Envelope A256GCM
+- **A ADR-0039 foi revogada em 2026-11-05 (perder a chave é perder o dado): nada disto se criptografa.** O texto abaixo é o
+  histórico da decisão revogada. Envelope A256GCM
   único para `birth_date`, `license_number`, endereço e telefone — mais o trio do RG, pelo adendo de
   2026-08-23 —, AAD
   `transportada:fleet-driver:v1:${companyId}:${driverId}`, e índice cego com HMAC para a CNH seguir

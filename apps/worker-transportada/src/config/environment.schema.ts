@@ -9,6 +9,7 @@ import {
 } from './audio-transcription-environment.schema.js'
 import type {
   CteTechnicalResponsibleEnvironment,
+  CnhPictureEnvironment,
   MdfeAutoIssueEnvironment,
   FuelPricePullEnvironment,
   IdentityDocumentBackfillEnvironment,
@@ -36,6 +37,17 @@ const MDFE_AUTO_ISSUE_KEYS = [
   'WORKER_CLIENT_SECRET',
 ] as const
 
+/**
+ * Spec 295: a foto da CNH tem credencial própria, com só a permissão `driver.cnh-picture`. Endereço da API
+ * e do token são os mesmos do crachá do MDF-e; o id e o segredo declarados exigem os quatro.
+ */
+const CNH_PICTURE_KEYS = [
+  'API_BASE_URL',
+  'KEYCLOAK_TOKEN_URL',
+  'CNH_PICTURE_CLIENT_ID',
+  'CNH_PICTURE_CLIENT_SECRET',
+] as const
+
 const DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS = 15_000
 const MAX_PROVIDER_TIMEOUT_MILLISECONDS = 60_000
 
@@ -54,6 +66,8 @@ const workerEnvironmentSchema = z
     KEYCLOAK_ADMIN_CLIENT_SECRET: optionalText(),
     KEYCLOAK_ISSUER: optionalUrl(),
     KEYCLOAK_TOKEN_URL: optionalUrl(),
+    CNH_PICTURE_CLIENT_ID: optionalText(),
+    CNH_PICTURE_CLIENT_SECRET: optionalText(),
     WORKER_CLIENT_ID: optionalText(),
     WORKER_CLIENT_SECRET: optionalText(),
     ANEEL_TIMEOUT_MS: providerTimeout(),
@@ -88,6 +102,12 @@ const workerEnvironmentSchema = z
     // entrega a quem estiver nela; ausente, não filtra (produção).
     EMAIL_ALLOWED_RECIPIENTS: optionalText(),
     FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    // Emenda 2026-11-05 da ADR-0047: emitir MDF-e sozinho é decisão fiscal do dono, e nasce
+    // desligado. O crachá do worker (abaixo) serve também ao canhoto e à baixa do WhatsApp.
+    MDFE_AUTO_ISSUE_ENABLED: z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
@@ -241,11 +261,12 @@ const workerEnvironmentSchema = z
 
     /**
      * `API_BASE_URL` sozinha não conta: ela serve também à baixa de comandos do WhatsApp e à marca
-     * do e-mail. O MDF-e automático liga pelas credenciais do Keycloak, e declarada uma delas, as
-     * quatro são exigidas.
+     * do e-mail, e `KEYCLOAK_TOKEN_URL` serve também à foto da CNH. O MDF-e automático liga pelo id e
+     * pelo segredo do client, e declarado um deles, as quatro são exigidas.
      */
     const declaredAutoIssueCredentials = MDFE_AUTO_ISSUE_KEYS.filter(
-      (key) => key !== 'API_BASE_URL' && environment[key] !== undefined,
+      (key) =>
+        key !== 'API_BASE_URL' && key !== 'KEYCLOAK_TOKEN_URL' && environment[key] !== undefined,
     ).length
     const declaredAutoIssueKeys = MDFE_AUTO_ISSUE_KEYS.filter(
       (key) => environment[key] !== undefined,
@@ -255,6 +276,32 @@ const workerEnvironmentSchema = z
         code: 'custom',
         message: 'The automatic MDF-e trigger requires every credential or none',
         path: [...MDFE_AUTO_ISSUE_KEYS],
+      })
+    }
+
+    if (
+      environment.MDFE_AUTO_ISSUE_ENABLED &&
+      declaredAutoIssueKeys < MDFE_AUTO_ISSUE_KEYS.length
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'MDFE_AUTO_ISSUE_ENABLED=true requires the worker credentials',
+        path: ['MDFE_AUTO_ISSUE_ENABLED', ...MDFE_AUTO_ISSUE_KEYS],
+      })
+    }
+
+    const declaredCnhPictureCredentials = [
+      environment.CNH_PICTURE_CLIENT_ID,
+      environment.CNH_PICTURE_CLIENT_SECRET,
+    ].filter((value) => value !== undefined).length
+    const declaredCnhPictureKeys = CNH_PICTURE_KEYS.filter(
+      (key) => environment[key] !== undefined,
+    ).length
+    if (declaredCnhPictureCredentials > 0 && declaredCnhPictureKeys < CNH_PICTURE_KEYS.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The CNH picture credential requires every key or none',
+        path: [...CNH_PICTURE_KEYS],
       })
     }
 
@@ -303,6 +350,7 @@ export function parseWorkerEnvironment(
   const technicalResponsible = toTechnicalResponsible(result.data)
   const identityDocumentBackfill = toIdentityDocumentBackfill(result.data)
   const mdfeAutoIssue = toMdfeAutoIssue(result.data)
+  const cnhPicture = toCnhPicture(result.data)
 
   return {
     apiBaseUrl: result.data.API_BASE_URL,
@@ -333,7 +381,9 @@ export function parseWorkerEnvironment(
     foundationSyntheticConsumerEnabled: result.data.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED,
     foundationSyntheticEffectDelayMs: result.data.FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS,
     logLevel: result.data.LOG_LEVEL,
+    ...(cnhPicture === undefined ? {} : { cnhPicture }),
     ...(mdfeAutoIssue === undefined ? {} : { mdfeAutoIssue }),
+    mdfeAutoIssueEnabled: result.data.MDFE_AUTO_ISSUE_ENABLED,
     nfseProvider: {
       baseUrl: result.data.NFSE_PROVIDER_BASE_URL,
       callbackBaseUrl: result.data.NFSE_CALLBACK_BASE_URL,
@@ -430,6 +480,27 @@ function toMdfeAutoIssue(
   const tokenUrl = data.KEYCLOAK_TOKEN_URL
   const clientId = data.WORKER_CLIENT_ID
   const clientSecret = data.WORKER_CLIENT_SECRET
+  if (
+    apiBaseUrl === undefined ||
+    tokenUrl === undefined ||
+    clientId === undefined ||
+    clientSecret === undefined
+  ) {
+    return undefined
+  }
+  return { apiBaseUrl, clientId, clientSecret, tokenUrl }
+}
+
+/** Ausente é foto da CNH desligada: a leitura dos campos do documento segue igual. */
+function toCnhPicture(
+  data: Readonly<{
+    [TKey in (typeof CNH_PICTURE_KEYS)[number]]?: string | undefined
+  }>,
+): CnhPictureEnvironment | undefined {
+  const apiBaseUrl = data.API_BASE_URL
+  const tokenUrl = data.KEYCLOAK_TOKEN_URL
+  const clientId = data.CNH_PICTURE_CLIENT_ID
+  const clientSecret = data.CNH_PICTURE_CLIENT_SECRET
   if (
     apiBaseUrl === undefined ||
     tokenUrl === undefined ||

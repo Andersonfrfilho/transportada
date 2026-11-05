@@ -25,6 +25,61 @@ modelo fica). Pesos de uma sonda linear ou de uma rede ajustada **não** guardam
 poucas fotos pode memorizar traços; antes de versionar um modelo treinado assim, registrar aqui o conjunto usado e a
 data. **Desfecho:** fechado no próprio dia — nada guardado.
 
+### 2026-11-05 — spec 295 Fase 4 — a foto da CNH vira foto de perfil (mudança de finalidade)
+
+**Onde:** `worker-transportada` (`src/cnh-face/`, thread `cnh-face.worker.ts`), `api-transportada`
+(`PUT /fleet/driver-attachments/:attachmentId/cnh-picture`, permissão de serviço `driver.cnh-picture`),
+tabela `identity_user_pictures` (coluna `origin`), app do motorista (Perfil).
+
+**O que é:** o rosto extraído da CNH anexada à ficha do motorista é **aplicado direto** como foto de perfil
+(decisão do dono, 2026-11-05; sem "sugerir e confirmar"). É mudança de **finalidade**: um documento de cadastro passa a
+alimentar uma foto exibida ao escritório e à contratante nas conversas. A base legal e a transparência são do
+cadastro; a proteção técnica é:
+
+- **Origem gravada** (`cnh|self|admin`). A CNH só entra sem foto ou sobre foto também da CNH, numa única instrução
+  `INSERT … ON CONFLICT … WHERE origin = 'cnh'`: envio próprio ou do escritório **nunca** é sobrescrito, nem numa corrida.
+- **Transparência no app:** enquanto a origem é `cnh`, o Perfil mostra "Foto tirada da sua CNH — toque para trocar";
+  trocar ou remover é um toque (`/me/picture`). Trocar muda a origem para `self`.
+- **Só rosto único, nota ≥ 0,98 e recorte ≥ 120 px**; o resto fica com as iniciais, sem nova tentativa.
+- **Sem serviço externo:** a detecção roda no worker (onnxruntime-web WASM, modelo UltraFace RFB-320 de 1,2 MB versionado
+  em `apps/worker-transportada/assets/`), numa `worker_thread` sem rede e sem log; o documento só existe em memória.
+- **Log sem PII:** só o desfecho (`applied`, `kept_existing`, `skipped`, `failed`) e a causa genérica; nenhum
+  identificador de pessoa, nota do detector por pessoa ou conteúdo.
+- **Rota de serviço:** `driver.cnh-picture` é só do papel `cnh-picture-service`, com client próprio no Keycloak (`transportada-worker-cnh-picture`); o `automation` do worker não a tem, então vazar uma credencial não dá a outra (não concedível a grupo nem a pessoa); o alvo é o
+  anexo (a API resolve o usuário e a empresa vem do contexto), nunca um id enviado pelo robô.
+- **Backfill** (`bun run backfill:cnh-picture`): `--dry-run` por padrão (só contagens); `--confirm` grava e pede
+  aprovação antes de rodar em staging ou produção.
+
+**Risco:** a foto da CNH pode aparecer a quem a pessoa não esperava, e o Keycloak recebe o endereço público da foto
+(token imprevisível que gira a cada troca). A sensibilidade é a da foto de perfil, não a do documento.
+
+**Retenção:** a foto de perfil vive até a pessoa ou o escritório removê-la; remover a CNH da ficha não remove a foto.
+
+### 2026-11-05 — spec 091 — documentos do motorista (CNH, RG, comprovante) sem criptografia de aplicação (decisão do dono)
+
+**Onde:** `api-transportada`, `GET/POST/DELETE /fleet/drivers/:id/attachments` e `GET .../:attachmentId/content`
+(`fleet/application/fleet-driver-attachment.use-case.ts`), tabela `fleet_driver_attachments`.
+
+**O que é:** o arquivo do documento fica no bucket como está. Por decisão do dono (2026-11-05, ADR-0039 revogada:
+perder a chave é perder o dado), **não há criptografia de aplicação**. A proteção é:
+
+- **Bucket privado**, chave do objeto sem dado pessoal (nem CPF, nem nome, nem número da CNH).
+- **`fleet.reveal` só para o conteúdo:** `fleet.read` e `fleet.manage` listam e gerenciam, mas não abrem o arquivo.
+  A entrega é presigned URL de **300 s** com `cache-control: no-store`.
+- **Trilha de auditoria** em anexar, substituir, remover e revelar (ator, alvo, IP, instante; nunca o conteúdo).
+  Revelar grava antes de assinar: se a trilha falha, o link não sai.
+
+**Retenção:** o documento vive enquanto a ficha do motorista viver. **Desativar a ficha não apaga os documentos**
+(a ficha é desativada, não removida; as FKs são `restrict`). Hoje não existe remoção física de motorista; quando
+existir, deve chamar `discardDriverAttachments`, que tira linhas e outbox numa transação e apaga os objetos do bucket
+só depois do commit, em melhor esforço (órfão logado com bucket e chave).
+
+**Risco:** quem tiver acesso direto ao bucket (credencial vazada, operador de infraestrutura) lê o documento em claro.
+
+**Mitigação:** credencial do bucket por ambiente, sem compartilhar entre staging e produção; bucket sem acesso público.
+
+**Origem:** spec 091 (T021, T023). Registrado em 2026-11-05.
+
 ### 2026-10-11 — spec 264 T0.3 — a transcrição de áudio vira dado pessoal novo: finalidade, retenção amarrada ao áudio e modelo próprio
 
 **Onde:** ainda não existe; é o desenho da spec 264 (D2, D10, D12, RF18) e da ADR-0103. Vai para a rotina de transcrição do `apps/worker-transportada`, para a tabela de texto com `company_id` (migration própria) e para as rotas `/me/trips/current/conversations/**` e `/trips/:tripId/conversations/**` de `apps/api-transportada`.
@@ -2236,7 +2291,9 @@ feature.
 tem exposição pública e o acesso é só pela rede interna; nenhum destes campos vai para log, e
 nenhum aparece em nome de objeto no bucket. O backup é criptografado antes do upload.
 
-**Decisão (2026-08-20):** a **ADR-0039** decidiu, status `aceito`, e **não está executada**. A leitura
+**Revisão (2026-11-05):** a ADR-0039 foi **revogada** pelo dono — perder a chave de aplicação é perder o dado. O achado fica aceito como risco: a ficha segue em claro, protegida por banco privado, acesso mínimo e nenhum PII em log.
+
+**Decisão (2026-08-20, revogada):** a **ADR-0039** decidiu, status `aceito`, e **não está executada**. A leitura
 coluna por coluna mostrou que a tabela não tem uma resposta só, e que o campo mais sensível é o único
 que não dá para proteger: `birth_date`, `license_number`, o endereço e o telefone vão para um envelope
 A256GCM único, com AAD por motorista e índice cego com HMAC para a CNH continuar única por empresa —
@@ -2607,6 +2664,45 @@ carrega continua sendo só o de **quem recebeu**.
 2026-09-26.
 
 ## Fechados
+
+### 2026-11-05 — o token de service account era recusado em 401 antes do caminho do serviço (ADR-0047)
+
+**Onde:** `api-transportada`, `src/identity/infrastructure/keycloak-jwt.gateway.ts` (verificador) e
+`src/identity/application/authentication.service.ts`; consumidores no `worker-transportada` (MDF-e
+automático, revisão automática do canhoto, foto da CNH da spec 295, baixa do WhatsApp).
+
+**O que era:** o verificador exigia `requiredClaims: ['company_id']`. Token de `client_credentials` não
+carrega empresa (ADR-0047 §3), então toda chamada worker→API morria em 401 antes de
+`AuthenticationService` reconhecer o papel `transportada-service`. Não era brecha — falhava fechado —, mas
+escondia que nada automático chegava à API (0 MDF-e para 2437 CT-e autorizados em 60 dias). Os clients do
+worker também não tinham o mapper de audiência `transportada-api`, então o token seria recusado de novo
+pela audiência.
+
+**Corrigido:** o verificador exige assinatura, emissor, `aud`, `exp` e `sub` de todo token; `company_id`
+passou a ser exigido só em `AuthenticationService`, para todo token sem o papel de realm exato
+`transportada-service`. Para o serviço, a empresa vem só de `x-company-id` e precisa de membership ativa do
+usuário sintético (403 sem ela, 403 sem cabeçalho); rota de membership (`/me/...`) recusa serviço. Contrato
+com tokens assinados pelo verificador real em `test/service-token.contract.test.ts`. O MDF-e automático
+ganhou o interruptor `MDFE_AUTO_ISSUE_ENABLED` no worker **e na API** (a rota automática responde 404
+`MDFE_AUTO_ISSUE_DISABLED`), **desligado** por padrão nos dois (decisão do dono).
+
+**Endurecido na revisão de segurança (mesma data):**
+
+- _Médio_ — service account deixou de ser "tem o papel de realm": exige também `azp` em
+  `SERVICE_CLIENT_IDS` e ausência de `company_id`; com o papel e outra forma, 401 (fail-closed).
+- _Médio_ — separação de permissões em `AuthorizationService`: `SERVICE_ONLY_PERMISSIONS` só para token de
+  serviço, e token de serviço só para elas. Papel de serviço não se atribui a gente pela API (400
+  `INVALID_REQUEST` em convite, troca, lote e grupo), e a membership sintética não ganha papel de gente
+  (409 `COMPANY_USER_IS_SERVICE_ACCOUNT` na troca; fora das escritas em lote).
+- _Médio_ — interruptor do MDF-e automático também na API.
+- _Baixo_ — `typ` precisa ser `Bearer`: refresh e ID token recusados.
+- _Baixo_ — contratos negativos com o verificador real: expirado, `aud`/`iss` errados, `alg: none`, HS256
+  com a chave pública, `x-company-id` fora de forma ou repetido, serviço em `trip.manage`, pessoa com
+  `automation` em rota de serviço.
+
+**Pendente por ambiente (manual):** mapper de audiência `transportada-api` em cada client de serviço no
+Keycloak (`transportada-worker` ainda não tem em staging nem produção) e membership do usuário sintético
+por empresa. Passos na emenda 2026-11-05 da ADR-0047 e no runbook (`docs/runbooks/producao.md` §5.15).
 
 ### 2026-09-25 — PUT tardio na URL de subida trocava a foto da ocorrência já conferida (spec 179)
 

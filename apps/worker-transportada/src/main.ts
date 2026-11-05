@@ -37,7 +37,10 @@ import { createAdatechnologyCteFiscalProvider } from './cte-issuance/infrastruct
 import { CteOutboxPublisherService } from './cte-issuance/application/cte-outbox-publisher.service.js'
 import { CteOutboxRelayService } from './cte-issuance/application/cte-outbox-relay.service.js'
 import { createCteIssuanceWorkerEffect } from './cte-issuance/application/cte-issuance-consumer.effect.js'
-import { createMdfeAutoIssueTrigger } from './mdfe-auto-issue/application/mdfe-auto-issue.service.js'
+import {
+  createMdfeAutoIssueTrigger,
+  selectMdfeAutoIssueTrigger,
+} from './mdfe-auto-issue/application/mdfe-auto-issue.service.js'
 import { createAutomaticManifestApiGateway } from './mdfe-auto-issue/infrastructure/automatic-manifest-api.gateway.js'
 import { createDrizzleTripByBatchItemRepository } from './mdfe-auto-issue/infrastructure/drizzle-trip-by-batch-item.repository.js'
 import { DrizzleCteBatchDocumentAuthorizationRepository } from './cte-issuance/infrastructure/drizzle-cte-batch-document-authorization.repository.js'
@@ -110,6 +113,7 @@ import { DrizzlePasswordResetDeliveryRepository } from './identity/infrastructur
 import { createPasswordResetCodeSecretGateway } from './identity/infrastructure/password-reset-code-secret.gateway.js'
 import type { PasswordResetDeliveryDependencies } from './identity/application/deliver-password-reset-code.service.js'
 import { startPasswordResetDeliveryConsumer } from './runtime/password-reset-delivery-consumer.service.js'
+import { fleetDriverAttachmentOutbox } from './database/aggregate-attachment.schema.js'
 import { buildAggregateAttachmentRabbitMqTopology } from './messaging/aggregate-attachment-rabbitmq-topology.js'
 import { AggregateAttachmentOutboxPublisherService } from './aggregate-attachment/application/aggregate-attachment-outbox-publisher.service.js'
 import { AggregateAttachmentOutboxRelayService } from './aggregate-attachment/application/aggregate-attachment-outbox-relay.service.js'
@@ -122,7 +126,10 @@ import { startCargoLayoutConsumer } from './runtime/cargo-layout-consumer.servic
 import { CargoLayoutOutboxPublisherService } from './cargo-layout/application/cargo-layout-outbox-publisher.service.js'
 import { CargoLayoutOutboxRelayService } from './cargo-layout/application/cargo-layout-outbox-relay.service.js'
 import { DrizzleCargoLayoutOutboxRepository } from './cargo-layout/infrastructure/drizzle-cargo-layout-outbox.repository.js'
+import { createDrizzleFleetDriverAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-fleet-driver-attachment-write-back.repository.js'
 import { createDrizzleAggregateAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-write-back.repository.js'
+import { createThreadedCnhFaceGateway } from './cnh-face/infrastructure/threaded-cnh-face.gateway.js'
+import { createCnhPictureApiGateway } from './cnh-face/infrastructure/cnh-picture-api.gateway.js'
 import { createStorageAttachmentReaderGateway } from './aggregate-attachment/infrastructure/storage-attachment-reader.gateway.js'
 import { createCanhotoImageReader } from './canhoto-read/application/canhoto-image-reader.service.js'
 import { createCanhotoReadRoutine } from './canhoto-read/application/canhoto-read.routine.js'
@@ -737,6 +744,7 @@ export async function startWorkerRuntime(
   let aggregateAttachmentConsumer: RuntimeConsumer | undefined
   let aggregateAttachmentPublisher: RabbitMqProvider | undefined
   let aggregateAttachmentRelayLoop: OutboxRelayLoop | undefined
+  let fleetDriverAttachmentRelayLoop: OutboxRelayLoop | undefined
   let cargoPreviewConsumer: RuntimeConsumer | undefined
   let cargoPreviewPublisher: RabbitMqProvider | undefined
   let cargoPreviewRelayLoop: OutboxRelayLoop | undefined
@@ -949,6 +957,24 @@ export async function startWorkerRuntime(
       bucket: storageBucket,
       gateway: storageGateway,
     })
+    const mdfeAutoIssueConfiguration = config.mdfeAutoIssue
+    const mdfeAutoIssue = selectMdfeAutoIssueTrigger({
+      create:
+        mdfeAutoIssueConfiguration === undefined
+          ? undefined
+          : () =>
+              createMdfeAutoIssueTrigger({
+                api: createAutomaticManifestApiGateway({
+                  configuration: mdfeAutoIssueConfiguration,
+                }),
+                logger,
+                trips: createDrizzleTripByBatchItemRepository(
+                  database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                ),
+              }),
+      enabled: config.mdfeAutoIssueEnabled,
+      logger,
+    })
     cteIssuanceConsumer = await cteIssuanceStarter({
       config,
       effect: createCteIssuanceWorkerEffect({
@@ -965,17 +991,7 @@ export async function startWorkerRuntime(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
         logger,
-        ...(config.mdfeAutoIssue === undefined
-          ? {}
-          : {
-              mdfeAutoIssue: createMdfeAutoIssueTrigger({
-                api: createAutomaticManifestApiGateway({ configuration: config.mdfeAutoIssue }),
-                logger,
-                trips: createDrizzleTripByBatchItemRepository(
-                  database.db as ReturnType<typeof createDrizzleProvider>['db'],
-                ),
-              }),
-            }),
+        ...(mdfeAutoIssue === undefined ? {} : { mdfeAutoIssue }),
         settledAttemptGuard: new DrizzleCteSettledAttemptRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
@@ -1137,6 +1153,24 @@ export async function startWorkerRuntime(
         writeBack: createDrizzleAggregateAttachmentWriteBackRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
+        driverWriteBack: createDrizzleFleetDriverAttachmentWriteBackRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        ...(config.cnhPicture === undefined
+          ? {}
+          : {
+              cnhPicture: {
+                extractor: createThreadedCnhFaceGateway(),
+                onOutcome: ({ outcome, reason }) => {
+                  safeLogInfo({
+                    logger,
+                    message: `cnh_picture_${outcome}`,
+                    metadata: { reason },
+                  })
+                },
+                picture: createCnhPictureApiGateway({ configuration: config.cnhPicture }),
+              },
+            }),
       },
       logger,
       provider: aggregateAttachmentPublisher,
@@ -1935,6 +1969,32 @@ export async function startWorkerRuntime(
       }),
     })
     aggregateAttachmentRelayLoop.start()
+    /** Spec 091: a CNH anexada à ficha do motorista entra no mesmo trilho, por outra tabela de outbox. */
+    fleetDriverAttachmentRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.fleet-driver-attachment.relay.${crypto.randomUUID()}`,
+      failureMessage: 'fleet_driver_attachment_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new AggregateAttachmentOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new AggregateAttachmentOutboxPublisherService(aggregateAttachmentPublisher),
+        repository: new DrizzleAggregateAttachmentOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          fleetDriverAttachmentOutbox,
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error
+              ? error
+              : new Error('fleet driver attachment outbox relay publish failed')
+          },
+        },
+        subject: 'fleet_driver',
+      }),
+    })
+    fleetDriverAttachmentRelayLoop.start()
     cargoPreviewRelayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.cargo-preview.relay.${crypto.randomUUID()}`,
       failureMessage: 'cargo_preview_outbox_relay_failed',
@@ -2105,6 +2165,7 @@ export async function startWorkerRuntime(
         mdfeRelayLoop,
         nfseRelayLoop,
         aggregateAttachmentRelayLoop,
+        fleetDriverAttachmentRelayLoop,
         cargoPreviewRelayLoop,
         deliveryProofProcessingRelayLoop,
         contractorMailOutboundRelayLoop,
@@ -2173,6 +2234,9 @@ export async function startWorkerRuntime(
       ]),
     })
     runtimeShutdown.resolve(shutdown)
+    if (config.cnhPicture === undefined) {
+      safeLogInfo({ logger, message: 'cnh_picture_disabled', metadata: {} })
+    }
     safeLogInfo({
       logger,
       message: 'worker_started',
@@ -2207,6 +2271,7 @@ export async function startWorkerRuntime(
     await mdfeRelayLoop?.close().catch(() => undefined)
     await nfseRelayLoop?.close().catch(() => undefined)
     await aggregateAttachmentRelayLoop?.close().catch(() => undefined)
+    await fleetDriverAttachmentRelayLoop?.close().catch(() => undefined)
     await cargoPreviewConsumer?.cancel().catch(() => undefined)
     await cargoPreviewRelayLoop?.close().catch(() => undefined)
     await deliveryProofProcessingConsumer?.cancel().catch(() => undefined)

@@ -182,6 +182,14 @@ export const API_FLEET_DRIVER_SCORE_PATH = `${API_FLEET_DRIVERS_PATH}/:id/score`
 /** Spec 292 T1: o grupo de WhatsApp da ficha (GET `fleet.read`; PUT/DELETE `fleet.manage`) e a lista de grupos do Evolution. */
 export const API_FLEET_DRIVER_WHATSAPP_GROUP_PATH = `${API_FLEET_DRIVERS_PATH}/:id/whatsapp-group`
 export const API_FLEET_WHATSAPP_GROUPS_PATH = '/fleet/whatsapp-groups'
+/** Spec 091 R2: o documento do motorista. Anexar e remover é `fleet.manage`; o conteúdo, `fleet.reveal`. */
+export const API_FLEET_DRIVER_ATTACHMENTS_PATH = `${API_FLEET_DRIVERS_PATH}/:id/attachments`
+export const API_FLEET_DRIVER_ATTACHMENT_PATH = `${API_FLEET_DRIVER_ATTACHMENTS_PATH}/:attachmentId`
+export const API_FLEET_DRIVER_ATTACHMENT_CONTENT_PATH = `${API_FLEET_DRIVER_ATTACHMENT_PATH}/content`
+export const API_FLEET_DRIVER_ATTACHMENT_SUGGESTION_PATH = `${API_FLEET_DRIVER_ATTACHMENT_PATH}/suggestion`
+/** Spec 295 Fase 4: só o robô do worker (`driver.cnh-picture`) entrega o rosto extraído da CNH. */
+export const API_FLEET_DRIVER_ATTACHMENT_CNH_PICTURE_PATH =
+  '/fleet/driver-attachments/:attachmentId/cnh-picture'
 export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
@@ -232,6 +240,7 @@ export const API_ME_CURRENT_TRIP_PATH = '/me/trips/current'
 export const API_ME_CLIENT_DIAGNOSTICS_PATH = '/me/client-diagnostics'
 export const API_ME_LOCATION_CONSENT_PATH = '/me/location-consent'
 export const API_ME_WHATSAPP_PHONE_PATH = '/me/whatsapp-phone'
+export const API_ME_PICTURE_PATH = '/me/picture'
 
 /**
  * ADR-0050 §4: o portal do contratante fala por `/client/me/*`, e nenhuma dessas rotas recebe id de
@@ -308,7 +317,9 @@ export const HTTP_OPTIONS_METHOD = 'OPTIONS'
 export const CORS_ALLOW_HEADERS = 'Authorization'
 export const CORS_MAX_AGE_SECONDS = 300
 /** `Date` (relógio do motorista), `Retry-After` (o 429 do painel) e `Content-Disposition` (nome do download) não são legíveis entre origens. */
-export const CORS_EXPOSE_HEADERS = 'Date, Retry-After, Content-Disposition'
+/** Quem pôs a foto de perfil (`cnh|self|admin`); o app do motorista lê para a nota da CNH (spec 295). */
+export const PICTURE_ORIGIN_HEADER = 'x-picture-origin'
+export const CORS_EXPOSE_HEADERS = 'Date, Retry-After, Content-Disposition, X-Picture-Origin'
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
 /**
  * Teto do corpo das demais rotas no servidor (`Bun.serve`) — o que vale para toda rota que não tem teto

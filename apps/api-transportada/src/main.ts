@@ -537,6 +537,13 @@ import {
 } from './fleet/application/crew-settings.use-case'
 import { DrizzleCrewSettingsRepository } from './fleet/infrastructure/drizzle-crew-settings.repository'
 import { createDriverWhatsappGroupUseCase } from './fleet/application/driver-whatsapp-group.use-case'
+import { createFleetDriverAttachmentUseCase } from './fleet/application/fleet-driver-attachment.use-case.js'
+import { createDrizzleFleetDriverAttachmentAudit } from './fleet/infrastructure/drizzle-fleet-driver-attachment-audit.gateway.js'
+import { createDrizzleFleetDriverAttachmentRepository } from './fleet/infrastructure/drizzle-fleet-driver-attachment.repository.js'
+import { createFleetDriverAttachmentRoutes } from './fleet/presentation/fleet-driver-attachment.routes.js'
+import { createApplyDriverCnhPictureUseCase } from './fleet/application/apply-driver-cnh-picture.use-case.js'
+import { createDrizzleDriverCnhPictureLookupRepository } from './fleet/infrastructure/drizzle-driver-cnh-picture-lookup.repository.js'
+import { createFleetDriverCnhPictureRoutes } from './fleet/presentation/fleet-driver-cnh-picture.routes.js'
 import { DrizzleDriverWhatsappGroupRepository } from './fleet/infrastructure/drizzle-driver-whatsapp-group.repository'
 import { createDriverWhatsappGroupRoutes } from './fleet/presentation/driver-whatsapp-group.routes'
 import { createCompanyCrewSettingsRoutes } from './fleet/presentation/crew-settings.routes'
@@ -1056,6 +1063,7 @@ import { createDrizzleGroupAudit } from './identity/infrastructure/drizzle-group
 import { createCompanyGroupRoutes } from './identity/presentation/company-group.routes'
 import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
+import { createMePictureRoutes } from './identity/presentation/me-picture.routes.js'
 import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
 import { createWhiteLogoCache } from './occurrence-conversation/infrastructure/white-logo.gateway.js'
 import { createPublicMailAssetRoutes } from './occurrence-conversation/presentation/public-mail-assets.routes.js'
@@ -1269,6 +1277,7 @@ export function bootstrap(): Bun.Server<undefined> {
   })
   const authentication = new AuthenticationService({
     repository: new DrizzleExternalIdentityRepository(database.db),
+    serviceClientIds: config.serviceClientIds,
     verifier: identityGateway,
   })
   const healthService = new HealthService({
@@ -2237,6 +2246,7 @@ export function bootstrap(): Bun.Server<undefined> {
         nfseProviderApiVersion: config.nfseProviderApiVersion,
         driverTripLockEnabled: config.driverTripLockEnabled,
         driverTripLockMinScore: config.driverTripLockMinScore,
+        mdfeAutoIssueEnabled: config.mdfeAutoIssueEnabled,
         postalCodeProviders: config.postalCodeProviders,
         resolveClientIp,
         routingMatrixUrl: config.routingMatrixUrl,
@@ -2835,6 +2845,7 @@ type CreateApplicationRoutesParams = {
   /** Trava de uma viagem por vez no pedido de prorrogação do motorista (flag e corte de nota). */
   readonly driverTripLockEnabled: ApiEnvironment['driverTripLockEnabled']
   readonly driverTripLockMinScore: ApiEnvironment['driverTripLockMinScore']
+  readonly mdfeAutoIssueEnabled: ApiEnvironment['mdfeAutoIssueEnabled']
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
   readonly resolveClientIp: ClientIpResolver
   readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
@@ -2907,6 +2918,7 @@ function createApplicationRoutes({
   nfseProviderApiVersion,
   driverTripLockEnabled,
   driverTripLockMinScore,
+  mdfeAutoIssueEnabled,
   postalCodeProviders,
   resolveClientIp,
   routingMatrixUrl,
@@ -3942,6 +3954,13 @@ function createApplicationRoutes({
     readonly membershipId: string
   }) => currentDriverTripRepository.findDriverIdByMembership(input)
 
+  const userPictureUseCase = createUserPictureUseCase({
+    identityGateway: identityAccessGateway,
+    logger,
+    ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
+    repository: new DrizzleUserPictureRepository(database),
+  })
+
   return [
     ...createCompanySettingsRoutes({
       getSettings: createGetCompanySettingsUseCase({ repository: settingsRepository }),
@@ -4317,6 +4336,22 @@ function createApplicationRoutes({
       useCase: createDriverWhatsappGroupUseCase({
         listEvolutionGroups: (input) => whatsappEvolution.listGroups(input),
         repository: new DrizzleDriverWhatsappGroupRepository(database),
+      }),
+    }),
+    ...createFleetDriverAttachmentRoutes({
+      resolveClientIp,
+      attachments: createFleetDriverAttachmentUseCase({
+        audit: createDrizzleFleetDriverAttachmentAudit(database),
+        bucket: storageBucket,
+        logger,
+        repository: createDrizzleFleetDriverAttachmentRepository(database),
+        storage: storageGateway,
+      }),
+    }),
+    ...createFleetDriverCnhPictureRoutes({
+      applyDriverCnhPicture: createApplyDriverCnhPictureUseCase({
+        lookup: createDrizzleDriverCnhPictureLookupRepository(database),
+        userPicture: userPictureUseCase,
       }),
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
@@ -6132,6 +6167,7 @@ function createApplicationRoutes({
         reader: { listTripTimeline: (input) => listTripTimeline(database, input) },
       }),
       saveSchedule: { execute: (input) => tripStopSchedules.save(input) },
+      mdfeAutoIssueEnabled,
       issueManifestAutomatically: {
         execute: (input) =>
           issueTripManifestAutomatically({
@@ -6512,13 +6548,8 @@ function createApplicationRoutes({
         newDedupeKey: () => `template-test-${crypto.randomUUID()}`,
       }),
     }),
-    ...createUserPictureRoutes({
-      userPicture: createUserPictureUseCase({
-        identityGateway: identityAccessGateway,
-        ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
-        repository: new DrizzleUserPictureRepository(database),
-      }),
-    }),
+    ...createUserPictureRoutes({ userPicture: userPictureUseCase }),
+    ...createMePictureRoutes({ userPicture: userPictureUseCase }),
     ...createUserAdministrationRoutes({
       activate: createActivateCompanyUserUseCase({
         audit: groupAudit,

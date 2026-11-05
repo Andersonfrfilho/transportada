@@ -482,3 +482,15 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
 - `db:generate`: `no_changes`; ordem do journal consistente (`20261105144242_whatsapp_canhoto_questions` por último).
 - `make check`: exit 0, 0 fail. `make migration-test`: 231 pass / 0 fail.
 - Integração (9 arquivos: canhoto-question, driver-flow-actions, stop-event-sequence, stop-order-guard, next-stop-offer, pending-items, address-suggestion-pending-items, occurrence-draft, location-redact): 45 pass / 0 fail.
+
+## Junção com origin/staging (spec 091, 295, #535) e a divisão de autorização
+
+- **Permissões novas da 294**: nenhuma é de serviço. `trip.manage` (sugestões de endereço, `/pending-items`) e `trip.report-on-behalf` (atendente) são de gente e, pela
+  divisão do #535 (`isUsableBy`), um token de serviço não as usa; as rotas de máquina que o fluxo toca (`whatsapp.settle`, `trip.canhoto-auto-review`) já estavam em
+  `SERVICE_ONLY_PERMISSIONS` e continuam fora do alcance de gente. O OCR do canhoto (T4.8) não é rota de API: é a chamada interna API→worker abaixo.
+- **`/internal/bot-canhoto-reads` e o token interno** (security.md §2, escopo enumerado por integração): o `BOT_AUDIO_TRANSCRIPTION_TOKEN` não é credencial da API —
+  só o worker o valida, só em duas rotas internas (`/internal/bot-audio-transcriptions`, `/internal/bot-canhoto-reads`), com comparação em tempo constante, mínimo de
+  32 caracteres, e quem o envia é a mesma API para o mesmo worker. Nenhuma rota pública da API o aceita, então vazar o token não dá permissão curinga nem acesso a
+  dado de empresa. Decisão: é o **token do canal interno API→worker**, mantido por nome (renomear tocaria env, railway.ts e dois schemas, sem ganho de escopo; o nome
+  antigo é o que está provisionado). Uma terceira rota interna, se vier, reusa o canal; se ganhar quem a chame que não seja a API, ganha token próprio.
+- **Migrations renomeadas na junção** (cadeia de snapshots do drizzle é linear): `20261105023931_stop_event…` → `20261105121000_…`, `20261105120144_canhoto_hash_index` → `20261105121100_…`, `20261105144242_whatsapp_canhoto_questions` → `20261105121200_…`, depois das migrations da 091/295 (a última, `20261105120600_cnh_picture_service_role`). Nenhuma estava em staging/produção; snapshots refeitos sobre a cadeia da staging, sem mudar o SQL.

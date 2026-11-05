@@ -49,6 +49,20 @@ describe('FileField', () => {
     expect(source).toContain('aria-hidden="true"')
   })
 
+  /** Spec 091 R4: o documento do motorista usa o campo do design system, e só `fleet.manage` o vê. */
+  test('the driver document section uses the component and gates actions by permission', async () => {
+    const source = await readApplicationFile(
+      'src/modules/fleet/components/DriverAttachmentsSection.component.tsx',
+    )
+
+    expect(source).toContain('<FileField')
+    expect(source).not.toContain('type="file"')
+    expect(source).toContain('FLEET_MANAGE_PERMISSION')
+    expect(source).toContain('FLEET_REVEAL_PERMISSION')
+    expect(source).toMatch(/canManage \? \(\s*<div className=\{styles\.fuelPriceForm\}>/u)
+    expect(source).toMatch(/canReveal \? \(\s*<button/u)
+  })
+
   test('the vehicle document intake uses the component, not a raw input', async () => {
     const source = await readApplicationFile(
       'src/modules/document-intake/components/DocumentIntakeDropZone.component.tsx',

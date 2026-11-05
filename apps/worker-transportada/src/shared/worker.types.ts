@@ -77,6 +77,14 @@ export type MdfeAutoIssueEnvironment = {
   readonly tokenUrl: string
 }
 
+/** Spec 295: o crachá só da foto da CNH (`driver.cnh-picture`); o segredo nunca sai daqui para log ou métrica. */
+export type CnhPictureEnvironment = {
+  readonly apiBaseUrl: string
+  readonly clientId: string
+  readonly clientSecret: string
+  readonly tokenUrl: string
+}
+
 export type WorkerEnvironment = {
   /**
    * O `tesseract-server` que lê a CNH fotografada do anexo da candidatura (spec 071). Ausente
@@ -118,7 +126,10 @@ export type WorkerEnvironment = {
   readonly nfseProvider: NfseProviderEnvironment
   readonly foundationSyntheticConsumerEnabled: boolean
   readonly foundationSyntheticEffectDelayMs: number
+  readonly cnhPicture?: CnhPictureEnvironment
   readonly mdfeAutoIssue?: MdfeAutoIssueEnvironment
+  /** `MDFE_AUTO_ISSUE_ENABLED`: o crachá sozinho não emite MDF-e; desligado por padrão. */
+  readonly mdfeAutoIssueEnabled: boolean
   readonly logLevel: LogLevel
   /**
    * Spec 062 T005 — a Graph API da Meta, sem segredo: o token é por empresa e vive selado no banco.

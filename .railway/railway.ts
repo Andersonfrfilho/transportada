@@ -176,6 +176,8 @@ export default defineRailway((ctx) => {
       KEYCLOAK_TOKEN_URL: preserve(),
       WORKER_CLIENT_ID: preserve(),
       WORKER_CLIENT_SECRET: preserve(),
+      CNH_PICTURE_CLIENT_ID: preserve(),
+      CNH_PICTURE_CLIENT_SECRET: preserve(),
       ANEEL_BASE_URL: preserve(),
       ANEEL_TIMEOUT_MS: preserve(),
       ANP_BASE_URL: preserve(),

@@ -11,6 +11,7 @@ import { DriverSyncStatus } from '../components/DriverSyncStatus.component'
 import type { DriverTripStop } from '../shared/driverTrip.types'
 import {
   hasSendableEvents,
+  isEventQueueItemCancellable,
   isEventQueueItemDiscardable,
   resolveEventQueueDepartBlock,
   resolveEventQueueStopSequence,
@@ -33,6 +34,8 @@ type DriverEventQueuePageProps = Readonly<{
   /** Pedido do usuário (01/10): de quando é a última leitura do servidor — `0` é "nunca nesta sessão". */
   lastSyncedAtMs: number
   onBack: () => void
+  /** O motorista cancela o envio de uma ocorrência que só existe no aparelho (o atendimento já resolveu). */
+  onCancel: (idempotencyKey: string) => void
   /** Spec 227: só o recusado de negócio, e só depois da confirmação na tela. */
   onDiscard: (idempotencyKey: string) => void
   /** Spec 206 D6: o mesmo atalho do cartão — rola até o cabeçalho da parada e põe o foco (RF8b). */
@@ -88,6 +91,7 @@ export function DriverEventQueuePage({
   items,
   lastSyncedAtMs,
   onBack,
+  onCancel,
   onDiscard,
   onFocusStop,
   onSendAll,
@@ -97,6 +101,8 @@ export function DriverEventQueuePage({
   const { t } = useTranslation('driverTrip')
   /** O descarte não se desfaz: o primeiro toque só abre o aviso, e o segundo é que apaga. */
   const [confirmingDiscardKey, setConfirmingDiscardKey] = useState<string | undefined>(undefined)
+  /** Cancelar também não se desfaz: mesmo molde de dois toques. */
+  const [confirmingCancelKey, setConfirmingCancelKey] = useState<string | undefined>(undefined)
   /** O que a drenagem ainda pode levar: recusado não conta, porque só sai de lá por decisão humana. */
   const pendingCount = items.filter((item) => item.status.state !== 'rejected').length
 
@@ -266,6 +272,33 @@ export function DriverEventQueuePage({
                         </button>
                       </p>
                     )}
+                    {confirmingCancelKey === item.idempotencyKey ? (
+                      <div className={styles.eventQueueDiscardConfirm}>
+                        <p className={styles.eventQueueStatusRejected} role="alert">
+                          {t('eventQueue.cancel.warning')}
+                        </p>
+                        <div className={styles.eventQueueItemActions}>
+                          <Button
+                            disabled={isSyncing}
+                            type="button"
+                            onClick={() => {
+                              setConfirmingCancelKey(undefined)
+                              onCancel(item.idempotencyKey)
+                            }}
+                          >
+                            <Icon name="trash" />
+                            {t('eventQueue.cancel.confirm')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setConfirmingCancelKey(undefined)}
+                          >
+                            {t('eventQueue.cancel.keep')}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
                     {confirmingDiscardKey === item.idempotencyKey ? (
                       <div className={styles.eventQueueDiscardConfirm}>
                         <p className={styles.eventQueueStatusRejected} role="alert">
@@ -296,6 +329,7 @@ export function DriverEventQueuePage({
                   </div>
                   {/* Não verificado sobe pela confirmação da faixa da viagem, não item a item. */}
                   {item.status.state === 'unverified' ||
+                  confirmingCancelKey === item.idempotencyKey ||
                   confirmingDiscardKey === item.idempotencyKey ? null : (
                     <div className={styles.eventQueueItemActions}>
                       <Button
@@ -307,6 +341,16 @@ export function DriverEventQueuePage({
                         <Icon name="upload" />
                         {t('eventQueue.sendNow')}
                       </Button>
+                      {isEventQueueItemCancellable(item) ? (
+                        <Button
+                          disabled={isSyncing}
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setConfirmingCancelKey(item.idempotencyKey)}
+                        >
+                          {t('eventQueue.cancel.open')}
+                        </Button>
+                      ) : null}
                       {isEventQueueItemDiscardable(item) ? (
                         <Button
                           disabled={isSyncing}
