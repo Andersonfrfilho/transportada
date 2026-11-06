@@ -16,12 +16,12 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 
 > 🤖 Modelo: `sonnet` (T0.1 é 🧠 — `opus`)
 
-- [ ] **T0.1 🧠** Conferir no código as premissas que o `plan.md` deixou para a T0.1: onde fica gravada a origem
+- [x] **T0.1 🧠** Conferir no código as premissas que o `plan.md` deixou para a T0.1: onde fica gravada a origem
       grupo × individual do evento (último canal, D5), nomes das permissões de leitura e gestão de viagens para a
       pendência e a dispensa, aba das Configurações (`automations` ou nova), e o desenho da extração do portão "pergunta
       aberta" (`RouteOfferGate` → `DriverOpenQuestionPort`) sem mudar a oferta da próxima rota. Aceite: `plan.md`
       atualizado com arquivo:símbolo; decisões em `evidence.md`.
-- [ ] **T0.2** Contratos vermelhos das políticas puras, com relógio injetado:
+- [x] **T0.2** Contratos vermelhos das políticas puras, com relógio injetado:
       `test/driver-stop-reminders/stop-reminder-{schedule,origin,transition,gate,message}.contract.ts` e o entrypoint
       `test/driver-stop-reminders.contract.test.ts` no `package.json`. Aceite: vermelhos pelo motivo certo (módulo ausente).
 

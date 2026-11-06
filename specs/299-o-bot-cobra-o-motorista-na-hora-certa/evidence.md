@@ -105,3 +105,70 @@ cancelamento da viagem têm a transação no repositório (`DrizzleTripRepositor
    existir. Opções: (a) seguir o plano e corrigir o texto do RF20; (b) seguir o RF20 e semear a agenda **pausada**
    (`enabled=false`, `paused_origin='system'`, molde `20261013010226`), ligada à mão quando a chave virar. Recomendação
    técnica: (a). Não decidido aqui; trava só a T1.1/T2.4.
+
+## T0.2 — 2026-11-06
+
+Contratos vermelhos das políticas puras (relógio injetado: `now`/`anchorAt` por parâmetro). Arquivos:
+`apps/api-transportada/test/driver-stop-reminders/stop-reminder-{schedule,origin,transition,gate,message}.contract.ts`,
+entrypoint `test/driver-stop-reminders.contract.test.ts` (na lista do script `test` do `package.json`, depois de
+`address-correction-mail`). Módulos-alvo (T1.3, **não criados**): `src/driver-stop-reminders/domain/`
+`{driver-stop-reminder.constant,stop-reminder-schedule.policy,stop-reminder-origin.policy,stop-reminder-transition.policy,stop-reminder-gate.policy,stop-reminder-message.policy}.ts`.
+
+### Vermelho pelo motivo certo
+
+```text
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/driver-stop-reminders.contract.test.ts
+# Unhandled error between tests
+error: Cannot find module '../../src/driver-stop-reminders/domain/driver-stop-reminder.constant.js' from '.../test/driver-stop-reminders/stop-reminder-schedule.contract.ts'
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+`bun run typecheck` falha só nos módulos ausentes (TS2307 nas cinco políticas e na constante; mais um TS7006 em
+`stop-reminder-message.contract.ts:84` que é efeito do tipo ausente). ESLint (`--max-warnings=0`, cwd da app) e
+`prettier --check` nos arquivos novos: limpos.
+
+### Contrato de API que a T1.3 deve cumprir (assinaturas)
+
+- `constant`: `DRIVER_STOP_REMINDER_DEFAULT_SETTINGS = { maxAttempts: 3, intervalMinutes: 30, graceMinMinutes: 30,
+  gracePercent: 50, dwellMinutes: 30 }`; `DRIVER_STOP_REMINDER_FALLBACK_TRAVEL_SECONDS = 2700`;
+  `DRIVER_STOP_REMINDER_SPEECH_NODE`. Constantes a criar também (valores testados como literais): adiamentos máx. 3,
+  espera por pedido aberto 5 min, espera máx. da vaga 120 s.
+- schedule: `computeStopReminderSchedule({ stage, anchorAt, travelSeconds | undefined, settings }) → { expectedAt, dueAt }`
+  (`expectedAt` só tem sentido no `arrival`); `computeNextStopReminderDueAt({ lastSentAt, settings })`;
+  `decideStopReminderDueAction({ attempts, maxAttempts }) → 'send' | 'escalate'`.
+- origin: `resolveStopReminderOrigin({ sharedPoint?, previousStopPoint?, companyPoint? }) → { kind:
+  'shared_point'|'previous_stop'|'company'|'fallback', point?, isSharedPoint }` (valores do `origin_kind` do plano).
+- transition: `decideStopReminderTransition({ event, openReminders }) → readonly ({ type:'open', stopId, stage } |
+  { type:'close', reminderId, reason })[]`. `event = { kind: departed|departure_cancelled|arrived|delivered|returned|
+  occurrence|trip_closed|trip_cancelled, stopId, authorship: crew|office, recordedTogether, stopClosed }`;
+  `closed` reasons: `arrived | occurrence | stop_closed | departure_cancelled | trip_closed | trip_cancelled | superseded`.
+  Lista vazia = "none". Idempotência (RNF2) sai de `openReminders`.
+- gate: `decideStopReminderGate({ now, stage, stop: { hasArrived, isClosed }, operatingHours: { weekday(0=dom), start
+  'HH:MM', end }[], holidayDates: 'YYYY-MM-DD'[], timeZone, hasOpenQuestion, sendSlotAt? }) → { decision:'send' } |
+  { decision:'close' } | { decision:'defer', reason: outside_operating_hours|open_question|no_send_slot, until }`.
+  Início da faixa inclusivo, fim exclusivo. As duas chaves (env + empresa) **não** estão no portão: a consulta da rotina
+  (RF7) só devolve empresa ligada com a global ligada.
+- message: `buildStopReminderMessage({ stage, driverName, stop: { firstNoteNumber, noteCount, clientName }, departedAt?,
+  expectedAt?, arrivedAt?, isSharedPoint, timeZone }) → { nodeKey, variables, options: { choice, action }[] }`;
+  `decideStopReminderPostponement({ postponements }) → { outcome: 'postponed'|'no_answer', postponements, consumesAttempt }`.
+
+### Chaves dos nós de fala escolhidas (T1.3/T2.3 reusam)
+
+| Nó | Quando | Variáveis |
+| --- | --- | --- |
+| `fala_lembrete_chegada` | etapa `arrival`, `isSharedPoint` | `nome`, `parada`, `saida`, `previsao` |
+| `fala_lembrete_chegada_sem_previsao` | etapa `arrival`, sem ponto compartilhado (RF6) | `nome`, `parada`, `saida` |
+| `fala_lembrete_entrega` | etapa `settlement` | `nome`, `parada`, `chegada` |
+
+`parada` = `NF <primeira> · <cliente>`, com ` +N` depois do número quando há mais notas (`NF 17234 +2 · Cliente`).
+Horas `HH:MM` no fuso da empresa. A marcação `@<telefone>` é do suporte de menção do grupo, não do nó. Ações das opções:
+`arrival` → `arrived|delivered|occurrence|postpone`; `settlement` → `delivered|not_delivered|occurrence|postpone`.
+
+### Dúvidas
+
+- Os nomes das variáveis (`nome`, `parada`, `saida`, `previsao`, `chegada`) seguem o português dos nós `fala_*`; a T1.3
+  confere com a convenção do grafo raiz e ajusta o contrato se divergir.
+- Escape de dado de terceiro (RF9) não está nestes contratos: onde o escape mora hoje (política ou renderizador do nó)
+  decide a T1.3/T2.3.
