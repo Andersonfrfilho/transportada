@@ -18,7 +18,7 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 
 - [x] T1.1 Migration aditiva (D1, D3, índice único parcial) + schema da API e cópia do worker — `make migration-test`.
 - [x] T1.2 Contrato das rotas (RF1, RF2, 404 entre empresas, idempotência, `found`) — antes do código.
-- [ ] T1.3 Use cases + rotas + outbox + OpenAPI — contratos da T1.2 verdes; `test:integration` da rota.
+- [x] T1.3 Use cases + rotas + outbox + OpenAPI — contratos da T1.2 verdes; `test:integration` da rota.
 - [ ] T1.4 Verificação em lote `POST /v1/nfe-documents/access-key-checks` (RF11d: ≤200 chaves, só da empresa,
       uma query) — contrato antes, depois rota; `test:integration`.
 

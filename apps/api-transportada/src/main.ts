@@ -1097,6 +1097,10 @@ import { createRequestNfeImportUseCase } from './nfe-imports/application/request
 import { createGetLastJobRunUseCase } from './nfe-imports/application/get-last-job-run.use-case.js'
 import { DrizzleNfeDistributionStatusRepository } from './nfe-imports/infrastructure/drizzle-nfe-distribution-status.repository'
 import { DrizzleNfeImportRepository } from './nfe-imports/infrastructure/drizzle-nfe-import.repository'
+import { createGetAccessKeyLookupUseCase } from './nfe-access-key-lookups/application/get-access-key-lookup.use-case.js'
+import { createRequestAccessKeyLookupUseCase } from './nfe-access-key-lookups/application/request-access-key-lookup.use-case.js'
+import { DrizzleNfeAccessKeyLookupRepository } from './nfe-access-key-lookups/infrastructure/drizzle-nfe-access-key-lookup.repository.js'
+import { createNfeAccessKeyLookupRoutes } from './nfe-access-key-lookups/presentation/nfe-access-key-lookups.routes.js'
 import { createNfeImportRoutes } from './nfe-imports/presentation/nfe-imports.routes'
 import { DrizzleNfeDocumentRepository } from './nfe-documents/infrastructure/drizzle-nfe-document.repository'
 import { DrizzleNfeDocumentEventRepository } from './nfe-documents/infrastructure/drizzle-nfe-document-event.repository'
@@ -3514,6 +3518,13 @@ function createApplicationRoutes({
     clock: { now: () => new Date() },
     port: new DrizzleScheduledDistributionStatusRepository(database),
   })
+  const accessKeyLookupRepository = new DrizzleNfeAccessKeyLookupRepository(database)
+  const requestAccessKeyLookup = createRequestAccessKeyLookupUseCase({
+    clock: { now: () => new Date() },
+    fingerprintService,
+    unitOfWork: accessKeyLookupRepository,
+  })
+  const getAccessKeyLookup = createGetAccessKeyLookupUseCase({ reader: accessKeyLookupRepository })
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })
   const reprocessImport = createReprocessNfeImportUseCase({ unitOfWork: nfeImportRepository })
@@ -6523,6 +6534,10 @@ function createApplicationRoutes({
         listJobs: (input) => operations.listJobs(input),
         listTimeline: (input) => operations.listTimeline(input),
       },
+    }),
+    ...createNfeAccessKeyLookupRoutes({
+      getLookup: getAccessKeyLookup,
+      requestLookup: requestAccessKeyLookup,
     }),
     ...createNfeImportRoutes({
       getDistributionStatus,

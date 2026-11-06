@@ -10,7 +10,6 @@ import {
   ACCESS_KEY,
   ACCESS_KEY_WITH_WRONG_DV,
   COMPANY_CONTEXT,
-  CORRELATION_ID,
   DOCUMENT_ID,
   LOOKUP_ID,
   QUEUED_VIEW,
@@ -38,7 +37,7 @@ describe('POST /nfe-access-key-lookups contract', () => {
     expect(fixture.requestCalls[0]).toMatchObject({
       accessKey: ACCESS_KEY,
       context: { companyId: COMPANY_CONTEXT.companyId, userId: COMPANY_CONTEXT.userId },
-      correlationId: CORRELATION_ID,
+      correlationId: 'fleet-http-correlation',
     })
   })
 

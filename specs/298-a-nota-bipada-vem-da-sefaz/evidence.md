@@ -99,3 +99,29 @@ Vermelho medido:
   (`Cannot find module .../nfe-access-key-lookups/...`).
 - `bun --env-file=../../.env.test test ./test/integration/nfe-access-key-lookups.integration.ts`: `0 pass, 1 fail, 1 error`
   (módulo do caso de uso ausente).
+
+## T1.3 — rotas da busca por chave (verde)
+
+Código novo em `apps/api-transportada/src/nfe-access-key-lookups/`: `application/` (`request-access-key-lookup.use-case.ts`,
+`get-access-key-lookup.use-case.ts`, `nfe-access-key-lookup.{types,constant,error}.ts`), `infrastructure/drizzle-nfe-access-key-lookup.repository.ts`,
+`presentation/nfe-access-key-lookups.{routes,schema}.ts`. Tocados: `src/main.ts` (fiação), `src/shared/api.constant.ts` (caminho),
+`src/shared/tax-id.service.ts` (reexporta `isChaveDvValid` do pacote fiscal — único ponto de importação, como `CHAVE_PATTERN`).
+
+Decisões:
+- Ambiente da busca = `company_fiscal_profiles.environment` (o mesmo que o cartão de status da distribuição lê); sem perfil → `409 NFE_DISTRIBUTION_NOT_CONFIGURED` (erro já existente).
+- Ordem na transação: ambiente → `found` → busca ativa → recusa recente (RF8) → **claim** da busca (`insert … on conflict do nothing`, sem `import_id`) →
+  `nfe_imports` → `attachImport` → outbox. O claim vem antes do import para quem perde a corrida não deixar um import órfão; o índice único parcial é quem decide.
+- Recusa reutilizável (RF8): `status = 'refused'`, motivo em `not_interested|not_found|expired|cancelled|denied`, `finished_at` nas últimas 24 h. Falha transitória e `summary_only` não entram.
+- `idempotency_key` do import = `nfe-access-key-lookup:<lookupId>`; `request_fingerprint` = HMAC de (empresa, ambiente, chave) sob a operação `nfe-access-key-lookup.request`.
+- Resposta serializa ausentes como `null` (convenção do repo), não como chave omitida.
+- POST com teto por usuário em memória (60/min), já que o upload de NF-e não tem teto e esta rota gasta o orçamento da SEFAZ; GET sem teto.
+- Id malformado no GET → `404` (o roteador, formato `canonicalUuid` padrão); corpo com campo a mais ou sem `accessKey` → `400 INVALID_REQUEST`; chave inválida (44 posições + DV) → `400 INVALID_ACCESS_KEY`.
+- Sem OpenAPI nesta API (CLAUDE.md da app e docs/ai-context): o contrato são os schemas Zod e os contratos de teste; não há geração nem teste de cobertura de rotas a manter.
+
+Gates:
+- `bun run typecheck` (raiz, 7 apps): `TC=0`.
+- `bun run lint` (API): `LINT=0`.
+- Contrato novo: `27 pass, 0 fail` (era `0 pass, 27 fail`).
+- Integração nova: `9 pass, 0 fail` (banco descartável; transação única, rollback do outbox, `found`, repetição, 8 POSTs concorrentes → 1/1/1, RF8 23 h/25 h, falha transitória, sem perfil, GET 404 entre empresas).
+- API contrato completo (`bun --env-file=../../.env.test test --timeout 120000`): `14056 pass, 0 fail, 26 skip` (era 14029 + 27), `EXIT=0`.
+- API `test:integration` completo: `1947 pass, 8 skip, 0 fail`, 345 arquivos, `EXIT=0` (4405 s).

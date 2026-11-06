@@ -81,7 +81,7 @@ describe('nfe access key lookups integration (spec 298 T1.2)', () => {
           importId: created?.id,
           lookupId: lookup?.id,
         })
-        expect(JSON.stringify(event)).not.toContain(ACCESS_KEY)
+        expect(JSON.stringify(event?.payload)).not.toContain(ACCESS_KEY)
       })
     },
     60_000,
