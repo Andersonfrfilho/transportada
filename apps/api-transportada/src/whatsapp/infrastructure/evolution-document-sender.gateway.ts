@@ -12,6 +12,7 @@ import {
   type ContractorReplyWhatsAppSendFailure,
 } from '../../occurrence-conversation/application/forward-contractor-reply-by-whatsapp.port.js'
 import type { ClientReplyWhatsAppSenderPort } from '../../occurrence-conversation/application/send-client-reply.port.js'
+import { sendEvolutionTextWithMention } from './evolution-mention-text.gateway.js'
 import type { EvolutionSendPacer } from '../application/evolution-send-pacer.service.js'
 import type { WhatsAppEvolutionRepositoryPort } from '../application/whatsapp-evolution.port.js'
 import type { WhatsAppEvolutionSecretService } from '../application/whatsapp-evolution-secret.service.js'
@@ -35,9 +36,20 @@ type EvolutionSenderDependencies = {
   readonly secrets: Pick<WhatsAppEvolutionSecretService, 'decrypt'>
 }
 
+/** O texto com marca (`mentionNumber`, só dígitos) só o grupo usa; sem ele é o texto de sempre. */
+type EvolutionDocumentSender = ContractorReplyWhatsAppSenderPort &
+  ClientReplyWhatsAppSenderPort & {
+    sendText(params: {
+      readonly body: string
+      readonly companyId: string
+      readonly mentionNumber?: string
+      readonly number: string
+    }): Promise<{ readonly providerMessageId: null | string }>
+  }
+
 export function createEvolutionDocumentSender(
   dependencies: EvolutionSenderDependencies,
-): ContractorReplyWhatsAppSenderPort & ClientReplyWhatsAppSenderPort {
+): EvolutionDocumentSender {
   async function credentials(companyId: string) {
     const credential = await dependencies.repository.findCredential({ companyId })
     if (credential === null || credential.status !== 'active') {
@@ -99,7 +111,20 @@ export function createEvolutionDocumentSender(
     },
 
     /** Spec 283 T5 (D6): a resposta do painel ao cliente, só texto. */
-    async sendText(params) {
+    async sendText(params: Parameters<EvolutionDocumentSender['sendText']>[0]) {
+      if (params.mentionNumber !== undefined) {
+        const target = await credentials(params.companyId)
+        await pace(params.companyId)
+        try {
+          return await sendEvolutionTextWithMention(
+            target,
+            { body: params.body, mentionNumber: params.mentionNumber, number: params.number },
+            dependencies.fetch,
+          )
+        } catch (error) {
+          throw new ContractorReplyWhatsAppSendError(classify(error))
+        }
+      }
       const channel = await open(params.companyId)
       await pace(params.companyId)
       try {

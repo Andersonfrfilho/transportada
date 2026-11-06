@@ -68,7 +68,10 @@ import { createGroupStopPorts } from '../../src/whatsapp/infrastructure/whatsapp
 import { botFarewell, botGreeting } from '../../src/whatsapp/domain/bot-greeting.policy.js'
 import { formatBotClock } from '../../src/whatsapp-commands/domain/whatsapp-stop-card.policy.js'
 import { withDisposableDatabase } from '../fixtures/disposable-database.fixture.js'
-import { groupJourneyExpected } from '../fixtures/driver-journey-group.expected.js'
+import {
+  groupJourneyExpected,
+  type JourneyExchange,
+} from '../fixtures/driver-journey-group.expected.js'
 import {
   expectBalancedMarkup,
   formatJourneyTranscript,
@@ -88,6 +91,11 @@ const testWithPostgres = databaseUrl === undefined ? test.skip : test
 const GROUP = '120363025246125486@g.us'
 const BOT = '5516900000001'
 const DRIVER_PHONE = '5516988887777'
+
+/** Toda resposta do bot no grupo abre marcando quem escreveu (aqui, o motorista). */
+function mentioningDriver(exchange: JourneyExchange): JourneyExchange {
+  return { ...exchange, answered: exchange.answered.map((text) => `@${DRIVER_PHONE} ${text}`) }
+}
 const CONNECTION = { apiKey: 'chave', baseUrl: 'https://evolution.exemplo.com', instanceName: 'x' }
 const logger = { debug() {}, error() {}, info() {}, warn() {} } as unknown as ApiLogger
 /** A estrada do OSRM, fixa: 12,3 km e 25 min. */
@@ -358,7 +366,7 @@ describe('jornada do motorista no grupo do WhatsApp (caminho real, Postgres)', (
             eta: formatBotClock(new Date(now.getTime() + 1500 * 1000)),
             farewell: botFarewell(now),
             greeting: botGreeting(now, 'Anderson Motorista'),
-          })
+          }).map(mentioningDriver)
           const recorded: unknown[] = []
           for (const [index, step] of groupJourneySteps(world).entries()) {
             if (step.transcription !== undefined) journey.transcription.next = step.transcription
@@ -430,7 +438,8 @@ describe('"@bot entreguei" sem número segue a entrega em andamento (defeito de 
             }
             const answered = await journey.receive(step.send)
             if (recording) console.log(JSON.stringify({ answered, shown: step.send.shown }))
-            else expect({ answered, shown: step.send.shown }).toEqual(step.expected)
+            else
+              expect({ answered, shown: step.send.shown }).toEqual(mentioningDriver(step.expected))
           }
           expect(expectBalancedMarkup(journey.transcript)).toEqual([])
           expect(await readJourneyEvents(db, world)).toEqual([
@@ -562,7 +571,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
     },
     {
       expected: {
-        answered: ['Localização recebida.\n\n📸 *NF 17234:* mande a foto do canhoto assinado.'],
+        answered: [`Localização recebida.\n\n📸 *NF 17234:* mande a foto do canhoto assinado.`],
         shown: '📍 (localização)',
       },
       send: { media: LOCATION_S1, shown: '📍 (localização)' },
