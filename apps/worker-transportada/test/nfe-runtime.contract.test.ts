@@ -146,6 +146,11 @@ describe('NF-e worker runtime contract', () => {
             calls.push('aggregateAttachment.cancel')
           },
         }),
+        startAccessKeyLookupConsumer: async () => ({
+          cancel: async () => {
+            calls.push('accessKeyLookup.cancel')
+          },
+        }),
         startCargoPreviewConsumer: async () => ({
           cancel: async () => {
             calls.push('cargoPreview.cancel')
@@ -210,6 +215,7 @@ describe('NF-e worker runtime contract', () => {
       'synthetic.cancel',
       'import.cancel',
       'distribution.cancel',
+      'accessKeyLookup.cancel',
       'cteIssuance.cancel',
       'mdfeIssuance.cancel',
       'nfseIssuance.cancel',
@@ -226,6 +232,7 @@ describe('NF-e worker runtime contract', () => {
       'provider.close:transportada.runtime.contract.synthetic.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfe-import.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfe-distribution.v1.main.queue',
+      'provider.close:transportada.runtime.contract.nfe-access-key.v1.main.queue',
       'provider.close:transportada.runtime.contract.cte-issuance.v1.main.queue',
       'provider.close:transportada.runtime.contract.mdfe-issuance.v1.main.queue',
       'provider.close:transportada.runtime.contract.nfse-issuance.v1.main.queue',
@@ -308,6 +315,7 @@ describe('NF-e worker runtime contract', () => {
         startInvitationDeliveryConsumer: async () => undefined,
         startPasswordResetDeliveryConsumer: async () => undefined,
         startAggregateAttachmentConsumer: async () => undefined,
+        startAccessKeyLookupConsumer: async () => undefined,
         startCargoPreviewConsumer: async () => undefined,
         startDeliveryProofProcessingConsumer: async () => undefined,
         startContractorMailOutboundConsumer: async () => undefined,

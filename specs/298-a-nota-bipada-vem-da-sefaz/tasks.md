@@ -29,7 +29,7 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 - [x] T2.1 `[P]` Política pura de desfecho (tabela `cStat`/`DfeItem` → estado e motivo, RF4) — contrato de tabela.
 - [x] T2.2 `[P]` Gateway: `consultarPorChave` no gateway e na factory — contrato com dublê.
 - [x] T2.3 Orçamento atômico (D3) — integração com duas reservas concorrentes e 656 abrindo 65 min.
-- [ ] T2.4 Consumidor + repositório (importa `procNFe` pelo escritor comum, RF5, RF6, RF8) + topologia + `main.ts` —
+- [x] T2.4 Consumidor + repositório (importa `procNFe` pelo escritor comum, RF5, RF6, RF8) + topologia + `main.ts` —
       integração: importa, não duplica com a distribuição.
 - [ ] T2.5 Reenfileirar `waiting` na rotina existente (D5) — contrato da rotina.
 

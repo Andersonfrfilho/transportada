@@ -260,9 +260,9 @@ export class DrizzleNfeDistributionRepository {
         return SKIPPED_OUTCOME
       }
 
-      await this.#insertStoredObject({ companyId, item, tx })
+      const storedItem = await this.#insertStoredObject({ companyId, item, tx })
 
-      const context: ItemWriteContext = { ...params, tx }
+      const context: ItemWriteContext = { ...params, item: storedItem, tx }
       let outcome: Omit<ItemOutcome, 'accepted'>
       if (item.variant === 'summary') {
         const status =
@@ -293,7 +293,7 @@ export class DrizzleNfeDistributionRepository {
         sourceEntry: item.nsu,
         sourceName: `dfe-${item.nsu}.xml`,
         sourceNsu: item.nsu,
-        sourceObjectId: item.finalObject.objectId,
+        sourceObjectId: storedItem.finalObject.objectId,
         sourceSha256: item.finalObject.sha256,
         status: 'imported',
         variant: item.variant,
@@ -303,26 +303,31 @@ export class DrizzleNfeDistributionRepository {
     })
   }
 
+  /**
+   * O endereço do objeto é único por chave: se a busca por chave já gravou a linha, o item passa a
+   * apontar para ela, senão a FK do item falha com um id que nunca entrou na tabela.
+   */
   async #insertStoredObject(params: {
     readonly companyId: string
     readonly item: DistributionPersistItem
     readonly tx: NfeWriteTransaction
-  }): Promise<void> {
+  }): Promise<DistributionPersistItem> {
     const { companyId, item, tx } = params
-    await tx
+    const values = {
+      bucket: item.finalObject.bucket,
+      companyId,
+      id: item.finalObject.objectId,
+      mimeType: XML_MIME_TYPE,
+      objectKey: item.finalObject.key,
+      provider: this.#storageProvider,
+      purpose: item.variant === 'event' ? ('nfe_event' as const) : ('nfe_document' as const),
+      sha256: item.finalObject.sha256,
+      sizeBytes: BigInt(item.finalObject.sizeBytes),
+      status: 'final' as const,
+    }
+    const [inserted] = await tx
       .insert(storedObjects)
-      .values({
-        bucket: item.finalObject.bucket,
-        companyId,
-        id: item.finalObject.objectId,
-        mimeType: XML_MIME_TYPE,
-        objectKey: item.finalObject.key,
-        provider: this.#storageProvider,
-        purpose: item.variant === 'event' ? 'nfe_event' : 'nfe_document',
-        sha256: item.finalObject.sha256,
-        sizeBytes: BigInt(item.finalObject.sizeBytes),
-        status: 'final',
-      })
+      .values(values)
       .onConflictDoNothing({
         target: [
           storedObjects.companyId,
@@ -331,6 +336,23 @@ export class DrizzleNfeDistributionRepository {
           storedObjects.objectKey,
         ],
       })
+      .returning({ id: storedObjects.id })
+    if (inserted !== undefined) return item
+
+    const [existing] = await tx
+      .select({ id: storedObjects.id })
+      .from(storedObjects)
+      .where(
+        and(
+          eq(storedObjects.companyId, companyId),
+          eq(storedObjects.provider, values.provider),
+          eq(storedObjects.bucket, values.bucket),
+          eq(storedObjects.objectKey, values.objectKey),
+        ),
+      )
+      .limit(1)
+    if (existing === undefined) throw new Error('NFE_DISTRIBUTION_STORED_OBJECT_MISSING')
+    return { ...item, finalObject: { ...item.finalObject, objectId: existing.id } }
   }
 
   async #insertEvent(context: ItemWriteContext): ReturnType<typeof writeEventWithStatus> {
