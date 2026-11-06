@@ -11,3 +11,6 @@
  * e falhar na hora de assinar — ou recusá-la por um vencimento que a distribuição nunca usaria.
  */
 export const NFE_DISTRIBUTION_CERTIFICATE_PURPOSE = 'cte' as const
+
+/** Teto do XML descompactado: um docZip malicioso não pode esgotar a memória do worker. */
+export const NFE_DISTRIBUTION_MAX_DECOMPRESSED_XML_BYTES = 10 * 1024 * 1024

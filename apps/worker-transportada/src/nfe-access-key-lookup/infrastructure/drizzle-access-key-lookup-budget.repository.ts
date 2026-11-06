@@ -10,6 +10,10 @@ import {
   ACCESS_KEY_LOOKUP_BUDGET_LIMIT,
   ACCESS_KEY_LOOKUP_BUDGET_WINDOW_MS,
 } from '../domain/nfe-access-key-lookup-budget.constant.js'
+import {
+  NFE_ACCESS_KEY_LOOKUP_ERROR_CODE,
+  NfeAccessKeyLookupError,
+} from '../domain/nfe-access-key-lookup.error.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -90,6 +94,18 @@ export class DrizzleAccessKeyLookupBudgetRepository {
       })
   }
 
+  /** Leitura sem reserva: a distribuição só precisa saber se o 656 da busca por chave ainda vale. */
+  async readBlockedUntil(input: {
+    readonly companyId: string
+    readonly environment: NfeFiscalEnvironment
+  }): Promise<Date | null> {
+    const [row] = await this.db
+      .select({ blockedUntil: budget.blockedUntil })
+      .from(budget)
+      .where(and(eq(budget.companyId, input.companyId), eq(budget.environment, input.environment)))
+    return row?.blockedUntil ?? null
+  }
+
   private async readNotBefore(input: BudgetScopeInput): Promise<Date> {
     const [row] = await this.db
       .select({ windowStartedAt: budget.windowStartedAt, blockedUntil: budget.blockedUntil })
@@ -97,7 +113,7 @@ export class DrizzleAccessKeyLookupBudgetRepository {
       .where(and(eq(budget.companyId, input.companyId), eq(budget.environment, input.environment)))
 
     if (row === undefined) {
-      throw new Error('access key lookup budget row vanished after a refused reservation')
+      throw new NfeAccessKeyLookupError(NFE_ACCESS_KEY_LOOKUP_ERROR_CODE.BUDGET_ROW_MISSING)
     }
     const windowEnd = row.windowStartedAt.getTime() + ACCESS_KEY_LOOKUP_BUDGET_WINDOW_MS
     return new Date(Math.max(windowEnd, row.blockedUntil?.getTime() ?? 0))

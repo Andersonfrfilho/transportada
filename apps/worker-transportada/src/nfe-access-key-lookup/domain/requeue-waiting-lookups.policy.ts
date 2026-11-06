@@ -26,8 +26,21 @@ export function buildBudgetScopeKey(scope: {
   return `${scope.companyId}:${scope.environment}`
 }
 
-/** Leitura sem reserva: a mesma conta que `reserve` faz, só que sem gastar a unidade. */
+/**
+ * Leitura sem reserva: a mesma conta que `reserve` faz, sem gastar a unidade. Busca já em voo
+ * (`queued`/`querying`) ainda vai reservar, então sai do que resta: sem isso cada ciclo devolve o
+ * orçamento inteiro de novo.
+ */
 export function computeRemainingBudget(params: {
+  readonly inFlightCount: number
+  readonly now: Date
+  readonly row: BudgetRow | undefined
+}): number {
+  const { inFlightCount, now, row } = params
+  return Math.max(0, computeUnreservedBudget({ now, row }) - inFlightCount)
+}
+
+function computeUnreservedBudget(params: {
   readonly now: Date
   readonly row: BudgetRow | undefined
 }): number {

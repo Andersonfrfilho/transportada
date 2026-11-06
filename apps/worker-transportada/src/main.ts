@@ -241,7 +241,6 @@ import { DrizzleAccessKeyLookupBudgetRepository } from './nfe-access-key-lookup/
 import { createDrizzleAccessKeyLookupRequeue } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup-requeue.repository.js'
 import { DrizzleAccessKeyLookupRepository } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup.repository.js'
 import { PersistentProcessedMessageService } from './outbox/application/persistent-processed-message.service.js'
-import { DrizzleOutboxRepository as DrizzleProcessedMessageRepository } from './outbox/infrastructure/drizzle-outbox.repository.js'
 import { createNfeDistributionConsumer } from './nfe-distribution/application/nfe-distribution-consumer.service.js'
 import { createAdatechnologyNfeDistributionProvider } from './nfe-distribution/infrastructure/adatechnology-nfe-distribution-provider.factory.js'
 import { createNfeDistributionGatewayFactory } from './nfe-distribution/infrastructure/nfe-distribution-gateway.js'
@@ -903,6 +902,9 @@ export async function startWorkerRuntime(
         database.db as ReturnType<typeof createDrizzleProvider>['db'],
       ),
     })
+    const sefazBudget = new DrizzleAccessKeyLookupBudgetRepository(
+      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    )
     distributionConsumer = await distributionStarter({
       config,
       consumer: createNfeDistributionConsumer({
@@ -931,6 +933,7 @@ export async function startWorkerRuntime(
           ),
           xmlImporter: createNfeXmlImporter(),
         }),
+        sefazBudget,
       }),
       logger,
       provider: distributionPublisher,
@@ -944,14 +947,14 @@ export async function startWorkerRuntime(
       maxRetries: nfeAccessKeyTopology.retry?.maxRetries ?? 0,
       provider: accessKeyPublisher,
       useCase: createProcessAccessKeyLookupUseCase({
-        budget: new DrizzleAccessKeyLookupBudgetRepository(lookupDatabase),
+        budget: sefazBudget,
         clock: { now: () => new Date() },
         gatewayFactory: createNfeDistributionGatewayFactory({
           createProvider: createAdatechnologyNfeDistributionProvider(),
         }),
         logger,
         processedMessages: new PersistentProcessedMessageService({
-          repository: new DrizzleProcessedMessageRepository(lookupDatabase),
+          repository: new DrizzleOutboxRepository(lookupDatabase),
         }),
         profile: new DrizzleNfeDistributionProfileRepository(lookupDatabase, {
           secretService: digitalCertificateSecretService,
@@ -959,6 +962,7 @@ export async function startWorkerRuntime(
         repository: new DrizzleAccessKeyLookupRepository(lookupDatabase, { logger }),
         storage: createAccessKeyLookupDocumentStorage({
           bucket: storageBucket,
+          gateway: storageGateway,
           finalStorage: createNfeImportFinalStorage({
             bucket: storageBucket,
             gateway: storageGateway,

@@ -14,6 +14,7 @@ import type {
   CloseLookupWithoutDocumentInput,
 } from '../../src/nfe-access-key-lookup/application/process-access-key-lookup.types.js'
 import type { AccessKeyLookupGatewayResult } from '../../src/nfe-access-key-lookup/domain/nfe-access-key-lookup.types.js'
+import { NfeAccessKeyLookupNonRetryableError } from '../../src/nfe-access-key-lookup/domain/nfe-access-key-lookup.error.js'
 import type { NfeAccessKeyEnvelopeV1 } from '../../src/messaging/nfe-access-key-envelope.schema.js'
 import { DISTRIBUTION_CONFIG } from '../nfe-distribution/nfe-distribution.fixture.js'
 
@@ -46,17 +47,35 @@ const baseLookup: AccessKeyLookupRecord = {
   status: 'queued',
 }
 
-function procNfeItem(): DfeItem {
+const COMPANY_CNPJ = DISTRIBUTION_CONFIG.cnpj
+const OTHER_CNPJ = '99999999000199'
+
+function procNfeItem(xml = '<nfeProc/>'): DfeItem {
   return {
     nsu: '1',
     schema: 'procNFe',
-    xmlComprimido: gzipSync(Buffer.from('<nfeProc/>')).toString('base64'),
-    xmlDecoded: '<nfeProc/>',
+    xmlComprimido: gzipSync(Buffer.from(xml)).toString('base64'),
+    xmlDecoded: xml,
   }
 }
 
-function importedXml(accessKey = ACCESS_KEY): ImportedNfeXml {
-  return { document: { accessKey }, kind: 'authorized-nfe' } as unknown as ImportedNfeXml
+type Parties = {
+  readonly carrier?: string
+  readonly issuer?: string
+  readonly recipient?: string
+}
+
+function importedXml(accessKey = ACCESS_KEY, parties: Parties = {}): ImportedNfeXml {
+  const party = (taxId: string | undefined) => (taxId === undefined ? undefined : { taxId })
+  return {
+    document: {
+      accessKey,
+      carrier: party(parties.carrier),
+      issuer: { taxId: parties.issuer ?? OTHER_CNPJ },
+      recipient: party(parties.recipient ?? COMPANY_CNPJ),
+    },
+    kind: 'authorized-nfe',
+  } as unknown as ImportedNfeXml
 }
 
 type Harness = ReturnType<typeof buildHarness>
@@ -73,11 +92,15 @@ function buildHarness(
     readonly result?: AccessKeyLookupGatewayResult
     readonly importedAccessKey?: string
     readonly isDuplicate?: boolean
+    readonly item?: DfeItem
+    readonly parties?: Parties
+    readonly profileEnvironment?: 'homologation' | 'production'
   } = {},
 ) {
   const calls: string[] = []
   const closed: CloseLookupWithoutDocumentInput[] = []
   const waiting: Array<{ notBefore: Date; cStat?: string }> = []
+  const reservedFor: string[] = []
   const logs: Array<{ level: string; message: string; metadata?: Record<string, unknown> }> = []
   const gatewayCalls: string[] = []
   const stored: string[] = []
@@ -88,7 +111,7 @@ function buildHarness(
   const gateway: AccessKeyLookupGateway = {
     async consultarPorChave(input) {
       gatewayCalls.push(input.chaveNfe)
-      return options.result ?? { kind: 'document', item: procNfeItem() }
+      return options.result ?? { kind: 'document', item: options.item ?? procNfeItem() }
     },
   }
   const lookup = options.noLookup === true ? undefined : (options.lookup ?? baseLookup)
@@ -98,8 +121,9 @@ function buildHarness(
       async block656() {
         calls.push('block656')
       },
-      async reserve() {
+      async reserve(input) {
         calls.push('reserve')
+        reservedFor.push(input.environment)
         return options.reservation ?? { budgetLeft: 14, reserved: true }
       },
     },
@@ -129,6 +153,10 @@ function buildHarness(
         calls.push('loadConfig')
         return DISTRIBUTION_CONFIG
       },
+      async loadEnvironment() {
+        calls.push('loadEnvironment')
+        return options.profileEnvironment ?? 'homologation'
+      },
     },
     repository: {
       async closeWithoutDocument(input) {
@@ -151,7 +179,10 @@ function buildHarness(
         calls.push('markQuerying')
       },
       async markWaiting(input) {
-        waiting.push({ notBefore: input.notBefore })
+        waiting.push({
+          notBefore: input.notBefore,
+          ...(input.cStat === undefined ? {} : { cStat: input.cStat }),
+        })
       },
     },
     storage: {
@@ -162,7 +193,7 @@ function buildHarness(
     },
     xmlImporter: {
       async importXml() {
-        return importedXml(options.importedAccessKey)
+        return importedXml(options.importedAccessKey, options.parties)
       },
     },
   })
@@ -178,6 +209,7 @@ function buildHarness(
       return imported
     },
     logs,
+    reservedFor,
     stored,
     useCase,
     waiting,
@@ -194,7 +226,13 @@ describe('process access key lookup contract', () => {
 
     await harness.useCase.execute(envelope)
 
-    expect(harness.calls).toEqual(['markQuerying', 'reserve', 'loadConfig', 'gateway.create'])
+    expect(harness.calls).toEqual([
+      'loadEnvironment',
+      'reserve',
+      'markQuerying',
+      'loadConfig',
+      'gateway.create',
+    ])
     expect(harness.stored).toHaveLength(1)
     expect(harness.imported?.documentId).toBe('doc-1')
     expect(harness.closed).toEqual([])
@@ -252,7 +290,9 @@ describe('process access key lookup contract', () => {
     await harness.useCase.execute(envelope)
 
     expect(harness.calls).toContain('block656')
-    expect(harness.waiting).toEqual([{ notBefore: new Date(NOW.getTime() + 65 * 60 * 1000) }])
+    expect(harness.waiting).toEqual([
+      { cStat: '656', notBefore: new Date(NOW.getTime() + 65 * 60 * 1000) },
+    ])
     expect(harness.closed).toEqual([])
     expect(finishedLog(harness)?.metadata).toMatchObject({ cStat: '656', status: 'waiting' })
   })
@@ -286,6 +326,7 @@ describe('process access key lookup contract', () => {
     expect(harness.waiting).toEqual([{ notBefore }])
     expect(harness.gatewayCalls).toEqual([])
     expect(harness.calls).not.toContain('loadConfig')
+    expect(harness.calls).not.toContain('markQuerying')
   })
 
   test('document already registered completes the lookup without SEFAZ or budget', async () => {
@@ -347,10 +388,104 @@ describe('process access key lookup contract', () => {
       importedAccessKey: '35260112345678000190550010000000021000000028',
     })
 
-    await expect(harness.useCase.execute(envelope)).rejects.toThrow(
-      'NFE_ACCESS_KEY_LOOKUP_DOCUMENT_MISMATCH',
+    await expect(harness.useCase.execute(envelope)).rejects.toBeInstanceOf(
+      NfeAccessKeyLookupNonRetryableError,
     )
     expect(harness.imported).toBeUndefined()
+    expect(harness.stored).toEqual([])
+  })
+
+  test.each([
+    ['emitter', { issuer: COMPANY_CNPJ, recipient: OTHER_CNPJ }, '<nfeProc/>'],
+    ['recipient', { recipient: COMPANY_CNPJ }, '<nfeProc/>'],
+    ['carrier', { carrier: COMPANY_CNPJ, recipient: OTHER_CNPJ }, '<nfeProc/>'],
+    [
+      'autXML entry',
+      { recipient: OTHER_CNPJ },
+      `<NFe><infNFe><autXML><CNPJ>${COMPANY_CNPJ}</CNPJ></autXML></infNFe></NFe>`,
+    ],
+  ])('a procNFe where the company is the %s is stored', async (_role, parties, xml) => {
+    const harness = buildHarness({ item: procNfeItem(xml), parties })
+
+    await harness.useCase.execute(envelope)
+
+    expect(harness.stored).toHaveLength(1)
+    expect(harness.imported?.documentId).toBe('doc-1')
+  })
+
+  test('a procNFe where the company is not a party is refused as not_interested and not stored', async () => {
+    const harness = buildHarness({ parties: { recipient: OTHER_CNPJ } })
+
+    await harness.useCase.execute(envelope)
+
+    expect(harness.stored).toEqual([])
+    expect(harness.imported).toBeUndefined()
+    expect(harness.closed).toEqual([
+      { cStat: '138', lookup: baseLookup, now: NOW, reason: 'not_interested', status: 'refused' },
+    ])
+    expect(finishedLog(harness)?.metadata).toMatchObject({
+      reason: 'not_interested',
+      status: 'refused',
+    })
+  })
+
+  test('an autXML for another company does not make the company a party', async () => {
+    const xml = `<NFe><autXML><CNPJ>${OTHER_CNPJ}</CNPJ></autXML></NFe>`
+    const harness = buildHarness({ item: procNfeItem(xml), parties: { recipient: OTHER_CNPJ } })
+
+    await harness.useCase.execute(envelope)
+
+    expect(harness.stored).toEqual([])
+    expect(harness.closed[0]).toMatchObject({ reason: 'not_interested' })
+  })
+
+  test('an envelope whose importId differs from the lookup is non-retryable and never reaches SEFAZ', async () => {
+    const harness = buildHarness()
+    const forged = { ...envelope, payload: { ...envelope.payload, importId: crypto.randomUUID() } }
+
+    await expect(harness.useCase.execute(forged)).rejects.toMatchObject({
+      code: 'NFE_ACCESS_KEY_LOOKUP_IMPORT_ID_MISMATCH',
+    })
+    expect(harness.calls).toEqual([])
+    expect(harness.gatewayCalls).toEqual([])
+  })
+
+  test('a lookup without an import is non-retryable', async () => {
+    const harness = buildHarness({ lookup: { ...baseLookup, importId: null } })
+
+    await expect(harness.useCase.execute(envelope)).rejects.toBeInstanceOf(
+      NfeAccessKeyLookupNonRetryableError,
+    )
+    expect(harness.gatewayCalls).toEqual([])
+  })
+
+  test('the budget is reserved for the profile environment, and a mismatch is non-retryable', async () => {
+    const same = buildHarness()
+    await same.useCase.execute(envelope)
+    expect(same.reservedFor).toEqual(['homologation'])
+
+    const mismatch = buildHarness({ profileEnvironment: 'production' })
+    await expect(mismatch.useCase.execute(envelope)).rejects.toMatchObject({
+      code: 'NFE_ACCESS_KEY_LOOKUP_ENVIRONMENT_MISMATCH',
+    })
+    expect(mismatch.reservedFor).toEqual([])
+    expect(mismatch.gatewayCalls).toEqual([])
+    const warning = mismatch.logs.find((entry) => entry.message === 'environment_mismatch')
+    expect(warning?.level).toBe('warn')
+    expect(warning?.metadata).toMatchObject({ lookupId: LOOKUP_ID })
+  })
+
+  test('the unmapped schema warning names the schema and never the XML', async () => {
+    const harness = buildHarness({
+      result: { item: { ...procNfeItem(), schema: 'procEventoNFe_v1.00' }, kind: 'document' },
+    })
+
+    await harness.useCase.execute(envelope)
+
+    const warning = harness.logs.find(
+      (entry) => entry.message === 'nfe_access_key_lookup_unmapped_outcome',
+    )
+    expect(warning?.metadata).toMatchObject({ schema: 'procEventoNFe_v1.00' })
   })
 
   test('abandon closes an active lookup as failed and leaves a closed one alone', async () => {

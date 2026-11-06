@@ -233,4 +233,48 @@ describeDatabase('access key lookup requeue (integration)', () => {
       new Set(events.map((event) => (event.payload as { lookupId: string }).lookupId)),
     ).toEqual(new Set(lookupIds))
   })
+
+  it('counts lookups already queued as spent, so a later cycle never re-offers the same budget', async () => {
+    const { companyId, userId } = await createCompany()
+    await Promise.all(
+      Array.from({ length: 20 }, (_, index) =>
+        seedWaiting({ companyId, createdMinutesAgo: 60 - index, userId }),
+      ),
+    )
+
+    const first = await requeue.requeueDueLookups({ now: NOW })
+    const newcomers = await Promise.all(
+      Array.from({ length: 5 }, () => seedWaiting({ companyId, createdMinutesAgo: 1, userId })),
+    )
+    const second = await requeue.requeueDueLookups({ now: NOW })
+
+    expect(first.requeuedCount).toBe(15)
+    expect(second.requeuedCount).toBe(0)
+    expect(await Promise.all(newcomers.map(statusOf))).toEqual(Array(5).fill('waiting'))
+    expect(await eventsOf(companyId)).toHaveLength(15)
+  })
+
+  it('concurrent requeues never exceed the remaining budget of the scope', async () => {
+    const { companyId, userId } = await createCompany()
+    await db.insert(nfeAccessKeyLookupBudgets).values({
+      companyId,
+      environment: 'production',
+      usedInWindow: 9,
+      windowStartedAt: new Date(NOW.getTime() - 10 * MINUTE_MS),
+    })
+    await Promise.all(
+      Array.from({ length: 30 }, (_, index) =>
+        seedWaiting({ companyId, createdMinutesAgo: 60 - index, userId }),
+      ),
+    )
+
+    const results = await Promise.all([
+      requeue.requeueDueLookups({ now: NOW }),
+      requeue.requeueDueLookups({ now: NOW }),
+      requeue.requeueDueLookups({ now: NOW }),
+    ])
+
+    expect(results.reduce((total, result) => total + result.requeuedCount, 0)).toBe(6)
+    expect(await eventsOf(companyId)).toHaveLength(6)
+  })
 })

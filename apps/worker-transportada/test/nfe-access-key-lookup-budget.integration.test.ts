@@ -6,6 +6,11 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq, sql } from 'drizzle-orm'
 
 import { nfeAccessKeyLookupBudgets } from '../src/database/nfe.schema.js'
+import { createNfeDistributionConsumerFixture } from './nfe-distribution/nfe-distribution.fixture.js'
+import {
+  DISTRIBUTION_CONFIG,
+  DISTRIBUTION_ENVELOPE,
+} from './nfe-distribution/nfe-distribution.fixture.js'
 import { DrizzleAccessKeyLookupBudgetRepository } from '../src/nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup-budget.repository.js'
 
 const databaseUrl = process.env.DATABASE_URL
@@ -167,5 +172,68 @@ describeDatabase('DrizzleAccessKeyLookupBudgetRepository (integration)', () => {
 
     expect(otherCompany).toEqual({ reserved: true, budgetLeft: 14 })
     expect(otherEnvironment).toEqual({ reserved: true, budgetLeft: 14 })
+  })
+
+  it('a 656 from the distribution pull blocks the lookups without spending the budget', async () => {
+    const companyId = await createCompany()
+    const consumer = await createNfeDistributionConsumerFixture({
+      clock: { now: () => START },
+      cursorRepository: {
+        async acquireLease(input) {
+          return {
+            companyId: input.companyId,
+            consecutiveRateLimits: 0,
+            environment: input.environment,
+            leaseExpiresAt: null,
+            leaseOwner: input.owner,
+            maxNsu: '000000000000000',
+            nextAllowedAt: null,
+            ultNsu: '000000000000000',
+            version: 1n,
+          }
+        },
+        async releaseLease() {},
+        async resyncCursor() {},
+        async saveCursor() {},
+      },
+      gatewayFactory: {
+        create: () => ({
+          consultarDFe: () =>
+            Promise.reject(new Error('SEFAZ NFeDistribuicaoDFe: rate limit (cStat 656)')),
+        }),
+      },
+      leaseMs: 30_000,
+      logger: { error() {}, info() {}, warn() {} },
+      profile: { loadConfig: async () => DISTRIBUTION_CONFIG },
+      repository: {
+        async finalizeImport() {},
+        async persistPage() {
+          throw new Error('nothing to persist')
+        },
+      },
+      sefazBudget: repository,
+    })
+
+    await consumer.execute({ envelope: { ...DISTRIBUTION_ENVELOPE, companyId } })
+
+    const refused = await repository.reserve({ companyId, environment: ENVIRONMENT, now: START })
+    expect(refused.reserved).toBe(false)
+    const [row] = await db
+      .select()
+      .from(nfeAccessKeyLookupBudgets)
+      .where(eq(nfeAccessKeyLookupBudgets.companyId, companyId))
+    expect(row?.usedInWindow).toBe(0)
+  })
+
+  it('a 656 opened by a lookup is what the pull reads, per company and environment', async () => {
+    const companyId = await createCompany()
+    expect(await repository.readBlockedUntil({ companyId, environment: ENVIRONMENT })).toBeNull()
+
+    await repository.block656({ companyId, environment: ENVIRONMENT, now: START })
+
+    expect(await repository.readBlockedUntil({ companyId, environment: ENVIRONMENT })).toEqual(
+      new Date(START.getTime() + 65 * MINUTE_MS),
+    )
+    expect(await repository.readBlockedUntil({ companyId, environment: 'production' })).toBeNull()
   })
 })

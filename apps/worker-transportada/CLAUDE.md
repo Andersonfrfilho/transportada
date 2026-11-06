@@ -73,7 +73,7 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   Uma por vez, 3 na fila (depois 503), 8 MB, nada gravado e nada de texto em log. No Railway, `WORKER_HOSTNAME=::`.
 - **A busca de NF-e por chave tem trilho próprio** (spec 298): `nfe-access-key.v1`, consumidor `startNfeAccessKeyConsumer` (prefetch 1) e caso de uso
   `process-access-key-lookup` em `src/nfe-access-key-lookup/`. Orçamento por `(empresa, ambiente)` em `nfe_access_key_lookup_budgets` (15 por hora, 656 abre
-  65 min), nunca o cursor da distribuição. `procNFe` entra pelo escritor comum (`source = 'access_key'`); a nota que a distribuição já trouxe é reaproveitada, sem
+  65 min), nunca o cursor da distribuição; o 656 é um só para o serviço: o da distribuição trava a busca e o da busca pausa a distribuição (que não gasta a cota). Erro de dado (importId, ambiente, SHA do objeto, chave) é `NfeAccessKeyLookupNonRetryableError`: fecha a busca e vai à fila morta sem nova consulta. Só guarda o XML quem é parte (emitente, destinatário, transportador ou `autXML`). `procNFe` entra pelo escritor comum (`source = 'access_key'`); a nota que a distribuição já trouxe é reaproveitada, sem
   consulta nem orçamento. A rotina `nfe.distribution.pull` devolve ao trilho as buscas `waiting` vencidas, no máximo o que cabe no orçamento (leitura sem reserva).
   Log só com `accessKeyLast4`, nunca a chave inteira. Detalhe: `specs/298-a-nota-bipada-vem-da-sefaz/`.
 - **A planta do baú é calculada aqui** (ADR-0063, spec 145) — consumidor `CargoLayoutConsumer`

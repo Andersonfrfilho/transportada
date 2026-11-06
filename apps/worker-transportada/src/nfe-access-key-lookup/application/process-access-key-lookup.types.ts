@@ -125,6 +125,7 @@ export type ProcessAccessKeyLookupDependencies = {
   }
   readonly profile: {
     loadConfig(input: { readonly companyId: string }): Promise<AccessKeyLookupRuntimeConfig>
+    loadEnvironment(input: { readonly companyId: string }): Promise<NfeFiscalEnvironment>
   }
   readonly repository: AccessKeyLookupRepositoryPort
   readonly storage: AccessKeyLookupDocumentStoragePort

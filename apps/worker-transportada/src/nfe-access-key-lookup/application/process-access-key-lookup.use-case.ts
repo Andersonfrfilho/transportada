@@ -1,14 +1,18 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { NfeAccessKeyLookupReason } from '../../database/nfe.schema.js'
-import { safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
+import { safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { NfeAccessKeyEnvelopeV1 } from '../../messaging/nfe-access-key-envelope.schema.js'
-import { prepareDistributionItem } from '../../nfe-distribution/infrastructure/nfe-distribution-item.mapper.js'
-import { ACTIVE_LOOKUP_STATUSES } from '../domain/nfe-access-key-lookup.constant.js'
-import { ACCESS_KEY_LOOKUP_BLOCK_656_MS } from '../domain/nfe-access-key-lookup-budget.constant.js'
-import { resolveAccessKeyLookupOutcome } from '../domain/access-key-lookup-outcome.policy.js'
-import type { AccessKeyLookupGatewayResult } from '../domain/nfe-access-key-lookup.types.js'
+import {
+  ACTIVE_LOOKUP_STATUSES,
+  SEFAZ_UNAVAILABLE_REASON,
+} from '../domain/nfe-access-key-lookup.constant.js'
+import {
+  NFE_ACCESS_KEY_LOOKUP_ERROR_CODE,
+  NfeAccessKeyLookupNonRetryableError,
+} from '../domain/nfe-access-key-lookup.error.js'
+import { logLookupFinished } from './access-key-lookup-finished.log.js'
+import { applyLookupOutcome } from './apply-access-key-lookup-outcome.js'
 import type {
   AccessKeyLookupRecord,
   ProcessAccessKeyLookupDependencies,
@@ -18,151 +22,73 @@ import type {
 export const NFE_ACCESS_KEY_LOOKUP_CONSUMER_NAME = 'nfe-access-key-lookup-consumer'
 
 const RESUMABLE_STATUSES: ReadonlySet<string> = new Set(ACTIVE_LOOKUP_STATUSES)
-const FINISHED_LOG_MESSAGE = 'nfe_access_key_lookup_finished'
 const ACK = { type: 'ack' } as const
-const ACCESS_KEY_LAST_DIGITS = 4
-const DOCUMENT_FOUND_CSTAT = '138'
-const NOT_FOUND_CSTAT = '137'
-
-type FinishedLog = {
-  readonly budgetLeft?: number
-  readonly cStat?: string
-  readonly lookup: AccessKeyLookupRecord
-  readonly reason?: NfeAccessKeyLookupReason
-  readonly status: 'failed' | 'imported' | 'refused' | 'waiting'
-}
 
 type Dependencies = ProcessAccessKeyLookupDependencies
-
-function resolveCStat(result: AccessKeyLookupGatewayResult): string | undefined {
-  if (result.kind === 'sefaz-rejection') return result.cStat
-  if (result.kind === 'not-found') return NOT_FOUND_CSTAT
-  if (result.kind === 'document') return DOCUMENT_FOUND_CSTAT
-  return undefined
+type ProcessParams = {
+  readonly dependencies: Dependencies
+  readonly envelope: NfeAccessKeyEnvelopeV1
 }
 
-function logFinished(dependencies: Dependencies, entry: FinishedLog): void {
-  safeLogInfo({
-    logger: dependencies.logger,
-    message: FINISHED_LOG_MESSAGE,
-    metadata: {
-      accessKeyLast4: entry.lookup.accessKey.slice(-ACCESS_KEY_LAST_DIGITS),
-      companyId: entry.lookup.companyId,
-      lookupId: entry.lookup.id,
-      status: entry.status,
-      ...(entry.reason === undefined ? {} : { reason: entry.reason }),
-      ...(entry.cStat === undefined ? {} : { cStat: entry.cStat }),
-      ...(entry.budgetLeft === undefined ? {} : { budgetLeft: entry.budgetLeft }),
-    },
-  })
-}
-
-async function importFromSefaz(
-  dependencies: Dependencies,
-  params: {
-    readonly budgetLeft: number
-    readonly lookup: AccessKeyLookupRecord
-    readonly result: Extract<AccessKeyLookupGatewayResult, { kind: 'document' }>
-  },
-): Promise<void> {
-  const { lookup } = params
-  const prepared = await prepareDistributionItem({
-    dfe: params.result.item,
-    xmlImporter: dependencies.xmlImporter,
-  })
-  if (prepared.variant !== 'complete' || prepared.accessKey !== lookup.accessKey) {
-    throw new Error('NFE_ACCESS_KEY_LOOKUP_DOCUMENT_MISMATCH')
+function assertEnvelopeMatchesLookup(params: {
+  readonly envelope: NfeAccessKeyEnvelopeV1
+  readonly lookup: AccessKeyLookupRecord
+}): void {
+  const { envelope, lookup } = params
+  if (lookup.importId === null) {
+    throw new NfeAccessKeyLookupNonRetryableError(NFE_ACCESS_KEY_LOOKUP_ERROR_CODE.IMPORT_MISSING)
   }
-  if (lookup.importId === null) throw new Error('NFE_ACCESS_KEY_LOOKUP_IMPORT_MISSING')
+  if (lookup.importId !== envelope.payload.importId) {
+    throw new NfeAccessKeyLookupNonRetryableError(
+      NFE_ACCESS_KEY_LOOKUP_ERROR_CODE.IMPORT_ID_MISMATCH,
+    )
+  }
+}
 
-  const storedObject = await dependencies.storage.storeDocument({
+async function completeFromExistingDocument(
+  params: ProcessParams & { readonly lookup: AccessKeyLookupRecord },
+): Promise<boolean> {
+  const { dependencies, lookup } = params
+  const documentId = await dependencies.repository.findDocumentId({
     accessKey: lookup.accessKey,
     companyId: lookup.companyId,
-    importId: lookup.importId,
-    sourceBytes: prepared.sourceBytes,
-    sourceSha256: prepared.sourceSha256,
   })
-  await dependencies.repository.importDocument({
-    cStat: DOCUMENT_FOUND_CSTAT,
+  if (documentId === undefined) return false
+
+  await dependencies.repository.completeWithExistingDocument({
+    documentId,
     lookup,
     now: dependencies.clock.now(),
-    prepared,
-    storedObject,
   })
-  logFinished(dependencies, {
-    budgetLeft: params.budgetLeft,
-    cStat: DOCUMENT_FOUND_CSTAT,
-    lookup,
-    status: 'imported',
-  })
+  logLookupFinished({ entry: { lookup, status: 'imported' }, logger: dependencies.logger })
+  return true
 }
 
-async function applyOutcome(
-  dependencies: Dependencies,
-  params: {
-    readonly budgetLeft: number
-    readonly lookup: AccessKeyLookupRecord
-    readonly result: AccessKeyLookupGatewayResult
-  },
-): Promise<void> {
-  const { budgetLeft, lookup, result } = params
-  const outcome = resolveAccessKeyLookupOutcome(result)
-  const now = dependencies.clock.now()
-  const cStat = resolveCStat(result)
+/** O ambiente da reserva é o da chamada: busca gravada para um ambiente que o perfil já trocou não gasta a cota do outro. */
+async function resolveProfileEnvironment(
+  params: ProcessParams & { readonly lookup: AccessKeyLookupRecord },
+) {
+  const { dependencies, lookup } = params
+  const environment = await dependencies.profile.loadEnvironment({ companyId: lookup.companyId })
+  if (environment === lookup.environment) return environment
 
-  if (outcome.status === 'imported-candidate' && result.kind === 'document') {
-    await importFromSefaz(dependencies, { budgetLeft, lookup, result })
-    return
-  }
-  if (outcome.status === 'waiting') {
-    await dependencies.budget.block656({
+  safeLogWarn({
+    logger: dependencies.logger,
+    message: 'environment_mismatch',
+    metadata: {
       companyId: lookup.companyId,
-      environment: lookup.environment,
-      now,
-    })
-    const notBefore = new Date(now.getTime() + ACCESS_KEY_LOOKUP_BLOCK_656_MS)
-    await dependencies.repository.markWaiting({ lookup, notBefore, now })
-    safeLogWarn({
-      logger: dependencies.logger,
-      message: 'nfe_access_key_lookup_budget_blocked_656',
-      metadata: { companyId: lookup.companyId, lookupId: lookup.id },
-    })
-    logFinished(dependencies, { budgetLeft, ...optional({ cStat }), lookup, status: 'waiting' })
-    return
-  }
-  if (outcome.status === 'refused' || outcome.status === 'failed') {
-    if ('unmapped' in outcome && outcome.unmapped === true) {
-      safeLogWarn({
-        logger: dependencies.logger,
-        message: 'nfe_access_key_lookup_unmapped_outcome',
-        metadata: { companyId: lookup.companyId, lookupId: lookup.id, cStat: cStat ?? 'none' },
-      })
-    }
-    await dependencies.repository.closeWithoutDocument({
-      ...optional({ cStat }),
-      lookup,
-      now,
-      reason: outcome.reason,
-      status: outcome.status,
-    })
-    logFinished(dependencies, {
-      budgetLeft,
-      ...optional({ cStat }),
-      lookup,
-      reason: outcome.reason,
-      status: outcome.status,
-    })
-  }
+      lookupEnvironment: lookup.environment,
+      lookupId: lookup.id,
+      profileEnvironment: environment,
+    },
+  })
+  throw new NfeAccessKeyLookupNonRetryableError(
+    NFE_ACCESS_KEY_LOOKUP_ERROR_CODE.ENVIRONMENT_MISMATCH,
+  )
 }
 
-function optional(value: { readonly cStat: string | undefined }): { readonly cStat?: string } {
-  return value.cStat === undefined ? {} : { cStat: value.cStat }
-}
-
-async function processLookup(
-  dependencies: Dependencies,
-  envelope: NfeAccessKeyEnvelopeV1,
-): Promise<void> {
+async function processLookup(params: ProcessParams): Promise<void> {
+  const { dependencies, envelope } = params
   const { companyId } = envelope
   const lookup = await dependencies.repository.findLookup({
     companyId,
@@ -170,61 +96,64 @@ async function processLookup(
   })
   if (lookup === undefined || !RESUMABLE_STATUSES.has(lookup.status)) return
 
-  const now = dependencies.clock.now()
-  const documentId = await dependencies.repository.findDocumentId({
-    accessKey: lookup.accessKey,
-    companyId,
-  })
-  if (documentId !== undefined) {
-    await dependencies.repository.completeWithExistingDocument({ documentId, lookup, now })
-    logFinished(dependencies, { lookup, status: 'imported' })
-    return
-  }
+  assertEnvelopeMatchesLookup({ envelope, lookup })
+  if (await completeFromExistingDocument({ ...params, lookup })) return
 
-  await dependencies.repository.markQuerying({ lookup, now })
-  const reservation = await dependencies.budget.reserve({
-    companyId,
-    environment: lookup.environment,
-    now,
-  })
+  const environment = await resolveProfileEnvironment({ ...params, lookup })
+  const now = dependencies.clock.now()
+  const reservation = await dependencies.budget.reserve({ companyId, environment, now })
   if (!reservation.reserved) {
     await dependencies.repository.markWaiting({ lookup, notBefore: reservation.notBefore, now })
-    logFinished(dependencies, { lookup, status: 'waiting' })
+    logLookupFinished({ entry: { lookup, status: 'waiting' }, logger: dependencies.logger })
     return
   }
 
+  // Queda entre a reserva e a resposta da SEFAZ custa uma unidade do orçamento: é o preço de nunca gastar a cota duas vezes
+  await dependencies.repository.markQuerying({ lookup, now })
   const config = await dependencies.profile.loadConfig({ companyId })
   const result = await dependencies.gatewayFactory
     .create({ config })
     .consultarPorChave({ chaveNfe: lookup.accessKey, config })
-  await applyOutcome(dependencies, { budgetLeft: reservation.budgetLeft, lookup, result })
+  await applyLookupOutcome({
+    budgetLeft: reservation.budgetLeft,
+    config,
+    dependencies,
+    lookup,
+    result,
+  })
+}
+
+async function abandonLookup(params: ProcessParams): Promise<void> {
+  const { dependencies, envelope } = params
+  const lookup = await dependencies.repository.findLookup({
+    companyId: envelope.companyId,
+    lookupId: envelope.payload.lookupId,
+  })
+  if (lookup === undefined || !RESUMABLE_STATUSES.has(lookup.status)) return
+
+  await dependencies.repository.closeWithoutDocument({
+    lookup,
+    now: dependencies.clock.now(),
+    reason: SEFAZ_UNAVAILABLE_REASON,
+    status: 'failed',
+  })
+  logLookupFinished({
+    entry: { lookup, reason: SEFAZ_UNAVAILABLE_REASON, status: 'failed' },
+    logger: dependencies.logger,
+  })
 }
 
 export function createProcessAccessKeyLookupUseCase(
   dependencies: Dependencies,
 ): ProcessAccessKeyLookupUseCase {
   return {
-    async abandon(envelope): Promise<void> {
-      const lookup = await dependencies.repository.findLookup({
-        companyId: envelope.companyId,
-        lookupId: envelope.payload.lookupId,
-      })
-      if (lookup === undefined || !RESUMABLE_STATUSES.has(lookup.status)) return
-
-      await dependencies.repository.closeWithoutDocument({
-        lookup,
-        now: dependencies.clock.now(),
-        reason: 'sefaz_unavailable',
-        status: 'failed',
-      })
-      logFinished(dependencies, { lookup, reason: 'sefaz_unavailable', status: 'failed' })
-    },
+    abandon: (envelope) => abandonLookup({ dependencies, envelope }),
     async execute(envelope): Promise<{ readonly type: 'ack' }> {
       return dependencies.processedMessages.runOnce({
         companyId: envelope.companyId,
         consumerName: NFE_ACCESS_KEY_LOOKUP_CONSUMER_NAME,
         effect: async () => {
-          await processLookup(dependencies, envelope)
+          await processLookup({ dependencies, envelope })
           return ACK
         },
         eventId: envelope.eventId,

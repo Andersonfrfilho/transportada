@@ -21,6 +21,7 @@ import {
 import { processedMessages, processingOutbox } from '../src/database/processing.schema.js'
 import type { NfeAccessKeyEnvelopeV1 } from '../src/messaging/nfe-access-key-envelope.schema.js'
 import { createProcessAccessKeyLookupUseCase } from '../src/nfe-access-key-lookup/application/process-access-key-lookup.use-case.js'
+import type { ProcessAccessKeyLookupDependencies } from '../src/nfe-access-key-lookup/application/process-access-key-lookup.types.js'
 import type { AccessKeyLookupGatewayResult } from '../src/nfe-access-key-lookup/domain/nfe-access-key-lookup.types.js'
 import { DrizzleAccessKeyLookupBudgetRepository } from '../src/nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup-budget.repository.js'
 import { DrizzleAccessKeyLookupRepository } from '../src/nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup.repository.js'
@@ -40,6 +41,9 @@ const keys = {
   outbox: '35190730290856000160550010000000531000000536',
   refused: '35190730290856000160550010000000541000000545',
   repositoryRace: '35190730290856000160550010000000551000000554',
+  shaConflict: '35190730290856000160550010000000561000000563',
+  terminalGuard: '35190730290856000160550010000000571000000572',
+  environmentMismatch: '35190730290856000160550010000000581000000581',
 } as const
 
 function importedXml(accessKey: string): ImportedNfeXml {
@@ -99,7 +103,7 @@ describeDatabase('access key lookup consumer (integration)', () => {
   const gatewayCalls: string[] = []
   let gatewayResult: AccessKeyLookupGatewayResult = { item: procNfeItem(), kind: 'document' }
 
-  const useCase = createProcessAccessKeyLookupUseCase({
+  const useCaseDependencies = {
     budget: new DrizzleAccessKeyLookupBudgetRepository(db),
     clock: { now: () => NOW },
     gatewayFactory: {
@@ -112,7 +116,10 @@ describeDatabase('access key lookup consumer (integration)', () => {
     },
     logger,
     processedMessages: new PersistentProcessedMessageService({ repository: outboxRepository }),
-    profile: { loadConfig: async () => DISTRIBUTION_CONFIG },
+    profile: {
+      loadConfig: async () => DISTRIBUTION_CONFIG,
+      loadEnvironment: async () => 'homologation',
+    },
     repository: lookupRepository,
     storage: {
       async storeDocument(input) {
@@ -130,7 +137,8 @@ describeDatabase('access key lookup consumer (integration)', () => {
         return importedXml(currentAccessKey)
       },
     },
-  })
+  } satisfies ProcessAccessKeyLookupDependencies
+  const useCase = createProcessAccessKeyLookupUseCase(useCaseDependencies)
   let currentAccessKey: string = keys.lookupFirst
 
   async function seedLookup(accessKey: string, options: { readonly isPublished?: boolean } = {}) {
@@ -364,6 +372,11 @@ describeDatabase('access key lookup consumer (integration)', () => {
       receivedCount: 1n,
       status: 'completed',
     })
+    const [duplicatedItem] = (
+      await db.select().from(nfeImportItems).where(eq(nfeImportItems.importId, importId))
+    ).filter((item) => item.status === 'duplicated')
+    expect(duplicatedItem?.sourceObjectId).toBe(document!.xmlObjectId)
+    expect(duplicatedItem?.sourceSha256).toBe(document!.xmlSha256)
     expect(gatewayCalls.length).toBe(callsBefore)
     const [budgetAfter] = await db
       .select()
@@ -388,14 +401,14 @@ describeDatabase('access key lookup consumer (integration)', () => {
         dfe: procNfeItem(),
         normalizedXml: importedXml(keys.repositoryRace),
         sourceBytes,
-        sourceSha256: 'b'.repeat(64),
+        sourceSha256: 'a'.repeat(64),
         variant: 'complete',
       },
       storedObject: {
         bucket: BUCKET,
         key: `tenants/${companyId}/nfe-documents/${keys.repositoryRace}/original.xml`,
         objectId: crypto.randomUUID(),
-        sha256: 'b'.repeat(64),
+        sha256: 'a'.repeat(64),
         sizeBytes: sourceBytes.byteLength,
       },
     })
@@ -440,6 +453,90 @@ describeDatabase('access key lookup consumer (integration)', () => {
       eventType: 'transportada.nfe.access-key.requested',
       importId,
       lookupId,
+    })
+  })
+
+  it('does not reuse a stored object whose content differs from the new XML', async () => {
+    currentAccessKey = keys.shaConflict
+    const { importId, lookupId } = await seedLookup(keys.shaConflict)
+    const lookup = (await lookupRepository.findLookup({ companyId, lookupId }))!
+    await distributionPersist(keys.shaConflict, importId, '000000000000091')
+    const sourceBytes = Buffer.from('<nfeProc/>')
+
+    await expect(
+      lookupRepository.importDocument({
+        cStat: '138',
+        lookup,
+        now: NOW,
+        prepared: {
+          accessKey: keys.shaConflict,
+          dfe: procNfeItem(),
+          normalizedXml: importedXml(keys.shaConflict),
+          sourceBytes,
+          sourceSha256: 'c'.repeat(64),
+          variant: 'complete',
+        },
+        storedObject: {
+          bucket: BUCKET,
+          key: `tenants/${companyId}/nfe-documents/${keys.shaConflict}/original.xml`,
+          objectId: crypto.randomUUID(),
+          sha256: 'c'.repeat(64),
+          sizeBytes: sourceBytes.byteLength,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'NFE_ACCESS_KEY_LOOKUP_STORAGE_SHA_CONFLICT' })
+    expect(await readLookup(lookupId)).toMatchObject({ status: 'queued' })
+  })
+
+  it('never moves a lookup that is already terminal', async () => {
+    gatewayResult = { cStat: '640', kind: 'sefaz-rejection' }
+    const { envelope, lookupId } = await seedLookup(keys.terminalGuard)
+    await useCase.execute(envelope)
+    const lookup = (await lookupRepository.findLookup({ companyId, lookupId }))!
+
+    await lookupRepository.markWaiting({ lookup, notBefore: NOW, now: NOW })
+    await lookupRepository.closeWithoutDocument({
+      lookup,
+      now: NOW,
+      reason: 'sefaz_unavailable',
+      status: 'failed',
+    })
+
+    expect(await readLookup(lookupId)).toMatchObject({
+      reason: 'not_interested',
+      status: 'refused',
+    })
+  })
+
+  it('stops a lookup whose environment differs from the profile before spending the budget', async () => {
+    const { envelope, lookupId } = await seedLookup(keys.environmentMismatch)
+    const [budgetBefore] = await db
+      .select()
+      .from(nfeAccessKeyLookupBudgets)
+      .where(eq(nfeAccessKeyLookupBudgets.companyId, companyId))
+    const callsBefore = gatewayCalls.length
+    const mismatchUseCase = createProcessAccessKeyLookupUseCase({
+      ...useCaseDependencies,
+      profile: {
+        ...useCaseDependencies.profile,
+        loadEnvironment: async () => 'production' as const,
+      },
+    })
+
+    await expect(mismatchUseCase.execute(envelope)).rejects.toMatchObject({
+      code: 'NFE_ACCESS_KEY_LOOKUP_ENVIRONMENT_MISMATCH',
+    })
+    await mismatchUseCase.abandon(envelope)
+
+    expect(gatewayCalls.length).toBe(callsBefore)
+    const [budgetAfter] = await db
+      .select()
+      .from(nfeAccessKeyLookupBudgets)
+      .where(eq(nfeAccessKeyLookupBudgets.companyId, companyId))
+    expect(budgetAfter?.usedInWindow).toBe(budgetBefore?.usedInWindow)
+    expect(await readLookup(lookupId)).toMatchObject({
+      reason: 'sefaz_unavailable',
+      status: 'failed',
     })
   })
 })

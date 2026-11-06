@@ -15,12 +15,11 @@ import {
 } from '../../database/nfe.schema.js'
 import { resolveSummaryStatusChange } from '../../nfe-documents/domain/nfe-document-status-transition.policy.js'
 import { resolveNfeEventOrigin } from '../../nfe-documents/domain/nfe-event-origin.policy.js'
+import { insertNfeDocument } from '../../nfe-documents/infrastructure/nfe-document-insert.persistence.js'
 import { lockAccessKey } from '../../nfe-documents/infrastructure/drizzle-nfe-document-status.persistence.js'
 import {
   applySummaryStatus,
   logNfeStatusWriteResult,
-  recordDocumentInsertChange,
-  resolveInitialDocumentStatus,
   writeEventWithStatus,
 } from '../../nfe-documents/infrastructure/nfe-document-status-write.persistence.js'
 import type {
@@ -29,8 +28,6 @@ import type {
   NfeStatusWriteResult,
 } from '../../nfe-documents/types/nfe-document-status.types.js'
 import type { NfeWriteTransaction } from '../../nfe-documents/types/nfe-write-transaction.types.js'
-import { resolveRecipientEmail } from '../../nfe-imports/domain/recipient-email.policy.js'
-import { writeDocumentChildren } from '../../nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -380,72 +377,19 @@ export class DrizzleNfeDistributionRepository {
       throw new Error('NFE_DISTRIBUTION_DOCUMENT_MISSING_XML')
     }
 
-    const document = normalizedXml.document
-    const recipientEmail = resolveRecipientEmail(document.recipient?.email)
-    if (recipientEmail.wasRejected) {
-      this.#logger.warn('nfe_recipient_email_rejected', {
-        companyId,
-        rejectedRecipientEmailCount: 1,
-      })
-    }
-    const initial = await resolveInitialDocumentStatus({
-      accessKey: document.accessKey,
+    const created = await insertNfeDocument({
       companyId,
-      tx,
-      xmlStatus: document.status,
-    })
-    const [created] = await tx
-      .insert(nfeDocuments)
-      .values({
-        accessKey: document.accessKey,
-        additionalInformation: document.additionalInformation ?? null,
-        authorizationProtocol: document.protocol?.number ?? null,
-        companyId,
-        createdByUserId,
-        discountValue: document.totals.discount ?? '0',
-        freightValue: document.totals.freight ?? '0',
-        importId,
-        insuranceValue: document.totals.insurance ?? '0',
-        issuedAt: new Date(document.issuedAt),
-        model: document.model,
-        number: document.number,
-        operationNature: document.operationNature,
-        operationType: document.operationType,
-        otherExpensesValue: document.totals.otherExpenses ?? '0',
-        productsValue: document.totals.products,
-        recipientEmail: recipientEmail.email,
-        series: document.series,
-        source: DISTRIBUTION_SOURCE,
-        status: initial.status,
-        totalValue: document.totals.invoice,
-        xmlObjectId: item.finalObject.objectId,
-        xmlSha256: item.finalObject.sha256,
-      })
-      .onConflictDoNothing({ target: [nfeDocuments.companyId, nfeDocuments.accessKey] })
-      .returning({ createdAt: sql<string>`${nfeDocuments.createdAt}::text`, id: nfeDocuments.id })
-
-    if (created === undefined) {
-      return null
-    }
-
-    const change = await recordDocumentInsertChange({
-      companyId,
-      createdAt: created.createdAt,
-      documentId: created.id,
-      pendingEventId: initial.pendingEventId,
-      provenance,
-      status: initial.status,
-      tx,
-      xmlStatus: document.status,
-    })
-    await writeDocumentChildren({
-      companyId,
-      document,
-      documentId: created.id,
+      createdByUserId,
+      document: normalizedXml.document,
+      importId,
       logger: this.#logger,
+      provenance,
+      source: DISTRIBUTION_SOURCE,
       tx,
+      xmlObjectId: item.finalObject.objectId,
+      xmlSha256: item.finalObject.sha256,
     })
-    return { change, warning: null }
+    return created === undefined ? null : { change: created.change, warning: null }
   }
 }
 

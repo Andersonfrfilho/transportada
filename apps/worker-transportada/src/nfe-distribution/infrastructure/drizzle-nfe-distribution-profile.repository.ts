@@ -51,6 +51,21 @@ export class DrizzleNfeDistributionProfileRepository {
     this.#secretService = dependencies.secretService
   }
 
+  /** Leitura barata, sem decifrar certificado: dá o ambiente que a chamada à SEFAZ vai usar. */
+  async loadEnvironment(input: {
+    readonly companyId: string
+  }): Promise<NfeDistributionEnvironment> {
+    const [profile] = await this.#database
+      .select({ environment: companyFiscalProfiles.environment })
+      .from(companyFiscalProfiles)
+      .where(eq(companyFiscalProfiles.companyId, input.companyId))
+      .limit(1)
+    if (profile === undefined) {
+      throw new Error('NFE_DISTRIBUTION_PROFILE_MISSING')
+    }
+    return profile.environment
+  }
+
   async loadConfig(input: { readonly companyId: string }): Promise<NfeDistributionRuntimeConfig> {
     const [profile] = await this.#database
       .select({

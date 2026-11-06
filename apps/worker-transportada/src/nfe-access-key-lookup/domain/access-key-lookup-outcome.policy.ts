@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { NfeAccessKeyLookupReason } from '../../database/nfe.schema.js'
+import { SEFAZ_UNAVAILABLE_REASON } from './nfe-access-key-lookup.constant.js'
 import type {
   AccessKeyLookupGatewayResult,
   AccessKeyLookupOutcome,
@@ -24,7 +25,7 @@ export function resolveAccessKeyLookupOutcome(
   result: AccessKeyLookupGatewayResult,
 ): AccessKeyLookupOutcome {
   if (result.kind === 'unavailable') {
-    return { status: 'failed', reason: 'sefaz_unavailable' }
+    return { status: 'failed', reason: SEFAZ_UNAVAILABLE_REASON }
   }
   if (result.kind === 'not-found') {
     return { status: 'refused', reason: 'not_found' }
@@ -38,12 +39,12 @@ export function resolveAccessKeyLookupOutcome(
 function resolveDocumentOutcome(schema: string): AccessKeyLookupOutcome {
   if (schema === COMPLETE_DOCUMENT_SCHEMA) return { status: 'imported-candidate' }
   if (schema === SUMMARY_DOCUMENT_SCHEMA) return { status: 'refused', reason: 'summary_only' }
-  return { status: 'failed', reason: 'sefaz_unavailable', unmapped: true }
+  return { status: 'failed', reason: SEFAZ_UNAVAILABLE_REASON, unmapped: true }
 }
 
 function resolveRejectionOutcome(cStat: string): AccessKeyLookupOutcome {
   if (cStat === BUDGET_BLOCK_CSTAT) return { status: 'waiting' }
   const reason = REFUSAL_REASON_BY_CSTAT[cStat]
   if (reason !== undefined) return { status: 'refused', reason }
-  return { status: 'failed', reason: 'sefaz_unavailable', cStat, unmapped: true }
+  return { status: 'failed', reason: SEFAZ_UNAVAILABLE_REASON, cStat, unmapped: true }
 }

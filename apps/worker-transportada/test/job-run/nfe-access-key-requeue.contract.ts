@@ -29,7 +29,7 @@ function candidate(id: string, companyId = FIRST_COMPANY): RequeueCandidate {
 
 describe('computeRemainingBudget', () => {
   test('without a budget row the whole window is free', () => {
-    expect(computeRemainingBudget({ now: NOW, row: undefined })).toBe(15)
+    expect(computeRemainingBudget({ inFlightCount: 0, now: NOW, row: undefined })).toBe(15)
   })
 
   test('counts what is left inside the open window', () => {
@@ -39,7 +39,7 @@ describe('computeRemainingBudget', () => {
       windowStartedAt: new Date(NOW.getTime() - 10 * 60_000),
     }
 
-    expect(computeRemainingBudget({ now: NOW, row })).toBe(4)
+    expect(computeRemainingBudget({ inFlightCount: 0, now: NOW, row })).toBe(4)
   })
 
   test('an expired window is free again', () => {
@@ -49,7 +49,19 @@ describe('computeRemainingBudget', () => {
       windowStartedAt: new Date(NOW.getTime() - HOUR_MS),
     }
 
-    expect(computeRemainingBudget({ now: NOW, row })).toBe(15)
+    expect(computeRemainingBudget({ inFlightCount: 0, now: NOW, row })).toBe(15)
+  })
+
+  test('lookups already queued or querying come out of what is left', () => {
+    const row = {
+      blockedUntil: null,
+      usedInWindow: 11,
+      windowStartedAt: new Date(NOW.getTime() - 10 * 60_000),
+    }
+
+    expect(computeRemainingBudget({ inFlightCount: 3, now: NOW, row })).toBe(1)
+    expect(computeRemainingBudget({ inFlightCount: 9, now: NOW, row })).toBe(0)
+    expect(computeRemainingBudget({ inFlightCount: 20, now: NOW, row: undefined })).toBe(0)
   })
 
   test('an open 656 block leaves nothing, a finished one does not matter', () => {
@@ -57,12 +69,14 @@ describe('computeRemainingBudget', () => {
 
     expect(
       computeRemainingBudget({
+        inFlightCount: 0,
         now: NOW,
         row: { blockedUntil: new Date(NOW.getTime() + 60_000), usedInWindow: 0, windowStartedAt },
       }),
     ).toBe(0)
     expect(
       computeRemainingBudget({
+        inFlightCount: 0,
         now: NOW,
         row: { blockedUntil: new Date(NOW.getTime() - 1), usedInWindow: 0, windowStartedAt },
       }),
