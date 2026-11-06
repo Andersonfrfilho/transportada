@@ -22,37 +22,87 @@ export type WhatsAppDriverStopCommand = {
 
 const MAX_WORDS = 6
 
-const ARRIVE_WORDS = new Set(['cheguei', 'chegando', 'chegamos', 'cheguemos'])
-const DEPART_WORDS = new Set(['sai', 'saindo', 'saimos', 'saiu'])
-const DEPART_PHRASES = [
-  /\biniciar rota\b/u,
-  /\binicio rota\b/u,
-  /\biniciei rota\b/u,
-  /\binicie rota\b/u,
-]
-/** Palavras que podem acompanhar o comando sem mudar o sentido ("saí para a entrega"). */
+const ARRIVE_WORDS = new Set(['cheguei', 'chegando', 'chegamos', 'cheguemos', 'chegei', 'chegamo'])
+const DEPART_WORDS = new Set(['sai', 'saindo', 'saimos', 'saiu', 'saimo'])
+const ROUTE_START_WORDS = new Set(['iniciar', 'inicia', 'inicio', 'iniciei', 'inicie', 'iniciando'])
+/** Palavras que podem acompanhar o comando sem mudar o sentido ("saí para a entrega", "to saindo"). */
 const FILLER = new Set([
   'a',
   'agora',
   'ao',
+  'apra',
   'cliente',
   'da',
   'de',
   'do',
   'e',
   'entrega',
+  'estou',
   'eu',
+  'ja',
   'na',
   'no',
   'nf',
   'nota',
+  'num',
   'o',
+  'p',
+  'pa',
   'para',
   'parada',
   'pra',
+  'pro',
   'rota',
+  'to',
+  'tou',
   'viagem',
 ])
+
+const MIN_FUZZY_WORD_LENGTH = 4
+const MIN_FUZZY_TARGET_LENGTH = 6
+
+/** Distância de edição com troca de letras vizinhas ("chegeui"), para erro de digitação de 1 toque. */
+export function editDistance(left: string, right: string): number {
+  const rows = left.length + 1
+  const columns = right.length + 1
+  const table: number[][] = Array.from({ length: rows }, (_, row) =>
+    Array.from({ length: columns }, (_, column) => (row === 0 ? column : column === 0 ? row : 0)),
+  )
+  for (let row = 1; row < rows; row += 1) {
+    for (let column = 1; column < columns; column += 1) {
+      const cost = left[row - 1] === right[column - 1] ? 0 : 1
+      let best = Math.min(
+        (table[row - 1]?.[column] ?? 0) + 1,
+        (table[row]?.[column - 1] ?? 0) + 1,
+        (table[row - 1]?.[column - 1] ?? 0) + cost,
+      )
+      if (
+        row > 1 &&
+        column > 1 &&
+        left[row - 1] === right[column - 2] &&
+        left[row - 2] === right[column - 1]
+      ) {
+        best = Math.min(best, (table[row - 2]?.[column - 2] ?? 0) + 1)
+      }
+      const current = table[row]
+      if (current !== undefined) current[column] = best
+    }
+  }
+  return table[rows - 1]?.[columns - 1] ?? 0
+}
+
+/** Palavra do vocabulário, exata ou com 1 erro de digitação (só palavra de 4+ letras contra alvo de 6+). */
+export function isWordOf(word: string, vocabulary: ReadonlySet<string>): boolean {
+  if (vocabulary.has(word)) return true
+  if (word.length < MIN_FUZZY_WORD_LENGTH) return false
+  for (const target of vocabulary) {
+    if (target.length >= MIN_FUZZY_TARGET_LENGTH && editDistance(word, target) <= 1) return true
+  }
+  return false
+}
+
+const FUZZY_FILLER = new Set(['cliente', 'entrega', 'parada', 'viagem'])
+const isFiller = (word: string): boolean => FILLER.has(word) || isWordOf(word, FUZZY_FILLER)
 
 export function normalizeDriverCommandText(text: string): string {
   return text
@@ -71,10 +121,10 @@ export function interpretDriverStopCommand(text: string): WhatsAppDriverStopComm
   const words = normalized.split(' ')
   if (words.length > MAX_WORDS) return null
 
-  const arrive = words.some((word) => ARRIVE_WORDS.has(word))
+  const arrive = words.some((word) => isWordOf(word, ARRIVE_WORDS))
   const depart =
-    words.some((word) => DEPART_WORDS.has(word)) ||
-    DEPART_PHRASES.some((phrase) => phrase.test(normalized))
+    words.some((word) => isWordOf(word, DEPART_WORDS)) ||
+    (words.some((word) => isWordOf(word, ROUTE_START_WORDS)) && words.includes('rota'))
   if (arrive === depart) return null
 
   const documentNumbers = words
@@ -84,13 +134,10 @@ export function interpretDriverStopCommand(text: string): WhatsAppDriverStopComm
   const rest = words.filter(
     (word) =>
       !/^\d+$/u.test(word) &&
-      !ARRIVE_WORDS.has(word) &&
-      !DEPART_WORDS.has(word) &&
-      !FILLER.has(word) &&
-      word !== 'iniciar' &&
-      word !== 'inicio' &&
-      word !== 'iniciei' &&
-      word !== 'inicie',
+      !isWordOf(word, ARRIVE_WORDS) &&
+      !isWordOf(word, DEPART_WORDS) &&
+      !isWordOf(word, ROUTE_START_WORDS) &&
+      !isFiller(word),
   )
   if (rest.length > 0) return null
   return {

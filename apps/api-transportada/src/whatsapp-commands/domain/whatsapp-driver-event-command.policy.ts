@@ -9,7 +9,7 @@
  * Só reconhece o comando inteiro — "sair" sozinho, por exemplo, nunca é "saí": no grupo é o cancelar
  * do pedido. O texto livre que não for comando devolve `undefined` e segue o fluxo de sempre.
  */
-import { interpretDriverStopCommand } from './whatsapp-driver-command.policy.js'
+import { interpretDriverStopCommand, isWordOf } from './whatsapp-driver-command.policy.js'
 import type { DriverReturnReason } from '../../trips/domain/driver-return-reason.policy.js'
 
 /** Teto de notas por mensagem (spec 293, regra 8). */
@@ -28,7 +28,13 @@ export type WhatsAppDriverEventCommand =
   /** Mais notas que o teto da mensagem. */
   | { readonly kind: 'too_many_documents' }
 
-const DELIVER_VERB = /^(entreguei|entregue|entregar)(?: (.+))?$/u
+const DELIVER_WORDS: ReadonlySet<string> = new Set([
+  'entreguei',
+  'entregue',
+  'entregar',
+  'entregei',
+])
+const FIRST_WORD = /^(\S+)(?: (.+))?$/u
 const RETURN_VERB = /^(devolvi|devolver|devolucao)(?: (.+))?$/u
 
 const REASON_WORDS: readonly (readonly [RegExp, DriverReturnReason])[] = [
@@ -64,8 +70,8 @@ export function interpretWhatsAppDriverEventCommand(
   const stop = interpretDriverStopCommand(text)
   if (stop !== null) return { kind: stop.event }
 
-  const deliver = DELIVER_VERB.exec(normalized)
-  if (deliver !== null) {
+  const deliver = FIRST_WORD.exec(normalized)
+  if (deliver !== null && isWordOf(deliver[1] ?? '', DELIVER_WORDS)) {
     const numbers = extractNumbers(deliver[2] ?? '')
     if (numbers.length > WHATSAPP_DRIVER_COMMAND_MAX_DOCUMENTS)
       return { kind: 'too_many_documents' }
