@@ -721,7 +721,10 @@ export function createEvolutionGroupInbound(
   const { turnReplies } = dependencies
   return turnReplies === undefined
     ? inbound
-    : { receive: (input) => turnReplies.withinTurn(() => inbound.receive(input)) }
+    : {
+        receive: (input) =>
+          turnReplies.withinTurn(() => inbound.receive(input), { companyId: input.companyId }),
+      }
 }
 
 /** Liga o "pergunta nova do pedido" ao áudio: a confirmação pendente de antes sai de cena. */

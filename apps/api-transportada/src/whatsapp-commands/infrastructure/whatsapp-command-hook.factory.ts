@@ -67,7 +67,7 @@ export function createWhatsAppCommandHookFactory(
   params: CreateWhatsAppCommandHookFactoryParams,
 ): WhatsAppCommandHookFactory {
   const withAuthorizedActor = createWithAuthorizedActor(params)
-  const turnReplies = createWhatsAppTurnReplies()
+  const turnReplies = createWhatsAppTurnReplies({ logger: params.logger })
 
   return ({ module }) => {
     const { flows } = module
@@ -97,6 +97,7 @@ export function createWhatsAppCommandHookFactory(
       ...(params.deliveryProofs === undefined ? {} : { deliveryProofs: params.deliveryProofs }),
       ...(params.driverPrompts === undefined ? {} : { driverPrompts: params.driverPrompts }),
     })
-    return (message, session) => turnReplies.withinTurn(() => handle(message, session))
+    return (message, session) =>
+      turnReplies.withinTurn(() => handle(message, session), { companyId: session.companyId })
   }
 }

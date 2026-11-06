@@ -3,6 +3,7 @@
  */
 import type { ApiLogger } from '../../shared/api.types.js'
 import {
+  chunkWhatsAppTexts,
   WHATSAPP_TURN_SEPARATOR,
   type WhatsAppTurnReplies,
 } from '../../whatsapp-commands/application/whatsapp-turn-replies.service.js'
@@ -62,7 +63,11 @@ export function createEvolutionGroupReplySender(dependencies: {
     send({ companyId, groupJid, texts }) {
       if (texts.length === 0) return
       const body = texts.join(WHATSAPP_TURN_SEPARATOR)
-      if (dependencies.turnReplies === undefined) return enqueue({ body, companyId, groupJid })
+      if (dependencies.turnReplies === undefined) {
+        for (const chunk of chunkWhatsAppTexts([body]))
+          enqueue({ body: chunk, companyId, groupJid })
+        return
+      }
       void dependencies.turnReplies.send({
         body,
         deliver: async (joined) => enqueue({ body: joined, companyId, groupJid }),

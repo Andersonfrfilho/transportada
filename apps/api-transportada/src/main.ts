@@ -2410,7 +2410,7 @@ function createEvolutionWebhook(input: {
    * número (spec 289), fora do webhook.
    */
   /** Uma resposta por turno é uma mensagem: o remetente e a entrada do grupo dividem o mesmo turno. */
-  const groupTurns = createWhatsAppTurnReplies()
+  const groupTurns = createWhatsAppTurnReplies({ logger })
   const groupReplies = createEvolutionGroupReplySender({
     logger,
     turnReplies: groupTurns,

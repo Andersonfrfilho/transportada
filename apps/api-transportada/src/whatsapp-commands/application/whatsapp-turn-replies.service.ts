@@ -16,13 +16,27 @@ import type { ChannelAdapterInterface } from '@adatechnology/meta-whatsapp-contr
 
 /** A linha em branco entre as falas que viram uma mensagem. */
 export const WHATSAPP_TURN_SEPARATOR = '\n\n'
+/**
+ * O teto de uma mensagem de texto, com folga: a Cloud API da Meta recusa corpo acima de 4096 caracteres; o Evolution
+ * (WhatsApp Web) aceita mais, e o mesmo teto vale para os dois.
+ */
+export const WHATSAPP_TURN_MESSAGE_LIMIT = 4000
+
+const LOG = { deliveryFailed: 'whatsapp_turn_replies.delivery_failed' } as const
 
 type Pending = { readonly deliver: (body: string) => Promise<unknown>; readonly texts: string[] }
-type Turn = { open: boolean; readonly pending: Map<string, Pending> }
+type Turn = {
+  readonly companyId: string | undefined
+  open: boolean
+  readonly pending: Map<string, Pending>
+}
 
 export type WhatsAppTurnReplies = {
-  /** Trata uma mensagem recebida: as falas do turno saem no fim, uma mensagem por destinatário (mesmo se falhar). */
-  withinTurn<T>(work: () => Promise<T>): Promise<T>
+  /**
+   * Trata uma mensagem recebida: as falas do turno saem no fim, uma mensagem por destinatário (mesmo se o turno falhar).
+   * Falha na entrega vai a log e nunca sobe: o webhook responde normalmente e o provedor não reenvia o turno.
+   */
+  withinTurn<T>(work: () => Promise<T>, context?: { readonly companyId?: string }): Promise<T>
   /** Dentro de um turno, guarda a fala; fora dele (ou com o turno já fechado), entrega na hora. */
   send(input: {
     readonly body: string
@@ -33,46 +47,115 @@ export type WhatsAppTurnReplies = {
   flush(key: string): Promise<void>
 }
 
-/** Um armazenamento só: o trabalho de fundo sai de qualquer turno com `runOutsideWhatsAppTurn`. */
-const storage = new AsyncLocalStorage<Turn>()
+/** Os armazenamentos de todas as instâncias, para o trabalho de fundo sair de qualquer turno. */
+const storages = new Set<AsyncLocalStorage<Turn>>()
 
 /**
  * O trabalho que segue depois do turno (a transcrição do áudio): o que ele disser sai na hora, sozinho, em vez de
  * entrar na mensagem do turno — determinístico, seja qual for a velocidade da transcrição.
  */
 export function runOutsideWhatsAppTurn<T>(work: () => T): T {
-  return storage.exit(work)
+  const outside = [...storages].reduce<() => T>((inner, storage) => () => storage.exit(inner), work)
+  return outside()
 }
 
-export function createWhatsAppTurnReplies(): WhatsAppTurnReplies {
+/**
+ * As falas em mensagens de até `limit` caracteres, em ordem: juntas por linha em branco enquanto cabem; a fala maior que
+ * o teto é cortada nas quebras de linha e, uma linha maior que ele, no próprio teto.
+ */
+export function chunkWhatsAppTexts(
+  texts: readonly string[],
+  limit: number = WHATSAPP_TURN_MESSAGE_LIMIT,
+): string[] {
+  const pieces = texts.flatMap((text) =>
+    text.length <= limit ? [text] : splitLongText(text, limit),
+  )
+  return packPieces(pieces, WHATSAPP_TURN_SEPARATOR, limit)
+}
+
+function splitLongText(text: string, limit: number): string[] {
+  const lines = text.split('\n').flatMap((line) => {
+    const slices: string[] = []
+    for (let start = 0; start < line.length; start += limit)
+      slices.push(line.slice(start, start + limit))
+    return slices.length === 0 ? [''] : slices
+  })
+  return packPieces(lines, '\n', limit)
+}
+
+function packPieces(pieces: readonly string[], separator: string, limit: number): string[] {
+  const chunks: string[] = []
+  let current: string | undefined
+  for (const piece of pieces) {
+    if (current !== undefined && current.length + separator.length + piece.length <= limit) {
+      current = `${current}${separator}${piece}`
+      continue
+    }
+    if (current !== undefined) chunks.push(current)
+    current = piece
+  }
+  if (current !== undefined) chunks.push(current)
+  return chunks
+}
+
+/**
+ * ⚠️ Compromisso conhecido: uma fala de fora do turno para o mesmo destino (a transcrição do áudio, um aviso do sistema)
+ * entrega antes o que o turno aberto já guardou — a ordem vale mais que juntar; o resto do turno sai depois, à parte.
+ */
+export function createWhatsAppTurnReplies(
+  dependencies: {
+    readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
+  } = {},
+): WhatsAppTurnReplies {
+  const storage = new AsyncLocalStorage<Turn>()
+  storages.add(storage)
   /** Os turnos em andamento: a fala de fora do turno nunca passa na frente do que o turno já disse ao mesmo destino. */
   const openTurns = new Set<Turn>()
+
+  async function deliverTexts(input: {
+    readonly deliver: (body: string) => Promise<unknown>
+    readonly texts: readonly string[]
+  }): Promise<void> {
+    for (const chunk of chunkWhatsAppTexts(input.texts)) await input.deliver(chunk)
+  }
 
   async function deliverPending(turn: Turn, key: string): Promise<void> {
     const pending = turn.pending.get(key)
     if (pending === undefined) return
     turn.pending.delete(key)
-    await pending.deliver(pending.texts.join(WHATSAPP_TURN_SEPARATOR))
+    await deliverTexts(pending)
+  }
+
+  /** No fim do turno (ou antes da fala de fora dele): falha vai a log sem PII e não segura os outros destinos. */
+  async function deliverQuietly(turn: Turn, key: string): Promise<void> {
+    try {
+      await deliverPending(turn, key)
+    } catch (error) {
+      dependencies.logger?.warn(LOG.deliveryFailed, {
+        companyId: turn.companyId,
+        errorName: error instanceof Error ? error.name : typeof error,
+      })
+    }
   }
 
   return {
-    async withinTurn(work) {
-      const turn: Turn = { open: true, pending: new Map() }
+    async withinTurn(work, context = {}) {
+      const turn: Turn = { companyId: context.companyId, open: true, pending: new Map() }
       openTurns.add(turn)
       try {
         return await storage.run(turn, work)
       } finally {
         turn.open = false
         openTurns.delete(turn)
-        for (const key of [...turn.pending.keys()]) await deliverPending(turn, key)
+        for (const key of [...turn.pending.keys()]) await deliverQuietly(turn, key)
       }
     },
 
     async send({ body, deliver, key }) {
       const turn = storage.getStore()
       if (turn === undefined || !turn.open) {
-        for (const other of openTurns) await deliverPending(other, key)
-        await deliver(body)
+        for (const other of openTurns) await deliverQuietly(other, key)
+        await deliverTexts({ deliver, texts: [body] })
         return
       }
       const pending = turn.pending.get(key)

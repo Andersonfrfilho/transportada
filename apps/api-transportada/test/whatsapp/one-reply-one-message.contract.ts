@@ -13,6 +13,7 @@ import type { ApiLogger } from '../../src/shared/api.types.js'
 import {
   bufferWhatsAppChannel,
   createWhatsAppTurnReplies,
+  WHATSAPP_TURN_MESSAGE_LIMIT,
 } from '../../src/whatsapp-commands/application/whatsapp-turn-replies.service.js'
 import { createEvolutionGroupReplySender } from '../../src/whatsapp/infrastructure/evolution-group-reply.gateway.js'
 
@@ -144,5 +145,115 @@ describe('conversa individual: uma resposta por turno é uma mensagem da Meta', 
     const { calls, channel } = directChannel()
     await channel.sendText('5516', 'aviso')
     expect(calls).toEqual(['text:5516:aviso'])
+  })
+})
+
+describe('revisão do #561: tamanho, falha na entrega e isolamento', () => {
+  function recordingTurns(options: { readonly failFor?: string } = {}) {
+    const warnings: Record<string, unknown>[] = []
+    const turnLogger = {
+      ...logger,
+      warn: (_message: string, fields?: Record<string, unknown>) =>
+        void warnings.push(fields ?? {}),
+    } as unknown as ApiLogger
+    const turns = createWhatsAppTurnReplies({ logger: turnLogger })
+    const delivered: { key: string; body: string }[] = []
+    const send = (key: string, body: string) =>
+      turns.send({
+        body,
+        deliver: async (joined) => {
+          if (key === options.failFor) throw new TypeError('rede fora')
+          delivered.push({ body: joined, key })
+        },
+        key,
+      })
+    return { delivered, send, turns, warnings }
+  }
+
+  test(`a mensagem nunca passa de ${WHATSAPP_TURN_MESSAGE_LIMIT} caracteres: corta nas linhas em branco, em ordem`, async () => {
+    const { delivered, send, turns } = recordingTurns()
+    const a = 'a'.repeat(3000)
+    const b = 'b'.repeat(3000)
+    const c = 'c'.repeat(3000)
+    await turns.withinTurn(async () => {
+      await send('K', a)
+      await send('K', b)
+      await send('K', c)
+    })
+    expect(delivered.map((item) => item.body)).toEqual([a, b, c])
+  })
+
+  test('falas curtas seguem juntas até o limite', async () => {
+    const { delivered, send, turns } = recordingTurns()
+    const big = 'x'.repeat(3990)
+    await turns.withinTurn(async () => {
+      await send('K', 'oi')
+      await send('K', 'tudo bem?')
+      await send('K', big)
+    })
+    expect(delivered.map((item) => item.body)).toEqual(['oi\n\ntudo bem?', big])
+  })
+
+  test('uma fala maior que o limite é cortada nas quebras de linha (e, sem quebra, no limite)', async () => {
+    const { delivered, send, turns } = recordingTurns()
+    const line = 'y'.repeat(1500)
+    const long = Array.from({ length: 6 }, () => line).join('\n')
+    const solid = 'z'.repeat(WHATSAPP_TURN_MESSAGE_LIMIT + 10)
+    await turns.withinTurn(async () => {
+      await send('K', long)
+    })
+    await turns.withinTurn(async () => {
+      await send('S', solid)
+    })
+    const bodies = delivered.map((item) => item.body)
+    expect(bodies.every((body) => body.length <= WHATSAPP_TURN_MESSAGE_LIMIT)).toBe(true)
+    expect(bodies.slice(0, 3)).toEqual([`${line}\n${line}`, `${line}\n${line}`, `${line}\n${line}`])
+    expect(bodies.slice(3).join('')).toBe(solid)
+  })
+
+  test('a fala fora do turno também respeita o limite', async () => {
+    const { delivered, send } = recordingTurns()
+    await send('K', 'w'.repeat(WHATSAPP_TURN_MESSAGE_LIMIT * 2))
+    expect(delivered.map((item) => item.body.length)).toEqual([
+      WHATSAPP_TURN_MESSAGE_LIMIT,
+      WHATSAPP_TURN_MESSAGE_LIMIT,
+    ])
+  })
+
+  test('falha na entrega no fim do turno vai a log sem PII, não derruba o turno e não pula os outros destinos', async () => {
+    const { delivered, send, turns, warnings } = recordingTurns({ failFor: '5516999990000' })
+    await expect(
+      turns.withinTurn(
+        async () => {
+          await send('5516999990000', 'para quem falha')
+          await send('OUTRO', 'para quem recebe')
+          return 'ok'
+        },
+        { companyId: 'C1' },
+      ),
+    ).resolves.toBe('ok')
+    expect(delivered).toEqual([{ body: 'para quem recebe', key: 'OUTRO' }])
+    expect(warnings).toEqual([{ companyId: 'C1', errorName: 'TypeError' }])
+    expect(JSON.stringify(warnings)).not.toContain('5516999990000')
+    expect(JSON.stringify(warnings)).not.toContain('para quem')
+  })
+
+  test('o erro do turno é o que sobe, nunca o da entrega', async () => {
+    const { send, turns } = recordingTurns({ failFor: 'K' })
+    await expect(
+      turns.withinTurn(async () => {
+        await send('K', 'fala')
+        throw new RangeError('erro do turno')
+      }),
+    ).rejects.toThrow('erro do turno')
+  })
+
+  test('cada instância tem o seu turno: o envio de outra instância não entra na mensagem deste', async () => {
+    const first = recordingTurns()
+    const second = recordingTurns()
+    await first.turns.withinTurn(async () => {
+      await second.send('K', 'do outro canal')
+      expect(second.delivered).toEqual([{ body: 'do outro canal', key: 'K' }])
+    })
   })
 })

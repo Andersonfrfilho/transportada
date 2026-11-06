@@ -897,7 +897,10 @@ pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigration
   eles) no fim; lista/botões interativos saem na hora, depois da fala já guardada. O que vem depois do turno (a
   transcrição do áudio, `runOutsideWhatsAppTurn`) sai sozinho. Motivo: o espaçador do Evolution segura cada mensagem
   seguinte, e a pergunta separada chegava depois da resposta do motorista. As jornadas de integração cobram uma mensagem
-  por turno.
+  por turno. Teto de 4000 caracteres por mensagem (a Meta recusa acima de 4096): corta nas linhas em branco, em ordem.
+  Falha na entrega do fim do turno vai a log (`companyId`, `errorName`) e nunca sobe — o webhook não pode virar 5xx e a
+  Meta reenviar o turno. Compromisso conhecido: fala de fora do turno ao mesmo destino entrega antes o que o turno já
+  guardou (a ordem vale mais que juntar).
 - **"Cancelar" fecha qualquer pergunta aberta, nunca vira resposta**: no grupo, todo passo do `GROUP_STEP_REGISTRY`
   fecha (a lista "Qual nota você entregou?" só deixa o pedido fechar; a entrega em preparo é encerrada); no individual,
   o motorista sai de qualquer nó do fluxo com "Certo, cancelei e não registrei nada." As matrizes de isolamento
