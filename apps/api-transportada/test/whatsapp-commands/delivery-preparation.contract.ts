@@ -19,6 +19,7 @@ import type {
 import { resolveDeliveryProofChecklist } from '../../src/whatsapp-commands/domain/whatsapp-delivery-proof-checklist.policy.js'
 import {
   DEFAULT_DELIVERY_PROOF_SETTINGS,
+  resolveProofSettingsForRecipient,
   type DeliveryProofFieldSettings,
 } from '../../src/trips/domain/delivery-proof-settings.policy.js'
 
@@ -547,5 +548,65 @@ describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" enc
       'Entrega da NF 17234 cancelada. A nota continua aberta na viagem.',
     ])
     expect(t.status()).toEqual(['cancelled'])
+  })
+})
+
+/**
+ * Spec 218 RF-C3 no WhatsApp (caso COMERCIAL ZARAGOZA): geral tudo opcional, exceção da contratante
+ * "só o canhoto, obrigatório; o resto desligado". A configuração chega resolvida pela MESMA regra do
+ * app (`resolveProofSettingsForRecipient` com o contratante); a tripulação é cobrada pelo canhoto e não
+ * ouve pergunta do que a exceção desliga; o atendente (spec 294 RF18/RF19) lê a mesma exceção e só
+ * ganha o afrouxamento por cima: o canhoto vira opcional, nada mais é perguntado.
+ */
+describe('spec 218: a exceção da contratante no WhatsApp', () => {
+  const GENERAL_ALL_OPTIONAL: DeliveryProofFieldSettings = {
+    cargo: 'optional',
+    cargoMinimumCount: 1,
+    photo: 'optional',
+    receivedBy: 'optional',
+    receiverDocument: 'optional',
+    receiverName: 'optional',
+    signature: 'optional',
+  }
+  const ZARAGOZA = resolveProofSettingsForRecipient({
+    contractorId: 'contractor-zaragoza',
+    lookup: {
+      general: GENERAL_ALL_OPTIONAL,
+      overridesByContractorId: new Map([['contractor-zaragoza', { ...OFF, photo: 'required' }]]),
+      overridesByTaxId: new Map(),
+    },
+    recipientTaxId: '12345678000190',
+  })
+  const PERSON_QUESTIONS = /quem recebeu/iu
+
+  test('tripulação: canhoto obrigatório sem "pular", e nada de quem recebeu nem nome', async () => {
+    const t = setup(ZARAGOZA)
+    await t.begin()
+    const canhotoQuestion = await t.answer('pular')
+    expect(canhotoQuestion?.texts.join('\n')).toContain('canhoto')
+    expect(canhotoQuestion?.texts.join('\n')).not.toContain('pular')
+    const refused = await t.answer('pular')
+    expect(refused?.texts.join('\n')).toContain('obrigatório')
+    expect(t.delivered).toEqual([])
+
+    const afterPhoto = await t.photo('M1')
+    expect(afterPhoto?.texts.join('\n')).not.toMatch(PERSON_QUESTIONS)
+    expect(afterPhoto?.texts.join('\n')).toContain('Confirma a entrega?')
+    await t.answer('1')
+    expect(t.delivered).toHaveLength(1)
+    expect(t.attached).toEqual([{ kind: 'photo', receivedBy: null, receiverName: '' }])
+  })
+
+  test('atendente: o canhoto vira opcional e pula; nada de quem recebeu nem nome; nunca barra', async () => {
+    const t = setup(ZARAGOZA, undefined, ATTENDANT)
+    await t.begin()
+    const canhotoQuestion = await t.answer('pular')
+    expect(canhotoQuestion?.texts.join('\n')).toContain('canhoto')
+    const afterSkip = await t.answer('pular')
+    expect(afterSkip?.texts.join('\n')).not.toMatch(PERSON_QUESTIONS)
+    expect(afterSkip?.texts.join('\n')).toContain('Confirma a entrega?')
+    const done = await t.answer('1')
+    expect(done).toMatchObject({ finished: true, texts: ['registered:17234'] })
+    expect(t.delivered).toHaveLength(1)
   })
 })
