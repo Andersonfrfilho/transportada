@@ -190,6 +190,7 @@ type HarnessOptions = {
   readonly continuation?: WhatsAppDeliveryPreparationReply['routeContinuation']
   readonly hasOpenAfter?: boolean
   readonly isPreparationAwaiting?: boolean
+  readonly preparationAskedAt?: Date
   readonly botAudio?: WhatsAppBotAudio<null>
   readonly position?: Partial<WhatsAppSessionPosition>
 }
@@ -235,6 +236,7 @@ function createHarness(options: HarnessOptions = {}) {
       return reply
     },
     awaitingText: async () => (options.isPreparationAwaiting ?? true) && answered === 0,
+    awaitingTextSince: async () => options.preparationAskedAt ?? null,
     begin: async () => ({ awaitingText: false, documentNumber: '', finished: true, texts: [] }),
     hasOpen: async () =>
       answered === 0 && options.isPreparationAwaiting !== false
@@ -284,6 +286,7 @@ function createHarness(options: HarnessOptions = {}) {
   return {
     contextOf: () => position.context,
     departures,
+    preparationAnswers: () => answered,
     sendAudio: () =>
       driver(
         {
@@ -469,6 +472,38 @@ describe('a pergunta mais recente é a dona do "1"/"2" (RNF1, áudio x oferta)',
     await harness.send('1')
     expect(harness.departures).toHaveLength(1)
     expect(harness.departures[0]).toMatchObject({ stopId: 'stop-4' })
+  })
+})
+
+describe('a pergunta mais recente é a dona do "1" (RNF1, entrega em preparo x oferta)', () => {
+  const SEEDED_OFFER = {
+    [DRIVER_PROMPT_CONTEXT_KEY]: {
+      kind: 'route_offer',
+      offeredAt: NOW.toISOString(),
+      stopId: 'stop-4',
+    },
+  }
+
+  test('entrega esperando texto desde ANTES da oferta não rouba o "1": a oferta, mais nova, responde', async () => {
+    const harness = createHarness({
+      position: { context: SEEDED_OFFER },
+      preparationAskedAt: new Date(NOW.getTime() - 60_000),
+    })
+    await harness.send('1')
+    expect(harness.preparationAnswers()).toBe(0)
+    expect(harness.departures).toHaveLength(1)
+    expect(harness.departures[0]).toMatchObject({ stopId: 'stop-4' })
+  })
+
+  test('entrega que voltou a perguntar DEPOIS da oferta é quem responde o "1"', async () => {
+    const harness = createHarness({
+      continuation: CONTINUES,
+      position: { context: SEEDED_OFFER },
+      preparationAskedAt: new Date(NOW.getTime() + 60_000),
+    })
+    await harness.send('1')
+    expect(harness.preparationAnswers()).toBe(1)
+    expect(harness.departures).toHaveLength(0)
   })
 })
 

@@ -400,6 +400,8 @@ async function acceptDeliveryProof(input: {
   }
   const text = extractWhatsAppAnswer(turn.message)
   if (text === undefined) return false
+  // A pergunta mais recente é a dona do "1": oferta pedida depois da entrega em preparo responde por ela.
+  if (await isNewerPromptPending({ actor, intake, turn })) return false
   const reply = await intake.preparations.answer({ actor, strict: true, text })
   if (reply === null) {
     // Spec 294 RF22: o bot pediu foto ou localização e veio áudio — repete o pedido dizendo que vai por mídia.
@@ -411,6 +413,22 @@ async function acceptDeliveryProof(input: {
   }
   await sendProofReply({ actor, intake, reply, turn })
   return true
+}
+
+async function isNewerPromptPending(input: {
+  readonly actor: ProofActor['actor']
+  readonly intake: WhatsAppDeliveryProofIntake
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { actor, intake, turn } = input
+  const askedAt = await intake.preparations.awaitingTextSince?.({
+    companyId: actor.companyId,
+    driverId: actor.driverId,
+  })
+  if (askedAt === null || askedAt === undefined) return false
+  const position = await turn.deps.sessions.getContext(actor.companyId, turn.phone)
+  const prompt = readDriverPrompt(position?.context ?? {}, turn.deps.clock())
+  return prompt !== undefined && Date.parse(prompt.offeredAt) > askedAt.getTime()
 }
 
 async function sendProofReply(input: {

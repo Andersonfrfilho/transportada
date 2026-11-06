@@ -111,6 +111,36 @@ describe('entrega em preparo, repositório (spec 293 T15)', () => {
     })
   })
 
+  testWithPostgres('a preparação aberta traz a hora da última pergunta (updatedAt)', async () => {
+    await withDisposableDatabase(async (database) => {
+      const { companyId, documentIds, driverId, preparations } = await setUp(database)
+      const [documentId] = documentIds
+      if (documentId === undefined) throw new Error('no document')
+      const before = Date.now() - 1000
+      const opened = await preparations.open({
+        companyId,
+        documentId,
+        documentNumber: '17234',
+        driverId,
+        originChannel: 'individual',
+      })
+      if (opened === null) throw new Error('not opened')
+      const [first] = await preparations.listOpenForDriver({ companyId, driverId })
+      if (first === undefined) throw new Error('not listed')
+      expect(first.updatedAt).toBeInstanceOf(Date)
+      expect(first.updatedAt?.getTime()).toBeGreaterThanOrEqual(before)
+      await Bun.sleep(20)
+      await preparations.save({
+        changes: { ...first, awaiting: 'received_by' },
+        companyId,
+        id: opened.id,
+        version: 1n,
+      })
+      const [second] = await preparations.listOpenForDriver({ companyId, driverId })
+      expect(second?.updatedAt?.getTime()).toBeGreaterThan(first.updatedAt?.getTime() ?? 0)
+    })
+  })
+
   testWithPostgres('outra empresa não vê nem fecha a preparação', async () => {
     await withDisposableDatabase(async (database) => {
       const { companyId, documentIds, driverId, foreignCompanyId, preparations } =
