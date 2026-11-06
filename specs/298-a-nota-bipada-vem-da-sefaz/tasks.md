@@ -40,10 +40,11 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
       correta e URL embaralhada por layout ABNT2), foco persistente, Enter/Tab, rajada < 100 ms sem perda — contrato
       no componente do design system (055 D7). Evidência com um leitor real do cliente.
 - [ ] T3.1 Cliente + hook de polling + componente de linha (RF9, RF10) — contratos dos estados.
-- [ ] T3.2 Criação da viagem (`useTripQuickCreate`): `notFound` vira busca; `imported` vira `staged` — contrato.
+- [ ] T3.2 Criação da viagem (`useTripQuickCreate`): o bip deixa de acrescentar direto; toda nota bipada vai à lista
+      de notas encontradas com "Acrescentar"/"Acrescentar todas"; `notFound` vira busca (RF9) — contrato do critério 4.
 - [ ] T3.3 Detalhe da viagem (RF9, RF10) e origem "busca por chave" na página de NF-e (RF12) — contratos.
-- [ ] T3.5 Conferência em massa na página de NF-e (RF11–RF11c): leitor contínuo, resumo, filtros, sessão do
-      navegador — contrato do critério 4a.
+- [ ] T3.5 Importar por bip na página de NF-e (RF11–RF11c): leitor contínuo, resumo, filtros, sessão do navegador —
+      contrato do critério 4a.
 - [ ] T3.4 Locales pt-BR/en dos estados e motivos — `typecheck` + teste de chaves de locale.
 
 ## Fase 4 — Publicar

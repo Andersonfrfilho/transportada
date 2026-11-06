@@ -16,7 +16,8 @@ Fatos levantados em `spec.md` § "Fatos". Decisões:
   `window_started_at`, `used_in_window`, `blocked_until`. O consumidor reserva uma unidade com `update … where
 used_in_window < 15 and (blocked_until is null or blocked_until < now()) returning` antes de chamar a SEFAZ.
   Sem unidade → busca em `waiting` com `not_before`. Se a 656 vier mesmo assim, `blocked_until = now() + 65 min`.
-- **D4 — O vínculo é da tela.** O worker importa; quem vincula é o painel, chamando as rotas de vínculo que já
+- **D4 — Acrescentar é da operação.** O worker importa; a nota bipada vai para a lista de notas encontradas e quem
+  acrescenta é a operação, pelas rotas de vínculo que já
   aplicam as regras da viagem. Nenhuma regra de viagem duplicada no worker.
 - **D5 — Reenfileirar o `waiting`.** A rotina de jobs do worker que já existe (`W/nfe-distribution-pull/`) ganha um
   passo: buscas `waiting` com `not_before <= now()` voltam a gerar evento (no máx. o que cabe no orçamento).
@@ -49,9 +50,9 @@ used_in_window < 15 and (blocked_until is null or blocked_until < now()) returni
 - `POST /v1/nfe-documents/access-key-checks` body `{ accessKeys: string[1..200] }` (`invoices.read`) →
   `200 {data:[{accessKey, documentId|null}]}` — uma query `where company_id = $1 and access_key = any($2)`; chave
   inválida → `400` com a lista de todas as inválidas.
-- Conferência (painel): `F/modules/nfe-workspace/` — `useAccessKeyConference.hook.ts` (fila, agrupamento de 500 ms,
-  `sessionStorage` com try/catch), `accessKeyConference.service.ts` (resumo puro, base do critério 4a),
-  `AccessKeyConferencePanel.component.tsx`.
+- Importar por bip (painel): `F/modules/nfe-workspace/` — `useAccessKeyImport.hook.ts` (fila, agrupamento de 500 ms,
+  `sessionStorage` com try/catch), `accessKeyImportSummary.service.ts` (resumo puro, base do critério 4a),
+  `AccessKeyImportPanel.component.tsx`.
 
 ## Dados, migration e rollback
 

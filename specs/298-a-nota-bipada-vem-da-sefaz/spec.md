@@ -10,12 +10,14 @@ SEFAZ não tinha entregado essas notas ao CNPJ da transportadora. Bipar o códig
 nota **já cadastrada** (`useTripDocumentLinkForm.hook.ts:78`, `useTripQuickCreate.hook.ts:143`) e responde
 "Nenhuma nota com esta chave de acesso nesta empresa." — sem saída na tela.
 
-**Resultado:** bipar a chave de acesso, na página de NF-e ou na viagem (criação e detalhe), resolve a nota sozinho:
+**Resultado:** bipar a chave de acesso com o leitor de mão traz a nota para o sistema, em dois lugares:
 
-1. nota cadastrada → segue como hoje (vincula na viagem, abre na página de NF-e);
-2. nota desconhecida → o worker consulta a SEFAZ **por chave** (`consChNFe`), **importa** a nota no sistema pelo
-   mesmo caminho das outras e, na viagem, ela é **vinculada** em seguida;
-3. a SEFAZ recusa → a linha diz o motivo em português e oferece o envio do XML ali mesmo, que importa e vincula.
+- **Página de NF-e — "Importar por bip":** bipar é importar. Nota já cadastrada é contada como "já estava no sistema";
+  nota desconhecida é buscada na SEFAZ **por chave** (`consChNFe`) e **importada** pelo mesmo caminho das outras.
+- **Criação da viagem:** além de buscar e importar, cada nota bipada aparece na **lista de notas encontradas** com a
+  opção **"Acrescentar"**, igual ao resultado de "Buscar notas" hoje. A nota entra na viagem quando a operação
+  acrescenta; o bip não acrescenta sozinho.
+- A SEFAZ recusa → a linha diz o motivo em português e oferece o envio do XML ali mesmo, que importa a nota.
 
 Bipar em lote funciona: cada chave é uma linha, nenhuma recusa trava as outras.
 
@@ -36,24 +38,24 @@ Bipar em lote funciona: cada chave é uma linha, nenhuma recusa trava as outras.
 
 - Criar nota só a partir do código de barras: a chave não traz itens, destinatário nem valor; sem XML não há CT-e.
 - Manifestação do destinatário (Ciência da Operação) para destravar `resNFe`: a transportadora não é destinatária.
-- Vincular a nota à viagem com a tela fechada: o vínculo é feito pela tela (D4). Nota importada fica no sistema; bipar
-  de novo vincula na hora.
+- Acrescentar na viagem sem ação da operação: o bip importa e lista; quem acrescenta é a operação (D4).
+- Conferência da carga (contar o que chegou contra o esperado): a página de NF-e importa, não confere.
 - Leitura offline e a separação da spec 237 (`awaiting_xml` continua esperando importação; esta spec só a acelera).
 - Trocar a consulta por NSU da importação automática.
 
 ## Histórias priorizadas
 
-### P1 — Bipar na criação da viagem traz a nota que falta
+### P1 — Bipar na criação da viagem lista a nota para acrescentar
 
-**Given** a operação cria uma viagem e bipa a chave de uma nota que não está no sistema e cita a transportadora
-**When** a leitura termina **Then** a linha mostra "buscando na SEFAZ…", a nota é importada (aparece na página de NF-e
-com origem "busca por chave") e entra na viagem que está sendo montada, sem outra ação.
+**Given** a operação cria uma viagem e bipa notas com o leitor de mão **When** cada leitura termina **Then** a nota
+aparece na lista de notas encontradas: as cadastradas na hora, as desconhecidas com "buscando na SEFAZ…" até serem
+importadas; cada uma tem "Acrescentar" (e "Acrescentar todas" para as prontas), igual ao resultado de "Buscar notas".
 
 ### P1 — A recusa diz o porquê e oferece o XML
 
 **Given** a chave de uma nota que não cita a transportadora **When** a SEFAZ responde 640 **Then** a linha diz
 "A SEFAZ não libera esta nota para a transportadora (ela não consta na nota). Envie o XML." com o botão de envio;
-enviado o XML, a nota é importada e entra na viagem.
+enviado o XML, a nota é importada e ganha "Acrescentar".
 
 ### P1 — Lote não estoura o limite da SEFAZ
 
@@ -61,16 +63,16 @@ enviado o XML, a nota é importada e entra na viagem.
 chave saem por hora (D3), as demais aparecem "na fila da SEFAZ — próxima janela HH:MM" e são consultadas na janela
 seguinte sem nova ação; a importação automática nunca recebe 656 por causa delas.
 
-### P1 — Conferência em massa na página de NF-e
+### P1 — Importar por bip na página de NF-e
 
-**Given** a carga do dia chegou com os DANFEs **When** a operação abre "Conferir notas" na página de NF-e e bipa
-todas em sequência **Then** o painel mostra, ao vivo, quantas foram lidas, quantas **já estavam no sistema**, quantas
-**faltavam**, e destas quantas foram importadas, estão buscando, estão na fila da SEFAZ ou foram recusadas; a lista
-filtra "faltando" e "recusadas" para a operação agir (enviar XML), e cada nota que faltava é buscada sozinha.
+**Given** os DANFEs chegaram **When** a operação abre "Importar por bip" na página de NF-e e bipa todas em sequência
+**Then** cada nota desconhecida é buscada e importada sozinha, e o resumo mostra quantas foram bipadas, quantas já
+estavam no sistema, quantas foram importadas, estão buscando, estão na fila da SEFAZ ou foram recusadas; a lista
+filtra as recusadas para a operação enviar o XML.
 
 ### P2 — Bipar no detalhe de uma viagem aberta
 
-Mesmo fluxo da criação, usando o vínculo que o detalhe já faz.
+Mesma lista com "Acrescentar", usando o vínculo que o detalhe já faz.
 
 ## Requisitos funcionais
 
@@ -96,21 +98,25 @@ Mesmo fluxo da criação, usando o vínculo que o detalhe já faz.
   bloqueio.
 - **RF8** Mesma chave recusada com motivo definitivo (`not_interested`, `not_found`, `expired`, `cancelled`,
   `denied`) não é reconsultada por 24 h: a busca nova devolve a recusa existente.
-- **RF9** Painel — criação da viagem e detalhe: chave desconhecida vira linha "buscando na SEFAZ…" (consulta o RF2 a
-  cada 3 s enquanto a tela está aberta, máx. 10 min), e ao chegar `imported` entra no fluxo de vínculo que já existe
-  (criação: `staged`; detalhe: `linking` → `linked`).
+- **RF9** Painel — criação da viagem e detalhe: toda nota bipada vai para a **lista de notas encontradas**, a mesma
+  onde hoje aparece o resultado de "Buscar notas", marcada "bipada". Cadastrada → linha pronta com "Acrescentar".
+  Desconhecida → linha "buscando na SEFAZ…" (consulta o RF2 a cada 3 s enquanto a tela está aberta, máx. 10 min) que
+  ganha "Acrescentar" ao chegar `imported`. "Acrescentar todas" acrescenta só as prontas. Nota já em outra viagem
+  aberta aparece com o aviso que existe hoje (`alreadyOnTrip`) e sem "Acrescentar".
+  ⚠️ Muda o comportamento atual da criação, que hoje acrescenta a nota cadastrada direto ao bipar
+  (`useTripQuickCreate.hook.ts:143`, estado `staged`): passa a listar, como pedido em 06/11/2026.
 - **RF10** Painel — linha recusada mostra o motivo e, para todo motivo exceto `cancelled`/`denied`, o botão "Enviar
-  XML", que usa a importação por upload existente e, ao terminar, segue o vínculo da linha.
-- **RF11** Página de NF-e ganha o modo **"Conferir notas"**: leitor de chave contínuo (o mesmo componente de
-  câmera/teclado/leitor USB da spec 055, câmera aberta entre leituras), com a mesma fila de linhas e sem vínculo.
-- **RF11a** Resumo da conferência, atualizado a cada leitura e a cada mudança de estado: **lidas** (chaves distintas),
-  **já no sistema**, **faltavam** (= não cadastradas no momento da leitura), e a divisão das que faltavam em
-  **importadas**, **buscando**, **na fila da SEFAZ** (com horário da próxima janela) e **recusadas** (por motivo).
-  Chave repetida conta uma vez e mostra "já lida"; chave inválida conta à parte como **ilegível**.
-- **RF11b** A lista da conferência filtra por situação (todas, já no sistema, faltavam, recusadas) e cada linha mostra
-  número, série, emitente (CNPJ da chave) e o estado; recusada tem "Enviar XML" (RF10).
-- **RF11c** A conferência é da tela: sobrevive a recarregar a página (armazenamento da sessão do navegador, só chaves
-  e ids) e tem "Nova conferência" para zerar. Não grava nada no servidor além das buscas do RF1.
+  XML", que usa a importação por upload existente; importada, a linha ganha "Acrescentar".
+- **RF11** Página de NF-e ganha **"Importar por bip"**: leitor de chave contínuo (o mesmo componente da spec 055,
+  leitor de mão primeiro — RF11e), com a mesma fila de linhas e sem viagem.
+- **RF11a** Resumo da importação, atualizado a cada leitura e a cada mudança de estado: **bipadas** (chaves distintas),
+  **já estavam no sistema**, **importadas**, **buscando**, **na fila da SEFAZ** (com horário da próxima janela) e
+  **recusadas** (por motivo). Chave repetida conta uma vez e mostra "já bipada"; leitura sem chave conta como
+  **ilegível**.
+- **RF11b** A lista filtra por situação (todas, importadas, já estavam, recusadas); cada linha mostra número, série,
+  emitente (CNPJ da chave) e o estado; recusada tem "Enviar XML" (RF10), importada tem "Abrir".
+- **RF11c** A lista é da tela: sobrevive a recarregar a página (armazenamento da sessão do navegador, só chaves e ids)
+  e tem "Limpar lista". As notas importadas ficam no sistema; só a lista some.
 - **RF11d** A verificação "já no sistema" é feita em lote: `POST /v1/nfe-documents/access-key-checks`
   `{ accessKeys: string[≤200] }` (`invoices.read`) devolve, por chave, `documentId` ou ausente — uma chamada por
   rajada de leituras (agrupadas a cada 500 ms), não uma por nota. As ausentes geram as buscas do RF1.
@@ -124,7 +130,7 @@ Mesmo fluxo da criação, usando o vínculo que o detalhe já faz.
     configurado com teclado americano num Windows ABNT2 troca `?`, `=` e `/` da URL do QR; procurar a chave no meio
     do texto faz a leitura funcionar mesmo assim (a 055 só aceita chave crua, `p=` ou `chNFe=`);
   - leitura sem chave (código da embalagem, etiqueta de volume) é ignorada em silêncio e contada como "ilegível" só
-    na conferência.
+    na página de NF-e.
 - **RF12** Origem "busca por chave" aparece na página de NF-e como as outras origens.
 
 ## Requisitos não funcionais
@@ -157,11 +163,12 @@ Mesmo fluxo da criação, usando o vínculo que o detalhe já faz.
    janela de 65 min e orçamento de 15/h.
 3. Integração (banco): `procNFe` vira `nfe_documents` com filhos, e a mesma chave vinda depois pela distribuição
    não duplica.
-4. Painel: contrato dos estados de linha (buscando, na fila com horário, importada→vinculada, recusada com XML).
-   4a. Conferência: com 50 chaves (30 cadastradas, 18 desconhecidas, 1 repetida, 1 ilegível) o resumo mostra lidas 49,
-   já no sistema 30, faltavam 18, ilegível 1, e a soma importadas + buscando + na fila + recusadas = 18 a todo
-   instante; a verificação faz no máximo uma chamada por rajada.
-5. Produção: uma chave real que cita a transportadora é importada e vinculada; a evidência fica no `evidence.md`.
+4. Painel — criação da viagem: bipar cadastrada, desconhecida importada e recusada produz três linhas na lista de
+   notas encontradas; nenhuma entra na viagem sem "Acrescentar"; "Acrescentar todas" leva só as prontas.
+   4a. Importar por bip: com 50 leituras (30 cadastradas, 18 desconhecidas, 1 repetida, 1 ilegível) o resumo mostra
+   bipadas 49, já estavam 30, ilegível 1, e importadas + buscando + na fila + recusadas = 18 a todo instante; a
+   verificação faz no máximo uma chamada por rajada.
+5. Produção: uma chave real que cita a transportadora é importada pelo bip e acrescentada a uma viagem; a evidência fica no `evidence.md`.
 
 ## Dúvidas
 
