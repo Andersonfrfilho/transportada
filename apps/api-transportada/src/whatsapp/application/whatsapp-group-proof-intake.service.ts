@@ -44,6 +44,7 @@ export type GroupProofIntakePorts = {
   readonly downloadMedia: (input: {
     readonly connection: AdmittedGroupMedia['connection']
     readonly providerMessageId: string
+    readonly rawMessage?: { readonly key: unknown; readonly message: unknown }
   }) => Promise<{ readonly data: string; readonly mimeType: string }>
   readonly findActorUserId: (input: {
     readonly companyId: string
@@ -149,9 +150,11 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
 
       let downloaded: { readonly data: string; readonly mimeType: string }
       try {
+        const { rawMessage } = media.media
         downloaded = await ports.downloadMedia({
           connection: media.connection,
           providerMessageId: media.providerMessageId,
+          ...(rawMessage === undefined ? {} : { rawMessage }),
         })
       } catch (error) {
         ports.logger?.warn('whatsapp_group_proof.download_failed', {
