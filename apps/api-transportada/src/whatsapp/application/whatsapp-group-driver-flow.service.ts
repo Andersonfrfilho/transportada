@@ -17,6 +17,7 @@
 import { interpretWhatsAppDriverEventCommand } from '../../whatsapp-commands/domain/whatsapp-driver-event-command.policy.js'
 import {
   interpretDriverStopCommand,
+  isWordOf,
   normalizeDriverCommandText,
   WHATSAPP_DRIVER_STOP_COMMAND,
   type WhatsAppDriverStopCommandEvent,
@@ -288,6 +289,8 @@ function isFreeSentence(text: string): boolean {
   return words.length >= 2
 }
 
+const OCCURRENCE_WORDS: ReadonlySet<string> = new Set(['ocorrencia', 'ocorrencias', 'ocorencia'])
+
 /** O número da opção, ou o nome dela ("cheguei", "entreguei", "ocorrência"). */
 function pickMenuItem(menu: readonly MenuItem[], text: string): MenuItem | undefined {
   const normalized = normalizeDriverCommandText(text)
@@ -297,7 +300,7 @@ function pickMenuItem(menu: readonly MenuItem[], text: string): MenuItem | undef
     return menu.find((item) => item.kind === 'stop' && item.event === command.event)
   }
   if (normalized.startsWith('entreg')) return menu.find((item) => item.kind === 'deliver')
-  return normalized.startsWith('ocorrencia')
+  return isWordOf(normalized, OCCURRENCE_WORDS)
     ? menu.find((item) => item.kind === 'occurrence')
     : undefined
 }

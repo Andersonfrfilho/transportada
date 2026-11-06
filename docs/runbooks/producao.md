@@ -238,6 +238,17 @@ O `deploy-watchdog.yml` (10 em 10 min) já faz isso após 20 min. **Nunca cancel
 `in_progress`**: deixa os serviços em versões diferentes. Se não puder esperar, publique pela CLI
 (item 3).
 
+### Só o `mark-deployed` fica vermelho (05/11/2026)
+
+Sintoma: todos os `deploy-*` verdes e só o `mark-deployed` falha no passo "Avançar o marco", com
+`remote: fatal error in commit_refs` / `[remote rejected] HEAD -> refs/deploy/production/api`. É erro do lado
+do GitHub ao gravar a ref do marco; **o código já está no ar** (conferir `deployment list` do Railway em
+`SUCCESS`). Foi o caso do run da promoção #543 (`2c33b1d`), e o do hotfix #537 também terminou vermelho.
+O run pode não aceitar `gh run rerun --failed` ("cannot be retried"). Efeito: o marco fica no commit antigo e o
+próximo push de `main` volta a considerar os mesmos alvos como alterados (publica de novo, sem dano). Se
+quiser avançar o marco à mão: `git push --force origin <sha-da-main>:refs/deploy/production/<alvo>` para cada
+alvo (`api frontend landing client driver worker cron`).
+
 ### Deploy falha em "Invalid RAILWAY_TOKEN" (token inválido)
 
 Sintoma: o gate passa e todos os jobs `deploy-*` caem no primeiro passo da CLI com token inválido
@@ -740,6 +751,41 @@ da mesma parada, gravados só no rascunho local para comparar por igualdade, nun
 (fotos de comprovante + anexos de ocorrência). Nenhuma escrita; nada enviado a serviço externo; pasta apagada ao fim.
 ⚠️ O Docker Desktop não monta `/tmp` (pasta de rascunho): para testar em Alpine use `docker create` + `docker cp`.
 
+## 5.19 Pós-deploy da spec 294 em staging (2026-11-05)
+
+Deploy 42111238279 (commit 8375877f2, PR #541) em `success`; api, worker, cron, frontend e driver `SUCCESS`
+(`osrm` e `map-tiles` seguem `FAILED` em staging, alheios à 294).
+
+- **Grafo do WhatsApp (conversa individual):** `ENV_NAME=staging bash /home/miyazaki/Documents/personal/ativada/producao-publicar-falas-do-bot.sh`
+  (diff) e depois `--confirm`. Publicou a **versão 2** (a 1 ficou no histórico): 33 nós novos (`driver_*`, `attendant_*`,
+  `fala_*`), 0 removidos, 1 alterado (`driver_trip_menu`).
+- **OCR do canhoto:** `CANHOTO_OCR_ENABLED` não está definida no worker de staging; vale o padrão (ligado fora de
+  produção). Boot: `bot_canhoto_read.engine ready:true`. Memória (cgroup, limite 7629 MB): ocioso ~322 MB, pico
+  ~406 MB em uma leitura de PNG sintético por `POST /internal/bot-canhoto-reads` (200 em ~0,7 s, `markers: 0` —
+  a imagem sintética sem fonte na imagem Alpine não gera texto reconhecível, então o pico real com foto pode ser maior;
+  o código documenta ~740 MB). Medir de dentro: `railway ssh -s worker -e staging`, `/sys/fs/cgroup/memory.current|peak|max`;
+  `sharp` está em `/app/apps/worker-transportada/node_modules`, rode o script de lá com `bun`.
+- **Ligar em produção:** definir `CANHOTO_OCR_ENABLED=true` no `worker` **e** na `api` (mesma regra nos dois) e
+  redeployar; confirmar `engine ready:true` no log e reservar memória para ~740 MB por leitura. Exige aprovação.
+
+## 5.20 Spec 294 em produção e leitura do canhoto ligada (05/11/2026)
+
+- Promoção #543 (`2c33b1d94`). O job `mark-deployed` falhou na 1ª tentativa por erro do GitHub ao gravar
+  `refs/deploy/production/api` ("fatal error in commit_refs"); os serviços já estavam no ar. `gh run rerun <id> --failed`
+  resolveu (2ª tentativa `success`).
+- Grafo da conversa individual republicado: `ENV_NAME=production producao-publicar-falas-do-bot.sh` (diff: 5 nós
+  `attendant_*` adicionados) e `--confirm` → **versão 2**; a simulação seguinte deu "nenhuma mudança".
+- **A leitura do canhoto não subiu só com `CANHOTO_OCR_ENABLED=true`.** A rota do worker só existe com o token do canal
+  interno API→worker, que produção nunca teve (a transcrição de áudio do bot também não estava configurada). Configurado:
+  - `BOT_AUDIO_TRANSCRIPTION_TOKEN` (64 hex, gerado com `openssl rand -hex 32` direto nas variáveis, sem aparecer) no
+    `worker` e na `api` — o mesmo valor nos dois (conferido por hash);
+  - `WORKER_INTERNAL_URL=http://worker.railway.internal:8080` na `api`;
+  - `railway redeploy -s worker` e `-s api` (produção).
+- Conferido: log do worker `bot_canhoto_read.engine {"ready":true}` (23:28 UTC); da `api`, `POST
+$WORKER_INTERNAL_URL/internal/bot-canhoto-reads` com o token e corpo vazio → **400** (token aceito; sem token a rota
+  não existiria → 404). Efeito colateral desejado: a transcrição dos áudios do bot passa a funcionar em produção.
+- Memória (medida em staging, imagem sintética 3000×4000): pico 774 MB; worker de produção ~285 MB ocioso, limite 8 GB.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
@@ -862,3 +908,31 @@ das variáveis, então gravar a variável por ele apagaria a lista: o passo é s
 -s worker -e staging --json`) e acrescentar. Script deixado para o Anderson: `staging-allowlist-email.sh` em
 `/home/miyazaki/Documents/personal/ativada/` (grava a saída em `saidas/`, imprime só o caminho). Depois do redeploy do
 worker, "Tentar de novo" no e-mail que falhou. Endereço acrescentado em 31/10/2026: `andersonfrfilho@live.com`.
+
+### Memória da leitura do canhoto e chave ligada em produção (05/11/2026)
+
+OCR do canhoto (spec 294 T4.8, `POST /internal/bot-canhoto-reads` no worker). Medido na **staging** com imagem sintética
+(JPEG 3000x4000, ~1,9 MB, inclinada, com ruído, texto do canhoto e assinatura riscada, gerada na máquina local com Pillow e
+fonte Liberation Sans; a imagem Alpine do worker não tem fontes, então não se gera a imagem lá dentro). A imagem vai por
+base64 no stdin de `railway ssh -s worker -e staging -- sh` e um script `bun` dentro do container chama a rota em
+`http://[::1]:$PORT` com `BOT_AUDIO_TRANSCRIPTION_TOKEN` do próprio ambiente (nunca impresso), lendo `memory.current`
+e `memory.peak` do cgroup a cada 200 ms.
+
+- 5 leituras em sequência: `markers=2`, casamento exato da NF 123456, 200 em todas; latência 2,6 s (1ª), depois 1,6 a 1,9 s.
+- 2 simultâneas: uma 200 (1,7 s), a outra 503 `BUSY` em 0,2 s (regra da fila).
+- Memória do worker de staging (OCR carregado): ocioso 451 a 469 MB, durante a leitura até 722 MB, `memory.peak` 774 MB.
+- Limite (cgroup `memory.max`) 8000 MB em staging e em produção. Produção ociosa (OCR desligado): 285 MB, pico histórico 361 MB.
+- Conta: (774 + 285) x 1,3 = ~1,4 GB, contra 8 GB. Folga larga, liberado.
+
+Produção: `CANHOTO_OCR_ENABLED=true` gravada em `worker` e `api` com `railway variables --set ... --skip-deploys`
+(sem redeploy; vale quando a spec 294 for promovida e os serviços subirem). Reverter: `--set CANHOTO_OCR_ENABLED=false`.
+
+### Staging: usuário de teste com papel Motorista fora da frota (06/11/2026)
+
+A listagem da frota parte de `fleet_drivers`, não dos usuários do Keycloak. O papel "Motorista" só vira ficha no convite (com CPF
+e ficha órfã de mesmo CPF, `linkFleetDriver`); trocar papel depois não cria nem liga ficha. Usuário de teste com o papel e sem
+ficha fica fora da frota. Produção conferida em 05/11: nenhum usuário com papel de frota sem ficha
+(`producao-motorista-fora-da-frota.sh`). Para criar a ficha em **staging** ligada ao usuário `anderson.fernandes`:
+`CPF=<11 dígitos> TELEFONE=<DDD+número> bash tmp/ops/staging-cria-ficha-motorista-teste.sh` (idempotente; só INSERT; telefone
+no banco é 10 ou 11 dígitos, sem 55, `fleet_drivers_phone_check`). Criada em 06/11/2026 com CPF fictício `52998224725` e telefone
+`16993056772`. Reverter: apagar a linha de `fleet_drivers` com esse `membership_id`.
