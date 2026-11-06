@@ -159,7 +159,8 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
   (padrão 3, 1–5), intervalo (padrão 30 min, 10–120), folga mínima (padrão 30 min) e percentual (padrão 50%),
   permanência (padrão 30 min), horário de funcionamento (dias e faixa). Permissão `settings.manage`.
 - **RF20** — `DRIVER_REMINDERS_ENABLED` (padrão `false`) no schema de env da API e do worker. Desligada: a API não abre
-  lembretes e o worker não registra a rotina.
+  lembretes e a rotina do worker, que fica sempre registrada (a migration semeia a agenda; rotina ausente fecharia
+  `job_run_routine_missing`), fecha o ciclo `succeeded` sem ler nada (dono, 2026-11-06).
 
 ## Requisitos não funcionais
 
