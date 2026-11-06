@@ -24,6 +24,10 @@ import {
   registerWhatsAppFlowActions,
   type WhatsAppFlowActionDefinition,
 } from '../application/with-authorized-actor.service.js'
+import {
+  bufferWhatsAppChannel,
+  createWhatsAppTurnReplies,
+} from '../application/whatsapp-turn-replies.service.js'
 import { createMetaWhatsAppMessageSender } from './meta-whatsapp-message-sender.gateway.js'
 import type { WhatsAppBotAudio } from '../../whatsapp/application/whatsapp-bot-audio.service.js'
 
@@ -63,6 +67,7 @@ export function createWhatsAppCommandHookFactory(
   params: CreateWhatsAppCommandHookFactoryParams,
 ): WhatsAppCommandHookFactory {
   const withAuthorizedActor = createWithAuthorizedActor(params)
+  const turnReplies = createWhatsAppTurnReplies({ logger: params.logger })
 
   return ({ module }) => {
     const { flows } = module
@@ -74,21 +79,25 @@ export function createWhatsAppCommandHookFactory(
       registerFlowAction: flows.registerFlowAction,
       withAuthorizedActor,
     })
-    return createWhatsAppCommandDriver({
+    // Uma resposta por turno é uma mensagem: o texto do turno sai junto no fim; lista e botões, na hora (por natureza).
+    const channel = bufferWhatsAppChannel(module.channel, turnReplies)
+    const handle = createWhatsAppCommandDriver({
       ...(params.botAudio === undefined ? {} : { botAudio: params.botAudio }),
-      channel: module.channel,
+      channel,
       clock: params.clock,
       graphs: params.graphs,
       interpreter: flows.interpreter,
       logger: params.logger,
       rateLimiter: params.rateLimiter,
       resolveActor: params.resolveActor,
-      sender: createMetaWhatsAppMessageSender({ channel: module.channel }),
+      sender: createMetaWhatsAppMessageSender({ channel }),
       sessions: module.conversations.repository,
       ...(params.sharedLocations === undefined ? {} : { sharedLocations: params.sharedLocations }),
       ...(params.verifyPhone === undefined ? {} : { verifyPhone: params.verifyPhone }),
       ...(params.deliveryProofs === undefined ? {} : { deliveryProofs: params.deliveryProofs }),
       ...(params.driverPrompts === undefined ? {} : { driverPrompts: params.driverPrompts }),
     })
+    return (message, session) =>
+      turnReplies.withinTurn(() => handle(message, session), { companyId: session.companyId })
   }
 }

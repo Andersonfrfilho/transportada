@@ -365,9 +365,21 @@ async function buildDirectJourney(
     expect(response?.status).toBe(200)
     // O áudio responde fora do turno (transcrição em segundo plano).
     await Bun.sleep(input.message.type === 'audio' ? 300 : 0)
-    const answered = sentBodies()
-      .slice(before)
-      .map((request) => readSent(request.body))
+    const turnBodies = sentBodies().slice(before)
+    const answered = turnBodies.map((request) => readSent(request.body))
+    // Uma resposta por turno é UMA mensagem de texto; só a lista/botões interativos ficam separados (por natureza), e
+    // o áudio, cujo "entendi assim" sai depois da transcrição.
+    const kinds = turnBodies.map((request) =>
+      request.body.text === undefined ? 'interactive' : 'text',
+    )
+    const doubledText = kinds.some((kind, index) => kind === 'text' && kinds[index + 1] === 'text')
+    expect({
+      doubledText: doubledText && input.message.type !== 'audio',
+      shown: input.shown,
+    }).toEqual({
+      doubledText: false,
+      shown: input.shown,
+    })
     transcript.push({ from: 'motorista', text: input.shown })
     for (const reply of answered) transcript.push({ from: 'bot', text: reply })
     return answered
@@ -630,8 +642,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.',
-          '📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+          `⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.\n\n📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._`,
           'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: '(toca) ✅ Sim',
@@ -646,7 +657,7 @@ function resumeJourneySteps(
     },
     {
       expected: {
-        answered: ['Localização recebida.', '📸 *NF 17234:* mande a foto do canhoto assinado.'],
+        answered: [`Localização recebida.\n\n📸 *NF 17234:* mande a foto do canhoto assinado.`],
         shown: '📍 (localização)',
       },
       send: {

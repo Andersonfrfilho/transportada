@@ -190,8 +190,8 @@ describe('a prévia da emissão por seleção pelo WhatsApp (spec 144 T012, AC3)
       expect(JSON.stringify(scenario.sentMessages())).not.toContain(EMITTER_TAX_ID)
 
       await tap(buildEmitterKey(EMITTER_TAX_ID))
-      // Série única: o bot não pergunta, vai direto ao número inicial.
-      expect(scenario.texts().at(-2)).toContain('número inicial')
+      // Série única: o bot não pergunta, vai direto ao número inicial (a pergunta e a dica numa mensagem só).
+      expect(scenario.texts().at(-1)).toContain('número inicial')
       await type(String(FIRST_NUMBER))
       await type(String(LAST_NUMBER))
       expect(scenario.listRowIds()).toEqual(['7', '15', '30'])
@@ -199,8 +199,10 @@ describe('a prévia da emissão por seleção pelo WhatsApp (spec 144 T012, AC3)
       expect(scenario.listRowIds()).toEqual(['skip'])
       await tap('skip')
 
-      expect(scenario.texts()).toContain('51 notas · 38 CT-e · 11 NFS-e · 2 bloqueadas')
-      expect(scenario.texts()).toContain('Bloqueadas:\n• Sem peso da carga: 1201, 1233')
+      // O resumo e as bloqueadas são uma resposta só: UMA mensagem.
+      expect(scenario.texts()).toContain(
+        '51 notas · 38 CT-e · 11 NFS-e · 2 bloqueadas\n\nBloqueadas:\n• Sem peso da carga: 1201, 1233',
+      )
 
       const [request] = await db
         .select()

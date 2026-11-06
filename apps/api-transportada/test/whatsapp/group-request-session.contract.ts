@@ -391,7 +391,8 @@ describe('pedido no grupo: cancelar e tentativas', () => {
 })
 
 describe('pedido no grupo: envio da resposta', () => {
-  test('as respostas saem em ordem para o grupo; falha no meio para a fila daquela chamada', async () => {
+  // Uma resposta é UMA mensagem (o espaçador do Evolution segurava a segunda e a pergunta chegava depois da resposta).
+  test('cada resposta sai numa mensagem só, em ordem; a que falha vai a log e não segura as seguintes', async () => {
     const sent: string[] = []
     const warnings: unknown[] = []
     const sender = createEvolutionGroupReplySender({
@@ -402,10 +403,12 @@ describe('pedido no grupo: envio da resposta', () => {
         sent.push(body)
       },
     })
-    sender.send({ companyId: COMPANY_ID, groupJid: GROUP, texts: ['a', 'falha', 'b'] })
+    sender.send({ companyId: COMPANY_ID, groupJid: GROUP, texts: ['a', 'b'] })
+    sender.send({ companyId: COMPANY_ID, groupJid: GROUP, texts: ['falha'] })
     sender.send({ companyId: COMPANY_ID, groupJid: GROUP, texts: ['c'] })
     await sender.idle()
-    expect(sent).toEqual(['a', 'c'])
+    expect(sent).toEqual(['a\n\nb', 'c'])
+    expect(warnings).toHaveLength(1)
     expect(JSON.stringify(warnings)).not.toContain(GROUP)
   })
 })

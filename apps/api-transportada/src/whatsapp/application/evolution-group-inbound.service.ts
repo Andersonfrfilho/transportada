@@ -19,6 +19,7 @@ import type { EvolutionWebhookEvent } from '@adatechnology/evolution-whatsapp-pr
 
 import { matchWakePhrase } from '../domain/bot-wake-phrase.policy.js'
 import { BOT_AUDIO_SPEECH, botAudioQuickAnswer } from './whatsapp-bot-audio.service.js'
+import type { WhatsAppTurnReplies } from '../../whatsapp-commands/application/whatsapp-turn-replies.service.js'
 import { isCancelText } from './whatsapp-group-request.service.js'
 
 import {
@@ -159,6 +160,8 @@ export type EvolutionGroupInboundPorts = {
   readonly audio?: EvolutionGroupAudioPorts
   /** Para testes: o relógio da janela de reenvio depois do "2". */
   readonly now?: () => number
+  /** O turno da mensagem recebida (o mesmo do remetente do grupo); ausente, cada resposta sai como veio. */
+  readonly turnReplies?: WhatsAppTurnReplies
   /** O motorista cujo grupo é este, na empresa do webhook; `null` fora da lista de permissão. */
   findGroupDriver(input: {
     readonly companyId: string
@@ -538,7 +541,7 @@ export function createEvolutionGroupInbound(
     return 'audio'
   }
 
-  return {
+  const inbound: EvolutionGroupInbound = {
     async receive({ audio = null, companyId, connection, event, media = null, senderLid }) {
       if (event.fromMe) return 'from_me'
       const groupJid = event.groupJid
@@ -714,6 +717,14 @@ export function createEvolutionGroupInbound(
       return 'admitted'
     },
   }
+  // Uma resposta por turno é uma mensagem: tudo o que o bot diz a esta mensagem sai junto quando ela acaba.
+  const { turnReplies } = dependencies
+  return turnReplies === undefined
+    ? inbound
+    : {
+        receive: (input) =>
+          turnReplies.withinTurn(() => inbound.receive(input), { companyId: input.companyId }),
+      }
 }
 
 /** Liga o "pergunta nova do pedido" ao áudio: a confirmação pendente de antes sai de cena. */

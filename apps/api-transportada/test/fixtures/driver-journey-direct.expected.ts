@@ -177,15 +177,13 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `Ok, sem esse item.`,
-        `📸 *NF 17234:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
+        `Ok, sem esse item.\n\n📸 *NF 17234:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `Ok, sem esse item.`,
-        `✅ *NF 17234 pronta para fechar*.
+        `Ok, sem esse item.\n\n✅ *NF 17234 pronta para fechar*.
 *Confirma a entrega?*
 *1* - Sim
 *2* - Não`,
@@ -194,8 +192,7 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `*Entrega registrada* ✅`,
-        `➡️ *Próxima parada*
+        `*Entrega registrada* ✅\n\n➡️ *Próxima parada*
 *Parada 2 de 3*
 *NF 17235* · R$ 99,90
 🏪 *MERCADO LUA CHEIA*
@@ -349,8 +346,7 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `*Não entrega registrada* ↩️`,
-        `➡️ *Próxima parada*
+        `*Não entrega registrada* ↩️\n\n➡️ *Próxima parada*
 *Parada 2 de 3*
 *NF 17235* · R$ 99,90
 🏪 *MERCADO LUA CHEIA*
@@ -448,15 +444,13 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `Ok, sem esse item.`,
-        `📸 *NF 17235:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
+        `Ok, sem esse item.\n\n📸 *NF 17235:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `Ok, sem esse item.`,
-        `✅ *NF 17235 pronta para fechar*.
+        `Ok, sem esse item.\n\n✅ *NF 17235 pronta para fechar*.
 *Confirma a entrega?*
 *1* - Sim
 *2* - Não`,
@@ -464,7 +458,7 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
       shown: 'pular',
     },
     {
-      answered: [`*Entrega registrada* ✅`, `🏁 *Rota concluída:* todas as paradas fechadas.`],
+      answered: [`*Entrega registrada* ✅\n\n🏁 *Rota concluída:* todas as paradas fechadas.`],
       shown: '1',
     },
   ]
