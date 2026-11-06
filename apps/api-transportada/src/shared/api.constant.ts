@@ -296,6 +296,7 @@ export const API_NFE_IMPORTS_XML_PATH = '/nfe-imports/xml'
 export const API_NFE_IMPORTS_DISTRIBUTION_PATH = '/nfe-imports/distribution'
 export const API_NFE_ACCESS_KEY_LOOKUPS_PATH = '/nfe-access-key-lookups'
 export const API_NFE_DOCUMENTS_PATH = '/nfe-documents'
+export const API_NFE_DOCUMENT_ACCESS_KEY_CHECKS_PATH = '/nfe-documents/access-key-checks'
 export const API_VIEW_PREFERENCES_PATH = '/view-preferences'
 export const API_COMPANY_USERS_PATH = '/company-users'
 /** Primeira etapa do login: resolve o identificador digitado no login que o provedor conhece. */

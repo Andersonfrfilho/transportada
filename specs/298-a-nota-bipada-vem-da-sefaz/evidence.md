@@ -125,3 +125,25 @@ Gates:
 - Integração nova: `9 pass, 0 fail` (banco descartável; transação única, rollback do outbox, `found`, repetição, 8 POSTs concorrentes → 1/1/1, RF8 23 h/25 h, falha transitória, sem perfil, GET 404 entre empresas).
 - API contrato completo (`bun --env-file=../../.env.test test --timeout 120000`): `14056 pass, 0 fail, 26 skip` (era 14029 + 27), `EXIT=0`.
 - API `test:integration` completo: `1947 pass, 8 skip, 0 fail`, 345 arquivos, `EXIT=0` (4405 s).
+
+## T1.4 — verificação em lote das chaves (verde)
+
+`POST /v1/nfe-documents/access-key-checks`, `{ accessKeys: string[] }` (1..200, `.strict()`), permissão `invoices.read`, teto de 60/min por usuário (igual ao POST da T1.3).
+Mora no módulo dono de `/nfe-documents` (`apps/api-transportada/src/nfe-documents/`), em arquivos próprios (a rota e o repositório existentes passam de 400 e 900 linhas):
+`application/{check-access-keys.use-case,nfe-document-access-key-check.{types,constant,error}}.ts`,
+`infrastructure/drizzle-nfe-document-access-key-check.repository.ts`, `presentation/nfe-document-access-key-checks.{routes,schema}.ts`.
+Tocados: `src/main.ts` (fiação), `src/shared/api.constant.ts` (caminho), `package.json` (3 arquivos de teste novos nas listas), e `test/fixtures/nfe-access-key-lookup-http.fixture.ts` (exporta `createTestRouter`/`authenticatedContext`).
+
+Decisões:
+- Cada chave passa por trim + caixa alta, 44 posições (`CHAVE_PATTERN`) e DV (`isChaveDvValid`). Qualquer inválida → `400 INVALID_ACCESS_KEY` com **todas** em `details` (`accessKeys.<índice>`, a chave na mensagem), antes de tocar o banco.
+- Duplicadas (inclusive em outra caixa) são deduplicadas depois da canonicalização; uma entrada por chave distinta, na ordem da primeira ocorrência.
+- Uma query: `where company_id = $ctx and access_key in (...)`; `companyId` só do contexto autenticado. Chave de outra empresa volta `documentId: null`.
+- Roteamento: o método (POST) separa de `GET /nfe-documents/:id`; teste prova que o GET no caminho fixo cai no 404 do id malformado sem chamar `getDocument`.
+
+Gates:
+- `bun run typecheck` (raiz, 7 apps): `0`.
+- `bun run lint` (API): `0`.
+- Contrato novo: `13 pass, 0 fail` (rota 11 casos + caso de uso 1, incl. 200 chaves, 201 e lista vazia → 400, todas as inválidas listadas, 403, teto, sem captura por `:id`).
+- Integração nova: `2 pass, 0 fail` (isolamento entre empresas e chave desconhecida em 1 query contada; lote de 200 chaves distintas em 1 query).
+- API contrato completo: `14069 pass, 0 fail, 26 skip` (era 14056 + 13).
+- API `test:integration` completo: `1949 pass, 8 skip, 0 fail`, 1957 testes em 346 arquivos, `EXIT=0` (6933 s).

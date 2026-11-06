@@ -1106,6 +1106,9 @@ import { DrizzleNfeDocumentRepository } from './nfe-documents/infrastructure/dri
 import { DrizzleNfeDocumentEventRepository } from './nfe-documents/infrastructure/drizzle-nfe-document-event.repository'
 import { createListNfeDocumentEvents } from './nfe-documents/application/list-nfe-document-events.use-case'
 import { createNfeDocumentRoutes } from './nfe-documents/presentation/nfe-documents.routes'
+import { createCheckAccessKeysUseCase } from './nfe-documents/application/check-access-keys.use-case.js'
+import { DrizzleNfeDocumentAccessKeyCheckRepository } from './nfe-documents/infrastructure/drizzle-nfe-document-access-key-check.repository.js'
+import { createNfeDocumentAccessKeyCheckRoutes } from './nfe-documents/presentation/nfe-document-access-key-checks.routes.js'
 import { createListPackageBoxes } from './nfe-documents/application/list-package-boxes.use-case'
 import { createExportPendingPackageBoxes } from './nfe-documents/application/export-pending-package-boxes.use-case'
 import { createListPackageBoxSiblings } from './nfe-documents/application/list-package-box-siblings.use-case'
@@ -6566,6 +6569,11 @@ function createApplicationRoutes({
             storedObjectRepository,
           }),
       },
+    }),
+    ...createNfeDocumentAccessKeyCheckRoutes({
+      checkAccessKeys: createCheckAccessKeysUseCase({
+        reader: new DrizzleNfeDocumentAccessKeyCheckRepository(database),
+      }),
     }),
     ...createNfeDocumentRoutes({
       downloadDocumentXml: { execute: (input) => nfeDocumentRepository.downloadXml(input) },
