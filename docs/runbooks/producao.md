@@ -186,6 +186,26 @@ Efeito (API reinicia ao mudar a variável): com `true`, o motorista com outra vi
 e nota abaixo do corte (ou sem nota) recebe `409 DRIVER_TRIP_LOCKED` ao pedir "Cliente pediu prorrogação
 do boleto" numa viagem que não é a atual. Entra primeiro em staging; produção só com aval do Anderson.
 
+### Leitura automática do canhoto pelo bot do WhatsApp (`CANHOTO_OCR_ENABLED`)
+
+Só o serviço `api` decide o bot (o `worker` também declara a variável, para o leitor). Sem a variável, o padrão é
+ligado fora de produção e desligado em produção; `true`/`false` explícitos mandam.
+
+```bash
+railway variables -s api -e production --kv | grep '^CANHOTO_OCR_ENABLED='   # conferir (não é segredo)
+railway variables -s api -e production --set CANHOTO_OCR_ENABLED=false       # desligar
+railway variables -s api -e production --set CANHOTO_OCR_ENABLED=true        # religar
+```
+
+Efeito (API reinicia): com `false`, a foto que ninguém pediu não é lida ("Este canhoto é da NF…?" some); a foto
+pedida pela entrega aberta continua entrando. Conferir depois com `railway deployment list -s api -e production`
+(deploy novo `SUCCESS`) e `curl -s -o /dev/null -w '%{http_code}' https://api.fernandes-transportadora.com.br/health/ready`
+(200).
+
+- **06/11/2026 23:14 UTC:** desligado em produção (`true` → `false`) a pedido do Anderson, até a promoção do
+  `f0694a9d0` ("no grupo, o bot só lê o canhoto quando é marcado na foto"). **Ao promover staging → main, religar
+  com `true`**: com o código novo, a leitura só acontece quando o motorista marca o bot na foto.
+
 ## 4. Redeploy e reinício
 
 Ordem de preferência:
