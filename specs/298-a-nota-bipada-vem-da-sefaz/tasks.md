@@ -10,6 +10,7 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 - [ ] T0.1 Script `tmp/ops/producao-consulta-por-chave.sh <chave>` (leitura, 1 consulta `consChNFe` de dentro do
       container do worker, imprime só `cStat`, `xMotivo` e `schema`). **Rodar em produção pede aprovação humana** e a
       chave de uma das notas de 06/11. Evidência: `cStat` registrado. Não bloqueia as fases seguintes.
+      Script pronto (`tmp/ops/producao-consulta-por-chave.sh`); rodar em produção: pendente de aprovação.
 
 ## Fase 1 — Banco e API
 
