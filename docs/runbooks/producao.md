@@ -807,6 +807,15 @@ Como repetir:
 3. Sinal de problema: `Verify return code` diferente de 0, SAN sem o domínio, vencimento a menos de 15 dias,
    ou cabeçalho `cf-ray` (proxy da Cloudflare ligado por engano).
 
+Varredura da zona inteira (inclui staging e hostnames legados), quando alguém vê
+`ERR_CERT_COMMON_NAME_INVALID` no Chrome:
+`bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-certificados-zona-completa.sh`
+Em 06/11/2026 só `firebird` e `pgsql` deram erro de nome: ainda apontam para IPs da KingHost
+(herdados da zona antiga) e respondem com `*.kinghost.net`. São hostnames de banco do provedor antigo,
+fora do app; candidatos a remover da Cloudflare com aval do Anderson. `mail`, `smtp`, `imap`, `pop`,
+`webmail`, `ftp`, `autoconfig`, `autodiscover` e `mssql`/`mysql` constam em `docs/ops/cloudflare-import.zone`
+mas não resolvem hoje.
+
 O Claude não consegue consultar DNS/SSL da Cloudflare: o conector dele só cobre Workers, D1, KV e R2, e o
 container não alcança os domínios. Para isso seria preciso um API token com Zone:Read e SSL/Certificates:Read.
 
