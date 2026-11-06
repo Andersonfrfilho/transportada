@@ -32,6 +32,7 @@ import {
   ROUTE_OFFER_TEXT,
 } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import type { WhatsAppRouteContinuation } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
+import { GROUP_OCCURRENCE_STEP } from './whatsapp-group-occurrence-flow.service.js'
 import type { GroupBoletoResend } from './whatsapp-group-boleto-resend.service.js'
 import type { createGroupDeliveryFlow } from './whatsapp-group-delivery-flow.service.js'
 import type { createGroupTripCloseFlow } from './whatsapp-group-trip-close-flow.service.js'
@@ -41,6 +42,9 @@ import type {
   GroupFlowTurn,
   GroupRequestFlow,
 } from './whatsapp-group-request.port.js'
+
+/** Os passos que a ocorrência é dona: sem prefixo de outro fluxo, só estes chegam a ela. */
+const OCCURRENCE_OWNED_STEPS: ReadonlySet<string> = new Set(Object.values(GROUP_OCCURRENCE_STEP))
 
 export const GROUP_DRIVER_STEP = {
   closePrefix: 'close.',
@@ -202,16 +206,27 @@ export function createGroupDriverFlow(flows: {
       }
       if (step.startsWith(GROUP_DRIVER_STEP.routePrefix)) return answerRouteOffer(turn)
       if (tripClose !== undefined && step.startsWith(GROUP_DRIVER_STEP.closePrefix)) {
-        return tripClose.answer({
-          ...turn,
-          request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.closePrefix.length) },
-        })
+        return withClosePrefix(
+          await tripClose.answer({
+            ...turn,
+            request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.closePrefix.length) },
+          }),
+        )
       }
       if (step.startsWith(GROUP_DRIVER_STEP.stopPrefix)) {
-        return flows.stop.answer({
-          ...turn,
-          request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.stopPrefix.length) },
-        })
+        return withStopPrefix(
+          await flows.stop.answer({
+            ...turn,
+            request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.stopPrefix.length) },
+          }),
+        )
+      }
+      if (!OCCURRENCE_OWNED_STEPS.has(step)) {
+        return {
+          kind: 'not_understood',
+          prompt: menuText,
+          reason: 'responda com o número da opção',
+        }
       }
       return flows.occurrence.answer(turn)
     },
@@ -236,6 +251,7 @@ export function createGroupDriverFlow(flows: {
       ) {
         return null
       }
+      if (!OCCURRENCE_OWNED_STEPS.has(step)) return null
       return flows.occurrence.locationReceived?.(turn) ?? null
     },
 
