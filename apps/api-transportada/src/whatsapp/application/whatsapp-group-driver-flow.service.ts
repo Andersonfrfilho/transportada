@@ -148,16 +148,16 @@ type MenuItem =
   | { readonly kind: 'deliver'; readonly label: string }
   | { readonly kind: 'occurrence'; readonly label: string }
 
-/** A ordem do menu. T13 acrescenta "Devolvi". */
+/** A ordem do menu. T13 acrescenta "Devolvi". O ícone só enfeita: a escolha é pelo número ou pelo nome. */
 export const GROUP_DRIVER_MENU: readonly MenuItem[] = [
-  { event: WHATSAPP_DRIVER_STOP_COMMAND.depart, kind: 'stop', label: 'Saí para a entrega' },
-  { event: WHATSAPP_DRIVER_STOP_COMMAND.arrive, kind: 'stop', label: 'Cheguei' },
-  { kind: 'deliver', label: 'Entreguei' },
-  { kind: 'occurrence', label: 'Ocorrência' },
+  { event: WHATSAPP_DRIVER_STOP_COMMAND.depart, kind: 'stop', label: '🚚 Saí para a entrega' },
+  { event: WHATSAPP_DRIVER_STOP_COMMAND.arrive, kind: 'stop', label: '📍 Cheguei' },
+  { kind: 'deliver', label: '✅ Entreguei' },
+  { kind: 'occurrence', label: '⚠️ Ocorrência' },
 ]
 
 const menuOf = (items: readonly MenuItem[]) =>
-  ['O que você quer lançar?', ...items.map((item, index) => `${index + 1}. ${item.label}`)].join(
+  ['O que você quer lançar?', ...items.map((item, index) => `*${index + 1}* - ${item.label}`)].join(
     '\n',
   )
 

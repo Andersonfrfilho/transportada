@@ -190,7 +190,15 @@ describe('grupo: entreguei abre a entrega em preparo', () => {
   test('o menu ganha "Entreguei" como opção 3', async () => {
     const t = setupFlow()
     expect(await t.start('')).toMatchObject({ replies: [GROUP_DRIVER_TEXT.menu] })
-    expect(GROUP_DRIVER_TEXT.menu).toContain('3. Entreguei')
+    expect(GROUP_DRIVER_TEXT.menu).toBe(
+      [
+        'O que você quer lançar?',
+        '*1* - 🚚 Saí para a entrega',
+        '*2* - 📍 Cheguei',
+        '*3* - ✅ Entreguei',
+        '*4* - ⚠️ Ocorrência',
+      ].join('\n'),
+    )
     await t.answer('3')
     expect(await t.answer('1')).toMatchObject({ kind: 'continue', step: 'delivery.answer' })
     expect(t.calls[0]).toMatchObject({ input: { documentId: 'DOC1' }, method: 'begin' })
