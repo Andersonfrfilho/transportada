@@ -1700,6 +1700,15 @@ export function bootstrap(): Bun.Server<undefined> {
     resolveActor: whatsappResolveActor,
     resolveSenderRole: whatsappSenderRole,
   })
+  /** O bloco da parada nas respostas do bot (grupo e individual); a estrada só com `ROUTING_MATRIX_URL`. */
+  const whatsappStopCards = createWhatsAppStopCardReader({
+    database: database.db,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    ...(config.routingMatrixUrl === undefined
+      ? {}
+      : { routing: createOsrmRouteGeometryGateway({ baseUrl: config.routingMatrixUrl }) }),
+  })
   const whatsappGroupDelivery = createGroupDeliveryWiring({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
     database: database.db,
@@ -1712,6 +1721,7 @@ export function bootstrap(): Bun.Server<undefined> {
     deliverAsAttendant: whatsappOfficeDelivery.deliver,
     resolveSenderRole: whatsappSenderRole,
     speech: whatsappBotSpeech,
+    stopCards: whatsappStopCards,
   })
   /** Spec 292 T5: o pedido no grupo do motorista registra pelo mesmo caminho do WhatsApp do motorista. */
   const whatsappGroupOccurrence = createGroupOccurrencePorts({
@@ -1725,15 +1735,6 @@ export function bootstrap(): Bun.Server<undefined> {
     logger,
     registerOccurrence: whatsappDriverEventPorts.registerOccurrence,
     speech: whatsappBotSpeech,
-  })
-  /** O bloco da parada nas respostas do bot (grupo e individual); a estrada só com `ROUTING_MATRIX_URL`. */
-  const whatsappStopCards = createWhatsAppStopCardReader({
-    database: database.db,
-    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
-    logger,
-    ...(config.routingMatrixUrl === undefined
-      ? {}
-      : { routing: createOsrmRouteGeometryGateway({ baseUrl: config.routingMatrixUrl }) }),
   })
   /** "Não entreguei" no grupo, pela mesma baixa do app (`reportDocumentReturn`). */
   const whatsappGroupReturn = createGroupReturnPorts({

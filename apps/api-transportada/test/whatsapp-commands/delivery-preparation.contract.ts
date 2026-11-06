@@ -418,3 +418,61 @@ describe('spec 294 RF19: baixa do atendente, comprovantes opcionais', () => {
     expect(t.attached).toHaveLength(1)
   })
 })
+
+describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" encerra', () => {
+  const PHOTO_REQUIRED: DeliveryProofFieldSettings = { ...OFF, photo: 'required' }
+
+  test('retoma a entrega aberta: diz a NF e repete a pergunta pendente (a foto do canhoto)', async () => {
+    const t = setup(PHOTO_REQUIRED)
+    await t.begin()
+    await t.service.receiveLocation({
+      actor: ACTOR,
+      location: {
+        accuracyMeters: null,
+        capturedAt: '2026-11-04T12:00:00.000Z',
+        latitude: '-21.1',
+        longitude: '-47.8',
+      },
+    })
+    expect(await t.service.resume?.({ actor: ACTOR })).toEqual({
+      awaitingText: false,
+      documentNumber: '17234',
+      finished: false,
+      texts: [
+        '↩️ *Continuando a entrega da NF 17234.*',
+        '📸 *NF 17234:* mande a foto do canhoto assinado.',
+      ],
+    })
+    expect(t.delivered).toEqual([])
+  })
+
+  test('sem entrega aberta não há o que retomar', async () => {
+    const t = setup(PHOTO_REQUIRED)
+    expect(await t.service.resume?.({ actor: ACTOR })).toBeNull()
+  })
+
+  test('"cancelar" com a foto pedida encerra a entrega sem registrar nada', async () => {
+    const t = setup(PHOTO_REQUIRED)
+    await t.begin()
+    await t.answer('pular')
+    expect(await t.answer('cancelar')).toEqual({
+      awaitingText: false,
+      documentNumber: '17234',
+      finished: true,
+      texts: ['Entrega da NF 17234 cancelada. A nota continua aberta na viagem.'],
+    })
+    expect(t.status()).toEqual(['cancelled'])
+    expect(t.delivered).toEqual([])
+  })
+
+  test('"cancelar" no lugar do nome de quem recebeu também encerra', async () => {
+    const t = setup({ ...OFF, photo: 'optional', receiverName: 'required' })
+    await t.begin()
+    await t.answer('pular')
+    await t.photo('M1')
+    expect((await t.answer('cancelar', true))?.texts).toEqual([
+      'Entrega da NF 17234 cancelada. A nota continua aberta na viagem.',
+    ])
+    expect(t.status()).toEqual(['cancelled'])
+  })
+})

@@ -40,7 +40,11 @@ import {
   OUT_OF_ORDER_TEXT,
   toOrderStopLabel,
 } from '../domain/whatsapp-driver-order.policy.js'
-import { DRIVER_CHOICE, interpretDriverChoice } from '../domain/whatsapp-driver-choice.policy.js'
+import {
+  DRIVER_CHOICE,
+  interpretDriverChoice,
+  isDriverCancelText,
+} from '../domain/whatsapp-driver-choice.policy.js'
 import type { WhatsAppStopCandidate } from '../../trips/domain/driver-stop-resolution.policy.js'
 import type { RouteOfferStop } from '../domain/whatsapp-driver-route-offer.policy.js'
 import type {
@@ -221,6 +225,13 @@ export type WhatsAppDeliveryPreparations = {
   repeatMediaRequest?(input: {
     readonly actor: WhatsAppDriverActor
   }): Promise<null | WhatsAppDeliveryPreparationReply>
+  /**
+   * "entreguei" sem número: retoma a entrega aberta mais recente do motorista — diz a nota e repete a pergunta pendente.
+   * `null` sem nenhuma aberta (ausente, o canal segue a parada em andamento).
+   */
+  resume?(input: {
+    readonly actor: WhatsAppDriverActor
+  }): Promise<null | WhatsAppDeliveryPreparationReply>
   /** Há preparação aberta esperando texto? O canal usa para decidir se o texto é para cá. */
   awaitingText(input: { readonly companyId: string; readonly driverId: string }): Promise<boolean>
   /**
@@ -286,6 +297,12 @@ const NO_WORDS = new Set(['2', 'nao', 'n', 'cancelar', 'cancela'])
 /** Palavras que nunca são o nome de quem recebeu: o motorista quer outra coisa do bot. */
 const RESERVED_WORDS = new Set(['menu', 'oi', 'ola', 'inicio', 'voltar', 'ajuda', 'cancelar'])
 const RECEIVER_NAME_MAX_LENGTH = 120
+/** As perguntas 1/2 que já têm o seu "não" (cancelar a entrega, descartar, manter o canhoto). */
+const ANSWERS_CANCEL_ITSELF = new Set<null | string>([
+  DELIVERY_PREPARATION_AWAITING_CONFIRM,
+  DELIVERY_PREPARATION_AWAITING_OUT_OF_ORDER,
+  DELIVERY_PREPARATION_AWAITING_REPLACE_CANHOTO,
+])
 
 export function normalizePreparationText(text: string): string {
   return text
@@ -578,6 +595,12 @@ export function createWhatsAppDeliveryPreparations(
     }
   }
 
+  async function cancel(preparation: WhatsAppDeliveryPreparation, text: string) {
+    await repository.close({ ...scopeOf(preparation), status: 'cancelled' })
+    await removePhotos(preparation)
+    return finished(preparation, [text])
+  }
+
   async function openFor(actor: WhatsAppDriverActor) {
     return repository.listOpenForDriver({ companyId: actor.companyId, driverId: actor.driverId })
   }
@@ -588,6 +611,12 @@ export function createWhatsAppDeliveryPreparations(
         strict ? null : notUnderstood(preparation, message)
       const preparations = await openFor(actor)
       const preparation = preparations.find((item) => isTextQuestion(item.awaiting))
+      // "Cancelar" encerra a entrega aberta seja qual for a pergunta (foto, localização, nome): nada é registrado.
+      if (isDriverCancelText(text) && !ANSWERS_CANCEL_ITSELF.has(preparation?.awaiting ?? null)) {
+        const target = preparation ?? preparations.find((item) => item.awaiting !== null)
+        if (target === undefined) return null
+        return cancel(target, DELIVERY_PROOF_SPEECH.cancelled(target.documentNumber))
+      }
       if (preparation === undefined) {
         // A foto/localização em aberto aceita "pular" em texto quando o item é opcional.
         const skippable = preparations.find((item) => item.awaiting !== null)
@@ -656,6 +685,15 @@ export function createWhatsAppDeliveryPreparations(
       return mutate(preparation, actor, () => ({
         ack: [DELIVERY_PROOF_SPEECH.received.receiverName],
         changes: { receiverName: name },
+      }))
+    },
+
+    async resume({ actor }) {
+      const [latest] = await openFor(actor)
+      if (latest === undefined) return null
+      return mutate(latest, actor, () => ({
+        ack: [DELIVERY_PROOF_SPEECH.resumed(latest.documentNumber)],
+        changes: {},
       }))
     },
 
