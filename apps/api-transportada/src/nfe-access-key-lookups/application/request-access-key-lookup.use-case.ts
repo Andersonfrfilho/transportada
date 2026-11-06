@@ -2,8 +2,12 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { nfeDistributionNotConfigured } from '../../nfe-imports/application/nfe-import.error.js'
+import { accessKeyLookupConflict, accessKeyLookupQueueFull } from './nfe-access-key-lookup.error.js'
 import {
+  ACCESS_KEY_LOOKUP_ACTIVE_LIMIT,
   ACCESS_KEY_LOOKUP_IDEMPOTENCY_PREFIX,
+  ACCESS_KEY_LOOKUP_IMPORT_AGGREGATE_TYPE,
+  ACCESS_KEY_LOOKUP_QUEUED_STATUS,
   ACCESS_KEY_LOOKUP_REQUEST_OPERATION,
   ACCESS_KEY_LOOKUP_REQUESTED_EVENT,
   ACCESS_KEY_REFUSAL_WINDOW_MS,
@@ -11,6 +15,7 @@ import {
 import type {
   AccessKeyLookupClockPort,
   IdempotencyFingerprintPort,
+  NfeFiscalEnvironment,
   RequestAccessKeyLookupParams,
   RequestAccessKeyLookupResult,
   RequestAccessKeyLookupTransactionPort,
@@ -58,13 +63,34 @@ async function executeRequest(input: {
   })
   if (refusal !== null) return { kind: 'existing', lookup: refusal }
 
-  const lookupId = await transaction.claimLookup({
+  const activeCount = await transaction.countActiveLookups({ companyId })
+  if (activeCount >= ACCESS_KEY_LOOKUP_ACTIVE_LIMIT) throw accessKeyLookupQueueFull()
+
+  const claim = {
     ...locator,
     correlationId: request.correlationId,
     requestedByUserId: request.context.userId,
-  })
-  if (lookupId === null) return readWinningLookup(transaction, locator)
+  }
+  let lookupId = await transaction.claimLookup(claim)
+  if (lookupId === null) {
+    const latest = await transaction.findLatestLookup(locator)
+    if (latest !== null) return { kind: 'existing', lookup: latest }
+    lookupId = await transaction.claimLookup(claim)
+    if (lookupId === null) throw accessKeyLookupConflict()
+  }
+  return createQueuedLookup({ dependencies, environment, lookupId, request, transaction })
+}
 
+async function createQueuedLookup(input: {
+  readonly dependencies: Dependencies
+  readonly environment: NfeFiscalEnvironment
+  readonly lookupId: string
+  readonly request: RequestAccessKeyLookupParams
+  readonly transaction: RequestAccessKeyLookupTransactionPort
+}): Promise<RequestAccessKeyLookupResult> {
+  const { dependencies, environment, lookupId, request, transaction } = input
+  const { accessKey } = request
+  const companyId = request.context.companyId
   const importId = await transaction.createImport({
     companyId,
     correlationId: request.correlationId,
@@ -79,7 +105,7 @@ async function executeRequest(input: {
   await transaction.saveOutbox({
     actorUserId: request.context.userId,
     aggregateId: importId,
-    aggregateType: 'nfe_import',
+    aggregateType: ACCESS_KEY_LOOKUP_IMPORT_AGGREGATE_TYPE,
     companyId,
     correlationId: request.correlationId,
     eventId: crypto.randomUUID(),
@@ -87,15 +113,5 @@ async function executeRequest(input: {
     eventVersion: 1,
     payload: { companyId, importId, lookupId },
   })
-  return { kind: 'created', lookup: { id: lookupId, status: 'queued' } }
-}
-
-async function readWinningLookup(
-  transaction: RequestAccessKeyLookupTransactionPort,
-  locator: Parameters<RequestAccessKeyLookupTransactionPort['findActiveLookup']>[0],
-): Promise<RequestAccessKeyLookupResult> {
-  const winner = await transaction.findActiveLookup(locator)
-  if (winner === null)
-    throw new Error('Active access key lookup disappeared after a claim conflict')
-  return { kind: 'existing', lookup: winner }
+  return { kind: 'created', lookup: { id: lookupId, status: ACCESS_KEY_LOOKUP_QUEUED_STATUS } }
 }

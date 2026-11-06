@@ -46,6 +46,14 @@ export const QUEUED_VIEW: LookupView = {
   status: 'queued',
 }
 
+export const IMPORTED_VIEW: LookupView = {
+  documentId: DOCUMENT_ID,
+  id: LOOKUP_ID,
+  notBefore: null,
+  reason: null,
+  status: 'imported',
+}
+
 export const REFUSED_VIEW: LookupView = {
   documentId: null,
   id: LOOKUP_ID,
@@ -66,7 +74,11 @@ export type FakeLookupScenario = {
   readonly activeLookup?: LookupView | null
   /** Uma resposta por leitura, na ordem: o vencedor de uma corrida só aparece depois do claim. */
   readonly activeLookupSequence?: readonly (LookupView | null)[]
+  readonly activeCount?: number
   readonly claimedLookupId?: string | null
+  /** Uma resposta por tentativa de claim, na ordem; vence `claimedLookupId`. */
+  readonly claimSequence?: readonly (string | null)[]
+  readonly latestLookup?: LookupView | null
   readonly documentId?: string | null
   readonly environment?: 'homologation' | 'production' | null
   readonly recentRefusal?: LookupView | null
@@ -90,7 +102,16 @@ export function createFakeLookupUnitOfWork(scenario: FakeLookupScenario = {}) {
     async claimLookup(input: Record<string, unknown>) {
       order.push('claimLookup')
       calls.claimed.push(input)
+      if (scenario.claimSequence !== undefined) {
+        return (
+          scenario.claimSequence[order.filter((name) => name === 'claimLookup').length - 1] ?? null
+        )
+      }
       return scenario.claimedLookupId === undefined ? LOOKUP_ID : scenario.claimedLookupId
+    },
+    async countActiveLookups() {
+      order.push('countActiveLookups')
+      return scenario.activeCount ?? 0
     },
     async createImport(input: Record<string, unknown>) {
       order.push('createImport')
@@ -107,6 +128,10 @@ export function createFakeLookupUnitOfWork(scenario: FakeLookupScenario = {}) {
         )
       }
       return scenario.activeLookup ?? null
+    },
+    async findLatestLookup() {
+      order.push('findLatestLookup')
+      return scenario.latestLookup ?? null
     },
     async findDocumentId() {
       order.push('findDocumentId')

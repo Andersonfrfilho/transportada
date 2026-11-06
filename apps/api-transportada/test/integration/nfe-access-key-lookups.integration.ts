@@ -300,6 +300,83 @@ describe('nfe access key lookups integration (spec 298 T1.2)', () => {
     },
     60_000,
   )
+
+  testWithPostgres(
+    'a claim lost to a winner that already finished returns the latest lookup, in any status',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const scenario = await seedScenario(database, { environment: 'homologation' })
+        const finishedId = await seedFinishedLookup(database, scenario, {
+          accessKey: ACCESS_KEY,
+          ageMs: 1000,
+          reason: 'sefaz_unavailable',
+          status: 'failed',
+        })
+        const repository = new DrizzleNfeAccessKeyLookupRepository(database.db)
+        let claimAttempts = 0
+        const racingUnitOfWork = {
+          execute: <TResult>(operation: Parameters<typeof repository.execute<TResult>>[0]) =>
+            repository.execute((transaction) =>
+              operation(
+                new Proxy(transaction, {
+                  get(target, property, receiver) {
+                    if (property !== 'claimLookup') return Reflect.get(target, property, receiver)
+                    return async () => {
+                      claimAttempts += 1
+                      return null
+                    }
+                  },
+                }),
+              ),
+            ),
+        }
+        const request = createRequestAccessKeyLookupUseCase({
+          clock: { now: () => new Date() },
+          fingerprintService: { create: async () => SHA },
+          unitOfWork: racingUnitOfWork,
+        })
+
+        const result = await request.execute(requestInput(scenario.contextA))
+
+        expect(claimAttempts).toBe(1)
+        expect(result).toMatchObject({
+          kind: 'existing',
+          lookup: { id: finishedId, reason: 'sefaz_unavailable', status: 'failed' },
+        })
+        expect(await database.db.select().from(nfeImports)).toEqual([])
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'counts only the active lookups of the company, inside the transaction',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const scenario = await seedScenario(database, { environment: 'homologation' })
+        await seedFinishedLookup(database, scenario, {
+          accessKey: OTHER_ACCESS_KEY,
+          ageMs: 1000,
+          reason: 'not_found',
+          status: 'refused',
+        })
+        const { request } = createUseCases(database)
+        await request.execute(requestInput(scenario.contextA))
+        const repository = new DrizzleNfeAccessKeyLookupRepository(database.db)
+
+        const own = await repository.execute((transaction) =>
+          transaction.countActiveLookups({ companyId: scenario.companyIdA }),
+        )
+        const other = await repository.execute((transaction) =>
+          transaction.countActiveLookups({ companyId: scenario.companyIdB }),
+        )
+
+        expect(own).toBe(1)
+        expect(other).toBe(0)
+      })
+    },
+    60_000,
+  )
 })
 
 function createUseCases(database: TestDatabase) {

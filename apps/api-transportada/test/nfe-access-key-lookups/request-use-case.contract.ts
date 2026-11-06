@@ -12,6 +12,7 @@ import {
   DOCUMENT_ID,
   FINGERPRINT,
   IMPORT_ID,
+  IMPORTED_VIEW,
   LOOKUP_ID,
   NOW,
   QUEUED_VIEW,
@@ -59,6 +60,7 @@ describe('request access key lookup application contract', () => {
       'findDocumentId',
       'findActiveLookup',
       'findRecentRefusal',
+      'countActiveLookups',
       'claimLookup',
       'createImport',
       'attachImport',
@@ -174,15 +176,68 @@ describe('request access key lookup application contract', () => {
 
   test('a concurrent request that lost the claim returns the lookup that won, creating no import', async () => {
     const { calls, order, useCase } = await createUseCase({
-      activeLookupSequence: [null, QUEUED_VIEW],
       claimedLookupId: null,
+      latestLookup: QUEUED_VIEW,
     })
 
     const result = await useCase.execute(REQUEST)
 
     expect(result).toEqual({ kind: 'existing', lookup: QUEUED_VIEW })
-    expect(order.slice(-2)).toEqual(['claimLookup', 'findActiveLookup'])
+    expect(order.slice(-2)).toEqual(['claimLookup', 'findLatestLookup'])
     expect(calls.imports).toEqual([])
     expect(calls.outbox).toEqual([])
+  })
+
+  test('a claim lost to a winner that already finished returns that finished lookup, never a bare error', async () => {
+    const { calls, useCase } = await createUseCase({
+      claimedLookupId: null,
+      latestLookup: IMPORTED_VIEW,
+    })
+
+    const result = await useCase.execute(REQUEST)
+
+    expect(result).toEqual({ kind: 'existing', lookup: IMPORTED_VIEW })
+    expect(calls.imports).toEqual([])
+  })
+
+  test('no lookup visible after a lost claim: retries the claim once and creates', async () => {
+    const { calls, order, useCase } = await createUseCase({ claimSequence: [null, LOOKUP_ID] })
+
+    const result = await useCase.execute(REQUEST)
+
+    expect(result).toEqual({ kind: 'created', lookup: { id: LOOKUP_ID, status: 'queued' } })
+    expect(order.filter((name) => name === 'claimLookup')).toHaveLength(2)
+    expect(calls.imports).toHaveLength(1)
+  })
+
+  test('409 NFE_ACCESS_KEY_LOOKUP_CONFLICT (typed) when the claim keeps losing with nothing to read', async () => {
+    const { calls, order, useCase } = await createUseCase({ claimedLookupId: null })
+
+    const error = await captureApiError(() => useCase.execute(REQUEST))
+
+    expect(error.status).toBe(409)
+    expect(error.code).toBe('NFE_ACCESS_KEY_LOOKUP_CONFLICT')
+    expect(order.filter((name) => name === 'claimLookup')).toHaveLength(2)
+    expect(calls.imports).toEqual([])
+  })
+
+  test('429 NFE_ACCESS_KEY_LOOKUP_QUEUE_FULL at 500 active lookups, before claiming', async () => {
+    const { calls, order, useCase } = await createUseCase({ activeCount: 500 })
+
+    const error = await captureApiError(() => useCase.execute(REQUEST))
+
+    expect(error.status).toBe(429)
+    expect(error.code).toBe('NFE_ACCESS_KEY_LOOKUP_QUEUE_FULL')
+    expect(order).not.toContain('claimLookup')
+    expect(calls.outbox).toEqual([])
+  })
+
+  test('499 active lookups still accept a new one', async () => {
+    const { useCase } = await createUseCase({ activeCount: 499 })
+
+    expect(await useCase.execute(REQUEST)).toEqual({
+      kind: 'created',
+      lookup: { id: LOOKUP_ID, status: 'queued' },
+    })
   })
 })

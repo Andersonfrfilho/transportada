@@ -18,3 +18,19 @@ export function nfeAccessKeyLookupNotFound(): ApiError {
     status: 404,
   })
 }
+
+export function accessKeyLookupQueueFull(): ApiError {
+  return new ApiError({
+    code: 'NFE_ACCESS_KEY_LOOKUP_QUEUE_FULL',
+    message: 'The company has too many NF-e access key lookups in progress',
+    status: 429,
+  })
+}
+
+export function accessKeyLookupConflict(): ApiError {
+  return new ApiError({
+    code: 'NFE_ACCESS_KEY_LOOKUP_CONFLICT',
+    message: 'NF-e access key lookup is being created by another request, try again',
+    status: 409,
+  })
+}

@@ -107,6 +107,7 @@ export function createTestRouter(input: {
       },
       migrationStatus: appliedMigrations(),
     }),
+    rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: input.routes,
     tenantContext: {
       async resolveCompany() {

@@ -3,6 +3,7 @@
  */
 import { defineRoute } from '../../http/router.service.js'
 import { API_NFE_ACCESS_KEY_LOOKUPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import { NFE_ACCESS_KEY_LOOKUP_REQUEST_RATE_LIMIT } from '../../shared/nfe-access-key-rate-limit.constant.js'
 import type {
   AccessKeyLookupView,
   GetAccessKeyLookupParams,
@@ -13,9 +14,6 @@ import { parseAccessKeyLookupRequest } from './nfe-access-key-lookups.schema.js'
 
 const INVOICES_IMPORT_POLICY = { permission: 'invoices.import', scope: 'company' } as const
 const INVOICES_READ_POLICY = { permission: 'invoices.read', scope: 'company' } as const
-
-/** Bipar é rápido, mas cada chave nova gasta o orçamento da SEFAZ, que é da empresa. */
-const REQUEST_RATE_LIMIT = { maxRequests: 60, store: 'memory', windowMs: 60_000 } as const
 
 type Dependencies = {
   readonly getLookup: {
@@ -47,7 +45,7 @@ export function createNfeAccessKeyLookupRoutes(
       },
       pathname: API_NFE_ACCESS_KEY_LOOKUPS_PATH,
       policy: INVOICES_IMPORT_POLICY,
-      rateLimit: REQUEST_RATE_LIMIT,
+      rateLimit: NFE_ACCESS_KEY_LOOKUP_REQUEST_RATE_LIMIT,
     }),
     defineRoute<GetInput>({
       async handle({ context, input }): Promise<Response> {

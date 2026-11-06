@@ -2,12 +2,20 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, gt, inArray } from 'drizzle-orm'
+import { and, count, desc, eq, gt, inArray } from 'drizzle-orm'
 
 import { companyFiscalProfiles } from '../../database/company-fiscal-profile.schema.js'
-import { nfeAccessKeyLookups, nfeDocuments, nfeImports } from '../../database/nfe.schema.js'
+import {
+  NFE_ACCESS_KEY_LOOKUP_ACTIVE_STATUSES,
+  nfeAccessKeyLookups,
+  nfeDocuments,
+  nfeImports,
+} from '../../database/nfe.schema.js'
 import { processingOutbox } from '../../database/processing.schema.js'
-import { DEFINITIVE_REFUSAL_REASONS } from '../application/nfe-access-key-lookup.constant.js'
+import {
+  ACCESS_KEY_LOOKUP_QUEUED_STATUS,
+  DEFINITIVE_REFUSAL_REASONS,
+} from '../application/nfe-access-key-lookup.constant.js'
 import type {
   AccessKeyLookupLocator,
   AccessKeyLookupOutboxParams,
@@ -23,8 +31,6 @@ import type {
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
-
-const ACTIVE_STATUSES = ['queued', 'querying', 'waiting'] as const
 
 const VIEW_COLUMNS = {
   documentId: nfeAccessKeyLookups.documentId,
@@ -90,11 +96,24 @@ class DrizzleAccessKeyLookupTransaction implements RequestAccessKeyLookupTransac
         correlationId: input.correlationId,
         environment: input.environment,
         requestedByUserId: input.requestedByUserId,
-        status: 'queued',
+        status: ACCESS_KEY_LOOKUP_QUEUED_STATUS,
       })
       .onConflictDoNothing()
       .returning({ id: nfeAccessKeyLookups.id })
     return row?.id ?? null
+  }
+
+  public async countActiveLookups(input: { readonly companyId: string }): Promise<number> {
+    const [row] = await this.transaction
+      .select({ total: count() })
+      .from(nfeAccessKeyLookups)
+      .where(
+        and(
+          eq(nfeAccessKeyLookups.companyId, input.companyId),
+          inArray(nfeAccessKeyLookups.status, [...NFE_ACCESS_KEY_LOOKUP_ACTIVE_STATUSES]),
+        ),
+      )
+    return row?.total ?? 0
   }
 
   public async createImport(input: CreateLookupImportParams): Promise<string> {
@@ -107,7 +126,7 @@ class DrizzleAccessKeyLookupTransaction implements RequestAccessKeyLookupTransac
         requestFingerprint: input.requestFingerprint,
         requestedByUserId: input.requestedByUserId,
         source: 'access_key',
-        status: 'queued',
+        status: ACCESS_KEY_LOOKUP_QUEUED_STATUS,
         triggeredBy: 'user',
       })
       .returning({ id: nfeImports.id })
@@ -122,8 +141,23 @@ class DrizzleAccessKeyLookupTransaction implements RequestAccessKeyLookupTransac
       .select(VIEW_COLUMNS)
       .from(nfeAccessKeyLookups)
       .where(
-        and(...locatorConditions(input), inArray(nfeAccessKeyLookups.status, [...ACTIVE_STATUSES])),
+        and(
+          ...locatorConditions(input),
+          inArray(nfeAccessKeyLookups.status, [...NFE_ACCESS_KEY_LOOKUP_ACTIVE_STATUSES]),
+        ),
       )
+      .limit(1)
+    return row === undefined ? null : mapView(row)
+  }
+
+  public async findLatestLookup(
+    input: AccessKeyLookupLocator,
+  ): Promise<AccessKeyLookupView | null> {
+    const [row] = await this.transaction
+      .select(VIEW_COLUMNS)
+      .from(nfeAccessKeyLookups)
+      .where(and(...locatorConditions(input)))
+      .orderBy(desc(nfeAccessKeyLookups.createdAt))
       .limit(1)
     return row === undefined ? null : mapView(row)
   }

@@ -147,3 +147,19 @@ Gates:
 - Integração nova: `2 pass, 0 fail` (isolamento entre empresas e chave desconhecida em 1 query contada; lote de 200 chaves distintas em 1 query).
 - API contrato completo: `14069 pass, 0 fail, 26 skip` (era 14056 + 13).
 - API `test:integration` completo: `1949 pass, 8 skip, 0 fail`, 1957 testes em 346 arquivos, `EXIT=0` (6933 s).
+
+## Revisão da Fase 1 — correções
+
+Achado → correção → teste:
+1. Corrida do claim lançava `Error` simples quando a vencedora já terminara → perdedor lê `findLatestLookup` (qualquer status, `created_at desc limit 1`) e devolve `existing`; sem nada para ler, refaz o claim uma vez e depois lança `ApiError` 409 `NFE_ACCESS_KEY_LOOKUP_CONFLICT`. `createQueuedLookup` extraído (`executeRequest` < 40 linhas). Testes: contrato `request-use-case` (vencedora ativa, vencedora terminada, retry cria, 409 tipado) e integração com Postgres real forçando o claim a perder contra um lookup `failed` já gravado (devolve esse lookup, nenhum import criado).
+2. Rate limit `memory` → `postgres` (entre réplicas), 120/min por usuário nas duas rotas, objetos em `src/shared/nfe-access-key-rate-limit.constant.ts` (escopos próprios); comentário corrigido (quem protege o orçamento da SEFAZ é o do worker). Testes: `route.contract` das duas rotas (`toEqual` do objeto).
+3. Teto de 500 buscas ativas por empresa → `429 NFE_ACCESS_KEY_LOOKUP_QUEUE_FULL` (`countActiveLookups` dentro da transação, antes do claim). Testes: contrato 500 → 429 sem claim, 499 → cria; rota repassa o código; integração conta só ativas da própria empresa.
+4. `NFE_ACCESS_KEY_LOOKUP_ACTIVE_STATUSES` em `nfe.schema.ts`, usada no repositório e no índice parcial; `'queued'` e `'nfe_import'` viraram constantes. `bun run db:generate` → `no_changes` (SQL idêntico, sem migration nova).
+5. `accessKeys[]` com `z.string().max(64)`; `details` só com `accessKeys.<índice>` e mensagem fixa (a chave não é ecoada; o POST da busca nunca ecoou). Testes: item de 65 caracteres → 400 `INVALID_REQUEST`; resposta não contém a chave.
+6-8. `tmp/ops/producao-consulta-por-chave.sh`: `COMPANY_ID` validado como UUID e entre aspas no comando remoto; confirmação exige TTY (`[ -t 0 ]`); sem linha `__RESULT__` imprime "sem resultado — verifique manualmente (a consulta pode ter contado no limite)" e sai 1. `bash -n` ok; recusa sem TTY e com UUID inválido conferidas à mão.
+
+Gates:
+- `bun run typecheck` (raiz, 7 apps): `0`. `bun run lint` (API): `0`.
+- API contrato completo: `14076 pass, 0 fail, 26 skip`.
+- Integração dos arquivos do módulo (`nfe-access-key-lookups` 11 pass, `nfe-document-access-key-checks`, `migration-completeness`) + `database-migration.contract.test.ts`: `201 pass, 7 skip, 0 fail`.
+- O `test:integration` completo ficou verde em 17bd8b4ec (1949 pass); este delta toca só o módulo novo (sem migration), então não foi repetido.

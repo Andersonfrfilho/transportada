@@ -9,7 +9,7 @@ import { ACCESS_KEY_CHECK_MAX_KEYS } from '../application/nfe-document-access-ke
 import { CHAVE_PATTERN, isChaveDvValid } from '../../shared/tax-id.service.js'
 
 const requestBodySchema = z
-  .object({ accessKeys: z.array(z.string()).min(1).max(ACCESS_KEY_CHECK_MAX_KEYS) })
+  .object({ accessKeys: z.array(z.string().max(64)).min(1).max(ACCESS_KEY_CHECK_MAX_KEYS) })
   .strict()
 
 /**
@@ -22,7 +22,7 @@ export async function parseAccessKeyCheckRequest(
   const body = await parseBody(requestBodySchema, request)
   const canonicalKeys = body.accessKeys.map((accessKey) => accessKey.trim().toUpperCase())
   const invalidKeys = canonicalKeys.flatMap((accessKey, index) =>
-    CHAVE_PATTERN.test(accessKey) && isChaveDvValid(accessKey) ? [] : [{ accessKey, index }],
+    CHAVE_PATTERN.test(accessKey) && isChaveDvValid(accessKey) ? [] : [index],
   )
   if (invalidKeys.length > 0) throw invalidAccessKeys(invalidKeys)
   return { accessKeys: [...new Set(canonicalKeys)] }

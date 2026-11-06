@@ -77,6 +77,12 @@ export const NFE_ACCESS_KEY_LOOKUP_STATUSES = [
 ] as const
 export type NfeAccessKeyLookupStatus = (typeof NFE_ACCESS_KEY_LOOKUP_STATUSES)[number]
 
+export const NFE_ACCESS_KEY_LOOKUP_ACTIVE_STATUSES = [
+  'queued',
+  'querying',
+  'waiting',
+] as const satisfies readonly NfeAccessKeyLookupStatus[]
+
 export const NFE_ACCESS_KEY_LOOKUP_REASONS = [
   'not_interested',
   'summary_only',
@@ -1132,7 +1138,12 @@ export const nfeAccessKeyLookups = pgTable(
     unique('nfe_access_key_lookups_company_id_id_unique').on(table.companyId, table.id),
     uniqueIndex('nfe_access_key_lookups_active_unique')
       .on(table.companyId, table.environment, table.accessKey)
-      .where(sql`${table.status} in ('queued', 'querying', 'waiting')`),
+      .where(
+        sql`${table.status} in (${sql.join(
+          NFE_ACCESS_KEY_LOOKUP_ACTIVE_STATUSES.map((status) => sql.raw(`'${status}'`)),
+          sql.raw(', '),
+        )})`,
+      ),
     index('nfe_access_key_lookups_refusal_window_idx').on(
       table.companyId,
       table.environment,

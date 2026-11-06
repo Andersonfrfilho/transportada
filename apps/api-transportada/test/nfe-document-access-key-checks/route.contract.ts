@@ -80,7 +80,8 @@ describe('POST /nfe-documents/access-key-checks contract', () => {
       'accessKeys.2',
       'accessKeys.3',
     ])
-    expect(error.details?.[0]?.message).toContain(ACCESS_KEY_WITH_WRONG_DV)
+    expect(JSON.stringify(error)).not.toContain(ACCESS_KEY_WITH_WRONG_DV)
+    expect(JSON.stringify(error.details)).not.toContain(ACCESS_KEY.slice(0, 43))
     expect(fixture.checkCalls).toEqual([])
   })
 
@@ -89,6 +90,7 @@ describe('POST /nfe-documents/access-key-checks contract', () => {
     ['an empty list', { accessKeys: [] }],
     ['201 keys', { accessKeys: Array.from({ length: 201 }, () => ACCESS_KEY) }],
     ['a non-string item', { accessKeys: [35260811111111] }],
+    ['an item longer than 64 characters', { accessKeys: ['9'.repeat(65)] }],
     [
       'a body that tries to choose the company',
       { accessKeys: [ACCESS_KEY], companyId: 'attacker' },
@@ -116,7 +118,12 @@ describe('POST /nfe-documents/access-key-checks contract', () => {
     const fixture = createNfeDocumentAccessKeyCheckHttpFixture()
     const route = fixture.routes.find((candidate) => candidate.method === 'POST')
 
-    expect(route?.rateLimit).toMatchObject({ store: 'memory' })
+    expect(route?.rateLimit).toEqual({
+      maxRequests: 120,
+      scope: 'nfe-document-access-key-checks',
+      store: 'postgres',
+      windowSeconds: 60,
+    })
   })
 
   test('the fixed path is not read as a document id by the /nfe-documents/:id routes', async () => {

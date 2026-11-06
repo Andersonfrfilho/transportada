@@ -7,6 +7,10 @@ import type {
   NfeAccessKeyLookupStatus,
 } from '../../database/nfe.schema.js'
 import type {
+  ACCESS_KEY_LOOKUP_IMPORT_AGGREGATE_TYPE,
+  ACCESS_KEY_LOOKUP_QUEUED_STATUS,
+} from './nfe-access-key-lookup.constant.js'
+import type {
   IdempotencyFingerprintPort,
   NfeFiscalEnvironment,
 } from '../../nfe-imports/application/nfe-import.types.js'
@@ -36,7 +40,10 @@ export type RequestAccessKeyLookupParams = {
 export type RequestAccessKeyLookupResult =
   | {
       readonly kind: 'created'
-      readonly lookup: { readonly id: string; readonly status: 'queued' }
+      readonly lookup: {
+        readonly id: string
+        readonly status: typeof ACCESS_KEY_LOOKUP_QUEUED_STATUS
+      }
     }
   | { readonly kind: 'existing'; readonly lookup: AccessKeyLookupView }
   | { readonly kind: 'found'; readonly documentId: string }
@@ -68,7 +75,7 @@ export type AttachLookupImportParams = {
 export type AccessKeyLookupOutboxParams = {
   readonly actorUserId: string
   readonly aggregateId: string
-  readonly aggregateType: 'nfe_import'
+  readonly aggregateType: typeof ACCESS_KEY_LOOKUP_IMPORT_AGGREGATE_TYPE
   readonly companyId: string
   readonly correlationId: string
   readonly eventId: string
@@ -85,8 +92,11 @@ export type RequestAccessKeyLookupTransactionPort = {
   attachImport(input: AttachLookupImportParams): Promise<void>
   /** `null` quando já existe busca ativa para a chave: quem perdeu a corrida lê a vencedora. */
   claimLookup(input: ClaimAccessKeyLookupParams): Promise<string | null>
+  countActiveLookups(input: { readonly companyId: string }): Promise<number>
   createImport(input: CreateLookupImportParams): Promise<string>
   findActiveLookup(input: AccessKeyLookupLocator): Promise<AccessKeyLookupView | null>
+  /** A mais recente da chave em qualquer estado: quem perdeu a corrida pode achar a vencedora já terminada. */
+  findLatestLookup(input: AccessKeyLookupLocator): Promise<AccessKeyLookupView | null>
   findDocumentId(input: {
     readonly accessKey: string
     readonly companyId: string

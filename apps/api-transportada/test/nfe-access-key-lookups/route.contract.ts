@@ -95,6 +95,21 @@ describe('POST /nfe-access-key-lookups contract', () => {
     expect(fixture.requestCalls).toEqual([])
   })
 
+  test('429 NFE_ACCESS_KEY_LOOKUP_QUEUE_FULL carries the typed code when the company queue is full', async () => {
+    const fixture = await createNfeAccessKeyLookupHttpFixture({
+      requestResult: new ApiError({
+        code: 'NFE_ACCESS_KEY_LOOKUP_QUEUE_FULL',
+        message: 'The company has too many NF-e access key lookups in progress',
+        status: 429,
+      }),
+    })
+
+    const response = await fixture.handle(postLookup({ accessKey: ACCESS_KEY }))
+
+    expect(response.status).toBe(429)
+    expect((await responseApiError(response)).code).toBe('NFE_ACCESS_KEY_LOOKUP_QUEUE_FULL')
+  })
+
   test('403 for a caller with invoices.read but without invoices.import', async () => {
     const fixture = await createNfeAccessKeyLookupHttpFixture({
       permissions: new Set(['invoices.read']),
@@ -111,7 +126,12 @@ describe('POST /nfe-access-key-lookups contract', () => {
     const post = fixture.routes.find((route) => route.method === 'POST')
     const get = fixture.routes.find((route) => route.method === 'GET')
 
-    expect(post?.rateLimit).toMatchObject({ store: 'memory' })
+    expect(post?.rateLimit).toEqual({
+      maxRequests: 120,
+      scope: 'nfe-access-key-lookups-request',
+      store: 'postgres',
+      windowSeconds: 60,
+    })
     expect(get?.rateLimit).toBeUndefined()
   })
 })

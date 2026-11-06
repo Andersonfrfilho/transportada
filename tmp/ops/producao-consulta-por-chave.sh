@@ -13,6 +13,12 @@ if ! [[ "$CHAVE" =~ ^[0-9]{44}$ ]]; then
   echo "Uso: $0 <chave de acesso com exatamente 44 digitos>" >&2
   exit 1
 fi
+COMPANY="${COMPANY_ID:-}"
+if [ -n "$COMPANY" ] && ! [[ "$COMPANY" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+  echo "COMPANY_ID invalido: precisa ser um UUID" >&2
+  exit 1
+fi
+[ -t 0 ] || { echo "Confirmacao exige terminal interativo (TTY); recusado." >&2; exit 1; }
 command -v railway >/dev/null || { echo "railway CLI nao encontrado" >&2; exit 1; }
 
 echo "ATENCAO: isto chama a SEFAZ de PRODUCAO (consChNFe) com o certificado de distribuicao."
@@ -22,7 +28,11 @@ read -r -p 'Digite "sim" para continuar: ' ANSWER
 [ "$ANSWER" = "sim" ] || { echo "Cancelado."; exit 1; }
 
 ENCODED="$(base64 -w0 "$HELPER")"
-COMPANY="${COMPANY_ID:-}"
-railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -s worker -e production -- \
-  sh -c "cd /app/apps/worker-transportada && CHAVE_NFE=$CHAVE COMPANY_ID=$COMPANY bun -e \"\$(echo $ENCODED | base64 -d)\"" \
-  2>&1 | grep '^__RESULT__' || true
+RESULT="$(railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -s worker -e production -- \
+  sh -c "cd /app/apps/worker-transportada && CHAVE_NFE=$CHAVE COMPANY_ID='$COMPANY' bun -e \"\$(echo $ENCODED | base64 -d)\"" \
+  2>&1 | grep '^__RESULT__' || true)"
+if [ -z "$RESULT" ]; then
+  echo "sem resultado — verifique manualmente (a consulta pode ter contado no limite)" >&2
+  exit 1
+fi
+echo "$RESULT"

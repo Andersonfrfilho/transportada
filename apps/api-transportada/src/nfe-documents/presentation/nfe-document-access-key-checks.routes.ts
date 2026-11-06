@@ -6,6 +6,7 @@ import {
   API_NFE_DOCUMENT_ACCESS_KEY_CHECKS_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
+import { NFE_DOCUMENT_ACCESS_KEY_CHECK_RATE_LIMIT } from '../../shared/nfe-access-key-rate-limit.constant.js'
 import type {
   AccessKeyCheckEntry,
   CheckAccessKeysParams,
@@ -13,9 +14,6 @@ import type {
 import { parseAccessKeyCheckRequest } from './nfe-document-access-key-checks.schema.js'
 
 const INVOICES_READ_POLICY = { permission: 'invoices.read', scope: 'company' } as const
-
-/** Mesmo teto da busca por chave: cada chamada paga uma consulta de até 200 chaves. */
-const CHECK_RATE_LIMIT = { maxRequests: 60, store: 'memory', windowMs: 60_000 } as const
 
 type Dependencies = {
   readonly checkAccessKeys: {
@@ -44,7 +42,7 @@ export function createNfeDocumentAccessKeyCheckRoutes(
       parse: ({ request }): Promise<CheckInput> => parseAccessKeyCheckRequest(request),
       pathname: API_NFE_DOCUMENT_ACCESS_KEY_CHECKS_PATH,
       policy: INVOICES_READ_POLICY,
-      rateLimit: CHECK_RATE_LIMIT,
+      rateLimit: NFE_DOCUMENT_ACCESS_KEY_CHECK_RATE_LIMIT,
     }),
   ]
 }
