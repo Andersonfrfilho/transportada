@@ -36,15 +36,17 @@ type EvolutionSenderDependencies = {
   readonly secrets: Pick<WhatsAppEvolutionSecretService, 'decrypt'>
 }
 
-/** O texto com marca (`mentionNumber`, só dígitos) só o grupo usa; sem ele é o texto de sempre. */
+type EvolutionTextParams = {
+  readonly body: string
+  readonly companyId: string
+  /** Só dígitos: o texto já traz o `@número` e o Evolution marca esse número. */
+  readonly mentionNumber?: string
+  readonly number: string
+}
+
 type EvolutionDocumentSender = ContractorReplyWhatsAppSenderPort &
   ClientReplyWhatsAppSenderPort & {
-    sendText(params: {
-      readonly body: string
-      readonly companyId: string
-      readonly mentionNumber?: string
-      readonly number: string
-    }): Promise<{ readonly providerMessageId: null | string }>
+    sendText(params: EvolutionTextParams): Promise<{ readonly providerMessageId: null | string }>
   }
 
 export function createEvolutionDocumentSender(
@@ -111,7 +113,7 @@ export function createEvolutionDocumentSender(
     },
 
     /** Spec 283 T5 (D6): a resposta do painel ao cliente, só texto. */
-    async sendText(params: Parameters<EvolutionDocumentSender['sendText']>[0]) {
+    async sendText(params: EvolutionTextParams) {
       if (params.mentionNumber !== undefined) {
         const target = await credentials(params.companyId)
         await pace(params.companyId)
