@@ -461,18 +461,18 @@
   "vehicle": "Vehicle {{plate}}",
   "proofPendingWarning": "Retaking it never helps: the worst photo counts. A photo sent much later counts as late, even if the device clock shows another time.",
   "outOfOrder": {
-    "confirm": "Record anyway",
+    "confirm": "Go to stop {{requested}}",
     "discard": "Mistake, discard",
-    "generic": "This tap ({{kind}}) is neither for the stop in progress nor the next one on the route. Record anyway?",
+    "generic": "This tap ({{kind}}) doesn't follow the suggested route order. You can go ahead if you think it's better.",
     "kind": {
       "arrive": "Arrived",
       "deliver": "Delivered",
       "depart": "Start route",
       "return": "Not delivered"
     },
-    "title": "Out of route order",
-    "withCurrent": "You started the route to stop {{current}}, but this tap ({{kind}}) is for stop {{requested}}. Record anyway?",
-    "withNext": "The next stop on the route is {{next}}. Do you really want to record {{kind}} at stop {{requested}}?"
+    "title": "Off the suggested route",
+    "withCurrent": "You're on your way to stop {{current}}, and this tap ({{kind}}) is for stop {{requested}}. You can go ahead if you think it's better — stop {{current}} stays open.",
+    "withNext": "The suggested route goes to stop {{next}} next. You can record {{kind}} at stop {{requested}} if you think it's better."
   },
   "pendingProofs": {
     "attach": "Attach proof",

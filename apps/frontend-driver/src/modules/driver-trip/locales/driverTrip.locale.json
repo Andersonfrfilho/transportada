@@ -195,18 +195,18 @@
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
   "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
   "outOfOrder": {
-    "confirm": "Registrar mesmo assim",
+    "confirm": "Seguir para a parada {{requested}}",
     "discard": "Foi engano, descartar",
-    "generic": "Este toque ({{kind}}) não é da parada em andamento nem da próxima do roteiro. Registrar mesmo assim?",
+    "generic": "Este toque ({{kind}}) não segue a ordem sugerida da rota. Se achar melhor, pode seguir.",
     "kind": {
       "arrive": "Cheguei",
       "deliver": "Entreguei",
       "depart": "Iniciar rota",
       "return": "Não entreguei"
     },
-    "title": "Fora da ordem da rota",
-    "withCurrent": "Você iniciou a rota para a parada {{current}}, mas este toque ({{kind}}) é da parada {{requested}}. Registrar mesmo assim?",
-    "withNext": "A próxima parada do roteiro é a {{next}}. Quer mesmo registrar {{kind}} na parada {{requested}}?"
+    "title": "Fora da rota sugerida",
+    "withCurrent": "Você está a caminho da parada {{current}}, e este toque ({{kind}}) é da parada {{requested}}. Se achar melhor, pode seguir — a parada {{current}} continua aberta.",
+    "withNext": "A rota sugerida segue para a parada {{next}}. Se achar melhor, pode registrar {{kind}} na parada {{requested}}."
   },
   "pendingProofs": {
     "attach": "Anexar comprovante",

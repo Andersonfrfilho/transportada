@@ -44,6 +44,7 @@ import {
   markCanhotoReplaceConfirmed,
 } from '../shared/canhotoReplacePrompt.service'
 import { markOutOfOrderConfirmed } from '../shared/outOfOrderPrompt.service'
+import { countRejectedEvents } from '../shared/tripSyncBanner.service'
 import {
   appendFieldReportNotices,
   dismissFieldReportNotice,
@@ -1194,7 +1195,7 @@ export function useDriverTrip(
     queuedReports,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,
     refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
-    rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
+    rejectedCount: countRejectedEvents(loadedView),
     report,
     reportAllOrNothing: reportNotDelivered,
     reportNotDelivered,
