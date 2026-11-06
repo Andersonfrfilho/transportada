@@ -101,7 +101,11 @@ describe('grupo: a pergunta do fora de ordem (RF25)', () => {
     async (answer) => {
       const t = setup()
       await t.start('saí')
-      expect(await t.answer(answer)).toEqual({ kind: 'done', replies: ['Saída registrada.'] })
+      expect(await t.answer(answer)).toEqual({
+        kind: 'done',
+        replies: ['Saída registrada.'],
+        withoutFarewell: true,
+      })
       expect(t.recorded.at(-1)).toMatchObject({
         confirmOutOfOrder: true,
         event: 'depart',
@@ -116,7 +120,11 @@ describe('grupo: a pergunta do fora de ordem (RF25)', () => {
     async (answer) => {
       const t = setup()
       await t.start('saí')
-      expect(await t.answer(answer)).toEqual({ kind: 'done', replies: ['Saída registrada.'] })
+      expect(await t.answer(answer)).toEqual({
+        kind: 'done',
+        replies: ['Saída registrada.'],
+        withoutFarewell: true,
+      })
       expect(t.recorded.at(-1)).toMatchObject({ event: 'depart', stopId: 's4' })
       expect(t.recorded.at(-1)?.confirmOutOfOrder).toBeUndefined()
     },
@@ -203,7 +211,7 @@ describe('grupo: o registro devolve a pergunta quando a API recusa (adaptador)',
     const received: Record<string, unknown>[] = []
     const result = await build(received).record({ ...input, confirmOutOfOrder: true })
     expect(received[0]?.confirmOutOfOrder).toBe(true)
-    expect(result.message).toBe('Chegada registrada. 📍')
+    expect(result.message).toBe('*Chegada registrada* 📍')
     expect(result.outOfOrder).toBeUndefined()
   })
 })

@@ -321,6 +321,31 @@ describe('fluxo do grupo: localização opcional', () => {
   })
 })
 
+describe('fluxo do grupo: localização sem ocorrência em andamento', () => {
+  test('o passo `location` sem tipo e nota no pedido não monta resumo vazio', async () => {
+    const flow = createGroupOccurrenceFlow({} as GroupOccurrenceFlowPorts)
+    const outcome = await flow.locationReceived?.({
+      location: { latitude: -20.5673337, longitude: -47.3604457 },
+      request: {
+        attempts: 0,
+        companyId: COMPANY_ID,
+        driverId: DRIVER_ID,
+        expiresAt: new Date(),
+        groupJid: '1@g.us',
+        id: 'R1',
+        ownerNumber: '5516988887777',
+        state: { locationFor: { event: 'depart', stopId: 'S1' } },
+        step: GROUP_OCCURRENCE_STEP.location,
+        version: 1n,
+      },
+      sender: '5516988887777',
+      senderName: null,
+      text: '',
+    })
+    expect(outcome).toBeNull()
+  })
+})
+
 describe('fluxo do grupo: o resumo para confirmar', () => {
   const WITH_ADDRESS: GroupDriverDocument = {
     address: 'Rua das Flores, 100 - Ribeirão Preto/SP',

@@ -6,6 +6,8 @@
  * contexto da sessão (só ids, a hora e marcadores; nunca nome, endereço nem coordenada) e há **um só** por
  * conversa. No grupo o mesmo papel é do passo do pedido aberto.
  */
+import { readJourneyActions, type JourneyAction } from './whatsapp-driver-journey.policy.js'
+
 export const DRIVER_PROMPT_CONTEXT_KEY = 'driverPrompt'
 
 /** Pedido esquecido (o motorista seguiu a vida) não responde "1" horas depois. */
@@ -14,11 +16,25 @@ export const DRIVER_PROMPT_TTL_MS = 2 * 60 * 60 * 1000
 /** Respostas que não cabem no pedido de localização até ele ser abandonado (o mesmo teto do grupo). */
 export const DRIVER_PROMPT_MAX_ATTEMPTS = 3
 
+export const DRIVER_PROMPT_TEXT = {
+  cancelled: 'Certo, cancelei e não registrei nada.',
+} as const
+
 export const DRIVER_PROMPT_KIND = {
+  /** O menu das ações da parada (evento repetido, baixa pendente, próxima rota). */
+  journeyActions: 'journey_actions',
   location: 'location',
   outOfOrder: 'out_of_order',
   routeOffer: 'route_offer',
+  /** A lista das paradas pendentes para escolher a saída. */
+  stopChoice: 'stop_choice',
 } as const
+
+/** Uma parada da lista de escolha: só o id e os números das notas. */
+export type DriverPromptStopOption = {
+  readonly id: string
+  readonly numbers: readonly string[]
+}
 
 type PromptBase = {
   readonly documentNumber?: string | undefined
@@ -30,6 +46,8 @@ export type DriverPrompt =
   | (PromptBase & { readonly kind: typeof DRIVER_PROMPT_KIND.routeOffer })
   | (PromptBase & {
       readonly attempts: number
+      /** O motorista já confirmou sair com a baixa de outra parada pendente. */
+      readonly confirmOutOfOrder?: boolean
       readonly event: 'arrive' | 'depart'
       readonly kind: typeof DRIVER_PROMPT_KIND.location
     })
@@ -39,6 +57,16 @@ export type DriverPrompt =
       readonly kind: typeof DRIVER_PROMPT_KIND.outOfOrder
       readonly nextStopId: string | undefined
     })
+  | (PromptBase & {
+      readonly actions: readonly JourneyAction[]
+      readonly kind: typeof DRIVER_PROMPT_KIND.journeyActions
+    })
+  | (PromptBase & {
+      /** O motorista já confirmou sair com a baixa de outra parada pendente. */
+      readonly confirmOutOfOrder: boolean
+      readonly kind: typeof DRIVER_PROMPT_KIND.stopChoice
+      readonly stops: readonly DriverPromptStopOption[]
+    })
 
 /** O contexto é jsonb persistido: confere o formato e a validade em vez de confiar nele. */
 export function readDriverPrompt(
@@ -47,10 +75,18 @@ export function readDriverPrompt(
 ): DriverPrompt | undefined {
   const value = context[DRIVER_PROMPT_CONTEXT_KEY]
   if (typeof value !== 'object' || value === null) return undefined
-  const { attempts, documentNumber, event, kind, nextStopId, offeredAt, stopId } = value as Record<
-    string,
-    unknown
-  >
+  const {
+    actions,
+    attempts,
+    confirmOutOfOrder,
+    documentNumber,
+    event,
+    kind,
+    nextStopId,
+    offeredAt,
+    stopId,
+    stops,
+  } = value as Record<string, unknown>
   if (typeof stopId !== 'string' || typeof offeredAt !== 'string') return undefined
   const offered = new Date(offeredAt).getTime()
   if (Number.isNaN(offered) || now.getTime() - offered > DRIVER_PROMPT_TTL_MS) return undefined
@@ -60,8 +96,24 @@ export function readDriverPrompt(
     stopId,
   }
   if (kind === DRIVER_PROMPT_KIND.routeOffer) return { ...base, kind }
+  if (kind === DRIVER_PROMPT_KIND.journeyActions) {
+    const parsed = readJourneyActions(actions)
+    return parsed.length === 0 ? undefined : { ...base, actions: parsed, kind }
+  }
+  if (kind === DRIVER_PROMPT_KIND.stopChoice) {
+    const options = readStopOptions(stops)
+    return options.length === 0
+      ? undefined
+      : { ...base, confirmOutOfOrder: confirmOutOfOrder === true, kind, stops: options }
+  }
   if (kind === DRIVER_PROMPT_KIND.location && (event === 'arrive' || event === 'depart')) {
-    return { ...base, attempts: typeof attempts === 'number' ? attempts : 0, event, kind }
+    return {
+      ...base,
+      attempts: typeof attempts === 'number' ? attempts : 0,
+      ...(confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}),
+      event,
+      kind,
+    }
   }
   if (kind === DRIVER_PROMPT_KIND.outOfOrder && (event === 'arrive' || event === 'depart')) {
     return {
@@ -72,6 +124,18 @@ export function readDriverPrompt(
     }
   }
   return undefined
+}
+
+function readStopOptions(value: unknown): DriverPromptStopOption[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry): DriverPromptStopOption[] => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const { id, numbers } = entry as Record<string, unknown>
+    if (typeof id !== 'string' || !Array.isArray(numbers)) return []
+    return [
+      { id, numbers: numbers.filter((number): number is string => typeof number === 'string') },
+    ]
+  })
 }
 
 export function withoutDriverPrompt(context: Record<string, unknown>): Record<string, unknown> {

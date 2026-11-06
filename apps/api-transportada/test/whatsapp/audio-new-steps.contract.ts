@@ -206,7 +206,7 @@ describe('cada passo novo do grupo entende a fala curta (RF22)', () => {
   test.each(['um', 'sim', 'Um.'])('oferta da próxima rota: "%s" inicia a rota', async (spoken) => {
     const t = flowSetup()
     const outcome = await t.answerAt('route.offer', { routeOffer: { stopId: 's1' } }, spoken)
-    expect(outcome).toEqual({ kind: 'done', replies: ['registrado'] })
+    expect(outcome).toEqual({ kind: 'done', replies: ['registrado'], withoutFarewell: true })
     expect(t.recorded.at(-1)).toMatchObject({ event: 'depart', stopId: 's1' })
   })
 
@@ -229,6 +229,7 @@ describe('cada passo novo do grupo entende a fala curta (RF22)', () => {
       expect(await t.answerAt('stop.location', LOCATION, spoken)).toEqual({
         kind: 'done',
         replies: ['registrado'],
+        withoutFarewell: true,
       })
     },
   )

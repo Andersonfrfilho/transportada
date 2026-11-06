@@ -12,7 +12,10 @@ import type { AdmittedGroupMessage } from '../../src/whatsapp/application/evolut
 import type {
   GroupFlowOutcome,
   GroupFlowTurn,
+  GroupQuestionAsked,
   GroupRequest,
+  GroupRequestClosed,
+  GroupRequestFlow,
   GroupRequestRepositoryPort,
 } from '../../src/whatsapp/application/whatsapp-group-request.port.js'
 import {
@@ -117,7 +120,13 @@ function fakeFlow() {
   }
 }
 
-function setup() {
+function setup(
+  extra: {
+    readonly cancel?: GroupRequestFlow['cancel']
+    readonly onQuestionAsked?: GroupQuestionAsked
+    readonly onRequestClosed?: GroupRequestClosed
+  } = {},
+) {
   let now = new Date('2026-11-04T12:00:00.000Z')
   const clock = () => now
   const memory = createMemoryRepository(clock)
@@ -131,8 +140,10 @@ function setup() {
   })
   const sessions = createWhatsAppGroupRequestSessions({
     clock,
-    flow,
+    flow: { ...flow, ...(extra.cancel === undefined ? {} : { cancel: extra.cancel }) },
     logger: silentLogger(),
+    ...(extra.onQuestionAsked === undefined ? {} : { onQuestionAsked: extra.onQuestionAsked }),
+    ...(extra.onRequestClosed === undefined ? {} : { onRequestClosed: extra.onRequestClosed }),
     replies,
     repository: memory.repository,
   })
@@ -286,6 +297,66 @@ describe('pedido no grupo: cancelar e tentativas', () => {
     expect(memory.requests[1]?.status).toBe('cancelled')
   })
 
+  test('"cancelar" vai ao fluxo dono do passo, que encerra do jeito dele', async () => {
+    const seen: string[] = []
+    const { memory, message, said, sessions } = setup({
+      cancel: async (turn) => {
+        seen.push(turn.request.step)
+        return { kind: 'done', replies: ['Entrega cancelada.'] }
+      },
+    })
+    await sessions.handle(message({ text: '' }))
+    await said()
+    await sessions.handle(message({ text: 'cancelar', via: 'owner_reply' }))
+    expect(seen).toEqual(['note'])
+    const [reply] = await said()
+    expect(reply?.startsWith('Entrega cancelada.')).toBe(true)
+    expect(memory.requests[0]?.status).toBe('completed')
+  })
+
+  test('fluxo dono sem cancelamento próprio (null): o pedido só fecha como cancelado', async () => {
+    const { memory, message, said, sessions } = setup({ cancel: async () => null })
+    await sessions.handle(message({ text: '' }))
+    await said()
+    await sessions.handle(message({ text: 'cancelar', via: 'owner_reply' }))
+    expect(await said()).toEqual([GROUP_REQUEST_TEXT.cancelled])
+    expect(memory.requests[0]?.status).toBe('cancelled')
+  })
+
+  test('cada pergunta nova do bot avisa quem espera resposta; fim do pedido não', async () => {
+    const asked: string[] = []
+    const { message, sessions } = setup({
+      onQuestionAsked: ({ groupJid, owner }) => {
+        asked.push(`${groupJid}:${owner}`)
+      },
+    })
+    await sessions.handle(message({ text: '' }))
+    expect(asked).toEqual([`${GROUP}:${DRIVER}`])
+    await sessions.handle(message({ text: '123', via: 'owner_reply' }))
+    expect(asked).toHaveLength(1)
+  })
+
+  test('o fim do pedido (concluído, cancelado ou abandonado) avisa; pergunta nova não', async () => {
+    const closed: string[] = []
+    const { message, sessions } = setup({
+      onRequestClosed: ({ driverId, groupJid }) => {
+        closed.push(`${groupJid}:${driverId}`)
+      },
+    })
+    await sessions.handle(message({ text: '' }))
+    expect(closed).toEqual([])
+    await sessions.handle(message({ text: '123', via: 'owner_reply' }))
+    expect(closed).toEqual([`${GROUP}:${DRIVER_ID}`])
+    await sessions.handle(message({ text: '' }))
+    await sessions.handle(message({ text: 'cancelar', via: 'owner_reply' }))
+    expect(closed).toHaveLength(2)
+    await sessions.handle(message({ text: '' }))
+    for (const text of ['abc', 'def', 'ghi']) {
+      await sessions.handle(message({ text, via: 'owner_reply' }))
+    }
+    expect(closed).toHaveLength(3)
+  })
+
   test('três respostas que não cabem encerram o pedido e avisam o suporte', async () => {
     const { memory, message, said, sessions } = setup()
 
@@ -294,8 +365,8 @@ describe('pedido no grupo: cancelar e tentativas', () => {
     await sessions.handle(message({ text: 'abc', via: 'owner_reply' }))
     await sessions.handle(message({ text: 'def', via: 'owner_reply' }))
     expect(await said()).toEqual([
-      'Não entendi: a nota tem só números. Qual a nota?',
-      'Não entendi: a nota tem só números. Qual a nota?',
+      'Não entendi: a nota tem só números.\nQual a nota?',
+      'Não entendi: a nota tem só números.\nQual a nota?',
     ])
     await sessions.handle(message({ text: 'ghi', via: 'owner_reply' }))
     expect(await said()).toEqual([GROUP_REQUEST_TEXT.gaveUp])

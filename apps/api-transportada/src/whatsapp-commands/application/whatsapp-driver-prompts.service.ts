@@ -7,11 +7,17 @@
  * sem pergunta. "1" registra a saída pela MESMA função do "saí" (`departWhatsAppDriverStop`), com chave de
  * idempotência da oferta.
  */
-import { DRIVER_CHOICE, interpretDriverChoice } from '../domain/whatsapp-driver-choice.policy.js'
+import {
+  DRIVER_CHOICE,
+  interpretDriverChoice,
+  isDriverCancelText,
+  isDriverEscapeText,
+} from '../domain/whatsapp-driver-choice.policy.js'
 import {
   DRIVER_PROMPT_CONTEXT_KEY,
   DRIVER_PROMPT_KIND,
   DRIVER_PROMPT_MAX_ATTEMPTS,
+  DRIVER_PROMPT_TEXT,
   readDriverPrompt,
   withoutDriverPrompt,
   type DriverPrompt,
@@ -30,7 +36,41 @@ import {
   toOrderStopLabel,
   type OrderStopLabel,
 } from '../domain/whatsapp-driver-order.policy.js'
-import type { WhatsAppStopCandidate } from '../../trips/domain/driver-stop-resolution.policy.js'
+import {
+  describeStopReference,
+  findNextPendingStop,
+  findStopAwaitingSettlement,
+  findStopEnRoute,
+  resolveDepartureStop,
+  type WhatsAppStopCandidate,
+} from '../../trips/domain/driver-stop-resolution.policy.js'
+import {
+  arrivedStopActions,
+  cardFromRouteOfferStop,
+  cardFromStopCandidate,
+  describeAlreadyArrived,
+  describeAlreadyDeparted,
+  describeAlreadySettled,
+  describeArrivalDetails,
+  describeDepartureDetails,
+  describeJourneyQuestion,
+  describeNextRouteOffer,
+  describePendingSettlement,
+  enRouteStopActions,
+  JOURNEY_ACTION,
+  JOURNEY_TEXT,
+  nextRouteActions,
+  pendingSettlementActions,
+  pickJourneyAction,
+  spokenOptionNumber,
+  type JourneyAction,
+  type StopCardView,
+} from '../domain/whatsapp-driver-journey.policy.js'
+import {
+  DRIVER_FLOW_CONTEXT_KEY,
+  DRIVER_FLOW_NODE,
+} from '../domain/whatsapp-driver-flow.constant.js'
+import type { WhatsAppStopCardReader } from '../infrastructure/whatsapp-stop-card.reader.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
 import type { WhatsAppRouteContinuation } from './whatsapp-delivery-preparation.service.js'
@@ -78,6 +118,16 @@ export function buildRouteOfferReply(input: {
 export type WhatsAppDriverPromptResult = {
   /** O contexto da sessão depois do turno (o pedido some ou segue). */
   readonly context: Record<string, unknown>
+  /**
+   * Spec 294: a opção do menu é um passo que já existe em outro nó do fluxo (a lista de tipos de ocorrência da nota):
+   * o despachante continua o fluxo a partir dele.
+   */
+  readonly flowJump?: { readonly context: Record<string, unknown>; readonly nodeId: string }
+  /**
+   * A opção do menu é um comando que já existe ("entreguei 17234", "não entreguei 17234", "cheguei"): o despachante
+   * segue com este texto no lugar da mensagem, pelo caminho de sempre.
+   */
+  readonly followUpText?: string
   /** `false`: a mensagem não era a resposta; o pedido saiu de cena e ela segue o fluxo de sempre. */
   readonly handled: boolean
   readonly texts: readonly string[]
@@ -109,6 +159,25 @@ export type WhatsAppDriverPrompts = {
   /** O pedido em aberto desta conversa, se houver e não tiver vencido. */
   pending(context: Record<string, unknown>): DriverPrompt | undefined
   /**
+   * O evento repetido ("cheguei" numa parada que já chegou, "saí" com uma parada a caminho) ou o "saí" com a baixa
+   * pendente: o aviso com o bloco da parada e o menu das ações. `null`: segue a resolução de sempre.
+   */
+  repeatedEvent(input: {
+    readonly actor: WhatsAppDriverActor
+    readonly event: 'arrive' | 'depart'
+  }): Promise<null | RouteOfferReply>
+  /** "entreguei 17234" numa nota já baixada: quando foi e o que cabe agora; `null` se a nota não está baixada. */
+  settledDocument(input: {
+    readonly actor: WhatsAppDriverActor
+    readonly documentNumber: string
+  }): Promise<null | RouteOfferReply>
+  /** A oferta da próxima rota com o bloco da parada (spec 294 RF8–RF10). */
+  routeOffer(input: {
+    readonly actor: WhatsAppDriverActor
+    readonly continuation: WhatsAppRouteContinuation
+    readonly gate: RouteOfferGate
+  }): Promise<RouteOfferReply>
+  /**
    * Spec 294 RF25: registra a saída/chegada; se a API recusar por fora de ordem, devolve a pergunta 1/2 e o pedido
    * (o contexto novo da sessão) em vez do erro.
    */
@@ -134,8 +203,207 @@ export function createWhatsAppDriverPrompts(dependencies: {
   /** Ausente, o bot não pede localização (como antes da 294). */
   readonly sharedLocations?: Pick<WhatsAppSharedLocationStore, 'consume' | 'has'>
   readonly speech: WhatsAppBotSpeechPort
+  /** Só empresa e nome do erro (o bloco da parada que não leu). */
+  readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
+  /** O bloco da parada nas respostas; ausente, só a frase do registro e o que a lista de paradas traz. */
+  readonly stopCards?: Pick<WhatsAppStopCardReader, 'read'>
 }): WhatsAppDriverPrompts {
   const { clock, ports, sharedLocations, speech } = dependencies
+
+  /** O bloco é melhor esforço: o registro já foi feito, a resposta nunca falha por causa dele. */
+  async function safeRead(
+    input: Parameters<WhatsAppStopCardReader['read']>[0],
+  ): Promise<StopCardView | null> {
+    try {
+      return (await dependencies.stopCards?.read(input)) ?? null
+    } catch (error) {
+      dependencies.logger?.warn('whatsapp_driver_prompt.stop_card_failed', {
+        companyId: input.companyId,
+        errorName: error instanceof Error ? error.name : typeof error,
+      })
+      return null
+    }
+  }
+
+  const listStopsOf = async (actor: WhatsAppDriverActor) =>
+    (await dependencies.listStops?.(actor)) ?? []
+
+  async function viewOf(
+    actor: WhatsAppDriverActor,
+    stop: WhatsAppStopCandidate,
+    withEta: boolean,
+  ): Promise<StopCardView> {
+    const read = await safeRead({
+      companyId: actor.companyId,
+      driverId: actor.driverId,
+      stopId: stop.id,
+      withEta,
+    })
+    return read ?? { card: cardFromStopCandidate(stop) }
+  }
+
+  const menuReply = (
+    text: string,
+    actions: readonly JourneyAction[],
+    stopId: string,
+  ): RouteOfferReply => ({
+    prompt: {
+      actions,
+      kind: DRIVER_PROMPT_KIND.journeyActions,
+      offeredAt: clock().toISOString(),
+      stopId,
+    },
+    texts: [text],
+  })
+
+  async function repeatedEvent(input: {
+    readonly actor: WhatsAppDriverActor
+    readonly event: 'arrive' | 'depart'
+  }): Promise<null | RouteOfferReply> {
+    const stops = await listStopsOf(input.actor)
+    const now = clock()
+    const enRoute = findStopEnRoute(stops)
+    if (input.event === 'depart' && enRoute !== undefined) {
+      const view = await viewOf(input.actor, enRoute, true)
+      return menuReply(
+        describeAlreadyDeparted(view, { departedAt: enRoute.enRouteSince ?? '', now }),
+        enRouteStopActions(view.card),
+        enRoute.id,
+      )
+    }
+    if (enRoute !== undefined) return null
+    const awaiting = findStopAwaitingSettlement(stops)
+    if (awaiting === undefined) return null
+    const view = await viewOf(input.actor, awaiting, false)
+    const arrivedAt = awaiting.arrivedAt ?? ''
+    return input.event === 'arrive'
+      ? menuReply(
+          describeAlreadyArrived(view, { arrivedAt, now }),
+          arrivedStopActions(view.card),
+          awaiting.id,
+        )
+      : menuReply(
+          describePendingSettlement(view, { arrivedAt, now }),
+          pendingSettlementActions(view.card),
+          awaiting.id,
+        )
+  }
+
+  async function routeOffer(input: {
+    readonly actor: WhatsAppDriverActor
+    readonly continuation: WhatsAppRouteContinuation
+    readonly gate: RouteOfferGate
+  }): Promise<RouteOfferReply> {
+    const { continuation } = input
+    const nextStop = continuation.tripCompleted ? null : continuation.nextStop
+    if (nextStop === null) {
+      return buildRouteOfferReply({ continuation, gate: input.gate, now: clock() })
+    }
+    const read = await safeRead({
+      companyId: input.actor.companyId,
+      driverId: input.actor.driverId,
+      stopId: nextStop.id,
+      withEta: true,
+    })
+    const view = read ?? { card: cardFromRouteOfferStop(nextStop) }
+    const stop = { id: nextStop.id }
+    const asks = canAskRouteOffer(input.gate)
+    const text = describeNextRouteOffer(view, { asks, now: clock() })
+    return asks
+      ? menuReply(text, nextRouteActions(view.card), stop.id)
+      : { prompt: undefined, texts: [text] }
+  }
+
+  async function settledDocument(input: {
+    readonly actor: WhatsAppDriverActor
+    readonly documentNumber: string
+  }): Promise<null | RouteOfferReply> {
+    const number = input.documentNumber.replace(/^0+/u, '')
+    const stops = await listStopsOf(input.actor)
+    const stop = stops.find((candidate) =>
+      candidate.documents.some(
+        (document) =>
+          document.number.replace(/^0+/u, '') === number &&
+          (document.separationStatus === 'delivered' || document.separationStatus === 'returned'),
+      ),
+    )
+    const document = stop?.documents.find((item) => item.number.replace(/^0+/u, '') === number)
+    if (stop === undefined || document === undefined) return null
+    const now = clock()
+    const headline = describeAlreadySettled({
+      documentNumber: number,
+      now,
+      returned: document.separationStatus === 'returned',
+      settledAt: document.deliveredAt ?? null,
+    })
+    if (findStopAwaitingSettlement([stop]) !== undefined) {
+      const view = await viewOf(input.actor, stop, false)
+      return menuReply(
+        `${headline}\n${describeAlreadyArrived(view, { arrivedAt: stop.arrivedAt ?? '', now })}`,
+        arrivedStopActions(view.card),
+        stop.id,
+      )
+    }
+    const next = findNextPendingStop(stops)
+    if (next === undefined) {
+      return { prompt: undefined, texts: [`${headline}\n${ROUTE_OFFER_TEXT.routeCompleted}`] }
+    }
+    const view = await viewOf(input.actor, next, true)
+    return menuReply(
+      `${headline}\n\n${describeNextRouteOffer(view, { asks: true, now })}`,
+      nextRouteActions(view.card),
+      next.id,
+    )
+  }
+
+  /** A lista das paradas pendentes para escolher a saída (pedido `stop_choice`). */
+  async function stopChoice(
+    turn: PromptTurn,
+    options: { readonly confirmOutOfOrder: boolean },
+  ): Promise<WhatsAppDriverPromptResult> {
+    const cleared = withoutDriverPrompt(turn.context)
+    const stops = await listStopsOf(turn.actor)
+    const enRoute = findStopEnRoute(stops)
+    if (enRoute !== undefined) {
+      const view = await viewOf(turn.actor, enRoute, true)
+      const reply = menuReply(
+        describeAlreadyDeparted(view, { departedAt: enRoute.enRouteSince ?? '', now: clock() }),
+        enRouteStopActions(view.card),
+        enRoute.id,
+      )
+      return {
+        context: { ...cleared, [DRIVER_PROMPT_CONTEXT_KEY]: reply.prompt },
+        handled: true,
+        texts: reply.texts,
+      }
+    }
+    const resolution = resolveDepartureStop(stops)
+    const pending =
+      resolution.kind === 'choose'
+        ? resolution.stops
+        : resolution.kind === 'single'
+          ? [resolution.stop]
+          : []
+    const [first] = pending
+    if (first === undefined) {
+      return { context: cleared, handled: true, texts: [ROUTE_OFFER_TEXT.routeCompleted] }
+    }
+    const prompt: DriverPrompt = {
+      confirmOutOfOrder: options.confirmOutOfOrder,
+      kind: DRIVER_PROMPT_KIND.stopChoice,
+      offeredAt: clock().toISOString(),
+      stopId: first.id,
+      stops: pending.map((stop) => ({
+        id: stop.id,
+        numbers: stop.documents.map((document) => document.number.replace(/^0+/u, '')),
+      })),
+    }
+    return {
+      context: { ...cleared, [DRIVER_PROMPT_CONTEXT_KEY]: prompt },
+      handled: true,
+      texts: [describeStopChoice(pending)],
+    }
+  }
 
   const keyOf = (companyId: string, whatsappNumber: string) => ({ companyId, whatsappNumber })
 
@@ -227,11 +495,23 @@ export function createWhatsAppDriverPrompts(dependencies: {
       ...(input.documentNumber === undefined ? {} : { documentNumber: input.documentNumber }),
       kind: 'driver',
     })
-    return {
-      context: cleared,
-      handled: true,
-      texts: [await renderBotSpeechLine({ companyId: input.actor.companyId, line, speech })],
-    }
+    const said = await renderBotSpeechLine({ companyId: input.actor.companyId, line, speech })
+    const view =
+      result.kind === 'registered' && dependencies.stopCards !== undefined
+        ? await safeRead({
+            companyId: input.actor.companyId,
+            driverId: input.actor.driverId,
+            stopId: input.stopId,
+            withEta: input.event === 'depart',
+          })
+        : null
+    const details =
+      view === null
+        ? []
+        : input.event === 'depart'
+          ? describeDepartureDetails(view, clock())
+          : describeArrivalDetails(view)
+    return { context: cleared, handled: true, texts: [[said, ...details].join('\n')] }
   }
 
   const promptKey = (prompt: DriverPrompt) =>
@@ -244,6 +524,7 @@ export function createWhatsAppDriverPrompts(dependencies: {
   ): Promise<WhatsAppDriverPromptResult> {
     return recordStop({
       actor: turn.actor,
+      ...(prompt.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}),
       context: turn.context,
       documentNumber: prompt.documentNumber,
       event: prompt.event,
@@ -291,12 +572,160 @@ export function createWhatsAppDriverPrompts(dependencies: {
     if (choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
       return { context: cleared, handled: true, texts: [OUT_OF_ORDER_TEXT.discarded] }
     }
-    return { context: cleared, handled: false, texts: [] }
+    return { context: turn.context, handled: true, texts: [OUT_OF_ORDER_TEXT.notUnderstood] }
+  }
+
+  /** Saída para a parada escolhida: pede a localização (se não há ponto recente) e só então registra. */
+  async function departTo(
+    turn: PromptTurn,
+    target: {
+      readonly confirmOutOfOrder: boolean
+      readonly documentNumber?: string | undefined
+      /** Por pedido: a mesma resposta repetida não grava duas vezes. */
+      readonly idempotencyKey: string
+      readonly stopId: string
+    },
+  ): Promise<WhatsAppDriverPromptResult> {
+    const cleared = withoutDriverPrompt(turn.context)
+    const ask = askLocation({
+      companyId: turn.actor.companyId,
+      documentNumber: target.documentNumber,
+      event: 'depart',
+      stopId: target.stopId,
+      whatsappNumber: turn.whatsappNumber,
+    })
+    if (ask?.prompt !== undefined) {
+      const prompt =
+        target.confirmOutOfOrder && ask.prompt.kind === DRIVER_PROMPT_KIND.location
+          ? { ...ask.prompt, confirmOutOfOrder: true }
+          : ask.prompt
+      return {
+        context: { ...cleared, [DRIVER_PROMPT_CONTEXT_KEY]: prompt },
+        handled: true,
+        texts: ask.texts,
+      }
+    }
+    return recordStop({
+      actor: turn.actor,
+      ...(target.confirmOutOfOrder ? { confirmOutOfOrder: true } : {}),
+      context: turn.context,
+      documentNumber: target.documentNumber,
+      event: 'depart',
+      idempotencyKey: target.idempotencyKey,
+      location: sharedLocations?.consume(keyOf(turn.actor.companyId, turn.whatsappNumber)) ?? null,
+      stopId: target.stopId,
+    })
+  }
+
+  /** O número (ou nome) do menu vai ao passo dono da ação — o mesmo de quando o motorista digita o comando. */
+  async function answerJourney(
+    turn: PromptTurn & { readonly text: string },
+    prompt: Extract<DriverPrompt, { kind: 'journey_actions' }>,
+  ): Promise<WhatsAppDriverPromptResult> {
+    const cleared = withoutDriverPrompt(turn.context)
+    const action = pickJourneyAction(prompt.actions, turn.text)
+    if (action === undefined) {
+      return {
+        context: turn.context,
+        handled: true,
+        texts: [
+          `Não entendi: ${JOURNEY_TEXT.choiceNotUnderstood}.\n${describeJourneyQuestion(prompt.actions)}`,
+        ],
+      }
+    }
+    switch (action.kind) {
+      case JOURNEY_ACTION.deliver:
+        return {
+          context: cleared,
+          followUpText: `entreguei ${action.documentNumber}`,
+          handled: false,
+          texts: [],
+        }
+      case JOURNEY_ACTION.return:
+        return {
+          context: cleared,
+          followUpText: `não entreguei ${action.documentNumber}`,
+          handled: false,
+          texts: [],
+        }
+      case JOURNEY_ACTION.arrive:
+        return { context: cleared, followUpText: 'cheguei', handled: false, texts: [] }
+      case JOURNEY_ACTION.occurrence: {
+        const stops = await listStopsOf(turn.actor)
+        const document = stops
+          .flatMap((stop) => stop.documents)
+          .find((item) => item.number.replace(/^0+/u, '') === action.documentNumber)
+        if (document?.id === undefined) {
+          return { context: cleared, handled: true, texts: [JOURNEY_TEXT.nothingRecorded] }
+        }
+        return {
+          context: cleared,
+          flowJump: {
+            context: { [DRIVER_FLOW_CONTEXT_KEY.documentId]: document.id },
+            nodeId: DRIVER_FLOW_NODE.listOccurrenceTypes,
+          },
+          handled: true,
+          texts: [],
+        }
+      }
+      case JOURNEY_ACTION.depart:
+        return departTo(turn, {
+          confirmOutOfOrder: false,
+          documentNumber: action.documentNumber,
+          idempotencyKey: `whatsapp-route-offer:${action.stopId}:${prompt.offeredAt}`,
+          stopId: action.stopId,
+        })
+      case JOURNEY_ACTION.chooseDeparture:
+        return stopChoice(turn, { confirmOutOfOrder: false })
+      case JOURNEY_ACTION.departAnyway:
+        return stopChoice(turn, { confirmOutOfOrder: true })
+      case JOURNEY_ACTION.none:
+        return {
+          context: cleared,
+          handled: true,
+          texts: [`${JOURNEY_TEXT.nothingRecorded}\n${await nextStepOf(turn.actor)}`],
+        }
+    }
+  }
+
+  /** O próximo passo de quem não quis nada agora: a baixa pendente, a chegada ou a saída. */
+  async function nextStepOf(actor: WhatsAppDriverActor): Promise<string> {
+    const stops = await listStopsOf(actor)
+    if (findStopEnRoute(stops) !== undefined) return JOURNEY_TEXT.nextArrive
+    if (findStopAwaitingSettlement(stops) !== undefined) return JOURNEY_TEXT.nextSettle
+    return findNextPendingStop(stops) === undefined
+      ? ROUTE_OFFER_TEXT.routeCompleted
+      : JOURNEY_TEXT.nextDepart
+  }
+
+  async function answerStopChoice(
+    turn: PromptTurn & { readonly text: string },
+    prompt: Extract<DriverPrompt, { kind: 'stop_choice' }>,
+  ): Promise<WhatsAppDriverPromptResult> {
+    const picked = pickStopOption(prompt.stops, turn.text)
+    if (picked === undefined) {
+      const stops = await listStopsOf(turn.actor)
+      const listed = prompt.stops.flatMap((option) => stops.filter((stop) => stop.id === option.id))
+      return {
+        context: turn.context,
+        handled: true,
+        texts: [`Não entendi: não achei essa parada na lista.\n${describeStopChoice(listed)}`],
+      }
+    }
+    return departTo(turn, {
+      confirmOutOfOrder: prompt.confirmOutOfOrder,
+      documentNumber: picked.numbers[0],
+      idempotencyKey: `whatsapp-stop-choice:${picked.id}:${prompt.offeredAt}`,
+      stopId: picked.id,
+    })
   }
 
   return {
     askLocation,
     recordStop,
+    repeatedEvent,
+    routeOffer,
+    settledDocument,
 
     async answer(turn) {
       const prompt = readDriverPrompt(turn.context, clock())
@@ -304,7 +733,21 @@ export function createWhatsAppDriverPrompts(dependencies: {
       const cleared = withoutDriverPrompt(turn.context)
       const choice = interpretDriverChoice(turn.text)
 
+      // "Cancelar" é de quem fez a pergunta aberta: encerra sem registrar nada.
+      if (isDriverCancelText(turn.text)) {
+        return { context: cleared, handled: true, texts: [DRIVER_PROMPT_TEXT.cancelled] }
+      }
+      // Pedido de menu ou outro comando tira a pergunta de cena; texto livre nunca a descarta calado.
+      if (
+        isDriverEscapeText(turn.text) ||
+        interpretWhatsAppDriverEventCommand(turn.text) !== undefined
+      ) {
+        return { context: cleared, handled: false, texts: [] }
+      }
+
       if (prompt.kind === DRIVER_PROMPT_KIND.outOfOrder) return answerOutOfOrder(turn, prompt)
+      if (prompt.kind === DRIVER_PROMPT_KIND.journeyActions) return answerJourney(turn, prompt)
+      if (prompt.kind === DRIVER_PROMPT_KIND.stopChoice) return answerStopChoice(turn, prompt)
 
       if (prompt.kind === DRIVER_PROMPT_KIND.location) {
         if (choice === DRIVER_CHOICE.skip || choice === DRIVER_CHOICE.second) {
@@ -328,8 +771,14 @@ export function createWhatsAppDriverPrompts(dependencies: {
       if (choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
         return { context: cleared, handled: true, texts: [ROUTE_OFFER_TEXT.declined] }
       }
-      // Outra coisa: o pedido sai de cena e a mensagem segue o fluxo de sempre.
-      if (choice !== DRIVER_CHOICE.first) return { context: cleared, handled: false, texts: [] }
+      // Outra coisa: a pergunta continua aberta e é repetida (texto livre só vira outro fluxo sem pergunta aberta).
+      if (choice !== DRIVER_CHOICE.first) {
+        return {
+          context: turn.context,
+          handled: true,
+          texts: [ROUTE_OFFER_TEXT.options.join('\n')],
+        }
+      }
       const ask = askLocation({
         companyId: turn.actor.companyId,
         documentNumber: prompt.documentNumber,
@@ -367,3 +816,23 @@ export function createWhatsAppDriverPrompts(dependencies: {
 }
 
 export { DRIVER_PROMPT_CONTEXT_KEY }
+
+/** "*Qual parada?*" com as paradas pela nota e pelo cliente — a mesma lista do grupo. */
+function describeStopChoice(stops: readonly WhatsAppStopCandidate[]): string {
+  return [
+    '*Qual parada?* _Responda com o número da opção ou da nota:_',
+    ...stops.map((stop, index) => `*${index + 1}* - ${describeStopReference(stop)}`),
+  ].join('\n')
+}
+
+function pickStopOption<
+  Option extends { readonly id: string; readonly numbers: readonly string[] },
+>(options: readonly Option[], text: string): Option | undefined {
+  const spoken = spokenOptionNumber(text)
+  if (spoken !== undefined) return options[spoken - 1]
+  const digits = text.replace(/\D/gu, '').replace(/^0+/u, '')
+  if (digits === '') return undefined
+  const byNumber = options.filter((option) => option.numbers.includes(digits))
+  if (byNumber.length === 1) return byNumber[0]
+  return /^\d{1,2}$/u.test(digits) ? options[Number(digits) - 1] : undefined
+}

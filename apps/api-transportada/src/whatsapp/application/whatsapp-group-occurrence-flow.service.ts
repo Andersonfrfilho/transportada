@@ -679,6 +679,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     locationReceived(turn) {
       if (turn.request.step !== GROUP_OCCURRENCE_STEP.location) return null
       const state = turn.request.state as FlowState
+      if (!present(state.typeName) || !present(state.documentNumber)) return null
       return confirmOutcome(
         turn.location === undefined ? state : { ...state, location: turn.location },
       )

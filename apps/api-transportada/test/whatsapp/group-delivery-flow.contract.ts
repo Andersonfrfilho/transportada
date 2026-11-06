@@ -24,7 +24,10 @@ import {
   createGroupDriverFlow,
   GROUP_DRIVER_TEXT,
 } from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
-import { createGroupProofIntake } from '../../src/whatsapp/application/whatsapp-group-proof-intake.service.js'
+import {
+  createGroupProofIntake,
+  GROUP_PROOF_TEXT,
+} from '../../src/whatsapp/application/whatsapp-group-proof-intake.service.js'
 import type {
   GroupFlowOutcome,
   GroupRequest,
@@ -131,9 +134,12 @@ function setupFlow(options: { awaitingText?: boolean; withoutAccess?: boolean } 
 describe('grupo: entreguei abre a entrega em preparo', () => {
   test('"entreguei 17234" acha a nota pelo número (zeros à esquerda não contam) e repassa o que falta', async () => {
     const t = setupFlow()
+    // A entrega aberta esperando a foto segura o pedido: o "pular" responde sem marcar o bot.
     expect(await t.start('entreguei 17234')).toEqual({
-      kind: 'done',
+      kind: 'continue',
       replies: ['NF 17234: mande a foto do canhoto assinado.'],
+      state: {},
+      step: 'delivery.answer',
     })
     expect(t.calls[0]).toMatchObject({
       input: { channel: 'group', documentId: 'DOC1', documentNumber: '17234' },
@@ -186,7 +192,7 @@ describe('grupo: entreguei abre a entrega em preparo', () => {
     expect(await t.start('')).toMatchObject({ replies: [GROUP_DRIVER_TEXT.menu] })
     expect(GROUP_DRIVER_TEXT.menu).toContain('3. Entreguei')
     await t.answer('3')
-    expect(await t.answer('1')).toMatchObject({ kind: 'done' })
+    expect(await t.answer('1')).toMatchObject({ kind: 'continue', step: 'delivery.answer' })
     expect(t.calls[0]).toMatchObject({ input: { documentId: 'DOC1' }, method: 'begin' })
   })
 
@@ -213,7 +219,15 @@ describe('grupo: foto e localização do motorista', () => {
       ],
       event: 'messages.upsert',
     })
-    expect(media.get('A')).toEqual({ caption: 'canhoto', kind: 'image', mimeType: 'image/jpeg' })
+    expect(media.get('A')).toEqual({
+      caption: 'canhoto',
+      kind: 'image',
+      mimeType: 'image/jpeg',
+      rawMessage: {
+        key: { id: 'A' },
+        message: { imageMessage: { caption: 'canhoto', mimetype: 'image/jpeg' } },
+      },
+    })
     expect(media.get('B')).toEqual({ kind: 'location', latitude: -21.1, longitude: -47.8 })
     expect(media.has('C')).toBe(false)
   })
@@ -315,11 +329,13 @@ describe('grupo: foto e localização do motorista', () => {
 
   function intake(options: { open?: boolean; failDownload?: boolean } = {}) {
     const fake = fakePreparations(options)
+    const downloads: unknown[] = []
     const sent: string[][] = []
     const opened: string[] = []
     const locations: unknown[] = []
     const service = createGroupProofIntake({
-      downloadMedia: async () => {
+      downloadMedia: async (input) => {
+        downloads.push(input)
         if (options.failDownload === true) throw new Error('down')
         return {
           data: Buffer.from([1, 2, 3]).toString('base64'),
@@ -331,6 +347,9 @@ describe('grupo: foto e localização do motorista', () => {
         opened.push(ownerNumber)
       },
       preparations: fake.preparations,
+      forgetLocation: () => {
+        locations.length = 0
+      },
       rememberLocation: ({ location }) => locations.push(location),
       replies: { send: ({ texts }) => sent.push([...texts]) },
       withoutAccessText: async () => 'sem acesso',
@@ -346,8 +365,15 @@ describe('grupo: foto e localização do motorista', () => {
         sender: '5516988887777',
         timestamp: 1_790_000_000,
       })
-    return { calls: fake.calls, handle, locations, opened, sent }
+    return { calls: fake.calls, downloads, handle, locations, opened, sent }
   }
+
+  test('a foto é baixada com a mensagem inteira do webhook (o Evolution não guarda a mensagem pelo id)', async () => {
+    const t = intake({ open: true })
+    const rawMessage = { key: { id: 'M1' }, message: { imageMessage: { mimetype: 'image/jpeg' } } }
+    await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg', rawMessage })
+    expect(t.downloads).toEqual([{ connection, providerMessageId: 'M1', rawMessage }])
+  })
 
   test('a foto baixada vai para a preparação e abre o pedido para a resposta em texto', async () => {
     const t = intake()
@@ -373,10 +399,17 @@ describe('grupo: foto e localização do motorista', () => {
     expect(t.sent).toEqual([['Não consegui baixar a foto. Mande de novo, por favor.']])
   })
 
-  test('a localização fica guardada para o próximo evento, mesmo sem preparação', async () => {
+  test('localização sem pergunta aberta não fica guardada para um "cheguei" depois', async () => {
     const t = intake({ open: false })
     await t.handle({ kind: 'location', latitude: -21.1, longitude: -47.8 })
-    expect(t.locations).toHaveLength(1)
-    expect(t.sent[0]?.[0]).toContain('Localização recebida')
+    expect(t.locations).toHaveLength(0)
+    expect(t.sent[0]?.[0]).toContain(GROUP_PROOF_TEXT.locationNotAsked)
+  })
+
+  test('localização que a preparação aberta pediu vai a ela e também não fica guardada', async () => {
+    const t = intake()
+    await t.handle({ kind: 'location', latitude: -21.1, longitude: -47.8 })
+    expect(t.calls[0]).toMatchObject({ method: 'receiveLocation' })
+    expect(t.locations).toHaveLength(0)
   })
 })

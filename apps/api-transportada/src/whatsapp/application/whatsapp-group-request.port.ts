@@ -101,6 +101,8 @@ export type GroupFlowOutcome =
       readonly replies: readonly string[]
       /** Spec 294 RF8–RF10: a baixa fechou a parada; o roteador do grupo oferece a próxima rota. */
       readonly routeContinuation?: WhatsAppRouteContinuation
+      /** O pedido fecha, mas a rota segue (saída, chegada): sem a despedida "Tenha uma boa noite". */
+      readonly withoutFarewell?: true
     }
   /** A resposta não cabe na pergunta aberta: o bot diz o motivo e repete a pergunta (regra 7). */
   | { readonly kind: 'not_understood'; readonly prompt: string; readonly reason: string }
@@ -108,6 +110,11 @@ export type GroupFlowOutcome =
 /** Spec 292 T5: o que o pedido pede, passo a passo. A sessão (T4) só guarda e encadeia. */
 export type GroupRequestFlow = {
   answer(turn: GroupFlowTurn): Promise<GroupFlowOutcome>
+  /**
+   * "Cancelar" com o pedido aberto: o fluxo dono do passo encerra do jeito dele (ex.: a entrega em preparo). `null` (ou
+   * método ausente): o pedido só fecha como cancelado.
+   */
+  cancel?(turn: GroupFlowTurn): Promise<GroupFlowOutcome | null>
   readonly initialStep: string
   /** A localização compartilhada pelo dono do pedido: avança o passo que a espera, ou `null` se não há. */
   locationReceived?(turn: GroupFlowTurn): Promise<GroupFlowOutcome | null> | GroupFlowOutcome | null
@@ -122,3 +129,17 @@ export type GroupReplySenderPort = {
     readonly texts: readonly string[]
   }): void
 }
+
+/** Aviso de que o bot fez uma pergunta nova no pedido do dono (só dígitos) naquele grupo. */
+export type GroupQuestionAsked = (input: {
+  readonly companyId: string
+  readonly groupJid: string
+  readonly owner: string
+}) => void
+
+/** Aviso de que o pedido do motorista terminou (concluído, cancelado ou abandonado) naquele grupo. */
+export type GroupRequestClosed = (input: {
+  readonly companyId: string
+  readonly driverId: string
+  readonly groupJid: string
+}) => void

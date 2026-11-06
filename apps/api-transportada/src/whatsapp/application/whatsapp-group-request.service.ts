@@ -19,10 +19,13 @@
 import { botFarewell, botGreeting } from '../domain/bot-greeting.policy.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { AdmittedGroupMessage } from './evolution-group-inbound.service.js'
+import { isDriverCancelText } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
 import type {
   GroupFlowOutcome,
   GroupFlowTurn,
+  GroupQuestionAsked,
   GroupReplySenderPort,
+  GroupRequestClosed,
   GroupRequest,
   GroupRequestFlow,
   GroupRequestRepositoryPort,
@@ -33,10 +36,14 @@ export const GROUP_REQUEST_MAX_ATTEMPTS = 3
 
 export const GROUP_REQUEST_TEXT = {
   busy: 'Há um pedido em andamento neste grupo. Aguarde terminar ou responda "cancelar".',
-  cancelled: 'Pedido cancelado.',
+  cancelled:
+    'Pedido cancelado, não registrei nada.\n➡️ _Próximo passo:_ quando quiser, marque o bot de novo.',
   gaveUp:
     'Não consegui entender depois de 3 tentativas e encerrei o pedido. Suporte, por favor, acompanhe por aqui.',
-  notUnderstood: (reason: string, prompt: string) => `Não entendi: ${reason}. ${prompt}`,
+  notUnderstood: (reason: string, prompt: string) =>
+    [`Não entendi: ${reason.replace(/[.\s]+$/u, '')}.`, ...(prompt === '' ? [] : [prompt])].join(
+      '\n',
+    ),
 } as const
 
 /**
@@ -92,8 +99,6 @@ export function withTranscript(
   return { ...state, transcript }
 }
 
-const CANCEL_WORDS = new Set(['cancelar', 'cancela', 'cancele', 'cancelado', 'sair', 'parar'])
-
 export const GROUP_REQUEST_LOG = {
   abandoned: 'whatsapp_group_request.abandoned',
   answered: 'whatsapp_group_request.answered',
@@ -146,20 +151,16 @@ function withFarewell(replies: readonly string[], now: Date): readonly string[] 
   return [...replies.slice(0, -1), `${last}\n\n${botFarewell(now)}`]
 }
 
-export function isCancelText(text: string): boolean {
-  const normalized = text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z ]/gu, ' ')
-    .trim()
-  return normalized.split(/\s+/u).some((word) => CANCEL_WORDS.has(word)) && normalized.length <= 30
-}
+export const isCancelText = isDriverCancelText
 
 export function createWhatsAppGroupRequestSessions(dependencies: {
   readonly clock: () => Date
   readonly flow: GroupRequestFlow
   readonly logger: ApiLogger
+  /** O bot fez uma pergunta nova no pedido deste dono (a mais recente é quem recebe o "1"/"2"). */
+  readonly onQuestionAsked?: GroupQuestionAsked
+  /** O pedido terminou: o que ele guardou para si (ex.: o ponto compartilhado) deixa de valer. */
+  readonly onRequestClosed?: GroupRequestClosed
   readonly replies: GroupReplySenderPort
   readonly repository: GroupRequestRepositoryPort
 }): WhatsAppGroupRequestSessions {
@@ -173,6 +174,13 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       replies.send({ companyId: message.companyId, groupJid: message.groupJid, texts })
     }
   }
+
+  const closed = (request: GroupRequest, groupJid: string) =>
+    dependencies.onRequestClosed?.({
+      companyId: request.companyId,
+      driverId: request.driverId,
+      groupJid,
+    })
 
   const turnOf = (message: AdmittedGroupMessage, request: GroupRequest): GroupFlowTurn => ({
     request,
@@ -206,10 +214,17 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
         step: outcome.step,
       })
       if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, log)
+      // A pergunta nova é a mais recente: confirmação de áudio pendente de antes não responde por ela.
+      dependencies.onQuestionAsked?.({
+        companyId: request.companyId,
+        groupJid: message.groupJid,
+        owner: request.ownerNumber,
+      })
       return say(message, outcome.replies)
     }
     if (outcome.kind === 'done') {
-      const closing = withFarewell(outcome.replies, now)
+      const closing =
+        outcome.withoutFarewell === true ? outcome.replies : withFarewell(outcome.replies, now)
       const saved = await repository.update({
         ...scope,
         attempts: request.attempts,
@@ -219,6 +234,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       })
       if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, log)
       logger.info(GROUP_REQUEST_LOG.completed, log)
+      closed(request, message.groupJid)
       return say(message, closing)
     }
 
@@ -238,6 +254,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
     if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, log)
     if (gaveUp) {
       logger.info(GROUP_REQUEST_LOG.abandoned, log)
+      closed(request, message.groupJid)
       return say(message, [GROUP_REQUEST_TEXT.gaveUp])
     }
     return say(message, [GROUP_REQUEST_TEXT.notUnderstood(outcome.reason, outcome.prompt)])
@@ -313,6 +330,8 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       await link(open)
       const isOwner = message.sender === open.ownerNumber
       if (isCancelText(message.text) && (isOwner || message.via === 'mention')) {
+        const owned = await flow.cancel?.(turnOf(message, open))
+        if (owned !== undefined && owned !== null) return apply(message, open, owned)
         const saved = await repository.update({
           attempts: open.attempts,
           close: 'cancelled',
@@ -325,6 +344,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
         })
         if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, { companyId, requestId: open.id })
         logger.info(GROUP_REQUEST_LOG.cancelled, { companyId, requestId: open.id })
+        closed(open, groupJid)
         return say(message, [GROUP_REQUEST_TEXT.cancelled])
       }
 

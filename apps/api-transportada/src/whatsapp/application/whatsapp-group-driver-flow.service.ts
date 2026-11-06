@@ -28,10 +28,24 @@ import {
 } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
 import {
   canAskRouteOffer,
-  describeRouteOffer,
   ROUTE_OFFER_TEXT,
 } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
+import {
+  describeJourneyQuestion,
+  JOURNEY_ACTION,
+  JOURNEY_STEP,
+  JOURNEY_TEXT,
+  pickJourneyAction,
+  readJourneyActions,
+  type JourneyAction,
+} from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
 import type { WhatsAppRouteContinuation } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
+import { GROUP_DELIVERY_STEP } from './whatsapp-group-delivery-flow.service.js'
+import { GROUP_OCCURRENCE_STEP } from './whatsapp-group-occurrence-flow.service.js'
+import { GROUP_STOP_STEP } from './whatsapp-group-stop-flow.service.js'
+import { GROUP_TRIP_CLOSE_STEP } from './whatsapp-group-trip-close-flow.service.js'
+import { GROUP_RETURN_STEP } from './whatsapp-group-return-flow.service.js'
+import type { createGroupReturnFlow } from './whatsapp-group-return-flow.service.js'
 import type { GroupBoletoResend } from './whatsapp-group-boleto-resend.service.js'
 import type { createGroupDeliveryFlow } from './whatsapp-group-delivery-flow.service.js'
 import type { createGroupTripCloseFlow } from './whatsapp-group-trip-close-flow.service.js'
@@ -45,13 +59,78 @@ import type {
 export const GROUP_DRIVER_STEP = {
   closePrefix: 'close.',
   deliveryPrefix: 'delivery.',
+  journeyPrefix: 'journey.',
   menu: 'menu',
+  returnPrefix: 'return.',
   routePrefix: 'route.',
   stopPrefix: 'stop.',
 } as const
 
 /** Spec 294 RF8: o passo que espera o "1 - Sim, iniciar rota / 2 - Agora não" da próxima parada. */
 export const GROUP_ROUTE_STEP = { offer: 'offer' } as const
+
+export type GroupStepOwner =
+  | 'close'
+  | 'delivery'
+  | 'journey'
+  | 'menu'
+  | 'occurrence'
+  | 'return'
+  | 'route'
+  | 'stop'
+
+/** Quem é dono de cada passo guardado no pedido. Só a ocorrência e o menu andam sem prefixo. */
+export const GROUP_STEP_REGISTRY: readonly {
+  readonly owner: string
+  readonly prefix: string
+  readonly steps: readonly string[]
+}[] = [
+  { owner: 'menu', prefix: '', steps: [GROUP_DRIVER_STEP.menu] },
+  { owner: 'occurrence', prefix: '', steps: Object.values(GROUP_OCCURRENCE_STEP) },
+  {
+    owner: 'delivery',
+    prefix: GROUP_DRIVER_STEP.deliveryPrefix,
+    steps: Object.values(GROUP_DELIVERY_STEP),
+  },
+  { owner: 'route', prefix: GROUP_DRIVER_STEP.routePrefix, steps: Object.values(GROUP_ROUTE_STEP) },
+  {
+    owner: 'close',
+    prefix: GROUP_DRIVER_STEP.closePrefix,
+    steps: Object.values(GROUP_TRIP_CLOSE_STEP),
+  },
+  { owner: 'stop', prefix: GROUP_DRIVER_STEP.stopPrefix, steps: Object.values(GROUP_STOP_STEP) },
+  /** O menu das ações da parada (evento repetido, baixa pendente, próxima rota). */
+  { owner: 'journey', prefix: GROUP_DRIVER_STEP.journeyPrefix, steps: Object.values(JOURNEY_STEP) },
+  /** "Não entreguei": o motivo da lista fechada. */
+  {
+    owner: 'return',
+    prefix: GROUP_DRIVER_STEP.returnPrefix,
+    steps: Object.values(GROUP_RETURN_STEP),
+  },
+]
+
+/** Os nomes de passo (com prefixo) declarados por mais de um fluxo; vazio quando cada um tem um dono. */
+export function findDuplicateGroupSteps(registry: typeof GROUP_STEP_REGISTRY): string[] {
+  const seen = new Set<string>()
+  const duplicated = new Set<string>()
+  for (const entry of registry) {
+    for (const step of entry.steps) {
+      const qualified = `${entry.prefix}${step}`
+      if (seen.has(qualified)) duplicated.add(step)
+      seen.add(qualified)
+    }
+  }
+  return [...duplicated]
+}
+
+function ownerOfStep(step: string): GroupStepOwner | undefined {
+  for (const entry of GROUP_STEP_REGISTRY) {
+    if (entry.steps.some((inner) => `${entry.prefix}${inner}` === step)) {
+      return entry.owner as GroupStepOwner
+    }
+  }
+  return undefined
+}
 
 type RouteOfferState = {
   readonly routeOffer?: {
@@ -96,6 +175,8 @@ export function createGroupDriverFlow(flows: {
   /** Spec 293 T15: ausente, "entreguei" segue para o fluxo de ocorrência como antes. */
   readonly delivery?: ReturnType<typeof createGroupDeliveryFlow>
   readonly occurrence: GroupRequestFlow
+  /** "Não entreguei"; ausente, o texto segue para o fluxo de ocorrência como antes. */
+  readonly return?: ReturnType<typeof createGroupReturnFlow>
   readonly stop: ReturnType<typeof createGroupStopFlow>
   /** Spec 294 RF21: "encerrar a rota" do atendente; ausente, o texto segue como antes. */
   readonly tripClose?: ReturnType<typeof createGroupTripCloseFlow>
@@ -104,7 +185,13 @@ export function createGroupDriverFlow(flows: {
     (prefix: string) =>
     (outcome: GroupFlowOutcome): GroupFlowOutcome =>
       outcome.kind === 'continue' ? { ...outcome, step: `${prefix}${outcome.step}` } : outcome
-  const withStopPrefix = prefixed(GROUP_DRIVER_STEP.stopPrefix)
+  // O menu de ações que o fluxo das paradas abre é do passo `journey.actions`, não `stop.`.
+  const withStopPrefix = (outcome: GroupFlowOutcome): GroupFlowOutcome =>
+    outcome.kind === 'continue' && outcome.step === JOURNEY_STEP.actions
+      ? { ...outcome, step: `${GROUP_DRIVER_STEP.journeyPrefix}${outcome.step}` }
+      : prefixed(GROUP_DRIVER_STEP.stopPrefix)(outcome)
+  const withReturnPrefix = prefixed(GROUP_DRIVER_STEP.returnPrefix)
+  const returnFlow = flows.return
   const withDeliveryPrefix = prefixed(GROUP_DRIVER_STEP.deliveryPrefix)
   const { delivery, tripClose } = flows
   const withClosePrefix = prefixed(GROUP_DRIVER_STEP.closePrefix)
@@ -119,33 +206,100 @@ export function createGroupDriverFlow(flows: {
     if (tripCompleted) {
       return { kind: 'done', replies: [...outcome.replies, ROUTE_OFFER_TEXT.routeCompleted] }
     }
-    if (nextStop === null) return { kind: 'done', replies: outcome.replies }
+    if (nextStop === null) return { kind: 'done', replies: outcome.replies, withoutFarewell: true }
     const asks = canAskRouteOffer({
       hasOpenCollection: delivery === undefined ? false : await delivery.hasOpen(turn),
       hasOpenStopChoice: false,
       hasPendingAudio: false,
       hasPendingPrompt: false,
     })
-    if (!asks) {
-      return {
-        kind: 'done',
-        replies: [...outcome.replies, describeRouteOffer(nextStop, { asks: false })],
-      }
-    }
-    const state: RouteOfferState = {
-      routeOffer: { documentNumber: nextStop.documents[0]?.number, stopId: nextStop.id },
+    const offer = await flows.stop.nextRouteOffer(turn, { asks, stop: nextStop })
+    if (!asks || offer.actions.length === 0) {
+      return { kind: 'done', replies: [...outcome.replies, offer.text], withoutFarewell: true }
     }
     return {
       kind: 'continue',
-      replies: [...outcome.replies, describeRouteOffer(nextStop, { asks: true })],
-      state,
-      step: `${GROUP_DRIVER_STEP.routePrefix}${GROUP_ROUTE_STEP.offer}`,
+      replies: [...outcome.replies, offer.text],
+      state: { journeyActions: offer.actions },
+      step: `${GROUP_DRIVER_STEP.journeyPrefix}${JOURNEY_STEP.actions}`,
     }
+  }
+
+  /** O número (ou o nome) escolhido no menu de ações vai ao fluxo dono daquela ação. */
+  async function runJourneyAction(
+    turn: GroupFlowTurn,
+    action: JourneyAction,
+  ): Promise<GroupFlowOutcome> {
+    switch (action.kind) {
+      case JOURNEY_ACTION.deliver:
+        if (delivery === undefined) {
+          return {
+            kind: 'done',
+            replies: [JOURNEY_TEXT.sendCanhoto(action.documentNumber)],
+            withoutFarewell: true,
+          }
+        }
+        return settleDelivery(
+          turn,
+          withDeliveryPrefix(await delivery.begin(turn, [action.documentNumber])),
+        )
+      case JOURNEY_ACTION.return:
+        if (returnFlow === undefined)
+          return flows.occurrence.start({ ...turn, text: action.documentNumber })
+        return settleDelivery(
+          turn,
+          withReturnPrefix(await returnFlow.begin(turn, { numbers: [action.documentNumber] })),
+        )
+      case JOURNEY_ACTION.occurrence:
+        return flows.occurrence.start({ ...turn, text: action.documentNumber })
+      case JOURNEY_ACTION.arrive:
+        return withStopPrefix(
+          await flows.stop.begin(
+            turn,
+            WHATSAPP_DRIVER_STOP_COMMAND.arrive,
+            action.documentNumber === undefined ? [] : [action.documentNumber],
+          ),
+        )
+      case JOURNEY_ACTION.depart:
+        return withStopPrefix(
+          await flows.stop.departStop(turn, {
+            documentNumber: action.documentNumber,
+            stopId: action.stopId,
+          }),
+        )
+      case JOURNEY_ACTION.departAnyway:
+        return withStopPrefix(await flows.stop.chooseDeparture(turn, { confirmOutOfOrder: true }))
+      case JOURNEY_ACTION.chooseDeparture:
+        return withStopPrefix(await flows.stop.chooseDeparture(turn))
+      case JOURNEY_ACTION.none:
+        return {
+          kind: 'done',
+          replies: [`${JOURNEY_TEXT.nothingRecorded}\n${await flows.stop.nextStepText(turn)}`],
+        }
+    }
+  }
+
+  async function answerJourney(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
+    const actions = readJourneyActions(
+      (turn.request.state as { readonly journeyActions?: unknown }).journeyActions,
+    )
+    // Comando digitado ("entreguei 456", "saí") com o menu aberto é um pedido novo, nunca a nota do menu.
+    if (isDriverCommand(turn.text)) return flow.start(turn)
+    const action = pickJourneyAction(actions, turn.text)
+    if (action === undefined) {
+      return {
+        kind: 'not_understood',
+        prompt: describeJourneyQuestion(actions),
+        reason: JOURNEY_TEXT.choiceNotUnderstood,
+      }
+    }
+    return runJourneyAction(turn, action)
   }
 
   async function answerRouteOffer(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
     const stop = (turn.request.state as RouteOfferState).routeOffer
     const choice = interpretDriverChoice(turn.text)
+    // O passo `route.offer` só atende pedido aberto antes do menu de ações: lá o "2" era "Agora não".
     if (stop === undefined || choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
       return { kind: 'done', replies: [ROUTE_OFFER_TEXT.declined] }
     }
@@ -173,70 +327,73 @@ export function createGroupDriverFlow(flows: {
     return withStopPrefix(await flows.stop.begin(turn, item.event, []))
   }
 
+  const inner = (turn: GroupFlowTurn, prefix: string): GroupFlowTurn => ({
+    ...turn,
+    request: { ...turn.request, step: turn.request.step.slice(prefix.length) },
+  })
+  const notUnderstoodMenu = (): GroupFlowOutcome => ({
+    kind: 'not_understood',
+    prompt: menuText,
+    reason: 'responda com o número da opção',
+  })
+
   const flow: GroupRequestFlow = {
     async answer(turn) {
       const { step } = turn.request
-      if (step === GROUP_DRIVER_STEP.menu) {
-        // Spec 292 T9: a frase inteira no lugar da opção ("ocorrência, prorrogação do boleto da nota
-        // 899877", por texto ou pelo áudio confirmado) vale como o pedido direto, com nota e tipo.
-        if (isFreeSentence(turn.text)) return flow.start(turn)
-        const item = pickMenuItem(menu, turn.text)
-        if (item === undefined) {
-          return {
-            kind: 'not_understood',
-            prompt: menuText,
-            reason: 'responda com o número da opção',
-          }
+      // Quem fez a pergunta (o dono do passo) é quem responde; passo sem dono não é de ninguém.
+      switch (ownerOfStep(step)) {
+        case 'menu': {
+          // Spec 292 T9: a frase inteira no lugar da opção ("ocorrência, prorrogação do boleto da nota
+          // 899877", por texto ou pelo áudio confirmado) vale como o pedido direto, com nota e tipo.
+          if (isFreeSentence(turn.text)) return flow.start(turn)
+          const item = pickMenuItem(menu, turn.text)
+          return item === undefined ? notUnderstoodMenu() : choose(turn, item)
         }
-        return choose(turn, item)
+        case 'delivery': {
+          if (delivery === undefined) return notUnderstoodMenu()
+          const answered = await delivery.answer(inner(turn, GROUP_DRIVER_STEP.deliveryPrefix))
+          return settleDelivery(turn, withDeliveryPrefix(answered))
+        }
+        case 'route':
+          return answerRouteOffer(turn)
+        case 'journey':
+          return answerJourney(turn)
+        case 'return': {
+          if (returnFlow === undefined) return notUnderstoodMenu()
+          const answered = await returnFlow.answer(inner(turn, GROUP_DRIVER_STEP.returnPrefix))
+          return settleDelivery(turn, withReturnPrefix(answered))
+        }
+        case 'close':
+          if (tripClose === undefined) return notUnderstoodMenu()
+          return withClosePrefix(await tripClose.answer(inner(turn, GROUP_DRIVER_STEP.closePrefix)))
+        case 'stop':
+          return withStopPrefix(await flows.stop.answer(inner(turn, GROUP_DRIVER_STEP.stopPrefix)))
+        case 'occurrence':
+          return flows.occurrence.answer(turn)
+        default:
+          return notUnderstoodMenu()
       }
-      if (delivery !== undefined && step.startsWith(GROUP_DRIVER_STEP.deliveryPrefix)) {
-        const answered = await delivery.answer({
-          ...turn,
-          request: {
-            ...turn.request,
-            step: step.slice(GROUP_DRIVER_STEP.deliveryPrefix.length),
-          },
-        })
-        return settleDelivery(turn, withDeliveryPrefix(answered))
-      }
-      if (step.startsWith(GROUP_DRIVER_STEP.routePrefix)) return answerRouteOffer(turn)
-      if (tripClose !== undefined && step.startsWith(GROUP_DRIVER_STEP.closePrefix)) {
-        return tripClose.answer({
-          ...turn,
-          request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.closePrefix.length) },
-        })
-      }
-      if (step.startsWith(GROUP_DRIVER_STEP.stopPrefix)) {
-        return flows.stop.answer({
-          ...turn,
-          request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.stopPrefix.length) },
-        })
-      }
-      return flows.occurrence.answer(turn)
     },
 
     initialStep: flows.occurrence.initialStep,
 
+    /** "Cancelar" vai ao fluxo dono do passo; sem dono com cancelamento próprio, o pedido só fecha. */
+    async cancel(turn) {
+      if (ownerOfStep(turn.request.step) !== 'delivery' || delivery === undefined) return null
+      const answered = await delivery.answer(inner(turn, GROUP_DRIVER_STEP.deliveryPrefix))
+      return withDeliveryPrefix(answered)
+    },
+
     locationReceived(turn) {
-      const { step } = turn.request
-      // Spec 294 RF24: o pedido de localização do "saí"/"cheguei" é das paradas.
-      if (step.startsWith(GROUP_DRIVER_STEP.stopPrefix)) {
-        return flows.stop.locationReceived({
-          ...turn,
-          request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.stopPrefix.length) },
-        })
+      // Spec 294 RF24: o pedido de localização do "saí"/"cheguei" é das paradas; a ocorrência tem o seu.
+      switch (ownerOfStep(turn.request.step)) {
+        case 'stop':
+          return flows.stop.locationReceived(inner(turn, GROUP_DRIVER_STEP.stopPrefix))
+        case 'occurrence':
+          return flows.occurrence.locationReceived?.(turn) ?? null
+        default:
+          return null
       }
-      if (
-        step === GROUP_DRIVER_STEP.menu ||
-        step.startsWith(GROUP_DRIVER_STEP.deliveryPrefix) ||
-        step.startsWith(GROUP_DRIVER_STEP.closePrefix) ||
-        step.startsWith(GROUP_DRIVER_STEP.routePrefix) ||
-        step.startsWith(GROUP_DRIVER_STEP.stopPrefix)
-      ) {
-        return null
-      }
-      return flows.occurrence.locationReceived?.(turn) ?? null
     },
 
     async start(turn) {
@@ -259,9 +416,18 @@ export function createGroupDriverFlow(flows: {
       if (command !== null) {
         return withStopPrefix(await flows.stop.begin(turn, command.event, command.documentNumbers))
       }
+      const typed = interpretWhatsAppDriverEventCommand(turn.text)
+      if (typed?.kind === 'return' && returnFlow !== undefined) {
+        const settled = await flows.stop.settledDocument(turn, typed.numbers)
+        if (settled !== null) return withStopPrefix(settled)
+        const begun = await returnFlow.begin(turn, { numbers: typed.numbers, reason: typed.reason })
+        return settleDelivery(turn, withReturnPrefix(begun))
+      }
       if (delivery !== undefined) {
-        const event = interpretWhatsAppDriverEventCommand(turn.text)
+        const event = typed
         if (event?.kind === 'deliver') {
+          const settled = await flows.stop.settledDocument(turn, event.numbers)
+          if (settled !== null) return withStopPrefix(settled)
           return settleDelivery(turn, withDeliveryPrefix(await delivery.begin(turn, event.numbers)))
         }
         if (event?.kind === 'too_many_documents') {
@@ -279,6 +445,14 @@ export function createGroupDriverFlow(flows: {
     },
   }
   return flow
+}
+
+/** "saí", "cheguei 17234", "entreguei 456", "não entreguei": um comando da rota, não a resposta do menu. */
+function isDriverCommand(text: string): boolean {
+  return (
+    interpretDriverStopCommand(text) !== null ||
+    interpretWhatsAppDriverEventCommand(text) !== undefined
+  )
 }
 
 /** Duas palavras ou mais com letras: uma frase, não o número ou o nome curto de uma opção. */

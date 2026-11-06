@@ -56,6 +56,7 @@ export function createGroupDeliveryWiring(dependencies: {
   }) => Promise<readonly DriverTrip[]>
   readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
   readonly preparations: WhatsAppDeliveryPreparations
+  readonly forgetLocation: GroupProofIntakePorts['forgetLocation']
   readonly rememberLocation: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -106,11 +107,16 @@ export function createGroupDeliveryWiring(dependencies: {
     },
     intake: {
       // O Evolution avisa antes de gravar a mensagem: a foto pedida na hora pode não existir ainda.
-      downloadMedia: ({ connection, providerMessageId }) =>
-        downloadEvolutionMedia({ connection, providerMessageId }),
+      downloadMedia: ({ connection, providerMessageId, rawMessage }) =>
+        downloadEvolutionMedia({
+          connection,
+          providerMessageId,
+          ...(rawMessage === undefined ? {} : { rawMessage }),
+        }),
       findActorUserId,
       ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
       preparations: dependencies.preparations,
+      forgetLocation: dependencies.forgetLocation,
       rememberLocation: dependencies.rememberLocation,
       resolveSenderRole: dependencies.resolveSenderRole,
       withoutAccessText,

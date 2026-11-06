@@ -303,10 +303,13 @@ function notUnderstood(): GroupFlowOutcome {
 
 function toOutcome(reply: {
   readonly awaitingText: boolean
+  readonly finished?: boolean
   readonly routeContinuation?: WhatsAppRouteContinuation
   readonly texts: readonly string[]
 }): GroupFlowOutcome {
-  if (reply.awaitingText) {
+  // A entrega ainda aberta esperando foto ou localização também segura o pedido: o "pular" responde sem marcar o bot,
+  // e a mídia chega pela porta das provas (a pergunta seguinte cai no mesmo passo).
+  if (reply.awaitingText || reply.finished === false) {
     return { kind: 'continue', replies: reply.texts, state: {}, step: GROUP_DELIVERY_STEP.answer }
   }
   return {

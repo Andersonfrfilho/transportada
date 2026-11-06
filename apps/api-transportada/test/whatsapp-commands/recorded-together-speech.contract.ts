@@ -99,7 +99,7 @@ describe('a frase do "marquei junto" (spec 294 RF5)', () => {
         describeWhatsAppDriverEventResult(delivered, { documentNumber: '17234', kind: 'group' }),
       ),
     ).toBe(
-      'NF 17234 entregue. Parada concluída. ✅\nMarquei a saída e a chegada junto com a entrega da NF 17234.',
+      '*NF 17234 entregue.* Parada concluída. ✅\nMarquei a saída e a chegada junto com a entrega da NF 17234.',
     )
     const returned = await returnWhatsAppDriverDocument(ports, {
       ...actor,
@@ -125,7 +125,7 @@ describe('a frase do "marquei junto" (spec 294 RF5)', () => {
       stopId: 's',
     })
     expect(await render(describeWhatsAppDriverEventResult(arrived, { kind: 'driver' }))).toBe(
-      'Chegada registrada. 📍',
+      '*Chegada registrada* 📍',
     )
   })
 })
@@ -229,7 +229,7 @@ describe('conversa individual: "cheguei" avisa a saída marcada junto', () => {
       } as unknown as ConversationSession,
     })
     expect(sent).toEqual([
-      'Chegada registrada. 📍\nMarquei a saída junto com a chegada da NF 17234.',
+      '*Chegada registrada* 📍\nMarquei a saída junto com a chegada da NF 17234.',
     ])
   })
 })

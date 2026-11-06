@@ -31,6 +31,7 @@ import type {
   LazyEvolutionConnection,
 } from './evolution-group-identity.service.js'
 import type { WhatsAppBotAudio } from './whatsapp-bot-audio.service.js'
+import type { GroupQuestionAsked } from './whatsapp-group-request.port.js'
 
 /** Áudio não endereçado só é ouvido até 1 minuto: a chamada vem no começo, conversa longa é das pessoas. */
 const BOT_AUDIO_WAKE_MAX_SECONDS = 60
@@ -73,7 +74,13 @@ export function toMessageSentAt(timestamp: null | number): Date | undefined {
  * texto). A foto ainda não foi baixada: quem trata pede ao Evolution pelo id da mensagem.
  */
 export type GroupMedia =
-  | { readonly caption: null | string; readonly kind: 'image'; readonly mimeType: string }
+  | {
+      readonly caption: null | string
+      readonly kind: 'image'
+      readonly mimeType: string
+      /** A mensagem do webhook: o Evolution não grava as mensagens, então a foto pedida só pelo id não baixa. */
+      readonly rawMessage?: { readonly key: unknown; readonly message: unknown }
+    }
   | { readonly kind: 'location'; readonly latitude: number; readonly longitude: number }
 
 /** A foto/localização aceita: só do motorista do grupo (desenho 3.4, regra 9). */
@@ -709,6 +716,15 @@ export function createEvolutionGroupInbound(
   }
 }
 
+/** Liga o "pergunta nova do pedido" ao áudio: a confirmação pendente de antes sai de cena. */
+export function createGroupQuestionAskedHandler(
+  bot: Pick<WhatsAppBotAudio<GroupAudioContext>, 'supersede'>,
+): GroupQuestionAsked {
+  return ({ companyId, groupJid, owner }) => {
+    bot.supersede({ companyId, conversation: groupConversation(groupJid), owner })
+  }
+}
+
 function groupConversation(groupJid: string): string {
   return `group:${groupJid}`
 }
@@ -800,6 +816,7 @@ export function readGroupMedia(payload: unknown): ReadonlyMap<string, GroupMedia
         caption: typeof image.caption === 'string' ? image.caption : null,
         kind: 'image',
         mimeType: typeof image.mimetype === 'string' ? image.mimetype : 'image/jpeg',
+        rawMessage: { key: item.key, message: item.message },
       })
       continue
     }

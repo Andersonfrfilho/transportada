@@ -72,11 +72,11 @@ import type {
   WhatsAppDeliveryPreparations,
 } from './whatsapp-delivery-preparation.service.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
-import { DRIVER_PROMPT_CONTEXT_KEY } from '../domain/whatsapp-driver-prompt.policy.js'
 import {
-  buildRouteOfferReply,
-  type WhatsAppDriverPrompts,
-} from './whatsapp-driver-prompts.service.js'
+  DRIVER_PROMPT_CONTEXT_KEY,
+  readDriverPrompt,
+} from '../domain/whatsapp-driver-prompt.policy.js'
+import type { WhatsAppDriverPrompts } from './whatsapp-driver-prompts.service.js'
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
 import {
   BOT_AUDIO_SPEECH,
@@ -221,7 +221,9 @@ async function dispatch(incoming: WhatsAppCommandTurn): Promise<MessageHookOutco
     return HANDLED
   }
   if (proofActor !== null && (await acceptDeliveryProof({ proofActor, turn }))) return HANDLED
-  if (await acceptDriverPrompt({ scope: actor.context.scope, turn })) return HANDLED
+  const prompted = await acceptDriverPrompt({ scope: actor.context.scope, turn })
+  if (prompted === 'handled') return HANDLED
+  turn = prompted
 
   await guardConversation(turn, () =>
     advanceConversation(turn, actor.context.scope.permissions, proofActor !== null),
@@ -259,6 +261,14 @@ async function acceptBotAudio(turn: WhatsAppCommandTurn): Promise<'handled' | Wh
   }
   const text = turn.message.text?.body
   if (text === undefined || !botAudio.hasPending({ companyId, conversation, owner: turn.phone })) {
+    return turn
+  }
+  // A pergunta mais recente é a dona do "1"/"2": pedido aberto depois do áudio não perde a resposta para ele.
+  const askedAt = botAudio.pendingSince({ companyId, conversation, owner: turn.phone })
+  const position = await turn.deps.sessions.getContext(companyId, turn.phone)
+  const prompt = readDriverPrompt(position?.context ?? {}, turn.deps.clock())
+  if (askedAt !== undefined && prompt !== undefined && Date.parse(prompt.offeredAt) > askedAt) {
+    botAudio.supersede({ companyId, conversation, owner: turn.phone })
     return turn
   }
   const answer = botAudio.answer({ companyId, conversation, owner: turn.phone, text })
@@ -389,6 +399,8 @@ async function acceptDeliveryProof(input: {
   }
   const text = extractWhatsAppAnswer(turn.message)
   if (text === undefined) return false
+  // A pergunta mais recente é a dona do "1": oferta pedida depois da entrega em preparo responde por ela.
+  if (await isNewerPromptPending({ actor, intake, turn })) return false
   const reply = await intake.preparations.answer({ actor, strict: true, text })
   if (reply === null) {
     // Spec 294 RF22: o bot pediu foto ou localização e veio áudio — repete o pedido dizendo que vai por mídia.
@@ -400,6 +412,22 @@ async function acceptDeliveryProof(input: {
   }
   await sendProofReply({ actor, intake, reply, turn })
   return true
+}
+
+async function isNewerPromptPending(input: {
+  readonly actor: ProofActor['actor']
+  readonly intake: WhatsAppDeliveryProofIntake
+  readonly turn: WhatsAppCommandTurn
+}): Promise<boolean> {
+  const { actor, intake, turn } = input
+  const askedAt = await intake.preparations.awaitingTextSince?.({
+    companyId: actor.companyId,
+    driverId: actor.driverId,
+  })
+  if (askedAt === null || askedAt === undefined) return false
+  const position = await turn.deps.sessions.getContext(actor.companyId, turn.phone)
+  const prompt = readDriverPrompt(position?.context ?? {}, turn.deps.clock())
+  return prompt !== undefined && Date.parse(prompt.offeredAt) > askedAt.getTime()
 }
 
 async function sendProofReply(input: {
@@ -431,7 +459,8 @@ async function offerNextRoute(input: {
   const { companyId } = turn.session
   const position = await sessions.getContext(companyId, turn.phone)
   const context = position?.context ?? {}
-  const offer = buildRouteOfferReply({
+  const offer = await driverPrompts.routeOffer({
+    actor,
     continuation,
     gate: {
       hasOpenCollection: await intake.preparations.hasOpen(actor),
@@ -444,7 +473,6 @@ async function offerNextRoute(input: {
         }) ?? false,
       hasPendingPrompt: driverPrompts.pending(context) !== undefined,
     },
-    now: turn.deps.clock(),
   })
   for (const body of offer.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
   if (offer.prompt === undefined) return
@@ -507,37 +535,61 @@ async function answerLocationPrompt(input: {
 async function acceptDriverPrompt(input: {
   readonly scope: DriverPromptScope
   readonly turn: WhatsAppCommandTurn
-}): Promise<boolean> {
+}): Promise<'handled' | WhatsAppCommandTurn> {
   const { scope, turn } = input
   const { deliveryProofs, driverPrompts, sessions } = turn.deps
-  if (driverPrompts === undefined || deliveryProofs === undefined) return false
-  if (!scope.permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION)) return false
+  if (driverPrompts === undefined || deliveryProofs === undefined) return turn
+  if (!scope.permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION)) return turn
   const text = extractWhatsAppAnswer(turn.message)
-  if (text === undefined) return false
+  if (text === undefined) return turn
   const position = await sessions.getContext(scope.companyId, turn.phone)
   const context = position?.context ?? {}
-  if (driverPrompts.pending(context) === undefined) return false
+  if (driverPrompts.pending(context) === undefined) return turn
   const driverId = await deliveryProofs.resolveDriver({
     companyId: scope.companyId,
     membershipId: scope.membershipId,
   })
-  if (driverId === null) return false
+  if (driverId === null) return turn
   const result = await driverPrompts.answer({
     actor: { actorUserId: scope.userId, companyId: scope.companyId, driverId },
     context,
     text,
     whatsappNumber: turn.session.whatsappNumber,
   })
-  if (result === null) return false
+  if (result === null) return turn
   await sessions.setState(
     scope.companyId,
     turn.phone,
     position?.currentState ?? turn.session.currentState,
     result.context,
   )
-  if (!result.handled) return false
+  // A opção do menu é um comando que já existe: o turno segue com ele, pelo caminho de sempre.
+  if (result.followUpText !== undefined) {
+    return {
+      ...turn,
+      message: { ...turn.message, text: { body: result.followUpText }, type: 'text' },
+    }
+  }
+  if (!result.handled) return turn
   for (const body of result.texts) await turn.deps.sender.sendText({ body, to: turn.phone })
-  return true
+  if (result.flowJump !== undefined) {
+    const jump = result.flowJump
+    await guardConversation(turn, async () => {
+      const graph = await findRootGraph(turn, scope.permissions)
+      if (graph === undefined) return
+      await runWhatsAppFlow({
+        cursor: {
+          context: { ...result.context, ...jump.context },
+          currentNodeId: jump.nodeId,
+          graph,
+          userAnswer: undefined,
+        },
+        hopsLeft: WHATSAPP_MAX_CROSS_FLOW_HOPS,
+        turn,
+      })
+    })
+  }
+  return 'handled'
 }
 
 /**

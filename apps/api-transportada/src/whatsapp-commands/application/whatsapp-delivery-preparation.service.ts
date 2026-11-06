@@ -69,6 +69,8 @@ export type WhatsAppDeliveryPreparation = {
   readonly receivedBy: null | ReceivedBy
   readonly receiverName: null | string
   readonly skipped: readonly string[]
+  /** A hora da última mudança (a última pergunta do bot); `undefined` onde a fonte não a traz. */
+  readonly updatedAt?: Date | undefined
   readonly version: bigint
 }
 
@@ -221,6 +223,14 @@ export type WhatsAppDeliveryPreparations = {
   }): Promise<null | WhatsAppDeliveryPreparationReply>
   /** Há preparação aberta esperando texto? O canal usa para decidir se o texto é para cá. */
   awaitingText(input: { readonly companyId: string; readonly driverId: string }): Promise<boolean>
+  /**
+   * Desde quando a entrega espera resposta em texto (a pergunta mais recente entre as abertas); `null` sem pergunta
+   * em texto ou sem hora conhecida. Serve para saber se uma pergunta mais nova (a oferta da rota) é a dona do "1".
+   */
+  awaitingTextSince?(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<Date | null>
   /** Há entrega em preparo aberta deste motorista? (o canal só baixa a foto quando há.) */
   hasOpen(input: { readonly companyId: string; readonly driverId: string }): Promise<boolean>
   /**
@@ -672,6 +682,14 @@ export function createWhatsAppDeliveryPreparations(
       return preparations.some((item) => isTextQuestion(item.awaiting))
     },
 
+    async awaitingTextSince({ companyId, driverId }) {
+      const preparations = await repository.listOpenForDriver({ companyId, driverId })
+      const times = preparations
+        .filter((item) => isTextQuestion(item.awaiting))
+        .flatMap((item) => (item.updatedAt === undefined ? [] : [item.updatedAt.getTime()]))
+      return times.length === 0 ? null : new Date(Math.max(...times))
+    },
+
     async hasOpen({ companyId, driverId }) {
       const preparations = await repository.listOpenForDriver({ companyId, driverId })
       return preparations.length > 0
@@ -998,7 +1016,7 @@ function finished(
 }
 
 /** Só a baixa que fechou a parada continua a rota (a próxima parada, ou a rota concluída). */
-function routeContinuationOf(result: WhatsAppDriverEventResult): {
+export function routeContinuationOf(result: WhatsAppDriverEventResult): {
   readonly routeContinuation?: WhatsAppRouteContinuation
 } {
   if (result.kind !== 'registered' || result.details?.stopCompleted !== true) return {}

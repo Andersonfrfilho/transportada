@@ -611,3 +611,33 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   como em produção, onde os dois são iguais.
 - Depois do ajuste: `me-trip` + `delivery-proofs-by-trip` + `stop-order-guard` (inclui o teste da corrida do C5): 41 pass / 0 fail.
 - `make check` final: exit 0, todas as suítes 0 fail.
+
+### A jornada validada de ponta a ponta (RF28–RF34, 2026-11-06)
+
+- Vermelho antes: no código de `origin/staging` (6f339bb87), o "cheguei" repetido na parada que já chegou devolveu
+  "Qual parada? … 1. NF 90002 … 6. NF 90007" (reprodução do teste do dono); as duas jornadas de integração não carregam
+  (`whatsapp-stop-card.reader.js` não existe).
+- Verde depois: `whatsapp-driver-journey-group.integration.ts` (34 mensagens, 3 paradas, evento do Evolution → sessão
+  Postgres → fluxos → funções do app) e `whatsapp-driver-journey-direct.integration.ts` (32 mensagens, webhook Meta
+  assinado → despachante → fluxo publicado): 2 pass, texto exato de cada resposta, marcação conferida, eventos gravados
+  conferidos (saída/chegada/baixa por parada, com e sem ponto).
+- Contratos da API (`bun --env-file=../../.env.test test --timeout 120000`): 14020 pass / 0 fail. Integração dos arquivos de
+  WhatsApp, motorista e paradas: ver o PR.
+
+### Revisão do PR #552 (2026-11-06)
+
+- **Vermelho registrado antes de cada correção** (`group-driver-journey.contract.ts`, `driver-journey.contract.ts` e as jornadas):
+  - "não entreguei 90003" com o menu da parada 1 aberto abriu a NF 899840 (a do menu); "saí" digitado no menu sem a opção de
+    sair respondeu "Não entendi" (gasta tentativa até desistir) — na jornada do grupo, o passo 8 e o passo 28;
+  - "saí 0090003" com outra parada a caminho caiu na saída repetida dela;
+  - o leitor do bloco da parada falhando derrubou a resposta (grupo e individual);
+  - "não entreguei" sem a nota guardada respondeu `not_understood` com pergunta vazia;
+  - a estrada saía do ponto mais novo da viagem inteira (`resolveEtaOrigin` não existia).
+- **Correções**: comando digitado com o menu aberto (`journey.actions`) volta ao `start` do roteiro; a saída repetida
+  respeita a nota citada (zeros à esquerda normalizados); o bloco da parada é melhor esforço no leitor, no fluxo do grupo,
+  no adaptador e nos pedidos da conversa individual (log só com empresa e nome do erro); o "não entreguei" sem nota fecha
+  limpo; a origem da estrada é por parada e evento — saída: o ponto da saída desta parada; oferta: o ponto da chegada ou
+  baixa da última parada em que o motorista chegou. Sem ponto nesse trecho, a linha some.
+- **Verde**: os contratos novos 54 pass; as jornadas (36 mensagens no grupo, 33 na individual, com comandos digitados com o
+  menu aberto) 2 pass, e a estrada agora só aparece na saída e na oferta com ponto do trecho (grupo: passos 3, 14, 16, 29,
+  30; individual: 3, 24).

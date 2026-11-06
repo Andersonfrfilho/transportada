@@ -125,7 +125,8 @@ export type DriverFlowActionDependencies = {
    * Spec 294 RF24: o pedido opcional de localização antes do "saí"/"cheguei". Ausente, o evento é registrado
    * direto (com o ponto compartilhado antes, se houver).
    */
-  readonly driverPrompts?: Pick<WhatsAppDriverPrompts, 'askLocation' | 'recordStop'>
+  readonly driverPrompts?: Pick<WhatsAppDriverPrompts, 'askLocation' | 'recordStop'> &
+    Partial<Pick<WhatsAppDriverPrompts, 'repeatedEvent' | 'routeOffer' | 'settledDocument'>>
   /**
    * Spec 293 T15: o tipo que pede foto, número do documento do cliente ou valor pago abre a ocorrência
    * em coleta em vez da recusa "registre pelo aplicativo". Ausente, a recusa de sempre.
@@ -498,21 +499,22 @@ export function createDriverWhatsAppFlowActions(
     const { actor, channel, context, driverId, result, session } = input
     if (result.kind !== 'registered' || result.details?.stopCompleted !== true) return {}
     const scope = { actorUserId: actor.scope.userId, companyId: actor.scope.companyId, driverId }
-    const offer = buildRouteOfferReply({
-      continuation: {
-        nextStop: result.details.nextStop ?? null,
-        tripCompleted: result.details.tripCompleted,
-      },
-      gate: {
-        hasOpenCollection:
-          (await deps.deliveryPreparations?.hasOpen(scope)) === true ||
-          (await deps.occurrenceDrafts?.hasOpen(scope)) === true,
-        hasOpenStopChoice: false,
-        hasPendingAudio: false,
-        hasPendingPrompt: readDriverPrompt(context, nowOf()) !== undefined,
-      },
-      now: nowOf(),
-    })
+    const continuation = {
+      nextStop: result.details.nextStop ?? null,
+      tripCompleted: result.details.tripCompleted,
+    }
+    const gate = {
+      hasOpenCollection:
+        (await deps.deliveryPreparations?.hasOpen(scope)) === true ||
+        (await deps.occurrenceDrafts?.hasOpen(scope)) === true,
+      hasOpenStopChoice: false,
+      hasPendingAudio: false,
+      hasPendingPrompt: readDriverPrompt(context, nowOf()) !== undefined,
+    }
+    const offer =
+      deps.driverPrompts?.routeOffer === undefined
+        ? buildRouteOfferReply({ continuation, gate, now: nowOf() })
+        : await deps.driverPrompts.routeOffer({ actor: scope, continuation, gate })
     for (const text of offer.texts) await say({ actor, channel, session }, { text })
     return offer.prompt === undefined
       ? {}
@@ -832,6 +834,29 @@ export function createDriverWhatsAppFlowActions(
     input: ActionInput & { readonly step: StopStep; readonly trip: DriverTrip },
   ): Promise<FlowActionResult> {
     const { actor, channel, session, step, trip } = input
+    // O evento repetido e o "saí" com a baixa pendente: aviso, bloco da parada e menu (nunca a lista das outras).
+    const driverId =
+      deps.driverPrompts?.repeatedEvent === undefined
+        ? null
+        : await deps.resolveDriverId({
+            companyId: actor.scope.companyId,
+            membershipId: actor.scope.membershipId,
+          })
+    const repeated =
+      driverId === null
+        ? null
+        : await deps.driverPrompts?.repeatedEvent?.({
+            actor: { actorUserId: actor.scope.userId, companyId: actor.scope.companyId, driverId },
+            event: step,
+          })
+    if (repeated !== null && repeated !== undefined) {
+      for (const text of repeated.texts) await say({ actor, channel, session }, { text })
+      const menu = backToTripMenu(trip.id)
+      return {
+        ...menu,
+        context: { ...menu.context, [DRIVER_PROMPT_CONTEXT_KEY]: repeated.prompt },
+      }
+    }
     const resolution: WhatsAppStopResolution<DriverTrip['stops'][number]> = resolveStops(step, trip)
     if (resolution.kind === 'none') {
       await say(
@@ -998,6 +1023,35 @@ export function createDriverWhatsAppFlowActions(
       number,
     }))
     const missing = matched.filter((item) => item.document === undefined).map((item) => item.number)
+    const [onlyMissing] = missing
+    const settledDriverId =
+      missing.length === 1 &&
+      command.numbers.length === 1 &&
+      deps.driverPrompts?.settledDocument !== undefined
+        ? await deps.resolveDriverId({
+            companyId: actor.scope.companyId,
+            membershipId: actor.scope.membershipId,
+          })
+        : null
+    const settled =
+      settledDriverId === null || onlyMissing === undefined
+        ? null
+        : await deps.driverPrompts?.settledDocument?.({
+            actor: {
+              actorUserId: actor.scope.userId,
+              companyId: actor.scope.companyId,
+              driverId: settledDriverId,
+            },
+            documentNumber: onlyMissing,
+          })
+    if (settled !== null && settled !== undefined) {
+      for (const text of settled.texts) await say({ actor, channel, session }, { text })
+      const menu = backToTripMenu(trip.id)
+      return {
+        ...menu,
+        context: { ...menu.context, [DRIVER_PROMPT_CONTEXT_KEY]: settled.prompt },
+      }
+    }
     if (missing.length > 0) {
       await say({ actor, channel, session }, 'driverDocumentsNotOpen', {
         numbers: missing.join(', '),

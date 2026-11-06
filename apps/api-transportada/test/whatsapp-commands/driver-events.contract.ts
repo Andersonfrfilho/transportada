@@ -311,7 +311,7 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
     const details = { proofPending: false, stopCompleted: false, tripCompleted: false }
     expect(
       await render(describeWhatsAppDriverEventResult(registered('deliver', details), GROUP)),
-    ).toBe('NF 17234 entregue. ✅')
+    ).toBe('*NF 17234 entregue* ✅')
     expect(
       await render(
         describeWhatsAppDriverEventResult(
@@ -319,7 +319,7 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
           GROUP,
         ),
       ),
-    ).toBe('NF 17234 entregue. Parada concluída. ✅')
+    ).toBe('*NF 17234 entregue.* Parada concluída. ✅')
     expect(
       await render(
         describeWhatsAppDriverEventResult(
@@ -327,9 +327,9 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
           GROUP,
         ),
       ),
-    ).toBe('NF 17234 entregue. Viagem concluída. 🏁')
+    ).toBe('*NF 17234 entregue.* Viagem concluída. 🏁')
     expect(await render(describeWhatsAppDriverEventResult(registered('return'), GROUP))).toBe(
-      'NF 17234 devolvida. ↩️',
+      '*NF 17234 não entregue* ↩️',
     )
     expect(
       await render(

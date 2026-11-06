@@ -35,7 +35,10 @@ import { createStaticWhatsAppFlowGraphProvider } from '../../src/whatsapp-comman
 import { createWhatsAppDriverPrompts } from '../../src/whatsapp-commands/application/whatsapp-driver-prompts.service.js'
 import { DRIVER_FLOW_NODE } from '../../src/whatsapp-commands/domain/whatsapp-driver-flow.constant.js'
 import { interpretDriverChoice } from '../../src/whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
-import { DRIVER_PROMPT_CONTEXT_KEY } from '../../src/whatsapp-commands/domain/whatsapp-driver-prompt.policy.js'
+import {
+  DRIVER_PROMPT_CONTEXT_KEY,
+  DRIVER_PROMPT_TEXT,
+} from '../../src/whatsapp-commands/domain/whatsapp-driver-prompt.policy.js'
 import {
   canAskRouteOffer,
   describeRouteOffer,
@@ -74,8 +77,8 @@ describe('a oferta da próxima rota (spec 294 RF8, RF12)', () => {
     expect(text).toContain(
       'https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000',
     )
-    expect(text).toContain('*1* - Sim, iniciar rota')
-    expect(text).toContain('*2* - Agora não')
+    expect(text).toContain('*1* - Seguir para ela 🚚')
+    expect(text).toContain('*2* - Escolher outra da lista')
     expect(text).not.toContain('sem localização certa')
   })
 
@@ -91,7 +94,7 @@ describe('a oferta da próxima rota (spec 294 RF8, RF12)', () => {
 
   test('sem pergunta, a frase só diz como seguir', () => {
     const text = describeRouteOffer(NEXT_STOP, { asks: false })
-    expect(text).toContain('Quando for, mande *saí*.')
+    expect(text).toContain('quando for sair, mande *saí*.')
     expect(text).not.toContain('*1* - Sim')
   })
 })
@@ -186,6 +189,8 @@ function textMessage(body: string): WhatsAppMessage {
 type HarnessOptions = {
   readonly continuation?: WhatsAppDeliveryPreparationReply['routeContinuation']
   readonly hasOpenAfter?: boolean
+  readonly isPreparationAwaiting?: boolean
+  readonly preparationAskedAt?: Date
   readonly botAudio?: WhatsAppBotAudio<null>
   readonly position?: Partial<WhatsAppSessionPosition>
 }
@@ -226,13 +231,17 @@ function createHarness(options: HarnessOptions = {}) {
         documentNumber: '17234',
         finished: true,
         ...(options.continuation === undefined ? {} : { routeContinuation: options.continuation }),
-        texts: ['NF 17234 entregue. Parada concluída. ✅'],
+        texts: ['*NF 17234 entregue.* Parada concluída. ✅'],
       }
       return reply
     },
-    awaitingText: async () => answered === 0,
+    awaitingText: async () => (options.isPreparationAwaiting ?? true) && answered === 0,
+    awaitingTextSince: async () => options.preparationAskedAt ?? null,
     begin: async () => ({ awaitingText: false, documentNumber: '', finished: true, texts: [] }),
-    hasOpen: async () => (answered === 0 ? true : (options.hasOpenAfter ?? false)),
+    hasOpen: async () =>
+      answered === 0 && options.isPreparationAwaiting !== false
+        ? true
+        : (options.hasOpenAfter ?? false),
     receiveLocation: async () => null,
     receivePhoto: async () => null,
   }
@@ -277,6 +286,7 @@ function createHarness(options: HarnessOptions = {}) {
   return {
     contextOf: () => position.context,
     departures,
+    preparationAnswers: () => answered,
     sendAudio: () =>
       driver(
         {
@@ -299,11 +309,12 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
   test('a oferta pergunta, guarda o pedido e "1" registra a saída pela função do "saí" com chave da oferta', async () => {
     const harness = createHarness({ continuation: CONTINUES })
     await harness.send('1')
-    expect(harness.sent[0]).toBe('NF 17234 entregue. Parada concluída. ✅')
-    expect(harness.sent[1]).toContain('Próxima parada: 4 de 6 — Padaria Sol')
-    expect(harness.sent[1]).toContain('*1* - Sim, iniciar rota')
+    expect(harness.sent[0]).toBe('*NF 17234 entregue.* Parada concluída. ✅')
+    expect(harness.sent[1]).toContain('*Parada 4 de 6*')
+    expect(harness.sent[1]).toContain('🏪 *Padaria Sol*')
+    expect(harness.sent[1]).toContain('*1* - Seguir para ela 🚚')
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toMatchObject({
-      kind: 'route_offer',
+      kind: 'journey_actions',
       stopId: 'stop-4',
     })
 
@@ -316,16 +327,16 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
       idempotencyKey: `whatsapp-route-offer:stop-4:${NOW.toISOString()}`,
       stopId: 'stop-4',
     })
-    expect(harness.sent.at(-1)).toBe('Saída registrada. 🚚')
+    expect(harness.sent.at(-1)).toBe('*Saída registrada* 🚚')
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
   })
 
-  test('"2" encerra sem registrar nada, e o motorista pode mandar "saí" depois', async () => {
+  test('"3" encerra sem registrar nada e diz o próximo passo', async () => {
     const harness = createHarness({ continuation: CONTINUES })
     await harness.send('1')
-    await harness.send('2')
+    await harness.send('3')
     expect(harness.departures).toHaveLength(0)
-    expect(harness.sent.at(-1)).toBe(ROUTE_OFFER_TEXT.declined)
+    expect(harness.sent.at(-1)).toStartWith('Certo, não registrei nada.\n')
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
   })
 
@@ -341,11 +352,40 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
     expect(harness.departures).toHaveLength(departures)
   })
 
-  test('outra mensagem encerra o pedido e segue o fluxo de sempre, sem registrar saída', async () => {
+  test('texto que não responde repete a pergunta e o pedido continua aberto, sem registrar saída', async () => {
     const harness = createHarness({ continuation: CONTINUES })
     await harness.send('1')
     await harness.send('quero ver o menu')
     expect(harness.departures).toHaveLength(0)
+    expect(harness.sent.at(-1)).toBe(
+      [
+        'Não entendi: responda com o número da opção.',
+        '*O que você quer fazer agora?*',
+        '*1* - Seguir para ela 🚚',
+        '*2* - Escolher outra da lista',
+        '*3* - Nada por enquanto',
+      ].join('\n'),
+    )
+    expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toMatchObject({ stopId: 'stop-4' })
+  })
+
+  test.each(['menu', 'saí'])(
+    '"%s" é comando e tira o pedido de cena, sem registrar a saída da oferta',
+    async (command) => {
+      const harness = createHarness({ continuation: CONTINUES })
+      await harness.send('1')
+      await harness.send(command)
+      expect(harness.departures).toHaveLength(0)
+      expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
+    },
+  )
+
+  test('"cancelar" é do dono da pergunta: encerra a oferta sem registrar', async () => {
+    const harness = createHarness({ continuation: CONTINUES })
+    await harness.send('1')
+    await harness.send('cancelar')
+    expect(harness.departures).toHaveLength(0)
+    expect(harness.sent.at(-1)).toBe(DRIVER_PROMPT_TEXT.cancelled)
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
   })
 
@@ -361,7 +401,7 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
     const harness = createHarness({ continuation: { nextStop: null, tripCompleted: true } })
     await harness.send('1')
     expect(harness.sent).toEqual([
-      'NF 17234 entregue. Parada concluída. ✅',
+      '*NF 17234 entregue.* Parada concluída. ✅',
       ROUTE_OFFER_TEXT.routeCompleted,
     ])
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
@@ -370,12 +410,12 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
   test('baixa que não fechou a parada não oferece nada', async () => {
     const harness = createHarness()
     await harness.send('1')
-    expect(harness.sent).toEqual(['NF 17234 entregue. Parada concluída. ✅'])
+    expect(harness.sent).toEqual(['*NF 17234 entregue.* Parada concluída. ✅'])
   })
 })
 
 describe('matriz de não interferência da oferta (RNF1, conversa individual)', () => {
-  const WITHOUT_QUESTION = 'Quando for, mande *saí*.'
+  const WITHOUT_QUESTION = 'quando for sair, mande *saí*.'
 
   test.each([
     ['entrega ou ocorrência em coleta aberta', { hasOpenAfter: true }],
@@ -416,6 +456,66 @@ describe('matriz de não interferência da oferta (RNF1, conversa individual)', 
   })
 })
 
+describe('a pergunta mais recente é a dona do "1"/"2" (RNF1, áudio x oferta)', () => {
+  const SEEDED_OFFER = {
+    [DRIVER_PROMPT_CONTEXT_KEY]: {
+      kind: 'route_offer',
+      offeredAt: NOW.toISOString(),
+      stopId: 'stop-4',
+    },
+  }
+
+  test('áudio pedido ANTES da oferta não rouba o "1": a oferta, mais nova, responde', async () => {
+    const botAudio = createWhatsAppBotAudio<null>({
+      clock: () => NOW.getTime() - 60_000,
+      logger: { error: () => undefined, info: () => undefined, warn: () => undefined },
+      transcriber: { transcribe: async () => 'quero ver o menu' },
+    })
+    const harness = createHarness({
+      botAudio,
+      isPreparationAwaiting: false,
+      position: { context: SEEDED_OFFER },
+    })
+    await harness.sendAudio()
+    await botAudio.idle()
+    await harness.send('1')
+    expect(harness.departures).toHaveLength(1)
+    expect(harness.departures[0]).toMatchObject({ stopId: 'stop-4' })
+  })
+})
+
+describe('a pergunta mais recente é a dona do "1" (RNF1, entrega em preparo x oferta)', () => {
+  const SEEDED_OFFER = {
+    [DRIVER_PROMPT_CONTEXT_KEY]: {
+      kind: 'route_offer',
+      offeredAt: NOW.toISOString(),
+      stopId: 'stop-4',
+    },
+  }
+
+  test('entrega esperando texto desde ANTES da oferta não rouba o "1": a oferta, mais nova, responde', async () => {
+    const harness = createHarness({
+      position: { context: SEEDED_OFFER },
+      preparationAskedAt: new Date(NOW.getTime() - 60_000),
+    })
+    await harness.send('1')
+    expect(harness.preparationAnswers()).toBe(0)
+    expect(harness.departures).toHaveLength(1)
+    expect(harness.departures[0]).toMatchObject({ stopId: 'stop-4' })
+  })
+
+  test('entrega que voltou a perguntar DEPOIS da oferta é quem responde o "1"', async () => {
+    const harness = createHarness({
+      continuation: CONTINUES,
+      position: { context: SEEDED_OFFER },
+      preparationAskedAt: new Date(NOW.getTime() + 60_000),
+    })
+    await harness.send('1')
+    expect(harness.preparationAnswers()).toBe(1)
+    expect(harness.departures).toHaveLength(0)
+  })
+})
+
 describe('áudio esperando confirmação tem prioridade sobre a oferta (RNF1)', () => {
   test('o "1" confirma o áudio e não inicia a rota; o texto do áudio é que segue ao fluxo', async () => {
     const botAudio = createWhatsAppBotAudio<null>({
@@ -430,7 +530,8 @@ describe('áudio esperando confirmação tem prioridade sobre a oferta (RNF1)', 
     expect(harness.sent.at(-1)).toContain('Entendi assim')
     await harness.send('1')
     expect(harness.departures).toHaveLength(0)
-    expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
+    // O texto do áudio não responde à oferta: ela é repetida e segue aberta.
+    expect(harness.sent.at(-1)).toContain('*O que você quer fazer agora?*')
   })
 
   test('o "dois" falado descarta o áudio pendente e não responde à oferta', async () => {

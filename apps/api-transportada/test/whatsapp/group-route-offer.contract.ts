@@ -56,7 +56,7 @@ const finished = (
   documentNumber: '17234',
   finished: true,
   ...(routeContinuation === undefined ? {} : { routeContinuation }),
-  texts: ['NF 17234 entregue. Parada concluída. ✅'],
+  texts: ['*NF 17234 entregue.* Parada concluída. ✅'],
 })
 
 function request(step: string, state: Record<string, unknown> = {}): GroupRequest {
@@ -164,23 +164,34 @@ describe('grupo: a baixa que fecha a parada oferece a próxima rota', () => {
     const offered = await t.answer('1')
     expect(offered.kind).toBe('continue')
     const replies = offered.kind === 'continue' ? offered.replies : []
-    expect(replies[0]).toBe('NF 17234 entregue. Parada concluída. ✅')
-    expect(replies[1]).toContain('Próxima parada: 4 de 6 — Padaria Sol')
-    expect(replies[1]).toContain('Rua das Flores, 100 - Centro')
-    expect(replies[1]).toContain('maps/search/?api=1&query=-21.1700000,-47.8100000')
-    expect(replies[1]).toContain('*1* - Sim, iniciar rota')
-    expect(t.stepNow()).toBe('route.offer')
+    expect(replies[0]).toBe('*NF 17234 entregue.* Parada concluída. ✅')
+    expect(replies[1]).toBe(
+      [
+        '➡️ *Próxima parada*',
+        '*Parada 4 de 6*',
+        '*NF 17300*',
+        '🏪 *Padaria Sol*',
+        '📍 Rua das Flores, 100 - Centro',
+        '🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000',
+        '',
+        '*O que você quer fazer agora?*',
+        '*1* - Seguir para ela 🚚',
+        '*2* - Escolher outra da lista',
+        '*3* - Nada por enquanto',
+      ].join('\n'),
+    )
+    expect(t.stepNow()).toBe('journey.actions')
   })
 
   test('"1" registra a saída da parada oferecida pelo mesmo registro do "saí", com a chave do pedido', async () => {
     const t = setup({ continuation: CONTINUES })
     await t.answer('1')
     const started = await t.answer('1')
-    expect(started).toEqual({ kind: 'done', replies: ['Saída registrada.'] })
+    expect(started).toEqual({ kind: 'done', replies: ['Saída registrada.'], withoutFarewell: true })
     expect(t.recorded).toEqual([
       {
         companyId: 'C1',
-        documentNumber: '017300',
+        documentNumber: '17300',
         driverId: 'D1',
         event: 'depart',
         idempotencyKey: 'whatsapp-group-request:R1',
@@ -189,10 +200,20 @@ describe('grupo: a baixa que fecha a parada oferece a próxima rota', () => {
     ])
   })
 
-  test('"2" encerra sem registrar nada: "Quando for, mande saí"', async () => {
+  test('"2" lista as paradas pendentes para escolher, sem registrar nada', async () => {
     const t = setup({ continuation: CONTINUES })
     await t.answer('1')
-    expect(await t.answer('2')).toEqual({ kind: 'done', replies: [ROUTE_OFFER_TEXT.declined] })
+    expect(await t.answer('2')).toMatchObject({ kind: 'continue', step: 'stop.choose' })
+    expect(t.recorded).toEqual([])
+  })
+
+  test('"3" encerra sem registrar nada e diz o próximo passo', async () => {
+    const t = setup({ continuation: CONTINUES })
+    await t.answer('1')
+    expect(await t.answer('3')).toEqual({
+      kind: 'done',
+      replies: ['Certo, não registrei nada.\n' + ROUTE_OFFER_TEXT.withoutQuestion],
+    })
     expect(t.recorded).toEqual([])
   })
 
@@ -215,7 +236,7 @@ describe('grupo: a baixa que fecha a parada oferece a próxima rota', () => {
     const outcome = await t.answer('talvez mais tarde eu vou')
     expect(outcome.kind).toBe('not_understood')
     expect(t.recorded).toEqual([])
-    expect(t.stepNow()).toBe('route.offer')
+    expect(t.stepNow()).toBe('journey.actions')
   })
 
   test('endereço não confiável: a oferta leva o aviso do RF12', async () => {
@@ -232,7 +253,7 @@ describe('grupo: a baixa que fecha a parada oferece a próxima rota', () => {
     const t = setup({ continuation: { nextStop: null, tripCompleted: true } })
     expect(await t.answer('1')).toEqual({
       kind: 'done',
-      replies: ['NF 17234 entregue. Parada concluída. ✅', ROUTE_OFFER_TEXT.routeCompleted],
+      replies: ['*NF 17234 entregue.* Parada concluída. ✅', ROUTE_OFFER_TEXT.routeCompleted],
     })
   })
 
@@ -240,7 +261,7 @@ describe('grupo: a baixa que fecha a parada oferece a próxima rota', () => {
     const t = setup({})
     expect(await t.answer('1')).toEqual({
       kind: 'done',
-      replies: ['NF 17234 entregue. Parada concluída. ✅'],
+      replies: ['*NF 17234 entregue.* Parada concluída. ✅'],
     })
   })
 })
@@ -251,7 +272,7 @@ describe('matriz de não interferência da oferta (RNF1, grupo)', () => {
     const outcome = await t.answer('1')
     expect(outcome.kind).toBe('done')
     const replies = outcome.kind === 'done' ? outcome.replies : []
-    expect(replies[1]).toContain('Quando for, mande *saí*.')
+    expect(replies[1]).toContain('quando for sair, mande *saí*.')
     expect(replies[1]).not.toContain('*1* - Sim')
     // O "1" seguinte não tem oferta a responder: cai no fluxo de sempre, nunca inicia rota.
     expect(t.recorded).toEqual([])
@@ -295,7 +316,7 @@ describe('matriz de não interferência da oferta (RNF1, grupo)', () => {
       senderName: null,
       text: '1',
     })
-    expect(outcome).toEqual({ kind: 'done', replies: ['registrado'] })
+    expect(outcome).toEqual({ kind: 'done', replies: ['registrado'], withoutFarewell: true })
     expect(t.recorded[0]).toMatchObject({ event: 'arrive', stopId: 'a' })
   })
 })

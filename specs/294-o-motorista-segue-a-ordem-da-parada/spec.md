@@ -173,6 +173,34 @@ localização confiável, o bot avisa que vai corrigi-lo pela chegada do motoris
 - **RF20** — Corrige o defeito de hoje: no grupo, a entrega em preparo grava sempre em nome do motorista dono do
   grupo, mesmo quando quem mandou "entreguei" é o atendente.
 
+### A jornada validada pelo dono (decidido em 2026-11-06, depois do teste em staging)
+
+O dono testou o grupo em staging: o segundo "cheguei" na mesma parada listava as outras seis ("Qual parada?"), e o bot se
+despedia ("Tenha uma boa noite!") depois de cada saída e chegada. Esta seção **substitui** o "1 - Sim, iniciar rota / 2 - Agora
+não" do RF8/RF9 e vale no grupo e na conversa individual, por texto e por áudio.
+
+- **RF28 — Evento repetido nunca lista as outras paradas.** "cheguei" numa parada que chegou e falta a baixa, "saí"/"iniciar rota"
+  com uma parada a caminho e "entreguei 17234" numa nota já baixada: o bot diz que já está registrado (com a hora), mostra o bloco da
+  parada e um menu numerado só com as ações que cabem no estado — chegou: _Entreguei / Não entreguei / Abrir ocorrência / Nada por
+  enquanto_; a caminho: _Cheguei / Abrir ocorrência / Nada por enquanto_; nota baixada: a próxima parada (RF31). Nada é gravado.
+- **RF29 — "saí" com a baixa pendente avisa antes, nunca recusa** (RF25): _Entreguei / Não entreguei / Sair para outra parada sem dar
+  a baixa / Nada por enquanto_. "Sair sem dar a baixa" lista as pendentes e grava a saída com a confirmação de fora de ordem já dada.
+- **RF30 — Bloco da parada em toda resposta da jornada** (saída, chegada, evento repetido, próxima rota): parada N de M, notas, valor
+  (soma em texto decimal), cliente, contratante, endereço, mapa, volumes e um "➡️ _Próximo passo:_". A chegada mostra a prévia da
+  próxima ("🔜 _Depois desta:_ NF · cliente – cidade"), sem pergunta. Distância e chegada prevista ("📏 _12,3 km_ do seu último ponto ·
+  ⏱️ _chegada prevista ~HH:MM (N min)_") **só** com ponto compartilhado nesta viagem (o último evento com coordenada) e pela estrada do
+  OSRM; sem ponto ou sem estrada, a linha some — nunca estimativa pela parada anterior.
+- **RF31 — A oferta da próxima rota é um menu**: _1 - Seguir para ela 🚚 / 2 - Escolher outra da lista / 3 - Nada por enquanto_. "2"
+  lista as pendentes (a mesma lista do "iniciar rota") e a escolha registra a saída.
+- **RF32 — A despedida só no fim**: saída e chegada fecham o pedido sem "Tenha uma boa noite"; a rota concluída, o "Nada por enquanto"
+  e o cancelamento se despedem.
+- **RF33 — "não entreguei" é comando** nos dois canais (antes só "devolvi"): no grupo, a nota (citada ou a única em aberto da parada
+  que chegou) e o motivo da lista fechada; a baixa que fecha a parada segue para a oferta da próxima rota.
+- **RF34 — Marcação do WhatsApp**: _negrito_ para o estado e os dados, _itálico_ para dicas; dado de terceiro perde `*`, `_`, `~`, `` ` ``.
+  Toda mensagem da jornada é conferida contra marcador sem par ou par vazio.
+- Os passos novos têm dono: `journey.actions` e `return.reason` no `GROUP_STEP_REGISTRY` e nas matrizes de isolamento; na conversa
+  individual, os pedidos tipados `journey_actions` e `stop_choice`.
+
 ## Requisitos não funcionais
 
 - **RNF1 — Um fluxo do bot não atrapalha o outro.**
