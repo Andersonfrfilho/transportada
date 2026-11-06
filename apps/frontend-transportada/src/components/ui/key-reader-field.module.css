@@ -1,0 +1,11 @@
+.reader {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
