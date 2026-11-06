@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 293 T15: as frases da entrega em preparo. Valem para o grupo e para a conversa individual, então
- * **nunca levam dado do cliente**: só o número da nota e o nome do item (desenho 3.4, regra 9). O nome
- * de quem recebeu não é repetido em resposta nenhuma.
+ * Spec 293 T15: as frases da entrega em preparo, do grupo e da conversa individual. As perguntas citam só o
+ * número da nota; o "Confirma a entrega?" traz o resumo completo (nota e o que foi colhido), como o da
+ * ocorrência — esconder cliente e endereço no grupo nunca foi decisão do dono (só o log fica sem PII).
  */
 import { RECEIVED_BY_OPTIONS, type ReceivedBy } from '../../database/trip.schema.js'
 import {
@@ -37,12 +37,19 @@ export const DELIVERY_PROOF_SPEECH = {
     'Algumas fotos não entraram no comprovante. Mande de novo pelo aplicativo, por favor.',
   cancelled: (documentNumber: string) =>
     `Entrega da NF ${documentNumber} cancelada. A nota continua aberta na viagem.`,
-  confirm: (documentNumber: string, summary: readonly string[]) =>
+  /** `document` (dados da nota) e `collected` (o que veio) são linhas prontas; bloco vazio some. */
+  confirm: (
+    documentNumber: string,
+    summary: { readonly collected: readonly string[]; readonly document: readonly string[] },
+  ) =>
     [
-      `✅ *NF ${documentNumber} pronta para fechar*${summary.length === 0 ? '' : `: ${summary.join(', ')}`}.`,
+      `✅ *NF ${documentNumber} pronta para fechar.*`,
+      ...summary.document,
+      ...(summary.collected.length === 0 ? [] : ['', ...summary.collected]),
+      '',
       '*Confirma a entrega?*',
-      '*1* - Sim',
-      '*2* - Não',
+      '*1* - Sim ✅',
+      '*2* - Não ❌',
     ].join('\n'),
   confirmNotUnderstood: 'Responda 1 para confirmar a entrega ou 2 para cancelar.',
   downloadFailed: 'Não consegui baixar a foto. Mande de novo, por favor.',

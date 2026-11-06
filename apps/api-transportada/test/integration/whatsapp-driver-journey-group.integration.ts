@@ -8,6 +8,7 @@
  * baixa, a oferta da próxima rota (1 e 2), fora de ordem, "não entreguei", "cancelar", nota já baixada e áudio.
  * Confere o texto exato de cada resposta, a marcação do WhatsApp e os eventos gravados.
  */
+import { createDeliveryConfirmNoteReader } from '../../src/whatsapp-commands/infrastructure/whatsapp-delivery-confirm-note.adapter.js'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
@@ -166,6 +167,7 @@ async function buildGroupJourney(db: JourneyDatabase, world: JourneyWorld, now: 
       throw new Error('a jornada não manda foto')
     },
     deliver: (input) => deliverWhatsAppDriverDocument(ports, input),
+    describeDocument: createDeliveryConfirmNoteReader({ database: db, listActiveTrips }),
     describeResult: ({ channel, companyId, documentNumber, result }) =>
       renderBotSpeechLine({
         companyId,

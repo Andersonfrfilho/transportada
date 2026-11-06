@@ -183,10 +183,17 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `Ok, sem esse item.\n\n✅ *NF 17234 pronta para fechar*.
+        `Ok, sem esse item.\n\n✅ *NF 17234 pronta para fechar.*
+🏢 Contratante: Distribuidora Aurora
+👤 Cliente: PADARIA SOL NASCENTE
+🏠 Endereço: RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
+💰 Valor da nota: *R$ 1.234,56*
+
+📍 Localização: não enviada
+
 *Confirma a entrega?*
-*1* - Sim
-*2* - Não`,
+*1* - Sim ✅
+*2* - Não ❌`,
       ],
       shown: 'pular',
     },
@@ -450,10 +457,17 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `Ok, sem esse item.\n\n✅ *NF 17235 pronta para fechar*.
+        `Ok, sem esse item.\n\n✅ *NF 17235 pronta para fechar.*
+🏢 Contratante: Distribuidora Aurora
+👤 Cliente: MERCADO LUA CHEIA
+🏠 Endereço: AVENIDA BRASIL, 2500, SERTAOZINHO, SP
+💰 Valor da nota: *R$ 99,90*
+
+📍 Localização: não enviada
+
 *Confirma a entrega?*
-*1* - Sim
-*2* - Não`,
+*1* - Sim ✅
+*2* - Não ❌`,
       ],
       shown: 'pular',
     },

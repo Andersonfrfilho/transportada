@@ -7,6 +7,7 @@
  * repetido, áudio, a oferta da próxima rota (1 e 2), fora de ordem, "saí" sem baixa, "não entreguei" e "rota
  * concluída". Confere o texto exato de cada resposta, a marcação do WhatsApp e os eventos gravados.
  */
+import { createDeliveryConfirmNoteReader } from '../../src/whatsapp-commands/infrastructure/whatsapp-delivery-confirm-note.adapter.js'
 import { createHmac } from 'node:crypto'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -203,6 +204,7 @@ async function buildDirectJourney(
       throw new Error('a jornada não manda foto')
     },
     deliver: (input) => deliverWhatsAppDriverDocument(ports, input),
+    describeDocument: createDeliveryConfirmNoteReader({ database: db, listActiveTrips }),
     describeResult: ({ channel, companyId, documentNumber, result }) =>
       renderBotSpeechLine({
         companyId,

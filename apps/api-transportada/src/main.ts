@@ -252,6 +252,7 @@ import { startCanhotoQuestionExpiryWatcher } from './whatsapp-commands/infrastru
 import { createWorkerCanhotoReader } from './whatsapp/infrastructure/worker-canhoto-reader.gateway.js'
 import { createWhatsAppDeliveryPreparations } from './whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { createWhatsAppPreparationProofAttacher } from './whatsapp-commands/infrastructure/whatsapp-delivery-preparation-proof.adapter.js'
+import { createDeliveryConfirmNoteReader } from './whatsapp-commands/infrastructure/whatsapp-delivery-confirm-note.adapter.js'
 import {
   createDrizzleWhatsAppDeliveryPreparationRepository,
   createWhatsAppDeliveryPreparationMedia,
@@ -1594,6 +1595,10 @@ export function bootstrap(): Bun.Server<undefined> {
     storage: whatsappStorageGateway,
   })
   const whatsappDeliveryPreparations = createWhatsAppDeliveryPreparations({
+    describeDocument: createDeliveryConfirmNoteReader({
+      database: database.db,
+      listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    }),
     findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
     listStops: listWhatsAppDriverStops,
     attachProof: (input) =>

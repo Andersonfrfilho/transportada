@@ -9,6 +9,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   createWhatsAppDeliveryPreparations,
   type WhatsAppDeliveryPreparation,
+  type WhatsAppDeliveryPreparationPorts,
   type WhatsAppDeliveryPreparationRepositoryPort,
 } from '../../src/whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type {
@@ -49,6 +50,7 @@ function setup(
   settings: DeliveryProofFieldSettings,
   deliverResult?: WhatsAppDriverEventResult,
   actor: WhatsAppDriverActor = ACTOR,
+  extra: Pick<WhatsAppDeliveryPreparationPorts, 'describeDocument'> = {},
 ) {
   const rows = new Map<string, WhatsAppDeliveryPreparation & { status: string }>()
   const objects = new Map<string, Uint8Array>()
@@ -107,6 +109,7 @@ function setup(
   }
 
   const service = createWhatsAppDeliveryPreparations({
+    ...extra,
     async attachProof({ upload }) {
       attached.push({
         kind: upload.kind,
@@ -252,6 +255,61 @@ describe('entrega em preparo pelo WhatsApp', () => {
     expect(t.delivered).toHaveLength(1)
     expect(t.attached).toEqual([{ kind: 'photo', receivedBy: null, receiverName: 'Maria Souza' }])
     expect(t.objects.size).toBe(0)
+  })
+
+  test('o "Confirma a entrega?" traz a nota e o que foi colhido, sem o nome de quem recebeu', async () => {
+    const t = setup({ ...OFF, photo: 'required', receivedBy: 'required' }, undefined, ACTOR, {
+      describeDocument: async () => ({
+        address: 'AV MONTE SERENO, 935, PRADOPOLIS, SP',
+        amount: '801.46',
+        client: 'AUTO POSTO MONTE SERENO LTDA',
+        contractor: 'COMERCIAL ZARAGOZA IMP EXP LTDA',
+      }),
+    })
+    await t.begin()
+    await t.answer('pular')
+    await t.photo('M1')
+    const confirm = await t.answer('8')
+    expect(confirm?.texts.at(-1)).toBe(
+      [
+        '✅ *NF 17234 pronta para fechar.*',
+        '🏢 Contratante: COMERCIAL ZARAGOZA IMP EXP LTDA',
+        '👤 Cliente: AUTO POSTO MONTE SERENO LTDA',
+        '🏠 Endereço: AV MONTE SERENO, 935, PRADOPOLIS, SP',
+        '💰 Valor da nota: *R$ 801,46*',
+        '',
+        '🧾 Canhoto: foto recebida',
+        '🙋 Recebido por: Porteiro',
+        '📍 Localização: não enviada',
+        '',
+        '*Confirma a entrega?*',
+        '*1* - Sim ✅',
+        '*2* - Não ❌',
+      ].join('\n'),
+    )
+  })
+
+  test('sem os dados da nota (consulta falhou), a confirmação sai mesmo assim', async () => {
+    const t = setup(OFF, undefined, ACTOR, {
+      describeDocument: async () => {
+        throw new Error('banco fora')
+      },
+    })
+    await t.begin()
+    const confirm = await t.answer('pular')
+    expect(confirm?.texts.at(-1)).toBe(
+      [
+        '✅ *NF 17234 pronta para fechar.*',
+        '',
+        '📍 Localização: não enviada',
+        '',
+        '*Confirma a entrega?*',
+        '*1* - Sim ✅',
+        '*2* - Não ❌',
+      ].join('\n'),
+    )
+    await t.answer('1')
+    expect(t.delivered).toHaveLength(1)
   })
 
   test('quem recebeu pela lista numerada; resposta fora da lista pede de novo', async () => {

@@ -32,6 +32,11 @@ import {
   resolveDeliveryProofChecklist,
   type DeliveryProofChecklist,
 } from '../domain/whatsapp-delivery-proof-checklist.policy.js'
+import {
+  describeDeliveryConfirmCollected,
+  describeDeliveryConfirmDocument,
+  type DeliveryConfirmDocument,
+} from '../domain/whatsapp-delivery-confirm-summary.policy.js'
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
 import { CANHOTO_TEXT } from '../domain/whatsapp-driver-canhoto.policy.js'
 import { TripCanhotoAlreadyAttachedError } from '../../trips/domain/stop-order.error.js'
@@ -173,6 +178,12 @@ export type WhatsAppDeliveryPreparationPorts = {
     readonly companyId: string
     readonly driverId: string
   }) => Promise<readonly WhatsAppStopCandidate[]>
+  /** Contratante, cliente, endereço e valor da nota para o "Confirma a entrega?"; ausente, o resumo fica sem eles. */
+  readonly describeDocument?: (input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly driverId: string
+  }) => Promise<DeliveryConfirmDocument | null>
   readonly logger?: Pick<ApiLogger, 'info' | 'warn'>
   readonly media: WhatsAppDeliveryPreparationMediaPort
   readonly repository: WhatsAppDeliveryPreparationRepositoryPort
@@ -181,6 +192,13 @@ export type WhatsAppDeliveryPreparationPorts = {
     readonly documentId: string
   }) => Promise<DeliveryProofFieldSettings>
 }
+
+type MutationOutcome =
+  | {
+      readonly ack: readonly string[]
+      readonly changes: Partial<WhatsAppDeliveryPreparationChanges>
+    }
+  | { readonly reply: readonly string[] }
 
 /** O que o canal manda de volta ao motorista. */
 export type WhatsAppDeliveryPreparationReply = {
@@ -335,10 +353,10 @@ export function createWhatsAppDeliveryPreparations(
   }
 
   /** O próximo passo dito ao motorista, e a pergunta que fica em aberto. */
-  function nextStep(
+  async function nextStep(
     preparation: WhatsAppDeliveryPreparation,
     checklist: DeliveryProofChecklist,
-  ): { readonly awaiting: null | string; readonly texts: readonly string[] } {
+  ): Promise<{ readonly awaiting: null | string; readonly texts: readonly string[] }> {
     const number = preparation.documentNumber
     if (checklist.next !== null) {
       return {
@@ -357,8 +375,34 @@ export function createWhatsAppDeliveryPreparations(
     }
     return {
       awaiting: DELIVERY_PREPARATION_AWAITING_CONFIRM,
-      texts: [DELIVERY_PROOF_SPEECH.confirm(number, summarize(preparation))],
+      texts: [
+        DELIVERY_PROOF_SPEECH.confirm(number, {
+          collected: summarizeCollected(preparation),
+          document: await describeDocumentLines(preparation),
+        }),
+      ],
     }
+  }
+
+  /** Os dados da nota no resumo; a consulta que falha não derruba a confirmação, só a deixa mais curta. */
+  async function describeDocumentLines(
+    preparation: WhatsAppDeliveryPreparation,
+  ): Promise<readonly string[]> {
+    if (ports.describeDocument === undefined) return []
+    const document = await ports
+      .describeDocument({
+        companyId: preparation.companyId,
+        documentId: preparation.documentId,
+        driverId: preparation.driverId,
+      })
+      .catch((error: unknown) => {
+        ports.logger?.warn('whatsapp delivery confirm: document details unavailable', {
+          documentId: preparation.documentId,
+          error: error instanceof Error ? error.message : 'unknown',
+        })
+        return null
+      })
+    return document === null ? [] : describeDeliveryConfirmDocument(document)
   }
 
   /** Aplica uma mudança com a versão lida, relendo quando outra mensagem andou no meio. */
@@ -368,17 +412,12 @@ export function createWhatsAppDeliveryPreparations(
     change: (
       preparation: WhatsAppDeliveryPreparation,
       checklist: DeliveryProofChecklist,
-    ) =>
-      | {
-          readonly ack: readonly string[]
-          readonly changes: Partial<WhatsAppDeliveryPreparationChanges>
-        }
-      | { readonly reply: readonly string[] },
+    ) => MutationOutcome | Promise<MutationOutcome>,
   ): Promise<WhatsAppDeliveryPreparationReply> {
     let preparation: null | WhatsAppDeliveryPreparation = initial
     for (let attempt = 0; attempt < MAX_RETRIES && preparation !== null; attempt += 1) {
       const before = await checklistOf(preparation, actor)
-      const outcome = change(preparation, before.checklist)
+      const outcome = await change(preparation, before.checklist)
       if ('reply' in outcome) {
         return {
           awaitingText: isTextQuestion(preparation.awaiting),
@@ -392,7 +431,7 @@ export function createWhatsAppDeliveryPreparations(
         collected: collectedOf(merged),
         settings: before.settings,
       })
-      const step = nextStep(merged, after)
+      const step = await nextStep(merged, after)
       const saved = await repository.save({
         changes: {
           awaiting: step.awaiting,
@@ -454,7 +493,7 @@ export function createWhatsAppDeliveryPreparations(
     const confirmOutOfOrder = confirmations.outOfOrder === true
     const { checklist } = await checklistOf(preparation, actor)
     if (!checklist.ready) {
-      const step = nextStep(preparation, checklist)
+      const step = await nextStep(preparation, checklist)
       return {
         awaitingText: isTextQuestion(step.awaiting),
         documentNumber: preparation.documentNumber,
@@ -712,7 +751,7 @@ export function createWhatsAppDeliveryPreparations(
           waiting.awaiting === DELIVERY_PROOF_ITEM.location
             ? MEDIA_REQUEST_TEXT.location
             : MEDIA_REQUEST_TEXT.photo,
-          ...nextStep(waiting, checklist).texts,
+          ...(await nextStep(waiting, checklist)).texts,
         ],
       }
     },
@@ -929,10 +968,10 @@ export function createWhatsAppDeliveryPreparations(
   }
 
   function skip(preparation: WhatsAppDeliveryPreparation, actor: WhatsAppDriverActor) {
-    return mutate(preparation, actor, (current, checklist) => {
+    return mutate(preparation, actor, async (current, checklist) => {
       const question = checklist.next
       if (question === null || current.awaiting !== question.item) {
-        return { reply: nextStep(current, checklist).texts }
+        return { reply: (await nextStep(current, checklist)).texts }
       }
       if (!question.optional) {
         return {
@@ -1003,18 +1042,14 @@ function changesOf(preparation: WhatsAppDeliveryPreparation): WhatsAppDeliveryPr
   }
 }
 
-function summarize(preparation: WhatsAppDeliveryPreparation): readonly string[] {
-  const canhoto = preparation.photos.filter((photo) => photo.kind === 'photo').length
-  const cargo = preparation.photos.filter((photo) => photo.kind === 'cargo').length
-  return [
-    ...(canhoto > 0 ? ['foto do canhoto'] : []),
-    ...(cargo > 0 ? [`${cargo === 1 ? '1 foto' : `${cargo} fotos`} da mercadoria`] : []),
-    ...(preparation.receivedBy !== null ? ['quem recebeu'] : []),
-    ...(preparation.receiverName !== null && preparation.receiverName !== ''
-      ? ['nome de quem recebeu']
-      : []),
-    ...(preparation.location !== null ? ['localização'] : []),
-  ]
+function summarizeCollected(preparation: WhatsAppDeliveryPreparation): readonly string[] {
+  return describeDeliveryConfirmCollected({
+    canhotoPhotos: preparation.photos.filter((photo) => photo.kind === 'photo').length,
+    cargoPhotos: preparation.photos.filter((photo) => photo.kind === 'cargo').length,
+    location: preparation.location,
+    receivedBy: preparation.receivedBy,
+    skipped: preparation.skipped,
+  })
 }
 
 /** Spec 294 RF22: o que o bot diz quando pediu mídia e veio áudio. */
