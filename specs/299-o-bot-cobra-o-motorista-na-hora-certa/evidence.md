@@ -172,3 +172,48 @@ Horas `HH:MM` no fuso da empresa. A marcação `@<telefone>` é do suporte de me
   confere com a convenção do grafo raiz e ajusta o contrato se divergir.
 - Escape de dado de terceiro (RF9) não está nestes contratos: onde o escape mora hoje (política ou renderizador do nó)
   decide a T1.3/T2.3.
+
+## T1.1 — 2026-11-06
+
+Chave global `DRIVER_REMINDERS_ENABLED` (padrão `false`), espelho de `MDFE_AUTO_ISSUE_ENABLED`. Ainda sem consumidor
+(as tasks seguintes a usam). Contrato antes da implementação.
+
+**Vermelho antes** (`bun test` nos dois contratos, sem implementação):
+- API `test/authentication.contract.test.ts`: `Expected: false / Received: undefined` em `driverRemindersEnabled`
+  (teste novo `DRIVER_REMINDERS_ENABLED: ausente ou vazio é desligado, true liga, outro valor derruba o boot`).
+- Worker `test/environment.contract.test.ts`: 3 falhas no describe novo `o interruptor dos lembretes do motorista`
+  (ausente/vazio → `undefined`; `true` → `undefined`; `yes` não derruba o boot).
+
+**Verde depois:**
+- API `test/authentication.contract.test.ts`: 19 pass, 0 fail.
+- Worker `test/environment.contract.test.ts`: 47 pass, 0 fail (o teste `parses the autonomous Bun worker configuration`
+  ganhou `driverRemindersEnabled: false` no `toEqual`, senão ficava vermelho pela chave nova).
+
+**Arquivos:**
+- `apps/api-transportada/src/config/environment.schema.ts`: chave com `preprocess` (vazio = ausente) e mapeamento
+  `driverRemindersEnabled`.
+- `apps/api-transportada/src/shared/api.types.ts`: campo `driverRemindersEnabled` em `ApiEnvironment`.
+- `apps/api-transportada/test/authentication.contract.test.ts`: caso novo.
+- `apps/api-transportada/test/integration/server.integration.ts`, `auth-me.integration.ts`: fixtures de `ApiEnvironment`
+  ganham `driverRemindersEnabled: false` (o typecheck exigiu).
+- `apps/worker-transportada/src/config/environment.schema.ts`: chave com `preprocess` (vazio = ausente, como a API;
+  o `MDFE_AUTO_ISSUE_ENABLED` do worker não tem essa tolerância, por isso o desvio) e mapeamento.
+- `apps/worker-transportada/src/shared/worker.types.ts`: campo `driverRemindersEnabled`.
+- `apps/worker-transportada/test/environment.contract.test.ts`: describe novo + chave no `toEqual` existente.
+- `.env.example` (raiz): `DRIVER_REMINDERS_ENABLED=false` logo abaixo de `MDFE_AUTO_ISSUE_ENABLED`.
+- `specs/299-o-bot-cobra-o-motorista-na-hora-certa/tasks.md`: T1.1 marcada.
+
+`make config` lê o schema da API (`parseEnvironment(process.env)`, com o `.env` real) e não o do worker; por isso
+a validação do `make config` cobre a chave da API, e a do worker fica no contrato do worker.
+
+**Gates:**
+- API `bun run typecheck`: só os erros esperados da T0.2 (`test/driver-stop-reminders/*`, TS2307/TS7006, 8 linhas).
+  Zero erro novo.
+- API eslint (`--max-warnings=0`) e prettier nos arquivos tocados: limpos.
+- API `bun run test`: 14188 pass, 35 skip, 1 fail + 1 error, os dois em `test/driver-stop-reminders.contract.test.ts`
+  (`Cannot find module .../driver-stop-reminders/domain/*`, esperado até a T1.3).
+- API `bun --env-file=../../.env.test test --timeout 120000`: 14197 pass, 26 skip, 1 fail + 1 error, os mesmos da T0.2.
+- API `bun run test:integration` (`--env-file=../../.env.test`): **não concluído** nesta sessão. Rodou mais de 1 h sem terminar (pid 3907729, log `/tmp/claude-1000/-home-miyazaki-Documents-personal-transportada/4aacf520-d202-44a6-b36e-4909184c8327/api-integration2.log`, banco de teste ativo). Os arquivos de integração tocados só mudaram fixture (`driverRemindersEnabled: false`); o typecheck os cobre.
+- Worker `bun run typecheck`: 0 erros. Worker eslint e prettier nos arquivos tocados: limpos.
+- Worker `bun run test`: 3037 pass, 0 fail, 115 arquivos.
+- `make config` (raiz): exit 0.
