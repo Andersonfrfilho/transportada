@@ -21,6 +21,9 @@ const REJECTION_CAUSE_LABEL_KEYS: Readonly<Record<string, string>> = {
   TRIP_OCCURRENCE_ITEMS_REQUIRED: 'eventQueue.cause.itemsRequired',
   TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED: 'eventQueue.cause.referenceNumberRequired',
   TRIP_DELIVERY_PROOF_TOO_LARGE: 'eventQueue.cause.tooLarge',
+  /** O despacho que o servidor recusa por nota não carregada ou parada sem horário: só o escritório destrava. */
+  TRIP_HAS_UNLOADED_DOCUMENTS: 'eventQueue.cause.unloadedDocuments',
+  TRIP_HAS_UNSCHEDULED_STOPS: 'eventQueue.cause.unscheduledStops',
   TRIP_NOT_OF_DRIVER: 'eventQueue.cause.notOfDriver',
   TRIP_STOP_NOT_REACHABLE: 'eventQueue.cause.stopNotReachable',
 }
