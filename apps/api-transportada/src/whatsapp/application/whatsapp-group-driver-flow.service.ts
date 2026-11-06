@@ -32,7 +32,10 @@ import {
   ROUTE_OFFER_TEXT,
 } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import type { WhatsAppRouteContinuation } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
+import { GROUP_DELIVERY_STEP } from './whatsapp-group-delivery-flow.service.js'
 import { GROUP_OCCURRENCE_STEP } from './whatsapp-group-occurrence-flow.service.js'
+import { GROUP_STOP_STEP } from './whatsapp-group-stop-flow.service.js'
+import { GROUP_TRIP_CLOSE_STEP } from './whatsapp-group-trip-close-flow.service.js'
 import type { GroupBoletoResend } from './whatsapp-group-boleto-resend.service.js'
 import type { createGroupDeliveryFlow } from './whatsapp-group-delivery-flow.service.js'
 import type { createGroupTripCloseFlow } from './whatsapp-group-trip-close-flow.service.js'
@@ -42,9 +45,6 @@ import type {
   GroupFlowTurn,
   GroupRequestFlow,
 } from './whatsapp-group-request.port.js'
-
-/** Os passos que a ocorrência é dona: sem prefixo de outro fluxo, só estes chegam a ela. */
-const OCCURRENCE_OWNED_STEPS: ReadonlySet<string> = new Set(Object.values(GROUP_OCCURRENCE_STEP))
 
 export const GROUP_DRIVER_STEP = {
   closePrefix: 'close.',
@@ -56,6 +56,53 @@ export const GROUP_DRIVER_STEP = {
 
 /** Spec 294 RF8: o passo que espera o "1 - Sim, iniciar rota / 2 - Agora não" da próxima parada. */
 export const GROUP_ROUTE_STEP = { offer: 'offer' } as const
+
+export type GroupStepOwner = 'close' | 'delivery' | 'menu' | 'occurrence' | 'route' | 'stop'
+
+/** Quem é dono de cada passo guardado no pedido. Só a ocorrência e o menu andam sem prefixo. */
+export const GROUP_STEP_REGISTRY: readonly {
+  readonly owner: string
+  readonly prefix: string
+  readonly steps: readonly string[]
+}[] = [
+  { owner: 'menu', prefix: '', steps: [GROUP_DRIVER_STEP.menu] },
+  { owner: 'occurrence', prefix: '', steps: Object.values(GROUP_OCCURRENCE_STEP) },
+  {
+    owner: 'delivery',
+    prefix: GROUP_DRIVER_STEP.deliveryPrefix,
+    steps: Object.values(GROUP_DELIVERY_STEP),
+  },
+  { owner: 'route', prefix: GROUP_DRIVER_STEP.routePrefix, steps: Object.values(GROUP_ROUTE_STEP) },
+  {
+    owner: 'close',
+    prefix: GROUP_DRIVER_STEP.closePrefix,
+    steps: Object.values(GROUP_TRIP_CLOSE_STEP),
+  },
+  { owner: 'stop', prefix: GROUP_DRIVER_STEP.stopPrefix, steps: Object.values(GROUP_STOP_STEP) },
+]
+
+/** Os nomes de passo (com prefixo) declarados por mais de um fluxo; vazio quando cada um tem um dono. */
+export function findDuplicateGroupSteps(registry: typeof GROUP_STEP_REGISTRY): string[] {
+  const seen = new Set<string>()
+  const duplicated = new Set<string>()
+  for (const entry of registry) {
+    for (const step of entry.steps) {
+      const qualified = `${entry.prefix}${step}`
+      if (seen.has(qualified)) duplicated.add(step)
+      seen.add(qualified)
+    }
+  }
+  return [...duplicated]
+}
+
+function ownerOfStep(step: string): GroupStepOwner | undefined {
+  for (const entry of GROUP_STEP_REGISTRY) {
+    if (entry.steps.some((inner) => `${entry.prefix}${inner}` === step)) {
+      return entry.owner as GroupStepOwner
+    }
+  }
+  return undefined
+}
 
 type RouteOfferState = {
   readonly routeOffer?: {
@@ -177,82 +224,66 @@ export function createGroupDriverFlow(flows: {
     return withStopPrefix(await flows.stop.begin(turn, item.event, []))
   }
 
+  const inner = (turn: GroupFlowTurn, prefix: string): GroupFlowTurn => ({
+    ...turn,
+    request: { ...turn.request, step: turn.request.step.slice(prefix.length) },
+  })
+  const notUnderstoodMenu = (): GroupFlowOutcome => ({
+    kind: 'not_understood',
+    prompt: menuText,
+    reason: 'responda com o número da opção',
+  })
+
   const flow: GroupRequestFlow = {
     async answer(turn) {
       const { step } = turn.request
-      if (step === GROUP_DRIVER_STEP.menu) {
-        // Spec 292 T9: a frase inteira no lugar da opção ("ocorrência, prorrogação do boleto da nota
-        // 899877", por texto ou pelo áudio confirmado) vale como o pedido direto, com nota e tipo.
-        if (isFreeSentence(turn.text)) return flow.start(turn)
-        const item = pickMenuItem(menu, turn.text)
-        if (item === undefined) {
-          return {
-            kind: 'not_understood',
-            prompt: menuText,
-            reason: 'responda com o número da opção',
-          }
+      // Quem fez a pergunta (o dono do passo) é quem responde; passo sem dono não é de ninguém.
+      switch (ownerOfStep(step)) {
+        case 'menu': {
+          // Spec 292 T9: a frase inteira no lugar da opção ("ocorrência, prorrogação do boleto da nota
+          // 899877", por texto ou pelo áudio confirmado) vale como o pedido direto, com nota e tipo.
+          if (isFreeSentence(turn.text)) return flow.start(turn)
+          const item = pickMenuItem(menu, turn.text)
+          return item === undefined ? notUnderstoodMenu() : choose(turn, item)
         }
-        return choose(turn, item)
-      }
-      if (delivery !== undefined && step.startsWith(GROUP_DRIVER_STEP.deliveryPrefix)) {
-        const answered = await delivery.answer({
-          ...turn,
-          request: {
-            ...turn.request,
-            step: step.slice(GROUP_DRIVER_STEP.deliveryPrefix.length),
-          },
-        })
-        return settleDelivery(turn, withDeliveryPrefix(answered))
-      }
-      if (step.startsWith(GROUP_DRIVER_STEP.routePrefix)) return answerRouteOffer(turn)
-      if (tripClose !== undefined && step.startsWith(GROUP_DRIVER_STEP.closePrefix)) {
-        return withClosePrefix(
-          await tripClose.answer({
-            ...turn,
-            request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.closePrefix.length) },
-          }),
-        )
-      }
-      if (step.startsWith(GROUP_DRIVER_STEP.stopPrefix)) {
-        return withStopPrefix(
-          await flows.stop.answer({
-            ...turn,
-            request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.stopPrefix.length) },
-          }),
-        )
-      }
-      if (!OCCURRENCE_OWNED_STEPS.has(step)) {
-        return {
-          kind: 'not_understood',
-          prompt: menuText,
-          reason: 'responda com o número da opção',
+        case 'delivery': {
+          if (delivery === undefined) return notUnderstoodMenu()
+          const answered = await delivery.answer(inner(turn, GROUP_DRIVER_STEP.deliveryPrefix))
+          return settleDelivery(turn, withDeliveryPrefix(answered))
         }
+        case 'route':
+          return answerRouteOffer(turn)
+        case 'close':
+          if (tripClose === undefined) return notUnderstoodMenu()
+          return withClosePrefix(await tripClose.answer(inner(turn, GROUP_DRIVER_STEP.closePrefix)))
+        case 'stop':
+          return withStopPrefix(await flows.stop.answer(inner(turn, GROUP_DRIVER_STEP.stopPrefix)))
+        case 'occurrence':
+          return flows.occurrence.answer(turn)
+        default:
+          return notUnderstoodMenu()
       }
-      return flows.occurrence.answer(turn)
     },
 
     initialStep: flows.occurrence.initialStep,
 
+    /** "Cancelar" vai ao fluxo dono do passo; sem dono com cancelamento próprio, o pedido só fecha. */
+    async cancel(turn) {
+      if (ownerOfStep(turn.request.step) !== 'delivery' || delivery === undefined) return null
+      const answered = await delivery.answer(inner(turn, GROUP_DRIVER_STEP.deliveryPrefix))
+      return withDeliveryPrefix(answered)
+    },
+
     locationReceived(turn) {
-      const { step } = turn.request
-      // Spec 294 RF24: o pedido de localização do "saí"/"cheguei" é das paradas.
-      if (step.startsWith(GROUP_DRIVER_STEP.stopPrefix)) {
-        return flows.stop.locationReceived({
-          ...turn,
-          request: { ...turn.request, step: step.slice(GROUP_DRIVER_STEP.stopPrefix.length) },
-        })
+      // Spec 294 RF24: o pedido de localização do "saí"/"cheguei" é das paradas; a ocorrência tem o seu.
+      switch (ownerOfStep(turn.request.step)) {
+        case 'stop':
+          return flows.stop.locationReceived(inner(turn, GROUP_DRIVER_STEP.stopPrefix))
+        case 'occurrence':
+          return flows.occurrence.locationReceived?.(turn) ?? null
+        default:
+          return null
       }
-      if (
-        step === GROUP_DRIVER_STEP.menu ||
-        step.startsWith(GROUP_DRIVER_STEP.deliveryPrefix) ||
-        step.startsWith(GROUP_DRIVER_STEP.closePrefix) ||
-        step.startsWith(GROUP_DRIVER_STEP.routePrefix) ||
-        step.startsWith(GROUP_DRIVER_STEP.stopPrefix)
-      ) {
-        return null
-      }
-      if (!OCCURRENCE_OWNED_STEPS.has(step)) return null
-      return flows.occurrence.locationReceived?.(turn) ?? null
     },
 
     async start(turn) {

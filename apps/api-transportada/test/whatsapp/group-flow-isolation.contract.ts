@@ -163,6 +163,23 @@ describe('isolamento dos fluxos do grupo: só quem perguntou trata a resposta', 
     })
   }
 
+  test.each(['stop.bogus', 'delivery.bogus', 'close.bogus', 'route.bogus', 'bogus.location'])(
+    'passo sem dono (%s) não é consumido por nenhum fluxo',
+    async (step) => {
+      const { calls, flow, recorded } = setup()
+      const turn = {
+        request: request(step, { locationFor: TARGET, routeOffer: { stopId: 'S1' } }),
+        sender: OWNER_NUMBER,
+        senderName: null,
+        text: '1',
+      }
+      expect(await flow.answer(turn)).toMatchObject({ kind: 'not_understood' })
+      expect(await flow.locationReceived?.({ ...turn, location: LOCATION })).toBeNull()
+      expect(calls).toEqual({ close: [], delivery: [], occurrence: [] })
+      expect(recorded).toEqual([])
+    },
+  )
+
   test('passo que nenhum fluxo reconhece não é consumido pela ocorrência', async () => {
     const { calls, flow } = setup()
     const turn = {

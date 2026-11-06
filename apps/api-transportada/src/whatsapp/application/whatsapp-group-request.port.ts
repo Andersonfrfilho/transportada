@@ -108,6 +108,11 @@ export type GroupFlowOutcome =
 /** Spec 292 T5: o que o pedido pede, passo a passo. A sessão (T4) só guarda e encadeia. */
 export type GroupRequestFlow = {
   answer(turn: GroupFlowTurn): Promise<GroupFlowOutcome>
+  /**
+   * "Cancelar" com o pedido aberto: o fluxo dono do passo encerra do jeito dele (ex.: a entrega em preparo). `null` (ou
+   * método ausente): o pedido só fecha como cancelado.
+   */
+  cancel?(turn: GroupFlowTurn): Promise<GroupFlowOutcome | null>
   readonly initialStep: string
   /** A localização compartilhada pelo dono do pedido: avança o passo que a espera, ou `null` se não há. */
   locationReceived?(turn: GroupFlowTurn): Promise<GroupFlowOutcome | null> | GroupFlowOutcome | null
