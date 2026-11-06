@@ -988,17 +988,17 @@ O script entra no worker por `railway ssh`, usa o certificado de distribuição 
 
 **O que o cStat quer dizer:**
 
-| cStat ou schema | O que é |
-|---|---|
-| `procNFe` | nota completa |
-| `resNFe` | só o resumo; a operação envia o XML |
-| 640 | a transportadora não consta na nota; envie o XML |
-| 217 | chave inexistente |
-| 632 | fora de 90 dias |
-| 653 | cancelada |
-| 654 | denegada |
-| 593 | certificado não bate |
-| 656 | limite estourado; esperar 65 min |
+| cStat ou schema | O que é                                          |
+| --------------- | ------------------------------------------------ |
+| `procNFe`       | nota completa                                    |
+| `resNFe`        | só o resumo; a operação envia o XML              |
+| 640             | a transportadora não consta na nota; envie o XML |
+| 217             | chave inexistente                                |
+| 632             | fora de 90 dias                                  |
+| 653             | cancelada                                        |
+| 654             | denegada                                         |
+| 593             | certificado não bate                             |
+| 656             | limite estourado; esperar 65 min                 |
 
 **Orçamento e bloqueio.** A tabela `nfe_access_key_lookup_budgets` (`company_id`, `environment`) guarda o orçamento: no
 máximo 15 consultas por chave por hora corrida. O bloqueio de 656 fica em `blocked_until` e vale também para a
