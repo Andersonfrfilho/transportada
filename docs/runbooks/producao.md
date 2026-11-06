@@ -926,3 +926,13 @@ e `memory.peak` do cgroup a cada 200 ms.
 
 Produção: `CANHOTO_OCR_ENABLED=true` gravada em `worker` e `api` com `railway variables --set ... --skip-deploys`
 (sem redeploy; vale quando a spec 294 for promovida e os serviços subirem). Reverter: `--set CANHOTO_OCR_ENABLED=false`.
+
+### Staging: usuário de teste com papel Motorista fora da frota (06/11/2026)
+
+A listagem da frota parte de `fleet_drivers`, não dos usuários do Keycloak. O papel "Motorista" só vira ficha no convite (com CPF
+e ficha órfã de mesmo CPF, `linkFleetDriver`); trocar papel depois não cria nem liga ficha. Usuário de teste com o papel e sem
+ficha fica fora da frota. Produção conferida em 05/11: nenhum usuário com papel de frota sem ficha
+(`producao-motorista-fora-da-frota.sh`). Para criar a ficha em **staging** ligada ao usuário `anderson.fernandes`:
+`CPF=<11 dígitos> TELEFONE=<DDD+número> bash tmp/ops/staging-cria-ficha-motorista-teste.sh` (idempotente; só INSERT; telefone
+no banco é 10 ou 11 dígitos, sem 55, `fleet_drivers_phone_check`). Criada em 06/11/2026 com CPF fictício `52998224725` e telefone
+`16993056772`. Reverter: apagar a linha de `fleet_drivers` com esse `membership_id`.
