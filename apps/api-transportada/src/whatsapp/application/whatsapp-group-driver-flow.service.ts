@@ -283,6 +283,8 @@ export function createGroupDriverFlow(flows: {
     const actions = readJourneyActions(
       (turn.request.state as { readonly journeyActions?: unknown }).journeyActions,
     )
+    // Comando digitado ("entreguei 456", "saí") com o menu aberto é um pedido novo, nunca a nota do menu.
+    if (isDriverCommand(turn.text)) return flow.start(turn)
     const action = pickJourneyAction(actions, turn.text)
     if (action === undefined) {
       return {
@@ -443,6 +445,14 @@ export function createGroupDriverFlow(flows: {
     },
   }
   return flow
+}
+
+/** "saí", "cheguei 17234", "entreguei 456", "não entreguei": um comando da rota, não a resposta do menu. */
+function isDriverCommand(text: string): boolean {
+  return (
+    interpretDriverStopCommand(text) !== null ||
+    interpretWhatsAppDriverEventCommand(text) !== undefined
+  )
 }
 
 /** Duas palavras ou mais com letras: uma frase, não o número ou o nome curto de uma opção. */

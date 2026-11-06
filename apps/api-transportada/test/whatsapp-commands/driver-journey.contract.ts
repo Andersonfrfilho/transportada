@@ -37,6 +37,10 @@ import {
   sumDecimalAmounts,
   type StopCard,
 } from '../../src/whatsapp-commands/domain/whatsapp-stop-card.policy.js'
+import type { DriverTripStop } from '../../src/trips/application/find-current-driver-trip.use-case.js'
+import { CATALOG_BOT_SPEECH } from '../../src/whatsapp-commands/application/whatsapp-bot-speech.service.js'
+import { createWhatsAppDriverPrompts } from '../../src/whatsapp-commands/application/whatsapp-driver-prompts.service.js'
+import { resolveEtaOrigin } from '../../src/whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
 import { findWhatsAppMarkupProblems } from '../fixtures/whatsapp-markup.fixture.js'
 
 /** 13:05 em Brasília. */
@@ -319,5 +323,58 @@ describe('as paradas da jornada', () => {
     ],
   ])('"%s" é a baixa de não entrega', (text, expected) => {
     expect(interpretWhatsAppDriverEventCommand(text)).toEqual(expected as never)
+  })
+})
+
+describe('o bloco da parada é melhor esforço na conversa individual (revisão do #552)', () => {
+  test('o leitor falhando não derruba a resposta: o registro responde a frase de sempre', async () => {
+    const prompts = createWhatsAppDriverPrompts({
+      clock: () => NOW,
+      ports: {
+        reportArrival: async () => ({}),
+        reportDeparture: async () => ({ changed: true }),
+      },
+      speech: CATALOG_BOT_SPEECH,
+      stopCards: { read: () => Promise.reject(new Error('banco fora')) },
+    })
+    const result = await prompts.recordStop({
+      actor: { actorUserId: 'U', companyId: 'C', driverId: 'D' },
+      context: {},
+      event: 'depart',
+      idempotencyKey: 'k',
+      location: null,
+      stopId: 'S1',
+    })
+    expect(result.texts).toEqual(['*Saída registrada* 🚚'])
+  })
+})
+
+describe('a estrada só a partir do ponto do trecho atual (revisão do #552)', () => {
+  const trip = (stops: readonly Partial<DriverTripStop>[]) =>
+    ({
+      stops: stops.map((item) => ({ arrivedAt: null, enRouteSince: null, id: '', ...item })),
+    }) as never
+
+  test('saída: o ponto vale só da saída desta parada', () => {
+    expect(
+      resolveEtaOrigin(trip([{ enRouteSince: '2026-11-06T15:00:00.000Z', id: 'S2' }]), 'S2'),
+    ).toEqual({ kinds: ['departed'], stopId: 'S2' })
+  })
+
+  test('oferta: o ponto vale só da última parada em que o motorista chegou', () => {
+    expect(
+      resolveEtaOrigin(
+        trip([
+          { arrivedAt: '2026-11-06T09:00:00.000Z', id: 'S1' },
+          { arrivedAt: '2026-11-06T14:00:00.000Z', id: 'S2' },
+          { id: 'S3' },
+        ]),
+        'S3',
+      ),
+    ).toEqual({ kinds: ['arrived', 'delivered', 'returned'], stopId: 'S2' })
+  })
+
+  test('sem saída nem chegada na viagem, não há trecho (sem estrada)', () => {
+    expect(resolveEtaOrigin(trip([{ id: 'S1' }]), 'S1')).toBeNull()
   })
 })

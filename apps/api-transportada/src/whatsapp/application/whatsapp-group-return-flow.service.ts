@@ -172,8 +172,10 @@ export function createGroupReturnFlow(ports: GroupReturnFlowPorts) {
     async answer(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
       const target = (turn.request.state as ReturnState).returnFor
       const reason = pickReturnReason(turn.text)
-      if (target === undefined)
-        return { kind: 'not_understood', prompt: '', reason: 'pedido sem nota' }
+      // Pedido sem a nota guardada não é mais deste fluxo: fecha limpo, dizendo como recomeçar.
+      if (target === undefined) {
+        return { kind: 'done', replies: [GROUP_RETURN_TEXT.whichDocument], withoutFarewell: true }
+      }
       if (reason === undefined) {
         return {
           kind: 'not_understood',

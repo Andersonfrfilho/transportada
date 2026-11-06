@@ -42,7 +42,38 @@ export type WhatsAppStopCardReader = {
 
 export const WHATSAPP_STOP_CARD_LOG = {
   etaUnavailable: 'whatsapp_stop_card.eta_unavailable',
+  readFailed: 'whatsapp_stop_card.read_failed',
 } as const
+
+/**
+ * De qual parada (e de quais eventos dela) o ponto compartilhado vale como origem da estrada — o trecho atual, por parada e não por relógio.
+ * Saída (parada a caminho): o ponto da saída desta parada. Oferta da próxima: o ponto da última parada em que o motorista
+ * chegou (chegada ou baixa). Sem nenhuma, `null` (sem estrada): um ponto da manhã nunca vira a origem da tarde.
+ */
+export type EtaOrigin = {
+  /** Os eventos da parada que contam: a saída (a caminho) ou o que se registra nela (chegada e baixa). */
+  readonly kinds: readonly string[]
+  readonly stopId: string
+}
+
+const AT_STOP_EVENTS = ['arrived', 'delivered', 'returned'] as const
+
+export function resolveEtaOrigin(
+  trip: Pick<DriverTrip, 'stops'>,
+  stopId: string,
+): EtaOrigin | null {
+  const target = trip.stops.find((stop) => stop.id === stopId)
+  if (target !== undefined && target.enRouteSince !== null && target.arrivedAt === null) {
+    return { kinds: ['departed'], stopId: target.id }
+  }
+  const arrived = trip.stops
+    .filter((stop) => stop.id !== stopId && stop.arrivedAt !== null)
+    .map((stop) => ({ id: stop.id, time: new Date(stop.arrivedAt ?? '').getTime() }))
+    .filter((stop) => Number.isFinite(stop.time))
+    .sort((left, right) => right.time - left.time)
+  const [last] = arrived
+  return last === undefined ? null : { kinds: AT_STOP_EVENTS, stopId: last.id }
+}
 
 function shownDocuments(stop: DriverTripStop) {
   const open = stop.documents.filter((document) => !CLOSED.has(document.separationStatus))
@@ -110,12 +141,15 @@ export function createWhatsAppStopCardReader(dependencies: {
     return typeof name === 'string' ? name.trim() : ''
   }
 
-  async function lastPointOf(companyId: string, tripId: string) {
+  async function lastPointOf(companyId: string, origin: EtaOrigin) {
     const rows = (await database.execute(sql`
       select event.latitude::text as latitude, event.longitude::text as longitude
         from trip_stop_events event
-        join trip_stops stop on stop.company_id = event.company_id and stop.id = event.stop_id
-       where event.company_id = ${companyId}::uuid and stop.trip_id = ${tripId}::uuid
+       where event.company_id = ${companyId}::uuid and event.stop_id = ${origin.stopId}::uuid
+         and event.kind in (${sql.join(
+           origin.kinds.map((kind) => sql`${kind}`),
+           sql`, `,
+         )})
          and event.latitude is not null and event.longitude is not null
        order by event.created_at desc
        limit 1`)) as unknown as readonly {
@@ -132,11 +166,13 @@ export function createWhatsAppStopCardReader(dependencies: {
   async function etaOf(input: {
     readonly card: StopCard
     readonly companyId: string
-    readonly tripId: string
+    readonly trip: DriverTrip
   }): Promise<StopCardEta | undefined> {
     const { card, companyId } = input
     if (dependencies.routing === undefined || card.coordinate === null) return undefined
-    const origin = await lastPointOf(companyId, input.tripId)
+    const etaOrigin = resolveEtaOrigin(input.trip, card.stopId)
+    if (etaOrigin === null) return undefined
+    const origin = await lastPointOf(companyId, etaOrigin)
     if (origin === null) return undefined
     const road = await dependencies.routing.readRouteGeometry([
       origin,
@@ -154,25 +190,37 @@ export function createWhatsAppStopCardReader(dependencies: {
   }
 
   return {
-    async read({ companyId, driverId, stopId, withEta }) {
-      const trips = await dependencies.listActiveTrips({ companyId, driverId })
-      const trip = trips.find((candidate) => candidate.stops.some((stop) => stop.id === stopId))
-      const stop = trip?.stops.find((candidate) => candidate.id === stopId)
-      if (trip === undefined || stop === undefined) return null
-      const card = cardOf(
-        trip,
-        stop,
-        await contractorNameOf(companyId, shownDocuments(stop)[0]?.id),
-      )
-      const nextStop = findNextPendingStop(
-        trip.stops.filter((candidate) => candidate.id !== stopId),
-      )
-      const eta = withEta === true ? await etaOf({ card, companyId, tripId: trip.id }) : undefined
-      return {
-        card,
-        ...(eta === undefined ? {} : { eta }),
-        ...(nextStop === undefined ? {} : { next: cardOf(trip, nextStop, '') }),
+    /** Melhor esforço: falha na leitura vira `null` (a resposta sai com a frase de sempre), log sem PII. */
+    async read(input) {
+      try {
+        return await readView(input)
+      } catch (error) {
+        dependencies.logger?.warn(WHATSAPP_STOP_CARD_LOG.readFailed, {
+          companyId: input.companyId,
+          errorName: error instanceof Error ? error.name : typeof error,
+        })
+        return null
       }
     },
+  }
+
+  async function readView({
+    companyId,
+    driverId,
+    stopId,
+    withEta,
+  }: Parameters<WhatsAppStopCardReader['read']>[0]): Promise<StopCardView | null> {
+    const trips = await dependencies.listActiveTrips({ companyId, driverId })
+    const trip = trips.find((candidate) => candidate.stops.some((stop) => stop.id === stopId))
+    const stop = trip?.stops.find((candidate) => candidate.id === stopId)
+    if (trip === undefined || stop === undefined) return null
+    const card = cardOf(trip, stop, await contractorNameOf(companyId, shownDocuments(stop)[0]?.id))
+    const nextStop = findNextPendingStop(trip.stops.filter((candidate) => candidate.id !== stopId))
+    const eta = withEta === true ? await etaOf({ card, companyId, trip }) : undefined
+    return {
+      card,
+      ...(eta === undefined ? {} : { eta }),
+      ...(nextStop === undefined ? {} : { next: cardOf(trip, nextStop, '') }),
+    }
   }
 }

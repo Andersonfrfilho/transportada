@@ -1774,6 +1774,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappDriverPrompts = createWhatsAppDriverPrompts({
     clock: () => new Date(),
     listStops: listWhatsAppDriverStops,
+    logger,
     ports: whatsappDriverEventPorts,
     sharedLocations: whatsappSharedLocations,
     speech: whatsappBotSpeech,

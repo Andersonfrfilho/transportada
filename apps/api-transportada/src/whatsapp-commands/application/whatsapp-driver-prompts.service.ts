@@ -203,10 +203,27 @@ export function createWhatsAppDriverPrompts(dependencies: {
   /** Ausente, o bot não pede localização (como antes da 294). */
   readonly sharedLocations?: Pick<WhatsAppSharedLocationStore, 'consume' | 'has'>
   readonly speech: WhatsAppBotSpeechPort
+  /** Só empresa e nome do erro (o bloco da parada que não leu). */
+  readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
   /** O bloco da parada nas respostas; ausente, só a frase do registro e o que a lista de paradas traz. */
   readonly stopCards?: Pick<WhatsAppStopCardReader, 'read'>
 }): WhatsAppDriverPrompts {
   const { clock, ports, sharedLocations, speech } = dependencies
+
+  /** O bloco é melhor esforço: o registro já foi feito, a resposta nunca falha por causa dele. */
+  async function safeRead(
+    input: Parameters<WhatsAppStopCardReader['read']>[0],
+  ): Promise<StopCardView | null> {
+    try {
+      return (await dependencies.stopCards?.read(input)) ?? null
+    } catch (error) {
+      dependencies.logger?.warn('whatsapp_driver_prompt.stop_card_failed', {
+        companyId: input.companyId,
+        errorName: error instanceof Error ? error.name : typeof error,
+      })
+      return null
+    }
+  }
 
   const listStopsOf = async (actor: WhatsAppDriverActor) =>
     (await dependencies.listStops?.(actor)) ?? []
@@ -216,7 +233,7 @@ export function createWhatsAppDriverPrompts(dependencies: {
     stop: WhatsAppStopCandidate,
     withEta: boolean,
   ): Promise<StopCardView> {
-    const read = await dependencies.stopCards?.read({
+    const read = await safeRead({
       companyId: actor.companyId,
       driverId: actor.driverId,
       stopId: stop.id,
@@ -282,7 +299,7 @@ export function createWhatsAppDriverPrompts(dependencies: {
     if (nextStop === null) {
       return buildRouteOfferReply({ continuation, gate: input.gate, now: clock() })
     }
-    const read = await dependencies.stopCards?.read({
+    const read = await safeRead({
       companyId: input.actor.companyId,
       driverId: input.actor.driverId,
       stopId: nextStop.id,
@@ -481,7 +498,7 @@ export function createWhatsAppDriverPrompts(dependencies: {
     const said = await renderBotSpeechLine({ companyId: input.actor.companyId, line, speech })
     const view =
       result.kind === 'registered' && dependencies.stopCards !== undefined
-        ? await dependencies.stopCards.read({
+        ? await safeRead({
             companyId: input.actor.companyId,
             driverId: input.actor.driverId,
             stopId: input.stopId,

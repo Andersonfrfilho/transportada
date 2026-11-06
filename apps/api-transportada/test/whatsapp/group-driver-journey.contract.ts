@@ -51,7 +51,10 @@ const ROUTE = [
   ...[2, 3, 4, 5, 6, 7].map((sequence) => stop(`S${sequence}`, sequence, `9000${sequence}`)),
 ]
 
-function setup(stops: readonly GroupStopCandidate[] = ROUTE) {
+function setup(
+  stops: readonly GroupStopCandidate[] = ROUTE,
+  options: { readonly readStopCard?: GroupStopFlowPorts['readStopCard'] } = {},
+) {
   const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
   const returned: unknown[] = []
   const flow = createGroupDriverFlow({
@@ -61,7 +64,14 @@ function setup(stops: readonly GroupStopCandidate[] = ROUTE) {
       start: async (turn) => ({ kind: 'done', replies: [`ocorrência ${turn.text}`] }),
     },
     return: createGroupReturnFlow({
-      listOpenDocuments: async () => [{ atArrivedStop: true, id: 'DOC1', number: '899840' }],
+      listOpenDocuments: async () =>
+        stops.flatMap((item) =>
+          item.documents.map((document) => ({
+            atArrivedStop: item.arrivedAt !== null,
+            id: `DOC-${document.number}`,
+            number: document.number,
+          })),
+        ),
       returnDocument: async (input) => {
         returned.push(input)
         return { message: '*NF 899840 não entregue* ↩️' }
@@ -70,6 +80,7 @@ function setup(stops: readonly GroupStopCandidate[] = ROUTE) {
     stop: createGroupStopFlow({
       enRouteMessage: async () => 'a caminho',
       listStops: async () => stops,
+      ...(options.readStopCard === undefined ? {} : { readStopCard: options.readStopCard }),
       record: async (input) => {
         recorded.push(input)
         return { message: input.event === 'depart' ? 'Saída' : 'Chegada' }
@@ -131,7 +142,7 @@ describe('grupo: o "cheguei" repetido', () => {
     })
     expect(await notDelivered.answer('recusou')).toMatchObject({ kind: 'done' })
     expect(notDelivered.returned).toMatchObject([
-      { documentId: 'DOC1', reason: 'recipient_refused' },
+      { documentId: 'DOC-899840', reason: 'recipient_refused' },
     ])
   })
 
@@ -234,5 +245,71 @@ describe('grupo: os passos novos têm dono', () => {
     ['talvez', undefined],
   ])('o motivo "%s" é %s', (text, reason) => {
     expect(pickReturnReason(text)).toBe(reason as never)
+  })
+})
+
+describe('grupo: comando digitado com o menu aberto vai ao comando, não à nota do menu (revisão do #552)', () => {
+  test('"não entreguei 90003" com o menu da parada 1 aberto abre a nota 90003, não a 899840', async () => {
+    const t = setup()
+    await t.start('cheguei')
+    const outcome = await t.answer('não entreguei 90003')
+    expect(outcome).toMatchObject({ kind: 'continue', step: 'return.reason' })
+    const text = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
+    expect(text).toContain('NF 90003')
+  })
+
+  test('"saí" digitado no menu sem a opção de sair segue como comando (avisa a baixa), sem gastar tentativa', async () => {
+    const t = setup()
+    await t.start('cheguei')
+    const outcome = await t.answer('saí')
+    expect(outcome).toMatchObject({ kind: 'continue', step: 'journey.actions' })
+    const text = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
+    expect(text).toContain('⚠️ *Falta a baixa desta parada.*')
+  })
+
+  test('"saí 0090003" com outra parada a caminho não é a saída repetida dela', async () => {
+    const enRoute = [stop('S1', 1, '899840', { enRouteSince: ARRIVED_AT }), stop('S3', 3, '90003')]
+    const t = setup(enRoute)
+    const outcome = await t.start('saí 0090003')
+    expect(outcome).not.toMatchObject({ step: 'journey.actions' })
+  })
+})
+
+describe('grupo: o bloco da parada é melhor esforço (revisão do #552)', () => {
+  test('o leitor do bloco falhando não derruba a resposta: o menu sai com o que a lista traz', async () => {
+    const t = setup(ROUTE, {
+      readStopCard: () => Promise.reject(new Error('banco fora')),
+    })
+    const outcome = await t.start('cheguei')
+    expect(outcome).toMatchObject({ kind: 'continue', step: 'journey.actions' })
+    const text = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
+    expect(text).toContain('*NF 899840*')
+  })
+})
+
+describe('grupo: "não entreguei" sem a nota guardada (revisão do #552)', () => {
+  test('o pedido fecha limpo, sem gastar tentativa com pergunta vazia', async () => {
+    const flow = createGroupReturnFlow({
+      listOpenDocuments: async () => [],
+      returnDocument: async () => ({ message: '' }),
+    })
+    const outcome = await flow.answer({
+      request: {
+        attempts: 0,
+        companyId: 'C',
+        driverId: 'D',
+        expiresAt: new Date(),
+        groupJid: 'g',
+        id: 'R',
+        ownerNumber: '1',
+        state: {},
+        step: 'reason',
+        version: 1n,
+      },
+      sender: '1',
+      senderName: null,
+      text: '1',
+    })
+    expect(outcome.kind).toBe('done')
   })
 })

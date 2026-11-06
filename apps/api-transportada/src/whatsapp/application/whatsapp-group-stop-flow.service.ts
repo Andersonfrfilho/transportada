@@ -116,6 +116,8 @@ export type GroupStopFlowPorts = {
    * antes do "saí"/"cheguei" (como antes da 294).
    */
   hasLocation?(input: { readonly companyId: string; readonly driverId: string }): boolean
+  /** Só empresa e nome do erro (o bloco da parada que não leu). */
+  readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
   readonly clock?: () => Date
   /**
    * O bloco da parada (notas, valor, cliente, contratante, endereço, mapa, estrada). Ausente, o bot monta o bloco
@@ -317,13 +319,32 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     stop: GroupStopCandidate,
     withEta: boolean,
   ): Promise<StopCardView> {
-    const read = await ports.readStopCard?.({
-      companyId: turn.request.companyId,
-      driverId: turn.request.driverId,
-      stopId: stop.id,
-      withEta,
-    })
+    const read = await safeReadStopCard(turn, stop.id, withEta)
     return read ?? { card: cardFromStopCandidate(stop) }
+  }
+
+  /** O bloco é melhor esforço: o registro já foi feito, a resposta nunca falha por causa dele. */
+  async function safeReadStopCard(
+    turn: GroupFlowTurn,
+    stopId: string,
+    withEta: boolean,
+  ): Promise<StopCardView | null> {
+    try {
+      return (
+        (await ports.readStopCard?.({
+          companyId: turn.request.companyId,
+          driverId: turn.request.driverId,
+          stopId,
+          withEta,
+        })) ?? null
+      )
+    } catch (error) {
+      ports.logger?.warn('whatsapp_group_request.stop_card_failed', {
+        companyId: turn.request.companyId,
+        errorName: error instanceof Error ? error.name : typeof error,
+      })
+      return null
+    }
   }
 
   /** O menu numerado das ações, guardado no passo `actions` (o roteador o põe sob `journey.`). */
@@ -356,19 +377,18 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     stops: readonly GroupStopCandidate[],
     documentNumbers: readonly string[],
   ): Promise<GroupFlowOutcome | null> {
+    const wanted = documentNumbers.map(stripZeros).filter((number) => number !== '')
+    // A nota citada que não é desta parada é um pedido para outra: segue a resolução de sempre.
+    const mentionsAnother = (stop: GroupStopCandidate) =>
+      wanted.length > 0 &&
+      !stop.documents.some((document) => wanted.includes(stripZeros(document.number)))
     const enRoute = findStopEnRoute(stops)
     if (event === WHATSAPP_DRIVER_STOP_COMMAND.depart && enRoute !== undefined) {
-      return alreadyDeparted(turn, enRoute)
+      return mentionsAnother(enRoute) ? null : alreadyDeparted(turn, enRoute)
     }
     if (enRoute !== undefined) return null
     const awaiting = findStopAwaitingSettlement(stops)
-    if (awaiting === undefined) return null
-    const mentionsAnother =
-      documentNumbers.length > 0 &&
-      !awaiting.documents.some((document) =>
-        documentNumbers.includes(document.number.replace(/^0+/u, '')),
-      )
-    if (mentionsAnother) return null
+    if (awaiting === undefined || mentionsAnother(awaiting)) return null
     const view = await viewOf(turn, awaiting, false)
     const arrivedAt = awaiting.arrivedAt ?? ''
     return event === WHATSAPP_DRIVER_STOP_COMMAND.arrive
@@ -533,12 +553,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       turn: GroupFlowTurn,
       input: { readonly asks: boolean; readonly stop: RouteOfferStop },
     ): Promise<{ readonly actions: readonly JourneyAction[]; readonly text: string }> {
-      const read = await ports.readStopCard?.({
-        companyId: turn.request.companyId,
-        driverId: turn.request.driverId,
-        stopId: input.stop.id,
-        withEta: true,
-      })
+      const read = await safeReadStopCard(turn, input.stop.id, true)
       const view = read ?? { card: cardFromRouteOfferStop(input.stop) }
       return {
         actions: input.asks ? nextRouteActions(view.card) : [],
@@ -647,6 +662,8 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
 }
 
 const CLOSED = new Set(['delivered', 'returned'])
+
+const stripZeros = (value: string) => value.replace(/^0+/u, '')
 
 const firstNumberOf = (stop: GroupStopCandidate): string | undefined =>
   stop.documents[0]?.number.replace(/^0+/u, '')

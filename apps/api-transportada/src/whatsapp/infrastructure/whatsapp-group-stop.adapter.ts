@@ -120,6 +120,21 @@ export function createGroupStopPorts(dependencies: {
     return trips.find((trip) => trip.stops.some((stop) => stop.id === input.stopId))?.id
   }
 
+  /** O bloco é melhor esforço: o evento já foi gravado, a resposta e o fechamento do pedido nunca falham por ele. */
+  async function safeReadStopCard(
+    input: Parameters<WhatsAppStopCardReader['read']>[0],
+  ): Promise<Awaited<ReturnType<WhatsAppStopCardReader['read']>>> {
+    try {
+      return (await dependencies.stopCards?.read(input)) ?? null
+    } catch (error) {
+      dependencies.logger?.warn('whatsapp_group_request.stop_card_failed', {
+        companyId: input.companyId,
+        errorName: error instanceof Error ? error.name : typeof error,
+      })
+      return null
+    }
+  }
+
   return {
     ...(dependencies.resolveSenderRole === undefined
       ? {}
@@ -127,8 +142,9 @@ export function createGroupStopPorts(dependencies: {
     ...(dependencies.hasLocation === undefined ? {} : { hasLocation: dependencies.hasLocation }),
     ...(dependencies.stopCards === undefined
       ? {}
-      : { readStopCard: (input) => dependencies.stopCards?.read(input) ?? Promise.resolve(null) }),
+      : { readStopCard: (input) => safeReadStopCard(input) }),
     clock,
+    ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
     enRouteMessage: ({ companyId, sequence }) =>
       say(
         companyId,
@@ -220,7 +236,7 @@ export function createGroupStopPorts(dependencies: {
       )
       if (result.kind === 'registered' && dependencies.stopCards !== undefined) {
         const isDeparture = result.event === WHATSAPP_DRIVER_EVENT.depart
-        const view = await dependencies.stopCards.read({
+        const view = await safeReadStopCard({
           companyId: input.companyId,
           driverId: input.driverId,
           stopId: input.stopId,
