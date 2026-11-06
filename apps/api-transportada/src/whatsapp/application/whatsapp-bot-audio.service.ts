@@ -238,6 +238,12 @@ export type WhatsAppBotAudio<Context> = {
     readonly conversation: string
     readonly owner: string
   }): boolean
+  /** Quando (ms) o bot pediu a confirmação pendente desta pessoa; `undefined` sem pendência. */
+  pendingSince(input: {
+    readonly companyId: string
+    readonly conversation: string
+    readonly owner: string
+  }): number | undefined
   /**
    * O bot fez uma pergunta nova a esta pessoa: a confirmação de áudio pendente é anterior e não responde por ela.
    * Descarta só a confirmação (transcrição em andamento segue). `true` se havia uma.
@@ -490,6 +496,10 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
       const inFlight = (activeJobs.get(ownerKey) ?? 0) > 0
       if (inFlight) cancelEpochs.set(ownerKey, (cancelEpochs.get(ownerKey) ?? 0) + 1)
       return hadPending || inFlight
+    },
+    pendingSince({ companyId, conversation, owner }) {
+      const entry = current(keyOf(companyId, conversation), owner)
+      return entry === undefined ? undefined : entry.expiresAt - PENDING_TTL_MS
     },
     supersede({ companyId, conversation, owner }) {
       const key = keyOf(companyId, conversation)

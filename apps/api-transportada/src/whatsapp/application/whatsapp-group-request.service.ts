@@ -19,6 +19,7 @@
 import { botFarewell, botGreeting } from '../domain/bot-greeting.policy.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { AdmittedGroupMessage } from './evolution-group-inbound.service.js'
+import { isDriverCancelText } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
 import type {
   GroupFlowOutcome,
   GroupFlowTurn,
@@ -93,8 +94,6 @@ export function withTranscript(
   return { ...state, transcript }
 }
 
-const CANCEL_WORDS = new Set(['cancelar', 'cancela', 'cancele', 'cancelado', 'sair', 'parar'])
-
 export const GROUP_REQUEST_LOG = {
   abandoned: 'whatsapp_group_request.abandoned',
   answered: 'whatsapp_group_request.answered',
@@ -147,15 +146,7 @@ function withFarewell(replies: readonly string[], now: Date): readonly string[] 
   return [...replies.slice(0, -1), `${last}\n\n${botFarewell(now)}`]
 }
 
-export function isCancelText(text: string): boolean {
-  const normalized = text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z ]/gu, ' ')
-    .trim()
-  return normalized.split(/\s+/u).some((word) => CANCEL_WORDS.has(word)) && normalized.length <= 30
-}
+export const isCancelText = isDriverCancelText
 
 export function createWhatsAppGroupRequestSessions(dependencies: {
   readonly clock: () => Date

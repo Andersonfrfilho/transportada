@@ -69,3 +69,27 @@ export function interpretDriverChoice(text: string): DriverChoice | undefined {
   if (isFirst) return DRIVER_CHOICE.first
   return isSecond ? DRIVER_CHOICE.second : DRIVER_CHOICE.skip
 }
+
+const CANCEL_WORDS = new Set(['cancelar', 'cancela', 'cancele', 'cancelado', 'sair', 'parar'])
+const CANCEL_MAX_LENGTH = 30
+/** Pedidos para voltar ao menu: com pergunta aberta, saem de cena em vez de serem repetidos. */
+const ESCAPE_WORDS = new Set(['menu', 'ajuda', 'voltar', 'inicio'])
+
+/** "Cancelar" (curto): quem fez a pergunta aberta é quem encerra. O mesmo no grupo e na conversa individual. */
+export function isDriverCancelText(text: string): boolean {
+  const normalized = text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z ]/gu, ' ')
+    .trim()
+  return (
+    normalized.split(/\s+/u).some((word) => CANCEL_WORDS.has(word)) &&
+    normalized.length <= CANCEL_MAX_LENGTH
+  )
+}
+
+/** "menu", "ajuda", "voltar": a pessoa quer sair da pergunta aberta. */
+export function isDriverEscapeText(text: string): boolean {
+  return ESCAPE_WORDS.has(normalizeDriverCommandText(text))
+}

@@ -72,7 +72,10 @@ import type {
   WhatsAppDeliveryPreparations,
 } from './whatsapp-delivery-preparation.service.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
-import { DRIVER_PROMPT_CONTEXT_KEY } from '../domain/whatsapp-driver-prompt.policy.js'
+import {
+  DRIVER_PROMPT_CONTEXT_KEY,
+  readDriverPrompt,
+} from '../domain/whatsapp-driver-prompt.policy.js'
 import {
   buildRouteOfferReply,
   type WhatsAppDriverPrompts,
@@ -259,6 +262,14 @@ async function acceptBotAudio(turn: WhatsAppCommandTurn): Promise<'handled' | Wh
   }
   const text = turn.message.text?.body
   if (text === undefined || !botAudio.hasPending({ companyId, conversation, owner: turn.phone })) {
+    return turn
+  }
+  // A pergunta mais recente é a dona do "1"/"2": pedido aberto depois do áudio não perde a resposta para ele.
+  const askedAt = botAudio.pendingSince({ companyId, conversation, owner: turn.phone })
+  const position = await turn.deps.sessions.getContext(companyId, turn.phone)
+  const prompt = readDriverPrompt(position?.context ?? {}, turn.deps.clock())
+  if (askedAt !== undefined && prompt !== undefined && Date.parse(prompt.offeredAt) > askedAt) {
+    botAudio.supersede({ companyId, conversation, owner: turn.phone })
     return turn
   }
   const answer = botAudio.answer({ companyId, conversation, owner: turn.phone, text })
