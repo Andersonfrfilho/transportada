@@ -27,8 +27,11 @@ const testWithPostgres = hasTestDatabase ? test : test.skip
 const COMPANY_ID = COMPANY_CONTEXT.companyId
 const NOW = new Date('2026-10-21T15:00:00.000Z')
 const ETA = new Date('2026-10-21T15:00:00.000Z')
-/** Medido em 2026-10-09 sobre `origin/staging` (`e770d57ce`): vínculo, viagens, fotos pendentes e nota. */
-const DRIVER_READ_BASELINE_QUERIES = 25
+/**
+ * Medido em 2026-10-09 sobre `origin/staging` (`e770d57ce`): vínculo, viagens, fotos pendentes e nota.
+ * Spec 218 RF-C3 (2026-11-06): +1 fixa — a nota do motorista lê a exceção da contratante.
+ */
+const DRIVER_READ_BASELINE_QUERIES = 26
 
 function countingDatabase(db: TestDatabase['db']) {
   let count = 0

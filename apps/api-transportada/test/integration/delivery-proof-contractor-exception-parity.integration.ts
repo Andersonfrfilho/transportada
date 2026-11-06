@@ -11,7 +11,7 @@
  * desliga não é pedido a ninguém — e o afrouxamento deles continua por cima: nunca são barrados.
  */
 import { describe, expect } from 'bun:test'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 
 import {
   companyDeliveryProofSettings,
@@ -21,12 +21,19 @@ import {
 import { contractors, deliveryClients } from '../../src/database/delivery-client.schema.js'
 import { fleetDrivers } from '../../src/database/fleet.schema.js'
 import { nfeParticipants } from '../../src/database/nfe.schema.js'
-import { tripDocuments } from '../../src/database/trip.schema.js'
+import { tripDocuments, trips, tripStopEvents } from '../../src/database/trip.schema.js'
 import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { findCurrentDriverTrip } from '../../src/trips/application/find-current-driver-trip.use-case.js'
-import type { DeliveryProofFieldSettings } from '../../src/trips/domain/delivery-proof-settings.policy.js'
+import {
+  isProofRequiredBySettings,
+  type DeliveryProofFieldSettings,
+} from '../../src/trips/domain/delivery-proof-settings.policy.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
+import {
+  loadProofPendingDocumentIds,
+  tripHasProofPendingDocumentCondition,
+} from '../../src/trips/infrastructure/proof-pending.query.js'
 import {
   fakeContext,
   JPEG_BYTES,
@@ -258,4 +265,232 @@ describe('a exceção da contratante vale em todo caminho da tripulação (spec 
       })
     },
   )
+})
+
+/**
+ * Spec 218 RF-C3, todos os leitores: para cada camada que decide (geral, contratante, destinatário),
+ * a tela do motorista (`deliveryProof` e `pendingProofs`), a escrita (`resolveProofFieldSettings`), a
+ * pendência do detalhe (`loadProofPendingDocumentIds`), o filtro da lista
+ * (`tripHasProofPendingDocumentCondition`) e a nota do motorista (`DrizzleDriverScoreRepository`)
+ * concordam. Leitor novo entra aqui e no contrato `settings-readers-contractor`.
+ */
+const OTHER_EMITTER_TAX_ID = '11444777000161'
+const SCENARIO_NOW = new Date('2026-09-20T12:00:00.000Z')
+const DELIVERED_AT = new Date(SCENARIO_NOW.getTime() - 30 * 60 * 60 * 1000)
+const SETTING_LAYERS = ['general', 'contractor', 'recipient'] as const
+type SettingLayer = (typeof SETTING_LAYERS)[number]
+type Scenario = Readonly<Record<SettingLayer, DeliveryProofFieldSettings>>
+
+const QUIET: DeliveryProofFieldSettings = { ...ONLY_CANHOTO, photo: 'off' }
+const CANHOTO_REQUIRED: DeliveryProofFieldSettings = { ...QUIET, photo: 'required' }
+const CANHOTO_OPTIONAL: DeliveryProofFieldSettings = { ...QUIET, photo: 'optional' }
+const SCENARIOS: readonly (Scenario & { readonly name: string })[] = [
+  {
+    contractor: CANHOTO_REQUIRED,
+    general: CANHOTO_OPTIONAL,
+    name: 'contratante exige o que a geral não exige',
+    recipient: QUIET,
+  },
+  {
+    contractor: QUIET,
+    general: CANHOTO_REQUIRED,
+    name: 'contratante dispensa o que a geral exige',
+    recipient: CANHOTO_REQUIRED,
+  },
+]
+
+/** Nota entregue pelo app do motorista há 30 h, sem foto, cada uma na sua viagem. */
+async function seedDeliveredNote(
+  database: TestDatabase,
+  input: { company: Company; emitterTaxId: string; recipientTaxId: string },
+): Promise<SeededTrip> {
+  const trip = await seedTrip(database, input.company, 'in_transit')
+  await database.db
+    .update(tripDocuments)
+    .set({ deliveredAt: DELIVERED_AT, separationStatus: 'delivered' })
+    .where(eq(tripDocuments.id, trip.documentId))
+  await database.db.insert(tripStopEvents).values({
+    actorUserId: input.company.userId,
+    channel: 'driver_app',
+    companyId: input.company.companyId,
+    createdAt: DELIVERED_AT,
+    kind: 'delivered',
+    recordedAt: DELIVERED_AT,
+    reportedByDriverId: input.company.firstDriverId,
+    stopId: trip.stopId,
+    tripDocumentId: trip.documentId,
+  })
+  const [row] = await database.db
+    .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+    .from(tripDocuments)
+    .where(eq(tripDocuments.id, trip.documentId))
+  if (row?.nfeDocumentId === null || row === undefined) throw new Error('Seeded document vanished')
+  await database.db.insert(nfeParticipants).values([
+    {
+      companyId: input.company.companyId,
+      documentId: row.nfeDocumentId,
+      role: 'emitter',
+      taxId: input.emitterTaxId,
+    },
+    {
+      companyId: input.company.companyId,
+      documentId: row.nfeDocumentId,
+      role: 'recipient',
+      taxId: input.recipientTaxId,
+    },
+  ])
+  return trip
+}
+
+async function seedScenario(database: TestDatabase, scenario: Scenario) {
+  const company = await seedCompany(database)
+  await linkDriverMembership(database, company, company.firstDriverId)
+  const [driver] = await database.db
+    .select({ membershipId: fleetDrivers.membershipId })
+    .from(fleetDrivers)
+    .where(eq(fleetDrivers.id, company.firstDriverId))
+  if (driver?.membershipId === null || driver === undefined) throw new Error('Driver not linked')
+  const { membershipId } = driver
+  const contractorId = crypto.randomUUID()
+  await database.db
+    .insert(contractors)
+    .values({ companyId: company.companyId, id: contractorId, taxId: CONTRACTOR_TAX_ID })
+  await database.db
+    .insert(deliveryClients)
+    .values({ companyId: company.companyId, taxId: OVERRIDDEN_RECIPIENT_TAX_ID })
+  // A nota do motorista só conta entrega depois da ativação (spec 159 D1): ativa antes da janela.
+  await database.db.insert(companyDeliveryProofSettings).values({
+    companyId: company.companyId,
+    ...scenario.general,
+    scoreEffectiveSince: new Date('2026-01-01T00:00:00.000Z'),
+  })
+  await database.db
+    .insert(deliveryProofSettingContractorOverrides)
+    .values({ companyId: company.companyId, contractorId, ...scenario.contractor })
+  await database.db.insert(deliveryProofSettingOverrides).values({
+    companyId: company.companyId,
+    taxId: OVERRIDDEN_RECIPIENT_TAX_ID,
+    ...scenario.recipient,
+  })
+
+  const notes: Record<SettingLayer, SeededTrip> = {
+    contractor: await seedDeliveredNote(database, {
+      company,
+      emitterTaxId: CONTRACTOR_TAX_ID,
+      recipientTaxId: PLAIN_RECIPIENT_TAX_ID,
+    }),
+    general: await seedDeliveredNote(database, {
+      company,
+      emitterTaxId: OTHER_EMITTER_TAX_ID,
+      recipientTaxId: PLAIN_RECIPIENT_TAX_ID,
+    }),
+    recipient: await seedDeliveredNote(database, {
+      company,
+      emitterTaxId: CONTRACTOR_TAX_ID,
+      recipientTaxId: OVERRIDDEN_RECIPIENT_TAX_ID,
+    }),
+  }
+  return { company, membershipId, notes }
+}
+
+/** O que cada leitor diz de uma nota, na forma comparável entre todos. */
+type ReaderVerdicts = {
+  readonly enforced: DeliveryProofFieldSettings
+  readonly inDriverPendingProofs: boolean
+  readonly inPendingFilter: boolean
+  readonly inPendingList: boolean
+  readonly penalizedInScore: boolean
+  readonly shown: DeliveryProofFieldSettings
+}
+
+async function readAllReaders(
+  database: TestDatabase,
+  world: Awaited<ReturnType<typeof seedScenario>>,
+): Promise<Record<SettingLayer, ReaderVerdicts>> {
+  const companyId = world.company.companyId
+  const proofs = new DrizzleDeliveryProofRepository(database.db, 'test-bucket')
+  const snapshot = await findCurrentDriverTrip({
+    companyId,
+    membershipId: world.membershipId,
+    now: SCENARIO_NOW,
+    repository: new DrizzleCurrentDriverTripRepository(database.db),
+    scores: new DrizzleDriverScoreRepository(database.db),
+  })
+  const shownDocuments = snapshot.trips.flatMap((trip) =>
+    trip.stops.flatMap((stop) => stop.documents),
+  )
+  const documentIds = SETTING_LAYERS.map((layer) => world.notes[layer].documentId)
+  const pendingList = await loadProofPendingDocumentIds(database.db, {
+    companyId,
+    tripDocumentIds: documentIds,
+  })
+  const filteredTrips = await database.db
+    .select({ id: trips.id })
+    .from(trips)
+    .where(and(eq(trips.companyId, companyId), tripHasProofPendingDocumentCondition()))
+  const filteredTripIds = new Set(filteredTrips.map((row) => row.id))
+  const penalties = await new DrizzleDriverScoreRepository(database.db).readPenalties({
+    companyId,
+    driverId: world.company.firstDriverId,
+    now: SCENARIO_NOW,
+  })
+  const penalizedIds = new Set(penalties.penalties.map((penalty) => penalty.tripDocumentId))
+  const pendingProofIds = new Set(snapshot.pendingProofs.map((proof) => proof.documentId))
+
+  const entries = await Promise.all(
+    SETTING_LAYERS.map(async (layer) => {
+      const { documentId, tripId } = world.notes[layer]
+      const shown = shownDocuments.find((document) => document.id === documentId)?.deliveryProof
+      if (shown === undefined) throw new Error(`A nota ${layer} não chegou na tela do motorista`)
+      const verdicts: ReaderVerdicts = {
+        enforced: await proofs.resolveProofFieldSettings({ companyId, documentId }),
+        inDriverPendingProofs: pendingProofIds.has(documentId),
+        inPendingFilter: filteredTripIds.has(tripId),
+        inPendingList: pendingList.has(documentId),
+        penalizedInScore: penalizedIds.has(documentId),
+        shown,
+      }
+      return [layer, verdicts] as const
+    }),
+  )
+  return Object.fromEntries(entries) as Record<SettingLayer, ReaderVerdicts>
+}
+
+function expectedVerdicts(settings: DeliveryProofFieldSettings): ReaderVerdicts {
+  const isRequired = isProofRequiredBySettings(settings)
+  return {
+    enforced: settings,
+    inDriverPendingProofs: settings.photo === 'required',
+    inPendingFilter: isRequired,
+    inPendingList: isRequired,
+    penalizedInScore: settings.photo === 'required',
+    shown: settings,
+  }
+}
+
+describe('todos os leitores concordam com as três camadas (spec 218 RF-C3)', () => {
+  for (const scenario of SCENARIOS) {
+    testWithPostgres(scenario.name, async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedScenario(database, scenario)
+        const read = await readAllReaders(database, world)
+        const expected = Object.fromEntries(
+          SETTING_LAYERS.map((layer) => [layer, expectedVerdicts(scenario[layer])]),
+        ) as Record<SettingLayer, ReaderVerdicts>
+        expect(read).toEqual(expected)
+        // Sanidade do pré-requisito: a filtragem por documento não esconde a nota da tela.
+        expect(
+          await database.db
+            .select({ id: tripDocuments.id })
+            .from(tripDocuments)
+            .where(
+              inArray(
+                tripDocuments.id,
+                SETTING_LAYERS.map((layer) => world.notes[layer].documentId),
+              ),
+            ),
+        ).toHaveLength(SETTING_LAYERS.length)
+      })
+    })
+  }
 })
