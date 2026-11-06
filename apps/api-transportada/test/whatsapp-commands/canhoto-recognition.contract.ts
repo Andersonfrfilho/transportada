@@ -61,6 +61,8 @@ function setup(
     readonly now?: () => Date
     readonly read?: (input: Parameters<WhatsAppCanhotoReaderPort['read']>[0]) => Promise<Verdict>
     readonly stops?: boolean
+    /** A parada 2 (NF 17300) chegou e falta a baixa: é a parada em andamento. */
+    readonly secondStopArrived?: boolean
   } = {},
 ) {
   const rows = new Map<string, WhatsAppDeliveryPreparation & { status: string }>()
@@ -159,7 +161,7 @@ function setup(
             sequence: 1,
           },
           {
-            arrivedAt: null,
+            arrivedAt: options.secondStopArrived === true ? '2026-11-05T14:00:00.000Z' : null,
             completedAt: null,
             documents: [{ id: 'DOC-B', number: '17300', separationStatus: 'loaded' }],
             enRouteSince: null,
@@ -575,5 +577,71 @@ describe('o OCR liga por ambiente (spec 294 T4.8)', () => {
     expect(isCanhotoOcrEnabled({ APP_ENV: 'production' })).toBe(false)
     expect(isCanhotoOcrEnabled({ APP_ENV: 'production', CANHOTO_OCR_ENABLED: 'true' })).toBe(true)
     expect(isCanhotoOcrEnabled({ APP_ENV: 'staging', CANHOTO_OCR_ENABLED: 'false' })).toBe(false)
+  })
+})
+
+describe('foto sem pergunta aberta: a parada em andamento vem primeiro (nunca baixa por palpite)', () => {
+  const CONFIRM_17300 = 'Este canhoto é da NF 17300?\n*1* - Sim\n*2* - Não, é de outra'
+
+  test('canhoto sem número legível: pergunta pela nota da parada que chegou, não pela lista da viagem', async () => {
+    const t = setup({
+      read: async () => ({ ambiguous: false, candidates: [], markers: 3 }),
+      secondStopArrived: true,
+    })
+    expect((await t.photo())?.texts).toEqual([CONFIRM_17300])
+    expect(t.attached).toEqual([])
+    const confirmed = await t.answer('1')
+    expect(confirmed?.texts[0]).toBe('Li o canhoto da NF 17300.')
+    expect([...t.rows.values()].map((row) => row.documentId)).toEqual(['DOC-B'])
+  })
+
+  test('leitor ocupado: pergunta pela nota da parada em andamento', async () => {
+    const t = setup({
+      read: async () => {
+        throw Object.assign(new Error('busy'), { reason: 'busy' })
+      },
+      secondStopArrived: true,
+    })
+    expect((await t.photo())?.texts).toEqual([CONFIRM_17300])
+  })
+
+  test('leitura ambígua entre notas: a da parada em andamento é a perguntada', async () => {
+    const t = setup({
+      read: async () => ({
+        ambiguous: true,
+        candidates: [
+          { documentId: 'DOC-A', match: 'near' },
+          { documentId: 'DOC-B', match: 'near' },
+        ],
+        markers: 2,
+      }),
+      secondStopArrived: true,
+    })
+    expect((await t.photo())?.texts).toEqual([CONFIRM_17300])
+  })
+
+  test('"é o canhoto" depois de "não parece canhoto": pergunta pela nota da parada em andamento', async () => {
+    const t = setup({
+      read: async () => ({ ambiguous: false, candidates: [], markers: 0 }),
+      secondStopArrived: true,
+    })
+    await t.photo()
+    expect((await t.answer('2'))?.texts).toEqual([CONFIRM_17300])
+  })
+
+  test('"não, é de outra" abre a lista inteira da viagem', async () => {
+    const t = setup({
+      read: async () => ({ ambiguous: false, candidates: [], markers: 3 }),
+      secondStopArrived: true,
+    })
+    await t.photo()
+    expect((await t.answer('2'))?.texts[0]).toBe(
+      'De qual nota é este canhoto? Responda com o número da opção ou da nota:\n*1* - NF 17234 · Mercado Sul\n*2* - NF 17300\n*3* - Descartar a foto',
+    )
+  })
+
+  test('sem parada em andamento, a lista da viagem como antes', async () => {
+    const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 3 }) })
+    expect((await t.photo())?.texts[0]).toContain('De qual nota é este canhoto?')
   })
 })
