@@ -88,7 +88,12 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
 
   const say = (media: AdmittedGroupMedia, texts: readonly string[]) => {
     if (texts.length > 0) {
-      ports.replies.send({ companyId: media.companyId, groupJid: media.groupJid, texts })
+      ports.replies.send({
+        companyId: media.companyId,
+        groupJid: media.groupJid,
+        mentionNumber: media.sender,
+        texts,
+      })
     }
   }
 

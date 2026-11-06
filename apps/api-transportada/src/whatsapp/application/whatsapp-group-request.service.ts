@@ -167,11 +167,16 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
   const { flow, logger, replies, repository } = dependencies
 
   const say = (
-    message: Pick<AdmittedGroupMessage, 'companyId' | 'groupJid'>,
+    message: Pick<AdmittedGroupMessage, 'companyId' | 'groupJid' | 'sender'>,
     texts: readonly string[],
   ) => {
     if (texts.length > 0) {
-      replies.send({ companyId: message.companyId, groupJid: message.groupJid, texts })
+      replies.send({
+        companyId: message.companyId,
+        groupJid: message.groupJid,
+        mentionNumber: message.sender,
+        texts,
+      })
     }
   }
 

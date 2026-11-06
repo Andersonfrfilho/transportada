@@ -22,14 +22,70 @@ const GROUP = '120363025246125486@g.us'
 
 function groupSender() {
   const sent: string[] = []
+  const mentions: Array<string | undefined> = []
   const turns = createWhatsAppTurnReplies()
   const replies = createEvolutionGroupReplySender({
     logger,
-    sendText: async ({ body }) => void sent.push(body),
+    sendText: async ({ body, mentionNumber }) => {
+      sent.push(body)
+      mentions.push(mentionNumber)
+    },
     turnReplies: turns,
   })
-  return { replies, sent, turns }
+  return { mentions, replies, sent, turns }
 }
+
+describe('grupo: a resposta marca quem pediu', () => {
+  const REQUESTER = '5516999998888'
+
+  test('o @número abre a mensagem e o número vai em `mentioned`', async () => {
+    const { mentions, replies, sent } = groupSender()
+    replies.send({
+      companyId: 'C1',
+      groupJid: GROUP,
+      mentionNumber: REQUESTER,
+      texts: ['↩️ *Continuando a entrega da NF 899840.*', '📸 Foto?'],
+    })
+    await replies.idle()
+    expect(sent).toEqual([`@${REQUESTER} ↩️ *Continuando a entrega da NF 899840.*\n\n📸 Foto?`])
+    expect(mentions).toEqual([REQUESTER])
+  })
+
+  test('no turno, as falas viram uma mensagem e a marca vai uma vez, no começo', async () => {
+    const { mentions, replies, sent, turns } = groupSender()
+    await turns.withinTurn(async () => {
+      replies.send({ companyId: 'C1', groupJid: GROUP, mentionNumber: REQUESTER, texts: ['a'] })
+      replies.send({ companyId: 'C1', groupJid: GROUP, mentionNumber: REQUESTER, texts: ['b'] })
+    })
+    await replies.idle()
+    expect(sent).toEqual([`@${REQUESTER} a\n\nb`])
+    expect(mentions).toEqual([REQUESTER])
+  })
+
+  test('texto dividido pelo teto: só a primeira parte leva a marca', async () => {
+    const { mentions, replies, sent } = groupSender()
+    const first = 'x'.repeat(2500)
+    const second = 'y'.repeat(2500)
+    replies.send({
+      companyId: 'C1',
+      groupJid: GROUP,
+      mentionNumber: REQUESTER,
+      texts: [`${first}\n${second}`],
+    })
+    await replies.idle()
+    expect(sent).toEqual([`@${REQUESTER} ${first}`, second])
+    expect(mentions).toEqual([REQUESTER, undefined])
+  })
+
+  test('sem quem marcar (ou número que não é de telefone), sai sem marca e sem falhar', async () => {
+    const { mentions, replies, sent } = groupSender()
+    replies.send({ companyId: 'C1', groupJid: GROUP, texts: ['aviso'] })
+    replies.send({ companyId: 'C1', groupJid: GROUP, mentionNumber: 'abc', texts: ['outro'] })
+    await replies.idle()
+    expect(sent).toEqual(['aviso', 'outro'])
+    expect(mentions).toEqual([undefined, undefined])
+  })
+})
 
 describe('grupo: uma resposta por turno é uma mensagem do Evolution', () => {
   test('os textos de uma resposta saem numa mensagem só, unidos por linha em branco', async () => {

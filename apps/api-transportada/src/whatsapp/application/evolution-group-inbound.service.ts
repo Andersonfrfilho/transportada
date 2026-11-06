@@ -148,6 +148,8 @@ export type EvolutionGroupAudioPorts = {
   reply(input: {
     readonly companyId: string
     readonly groupJid: string
+    /** Quem escreveu (só dígitos): a resposta o marca no grupo. */
+    readonly mentionNumber?: string
     readonly texts: readonly string[]
   }): void
 }
@@ -303,7 +305,7 @@ export function createEvolutionGroupInbound(
           conversation: groupConversation(groupJid),
           ...notesOf(ports, companyId, input.driverId),
           owner: sender,
-          reply: (texts) => ports.reply({ companyId, groupJid, texts }),
+          reply: (texts) => ports.reply({ companyId, groupJid, mentionNumber: sender, texts }),
           text: rest,
         })
       },
@@ -330,7 +332,12 @@ export function createEvolutionGroupInbound(
     })
     if (!cancelled) return false
     if ((await dependencies.findOpenRequestOwner({ companyId, groupJid })) !== null) return false
-    await ports.reply({ companyId, groupJid, texts: [BOT_AUDIO_SPEECH.discarded] })
+    await ports.reply({
+      companyId,
+      groupJid,
+      mentionNumber: sender,
+      texts: [BOT_AUDIO_SPEECH.discarded],
+    })
     return true
   }
 
@@ -358,7 +365,12 @@ export function createEvolutionGroupInbound(
     })
     if (answer.kind === 'discarded') {
       retryUntil.set(retryKey(companyId, groupJid, sender), now() + BOT_AUDIO_RETRY_WINDOW_MS)
-      await ports.reply({ companyId, groupJid, texts: [BOT_AUDIO_SPEECH.discarded] })
+      await ports.reply({
+        companyId,
+        groupJid,
+        mentionNumber: sender,
+        texts: [BOT_AUDIO_SPEECH.discarded],
+      })
       return true
     }
     if (answer.kind !== 'confirmed') return false
@@ -434,7 +446,7 @@ export function createEvolutionGroupInbound(
           conversation: groupConversation(groupJid),
           ...notesOf(ports, companyId, input.driverId),
           owner: sender,
-          reply: (texts) => ports.reply({ companyId, groupJid, texts }),
+          reply: (texts) => ports.reply({ companyId, groupJid, mentionNumber: sender, texts }),
           text: rest === null || rest === '' ? text : rest,
         })
       },
@@ -535,7 +547,7 @@ export function createEvolutionGroupInbound(
         }),
       mimeType: audio.mimeType,
       owner: sender,
-      reply: (texts) => ports.reply({ companyId, groupJid, texts }),
+      reply: (texts) => ports.reply({ companyId, groupJid, mentionNumber: sender, texts }),
       seconds: audio.seconds,
     })
     return 'audio'
