@@ -34,7 +34,7 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 - [x] **T1.2** Migration A aditiva: `driver_stop_reminders`, `company_driver_reminder_settings` e a linha de
       `job_schedules` da rotina com os `CHECK` reescritos (plan.md § Dados e § Worker).
       Aceite: `make migration-test`; `db:generate` → `no_changes`.
-- [ ] **T1.3** Políticas puras (T0.2 verde): schedule, origin, transition, message.
+- [x] **T1.3** Políticas puras (T0.2 verde): schedule, origin, transition, message.
 - [ ] **T1.4** `driver-stop-reminder.service.ts` (`onStopEvent`) ligado a saída, chegada, baixa, ocorrência,
       cancelamento de saída e encerramento da viagem, na transação do evento; OSRM depois do commit por `id`+`version`;
       chave global desligada → nada grava. Integração: saída abre `arrival` com reserva e depois com OSRM; OSRM fora →

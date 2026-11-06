@@ -249,3 +249,23 @@ Migration A aditiva `20261106232509_driver_stop_reminders` (`migration.sql`, `ro
 - API `bun run test`: 14188 pass, 1 fail + 1 error, ambos o contrato esperado da T0.2.
 - Worker `bun run typecheck`: 0 erros; eslint/prettier limpos; `bun run test`: 3037 pass, 0 fail.
 - Integração: nenhum arquivo de `test/integration` cobre `job_schedules`/migration além do que o `migration-test` já roda.
+
+## T1.3 — 2026-11-06
+
+Políticas puras em `apps/api-transportada/src/driver-stop-reminders/domain/`: `driver-stop-reminder.constant.ts` (defaults
+reexportados de `src/shared/driver-stop-reminder.constant.ts`, chaves de nó, adiamentos máx. 3, espera de pedido aberto
+5 min, espera máx. da vaga 120 s), `driver-stop-reminder.types.ts` (`*Params`/`*Result`), e
+`stop-reminder-{schedule,origin,transition,gate,message}.policy.ts`. Sem I/O, sem `Date.now`: relógio por parâmetro. Texto
+de fala nunca literal: a política devolve chave de nó e variáveis. Contratos da T0.2 não foram alterados.
+
+**Vermelho (T0.2) → verde agora:**
+- Antes: `test/driver-stop-reminders.contract.test.ts` — 0 pass, 1 fail, 1 error (`Cannot find module .../domain/*`).
+- Agora: 79 pass, 0 fail, 94 expect().
+
+**Gates (de `apps/api-transportada`):**
+- `bun run typecheck`: limpo (0 erros).
+- `bunx eslint src/driver-stop-reminders test/driver-stop-reminders --max-warnings=0`: limpo.
+- `bunx prettier --check` nos mesmos caminhos: limpo.
+- `bun run test`: 14267 pass, 35 skip, 0 fail (224 arquivos).
+- `bun --env-file=../../.env.test test --timeout 120000`: 14276 pass, 26 skip, 0 fail.
+- Integração: nenhum arquivo de `test/integration` tocado, não rodada.
