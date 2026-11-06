@@ -59,13 +59,26 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/298-a-nota-bipada-vem-da-sefaz/ (leia spec.md, plan.md e tasks.md
-antes de começar). Trabalhe no worktree ../transportada-wt/spec-298 (branch work/spec-298). Uma task por vez, na ordem
-do tasks.md; T0.1 só prepara o script — rodar em produção pede aprovação.
-Modelos: Fase 1 → executor model=sonnet (T1.1 model=haiku) · Fase 2 → executor model=sonnet ·
-Fase 3 → executor model=sonnet (T3.4 model=haiku) · Fase 4 → executor model=sonnet · revisão final → code-reviewer model=sonnet.
+/oh-my-claudecode:autopilot Execute a spec specs/298-a-nota-bipada-vem-da-sefaz/ (leia spec.md, plan.md, tasks.md e
+evidence.md antes de começar). Trabalhe só no worktree ../transportada-wt/spec-298 (branch work/spec-298); antes de
+cada fase: git fetch && git rebase origin/staging e confira que o número 298 e a migration não colidiram.
+Uma task por vez, na ordem do tasks.md (Fase 3 começa pela T3.0, o leitor de mão). T0.1 só escreve o script.
+Comportamento pedido pelo dono (não reinterpretar): na página de NF-e o bip IMPORTA (não é conferência); na criação
+da viagem o bip busca e importa sozinho e a nota vai para "Notas encontradas" com "Acrescentar" / "Acrescentar todas
+as prontas" — nenhuma nota entra na viagem sem Acrescentar, inclusive as já cadastradas (muda o hook atual, RF9).
+Leitor de mão USB/Bluetooth é o caminho principal (RF11e). Protótipo aprovado: https://claude.ai/artifact/Mt4upuJMJwAKnmRuqE98tR
+Modelos: Fase 0 → executor model=sonnet · Fase 1 → executor model=sonnet (T1.1 model=haiku) ·
+Fase 2 → executor model=sonnet · Fase 3 → executor model=sonnet (T3.4 model=haiku) · Fase 4 → executor model=sonnet ·
+revisão de cada fase → code-reviewer model=sonnet; segurança da rota e do worker → security-reviewer.
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
-Cada task fecha com typecheck + testes (script test; test:integration com --env-file=../../.env.test quando tocar
-integração) + commit isolado, evidência em evidence.md.
-Pare e pergunte antes de: deploy, qualquer chamada à SEFAZ de produção, migration destrutiva, [NEEDS CLARIFICATION].
+Gates de toda task: bun run typecheck; testes pelo script test da app (nunca bun test cru); na API, contrato
+(bun --env-file=../../.env.test test --timeout 120000) e, se tocar test/integration, também
+bun --env-file=../../.env.test run test:integration; teste novo entra na lista do package.json; make migration-test
+na T1.1; lint por app; commit isolado por task com evidência em evidence.md.
+Urgente: publique em staging ao fim de cada fase pronta (git fetch && git rebase origin/staging && git push origin
+HEAD:staging), na ordem banco/API → worker → painel.
+Pare e pergunte antes de: qualquer chamada à SEFAZ de produção (T0.1), deploy ou merge para main/produção (T4.2),
+migration destrutiva, qualquer [NEEDS CLARIFICATION], e se a SEFAZ responder algo que a tabela do RF4 não cobre.
+Ao terminar: atualizar docs/runbooks/producao.md, CLAUDE.md da raiz e apps/*/CLAUDE.md tocados (§14), e
+/oh-my-claudecode:cancel.
 ```
