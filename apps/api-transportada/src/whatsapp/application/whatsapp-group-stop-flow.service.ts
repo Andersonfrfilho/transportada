@@ -15,6 +15,9 @@
  */
 import {
   describeStopReference,
+  findNextPendingStop,
+  findStopAwaitingSettlement,
+  findStopEnRoute,
   resolveArrivalStop,
   resolveDepartureStop,
   type WhatsAppStopCandidate,
@@ -32,6 +35,28 @@ import {
 } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
 import { OUT_OF_ORDER_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { LOCATION_PROMPT_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
+import {
+  arrivedStopActions,
+  describeAlreadyArrived,
+  describeAlreadyDeparted,
+  describeAlreadySettled,
+  describeNextRouteOffer,
+  describePendingSettlement,
+  enRouteStopActions,
+  JOURNEY_STEP,
+  JOURNEY_TEXT,
+  nextRouteActions,
+  pendingSettlementActions,
+  cardFromRouteOfferStop,
+  cardFromStopCandidate,
+  spokenOptionNumber,
+  type JourneyAction,
+  type StopCardView,
+} from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
+import {
+  ROUTE_OFFER_TEXT,
+  type RouteOfferStop,
+} from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 import {
   SENDER_NOT_ALLOWED_TEXT,
@@ -80,6 +105,8 @@ export type GroupStopFlowPorts = {
     readonly event: WhatsAppDriverStopCommandEvent
     /** Por pedido: a mesma mensagem repetida não grava duas vezes. */
     readonly idempotencyKey: string
+    /** O ponto que respondeu ao pedido de localização (vale quando nenhum ponto ficou lembrado). */
+    readonly location?: { readonly latitude: number; readonly longitude: number } | undefined
     /** Spec 294: a hora do WhatsApp da mensagem; a API mede por ela se o registro chegou tarde. */
     readonly sentAt?: Date | undefined
     readonly stopId: string
@@ -89,21 +116,37 @@ export type GroupStopFlowPorts = {
    * antes do "saí"/"cheguei" (como antes da 294).
    */
   hasLocation?(input: { readonly companyId: string; readonly driverId: string }): boolean
+  /** Só empresa e nome do erro (o bloco da parada que não leu). */
+  readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
   readonly clock?: () => Date
+  /**
+   * O bloco da parada (notas, valor, cliente, contratante, endereço, mapa, estrada). Ausente, o bot monta o bloco
+   * só com o que a lista de paradas já traz.
+   */
+  readStopCard?(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly stopId: string
+    readonly withEta?: boolean
+  }): Promise<StopCardView | null>
   /** Spec 294 RF19: quem escreveu. Ausente, todo remetente é tratado como a tripulação (como antes da 294). */
   resolveSenderRole?: ResolveWhatsAppSenderRole
   /** A frase de "já está a caminho da parada N" e afins, na plateia do grupo. */
   enRouteMessage(input: { readonly companyId: string; readonly sequence: string }): Promise<string>
 }
 
+const askStopText = (labels: readonly string[]) =>
+  [
+    '*Qual parada?* _Responda com o número da opção ou da nota:_',
+    ...labels.map((label, index) => `*${index + 1}* - ${label}`),
+  ].join('\n')
+
 export const GROUP_STOP_TEXT = {
-  askStop: (stops: readonly GroupStopCandidate[]) =>
-    [
-      'Qual parada? Responda com o número da opção ou da nota:',
-      ...stops.map((stop, index) => `${index + 1}. ${describeStopReference(stop)}`),
-    ].join('\n'),
-  noStopArrive: 'Não encontrei parada para registrar a chegada na viagem do motorista deste grupo.',
-  noStopDepart: 'Não encontrei parada para registrar a saída na viagem do motorista deste grupo.',
+  askStop: (stops: readonly GroupStopCandidate[]) => askStopText(stops.map(describeStopReference)),
+  noStopArrive:
+    'Não encontrei parada para registrar a chegada na viagem do motorista deste grupo.\n➡️ _Próximo passo:_ confira a viagem com o escritório.',
+  noStopDepart:
+    'Não encontrei parada para registrar a saída na viagem do motorista deste grupo.\n➡️ _Próximo passo:_ confira a viagem com o escritório.',
 } as const
 
 const REASON = { stop: 'não achei essa parada na lista' } as const
@@ -118,10 +161,13 @@ type FlowState = {
   }
   /** Spec 294 RF24: a parada que espera a localização (ou o "pular") antes de registrar. */
   readonly locationFor?: {
+    readonly confirmOutOfOrder?: boolean
     readonly documentNumber?: string | undefined
     readonly event: WhatsAppDriverStopCommandEvent
     readonly stopId: string
   }
+  /** O motorista já confirmou sair com a baixa de outra parada pendente (a API não pergunta de novo). */
+  readonly confirmOutOfOrder?: boolean
   readonly event?: WhatsAppDriverStopCommandEvent | undefined
   readonly stops?:
     | readonly {
@@ -163,6 +209,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       readonly confirmOutOfOrder?: boolean
       readonly documentNumber?: string | undefined
       readonly event: WhatsAppDriverStopCommandEvent
+      readonly location?: { readonly latitude: number; readonly longitude: number } | undefined
       readonly stopId: string
     },
   ): Promise<GroupFlowOutcome> {
@@ -177,6 +224,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       documentNumber,
       event,
       idempotencyKey: `whatsapp-group-request:${turn.request.id}`,
+      ...(target.location === undefined ? {} : { location: target.location }),
       ...(turn.sentAt === undefined ? {} : { sentAt: turn.sentAt }),
       stopId,
     })
@@ -196,7 +244,8 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
         step: GROUP_STOP_STEP.confirmOrder,
       }
     }
-    return { kind: 'done', replies: [result.message] }
+    // A saída e a chegada são passos da rota, não o fim da conversa: sem a despedida.
+    return { kind: 'done', replies: [result.message], withoutFarewell: true }
   }
 
   /** "1" confirma fora da ordem; "2" descarta, ou na saída vai à próxima do roteiro; o resto repete a pergunta. */
@@ -227,6 +276,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     turn: GroupFlowTurn,
     role: WhatsAppSenderRole,
     target: {
+      readonly confirmOutOfOrder?: boolean | undefined
       readonly documentNumber?: string | undefined
       readonly event: WhatsAppDriverStopCommandEvent
       readonly isAddressReliable?: boolean | undefined
@@ -235,6 +285,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
   ): Promise<GroupFlowOutcome> {
     const { companyId, driverId } = turn.request
     const { documentNumber, event, isAddressReliable, stopId } = target
+    const confirm = target.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}
     // O escritório não manda ponto: o atendente registra direto, sem a pergunta da localização. A mensagem tardia
     // (spec 294: além do prazo da foto atrasada) também não pede: ela não corrige endereço.
     const receivedAt = (ports.clock ?? (() => new Date()))()
@@ -244,9 +295,9 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       ports.hasLocation === undefined ||
       ports.hasLocation({ companyId, driverId })
     ) {
-      return record(turn, role, { documentNumber, event, stopId })
+      return record(turn, role, { ...confirm, documentNumber, event, stopId })
     }
-    const state: FlowState = { locationFor: { documentNumber, event, stopId } }
+    const state: FlowState = { locationFor: { ...confirm, documentNumber, event, stopId } }
     // Spec 294 RF14: "cheguei" numa parada sem localização certa diz que o ponto corrige o endereço.
     const isUnreliable =
       event === WHATSAPP_DRIVER_STOP_COMMAND.arrive && isAddressReliable === false
@@ -260,13 +311,106 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     }
   }
 
+  const clock = ports.clock ?? (() => new Date())
+
+  /** O bloco da parada pela porta; sem ela, só o que a lista de paradas já traz. */
+  async function viewOf(
+    turn: GroupFlowTurn,
+    stop: GroupStopCandidate,
+    withEta: boolean,
+  ): Promise<StopCardView> {
+    const read = await safeReadStopCard(turn, stop.id, withEta)
+    return read ?? { card: cardFromStopCandidate(stop) }
+  }
+
+  /** O bloco é melhor esforço: o registro já foi feito, a resposta nunca falha por causa dele. */
+  async function safeReadStopCard(
+    turn: GroupFlowTurn,
+    stopId: string,
+    withEta: boolean,
+  ): Promise<StopCardView | null> {
+    try {
+      return (
+        (await ports.readStopCard?.({
+          companyId: turn.request.companyId,
+          driverId: turn.request.driverId,
+          stopId,
+          withEta,
+        })) ?? null
+      )
+    } catch (error) {
+      ports.logger?.warn('whatsapp_group_request.stop_card_failed', {
+        companyId: turn.request.companyId,
+        errorName: error instanceof Error ? error.name : typeof error,
+      })
+      return null
+    }
+  }
+
+  /** O menu numerado das ações, guardado no passo `actions` (o roteador o põe sob `journey.`). */
+  const menu = (text: string, actions: readonly JourneyAction[]): GroupFlowOutcome => ({
+    kind: 'continue',
+    replies: [text],
+    state: { journeyActions: actions },
+    step: JOURNEY_STEP.actions,
+  })
+
+  async function alreadyDeparted(
+    turn: GroupFlowTurn,
+    stop: GroupStopCandidate,
+  ): Promise<GroupFlowOutcome> {
+    const view = await viewOf(turn, stop, true)
+    return menu(
+      describeAlreadyDeparted(view, { departedAt: stop.enRouteSince ?? '', now: clock() }),
+      enRouteStopActions(view.card),
+    )
+  }
+
+  /**
+   * O evento repetido nunca lista as outras paradas: "cheguei" numa parada que já chegou e "saí" com uma parada a
+   * caminho dizem que já está registrado e oferecem o que cabe; "saí" com a baixa pendente avisa antes (RF25).
+   * `null`: segue a resolução de sempre.
+   */
+  async function repeatedEvent(
+    turn: GroupFlowTurn,
+    event: WhatsAppDriverStopCommandEvent,
+    stops: readonly GroupStopCandidate[],
+    documentNumbers: readonly string[],
+  ): Promise<GroupFlowOutcome | null> {
+    const wanted = documentNumbers.map(stripZeros).filter((number) => number !== '')
+    // A nota citada que não é desta parada é um pedido para outra: segue a resolução de sempre.
+    const mentionsAnother = (stop: GroupStopCandidate) =>
+      wanted.length > 0 &&
+      !stop.documents.some((document) => wanted.includes(stripZeros(document.number)))
+    const enRoute = findStopEnRoute(stops)
+    if (event === WHATSAPP_DRIVER_STOP_COMMAND.depart && enRoute !== undefined) {
+      return mentionsAnother(enRoute) ? null : alreadyDeparted(turn, enRoute)
+    }
+    if (enRoute !== undefined) return null
+    const awaiting = findStopAwaitingSettlement(stops)
+    if (awaiting === undefined || mentionsAnother(awaiting)) return null
+    const view = await viewOf(turn, awaiting, false)
+    const arrivedAt = awaiting.arrivedAt ?? ''
+    return event === WHATSAPP_DRIVER_STOP_COMMAND.arrive
+      ? menu(
+          describeAlreadyArrived(view, { arrivedAt, now: clock() }),
+          arrivedStopActions(view.card),
+        )
+      : menu(
+          describePendingSettlement(view, { arrivedAt, now: clock() }),
+          pendingSettlementActions(view.card),
+        )
+  }
+
   async function afterResolution(
     turn: GroupFlowTurn,
     role: WhatsAppSenderRole,
     event: WhatsAppDriverStopCommandEvent,
     resolution: WhatsAppStopResolution<GroupStopCandidate>,
     documentNumbers: readonly string[],
+    confirmOutOfOrder = false,
   ): Promise<GroupFlowOutcome> {
+    const confirm = confirmOutOfOrder ? { confirmOutOfOrder: true } : {}
     switch (resolution.kind) {
       case 'none':
         return {
@@ -289,6 +433,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
         }
       case 'single':
         return recordOrAsk(turn, role, {
+          ...confirm,
           documentNumber: firstNumberOf(resolution.stop),
           event,
           isAddressReliable: resolution.stop.isAddressReliable,
@@ -302,6 +447,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
         )
         if (mentioned.length === 1 && mentioned[0] !== undefined) {
           return recordOrAsk(turn, role, {
+            ...confirm,
             documentNumber: firstNumberOf(mentioned[0]),
             event,
             isAddressReliable: mentioned[0].isAddressReliable,
@@ -309,6 +455,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           })
         }
         const state: FlowState = {
+          ...(confirmOutOfOrder ? { confirmOutOfOrder: true } : {}),
           event,
           stops: resolution.stops.map((stop) => ({
             id: stop.id,
@@ -357,7 +504,107 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
         companyId: turn.request.companyId,
         driverId: turn.request.driverId,
       })
+      const repeated = await repeatedEvent(turn, event, stops, documentNumbers)
+      if (repeated !== null) return repeated
       return afterResolution(turn, role, event, resolve(event, stops), documentNumbers)
+    },
+
+    /**
+     * "2 - Escolher outra da lista" (oferta) e "sair sem dar a baixa" (menu): a lista das paradas pendentes. Na
+     * saída sem baixa o motorista já confirmou: a API grava sem perguntar de novo (RF25).
+     */
+    async chooseDeparture(
+      turn: GroupFlowTurn,
+      options: { readonly confirmOutOfOrder?: boolean } = {},
+    ): Promise<GroupFlowOutcome> {
+      const role = await roleOf(turn)
+      if (role.kind === 'unknown') return refused()
+      const stops = await ports.listStops({
+        companyId: turn.request.companyId,
+        driverId: turn.request.driverId,
+      })
+      const event = WHATSAPP_DRIVER_STOP_COMMAND.depart
+      const enRoute = findStopEnRoute(stops)
+      if (enRoute !== undefined) return alreadyDeparted(turn, enRoute)
+      const pending = resolveDepartureStop(stops)
+      // Uma só pendente também é lista: o motorista pediu para escolher.
+      const listed: WhatsAppStopResolution<GroupStopCandidate> =
+        pending.kind === 'single'
+          ? { kind: 'choose', stops: [pending.stop], suggested: pending.stop }
+          : pending
+      return afterResolution(turn, role, event, listed, [], options.confirmOutOfOrder === true)
+    },
+
+    /** O próximo passo de quem não quis nada agora: a chegada, a baixa pendente ou a saída. */
+    async nextStepText(turn: GroupFlowTurn): Promise<string> {
+      const stops = await ports.listStops({
+        companyId: turn.request.companyId,
+        driverId: turn.request.driverId,
+      })
+      if (findStopEnRoute(stops) !== undefined) return JOURNEY_TEXT.nextArrive
+      if (findStopAwaitingSettlement(stops) !== undefined) return JOURNEY_TEXT.nextSettle
+      return findNextPendingStop(stops) === undefined
+        ? ROUTE_OFFER_TEXT.routeCompleted
+        : JOURNEY_TEXT.nextDepart
+    },
+
+    /** A oferta da próxima rota depois da baixa que fechou a parada (com a estrada, se houver ponto). */
+    async nextRouteOffer(
+      turn: GroupFlowTurn,
+      input: { readonly asks: boolean; readonly stop: RouteOfferStop },
+    ): Promise<{ readonly actions: readonly JourneyAction[]; readonly text: string }> {
+      const read = await safeReadStopCard(turn, input.stop.id, true)
+      const view = read ?? { card: cardFromRouteOfferStop(input.stop) }
+      return {
+        actions: input.asks ? nextRouteActions(view.card) : [],
+        text: describeNextRouteOffer(view, { asks: input.asks, now: clock() }),
+      }
+    },
+
+    /** "entreguei 17234" numa nota já baixada: diz quando e oferece o que cabe agora; `null` se não é o caso. */
+    async settledDocument(
+      turn: GroupFlowTurn,
+      documentNumbers: readonly string[],
+    ): Promise<GroupFlowOutcome | null> {
+      const [wanted] = documentNumbers
+      if (wanted === undefined || documentNumbers.length !== 1) return null
+      const role = await roleOf(turn)
+      if (role.kind !== 'crew') return null
+      const stops = await ports.listStops({
+        companyId: turn.request.companyId,
+        driverId: turn.request.driverId,
+      })
+      const number = wanted.replace(/^0+/u, '')
+      const stop = stops.find((candidate) =>
+        candidate.documents.some(
+          (document) =>
+            document.number.replace(/^0+/u, '') === number && CLOSED.has(document.separationStatus),
+        ),
+      )
+      const document = stop?.documents.find((item) => item.number.replace(/^0+/u, '') === number)
+      if (stop === undefined || document === undefined) return null
+      const headline = describeAlreadySettled({
+        documentNumber: number,
+        now: clock(),
+        returned: document.separationStatus === 'returned',
+        settledAt: document.deliveredAt ?? null,
+      })
+      if (findStopAwaitingSettlement([stop]) !== undefined) {
+        const view = await viewOf(turn, stop, false)
+        return menu(
+          `${headline}\n${describeAlreadyArrived(view, { arrivedAt: stop.arrivedAt ?? '', now: clock() })}`,
+          arrivedStopActions(view.card),
+        )
+      }
+      const next = findNextPendingStop(stops)
+      if (next === undefined) {
+        return { kind: 'done', replies: [`${headline}\n${ROUTE_OFFER_TEXT.routeCompleted}`] }
+      }
+      const view = await viewOf(turn, next, true)
+      return menu(
+        `${headline}\n\n${describeNextRouteOffer(view, { asks: true, now: clock() })}`,
+        nextRouteActions(view.card),
+      )
     },
 
     /** "1" na oferta da próxima rota: a saída da parada oferecida, pelo mesmo registro do "saí". */
@@ -390,14 +637,12 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       if (picked === undefined) {
         return {
           kind: 'not_understood',
-          prompt: [
-            'Qual parada? Responda com o número da opção ou da nota:',
-            ...stops.map((stop, index) => `${index + 1}. ${stop.label}`),
-          ].join('\n'),
+          prompt: askStopText(stops.map((stop) => stop.label)),
           reason: REASON.stop,
         }
       }
       return recordOrAsk(turn, role, {
+        ...(state.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}),
         documentNumber: picked.numbers[0],
         event,
         isAddressReliable: picked.isAddressReliable,
@@ -411,10 +656,14 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       if (turn.request.step !== GROUP_STOP_STEP.location || target === undefined) return null
       const role = await roleOf(turn)
       if (role.kind === 'unknown') return refusedAnswer()
-      return record(turn, role, target)
+      return record(turn, role, { ...target, location: turn.location })
     },
   }
 }
+
+const CLOSED = new Set(['delivered', 'returned'])
+
+const stripZeros = (value: string) => value.replace(/^0+/u, '')
 
 const firstNumberOf = (stop: GroupStopCandidate): string | undefined =>
   stop.documents[0]?.number.replace(/^0+/u, '')
@@ -423,6 +672,8 @@ function pickStop<Stop extends { readonly id: string; readonly numbers: readonly
   stops: readonly Stop[],
   text: string,
 ): Stop | undefined {
+  const spoken = spokenOptionNumber(text)
+  if (spoken !== undefined) return stops[spoken - 1]
   const normalized = normalizeDriverCommandText(text)
   const digits = normalized.replace(/\D/gu, '').replace(/^0+/u, '')
   if (digits === '') return undefined

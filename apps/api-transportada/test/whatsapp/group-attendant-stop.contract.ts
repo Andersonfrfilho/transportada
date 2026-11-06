@@ -76,7 +76,7 @@ describe('grupo: saí e cheguei do atendente pelo escritório (RF19)', () => {
     async (event) => {
       const { flow, recorded } = buildFlow()
       const outcome = await flow.begin(turn(ATTENDANT), event, [])
-      expect(outcome).toEqual({ kind: 'done', replies: ['ok'] })
+      expect(outcome).toEqual({ kind: 'done', replies: ['ok'], withoutFarewell: true })
       expect(recorded[0]).toMatchObject({ attendant: { actorUserId: 'U-att' }, event })
     },
   )
@@ -98,7 +98,7 @@ describe('grupo: a mensagem tardia do WhatsApp não pede localização (spec 294
   test('cheguei enviado há mais de 60 min registra direto, levando a hora do WhatsApp', async () => {
     const { flow, recorded } = buildFlow(() => NOW)
     const outcome = await flow.begin({ ...turn(CREW, 'cheguei'), sentAt: at(61) }, 'arrive', [])
-    expect(outcome).toEqual({ kind: 'done', replies: ['ok'] })
+    expect(outcome).toEqual({ kind: 'done', replies: ['ok'], withoutFarewell: true })
     expect(recorded[0]?.sentAt).toEqual(at(61))
   })
 

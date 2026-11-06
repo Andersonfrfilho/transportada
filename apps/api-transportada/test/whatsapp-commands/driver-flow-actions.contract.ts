@@ -540,7 +540,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
         location: null,
       },
     ])
-    expect(sent).toEqual([{ body: 'Entrega registrada. ✅', kind: 'text' }])
+    expect(sent).toEqual([{ body: '*Entrega registrada* ✅', kind: 'text' }])
     expect(result).toEqual({
       context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined },
       next: DRIVER_FLOW_NODE.tripMenu,
@@ -659,7 +659,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
         reason: 'recipient_absent',
       },
     ])
-    expect(sent).toEqual([{ body: 'Devolução registrada. ↩️', kind: 'text' }])
+    expect(sent).toEqual([{ body: '*Não entrega registrada* ↩️', kind: 'text' }])
   })
 
   test('catálogo de ocorrência vazio avisa e volta ao menu, sem tipos de outro estágio', async () => {

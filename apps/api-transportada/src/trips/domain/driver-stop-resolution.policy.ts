@@ -23,6 +23,8 @@ export type WhatsAppStopCandidate = {
   readonly documents: readonly {
     /** Spec 294 RF26: o id da nota, para dizer a qual nota o canhoto repetido já pertence; ausente em dublê. */
     readonly id?: string | undefined
+    /** Quando a nota foi baixada (o "já foi registrada às HH:MM" do bot); ausente em dublê. */
+    readonly deliveredAt?: string | null | undefined
     readonly number: string
     readonly recipientName?: string | undefined
     readonly separationStatus: string
@@ -91,6 +93,30 @@ export function describeStopReference(stop: WhatsAppStopCandidate): string {
   const name = first.recipientName?.trim()
   const reference = name ? `NF ${first.number} · ${name}` : `NF ${first.number}`
   return rest.length === 0 ? reference : `${reference} e mais ${rest.length}`
+}
+
+/**
+ * A parada em que o motorista já chegou e ainda falta a baixa (alguma nota em aberto). O "cheguei" repetido e o
+ * "saí" com a baixa pendente falam dela em vez de listar as outras paradas.
+ */
+export function findStopAwaitingSettlement<Stop extends WhatsAppStopCandidate>(
+  stops: readonly Stop[],
+): Stop | undefined {
+  return bySequence(
+    stops.filter(
+      (stop) =>
+        stop.arrivedAt !== null &&
+        stop.completedAt === null &&
+        stop.documents.some((document) => !CLOSED_DOCUMENT.has(document.separationStatus)),
+    ),
+  )[0]
+}
+
+/** A parada a caminho (saída registrada, sem chegada). */
+export function findStopEnRoute<Stop extends WhatsAppStopCandidate>(
+  stops: readonly Stop[],
+): Stop | undefined {
+  return bySequence(stops.filter(isEnRoute))[0]
 }
 
 /** A primeira parada pendente do roteiro — a "próxima" que o app oferece e o "saí" sugere. */

@@ -365,8 +365,8 @@ describe('pedido no grupo: cancelar e tentativas', () => {
     await sessions.handle(message({ text: 'abc', via: 'owner_reply' }))
     await sessions.handle(message({ text: 'def', via: 'owner_reply' }))
     expect(await said()).toEqual([
-      'Não entendi: a nota tem só números. Qual a nota?',
-      'Não entendi: a nota tem só números. Qual a nota?',
+      'Não entendi: a nota tem só números.\nQual a nota?',
+      'Não entendi: a nota tem só números.\nQual a nota?',
     ])
     await sessions.handle(message({ text: 'ghi', via: 'owner_reply' }))
     expect(await said()).toEqual([GROUP_REQUEST_TEXT.gaveUp])

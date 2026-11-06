@@ -35,7 +35,8 @@ const DELIVER_WORDS: ReadonlySet<string> = new Set([
   'entregei',
 ])
 const FIRST_WORD = /^(\S+)(?: (.+))?$/u
-const RETURN_VERB = /^(devolvi|devolver|devolucao)(?: (.+))?$/u
+const RETURN_VERB =
+  /^(devolvi|devolver|devolucao|nao entreguei|nao entregue|nao entregamos)(?: (.+))?$/u
 
 const REASON_WORDS: readonly (readonly [RegExp, DriverReturnReason])[] = [
   [/\b(ausente|nao tinha ninguem|ninguem)\b/u, 'recipient_absent'],

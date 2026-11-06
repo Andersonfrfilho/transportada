@@ -83,7 +83,7 @@ describe('a pergunta do fora de ordem (spec 294 RF25)', () => {
     })
     expect(text).toBe(
       [
-        '⚠️ Você iniciou a rota para a parada 3 (NF 17234 — Padaria Sol), mas esta nota é da parada 5 (NF 17300 — Mercado Estrela).',
+        '⚠️ *Você iniciou a rota para a parada 3 (NF 17234 — Padaria Sol)*, mas esta nota é da parada 5 (NF 17300 — Mercado Estrela).',
         '*1* - Entreguei a parada 5 mesmo',
         '*2* - Foi engano, descartar',
       ].join('\n'),
@@ -117,7 +117,7 @@ describe('a pergunta do fora de ordem (spec 294 RF25)', () => {
     })
     expect(text).toBe(
       [
-        'A próxima no roteiro é a parada 4 (NF 17250 — Farmácia Lua). Quer mesmo iniciar a parada 6?',
+        '⚠️ *A próxima no roteiro é a parada 4 (NF 17250 — Farmácia Lua).* Quer mesmo iniciar a parada 6?',
         '*1* - Sim, a 6',
         '*2* - Não, a 4',
       ].join('\n'),
@@ -130,7 +130,7 @@ describe('a pergunta do fora de ordem (spec 294 RF25)', () => {
       labels: new Map(),
       violation: violation({}),
     })
-    expect(text).toContain('para a parada 3, mas você está chegando na parada 5.')
+    expect(text).toContain('para a parada 3*, mas você está chegando na parada 5.')
   })
 
   test('o 409 da API vira a recusa com os ids das paradas', () => {
@@ -215,7 +215,7 @@ describe('conversa individual: saída fora do roteiro (RF25)', () => {
         whatsappNumber: PHONE,
       })
       expect(departures.at(-1)).toMatchObject({ confirmOutOfOrder: true, stopId: 's6' })
-      expect(confirmed?.texts).toEqual(['Saída registrada. 🚚'])
+      expect(confirmed?.texts).toEqual(['*Saída registrada* 🚚'])
       expect(confirmed?.context[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
     },
   )
@@ -400,7 +400,7 @@ describe('entrega de nota de outra parada (RF25, grupo e individual)', () => {
     expect(asked?.finished).toBe(false)
     expect(asked?.texts[0]).toBe(
       [
-        '⚠️ Você iniciou a rota para a parada 3 (NF 17234 — Padaria Sol), mas esta nota é da parada 5 (NF 17300 — Mercado Estrela).',
+        '⚠️ *Você iniciou a rota para a parada 3 (NF 17234 — Padaria Sol)*, mas esta nota é da parada 5 (NF 17300 — Mercado Estrela).',
         '*1* - Entreguei a parada 5 mesmo',
         '*2* - Foi engano, descartar',
       ].join('\n'),

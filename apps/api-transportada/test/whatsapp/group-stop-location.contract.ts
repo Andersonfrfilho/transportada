@@ -104,7 +104,7 @@ describe('grupo: o pedido de localização do "saí" e do "cheguei" (RF24)', () 
       step: 'stop.location',
     })
     expect(asked.kind === 'continue' ? asked.replies[0] : '').toBe(
-      '📍 Mande sua localização pelo clipe, ou responda _pular_',
+      '📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_',
     )
     expect(t.recorded).toEqual([])
     t.recorded.length = 0
@@ -114,7 +114,11 @@ describe('grupo: o pedido de localização do "saí" e do "cheguei" (RF24)', () 
 
   test('com a localização compartilhada há pouco, registra direto sem perguntar de novo', async () => {
     const t = setup({ hasLocation: true })
-    expect(await t.start('cheguei')).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })
+    expect(await t.start('cheguei')).toEqual({
+      kind: 'done',
+      replies: ['Chegada registrada.'],
+      withoutFarewell: true,
+    })
     expect(t.recorded).toHaveLength(1)
   })
 
@@ -124,7 +128,7 @@ describe('grupo: o pedido de localização do "saí" e do "cheguei" (RF24)', () 
       const t = setup({ hasLocation: false })
       await t.start('saí')
       const done = await t.answer(answer)
-      expect(done).toEqual({ kind: 'done', replies: ['Saída registrada.'] })
+      expect(done).toEqual({ kind: 'done', replies: ['Saída registrada.'], withoutFarewell: true })
       expect(t.recorded).toHaveLength(1)
     },
   )
@@ -132,7 +136,11 @@ describe('grupo: o pedido de localização do "saí" e do "cheguei" (RF24)', () 
   test('a localização compartilhada pelo dono do pedido registra o evento (o ponto está lembrado)', async () => {
     const t = setup({ hasLocation: false })
     await t.start('cheguei')
-    expect(await t.locationReceived()).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })
+    expect(await t.locationReceived()).toEqual({
+      kind: 'done',
+      replies: ['Chegada registrada.'],
+      withoutFarewell: true,
+    })
     expect(t.recorded).toHaveLength(1)
   })
 
@@ -185,7 +193,11 @@ describe('grupo: "cheguei" em parada sem localização certa corrige o endereço
 
   test('a localização compartilhada antes vale: registra direto e o ponto vai com o evento', async () => {
     const t = setup({ hasLocation: true, isAddressReliable: false })
-    expect(await t.start('cheguei')).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })
+    expect(await t.start('cheguei')).toEqual({
+      kind: 'done',
+      replies: ['Chegada registrada.'],
+      withoutFarewell: true,
+    })
     expect(t.recorded).toHaveLength(1)
   })
 
@@ -205,7 +217,7 @@ describe('grupo: "cheguei" em parada sem localização certa corrige o endereço
         ),
         speech: CATALOG_BOT_SPEECH,
       })
-    expect(await render('applied')).toBe('Chegada registrada. 📍\nEndereço atualizado. ✅')
+    expect(await render('applied')).toBe('*Chegada registrada* 📍\nEndereço atualizado. ✅')
     expect(await render('suggested')).toContain('Enviei para o escritório conferir')
   })
 })
@@ -217,7 +229,11 @@ describe('grupo: a escolha da parada não deixa o passo da localização cair na
     expect(choosing).toMatchObject({ kind: 'continue', step: 'stop.choose' })
     const asked = await t.answer('1')
     expect(asked).toMatchObject({ kind: 'continue', step: 'stop.location' })
-    expect(await t.locationReceived()).toEqual({ kind: 'done', replies: ['Saída registrada.'] })
+    expect(await t.locationReceived()).toEqual({
+      kind: 'done',
+      replies: ['Saída registrada.'],
+      withoutFarewell: true,
+    })
     expect(t.recorded).toMatchObject([{ event: 'depart', stopId: 'S1' }])
   })
 
@@ -226,7 +242,11 @@ describe('grupo: a escolha da parada não deixa o passo da localização cair na
     await t.start('cheguei')
     await t.answer('2')
     expect(t.step()).toBe('stop.location')
-    expect(await t.locationReceived()).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })
+    expect(await t.locationReceived()).toEqual({
+      kind: 'done',
+      replies: ['Chegada registrada.'],
+      withoutFarewell: true,
+    })
     expect(t.recorded).toMatchObject([{ event: 'arrive', stopId: 'S2' }])
   })
 })

@@ -7,6 +7,8 @@
  */
 
 /** A parada como a pergunta a cita: número da sequência, primeira nota e cliente. */
+import { plainText } from './whatsapp-stop-card.policy.js'
+
 export type OrderStopLabel = {
   readonly client: string
   readonly number: string
@@ -32,7 +34,7 @@ export function toOrderStopLabel(stop: {
 }): OrderStopLabel {
   const [first] = stop.documents
   return {
-    client: first?.recipientName?.trim() ?? '',
+    client: plainText(first?.recipientName ?? ''),
     number: first === undefined ? '' : stripZeros(first.number),
     sequence: stop.sequence,
   }
@@ -52,12 +54,12 @@ const stopWord = (stop: OrderStopLabel, number?: string) => {
 
 export const OUT_OF_ORDER_TEXT = {
   discarded: 'Certo, descartei e não registrei nada.',
-  notUnderstood: 'Responda 1 ou 2.',
+  notUnderstood: 'Responda *1* ou *2*.',
   question: {
     /** Saída que não é a próxima do roteiro. */
     depart: (input: { readonly next: OrderStopLabel; readonly requested: OrderStopLabel }) =>
       [
-        `A próxima no roteiro é a ${stopWord(input.next)}. Quer mesmo iniciar a parada ${input.requested.sequence}?`,
+        `⚠️ *A próxima no roteiro é a ${stopWord(input.next)}.* Quer mesmo iniciar a parada ${input.requested.sequence}?`,
         `*1* - Sim, a ${input.requested.sequence}`,
         `*2* - Não, a ${input.next.sequence}`,
       ].join('\n'),
@@ -73,7 +75,7 @@ export const OUT_OF_ORDER_TEXT = {
         ? `esta nota é da ${stopWord(input.requested, input.documentNumber)}`
         : `você está chegando na ${stopWord(input.requested)}`
       return [
-        `⚠️ Você iniciou a rota para a ${stopWord(input.current)}, mas ${where}.`,
+        `⚠️ *Você iniciou a rota para a ${stopWord(input.current)}*, mas ${where}.`,
         `*1* - ${isDelivery ? 'Entreguei a' : 'Cheguei na'} parada ${input.requested.sequence} mesmo`,
         `*2* - Foi engano${isDelivery ? ', descartar' : ''}`,
       ].join('\n')

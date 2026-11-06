@@ -36,10 +36,14 @@ export const GROUP_REQUEST_MAX_ATTEMPTS = 3
 
 export const GROUP_REQUEST_TEXT = {
   busy: 'Há um pedido em andamento neste grupo. Aguarde terminar ou responda "cancelar".',
-  cancelled: 'Pedido cancelado.',
+  cancelled:
+    'Pedido cancelado, não registrei nada.\n➡️ _Próximo passo:_ quando quiser, marque o bot de novo.',
   gaveUp:
     'Não consegui entender depois de 3 tentativas e encerrei o pedido. Suporte, por favor, acompanhe por aqui.',
-  notUnderstood: (reason: string, prompt: string) => `Não entendi: ${reason}. ${prompt}`,
+  notUnderstood: (reason: string, prompt: string) =>
+    [`Não entendi: ${reason.replace(/[.\s]+$/u, '')}.`, ...(prompt === '' ? [] : [prompt])].join(
+      '\n',
+    ),
 } as const
 
 /**
@@ -219,7 +223,8 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       return say(message, outcome.replies)
     }
     if (outcome.kind === 'done') {
-      const closing = withFarewell(outcome.replies, now)
+      const closing =
+        outcome.withoutFarewell === true ? outcome.replies : withFarewell(outcome.replies, now)
       const saved = await repository.update({
         ...scope,
         attempts: request.attempts,

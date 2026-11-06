@@ -45,8 +45,17 @@ const VOICE: GroupAudio = {
 }
 const LOCATION: GroupMedia = { kind: 'location', latitude: -20.5673337, longitude: -47.3604457 }
 
-type Owner = 'canhoto' | 'close' | 'delivery' | 'occurrence' | 'route' | 'stop'
+type Owner =
+  | 'canhoto'
+  | 'close'
+  | 'delivery'
+  | 'journey'
+  | 'occurrence'
+  | 'return'
+  | 'route'
+  | 'stop'
 type Spies = {
+  readonly return: string[]
   readonly canhoto: string[]
   readonly close: string[]
   readonly delivery: string[]
@@ -67,6 +76,16 @@ const PENDING: readonly {
   { owner: 'stop', state: { outOfOrderFor: TARGET }, step: 'stop.confirm_order' },
   { owner: 'route', state: { routeOffer: { stopId: 'S1' } }, step: 'route.offer' },
   { owner: 'close', state: {}, step: 'close.confirm' },
+  {
+    owner: 'journey',
+    state: { journeyActions: [{ kind: 'none' }, { kind: 'choose_departure' }] },
+    step: 'journey.actions',
+  },
+  {
+    owner: 'return',
+    state: { returnFor: { documentId: 'DOC1', documentNumber: '1' } },
+    step: 'return.reason',
+  },
   { owner: 'delivery', state: {}, step: 'delivery.answer' },
   ...Object.values(GROUP_OCCURRENCE_STEP).map((step) => ({
     owner: 'occurrence' as const,
@@ -115,11 +134,21 @@ function memoryRepository(seed: { step: string; state: Record<string, unknown> }
 }
 
 function setup(seed: { step: string; state: Record<string, unknown> }) {
-  const spies: Spies = { canhoto: [], close: [], delivery: [], occurrence: [], stopRecords: [] }
+  const spies: Spies = {
+    canhoto: [],
+    close: [],
+    delivery: [],
+    occurrence: [],
+    return: [],
+    stopRecords: [],
+  }
   const { repository, request } = memoryRepository(seed)
   const sent: string[] = []
   const remembered: unknown[] = []
-  const spy = (name: 'close' | 'delivery' | 'occurrence', step: string): GroupFlowOutcome => {
+  const spy = (
+    name: 'close' | 'delivery' | 'occurrence' | 'return',
+    step: string,
+  ): GroupFlowOutcome => {
     spies[name].push(step)
     return { kind: 'continue', replies: [name], state: {}, step: 'inner' }
   }
@@ -137,6 +166,10 @@ function setup(seed: { step: string; state: Record<string, unknown> }) {
         turn.request.step === GROUP_OCCURRENCE_STEP.location ? spy('occurrence', 'location') : null,
       start: async () => spy('occurrence', 'start'),
     },
+    return: {
+      answer: async (turn: GroupFlowTurn) => spy('return', turn.request.step),
+      begin: async () => spy('return', 'begin'),
+    } as never,
     stop: createGroupStopFlow({
       enRouteMessage: async () => 'a caminho',
       hasLocation: () => false,
@@ -243,13 +276,15 @@ const OWNED: Record<Owner, keyof Spies | undefined> = {
   canhoto: 'canhoto',
   close: 'close',
   delivery: 'delivery',
+  journey: undefined,
   occurrence: 'occurrence',
+  return: 'return',
   route: undefined,
   stop: undefined,
 }
 
 function expectOnlyOwner(spies: Spies, owner: Owner): void {
-  for (const name of ['canhoto', 'close', 'delivery', 'occurrence'] as const) {
+  for (const name of ['canhoto', 'close', 'delivery', 'occurrence', 'return'] as const) {
     if (OWNED[owner] !== name) expect(spies[name]).toEqual([])
   }
 }

@@ -212,7 +212,7 @@ describe('conversa individual: a resposta ao pedido de localização (RF24)', ()
       input: { location: null, stopId: 'stop-1' },
       kind: 'arrive',
     })
-    expect(harness.sent).toEqual(['Chegada registrada. 📍'])
+    expect(harness.sent).toEqual(['*Chegada registrada* 📍'])
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
   })
 
@@ -376,7 +376,7 @@ describe('o "saí"/"cheguei" da conversa individual pede a localização (RF24)'
     const harness = actionsHarness({ withLocation: true })
     await harness.run(DRIVER_FLOW_ACTION_KIND.arrive)
     expect(harness.calls).toEqual(['arrive'])
-    expect(harness.sent).toEqual(['Chegada registrada. 📍'])
+    expect(harness.sent).toEqual(['*Chegada registrada* 📍'])
   })
 
   describe('"cheguei" em parada sem localização certa corrige o endereço (spec 294 RF14)', () => {
@@ -399,7 +399,7 @@ describe('o "saí"/"cheguei" da conversa individual pede a localização (RF24)'
     test('a localização da chegada corrigiu o cadastro: a resposta diz "Endereço atualizado"', async () => {
       const harness = createHarness(ARRIVE_PROMPT, { addressCorrection: 'applied', id: 'e' })
       await harness.send(locationMessage())
-      expect(harness.sent).toEqual(['Chegada registrada. 📍\nEndereço atualizado. ✅'])
+      expect(harness.sent).toEqual(['*Chegada registrada* 📍\nEndereço atualizado. ✅'])
     })
 
     test('o ponto ficou longe do cadastro: a resposta diz que foi ao escritório conferir', async () => {
@@ -411,7 +411,7 @@ describe('o "saí"/"cheguei" da conversa individual pede a localização (RF24)'
     test.each(['ignored', 'failed'])('"%s" não diz nada sobre o endereço', async (outcome) => {
       const harness = createHarness(ARRIVE_PROMPT, { addressCorrection: outcome, id: 'e' })
       await harness.send(locationMessage())
-      expect(harness.sent).toEqual(['Chegada registrada. 📍'])
+      expect(harness.sent).toEqual(['*Chegada registrada* 📍'])
     })
   })
 })
