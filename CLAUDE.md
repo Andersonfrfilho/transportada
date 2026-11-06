@@ -188,6 +188,16 @@ O atendente baixa pelo caminho do escritório. **A foto do canhoto dá a baixa**
 de IA pago — decisão do dono, 2026-11-05) e casa o número com as notas abertas de quem mandou; casou exato, baixa; senão o bot pergunta.
 `CANHOTO_OCR_ENABLED` vem desligado em produção (pico de ~740 MB no worker: medir em staging antes de ligar). Detalhe: `apps/api-transportada/CLAUDE.md` § "A ordem da parada" e `specs/294-*/`.
 
+**A nota bipada vem da SEFAZ** (spec 298; ainda não publicada). Bipar a chave do DANFE com o leitor de mão (caminho principal;
+câmera é secundária) **importa** a nota. Se a nota já está cadastrada, `POST /v1/nfe-documents/access-key-checks` (em lote)
+responde na hora. Se não está, `POST /v1/nfe-access-key-lookups` cria a busca: um `nfe_imports` com `source = 'access_key'`
+mais um evento. O worker consulta a SEFAZ por chave (`consChNFe`) e importa pelo mesmo escritor da distribuição. Estado em
+`nfe_access_key_lookups`; orçamento de 15/h e bloqueio de 656 em `nfe_access_key_lookup_budgets`, **compartilhado com a
+distribuição**. Recusa (640 etc.) mostra o motivo e "Enviar XML". Na criação e no detalhe da viagem, a nota bipada vai
+para "Notas encontradas" e **só entra na viagem com "Acrescentar"**, inclusive a já cadastrada. Na página de NF-e é
+"Importar por bip", com resumo. Runbook § 5.22; detalhe em `apps/api-transportada/CLAUDE.md`, `apps/worker-transportada/CLAUDE.md`
+e `specs/298-*/`.
+
 **A NFS-e fala a Nota RP v3, mas a produção ainda está na v2** (spec 250, ADR 0098). A versão é gravada **por tentativa**
 (`providerApiVersion` no `provider_config`); `NFSE_PROVIDER_API_VERSION` (padrão `v2`) só diz qual versão a API grava na
 próxima emissão, e o worker obedece à tentativa. Notas emitidas fora do sistema (as de Ribeirão Preto) entram por

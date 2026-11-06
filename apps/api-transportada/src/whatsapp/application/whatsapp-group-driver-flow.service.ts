@@ -380,8 +380,8 @@ export function createGroupDriverFlow(flows: {
     /** "Cancelar" vai ao fluxo dono do passo; sem dono com cancelamento próprio, o pedido só fecha. */
     async cancel(turn) {
       if (ownerOfStep(turn.request.step) !== 'delivery' || delivery === undefined) return null
-      const answered = await delivery.answer(inner(turn, GROUP_DRIVER_STEP.deliveryPrefix))
-      return withDeliveryPrefix(answered)
+      const cancelled = await delivery.cancel?.(inner(turn, GROUP_DRIVER_STEP.deliveryPrefix))
+      return cancelled === null || cancelled === undefined ? null : withDeliveryPrefix(cancelled)
     },
 
     locationReceived(turn) {

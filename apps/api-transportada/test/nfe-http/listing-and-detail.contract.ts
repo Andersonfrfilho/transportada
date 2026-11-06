@@ -56,6 +56,19 @@ describe('nfe http listing and detail contract', () => {
     ])
   })
 
+  test('filters imports by the access-key origin and still rejects unknown origins', async () => {
+    const fixture = await createNfeHttpFixture()
+
+    const accepted = await fixture.handle(importsListRequest({ query: '?sourceEq=access_key' }))
+    const rejected = await fixture.handle(importsListRequest({ query: '?sourceEq=carrier_pigeon' }))
+
+    expect(accepted.status).toBe(200)
+    expect(fixture.importListCalls[0]).toMatchObject({
+      filters: { sourceEq: 'access_key' },
+    })
+    expect(rejected.status).toBe(400)
+  })
+
   test('rejects invalid import listing cursors and limits before application work', async () => {
     const fixture = await createNfeHttpFixture()
 

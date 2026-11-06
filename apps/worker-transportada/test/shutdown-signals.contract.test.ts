@@ -102,6 +102,7 @@ const noopRuntimeDependencies = {
   startAggregateAttachmentConsumer: async () => ({
     cancel: async (): Promise<void> => undefined,
   }),
+  startAccessKeyLookupConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
   startCargoPreviewConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
   startDeliveryProofProcessingConsumer: async () => ({
     cancel: async (): Promise<void> => undefined,

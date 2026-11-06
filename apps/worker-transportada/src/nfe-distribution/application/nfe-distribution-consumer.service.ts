@@ -113,6 +113,19 @@ type NfeDistributionClock = {
   now(): Date
 }
 
+/** Um bloqueio 656 por (empresa, ambiente) vale para o serviço NFeDistribuicaoDFe inteiro, busca por chave inclusa. */
+export type SefazDistributionBudgetPort = {
+  block656(input: {
+    readonly companyId: string
+    readonly environment: NfeDistributionEnvironment
+    readonly now: Date
+  }): Promise<void>
+  readBlockedUntil(input: {
+    readonly companyId: string
+    readonly environment: NfeDistributionEnvironment
+  }): Promise<Date | null>
+}
+
 type NfeDistributionConsumer = {
   execute(input: { readonly envelope: NfeProcessingEnvelopeV1 }): Promise<{
     readonly duplicatedCount: number
@@ -320,6 +333,40 @@ async function persistPageOrSkip(input: {
   }
 }
 
+async function readLookupBlockedUntil(input: {
+  readonly companyId: string
+  readonly config: NfeDistributionRuntimeConfig
+  readonly cursorRepository: NfeDistributionCursorRepositoryPort
+  readonly sefazBudget: SefazDistributionBudgetPort
+}): Promise<Date | null> {
+  try {
+    return await input.sefazBudget.readBlockedUntil({
+      companyId: input.companyId,
+      environment: input.config.environment,
+    })
+  } catch (error: unknown) {
+    await input.cursorRepository.releaseLease({
+      companyId: input.companyId,
+      environment: input.config.environment,
+      owner: LEASE_OWNER,
+    })
+    throw error
+  }
+}
+
+/** O mais tarde entre a janela do cursor e o bloqueio 656 aberto pela busca por chave; `undefined` = livre. */
+function resolveCooldownEnd(input: {
+  readonly cursorNextAllowedAt: Date | null
+  readonly lookupBlockedUntil: Date | null
+  readonly now: Date
+}): Date | undefined {
+  const activeEnds = [input.cursorNextAllowedAt, input.lookupBlockedUntil].filter(
+    (end): end is Date => end !== null && end.getTime() > input.now.getTime(),
+  )
+  if (activeEnds.length === 0) return undefined
+  return new Date(Math.max(...activeEnds.map((end) => end.getTime())))
+}
+
 export function createNfeDistributionConsumer(input: {
   readonly clock: NfeDistributionClock
   readonly cursorRepository: NfeDistributionCursorRepositoryPort
@@ -328,6 +375,7 @@ export function createNfeDistributionConsumer(input: {
   readonly logger: WorkerLogger
   readonly profile: NfeDistributionProfilePort
   readonly repository: NfeDistributionRepositoryPort
+  readonly sefazBudget: SefazDistributionBudgetPort
 }): NfeDistributionConsumer {
   return {
     async execute(params: { readonly envelope: NfeProcessingEnvelopeV1 }): Promise<{
@@ -361,7 +409,19 @@ export function createNfeDistributionConsumer(input: {
         throw new Error('NF-e distribution lease is already held by another worker')
       }
 
-      if (cursor.nextAllowedAt !== null && cursor.nextAllowedAt.getTime() > now.getTime()) {
+      const lookupBlockedUntil = await readLookupBlockedUntil({
+        companyId: params.envelope.companyId,
+        config,
+        cursorRepository: input.cursorRepository,
+        sefazBudget: input.sefazBudget,
+      })
+      const cooldownEnd = resolveCooldownEnd({
+        cursorNextAllowedAt: cursor.nextAllowedAt,
+        lookupBlockedUntil,
+        now,
+      })
+
+      if (cooldownEnd !== undefined) {
         safeLogWarn({
           logger: input.logger,
           message: 'nfe_distribution_pull_skipped_cooldown',
@@ -369,7 +429,7 @@ export function createNfeDistributionConsumer(input: {
             companyId: params.envelope.companyId,
             environment: config.environment,
             importId: params.envelope.payload.importId,
-            nextAllowedAt: cursor.nextAllowedAt.toISOString(),
+            nextAllowedAt: cooldownEnd.toISOString(),
             ultNsu: cursor.ultNsu,
           },
         })
@@ -617,6 +677,13 @@ export function createNfeDistributionConsumer(input: {
             ultNsu,
           })
         }
+
+        // Um bloqueio só para o serviço: a busca por chave também para até a SEFAZ liberar
+        await input.sefazBudget.block656({
+          companyId: params.envelope.companyId,
+          environment: config.environment,
+          now: input.clock.now(),
+        })
 
         await input.repository.finalizeImport({
           companyId: params.envelope.companyId,

@@ -168,6 +168,23 @@ describe('KeycloakAuthProvider', () => {
     expect(client.clearToken).not.toHaveBeenCalled()
     expect(client.logout).toHaveBeenCalledWith({ redirectUri: 'http://localhost' })
   })
+
+  test('forgets the scanned access-key list on logout', async () => {
+    const removed: string[] = []
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      configurable: true,
+      value: { removeItem: (key: string) => removed.push(key) },
+    })
+    try {
+      await createKeycloakAuthProvider(createClient(), CALLBACK_URL).logout()
+    } finally {
+      if (original === undefined) Reflect.deleteProperty(globalThis, 'sessionStorage')
+      else Object.defineProperty(globalThis, 'sessionStorage', original)
+    }
+
+    expect(removed).toContain('nfe-workspace.access-key-import')
+  })
 })
 
 /**

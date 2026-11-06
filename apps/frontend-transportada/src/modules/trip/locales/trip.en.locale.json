@@ -1721,6 +1721,10 @@
     "accessKey": "Note number or key",
     "accessKeyPlaceholder": "Note number or the 44 characters of the key",
     "add": "Add",
+    "addAllReady": "Add all ready ({{count}})",
+    "bipped": "Scanned",
+    "bippedDocumentFailed": "Could not check this invoice in the registry.",
+    "bippedRetry": "Try again",
     "cancel": "Cancel",
     "clearFilteredSelection": "Unselect all {{count}} from the filter",
     "close": "Close",
@@ -1735,9 +1739,10 @@
     },
     "empty": "No invoice scanned yet.",
     "failed": "Could not create the trip. Check the invoices and try again.",
+    "foundNotes": "Found invoices",
     "hiddenBySelection_one": "{{count}} selected invoice is outside the current filter and will not be included.",
     "hiddenBySelection_other": "{{count}} selected invoices are outside the current filter and will not be included.",
-    "intro": "Scan, read with the camera, or type the number or key of the notes that leave together. Only notes that are not on any trip yet are accepted.",
+    "intro": "Scan with the reader, use the camera or search the invoices that leave together. They appear under Found invoices and only join the trip with Add. Only invoices that are not on any trip yet are accepted.",
     "issue": {
       "dailyAllowanceDaysInvalid": "Daily allowance: enter a whole number of days, starting at 1.",
       "driverRequired": "Select at least one driver.",
@@ -1745,14 +1750,23 @@
       "noDocument": "Scan at least one available invoice.",
       "vehicleRequired": "Select the trip vehicle."
     },
+    "notice": {
+      "alreadyAdded": "This note is already on the trip.",
+      "alreadyScanned": "This key was already scanned.",
+      "loadingDocuments": "Loading the available notes… Scan again in a moment.",
+      "notFound": "No free note with this number in this company.",
+      "unrecognized": "Scan the note key or type its number."
+    },
+    "reader": {
+      "field": "Invoice key",
+      "idle": "Click here to read again",
+      "ready": "Reader ready"
+    },
     "refusal": {
       "alreadyOnTrip": "Already on another trip",
-      "lookupFailed": "Could not look it up",
-      "notAuthorized": "Not authorised at SEFAZ",
-      "notFound": "Not found in this company"
+      "notAuthorized": "Not authorised at SEFAZ"
     },
     "remove": "Remove this invoice",
-    "resolving": "Looking the invoice up…",
     "scan": "Scan with the camera",
     "search": "Search invoices",
     "searchLoading": "Loading available invoices…",
@@ -1771,15 +1785,22 @@
     "submit": "Create trip",
     "submitDraft": "Save draft",
     "title": "New trip",
-    "weightEstimated": "estimated",
-    "weightEstimatedHint": "Weight computed from the volume count and the company default weight — the invoice declared no mass.",
-    "weightValue": "{{weight}} kg",
     "typed": {
       "ambiguous": "{{count}} free notes share this number. Which one?",
       "notFound": "No free note with this number or key in this company.",
       "option": "Note {{number}}/{{series}} · {{emitter}} to {{recipient}}",
       "pickTitle": "Choose the note",
       "unrecognized": "Type the note number or the 44 characters of the key."
+    },
+    "weightEstimated": "estimated",
+    "weightEstimatedHint": "Weight computed from the volume count and the company default weight — the invoice declared no mass.",
+    "weightValue": "{{weight}} kg",
+    "xml": {
+      "action": "Send XML",
+      "field": "Invoice XML",
+      "placeholder": "No XML chosen",
+      "failed": "Could not send the XML. Try again.",
+      "notImported": "The XML was sent, but the invoice is not registered yet."
     }
   },
   "readiness": {

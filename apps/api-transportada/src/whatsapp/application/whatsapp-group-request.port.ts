@@ -126,6 +126,8 @@ export type GroupReplySenderPort = {
   send(input: {
     readonly companyId: string
     readonly groupJid: string
+    /** Quem a resposta marca no grupo (só dígitos do telefone); ausente, sai sem marca. */
+    readonly mentionNumber?: string | undefined
     readonly texts: readonly string[]
   }): void
 }

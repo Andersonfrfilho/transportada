@@ -17,7 +17,9 @@ type ClaimedOutboxEntry = {
   readonly eventType:
     | 'transportada.nfe.import.requested'
     | 'transportada.nfe.distribution.requested'
+    | 'transportada.nfe.access-key.requested'
   readonly importId: string
+  readonly lookupId?: string
   readonly occurredAt: string
   readonly version: 1
 }
@@ -49,6 +51,7 @@ export class DrizzleOutboxRepository {
           eventType: processingOutbox.eventType,
           importId: processingOutbox.aggregateId,
           occurredAt: processingOutbox.createdAt,
+          payload: processingOutbox.payload,
         })
         .from(processingOutbox)
         .where(
@@ -86,6 +89,7 @@ export class DrizzleOutboxRepository {
         eventId: row.eventId,
         eventType: row.eventType as ClaimedOutboxEntry['eventType'],
         importId: row.importId,
+        ...readLookupId(row.payload),
         occurredAt: row.occurredAt.toISOString(),
         version: 1 as const,
       }))
@@ -166,6 +170,12 @@ export class DrizzleOutboxRepository {
       return params.operation()
     })
   }
+}
+
+function readLookupId(payload: unknown): { readonly lookupId?: string } {
+  if (typeof payload !== 'object' || payload === null) return {}
+  const lookupId = (payload as { readonly lookupId?: unknown }).lookupId
+  return typeof lookupId === 'string' ? { lookupId } : {}
 }
 
 function inOutboxRows(rows: readonly Pick<ClaimedOutboxEntry, 'companyId' | 'eventId'>[]) {

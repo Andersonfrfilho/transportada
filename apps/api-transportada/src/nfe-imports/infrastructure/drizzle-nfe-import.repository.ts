@@ -175,8 +175,8 @@ export class DrizzleNfeImportRepository
       readonly rejectedCountNe?: string
       readonly requestedByUserIdEq?: string
       readonly requestedByUserIdNe?: string
-      readonly sourceEq?: 'distribution' | 'upload'
-      readonly sourceNe?: 'distribution' | 'upload'
+      readonly sourceEq?: 'access_key' | 'distribution' | 'upload'
+      readonly sourceNe?: 'access_key' | 'distribution' | 'upload'
       readonly statusEq?:
         | 'pending'
         | 'queued'
@@ -285,8 +285,8 @@ function createImportListFilters(
         readonly rejectedCountNe?: string
         readonly requestedByUserIdEq?: string
         readonly requestedByUserIdNe?: string
-        readonly sourceEq?: 'distribution' | 'upload'
-        readonly sourceNe?: 'distribution' | 'upload'
+        readonly sourceEq?: 'access_key' | 'distribution' | 'upload'
+        readonly sourceNe?: 'access_key' | 'distribution' | 'upload'
         readonly statusEq?:
           | 'pending'
           | 'queued'

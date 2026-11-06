@@ -886,6 +886,33 @@ pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigration
   A prova é a jornada inteira pelo caminho real, com o texto exato de cada resposta:
   `test/integration/whatsapp-driver-journey-{group,direct}.integration.ts` (respostas em
   `test/fixtures/driver-journey-*.expected.ts`; `JOURNEY_RECORD=1` regrava, `JOURNEY_TRANSCRIPT=1` imprime a conversa).
+- **"Entreguei" sem número segue o que está em andamento**, nos dois canais e por áudio: a entrega em preparo aberta é
+  retomada (`resume`: "↩️ _Continuando a entrega da NF X._" + a pergunta pendente); sem ela, a parada que chegou e falta
+  a baixa (ou a caminho) decide (`readWhatsAppStopInProgress`: uma nota vai direto com o bloco da parada, várias listam
+  só as dela); só sem nada em andamento a lista é a da viagem. O número digitado sempre vence. A foto sem pergunta
+  aberta (reconhecimento do canhoto) também pergunta primeiro pela nota da parada em andamento.
+- **Uma resposta do bot por turno é UMA mensagem do WhatsApp** (`whatsapp-turn-replies.service.ts`): no grupo, o remetente
+  (`createEvolutionGroupReplySender`) e a entrada (`createEvolutionGroupInbound`) dividem o turno; na conversa individual, o
+  canal da Meta é embrulhado em `createWhatsAppCommandHookFactory`. Os textos do turno saem juntos (linha em branco entre
+  eles) no fim; lista/botões interativos saem na hora, depois da fala já guardada. O que vem depois do turno (a
+  transcrição do áudio, `runOutsideWhatsAppTurn`) sai sozinho. Motivo: o espaçador do Evolution segura cada mensagem
+  seguinte, e a pergunta separada chegava depois da resposta do motorista. As jornadas de integração cobram uma mensagem
+  por turno. Teto de 4000 caracteres por mensagem (a Meta recusa acima de 4096): corta nas linhas em branco, em ordem.
+  Falha na entrega do fim do turno vai a log (`companyId`, `errorName`) e nunca sobe — o webhook não pode virar 5xx e a
+  Meta reenviar o turno. Compromisso conhecido: fala de fora do turno ao mesmo destino entrega antes o que o turno já
+  guardou (a ordem vale mais que juntar).
+- **A resposta do bot no grupo marca quem pediu** (`GroupReplySenderPort.send({ mentionNumber })`): o remetente
+  abre a primeira mensagem com `@<telefone>` e manda o número em `mentioned` de `POST /message/sendText` (Evolution 2.3.7;
+  chamada direta em `evolution-mention-text.gateway.ts`, o SDK só tem `sendText(to, body)`), então o WhatsApp avisa a pessoa
+  com o grupo silenciado. Uma vez por resposta: o turno junta as falas e a marca fica no começo; texto cortado pelo teto de
+  4000 caracteres marca só a primeira parte. O número é o telefone que a entrada do grupo já resolveu (o `@lid` vira número
+  antes de aceitar a mensagem; sem número, a mensagem nem é aceita), validado como 8–15 dígitos; sem ele a resposta sai sem
+  marca e nunca falha. Aviso sem pedido (vencimento do pedido) não marca ninguém; quem chamar com um destinatário (lembrete da
+  spec 299) passa `mentionNumber`. Número nunca vai a log.
+- **"Cancelar" fecha qualquer pergunta aberta, nunca vira resposta**: no grupo, todo passo do `GROUP_STEP_REGISTRY`
+  fecha (a lista "Qual nota você entregou?" só deixa o pedido fechar; a entrega em preparo é encerrada); no individual,
+  o motorista sai de qualquer nó do fluxo com "Certo, cancelei e não registrei nada." As matrizes de isolamento
+  (`test/whatsapp/group-{flow,inbound}-isolation.contract.ts`) iteram o registro, então passo novo já é cobrado.
 - **Toda `FlowAction` de negócio passa por `withAuthorizedActor`**, que re-resolve o ator a cada
   chamada contra o mesmo `AuthorizationService` do HTTP; `registerWhatsAppFlowActions` é o único
   caminho de registro.

@@ -18,7 +18,10 @@ import {
   type GroupMedia,
 } from '../../src/whatsapp/application/evolution-group-inbound.service.js'
 import { createWhatsAppBotAudio } from '../../src/whatsapp/application/whatsapp-bot-audio.service.js'
-import { createGroupDriverFlow } from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
+import {
+  createGroupDriverFlow,
+  GROUP_STEP_REGISTRY,
+} from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
 import { GROUP_OCCURRENCE_STEP } from '../../src/whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 import { createGroupProofIntake } from '../../src/whatsapp/application/whatsapp-group-proof-intake.service.js'
 import type {
@@ -27,7 +30,10 @@ import type {
   GroupRequest,
   GroupRequestRepositoryPort,
 } from '../../src/whatsapp/application/whatsapp-group-request.port.js'
-import { createWhatsAppGroupRequestSessions } from '../../src/whatsapp/application/whatsapp-group-request.service.js'
+import {
+  createWhatsAppGroupRequestSessions,
+  GROUP_REQUEST_TEXT,
+} from '../../src/whatsapp/application/whatsapp-group-request.service.js'
 import { createGroupStopFlow } from '../../src/whatsapp/application/whatsapp-group-stop-flow.service.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
@@ -258,13 +264,21 @@ function setup(seed: { step: string; state: Record<string, unknown> }) {
   const receive = (input: {
     audio?: GroupAudio | null
     media?: GroupMedia | null
+    mention?: boolean
     text?: string
   }) =>
     inbound.receive({
       audio: input.audio ?? null,
       companyId: COMPANY_ID,
       connection: async () => CONNECTION,
-      event: { ...base(), text: input.text ?? null },
+      event: {
+        ...base(),
+        ...(input.mention === true ? { mentionedJids: [`${BOT}@s.whatsapp.net`] } : {}),
+        text:
+          input.mention === true && input.text !== undefined
+            ? `@${BOT} ${input.text}`
+            : (input.text ?? null),
+      },
       media: input.media ?? null,
       senderLid: null,
     })
@@ -333,6 +347,22 @@ describe('caminho completo do grupo: só o dono da pergunta trata a resposta', (
         expect(spies.canhoto).toEqual(['location'])
       }
     })
+  }
+
+  // Defeito de staging: "@bot cancelar" com "Qual nota você entregou?" aberta virava resposta ("não achei essa nota").
+  for (const step of GROUP_STEP_REGISTRY.flatMap((entry) =>
+    entry.steps.map((inner) => `${entry.prefix}${inner}`),
+  )) {
+    for (const mention of [false, true]) {
+      const shown = mention ? '@bot cancelar' : 'cancelar'
+      test(`${step} esperando: "${shown}" fecha o pedido sem registrar nada`, async () => {
+        const { receive, request, sent, spies } = setup({ state: {}, step })
+        await receive({ mention, text: 'cancelar' })
+        expect(request.status).not.toBe('open')
+        expect(sent.at(-1)).toBe(GROUP_REQUEST_TEXT.cancelled)
+        expect(spies.stopRecords).toEqual([])
+      })
+    }
   }
 
   test('"iniciar rota": escolher a parada e mandar a localização registra a saída, sem tocar a ocorrência', async () => {

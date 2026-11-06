@@ -47,7 +47,7 @@ export type NfeImportSummary = {
   readonly receivedCount: bigint
   readonly rejectedCount: bigint
   readonly requestedByUserId: string
-  readonly source: 'distribution' | 'upload'
+  readonly source: 'access_key' | 'distribution' | 'upload'
   readonly status: NfeImportStatus
   readonly terminalError: NfeImportSafeError | null
   readonly updatedAt: string
@@ -263,8 +263,8 @@ export type NfeImportListReaderPort = {
       readonly rejectedCountNe?: string
       readonly requestedByUserIdEq?: string
       readonly requestedByUserIdNe?: string
-      readonly sourceEq?: 'distribution' | 'upload'
-      readonly sourceNe?: 'distribution' | 'upload'
+      readonly sourceEq?: 'access_key' | 'distribution' | 'upload'
+      readonly sourceNe?: 'access_key' | 'distribution' | 'upload'
       readonly statusEq?: NfeImportStatus
       readonly statusNe?: NfeImportStatus
       readonly updatedFrom?: string

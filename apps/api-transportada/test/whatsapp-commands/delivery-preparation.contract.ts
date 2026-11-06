@@ -19,6 +19,7 @@ import type {
 import { resolveDeliveryProofChecklist } from '../../src/whatsapp-commands/domain/whatsapp-delivery-proof-checklist.policy.js'
 import {
   DEFAULT_DELIVERY_PROOF_SETTINGS,
+  resolveProofSettingsForRecipient,
   type DeliveryProofFieldSettings,
 } from '../../src/trips/domain/delivery-proof-settings.policy.js'
 
@@ -416,5 +417,196 @@ describe('spec 294 RF19: baixa do atendente, comprovantes opcionais', () => {
     await t.answer('1')
     expect(t.delivered[0]).toMatchObject({ attendant: true })
     expect(t.attached).toHaveLength(1)
+  })
+})
+
+describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" encerra', () => {
+  const PHOTO_REQUIRED: DeliveryProofFieldSettings = { ...OFF, photo: 'required' }
+
+  test('retoma a entrega aberta: diz a NF e repete a pergunta pendente (a foto do canhoto)', async () => {
+    const t = setup(PHOTO_REQUIRED)
+    await t.begin()
+    await t.service.receiveLocation({
+      actor: ACTOR,
+      location: {
+        accuracyMeters: null,
+        capturedAt: '2026-11-04T12:00:00.000Z',
+        latitude: '-21.1',
+        longitude: '-47.8',
+      },
+    })
+    expect(await t.service.resume?.({ actor: ACTOR })).toEqual({
+      awaitingText: false,
+      documentNumber: '17234',
+      finished: false,
+      // Uma mensagem só: no grupo o Evolution espaça as mensagens, e a pergunta separada chegava depois da resposta seguinte.
+      texts: [
+        '↩️ *Continuando a entrega da NF 17234.*\n📸 *NF 17234:* mande a foto do canhoto assinado.',
+      ],
+    })
+    expect(t.delivered).toEqual([])
+  })
+
+  const LOCATION = {
+    accuracyMeters: null,
+    capturedAt: '2026-11-04T12:00:00.000Z',
+    latitude: '-21.1',
+    longitude: '-47.8',
+  }
+  const HEADER = '↩️ *Continuando a entrega da NF 17234.*'
+  const RESUME_CASES: readonly {
+    readonly expected: string
+    readonly item: string
+    readonly settings: DeliveryProofFieldSettings
+    readonly steps: readonly ('location' | 'photo' | 'skip')[]
+  }[] = [
+    {
+      expected: [
+        HEADER,
+        '⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.',
+        '📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+      ].join('\n'),
+      item: 'localização',
+      settings: { ...OFF, photo: 'required' },
+      steps: [],
+    },
+    {
+      expected: [
+        HEADER,
+        '📸 *NF 17234:* mande a foto do canhoto assinado. _Se não tiver, responda pular._',
+      ].join('\n'),
+      item: 'foto do canhoto (opcional)',
+      settings: { ...OFF, photo: 'optional' },
+      steps: ['location'],
+    },
+    {
+      expected: [HEADER, '📦 *NF 17234:* mande 1 foto da mercadoria entregue.'].join('\n'),
+      item: 'foto da mercadoria',
+      settings: { ...OFF, cargo: 'required', cargoMinimumCount: 1 },
+      steps: ['location'],
+    },
+    {
+      expected: [HEADER, '✍️ *NF 17234:* qual o nome de quem recebeu?'].join('\n'),
+      item: 'nome de quem recebeu',
+      settings: { ...OFF, photo: 'optional', receiverName: 'required' },
+      steps: ['location', 'photo'],
+    },
+  ]
+  for (const resumeCase of RESUME_CASES) {
+    test(`retoma com a pergunta pendente (${resumeCase.item}) na MESMA mensagem do aviso`, async () => {
+      const t = setup(resumeCase.settings)
+      await t.begin()
+      for (const step of resumeCase.steps) {
+        if (step === 'location')
+          await t.service.receiveLocation({ actor: ACTOR, location: LOCATION })
+        if (step === 'photo') await t.photo('M1')
+        if (step === 'skip') await t.answer('pular')
+      }
+      expect((await t.service.resume?.({ actor: ACTOR }))?.texts).toEqual([resumeCase.expected])
+    })
+  }
+
+  test('retoma com "quem recebeu" e as opções na MESMA mensagem do aviso', async () => {
+    const t = setup({ ...OFF, photo: 'optional', receivedBy: 'required' })
+    await t.begin()
+    await t.service.receiveLocation({ actor: ACTOR, location: LOCATION })
+    await t.photo('M1')
+    const texts = (await t.service.resume?.({ actor: ACTOR }))?.texts ?? []
+    expect(texts).toHaveLength(1)
+    expect(
+      texts[0]?.startsWith(
+        `${HEADER}\n👤 *NF 17234:* quem recebeu? _Responda com o número._\n*1* - O próprio destinatário`,
+      ),
+    ).toBe(true)
+  })
+
+  test('sem entrega aberta não há o que retomar', async () => {
+    const t = setup(PHOTO_REQUIRED)
+    expect(await t.service.resume?.({ actor: ACTOR })).toBeNull()
+  })
+
+  test('"cancelar" com a foto pedida encerra a entrega sem registrar nada', async () => {
+    const t = setup(PHOTO_REQUIRED)
+    await t.begin()
+    await t.answer('pular')
+    expect(await t.answer('cancelar')).toEqual({
+      awaitingText: false,
+      documentNumber: '17234',
+      finished: true,
+      texts: ['Entrega da NF 17234 cancelada. A nota continua aberta na viagem.'],
+    })
+    expect(t.status()).toEqual(['cancelled'])
+    expect(t.delivered).toEqual([])
+  })
+
+  test('"cancelar" no lugar do nome de quem recebeu também encerra', async () => {
+    const t = setup({ ...OFF, photo: 'optional', receiverName: 'required' })
+    await t.begin()
+    await t.answer('pular')
+    await t.photo('M1')
+    expect((await t.answer('cancelar', true))?.texts).toEqual([
+      'Entrega da NF 17234 cancelada. A nota continua aberta na viagem.',
+    ])
+    expect(t.status()).toEqual(['cancelled'])
+  })
+})
+
+/**
+ * Spec 218 RF-C3 no WhatsApp (caso COMERCIAL ZARAGOZA): geral tudo opcional, exceção da contratante
+ * "só o canhoto, obrigatório; o resto desligado". A configuração chega resolvida pela MESMA regra do
+ * app (`resolveProofSettingsForRecipient` com o contratante); a tripulação é cobrada pelo canhoto e não
+ * ouve pergunta do que a exceção desliga; o atendente (spec 294 RF18/RF19) lê a mesma exceção e só
+ * ganha o afrouxamento por cima: o canhoto vira opcional, nada mais é perguntado.
+ */
+describe('spec 218: a exceção da contratante no WhatsApp', () => {
+  const GENERAL_ALL_OPTIONAL: DeliveryProofFieldSettings = {
+    cargo: 'optional',
+    cargoMinimumCount: 1,
+    photo: 'optional',
+    receivedBy: 'optional',
+    receiverDocument: 'optional',
+    receiverName: 'optional',
+    signature: 'optional',
+  }
+  const ZARAGOZA = resolveProofSettingsForRecipient({
+    contractorId: 'contractor-zaragoza',
+    lookup: {
+      general: GENERAL_ALL_OPTIONAL,
+      overridesByContractorId: new Map([['contractor-zaragoza', { ...OFF, photo: 'required' }]]),
+      overridesByTaxId: new Map(),
+    },
+    recipientTaxId: '12345678000190',
+  })
+  const PERSON_QUESTIONS = /quem recebeu/iu
+
+  test('tripulação: canhoto obrigatório sem "pular", e nada de quem recebeu nem nome', async () => {
+    const t = setup(ZARAGOZA)
+    await t.begin()
+    const canhotoQuestion = await t.answer('pular')
+    expect(canhotoQuestion?.texts.join('\n')).toContain('canhoto')
+    expect(canhotoQuestion?.texts.join('\n')).not.toContain('pular')
+    const refused = await t.answer('pular')
+    expect(refused?.texts.join('\n')).toContain('obrigatório')
+    expect(t.delivered).toEqual([])
+
+    const afterPhoto = await t.photo('M1')
+    expect(afterPhoto?.texts.join('\n')).not.toMatch(PERSON_QUESTIONS)
+    expect(afterPhoto?.texts.join('\n')).toContain('Confirma a entrega?')
+    await t.answer('1')
+    expect(t.delivered).toHaveLength(1)
+    expect(t.attached).toEqual([{ kind: 'photo', receivedBy: null, receiverName: '' }])
+  })
+
+  test('atendente: o canhoto vira opcional e pula; nada de quem recebeu nem nome; nunca barra', async () => {
+    const t = setup(ZARAGOZA, undefined, ATTENDANT)
+    await t.begin()
+    const canhotoQuestion = await t.answer('pular')
+    expect(canhotoQuestion?.texts.join('\n')).toContain('canhoto')
+    const afterSkip = await t.answer('pular')
+    expect(afterSkip?.texts.join('\n')).not.toMatch(PERSON_QUESTIONS)
+    expect(afterSkip?.texts.join('\n')).toContain('Confirma a entrega?')
+    const done = await t.answer('1')
+    expect(done).toMatchObject({ finished: true, texts: ['registered:17234'] })
+    expect(t.delivered).toHaveLength(1)
   })
 })

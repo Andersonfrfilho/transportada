@@ -786,6 +786,39 @@ $WORKER_INTERNAL_URL/internal/bot-canhoto-reads` com o token e corpo vazio → *
   não existiria → 404). Efeito colateral desejado: a transcrição dos áudios do bot passa a funcionar em produção.
 - Memória (medida em staging, imagem sintética 3000×4000): pico 774 MB; worker de produção ~285 MB ocioso, limite 8 GB.
 
+## 5.21 Conferir os certificados de todos os domínios de produção (06/11/2026) — somente leitura
+
+Resultado de 06/11/2026: os 7 domínios (`fernandes-transportadora.com.br`, `www`, `api`, `app`, `auth`,
+`cliente`, `motorista`) servem certificado Let's Encrypt válido, com o nome certo no SAN e verificação TLS
+OK. O mais próximo de vencer é `cliente` (13/12/2026); o Railway renova sozinho. A resposta vem de
+`railway-hikari` e sem cabeçalho da Cloudflare, ou seja, os registros estão **DNS only** (ver
+`docs/ops/dns.md`) e o modo SSL da Cloudflare não entra na conta.
+
+Como repetir:
+
+1. Status do certificado no Railway: MCP do Railway, `list-domains` e `domain-status` por serviço
+   (`api`, `client`, `driver`, `landing`, `keycloak`, `transportada-frontend`, ambiente `production`);
+   esperado `CERTIFICATE_STATUS_TYPE_VALID` e DNS `PROPAGATED`.
+2. O que o visitante vê, na máquina do Anderson (precisa de `openssl` e `curl`; `dig` é opcional e vem em
+   `sudo pacman -S bind`):
+   `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-certificados-todos-dominios.sh`
+   O script percorre os 7 domínios (verificação TLS, emissor, validade, SAN e cabeçalhos HTTP), grava em
+   `tmp/ops/saidas/` e imprime só o caminho.
+3. Sinal de problema: `Verify return code` diferente de 0, SAN sem o domínio, vencimento a menos de 15 dias,
+   ou cabeçalho `cf-ray` (proxy da Cloudflare ligado por engano).
+
+Varredura da zona inteira (inclui staging e hostnames legados), quando alguém vê
+`ERR_CERT_COMMON_NAME_INVALID` no Chrome:
+`bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-certificados-zona-completa.sh`
+Em 06/11/2026 só `firebird` e `pgsql` deram erro de nome: ainda apontam para IPs da KingHost
+(herdados da zona antiga) e respondem com `*.kinghost.net`. São hostnames de banco do provedor antigo,
+fora do app; candidatos a remover da Cloudflare com aval do Anderson. `mail`, `smtp`, `imap`, `pop`,
+`webmail`, `ftp`, `autoconfig`, `autodiscover` e `mssql`/`mysql` constam em `docs/ops/cloudflare-import.zone`
+mas não resolvem hoje.
+
+O Claude não consegue consultar DNS/SSL da Cloudflare: o conector dele só cobre Workers, D1, KV e R2, e o
+container não alcança os domínios. Para isso seria preciso um API token com Zone:Read e SSL/Certificates:Read.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
@@ -936,3 +969,51 @@ ficha fica fora da frota. Produção conferida em 05/11: nenhum usuário com pap
 `CPF=<11 dígitos> TELEFONE=<DDD+número> bash tmp/ops/staging-cria-ficha-motorista-teste.sh` (idempotente; só INSERT; telefone
 no banco é 10 ou 11 dígitos, sem 55, `fleet_drivers_phone_check`). Criada em 06/11/2026 com CPF fictício `52998224725` e telefone
 `16993056772`. Reverter: apagar a linha de `fleet_drivers` com esse `membership_id`.
+
+## 5.22 Nota bipada vem da SEFAZ (spec 298, 06/11/2026)
+
+**Consulta de uma chave na SEFAZ de produção (T0.1).** É leitura, mas gasta 1 das 20 consultas por hora do CNPJ. Passar
+de 20 dá cStat 656 e bloqueia a distribuição inteira por 1 h, e consultar durante o bloqueio reinicia a hora.
+
+```bash
+bash /home/miyazaki/Documents/personal/ativada/producao-consulta-por-chave.sh <chave de 44 dígitos>
+```
+
+O script entra no worker por `railway ssh`, usa o certificado de distribuição (decifrado só em memória) e imprime só
+`ambiente`, `cStat`, `xMotivo` e `schema`.
+
+- Exige terminal interativo e a palavra `sim`.
+- Com mais de uma empresa no banco, passe `COMPANY_ID=<uuid>`.
+- Sem linha de resultado, sai com erro: a consulta pode ter contado no limite, então não repita às cegas.
+
+**O que o cStat quer dizer:**
+
+| cStat ou schema | O que é                                          |
+| --------------- | ------------------------------------------------ |
+| `procNFe`       | nota completa                                    |
+| `resNFe`        | só o resumo; a operação envia o XML              |
+| 640             | a transportadora não consta na nota; envie o XML |
+| 217             | chave inexistente                                |
+| 632             | fora de 90 dias                                  |
+| 653             | cancelada                                        |
+| 654             | denegada                                         |
+| 593             | certificado não bate                             |
+| 656             | limite estourado; esperar 65 min                 |
+
+**Orçamento e bloqueio.** A tabela `nfe_access_key_lookup_budgets` (`company_id`, `environment`) guarda o orçamento: no
+máximo 15 consultas por chave por hora corrida. O bloqueio de 656 fica em `blocked_until` e vale também para a
+importação automática (distNSU).
+
+Conferir, somente leitura:
+
+```sql
+select environment, window_started_at, used_in_window, blocked_until
+from nfe_access_key_lookup_budgets;
+```
+
+**Buscas presas.** O estado de cada busca fica em `nfe_access_key_lookups`. `waiting` com `not_before` no passado volta
+para a fila sozinha na rotina de distribuição. Se aparecer `querying` parado há mais de 15 min, é falha do worker: ver os
+logs (`nfe_access_key_lookup_finished`, `nfe-access-key.v1`) e a fila de mensagens mortas `nfe-access-key`.
+
+**Publicação.** A ordem é banco/API → worker → painel. A migration `20261106120034_nfe_access_key_lookups` é aditiva.
+O rollback está ao lado; ele reclassifica `access_key` para `upload` e só roda com aprovação.

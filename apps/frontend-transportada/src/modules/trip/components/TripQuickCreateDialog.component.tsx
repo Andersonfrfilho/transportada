@@ -3,12 +3,10 @@ import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Select } from '@/components/ui/select'
-import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
 import { listActiveDrivingDrivers } from '@/modules/fleet/shared/driverCrewRole.service'
@@ -31,8 +29,7 @@ import {
 } from '../shared/dailyAllowanceDaysField.service'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
-import { TripDocumentSearch } from './TripDocumentSearch.component'
-import { TripTypedNoteFeedback } from './TripTypedNoteFeedback.component'
+import { TripNoteIntake } from './TripNoteIntake.component'
 import { TripValuationPreview } from './TripValuationPreview.component'
 import type { TripQuickCreateController } from '../hooks/useTripQuickCreate.hook'
 import {
@@ -42,11 +39,7 @@ import {
 import type { ScannedNfeDocument } from '../shared/trip.types'
 import { listHelperCandidates } from '../shared/tripCrewHelpers.service'
 import type { TripQuickCreateEntry } from '../shared/tripQuickCreate.service'
-import {
-  isQuickCreateEntryPending,
-  listSelectableDocuments,
-  stagedDocumentIds,
-} from '../shared/tripQuickCreate.service'
+import { listSelectableDocuments, stagedDocumentIds } from '../shared/tripQuickCreate.service'
 import styles from '../styles/trip.module.css'
 
 type TripQuickCreateDialogProps = Readonly<{
@@ -79,11 +72,7 @@ function QuickCreateEntryRow({
           {entry.document.recipientState === null ? '' : `/${entry.document.recipientState}`}
         </span>
       )}
-      {isQuickCreateEntryPending(entry) ? (
-        <SkeletonGroup label={t('quickCreate.resolving')}>
-          <Skeleton variant="text" width="7rem" />
-        </SkeletonGroup>
-      ) : entry.refusal === undefined ? (
+      {entry.refusal === undefined ? (
         <span>{t('quickCreate.staged')}</span>
       ) : (
         <span className={styles.alert} role="alert">
@@ -113,7 +102,6 @@ export function TripQuickCreateDialog({
   const { t } = useTranslation('trip')
   /** A cor sai do vocabulário da frota: copiar as chaves daria duas grafias no mesmo produto. */
   const { t: tFleet } = useTranslation('fleet')
-  const [typedKey, setTypedKey] = useState('')
   /**
    * O que o filtro alcança hoje. Ele não entra na viagem — serve para o mapa dizer, em cinza claro,
    * qual cidade vizinha ficou de fora da seleção.
@@ -206,13 +194,6 @@ export function TripQuickCreateDialog({
 
   if (!quickCreate.isOpen) return null
 
-  /** A chave digitada passa pelo mesmo caminho do bipe: quem decide o que ela vira é o serviço. */
-  function submitTypedKey(): void {
-    if (typedKey.trim() === '') return
-    quickCreate.submitTyped(typedKey)
-    setTypedKey('')
-  }
-
   return createPortal(
     <div className={styles.overlay} onKeyDown={handleKeyDown} role="presentation">
       <div
@@ -252,43 +233,12 @@ export function TripQuickCreateDialog({
           </p>
         ) : null}
 
-        <div className={styles.scanRow}>
-          <label className={styles.scanField}>
-            {t('quickCreate.accessKey')}
-            <input
-              onChange={(event) => setTypedKey(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter') return
-                event.preventDefault()
-                submitTypedKey()
-              }}
-              placeholder={t('quickCreate.accessKeyPlaceholder')}
-              type="text"
-              value={typedKey}
-            />
-          </label>
-          <Button onClick={submitTypedKey} size="sm" type="button" variant="secondary">
-            <Icon name="add" />
-            {t('quickCreate.add')}
-          </Button>
-          {quickCreate.canScan ? (
-            <Button onClick={quickCreate.openScanner} size="sm" type="button">
-              <Icon name="camera" />
-              {t('quickCreate.scan')}
-            </Button>
-          ) : null}
-        </div>
-        <TripTypedNoteFeedback
-          note={quickCreate.typedNote}
-          onPick={(document) => quickCreate.stageDocuments([document])}
-        />
-
         {/*
           ⚠️ A busca oferece só o que ainda não está na fila. Nota escolhida sai da lista e volta
           quando for retirada — oferecê-la de novo faz quem monta um lote grande perder a conta de
           quais faltam.
         */}
-        <TripDocumentSearch
+        <TripNoteIntake
           documents={listSelectableDocuments({
             documents: availableDocuments,
             queue: quickCreate.queue,
@@ -296,6 +246,7 @@ export function TripQuickCreateDialog({
           isLoading={quickCreate.documentsQuery.isLoading}
           onFilteredChange={setFilteredDocuments}
           onStage={quickCreate.stageDocuments}
+          stagedDocumentIds={stagedDocumentIds(quickCreate.queue)}
         />
 
         {quickCreate.queue.length === 0 ? (
@@ -540,18 +491,6 @@ export function TripQuickCreateDialog({
             {t('quickCreate.submit')}
           </Button>
         </div>
-
-        <BarcodeScanner
-          closeLabel={t('detail.scanClose')}
-          deniedMessage={t('detail.scanDenied')}
-          isOpen={quickCreate.isScannerOpen}
-          onClose={quickCreate.closeScanner}
-          onRead={quickCreate.acceptScan}
-          readingMessage={t('detail.scanReading')}
-          startingMessage={t('detail.scanStarting')}
-          title={t('detail.scanTitle')}
-          unavailableMessage={t('detail.scanUnavailable')}
-        />
       </div>
     </div>,
     document.body,

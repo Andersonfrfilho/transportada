@@ -1,0 +1,57 @@
+{
+  "row": {
+    "number": "Invoice {{number}}",
+    "series": "series {{series}}",
+    "issuer": "Issuer {{taxId}}"
+  },
+  "announce": {
+    "ready": "Note {{number}} is ready.",
+    "refused": "Note {{number}} was refused.",
+    "failed": "Note {{number}} could not be obtained."
+  },
+  "badge": {
+    "checking": "Checking",
+    "searching": "Searching",
+    "waiting": "Queued",
+    "ready": "Ready",
+    "refused": "Refused",
+    "failed": "Not retrieved",
+    "error": "Error",
+    "stalled": "Taking long"
+  },
+  "state": {
+    "checking": "Checking the system…",
+    "searching": "Searching SEFAZ…",
+    "waiting": "Queued at SEFAZ — next window {{time}}",
+    "waitingNoTime": "Queued at SEFAZ — waiting for the next window",
+    "ready": "Invoice is in the system.",
+    "stalled": "The search is taking longer than usual. Try again."
+  },
+  "reason": {
+    "not_interested": "SEFAZ does not release this invoice to the carrier (it is not listed on the invoice). Send the XML.",
+    "summary_only": "SEFAZ only released the summary of this invoice. Send the XML.",
+    "not_found": "SEFAZ could not find this invoice. Check the key or send the XML.",
+    "expired": "SEFAZ no longer keeps this invoice's XML (period expired). Send the XML.",
+    "cancelled": "This invoice was cancelled by the issuer. It cannot be imported.",
+    "denied": "This invoice was denied by SEFAZ. It cannot be imported.",
+    "certificate_mismatch": "The company certificate does not match the one used for the lookup. Send the XML or check the certificate.",
+    "invalid_key": "This invoice key is invalid. Check the reading or send the XML.",
+    "sefaz_unavailable": "SEFAZ is unavailable right now. Try again shortly or send the XML."
+  },
+  "error": {
+    "generic": "Could not look up this invoice. Try again.",
+    "INVALID_ACCESS_KEY": "The key read is invalid. Check the reading.",
+    "NFE_DISTRIBUTION_NOT_CONFIGURED": "The SEFAZ lookup is not configured for this company. Send the XML.",
+    "NFE_ACCESS_KEY_LOOKUP_CONFLICT": "A lookup for this key is already running. Try again shortly.",
+    "NFE_ACCESS_KEY_LOOKUP_QUEUE_FULL": "The SEFAZ lookup queue is full. Try again in a few minutes.",
+    "RATE_LIMITED": "Too many lookups in a short time. Wait a moment and try again.",
+    "NFE_ACCESS_KEY_LOOKUP_REQUEST_FAILED": "Connection failure while looking up the invoice. Try again.",
+    "NFE_ACCESS_KEY_LOOKUP_RESPONSE_INVALID": "Unexpected response while looking up the invoice. Try again."
+  },
+  "action": {
+    "add": "Add",
+    "sendXml": "Send XML",
+    "retry": "Try again",
+    "open": "Open"
+  }
+}

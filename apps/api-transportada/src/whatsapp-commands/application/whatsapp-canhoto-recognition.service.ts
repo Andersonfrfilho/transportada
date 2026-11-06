@@ -20,7 +20,11 @@ import type {
 } from '../../database/whatsapp-canhoto-question.schema.js'
 import type { WhatsAppDeliveryPreparationChannel } from '../../database/whatsapp-delivery-preparation.schema.js'
 import type { ApiLogger } from '../../shared/api.types.js'
-import type { WhatsAppStopCandidate } from '../../trips/domain/driver-stop-resolution.policy.js'
+import {
+  findStopAwaitingSettlement,
+  findStopEnRoute,
+  type WhatsAppStopCandidate,
+} from '../../trips/domain/driver-stop-resolution.policy.js'
 import { detectDeliveryProofMimeType } from '../../trips/domain/delivery-proof.policy.js'
 import { CANHOTO_RECOGNITION_SPEECH } from '../domain/whatsapp-canhoto-recognition-speech.constant.js'
 import {
@@ -176,7 +180,25 @@ export function createWhatsAppCanhotoRecognition(
     readonly companyId: string
     readonly driverId: string
   }): Promise<readonly OpenNote[]> {
+    return (await readOpenNotes(scope)).notes
+  }
+
+  /**
+   * As notas abertas da viagem e, entre elas, as da parada em andamento (chegou e falta a baixa, ou a caminho): a foto
+   * sem pergunta aberta pergunta por elas primeiro, em vez da lista da viagem inteira.
+   */
+  async function readOpenNotes(scope: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<{ readonly inProgress: readonly OpenNote[]; readonly notes: readonly OpenNote[] }> {
     const stops = await ports.listStops(scope)
+    const current = findStopAwaitingSettlement(stops) ?? findStopEnRoute(stops)
+    const currentIds = new Set(current?.documents.flatMap((document) => document.id ?? []) ?? [])
+    const notes = toOpenNotes(stops)
+    return { inProgress: notes.filter((note) => currentIds.has(note.documentId)), notes }
+  }
+
+  function toOpenNotes(stops: readonly WhatsAppStopCandidate[]): readonly OpenNote[] {
     return stops
       .toSorted((left, right) => left.sequence - right.sequence)
       .flatMap((stop) =>
@@ -366,6 +388,19 @@ export function createWhatsAppCanhotoRecognition(
       await close('cancelled')
       return reply([CANHOTO_RECOGNITION_SPEECH.cargoNoted])
     }
+    if (answer.kind === 'canhoto') {
+      const { inProgress } = await readOpenNotes(actor)
+      const [current] = inProgress
+      if (inProgress.length === 1 && current !== undefined) {
+        await questions.reframe({
+          candidates: [toCandidate(current)],
+          companyId: question.companyId,
+          id: question.id,
+          kind: 'confirm_note',
+        })
+        return reply([CANHOTO_RECOGNITION_SPEECH.confirmNote(current)], { awaitingText: true })
+      }
+    }
     if (answer.kind === 'no' || answer.kind === 'canhoto') {
       const notes = (await listOpenNotes(actor)).slice(0, MAX_LISTED_NOTES)
       await questions.reframe({
@@ -456,7 +491,7 @@ export function createWhatsAppCanhotoRecognition(
       if ((await findLiveQuestion(actor)) !== null) {
         return reply([CANHOTO_RECOGNITION_SPEECH.busy], { awaitingText: true })
       }
-      const notes = await listOpenNotes(actor)
+      const { inProgress, notes } = await readOpenNotes(actor)
       if (notes.length === 0) return null
       const duplicate = await duplicateReply({ bytes, companyId: actor.companyId, notes })
       if (duplicate !== null) return duplicate
@@ -464,8 +499,19 @@ export function createWhatsAppCanhotoRecognition(
       const read = await readVerdict({ actor, bytes, notes })
       if (read === 'disabled') return null
       const common = { actor, bytes, channel, mimeType, providerMessageId }
-      if (read === 'busy') {
-        const listed = notes.slice(0, MAX_LISTED_NOTES)
+      /** Pergunta de qual nota é, a parada em andamento primeiro: uma nota dela vira "é da NF X?". */
+      const askAmong = (candidates: readonly OpenNote[]) => {
+        const preferred = candidates.filter((note) => inProgress.includes(note))
+        const [only] = preferred
+        if (preferred.length === 1 && only !== undefined) {
+          return ask({
+            ...common,
+            candidates: [only],
+            kind: 'confirm_note',
+            text: CANHOTO_RECOGNITION_SPEECH.confirmNote(only),
+          })
+        }
+        const listed = (preferred.length > 0 ? preferred : candidates).slice(0, MAX_LISTED_NOTES)
         return ask({
           ...common,
           candidates: listed,
@@ -473,6 +519,7 @@ export function createWhatsAppCanhotoRecognition(
           text: CANHOTO_RECOGNITION_SPEECH.chooseNote(listed),
         })
       }
+      if (read === 'busy') return askAmong(notes)
       const verdict = read
       const decision = decideCanhotoRecognition({ notes, verdict })
       if (decision.kind === 'attach') return attachRead({ ...common, note: decision.note })
@@ -484,15 +531,7 @@ export function createWhatsAppCanhotoRecognition(
           text: CANHOTO_RECOGNITION_SPEECH.confirmNote(decision.notes[0]),
         })
       }
-      if (decision.kind === 'choose_note') {
-        const listed = decision.notes.slice(0, MAX_LISTED_NOTES)
-        return ask({
-          ...common,
-          candidates: listed,
-          kind: 'choose_note',
-          text: CANHOTO_RECOGNITION_SPEECH.chooseNote(listed),
-        })
-      }
+      if (decision.kind === 'choose_note') return askAmong(decision.notes)
       return ask({
         ...common,
         candidates: [],

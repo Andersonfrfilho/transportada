@@ -1451,8 +1451,8 @@ export async function mockTripWorkspaceApi(
  * lidar com um veículo que nunca usam. Quem precisa do pedágio chama este registro depois.
  */
 export const TOLL_VEHICLE_ID = '00000000-0000-4000-8000-000000000701'
-export const TOLL_ACCESS_KEY_ONE = '35260700000000000000570010000000011000000011'
-export const TOLL_ACCESS_KEY_TWO = '35260700000000000000570010000000011000000022'
+export const TOLL_ACCESS_KEY_ONE = '35260700000000000000570010000000011000000018'
+export const TOLL_ACCESS_KEY_TWO = '35260700000000000000570010000000011000000026'
 
 /**
  * ⚠️ **Precisão `rooftop` com latitude/longitude é o que dispensa a malha do IBGE.** Sem isto o
@@ -1721,6 +1721,21 @@ export async function registerTripQuickCreateTollApi(
     await fulfillJson(route, {
       data: document === undefined ? [] : [document],
       page: { nextCursor: null },
+    })
+  })
+
+  /** A nota bipada vira linha pela conferência em lote; o cadastro dela vem do GET acima. */
+  await input.page.route(/\/nfe-documents\/access-key-checks$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    const body = route.request().postDataJSON() as { accessKeys: string[] }
+    await fulfillJson(route, {
+      data: body.accessKeys.map((accessKey) => ({
+        accessKey,
+        documentId: documentsByAccessKey.get(accessKey)?.id ?? null,
+      })),
     })
   })
 

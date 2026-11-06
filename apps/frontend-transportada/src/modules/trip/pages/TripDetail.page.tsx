@@ -64,7 +64,6 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
   })
   const linkForm = useTripDocumentLinkForm({
     availableDocuments: availableDocumentsQuery.data ?? [],
-    findNfeDocumentByAccessKey: workspace.controller.findNfeDocumentByAccessKey,
     linkScannedDocument: ({ documentId }) =>
       workspace.linkDocumentMutation.mutateAsync({
         freightCalculationId: null,

@@ -331,6 +331,7 @@ describe('grupo: foto e localização do motorista', () => {
     const fake = fakePreparations(options)
     const downloads: unknown[] = []
     const sent: string[][] = []
+    const mentions: Array<string | undefined> = []
     const opened: string[] = []
     const locations: unknown[] = []
     const service = createGroupProofIntake({
@@ -351,7 +352,12 @@ describe('grupo: foto e localização do motorista', () => {
         locations.length = 0
       },
       rememberLocation: ({ location }) => locations.push(location),
-      replies: { send: ({ texts }) => sent.push([...texts]) },
+      replies: {
+        send: ({ mentionNumber, texts }) => {
+          mentions.push(mentionNumber)
+          sent.push([...texts])
+        },
+      },
       withoutAccessText: async () => 'sem acesso',
     })
     const handle = (media: AdmittedGroupMedia['media']) =>
@@ -365,7 +371,7 @@ describe('grupo: foto e localização do motorista', () => {
         sender: '5516988887777',
         timestamp: 1_790_000_000,
       })
-    return { calls: fake.calls, downloads, handle, locations, opened, sent }
+    return { calls: fake.calls, downloads, handle, locations, mentions, opened, sent }
   }
 
   test('a foto é baixada com a mensagem inteira do webhook (o Evolution não guarda a mensagem pelo id)', async () => {
@@ -384,6 +390,12 @@ describe('grupo: foto e localização do motorista', () => {
     })
     expect(t.opened).toEqual(['5516988887777'])
     expect(t.sent).toEqual([['Foto do canhoto recebida.', 'Quem recebeu?']])
+  })
+
+  test('a resposta à foto marca quem a mandou', async () => {
+    const t = intake()
+    await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
+    expect(t.mentions).toEqual(['5516988887777'])
   })
 
   test('foto sem entrega em preparo não é baixada nem respondida', async () => {

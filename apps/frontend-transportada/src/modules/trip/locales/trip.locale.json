@@ -1721,6 +1721,10 @@
     "accessKey": "Número da nota ou chave",
     "accessKeyPlaceholder": "Número da nota ou 44 caracteres da chave",
     "add": "Acrescentar",
+    "addAllReady": "Acrescentar todas as prontas ({{count}})",
+    "bipped": "Bipada",
+    "bippedDocumentFailed": "Não foi possível conferir esta nota no cadastro.",
+    "bippedRetry": "Tentar de novo",
     "cancel": "Cancelar",
     "clearFilteredSelection": "Desmarcar as {{count}} do filtro",
     "close": "Fechar",
@@ -1735,9 +1739,10 @@
     },
     "empty": "Nenhuma nota lida ainda.",
     "failed": "Não foi possível criar a viagem. Confira as notas e tente de novo.",
+    "foundNotes": "Notas encontradas",
     "hiddenBySelection_one": "{{count}} nota marcada está fora do filtro atual e não entra na viagem.",
     "hiddenBySelection_other": "{{count}} notas marcadas estão fora do filtro atual e não entram na viagem.",
-    "intro": "Bipe, leia pela câmera ou digite o número ou a chave das notas que saem juntas. Só entram notas que ainda não estão em nenhuma viagem.",
+    "intro": "Bipe com o leitor, leia pela câmera ou busque as notas que saem juntas. Elas aparecem em Notas encontradas e só entram na viagem com Acrescentar. Só entram notas que ainda não estão em nenhuma viagem.",
     "issue": {
       "dailyAllowanceDaysInvalid": "Diárias: informe um número inteiro de dias, a partir de 1.",
       "driverRequired": "Selecione ao menos um motorista.",
@@ -1745,14 +1750,23 @@
       "noDocument": "Leia ao menos uma nota disponível.",
       "vehicleRequired": "Selecione o veículo da viagem."
     },
+    "notice": {
+      "alreadyAdded": "Esta nota já está na viagem.",
+      "alreadyScanned": "Esta chave já foi bipada.",
+      "loadingDocuments": "Carregando as notas disponíveis… Leia de novo em instantes.",
+      "notFound": "Nenhuma nota livre com este número nesta empresa.",
+      "unrecognized": "Leia a chave da nota ou digite o número dela."
+    },
+    "reader": {
+      "field": "Chave da nota",
+      "idle": "Clique aqui para voltar a ler",
+      "ready": "Leitor pronto"
+    },
     "refusal": {
       "alreadyOnTrip": "Já está em outra viagem",
-      "lookupFailed": "Não foi possível consultar",
-      "notAuthorized": "Não está autorizada na SEFAZ",
-      "notFound": "Não encontrada nesta empresa"
+      "notAuthorized": "Não está autorizada na SEFAZ"
     },
     "remove": "Retirar esta nota",
-    "resolving": "Procurando a nota…",
     "scan": "Ler com a câmera",
     "search": "Buscar notas",
     "searchLoading": "Carregando as notas disponíveis…",
@@ -1771,15 +1785,22 @@
     "submit": "Criar viagem",
     "submitDraft": "Salvar rascunho",
     "title": "Nova viagem",
-    "weightEstimated": "estimado",
-    "weightEstimatedHint": "Peso calculado a partir da quantidade de volumes e do peso padrão da empresa — a nota não declarou massa.",
-    "weightValue": "{{weight}} kg",
     "typed": {
       "ambiguous": "Há {{count}} notas livres com este número. Qual delas?",
       "notFound": "Nenhuma nota livre com este número ou esta chave nesta empresa.",
       "option": "Nota {{number}}/{{series}} · {{emitter}} para {{recipient}}",
       "pickTitle": "Escolha a nota",
       "unrecognized": "Digite o número da nota ou os 44 caracteres da chave."
+    },
+    "weightEstimated": "estimado",
+    "weightEstimatedHint": "Peso calculado a partir da quantidade de volumes e do peso padrão da empresa — a nota não declarou massa.",
+    "weightValue": "{{weight}} kg",
+    "xml": {
+      "action": "Enviar XML",
+      "field": "XML da nota",
+      "placeholder": "Nenhum XML escolhido",
+      "failed": "Não foi possível enviar o XML. Tente de novo.",
+      "notImported": "O XML foi enviado, mas a nota ainda não entrou no cadastro."
     }
   },
   "readiness": {

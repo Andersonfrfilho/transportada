@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import Keycloak from 'keycloak-js'
 
+import { clearAccessKeyImportSession } from '@/modules/nfe-workspace/shared/accessKeyImportSession.service'
 import { readBrowserColorTheme } from '@/modules/shared/browserColorTheme.service'
 import type { ColorTheme } from '@/modules/shared/colorTheme.constant'
 import { appendColorThemeToLoginUrl } from '@/modules/shared/colorTheme.service'
@@ -329,6 +330,7 @@ export function createKeycloakAuthProvider(
     /** A aba sobrevive ao logout: o próximo usuário não herda a montagem de viagem de ninguém. */
     async logout(): Promise<void> {
       clearAllTripAssemblyDrafts(resolveTripAssemblyDraftStorage())
+      clearAccessKeyImportSession()
       await keycloak.logout({ redirectUri: new URL(redirectUri).origin })
     },
     onSessionExpired(listener: () => void): () => void {

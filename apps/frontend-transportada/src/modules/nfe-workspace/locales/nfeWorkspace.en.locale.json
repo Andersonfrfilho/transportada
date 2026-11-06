@@ -90,6 +90,7 @@
   },
   "mechanism": {
     "section": "Import source",
+    "accessKey": "Import by scan",
     "manual": "Manual",
     "remote": "Remote"
   },
@@ -258,7 +259,10 @@
     "cteIssuedIssued": "With issued CT-e",
     "fiscalLink": "Fiscal link",
     "unlinkedOnly": "Only notes without a linked CT-e or NFS-e",
-    "includeLinked": "Including notes with CT-e or NFS-e"
+    "includeLinked": "Including notes with CT-e or NFS-e",
+    "distribution": "Distribution",
+    "upload": "Upload",
+    "access_key": "Key lookup"
   },
   "scheduledDistributionTitle": "Automatic note retrieval",
   "scheduledDistributionHint": "When it is on, the platform queries SEFAZ on a schedule and pulls in the notes issued against the company tax id on its own. Manual retrieval on the notes screen keeps working.",
@@ -683,5 +687,65 @@
   },
   "cameraMeasurementValidationExportExcel": "Export period Excel",
   "cameraMeasurementExportSheetName": "Camera measurements",
-  "cameraMeasurementExportTitle": "Camera measurements"
+  "cameraMeasurementExportTitle": "Camera measurements",
+  "importByScan": {
+    "action": "Import by scan"
+  },
+  "accessKeyImport": {
+    "forbidden": "You do not have permission to import notes.",
+    "title": "Import by scan",
+    "subtitle": "Scan each note's key: a note already in the system is only counted, an unknown one is searched at SEFAZ and imported automatically.",
+    "reader": {
+      "field": "Note key",
+      "idle": "Click here to resume reading",
+      "ready": "Reader ready"
+    },
+    "scan": "Read with camera",
+    "scanClose": "Close camera",
+    "scanDenied": "Camera access was not granted.",
+    "scanReading": "Reading the code…",
+    "scanStarting": "Opening the camera…",
+    "scanTitle": "Read note key",
+    "scanUnavailable": "The camera is not available on this device.",
+    "alreadyScanned": "This key was already scanned.",
+    "alreadyInSystem": "Already in the system.",
+    "summary": {
+      "announcement": "{{scanned}} scanned, {{imported}} imported, {{refused}} refused.",
+      "scanned": "Scanned",
+      "alreadyInSystem": "Already in the system",
+      "imported": "Imported",
+      "searching": "Searching",
+      "waiting": "In the SEFAZ queue",
+      "refused": "Refused",
+      "notObtained": "Not obtained",
+      "unreadable": "Unreadable"
+    },
+    "nextWindow": "next window {{time}}",
+    "refusedReason": "{{count}} {{reason}}",
+    "reason": {
+      "not_interested": "not released",
+      "summary_only": "summary only",
+      "not_found": "not found",
+      "expired": "expired",
+      "cancelled": "cancelled",
+      "denied": "denied",
+      "certificate_mismatch": "certificate",
+      "invalid_key": "invalid key",
+      "sefaz_unavailable": "SEFAZ unavailable"
+    },
+    "filter": {
+      "all": "All",
+      "imported": "Imported",
+      "alreadyInSystem": "Already there",
+      "refused": "Refused"
+    },
+    "clear": "Clear list",
+    "xml": {
+      "action": "Send XML",
+      "field": "Note XML",
+      "placeholder": "No XML chosen",
+      "failed": "Could not send the XML. Try again.",
+      "notImported": "The XML was sent, but the note is not in the registry yet."
+    }
+  }
 }

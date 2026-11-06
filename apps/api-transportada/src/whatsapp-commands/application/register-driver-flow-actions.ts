@@ -84,7 +84,10 @@ import {
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
 import type { WhatsAppOccurrenceDrafts } from './whatsapp-occurrence-draft.service.js'
-import type { WhatsAppDeliveryPreparations } from './whatsapp-delivery-preparation.service.js'
+import {
+  joinedTexts,
+  type WhatsAppDeliveryPreparations,
+} from './whatsapp-delivery-preparation.service.js'
 import {
   rejectListAnswer,
   WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
@@ -126,7 +129,12 @@ export type DriverFlowActionDependencies = {
    * direto (com o ponto compartilhado antes, se houver).
    */
   readonly driverPrompts?: Pick<WhatsAppDriverPrompts, 'askLocation' | 'recordStop'> &
-    Partial<Pick<WhatsAppDriverPrompts, 'repeatedEvent' | 'routeOffer' | 'settledDocument'>>
+    Partial<
+      Pick<
+        WhatsAppDriverPrompts,
+        'repeatedEvent' | 'routeOffer' | 'settledDocument' | 'stopInProgress'
+      >
+    >
   /**
    * Spec 293 T15: o tipo que pede foto, número do documento do cliente ou valor pago abre a ocorrência
    * em coleta em vez da recusa "registre pelo aplicativo". Ausente, a recusa de sempre.
@@ -439,6 +447,8 @@ export function createDriverWhatsAppFlowActions(
     readonly channel: ChannelAdapterInterface
     readonly documentId: string
     readonly documentNumber?: string | undefined
+    /** O bloco da parada, na MESMA mensagem da primeira pergunta da entrega. */
+    readonly header?: null | string
     readonly session: Parameters<WhatsAppAuthorizedActionHandler>[0]['session']
   }): Promise<FlowActionResult> {
     const { actor, channel, documentId, session } = input
@@ -460,7 +470,9 @@ export function createDriverWhatsAppFlowActions(
         documentNumber: input.documentNumber.replace(/^0+(?=\d)/u, ''),
         location: consumeLocation({ actor, session }),
       })
-      for (const text of reply.texts) await say({ actor, channel, session }, { text })
+      const header = input.header ?? null
+      const texts = header === null ? reply.texts : joinedTexts([header, ...reply.texts])
+      for (const text of texts) await say({ actor, channel, session }, { text })
       // A resposta à pergunta da preparação vem antes do menu (`acceptDeliveryProof` no despachante).
       return {
         context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined },
@@ -1005,6 +1017,10 @@ export function createDriverWhatsAppFlowActions(
       await say({ actor, channel, session }, 'driverDirectTooManyDocuments')
       return backToTripMenu(trip.id)
     }
+    if (command.numbers.length === 0 && command.kind === 'deliver') {
+      const continued = await continueDeliveryInProgress({ ...input, trip })
+      if (continued !== null) return continued
+    }
     if (command.numbers.length === 0) {
       return {
         context: {
@@ -1103,6 +1119,62 @@ export function createDriverWhatsAppFlowActions(
         [DRIVER_FLOW_CONTEXT_KEY.tripId]: trip.id,
       },
       next: DRIVER_FLOW_NODE.directConfirm,
+    }
+  }
+
+  /**
+   * "entreguei" sem número: a entrega aberta é retomada; sem ela, a parada em andamento decide (uma nota segue direto,
+   * com o bloco da parada; várias, a lista é só a dela). `null`: nada em andamento, a lista da viagem inteira.
+   */
+  async function continueDeliveryInProgress(
+    input: Parameters<WhatsAppAuthorizedActionHandler>[0] & { readonly trip: DriverTrip },
+  ): Promise<FlowActionResult | null> {
+    const { actor, channel, session, trip } = input
+    const driverId = await deps.resolveDriverId({
+      companyId: actor.scope.companyId,
+      membershipId: actor.scope.membershipId,
+    })
+    if (driverId === null) return null
+    const driver = { actorUserId: actor.scope.userId, companyId: actor.scope.companyId, driverId }
+    const resumed = await deps.deliveryPreparations?.resume?.({ actor: driver })
+    if (resumed !== null && resumed !== undefined && resumed.texts.length > 0) {
+      for (const text of joinedTexts(resumed.texts))
+        await say({ actor, channel, session }, { text })
+      return backToTripMenu(trip.id)
+    }
+    const stop = await deps.driverPrompts?.stopInProgress?.({ actor: driver })
+    if (stop === null || stop === undefined) return null
+    const [only] = stop.documents
+    if (stop.documents.length === 1 && only !== undefined) {
+      const delivered = await completeDelivery({
+        actor,
+        channel,
+        documentId: only.id,
+        documentNumber: only.number,
+        header: stop.header,
+        session,
+      })
+      return { ...delivered, context: { ...delivered.context, ...backToTripMenu(trip.id).context } }
+    }
+    const ids = new Set(stop.documents.map((document) => document.id))
+    await sendDynamicChoice({
+      body: `Toque na nota que você quer ${toStepLabel(DRIVER_FLOW_STEP.deliver)}.`,
+      channel,
+      options: listOpenDocuments(trip)
+        .filter((document) => ids.has(document.id))
+        .map(toDocumentOption),
+      page: 1,
+      to: session.whatsappNumber,
+    })
+    return {
+      context: {
+        ...WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
+        [DRIVER_FLOW_CONTEXT_KEY.directCommand]: undefined,
+        [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined,
+        [DRIVER_FLOW_CONTEXT_KEY.tripId]: trip.id,
+        [DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice]: DRIVER_FLOW_STEP.deliver,
+      },
+      next: DRIVER_FLOW_NODE.documentEntry,
     }
   }
 

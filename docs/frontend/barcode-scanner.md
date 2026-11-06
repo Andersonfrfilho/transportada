@@ -101,3 +101,21 @@ Todo texto vem do `*.locale.json` do módulo que hospeda o leitor — o primitiv
 
 Contrato: `test/design-system/barcode-scanner.contract.ts`. Decisão de dependência e CSP:
 `docs/adr/0042-o-leitor-de-etiqueta-nao-afrouxa-a-csp.md`.
+
+## O leitor de mão vem primeiro (spec 298, RF11e)
+
+`@/components/ui/key-reader-field` é o caminho principal de leitura de chave de NF-e: a pistola
+USB/Bluetooth em modo teclado escreve num campo **não controlado** (sem estado por tecla), e Enter ou
+Tab fecham a leitura e limpam o campo na hora — uma segunda leitura em menos de 100 ms não perde
+caractere. A câmera deste doc segue como caminho secundário.
+
+- A chave é procurada **dentro** do texto (`findNfeAccessKeyInScan`, 44 caracteres no padrão da chave
+  com dígito verificador válido): serve a leitura crua, o QR correto, o QR embaralhado por pistola em
+  layout americano num Windows ABNT2 e o prefixo/sufixo configurado no leitor. Sem chave, `onRead` não
+  é chamado (`onUnreadable` é opcional).
+- O foco é persistente: abre focado, volta quando um diálogo fecha, e quem fecha outro fluxo
+  ("Enviar XML") chama `ref.current.focus()`. Selo "Leitor pronto" / botão "Clique aqui para voltar a
+  ler". Rajada de 8+ teclas com menos de 30 ms entre elas, fora de qualquer campo, é desviada para o
+  leitor; digitação em outro campo nunca é tocada.
+- Textos no namespace `keyReader` (`shared/locales/keyReader*.locale.json`), passados por prop.
+- Contratos: `test/shared/nfe-scanned-key.contract.ts` e `test/trip-hooks/key-reader-field.contract.ts`.

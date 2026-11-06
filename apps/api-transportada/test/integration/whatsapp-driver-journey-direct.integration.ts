@@ -365,9 +365,21 @@ async function buildDirectJourney(
     expect(response?.status).toBe(200)
     // O áudio responde fora do turno (transcrição em segundo plano).
     await Bun.sleep(input.message.type === 'audio' ? 300 : 0)
-    const answered = sentBodies()
-      .slice(before)
-      .map((request) => readSent(request.body))
+    const turnBodies = sentBodies().slice(before)
+    const answered = turnBodies.map((request) => readSent(request.body))
+    // Uma resposta por turno é UMA mensagem de texto; só a lista/botões interativos ficam separados (por natureza), e
+    // o áudio, cujo "entendi assim" sai depois da transcrição.
+    const kinds = turnBodies.map((request) =>
+      request.body.text === undefined ? 'interactive' : 'text',
+    )
+    const doubledText = kinds.some((kind, index) => kind === 'text' && kinds[index + 1] === 'text')
+    expect({
+      doubledText: doubledText && input.message.type !== 'audio',
+      shown: input.shown,
+    }).toEqual({
+      doubledText: false,
+      shown: input.shown,
+    })
     transcript.push({ from: 'motorista', text: input.shown })
     for (const reply of answered) transcript.push({ from: 'bot', text: reply })
     return answered
@@ -455,6 +467,217 @@ describe('jornada do motorista na conversa individual do WhatsApp (caminho real,
     120_000,
   )
 })
+
+describe('"entreguei" sem número segue a entrega em andamento na conversa individual (defeito de staging, NF 899840)', () => {
+  testWithPostgres(
+    'chegou → menu 1 → localização → foto pedida → (o tempo passa) → "entreguei" retoma a NF da parada',
+    async () => {
+      if (databaseUrl === undefined) return
+      const graph = startGraphServer()
+      try {
+        await withDisposableDatabase({
+          adminUrl: databaseUrl,
+          migrate: (connection) => runAllDatabaseMigrations({ connectionString: connection }),
+          namePrefix: 'transportada_driver_journey_direct_resume',
+          open: (connection) => createDrizzleProvider({ connection }),
+          operation: async (database) => {
+            const db = database.db
+            const world = await seedJourneyTrip(db, { driverPhone: '16988887777' })
+            await db.insert(companyDeliveryProofSettings).values({
+              companyId: world.companyId,
+              photo: 'required',
+              receivedBy: 'off',
+              receiverDocument: 'off',
+              receiverName: 'off',
+              signature: 'off',
+            })
+            await new DrizzleWhatsAppPhoneRepository(db).saveVerified({
+              phone: PHONE,
+              userId: world.userId,
+              verifiedAt: new Date(),
+            })
+            await createDrizzleWhatsAppFlowGraphPublisher(db)({
+              companyId: world.companyId,
+              graph: WHATSAPP_ROOT_FLOW_GRAPH,
+              publishedBy: 'code',
+              source: 'code',
+            })
+            const now = await startOfQuietMinute()
+            const journey = await buildDirectJourney(db, world, graph, now)
+            const recording = process.env.JOURNEY_RECORD === '1'
+            for (const step of resumeJourneySteps(world, formatBotClock(now))) {
+              const answered = await journey.receive(step.send)
+              if (recording) console.log(JSON.stringify({ answered, shown: step.send.shown }))
+              else expect({ answered, shown: step.send.shown }).toEqual(step.expected)
+            }
+            expect(expectBalancedMarkup(journey.transcript)).toEqual([])
+            expect(await readJourneyEvents(db, world)).toEqual([
+              'parada 1: departed',
+              'parada 1: arrived',
+            ])
+          },
+        })
+      } finally {
+        await graph.server.stop(true)
+      }
+    },
+    120_000,
+  )
+})
+
+function resumeJourneySteps(
+  world: JourneyWorld,
+  at: string,
+): readonly {
+  readonly expected: { readonly answered: readonly string[]; readonly shown: string }
+  readonly send: { readonly message: Record<string, unknown>; readonly shown: string }
+}[] {
+  const text = (body: string) => ({ message: { text: { body }, type: 'text' }, shown: body })
+  const [first] = world.stops
+  return [
+    {
+      expected: {
+        answered: [
+          'Toque na nota que você quer entregar.\n[ 17234 · PADARIA SOL… ]\n[ 17235 · MERCADO LUA… ]\n[ 17236 · ACOUGUE EST… ]',
+          'Toque numa nota da lista acima.',
+        ],
+        shown: 'entreguei',
+      },
+      send: text('entreguei'),
+    },
+    {
+      expected: { answered: ['Certo, cancelei e não registrei nada.'], shown: 'cancelar' },
+      send: text('cancelar'),
+    },
+    {
+      expected: {
+        answered: [
+          'Toque na parada em que você vai sair para.\n[ 1ª · NF 17234 · PAD… ]\n[ 2ª · NF 17235 · MER… ]\n[ 3ª · NF 17236 · ACO… ]',
+          'Toque numa parada da lista acima.',
+        ],
+        shown: 'iniciar rota',
+      },
+      send: text('iniciar rota'),
+    },
+    {
+      expected: {
+        answered: [
+          '📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_',
+          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+        ],
+        shown: `(toca) NF ${first.number}`,
+      },
+      send: {
+        message: {
+          interactive: {
+            list_reply: { id: first.stopId, title: `NF ${first.number}` },
+            type: 'list_reply',
+          },
+          type: 'interactive',
+        },
+        shown: `(toca) NF ${first.number}`,
+      },
+    },
+    {
+      expected: {
+        answered: [
+          '*Saída registrada* 🚚\n*Parada 1 de 3*\n*NF 17234* · R$ 1.234,56\n🏪 *PADARIA SOL NASCENTE*\n🏢 Contratante: Distribuidora Aurora\n📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000\n📦 3 volumes\n➡️ _Próximo passo:_ quando chegar, mande *cheguei*.',
+        ],
+        shown: 'pular',
+      },
+      send: text('pular'),
+    },
+    {
+      expected: {
+        answered: [
+          '📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_',
+          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+        ],
+        shown: 'cheguei',
+      },
+      send: text('cheguei'),
+    },
+    {
+      expected: {
+        answered: [
+          '*Chegada registrada* 📍\n*Parada 1 de 3*\n*NF 17234* · R$ 1.234,56\n🏪 *PADARIA SOL NASCENTE*\n🏢 Contratante: Distribuidora Aurora\n📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000\n📦 3 volumes para entregar\n➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.\n🔜 _Depois desta:_ *NF 17235* · MERCADO LUA CHEIA – SERTAOZINHO',
+        ],
+        shown: 'pular',
+      },
+      send: text('pular'),
+    },
+    {
+      expected: {
+        answered: [
+          `⚠️ *A chegada nesta parada já foi registrada* às ${at}.
+*Parada 1 de 3*
+*NF 17234* · R$ 1.234,56
+🏪 *PADARIA SOL NASCENTE*
+🏢 Contratante: Distribuidora Aurora
+📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
+🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000
+📦 3 volumes
+
+*O que você quer fazer agora?*
+*1* - Entreguei _(mande a foto do canhoto)_
+*2* - Não entreguei
+*3* - Abrir ocorrência
+*4* - Nada por enquanto`,
+          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+        ],
+        shown: 'cheguei',
+      },
+      send: text('cheguei'),
+    },
+    {
+      expected: {
+        answered: [
+          'Entregar NF 17234?',
+          'Confirma?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ ✅ Sim ]\n[ ❌ Não ]',
+        ],
+        shown: '1',
+      },
+      send: text('1'),
+    },
+    {
+      expected: {
+        answered: [
+          `⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.\n\n📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._`,
+          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+        ],
+        shown: '(toca) ✅ Sim',
+      },
+      send: {
+        message: {
+          interactive: { button_reply: { id: 'yes', title: '✅ Sim' }, type: 'button_reply' },
+          type: 'interactive',
+        },
+        shown: '(toca) ✅ Sim',
+      },
+    },
+    {
+      expected: {
+        answered: [`Localização recebida.\n\n📸 *NF 17234:* mande a foto do canhoto assinado.`],
+        shown: '📍 (localização)',
+      },
+      send: {
+        message: { location: { latitude: -21.165, longitude: -47.805 }, type: 'location' },
+        shown: '📍 (localização)',
+      },
+    },
+    {
+      expected: {
+        answered: [
+          // UMA mensagem: o aviso e a pergunta pendente nunca chegam separados.
+          '↩️ *Continuando a entrega da NF 17234.*\n📸 *NF 17234:* mande a foto do canhoto assinado.',
+          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+        ],
+        shown: 'entreguei',
+      },
+      send: text('entreguei'),
+    },
+  ]
+}
 
 type JourneyStep = {
   readonly send: { readonly message: Record<string, unknown>; readonly shown: string }

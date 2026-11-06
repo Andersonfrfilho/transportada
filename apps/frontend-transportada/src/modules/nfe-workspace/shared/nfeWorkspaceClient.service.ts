@@ -46,7 +46,7 @@ export type NfeImportSummary = Readonly<{
   processedCount: number
   receivedCount: number
   rejectedCount: number
-  source: 'distribution' | 'upload'
+  source: 'access_key' | 'distribution' | 'upload'
   status:
     | 'cancelled'
     | 'completed'
@@ -389,7 +389,9 @@ function isNfeImportSummary(value: unknown): value is NfeImportSummary {
     isNumber(value.processedCount) &&
     isNumber(value.receivedCount) &&
     isNumber(value.rejectedCount) &&
-    (value.source === 'distribution' || value.source === 'upload') &&
+    (value.source === 'access_key' ||
+      value.source === 'distribution' ||
+      value.source === 'upload') &&
     isImportStatus(value.status) &&
     isTerminalError(value.terminalError) &&
     isString(value.updatedAt) &&

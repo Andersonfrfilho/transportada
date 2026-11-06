@@ -208,6 +208,7 @@ import {
 } from './whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 import type { GroupQuestionAsked } from './whatsapp/application/whatsapp-group-request.port.js'
 import { createWhatsAppGroupRequestSessions } from './whatsapp/application/whatsapp-group-request.service.js'
+import { createWhatsAppTurnReplies } from './whatsapp-commands/application/whatsapp-turn-replies.service.js'
 import { createEvolutionGroupReplySender } from './whatsapp/infrastructure/evolution-group-reply.gateway.js'
 import { startGroupRequestExpiryWatcher } from './whatsapp/infrastructure/whatsapp-group-request-expiry.watcher.js'
 import {
@@ -1097,11 +1098,18 @@ import { createRequestNfeImportUseCase } from './nfe-imports/application/request
 import { createGetLastJobRunUseCase } from './nfe-imports/application/get-last-job-run.use-case.js'
 import { DrizzleNfeDistributionStatusRepository } from './nfe-imports/infrastructure/drizzle-nfe-distribution-status.repository'
 import { DrizzleNfeImportRepository } from './nfe-imports/infrastructure/drizzle-nfe-import.repository'
+import { createGetAccessKeyLookupUseCase } from './nfe-access-key-lookups/application/get-access-key-lookup.use-case.js'
+import { createRequestAccessKeyLookupUseCase } from './nfe-access-key-lookups/application/request-access-key-lookup.use-case.js'
+import { DrizzleNfeAccessKeyLookupRepository } from './nfe-access-key-lookups/infrastructure/drizzle-nfe-access-key-lookup.repository.js'
+import { createNfeAccessKeyLookupRoutes } from './nfe-access-key-lookups/presentation/nfe-access-key-lookups.routes.js'
 import { createNfeImportRoutes } from './nfe-imports/presentation/nfe-imports.routes'
 import { DrizzleNfeDocumentRepository } from './nfe-documents/infrastructure/drizzle-nfe-document.repository'
 import { DrizzleNfeDocumentEventRepository } from './nfe-documents/infrastructure/drizzle-nfe-document-event.repository'
 import { createListNfeDocumentEvents } from './nfe-documents/application/list-nfe-document-events.use-case'
 import { createNfeDocumentRoutes } from './nfe-documents/presentation/nfe-documents.routes'
+import { createCheckAccessKeysUseCase } from './nfe-documents/application/check-access-keys.use-case.js'
+import { DrizzleNfeDocumentAccessKeyCheckRepository } from './nfe-documents/infrastructure/drizzle-nfe-document-access-key-check.repository.js'
+import { createNfeDocumentAccessKeyCheckRoutes } from './nfe-documents/presentation/nfe-document-access-key-checks.routes.js'
 import { createListPackageBoxes } from './nfe-documents/application/list-package-boxes.use-case'
 import { createExportPendingPackageBoxes } from './nfe-documents/application/export-pending-package-boxes.use-case'
 import { createListPackageBoxSiblings } from './nfe-documents/application/list-package-box-siblings.use-case'
@@ -1700,6 +1708,15 @@ export function bootstrap(): Bun.Server<undefined> {
     resolveActor: whatsappResolveActor,
     resolveSenderRole: whatsappSenderRole,
   })
+  /** O bloco da parada nas respostas do bot (grupo e individual); a estrada só com `ROUTING_MATRIX_URL`. */
+  const whatsappStopCards = createWhatsAppStopCardReader({
+    database: database.db,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    ...(config.routingMatrixUrl === undefined
+      ? {}
+      : { routing: createOsrmRouteGeometryGateway({ baseUrl: config.routingMatrixUrl }) }),
+  })
   const whatsappGroupDelivery = createGroupDeliveryWiring({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
     database: database.db,
@@ -1712,6 +1729,7 @@ export function bootstrap(): Bun.Server<undefined> {
     deliverAsAttendant: whatsappOfficeDelivery.deliver,
     resolveSenderRole: whatsappSenderRole,
     speech: whatsappBotSpeech,
+    stopCards: whatsappStopCards,
   })
   /** Spec 292 T5: o pedido no grupo do motorista registra pelo mesmo caminho do WhatsApp do motorista. */
   const whatsappGroupOccurrence = createGroupOccurrencePorts({
@@ -1725,15 +1743,6 @@ export function bootstrap(): Bun.Server<undefined> {
     logger,
     registerOccurrence: whatsappDriverEventPorts.registerOccurrence,
     speech: whatsappBotSpeech,
-  })
-  /** O bloco da parada nas respostas do bot (grupo e individual); a estrada só com `ROUTING_MATRIX_URL`. */
-  const whatsappStopCards = createWhatsAppStopCardReader({
-    database: database.db,
-    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
-    logger,
-    ...(config.routingMatrixUrl === undefined
-      ? {}
-      : { routing: createOsrmRouteGeometryGateway({ baseUrl: config.routingMatrixUrl }) }),
   })
   /** "Não entreguei" no grupo, pela mesma baixa do app (`reportDocumentReturn`). */
   const whatsappGroupReturn = createGroupReturnPorts({
@@ -2400,8 +2409,11 @@ function createEvolutionWebhook(input: {
    * Spec 292 T4: a sessão do pedido no grupo. A resposta sai pelo mesmo Evolution e no mesmo ritmo do
    * número (spec 289), fora do webhook.
    */
+  /** Uma resposta por turno é uma mensagem: o remetente e a entrada do grupo dividem o mesmo turno. */
+  const groupTurns = createWhatsAppTurnReplies({ logger })
   const groupReplies = createEvolutionGroupReplySender({
     logger,
+    turnReplies: groupTurns,
     sendText: createEvolutionDocumentSender({
       pacer: createEvolutionSendPacer({
         claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
@@ -2489,6 +2501,7 @@ function createEvolutionWebhook(input: {
     gateway,
     // Spec 292 T3: o grupo do motorista chega ao bot; T4/T5: a sessão do pedido e o fluxo.
     groupInbound: createEvolutionGroupInbound({
+      turnReplies: groupTurns,
       ...(groupAudio === undefined
         ? {}
         : {
@@ -3513,6 +3526,13 @@ function createApplicationRoutes({
     clock: { now: () => new Date() },
     port: new DrizzleScheduledDistributionStatusRepository(database),
   })
+  const accessKeyLookupRepository = new DrizzleNfeAccessKeyLookupRepository(database)
+  const requestAccessKeyLookup = createRequestAccessKeyLookupUseCase({
+    clock: { now: () => new Date() },
+    fingerprintService,
+    unitOfWork: accessKeyLookupRepository,
+  })
+  const getAccessKeyLookup = createGetAccessKeyLookupUseCase({ reader: accessKeyLookupRepository })
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })
   const reprocessImport = createReprocessNfeImportUseCase({ unitOfWork: nfeImportRepository })
@@ -6523,6 +6543,10 @@ function createApplicationRoutes({
         listTimeline: (input) => operations.listTimeline(input),
       },
     }),
+    ...createNfeAccessKeyLookupRoutes({
+      getLookup: getAccessKeyLookup,
+      requestLookup: requestAccessKeyLookup,
+    }),
     ...createNfeImportRoutes({
       getDistributionStatus,
       getImport,
@@ -6550,6 +6574,11 @@ function createApplicationRoutes({
             storedObjectRepository,
           }),
       },
+    }),
+    ...createNfeDocumentAccessKeyCheckRoutes({
+      checkAccessKeys: createCheckAccessKeysUseCase({
+        reader: new DrizzleNfeDocumentAccessKeyCheckRepository(database),
+      }),
     }),
     ...createNfeDocumentRoutes({
       downloadDocumentXml: { execute: (input) => nfeDocumentRepository.downloadXml(input) },

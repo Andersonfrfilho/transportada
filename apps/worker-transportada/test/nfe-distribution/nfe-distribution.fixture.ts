@@ -7,6 +7,7 @@ import type {
   NfeDistribuicaoResult,
 } from '@adatechnology/fiscal-provider'
 
+import type { AccessKeyLookupGatewayResult } from '../../src/nfe-access-key-lookup/domain/nfe-access-key-lookup.types.js'
 import type { NfeProcessingEnvelopeV1 } from '../../src/messaging/nfe-processing-envelope.schema.js'
 import type { WorkerLogger } from '../../src/shared/worker.types.js'
 
@@ -33,6 +34,10 @@ export type NfeDistributionGateway = {
     readonly config: NfeDistributionRuntimeConfig
     readonly ultNSU: string
   }): Promise<NfeDistribuicaoResult>
+  consultarPorChave?(input: {
+    readonly config: NfeDistributionRuntimeConfig
+    readonly chaveNfe: string
+  }): Promise<AccessKeyLookupGatewayResult>
 }
 
 export type NfeDistributionGatewayFactory = {
@@ -138,7 +143,27 @@ type CreateNfeDistributionConsumer = (input: {
   readonly logger: WorkerLogger
   readonly profile: NfeDistributionProfilePort
   readonly repository: NfeDistributionRepositoryPort
+  readonly sefazBudget: SefazBudgetPort
 }) => NfeDistributionConsumer
+
+export type SefazBudgetPort = {
+  block656(input: {
+    readonly companyId: string
+    readonly environment: 'homologation' | 'production'
+    readonly now: Date
+  }): Promise<void>
+  readBlockedUntil(input: {
+    readonly companyId: string
+    readonly environment: 'homologation' | 'production'
+  }): Promise<Date | null>
+}
+
+export const OPEN_SEFAZ_BUDGET: SefazBudgetPort = {
+  async block656() {},
+  async readBlockedUntil() {
+    return null
+  },
+}
 
 export const SILENT_LOGGER: WorkerLogger = {
   error() {},
@@ -166,6 +191,7 @@ export async function createNfeDistributionConsumerFixture(input: {
   readonly logger: WorkerLogger
   readonly profile: NfeDistributionProfilePort
   readonly repository: NfeDistributionRepositoryPort
+  readonly sefazBudget?: SefazBudgetPort
 }): Promise<NfeDistributionConsumer> {
   const module = (await import(
     '../../src/nfe-distribution/application/nfe-distribution-consumer.service.js'
@@ -173,7 +199,10 @@ export async function createNfeDistributionConsumerFixture(input: {
     readonly createNfeDistributionConsumer: CreateNfeDistributionConsumer
   }
 
-  return module.createNfeDistributionConsumer(input)
+  return module.createNfeDistributionConsumer({
+    ...input,
+    sefazBudget: input.sefazBudget ?? OPEN_SEFAZ_BUDGET,
+  })
 }
 
 export function createDistributionItem(input: {

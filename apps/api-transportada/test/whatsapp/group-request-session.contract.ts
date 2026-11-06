@@ -164,11 +164,13 @@ function setup(
       ...overrides,
     }
   }
+  /** O que o bot disse, sem o @número de quem pediu que abre a mensagem (a marca tem teste próprio). */
   const said = async () => {
     await replies.idle()
-    return sent.splice(0).map((item) => item.body)
+    return sent.splice(0).map((item) => item.body.replace(/^@\d+ /u, ''))
   }
   return {
+    idle: () => replies.idle(),
     advance: (ms: number) => {
       now = new Date(now.getTime() + ms)
     },
@@ -390,8 +392,33 @@ describe('pedido no grupo: cancelar e tentativas', () => {
   })
 })
 
+describe('pedido no grupo: a resposta marca quem pediu', () => {
+  const HELPER = '5516977776666'
+  const ATTENDANT = '5516966665555'
+
+  test.each([
+    ['motorista', DRIVER],
+    ['ajudante', HELPER],
+    ['atendente', ATTENDANT],
+  ])('a resposta ao %s abre com o @ do número dele', async (_role, sender) => {
+    const { idle, message, sent, sessions } = setup()
+    await sessions.handle(message({ sender, text: '' }))
+    await idle()
+    expect(sent[0]?.body.startsWith(`@${sender} ${HELLO}`)).toBe(true)
+  })
+
+  test('a recusa por pedido ocupado também marca quem escreveu', async () => {
+    const { idle, message, sent, sessions } = setup()
+    await sessions.handle(message({ text: '' }))
+    await sessions.handle(message({ sender: HELPER, text: '' }))
+    await idle()
+    expect(sent.at(-1)?.body.startsWith(`@${HELPER} `)).toBe(true)
+  })
+})
+
 describe('pedido no grupo: envio da resposta', () => {
-  test('as respostas saem em ordem para o grupo; falha no meio para a fila daquela chamada', async () => {
+  // Uma resposta é UMA mensagem (o espaçador do Evolution segurava a segunda e a pergunta chegava depois da resposta).
+  test('cada resposta sai numa mensagem só, em ordem; a que falha vai a log e não segura as seguintes', async () => {
     const sent: string[] = []
     const warnings: unknown[] = []
     const sender = createEvolutionGroupReplySender({
@@ -402,10 +429,12 @@ describe('pedido no grupo: envio da resposta', () => {
         sent.push(body)
       },
     })
-    sender.send({ companyId: COMPANY_ID, groupJid: GROUP, texts: ['a', 'falha', 'b'] })
+    sender.send({ companyId: COMPANY_ID, groupJid: GROUP, texts: ['a', 'b'] })
+    sender.send({ companyId: COMPANY_ID, groupJid: GROUP, texts: ['falha'] })
     sender.send({ companyId: COMPANY_ID, groupJid: GROUP, texts: ['c'] })
     await sender.idle()
-    expect(sent).toEqual(['a', 'c'])
+    expect(sent).toEqual(['a\n\nb', 'c'])
+    expect(warnings).toHaveLength(1)
     expect(JSON.stringify(warnings)).not.toContain(GROUP)
   })
 })

@@ -15,6 +15,7 @@ import {
   buildNfeDistributionRabbitMqTopology,
   buildNfeImportRabbitMqTopology,
 } from './messaging/nfe-rabbitmq-topology.js'
+import { buildNfeAccessKeyRabbitMqTopology } from './messaging/nfe-access-key-rabbitmq-topology.js'
 import { buildCteIssuanceRabbitMqTopology } from './messaging/cte-rabbitmq-topology.js'
 import type { CteProcessingEnvelopeV1 } from './messaging/cte-processing-envelope.schema.js'
 import type { MdfeProcessingEnvelopeV1 } from './messaging/mdfe-processing-envelope.schema.js'
@@ -233,6 +234,13 @@ import { DrizzleJobExecutionRepository } from './job-run/infrastructure/drizzle-
 import { buildJobRunRabbitMqTopology } from './messaging/job-run-rabbitmq-topology.js'
 import { startFoundationSyntheticConsumer } from './runtime/foundation-synthetic-consumer.service.js'
 import { startNfeDistributionConsumer } from './runtime/nfe-distribution-consumer.service.js'
+import { startNfeAccessKeyConsumer } from './runtime/nfe-access-key-consumer.service.js'
+import { createProcessAccessKeyLookupUseCase } from './nfe-access-key-lookup/application/process-access-key-lookup.use-case.js'
+import { createAccessKeyLookupDocumentStorage } from './nfe-access-key-lookup/infrastructure/access-key-lookup-document-storage.js'
+import { DrizzleAccessKeyLookupBudgetRepository } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup-budget.repository.js'
+import { createDrizzleAccessKeyLookupRequeue } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup-requeue.repository.js'
+import { DrizzleAccessKeyLookupRepository } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup.repository.js'
+import { PersistentProcessedMessageService } from './outbox/application/persistent-processed-message.service.js'
 import { createNfeDistributionConsumer } from './nfe-distribution/application/nfe-distribution-consumer.service.js'
 import { createAdatechnologyNfeDistributionProvider } from './nfe-distribution/infrastructure/adatechnology-nfe-distribution-provider.factory.js'
 import { createNfeDistributionGatewayFactory } from './nfe-distribution/infrastructure/nfe-distribution-gateway.js'
@@ -503,6 +511,9 @@ type WorkerRuntimeDependencies = {
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startAccessKeyLookupConsumer?: (
+    input: Parameters<typeof startNfeAccessKeyConsumer>[0],
+  ) => Promise<RuntimeConsumer | undefined>
   readonly startCargoPreviewConsumer?: (
     input: Parameters<typeof startCargoPreviewConsumer>[0],
   ) => Promise<RuntimeConsumer | undefined>
@@ -586,6 +597,8 @@ export async function startWorkerRuntime(
     dependencies.startFoundationSyntheticConsumer ?? startFoundationSyntheticConsumer
   const importStarter = dependencies.startImportConsumer ?? startNfeImportConsumer
   const distributionStarter = dependencies.startDistributionConsumer ?? startNfeDistributionConsumer
+  const accessKeyLookupStarter =
+    dependencies.startAccessKeyLookupConsumer ?? startNfeAccessKeyConsumer
   const cteIssuanceStarter = dependencies.startCteIssuanceConsumer ?? startCteIssuanceConsumer
   const mdfeIssuanceStarter = dependencies.startMdfeIssuanceConsumer ?? startMdfeIssuanceConsumer
   const nfseIssuanceStarter = dependencies.startNfseIssuanceConsumer ?? startNfseIssuanceConsumer
@@ -686,6 +699,9 @@ export async function startWorkerRuntime(
   const nfeDistributionTopology = buildNfeDistributionRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const nfeAccessKeyTopology = buildNfeAccessKeyRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   const cteIssuanceTopology = buildCteIssuanceRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
@@ -732,6 +748,8 @@ export async function startWorkerRuntime(
   let importConsumer: RuntimeConsumer | undefined
   let importPublisher: RabbitMqProvider | undefined
   let distributionConsumer: RuntimeConsumer | undefined
+  let accessKeyPublisher: RabbitMqProvider | undefined
+  let accessKeyConsumer: RuntimeConsumer | undefined
   let cteIssuanceConsumer: RuntimeConsumer | undefined
   let relayLoop: OutboxRelayLoop | undefined
   let cteRelayLoop: OutboxRelayLoop | undefined
@@ -788,6 +806,10 @@ export async function startWorkerRuntime(
     distributionPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: nfeDistributionTopology,
+    })
+    accessKeyPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: nfeAccessKeyTopology,
     })
     cteIssuancePublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
@@ -880,6 +902,9 @@ export async function startWorkerRuntime(
         database.db as ReturnType<typeof createDrizzleProvider>['db'],
       ),
     })
+    const sefazBudget = new DrizzleAccessKeyLookupBudgetRepository(
+      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    )
     distributionConsumer = await distributionStarter({
       config,
       consumer: createNfeDistributionConsumer({
@@ -908,12 +933,43 @@ export async function startWorkerRuntime(
           ),
           xmlImporter: createNfeXmlImporter(),
         }),
+        sefazBudget,
       }),
       logger,
       provider: distributionPublisher,
       repository: new DrizzleNfeImportWorkerRepository(
         database.db as ReturnType<typeof createDrizzleProvider>['db'],
       ),
+    })
+    const lookupDatabase = database.db as ReturnType<typeof createDrizzleProvider>['db']
+    accessKeyConsumer = await accessKeyLookupStarter({
+      logger,
+      maxRetries: nfeAccessKeyTopology.retry?.maxRetries ?? 0,
+      provider: accessKeyPublisher,
+      useCase: createProcessAccessKeyLookupUseCase({
+        budget: sefazBudget,
+        clock: { now: () => new Date() },
+        gatewayFactory: createNfeDistributionGatewayFactory({
+          createProvider: createAdatechnologyNfeDistributionProvider(),
+        }),
+        logger,
+        processedMessages: new PersistentProcessedMessageService({
+          repository: new DrizzleOutboxRepository(lookupDatabase),
+        }),
+        profile: new DrizzleNfeDistributionProfileRepository(lookupDatabase, {
+          secretService: digitalCertificateSecretService,
+        }),
+        repository: new DrizzleAccessKeyLookupRepository(lookupDatabase, { logger }),
+        storage: createAccessKeyLookupDocumentStorage({
+          bucket: storageBucket,
+          gateway: storageGateway,
+          finalStorage: createNfeImportFinalStorage({
+            bucket: storageBucket,
+            gateway: storageGateway,
+          }),
+        }),
+        xmlImporter: createNfeXmlImporter(),
+      }),
     })
     // A mesma instância vai para o módulo (que reenfileira a próxima tentativa) e para o worker
     // dele (que consome): duas seriam dois canais e um `close` que fecha só metade.
@@ -1632,6 +1688,9 @@ export async function startWorkerRuntime(
             identifiers: createCryptoDistributionIdentifiers(),
             logger,
             now: () => new Date(),
+            requeue: createDrizzleAccessKeyLookupRequeue({
+              database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            }),
             source: createDrizzleDistributionCandidateSource({
               database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
               logger,
@@ -1855,6 +1914,8 @@ export async function startWorkerRuntime(
     const relay = new OutboxRelayService({
       clock: { now: () => new Date() },
       publisher: new NfeOutboxPublisherService({
+        accessKeyProvider: accessKeyPublisher,
+        accessKeyTopology: nfeAccessKeyTopology,
         distributionProvider: distributionPublisher,
         distributionTopology: nfeDistributionTopology,
         importProvider: importPublisher,
@@ -1870,9 +1931,9 @@ export async function startWorkerRuntime(
       },
       topologyResolver: {
         resolve({ eventType }) {
-          return eventType === 'transportada.nfe.import.requested'
-            ? nfeImportTopology
-            : nfeDistributionTopology
+          if (eventType === 'transportada.nfe.import.requested') return nfeImportTopology
+          if (eventType === 'transportada.nfe.access-key.requested') return nfeAccessKeyTopology
+          return nfeDistributionTopology
         },
       },
     })
@@ -2192,6 +2253,7 @@ export async function startWorkerRuntime(
         syntheticConsumer,
         importConsumer,
         distributionConsumer,
+        accessKeyConsumer,
         cteIssuanceConsumer,
         mdfeIssuanceConsumer,
         nfseIssuanceConsumer,
@@ -2213,6 +2275,7 @@ export async function startWorkerRuntime(
         provider,
         importPublisher,
         distributionPublisher,
+        accessKeyPublisher,
         cteIssuancePublisher,
         mdfeIssuancePublisher,
         nfseIssuancePublisher,
@@ -2256,6 +2319,7 @@ export async function startWorkerRuntime(
     await syntheticConsumer?.cancel().catch(() => undefined)
     await importConsumer?.cancel().catch(() => undefined)
     await distributionConsumer?.cancel().catch(() => undefined)
+    await accessKeyConsumer?.cancel().catch(() => undefined)
     await cteIssuanceConsumer?.cancel().catch(() => undefined)
     await mdfeIssuanceConsumer?.cancel().catch(() => undefined)
     await nfseIssuanceConsumer?.cancel().catch(() => undefined)
@@ -2284,6 +2348,7 @@ export async function startWorkerRuntime(
     await healthServer?.stop().catch(() => undefined)
     await storageGateway.close().catch(() => undefined)
     await distributionPublisher?.close().catch(() => undefined)
+    await accessKeyPublisher?.close().catch(() => undefined)
     await importPublisher?.close().catch(() => undefined)
     await cteIssuancePublisher?.close().catch(() => undefined)
     await mdfeIssuancePublisher?.close().catch(() => undefined)

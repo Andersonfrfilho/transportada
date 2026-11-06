@@ -83,6 +83,10 @@ import {
   type WhatsAppDriverActor,
   type WhatsAppDriverEventPorts,
 } from './whatsapp-driver-events.service.js'
+import {
+  readWhatsAppStopInProgress,
+  type WhatsAppStopInProgress,
+} from './whatsapp-stop-in-progress.service.js'
 
 export type RouteOfferReply = {
   readonly prompt: DriverPrompt | undefined
@@ -171,6 +175,10 @@ export type WhatsAppDriverPrompts = {
     readonly actor: WhatsAppDriverActor
     readonly documentNumber: string
   }): Promise<null | RouteOfferReply>
+  /** A parada em andamento (chegou e falta a baixa, ou a caminho), que o "entreguei" sem número continua. */
+  stopInProgress(input: {
+    readonly actor: { readonly companyId: string; readonly driverId: string }
+  }): Promise<null | WhatsAppStopInProgress>
   /** A oferta da próxima rota com o bloco da parada (spec 294 RF8–RF10). */
   routeOffer(input: {
     readonly actor: WhatsAppDriverActor
@@ -726,6 +734,13 @@ export function createWhatsAppDriverPrompts(dependencies: {
     repeatedEvent,
     routeOffer,
     settledDocument,
+
+    stopInProgress: ({ actor }) =>
+      readWhatsAppStopInProgress({
+        actor,
+        listStops: async (scope) => (await dependencies.listStops?.(scope)) ?? [],
+        stopCards: dependencies.stopCards,
+      }),
 
     async answer(turn) {
       const prompt = readDriverPrompt(turn.context, clock())

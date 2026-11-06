@@ -111,7 +111,8 @@
     "sourceNe": "Origem diferente de",
     "statusEq": "Status",
     "statusNe": "Status diferente de",
-    "upload": "Upload"
+    "upload": "Upload",
+    "access_key": "Busca por chave"
   },
   "common": {
     "loadMore": "Carregar mais",
@@ -132,6 +133,7 @@
   },
   "mechanism": {
     "section": "Origem da importação",
+    "accessKey": "Importar por bip",
     "manual": "Manual",
     "remote": "Remota"
   },
@@ -860,5 +862,65 @@
   },
   "cameraMeasurementValidationExportExcel": "Exportar Excel do período",
   "cameraMeasurementExportSheetName": "Medidas da câmera",
-  "cameraMeasurementExportTitle": "Medidas feitas com a câmera"
+  "cameraMeasurementExportTitle": "Medidas feitas com a câmera",
+  "importByScan": {
+    "action": "Importar por bip"
+  },
+  "accessKeyImport": {
+    "forbidden": "Você não tem permissão para importar notas.",
+    "title": "Importar por bip",
+    "subtitle": "Bipe a chave de cada nota: a que já está no sistema é só contada, a desconhecida é buscada na SEFAZ e importada sozinha.",
+    "reader": {
+      "field": "Chave da nota",
+      "idle": "Clique aqui para voltar a ler",
+      "ready": "Leitor pronto"
+    },
+    "scan": "Ler com a câmera",
+    "scanClose": "Fechar câmera",
+    "scanDenied": "A câmera não foi liberada.",
+    "scanReading": "Lendo o código…",
+    "scanStarting": "Abrindo a câmera…",
+    "scanTitle": "Ler chave da nota",
+    "scanUnavailable": "A câmera não está disponível neste aparelho.",
+    "alreadyScanned": "Esta chave já foi bipada.",
+    "alreadyInSystem": "Já estava no sistema.",
+    "summary": {
+      "announcement": "{{scanned}} bipadas, {{imported}} importadas, {{refused}} recusadas.",
+      "scanned": "Bipadas",
+      "alreadyInSystem": "Já estavam no sistema",
+      "imported": "Importadas",
+      "searching": "Buscando",
+      "waiting": "Na fila da SEFAZ",
+      "refused": "Recusadas",
+      "notObtained": "Não obtidas",
+      "unreadable": "Ilegíveis"
+    },
+    "nextWindow": "próxima janela {{time}}",
+    "refusedReason": "{{count}} {{reason}}",
+    "reason": {
+      "not_interested": "não liberada",
+      "summary_only": "só resumo",
+      "not_found": "não encontrada",
+      "expired": "prazo vencido",
+      "cancelled": "cancelada",
+      "denied": "denegada",
+      "certificate_mismatch": "certificado",
+      "invalid_key": "chave inválida",
+      "sefaz_unavailable": "SEFAZ fora do ar"
+    },
+    "filter": {
+      "all": "Todas",
+      "imported": "Importadas",
+      "alreadyInSystem": "Já estavam",
+      "refused": "Recusadas"
+    },
+    "clear": "Limpar lista",
+    "xml": {
+      "action": "Enviar XML",
+      "field": "XML da nota",
+      "placeholder": "Nenhum XML escolhido",
+      "failed": "Não foi possível enviar o XML. Tente de novo.",
+      "notImported": "O XML foi enviado, mas a nota ainda não entrou no cadastro."
+    }
+  }
 }

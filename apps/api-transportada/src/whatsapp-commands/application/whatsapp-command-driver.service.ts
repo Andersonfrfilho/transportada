@@ -74,8 +74,10 @@ import type {
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import {
   DRIVER_PROMPT_CONTEXT_KEY,
+  DRIVER_PROMPT_TEXT,
   readDriverPrompt,
 } from '../domain/whatsapp-driver-prompt.policy.js'
+import { normalizeDriverCommandText } from '../domain/whatsapp-driver-command.policy.js'
 import type { WhatsAppDriverPrompts } from './whatsapp-driver-prompts.service.js'
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
 import {
@@ -96,6 +98,9 @@ import {
   type WhatsAppCommandTurn,
   withoutInvalidAttempts,
 } from './whatsapp-flow-step.service.js'
+
+/** O "cancelar" que fecha a pergunta aberta do fluxo da conversa individual. */
+const FLOW_CANCEL_WORDS = new Set(['cancelar', 'cancela', 'cancele'])
 
 export type WhatsAppMessageHandler = NonNullable<MetaWhatsAppHooks['onMessageReceived']>
 
@@ -641,6 +646,20 @@ async function advanceConversation(
     !isRegisteredDriver &&
     (await runAttendantFieldCommand({ context, graph, located, permissions, turn }))
   ) {
+    return
+  }
+
+  // "Cancelar" do motorista (digitado, ou falado e confirmado) fecha a pergunta aberta do fluxo: nunca vira resposta.
+  // Só a palavra sozinha: frase livre que a contém segue a regra do nó de escolha (D8).
+  const typed = turn.message.text?.body
+  if (
+    permissions.has(WHATSAPP_SHARED_LOCATION_PERMISSION) &&
+    located !== undefined &&
+    typed !== undefined &&
+    FLOW_CANCEL_WORDS.has(normalizeDriverCommandText(typed))
+  ) {
+    await clearWhatsAppFlowPosition({ context, turn })
+    await turn.deps.sender.sendText({ body: DRIVER_PROMPT_TEXT.cancelled, to: turn.phone })
     return
   }
 

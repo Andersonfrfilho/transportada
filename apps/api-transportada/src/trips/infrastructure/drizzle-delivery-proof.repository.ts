@@ -8,13 +8,13 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { Coordinate } from '../../addresses/domain/coordinate-distance.js'
 import {
   companyDeliveryProofSettings,
+  deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
 import { deliveredMomentSql } from '../../database/delivered-moment.support.js'
 import { deliveryProofOutbox } from '../../database/delivery-proof-outbox.schema.js'
 import type { EventLocationState } from '../../database/event-location.schema.js'
 import { inList } from '../../database/schema-check.constant.js'
-import { nfeParticipants } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   tripDeliveryProofs,
@@ -36,10 +36,7 @@ import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
 import { TripDeliveryProofCargoLimitError } from '../domain/trip-field-office.error.js'
 import { DeliveryProofEventVanishedError } from '../domain/delivery-proof-event.error.js'
-import {
-  DELIVERED_EVENT_KIND,
-  RECIPIENT_PARTICIPANT_ROLE,
-} from '../domain/delivery-event.constant.js'
+import { DELIVERED_EVENT_KIND } from '../domain/delivery-event.constant.js'
 import {
   DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
   resolveProofSettingsForRecipient,
@@ -50,6 +47,7 @@ import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
 import { DRIVER_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { CanhotoDuplicateError } from '../application/canhoto-duplicate.error.js'
 import { findCanhotoByHash } from './canhoto-duplicate.query.js'
+import { findDocumentOccurrenceSubject } from './document-occurrence-subject.query.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -117,57 +115,29 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }
 
   /**
-   * ADR-0057 §1: a configuração resolvida — geral da empresa mais a exceção pelo CNPJ do
-   * destinatário da nota. Toda consulta com o tenant no `where`; ausência de linha cai na fábrica.
+   * ADR-0057 §1 / spec 218 RF-C3: a configuração resolvida da nota — geral da empresa, exceção da
+   * contratante (emitente cadastrado) e exceção pelo CNPJ do destinatário, que vence. É a mesma regra
+   * do snapshot do app (`DrizzleCurrentDriverTripRepository`); quem afrouxa para o escritório ou o
+   * atendente faz isso por cima, nunca lendo menos camadas. Toda consulta com o tenant no `where`.
    */
   public async resolveProofFieldSettings(input: {
     readonly companyId: string
     readonly documentId: string
   }): Promise<DeliveryProofFieldSettings> {
-    const [recipient] = await this.database
-      .select({ taxId: nfeParticipants.taxId })
-      .from(tripDocuments)
-      .innerJoin(
-        nfeParticipants,
-        and(
-          eq(nfeParticipants.companyId, tripDocuments.companyId),
-          eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
-          eq(nfeParticipants.role, RECIPIENT_PARTICIPANT_ROLE),
-        ),
-      )
-      .where(
-        and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, input.documentId)),
-      )
-      .limit(1)
+    const subject = await findDocumentOccurrenceSubject(this.database, input)
+    const recipientTaxId = subject?.recipientTaxId ?? ''
+    const contractorId = subject?.contractorId ?? null
 
-    const [general] = await this.database
-      .select({
-        cargo: companyDeliveryProofSettings.cargo,
-        cargoMinimumCount: companyDeliveryProofSettings.cargoMinimumCount,
-        photo: companyDeliveryProofSettings.photo,
-        receivedBy: companyDeliveryProofSettings.receivedBy,
-        receiverDocument: companyDeliveryProofSettings.receiverDocument,
-        receiverName: companyDeliveryProofSettings.receiverName,
-        signature: companyDeliveryProofSettings.signature,
-      })
-      .from(companyDeliveryProofSettings)
-      .where(eq(companyDeliveryProofSettings.companyId, input.companyId))
-      .limit(1)
-
-    const recipientTaxId = recipient?.taxId ?? ''
-    const [override] =
+    const [[general], [recipientOverride], [contractorOverride]] = await Promise.all([
+      this.database
+        .select(proofFieldColumns(companyDeliveryProofSettings))
+        .from(companyDeliveryProofSettings)
+        .where(eq(companyDeliveryProofSettings.companyId, input.companyId))
+        .limit(1),
       recipientTaxId.length === 0
-        ? []
-        : await this.database
-            .select({
-              cargo: deliveryProofSettingOverrides.cargo,
-              cargoMinimumCount: deliveryProofSettingOverrides.cargoMinimumCount,
-              photo: deliveryProofSettingOverrides.photo,
-              receivedBy: deliveryProofSettingOverrides.receivedBy,
-              receiverDocument: deliveryProofSettingOverrides.receiverDocument,
-              receiverName: deliveryProofSettingOverrides.receiverName,
-              signature: deliveryProofSettingOverrides.signature,
-            })
+        ? Promise.resolve([])
+        : this.database
+            .select(proofFieldColumns(deliveryProofSettingOverrides))
             .from(deliveryProofSettingOverrides)
             .where(
               and(
@@ -175,16 +145,34 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
                 eq(deliveryProofSettingOverrides.taxId, recipientTaxId),
               ),
             )
-            .limit(1)
+            .limit(1),
+      contractorId === null
+        ? Promise.resolve([])
+        : this.database
+            .select(proofFieldColumns(deliveryProofSettingContractorOverrides))
+            .from(deliveryProofSettingContractorOverrides)
+            .where(
+              and(
+                eq(deliveryProofSettingContractorOverrides.companyId, input.companyId),
+                eq(deliveryProofSettingContractorOverrides.contractorId, contractorId),
+              ),
+            )
+            .limit(1),
+    ])
 
-    /** Spec 082 (revisão): a mesma regra do snapshot do motorista — um único lugar decide. */
+    /** Spec 082 (revisão) / 218: a mesma regra do snapshot do motorista — um único lugar decide. */
     return resolveProofSettingsForRecipient({
+      contractorId,
       lookup: {
         general: general ?? null,
-        overridesByTaxId:
-          override === undefined
+        overridesByContractorId:
+          contractorId === null || contractorOverride === undefined
             ? new Map<string, DeliveryProofFieldSettings>()
-            : new Map([[recipientTaxId, override]]),
+            : new Map([[contractorId, contractorOverride]]),
+        overridesByTaxId:
+          recipientOverride === undefined
+            ? new Map<string, DeliveryProofFieldSettings>()
+            : new Map([[recipientTaxId, recipientOverride]]),
       },
       recipientTaxId,
     })
@@ -646,5 +634,23 @@ export function buildProofUpsertSet(input: SaveProofInput) {
     id: input.id,
     receiverDocumentEnvelope: input.receiverDocumentEnvelope,
     receiverDocumentMasked: input.receiverDocumentMasked,
+  }
+}
+
+type ProofFieldTable =
+  | typeof companyDeliveryProofSettings
+  | typeof deliveryProofSettingContractorOverrides
+  | typeof deliveryProofSettingOverrides
+
+/** As sete colunas que formam a configuração de campo, iguais nas três tabelas. */
+function proofFieldColumns(table: ProofFieldTable) {
+  return {
+    cargo: table.cargo,
+    cargoMinimumCount: table.cargoMinimumCount,
+    photo: table.photo,
+    receivedBy: table.receivedBy,
+    receiverDocument: table.receiverDocument,
+    receiverName: table.receiverName,
+    signature: table.signature,
   }
 }

@@ -86,7 +86,7 @@ describe('normalized NF-e document schema', () => {
       nfe_documents_status_check: `"nfe_documents"."status" in ('authorized', 'cancelled', 'denied', 'unsigned')`,
       // Spec 149: nota sem protocolo pode ser cancelada ou denegada; só a autorizada exige protocolo
       nfe_documents_authorization_protocol_presence_check: `("nfe_documents"."status" <> 'authorized') or ("nfe_documents"."authorization_protocol" is not null)`,
-      nfe_documents_source_check: `"nfe_documents"."source" in ('upload', 'distribution')`,
+      nfe_documents_source_check: `"nfe_documents"."source" in ('upload', 'distribution', 'access_key')`,
       nfe_documents_values_check: `"nfe_documents"."total_value" >= 0 and "nfe_documents"."products_value" >= 0 and "nfe_documents"."freight_value" >= 0 and "nfe_documents"."insurance_value" >= 0 and "nfe_documents"."discount_value" >= 0 and "nfe_documents"."other_expenses_value" >= 0`,
       nfe_documents_sha256_check: `"nfe_documents"."xml_sha256" ~ '^[0-9a-f]{64}$'`,
     })

@@ -15,11 +15,13 @@ import type {
   WhatsAppDriverEventResult,
 } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
 import type { WhatsAppDriverActor } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
-import type {
-  WhatsAppDeliveryPreparations,
-  WhatsAppRouteContinuation,
+import {
+  joinedTexts,
+  type WhatsAppDeliveryPreparations,
+  type WhatsAppRouteContinuation,
 } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
+import type { WhatsAppStopInProgress } from '../../whatsapp-commands/application/whatsapp-stop-in-progress.service.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 import {
   SENDER_NOT_ALLOWED_TEXT,
@@ -45,6 +47,14 @@ export type GroupDeliveryFlowPorts = {
     readonly companyId: string
     readonly driverId: string
   }) => null | ReportedLocation
+  /**
+   * A parada em andamento (chegou e falta a baixa, ou a caminho): o "entreguei" sem número segue por ela. Ausente, a
+   * lista é a da viagem inteira, como antes.
+   */
+  readonly findStopInProgress?: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<null | WhatsAppStopInProgress>
   /** As notas ainda abertas das viagens ativas do motorista do grupo. */
   readonly listOpenDocuments: (input: {
     readonly companyId: string
@@ -161,6 +171,43 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
     return toOutcome(reply)
   }
 
+  /**
+   * "entreguei" sem número: a entrega aberta é retomada; sem ela, a parada em andamento decide (uma nota segue direto,
+   * com o bloco da parada; várias, a pergunta lista só as dela). `null`: nada em andamento.
+   */
+  async function continueInProgress(turn: GroupFlowTurn): Promise<GroupFlowOutcome | null> {
+    const actor = await actorOf(turn)
+    if (actor !== null && actor !== 'refused') {
+      const resumed = await ports.preparations.resume?.({ actor })
+      if (resumed !== null && resumed !== undefined && resumed.texts.length > 0) {
+        return toOutcome({ ...resumed, texts: joinedTexts(resumed.texts) })
+      }
+    }
+    const stop = await ports.findStopInProgress?.({
+      companyId: turn.request.companyId,
+      driverId: turn.request.driverId,
+    })
+    if (stop === null || stop === undefined) return null
+    const [only] = stop.documents
+    if (stop.documents.length === 1 && only !== undefined) {
+      const prepared = await prepare(turn, only)
+      return stop.header === null || prepared.kind === 'not_understood'
+        ? prepared
+        : { ...prepared, replies: joinedTexts([stop.header, ...prepared.replies]) }
+    }
+    return askDocument(stop.documents)
+  }
+
+  function askDocument(documents: readonly GroupDeliveryDocument[]): GroupFlowOutcome {
+    const state: FlowState = { documents: documents.slice(0, 8) }
+    return {
+      kind: 'continue',
+      replies: [GROUP_DELIVERY_TEXT.askDocument(documents)],
+      state,
+      step: GROUP_DELIVERY_STEP.choose,
+    }
+  }
+
   async function deliverBatch(
     turn: GroupFlowTurn,
     actor: WhatsAppDriverActor,
@@ -236,11 +283,15 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
         }
         return deliverBatch(turn, actor, numbers)
       }
+      const [number] = numbers
+      if (number === undefined) {
+        const inProgress = await continueInProgress(turn)
+        if (inProgress !== null) return inProgress
+      }
       const documents = await ports.listOpenDocuments({
         companyId: turn.request.companyId,
         driverId: turn.request.driverId,
       })
-      const [number] = numbers
       if (number !== undefined) {
         const document = documents.find((item) => strip(item.number) === strip(number))
         return document === undefined
@@ -251,13 +302,7 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
         return { kind: 'done', replies: [GROUP_DELIVERY_TEXT.noDocuments] }
       const [only] = documents
       if (documents.length === 1 && only !== undefined) return prepare(turn, only)
-      const state: FlowState = { documents: documents.slice(0, 8) }
-      return {
-        kind: 'continue',
-        replies: [GROUP_DELIVERY_TEXT.askDocument(documents)],
-        state,
-        step: GROUP_DELIVERY_STEP.choose,
-      }
+      return askDocument(documents)
     },
 
     async answer(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
@@ -278,6 +323,18 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
 
     /** A resposta em texto a uma entrega em preparo (o roteador já conferiu que há uma esperando). */
     reply,
+
+    /**
+     * "Cancelar" com a pergunta da entrega aberta: a lista de notas só deixa o pedido fechar (`null`); a entrega em
+     * preparo é encerrada sem registrar nada. Nunca vira resposta ("não achei essa nota na lista").
+     */
+    async cancel(turn: GroupFlowTurn): Promise<GroupFlowOutcome | null> {
+      if (turn.request.step === GROUP_DELIVERY_STEP.choose) return null
+      const actor = await actorOf(turn)
+      if (actor === null || actor === 'refused') return null
+      const answered = await ports.preparations.answer({ actor, text: turn.text })
+      return answered === null ? null : toOutcome(answered)
+    },
 
     /** Há entrega ou ocorrência em coleta aberta deste motorista? (RNF1: a oferta da rota não pergunta por cima.) */
     hasOpen(turn: GroupFlowTurn): Promise<boolean> {

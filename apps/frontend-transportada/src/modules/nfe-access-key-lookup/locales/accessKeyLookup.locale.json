@@ -1,0 +1,57 @@
+{
+  "row": {
+    "number": "NF {{number}}",
+    "series": "série {{series}}",
+    "issuer": "Emitente {{taxId}}"
+  },
+  "announce": {
+    "ready": "Nota {{number}} pronta.",
+    "refused": "Nota {{number}} recusada.",
+    "failed": "Nota {{number}} não obtida."
+  },
+  "badge": {
+    "checking": "Conferindo",
+    "searching": "Buscando",
+    "waiting": "Na fila",
+    "ready": "Pronta",
+    "refused": "Recusada",
+    "failed": "Não obtida",
+    "error": "Erro",
+    "stalled": "Demorando"
+  },
+  "state": {
+    "checking": "Conferindo no sistema…",
+    "searching": "Buscando na SEFAZ…",
+    "waiting": "Na fila da SEFAZ — próxima janela {{time}}",
+    "waitingNoTime": "Na fila da SEFAZ — aguardando a próxima janela",
+    "ready": "Nota no sistema.",
+    "stalled": "A busca está demorando mais que o normal. Tente de novo."
+  },
+  "reason": {
+    "not_interested": "A SEFAZ não libera esta nota para a transportadora (ela não consta na nota). Envie o XML.",
+    "summary_only": "A SEFAZ só liberou o resumo desta nota. Envie o XML.",
+    "not_found": "A SEFAZ não encontrou esta nota. Confira a chave ou envie o XML.",
+    "expired": "A SEFAZ não guarda mais o XML desta nota (prazo vencido). Envie o XML.",
+    "cancelled": "Esta nota foi cancelada pelo emitente. Não é possível importá-la.",
+    "denied": "Esta nota foi denegada pela SEFAZ. Não é possível importá-la.",
+    "certificate_mismatch": "O certificado da empresa não corresponde ao usado na consulta. Envie o XML ou confira o certificado.",
+    "invalid_key": "A chave desta nota é inválida. Confira a leitura ou envie o XML.",
+    "sefaz_unavailable": "A SEFAZ está fora do ar no momento. Tente de novo em instantes ou envie o XML."
+  },
+  "error": {
+    "generic": "Não foi possível consultar esta nota. Tente de novo.",
+    "INVALID_ACCESS_KEY": "A chave lida é inválida. Confira a leitura.",
+    "NFE_DISTRIBUTION_NOT_CONFIGURED": "A busca na SEFAZ não está configurada para esta empresa. Envie o XML.",
+    "NFE_ACCESS_KEY_LOOKUP_CONFLICT": "Já existe uma busca em andamento para esta chave. Tente de novo em instantes.",
+    "NFE_ACCESS_KEY_LOOKUP_QUEUE_FULL": "A fila de buscas da SEFAZ está cheia. Tente de novo em alguns minutos.",
+    "RATE_LIMITED": "Muitas consultas em pouco tempo. Aguarde um instante e tente de novo.",
+    "NFE_ACCESS_KEY_LOOKUP_REQUEST_FAILED": "Falha de conexão ao consultar a nota. Tente de novo.",
+    "NFE_ACCESS_KEY_LOOKUP_RESPONSE_INVALID": "Resposta inesperada ao consultar a nota. Tente de novo."
+  },
+  "action": {
+    "add": "Acrescentar",
+    "sendXml": "Enviar XML",
+    "retry": "Tentar de novo",
+    "open": "Abrir"
+  }
+}

@@ -73,7 +73,7 @@ describe('NF-e import schema', () => {
       nfe_imports_company_id_idempotency_key_unique: ['company_id', 'idempotency_key'],
     })
     expect(checkSqlByName(nfeImports)).toMatchObject({
-      nfe_imports_source_check: `"nfe_imports"."source" in ('upload', 'distribution')`,
+      nfe_imports_source_check: `"nfe_imports"."source" in ('upload', 'distribution', 'access_key')`,
       nfe_imports_status_check: `"nfe_imports"."status" in ('pending', 'queued', 'processing', 'completed', 'partially_processed', 'failed', 'cancelled')`,
       nfe_imports_counters_check: `"nfe_imports"."received_count" >= 0 and "nfe_imports"."processed_count" >= 0 and "nfe_imports"."imported_count" >= 0 and "nfe_imports"."duplicated_count" >= 0 and "nfe_imports"."invalid_count" >= 0 and "nfe_imports"."rejected_count" >= 0 and "nfe_imports"."failed_count" >= 0 and "nfe_imports"."processed_count" <= "nfe_imports"."received_count" and "nfe_imports"."processed_count" = "nfe_imports"."imported_count" + "nfe_imports"."duplicated_count" + "nfe_imports"."invalid_count" + "nfe_imports"."rejected_count" + "nfe_imports"."failed_count"`,
       nfe_imports_version_check: `"nfe_imports"."version" > 0`,
