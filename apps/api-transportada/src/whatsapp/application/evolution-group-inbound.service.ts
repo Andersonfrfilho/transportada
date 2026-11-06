@@ -16,6 +16,8 @@
  * ⚠️ Nada de número, texto ou id de grupo em log: só empresa, motivo e contagens.
  */
 import type { EvolutionWebhookEvent } from '@adatechnology/evolution-whatsapp-provider'
+import { interpretWhatsAppDriverEventCommand } from '../../whatsapp-commands/domain/whatsapp-driver-event-command.policy.js'
+import { normalizeDriverCommandText } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
 
 import { matchWakePhrase } from '../domain/bot-wake-phrase.policy.js'
 import { BOT_AUDIO_SPEECH, botAudioQuickAnswer } from './whatsapp-bot-audio.service.js'
@@ -687,13 +689,16 @@ export function createEvolutionGroupInbound(
         text: event.text,
       })
       if (!decision.admitted) {
-        // Texto de quem acabou de descartar um áudio, sem pedido aberto: vale como marcação.
+        // Texto de quem acabou de descartar um áudio, sem pedido aberto: vale como marcação. O comando da
+        // rota do motorista do grupo também: o bot diz "quando chegar, mande cheguei", sem pedir o @.
         if (
           decision.reason === 'not_addressed' &&
           requestOwner === null &&
           sender !== '' &&
           event.text.trim() !== '' &&
-          takeRetry(companyId, groupJid, sender)
+          (takeRetry(companyId, groupJid, sender) ||
+            (isShortRouteCommand(event.text) &&
+              (await isGroupDriver?.({ companyId, driverId: owner.driverId, sender })) === true))
         ) {
           await dependencies.handle({
             companyId,
@@ -746,6 +751,17 @@ export function createGroupQuestionAskedHandler(
   return ({ companyId, groupJid, owner }) => {
     bot.supersede({ companyId, conversation: groupConversation(groupJid), owner })
   }
+}
+
+const ROUTE_COMMAND_MAX_WORDS = 6
+
+/** "cheguei", "saí", "entreguei 17234", "não entreguei 17234": curto, para conversa comum não chamar o bot. */
+function isShortRouteCommand(text: string): boolean {
+  const words = normalizeDriverCommandText(text)
+    .split(' ')
+    .filter((word) => word !== '')
+  if (words.length === 0 || words.length > ROUTE_COMMAND_MAX_WORDS) return false
+  return interpretWhatsAppDriverEventCommand(text) !== undefined
 }
 
 function groupConversation(groupJid: string): string {
