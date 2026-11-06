@@ -185,3 +185,13 @@ Fixture de teste: `consultarPorChave?` opcional no tipo local para não tocar no
 Contrato: `test/nfe-access-key-lookup/access-key-lookup-gateway.contract.ts`, 9 casos (config mapeada, 137, seis cStat pela mensagem, 656, `code` tipado sem ler `rawResponse`, timeout/conexão com classes reais do pacote, corpo sem cStat, erro alheio sobe, gateway factory repassa).
 
 Gates: `bun run typecheck` (raiz) `0`; worker `bun run lint` `0`; worker `bun run test`: `2979 pass, 0 fail` (era 2970 + 9). Sem integração nova.
+
+## T2.3 Orçamento atômico (D3, RF7)
+
+`DrizzleAccessKeyLookupBudgetRepository` (`apps/worker-transportada/src/nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup-budget.repository.ts`), constantes (15, 60 min, 65 min) em `domain/nfe-access-key-lookup-budget.constant.ts`.
+- `reserve({companyId, environment, now})`: uma instrução `INSERT ... ON CONFLICT (company_id, environment) DO UPDATE ... WHERE (blocked_until is null or <= now) and (janela vencida or used_in_window < 15) RETURNING`; janela vencida (`window_started_at <= now - 1 h`) reinicia em `now` com `used = 1`. O `WHERE` do `DO UPDATE` é reavaliado sobre a linha travada, por isso a corrida no último lugar tem uma vencedora. Sem linha retornada → `{reserved:false, notBefore}` com `notBefore = max(window_started_at + 1 h, blocked_until)` (leitura posterior, só informativa).
+- `block656`: upsert com `blocked_until = greatest(existente, now + 65 min)`; não toca `window_started_at` nem `used_in_window` (linha nova nasce com `used = 0`).
+- Integração (`test/nfe-access-key-lookup-budget.integration.test.ts`, Postgres real, 7 casos): contagem 14→0 e 16ª recusada com `notBefore` = fim da janela; janela reinicia após 1 h; duas reservas concorrentes com 14 usadas → exatamente uma passa e `used = 15`; 40 concorrentes → exatamente 15; bloqueio 656 recusa por 65 min com `notBefore = blocked_until`, inclusive com a janela já vencida (62 min), e volta a reservar em `blocked_until` com `budgetLeft 14`; `block656` sem linha cria o bloqueio; empresas e ambientes separados. Arquivo adicionado a `test:integration` do `package.json`.
+- O Postgres de teste (`localhost:65432`) não tinha a migration da T1.1; apliquei com `bun --env-file=../../.env.test run db:migrate` na API antes de rodar.
+
+Gates: `bun run typecheck` (raiz) `0`; worker `bun run lint` `0`; worker `bun run test`: `2979 pass, 0 fail`; worker `bun --env-file=../../.env.test run test:integration`: `381 pass, 4 skip, 0 fail` (385 testes, 71 arquivos, `EXIT=0`, 54 s) — inclui os 7 novos.
