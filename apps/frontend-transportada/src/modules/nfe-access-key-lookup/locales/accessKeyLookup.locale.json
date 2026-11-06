@@ -4,6 +4,11 @@
     "series": "série {{series}}",
     "issuer": "Emitente {{taxId}}"
   },
+  "announce": {
+    "ready": "Nota {{number}} pronta.",
+    "refused": "Nota {{number}} recusada.",
+    "failed": "Nota {{number}} não obtida."
+  },
   "badge": {
     "checking": "Conferindo",
     "searching": "Buscando",

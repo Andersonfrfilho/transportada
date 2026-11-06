@@ -1750,6 +1750,13 @@
       "noDocument": "Leia ao menos uma nota disponível.",
       "vehicleRequired": "Selecione o veículo da viagem."
     },
+    "notice": {
+      "alreadyAdded": "Esta nota já está na viagem.",
+      "alreadyScanned": "Esta chave já foi bipada.",
+      "loadingDocuments": "Carregando as notas disponíveis… Leia de novo em instantes.",
+      "notFound": "Nenhuma nota livre com este número nesta empresa.",
+      "unrecognized": "Leia a chave da nota ou digite o número dela."
+    },
     "reader": {
       "field": "Chave da nota",
       "idle": "Clique aqui para voltar a ler",

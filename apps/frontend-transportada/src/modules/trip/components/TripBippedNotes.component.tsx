@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { FileField } from '@/components/ui/file-field'
 import { Icon } from '@/components/ui/icon'
 import { KeyReaderField, type KeyReaderFieldHandle } from '@/components/ui/key-reader-field'
+import { AccessKeyLookupAnnouncer } from '@/modules/nfe-access-key-lookup/components/AccessKeyLookupAnnouncer.component'
 import { AccessKeyLookupRow } from '@/modules/nfe-access-key-lookup/components/AccessKeyLookupRow.component'
 import { deriveRowFlags } from '@/modules/nfe-access-key-lookup/shared/accessKeyLookupRow.service'
 import { findNfeAccessKeyInScan } from '@/modules/shared/nfeScannedKey.service'
@@ -16,6 +17,7 @@ import { findNfeAccessKeyInScan } from '@/modules/shared/nfeScannedKey.service'
 import type { useBippedNotes } from '../hooks/useBippedNotes.hook'
 import type { ScannedNfeDocument } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
+import { TripTypedNoteFeedback } from './TripTypedNoteFeedback.component'
 
 type TripBippedNotesProps = Readonly<{
   bipped: ReturnType<typeof useBippedNotes>
@@ -32,9 +34,13 @@ export function TripBippedNotes({ bipped, readerRef }: TripBippedNotesProps) {
   const [canScan] = useState(() => isCameraCapable(globalThis.navigator))
 
   function handleCameraRead(text: string): void {
-    setIsScannerOpen(false)
     const accessKey = findNfeAccessKeyInScan(text)
     if (accessKey !== undefined) bipped.read(accessKey)
+  }
+
+  function handleCloseScanner(): void {
+    setIsScannerOpen(false)
+    setTimeout(() => readerRef.current?.focus(), 0)
   }
 
   return (
@@ -47,6 +53,7 @@ export function TripBippedNotes({ bipped, readerRef }: TripBippedNotesProps) {
             ready: t('quickCreate.reader.ready'),
           }}
           onRead={bipped.read}
+          onUnreadable={bipped.readUnreadable}
           ref={readerRef}
         />
         {canScan ? (
@@ -56,6 +63,21 @@ export function TripBippedNotes({ bipped, readerRef }: TripBippedNotesProps) {
           </Button>
         ) : null}
       </div>
+
+      {bipped.notice === undefined ? null : (
+        <p className={styles.hint} role="status">
+          {t(`quickCreate.notice.${bipped.notice}`)}
+        </p>
+      )}
+      <TripTypedNoteFeedback
+        note={
+          bipped.candidates.length === 0
+            ? undefined
+            : { candidates: bipped.candidates, kind: 'ambiguous' }
+        }
+        onPick={bipped.pickCandidate}
+      />
+      <AccessKeyLookupAnnouncer rows={bipped.rows} />
 
       {bipped.notes.length === 0 ? null : (
         <section aria-label={t('quickCreate.foundNotes')} className={styles.searchSection}>
@@ -87,8 +109,10 @@ export function TripBippedNotes({ bipped, readerRef }: TripBippedNotesProps) {
                   </p>
                 )}
                 {note.document === 'failed' ? (
-                  <p className={styles.alert} role="alert">
-                    {t('quickCreate.bippedDocumentFailed')}{' '}
+                  <>
+                    <p className={styles.alert} role="alert">
+                      {t('quickCreate.bippedDocumentFailed')}
+                    </p>
                     <Button
                       onClick={() => bipped.retryDocument(note.row.accessKey)}
                       size="sm"
@@ -98,7 +122,7 @@ export function TripBippedNotes({ bipped, readerRef }: TripBippedNotesProps) {
                       <Icon name="refresh" />
                       {t('quickCreate.bippedRetry')}
                     </Button>
-                  </p>
+                  </>
                 ) : null}
                 {deriveRowFlags(note.row.state).canSendXml ? (
                   <FileField
@@ -124,7 +148,7 @@ export function TripBippedNotes({ bipped, readerRef }: TripBippedNotesProps) {
         closeLabel={t('detail.scanClose')}
         deniedMessage={t('detail.scanDenied')}
         isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
+        onClose={handleCloseScanner}
         onRead={handleCameraRead}
         readingMessage={t('detail.scanReading')}
         startingMessage={t('detail.scanStarting')}

@@ -2,16 +2,30 @@
 import type { RestoredAccessKey } from '@/modules/nfe-access-key-lookup/shared/accessKeyLookupQueue.service'
 import type { AccessKeyLookupRow } from '@/modules/nfe-access-key-lookup/shared/accessKeyLookupRow.service'
 
+import { NFE_ACCESS_KEY_PATTERN } from '@/modules/shared/nfeAccessKey.service'
+
 const STORAGE_KEY = 'nfe-workspace.access-key-import'
+const LOOKUP_ID_MAX_LENGTH = 64
 
 function isRestoredAccessKey(value: unknown): value is RestoredAccessKey {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Record<string, unknown>
+  const { accessKey, lookupId } = candidate
   return (
-    typeof candidate['accessKey'] === 'string' &&
+    typeof accessKey === 'string' &&
+    NFE_ACCESS_KEY_PATTERN.test(accessKey) &&
     typeof candidate['wasRegistered'] === 'boolean' &&
-    (candidate['lookupId'] === null || typeof candidate['lookupId'] === 'string')
+    (lookupId === null || (typeof lookupId === 'string' && lookupId.length <= LOOKUP_ID_MAX_LENGTH))
   )
+}
+
+/** O armazenamento da sessão sobrevive ao logout na mesma aba: a lista da pessoa anterior não passa adiante. */
+export function clearAccessKeyImportSession(): void {
+  try {
+    globalThis.sessionStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // Sem armazenamento da sessão não há o que limpar.
+  }
 }
 
 /** Só chaves e ids: nada da nota. A tela funciona igual quando o navegador nega o armazenamento. */

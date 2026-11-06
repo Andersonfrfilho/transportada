@@ -1,47 +1,42 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 
-import {
-  useAccessKeyLookupQueue,
-  type UseAccessKeyLookupQueueInput,
-} from '@/modules/nfe-access-key-lookup/hooks/useAccessKeyLookupQueue.hook'
-import { createNfeWorkspaceClient } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
-import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
-import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import { useAccessKeyLookupQueue } from '@/modules/nfe-access-key-lookup/hooks/useAccessKeyLookupQueue.hook'
+import { useXmlRecheck } from '@/modules/nfe-access-key-lookup/hooks/useXmlRecheck.hook'
 
 import {
   buildBippedNotes,
   listAddableDocuments,
+  listBippedDocumentIds,
   type BippedNoteDocument,
 } from '../shared/bippedNote.service'
 import type { ScannedNfeDocument } from '../shared/trip.types'
+import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
+
+import { BippedNotesOverridesContext } from './bippedNotesOverrides.context'
+import { resolveTypedNote } from '../shared/tripNoteLookup.service'
 import { getTripClient } from './useTripWorkspace.hook'
 
-export type XmlFeedback = Readonly<{ accessKey: string; kind: 'failed' | 'notImported' }>
+/** Aviso curto sob o leitor: a leitura que não gerou linha nova diz por quê. */
+export type BippedReadNotice =
+  | 'alreadyAdded'
+  | 'alreadyScanned'
+  | 'loadingDocuments'
+  | 'notFound'
+  | 'unrecognized'
 
 export type UseBippedNotesInput = Readonly<{
-  findDocument?: (accessKey: string) => Promise<null | ScannedNfeDocument>
-  lookup?: UseAccessKeyLookupQueueInput
+  /** As notas livres: é sobre elas que um número lido (sem chave) é resolvido, como na inserção rápida. */
+  availableDocuments?: readonly NfeDocumentListItem[]
+  isLoadingDocuments?: boolean
   onStage: (documents: readonly ScannedNfeDocument[]) => void
   /** O leitor de mão perde o foco a cada clique: toda ação da lista o devolve a ele. */
   refocusReader: () => void
   stagedDocumentIds: readonly string[]
-  uploadXml?: (file: File) => Promise<void>
 }>
 
 function findDocumentByAccessKey(accessKey: string): Promise<null | ScannedNfeDocument> {
   return getTripClient().findNfeDocumentByAccessKey({ accessKey })
-}
-
-function uploadXmlFile(file: File): Promise<void> {
-  const client = createNfeWorkspaceClient({
-    apiUrl: getIdentityEnvironment().apiBaseUrl,
-    fetch: (request) => fetch(request),
-    getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
-  })
-  return client
-    .requestUpload({ files: [file], idempotencyKey: crypto.randomUUID() })
-    .then(() => undefined)
 }
 
 /**
@@ -50,11 +45,21 @@ function uploadXmlFile(file: File): Promise<void> {
  * o bipe usava) diz se ela pode entrar — em outra viagem ou não autorizada, a linha avisa e não oferece.
  */
 export function useBippedNotes(input: UseBippedNotesInput) {
-  const { findDocument = findDocumentByAccessKey, uploadXml = uploadXmlFile } = input
-  const queue = useAccessKeyLookupQueue(input.lookup)
+  const overrides = useContext(BippedNotesOverridesContext)
+  const { findDocument = findDocumentByAccessKey } = overrides
+  const queue = useAccessKeyLookupQueue(overrides.lookup)
   const [documents, setDocuments] = useState<ReadonlyMap<string, BippedNoteDocument>>(new Map())
-  const [xmlFeedback, setXmlFeedback] = useState<XmlFeedback | undefined>(undefined)
+  const [notice, setNotice] = useState<BippedReadNotice | undefined>(undefined)
+  /** Mais de uma nota livre com o número lido: a pessoa escolhe, nunca adivinhamos. */
+  const [candidates, setCandidates] = useState<readonly NfeDocumentListItem[]>([])
   const inFlight = useRef(new Set<string>())
+  const stagedIds = useRef(input.stagedDocumentIds)
+  stagedIds.current = input.stagedDocumentIds
+  const { sendXml, xmlFeedback } = useXmlRecheck({
+    recheck: queue.recheck,
+    refocusReader: input.refocusReader,
+    ...(overrides.uploadXml === undefined ? {} : { uploadXml: overrides.uploadXml }),
+  })
 
   useEffect(() => {
     for (const row of queue.rows) {
@@ -67,6 +72,9 @@ export function useBippedNotes(input: UseBippedNotesInput) {
         .catch((): BippedNoteDocument => 'failed')
         .then((outcome) => {
           inFlight.current.delete(accessKey)
+          if (outcome !== 'failed' && stagedIds.current.includes(outcome.id)) {
+            setNotice('alreadyAdded')
+          }
           setDocuments((current) => new Map(current).set(accessKey, outcome))
         })
     }
@@ -83,8 +91,48 @@ export function useBippedNotes(input: UseBippedNotesInput) {
   )
 
   function read(accessKey: string): void {
-    queue.add(accessKey)
+    const { alreadyScanned } = queue.add(accessKey)
+    setCandidates([])
+    setNotice(alreadyScanned ? describeRepeatedRead(documents.get(accessKey)) : undefined)
     input.refocusReader()
+  }
+
+  /** Leitura sem chave: número de nota (com série opcional) é resolvido entre as livres e vira linha. */
+  function readUnreadable(scanned: string): void {
+    setCandidates([])
+    setNotice(undefined)
+    if (input.isLoadingDocuments === true) setNotice('loadingDocuments')
+    else resolveScannedNumber(scanned)
+    input.refocusReader()
+  }
+
+  function resolveScannedNumber(scanned: string): void {
+    const bippedIds = listBippedDocumentIds(queue.rows)
+    const lookup = resolveTypedNote({
+      documents: (input.availableDocuments ?? []).filter(
+        (document) => !bippedIds.has(document.id) && !input.stagedDocumentIds.includes(document.id),
+      ),
+      text: scanned,
+    })
+    if (lookup.kind !== 'matches') setNotice('unrecognized')
+    else if (lookup.matches.length === 0) setNotice('notFound')
+    else if (lookup.matches.length === 1 && lookup.matches[0] !== undefined) {
+      queue.add(lookup.matches[0].accessKey)
+    } else setCandidates(lookup.matches)
+  }
+
+  function pickCandidate(candidate: NfeDocumentListItem): void {
+    setCandidates([])
+    queue.add(candidate.accessKey)
+    input.refocusReader()
+  }
+
+  function describeRepeatedRead(document: BippedNoteDocument | undefined): BippedReadNotice {
+    const isStaged =
+      document !== undefined &&
+      document !== 'failed' &&
+      input.stagedDocumentIds.includes(document.id)
+    return isStaged ? 'alreadyAdded' : 'alreadyScanned'
   }
 
   function stage(documentsToStage: readonly ScannedNfeDocument[]): void {
@@ -100,24 +148,15 @@ export function useBippedNotes(input: UseBippedNotesInput) {
     })
   }
 
-  async function sendXml(accessKey: string, file: File | undefined): Promise<void> {
-    if (file === undefined) return
-    setXmlFeedback(undefined)
-    try {
-      await uploadXml(file)
-      const isReady = await queue.recheck(accessKey)
-      if (!isReady) setXmlFeedback({ accessKey, kind: 'notImported' })
-    } catch {
-      setXmlFeedback({ accessKey, kind: 'failed' })
-    }
-    input.refocusReader()
-  }
-
   return {
     addAllReady: () => stage(listAddableDocuments(notes)),
     addDocument: (document: ScannedNfeDocument) => stage([document]),
+    candidates,
     notes,
+    notice,
+    pickCandidate,
     read,
+    readUnreadable,
     readyCount: listAddableDocuments(notes).length,
     retry: queue.retry,
     retryDocument,

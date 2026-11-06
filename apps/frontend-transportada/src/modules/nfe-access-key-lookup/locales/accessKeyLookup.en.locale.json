@@ -4,6 +4,11 @@
     "series": "series {{series}}",
     "issuer": "Issuer {{taxId}}"
   },
+  "announce": {
+    "ready": "Note {{number}} is ready.",
+    "refused": "Note {{number}} was refused.",
+    "failed": "Note {{number}} could not be obtained."
+  },
   "badge": {
     "checking": "Checking",
     "searching": "Searching",

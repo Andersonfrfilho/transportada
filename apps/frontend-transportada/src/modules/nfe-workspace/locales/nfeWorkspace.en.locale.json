@@ -90,7 +90,7 @@
   },
   "mechanism": {
     "section": "Import source",
-    "accessKey": "Key lookup",
+    "accessKey": "Import by scan",
     "manual": "Manual",
     "remote": "Remote"
   },
@@ -688,7 +688,11 @@
   "cameraMeasurementValidationExportExcel": "Export period Excel",
   "cameraMeasurementExportSheetName": "Camera measurements",
   "cameraMeasurementExportTitle": "Camera measurements",
+  "importByScan": {
+    "action": "Import by scan"
+  },
   "accessKeyImport": {
+    "forbidden": "You do not have permission to import notes.",
     "title": "Import by scan",
     "subtitle": "Scan each note's key: a note already in the system is only counted, an unknown one is searched at SEFAZ and imported automatically.",
     "reader": {
@@ -706,6 +710,7 @@
     "alreadyScanned": "This key was already scanned.",
     "alreadyInSystem": "Already in the system.",
     "summary": {
+      "announcement": "{{scanned}} scanned, {{imported}} imported, {{refused}} refused.",
       "scanned": "Scanned",
       "alreadyInSystem": "Already in the system",
       "imported": "Imported",

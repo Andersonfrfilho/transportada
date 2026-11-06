@@ -10,6 +10,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 
 import '../../src/modules/shared/i18n/i18n.service'
+import { BippedNotesOverridesContext } from '../../src/modules/trip/hooks/bippedNotesOverrides.context'
 import { TripNoteIntake } from '../../src/modules/trip/components/TripNoteIntake.component'
 import { CHECK_BATCH_WINDOW_MS } from '../../src/modules/nfe-access-key-lookup/shared/accessKeyLookup.constant'
 import type { ScannedNfeDocument } from '../../src/modules/trip/shared/trip.types'
@@ -58,19 +59,24 @@ function mount(): void {
   root = createRoot(container)
   act(() => {
     root?.render(
-      createElement(TripNoteIntake, {
-        documents: [],
-        isLoading: false,
-        onFilteredChange: () => undefined,
-        onStage: (documents) => {
-          staged.push(...documents)
+      createElement(
+        BippedNotesOverridesContext.Provider,
+        {
+          value: {
+            findDocument: (accessKey) => Promise.resolve(DOCUMENTS.get(accessKey) ?? null),
+            lookup: { client, scheduler },
+          },
         },
-        overrides: {
-          findDocument: (accessKey) => Promise.resolve(DOCUMENTS.get(accessKey) ?? null),
-          lookup: { client, scheduler },
-        },
-        stagedDocumentIds: staged.map((document) => document.id),
-      }),
+        createElement(TripNoteIntake, {
+          documents: [],
+          isLoading: false,
+          onFilteredChange: () => undefined,
+          onStage: (documents) => {
+            staged.push(...documents)
+          },
+          stagedDocumentIds: staged.map((document) => document.id),
+        }),
+      ),
     )
   })
 }

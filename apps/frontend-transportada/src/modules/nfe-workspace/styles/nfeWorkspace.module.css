@@ -529,6 +529,11 @@ div.cardError {
   color: var(--color-copper);
 }
 
+.importByScanShortcut {
+  display: flex;
+  margin-top: var(--space-4);
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

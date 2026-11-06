@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { FileField } from '@/components/ui/file-field'
 import { Icon } from '@/components/ui/icon'
 import { KeyReaderField, type KeyReaderFieldHandle } from '@/components/ui/key-reader-field'
+import { AccessKeyLookupAnnouncer } from '@/modules/nfe-access-key-lookup/components/AccessKeyLookupAnnouncer.component'
 import { AccessKeyLookupRow } from '@/modules/nfe-access-key-lookup/components/AccessKeyLookupRow.component'
 import { deriveRowFlags } from '@/modules/nfe-access-key-lookup/shared/accessKeyLookupRow.service'
 import { findNfeAccessKeyInScan } from '@/modules/shared/nfeScannedKey.service'
@@ -36,7 +37,6 @@ export function AccessKeyImportPanel({
   const [canScan] = useState(() => isCameraCapable(globalThis.navigator))
 
   function handleCameraRead(text: string): void {
-    setIsScannerOpen(false)
     const accessKey = findNfeAccessKeyInScan(text)
     if (accessKey === undefined) importer.readUnreadable()
     else importer.read(accessKey)
@@ -44,7 +44,7 @@ export function AccessKeyImportPanel({
 
   function handleCloseScanner(): void {
     setIsScannerOpen(false)
-    readerRef.current?.focus()
+    setTimeout(() => readerRef.current?.focus(), 0)
   }
 
   return (
@@ -72,6 +72,7 @@ export function AccessKeyImportPanel({
       {importer.repeatedKey === undefined ? null : (
         <p role="status">{t('accessKeyImport.alreadyScanned')}</p>
       )}
+      <AccessKeyLookupAnnouncer rows={importer.allRows} />
       <AccessKeyImportSummary summary={importer.summary} />
       <div className={styles.filters}>
         {ACCESS_KEY_IMPORT_FILTERS.map((option) => (

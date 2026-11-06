@@ -68,3 +68,12 @@ export function listBippedDocumentIds(rows: readonly AccessKeyLookupRow[]): Read
   for (const row of rows) if (row.state.kind === 'ready') ids.add(row.state.documentId)
   return ids
 }
+
+/** A busca só oferece a nota que não tem linha bipada: criação e detalhe usam o mesmo corte. */
+export function excludeBippedDocuments<TDocument extends { readonly id: string }>(
+  documents: readonly TDocument[],
+  rows: readonly AccessKeyLookupRow[],
+): readonly TDocument[] {
+  const bippedIds = listBippedDocumentIds(rows)
+  return documents.filter((document) => !bippedIds.has(document.id))
+}

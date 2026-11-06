@@ -42,12 +42,13 @@ import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
 import { NfeImportQueue } from '../components/NfeImportQueue.component'
 import { AccessKeyImportSection } from '../components/AccessKeyImportSection.component'
+import { NfeImportByScanShortcut } from '../components/NfeImportByScanShortcut.component'
 import { NfeUploadPanel } from '../components/NfeUploadPanel.component'
 import { NfeWorkspaceHeader } from '../components/NfeWorkspaceHeader.component'
 import { useNfeWorkspace } from '../hooks/useNfeWorkspace.hook'
 import { createNfeDistributionPullControl } from '../shared/nfeDistributionPull.service'
 import {
-  DEFAULT_NFE_IMPORT_MECHANISM,
+  readNfeImportMechanismFromSearch,
   type NfeImportMechanism,
   NFE_IMPORT_MECHANISM_ORDER,
   resolveNfeImportMechanismView,
@@ -199,7 +200,9 @@ function StatusMessage(
 export function NfeWorkspacePage() {
   const { t } = useTranslation('nfeWorkspace')
   const authQuery = useAuthMeQuery()
-  const [mechanism, setMechanism] = useState<NfeImportMechanism>(DEFAULT_NFE_IMPORT_MECHANISM)
+  const [mechanism, setMechanism] = useState<NfeImportMechanism>(() =>
+    readNfeImportMechanismFromSearch(window.location.search),
+  )
   const [statusEq, setStatusEq] = useState<
     | ''
     | 'cancelled'
@@ -312,6 +315,11 @@ export function NfeWorkspacePage() {
     return `${file.name}:${file.size}:${file.lastModified}`
   }
 
+  function handleOpenImportByScan(): void {
+    setMechanism('accessKey')
+    setActiveTab('imports')
+  }
+
   function handleFileSelection(files: readonly File[]): void {
     setSelectedFiles(files)
     setUploadFileStatuses(Object.fromEntries(files.map((file) => [fileKey(file), 'pending'])))
@@ -408,6 +416,9 @@ export function NfeWorkspacePage() {
   return (
     <main className={styles.workspaceShell}>
       <NfeWorkspaceHeader status={viewModel.status} />
+      {viewModel.status === 'loading' ? null : (
+        <NfeImportByScanShortcut canImport={workspace.canImport} onOpen={handleOpenImportByScan} />
+      )}
 
       {viewModel.status === 'loading' ? (
         <SkeletonGroup
@@ -508,8 +519,11 @@ export function NfeWorkspacePage() {
                       />
                     )}
 
-                    {mechanism === 'accessKey' && workspace.canImport && (
-                      <AccessKeyImportSection onOpenDocument={() => setActiveTab('documents')} />
+                    {mechanism === 'accessKey' && (
+                      <AccessKeyImportSection
+                        canImport={workspace.canImport}
+                        onOpenDocument={() => setActiveTab('documents')}
+                      />
                     )}
 
                     {mechanismView.showsDistribution && (

@@ -1750,6 +1750,13 @@
       "noDocument": "Scan at least one available invoice.",
       "vehicleRequired": "Select the trip vehicle."
     },
+    "notice": {
+      "alreadyAdded": "This note is already on the trip.",
+      "alreadyScanned": "This key was already scanned.",
+      "loadingDocuments": "Loading the available notes… Scan again in a moment.",
+      "notFound": "No free note with this number in this company.",
+      "unrecognized": "Scan the note key or type its number."
+    },
     "reader": {
       "field": "Invoice key",
       "idle": "Click here to read again",

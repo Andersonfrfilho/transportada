@@ -40,14 +40,25 @@ export function AccessKeyImportSummary({ summary }: AccessKeyImportSummaryProps)
   ]
 
   return (
-    <dl aria-live="polite" className={styles.summary}>
-      {counters.map(([key, value, detail]) => (
-        <div className={styles.counter} key={key}>
-          <dt>{t(`accessKeyImport.summary.${key}`)}</dt>
-          <dd data-counter={key}>{value}</dd>
-          {detail === undefined || detail === '' ? null : <p className={styles.detail}>{detail}</p>}
-        </div>
-      ))}
-    </dl>
+    <>
+      <p aria-live="polite" className={styles.visuallyHidden} role="status">
+        {t('accessKeyImport.summary.announcement', {
+          imported: summary.imported,
+          refused: summary.refused,
+          scanned: summary.scanned,
+        })}
+      </p>
+      <dl className={styles.summary}>
+        {counters.map(([key, value, detail]) => (
+          <div className={styles.counter} key={key}>
+            <dt>{t(`accessKeyImport.summary.${key}`)}</dt>
+            <dd data-counter={key}>{value}</dd>
+            {detail === undefined || detail === '' ? null : (
+              <p className={styles.detail}>{detail}</p>
+            )}
+          </div>
+        ))}
+      </dl>
+    </>
   )
 }

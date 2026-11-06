@@ -1,297 +1,125 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import {
-  CHECK_BATCH_MAX_KEYS,
-  CHECK_BATCH_WINDOW_MS,
-  LOOKUP_POLL_INTERVAL_MS,
-  LOOKUP_POLL_MAX_DURATION_MS,
-  REQUEST_FAILED_CODE,
-} from './accessKeyLookup.constant'
-import {
-  AccessKeyLookupRequestError,
-  type AccessKeyLookupClient,
-} from './accessKeyLookupClient.service'
+import { createCheckBatcher } from './accessKeyLookupBatch.service'
+import { createLookupPoller } from './accessKeyLookupPolling.service'
 import {
   createCheckingRow,
   deriveRowFlags,
-  stateFromLookupView,
-  stateFromRequestResult,
   withState,
   type AccessKeyLookupRow,
-  type AccessKeyLookupRowState,
 } from './accessKeyLookupRow.service'
+import { createRowStore } from './accessKeyLookupRowStore.service'
+import { BROWSER_SCHEDULER, type QueueScheduler } from './accessKeyLookupScheduler.service'
+import type {
+  AccessKeyLookupQueue,
+  AccessKeyLookupQueueOptions,
+} from './accessKeyLookupQueue.types'
 
-export type QueueScheduler = Readonly<{
-  clear: (handle: unknown) => void
-  now: () => number
-  schedule: (task: () => void, delayMs: number) => unknown
-}>
-
-export const BROWSER_SCHEDULER: QueueScheduler = {
-  clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
-  now: () => Date.now(),
-  schedule: (task, delayMs) => setTimeout(task, delayMs),
-}
-
-export type AddAccessKeyResult = Readonly<{ alreadyScanned: boolean }>
-
-export type RestoredAccessKey = Readonly<{
-  accessKey: string
-  lookupId: null | string
-  wasRegistered: boolean
-}>
-
-export type AccessKeyLookupQueue = Readonly<{
-  add: (accessKey: string) => AddAccessKeyResult
-  /** Esvazia a lista da tela: relógios e respostas em voo são descartados; nada é apagado no servidor. */
-  clear: () => void
-  getRows: () => readonly AccessKeyLookupRow[]
-  /** Recarrega a lista guardada pela tela: só a chave e os ids, o estado vem de novo do servidor. */
-  restore: (entries: readonly RestoredAccessKey[]) => void
-  /** Depois do envio do XML: confere o cadastro da chave e vira "pronta" se a nota já entrou. */
-  recheck: (accessKey: string) => Promise<boolean>
-  markXmlImported: (accessKey: string, documentId: string) => void
-  retry: (accessKey: string) => void
-  /** Retoma o que ficou pendente quando a tela volta; sem efeito se a fila já está ativa. */
-  start: () => void
-  /** A tela fechou: cancela relógios e descarta respostas em voo, mantendo as linhas. */
-  stop: () => void
-  subscribe: (listener: () => void) => () => void
-}>
-
-export type AccessKeyLookupQueueOptions = Readonly<{
-  client: AccessKeyLookupClient
-  scheduler?: QueueScheduler
-}>
-
-function errorState(error: unknown): AccessKeyLookupRowState {
-  const code = error instanceof AccessKeyLookupRequestError ? error.code : REQUEST_FAILED_CODE
-  return { code, kind: 'error' }
-}
+export { BROWSER_SCHEDULER, type QueueScheduler }
+export type {
+  AccessKeyLookupQueue,
+  AccessKeyLookupQueueOptions,
+  AddAccessKeyResult,
+  RestoredAccessKey,
+} from './accessKeyLookupQueue.types'
 
 export function createAccessKeyLookupQueue(
   options: AccessKeyLookupQueueOptions,
 ): AccessKeyLookupQueue {
   const { client } = options
   const scheduler = options.scheduler ?? BROWSER_SCHEDULER
-  const rows = new Map<string, AccessKeyLookupRow>()
-  const generations = new Map<string, number>()
-  const pollHandles = new Map<string, unknown>()
-  const listeners = new Set<() => void>()
-  let snapshot: readonly AccessKeyLookupRow[] = []
-  let pendingBatch: string[] = []
-  let batchHandle: unknown
-  let isActive = true
-
-  function publish(): void {
-    snapshot = [...rows.values()]
-    listeners.forEach((listener) => listener())
-  }
-
-  function setState(accessKey: string, state: AccessKeyLookupRowState, lookupId?: string): void {
-    const row = rows.get(accessKey)
-    if (row === undefined) return
-    rows.set(accessKey, withState(row, state, lookupId ?? row.lookupId))
-    publish()
-  }
-
-  function markRegistered(accessKey: string, documentId: string): void {
-    const row = rows.get(accessKey)
-    if (row === undefined) return
-    const wasRegistered = row.lookupId === null
-    rows.set(accessKey, { ...withState(row, { documentId, kind: 'ready' }), wasRegistered })
-    publish()
-  }
-
-  function restart(accessKey: string): number {
-    const handle = pollHandles.get(accessKey)
-    if (handle !== undefined) scheduler.clear(handle)
-    pollHandles.delete(accessKey)
-    const generation = (generations.get(accessKey) ?? 0) + 1
-    generations.set(accessKey, generation)
-    return generation
-  }
-
-  function isCurrent(accessKey: string, generation: number): boolean {
-    return isActive && generations.get(accessKey) === generation
-  }
-
-  function schedulePoll(accessKey: string, generation: number, startedAt: number): void {
-    pollHandles.set(
-      accessKey,
-      scheduler.schedule(() => {
-        void poll(accessKey, generation, startedAt)
-      }, LOOKUP_POLL_INTERVAL_MS),
-    )
-  }
-
-  async function poll(accessKey: string, generation: number, startedAt: number): Promise<void> {
-    const lookupId = rows.get(accessKey)?.lookupId
-    if (lookupId === null || lookupId === undefined) return
-    let state: AccessKeyLookupRowState
-    try {
-      state = stateFromLookupView(await client.getLookup(lookupId))
-    } catch (error) {
-      if (isCurrent(accessKey, generation)) setState(accessKey, errorState(error))
-      return
-    }
-    if (!isCurrent(accessKey, generation)) return
-    if (deriveRowFlags(state).isTerminal || state.kind === 'error') {
-      setState(accessKey, state)
-      return
-    }
-    if (scheduler.now() - startedAt >= LOOKUP_POLL_MAX_DURATION_MS) {
-      setState(accessKey, { kind: 'stalled' })
-      return
-    }
-    setState(accessKey, state)
-    schedulePoll(accessKey, generation, startedAt)
-  }
-
-  async function startLookup(accessKey: string, generation: number): Promise<void> {
-    let state: AccessKeyLookupRowState
-    let lookupId: null | string = null
-    try {
-      const result = await client.requestLookup(accessKey)
-      state = stateFromRequestResult(result)
-      if (result.kind === 'lookup') lookupId = result.lookup.id
-    } catch (error) {
-      if (isCurrent(accessKey, generation)) setState(accessKey, errorState(error))
-      return
-    }
-    if (!isCurrent(accessKey, generation)) return
-    setState(accessKey, state, lookupId ?? undefined)
-    if (state.kind === 'searching' || state.kind === 'waiting') {
-      schedulePoll(accessKey, generation, scheduler.now())
-    }
-  }
-
-  async function flushBatch(): Promise<void> {
-    const accessKeys = pendingBatch
-    pendingBatch = []
-    if (batchHandle !== undefined) scheduler.clear(batchHandle)
-    batchHandle = undefined
-    if (accessKeys.length === 0) return
-    const generationsAtSend = new Map(accessKeys.map((key) => [key, generations.get(key) ?? 0]))
-    let entries: Awaited<ReturnType<AccessKeyLookupClient['checkAccessKeys']>>
-    try {
-      entries = await client.checkAccessKeys(accessKeys)
-    } catch (error) {
-      for (const key of accessKeys) {
-        if (isCurrent(key, generationsAtSend.get(key) ?? 0)) setState(key, errorState(error))
-      }
-      return
-    }
-    const documentIds = new Map(entries.map((entry) => [entry.accessKey, entry.documentId]))
-    for (const key of accessKeys) {
-      const generation = generationsAtSend.get(key) ?? 0
-      if (!isCurrent(key, generation)) continue
-      const documentId = documentIds.get(key) ?? null
-      if (documentId !== null) markRegistered(key, documentId)
-      else void startLookup(key, generation)
-    }
-  }
-
-  function enqueueCheck(accessKey: string): void {
-    pendingBatch.push(accessKey)
-    if (pendingBatch.length >= CHECK_BATCH_MAX_KEYS) {
-      void flushBatch()
-      return
-    }
-    batchHandle ??= scheduler.schedule(() => {
-      void flushBatch()
-    }, CHECK_BATCH_WINDOW_MS)
-  }
+  const store = createRowStore(scheduler)
+  const poller = createLookupPoller({ client, scheduler, store })
+  const batcher = createCheckBatcher({
+    client,
+    onMissing: (accessKey, generation) => {
+      void poller.startLookup(accessKey, generation)
+    },
+    scheduler,
+    store,
+  })
 
   function resume(row: AccessKeyLookupRow): void {
-    const generation = restart(row.accessKey)
+    const generation = store.restart(row.accessKey)
     const { state } = row
-    if (state.kind === 'checking') enqueueCheck(row.accessKey)
+    if (state.kind === 'checking') batcher.enqueue(row.accessKey)
     else if (state.kind === 'searching' && row.lookupId === null) {
-      void startLookup(row.accessKey, generation)
+      void poller.startLookup(row.accessKey, generation)
     } else if (state.kind === 'searching' || state.kind === 'waiting') {
-      schedulePoll(row.accessKey, generation, scheduler.now())
+      poller.schedulePoll(row.accessKey, generation)
     }
+  }
+
+  function discardTimers(): void {
+    store.invalidateAll()
+    batcher.cancel()
+  }
+
+  function settleReady(accessKey: string, documentId: string): void {
+    store.restart(accessKey)
+    store.startedAt.delete(accessKey)
+    store.setState(accessKey, { documentId, kind: 'ready' })
   }
 
   return {
     add(accessKey) {
-      if (rows.has(accessKey)) return { alreadyScanned: true }
+      if (store.rows.has(accessKey)) return { alreadyScanned: true }
       const row = createCheckingRow(accessKey)
-      rows.set(accessKey, row)
-      publish()
-      if (isActive) resume(row)
+      store.rows.set(accessKey, row)
+      store.publish()
+      if (store.isActive()) resume(row)
       return { alreadyScanned: false }
     },
     start() {
-      if (isActive) return
-      isActive = true
-      for (const row of rows.values()) resume(row)
+      if (store.isActive()) return
+      store.setActive(true)
+      for (const row of store.rows.values()) resume(row)
     },
     stop() {
-      isActive = false
-      pollHandles.forEach((handle) => scheduler.clear(handle))
-      pollHandles.clear()
-      if (batchHandle !== undefined) scheduler.clear(batchHandle)
-      batchHandle = undefined
-      pendingBatch = []
-      for (const accessKey of rows.keys())
-        generations.set(accessKey, (generations.get(accessKey) ?? 0) + 1)
+      store.setActive(false)
+      discardTimers()
     },
-    getRows: () => snapshot,
+    getRows: store.getSnapshot,
     clear() {
-      pollHandles.forEach((handle) => scheduler.clear(handle))
-      pollHandles.clear()
-      if (batchHandle !== undefined) scheduler.clear(batchHandle)
-      batchHandle = undefined
-      pendingBatch = []
-      for (const accessKey of rows.keys())
-        generations.set(accessKey, (generations.get(accessKey) ?? 0) + 1)
-      rows.clear()
-      publish()
+      discardTimers()
+      store.rows.clear()
+      store.startedAt.clear()
+      store.failures.clear()
+      store.publish()
     },
     restore(entries) {
       for (const entry of entries) {
-        if (rows.has(entry.accessKey)) continue
+        if (store.rows.has(entry.accessKey)) continue
         const base = createCheckingRow(entry.accessKey)
         const row: AccessKeyLookupRow =
           entry.lookupId === null
             ? { ...base, wasRegistered: entry.wasRegistered }
             : withState(base, { kind: 'searching', status: 'queued' }, entry.lookupId)
-        rows.set(entry.accessKey, row)
-        if (isActive) resume(row)
+        store.rows.set(entry.accessKey, row)
+        if (store.isActive()) resume(row)
       }
-      publish()
+      store.publish()
     },
-    markXmlImported(accessKey, documentId) {
-      restart(accessKey)
-      setState(accessKey, { documentId, kind: 'ready' })
-    },
+    markXmlImported: settleReady,
     async recheck(accessKey) {
-      const row = rows.get(accessKey)
-      if (row === undefined) return false
+      if (store.get(accessKey) === undefined) return false
       try {
         const [entry] = await client.checkAccessKeys([accessKey])
         const documentId = entry?.documentId ?? null
-        if (documentId === null || !isActive) return false
-        restart(accessKey)
-        setState(accessKey, { documentId, kind: 'ready' })
+        if (documentId === null || !store.isActive()) return false
+        settleReady(accessKey, documentId)
         return true
       } catch {
         return false
       }
     },
     retry(accessKey) {
-      const row = rows.get(accessKey)
+      const row = store.get(accessKey)
       if (row === undefined || !deriveRowFlags(row.state).canRetry) return
-      const generation = restart(accessKey)
-      setState(accessKey, { kind: 'searching', status: 'queued' })
-      void startLookup(accessKey, generation)
+      const generation = store.restart(accessKey)
+      store.startedAt.delete(accessKey)
+      store.setState(accessKey, { kind: 'searching', status: 'queued' })
+      void poller.startLookup(accessKey, generation)
     },
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
+    subscribe: store.subscribe,
   }
 }

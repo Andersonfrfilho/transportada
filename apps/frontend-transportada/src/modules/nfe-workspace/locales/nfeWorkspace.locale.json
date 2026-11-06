@@ -133,7 +133,7 @@
   },
   "mechanism": {
     "section": "Origem da importação",
-    "accessKey": "Busca por chave",
+    "accessKey": "Importar por bip",
     "manual": "Manual",
     "remote": "Remota"
   },
@@ -863,7 +863,11 @@
   "cameraMeasurementValidationExportExcel": "Exportar Excel do período",
   "cameraMeasurementExportSheetName": "Medidas da câmera",
   "cameraMeasurementExportTitle": "Medidas feitas com a câmera",
+  "importByScan": {
+    "action": "Importar por bip"
+  },
   "accessKeyImport": {
+    "forbidden": "Você não tem permissão para importar notas.",
     "title": "Importar por bip",
     "subtitle": "Bipe a chave de cada nota: a que já está no sistema é só contada, a desconhecida é buscada na SEFAZ e importada sozinha.",
     "reader": {
@@ -881,6 +885,7 @@
     "alreadyScanned": "Esta chave já foi bipada.",
     "alreadyInSystem": "Já estava no sistema.",
     "summary": {
+      "announcement": "{{scanned}} bipadas, {{imported}} importadas, {{refused}} recusadas.",
       "scanned": "Bipadas",
       "alreadyInSystem": "Já estavam no sistema",
       "imported": "Importadas",

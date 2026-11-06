@@ -10,6 +10,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 
 import '../../src/modules/shared/i18n/i18n.service'
+import { BippedNotesOverridesContext } from '../../src/modules/trip/hooks/bippedNotesOverrides.context'
 import { CHECK_BATCH_WINDOW_MS } from '../../src/modules/nfe-access-key-lookup/shared/accessKeyLookup.constant'
 import { TripLinkDocumentPanel } from '../../src/modules/trip/components/TripLinkDocumentPanel.component'
 import { useTripDocumentLinkForm } from '../../src/modules/trip/hooks/useTripDocumentLinkForm.hook'
@@ -59,19 +60,24 @@ function Harness() {
       return Promise.resolve({})
     },
   })
-  return createElement(TripLinkDocumentPanel, {
-    availableDocuments: [],
-    bippedOverrides: {
-      findDocument: (accessKey) => Promise.resolve(DOCUMENTS.get(accessKey) ?? null),
-      lookup: { client, scheduler },
+  return createElement(
+    BippedNotesOverridesContext.Provider,
+    {
+      value: {
+        findDocument: (accessKey) => Promise.resolve(DOCUMENTS.get(accessKey) ?? null),
+        lookup: { client, scheduler },
+      },
     },
-    isLinking: false,
-    isLoadingDocuments: false,
-    linkForm,
-    onLinkCandidate: () => undefined,
-    onLinkTyped: () => undefined,
-    onNeedDocuments: () => undefined,
-  })
+    createElement(TripLinkDocumentPanel, {
+      availableDocuments: [],
+      isLinking: false,
+      isLoadingDocuments: false,
+      linkForm,
+      onLinkCandidate: () => undefined,
+      onLinkTyped: () => undefined,
+      onNeedDocuments: () => undefined,
+    }),
+  )
 }
 
 function mount(): void {

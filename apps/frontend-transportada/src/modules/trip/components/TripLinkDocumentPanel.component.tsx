@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -9,8 +9,9 @@ import { Select } from '@/components/ui/select'
 import { Tabs } from '@/components/ui/tabs'
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 
-import { useBippedNotes, type UseBippedNotesInput } from '../hooks/useBippedNotes.hook'
+import { useBippedNotes } from '../hooks/useBippedNotes.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
+import { excludeBippedDocuments } from '../shared/bippedNote.service'
 import type { ScannedNfeDocument } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 import { TripBippedNotes } from './TripBippedNotes.component'
@@ -31,8 +32,6 @@ type TripLinkDocumentPanelProps = Readonly<{
   onLinkTyped: () => void
   /** Número repetido entre as notas livres: a pessoa escolheu qual. */
   onLinkCandidate: (documentId: string) => void
-  /** Só os testes trocam a fila de busca, o cadastro e o envio de XML. */
-  bippedOverrides?: Pick<UseBippedNotesInput, 'findDocument' | 'lookup' | 'uploadXml'>
 }>
 
 /**
@@ -43,7 +42,6 @@ type TripLinkDocumentPanelProps = Readonly<{
  */
 export function TripLinkDocumentPanel({
   availableDocuments,
-  bippedOverrides,
   isLinking,
   isLoadingDocuments,
   linkForm,
@@ -60,11 +58,20 @@ export function TripLinkDocumentPanel({
   const readerRef = useRef<KeyReaderFieldHandle>(null)
   /** "Acrescentar" chama a mesma rota de vínculo do detalhe: as regras da viagem continuam sendo da API. */
   const bipped = useBippedNotes({
-    ...bippedOverrides,
+    availableDocuments,
+    isLoadingDocuments,
     onStage: (documents) => void linkForm.linkDocuments(documents),
     refocusReader: () => readerRef.current?.focus(),
     stagedDocumentIds: linkForm.linkedDocumentIds,
   })
+
+  /** O leitor aceita número de nota: as livres precisam estar carregadas antes da primeira leitura. */
+  useEffect(() => {
+    if (isNfe) onNeedDocuments()
+  }, [isNfe, onNeedDocuments])
+
+  /** A nota bipada já tem linha própria: a busca não a oferece de novo. */
+  const searchDocuments = excludeBippedDocuments(availableDocuments, bipped.rows)
 
   /** Chave digitada não vincula direto: vira linha da lista, como a lida pelo leitor. */
   function handleLinkTyped(): void {
@@ -142,7 +149,7 @@ export function TripLinkDocumentPanel({
               panel: (
                 <div className={styles.linkDocumentsBody}>
                   <TripDocumentSearch
-                    documents={availableDocuments}
+                    documents={searchDocuments}
                     isLoading={isLoadingDocuments}
                     key={searchEpoch}
                     onOpen={onNeedDocuments}

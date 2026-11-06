@@ -1,15 +1,20 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { KeyReaderFieldHandle } from '@/components/ui/key-reader-field'
 
 import { useAccessKeyImport } from '../hooks/useAccessKeyImport.hook'
 import { AccessKeyImportPanel } from './AccessKeyImportPanel.component'
 
-type AccessKeyImportSectionProps = Readonly<{ onOpenDocument: (documentId: string) => void }>
+type AccessKeyImportSectionProps = Readonly<{
+  canImport: boolean
+  onOpenDocument: (documentId: string) => void
+}>
 
-/** Monta a fila só enquanto a origem "Busca por chave" está aberta: fechar a origem para o polling. */
-export function AccessKeyImportSection({ onOpenDocument }: AccessKeyImportSectionProps) {
+function AccessKeyImportActive({
+  onOpenDocument,
+}: Pick<AccessKeyImportSectionProps, 'onOpenDocument'>) {
   const readerRef = useRef<KeyReaderFieldHandle>(null)
   const importer = useAccessKeyImport({ refocusReader: () => readerRef.current?.focus() })
 
@@ -20,4 +25,12 @@ export function AccessKeyImportSection({ onOpenDocument }: AccessKeyImportSectio
       readerRef={readerRef}
     />
   )
+}
+
+/** Monta a fila só enquanto a origem "Importar por bip" está aberta: fechar a origem para o polling. */
+export function AccessKeyImportSection({ canImport, onOpenDocument }: AccessKeyImportSectionProps) {
+  const { t } = useTranslation('nfeWorkspace')
+  if (!canImport) return <p role="status">{t('accessKeyImport.forbidden')}</p>
+
+  return <AccessKeyImportActive onOpenDocument={onOpenDocument} />
 }

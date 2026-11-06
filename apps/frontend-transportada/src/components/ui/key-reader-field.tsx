@@ -6,6 +6,7 @@ import { findNfeAccessKeyInScan } from '@/modules/shared/nfeScannedKey.service'
 import { Badge } from './badge'
 import { Button } from './button'
 import styles from './key-reader-field.module.css'
+import { hasOpenDialog } from './keyReaderFocus.service'
 import { useKeyReaderFocus } from './useKeyReaderFocus.hook'
 
 export type KeyReaderFieldHandle = Readonly<{ focus: () => void }>
@@ -14,7 +15,7 @@ export type KeyReaderFieldProps = Readonly<{
   labels: Readonly<{ field: string; idle: string; ready: string }>
   onRead: (accessKey: string) => void
   /** Leitura sem chave (código de embalagem, etiqueta de volume): quem hospeda decide se conta. */
-  onUnreadable?: () => void
+  onUnreadable?: (scanned: string) => void
   ref?: Ref<KeyReaderFieldHandle>
 }>
 
@@ -28,7 +29,17 @@ export function KeyReaderField({ labels, onRead, onUnreadable, ref }: KeyReaderF
   const inputRef = useRef<HTMLInputElement>(null)
   const isFocused = useKeyReaderFocus(inputRef)
 
-  useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }), [])
+  /** Com outro modal aberto (a câmera) o foco fica nele: o leitor só volta quando ele fecha. */
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => {
+        const input = inputRef.current
+        if (input !== null && !hasOpenDialog(document, input)) input.focus()
+      },
+    }),
+    [],
+  )
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
     const isClosingKey = event.key === 'Enter' || (event.key === 'Tab' && !event.shiftKey)
@@ -41,7 +52,7 @@ export function KeyReaderField({ labels, onRead, onUnreadable, ref }: KeyReaderF
     input.value = ''
     if (scanned === '') return
     const accessKey = findNfeAccessKeyInScan(scanned)
-    if (accessKey === undefined) onUnreadable?.()
+    if (accessKey === undefined) onUnreadable?.(scanned)
     else onRead(accessKey)
   }
 

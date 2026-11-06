@@ -44,3 +44,12 @@ export function resolveNfeImportMechanismView(
     sourceEq: 'upload',
   }
 }
+
+/** `?origin=accessKey` abre a aba Importações já em "Importar por bip"; valor desconhecido cai no padrão. */
+export function readNfeImportMechanismFromSearch(search: string): NfeImportMechanism {
+  const requested = new URLSearchParams(search).get('origin')
+  return (
+    NFE_IMPORT_MECHANISM_ORDER.find((option) => option === requested) ??
+    DEFAULT_NFE_IMPORT_MECHANISM
+  )
+}

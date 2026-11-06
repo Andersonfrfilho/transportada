@@ -222,14 +222,46 @@ describe('fila de busca por chave: polling', () => {
     expect(client.calls.requests).toEqual([])
   })
 
-  it('falha ao consultar a busca vira erro com o código', async () => {
+  it('tolera três falhas seguidas ao consultar e só na quarta vira erro com o código', async () => {
     const { client, queue, scheduler, stateOf } = setup()
     client.getResponses.set('lookup-1', () => Promise.reject(new AccessKeyLookupRequestError('X')))
     queue.add(KEY_ONE)
-    await scheduler.advance(CHECK_BATCH_WINDOW_MS + LOOKUP_POLL_INTERVAL_MS)
+    await scheduler.advance(CHECK_BATCH_WINDOW_MS)
+    for (let failure = 1; failure <= 3; failure += 1) {
+      await scheduler.advance(LOOKUP_POLL_INTERVAL_MS)
+      expect(stateOf(KEY_ONE)?.kind).toBe('searching')
+    }
+    await scheduler.advance(LOOKUP_POLL_INTERVAL_MS)
 
     expect(stateOf(KEY_ONE)).toEqual({ code: 'X', kind: 'error' })
     expect(scheduler.pendingCount()).toBe(0)
+  })
+
+  it('uma consulta que volta zera a contagem de falhas seguidas', async () => {
+    const { client, queue, scheduler, stateOf } = setup()
+    let calls = 0
+    client.getResponses.set('lookup-1', () => {
+      calls += 1
+      return calls % 3 === 0
+        ? Promise.resolve(view({ id: 'lookup-1', status: 'querying' }))
+        : Promise.reject(new AccessKeyLookupRequestError('X'))
+    })
+    queue.add(KEY_ONE)
+    await scheduler.advance(CHECK_BATCH_WINDOW_MS + LOOKUP_POLL_INTERVAL_MS * 12)
+
+    expect(stateOf(KEY_ONE)?.kind).toBe('searching')
+  })
+
+  it('reabrir a tela não zera o teto de 10 minutos da busca', async () => {
+    const { queue, scheduler, stateOf } = setup()
+    queue.add(KEY_ONE)
+    await scheduler.advance(CHECK_BATCH_WINDOW_MS)
+    await scheduler.advance(LOOKUP_POLL_MAX_DURATION_MS - LOOKUP_POLL_INTERVAL_MS * 2)
+    queue.stop()
+    queue.start()
+    await scheduler.advance(LOOKUP_POLL_INTERVAL_MS * 3)
+
+    expect(stateOf(KEY_ONE)).toEqual({ kind: 'stalled' })
   })
 
   it('fechar a tela (stop) cancela os relógios; reabrir (start) retoma a busca', async () => {

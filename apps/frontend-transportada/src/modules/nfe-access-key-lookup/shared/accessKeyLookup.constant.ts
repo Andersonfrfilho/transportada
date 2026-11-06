@@ -24,6 +24,8 @@ export type LookupReason = (typeof LOOKUP_REASONS)[number]
 
 export const LOOKUP_POLL_INTERVAL_MS = 3_000
 export const LOOKUP_POLL_MAX_DURATION_MS = 10 * 60 * 1_000
+/** Falhas seguidas ao consultar que a fila tolera (segue consultando) antes de mostrar o erro. */
+export const LOOKUP_POLL_MAX_FAILURES = 3
 export const CHECK_BATCH_WINDOW_MS = 500
 export const CHECK_BATCH_MAX_KEYS = 200
 

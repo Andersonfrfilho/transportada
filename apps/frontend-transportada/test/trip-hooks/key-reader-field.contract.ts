@@ -80,6 +80,17 @@ describe('handheld key reader field', () => {
     expect(container.textContent).toContain(LABELS.ready)
   })
 
+  it('não rouba o foco de outro campo que já o tem ao montar', () => {
+    const other = document.createElement('input')
+    document.body.append(other)
+    other.focus()
+    const input = mount()
+
+    expect(document.activeElement).toBe(other)
+    expect(document.activeElement).not.toBe(input)
+    other.remove()
+  })
+
   it('Enter fecha a leitura e limpa o campo na hora', () => {
     const input = mount()
     scan(input, `https://x?p=${KEY_ONE}|2`, 'Enter')
@@ -190,6 +201,43 @@ describe('handheld key reader field', () => {
     })
 
     expect(document.activeElement).toBe(input)
+  })
+
+  it('leitor dentro de um diálogo: o foco perdido volta e a rajada é desviada', () => {
+    const input = mount()
+    container.setAttribute('aria-modal', 'true')
+    act(() => input.blur())
+    const burst = KEY_ONE.slice(0, 10)
+    for (const key of burst) press(document.body, key)
+
+    expect(document.activeElement).toBe(input)
+    expect(input.value.startsWith(burst.slice(0, 8))).toBe(true)
+  })
+
+  it('outro modal por cima do leitor não deixa a rajada ser desviada', () => {
+    const input = mount()
+    container.setAttribute('aria-modal', 'true')
+    const other = document.createElement('div')
+    other.setAttribute('aria-modal', 'true')
+    document.body.append(other)
+    act(() => input.blur())
+    for (const key of KEY_ONE.slice(0, 10)) press(document.body, key)
+
+    expect(document.activeElement).not.toBe(input)
+    expect(input.value).toBe('')
+    other.remove()
+  })
+
+  it('a rajada desviada dispara o evento input no campo', () => {
+    const input = mount()
+    act(() => input.blur())
+    let inputEvents = 0
+    input.addEventListener('input', () => {
+      inputEvents += 1
+    })
+    for (const key of KEY_ONE.slice(0, 10)) press(document.body, key)
+
+    expect(inputEvents).toBeGreaterThan(0)
   })
 
   it('há texto de selo em pt-BR e en no namespace compartilhado', async () => {

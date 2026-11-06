@@ -11,6 +11,14 @@ import {
   type ReaderBurst,
 } from './keyReaderFocus.service'
 
+/** O setter nativo + `input` faz qualquer ouvinte (inclusive de um campo controlado) enxergar o valor. */
+function setNativeValue(input: HTMLInputElement, value: string): void {
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- o setter é chamado com `call` no campo
+  descriptor?.set?.call(input, value)
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 /**
  * Mantém o foco no campo do leitor de mão: abre focado, volta a ele quando um diálogo fecha e desvia
  * a rajada de teclas da pistola que cair fora de qualquer campo. Devolve se o campo tem o foco, para
@@ -20,13 +28,14 @@ export function useKeyReaderFocus(inputRef: RefObject<HTMLInputElement | null>):
   const [isFocused, setIsFocused] = useState(false)
 
   useEffect(() => {
-    const input = inputRef.current
-    if (input === null) return undefined
+    const current = inputRef.current
+    if (current === null) return undefined
+    const input: HTMLInputElement = current
     let burst: ReaderBurst = { buffer: '', lastAt: 0 }
 
     function refocusIfLost(): void {
-      if (hasOpenDialog(document) || !isFocusLost(document)) return
-      input?.focus()
+      if (hasOpenDialog(document, input) || !isFocusLost(document)) return
+      input.focus()
     }
 
     function handleKeyDown(event: KeyboardEvent): void {
@@ -39,10 +48,10 @@ export function useKeyReaderFocus(inputRef: RefObject<HTMLInputElement | null>):
         hasModifier: event.ctrlKey || event.metaKey || event.altKey,
         key: event.key,
       })
-      if (burst.buffer.length < READER_BURST_MIN_LENGTH || hasOpenDialog(document)) return
+      if (burst.buffer.length < READER_BURST_MIN_LENGTH || hasOpenDialog(document, input)) return
       event.preventDefault()
-      input?.focus()
-      if (input !== null && input !== undefined) input.value = burst.buffer
+      input.focus()
+      setNativeValue(input, burst.buffer)
       burst = { buffer: '', lastAt: 0 }
     }
 
@@ -55,7 +64,7 @@ export function useKeyReaderFocus(inputRef: RefObject<HTMLInputElement | null>):
     observer.observe(document.body, { childList: true, subtree: true })
     document.addEventListener('keydown', handleKeyDown, true)
     document.addEventListener('close', refocusIfLost, true)
-    input.focus()
+    if (isFocusLost(document)) input.focus()
 
     return () => {
       observer.disconnect()

@@ -14,8 +14,10 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest(EDITABLE_SELECTOR) !== null
 }
 
-export function hasOpenDialog(root: ParentNode): boolean {
-  return root.querySelector(OPEN_DIALOG_SELECTOR) !== null
+/** O diálogo que contém o próprio leitor não conta: só outro modal por cima bloqueia o foco. */
+export function hasOpenDialog(root: ParentNode, reader?: Element): boolean {
+  const ownDialog = reader?.closest(OPEN_DIALOG_SELECTOR)
+  return [...root.querySelectorAll(OPEN_DIALOG_SELECTOR)].some((dialog) => dialog !== ownDialog)
 }
 
 export function containsDialog(node: Node): boolean {

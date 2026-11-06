@@ -96,7 +96,11 @@ function asLocaleTree(value: unknown): LocaleTree {
 }
 
 const LOCALE_PAIRS = [
-  { name: 'accessKeyLookup', pt: asLocaleTree(accessKeyLookupPt), en: asLocaleTree(accessKeyLookupEn) },
+  {
+    name: 'accessKeyLookup',
+    pt: asLocaleTree(accessKeyLookupPt),
+    en: asLocaleTree(accessKeyLookupEn),
+  },
   { name: 'keyReader', pt: asLocaleTree(keyReaderPt), en: asLocaleTree(keyReaderEn) },
   {
     name: 'nfeWorkspace.accessKeyImport',
@@ -119,27 +123,37 @@ describe('textos da busca por chave e da importação por bip (spec 298 T3.4)', 
     })
   }
 
-  test.each(['pt', 'en'] as const)('accessKeyLookup (%s) cobre estados, motivos e erros', (language) => {
-    const keys = keysOf(language === 'pt' ? accessKeyLookupPt : accessKeyLookupEn)
-    for (const key of LOOKUP_KEYS) expect(keys).toContain(key)
-  })
+  test.each(['pt', 'en'] as const)(
+    'accessKeyLookup (%s) cobre estados, motivos e erros',
+    (language) => {
+      const keys = keysOf(language === 'pt' ? accessKeyLookupPt : accessKeyLookupEn)
+      for (const key of LOOKUP_KEYS) expect(keys).toContain(key)
+    },
+  )
 
   test.each(['pt', 'en'] as const)('keyReader (%s) tem os três rótulos do leitor', (language) => {
     const keys = keysOf(language === 'pt' ? keyReaderPt : keyReaderEn)
     expect(keys).toEqual(['field', 'idle', 'ready'])
   })
 
-  test.each(['pt', 'en'] as const)('nfeWorkspace.accessKeyImport (%s) cobre motivos e XML', (language) => {
-    const block = language === 'pt' ? nfeWorkspacePt.accessKeyImport : nfeWorkspaceEn.accessKeyImport
-    const keys = keysOf(block)
-    for (const key of IMPORT_KEYS) expect(keys).toContain(key)
-  })
+  test.each(['pt', 'en'] as const)(
+    'nfeWorkspace.accessKeyImport (%s) cobre motivos e XML',
+    (language) => {
+      const block =
+        language === 'pt' ? nfeWorkspacePt.accessKeyImport : nfeWorkspaceEn.accessKeyImport
+      const keys = keysOf(block)
+      for (const key of IMPORT_KEYS) expect(keys).toContain(key)
+    },
+  )
 
-  test.each(['pt', 'en'] as const)('trip do bip (%s) cobre as chaves usadas pelo componente', (language) => {
-    const tree = language === 'pt' ? tripPt : tripEn
-    const keys = keysOf({ detail: tree.detail, quickCreate: tree.quickCreate })
-    for (const key of BIPPED_TRIP_KEYS) expect(keys).toContain(key)
-  })
+  test.each(['pt', 'en'] as const)(
+    'trip do bip (%s) cobre as chaves usadas pelo componente',
+    (language) => {
+      const tree = language === 'pt' ? tripPt : tripEn
+      const keys = keysOf({ detail: tree.detail, quickCreate: tree.quickCreate })
+      for (const key of BIPPED_TRIP_KEYS) expect(keys).toContain(key)
+    },
+  )
 
   test('as frases exigidas pela spec estão em pt-BR, literais', () => {
     expect(accessKeyLookupPt.reason.not_interested).toBe(
