@@ -786,6 +786,30 @@ $WORKER_INTERNAL_URL/internal/bot-canhoto-reads` com o token e corpo vazio → *
   não existiria → 404). Efeito colateral desejado: a transcrição dos áudios do bot passa a funcionar em produção.
 - Memória (medida em staging, imagem sintética 3000×4000): pico 774 MB; worker de produção ~285 MB ocioso, limite 8 GB.
 
+## 5.21 Conferir os certificados de todos os domínios de produção (06/11/2026) — somente leitura
+
+Resultado de 06/11/2026: os 7 domínios (`fernandes-transportadora.com.br`, `www`, `api`, `app`, `auth`,
+`cliente`, `motorista`) servem certificado Let's Encrypt válido, com o nome certo no SAN e verificação TLS
+OK. O mais próximo de vencer é `cliente` (13/12/2026); o Railway renova sozinho. A resposta vem de
+`railway-hikari` e sem cabeçalho da Cloudflare, ou seja, os registros estão **DNS only** (ver
+`docs/ops/dns.md`) e o modo SSL da Cloudflare não entra na conta.
+
+Como repetir:
+
+1. Status do certificado no Railway: MCP do Railway, `list-domains` e `domain-status` por serviço
+   (`api`, `client`, `driver`, `landing`, `keycloak`, `transportada-frontend`, ambiente `production`);
+   esperado `CERTIFICATE_STATUS_TYPE_VALID` e DNS `PROPAGATED`.
+2. O que o visitante vê, na máquina do Anderson (precisa de `openssl` e `curl`; `dig` é opcional e vem em
+   `sudo pacman -S bind`):
+   `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-certificados-todos-dominios.sh`
+   O script percorre os 7 domínios (verificação TLS, emissor, validade, SAN e cabeçalhos HTTP), grava em
+   `tmp/ops/saidas/` e imprime só o caminho.
+3. Sinal de problema: `Verify return code` diferente de 0, SAN sem o domínio, vencimento a menos de 15 dias,
+   ou cabeçalho `cf-ray` (proxy da Cloudflare ligado por engano).
+
+O Claude não consegue consultar DNS/SSL da Cloudflare: o conector dele só cobre Workers, D1, KV e R2, e o
+container não alcança os domínios. Para isso seria preciso um API token com Zone:Read e SSL/Certificates:Read.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
