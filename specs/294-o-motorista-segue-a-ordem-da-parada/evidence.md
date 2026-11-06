@@ -623,3 +623,21 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   conferidos (saída/chegada/baixa por parada, com e sem ponto).
 - Contratos da API (`bun --env-file=../../.env.test test --timeout 120000`): 14020 pass / 0 fail. Integração dos arquivos de
   WhatsApp, motorista e paradas: ver o PR.
+
+### Revisão do PR #552 (2026-11-06)
+
+- **Vermelho registrado antes de cada correção** (`group-driver-journey.contract.ts`, `driver-journey.contract.ts` e as jornadas):
+  - "não entreguei 90003" com o menu da parada 1 aberto abriu a NF 899840 (a do menu); "saí" digitado no menu sem a opção de
+    sair respondeu "Não entendi" (gasta tentativa até desistir) — na jornada do grupo, o passo 8 e o passo 28;
+  - "saí 0090003" com outra parada a caminho caiu na saída repetida dela;
+  - o leitor do bloco da parada falhando derrubou a resposta (grupo e individual);
+  - "não entreguei" sem a nota guardada respondeu `not_understood` com pergunta vazia;
+  - a estrada saía do ponto mais novo da viagem inteira (`resolveEtaOrigin` não existia).
+- **Correções**: comando digitado com o menu aberto (`journey.actions`) volta ao `start` do roteiro; a saída repetida
+  respeita a nota citada (zeros à esquerda normalizados); o bloco da parada é melhor esforço no leitor, no fluxo do grupo,
+  no adaptador e nos pedidos da conversa individual (log só com empresa e nome do erro); o "não entreguei" sem nota fecha
+  limpo; a origem da estrada é por parada e evento — saída: o ponto da saída desta parada; oferta: o ponto da chegada ou
+  baixa da última parada em que o motorista chegou. Sem ponto nesse trecho, a linha some.
+- **Verde**: os contratos novos 54 pass; as jornadas (36 mensagens no grupo, 33 na individual, com comandos digitados com o
+  menu aberto) 2 pass, e a estrada agora só aparece na saída e na oferta com ponto do trecho (grupo: passos 3, 14, 16, 29,
+  30; individual: 3, 24).
