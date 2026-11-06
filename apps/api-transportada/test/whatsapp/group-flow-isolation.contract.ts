@@ -180,6 +180,21 @@ describe('isolamento dos fluxos do grupo: só quem perguntou trata a resposta', 
     },
   )
 
+  for (const pending of PENDING) {
+    test(`${pending.step} esperando: "cancelar" só chega ao fluxo ${pending.owner}`, async () => {
+      const { calls, flow } = setup()
+      const outcome = await flow.cancel?.({
+        request: request(pending.step, pending.state),
+        sender: OWNER_NUMBER,
+        senderName: null,
+        text: 'cancelar',
+      })
+      expectOnlyOwnerCalled(calls, pending.owner)
+      // Só a entrega em preparo encerra do jeito dela; os demais deixam o pedido fechar como cancelado.
+      if (pending.owner !== 'delivery') expect(outcome ?? null).toBeNull()
+    })
+  }
+
   test('passo que nenhum fluxo reconhece não é consumido pela ocorrência', async () => {
     const { calls, flow } = setup()
     const turn = {

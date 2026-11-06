@@ -127,3 +127,10 @@ export type GroupReplySenderPort = {
     readonly texts: readonly string[]
   }): void
 }
+
+/** Aviso de que o bot fez uma pergunta nova no pedido do dono (só dígitos) naquele grupo. */
+export type GroupQuestionAsked = (input: {
+  readonly companyId: string
+  readonly groupJid: string
+  readonly owner: string
+}) => void

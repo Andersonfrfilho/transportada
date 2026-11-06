@@ -22,6 +22,7 @@ import type { AdmittedGroupMessage } from './evolution-group-inbound.service.js'
 import type {
   GroupFlowOutcome,
   GroupFlowTurn,
+  GroupQuestionAsked,
   GroupReplySenderPort,
   GroupRequest,
   GroupRequestFlow,
@@ -160,6 +161,8 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
   readonly clock: () => Date
   readonly flow: GroupRequestFlow
   readonly logger: ApiLogger
+  /** O bot fez uma pergunta nova no pedido deste dono (a mais recente é quem recebe o "1"/"2"). */
+  readonly onQuestionAsked?: GroupQuestionAsked
   readonly replies: GroupReplySenderPort
   readonly repository: GroupRequestRepositoryPort
 }): WhatsAppGroupRequestSessions {
@@ -206,6 +209,12 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
         step: outcome.step,
       })
       if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, log)
+      // A pergunta nova é a mais recente: confirmação de áudio pendente de antes não responde por ela.
+      dependencies.onQuestionAsked?.({
+        companyId: request.companyId,
+        groupJid: message.groupJid,
+        owner: request.ownerNumber,
+      })
       return say(message, outcome.replies)
     }
     if (outcome.kind === 'done') {
@@ -313,6 +322,8 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       await link(open)
       const isOwner = message.sender === open.ownerNumber
       if (isCancelText(message.text) && (isOwner || message.via === 'mention')) {
+        const owned = await flow.cancel?.(turnOf(message, open))
+        if (owned !== undefined && owned !== null) return apply(message, open, owned)
         const saved = await repository.update({
           attempts: open.attempts,
           close: 'cancelled',
