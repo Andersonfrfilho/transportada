@@ -75,9 +75,9 @@ Gates de toda task: bun run typecheck; testes pelo script test da app (nunca bun
 (bun --env-file=../../.env.test test --timeout 120000) e, se tocar test/integration, também
 bun --env-file=../../.env.test run test:integration; teste novo entra na lista do package.json; make migration-test
 na T1.1; lint por app; commit isolado por task com evidência em evidence.md.
-Urgente: publique em staging ao fim de cada fase pronta (git fetch && git rebase origin/staging && git push origin
-HEAD:staging), na ordem banco/API → worker → painel.
-Pare e pergunte antes de: qualquer chamada à SEFAZ de produção (T0.1), deploy ou merge para main/produção (T4.2),
+Urgente: ao fim de cada fase pronta, avise e peça para publicar em staging (push para staging faz deploy), na
+ordem banco/API → worker → painel.
+Pare e pergunte antes de: push para staging, qualquer chamada à SEFAZ de produção (T0.1), deploy ou merge para main/produção (T4.2),
 migration destrutiva, qualquer [NEEDS CLARIFICATION], e se a SEFAZ responder algo que a tabela do RF4 não cobre.
 Ao terminar: atualizar docs/runbooks/producao.md, CLAUDE.md da raiz e apps/*/CLAUDE.md tocados (§14), e
 /oh-my-claudecode:cancel.
