@@ -172,3 +172,16 @@ Gates:
 - Contrato: `test/nfe-access-key-lookup/access-key-lookup-outcome.contract.ts`, 13 casos (tabela), via `test/nfe-access-key-lookup.contract.test.ts` (adicionado à lista do `package.json`).
 
 Gates: `bun run typecheck` (raiz) `0`; worker `bun run lint` `0`; worker `bun run test`: `2970 pass, 0 fail` (115 arquivos); `db:generate` após o rebase: `no_changes`. Integração do worker: sem arquivo novo nesta task, não rodada.
+
+## T2.2 Gateway `consultarPorChave`
+
+`nfe-distribution-gateway.ts` e `adatechnology-nfe-distribution-provider.factory.ts` ganham `consultarPorChave({config, chaveNfe})`, que devolve `AccessKeyLookupGatewayResult` (entrada da política T2.1). O pacote (`@adatechnology/fiscal-provider@0.4.0`, só a API pública) devolve `DfeItem | undefined` e **lança `Error` cru** para qualquer cStat fora de 137/138; não expõe cStat estruturado. Mapeamento em `nfe-access-key-lookup-result.mapper.ts`:
+- item → `document` (leva `schema` e `xmlDecoded`; nada é logado); `undefined` (137) → `not-found`;
+- cStat: (1) `error.code` de 3 dígitos (rejeição tipada), (2) regex `\bcStat (\d{3})\b` na mensagem — é o único caminho que o pacote usa hoje (`SEFAZ NFeDistribuicaoDFe cStat NNN: …` e `(cStat 656)`); `rawResponse` nunca é lido;
+- `FISCAL_TIMEOUT`/`FISCAL_CONNECTION_ERROR` (por `code`, não por `instanceof`) e mensagem `SEFAZ … cStat : …` sem número (corpo não-SEFAZ, ex. HTML de 5xx) → `unavailable`;
+- qualquer outro erro (chave inválida, certificado) **sobe** — é defeito, não desfecho.
+Fixture de teste: `consultarPorChave?` opcional no tipo local para não tocar nos ~20 dublês do consumidor existente.
+
+Contrato: `test/nfe-access-key-lookup/access-key-lookup-gateway.contract.ts`, 9 casos (config mapeada, 137, seis cStat pela mensagem, 656, `code` tipado sem ler `rawResponse`, timeout/conexão com classes reais do pacote, corpo sem cStat, erro alheio sobe, gateway factory repassa).
+
+Gates: `bun run typecheck` (raiz) `0`; worker `bun run lint` `0`; worker `bun run test`: `2979 pass, 0 fail` (era 2970 + 9). Sem integração nova.

@@ -7,6 +7,7 @@ import type {
   NfeDistribuicaoResult,
 } from '@adatechnology/fiscal-provider'
 
+import type { AccessKeyLookupGatewayResult } from '../../src/nfe-access-key-lookup/domain/nfe-access-key-lookup.types.js'
 import type { NfeProcessingEnvelopeV1 } from '../../src/messaging/nfe-processing-envelope.schema.js'
 import type { WorkerLogger } from '../../src/shared/worker.types.js'
 
@@ -33,6 +34,10 @@ export type NfeDistributionGateway = {
     readonly config: NfeDistributionRuntimeConfig
     readonly ultNSU: string
   }): Promise<NfeDistribuicaoResult>
+  consultarPorChave?(input: {
+    readonly config: NfeDistributionRuntimeConfig
+    readonly chaveNfe: string
+  }): Promise<AccessKeyLookupGatewayResult>
 }
 
 export type NfeDistributionGatewayFactory = {
