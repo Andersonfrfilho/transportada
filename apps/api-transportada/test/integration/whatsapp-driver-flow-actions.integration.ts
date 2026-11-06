@@ -227,7 +227,7 @@ describe('o motorista entrega pelo WhatsApp (spec 144 T015 AC7)', () => {
       })
       /** A confirmação sai antes de o fluxo voltar a esperar no menu da viagem (2ª mensagem). */
       expect(scenario.sentMessages().at(-2)?.body).toMatchObject({
-        text: { body: 'Entrega registrada. ✅' },
+        text: { body: '*Entrega registrada* ✅' },
         type: 'text',
       })
 

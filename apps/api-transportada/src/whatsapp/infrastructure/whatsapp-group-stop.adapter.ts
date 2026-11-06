@@ -31,6 +31,11 @@ import {
 } from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { WHATSAPP_DRIVER_STOP_COMMAND } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
 import type { GroupStopFlowPorts } from '../application/whatsapp-group-stop-flow.service.js'
+import {
+  describeArrivalDetails,
+  describeDepartureDetails,
+} from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
+import type { WhatsAppStopCardReader } from '../../whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
 import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
 
 export type OfficeStopEventInput = {
@@ -86,6 +91,8 @@ export function createGroupStopPorts(dependencies: {
   readonly ports: Pick<WhatsAppDriverEventPorts, 'reportArrival' | 'reportDeparture'>
   readonly resolveSenderRole?: GroupStopFlowPorts['resolveSenderRole']
   readonly speech?: WhatsAppBotSpeechPort
+  /** O bloco da parada nas respostas (saída, chegada, menus); ausente, a resposta é só a frase do registro. */
+  readonly stopCards?: WhatsAppStopCardReader
 }): GroupStopFlowPorts {
   const terminal = new Set<string>(TRIP_TERMINAL_STATUSES)
   const speech = dependencies.speech ?? CATALOG_BOT_SPEECH
@@ -118,6 +125,10 @@ export function createGroupStopPorts(dependencies: {
       ? {}
       : { resolveSenderRole: dependencies.resolveSenderRole }),
     ...(dependencies.hasLocation === undefined ? {} : { hasLocation: dependencies.hasLocation }),
+    ...(dependencies.stopCards === undefined
+      ? {}
+      : { readStopCard: (input) => dependencies.stopCards?.read(input) ?? Promise.resolve(null) }),
+    clock,
     enRouteMessage: ({ companyId, sequence }) =>
       say(
         companyId,
@@ -158,7 +169,9 @@ export function createGroupStopPorts(dependencies: {
       if (actorUserId === null) {
         result = refuseWhatsAppDriverEvent(event, { code: 'driver_without_access' })
       } else {
-        location = isOffice ? null : (dependencies.consumeLocation?.(input) ?? null)
+        location = isOffice
+          ? null
+          : (dependencies.consumeLocation?.(input) ?? answeredLocation(input.location, clock()))
         const eventInput = {
           actorUserId,
           ...(input.confirmOutOfOrder === true && !isOffice ? { confirmOutOfOrder: true } : {}),
@@ -205,11 +218,46 @@ export function createGroupStopPorts(dependencies: {
           kind: 'group',
         }),
       )
+      if (result.kind === 'registered' && dependencies.stopCards !== undefined) {
+        const isDeparture = result.event === WHATSAPP_DRIVER_EVENT.depart
+        const view = await dependencies.stopCards.read({
+          companyId: input.companyId,
+          driverId: input.driverId,
+          stopId: input.stopId,
+          withEta: isDeparture,
+        })
+        if (view !== null) {
+          const details = isDeparture
+            ? describeDepartureDetails(view, clock())
+            : describeArrivalDetails(view)
+          return { message: [message, ...details].join('\n') }
+        }
+      }
       const offerLocation =
         dependencies.consumeLocation !== undefined &&
         result.kind === 'registered' &&
         location === null
       return { message: offerLocation ? `${message}\n${GROUP_STOP_LOCATION_HINT}` : message }
     },
+  }
+}
+
+/** O ponto que respondeu ao pedido de localização, no formato das rotas do app (sem precisão: o WhatsApp não diz). */
+function answeredLocation(
+  point: { readonly latitude: number; readonly longitude: number } | undefined,
+  now: Date,
+): null | ReportedLocation {
+  if (
+    point === undefined ||
+    !Number.isFinite(point.latitude) ||
+    !Number.isFinite(point.longitude)
+  ) {
+    return null
+  }
+  return {
+    accuracyMeters: null,
+    capturedAt: now.toISOString(),
+    latitude: point.latitude.toFixed(7),
+    longitude: point.longitude.toFixed(7),
   }
 }

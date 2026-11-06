@@ -16,8 +16,16 @@ import type {
 } from '../../src/whatsapp/application/whatsapp-group-request.port.js'
 import { createGroupStopFlow } from '../../src/whatsapp/application/whatsapp-group-stop-flow.service.js'
 
-type Owner = 'close' | 'delivery' | 'occurrence' | 'route' | 'stop' | 'driver'
-type Calls = Record<'close' | 'delivery' | 'occurrence', string[]>
+type Owner =
+  | 'close'
+  | 'delivery'
+  | 'occurrence'
+  | 'route'
+  | 'stop'
+  | 'driver'
+  | 'journey'
+  | 'return'
+type Calls = Record<'close' | 'delivery' | 'occurrence' | 'return', string[]>
 
 const OWNER_NUMBER = '5516988887777'
 const LOCATION = { latitude: -20.5673337, longitude: -47.3604457 }
@@ -37,7 +45,7 @@ const request = (step: string, state: Record<string, unknown>): GroupRequest => 
 })
 
 function setup() {
-  const calls: Calls = { close: [], delivery: [], occurrence: [] }
+  const calls: Calls = { close: [], delivery: [], occurrence: [], return: [] }
   const recorded: unknown[] = []
   const spy = (name: keyof Calls, step: string): GroupFlowOutcome => {
     calls[name].push(step)
@@ -59,6 +67,10 @@ function setup() {
           : null,
       start: async () => spy('occurrence', 'start'),
     },
+    return: {
+      answer: async (turn: GroupFlowTurn) => spy('return', turn.request.step),
+      begin: async () => spy('return', 'begin'),
+    } as never,
     stop: createGroupStopFlow({
       enRouteMessage: async () => 'a caminho',
       hasLocation: () => false,
@@ -80,6 +92,9 @@ function setup() {
 const ONE_STOP = [{ id: 'S1', isAddressReliable: true, label: 'NF 1', numbers: ['1'] }]
 const TARGET = { documentNumber: '1', event: 'depart', stopId: 'S1' }
 
+/** O menu das ações: o "1" e o "2" ficam no fluxo das paradas (nada a registrar, lista de saída). */
+const JOURNEY_ACTIONS = [{ kind: 'none' }, { kind: 'choose_departure' }]
+
 const PENDING: readonly {
   readonly owner: Owner
   readonly state: Record<string, unknown>
@@ -92,6 +107,12 @@ const PENDING: readonly {
   { owner: 'close', state: {}, step: 'close.confirm' },
   { owner: 'delivery', state: {}, step: 'delivery.collect' },
   { owner: 'driver', state: {}, step: 'menu' },
+  { owner: 'journey', state: { journeyActions: JOURNEY_ACTIONS }, step: 'journey.actions' },
+  {
+    owner: 'return',
+    state: { returnFor: { documentId: 'DOC1', documentNumber: '1' } },
+    step: 'return.reason',
+  },
   ...Object.values(GROUP_OCCURRENCE_STEP).map((step) => ({
     owner: 'occurrence' as const,
     state: {},
@@ -103,13 +124,15 @@ const OWNED_CALLS: Record<Owner, keyof Calls | undefined> = {
   close: 'close',
   delivery: 'delivery',
   driver: undefined,
+  journey: undefined,
   occurrence: 'occurrence',
+  return: 'return',
   route: undefined,
   stop: undefined,
 }
 
 function expectOnlyOwnerCalled(calls: Calls, owner: Owner): void {
-  for (const name of ['close', 'delivery', 'occurrence'] as const) {
+  for (const name of ['close', 'delivery', 'occurrence', 'return'] as const) {
     if (OWNED_CALLS[owner] === name) continue
     // O menu abre a ocorrência quando o motorista escreve a frase inteira (spec 292): só o `start`.
     const allowed = owner === 'driver' && name === 'occurrence' ? ['start'] : []
@@ -141,6 +164,12 @@ describe('isolamento dos fluxos do grupo: só quem perguntou trata a resposta', 
         if (outcome.kind === 'continue' && pending.owner === 'close') {
           expect(outcome.step).toBe('close.inner')
         }
+        if (outcome.kind === 'continue' && pending.owner === 'journey') {
+          expect(outcome.step.startsWith('stop.') || outcome.step === 'journey.actions').toBe(true)
+        }
+        if (outcome.kind === 'continue' && pending.owner === 'return') {
+          expect(outcome.step).toBe('return.inner')
+        }
       })
     }
 
@@ -163,22 +192,27 @@ describe('isolamento dos fluxos do grupo: só quem perguntou trata a resposta', 
     })
   }
 
-  test.each(['stop.bogus', 'delivery.bogus', 'close.bogus', 'route.bogus', 'bogus.location'])(
-    'passo sem dono (%s) não é consumido por nenhum fluxo',
-    async (step) => {
-      const { calls, flow, recorded } = setup()
-      const turn = {
-        request: request(step, { locationFor: TARGET, routeOffer: { stopId: 'S1' } }),
-        sender: OWNER_NUMBER,
-        senderName: null,
-        text: '1',
-      }
-      expect(await flow.answer(turn)).toMatchObject({ kind: 'not_understood' })
-      expect(await flow.locationReceived?.({ ...turn, location: LOCATION })).toBeNull()
-      expect(calls).toEqual({ close: [], delivery: [], occurrence: [] })
-      expect(recorded).toEqual([])
-    },
-  )
+  test.each([
+    'stop.bogus',
+    'delivery.bogus',
+    'close.bogus',
+    'route.bogus',
+    'journey.bogus',
+    'return.bogus',
+    'bogus.location',
+  ])('passo sem dono (%s) não é consumido por nenhum fluxo', async (step) => {
+    const { calls, flow, recorded } = setup()
+    const turn = {
+      request: request(step, { locationFor: TARGET, routeOffer: { stopId: 'S1' } }),
+      sender: OWNER_NUMBER,
+      senderName: null,
+      text: '1',
+    }
+    expect(await flow.answer(turn)).toMatchObject({ kind: 'not_understood' })
+    expect(await flow.locationReceived?.({ ...turn, location: LOCATION })).toBeNull()
+    expect(calls).toEqual({ close: [], delivery: [], occurrence: [], return: [] })
+    expect(recorded).toEqual([])
+  })
 
   for (const pending of PENDING) {
     test(`${pending.step} esperando: "cancelar" só chega ao fluxo ${pending.owner}`, async () => {
@@ -205,7 +239,7 @@ describe('isolamento dos fluxos do grupo: só quem perguntou trata a resposta', 
     }
     expect(await flow.answer(turn)).toMatchObject({ kind: 'not_understood' })
     expect(await flow.locationReceived?.({ ...turn, location: LOCATION })).toBeNull()
-    expect(calls).toEqual({ close: [], delivery: [], occurrence: [] })
+    expect(calls).toEqual({ close: [], delivery: [], occurrence: [], return: [] })
   })
 
   test('o resumo de ocorrência nunca sai da localização de outro fluxo (regressão do "iniciar rota")', async () => {

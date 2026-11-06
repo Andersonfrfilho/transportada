@@ -134,9 +134,12 @@ function setupFlow(options: { awaitingText?: boolean; withoutAccess?: boolean } 
 describe('grupo: entreguei abre a entrega em preparo', () => {
   test('"entreguei 17234" acha a nota pelo número (zeros à esquerda não contam) e repassa o que falta', async () => {
     const t = setupFlow()
+    // A entrega aberta esperando a foto segura o pedido: o "pular" responde sem marcar o bot.
     expect(await t.start('entreguei 17234')).toEqual({
-      kind: 'done',
+      kind: 'continue',
       replies: ['NF 17234: mande a foto do canhoto assinado.'],
+      state: {},
+      step: 'delivery.answer',
     })
     expect(t.calls[0]).toMatchObject({
       input: { channel: 'group', documentId: 'DOC1', documentNumber: '17234' },
@@ -189,7 +192,7 @@ describe('grupo: entreguei abre a entrega em preparo', () => {
     expect(await t.start('')).toMatchObject({ replies: [GROUP_DRIVER_TEXT.menu] })
     expect(GROUP_DRIVER_TEXT.menu).toContain('3. Entreguei')
     await t.answer('3')
-    expect(await t.answer('1')).toMatchObject({ kind: 'done' })
+    expect(await t.answer('1')).toMatchObject({ kind: 'continue', step: 'delivery.answer' })
     expect(t.calls[0]).toMatchObject({ input: { documentId: 'DOC1' }, method: 'begin' })
   })
 

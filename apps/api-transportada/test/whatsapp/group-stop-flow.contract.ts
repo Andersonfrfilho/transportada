@@ -127,13 +127,17 @@ describe('grupo: saí e cheguei', () => {
     const asked = await t.start('cheguei')
     expect(asked).toMatchObject({ kind: 'continue' })
     const text = asked.kind === 'continue' ? asked.replies.join('\n') : ''
-    expect(text).toContain('1. NF 17234 · Padaria Sol')
-    expect(text).toContain('2. NF 17235 · Mercado Lua')
+    expect(text).toContain('*1* - NF 17234 · Padaria Sol')
+    expect(text).toContain('*2* - NF 17235 · Mercado Lua')
   })
 
   test('cheguei com uma parada só registra direto', async () => {
     const t = setup([stop('S1', 1, ['17234'])])
-    expect(await t.start('cheguei')).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })
+    expect(await t.start('cheguei')).toEqual({
+      kind: 'done',
+      replies: ['Chegada registrada.'],
+      withoutFarewell: true,
+    })
     expect(t.recorded).toEqual([
       {
         companyId: 'C',
@@ -146,9 +150,34 @@ describe('grupo: saí e cheguei', () => {
     ])
   })
 
-  test('saí com uma parada a caminho recusa e diz qual', async () => {
-    const t = setup([stop('S1', 3, ['1'], { enRouteSince: 'x' }), stop('S2', 4, ['2'])])
-    expect(await t.start('saí')).toEqual({ kind: 'done', replies: ['a caminho 3'] })
+  test('saí com uma parada a caminho diz que a saída já foi registrada e oferece o que cabe', async () => {
+    const t = setup([
+      stop('S1', 3, ['1'], { enRouteSince: '2026-11-06T13:05:00.000Z' }),
+      stop('S2', 4, ['2']),
+    ])
+    expect(await t.start('saí')).toEqual({
+      kind: 'continue',
+      replies: [
+        [
+          '⚠️ *A saída para esta parada já foi registrada* às 10:05.',
+          '*Parada 3*',
+          '*NF 1*',
+          '',
+          '*O que você quer fazer agora?*',
+          '*1* - Cheguei',
+          '*2* - Abrir ocorrência',
+          '*3* - Nada por enquanto',
+        ].join('\n'),
+      ],
+      state: {
+        journeyActions: [
+          { documentNumber: '1', kind: 'arrive', stopId: 'S1' },
+          { documentNumber: '1', kind: 'occurrence' },
+          { kind: 'none' },
+        ],
+      },
+      step: 'journey.actions',
+    })
     expect(t.recorded).toEqual([])
   })
 
@@ -165,15 +194,23 @@ describe('grupo: saí e cheguei', () => {
     const first = await t.start('saí')
     expect(first).toMatchObject({ kind: 'continue', step: 'stop.choose' })
     expect((first as Extract<GroupFlowOutcome, { kind: 'continue' }>).replies[0]).toContain(
-      '1. NF 17234 e mais 1',
+      '*1* - NF 17234 e mais 1',
     )
-    expect(await t.answer('2')).toEqual({ kind: 'done', replies: ['Saída registrada.'] })
+    expect(await t.answer('2')).toEqual({
+      kind: 'done',
+      replies: ['Saída registrada.'],
+      withoutFarewell: true,
+    })
     expect(t.recorded[0]?.stopId).toBe('S2')
   })
 
   test('várias paradas: o número da nota no comando escolhe sozinho', async () => {
     const t = setup([stop('S1', 1, ['17234']), stop('S2', 2, ['900'])])
-    expect(await t.start('cheguei 900')).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })
+    expect(await t.start('cheguei 900')).toEqual({
+      kind: 'done',
+      replies: ['Chegada registrada.'],
+      withoutFarewell: true,
+    })
     expect(t.recorded[0]?.stopId).toBe('S2')
   })
 
@@ -191,7 +228,11 @@ describe('grupo: saí e cheguei', () => {
       replies: [GROUP_DRIVER_TEXT.menuWithoutDelivery],
       step: 'menu',
     })
-    expect(await t.answer('2')).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })
+    expect(await t.answer('2')).toEqual({
+      kind: 'done',
+      replies: ['Chegada registrada.'],
+      withoutFarewell: true,
+    })
   })
 
   test('menu: ocorrência vai ao fluxo de ocorrência; opção inválida repete o menu', async () => {

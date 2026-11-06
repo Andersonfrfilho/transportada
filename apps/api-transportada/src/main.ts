@@ -261,6 +261,12 @@ import {
 } from './whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { createWhatsAppOfficeStopEvents } from './whatsapp-commands/infrastructure/whatsapp-office-stop-events.adapter.js'
 import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
+import { createGroupReturnPorts } from './whatsapp/infrastructure/whatsapp-group-return.adapter.js'
+import {
+  createGroupReturnFlow,
+  type GroupReturnFlowPorts,
+} from './whatsapp/application/whatsapp-group-return-flow.service.js'
+import { createWhatsAppStopCardReader } from './whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
 import { createDrizzleWhatsAppGroupRequestRepository } from './whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
 import { createGroupOccurrencePorts } from './whatsapp/infrastructure/whatsapp-group-occurrence.adapter.js'
 import { createDrizzleWhatsAppEvolutionWebhookRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution-webhook.repository.js'
@@ -1720,6 +1726,25 @@ export function bootstrap(): Bun.Server<undefined> {
     registerOccurrence: whatsappDriverEventPorts.registerOccurrence,
     speech: whatsappBotSpeech,
   })
+  /** O bloco da parada nas respostas do bot (grupo e individual); a estrada só com `ROUTING_MATRIX_URL`. */
+  const whatsappStopCards = createWhatsAppStopCardReader({
+    database: database.db,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    ...(config.routingMatrixUrl === undefined
+      ? {}
+      : { routing: createOsrmRouteGeometryGateway({ baseUrl: config.routingMatrixUrl }) }),
+  })
+  /** "Não entreguei" no grupo, pela mesma baixa do app (`reportDocumentReturn`). */
+  const whatsappGroupReturn = createGroupReturnPorts({
+    consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
+    database: database.db,
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    ports: whatsappDriverEventPorts,
+    resolveSenderRole: whatsappSenderRole,
+    speech: whatsappBotSpeech,
+  })
   /** Spec 293 T12: "saí" e "cheguei" no grupo, pelas mesmas portas do app. */
   const whatsappGroupStop = createGroupStopPorts({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
@@ -1743,6 +1768,7 @@ export function bootstrap(): Bun.Server<undefined> {
     ports: whatsappDriverEventPorts,
     resolveSenderRole: whatsappSenderRole,
     speech: whatsappBotSpeech,
+    stopCards: whatsappStopCards,
   })
   /** Spec 294: a oferta da próxima rota, o pedido de localização e as conferências da conversa individual. */
   const whatsappDriverPrompts = createWhatsAppDriverPrompts({
@@ -1751,6 +1777,7 @@ export function bootstrap(): Bun.Server<undefined> {
     ports: whatsappDriverEventPorts,
     sharedLocations: whatsappSharedLocations,
     speech: whatsappBotSpeech,
+    stopCards: whatsappStopCards,
   })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     deliveryPreparations: whatsappDeliveryPreparations,
@@ -2167,6 +2194,7 @@ export function bootstrap(): Bun.Server<undefined> {
       whatsappGroupBoletoResend,
       whatsappGroupDelivery,
       whatsappGroupOccurrence,
+      whatsappGroupReturn,
       whatsappGroupStop,
       whatsappGroupTripClose,
     }),
@@ -2322,6 +2350,8 @@ type CreateAnonymousRoutesParams = {
   /** Spec 292 T5: o fluxo do pedido no grupo do motorista (só a entrega anônima do Evolution o usa). */
   readonly whatsappGroupOccurrence: GroupOccurrenceFlowPorts
   readonly whatsappGroupStop: GroupStopFlowPorts
+  /** "Não entreguei" no grupo do motorista. */
+  readonly whatsappGroupReturn: GroupReturnFlowPorts
   /** Spec 294 RF21: "encerrar a rota" do atendente no grupo. */
   readonly whatsappGroupTripClose: GroupTripCloseFlowPorts
   /** Spec 293 T15: a entrega em preparo no grupo; ausente, "entreguei" e as fotos não são atendidos. */
@@ -2351,6 +2381,8 @@ function createEvolutionWebhook(input: {
   readonly groupOccurrence?: GroupOccurrenceFlowPorts
   /** Spec 293 T12: o "saí"/"cheguei" do grupo; ausente, só a ocorrência atende. */
   readonly groupStop?: GroupStopFlowPorts
+  /** "Não entreguei" no grupo; ausente, o texto segue para a ocorrência. */
+  readonly groupReturn?: GroupReturnFlowPorts
   /** Spec 294 RF21: "encerrar a rota" do atendente; ausente, o texto segue como antes. */
   readonly groupTripClose?: GroupTripCloseFlowPorts
   /** Spec 293 T15: "entreguei" e as provas (foto/localização) do grupo; ausente, não atendidos. */
@@ -2407,6 +2439,9 @@ function createEvolutionWebhook(input: {
                     ? {}
                     : { delivery: createGroupDeliveryFlow(input.groupDelivery.flow) }),
                   occurrence: createGroupOccurrenceFlow(input.groupOccurrence),
+                  ...(input.groupReturn === undefined
+                    ? {}
+                    : { return: createGroupReturnFlow(input.groupReturn) }),
                   stop: createGroupStopFlow(input.groupStop),
                   ...(input.groupTripClose === undefined
                     ? {}
@@ -2543,6 +2578,7 @@ function createAnonymousRoutes({
   whatsappGroupBoletoResend,
   whatsappGroupDelivery,
   whatsappGroupOccurrence,
+  whatsappGroupReturn,
   whatsappGroupStop,
   whatsappGroupTripClose,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
@@ -2636,6 +2672,7 @@ function createAnonymousRoutes({
       groupDelivery: whatsappGroupDelivery,
       groupBoletoResend: whatsappGroupBoletoResend,
       groupOccurrence: whatsappGroupOccurrence,
+      groupReturn: whatsappGroupReturn,
       groupStop: whatsappGroupStop,
       groupTripClose: whatsappGroupTripClose,
       logger,

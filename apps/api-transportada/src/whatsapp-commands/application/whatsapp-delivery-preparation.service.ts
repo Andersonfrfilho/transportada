@@ -1016,7 +1016,7 @@ function finished(
 }
 
 /** Só a baixa que fechou a parada continua a rota (a próxima parada, ou a rota concluída). */
-function routeContinuationOf(result: WhatsAppDriverEventResult): {
+export function routeContinuationOf(result: WhatsAppDriverEventResult): {
   readonly routeContinuation?: WhatsAppRouteContinuation
 } {
   if (result.kind !== 'registered' || result.details?.stopCompleted !== true) return {}

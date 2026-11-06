@@ -233,7 +233,7 @@ describe('entrega em preparo pelo WhatsApp', () => {
     await t.begin()
     const afterSkip = await t.answer('pular')
     expect(afterSkip?.texts.join('\n')).toContain(
-      'NF 17234 ainda não fechou. Falta: foto do canhoto, nome de quem recebeu.',
+      '*NF 17234 ainda não fechou.* Falta: foto do canhoto, nome de quem recebeu.',
     )
     // "pular" no canhoto obrigatório não pula.
     const refused = await t.answer('pular')

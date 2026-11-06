@@ -26,7 +26,7 @@ export const RECEIVED_BY_LABELS: Readonly<Record<ReceivedBy, string>> = {
   spouse: 'Cônjuge',
 }
 
-const SKIP_HINT = 'Se não tiver, responda "pular".'
+const SKIP_HINT = '_Se não tiver, responda pular._'
 
 const photos = (count: number) => (count === 1 ? '1 foto' : `${count} fotos`)
 
@@ -39,14 +39,16 @@ export const DELIVERY_PROOF_SPEECH = {
     `Entrega da NF ${documentNumber} cancelada. A nota continua aberta na viagem.`,
   confirm: (documentNumber: string, summary: readonly string[]) =>
     [
-      `NF ${documentNumber} pronta para fechar${summary.length === 0 ? '' : `: ${summary.join(', ')}`}.`,
-      'Confirma a entrega? Responda 1 para Sim ou 2 para Não.',
+      `✅ *NF ${documentNumber} pronta para fechar*${summary.length === 0 ? '' : `: ${summary.join(', ')}`}.`,
+      '*Confirma a entrega?*',
+      '*1* - Sim',
+      '*2* - Não',
     ].join('\n'),
   confirmNotUnderstood: 'Responda 1 para confirmar a entrega ou 2 para cancelar.',
   downloadFailed: 'Não consegui baixar a foto. Mande de novo, por favor.',
   duplicatePhoto: 'Essa foto já tinha chegado.',
   missing: (documentNumber: string, missing: readonly MissingDeliveryProof[]) =>
-    `NF ${documentNumber} ainda não fechou. Falta: ${missing.map(describeMissing).join(', ')}.`,
+    `⚠️ *NF ${documentNumber} ainda não fechou.* Falta: ${missing.map(describeMissing).join(', ')}.`,
   nameNotUnderstood: 'Digite o nome de quem recebeu (ou "pular", se não for obrigatório).',
   noPhotoWanted: (documentNumber: string) =>
     `A NF ${documentNumber} não pede foto, então não guardei esta.`,
@@ -83,21 +85,21 @@ function describeQuestion(documentNumber: string, question: DeliveryProofQuestio
   const tail = question.optional ? ` ${SKIP_HINT}` : ''
   switch (question.item) {
     case DELIVERY_PROOF_ITEM.location:
-      return `NF ${documentNumber}: se puder, compartilhe a localização da entrega (clipe > Localização).${tail}`
+      return `📍 *NF ${documentNumber}:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização).${tail}`
     case DELIVERY_PROOF_ITEM.photo:
-      return `NF ${documentNumber}: mande a foto do canhoto assinado.${tail}`
+      return `📸 *NF ${documentNumber}:* mande a foto do canhoto assinado.${tail}`
     case DELIVERY_PROOF_ITEM.cargo:
       return question.optional
-        ? `NF ${documentNumber}: mande a foto da mercadoria entregue.${tail}`
-        : `NF ${documentNumber}: mande ${photos(question.remaining)} da mercadoria entregue.`
+        ? `📦 *NF ${documentNumber}:* mande a foto da mercadoria entregue.${tail}`
+        : `📦 *NF ${documentNumber}:* mande ${photos(question.remaining)} da mercadoria entregue.`
     case DELIVERY_PROOF_ITEM.receivedBy:
       return [
-        `NF ${documentNumber}: quem recebeu? Responda com o número.${tail}`,
+        `👤 *NF ${documentNumber}:* quem recebeu? _Responda com o número._${tail}`,
         ...RECEIVED_BY_OPTIONS.map(
-          (option, index) => `${index + 1}. ${RECEIVED_BY_LABELS[option]}`,
+          (option, index) => `*${index + 1}* - ${RECEIVED_BY_LABELS[option]}`,
         ),
       ].join('\n')
     case DELIVERY_PROOF_ITEM.receiverName:
-      return `NF ${documentNumber}: qual o nome de quem recebeu?${tail}`
+      return `✍️ *NF ${documentNumber}:* qual o nome de quem recebeu?${tail}`
   }
 }
