@@ -96,7 +96,7 @@ const QUEUE: TripQuickCreateQueue = [
   { accessKey: 'a', document: FIRST, status: 'staged' },
   { accessKey: 'b', document: SECOND, status: 'staged' },
   { accessKey: 'c', document: SAME_STOP, status: 'staged' },
-  { accessKey: 'x', refusal: 'notFound', status: 'refused' },
+  { accessKey: 'x', refusal: 'notAuthorized', status: 'refused' },
 ]
 
 function manualDraft() {

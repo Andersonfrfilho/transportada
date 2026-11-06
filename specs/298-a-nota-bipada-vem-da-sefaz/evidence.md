@@ -340,3 +340,35 @@ Os contratos cobrem:
 
 Gates: typecheck da raiz com 0 erros; `test` do painel saiu com 0 (`test:hooks` 1466 pass / 0 fail, suíte pura nova
 com 31 pass); lint com 0 erros.
+
+## T3.2 — criação da viagem lista a nota bipada (RF9, RF10)
+
+Comportamento novo: o bipe da criação não acrescenta mais nada à viagem. Cada leitura vira uma linha em **Notas
+encontradas** (marcada "Bipada"), acima da busca; a nota só entra com "Acrescentar", inclusive a já cadastrada.
+
+- `TripNoteIntake` (novo): campo `KeyReaderField` (leitor de mão primeiro), câmera como segundo caminho, lista de
+  notas encontradas com `AccessKeyLookupRow`, "Acrescentar todas as prontas (n)" e a busca existente
+  (`TripDocumentSearch`). A nota que já tem linha bipada sai da lista da busca (sem duplicar por id).
+- `useBippedNotes` (novo): `useAccessKeyLookupQueue` + consulta do cadastro da nota quando a linha fica pronta
+  (`findNfeDocumentByAccessKey`, a mesma do bipe antigo). "Acrescentar" chama `stageDocuments` do `useTripQuickCreate`,
+  o mesmo caminho da busca; nota em outra viagem (`alreadyOnTrip`) ou não autorizada mostra o aviso existente e não
+  oferece "Acrescentar". "Acrescentar todas" leva só `canAdd` sem bloqueio. Recusada (menos `cancelled`/`denied`):
+  `FileField` "Enviar XML" (`POST /nfe-imports/xml`) e, depois do envio, `recheck(chave)` → pronta; sem nota após o
+  envio, aviso na linha. `Tentar de novo` nas falhas já previstas e na consulta do cadastro. O foco volta ao leitor
+  depois de cada leitura, "Acrescentar", "Acrescentar todas" e "Enviar XML"; o fechamento do diálogo já é coberto por
+  `useKeyReaderFocus` (T3.0). A lista é da tela aberta: fechar o diálogo desmonta a fila e para o polling.
+- Removido: o acréscimo direto do bipe e o beco sem saída `notFound`. Em `useTripQuickCreate`: `acceptScan`,
+  `submitTyped`, `typedNote`, `canScan`, `isScannerOpen`/`openScanner`/`closeScanner`, `lookupAccessKey`. Em
+  `tripQuickCreate.service.ts`: `acceptQuickCreateScan`, `resolveQuickCreateEntry`, `refuseQuickCreateEntry`,
+  `isQuickCreateEntryPending`, o status `resolving` e as recusas `notFound`/`lookupFailed`. Locale: `resolving`,
+  `refusal.notFound`, `refusal.lookupFailed`; `quickCreate.intro` reescrito.
+- Testes que fixavam o comportamento antigo: `test/trip/quick-create.contract.ts` (os quatro testes de
+  `acceptQuickCreateScan`/`resolveQuickCreateEntry` viraram `stageQuickCreateDocuments`; o teste do campo digitado
+  agora cobra `KeyReaderField` + câmera); `test/trip/assembly-draft.contract.ts` (recusa `notFound` → `notAuthorized`);
+  `test/trip-hooks/typed-note-number.contract.ts` (saiu o bloco "inserção rápida aceita o número").
+- Contrato novo (critério 4): `test/trip-hooks/bipped-notes.contract.ts` — cadastrada, desconhecida importada e
+  recusada dão três linhas, nenhuma entra sozinha; "Acrescentar todas" leva só as prontas (2 de 4: sem a recusada e
+  sem a que está em outra viagem); nota em outra viagem sem "Acrescentar"; foco volta ao leitor.
+
+⚠️ Digitar o **número** da nota no campo da criação deixou de existir (o campo só lê chave); o número se busca em
+"Buscar notas". Decisão do dono a confirmar.

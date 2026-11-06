@@ -1,6 +1,4 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { extractNfeAccessKey } from '@/modules/shared/nfeAccessKey.service'
-
 import type { DailyAllowanceDaysReading } from './dailyAllowanceDaysField.service'
 import type { ScannedNfeDocument } from './trip.types'
 
@@ -12,9 +10,9 @@ import type { ScannedNfeDocument } from './trip.types'
  * Aqui nada vai para o servidor: a lista é montada na tela e vira uma viagem de uma vez só. Criar a
  * viagem no primeiro bipe deixaria rascunho órfão toda vez que alguém desistisse no meio.
  */
-export type TripQuickCreateEntryStatus = 'refused' | 'resolving' | 'staged'
+export type TripQuickCreateEntryStatus = 'refused' | 'staged'
 
-export type TripQuickCreateRefusal = 'alreadyOnTrip' | 'lookupFailed' | 'notAuthorized' | 'notFound'
+export type TripQuickCreateRefusal = 'alreadyOnTrip' | 'notAuthorized'
 
 export type TripQuickCreateEntry = Readonly<{
   accessKey: string
@@ -42,50 +40,6 @@ export type TripQuickCreateIssue =
 export type TripQuickCreatePath = 'draft' | 'singleClick'
 
 /**
- * A leitura da câmera dispara a cada quadro e a mesma etiqueta passa duas vezes o tempo todo: texto
- * sem chave é descartado calado, e chave já na lista não vira segunda linha nem segunda consulta.
- */
-export function acceptQuickCreateScan(input: {
-  readonly queue: TripQuickCreateQueue
-  readonly text: string
-}): Readonly<{ accessKey?: string; queue: TripQuickCreateQueue }> {
-  const accessKey = extractNfeAccessKey(input.text)
-  if (accessKey === undefined) return { queue: input.queue }
-  if (input.queue.some((entry) => entry.accessKey === accessKey)) return { queue: input.queue }
-
-  return { accessKey, queue: [...input.queue, { accessKey, status: 'resolving' }] }
-}
-
-/**
- * O veredito chega fora de ordem e "limpar" pode ter passado no meio: o que perdeu a linha dele não
- * a ressuscita.
- */
-export function resolveQuickCreateEntry(input: {
-  readonly accessKey: string
-  readonly document: ScannedNfeDocument | null
-  readonly queue: TripQuickCreateQueue
-}): TripQuickCreateQueue {
-  if (!input.queue.some((entry) => entry.accessKey === input.accessKey)) return input.queue
-
-  const resolved = decideEntry({ accessKey: input.accessKey, document: input.document })
-  return input.queue.map((entry) => (entry.accessKey === input.accessKey ? resolved : entry))
-}
-
-export function refuseQuickCreateEntry(input: {
-  readonly accessKey: string
-  readonly queue: TripQuickCreateQueue
-  readonly refusal: TripQuickCreateRefusal
-}): TripQuickCreateQueue {
-  if (!input.queue.some((entry) => entry.accessKey === input.accessKey)) return input.queue
-
-  return input.queue.map((entry) =>
-    entry.accessKey === input.accessKey
-      ? { accessKey: input.accessKey, refusal: input.refusal, status: 'refused' }
-      : entry,
-  )
-}
-
-/**
  * ⚠️ **Nota já em viagem é recusa, não silêncio.** Ela existe, a busca a encontra, e sem esta linha
  * o operador só descobriria no vínculo — com a viagem já criada e a carga já no caminhão.
  *
@@ -93,11 +47,8 @@ export function refuseQuickCreateEntry(input: {
  */
 function decideEntry(input: {
   readonly accessKey: string
-  readonly document: ScannedNfeDocument | null
+  readonly document: ScannedNfeDocument
 }): TripQuickCreateEntry {
-  if (input.document === null) {
-    return { accessKey: input.accessKey, refusal: 'notFound', status: 'refused' }
-  }
   if (input.document.tripId !== null) {
     return {
       accessKey: input.accessKey,
@@ -124,7 +75,7 @@ export function removeQuickCreateEntry(input: {
   return input.queue.filter((entry) => entry.accessKey !== input.accessKey)
 }
 
-/** Só o que ficou de pé vira vínculo — recusada e resolvendo não entram na viagem. */
+/** Só o que ficou de pé vira vínculo — a recusada não entra na viagem. */
 export function stagedDocumentIds(queue: TripQuickCreateQueue): readonly string[] {
   return queue.flatMap((entry) =>
     entry.status === 'staged' && entry.document !== undefined ? [entry.document.id] : [],
@@ -138,10 +89,7 @@ export function stagedDocumentIds(queue: TripQuickCreateQueue): readonly string[
  * oferecer de novo o que já foi levado: quem monta um lote de trinta notas perde a conta de quais
  * faltam, e a linha marcada não ajuda — ela some no meio das outras a cada rolagem.
  *
- * ⚠️ O corte é por **id da nota**, não pela chave de acesso: a fila mistura o que veio do bipe (que
- * nasce só com a chave) com o que veio da busca, e uma entrada ainda resolvendo não tem documento
- * para casar. Nota bipada que ainda não resolveu continua aparecendo na busca — e escolhê-la ali é
- * ignorado pela deduplicação por chave, que já existe.
+ * O corte é por **id da nota**: a deduplicação da fila é por chave, e a busca não a conhece.
  */
 export function listSelectableDocuments<TDocument extends { readonly id: string }>(
   input: Readonly<{ documents: readonly TDocument[]; queue: TripQuickCreateQueue }>,
@@ -157,10 +105,6 @@ export function stagedDocuments(queue: TripQuickCreateQueue): readonly ScannedNf
   return queue.flatMap((entry) =>
     entry.status === 'staged' && entry.document !== undefined ? [entry.document] : [],
   )
-}
-
-export function isQuickCreateEntryPending(entry: TripQuickCreateEntry): boolean {
-  return entry.status === 'resolving'
 }
 
 export function validateQuickCreate(input: {
@@ -189,7 +133,7 @@ export function validateQuickCreate(input: {
 
 /**
  * O lote vem da busca, que já traz a nota inteira: pedir a chave de volta ao servidor uma por uma
- * seria refazer uma consulta que acabou de ser feita. O veredito é o **mesmo** do bipe — nota já em
+ * seria refazer uma consulta que acabou de ser feita. O veredito é o da linha bipada — nota já em
  * viagem ou não autorizada entra recusada, com o motivo na linha dela, e não some da lista.
  *
  * Chave repetida é ignorada: quem bipou a nota e depois a trouxe pela busca continua com uma linha.
