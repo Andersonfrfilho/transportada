@@ -288,3 +288,31 @@ Gates:
 - Worker `bun run test`: `3034 pass, 0 fail` (era 3007).
 - Worker `bun --env-file=../../.env.test run test:integration`: `399 pass, 4 skip, 0 fail` (403 testes, 73 arquivos).
 - API não tocada; nenhuma migration.
+
+## T3.0 — leitor de mão (RF11e)
+
+Commit `44dcf67ba`. Primitivo `@/components/ui/key-reader-field` com input não controlado: Enter ou Tab (com
+`preventDefault`) fecha a leitura e limpa o campo na hora, sem perder leituras seguidas com menos de 100 ms entre elas
+(teste sintético: três leituras em sequência chegam inteiras). `findNfeAccessKeyInScan`
+(`src/modules/shared/nfeScannedKey.service.ts`) acha a chave de 44 caracteres no padrão `CHAVE_PATTERN` em qualquer
+posição do texto e valida o DV mod-11, inclusive com CNPJ alfanumérico. O contrato cobre:
+
+- Code-128 cru;
+- QR certo com `p=` e com `chNFe=`;
+- QR embaralhado por leitor US num ABNT2 (`?`→`:`, `/`→`;`, `:`→`Ç`, `=`→`]`, `&`→`°`);
+- prefixo e sufixo configurados no leitor;
+- chave alfanumérica minúscula.
+
+Texto sem chave válida é ignorado; `onUnreadable` é opcional e alimenta a contagem de "ilegível" da página de NF-e.
+
+O foco é persistente: autofocus, volta ao campo quando um diálogo sai da tela ou dispara `close`, e `focus()` fica
+exposto pelo ref. O selo alterna entre "Leitor pronto" e "Clique aqui para voltar a ler". Uma rajada de 8 ou mais
+teclas com menos de 30 ms entre elas, fora de qualquer campo, é desviada para o leitor com o buffer inteiro (não perde
+os primeiros caracteres). Digitação em outros campos não é tocada. A câmera continua como caminho secundário. Doc em
+`docs/frontend/barcode-scanner.md`.
+
+Gates: typecheck da raiz limpo; `test` do painel com 8672 pass / 0 fail, mais `test:hooks` com 1451 pass / 0 fail;
+lint com 0 erros.
+
+**Pendente (manual, T4.1):** evidência com o leitor real do cliente, inclusive configurado em layout US num ABNT2 e
+com sufixo Tab.

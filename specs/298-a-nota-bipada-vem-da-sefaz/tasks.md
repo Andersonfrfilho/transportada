@@ -37,7 +37,7 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 
 > 🤖 Modelo: `sonnet` (T3.4 → `haiku`)
 
-- [ ] T3.0 Leitor de mão (RF11e): extração da chave em qualquer posição do texto (contrato com Code-128, URL de QR
+- [x] T3.0 Leitor de mão (RF11e): extração da chave em qualquer posição do texto (contrato com Code-128, URL de QR
       correta e URL embaralhada por layout ABNT2), foco persistente, Enter/Tab, rajada < 100 ms sem perda — contrato
       no componente do design system (055 D7). Evidência com um leitor real do cliente.
 - [ ] T3.1 Cliente + hook de polling + componente de linha (RF9, RF10) — contratos dos estados.
