@@ -163,3 +163,12 @@ Gates:
 - API contrato completo: `14076 pass, 0 fail, 26 skip`.
 - Integração dos arquivos do módulo (`nfe-access-key-lookups` 11 pass, `nfe-document-access-key-checks`, `migration-completeness`) + `database-migration.contract.test.ts`: `201 pass, 7 skip, 0 fail`.
 - O `test:integration` completo ficou verde em 17bd8b4ec (1949 pass); este delta toca só o módulo novo (sem migration), então não foi repetido.
+
+## T2.1 Política pura de desfecho
+
+`resolveAccessKeyLookupOutcome` (`apps/worker-transportada/src/nfe-access-key-lookup/domain/access-key-lookup-outcome.policy.ts`): entrada = `AccessKeyLookupGatewayResult` (`document` | `not-found` | `sefaz-rejection{cStat}` | `unavailable`), saída `imported-candidate | refused{reason} | failed{sefaz_unavailable} | waiting`.
+- Tabela: `procNFe` → candidato; `resNFe` → `summary_only`; vazio/`217` → `not_found`; `640` → `not_interested`; `632` → `expired`; `653` → `cancelled`; `654` → `denied`; `593` → `certificate_mismatch`; `656` → `waiting`; indisponível → `failed`.
+- cStat fora da tabela (e schema inesperado, ex.: `procEventoNFe`) → `failed/sefaz_unavailable` com `unmapped: true` (+ `cStat`): quem consome registra log/alerta; nada derruba o processo.
+- Contrato: `test/nfe-access-key-lookup/access-key-lookup-outcome.contract.ts`, 13 casos (tabela), via `test/nfe-access-key-lookup.contract.test.ts` (adicionado à lista do `package.json`).
+
+Gates: `bun run typecheck` (raiz) `0`; worker `bun run lint` `0`; worker `bun run test`: `2970 pass, 0 fail` (115 arquivos); `db:generate` após o rebase: `no_changes`. Integração do worker: sem arquivo novo nesta task, não rodada.
