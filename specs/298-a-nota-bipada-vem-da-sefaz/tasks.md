@@ -31,7 +31,7 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 - [x] T2.3 Orçamento atômico (D3) — integração com duas reservas concorrentes e 656 abrindo 65 min.
 - [x] T2.4 Consumidor + repositório (importa `procNFe` pelo escritor comum, RF5, RF6, RF8) + topologia + `main.ts` —
       integração: importa, não duplica com a distribuição.
-- [ ] T2.5 Reenfileirar `waiting` na rotina existente (D5) — contrato da rotina.
+- [x] T2.5 Reenfileirar `waiting` na rotina existente (D5) — contrato da rotina.
 
 ## Fase 3 — Painel
 

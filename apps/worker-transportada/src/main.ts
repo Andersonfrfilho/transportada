@@ -238,6 +238,7 @@ import { startNfeAccessKeyConsumer } from './runtime/nfe-access-key-consumer.ser
 import { createProcessAccessKeyLookupUseCase } from './nfe-access-key-lookup/application/process-access-key-lookup.use-case.js'
 import { createAccessKeyLookupDocumentStorage } from './nfe-access-key-lookup/infrastructure/access-key-lookup-document-storage.js'
 import { DrizzleAccessKeyLookupBudgetRepository } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup-budget.repository.js'
+import { createDrizzleAccessKeyLookupRequeue } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup-requeue.repository.js'
 import { DrizzleAccessKeyLookupRepository } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup.repository.js'
 import { PersistentProcessedMessageService } from './outbox/application/persistent-processed-message.service.js'
 import { DrizzleOutboxRepository as DrizzleProcessedMessageRepository } from './outbox/infrastructure/drizzle-outbox.repository.js'
@@ -1683,6 +1684,9 @@ export async function startWorkerRuntime(
             identifiers: createCryptoDistributionIdentifiers(),
             logger,
             now: () => new Date(),
+            requeue: createDrizzleAccessKeyLookupRequeue({
+              database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            }),
             source: createDrizzleDistributionCandidateSource({
               database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
               logger,

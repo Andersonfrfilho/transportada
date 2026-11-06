@@ -219,3 +219,21 @@ Gates:
 - Integração nova (`nfe-access-key-lookup-consumer.integration.test.ts`, Postgres real, 5 casos): procNFe vira documento com participantes e `source = 'access_key'`, contadores 1/1/1, orçamento 1, e a mesma chave chegando depois pela distribuição não duplica (1 linha); distribuição primeiro → lookup `imported` apontando o documento existente, `duplicated = 1`, SEFAZ e orçamento intocados; documento surgindo entre a checagem e a escrita → `isDuplicate`, 1 linha; recusa 640 fecha lookup e falha o import com `terminal_error`; o claim do relay devolve `lookupId`.
 - Worker `bun --env-file=../../.env.test run test:integration`: `386 pass, 4 skip, 0 fail` (390 testes, 72 arquivos).
 - Arquivos novos nas listas do `package.json`: `nfe-access-key-lookup-consumer.integration.test.ts` (o contrato novo entra pelo `nfe-access-key-lookup.contract.test.ts`, já listado).
+
+## T2.5 Reenfileirar as buscas em `waiting` (D5)
+
+A rotina agendada de NF-e do worker é `nfe.distribution.pull` (`src/nfe-distribution-pull/application/nfe-distribution-pull.routine.ts`). Ganhou a dependência opcional `requeue` (`AccessKeyLookupRequeuePort`), chamada **depois** de enfileirar a distribuição e **mesmo sem empresa elegível** (a espera da busca por chave não depende do cursor). Ligada em `main.ts`.
+Novos: `domain/requeue-waiting-lookups.policy.ts` (`computeRemainingBudget`, `selectLookupsToRequeue`, puros), `application/requeue-waiting-lookups.port.ts`, `infrastructure/drizzle-access-key-lookup-requeue.repository.ts`.
+
+Decisões:
+- Uma transação: `select … where status = 'waiting' and not_before <= agora and import_id is not null order by created_at, id limit 200 for update skip locked` → leitura do orçamento (sem reservar) → escolhe, por `(empresa, ambiente)`, as mais antigas até o que sobra → lookup `queued` com `not_before = null` + novo evento `transportada.nfe.access-key.requested` no outbox (mesmo payload `{companyId, importId, lookupId}`, ator = quem pediu, `triggered_by = 'user'` como o da API). Busca que fica de fora do orçamento segue `waiting` e a rodada seguinte tenta.
+- Orçamento restante = 0 com `blocked_until` aberto; janela vencida = 15; sem linha = 15; senão `15 − used_in_window`. Não desconta buscas já `queued`/`querying` da empresa (a especificação pede só a leitura do que a janela deixou); o consumidor reserva de verdade e devolve a busca a `waiting` se faltar.
+- Contador novo `requeued` só aparece quando o passo está ligado (os contratos antigos da rotina seguem iguais); `requeued > 0` conta como trabalho feito (`succeeded`). Falha do passo: log `nfe_access_key_requeue_failed` só com o nome do erro, ciclo fecha `unexpected_error`; a linha segue `waiting`, então a próxima rodada repete. Pedido de parada pula o passo.
+- `CLAUDE.md` do worker ganhou um item sobre o trilho da busca por chave.
+
+Gates:
+- `bun run typecheck` (raiz, 7 apps): `0`. Worker `bun run lint`: `0`. `prettier --check` em `src`, `test`, `package.json`, `CLAUDE.md`: limpo.
+- Worker `bun run test`: `3007 pass, 0 fail` (era 2998; +9 do contrato: 4 do orçamento restante, 2 da escolha, 3 da rotina).
+- Integração nova (`nfe-access-key-lookup-requeue.integration.test.ts`, Postgres real, 5 casos): devolve a busca vencida com evento novo e a mesma referência; não toca em busca com `not_before` futuro, sem import ou já fora de `waiting`; com 13 de 15 usadas devolve só as duas mais antigas e o orçamento continua 13; bloqueio 656 aberto não devolve nada; 3 chamadas concorrentes sobre 8 buscas geram exatamente 8 eventos, um por busca.
+- Worker `bun --env-file=../../.env.test run test:integration`: `391 pass, 4 skip, 0 fail` (395 testes, 73 arquivos).
+- Arquivos novos nas listas do `package.json`: `nfe-access-key-lookup-requeue.integration.test.ts` (o contrato novo entra por `job-run.contract.test.ts`, já listado).
