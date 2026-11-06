@@ -17,6 +17,12 @@ Fatos levantados em `spec.md` § "Fatos". Decisões:
   índice único parcial de busca ativa. O `nfe_imports` (`source = 'access_key'`) + item + documento só nascem no worker,
   quando chega o `procNFe`, pelo escritor comum — a trilha de importação continua a mesma. As colunas `lookup_reason` e
   `not_before` em `nfe_import_items` saem do plano.
+  **Complemento (T1.1):** o `processing_outbox` tem FK `(company_id, aggregate_id) → nfe_imports`. Por isso a API cria,
+  na mesma transação da busca, o `nfe_imports` (`source = 'access_key'`, `status = 'queued'`, contadores zerados) e
+  grava `nfe_access_key_lookups.import_id`; o evento sai com `aggregate_type = 'nfe_import'`, `aggregate_id = importId`
+  e `lookupId` no payload. O worker só acrescenta item e documento a esse import quando chega o `procNFe`; no desfecho
+  sem documento fecha o import em `failed` com `terminal_error = { reason }`. A resposta `found` (nota já cadastrada)
+  e a busca existente (idempotência) não criam import. Nenhuma constraint muda.
 - **D2 — Uma busca, um evento.** Outbox `transportada.nfe.access-key.requested` → rota `nfe-access-key.v1`, consumidor
   próprio no worker. Não passa pelo consumidor da distribuição: o lease do cursor por NSU não pode esperar a SEFAZ
   responder chaves.

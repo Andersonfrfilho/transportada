@@ -83,3 +83,19 @@ Gates (saída final de cada um):
   `230 pass, 0 fail` e `212 pass, 0 fail`.
 - Worker `bun run test`: `2957 pass, 0 fail, 114 arquivos`, `EXIT=0`.
 - `bun run lint` (API e worker): `EXIT=0` nas duas apps.
+
+## T1.2 — contratos da busca por chave (vermelho)
+
+Contratos escritos antes de qualquer código de produção (`src/nfe-access-key-lookups/` não existe).
+
+Arquivos (todos na lista explícita do `package.json`: `test` e `test:integration`):
+- `test/nfe-access-key-lookups.contract.test.ts` (entrada) + `test/nfe-access-key-lookups/{route,request-use-case,get-use-case}.contract.ts`
+- `test/integration/nfe-access-key-lookups.integration.ts` (banco descartável: transação única, rollback, `found`, repetição,
+  8 POSTs concorrentes → 1 busca/1 import/1 evento, RF8 a 23 h e 25 h, falha transitória reperguntada, sem perfil fiscal → 409, GET 404 entre empresas)
+- `test/fixtures/nfe-access-key-lookup{,-http}.fixture.ts`
+
+Vermelho medido:
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/nfe-access-key-lookups.contract.test.ts`: `0 pass, 27 fail`
+  (`Cannot find module .../nfe-access-key-lookups/...`).
+- `bun --env-file=../../.env.test test ./test/integration/nfe-access-key-lookups.integration.ts`: `0 pass, 1 fail, 1 error`
+  (módulo do caso de uso ausente).
