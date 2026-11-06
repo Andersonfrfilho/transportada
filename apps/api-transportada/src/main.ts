@@ -208,6 +208,7 @@ import {
 } from './whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 import type { GroupQuestionAsked } from './whatsapp/application/whatsapp-group-request.port.js'
 import { createWhatsAppGroupRequestSessions } from './whatsapp/application/whatsapp-group-request.service.js'
+import { createWhatsAppTurnReplies } from './whatsapp-commands/application/whatsapp-turn-replies.service.js'
 import { createEvolutionGroupReplySender } from './whatsapp/infrastructure/evolution-group-reply.gateway.js'
 import { startGroupRequestExpiryWatcher } from './whatsapp/infrastructure/whatsapp-group-request-expiry.watcher.js'
 import {
@@ -2408,8 +2409,11 @@ function createEvolutionWebhook(input: {
    * Spec 292 T4: a sessão do pedido no grupo. A resposta sai pelo mesmo Evolution e no mesmo ritmo do
    * número (spec 289), fora do webhook.
    */
+  /** Uma resposta por turno é uma mensagem: o remetente e a entrada do grupo dividem o mesmo turno. */
+  const groupTurns = createWhatsAppTurnReplies()
   const groupReplies = createEvolutionGroupReplySender({
     logger,
+    turnReplies: groupTurns,
     sendText: createEvolutionDocumentSender({
       pacer: createEvolutionSendPacer({
         claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
@@ -2497,6 +2501,7 @@ function createEvolutionWebhook(input: {
     gateway,
     // Spec 292 T3: o grupo do motorista chega ao bot; T4/T5: a sessão do pedido e o fluxo.
     groupInbound: createEvolutionGroupInbound({
+      turnReplies: groupTurns,
       ...(groupAudio === undefined
         ? {}
         : {

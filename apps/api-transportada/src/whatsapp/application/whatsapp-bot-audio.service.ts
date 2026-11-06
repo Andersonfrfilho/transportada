@@ -16,6 +16,7 @@
  * ⚠️ Nada de texto transcrito, número ou id de grupo em log: só empresa, motivo e tamanho.
  */
 import type { ApiLogger } from '../../shared/api.types.js'
+import { runOutsideWhatsAppTurn } from '../../whatsapp-commands/application/whatsapp-turn-replies.service.js'
 
 export type BotAudioTranscriberPort = {
   /** O texto do áudio (pode vir vazio). Falha lança. */
@@ -432,7 +433,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
       if (transcriber === undefined) return
       const job = beginJob(`${keyOf(input.companyId, input.conversation)}:${input.owner}`)
       track(
-        (async () => {
+        runOutsideWhatsAppTurn(async () => {
           try {
             const audio = await input.download()
             const bytes = Uint8Array.from(Buffer.from(audio.data, 'base64'))
@@ -453,7 +454,7 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
           } finally {
             job.end()
           }
-        })(),
+        }),
       )
     },
     async offer({ companyId, context, conversation, details, owner, reply, text: heard }) {
@@ -534,7 +535,10 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
         guard.end()
         throw error
       }
-      const job = transcribeAndAsk(input, key, ticket, guard.isCancelled)
+      // A transcrição responde depois do turno ("entendi assim" é outra mensagem, no seu tempo).
+      const job = runOutsideWhatsAppTurn(() =>
+        transcribeAndAsk(input, key, ticket, guard.isCancelled),
+      )
         .catch((error: unknown) => {
           logger.warn('whatsapp_bot_audio.failed', {
             companyId: input.companyId,

@@ -165,15 +165,13 @@ ${farewell}`,
     },
     {
       answered: [
-        `Ok, sem esse item.`,
-        `📸 *NF 17234:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
+        `Ok, sem esse item.\n\n📸 *NF 17234:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `Ok, sem esse item.`,
-        `✅ *NF 17234 pronta para fechar*.
+        `Ok, sem esse item.\n\n✅ *NF 17234 pronta para fechar*.
 *Confirma a entrega?*
 *1* - Sim
 *2* - Não`,
@@ -182,8 +180,7 @@ ${farewell}`,
     },
     {
       answered: [
-        `*NF 17234 entregue.* Parada concluída. ✅`,
-        `➡️ *Próxima parada*
+        `*NF 17234 entregue.* Parada concluída. ✅\n\n➡️ *Próxima parada*
 *Parada 2 de 3*
 *NF 17235* · R$ 99,90
 🏪 *MERCADO LUA CHEIA*
@@ -350,8 +347,7 @@ ${farewell}`,
     },
     {
       answered: [
-        `*NF 17236 não entregue* ↩️`,
-        `➡️ *Próxima parada*
+        `*NF 17236 não entregue* ↩️\n\n➡️ *Próxima parada*
 *Parada 2 de 3*
 *NF 17235* · R$ 99,90
 🏪 *MERCADO LUA CHEIA*
@@ -435,15 +431,13 @@ ${farewell}`,
     },
     {
       answered: [
-        `Ok, sem esse item.`,
-        `📸 *NF 17235:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
+        `Ok, sem esse item.\n\n📸 *NF 17235:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `Ok, sem esse item.`,
-        `✅ *NF 17235 pronta para fechar*.
+        `Ok, sem esse item.\n\n✅ *NF 17235 pronta para fechar*.
 *Confirma a entrega?*
 *1* - Sim
 *2* - Não`,
@@ -452,8 +446,7 @@ ${farewell}`,
     },
     {
       answered: [
-        `*NF 17235 entregue.* Viagem concluída. 🏁`,
-        `🏁 *Rota concluída:* todas as paradas fechadas.
+        `*NF 17235 entregue.* Viagem concluída. 🏁\n\n🏁 *Rota concluída:* todas as paradas fechadas.
 
 ${farewell}`,
       ],

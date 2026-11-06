@@ -891,6 +891,13 @@ pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigration
   a baixa (ou a caminho) decide (`readWhatsAppStopInProgress`: uma nota vai direto com o bloco da parada, várias listam
   só as dela); só sem nada em andamento a lista é a da viagem. O número digitado sempre vence. A foto sem pergunta
   aberta (reconhecimento do canhoto) também pergunta primeiro pela nota da parada em andamento.
+- **Uma resposta do bot por turno é UMA mensagem do WhatsApp** (`whatsapp-turn-replies.service.ts`): no grupo, o remetente
+  (`createEvolutionGroupReplySender`) e a entrada (`createEvolutionGroupInbound`) dividem o turno; na conversa individual, o
+  canal da Meta é embrulhado em `createWhatsAppCommandHookFactory`. Os textos do turno saem juntos (linha em branco entre
+  eles) no fim; lista/botões interativos saem na hora, depois da fala já guardada. O que vem depois do turno (a
+  transcrição do áudio, `runOutsideWhatsAppTurn`) sai sozinho. Motivo: o espaçador do Evolution segura cada mensagem
+  seguinte, e a pergunta separada chegava depois da resposta do motorista. As jornadas de integração cobram uma mensagem
+  por turno.
 - **"Cancelar" fecha qualquer pergunta aberta, nunca vira resposta**: no grupo, todo passo do `GROUP_STEP_REGISTRY`
   fecha (a lista "Qual nota você entregou?" só deixa o pedido fechar; a entrega em preparo é encerrada); no individual,
   o motorista sai de qualquer nó do fluxo com "Certo, cancelei e não registrei nada." As matrizes de isolamento

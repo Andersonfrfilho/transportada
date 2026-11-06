@@ -61,6 +61,7 @@ import { createGroupReturnFlow } from '../../src/whatsapp/application/whatsapp-g
 import { createGroupStopFlow } from '../../src/whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { createDrizzleWhatsAppGroupRequestRepository } from '../../src/whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
 import { createEvolutionGroupReplySender } from '../../src/whatsapp/infrastructure/evolution-group-reply.gateway.js'
+import { createWhatsAppTurnReplies } from '../../src/whatsapp-commands/application/whatsapp-turn-replies.service.js'
 import { createGroupDeliveryWiring } from '../../src/whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
 import { createGroupReturnPorts } from '../../src/whatsapp/infrastructure/whatsapp-group-return.adapter.js'
 import { createGroupStopPorts } from '../../src/whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
@@ -220,12 +221,14 @@ async function buildGroupJourney(db: JourneyDatabase, world: JourneyWorld, now: 
       }),
     ),
   })
-  // O remetente de verdade do grupo: cada texto é UMA mensagem do Evolution, e em produção o espaçador de envio (por
-  // instância) segura a seguinte — a pergunta mandada em mensagem separada chegava depois da resposta do motorista.
+  // O remetente de verdade do grupo, com o turno de verdade: em produção o espaçador de envio do Evolution segura cada
+  // mensagem seguinte, então a resposta de um turno tem de ser UMA mensagem (senão a pergunta chega depois da resposta).
   const sent: string[] = []
+  const turns = createWhatsAppTurnReplies()
   const replies = createEvolutionGroupReplySender({
     logger,
     sendText: async ({ body }) => void sent.push(body),
+    turnReplies: turns,
   })
   const requests = createDrizzleWhatsAppGroupRequestRepository(db)
   const bot = createWhatsAppBotAudio<GroupAudioContext>({
@@ -273,6 +276,7 @@ async function buildGroupJourney(db: JourneyDatabase, world: JourneyWorld, now: 
     }),
     isGroupDriver: delivery.isGroupDriver,
     now: () => now.getTime(),
+    turnReplies: turns,
   })
 
   let counter = 0
@@ -312,6 +316,12 @@ async function buildGroupJourney(db: JourneyDatabase, world: JourneyWorld, now: 
     await bot.idle()
     await replies.idle()
     const answered = sent.slice(before)
+    // Uma resposta por turno é UMA mensagem. O áudio é a única exceção: o "estou escutando" sai no turno e o "entendi
+    // assim" só depois da transcrição (outro momento, outra mensagem).
+    expect({ messages: answered.length, shown: input.shown }).toEqual({
+      messages: Math.min(answered.length, input.audio === undefined ? 1 : 2),
+      shown: input.shown,
+    })
     transcript.push({ from: 'motorista', text: input.shown })
     for (const reply of answered) transcript.push({ from: 'bot', text: reply })
     return answered
@@ -544,8 +554,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
     {
       expected: {
         answered: [
-          '⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.',
-          '📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+          '⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.\n\n📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
         ],
         shown: '1',
       },
@@ -553,7 +562,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
     },
     {
       expected: {
-        answered: ['Localização recebida.', '📸 *NF 17234:* mande a foto do canhoto assinado.'],
+        answered: ['Localização recebida.\n\n📸 *NF 17234:* mande a foto do canhoto assinado.'],
         shown: '📍 (localização)',
       },
       send: { media: LOCATION_S1, shown: '📍 (localização)' },
