@@ -403,3 +403,27 @@ filtro (schema, routes, tipos, repositório) foram alargados. Contrato: `test/nf
 
 Gates: `bun run typecheck` (raiz) 0 erros; frontend `bun run test` 8703 + 1470 pass, 0 fail; lint do app 0 erros;
 API `bun --env-file=../../.env.test test --timeout 120000` 14160 pass, 0 fail; lint da API sem problemas.
+
+## T3.5
+
+Importar por bip na página de NF-e (RF11, RF11a–RF11e, critério 4a). O painel aparece na origem "Busca por chave" da aba
+Processamentos (`AccessKeyImportSection`, montado só com a origem aberta: fechar a origem para o polling). Bipar
+**importa**: nota cadastrada é só contada ("já estava no sistema"); desconhecida é buscada na SEFAZ e importada.
+
+- Fila reaproveitada, sem fork: `useAccessKeyLookupQueue` ganhou `clear` e `restore`; a linha ganhou `wasRegistered`
+  (a conferência em lote achou a nota cadastrada) — é o que separa "já estavam" de "importadas".
+- `accessKeyImportSummary.service.ts` (puro): `scanned` = chaves distintas + leituras ilegíveis (chave repetida não
+  conta de novo; 50 leituras com 1 repetida = 49). As desconhecidas (`scanned - ilegíveis - já estavam`) se repartem
+  em `imported + searching + waiting + refused + notObtained`; **falha/demora/erro caem em `notObtained`** ("Não
+  obtidas"), conferindo e buscando em `searching`. Cada linha cai em exatamente um balde.
+- `useAccessKeyImport.hook.ts`: guarda em `sessionStorage` só `{accessKey, lookupId, wasRegistered}` (try/catch em todo
+  acesso); ao recarregar, restaura e retoma o polling; "Limpar lista" só esvazia a fila. Ilegível não é guardado
+  (contador da tela). Refoco do leitor após leitura, Enviar XML, limpar e fechar a câmera.
+- "Abrir" leva à aba Notas (não há rota por documento). "Enviar XML" só em recusa que não é `cancelled`/`denied`.
+- Contrato 4a: `test/nfe-workspace/access-key-import.contract.ts` (48 chaves + 1 repetida + 1 ilegível: bipadas 49, já
+  estavam 30, ilegível 1, partição = 18 em cada passo da linha do tempo, uma chamada de conferência por rajada,
+  restore/clear) e `test/nfe-access-key-lookup/import-hook.contract.ts` (hook: ilegível, repetida, sessionStorage sem
+  dado da nota, reload, limpar). Registrados em `nfe-workspace.contract.test.ts` e `trip-hooks.contract.test.ts`.
+- Locales: bloco `accessKeyImport` em `nfeWorkspace.locale.json` e `.en.locale.json`.
+
+Gates T3.5: `bun run typecheck` (raiz) 0 erros; frontend `bun run test` 8706 pass, 0 fail (+ `test:hooks` 1471 pass); lint 0 erros.

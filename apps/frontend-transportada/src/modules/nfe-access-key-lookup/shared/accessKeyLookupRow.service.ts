@@ -20,6 +20,8 @@ export type AccessKeyLookupRow = Readonly<{
   accessKey: string
   lookupId: null | string
   state: AccessKeyLookupRowState
+  /** A conferência em lote achou a nota já cadastrada (não foi importada por esta busca). */
+  wasRegistered?: boolean
 }>
 
 export type AccessKeyLookupRowFlags = Readonly<{

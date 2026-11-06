@@ -8,6 +8,7 @@ import {
   type AccessKeyLookupQueue,
   type AddAccessKeyResult,
   type QueueScheduler,
+  type RestoredAccessKey,
 } from '../shared/accessKeyLookupQueue.service'
 import type { AccessKeyLookupRow } from '../shared/accessKeyLookupRow.service'
 
@@ -18,8 +19,10 @@ export type UseAccessKeyLookupQueueInput = Readonly<{
 
 export type AccessKeyLookupQueueController = Readonly<{
   add: (accessKey: string) => AddAccessKeyResult
+  clear: () => void
   markXmlImported: (accessKey: string, documentId: string) => void
   recheck: (accessKey: string) => Promise<boolean>
+  restore: (entries: readonly RestoredAccessKey[]) => void
   retry: (accessKey: string) => void
   rows: readonly AccessKeyLookupRow[]
 }>
@@ -46,8 +49,10 @@ export function useAccessKeyLookupQueue(
 
   return {
     add,
+    clear: queue.clear,
     markXmlImported: queue.markXmlImported,
     recheck: queue.recheck,
+    restore: queue.restore,
     retry: queue.retry,
     rows,
   }

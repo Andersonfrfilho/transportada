@@ -687,5 +687,60 @@
   },
   "cameraMeasurementValidationExportExcel": "Export period Excel",
   "cameraMeasurementExportSheetName": "Camera measurements",
-  "cameraMeasurementExportTitle": "Camera measurements"
+  "cameraMeasurementExportTitle": "Camera measurements",
+  "accessKeyImport": {
+    "title": "Import by scan",
+    "subtitle": "Scan each note's key: a note already in the system is only counted, an unknown one is searched at SEFAZ and imported automatically.",
+    "reader": {
+      "field": "Note key",
+      "idle": "Click here to resume reading",
+      "ready": "Reader ready"
+    },
+    "scan": "Read with camera",
+    "scanClose": "Close camera",
+    "scanDenied": "Camera access was not granted.",
+    "scanReading": "Reading the code…",
+    "scanStarting": "Opening the camera…",
+    "scanTitle": "Read note key",
+    "scanUnavailable": "The camera is not available on this device.",
+    "alreadyScanned": "This key was already scanned.",
+    "alreadyInSystem": "Already in the system.",
+    "summary": {
+      "scanned": "Scanned",
+      "alreadyInSystem": "Already in the system",
+      "imported": "Imported",
+      "searching": "Searching",
+      "waiting": "In the SEFAZ queue",
+      "refused": "Refused",
+      "notObtained": "Not obtained",
+      "unreadable": "Unreadable"
+    },
+    "nextWindow": "next window {{time}}",
+    "refusedReason": "{{count}} {{reason}}",
+    "reason": {
+      "not_interested": "not released",
+      "summary_only": "summary only",
+      "not_found": "not found",
+      "expired": "expired",
+      "cancelled": "cancelled",
+      "denied": "denied",
+      "certificate_mismatch": "certificate",
+      "invalid_key": "invalid key",
+      "sefaz_unavailable": "SEFAZ unavailable"
+    },
+    "filter": {
+      "all": "All",
+      "imported": "Imported",
+      "alreadyInSystem": "Already there",
+      "refused": "Refused"
+    },
+    "clear": "Clear list",
+    "xml": {
+      "action": "Send XML",
+      "field": "Note XML",
+      "placeholder": "No XML chosen",
+      "failed": "Could not send the XML. Try again.",
+      "notImported": "The XML was sent, but the note is not in the registry yet."
+    }
+  }
 }

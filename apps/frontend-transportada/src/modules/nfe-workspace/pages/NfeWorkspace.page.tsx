@@ -41,6 +41,7 @@ import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.com
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
 import { NfeImportQueue } from '../components/NfeImportQueue.component'
+import { AccessKeyImportSection } from '../components/AccessKeyImportSection.component'
 import { NfeUploadPanel } from '../components/NfeUploadPanel.component'
 import { NfeWorkspaceHeader } from '../components/NfeWorkspaceHeader.component'
 import { useNfeWorkspace } from '../hooks/useNfeWorkspace.hook'
@@ -505,6 +506,10 @@ export function NfeWorkspacePage() {
                         uploadPending={workspace.uploadMutation.isPending}
                         uploadSucceeded={workspace.uploadMutation.isSuccess}
                       />
+                    )}
+
+                    {mechanism === 'accessKey' && workspace.canImport && (
+                      <AccessKeyImportSection onOpenDocument={() => setActiveTab('documents')} />
                     )}
 
                     {mechanismView.showsDistribution && (

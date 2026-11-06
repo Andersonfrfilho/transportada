@@ -34,9 +34,19 @@ export const BROWSER_SCHEDULER: QueueScheduler = {
 
 export type AddAccessKeyResult = Readonly<{ alreadyScanned: boolean }>
 
+export type RestoredAccessKey = Readonly<{
+  accessKey: string
+  lookupId: null | string
+  wasRegistered: boolean
+}>
+
 export type AccessKeyLookupQueue = Readonly<{
   add: (accessKey: string) => AddAccessKeyResult
+  /** Esvazia a lista da tela: relógios e respostas em voo são descartados; nada é apagado no servidor. */
+  clear: () => void
   getRows: () => readonly AccessKeyLookupRow[]
+  /** Recarrega a lista guardada pela tela: só a chave e os ids, o estado vem de novo do servidor. */
+  restore: (entries: readonly RestoredAccessKey[]) => void
   /** Depois do envio do XML: confere o cadastro da chave e vira "pronta" se a nota já entrou. */
   recheck: (accessKey: string) => Promise<boolean>
   markXmlImported: (accessKey: string, documentId: string) => void
@@ -81,6 +91,14 @@ export function createAccessKeyLookupQueue(
     const row = rows.get(accessKey)
     if (row === undefined) return
     rows.set(accessKey, withState(row, state, lookupId ?? row.lookupId))
+    publish()
+  }
+
+  function markRegistered(accessKey: string, documentId: string): void {
+    const row = rows.get(accessKey)
+    if (row === undefined) return
+    const wasRegistered = row.lookupId === null
+    rows.set(accessKey, { ...withState(row, { documentId, kind: 'ready' }), wasRegistered })
     publish()
   }
 
@@ -168,7 +186,7 @@ export function createAccessKeyLookupQueue(
       const generation = generationsAtSend.get(key) ?? 0
       if (!isCurrent(key, generation)) continue
       const documentId = documentIds.get(key) ?? null
-      if (documentId !== null) setState(key, { documentId, kind: 'ready' })
+      if (documentId !== null) markRegistered(key, documentId)
       else void startLookup(key, generation)
     }
   }
@@ -220,6 +238,30 @@ export function createAccessKeyLookupQueue(
         generations.set(accessKey, (generations.get(accessKey) ?? 0) + 1)
     },
     getRows: () => snapshot,
+    clear() {
+      pollHandles.forEach((handle) => scheduler.clear(handle))
+      pollHandles.clear()
+      if (batchHandle !== undefined) scheduler.clear(batchHandle)
+      batchHandle = undefined
+      pendingBatch = []
+      for (const accessKey of rows.keys())
+        generations.set(accessKey, (generations.get(accessKey) ?? 0) + 1)
+      rows.clear()
+      publish()
+    },
+    restore(entries) {
+      for (const entry of entries) {
+        if (rows.has(entry.accessKey)) continue
+        const base = createCheckingRow(entry.accessKey)
+        const row: AccessKeyLookupRow =
+          entry.lookupId === null
+            ? { ...base, wasRegistered: entry.wasRegistered }
+            : withState(base, { kind: 'searching', status: 'queued' }, entry.lookupId)
+        rows.set(entry.accessKey, row)
+        if (isActive) resume(row)
+      }
+      publish()
+    },
     markXmlImported(accessKey, documentId) {
       restart(accessKey)
       setState(accessKey, { documentId, kind: 'ready' })

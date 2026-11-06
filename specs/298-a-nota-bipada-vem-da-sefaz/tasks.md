@@ -44,7 +44,7 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 - [x] T3.2 Criação da viagem (`useTripQuickCreate`): o bip deixa de acrescentar direto; toda nota bipada vai à lista
       de notas encontradas com "Acrescentar"/"Acrescentar todas"; `notFound` vira busca (RF9) — contrato do critério 4.
 - [x] T3.3 Detalhe da viagem (RF9, RF10) e origem "busca por chave" na página de NF-e (RF12) — contratos.
-- [ ] T3.5 Importar por bip na página de NF-e (RF11–RF11c): leitor contínuo, resumo, filtros, sessão do navegador —
+- [x] T3.5 Importar por bip na página de NF-e (RF11–RF11c): leitor contínuo, resumo, filtros, sessão do navegador —
       contrato do critério 4a.
 - [ ] T3.4 Locales pt-BR/en dos estados e motivos — `typecheck` + teste de chaves de locale.
 
