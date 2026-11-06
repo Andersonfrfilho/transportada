@@ -17,20 +17,20 @@
 ARG PLANETILER_VERSION=latest
 
 # O `latest` do planetiler perdeu o `wget`; o download vive num estágio próprio que garante a ferramenta.
-# ⚠️ A URL é presignada (credencial do bucket): entra como **segredo de build**, nunca como `ARG` — o
-# Railway imprime o `RUN` com o `ARG` expandido no log de build, e a URL vazou assim em 05/11/2026.
+# ⚠️ A URL é presignada (credencial do bucket). O Railway imprime o texto do `RUN` com o `ARG` expandido no
+# log de build (vazou assim em 05/11/2026) e não aceita `--mount=type=secret`. Por isso o `RUN` só chama o
+# script: a URL fica no ambiente do passo, fora do texto do comando, e este estágio não vai para a imagem final.
 FROM alpine:3.20 AS pbf
 
-RUN --mount=type=secret,id=MAP_PBF_URL set -eu; \
-  if [ ! -s /run/secrets/MAP_PBF_URL ]; then \
-    echo 'MAP_PBF_URL é obrigatório — ver docs/runbooks/map-tiles.md' >&2; exit 1; \
-  fi; \
-  apk add --no-cache curl >/dev/null; \
-  curl -fsSL -o /area.osm.pbf "$(cat /run/secrets/MAP_PBF_URL)"
+ARG MAP_PBF_URL
+
+COPY deploy/map-tiles/fetch-pbf.sh /fetch-pbf.sh
+
+RUN sh /fetch-pbf.sh
 
 FROM ghcr.io/onthegomap/planetiler:${PLANETILER_VERSION} AS dataset
 
-# Sub-região do Geofabrik, `.osm.pbf` — o **mesmo** arquivo que alimenta o OSRM (segredo `MAP_PBF_URL`,
+# Sub-região do Geofabrik, `.osm.pbf` — o **mesmo** arquivo que alimenta o OSRM (`ARG MAP_PBF_URL`,
 # estágio `pbf`). Sem valor padrão de propósito: mapa e rota descrevendo regiões diferentes é a tela e o
 # roteirizador discordando.
 

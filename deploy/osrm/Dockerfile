@@ -15,17 +15,19 @@ FROM ghcr.io/project-osrm/osrm-backend:${OSRM_VERSION} AS dataset
 
 # Sub-região do Geofabrik, `.osm.pbf`. Sem valor padrão de propósito: um default silencioso assaria o
 # mapa errado, e mapa errado responde com número plausível (runbook, "extract pequeno demais").
-# ⚠️ A URL é presignada (credencial do bucket): entra como **segredo de build**, nunca como `ARG` — o
-# Railway imprime o `RUN` com o `ARG` expandido no log de build (vazou assim no map-tiles em 05/11/2026).
+# ⚠️ A URL é presignada (credencial do bucket). O Railway imprime o texto do `RUN` com o `ARG` expandido no
+# log de build (vazou assim no map-tiles em 05/11/2026) e não aceita `--mount=type=secret`: o download fica
+# num script, com a URL só no ambiente do passo.
+ARG OSRM_PBF_URL
+
 WORKDIR /data
 
 # `set -eu` porque o `/bin/sh` desta imagem é BusyBox e o pipeline abaixo precisa parar no primeiro
 # erro — um `osrm-extract` que falha e um `osrm-partition` que continua produzem dataset pela metade.
-RUN --mount=type=secret,id=OSRM_PBF_URL set -eu; \
-  if [ ! -s /run/secrets/OSRM_PBF_URL ]; then \
-    echo 'OSRM_PBF_URL é obrigatório — ver docs/runbooks/osrm-extract.md' >&2; exit 1; \
-  fi; \
-  wget -q -O area.osm.pbf "$(cat /run/secrets/OSRM_PBF_URL)"; \
+COPY deploy/osrm/fetch-pbf.sh /fetch-pbf.sh
+
+RUN set -eu; \
+  sh /fetch-pbf.sh; \
   osrm-extract -p /opt/car.lua /data/area.osm.pbf; \
   osrm-partition /data/area.osrm; \
   osrm-customize /data/area.osrm; \
