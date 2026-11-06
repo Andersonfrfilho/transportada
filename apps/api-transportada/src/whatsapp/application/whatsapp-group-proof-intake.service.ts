@@ -34,8 +34,8 @@ import type { ResolveWhatsAppSenderRole } from './whatsapp-sender-role.service.j
 const GROUP_PHOTO_MAX_BYTES = 12 * 1024 * 1024
 
 export const GROUP_PROOF_TEXT = {
-  locationKept:
-    'Localização recebida. Ela vale para o próximo "saí", "cheguei" ou "entreguei" deste grupo.',
+  locationNotAsked:
+    'Recebi a localização, mas nenhuma pergunta minha está esperando por ela. Quando eu pedir, mande de novo.',
   photoTooLarge: 'Essa foto é grande demais. Mande uma foto menor, por favor.',
 } as const
 
@@ -65,6 +65,11 @@ export type GroupProofIntakePorts = {
     readonly location?: { readonly latitude: number; readonly longitude: number }
     readonly sender: string
   }) => Promise<boolean>
+  /** Esquece o ponto lembrado: localização que ninguém pediu não vale para um evento de depois. */
+  readonly forgetLocation: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => void
   readonly rememberLocation: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -118,6 +123,7 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
       if (media.media.kind === 'location') {
         const location = toLocation(media.media, media.timestamp, clock())
         if (location === null) return
+        // O ponto fica lembrado só enquanto quem o pediu usa: o "saí"/"cheguei" do pedido o consome no registro.
         ports.rememberLocation({ companyId, driverId, location })
         const advanced = await ports.advanceRequest?.({
           companyId,
@@ -126,9 +132,10 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
           sender: media.sender,
         })
         if (advanced === true) return
-        if (actor === null) return say(media, [GROUP_PROOF_TEXT.locationKept])
+        ports.forgetLocation({ companyId, driverId })
+        if (actor === null) return say(media, [GROUP_PROOF_TEXT.locationNotAsked])
         const reply = await ports.preparations.receiveLocation({ actor, location })
-        if (reply === null) return say(media, [GROUP_PROOF_TEXT.locationKept])
+        if (reply === null) return say(media, [GROUP_PROOF_TEXT.locationNotAsked])
         return settle(media, reply)
       }
 

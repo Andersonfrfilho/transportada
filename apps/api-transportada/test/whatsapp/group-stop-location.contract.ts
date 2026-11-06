@@ -35,7 +35,11 @@ function request(step: string, state: Record<string, unknown> = {}): GroupReques
   }
 }
 
-function setup(options: { readonly hasLocation: boolean; readonly isAddressReliable?: boolean }) {
+function setup(options: {
+  readonly hasLocation: boolean
+  readonly isAddressReliable?: boolean
+  readonly stopCount?: number
+}) {
   const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
   const flow = createGroupDriverFlow({
     occurrence: {
@@ -46,17 +50,16 @@ function setup(options: { readonly hasLocation: boolean; readonly isAddressRelia
     stop: createGroupStopFlow({
       enRouteMessage: async () => 'a caminho',
       hasLocation: () => options.hasLocation,
-      listStops: async () => [
-        {
+      listStops: async () =>
+        Array.from({ length: options.stopCount ?? 1 }, (_, index) => ({
           arrivedAt: null,
           completedAt: null,
-          documents: [{ number: '17234', separationStatus: 'loaded' }],
+          documents: [{ number: String(17234 + index), separationStatus: 'loaded' as const }],
           enRouteSince: null,
-          id: 'S1',
+          id: `S${index + 1}`,
           isAddressReliable: options.isAddressReliable ?? true,
-          sequence: 1,
-        },
-      ],
+          sequence: index + 1,
+        })),
       record: async (input) => {
         recorded.push(input)
         return { message: input.event === 'depart' ? 'Saída registrada.' : 'Chegada registrada.' }
@@ -204,5 +207,26 @@ describe('grupo: "cheguei" em parada sem localização certa corrige o endereço
       })
     expect(await render('applied')).toBe('Chegada registrada. 📍\nEndereço atualizado. ✅')
     expect(await render('suggested')).toContain('Enviei para o escritório conferir')
+  })
+})
+
+describe('grupo: a escolha da parada não deixa o passo da localização cair na ocorrência', () => {
+  test('"iniciar rota" com várias paradas: o passo da localização continua das paradas', async () => {
+    const t = setup({ hasLocation: false, stopCount: 2 })
+    const choosing = await t.start('iniciar rota')
+    expect(choosing).toMatchObject({ kind: 'continue', step: 'stop.choose' })
+    const asked = await t.answer('1')
+    expect(asked).toMatchObject({ kind: 'continue', step: 'stop.location' })
+    expect(await t.locationReceived()).toEqual({ kind: 'done', replies: ['Saída registrada.'] })
+    expect(t.recorded).toMatchObject([{ event: 'depart', stopId: 'S1' }])
+  })
+
+  test('"cheguei" com várias paradas: a localização também registra a chegada', async () => {
+    const t = setup({ hasLocation: false, stopCount: 2 })
+    await t.start('cheguei')
+    await t.answer('2')
+    expect(t.step()).toBe('stop.location')
+    expect(await t.locationReceived()).toEqual({ kind: 'done', replies: ['Chegada registrada.'] })
+    expect(t.recorded).toMatchObject([{ event: 'arrive', stopId: 'S2' }])
   })
 })

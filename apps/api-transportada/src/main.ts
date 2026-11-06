@@ -184,6 +184,7 @@ import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/wh
 import { createEvolutionGroupIdentity } from './whatsapp/application/evolution-group-identity.service.js'
 import {
   createEvolutionGroupInbound,
+  createGroupQuestionAskedHandler,
   type GroupAudioContext,
 } from './whatsapp/application/evolution-group-inbound.service.js'
 import {
@@ -205,6 +206,7 @@ import {
   createGroupOccurrenceFlow,
   type GroupOccurrenceFlowPorts,
 } from './whatsapp/application/whatsapp-group-occurrence-flow.service.js'
+import type { GroupQuestionAsked } from './whatsapp/application/whatsapp-group-request.port.js'
 import { createWhatsAppGroupRequestSessions } from './whatsapp/application/whatsapp-group-request.service.js'
 import { createEvolutionGroupReplySender } from './whatsapp/infrastructure/evolution-group-reply.gateway.js'
 import { startGroupRequestExpiryWatcher } from './whatsapp/infrastructure/whatsapp-group-request-expiry.watcher.js'
@@ -1698,6 +1700,7 @@ export function bootstrap(): Bun.Server<undefined> {
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
     logger,
     preparations: whatsappDriverCollections,
+    forgetLocation: (key) => void whatsappGroupLocations.consume(groupLocationKey(key)),
     rememberLocation: ({ location, ...key }) =>
       whatsappGroupLocations.remember({ ...groupLocationKey(key), location }),
     deliverAsAttendant: whatsappOfficeDelivery.deliver,
@@ -2386,6 +2389,8 @@ function createEvolutionWebhook(input: {
       replies: groupReplies,
     })
   }
+  // O áudio do grupo nasce depois da sessão; a pergunta nova do pedido só o consulta quando já existe.
+  let groupQuestionAsked: GroupQuestionAsked | undefined
   const groupSessions =
     input.groupOccurrence === undefined
       ? undefined
@@ -2408,6 +2413,9 @@ function createEvolutionWebhook(input: {
                     : { tripClose: createGroupTripCloseFlow(input.groupTripClose) }),
                 }),
           logger,
+          onQuestionAsked: (asked) => groupQuestionAsked?.(asked),
+          onRequestClosed: ({ companyId, driverId }) =>
+            input.groupDelivery?.intake.forgetLocation({ companyId, driverId }),
           replies: groupReplies,
           repository: groupRequests,
         })
@@ -2438,6 +2446,7 @@ function createEvolutionWebhook(input: {
           logger,
           transcriber: whatsappBotAudioTranscriber(),
         })
+  if (groupAudio !== undefined) groupQuestionAsked = createGroupQuestionAskedHandler(groupAudio)
   return createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets,
     apiPublicUrl: input.apiPublicUrl,

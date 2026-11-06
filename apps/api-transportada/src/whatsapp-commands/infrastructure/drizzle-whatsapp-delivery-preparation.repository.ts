@@ -34,6 +34,7 @@ const COLUMNS = {
   receivedBy: whatsappDeliveryPreparations.receivedBy,
   receiverName: whatsappDeliveryPreparations.receiverName,
   skipped: whatsappDeliveryPreparations.skipped,
+  updatedAt: whatsappDeliveryPreparations.updatedAt,
   version: whatsappDeliveryPreparations.version,
 }
 
@@ -52,6 +53,7 @@ type Row = {
   receivedBy: WhatsAppDeliveryPreparation['receivedBy']
   receiverName: null | string
   skipped: readonly string[]
+  updatedAt: Date
   version: bigint
 }
 

@@ -35,7 +35,10 @@ import { createStaticWhatsAppFlowGraphProvider } from '../../src/whatsapp-comman
 import { createWhatsAppDriverPrompts } from '../../src/whatsapp-commands/application/whatsapp-driver-prompts.service.js'
 import { DRIVER_FLOW_NODE } from '../../src/whatsapp-commands/domain/whatsapp-driver-flow.constant.js'
 import { interpretDriverChoice } from '../../src/whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
-import { DRIVER_PROMPT_CONTEXT_KEY } from '../../src/whatsapp-commands/domain/whatsapp-driver-prompt.policy.js'
+import {
+  DRIVER_PROMPT_CONTEXT_KEY,
+  DRIVER_PROMPT_TEXT,
+} from '../../src/whatsapp-commands/domain/whatsapp-driver-prompt.policy.js'
 import {
   canAskRouteOffer,
   describeRouteOffer,
@@ -186,6 +189,8 @@ function textMessage(body: string): WhatsAppMessage {
 type HarnessOptions = {
   readonly continuation?: WhatsAppDeliveryPreparationReply['routeContinuation']
   readonly hasOpenAfter?: boolean
+  readonly isPreparationAwaiting?: boolean
+  readonly preparationAskedAt?: Date
   readonly botAudio?: WhatsAppBotAudio<null>
   readonly position?: Partial<WhatsAppSessionPosition>
 }
@@ -230,9 +235,13 @@ function createHarness(options: HarnessOptions = {}) {
       }
       return reply
     },
-    awaitingText: async () => answered === 0,
+    awaitingText: async () => (options.isPreparationAwaiting ?? true) && answered === 0,
+    awaitingTextSince: async () => options.preparationAskedAt ?? null,
     begin: async () => ({ awaitingText: false, documentNumber: '', finished: true, texts: [] }),
-    hasOpen: async () => (answered === 0 ? true : (options.hasOpenAfter ?? false)),
+    hasOpen: async () =>
+      answered === 0 && options.isPreparationAwaiting !== false
+        ? true
+        : (options.hasOpenAfter ?? false),
     receiveLocation: async () => null,
     receivePhoto: async () => null,
   }
@@ -277,6 +286,7 @@ function createHarness(options: HarnessOptions = {}) {
   return {
     contextOf: () => position.context,
     departures,
+    preparationAnswers: () => answered,
     sendAudio: () =>
       driver(
         {
@@ -341,11 +351,32 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
     expect(harness.departures).toHaveLength(departures)
   })
 
-  test('outra mensagem encerra o pedido e segue o fluxo de sempre, sem registrar saída', async () => {
+  test('texto que não responde repete a pergunta e o pedido continua aberto, sem registrar saída', async () => {
     const harness = createHarness({ continuation: CONTINUES })
     await harness.send('1')
     await harness.send('quero ver o menu')
     expect(harness.departures).toHaveLength(0)
+    expect(harness.sent.at(-1)).toBe(ROUTE_OFFER_TEXT.options.join('\n'))
+    expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toMatchObject({ stopId: 'stop-4' })
+  })
+
+  test.each(['menu', 'saí'])(
+    '"%s" é comando e tira o pedido de cena, sem registrar a saída da oferta',
+    async (command) => {
+      const harness = createHarness({ continuation: CONTINUES })
+      await harness.send('1')
+      await harness.send(command)
+      expect(harness.departures).toHaveLength(0)
+      expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
+    },
+  )
+
+  test('"cancelar" é do dono da pergunta: encerra a oferta sem registrar', async () => {
+    const harness = createHarness({ continuation: CONTINUES })
+    await harness.send('1')
+    await harness.send('cancelar')
+    expect(harness.departures).toHaveLength(0)
+    expect(harness.sent.at(-1)).toBe(DRIVER_PROMPT_TEXT.cancelled)
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
   })
 
@@ -416,6 +447,66 @@ describe('matriz de não interferência da oferta (RNF1, conversa individual)', 
   })
 })
 
+describe('a pergunta mais recente é a dona do "1"/"2" (RNF1, áudio x oferta)', () => {
+  const SEEDED_OFFER = {
+    [DRIVER_PROMPT_CONTEXT_KEY]: {
+      kind: 'route_offer',
+      offeredAt: NOW.toISOString(),
+      stopId: 'stop-4',
+    },
+  }
+
+  test('áudio pedido ANTES da oferta não rouba o "1": a oferta, mais nova, responde', async () => {
+    const botAudio = createWhatsAppBotAudio<null>({
+      clock: () => NOW.getTime() - 60_000,
+      logger: { error: () => undefined, info: () => undefined, warn: () => undefined },
+      transcriber: { transcribe: async () => 'quero ver o menu' },
+    })
+    const harness = createHarness({
+      botAudio,
+      isPreparationAwaiting: false,
+      position: { context: SEEDED_OFFER },
+    })
+    await harness.sendAudio()
+    await botAudio.idle()
+    await harness.send('1')
+    expect(harness.departures).toHaveLength(1)
+    expect(harness.departures[0]).toMatchObject({ stopId: 'stop-4' })
+  })
+})
+
+describe('a pergunta mais recente é a dona do "1" (RNF1, entrega em preparo x oferta)', () => {
+  const SEEDED_OFFER = {
+    [DRIVER_PROMPT_CONTEXT_KEY]: {
+      kind: 'route_offer',
+      offeredAt: NOW.toISOString(),
+      stopId: 'stop-4',
+    },
+  }
+
+  test('entrega esperando texto desde ANTES da oferta não rouba o "1": a oferta, mais nova, responde', async () => {
+    const harness = createHarness({
+      position: { context: SEEDED_OFFER },
+      preparationAskedAt: new Date(NOW.getTime() - 60_000),
+    })
+    await harness.send('1')
+    expect(harness.preparationAnswers()).toBe(0)
+    expect(harness.departures).toHaveLength(1)
+    expect(harness.departures[0]).toMatchObject({ stopId: 'stop-4' })
+  })
+
+  test('entrega que voltou a perguntar DEPOIS da oferta é quem responde o "1"', async () => {
+    const harness = createHarness({
+      continuation: CONTINUES,
+      position: { context: SEEDED_OFFER },
+      preparationAskedAt: new Date(NOW.getTime() + 60_000),
+    })
+    await harness.send('1')
+    expect(harness.preparationAnswers()).toBe(1)
+    expect(harness.departures).toHaveLength(0)
+  })
+})
+
 describe('áudio esperando confirmação tem prioridade sobre a oferta (RNF1)', () => {
   test('o "1" confirma o áudio e não inicia a rota; o texto do áudio é que segue ao fluxo', async () => {
     const botAudio = createWhatsAppBotAudio<null>({
@@ -430,7 +521,8 @@ describe('áudio esperando confirmação tem prioridade sobre a oferta (RNF1)', 
     expect(harness.sent.at(-1)).toContain('Entendi assim')
     await harness.send('1')
     expect(harness.departures).toHaveLength(0)
-    expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
+    // O texto do áudio não responde à oferta: ela é repetida e segue aberta.
+    expect(harness.sent.at(-1)).toBe(ROUTE_OFFER_TEXT.options.join('\n'))
   })
 
   test('o "dois" falado descarta o áudio pendente e não responde à oferta', async () => {

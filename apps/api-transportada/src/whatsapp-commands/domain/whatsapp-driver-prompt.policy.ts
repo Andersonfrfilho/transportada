@@ -14,6 +14,10 @@ export const DRIVER_PROMPT_TTL_MS = 2 * 60 * 60 * 1000
 /** Respostas que não cabem no pedido de localização até ele ser abandonado (o mesmo teto do grupo). */
 export const DRIVER_PROMPT_MAX_ATTEMPTS = 3
 
+export const DRIVER_PROMPT_TEXT = {
+  cancelled: 'Certo, cancelei e não registrei nada.',
+} as const
+
 export const DRIVER_PROMPT_KIND = {
   location: 'location',
   outOfOrder: 'out_of_order',

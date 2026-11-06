@@ -24,7 +24,10 @@ import {
   createGroupDriverFlow,
   GROUP_DRIVER_TEXT,
 } from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
-import { createGroupProofIntake } from '../../src/whatsapp/application/whatsapp-group-proof-intake.service.js'
+import {
+  createGroupProofIntake,
+  GROUP_PROOF_TEXT,
+} from '../../src/whatsapp/application/whatsapp-group-proof-intake.service.js'
 import type {
   GroupFlowOutcome,
   GroupRequest,
@@ -331,6 +334,9 @@ describe('grupo: foto e localização do motorista', () => {
         opened.push(ownerNumber)
       },
       preparations: fake.preparations,
+      forgetLocation: () => {
+        locations.length = 0
+      },
       rememberLocation: ({ location }) => locations.push(location),
       replies: { send: ({ texts }) => sent.push([...texts]) },
       withoutAccessText: async () => 'sem acesso',
@@ -373,10 +379,17 @@ describe('grupo: foto e localização do motorista', () => {
     expect(t.sent).toEqual([['Não consegui baixar a foto. Mande de novo, por favor.']])
   })
 
-  test('a localização fica guardada para o próximo evento, mesmo sem preparação', async () => {
+  test('localização sem pergunta aberta não fica guardada para um "cheguei" depois', async () => {
     const t = intake({ open: false })
     await t.handle({ kind: 'location', latitude: -21.1, longitude: -47.8 })
-    expect(t.locations).toHaveLength(1)
-    expect(t.sent[0]?.[0]).toContain('Localização recebida')
+    expect(t.locations).toHaveLength(0)
+    expect(t.sent[0]?.[0]).toContain(GROUP_PROOF_TEXT.locationNotAsked)
+  })
+
+  test('localização que a preparação aberta pediu vai a ela e também não fica guardada', async () => {
+    const t = intake()
+    await t.handle({ kind: 'location', latitude: -21.1, longitude: -47.8 })
+    expect(t.calls[0]).toMatchObject({ method: 'receiveLocation' })
+    expect(t.locations).toHaveLength(0)
   })
 })

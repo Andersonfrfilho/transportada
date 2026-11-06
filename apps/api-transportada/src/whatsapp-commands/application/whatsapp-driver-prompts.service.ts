@@ -7,11 +7,17 @@
  * sem pergunta. "1" registra a saída pela MESMA função do "saí" (`departWhatsAppDriverStop`), com chave de
  * idempotência da oferta.
  */
-import { DRIVER_CHOICE, interpretDriverChoice } from '../domain/whatsapp-driver-choice.policy.js'
+import {
+  DRIVER_CHOICE,
+  interpretDriverChoice,
+  isDriverCancelText,
+  isDriverEscapeText,
+} from '../domain/whatsapp-driver-choice.policy.js'
 import {
   DRIVER_PROMPT_CONTEXT_KEY,
   DRIVER_PROMPT_KIND,
   DRIVER_PROMPT_MAX_ATTEMPTS,
+  DRIVER_PROMPT_TEXT,
   readDriverPrompt,
   withoutDriverPrompt,
   type DriverPrompt,
@@ -291,7 +297,7 @@ export function createWhatsAppDriverPrompts(dependencies: {
     if (choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
       return { context: cleared, handled: true, texts: [OUT_OF_ORDER_TEXT.discarded] }
     }
-    return { context: cleared, handled: false, texts: [] }
+    return { context: turn.context, handled: true, texts: [OUT_OF_ORDER_TEXT.notUnderstood] }
   }
 
   return {
@@ -303,6 +309,18 @@ export function createWhatsAppDriverPrompts(dependencies: {
       if (prompt === undefined) return null
       const cleared = withoutDriverPrompt(turn.context)
       const choice = interpretDriverChoice(turn.text)
+
+      // "Cancelar" é de quem fez a pergunta aberta: encerra sem registrar nada.
+      if (isDriverCancelText(turn.text)) {
+        return { context: cleared, handled: true, texts: [DRIVER_PROMPT_TEXT.cancelled] }
+      }
+      // Pedido de menu ou outro comando tira a pergunta de cena; texto livre nunca a descarta calado.
+      if (
+        isDriverEscapeText(turn.text) ||
+        interpretWhatsAppDriverEventCommand(turn.text) !== undefined
+      ) {
+        return { context: cleared, handled: false, texts: [] }
+      }
 
       if (prompt.kind === DRIVER_PROMPT_KIND.outOfOrder) return answerOutOfOrder(turn, prompt)
 
@@ -328,8 +346,14 @@ export function createWhatsAppDriverPrompts(dependencies: {
       if (choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
         return { context: cleared, handled: true, texts: [ROUTE_OFFER_TEXT.declined] }
       }
-      // Outra coisa: o pedido sai de cena e a mensagem segue o fluxo de sempre.
-      if (choice !== DRIVER_CHOICE.first) return { context: cleared, handled: false, texts: [] }
+      // Outra coisa: a pergunta continua aberta e é repetida (texto livre só vira outro fluxo sem pergunta aberta).
+      if (choice !== DRIVER_CHOICE.first) {
+        return {
+          context: turn.context,
+          handled: true,
+          texts: [ROUTE_OFFER_TEXT.options.join('\n')],
+        }
+      }
       const ask = askLocation({
         companyId: turn.actor.companyId,
         documentNumber: prompt.documentNumber,

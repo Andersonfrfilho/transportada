@@ -31,6 +31,7 @@ import type {
   LazyEvolutionConnection,
 } from './evolution-group-identity.service.js'
 import type { WhatsAppBotAudio } from './whatsapp-bot-audio.service.js'
+import type { GroupQuestionAsked } from './whatsapp-group-request.port.js'
 
 /** Áudio não endereçado só é ouvido até 1 minuto: a chamada vem no começo, conversa longa é das pessoas. */
 const BOT_AUDIO_WAKE_MAX_SECONDS = 60
@@ -706,6 +707,15 @@ export function createEvolutionGroupInbound(
       })
       return 'admitted'
     },
+  }
+}
+
+/** Liga o "pergunta nova do pedido" ao áudio: a confirmação pendente de antes sai de cena. */
+export function createGroupQuestionAskedHandler(
+  bot: Pick<WhatsAppBotAudio<GroupAudioContext>, 'supersede'>,
+): GroupQuestionAsked {
+  return ({ companyId, groupJid, owner }) => {
+    bot.supersede({ companyId, conversation: groupConversation(groupJid), owner })
   }
 }
 

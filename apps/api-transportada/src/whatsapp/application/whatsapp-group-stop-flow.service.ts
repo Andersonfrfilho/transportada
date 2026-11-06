@@ -381,6 +381,9 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       if (turn.request.step === GROUP_STOP_STEP.confirmOrder && state.outOfOrderFor !== undefined) {
         return answerConfirmOrder(turn, role, state.outOfOrderFor)
       }
+      if (turn.request.step !== GROUP_STOP_STEP.choose) {
+        return { kind: 'not_understood', prompt: '', reason: REASON.stop }
+      }
       const stops = state.stops ?? []
       const event = state.event ?? WHATSAPP_DRIVER_STOP_COMMAND.arrive
       const picked = pickStop(stops, turn.text)

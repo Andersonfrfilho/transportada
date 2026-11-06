@@ -23,7 +23,10 @@ import {
   type WhatsAppDriverEventPorts,
   type WhatsAppDriverEventResult,
 } from '../../src/whatsapp-commands/application/whatsapp-driver-events.service.js'
-import { DRIVER_PROMPT_CONTEXT_KEY } from '../../src/whatsapp-commands/domain/whatsapp-driver-prompt.policy.js'
+import {
+  DRIVER_PROMPT_CONTEXT_KEY,
+  DRIVER_PROMPT_TEXT,
+} from '../../src/whatsapp-commands/domain/whatsapp-driver-prompt.policy.js'
 import {
   describeOutOfOrderViolation,
   OUT_OF_ORDER_TEXT,
@@ -233,7 +236,7 @@ describe('conversa individual: saída fora do roteiro (RF25)', () => {
     },
   )
 
-  test('outra resposta tira o pedido de cena e segue o fluxo, sem gravar', async () => {
+  test('texto que não responde repete o 1/2 e mantém o pedido, sem gravar', async () => {
     const { departures, prompts } = build()
     const asked = await record(prompts, 's6')
     const other = await prompts.answer({
@@ -242,7 +245,39 @@ describe('conversa individual: saída fora do roteiro (RF25)', () => {
       text: 'quero ver o menu',
       whatsappNumber: PHONE,
     })
-    expect(other).toMatchObject({ handled: false })
+    expect(other).toMatchObject({ handled: true, texts: [OUT_OF_ORDER_TEXT.notUnderstood] })
+    expect(other?.context[DRIVER_PROMPT_CONTEXT_KEY]).toBeDefined()
+    expect(departures).toHaveLength(1)
+  })
+
+  test.each(['menu', 'saí'])(
+    '"%s" é comando: tira o pedido de cena e segue o fluxo',
+    async (text) => {
+      const { departures, prompts } = build()
+      const asked = await record(prompts, 's6')
+      const other = await prompts.answer({
+        actor: ACTOR,
+        context: asked.context,
+        text,
+        whatsappNumber: PHONE,
+      })
+      expect(other).toMatchObject({ handled: false })
+      expect(other?.context[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
+      expect(departures).toHaveLength(1)
+    },
+  )
+
+  test('"cancelar" é do dono da pergunta: descarta sem gravar', async () => {
+    const { departures, prompts } = build()
+    const asked = await record(prompts, 's6')
+    const cancelled = await prompts.answer({
+      actor: ACTOR,
+      context: asked.context,
+      text: 'cancelar',
+      whatsappNumber: PHONE,
+    })
+    expect(cancelled).toMatchObject({ handled: true, texts: [DRIVER_PROMPT_TEXT.cancelled] })
+    expect(cancelled?.context[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
     expect(departures).toHaveLength(1)
   })
 })
