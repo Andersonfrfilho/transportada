@@ -427,3 +427,19 @@ Processamentos (`AccessKeyImportSection`, montado só com a origem aberta: fecha
 - Locales: bloco `accessKeyImport` em `nfeWorkspace.locale.json` e `.en.locale.json`.
 
 Gates T3.5: `bun run typecheck` (raiz) 0 erros; frontend `bun run test` 8706 pass, 0 fail (+ `test:hooks` 1471 pass); lint 0 erros.
+
+## T3.4 — textos pt-BR/en da busca por chave e do bip
+
+- Conferido sem mudança de texto: `accessKeyLookup` (38 chaves), `keyReader` (3), `nfeWorkspace.accessKeyImport` (43) e
+  `trip.quickCreate`/`trip.detail` do bip. Pt-BR e en têm o mesmo conjunto de chaves, nenhuma vazia.
+- Cobertos: badges `checking/searching/waiting/ready/refused/failed/error/stalled` (estados de linha e `querying`/`queued`
+  por `searching`, `imported` por `ready`); motivos das nove `LOOKUP_REASONS`; erros `INVALID_ACCESS_KEY`,
+  `NFE_DISTRIBUTION_NOT_CONFIGURED`, `NFE_ACCESS_KEY_LOOKUP_CONFLICT`, `NFE_ACCESS_KEY_LOOKUP_QUEUE_FULL`, `RATE_LIMITED`
+  e `error.generic`; blockers do bip (`alreadyOnTrip`, `notAuthorized`) e chaves `detail.scan*` usadas pelo componente.
+- Frases exigidas, literais em pt-BR: `not_interested` e `summary_only` (asserção no contrato).
+- Contrato novo: `test/nfe-access-key-lookup/locale-parity.contract.ts` (paridade por namespace, sem valor vazio, cobertura
+  de estados/motivos/erros, frases literais), registrado em `test/nfe-access-key-lookup.contract.test.ts` (já na lista
+  explícita do `package.json`). 13 testes passam.
+
+Gates T3.4: `bun run typecheck` (raiz) 0 erros; frontend `bun run test` 1471 pass / 0 fail em `test:hooks` e suíte principal
+verde (exit 0); lint 0 erros (16 warnings pré-existentes).

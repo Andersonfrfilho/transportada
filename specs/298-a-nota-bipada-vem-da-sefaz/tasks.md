@@ -46,7 +46,7 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 - [x] T3.3 Detalhe da viagem (RF9, RF10) e origem "busca por chave" na página de NF-e (RF12) — contratos.
 - [x] T3.5 Importar por bip na página de NF-e (RF11–RF11c): leitor contínuo, resumo, filtros, sessão do navegador —
       contrato do critério 4a.
-- [ ] T3.4 Locales pt-BR/en dos estados e motivos — `typecheck` + teste de chaves de locale.
+- [x] T3.4 Locales pt-BR/en dos estados e motivos — `typecheck` + teste de chaves de locale.
 
 ## Fase 4 — Publicar
 
