@@ -112,6 +112,33 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
+        `⚠️ *Falta a baixa desta parada.* Você chegou às ${at} e ainda não registrou a entrega.
+*Parada 1 de 3*
+*NF 17234* · R$ 1.234,56
+🏪 *PADARIA SOL NASCENTE*
+🏢 Contratante: Distribuidora Aurora
+📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
+🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000
+📦 3 volumes
+
+*O que você quer fazer agora?*
+*1* - Entreguei _(mande a foto do canhoto)_
+*2* - Não entreguei
+*3* - Sair para outra parada sem dar a baixa
+*4* - Nada por enquanto`,
+        `O que você quer fazer com esta viagem?
+
+📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+[ 🚚 Saí para a entrega ]
+[ 📍 Cheguei ]
+[ 📦 Entregar ]
+[ ↩️ Devolver ]
+[ ⚠️ Ocorrência ]`,
+      ],
+      shown: 'saí',
+    },
+    {
+      answered: [
         `🎙️ Estou escutando o seu áudio, só um momento. Já te mostro o que entendi para você confirmar.`,
         `🎙️ *Entendi assim:*
 
@@ -176,7 +203,6 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
 📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
 🗺️ https://www.google.com/maps/search/?api=1&query=-21.1400000,-47.9900000
 📦 1 volume
-📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~${eta} (25 min)_
 
 *O que você quer fazer agora?*
 *1* - Seguir para ela 🚚
@@ -215,7 +241,6 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
 📍 RUA SETE, 7, CRAVINHOS, SP
 🗺️ https://www.google.com/maps/search/?api=1&query=-21.3400000,-47.7300000
 📦 12 volumes
-📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~${eta} (25 min)_
 ➡️ _Próximo passo:_ quando chegar, mande *cheguei*.`,
       ],
       shown: '1',
@@ -230,7 +255,6 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
 📍 RUA SETE, 7, CRAVINHOS, SP
 🗺️ https://www.google.com/maps/search/?api=1&query=-21.3400000,-47.7300000
 📦 12 volumes
-📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~${eta} (25 min)_
 
 *O que você quer fazer agora?*
 *1* - Cheguei
@@ -365,7 +389,6 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
 📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
 🗺️ https://www.google.com/maps/search/?api=1&query=-21.1400000,-47.9900000
 📦 1 volume
-📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~${eta} (25 min)_
 ➡️ _Próximo passo:_ quando chegar, mande *cheguei*.`,
       ],
       shown: 'pular',

@@ -110,6 +110,25 @@ Enviei para o escritório conferir o endereço. 📬
     },
     {
       answered: [
+        `⚠️ *Falta a baixa desta parada.* Você chegou às ${at} e ainda não registrou a entrega.
+*Parada 1 de 3*
+*NF 17234* · R$ 1.234,56
+🏪 *PADARIA SOL NASCENTE*
+🏢 Contratante: Distribuidora Aurora
+📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
+🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000
+📦 3 volumes
+
+*O que você quer fazer agora?*
+*1* - Entreguei _(mande a foto do canhoto)_
+*2* - Não entreguei
+*3* - Sair para outra parada sem dar a baixa
+*4* - Nada por enquanto`,
+      ],
+      shown: 'saí',
+    },
+    {
+      answered: [
         `Certo, não registrei nada.
 ➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.
 
@@ -241,7 +260,6 @@ ${farewell}`,
 📍 RUA SETE, 7, CRAVINHOS, SP
 🗺️ https://www.google.com/maps/search/?api=1&query=-21.3400000,-47.7300000
 📦 12 volumes
-📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~${eta} (25 min)_
 ➡️ _Próximo passo:_ quando chegar, mande *cheguei*.`,
       ],
       shown: '1',
@@ -302,14 +320,33 @@ ${farewell}`,
       answered: [
         `${greeting}
 
-*Por que a NF 17236 não foi entregue?*
+⚠️ *A chegada nesta parada já foi registrada* às ${at}.
+*Parada 3 de 3*
+*NF 17236* · R$ 10,00
+🏪 *ACOUGUE ESTRELA*
+🏢 Contratante: Distribuidora Aurora
+📍 RUA SETE, 7, CRAVINHOS, SP
+🗺️ https://www.google.com/maps/search/?api=1&query=-21.3400000,-47.7300000
+📦 12 volumes
+
+*O que você quer fazer agora?*
+*1* - Entreguei _(mande a foto do canhoto)_
+*2* - Não entreguei
+*3* - Abrir ocorrência
+*4* - Nada por enquanto`,
+      ],
+      shown: '@bot cheguei',
+    },
+    {
+      answered: [
+        `*Por que a NF 17236 não foi entregue?*
 *1* - 🚪 Destinatário ausente
 *2* - 🙅 Recusou receber
 *3* - 📍 Endereço não achado
 *4* - 📦 Carga avariada
 *5* - 🔒 Local fechado`,
       ],
-      shown: '@bot não entreguei',
+      shown: 'não entreguei 17236',
     },
     {
       answered: [
@@ -322,7 +359,6 @@ ${farewell}`,
 📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
 🗺️ https://www.google.com/maps/search/?api=1&query=-21.1400000,-47.9900000
 📦 1 volume
-📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~${eta} (25 min)_
 
 *O que você quer fazer agora?*
 *1* - Seguir para ela 🚚
@@ -333,7 +369,7 @@ ${farewell}`,
     },
     {
       answered: [`📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_`],
-      shown: '1',
+      shown: 'saí',
     },
     {
       answered: [

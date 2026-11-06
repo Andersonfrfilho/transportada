@@ -504,6 +504,8 @@ function directJourneySteps(world: JourneyWorld): readonly JourneyStep[] {
     text('cheguei'),
     text('pular'),
     text('cheguei'),
+    // Comando digitado com o menu aberto segue como comando (revisão do #552).
+    text('saí'),
     audio('um'),
     text('1'),
     button('yes', '✅ Sim'),
