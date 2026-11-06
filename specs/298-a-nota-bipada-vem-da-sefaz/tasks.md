@@ -52,9 +52,9 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T4.1 Staging: bipar chave de homologação (recusa `not_found` com XML) e chave cadastrada; evidência por texto
+- [ ] T4.1 (não feita: login no navegador pendente; produção autorizada pelo dono sem ela) Staging: bipar chave de homologação (recusa `not_found` com XML) e chave cadastrada; evidência por texto
       (`read_page`), sem screenshot intermediário.
-- [ ] T4.2 Produção (**aprovação humana**): migration + API → worker → painel (ADR-0081 §9, tolerante primeiro);
+- [x] T4.2 Produção (**aprovação humana**): migration + API → worker → painel (ADR-0081 §9, tolerante primeiro);
       uma chave real importada e vinculada; atualizar `docs/runbooks/producao.md` e o `CLAUDE.md` (§14 do code-standart).
 
 ## Prompt de execução

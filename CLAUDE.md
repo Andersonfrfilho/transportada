@@ -181,14 +181,14 @@ cadastrado pelo SDK e editável em Notificações). O portal só avisa quem não
 `email.opened` (revoga a 183 D7) e depende do rastreio configurado no domínio. Contrato e detalhe em
 `apps/api-transportada/CLAUDE.md` § "O chat da contratante envia por e-mail".
 
-**O motorista segue a ordem da parada** (spec 294, ADR-0113; ainda não publicada). Saiu, chegou e baixou valem em ordem; a etapa pulada é marcada junto
+**O motorista segue a ordem da parada** (spec 294, ADR-0113; em produção desde 06/11/2026, PR #557). Saiu, chegou e baixou valem em ordem; a etapa pulada é marcada junto
 (`recordedTogether`) e o bot e o app avisam; fora de ordem pede confirmação (`409 TRIP_STOP_OUT_OF_ORDER` + `confirmOutOfOrder`) e canhoto repetido ou trocado também. A
 baixa devolve a próxima parada (`nextStop`) e a chegada em endereço sem ponto certo corrige a coordenada ou **sugere ao escritório** em `/pendencias` (aplicar/descartar, `trip.manage`).
 O atendente baixa pelo caminho do escritório. **A foto do canhoto dá a baixa** (RF23/T4.8): o worker lê o canhoto com OCR local (PP-OCRv4 em `onnxruntime-web`, sem modelo
 de IA pago — decisão do dono, 2026-11-05) e casa o número com as notas abertas de quem mandou; casou exato, baixa; senão o bot pergunta.
 `CANHOTO_OCR_ENABLED` vem desligado em produção (pico de ~740 MB no worker: medir em staging antes de ligar). Detalhe: `apps/api-transportada/CLAUDE.md` § "A ordem da parada" e `specs/294-*/`.
 
-**A nota bipada vem da SEFAZ** (spec 298; ainda não publicada). Bipar a chave do DANFE com o leitor de mão (caminho principal;
+**A nota bipada vem da SEFAZ** (spec 298; em produção desde 06/11/2026, PR #557). Bipar a chave do DANFE com o leitor de mão (caminho principal;
 câmera é secundária) **importa** a nota. Se a nota já está cadastrada, `POST /v1/nfe-documents/access-key-checks` (em lote)
 responde na hora. Se não está, `POST /v1/nfe-access-key-lookups` cria a busca: um `nfe_imports` com `source = 'access_key'`
 mais um evento. O worker consulta a SEFAZ por chave (`consChNFe`) e importa pelo mesmo escritor da distribuição. Estado em

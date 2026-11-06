@@ -476,3 +476,14 @@ Gates: `bun run typecheck` (raiz) 0 erros; frontend `bun run test` 8725 pass / 0
 - **Correção (só teste):** `trip-smoke.helper.ts` — rota `access-key-checks` em `registerTripQuickCreateTollApi` e chaves `TOLL_ACCESS_KEY_ONE/TWO` com dígito verificador válido (`...18`, `...26`); `responsive.smoke.spec.ts` e `spec-252-painel-prints.smoke.spec.ts` — campo "Chave da nota", Enter e clique em "Acrescentar todas as prontas (2)". Nenhum comportamento de produto mudou; `frontend-driver` e `frontend-client` não usam o rótulo.
 - **Smoke local** (`PLAYWRIGHT_FRONTEND_PORT=53110`, `PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true`, mesmo comando do `make smoke-panel`): 73 passed, 0 failed, `failures()` vazio. Uma execução intermediária teve 1 falha avulsa (`responsive.smoke.spec.ts:769`, timeout de 5 s em um heading, estranha a esta mudança) que passou na repetição.
 - `bun run --cwd apps/frontend-transportada test`: 1493 pass / 0 fail. Lint: 0 erros.
+
+## T4.2 — Produção (06/11/2026)
+
+- O dono pediu "levar para prod". A promoção já tinha entrado pelo PR #557 (`staging → main`, merge `e849ac779`, 21:36),
+  com 298, 218 e 294 juntas.
+- Deploy de produção run 42298117859: gate inteiro verde (quality, integration-api 1–8, migration, smoke panel/apps),
+  `deploy-api`, `deploy-services (worker, cron)`, `deploy-frontend`, `deploy-driver`, `deploy-client`, `deploy-landing`
+  e `mark-deployed` em `success`.
+- A API de produção responde (401 sem token na rota nova, como em qualquer rota: a autenticação vem antes do roteamento).
+- **Pendente:** T4.1 (bip no navegador em staging, à espera do login do dono) e a chave real importada e vinculada em
+  produção (primeiro uso do cliente). T0.1 (consulta por script na SEFAZ de produção) segue à espera de aprovação.

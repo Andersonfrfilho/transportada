@@ -249,6 +249,9 @@ próximo push de `main` volta a considerar os mesmos alvos como alterados (publi
 quiser avançar o marco à mão: `git push --force origin <sha-da-main>:refs/deploy/production/<alvo>` para cada
 alvo (`api frontend landing client driver worker cron`).
 
+Variante vista em 06/11/2026 (staging, run 42281633564): `[remote rejected] HEAD -> refs/deploy/staging/driver (missing necessary
+objects)`. Mesmo tratamento: conferir os `deploy-*` verdes; o próximo push corrige o marco.
+
 ### Deploy falha em "Invalid RAILWAY_TOKEN" (token inválido)
 
 Sintoma: o gate passa e todos os jobs `deploy-*` caem no primeiro passo da CLI com token inválido
@@ -971,6 +974,11 @@ no banco é 10 ou 11 dígitos, sem 55, `fleet_drivers_phone_check`). Criada em 0
 `16993056772`. Reverter: apagar a linha de `fleet_drivers` com esse `membership_id`.
 
 ## 5.22 Nota bipada vem da SEFAZ (spec 298, 06/11/2026)
+
+**Publicada em produção em 06/11/2026** pelo PR #557 (merge `e849ac779`, deploy run 42298117859, todos os jobs verdes,
+migration `20261106120034_nfe_access_key_lookups` aplicada pelo `preDeployCommand` da API). Foi junto com as specs 218 e 294.
+Primeiro uso real a acompanhar: bipar uma chave de 06/11 e conferir o desfecho em `nfe_access_key_lookups`
+(`status`, `reason`) e o orçamento em `nfe_access_key_lookup_budgets`; 656 não deve aparecer.
 
 **Consulta de uma chave na SEFAZ de produção (T0.1).** É leitura, mas gasta 1 das 20 consultas por hora do CNPJ. Passar
 de 20 dá cStat 656 e bloqueia a distribuição inteira por 1 h, e consultar durante o bloqueio reinicia a hora.
