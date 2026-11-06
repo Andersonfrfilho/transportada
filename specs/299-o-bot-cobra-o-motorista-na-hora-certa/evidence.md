@@ -217,3 +217,35 @@ a validação do `make config` cobre a chave da API, e a do worker fica no contr
 - Worker `bun run typecheck`: 0 erros. Worker eslint e prettier nos arquivos tocados: limpos.
 - Worker `bun run test`: 3037 pass, 0 fail, 115 arquivos.
 - `make config` (raiz): exit 0.
+
+## T1.2 — 2026-11-06
+
+Migration A aditiva `20261106232509_driver_stop_reminders` (`migration.sql`, `rollback.sql`, `snapshot.json`): tabelas
+`driver_stop_reminders` e `company_driver_reminder_settings` conforme o plano, e a rotina `driver.stop-reminder.dispatch`
+(300 s) nas duas CHECK de `job` (geradas do catálogo) e em `job_schedules`, semeada **pausada pelo sistema** (`enabled=false`,
+`paused_origin='system'`, molde da 248 T4.10) até a T2.4 registrar a rotina no worker.
+
+**Vermelho antes** (contratos de catálogo estendidos primeiro, sem o catálogo):
+- API `test/job-catalog.contract.test.ts`: 2 falhas (`names every routine…`, `accepts every interval the migration already seeded`).
+- Worker `test/job-catalog.contract.test.ts`: 2 falhas (paridade com a API; vocabulário de falhas por rotina).
+
+**Verde depois:** catálogos da API e do worker ganharam a entrada (`minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS`,
+`failureOutcomes: ['api_unreachable']`); sem rotina em `main.ts` e sem reclamação de rotina ausente nos testes do worker.
+
+**Achados no caminho (exigidos por contratos existentes):**
+- `static-migration.contract.ts`: lista de pastas de migration ganhou a nova.
+- `make migration-test` quebrou primeiro no rollback encadeado (a CHECK antiga recusava a linha do relógio):
+  novo `test/database-migration/driver-stop-reminders-rollback.assertion.ts`, chamado no começo do helper da 248 T4.10.
+- `deploy/staging-refresh/prune-source.sql`: política obrigatória por tabela (contrato spec 291): settings `keep`,
+  lembretes `empty` (não levar fila de cobrança para staging).
+- Vocabulário de `closed_reason` (T0.2 não o fixa): `arrived, stop_closed, occurrence, superseded, departure_cancelled,
+  trip_closed, trip_cancelled, dismissed`, em `src/shared/driver-stop-reminder.constant.ts`.
+
+**Gates:**
+- `make migration-test` (raiz): 231 pass, 0 fail.
+- `db:generate` depois: `{"status":"no_changes"}`.
+- API `bun run typecheck`: só os 8 erros esperados da T0.2 (`test/driver-stop-reminders/*`). eslint (`--max-warnings=0`) e
+  prettier nos arquivos tocados: limpos.
+- API `bun run test`: 14188 pass, 1 fail + 1 error, ambos o contrato esperado da T0.2.
+- Worker `bun run typecheck`: 0 erros; eslint/prettier limpos; `bun run test`: 3037 pass, 0 fail.
+- Integração: nenhum arquivo de `test/integration` cobre `job_schedules`/migration além do que o `migration-test` já roda.

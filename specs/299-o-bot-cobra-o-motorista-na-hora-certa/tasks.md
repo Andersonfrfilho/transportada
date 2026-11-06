@@ -31,7 +31,7 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 
 - [x] **T1.1** Chave global `DRIVER_REMINDERS_ENABLED` (padrão `false`) no schema de env da API e do worker, no
       `.env.example` e no `make config`, no molde de `MDFE_AUTO_ISSUE_ENABLED`. Aceite: contrato do schema; `make config`.
-- [ ] **T1.2** Migration A aditiva: `driver_stop_reminders`, `company_driver_reminder_settings` e a linha de
+- [x] **T1.2** Migration A aditiva: `driver_stop_reminders`, `company_driver_reminder_settings` e a linha de
       `job_schedules` da rotina com os `CHECK` reescritos (plan.md § Dados e § Worker).
       Aceite: `make migration-test`; `db:generate` → `no_changes`.
 - [ ] **T1.3** Políticas puras (T0.2 verde): schedule, origin, transition, message.
