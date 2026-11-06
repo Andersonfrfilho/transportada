@@ -49,6 +49,8 @@ export const FREIGHT_TABLES = [
 ] as const
 
 export const NFE_TABLES = [
+  'nfe_access_key_lookup_budgets',
+  'nfe_access_key_lookups',
   'nfe_addresses',
   'nfe_distribution_cursors',
   'nfe_document_status_changes',

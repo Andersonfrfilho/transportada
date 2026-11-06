@@ -47,7 +47,7 @@ export type NfeImportSummary = {
   readonly receivedCount: bigint
   readonly rejectedCount: bigint
   readonly requestedByUserId: string
-  readonly source: 'distribution' | 'upload'
+  readonly source: 'access_key' | 'distribution' | 'upload'
   readonly status: NfeImportStatus
   readonly terminalError: NfeImportSafeError | null
   readonly updatedAt: string

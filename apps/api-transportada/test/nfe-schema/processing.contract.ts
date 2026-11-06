@@ -79,7 +79,7 @@ describe('persistent processing schema', () => {
       processing_outbox_attempt_check: `"processing_outbox"."attempt" >= 0`,
       processing_outbox_event_version_check: `"processing_outbox"."event_version" > 0`,
       processing_outbox_aggregate_type_check: `"processing_outbox"."aggregate_type" = 'nfe_import'`,
-      processing_outbox_event_type_check: `"processing_outbox"."event_type" in ('transportada.nfe.import.requested', 'transportada.nfe.distribution.requested')`,
+      processing_outbox_event_type_check: `"processing_outbox"."event_type" in ('transportada.nfe.import.requested', 'transportada.nfe.distribution.requested', 'transportada.nfe.access-key.requested')`,
       processing_outbox_claim_check: `("processing_outbox"."claim_owner" is null) = ("processing_outbox"."claim_expires_at" is null)`,
     })
   })

@@ -9,6 +9,14 @@ Fatos levantados em `spec.md` § "Fatos". Decisões:
 - **D1 — Busca é uma importação.** Cada busca é um `nfe_imports` com `source = 'access_key'` e um
   `nfe_import_items` com a chave; o estado da busca (RF3) é derivado desse par mais a tabela de controle (D3).
   Reaproveita trilha, auditoria e a escrita do documento. `source = 'access_key'` exige migration aditiva.
+  ⚠️ **Revisto na execução (06/11/2026):** `nfe_import_items.source_object_id` é `NOT NULL` com FK para o objeto
+  guardado e entra nas FKs de linhagem — uma busca não tem objeto antes da SEFAZ responder, e afrouxar a coluna seria
+  mudança retroativa de constraint. Por isso o **estado da busca mora numa tabela própria**,
+  `nfe_access_key_lookups` (`id`, `company_id`, `environment`, `access_key`, `status`, `reason`, `not_before`,
+  `document_id`, `import_id`, `requested_by_user_id`, `correlation_id`, `attempts`, `created_at`, `updated_at`), com o
+  índice único parcial de busca ativa. O `nfe_imports` (`source = 'access_key'`) + item + documento só nascem no worker,
+  quando chega o `procNFe`, pelo escritor comum — a trilha de importação continua a mesma. As colunas `lookup_reason` e
+  `not_before` em `nfe_import_items` saem do plano.
 - **D2 — Uma busca, um evento.** Outbox `transportada.nfe.access-key.requested` → rota `nfe-access-key.v1`, consumidor
   próprio no worker. Não passa pelo consumidor da distribuição: o lease do cursor por NSU não pode esperar a SEFAZ
   responder chaves.

@@ -24,7 +24,7 @@ import {
 import { companies, identityUsers, userCompanyMemberships } from './identity.schema.js'
 import { storedObjects } from './storage.schema.js'
 
-export const NFE_IMPORT_SOURCES = ['upload', 'distribution'] as const
+export const NFE_IMPORT_SOURCES = ['upload', 'distribution', 'access_key'] as const
 export type NfeImportSource = (typeof NFE_IMPORT_SOURCES)[number]
 
 export const NFE_ORIGIN_TRIGGERS = ['user', 'automation'] as const
@@ -66,6 +66,29 @@ export type NfeEventOrigin = (typeof NFE_EVENT_ORIGINS)[number]
 
 export const NFE_DOCUMENT_STATUS_CHANGE_CAUSES = ['event', 'summary', 'document_insert'] as const
 export type NfeDocumentStatusChangeCause = (typeof NFE_DOCUMENT_STATUS_CHANGE_CAUSES)[number]
+
+export const NFE_ACCESS_KEY_LOOKUP_STATUSES = [
+  'queued',
+  'querying',
+  'waiting',
+  'imported',
+  'refused',
+  'failed',
+] as const
+export type NfeAccessKeyLookupStatus = (typeof NFE_ACCESS_KEY_LOOKUP_STATUSES)[number]
+
+export const NFE_ACCESS_KEY_LOOKUP_REASONS = [
+  'not_interested',
+  'summary_only',
+  'not_found',
+  'expired',
+  'cancelled',
+  'denied',
+  'certificate_mismatch',
+  'invalid_key',
+  'sefaz_unavailable',
+] as const
+export type NfeAccessKeyLookupReason = (typeof NFE_ACCESS_KEY_LOOKUP_REASONS)[number]
 
 const decimalColumn = (name: string) => numeric(name, { precision: 19, scale: 4 })
 
@@ -112,7 +135,10 @@ export const nfeImports = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
-    check('nfe_imports_source_check', sql`${table.source} in ('upload', 'distribution')`),
+    check(
+      'nfe_imports_source_check',
+      sql`${table.source} in ('upload', 'distribution', 'access_key')`,
+    ),
     check(
       'nfe_imports_origin_ck',
       sql`(${table.triggeredBy} = 'user' and ${table.automationJob} is null) or (${table.triggeredBy} = 'automation' and ${table.automationJob} is not null)`,
@@ -353,7 +379,10 @@ export const nfeDocuments = pgTable(
       'nfe_documents_authorization_protocol_presence_check',
       sql`(${table.status} <> 'authorized') or (${table.authorizationProtocol} is not null)`,
     ),
-    check('nfe_documents_source_check', sql`${table.source} in ('upload', 'distribution')`),
+    check(
+      'nfe_documents_source_check',
+      sql`${table.source} in ('upload', 'distribution', 'access_key')`,
+    ),
     check(
       'nfe_documents_values_check',
       sql`${table.totalValue} >= 0 and ${table.productsValue} >= 0 and ${table.freightValue} >= 0 and ${table.insuranceValue} >= 0 and ${table.discountValue} >= 0 and ${table.otherExpensesValue} >= 0`,
@@ -1071,5 +1100,125 @@ export const nfeDistributionCursors = pgTable(
       'nfe_distribution_cursors_lease_check',
       sql`(${table.leaseOwner} is null) = (${table.leaseExpiresAt} is null)`,
     ),
+  ],
+)
+
+export const nfeAccessKeyLookups = pgTable(
+  'nfe_access_key_lookups',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      }),
+    environment: text().$type<NfeFiscalEnvironment>().notNull(),
+    accessKey: text('access_key').notNull(),
+    status: text().$type<NfeAccessKeyLookupStatus>().notNull(),
+    reason: text().$type<NfeAccessKeyLookupReason>(),
+    cStat: text('c_stat'),
+    notBefore: timestamp('not_before', { withTimezone: true }),
+    documentId: uuid('document_id'),
+    importId: uuid('import_id'),
+    requestedByUserId: uuid('requested_by_user_id').notNull(),
+    correlationId: text('correlation_id').notNull(),
+    attempts: bigint({ mode: 'bigint' }).notNull().default(0n),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('nfe_access_key_lookups_company_id_id_unique').on(table.companyId, table.id),
+    uniqueIndex('nfe_access_key_lookups_active_unique')
+      .on(table.companyId, table.environment, table.accessKey)
+      .where(sql`${table.status} in ('queued', 'querying', 'waiting')`),
+    index('nfe_access_key_lookups_refusal_window_idx').on(
+      table.companyId,
+      table.environment,
+      table.accessKey,
+      table.finishedAt.desc().nullsFirst(),
+    ),
+    index('nfe_access_key_lookups_waiting_not_before_idx')
+      .on(table.status, table.notBefore)
+      .where(sql`${table.status} = 'waiting'`),
+    foreignKey({
+      columns: [table.companyId, table.documentId],
+      foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],
+      name: 'nfe_access_key_lookups_company_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.importId],
+      foreignColumns: [nfeImports.companyId, nfeImports.id],
+      name: 'nfe_access_key_lookups_company_import_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.requestedByUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'nfe_access_key_lookups_requested_by_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'nfe_access_key_lookups_environment_check',
+      sql`${table.environment} in ('homologation', 'production')`,
+    ),
+    check(
+      'nfe_access_key_lookups_access_key_check',
+      sql`${table.accessKey} ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'`,
+    ),
+    check(
+      'nfe_access_key_lookups_status_check',
+      sql`${table.status} in ('queued', 'querying', 'waiting', 'imported', 'refused', 'failed')`,
+    ),
+    check(
+      'nfe_access_key_lookups_reason_check',
+      sql`${table.reason} is null or ${table.reason} in ('not_interested', 'summary_only', 'not_found', 'expired', 'cancelled', 'denied', 'certificate_mismatch', 'invalid_key', 'sefaz_unavailable')`,
+    ),
+    check(
+      'nfe_access_key_lookups_imported_document_check',
+      sql`(${table.status} <> 'imported') or (${table.documentId} is not null)`,
+    ),
+    check(
+      'nfe_access_key_lookups_refused_reason_check',
+      sql`(${table.status} <> 'refused') or (${table.reason} is not null)`,
+    ),
+    check(
+      'nfe_access_key_lookups_waiting_not_before_check',
+      sql`(${table.status} <> 'waiting') or (${table.notBefore} is not null)`,
+    ),
+    check('nfe_access_key_lookups_attempts_check', sql`${table.attempts} >= 0`),
+  ],
+)
+
+export const nfeAccessKeyLookupBudgets = pgTable(
+  'nfe_access_key_lookup_budgets',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      }),
+    environment: text().$type<NfeFiscalEnvironment>().notNull(),
+    windowStartedAt: timestamp('window_started_at', { withTimezone: true }).notNull(),
+    usedInWindow: integer('used_in_window').notNull().default(0),
+    blockedUntil: timestamp('blocked_until', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.companyId, table.environment],
+      name: 'nfe_access_key_lookup_budgets_company_environment_pk',
+    }),
+    check(
+      'nfe_access_key_lookup_budgets_environment_check',
+      sql`${table.environment} in ('homologation', 'production')`,
+    ),
+    check('nfe_access_key_lookup_budgets_used_check', sql`${table.usedInWindow} >= 0`),
   ],
 )

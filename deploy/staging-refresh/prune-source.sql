@@ -188,6 +188,8 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('municipal_holiday_rules', 'keep', null),
   ('municipal_holidays', 'keep', null),
   ('municipality_centroids', 'keep', null),
+  ('nfe_access_key_lookup_budgets', 'empty', null),
+  ('nfe_access_key_lookups', 'empty', null),
   ('nfe_addresses', 'keep', null),
   ('nfe_distribution_cursors', 'keep', null),
   ('nfe_document_status_changes', 'keep', null),
