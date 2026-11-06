@@ -886,6 +886,15 @@ pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigration
   A prova é a jornada inteira pelo caminho real, com o texto exato de cada resposta:
   `test/integration/whatsapp-driver-journey-{group,direct}.integration.ts` (respostas em
   `test/fixtures/driver-journey-*.expected.ts`; `JOURNEY_RECORD=1` regrava, `JOURNEY_TRANSCRIPT=1` imprime a conversa).
+- **"Entreguei" sem número segue o que está em andamento**, nos dois canais e por áudio: a entrega em preparo aberta é
+  retomada (`resume`: "↩️ _Continuando a entrega da NF X._" + a pergunta pendente); sem ela, a parada que chegou e falta
+  a baixa (ou a caminho) decide (`readWhatsAppStopInProgress`: uma nota vai direto com o bloco da parada, várias listam
+  só as dela); só sem nada em andamento a lista é a da viagem. O número digitado sempre vence. A foto sem pergunta
+  aberta (reconhecimento do canhoto) também pergunta primeiro pela nota da parada em andamento.
+- **"Cancelar" fecha qualquer pergunta aberta, nunca vira resposta**: no grupo, todo passo do `GROUP_STEP_REGISTRY`
+  fecha (a lista "Qual nota você entregou?" só deixa o pedido fechar; a entrega em preparo é encerrada); no individual,
+  o motorista sai de qualquer nó do fluxo com "Certo, cancelei e não registrei nada." As matrizes de isolamento
+  (`test/whatsapp/group-{flow,inbound}-isolation.contract.ts`) iteram o registro, então passo novo já é cobrado.
 - **Toda `FlowAction` de negócio passa por `withAuthorizedActor`**, que re-resolve o ator a cada
   chamada contra o mesmo `AuthorizationService` do HTTP; `registerWhatsAppFlowActions` é o único
   caminho de registro.

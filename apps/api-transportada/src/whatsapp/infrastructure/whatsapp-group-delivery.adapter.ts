@@ -14,6 +14,8 @@ import {
   type WhatsAppBotSpeechPort,
 } from '../../whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
+import { readWhatsAppStopInProgress } from '../../whatsapp-commands/application/whatsapp-stop-in-progress.service.js'
+import type { WhatsAppStopCardReader } from '../../whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
 import type {
   GroupDeliveryDocument,
   GroupDeliveryFlowPorts,
@@ -63,6 +65,8 @@ export function createGroupDeliveryWiring(dependencies: {
     readonly location: ReportedLocation
   }) => void
   readonly speech?: WhatsAppBotSpeechPort
+  /** O bloco da parada (#552) no "entreguei" que segue direto para a nota da parada em andamento. */
+  readonly stopCards?: Pick<WhatsAppStopCardReader, 'read'>
 }): GroupDeliveryWiring {
   const { database } = dependencies
   const terminal = new Set<string>(TRIP_TERMINAL_STATUSES)
@@ -79,6 +83,15 @@ export function createGroupDeliveryWiring(dependencies: {
         ? {}
         : { deliverAsAttendant: dependencies.deliverAsAttendant }),
       findActorUserId,
+      findStopInProgress: (actor) =>
+        readWhatsAppStopInProgress({
+          actor,
+          listStops: async (scope) =>
+            (await dependencies.listActiveTrips(scope))
+              .filter((trip) => !terminal.has(trip.status))
+              .flatMap((trip) => trip.stops),
+          stopCards: dependencies.stopCards,
+        }),
       async listOpenDocuments({ companyId, driverId }) {
         const trips = await dependencies.listActiveTrips({ companyId, driverId })
         const seen = new Map<string, GroupDeliveryDocument>()

@@ -7,7 +7,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { createGroupDriverFlow } from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
+import {
+  createGroupDriverFlow,
+  GROUP_STEP_REGISTRY,
+} from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
 import { GROUP_OCCURRENCE_STEP } from '../../src/whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 import type {
   GroupFlowOutcome,
@@ -226,6 +229,24 @@ describe('isolamento dos fluxos do grupo: só quem perguntou trata a resposta', 
       expectOnlyOwnerCalled(calls, pending.owner)
       // Só a entrega em preparo encerra do jeito dela; os demais deixam o pedido fechar como cancelado.
       if (pending.owner !== 'delivery') expect(outcome ?? null).toBeNull()
+    })
+  }
+
+  // Defeito de staging: "cancelar" com "Qual nota você entregou?" aberta virava resposta ("não achei essa nota").
+  for (const step of GROUP_STEP_REGISTRY.flatMap((entry) =>
+    entry.steps.map((inner) => `${entry.prefix}${inner}`),
+  )) {
+    test(`${step} esperando: "cancelar" fecha o pedido, nunca vira resposta`, async () => {
+      const { flow, recorded } = setup()
+      const outcome = await flow.cancel?.({
+        request: request(step, {}),
+        sender: OWNER_NUMBER,
+        senderName: null,
+        text: 'cancelar',
+      })
+      // `null`: o pedido fecha como cancelado; `done`: o dono encerrou do jeito dele. Nunca segue aberto.
+      expect(outcome === null || outcome === undefined || outcome.kind === 'done').toBe(true)
+      expect(recorded).toEqual([])
     })
   }
 

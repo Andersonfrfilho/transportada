@@ -64,6 +64,8 @@ export const DELIVERY_PROOF_SPEECH = {
     receiverName: 'Anotado o nome de quem recebeu.',
     skipped: 'Ok, sem esse item.',
   },
+  /** "entreguei" sem número com a entrega já aberta: o bot diz qual nota e repete a pergunta pendente. */
+  resumed: (documentNumber: string) => `↩️ *Continuando a entrega da NF ${documentNumber}.*`,
   receivedByNotUnderstood: 'Responda com o número da lista de quem recebeu.',
   stillMissingName: 'Esse item é obrigatório para fechar a entrega.',
 } as const
