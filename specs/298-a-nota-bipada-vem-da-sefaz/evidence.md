@@ -316,3 +316,27 @@ lint com 0 erros.
 
 **Pendente (manual, T4.1):** evidência com o leitor real do cliente, inclusive configurado em layout US num ABNT2 e
 com sufixo Tab.
+
+## T3.1 — cliente, polling e linha (RF9, RF10)
+
+Commit `e05063932`. O módulo novo `src/modules/nfe-access-key-lookup/` tem quatro partes:
+
+- o cliente HTTP, com guardas de tipo nas respostas;
+- o modelo puro de estado da linha: `parseAccessKey`, `deriveRowFlags` (`canAdd`, `canSendXml`, `canRetry`) e
+  `describeRowState`;
+- o motor da fila, com agendador injetável, envolvido pelos hooks `useAccessKeyLookupQueue` e `useAccessKeyLookup`;
+- o componente `AccessKeyLookupRow`.
+
+Os contratos cobrem:
+
+- o agrupamento de 500 ms: uma chamada de `access-key-checks` por rajada, e o lote fecha em 200 chaves;
+- a chave repetida: marca `alreadyScanned` e não cria linha nova nem busca;
+- o polling a cada 3 s (nenhuma chamada em 2,999 s), que para nos estados terminais;
+- o teto de 10 min, que leva a `stalled` e permite tentar de novo;
+- `stop` e `start`, que sobrevivem ao StrictMode;
+- `markXmlImported` e `recheck`, para a volta do "Enviar XML";
+- o componente, com um caso por estado;
+- os locales pt-BR e en, com as mesmas chaves.
+
+Gates: typecheck da raiz com 0 erros; `test` do painel saiu com 0 (`test:hooks` 1466 pass / 0 fail, suíte pura nova
+com 31 pass); lint com 0 erros.
