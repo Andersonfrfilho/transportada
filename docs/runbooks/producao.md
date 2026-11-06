@@ -969,3 +969,51 @@ ficha fica fora da frota. Produção conferida em 05/11: nenhum usuário com pap
 `CPF=<11 dígitos> TELEFONE=<DDD+número> bash tmp/ops/staging-cria-ficha-motorista-teste.sh` (idempotente; só INSERT; telefone
 no banco é 10 ou 11 dígitos, sem 55, `fleet_drivers_phone_check`). Criada em 06/11/2026 com CPF fictício `52998224725` e telefone
 `16993056772`. Reverter: apagar a linha de `fleet_drivers` com esse `membership_id`.
+
+## 5.22 Nota bipada vem da SEFAZ (spec 298, 06/11/2026)
+
+**Consulta de uma chave na SEFAZ de produção (T0.1).** É leitura, mas gasta 1 das 20 consultas por hora do CNPJ. Passar
+de 20 dá cStat 656 e bloqueia a distribuição inteira por 1 h, e consultar durante o bloqueio reinicia a hora.
+
+```bash
+bash /home/miyazaki/Documents/personal/ativada/producao-consulta-por-chave.sh <chave de 44 dígitos>
+```
+
+O script entra no worker por `railway ssh`, usa o certificado de distribuição (decifrado só em memória) e imprime só
+`ambiente`, `cStat`, `xMotivo` e `schema`.
+
+- Exige terminal interativo e a palavra `sim`.
+- Com mais de uma empresa no banco, passe `COMPANY_ID=<uuid>`.
+- Sem linha de resultado, sai com erro: a consulta pode ter contado no limite, então não repita às cegas.
+
+**O que o cStat quer dizer:**
+
+| cStat ou schema | O que é |
+|---|---|
+| `procNFe` | nota completa |
+| `resNFe` | só o resumo; a operação envia o XML |
+| 640 | a transportadora não consta na nota; envie o XML |
+| 217 | chave inexistente |
+| 632 | fora de 90 dias |
+| 653 | cancelada |
+| 654 | denegada |
+| 593 | certificado não bate |
+| 656 | limite estourado; esperar 65 min |
+
+**Orçamento e bloqueio.** A tabela `nfe_access_key_lookup_budgets` (`company_id`, `environment`) guarda o orçamento: no
+máximo 15 consultas por chave por hora corrida. O bloqueio de 656 fica em `blocked_until` e vale também para a
+importação automática (distNSU).
+
+Conferir, somente leitura:
+
+```sql
+select environment, window_started_at, used_in_window, blocked_until
+from nfe_access_key_lookup_budgets;
+```
+
+**Buscas presas.** O estado de cada busca fica em `nfe_access_key_lookups`. `waiting` com `not_before` no passado volta
+para a fila sozinha na rotina de distribuição. Se aparecer `querying` parado há mais de 15 min, é falha do worker: ver os
+logs (`nfe_access_key_lookup_finished`, `nfe-access-key.v1`) e a fila de mensagens mortas `nfe-access-key`.
+
+**Publicação.** A ordem é banco/API → worker → painel. A migration `20261106120034_nfe_access_key_lookups` é aditiva.
+O rollback está ao lado; ele reclassifica `access_key` para `upload` e só roda com aprovação.
