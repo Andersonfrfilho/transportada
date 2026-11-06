@@ -15,9 +15,10 @@ import type {
   WhatsAppDriverEventResult,
 } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
 import type { WhatsAppDriverActor } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
-import type {
-  WhatsAppDeliveryPreparations,
-  WhatsAppRouteContinuation,
+import {
+  joinedTexts,
+  type WhatsAppDeliveryPreparations,
+  type WhatsAppRouteContinuation,
 } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { WhatsAppStopInProgress } from '../../whatsapp-commands/application/whatsapp-stop-in-progress.service.js'
@@ -179,7 +180,7 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
     if (actor !== null && actor !== 'refused') {
       const resumed = await ports.preparations.resume?.({ actor })
       if (resumed !== null && resumed !== undefined && resumed.texts.length > 0) {
-        return toOutcome(resumed)
+        return toOutcome({ ...resumed, texts: joinedTexts(resumed.texts) })
       }
     }
     const stop = await ports.findStopInProgress?.({
@@ -192,7 +193,7 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
       const prepared = await prepare(turn, only)
       return stop.header === null || prepared.kind === 'not_understood'
         ? prepared
-        : { ...prepared, replies: [stop.header, ...prepared.replies] }
+        : { ...prepared, replies: joinedTexts([stop.header, ...prepared.replies]) }
     }
     return askDocument(stop.documents)
   }

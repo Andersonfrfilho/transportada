@@ -84,7 +84,10 @@ import {
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
 import type { WhatsAppOccurrenceDrafts } from './whatsapp-occurrence-draft.service.js'
-import type { WhatsAppDeliveryPreparations } from './whatsapp-delivery-preparation.service.js'
+import {
+  joinedTexts,
+  type WhatsAppDeliveryPreparations,
+} from './whatsapp-delivery-preparation.service.js'
 import {
   rejectListAnswer,
   WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
@@ -444,6 +447,8 @@ export function createDriverWhatsAppFlowActions(
     readonly channel: ChannelAdapterInterface
     readonly documentId: string
     readonly documentNumber?: string | undefined
+    /** O bloco da parada, na MESMA mensagem da primeira pergunta da entrega. */
+    readonly header?: null | string
     readonly session: Parameters<WhatsAppAuthorizedActionHandler>[0]['session']
   }): Promise<FlowActionResult> {
     const { actor, channel, documentId, session } = input
@@ -465,7 +470,9 @@ export function createDriverWhatsAppFlowActions(
         documentNumber: input.documentNumber.replace(/^0+(?=\d)/u, ''),
         location: consumeLocation({ actor, session }),
       })
-      for (const text of reply.texts) await say({ actor, channel, session }, { text })
+      const header = input.header ?? null
+      const texts = header === null ? reply.texts : joinedTexts([header, ...reply.texts])
+      for (const text of texts) await say({ actor, channel, session }, { text })
       // A resposta à pergunta da preparação vem antes do menu (`acceptDeliveryProof` no despachante).
       return {
         context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined },
@@ -1131,19 +1138,20 @@ export function createDriverWhatsAppFlowActions(
     const driver = { actorUserId: actor.scope.userId, companyId: actor.scope.companyId, driverId }
     const resumed = await deps.deliveryPreparations?.resume?.({ actor: driver })
     if (resumed !== null && resumed !== undefined && resumed.texts.length > 0) {
-      for (const text of resumed.texts) await say({ actor, channel, session }, { text })
+      for (const text of joinedTexts(resumed.texts))
+        await say({ actor, channel, session }, { text })
       return backToTripMenu(trip.id)
     }
     const stop = await deps.driverPrompts?.stopInProgress?.({ actor: driver })
     if (stop === null || stop === undefined) return null
     const [only] = stop.documents
     if (stop.documents.length === 1 && only !== undefined) {
-      if (stop.header !== null) await say({ actor, channel, session }, { text: stop.header })
       const delivered = await completeDelivery({
         actor,
         channel,
         documentId: only.id,
         documentNumber: only.number,
+        header: stop.header,
         session,
       })
       return { ...delivered, context: { ...delivered.context, ...backToTripMenu(trip.id).context } }
