@@ -219,7 +219,15 @@ describe('grupo: foto e localização do motorista', () => {
       ],
       event: 'messages.upsert',
     })
-    expect(media.get('A')).toEqual({ caption: 'canhoto', kind: 'image', mimeType: 'image/jpeg' })
+    expect(media.get('A')).toEqual({
+      caption: 'canhoto',
+      kind: 'image',
+      mimeType: 'image/jpeg',
+      rawMessage: {
+        key: { id: 'A' },
+        message: { imageMessage: { caption: 'canhoto', mimetype: 'image/jpeg' } },
+      },
+    })
     expect(media.get('B')).toEqual({ kind: 'location', latitude: -21.1, longitude: -47.8 })
     expect(media.has('C')).toBe(false)
   })
@@ -321,11 +329,13 @@ describe('grupo: foto e localização do motorista', () => {
 
   function intake(options: { open?: boolean; failDownload?: boolean } = {}) {
     const fake = fakePreparations(options)
+    const downloads: unknown[] = []
     const sent: string[][] = []
     const opened: string[] = []
     const locations: unknown[] = []
     const service = createGroupProofIntake({
-      downloadMedia: async () => {
+      downloadMedia: async (input) => {
+        downloads.push(input)
         if (options.failDownload === true) throw new Error('down')
         return {
           data: Buffer.from([1, 2, 3]).toString('base64'),
@@ -355,8 +365,15 @@ describe('grupo: foto e localização do motorista', () => {
         sender: '5516988887777',
         timestamp: 1_790_000_000,
       })
-    return { calls: fake.calls, handle, locations, opened, sent }
+    return { calls: fake.calls, downloads, handle, locations, opened, sent }
   }
+
+  test('a foto é baixada com a mensagem inteira do webhook (o Evolution não guarda a mensagem pelo id)', async () => {
+    const t = intake({ open: true })
+    const rawMessage = { key: { id: 'M1' }, message: { imageMessage: { mimetype: 'image/jpeg' } } }
+    await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg', rawMessage })
+    expect(t.downloads).toEqual([{ connection, providerMessageId: 'M1', rawMessage }])
+  })
 
   test('a foto baixada vai para a preparação e abre o pedido para a resposta em texto', async () => {
     const t = intake()

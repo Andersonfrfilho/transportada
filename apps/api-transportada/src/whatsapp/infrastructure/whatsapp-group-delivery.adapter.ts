@@ -107,8 +107,12 @@ export function createGroupDeliveryWiring(dependencies: {
     },
     intake: {
       // O Evolution avisa antes de gravar a mensagem: a foto pedida na hora pode não existir ainda.
-      downloadMedia: ({ connection, providerMessageId }) =>
-        downloadEvolutionMedia({ connection, providerMessageId }),
+      downloadMedia: ({ connection, providerMessageId, rawMessage }) =>
+        downloadEvolutionMedia({
+          connection,
+          providerMessageId,
+          ...(rawMessage === undefined ? {} : { rawMessage }),
+        }),
       findActorUserId,
       ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
       preparations: dependencies.preparations,

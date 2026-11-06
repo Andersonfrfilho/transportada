@@ -74,7 +74,13 @@ export function toMessageSentAt(timestamp: null | number): Date | undefined {
  * texto). A foto ainda não foi baixada: quem trata pede ao Evolution pelo id da mensagem.
  */
 export type GroupMedia =
-  | { readonly caption: null | string; readonly kind: 'image'; readonly mimeType: string }
+  | {
+      readonly caption: null | string
+      readonly kind: 'image'
+      readonly mimeType: string
+      /** A mensagem do webhook: o Evolution não grava as mensagens, então a foto pedida só pelo id não baixa. */
+      readonly rawMessage?: { readonly key: unknown; readonly message: unknown }
+    }
   | { readonly kind: 'location'; readonly latitude: number; readonly longitude: number }
 
 /** A foto/localização aceita: só do motorista do grupo (desenho 3.4, regra 9). */
@@ -810,6 +816,7 @@ export function readGroupMedia(payload: unknown): ReadonlyMap<string, GroupMedia
         caption: typeof image.caption === 'string' ? image.caption : null,
         kind: 'image',
         mimeType: typeof image.mimetype === 'string' ? image.mimetype : 'image/jpeg',
+        rawMessage: { key: item.key, message: item.message },
       })
       continue
     }
