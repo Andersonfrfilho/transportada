@@ -998,11 +998,12 @@ test('a montagem de viagem mostra o pedágio calculado, com eixo estimado e sem 
   const dialog = page.getByRole('dialog', { name: 'Nova viagem' })
   await expect(dialog).toBeVisible()
 
-  const accessKeyField = dialog.getByLabel('Número da nota ou chave')
+  const accessKeyField = dialog.getByLabel('Chave da nota')
   await accessKeyField.fill(TOLL_ACCESS_KEY_ONE)
   await accessKeyField.press('Enter')
   await accessKeyField.fill(TOLL_ACCESS_KEY_TWO)
   await accessKeyField.press('Enter')
+  await dialog.getByRole('button', { name: /^Acrescentar todas as prontas \(2\)/u }).click()
   await expect(dialog.getByText('2 notas entram na viagem.')).toBeVisible()
 
   await dialog.getByRole('button', { name: 'Veículo' }).click()
@@ -1069,11 +1070,12 @@ test('a montagem de viagem oferece duas rotas, e a sem pedágio calculado não v
   const dialog = page.getByRole('dialog', { name: 'Nova viagem' })
   await expect(dialog).toBeVisible()
 
-  const accessKeyField = dialog.getByLabel('Número da nota ou chave')
+  const accessKeyField = dialog.getByLabel('Chave da nota')
   await accessKeyField.fill(TOLL_ACCESS_KEY_ONE)
   await accessKeyField.press('Enter')
   await accessKeyField.fill(TOLL_ACCESS_KEY_TWO)
   await accessKeyField.press('Enter')
+  await dialog.getByRole('button', { name: /^Acrescentar todas as prontas \(2\)/u }).click()
   await expect(dialog.getByText('2 notas entram na viagem.')).toBeVisible()
 
   await dialog.getByRole('button', { name: 'Veículo' }).click()

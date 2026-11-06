@@ -468,3 +468,11 @@ Achado → correção → teste.
 Decisões para o dono confirmar: **M4** (rótulo, botão no topo da página e mensagem de permissão) segue o RF11 ("Importar por bip" na página de NF-e); **M5** restaura o número digitado na criação sem regressão, e o detalhe passou a se comportar igual (número lido vira linha com Acrescentar, nunca entra direto). Interpretação de M3: "tolera até 3" = erro só na 4ª falha seguida. Limite conhecido de L3: a factory `createAccessKeyLookupQueue` ainda passa de 40 linhas (é só composição de store, poller e batcher).
 
 Gates: `bun run typecheck` (raiz) 0 erros; frontend `bun run test` 8725 pass / 0 fail (suíte principal) e 1493 pass / 0 fail (`test:hooks`); lint do app 0 erros (16 warnings pré-existentes); prettier limpo.
+
+## Gate de deploy — smoke do painel
+
+- **Falha:** `gate / integration-smoke (panel)` (run 42277810884), `responsive.smoke.spec.ts:970` e `:1044` — `locator.fill` esgotou o tempo em `getByLabel('Número da nota ou chave')`.
+- **Causa:** a criação rápida de viagem passou a usar o `KeyReaderField` (rótulo "Chave da nota"); a nota bipada vai para "Notas encontradas" e só entra com "Acrescentar". A conferência é `POST /nfe-documents/access-key-checks`, que o dublê do smoke não atendia. Além disso, o leitor só aceita chave com dígito verificador válido, e as chaves `TOLL_ACCESS_KEY_*` não tinham.
+- **Correção (só teste):** `trip-smoke.helper.ts` — rota `access-key-checks` em `registerTripQuickCreateTollApi` e chaves `TOLL_ACCESS_KEY_ONE/TWO` com dígito verificador válido (`...18`, `...26`); `responsive.smoke.spec.ts` e `spec-252-painel-prints.smoke.spec.ts` — campo "Chave da nota", Enter e clique em "Acrescentar todas as prontas (2)". Nenhum comportamento de produto mudou; `frontend-driver` e `frontend-client` não usam o rótulo.
+- **Smoke local** (`PLAYWRIGHT_FRONTEND_PORT=53110`, `PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true`, mesmo comando do `make smoke-panel`): 73 passed, 0 failed, `failures()` vazio. Uma execução intermediária teve 1 falha avulsa (`responsive.smoke.spec.ts:769`, timeout de 5 s em um heading, estranha a esta mudança) que passou na repetição.
+- `bun run --cwd apps/frontend-transportada test`: 1493 pass / 0 fail. Lint: 0 erros.
