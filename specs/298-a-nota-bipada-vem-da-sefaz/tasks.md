@@ -18,6 +18,8 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 - [ ] T1.1 Migration aditiva (D1, D3, índice único parcial) + schema da API e cópia do worker — `make migration-test`.
 - [ ] T1.2 Contrato das rotas (RF1, RF2, 404 entre empresas, idempotência, `found`) — antes do código.
 - [ ] T1.3 Use cases + rotas + outbox + OpenAPI — contratos da T1.2 verdes; `test:integration` da rota.
+- [ ] T1.4 Verificação em lote `POST /v1/nfe-documents/access-key-checks` (RF11d: ≤200 chaves, só da empresa,
+      uma query) — contrato antes, depois rota; `test:integration`.
 
 ## Fase 2 — Worker
 
@@ -36,7 +38,9 @@ com `--env-file=../../.env.test`) + commit isolado + evidência em `evidence.md`
 
 - [ ] T3.1 Cliente + hook de polling + componente de linha (RF9, RF10) — contratos dos estados.
 - [ ] T3.2 Criação da viagem (`useTripQuickCreate`): `notFound` vira busca; `imported` vira `staged` — contrato.
-- [ ] T3.3 Detalhe da viagem e página de NF-e (RF11, RF12) — contratos.
+- [ ] T3.3 Detalhe da viagem (RF9, RF10) e origem "busca por chave" na página de NF-e (RF12) — contratos.
+- [ ] T3.5 Conferência em massa na página de NF-e (RF11–RF11c): leitor contínuo, resumo, filtros, sessão do
+      navegador — contrato do critério 4a.
 - [ ] T3.4 Locales pt-BR/en dos estados e motivos — `typecheck` + teste de chaves de locale.
 
 ## Fase 4 — Publicar

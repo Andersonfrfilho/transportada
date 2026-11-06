@@ -61,10 +61,12 @@ enviado o XML, a nota é importada e entra na viagem.
 chave saem por hora (D3), as demais aparecem "na fila da SEFAZ — próxima janela HH:MM" e são consultadas na janela
 seguinte sem nova ação; a importação automática nunca recebe 656 por causa delas.
 
-### P2 — Bipar na página de NF-e
+### P1 — Conferência em massa na página de NF-e
 
-**Given** a página de NF-e **When** a operação bipa uma chave **Then** nota cadastrada abre; desconhecida segue o
-mesmo fluxo de busca e importa, sem viagem.
+**Given** a carga do dia chegou com os DANFEs **When** a operação abre "Conferir notas" na página de NF-e e bipa
+todas em sequência **Then** o painel mostra, ao vivo, quantas foram lidas, quantas **já estavam no sistema**, quantas
+**faltavam**, e destas quantas foram importadas, estão buscando, estão na fila da SEFAZ ou foram recusadas; a lista
+filtra "faltando" e "recusadas" para a operação agir (enviar XML), e cada nota que faltava é buscada sozinha.
 
 ### P2 — Bipar no detalhe de uma viagem aberta
 
@@ -99,8 +101,19 @@ Mesmo fluxo da criação, usando o vínculo que o detalhe já faz.
   (criação: `staged`; detalhe: `linking` → `linked`).
 - **RF10** Painel — linha recusada mostra o motivo e, para todo motivo exceto `cancelled`/`denied`, o botão "Enviar
   XML", que usa a importação por upload existente e, ao terminar, segue o vínculo da linha.
-- **RF11** Página de NF-e ganha o leitor de chave (o mesmo componente de câmera/teclado da spec 055), com a mesma
-  fila de linhas e sem vínculo.
+- **RF11** Página de NF-e ganha o modo **"Conferir notas"**: leitor de chave contínuo (o mesmo componente de
+  câmera/teclado/leitor USB da spec 055, câmera aberta entre leituras), com a mesma fila de linhas e sem vínculo.
+- **RF11a** Resumo da conferência, atualizado a cada leitura e a cada mudança de estado: **lidas** (chaves distintas),
+  **já no sistema**, **faltavam** (= não cadastradas no momento da leitura), e a divisão das que faltavam em
+  **importadas**, **buscando**, **na fila da SEFAZ** (com horário da próxima janela) e **recusadas** (por motivo).
+  Chave repetida conta uma vez e mostra "já lida"; chave inválida conta à parte como **ilegível**.
+- **RF11b** A lista da conferência filtra por situação (todas, já no sistema, faltavam, recusadas) e cada linha mostra
+  número, série, emitente (CNPJ da chave) e o estado; recusada tem "Enviar XML" (RF10).
+- **RF11c** A conferência é da tela: sobrevive a recarregar a página (armazenamento da sessão do navegador, só chaves
+  e ids) e tem "Nova conferência" para zerar. Não grava nada no servidor além das buscas do RF1.
+- **RF11d** A verificação "já no sistema" é feita em lote: `POST /v1/nfe-documents/access-key-checks`
+  `{ accessKeys: string[≤200] }` (`invoices.read`) devolve, por chave, `documentId` ou ausente — uma chamada por
+  rajada de leituras (agrupadas a cada 500 ms), não uma por nota. As ausentes geram as buscas do RF1.
 - **RF12** Origem "busca por chave" aparece na página de NF-e como as outras origens.
 
 ## Requisitos não funcionais
@@ -130,6 +143,9 @@ Mesmo fluxo da criação, usando o vínculo que o detalhe já faz.
 3. Integração (banco): `procNFe` vira `nfe_documents` com filhos, e a mesma chave vinda depois pela distribuição
    não duplica.
 4. Painel: contrato dos estados de linha (buscando, na fila com horário, importada→vinculada, recusada com XML).
+   4a. Conferência: com 50 chaves (30 cadastradas, 18 desconhecidas, 1 repetida, 1 ilegível) o resumo mostra lidas 49,
+   já no sistema 30, faltavam 18, ilegível 1, e a soma importadas + buscando + na fila + recusadas = 18 a todo
+   instante; a verificação faz no máximo uma chamada por rajada.
 5. Produção: uma chave real que cita a transportadora é importada e vinculada; a evidência fica no `evidence.md`.
 
 ## Dúvidas

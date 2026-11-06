@@ -46,6 +46,13 @@ used_in_window < 15 and (blocked_until is null or blocked_until < now()) returni
 - Evento `transportada.nfe.access-key.requested` `{ lookupId, companyId, importId }` (só referência, sem chave inteira
   no log).
 
+- `POST /v1/nfe-documents/access-key-checks` body `{ accessKeys: string[1..200] }` (`invoices.read`) →
+  `200 {data:[{accessKey, documentId|null}]}` — uma query `where company_id = $1 and access_key = any($2)`; chave
+  inválida → `400` com a lista de todas as inválidas.
+- Conferência (painel): `F/modules/nfe-workspace/` — `useAccessKeyConference.hook.ts` (fila, agrupamento de 500 ms,
+  `sessionStorage` com try/catch), `accessKeyConference.service.ts` (resumo puro, base do critério 4a),
+  `AccessKeyConferencePanel.component.tsx`.
+
 ## Dados, migration e rollback
 
 Aditiva. Rollback: remover a tabela nova e as colunas novas; o CHECK volta só se não houver linha `access_key`
