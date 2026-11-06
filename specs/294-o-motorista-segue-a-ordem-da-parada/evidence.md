@@ -611,3 +611,15 @@ attachedAt }, id, processingState, punctuality } }` (id do comprovante existente
   como em produção, onde os dois são iguais.
 - Depois do ajuste: `me-trip` + `delivery-proofs-by-trip` + `stop-order-guard` (inclui o teste da corrida do C5): 41 pass / 0 fail.
 - `make check` final: exit 0, todas as suítes 0 fail.
+
+### A jornada validada de ponta a ponta (RF28–RF34, 2026-11-06)
+
+- Vermelho antes: no código de `origin/staging` (6f339bb87), o "cheguei" repetido na parada que já chegou devolveu
+  "Qual parada? … 1. NF 90002 … 6. NF 90007" (reprodução do teste do dono); as duas jornadas de integração não carregam
+  (`whatsapp-stop-card.reader.js` não existe).
+- Verde depois: `whatsapp-driver-journey-group.integration.ts` (34 mensagens, 3 paradas, evento do Evolution → sessão
+  Postgres → fluxos → funções do app) e `whatsapp-driver-journey-direct.integration.ts` (32 mensagens, webhook Meta
+  assinado → despachante → fluxo publicado): 2 pass, texto exato de cada resposta, marcação conferida, eventos gravados
+  conferidos (saída/chegada/baixa por parada, com e sem ponto).
+- Contratos da API (`bun --env-file=../../.env.test test --timeout 120000`): 14020 pass / 0 fail. Integração dos arquivos de
+  WhatsApp, motorista e paradas: ver o PR.

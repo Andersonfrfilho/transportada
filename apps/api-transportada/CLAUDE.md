@@ -878,6 +878,14 @@ emitir CT-e/NFS-e por seleção e faturar (spec 144, ADR-0063/ADR-0064). O despa
 está nos pacotes `meta-whatsapp-module@0.8.0`, `-contracts@0.6.0` e `-provider@0.3.1`; as migrations do módulo viajam em
 pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigrations`, com o `migrate` injetado.
 
+- **A jornada do motorista no bot é uma só nos dois canais** (spec 294 RF28–RF34): o texto de cada passo mora em
+  `whatsapp-commands/domain/whatsapp-driver-journey.policy.ts` e o bloco da parada em `whatsapp-stop-card.policy.ts`
+  (lido por `whatsapp-stop-card.reader.ts`: contratante, valor, volumes e a estrada do OSRM só a partir do último ponto
+  compartilhado na viagem). Evento repetido abre o menu de ações (grupo: passo `journey.actions`; individual: pedido
+  `journey_actions`), nunca a lista das outras paradas. "Não entreguei" no grupo é `whatsapp-group-return-flow.service.ts`.
+  A prova é a jornada inteira pelo caminho real, com o texto exato de cada resposta:
+  `test/integration/whatsapp-driver-journey-{group,direct}.integration.ts` (respostas em
+  `test/fixtures/driver-journey-*.expected.ts`; `JOURNEY_RECORD=1` regrava, `JOURNEY_TRANSCRIPT=1` imprime a conversa).
 - **Toda `FlowAction` de negócio passa por `withAuthorizedActor`**, que re-resolve o ator a cada
   chamada contra o mesmo `AuthorizationService` do HTTP; `registerWhatsAppFlowActions` é o único
   caminho de registro.
