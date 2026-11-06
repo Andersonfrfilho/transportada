@@ -23,6 +23,9 @@ export type WhatsAppDriverStopCommand = {
 const MAX_WORDS = 6
 
 const ARRIVE_WORDS = new Set(['cheguei', 'chegando', 'chegamos', 'cheguemos', 'chegei', 'chegamo'])
+/** "Chegar" sozinho é futuro ("vou chegar"); só "acabei de chegar" diz que já chegou. */
+const ARRIVE_RECENT_WORDS = new Set(['acabei', 'acabamos', 'acabou', 'acabo'])
+const ARRIVE_INFINITIVE = 'chegar'
 const DEPART_WORDS = new Set(['sai', 'saindo', 'saimos', 'saiu', 'saimo'])
 const ROUTE_START_WORDS = new Set(['iniciar', 'inicia', 'inicio', 'iniciei', 'inicie', 'iniciando'])
 /** Palavras que podem acompanhar o comando sem mudar o sentido ("saí para a entrega", "to saindo"). */
@@ -118,7 +121,7 @@ export function normalizeDriverCommandText(text: string): string {
 export function interpretDriverStopCommand(text: string): WhatsAppDriverStopCommand | null {
   const normalized = normalizeDriverCommandText(text)
   if (normalized === '') return null
-  const words = normalized.split(' ')
+  const words = withRecentArrival(normalized.split(' '))
   if (words.length > MAX_WORDS) return null
 
   const arrive = words.some((word) => isWordOf(word, ARRIVE_WORDS))
@@ -144,4 +147,12 @@ export function interpretDriverStopCommand(text: string): WhatsAppDriverStopComm
     documentNumbers,
     event: arrive ? WHATSAPP_DRIVER_STOP_COMMAND.arrive : WHATSAPP_DRIVER_STOP_COMMAND.depart,
   }
+}
+
+/** "acabei de chegar" vira "cheguei"; o "chegar" que não vem depois de "acabei de" fica como está. */
+function withRecentArrival(words: readonly string[]): string[] {
+  const at = words.indexOf(ARRIVE_INFINITIVE)
+  const recent = at >= 2 && words[at - 1] === 'de' && ARRIVE_RECENT_WORDS.has(words[at - 2] ?? '')
+  if (!recent) return [...words]
+  return [...words.slice(0, at - 2), 'cheguei', ...words.slice(at + 1)]
 }

@@ -98,6 +98,17 @@ describe('interpretDriverStopCommand', () => {
     expect(interpretDriverStopCommand('sai para a entrega')?.event).toBe('depart')
     expect(interpretDriverStopCommand('iniciar rota')?.event).toBe('depart')
   })
+  test('"acabei de chegar" é cheguei; "vou chegar" e "chegar" sozinho não são', () => {
+    expect(interpretDriverStopCommand('Acabei de chegar')?.event).toBe('arrive')
+    expect(interpretDriverStopCommand('acabamos de chegar na entrega')?.event).toBe('arrive')
+    expect(interpretDriverStopCommand('acabei de chegar 17234')).toEqual({
+      documentNumbers: ['17234'],
+      event: 'arrive',
+    })
+    expect(interpretDriverStopCommand('vou chegar')).toBeNull()
+    expect(interpretDriverStopCommand('chegar')).toBeNull()
+    expect(interpretDriverStopCommand('acabei de sair')).toBeNull()
+  })
   test('número de nota vira pista da parada', () => {
     expect(interpretDriverStopCommand('cheguei NF 000017234')).toEqual({
       documentNumbers: ['17234'],
@@ -250,6 +261,43 @@ describe('grupo: saí e cheguei', () => {
       replies: ['occ-start'],
     })
     expect(t.occurrenceCalls).toEqual(['ocorrência, prorrogação do boleto da nota 899877'])
+  })
+
+  test('menu: conversa solta não abre ocorrência; repete o menu e a opção seguinte vale', async () => {
+    const t = setup([stop('S1', 1, ['17234'])])
+    await t.start('')
+    expect(await t.answer('Acabei de chegar já vou fazer aqui')).toEqual({
+      kind: 'not_understood',
+      prompt: GROUP_DRIVER_TEXT.menuWithoutDelivery,
+      reason: 'responda com o número da opção',
+    })
+    expect(t.occurrenceCalls).toEqual([])
+    expect(await t.answer('2')).toEqual({
+      kind: 'done',
+      replies: ['Chegada registrada.'],
+      withoutFarewell: true,
+    })
+  })
+
+  test('menu: frase com número de nota ainda vale como pedido direto', async () => {
+    const t = setup([])
+    await t.start('')
+    expect(await t.answer('prorrogação do boleto 899877')).toEqual({
+      kind: 'done',
+      replies: ['occ-start'],
+    })
+    expect(t.occurrenceCalls).toEqual(['prorrogação do boleto 899877'])
+  })
+
+  test('menu: "acabei de chegar" escolhe cheguei', async () => {
+    const t = setup([stop('S1', 1, ['17234'])])
+    await t.start('')
+    expect(await t.answer('acabei de chegar')).toEqual({
+      kind: 'done',
+      replies: ['Chegada registrada.'],
+      withoutFarewell: true,
+    })
+    expect(t.occurrenceCalls).toEqual([])
   })
 
   test('o que não é comando segue para a ocorrência com o texto original', async () => {

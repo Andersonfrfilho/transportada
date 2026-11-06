@@ -337,6 +337,20 @@ export function createGroupDriverFlow(flows: {
     reason: 'responda com o número da opção',
   })
 
+  /**
+   * Com o menu aberto, só a frase que diz o que lançar vira pedido direto: comando da rota, número de nota ou
+   * "ocorrência". Conversa solta ("acabei de chegar, já vou fazer aqui") abria a ocorrência e o número digitado
+   * em seguida para o menu escolhia uma nota.
+   */
+  function isDirectRequest(text: string): boolean {
+    if (isDriverCommand(text) || /\d/u.test(text)) return true
+    if (tripClose?.matches(text) === true) return true
+    if ((flows.boletoResend?.interpret(text) ?? null) !== null) return true
+    return normalizeDriverCommandText(text)
+      .split(' ')
+      .some((word) => isWordOf(word, OCCURRENCE_WORDS))
+  }
+
   const flow: GroupRequestFlow = {
     async answer(turn) {
       const { step } = turn.request
@@ -345,7 +359,9 @@ export function createGroupDriverFlow(flows: {
         case 'menu': {
           // Spec 292 T9: a frase inteira no lugar da opção ("ocorrência, prorrogação do boleto da nota
           // 899877", por texto ou pelo áudio confirmado) vale como o pedido direto, com nota e tipo.
-          if (isFreeSentence(turn.text)) return flow.start(turn)
+          if (isFreeSentence(turn.text)) {
+            return isDirectRequest(turn.text) ? flow.start(turn) : notUnderstoodMenu()
+          }
           const item = pickMenuItem(menu, turn.text)
           return item === undefined ? notUnderstoodMenu() : choose(turn, item)
         }
