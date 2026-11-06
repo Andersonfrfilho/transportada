@@ -183,8 +183,12 @@ describe('trip quick create contract', () => {
     expect(dialog).toContain('<TripNoteIntake')
     expect(dialog).not.toContain('acceptScan')
     expect(dialog).not.toContain('submitTyped')
-    expect(intake).toContain('<KeyReaderField')
-    expect(intake).toContain('canScan ? (')
+    expect(intake).toContain('<TripBippedNotes')
+    const bippedNotes = await readApplicationFile(
+      'src/modules/trip/components/TripBippedNotes.component.tsx',
+    )
+    expect(bippedNotes).toContain('<KeyReaderField')
+    expect(bippedNotes).toContain('canScan ? (')
   })
 
   /**

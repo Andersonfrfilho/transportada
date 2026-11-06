@@ -41,23 +41,6 @@ function readApplicationFile(filePath: string): Promise<string> {
   return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
 }
 
-/** A asserção é sobre o corpo de uma função só: `setIsScannerOpen` continua vivo em `closeScanner`. */
-function readFunctionBody(source: string, signature: string): string {
-  const start = source.indexOf(signature)
-  if (start === -1) throw new Error(`TRIP_CONTRACT_FUNCTION_MISSING:${signature}`)
-
-  let depth = 0
-  for (let index = source.indexOf('{', start); index < source.length; index += 1) {
-    if (source[index] === '{') depth += 1
-    if (source[index] === '}') {
-      depth -= 1
-      if (depth === 0) return source.slice(start, index + 1)
-    }
-  }
-
-  throw new Error(`TRIP_CONTRACT_FUNCTION_UNCLOSED:${signature}`)
-}
-
 describe('trip scan sequence contract', () => {
   test('turns the read that carries a key into a row waiting for the lookup', async () => {
     const { acceptScannedText } = await loadScanQueue()
@@ -183,12 +166,12 @@ describe('trip scan sequence contract', () => {
     ).toBe(false)
   })
 
-  /** Confirmar nota a nota mata o ritmo: a lente segue aberta enquanto o palete passa por ela. */
-  test('leaves the camera open between reads', async () => {
+  /** Spec 298: a câmera lê para a lista de notas encontradas; nada é vinculado sem "Acrescentar". */
+  test('hands the scanned key to the found-notes list instead of linking it', async () => {
     const hook = await readApplicationFile(LINK_HOOK_PATH)
 
-    expect(hook).toContain('acceptScannedText')
-    expect(readFunctionBody(hook, 'function acceptScan(')).not.toContain('setIsScannerOpen')
+    expect(hook).not.toContain('acceptScannedText')
+    expect(hook).not.toContain('findNfeDocumentByAccessKey')
   })
 
   /** A recusa da linha é a mesma da tela: código do erro traduzido pelo mapa que o módulo já tem. */

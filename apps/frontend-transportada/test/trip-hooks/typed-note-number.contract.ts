@@ -43,7 +43,6 @@ describe('"Vincular nota" da viagem aceita número e vincula a seleção da busc
     rendered = await renderHook(() =>
       useTripDocumentLinkForm({
         availableDocuments: [SOLO, TWIN_A, TWIN_B] as unknown as readonly NfeDocumentListItem[],
-        findNfeDocumentByAccessKey: () => Promise.resolve(null),
         linkScannedDocument: ({ documentId }) => {
           if (documentId === failFor) return Promise.reject(new Error('boom'))
           linked.push(documentId)

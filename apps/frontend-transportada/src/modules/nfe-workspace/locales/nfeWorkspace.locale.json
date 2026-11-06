@@ -111,7 +111,8 @@
     "sourceNe": "Origem diferente de",
     "statusEq": "Status",
     "statusNe": "Status diferente de",
-    "upload": "Upload"
+    "upload": "Upload",
+    "access_key": "Busca por chave"
   },
   "common": {
     "loadMore": "Carregar mais",
@@ -132,6 +133,7 @@
   },
   "mechanism": {
     "section": "Origem da importação",
+    "accessKey": "Busca por chave",
     "manual": "Manual",
     "remote": "Remota"
   },

@@ -91,19 +91,18 @@ describe('trip typed access key contract', () => {
     expect(resolveTripLinkReference({ mode: 'freight', value: ' ' })).toBeUndefined()
   })
 
-  /** Botão que não pode funcionar é pior que botão ausente — no iPhone sem HTTPS ele nunca abriria. */
+  /** A câmera é do componente da lista de encontradas, escondida onde ela é impossível. */
   test('hides the reading button where the camera is impossible', async () => {
-    const [detail, hook] = await Promise.all([
-      readApplicationFile(DETAIL_PATH),
-      readApplicationFile(LINK_HOOK_PATH),
-    ])
+    const bipped = await readApplicationFile(
+      'src/modules/trip/components/TripBippedNotes.component.tsx',
+    )
 
-    expect(hook).toContain(
+    expect(bipped).toContain(
       "import { isCameraCapable } from '@/components/ui/barcodeScanner.service'",
     )
-    expect(hook).toContain('isCameraCapable(globalThis.navigator)')
-    expect(detail).toContain("import { BarcodeScanner } from '@/components/ui/barcode-scanner'")
-    expect(detail).toContain('linkForm.canScan ? (')
+    expect(bipped).toContain('isCameraCapable(globalThis.navigator)')
+    expect(bipped).toContain("import { BarcodeScanner } from '@/components/ui/barcode-scanner'")
+    expect(bipped).toContain('canScan ? (')
   })
 
   /**
@@ -119,12 +118,16 @@ describe('trip typed access key contract', () => {
     expect(queue).toContain('extractNfeAccessKey(text)')
   })
 
-  /** Chave que a empresa não tem é recusa dita no lugar, não vínculo silencioso que nunca acontece. */
-  test('links the scanned key through the identifier the lookup returns', async () => {
-    const hook = await readApplicationFile(LINK_HOOK_PATH)
+  /** Chave digitada vira linha da lista de encontradas, nunca vínculo direto nem beco sem saída. */
+  test('sends the typed key to the found-notes list', async () => {
+    const [detail, hook] = await Promise.all([
+      readApplicationFile(DETAIL_PATH),
+      readApplicationFile(LINK_HOOK_PATH),
+    ])
 
-    expect(hook).toContain('findNfeDocumentByAccessKey')
-    expect(hook).toContain("'scannedDocumentNotFound'")
+    expect(detail).toContain("linkForm.reference?.kind !== 'accessKey'")
+    expect(detail).toContain('bipped.read(linkForm.reference.value)')
+    expect(hook).not.toContain('scannedDocumentNotFound')
   })
 
   /** Rótulo visível não nasce no componente — nem em português nem em inglês. */
@@ -155,7 +158,5 @@ describe('trip typed access key contract', () => {
       expect(ptBrLocale.detail).toHaveProperty(key)
       expect(englishLocale.detail).toHaveProperty(key)
     }
-    expect(ptBrLocale.feedback).toHaveProperty('scannedDocumentNotFound')
-    expect(englishLocale.feedback).toHaveProperty('scannedDocumentNotFound')
   })
 })

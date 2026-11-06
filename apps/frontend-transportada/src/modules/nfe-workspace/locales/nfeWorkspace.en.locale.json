@@ -90,6 +90,7 @@
   },
   "mechanism": {
     "section": "Import source",
+    "accessKey": "Key lookup",
     "manual": "Manual",
     "remote": "Remote"
   },
@@ -258,7 +259,10 @@
     "cteIssuedIssued": "With issued CT-e",
     "fiscalLink": "Fiscal link",
     "unlinkedOnly": "Only notes without a linked CT-e or NFS-e",
-    "includeLinked": "Including notes with CT-e or NFS-e"
+    "includeLinked": "Including notes with CT-e or NFS-e",
+    "distribution": "Distribution",
+    "upload": "Upload",
+    "access_key": "Key lookup"
   },
   "scheduledDistributionTitle": "Automatic note retrieval",
   "scheduledDistributionHint": "When it is on, the platform queries SEFAZ on a schedule and pulls in the notes issued against the company tax id on its own. Manual retrieval on the notes screen keeps working.",

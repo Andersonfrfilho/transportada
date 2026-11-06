@@ -372,3 +372,34 @@ encontradas** (marcada "Bipada"), acima da busca; a nota só entra com "Acrescen
 
 ⚠️ Digitar o **número** da nota no campo da criação deixou de existir (o campo só lê chave); o número se busca em
 "Buscar notas". Decisão do dono a confirmar.
+
+## T3.3 — detalhe da viagem e origem "busca por chave" (RF9, RF10, RF12)
+
+**Detalhe (P2).** O painel "Vincular nota" do detalhe de viagem aberta ganhou a mesma lista de **notas encontradas** da
+criação: o trecho leitor + lista saiu de `TripNoteIntake` para `TripBippedNotes` (novo, compartilhado) e `useBippedNotes`
+é o mesmo hook, com a ação de acrescentar parametrizada. No detalhe, "Acrescentar" e "Acrescentar todas as prontas"
+chamam `useTripDocumentLinkForm.linkDocuments`, que usa a rota de vínculo que o detalhe já tinha
+(`linkDocumentMutation`); regra de viagem, `alreadyOnTrip` e estado da viagem continuam sendo recusa da API, dita na linha
+(`TripScanQueue`, mapa `resolveTripFeedbackKey`). A nota aceita sai da lista (`linkedDocumentIds`); a recusada continua
+oferecendo "Acrescentar" (a fila de vínculo deixa reenviar uma entrada `refused`). Recusada na busca: "Enviar XML" →
+`recheck` → pronta, como na criação. Nada é vinculado sem "Acrescentar".
+- Removido do `useTripDocumentLinkForm`: câmera (`acceptScan`, `linkScannedKey`, `openScanner`/`closeScanner`, `canScan`),
+  `findNfeDocumentByAccessKey`, `isResolving` e a recusa `scannedDocumentNotFound` (o beco sem saída). Chave digitada no
+  campo "inserção rápida" vira linha da lista (`bipped.read`), não vínculo direto; número e identificador seguem como antes.
+- Contrato novo (critério 4): `test/trip-hooks/bipped-notes-detail.contract.ts` — chave lida vira linha e só vincula com
+  Acrescentar (some depois); "todas" vincula pela rota existente; recusa da API fica na linha com "Acrescentar" ainda ativo.
+- Testes que fixavam o comportamento antigo e foram ajustados: `test/trip/scan-link.contract.ts`,
+  `test/trip/typed-access-key.contract.ts`, `test/trip/quick-create.contract.ts`, `test/trip/document-link-placement.contract.ts`,
+  `test/trip-hooks/typed-note-number.contract.ts` (sem `findNfeDocumentByAccessKey`).
+
+**RF12.** A origem aparece na aba Processamentos da página de NF-e: terceiro seletor "Busca por chave"
+(`NfeImportMechanism = 'accessKey'`, `sourceEq: 'access_key'`, sem painel de entrada), a etiqueta da fila
+(`filters.access_key`) e o tipo/validador do cliente (`NfeImportSummary.source`). Locales pt-BR/en
+(`mechanism.accessKey`, `filters.access_key`; en ganhou também `filters.distribution`/`upload`, que faltavam).
+A leitura de **documentos** (`nfe-documents`) não expõe `source`: não há origem por documento a rotular.
+API: o filtro `sourceEq/sourceNe` de `GET /nfe-imports` **rejeitava** `access_key` (400); `parseSource` e os tipos de
+filtro (schema, routes, tipos, repositório) foram alargados. Contrato: `test/nfe-http/listing-and-detail.contract.ts`
+(aceita `access_key`, continua 400 para origem desconhecida). Contrato do seletor: `test/nfe-workspace/import-mechanism.contract.ts`.
+
+Gates: `bun run typecheck` (raiz) 0 erros; frontend `bun run test` 8703 + 1470 pass, 0 fail; lint do app 0 erros;
+API `bun --env-file=../../.env.test test --timeout 120000` 14160 pass, 0 fail; lint da API sem problemas.

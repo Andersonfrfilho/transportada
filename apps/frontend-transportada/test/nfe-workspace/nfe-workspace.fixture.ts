@@ -18,7 +18,7 @@ export type NfeImportSummaryContract = Readonly<{
   processedCount: number
   receivedCount: number
   rejectedCount: number
-  source: 'distribution' | 'upload'
+  source: 'access_key' | 'distribution' | 'upload'
   status:
     | 'cancelled'
     | 'completed'

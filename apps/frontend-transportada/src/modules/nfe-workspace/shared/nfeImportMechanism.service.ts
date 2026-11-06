@@ -1,15 +1,19 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-export type NfeImportMechanism = 'manual' | 'remote'
+export type NfeImportMechanism = 'accessKey' | 'manual' | 'remote'
 
 export const DEFAULT_NFE_IMPORT_MECHANISM: NfeImportMechanism = 'remote'
 
-export const NFE_IMPORT_MECHANISM_ORDER: readonly NfeImportMechanism[] = ['remote', 'manual']
+export const NFE_IMPORT_MECHANISM_ORDER: readonly NfeImportMechanism[] = [
+  'remote',
+  'manual',
+  'accessKey',
+]
 
 export type NfeImportMechanismView = {
   readonly mechanism: NfeImportMechanism
   readonly showsDistribution: boolean
   readonly showsUpload: boolean
-  readonly sourceEq: 'distribution' | 'upload'
+  readonly sourceEq: 'access_key' | 'distribution' | 'upload'
 }
 
 export function resolveNfeImportMechanismView(
@@ -21,6 +25,15 @@ export function resolveNfeImportMechanismView(
       showsDistribution: true,
       showsUpload: false,
       sourceEq: 'distribution',
+    }
+  }
+
+  if (input.mechanism === 'accessKey') {
+    return {
+      mechanism: 'accessKey',
+      showsDistribution: false,
+      showsUpload: false,
+      sourceEq: 'access_key',
     }
   }
 
