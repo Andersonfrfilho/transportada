@@ -80,7 +80,7 @@ function botMentionTokens(botNumber: string, botLids: ReadonlySet<string>): Read
 }
 
 /** O número só casa marcação por número; o `@lid` só casa marcação por `@lid`. */
-function mentionsBot(
+export function mentionsBot(
   mentionedJids: readonly string[],
   botNumber: string,
   botLids: ReadonlySet<string>,

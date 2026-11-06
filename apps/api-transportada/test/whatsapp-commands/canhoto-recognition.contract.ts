@@ -251,9 +251,15 @@ function setup(
       wantsPhoto: async () => false,
     } as never,
   })
-  const photo = (actor: WhatsAppDriverActor = ACTOR, id = 'M1', bytes = BYTES) =>
+  const photo = (
+    actor: WhatsAppDriverActor = ACTOR,
+    id = 'M1',
+    bytes = BYTES,
+    allowsCanhotoReading?: boolean,
+  ) =>
     facade.receivePhoto({
       actor,
+      ...(allowsCanhotoReading === undefined ? {} : { allowsCanhotoReading }),
       bytes,
       caption: null,
       channel: 'group',
@@ -321,6 +327,22 @@ describe('foto sem entrega em preparo: o canhoto lido liga à nota (spec 294 RF2
     expect(reply?.texts).toEqual(['Esse canhoto já tinha chegado: NF 17234, entregue às 11:32.'])
     expect(t.readCalls()).toBe(0)
     expect(t.rows.size).toBe(0)
+  })
+})
+
+describe('no grupo, o bot só lê o canhoto quando é marcado na foto', () => {
+  test('foto sem marcar o bot: não vai ao leitor, não pergunta nada, não abre nota', async () => {
+    const t = setup()
+    expect(await t.photo(ACTOR, 'M1', BYTES, false)).toBeNull()
+    expect(t.readCalls()).toBe(0)
+    expect(t.questionRows.size).toBe(0)
+    expect(t.rows.size).toBe(0)
+  })
+
+  test('foto marcando o bot: lê como antes', async () => {
+    const t = setup()
+    const read = await t.photo(ACTOR, 'M1', BYTES, true)
+    expect(read?.texts[0]).toBe('Li o canhoto da NF 17234.')
   })
 })
 

@@ -27,6 +27,7 @@ import { isCancelText } from './whatsapp-group-request.service.js'
 import {
   decideGroupMessage,
   type GroupMessageIgnoredReason,
+  mentionsBot,
   parseJid,
 } from '../domain/evolution-group-message.policy.js'
 import type {
@@ -93,6 +94,8 @@ export type AdmittedGroupMedia = {
   readonly driverId: string
   readonly groupJid: string
   readonly media: GroupMedia
+  /** A legenda marcou o bot: só então a foto que ninguém pediu vai à leitura automática do canhoto. */
+  readonly mentionsBot: boolean
   readonly providerMessageId: string
   readonly sender: string
   /** Segundos desde 1970, do Evolution; `null` quando não veio. */
@@ -555,6 +558,31 @@ export function createEvolutionGroupInbound(
     return 'audio'
   }
 
+  /** Sem marcação nenhuma não pergunta nada ao Evolution; identidade fora do ar conta como não marcado. */
+  async function mediaMentionsBot(input: {
+    readonly companyId: string
+    readonly connection: LazyEvolutionConnection
+    readonly groupJid: string
+    readonly mentionedJids: readonly string[]
+  }): Promise<boolean> {
+    if (input.mentionedJids.length === 0) return false
+    try {
+      const botNumber = await identity.botNumber(input)
+      if (botNumber === null) return false
+      const lids = lidDigits(input.mentionedJids)
+      const directory =
+        lids.length === 0
+          ? new Map<string, string>()
+          : await identity.lidDirectory({ ...input, lids })
+      const botLids = new Set(
+        [...directory].filter(([, number]) => number === botNumber).map(([lid]) => lid),
+      )
+      return mentionsBot(input.mentionedJids, botNumber, botLids)
+    } catch {
+      return false
+    }
+  }
+
   const inbound: EvolutionGroupInbound = {
     async receive({ audio = null, companyId, connection, event, media = null, senderLid }) {
       if (event.fromMe) return 'from_me'
@@ -614,6 +642,12 @@ export function createEvolutionGroupInbound(
           driverId: owner.driverId,
           groupJid,
           media,
+          mentionsBot: await mediaMentionsBot({
+            companyId,
+            connection,
+            groupJid,
+            mentionedJids: event.mentionedJids,
+          }),
           providerMessageId: event.externalMessageId,
           sender,
           timestamp: event.timestamp,

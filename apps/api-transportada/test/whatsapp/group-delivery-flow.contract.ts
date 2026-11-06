@@ -44,7 +44,9 @@ const reply = (texts: string[], awaitingText = false): WhatsAppDeliveryPreparati
   texts,
 })
 
-function fakePreparations(options: { open?: boolean; awaitingText?: boolean } = {}) {
+function fakePreparations(
+  options: { acceptsUnsolicited?: boolean; awaitingText?: boolean; open?: boolean } = {},
+) {
   const calls: { method: string; input: unknown }[] = []
   const preparations: WhatsAppDeliveryPreparations = {
     async answer(input) {
@@ -57,6 +59,9 @@ function fakePreparations(options: { open?: boolean; awaitingText?: boolean } = 
     async begin(input) {
       calls.push({ input, method: 'begin' })
       return reply([`NF ${input.documentNumber}: mande a foto do canhoto assinado.`])
+    },
+    async acceptsUnsolicitedPhoto() {
+      return options.acceptsUnsolicited ?? false
     },
     async hasOpen() {
       return options.open ?? true
@@ -295,7 +300,21 @@ describe('grupo: foto e localização do motorista', () => {
         senderLid: null,
       }),
     ).toBe('media')
-    expect(driver.media[0]).toMatchObject({ driverId: 'D1', providerMessageId: 'M1' })
+    expect(driver.media[0]).toMatchObject({
+      driverId: 'D1',
+      mentionsBot: false,
+      providerMessageId: 'M1',
+    })
+    expect(
+      await driver.receiver.receive({
+        companyId: 'C1',
+        connection,
+        event: event({ externalMessageId: 'M2', mentionedJids: ['5516900000001@s.whatsapp.net'] }),
+        media: { ...photo, caption: '@5516900000001' },
+        senderLid: null,
+      }),
+    ).toBe('media')
+    expect(driver.media[1]).toMatchObject({ mentionsBot: true, providerMessageId: 'M2' })
     const other = inbound(false)
     expect(
       await other.receiver.receive({
@@ -335,7 +354,9 @@ describe('grupo: foto e localização do motorista', () => {
     expect(advanced).toEqual(['5516988887777', '5516988887777'])
   })
 
-  function intake(options: { open?: boolean; failDownload?: boolean } = {}) {
+  function intake(
+    options: { open?: boolean; failDownload?: boolean; acceptsUnsolicited?: boolean } = {},
+  ) {
     const fake = fakePreparations(options)
     const downloads: unknown[] = []
     const sent: string[][] = []
@@ -368,13 +389,14 @@ describe('grupo: foto e localização do motorista', () => {
       },
       withoutAccessText: async () => 'sem acesso',
     })
-    const handle = (media: AdmittedGroupMedia['media']) =>
+    const handle = (media: AdmittedGroupMedia['media'], mentionsBot = false) =>
       service.handle({
         companyId: 'C1',
         connection,
         driverId: 'D1',
         groupJid: GROUP,
         media,
+        mentionsBot,
         providerMessageId: 'M1',
         sender: '5516988887777',
         timestamp: 1_790_000_000,
@@ -404,6 +426,32 @@ describe('grupo: foto e localização do motorista', () => {
     const t = intake()
     await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
     expect(t.mentions).toEqual(['5516988887777'])
+  })
+
+  test('foto sem entrega aberta e sem marcar o bot: o leitor do canhoto não entra, nem baixa', async () => {
+    const t = intake({ acceptsUnsolicited: true, open: false })
+    await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
+    expect(t.downloads).toEqual([])
+    expect(t.calls).toEqual([])
+    expect(t.sent).toEqual([])
+  })
+
+  test('foto sem entrega aberta marcando o bot: vai ao leitor do canhoto', async () => {
+    const t = intake({ acceptsUnsolicited: true, open: false })
+    await t.handle({ caption: '@bot', kind: 'image', mimeType: 'image/jpeg' }, true)
+    expect(t.calls[0]).toMatchObject({
+      input: { allowsCanhotoReading: true },
+      method: 'receivePhoto',
+    })
+  })
+
+  test('foto pedida pela entrega aberta segue sem marcar, mas sem leitura automática', async () => {
+    const t = intake({ open: true })
+    await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
+    expect(t.calls[0]).toMatchObject({
+      input: { allowsCanhotoReading: false },
+      method: 'receivePhoto',
+    })
   })
 
   test('foto sem entrega em preparo não é baixada nem respondida', async () => {

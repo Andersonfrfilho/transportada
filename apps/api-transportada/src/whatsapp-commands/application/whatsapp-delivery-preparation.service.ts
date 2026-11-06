@@ -278,6 +278,8 @@ export type WhatsAppDeliveryPreparations = {
   /** A foto já baixada; `null` sem preparação aberta. */
   receivePhoto(input: {
     readonly actor: WhatsAppDriverActor
+    /** `false`: a foto que nenhuma coleta pediu não vai à leitura automática do canhoto (grupo sem o bot marcado). */
+    readonly allowsCanhotoReading?: boolean
     readonly bytes: Uint8Array
     /** O texto da legenda: se citar o número de uma das notas em preparo, a foto vai para ela. */
     readonly caption: null | string

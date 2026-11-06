@@ -614,6 +614,7 @@ export function combineWhatsAppDriverCollections(input: {
       }
       const received = await deliveries.receivePhoto(request)
       if (received !== null || canhoto === undefined) return received
+      if (request.allowsCanhotoReading === false) return null
       return canhoto.receivePhoto({
         actor: request.actor,
         bytes: request.bytes,
