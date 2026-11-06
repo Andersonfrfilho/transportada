@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
 import driverTripEn from '../../src/modules/driver-trip/locales/driverTrip.en.locale.json'
@@ -10,9 +12,11 @@ import {
 } from '../../src/modules/driver-trip/shared/canhotoDuplicateNotice.service'
 import {
   discardRefusedCanhoto,
+  isCanhotoReplacement,
   markCanhotoReplaceConfirmed,
   resolveCanhotoReplacePrompt,
 } from '../../src/modules/driver-trip/shared/canhotoReplacePrompt.service'
+import { resolveRejectionCauseLabelKey } from '../../src/modules/driver-trip/shared/rejectionCauseLabel.service'
 import {
   createDriverTripClient,
   toAttachmentSendOutcome,
@@ -200,5 +204,55 @@ describe('o canhoto repetido (RF26)', () => {
     }
     expect(driverTrip.canhotoReplace.title).toBe('Trocar o canhoto?')
     expect(driverTrip.canhotoDuplicate.notice).toContain('Esse canhoto já tinha chegado')
+  })
+})
+
+const HOOK_SOURCE = new URL(
+  '../../src/modules/driver-trip/hooks/useDriverTrip.hook.ts',
+  import.meta.url,
+)
+const CARD_SOURCE = new URL(
+  '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+  import.meta.url,
+)
+
+/**
+ * Produção, 06/11: o motorista tocou "Substituir" num canhoto já enviado e a foto nova voltou
+ * "409 TRIP_CANHOTO_ALREADY_ATTACHED". O toque em "Substituir" já é a confirmação da troca: a foto
+ * sai com `replaceCanhoto`, sem o servidor recusar e sem perguntar de novo.
+ */
+describe('"Substituir" o canhoto já enviado é a confirmação da troca', () => {
+  it('foto do canhoto que já está no servidor (ou já subiu) e não está mais na fila: é troca', () => {
+    expect(isCanhotoReplacement({ hasPhoto: true, isProofQueued: false, kind: 'photo' })).toBe(true)
+  })
+
+  it('primeira foto, foto ainda na fila ("Refazer") ou outro tipo de anexo: não é troca', () => {
+    expect(isCanhotoReplacement({ hasPhoto: false, isProofQueued: false, kind: 'photo' })).toBe(
+      false,
+    )
+    expect(isCanhotoReplacement({ hasPhoto: true, isProofQueued: true, kind: 'photo' })).toBe(false)
+    expect(isCanhotoReplacement({ hasPhoto: true, isProofQueued: false, kind: 'signature' })).toBe(
+      false,
+    )
+  })
+
+  it('o cartão manda a troca e a fila a leva até o envio', () => {
+    expect(readFileSync(CARD_SOURCE, 'utf8')).toContain('isCanhotoReplacement(')
+    expect(readFileSync(HOOK_SOURCE, 'utf8')).toContain(
+      '...(input.replaceCanhoto === true ? { replaceCanhoto: true as const } : {})',
+    )
+  })
+
+  it('a recusa sai em frase do motorista, nunca o código cru', () => {
+    expect(resolveRejectionCauseLabelKey(REFUSED)).toBe('eventQueue.cause.canhotoAlreadyAttached')
+    for (const locale of [driverTrip, driverTripEn]) {
+      expect(locale.eventQueue.cause.canhotoAlreadyAttached).not.toContain('TRIP_')
+      expect(locale.eventQueue.status.attachmentRejected).not.toMatch(
+        /servidor|server|evento|event/u,
+      )
+    }
+    expect(driverTrip.eventQueue.cause.canhotoAlreadyAttached).toBe(
+      'esta nota já tem um canhoto; na tela da viagem, escolha trocar ou manter o que já está lá',
+    )
   })
 })

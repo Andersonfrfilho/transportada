@@ -21,6 +21,8 @@ const REJECTION_CAUSE_LABEL_KEYS: Readonly<Record<string, string>> = {
   TRIP_OCCURRENCE_ITEMS_REQUIRED: 'eventQueue.cause.itemsRequired',
   TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED: 'eventQueue.cause.referenceNumberRequired',
   TRIP_DELIVERY_PROOF_TOO_LARGE: 'eventQueue.cause.tooLarge',
+  /** Spec 294 RF26: a nota já tem outro canhoto; a tela da viagem pergunta trocar ou manter. */
+  TRIP_CANHOTO_ALREADY_ATTACHED: 'eventQueue.cause.canhotoAlreadyAttached',
   TRIP_NOT_OF_DRIVER: 'eventQueue.cause.notOfDriver',
   TRIP_STOP_NOT_REACHABLE: 'eventQueue.cause.stopNotReachable',
 }
