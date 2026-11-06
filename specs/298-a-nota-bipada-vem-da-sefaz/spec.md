@@ -114,6 +114,17 @@ Mesmo fluxo da criação, usando o vínculo que o detalhe já faz.
 - **RF11d** A verificação "já no sistema" é feita em lote: `POST /v1/nfe-documents/access-key-checks`
   `{ accessKeys: string[≤200] }` (`invoices.read`) devolve, por chave, `documentId` ou ausente — uma chamada por
   rajada de leituras (agrupadas a cada 500 ms), não uma por nota. As ausentes geram as buscas do RF1.
+- **RF11e** **O leitor de mão é o caminho principal** (pistola USB/Bluetooth em modo teclado, lendo o Code-128 ou o
+  QR do DANFE); a câmera é o caminho secundário. Para isso, nas três telas:
+  - o campo de leitura abre **focado** e volta a ter foco depois de cada leitura, de "Enviar XML" e de fechar
+    qualquer diálogo; um selo "Leitor pronto" / "Clique aqui para voltar a ler" mostra quando o foco saiu;
+  - Enter **ou** Tab no fim da leitura fecha a chave; o campo se limpa na hora e a próxima leitura pode chegar em
+    menos de 100 ms sem perder caractere (campo não controlado, sem atraso de digitação);
+  - a chave é achada **dentro** do texto lido: 44 caracteres no padrão `CHAVE_PATTERN` em qualquer posição. Leitor
+    configurado com teclado americano num Windows ABNT2 troca `?`, `=` e `/` da URL do QR; procurar a chave no meio
+    do texto faz a leitura funcionar mesmo assim (a 055 só aceita chave crua, `p=` ou `chNFe=`);
+  - leitura sem chave (código da embalagem, etiqueta de volume) é ignorada em silêncio e contada como "ilegível" só
+    na conferência.
 - **RF12** Origem "busca por chave" aparece na página de NF-e como as outras origens.
 
 ## Requisitos não funcionais
@@ -125,6 +136,10 @@ Mesmo fluxo da criação, usando o vínculo que o detalhe já faz.
 - Tudo dentro de um `nfe_imports` (`source = 'access_key'`) para reaproveitar trilha e auditoria de importação.
 
 ## Casos extremos e falhas
+
+- Leitor de mão com sufixo Tab em vez de Enter, ou com prefixo configurado: ambos fecham/descartam corretamente.
+- Foco perdido no meio da pilha (alguém clicou fora): as leituras seguintes não podem cair em outro campo; o selo
+  avisa e a primeira tecla de leitor fora do campo é desviada para ele.
 
 - Mesma chave bipada duas vezes na mesma tela: uma linha só (fila já deduplica) e uma busca só (RF1).
 - Duas pessoas bipam a mesma chave: idempotência do RF1.
