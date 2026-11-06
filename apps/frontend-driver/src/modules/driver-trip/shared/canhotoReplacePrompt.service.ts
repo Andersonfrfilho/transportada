@@ -15,6 +15,18 @@ function isCanhotoRefused(cause: string | undefined): boolean {
   return cause !== undefined && resolveRejectionCauseCode(cause) === CANHOTO_ALREADY_ATTACHED_CODE
 }
 
+/**
+ * "Substituir" um canhoto que já está no servidor é a própria confirmação da troca: a foto sai com
+ * `replaceCanhoto` e o servidor não recusa. Ainda na fila ("Refazer") a foto antiga nem subiu — não há o que trocar.
+ */
+export function isCanhotoReplacement(input: {
+  readonly hasPhoto: boolean
+  readonly isProofQueued: boolean
+  readonly kind: 'photo' | 'signature'
+}): boolean {
+  return input.kind === 'photo' && input.hasPhoto && !input.isProofQueued
+}
+
 /** O primeiro canhoto recusado por "a nota já tem outro" — com o evento ainda na fila ou já enviado. */
 export function resolveCanhotoReplacePrompt(
   queueView: readonly EventQueueItemView[],

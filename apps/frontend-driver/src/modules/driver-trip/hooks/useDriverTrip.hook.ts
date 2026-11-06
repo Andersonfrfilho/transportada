@@ -160,6 +160,8 @@ export type DriverProofInput = Readonly<{
   receivedByDetail?: string
   receiverDocument?: string
   receiverName?: string
+  /** "Substituir" o canhoto já enviado: vai com a confirmação da troca (spec 294 RF26). */
+  replaceCanhoto?: true
 }>
 
 /**
@@ -908,6 +910,7 @@ export function useDriverTrip(
       ...(input.receiverDocument === undefined ? {} : { receiverDocument: input.receiverDocument }),
       ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
       ...(input.lateRegistration === undefined ? {} : { lateRegistration: input.lateRegistration }),
+      ...(input.replaceCanhoto === true ? { replaceCanhoto: true as const } : {}),
       subHash: session.subHash,
     }
     const result = await enqueueAttachment({

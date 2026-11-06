@@ -71,6 +71,7 @@
     "attachments_other": "{{count}} anexos",
     "back": "Voltar",
     "cause": {
+      "canhotoAlreadyAttached": "esta nota já tem um canhoto; na tela da viagem, escolha trocar ou manter o que já está lá",
       "declaredAmountRequired": "o valor pago é exigido por este tipo de ocorrência",
       "itemDeclaredAmountRequired": "o valor pago de cada produto é exigido por este tipo de ocorrência",
       "itemQuantityAboveNote": "a quantidade devolvida passou da quantidade da nota",
@@ -130,7 +131,7 @@
     "sendNow": "Enviar agora",
     "sending": "Enviando…",
     "status": {
-      "attachmentRejected": "Anexo rejeitado pelo servidor: {{cause}}. O evento já foi aceito.",
+      "attachmentRejected": "O anexo não foi aceito: {{cause}}. A entrega continua registrada.",
       "failed_one": "Falhou {{count}} vez — sem rede na última tentativa",
       "failed_other": "Falhou {{count}} vezes — sem rede na última tentativa",
       "queued": "Na fila",

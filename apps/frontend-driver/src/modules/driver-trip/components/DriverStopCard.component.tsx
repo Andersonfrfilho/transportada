@@ -15,6 +15,7 @@ import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { ARRIVED_HIGHLIGHT_MS, resolveStopPlace } from '../shared/stopPlace.service'
 import { resolveProofFocusTargets } from '../shared/proofFocusTargets.service'
+import { isCanhotoReplacement } from '../shared/canhotoReplacePrompt.service'
 import {
   NEXT_STEP_FOCUS_DELAY_MS,
   armNextStepFocus,
@@ -181,6 +182,8 @@ export type DriverProofAttachment = Readonly<{
   receivedByDetail?: string
   receiverDocument?: string
   receiverName?: string
+  /** "Substituir" o canhoto já enviado: a troca vai confirmada ao servidor (spec 294 RF26). */
+  replaceCanhoto?: true
 }>
 
 /** Spec 203/193: o mesmo conjunto de campos de `DriverProofAttachment`, sem o arquivo — só a atualização tardia. */
@@ -1737,6 +1740,11 @@ function ProofCaptureFields({
   function attach(kind: 'photo' | 'signature', file: File): void {
     /* Spec 207: gerada aqui — é a chave que "Remover" vai pedir de volta, por item, nunca por nota. */
     const attachmentKey = crypto.randomUUID()
+    const replacesCanhoto = isCanhotoReplacement({
+      hasPhoto: attached.photo || isPhotoConfirmedByServer,
+      isProofQueued,
+      kind,
+    })
     setRefusedKind(undefined)
     void onProof({
       attachmentKey,
@@ -1744,6 +1752,7 @@ function ProofCaptureFields({
       file,
       kind,
       ...(lateRegistration === true ? { lateRegistration: true } : {}),
+      ...(replacesCanhoto ? { replaceCanhoto: true as const } : {}),
       ...currentFields(),
     }).then((isAccepted) => {
       if (!isAccepted) {
