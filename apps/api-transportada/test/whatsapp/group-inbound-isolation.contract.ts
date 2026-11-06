@@ -118,6 +118,7 @@ function setup(seed: { step: string; state: Record<string, unknown> }) {
   const spies: Spies = { canhoto: [], close: [], delivery: [], occurrence: [], stopRecords: [] }
   const { repository, request } = memoryRepository(seed)
   const sent: string[] = []
+  const remembered: unknown[] = []
   const spy = (name: 'close' | 'delivery' | 'occurrence', step: string): GroupFlowOutcome => {
     spies[name].push(step)
     return { kind: 'continue', replies: [name], state: {}, step: 'inner' }
@@ -160,6 +161,9 @@ function setup(seed: { step: string; state: Record<string, unknown> }) {
     flow,
     logger,
     onQuestionAsked: createGroupQuestionAskedHandler(bot),
+    onRequestClosed: () => {
+      remembered.length = 0
+    },
     replies: { send: ({ texts }) => void sent.push(...texts) },
     repository,
   })
@@ -182,7 +186,10 @@ function setup(seed: { step: string; state: Record<string, unknown> }) {
       },
     },
     advanceRequest: (input) => sessions.handleLocation(input),
-    rememberLocation: () => undefined,
+    forgetLocation: () => {
+      remembered.length = 0
+    },
+    rememberLocation: ({ location }) => remembered.push(location),
     replies: { send: ({ texts }) => void sent.push(...texts) },
     withoutAccessText: async () => 'sem acesso',
   })
@@ -228,7 +235,7 @@ function setup(seed: { step: string; state: Record<string, unknown> }) {
       media: input.media ?? null,
       senderLid: null,
     })
-  return { bot, receive, request, sent, spies }
+  return { bot, receive, remembered, request, sent, spies }
 }
 
 const INPUTS = ['1', '2', 'pular', 'cancelar', 'texto livre qualquer'] as const
@@ -270,10 +277,12 @@ describe('caminho completo do grupo: só o dono da pergunta trata a resposta', (
     })
 
     test(`${pending.step} esperando: a localização compartilhada só avança quem a pediu`, async () => {
-      const { receive, request, spies } = setup(pending)
+      const { receive, remembered, request, spies } = setup(pending)
       await receive({ media: LOCATION })
       const asksLocation =
         pending.step === 'stop.location' || pending.step === GROUP_OCCURRENCE_STEP.location
+      // O ponto só fica guardado enquanto quem o pediu ainda vai usá-lo (a ocorrência, até o registro).
+      expect(remembered).toHaveLength(pending.step === GROUP_OCCURRENCE_STEP.location ? 1 : 0)
       if (pending.step === 'stop.location') expect(spies.stopRecords).toHaveLength(1)
       if (pending.step !== 'stop.location') expect(spies.stopRecords).toEqual([])
       if (pending.step === GROUP_OCCURRENCE_STEP.location) {

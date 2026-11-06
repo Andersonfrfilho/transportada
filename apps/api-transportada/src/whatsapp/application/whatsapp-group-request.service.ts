@@ -25,6 +25,7 @@ import type {
   GroupFlowTurn,
   GroupQuestionAsked,
   GroupReplySenderPort,
+  GroupRequestClosed,
   GroupRequest,
   GroupRequestFlow,
   GroupRequestRepositoryPort,
@@ -154,6 +155,8 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
   readonly logger: ApiLogger
   /** O bot fez uma pergunta nova no pedido deste dono (a mais recente é quem recebe o "1"/"2"). */
   readonly onQuestionAsked?: GroupQuestionAsked
+  /** O pedido terminou: o que ele guardou para si (ex.: o ponto compartilhado) deixa de valer. */
+  readonly onRequestClosed?: GroupRequestClosed
   readonly replies: GroupReplySenderPort
   readonly repository: GroupRequestRepositoryPort
 }): WhatsAppGroupRequestSessions {
@@ -167,6 +170,13 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       replies.send({ companyId: message.companyId, groupJid: message.groupJid, texts })
     }
   }
+
+  const closed = (request: GroupRequest, groupJid: string) =>
+    dependencies.onRequestClosed?.({
+      companyId: request.companyId,
+      driverId: request.driverId,
+      groupJid,
+    })
 
   const turnOf = (message: AdmittedGroupMessage, request: GroupRequest): GroupFlowTurn => ({
     request,
@@ -219,6 +229,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       })
       if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, log)
       logger.info(GROUP_REQUEST_LOG.completed, log)
+      closed(request, message.groupJid)
       return say(message, closing)
     }
 
@@ -238,6 +249,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
     if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, log)
     if (gaveUp) {
       logger.info(GROUP_REQUEST_LOG.abandoned, log)
+      closed(request, message.groupJid)
       return say(message, [GROUP_REQUEST_TEXT.gaveUp])
     }
     return say(message, [GROUP_REQUEST_TEXT.notUnderstood(outcome.reason, outcome.prompt)])
@@ -327,6 +339,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
         })
         if (!saved) return logger.info(GROUP_REQUEST_LOG.raced, { companyId, requestId: open.id })
         logger.info(GROUP_REQUEST_LOG.cancelled, { companyId, requestId: open.id })
+        closed(open, groupJid)
         return say(message, [GROUP_REQUEST_TEXT.cancelled])
       }
 

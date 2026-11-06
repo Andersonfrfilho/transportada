@@ -134,3 +134,10 @@ export type GroupQuestionAsked = (input: {
   readonly groupJid: string
   readonly owner: string
 }) => void
+
+/** Aviso de que o pedido do motorista terminou (concluído, cancelado ou abandonado) naquele grupo. */
+export type GroupRequestClosed = (input: {
+  readonly companyId: string
+  readonly driverId: string
+  readonly groupJid: string
+}) => void

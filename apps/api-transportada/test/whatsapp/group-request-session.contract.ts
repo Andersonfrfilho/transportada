@@ -14,6 +14,7 @@ import type {
   GroupFlowTurn,
   GroupQuestionAsked,
   GroupRequest,
+  GroupRequestClosed,
   GroupRequestFlow,
   GroupRequestRepositoryPort,
 } from '../../src/whatsapp/application/whatsapp-group-request.port.js'
@@ -123,6 +124,7 @@ function setup(
   extra: {
     readonly cancel?: GroupRequestFlow['cancel']
     readonly onQuestionAsked?: GroupQuestionAsked
+    readonly onRequestClosed?: GroupRequestClosed
   } = {},
 ) {
   let now = new Date('2026-11-04T12:00:00.000Z')
@@ -141,6 +143,7 @@ function setup(
     flow: { ...flow, ...(extra.cancel === undefined ? {} : { cancel: extra.cancel }) },
     logger: silentLogger(),
     ...(extra.onQuestionAsked === undefined ? {} : { onQuestionAsked: extra.onQuestionAsked }),
+    ...(extra.onRequestClosed === undefined ? {} : { onRequestClosed: extra.onRequestClosed }),
     replies,
     repository: memory.repository,
   })
@@ -331,6 +334,27 @@ describe('pedido no grupo: cancelar e tentativas', () => {
     expect(asked).toEqual([`${GROUP}:${DRIVER}`])
     await sessions.handle(message({ text: '123', via: 'owner_reply' }))
     expect(asked).toHaveLength(1)
+  })
+
+  test('o fim do pedido (concluído, cancelado ou abandonado) avisa; pergunta nova não', async () => {
+    const closed: string[] = []
+    const { message, sessions } = setup({
+      onRequestClosed: ({ driverId, groupJid }) => {
+        closed.push(`${groupJid}:${driverId}`)
+      },
+    })
+    await sessions.handle(message({ text: '' }))
+    expect(closed).toEqual([])
+    await sessions.handle(message({ text: '123', via: 'owner_reply' }))
+    expect(closed).toEqual([`${GROUP}:${DRIVER_ID}`])
+    await sessions.handle(message({ text: '' }))
+    await sessions.handle(message({ text: 'cancelar', via: 'owner_reply' }))
+    expect(closed).toHaveLength(2)
+    await sessions.handle(message({ text: '' }))
+    for (const text of ['abc', 'def', 'ghi']) {
+      await sessions.handle(message({ text, via: 'owner_reply' }))
+    }
+    expect(closed).toHaveLength(3)
   })
 
   test('três respostas que não cabem encerram o pedido e avisam o suporte', async () => {

@@ -56,6 +56,7 @@ export function createGroupDeliveryWiring(dependencies: {
   }) => Promise<readonly DriverTrip[]>
   readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
   readonly preparations: WhatsAppDeliveryPreparations
+  readonly forgetLocation: GroupProofIntakePorts['forgetLocation']
   readonly rememberLocation: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -111,6 +112,7 @@ export function createGroupDeliveryWiring(dependencies: {
       findActorUserId,
       ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
       preparations: dependencies.preparations,
+      forgetLocation: dependencies.forgetLocation,
       rememberLocation: dependencies.rememberLocation,
       resolveSenderRole: dependencies.resolveSenderRole,
       withoutAccessText,

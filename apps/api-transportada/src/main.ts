@@ -1700,6 +1700,7 @@ export function bootstrap(): Bun.Server<undefined> {
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
     logger,
     preparations: whatsappDriverCollections,
+    forgetLocation: (key) => void whatsappGroupLocations.consume(groupLocationKey(key)),
     rememberLocation: ({ location, ...key }) =>
       whatsappGroupLocations.remember({ ...groupLocationKey(key), location }),
     deliverAsAttendant: whatsappOfficeDelivery.deliver,
@@ -2413,6 +2414,8 @@ function createEvolutionWebhook(input: {
                 }),
           logger,
           onQuestionAsked: (asked) => groupQuestionAsked?.(asked),
+          onRequestClosed: ({ companyId, driverId }) =>
+            input.groupDelivery?.intake.forgetLocation({ companyId, driverId }),
           replies: groupReplies,
           repository: groupRequests,
         })
