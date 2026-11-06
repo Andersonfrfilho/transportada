@@ -125,7 +125,8 @@ describe('grupo: "entreguei" sem número segue o que está em andamento', () => 
     await t.preparations.answer('pular')
     expect(await t.flow.start(t.turn('entreguei'))).toEqual({
       kind: 'continue',
-      replies: ['↩️ *Continuando a entrega da NF 899840.*', PHOTO_QUESTION],
+      // Uma mensagem só: o Evolution espaça as mensagens, e a pergunta separada chegava depois da resposta seguinte.
+      replies: [`↩️ *Continuando a entrega da NF 899840.*\n${PHOTO_QUESTION}`],
       state: {},
       step: 'delivery.answer',
     })
@@ -136,9 +137,13 @@ describe('grupo: "entreguei" sem número segue o que está em andamento', () => 
     expect(await t.flow.start(t.turn('entreguei'))).toEqual({
       kind: 'continue',
       replies: [
-        ['*Parada 1*', '*NF 899840*', '🏪 *CLIENTE 899840*'].join('\n'),
-        '⚠️ *NF 899840 ainda não fechou.* Falta: foto do canhoto.',
-        '📍 *NF 899840:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+        [
+          '*Parada 1*',
+          '*NF 899840*',
+          '🏪 *CLIENTE 899840*',
+          '⚠️ *NF 899840 ainda não fechou.* Falta: foto do canhoto.',
+          '📍 *NF 899840:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+        ].join('\n'),
       ],
       state: {},
       step: 'delivery.answer',

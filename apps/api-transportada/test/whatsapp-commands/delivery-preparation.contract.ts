@@ -438,12 +438,85 @@ describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" enc
       awaitingText: false,
       documentNumber: '17234',
       finished: false,
+      // Uma mensagem só: no grupo o Evolution espaça as mensagens, e a pergunta separada chegava depois da resposta seguinte.
       texts: [
-        '↩️ *Continuando a entrega da NF 17234.*',
-        '📸 *NF 17234:* mande a foto do canhoto assinado.',
+        '↩️ *Continuando a entrega da NF 17234.*\n📸 *NF 17234:* mande a foto do canhoto assinado.',
       ],
     })
     expect(t.delivered).toEqual([])
+  })
+
+  const LOCATION = {
+    accuracyMeters: null,
+    capturedAt: '2026-11-04T12:00:00.000Z',
+    latitude: '-21.1',
+    longitude: '-47.8',
+  }
+  const HEADER = '↩️ *Continuando a entrega da NF 17234.*'
+  const RESUME_CASES: readonly {
+    readonly expected: string
+    readonly item: string
+    readonly settings: DeliveryProofFieldSettings
+    readonly steps: readonly ('location' | 'photo' | 'skip')[]
+  }[] = [
+    {
+      expected: [
+        HEADER,
+        '⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.',
+        '📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+      ].join('\n'),
+      item: 'localização',
+      settings: { ...OFF, photo: 'required' },
+      steps: [],
+    },
+    {
+      expected: [
+        HEADER,
+        '📸 *NF 17234:* mande a foto do canhoto assinado. _Se não tiver, responda pular._',
+      ].join('\n'),
+      item: 'foto do canhoto (opcional)',
+      settings: { ...OFF, photo: 'optional' },
+      steps: ['location'],
+    },
+    {
+      expected: [HEADER, '📦 *NF 17234:* mande 1 foto da mercadoria entregue.'].join('\n'),
+      item: 'foto da mercadoria',
+      settings: { ...OFF, cargo: 'required', cargoMinimumCount: 1 },
+      steps: ['location'],
+    },
+    {
+      expected: [HEADER, '✍️ *NF 17234:* qual o nome de quem recebeu?'].join('\n'),
+      item: 'nome de quem recebeu',
+      settings: { ...OFF, photo: 'optional', receiverName: 'required' },
+      steps: ['location', 'photo'],
+    },
+  ]
+  for (const resumeCase of RESUME_CASES) {
+    test(`retoma com a pergunta pendente (${resumeCase.item}) na MESMA mensagem do aviso`, async () => {
+      const t = setup(resumeCase.settings)
+      await t.begin()
+      for (const step of resumeCase.steps) {
+        if (step === 'location')
+          await t.service.receiveLocation({ actor: ACTOR, location: LOCATION })
+        if (step === 'photo') await t.photo('M1')
+        if (step === 'skip') await t.answer('pular')
+      }
+      expect((await t.service.resume?.({ actor: ACTOR }))?.texts).toEqual([resumeCase.expected])
+    })
+  }
+
+  test('retoma com "quem recebeu" e as opções na MESMA mensagem do aviso', async () => {
+    const t = setup({ ...OFF, photo: 'optional', receivedBy: 'required' })
+    await t.begin()
+    await t.service.receiveLocation({ actor: ACTOR, location: LOCATION })
+    await t.photo('M1')
+    const texts = (await t.service.resume?.({ actor: ACTOR }))?.texts ?? []
+    expect(texts).toHaveLength(1)
+    expect(
+      texts[0]?.startsWith(
+        `${HEADER}\n👤 *NF 17234:* quem recebeu? _Responda com o número._\n*1* - O próprio destinatário`,
+      ),
+    ).toBe(true)
   })
 
   test('sem entrega aberta não há o que retomar', async () => {

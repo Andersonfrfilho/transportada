@@ -691,10 +691,12 @@ export function createWhatsAppDeliveryPreparations(
     async resume({ actor }) {
       const [latest] = await openFor(actor)
       if (latest === undefined) return null
-      return mutate(latest, actor, () => ({
+      const resumed = await mutate(latest, actor, () => ({
         ack: [DELIVERY_PROOF_SPEECH.resumed(latest.documentNumber)],
         changes: {},
       }))
+      // Uma mensagem só: no grupo o envio é espaçado e a pergunta separada chegava depois da resposta seguinte.
+      return { ...resumed, texts: joinedTexts(resumed.texts) }
     },
 
     async repeatMediaRequest({ actor }) {
@@ -1040,6 +1042,11 @@ function isTextQuestion(awaiting: null | string): boolean {
     awaiting === DELIVERY_PROOF_ITEM.receivedBy ||
     awaiting === DELIVERY_PROOF_ITEM.receiverName
   )
+}
+
+/** As falas numa mensagem só (vazio continua vazio: nada a dizer). */
+export function joinedTexts(texts: readonly string[]): readonly string[] {
+  return texts.length === 0 ? [] : [texts.join('\n')]
 }
 
 function scopeOf(preparation: WhatsAppDeliveryPreparation) {

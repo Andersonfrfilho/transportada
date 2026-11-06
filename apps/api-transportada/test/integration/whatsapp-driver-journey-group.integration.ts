@@ -60,6 +60,7 @@ import { createWhatsAppGroupRequestSessions } from '../../src/whatsapp/applicati
 import { createGroupReturnFlow } from '../../src/whatsapp/application/whatsapp-group-return-flow.service.js'
 import { createGroupStopFlow } from '../../src/whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { createDrizzleWhatsAppGroupRequestRepository } from '../../src/whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
+import { createEvolutionGroupReplySender } from '../../src/whatsapp/infrastructure/evolution-group-reply.gateway.js'
 import { createGroupDeliveryWiring } from '../../src/whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
 import { createGroupReturnPorts } from '../../src/whatsapp/infrastructure/whatsapp-group-return.adapter.js'
 import { createGroupStopPorts } from '../../src/whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
@@ -219,10 +220,13 @@ async function buildGroupJourney(db: JourneyDatabase, world: JourneyWorld, now: 
       }),
     ),
   })
+  // O remetente de verdade do grupo: cada texto é UMA mensagem do Evolution, e em produção o espaçador de envio (por
+  // instância) segura a seguinte — a pergunta mandada em mensagem separada chegava depois da resposta do motorista.
   const sent: string[] = []
-  const replies = {
-    send: ({ texts }: { readonly texts: readonly string[] }) => void sent.push(...texts),
-  }
+  const replies = createEvolutionGroupReplySender({
+    logger,
+    sendText: async ({ body }) => void sent.push(body),
+  })
   const requests = createDrizzleWhatsAppGroupRequestRepository(db)
   const bot = createWhatsAppBotAudio<GroupAudioContext>({
     logger,
@@ -306,6 +310,7 @@ async function buildGroupJourney(db: JourneyDatabase, world: JourneyWorld, now: 
       senderLid: null,
     })
     await bot.idle()
+    await replies.idle()
     const answered = sent.slice(before)
     transcript.push({ from: 'motorista', text: input.shown })
     for (const reply of answered) transcript.push({ from: 'bot', text: reply })
@@ -557,8 +562,8 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
       // O pedido venceu com a foto pedida: "entreguei" retoma a NF da parada, nunca lista as outras.
       expected: {
         answered: [
-          `${greeting}\n\n↩️ *Continuando a entrega da NF 17234.*`,
-          '📸 *NF 17234:* mande a foto do canhoto assinado.',
+          // UMA mensagem: o aviso e a pergunta pendente (o defeito de staging mandava a pergunta só no turno seguinte).
+          `${greeting}\n\n↩️ *Continuando a entrega da NF 17234.*\n📸 *NF 17234:* mande a foto do canhoto assinado.`,
         ],
         shown: '@bot entreguei',
       },

@@ -657,8 +657,8 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '↩️ *Continuando a entrega da NF 17234.*',
-          '📸 *NF 17234:* mande a foto do canhoto assinado.',
+          // UMA mensagem: o aviso e a pergunta pendente nunca chegam separados.
+          '↩️ *Continuando a entrega da NF 17234.*\n📸 *NF 17234:* mande a foto do canhoto assinado.',
           'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: 'entreguei',

@@ -228,9 +228,9 @@ describe('conversa individual: "entreguei" sem número segue o que está em anda
   test('entrega em preparo aberta: retoma a NF e repete a pergunta (nunca a lista da viagem)', async () => {
     const t = setupDirect({ openPreparation: true, stops: SEVEN_NOTES })
     const result = await t.command([])
+    // Uma mensagem só: o aviso e a pergunta pendente nunca chegam separados.
     expect(t.sent).toEqual([
-      '↩️ *Continuando a entrega da NF 899840.*',
-      '📸 *NF 899840:* mande a foto do canhoto assinado.',
+      '↩️ *Continuando a entrega da NF 899840.*\n📸 *NF 899840:* mande a foto do canhoto assinado.',
     ])
     expect(t.begun).toEqual([])
     expect(result).toMatchObject({ next: DRIVER_FLOW_NODE.tripMenu })
@@ -240,8 +240,12 @@ describe('conversa individual: "entreguei" sem número segue o que está em anda
     const t = setupDirect({ stops: SEVEN_NOTES })
     const result = await t.command([])
     expect(t.sent).toEqual([
-      ['*Parada 1*', '*NF 899840*', '🏪 *CLIENTE 899840*'].join('\n'),
-      '📍 *NF 899840:* se puder, compartilhe a localização.',
+      [
+        '*Parada 1*',
+        '*NF 899840*',
+        '🏪 *CLIENTE 899840*',
+        '📍 *NF 899840:* se puder, compartilhe a localização.',
+      ].join('\n'),
     ])
     expect(t.begun).toEqual([{ documentId: 'doc-899840', documentNumber: '899840' }])
     expect(result).toMatchObject({ next: DRIVER_FLOW_NODE.tripMenu })
