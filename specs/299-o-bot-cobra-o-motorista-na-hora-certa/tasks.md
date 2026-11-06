@@ -9,7 +9,7 @@ bun --env-file=../../.env.test test --timeout 120000   # contrato
 bun --env-file=../../.env.test run test:integration    # integração (obrigatório se mexeu em test/integration/**)
 ```
 
-Nada começa com `[NEEDS CLARIFICATION]` aberto que toque a task: Q1 trava T2.3 e T5.1; Q2 trava T1.4.
+Q1 e Q2 respondidas pelo dono em 2026-11-06 (spec.md § Dúvidas); nenhum `[NEEDS CLARIFICATION]` aberto.
 Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spec) trava só a T2.1.
 
 ## Fase 0 — Conferência e contratos antes do código
@@ -54,7 +54,7 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
       reserva por `version`. Integração: envia, adia por horário, por pedido aberto e por vaga; fecha se a parada andou;
       concorrência envia uma vez; 404 de outra empresa.
 - [ ] **T2.3** Passo `reminder.stage` no `GROUP_STEP_REGISTRY`: 1–4 delegam a cheguei/entreguei/não entreguei/
-      ocorrência; "4" adia (RF13, regra da Q1); "cancelar" fecha o passo e não o lembrete; comando digitado escapa.
+      ocorrência; "4" adia sem consumir tentativa, até 3 adiamentos por etapa (RF13); "cancelar" fecha o passo e não o lembrete; comando digitado escapa.
       Falas como nós `fala_lembrete_*`. Aceite: matrizes `group-{flow,inbound}-isolation` verdes com o passo novo;
       `literal-message-text` verde.
 - [ ] **T2.4** Rotina `driver.stop-reminder.dispatch` no catálogo (API e worker, paridade), `driver-stop-reminder.routine.ts`
@@ -94,7 +94,8 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 
 - [ ] **T5.1** Em `whatsapp-driver-journey-{group,direct}.integration.ts` (+ `driver-journey-*.expected.ts`, regravar com
       `JOURNEY_RECORD=1`): saída → relógio avança → lembrete com menção (grupo) → respostas 1, 2, 3, 4; chegada → o
-      "já entregou?" → 1, 2, 3, 4; três sem resposta → pendência e sino; com cada fluxo aberto (ocorrência, entrega em
+      "já entregou?" → 1, 2, 3, 4; três sem resposta → pendência e sino; "4" três vezes adia sem
+      consumir tentativa e o quarto conta como sem resposta; chegada pelo escritório abre o "já entregou?"; com cada fluxo aberto (ocorrência, entrega em
       preparo, escolha de parada, oferta da próxima rota, pedido de localização) o lembrete espera e sai depois; chave
       global ou da empresa desligada → nada. Aceite: integração da API verde; transcript (`JOURNEY_TRANSCRIPT=1`) colado
       em `evidence.md`.
@@ -105,12 +106,12 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 
 ## Prompt de execução
 
-> Só depois de responder Q1 e Q2 do `spec.md`. Até lá, esta spec não executa. A Fase 2 espera o suporte de menção do
-> grupo em `origin/staging`.
+> Q1 e Q2 respondidas. A Fase 2 (T2.1) espera o suporte de menção do grupo (PR `group-mention`) em `origin/staging`.
 
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/299-o-bot-cobra-o-motorista-na-hora-certa/ (leia spec.md, plan.md e
 tasks.md antes de começar), no worktree ../transportada-wt/spec-299. Uma task por vez, na ordem do tasks.md.
+A T2.1 depende do suporte de menção do grupo (PR group-mention) em origin/staging: sem ele, pare e pergunte.
 Modelos: Fase 0 → executor model=sonnet, T0.1 🧠 → opus · Fase 1 → executor model=sonnet (T1.1 → haiku) ·
 Fase 2 → executor model=sonnet (T2.6 → haiku) ·
 Fase 3 → executor model=sonnet · Fase 4 → executor model=sonnet (T4.4 → haiku) · Fase 5 → executor model=sonnet ·
@@ -118,7 +119,7 @@ revisão final → code-reviewer model=sonnet.
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com typecheck + testes do app (script test; na API contrato E integração com --env-file=../../.env.test)
 + commit isolado, evidência em evidence.md.
-Pare e pergunte antes de: deploy, publicar em staging/main, release do pacote no npm, publicar o grafo do bot em
+Pare e pergunte antes de: deploy, publicar em staging/main, publicar o grafo do bot em
 staging/produção, submeter template na Meta, ligar DRIVER_REMINDERS_ENABLED em qualquer ambiente, migration destrutiva,
 qualquer [NEEDS CLARIFICATION].
 ```

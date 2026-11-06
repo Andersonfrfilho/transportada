@@ -3,7 +3,7 @@
 > Ideia do dono (Anderson), decidida em 2026-11-06. Os padrões sugeridos foram aceitos e, no mesmo dia, o dono
 > acrescentou: **3** cobranças antes de escalar (não 2), **o relógio recomeça a cada etapa** da parada e, no grupo, a
 > cobrança **marca o motorista** (@menção) para tocar mesmo com o grupo silenciado.
-> Status: rascunho, aguardando as respostas de § Dúvidas.
+> Status: fechada em 2026-11-06 (Q1 e Q2 respondidas pelo dono; ver § Dúvidas).
 
 ## Specs do mesmo assunto (lidas contra o código em `origin/staging` `42e63ccbc`, 2026-11-06)
 
@@ -83,7 +83,7 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
   estado da parada antes de mandar (RF8), então um evento que chegue entre a leitura e o envio não gera cobrança.
 - **RF5** — Escritório que registra a chegada em nome do motorista (`office`: painel `stops/:stopId/arrive`, "Iniciar
   rota" da viagem, atendente pelo WhatsApp da 294 RF19) **também** abre lembrete da etapa seguinte; qualquer baixa do
-  escritório fecha, como no RF3. [NEEDS CLARIFICATION: Q2]
+  escritório fecha, como no RF3. (Q2, dono 2026-11-06.)
 - **RF6** — Distância e tempo **mostrados** ao motorista seguem a 294 RF30: só com ponto compartilhado nesta viagem.
 
 ### O envio
@@ -129,8 +129,9 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
   - Também valem por áudio (294 RF22) e por comando digitado ("cheguei", "entreguei 17234"), que escapa do passo.
 - **RF12** — Cada envio grava `attempts + 1`, `last_sent_at`, canal e o id da mensagem; o próximo `due_at` é
   `last_sent_at + intervalo`. Sem resposta depois da última tentativa (D4) → escalada (RF17).
-- **RF13** — "Ainda estou a caminho" / "ainda descarregando" adia pelo intervalo. [NEEDS CLARIFICATION: Q1 — conta
-  como tentativa?]
+- **RF13** — "Ainda estou a caminho" / "ainda descarregando" (opção 4) **não consome tentativa** (Q1, dono 2026-11-06):
+  adia pelo intervalo e soma em `postponements`, no máximo **3 adiamentos por etapa**. Esgotados os adiamentos, a
+  opção 4 deixa de adiar: a cobrança conta como sem resposta e segue o caminho das tentativas até a escalada (RF17).
 - **RF14** — Grupo: passo próprio `reminder.stage` no `GROUP_STEP_REGISTRY`, com dono e regras de isolamento: a
   pergunta mais nova é dona do "1"; comando digitado escapa; "cancelar" fecha o passo sem gravar nada e **não** fecha o
   lembrete (ele segue o relógio). As matrizes `group-{flow,inbound}-isolation` cobram o passo novo.
@@ -203,9 +204,9 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 
 ## Dúvidas
 
-- **Q1** — [NEEDS CLARIFICATION: "Ainda estou a caminho" / "ainda descarregando" conta como tentativa?]
-  **Recomendação:** não conta; adia pelo intervalo e soma num contador de adiamentos, no máximo 3 por etapa — o quarto
-  "ainda a caminho" já não aparece no menu e o lembrete segue para as tentativas normais. Assim o motorista que responde
-  nunca é escalado, e o que responde "4" para sempre também não esconde o atraso.
-- **Q2** — [NEEDS CLARIFICATION: saída/chegada registrada pelo escritório em nome do motorista abre lembrete?]
-  **Recomendação:** sim (RF5) — o motorista está na rua do mesmo jeito; a baixa pelo escritório já fecha.
+- **Q1** — Respondida pelo dono em 2026-11-06: "ainda a caminho"/"ainda descarregando" não consome tentativa; adia pelo
+  intervalo, no máximo 3 adiamentos por etapa; depois conta como sem resposta e segue para a escalada (RF13).
+- **Q2** — Respondida pelo dono em 2026-11-06: chegada registrada pelo escritório abre o "já entregou?" como qualquer
+  chegada; qualquer baixa do escritório fecha (RF5, RF3).
+
+Nenhum `[NEEDS CLARIFICATION]` aberto.
