@@ -59,7 +59,7 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
       `literal-message-text` verde.
 - [ ] **T2.4** Rotina `driver.stop-reminder.dispatch` no catálogo (API e worker, paridade), `driver-stop-reminder.routine.ts`
       e gateway para a API; registrada só com a chave global. Aceite: contrato da rotina e da paridade do catálogo.
-- [ ] **T2.5** Escolha do canal (D5): último canal de WhatsApp do motorista, grupo por padrão. Aceite: contrato.
+- [x] **T2.5** Escolha do canal (D5): último canal de WhatsApp do motorista, grupo por padrão. Aceite: contrato.
 - [x] ~~T2.6~~ Não se aplica: a API não tem OpenAPI (contrato = arquivo de rotas + schema Zod).
 
 ## Fase 3 — Conversa individual e template da Meta

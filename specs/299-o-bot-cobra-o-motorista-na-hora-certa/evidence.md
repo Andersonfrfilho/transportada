@@ -601,3 +601,38 @@ sexta 2026-12-25, horário seg–sex 08–18) → `sent` em vez de `deferred`.
 A T2.6 (OpenAPI gerado e teste "toda rota aparece") parte de uma premissa errada: `apps/api-transportada` não tem OpenAPI
 ("Sem OpenAPI nesta API" em `apps/api-transportada/CLAUDE.md`), não há documento gerado nem teste de "toda rota aparece"; o
 contrato da rota é o arquivo de rotas mais o schema Zod. Conferido pelo coordenador em 2026-11-07.
+
+## T2.5 — 2026-11-07
+
+Escolha do canal (D5), conforme a T0.1 (evidência 1): grupo = `max(whatsapp_group_requests.last_activity_at)` do grupo do
+motorista; individual = `last_inbound_at` da sessão da Meta (`SessionRepository.getContext`, com as duas formas do número); o
+mais recente vence, empate ou nenhum → grupo; o uso do app não é fonte. Tudo por `companyId`.
+
+**Vermelho antes:** contrato `driver-reminder-channel-resolver` e casos de canal da entrega → módulo ausente; integração
+`driver-reminder-channel-resolver` → módulo ausente.
+
+**Arquivos novos** (`apps/api-transportada/src/driver-stop-reminders/`): `application/driver-reminder-channel-resolver.{port,service}.ts`
+(porta `DriverReminderChannelResolver` + `DirectReminderSender` + composição das fontes) e
+`infrastructure/drizzle-driver-reminder-channel.resolver.ts` (adaptador Drizzle). `sessionPhoneCandidates` passou a ser exportado
+do adaptador da pergunta aberta. `main.ts` liga o resolvedor à entrega.
+
+**Desvio da Fase 3 (documentado no código, ramo real e testado):** a entrega recebe `directSender?`. Canal `direct` com remetente
+envia no individual e grava `direct_text`/`direct_template`; **sem remetente (hoje, até a Fase 3) ou com `unavailable`, cai no
+grupo na mesma tentativa** (uma só reserva); sem remetente e sem grupo, adia como antes (`no_group`); `unavailable` sem grupo
+devolve a reserva e adia. A Fase 3 passa a implementação do `DirectReminderSender` e o desvio deixa de ser alcançado.
+
+**Limite conhecido (D5/T0.1):** o pedido que o próprio bot abre para o lembrete (`reminder.stage`) também grava
+`last_activity_at`, então um lembrete sem resposta no grupo puxa o canal para o grupo (o padrão). Aceito pela decisão da T0.1; se
+for um problema na prática, a saída é desconsiderar pedidos `reminder.stage` sem resposta do motorista.
+
+**Gates (de `apps/api-transportada`):**
+
+- `bun run typecheck`: limpo. `eslint --max-warnings=0` e `prettier --check` nos arquivos tocados: limpos.
+- `bun run test`: 14426 pass, 35 skip, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000`: 14435 pass, 26 skip, 0 fail.
+- Integração, cada arquivo isolado (`--env-file=../../.env.test`): `driver-stop-reminder-delivery` 11, `driver-stop-reminders` 23,
+  `driver-stop-reminder-group-step` 5, `driver-reminder-channel-resolver` 5 (novo, na lista do `test:integration`),
+  `whatsapp-evolution-webhook` 3, `whatsapp-group-request-repository` 5, `whatsapp-driver-journey-group` 2; todos 0 fail.
+  O contrato do resolvedor cobre grupo mais novo, individual mais novo, empate, nenhum, fonte ausente e dado de outra empresa; a
+  integração cobre também "o uso do app depois não muda o canal" e a atividade do mesmo grupo noutra empresa.
+- Os totais acima valem para o estado final dos três commits desta rodada (correção pós-T2.3, feriado nacional e T2.5).

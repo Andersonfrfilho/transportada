@@ -99,26 +99,28 @@ function build(overrides: Overrides = {}) {
       return overrides.reserve ?? true
     },
   }
+  const promptOpener = {
+    discard: async () => undefined,
+    hasOwnOpen: async () => overrides.ownPromptOpen ?? false,
+    open: async (params: unknown) => void opened.push(params),
+  }
+  const sender = {
+    send: async (params: (typeof sent)[number]) => {
+      if (overrides.sendError !== undefined) throw overrides.sendError
+      sent.push(params)
+      return { providerMessageId: 'provider-1' }
+    },
+  }
   const useCase = createDeliverDriverStopReminderUseCase({
     clock: () => NOW,
     driverOpenQuestions: { read: async () => ({ ...FREE, ...overrides.questions }) },
     isEnabled: overrides.isEnabled ?? true,
-    promptOpener: {
-      discard: async () => undefined,
-      hasOwnOpen: async () => overrides.ownPromptOpen ?? false,
-      open: async (params) => void opened.push(params),
-    },
+    promptOpener,
     repository,
-    sender: {
-      send: async (params) => {
-        if (overrides.sendError !== undefined) throw overrides.sendError
-        sent.push(params)
-        return { providerMessageId: 'provider-1' }
-      },
-    },
+    sender,
     speech: CATALOG_BOT_SPEECH,
   })
-  return { opened, sent, useCase, writes }
+  return { opened, promptOpener, repository, sender, sent, useCase, writes }
 }
 
 const run = (overrides?: Overrides, companyId = COMPANY_ID) =>
@@ -375,5 +377,117 @@ describe('fecha quando a parada andou e respeita a empresa (spec 299 T2.2, RF8.1
       expect(result).toEqual({ nextDueAt: null, outcome })
       expect(world.writes).toEqual([])
     }
+  })
+})
+
+describe('canal do lembrete (spec 299 T2.5, D5)', () => {
+  const DIRECT_SENT = {
+    channel: 'direct_text',
+    providerMessageId: 'direct-1',
+    status: 'sent',
+  } as const
+
+  function buildWithChannel(options: {
+    readonly channel: 'direct' | 'group'
+    readonly directResult?: 'unavailable' | typeof DIRECT_SENT
+    readonly groupJid?: string | undefined
+    readonly hasDirectSender: boolean
+  }) {
+    const world = build({ context: { groupJid: 'groupJid' in options ? options.groupJid : GROUP } })
+    const directCalls: unknown[] = []
+    const resolved: unknown[] = []
+    const useCase = createDeliverDriverStopReminderUseCase({
+      channelResolver: {
+        resolve: async (input) => {
+          resolved.push(input)
+          return options.channel
+        },
+      },
+      clock: () => NOW,
+      directSender: options.hasDirectSender
+        ? {
+            send: async (input) => {
+              directCalls.push(input)
+              return options.directResult === 'unavailable'
+                ? { status: 'unavailable' }
+                : (options.directResult ?? DIRECT_SENT)
+            },
+          }
+        : undefined,
+      driverOpenQuestions: { read: async () => FREE },
+      isEnabled: true,
+      promptOpener: world.promptOpener,
+      repository: world.repository,
+      sender: world.sender,
+      speech: CATALOG_BOT_SPEECH,
+    })
+    return { ...world, directCalls, resolved, useCase }
+  }
+
+  const execute = (world: { useCase: { execute: (p: never) => Promise<unknown> } }) =>
+    world.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id } as never)
+
+  test('canal grupo: o resolvedor é consultado com a empresa e o motorista, e o envio sai no grupo', async () => {
+    const world = buildWithChannel({ channel: 'group', hasDirectSender: true })
+    await execute(world)
+    expect(world.resolved).toEqual([{ companyId: COMPANY_ID, driverId: 'driver-1' }])
+    expect(world.directCalls).toEqual([])
+    expect(world.sent).toHaveLength(1)
+  })
+
+  test('canal direto sem remetente individual (Fase 3 ausente): cai no grupo', async () => {
+    const world = buildWithChannel({ channel: 'direct', hasDirectSender: false })
+    const result = await execute(world)
+    expect(result).toMatchObject({ outcome: 'sent' })
+    expect(world.sent).toHaveLength(1)
+    expect(world.writes.find((write) => write.kind === 'sent')).toMatchObject({ channel: 'group' })
+  })
+
+  test('canal direto com remetente: envia no individual, grava o canal e não abre pedido de grupo', async () => {
+    const world = buildWithChannel({ channel: 'direct', hasDirectSender: true })
+    const result = await execute(world)
+    expect(result).toMatchObject({ outcome: 'sent' })
+    expect(world.sent).toEqual([])
+    expect(world.opened).toEqual([])
+    expect(world.directCalls).toHaveLength(1)
+    expect(world.writes.find((write) => write.kind === 'sent')).toMatchObject({
+      channel: 'direct_text',
+      providerMessageId: 'direct-1',
+    })
+  })
+
+  test('canal direto indisponível: cai no grupo na mesma tentativa', async () => {
+    const world = buildWithChannel({
+      channel: 'direct',
+      directResult: 'unavailable',
+      hasDirectSender: true,
+    })
+    await execute(world)
+    expect(world.sent).toHaveLength(1)
+    expect(world.writes.filter((write) => write.kind === 'reserve')).toHaveLength(1)
+    expect(world.writes.find((write) => write.kind === 'sent')).toMatchObject({ channel: 'group' })
+  })
+
+  test('canal direto sem remetente e sem grupo: adia como antes, sem consumir tentativa', async () => {
+    const world = buildWithChannel({
+      channel: 'direct',
+      groupJid: undefined,
+      hasDirectSender: false,
+    })
+    const result = await execute(world)
+    expect(result).toMatchObject({ outcome: 'deferred' })
+    expect(world.writes.map((write) => write.kind)).toEqual(['release'])
+  })
+
+  test('canal direto indisponível e sem grupo: devolve a reserva e adia', async () => {
+    const world = buildWithChannel({
+      channel: 'direct',
+      directResult: 'unavailable',
+      groupJid: undefined,
+      hasDirectSender: true,
+    })
+    const result = await execute(world)
+    expect(result).toMatchObject({ outcome: 'deferred' })
+    expect(world.writes.map((write) => write.kind)).toEqual(['reserve', 'release'])
   })
 })

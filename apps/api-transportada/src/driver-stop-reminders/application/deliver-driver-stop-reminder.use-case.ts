@@ -30,6 +30,11 @@ import {
   computeNextStopReminderDueAt,
   decideStopReminderDueAction,
 } from '../domain/stop-reminder-schedule.policy.js'
+import type {
+  DirectReminderSender,
+  DriverReminderChannelKind,
+  DriverReminderChannelResolver,
+} from './driver-reminder-channel-resolver.port.js'
 import type { GroupStopReminderSenderPort } from './group-stop-reminder-sender.port.js'
 import type {
   DeliverableStopReminder,
@@ -43,6 +48,7 @@ import type { WhatsAppBotSpeechPort } from '../../whatsapp-commands/application/
 import { hasDriverOpenQuestion } from '../../whatsapp-commands/domain/driver-open-question.policy.js'
 import { plainText } from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
 import type { ApiLogger } from '../../shared/api.types.js'
+import type { DriverStopReminderChannel } from '../../shared/driver-stop-reminder.constant.js'
 
 export type DeliverDriverStopReminderParams = {
   readonly companyId: string
@@ -73,7 +79,14 @@ function addMinutes(moment: Date, minutes: number): Date {
 }
 
 export function createDeliverDriverStopReminderUseCase(dependencies: {
+  /** Ausente: sempre grupo. */
+  readonly channelResolver?: DriverReminderChannelResolver
   readonly clock?: () => Date
+  /**
+   * O envio individual da Fase 3. Enquanto ausente (ou `unavailable`), o canal `direct` cai no grupo na mesma
+   * tentativa; a Fase 3 passa a implementação e este desvio deixa de ser alcançado.
+   */
+  readonly directSender?: DirectReminderSender | undefined
   readonly driverOpenQuestions: DriverOpenQuestionPort
   readonly isEnabled: boolean
   readonly logger?: ApiLogger
@@ -178,23 +191,37 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
     })
   }
 
-  async function send(
+  async function recordSent(
+    reminder: DeliverableStopReminder,
+    context: StopReminderDeliveryContext,
+    sent: {
+      readonly channel: DriverStopReminderChannel
+      readonly now: Date
+      readonly providerMessageId: string | null
+    },
+  ) {
+    const nextDueAt = computeNextStopReminderDueAt({
+      lastSentAt: sent.now,
+      settings: context.settings,
+    })
+    await repository.recordSent({
+      channel: sent.channel,
+      companyId: reminder.companyId,
+      nextDueAt,
+      providerMessageId: sent.providerMessageId,
+      reminderId: reminder.id,
+      sentAt: sent.now,
+    })
+    log({ ...reminder, attempts: reminder.attempts + 1 }, OUTCOME.SENT)
+    return { nextDueAt, outcome: OUTCOME.SENT } as const
+  }
+
+  async function sendToGroup(
     reminder: DeliverableStopReminder,
     context: StopReminderDeliveryContext,
     groupJid: string,
     now: Date,
   ) {
-    const reserved = await repository.reserveAttempt({
-      companyId: reminder.companyId,
-      dispatchingUntil: addMinutes(now, DRIVER_STOP_REMINDER_DISPATCH_RESERVATION_MINUTES),
-      now,
-      reminderId: reminder.id,
-      version: reminder.version,
-    })
-    if (!reserved) {
-      log(reminder, OUTCOME.DEFERRED, 'already_reserved')
-      return { nextDueAt: reminder.dueAt, outcome: OUTCOME.DEFERRED } as const
-    }
     let isPromptOpen = false
     try {
       await dependencies.promptOpener.open({
@@ -213,22 +240,8 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
         groupJid,
         tripId: reminder.tripId,
       })
-      const nextDueAt = computeNextStopReminderDueAt({
-        lastSentAt: now,
-        settings: context.settings,
-      })
-      await repository.recordSent({
-        channel: 'group',
-        companyId: reminder.companyId,
-        nextDueAt,
-        providerMessageId,
-        reminderId: reminder.id,
-        sentAt: now,
-      })
-      log({ ...reminder, attempts: reminder.attempts + 1 }, OUTCOME.SENT)
-      return { nextDueAt, outcome: OUTCOME.SENT } as const
+      return await recordSent(reminder, context, { channel: 'group', now, providerMessageId })
     } catch (error) {
-      const retryAt = addMinutes(now, DRIVER_STOP_REMINDER_SEND_FAILURE_RETRY_MINUTES)
       if (isPromptOpen) {
         await dependencies.promptOpener.discard({
           companyId: reminder.companyId,
@@ -236,23 +249,80 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
           reminderId: reminder.id,
         })
       }
-      await repository.release({
-        companyId: reminder.companyId,
-        dueAt: retryAt,
-        reminderId: reminder.id,
-      })
-      if (error instanceof ReminderPromptBusyError) {
-        log(reminder, OUTCOME.DEFERRED, DRIVER_STOP_REMINDER_PROMPT_BUSY_REASON)
-        return { nextDueAt: retryAt, outcome: OUTCOME.DEFERRED } as const
-      }
-      dependencies.logger?.warn(DRIVER_STOP_REMINDER_DELIVERY_LOG.SEND_FAILED, {
-        companyId: reminder.companyId,
-        errorName: error instanceof Error ? error.name : typeof error,
-        reminderId: reminder.id,
-        stage: reminder.stage,
-      })
+      return releaseAfterFailure(reminder, now, error)
+    }
+  }
+
+  async function releaseAfterFailure(reminder: DeliverableStopReminder, now: Date, error: unknown) {
+    const retryAt = addMinutes(now, DRIVER_STOP_REMINDER_SEND_FAILURE_RETRY_MINUTES)
+    await repository.release({
+      companyId: reminder.companyId,
+      dueAt: retryAt,
+      reminderId: reminder.id,
+    })
+    if (error instanceof ReminderPromptBusyError) {
+      log(reminder, OUTCOME.DEFERRED, DRIVER_STOP_REMINDER_PROMPT_BUSY_REASON)
       return { nextDueAt: retryAt, outcome: OUTCOME.DEFERRED } as const
     }
+    dependencies.logger?.warn(DRIVER_STOP_REMINDER_DELIVERY_LOG.SEND_FAILED, {
+      companyId: reminder.companyId,
+      errorName: error instanceof Error ? error.name : typeof error,
+      reminderId: reminder.id,
+      stage: reminder.stage,
+    })
+    return { nextDueAt: retryAt, outcome: OUTCOME.DEFERRED } as const
+  }
+
+  /** `undefined` quando o individual não está disponível: a entrega segue pelo grupo. */
+  async function sendDirect(
+    reminder: DeliverableStopReminder,
+    context: StopReminderDeliveryContext,
+    now: Date,
+  ) {
+    if (dependencies.directSender === undefined) return undefined
+    const result = await dependencies.directSender.send({
+      body: await renderBody(reminder, context),
+      companyId: reminder.companyId,
+      driverId: context.driver.id,
+      reminderId: reminder.id,
+      stage: reminder.stage,
+      tripStopId: reminder.tripStopId,
+    })
+    if (result.status === 'unavailable') return undefined
+    return recordSent(reminder, context, {
+      channel: result.channel,
+      now,
+      providerMessageId: result.providerMessageId,
+    })
+  }
+
+  async function send(
+    reminder: DeliverableStopReminder,
+    context: StopReminderDeliveryContext,
+    channel: DriverReminderChannelKind,
+    now: Date,
+  ) {
+    const reserved = await repository.reserveAttempt({
+      companyId: reminder.companyId,
+      dispatchingUntil: addMinutes(now, DRIVER_STOP_REMINDER_DISPATCH_RESERVATION_MINUTES),
+      now,
+      reminderId: reminder.id,
+      version: reminder.version,
+    })
+    if (!reserved) {
+      log(reminder, OUTCOME.DEFERRED, 'already_reserved')
+      return { nextDueAt: reminder.dueAt, outcome: OUTCOME.DEFERRED } as const
+    }
+    if (channel === 'direct') {
+      try {
+        const direct = await sendDirect(reminder, context, now)
+        if (direct !== undefined) return direct
+      } catch (error) {
+        return releaseAfterFailure(reminder, now, error)
+      }
+    }
+    if (context.groupJid !== undefined) return sendToGroup(reminder, context, context.groupJid, now)
+    return releaseAfterFailure(reminder, now, new Error(DRIVER_STOP_REMINDER_NO_GROUP_REASON))
   }
 
   return {
@@ -294,13 +364,18 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
         return { nextDueAt: null, outcome: OUTCOME.ESCALATED }
       }
       if (gate.decision === DRIVER_STOP_REMINDER_GATE_DECISION.DEFER) return defer(reminder, gate)
-      if (context.groupJid === undefined) {
+      const channel = await dependencies.channelResolver?.resolve({
+        companyId,
+        driverId: context.driver.id,
+      })
+      const hasDirectPath = channel === 'direct' && dependencies.directSender !== undefined
+      if (context.groupJid === undefined && !hasDirectPath) {
         return defer(reminder, {
           reason: DRIVER_STOP_REMINDER_NO_GROUP_REASON,
           until: addMinutes(now, context.settings.intervalMinutes),
         })
       }
-      return send(reminder, context, context.groupJid, now)
+      return send(reminder, context, channel ?? 'group', now)
     },
   }
 }

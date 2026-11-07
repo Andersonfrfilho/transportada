@@ -82,7 +82,7 @@ const NINTH_DIGIT_INDEX = 4
 const MOBILE_WITH_COUNTRY_LENGTH = 13
 
 /** O `wa_id` da Meta às vezes chega sem o nono dígito: a sessão pode estar sob qualquer uma das duas formas. */
-function sessionPhoneCandidates(rawPhone: string): readonly string[] {
+export function sessionPhoneCandidates(rawPhone: string): readonly string[] {
   const phone = toWhatsAppPhone(rawPhone)
   if (phone === undefined) return []
   if (phone.length === MOBILE_WITH_COUNTRY_LENGTH && phone[NINTH_DIGIT_INDEX] === '9') {

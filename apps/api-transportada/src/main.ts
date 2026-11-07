@@ -222,6 +222,7 @@ import {
 import { DrizzleDriverStopReminderPostponementRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-postponement.repository.js'
 import { createStopNoteNumberReader } from './driver-stop-reminders/infrastructure/stop-note-number.query.js'
 import { DrizzleDriverStopReminderDeliveryRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-delivery.repository.js'
+import { createDrizzleDriverReminderChannelResolver } from './driver-stop-reminders/infrastructure/drizzle-driver-reminder-channel.resolver.js'
 import { createGroupReminderPromptOpener } from './driver-stop-reminders/infrastructure/group-reminder-prompt-opener.js'
 import { createGroupStopReminderSender } from './driver-stop-reminders/infrastructure/group-stop-reminder-sender.gateway.js'
 import { createDriverStopReminderRoutes } from './driver-stop-reminders/presentation/driver-stop-reminders.routes.js'
@@ -2261,6 +2262,10 @@ export function bootstrap(): Bun.Server<undefined> {
     secrets: reminderEvolutionSecrets,
   })
   const deliverDriverStopReminder = createDeliverDriverStopReminderUseCase({
+    channelResolver: createDrizzleDriverReminderChannelResolver({
+      database: database.db,
+      sessions: new SessionRepository(database.db as never),
+    }),
     driverOpenQuestions: createDriverOpenQuestionPort({
       collections: whatsappDriverCollections,
       database: database.db,
