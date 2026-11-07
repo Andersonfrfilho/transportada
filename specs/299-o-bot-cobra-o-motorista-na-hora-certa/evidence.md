@@ -303,3 +303,72 @@ por `id` + `version` (versão +1). OSRM fora, sem geocódigo ou sem origem: fica
   occurrence-driver-lock, occurrence-duplicate-request, stop-occurrence-photo, trip-occurrence-attachment,
   address-arrival-correction, next-stop-offer, trip-retire-stop, trip-crew-transfer, whatsapp-driver-flow-actions):
   187 pass, 0 fail. A suíte inteira fica para a CI.
+
+## Revisão PR 566 — correções
+
+Achados da revisão do código dos Fases 0–1. Cada correção de comportamento nasceu de um teste vermelho.
+
+| # | Achado | Correção |
+|---|---|---|
+| 1 | O refino do OSRM reescrevia o prazo da `settlement` | A entrada do refino carrega `stage`; o refinador só toca `arrival` (a entrega vence `arrived_at + permanência`, RF2) |
+| 2 | Sem `companyId` em leituras/escritas do refino e no `close()` | `companyId` em todo `WHERE` do repositório de refino (lembrete, `trip_stops`, `trip_stop_events`, paradas anteriores, `applyRefinement`) e no `close()`; `geocoded_addresses` segue cache compartilhado; `refineAfterCommit` recebe `{ companyId, reminderId }` |
+| 3 | Âncora usava `input.now`, o evento grava a hora do toque | Saída ancora em `resolvedTappedAt ?? now`; chegada na hora do evento como gravada (relógio corrigido quando aceito, senão `now`) |
+| 4 | Falha do sink derrubava o evento do motorista | `open()` roda num SAVEPOINT (`executor.transaction`): erro desfaz só a inserção, loga `companyId`/`tripStopId`/`stage`/nome do erro e o evento confirma. `close()` segue na transação, sem guarda (RF4) |
+| 5 | RF3 "parada removida" | Ver nota abaixo: nenhuma mudança de código |
+| 6 | Baixa que não fecha a parada deixava `arrival` aberta | Escritório não marca chegada junto: a baixa parcial dele não chamava o sink. Agora toda baixa chama `onStopEvent` (`stopClosed: stopCompleted`) e a política fecha a `arrival` da parada com `arrived` quando a parada não fecha |
+| 7 | Resíduos | `authorship` fora do serviço (opcional no tipo, que a política ignora); perda da corrida de versão no refino é logada sem PII (`driver_stop_reminder_refinement_lost_race`); `;` sobrando após `--> statement-breakpoint` do `rollback.sql`; o laço do `applyForStop` segue sequencial (fechar antes de abrir, o parcial é único por parada e etapa) e agora diz isso |
+
+**Achado 5 (decisão):** a única coisa que apaga uma parada é `DELETE FROM trip_stops` (`deleteStop` da reconciliação e
+`releaseUnloadedDocuments`), e `driver_stop_reminders_company_trip_stop_fk` é `ON DELETE CASCADE`: o lembrete some junto, na
+mesma transação, e nunca fica `pending` apontando para parada inexistente. Fechar antes do `DELETE` seria um `UPDATE` apagado
+na sequência. `retireStop`/`releaseDocument` só rodam em viagem não despachada (`tripStillOpen`), onde ainda não há lembrete.
+Teste de caracterização (já nasce verde, por isso sem vermelho): "remover a parada (cascata da FK) não deixa lembrete pendente".
+Consequência para a Fase 2: o histórico de um lembrete se perde com a parada; a entrega relê por `id` e trata "não existe" como fechado.
+
+### Para a Fase 2
+
+- Troca de tripulação (`transferTripCrew`) **não** fecha nem reatribui o lembrete (decisão do dono): o `driver_id` gravado na
+  abertura pode ficar velho. A entrega (Fase 2) resolve o motorista **atual** da viagem na hora do envio, nunca confia em `driver_id`.
+- O worker de entrega relê o lembrete por `id` e `companyId`; lembrete inexistente (parada removida por cascata) é "nada a enviar".
+
+### Vermelho → verde
+
+Vermelho (testes escritos antes do código, `driver-stop-reminders.integration.ts`, 14 pass / 8 fail):
+- `a chegada fecha a chegada e abre a entrega a partir dela` (agora com saída de ponto compartilhado): `toMatchObject` falhou — a
+  entrega foi refinada (`originKind` ≠ `fallback`).
+- `o refino do OSRM não reescreve o prazo da entrega`: `Expected: 1793963400000 / Received: 1793964600000`.
+- `o refino e o fechamento de outra empresa não alcançam o lembrete`: `expect(received).toBeUndefined()` recebeu o lembrete.
+- `a saída tocada offline ancora o prazo na hora do toque`: `Expected "2026-11-06T10:00:00.000Z" / Received "2026-11-06T10:40:00.000Z"`.
+- `a chegada tocada offline ancora a entrega na hora corrigida`: `Expected "…10:10:00.000Z" / Received "…10:40:00.000Z"`.
+- `falha ao abrir o lembrete não derruba o evento do motorista`: `(fail)` — o gatilho que recusa o `INSERT` abortou a saída.
+- `a baixa do escritório que não fecha a parada fecha a chegada`: `toMatchObject` falhou (lembrete seguia `pending`).
+- Contrato `stop-reminder-transition.contract.ts`: 22 pass / 2 fail (`delivered`/`returned` sem fechar a parada).
+
+Verde: `driver-stop-reminders.integration.ts` 22 pass, 0 fail; `stop-reminder-transition` 24 pass; contrato do refinador cobre
+`settlement` nunca refinado.
+
+### Gates (de `apps/api-transportada`)
+
+- `bun run typecheck`: limpo. eslint e prettier nos 15 arquivos tocados: limpos.
+- `bun run test`: 14291 pass, 35 skip, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000`: 14300 pass, 26 skip, 0 fail.
+- `make migration-test` (raiz, após o `rollback.sql`): 231 pass, 0 fail.
+- Integração (cada arquivo isolado): ver a lista abaixo.
+  19 arquivos, todos 0 fail: driver-stop-reminders (22), stop-event-sequence (10), stop-order-guard (11), me-trip-departure (12),
+  trip-field-office (25), trip-field-authorship (5), event-location-stamp (23), delivered-moment (18), trip-cancel-releases-notes (9),
+  trip-lifecycle (6), occurrence-driver-lock (4), occurrence-duplicate-request (4), stop-occurrence-photo (9),
+  trip-occurrence-attachment (6), address-arrival-correction (16), next-stop-offer (7), trip-retire-stop (2),
+  trip-crew-transfer (16), whatsapp-driver-flow-actions (4).
+
+### CI do PR 566
+
+- **Catálogo do painel:** `apps/frontend-transportada/src/modules/shared/jobCatalog.constant.ts` ganhou
+  `driver.stop-reminder.dispatch` (a T1.2 só o pusera na API e no worker; o painel não tem rótulo por rotina em locale).
+  `bun run typecheck`, eslint e prettier limpos; `bun run test`: 1493 pass, 0 fail. A cron mantém subconjunto próprio
+  (`bun run test` 101 pass).
+- **`make smoke-driver` / `DEMO_API_NOT_READY_ON_53912`:** não é regressão desta mudança. A API de demonstração é
+  `apps/frontend-driver/scripts/driver-preview-api.ts`, que só importa módulos do próprio frontend-driver (nada de
+  `api-transportada`), e o PR não toca `apps/frontend-driver`. Falharam 2 de 66 testes de Playwright, ambos na espera de 20 s
+  do `startDemoApi` (`conversation-smoke.helper.ts:52`) com o processo em `stdio: 'ignore'`; o log não traz erro do processo.
+  Os outros 64 passaram, inclusive os que usam a mesma API de demo. Hipótese: partida lenta de `bun run` no runner carregado.
+  Não reproduzido localmente; se repetir no re-run, aumentar `DEMO_BOOT_TIMEOUT_MS` ou deixar o stderr do filho visível.
