@@ -5,6 +5,7 @@ import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { FlowGraphRepository, OptimisticLockError } from '@adatechnology/meta-whatsapp-module'
 
+import { assertOverwriteNodeIds } from '../src/whatsapp-commands/domain/whatsapp-bot-speech.policy.js'
 import {
   previewWhatsAppFlowGraphPublication,
   WhatsAppFlowGraphPanelEditedError,
@@ -21,6 +22,7 @@ import { createDrizzleWhatsAppFlowGraphPublisher } from '../src/whatsapp-command
  *
  *   bun run scripts/whatsapp-flow-publish.ts --company <uuid>
  *   bun run scripts/whatsapp-flow-publish.ts --company <uuid> --confirm
+ *   bun run scripts/whatsapp-flow-publish.ts --overwrite-nodes fala_a,fala_b   (texto do código nessas chaves)
  *
  * `--adopt-live-as-code-baseline`: só na primeira publicação depois da spec 300 T6.1 (ainda não há
  * referência do que o código publicou) — o grafo vivo vira a referência e os `fala_*` iguais a ele
@@ -44,6 +46,7 @@ async function main(): Promise<void> {
       graph,
       history: createDrizzleWhatsAppFlowGraphHistoryRepository(provider.db),
       module: repository,
+      overwriteNodeIds: options.overwriteNodeIds,
     }).catch((error: unknown) => {
       if (!(error instanceof WhatsAppFlowGraphPanelEditedError)) throw error
       process.stdout.write(`${error.message}\nrode sem --adopt-live-as-code-baseline.\n`)
@@ -74,6 +77,7 @@ async function main(): Promise<void> {
         adoptLiveAsCodeBaseline: options.adoptLiveAsCodeBaseline,
         companyId,
         graph,
+        overwriteNodeIds: options.overwriteNodeIds,
         publishedBy: 'code',
         source: 'code',
       })
@@ -96,6 +100,7 @@ type Options = Readonly<{
   adoptLiveAsCodeBaseline: boolean
   companyId: null | string
   confirm: boolean
+  overwriteNodeIds: readonly string[]
 }>
 
 function parseArguments(argv: readonly string[]): Options {
@@ -104,10 +109,17 @@ function parseArguments(argv: readonly string[]): Options {
     return index === -1 ? null : (argv[index + 1] ?? null)
   }
 
+  const overwriteNodeIds = (value('overwrite-nodes') ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter((key) => key !== '')
+  assertOverwriteNodeIds(overwriteNodeIds)
+
   return {
     adoptLiveAsCodeBaseline: argv.includes('--adopt-live-as-code-baseline'),
     companyId: value('company'),
     confirm: argv.includes('--confirm'),
+    overwriteNodeIds,
   }
 }
 
@@ -157,6 +169,17 @@ function formatPreview(input: {
     lines.push(`fala_* regravados ${preview.rewrittenBotSpeechCount}`)
     if (preview.diff.labelChanged) lines.push(`rótulo           "${graph.label}"`)
     if (preview.diff.startNodeIdChanged) lines.push(`nó inicial       "${graph.startNodeId}"`)
+  }
+
+  if (preview.overwritten.length > 0) {
+    lines.push('nós sobrescritos (texto do código):')
+    for (const node of preview.overwritten) {
+      lines.push(
+        `  - ${node.nodeId}`,
+        `      antes:  ${node.from ?? '(vazio)'}`,
+        `      depois: ${node.to ?? '(vazio)'}`,
+      )
+    }
   }
 
   return `${lines.join('\n')}\n\n`

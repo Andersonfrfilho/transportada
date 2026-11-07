@@ -32,6 +32,7 @@ import type {
   GroupFlowOutcome,
   GroupRequest,
 } from '../../src/whatsapp/application/whatsapp-group-request.port.js'
+import { createGroupReturnFlow } from '../../src/whatsapp/application/whatsapp-group-return-flow.service.js'
 import { createGroupStopFlow } from '../../src/whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { sameBrazilianPhone } from '../../src/whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
 
@@ -112,6 +113,10 @@ function setupFlow(options: { awaitingText?: boolean; withoutAccess?: boolean } 
       initialStep: 'document',
       start: async () => ({ kind: 'done', replies: ['occ-start'] }),
     },
+    return: createGroupReturnFlow({
+      listOpenDocuments: async () => [],
+      returnDocument: async () => ({ message: 'devolvida' }),
+    }),
     stop: createGroupStopFlow({
       enRouteMessage: async () => 'en-route',
       listStops: async () => [],

@@ -17,6 +17,17 @@ import type {
 import { DRIVER_STOP_REMINDER_DEFAULT_SETTINGS } from '../domain/driver-stop-reminder.constant.js'
 import { resolveStopReminderClosedStatus } from './stop-reminder-closed-status.mapper.js'
 
+type PostgresErrorShape = { readonly cause?: unknown; readonly errno?: unknown }
+
+/** O driver do Bun grava o SQLSTATE em `errno`; o Drizzle embrulha o erro do driver em `cause`. */
+function readPostgresSqlState(error: unknown): string | undefined {
+  for (const candidate of [error, (error as PostgresErrorShape | null)?.cause]) {
+    const { errno } = (candidate ?? {}) as PostgresErrorShape
+    if (typeof errno === 'string' && errno.length === 5) return errno
+  }
+  return undefined
+}
+
 export class DrizzleDriverStopReminderRepository implements DriverStopReminderRepository {
   public constructor(
     private readonly executor: TripQueryable,
@@ -106,9 +117,12 @@ export class DrizzleDriverStopReminderRepository implements DriverStopReminderRe
         return created
       })
     } catch (error) {
+      const sqlState = readPostgresSqlState(error)
+      if (sqlState === undefined) throw error
       this.logger?.warn('driver_stop_reminder_open_failed', {
         companyId: params.companyId,
         reason: error instanceof Error ? error.name : 'unknown',
+        sqlState,
         stage: params.stage,
         tripStopId: context.stopId,
       })

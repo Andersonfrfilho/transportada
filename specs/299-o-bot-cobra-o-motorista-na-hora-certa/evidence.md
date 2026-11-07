@@ -384,3 +384,434 @@ Verde: `driver-stop-reminders.integration.ts` 22 pass, 0 fail; `stop-reminder-tr
   do `startDemoApi` (`conversation-smoke.helper.ts:52`) com o processo em `stdio: 'ignore'`; o log não traz erro do processo.
   Os outros 64 passaram, inclusive os que usam a mesma API de demo. Hipótese: partida lenta de `bun run` no runner carregado.
   Não reproduzido localmente; se repetir no re-run, aumentar `DEMO_BOOT_TIMEOUT_MS` ou deixar o stderr do filho visível.
+
+## Revisão PR 566 — médios
+
+Três itens médios da revisão do PR 566. Cada um nasceu de um teste vermelho.
+
+| #   | Item                                                           | Correção                                                                                                                                                                                                                                                                                                     |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A1  | Remover a parada apaga o lembrete pendente sem trilha de fecho | Fechar antes do `DELETE` seria um `UPDATE` apagado pela cascata (`driver_stop_reminders_company_trip_stop_fk ON DELETE CASCADE`), então o rastro vai ao log estruturado: `driver_stop_reminder_discarded_with_stop` com `companyId`, `reminderId`, `stage`, `tripStopId`, `reason: 'stop_removed'` (sem PII) |
+| A2  | Chegada marcada junto com baixa que não fecha a parada         | A chegada marcada junto agora abre `settlement`; a baixa que fecha a parada a fecha com `stop_closed` na mesma transação (fica uma linha `closed`, é o histórico). Ver suposição abaixo                                                                                                                      |
+| A3  | `open()` engolia qualquer erro e logava só o nome              | Só falha do banco (SQLSTATE em `errno`, no erro ou no `cause`) é engolida, e o log ganha `sqlState`; qualquer outro erro propaga                                                                                                                                                                             |
+
+**A1, o que foi plugado:** `createTripStopReconciliationPort(transaction, logger?)` chama `logStopRemindersRemovedWithStop` antes do
+`DELETE`. O logger chega por `DrizzleTripRepository` (`releaseDocumentWithin`, o desvínculo em viagem despachada). Os outros
+chamadores do porto (`drizzle-delivery-address-override`, `trip-document-review-link`) não têm logger hoje e seguem sem log —
+sem regressão, mas sem rastro; plugar quando um deles passar a atuar em viagem com lembrete. O `DELETE` de
+`releaseUnloadedDocuments` (`drizzle-trip-route.repository.ts`) roda dentro da própria transição para despachada, antes de
+qualquer saída, e portanto antes de existir lembrete: não ganhou log.
+
+**Suposição (reversível):** chegada marcada junto com uma baixa que **não** fecha a parada abre `settlement` (o motorista segue na
+parada com documentos pendentes); só não fica aberta quando a baixa fecha a parada (RF2). Reverter é voltar a condição
+`event.recordedTogether ||` em `decideArrival`.
+
+### Vermelho → verde
+
+- A1: `remover a parada pelo desvínculo registra no log o lembrete que a cascata apaga` (por `reconcileStopOnUnlink`, viagem
+  despachada com `arrival` pendente): `Expected` 1 entrada de log, `Received` `[]`. Verde: 22 pass.
+- A2: contrato `arrived marcada junto com a baixa fecha arrival e abre settlement`: 23 pass / 1 fail; integração
+  `...baixa que não fecha a parada abre a entrega` e `...que fecha a parada deixa a entrega fechada`: 2 fail. Verde:
+  contrato 24 pass; integração 23 pass.
+- A3: contrato `driver-stop-reminder-open-failure.contract.ts`: log sem `sqlState` e `Received promise that resolved` para o erro
+  de programação. Verde: 2 pass.
+
+## T2.1 — 2026-11-07
+
+**Pré-requisito conferido:** o suporte de menção do grupo (PR #564 `work/group-mention`, merge `00920a499`) está na base deste
+branch e em `origin/staging`. Nada foi reimplementado.
+
+- `withGroupMention` extraída (função pura) em `src/whatsapp/application/whatsapp-group-mention.service.ts`; o
+  `evolution-group-reply.gateway.ts` passou a usá-la, sem mudar comportamento (`one-reply-one-message` e
+  `group-request-session` seguem verdes).
+- `createGroupStopReminderSender` (porta `group-stop-reminder-sender.port.ts` + adaptador
+  `group-stop-reminder-sender.gateway.ts`): lê o número do motorista **atual** da viagem na hora do envio
+  (`readCurrentDriverNumber`, implementação real fica para a T2.2), aplica `withGroupMention` e chama
+  `createEvolutionDocumentSender().sendText({ mentionNumber })`, que devolve o id do provedor e lança se falhar. Fora de qualquer
+  turno, então nunca é fundido em outra resposta.
+- Contrato `group-stop-reminder-sender.contract.ts`: pede a menção do motorista atual e o corpo traz `@<número>`; troca de
+  tripulação marca o atual; sem telefone válido sai sem marca; falha sobe. Vermelho: `Cannot find module` (0 pass / 1 fail).
+
+### Gates (de `apps/api-transportada`)
+
+- `bun run typecheck`: limpo. eslint e prettier nos 14 arquivos tocados (A e B): limpos.
+- `bun run test`: 14299 pass, 35 skip, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000`: 14308 pass, 26 skip, 0 fail.
+- Integração (cada arquivo isolado, `--env-file=../../.env.test`): driver-stop-reminders 23, trip-lifecycle 6, trip-repository 5,
+  stop-event-sequence 10; todos 0 fail. Os mesmos gates valem para a seção "Revisão PR 566 — médios" (rodados uma vez, sobre as
+  duas mudanças).
+
+## T2.2 — 2026-11-07
+
+Portão "pergunta aberta" extraído, entrega do lembrete e rota do robô. Arquivos novos em `apps/api-transportada/src/`:
+`whatsapp-commands/{domain/driver-open-question.policy,application/driver-open-question.port,infrastructure/driver-open-question.adapter}.ts`,
+`driver-stop-reminders/{application/{deliver-driver-stop-reminder.use-case,driver-stop-reminder-delivery.port,reminder-prompt-opener.port},domain/driver-stop-reminder.error,infrastructure/{drizzle-driver-stop-reminder-delivery.repository,current-trip-driver.query,group-reminder-prompt-opener},presentation/driver-stop-reminders.routes}.ts`.
+
+**Movimentação (pure move):** `RouteOfferGate` e `canAskRouteOffer` saíram de `whatsapp-driver-route-offer.policy.ts` (20 linhas
+removidas, nada mais mudou ali) para `driver-open-question.policy.ts` com o mesmo corpo; `whatsapp-driver-prompts.service.ts`,
+`whatsapp-group-driver-flow.service.ts` e `test/whatsapp-commands/route-offer.contract.ts` só trocaram o caminho do import. Os três
+pontos que montam o portão da oferta ficam como estavam. Contratos da 294 (`route-offer`) verdes sem alteração de asserção.
+
+**Vermelho antes** (testes escritos primeiro; a implementação já existia no disco, então o vermelho foi medido tirando do lugar
+`deliver-driver-stop-reminder.use-case.ts` e `driver-stop-reminders.routes.ts`): `bun test ./test/driver-stop-reminders.contract.test.ts`
+→ `Cannot find module '.../presentation/driver-stop-reminders.routes.js'`, 0 pass / 1 fail / 1 error. Com os arquivos de volta: 133 pass.
+
+**Decisões da execução:**
+
+- **Chave desligada** (global ou da empresa): `deferred` com o `dueAt` atual e **nenhuma escrita** (a consulta do worker, T2.4, só traz
+  empresa ligada; a corrida é rara e não precisa de reagendar).
+- **Escalada não passa pelo portão de horário/pergunta/vaga**: ela não manda nada ao motorista. A ordem é: fechar se a parada andou →
+  escalar se `attempts >= maxAttempts` → adiar (horário, pergunta, vaga) → enviar. `escalated` só grava `status` e `escalated_at`.
+- **Sem grupo vinculado** ao motorista atual: adia pelo intervalo (`reason: no_group`), sem reservar. Individual/template e "só escala"
+  são T3.2. O grupo é o do motorista **atual** da viagem (a troca de tripulação leva junto o grupo e a marca).
+- **Motorista atual** = primeiro da tripulação com papel `driver` por `position` (`current-trip-driver.query.ts`); é o que a marca do
+  grupo e o nome da mensagem usam. `readCurrentDriverNumber` agora é real (`toWhatsAppPhone` da ficha).
+- **Reserva**: `UPDATE … SET version = version + 1, dispatching_until WHERE id AND company_id AND version AND status='pending' AND
+(dispatching_until IS NULL OR <= now)`. Quem perde devolve `deferred` sem enviar. Gravar a tentativa (`attempts + 1`, `last_*`,
+  próximo prazo) e devolver/fechar/escalar usam `WHERE id AND company_id AND status='pending'` (não repetem a versão: o refino do OSRM
+  pode ter bumpado a versão no meio). Falha do provedor: `release` com `due_at = agora + 5 min`, tentativa não consumida.
+- **Mensagem**: nós `fala_lembrete_chegada`, `_chegada_sem_previsao`, `_entrega` em `BOT_SPEECH_DEFAULTS` (chaves `lembreteChegada`,
+  `lembreteChegadaSemPrevisao`, `lembreteEntrega`), publicados pelo `buildBotSpeechNodes` (o mesmo que o
+  `whatsapp-flow-publish.ts` já usa; nada publicado em nenhum ambiente). Nome e parada passam por `plainText` (RF34). A marca
+  `@<telefone>` do grupo é o prefixo do suporte de menção (`withGroupMention`, T2.1): o texto sai `@5516… 👋 Oi, Fulano! …`, e não
+  `Oi, @… Fulano` como o desenho do RF9; mudar isso é mudar o suporte de menção. A linha "Saída às …" usa negrito (`*14:05*`) nos dois
+  modelos: o `_14:05_` do RF9 na versão sem previsão é o `prettier` reescrevendo `*` em prosa no `spec.md`.
+- **`ReminderPromptOpener`**: porta + abridor do grupo que não grava nada (`group-reminder-prompt-opener.ts`); a T2.3 o liga ao
+  `GROUP_STEP_REGISTRY`. A porta é chamada **depois** da reserva e **antes** do envio.
+- **Composição** (`main.ts`): `whatsappBotAudio`, `whatsappGroupTurns` e `whatsappGroupAudio` nascem em `bootstrap()` e vão por
+  parâmetro a `createAnonymousRoutes` → `createEvolutionWebhook` (mesmos objetos, nenhuma cópia de estado); o envio do lembrete passa
+  por `whatsappGroupTurns.send` (nunca ultrapassa o que um turno aberto guardou). O leitor da pergunta aberta usa `SessionRepository`
+  do módulo da Meta (`getContext`, com as duas formas do número) e `hasPendingInConversation` do áudio (individual e `group:<jid>`).
+- **Permissão** `trip.stop-reminder-dispatch` em `TRANSPORTADA_PERMISSIONS`, `COMPANY_ROLE_PERMISSIONS.automation`,
+  `SERVICE_ONLY_PERMISSIONS`, `useAuthMe.query.ts`, `identity{,.en}.locale.json` e nos quatro contratos de permissão
+  (`authorization`, `tenant-context`, `role-permissions`, `permission-matrix` do painel).
+- **Feriado como dia fechado (RF8.2) NÃO ligado**: o calendário de feriados é por cidade (IBGE) e a empresa não tem cidade no
+  cadastro; o repositório recebe um `readHolidayDates` injetável que hoje devolve `[]`. Decisão pendente do dono (qual cidade vale:
+  a do endereço da empresa ou a da parada).
+- **Risco já registrado** (T0.1): o áudio pendente é por processo; com mais de uma réplica da API o portão só enxerga o da réplica
+  que atendeu.
+
+**Gates (de `apps/api-transportada`):**
+
+- `bun run typecheck`: limpo. `eslint --max-warnings=0` e `prettier --check` nos arquivos tocados: limpos.
+- `bun run test`: 14337 pass, 35 skip, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000`: 14346 pass, 26 skip, 0 fail.
+- Integração, cada arquivo isolado (`--env-file=../../.env.test`): `driver-stop-reminder-delivery` 9 pass (novo, na lista do
+  `test:integration`), `driver-stop-reminders` 23, `next-stop-offer` 7, `whatsapp-driver-journey-group` 2,
+  `whatsapp-driver-journey-direct` 2, `whatsapp-evolution-webhook` 3, `whatsapp-driver-flow-actions` 4; todos 0 fail.
+  Cobrem: envia (corpo exato e marca do motorista atual, inclusive depois da troca de tripulação), adia por horário, por pedido
+  aberto e por vaga, fecha se a parada andou, duas entregas enviam uma vez, escalada, 404 de outra empresa.
+  O 403 para `trip.manage` está no contrato `driver-stop-reminder-routes.contract.ts` (a rota exige token de serviço).
+- Matrizes `group-{flow,inbound}-isolation` e `literal-message-text` fazem parte do `bun run test` (verdes).
+- `apps/frontend-transportada` (espelhos de permissão): `bun run typecheck` limpo, `eslint` nos arquivos tocados limpo,
+  `bun run test` 1493 pass, 0 fail.
+
+## Publicação — Fases 0 e 1 em staging (2026-11-07)
+
+- PR #566 com merge em `staging` (`a7c300dd2`), feito com CI todo verde (21 checks, inclusive `integration-api` 1–8) e a revisão independente aprovando. Dono autorizou "pode seguir para staging com isso ligado".
+- Deploy de staging `42325897310`: todos os serviços com `success`.
+- `DRIVER_REMINDERS_ENABLED=true` ligado em staging no `api` e no `worker` (`railway variables --set`). Os dois redeploys terminaram em `SUCCESS`, e o log mostra `api_started`/`worker_started` sem erro.
+- A chave da empresa segue desligada e o envio é da Fase 2, então nenhuma mensagem sai.
+
+## T2.3 — 2026-11-07
+
+Passo `reminder.stage` no `GROUP_STEP_REGISTRY` (dono `reminder`, prefixo `reminder.`), abridor real do grupo e adiamento.
+Arquivos novos em `apps/api-transportada/src/`: `whatsapp/application/whatsapp-group-reminder-flow.service.ts`;
+`driver-stop-reminders/{application/{driver-stop-reminder-postponement.port,postpone-driver-stop-reminder.use-case},infrastructure/{drizzle-driver-stop-reminder-postponement.repository,stop-note-number.query}}.ts`.
+
+**Vermelho antes** (testes escritos primeiro): `bun test ./test/driver-stop-reminders.contract.test.ts ./test/whatsapp.contract.test.ts`
+→ `Cannot find module '.../whatsapp-group-reminder-flow.service.js'`, 0 pass / 2 fail / 2 errors. Depois: 1071 pass nos três
+entrypoints tocados (os dois acima e `message-text-boundary`), 0 fail.
+
+**Decisões da execução:**
+
+- **Delegação sem regra nova:** as opções 1–3 chamam `runJourneyAction` (o mesmo que o menu de ações): 1 de chegada →
+  `stop.begin(arrive)` (com o pedido de localização da RF24), entregou → `delivery.begin`, não entregou → `return.begin`, 3 →
+  `occurrence.start`. A nota é a primeira ainda aberta da parada lida na hora da resposta (`stop-note-number.query.ts`), não
+  guardada no estado; parada sem nota aberta cai no "nada a registrar" do menu. O estado do pedido é só
+  `{reminderId, stage, tripStopId}`.
+- **Opção numerada** vem de `resolveStopReminderChoice` (a mesma lista de ações que monta a mensagem) e do `spokenOptionNumber`
+  ("2", "opção dois", áudio confirmado). Fora de 1–4: `not_understood` com a fala `lembreteOpcaoInvalida` (conta tentativa do
+  pedido, 3 e encerra, como todo passo).
+- **"4":** `postpone-driver-stop-reminder.use-case.ts` usa `decideStopReminderPostponement` (T1.3). Adia: `attempts = max(attempts-1, 0)`,
+  `postponements + 1`, `due_at = agora + intervalo da empresa`, `WHERE status='pending' AND postponements = <lido>`. Esgotado (3):
+  nada é gravado, o prazo já era o do envio e o lembrete segue até a escalada. Lembrete que já não está pendente: fala
+  "já foi encerrado". Em todos os casos o pedido fecha (`done`, sem despedida).
+- **Falas** (`BOT_SPEECH_DEFAULTS`, nós `fala_lembrete_*`): `lembreteAdiado`, `lembreteAdiamentoEsgotado`, `lembreteEncerrado`,
+  `lembreteOpcaoInvalida`. Nenhum texto literal no código.
+- **"cancelar"** não tem cancelamento próprio: a sessão fecha o pedido como `cancelled` ("não registrei nada"), o lembrete segue
+  pendente com o mesmo prazo (integração). **Comando digitado** ("cheguei", "entreguei 17234") escapa para `flow.start`, como o
+  menu de ações.
+- **Abridor** (`group-reminder-prompt-opener.ts`): abre o pedido pelo índice único parcial do grupo, com `state` (o repositório
+  ganhou `state` opcional em `open`), dono = telefone do motorista atual (sem telefone válido, dono vazio: só quem marca o bot
+  responde). Grupo ocupado → `ReminderPromptBusyError`: a entrega devolve a reserva (`release` +5 min, tentativa não consumida)
+  e **não envia**. Envio que falha depois de aberto → `discard` fecha o pedido que este lembrete abriu.
+- **Matrizes:** `group-flow-isolation` e `group-inbound-isolation` enumeram `PENDING` à mão; o passo foi acrescentado (chegada e
+  entrega) e o dono `reminder` pode abrir só `begin`/`start` dos outros fluxos, nunca `answer`. As partes que iteram o registro
+  (`cancelar`) pegam o passo sozinhas. `bun test ./test/whatsapp.contract.test.ts -t "reminder.stage"`: 34 pass.
+- **Risco já conhecido:** o pedido do lembrete vive o tempo do `group_request_timeout_seconds`; sem resposta, a próxima tentativa
+  vê "pedido aberto" e adia 5 min até ele vencer (a escalada não passa pelo portão). Não alterei o prazo do pedido.
+
+**Gates (de `apps/api-transportada`):**
+
+- `bun run typecheck`: limpo. `eslint --max-warnings=0` e `prettier --check` nos 27 arquivos tocados: limpos.
+- `bun run test`: 14405 pass, 35 skip, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000`: 14414 pass, 26 skip, 0 fail.
+- Integração, cada arquivo isolado: `driver-stop-reminder-group-step` 4 pass (novo, na lista do `test:integration`),
+  `driver-stop-reminder-delivery` 9, `driver-stop-reminders` 23, `whatsapp-evolution-webhook` 3,
+  `whatsapp-driver-journey-group` 2, `whatsapp-driver-journey-direct` 2; todos 0 fail. O novo cobre, pela entrada real do grupo
+  (evento → entrada → sessão → roteador → registro): entregue + "1" grava a chegada e fecha o lembrete (`arrived`) e o pedido;
+  "4" três vezes (tentativa devolvida, adiamentos 1/2/3, prazo avança) e a quarta conta como sem resposta; "cancelar" fecha o
+  passo e o lembrete segue; pedido aberto no meio → não envia e devolve a reserva.
+
+## Correções pós-T2.3 — 2026-11-07
+
+**Defeito (risco aberto da T2.3):** o pedido de grupo do próprio lembrete (`reminder.stage`) ficava aberto até
+`group_request_timeout_seconds`; a tentativa seguinte do mesmo lembrete lia "pedido aberto" e adiava 5 min repetidamente.
+
+**Vermelho antes** (testes escritos primeiro): integração `driver-stop-reminder-group-step` (novo caso: tentativa 1 enviada, sem
+resposta, relógio +31 min) → `outcome: 'deferred'` em vez de `sent`; contratos do abridor e da entrega → 3 fail
+(`hasOwnOpen`/`replaces` ausentes).
+
+**Correção:** `ReminderPromptOpener.hasOwnOpen` reconhece o pedido aberto no passo `reminder.stage` com o mesmo `reminderId`; a
+entrega o desconta de `hasOpenGroupRequest` (as outras perguntas abertas e o pedido de outro fluxo/lembrete seguem adiando). O
+`open` do abridor passa `replaces: {id, version}` e o repositório do grupo fecha o antigo (`cancelled`) e abre o novo **numa
+transação** (versão mudou → `null` → `ReminderPromptBusyError`, nada enviado).
+
+**Verde:** `driver-stop-reminder-group-step` 5 pass (um só pedido aberto depois da 2ª tentativa; o antigo `cancelled`), contrato do
+reminder 151 pass, `driver-stop-reminder-delivery` 9, `driver-stop-reminders` 23, `whatsapp-evolution-webhook` 3,
+`whatsapp-group-request-repository` 5, `whatsapp-driver-journey-group` 2; typecheck, eslint e prettier limpos nos arquivos tocados.
+Gate completo (`bun run test` e o contrato com `--env-file`) fechado ao fim, na seção T2.5.
+
+### Feriado nacional fecha o horário (RF8.2) — decisão do dono, 2026-11-07
+
+**Decisão:** feriado como dia fechado = **só nacional**; estadual e municipal não fecham a cobrança (resolve a pendência da T2.2,
+"qual cidade vale"). O calendário nacional é lei e mora no código (`business-calendar/domain/national-holiday.policy.ts`,
+`listNationalHolidays`), sem consulta ao banco nem fornecedor externo; as tabelas `municipal_holidays`/`state_holidays` não são lidas.
+
+**Vermelho antes:** contrato `national-holiday-dates` → módulo ausente; integração `driver-stop-reminder-delivery` (Natal,
+sexta 2026-12-25, horário seg–sex 08–18) → `sent` em vez de `deferred`.
+**Implementação:** `readNationalHolidayDates` (ano corrente e o seguinte, no fuso da empresa) é o padrão do
+`DrizzleDriverStopReminderDeliveryRepository`. **Verde:** contrato 155 pass; integração: feriado nacional adia para segunda
+2026-12-28 08:00 (-03), feriado só municipal (`municipal_holidays` na sexta 2026-11-13) envia; `driver-stop-reminder-delivery` 11 pass.
+`spec.md` RF8.2 e `plan.md` (§ horário) reescritos para "feriado nacional (dono, 2026-11-07)".
+
+## T2.6 — não se aplica
+
+A T2.6 (OpenAPI gerado e teste "toda rota aparece") parte de uma premissa errada: `apps/api-transportada` não tem OpenAPI
+("Sem OpenAPI nesta API" em `apps/api-transportada/CLAUDE.md`), não há documento gerado nem teste de "toda rota aparece"; o
+contrato da rota é o arquivo de rotas mais o schema Zod. Conferido pelo coordenador em 2026-11-07.
+
+## T2.5 — 2026-11-07
+
+Escolha do canal (D5), conforme a T0.1 (evidência 1): grupo = `max(whatsapp_group_requests.last_activity_at)` do grupo do
+motorista; individual = `last_inbound_at` da sessão da Meta (`SessionRepository.getContext`, com as duas formas do número); o
+mais recente vence, empate ou nenhum → grupo; o uso do app não é fonte. Tudo por `companyId`.
+
+**Vermelho antes:** contrato `driver-reminder-channel-resolver` e casos de canal da entrega → módulo ausente; integração
+`driver-reminder-channel-resolver` → módulo ausente.
+
+**Arquivos novos** (`apps/api-transportada/src/driver-stop-reminders/`): `application/driver-reminder-channel-resolver.{port,service}.ts`
+(porta `DriverReminderChannelResolver` + `DirectReminderSender` + composição das fontes) e
+`infrastructure/drizzle-driver-reminder-channel.resolver.ts` (adaptador Drizzle). `sessionPhoneCandidates` passou a ser exportado
+do adaptador da pergunta aberta. `main.ts` liga o resolvedor à entrega.
+
+**Desvio da Fase 3 (documentado no código, ramo real e testado):** a entrega recebe `directSender?`. Canal `direct` com remetente
+envia no individual e grava `direct_text`/`direct_template`; **sem remetente (hoje, até a Fase 3) ou com `unavailable`, cai no
+grupo na mesma tentativa** (uma só reserva); sem remetente e sem grupo, adia como antes (`no_group`); `unavailable` sem grupo
+devolve a reserva e adia. A Fase 3 passa a implementação do `DirectReminderSender` e o desvio deixa de ser alcançado.
+
+**Limite conhecido (D5/T0.1):** o pedido que o próprio bot abre para o lembrete (`reminder.stage`) também grava
+`last_activity_at`, então um lembrete sem resposta no grupo puxa o canal para o grupo (o padrão). Aceito pela decisão da T0.1; se
+for um problema na prática, a saída é desconsiderar pedidos `reminder.stage` sem resposta do motorista.
+
+**Gates (de `apps/api-transportada`):**
+
+- `bun run typecheck`: limpo. `eslint --max-warnings=0` e `prettier --check` nos arquivos tocados: limpos.
+- `bun run test`: 14426 pass, 35 skip, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000`: 14435 pass, 26 skip, 0 fail.
+- Integração, cada arquivo isolado (`--env-file=../../.env.test`): `driver-stop-reminder-delivery` 11, `driver-stop-reminders` 23,
+  `driver-stop-reminder-group-step` 5, `driver-reminder-channel-resolver` 5 (novo, na lista do `test:integration`),
+  `whatsapp-evolution-webhook` 3, `whatsapp-group-request-repository` 5, `whatsapp-driver-journey-group` 2; todos 0 fail.
+  O contrato do resolvedor cobre grupo mais novo, individual mais novo, empate, nenhum, fonte ausente e dado de outra empresa; a
+  integração cobre também "o uso do app depois não muda o canal" e a atividade do mesmo grupo noutra empresa.
+- Os totais acima valem para o estado final dos três commits desta rodada (correção pós-T2.3, feriado nacional e T2.5).
+
+## T2.4 — 2026-11-07
+
+Rotina do worker que entrega os lembretes vencidos. Novos em `apps/worker-transportada/src/driver-stop-reminders/`:
+`application/{driver-stop-reminder.routine,driver-stop-reminder-api.port,driver-stop-reminder-api.error,driver-stop-reminder-queue.port}.ts`,
+`domain/driver-stop-reminder.constant.ts`, `infrastructure/{driver-stop-reminder-api.gateway,drizzle-driver-stop-reminder-queue.repository}.ts`.
+Registrada em `main.ts` junto de `trip.canhoto.read` (só com o crachá do worker); `DRIVER_REMINDERS_ENABLED=false` fecha `succeeded` sem ler.
+O gateway chama `POST /driver-stop-reminders/:id/delivery` (sem prefixo de versão, como as demais rotas do robô) e lê `{ data: { outcome, nextDueAt } }`.
+Contadores do ciclo: `sent/deferred/closed/escalated`, `requestRejected`, `apiUnauthorized`, `apiUnreachable`, `unexpectedErrors`; API fora ou crachá
+recusado encerra o ciclo com `api_unreachable` (único vocabulário do catálogo). Log só com ids de correlação e números.
+
+**Desvio do plano (RF7 "reserva `dispatching_until`"):** o worker **não** grava a reserva. A entrega da API reserva pela mesma coluna
+(`reserveAttempt` exige `dispatching_until` nulo ou vencido, e cobra `version`); uma reserva prévia do worker faria toda entrega responder
+`deferred/already_reserved`. A seleção só **descobre**: `pending`, `due_at <= now`, reserva ausente ou vencida, e só empresa com
+`company_driver_reminder_settings.enabled = true` (sem linha = desligada). `FOR UPDATE SKIP LOCKED` fora de transação não protege nada, então
+não entrou; a exclusão mútua é o cadeado da API. Lote 50, teto 200 por ciclo, ids já vistos excluídos no ciclo.
+
+**Despausa:** a 248 T4.10 não despausou por migration (o operador liga no painel); aqui a migration aditiva
+`20261107041501_driver_stop_reminder_dispatch_unpause` faz `enabled=true` só onde `paused_origin='system'` (pausa de gente fica). `rollback.sql`
+devolve a pausa do sistema. `db:generate` → `no_changes`. Entrou na lista de `static-migration.contract.ts`.
+
+**Vermelho antes:** `bun test ./test/driver-stop-reminders.contract.test.ts` com `src/driver-stop-reminders` fora do lugar → `Cannot find module` (0 pass / 1 fail).
+**Verde:** 20 pass (rotina 11, gateway 9).
+
+### Gates
+
+- worker: `bun run typecheck` limpo; eslint e prettier nos arquivos tocados limpos; `bun run test` 3057 pass / 0 fail.
+- `make worker-integration`: 405 pass / 0 fail (a fila nova: 6 testes — vencidos por ordem, fechado, empresa desligada/sem linha, reserva da API, não escreve reserva, limite/exclusão).
+- api: `bun run typecheck` limpo; `bun run test` 14426 pass / 35 skip / 0 fail; paridade do catálogo e do frontend não tocados.
+- `make migration-test`: 230 pass / 1 fail — o teste "applies, constrains, rolls back, and reapplies" estoura o **timeout fixo de 30 s** (linha 659)
+  nesta máquina, também sem a migration nova (medido: mesmo vermelho tirando a pasta). Com o timeout elevado a 600 s só nesta medição (revertido):
+  192 pass / 0 fail, incluindo o rollback e a reaplicação da nova.
+
+## Revisão PR 567 — correções
+
+Teste primeiro, vermelho registrado, depois a correção.
+
+- **M1 (pergunta aberta entre portão e envio, RF8.3):** vermelho na entrega (`deliver-driver-stop-reminder.contract.ts`, 6 falhas antes da correção, entre elas "pergunta aberta só na segunda leitura"). Correção: depois da reserva, `driverOpenQuestions.read` é lida de novo (ignorando o pedido do próprio lembrete) e, com algo aberto, `release` com a espera de 5 min e `deferred` sem enviar. A releitura fica antes da bifurcação de canal, então vale também para `sendDirect`. Teste do canal direto incluído.
+- **M2 (envio ok, registro falha):** o envio e o registro foram separados. Falha do provedor segue como antes (devolve a tentativa, descarta o pedido, 5 min). Depois do envio, `recordSent` tem até 3 tentativas com espera de 200 ms x tentativa; na falha final o pedido fica aberto, a reserva é devolvida com o intervalo normal e há log `driver_stop_reminder_record_failed` (só ids). Janela que sobra: o processo morrer depois de o provedor aceitar e antes de qualquer gravação deixa a reserva expirar em 2 min e o lembrete vence de novo, com um segundo envio; não há como fechar isso sem idempotência no provedor. Na falha final de registro a tentativa também não é contada (um envio a mais é possível no limite de `maxAttempts`).
+- **L1 (versão):** `reserveAttempt` devolve a nova versão; `recordSent`, `release` e `close` gravam só com `version` igual. Antes da reserva (fechar/adiar do portão) vale a versão lida. Integração: escritor com versão velha não grava nada.
+- **L2:** `applyPostponement` só age com `dispatching_until` nulo ou vencido. Integração cobre as duas situações.
+- **L4:** o dono vazio não casa na política de mensagem (rejeita `unknown_sender` e `not_addressed`), mas `handleLocation` (vermelho: avançava o pedido com remetente vazio) e `isOwner` aceitavam `'' === ''`; ambos agora tratam dono vazio como sem dono. `as never` em `SessionRepository` removido do `main.ts`: o tipo já bate, uma instância única `reminderSessions` serve aos dois consumidores.
+
+Gates (de `apps/api-transportada`): `tsc --noEmit` sem erros; eslint e prettier nos arquivos tocados sem achados; `bun run test` 14434 pass / 0 fail; `bun --env-file=../../.env.test test --timeout 120000` 14443 pass / 0 fail; integração `driver-stop-reminder-delivery` 13/0, `driver-stop-reminder-group-step` 5/0, `driver-stop-reminders` 23/0, `driver-reminder-channel-resolver` 5/0, `whatsapp-evolution-webhook` 3/0, `whatsapp-driver-journey-group` 2/0. Observação honesta: os testes de integração L1/L2 foram escritos junto da correção (a integração leva ~2 min), então o vermelho registrado é o dos contratos M1, M2 e L4.
+
+Vermelho de L1 e L2 (correção revertida só na hora do teste, depois restaurada por `git checkout`):
+
+- L1, sem `version` no WHERE de `recordSent`/`release`/`close`: `expect(received).toMatchObject(expected)` falha (`Expected - 4 / Received + 25`: a linha foi gravada pelo escritor com versão velha). `(fail) ... (L1)`.
+- L2, sem a guarda `dispatching_until` em `applyPostponement`: `expect(received).toBe(expected)`, `Expected: false`, `Received: true`. `(fail) ... (L2)`.
+
+Os dois testes verdes de novo com a correção restaurada; nenhum dos dois é trivial.
+
+## Bloco da parada na cobrança — 2026-11-07
+
+Decisão do dono: a cobrança traz o bloco completo da parada (o mesmo da "Chegada registrada", 294 RF28), sem "Próximo passo" e sem "Depois desta". Falas `lembreteChegada`, `lembreteChegadaSemPrevisao` e `lembreteEntrega` ganharam `{{blocoParada}}`; a variável `{{parada}}` ("NF … +N · Cliente") saiu, com seus casos de contrato. O nó fala*\* nasce do catálogo do código, então o grafo raiz acompanha; não há catálogo de variáveis de `fala*\*` no painel para atualizar.
+
+- Reuso: `describeStopCard` (`whatsapp-stop-card.policy.ts`) e `WhatsAppStopCardReader` (injetado como `stopCards` no use case de entrega, lido no envio com `companyId`, motorista atual e `tripStopId`). O dado de terceiro mantém o `plainText` que o bloco já aplica.
+- Melhor esforço (como a 294): leitor ausente, `null` ou com falha envia o lembrete sem o bloco, sem linha em branco sobrando.
+- Vermelho registrado antes da implementação: 15 falhas nos contratos `stop-reminder-message` e `deliver-driver-stop-reminder` (texto sem o bloco, variável `parada` ainda presente).
+- Verde: contratos 14446 pass / 0 fail; `bun run test` 14437 pass / 0 fail; integração `driver-stop-reminder-delivery` com o corpo exato abaixo.
+
+```text
+@5516999990001 👋 Oi, Motorista Um! Já chegou na parada?
+Saída às *12:00*
+
+*Parada 1 de 1*
+*NF <número>* · R$ 10.000,00
+📍 Centro, 100
+
+*1* - Cheguei
+*2* - Já entreguei (mande a foto do canhoto)
+*3* - Tive um problema (abrir ocorrência)
+*4* - Ainda estou a caminho
+```
+
+## Hotfix — catálogo do cron (2026-11-07)
+
+**Causa.** O catálogo do cron (`apps/cron-transportada/src/shared/job-catalog.constant.ts`) não tinha `driver.stop-reminder.dispatch`, que existe no worker, na API e no painel. Em `publishDueJob`, `schedules.start()` abre a linha em `job_executions` e só depois `jobRunEnvelopeV1Schema.parse` (job: `z.enum` do catálogo do cron) lançava `ZodError` **fora** do `try/catch` que fecha a execução com `publish_failure`. A linha ficava aberta (tudo NULL), bloqueava a rotina até a varredura de abandono de 900 s e o ciclo se repetia.
+
+**Evidência em staging.** Execução `902dfcc5…` aberta desde 12:55:32 UTC; `cron_tick_job_still_running` às 13:02:31.
+
+**Correção.** (1) o `parse` do envelope entrou no `try/catch`, e a execução é fechada com `unexpected_error` (`JOB_TICK_PUBLISH_FAILURE_OUTCOME`) e contada em `failedCount`; (2) entrada copiada do catálogo do worker (ordem, piso, vocabulário); (3) contrato entre apps `test/job-catalog-parity.contract.test.ts` (raiz, ligado ao job `format` do `ci.yml`) compara as quatro cópias entrada a entrada.
+
+**Vermelho → verde.**
+
+- `apps/cron-transportada/test/tick/parse-failure.contract.ts`: vermelho com a linha da execução aberta (`finishedAt: undefined`, `outcome: undefined`); verde depois de mover o `parse`.
+- `test/job-catalog-parity.contract.test.ts`: vermelho com `summarize(cron)` sem a entrada `driver.stop-reminder.dispatch` (`Expected - 7`); verde depois de acrescentá-la.
+
+## Staging — cobrança ligada (2026-11-07)
+
+- PR #568 (bloco da parada) e #569 (hotfix do catálogo do cron) mergeados e implantados.
+- Grafo publicado na versão 3: só os 7 nós `fala_lembrete_*` entraram; nenhum foi removido nem alterado.
+- Empresa `ce523659…`: linha inserida direto como ponte até a tela de configuração — ligada, padrões, seg–sex 07:00–18:00,
+  sáb 07:00–15:00, fuso padrão `America/Sao_Paulo`.
+- Rotina `succeeded` às 13:50 UTC com zero lembretes; nenhum lembrete pendente na hora de ligar.
+
+## T4.2 — 2026-11-07
+
+**API.** `GET`/`PUT /settings/driver-stop-reminders` (`settings.manage`, nas duas). Corpo `.strict()`, todos os erros de uma
+vez (`error.details[].field`). Faixas: `maxAttempts` 1–5, `intervalMinutes` 10–120, `graceMinMinutes` 5–240,
+`gracePercent` 0–100 (a CHECK da tabela já era 0–100), `dwellMinutes` 5–240; `operatingHours` até 3 faixas por dia, `weekday`
+0–6, `HH:MM`, início antes do fim, sem sobreposição no mesmo dia (encostar vale). Sem linha, `GET` devolve
+`DRIVER_STOP_REMINDER_DEFAULT_COMPANY_SETTINGS` (a mesma constante que a entrega lê). `PUT` faz upsert por empresa do
+contexto e grava `audit_logs` (`driver-stop-reminder-settings.saved`, antes/depois, IP) na mesma transação; mesmo valor não
+audita nem mexe em `updated_at`.
+
+**Vermelho → verde.** Contrato `driver-stop-reminder-settings.contract.ts`: vermelho com `Cannot find module …settings.routes.js`;
+verde depois (um ajuste: o refinamento roda mesmo com a faixa já inválida, então ordem/sobreposição só avaliam faixas com
+`HH:MM` válido). Integração `driver-stop-reminder-settings.integration.ts` (5 testes): padrão sem linha, upsert + auditoria,
+mesmo valor sem auditoria, isolamento entre empresas, duas escritas concorrentes.
+
+## Revisão PR 568 — pendências
+
+- (MEDIUM) Corpo da cobrança acima de `WHATSAPP_TURN_MESSAGE_LIMIT`: contrato com 900 NFs vermelho (`Received: 8523`); a linha
+  mais longa do bloco (a das NFs) é encurtada com "…" até caber. Verde.
+- (LOW) `' para entregar'` estava em três lugares (política da jornada, `whatsapp-stop-in-progress.service.ts`, entrega): agora
+  `STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX`.
+
+## O lembrete segue a viagem ativa (dono, 2026-11-07)
+
+**Decisão de lugar.** Na API (`POST /driver-stop-reminders/reconciliation`, permissão `trip.stop-reminder-dispatch`, empresa
+pelo cabeçalho `x-company-id`, como a entrega). O token do robô é único por instalação e a empresa vai por requisição; o worker
+só descobre as empresas com a chave ligada (`listReconcilableCompanyIds`, mesma tabela que a fila lê) e chama a API por
+empresa **antes** de listar os vencidos. Isso mantém a decisão na API (plano) e reaproveita `open` e o refino de previsão.
+Falha na varredura é contada (`reconciliationFailures`), vai ao tracker e nunca segura a entrega.
+
+**Regra.** Viagem `on_delivery_route`, empresa com a chave ligada, parada sem baixa: a caminho (`en_route_since`) → `arrival`
+ancorado em `en_route_tapped_at ?? en_route_since`; com chegada → `settlement` ancorado em `arrived_at`. Só insere se não
+existe lembrete para `(parada, etapa, anchor_at)` em nenhum status (e o único parcial cobre o pendente com outra âncora).
+Prazo vencido é aceito: o portão envia no próximo ciclo.
+
+**Vermelho → verde.** Contratos `reconcile-driver-stop-reminders.contract.ts` e rota (403 para `trip.manage`), worker
+`routine.contract.ts`/`api.gateway.contract.ts` (vermelho: 4 falhas) e integração
+`driver-stop-reminder-reconciliation.integration.ts` (7 testes: a caminho com âncora do toque, âncora da saída sem toque,
+chegada sem baixa, baixada/sem saída, escalado não reabre e nova âncora reabre, chave desligada e viagem `dispatched`,
+isolamento) e `driver-stop-reminder-queue.integration.ts` do worker (worker 3070 pass com o banco migrado).
+
+## Quando foi a saída/chegada (dono, 2026-11-07)
+
+Variáveis novas `saidaQuando`/`chegadaQuando`, montadas pela política no dia local da empresa: mesmo dia `às *19:01*`,
+anterior `*ontem* às *19:01*`, antes `em *06/11* às *19:01*`. Contratos nas viradas de meia-noite de São Paulo (`02:59:59Z`
+é ainda o mesmo dia; `03:00:00Z` já é o seguinte). Os textos dos três nós viram `Saída {{saidaQuando}}` e
+`Chegada {{chegadaQuando}}`; `saida`/`chegada` continuam só com a hora.
+
+⚠️ **Não chega ao staging republicando.** `preserveEditedBotSpeech` mantém a `directMessage` viva de **todo** nó `fala_*`
+que já existe no grafo (não distingue editado de não editado), e o script só mostra `nós alterados` depois dessa
+preservação — então o diff nem aparece. O texto antigo (`Saída às *{{saida}}*`) segue valendo lá, sem data. Para chegar:
+sobrescrita marcada (flag explícita no script) ou chaves de nó novas; decisão do dono, nada foi contornado. A troca de
+variável foi feita de forma compatível justamente para o texto antigo não quebrar (`{{saida}}` continua só a hora).
+
+**Gates (2026-11-07, `work/spec-299-settings`).** API: `bun run typecheck` limpo; eslint + prettier nos arquivos tocados limpos;
+`bun run test` 0 fail (14495 testes); `bun --env-file=../../.env.test test --timeout 120000` 0 fail; integração
+`driver-stop-reminder-settings` 5 pass, `driver-stop-reminder-reconciliation` 7 pass, `driver-stop-reminder-delivery` 13 pass.
+Worker: typecheck, eslint, prettier limpos; `bun run test` 3063 pass / 0 fail e, com banco migrado (mesmo passo do
+`make worker-integration`, sem subir a stack), 3070 pass incluindo `driver-stop-reminder-queue.integration.ts`. Raiz:
+`bun run format:check` limpo depois do prettier no `spec.md`.
+
+Publicação das falas com `--overwrite-nodes <chaves>` (opt-in; sem a flag nada muda): chave listada leva o texto do código e o
+preview lista "nós sobrescritos (texto do código)" com antes/depois antes do `--confirm`; chave inexistente aborta sem publicar;
+histórico gravado antes de substituir. Contrato `publish-flow-graph.contract.ts` 4 testes novos (15 pass com `bot-speech`);
+typecheck, eslint, prettier limpos; `bun run test` 14464 pass / 0 fail; `bun --env-file=../../.env.test test --timeout 120000`
+0 fail; integração `whatsapp-flow-graph-publish` 2 pass. O wrapper `producao-publicar-falas-do-bot.sh` repassa `$*` sem
+alteração (vírgulas sem espaço passam intactas).
+
+Vermelho dos contratos do `--overwrite-nodes` (implementação de `whatsapp-bot-speech.policy.ts` e do use case revertida ao
+commit anterior, só a classe de erro stubada para o arquivo carregar): `(fail)` "chave listada leva o texto do código…",
+`(fail)` "publica só a chave listada, guarda histórico…", `(fail)` "chave desconhecida é erro…", `(fail)` "sem a flag…"
+(este por `preview.overwritten` ainda não existir; o comportamento sem a flag já era o antigo) — 6 pass / 4 fail. Implementação
+restaurada: 15 pass.
+
+## Revisão PR 570 — correções
+
+- **Red** (antes do código): `stop-reminder-message`/`bot-speech` falharam por `Export named 'capStopReminderBody' / 'assertOverwriteNodeIds' not found`; integração da reconciliação: 2 fail (`chegada offline ... não reabre settlement`, `saída offline ... não reabre arrival`).
+- **H1**: a chave de dedupe é o CICLO (última `departed`/`arrived` em `trip_stop_events.recorded_at`; lembrete criado a partir dela, em qualquer status, fecha a etapa; só evento mais novo reabre; folga de 1 min; sem evento cai na âncora exata). Evento e varredura deixam de depender de âncoras iguais.
+- **M1**: `openIfStillCurrent` é um `INSERT … SELECT` com os mesmos predicados da listagem (teste: parada que chegou entre leitura e abertura não gera `arrival`). RF8.1 (gate fecha lembrete cuja etapa andou): `deliver-driver-stop-reminder.contract.ts` § "fecha quando a parada andou".
+- **M2**: corte por pontos de código, marcação `*_~` sem par removida, teto final `capStopReminderBody` no envio.
+- **L1**: teto de 200 etapas por ciclo (`DRIVER_STOP_REMINDER_RECONCILIATION_BATCH_LIMIT`); o resto espera o próximo ciclo.
+- **L2**: `assertOverwriteNodeIds` rejeita chave sem prefixo `fala_`. **L3**: `daysAgo <= 0` é hoje.
+- **Gates** (apps/api-transportada): typecheck ok; eslint e prettier ok; `bun run test` 14472 pass/0 fail; contrato `--env-file` 14481 pass/0 fail; integração reconciliação 10/0, delivery 13/0, reminders 23/0, settings 5/0. Worker não tocado.

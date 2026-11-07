@@ -116,13 +116,16 @@ describe('chegada (RF2)', () => {
     ).toEqual([{ type: 'open', stopId: STOP_A, stage: 'settlement' }])
   })
 
-  test('arrived marcada junto com a baixa fecha arrival e NÃO abre settlement', () => {
+  test('arrived marcada junto com a baixa fecha arrival e abre settlement (a baixa fecha depois, se fechar a parada)', () => {
     expect(
       decideStopReminderTransition({
         event: event({ kind: 'arrived', recordedTogether: true }),
         openReminders: [openArrivalA],
       }),
-    ).toEqual([{ type: 'close', reminderId: 'rem-arrival-a', reason: 'arrived' }])
+    ).toEqual([
+      { type: 'close', reminderId: 'rem-arrival-a', reason: 'arrived' },
+      { type: 'open', stopId: STOP_A, stage: 'settlement' },
+    ])
   })
 
   test('arrived repetida (settlement já aberto, arrival já fechada) não faz nada', () => {

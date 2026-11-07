@@ -17,6 +17,7 @@ import {
   previewWhatsAppFlowGraphPublication,
   WhatsAppFlowGraphInvalidError,
   WhatsAppFlowGraphPanelEditedError,
+  WhatsAppFlowGraphUnknownOverwriteKeyError,
 } from '../../src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.js'
 import type {
   WhatsAppFlowGraphHistoryPort,
@@ -405,5 +406,100 @@ describe('baseline do que o código publicou de fato (spec 300 review)', () => {
       module,
     }).catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(WhatsAppFlowGraphPanelEditedError)
+  })
+})
+
+describe('--overwrite-nodes (spec 299)', () => {
+  const speech = (text: string): FlowGraphData => ({
+    ...GRAPH_V1,
+    nodes: {
+      ...GRAPH_V1.nodes,
+      fala_a: { directMessage: text, id: 'fala_a', type: 'action' },
+      fala_b: { directMessage: text, id: 'fala_b', type: 'action' },
+    },
+  })
+  const live = (): FlowGraphData => {
+    const base = speech('texto vivo')
+    return { ...base, version: 4 }
+  }
+  const code = speech('texto do código')
+
+  test('chave listada leva o texto do código e aparece no preview com antes e depois', async () => {
+    const { module } = createFakeModule(live())
+    const preview = await previewWhatsAppFlowGraphPublication({
+      companyId: COMPANY_ID,
+      graph: code,
+      history: createFakeHistory().history,
+      module,
+      overwriteNodeIds: ['fala_a'],
+    })
+
+    expect(preview.overwritten).toEqual([
+      { from: 'texto vivo', nodeId: 'fala_a', to: 'texto do código' },
+    ])
+    expect(preview.diff.changedNodeIds).toEqual(['fala_a'])
+  })
+
+  test('publica só a chave listada, guarda histórico e preserva a não listada', async () => {
+    const { module, stored } = createFakeModule(live())
+    const { history, recorded } = createFakeHistory()
+    const publish = createPublishWhatsAppFlowGraphUseCase({
+      runInTransaction: (work) => work({ history, module }),
+    })
+
+    const outcome = await publish({
+      companyId: COMPANY_ID,
+      graph: code,
+      overwriteNodeIds: ['fala_a'],
+      publishedBy: 'code',
+      source: 'code',
+    })
+
+    expect(outcome.kind).toBe('updated')
+    expect(stored.value?.nodes.fala_a?.directMessage).toBe('texto do código')
+    expect(stored.value?.nodes.fala_b?.directMessage).toBe('texto vivo')
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0]?.graph.nodes.fala_a?.directMessage).toBe('texto vivo')
+  })
+
+  test('chave desconhecida é erro e nada é publicado', async () => {
+    const { module, stored } = createFakeModule(live())
+    const { history, recorded } = createFakeHistory()
+    const publish = createPublishWhatsAppFlowGraphUseCase({
+      runInTransaction: (work) => work({ history, module }),
+    })
+
+    const failure = await publish({
+      companyId: COMPANY_ID,
+      graph: code,
+      overwriteNodeIds: ['fala_inexistente'],
+      publishedBy: 'code',
+      source: 'code',
+    }).catch((error: unknown) => error)
+    const previewFailure = await previewWhatsAppFlowGraphPublication({
+      companyId: COMPANY_ID,
+      graph: code,
+      history: createFakeHistory().history,
+      module,
+      overwriteNodeIds: ['fala_inexistente'],
+    }).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(WhatsAppFlowGraphUnknownOverwriteKeyError)
+    expect(previewFailure).toBeInstanceOf(WhatsAppFlowGraphUnknownOverwriteKeyError)
+    expect(stored.value?.version).toBe(4)
+    expect(recorded).toEqual([])
+  })
+
+  test('sem a flag o comportamento é o de sempre: fala viva preservada, nada a publicar', async () => {
+    const { module } = createFakeModule(live())
+    const preview = await previewWhatsAppFlowGraphPublication({
+      companyId: COMPANY_ID,
+      graph: code,
+      history: createFakeHistory().history,
+      module,
+    })
+
+    expect(preview.overwritten).toEqual([])
+    expect(preview.diff.isEqual).toBeTrue()
   })
 })

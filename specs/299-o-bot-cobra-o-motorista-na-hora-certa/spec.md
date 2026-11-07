@@ -39,6 +39,10 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 ## Decisões
 
 - **D1 — O relógio é por etapa da parada e recomeça a cada evento** (dono, 2026-11-06).
+  - **O lembrete segue a viagem ativa** (dono, 2026-11-07): a varredura garante a etapa atual de toda parada de viagem na
+    rua (a caminho → `arrival` na saída; chegada sem baixa → `settlement` na chegada), sem reabrir etapa que já teve
+    lembrete, em qualquer status, para a mesma âncora. A parada que já estava a caminho quando a chave foi ligada
+    entra assim; o prazo vencido sai no próximo ciclo, respeitando horário e pergunta aberta.
   - **Etapa `arrival`** (aberta pela saída, "Iniciar rota"/"saí", qualquer canal): pergunta "já chegou?".
     Vence em `departed_at + tempo de viagem + folga`.
   - **Etapa `settlement`** (aberta pela chegada, "Cheguei", qualquer canal): pergunta "já entregou?".
@@ -89,33 +93,54 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 ### O envio
 
 - **RF7** — Rotina agendada no worker, a cada 5 min (padrão `trip.canhoto.read`), busca lembretes `pending` com
-  `due_at <= agora`, por empresa com as duas chaves ligadas (D6).
+  `due_at <= agora`, por empresa com as duas chaves ligadas (D6). **Antes de listar**, o ciclo pede à API a varredura
+  da etapa atual por empresa (`POST /driver-stop-reminders/reconciliation`, mesma permissão do robô, empresa no
+  cabeçalho; dono, 2026-11-07, D1): a decisão mora na API, e falha na varredura é contada e reportada sem segurar a
+  entrega do que já venceu.
 - **RF8** — Antes de enviar, confere, nesta ordem, e adia sem consumir tentativa quando alguma falha:
   1. a parada ainda está na etapa (sem chegada para `arrival`; não fechada para `settlement`) — senão fecha;
-  2. dentro do horário de funcionamento da empresa (configuração nova; feriado do calendário conta como fechado; faixa
+  2. dentro do horário de funcionamento da empresa (configuração nova; feriado nacional conta como fechado (dono, 2026-11-07); faixa
      vazia = sempre aberto) — senão adia para a próxima abertura;
   3. o motorista **não** tem pergunta aberta do bot em nenhum fluxo (grupo ou individual: o mesmo portão da oferta da
      próxima rota da 294) — senão adia 5 min;
   4. vaga de envio do Evolution (289) dentro da espera do worker — senão adia para a vaga.
-- **RF9** — Mensagem da etapa `arrival` (nós `fala_*`, marcação da 294 RF34; dado de terceiro escapado):
+- **RF9** — Mensagem da etapa `arrival` (nós `fala_*`, marcação da 294 RF34; dado de terceiro escapado). **Bloco completo da
+  parada** (dono, 2026-11-07): `{{blocoParada}}` é o mesmo bloco da "Chegada registrada" (294 RF28), montado pelo sistema, sem
+  "Próximo passo" nem "Depois desta" (o menu 1–4 os substitui); leitura da parada no envio, da empresa e do motorista atual;
+  falha na leitura (melhor esforço, como na 294) envia sem o bloco:
 
   ```text
-  👋 Oi, @<telefone> <nome>! Já chegou na *NF 17234 · Cliente*?
+  👋 Oi, @<telefone> <nome>! Já chegou na parada?
   Saída às *14:05* · chegada prevista *~14:40*
+
+  *Parada 2 de 5*
+  *NF 17234* · R$ 1.234,56
+  🏪 *Cliente*
+  🏢 Contratante: Contratante
+  📍 Endereço da parada
+  🗺️ https://www.google.com/maps/search/?api=1&query=-21.5,-47.9
+  📦 3 volumes para entregar
+
   *1* - Cheguei
   *2* - Já entreguei (mande a foto do canhoto)
   *3* - Tive um problema (abrir ocorrência)
   *4* - Ainda estou a caminho
   ```
 
-  A linha da previsão some sem ponto compartilhado (RF6), ficando "Saída às _14:05_". A parada com várias notas mostra
-  a primeira e "+N".
+  A linha da previsão some sem ponto compartilhado (RF6), ficando "Saída às _14:05_". **Quando** (dono, 2026-11-07, no
+  fuso da empresa): no mesmo dia, "Saída às _14:05_"; no dia anterior, "Saída _ontem_ às _14:05_"; antes disso,
+  "Saída em _06/11_ às _14:05_" (a hora da chegada, no RF10, segue a mesma regra). O texto do nó usa
+  `{{saidaQuando}}`/`{{chegadaQuando}}`, montadas pelo sistema; `{{saida}}`/`{{chegada}}` seguem só com a hora. As várias notas aparecem no
+  bloco (`*NFs 17234, 17235*`).
 
-- **RF10** — Mensagem da etapa `settlement`:
+- **RF10** — Mensagem da etapa `settlement` (mesmo bloco completo da parada, dono 2026-11-07):
 
   ```text
-  👋 Oi, @<telefone> <nome>! Já entregou na *NF 17234 · Cliente*?
+  👋 Oi, @<telefone> <nome>! Já entregou na parada?
   Chegada às *14:41*
+
+  {{blocoParada}}
+
   *1* - Entreguei (mande a foto do canhoto)
   *2* - Não entreguei
   *3* - Tive um problema (abrir ocorrência)

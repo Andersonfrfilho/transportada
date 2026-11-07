@@ -26,6 +26,8 @@ export type BippedReadNotice =
   | 'unrecognized'
 
 export type UseBippedNotesInput = Readonly<{
+  /** Acréscimo a viagem que já saiu: nota de outra viagem pode ser acrescentada (ela sai de lá). */
+  allowOtherTrip?: boolean
   /** As notas livres: é sobre elas que um número lido (sem chave) é resolvido, como na inserção rápida. */
   availableDocuments?: readonly NfeDocumentListItem[]
   isLoadingDocuments?: boolean
@@ -83,11 +85,12 @@ export function useBippedNotes(input: UseBippedNotesInput) {
   const notes = useMemo(
     () =>
       buildBippedNotes({
+        ...(input.allowOtherTrip === undefined ? {} : { allowOtherTrip: input.allowOtherTrip }),
         documents,
         rows: queue.rows,
         stagedDocumentIds: input.stagedDocumentIds,
       }),
-    [documents, input.stagedDocumentIds, queue.rows],
+    [documents, input.allowOtherTrip, input.stagedDocumentIds, queue.rows],
   )
 
   function read(accessKey: string): void {

@@ -54,11 +54,13 @@ export function preserveEditedBotSpeech(
   current: FlowGraphData | undefined,
   next: FlowGraphData,
   baseline: FlowGraphData | undefined,
+  overwriteNodeIds: readonly string[] = [],
 ): FlowGraphData {
   if (current === undefined) return next
   const nodes = { ...next.nodes }
   for (const [id, node] of Object.entries(next.nodes)) {
     if (!id.startsWith(BOT_SPEECH_NODE_PREFIX)) continue
+    if (overwriteNodeIds.includes(id)) continue
     const live = current.nodes[id]?.directMessage
     if (live === undefined || live.trim() === '') continue
     if (live === baseline?.nodes[id]?.directMessage) continue
@@ -99,4 +101,14 @@ export function countRewrittenBotSpeech(
       id.startsWith(BOT_SPEECH_NODE_PREFIX) &&
       current?.nodes[id]?.directMessage !== node.directMessage,
   ).length
+}
+
+/** Só nó de fala pode ser sobrescrito pelo código; qualquer outra chave apagaria edição de fluxo alheio. */
+export function assertOverwriteNodeIds(overwriteNodeIds: readonly string[]): void {
+  const invalid = overwriteNodeIds.filter((id) => !id.startsWith(BOT_SPEECH_NODE_PREFIX))
+  if (invalid.length > 0) {
+    throw new Error(
+      `--overwrite-nodes aceita só chaves ${BOT_SPEECH_NODE_PREFIX}*: ${invalid.join(', ')}`,
+    )
+  }
 }

@@ -22,13 +22,12 @@ import {
   withoutDriverPrompt,
   type DriverPrompt,
 } from '../domain/whatsapp-driver-prompt.policy.js'
+import { canAskRouteOffer, type RouteOfferGate } from '../domain/driver-open-question.policy.js'
 import {
-  canAskRouteOffer,
   describeLocationPrompt,
   describeRouteOffer,
   LOCATION_PROMPT_TEXT,
   ROUTE_OFFER_TEXT,
-  type RouteOfferGate,
 } from '../domain/whatsapp-driver-route-offer.policy.js'
 import { interpretWhatsAppDriverEventCommand } from '../domain/whatsapp-driver-event-command.policy.js'
 import {

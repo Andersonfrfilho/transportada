@@ -67,26 +67,6 @@ export function describeRouteOffer(
   ].join('\n')
 }
 
-/**
- * RNF1: a oferta só abre pergunta quando nada mais espera resposta deste motorista — ocorrência ou entrega em
- * preparo, escolha de parada, outra oferta ou pedido de localização, áudio esperando confirmação.
- */
-export type RouteOfferGate = {
-  readonly hasOpenCollection: boolean
-  readonly hasOpenStopChoice: boolean
-  readonly hasPendingAudio: boolean
-  readonly hasPendingPrompt: boolean
-}
-
-export function canAskRouteOffer(gate: RouteOfferGate): boolean {
-  return !(
-    gate.hasOpenCollection ||
-    gate.hasOpenStopChoice ||
-    gate.hasPendingAudio ||
-    gate.hasPendingPrompt
-  )
-}
-
 const LOCATION_CLIP_LINE = 'Clipe 📎 → Localização → Enviar localização atual'
 const LOCATION_SKIP_HINT = formatReplyHint('Se não puder agora, responda pular.')
 const LOCATION_AGAIN_REASON = 'Esta resposta vai por localização.'

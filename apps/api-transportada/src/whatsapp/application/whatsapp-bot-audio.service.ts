@@ -266,6 +266,11 @@ export type WhatsAppBotAudio<Context> = {
     readonly conversation: string
     readonly owner: string
   }): boolean
+  /** Spec 299: há áudio esperando confirmação de **qualquer** pessoa desta conversa (o "1" do ajudante também colide)? */
+  hasPendingInConversation(input: {
+    readonly companyId: string
+    readonly conversation: string
+  }): boolean
   receive(input: ReceiveBotAudioInput<Context>): Promise<void>
   /**
    * Spec 292 T9 (palavra de chamada): transcreve **calado** o áudio que ninguém endereçou ao bot e
@@ -516,6 +521,11 @@ export function createWhatsAppBotAudio<Context>(dependencies: {
     },
     hasPending({ companyId, conversation, owner }) {
       return current(keyOf(companyId, conversation), owner) !== undefined
+    },
+    hasPendingInConversation({ companyId, conversation }) {
+      const key = keyOf(companyId, conversation)
+      const entry = pending.get(key)
+      return entry !== undefined && current(key, entry.owner) !== undefined
     },
     async idle() {
       while (running.size > 0) await Promise.all([...running])

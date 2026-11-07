@@ -461,6 +461,15 @@ export type DriverFieldReportTransactionPort = {
     readonly documentId: string
     readonly kind: TripStopEventKind
   }): Promise<{ readonly id: string } | null>
+  /**
+   * Chegada repetida (outro canal, outra chave): o último evento daquele tipo da parada — o que o no-op
+   * devolve em vez de gravar outro. `null` quando a parada chegou sem evento (dado legado).
+   */
+  findLatestEventForStop(input: {
+    readonly companyId: string
+    readonly kind: TripStopEventKind
+    readonly stopId: string
+  }): Promise<{ readonly id: string } | null>
   findOccurrenceById(input: {
     readonly companyId: string
     readonly occurrenceId: string

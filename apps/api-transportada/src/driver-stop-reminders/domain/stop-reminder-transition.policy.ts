@@ -45,7 +45,7 @@ function decideArrival(params: DecideStopReminderTransitionParams): StopReminder
     (reminder) => reminder.stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT,
   )
   const actions = closeAll(arrivals, 'arrived')
-  if (event.recordedTogether || hasSettlementOpen) return actions
+  if (hasSettlementOpen) return actions
   return [
     ...actions,
     { type: 'open', stopId: event.stopId, stage: DRIVER_STOP_REMINDER_STAGE.SETTLEMENT },

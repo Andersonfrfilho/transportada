@@ -26,10 +26,8 @@ import {
   interpretDriverChoice,
   DRIVER_CHOICE,
 } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
-import {
-  canAskRouteOffer,
-  ROUTE_OFFER_TEXT,
-} from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
+import { canAskRouteOffer } from '../../whatsapp-commands/domain/driver-open-question.policy.js'
+import { ROUTE_OFFER_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import {
   describeJourneyOptions,
   JOURNEY_ACTION,
@@ -43,11 +41,14 @@ import {
   formatOptions,
   formatReplyHint,
 } from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
+import { DRIVER_STOP_REMINDER_CHOICE_ACTION as REMINDER_ACTION } from '../../driver-stop-reminders/domain/driver-stop-reminder.constant.js'
 import type { WhatsAppRouteContinuation } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { GROUP_DELIVERY_STEP } from './whatsapp-group-delivery-flow.service.js'
 import { GROUP_OCCURRENCE_STEP } from './whatsapp-group-occurrence-flow.service.js'
 import { GROUP_STOP_STEP } from './whatsapp-group-stop-flow.service.js'
 import { GROUP_TRIP_CLOSE_STEP } from './whatsapp-group-trip-close-flow.service.js'
+import { GROUP_REMINDER_STEP } from './whatsapp-group-reminder-flow.service.js'
+import type { GroupReminderFlow } from './whatsapp-group-reminder-flow.service.js'
 import { GROUP_RETURN_STEP } from './whatsapp-group-return-flow.service.js'
 import type { createGroupReturnFlow } from './whatsapp-group-return-flow.service.js'
 import type { GroupBoletoResend } from './whatsapp-group-boleto-resend.service.js'
@@ -65,6 +66,7 @@ export const GROUP_DRIVER_STEP = {
   deliveryPrefix: 'delivery.',
   journeyPrefix: 'journey.',
   menu: 'menu',
+  reminderPrefix: 'reminder.',
   returnPrefix: 'return.',
   routePrefix: 'route.',
   stopPrefix: 'stop.',
@@ -79,6 +81,7 @@ export type GroupStepOwner =
   | 'journey'
   | 'menu'
   | 'occurrence'
+  | 'reminder'
   | 'return'
   | 'route'
   | 'stop'
@@ -105,6 +108,12 @@ export const GROUP_STEP_REGISTRY: readonly {
   { owner: 'stop', prefix: GROUP_DRIVER_STEP.stopPrefix, steps: Object.values(GROUP_STOP_STEP) },
   /** O menu das ações da parada (evento repetido, baixa pendente, próxima rota). */
   { owner: 'journey', prefix: GROUP_DRIVER_STEP.journeyPrefix, steps: Object.values(JOURNEY_STEP) },
+  /** Spec 299 RF14: a pergunta do lembrete da parada (1 chegou · 2 entregou · 3 ocorrência · 4 adia). */
+  {
+    owner: 'reminder',
+    prefix: GROUP_DRIVER_STEP.reminderPrefix,
+    steps: Object.values(GROUP_REMINDER_STEP),
+  },
   /** "Não entreguei": o motivo da lista fechada. */
   {
     owner: 'return',
@@ -135,6 +144,13 @@ function ownerOfStep(step: string): GroupStepOwner | undefined {
   }
   return undefined
 }
+
+/** A ação do lembrete que carrega só o número da nota (a chegada leva também a parada). */
+const REMINDER_JOURNEY_KIND = {
+  [REMINDER_ACTION.DELIVERED]: JOURNEY_ACTION.deliver,
+  [REMINDER_ACTION.NOT_DELIVERED]: JOURNEY_ACTION.return,
+  [REMINDER_ACTION.OCCURRENCE]: JOURNEY_ACTION.occurrence,
+} as const
 
 type RouteOfferState = {
   readonly routeOffer?: {
@@ -187,6 +203,8 @@ export function createGroupDriverFlow(flows: {
   /** Spec 293 T15: ausente, "entreguei" segue para o fluxo de ocorrência como antes. */
   readonly delivery?: ReturnType<typeof createGroupDeliveryFlow>
   readonly occurrence: GroupRequestFlow
+  /** Spec 299 RF14: o passo do lembrete da parada; ausente, a resposta a ele não é atendida. */
+  readonly reminder?: GroupReminderFlow
   /** "Não entreguei"; ausente, o texto segue para o fluxo de ocorrência como antes. */
   readonly return?: ReturnType<typeof createGroupReturnFlow>
   readonly stop: ReturnType<typeof createGroupStopFlow>
@@ -311,6 +329,28 @@ export function createGroupDriverFlow(flows: {
     return runJourneyAction(turn, action)
   }
 
+  /** Spec 299 RF11: as opções 1–3 do lembrete são os mesmos fluxos de "cheguei", "entreguei", "não entreguei" e ocorrência. */
+  async function answerReminder(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
+    const target = flows.reminder?.readTarget(turn)
+    if (flows.reminder === undefined || target === undefined) return notUnderstoodMenu()
+    // Comando digitado ("cheguei", "entreguei 17234") é um pedido novo, nunca a opção do lembrete.
+    if (isDriverCommand(turn.text)) return flow.start(turn)
+    const action = flows.reminder.pickAction(target, turn.text)
+    if (action === undefined) return flows.reminder.notUnderstood(turn)
+    if (action === REMINDER_ACTION.POSTPONE) return flows.reminder.postpone(turn, target)
+    const documentNumber = await flows.reminder.readNoteNumber(turn, target)
+    if (action === REMINDER_ACTION.ARRIVED) {
+      return runJourneyAction(turn, {
+        kind: JOURNEY_ACTION.arrive,
+        stopId: target.tripStopId,
+        ...(documentNumber === undefined ? {} : { documentNumber }),
+      })
+    }
+    if (documentNumber === undefined) return runJourneyAction(turn, { kind: JOURNEY_ACTION.none })
+    const kind = REMINDER_JOURNEY_KIND[action]
+    return runJourneyAction(turn, { documentNumber, kind })
+  }
+
   async function answerRouteOffer(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
     const stop = (turn.request.state as RouteOfferState).routeOffer
     const choice = interpretDriverChoice(turn.text)
@@ -397,6 +437,8 @@ export function createGroupDriverFlow(flows: {
           return answerRouteOffer(turn)
         case 'journey':
           return answerJourney(turn)
+        case 'reminder':
+          return answerReminder(turn)
         case 'return': {
           if (returnFlow === undefined) return notUnderstoodMenu()
           const answered = await returnFlow.answer(inner(turn, GROUP_DRIVER_STEP.returnPrefix))

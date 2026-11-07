@@ -868,11 +868,15 @@ button.occurrenceCaseBadge {
 /* O campo divide a fileira com botões `size="sm"`, que medem `--control-height-compact`. No token
    normal ele ficava 10px mais alto que os vizinhos e a linha saía desencontrada — a altura do campo
    é a do controle ao lado dele, e as duas saem do mesmo par de tokens. */
-.scanField input {
+.scanField input,
+.mdfeGateDialog .scanField input:not([type='file'], [type='checkbox'], [type='radio']) {
   min-height: var(--field-height-compact);
   padding: var(--field-padding-compact);
   font-size: var(--field-font-size-compact);
 }
+
+/* Dentro do diálogo, `.mdfeGateDialog input:not(...)` vence a regra acima por especificidade e o campo
+   voltava aos 3rem, mais alto que os botões `size="sm"` da mesma fileira (e cortava o placeholder). */
 
 /* A tabela do resultado rola dentro da própria caixa: sem o teto, o modal crescia com o filtro e
    empurrava motorista, veículo e o botão de criar para fora da tela — e a lista de seleção deixava

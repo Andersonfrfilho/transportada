@@ -41,9 +41,32 @@ export class WhatsAppFlowGraphPanelEditedError extends Error {
   }
 }
 
+export class WhatsAppFlowGraphUnknownOverwriteKeyError extends Error {
+  public readonly unknownKeys: readonly string[]
+
+  constructor(unknownKeys: readonly string[]) {
+    super(`overwrite keys not found in the code graph: ${unknownKeys.join(', ')}`)
+    this.name = 'WhatsAppFlowGraphUnknownOverwriteKeyError'
+    this.unknownKeys = unknownKeys
+  }
+}
+
+function assertOverwriteKeysExist(graph: FlowGraphData, overwriteNodeIds: readonly string[]): void {
+  const unknownKeys = overwriteNodeIds.filter((id) => graph.nodes[id] === undefined)
+  if (unknownKeys.length > 0) throw new WhatsAppFlowGraphUnknownOverwriteKeyError(unknownKeys)
+}
+
+export type WhatsAppFlowGraphOverwrittenNode = {
+  readonly from: string | undefined
+  readonly nodeId: string
+  readonly to: string | undefined
+}
+
 export type WhatsAppFlowGraphPublicationRequest = {
   readonly companyId: string
   readonly graph: FlowGraphData
+  /** Chaves de nós `fala_*` que levam o texto do código em vez do texto vivo (opt-in explícito). */
+  readonly overwriteNodeIds?: readonly string[]
   /** `'code'` no comando de republicação; id do usuário quando um dia o painel salvar. */
   readonly publishedBy: string
   readonly source: 'code' | 'panel'
@@ -55,6 +78,7 @@ export type WhatsAppFlowGraphPublicationPreview = {
   readonly current: FlowGraphData | undefined
   readonly diff: WhatsAppFlowGraphDiff
   readonly rewrittenBotSpeechCount: number
+  readonly overwritten: readonly WhatsAppFlowGraphOverwrittenNode[]
   readonly violations: readonly WhatsAppFlowGraphViolation[]
 }
 
@@ -77,15 +101,26 @@ export async function previewWhatsAppFlowGraphPublication(input: {
   readonly graph: FlowGraphData
   readonly history: Pick<WhatsAppFlowGraphHistoryPort, 'hasPanelEdits' | 'readCodeBaseline'>
   readonly module: Pick<WhatsAppFlowGraphModulePort, 'get'>
+  readonly overwriteNodeIds?: readonly string[]
 }): Promise<WhatsAppFlowGraphPublicationPreview> {
+  const overwriteNodeIds = input.overwriteNodeIds ?? []
+  assertOverwriteKeysExist(input.graph, overwriteNodeIds)
   const violations = validateFlowGraphForWhatsApp(input.graph)
   const current = await input.module.get(input.companyId, input.graph.key)
   const baseline = await resolveCodeBaseline({ ...input, current })
   /** O diff mostra o que a publicação faria de fato: as falas editadas no editor ficam como estão. */
-  const published = preserveEditedBotSpeech(current, input.graph, baseline)
+  const published = preserveEditedBotSpeech(current, input.graph, baseline, overwriteNodeIds)
+  const overwritten = overwriteNodeIds
+    .map((nodeId) => ({
+      from: current?.nodes[nodeId]?.directMessage,
+      nodeId,
+      to: published.nodes[nodeId]?.directMessage,
+    }))
+    .filter((node) => current !== undefined && node.from !== node.to)
   return {
     current,
     diff: diffWhatsAppFlowGraphs(current, published),
+    overwritten,
     rewrittenBotSpeechCount: countRewrittenBotSpeech(current, published),
     violations,
   }
@@ -127,6 +162,8 @@ export function createPublishWhatsAppFlowGraphUseCase(dependencies: {
   ) => Promise<T>
 }): PublishWhatsAppFlowGraph {
   return async function publishWhatsAppFlowGraph(request) {
+    const overwriteNodeIds = request.overwriteNodeIds ?? []
+    assertOverwriteKeysExist(request.graph, overwriteNodeIds)
     const violations = validateFlowGraphForWhatsApp(request.graph)
     if (violations.length > 0) throw new WhatsAppFlowGraphInvalidError(violations)
 
@@ -150,7 +187,7 @@ export function createPublishWhatsAppFlowGraphUseCase(dependencies: {
 
       /** Spec 286 T8 e 300 T6.1: fala editada no painel não volta ao padrão; a igual à do código é regravada. */
       const baseline = await resolveCodeBaseline({ ...request, current, history })
-      const graph = preserveEditedBotSpeech(current, request.graph, baseline)
+      const graph = preserveEditedBotSpeech(current, request.graph, baseline, overwriteNodeIds)
       const diff = diffWhatsAppFlowGraphs(current, graph)
       if (diff.isEqual) {
         if (request.adoptLiveAsCodeBaseline === true) {

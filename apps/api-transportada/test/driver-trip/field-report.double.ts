@@ -31,6 +31,7 @@ export type FieldReportState = {
   readonly occurrenceStamps: EventLocationStampColumns[]
   readonly documents: Map<string, DriverDocumentReference>
   readonly events: Map<string, { readonly id: string }>
+  readonly latestStopEvents: Map<string, { readonly id: string }>
   /** Spec 205 RF4: `eventId` → o `lateRegistration` que a baixa gravou (ausente cai em `false`). */
   readonly eventLateRegistrations: Map<string, boolean>
   /** Spec 159 T11: `documentId:kind` → o último evento gravado daquela nota e tipo. */
@@ -81,6 +82,7 @@ export function createFieldReportState(
     documentOccurrenceStamps: [],
     documents: new Map(),
     events: new Map(),
+    latestStopEvents: new Map(),
     eventLateRegistrations: new Map(),
     latestEvents: new Map(),
     occurrenceStamps: [],
@@ -247,6 +249,7 @@ export function createFieldReportUnitOfWork(
       state.eventLateRegistrations.set(event.id, input.lateRegistration ?? false)
       if (input.documentId !== null)
         state.latestEvents.set(`${input.documentId}:${input.kind}`, event)
+      else state.latestStopEvents.set(`${input.stopId}:${input.kind}`, event)
       /** Spec 206 D3: as referências de tempo que `readDepartureDecision` compara. */
       const tripId = state.stops.get(input.stopId)?.tripId
       if (tripId !== undefined) {
@@ -261,6 +264,8 @@ export function createFieldReportUnitOfWork(
     },
     findLatestEventForDocument: async (input) =>
       state.latestEvents.get(`${input.documentId}:${input.kind}`) ?? null,
+    findLatestEventForStop: async (input) =>
+      state.latestStopEvents.get(`${input.stopId}:${input.kind}`) ?? null,
     findStopOccurrenceType: async (input) =>
       state.stopOccurrenceTypes.get(`${input.companyId}:${input.occurrenceTypeId}`) ?? null,
     recordOccurrence: async (input) => {
