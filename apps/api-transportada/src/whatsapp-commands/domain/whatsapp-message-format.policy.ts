@@ -7,6 +7,10 @@
 
 export const STOP_LIST_VISIBLE_LIMIT = 10
 
+/** RF3c: os desfechos curtos que não registram nada. */
+export const NOTHING_RECORDED_TEXT = '👍 *Certo, nada foi registrado.*'
+export const DISCARDED_TEXT = '↩️ *Descartado.* Nada foi registrado.'
+
 const QUOTE_PREFIX = '> '
 const DIRECTIONS_URL_BASE = 'https://www.google.com/maps/dir/?api=1&destination='
 
@@ -72,7 +76,9 @@ function describeStopTravel(stop: MessageStop): string | undefined {
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
 
-function describeStopInvoice(stop: MessageStop): string {
+function describeStopInvoice(stop: MessageStop): string | undefined {
+  if (stop.invoiceNumber === '')
+    return stop.clientName === '' ? undefined : `🧾 *${stop.clientName}*`
   const numbers = [stop.invoiceNumber, ...(stop.otherInvoiceNumbers ?? [])]
   const invoice = `🧾 NF ${numbers.map((number) => `\`${number}\``).join(', ')}`
   return stop.clientName === '' ? invoice : `${invoice} · *${stop.clientName}*`

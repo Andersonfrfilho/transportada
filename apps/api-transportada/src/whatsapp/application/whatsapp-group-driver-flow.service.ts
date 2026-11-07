@@ -31,7 +31,7 @@ import {
   ROUTE_OFFER_TEXT,
 } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import {
-  describeJourneyQuestion,
+  describeJourneyOptions,
   JOURNEY_ACTION,
   JOURNEY_STEP,
   JOURNEY_TEXT,
@@ -305,7 +305,7 @@ export function createGroupDriverFlow(flows: {
     if (action === undefined) {
       return {
         kind: 'not_understood',
-        prompt: describeJourneyQuestion(actions),
+        prompt: describeJourneyOptions(actions),
         reason: JOURNEY_TEXT.choiceNotUnderstood,
       }
     }

@@ -13,20 +13,30 @@ import type { WhatsAppStopCandidate } from '../../trips/domain/driver-stop-resol
 import { normalizeDriverCommandText } from './whatsapp-driver-command.policy.js'
 import type { RouteOfferStop } from './whatsapp-driver-route-offer.policy.js'
 import {
+  formatNextStep,
+  formatNotUnderstood,
+  formatOptions,
+  NOTHING_RECORDED_TEXT,
+  type MessageOption,
+} from './whatsapp-message-format.policy.js'
+import {
   describeStopCard,
   describeStopShort,
   formatBotClock,
+  STOP_CARD_TEXT,
   stripLeadingZeros,
   type StopCard,
   type StopCardEta,
 } from './whatsapp-stop-card.policy.js'
+import { describeStopBlock, describeStopDetails } from './whatsapp-stop-block.policy.js'
 
 export const JOURNEY_TEXT = {
-  choiceNotUnderstood: 'responda com o número da opção',
-  nextArrive: '➡️ _Próximo passo:_ quando chegar, mande *cheguei*.',
-  nextDepart: '➡️ _Próximo passo:_ quando for sair, mande *saí*.',
-  nextSettle: '➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.',
-  nothingRecorded: 'Certo, não registrei nada.',
+  /** Termina em ":" — as opções vêm em seguida (o motivo do "não entendi" de menu). */
+  choiceNotUnderstood: 'Responda com o número da opção:',
+  nextArrive: formatNextStep('quando chegar, mande *cheguei*.'),
+  nextDepart: formatNextStep('quando for sair, mande *saí*.'),
+  nextSettle: formatNextStep('depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.'),
+  nothingRecorded: NOTHING_RECORDED_TEXT,
   question: '*O que você quer fazer agora?*',
   sendCanhoto: (documentNumber: string) =>
     `📸 *Mande a foto do canhoto da NF ${stripLeadingZeros(documentNumber)}* aqui.\n_Se não entregou, mande_ *não entreguei*.`,
@@ -50,26 +60,51 @@ export type JourneyAction =
   | {
       readonly documentNumber?: string
       readonly kind: typeof JOURNEY_ACTION.arrive
+      /** O número da parada, para o menu dizer "Cheguei na parada N"; ausente em pedido antigo. */
+      readonly sequence?: number
       readonly stopId: string
     }
   | {
       readonly documentNumber?: string
       readonly kind: typeof JOURNEY_ACTION.depart
+      readonly sequence?: number
       readonly stopId: string
     }
   | { readonly kind: typeof JOURNEY_ACTION.departAnyway }
   | { readonly kind: typeof JOURNEY_ACTION.chooseDeparture }
   | { readonly kind: typeof JOURNEY_ACTION.none }
 
-const ACTION_LABEL: Readonly<Record<JourneyAction['kind'], string>> = {
-  arrive: 'Cheguei',
-  choose_departure: 'Escolher outra da lista',
-  deliver: 'Entreguei _(mande a foto do canhoto)_',
-  depart: 'Seguir para ela 🚚',
-  depart_anyway: 'Sair para outra parada sem dar a baixa',
-  none: 'Nada por enquanto',
-  occurrence: 'Abrir ocorrência',
-  return: 'Não entreguei',
+/** O ícone e a ação inteira de cada opção do menu (RF1); a parada vai em negrito. */
+export function describeJourneyAction(action: JourneyAction): MessageOption {
+  const stop = (sequence: number | undefined) =>
+    sequence === undefined ? '' : ` *parada ${sequence}*`
+  switch (action.kind) {
+    case 'arrive':
+      return {
+        action: action.sequence === undefined ? 'Cheguei' : `Cheguei na${stop(action.sequence)}`,
+        icon: '📍',
+      }
+    case 'choose_departure':
+      return { action: 'Escolher outra da lista', icon: '📋' }
+    case 'deliver':
+      return { action: 'Entreguei _(mande a foto do canhoto)_', icon: '✅' }
+    case 'depart':
+      return {
+        action:
+          action.sequence === undefined
+            ? 'Seguir para ela'
+            : `Seguir para a${stop(action.sequence)}`,
+        icon: '🚚',
+      }
+    case 'depart_anyway':
+      return { action: 'Sair para outra parada sem dar a baixa', icon: '🚚' }
+    case 'none':
+      return { action: 'Nada por enquanto', icon: '💤' }
+    case 'occurrence':
+      return { action: 'Abrir ocorrência', icon: '⚠️' }
+    case 'return':
+      return { action: 'Não entreguei', icon: '↩️' }
+  }
 }
 
 /** As palavras que escolhem a ação pelo nome (texto ou áudio), além do número. */
@@ -84,9 +119,9 @@ const ACTION_WORDS: Readonly<Record<JourneyAction['kind'], readonly string[]>> =
   return: ['nao entreguei', 'nao entregue', 'devolvi'],
 }
 
-/** "*1* - Cheguei" … as opções numeradas. */
-export function describeJourneyOptions(actions: readonly JourneyAction[]): string[] {
-  return actions.map((action, index) => `*${index + 1}* - ${ACTION_LABEL[action.kind]}`)
+/** "*1* - 📍 Cheguei na *parada 3*" … as opções numeradas. */
+export function describeJourneyOptions(actions: readonly JourneyAction[]): string {
+  return formatOptions(actions.map(describeJourneyAction))
 }
 
 const NUMBER_WORDS: Readonly<Record<string, number>> = {
@@ -147,15 +182,20 @@ export type StopCardView = {
   readonly next?: StopCard | undefined
 }
 
-const etaOf = (view: StopCardView, now: Date) =>
-  view.eta === undefined ? undefined : { now, value: view.eta }
+/** O aviso de endereço sem localização certa vai depois do bloco (saída e oferta, spec 294 RF12). */
+const unreliableWarning = (card: StopCard): string[] =>
+  card.isAddressReliable ? [] : ['', STOP_CARD_TEXT.unreliableAddress]
 
-/** A saída registrada: o bloco da parada (com a estrada, se houver ponto) e o próximo passo. */
-export function describeDepartureDetails(view: StopCardView, now: Date): string[] {
+/** A saída registrada: a frase, o bloco da parada (com a estrada, se houver ponto) e o próximo passo. */
+export function describeDepartureReply(headline: string, view: StopCardView, now: Date): string {
   return [
-    ...describeStopCard(view.card, { eta: etaOf(view, now), warnsUnreliableAddress: true }),
+    headline,
+    '',
+    describeStopDetails({ card: view.card, eta: view.eta, now }),
+    ...unreliableWarning(view.card),
+    '',
     JOURNEY_TEXT.nextArrive,
-  ]
+  ].join('\n')
 }
 
 /** A chegada registrada: o bloco, o próximo passo e a prévia da próxima parada (sem pergunta). */
@@ -167,19 +207,19 @@ export function describeArrivalDetails(view: StopCardView): string[] {
   ]
 }
 
-/** O menu: o bloco da parada, a pergunta e as opções. */
+/** O menu: a frase de cima, o bloco da parada, a pergunta e as opções. */
 function describeMenu(
   headline: string,
   view: StopCardView,
   actions: readonly JourneyAction[],
-  now: Date,
 ): string {
   return [
     headline,
-    ...describeStopCard(view.card, { eta: etaOf(view, now) }),
+    '',
+    describeStopBlock({ card: view.card, detail: 'list', eta: view.eta, quote: 'right' }),
     '',
     JOURNEY_TEXT.question,
-    ...describeJourneyOptions(actions),
+    describeJourneyOptions(actions),
   ].join('\n')
 }
 
@@ -205,7 +245,7 @@ export function arrivedStopActions(card: StopCard): JourneyAction[] {
 export function enRouteStopActions(card: StopCard): JourneyAction[] {
   const documentNumber = firstNumber(card)
   return [
-    { documentNumber, kind: JOURNEY_ACTION.arrive, stopId: card.stopId },
+    { documentNumber, kind: JOURNEY_ACTION.arrive, sequence: card.sequence, stopId: card.stopId },
     { documentNumber, kind: JOURNEY_ACTION.occurrence },
     { kind: JOURNEY_ACTION.none },
   ]
@@ -225,7 +265,12 @@ export function pendingSettlementActions(card: StopCard): JourneyAction[] {
 /** As ações depois da baixa: seguir para a próxima ou escolher outra. */
 export function nextRouteActions(card: StopCard): JourneyAction[] {
   return [
-    { documentNumber: firstNumber(card), kind: JOURNEY_ACTION.depart, stopId: card.stopId },
+    {
+      documentNumber: firstNumber(card),
+      kind: JOURNEY_ACTION.depart,
+      sequence: card.sequence,
+      stopId: card.stopId,
+    },
     { kind: JOURNEY_ACTION.chooseDeparture },
     { kind: JOURNEY_ACTION.none },
   ]
@@ -236,23 +281,15 @@ export function describeAlreadyArrived(
   input: { readonly arrivedAt: string; readonly now: Date },
 ): string {
   return describeMenu(
-    `⚠️ *A chegada nesta parada já foi registrada*${atClock(input.arrivedAt)}.`,
+    `⚠️ *A chegada na parada ${view.card.sequence} já foi registrada*${atClock(input.arrivedAt)}.`,
     view,
     arrivedStopActions(view.card),
-    input.now,
   )
 }
 
-export function describeAlreadyDeparted(
-  view: StopCardView,
-  input: { readonly departedAt: string; readonly now: Date },
-): string {
-  return describeMenu(
-    `⚠️ *A saída para esta parada já foi registrada*${atClock(input.departedAt)}.`,
-    view,
-    enRouteStopActions(view.card),
-    input.now,
-  )
+/** RF9: "já a caminho" traz o bloco e o mesmo menu do "saí" repetido (294 RF28); a frase é a do `fala_stop_en_route`. */
+export function describeAlreadyDeparted(view: StopCardView, headline: string): string {
+  return describeMenu(headline, view, enRouteStopActions(view.card))
 }
 
 export function describePendingSettlement(
@@ -260,10 +297,9 @@ export function describePendingSettlement(
   input: { readonly arrivedAt: string; readonly now: Date },
 ): string {
   return describeMenu(
-    `⚠️ *Falta a baixa desta parada.* Você chegou${atClock(input.arrivedAt)} e ainda não registrou a entrega.`,
+    `⚠️ *Falta a baixa da parada ${view.card.sequence}.*\nVocê chegou${atClock(input.arrivedAt)} e ainda não registrou a entrega.`,
     view,
     pendingSettlementActions(view.card),
-    input.now,
   )
 }
 
@@ -288,10 +324,13 @@ export function describeNextRouteOffer(
 ): string {
   return [
     '➡️ *Próxima parada*',
-    ...describeStopCard(view.card, { eta: etaOf(view, input.now), warnsUnreliableAddress: true }),
+    ...describeStopCard(view.card, {
+      eta: view.eta === undefined ? undefined : { now: input.now, value: view.eta },
+      warnsUnreliableAddress: true,
+    }),
     '',
     ...(input.asks
-      ? [JOURNEY_TEXT.question, ...describeJourneyOptions(nextRouteActions(view.card))]
+      ? [JOURNEY_TEXT.question, describeJourneyOptions(nextRouteActions(view.card))]
       : [JOURNEY_TEXT.nextDepart]),
   ].join('\n')
 }
@@ -309,7 +348,7 @@ export function readJourneyActions(value: unknown): JourneyAction[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((entry): JourneyAction[] => {
     if (typeof entry !== 'object' || entry === null) return []
-    const { documentNumber, kind, stopId } = entry as Record<string, unknown>
+    const { documentNumber, kind, sequence, stopId } = entry as Record<string, unknown>
     switch (kind) {
       case JOURNEY_ACTION.deliver:
       case JOURNEY_ACTION.return:
@@ -318,7 +357,14 @@ export function readJourneyActions(value: unknown): JourneyAction[] {
       case JOURNEY_ACTION.arrive:
       case JOURNEY_ACTION.depart:
         return isText(stopId)
-          ? [{ ...(isText(documentNumber) ? { documentNumber } : {}), kind, stopId }]
+          ? [
+              {
+                ...(isText(documentNumber) ? { documentNumber } : {}),
+                kind,
+                ...(typeof sequence === 'number' ? { sequence } : {}),
+                stopId,
+              },
+            ]
           : []
       case JOURNEY_ACTION.departAnyway:
       case JOURNEY_ACTION.chooseDeparture:
@@ -330,9 +376,12 @@ export function readJourneyActions(value: unknown): JourneyAction[] {
   })
 }
 
-/** O menu repetido quando a resposta não casa com nenhuma opção. */
-export function describeJourneyQuestion(actions: readonly JourneyAction[]): string {
-  return [JOURNEY_TEXT.question, ...describeJourneyOptions(actions)].join('\n')
+/** O "não entendi" do menu (conversa individual): o motivo e as opções de novo. O grupo junta motivo e opções pelo pedido. */
+export function describeJourneyNotUnderstood(actions: readonly JourneyAction[]): string {
+  return formatNotUnderstood({
+    options: actions.map(describeJourneyAction),
+    reason: JOURNEY_TEXT.choiceNotUnderstood,
+  })
 }
 
 const CLOSED_DOCUMENT = new Set(['delivered', 'returned'])
@@ -343,9 +392,16 @@ export function cardFromStopCandidate(stop: WhatsAppStopCandidate): StopCard {
   const shown = open.length > 0 ? open : stop.documents
   return {
     address: '',
-    city: '',
+    city: stop.city ?? '',
     contractorName: '',
-    coordinate: null,
+    coordinate:
+      stop.coordinate === undefined
+        ? null
+        : {
+            latitude: String(stop.coordinate.latitude),
+            longitude: String(stop.coordinate.longitude),
+          },
+    district: stop.district,
     documentNumbers: shown.map((document) => document.number),
     isAddressReliable: stop.isAddressReliable ?? true,
     recipientName: shown[0]?.recipientName ?? '',

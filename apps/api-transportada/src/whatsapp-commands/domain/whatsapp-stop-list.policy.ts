@@ -50,8 +50,11 @@ export type StopListOption = {
   readonly sequence?: number | undefined
 }
 
-function toMessageStop(
-  stop: WhatsAppStopCandidate,
+export function toMessageStop(
+  stop: Pick<
+    WhatsAppStopCandidate,
+    'city' | 'coordinate' | 'district' | 'documents' | 'id' | 'sequence'
+  >,
   totalStops: number,
   travel: StopListTravelView | undefined,
 ): MessageStop {

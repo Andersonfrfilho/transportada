@@ -19,6 +19,7 @@ export type StopCard = {
   readonly city: string
   readonly contractorName: string
   readonly coordinate: { readonly latitude: string; readonly longitude: string } | null
+  readonly district?: string | undefined
   readonly documentNumbers: readonly string[]
   readonly isAddressReliable: boolean
   readonly recipientName: string

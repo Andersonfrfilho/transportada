@@ -299,11 +299,14 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
     expect(
       describeWhatsAppDriverEventResult({ event: 'deliver', kind: 'already_registered' }, DRIVER),
     ).toEqual({ key: 'alreadyRegistered' })
-    expect(describeWhatsAppDriverEventResult(registered('depart'), DRIVER)).toEqual({
+    const at = { ...DRIVER, time: '09:00' }
+    expect(describeWhatsAppDriverEventResult(registered('depart'), at)).toEqual({
       key: 'departureRegistered',
+      params: { time: '09:00' },
     })
-    expect(describeWhatsAppDriverEventResult(registered('arrive'), DRIVER)).toEqual({
+    expect(describeWhatsAppDriverEventResult(registered('arrive'), at)).toEqual({
       key: 'arrivalRegistered',
+      params: { time: '09:00' },
     })
   })
 
@@ -386,7 +389,9 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
           DRIVER,
         ),
       ),
-    ).toBe('A parada 2 já está a caminho. Registre a chegada nela antes de sair para outra.')
+    ).toBe(
+      '⚠️ *Você já está a caminho da parada 2.*\nRegistre a chegada nela antes de sair para outra.',
+    )
     expect(
       await render(
         describeWhatsAppDriverEventResult(

@@ -141,9 +141,10 @@ describe('grupo: a pergunta do fora de ordem (RF25)', () => {
   test('outra resposta repete a pergunta sem gravar', async () => {
     const t = setup()
     await t.start('saí')
-    expect(await t.answer('talvez')).toMatchObject({
+    expect(await t.answer('talvez')).toEqual({
       kind: 'not_understood',
-      prompt: OUT_OF_ORDER_TEXT.notUnderstood,
+      prompt: '',
+      reason: OUT_OF_ORDER_TEXT.notUnderstood,
     })
     expect(t.recorded).toHaveLength(1)
     expect(t.step()).toBe('stop.confirm_order')
@@ -202,8 +203,20 @@ describe('grupo: o registro devolve a pergunta quando a API recusa (adaptador)',
   test('o 409 vira a pergunta com nota e cliente das duas paradas', async () => {
     const received: Record<string, unknown>[] = []
     const result = await build(received).record(input)
-    expect(result.message).toContain('parada 3 (NF 17234 — Padaria Sol)')
-    expect(result.message).toContain('parada 5 (NF 17300 — Mercado Estrela)')
+    expect(result.message).toBe(
+      [
+        '⚠️ *Fora da rota sugerida*',
+        'Você está a caminho da *parada 3*, e este "cheguei" é da *parada 5*. Se achar melhor, pode registrar.',
+        '',
+        '> 📍 *CHEGADA · PARADA 5*',
+        '> 🧾 NF `17300` · *Mercado Estrela*',
+        '',
+        '*1* - ✅ Cheguei na *parada 5*',
+        '*2* - ↩️ Foi engano, descartar',
+        '',
+        '_A parada 3 continua aberta. Responda 1 ou 2._',
+      ].join('\n'),
+    )
     expect(result.outOfOrder).toEqual({ nextStopId: 's3', stopId: 's5' })
   })
 

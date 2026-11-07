@@ -14,6 +14,7 @@
  */
 import type { StopEventStep } from '../../trips/domain/stop-event-sequence.policy.js'
 import type { BotSpeechKey } from '../domain/whatsapp-bot-speech.constant.js'
+import { formatBotClock } from '../domain/whatsapp-stop-card.policy.js'
 import { DRIVER_TRANSITION_BLOCK_MESSAGES } from '../domain/whatsapp-driver-flow.constant.js'
 import type { BotSpeechLine } from './whatsapp-bot-speech.service.js'
 import {
@@ -25,9 +26,9 @@ import {
 } from './whatsapp-driver-events.service.js'
 
 export type WhatsAppDriverEventAudience =
-  | { readonly documentNumber?: string; readonly kind: 'driver' }
+  | { readonly documentNumber?: string; readonly kind: 'driver'; readonly time?: string }
   /** `documentNumber` é o número da NF (o único dado da nota que aparece no grupo). */
-  | { readonly documentNumber?: string; readonly kind: 'group' }
+  | { readonly documentNumber?: string; readonly kind: 'group'; readonly time?: string }
 
 const USE_THE_APP = 'Registre pelo aplicativo.'
 
@@ -120,9 +121,10 @@ function describeMainLine(
   const documentNumber = audience.kind === 'group' ? audience.documentNumber : undefined
   // Saí/cheguei não citam nota; sem número da nota, o grupo ouve a frase do motorista (sem dado).
   if (documentNumber === undefined || STOP_EVENTS.has(result.event)) {
-    return result.kind === 'already_registered'
-      ? { key: 'alreadyRegistered' }
-      : { key: DRIVER_REGISTERED[result.event] }
+    if (result.kind === 'already_registered') return { key: 'alreadyRegistered' }
+    const key = DRIVER_REGISTERED[result.event]
+    if (!STOP_EVENTS.has(result.event)) return { key }
+    return { key, params: { time: audience.time ?? formatBotClock(new Date()) } }
   }
   const params = { documentNumber }
   if (result.kind === 'already_registered') return { key: 'groupAlreadyRegistered', params }

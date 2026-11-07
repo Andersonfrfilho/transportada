@@ -32,8 +32,14 @@ import {
   DRIVER_CHOICE,
   interpretDriverChoice,
 } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
-import { OUT_OF_ORDER_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
-import { LOCATION_PROMPT_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
+import {
+  describeOutOfOrderChoices,
+  OUT_OF_ORDER_TEXT,
+} from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
+import {
+  describeLocationPrompt,
+  LOCATION_PROMPT_TEXT,
+} from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import {
   arrivedStopActions,
   describeAlreadyArrived,
@@ -273,11 +279,25 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       }
       return { kind: 'done', replies: [OUT_OF_ORDER_TEXT.discarded] }
     }
-    return {
-      kind: 'not_understood',
-      prompt: OUT_OF_ORDER_TEXT.notUnderstood,
-      reason: 'responda 1 ou 2',
-    }
+    return { kind: 'not_understood', prompt: '', reason: await describeOrderChoices(turn, target) }
+  }
+
+  /** "Responda *1* para … ou *2* para …": o número das duas paradas vem da viagem de agora. */
+  async function describeOrderChoices(
+    turn: GroupFlowTurn,
+    target: NonNullable<FlowState['outOfOrderFor']>,
+  ): Promise<string> {
+    const stops = await ports.listStops({
+      companyId: turn.request.companyId,
+      driverId: turn.request.driverId,
+    })
+    const sequenceOf = (stopId: string | undefined) =>
+      stops.find((stop) => stop.id === stopId)?.sequence
+    return describeOutOfOrderChoices({
+      event: target.event,
+      other: sequenceOf(target.nextStopId),
+      requested: sequenceOf(target.stopId),
+    })
   }
 
   /** Spec 294 RF24: pede a localização opcional (se não há ponto recente) e só então registra. */
@@ -307,14 +327,9 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       return record(turn, role, { ...confirm, documentNumber, event, stopId })
     }
     const state: FlowState = { locationFor: { ...confirm, documentNumber, event, stopId } }
-    // Spec 294 RF14: "cheguei" numa parada sem localização certa diz que o ponto corrige o endereço.
-    const isUnreliable =
-      event === WHATSAPP_DRIVER_STOP_COMMAND.arrive && isAddressReliable === false
     return {
       kind: 'continue',
-      replies: [
-        isUnreliable ? LOCATION_PROMPT_TEXT.askUnreliableAddress : LOCATION_PROMPT_TEXT.ask,
-      ],
+      replies: [describeLocationPrompt({ event, isAddressReliable })],
       state,
       step: GROUP_STOP_STEP.location,
     }
@@ -369,10 +384,11 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     stop: GroupStopCandidate,
   ): Promise<GroupFlowOutcome> {
     const view = await viewOf(turn, stop, true)
-    return menu(
-      describeAlreadyDeparted(view, { departedAt: stop.enRouteSince ?? '', now: clock() }),
-      enRouteStopActions(view.card),
-    )
+    const headline = await ports.enRouteMessage({
+      companyId: turn.request.companyId,
+      sequence: String(stop.sequence),
+    })
+    return menu(describeAlreadyDeparted(view, headline), enRouteStopActions(view.card))
   }
 
   /**
@@ -462,15 +478,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
           ],
         }
       case 'en_route':
-        return {
-          kind: 'done',
-          replies: [
-            await ports.enRouteMessage({
-              companyId: turn.request.companyId,
-              sequence: String(resolution.stop.sequence),
-            }),
-          ],
-        }
+        return alreadyDeparted(turn, resolution.stop)
       case 'single':
         return recordOrAsk(turn, role, {
           ...confirm,
@@ -527,8 +535,8 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     }
     return {
       kind: 'not_understood',
-      prompt: LOCATION_PROMPT_TEXT.askAgain,
-      reason: 'esse item vai por localização',
+      prompt: LOCATION_PROMPT_TEXT.askAgainHint,
+      reason: LOCATION_PROMPT_TEXT.askAgainReason,
     }
   }
 

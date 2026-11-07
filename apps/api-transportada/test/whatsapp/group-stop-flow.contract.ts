@@ -182,19 +182,20 @@ describe('grupo: saí e cheguei', () => {
       kind: 'continue',
       replies: [
         [
-          '⚠️ *A saída para esta parada já foi registrada* às 10:05.',
-          '*Parada 3*',
-          '*NF 1*',
+          'a caminho 3',
+          '',
+          '> *PARADA 3*',
+          '> 🧾 NF `1`',
           '',
           '*O que você quer fazer agora?*',
-          '*1* - Cheguei',
-          '*2* - Abrir ocorrência',
-          '*3* - Nada por enquanto',
+          '*1* - 📍 Cheguei na *parada 3*',
+          '*2* - ⚠️ Abrir ocorrência',
+          '*3* - 💤 Nada por enquanto',
         ].join('\n'),
       ],
       state: {
         journeyActions: [
-          { documentNumber: '1', kind: 'arrive', stopId: 'S1' },
+          { documentNumber: '1', kind: 'arrive', sequence: 3, stopId: 'S1' },
           { documentNumber: '1', kind: 'occurrence' },
           { kind: 'none' },
         ],

@@ -133,3 +133,39 @@
   eslint e prettier limpos · integração: `whatsapp-driver-journey-group` 2 pass, `whatsapp-driver-journey-direct` 2 pass,
   `whatsapp-driver-flow-actions` 4 pass, `whatsapp-stop-place` 1 pass (uma tentativa do flow-actions estourou o timeout de 5 s do
   `migrate` sob carga e passou ao repetir com `--timeout`). Suíte `test:integration` completa fica para a T6.2.
+
+### T3.3 (executor `sonnet`)
+
+- Bloco único: `whatsapp-stop-block.policy.ts` (`describeStopBlock`, `describeStopDetails`, `toMessageStop`) traduz o `StopCard` para o
+  `formatStopBlock`; `StopCard` ganhou `district` (o leitor do bloco ainda não o preenche: bairro só vem das candidatas da lista, o menu
+  mostra a cidade do rótulo). `buildRouteOfferMapUrl` passou ao link `dir` (RF7b) em todo bloco, inclusive os antigos que a T3.4/T3.5 ainda trocam.
+- Saída: fala `departureRegistered` = `🚚 *Saída registrada* · {{time}}` (a hora do WhatsApp da mensagem; `describeWhatsAppDriverEventResult` recebe `time`);
+  `describeDepartureReply` = fala + bloco `card` em citação + `💰 Valor da nota` + `⏱️ Chegada prevista: *~HH:MM*` (só com estrada) + aviso de endereço sem
+  localização certa (depois do bloco) + próximo passo. Pedido de localização do desenho em `LOCATION_PROMPT_TEXT` (`ask`, `askUnreliableAddress`,
+  `askAgain`; o grupo junta `askAgainReason` + `askAgainHint` pelo "não entendi" padrão) e `describeLocationPrompt`.
+- "Já a caminho" (RF9): `describeAlreadyDeparted(view, headline)` com a fala `stopEnRoute` (`⚠️ *Você já está a caminho da parada N.*` + instrução) e o menu
+  `Cheguei na *parada N* / Abrir ocorrência / Nada por enquanto`, o mesmo `describeMenu` do repetido (294 RF28). Grupo (`alreadyDeparted`, também no ramo
+  `en_route` da resolução) e individual (`repeatedEvent`, `stopChoice`) pela mesma função. Consequência: "saí 5" com outra parada a caminho agora abre o menu da
+  parada a caminho (como no desenho), em vez de só avisar; o contrato `group-driver-journey` ("saí 0090003") foi atualizado.
+- Menus (`describeMenu`): bloco `list` em citação + `*O que você quer fazer agora?*` + `formatOptions` (ícone + ação inteira, `Cheguei na *parada N*`,
+  `Seguir para a *parada N*`; `JourneyAction` arrive/depart guardam `sequence`, `readJourneyActions` lê). Baixa pendente: `⚠️ *Falta a baixa da parada N.*` +
+  `Você chegou às HH:MM…`. "Não entendi" do menu: `🤔 *Não entendi.* Responda com o número da opção:` + opções (individual: `describeJourneyNotUnderstood`;
+  grupo: motivo `JOURNEY_TEXT.choiceNotUnderstood` + `describeJourneyOptions`). `Nada por enquanto`: `NOTHING_RECORDED_TEXT` (`👍 *Certo, nada foi registrado.*`, no
+  módulo de formato) e próximo passo com `*foto do canhoto*` em negrito.
+- Fora da rota: `OUT_OF_ORDER_TEXT.question.depart/arrive` com os dois blocos em citação (`toOrderStopLabel(stop, { total, travel })` leva o bloco; a saída
+  mostra 📏/⏱️ pela porta de distância da lista, a chegada não), `describeOutOfOrderChoices`/`describeOutOfOrderNotUnderstood` (opções por extenso; o número das
+  duas paradas vem da viagem de agora, sem mudar o que o pedido guarda), `OUT_OF_ORDER_TEXT.discarded` = `↩️ *Descartado.* Nada foi registrado.` (vale também para a
+  entrega, que **mantém** o texto antigo da pergunta até a T4.4).
+- Entram nesta task, por dividirem o mesmo código: o menu de "cheguei repetido", a chegada fora da rota e o pedido de localização de "cheguei" sem localização
+  certa (T3.4 resta: chegada registrada, endereço corrigido, `fala_arrival_registered`) e as opções `Seguir para a *parada N*` da oferta (T3.5 resta: bloco da oferta,
+  rota concluída).
+- Divergências/decisões: (1) o desenho só mostra o pedido de localização da saída; "cheguei" com endereço certo usa o mesmo `ask`. (2) Os dois blocos de "fora da
+  rota" usam o mesmo prefixo `> ` (o `>!` laranja não existe no WhatsApp, já registrado na T1.2). (3) Mensagens vivas no grafo (`fala_departure_registered`,
+  `fala_stop_en_route`) mantêm o texto antigo até a regravação da T6.1.
+- Contratos: novo `test/whatsapp-commands/whatsapp-stop-flow-design.contract.ts` (texto do desenho dos fluxos 2 e 3, com a fixture das paradas 3 e 7, `toBe` inteiro,
+  ligado em `whatsapp-commands.contract.test.ts`); atualizados driver-journey, driver-events, driver-stop-flow-actions, out-of-order-prompt, route-offer,
+  stop-location-prompt, group-stop-flow, group-driver-journey, group-route-offer, group-stop-location, group-out-of-order, audio-new-steps e as fixtures
+  `driver-journey-{group,direct}.expected.ts` (gravadas com `JOURNEY_RECORD=1` e conferidas contra o desenho). Nenhum `toContain` novo para texto de mensagem inteira.
+- Gates: typecheck limpo · `bun test --timeout 120000` 14351 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção nova) · eslint e prettier limpos ·
+  integração (máquina carregada, um arquivo por vez): `whatsapp-driver-journey-group` 2 pass, `whatsapp-driver-journey-direct` 2 pass, `whatsapp-driver-flow-actions` 4 pass,
+  `whatsapp-command-driver` 5 pass, `whatsapp-stop-place` 1 pass. Suíte `test:integration` completa fica para a T6.2.

@@ -85,9 +85,9 @@ export const BOT_SPEECH_DEFAULTS = {
    * escolha, spec 294 RF17), sem documento nem valor (spec 292).
    */
   arrivalRegistered: '*Chegada registrada* 📍',
-  departureRegistered: '*Saída registrada* 🚚',
+  departureRegistered: '🚚 *Saída registrada* · {{time}}',
   stopEnRoute:
-    'A parada {{sequence}} já está a caminho. Registre a chegada nela antes de sair para outra.',
+    '⚠️ *Você já está a caminho da parada {{sequence}}.*\nRegistre a chegada nela antes de sair para outra.',
   stopNotReachable: 'Essa parada não está mais disponível na viagem.',
   groupAlreadyRegistered: 'NF {{documentNumber}} já estava registrada.',
   groupDeliveryRegistered: '*NF {{documentNumber}} entregue* ✅',

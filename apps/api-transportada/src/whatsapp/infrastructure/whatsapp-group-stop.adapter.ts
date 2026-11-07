@@ -34,8 +34,9 @@ import { WHATSAPP_DRIVER_STOP_COMMAND } from '../../whatsapp-commands/domain/wha
 import type { GroupStopFlowPorts } from '../application/whatsapp-group-stop-flow.service.js'
 import {
   describeArrivalDetails,
-  describeDepartureDetails,
+  describeDepartureReply,
 } from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
+import { formatBotClock } from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
 import type { WhatsAppStopCardReader } from '../../whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
 import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
 
@@ -223,11 +224,31 @@ export function createGroupStopPorts(dependencies: {
         }
       }
       if (result.kind === 'refused' && result.refusal.code === 'stop_out_of_order') {
+        const { refusal } = result
         const stops = await listOpenStops(input)
+        const isDeparture = input.event === WHATSAPP_DRIVER_STOP_COMMAND.depart
+        const asked = stops.filter(
+          (stop) => stop.id === refusal.requestedStopId || stop.id === refusal.nextStopId,
+        )
+        const travel = isDeparture
+          ? await dependencies.stopListTravel?.({
+              companyId: input.companyId,
+              driverId: input.driverId,
+              stops: asked,
+            })
+          : undefined
         return {
           message: describeOutOfOrderViolation({
-            event: input.event === WHATSAPP_DRIVER_STOP_COMMAND.depart ? 'depart' : 'arrive',
-            labels: new Map(stops.map((stop) => [stop.id, toOrderStopLabel(stop)] as const)),
+            event: isDeparture ? 'depart' : 'arrive',
+            labels: new Map(
+              stops.map(
+                (stop) =>
+                  [
+                    stop.id,
+                    toOrderStopLabel(stop, { total: stops.length, travel: travel ?? undefined }),
+                  ] as const,
+              ),
+            ),
             violation: result.refusal,
           }),
           outOfOrder: {
@@ -243,6 +264,7 @@ export function createGroupStopPorts(dependencies: {
         describeWhatsAppDriverEventResult(result, {
           ...(input.documentNumber === undefined ? {} : { documentNumber: input.documentNumber }),
           kind: 'group',
+          time: formatBotClock(input.sentAt ?? clock()),
         }),
       )
       if (result.kind === 'registered' && dependencies.stopCards !== undefined) {
@@ -254,10 +276,11 @@ export function createGroupStopPorts(dependencies: {
           withEta: isDeparture,
         })
         if (view !== null) {
-          const details = isDeparture
-            ? describeDepartureDetails(view, clock())
-            : describeArrivalDetails(view)
-          return { message: [message, ...details].join('\n') }
+          return {
+            message: isDeparture
+              ? describeDepartureReply(message, view, clock())
+              : [message, ...describeArrivalDetails(view)].join('\n'),
+          }
         }
       }
       const offerLocation =

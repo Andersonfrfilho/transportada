@@ -65,6 +65,7 @@ import {
   DRIVER_PROMPT_CONTEXT_KEY,
   readDriverPrompt,
 } from '../domain/whatsapp-driver-prompt.policy.js'
+import { formatBotClock } from '../domain/whatsapp-stop-card.policy.js'
 import type { RouteOfferStop } from '../domain/whatsapp-driver-route-offer.policy.js'
 import {
   buildRouteOfferReply,
@@ -837,6 +838,7 @@ export function createDriverWhatsAppFlowActions(
       describeWhatsAppDriverEventResult(result, {
         ...(documentNumber === undefined ? {} : { documentNumber }),
         kind: 'driver',
+        time: formatBotClock(event.sentAt),
       }),
     )
     return backToTripMenu(tripId)

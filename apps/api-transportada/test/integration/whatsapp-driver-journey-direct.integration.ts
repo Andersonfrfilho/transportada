@@ -564,7 +564,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_',
+          '📍 *Mande sua localização* para medir a distância até a parada.\nClipe 📎 → Localização → Enviar localização atual.\n_Se não puder agora, responda pular._',
           'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: `(toca) NF ${first.number}`,
@@ -583,7 +583,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '*Saída registrada* 🚚\n*Parada 1 de 3*\n*NF 17234* · R$ 1.234,56\n🏪 *PADARIA SOL NASCENTE*\n🏢 Contratante: Distribuidora Aurora\n📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000\n📦 3 volumes\n➡️ _Próximo passo:_ quando chegar, mande *cheguei*.',
+          `🚚 *Saída registrada* · ${at}\n\n> *PARADA 1 de 3*\n> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*\n> 🏢 Contratante: Distribuidora Aurora\n> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n> 📦 3 volumes\n> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81\n> 💰 Valor da nota: *R$ 1.234,56*\n\n➡️ _Próximo passo:_ quando chegar, mande *cheguei*.`,
         ],
         shown: 'pular',
       },
@@ -592,7 +592,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_',
+          '📍 *Mande sua localização* para medir a distância até a parada.\nClipe 📎 → Localização → Enviar localização atual.\n_Se não puder agora, responda pular._',
           'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: 'cheguei',
@@ -602,7 +602,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '*Chegada registrada* 📍\n*Parada 1 de 3*\n*NF 17234* · R$ 1.234,56\n🏪 *PADARIA SOL NASCENTE*\n🏢 Contratante: Distribuidora Aurora\n📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000\n📦 3 volumes para entregar\n➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.\n🔜 _Depois desta:_ *NF 17235* · MERCADO LUA CHEIA – SERTAOZINHO',
+          '*Chegada registrada* 📍\n*Parada 1 de 3*\n*NF 17234* · R$ 1.234,56\n🏪 *PADARIA SOL NASCENTE*\n🏢 Contratante: Distribuidora Aurora\n📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81\n📦 3 volumes para entregar\n➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.\n🔜 _Depois desta:_ *NF 17235* · MERCADO LUA CHEIA – SERTAOZINHO',
         ],
         shown: 'pular',
       },
@@ -611,20 +611,18 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          `⚠️ *A chegada nesta parada já foi registrada* às ${at}.
-*Parada 1 de 3*
-*NF 17234* · R$ 1.234,56
-🏪 *PADARIA SOL NASCENTE*
-🏢 Contratante: Distribuidora Aurora
-📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000
-📦 3 volumes
+          `⚠️ *A chegada na parada 1 já foi registrada* às ${at}.
+
+> *PARADA 1 de 3*
+> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*
+> 📍 Ribeirao Preto
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81
 
 *O que você quer fazer agora?*
-*1* - Entreguei _(mande a foto do canhoto)_
-*2* - Não entreguei
-*3* - Abrir ocorrência
-*4* - Nada por enquanto`,
+*1* - ✅ Entreguei _(mande a foto do canhoto)_
+*2* - ↩️ Não entreguei
+*3* - ⚠️ Abrir ocorrência
+*4* - 💤 Nada por enquanto`,
           'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: 'cheguei',

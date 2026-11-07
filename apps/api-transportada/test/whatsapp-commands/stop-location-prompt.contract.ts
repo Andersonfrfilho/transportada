@@ -384,7 +384,14 @@ describe('o "saí"/"cheguei" da conversa individual pede a localização (RF24)'
       const harness = actionsHarness({ isAddressReliable: false, withLocation: false })
       await harness.run(DRIVER_FLOW_ACTION_KIND.arrive)
       expect(harness.sent).toEqual([LOCATION_PROMPT_TEXT.askUnreliableAddress])
-      expect(LOCATION_PROMPT_TEXT.askUnreliableAddress).toContain('eu atualizo o endereço')
+      expect(LOCATION_PROMPT_TEXT.askUnreliableAddress).toBe(
+        [
+          '📍 *Este endereço está sem localização certa no mapa.*',
+          'Mande sua localização que eu corrijo o endereço.',
+          'Clipe 📎 → Localização → Enviar localização atual.',
+          '_Se não puder agora, responda pular._',
+        ].join('\n'),
+      )
     })
 
     test('parada confiável e "saí" não mudam o pedido', async () => {

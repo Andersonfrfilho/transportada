@@ -27,7 +27,9 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_`,
+        `📍 *Mande sua localização* para medir a distância até a parada.
+Clipe 📎 → Localização → Enviar localização atual.
+_Se não puder agora, responda pular._`,
         `O que você quer fazer com esta viagem?
 
 📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
@@ -41,22 +43,27 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `*Saída registrada* 🚚
-*Parada 1 de 3*
-*NF 17234* · R$ 1.234,56
-🏪 *PADARIA SOL NASCENTE*
-🏢 Contratante: Distribuidora Aurora
-📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000
-📦 3 volumes
-📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~${eta} (25 min)_
+        `🚚 *Saída registrada* · ${at}
+
+> *PARADA 1 de 3*
+> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*
+> 🏢 Contratante: Distribuidora Aurora
+> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
+> 📦 3 volumes
+> 📏 *12 km* · ⏱️ _~25 min_
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81
+> 💰 Valor da nota: *R$ 1.234,56*
+> ⏱️ Chegada prevista: *~${eta}*
+
 ➡️ _Próximo passo:_ quando chegar, mande *cheguei*.`,
       ],
       shown: '📍 (localização)',
     },
     {
       answered: [
-        `📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_`,
+        `📍 *Mande sua localização* para medir a distância até a parada.
+Clipe 📎 → Localização → Enviar localização atual.
+_Se não puder agora, responda pular._`,
         `O que você quer fazer com esta viagem?
 
 📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
@@ -76,29 +83,27 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
 🏪 *PADARIA SOL NASCENTE*
 🏢 Contratante: Distribuidora Aurora
 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000
+🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81
 📦 3 volumes para entregar
-➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.
+➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.
 🔜 _Depois desta:_ *NF 17235* · MERCADO LUA CHEIA – SERTAOZINHO`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `⚠️ *A chegada nesta parada já foi registrada* às ${at}.
-*Parada 1 de 3*
-*NF 17234* · R$ 1.234,56
-🏪 *PADARIA SOL NASCENTE*
-🏢 Contratante: Distribuidora Aurora
-📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000
-📦 3 volumes
+        `⚠️ *A chegada na parada 1 já foi registrada* às ${at}.
+
+> *PARADA 1 de 3*
+> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*
+> 📍 Ribeirao Preto
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81
 
 *O que você quer fazer agora?*
-*1* - Entreguei _(mande a foto do canhoto)_
-*2* - Não entreguei
-*3* - Abrir ocorrência
-*4* - Nada por enquanto`,
+*1* - ✅ Entreguei _(mande a foto do canhoto)_
+*2* - ↩️ Não entreguei
+*3* - ⚠️ Abrir ocorrência
+*4* - 💤 Nada por enquanto`,
         `O que você quer fazer com esta viagem?
 
 📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
@@ -112,20 +117,19 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `⚠️ *Falta a baixa desta parada.* Você chegou às ${at} e ainda não registrou a entrega.
-*Parada 1 de 3*
-*NF 17234* · R$ 1.234,56
-🏪 *PADARIA SOL NASCENTE*
-🏢 Contratante: Distribuidora Aurora
-📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000
-📦 3 volumes
+        `⚠️ *Falta a baixa da parada 1.*
+Você chegou às ${at} e ainda não registrou a entrega.
+
+> *PARADA 1 de 3*
+> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*
+> 📍 Ribeirao Preto
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81
 
 *O que você quer fazer agora?*
-*1* - Entreguei _(mande a foto do canhoto)_
-*2* - Não entreguei
-*3* - Sair para outra parada sem dar a baixa
-*4* - Nada por enquanto`,
+*1* - ✅ Entreguei _(mande a foto do canhoto)_
+*2* - ↩️ Não entreguei
+*3* - 🚚 Sair para outra parada sem dar a baixa
+*4* - 💤 Nada por enquanto`,
         `O que você quer fazer com esta viagem?
 
 📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
@@ -177,13 +181,17 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `Ok, sem esse item.\n\n📸 *NF 17234:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
+        `Ok, sem esse item.
+
+📸 *NF 17234:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `Ok, sem esse item.\n\n✅ *NF 17234 pronta para fechar.*
+        `Ok, sem esse item.
+
+✅ *NF 17234 pronta para fechar.*
 🏢 Contratante: Distribuidora Aurora
 👤 Cliente: PADARIA SOL NASCENTE
 🏠 Endereço: RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
@@ -199,19 +207,21 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `*Entrega registrada* ✅\n\n➡️ *Próxima parada*
+        `*Entrega registrada* ✅
+
+➡️ *Próxima parada*
 *Parada 2 de 3*
 *NF 17235* · R$ 99,90
 🏪 *MERCADO LUA CHEIA*
 🏢 Contratante: Distribuidora Aurora
 📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.1400000,-47.9900000
+🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
 📦 1 volume
 
 *O que você quer fazer agora?*
-*1* - Seguir para ela 🚚
-*2* - Escolher outra da lista
-*3* - Nada por enquanto`,
+*1* - 🚚 Seguir para a *parada 2*
+*2* - 📋 Escolher outra da lista
+*3* - 💤 Nada por enquanto`,
       ],
       shown: '1',
     },
@@ -230,46 +240,62 @@ _Responda com o número da parada ou da nota._`,
       shown: '2',
     },
     {
-      answered: [`📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_`],
+      answered: [
+        `📍 *Mande sua localização* para medir a distância até a parada.
+Clipe 📎 → Localização → Enviar localização atual.
+_Se não puder agora, responda pular._`,
+      ],
       shown: '3',
     },
     {
       answered: [
-        `⚠️ *A próxima no roteiro é a parada 2 (NF 17235 — MERCADO LUA CHEIA).* Quer mesmo iniciar a parada 3?
-*1* - Sim, a 3
-*2* - Não, a 2`,
+        `⚠️ *Fora da rota sugerida*
+A rota sugere ir antes para a *parada 2*. Se achar melhor, pode seguir para a 3.
+
+> 🚚 *VOCÊ ESCOLHEU · PARADA 3*
+> 🧾 NF \`17236\` · *ACOUGUE ESTRELA*
+
+> 👉 *PRÓXIMA DA ROTA · PARADA 2*
+> 🧾 NF \`17235\` · *MERCADO LUA CHEIA*
+
+*Para onde você vai?*
+*1* - ✅ Seguir para a *parada 3*
+*2* - 👉 Ir para a *parada 2*
+
+_Responda 1 ou 2._`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `*Saída registrada* 🚚
-*Parada 3 de 3*
-*NF 17236* · R$ 10,00
-🏪 *ACOUGUE ESTRELA*
-🏢 Contratante: Distribuidora Aurora
-📍 RUA SETE, 7, CRAVINHOS, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.3400000,-47.7300000
-📦 12 volumes
+        `🚚 *Saída registrada* · ${at}
+
+> *PARADA 3 de 3*
+> 🧾 NF \`17236\` · *ACOUGUE ESTRELA*
+> 🏢 Contratante: Distribuidora Aurora
+> 📍 RUA SETE, 7, CRAVINHOS, SP
+> 📦 12 volumes
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.34,-47.73
+> 💰 Valor da nota: *R$ 10,00*
+
 ➡️ _Próximo passo:_ quando chegar, mande *cheguei*.`,
       ],
       shown: '1',
     },
     {
       answered: [
-        `⚠️ *A saída para esta parada já foi registrada* às ${at}.
-*Parada 3 de 3*
-*NF 17236* · R$ 10,00
-🏪 *ACOUGUE ESTRELA*
-🏢 Contratante: Distribuidora Aurora
-📍 RUA SETE, 7, CRAVINHOS, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.3400000,-47.7300000
-📦 12 volumes
+        `⚠️ *Você já está a caminho da parada 3.*
+Registre a chegada nela antes de sair para outra.
+
+> *PARADA 3 de 3*
+> 🧾 NF \`17236\` · *ACOUGUE ESTRELA*
+> 📍 Cravinhos
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.34,-47.73
 
 *O que você quer fazer agora?*
-*1* - Cheguei
-*2* - Abrir ocorrência
-*3* - Nada por enquanto`,
+*1* - 📍 Cheguei na *parada 3*
+*2* - ⚠️ Abrir ocorrência
+*3* - 💤 Nada por enquanto`,
         `O que você quer fazer com esta viagem?
 
 📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
@@ -283,14 +309,16 @@ _Responda com o número da parada ou da nota._`,
     },
     {
       answered: [
-        `Certo, não registrei nada.
+        `👍 *Certo, nada foi registrado.*
 ➡️ _Próximo passo:_ quando chegar, mande *cheguei*.`,
       ],
       shown: '3',
     },
     {
       answered: [
-        `📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_`,
+        `📍 *Mande sua localização* para medir a distância até a parada.
+Clipe 📎 → Localização → Enviar localização atual.
+_Se não puder agora, responda pular._`,
         `O que você quer fazer com esta viagem?
 
 📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
@@ -310,29 +338,28 @@ _Responda com o número da parada ou da nota._`,
 🏪 *ACOUGUE ESTRELA*
 🏢 Contratante: Distribuidora Aurora
 📍 RUA SETE, 7, CRAVINHOS, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.3400000,-47.7300000
+🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.34,-47.73
 📦 12 volumes para entregar
-➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.
+➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.
 🔜 _Depois desta:_ *NF 17235* · MERCADO LUA CHEIA – SERTAOZINHO`,
       ],
       shown: '📍 (localização)',
     },
     {
       answered: [
-        `⚠️ *Falta a baixa desta parada.* Você chegou às ${at} e ainda não registrou a entrega.
-*Parada 3 de 3*
-*NF 17236* · R$ 10,00
-🏪 *ACOUGUE ESTRELA*
-🏢 Contratante: Distribuidora Aurora
-📍 RUA SETE, 7, CRAVINHOS, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.3400000,-47.7300000
-📦 12 volumes
+        `⚠️ *Falta a baixa da parada 3.*
+Você chegou às ${at} e ainda não registrou a entrega.
+
+> *PARADA 3 de 3*
+> 🧾 NF \`17236\` · *ACOUGUE ESTRELA*
+> 📍 Cravinhos
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.34,-47.73
 
 *O que você quer fazer agora?*
-*1* - Entreguei _(mande a foto do canhoto)_
-*2* - Não entreguei
-*3* - Sair para outra parada sem dar a baixa
-*4* - Nada por enquanto`,
+*1* - ✅ Entreguei _(mande a foto do canhoto)_
+*2* - ↩️ Não entreguei
+*3* - 🚚 Sair para outra parada sem dar a baixa
+*4* - 💤 Nada por enquanto`,
         `O que você quer fazer com esta viagem?
 
 📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
@@ -359,20 +386,22 @@ _Responda com o número da parada ou da nota._`,
     },
     {
       answered: [
-        `*Não entrega registrada* ↩️\n\n➡️ *Próxima parada*
+        `*Não entrega registrada* ↩️
+
+➡️ *Próxima parada*
 *Parada 2 de 3*
 *NF 17235* · R$ 99,90
 🏪 *MERCADO LUA CHEIA*
 🏢 Contratante: Distribuidora Aurora
 📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.1400000,-47.9900000
+🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
 📦 1 volume
 📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~${eta} (25 min)_
 
 *O que você quer fazer agora?*
-*1* - Seguir para ela 🚚
-*2* - Escolher outra da lista
-*3* - Nada por enquanto`,
+*1* - 🚚 Seguir para a *parada 2*
+*2* - 📋 Escolher outra da lista
+*3* - 💤 Nada por enquanto`,
         `O que você quer fazer com esta viagem?
 
 📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
@@ -385,26 +414,34 @@ _Responda com o número da parada ou da nota._`,
       shown: '(toca) 🙅 Recusou receber',
     },
     {
-      answered: [`📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_`],
+      answered: [
+        `📍 *Mande sua localização* para medir a distância até a parada.
+Clipe 📎 → Localização → Enviar localização atual.
+_Se não puder agora, responda pular._`,
+      ],
       shown: '1',
     },
     {
       answered: [
-        `*Saída registrada* 🚚
-*Parada 2 de 3*
-*NF 17235* · R$ 99,90
-🏪 *MERCADO LUA CHEIA*
-🏢 Contratante: Distribuidora Aurora
-📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.1400000,-47.9900000
-📦 1 volume
+        `🚚 *Saída registrada* · ${at}
+
+> *PARADA 2 de 3*
+> 🧾 NF \`17235\` · *MERCADO LUA CHEIA*
+> 🏢 Contratante: Distribuidora Aurora
+> 📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
+> 📦 1 volume
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
+> 💰 Valor da nota: *R$ 99,90*
+
 ➡️ _Próximo passo:_ quando chegar, mande *cheguei*.`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_`,
+        `📍 *Mande sua localização* para medir a distância até a parada.
+Clipe 📎 → Localização → Enviar localização atual.
+_Se não puder agora, responda pular._`,
         `O que você quer fazer com esta viagem?
 
 📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
@@ -424,9 +461,9 @@ _Responda com o número da parada ou da nota._`,
 🏪 *MERCADO LUA CHEIA*
 🏢 Contratante: Distribuidora Aurora
 📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.1400000,-47.9900000
+🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
 📦 1 volume para entregar
-➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.`,
+➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.`,
       ],
       shown: 'pular',
     },
@@ -457,13 +494,17 @@ _Responda com o número da parada ou da nota._`,
     },
     {
       answered: [
-        `Ok, sem esse item.\n\n📸 *NF 17235:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
+        `Ok, sem esse item.
+
+📸 *NF 17235:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `Ok, sem esse item.\n\n✅ *NF 17235 pronta para fechar.*
+        `Ok, sem esse item.
+
+✅ *NF 17235 pronta para fechar.*
 🏢 Contratante: Distribuidora Aurora
 👤 Cliente: MERCADO LUA CHEIA
 🏠 Endereço: AVENIDA BRASIL, 2500, SERTAOZINHO, SP
@@ -478,7 +519,11 @@ _Responda com o número da parada ou da nota._`,
       shown: 'pular',
     },
     {
-      answered: [`*Entrega registrada* ✅\n\n🏁 *Rota concluída:* todas as paradas fechadas.`],
+      answered: [
+        `*Entrega registrada* ✅
+
+🏁 *Rota concluída:* todas as paradas fechadas.`,
+      ],
       shown: '1',
     },
   ]

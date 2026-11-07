@@ -104,7 +104,11 @@ describe('grupo: o pedido de localização do "saí" e do "cheguei" (RF24)', () 
       step: 'stop.location',
     })
     expect(asked.kind === 'continue' ? asked.replies[0] : '').toBe(
-      '📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_',
+      [
+        '📍 *Mande sua localização* para medir a distância até a parada.',
+        'Clipe 📎 → Localização → Enviar localização atual.',
+        '_Se não puder agora, responda pular._',
+      ].join('\n'),
     )
     expect(t.recorded).toEqual([])
     t.recorded.length = 0
@@ -154,7 +158,11 @@ describe('grupo: o pedido de localização do "saí" e do "cheguei" (RF24)', () 
     const t = setup({ hasLocation: false })
     await t.start('saí')
     const again = await t.answer('estou chegando agora')
-    expect(again).toMatchObject({ kind: 'not_understood', prompt: LOCATION_PROMPT_TEXT.askAgain })
+    expect(again).toEqual({
+      kind: 'not_understood',
+      prompt: 'Clipe 📎 → Localização → Enviar localização atual, _ou responda pular._',
+      reason: 'Esta resposta vai por localização.',
+    })
     expect(t.recorded).toEqual([])
     expect(t.step()).toBe('stop.location')
   })
@@ -181,7 +189,14 @@ describe('grupo: "cheguei" em parada sem localização certa corrige o endereço
       kind: 'continue',
       replies: [LOCATION_PROMPT_TEXT.askUnreliableAddress],
     })
-    expect(LOCATION_PROMPT_TEXT.askUnreliableAddress).toContain('eu atualizo o endereço')
+    expect(LOCATION_PROMPT_TEXT.askUnreliableAddress).toBe(
+      [
+        '📍 *Este endereço está sem localização certa no mapa.*',
+        'Mande sua localização que eu corrijo o endereço.',
+        'Clipe 📎 → Localização → Enviar localização atual.',
+        '_Se não puder agora, responda pular._',
+      ].join('\n'),
+    )
   })
 
   test('parada confiável e "saí" mantêm o pedido simples', async () => {
