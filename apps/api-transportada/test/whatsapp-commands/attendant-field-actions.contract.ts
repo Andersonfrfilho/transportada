@@ -134,16 +134,22 @@ describe('baixa de várias notas pelo escritório', () => {
       { actorUserId: 'U9', documentId: 'D1' },
       { actorUserId: 'U9', documentId: 'D4' },
     ])
-    expect(t.texts).toEqual(['Baixa registrada pelo escritório: NF 17234, NF 900.'])
+    expect(t.texts).toEqual([
+      ['📋 *Baixa pelo escritório*', '', '✅ *Baixadas:* NF `17234`, NF `900`'].join('\n'),
+    ])
   })
 
   test('nota fechada, liberada ou inexistente não é baixada e entra no resumo', async () => {
     const t = setup()
     await t.command({ kind: 'deliver', numbers: ['17236', '901', '555', '17235'] })
     expect(t.delivered).toEqual([{ actorUserId: 'U9', documentId: 'D2' }])
-    expect(t.texts[0]).toContain('Baixa registrada pelo escritório: NF 17235.')
-    expect(t.texts[0]).toContain(
-      'Não encontrei em aberto em viagem na rua: NF 17236, NF 901, NF 555.',
+    expect(t.texts[0]).toBe(
+      [
+        '📋 *Baixa pelo escritório*',
+        '',
+        '✅ *Baixadas:* NF `17235`',
+        '⚠️ *Não encontrei em aberto em viagem na rua:* NF `17236`, NF `901`, NF `555`',
+      ].join('\n'),
     )
   })
 
@@ -161,9 +167,17 @@ describe('baixa de várias notas pelo escritório', () => {
       refusal: { code: 'document_not_reachable' },
     })
     await t.command({ kind: 'deliver', numbers: ['17234', '17235', '900'] })
-    expect(t.texts[0]).toContain('Canhoto pendente: NF 17235.')
-    expect(t.texts[0]).toContain('Já estavam baixadas: NF 17234.')
-    expect(t.texts[0]).toContain('Não consegui baixar: NF 900.')
+    expect(t.texts[0]).toBe(
+      [
+        '📋 *Baixa pelo escritório*',
+        '',
+        '🧾 *Canhoto pendente:* NF `17235`',
+        '🔁 *Já estavam baixadas:* NF `17234`',
+        '⚠️ *Não consegui baixar:* NF `900`',
+        '',
+        '➡️ _Próximo passo:_ o canhoto pendente pode ser mandado aqui por foto.',
+      ].join('\n'),
+    )
   })
 
   test('"entreguei" sem nota pede os números; mais de oito é recusado', async () => {

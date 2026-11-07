@@ -410,3 +410,28 @@
   3. Integração, arquivos afetados (`whatsapp-driver-journey-direct`, `whatsapp-driver-journey-group`, `whatsapp-group-request-repository`, `whatsapp-group-occurrence-adapter`,
      `whatsapp-driver-flow-actions`): 14 pass, 0 fail. Na primeira rodada, duas jornadas falharam por causa do texto antigo do áudio nos fixtures; corrigidas e rodadas de novo.
   4. `bunx eslint` e `bunx prettier --write` nos arquivos tocados: limpos. O worker não espelha nenhum arquivo tocado.
+
+### T5.5 (executor `haiku`) — atendente: baixa em lote
+
+- Um formatador só: `formatAttendantBatch` em `whatsapp-commands/domain/whatsapp-message-format.policy.ts`. Antes havia duas montagens com textos diferentes:
+  `describeAttendantBatch` (`whatsapp/application/whatsapp-group-delivery-flow.service.ts`, grupo) e a lista inline de
+  `register-attendant-field-flow-actions.ts` (individual). Os dois passaram a chamar o mesmo formatador; a função do grupo foi apagada.
+- Forma do desenho: `📋 *Baixa pelo escritório*`, linha em branco, `✅ *Baixadas:*`, `🧾 *Canhoto pendente:*`, `🔁 *Já estavam baixadas:*`, linha em branco,
+  `➡️ _Próximo passo:_ o canhoto pendente pode ser mandado aqui por foto.` Números em monoespaçado (`NF \`n\``), como no desenho.
+- Regra de dados: a nota com canhoto pendente sai só na linha dele, não também em "Baixadas" (no desenho, 899857 aparece só em "Canhoto pendente").
+  Antes as duas linhas traziam o mesmo número. O próximo passo só existe quando há canhoto pendente (é o único que o desenho traz).
+  Sem nenhuma linha, o resumo é vazio, como antes.
+- Divergências spec × desenho:
+  1. "Não encontrei…" não está no desenho. Ficou com o texto da conversa individual ("Não encontrei em aberto em viagem na rua") nos dois canais; o grupo tinha
+     "…na viagem do motorista deste grupo". Escolhido o texto único, com ícone `⚠️` e rótulo em negrito.
+  2. "Não consegui baixar" também não está no desenho: mesmo formato (`⚠️ *…:*`), mesmas palavras.
+- Variáveis `{{…}}` novas: nenhuma. `fala_*` alterados: nenhum (o resumo é texto de sistema, não nó do grafo).
+- Contratos: `test/whatsapp-commands/whatsapp-attendant-flow-design.contract.ts` (fluxo 11: o desenho inteiro, sem canhoto, só recusa e falta, vazio; `toBe` inteiro),
+  ligado em `whatsapp-commands.contract.test.ts`. Atualizados (texto inteiro, sem `toContain` novo): `test/whatsapp-commands/attendant-field-actions.contract.ts` (três
+  testes do lote) e `test/whatsapp/group-attendant-close.contract.ts` (dois testes do grupo).
+- Gates (de `apps/api-transportada`):
+  1. `bun run typecheck`: limpo.
+  2. `bun --env-file=../../.env.test test --timeout 120000`: 14425 testes em 224 arquivos: 14399 pass, 26 skip (os mesmos de antes), 0 fail. `literal-message-text` verde, sem exceção nova.
+  3. Integração: nenhum arquivo de `test/integration` assere o texto do lote (grep por "Baixa registrada", "Canhoto pendente", "Já estavam", "em viagem na rua" vazio). Rodados por precaução
+     as duas jornadas do motorista (grupo e individual): 4 pass, 0 fail.
+  4. `bunx eslint` e `bunx prettier --write` nos arquivos tocados: limpos. O worker não espelha nenhum arquivo tocado.

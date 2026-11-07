@@ -23,6 +23,7 @@ import {
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { WhatsAppStopInProgress } from '../../whatsapp-commands/application/whatsapp-stop-in-progress.service.js'
 import {
+  formatAttendantBatch,
   formatOptions,
   formatReplyHint,
 } from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
@@ -95,30 +96,6 @@ export const GROUP_DELIVERY_TEXT = {
 
 /** Teto de notas da baixa em lote (o mesmo da mensagem do motorista, spec 293 regra 8). */
 const BATCH_LIMIT = 8
-
-/** O resumo da baixa em lote do atendente, uma linha por situação. */
-export function describeAttendantBatch(outcomes: {
-  readonly alreadyDone: readonly string[]
-  readonly failed: readonly string[]
-  readonly missing: readonly string[]
-  readonly pendingProof: readonly string[]
-  readonly registered: readonly string[]
-}): string {
-  const list = (numbers: readonly string[]) => numbers.map((number) => `NF ${number}`).join(', ')
-  return [
-    outcomes.registered.length > 0
-      ? `Baixa registrada pelo escritório: ${list(outcomes.registered)}.`
-      : '',
-    outcomes.pendingProof.length > 0 ? `Canhoto pendente: ${list(outcomes.pendingProof)}.` : '',
-    outcomes.alreadyDone.length > 0 ? `Já estavam baixadas: ${list(outcomes.alreadyDone)}.` : '',
-    outcomes.missing.length > 0
-      ? `Não encontrei em aberto na viagem do motorista deste grupo: ${list(outcomes.missing)}.`
-      : '',
-    outcomes.failed.length > 0 ? `Não consegui baixar: ${list(outcomes.failed)}.` : '',
-  ]
-    .filter((line) => line !== '')
-    .join('\n')
-}
 
 const DOCUMENT_REPLY_HINT = 'Responda com o número da opção ou da nota.'
 
@@ -266,7 +243,7 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
       outcomes.registered.push(number)
       if (value.details?.proofPending === true) outcomes.pendingProof.push(number)
     })
-    return { kind: 'done', replies: [describeAttendantBatch(outcomes)] }
+    return { kind: 'done', replies: [formatAttendantBatch(outcomes)] }
   }
 
   async function reply(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {

@@ -143,7 +143,9 @@ describe('várias notas de uma vez (RF21)', () => {
     ])
     expect(outcome).toEqual({
       kind: 'done',
-      replies: ['Baixa registrada pelo escritório: NF 17234, NF 17235.'],
+      replies: [
+        ['📋 *Baixa pelo escritório*', '', '✅ *Baixadas:* NF `17234`, NF `17235`'].join('\n'),
+      ],
     })
   })
 
@@ -157,10 +159,17 @@ describe('várias notas de uma vez (RF21)', () => {
     })
     const outcome = await t.start(ATTENDANT, 'entreguei 17234 17235 999')
     const text = outcome.kind === 'done' ? outcome.replies.join('\n') : ''
-    expect(text).toContain('Baixa registrada pelo escritório: NF 17234.')
-    expect(text).toContain('Canhoto pendente: NF 17234.')
-    expect(text).toContain('Já estavam baixadas: NF 17235.')
-    expect(text).toContain('Não encontrei em aberto na viagem do motorista deste grupo: NF 999.')
+    expect(text).toBe(
+      [
+        '📋 *Baixa pelo escritório*',
+        '',
+        '🧾 *Canhoto pendente:* NF `17234`',
+        '🔁 *Já estavam baixadas:* NF `17235`',
+        '⚠️ *Não encontrei em aberto em viagem na rua:* NF `999`',
+        '',
+        '➡️ _Próximo passo:_ o canhoto pendente pode ser mandado aqui por foto.',
+      ].join('\n'),
+    )
   })
 
   test('a tripulação continua uma nota por vez', async () => {

@@ -160,3 +160,37 @@ export function formatTripClosed(openNumbers: readonly string[]): string {
   if (openNumbers.length === 0) return head
   return `${head} Ficaram sem baixa: ${formatDocumentNumbers(openNumbers)}.`
 }
+
+export type AttendantBatchOutcomes = {
+  readonly alreadyDone: readonly string[]
+  readonly failed: readonly string[]
+  readonly missing: readonly string[]
+  readonly pendingProof: readonly string[]
+  readonly registered: readonly string[]
+}
+
+const ATTENDANT_BATCH_TITLE = '📋 *Baixa pelo escritório*'
+
+/** Spec 300 T5.5 (fluxo 11): o resumo da baixa em lote do escritório, o mesmo no grupo e na individual. */
+export function formatAttendantBatch(outcomes: AttendantBatchOutcomes): string {
+  const list = (numbers: readonly string[]) =>
+    numbers.map((number) => `NF \`${number}\``).join(', ')
+  const delivered = outcomes.registered.filter((number) => !outcomes.pendingProof.includes(number))
+  const lines = [
+    delivered.length > 0 ? `✅ *Baixadas:* ${list(delivered)}` : '',
+    outcomes.pendingProof.length > 0 ? `🧾 *Canhoto pendente:* ${list(outcomes.pendingProof)}` : '',
+    outcomes.alreadyDone.length > 0
+      ? `🔁 *Já estavam baixadas:* ${list(outcomes.alreadyDone)}`
+      : '',
+    outcomes.missing.length > 0
+      ? `⚠️ *Não encontrei em aberto em viagem na rua:* ${list(outcomes.missing)}`
+      : '',
+    outcomes.failed.length > 0 ? `⚠️ *Não consegui baixar:* ${list(outcomes.failed)}` : '',
+  ].filter((line) => line !== '')
+  if (lines.length === 0) return ''
+  const nextStep =
+    outcomes.pendingProof.length > 0
+      ? ['', formatNextStep('o canhoto pendente pode ser mandado aqui por foto.')]
+      : []
+  return [ATTENDANT_BATCH_TITLE, '', ...lines, ...nextStep].join('\n')
+}

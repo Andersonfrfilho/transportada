@@ -30,6 +30,7 @@ import {
 } from '../domain/whatsapp-driver-event-command.policy.js'
 import type { WhatsAppDriverEventResult } from './whatsapp-driver-events.service.js'
 import { parseMenuPageNavigation } from '../domain/whatsapp-menu.policy.js'
+import { formatAttendantBatch } from '../domain/whatsapp-message-format.policy.js'
 import { interpretCloseTripCommand } from '../domain/whatsapp-trip-close-command.policy.js'
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import type {
@@ -230,17 +231,8 @@ export function createAttendantFieldFlowActions(
       registered.push(number)
       if (value.details?.proofPending === true) pendingProof.push(number)
     })
-    const list = (numbers: readonly string[]) => numbers.map((number) => `NF ${number}`).join(', ')
     const missing = wanted.filter((number) => !found.some((item) => item.number === number))
-    return [
-      registered.length > 0 ? `Baixa registrada pelo escritório: ${list(registered)}.` : '',
-      pendingProof.length > 0 ? `Canhoto pendente: ${list(pendingProof)}.` : '',
-      alreadyDone.length > 0 ? `Já estavam baixadas: ${list(alreadyDone)}.` : '',
-      missing.length > 0 ? `Não encontrei em aberto em viagem na rua: ${list(missing)}.` : '',
-      failed.length > 0 ? `Não consegui baixar: ${list(failed)}.` : '',
-    ]
-      .filter((line) => line !== '')
-      .join('\n')
+    return formatAttendantBatch({ alreadyDone, failed, missing, pendingProof, registered })
   }
 
   const tripRouter: WhatsAppAuthorizedActionHandler = async ({
