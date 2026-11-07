@@ -495,10 +495,60 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     input: LinkTripDocumentsAfterDispatchParams,
   ): Promise<LinkTripDocumentsAfterDispatchResult | null> {
     return runGuarded(() =>
-      this.database.transaction((transaction) =>
-        applyTripDocumentLinkAfterDispatch(transaction, input),
-      ),
+      this.database.transaction(async (transaction) => {
+        const movedFrom = await this.moveLiveLinksFromOtherTrips(transaction, input)
+        return applyTripDocumentLinkAfterDispatch(transaction, input, movedFrom)
+      }),
     )
+  }
+
+  /**
+   * A nota que está em **outra** viagem (qualquer status) e ainda não foi entregue sai de lá e vem para
+   * esta: o vínculo antigo é liberado com evento na viagem de origem, e a chegada registra de onde veio.
+   * Nota já entregue não se move (entrega feita não se desfaz) — ela segue como `already_linked`.
+   * Viagem que já saiu mantém a rota e o ETA como estavam, como o acréscimo (spec 257 D5).
+   */
+  private async moveLiveLinksFromOtherTrips(
+    transaction: TripTransaction,
+    input: LinkTripDocumentsAfterDispatchParams,
+  ): Promise<ReadonlyMap<string, string>> {
+    const live = await transaction
+      .select({
+        id: tripDocuments.id,
+        nfeDocumentId: tripDocuments.nfeDocumentId,
+        status: trips.status,
+        tripId: tripDocuments.tripId,
+      })
+      .from(tripDocuments)
+      .innerJoin(
+        trips,
+        and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+      )
+      .where(
+        and(
+          eq(tripDocuments.companyId, input.companyId),
+          inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+          ne(tripDocuments.tripId, input.tripId),
+          isNull(tripDocuments.releasedAt),
+          isNull(tripDocuments.deliveredAt),
+        ),
+      )
+      .orderBy(asc(tripDocuments.tripId), asc(tripDocuments.id))
+    const movedFrom = new Map<string, string>()
+    for (const document of live) {
+      if (document.nfeDocumentId === null) continue
+      const released = await this.releaseDocumentWithin(transaction, {
+        actor: { channel: input.channel, userId: input.actorUserId },
+        companyId: input.companyId,
+        documentId: document.id,
+        keepRoute: (TRIP_DISPATCHED_STATUSES as readonly string[]).includes(document.status),
+        note: `Movida para a viagem ${input.tripId.slice(0, 8)}: ${input.reason}`,
+        scope: 'document',
+        tripId: document.tripId,
+      })
+      if (released !== null) movedFrom.set(document.nfeDocumentId, document.tripId)
+    }
+    return movedFrom
   }
 
   public async create(input: CreateTripRecord): Promise<TripDetail> {
@@ -1114,6 +1164,8 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       readonly actor: TripDocumentReleaseActor
       readonly companyId: string
       readonly documentId: string
+      /** Nota movida de viagem que já saiu: a rota congelada e o ETA ficam como estavam. */
+      readonly keepRoute?: boolean
       readonly note?: string
       readonly scope: TripDocumentReleaseScope
       readonly tripId: string
@@ -1139,7 +1191,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           ...buildTripDocumentFilters(input),
           isNull(tripDocuments.deliveredAt),
           isNull(tripDocuments.releasedAt),
-          tripStillOpen(input),
+          input.keepRoute === true ? undefined : tripStillOpen(input),
         ),
       )
       .returning()
@@ -1171,14 +1223,16 @@ export class DrizzleTripRepository implements TripRepositoryPort {
      * existe mais. Ela morre **aqui**, na mesma transação — o recongelamento é best-effort e,
      * quando falha, o que sobra é rota nula (D5), nunca a rota velha passando por boa.
      */
-    await clearPlannedRoute(transaction, {
-      companyId: input.companyId,
-      tripId: input.tripId,
-    })
-    await this.requestCargoLayoutForTrip(transaction, {
-      companyId: input.companyId,
-      tripId: input.tripId,
-    })
+    if (input.keepRoute !== true) {
+      await clearPlannedRoute(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
+      await this.requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
+    }
     return mapTripDocument(released)
   }
 }

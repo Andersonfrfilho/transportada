@@ -16,14 +16,17 @@ export type BippedNote = Readonly<{
   addableDocument?: ScannedNfeDocument
   blocker?: BippedNoteBlocker
   document?: BippedNoteDocument
+  /** Só no acréscimo a viagem que já saiu: a nota está em outra viagem e vem de lá ao acrescentar. */
+  movesFromTrip?: true
   row: AccessKeyLookupRow
 }>
 
 /** O mesmo veredito de `stageQuickCreateDocuments`: nota em outra viagem ou não autorizada não entra. */
 export function resolveBippedNoteBlocker(
   document: ScannedNfeDocument,
+  options: Readonly<{ allowOtherTrip?: boolean }> = {},
 ): BippedNoteBlocker | undefined {
-  if (document.tripId !== null) return 'alreadyOnTrip'
+  if (document.tripId !== null && options.allowOtherTrip !== true) return 'alreadyOnTrip'
   if (document.status !== 'authorized') return 'notAuthorized'
   return undefined
 }
@@ -37,6 +40,8 @@ export function buildBippedNotes(
     documents: ReadonlyMap<string, BippedNoteDocument>
     rows: readonly AccessKeyLookupRow[]
     stagedDocumentIds: readonly string[]
+    /** Viagem que já saiu: a nota de outra viagem é oferecida, com aviso de que sai de lá. */
+    allowOtherTrip?: boolean
   }>,
 ): readonly BippedNote[] {
   const staged = new Set(input.stagedDocumentIds)
@@ -48,12 +53,13 @@ export function buildBippedNotes(
       notes.push({ ...(document === undefined ? {} : { document }), row })
       continue
     }
-    const blocker = resolveBippedNoteBlocker(document)
-    notes.push(
-      blocker === undefined
-        ? { addableDocument: document, document, row }
-        : { blocker, document, row },
-    )
+    const blocker = resolveBippedNoteBlocker(document, {
+      ...(input.allowOtherTrip === undefined ? {} : { allowOtherTrip: input.allowOtherTrip }),
+    })
+    if (blocker !== undefined) notes.push({ blocker, document, row })
+    else if (document.tripId !== null) {
+      notes.push({ addableDocument: document, document, movesFromTrip: true, row })
+    } else notes.push({ addableDocument: document, document, row })
   }
   return notes
 }
