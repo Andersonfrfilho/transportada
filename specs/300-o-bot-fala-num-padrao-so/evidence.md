@@ -300,3 +300,35 @@
   group-driver-journey, driver-flow-actions, driver-events e as fixtures `driver-journey-{group,direct}.expected.ts`.
 - Gates: typecheck limpo · `bun test --timeout 120000` 14376 pass / 0 fail (`literal-message-text` e CA03 verdes, sem exceção nova) · eslint e prettier limpos · integração: `whatsapp-driver-journey-group` 2, `whatsapp-driver-journey-direct` 2,
   `whatsapp-driver-flow-actions` 4, `whatsapp-command-driver` 5 pass / 0 fail. Suíte completa na T6.2.
+
+## Fase 5 — 2026-11-07
+
+### T5.1 (executor `haiku`, revisado por quem fecha a fase) — ocorrência, grupo e individual, e "só pelo aplicativo"
+
+- Grupo (`whatsapp-group-occurrence-flow.service.ts`, `GROUP_OCCURRENCE_TEXT`): nota (`⚠️ *Em qual nota é a ocorrência?*`, opções com `🧾 NF \`n\` · *cliente*`),
+  tipo (`⚠️ *Qual ocorrência?*` com a nota em citação; `askType` ganhou o 2º parâmetro `{ clientName, documentNumber }`, lido de `state`), contato
+  (`📇 *Contato do cliente para o boleto*`, cadastrado em citação `> 📱 *(16) ****-4821*`), observação, localização, confirmação (`📋 *Confira a ocorrência*`,
+  citação com tipo, nota, contratante, endereço e valor; `*Posso registrar?*`) e registro (`✅ *Ocorrência registrada* · HH:MM`, citação com tipo e nota,
+  contato, `📨` do aviso). `registered` deixou de receber `address`, `location`, `contractorName`, `note` e `totalValue` (o desenho não os mostra).
+- Individual: a pergunta e os desfechos de foto, número e valor são os de `OCCURRENCE_DRAFT_SPEECH` (`whatsapp-occurrence-draft-speech.constant.ts`), que o
+  grupo e a individual usam. Padrão: título em negrito com ícone, pergunta, `_Se não tiver, responda pular._`, desfecho curto (`✅ _…_`, `👍 _…_`),
+  "não entendi" por `formatNotUnderstood`. `whatsapp-occurrence-draft.service.ts`: cancelamento (`↩️ *…cancelada.* Nada foi registrado.`) e falha (`⚠️ *…*`).
+- "Só pelo aplicativo" (`whatsapp-driver-event-speech.service.ts`, `OCCURRENCE_REQUIREMENT_MESSAGES`): `📱 *Esta ocorrência é registrada pelo aplicativo.*`,
+  o motivo e `➡️ _Próximo passo:_ abra o app e toque em *Ocorrência*.`. `OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE` vira `🚫 *…*` + próximo passo (usado também pelo operador).
+- `fala_*` (`whatsapp-bot-speech.constant.ts`): `occurrenceRegistered` = `✅ *Ocorrência registrada.*`; `groupOccurrenceRegistered` = ``✅ *Ocorrência registrada* · NF `{{documentNumber}}` ``.
+  Variáveis novas no catálogo: nenhuma (usa `{{documentNumber}}`, que já existe). Nós vivos no grafo não mudam até a T6.1 (publicação preserva o texto).
+- Divergências spec × desenho (registradas aqui, para o dono confirmar):
+  1. Ícone por tipo: o desenho mostra um ícone próprio por tipo (💸 prorrogação, 📦 avaria, ⏰ outro dia). O catálogo de tipos não tem ícone; a lista usa `⚠️` para todos.
+     Pôr ícone por tipo exige campo novo no catálogo (mudança de dado, fora desta task).
+  2. Registro sem observação, contratante, endereço e valor: segue o desenho. A observação e o valor continuam no painel e na confirmação (antes do "Sim").
+  3. Confirmação ganhou `🗺️ Local da ocorrência: <link>` (só quando o motorista mandou a localização): o desenho não tem a linha, e tirá-la perderia o link.
+  4. "Só pelo aplicativo": o desenho diz o tipo ("_Avaria parcial_ pede…") e a parada ("abra o app, na parada 3"). A recusa só traz o campo exigido, então a frase é
+     genérica e sem parada. Levar tipo e parada até a frase é mudança de dados na recusa (fora desta task).
+  5. Os `REASON` do "não entendi" (texto de motivo na camada comum) não foram trocados aqui.
+- Contratos: `test/whatsapp-commands/whatsapp-occurrence-flow-design.contract.ts` (fluxo 7: nota, tipo, contato, confirmação, registro, só o app; `toBe`/`toEqual`
+  inteiro), ligado em `whatsapp-commands.contract.test.ts`. Atualizados: `occurrence-draft`, `driver-flow-actions`, `operator-flow-actions`,
+  `driver-occurrence-items` (cada erro com a frase inteira, sem `toContain`) e `group-occurrence-flow`. Nenhum `toContain` novo de mensagem inteira.
+- Gates (árvore só com T5.1, sem o T5.2 guardado em stash): typecheck `bun run typecheck` limpo · `bun --env-file=../../.env.test test --timeout 120000`
+  14409 testes: 14383 pass, 26 skip (os mesmos de antes), 0 fail (`literal-message-text` verde, sem exceção nova) · eslint e prettier limpos nos arquivos tocados.
+  Integração (`whatsapp-driver-journey-direct`, `whatsapp-driver-journey-group`, `whatsapp-group-boleto-return`, `whatsapp-occurrence-draft-repository`):
+  19 pass, 0 fail, rodada na árvore com T5.1 e T5.2 juntos (o `boleto-return` compara o texto com a própria função).

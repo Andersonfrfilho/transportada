@@ -67,7 +67,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 > 🤖 Modelo: `haiku` (T5.3 → `sonnet`: muda o que o encerramento lista)
 
-- [ ] **T5.1** Ocorrência (grupo e individual) e "só pelo aplicativo".
+- [x] **T5.1** Ocorrência (grupo e individual) e "só pelo aplicativo".
 - [ ] **T5.2** Boleto: retorno e pedir de novo.
 - [ ] **T5.3** Encerrar a rota com as notas que ficam sem baixa (RF11).
 - [ ] **T5.4** Tempo esgotado, desistência, áudio e recusas da API.

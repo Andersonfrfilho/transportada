@@ -14,6 +14,7 @@
  */
 import type { StopEventStep } from '../../trips/domain/stop-event-sequence.policy.js'
 import type { BotSpeechKey } from '../domain/whatsapp-bot-speech.constant.js'
+import { formatNextStep } from '../domain/whatsapp-message-format.policy.js'
 import { formatBotClock } from '../domain/whatsapp-stop-card.policy.js'
 import type { DriverReturnReason } from '../../trips/domain/driver-return-reason.policy.js'
 import {
@@ -47,11 +48,17 @@ export type WhatsAppDriverEventAudience =
       readonly time?: string
     }
 
-const USE_THE_APP = 'Registre pelo aplicativo.'
+const APP_ONLY_TITLE = '📱 *Esta ocorrência é registrada pelo aplicativo.*'
+
+function describeAppOnly(reason: string): string {
+  return [APP_ONLY_TITLE, reason, formatNextStep('abra o app e toque em *Ocorrência*.')].join('\n')
+}
 
 /** Spec 270 (R3): a frase dos dois canais quando o servidor recusa o tipo pela contratante. */
-export const OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE =
-  'Este tipo não vale para a contratante desta nota. Escolha outro tipo.'
+export const OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE = [
+  '🚫 *Este tipo não vale para a contratante desta nota.*',
+  formatNextStep('escolha outro tipo.'),
+].join('\n')
 
 /**
  * Spec 246 (RF13): o campo que o tipo exige e o WhatsApp ainda não colhe. A T15 da 293 passa a colher
@@ -60,12 +67,23 @@ export const OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE =
 export const OCCURRENCE_REQUIREMENT_MESSAGES: Readonly<Record<OccurrenceRequirementField, string>> =
   {
     contractor_scope: OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE,
-    declared_amount: `Essa ocorrência exige o valor pago e as quantidades, e o WhatsApp não os envia. ${USE_THE_APP}`,
-    items: `Essa ocorrência exige apontar os produtos da nota, e o WhatsApp não aponta produtos. ${USE_THE_APP}`,
-    note: 'Essa ocorrência exige a observação. Digite o que aconteceu.',
-    photo: `Essa ocorrência exige foto, e o WhatsApp não envia foto. ${USE_THE_APP}`,
-    reference_number: `Essa ocorrência exige o número do documento do cliente, e o WhatsApp não o envia. ${USE_THE_APP}`,
-    signature: `Essa ocorrência exige a assinatura de quem recebeu, e o WhatsApp não envia assinatura. ${USE_THE_APP}`,
+    declared_amount: describeAppOnly(
+      'Essa ocorrência pede o valor pago e as quantidades, e o WhatsApp não os envia.',
+    ),
+    items: describeAppOnly(
+      'Essa ocorrência pede para apontar os produtos da nota, e isso o WhatsApp não faz.',
+    ),
+    note: [
+      '📝 *Essa ocorrência exige a observação.*',
+      formatNextStep('digite o que aconteceu.'),
+    ].join('\n'),
+    photo: describeAppOnly('Essa ocorrência pede foto, e o WhatsApp não envia foto.'),
+    reference_number: describeAppOnly(
+      'Essa ocorrência pede o número do documento do cliente, e o WhatsApp não o envia.',
+    ),
+    signature: describeAppOnly(
+      'Essa ocorrência pede a assinatura de quem recebeu, e o WhatsApp não envia assinatura.',
+    ),
   }
 
 const DRIVER_REGISTERED: Readonly<Record<WhatsAppDriverEvent, BotSpeechKey>> = {

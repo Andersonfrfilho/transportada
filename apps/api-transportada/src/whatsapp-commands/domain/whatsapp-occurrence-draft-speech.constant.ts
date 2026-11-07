@@ -7,12 +7,13 @@
  */
 import { DECLARED_AMOUNT_DECIMAL } from '../../shared/money.constant.js'
 import { OCCURRENCE_REFERENCE_NUMBER_PATTERN } from '../../shared/trip-occurrence.constant.js'
+import { formatNotUnderstood } from './whatsapp-message-format.policy.js'
 import {
   OCCURRENCE_DRAFT_ITEM,
   type OccurrenceDraftQuestion,
 } from './whatsapp-occurrence-draft-checklist.policy.js'
 
-const SKIP_HINT = 'Se não tiver, responda "pular".'
+const SKIP_HINT = '_Se não tiver, responda pular._'
 
 const photos = (count: number) => (count === 1 ? '1 foto' : `${count} fotos`)
 
@@ -22,35 +23,39 @@ export type OccurrenceDraftLabels = {
 }
 
 export const OCCURRENCE_DRAFT_SPEECH = {
-  amountNotUnderstood:
-    'Digite só o valor, por exemplo 125,90 (ou "pular", se não for obrigatório).',
-  downloadFailed: 'Não consegui baixar a foto. Mande de novo, por favor.',
-  duplicatePhoto: 'Essa foto já tinha chegado.',
+  amountNotUnderstood: formatNotUnderstood({
+    reason: 'Digite só o valor, por exemplo 125,90, ou _pular_, se não for obrigatório.',
+  }),
+  downloadFailed: '⚠️ *Não consegui baixar a foto.* Mande de novo, por favor.',
+  duplicatePhoto: '🔁 _Essa foto já tinha chegado._',
   missing: (
     documentNumber: string,
     missing: readonly OccurrenceDraftQuestion[],
     labels: OccurrenceDraftLabels,
   ) =>
-    `A ocorrência da NF ${documentNumber} ainda não foi registrada. Falta: ${missing
-      .map((question) => describeMissing(question, labels))
-      .join(', ')}.`,
+    [
+      `⚠️ *A ocorrência da NF ${documentNumber} ainda não foi registrada.*`,
+      `Falta: ${missing.map((question) => describeMissing(question, labels)).join(', ')}.`,
+    ].join('\n'),
   photoLimit: (documentNumber: string) =>
-    `A ocorrência da NF ${documentNumber} já tem o máximo de fotos.`,
-  photoRejected: 'Essa foto não pôde ser usada. Mande outra, por favor.',
+    `⚠️ *A ocorrência da NF ${documentNumber} já tem o máximo de fotos.*`,
+  photoRejected: '⚠️ *Essa foto não pôde ser usada.* Mande outra, por favor.',
   question: (
     documentNumber: string,
     question: OccurrenceDraftQuestion,
     labels: OccurrenceDraftLabels,
   ) => describeQuestion(documentNumber, question, labels),
   received: {
-    declaredAmount: 'Valor anotado.',
-    photo: 'Foto da ocorrência recebida.',
-    referenceNumber: 'Número anotado.',
-    skipped: 'Ok, sem esse item.',
+    declaredAmount: '✅ _Valor anotado._',
+    photo: '✅ _Foto da ocorrência recebida._',
+    referenceNumber: '✅ _Número anotado._',
+    skipped: '👍 _Ok, sem esse item._',
   },
-  referenceNotUnderstood:
-    'Digite só o número (letras, números, ponto, barra ou traço, até 30), ou "pular", se não for obrigatório.',
-  stillRequired: 'Esse item é obrigatório para registrar a ocorrência.',
+  referenceNotUnderstood: formatNotUnderstood({
+    reason:
+      'Digite só o número (letras, números, ponto, barra ou traço, até 30), ou _pular_, se não for obrigatório.',
+  }),
+  stillRequired: '⚠️ _Esse item é obrigatório para registrar a ocorrência._',
 } as const
 
 function describeMissing(question: OccurrenceDraftQuestion, labels: OccurrenceDraftLabels): string {
@@ -69,16 +74,23 @@ function describeQuestion(
   question: OccurrenceDraftQuestion,
   labels: OccurrenceDraftLabels,
 ): string {
-  const tail = question.optional ? ` ${SKIP_HINT}` : ''
+  const head = `*Ocorrência da NF ${documentNumber}*`
+  const hint = question.optional ? [SKIP_HINT] : []
   switch (question.item) {
     case OCCURRENCE_DRAFT_ITEM.photo:
-      return question.optional
-        ? `Ocorrência da NF ${documentNumber}: se puder, mande uma foto.${tail}`
-        : `Ocorrência da NF ${documentNumber}: mande ${photos(question.remaining)}.`
+      return [
+        `📸 ${head}`,
+        question.optional ? 'Se puder, mande uma foto.' : `Mande ${photos(question.remaining)}.`,
+        ...hint,
+      ].join('\n')
     case OCCURRENCE_DRAFT_ITEM.referenceNumber:
-      return `Ocorrência da NF ${documentNumber}: digite ${quoted(labels.referenceNumberLabel)}.${tail}`
+      return [`🔢 ${head}`, `Digite ${quoted(labels.referenceNumberLabel)}.`, ...hint].join('\n')
     case OCCURRENCE_DRAFT_ITEM.declaredAmount:
-      return `Ocorrência da NF ${documentNumber}: digite ${quoted(labels.declaredAmountLabel)} (só o valor, ex.: 125,90).${tail}`
+      return [
+        `💰 ${head}`,
+        `Digite ${quoted(labels.declaredAmountLabel)} (só o valor, ex.: 125,90).`,
+        ...hint,
+      ].join('\n')
   }
 }
 

@@ -249,34 +249,34 @@ describe('ocorrência em coleta: o fluxo (spec 293 T15)', () => {
       documentNumber: '17234',
       finished: false,
       texts: [
-        'A ocorrência da NF 17234 ainda não foi registrada. Falta: 2 fotos, "Número do documento do cliente".',
-        'Ocorrência da NF 17234: mande 2 fotos.',
+        '⚠️ *A ocorrência da NF 17234 ainda não foi registrada.*\nFalta: 2 fotos, "Número do documento do cliente".',
+        '📸 *Ocorrência da NF 17234*\nMande 2 fotos.',
       ],
     })
     // Texto que não é "pular" nem "cancelar" com foto em aberto não é da coleta.
     expect(await flow.answer('oi')).toBeNull()
     expect((await flow.photo('M1'))?.texts).toEqual([
-      'Foto da ocorrência recebida.',
-      'A ocorrência da NF 17234 ainda não foi registrada. Falta: 1 foto, "Número do documento do cliente".',
-      'Ocorrência da NF 17234: mande 1 foto.',
+      '✅ _Foto da ocorrência recebida._',
+      '⚠️ *A ocorrência da NF 17234 ainda não foi registrada.*\nFalta: 1 foto, "Número do documento do cliente".',
+      '📸 *Ocorrência da NF 17234*\nMande 1 foto.',
     ])
-    expect((await flow.photo('M1'))?.texts).toEqual(['Essa foto já tinha chegado.'])
+    expect((await flow.photo('M1'))?.texts).toEqual(['🔁 _Essa foto já tinha chegado._'])
     expect((await flow.photo('M2'))?.texts).toEqual([
-      'Foto da ocorrência recebida.',
-      'Ocorrência da NF 17234: digite "Número do documento do cliente".',
+      '✅ _Foto da ocorrência recebida._',
+      '🔢 *Ocorrência da NF 17234*\nDigite "Número do documento do cliente".',
     ])
     expect((await flow.answer('número #1'))?.texts).toEqual([
-      'Digite só o número (letras, números, ponto, barra ou traço, até 30), ou "pular", se não for obrigatório.',
+      '🤔 *Não entendi.* Digite só o número (letras, números, ponto, barra ou traço, até 30), ou _pular_, se não for obrigatório.',
     ])
     expect((await flow.answer('pular'))?.texts).toEqual([
-      'Esse item é obrigatório para registrar a ocorrência.',
-      'Ocorrência da NF 17234: digite "Número do documento do cliente".',
+      '⚠️ _Esse item é obrigatório para registrar a ocorrência._',
+      '🔢 *Ocorrência da NF 17234*\nDigite "Número do documento do cliente".',
     ])
     expect(await flow.answer('DEV-77')).toEqual({
       awaitingText: false,
       documentNumber: '17234',
       finished: true,
-      texts: ['Número anotado.', 'registered:17234'],
+      texts: ['✅ _Número anotado._', 'registered:17234'],
     })
     expect(flow.registered).toEqual([
       {
@@ -296,15 +296,15 @@ describe('ocorrência em coleta: o fluxo (spec 293 T15)', () => {
   test('opcional é oferecido uma vez e aceita "pular"; o valor pago vai junto', async () => {
     const flow = setup(require({ declaredAmountMode: 'required', photoMode: 'optional' }))
     expect((await flow.begin())?.texts).toEqual([
-      'A ocorrência da NF 17234 ainda não foi registrada. Falta: "Valor pago".',
-      'Ocorrência da NF 17234: se puder, mande uma foto. Se não tiver, responda "pular".',
+      '⚠️ *A ocorrência da NF 17234 ainda não foi registrada.*\nFalta: "Valor pago".',
+      '📸 *Ocorrência da NF 17234*\nSe puder, mande uma foto.\n_Se não tiver, responda pular._',
     ])
     expect((await flow.answer('pular'))?.texts).toEqual([
-      'Ok, sem esse item.',
-      'Ocorrência da NF 17234: digite "Valor pago" (só o valor, ex.: 125,90).',
+      '👍 _Ok, sem esse item._',
+      '💰 *Ocorrência da NF 17234*\nDigite "Valor pago" (só o valor, ex.: 125,90).',
     ])
     expect((await flow.answer('cento e vinte'))?.texts).toEqual([
-      'Digite só o valor, por exemplo 125,90 (ou "pular", se não for obrigatório).',
+      '🤔 *Não entendi.* Digite só o valor, por exemplo 125,90, ou _pular_, se não for obrigatório.',
     ])
     expect(await flow.answer('cento e vinte', true)).toBeNull()
     expect((await flow.answer('R$ 120,50'))?.finished).toBe(true)
@@ -317,10 +317,10 @@ describe('ocorrência em coleta: o fluxo (spec 293 T15)', () => {
     await flow.begin()
     flow.rejectNextPhoto()
     expect((await flow.photo('M1'))?.texts).toEqual([
-      'Essa foto não pôde ser usada. Mande outra, por favor.',
+      '⚠️ *Essa foto não pôde ser usada.* Mande outra, por favor.',
     ])
     expect((await flow.answer('Cancelar'))?.texts).toEqual([
-      'Ocorrência da NF 17234 cancelada. Nada foi registrado.',
+      '↩️ *Ocorrência da NF 17234 cancelada.* Nada foi registrado.',
     ])
     expect(flow.registered).toEqual([])
     expect(await flow.service.hasOpen(ACTOR)).toBe(false)
@@ -336,7 +336,7 @@ describe('ocorrência em coleta: o fluxo (spec 293 T15)', () => {
     })
     await flow.begin()
     expect((await flow.photo('M1'))?.texts).toEqual([
-      'Foto da ocorrência recebida.',
+      '✅ _Foto da ocorrência recebida._',
       'refused:17234',
     ])
     expect([...flow.rows.values()][0]?.status).toBe('superseded')
@@ -355,8 +355,8 @@ describe('ocorrência em coleta: o fluxo (spec 293 T15)', () => {
     })
     await flow.begin()
     expect((await flow.photo('M1'))?.texts).toEqual([
-      'Foto da ocorrência recebida.',
-      'Não consegui registrar a ocorrência agora. Responda qualquer coisa para tentar de novo, ou "cancelar".',
+      '✅ _Foto da ocorrência recebida._',
+      '⚠️ *Não consegui registrar a ocorrência agora.* Responda qualquer coisa para tentar de novo, ou _cancelar_.',
     ])
     expect((await flow.answer('de novo'))?.texts).toEqual(['registered:17234'])
     expect(flow.registered.map((input) => input.idempotencyKey)).toEqual([

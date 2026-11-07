@@ -43,7 +43,7 @@ export const BOT_SPEECH_DEFAULTS = {
   issuanceRedo: 'Refaça a seleção.',
   issuanceRedoButton: '🔁 Refazer',
   issuanceSuperseded: 'As notas mudaram desde a prévia, e nada foi emitido. Confira de novo:',
-  occurrenceRegistered: 'Ocorrência registrada. ⚠️',
+  occurrenceRegistered: '✅ *Ocorrência registrada.*',
   operatorBatchApplied: '{{applied}} de {{total}} notas atualizadas. ✅',
   operatorDispatchAlready: 'A viagem já estava despachada.',
   operatorDispatched: 'Viagem despachada. 🚚',
@@ -98,7 +98,7 @@ export const BOT_SPEECH_DEFAULTS = {
   groupDocumentNotReachable: 'Essa nota não está mais disponível na viagem do motorista.',
   groupDriverWithoutAccess:
     'O motorista deste grupo ainda não tem acesso ao aplicativo, e o registro precisa ficar no nome dele. Cadastre o acesso ou registre pelo painel.',
-  groupOccurrenceRegistered: 'Ocorrência registrada na NF {{documentNumber}}. ⚠️',
+  groupOccurrenceRegistered: '✅ *Ocorrência registrada* · NF `{{documentNumber}}`',
   groupRegisterFailed:
     'Não consegui registrar agora. Tente de novo em instantes ou registre pelo aplicativo.',
   groupReturnRegistered:
