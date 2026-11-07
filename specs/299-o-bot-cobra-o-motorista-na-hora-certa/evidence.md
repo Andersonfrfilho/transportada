@@ -213,7 +213,7 @@ a validação do `make config` cobre a chave da API, e a do worker fica no contr
 - API `bun run test`: 14188 pass, 35 skip, 1 fail + 1 error, os dois em `test/driver-stop-reminders.contract.test.ts`
   (`Cannot find module .../driver-stop-reminders/domain/*`, esperado até a T1.3).
 - API `bun --env-file=../../.env.test test --timeout 120000`: 14197 pass, 26 skip, 1 fail + 1 error, os mesmos da T0.2.
-- API `bun run test:integration` (`--env-file=../../.env.test`): **não concluído** nesta sessão. Rodou mais de 1 h sem terminar (pid 3907729, log `/tmp/claude-1000/-home-miyazaki-Documents-personal-transportada/4aacf520-d202-44a6-b36e-4909184c8327/api-integration2.log`, banco de teste ativo). Os arquivos de integração tocados só mudaram fixture (`driverRemindersEnabled: false`); o typecheck os cobre.
+- API `bun run test:integration` (`--env-file=../../.env.test`): **1957 pass, 8 skip, 0 fail** (1965 testes em 347 arquivos, 6852 s; log `/tmp/claude-1000/-home-miyazaki-Documents-personal-transportada/4aacf520-d202-44a6-b36e-4909184c8327/api-integration2.log`). Sem testes de falha. Os arquivos de integração tocados só mudaram fixture (`driverRemindersEnabled: false`).
 - Worker `bun run typecheck`: 0 erros. Worker eslint e prettier nos arquivos tocados: limpos.
 - Worker `bun run test`: 3037 pass, 0 fail, 115 arquivos.
 - `make config` (raiz): exit 0.
