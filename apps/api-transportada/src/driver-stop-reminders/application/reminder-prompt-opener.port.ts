@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { DriverStopReminderIdleVariant } from '../domain/driver-stop-reminder.types.js'
 import type { DriverStopReminderStage } from '../../shared/driver-stop-reminder.constant.js'
 
 export type OpenReminderPromptParams = {
@@ -10,6 +11,8 @@ export type OpenReminderPromptParams = {
   readonly driverId: string
   readonly groupJid: string
   readonly stage: DriverStopReminderStage
+  /** Só a etapa `idle`: o cardápio da resposta depende da variante. */
+  readonly idleVariant?: DriverStopReminderIdleVariant | undefined
 }
 
 export type DiscardReminderPromptParams = Pick<

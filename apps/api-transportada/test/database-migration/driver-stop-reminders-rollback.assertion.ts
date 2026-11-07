@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { migrationsDirectory, readMigrationNames } from './support.js'
 
 const MIGRATION_SUFFIX = '_driver_stop_reminders'
+const IDLE_STAGE_MIGRATION_SUFFIX = '_driver_stop_reminder_idle_stage'
 
 export async function rollbackDriverStopRemindersIfApplied(
   database: SQL,
@@ -19,6 +20,14 @@ export async function rollbackDriverStopRemindersIfApplied(
   const directory = directories.find((name) => name.endsWith(MIGRATION_SUFFIX))
   if (directory === undefined) return
   if (!(await readMigrationNames(database)).includes(directory)) return
+
+  // A etapa `idle` (spec 299 T2.7) veio depois das tabelas e sai antes delas.
+  const idleDirectory = directories.find((name) => name.endsWith(IDLE_STAGE_MIGRATION_SUFFIX))
+  if (idleDirectory !== undefined && (await readMigrationNames(database)).includes(idleDirectory)) {
+    await database.unsafe(
+      await Bun.file(join(migrationsDirectory.pathname, idleDirectory, 'rollback.sql')).text(),
+    )
+  }
 
   await database.unsafe(
     await Bun.file(join(migrationsDirectory.pathname, directory, 'rollback.sql')).text(),

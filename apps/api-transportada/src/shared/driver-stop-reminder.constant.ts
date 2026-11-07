@@ -3,7 +3,7 @@
  *
  * Spec 299: vocabulários fechados do lembrete ao motorista — a CHECK de cada coluna sai daqui.
  */
-export const DRIVER_STOP_REMINDER_STAGES = ['arrival', 'settlement'] as const
+export const DRIVER_STOP_REMINDER_STAGES = ['arrival', 'settlement', 'idle'] as const
 export type DriverStopReminderStage = (typeof DRIVER_STOP_REMINDER_STAGES)[number]
 
 export const DRIVER_STOP_REMINDER_STATUSES = [
@@ -42,3 +42,4 @@ export const DRIVER_REMINDER_DEFAULT_INTERVAL_MINUTES = 30
 export const DRIVER_REMINDER_DEFAULT_GRACE_MIN_MINUTES = 30
 export const DRIVER_REMINDER_DEFAULT_GRACE_PERCENT = 50
 export const DRIVER_REMINDER_DEFAULT_DWELL_MINUTES = 30
+export const DRIVER_REMINDER_DEFAULT_IDLE_MINUTES = 30

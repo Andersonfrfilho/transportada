@@ -4,6 +4,7 @@
 import { DRIVER_STOP_REMINDER_STAGE } from './driver-stop-reminder.constant.js'
 import type {
   DecideStopReminderTransitionParams,
+  StopReminderEvent,
   StopReminderOpen,
   StopReminderTransitionAction,
 } from './driver-stop-reminder.types.js'
@@ -52,7 +53,37 @@ function decideArrival(params: DecideStopReminderTransitionParams): StopReminder
   ]
 }
 
+const IDLE_CLOSE_REASON: Partial<
+  Record<StopReminderEvent['kind'], DriverStopReminderClosedReason>
+> = {
+  arrived: 'superseded',
+  delivered: 'superseded',
+  departed: 'superseded',
+  occurrence: 'occurrence',
+  returned: 'superseded',
+}
+
+/** Qualquer evento da viagem fecha o `idle`, seja qual for a parada dele (RF22). */
 export function decideStopReminderTransition(
+  params: DecideStopReminderTransitionParams,
+): readonly StopReminderTransitionAction[] {
+  const idleReason = IDLE_CLOSE_REASON[params.event.kind]
+  const idleReminders = params.openReminders.filter(
+    (reminder) => reminder.stage === DRIVER_STOP_REMINDER_STAGE.IDLE,
+  )
+  if (idleReason === undefined || idleReminders.length === 0) return decideStageTransition(params)
+  return [
+    ...closeAll(idleReminders, idleReason),
+    ...decideStageTransition({
+      ...params,
+      openReminders: params.openReminders.filter(
+        (reminder) => reminder.stage !== DRIVER_STOP_REMINDER_STAGE.IDLE,
+      ),
+    }),
+  ]
+}
+
+function decideStageTransition(
   params: DecideStopReminderTransitionParams,
 ): readonly StopReminderTransitionAction[] {
   const { event, openReminders } = params

@@ -57,7 +57,7 @@ export function createGroupReminderPromptOpener(dependencies: {
       })
     },
 
-    async open({ companyId, driverId, groupJid, reminderId, stage, tripStopId }) {
+    async open({ companyId, driverId, groupJid, idleVariant, reminderId, stage, tripStopId }) {
       const ownerNumber = await dependencies.readDriverNumber({ companyId, driverId })
       const previous = await findOwnOpen({ companyId, groupJid, reminderId })
       const request = await repository.open({
@@ -67,7 +67,12 @@ export function createGroupReminderPromptOpener(dependencies: {
         now: dependencies.clock(),
         ownerNumber: ownerNumber ?? '',
         ...(previous === null ? {} : { replaces: { id: previous.id, version: previous.version } }),
-        state: { reminderId, stage, tripStopId },
+        state: {
+          reminderId,
+          stage,
+          tripStopId,
+          ...(idleVariant === undefined ? {} : { idleVariant }),
+        },
         step: REMINDER_STAGE_STEP,
       })
       if (request === null) throw new ReminderPromptBusyError()

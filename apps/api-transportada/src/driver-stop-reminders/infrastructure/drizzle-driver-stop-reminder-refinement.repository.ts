@@ -107,6 +107,7 @@ export class DrizzleDriverStopReminderRefinementRepository
         dwellMinutes: companyDriverReminderSettings.dwellMinutes,
         graceMinMinutes: companyDriverReminderSettings.graceMinMinutes,
         gracePercent: companyDriverReminderSettings.gracePercent,
+        idleMinutes: companyDriverReminderSettings.idleMinutes,
         intervalMinutes: companyDriverReminderSettings.intervalMinutes,
         maxAttempts: companyDriverReminderSettings.maxAttempts,
       })

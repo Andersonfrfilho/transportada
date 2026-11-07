@@ -815,3 +815,41 @@ restaurada: 15 pass.
 - **L1**: teto de 200 etapas por ciclo (`DRIVER_STOP_REMINDER_RECONCILIATION_BATCH_LIMIT`); o resto espera o próximo ciclo.
 - **L2**: `assertOverwriteNodeIds` rejeita chave sem prefixo `fala_`. **L3**: `daysAgo <= 0` é hoje.
 - **Gates** (apps/api-transportada): typecheck ok; eslint e prettier ok; `bun run test` 14472 pass/0 fail; contrato `--env-file` 14481 pass/0 fail; integração reconciliação 10/0, delivery 13/0, reminders 23/0, settings 5/0. Worker não tocado.
+
+## T2.7 — 2026-11-07
+
+Etapa `idle` ("sem evento"; spec.md D10, RF21–RF25).
+
+- Vermelho registrado antes do código: `bun test ./test/driver-stop-reminders.contract.test.ts ./test/whatsapp/group-reminder-flow.contract.ts` → 23 pass, 6 fail, 1 error (módulos `reconcile-idle-*` ausentes; `idle` fora de `StopReminderStage`, das opções e dos nós).
+- Decisões: `idle` é varredura própria (`reconcile-idle-driver-stop-reminders.use-case.ts`, repositório e porta próprios, `combineStopReminderReconciliations` na rota); âncora = maior `completed_at` das paradas da viagem ou, sem baixa, `trip_dispatch_snapshots.dispatched_at` (fallback `trips.created_at`); ciclo deduplicado por `anchor_at >= início do ciclo` (não por âncora exata); variante A/B lida no envio (`route` se a viagem já tem parada baixada) e gravada no estado do pedido do grupo (`idleVariant`); mesmo passo `reminder.stage`, cardápio por variante (`resolveStopReminderChoice`); qualquer saída/chegada/baixa/ocorrência fecha o `idle` da viagem (`superseded`/`occurrence`).
+- Migration aditiva `20261107144829_driver_stop_reminder_idle_stage` (`idle_minutes` padrão 30 + CHECK 10–240, CHECK de `stage` com `idle`; rollback ligado à cadeia do `db:test`). `db:generate` → `no_changes`.
+- Nós novos no grafo raiz (chaves novas, nenhuma existente alterada): `fala_lembrete_sem_evento_inicio`, `fala_lembrete_sem_evento_rota`.
+- Gates (apps/api-transportada): `tsc --noEmit` limpo · `bun run lint` limpo · `bun run test` 14491 pass / 0 fail · contrato 14500 pass / 0 fail · integração `driver-stop-reminder-delivery` 13 pass · `-group-step` 5 pass · `driver-stop-reminders` 23 pass · `-reconciliation` 7 pass · `-settings` 5 pass · `-idle` (novo) 7 pass · `db:test` 206 pass / 0 fail · raiz `format:check` limpo. Worker não tocado.
+
+### T2.7 — rebase sobre a 570 e revisão (2026-11-07)
+
+Rebase sobre `origin/staging` (6061d3118, #570 mesclada); conflitos só em `evidence.md` e `stop-reminder-message.contract.ts`, resolvidos mantendo os dois lados.
+
+**Vermelho registrado antes do código**
+
+- `driver-stop-reminder-idle.integration.ts` (prova de vermelho): revertida a parte de `src/` da T2.7 (`git apply -R`), teste mantido → `error: Cannot find module '../../src/driver-stop-reminders/application/reconcile-idle-driver-stop-reminders.use-case.js'` · `0 pass / 1 fail / 1 error`. Restaurado (`git apply`), `git diff HEAD -- src` vazio.
+- L2 (`driver-stop-reminder-reconciliation.integration.ts`): `error: boom errno: "23503"` em `openIfStillCurrent` — o INSERT que falha derrubava o lote → `11 pass / 1 fail`.
+- Fala de opção inválida: `group-reminder-flow.contract.ts` → `30 pass / 2 fail` (variantes `idle` mostravam "de 1 a 4").
+
+**Correções**
+
+- L2: `openIfStillCurrent` captura o erro do banco com SQLSTATE, registra sem dado pessoal (`driver_stop_reminder_reconciliation_open_failed`: empresa, parada, etapa, `sqlState`) e segue; erro sem SQLSTATE continua subindo. Teste: um INSERT recusado, o outro item abre.
+- Índice aditivo `driver_stop_reminders_cycle_probe_idx (company_id, trip_stop_id, stage, created_at)` na migration `20261107165358_driver_stop_reminder_idle_stage` (rollback derruba o índice). EXPLAIN da sonda de ciclo no banco descartável, 30 000 lembretes fechados, depois de `ANALYZE`:
+
+```text
+Index Only Scan using driver_stop_reminders_cycle_probe_idx on driver_stop_reminders r (actual time=0.029..0.031 rows=4 loops=1)
+  Index Cond: ((company_id = '…'::uuid) AND (trip_stop_id = '…'::uuid) AND (stage = 'arrival'::text) AND (created_at >= (now() - '00:10:00'::interval)))
+  Heap Fetches: 4
+Planning Time: 0.451 ms
+Execution Time: 0.049 ms
+```
+
+- Folga de 1 minuto: caso de saída cancelada e refeita 30 s depois do lembrete cancelado. **Limite documentado:** dentro da folga a varredura lê o mesmo ciclo e não reabre (o caminho do evento abre o lembrete novo na hora; a varredura é só a rede de segurança); evento novo mais de 1 minuto depois do lembrete abre.
+- `lembreteOpcaoInvalida` agora é `…de 1 a {{ultimaOpcao}}`, com o último número calculado do cardápio da etapa/variante (arrival e settlement 4, idle início 3, idle rota 5). **Depois do merge, republicar com `--overwrite-nodes fala_lembrete_opcao_invalida`** (nó já publicado).
+
+**Gates depois do rebase** (apps/api-transportada, sequenciais): `tsc` limpo · `bun run lint` limpo · `bun run test` 14503 pass / 0 fail · contrato 14538 testes / 0 fail · integração: delivery 13, group-step 5, `driver-stop-reminders` 23, reconciliation 12, settings 5, idle 7, todos pass · `db:test` 206 pass / 0 fail · `db:generate` → `no_changes` · raiz `format:check` limpo. Worker não tocado.

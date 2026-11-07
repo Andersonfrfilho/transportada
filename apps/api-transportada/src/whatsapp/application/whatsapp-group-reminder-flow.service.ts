@@ -7,9 +7,14 @@
  */
 import {
   DRIVER_STOP_REMINDER_CHOICE_ACTION,
+  DRIVER_STOP_REMINDER_IDLE_VARIANT,
   DRIVER_STOP_REMINDER_POSTPONE_OUTCOME,
 } from '../../driver-stop-reminders/domain/driver-stop-reminder.constant.js'
-import { resolveStopReminderChoice } from '../../driver-stop-reminders/domain/stop-reminder-message.policy.js'
+import type { DriverStopReminderIdleVariant } from '../../driver-stop-reminders/domain/driver-stop-reminder.types.js'
+import {
+  countStopReminderChoices,
+  resolveStopReminderChoice,
+} from '../../driver-stop-reminders/domain/stop-reminder-message.policy.js'
 import type { PostponeDriverStopReminderResult } from '../../driver-stop-reminders/application/postpone-driver-stop-reminder.use-case.js'
 import {
   DRIVER_STOP_REMINDER_STAGES,
@@ -26,6 +31,7 @@ export type GroupReminderTarget = {
   readonly reminderId: string
   readonly stage: DriverStopReminderStage
   readonly tripStopId: string
+  readonly idleVariant?: DriverStopReminderIdleVariant
 }
 
 export type GroupReminderFlowPorts = {
@@ -52,6 +58,10 @@ const POSTPONE_SPEECH_KEY: Readonly<
 export type GroupReminderAction =
   (typeof DRIVER_STOP_REMINDER_CHOICE_ACTION)[keyof typeof DRIVER_STOP_REMINDER_CHOICE_ACTION]
 
+function isIdleVariant(value: unknown): value is DriverStopReminderIdleVariant {
+  return Object.values(DRIVER_STOP_REMINDER_IDLE_VARIANT).some((variant) => variant === value)
+}
+
 function isStage(value: unknown): value is DriverStopReminderStage {
   return DRIVER_STOP_REMINDER_STAGES.some((stage) => stage === value)
 }
@@ -60,9 +70,12 @@ export function createGroupReminderFlow(ports: GroupReminderFlowPorts) {
   return {
     /** O lembrete que o pedido cobra; `undefined` quando o estado não o traz (pedido corrompido). */
     readTarget(turn: GroupFlowTurn): GroupReminderTarget | undefined {
-      const { reminderId, stage, tripStopId } = turn.request.state
+      const { idleVariant, reminderId, stage, tripStopId } = turn.request.state
       if (typeof reminderId !== 'string' || typeof tripStopId !== 'string') return undefined
-      return isStage(stage) ? { reminderId, stage, tripStopId } : undefined
+      if (!isStage(stage)) return undefined
+      return isIdleVariant(idleVariant)
+        ? { idleVariant, reminderId, stage, tripStopId }
+        : { reminderId, stage, tripStopId }
     },
 
     /** A ação da opção digitada ou falada ("2", "opção dois"); `undefined` fora das opções 1–4 da etapa. */
@@ -70,7 +83,11 @@ export function createGroupReminderFlow(ports: GroupReminderFlowPorts) {
       const choice = spokenOptionNumber(text)
       return choice === undefined
         ? undefined
-        : resolveStopReminderChoice({ choice, stage: target.stage })
+        : resolveStopReminderChoice({
+            choice,
+            idleVariant: target.idleVariant,
+            stage: target.stage,
+          })
     },
 
     readNoteNumber(turn: GroupFlowTurn, target: GroupReminderTarget): Promise<string | undefined> {
@@ -88,10 +105,14 @@ export function createGroupReminderFlow(ports: GroupReminderFlowPorts) {
       return { kind: 'done', replies: [text], withoutFarewell: true }
     },
 
-    async notUnderstood(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
+    async notUnderstood(
+      turn: GroupFlowTurn,
+      target: GroupReminderTarget,
+    ): Promise<GroupFlowOutcome> {
       const reason = await ports.speech.text({
         companyId: turn.request.companyId,
         key: 'lembreteOpcaoInvalida',
+        params: { ultimaOpcao: countStopReminderChoices(target) },
       })
       return { kind: 'not_understood', prompt: '', reason }
     },

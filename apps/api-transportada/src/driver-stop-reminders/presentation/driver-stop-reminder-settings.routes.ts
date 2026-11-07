@@ -76,6 +76,7 @@ function settingsResponse(stored: DriverStopReminderStoredSettings): Response {
         enabled: settings.enabled,
         graceMinMinutes: settings.graceMinMinutes,
         gracePercent: settings.gracePercent,
+        idleMinutes: settings.idleMinutes,
         intervalMinutes: settings.intervalMinutes,
         maxAttempts: settings.maxAttempts,
         operatingHours: settings.operatingHours.map((range) => ({

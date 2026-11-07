@@ -226,6 +226,11 @@ import { createDrizzleDriverReminderChannelResolver } from './driver-stop-remind
 import { createGroupReminderPromptOpener } from './driver-stop-reminders/infrastructure/group-reminder-prompt-opener.js'
 import { createGroupStopReminderSender } from './driver-stop-reminders/infrastructure/group-stop-reminder-sender.gateway.js'
 import { createReconcileDriverStopRemindersUseCase } from './driver-stop-reminders/application/reconcile-driver-stop-reminders.use-case.js'
+import {
+  combineStopReminderReconciliations,
+  createReconcileIdleDriverStopRemindersUseCase,
+} from './driver-stop-reminders/application/reconcile-idle-driver-stop-reminders.use-case.js'
+import { DrizzleDriverStopReminderIdleReconciliationRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-idle-reconciliation.repository.js'
 import { DrizzleDriverStopReminderReconciliationRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-reconciliation.repository.js'
 import { DrizzleDriverStopReminderRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder.repository.js'
 import { DrizzleDriverStopReminderSettingsRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-settings.repository.js'
@@ -2432,14 +2437,24 @@ export function bootstrap(): Bun.Server<undefined> {
       ...createWhatsAppCommandSettlementRoutes({ settle: whatsappSettlement }),
       ...createDriverStopReminderRoutes({
         deliverDriverStopReminder,
-        reconcileDriverStopReminders: createReconcileDriverStopRemindersUseCase({
-          ...(driverStopReminders === undefined
-            ? {}
-            : { afterOpen: (reminders) => driverStopReminders.refineAfterCommit(reminders) }),
-          isEnabled: config.driverRemindersEnabled,
-          reconciliation: new DrizzleDriverStopReminderReconciliationRepository(database.db),
-          reminders: new DrizzleDriverStopReminderRepository(database.db, logger),
-        }),
+        reconcileDriverStopReminders: combineStopReminderReconciliations([
+          createReconcileDriverStopRemindersUseCase({
+            ...(driverStopReminders === undefined
+              ? {}
+              : { afterOpen: (reminders) => driverStopReminders.refineAfterCommit(reminders) }),
+            isEnabled: config.driverRemindersEnabled,
+            reconciliation: new DrizzleDriverStopReminderReconciliationRepository(
+              database.db,
+              logger,
+            ),
+            reminders: new DrizzleDriverStopReminderRepository(database.db, logger),
+          }),
+          createReconcileIdleDriverStopRemindersUseCase({
+            isEnabled: config.driverRemindersEnabled,
+            reconciliation: new DrizzleDriverStopReminderIdleReconciliationRepository(database.db),
+            reminders: new DrizzleDriverStopReminderRepository(database.db, logger),
+          }),
+        ]),
       }),
       ...createDriverStopReminderSettingsRoutes({
         resolveClientIp,
