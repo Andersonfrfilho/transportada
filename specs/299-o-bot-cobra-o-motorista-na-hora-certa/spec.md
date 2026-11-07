@@ -68,6 +68,12 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
   a pessoa com quem fala — toda resposta marca quem mandou o pedido, e as mensagens proativas marcam o motorista). Esta
   spec não implementa menção: o lembrete marca o motorista pelo suporte de menção do grupo (plan.md § Menção).
 - **D9 — Sem ADR nova**: a feature não muda arquitetura nem revoga decisão.
+- **D10 — Etapa `idle` ("sem evento")** (dono, 2026-11-07). A viagem `on_delivery_route` sem parada a caminho e sem chegada
+  em aberto (logo sem chegada ou baixa pendente possível) também é cobrada: o bot pergunta se o motorista vai iniciar a rota
+  (ou o que ele quer registrar). A **parada suposta** é a próxima parada aberta na ordem da rota (294). **Âncora**: o despacho
+  da viagem (viagem sem nenhum evento) ou o instante da baixa que fechou a parada anterior. **Vence** em
+  `âncora + idleMinutes` (configuração nova da empresa: padrão 30, faixa 10–240). Mesmo relógio, tentativas, adiamentos,
+  horário de funcionamento e duas chaves das outras etapas.
 
 ## Requisitos funcionais
 
@@ -169,6 +175,54 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
   `whatsapp`, regra da 286), cujas respostas caem no mesmo pedido. Sem template
   aprovado configurado → cai para o grupo; sem grupo → só escala (nunca silencioso: o motivo vai para o lembrete).
 
+### Etapa sem evento (T2.7, dono 2026-11-07)
+
+- **RF21** — Viagem `on_delivery_route` sem parada a caminho, sem chegada em aberto e com ao menos uma parada aberta tem
+  lembrete `idle` na **próxima parada aberta na ordem da rota** (294), com `anchor_at` = despacho da viagem (nenhum evento) ou
+  o instante da baixa que fechou a parada anterior, e `due_at = anchor_at + idleMinutes`. Todas as paradas fechadas → nada
+  (o encerramento da viagem é da 223). Quem abre é a varredura (RF7); a baixa que fecha a parada abre o lembrete da próxima
+  na rodada seguinte, com a nova âncora.
+- **RF22** — Qualquer saída, chegada, baixa ou ocorrência da viagem fecha o lembrete `idle`, qualquer que seja a parada do
+  evento; viagem encerrada ou cancelada também. O portão (RF8) fecha o `idle` cuja parada já saiu, chegou ou fechou.
+  Com várias viagens abertas do motorista, a parada suposta e o envio seguem a viagem do próprio lembrete (a que o bot
+  resolve como a atual do motorista no envio).
+- **RF23** — Mensagem `idle`, variante **A** (viagem sem nenhum evento), nó `fala_lembrete_sem_evento_inicio`:
+
+  ```text
+  👋 E aí, {{nome}}, como estamos? Vamos iniciar a rota?
+  Pelo roteiro, a primeira é esta parada:
+
+  {{blocoParada}}
+
+  *1* - Iniciar a rota por esta parada
+  *2* - Vou começar por outra parada
+  *3* - Ainda não vou sair
+  ```
+
+  1 → início da viagem e saída para a parada (o mesmo caminho do "Iniciar rota"/"saí"); 2 → a escolha de parada da 294 com a
+  confirmação de saída fora de ordem; 3 → adia (RF13: não consome tentativa, no máximo 3, depois conta como sem resposta).
+- **RF24** — Mensagem `idle`, variante **B** (rota em andamento, já houve baixa), nó `fala_lembrete_sem_evento_rota`:
+
+  ```text
+  👋 E aí, {{nome}}, como estamos?
+  Pelo roteiro, a próxima é esta parada:
+
+  {{blocoParada}}
+
+  Quer registrar um evento?
+  *1* - Saí para esta parada
+  *2* - Já cheguei
+  *3* - Já entreguei (mande a foto do canhoto)
+  *4* - Tive um problema (abrir ocorrência)
+  *5* - Ainda não saí
+  ```
+
+  1 → saída; 2 → chegada (a 294 RF1 marca a saída junto); 3 → entreguei (marca as etapas anteriores junto); 4 → ocorrência;
+  5 → adia (RF13).
+- **RF25** — O `idle` espera pergunta aberta (RF8.3), em especial a oferta da próxima rota depois da baixa (294 RF31); mesmas
+  tentativas e escalada; mesmo horário de funcionamento; mesmas duas chaves. Passo `reminder.stage` do grupo estendido
+  pela etapa (cardápio por variante), sem passo novo.
+
 ### Escalada ao escritório
 
 - **RF17** — Esgotadas as tentativas da etapa, o lembrete fica `escalated`:
@@ -182,7 +236,7 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 
 - **RF19** — Configurações → bloco "Cobrança do motorista": ligado/desligado (padrão desligado), número de cobranças
   (padrão 3, 1–5), intervalo (padrão 30 min, 10–120), folga mínima (padrão 30 min) e percentual (padrão 50%),
-  permanência (padrão 30 min), horário de funcionamento (dias e faixa). Permissão `settings.manage`.
+  permanência (padrão 30 min), **sem evento (padrão 30 min, 10–240; `idleMinutes`)**, horário de funcionamento (dias e faixa). Permissão `settings.manage`.
 - **RF20** — `DRIVER_REMINDERS_ENABLED` (padrão `false`) no schema de env da API e do worker. Desligada: a API não abre
   lembretes e a rotina do worker, que fica sempre registrada (a migration semeia a agenda; rotina ausente fecharia
   `job_run_routine_missing`), fecha o ciclo `succeeded` sem ler nada (dono, 2026-11-06).
@@ -207,6 +261,7 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 - Viagem trocou de motorista na rua (249): o lembrete segue a parada; o envio vai ao motorista atual.
 - Roteamento fora do ar → duração de reserva (plan.md); endereço sem coordenada → reserva.
 - Horário de funcionamento vazio → sempre aberto.
+- Viagem com todas as paradas fechadas: sem `idle` (223 encerra a viagem).
 - Mensagem chega do motorista com hora antiga (fila do WhatsApp): vale o evento, e o lembrete fecha pelo evento.
 
 ## Fora do escopo
