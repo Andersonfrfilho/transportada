@@ -81,12 +81,13 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 - [ ] **T4.1** Escalada: `status='escalated'` depois da última tentativa; fonte de pendência
       `driverStopReminderEscalated`; notificação no sino para a lista efetiva de responsáveis; dispensa
       `POST /driver-stop-reminders/:id/dismissal`. A pendência some quando a etapa se resolve. Aceite: integração.
-- [ ] **T4.2** `GET/PUT /settings/driver-stop-reminders` (`settings.manage`, `.strict()`, todos os erros de uma vez,
+- [x] **T4.2** `GET/PUT /settings/driver-stop-reminders` (`settings.manage`, `.strict()`, todos os erros de uma vez,
       faixas do RF19) e leitura das configurações pela política (sem linha = desligado + padrões). Aceite: contrato + integração.
 - [ ] **T4.3** Painel: bloco "Cobrança do motorista" em Configurações e o tipo "Motorista sem resposta" em
       `/pendencias` com "Dispensar". Aceite: testes do painel (script `test`), typecheck, lint e build.
 - [ ] **T4.4** Locale e catálogo das falas novas no editor de fluxo (FlowsWorkspace) — chaves e variáveis listadas.
       Aceite: `grep` das chaves nos locales e teste do catálogo.
+      **depende da spec do editor de fluxos** (dono, 2026-11-07: o FlowsWorkspace do SDK não está montado no painel nem tem rotas na API; spec própria depois da 299).
 
 ## Fase 5 — Jornada com relógio falso
 
