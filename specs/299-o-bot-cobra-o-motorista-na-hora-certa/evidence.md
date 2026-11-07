@@ -636,3 +636,35 @@ for um problema na prática, a saída é desconsiderar pedidos `reminder.stage` 
   O contrato do resolvedor cobre grupo mais novo, individual mais novo, empate, nenhum, fonte ausente e dado de outra empresa; a
   integração cobre também "o uso do app depois não muda o canal" e a atividade do mesmo grupo noutra empresa.
 - Os totais acima valem para o estado final dos três commits desta rodada (correção pós-T2.3, feriado nacional e T2.5).
+
+## T2.4 — 2026-11-07
+
+Rotina do worker que entrega os lembretes vencidos. Novos em `apps/worker-transportada/src/driver-stop-reminders/`:
+`application/{driver-stop-reminder.routine,driver-stop-reminder-api.port,driver-stop-reminder-api.error,driver-stop-reminder-queue.port}.ts`,
+`domain/driver-stop-reminder.constant.ts`, `infrastructure/{driver-stop-reminder-api.gateway,drizzle-driver-stop-reminder-queue.repository}.ts`.
+Registrada em `main.ts` junto de `trip.canhoto.read` (só com o crachá do worker); `DRIVER_REMINDERS_ENABLED=false` fecha `succeeded` sem ler.
+O gateway chama `POST /driver-stop-reminders/:id/delivery` (sem prefixo de versão, como as demais rotas do robô) e lê `{ data: { outcome, nextDueAt } }`.
+Contadores do ciclo: `sent/deferred/closed/escalated`, `requestRejected`, `apiUnauthorized`, `apiUnreachable`, `unexpectedErrors`; API fora ou crachá
+recusado encerra o ciclo com `api_unreachable` (único vocabulário do catálogo). Log só com ids de correlação e números.
+
+**Desvio do plano (RF7 "reserva `dispatching_until`"):** o worker **não** grava a reserva. A entrega da API reserva pela mesma coluna
+(`reserveAttempt` exige `dispatching_until` nulo ou vencido, e cobra `version`); uma reserva prévia do worker faria toda entrega responder
+`deferred/already_reserved`. A seleção só **descobre**: `pending`, `due_at <= now`, reserva ausente ou vencida, e só empresa com
+`company_driver_reminder_settings.enabled = true` (sem linha = desligada). `FOR UPDATE SKIP LOCKED` fora de transação não protege nada, então
+não entrou; a exclusão mútua é o cadeado da API. Lote 50, teto 200 por ciclo, ids já vistos excluídos no ciclo.
+
+**Despausa:** a 248 T4.10 não despausou por migration (o operador liga no painel); aqui a migration aditiva
+`20261107041501_driver_stop_reminder_dispatch_unpause` faz `enabled=true` só onde `paused_origin='system'` (pausa de gente fica). `rollback.sql`
+devolve a pausa do sistema. `db:generate` → `no_changes`. Entrou na lista de `static-migration.contract.ts`.
+
+**Vermelho antes:** `bun test ./test/driver-stop-reminders.contract.test.ts` com `src/driver-stop-reminders` fora do lugar → `Cannot find module` (0 pass / 1 fail).
+**Verde:** 20 pass (rotina 11, gateway 9).
+
+### Gates
+
+- worker: `bun run typecheck` limpo; eslint e prettier nos arquivos tocados limpos; `bun run test` 3057 pass / 0 fail.
+- `make worker-integration`: 405 pass / 0 fail (a fila nova: 6 testes — vencidos por ordem, fechado, empresa desligada/sem linha, reserva da API, não escreve reserva, limite/exclusão).
+- api: `bun run typecheck` limpo; `bun run test` 14426 pass / 35 skip / 0 fail; paridade do catálogo e do frontend não tocados.
+- `make migration-test`: 230 pass / 1 fail — o teste "applies, constrains, rolls back, and reapplies" estoura o **timeout fixo de 30 s** (linha 659)
+  nesta máquina, também sem a migration nova (medido: mesmo vermelho tirando a pasta). Com o timeout elevado a 600 s só nesta medição (revertido):
+  192 pass / 0 fail, incluindo o rollback e a reaplicação da nova.

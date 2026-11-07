@@ -57,7 +57,7 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
       ocorrência; "4" adia sem consumir tentativa, até 3 adiamentos por etapa (RF13); "cancelar" fecha o passo e não o lembrete; comando digitado escapa.
       Falas como nós `fala_lembrete_*`. Aceite: matrizes `group-{flow,inbound}-isolation` verdes com o passo novo;
       `literal-message-text` verde.
-- [ ] **T2.4** Rotina `driver.stop-reminder.dispatch` no catálogo (API e worker, paridade), `driver-stop-reminder.routine.ts`
+- [x] **T2.4** Rotina `driver.stop-reminder.dispatch` no catálogo (API e worker, paridade), `driver-stop-reminder.routine.ts`
       e gateway para a API; registrada só com a chave global. Aceite: contrato da rotina e da paridade do catálogo.
 - [x] **T2.5** Escolha do canal (D5): último canal de WhatsApp do motorista, grupo por padrão. Aceite: contrato.
 - [x] ~~T2.6~~ Não se aplica: a API não tem OpenAPI (contrato = arquivo de rotas + schema Zod).
