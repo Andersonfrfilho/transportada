@@ -36,7 +36,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** `district`, `city`, `coordinate` na parada candidata e na consulta que monta a lista (grupo e
+- [x] **T2.1** `district`, `city`, `coordinate` na parada candidata e na consulta que monta a lista (grupo e
       individual). Integração contra Postgres com nota de destinatário com e sem endereço. Aceite: integração verde.
 - [ ] **T2.2** Distância e tempo da lista conforme T0.1, com dublê de rota em contrato (com ponto, sem ponto, OSRM fora,
       uma parada sem estrada). Aceite: contrato verde; nenhuma falha derruba a lista.

@@ -6,6 +6,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { DriverTrip } from '../../trips/application/find-current-driver-trip.use-case.js'
+import { placeStops } from '../../whatsapp-commands/infrastructure/whatsapp-stop-place.reader.js'
 import {
   CATALOG_BOT_SPEECH,
   renderBotSpeechLine,
@@ -108,7 +109,12 @@ export function createGroupStopPorts(dependencies: {
     readonly driverId: string
   }) => {
     const trips = await dependencies.listActiveTrips({ companyId, driverId })
-    return trips.filter((trip) => !terminal.has(trip.status)).flatMap((trip) => trip.stops)
+    const stops = trips.filter((trip) => !terminal.has(trip.status)).flatMap((trip) => trip.stops)
+    return placeStops(dependencies.database, {
+      companyId,
+      ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+      stops,
+    })
   }
 
   const findTripIdOfStop = async (input: {

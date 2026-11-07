@@ -269,6 +269,7 @@ import {
   type GroupReturnFlowPorts,
 } from './whatsapp/application/whatsapp-group-return-flow.service.js'
 import { createWhatsAppStopCardReader } from './whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
+import { placeStops } from './whatsapp-commands/infrastructure/whatsapp-stop-place.reader.js'
 import { createDrizzleWhatsAppGroupRequestRepository } from './whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
 import { createGroupOccurrencePorts } from './whatsapp/infrastructure/whatsapp-group-occurrence.adapter.js'
 import { createDrizzleWhatsAppEvolutionWebhookRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution-webhook.repository.js'
@@ -1606,7 +1607,14 @@ export function bootstrap(): Bun.Server<undefined> {
   const listWhatsAppDriverStops = async (input: {
     readonly companyId: string
     readonly driverId: string
-  }) => (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap((trip) => trip.stops)
+  }) =>
+    placeStops(database.db, {
+      companyId: input.companyId,
+      logger,
+      stops: (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap(
+        (trip) => trip.stops,
+      ),
+    })
   const whatsappPreparationMedia = createWhatsAppDeliveryPreparationMedia({
     bucket: whatsappStorageBucket,
     storage: whatsappStorageGateway,

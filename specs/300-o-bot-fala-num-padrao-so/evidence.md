@@ -43,3 +43,21 @@
   espera mais de 10 s só no `migrate` do banco descartável e o comando não passou do 2º arquivo em ~6 min (duas tentativas,
   a primeira morta pelo `timeout 580`). A mudança é um módulo puro novo e não toca banco nem `test/integration/**`; rodar a
   integração completa na T2.1 (que mexe na consulta) com a máquina livre.
+
+## Fase 2
+
+### T2.1 (executor `sonnet`)
+
+- `WhatsAppStopCandidate` ganhou `city?`, `district?`, `coordinate?` (opcionais). Leitor novo
+  `whatsapp-commands/infrastructure/whatsapp-stop-place.reader.ts` (`readStopPlaces`, `placeStops`): UMA consulta
+  (`trip_documents` → `nfe_participants` papel `recipient` → `nfe_addresses`, nota não liberada, primeira nota com endereço
+  por parada); a caixa vem de `formatPlaceName` (`whatsapp-stop-place.policy.ts`: "SAO JOAQUIM DA BARRA" → "Sao Joaquim da Barra",
+  conectivos em minúscula, sem acento inventado). Ligado nos dois `listStops`: grupo (`whatsapp-group-stop.adapter.ts`
+  `listOpenStops`) e individual (`main.ts` `listWhatsAppDriverStops`). Falha na leitura devolve as paradas como vieram.
+- Integração `test/integration/whatsapp-stop-place.integration.ts` (Postgres real): nota com endereço, sem endereço, sem
+  bairro; coordenada da parada (string → número) e `queryCount() === 1`. Entrou na lista do `package.json`.
+- Gates: typecheck limpo · `bun test --timeout 120000` 14313 pass / 26 skip / 0 fail · eslint e prettier limpos ·
+  integração: o arquivo novo 1 pass, mais os que cobrem as consultas tocadas (`whatsapp-driver-journey-group`,
+  `whatsapp-driver-journey-direct`, `whatsapp-driver-flow-actions`, `driver-current-trip-query-count`) 10 pass / 0 fail no
+  total. **A suíte `test:integration` completa não rodou** (carga da máquina ~30, o `migrate` por arquivo passa de 10 s);
+  fica para a T6.2.
