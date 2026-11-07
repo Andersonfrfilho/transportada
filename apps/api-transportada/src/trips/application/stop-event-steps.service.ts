@@ -156,7 +156,19 @@ export async function applyStopArrival(
 ): Promise<{ readonly id: string }> {
   const { authorship, input, isOffice, recordedTogether, stop, transaction } = params
 
-  // Chegar de novo na mesma parada não reescreve a hora: a primeira é a que aconteceu.
+  /**
+   * Chegar de novo na mesma parada não grava outra chegada: a primeira é a que aconteceu. Vale para motorista e ajudante
+   * (app e WhatsApp); o escritório segue livre. Os canais usam chaves de idempotência diferentes e por isso não se reconhecem.
+   */
+  if (!isOffice && stop.arrivedAt !== null && recordedTogether === undefined) {
+    const existing = await transaction.findLatestEventForStop({
+      companyId: input.companyId,
+      kind: 'arrived',
+      stopId: input.stopId,
+    })
+    if (existing !== null) return existing
+  }
+
   if (stop.arrivedAt === null) {
     /**
      * Spec 206 D7 (M4): a chegada zera "a caminho" de toda a viagem no canal do motorista —
