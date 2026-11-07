@@ -273,7 +273,12 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
 
     async handleLocation({ companyId, groupJid, location, sender }) {
       const open = await repository.findOpen({ companyId, groupJid, now: dependencies.clock() })
-      if (open === null || open.ownerNumber !== sender || flow.locationReceived === undefined) {
+      if (
+        open === null ||
+        open.ownerNumber === '' ||
+        open.ownerNumber !== sender ||
+        flow.locationReceived === undefined
+      ) {
         return false
       }
       const outcome = await flow.locationReceived({
@@ -333,7 +338,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       }
 
       await link(open)
-      const isOwner = message.sender === open.ownerNumber
+      const isOwner = open.ownerNumber !== '' && message.sender === open.ownerNumber
       if (isCancelText(message.text) && (isOwner || message.via === 'mention')) {
         const owned = await flow.cancel?.(turnOf(message, open))
         if (owned !== undefined && owned !== null) return apply(message, open, owned)

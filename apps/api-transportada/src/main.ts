@@ -2261,10 +2261,11 @@ export function bootstrap(): Bun.Server<undefined> {
     repository: new DrizzleWhatsAppEvolutionRepository(database.db),
     secrets: reminderEvolutionSecrets,
   })
+  const reminderSessions = new SessionRepository(database.db)
   const deliverDriverStopReminder = createDeliverDriverStopReminderUseCase({
     channelResolver: createDrizzleDriverReminderChannelResolver({
       database: database.db,
-      sessions: new SessionRepository(database.db as never),
+      sessions: reminderSessions,
     }),
     driverOpenQuestions: createDriverOpenQuestionPort({
       collections: whatsappDriverCollections,
@@ -2272,7 +2273,7 @@ export function bootstrap(): Bun.Server<undefined> {
       groupAudio: whatsappGroupAudio,
       groupRequests: createDrizzleWhatsAppGroupRequestRepository(database.db),
       individualAudio: whatsappBotAudio,
-      sessions: new SessionRepository(database.db as never) as never,
+      sessions: reminderSessions,
     }),
     isEnabled: config.driverRemindersEnabled,
     logger,

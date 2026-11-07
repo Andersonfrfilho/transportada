@@ -8,10 +8,14 @@ import { describe, expect, test } from 'bun:test'
 
 import { ReminderPromptBusyError } from '../../src/driver-stop-reminders/domain/driver-stop-reminder.error.js'
 import { createGroupReminderPromptOpener } from '../../src/driver-stop-reminders/infrastructure/group-reminder-prompt-opener.js'
+import { createWhatsAppGroupRequestSessions } from '../../src/whatsapp/application/whatsapp-group-request.service.js'
 import type {
+  GroupReplySenderPort,
   GroupRequest,
+  GroupRequestFlow,
   GroupRequestRepositoryPort,
 } from '../../src/whatsapp/application/whatsapp-group-request.port.js'
+import { decideGroupMessage } from '../../src/whatsapp/domain/evolution-group-message.policy.js'
 
 const NOW = new Date('2026-11-07T17:00:00.000Z')
 const PARAMS = {
@@ -136,5 +140,42 @@ describe('abridor do passo reminder.stage (spec 299 T2.3, RF14)', () => {
       await world.opener.discard(PARAMS)
       expect(world.updates).toEqual([])
     }
+  })
+})
+
+describe('pedido sem dono nunca casa com remetente (spec 299, L4)', () => {
+  test('a política de mensagem não admite ninguém como dono de um pedido de dono vazio', () => {
+    for (const sender of ['', '5516999990001']) {
+      const decision = decideGroupMessage({
+        botLids: new Set(),
+        botNumber: '5516000000000',
+        fromMe: false,
+        groupRegistered: true,
+        mentionedJids: [],
+        requestOwner: '',
+        sender,
+        text: '1',
+      })
+      expect(decision.admitted).toBe(false)
+    }
+  })
+
+  test('a localização de remetente vazio não avança o pedido de dono vazio', async () => {
+    const locationReceived = async () => ({ kind: 'completed', replies: [] }) as never
+    const sessions = createWhatsAppGroupRequestSessions({
+      clock: () => NOW,
+      flow: { locationReceived } as unknown as GroupRequestFlow,
+      logger: { error: () => undefined, info: () => undefined, warn: () => undefined },
+      replies: { send: async () => undefined } as unknown as GroupReplySenderPort,
+      repository: {
+        findOpen: async () => request({ ownerNumber: '' }),
+      } as unknown as GroupRequestRepositoryPort,
+    })
+    const advanced = await sessions.handleLocation({
+      companyId: 'company-1',
+      groupJid: PARAMS.groupJid,
+      sender: '',
+    })
+    expect(advanced).toBe(false)
   })
 })
