@@ -92,7 +92,7 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
   `due_at <= agora`, por empresa com as duas chaves ligadas (D6).
 - **RF8** — Antes de enviar, confere, nesta ordem, e adia sem consumir tentativa quando alguma falha:
   1. a parada ainda está na etapa (sem chegada para `arrival`; não fechada para `settlement`) — senão fecha;
-  2. dentro do horário de funcionamento da empresa (configuração nova; feriado do calendário conta como fechado; faixa
+  2. dentro do horário de funcionamento da empresa (configuração nova; feriado nacional conta como fechado (dono, 2026-11-07); faixa
      vazia = sempre aberto) — senão adia para a próxima abertura;
   3. o motorista **não** tem pergunta aberta do bot em nenhum fluxo (grupo ou individual: o mesmo portão da oferta da
      próxima rota da 294) — senão adia 5 min;

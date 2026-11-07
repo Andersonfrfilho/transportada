@@ -582,3 +582,16 @@ transação** (versão mudou → `null` → `ReminderPromptBusyError`, nada envi
 reminder 151 pass, `driver-stop-reminder-delivery` 9, `driver-stop-reminders` 23, `whatsapp-evolution-webhook` 3,
 `whatsapp-group-request-repository` 5, `whatsapp-driver-journey-group` 2; typecheck, eslint e prettier limpos nos arquivos tocados.
 Gate completo (`bun run test` e o contrato com `--env-file`) fechado ao fim, na seção T2.5.
+
+### Feriado nacional fecha o horário (RF8.2) — decisão do dono, 2026-11-07
+
+**Decisão:** feriado como dia fechado = **só nacional**; estadual e municipal não fecham a cobrança (resolve a pendência da T2.2,
+"qual cidade vale"). O calendário nacional é lei e mora no código (`business-calendar/domain/national-holiday.policy.ts`,
+`listNationalHolidays`), sem consulta ao banco nem fornecedor externo; as tabelas `municipal_holidays`/`state_holidays` não são lidas.
+
+**Vermelho antes:** contrato `national-holiday-dates` → módulo ausente; integração `driver-stop-reminder-delivery` (Natal,
+sexta 2026-12-25, horário seg–sex 08–18) → `sent` em vez de `deferred`.
+**Implementação:** `readNationalHolidayDates` (ano corrente e o seguinte, no fuso da empresa) é o padrão do
+`DrizzleDriverStopReminderDeliveryRepository`. **Verde:** contrato 155 pass; integração: feriado nacional adia para segunda
+2026-12-28 08:00 (-03), feriado só municipal (`municipal_holidays` na sexta 2026-11-13) envia; `driver-stop-reminder-delivery` 11 pass.
+`spec.md` RF8.2 e `plan.md` (§ horário) reescritos para "feriado nacional (dono, 2026-11-07)".

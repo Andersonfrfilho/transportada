@@ -26,6 +26,7 @@ import type {
 import { DRIVER_STOP_REMINDER_DEFAULT_SETTINGS } from '../domain/driver-stop-reminder.constant.js'
 import type { OperatingHoursRange } from '../domain/driver-stop-reminder.types.js'
 import { readCurrentTripDriver } from './current-trip-driver.query.js'
+import { readNationalHolidayDates } from './national-holiday-dates.reader.js'
 import { resolveStopReminderClosedStatus } from './stop-reminder-closed-status.mapper.js'
 
 const DEFAULT_TIME_ZONE = 'America/Sao_Paulo'
@@ -42,7 +43,7 @@ export class DrizzleDriverStopReminderDeliveryRepository
 {
   public constructor(
     private readonly executor: TripQueryable,
-    private readonly readHolidayDates: StopReminderHolidayReader = async () => [],
+    private readonly readHolidayDates: StopReminderHolidayReader = readNationalHolidayDates,
   ) {}
 
   public async findReminder(params: {

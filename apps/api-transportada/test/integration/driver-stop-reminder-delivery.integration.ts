@@ -11,6 +11,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { companyDriverReminderSettings } from '../../src/database/company-driver-reminder-settings.schema.js'
 import { driverStopReminders } from '../../src/database/driver-stop-reminder.schema.js'
 import { fleetDriverWhatsappGroups, fleetDrivers } from '../../src/database/fleet.schema.js'
+import { municipalHolidays } from '../../src/database/delivery-client.schema.js'
 import { tripStops } from '../../src/database/trip.schema.js'
 import { whatsappEvolutionSettings } from '../../src/database/whatsapp-evolution.schema.js'
 import { createDeliverDriverStopReminderUseCase } from '../../src/driver-stop-reminders/application/deliver-driver-stop-reminder.use-case.js'
@@ -38,6 +39,11 @@ import {
 const GROUP = '120363000000000001@g.us'
 const DRIVER_PHONE = '16999990001'
 const DRIVER_WHATSAPP = '5516999990001'
+const WEEKDAY_BUSINESS_HOURS = [1, 2, 3, 4, 5].map((weekday) => ({
+  end: '18:00',
+  start: '08:00',
+  weekday,
+}))
 const FREE: DriverOpenQuestions = {
   hasOpenCollection: false,
   hasOpenGroupRequest: false,
@@ -105,10 +111,13 @@ async function readReminder(world: World) {
   return row
 }
 
-function build(world: World, options: { questions?: Partial<DriverOpenQuestions> } = {}) {
+function build(
+  world: World,
+  options: { now?: Date; questions?: Partial<DriverOpenQuestions> } = {},
+) {
   const sent: Sent[] = []
   const useCase = createDeliverDriverStopReminderUseCase({
-    clock: () => NOW,
+    clock: () => options.now ?? NOW,
     driverOpenQuestions: { read: async () => ({ ...FREE, ...options.questions }) },
     isEnabled: true,
     promptOpener: {
@@ -223,6 +232,50 @@ describe('a entrega do lembrete contra o Postgres (spec 299 T2.2)', () => {
       const row = await readReminder(world)
       expect(row.dueAt.toISOString()).toBe('2026-11-09T11:00:00.000Z')
       expect(row.attempts).toBe(0)
+    })
+  })
+
+  testWithPostgres('feriado nacional fecha o horário: adia para a próxima abertura', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      await database.db
+        .update(companyDriverReminderSettings)
+        .set({ operatingHours: WEEKDAY_BUSINESS_HOURS })
+        .where(eq(companyDriverReminderSettings.companyId, world.company.companyId))
+      // Sexta-feira 2026-12-25 (Natal), 14:00 em São Paulo: aberto pelo horário, fechado pelo feriado.
+      const { sent, useCase } = build(world, { now: new Date('2026-12-25T17:00:00.000Z') })
+
+      const result = await deliverReminder(world, useCase)
+
+      expect(result).toEqual({
+        nextDueAt: new Date('2026-12-28T11:00:00.000Z'),
+        outcome: 'deferred',
+      })
+      expect(sent).toEqual([])
+      expect((await readReminder(world)).attempts).toBe(0)
+    })
+  })
+
+  testWithPostgres('feriado só municipal não fecha o horário', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      await database.db
+        .update(companyDriverReminderSettings)
+        .set({ operatingHours: WEEKDAY_BUSINESS_HOURS })
+        .where(eq(companyDriverReminderSettings.companyId, world.company.companyId))
+      await database.db.insert(municipalHolidays).values({
+        cityIbgeCode: '3543402',
+        companyId: world.company.companyId,
+        holidayOn: '2026-11-13',
+        name: 'Feriado municipal de teste',
+      })
+      // Sexta-feira 2026-11-13, 14:00 em São Paulo: só a cidade fecha, e a cobrança não segue a cidade.
+      const { sent, useCase } = build(world, { now: new Date('2026-11-13T17:00:00.000Z') })
+
+      const result = await deliverReminder(world, useCase)
+
+      expect(result.outcome).toBe('sent')
+      expect(sent).toHaveLength(1)
     })
   })
 
