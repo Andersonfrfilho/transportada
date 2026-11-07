@@ -45,7 +45,7 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 
 > 🤖 Modelo: `sonnet` (T2.6 → `haiku`)
 
-- [ ] **T2.1** Conferir que o suporte de menção do grupo (pré-requisito, D8) está em `origin/staging`; o envio do
+- [x] **T2.1** Conferir que o suporte de menção do grupo (pré-requisito, D8) está em `origin/staging`; o envio do
       lembrete no grupo pede a menção do motorista da viagem por ele. Sem o suporte → **parar e perguntar** (não
       reimplementar). Aceite: contrato do lembrete com a menção pedida.
 - [ ] **T2.2** Extrair o portão "pergunta aberta" para `DriverOpenQuestionPort` sem mudar a oferta da próxima rota
