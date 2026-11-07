@@ -15,6 +15,7 @@ import { DriverStopReminderNotFoundError } from '../../src/driver-stop-reminders
 import { CATALOG_BOT_SPEECH } from '../../src/whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import { botSpeechNodeId } from '../../src/whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
 import { DRIVER_STOP_REMINDER_SPEECH_NODE } from '../../src/driver-stop-reminders/domain/driver-stop-reminder.constant.js'
+import type { StopCardView } from '../../src/whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
 import type { DriverOpenQuestions } from '../../src/whatsapp-commands/domain/driver-open-question.policy.js'
 
 const COMPANY_ID = 'company-1'
@@ -72,7 +73,35 @@ const CONTEXT: StopReminderDeliveryContext = {
   timeZone: 'America/Sao_Paulo',
 }
 
+const STOP_VIEW: StopCardView = {
+  card: {
+    address: 'RUA DAS FLORES, 12, SAO CARLOS, SP',
+    city: 'SAO CARLOS',
+    contractorName: 'Indústria *Alfa*',
+    coordinate: { latitude: '-21.5', longitude: '-47.9' },
+    documentNumbers: ['0017234'],
+    isAddressReliable: true,
+    recipientName: 'Cliente *Bom*',
+    sequence: 2,
+    stopId: 'stop-1',
+    totalStops: 5,
+    totalValue: '1234.56',
+    volumes: 3,
+  },
+}
+
+const STOP_BLOCK = [
+  '*Parada 2 de 5*',
+  '*NF 17234* · R$ 1.234,56',
+  '🏪 *Cliente Bom*',
+  '🏢 Contratante: Indústria Alfa',
+  '📍 RUA DAS FLORES, 12, SAO CARLOS, SP',
+  '🗺️ https://www.google.com/maps/search/?api=1&query=-21.5,-47.9',
+  '📦 3 volumes para entregar',
+].join('\n')
+
 type Overrides = {
+  readonly stopCardRead?: () => Promise<StopCardView | null>
   readonly context?: Partial<StopReminderDeliveryContext>
   readonly isEnabled?: boolean
   readonly ownPromptOpen?: boolean
@@ -89,6 +118,7 @@ function build(overrides: Overrides = {}) {
   const writes: Array<{ readonly kind: string; readonly [key: string]: unknown }> = []
   const sent: Array<{ body: string; companyId: string; groupJid: string; tripId: string }> = []
   const opened: unknown[] = []
+  const stopCardReads: unknown[] = []
   const reminder = { ...REMINDER, ...overrides.reminder }
   let questionReads = 0
   let recordSentCalls = 0
@@ -137,8 +167,24 @@ function build(overrides: Overrides = {}) {
     sender,
     sleep: async () => undefined,
     speech: CATALOG_BOT_SPEECH,
+    stopCards: {
+      read: (input) => {
+        stopCardReads.push(input)
+        return (overrides.stopCardRead ?? (async () => STOP_VIEW))()
+      },
+    },
   })
-  return { discards, opened, promptOpener, repository, sender, sent, useCase, writes }
+  return {
+    stopCardReads,
+    discards,
+    opened,
+    promptOpener,
+    repository,
+    sender,
+    sent,
+    useCase,
+    writes,
+  }
 }
 
 const run = (overrides?: Overrides, companyId = COMPANY_ID) =>
@@ -166,8 +212,11 @@ describe('envia o lembrete no grupo (spec 299 T2.2, RF9, RF10, RF12)', () => {
     expect(world.sent).toEqual([
       {
         body: [
-          '👋 Oi, Fulano! Já chegou na *NF 17234 · Cliente Bom*?',
+          '👋 Oi, Fulano! Já chegou na parada?',
           'Saída às *11:05* · chegada prevista *~11:40*',
+          '',
+          STOP_BLOCK,
+          '',
           '*1* - Cheguei',
           '*2* - Já entreguei (mande a foto do canhoto)',
           '*3* - Tive um problema (abrir ocorrência)',
@@ -192,19 +241,26 @@ describe('envia o lembrete no grupo (spec 299 T2.2, RF9, RF10, RF12)', () => {
   test('arrival sem ponto compartilhado: a linha da previsão some', async () => {
     const world = build({ reminder: { originKind: 'fallback' } })
     await world.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
-    expect(world.sent[0]?.body.split('\n')[1]).toBe('Saída às *11:05*')
+    expect(world.sent[0]?.body.split('\n').slice(0, 3)).toEqual([
+      '👋 Oi, Fulano! Já chegou na parada?',
+      'Saída às *11:05*',
+      '',
+    ])
   })
 
   test('settlement: texto da entrega com a hora da chegada', async () => {
     const world = build({
       reminder: { anchorAt: new Date('2026-11-07T14:41:00.000Z'), stage: 'settlement' },
-      context: { stop: { ...CONTEXT.stop, hasArrived: true, noteCount: 3 } },
+      context: { stop: { ...CONTEXT.stop, hasArrived: true } },
     })
     await world.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
     expect(world.sent[0]?.body).toBe(
       [
-        '👋 Oi, Fulano! Já entregou na *NF 17234 +2 · Cliente Bom*?',
+        '👋 Oi, Fulano! Já entregou na parada?',
         'Chegada às *11:41*',
+        '',
+        STOP_BLOCK,
+        '',
         '*1* - Entreguei (mande a foto do canhoto)',
         '*2* - Não entreguei',
         '*3* - Tive um problema (abrir ocorrência)',
@@ -347,6 +403,44 @@ describe('adia sem consumir tentativa (spec 299 T2.2, RF8)', () => {
       expect(world.sent).toEqual([])
     }
   })
+})
+
+describe('o bloco da parada na cobrança (spec 299, dono 2026-11-07)', () => {
+  test('lê o bloco da empresa e do motorista atual da parada do lembrete', async () => {
+    const world = build()
+    await world.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
+    expect(world.stopCardReads).toEqual([
+      { companyId: COMPANY_ID, driverId: 'driver-1', stopId: REMINDER.tripStopId },
+    ])
+  })
+
+  test.each([
+    ['o leitor devolve null', async () => null],
+    [
+      'o leitor falha',
+      async (): Promise<StopCardView | null> => {
+        throw new Error('db down')
+      },
+    ],
+  ])(
+    'melhor esforço: quando %s, o lembrete sai sem o bloco, sem linha em branco sobrando',
+    async (_name, stopCardRead) => {
+      const world = build({ stopCardRead })
+      const result = await world.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
+      expect(result.outcome).toBe('sent')
+      expect(world.sent[0]?.body).toBe(
+        [
+          '👋 Oi, Fulano! Já chegou na parada?',
+          'Saída às *11:05* · chegada prevista *~11:40*',
+          '',
+          '*1* - Cheguei',
+          '*2* - Já entreguei (mande a foto do canhoto)',
+          '*3* - Tive um problema (abrir ocorrência)',
+          '*4* - Ainda estou a caminho',
+        ].join('\n'),
+      )
+    },
+  )
 })
 
 describe('fecha quando a parada andou e respeita a empresa (spec 299 T2.2, RF8.1, BOLA)', () => {

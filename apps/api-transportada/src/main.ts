@@ -2298,6 +2298,7 @@ export function bootstrap(): Bun.Server<undefined> {
       },
     }),
     speech: whatsappBotSpeech,
+    stopCards: whatsappStopCards,
   })
   /** Spec 299 T2.3: o passo `reminder.stage` do grupo (a opção 4 adia pelo mesmo cadastro de lembretes). */
   const whatsappGroupReminder = createGroupReminderFlow({

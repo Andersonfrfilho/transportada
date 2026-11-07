@@ -687,3 +687,26 @@ Vermelho de L1 e L2 (correção revertida só na hora do teste, depois restaurad
 - L2, sem a guarda `dispatching_until` em `applyPostponement`: `expect(received).toBe(expected)`, `Expected: false`, `Received: true`. `(fail) ... (L2)`.
 
 Os dois testes verdes de novo com a correção restaurada; nenhum dos dois é trivial.
+
+## Bloco da parada na cobrança — 2026-11-07
+
+Decisão do dono: a cobrança traz o bloco completo da parada (o mesmo da "Chegada registrada", 294 RF28), sem "Próximo passo" e sem "Depois desta". Falas `lembreteChegada`, `lembreteChegadaSemPrevisao` e `lembreteEntrega` ganharam `{{blocoParada}}`; a variável `{{parada}}` ("NF … +N · Cliente") saiu, com seus casos de contrato. O nó fala*\* nasce do catálogo do código, então o grafo raiz acompanha; não há catálogo de variáveis de `fala*\*` no painel para atualizar.
+
+- Reuso: `describeStopCard` (`whatsapp-stop-card.policy.ts`) e `WhatsAppStopCardReader` (injetado como `stopCards` no use case de entrega, lido no envio com `companyId`, motorista atual e `tripStopId`). O dado de terceiro mantém o `plainText` que o bloco já aplica.
+- Melhor esforço (como a 294): leitor ausente, `null` ou com falha envia o lembrete sem o bloco, sem linha em branco sobrando.
+- Vermelho registrado antes da implementação: 15 falhas nos contratos `stop-reminder-message` e `deliver-driver-stop-reminder` (texto sem o bloco, variável `parada` ainda presente).
+- Verde: contratos 14446 pass / 0 fail; `bun run test` 14437 pass / 0 fail; integração `driver-stop-reminder-delivery` com o corpo exato abaixo.
+
+```text
+@5516999990001 👋 Oi, Motorista Um! Já chegou na parada?
+Saída às *12:00*
+
+*Parada 1 de 1*
+*NF <número>* · R$ 10.000,00
+📍 Centro, 100
+
+*1* - Cheguei
+*2* - Já entreguei (mande a foto do canhoto)
+*3* - Tive um problema (abrir ocorrência)
+*4* - Ainda estou a caminho
+```

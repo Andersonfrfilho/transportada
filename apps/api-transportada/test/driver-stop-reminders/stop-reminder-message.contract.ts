@@ -13,6 +13,7 @@ import {
   type StopReminderMessageInput,
 } from '../../src/driver-stop-reminders/domain/stop-reminder-message.policy.js'
 
+const STOP_BLOCK = '*Parada 2 de 5*\n*NF 17234* · R$ 1.234,56\n🏪 *Mercado Central*'
 const TIME_ZONE = 'America/Sao_Paulo'
 const DEPARTED_AT = new Date('2026-11-09T17:05:00.000Z') // 14:05 local
 const EXPECTED_AT = new Date('2026-11-09T17:40:00.000Z') // 14:40 local
@@ -22,7 +23,7 @@ function input(overrides: Partial<StopReminderMessageInput> = {}): StopReminderM
   return {
     stage: 'arrival',
     driverName: 'Carlos',
-    stop: { firstNoteNumber: '17234', noteCount: 1, clientName: 'Mercado Central' },
+    stopBlock: STOP_BLOCK,
     departedAt: DEPARTED_AT,
     expectedAt: EXPECTED_AT,
     arrivedAt: undefined,
@@ -48,7 +49,7 @@ describe('etapa arrival (RF9)', () => {
     expect(message.nodeKey).toBe('fala_lembrete_chegada')
     expect(message.variables).toEqual({
       nome: 'Carlos',
-      parada: 'NF 17234 · Mercado Central',
+      blocoParada: STOP_BLOCK,
       saida: '14:05',
       previsao: '14:40',
     })
@@ -59,16 +60,9 @@ describe('etapa arrival (RF9)', () => {
     expect(message.nodeKey).toBe('fala_lembrete_chegada_sem_previsao')
     expect(message.variables).toEqual({
       nome: 'Carlos',
-      parada: 'NF 17234 · Mercado Central',
+      blocoParada: STOP_BLOCK,
       saida: '14:05',
     })
-  })
-
-  test('parada com várias notas mostra a primeira e "+N" (N = restantes)', () => {
-    const message = buildStopReminderMessage(
-      input({ stop: { firstNoteNumber: '17234', noteCount: 3, clientName: 'Mercado Central' } }),
-    )
-    expect(message.variables.parada).toBe('NF 17234 +2 · Mercado Central')
   })
 
   test('opções: 1 Cheguei, 2 Já entreguei, 3 Tive um problema, 4 Ainda a caminho', () => {
@@ -103,7 +97,7 @@ describe('etapa settlement (RF10)', () => {
     expect(message.nodeKey).toBe('fala_lembrete_entrega')
     expect(message.variables).toEqual({
       nome: 'Carlos',
-      parada: 'NF 17234 · Mercado Central',
+      blocoParada: STOP_BLOCK,
       chegada: '14:41',
     })
   })
@@ -126,13 +120,20 @@ describe('etapa settlement (RF10)', () => {
       { choice: '4', action: 'postpone' },
     ])
   })
+})
 
-  test('várias notas: primeira e "+N" também aqui', () => {
-    const message = buildStopReminderMessage({
-      ...settlementInput,
-      stop: { firstNoteNumber: '900', noteCount: 2, clientName: 'Padaria Sol' },
-    })
-    expect(message.variables.parada).toBe('NF 900 +1 · Padaria Sol')
+describe('bloco da parada (spec 299, dono 2026-11-07)', () => {
+  test('o bloco pronto vai na variável blocoParada, sem reescrever nada', () => {
+    const block = '*Parada 1*\n📍 Rua A'
+    expect(buildStopReminderMessage(input({ stopBlock: block })).variables.blocoParada).toBe(block)
+    expect(
+      buildStopReminderMessage(input({ stage: 'settlement', stopBlock: block })).variables
+        .blocoParada,
+    ).toBe(block)
+  })
+
+  test('a variável antiga "parada" não existe mais', () => {
+    expect(buildStopReminderMessage(input()).variables).not.toHaveProperty('parada')
   })
 })
 

@@ -121,11 +121,8 @@ export type StopReminderGateResult =
 export type StopReminderMessageInput = {
   readonly stage: DriverStopReminderStage
   readonly driverName: string
-  readonly stop: {
-    readonly firstNoteNumber: string
-    readonly noteCount: number
-    readonly clientName: string
-  }
+  /** O bloco da parada já montado (vazio quando a leitura falhou: melhor esforço). */
+  readonly stopBlock: string
   readonly departedAt?: Date | undefined
   readonly expectedAt?: Date | undefined
   readonly arrivedAt?: Date | undefined

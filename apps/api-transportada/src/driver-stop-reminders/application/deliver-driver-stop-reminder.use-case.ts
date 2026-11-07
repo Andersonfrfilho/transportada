@@ -51,7 +51,11 @@ import type { DriverOpenQuestionPort } from '../../whatsapp-commands/application
 import type { BotSpeechKey } from '../../whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
 import type { WhatsAppBotSpeechPort } from '../../whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import { hasDriverOpenQuestion } from '../../whatsapp-commands/domain/driver-open-question.policy.js'
-import { plainText } from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
+import {
+  describeStopCard,
+  plainText,
+} from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
+import type { WhatsAppStopCardReader } from '../../whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { DriverStopReminderChannel } from '../../shared/driver-stop-reminder.constant.js'
 
@@ -100,6 +104,8 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
   readonly sender: GroupStopReminderSenderPort
   readonly sleep?: (milliseconds: number) => Promise<void>
   readonly speech: WhatsAppBotSpeechPort
+  /** Ausente, ou com a leitura fora, o lembrete sai sem o bloco da parada. */
+  readonly stopCards?: Pick<WhatsAppStopCardReader, 'read'>
 }): DeliverDriverStopReminderUseCase {
   const { repository } = dependencies
   const clock = dependencies.clock ?? (() => new Date())
@@ -173,6 +179,22 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
     return isOwnPrompt ? { ...questions, hasOpenGroupRequest: false } : questions
   }
 
+  async function readStopBlock(
+    reminder: DeliverableStopReminder,
+    context: StopReminderDeliveryContext,
+  ): Promise<string> {
+    const view = await dependencies.stopCards
+      ?.read({
+        companyId: reminder.companyId,
+        driverId: context.driver.id,
+        stopId: reminder.tripStopId,
+      })
+      .catch(() => null)
+    return view === null || view === undefined
+      ? ''
+      : describeStopCard(view.card, { volumesSuffix: ' para entregar' }).join('\n')
+  }
+
   async function renderBody(
     reminder: DeliverableStopReminder,
     context: StopReminderDeliveryContext,
@@ -186,20 +208,17 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       expectedAt: reminder.expectedAt ?? undefined,
       isSharedPoint: reminder.originKind === 'shared_point',
       stage: reminder.stage,
-      stop: {
-        clientName: plainText(context.stop.clientName),
-        firstNoteNumber: plainText(context.stop.firstNoteNumber),
-        noteCount: context.stop.noteCount,
-      },
+      stopBlock: await readStopBlock(reminder, context),
       timeZone: context.timeZone,
     })
     const key = SPEECH_KEY_BY_NODE[message.nodeKey]
     if (key === undefined) throw new Error('DRIVER_STOP_REMINDER_SPEECH_KEY_UNKNOWN')
-    return dependencies.speech.text({
+    const text = await dependencies.speech.text({
       companyId: reminder.companyId,
       key,
       params: message.variables,
     })
+    return text.replace(/\n{3,}/gu, '\n\n')
   }
 
   async function recordWithRetry(
