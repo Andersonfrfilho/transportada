@@ -21,6 +21,8 @@ import { DrizzleDriverStopReminderPostponementRepository } from '../../src/drive
 import { DrizzleDriverStopReminderDeliveryRepository } from '../../src/driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-delivery.repository.js'
 import { createGroupStopReminderSender } from '../../src/driver-stop-reminders/infrastructure/group-stop-reminder-sender.gateway.js'
 import { createDriverStopReminderRuntime } from '../../src/driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
+import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
+import { createWhatsAppStopCardReader } from '../../src/whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
 import { reportStopDeparture } from '../../src/trips/application/report-stop-departure.use-case.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { CATALOG_BOT_SPEECH } from '../../src/whatsapp-commands/application/whatsapp-bot-speech.service.js'
@@ -135,6 +137,11 @@ function build(
       },
     }),
     speech: CATALOG_BOT_SPEECH,
+    stopCards: createWhatsAppStopCardReader({
+      database: world.database.db,
+      listActiveTrips: (input) =>
+        new DrizzleCurrentDriverTripRepository(world.database.db).listActiveTrips(input),
+    }),
   })
   return { sent, useCase }
 }
@@ -163,17 +170,24 @@ describe('a entrega do lembrete contra o Postgres (spec 299 T2.2)', () => {
       })
       expect(sent).toHaveLength(1)
       expect(sent[0]).toMatchObject({ mentionNumber: DRIVER_WHATSAPP, number: GROUP })
-      const lines = sent[0]?.body.split('\n') ?? []
-      expect(lines[0]).toMatch(
-        new RegExp(`^@${DRIVER_WHATSAPP} 👋 Oi, Motorista Um! Já chegou na \\*NF \\d+ · \\*\\?$`),
+      const body = sent[0]?.body ?? ''
+      const noteNumber = /\*NF (\d+)\*/u.exec(body)?.[1]
+      expect(noteNumber).toBeDefined()
+      expect(body).toBe(
+        [
+          `@${DRIVER_WHATSAPP} 👋 Oi, Motorista Um! Já chegou na parada?`,
+          'Saída às *12:00*',
+          '',
+          '*Parada 1 de 1*',
+          `*NF ${noteNumber}* · R$ 10.000,00`,
+          '📍 Centro, 100',
+          '',
+          '*1* - Cheguei',
+          '*2* - Já entreguei (mande a foto do canhoto)',
+          '*3* - Tive um problema (abrir ocorrência)',
+          '*4* - Ainda estou a caminho',
+        ].join('\n'),
       )
-      expect(lines.slice(1)).toEqual([
-        'Saída às *12:00*',
-        '*1* - Cheguei',
-        '*2* - Já entreguei (mande a foto do canhoto)',
-        '*3* - Tive um problema (abrir ocorrência)',
-        '*4* - Ainda estou a caminho',
-      ])
       const row = await readReminder(world)
       expect(row).toMatchObject({
         attempts: 1,

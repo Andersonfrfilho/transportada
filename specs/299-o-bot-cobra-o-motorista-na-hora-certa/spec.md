@@ -97,25 +97,40 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
   3. o motorista **não** tem pergunta aberta do bot em nenhum fluxo (grupo ou individual: o mesmo portão da oferta da
      próxima rota da 294) — senão adia 5 min;
   4. vaga de envio do Evolution (289) dentro da espera do worker — senão adia para a vaga.
-- **RF9** — Mensagem da etapa `arrival` (nós `fala_*`, marcação da 294 RF34; dado de terceiro escapado):
+- **RF9** — Mensagem da etapa `arrival` (nós `fala_*`, marcação da 294 RF34; dado de terceiro escapado). **Bloco completo da
+  parada** (dono, 2026-11-07): `{{blocoParada}}` é o mesmo bloco da "Chegada registrada" (294 RF28), montado pelo sistema, sem
+  "Próximo passo" nem "Depois desta" (o menu 1–4 os substitui); leitura da parada no envio, da empresa e do motorista atual;
+  falha na leitura (melhor esforço, como na 294) envia sem o bloco:
 
   ```text
-  👋 Oi, @<telefone> <nome>! Já chegou na *NF 17234 · Cliente*?
+  👋 Oi, @<telefone> <nome>! Já chegou na parada?
   Saída às *14:05* · chegada prevista *~14:40*
+
+  *Parada 2 de 5*
+  *NF 17234* · R$ 1.234,56
+  🏪 *Cliente*
+  🏢 Contratante: Contratante
+  📍 Endereço da parada
+  🗺️ https://www.google.com/maps/search/?api=1&query=-21.5,-47.9
+  📦 3 volumes para entregar
+
   *1* - Cheguei
   *2* - Já entreguei (mande a foto do canhoto)
   *3* - Tive um problema (abrir ocorrência)
   *4* - Ainda estou a caminho
   ```
 
-  A linha da previsão some sem ponto compartilhado (RF6), ficando "Saída às _14:05_". A parada com várias notas mostra
-  a primeira e "+N".
+  A linha da previsão some sem ponto compartilhado (RF6), ficando "Saída às _14:05_". As várias notas aparecem no
+  bloco (`*NFs 17234, 17235*`).
 
-- **RF10** — Mensagem da etapa `settlement`:
+- **RF10** — Mensagem da etapa `settlement` (mesmo bloco completo da parada, dono 2026-11-07):
 
   ```text
-  👋 Oi, @<telefone> <nome>! Já entregou na *NF 17234 · Cliente*?
+  👋 Oi, @<telefone> <nome>! Já entregou na parada?
   Chegada às *14:41*
+
+  {{blocoParada}}
+
   *1* - Entreguei (mande a foto do canhoto)
   *2* - Não entreguei
   *3* - Tive um problema (abrir ocorrência)

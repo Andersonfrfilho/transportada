@@ -37,12 +37,6 @@ function formatLocalTime(moment: Date | undefined, timeZone: string): string {
   }).format(moment)
 }
 
-function buildStopLabel(stop: StopReminderMessageInput['stop']): string {
-  const extraNotes = stop.noteCount - 1
-  const suffix = extraNotes > 0 ? ` +${extraNotes}` : ''
-  return `NF ${stop.firstNoteNumber}${suffix} · ${stop.clientName}`
-}
-
 function buildOptions(
   actions: readonly StopReminderChoiceAction[],
 ): StopReminderMessage['options'] {
@@ -60,7 +54,7 @@ export function resolveStopReminderChoice(params: {
 }
 
 export function buildStopReminderMessage(input: StopReminderMessageInput): StopReminderMessage {
-  const base = { nome: input.driverName, parada: buildStopLabel(input.stop) }
+  const base = { nome: input.driverName, blocoParada: input.stopBlock }
   if (input.stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT) {
     return {
       nodeKey: DRIVER_STOP_REMINDER_SPEECH_NODE.settlement,
