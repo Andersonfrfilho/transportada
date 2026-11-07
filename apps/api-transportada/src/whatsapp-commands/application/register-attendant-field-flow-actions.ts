@@ -86,6 +86,12 @@ function readString(context: Record<string, unknown>, key: string): string | und
   return typeof value === 'string' ? value : undefined
 }
 
+function readStrings(context: Record<string, unknown>, key: string): readonly string[] {
+  const value = context[key]
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string')
+}
+
 function readCommand(context: Record<string, unknown>): AttendantFieldCommand | undefined {
   const value = context[KEY.fieldCommand]
   if (typeof value !== 'object' || value === null) return undefined
@@ -117,6 +123,7 @@ export function createAttendantFieldFlowActions(
 ): readonly WhatsAppFlowActionDefinition[] {
   const cleared = {
     [KEY.closeAnswer]: undefined,
+    [KEY.closeOpenNumbers]: undefined,
     [KEY.fieldCommand]: undefined,
     [KEY.listPage]: undefined,
     [KEY.tripAnswer]: undefined,
@@ -128,9 +135,14 @@ export function createAttendantFieldFlowActions(
     readonly session: Parameters<WhatsAppAuthorizedActionHandler>[0]['session']
     readonly trip: AttendantRoadTrip
   }) {
-    const open = countOpenTripDocumentsForClose(input.trip.documents)
-    await input.channel.sendText(input.session.whatsappNumber, ATTENDANT_TEXT.confirm(open))
-    return { context: { ...cleared, [KEY.tripId]: input.trip.id }, next: NODE.closeMenu }
+    const openNumbers = input.trip.documents
+      .filter(isOpenDocument)
+      .map((document) => document.number)
+    await input.channel.sendText(input.session.whatsappNumber, ATTENDANT_TEXT.confirm(openNumbers))
+    return {
+      context: { ...cleared, [KEY.closeOpenNumbers]: openNumbers, [KEY.tripId]: input.trip.id },
+      next: NODE.closeMenu,
+    }
   }
 
   const fieldCommand: WhatsAppAuthorizedActionHandler = async (input) => {
@@ -279,7 +291,7 @@ export function createAttendantFieldFlowActions(
     }
     try {
       await deps.closeTrip({ context: actor.scope, tripId })
-      await channel.sendText(to, ATTENDANT_TEXT.closed)
+      await channel.sendText(to, ATTENDANT_TEXT.closed(readStrings(context, KEY.closeOpenNumbers)))
     } catch {
       await channel.sendText(to, ATTENDANT_TEXT.closeFailed)
     }

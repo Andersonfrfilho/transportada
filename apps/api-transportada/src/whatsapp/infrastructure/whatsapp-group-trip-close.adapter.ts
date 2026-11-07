@@ -9,7 +9,7 @@ import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { DriverTrip } from '../../trips/application/find-current-driver-trip.use-case.js'
 import {
-  countOpenTripDocumentsForClose,
+  isTripDocumentOpenForClose,
   type TripCloseDocumentState,
 } from '../../trips/domain/trip-close.policy.js'
 import type { CloseTripInput } from '../../trips/application/trip.use-case.js'
@@ -41,7 +41,7 @@ export function createWhatsAppGroupTripClosePorts(dependencies: {
   readonly readCloseDocuments: (input: {
     readonly companyId: string
     readonly tripId: string
-  }) => Promise<readonly TripCloseDocumentState[]>
+  }) => Promise<readonly (TripCloseDocumentState & { readonly number: string })[]>
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
   readonly resolveSenderRole: ResolveWhatsAppSenderRole
 }): GroupTripCloseFlowPorts {
@@ -84,10 +84,11 @@ export function createWhatsAppGroupTripClosePorts(dependencies: {
       const [only] = trips
       if (only === undefined) return { kind: 'none' }
       if (trips.length > 1) return { kind: 'many' }
-      const openDocumentCount = countOpenTripDocumentsForClose(
-        await dependencies.readCloseDocuments({ companyId, tripId: only.id }),
-      )
-      return { kind: 'one', openDocumentCount, tripId: only.id }
+      const documents = await dependencies.readCloseDocuments({ companyId, tripId: only.id })
+      const openDocumentNumbers = documents
+        .filter(isTripDocumentOpenForClose)
+        .map((document) => document.number)
+      return { kind: 'one', openDocumentNumbers, tripId: only.id }
     },
 
     resolveSenderRole: dependencies.resolveSenderRole,

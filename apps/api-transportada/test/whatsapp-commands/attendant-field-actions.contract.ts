@@ -179,7 +179,7 @@ describe('encerrar a rota pelo bot', () => {
   test('com a NF a viagem é escolhida por ela e a contagem segue a regra do servidor (liberada não conta)', async () => {
     const t = setup()
     const next = await t.command({ documentNumber: '900', kind: 'close' })
-    expect(t.texts).toEqual([ATTENDANT_TEXT.confirm(1)])
+    expect(t.texts).toEqual([ATTENDANT_TEXT.confirm(['900'])])
     expect(next).toMatchObject({
       context: { [ATTENDANT_FLOW_CONTEXT_KEY.tripId]: 'TB' },
       next: ATTENDANT_FLOW_NODE.closeMenu,
@@ -207,7 +207,7 @@ describe('encerrar a rota pelo bot', () => {
       context: { [ATTENDANT_FLOW_CONTEXT_KEY.tripId]: 'TA' },
       next: ATTENDANT_FLOW_NODE.closeMenu,
     })
-    expect(t.texts).toEqual([ATTENDANT_TEXT.confirm(2)])
+    expect(t.texts).toEqual([ATTENDANT_TEXT.confirm(['017234', '17235'])])
   })
 
   test('uma viagem só na rua vai direto à confirmação; nenhuma avisa', async () => {
@@ -233,10 +233,11 @@ describe('encerrar a rota pelo bot', () => {
     const yes = setup()
     await yes.run(ATTENDANT_FLOW_ACTION_KIND.closeRouter, {
       [ATTENDANT_FLOW_CONTEXT_KEY.closeAnswer]: ATTENDANT_CLOSE_ANSWER.confirm,
+      [ATTENDANT_FLOW_CONTEXT_KEY.closeOpenNumbers]: ['900'],
       [ATTENDANT_FLOW_CONTEXT_KEY.tripId]: 'TB',
     })
     expect(yes.closed).toEqual([{ tripId: 'TB', userId: 'U9' }])
-    expect(yes.texts).toEqual([ATTENDANT_TEXT.closed])
+    expect(yes.texts).toEqual(['🏁 *Rota encerrada.* Ficaram sem baixa: NF `900`.'])
 
     const no = setup()
     await no.run(ATTENDANT_FLOW_ACTION_KIND.closeRouter, {

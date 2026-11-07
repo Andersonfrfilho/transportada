@@ -355,3 +355,23 @@
   14386 pass, 26 skip (os mesmos de antes), 0 fail · eslint e prettier limpos nos arquivos tocados · integração: `whatsapp-driver-journey-direct`,
   `whatsapp-driver-journey-group`, `whatsapp-group-boleto-return`, `whatsapp-occurrence-draft-repository` 19 pass, 0 fail · worker: `contractor-reply-parity`
   15 pass, `occurrence-conversation` 136 pass, 0 fail.
+
+### T5.3 (executor `sonnet`) — encerrar a rota diz quais notas ficam sem baixa (RF11)
+
+- Textos em `whatsapp-message-format.policy.ts` (`formatOpenDocumentsLine`, `formatTripClosed`), usados pelo grupo (`GROUP_TRIP_CLOSE_TEXT.confirm/closed`) e pela
+  individual (`ATTENDANT_TEXT.confirm/closed`). Pergunta do grupo: `🏁 *Encerrar a rota?*` + `⚠️ Ainda há *2 notas em aberto*: NF \`a\` e NF \`b\`.` + opções
+  `*1* - ✅ Sim, encerrar` / `*2* - ↩️ Não, deixar aberta`; sem nota aberta: `✅ Todas as notas já estão fechadas.`. Desfecho: `🏁 *Rota encerrada.* Ficaram sem baixa: NF \`a\` e NF \`b\`.`
+  (sem nota aberta, só `🏁 *Rota encerrada.*`). O que o encerramento faz não mudou (`trip.use-case.ts close`, motivo obrigatório).
+- Números: o fluxo já lia as notas da viagem para contar; `listTripCloseDocuments` passou a devolver também o número (`nfe_documents.number`, mesmo join do
+  `listAttendantRoadTrips`, uma consulta, sem N+1) e `findActiveTrip` devolve `openDocumentNumbers` no lugar de `openDocumentCount`. Os números ficam no estado do
+  fluxo (grupo: `state.openDocumentNumbers`; individual: contexto `attendantCloseOpenNumbers`, só números de nota, sem PII) e o desfecho os usa: são as notas
+  que a pergunta mostrou.
+- Corte: até 10 números (`STOP_LIST_VISIBLE_LIMIT`) e `e mais K`, igual à lista de paradas.
+- Divergências do desenho: (1) o desenho ainda traz "As notas em aberto voltam para o escritório tratar"; seguiu-se a RF11 e a decisão da 223 RF8 (nunca dizer que
+  voltam). (2) Desfecho em negrito (`*Rota encerrada.*`), como o resto do padrão, e não em itálico como a RF11 escreve. (3) Individual: a pergunta é o menu de botões
+  (`Encerrar a rota?`); a linha das notas vai na mensagem antes dele, sem o título. (4) "Certo, a rota continua aberta." (cancelar) não mudou: não está no desenho.
+- `fala_*`: nenhuma mensagem deste fluxo é `fala_*`; variáveis `{{…}}` novas: nenhuma.
+- Contrato: `test/whatsapp-commands/whatsapp-trip-close-flow-design.contract.ts` (`toBe` inteiro; 2 notas, 1, 0, 3 no desfecho, corte de 11, individual), ligado em
+  `whatsapp-commands.contract.test.ts`. Atualizados `group-attendant-close` e `attendant-field-actions`.
+- Gates: typecheck limpo · `bun --env-file=../../.env.test test --timeout 120000` 14417 testes: 14391 pass, 26 skip (os mesmos), 0 fail (`literal-message-text` verde) ·
+  eslint e prettier limpos · integração: nenhum arquivo de `test/integration` referencia o encerramento (grep trip-close/TripClose/attendant-field), nada a rodar.

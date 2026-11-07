@@ -132,3 +132,25 @@ export function formatNextStep(text: string): string {
 export function formatReplyHint(text: string): string {
   return `_${text}_`
 }
+
+function formatDocumentNumbers(numbers: readonly string[]): string {
+  const shown = numbers.slice(0, STOP_LIST_VISIBLE_LIMIT).map((number) => `NF \`${number}\``)
+  const rest = numbers.length - shown.length
+  if (rest > 0) return `${shown.join(', ')} e mais ${rest}`
+  const last = shown.pop()
+  return shown.length > 0 ? `${shown.join(', ')} e ${last}` : `${last}`
+}
+
+/** RF11: a linha da pergunta de encerrar a rota; dos números, até o corte da lista e "e mais K". */
+export function formatOpenDocumentsLine(numbers: readonly string[]): string {
+  if (numbers.length === 0) return '✅ Todas as notas já estão fechadas.'
+  const count = numbers.length === 1 ? '*1 nota em aberto*' : `*${numbers.length} notas em aberto*`
+  return `⚠️ Ainda há ${count}: ${formatDocumentNumbers(numbers)}.`
+}
+
+/** RF11: o desfecho de encerrar a rota; a nota em aberto fica sem baixa, nunca "volta ao escritório". */
+export function formatTripClosed(openNumbers: readonly string[]): string {
+  const head = '🏁 *Rota encerrada.*'
+  if (openNumbers.length === 0) return head
+  return `${head} Ficaram sem baixa: ${formatDocumentNumbers(openNumbers)}.`
+}

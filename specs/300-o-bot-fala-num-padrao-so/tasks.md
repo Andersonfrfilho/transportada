@@ -69,7 +69,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 - [x] **T5.1** Ocorrência (grupo e individual) e "só pelo aplicativo".
 - [x] **T5.2** Boleto: retorno e pedir de novo.
-- [ ] **T5.3** Encerrar a rota com as notas que ficam sem baixa (RF11).
+- [x] **T5.3** Encerrar a rota com as notas que ficam sem baixa (RF11).
 - [ ] **T5.4** Tempo esgotado, desistência, áudio e recusas da API.
 - [ ] **T5.5** Atendente: baixa em lote.
 

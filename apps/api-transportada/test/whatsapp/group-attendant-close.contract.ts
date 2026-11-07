@@ -95,7 +95,8 @@ function setup(
       closed.push({ phone: input.phone, tripId: input.tripId })
       return { kind: 'closed' }
     },
-    findActiveTrip: async () => options.trip ?? { kind: 'one', openDocumentCount: 2, tripId: 'T1' },
+    findActiveTrip: async () =>
+      options.trip ?? { kind: 'one', openDocumentNumbers: ['17234', '17235'], tripId: 'T1' },
     resolveSenderRole,
   })
   const flow = createGroupDriverFlow({
@@ -200,14 +201,12 @@ describe('encerrar a rota (RF21)', () => {
     const asked = await t.start(ATTENDANT, 'encerrar a rota')
     expect(asked).toMatchObject({
       kind: 'continue',
-      replies: [GROUP_TRIP_CLOSE_TEXT.confirm(2)],
+      replies: [GROUP_TRIP_CLOSE_TEXT.confirm(['17234', '17235'])],
       step: 'close.confirm',
     })
-    expect(GROUP_TRIP_CLOSE_TEXT.confirm(2)).toContain('há 2 notas em aberto')
-    expect(GROUP_TRIP_CLOSE_TEXT.confirm(2)).toContain('1 - Sim\n2 - Não')
     expect(await t.answer(ATTENDANT, '1')).toEqual({
       kind: 'done',
-      replies: [GROUP_TRIP_CLOSE_TEXT.closed],
+      replies: [GROUP_TRIP_CLOSE_TEXT.closed(['17234', '17235'])],
     })
     expect(t.closed).toEqual([{ phone: ATTENDANT, tripId: 'T1' }])
   })
@@ -258,13 +257,15 @@ describe('encerrar a rota (RF21)', () => {
   })
 
   test('todas as notas fechadas: a pergunta diz isso', async () => {
-    expect(GROUP_TRIP_CLOSE_TEXT.confirm(0)).toContain('Todas as notas já estão fechadas')
-    expect(GROUP_TRIP_CLOSE_TEXT.confirm(1)).toContain('há 1 nota em aberto')
+    expect(GROUP_TRIP_CLOSE_TEXT.confirm([])).toContain('✅ Todas as notas já estão fechadas.')
+    expect(GROUP_TRIP_CLOSE_TEXT.confirm(['17234'])).toContain('*1 nota em aberto*')
   })
 })
 
 describe('contagem de notas abertas é a regra do servidor (trip-close.policy)', () => {
-  const ports = (documents: { releasedAt: null | string; separationStatus: string }[]) =>
+  const ports = (
+    documents: { number: string; releasedAt: null | string; separationStatus: string }[],
+  ) =>
     createWhatsAppGroupTripClosePorts({
       bridge: {},
       listActiveTrips: async () => [{ id: 'T1', status: 'on_delivery_route', stops: [] } as never],
@@ -275,11 +276,11 @@ describe('contagem de notas abertas é a regra do servidor (trip-close.policy)',
 
   test('nota liberada e nota fechada não contam como abertas', async () => {
     const result = await ports([
-      { releasedAt: null, separationStatus: 'loaded' },
-      { releasedAt: '2026-11-01T10:00:00.000Z', separationStatus: 'loaded' },
-      { releasedAt: null, separationStatus: 'delivered' },
-      { releasedAt: null, separationStatus: 'returned' },
+      { number: '17234', releasedAt: null, separationStatus: 'loaded' },
+      { number: '17235', releasedAt: '2026-11-01T10:00:00.000Z', separationStatus: 'loaded' },
+      { number: '17236', releasedAt: null, separationStatus: 'delivered' },
+      { number: '17237', releasedAt: null, separationStatus: 'returned' },
     ]).findActiveTrip({ companyId: 'C1', driverId: 'D1' })
-    expect(result).toEqual({ kind: 'one', openDocumentCount: 1, tripId: 'T1' })
+    expect(result).toEqual({ kind: 'one', openDocumentNumbers: ['17234'], tripId: 'T1' })
   })
 })
