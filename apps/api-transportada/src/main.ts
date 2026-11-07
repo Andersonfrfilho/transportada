@@ -397,6 +397,10 @@ import { readDriverDeliveryProofs } from './trips/application/read-driver-delive
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
 import { readTripRouteGeometry as readTripRouteGeometryUseCase } from './trips/application/read-trip-route-geometry.use-case.js'
 import { freezeTripPlannedRoute } from './trips/application/freeze-trip-planned-route.use-case.js'
+import {
+  createDriverStopReminderRuntime,
+  type DriverStopReminderRuntime,
+} from './driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
 import { createRouteDepotQuery } from './trips/infrastructure/route-depot.query.js'
 import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/route-geometry-vehicle-axles.query.js'
@@ -1414,10 +1418,23 @@ export function bootstrap(): Bun.Server<undefined> {
    */
   const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db, logger)
   const whatsappDriverScoreRepository = new DrizzleDriverScoreRepository(database.db)
+  /** Spec 299: o lembrete ao motorista só existe com a chave global; desligada, nenhuma unidade de trabalho recebe o runtime. */
+  const driverStopReminders = config.driverRemindersEnabled
+    ? createDriverStopReminderRuntime({
+        database: database.db,
+        logger,
+        readDepot: (input) => createRouteDepotQuery(database.db).readDepot(input),
+        routing:
+          config.routingMatrixUrl === undefined
+            ? undefined
+            : createOsrmRouteGeometryGateway({ baseUrl: config.routingMatrixUrl }),
+      })
+    : undefined
   const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database.db,
     resolveStorageBucket(process.env),
     logger,
+    driverStopReminders,
   )
   const whatsappDeliveryProofRepository = new DrizzleDeliveryProofRepository(
     database.db,
@@ -2304,6 +2321,7 @@ export function bootstrap(): Bun.Server<undefined> {
         postalCodeProviders: config.postalCodeProviders,
         resolveClientIp,
         routingMatrixUrl: config.routingMatrixUrl,
+        driverStopReminders,
         routeOptimizationQueue,
         vehicleCatalog: config.vehicleCatalog,
       }),
@@ -2922,6 +2940,7 @@ type CreateApplicationRoutesParams = {
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
   readonly resolveClientIp: ClientIpResolver
   readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
+  readonly driverStopReminders: DriverStopReminderRuntime | undefined
   /** Ausente sem broker: sem quem resolva, a rota de sugestão não sobe (ADR-0044 §7). */
   readonly routeOptimizationQueue: RouteOptimizationQueue | undefined
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
@@ -2995,6 +3014,7 @@ function createApplicationRoutes({
   postalCodeProviders,
   resolveClientIp,
   routingMatrixUrl,
+  driverStopReminders,
   routeOptimizationQueue,
   vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
@@ -3247,6 +3267,7 @@ function createApplicationRoutes({
   const officeOccurrenceBatches = new DrizzleOfficeOccurrenceBatchUnitOfWork(
     database,
     resolveStorageBucket(environment),
+    driverStopReminders,
   )
   const tripValuationQuery = new DrizzleTripValuationQuery(database, logger)
   const routeGeometryVehicleAxlesQuery = createRouteGeometryVehicleAxlesQuery(database)
@@ -3273,6 +3294,7 @@ function createApplicationRoutes({
     database,
     resolveStorageBucket(environment),
     logger,
+    driverStopReminders,
   )
   /**
    * Spec 161 T8: a reserva e a liquidação da chave para o galpão — cada chamada abre sua própria

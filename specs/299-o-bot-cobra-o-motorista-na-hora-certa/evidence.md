@@ -269,3 +269,37 @@ de fala nunca literal: a política devolve chave de nó e variáveis. Contratos 
 - `bun run test`: 14267 pass, 35 skip, 0 fail (224 arquivos).
 - `bun --env-file=../../.env.test test --timeout 120000`: 14276 pass, 26 skip, 0 fail.
 - Integração: nenhum arquivo de `test/integration` tocado, não rodada.
+
+## T1.4 — 2026-11-06
+
+`DriverStopReminderService.onStopEvent` (`src/driver-stop-reminders/application/`) abre e fecha o lembrete **dentro da
+transação do evento**, pelo método novo `onStopEvent` do `DriverFieldReportTransactionPort` (no-op sem o runtime, isto é,
+com `DRIVER_REMINDERS_ENABLED=false`; a chave da empresa só vale no envio, plano D6). Pontos de ligação: `applyStopDeparture`
+e `applyStopArrival` (só na primeira chegada; `recordedTogether` repassado), `closeStopAndTrip` (entrega/devolução que fecha a
+parada), `cancelStopDeparture`, `reportStopOccurrence`, `registerDriverOccurrence` e o lote do escritório
+(`office-occurrence-batch.service.ts`); encerramento e cancelamento da viagem fecham por `UPDATE` em
+`DrizzleTripRepository.close` / `DrizzleTripRouteRepository.markCancelled` (`closePendingStopReminders`). A abertura grava a
+reserva (45 min + tolerância, `origin_kind='fallback'`); depois do commit a unidade de trabalho chama
+`runtime.refineAfterCommit`, que mede a estrada no OSRM (origem: ponto da saída › parada anterior › empresa) e faz `UPDATE`
+por `id` + `version` (versão +1). OSRM fora, sem geocódigo ou sem origem: fica `fallback`, sem erro. Status de fechamento:
+`closed` (chegada, baixa, ocorrência, encerramento) ou `cancelled` (substituído, saída cancelada, viagem cancelada).
+`drizzle-driver-stop-reminder-refinement.repository.ts` entrou em `EVENT_LOCATION_READERS` (lê lat/lng do `departed`).
+
+**Vermelho → verde:**
+- Antes (teste escrito primeiro): `test/integration/driver-stop-reminders.integration.ts` — 0 pass, 1 fail, 1 error
+  (`Cannot find module .../driver-stop-reminder.runtime.js`: o runtime não existia).
+- Agora: 15 pass, 0 fail (saída com reserva e depois OSRM; reserva visível antes do OSRM responder; OSRM fora; chegada fecha e
+  abre entrega; chegada do escritório abre entrega; chegada junto com a baixa não abre; entrega e devolução; ocorrência; saída
+  cancelada; viagem encerrada e cancelada; evento repetido; saída de outra parada substitui; chave global desligada).
+- Contrato com dublês: `test/driver-stop-reminders/driver-stop-reminder-service.contract.ts` (5 casos).
+
+**Gates (de `apps/api-transportada`):**
+- `bun run typecheck`: limpo. eslint e prettier nos arquivos tocados: limpos.
+- `bun run test`: 14272 pass, 35 skip, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000`: 14281 pass, 26 skip, 0 fail.
+- Integração tocada: `driver-stop-reminders.integration.ts` (adicionada ao `test:integration`) 15 pass.
+- Integração dos use cases alterados (18 arquivos: stop-event-sequence, stop-order-guard, me-trip-departure, trip-field-office,
+  trip-field-authorship, event-location-stamp, delivered-moment, trip-cancel-releases-notes, trip-lifecycle,
+  occurrence-driver-lock, occurrence-duplicate-request, stop-occurrence-photo, trip-occurrence-attachment,
+  address-arrival-correction, next-stop-offer, trip-retire-stop, trip-crew-transfer, whatsapp-driver-flow-actions):
+  187 pass, 0 fail. A suíte inteira fica para a CI.

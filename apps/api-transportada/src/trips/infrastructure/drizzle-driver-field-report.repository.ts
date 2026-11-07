@@ -44,6 +44,11 @@ import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip
 import { resolveRecipientDisplayName } from '../domain/delivery-contact.policy.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
 import type { ApiLogger } from '../../shared/api.types.js'
+import type {
+  DriverStopReminderEventSink,
+  OnStopEventParams,
+} from '../../driver-stop-reminders/application/driver-stop-reminder.port.js'
+import type { DriverStopReminderRuntime } from '../../driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
 import { correctAddressFromArrival } from './arrival-address-correction.support.js'
 import { saveTripOccurrence } from './delivery-proof-read.support.js'
 import { findDriverLockingOccurrence } from './occurrence-driver-lock.query.js'
@@ -101,15 +106,29 @@ export class DrizzleDriverFieldReportUnitOfWork implements DriverFieldReportUnit
     private readonly database: Database,
     private readonly bucket: string,
     private readonly logger?: ApiLogger,
+    private readonly reminders?: DriverStopReminderRuntime,
   ) {}
 
-  public execute<TResult>(
+  public async execute<TResult>(
     operation: (transaction: DriverFieldReportTransactionPort) => Promise<TResult>,
   ): Promise<TResult> {
-    return this.database.transaction((transaction) =>
-      operation(new DrizzleDriverFieldReportTransaction(transaction, this.bucket, this.logger)),
+    const openedReminderIds: string[] = []
+    const result = await this.database.transaction((transaction) =>
+      operation(
+        new DrizzleDriverFieldReportTransaction(transaction, this.bucket, this.logger, {
+          openedReminderIds,
+          sink: this.reminders?.createEventSink(transaction),
+        }),
+      ),
     )
+    this.reminders?.refineAfterCommit(openedReminderIds)
+    return result
   }
+}
+
+type StopReminderHook = {
+  readonly openedReminderIds: string[]
+  readonly sink: DriverStopReminderEventSink | undefined
 }
 
 export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactionPort {
@@ -117,7 +136,14 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     private readonly transaction: Transaction,
     private readonly bucket: string,
     private readonly logger?: ApiLogger,
+    private readonly stopReminders?: StopReminderHook,
   ) {}
+
+  public async onStopEvent(input: OnStopEventParams): Promise<void> {
+    if (this.stopReminders?.sink === undefined) return
+    const { openedReminderIds } = await this.stopReminders.sink.onStopEvent(input)
+    this.stopReminders.openedReminderIds.push(...openedReminderIds)
+  }
 
   public correctAddressFromArrival(
     params: Parameters<DriverFieldReportTransactionPort['correctAddressFromArrival']>[0],

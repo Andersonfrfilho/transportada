@@ -146,6 +146,7 @@ import type {
   TransferTripCrewParams,
   TransferTripCrewResult,
 } from '../application/trip-crew-transfer.types.js'
+import { closePendingStopReminders } from '../../driver-stop-reminders/infrastructure/close-pending-stop-reminders.persistence.js'
 import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
@@ -312,6 +313,11 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         fromStatus: tripRow.status,
         onBehalfOfDriverId: input.onBehalfOfDriverId,
         toStatus: 'completed',
+        tripId: input.tripId,
+      })
+      await closePendingStopReminders(transaction, {
+        companyId: input.companyId,
+        reason: 'trip_closed',
         tripId: input.tripId,
       })
 

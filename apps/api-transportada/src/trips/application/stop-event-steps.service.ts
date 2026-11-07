@@ -123,6 +123,13 @@ export async function applyStopDeparture(
     stopId: input.stopId,
     tappedAt: resolvedTappedAt,
   })
+  await transaction.onStopEvent({
+    channel: authorship.channel,
+    companyId: input.companyId,
+    kind: 'departed',
+    occurredAt: input.now,
+    target: { stopId: input.stopId },
+  })
 
   return { changed: true, id: event.id }
 }
@@ -191,7 +198,7 @@ export async function applyStopArrival(
   })
   if (audit !== undefined) await transaction.recordOfficeAudit(audit)
 
-  return transaction.recordEvent({
+  const event = await transaction.recordEvent({
     actorUserId: input.actorUserId,
     authorship,
     companyId: input.companyId,
@@ -210,6 +217,17 @@ export async function applyStopArrival(
     ...(recordedTogether === undefined ? {} : { recordedTogether: true }),
     stopId: input.stopId,
   })
+  if (stop.arrivedAt === null) {
+    await transaction.onStopEvent({
+      channel: authorship.channel,
+      companyId: input.companyId,
+      kind: 'arrived',
+      occurredAt: input.now,
+      recordedTogether: recordedTogether !== undefined,
+      target: { stopId: input.stopId },
+    })
+  }
+  return event
 }
 
 /** ADR-0067 §3, spec 156 T15 A1: a mesma janela de "Entregue em", com os códigos da chegada. */
