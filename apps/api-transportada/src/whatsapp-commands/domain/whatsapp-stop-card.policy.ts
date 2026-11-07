@@ -111,10 +111,27 @@ export function describeStopShort(
     .trim()
 }
 
+const roundMinutes = (durationSeconds: number): number =>
+  Math.max(1, Math.round(durationSeconds / 60))
+
+/** "108 km", "3,2 km": inteiro a partir de 10 km (a lista de paradas, spec 300 RF4). */
+export function describeListDistance(distanceMetres: number): string {
+  const tenths = Math.round(distanceMetres / 100)
+  if (tenths >= 100) return `${String(Math.round(distanceMetres / 1000))} km`
+  return `${(tenths / 10).toFixed(1).replace('.', ',')} km`
+}
+
+/** "~8 min", "~1 h 25 min" (a lista de paradas, spec 300 RF4). */
+export function describeListDuration(durationSeconds: number): string {
+  const minutes = roundMinutes(durationSeconds)
+  if (minutes < 60) return `~${String(minutes)} min`
+  return `~${String(Math.floor(minutes / 60))} h ${String(minutes % 60).padStart(2, '0')} min`
+}
+
 /** "📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~14:35 (25 min)_". */
 export function describeStopEta(eta: StopCardEta, now: Date): string {
   const kilometres = (eta.distanceMetres / 1000).toFixed(1).replace('.', ',')
-  const minutes = Math.max(1, Math.round(eta.durationSeconds / 60))
+  const minutes = roundMinutes(eta.durationSeconds)
   const arrival = formatBotClock(new Date(now.getTime() + eta.durationSeconds * 1000))
   return `📏 *${kilometres} km* do seu último ponto · ⏱️ _chegada prevista ~${arrival} (${minutes} min)_`
 }

@@ -61,3 +61,24 @@
   `whatsapp-driver-journey-direct`, `whatsapp-driver-flow-actions`, `driver-current-trip-query-count`) 10 pass / 0 fail no
   total. **A suíte `test:integration` completa não rodou** (carga da máquina ~30, o `migrate` por arquivo passa de 10 s);
   fica para a T6.2.
+
+### T2.2 (executor `sonnet`)
+
+- Porta `trips/application/route-distance-table.port.ts` (`readDistancesFrom(origin, destinations)` → um item por destino,
+  `null` na parada sem estrada, `null` inteiro se o serviço falha) e adaptador
+  `trips/infrastructure/osrm-route-distance-table.gateway.ts` (OSRM `/table`, `sources=0&annotations=duration,distance`, 5 s,
+  resposta validada com zod, nunca lança). Leitor `whatsapp-commands/infrastructure/whatsapp-stop-list-travel.reader.ts`
+  (`createWhatsAppStopListTravelReader`, devolve `{ byStopId: { distance, duration }, isLocationMissing }`); a origem é a do
+  bloco (`resolveEtaOrigin` + último ponto, agora `readLastSharedPoint` exportado de `whatsapp-stop-card.reader.ts`, sem mudar
+  comportamento). Formatação reaproveita o arquivo do bloco: `describeListDistance`/`describeListDuration` em
+  `whatsapp-stop-card.policy.ts` ("108 km", "3,2 km", "~45 min", "~1 h 25 min"; `roundMinutes` compartilhado com
+  `describeStopEta`).
+- Contrato `test/whatsapp-commands/stop-list-travel.contract.ts` (7 testes, `toEqual`): com ponto (uma chamada, só paradas com
+  coordenada), sem ponto (nenhuma chamada, `isLocationMissing`), OSRM fora (sem linha, sem rodapé, log sem PII), uma parada
+  sem estrada, sem serviço configurado, formatação, e o gateway (URL, célula `null`, resposta malformada/HTTP/rede → `null`).
+- **Ligação no `main.ts` adiada para a T3.2**: o eslint reprova `whatsappStopListTravel` sem consumidor
+  (`no-unused-vars`); a T3.2 cria o primeiro consumidor (a lista) e liga `createOsrmRouteDistanceTableGateway` no mesmo
+  `config.routingMatrixUrl`, `readOriginPoint` com `readLastSharedPoint(database.db, …)`.
+- Gates: typecheck limpo · `bun test --timeout 120000` 14321 pass / 26 skip / 0 fail · eslint e prettier limpos.
+  `test:integration` não rodou (carga ~30); a T2.2 não toca banco além da extração de `readLastSharedPoint`, sem integração
+  que a cubra diretamente. Suíte completa fica para a T6.2.

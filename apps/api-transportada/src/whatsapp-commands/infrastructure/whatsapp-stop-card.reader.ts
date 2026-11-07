@@ -75,6 +75,33 @@ export function resolveEtaOrigin(
   return last === undefined ? null : { kinds: AT_STOP_EVENTS, stopId: last.id }
 }
 
+/** O evento com coordenada mais recente dos eventos de `origin` — a origem da estrada (294 RF30). */
+export async function readLastSharedPoint(
+  database: Database,
+  companyId: string,
+  origin: EtaOrigin,
+): Promise<{ readonly latitude: number; readonly longitude: number } | null> {
+  const rows = (await database.execute(sql`
+    select event.latitude::text as latitude, event.longitude::text as longitude
+      from trip_stop_events event
+     where event.company_id = ${companyId}::uuid and event.stop_id = ${origin.stopId}::uuid
+       and event.kind in (${sql.join(
+         origin.kinds.map((kind) => sql`${kind}`),
+         sql`, `,
+       )})
+       and event.latitude is not null and event.longitude is not null
+     order by event.created_at desc
+     limit 1`)) as unknown as readonly {
+    readonly latitude?: unknown
+    readonly longitude?: unknown
+  }[]
+  const latitude = Number(rows[0]?.latitude)
+  const longitude = Number(rows[0]?.longitude)
+  return rows[0] === undefined || !Number.isFinite(latitude) || !Number.isFinite(longitude)
+    ? null
+    : { latitude, longitude }
+}
+
 function shownDocuments(stop: DriverTripStop) {
   const open = stop.documents.filter((document) => !CLOSED.has(document.separationStatus))
   return open.length > 0 ? open : stop.documents
@@ -141,28 +168,6 @@ export function createWhatsAppStopCardReader(dependencies: {
     return typeof name === 'string' ? name.trim() : ''
   }
 
-  async function lastPointOf(companyId: string, origin: EtaOrigin) {
-    const rows = (await database.execute(sql`
-      select event.latitude::text as latitude, event.longitude::text as longitude
-        from trip_stop_events event
-       where event.company_id = ${companyId}::uuid and event.stop_id = ${origin.stopId}::uuid
-         and event.kind in (${sql.join(
-           origin.kinds.map((kind) => sql`${kind}`),
-           sql`, `,
-         )})
-         and event.latitude is not null and event.longitude is not null
-       order by event.created_at desc
-       limit 1`)) as unknown as readonly {
-      readonly latitude?: unknown
-      readonly longitude?: unknown
-    }[]
-    const latitude = Number(rows[0]?.latitude)
-    const longitude = Number(rows[0]?.longitude)
-    return rows[0] === undefined || !Number.isFinite(latitude) || !Number.isFinite(longitude)
-      ? null
-      : { latitude, longitude }
-  }
-
   async function etaOf(input: {
     readonly card: StopCard
     readonly companyId: string
@@ -172,7 +177,7 @@ export function createWhatsAppStopCardReader(dependencies: {
     if (dependencies.routing === undefined || card.coordinate === null) return undefined
     const etaOrigin = resolveEtaOrigin(input.trip, card.stopId)
     if (etaOrigin === null) return undefined
-    const origin = await lastPointOf(companyId, etaOrigin)
+    const origin = await readLastSharedPoint(database, companyId, etaOrigin)
     if (origin === null) return undefined
     const road = await dependencies.routing.readRouteGeometry([
       origin,
